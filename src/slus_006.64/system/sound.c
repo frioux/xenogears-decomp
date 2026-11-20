@@ -327,6 +327,12 @@ typedef struct {
 } SoundCdSeqState; // Size: 0x68
 extern SoundCdSeqState* g_SoundCdSequencerState;
 extern AudioManager* g_SoundEffectAudioManager;
+// Script interpreter tables (the bytes live in the exe's .sdata, one entry per command).
+typedef u8* (*SoundScriptHandler)(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements);
+extern SoundScriptHandler g_SoundScriptHandlers[];
+extern u8 D_80050824[]; // bytes of arguments the command carries, indexed by command - 0x80
+extern u8 D_800509B0[]; // default duration of a note command in ticks, 0 = the script carries it
+extern u8 D_80050A94[]; // offset of the note command's pitch from the element's octave
 
 s32 SoundTimerInterruptHandler(void);
 void SoundSpuIRQHandler(void);
@@ -3428,7 +3434,210 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
 }
 */
 
+// 69.00%, retail's 1436 bytes against this body's 1448. The whole script walk is here - the note
+// command with its two selector tables, the handler dispatch, the loop-marker scan, the gate/duration
+// arithmetic and the envelope reset - and it is within 3 instructions of retail's size, but the
+// register allocation cascades: retail defines $s6 (count) before $s2 (the element) in the prologue,
+// hangs the two constants in $s7 = 1 / $s8 = 0x90 where this body gets them the other way round, and
+// reloads active_flag a second time for the 0xF8FF mask where gcc cse keeps the first load. Retail's
+// frame is 0x48 (32 bytes of locals), this body's 0x40, so the original source had two more spilled
+// values than this spelling. Written from the assembly in one pass; nothing here has been tuned.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
+/*
+// Steps one element's script until the next note starts: a note command carries the pitch and
+// its duration selectors, everything else is a control command handled above.
+void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
+    u8* pScript;
+    u32 activeFlags;
+    u32 noteStarted;
+    s32 cmd;
+    u8 selector;
+    u8 note;
+    u8 length;
+    s32 ticks;
+    s32 delta;
+    u16 gateTicks;
+    AudioLoop* pLoop;
+    AudioEnvelope* pEnvelope;
+    s32 i;
+    s32 next;
+
+    do {
+        if (pElement->active_flag != 0) {
+            if (pElement->fermataDuration == 0) {
+                noteStarted = 0;
+                activeFlags = pElement->active_flag;
+                pScript = (u8*)pElement->pScriptIP;
+                pElement->active_flag = activeFlags & ~0x700;
+
+                for (;;) {
+                    cmd = *pScript++;
+                    if (cmd < 0x80) {
+                        // A note: bit 3 of the active flags keeps the running volume for a tie.
+                        if (!(pElement->active_flag & 0x8)) {
+                            pElement->volume = cmd << 8;
+                        }
+                        pElement->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
+
+                        selector = *pScript;
+                        note = pElement->octave + D_80050A94[selector];
+                        pElement->nextNote = note;
+                        pScript++;
+
+                        length = D_800509B0[selector];
+                        if (length == 0) {
+                            length = *pScript++;
+                        }
+
+                        pElement->fermataDuration = length;
+                        pElement->voice_data.releaseRate = pElement->releaseRate;
+                        pElement->voice_data.flags |= SOUND_VOICE_FLAG_RELEASE;
+
+                        if (pElement->active_flag & SOUND_CHANNEL_PERCUSSION_ACTIVE) {
+                            SoundSetElementPercussionTone(pManager, pElement, note);
+                        } else {
+                            pElement->note = ((note << 8) + pElement->detune + pElement->toneTune) << 16;
+                        }
+
+                        pElement->status_flags |= SOUND_STATUS_PLAYING_NTOE;
+                        pElement->active_flag |= SOUND_CHANNEL_NOTE_ACTIVE | SOUND_CHANNEL_HOLD_NOTE;
+                        if (activeFlags & SOUND_CHANNEL_REST_NOTE) {
+                            pElement->status_flags |= 1;
+                        }
+                        noteStarted = 1;
+
+                        if (pElement->active_flag & SOUND_CHANNEL_CHANGE_INSTRUMENT) {
+                            pElement->active_flag &= ~SOUND_CHANNEL_CHANGE_INSTRUMENT;
+                            pElement->voice_data.flags = 0xFFFF;
+                            pElement->status_flags |= SOUND_STATUS_VOLUME_CHANGE | SOUND_STATUS_PLAYING_NTOE;
+                        }
+                    } else {
+                        pScript = g_SoundScriptHandlers[cmd - 0x80](pScript, pManager, pElement);
+                        if (pElement->active_flag == 0) {
+                            pManager->activeElementMask &= ~(1 << pElement->elementIndex);
+                            break;
+                        }
+                    }
+
+                    if (pElement->status_flags & (SOUND_STATUS_VOLUME_CHANGE | 0x400)) {
+                        break;
+                    }
+                }
+
+                pElement->pScriptIP = (u32)pScript;
+
+                if (pElement->active_flag != 0) {
+                    if (pElement->active_flag & 0x800) {
+                        pElement->active_flag |= SOUND_STATUS_PLAYING_NTOE;
+                    }
+
+                    pLoop = &pElement->loops[pElement->loopIndex];
+                    cmd = *pScript;
+                    if (cmd >= 0x80) {
+                        do {
+                            if (cmd == 0x90) {
+                                pScript = pElement->savedScriptIP;
+                                if (pScript == NULL) {
+                                    break;
+                                }
+                            } else if (cmd == 0x80 || (cmd >= 0xB0 && cmd <= 0xB1)) {
+                                pElement->status_flags &= ~SOUND_STATUS_PLAYING_NTOE;
+                                break;
+                            } else if (cmd == 0x81) {
+                                pElement->status_flags |= SOUND_STATUS_PLAYING_NTOE;
+                                break;
+                            } else {
+                                if (cmd == 0x99) {
+                                    if (pLoop->count != 0) {
+                                        pScript = pLoop->start;
+                                        continue;
+                                    }
+                                    pLoop--;
+                                }
+
+                                if (cmd == 0x9A && pLoop->count == 0) {
+                                    pScript = pLoop->end;
+                                    pLoop--;
+                                } else {
+                                    pScript += D_80050824[cmd - 0x80];
+                                }
+                            }
+                        } while ((cmd = *pScript) >= 0x80);
+                    }
+
+                    if (cmd < 0x80) {
+                        pElement->status_flags |= 0x1000;
+                    } else {
+                        pElement->status_flags &= ~0x1000;
+                    }
+
+                    ticks = pElement->durationBias + pElement->fermataDuration;
+                    if ((s16)ticks <= 0) {
+                        ticks = pElement->fermataDuration + ticks;
+                        pElement->durationBias = pElement->durationBias + (u8)pElement->fermataDuration;
+                    }
+
+                    if (pElement->active_flag & 0x600) {
+                        gateTicks = 0x7FFF;
+                    } else if (pElement->gateRatio == 0x10) {
+                        gateTicks = ticks;
+                    } else {
+                        if (pElement->gateRatio == 0xF) {
+                            gateTicks = ticks - 1;
+                        } else {
+                            gateTicks = (u32)((s16)ticks * pElement->gateRatio) >> 4;
+                        }
+
+                        if (gateTicks == 0) {
+                            gateTicks = 1;
+                        }
+                    }
+
+                    *(u32*)&pElement->fermataDuration = (s16)ticks + (gateTicks << 16);
+
+                    if (noteStarted != 0) {
+                        if (pElement->rampFlags & 0x4) {
+                            delta = (pElement->nextNote - pElement->currentNote) << 24;
+                            if (delta != 0) {
+                                pElement->rampFlags |= 0x1;
+                                pElement->noteFrames = pElement->slideFrames;
+                                pElement->note = ((pElement->currentNote << 8) + pElement->detune + pElement->toneTune) << 16;
+                                pElement->noteStep = delta / pElement->slideFrames;
+                            }
+                        }
+
+                        pElement->currentNote = pElement->nextNote;
+
+                        if (pElement->rampFlags & 0x100) {
+                            pElement->elementVolumeFrames = pElement->ramp.counter;
+                            pElement->elementVolumeStep = pElement->ramp.step;
+                            pElement->elementVolume = pElement->ramp.target << 16;
+                            pElement->rampFlags |= 0x8;
+                        }
+
+                        pEnvelope = pElement->envelopes;
+                        for (i = NUM_VOICE_ENVELOPES; i != 0; i--) {
+                            if ((pEnvelope->flags & 3) == 3) {
+                                pEnvelope->value = 0;
+                                pEnvelope->count = 1;
+                                pEnvelope->delayCount = pEnvelope->delayReload;
+                                pEnvelope->rampLevel = pEnvelope->rampStep;
+                                pElement->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
+                                pEnvelope->flags &= ~0xC;
+                            }
+                            pEnvelope++;
+                        }
+                    }
+                }
+            }
+        }
+
+        pElement++;
+        next = count - 1;
+        count = next;
+    } while ((s16)next != 0);
+}
+*/
 
 void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
     SoundPercussionTone* pTone;

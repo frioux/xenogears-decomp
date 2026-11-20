@@ -219,7 +219,7 @@ typedef struct {
     /* 0x2A  */ s16 unk2A;
     /* 0x2C  */ u32 pWds; // SoundWDSEntry*
     /* 0x30  */ SoundVoiceData voice_data;
-    /* 0x5C  */ s16 fermataDuration;
+    /* 0x5C  */ u16 fermataDuration; // read with lhu everywhere, 0 = the note has ended
     /* 0x5E  */ u16 restTicks; // ticks left before the note rests, counted down with fermataDuration
     /* 0x60  */ s8 durationBias; // added to fermataDuration to give the note's length in ticks
     /* 0x61  */ u8 unk_0x61;
