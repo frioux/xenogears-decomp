@@ -694,7 +694,7 @@ void BattleInitializeStage(void) {
     u8 *pBuf;
     s32 i;
     s32 j;
-    mem_addr pWord;
+    u32 *pWord;
     s32 blockPoolSize;
 
     pBuf = g_BattleBlockPool;
@@ -709,10 +709,11 @@ void BattleInitializeStage(void) {
     BattleCreateSpritePool(g_BattleSpritePool, g_BattleStageData->spritePoolSize);
     BattleClearBlockSlots();
     j = 0x1F;
-    pWord = (mem_addr)&g_BattleImageList;
+    // clears the 0x80 bytes of slot parameter words that end at g_BattleImageList
+    pWord = (u32 *)&g_BattleImageList;
     for (; j >= 0; j--) {
-        *(u32 *)pWord = 0;
-        pWord -= 4;
+        *pWord = 0;
+        pWord--;
     }
     // 20 entries
     for (i = 19; i >= 0; i--) {
