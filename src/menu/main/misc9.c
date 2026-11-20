@@ -27,6 +27,15 @@
 // column's string, 0x1D..0x1F the three strings func_801DCE60 renders.
 #define MENU_PANEL_COLUMN_STRING 0x1C
 #define MENU_PANEL_HEADING_STRING 0x1E
+// The one character with two weapon slots: its equipment panel carries a second
+// weapon slot group, which the left/right input and the weapon move below both
+// switch between.
+#define MENU_TWO_WEAPON_SLOT_CHARACTER_ID 4
+// Slot groups of the equipment panel: one byte per weapon slot, then one per
+// extra weapon slot, then one per accessory slot.
+#define MENU_PANEL_WEAPON_ID 0x29C
+#define MENU_PANEL_EXTRA_WEAPON_IDS 0x2A1
+#define MENU_PANEL_ACCESSORY_IDS 0x2A6
 
 extern u8 g_MenuItemRowStringIds[][8]; // 8 u8 string IDs per panel
 extern u8 g_MenuCharacterRowStringIds[][6]; // 6 u8 string IDs per panel
@@ -922,66 +931,25 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
-/* Best: 96.76%, 1272 bytes, frame 0x28 (retail 1276 = 319 insns, ours 318).
-   Semantics: arg2 != 0 selects the 0x2A1 slot group (characters
-   .extraWeaponIds when arg3 == 0, gears .extraWeaponIds otherwise, both
-   weapons inventory); arg2 == 0 selects the 0x29C/0x2A5 groups (arg1 == 0 is
-   the primary weapon slot, characters.weaponId / gears.weaponId, weapons
-   inventory; arg1 != 0 is accessory slot arg1 - 1: characters.accessorySlots
-   and the 200-entry accessory inventory when arg3 == 0, gears.accessorySlots
-   and the 150-entry gearParts inventory otherwise). Only the arg2 != 0 blocks
-   clamp a per-weapon-id byte at g_GameState+0x2286 (characters) / +0x22B6
-   (gears) to 100 and zero the incoming item when the old value was below 100.
-   The tail walks the inventory: decrement the removed id, increment the
-   arriving id (or take the first free slot with quantity 1), then clamp every
-   quantity (0 clears the id, >= 100 becomes 99). Result is 1 only when the
-   selected character is id 4 (the two-weapon-slot one) and its weapon slot was
-   already taken.
-   SEVEN MEASURED EDITS, 77.65 -> 91.87 -> 96.76:
-   1. ONE SHARED EXIT (77.65 -> 87.43): `if (updated == 0) goto done;` ... with a
-      single `done: return result;` at the end. The early-return spelling makes
-      gcc 2.6.0 place the return block inline and invert the branch, which also
-      cascades through every later block's registers.
-   2. characterId u_char, not s32 (87.43 -> 88.70, permuter find).
-   3. gearId u_char, not s32 (88.70 -> 90.94).
-   4. pQuantities/count assigned TWICE, once per arm of an `if (arg1 != 0)`
-      (90.94 -> 91.87, permuter find). Both arms are identical text; the
-      duplication is what lands pQuantities in t3 and count in t1 instead of
-      t4/t1 with an extra move.
-   5. panelItem, a `u_char` local holding the 0x2A1 panel byte, used in BOTH
-      arg2 != 0 arms (91.87 -> 93.12 -> 96.76). It is what makes gcc copy the
-      arg1 parameter out at entry (`move a0,a1` in retail: ours `move a0,a1`
-      too now) and hoists the panel load above the gears load.
-   6. READ THE SLOT FIRST in the two inventory-argument arms: `slotItem`/
-      `newItem` before the `pIds`/`pQuantities`/`count` triple (93.12 -> 95.30).
-      That reorders which g_GameState offset cse picks as the anchor for the
-      block: retail's accessory arm materialises g_GameState+0x2DF (the
-      pre-indexed slotItem base) and derives accessoryIDs/accessoryQuantities
-      from it with plain addiu rather than the other way round.
-   7. `if (arg3 == 0) ... else ...` in both polarities measures the same; the
-      current form keeps retail's mask-before-la order.
-   RESIDUAL, 4 BYTES: retail materialises g_GameState+0x1D9C (weaponIDs) with a
-   full `lui`/`addiu` in the arg3 == 0 arm on top of the gearWeaponsIds one;
-   cc1 folds it to `addiu t2,t2,-900` because cse knows t2 holds
-   g_GameState+0x2120 across the branch. MEASURED DEAD for that fold: if/else
-   in both polarities, a ternary, `if (!arg3)`, a one-case switch, `&arr[0]`,
-   a (u32) cast, a second statement in the arm, pQuantities in the arm, and
-   -O1/-Os/2.7.2/2.7.2-cdk/2.6.0 -G0. Two full la of one symbol only appear
-   when the two arms are separate blocks (see MenuReturnWeaponToInventory), so
-   the fold needs a block cse cannot follow from the first la. The remaining
-   diffs are four `addu` operand orders (retail base-first at the panel and
-   currentCharacterIDs addresses, ours offset-first - the embedded-assignment
-   lever was measured worse on them) and this la; the branch offsets are all
-   just the 4-byte shift.
-   permute.sh --minutes 4 -j 2 from the 91.87 body found edit 5. Not re-run
-   from this body. No jump table in this stub. */
-/*
+// Moves the item the equipment panel has selected into (or out of) the
+// inventory. arg2 selects a weapon slot group (the extra weapon slots) and arg1
+// the slot; with arg2 == 0, arg1 == 0 is the primary weapon and arg1 != 0
+// accessory slot arg1 - 1. arg3 picks the character or its gear, which also
+// picks the inventory the item is taken from: weapons, accessories or gear
+// parts. The result is 1 when the item cannot be moved - the character has two
+// weapon slots (id MENU_TWO_WEAPON_SLOT_CHARACTER_ID) and the slot is taken.
+//
+// pQuantities is assigned in BOTH arms of the arg3 test although both values
+// derive from pIds: retail emits two full `la` of g_GameState there, and cse
+// folds the second into `addiu t2,t2,-900` when the arms are single statements,
+// which leaves the body 4 bytes short. The duplicated addiu is then merged back
+// into one after the join by cross-jumping.
 u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
     u_char* pIds;
     u_char* pQuantities;
     u_char panelItem;
     u_char* pSlot;
+    u_char* pPanelItem;
     u_char characterId;
     u_char gearId;
     u_char slotItem;
@@ -994,27 +962,27 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
 
     added = 1;
     updated = 1;
-    pIds = g_GameState.gearWeaponsIds;
     result = 0;
     if (arg3 == 0) {
         pIds = g_GameState.weaponIDs;
-    }
-    if (arg1 != 0) {
-        pQuantities = pIds - MAX_INVENTORY_WEAPONS;
-        count = MAX_INVENTORY_WEAPONS;
+        pQuantities = g_GameState.weaponQuantities;
     } else {
-        pQuantities = pIds - MAX_INVENTORY_WEAPONS;
-        count = MAX_INVENTORY_WEAPONS;
+        pIds = g_GameState.gearWeaponsIds;
+        pQuantities = g_GameState.gearWeaponsQty;
     }
+    count = MAX_INVENTORY_WEAPONS;
 
     if (arg2 != 0) {
         if (arg3 == 0) {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-            panelItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
+            pPanelItem = (u_char*)g_Menu->pEquipmentPanel + MENU_PANEL_EXTRA_WEAPON_IDS;
+            panelItem = pPanelItem[arg1];
             pSlot = &g_GameState.characters[characterId].extraWeaponIds[arg1];
             slotItem = *pSlot;
             newItem = panelItem;
             if (slotItem != 0) {
+                // No GameState field covers 0x2286/0x22B6: one byte per weapon id,
+                // clamped to the inventory maximum.
                 if (((u_char*)&g_GameState)[0x2286 + *pSlot] < MAX_INVENTORY_WEAPONS) {
                     newItem = 0;
                 }
@@ -1025,36 +993,40 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
             }
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-            panelItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
+            pPanelItem = (u_char*)g_Menu->pEquipmentPanel + MENU_PANEL_EXTRA_WEAPON_IDS;
+            panelItem = pPanelItem[arg1];
             gearId = g_GameState.characters[characterId].gearId;
             pSlot = &g_GameState.gears[gearId].extraWeaponIds[arg1];
             slotItem = *pSlot;
             newItem = panelItem;
-            if (slotItem != 0) {
+            // Opposite polarity to the arm above: retail falls through into the
+            // shared `*pSlot = newItem` block from this arm, and jumps to it from
+            // the character arm.
+            if (slotItem == 0) {
+                *pSlot = newItem;
+                updated = 0;
+            } else {
                 if (((u_char*)&g_GameState)[0x22B6 + *pSlot] < MAX_INVENTORY_WEAPONS) {
                     newItem = 0;
                 }
                 ((u_char*)&g_GameState)[0x22B6 + *pSlot] = MAX_INVENTORY_WEAPONS;
-            } else {
-                *pSlot = newItem;
-                updated = 0;
             }
         }
     } else if (arg3 == 0) {
         if (arg1 == 0) {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
             slotItem = g_GameState.characters[characterId].weaponId[0];
-            newItem = ((u_char*)g_Menu->pEquipmentPanel)[0x29C];
+            newItem = ((u_char*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID];
             if (slotItem == 0) {
                 g_GameState.characters[characterId].weaponId[0] = newItem;
                 updated = 0;
-            } else if (characterId == 4) {
+            } else if (characterId == MENU_TWO_WEAPON_SLOT_CHARACTER_ID) {
                 result = 1;
             }
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
             slotItem = g_GameState.characters[characterId].accessorySlots[arg1 - 1];
-            newItem = ((u_char*)g_Menu->pEquipmentPanel + (arg1 - 1))[0x2A6];
+            newItem = ((u_char*)g_Menu->pEquipmentPanel + arg1)[MENU_PANEL_ACCESSORY_IDS - 1];
             pIds = g_GameState.accessoryIDs;
             pQuantities = g_GameState.accessoryQuantities;
             count = MAX_INVENTORY_ACCESSORIES;
@@ -1064,18 +1036,19 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
             gearId = g_GameState.characters[characterId].gearId;
             slotItem = g_GameState.gears[gearId].weaponId[0];
-            newItem = ((u_char*)g_Menu->pEquipmentPanel)[0x29C];
+            newItem = ((u_char*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID];
             if (slotItem == 0) {
                 g_GameState.gears[gearId].weaponId[0] = newItem;
                 updated = 0;
-            } else if (characterId == 4) {
+            } else if (characterId == MENU_TWO_WEAPON_SLOT_CHARACTER_ID) {
                 result = 1;
             }
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
             gearId = g_GameState.characters[characterId].gearId;
             slotItem = g_GameState.gears[gearId].accessorySlots[arg1 - 1];
-            newItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A5 + arg1];
+            pPanelItem = (u_char*)g_Menu->pEquipmentPanel + (MENU_PANEL_ACCESSORY_IDS - 1);
+            newItem = pPanelItem[arg1];
             pIds = g_GameState.gearPartsIds;
             pQuantities = g_GameState.gearPartsQty;
             count = MAX_INVENTORY_ITEMS;
@@ -1101,13 +1074,13 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
                 break;
             }
         }
-    }
-    if (added != 0) {
-        for (i = 0; i < count; i++) {
-            if (pIds[i] == 0) {
-                pIds[i] = newItem;
-                pQuantities[i] = 1;
-                break;
+        if (added != 0) {
+            for (i = 0; i < count; i++) {
+                if (pIds[i] == 0) {
+                    pIds[i] = newItem;
+                    pQuantities[i] = 1;
+                    break;
+                }
             }
         }
     }
@@ -1121,7 +1094,6 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
 done:
     return result;
 }
-*/
 void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     s32 i;
 
@@ -1131,20 +1103,20 @@ void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
 
     if (arg1 == 0) {
         for (i = 0; i < MENU_CHARACTER_WEAPON_SLOT_COUNT; i++) {
-            ((u8*)g_Menu->pEquipmentPanel + i)[0x29C] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_WEAPON_ID] =
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i];
-            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_EXTRA_WEAPON_IDS] =
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[i];
-            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_ACCESSORY_IDS] =
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i];
         }
     } else {
         for (i = 0; i < MENU_GEAR_WEAPON_SLOT_COUNT; i++) {
-            ((u8*)g_Menu->pEquipmentPanel + i)[0x29C] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_WEAPON_ID] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i];
-            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_EXTRA_WEAPON_IDS] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds[i];
-            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_ACCESSORY_IDS] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i];
         }
     }
@@ -1156,24 +1128,24 @@ void MenuCopyEquipmentFromPanel(u_char arg0, u_char arg1) {
     if (arg1 == 0) {
         for (i = 0; i < MENU_CHARACTER_WEAPON_SLOT_COUNT; i++) {
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i] =
-                ((u8*)g_Menu->pEquipmentPanel + i)[0x29C];
+                ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_WEAPON_ID];
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[i] =
-                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1];
+                ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_EXTRA_WEAPON_IDS];
         }
         for (i = 0; i < MENU_ACCESSORY_SLOT_COUNT; i++) {
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i] =
-                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6];
+                ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_ACCESSORY_IDS];
         }
     } else {
         for (i = 0; i < MENU_GEAR_WEAPON_SLOT_COUNT; i++) {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i] =
-                ((u8*)g_Menu->pEquipmentPanel + i)[0x29C];
+                ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_WEAPON_ID];
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds[i] =
-                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1];
+                ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_EXTRA_WEAPON_IDS];
         }
         for (i = 0; i < MENU_ACCESSORY_SLOT_COUNT; i++) {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i] =
-                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6];
+                ((u8*)g_Menu->pEquipmentPanel + i)[MENU_PANEL_ACCESSORY_IDS];
         }
     }
 }
@@ -1549,7 +1521,7 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
                 break;
             case MENU_INPUT_RIGHT:
             case MENU_INPUT_LEFT:
-                if (g_Menu->pManager->currentCharacterIDs[arg0] == 4) {
+                if (g_Menu->pManager->currentCharacterIDs[arg0] == MENU_TWO_WEAPON_SLOT_CHARACTER_ID) {
                     group ^= 1;
                     prevSlot = 0xFF;
                     needsOpen = 1;
