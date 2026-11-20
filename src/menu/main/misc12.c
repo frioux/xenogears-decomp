@@ -116,6 +116,17 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
      ours stores them after.
    Two runs of the permuter on this body found only new_var temporaries (1150 ->
    1135), so this is a hand-shape problem, not a random-edit one.
+   Round 318 (measured, all in this unit under 2.6.0): the "addu a0,a2,s1" base-first
+   order needs the slot offset to be a source VARIABLE, not an inline `index * 0x87C`
+   - a cc1_probe replica shows `s32 slot = idx * 0x87C; (u8*)base + slot` emitting
+   `addu $3,$3,$2` (base first) where the inline product emits `addu $2,$2,$3`, and
+   the twin's embedded-assignment idiom does NOT help here (82.33%, 604, still
+   mirrored). But every body that introduces the variable loses retail's register
+   plan: i and slot swap out of s0/s1 (the multiply chain lands the offset in s0 and
+   i's `move zero` defers into the jal delay slot), giving 70.93/584, 71.04/576 and
+   76.25/584 for the slot-local spellings with primOffset kept versus inlined. So the
+   missing piece is a source shape that makes i's zero-init stay in the prologue
+   while slot is a variable - nothing tried here does both.
 #define MENU_SLOT_STAT_DIGIT_COUNT 3
 #define MENU_SLOT_STAT_DIGIT_START 6
 void func_801E6CFC(u8 index, u8* pEntry) {
@@ -900,6 +911,8 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
    gcc 2.7.2 scores this function worse (99.15 under try_flags.sh).
    Round 285: re-measured from the stored body, unchanged (99.61%, 612 bytes, `move a1,s1`
    against retail's `andi a1,s1,0xff` on the last call only).
+   Round 318: a no-op redefinition (`mode = mode;`) before the last call changes nothing
+   (still 99.61%, `move a1,s1`), so the value-tracking elision stands as the diagnosis.
    void func_801E8F60(u8 arg0, u8 arg1) {
        s32 mode;
        s32 i;
