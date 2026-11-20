@@ -105,7 +105,7 @@ typedef struct {
 extern BattleScreenFadeTask *g_BattleScreenFadeTask;
 extern BattleScaleTask *g_BattleScaleTask;
 extern u8 g_BattleScreenFadeOwnBuffer;
-extern u32 g_BattleImageTask;
+extern BattleImageTask *g_BattleImageTask; // the image task, while one is running
 // the two statically allocated fades: one the overlay owns, one shared
 extern BattleScreenFadeTask g_BattleOwnedScreenFadeTask;
 extern BattleScreenFadeTask g_BattleStaticScreenFadeTask;
@@ -185,7 +185,7 @@ s32 BattleGetPrimitiveBufferSize(BattleModelFrame *pFrame) {
 
     count = 0;
     total = 0;
-    pPrim = (BattleModelPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
+    pPrim = (BattleModelPrim *)(pFrame->primsOffset + (u32)pFrame);
     n = pFrame->primCount;
     for (; count != n; count++) {
         total += (pPrim->outLen + 1) * 4;
@@ -228,7 +228,7 @@ void BattleExpandModelPrims(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 sha
     s32 i;
     s32 kind;
 
-    pSrc = (BattleModelPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
+    pSrc = (BattleModelPrim *)(pFrame->primsOffset + (u32)pFrame);
     count = pFrame->primCount;
     // assigned in two steps on purpose: that is what keeps the mask's result in
     // the abr register instead of the loaded mode's
@@ -495,7 +495,7 @@ void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
         return;
     }
     pFrame->flags |= BATTLE_MODEL_FLAG_PARTS_SCALED;
-    pPart = (SVECTOR *)((u32)pFrame->partsOffset + (u32)pFrame);
+    pPart = (SVECTOR *)(pFrame->partsOffset + (u32)pFrame);
     n = pFrame->partCount;
     for (i = 0; i != n; i++) {
         pPart[i].vx <<= shift;
@@ -510,7 +510,7 @@ void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
 void BattleEmitDrawTPage(u8 *pOt) {
     u8 *pBuf = g_GfxCurWorkBuffer;
 
-    if ((u8 *)(pBuf + sizeof(DR_TPAGE)) < g_GfxCurWorkBufferEnd) {
+    if (pBuf + sizeof(DR_TPAGE) < g_GfxCurWorkBufferEnd) {
         g_GfxCurWorkBuffer = pBuf + sizeof(DR_TPAGE);
         *(DR_TPAGE *)pBuf = g_BattleDrawTPage;
         AddPrim(pOt, pBuf);
@@ -993,7 +993,7 @@ void BattleShadeModelPrims(BattleModelFrame *pFrame, u8 *pDst, u8 *pDstCopy, s32
     s32 i;
     s32 kind;
 
-    pSrc = (BattleModelPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
+    pSrc = (BattleModelPrim *)(pFrame->primsOffset + (u32)pFrame);
     count = pFrame->primCount;
     for (i = 0; i != count; i++) {
         kind = pSrc->code & BATTLE_PRIM_KIND_MASK;
@@ -1367,9 +1367,9 @@ void BattleStepScreenFade(void *pArg) {
     pTask->curB = pTask->targetB - step[2];
 }
 
-void BattleFreeScreenFadeTask(u8 *pEntry) {
-    WorkListRemoveTask(pEntry + 0x1C);
-    TimerWorkListRemoveTask(pEntry);
+void BattleFreeScreenFadeTask(BattleScreenFadeTask *pTask) {
+    WorkListRemoveTask(&pTask->drawEntry);
+    TimerWorkListRemoveTask(&pTask->timerEntry);
     g_BattleScreenFadeTask = NULL;
 }
 
@@ -1491,7 +1491,7 @@ void BattleStepImageTaskValue(BattleImageTask *pArg) {
     if (timer != 0) {
         n = timer - 1;
         num = n * 0x20 / pTask->length;
-        pArg->timer = n;
+        pTask->timer = n;
         base = pTask->end;
         delta = (base - pTask->start);
         // one statement per step: folding the multiply, the divide and the
@@ -1505,10 +1505,10 @@ void BattleStepImageTaskValue(BattleImageTask *pArg) {
         pOnFree(pTask);
     }
 }
-void BattleFreeImageTask(u8 *pEntry) {
-    WorkListRemoveTask(pEntry + 0x1C);
-    TimerWorkListRemoveTask(pEntry);
-    HeapFree(pEntry);
+void BattleFreeImageTask(BattleImageTask *pTask) {
+    WorkListRemoveTask(&pTask->drawEntry);
+    TimerWorkListRemoveTask(&pTask->timerEntry);
+    HeapFree(pTask);
     g_BattleImageTask = 0;
     BattleUploadAndFreeImageResources();
 }
