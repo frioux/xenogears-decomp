@@ -117,7 +117,7 @@ extern u16 g_BattleSlotBitMask;
 extern u8 g_BattleSedsLoaded;
 extern u8 g_BattleHexDigitTable[];
 extern u8 g_BattleStateWork[];
-extern u32 g_BattleDecimalDivisors[];
+extern u32 D_800C37A4[];
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 
@@ -389,52 +389,51 @@ void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
     p[0] = n;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
-/* best 92.86% (164 bytes, retail 168).  Structure is right: the loop is entered
-   through a PEELED first remainder (`value %= *pTab; pTab--;` before the loop,
-   which is why retail's preheader `j`s into the latch block and the latch is also
-   the entry), then the body divides by *pTab, n--, and the latch re-remainders with
-   *pTab before pTab--.  The two `lw 0(v1)` are NOT CSE'd because the `sb` of the
-   digit sits between them.  The two remaining diffs: retail emits the preheader
-   `lui/addiu` of g_BattleDecimalDivisors BEFORE the `sll v1,a2,2`, and retail's exit path has a
-   DEAD `addiu v1,v1,4` (a giv bump-back no source shape here reproduces; 3-minute
-   permuter run from this body: NONE, base=160).  Parked pending that dead insn.
-   s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
-       u8 *pDst;
-       u8 digit;
-       s32 count;
-       u32 *pTab;
+// Writes value as decimal digits into pBuf: pBuf[0] receives the number of
+// characters written and pBuf[1..] hold the digits (a leading '-' for a negative
+// value). n is the number of leading places leading zeros are suppressed in, so
+// the widest field is n + 1 characters; started != 0 keeps those leading zeros,
+// and base is added to every digit. Returns the number of characters written.
+// D_800C37A4 holds the decimal place divisors, 10^1 through 10^9.
+s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
+    u8 *pDst;
+    u8 digit;
+    s32 count;
+    u32 *pPlace;
+    u32 *pTab;
 
-       count = 0;
-       pDst = pBuf + 1;
-       if (value < 0) {
-           count = 1;
-           pBuf[1] = '-';
-           pDst = pBuf + 2;
-           value = -value;
-           n--;
-       }
-       pTab = &g_BattleDecimalDivisors[n];
-       value = (u32)value % *pTab;
-       pTab--;
-       for (; n != 0; pTab--) {
-           digit = (u32)value / *pTab;
-           n--;
-           if (digit != 0) {
-               started = 1;
-           }
-           if (started != 0) {
-               *pDst = digit + base;
-               pDst++;
-               count++;
-           }
-           value = (u32)value % *pTab;
-       }
-       *pDst = value + base;
-       pBuf[0] = count + 1;
-       return count + 1;
-   }
-*/
+    count = 0;
+    pDst = pBuf + 1;
+    if (value < 0) {
+        count = 1;
+        pBuf[1] = '-';
+        pDst = pBuf + 2;
+        value = -value;
+        n--;
+    }
+    pPlace = D_800C37A4;
+    pTab = pPlace + n;
+    for (;;) {
+        value = (u32)value % *pTab;
+        if (n == 0) {
+            break;
+        }
+        pTab--;
+        digit = (u32)value / *pTab;
+        n--;
+        if (digit != 0) {
+            started = 1;
+        }
+        if (started != 0) {
+            *pDst = digit + base;
+            pDst++;
+            count++;
+        }
+    }
+    *pDst = value + base;
+    pBuf[0] = count + 1;
+    return count + 1;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 extern u8 g_BattleStageFileLoadDone;
 extern u8 g_BattleLoadedStageFileId;
@@ -545,38 +544,40 @@ void BattleResetStateGlobals(void) {
     g_BattleSlotBitMask = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
-/* best 93.82% (156 bytes = retail's size, SAME instruction multiset).  Two hunks left:
-   (1) retail feeds the actionDone(0x48)+unk30(0x30) stores from ONE reload of
-   g_BattleState and the pendingStep(0x49)+pathIndex(0x2C)+pCurSprite(0x04) group from
-   a second, while ours feeds actionDone from the first and unk30 from the second;
-   (2) retail's timer(0x34) store sits in the BattleSetStateStep jal delay slot, fed by
-   its THIRD reload, and the post-call `lw v0,0(s0)` is dead -- ours keeps the timer
-   store after the call, fed by the post-call reload.  Measured: the embedded
-   `pState = (g_BattleState = HeapAlloc(...));` is what puts the g_BattleState lui in
-   $s0 before func_800B9F78's (88.03 -> 93.82; without it gcc emits it two insns
-   later).  Tail orderings measured on top of that body: timer/call/globals 90.18% at
-   144 bytes (no post-call reload at all), timer/globals/call 88.69 at 164,
-   globals/timer/call 88.69 at 164, call/globals/timer 92.44 at 164,
-   globals/call/timer 84.44 at 168.  Two permuter runs (245 -> 150 score) only reach
-   this by adding a DUPLICATE timer store (160 bytes, 96.36%) -- that is not retail's
-   single 0x34 store, so it is not a match.  A later lane should try to find what makes
-   retail's post-call reload dead.
-void func_800BED4C(void) {
+/* best 99.74% (156 bytes = retail's size, one instruction pair of register choice).
+   This body supersedes the 93.82% note below: the park's "dead post-call reload" was
+   the RETURN VALUE -- misc29 declares the callee as BattleMisc33State *func_800BED4C(void)
+   and uses the result, so `return g_BattleState;` is what makes retail's trailing
+   `lw v0,0(s0)` live and lets the timer store take the BattleSetStateStep jal delay
+   slot.  With that plus `started = 1;` as its own statement before pathIndex (a plain
+   literal there makes cse share it with actionDone's 1, retail materialises them
+   separately) the only residual is which register the THIRD reload of g_BattleState
+   lands in: retail `lw v1,0(s0)` and keeps the second reload in v0 for
+   pendingStep/pathIndex/pCurSprite, ours puts the third reload in v0 and serves all
+   four stores from it (2 differing instructions, everything else identical, store
+   order and every reload position equal).  Two permuter runs (15 -> 10, then 5 and no
+   better) found nothing.  Not an ALLOCA/stack-switch stub and not BLOCKED.
+BattleMisc33State *func_800BED4C(void) {
     BattleMisc33State *pState;
+    s32 started;
 
-    pState = (g_BattleState = HeapAlloc(0x50, 0));
-    pState->pUpdate = func_800B9F78;
+    g_BattleState = HeapAlloc(0x50, 0);
+    g_BattleState->pUpdate = func_800B9F78;
     g_BattleCommandRowIndex = 0;
-    pState->commandUnhandled = 0;
+    g_BattleState->commandUnhandled = 0;
+    pState = g_BattleState;
     g_BattleState->actionDone = 1;
-    g_BattleState->unk30 = 0;
+    pState->unk30 = 0;
     g_BattleState->pendingStep = 0;
-    g_BattleState->pathIndex = 1;
+    started = 1;
+    g_BattleState->pathIndex = started;
     g_BattleState->pCurSprite = NULL;
+    pState = g_BattleState;
+    pState->timer = 0;
     BattleSetStateStep(0);
-    g_BattleState->timer = 0;
     g_NumFlaggedTimerWorkListEntries = 0;
-    g_FlagTimerWorkListAdds = 1;
+    g_FlagTimerWorkListAdds = started;
+    return g_BattleState;
 }
 */
 void BattleDestroyState(void) {
