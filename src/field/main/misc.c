@@ -164,7 +164,6 @@ void FieldScriptSetGearStateFlag(void) {
 // NOTE the command dispatch must be a switch: an if/else chain compiles to a linear
 // compare chain (77.68%) and the original has gcc's comparison tree. It does not
 // generate a jump table (no jtbl_ relocation, 532 bytes).
-/*
 extern s32 D_800C3A48;
 extern s32 D_800AF87C;
 extern s16 D_800AFC58;
@@ -177,13 +176,24 @@ extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 // Captures or restores the screen region described by the script instruction: 0
 // grabs it into two freshly allocated buffers, 1 copies one back with
 // func_80026F44, 2 frees the buffers and 3 only advances the pointer.
+// Round 323: still 532 bytes / 97.81%, five substituted instructions and nothing
+// else. The case-0 group is a pure $s1/$s2 flip (retail's `move s1,v0` sits in the
+// second GetArgument's delay slot, so y=s1 and h=s2; ours copies the first result
+// into s2 and shifts s1) and neither order of the `y`/`h` declarations moves it -
+// measured both. A `u16 y, h` pair costs the size (536) and `s16 offset` in case 1
+// measures 98.23% at 540 bytes (`sll s0,s0,0x19`), so both are wrong-sized. The
+// x store keeps the `lui at / sh %lo(D_800AFC58)` macro form where retail folds it
+// onto the StoreImage argument register (`sh zero,0(a0)`), with the same `la` in
+// both. A permuter run from this body (base 436 -> best 243) only proposed the
+// s16/540 shape and a castless HeapFree, so it found nothing portable.
+/*
 void func_800871B0(void) {
     u8 command = SCRIPT_READ_U8_REL(1);
 
     switch (command) {
     case 0: {
-        s32 h;
         s32 y;
+        s32 h;
 
         g_FieldScriptMaxInstructionCount += 0x20;
         y = FieldScriptVMGetArgument(2);
@@ -1781,6 +1791,15 @@ extern void func_80077268(void);
 // prevMaxInstructionCount assigned BEFORE prevActorIndex (that decides which of
 // the two gets a register and which is spilled); and a s32 rather than u_short
 // return for FieldScriptGetBytecodeOffset, since retail has no andi 0xffff.
+// Round 323: the round-315 two-local base spelling was tried too. A base local
+// assigned from *ppFieldActors plus `pFieldActor = (FieldActor*)((u8*)pBase +
+// i * sizeof(FieldActor));` gives `addu v1,v0,s2` (base-first, sum in $v1) at
+// 97.50; the in-place form (`pFieldActor = *ppFieldActors; pFieldActor =
+// (FieldActor*)((u8*)pFieldActor + i * sizeof(FieldActor));`) puts the sum in
+// the base's own register (`addu v1,v1,s2`) at 97.45 - so the sum CAN take the
+// base register, but then the base's load and the pActorData load swap $v0/$v1
+// against retail. The whole group is one two-register coin flip; the
+// subexpression form below keeps $v0 (retail's destination) at 97.58.
 /*
 void func_8008B978(int characterId) {
     FieldActor* pPrevFieldActor;
@@ -3069,6 +3088,12 @@ void func_8008EA58(void) {
 //   cannot be had together; a separate `u16 raw` local folds away (476). Statement
 //   order of `type = value & 0xF` against the raw store changes nothing in either
 //   form.
+// Round 323: the loopPlayback volatile was pinning the tail group the wrong way -
+// with a plain `g_FieldStreamLoopPlayback = 0;` retail's `lhu 0xCC(a0)` / `li
+// v1,1` sit after that `sh` and the tail matches. `int value` (476 bytes) and a
+// volatile raw store with `D_800C3A30 = type` (476) both lose the 4 bytes; the
+// head's three-instruction residual is the copy-and-AND-order trade recorded
+// above and nothing reorders it.
 /*
 void func_8008EC30(void) {
     u16 value;
@@ -3116,12 +3141,13 @@ void func_8008EC30(void) {
                 break;
         }
         g_FieldStreamId = 0xFF;
-        *(volatile u16*)&g_FieldStreamLoopPlayback = 0;
+        g_FieldStreamLoopPlayback = 0;
         g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 
