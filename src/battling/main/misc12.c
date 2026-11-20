@@ -346,17 +346,17 @@ void BattleInitSlotDrawEntry(s32 slot) {
     pEntry->clut = GetClut(0x3F0, 0xC0);
 }
 
-extern u8 func_80088BFC[];
+extern void* func_80088BFC[];
 extern u8 g_BattleHeapContentTypes[];
 extern s32 g_DebugTable;
-extern void* g_BattleDrawSlot;
-extern void* g_BattleDisplaySlot;
+extern BattleEntry* g_BattleDrawSlot;
+extern BattleEntry* g_BattleDisplaySlot;
 extern s32 g_BattleDebugDrawMode;
-extern u16 g_BattleFrameWaitCount;
+extern s16 g_BattleFrameWaitCount;
 extern s32 g_BattleMultiplyNodeMatrices;
 extern u16 g_BattleDebugFlags;
 extern s32 g_BattleDrawFlags;
-extern s32 g_BattleDebugDrawCallback;
+extern void (*g_BattleDebugDrawCallback)(void*);
 extern u8 g_BattleDrawBufferIndex;
 extern u8 g_BattleControlFlags;
 extern void* FontLoadFont(s32, s32, s32, s32, s32, u32, s32, s32, s32, s32, void*);
@@ -401,17 +401,132 @@ void BattleInitGraphics(void) {
     BattleInitSoundSlots();
 }
 
+extern u_long* g_BattleRootOrderingTable;
+extern s32 D_80050618;
+extern s32 D_800595C0;
+extern s32 g_BattleEmittedPacketCount;
+extern char D_800706AC[];
+extern char D_800706C0[];
+extern char D_800706D4[];
+extern void* BattleCreateWorkBlock(void* pEntry, u32 arg1, u32 stackTop, s32 size);
+extern void func_8008BB3C(void* pWork);
+extern void GameCheckAndHandleSoftReset(void);
+extern void FontDrawLetters(void* pOt);
+extern void FontSetColor(s32 red, s32 green, s32 blue);
+extern s32 Vsync(s32 mode);
+extern void BattleReleaseFinishedSoundSlots(void);
+extern void BattleCompactOrderingTable(s32 limit);
+extern void BattleCaptureTimerCount(void);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
-/* Not attempted. 204 instructions: the battle draw loop. Calls BattleInitGraphics,
-   then BattleCreateWorkBlock(handlers[D_80050618], 0, 0x801FE000, 0x400) and
-   Vsync(1) in a loop that toggles g_BattleDrawFlags and re-points g_BattleDrawSlot/70 at
-   g_BattleDrawBuffers + g_BattleDrawFlags * 0x70, then TermPrim, FontDrawLetters,
-   BattleReleaseFinishedSoundSlots, AddPrim, BattleDebugScrollHeapDump,
-   FontPrintf x3, BattleCompactOrderingTable, DrawSync, PutDispEnv, DrawOTagEnv.
-   The 4-word copies at +0x5C..+0x6B use lwl/lwr (unaligned 32-bit struct
-   assignment into a stack local, so a `BattleBlk16` local copied field by field
-   will not reproduce it). Needs a session of its own. */
+/* Best attempt: objdiff 91.13% at 808 bytes against retail's 816, with retail's
+   four saved registers (s0 count, s1 rate, s2 work, s3 prev), its frame of 0x40,
+   the 0x14-byte DISPENV copy to sp+0x10 as five lwl/lwr + swl/swr pairs, the
+   draw-buffer toggle, every call in order, and the divu/mflo rate. Three
+   residuals keep it out of reach:
+   - retail's preheader has a DEAD `lw $v0,%lo(g_SpuChannelMask)` (loaded, never
+     read: the loop's first statement overwrites $v0). Writing the obvious
+     `prevMask = g_SpuChannelMask;` before the loop puts that load in the loop's
+     own register (live), so the dead form has no source spelling found yet; it
+     is the whole 8-byte gap.
+   - retail stores g_BattleDrawBufferIndex with `sb` and then ANDs the same
+     register with 0xFF for the slot index, i.e. the index was read back from
+     the byte global and cse substituted the stored value. Every spelling tried
+     (read the global back, a u8 local copy, an extra & 0xFF) lets cc1 fold the
+     truncation away, so the `andi` and the `sb`'s position (retail puts it
+     before the g_BattleDisplaySlot store) do not come back.
+   - the buffer base must stay in a CALL-CLOBBERED register re-formed every
+     iteration (`lui $v1,%hi` + `addiu` before the first addu). With both slots
+     written as &g_BattleDrawBuffers[i] cc1's cse/loop hoists the address into a
+     callee-saved register in the preheader, which costs a fifth saved register
+     (s4) and 88.17%. The lever that reproduces retail's shape is giving the
+     buffer-base pointer a LIVE USE at the end of the loop body - PutDispEnv
+     taking `pBuf = &disp` below - which is what the parked body does; a plain
+     `PutDispEnv(&disp)` re-hoists. That embedded assignment is what is still
+     unrealistic here; the rest of the body is typed source.
+   A 4-minute permuter run from this body found only that embedded assignment
+   (1457 -> 1007), which is how the base hoist was broken. Round 292's wall on
+   func_80088A40 is unrelated and untouched. */
+/*
+extern u_long* g_BattleRootOrderingTable;
+extern s32 D_80050618;
+extern s32 D_800595C0;
+extern s32 g_BattleEmittedPacketCount;
+extern char D_800706AC[];
+extern char D_800706C0[];
+extern char D_800706D4[];
+extern void* BattleCreateWorkBlock(void* pEntry, u32 arg1, u32 stackTop, s32 size);
+extern void func_8008BB3C(void* pWork);
+extern void GameCheckAndHandleSoftReset(void);
+extern void FontDrawLetters(void* pOt);
+extern void FontSetColor(s32 red, s32 green, s32 blue);
+extern s32 Vsync(s32 mode);
+extern void BattleReleaseFinishedSoundSlots(void);
+extern void BattleCompactOrderingTable(s32 limit);
+extern void BattleCaptureTimerCount(void);
+
+void func_80088E90(void) {
+    DISPENV disp;
+    BattleEntry* pBuf;
+    BattleEntry* pSlot;
+    void* pWork;
+    s32 drawFlags;
+    u32 prevMask;
+    u32 frameRate;
+    s32 frameCount;
+
+    BattleInitGraphics();
+    pWork = BattleCreateWorkBlock(func_80088BFC[D_80050618], 0, 0x801FE000, 0x400);
+    for (;;) {
+        drawFlags = g_BattleDrawFlags;
+        D_800595C0 = 0;
+        g_BattleEmittedPacketCount = 0;
+        pBuf = g_BattleDrawBuffers;
+        g_BattleDrawBufferIndex = (drawFlags + 1) & 1;
+        g_BattleDisplaySlot = &pBuf[drawFlags & 1];
+        g_BattleDrawFlags = drawFlags + 1;
+        pSlot = &pBuf[g_BattleDrawBufferIndex];
+        g_BattleDrawSlot = pSlot;
+        g_BattleRootOrderingTable = &pSlot->ot;
+        disp = pSlot->dispEnv;
+        GameCheckAndHandleSoftReset();
+        TermPrim(g_BattleRootOrderingTable);
+        if ((g_BattleDebugFlags & 0x10) && (g_BattleDebugDrawCallback != 0)) {
+            g_BattleDebugDrawCallback(g_BattleRootOrderingTable);
+        }
+        FontDrawLetters(g_BattleRootOrderingTable);
+        func_8008BB3C(pWork);
+        BattleReleaseFinishedSoundSlots();
+        HeapTickDelayedFree();
+        if (g_BattleControlFlags & 1) {
+            AddPrim(g_BattleRootOrderingTable, &g_BattleDrawSlot->tile);
+        }
+        frameCount = Vsync(1);
+        frameRate = 60 / (g_SpuChannelMask - prevMask);
+        prevMask = *(volatile s32*)&g_SpuChannelMask;
+        if (g_BattleDebugFlags & 8) {
+            BattleDebugScrollHeapDump();
+        }
+        if (g_BattleDebugFlags & 1) {
+            FontPrintf(D_800706AC, g_BattleEmittedPacketCount, D_800595C0);
+        }
+        if (g_BattleDebugFlags & 2) {
+            FontPrintf(D_800706C0, frameCount, D_800927F0);
+        }
+        if (g_BattleDebugFlags & 4) {
+            FontPrintf(D_800706D4, frameRate);
+        }
+        FontSetColor(0xFF, 0xFF, 0xFF);
+        BattleCompactOrderingTable(g_BattleFrameWaitCount);
+        Vsync(g_BattleFrameWaitCount);
+        BattleCaptureTimerCount();
+        DrawSync(0);
+        PutDispEnv(pBuf = &disp);
+        DrawOTagEnv(g_BattleRootOrderingTable, &g_BattleDrawSlot->drawEnv);
+    }
+}
+*/
 
 void* BattleLoadArchiveEntry(s32 entryIndex) {
     void* pBuffer;
