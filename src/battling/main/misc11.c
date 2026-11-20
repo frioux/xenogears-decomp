@@ -471,7 +471,7 @@ void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
 // The ground shadow under one actor: a square on the plane under the pair of
 // world points the actor stands on, squashed flat by a rotation matrix whose Y
 // row is that plane's normal and added to the ordering table at its depth.
-void func_80087B74(BattlingPacketOwner *pOwner, u_long *pOt, MATRIX *pMatrix) {
+void BattleDrawActorShadow(BattlingPacketOwner *pOwner, u_long *pOt, MATRIX *pMatrix) {
     SVECTOR quad[4];
     VECTOR center;
     VECTOR unusedCenter; // retail's frame has a slot here that nothing stores into
