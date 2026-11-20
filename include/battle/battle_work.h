@@ -5,18 +5,18 @@
 
 // Per-frame battle display state (g_BattleDisplayState): the flags and atlas indices the
 // battle draw units read while building the ordering table. Fields are named from the
-// unit that shows what they hold (misc1, misc2, misc3, misc12, misc16); other units
-// reach past 0x104, so 0x108 is a lower bound on the real size.
+// unit that shows what they hold (misc1, misc2, misc3, misc5, misc12, misc14, misc16);
+// other units reach past 0x104, so 0x108 is a lower bound on the real size.
 typedef struct {
     /* 0x000 */ RECT texWindowRects[6]; // texture windows the tile draw modes are set with: the whole page, then each tile's texel rect
     /* 0x030 */ u32 sourceWordOffset; // word offset into the sub-image source BattleUploadImageFrame loads, 4 words per upload
     /* 0x034 */ s32 x; // screen x of the sprite the move steps carry
     /* 0x038 */ s32 unk38;
-    /* 0x03C */ s32 unk3C;
+    /* 0x03C */ s32 xTarget; // x the move ramps to; xStep is derived from the distance to it
     /* 0x040 */ s32 unk40;
     /* 0x044 */ s32 y; // screen y of the sprite the move steps carry
     /* 0x048 */ s32 unk48;
-    /* 0x04C */ s32 unk4C;
+    /* 0x04C */ s32 yTarget; // y the move ramps to; yStep is the distance to it and the move ends once y passes it
     /* 0x050 */ s32 unk50;
     /* 0x054 */ s32 xStep; // 8.8 increment xOffset takes per moveStep
     /* 0x058 */ s32 unk58;
@@ -25,10 +25,20 @@ typedef struct {
     /* 0x064 */ s32 xOffset; // 8.8 offset added to x, stepped once per moveSteps
     /* 0x068 */ s32 unk68;
     /* 0x06C */ s32 yOffset; // 8.8 offset added to y, stepped once per moveSteps
-    /* 0x070 */ u8 unk70[0xB];
+    /* 0x070 */ u8 unk70[0x4];
+    /* 0x074 */ u8 panelPackageCounts[3]; // packages each slot's stat panel appended, x 0x50 into its prim area at gfx+0x2E08
+    /* 0x077 */ u8 scaledPanelPackageCount; // the same count for the panel drawn at 1.0 scale, appended at gfx+0x3768
+    /* 0x078 */ u8 unk78[0x3];
     /* 0x07B */ u8 actorSpritePackageCount; // packages built at gfx+0x9C8, one 0x50-byte row each
     /* 0x07C */ u8 slotMarks[3]; // per slot: raised when an action is queued for that slot
-    /* 0x07F */ u8 unk7F[0x17];
+    /* 0x07F */ u8 panelActive[3]; // per slot: while set, the slot's stat panel prim is added to the ordering table
+    /* 0x082 */ u8 unk82;
+    /* 0x083 */ u8 unk83;
+    /* 0x084 */ u8 panelPrimStart[3]; // prim index each slot's stat panel was built at
+    /* 0x087 */ u8 scaledPanelPrimStart; // the same index for the panel drawn at 1.0 scale
+    /* 0x088 */ u8 unk88[0x8];
+    /* 0x090 */ u8 panelMode[3]; // which panel the slot draws: 0 builds it, 1 draws it scaled, 2 animates it, 3 shrinks it then animates
+    /* 0x093 */ u8 statDigitPrimStart[3]; // prim index each slot's stat digits were built at
     /* 0x096 */ u8 stringTableLoaded; // set while D_800C3DE8 holds the archive entry 3 string table
     /* 0x097 */ u8 primRowCount; // rows of 0x10-byte prims built at gfx+0x908
     /* 0x098 */ u8 primRowStart; // row of that table the prims start at
@@ -54,7 +64,8 @@ typedef struct {
     /* 0x0AE */ u8 slotStringTableLoaded; // set while D_800D367C holds the slot's archive string table
     /* 0x0AF */ u8 actorSpriteActive; // set while the actor's sprite group at gfx+0x9C8 is live
     /* 0x0B0 */ u8 primFlags[4]; // per slot: prim flags the *PrimFlags*Slots pairs raise
-    /* 0x0B4 */ u8 unkB4[0x3];
+    /* 0x0B4 */ u8 textSlotEnabled; // raised with the slot's screen-slot enabled flag by BattleSetSlotFlagB4, cleared by BattleClearSlotFlagB4
+    /* 0x0B5 */ u8 unkB5[0x2];
     /* 0x0B7 */ u8 primState; // which prim set is up: the *PrimFlags*Slots setters store 0-3, 0 for none
     /* 0x0B8 */ u8 rectExpandActive[7]; // per slot: while set, the slot's rect grows toward its target size
     /* 0x0BF */ u8 rectExpandDone[7]; // per slot: set once w and h reached the target size
@@ -64,7 +75,8 @@ typedef struct {
     /* 0x0C9 */ u8 objectRenderPending;
     /* 0x0CA */ u8 slotTimersActive; // set to tick the g_BattlePrimPool timers down
     /* 0x0CB */ u8 primListsPending; // set when the 0x641C lists have prims to add
-    /* 0x0CC */ u8 unkCC[0x4];
+    /* 0x0CC */ u8 panelPending[3]; // per slot: set when the slot's panel has packages for the ordering table to add
+    /* 0x0CF */ u8 unkCF;
     /* 0x0D0 */ s32 packageCounts[2]; // packages appended to each 0x641C list
     /* 0x0D8 */ u8 unkD8[0x8];
     /* 0x0E0 */ s32 statSpriteCount[3]; // packages BattleRenderActorStatDigits appended for the slot
@@ -72,7 +84,8 @@ typedef struct {
     /* 0x0F8 */ s32 spriteColumnPackageCount;
     /* 0x0FC */ s32 menuColumnPackageCount;
     /* 0x100 */ s32 cursorPackageCount;
-    /* 0x104 */ u8 unk104[0x4];
+    /* 0x104 */ u16 panelScale; // scale the animating panel is drawn at, stepped by 0x66 per sizeStep
+    /* 0x106 */ u16 panelAngle; // rotation angle of that draw, stepped by 0x80 per sizeStep
 } BattleWork; // Size: 0x108
 
 // The per-tile texture parameters BattleInitTilePrims feeds to GetTPage and

@@ -269,8 +269,7 @@ void BattleRenderSlotStatDigits(void) {
                 } else {
                     BattleRenderActorSplitDigitPanel(i, value);
                 }
-                // 0x14 within unk7F is 0x93: the slot's stat-digit prim start
-                g_BattleDisplayState->unk7F[0x14 + i] = *(u8 *)&g_BattlePrimStartIndex;
+                g_BattleDisplayState->statDigitPrimStart[i] = *(u8 *)&g_BattlePrimStartIndex;
                 g_BattleDisplayState->slotMarks[i] = 0;
             }
         }
