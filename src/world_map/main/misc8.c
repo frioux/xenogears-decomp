@@ -151,6 +151,18 @@ typedef struct {
     /* 0xF0 */ MATRIX mat;
 } WorldMapScratch; // Size: 0x110
 
+// The part of the scratchpad GTE work area a visibility pass uses: the three
+// MVMVA outputs, the three packed clip words NormalClip consumes, and the
+// sprite set's x/z distance.
+typedef struct {
+    /* 0x00 */ VECTOR vert0; // first MVMVA output
+    /* 0x10 */ VECTOR vert1; // second
+    /* 0x20 */ VECTOR vert2; // third
+    /* 0x30 */ s32 clip[3]; // (z << 16) | x per vertex; [2] is the view position
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ VECTOR delta; // vx and vz only
+} WorldMapClipWork; // Size: 0x4C
+
 // One sprite set definition inside the block g_WorldMapSpriteSetTable points at.
 typedef struct {
     /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
@@ -1054,54 +1066,47 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
-// Best: 92.95% at retail's exact size (924 bytes). Every call, every GTE
-// encoding and the whole frame are exact; the residue is scheduling plus two
-// relocation-only operands. What is known, most useful first:
-// - The body IS compiler output despite splat's "Handwritten function" marker:
-//   gte_ldv0 / gte_mvmva(1,0,0,0,0) / gte_stlvnl reproduce the lwc2 pair, the two
-//   nops and the swc2 $25/$26/$27 exactly, and gte_stflg(&flag) is retail's
-//   cfc2 $12 / nop / sw (the flag local is dead - gcc still keeps it).
-// - The scratchpad must be ONE typed pointer (pWork at 0x1F800000: 0x00/0x10/0x20
-//   the three vertices, 0x30..0x38 the NormalClip triple, 0x40/0x48 the delta).
-//   One base in $s0 reproduces every `(s0)` operand retail has; five separate
-//   pointer locals push the frame to 0x58 and score 57%.
-// - `pMat = (MATRIX *)0x1F8000F0;` must be an ASSIGNMENT, not a declaration
-//   initialiser (the initialiser hoists the materialisation into the prologue and
-//   costs an instruction), and the mesh loop must walk a `pTri++` pointer:
-//   `&pMesh->tris[i]` spills pMesh to the stack and scores 75%.
-// - `(pWork->vert1.vx & 0xFFFF)` is what makes gcc emit retail's lw+andi for the
-//   second and third vertices' x; `((u16 *)&pWork->vert1)[0]` gives one lhu and
-//   shrinks the body to 916. The FIRST vertex has to keep the u16 spelling -
-//   retail reads it with lhu in both of its uses.
-// - `n = n + 2;` (not `n += 2`) and the `do { dz = -dz; } while (0);` around the
-//   SECOND abs are both load-bearing; together they are what reached 924 bytes.
-// - Two operands differ by relocation only and are byte identical when linked:
-//   retail's `addiu v0,s0,%lo(D_1F800010)` / `%lo(D_1F800020)` carry a LO16 reloc
-//   against an absolute symbol where C folds to `addiu v0,s0,16`/`32`. diff_func
-//   therefore can never print MATCH here - judge this function with
-//   check_bin.sh, which needs the rest of the body to be exact first.
-// - STILL WRONG, and this is the entire residue: (a) the OR test. Retail folds it
-//   to `or a1,a1,v0; beqz a1,<body>; lui s0; j <epilogue>; move v0,zero`. With the
-//   `farZ` local below the body emits two `beqz` and the exit is the fall-through;
-//   written inline (`if ((dx >= 0x800) | (dz >= 0x800))`) it is 916 bytes / 92.12%
-//   because gcc then defers the first vertex's slti/xori past the second abs and
-//   steals it into a bgez delay slot, where retail computes that boolean straight
-//   after the negu. (b) retail has `nop` in BOTH bgez delay slots; this body fills
-//   the first with `lui s0` and the second with `move s2,zero`. (c) retail loads
-//   `lw a1,0(a0)` (the position x) into the dx register BEFORE `addu s1,v1,v0`;
-//   here it lands in $v0 and is subtracted into $a1.
-// A 4-minute permuter run (base 3451 -> best 1847) found the do-block, the farZ
-// local and `n = n + 2`; the next step is running it again from this body.
+// Best: 94.82% at retail's exact 924 bytes (231 instructions). The body IS
+// compiler output despite splat's "Handwritten function" marker, and every
+// call, GTE encoding, the 0x50 frame, the loop tail and the epilogue are exact.
+// The whole residue is FOUR instruction-order ties in the two blocks around the
+// distance test, nothing structural:
+// - `far |= dz >= 0x800;` - an ACCUMULATOR, not `farX | farZ` and not an inline
+//   `(dx >= 0x800) | (dz >= 0x800)` - is what keeps the dx compare (`slti` +
+//   `xori`) in place, right after the negu and BEFORE the dz loads, as retail
+//   has it. Both other spellings sink it past the dz compare (91.99%).
+// - The distance test must be an `if/else` (body in the else) AND the `if` block
+//   must end with an empty `do { } while (0);` AFTER the return - found by the
+//   permuter (base 1715 -> 1415), and together they are the only spelling that
+//   gives retail's block layout: `beq a1,<body>` with the ret0 block inline
+//   (`j <epilogue>; move v0,zero`) instead of gcc threading `bne -> epilogue`
+//   and folding the value copy into the branch's delay slot (916 bytes).
+// - STILL WRONG (4 sites): (a) retail loads `pPos->x` straight into `a1` BEFORE
+//   `addu s1,v1,v0` and keeps `pEntry->x` in `v0`; here it is `lw v0,0(a0)` /
+//   `lw v1,8(s1)` / `subu a1,v0,v1`. (b) retail's `lui $s0,0x1F80` (the pWork
+//   base) is the `beq`'s delay slot and its `move $s2,zero` (i = 0) comes later;
+//   here the `li $16,0x1f800000` is stolen into the dx `bgez` slot (retail has a
+//   `nop` there) and `i = 0` fills the `beq` slot instead. Same root cause:
+//   our pWork constant's `lui` is emitted in the entry block, retail's in the
+//   body block - a `pWork = (WorldMapClipWork *)0x1F800000;` assignment inside
+//   the body (with the two delta stores spelled against the D_1F800040/48
+//   symbols so they still fold) is the untried lever. (c) `lw a3,0(a0)` (count)
+//   is one slot later than retail. (d) two operands differ by relocation only
+//   (`addiu v0,s0,%lo(D_1F800010)` / `%lo(D_1F800020)` in retail vs the folded
+//   `addiu v0,s0,16`/`32` here) - byte identical when linked, so diff_func can
+//   never print MATCH; judge this function with check_bin.sh.
+// A 4-minute permuter run from the 93.51% body found the empty do-block; the
+// next run should start from the body below.
 /*
 s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
     WorldMapEntry *pEntry = &g_WorldMapGroups[setIndex];
-    WorldMapMeshClipWork *pWork = (WorldMapMeshClipWork *)0x1F800000;
+    WorldMapClipWork *pWork = (WorldMapClipWork *)0x1F800000;
     MATRIX *pMat;
     WorldMapMesh *pMesh;
     WorldMapTriangle *pTri;
     SVECTOR *pVerts;
+    s32 far;
     s32 count;
-    s32 farZ;
     s32 dx;
     s32 dz;
     s32 i;
@@ -1109,72 +1114,76 @@ s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
     long flag;
 
     dx = (pPos->x >> 12) - pEntry->x;
-    pWork->delta.x = dx;
+    pWork->delta.vx = dx;
     if (dx < 0) {
         dx = -dx;
     }
+    far = dx >= 0x800;
     dz = pEntry->z - (pPos->z >> 12);
-    pWork->delta.z = dz;
+    pWork->delta.vz = dz;
     if (dz < 0) {
         do {
             dz = -dz;
         } while (0);
     }
-    farZ = dz >= 0x800;
-    if ((dx >= 0x800) | farZ) {
+    far |= dz >= 0x800;
+    if (far) {
         return 0;
+        do {
+        } while (0);
+    } else {
+        pMat = (MATRIX *)0x1F8000F0;
+        *pMat = pEntry->mat;
+        i = 0;
+        n = 0;
+        pMat->t[2] = 0;
+        pMat->t[0] = 0;
+        *(s32 *)0x1F800008 = 0x800;
+        *(s32 *)0x1F800004 = 0x800;
+        *(s32 *)0x1F800000 = 0x800;
+        pMat->t[1] = pEntry->y;
+        ScaleMatrix(pMat, (VECTOR *)0x1F800000);
+        SetRotMatrix(pMat);
+        SetTransMatrix(pMat);
+        pMesh = pEntry->pMesh;
+        count = pMesh->unk0;
+        pWork->clip[2] = (pWork->delta.vz << 16) | ((u16 *)&pWork->delta)[0];
+        pVerts = pMesh->pVerts;
+        pTri = pMesh->tris;
+        for (; i < count; i++, pTri++) {
+            gte_ldv0(&pVerts[pTri->vert[0]]);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(&pWork->vert0);
+            gte_stflg(&flag);
+            gte_ldv0(&pVerts[pTri->vert[1]]);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(&pWork->vert1);
+            gte_stflg(&flag);
+            gte_ldv0(&pVerts[pTri->vert[2]]);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(&pWork->vert2);
+            gte_stflg(&flag);
+            pWork->clip[0] = (pWork->vert0.vz << 16) | ((u16 *)&pWork->vert0)[0];
+            pWork->clip[1] = (pWork->vert1.vz << 16) | (pWork->vert1.vx & 0xFFFF);
+            if (NormalClip(pWork->clip[0], pWork->clip[1], pWork->clip[2]) > 0) {
+                continue;
+            }
+            pWork->clip[0] = (pWork->vert1.vz << 16) | (pWork->vert1.vx & 0xFFFF);
+            pWork->clip[1] = (pWork->vert2.vz << 16) | (pWork->vert2.vx & 0xFFFF);
+            if (NormalClip(pWork->clip[0], pWork->clip[1], pWork->clip[2]) > 0) {
+                continue;
+            }
+            pWork->clip[0] = (pWork->vert2.vz << 16) | (pWork->vert2.vx & 0xFFFF);
+            pWork->clip[1] = (pWork->vert0.vz << 16) | ((u16 *)&pWork->vert0)[0];
+            if (NormalClip(pWork->clip[0], pWork->clip[1], pWork->clip[2]) > 0) {
+                continue;
+            }
+            D_8009D718[n] = i;
+            D_8009D718[n + 1] = pTri->kind;
+            n = n + 2;
+        }
+        return n;
     }
-    pMat = (MATRIX *)0x1F8000F0;
-    *pMat = pEntry->mat;
-    i = 0;
-    n = 0;
-    pMat->t[3] = 0;
-    pMat->t[1] = 0;
-    *(s32 *)0x1F800008 = 0x800;
-    *(s32 *)0x1F800004 = 0x800;
-    *(s32 *)0x1F800000 = 0x800;
-    pMat->t[2] = pEntry->y;
-    ScaleMatrix(pMat, (VECTOR *)0x1F800000);
-    SetRotMatrix(pMat);
-    SetTransMatrix(pMat);
-    pMesh = pEntry->pMesh;
-    count = pMesh->unk0;
-    pWork->clip[2] = (pWork->delta.z << 16) | ((u16 *)&pWork->delta)[0];
-    pVerts = pMesh->pVerts;
-    pTri = pMesh->tris;
-    for (; i < count; i++, pTri++) {
-        gte_ldv0(&pVerts[pTri->vert[0]]);
-        gte_mvmva(1, 0, 0, 0, 0);
-        gte_stlvnl(&pWork->vert0);
-        gte_stflg(&flag);
-        gte_ldv0(&pVerts[pTri->vert[1]]);
-        gte_mvmva(1, 0, 0, 0, 0);
-        gte_stlvnl(&pWork->vert1);
-        gte_stflg(&flag);
-        gte_ldv0(&pVerts[pTri->vert[2]]);
-        gte_mvmva(1, 0, 0, 0, 0);
-        gte_stlvnl(&pWork->vert2);
-        gte_stflg(&flag);
-        pWork->clip[0] = (pWork->vert0.vz << 16) | ((u16 *)&pWork->vert0)[0];
-        pWork->clip[1] = (pWork->vert1.vz << 16) | (pWork->vert1.vx & 0xFFFF);
-        if (NormalClip(pWork->clip[0], pWork->clip[1], pWork->clip[2]) > 0) {
-            continue;
-        }
-        pWork->clip[0] = (pWork->vert1.vz << 16) | (pWork->vert1.vx & 0xFFFF);
-        pWork->clip[1] = (pWork->vert2.vz << 16) | (pWork->vert2.vx & 0xFFFF);
-        if (NormalClip(pWork->clip[0], pWork->clip[1], pWork->clip[2]) > 0) {
-            continue;
-        }
-        pWork->clip[0] = (pWork->vert2.vz << 16) | (pWork->vert2.vx & 0xFFFF);
-        pWork->clip[1] = (pWork->vert0.vz << 16) | ((u16 *)&pWork->vert0)[0];
-        if (NormalClip(pWork->clip[0], pWork->clip[1], pWork->clip[2]) > 0) {
-            continue;
-        }
-        D_8009D718[n] = i;
-        D_8009D718[n + 1] = pTri->kind;
-        n = n + 2;
-    }
-    return n;
 }
 */
 
