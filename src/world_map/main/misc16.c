@@ -181,23 +181,42 @@ extern MATRIX g_WorldMapGridMatrix;
 extern MATRIX g_WorldMapViewMatrix;
 extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, WorldMapMisc16Point* p2, WorldMapMisc16Point* p3);
 
-/* 88.03%, retail's EXACT 1036 bytes (259 insns, .frame 0x70, mask s0-s8+ra); frame
-   is 0x68 because this build keeps pClip in $s8 and materialises 0xC8 twice instead
-   of spilling it. WHAT IT IS: clip a 5x5 block of grid cells against four frustum
-   planes. The prologue copies g_WorldMapGridMatrix to 0x1F8000F0, CompMatrix's
-   g_WorldMapViewMatrix into 0x1F800110 and sets both GTE matrices. 0x1F800040 gets
-   -(x>>12 & 0x7FF) - 0x1000, the same for z goes to 0x1F800048 and its negation to
-   0x1F8000A4. Nine 8-byte points (vx, vy, vz: an SVECTOR layout) live at 0x1F8000A0 +
-   8*k, k = 0..8, a 3x3 grid: the vy of each is cleared first, in the descending order
-   0xE2, 0xDA ... 0xA2. Per cell: the four grid corners (0xA0/0xA8/0xB0/0xB8) go to
-   func_800987AC (the handwritten GTE clip test, 4 points -> -1/0/1) and, only when the
-   first test returns 0, the five inner points 0xC0/0xC8/0xD0/0xD8/0xE0 are built and
-   handed to four more tests, always in the order (top-left, top-right, bottom-left,
-   bottom-right). The first result goes to D_8009D618[k] (s16, 25 cells) and the four
-   results are packed two per u32 into D_8009D650[k] (word0 = r0 | r1<<16, word1 =
-   r2 | r3<<16; a non-zero first result is written to both words). Tail: nVariant =
-   (x>=0x400) | (z>=0x400 ? 2 : 0) picks one of four 0xC8-byte records of D_8009B7A8 and
-   ORs its 25 8-byte mask words into D_8009D650.
+/* 88.71%, CORRECT code, 1040 bytes against retail's 1036 (259 insns, .frame 0x70,
+   mask s0-s8+ra). One instruction over; the rest of the diff is the allocator's
+   five-value rotation.
+   WHAT IT IS: clip a 5x5 block of grid cells against four frustum planes. The prologue
+   copies g_WorldMapGridMatrix to 0x1F8000F0, CompMatrix's g_WorldMapViewMatrix into
+   0x1F800110 and sets both GTE matrices. 0x1F800040 gets -(x>>12 & 0x7FF) - 0x1000, the
+   same for z goes to 0x1F800048 and its negation to 0x1F8000A4. Nine 8-byte points
+   (vx, vy, vz: an SVECTOR layout) live at 0x1F8000A0 + 8*k, k = 0..8, a 3x3 grid: the vy
+   of each is cleared first, in the descending order 0xE2, 0xDA ... 0xA2. Per cell: the
+   four grid corners (0xA0/0xA8/0xB0/0xB8) go to func_800987AC (the handwritten GTE clip
+   test, 4 points -> -1/0/1) and, only when the first test returns 0, the five inner
+   points 0xC0/0xC8/0xD0/0xD8/0xE0 are built and handed to four more tests, always in the
+   order (top-left, top-right, bottom-left, bottom-right). The first result goes to
+   D_8009D618[k] (s16, 25 cells) and the four results are packed two per u32 into
+   D_8009D650[k] (word0 = r0 | r1<<16, word1 = r2 | r3<<16; a non-zero first result is
+   written to both words). Tail: nVariant = (x>=0x400) | (z>=0x400 ? 2 : 0) picks one of
+   four 0xC8-byte records of D_8009B7A8 and ORs its 25 8-byte mask words into D_8009D650.
+
+   THE OLD PARK AT 89.02 / 1036 WAS WRONG CODE, and its 4 missing bytes were exactly the
+   tail loop's advance: it read `pMask->entry->unk0` with no mask advance, so it ORed
+   entry 0 into all 25 words. Retail's asm has `lw v1,4(s5); addiu s5,s5,8; lw v0,0(a0)`,
+   so the mask walks with the texture. The honest spellings are
+   `pMaskEntry = pMask->entry; ... pMaskEntry++;` (88.60, kept) or `pMask->entry[row]`
+   (86.15: the index form loses the back-branch delay slot that the pointer form gets).
+
+   THE 4 REMAINING BYTES ARE THE 0xC8 INNER POINT. Retail keeps ELEVEN values live across
+   the four inner calls: nine in s0-s8 (0xD8, nPack, base, pTex, col, pClip, 0xE0, row,
+   0xD0) and TWO spilled - `addiu t6,s2,%lo(D_1F8000C0)` into 0x38(sp) and
+   `addiu t6,s2,%lo(D_1F8000C8)` into 0x40(sp), one instruction each in the col-loop
+   preheader, loaded per call. That is why its frame is 0x70. This body has TEN: 0xC0 is
+   spilled at 0x38(sp) but 0xC8 is rematerialised as a lui/addiu pair at both call sites,
+   one instruction more than retail's store + two loads. MEASURED THIS ROUND, all correct
+   code: `pScratch + 0xC8` inline at both sites 1060; a `WorldMapMisc16Point* pC8` local
+   assigned at the top of the if-block 1060. Both DO give retail's 0x70 frame, but gcc
+   then spends the register pClip was in (s8) on the pointer and spills pClip - the spill
+   has to be the second-cheapest value, and pClip out-ranks it in retail only.
 
    THE TWO MEMORY SPELLINGS ARE BOTH REAL, keep the split: the setup stores (0x40, 0x48,
    0xA4 and the nine vy zeros) are ABSOLUTE literals, which maspsx renders as
@@ -208,10 +227,10 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    `pScratch + 0xC0..0xE0`: retail shows `addiu $tN,$s2,%lo(D_1F8000K)` because splat's
    expected/ object carries a linker reloc there, the linked bytes are the same either way
    (JTBL/RELOC class: objdiff only sees the reloc name). D_1F8000C8 must stay the NAMED
-   symbol `(WorldMapMisc16Point*)D_1F8000C8` - spelled `pScratch + 0xC8` the body is
-   87.30 / 1048 (pClip gets spilled); named, it is 88.03 / 1036.
+   symbol `(WorldMapMisc16Point*)D_1F8000C8` - spelled `pScratch + 0xC8` the body is 1060
+   (pClip gets spilled); named, it is 1040.
 
-   THE THREE SHAPES THAT TOOK THIS FROM 80.26 TO 88.03 (all measured, keep them):
+   THE SHAPES THAT GOT THIS FROM 80.26 TO 88.71 (all measured, keep them):
    (1) the tail's nVariant: retail computes the x slti, then the z slti, then fills the
    `bnez` delay slot with `xori s4,v0,1` and ORs 2 after it. Written as one expression
    (`nVariant = !((x>>12 & 0x7FF) < 0x400)`) gcc keeps slti+xori adjacent and leaves a
@@ -222,41 +241,35 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    (2) the inner store group order: `pA0 = pScratch + 0xA0;` before the 0xB0 store, the
    0xB0 store BEFORE the 0xB4 one, and the 0xB8 store reading `*(u16*)pA0`, plus the 0xD4
    store written OFFSET-FIRST (`*(u16*)(0xD4 + pScratch)`) (83.59 -> 86.09).
-   (3) the tail mask loop must read `pMask->entry->unk0/unk4` inline as TWO accesses;
-   a `pMaskEntry` local that is incremented costs 4 bytes and 2 points (86.09 -> 88.03
-   and retail's exact size).
+   (3) the tail mask loop reads its entry inline as TWO accesses through an advancing
+   pointer; a `pMask->entry[i]` index costs the back-branch slot.
+   (4) `*pClip = nClip;` with `pClip++;` as the LAST statement of the col loop body (after
+   the pScratch+0xA0 store): retail's `addiu s5,s5,0x2` lands in the col back-branch delay
+   slot and the `bnez` slot then carries the `addu a3,pE0` copy - with `*pClip++` the two
+   swap (88.03 -> 89.02 on the wrong-code body, and it still pays).
+   (5) splitting the x chain into `nX = -((p->x >> 12) & 0x7FF);` + `nX = nX - 0x1000;`
+   and writing the z store as `nZ = -nZ;` after `*(s32*)0x1F800048 = nZ;` (88.60 -> 88.71).
+   Retail runs BOTH chains through one register (`lw v0,0(t6) ... sw v0,0x40(at)`,
+   `lw v0,8(t6) ... negu v0,v0`); this build negates into v1/a0. One shared nX local for
+   both chains is worse (87.71 / 1048).
+   REJECTED, not source: moving SetTransMatrix into the vy-zero group measures 88.81 but
+   retail has all three matrix calls adjacent in the prologue. A permuter run's best
+   candidate (score 2314) needed BOTH that move and `*D_8009D618 = nClip` in place of
+   `*pClip = nClip`, which is wrong code (every cell would store to element 0) - do not
+   port it. Candidate 2565 was the x-chain split, which is kept.
 
-   WHAT IS LEFT: an allocator ROTATION of the nine values that are live across the calls.
-   Retail has col=s4, pClip=s5, 0xE0=s6, row=s7, 0xD0=fp (0xC0 spilled at 0x38(sp), 0xC8
-   at 0x40(sp), frame 0x70); this body has 0xE0=s4, col=s5, row=s6, 0xD0=s7, pClip=s8
-   (0xC8 materialised twice, frame 0x68). Same nine registers, same nine values.
-   MEASURED DEAD ENDS THIS ROUND (do not redo): `pScratch + 0xC8` for the inner pointer
-   (87.30 / 1048); a `WorldMapMisc16Point* pBL = (WorldMapMisc16Point*)D_1F8000C8;` local
-   used at both sites (88.63 but 1028 = two instructions SHORT, cannot link);
+   WHAT IS LEFT: retail col=s4 pClip=s5 0xE0=s6 row=s7 0xD0=fp with 0xC0/0xC8 spilled;
+   this body 0xE0=s4 col=s5 row=s6 0xD0=s7 pClip=s8 with only 0xC0 spilled, frame 0x68.
+   Same nine registers, same values, a rotation. Six hand rounds and four permuter runs
+   have not moved it, and five declaration orders measure identical, so it is not a
+   pseudo-number tie. Also measured dead this round: pC0/pC8 as symbol-named locals
+   (1024 / 83.18 - cse rematerialises the addiu instead of spilling); all five inner points
+   as symbol locals (1024 / 76.16, frame 0x50); pD0, pD8, pE0 as preheader locals
+   (1040 / 81.19, retail's 0x70 frame, one instruction over); pClip assigned before the
+   matrix calls (85.47) or after the vy zeros (87.05); `pClip += 1` (identical);
    `(WorldMapMisc16Point*)(pScratch + 0xB8)` for the fourth corner (78.80 / 1028);
-   nXClip/nZClip locals (80.30 / 1044); a `s16 spare[2]`-style frame pad.
-   Three permuter runs (5 minutes each, 1468-2174 iterations; score 3705 -> 3190 -> 2965)
-   produced three candidates: TWO WERE WRONG CODE - 2789 reuses `col` as the pack
-   accumulator inside the `for (col = 0; col < 5; col++)` loop (destroys the counter) and
-   2902 moves `pClip++` out of the loop into the vy-zero block (pClip then advances once
-   instead of 25 times); do not port either. The only correct one was marginal
-   (2955 vs 2965: the 0xB8 store split into two statements and x>>1>>3>>8).
-   ROUND 342: `*pClip = nClip;` with `pClip++;` as the LAST statement of the col loop
-   body (after the pScratch+0xA0 store) is worth 88.03 -> 89.02 at retail's exact 1036
-   bytes: retail's `addiu s5,s5,0x2` lands in the col back-branch delay slot and the
-   `bnez` slot then carries the `addu a3,pE0` copy - with `*pClip++` the two swap.
-   MEASURED DEAD ENDS THIS ROUND (all at retail's size or one instruction over): pC0
-   and pC8 as symbol-named locals (1024 / 83.18 - cse then rematerialises the addiu
-   instead of spilling); all five inner points as symbol locals (1024 / 76.16, frame
-   0x50); pD0, pD8, pE0 as preheader locals (1040 / 81.19, the ONLY variant with
-   retail's 0x70 frame, one instruction over); pClip assigned before the matrix calls
-   (85.47) or after the vy zeros (87.05); `pClip += 1` (identical); five declaration
-   orders (identical pairing - so the rotation is not a pseudo-number tie). A
-   4-minute permuter run from 89.02 (1533 iterations, 2570 -> 2499) offered only
-   `s32 nA0 = 0xA0;` for the first 0xA0 store: 89.31% but 1040 bytes, so it cannot
-   link - retail's store is a %lo immediate off s2. The residual is unchanged: the
-   five-value rotation plus 0xC8 materialised twice (frame 0x68 vs retail's 0x70).
-   Not a preset question: gcc-2.7.2-cdk scores 70.06 and gcc-2.6.0 69.89 on this body. */
+   nXClip/nZClip locals (80.30 / 1044). Not a preset question: gcc-2.7.2-cdk scores
+   70.06 and gcc-2.6.0 69.89 on this body. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 /*
 void func_800983A0(WorldMapMisc16Struct* p) {
@@ -285,7 +298,8 @@ void func_800983A0(WorldMapMisc16Struct* p) {
     pQuad = (WorldMapMisc16Point*)0x1F8000A0;
     pTex = D_8009D650;
 
-    nX = -((p->x >> 12) & 0x7FF) - 0x1000;
+    nX = -((p->x >> 12) & 0x7FF);
+    nX = nX - 0x1000;
     *(s32*)0x1F800040 = nX;
 
     row = 0;
@@ -301,7 +315,8 @@ void func_800983A0(WorldMapMisc16Struct* p) {
 
     nZ = -((p->z >> 12) & 0x7FF) - 0x1000;
     *(s32*)0x1F800048 = nZ;
-    *(u16*)0x1F8000A4 = -nZ;
+    nZ = -nZ;
+    *(u16*)0x1F8000A4 = nZ;
 
     for (; row < 5; row++) {
         *(u16*)(pScratch + 0xA0) = *(s32*)(pScratch + 0x40);
@@ -357,11 +372,13 @@ void func_800983A0(WorldMapMisc16Struct* p) {
         nVariant |= 2;
     }
     pMask = &D_8009B7A8[nVariant];
+    pMaskEntry = pMask->entry;
     pTex = D_8009D650;
     for (row = 0; row < 25; row++) {
-        pTex->unk0 |= pMask->entry->unk0;
-        pTex->unk4 |= pMask->entry->unk4;
+        pTex->unk0 |= pMaskEntry->unk0;
+        pTex->unk4 |= pMaskEntry->unk4;
         pTex++;
+        pMaskEntry++;
     }
 }
 */
