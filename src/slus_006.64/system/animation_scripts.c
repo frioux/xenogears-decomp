@@ -521,28 +521,54 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 // folds it to `(f << 1 & 8 ^ newBit3)` (3 insns) if the 0x3C clear is written early enough to
 // let it see that bit 3 of the new word is the flip value; `%hi/%lo` pairs for
 // g_AnimScriptCommandLengths stay unhoisted in both compiles.
-// What is left is statement order inside two blocks (the tail's `and`, the 0xBE arm's load
-// order/lhu position) plus `srl` vs retail's `sra v0,s0,11` for (`s16)value >> 11`, which no
-// spelling tried (s16/u16/s32 locals, u16 local with a cast) reproduces. A 4-minute permuter
-// run found only the `new_var = 0x3F` local below (90.95 -> 91.20).
+// Best: 94.23% (788 bytes = retail's exact size). Round 331 took 91.20 -> 94.23 with six
+// permuter finds, each ported and re-measured; they are the five odd-looking statements below
+// (all load-bearing, do not tidy):
+//  - `pArg = &pBytecode[1]` at the head of the loop and `*pArg` in the 0xE2 arm: retail reads
+//    pBytecode[1] twice through TWO address registers (`lbu v0,1(a1)` and `lbu s0,1(a3)`), which
+//    only a second address value produces (91.20 -> 92.50).
+//  - `((value >> 11) & 0xF)`, no `(s16)` cast: retail's `sra` is NOT reachable - every spelling
+//    that makes value signed costs a sign-extend pair (s16 local 796 bytes, `(s16)` cast 796);
+//    gcc also folds `(value >> 11) & 0xF` back to `srl`+`andi` whatever the mask is written as.
+//    Retail's sra comes from a source shape this compiler does not have (92.50 -> 92.83).
+//  - `transformFlags = count; transformFlags <<= 22;` as two statements (92.83 -> 93.02).
+//  - `((flags >> 2) >> 1) & 1` for the flip XOR's bit 3 (93.02 -> 93.29).
+//  - `value = (flags & MASK) | transformFlags;` then `pSpriteData->flags_0xA8 = value;` - the
+//    tail's result reuses the 0xBE arm's dead `value` local (93.29 -> 94.23). A NEW local here
+//    costs a frame slot and does not match.
+// WHAT IS LEFT is register naming only, except one ordering difference: retail's tail block
+// computes `and a1,v0,a2` (flags & 0xF03FFFFF) as the SECOND instruction after the load, ours
+// puts the same `and` after the `sll`. Retail's source therefore ANDed the mask EARLY
+// (`transformFlags = flags & MASK;` first) and updated the wait timer afterwards - but that
+// spelling lengthens the mask's luid span to ~12 and loop.c hoists it into a sixth saved
+// register (89.30%, 796 bytes). So the two levers conflict; the anti-hoist shape is kept.
+// Everything else at 94.23 is the same instructions with different register names: head
+// `addiu a1,a3,1` vs ours a0, tail mask a2 vs a3, 0xBE arm -9 in a2 vs a0, and the delay-slot
+// position of `sw pSpriteBytecode` (retail one instruction later, in the second beqz's slot).
+// Tried and dead: swapping the two 0xBE stores (776 bytes, worse), `(*pSpriteData).f` spelling
+// (identical), reusing a `mem_addr`/`u8*` local for pBytecode+3 before the switch (the
+// permuter scores it 740 vs 865 but it does NOT reproduce in the real build - 94.23 either way).
+// Five permuter runs on this body found only the six edits above; nothing better since.
 
 // SpriteData's 0x3C flag word: the shared header only splits bits 20-31 into fields,
 // so the flip bit this VM mirrors the animation flags into sits inside its 20-bit
 // field_0x3C_0 (the same view system/temp1.c declares for the word).
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
+/*
 typedef union {
-    /* 0x0 */ u32 flags;
-    /* 0x0 */ u8 bytes[4];
+    // 0x0  u32 flags;
+    // 0x0  u8 bytes[4];
     struct {
-        /* 0x0 */ u32 unk0: 3;
-        /* 0x3 */ u32 flipX: 1;
-        /* 0x4 */ u32 unk4: 28;
+        // 0x0  u32 unk0: 3;
+        // 0x3  u32 flipX: 1;
+        // 0x4  u32 unk4: 28;
     } fields;
 } SpriteTransformFlags;
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x3C];
-    /* 0x3C */ SpriteTransformFlags flags_0x3C;
-} SpriteTransformFlagsView; // Size: 0x40
+    // 0x00  u8 unk0[0x3C];
+    // 0x3C  SpriteTransformFlags flags_0x3C;
+} SpriteTransformFlagsView;
 
 // flags_0xA8's frame counter (bits 11..16) and script index (bits 22..27) are read and
 // written whole, so both live in masks rather than bitfields.
@@ -670,6 +696,7 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
         }
     }
 }
+*/
 
 // Recompute animation speed
 void SpriteUpdateMoveStep(SpriteData* pSpriteData) {
