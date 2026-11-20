@@ -1383,9 +1383,10 @@ void func_8002BB50(void) {
     u32 nCommand;
     u32 nChunks;
     s32 sectorOffset;
-    s32 posX;
+    s32 nCoord;
     s16 i;
 
+    // Two variables for one address: gcc's allocator only gives the scan loop retail's registers this way.
     pSections = g_ArchiveStreamSections;
     pSection = pSections;
     for (i = 0; i < g_ArchiveStreamSectionCount; i++, pSection++) {
@@ -1418,10 +1419,10 @@ void func_8002BB50(void) {
                 g_ArchiveImageRectY = D_80059F2C + pData[3];
                 break;
             case 2:
-                posX = D_80059F28 + pData[0] + pData[2];
-                g_ArchiveImageRectX = posX;
-                posX = D_80059F2C + pData[1] + pData[3];
-                g_ArchiveImageRectY = posX;
+                nCoord = D_80059F28 + pData[0] + pData[2];
+                g_ArchiveImageRectX = nCoord;
+                nCoord = D_80059F2C + pData[1] + pData[3];
+                g_ArchiveImageRectY = nCoord;
                 break;
             default:
                 g_ArchiveImageRectX = pData[0] + pData[2];
@@ -1437,10 +1438,10 @@ void func_8002BB50(void) {
                 g_ArchiveImageRectY = D_80059F38 + pData[3];
                 break;
             case 2:
-                posX = D_80059F34 + pData[0] + pData[2];
-                g_ArchiveImageRectX = posX;
-                posX = D_80059F38 + pData[1] + pData[3];
-                g_ArchiveImageRectY = posX;
+                nCoord = D_80059F34 + pData[0] + pData[2];
+                g_ArchiveImageRectX = nCoord;
+                nCoord = D_80059F38 + pData[1] + pData[3];
+                g_ArchiveImageRectY = nCoord;
                 break;
             default:
                 g_ArchiveImageRectX = pData[0] + pData[2];
@@ -1495,119 +1496,123 @@ void func_8002BB50(void) {
     g_ArchiveStreamCurSectionId += 1;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
-/* Best attempt: objdiff 85.60% (992 bytes vs retail 984). The stream command record is
- * [0] cmd 0x1200/0x1201, [4..0xA] four u16 offsets, [0xC] width, [0x14] frames left,
- * [0x18] chunk count, [0x1C] chunk-height table; the section search loop and the
- * LoadImage strip loop match block for block. Remaining deltas: the search loop is
- * rotated the other way (retail ends with bnez, ours with beqz plus a j), the sector
- * address addu operand order (write i * CD_SECTOR_SIZE + (mem_addr)g_ArchiveStreamWritePointer), the
- * load order inside the two rect switches, and the g_ArchiveImageRectY/g_ArchiveImageChunkHeights/g_ArchiveImageChunksLeft
- * update order after DrawSync. Next step is a permuter run, not more hand shapes.
- *
- * void func_8002BF38(void) {
- *     ArchiveStreamFileSectionHeader* pSection;
- *     RECT rect;
- *     u32* pData;
- *     u16* pArgs;
- *     u32 cmd;
- *     s16 i;
- *
- *     i = 0;
- *     pSection = g_ArchiveStreamSections;
- *     if (g_ArchiveStreamSectionCount > 0) {
- *         do {
- *             if ((pSection->state == 1) && (pSection->id == g_ArchiveStreamCurSectionId))
- *                 break;
- *             i++;
- *             pSection++;
- *         } while (i < g_ArchiveStreamSectionCount);
- *     }
- *     if (i == g_ArchiveStreamSectionCount)
- *         return;
- *
- *     pSection->state = 2;
- *     pData = (u32*)(g_ArchiveStreamWritePointer + (i * CD_SECTOR_SIZE));
- *
- *     if (g_ArchiveImageChunksLeft == 0) {
- *         cmd = *pData++;
- *         if ((cmd != 0x1200) && (cmd != 0x1201))
- *             return;
- *
- *         pArgs = (u16*)pData;
- *         if (cmd == 0x1200) {
- *             switch (D_80059F24) {
- *                 case 1:
- *                     g_ArchiveImageRectX = D_80059F28 + pArgs[2];
- *                     g_ArchiveImageRectY = D_80059F2C + pArgs[3];
- *                     break;
- *                 case 2:
- *                     g_ArchiveImageRectX = D_80059F28 + pArgs[0] + pArgs[2];
- *                     g_ArchiveImageRectY = D_80059F2C + pArgs[1] + pArgs[3];
- *                     break;
- *                 default:
- *                     g_ArchiveImageRectX = pArgs[0] + pArgs[2];
- *                     g_ArchiveImageRectY = pArgs[1] + pArgs[3];
- *                     break;
- *             }
- *         }
- *
- *         if (cmd == 0x1201) {
- *             switch (D_80059F30) {
- *                 case 1:
- *                     g_ArchiveImageRectX = D_80059F34 + pArgs[2];
- *                     g_ArchiveImageRectY = D_80059F38 + pArgs[3];
- *                     break;
- *                 case 2:
- *                     g_ArchiveImageRectX = D_80059F34 + pArgs[0] + pArgs[2];
- *                     g_ArchiveImageRectY = D_80059F38 + pArgs[1] + pArgs[3];
- *                     break;
- *                 default:
- *                     g_ArchiveImageRectX = pArgs[0] + pArgs[2];
- *                     g_ArchiveImageRectY = pArgs[1] + pArgs[3];
- *                     break;
- *             }
- *         }
- *
- *         pData += 2;
- *         g_ArchiveImageRectW = *(u16*)pData;
- *         pData += 2;
- *         if (g_ArchiveImageBlocksLeft == 0)
- *             g_ArchiveImageBlocksLeft = *pData;
- *         pData++;
- *         g_ArchiveImageChunksLeft = *pData;
- *         pData++;
- *         g_ArchiveImageChunkHeights = (u16*)pData;
- *     } else {
- *         rect.x = g_ArchiveImageRectX;
- *         rect.y = g_ArchiveImageRectY;
- *         rect.w = g_ArchiveImageRectW;
- *         rect.h = *g_ArchiveImageChunkHeights;
- *         LoadImage(&rect, (u_long*)pData);
- *         DrawSync(0);
- *
- *         g_ArchiveImageRectY = g_ArchiveImageRectY + *g_ArchiveImageChunkHeights;
- *         g_ArchiveImageChunkHeights += 1;
- *         g_ArchiveImageChunksLeft -= 1;
- *         if (g_ArchiveImageChunksLeft <= 0) {
- *             g_ArchiveImageChunksLeft = 0;
- *             g_ArchiveImageBlocksLeft -= 1;
- *             for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
- *                 g_ArchiveStreamSections[i].state = 0;
- *                 g_ArchiveStreamSections[i].id = 0;
- *             }
- *             if (g_ArchiveImageBlocksLeft <= 0) {
- *                 g_ArchiveCurFileSize = 0;
- *                 g_ArchivePendingReadCount = 0;
- *                 return;
- *             }
- *         }
- *         pSection->state = 0;
- *     }
- *
- *     g_ArchiveStreamCurSectionId += 1;
- * }
- */
+void func_8002BF38(void) {
+    ArchiveStreamFileSectionHeader* pSection;
+    ArchiveStreamFileSectionHeader* pIter;
+    ArchiveStreamFileSectionHeader* pSections;
+    u_long* pBuf;
+    RECT rect;
+    u16* pData;
+    u16* pChunk;
+    u32 nCommand;
+    u32 nChunks;
+    s32 sectorOffset;
+    s32 nCoord;
+    s16 i;
+
+    // Two variables for one address: gcc's allocator only gives the scan loop retail's registers this way.
+    pSections = g_ArchiveStreamSections;
+    pSection = pSections;
+    for (i = 0; i < g_ArchiveStreamSectionCount; i++, pSection++) {
+        if (pSection->state == 1 && pSection->id == g_ArchiveStreamCurSectionId)
+            break;
+    }
+
+    if (i == g_ArchiveStreamSectionCount)
+        return;
+
+    pSection->state = 2;
+    sectorOffset = i * CD_SECTOR_SIZE;
+    pBuf = (u_long*)(sectorOffset + (mem_addr)g_ArchiveStreamWritePointer);
+
+    if (g_ArchiveImageChunksLeft == 0) {
+        nCommand = *pBuf++;
+        pData = (u16*)pBuf;
+        if (nCommand < 0x1200 || nCommand > 0x1201)
+            return;
+
+        if (nCommand == 0x1200) {
+            switch (D_80059F24) {
+            case 1:
+                g_ArchiveImageRectX = D_80059F28 + pData[2];
+                g_ArchiveImageRectY = D_80059F2C + pData[3];
+                break;
+            case 2:
+                nCoord = D_80059F28 + pData[0] + pData[2];
+                g_ArchiveImageRectX = nCoord;
+                nCoord = D_80059F2C + pData[1] + pData[3];
+                g_ArchiveImageRectY = nCoord;
+                break;
+            default:
+                g_ArchiveImageRectX = pData[0] + pData[2];
+                g_ArchiveImageRectY = pData[1] + pData[3];
+                break;
+            }
+        }
+
+        if (nCommand == 0x1201) {
+            switch (D_80059F30) {
+            case 1:
+                g_ArchiveImageRectX = D_80059F34 + pData[2];
+                g_ArchiveImageRectY = D_80059F38 + pData[3];
+                break;
+            case 2:
+                nCoord = D_80059F34 + pData[0] + pData[2];
+                g_ArchiveImageRectX = nCoord;
+                nCoord = D_80059F38 + pData[1] + pData[3];
+                g_ArchiveImageRectY = nCoord;
+                break;
+            default:
+                g_ArchiveImageRectX = pData[0] + pData[2];
+                g_ArchiveImageRectY = pData[1] + pData[3];
+                break;
+            }
+        }
+
+        pBuf += 2;
+        g_ArchiveImageRectW = *(u16*)pBuf;
+        pBuf += 2;
+        if (g_ArchiveImageBlocksLeft == 0)
+            g_ArchiveImageBlocksLeft = *pBuf;
+        pBuf += 1;
+        nChunks = *pBuf;
+        pBuf += 1;
+        g_ArchiveImageChunkHeights = (u16*)pBuf;
+        g_ArchiveImageChunksLeft = nChunks;
+    } else {
+        rect.x = g_ArchiveImageRectX;
+        rect.y = g_ArchiveImageRectY;
+        rect.w = g_ArchiveImageRectW;
+        rect.h = g_ArchiveImageChunkHeights[0];
+        LoadImage(&rect, pBuf);
+        DrawSync(0);
+
+        pChunk = g_ArchiveImageChunkHeights;
+        g_ArchiveImageChunkHeights = pChunk + 1;
+        g_ArchiveImageRectY += pChunk[0];
+        g_ArchiveImageChunksLeft -= 1;
+
+        if (g_ArchiveImageChunksLeft <= 0) {
+            g_ArchiveImageChunksLeft = 0;
+            g_ArchiveImageBlocksLeft -= 1;
+            for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
+                pIter = g_ArchiveStreamSections;
+                pIter[i].state = 0;
+                pIter[i].id = 0;
+            }
+
+            if (g_ArchiveImageBlocksLeft <= 0) {
+                g_ArchiveCurFileSize = 0;
+                g_ArchivePendingReadCount = 0;
+                return;
+            }
+        }
+
+        pSection->state = 0;
+    }
+
+    g_ArchiveStreamCurSectionId += 1;
+}
 
 void ArchivePrintDebugState(void) {
     func_800379C8(g_StrArchiveDebugStreamState, g_ArchiveTable, g_ArchiveStreamWritePointer, g_ArchiveStreamSections);
