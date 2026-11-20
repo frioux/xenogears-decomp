@@ -122,7 +122,10 @@ typedef struct BattleActor {
     // The actor's model part (misc4's struct ActorPart): its BattleActorSetPartTransform
     // copies the actor's position and angle into it every frame.
     /* 0x005C */ void* pPart;
-    /* 0x0060 */ u8 pad60[0xC];
+    // The draw object func_80084C88 creates with BattleCreateObject and links into
+    // the part list; func_80072858 writes its local matrix (misc10's pObject).
+    /* 0x0060 */ u8* pObject;
+    /* 0x0064 */ u8 pad64[0x8];
     /* 0x006C */ Vec4 prevPosition;
     // The part timing table indexed by partIndex: a frame limit and a per-frame
     // step per part (misc2's BattlePartTiming), copied from the resource block by
@@ -141,7 +144,10 @@ typedef struct BattleActor {
     // Per-frame charge and decay applied to those four ramps (func_80076884).
     /* 0x0098 */ s32 inputRampStep;
     /* 0x009C */ s32 inputDecayStep;
-    /* 0x00A0 */ u8 unkA0[0x10];
+    /* 0x00A0 */ u8 unkA0[0x8];
+    // misc4's round reset stores 0x60 here; read nowhere.
+    /* 0x00A8 */ s32 unkA8;
+    /* 0x00AC */ u8 padAC[0x4];
     /* 0x00B0 */ s32 floorY;
     /* 0x00B4 */ s16 gaugeValue;
     /* 0x00B6 */ s16 gaugePoints;
@@ -176,7 +182,12 @@ typedef struct BattleActor {
     /* 0x00E8 */ s32 stateTimer;
     /* 0x00EC */ u8 unkEC[0x4];
     /* 0x00F0 */ s16 moveFrameCount;
-    /* 0x00F2 */ u8 unkF2[0xA];
+    // func_80072858 reads it as a signed halfword and prints it in the battle
+    // information screen; nothing writes it, so what it counts is unknown.
+    /* 0x00F2 */ s16 unkF2;
+    // misc4's round reset stores 1 here; read nowhere.
+    /* 0x00F4 */ s32 unkF4;
+    /* 0x00F8 */ u8 padF8[0x4];
     /* 0x00FC */ s32 angleOffset;
     /* 0x0100 */ s32 movePhase;
     // Sixteen 0x54-byte slot records (misc2's BattleActorSlot): BattleCommitSlotStates
@@ -185,12 +196,19 @@ typedef struct BattleActor {
     /* 0x0644 */ s32 gaugePercent;
     /* 0x0648 */ s32 facingAngle;
     /* 0x064C */ BattleEffectSlot effectSlots[8];
-    /* 0x086C */ u8 unk86C[0x90];
+    /* 0x086C */ u8 unk86C[0x88];
+    // The distance from the actor to the nearest active effect slot and that slot,
+    // recorded every frame by func_80073644 (0x10000 when none is active); the state
+    // handlers read the target's distance to tell whether it stands in an effect.
+    /* 0x08F4 */ u32 nearestEffectDistance;
+    /* 0x08F8 */ BattleEffectSlot* pNearestEffect;
     // The model script block func_80084C88 stores the resource record's +0x10 here:
     // its scale word (+0xC), step scale byte (+0xF) and a word at +0x20 are read.
     /* 0x08FC */ void* pScript;
-    // The same block at +0x34; written by func_80084C88, read nowhere.
-    /* 0x0900 */ void* unk900;
+    // One script offset per model index, the table right after the header: the part
+    // animation func_80074678 indexes it with modelIndex to find the model's entry
+    // list in pScript.
+    /* 0x0900 */ s16* pModelScriptOffsets;
     // The part indices BattleUpdatePartDrawFlags walks, one byte each (misc2);
     // func_80084C88 points it into the script block and copies its count from +0xE.
     /* 0x0904 */ u8* pVisiblePartIndices;
@@ -224,7 +242,9 @@ typedef struct BattleActor {
     // 0x18 a frame by misc9's light pass (BattleFadeActorLights).
     /* 0x0918 */ u8 lightAlpha;
     /* 0x0919 */ u8 pad919[0x3];
-    /* 0x091C */ Vec4 unk91C;
+    // The point the hit effect spawned at: func_80075B50 stores the same words it
+    // copies into g_BattleEffectPosX/Y/Z here.
+    /* 0x091C */ Vec4 effectPosition;
     // One of the two world points whose y words bound the actor; 0x93C is the
     // other (src/battling/main/misc4.c names the pair).
     /* 0x092C */ Vec4 baseVertexPos;
