@@ -154,22 +154,12 @@ void FieldScriptSetGearStateFlag(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-// 97.81% (532 bytes, same instruction multiset). Remaining differences: the four
-// rect stores go through D_800AFC58..D_800AFC5E as four separate s16 globals in the
-// original (a RECT-typed D_800AFC58 gives addends 0/2/4/6 against one symbol), the
-// original reuses the StoreImage argument register for the offset-0 store
-// (`sh zero,0(a0)`) where ours re-forms `lui at`, and case 1's shift is emitted
-// after the second GetArgument call in the original but folded into its delay slot
-// by ours. Splitting case 1's shift onto its own statement costs 4 bytes (95.55%).
 // NOTE the command dispatch must be a switch: an if/else chain compiles to a linear
 // compare chain (77.68%) and the original has gcc's comparison tree. It does not
 // generate a jump table (no jtbl_ relocation, 532 bytes).
 extern s32 D_800C3A48;
 extern s32 D_800AF87C;
-extern s16 D_800AFC58;
-extern s16 D_800AFC5A;
-extern s16 D_800AFC5C;
-extern s16 D_800AFC5E;
+extern RECT D_800AFC58[];
 extern s32 D_800ADBB4;
 extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 
@@ -186,6 +176,26 @@ extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 // onto the StoreImage argument register (`sh zero,0(a0)`), with the same `la` in
 // both. A permuter run from this body (base 436 -> best 243) only proposed the
 // s16/540 shape and a castless HeapFree, so it found nothing portable.
+// Captures or restores the screen region described by the script instruction: 0
+// grabs it into two freshly allocated buffers, 1 copies one back with
+// func_80026F44, 2 frees the buffers and 3 only advances the pointer.
+//
+// 99.59%: retail's exact 532 bytes and the same instruction multiset, one
+// allocator tie left. In case 0 retail keeps the two script-argument results in
+// $s1 (the y field, argument 2) and $s2 (the height, argument 4); this build emits
+// the mirror image - both copies sit in the same positions and only the register
+// numbers differ. Declaration order either way, a separate `size` local versus
+// `h << 9` written twice, and a 4-minute permuter run (base 25, best 25) all
+// measure 99.59.
+//
+// Two shapes below are load-bearing and each was worth a fix. Case 1's shift has
+// to stay a separate operand - `offset = FieldScriptVMGetArgument(2);` and then
+// `(offset << 9)` in both func_80026F44 arguments; written as one statement the
+// copy folds into the `sll` and the body loses 4 bytes. And the four rect stores
+// need D_800AFC58 as an unbounded RECT array: declared as a scalar RECT the x
+// store keeps the `lui at / sh %lo` form, and four separate s16 externs cannot
+// produce retail's `sh zero,0(a0)` at all, while the array form keeps the rect's
+// address in the StoreImage argument register for the offset-0 store.
 /*
 void func_800871B0(void) {
     u8 command = SCRIPT_READ_U8_REL(1);
@@ -200,11 +210,11 @@ void func_800871B0(void) {
         h = FieldScriptVMGetArgument(4);
         D_800C3A48 = HeapAlloc(h << 9, 0);
         D_800AF87C = HeapAlloc(h << 9, 0);
-        D_800AFC58 = 0;
-        D_800AFC5A = y;
-        D_800AFC5C = 0x100;
-        D_800AFC5E = h;
-        StoreImage((RECT*)&D_800AFC58, (void*)D_800C3A48);
+        D_800AFC58[0].x = 0;
+        D_800AFC58[0].y = y;
+        D_800AFC58[0].w = 0x100;
+        D_800AFC58[0].h = h;
+        StoreImage(&D_800AFC58[0], (void*)D_800C3A48);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
         g_FieldScriptVMStopFlag = 1;
         break;
@@ -213,9 +223,9 @@ void func_800871B0(void) {
         s32 offset;
 
         g_FieldScriptMaxInstructionCount += 0x20;
-        offset = FieldScriptVMGetArgument(2) << 9;
-        func_80026F44(0x100, FieldScriptVMGetArgument(4), (u16*)(D_800AF87C + offset),
-                      (u16*)(D_800C3A48 + offset));
+        offset = FieldScriptVMGetArgument(2);
+        func_80026F44(0x100, FieldScriptVMGetArgument(4), (u16*)(D_800AF87C + (offset << 9)),
+                      (u16*)(D_800C3A48 + (offset << 9)));
         D_800ADBB4 = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
         break;
@@ -612,19 +622,16 @@ void FieldScriptSetCharacterBit2318(void) {
 
 extern FieldScriptGlobalS16 g_FieldScriptShopIndex;
 
-// 100.0% under gcc 2.6.0-psx, 78.75% under this unit's 2.7.2: it needs a
-// per-file preset, and this unit cannot be split yet - it declares several names
-// twice with different types mid-file (PartyDataChunk, FieldRandomValues), so
-// copying the typedefs into a new TU does not compile.
-/*
+// Sets the shop index a script step selects to the inverse of its argument's low
+// bit (0/1), then steps over the instruction.
 void func_8008848C(void) {
     int value = SCRIPT_READ_U8_REL(1);
 
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+    // volatile: retail loads the instruction pointer a second time for the step,
+    // and gcc 2.7.2 folds the two reads into one without it.
+    *(volatile u16 *)&g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     g_FieldScriptShopIndex.value = value ^ 1;
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
 
 extern FieldScriptGlobalS16 g_FieldSoundMaxDistance;
 
