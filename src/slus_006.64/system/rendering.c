@@ -355,11 +355,15 @@ typedef struct {
 // in field/actor.h only expose as separate fields.
 #define SpriteFlags0x3C(pSpriteData) ((u32)((SpriteRenderFlagWords*)(pSpriteData))->flags_0x3C.flags)
 
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
-/* Best attempt: 84.08% (1508 bytes, and retail is 1508 - 377 instructions - so
-   the size is exact; what is left is register rotation and one instruction
-   order). Round 346 wrote this from the .s; nothing was parked here before.
+/* Best attempt: 86.78% (1504 bytes; retail is 1508 = 377 instructions, so this
+   body is ONE instruction short - it cannot link as-is and the round-346 body
+   (84.08%, exactly 1508) was size-exact. Read the residues below before changing
+   anything: three measured source fixes took it 84.08 -> 86.24 -> 87.21 -> 88.05
+   and one of them is a MISCOMPILE, which is why the best body is not the best
+   number.
    The tail (prim build, quad corners, RotTransPers4, uv, addPrim) is the same
    code as func_8001E9BC / func_8001EE88 / func_8001F1D4 in this file.
 
@@ -367,15 +371,24 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
    - The frame loop is a DO/WHILE, not a `for`: retail has no top exit test
      (it enters at .L8001E494 straight from the preheader), and the `for` form
      makes gcc duplicate the loop exit test (+3 instructions, 1524 bytes).
+   - The loop tail must be `} while (++i != <count>);` with NO `i++;` in the
+     body: retail is `lw t4,i(sp); addiu t4,t4,1; bne t4,v0,.L; sw t4,i(sp)`
+     (the store fills the branch delay slot). With `i++;` in the body and the
+     bare `i != ...` test gcc stores i first, RELOADS it for the test and leaves
+     a nop in the delay slot - 4 bytes longer, 0.9 points lower.
    - INDEXED access pFrameData[i] is REQUIRED. With `i++, pFrameData++` and
      `pFrameData->`, gcc re-bases the induction register to pFrameData+7 and
      every field goes negative; because the pointer is then also spilled the
      frame grows to 0xB0. With pFrameData[i] the frame is retail's exact 0x98
      and there is no re-basing (same finding as the func_8001E9BC note).
+   - The mirror test `(flags_0xAC >> 2) & 1` must be HOISTED into a local
+     (flipX) assigned BEFORE the two offset computations: retail loads pBase,
+     field_0x40 and field_0xAC back to back and only then does the lb's. Reading
+     the flag inside the `if` instead puts the 0xAC load after offsetX's shift
+     and costs a load-delay nop (+4 bytes).
    - `pTransform->translationX != 0 || pTransform->translationY != 0` DOES
      compile to retail's single `lhu 0(a0)` plus `bnez` (gcc merges the two
-     adjacent s8 loads), so the realistic spelling is right; the earlier guess
-     that the source tested a u16 field is unnecessary.
+     adjacent s8 loads), so the realistic spelling is right.
    - The scaling must stay `y = y * scale / 0x1000;` - that is what emits
      retail's `bgez / addiu 0xFFF / sra 12` pair, and y (translationY) is
      computed before x (translationX), both negated by bit 3 of field_0x3C.
@@ -387,7 +400,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
    - The 0x3C bit tests need the WHOLE u32 word: `(field_0x3C_0 >> 3) & 1` on
      the actor.h bitfield emits `and 0xFFFFF` + `sra` with the 0xFFFFF constant
      spilled and reloaded, where retail is `lw / srl 3 / andi 1`. Hence the
-     SpriteFlags0x3C macro above (the device temp1.c/temp2.c use).
+     SpriteFlags0x3C macro above.
    - The frame-flag tests need a u32 cast: `pFrameData[i].flags >> 4 & 1` on the
      s32 field gives `sra`, retail has `srl` (bits 4 and 5 both).
    - offsetX/offsetY (the sprite's scaled offsets, subtracted from the projected
@@ -399,31 +412,48 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
      assigned before the loop is loop-invariant, so it takes a callee-saved
      register and grows the frame.
    - the 0xFFFFFF mask (addPrim) is hoisted to a callee-saved register by both.
-   What is still wrong, measured:
-   - retail copies each shifted width/height/tileX/tileY into a SECOND register
-     unconditionally (`move t0,t2`) and negates that copy in the bit-3/bit-4
-     arm; negating in place is 84.61% at 1500 bytes (2 instructions short of
-     retail, so it cannot link). Writing the negation into separate
-     drawWidth/drawHeight/drawTileX/drawTileY locals reproduces the four moves
-     and retail's exact 1508 bytes - which is the body below - and the rest of
-     the spread is which register each copy lands in.
+   - The QUAD-CORNER x stores of element 0 go through the SYMBOL in retail
+     (`lui t4,%hi` + `sh %lo(g_BattleSpriteQuadCorners)($t4)`) in the x arm and
+     in the offset block, while the y stores and elements 1-3 use the pVerts
+     register. The two ARM stores can be spelled `g_BattleSpriteQuadCorners[0].vx`
+     (worth +2.8 points) - but the OFFSET-BLOCK one CANNOT: with that spelling
+     cc1 2.7.2 replaces the `&pVerts[2]` argument of RotTransPers4 with
+     `la $6,g_BattleSpriteQuadCorners` (element 0 instead of 2), i.e. a silent
+     miscompile that objdiff cannot see because the operand is a relocation.
+     It scored 88.05% at 1512 bytes and is WRONG CODE - do not re-add it.
+   What is still wrong, measured (this body, 86.78% / 1504 = one instruction
+   short):
+   - retail copies each shifted width/height/tileX/tileY into a second register
+     unconditionally (`move t0,t2`) and negates THAT copy in the bit-3/bit-4
+     arms. Writing the negation into separate drawWidth/drawHeight/drawTileX/
+     drawTileY locals reproduces the width and height copies, but gcc still
+     folds the tileX/tileY copies away (it negates those in place and uses the
+     free slot for a nop). Those two `move`s plus the element-0 offset-block
+     `lui` are the missing instructions.
    - the plane-mask read: retail forms the array base in a general register
      (`lui v1,%hi` + `addiu v1,v1,%lo`) and then `addu v0,index,v1`; this C
-     folds the index into the load through $at. Same instruction count, but it
-     changes the addu's destination. The func_8001E9BC note calls this
-     unreachable; a `(mem_addr)` base or an array-extern spelling is worth a
-     try (AGENTS "unbounded array extern" / "base in a statement" levers).
-   - the first division's `sra s0` lands in the delay slot of the LATER bit-3
-     `beqz` in retail and next to its `mflo` here; that is scheduling of one
-     instruction into a branch slot.
-   A 4-minute permuter run on this body is the next cheap step: the structure,
-   the frame, the block order and the call set are all retail's.
+     folds the index into the load through $at (`sll` + `lui $at` + `addu $at`),
+     which also costs the beq delay slot (retail puts the `lui` there). An
+     unbounded-array extern and a `u16 *pMaskTable = g_SpritePlaneMasks;` local
+     were both measured: identical 86.78% / 1504, gcc folds them back.
+   - the transform block's `n` is computed first here and after the first lb in
+     retail (`lb translationY` / `lw field_0x40` / `lb translationX` /
+     `lw field_0x3C`), which is the one remaining extra nop in the preheader.
+   - the saved-register assignment is a rotation of retail's: retail is
+     s4=pSpriteData, s3=pFrameData, s2=pVerts, s1=transY, s0=transX, s5=mask,
+     s6=offsetX, s7=lastPlane, s8=offsetY; this body has s3=pSpriteData,
+     s2=pFrameData, s1=pVerts, s4=transY, s0=transX, s5=mask, s6=lastPlane,
+     s7=offsetX, s8=offsetY. That rotation is most of objdiff's remaining 13%.
+   - THE PERMUTER CANNOT RUN ON THIS BODY YET: `tools/scripts/permute.sh
+     slus_006.64/system/rendering func_8001E3D8` dies with "the base did not
+     compile or parse" (`conversion to non-scalar type requested`), although
+     base.c itself compiles with the unit's own cc1 - something in the
+     permuter's own preprocessing rejects it. Fixing that is the cheapest next
+     step: the structure, the frame, the block order and the call set are all
+     retail's and only allocation and two `move`s are left.
+*/
 
-// Draws every frame of the sprite's current animation as one textured quad. A
-// frame's layer picks the direction transform whose matrix projects its corners
-// (consecutive frames of the same layer share that matrix), and the sprite's
-// plane byte masks whole layers out. The projected corners are then moved by the
-// sprite's scaled offsets, so the quad hangs off the sprite's own origin.
+/*
 void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     SpriteFrameData* pFrameData;
     SpriteDirectionTransform* pTransform;
@@ -439,6 +469,7 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     s32 lastPlane;
     s32 offsetX;
     s32 offsetY;
+    s32 flipX;
     s32 transX;
     s32 transY;
     s32 tileX;
@@ -458,10 +489,11 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     u32 spriteFlags;
     u8 visible;
 
+    flipX = ((u32)pSpriteData->flags_0xAC.flags >> 2) & 1;
     offsetY = (s8)pSpriteData->pBase->offsetY << ((pSpriteData->field_0x40 >> 8) & 0x1F);
     offsetX = (s8)pSpriteData->pBase->offsetX << ((pSpriteData->field_0x40 >> 8) & 0x1F);
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
-    if (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) {
+    if (flipX) {
         offsetX = -offsetX;
     }
     count = (pSpriteData->field_0x40 >> 2) & 0x3F;
@@ -541,12 +573,12 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
 
         edgeX = drawTileX + drawWidth;
         if (!((u32)pFrameData[i].flags >> 4 & 1)) {
-            pVerts[0].vx = drawTileX;
+            g_BattleSpriteQuadCorners[0].vx = drawTileX;
             pVerts[1].vx = edgeX;
             pVerts[2].vx = edgeX;
             pVerts[3].vx = drawTileX;
         } else {
-            pVerts[0].vx = edgeX;
+            g_BattleSpriteQuadCorners[0].vx = edgeX;
             pVerts[1].vx = drawTileX;
             pVerts[2].vx = drawTileX;
             pVerts[3].vx = edgeX;
@@ -601,10 +633,8 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         } else {
             addPrim((u_long*)pArg, pPrim);
         }
-        i++;
-    } while (i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2);
+    } while (++i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2);
 }
-
 */
 
 /* Best attempt: 80.03% (1200 bytes, the original is 1196; round 294 took the
