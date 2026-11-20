@@ -268,6 +268,9 @@ void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_c
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
 /* Best: 89.50% (668 vs 672 bytes, one instruction short) under gcc 2.6.0.
+   Re-measured in round 315 (un-parked, compiled clean): still 89.50% at 668
+   bytes against retail's 672, so this note is current and the body is one
+   instruction short.
    Structure is confirmed against the asm and every call/branch is right: the
    outer loop is THREE accumulators in one for (offset += 0x87C tested against
    0x1974, primOffset += 0x87C from 0xA98, j++), which is what gives retail the
