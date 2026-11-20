@@ -824,7 +824,7 @@ extern void BattlePlaceEffectByMode(s32 mode);
    a second induction pointer, +2 insns: 1096 bytes, 97.53%). The three placement
    stores keep their casts for the same reason: retail re-forms the address from
    the symbol for each of them, and no typed spelling does - the pCell cursor
-   (94.63% at 1068) and a typed view of offset + base (95.77% at 1044) both let
+   (94.63% at 1068) and a typed view of offset + base (95.66% at 1044) both let
    gcc hoist the three source-actor loads above the store group instead of
    interleaving them. Same family as the load-bearing cast store in battling/misc2.
 */
