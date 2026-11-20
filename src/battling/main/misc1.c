@@ -26,14 +26,9 @@ s32 BattleRoundDivAwayFromZero(s32 a0, s32 a1, s32 a2) {
     return d / a2;
 }
 
-// The position every effect vector is placed against: three 16.16 words.
-typedef struct {
-    /* 0x0 */ s32 x;
-    /* 0x4 */ s32 y;
-    /* 0x8 */ s32 z;
-} BattleAnchor; // Size: 0xC
-
-extern BattleAnchor g_BattleCameraTarget;
+// The position every effect vector is placed against: the three 16.16 words of
+// a long-word VECTOR.
+extern VECTOR g_BattleCameraTarget;
 extern s32 D_80098680;
 extern s32 D_80098684;
 extern s32 g_BattleEffectPlaceYOffset;
@@ -90,8 +85,6 @@ void func_800708C4(s32* p, s32 step) {
 
 extern VECTOR g_BattleActor0;
 extern VECTOR g_BattleEffectPlaceOrigin;
-extern s32 g_BattleSceneOriginY;
-extern s32 D_80097018;
 extern s32 D_80098780;
 extern s32 D_80097064;
 extern s32 g_BattleSceneOriginYMirror;
@@ -120,9 +113,9 @@ extern s32 func_80082488(VECTOR* pVec, s32 mode);
 // The battling overlay's battle state (g_BattleActor1): the anchor position every
 // effect vector is placed against, the model index and gauge words at +0x4C..+0xB6
 // (the same record src/battling/main/misc3 and misc4 name), and the frame flags
-// the effect cells below are switched on through. Its position is a VECTOR, not
-// the 0xC-byte BattleAnchor: three sites copy 16 bytes out of it, and the
-// g_BattleActor0 it is copied against is a VECTOR.
+// the effect cells below are switched on through. Its position is a VECTOR:
+// three sites copy 16 bytes out of it, and the g_BattleActor0 it is copied
+// against is a VECTOR.
 typedef struct {
     /* 0x000 */ VECTOR position;
     /* 0x010 */ u8 unk10[0x3C];
@@ -151,9 +144,9 @@ extern BattleState g_BattleActor1;
 //  - the do-while plus its identical if/else arms: the arms are the same store,
 //    and the join is what puts &vec's addiu after the g_BattleEffectPlaceOrigin copy;
 //  - the delta/offset copy keeps the func_80082488 result in $v0 for the -0x40;
-//  - pTargetX is a pointer to the anchor's x word: the field spelling
-//    (pTarget->x on a BattleAnchor*) folds the address into a %lo store, and
-//    retail keeps it in $s0 across the rcos call.
+//  - pTargetX is a pointer to the anchor's vx word: the plain field spelling
+//    folds the address into a %lo store, and retail keeps it in $s0 across the
+//    rcos call.
 void BattlePlaceEffectByMode(s32 mode) {
     VECTOR vec;
     VECTOR* pVec;
@@ -196,25 +189,25 @@ void BattlePlaceEffectByMode(s32 mode) {
         vec.vy += g_BattleEffectPlaceYOffset;
         func_80070808(pVec, 0x10);
         vec.vx = g_BattleActor1.position.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
-        y = g_BattleSceneOriginYMirror - 0x20;
+        y = g_BattleActor1.position.vy - 0x20;
         vec.vy = y - g_BattleEffectPlaceYOffset;
-        vec.vz = g_BattleSceneOriginZ + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
+        vec.vz = g_BattleActor1.position.vz + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
         func_800708C4(pVec, 0x46);
         delta = func_80082488(&g_BattleCameraPos, 0) - 0x40;
         offset = delta;
         offset -= g_BattleEffectPlaceYOffset;
-        if (offset < g_BattleCameraPosY) {
-            g_BattleCameraPosY = offset;
+        if (offset < g_BattleCameraPos.vy) {
+            g_BattleCameraPos.vy = offset;
         }
         break;
     case 5:
-        pTargetX = &g_BattleCameraTarget.x;
+        pTargetX = &g_BattleCameraTarget.vx;
         *pTargetX = g_BattleActor0.vx;
-        D_80098680 = g_BattleSceneOriginY - 0xC0;
-        D_80098684 = D_80097018;
+        g_BattleCameraTarget.vy = g_BattleActor0.vy - 0xC0;
+        g_BattleCameraTarget.vz = g_BattleActor0.vz;
         g_BattleCameraPos.vx = *pTargetX + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
-        g_BattleCameraPosY = g_BattleSceneOriginY - 0xD0;
-        g_BattleCameraPosZ = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
+        g_BattleCameraPos.vy = g_BattleActor0.vy - 0xD0;
+        g_BattleCameraPos.vz = g_BattleCameraTarget.vz + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
         break;
     }
 }
@@ -763,11 +756,6 @@ void BattleInitOnce(void) {
     D_80098814 = 0;
 }
 
-// The anchor's y and z words: retail's object reaches them as their own
-// symbols, not as displacements off g_BattleActor1.
-extern s32 g_BattleSceneOriginYMirror;
-extern s32 g_BattleSceneOriginZ;
-
 // One past the last of the three effect-cell frame counters.
 extern s32 g_BattleEffectCellsEnd;
 
@@ -825,16 +813,19 @@ extern void BattlePlaceEffectByMode(s32 mode);
 /* Steps the battle display state machine for the current frame: plays the effect
    sound, places a burst from a random source actor on the effect cells, fades the
    screen and keeps the tutorial message text in step.
-   objdiff 99.89% at retail's 1080 bytes: the only differences are the switch's
-   table operand (jtbl_ vs .rodata) and the y/z stores naming g_BattleEffectCells+4/+8
-   where retail's object names D_800929F8/D_800929FC, which the linker resolves
-   identically. The case-1 loop needs the base as a mem_addr local (a pointer local
-   lets gcc address the cells through it and drops retail's repeated
-   'lui $at/%hi + addu $at,$at,offset' stores) and a byte offset rather than an
-   index (an indexed access gives loop.c a second induction pointer, +2 insns).
-   The three placement stores keep their casts for the same reason: retail
-   re-forms the address from the symbol for each of them, and spelling them
-   'pCell->x' measures 94.71% at 1068 bytes, 12 short.
+   objdiff 99.81% at retail's 1080 bytes: the only differences are the switch's
+   table operand (jtbl_ vs .rodata), the y/z stores naming g_BattleEffectCells+4/+8
+   where retail's object names D_800929F8/D_800929FC, and the anchor position
+   words reached as g_BattleActor1+4/+8 where retail names them D_80098730/
+   D_80098734 - all of which the linker resolves identically. The case-1 loop
+   needs the base as a mem_addr local (a pointer local lets gcc address the cells
+   through it and drops retail's repeated 'lui $at/%hi + addu $at,$at,offset'
+   stores) and a byte offset rather than an index (an indexed access gives loop.c
+   a second induction pointer, +2 insns: 1096 bytes, 97.53%). The three placement
+   stores keep their casts for the same reason: retail re-forms the address from
+   the symbol for each of them, and neither a typed element pointer built from the
+   sum (94.71% at 1068 and 95.96% at 1060 for one pointer local covering all three)
+   nor a (BattleEffectEmitter*)(offset + base) view (95.77% at 1044) re-forms it.
 */
 
 void BattleStepDisplayState(void) {
@@ -905,8 +896,8 @@ fade:
             count = g_BattleEffectPool->pPool->count;
             pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
             vec.vx = pOrigin->x + g_BattleActor1.position.vx;
-            vec.vy = pOrigin->y + g_BattleSceneOriginYMirror;
-            vec.vz = pOrigin->z + g_BattleSceneOriginZ;
+            vec.vy = pOrigin->y + g_BattleActor1.position.vy;
+            vec.vz = pOrigin->z + g_BattleActor1.position.vz;
             BattleEffectAddSlotFromVector(&vec, 0xB);
             BattleEffectAddSlotFromVector(&vec, 8);
         }
