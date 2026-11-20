@@ -22,6 +22,23 @@ import re
 import sys
 
 DEF = r"^[A-Za-z_][\w \t*]*?\b%s\s*\([^;]*\)\s*\{\n(?:.*?\n)*?\}[ \t]*(?=\n|$)"
+# The same definition with its signature left on the comment's opening line
+# ("/* int func_x(int index) {"), which is how a park written by appending a body
+# to a note block looks. DEF alone cannot see those, so the census counted them
+# as unwritten stubs and rounds 331 and 333 briefed parked bodies (batting/misc2,
+# field/misc12, world_map/misc6, battle/misc23).
+DEF_STAR = r"^[ \t]+[A-Za-z_][\w \t*]*?\b%s\s*\([^;]*\)\s*\{\n(?:.*?\n)*?\}[ \t]*(?=\n|$)"
+
+
+def body_in(block, name):
+    """The parked body of `name` inside one /* */ block's text, or None."""
+    m = re.search(DEF % name, block, re.M)
+    if m:
+        return m.group(0)
+    m = re.search(DEF_STAR % name, block, re.M)
+    if m:
+        return m.group(0).lstrip(" \t")
+    return None
 BLOCK = re.compile(r"^/\*((?:[^*]|\*(?!/))*?)\*/\n", re.M)
 FILLER = re.compile(r"^(?:[ \t]*(?://.*)?\n)*$")
 # A park's prose note is often its own /* ... */ block between the stub and the
@@ -43,13 +60,13 @@ def unpark(text, name, asm_line):
     for m in BLOCK.finditer(text):
         if not re.search(r"\b" + name + r"\s*\(", m.group(1)):
             continue
-        body = re.search(DEF % name, m.group(1), re.M)
+        body = body_in(m.group(1), name)
         if not body:
             continue
         if m.end() <= inc and filler_only(text[m.end():inc]):
-            return text[:m.start()] + body.group(0) + text[inc + len(asm_line) + 1:]
+            return text[:m.start()] + body + text[inc + len(asm_line) + 1:]
         if m.start() >= inc + len(asm_line) and filler_only(text[inc + len(asm_line):m.start()]):
-            return text[:inc] + body.group(0) + text[m.end():]
+            return text[:inc] + body + text[m.end():]
     return None
 
 

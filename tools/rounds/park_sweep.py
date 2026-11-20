@@ -52,7 +52,7 @@ def parked_funcs(src_path):
         for m in park.BLOCK.finditer(text):
             if not re.search(r"\b" + name + r"\s*\(", m.group(1)):
                 continue
-            if not re.search(park.DEF % name, m.group(1), re.M):
+            if not park.body_in(m.group(1), name):
                 continue
             if m.end() <= inc and park.filler_only(text[m.end():inc]):
                 found = True

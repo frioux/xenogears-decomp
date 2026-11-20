@@ -65,7 +65,7 @@ def parked_funcs(text):
                 continue
             # same two guards as park_sweep.parked_funcs: the block must hold a
             # real definition, and a /* */ note counts as filler too (round 306)
-            if not re.search(park.DEF % name, m.group(1), re.M):
+            if not park.body_in(m.group(1), name):
                 continue
             if m.end() <= inc and park.filler_only(text[m.end():inc]):
                 out.add(name)
