@@ -231,8 +231,6 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    (it destroys the output cursor), so do not port it. It confirms the pressure story: one
    extra reference on pClip wins it the register.
    Not a preset question: gcc-2.7.2-cdk scores 70.06 and gcc-2.6.0 69.89 on this body. */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
-/*
 void func_800983A0(WorldMapMisc16Struct* p) {
     u8* pScratch;
     WorldMapMisc16Point* pQuad;
@@ -321,8 +319,10 @@ void func_800983A0(WorldMapMisc16Struct* p) {
 
     nX = p->x;
     nZ = p->z;
-    nVariant = !(((nX >> 12) & 0x7FF) < 0x400);
-    if (!(((nZ >> 12) & 0x7FF) < 0x400)) {
+    nVariant = ((nX >> 12) & 0x7FF) < 0x400;
+    nPack = ((nZ >> 12) & 0x7FF) < 0x400;
+    nVariant = nVariant ^ 1;
+    if (!nPack) {
         nVariant |= 2;
     }
     pMask = &D_8009B7A8[nVariant];
@@ -335,7 +335,6 @@ void func_800983A0(WorldMapMisc16Struct* p) {
         pMaskEntry++;
     }
 }
-*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
 extern s32 g_WorldMapGridImageFileIndex;
