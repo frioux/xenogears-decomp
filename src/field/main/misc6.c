@@ -836,6 +836,20 @@ int FieldCharacterIdToPartyId(int characterId) {
 // the rotation stores and an if/else doubles it into a `j` (90.25%, 320 bytes).
 // Also tried: reading 0x7C back through g_Scene.sceneAngle.vy (folded), a named
 // s32 fixed-point temp (folded), `unk7C = nAngle` with s16 nAngle (folded).
+// Re-measured this round (do not repeat):
+// - `(s16)nAngle` on the vy/0x7C stores and `nAngle << 16 >> 16` inline both fold
+//   to a lone `sll` (same 316 bytes); a named s32 fixed-point temp folds too AND
+//   grows the frame to 0x28 (320 bytes, 90.12).
+// - cc1_probe on the store group alone: the `sll a0; sra v0` pair DOES appear when
+//   the angle has a single assignment, but every spelling that carries it through
+//   the `if (nAngleByte == 0xFF)` join folds `(a << 16) >> 16` back to `a` (three
+//   variants). So the missing sra is the phi letting cc1 bound the value, not the
+//   store spelling.
+// - the two-return shape measured: 320 bytes at 90.25 and it adds a `j` retail does
+//   not have (retail's last store falls through into the epilogue), so the
+//   one-return body below is the better park.
+// - residual (b) `addu v0,zero,zero` in the bne delay slot: reorg fills that slot
+//   with the `sll` here; the constant lands at the end of the rotation stores.
 /*
 s32 func_8009FA54(s32 nInstructionOffset) {
     s32 nOffset;
