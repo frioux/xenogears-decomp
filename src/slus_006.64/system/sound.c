@@ -1315,35 +1315,42 @@ but folds the base into s1, 244 bytes), a do/while round the loop body (93.25), 
 order, and -O1/-O3/-G0/cdk screens (all worse). loop.c hoists the base here; the sibling
 SoundSpuMemoryAllocateBlockFit shows the same hoist and matches, so the hoist itself is not
 the blocker - retail's source must defeat it somehow.
+Round 315 added, all still 94.58 or worse: `(u8*)g_SoundSpuMemoryBlocks + (idx << 4)` cast
+form (identical to the subscript), local declaration order both ways (no change), the
+while (1) { if (nextBlockIndex == 0) break; } form (84.06), a `short nextIndex` assigned in
+the condition (82.58, kills retail's duplicated lh), and a 4-minute permuter run
+(486 -> 355) whose only improvement is WRONG CODE - it hoists `short new_var =
+pPrevBlock->nextBlockIndex;` above the loop and indexes with the fixed value, so the loop
+would never advance. That candidate does say what gcc wants: a live short in a register.
     // Allocates a block of SPU memory of the given size, returns the SPU address or 0 on failure.
     int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
-        int address;
         SoundSpuMemoryBlock* pPrevBlock;
+        int address;
         SoundSpuMemoryBlock* pBlock;
         int index;
-
+    
         pPrevBlock = &g_SoundSpuMemoryBlocks[0];
         address = pPrevBlock->spuAddress + pPrevBlock->size;
-
+    
         while (pPrevBlock->nextBlockIndex != 0) {
-            pBlock = &g_SoundSpuMemoryBlocks[pPrevBlock->nextBlockIndex];
+            pBlock = (SoundSpuMemoryBlock *)((u8 *)g_SoundSpuMemoryBlocks + (pPrevBlock->nextBlockIndex << 4));
             if (pBlock->spuAddress - address >= size) {
                 goto allocate;
             }
             pPrevBlock = pBlock;
             address = pBlock->spuAddress + pBlock->size;
         }
-
-        if (0x80000 - address < size) {
+    
+        if (SOUND_SPU_MEMORY_SIZE - address < size) {
             return 0;
         }
-
+    
     allocate:
         index = SoundSpuMemoryGetFreeBlock();
         if (index < 0) {
             return 0;
         }
-
+    
         pBlock = &g_SoundSpuMemoryBlocks[index];
         pBlock->flags = SPU_MEMORY_IN_USE;
         pBlock->type = 0;
@@ -1351,11 +1358,10 @@ the blocker - retail's source must defeat it somehow.
         pBlock->size = size;
         pBlock->nextBlockIndex = pPrevBlock->nextBlockIndex;
         pPrevBlock->nextBlockIndex = index;
-
+    
         return address;
     }
 */
-
 
 
 int SoundSpuMemoryAllocateBlockFit(int size) {
