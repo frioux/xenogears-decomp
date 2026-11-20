@@ -712,7 +712,18 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
    all identical, because global.c's choice of a0 for the short-lived constant
    (and sched2's hoist of the sb) does not depend on source order. Bit idiom
    `| ~0x7FFF` is the house spelling (see FieldScriptVMHandlerRandomizeActorXRotation2 in misc6.c): `| 0x8000`
-   on the short field gives lh/ori instead of lhu/or. */
+   on the short field gives lh/ori instead of lhu/or.
+   Round 331 addendum - WHY source order cannot move the sb: this unit's Default
+   preset compiles with -fschedule-insns ON (-O2's default for this target),
+   verified with a cc1_probe snippet built --opt "-O2 -fno-schedule-insns", which
+   restores retail's `lhu; addu; sh` order and leaves the store last. With the
+   scheduler on, every shape tried (statements swapped, a do/while(0) around the
+   +=, around the store, around both, the store made volatile, an s32
+   slot-pointer local before the arm) puts the `li 1` + `sb` pair before the
+   `sh`; the do-block forms that DO put the `li` after the `sh` (95.98%, 724
+   bytes) push the loop's invariants after it instead and cost two instructions.
+   Retail has the invariants BEFORE the lhu and the sb AFTER the sh, an order no
+   source shape reached here. */
 /*
 void func_8009B398(void) {
     ActorData* pActor;
@@ -876,7 +887,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
    fold_rtx merges (x<<9)<<16. Attempts made: both statement orders, * 0x200 /
    * 0x10000, u_long temp for unk7C, an int angle local for the two word
    stores, and 2.7.2-cdk (56.72%). The only way out would be a memory
-   round-trip for unk7C, which the original does not have. */
+   round-trip for unk7C, which the original does not have.
+   Round 331 addendum, measured with cc1_probe on the bare triple: chain inline,
+   `angle <<= 16`, a u_long temp, an s16 halfword temp, a chained assignment
+   `unk60 = (unk7C = d << 9) << 16`, and reading unk7C back (cse forwards the
+   store) all fold to `sll $2,$2,25` or the same rematerialisation, under 2.7.2
+   AND 2.6.0. Retail's in-place `sll v0,v0,16` needs a register whose provenance
+   cse does not know, which no plain spelling of one basic block produces. */
 /*
 void func_8009BA7C(void) {
     int direction;
