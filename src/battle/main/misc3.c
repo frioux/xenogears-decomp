@@ -819,44 +819,23 @@ void func_800785D4(u8 color, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 
-/* 99.94%: the entire instruction stream is identical except the stack frame:
-   retail allocates 0x18 and saves s0/ra at 0x10/0x14, this body allocates
-   0x20 and saves them at 0x18/0x1C, i.e. gcc reserves 8 extra bytes of local
-   space for something that never gets used (both objects are 392 bytes, so
-   the frame is the only difference). Tried: pStr temp for GetStringEntry
-   (same), inlining GetStringEntry (same), splitting `g_BattleTextSlotCount++` into a
-   load + separate increment (87.44 - breaks the store/increment order).
-   Round 42 narrowed the 8 bytes down: `.frame # vars= 8`, with no stack
-   reference anywhere in the final RTL, so it is a slot whose pseudo died.
-   Bisected with cut-down bodies: one call alone -> vars=0; the nested
-   SystemRenderStringEntry(GetStringEntry(...)) PLUS any later call in the same
-   block -> vars=8, regardless of the arguments (constant, symbol or index
-   expressions all give 8) and regardless of call order. gcc-2.6.0 gives the
-   same 99.94, gcc-2.7.2-cdk 69.22, so it is not a version question.
-   The D_800D3718/D_800D3720/D_800D3726 arrays are one struct of 0x60
-   (RECT rect @0, u_long *pBuf @8, u8 @0xE, POLY_FT4 prim[2] @0x10); the
-   spellings below use byte offsets instead of that struct so no shared
-   header had to change.
-   Parked body (99.94):
-   void func_80078658(u8 index, u8 color) {
-       u8 *pEntry;
+void func_80078658(u8 index, u8 color) {
+    u8 *pEntry;
 
-       if (g_BattleTextSlotCount < 9) {
-           *(u8 *)((u8 *)&D_800D3726 + g_BattleTextSlotCount * 0x60) =
-               SystemRenderStringEntry(GetStringEntry(D_800C3DDC, D_800D2E5F[index * 8]),
-                                       *(u8 **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * 0x60), 0x39,
-                                       g_BattleTextSlotCount & 1);
-           BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + g_BattleTextSlotCount * 0x60),
-                         *(u_long **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * 0x60));
-           D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
-           D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFA;
-           pEntry = g_BattleCommandQueue;
-           *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = g_BattleTextSlotCount++;
-           pEntry[0x2DA]++;
-       }
-   }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078658);
+    if (g_BattleTextSlotCount < 9) {
+        *(u8 *)((u8 *)&D_800D3726 + g_BattleTextSlotCount * 0x60) =
+            SystemRenderStringEntry(GetStringEntry(D_800C3DDC, D_800D2E5F[index * 8]),
+                                    *(u8 **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * 0x60), 0x39,
+                                    g_BattleTextSlotCount & 1);
+        BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + g_BattleTextSlotCount * 0x60),
+                      *(u_long **)((u8 *)&D_800D36C0 + g_BattleTextSlotCount * 0x60 + 0x60));
+        D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
+        D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFA;
+        pEntry = g_BattleCommandQueue;
+        *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = g_BattleTextSlotCount++;
+        pEntry[0x2DA]++;
+    }
+}
 void BattleQueueCommandF7(u8 color, u8 flag) {
     u8 *pEntry;
 
