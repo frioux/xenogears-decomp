@@ -4849,6 +4849,7 @@ void func_8003E5BC(s16 value, AudioElement* pElement) {
     u32 offset;
     u32 spuAddress;
     u32 adsr;
+    u32 releaseShift;
     u16 flags;
     u16 toneTune;
 
@@ -4856,7 +4857,7 @@ void func_8003E5BC(s16 value, AudioElement* pElement) {
     pWds = (SoundWDSEntry*)pElement->pWds;
     pTone = &pWds->tones[value];
     spuAddress = pWds->spuMemoryAddress;
-    adsr = spuAddress;
+    adsr = spuAddress; // the address goes through `adsr`: retail reaches it in $v0 and the two ADSR words in $a2
     offset = pTone->sampleOffset * 8;
     pElement->voice_data.startAddress = offset + adsr;
     pElement->voice_data.loopAddress = offset + pTone->loopOffset * 8;
@@ -4867,14 +4868,15 @@ void func_8003E5BC(s16 value, AudioElement* pElement) {
     pElement->voice_data.releaseMode = (adsr >> 8) & 0x7;
 
     adsr = pTone->adsr;
-    offset = adsr >> 24;
+    releaseShift = adsr >> 24;
     pElement->voice_data.attackRate = adsr & 0x7F;
     pElement->voice_data.adsrDR = (adsr >> 8) & 0xF;
     pElement->voice_data.sustainRate = (adsr >> 16) & 0x7F;
     pElement->voice_data.adsrSR = (adsr >> 12) & 0xF;
 
     flags = pElement->active_flag;
-    pElement->voice_data.releaseRate = (pElement->releaseRate = offset & 0x1F);
+    // inner store first: retail writes the element's own releaseRate field before the voice one
+    pElement->voice_data.releaseRate = (pElement->releaseRate = releaseShift & 0x1F);
     toneTune = pTone->toneTune;
     pElement->active_flag = flags | SOUND_CHANNEL_CHANGE_INSTRUMENT;
     pElement->toneTune = toneTune;
