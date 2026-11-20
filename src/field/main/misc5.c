@@ -238,29 +238,40 @@ extern void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 
 /* Best attempt, 93.12% at 804 bytes (retail is 796: 0x800A5C40 - 0x800A5924).
-   The switch case BODY ORDER in the source does decide the layout: listing the
-   cases 4, 1+2, 3 (default last) reproduces retail's [case 4][cases 1,2][case 3]
-   block order, which is what the previous note said was unreachable - the old
-   attempt just had the cases in the wrong order. Everything else in the body is
-   instruction-identical; two deltas are left, and both look like one cause: cc1
-   did not treat retail's dispatch as a loop for loop.c.
-   1. The pump loop `while (g_FieldScriptFadeMode == 3) { ... }` gets its exit
-      test duplicated at the bottom (lui/lw/beq + j = 4 insns) where retail has a
-      single top test and an unconditional `j` back (its s0 = 3 is hoisted BEFORE
-      the test, and the bne's delay slot is a nop). Every spelling rotates:
-      while, for(;;)+if break, do-while, while+continue, goto loop, a volatile
-      mode global, and 2.6.0 / 2.7.2-cdk (all measured with cc1_probe.sh).
-   2. gcc hoists the 0x800000 fade numerator out of the outer for(;;) into the
-      preheader (one `lui s2,0x80` before the dispatch) where retail materialises
-      it once per arm, in each inner loop's preheader (`lui s2,0x80` twice).
-   Also measured: 2.6.0 scores 92.24 and 2.7.2-cdk 91.58, so the preset is not
-   the question. FieldZoomFadeEffectLoadTextures is called with (1, 1) in both
-   arms (a0 = 1 in the dispatch delay slot, a1 = 1 in the jal slot) but this
-   file declares it (void); its own body passes its incoming a0/a1 straight
-   through to FieldZoomFadeEffectInitialize, so the honest original signature has
-   two int parameters - the attempt below uses a cast to get the argument setup.
+   Case BODY ORDER is source order: listing the cases 4, then 1+2, then 3 with
+   the default last reproduces retail's [case 4][cases 1,2][case 3] block order.
+   The body is otherwise instruction-identical; the 8-byte surplus is TWO
+   loop.c / hoisting placements, both localised in round 312:
+   1. THE PUMP LOOP IS ROTATED (+4 insns, the whole surplus's source). Retail
+      keeps the un-rotated shape: `li $s0,0x3` BEFORE `lw $v0,mode`, then
+      `bne $v0,$s0,<dispatch>` / `nop` / <pump body> / `j <same test>`. This
+      build rotates it: the top test compares a literal (`li $v0,3`), sets
+      `s0 = 3` in the delay slot, and duplicates the whole `lui/lw/nop/beq/nop`
+      test plus a `j <dispatch>` at the bottom. Retail's compare against a
+      REGISTER holding 3 (not an immediate) says the source compared two
+      variables there, e.g. a local set to 3 just before the loop - untried;
+      every other spelling of the loop (while, for(;;)+break, do-while,
+      while+continue, goto, volatile mode global) rotates, and 2.6.0 / cdk do
+      too (measured with cc1_probe.sh in round 311).
+   2. THE 0x800000 FADE STEP NUMERATOR IS HOISTED OUT OF THE OUTER for(;;)
+      (-2 insns, so it partly pays for (1)). Retail materialises
+      `lui $s2,0x80` in EACH inner loop's preheader (0x800A5AB4 and 0x800A5B80,
+      both after the `blez`/counter-zero pair), keeping only the per-arm
+      running colour 0x800000 in $s1 (its `lui` sits in the FieldFadeToBlack
+      jal delay slot in the 1/2 arm). Ours emits ONE `lui $s2,0x80` before the
+      dispatch. Measured worse: assigning the numerator to a local
+      (`nStep = 0x800000;` before each inner loop, `nColor -= nStep /
+      duration;`) gives 92.71% at 812 bytes - it costs two statements and still
+      hoists.
+   Note the callee is called with (1, 1) in both arms (a0 = 1 in the dispatch
+   delay slot, a1 = 1 in the jal slot) but FieldZoomFadeEffectLoadTextures is
+   DEFINED above with a (void) parameter list; its own body passes its incoming
+   a0/a1 straight through to FieldZoomFadeEffectInitialize, so the honest
+   original signature has two int parameters - the attempt below uses a cast to
+   get the argument setup without touching the matched definition.
+extern void FieldAddParticlePrims(void);
+extern void FieldZoomFadeEffectUpdate(void);
 
-/*
 void func_800A5924(void) {
     int i;
     int nColor;
@@ -352,6 +363,7 @@ end:
     FieldLoadFont();
 }
 */
+
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
@@ -1413,103 +1425,129 @@ void FieldUpdateSpriteSheetPrims(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
-/* Best attempt, 83.87% / 800 bytes (original is 772). Everything up to the
-   per-tile UV switch matches; the delta is pure loop strength reduction and
-   register shuffling. What is settled: the five palette/rect loads
-   (nW/nH/nSrcX/nSrcY and the shape table) each go through ONE base symbol with
-   constant offsets, so write nW/nH/nSrcX as D_800AEB6C[nRect], [nRect + 1],
-   [nRect - 2] and nSrcY as D_800AEB6A[nRect] (that is the s5 = &D_800AEB6C /
-   t3 = &D_800AEB6A split the original has), and reach the tile record as
-   D_800AEF16[i*4-3..i*4]. The remaining difference: gcc strength-reduces the
-   two tile bases to loop-carried `addu $p,$p,8` pointers (plus two `move`s in
-   the prologue) where the original keeps one invariant base and re-forms
-   `sll/addu` per access; the original also keeps three counters (i for the
-   loop bound, i for the *8 index, i*0x28 for the polygons) exactly as this
-   source does. Tried: pointer locals, splitting nAttr into a local, use of
-   g_FieldSpriteSheetQuads as the record base, -O3/gcc-2.6.0.
-   extern u_short D_800AEF16[];
-   extern int g_FieldSpritePaletteRow;
+/* Best attempt, 85.57% / 800 bytes (retail is 772: 0x800A8EA8 - 0x800A8BA4, 193
+   insns). The body is settled and every call, store order and switch arm is
+   right; the whole 28-byte surplus is TWO compiler shapes, both measured:
+   1. STRENGTH REDUCTION OF THE QUAD TABLE (the big one, +4 insns). Retail
+      re-forms `sll $v0,$s2,3; addu $v0,$v0,$s7` for every D_800AEF16 access,
+      with TWO stride-1 counters (s2 = the quad index used by the sll, s3 = the
+      loop test, both `addu $x,$zero,$zero` in the preheader), and its
+      invariant bases s7 = 0x800AEF10 and s8 = 0x800AEF16 in callee-saved regs.
+      This build turns the same accesses into THREE loop-carried pointers
+      (s1/s4/s2, `addiu $x,$x,8` in the latch) and keeps ONE stride-1 counter.
+      Measured with cc1_probe.sh and in the unit: `D_800AEF16[i*4]`,
+      `D_800AEF16[i*4-3..]`, a struct array `QuadDef[i].x/.y/.rect/.flags`, an
+      `i*8` byte-offset cast - every one of them is reduced. A second hand-kept
+      counter (`nQuad++;` beside `i++`, quad accesses on nQuad) does NOT stop
+      the reduction either but scores higher (85.57 vs 84.88 at the same 800
+      bytes), so the difference is not "which variable". -O1 62.25, -O3 failed.
+   2. THE RECT TABLE BASE SPLITS (+4 insns). Retail hoists ONE base s5 =
+      0x800AEB6C and reaches 0x800AEB6A with a second lui/addiu INSIDE the loop
+      (call-clobbered), giving `addu a2,v0,s5 / lhu t1,0(a2)`,
+      `addu a3,s5,v0 / lhu t2,2(a3)`, `addu t0,s5,v0 / lhu a3,-4(t0)`,
+      `addu v0,v0,t3 / lhu t0,0(v0)`. Writing `D_800AEB6C[nRect]`,
+      `[nRect+1]`, `[nRect-2]`, `D_800AEB6A[nRect]` makes gcc fold the -4 into a
+      SECOND symbol (0x800AEB68) and materialise a second lui/addiu for it, and
+      the D_800AEB6A access comes out through $at (its %lo folded into the lhu).
+      Untried: a `u_short* pRect` pointer local for the rect group.
+   Settled facts: 0x6D POLY_FT4 (HeapAlloc(FIELD_SPRITE_POLY_COUNT *
+   sizeof(POLY_FT4)) = 0x1108 x2); the quad/rect tables are 8-byte records -
+   quad record base 0x800AEF10 = x,y,rectIndex,flags(x>>4&0xF = ABR,
+   x&0xF = UV orientation) and rect record base 0x800AEB68 = x,y,w,h, indexed by
+   rectIndex*4 in u_short units; nABR survives the loop in a callee-saved
+   register (a switch on the ABR nibble, case 0 -> 1, case 1 -> 2, no default);
+   `*pPolyNext = *pPoly` is the last statement of the loop body.
+extern u_short D_800AEF16[];
+extern u_short D_800AEB6A[];
+extern u_short D_800AEB6C[];
+extern s32 g_FieldSpritePaletteRow;
 
-   void func_800A8BA4(void) {
-       POLY_FT4* pPoly;
-       POLY_FT4* pPolyNext;
-       int i;
-       int nRect;
-       int nX;
-       int nY;
-       int nW;
-       int nH;
-       int nSrcX;
-       int nSrcY;
-       int nABR;
+// Builds the sprite sheet prims: one POLY_FT4 per entry of the sheet's quad
+// table, with the rectangle, UVs and blending mode that entry names.
+void func_800A8BA4(void) {
+    POLY_FT4* pPoly;
+    POLY_FT4* pPolyNext;
+    int i;
+    int nQuad;
+    int nRect;
+    int nX;
+    int nY;
+    int nW;
+    int nH;
+    int nSrcX;
+    int nSrcY;
+    int nABR;
 
-       FieldLoadSpriteSheetTIM();
-       g_FieldSpritePaletteRow = 0;
-       HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
-       g_FieldSpritePolys[0] = HeapAlloc(0x1108, 0);
-       g_FieldSpritePolysCopy = HeapAlloc(0x1108, 0);
+    FieldLoadSpriteSheetTIM();
+    nABR = 0;
+    g_FieldSpritePaletteRow = 0;
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+    g_FieldSpritePolys[0] = HeapAlloc(FIELD_SPRITE_POLY_COUNT * sizeof(POLY_FT4), 0);
+    g_FieldSpritePolysCopy = HeapAlloc(FIELD_SPRITE_POLY_COUNT * sizeof(POLY_FT4), 0);
 
-       nABR = 0;
-       for (i = 0; i < 0x6D; i++) {
-           pPoly = &g_FieldSpritePolys[0][i];
-           pPolyNext = (POLY_FT4*)g_FieldSpritePolysCopy + i;
-           SetPolyFT4(pPoly);
+    nQuad = 0;
+    for (i = 0; i < FIELD_SPRITE_POLY_COUNT; i++) {
+        pPoly = &g_FieldSpritePolys[0][i];
+        pPolyNext = (POLY_FT4*)g_FieldSpritePolysCopy + i;
+        SetPolyFT4(pPoly);
 
-           pPoly->r0 = 0x80;
-           pPoly->g0 = 0x80;
-           pPoly->b0 = 0x80;
-           pPoly->clut = GetClut(0, 0xE8);
+        pPoly->r0 = 0x80;
+        pPoly->g0 = 0x80;
+        pPoly->b0 = 0x80;
+        pPoly->clut = GetClut(0, 0xE8);
 
-           switch ((D_800AEF16[i * 4] >> 4) & 0xF) {
-           case 0:
-               nABR = 1;
-               break;
-           case 1:
-               nABR = 2;
-               break;
-           }
-           pPoly->tpage = GetTPage(0, nABR, 0x380, 0);
-           SetSemiTrans(pPoly, 1);
+        switch ((D_800AEF16[nQuad * 4] >> 4) & 0xF) {
+        case 0:
+            nABR = 1;
+            break;
+        case 1:
+            nABR = 2;
+            break;
+        }
+        pPoly->tpage = GetTPage(0, nABR, 0x380, 0);
+        SetSemiTrans(pPoly, 1);
 
-           nX = D_800AEF16[i * 4 - 3];
-           nY = D_800AEF16[i * 4 - 2];
-           nRect = D_800AEF16[i * 4 - 1] * 4;
-           nW = D_800AEB6C[nRect];
-           nH = D_800AEB6C[nRect + 1];
-           nSrcX = D_800AEB6C[nRect - 2];
-           nSrcY = D_800AEB6A[nRect];
+        nX = D_800AEF16[nQuad * 4 - 3];
+        nY = D_800AEF16[nQuad * 4 - 2];
+        nRect = D_800AEF16[nQuad * 4 - 1] * 4;
+        nW = D_800AEB6C[nRect];
+        nH = D_800AEB6C[nRect + 1];
+        nSrcX = D_800AEB6C[nRect - 2];
+        nSrcY = D_800AEB6A[nRect];
 
-           pPoly->x0 = nX;
-           pPoly->y0 = nY;
-           pPoly->x1 = nX + nW;
-           pPoly->y1 = nY;
-           pPoly->x2 = nX;
-           pPoly->y2 = nY + nH;
-           pPoly->x3 = nX + nW;
-           pPoly->y3 = nY + nH;
+        pPoly->x0 = nX;
+        pPoly->y0 = nY;
+        pPoly->x1 = nX + nW;
+        pPoly->y1 = nY;
+        pPoly->x2 = nX;
+        pPoly->y2 = nY + nH;
+        pPoly->x3 = nX + nW;
+        pPoly->y3 = nY + nH;
 
-           switch (D_800AEF16[i * 4] & 0xF) {
-           case 0:
-               FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY, nSrcX + nW, nSrcY,
-                   nSrcX, nSrcY + nH, nSrcX + nW, nSrcY + nH);
-               break;
-           case 1:
-               FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY, nSrcX - 1, nSrcY,
-                   nSrcX + nW - 1, nSrcY + nH, nSrcX - 1, nSrcY + nH);
-               break;
-           case 2:
-               FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1,
-                   nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1);
-               break;
-           case 3:
-               FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1,
-                   nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1);
-               break;
-           }
-           *pPolyNext = *pPoly;
-       }
-       g_FieldSpritePrimsAllocated = 1;
-   } */
+        switch (D_800AEF16[nQuad * 4] & 0xF) {
+        case 0:
+            FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY, nSrcX + nW, nSrcY,
+                nSrcX, nSrcY + nH, nSrcX + nW, nSrcY + nH);
+            break;
+        case 1:
+            FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY, nSrcX - 1, nSrcY,
+                nSrcX + nW - 1, nSrcY + nH, nSrcX - 1, nSrcY + nH);
+            break;
+        case 2:
+            FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1,
+                nSrcX, nSrcY + nH - 1, nSrcX + nW, nSrcY - 1);
+            break;
+        case 3:
+            FieldClampPolyFT4UVs(pPoly, nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1,
+                nSrcX + nW - 1, nSrcY + nH - 1, nSrcX - 1, nSrcY - 1);
+            break;
+        }
+        *pPolyNext = *pPoly;
+        nQuad++;
+    }
+    g_FieldSpritePrimsAllocated = 1;
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
