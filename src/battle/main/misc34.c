@@ -34,13 +34,16 @@ extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 /* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
 typedef struct {
     /* 0x00 */ u8 unk0[0x6];
-    /* 0x06 */ u8 unk6;
+    /* 0x06 */ u8 actorId; // which actor the slot holds, BATTLE_SLOT_CHARACTER_NONE when empty (g_BattleSlotActorIds)
     /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, 0 means idle
     /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0
-    /* 0x09 */ u8 unk9[0x5];
-    /* 0x0E */ u16 unkE;
-    /* 0x10 */ u16 unk10;
-    /* 0x12 */ u8 unk12[0xA];
+    /* 0x09 */ u8 unk9;
+    /* 0x0A */ u8 sideFlag; // non-zero faces the slot's sprite 0x800 (half a turn), the angle BattleActorSetFacingFromSideFlag passes to SpriteSetDirection
+    /* 0x0B */ u8 unkB[0x3];
+    /* 0x0E */ u16 x; // whole x the slot's sprite takes its 16.16 position from (misc29 BattleActorInitSpriteFromSlot)
+    /* 0x10 */ u16 z;
+    /* 0x12 */ u16 y; // the slot's height, published with x and z as a position triple by func_800AEF68
+    /* 0x14 */ u8 unk14[0x8];
 } BattleActorSlot; // Size: 0x1C
 
 extern BattleActorSlot g_BattleStateWork[];
@@ -317,10 +320,10 @@ void BattleLoadArchiveEntryFile(void) {
         g_BattleActorArchiveLoadPending = 0;
     }
 }
-// Hands every live actor slot whose animation is neither idle nor one of the 0x10
-// special ones to the per-actor animation task, except the slot the current battle
-// state owns (state mode 2). The 4-bit slot mode packs bits 30-31 of flags_0xA8 with
-// bits 0-1 of flags_0xAC, so it is assembled from two pieces.
+// Hands every live actor slot whose actorId is below 0x11 to the per-actor animation
+// task, except the slot the current battle state owns (state mode 2). The 4-bit slot
+// mode packs bits 30-31 of flags_0xA8 with bits 0-1 of flags_0xAC, so it is assembled
+// from two pieces.
 void BattleReleaseAllActorSlots(void) {
     s32 i;
     s32 mode;
@@ -341,7 +344,7 @@ void BattleReleaseAllActorSlots(void) {
     for (i = 0; i != 3; i++) {
         if (g_BattleStateWork[i].inUse != 0) {
             if (g_BattleActorSlotMode != 2 || i != mode) {
-                if (g_BattleStateWork[i].unk6 < 0x11) {
+                if (g_BattleStateWork[i].actorId < 0x11) {
                     BattleQueueActorSlotTask(i);
                 }
             }
