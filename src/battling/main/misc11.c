@@ -80,7 +80,7 @@ typedef struct {
 } BattlingSpanParams; // Size: 0x30
 
 extern BattlingSpanParams g_BattleSpanRenderParams;
-extern u8 *D_80092854;
+extern u8 *D_80092854[];
 extern u8 *g_BattleSpanBuffer;
 extern long MathGetLargestVectorComponent(long, long, long);
 extern void func_800732AC(void *, void *, s32);
@@ -380,28 +380,22 @@ void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     func_80072D18(arg0, arg1, arg2);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087830);
-/* Best 80.95%: the original CSEs &D_80092854 for the store and the following load
-   and keeps it in s0 (frame 0x18); gcc recomputes the address with $at each time
-   (frame 0x10, 4 bytes short). Tried: p = g + 7, p = g then p += 7 (80.95),
-   p initialized at declaration (74.72), explicit u8 **pBuf = &D_80092854.
 void func_80087830(void) {
     s32 i;
     u8 *p;
 
     g_BattleSpanTableMax = (u8 *)0x1F800000;
     g_BattleSpanTableMin = (u8 *)0x1F800080;
-    D_80092854 = HeapAlloc(0xE100, 0);
+    D_80092854[0] = HeapAlloc(0xE100, 0);
     g_BattleSpanBuffer = HeapAlloc(0xE100, 0);
-    p = D_80092854 + 7;
+    p = D_80092854[0] + 7;
     for (i = 0; i < 0x708; i++) {
         p[-4] = 7;
         p[0] = 0x24;
         p += 0x20;
     }
-    func_800732AC(g_BattleSpanBuffer, D_80092854, 0xE100);
+    func_800732AC(g_BattleSpanBuffer, D_80092854[0], 0xE100);
 }
-*/
 /* The battle texture archive after LZSSHeapDecompress and
    ResolveArchiveEntryPointers: a pointer count, then one resolved pointer per
    resource, each naming a TIM. Only the slots this unit loads are named. */
