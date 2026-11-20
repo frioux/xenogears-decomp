@@ -922,7 +922,6 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
 /* Best: 96.76%, 1272 bytes, frame 0x28 (retail 1276 = 319 insns, ours 318).
    Semantics: arg2 != 0 selects the 0x2A1 slot group (characters
    .extraWeaponIds when arg3 == 0, gears .extraWeaponIds otherwise, both
@@ -976,12 +975,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
    just the 4-byte shift.
    permute.sh --minutes 4 -j 2 from the 91.87 body found edit 5. Not re-run
    from this body. No jump table in this stub. */
-/*
 u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
     u_char* pIds;
     u_char* pQuantities;
     u_char panelItem;
     u_char* pSlot;
+    u_char* pPanelItem;
     u_char characterId;
     u_char gearId;
     u_char slotItem;
@@ -994,23 +993,21 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
 
     added = 1;
     updated = 1;
-    pIds = g_GameState.gearWeaponsIds;
     result = 0;
     if (arg3 == 0) {
         pIds = g_GameState.weaponIDs;
-    }
-    if (arg1 != 0) {
-        pQuantities = pIds - MAX_INVENTORY_WEAPONS;
-        count = MAX_INVENTORY_WEAPONS;
+        pQuantities = g_GameState.weaponQuantities;
     } else {
-        pQuantities = pIds - MAX_INVENTORY_WEAPONS;
-        count = MAX_INVENTORY_WEAPONS;
+        pIds = (u_char*)g_GameState.gearWeaponsIds;
+        pQuantities = (u_char*)g_GameState.gearWeaponsQty;
     }
+    count = MAX_INVENTORY_WEAPONS;
 
     if (arg2 != 0) {
         if (arg3 == 0) {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-            panelItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
+            pPanelItem = (u_char*)g_Menu->pEquipmentPanel + 0x2A1;
+            panelItem = pPanelItem[arg1];
             pSlot = &g_GameState.characters[characterId].extraWeaponIds[arg1];
             slotItem = *pSlot;
             newItem = panelItem;
@@ -1025,19 +1022,20 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
             }
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-            panelItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
+            pPanelItem = (u_char*)g_Menu->pEquipmentPanel + 0x2A1;
+            panelItem = pPanelItem[arg1];
             gearId = g_GameState.characters[characterId].gearId;
             pSlot = &g_GameState.gears[gearId].extraWeaponIds[arg1];
             slotItem = *pSlot;
             newItem = panelItem;
-            if (slotItem != 0) {
+            if (slotItem == 0) {
+                *pSlot = newItem;
+                updated = 0;
+            } else {
                 if (((u_char*)&g_GameState)[0x22B6 + *pSlot] < MAX_INVENTORY_WEAPONS) {
                     newItem = 0;
                 }
                 ((u_char*)&g_GameState)[0x22B6 + *pSlot] = MAX_INVENTORY_WEAPONS;
-            } else {
-                *pSlot = newItem;
-                updated = 0;
             }
         }
     } else if (arg3 == 0) {
@@ -1054,7 +1052,7 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
             slotItem = g_GameState.characters[characterId].accessorySlots[arg1 - 1];
-            newItem = ((u_char*)g_Menu->pEquipmentPanel + (arg1 - 1))[0x2A6];
+            newItem = ((u_char*)g_Menu->pEquipmentPanel + arg1)[0x2A5];
             pIds = g_GameState.accessoryIDs;
             pQuantities = g_GameState.accessoryQuantities;
             count = MAX_INVENTORY_ACCESSORIES;
@@ -1075,7 +1073,8 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
             gearId = g_GameState.characters[characterId].gearId;
             slotItem = g_GameState.gears[gearId].accessorySlots[arg1 - 1];
-            newItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A5 + arg1];
+            pPanelItem = (u_char*)g_Menu->pEquipmentPanel + 0x2A5;
+            newItem = pPanelItem[arg1];
             pIds = g_GameState.gearPartsIds;
             pQuantities = g_GameState.gearPartsQty;
             count = MAX_INVENTORY_ITEMS;
@@ -1101,13 +1100,13 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
                 break;
             }
         }
-    }
-    if (added != 0) {
-        for (i = 0; i < count; i++) {
-            if (pIds[i] == 0) {
-                pIds[i] = newItem;
-                pQuantities[i] = 1;
-                break;
+        if (added != 0) {
+            for (i = 0; i < count; i++) {
+                if (pIds[i] == 0) {
+                    pIds[i] = newItem;
+                    pQuantities[i] = 1;
+                    break;
+                }
             }
         }
     }
@@ -1121,7 +1120,6 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
 done:
     return result;
 }
-*/
 void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     s32 i;
 
