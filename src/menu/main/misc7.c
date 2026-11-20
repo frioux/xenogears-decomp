@@ -154,54 +154,37 @@ void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_sho
         MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderCorners[i * 2 + g_Menu->renderContext]);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
-/* Best: 99.89% (836 bytes, the right size). Only difference: retail emits the
-   first call's `addiu a1,s4,0x8` (x + 8) and then `addiu s2,a2,-0x8` (the shared
-   top), gcc emits the s2 one 8 slots earlier. The 16 UV byte stores on the
-   border prims (one POLY_FT4 per render context) and the rest of the decode are
-   exact in the spelling the matched MenuSetWindowBorderBottom uses; that
-   spelling was re-diffed here at the same 99.89% / 836 bytes.
-   Tried: `top` local assigned before/after halfWidth (99.89), `y - 8` inline in
-   both calls (99.89, but then the `andi a1,a1,0xFFFF`/store-lw pair swaps
-   instead), halfWidth inline (99.89), `(u16)(x + 8)` cast (98.09), `x += 8` then
-   `x += halfWidth` (97.01, loses retail's `addiu s0,s0,8`). So it is an emission
-   order tie, not a source shape. Note the second call's x must be written back
-   into the `x` parameter (`x = halfWidth + 8 + x;`) - a separate local costs a
-   register and 4 bytes. Round 121: permuter, 1547 iterations from this body,
-   best = base (no improvement); `y - 8` twice inline puts the a1 add in retail's
-   slot but moves the s2 add one insn late (98.09). Still an emission-order tie.
-   void func_801D3FF8(u_char index, u_short x, u_short y, u_short width) {
-       MenuWindow* pWindow = g_Menu->windows[index];
-       u16 top;
-       s32 halfWidth;
-       s32 i;
-   
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u0 = 0;
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v0 = 0x84;
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u1 = 7;
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v1 = 0x84;
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u2 = 0;
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v2 = 0x94;
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u3 = 7;
-       (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v3 = 0x94;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u0 = 0;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v0 = 0x84;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u1 = 7;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v1 = 0x84;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u2 = 0;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v2 = 0x94;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u3 = 7;
-       (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v3 = 0x94;
-       halfWidth = (width - 0x10) / 2;
-       top = y - 8;
-       MenuSetQuadVertices(pWindow->vertsWindowBorderTop1, x + 8, top, halfWidth, 0x10);
-       x = halfWidth + 8 + x;
-       MenuSetQuadVertices(pWindow->vertsWindowBorderTop2, x, top, halfWidth, 0x10);
-       for (i = 0; i < 2; i++) {
-           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderTop[i * 2 + g_Menu->renderContext]);
-       }
-   }
-*/
+void func_801D3FF8(u_char index, u_short x, u_short y, u_short width) {
+    MenuWindow* pWindow = g_Menu->windows[index];
+    s32 halfWidth;
+    s32 i;
+
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u0 = 0;
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v0 = 0x84;
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u1 = 7;
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v1 = 0x84;
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u2 = 0;
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v2 = 0x94;
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->u3 = 7;
+    (pWindow->polysWindowBorderTop + g_Menu->renderContext)->v3 = 0x94;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u0 = 0;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v0 = 0x84;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u1 = 7;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v1 = 0x84;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u2 = 0;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v2 = 0x94;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->u3 = 7;
+    (pWindow->polysWindowBorderTop + 2 + g_Menu->renderContext)->v3 = 0x94;
+    halfWidth = (width - MENU_WINDOW_BORDER_SIZE * 2) / 2;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderTop1, x + MENU_WINDOW_BORDER_SIZE,
+                        y - MENU_WINDOW_BORDER_SIZE, halfWidth, 0x10);
+    x = halfWidth + MENU_WINDOW_BORDER_SIZE + x;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderTop2, x, y - MENU_WINDOW_BORDER_SIZE, halfWidth, 0x10);
+    for (i = 0; i < 2; i++) {
+        MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderTop[i * 2 + g_Menu->renderContext]);
+    }
+}
+
 void MenuSetWindowBorderBottom(u_char index, u_short x, u_short y, u_short width, u_short height) {
     MenuWindow* pWindow = g_Menu->windows[index];
     u16 bottom;
