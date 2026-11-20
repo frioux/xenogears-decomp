@@ -35,7 +35,8 @@ extern s32 D_800ADB28;
 extern s32 D_800ADB68;
 extern u16 D_800ADF68[]; // Camera-relative facing angle per d-pad direction
 extern u16 D_800ADF88[];
-extern volatile u16 D_800B2340;
+// The four shorts at 0x800B2340 are one object (see field/party/stats.c).
+extern u16 D_800B2340[];
 extern s16 D_800B2342;
 extern u8 D_800B2354;
 extern u8 D_800B21CE;
@@ -702,9 +703,6 @@ void FieldScriptVMHandlerStartEncounter(void) {
    anim store.
    The volatile flags store at both accept sites is load-bearing throughout.
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009F5F4);
-/*
-
 void func_8009F5F4(void) {
     // Retail's frame is 0x60 with nothing but $ra stored in it.
     u8 pad[0x48];
@@ -769,10 +767,10 @@ void func_8009F5F4(void) {
                 nSavedMessageState = D_800B2360;
                 *(volatile s16*)&pActor->curAnimationId = 0xFF;
                 D_800ADB28 = nSavedMessageState;
-                D_800B2342 = D_800B2340;
+                D_800B2342 = D_800B2340[0];
             }
             if (D_800B2342 != 0) {
-                D_800B2342--;
+                D_800B2340[1]--;
             }
         buttons:
             if (D_800B2354 == 0) {
@@ -794,7 +792,7 @@ void func_8009F5F4(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
-*/
+
 int FieldCharacterIdToPartyId(int characterId) {
     int i;
 
