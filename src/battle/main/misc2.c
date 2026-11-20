@@ -303,7 +303,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
 void BattleAddSpriteColumnPrimLists(void) {
     u16 counter;
 
-    if (g_BattleDisplayState->unkC7 != 0) {
+    if (g_BattleDisplayState->actorPrimListsPending != 0) {
         func_800728B8(g_BattleSpriteColumnWork + 0x3E80, g_BattleSpriteColumnWork[0x5D77],
                       g_BattleSpriteColumnWork[0x5D86]);
         func_800728B8(g_BattleSpriteColumnWork + 0x5280, g_BattleSpriteColumnWork[0x5D7C],

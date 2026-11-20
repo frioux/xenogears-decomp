@@ -657,7 +657,7 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     func_8008E430(index, arg1, arg2, arg3, arg4);
     func_8008EA70(index, arg1, arg2, arg4);
     func_8008F0A8(index, arg1, arg2, arg3, arg4);
-    p->unk5A4[0] = *(u8 *)&g_BattlePrimStartIndex;
+    p->packagePrimStart = *(u8 *)&g_BattlePrimStartIndex;
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;
 }
 */
