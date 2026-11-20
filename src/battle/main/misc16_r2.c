@@ -3,9 +3,21 @@
 #include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
+// Cells of the battle command grid, and the rows of item names the menu draws.
+#define BATTLE_COMMAND_CELL_COUNT 48
+#define BATTLE_COMMAND_ROW_COUNT 32
+// The grid holds the two rows of a cell BATTLE_COMMAND_CELL_ROW_STEP cells apart.
+#define BATTLE_COMMAND_CELL_ROW_STEP 16
+
 #define BATTLE_CURSOR_STEP_FRAMES 3
 #define BATTLE_CURSOR_FRAME_MAX 4
 extern u8 g_BattleCommandGridIds[];
+extern u8 g_BattleCommandCellUses[];
+extern u_long *D_800C3E5C[];
+extern u_long *D_800D2DB0;
+extern void BattleAllocPacketPrimitives(void);
+extern void func_80076EA4(void);
+extern void *GetItemName(s32);
 extern u8 *D_800D329C;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern s32 g_BattlePrimStartIndex[];
@@ -189,7 +201,118 @@ void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
-/* 99.62% (212 bytes = retail's 0xd4): instruction-for-instruction identical except one
+/* 88.92% (1032 bytes against retail's 0x424 = 1060). Every call, rectangle, store
+   and branch is retail's; the frame is retail's 0x148 and after moving `bufs` to the
+   FIRST declaration slot the whole local layout is retail's too (bufs 0x18, nameRect
+   0x98, tensRect 0xA0, onesRect 0xA8, tens2Rect 0xB0, ones2Rect 0xB8, blankRect 0xC0,
+   cellUses 0xD0, cellIds 0x100 - gcc lays slots out in declaration order).
+   What is left, all measured:
+   - retail saves s0-s4 and re-forms `lui $at,%hi(D_800C3E5C) / addu $at,at,v0 /
+     lw %lo(at)` at each of the four digit-buffer sites; this build hoists the table's
+     address into s3 (the six-register frame), which is the two-register difference.
+   - retail computes `u8 tens = cellUses[i] / 10` (the `andi 0xff` after the magic-10
+     shift) but the `% 10` for ones INSIDE the `if (cellIds[i] != 0)` arm; the body
+     below hoists both digits, which reorders that block and costs the 28 bytes.
+   - the last block's guard is cellUses[i + 16] / 10 (D_800D2CC0 is that array's +0x10)
+     and its digit index is cellUses[i + 16] / 10 WITHOUT the u8 truncation, so the two
+     halves of the grid want different spellings of the same division.
+   Not tried: separate `ofs`-style temporaries per digit site, a pointer local per arm,
+   and the permuter.
+void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
+    void *bufs[BATTLE_COMMAND_ROW_COUNT];
+    RECT nameRect;
+    RECT tensRect;
+    RECT onesRect;
+    RECT tens2Rect;
+    RECT ones2Rect;
+    RECT blankRect;
+    u8 cellUses[BATTLE_COMMAND_CELL_COUNT];
+    u8 cellIds[BATTLE_COMMAND_CELL_COUNT];
+    void *pBuf;
+    u8 tens;
+    u8 ones;
+    s32 i;
+
+    if (arg2 != 0) {
+        BattleAllocPacketPrimitives();
+        func_80076EA4();
+        func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
+    }
+    pBuf = BattleAllocTextBuffer(0x39);
+    D_800D2DB0 = pBuf;
+    bzero(pBuf, 0x618);
+    blankRect.x = 0x3C0;
+    blankRect.y = 0;
+    blankRect.w = 0x3C;
+    blankRect.h = 0xD;
+    BattleLoadImageAndSync(&blankRect, D_800D2DB0);
+    for (i = 0; i < BATTLE_COMMAND_CELL_COUNT; i++) {
+        cellIds[i] = g_BattleCommandGridIds[i];
+        cellUses[i] = g_BattleCommandCellUses[i];
+    }
+    for (i = 0; i < BATTLE_COMMAND_ROW_COUNT; i++) {
+        pBuf = BattleAllocTextBuffer(0x1B);
+        bufs[i] = pBuf;
+        bzero(pBuf, 0x30C);
+        nameRect.x = 0x380 + (i % 2) * 0x1E;
+        nameRect.y = 0x100 + (i / 2) * 0xD;
+        nameRect.w = 0x1E;
+        nameRect.h = 0xD;
+        tensRect.x = 0x3C0 + (i % 2) * 0x10;
+        tensRect.y = 0x100 + (i / 2) * 0xD;
+        tensRect.w = 6;
+        tensRect.h = 0xD;
+        onesRect.x = 0x3C2 + (i % 2) * 0x10;
+        onesRect.y = 0x100 + (i / 2) * 0xD;
+        onesRect.w = 6;
+        onesRect.h = 0xD;
+        tens2Rect.x = 0x3C4 + (i % 2) * 0x10;
+        tens2Rect.y = 0x100 + (i / 2) * 0xD;
+        tens2Rect.w = 6;
+        tens2Rect.h = 0xD;
+        ones2Rect.x = 0x3C6 + (i % 2) * 0x10;
+        ones2Rect.y = 0x100 + (i / 2) * 0xD;
+        ones2Rect.w = 6;
+        ones2Rect.h = 0xD;
+        if (cellIds[i] != 0) {
+            SystemRenderStringEntry(GetItemName(cellIds[i]), bufs[i], 0x1B, 0);
+        }
+        if (cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP] != 0) {
+            SystemRenderStringEntry(GetItemName(cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP]), bufs[i], 0x1B, 1);
+        }
+        BattleLoadImageAndSync(&nameRect, bufs[i]);
+        tens = cellUses[i] / 10;
+        if (tens != 0) {
+            BattleLoadImageAndSync(&tensRect, D_800C3E5C[tens]);
+        } else {
+            BattleLoadImageAndSync(&tensRect, D_800D2DB0);
+        }
+        ones = cellUses[i] % 10;
+        if (cellIds[i] != 0) {
+            BattleLoadImageAndSync(&onesRect, D_800C3E5C[ones]);
+        } else {
+            BattleLoadImageAndSync(&onesRect, D_800D2DB0);
+        }
+        if (cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10 != 0) {
+            BattleLoadImageAndSync(&tens2Rect, D_800C3E5C[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10]);
+        } else {
+            BattleLoadImageAndSync(&tens2Rect, D_800D2DB0);
+        }
+        if (cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP] != 0) {
+            BattleLoadImageAndSync(&ones2Rect, D_800C3E5C[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] % 10]);
+        } else {
+            BattleLoadImageAndSync(&ones2Rect, D_800D2DB0);
+        }
+    }
+    for (i = 0; i < BATTLE_COMMAND_ROW_COUNT; i++) {
+        HeapFree(bufs[i]);
+    }
+    HeapFree(D_800D2DB0);
+    BattleUpdateFrame();
+    g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
+    g_BattleDisplayState->primState = 2;
+}
+*//* 99.62% (212 bytes = retail's 0xd4): instruction-for-instruction identical except one
    swapped add: retail puts the -4 on the parameter (`addiu a3,s2,-4; addu a3,s0,a3`)
    where gcc 2.7.2 folds it onto the loop GIV (`addiu a3,s0,-4; addu a3,s2,a3`).
    Tried: arg0-4+offset, (arg0-4)+offset, offset+(arg0-4), a pre-loop `y = arg0` copy
@@ -476,24 +599,55 @@ void func_80090C44(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
-/* 64.02% (round 36 parked this function at 64.78 with a u8 *pPal form):
-   the four draw/palette blocks, the branch/join palette picks, the
-   func_80090C44(arg0) call in the last store's delay slot and the trailing
-   direct `lbu g_BattlePrimStartIndex` all have retail's shape. The gap is the mode read:
-   retail materialises `lui s0,%hi; addiu s0,s0,%lo g_BattlePrimStartIndex` once and does
-   `lw t0,0(s0)` at each of the 4 uses; gcc 2.7.2 copy-propagates the pointer
-   initialiser into the loads and emits `lw g_BattlePrimStartIndex` (lui+lw, 2 insns) at 3
-   of them, keeping the `la` only for the one use it cannot fold. Four source
-   variants compiled to the same instruction stream: `s32 *pMode =
-   &g_BattlePrimStartIndex` + `*pMode`, `u8 *pPal = (u8 *)&g_BattlePrimStartIndex` + casts,
-   `volatile s32 *pMode`, and pBase-before-ofs vs ofs-before-pBase ordering.
-   So the round-37 note that such a local reproduces retail's `la` + `lw 0(sN)`
-   does not hold for straight-line code: every `la $sN,glob` + `lw 0($sN)` in
-   build/src sits on a LOOP-INVARIANT address (battle/misc22 BattleFreeSceneResources,
-   shop_menu ShopMenuUpdateBuyMenuExplanationGraphics, system/temp3, field
-   misc/misc2/misc5). Also left: retail adds the constant to the PRODUCT
-   (`sll/addu/sll; addiu a0,a0,0x3C0; addu a0,a0,t1`) where ours forms
-   `pBase+0x3C0` first and adds the product -- probably a side effect of the
-   same propagation, since BattleDrawMenuEntryString's identical `ofs = idx*0x28 + K`
-   phrasing matches in this unit. gcc-2.7.2-cdk compile-fails on this unit (mixed declarations).  */
+extern void func_80090C44(u8);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
+/* 79.25% (480 bytes; retail is 488 = 122 insns). The four draw/palette blocks, both
+   branch/join palette picks, `func_80090C44(arg0)` in the last store's delay slot and
+   the trailing direct `lbu g_BattlePrimStartIndex` all have retail's shape, and the
+   two palette blocks are byte-identical. The gap is entirely in the two
+   BattleSetPolyFT4RectH13 argument setups, and the levers found are:
+   - the index must come from a pointer local (`s32 *pPrim = &g_BattlePrimStartIndex`,
+     dereferenced at each use): that is what makes retail materialise
+     `lui/addiu %hi/%lo` into s0 and reload `lw 0(s0)` per use. Any array spelling
+     (`g_BattlePrimStartIndex[0]`) folds to a bare `lui/lw` pair.
+   - `ofs = *pPrim * 0x28 + 0x3C0` in its own local before the call (the inline
+     `... + 0x3C0 + (s32)g_BattleGraphicsWork->pPacketPrims` reassociates the constant
+     onto the base instead: 76.12%).
+   Remaining, all measured: retail adds the offset in the product's own register
+   (`addiu a0,a0,0x3C0` then `addu a0,a0,t1`) where this build ends the ofs in t0/v0
+   (`addu t0,v0,960; addu a0,t0,a0`), and retail loads the D_800D2F8x words in the order
+   u, dx, v while gcc here emits v, dx after the base load. A 5-minute, 2-job permuter
+   run from this body found no zero (best candidate wrapped the address in an inline
+   helper, not portable); its only portable suggestion, inlining the ofs expression,
+   is the 76.12% form above.
+void func_80090E7C(u8 arg0) {
+    u8 *pRec;
+    s32 *pPrim;
+    s32 ofs;
+    u16 pal;
+
+    pPrim = &g_BattlePrimStartIndex;
+    ofs = *pPrim * 0x28 + 0x3C0;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)g_BattleGraphicsWork->pPacketPrims), 0xA8, 0xA6, D_800D2F82, D_800D2F83, D_800D2F80);
+    pRec = g_BattleGraphicsWork->pPacketPrims + *pPrim * 0x28;
+    if (D_800D2F81 != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x3CE) = pal;
+    ofs = *pPrim * 0x28 + 0x410;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)g_BattleGraphicsWork->pPacketPrims), 0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
+    pRec = g_BattleGraphicsWork->pPacketPrims + *pPrim * 0x28;
+    if (D_800D2F7D != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x41E) = pal;
+    func_80090C44(arg0);
+    BattleDrawSpritePackage(0x71, (s32)(g_BattleGraphicsWork->pPacketPrims + 0x5A0), 0x118, 0xD1);
+    ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->numberPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
+}
+*/
