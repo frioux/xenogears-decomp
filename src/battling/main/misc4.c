@@ -57,8 +57,8 @@ extern s32 g_BattleSceneOriginYMirror;
 extern s32 g_BattleSceneOriginY;
 extern s32 D_8009879C;
 extern s32 D_80097080;
-extern s32 D_80098680;
-extern s32 D_80098684;
+extern s32 g_BattleCameraTargetY;
+extern s32 g_BattleCameraTargetZ;
 extern s32 g_BattleCameraPos;
 extern s32 g_BattleCameraPosY;
 extern s32 g_BattleCameraPosZ;
@@ -794,7 +794,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
    first but only AFTER the BattleVectorDistance2D call returns, which needs the call's
    result in a local (this body does that; the straight two-statement form stores the
    angle before the call and loses the jal). (c) The third point's y is
-   D_80098680 - (min(3Ddist/4, 0x300) + 0x40) and the ground clamp compares that with
+   g_BattleCameraTargetY - (min(3Ddist/4, 0x300) + 0x40) and the ground clamp compares that with
    func_80082488(&g_BattleCameraPos, 0) - 0x100. Nothing here was permuted yet.
 // Aim the camera at the two combatants: the facing angle and their distance are
 // published for the rest of the battle code, the camera target is mirrored on their
@@ -822,16 +822,16 @@ void func_800796B8(Actor* p1, Actor* p2) {
     dist = BattleVectorDistance((Vec4*)p1, (Vec4*)p2);
     radius = dist * 2 / 3 + 0xC0;
     g_BattleCameraTarget = (p1->x + p2->x) / 2;
-    D_80098680 = (p1->y + p2->y) / 2 - 0xA0;
-    D_80098684 = (p1->z + p2->z) / 2;
+    g_BattleCameraTargetY = (p1->y + p2->y) / 2 - 0xA0;
+    g_BattleCameraTargetZ = (p1->z + p2->z) / 2;
 
     // The two candidate points on the orbit, seen from the camera. Their y words are
     // never set here - retail reads the frame slot back unset - but the length test
     // below is 2D, so only x and z matter.
     posA.x = g_BattleCameraTarget + ((rcos(angle - BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
-    posA.z = D_80098684 + ((rsin(angle - BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
+    posA.z = g_BattleCameraTargetZ + ((rsin(angle - BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
     posB.x = g_BattleCameraTarget + ((rcos(angle + BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
-    posB.z = D_80098684 + ((rsin(angle + BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
+    posB.z = g_BattleCameraTargetZ + ((rsin(angle + BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
     posA.x -= g_BattleCameraPos;
     posA.y -= g_BattleCameraPosY;
     posA.z -= g_BattleCameraPosZ;
@@ -856,8 +856,8 @@ void func_800796B8(Actor* p1, Actor* p2) {
     }
     height = dist + 0x40;
     posA.x = g_BattleCameraTarget + ((rcos(angle + g_BattleCameraAngleStep) * radius) >> 12);
-    posA.y = D_80098680 - height;
-    posA.z = D_80098684 + ((rsin(angle + g_BattleCameraAngleStep) * radius) >> 12);
+    posA.y = g_BattleCameraTargetY - height;
+    posA.z = g_BattleCameraTargetZ + ((rsin(angle + g_BattleCameraAngleStep) * radius) >> 12);
     posB.x = (posA.x - g_BattleCameraPos) / g_BattleCameraLerpFrames;
     posB.z = (posA.z - g_BattleCameraPosZ) / g_BattleCameraLerpFrames;
     BattleMovePointInsideRadius((Vec4*)&g_BattleCameraPos, &posB, 0x3A00);
@@ -1271,8 +1271,8 @@ void BattleActorSetModelIndex9(Actor* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
-/* Best attempt: 92.44%. The D_80098680/9867C/98720 block is the only difference.
-   Retail loads p->y once into $v1 and reuses it for both the D_80098680 store
+/* Best attempt: 92.44%. The g_BattleCameraTargetY/9867C/98720 block is the only difference.
+   Retail loads p->y once into $v1 and reuses it for both the g_BattleCameraTargetY store
    and the '- 0x400' (addiu lands in $v1), while a plain 'p->y' reloads it after
    the global store (gcc will not CSE a load through the parameter across a store
    to a global) and reassociates '(x - 0x400) - g_BattleCameraRigYOffset' into 'x - (g_BattleCameraRigYOffset + 0x400)'.
@@ -1291,12 +1291,12 @@ void func_8007A768(Actor* p) {
     g_BattleCameraRigRadius = pScript->cameraRadius;
     SetGeomScreen(0x200);
     r = rand();
-    D_80098680 = p->y;
+    g_BattleCameraTargetY = p->y;
     g_BattleCameraTarget = p->x;
     g_BattleCameraPosY = p->y - 0x400 - g_BattleCameraRigYOffset;
-    D_80098684 = p->z;
+    g_BattleCameraTargetZ = p->z;
     g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * g_BattleCameraRigRadius) >> 12);
-    g_BattleCameraPosZ = D_80098684 + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
+    g_BattleCameraPosZ = g_BattleCameraTargetZ + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
 }
 */
 

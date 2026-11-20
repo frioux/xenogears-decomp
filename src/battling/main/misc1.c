@@ -29,8 +29,8 @@ s32 BattleRoundDivAwayFromZero(s32 a0, s32 a1, s32 a2) {
 // The position every effect vector is placed against: the three 16.16 words of
 // a long-word VECTOR.
 extern VECTOR g_BattleCameraTarget;
-extern s32 D_80098680;
-extern s32 D_80098684;
+extern s32 g_BattleCameraTargetY;
+extern s32 g_BattleCameraTargetZ;
 extern s32 g_BattleEffectPlaceYOffset;
 extern s32 g_BattleScriptCursor;
 extern s32 g_BattleScriptWait;
@@ -52,8 +52,8 @@ void func_80070808(s32* p, s32 step) {
     s32* pX = &g_BattleCameraTarget;
 
     *pX += BattleRoundDivAwayFromZero(p[0], *pX, step);
-    D_80098684 += BattleRoundDivAwayFromZero(p[2], D_80098684, step);
-    D_80098680 += BattleRoundDivAwayFromZero(p[1], D_80098680 + g_BattleEffectPlaceYOffset, step);
+    g_BattleCameraTargetZ += BattleRoundDivAwayFromZero(p[2], g_BattleCameraTargetZ, step);
+    g_BattleCameraTargetY += BattleRoundDivAwayFromZero(p[1], g_BattleCameraTargetY + g_BattleEffectPlaceYOffset, step);
 }
 */
 
@@ -94,7 +94,7 @@ extern s32 g_BattleSceneOriginZ;
 extern s32 g_BattleEffectCellsEnd;
 extern void func_80070808(VECTOR* pVec, s32 step);
 extern void func_800708C4(VECTOR* pVec, s32 step);
-extern void func_80083738(VECTOR* pA, VECTOR* pB);
+extern void BattleAimCameraAtCombatants(VECTOR* pA, VECTOR* pB);
 extern s32 func_80082488(VECTOR* pVec, s32 mode);
 
 /* 92.82%: same size as retail and every statement/call/constant is right; the
@@ -158,7 +158,7 @@ void BattlePlaceEffectByMode(s32 mode) {
 
     switch (mode) {
     case 0:
-        func_80083738(&g_BattleActor1.position, &g_BattleActor0);
+        BattleAimCameraAtCombatants(&g_BattleActor1.position, &g_BattleActor0);
         break;
     case 1:
         vec = g_BattleActor1.position;

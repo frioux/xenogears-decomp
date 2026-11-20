@@ -803,9 +803,9 @@ void BattleRandomizeCameraSpin(void) {
 }
 
 extern s32 g_BattleCameraTarget;
-extern s32 D_80098680;
-extern s32 D_80098684;
-extern s32 D_8009277C;
+extern s32 g_BattleCameraTargetY;
+extern s32 g_BattleCameraTargetZ;
+extern s32 g_BattleCameraOrbitAngle;
 extern u8 g_BattleCameraSpinDirection;
 extern s32 BattleVectorDistance(VECTOR* pA, VECTOR* pB);
 extern s32 BattleVectorLength2D(VECTOR* p);
@@ -813,7 +813,7 @@ extern s32 BattleVectorLength2D(VECTOR* p);
 // Mirrors the camera on the combatants' midpoint and orbits it to whichever of
 // the two candidate points on the ring is nearer, moving a fraction of the way
 // there each frame (the ring shrinks as the pair closes).
-void func_80083738(VECTOR* pA, VECTOR* pB) {
+void BattleAimCameraAtCombatants(VECTOR* pA, VECTOR* pB) {
     VECTOR pos;
     VECTOR alt;
     VECTOR pad0[2]; // unused: the original's frame carries two more 0x10 slots
@@ -832,13 +832,13 @@ void func_80083738(VECTOR* pA, VECTOR* pB) {
     *pTargetX = (pA->vx + pB->vx) / 2;
     radius = dist * 2 / 3 + 0xC0;
     pBvz = &pB->vz;
-    D_80098680 = (pA->vy + pB->vy) / 2 - 0xA0;
-    D_80098684 = (pA->vz + *pBvz) / 2;
+    g_BattleCameraTargetY = (pA->vy + pB->vy) / 2 - 0xA0;
+    g_BattleCameraTargetZ = (pA->vz + *pBvz) / 2;
     g_BattleCameraOrbitRadius = radius;
     pos.vx = *pTargetX + ((rcos(angle - BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
-    pos.vz = D_80098684 + ((rsin(angle - BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vz = g_BattleCameraTargetZ + ((rsin(angle - BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
     alt.vx = *pTargetX + ((rcos(angle + BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
-    alt.vz = D_80098684 + ((rsin(angle + BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    alt.vz = g_BattleCameraTargetZ + ((rsin(angle + BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
     pos.vx -= g_BattleCameraPos;
     pos.vy -= g_BattleCameraPosY;
     pos.vz -= g_BattleCameraPosZ;
@@ -858,10 +858,10 @@ void func_80083738(VECTOR* pA, VECTOR* pB) {
     if (dist > 0x300) {
         dist = 0x300;
     }
-    pos.vy = D_80098680 - g_BattleCameraYOffset - dist;
+    pos.vy = g_BattleCameraTargetY - g_BattleCameraYOffset - dist;
     pos.vx = g_BattleCameraTarget +
             ((rcos(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
-    pos.vz = D_80098684 + ((rsin(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vz = g_BattleCameraTargetZ + ((rsin(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
     // the ground height reuses lenPos: a fresh local puts it in the wrong register
     lenPos = func_80082488(&pos, 0) - 0x100;
     if (lenPos < pos.vy) {
@@ -871,7 +871,7 @@ void func_80083738(VECTOR* pA, VECTOR* pB) {
     pos.vx = (pos.vx - pCamPos->vx) / g_BattleCameraLerpFrames;
     pos.vy = (pos.vy - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
     pos.vz = (pos.vz - g_BattleCameraPosZ) / g_BattleCameraLerpFrames;
-    D_8009277C = angle;
+    g_BattleCameraOrbitAngle = angle;
     BattleMovePointInsideRadius(pCamPos, &pos, 0x3D00);
     g_BattleCameraLerpFrames = BATTLE_CAMERA_LERP_FRAMES;
     // volatile: without it sched2 raises the g_BattleCameraPosY load above this store
@@ -929,7 +929,7 @@ s32 BattleGetScreenMode(void) {
 
 // Writes the battle timer's minutes:seconds:hundredths into buf and draws it;
 // the two remainders are taken off the frame count once each.
-void func_80083CE8(void) {
+void BattleDrawElapsedTime(void) {
     char buf[0x20];
     s32 n;
     s32 rem;
