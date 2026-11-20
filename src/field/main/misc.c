@@ -484,7 +484,7 @@ void FieldScriptSetPlayerActor(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-extern FieldScriptGlobalU16 D_800B2348;
+extern FieldScriptGlobalU16 D_800B2348[];
 
 // 79.83%: gcc folds the symbol into both accesses (`lui/lhu` then `lui at/sh`),
 // the original materialises &D_800B2348 once in $v1 and uses 0($v1) twice. A
@@ -496,13 +496,10 @@ extern FieldScriptGlobalU16 D_800B2348;
 // `&sym` never survives fold, so a pointer local is not enough.
 // preset screen: 2.7.2 79.83%, cdk 79.83%, 2.6.0 79.83% - no compiler
 // fixes it.
-/*
 void func_80087FA4(void) {
-    D_800B2348.value++;
+    D_800B2348[0].value++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_80087FA4);
 
 void FieldScriptRebuildTileBuffers(void) {
     func_800A8BA4();
@@ -1921,6 +1918,10 @@ typedef struct {
 // base-first, `(characterId + g_FieldActors)` emits index-first as retail does.
 // preset screen: 2.7.2 97.81%, cdk 86.01%, 2.6.0 97.81% - no compiler
 // fixes it.
+// 97.81% (580 bytes; retail 584): rows' 0x14000 constant gets $v0 and reorg
+// steals its lui into the bne delay slot, where retail has nop and $t0.
+// Preset screen: 2.7.2 97.81%, cdk 86.01%, 2.6.0 97.81%; a 4-minute permuter
+// run found nothing (best candidate 206 vs base 317).
 /*
 void func_8008BF38(int partyIndex) {
     int characterId;
@@ -1969,9 +1970,9 @@ void func_8008BF38(int partyIndex) {
     g_GamePartyMembers[partyIndex + 1] = ACTOR_ID_INVALID;
     g_GamePartyMemberSkins[partyIndex + 1] = ACTOR_ID_INVALID;
     D_8005A448[partyIndex] = ACTOR_ID_INVALID;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
+
 
 extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern void* g_PartyDataBuffers[];
@@ -3040,6 +3041,9 @@ void func_8008EA58(void) {
 //   (`lhu v0,0xcc(a0); ori v1,1`) between the g_FieldStreamLoopPlayback and
 //   g_FieldStreamSceneActive stores; here the load is hoisted above LoopPlayback.
 //   The matched-neighbour note on func_8008EE14 records the same hoist.
+// 94.74% (480 bytes, same size): the post-reload scheduler puts our lhu ip
+// + li 1 above the g_FieldStreamLoopPlayback store where retail has them after
+// it; a volatile store on that playbacks field does not move it.
 /*
 void func_8008EC30(void) {
     u16 value;
@@ -3087,15 +3091,15 @@ void func_8008EC30(void) {
                 break;
         }
         g_FieldStreamId = 0xFF;
-        g_FieldStreamLoopPlayback = 0;
+        *(volatile u16*)&g_FieldStreamLoopPlayback = 0;
         g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     }
-}
-
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
+
+
 
 // 79.22%: everything up to the last four stores matches. The original's
 // post-reload scheduler emits them as [lhu D_800C3A30][lw g_FieldScriptVMCurActor]
