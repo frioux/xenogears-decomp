@@ -389,52 +389,51 @@ void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
     p[0] = n;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
-/* best 92.86% (164 bytes, retail 168).  Structure is right: the loop is entered
-   through a PEELED first remainder (`value %= *pTab; pTab--;` before the loop,
-   which is why retail's preheader `j`s into the latch block and the latch is also
-   the entry), then the body divides by *pTab, n--, and the latch re-remainders with
-   *pTab before pTab--.  The two `lw 0(v1)` are NOT CSE'd because the `sb` of the
-   digit sits between them.  The two remaining diffs: retail emits the preheader
-   `lui/addiu` of D_800C37A4 BEFORE the `sll v1,a2,2`, and retail's exit path has a
-   DEAD `addiu v1,v1,4` (a giv bump-back no source shape here reproduces; 3-minute
-   permuter run from this body: NONE, base=160).  Parked pending that dead insn.
-   s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
-       u8 *pDst;
-       u8 digit;
-       s32 count;
-       u32 *pTab;
+// Writes value as decimal digits into pBuf: pBuf[0] receives the number of
+// characters written and pBuf[1..] hold the digits (a leading '-' for a negative
+// value). n is the number of leading places leading zeros are suppressed in, so
+// the widest field is n + 1 characters; started != 0 keeps those leading zeros,
+// and base is added to every digit. Returns the number of characters written.
+// D_800C37A4 holds the decimal place divisors, 10^1 through 10^9.
+s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
+    u8 *pDst;
+    u8 digit;
+    s32 count;
+    u32 *pPlace;
+    u32 *pTab;
 
-       count = 0;
-       pDst = pBuf + 1;
-       if (value < 0) {
-           count = 1;
-           pBuf[1] = '-';
-           pDst = pBuf + 2;
-           value = -value;
-           n--;
-       }
-       pTab = &D_800C37A4[n];
-       value = (u32)value % *pTab;
-       pTab--;
-       for (; n != 0; pTab--) {
-           digit = (u32)value / *pTab;
-           n--;
-           if (digit != 0) {
-               started = 1;
-           }
-           if (started != 0) {
-               *pDst = digit + base;
-               pDst++;
-               count++;
-           }
-           value = (u32)value % *pTab;
-       }
-       *pDst = value + base;
-       pBuf[0] = count + 1;
-       return count + 1;
-   }
-*/
+    count = 0;
+    pDst = pBuf + 1;
+    if (value < 0) {
+        count = 1;
+        pBuf[1] = '-';
+        pDst = pBuf + 2;
+        value = -value;
+        n--;
+    }
+    pPlace = D_800C37A4;
+    pTab = pPlace + n;
+    for (;;) {
+        value = (u32)value % *pTab;
+        if (n == 0) {
+            break;
+        }
+        pTab--;
+        digit = (u32)value / *pTab;
+        n--;
+        if (digit != 0) {
+            started = 1;
+        }
+        if (started != 0) {
+            *pDst = digit + base;
+            pDst++;
+            count++;
+        }
+    }
+    *pDst = value + base;
+    pBuf[0] = count + 1;
+    return count + 1;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 extern u8 g_BattleStageFileLoadDone;
 extern u8 g_BattleLoadedStageFileId;
