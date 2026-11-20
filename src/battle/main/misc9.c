@@ -251,6 +251,79 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
 }
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
+/* R333: best 84.33%, 376 bytes against retail's 384 (0x8007DCF8..0x8007DE78 =
+   96 insns, read off this stub), i.e. this body is TWO instructions short and
+   can never link. It is the func_8007D8C0/DA1C/DB78/DE78/DFD4 family -- the
+   same loop with the counter starting at 3, the bound 0xB, the flag-gate byte
+   offset starting at 0x18, and ClearRecordIdle's second argument 0 -- and its
+   two residuals are the family's documented ones, both already measured dead in
+   several spellings by earlier rounds:
+
+   (a) the `i++`. Retail's RTL is [jal ClearRecordIdle][andi v0,v0,0xFF]
+   [addiu s1,s1,1][beqz], so the increment executes unconditionally right after
+   the call and reorg puts it in that beqz's delay slot; with `idx = i++` gcc
+   emits the increment at the loop head (move s3,s1 / addiu s1,s1,1) and reorg
+   fills that slot with a COPY of the loop test (slti v0,s1,0xB) instead. The
+   for-loop form (`for (i = 3; i < 0xB; i++) { idx = i; ... }`) is worse: gcc
+   propagates idx out of s3 and the frame shrinks to 0x38 with a different
+   saved set. `idx = i; i++;`, the increment at the loop bottom after the
+   `if`, and while-head/do-while forms all leave it at the head.
+   (b) the row-base copy. Retail forms the sum EARLY, before the remaining
+   saves, into a temp (`andi v0,s7,0xFF / sll v0,v0,6 / lui v1 / addiu v1 /
+   addu v0,v0,v1`) and then COPIES it into the loop's saved register
+   (`addu s6,v0,zero`); gcc sinks the symbol's `lui/addiu` to the store and
+   coalesces the sum into s6 (`addu s6,v1,a0`), one instruction fewer. Measured
+   identical (84.33%): the typed `g_BattleSlotRegs[arg1 & 0xFF].wordRegs` view
+   (relocation g_BattleSlotRegs+0x20, same code), the base-first
+   `(u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40)`, and an s32
+   `rowBase` local with `(u16 *)rowBase`.
+   The tail store and the latch ARE solved and this body reproduces them
+   byte-exactly: `u16 value` local, then an int-built base with the symbol
+   cast, then a pointer local whose index is (*arg0)[2] (retail's andi/sll/
+   lw/lui/addiu/lbu/addu/sll/addu/sh), and [slti v0,s1,0xB][addiu s4,s4,8 in
+   the bnez slot] at the latch. The gate read is a u8 byte view with an
+   incrementing offset, which is what produces retail's `$at` form
+   (lui $at / addu $at,$at,$s4 / lbu %lo($at)).
+
+   Preset screens on this body: gcc-2.6.0 85.32%, gcc-2.7.2-cdk 75.83%, so
+   Default (2.7.2, -O2 -G8) is right and this is not a compiler question.
+   permute.sh --minutes 3 -j 2: PERMUTER_BETTER base=1500 best=1100, but the
+   candidate reads 85.39% at 368 bytes -- it keeps the scaled row offset live
+   across the loop in an s32 local (bringing the early `andi a1,a1,0xFF / sll
+   a1,a1,6` back) and then uses that local at the tail store, which DELETES
+   retail's tail andi/sll: a worse body (4 instructions short), so it was not
+   taken. Reducing (b) once in exchange for (a) twice is the trade the scoring
+   rewards and linking does not.
+
+void func_8007DCF8(u8 **arg0, s32 arg1) {
+    u8 buf[8];
+    s32 i = 3;
+    s32 count = 0;
+    s32 offset = 0x18;
+    s32 idx;
+    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
+
+    pRow[(*arg0)[2]] = 0;
+    while (i < 0xB) {
+        idx = i++;
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
+            if (((u8 *)g_BattleSlotFlags)[offset] != 0) {
+                if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
+                    buf[count] = idx;
+                    count++;
+                }
+            }
+        }
+        offset += 8;
+    }
+    if (count != 0) {
+        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+
+        pOut[(*arg0)[2]] = value;
+    }
+}
+ */
 /* best: 89.33% (336 bytes; mine 340). This is the func_8007D8C0/DA1C
    family and the family's documented blocker (the tail store re-forming the row
    base) IS SOLVED here: write the tail as a u16 value local, then a pointer
@@ -365,6 +438,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
         }
         offset += 8;
     }
+    i = 3;
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
