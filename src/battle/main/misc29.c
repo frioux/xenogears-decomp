@@ -41,21 +41,34 @@ extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetCallback(void *, void *);
 extern void ArchiveStopTransfer(s32);
 
-/* The work buffer carved out at battle init. Both of its self-pointers address
-   the buffer itself; only these two fields are known in this unit. */
+/* The work-list entry a task block starts with: how WorkListEntry of
+   include/system/animation.h lays out, repeated here, that header holding tentative
+   definitions of main-exe globals an overlay unit cannot include. */
 typedef struct {
-    /* 0x00000 */ u8 unk0[0x4];
-    /* 0x00004 */ void *unk4;
-    /* 0x00008 */ u8 unk8[0x18];
-    /* 0x00020 */ void *unk20;
-    /* 0x00024 */ u8 unk24[0x10F58];
+    /* 0x00 */ void *pData; // the block the entry is added for (WorkListsAddTasks passes it)
+    /* 0x04 */ void *unk4;
+    /* 0x08 */ void *onTriggerCallback;
+    /* 0x0C */ void *onFreeCallback;
+    /* 0x10 */ u32 taskId; // taken from work_list.c's counter on every add
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ void *pNext;
+} BattleTimerEntry; // Size: 0x1C
+
+/* The work buffer carved out at battle init: the timer and work list entries the
+   task lists hang the block on (misc28's BattleCreateWorkTask removes both again),
+   then the frame counter and effect records of misc28's BattleEffectTable. */
+typedef struct {
+    /* 0x00000 */ BattleTimerEntry timerEntry; // the entry TimerWorkListRemoveTask takes
+    /* 0x0001C */ BattleTimerEntry workEntry;  // the entry WorkListRemoveTask takes
+    /* 0x00038 */ s32 frameCount;              // zeroed by func_800B7424, raised once per update pass
+    /* 0x0003C */ u8 effectRecords[0x10F40];   // misc28's BattleEffect records, 0x7C bytes each
 } BattleWorkBuffer; // Size: 0x10F7C
 
 void BattleAllocWorkBuffer(void) {
     BattleWorkBuffer *pWork = HeapAlloc(sizeof(BattleWorkBuffer), 1);
 
-    pWork->unk4 = pWork;
-    pWork->unk20 = pWork;
+    pWork->timerEntry.unk4 = pWork;
+    pWork->workEntry.unk4 = pWork;
     func_800B7424(pWork);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
@@ -172,18 +185,6 @@ void func_800B7C34(s32 stage) {
     HeapFree(g_BattleStageStreamFile);
 }
 */
-/* The work-list entry g_BattleStateWork's timer tasks are given; this unit only
-   clears the trigger callback it adds the entry with. */
-typedef struct {
-    /* 0x00 */ void *unk0;
-    /* 0x04 */ void *unk4;
-    /* 0x08 */ void *onTriggerCallback;
-    /* 0x0C */ void *onFreeCallback;
-    /* 0x10 */ u32 unk10;
-    /* 0x14 */ u32 unk14;
-    /* 0x18 */ void *pNext;
-} BattleTimerEntry; // Size: 0x1C
-
 extern u8 D_800C3624;
 extern s16 g_BattleActorAnimationIndex;
 extern u8 g_BattleAudioFadeStarted;
@@ -534,7 +535,7 @@ typedef struct {
     /* 0xC88 */ u8 unkC88[0x120];
     /* 0xDA8 */ u8 unkDA8;
     /* 0xDA9 */ u8 unkDA9[0x3];
-    /* 0xDAC */ s32 unkDAC;
+    /* 0xDAC */ s32 waitFrameCountdown; // the frame wait func_800BE790 keeps in g_BattleWaitFrameCountdown
     /* 0xDB0 */ u8 unkDB0[0x4D0];
 } BattleRenderState; // Size: 0x1280
 
@@ -650,14 +651,21 @@ void func_800B8774(void) {
     HeapFree(g_BattleSceneResources);
 }
 
-/* Battle state pointed to by g_BattleState; only the fields this unit reads. */
+/* Battle state pointed to by g_BattleState; the fields its state machine and this unit
+   read (the whole layout is misc33's BattleMisc33State). */
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ SpriteData *pSprite;
-    /* 0x08 */ u8 unk8[0x18];
+    /* 0x08 */ void (*pUpdate)(); // the state machine's body; the frame loop calls through it
+    /* 0x0C */ u8 unkC[0x10];
+    /* 0x1C */ s32 stateStep; // the step BattleApplyStateStep copies into pendingStep
     /* 0x20 */ s32 initialActorIndex; // the actor index the init hands to BattleSetCurrentActorSprite
     /* 0x24 */ s32 actorIndex;
-    /* 0x28 */ u8 unk28[0x18];
+    /* 0x28 */ u32 partKey; // the actor's slot key: ((sprite->flags_0xAC & 3) << 2) | (flags_0xA8 >> 30)
+    /* 0x2C */ s32 pathIndex; // cursor into the target-position path at g_BattleStateWork + 0xA3C
+    /* 0x30 */ s32 unk30;
+    /* 0x34 */ s32 timer; // what is left of the current step's wait
+    /* 0x38 */ u8 unk38[0x8];
     /* 0x40 */ void *savedActorSlot; // an index, not a pointer: BattleTearDownState passes it to BattleLoadActorSlotAnimation
 } BattleUnitState; // Size: 0x44
 
@@ -726,7 +734,7 @@ void BattleInitFrameRenderState(void) {
     pFrame = &pEnv->frames[0];
     pOldOT = pWork->pRenderEnv;
     g_GfxOTDepthShift = 2;
-    pWork->unkDAC = extraTicks;
+    pWork->waitFrameCountdown = extraTicks;
     if (pOldOT == (u8 *)pFrame) {
         pFrame = &pEnv->frames[1];
     }
