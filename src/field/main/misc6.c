@@ -672,45 +672,19 @@ void FieldScriptVMHandlerStartEncounter(void) {
 }
 
 
-/* 99.16% (1036 bytes = retail's size). ONE residual left:
-   the D_800B2342 decrement. Retail materialises the ADDRESS
-   (`lui v1,%hi` + `addiu v1,v1,%lo` + `lhu 0(v1)` / `sh 0(v1)`); ours emits the
-   two maspsx macro expansions through $at. Measured dead this round:
-   - `extern s16 D_800B2342[]` + `[0]--` at every site: the decrement DOES come out
-     as retail's `la` form, but gcc then shares the array's decayed base between
-     the pre-jal test and the post-jal store, keeps it in $s0 and grows the frame
-     (`sw ra,92(sp)`/`sw s0,88(sp)`): 97.49%, 1048 bytes. `volatile s16[]`: 95.48.
-   - a block-scope `{ extern s16 D_800B2342[]; ... }` shadow of the scalar
-     declaration: cc1 rejects it ("conflicting types for D_800B2342").
-   - a local `s16 *pTimer = &D_800B2342;` (assignment, declaration-initialiser,
-     `(s16 *)((u32)&...)`, `volatile s16 *`, `*(pTimer = &D_800B2342) -= 1`): all
-     fold back to the macro form. cc1_probe on a 9-spelling snippet confirms every
-     scalar spelling folds; only an array/struct-typed symbol decays to `la`.
-   What took the body from the lost 96.60% park to 98.66% (re-measured):
-   - `u8 pad[0x48]` gives retail's exact 0x60 frame, which stores only $ra;
-   - `if (D_800ADB02 > 0x20)`, retail's `slti v0,v0,0x21`;
-   - the `else D_800ADB02 = 0;` belongs to the material-bit test, not to the
-     previous-position compare: its three `bne`s fall through to the join;
-   - `nInputFree = -(nTextBoxIndex == FIELD_TEXTBOX_COUNT)` in its own local puts
-     the negate in $v0 with `li v1,-1`;
-   - the pActor local must be assigned INSIDE the accept block, after the jal;
-   - the anim store has to be a volatile s16 store, which keeps `li/sh` ahead of
-     the D_800B2340 load;
-   - `s32 nCameraAngle = g_CamInterpolation.targetAngleY;` gives retail's `lh`.
-   98.66 -> 99.16 (this round): the talk accept block stores D_800ADB28 BEFORE
-   D_800B2342 (retail's `sw a0` then `sh v0`), not after it - the old note had the
-   order backwards. `nSavedMessageState` still lands in $a0 across the volatile
-   anim store.
-   The volatile flags store at both accept sites is load-bearing throughout.
-*/
+// Per-frame confirm/release check for the actor the party is standing at: finds a
+// free textbox, bumps the encounter hold counter, arms the message state and turns
+// the actor to the d-pad direction (relative to the camera). Called by
+// FieldScriptVMHandlerStartEncounter, which undoes the trailer's IP advance.
+// The talk repeat timer is D_800B2340[1]: the tests read it signed through
+// D_800B2342, the decrement goes through the array so the address is formed once.
 void func_8009F5F4(void) {
-    // Retail's frame is 0x60 with nothing but $ra stored in it.
+    // Retail's frame is 0x60 and stores nothing but $ra.
     u8 pad[0x48];
     u16 nAngle;
     s32 nTextBoxIndex;
     s32 nInputFree;
     s32 nSavedMessageState;
-    s16 *pTimer;
     ActorData* pActor;
 
     nAngle = 0;
