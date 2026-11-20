@@ -2722,31 +2722,32 @@ void func_8003B424(AudioManager* pManager) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 /*
-Attempt (96.32%, 748 bytes = the original's size): the whole element loop agrees, including the
-volume scaling; the ONLY residual is a two-register swap. Retail keeps the volume scaler in fp
-($s8, the register `level` arrived in) and the element count in $s6; gcc 2.6.0 gives the volume
-$s6 and the count fp, in 11 instructions (the entry `sw s8,72(sp) / move s8,a2` pair, `sll
-v1,s8,16`, `mflo v0 / srl s8,v0,7`, `srl v0,s8,15`, `li s8,0x7FFF`, the `lui/lw` of g_SoundEffectElementPairCount,
-`sh s8,79(s0)` and the loop tail `addiu s6,s6,-1 / bnez s6`). Both allocnos are entry-born SImode
-locals live across the whole function, so this is gcc's global-alloc priority tie-break
-(floor_log2(nrefs*size/live_length), ties by allocno index), not a source shape: 3 permuter runs
-by the previous worker plus 2 more here (best 265 vs base 270, and that one only by rewriting the
-whole loop body) never moved it. Do not burn hand shapes on the declaration list - tried: `s32
-count` before/after `u32 volume`, `u32 count`, `s16 level`, volume assigned at the top vs at the
-multiply, and an unused-local pad.
-What was fixed this round, do not regress: (1) the tone-table byte must be reached with a
-LEFT-ASSOCIATIVE pointer sum, `*((u8*)pSoundFile + off + (soundId & 0xFFFF))` - retail emits
-`addu v0,s2,v0` (base + table offset) and then adds the masked index, where the array form
-`((u8*)pSoundFile)[off + idx]` adds off+idx first and then the base (94.82 -> 94.93); (2) the
-`- (-off)` spelling below is a permuter perturbation, NOT original source: it makes gcc emit the
-`lhu 24(s2)` table-offset load before the `lw 16(sp)` soundId reload (retail's order) and is worth
-94.93 -> 96.32. The realistic `+ off` form is otherwise identical.
-Reached from the previous note's body, which is worth keeping: `level` is s32 (so `(s16)volume`
-really narrows - retail has the sll 16/sra 16 pair), `u32 volume = level;` makes the volume reuse
-level's register (retail's `move s8,a2` at the entry), and the `elementFlags = element >> 8;`
-assignment has to sit just before `pScriptOffset = ...`. All six callers of this function stay at
-100.00% with the real four-argument prototype in scope (round 92), so converting it does not hit
-the caller-prototype hazard - but make check / check_bin is still the gate.
+Attempt (96.74%, 748 bytes = the original's size): the ONLY residual is ONE instruction. Retail
+shifts the volume VARIABLE (`srl v0,s8,0xf` then `andi v0,v0,1`); this compile folds the scaling
+shift into it (`srl v0,v0,0x16` on the product's register), so the clamp test reads the product
+instead of volume. Everything else is identical - the sed search loop, the WDS fallback, the whole
+element store block, the envelope loop, the count/pWds registers and the 0x50 frame.
+What got it here from the previous 96.32 park, do not regress:
+(1) the scaling must be ONE assignment, `volume = (u32)((s16)volume * tablebyte) >> 7;`. Two
+    statements give `mflo sN / srl sN,sN,7` (retail's shift shape, no fold) but the WRONG volume
+    register ($s6 instead of $s8) - the merged form has half the references, which is what makes
+    gcc hand volume the last callee-saved register.
+(2) the `if (pWds == NULL)` fallback must NOT be wrapped in `do { } while (0);` any more: with the
+    merged assignment that wrapper rotates pWds to $s6 and count to $s7 (retail: pWds $s7, count
+    $s6). It was only needed by the old two-statement body.
+Measured dead: the declaration order of `count`/`volume` (any order; the tie does not follow the
+pseudo number), `s32` vs `u32 count`, and `value = volume >> 15;` as its own statement (96.66).
+Two 3-minute permuter runs on this body found nothing (base 190 = this score, best 190).
+Reached from an older body, worth keeping: `level` is s32 (so `(s16)volume` really narrows -
+retail has the sll 16/sra 16 pair), `u32 volume = level;` makes volume reuse level's register
+(retail's `move s8,a2` at the entry), and the `elementFlags = element >> 8;` assignment has to sit
+just before `pScriptOffset = ...`.
+The tone-table byte needs the LEFT-ASSOCIATIVE pointer sum below - `- (-off)` is the permuter
+spelling: retail emits `addu v0,s2,v0` and then adds the masked index, and this form also gets the
+`lhu 24(s2)` table-offset load emitted before the `lw 16(sp)` soundId reload. The realistic
+`+ pSoundFile->volumeTableOffset` form scores 95.35 (one instruction order swap) - retry it only
+if the fold above is ever solved.
+All six callers of this function stay at 100.00% with the real four-argument prototype in scope.
 */
 /*
 void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
@@ -2771,13 +2772,10 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pWds = SoundFindWdsEntry(pSoundFile->sndId);
     if (pWds == NULL) {
-        do {
-            pWds = g_SoundWdsLinkedList;
-        } while (0);
+        pWds = g_SoundWdsLinkedList;
     }
 
-    volume = (s16)volume * *(u8*)((u8*)pSoundFile - (-pSoundFile->volumeTableOffset) + (soundId & 0xFFFF));
-    volume >>= 7;
+    volume = (u32)((s16)volume * *(u8*)((u8*)pSoundFile - (-pSoundFile->volumeTableOffset) + (soundId & 0xFFFF))) >> 7;
     if ((volume >> 15) & 1) {
         volume = 0x7FFF;
     }
