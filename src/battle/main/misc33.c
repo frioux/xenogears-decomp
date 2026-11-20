@@ -117,7 +117,7 @@ extern u16 g_BattleSlotBitMask;
 extern u8 g_BattleSedsLoaded;
 extern u8 g_BattleHexDigitTable[];
 extern u8 g_BattleStateWork[];
-extern u32 D_800C37A4[];
+extern u32 g_BattleDecimalDivisors[];
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 
@@ -396,7 +396,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
    the entry), then the body divides by *pTab, n--, and the latch re-remainders with
    *pTab before pTab--.  The two `lw 0(v1)` are NOT CSE'd because the `sb` of the
    digit sits between them.  The two remaining diffs: retail emits the preheader
-   `lui/addiu` of D_800C37A4 BEFORE the `sll v1,a2,2`, and retail's exit path has a
+   `lui/addiu` of g_BattleDecimalDivisors BEFORE the `sll v1,a2,2`, and retail's exit path has a
    DEAD `addiu v1,v1,4` (a giv bump-back no source shape here reproduces; 3-minute
    permuter run from this body: NONE, base=160).  Parked pending that dead insn.
    s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
@@ -414,7 +414,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
            value = -value;
            n--;
        }
-       pTab = &D_800C37A4[n];
+       pTab = &g_BattleDecimalDivisors[n];
        value = (u32)value % *pTab;
        pTab--;
        for (; n != 0; pTab--) {

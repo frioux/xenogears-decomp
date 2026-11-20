@@ -479,7 +479,7 @@ extern void func_800840CC(void* pScene);
 extern void func_800846A0(void* pScene);
 extern void func_80072858(void* pScene);
 extern void func_80084A40(void* pScene);
-extern void func_80071AD0(void);
+extern void BattleUpdateTutorialScreen(void);
 extern void func_80083310(s32 arg);
 extern void SetGeomScreen(long distance);
 extern void FontSetColor(s32 red, s32 green, s32 blue);
@@ -1086,7 +1086,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
                func_80072858(pScene);
                break;
            case 7:
-               func_80071AD0();
+               BattleUpdateTutorialScreen();
                SetGeomScreen(0xC0);
                func_800840CC(pScene);
                if (g_BattleScreenMode == 3) {

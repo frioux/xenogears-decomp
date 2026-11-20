@@ -1101,3 +1101,4 @@ g_BattleShadeScale = 0x800C3B80;
 g_BattleBlockPoolStepPending = 0x800C3DF8;
 g_BattleTextWorkspace = 0x800D2DB0;
 g_BattleDigitImageBuffers = 0x800C3E5C;
+g_BattleDecimalDivisors = 0x800C37A4;

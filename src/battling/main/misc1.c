@@ -559,7 +559,7 @@ extern void func_80079DF0(void* pActor1, void* pActor0);
    BattleSetValueAndClearFlags, so the script byte it points at is read through a
    cast rather than through a typed cursor.
 */
-void func_80071AD0(void) {
+void BattleUpdateTutorialScreen(void) {
     BattleMessageWindow* pMsg;
     u8* pWindow;
     u8* pCursor;
@@ -625,13 +625,13 @@ void func_80071AD0(void) {
 #define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
 
 // The eight cells around a battle grid cell, as the (x, z) step from the cell to
-// each neighbour in BATTLE_GRID_CELL_STEP units: the x column is D_80091084 and
+// each neighbour in BATTLE_GRID_CELL_STEP units: the x column is g_BattleGridNeighbourSteps and
 // the z column four bytes behind the next entry, so both are walked with a
 // two-word stride. Retail reaches the x column through the symbol and keeps a
 // pointer to the z column, which it re-forms for the final step; that is the
 // shape the (i * 2) subscripts and pStepZ below reproduce (the same table spelled
 // as an array of a two-field struct measures 82.12%).
-extern s32 D_80091084[];
+extern s32 g_BattleGridNeighbourSteps[];
 extern s32 D_80091088[];
 extern u32 BattleGetGridCellAtPosition(VECTOR* pPos);
 
@@ -643,7 +643,7 @@ extern u32 BattleGetGridCellAtPosition(VECTOR* pPos);
    the height and cell type it ended on. pActor and pStepZ are the two copies
    retail keeps of a pointer it also needs outside the loop.
 */
-void func_80071DA4(BattleState* p) {
+void BattleActorWalkDownGrid(BattleState* p) {
     BattleState* pActor;
     s32* pStepZ;
     VECTOR pos;
@@ -660,7 +660,7 @@ void func_80071DA4(BattleState* p) {
         best = pActor->position.vy = func_80082488(&pActor->position, 1);
         for (i = 0; i < BATTLE_GRID_NEIGHBOUR_COUNT; i++) {
             pos = pActor->position;
-            pos.vx += D_80091084[i * 2] * BATTLE_GRID_CELL_STEP;
+            pos.vx += g_BattleGridNeighbourSteps[i * 2] * BATTLE_GRID_CELL_STEP;
             pos.vz += pStepZ[i * 2] * BATTLE_GRID_CELL_STEP;
             value = func_80082488(&pos, 1);
             if (value < best - BATTLE_GRID_WALK_TOLERANCE) {
@@ -672,7 +672,7 @@ void func_80071DA4(BattleState* p) {
             pActor->position.vy = func_80082488(&pActor->position, 1);
             break;
         }
-        pActor->position.vx -= D_80091084[bestIndex * 2] * BATTLE_GRID_CELL_STEP;
+        pActor->position.vx -= g_BattleGridNeighbourSteps[bestIndex * 2] * BATTLE_GRID_CELL_STEP;
         pActor->position.vz -= pStepZ[bestIndex * 2] * BATTLE_GRID_CELL_STEP;
         count++;
     } while (count < BATTLE_GRID_WALK_MAX_STEPS);
@@ -685,7 +685,7 @@ extern s32 g_BattleActorDistance2D;
 extern s32 g_BattlingAudioManager;
 extern void SoundStopAudioManager(s32 arg);
 extern void SoundStopAllElements(void);
-extern void func_80071DA4(BattleState* p);
+extern void BattleActorWalkDownGrid(BattleState* p);
 
 /* 91.77%: case 3 is the only difference. retail materialises &g_BattleCameraPosY into
    $v1 and stores through it twice (lui v1/%hi; addiu v1/%lo; sw v0,0(v1));
@@ -706,7 +706,7 @@ void func_80071F8C(s32 mode) {
         SoundStopAllElements();
         break;
     case 1:
-        func_80071DA4((u8*)&g_BattleActor1);
+        BattleActorWalkDownGrid((u8*)&g_BattleActor1);
         if (D_800970C4 * 0x100 / D_800970CC < D_800987E0 * 0x100 / D_800987E8) {
             g_BattleMessageIndex = 0x43;
         } else {
@@ -714,7 +714,7 @@ void func_80071F8C(s32 mode) {
         }
         break;
     case 2:
-        func_80071DA4((u8*)&g_BattleActor0);
+        BattleActorWalkDownGrid((u8*)&g_BattleActor0);
         break;
     case 3:
         g_BattleCameraPosY = -g_BattleActorDistance2D;
