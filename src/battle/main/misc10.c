@@ -1,4 +1,13 @@
 #include "common.h"
+#include "main/game.h"
+
+// The battle actor slots: D_800C3EB7 holds a 0x1C-byte record per slot, and the loops here walk
+// the non-party ones. Same value as include/battle/actor.h's BATTLE_ACTOR_SLOT_COUNT; duplicated
+// here because this unit does not include that header.
+#define BATTLE_ACTOR_SLOT_COUNT 11
+// The non-party actor slots: slot numbers MAX_PARTY_MEMBERS through BATTLE_ACTOR_SLOT_COUNT - 1,
+// which are the ones the slot register file is indexed from 0 for.
+#define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - MAX_PARTY_MEMBERS)
 
 // The per-slot battle register file (g_BattleSlotRegs[slot]): the dword, word and
 // byte registers the script's comparison ops test against, indexed by the
@@ -140,9 +149,9 @@ s32 BattleStateWordLowBitsClear(void) {
 s32 func_8007EEE8(void) {
     s32 ret = 1;
     s32 i = 0;
-    s32 ofs = 0x54;
+    s32 ofs = MAX_PARTY_MEMBERS * 0x1C;
 
-    for (; i < 8; i++) {
+    for (; i < BATTLE_OTHER_SLOT_COUNT; i++) {
         if ((g_BattleStateFlags >> 5) != 0) {
             if ((D_800C3EB7[ofs] & 0x80) == 0) {
                 ret = 0;
@@ -155,7 +164,7 @@ s32 func_8007EEE8(void) {
     return ret;
 }
 s32 BattleActorSlotHasFlag80(u8 arg0) {
-    s32 idx = arg0 + 3;
+    s32 idx = arg0 + MAX_PARTY_MEMBERS;
 
     return D_800C3EB7[idx * 0x1C] >> 7;
 }
