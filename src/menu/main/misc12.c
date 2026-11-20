@@ -155,7 +155,42 @@ void func_801E6CFC(u8 index, u8* pEntry) {
     }
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
+void func_801E6F5C(u8 index, u8* pEntry) {
+    u8* pPrims;
+    s32 primOffset;
+    s32 i = 0;
+    s32 n;
+
+    MenuParseNumberToDigits((pEntry + index)[0x10]);
+    ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130C] = 0;
+    for (; i < MENU_MP_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[MENU_MAX_DIGITS - MENU_MP_DIGIT_COUNT + i] != MENU_DIGIT_NONE) {
+            primOffset = index * MENU_SLOT_PRIM_STRIDE + 0xA98;
+            pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
+            ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130C] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[MENU_MAX_DIGITS - MENU_MP_DIGIT_COUNT + i],
+                (POLY_FT4*)(pPrims + (((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130C] * 0x50 + 0x6E0)),
+                g_Menu->renderContext, index * 0x50 + D_801EA03C + i * 8, D_801EA040, 0x1000);
+        }
+    }
+    n = 0;
+    i = 0;
+    MenuParseNumberToDigits((pEntry + index)[0x13]);
+    ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130D] = 0;
+    for (; i < MENU_MP_DIGIT_COUNT; ) {
+        u8 digit = g_Menu->digits[MENU_MAX_DIGITS - MENU_MP_DIGIT_COUNT + i++];
+
+        if (digit != MENU_DIGIT_NONE) {
+            primOffset = index * MENU_SLOT_PRIM_STRIDE + 0xA98;
+            pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
+            ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130D] += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)(pPrims + (((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130D] * 0x50 + 0x780)),
+                g_Menu->renderContext, index * 0x50 + D_801EA044 + n * 8, D_801EA048, 0x1000);
+            n++;
+        }
+    }
+}
 /* func_801E6F5C is the same body as func_801E6CFC above with lbu fields
    pEntry[index+0x10] and pEntry[index+0x13] (not the u16 pairs at index*2+4 and
    index*2+0xA), counter bytes 0x130C/0x130D, tables D_801EA03C/40/44/48, poly
