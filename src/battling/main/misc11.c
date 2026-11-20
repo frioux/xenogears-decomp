@@ -459,6 +459,112 @@ void BattleAppendEntry(s32 *arg0) {
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
+/* Best 96.46%, at retail's exact size (876 bytes). The residual is the store
+   order inside the three-line colour block: retail emits
+   sb 3 / sw 4 / sb 19 / sw 20 / sb 35 / sw 36 (its source order) and re-derives
+   the buffer base 4 times, gcc 2.7.2 reorders ours to sb 3 / sb 19 / sw 4 /
+   sb 35 / sw 20 / sw 36 and re-derives the base 4 times a different way, which
+   also pushes the three packed colour words into a2/a3 instead of retail's
+   a0/a2. Everything else is exact: the 18 vertex stores, the view-origin
+   subtract loop, both ldv3/RTPT/stsxy3 groups, the +8/+0xC/+0x18 and
+   +0x1C/+0x28/+0x2C store offsets, the giv increment (addiu s2,s2,0x68 right
+   after the second reload) and the three func_800316C0 calls.
+   The two levels of struct are load-bearing: a single
+   'line[bufDraw * 3 + k]' subscript makes gcc scale (bufDraw*3+k) as one value
+   (the addiu lands before the sll) so the store displacements come out wrong;
+   with 'prims[bufDraw].line[k]' they fold to retail's +0x13/+0x23.
+   Reaching the prims through an extra pointer local buys 97.28% but costs 4
+   bytes (one extra move) - retail has no such move, so it cannot link.
+   A 5-minute 2-job permuter run (2340 iterations) went 1825 -> 456 without
+   finding a size-correct zero; both of its wins were that extra-move pointer
+   local, so re-run it from this body with the store order as the target.
+   D_8009A928 is the same 0x68-stride table as D_8009A988 + 0x60 (that splat
+   symbol aliases this table's pos field; BattleAppendEntry fills it).
+   The best body, verbatim:
+// One flat line of a battle target's cross, colour and code written as the
+// single packed word the tag length and colour live in.
+typedef struct {
+    // 0x0 u8 pad0[0x3];
+    // 0x3 u8 tagLength;
+    // 0x4 BattlingPacketWord color;
+    // 0x8 s16 x0;
+    // 0xA s16 y0;
+    // 0xC s16 x1;
+    // 0xE s16 y1;
+} BattlingCrossLine; // Size: 0x10
+
+// A battle target's cross in one draw buffer: the X, Y and Z axis segments.
+typedef struct {
+    // 0x00 BattlingCrossLine line[3];
+} BattlingCrossPrims; // Size: 0x30
+
+// The cross, one set of prims per draw buffer, then the centre it sits on.
+typedef struct {
+    // 0x00 BattlingCrossPrims prims[2];
+    // 0x60 SVECTOR pos;
+} BattlingCrossEntry; // Size: 0x68
+
+extern BattlingCrossEntry D_8009A928[];
+
+void func_80087EA0(u8 *pOt) {
+    SVECTOR vtx[6];
+    BattlingCrossEntry *pEntry;
+    s32 i;
+    s32 j;
+
+    for (i = 0; i < g_BattleAppendEntryCount; i++) {
+        pEntry = &D_8009A928[i];
+
+        vtx[0].vx = pEntry->pos.vx - 0x20;
+        vtx[0].vy = pEntry->pos.vy;
+        vtx[0].vz = pEntry->pos.vz;
+        vtx[1].vx = pEntry->pos.vx + 0x20;
+        vtx[1].vy = pEntry->pos.vy;
+        vtx[1].vz = pEntry->pos.vz;
+        vtx[2].vx = pEntry->pos.vx;
+        vtx[2].vy = pEntry->pos.vy - 0x20;
+        vtx[2].vz = pEntry->pos.vz;
+        vtx[3].vx = pEntry->pos.vx;
+        vtx[3].vy = pEntry->pos.vy + 0x20;
+        vtx[3].vz = pEntry->pos.vz;
+        vtx[4].vx = pEntry->pos.vx;
+        vtx[4].vy = pEntry->pos.vy;
+        vtx[4].vz = pEntry->pos.vz - 0x20;
+        vtx[5].vx = pEntry->pos.vx;
+        vtx[5].vy = pEntry->pos.vy;
+        vtx[5].vz = pEntry->pos.vz + 0x20;
+
+        for (j = 0; j < 6; j++) {
+            vtx[j].vx -= g_BattleViewOrigin.vx;
+            vtx[j].vy -= g_BattleViewOrigin.vy;
+            vtx[j].vz -= g_BattleViewOrigin.vz;
+        }
+
+        gte_ldv3(&vtx[0], &vtx[1], &vtx[2]);
+        gte_rtpt();
+        gte_stsxy3(&(g_BattleDrawBufferIndex + pEntry->prims)->line[0].x0,
+                   &(g_BattleDrawBufferIndex + pEntry->prims)->line[0].x1,
+                   &(g_BattleDrawBufferIndex + pEntry->prims)->line[1].x0);
+        gte_ldv3(&vtx[3], &vtx[4], &vtx[5]);
+        gte_rtpt();
+        gte_stsxy3(&(g_BattleDrawBufferIndex + pEntry->prims)->line[1].x1,
+                   &(g_BattleDrawBufferIndex + pEntry->prims)->line[2].x0,
+                   &(g_BattleDrawBufferIndex + pEntry->prims)->line[2].x1);
+
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[0].tagLength = 3;
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[0].color.word = 0x400000FF;
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[1].tagLength = 3;
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[1].color.word = 0x4000FF00;
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[2].tagLength = 3;
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[2].color.word = 0x40FF0000;
+
+        func_800316C0(pOt, &(g_BattleDrawBufferIndex + pEntry->prims)->line[0]);
+        func_800316C0(pOt, &(g_BattleDrawBufferIndex + pEntry->prims)->line[1]);
+        func_800316C0(pOt, &(g_BattleDrawBufferIndex + pEntry->prims)->line[2]);
+    }
+    g_BattleAppendEntryCount = 0;
+}
+*/
 
 void *BattleAllocLineSlot(s32 *arg0, s32 *arg1, s32 arg2) {
     s32 i;
