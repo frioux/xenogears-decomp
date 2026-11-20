@@ -157,69 +157,20 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     }
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
-/* 42.23%, 1064 bytes against retail's 1036 (expected/asm bytes 0x35c..0x768). Whole
-   function decoded; the shape below is structurally right (every call, store, load and
-   constant is retail's instruction for instruction) and what is left is register
-   allocation plus the instruction order inside the two quad blocks. Read this before
-   rewriting it from the assembly.
-   WHAT IT IS: clip a 5x5 block of grid cells against four frustum planes. Prologue
-   copies g_WorldMapGridMatrix to 0x1F8000F0, CompMatrix's g_WorldMapViewMatrix into
-   0x1F800110, sets both GTE matrices. 0x1F800040 gets -(x>>12 & 0x7FF) - 0x1000, the
-   same for z goes to 0x1F800048 and its negation to 0x1F8000A4. Nine 8-byte points live
-   at 0x1F8000A0 + 8*k (k = 0..8); their y is cleared first, in the DESCENDING order
-   0xE2, 0xDA ... 0xA2, each through its own lui $at - so absolute casts, not
-   pScratch-relative.
-   Per cell: 4 corner points (0xA0/0xA8/0xB0/0xB8) and, only when the first clip test
-   returns 0, 5 inner points (0xC0/0xC8/0xD0/0xD8/0xE0). func_800987AC(a0..a3) is the
-   handwritten GTE clip test (4 points -> -1/0/1). Its first result goes to
-   D_8009D618[k] (s16, 25 cells) and the four results are packed two per u32 into
-   D_8009D650[k] (word0 = r0 | r1<<16, word1 = r2 | r3<<16; a non-zero first result is
-   written to all four fields). Tail: nVariant = (x>=0x400) | (z>=0x400 ? 2 : 0) picks
-   one of four 0xC8-byte records of D_8009B7A8 and ORs its 25 8-byte mask words into the
-   whole D_8009D650 array.
-   WHAT IS RIGHT BELOW, keep it: the point stores go through pScratch byte offsets
-   (sh v0,0xA8($s2)), NOT through the pointer locals - pPt0..pPt8 exist ONLY as the four
-   call arguments, and retail spills six of them (0xA0/0xA8/0xB0/0xB8 to 0x18..0x30,
-   0xC0/0xC8 to 0x38/0x40) while keeping 0xD0/0xD8/0xE0 in saved registers. p->z is
-   loaded again through the spilled p at 0x10(sp). The five inner points are recomputed
-   every row. The second quad block's ten stores, and its read-backs of 0xC0/0xCC, come
-   out identical to retail.
-   WHAT IS STILL WRONG (measured; do not re-try these spellings):
-   - retail keeps pScratch in $s2 and row/col in $s7/$s4; this body spills row to the
-     stack (frame 0x68 vs 0x70) and keeps four extra pointers in saved registers, so the
-     callee-saved mask differs. Tried: nine pointer locals at the top, the five inner
-     ones declared in the row body, and both declaration orders.
-   - first quad block: retail stores 0xA8, 0xB4, 0xAC, 0xB0, 0xB8, 0xBC and loads
-     0xA0/0xA4 three times each; every source order tried (A8,B4,AC,B0 and A8,AC,B0,B4,
-     with and without volatile on the first two stores) emits 0xA8,0xAC,0xB0,0xB4 plus a
-     fourth 0xA4 load, so CC1's store order and reorg's jal delay-slot pick differ.
-   - the if/else arms: retail keeps the non-zero (pack) block out of line and jumps to it
-     with bnez; this body inverts to beqz and out-lines the four-call block.
-   - tail: retail re-forms lui D_8009D650 and addiu a0,s3,4 there and uses $s7 for its
-     counter; this body CSEs the address with the pTex pointer and spills the counter.
-   Not a preset question: gcc-2.7.2-cdk -O2 -G8 scores 36.11 on this body against 42.23
-   for the unit's own XenoWorldMap flags (try_flags.sh).
 typedef struct {
-    // 0x0 u16 vx;
-    // 0x2 u16 vy;
-    // 0x4 u16 vz;
-    // 0x6 u16 pad;
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 vy;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ u16 pad6;
 } WorldMapMisc16Point; // Size: 0x8
 
 typedef struct {
-    // 0x0 u16 unk0;
-    // 0x2 u16 unk2;
-    // 0x4 u32 unk4;
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u32 unk4;
 } WorldMapMisc16Tex; // Size: 0x8
 
 typedef struct {
-    // 0x0 u32 unk0;
-    // 0x4 u32 unk4;
-} WorldMapMisc16Mask; // Size: 0x8
-
-typedef struct {
-    // 0x0 WorldMapMisc16Mask entry[25];
+    /* 0x0 */ WorldMapMisc16Tex entry[25];
 } WorldMapMisc16TileMask; // Size: 0xC8
 
 extern WorldMapMisc16Tex D_8009D650[];
@@ -229,28 +180,83 @@ extern MATRIX g_WorldMapGridMatrix;
 extern MATRIX g_WorldMapViewMatrix;
 extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, WorldMapMisc16Point* p2, WorldMapMisc16Point* p3);
 
-void func_800983A0(WorldMapMisc16Struct* p) {
+/* 74.38%, 1048 bytes against retail's 1036 (expected/asm 0x35c..0x768). Was parked at
+   42.23 (1064 bytes) in round 336; the three fixes below are what moved it and must stay.
+   The body below is measured LIVE with the unit's own XenoWorldMap flags, so it is exactly
+   the 74.38 body. To continue: delete the INCLUDE_ASM line and the two comment markers
+   around the body.
+   WHAT IT IS: clip a 5x5 block of grid cells against four frustum planes. The prologue
+   copies g_WorldMapGridMatrix to 0x1F8000F0, CompMatrix's g_WorldMapViewMatrix into
+   0x1F800110 and sets both GTE matrices. 0x1F800040 gets -(x>>12 & 0x7FF) - 0x1000, the
+   same for z goes to 0x1F800048 and its negation to 0x1F8000A4. Nine 8-byte points (vx,
+   vy, vz: an SVECTOR layout) live at 0x1F8000A0 + 8*k, k = 0..8; their vy is cleared
+   first in the descending order 0xE2, 0xDA ... 0xA2, each through its own lui $at, so
+   those are absolute casts and not pScratch-relative.
+   Per cell: four corner points (0xA0/0xA8/0xB0/0xB8) and, only when the first clip test
+   returns 0, five inner points (0xC0/0xC8/0xD0/0xD8/0xE0). func_800987AC(a0..a3) is the
+   handwritten GTE clip test (4 points -> -1/0/1) and stays a stub.
+   Its first result goes to D_8009D618[k] (s16, 25 cells) and the four results are packed
+   two per u32 into D_8009D650[k] (word0 = r0 | r1<<16, word1 = r2 | r3<<16; a non-zero
+   first result is written to both words). Tail: nVariant = (x>=0x400) | (z>=0x400 ? 2 : 0)
+   picks one of four 0xC8-byte records of D_8009B7A8 and ORs its 25 8-byte mask words into
+   the whole D_8009D650 array.
+   FIX 1 (worth ~28 points): nClip is s16. With s32 the clip store costs an extra
+   `move v1,v0` and the test comes out `sll v0,v0,16 / sra`; retail's `sh v0,0(s5) /
+   sll v0,v0,16 / sra v0,v0,16 / bnez` is a 16-bit variable.
+   FIX 2 (the big one, +~30 points): the quad block is the THEN arm -
+   `if (nClip == 0) { ...nine stores and four calls... } else { ...pack... }`. Written the
+   other way round gcc emits `beqz` and in-lines the pack block, which is the mirror of
+   retail's `bnez v0,.L8009868C` with the pack block out of line.
+   FIX 3: the tail OR loop walks pTex over D_8009D650 and pMaskEntry over pMask->entry
+   (both 8-byte strides); indexing both arrays instead gives three cursors and four extra
+   instructions.
+   WHAT IS STILL WRONG (measured this round; do not re-try these spellings):
+   - the five inner pointers 0xC0/0xC8/0xD0/0xD8 are hoisted to the FUNCTION preheader
+     (lui/ori each, one spilled to 0x38(sp)) and stay live across the whole function,
+     where retail forms them per ROW with `addiu sN,s2,K`, spills only 0xC0/0xC8 (0x38/
+     0x40) and forms 0xD8 inside the quad block. Tried: the assignments at the row head,
+     inside the col loop, inside the if, and the casts inline at the four call sites - all
+     hoist. This is also why pScratch lands in $s1 instead of retail's $s2 and why `row`
+     is spilled to 0x40(sp) instead of living in $s7, and it is the main residual (the
+     whole file is one saved register rotated).
+   - prologue: retail computes and stores nX, THEN loads p->z, then row = 0, then the
+     nine zero stores, then z's arithmetic; gcc sinks both arithmetics below the nine
+     stores. `nZ = p->z;` early measured identical.
+   - first quad block: retail stores 0xA8, 0xB4, 0xAC, 0xB0, 0xB8, 0xBC with three loads
+     each of 0xA0 and 0xA4; this body stores 0xA8, 0xAC, 0xB0, 0xB4, 0xB8, 0xBC. Typed
+     field stores (pPt1->vx = pPt0->vx + 0x800, ...) score 69.44 at 1076 bytes; volatile
+     on the first two stores and on none both measure 74.38.
+   - the second quad block's ten stores and its read-backs of 0xC0/0xCC are retail's.
+   - the tail OR loop is 17 instructions against retail's 15 (retail keeps TWO destination
+     cursors, s3 and s3+4, so its second word is `lw 0(a0)` / `sw 0(a0)`).
+   Not a preset question: gcc-2.7.2-cdk -O2 -G8 scores 36.11 on the 42.23 body.
+   A 3-minute permuter run (2 jobs) from this body produced only candidates that are
+   wrong code (the one it printed read pMask->entry[0] inside the loop), so nothing was
+   ported.
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
+/* void func_800983A0(WorldMapMisc16Struct* p) {
     WorldMapMisc16Point* pPt0;
     WorldMapMisc16Point* pPt1;
     WorldMapMisc16Point* pPt2;
     WorldMapMisc16Point* pPt3;
+    WorldMapMisc16Tex* pTex;
     WorldMapMisc16Point* pPt4;
     WorldMapMisc16Point* pPt5;
     WorldMapMisc16Point* pPt6;
     WorldMapMisc16Point* pPt7;
     WorldMapMisc16Point* pPt8;
-    WorldMapMisc16Tex* pTex;
+    WorldMapMisc16Tex* pMaskEntry;
     WorldMapMisc16TileMask* pMask;
     s16* pClip;
     u8* pScratch;
     s32 nX;
     s32 nZ;
-    s32 nClip;
+    s16 nClip;
     s32 nPack;
     s32 nVariant;
     s32 row;
     s32 col;
-    s32 i;
 
     pScratch = (u8*)0x1F800000;
     *(MATRIX*)0x1F8000F0 = g_WorldMapGridMatrix;
@@ -267,7 +273,6 @@ void func_800983A0(WorldMapMisc16Struct* p) {
     *(s32*)0x1F800040 = nX;
 
     row = 0;
-     clear the y of every grid point; the x arrives from the scan below 
     *(u16*)0x1F8000E2 = 0;
     *(u16*)0x1F8000DA = 0;
     *(u16*)0x1F8000D2 = 0;
@@ -285,26 +290,22 @@ void func_800983A0(WorldMapMisc16Struct* p) {
     pClip = D_8009D618;
     pTex = D_8009D650;
     for (; row < 5; row++) {
-        pPt4 = (WorldMapMisc16Point*)(pScratch + 0xC0);
-        pPt5 = (WorldMapMisc16Point*)(pScratch + 0xC8);
-        pPt6 = (WorldMapMisc16Point*)(pScratch + 0xD0);
-        pPt7 = (WorldMapMisc16Point*)(pScratch + 0xD8);
-        pPt8 = (WorldMapMisc16Point*)(pScratch + 0xE0);
         *(u16*)(pScratch + 0xA0) = *(s32*)0x1F800040;
         for (col = 0; col < 5; col++) {
-            *(volatile u16*)(pScratch + 0xA8) = *(u16*)(pScratch + 0xA0) + 0x800;
-            *(volatile u16*)(pScratch + 0xB4) = *(u16*)(pScratch + 0xA4) - 0x800;
+            *(u16*)(pScratch + 0xA8) = *(u16*)(pScratch + 0xA0) + 0x800;
+            *(u16*)(pScratch + 0xB4) = *(u16*)(pScratch + 0xA4) - 0x800;
             *(u16*)(pScratch + 0xAC) = *(u16*)(pScratch + 0xA4);
             *(u16*)(pScratch + 0xB0) = *(u16*)(pScratch + 0xA0);
             *(u16*)(pScratch + 0xB8) = *(u16*)(pScratch + 0xA0) + 0x800;
             *(u16*)(pScratch + 0xBC) = *(u16*)(pScratch + 0xA4) - 0x800;
             nClip = func_800987AC(pPt0, pPt1, pPt2, pPt3);
             *pClip++ = nClip;
-            if ((s16)nClip != 0) {
-                nPack = nClip & 0xFFFF;
-                nPack |= nPack << 16;
-                *(u32*)pTex = nPack;
-            } else {
+            if (nClip == 0) {
+                pPt4 = (WorldMapMisc16Point*)(pScratch + 0xC0);
+                pPt5 = (WorldMapMisc16Point*)(pScratch + 0xC8);
+                pPt6 = (WorldMapMisc16Point*)(pScratch + 0xD0);
+                pPt7 = (WorldMapMisc16Point*)(pScratch + 0xD8);
+                pPt8 = (WorldMapMisc16Point*)(pScratch + 0xE0);
                 *(u16*)(pScratch + 0xC0) = *(u16*)(pScratch + 0xA0) + 0x400;
                 *(u16*)(pScratch + 0xC4) = *(u16*)(pScratch + 0xA4);
                 *(u16*)(pScratch + 0xC8) = *(u16*)(pScratch + 0xA0);
@@ -324,6 +325,10 @@ void func_800983A0(WorldMapMisc16Struct* p) {
                 nPack = nClip & 0xFFFF;
                 nClip = func_800987AC(pPt8, pPt6, pPt7, pPt3);
                 nPack |= nClip << 16;
+            } else {
+                nPack = nClip & 0xFFFF;
+                nPack |= nPack << 16;
+                *(u32*)pTex = nPack;
             }
             pTex->unk4 = nPack;
             pTex++;
@@ -332,14 +337,20 @@ void func_800983A0(WorldMapMisc16Struct* p) {
         *(u16*)(pScratch + 0xA4) -= 0x800;
     }
 
-    nVariant = !(((p->x >> 12) & 0x7FF) < 0x400);
-    if (!(((p->z >> 12) & 0x7FF) < 0x400)) {
+    nX = p->x;
+    nZ = p->z;
+    nVariant = !(((nX >> 12) & 0x7FF) < 0x400);
+    if (!(((nZ >> 12) & 0x7FF) < 0x400)) {
         nVariant |= 2;
     }
     pMask = &D_8009B7A8[nVariant];
-    for (i = 0; i < 25; i++) {
-        *(u32*)&D_8009D650[i] |= pMask->entry[i].unk0;
-        D_8009D650[i].unk4 |= pMask->entry[i].unk4;
+    pTex = D_8009D650;
+    pMaskEntry = pMask->entry;
+    for (row = 0; row < 25; row++) {
+        pTex->unk0 |= pMaskEntry->unk0;
+        pTex->unk4 |= pMaskEntry->unk4;
+        pTex++;
+        pMaskEntry++;
     }
 }
 */
@@ -515,19 +526,9 @@ void func_80098CC0(void) {
     }
 }
 */
-typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ u16 unk2;
-    /* 0x4 */ u32 unk4;
-} WorldMapMisc16Tex; // Size: 0x8
-
-extern WorldMapMisc16Tex D_8009D650[];
 extern WorldMapMisc16Tex D_8009D654[];
-extern s16 D_8009D618[];
 extern u16 D_8009CCB4[];
 extern u16 g_WorldMapTpageIds[];
-extern MATRIX g_WorldMapGridMatrix;
-extern MATRIX g_WorldMapViewMatrix;
 extern s32 D_8009D7DC;
 extern void func_80099708(u8* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
 
