@@ -57,7 +57,7 @@ void MenuNormalMenuMain(void) {
     do {
         MenuRenderFrame();
         switch (g_Menu->input) {
-            case 4:
+            case MENU_INPUT_CONFIRM:
                 isHandled = 1;
                 if (g_Menu->mainMenuChoice == 2 && g_Menu->gearCharacterCount == 0) {
                     isHandled = 0;
@@ -70,17 +70,17 @@ void MenuNormalMenuMain(void) {
                     shouldContinue = func_801C531C(0);
                 }
                 break;
-            case 5:
+            case MENU_INPUT_BACK:
                 shouldContinue = 0;
                 break;
-            case 1:
+            case MENU_INPUT_DOWN:
                 if (g_Menu->mainMenuChoice != 0) {
                     g_Menu->mainMenuChoice--;
                 } else {
                     g_Menu->mainMenuChoice = 6;
                 }
                 break;
-            case 3:
+            case MENU_INPUT_UP:
                 if (++g_Menu->mainMenuChoice >= 7) {
                     g_Menu->mainMenuChoice = 0;
                 }
@@ -133,16 +133,16 @@ void MenuLoadGameMain(void) {
     do {
         MenuRenderFrame();
         switch (g_Menu->input) {
-            case 4:
+            case MENU_INPUT_CONFIRM:
                 g_Menu->pSelectionMenu->isDisabled = 1;
                 MenuResetSelectionCursorFlags();
                 MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
-                g_Menu->pCursorPrims->shadeWidth = 0x40;
+                g_Menu->pCursorPrims->shadeWidth = MENU_CURSOR_SHADE_WIDTH;
                 shouldContinue = func_801C531C(7);
                 g_MenuSoftResetEnabled = 0;
                 g_Menu->idleFrameCount = 0;
                 break;
-            case 1:
+            case MENU_INPUT_DOWN:
                 if (g_Menu->mainMenuChoice != 0) {
                     g_Menu->mainMenuChoice--;
                 } else {
@@ -150,7 +150,7 @@ void MenuLoadGameMain(void) {
                 }
                 g_Menu->idleFrameCount = 0;
                 break;
-            case 3:
+            case MENU_INPUT_UP:
                 if (++g_Menu->mainMenuChoice >= 3) {
                     g_Menu->mainMenuChoice = 0;
                 }
@@ -163,7 +163,7 @@ void MenuLoadGameMain(void) {
                 g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
-        if (ArchiveGetDiscNumber() == 1 && g_Menu->idleFrameCount >= 0x259) {
+        if (ArchiveGetDiscNumber() == 1 && g_Menu->idleFrameCount >= 601) {
             shouldContinue = 0;
             g_GameDiscChangeRequest = 1;
         }
