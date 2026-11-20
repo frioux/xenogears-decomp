@@ -11,9 +11,23 @@
 #include "field/particles.h"
 #include "field/effects.h"
 
+// The field's display window: 10 lines in from the top of the 320x224
+// framebuffer, and narrower than it.
+#define FIELD_SCREEN_DISPLAY_Y 10
+#define FIELD_SCREEN_DISPLAY_WIDTH 256
+#define FIELD_SCREEN_DISPLAY_HEIGHT 216
+
+// ActorData::soundState once the handler has released the actor's sound slot: the
+// actor has no proximity sound.
+#define FIELD_ACTOR_SOUND_STATE_NONE 0xFF
+
 // Number of skin ids g_FieldRandomSkinSlots.values holds, and the largest count
 // a script may ask FieldRandomizeSkinSlots for.
 #define FIELD_RANDOM_SKIN_SLOT_COUNT 32
+
+// What every slot of g_FieldRandomSkinSlots.values is reset to before the distinct skin
+// ids are drawn, so a slot still holding it was never filled.
+#define FIELD_RANDOM_SKIN_SLOT_EMPTY 0xFFFF
 
 // g_GameSceneMapNum's top two bits: the map runs with the party in its gears, so a
 // party member's gear skin is loaded instead of its character skin.
@@ -31,6 +45,7 @@
 
 // That high bit of a WDS bank argument; the bits below it are the bank index.
 #define FIELD_WDS_BANK_ALT_ARCHIVE_MASK 0x80
+#define FIELD_WDS_BANK_INDEX_MASK 0x7F
 
 // Gear skins sit this far above the character skin ids in the skin id space
 // g_GamePartyMemberSkins holds.
@@ -60,13 +75,13 @@ extern s32 g_FieldPartyActorSlots[MAX_PARTY_MEMBERS];
 
 void FieldSetScreenDimensions(void) {
     g_FieldRenderContexts[0].dispEnv.screen.x = 0;
-    g_FieldRenderContexts[0].dispEnv.screen.y = 10;
-    g_FieldRenderContexts[0].dispEnv.screen.w = 256;
-    g_FieldRenderContexts[0].dispEnv.screen.h = 216;
+    g_FieldRenderContexts[0].dispEnv.screen.y = FIELD_SCREEN_DISPLAY_Y;
+    g_FieldRenderContexts[0].dispEnv.screen.w = FIELD_SCREEN_DISPLAY_WIDTH;
+    g_FieldRenderContexts[0].dispEnv.screen.h = FIELD_SCREEN_DISPLAY_HEIGHT;
     g_FieldRenderContexts[1].dispEnv.screen.x = 0;
-    g_FieldRenderContexts[1].dispEnv.screen.y = 10;
-    g_FieldRenderContexts[1].dispEnv.screen.w = 256;
-    g_FieldRenderContexts[1].dispEnv.screen.h = 216;
+    g_FieldRenderContexts[1].dispEnv.screen.y = FIELD_SCREEN_DISPLAY_Y;
+    g_FieldRenderContexts[1].dispEnv.screen.w = FIELD_SCREEN_DISPLAY_WIDTH;
+    g_FieldRenderContexts[1].dispEnv.screen.h = FIELD_SCREEN_DISPLAY_HEIGHT;
 }
 
 extern u8 g_FieldPauseDisabled[]; // Is pause disabled?
@@ -1447,7 +1462,7 @@ setIndex1C:
                 goto readFile;
             }
             if (g_FieldSuppressStateChange != 1) {
-                g_FieldWdsLoadEntryIndex = (flags & 0x7F) + 0x1F;
+                g_FieldWdsLoadEntryIndex = (flags & FIELD_WDS_BANK_INDEX_MASK) + 0x1F;
                 ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
                 goto readFile;
             }
@@ -2332,7 +2347,7 @@ void FieldScriptSetActorSoundParams0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     FieldReleaseActorSoundSlot(g_FieldCurActorIndex);
     if (g_FieldScriptVMCurActor->soundId == 0) {
-        g_FieldScriptVMCurActor->soundState = 0xFF;
+        g_FieldScriptVMCurActor->soundState = FIELD_ACTOR_SOUND_STATE_NONE;
     }
 }
 
@@ -2343,7 +2358,7 @@ void FieldScriptSetActorSoundParams80(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     FieldReleaseActorSoundSlot(g_FieldCurActorIndex);
     if (g_FieldScriptVMCurActor->soundId == 0) {
-        g_FieldScriptVMCurActor->soundState = 0xFF;
+        g_FieldScriptVMCurActor->soundState = FIELD_ACTOR_SOUND_STATE_NONE;
     }
 }
 
@@ -2937,7 +2952,7 @@ void FieldRandomizeSkinSlots(void) {
         g_FieldRandomSkinSlots.unk4 = 0;
         return;
     }
-    emptyValue = 0xFFFF;
+    emptyValue = FIELD_RANDOM_SKIN_SLOT_EMPTY;
     for (i = FIELD_RANDOM_SKIN_SLOT_COUNT - 1; i >= 0; i--) {
         g_FieldRandomSkinSlots.values[i] = emptyValue;
     }
