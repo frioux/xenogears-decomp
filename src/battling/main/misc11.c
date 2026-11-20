@@ -18,6 +18,12 @@ extern void func_800316C0(void *pOt, void *pPrim);
 // ground shadow (misc4 tests the same field the same way).
 #define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
 
+// The cross's three axes as the packed colour word of a LINE_F2: code 0x40 in
+// the top byte, then the pure red, green and blue components.
+#define BATTLE_CROSS_LINE_RED 0x400000FF
+#define BATTLE_CROSS_LINE_GREEN 0x4000FF00
+#define BATTLE_CROSS_LINE_BLUE 0x40FF0000
+
 typedef struct {
     /* 0x00 */ LINE_F2 prim[2];
     /* 0x20 */ SVECTOR pos[2];
@@ -632,11 +638,15 @@ void func_80087EA0(u8 *pOt) {
                    &(g_BattleDrawBufferIndex + pEntry->prims)->line[2].x1);
 
         (g_BattleDrawBufferIndex + pEntry->prims)->line[0].tagLength = 3;
-        *(volatile u32 *)&(g_BattleDrawBufferIndex + pEntry->prims)->line[0].color.word = 0x400000FF;
+        // The first two colour words have to be stored where they are written:
+        // their volatile lvalue is what keeps the following tag-length store
+        // from being scheduled ahead of them (the third store fills the call's
+        // delay slot, so it stays plain).
+        *(volatile u32 *)&(g_BattleDrawBufferIndex + pEntry->prims)->line[0].color.word = BATTLE_CROSS_LINE_RED;
         (g_BattleDrawBufferIndex + pEntry->prims)->line[1].tagLength = 3;
-        *(volatile u32 *)&(g_BattleDrawBufferIndex + pEntry->prims)->line[1].color.word = 0x4000FF00;
+        *(volatile u32 *)&(g_BattleDrawBufferIndex + pEntry->prims)->line[1].color.word = BATTLE_CROSS_LINE_GREEN;
         (g_BattleDrawBufferIndex + pEntry->prims)->line[2].tagLength = 3;
-        (g_BattleDrawBufferIndex + pEntry->prims)->line[2].color.word = 0x40FF0000;
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[2].color.word = BATTLE_CROSS_LINE_BLUE;
 
         func_800316C0(pOt, &(g_BattleDrawBufferIndex + pEntry->prims)->line[0]);
         func_800316C0(pOt, &(g_BattleDrawBufferIndex + pEntry->prims)->line[1]);
