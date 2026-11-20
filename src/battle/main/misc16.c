@@ -25,11 +25,12 @@
 #define BATTLE_TILE_SOURCE_V 4
 
 // One actor's block of the per-actor action-row table g_BattleActionRows: 42 rows per
-// actor (BattleRow, 0x28 bytes, actor.h), of which this unit reads +0x0 and +0x24 of
-// the four rows at +0x25. The offset stays an integer: indexing a BattleRow array
-// makes gcc form the actor term (arg0 * 0x690) before the row term and reach both
-// fields off one base register (464 bytes, 86.94%), where retail forms the row term
-// first and re-forms the symbol for each read.
+// actor (BattleRow, 0x28 bytes, actor.h), of which this unit reads flags (+0x0) and
+// commandPointCost (+0x24) of the four rows at +0x25. The offset stays an integer:
+// indexing a BattleRow array makes gcc form the actor term (arg0 * 0x690) before the
+// row term and reach both fields off one base register (464 bytes against retail's
+// 468, 87.56%), where retail forms the row term first and re-forms the symbol for
+// each read.
 #define BATTLE_ACTION_ROW_STRIDE 0x690
 extern u8 g_BattleActionRows[];
 
@@ -78,7 +79,7 @@ extern u8 D_800D2F83;
 extern void BattleUpdateFrame(void);
 extern void HeapFree(void *pMem);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
-extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
+extern s32 BattleDrawSpritePackage(s32, u8 *, s16, s16);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx);
 extern void BattleLoadImageAndSync(RECT *pRect, u_long *pData);
 extern void *BattleAllocTextBuffer(s32);
@@ -143,9 +144,9 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     ret = 0;
     flag = 1;
     idx = (arg1 + 0x25) * sizeof(BattleRow) + arg0 * BATTLE_ACTION_ROW_STRIDE;
-    trigger = *(u16 *)(g_BattleActionRows + idx + 0x24); // the action row's +0x24 word
+    trigger = *(u16 *)(g_BattleActionRows + idx + 0x24); // row's commandPointCost
     cur = D_800CCDC4[arg0].flags;
-    dmg = *(u16 *)(g_BattleActionRows + idx); // the action row's +0x0 word
+    dmg = *(u16 *)(g_BattleActionRows + idx); // row's flags
     if (cur >= trigger &&
         (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, arg1) != 0 &&
         (g_BattleSlotStatusRows[arg0].flags & statusMasks[arg1]) == 0) {
@@ -344,16 +345,16 @@ void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
         codes[3] = 0xF7;
     }
     p->packageCount = 0;
-    pPackage = (BattleSpritePackage *)p;
-    p->packageCount = BattleDrawSpritePackage(codes[0], (s32)&pPackage[p->packageCount], (s16)arg1, (s16)arg2) + p->packageCount;
+    pPackage = (BattleSpritePackage *)p->primBuffer;
+    p->packageCount = BattleDrawSpritePackage(codes[0], (u8 *)&pPackage[p->packageCount], (s16)arg1, (s16)arg2) + p->packageCount;
     dy = arg2; // the sum must go through dy: dy + arg4 keeps retail's addu operand order
     dx = arg1 + arg3 - 8;
-    p->packageCount = BattleDrawSpritePackage(codes[1], (s32)&pPackage[p->packageCount], dx, (s16)dy) + p->packageCount;
+    p->packageCount = BattleDrawSpritePackage(codes[1], (u8 *)&pPackage[p->packageCount], dx, (s16)dy) + p->packageCount;
     dy = (s16)(dy + arg4 - 8);
-    p->packageCount = BattleDrawSpritePackage(codes[2], (s32)&pPackage[p->packageCount], (s16)arg1, dy) + p->packageCount;
-    p->packageCount = BattleDrawSpritePackage(codes[3], (s32)&pPackage[p->packageCount], dx, dy) + p->packageCount;
+    p->packageCount = BattleDrawSpritePackage(codes[2], (u8 *)&pPackage[p->packageCount], (s16)arg1, dy) + p->packageCount;
+    p->packageCount = BattleDrawSpritePackage(codes[3], (u8 *)&pPackage[p->packageCount], dx, dy) + p->packageCount;
     for (i = 0; i < BATTLE_SPRITE_PACKAGE_COUNT; i++) {
-        pPrims = (POLY_FT4 *)p;
+        pPrims = (POLY_FT4 *)p->primBuffer;
         BattleSetPrimGrey80BlendModeFromGlobal(&pPrims[i * 2 + g_BattlePrimStartIndex]);
     }
 }
@@ -665,8 +666,6 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
 // rect list from the four coordinates and marks the slot dirty (arg5) or hands
 // them to func_8008F6E4 and advances the frame (arg6).
 void BattleInitSlotGraphics(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8 arg5, u8 arg6) {
-    u8 *pFlags;
-    BattleWork *pState;
     u16 slot;
     u8 index;
     BattleSlotRect *pRect;
@@ -674,7 +673,7 @@ void BattleInitSlotGraphics(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8
 
     slot = arg0;
     index = slot; // two steps: the u16 copy is what puts arg0 in s2, the u8 index in s1
-    if (*((u8 *)g_BattleDisplayState + index + 0xB0) == 0) {
+    if (g_BattleDisplayState->primFlags[index] == 0) {
         q = BattleAllocHeapBlock(sizeof(BattleSlotGraphics), 0);
         g_BattleSlotGraphics[index] = q;
         bzero(q, sizeof(BattleSlotGraphics));
@@ -686,17 +685,14 @@ void BattleInitSlotGraphics(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8
     if (arg5 != 0) {
         pRect = g_BattleSlotRects[index];
         pRect->slot = arg0;
-        pFlags = (u8 *)g_BattleDisplayState;
         pRect->x = arg1;
         pRect->y = arg2;
         pRect->targetW = arg3;
         pRect->targetH = arg4;
         pRect->w = 0;
         pRect->h = 0;
-        *(pFlags + index + 0xBF) = 0;
-        pState = g_BattleDisplayState; // the BattleWork temp only decides v0/v1 at the store
-        pFlags = (u8 *)pState;
-        *(pFlags + index + 0xB8) = 1;
+        g_BattleDisplayState->rectExpandDone[index] = 0;
+        g_BattleDisplayState->rectExpandActive[index] = 1;
     } else {
         func_8008F6E4(index, arg1, arg2, arg3, arg4);
         if (arg6 != 0) {
