@@ -44,7 +44,7 @@ typedef struct {
     /* 0x02 */ u8 unk2[0xB];
     /* 0x0D */ u8 actorSlot;
     /* 0x0E */ u8 unkE[0x16];
-    /* 0x24 */ u16 unk24; // BattleSlotBitMask of the queued action's target slot
+    /* 0x24 */ u16 param; // the queued command's argument word, read per the command byte at +0x31
     /* 0x26 */ u8 unk26[0xB];
     /* 0x31 */ u8 command;
     /* 0x32 */ u8 unk32[0x16];
@@ -664,7 +664,7 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
      `andi $a1,$a1,0xFF`.
    - the D_800CCD1C site's `addu` stays offset-first; the embedded assignment there
      costs the loaded byte its register (97.37).
-   - `g_BattleCommandRecords[...].unk24` is the typed spelling, which folds the +0x24
+   - `g_BattleCommandRecords[...].param` is the typed spelling, which folds the +0x24
      addend into the instruction (`sh $v0,36($at)`) where retail relocs D_800C4022, so
      objdiff cannot reach 100% on it; the linked bytes are identical. Spelling it as
      D_800C4022 instead costs a queue-pointer reload (1016 bytes, 96.89).
@@ -725,7 +725,7 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     if (D_800CCD1C[g_BattleCommandQueue[slot * 0x40 + 0x3C]].flags & 0x800) {
         D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
         D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF3;
-        g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].unk24 =
+        g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].param =
             BattleSlotBitMask((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]);
         g_BattleCommandQueue[0x2DA] = g_BattleCommandQueue[0x2DA] + 1;
     }
