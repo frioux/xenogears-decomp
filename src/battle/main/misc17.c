@@ -87,7 +87,7 @@ extern u8 *D_800C3DE8;
 extern u8 g_BattleSlotTextIndex[];
 extern u8 g_BattleTargetSlotIndex;
 extern u8 g_BattleAmountThirdFlag;
-extern s32 func_80096AB8(void);
+extern s32 BattleRollHitResult(void);
 extern u16 func_80096FBC(void);
 extern u16 BattleComputeSlotActionAmount(void);
 extern void func_80096494(u16 *, u16 *, u8 *);
@@ -1319,7 +1319,7 @@ void BattleComputeActionAmount(void) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
         return;
     }
-    command = func_80096AB8();
+    command = BattleRollHitResult();
     atkValue = func_80096FBC();
     defValue = BattleComputeSlotActionAmount();
     pAtk = g_BattleActingSlot;

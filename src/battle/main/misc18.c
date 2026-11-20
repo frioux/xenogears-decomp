@@ -462,7 +462,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
    roll and limit locals, and the first one also stores its roll into `flags` (dead by then) - the
    redefinition is what keeps cc1 from hoisting the limit's addiu into the divider's post-mult
    slots, and a fifth local instead of the reuse costs the 1288-byte frame. */
-s32 func_80096AB8(void) {
+s32 BattleRollHitResult(void) {
     s32 evade;
     s32 hit;
     s32 low;
