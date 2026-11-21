@@ -908,23 +908,20 @@ s32 func_8008A52C(s32 arg0) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
 /* 90.48% (372 bytes, retail 372): identical instruction multiset, only the
-   prologue rotates - retail computes (g_WorldMapSlots + arg0*0x80) into a2 before the
-   SpriteAllocFromAnimFile arg setup and keeps li a2,0x1E0 for the jal delay slot;
-   gcc shifts into v1, emits li a2 early and lets reorg steal the addu into the
-   slot. Same wall as the func_8008B54C / func_8008BDD0 parks in misc11 ("the 0x40
-   stack store lands just before the jal"). Tried: call written inline as the
-   store rhs, a void* pSprite temp, (u8*)g_WorldMapSlots + arg0*0x80 spelling - all
-   byte-identical at 90.48%. Everything from the SpritePlayAnimation jal on
-   matches, including the 32-iteration 0x14-stride copy and the g_WorldMapScrollTargetX tail.
+   prologue rotates. Retail shifts arg0 into a2, keeps the (slots + shift) addu
+   and the sw of the 0x40 stack argument before the jal and leaves li a2,0x1E0
+   for the delay slot; gcc shifts into v1, emits li a2,0x1E0 early and lets
+   reorg steal the addu. A 573-iteration permuter run found nothing (base 595,
+   best 595). Same wall as func_8008B54C / func_8008BDD0 in misc11.
+/*
 s32 func_8008A5B8(s32 arg0) {
     WorldMapActor* pActor;
     WorldMapTrail* pTrail;
     void* pSprite;
     s32 i;
 
-    pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + arg0 * 0x80);
+    pActor = &g_WorldMapSlots[arg0];
     pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     pActor->pSprite = pSprite;
     SpritePlayAnimation(pActor->pSprite, 0);
@@ -953,5 +950,5 @@ s32 func_8008A5B8(s32 arg0) {
     g_WorldMapScrollTargetX = *(WorldMapVec*)&pActor->x;
     g_WorldMapPlayerAngle = pActor->angle;
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
