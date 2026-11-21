@@ -501,38 +501,26 @@ void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008EA70);
-/* 98.59% (1588 bytes against retail's 1592). Two differences, both in the note above:
-   retail computes each store's value inside that store's block where we hoist it, and
-   retail materialises the left edge as `ori $a0,0xFFF8` + `addu` (a 32-bit add) where
-   every spelling of `arg1 - 8` / `arg1 + 0xFFF8` folds to `addiu -8` - that fold is
-   why this body is one instruction short of retail's 1592. With `arg2 + 8` written
-   inline in every y store instead of through `top` the body is retail's exact 1592
-   bytes at 97.89%: the `top` local is what puts the y values in $a2 in place (retail's
-   `addu a2,a2,a3` twice) and it is worth +0.7%.
-   Row 2 is the vertical twin of row 1: x spans arg1 - 8..arg1 + 8 and arg3 is the
-   HEIGHT, split down the two stacked quads.
-*/
-/*
 void func_8008EA70(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     BattleSlotGraphics *p;
+    s32 left;
     s32 top;
     s32 i;
 
     p = g_BattleSlotGraphics[arg0];
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x0 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x0 = (left = arg1 + 0xFFF8);
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y0 = (top = arg2 + 8);
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x1 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y1 = top;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x2 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x2 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y2 = top + (arg3 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x3 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y3 = top + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x0 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x0 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y0 = top + (arg3 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x1 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y1 = top + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x2 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x2 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y2 = top + (arg3 - 16) / 2 + (arg3 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x3 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y3 = top + (arg3 - 16) / 2 + (arg3 - 16) / 2;
@@ -556,8 +544,6 @@ void func_8008EA70(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
         BattleSetPrimGrey80BlendModeFromGlobal(&p->tilePrims[2][g_BattlePrimStartIndex + i * 2]);
     }
 }
-*/
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F0A8);
 /* 80.42% (1596 bytes against retail's 1600) with today's headers. Row 3 is the
    vertical twin of row 2 shifted to the right end of arg1..arg1 + arg3: retail hoists
