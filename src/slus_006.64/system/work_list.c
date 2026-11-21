@@ -412,14 +412,21 @@ void SpriteAnimFrameListClear(void) {
 
 // Change Sprite Animation Frame maybe?
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
-/* Best: 97.28% (same insns, same frame, 328 vs 320 bytes). Every branch, delay
-   slot and store order matches; the only difference is that the list cursor in
-   the search loop lands in v0 here and v1 in the original (which rotates the two
-   lui/addiu address constants into v1/a0 instead of v0/a0), plus one extra word.
-   field_0x40 is tested with shift-and-mask (srl/andi) in the original, so write
-   (x >> 20) & 1 rather than x & 0x100000; curSpriteFrame is read as u16 (lhu).
-   Reading the old head into a local pOldHead and storing it last reproduces the
-   original's tail store order (0x34, head, 0x40, 0x38).
+/* Best: 97.53% (328 bytes against the original's 324). Every branch, delay slot
+   and store order matches except the pair of address constants: the original
+   forms both with $v0 as the %hi scratch (lui v0,%hi(Dirs6) IN the beqz delay
+   slot, addiu a1,v0,%lo) and holds them in a1/a0, while cc1 ties each %hi to its
+   destination here (lui a0 / addiu a0) and leaves a nop in the slot - so the
+   body is one instruction long. field_0x40 is tested with shift-and-mask
+   (srl/andi) in the original, so write (x >> 20) & 1 rather than x & 0x100000;
+   curSpriteFrame is read as u16 (lhu). Reading the old head into a local
+   pOldHead and storing it last reproduces the original's tail store order
+   (0x34, head, 0x40, 0x38). The duplicated `if (animFrame)` advance below is a
+   permuter find that moved the list cursor out of v0 and into the original's
+   v1; a second permuter run raised the score to 112 by DELETING the tail
+   curSpriteFrame store, which is wrong code - do not port it.
+   Tried and measured no better: plain while, guard+do/while, `D_80059190` read
+   twice, and both 2.7.2 and 2.6.0 presets. */
 void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
 void SpriteClearDirTransforms(SpriteData* pSpriteData);
 extern u8 g_SpriteAnimPackageDirs6[];
@@ -441,7 +448,8 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     }
     if ((pSpriteData->field_0x40 >> 17) & 1) {
         pCurSpriteData = D_80059190;
-        while (pCurSpriteData != NULL) {
+        if (pCurSpriteData != NULL) {
+          do {
             if (pCurSpriteData == pSpriteData) {
                 if (
                     pSpriteData->pVramData != &g_SpriteAnimPackageDirs6[0] &&
@@ -453,7 +461,12 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
                 pSpriteData->curSpriteFrame = animFrame;
                 return;
             }
-            pCurSpriteData = pCurSpriteData->pBase->pNextSpriteData;
+            if (animFrame) {
+                pCurSpriteData = pCurSpriteData->pBase->pNextSpriteData;
+            } else {
+                pCurSpriteData = pCurSpriteData->pBase->pNextSpriteData;
+            }
+          } while (pCurSpriteData != NULL);
         }
     }
     pOldHead = D_80059190;
