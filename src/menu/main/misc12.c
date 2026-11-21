@@ -304,37 +304,8 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
 #define MENU_ICON_PRIM_OFFSET 0x277C
 extern u16 D_801EA04C;
 extern u16 D_801EA050;
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
-/* Best: 99.83% (944 bytes = retail's size, 0x2233C..0x226EC). Only the two
-   store-address sums at the end of the loop differ, and only in which register
-   receives them: retail has "addu a2,a2,v1" / "sh v0,0x2792(a2)" and
-   "addu a0,a0,v1" / "sh v0,0x278A(a0)", this body has "addu v1,v1,a2" /
-   "sh v0,0x2792(v1)" and "addu v1,v1,a0" / "sh v0,0x278A(v1)". Same three
-   instructions, same bytes count, a pure allocator destination tie (GIV_TIE, a
-   call-clobbered register held across the GetTPage/GetClut jal in both).
-   Everything else is retail's exactly, including the prologue's li
-   s5,0xf0 / li s4,0xff / li s2,0xc / move s3,zero hoists.
-   LOAD-BEARING: the loop's "offset" local, assigned
-   "(i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET" and used only
-   for the MenuInitializePolyFt4 argument, is what makes retail's
-   "sll a0,a0,0x3 / addiu a0,a0,10108 ... addu a0,a0,v0" grouping (const on the
-   index chain, base added last). Writing the argument as one expression instead
-   puts the 0x277C on the base (97.88%, 944) or drops a load-delay nop (97.50%,
-   940).
-   Measured dead ends for the last two stores: reusing the offset local for them
-   (they outlive the calls, so gcc saves s6 and the frame grows); "(u8*)" cast
-   form; "(u32)base + idx + const" and "const + (u32)base + idx" term orders and
-   the "(i * 2 + ctx) * 0x28 + const + (u32)base" order (all fold to the same
-   rtl); a typed 0x277C view struct (96.72%, the s-v registers swap); and two
-   4-minute permuter runs from the 97.88% and the 99.83% body (PERMUTER_NONE,
-   base=best both times).
-   Round 373: these were both re-measured, 99.83% at 944 every time, so the note
-   above still holds. Two more spellings measured for the two stores: the
-   "(idx) + ((u32)base + const)" grouping (same rtl, 99.83) and the base-last
-   "(idx + const + (u32)base)" cast form the other 14 stores use (99.83). A
-   POLY_FT4* pPoly local per store is 90.39% at 960 (the sum then takes a save).
-   The destination register of the plus is a GIV_TIE; park it with the number.
 void func_801E733C(void) {
+    s32 primIndex;
     s32 offset;
     s32 i;
 
@@ -357,13 +328,12 @@ void func_801E733C(void) {
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->v2 = 0xFF;
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->u3 = i * 0x10 + 0xC;
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->v3 = 0xFF;
-        ((POLY_FT4*)((u8*)g_Menu->pPrimBuffer + (i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET))->tpage =
+        ((POLY_FT4*)((u8*)g_Menu->pPrimBuffer + (primIndex = (i * 2 + g_Menu->renderContext) * 0x28) + MENU_ICON_PRIM_OFFSET))->tpage =
             GetTPage(0, 0, 0x140, 0x80);
-        ((POLY_FT4*)((u8*)g_Menu->pPrimBuffer + (i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET))->clut =
+        ((POLY_FT4*)((u8*)g_Menu->pPrimBuffer + (primIndex = (i * 2 + g_Menu->renderContext) * 0x28) + MENU_ICON_PRIM_OFFSET))->clut =
             GetClut(0, 0x1C0);
     }
 }
-*/
 void MenuDrawCharacterSlots(s32 arg0) {
     s32 i = 0;
     u32 offset = 0;
