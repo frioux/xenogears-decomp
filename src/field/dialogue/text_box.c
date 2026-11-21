@@ -358,7 +358,7 @@ extern s32 D_800C4268;
 // The dialog data the two text size lookups read; system.c owns its layout.
 typedef struct FieldDialogData FieldDialogData;
 
-extern FieldDialogData* D_800ADBF0;
+extern FieldDialogData* g_FieldDialogs;
 extern int DialogGetWidth(FieldDialogData* pDialogData, int dialogIndex);
 extern int DialogGetHeight(FieldDialogData* pDialogData, int dialogIndex);
 extern s32 FieldArchiveTryDataSync(void);
@@ -496,8 +496,8 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
         }
     }
 
-    width = DialogGetWidth(D_800ADBF0, dialogIndex);
-    height = DialogGetHeight(D_800ADBF0, dialogIndex);
+    width = DialogGetWidth(g_FieldDialogs, dialogIndex);
+    height = DialogGetHeight(g_FieldDialogs, dialogIndex);
 
     if (mode == 0 || mode == 3) {
         if (g_FieldScriptVMCurActor->dialogWidth != 0) {

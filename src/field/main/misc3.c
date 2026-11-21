@@ -176,9 +176,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 /*
 extern s32 g_FieldActorModelSlotCount[];
 extern void* g_FieldArchiveQueueBuffer;
-extern s32 D_800ADBF0;
-extern s32 D_800AFB18;
-extern s32 D_800AFB14;
+extern s32 g_FieldDialogs;
+extern s32 g_FieldWalkmesh;
+extern s32 g_FieldModelFile;
 extern s16 g_FieldScreenEffectEnabled;
 extern s32 g_FieldScreenEffectData;
 
@@ -248,10 +248,10 @@ void FieldFree(void) {
     FieldDistortionFree();
     HeapFree(g_FieldActors);
     HeapFree(g_pFieldTriggerZones);
-    HeapFree(D_800ADBF0);
+    HeapFree(g_FieldDialogs);
     HeapFree(g_FieldCurScriptFile);
-    HeapFree(D_800AFB18);
-    HeapFree(D_800AFB14);
+    HeapFree(g_FieldWalkmesh);
+    HeapFree(g_FieldModelFile);
     HeapFree(g_FieldSpriteData);
 
     if (g_FieldScreenEffectEnabled != 0) {
@@ -391,8 +391,8 @@ extern u_short g_FieldPlayerActorIndex16;
 extern s16 g_FieldScreenEffectEnabled;
 extern void* g_FieldScreenEffectData;
 extern s16 g_FieldMotionSlotSteps[];
-extern void* D_800AFB14;
-extern void* D_800ADBF0;
+extern void* g_FieldModelFile;
+extern void* g_FieldDialogs;
 extern u8 D_800658DC[];
 extern VECTOR g_CameraAt2;
 extern SVECTOR g_FieldRotationVector;
@@ -447,7 +447,7 @@ typedef struct {
     /* 0x6 */ s16 clutLoaded;
 } FieldSpritePlacement; // Size: 0x8
 
-extern FieldSpritePlacement D_800B1F78[];
+extern FieldSpritePlacement g_FieldSpritePlacements[];
 
 // Quad table the field renders its table-mode primitives from: the 4x4 grid
 // FieldLoad fills by index, then 5 fixed quads at ids 4..8
@@ -471,7 +471,7 @@ typedef struct {
     /* 0x3C */ s16 triCount;
 } FieldWalkmesh; // Size: 0x3E
 
-extern FieldWalkmesh D_800AFB18;
+extern FieldWalkmesh g_FieldWalkmesh;
 
 // The screen effect setup record at 0x800B0080 and the parameter record at
 // 0x800B00A0 that follows it (FieldScriptSetParams80 / FieldScriptSetParamsA0
@@ -505,7 +505,7 @@ typedef struct {
     /* 0x2C */ s16 unk2C;
 } FieldScreenEffectConfig; // Size: 0x2E
 
-extern FieldScreenEffectConfig D_800B0080;
+extern FieldScreenEffectConfig g_FieldScreenEffectConfig;
 
 extern MATRIX D_800AFC30;
 extern s32 D_800AFC44;
@@ -534,7 +534,7 @@ extern u8 g_FieldModelSlotScratch[];
 // offset / the offset-table pointer, here $s3).
 // WHAT MATCHES BYTE-FOR-BYTE (checked instruction by instruction): the 16-byte
 // rodata copy, the 0x100-byte structure copy from g_GameStagedFileBuffer to
-// D_800B1F78 (both the aligned and the lwl/lwr paths - the copy type must have
+// g_FieldSpritePlacements (both the aligned and the lwl/lwr paths - the copy type must have
 // alignment 1 or 2 or cc1 drops the `or/andi 0x3` test), the 4x4 quad loop, the
 // five fixed FieldInitTableQuad calls, and the whole Phase-4..12 HeapAlloc +
 // FieldLZSSDecompress chain.
@@ -545,7 +545,7 @@ extern u8 g_FieldModelSlotScratch[];
 //    scope. It is dropped below because the parked INCLUDE_ASM would otherwise
 //    define the symbol twice.
 //  - 0x800B0080..0x800B00B1 is ONE object in this unit's source (the init block
-//    reaches g_FieldScreenEffectParams' bytes as `0x1C($s2)` off D_800B0080 and
+//    reaches g_FieldScreenEffectParams' bytes as `0x1C($s2)` off g_FieldScreenEffectConfig and
 //    the effect-setup fields as displacements too), so FieldScreenEffectConfig
 //    above is one struct; misc.c's separate FieldScreenEffectSetup /
 //    FieldScreenEffectParams views are the same memory.
@@ -586,7 +586,7 @@ void FieldLoad(void) {
     defaultVector = D_8006FAF4;
     func_800705DC();
 
-    *(FieldSceneFileHeader*)D_800B1F78 = *(FieldSceneFileHeader*)g_GameStagedFileBuffer;
+    *(FieldSceneFileHeader*)g_FieldSpritePlacements = *(FieldSceneFileHeader*)g_GameStagedFileBuffer;
 
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 4; j++) {
@@ -614,8 +614,8 @@ void FieldLoad(void) {
     count = *(s32*)pClutData;
     pOffsets = (s32*)pClutData + 1;
     for (i = 0; i < count; i++) {
-        if (D_800B1F78[i].clutLoaded == 0) {
-            GfxLoadClutsAccelerated((u8*)pClutData + *pOffsets, D_800B1F78[i].texX, D_800B1F78[i].texY);
+        if (g_FieldSpritePlacements[i].clutLoaded == 0) {
+            GfxLoadClutsAccelerated((u8*)pClutData + *pOffsets, g_FieldSpritePlacements[i].texX, g_FieldSpritePlacements[i].texY);
         }
         pOffsets++;
     }
@@ -624,10 +624,10 @@ void FieldLoad(void) {
     HeapFree(pClutData);
 
     size = STAGED_FILE->modelDataSize + 0x10;
-    D_800AFB14 = HeapAlloc(size, 0);
-    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->modelDataOffset, D_800AFB14);
-    for (i = 0; i < *(s32*)D_800AFB14; i++) {
-        ModelResolvePointers((ModelFileHeader*)((u8*)D_800AFB14 + ((s32*)D_800AFB14)[i + 1]));
+    g_FieldModelFile = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->modelDataOffset, g_FieldModelFile);
+    for (i = 0; i < *(s32*)g_FieldModelFile; i++) {
+        ModelResolvePointers((ModelFileHeader*)((u8*)g_FieldModelFile + ((s32*)g_FieldModelFile)[i + 1]));
     }
 
     FieldLZSSDecompress((void*)(STAGED_FILE->unk3Size + 0x10),
@@ -644,14 +644,14 @@ void FieldLoad(void) {
     FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->triggersOffset, g_pFieldTriggerZones);
 
     size = STAGED_FILE->dialogsSize + 0x10;
-    D_800ADBF0 = HeapAlloc(size, 0);
-    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->dialogsOffset, D_800ADBF0);
+    g_FieldDialogs = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->dialogsOffset, g_FieldDialogs);
 
     size = STAGED_FILE->walkmeshSize + 0x10;
-    D_800AFB18.pFile = HeapAlloc(size, 0);
-    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->walkmeshDataOffset, D_800AFB18.pFile);
+    g_FieldWalkmesh.pFile = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->walkmeshDataOffset, g_FieldWalkmesh.pFile);
 
-    pWalk = &D_800AFB18;
+    pWalk = &g_FieldWalkmesh;
     pWord = (u32*)pWalk->pFile;
     pWalk->triCount = *(s32*)pWalk->pFile;
     for (i = 0; i < 4; i++) {
@@ -707,7 +707,7 @@ void FieldLoad(void) {
             j = *pSpawn;
             pModel = HeapAlloc(sizeof(FieldActorModelData), 0);
             ACTOR(i)->pModelData = pModel;
-            pModelPart = (ModelPart*)((u8*)D_800AFB14 + ((s32*)D_800AFB14)[j + 1] + 0x10);
+            pModelPart = (ModelPart*)((u8*)g_FieldModelFile + ((s32*)g_FieldModelFile)[j + 1] + 0x10);
             pModel->pBounds = (FieldActorModelBounds*)pModelPart;
             ModelAllocatePackets(pModelPart, (void**)&pModel->pPrimitiveBuffers[0],
                                  (void**)&pModel->pPrimitiveBuffers[1]);
@@ -741,32 +741,32 @@ void FieldLoad(void) {
     g_FieldBackgroundB = 0x1E;
     g_FieldBackgroundG = 0x1E;
     g_FieldBackgroundR = 0x1E;
-    D_800B0080.unk4 = 0x140;
-    D_800B0080.unkE = 0;
-    D_800B0080.unk27 = 0;
-    D_800B0080.unk26 = 0;
-    D_800B0080.unk24 = 0;
-    D_800B0080.unk23 = 0;
-    D_800B0080.unk22 = 0;
-    D_800B0080.unk20 = 0;
-    D_800B0080.unk1F = 0;
-    D_800B0080.unk1E = 0;
-    D_800B0080.unk1D = 0;
-    D_800B0080.unk1C = 0;
-    D_800B0080.unk10 = 0;
-    D_800B0080.unk18 = 0x1000;
-    D_800B0080.unk2C = 0;
-    D_800B0080.unk2A = 0;
-    D_800B0080.unk28 = 0;
-    D_800B0080.unkC = 0;
-    D_800B0080.unkA = 0;
-    D_800B0080.unk8 = 0;
-    D_800B0080.unk6 = 0;
-    D_800B0080.unk2 = 0;
-    D_800B0080.unk0 = 0;
+    g_FieldScreenEffectConfig.unk4 = 0x140;
+    g_FieldScreenEffectConfig.unkE = 0;
+    g_FieldScreenEffectConfig.unk27 = 0;
+    g_FieldScreenEffectConfig.unk26 = 0;
+    g_FieldScreenEffectConfig.unk24 = 0;
+    g_FieldScreenEffectConfig.unk23 = 0;
+    g_FieldScreenEffectConfig.unk22 = 0;
+    g_FieldScreenEffectConfig.unk20 = 0;
+    g_FieldScreenEffectConfig.unk1F = 0;
+    g_FieldScreenEffectConfig.unk1E = 0;
+    g_FieldScreenEffectConfig.unk1D = 0;
+    g_FieldScreenEffectConfig.unk1C = 0;
+    g_FieldScreenEffectConfig.unk10 = 0;
+    g_FieldScreenEffectConfig.unk18 = 0x1000;
+    g_FieldScreenEffectConfig.unk2C = 0;
+    g_FieldScreenEffectConfig.unk2A = 0;
+    g_FieldScreenEffectConfig.unk28 = 0;
+    g_FieldScreenEffectConfig.unkC = 0;
+    g_FieldScreenEffectConfig.unkA = 0;
+    g_FieldScreenEffectConfig.unk8 = 0;
+    g_FieldScreenEffectConfig.unk6 = 0;
+    g_FieldScreenEffectConfig.unk2 = 0;
+    g_FieldScreenEffectConfig.unk0 = 0;
     g_FieldScreenEffectEnabled = 0;
-    D_800B0080.unk14 = 0;
-    D_800B0080.unk25 = 0x20;
+    g_FieldScreenEffectConfig.unk14 = 0;
+    g_FieldScreenEffectConfig.unk25 = 0x20;
     g_FieldEntryRoutineFinished = 0;
 
     func_800A28D4();
@@ -776,10 +776,10 @@ void FieldLoad(void) {
     D_800AFC48 = 0;
     D_800AFC44 = 0;
     if (g_FieldScreenEffectEnabled != 0) {
-        g_FieldScreenEffectData = func_8002709C(D_800B0080.unk0, D_800B0080.unk2, D_800B0080.unk4, D_800B0080.unk6,
-                                                D_800B0080.unk8, D_800B0080.unkA, D_800B0080.unkC, D_800B0080.unkE,
-                                                (VECTOR*)&D_800B0080.unk10, &D_800B0080.unk1C, D_800B0080.unk28,
-                                                D_800B0080.unk2A, D_800B0080.unk2C);
+        g_FieldScreenEffectData = func_8002709C(g_FieldScreenEffectConfig.unk0, g_FieldScreenEffectConfig.unk2, g_FieldScreenEffectConfig.unk4, g_FieldScreenEffectConfig.unk6,
+                                                g_FieldScreenEffectConfig.unk8, g_FieldScreenEffectConfig.unkA, g_FieldScreenEffectConfig.unkC, g_FieldScreenEffectConfig.unkE,
+                                                (VECTOR*)&g_FieldScreenEffectConfig.unk10, &g_FieldScreenEffectConfig.unk1C, g_FieldScreenEffectConfig.unk28,
+                                                g_FieldScreenEffectConfig.unk2A, g_FieldScreenEffectConfig.unk2C);
     }
     HeapChangeCurrentUser(8, 0);
 

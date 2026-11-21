@@ -1102,30 +1102,30 @@ typedef struct {
     /* 0x18 */ s32 unk18;
 } FieldScreenEffectSetup; // Size: 0x1C
 
-extern FieldScreenEffectSetup D_800B0080;
+extern FieldScreenEffectSetup g_FieldScreenEffectConfig;
 
 void FieldScriptSetParams80(void) {
     int value;
 
-    D_800B0080.unk0 = FieldScriptVMGetInstructionArgument(1);
-    D_800B0080.unk2 = FieldScriptVMGetInstructionArgument(3);
+    g_FieldScreenEffectConfig.unk0 = FieldScriptVMGetInstructionArgument(1);
+    g_FieldScreenEffectConfig.unk2 = FieldScriptVMGetInstructionArgument(3);
     value = FieldScriptVMGetInstructionArgument(5);
-    D_800B0080.unk4 = value;
+    g_FieldScreenEffectConfig.unk4 = value;
     if ((short)value == 0) {
-        D_800B0080.unk4 = value + 1;
+        g_FieldScreenEffectConfig.unk4 = value + 1;
     }
-    D_800B0080.unk6 = FieldScriptVMGetInstructionArgument(7);
-    D_800B0080.unk8 = 0;
-    D_800B0080.unkA = FieldScriptVMGetInstructionArgument(9);
-    D_800B0080.unkC = FieldScriptVMGetInstructionArgument(0xB);
-    D_800B0080.unkE = FieldScriptVMGetInstructionArgument(0xD);
+    g_FieldScreenEffectConfig.unk6 = FieldScriptVMGetInstructionArgument(7);
+    g_FieldScreenEffectConfig.unk8 = 0;
+    g_FieldScreenEffectConfig.unkA = FieldScriptVMGetInstructionArgument(9);
+    g_FieldScreenEffectConfig.unkC = FieldScriptVMGetInstructionArgument(0xB);
+    g_FieldScreenEffectConfig.unkE = FieldScriptVMGetInstructionArgument(0xD);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xF;
 }
 
 void FieldScriptSetParams90(void) {
-    D_800B0080.unk10 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
-    D_800B0080.unk18 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
-    D_800B0080.unk14 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
+    g_FieldScreenEffectConfig.unk10 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
+    g_FieldScreenEffectConfig.unk18 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
+    g_FieldScreenEffectConfig.unk14 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 

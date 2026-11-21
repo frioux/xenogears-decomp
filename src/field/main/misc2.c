@@ -1681,7 +1681,7 @@ typedef struct {
     /* 0x6 */ s16 clutLoaded;
 } FieldSpritePlacement; // Size: 0x8
 
-extern FieldSpritePlacement D_800B1F78[];
+extern FieldSpritePlacement g_FieldSpritePlacements[];
 extern s32 g_GamePartySkinsInitialized;
 extern s32 g_FieldScriptSpritesBuilt;
 extern SpriteData* SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
@@ -1700,7 +1700,7 @@ extern void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, 
 //  - one callee-saved register: the original keeps s0..s8+fp live (s3=actorIndex,
 //    s0=param6, s8=param7), ours stops at s7, so every register from the second
 //    parameter on is one lower.
-//  - the D_800B1F78 table loads come out swapped: the original reads `texY` (0x7A)
+//  - the g_FieldSpritePlacements table loads come out swapped: the original reads `texY` (0x7A)
 //    first through its own %hi(D_800B1F7A) macro, gcc CSEs the base and loads offset 0
 //    first however the two statements are ordered (tried both).
 //  Findings worth keeping: FieldActor+0x40..0x48 is childMatrix.t[0..2] (NOT a `move`
@@ -1709,7 +1709,7 @@ extern void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, 
 //  [3] / [5]; g_FieldScriptSpritesBuilt is its own global (zeroed by func_800A28D4), not part of
 //  g_FieldStoredImageBuffer; the double `step.y = 0` store at 0x10 IS in the original
 //  (0x10, 0xC, 0x10, 0x14), duplicated here on purpose.
-//  The sprite model path itself: modelKind 0 builds from the D_800B1F78 placement table,
+//  The sprite model path itself: modelKind 0 builds from the g_FieldSpritePlacements placement table,
 //  1/2 from the fixed 0x280/0x2A0 layouts, and the tail copies the actor's transform
 //  into both matrices and back into the sprite.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
@@ -1743,8 +1743,8 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
     pActorData->flags134 = (pActorData->flags134 & ~0x10) | ((skipAnimTick & 1) << 4);
 
     if (modelKind == 0) {
-        texY = D_800B1F78[spriteId].texY;
-        texX = D_800B1F78[spriteId].texX;
+        texY = g_FieldSpritePlacements[spriteId].texY;
+        texX = g_FieldSpritePlacements[spriteId].texX;
         if (clutIndex == 0) {
             if (g_FieldActors[actorIndex].spriteFlags & 1) {
                 SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
