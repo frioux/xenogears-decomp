@@ -290,13 +290,22 @@ void MenuFreeArrowCursor(u_char index) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
-/* PARK 98.77% (588 bytes against retail's 580, so the body carries one extra
-   instruction; see (c) - it cannot link until that goes). Frame, saved set
-   ($s0-$s4 + $ra) and every loop's instruction multiset match.
-   The five single-string sites need the poly reached OFFSET-FIRST
+/* PARK 98.77%, 588 bytes. Retail is 584 (146 insns: .s runs 0x1639C..0x165E4;
+   an older note's "580" was wrong), so the body is ONE instruction over and
+   cannot link until it goes. Frame, saved set ($s0-$s4 + $ra), both loop
+   counters and every other instruction match.
+   The one extra instruction: retail fills the delay slot of the item-name
+   loop's `beq v1,v0,.L801DB490` (the r0==0x20 skip) with the LATCH increment
+   `addiu s1,s1,1`, so the increment exists once; here the slot is a `nop` and
+   the addiu stays at the latch. BLOCK_ROTATION class, and the fill is invariant
+   in the source: for / while / do-while / guard+bottom-test / `goto nextRow` /
+   `for (;;)` with an empty init / `++i` / `continue` / `!(cond)` / a
+   `do {} while (0)` around the if body all measure 98.77% at 588 bytes with the
+   identical nop-in-slot. Do not re-spend a lane on the loop shape.
+   The five single-string sites need their poly reached OFFSET-FIRST
    (`rc * sizeof(POLY_FT4) + (u32)base`): the plain `&base->polys[rc]` emits
    `addu d,base,sum` where retail has `addu d,sum,base`.
-   The first string loop's TEST poly must be reached through the PANEL
+   The item-name loop's TEST poly must be reached through the PANEL
    (`pItemRows->itemNameStrings[i].polys[pRow->renderContext]`) while the row
    pointer pRow supplies the renderContext and the CALL argument. That is what
    reproduces retail's two-addu test address (base + (rc*0x28 + i*0x80)) with the
@@ -304,23 +313,22 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
    loop's register assignment (pRows $a0, row pointer $a2, rc $v1) comes out
    exact - 97.16 -> 98.77. Any single-expression spelling of the test makes gcc
    reuse the row pointer and need only one addu.
-   Remaining, three sites:
+   Two addu operand orders left (no size effect):
    (a) quantity-string poly base: retail `addu v1,s2,v1` (giv + base), ours
        `addu v1,v1,s2`; (b) itemRowStrings: retail `addu a2,s2,v0`, ours
-       `addu a2,v0,s2`. Both are gcc's giv+base against base+giv order (the
-       first loop's renderContext load, also base + i*0x80, comes out right, so
-       it is not a blanket operand flip). Measured and rejected: the offset-first
-       cast over the array element (`(u32)&arr[i] + rc * sizeof(POLY_FT4)`,
-       97.88 then 98.49), a pPoly local instead of the inline argument, and
-       inlining the rc load at both sites.
-   (c) the loop latch: retail puts `addiu s1,s1,1` in the beq's delay slot and
-       has no latch copy; here the slot is a nop and the addiu sits at the latch
-       (the extra 8 bytes). BLOCK_ROTATION class; writing the increment as its
-       own statement before the if (with an [i - 1] index) is 89.02.
+       `addu a2,v0,s2`. Both are the gcc giv+base order (the item-name loop's
+       renderContext load, also base + i*0x80, comes out right, so it is not a
+       blanket operand flip). Measured and rejected: the offset-first cast over
+       the array element (`(0x800 + i*sizeof(MenuString) + (u32)pItemRows) +
+       rc*0x28`, 94.33 / 580 bytes), `(u32)&arr[i] + rc * sizeof(POLY_FT4)`
+       (97.88, 98.49), a pPoly local instead of the inline argument, inlining
+       the rc load at both sites, a pQuantity pointer local, and a `pPanel`
+       local for the panel (92.73 / 576 - it drops the reload retail has).
    permute.sh cannot parse this body (its parser rejects the (POLY_FT4*) casts:
    "conversion to non-scalar type requested").
-   PRESET_260: under gcc 2.6.0 the previous 97.16 body is 98.36 and all seven
-   already-matched functions of this unit stay 100.00, so the unit is switchable.
+   PRESET_260: under gcc 2.6.0 the earlier 97.16 body is 98.36 and all seven
+   already-matched functions of this unit stay 100.00, so the unit is switchable
+   if that ever helps.
 */
 /*
 void func_801DB39C(u_char arg0) {
@@ -360,7 +368,6 @@ void func_801DB39C(u_char arg0) {
     }
 }
 */
-
 
 void MenuBuildPartyCharacterPrims(s32 arg0) {
     MenuCharacter* pCharacter;
