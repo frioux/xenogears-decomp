@@ -135,34 +135,43 @@ void MenuFreeUnk438Panel(void) {
     HeapFree(g_Menu->unk438);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
+/* objdiff 81.47% (296 bytes = retail's size; the residual is one register rotation
+   plus two scheduler/loop.c placements). Averages a character's 7 stat rows into a
+   percentage: pct per row = weight * 100 / value, summed and divided by count.
+   Settled: charId = g_Menu->pManager->currentCharacterIDs[slot]; weight = *pWeight++
+   with pWeight = g_GameState.characters[charId].statWeights (0xA4 stride, the row
+   table's stride is 0x110); value = pRow[i] with pRow = pTable + charId * 0x110 +
+   index * 0xE and pTable = *(u16 **)((u8 *)g_Menu->unk438 + 0x2578); total/count
+   are u32, the loop counter a signed int (retail ends the loop with slti); the
+   weight != 0 test comes first in the source (retail branches over it into the
+   else-if value != 0 block) and writing `if (weight == 0)` first costs 7 points.
 
-/* objdiff 75.33% (296 bytes, same size; was 68.19% with the old if/else order).
-   Settled: charId = g_Menu->pManager->currentCharacterIDs[slot]; weight =
-   *pWeight++ where pWeight = g_GameState.characters[charId].statWeights;
-   value = pRow[i] where pRow = (u8*)pTable + charId * 0x110 + index * 0xE and
-   pTable = *(u32*)((u8*)g_Menu->unk438 + 0x2578); total/count are u32, the loop
-   counter is a signed int (retail ends the loop with slti, not sltiu). The
-   weight != 0 test comes FIRST in the source (retail branches over it into the
-   `else if (value != 0) count++;` block) -- writing `if (weight == 0)` first
-   costs 7 points and 4 bytes.
-   Residue: retail recomputes charId * 0x110 AND index * 0xE inside the loop and
-   keeps `li v0,0xffff` in the loop, i.e. loop.c hoisted neither -- yet a hoisted
-   pRow local scores 75.33% because it lands in the pre-header, and the flat
-   `*(u16*)((u8*)pTable + charId*0x110 + index*0xE + i*2)` does reproduce the
-   non-hoisting but scores 66.44%: gcc then emits the index * 0xE chain before the
-   charId chain (retail the reverse: charId chain, addu t3, index chain) and
-   rotates the whole register assignment (retail t0=total, t1=i, a2=count,
-   t2=pWeight, a3=charId, t3=pTable, a1=index; this compile gives total a3,
-   index a masked t2 copy, charId a1, pWeight t0). Tried this round and no
-   better: flat expression with the (u32)index cast dropped (66.44, cdk too),
-   explicit ((...) + (index*0xE)) + i*2 parenthesisation (66.44), the indexed
-   pRow[i] form (75.33 after hoisting), gcc-2.7.2-cdk on the flat form (66.44).
-   Both 2.6.0 and 2.7.2 emit byte-identical code for the hoisted version, so this
-   is not a preset question. Round 374: every in-loop spelling measured makes gcc
-   strength-reduce the value address into an induction pointer (`addu $3,$3,2` in
-   the loop's delay slot) where retail recomputes it, including the flat sum with
-   the table last as a (u32) and the subscript on an inline base (66.44/75.20);
-   the hoisted pRow stays the best.
+   Round 378, each measured with diff_func from the body below:
+   - ARM ORDER: `if (pct >= 100) total += 100; else total += pct;` (a permuter find)
+     is 81.47 where `if (pct < 100) total += pct; ...` is 75.47 - retail branches
+     INTO the += pct arm (`bnez v0,.L1508`).
+   - `i = 0;` as its own statement before `count = 0;` with an empty for-init
+     (`for (; i < 7; i++)`) reproduces retail's `move t1,zero` / `move a2,zero` order.
+   - NOT the fix: splitting the row base into two statements (pRow = pTable +
+     charId*0x110; pRow = pRow + index*0xE) measures 81.60 with MORE differing
+     instructions, so objdiff's number is not monotone here; the flat sum, the
+     ternary and an inline base are all 66-75; the hoisted pRow is the best shape.
+   - Other shapes measured identical (99.6 of the instructions are in place, so
+     every one of these re-rolls the register file): moving the count test, the
+     do-while wrapper an earlier permuter found, reordering the declarations.
+   Remaining three residuals: (1) gcc materialises g_Menu in $a1 and so copies the
+   `index` param to $t2 at entry, while retail copies `slot` to $v1 (`move v1,a0`)
+   because it loads g_Menu into $a0; the whole file then rotates (ours total $a3 /
+   pWeight $t0 / weight $a1, retail total $t0 / pWeight $t2 / weight $v1);
+   (2) ours hoists `li 0xffff` out of the loop into $t3, retail materialises it
+   inside the loop before `beq a0,v0`; (3) ours bumps pWeight (`addiu t0,t0,2`)
+   right after the weight load, retail in the loop tail's bnez delay slot.
+   Permuter (3 runs from this body, base=1538 -> 1353) proposes reusing the dead
+   `value` local for charId (`value = pManager->currentCharacterIDs[slot]; pWeight =
+   g_GameState.characters[value].statWeights;`); not applied here because it reads as
+   a different value - measure it first.
+*/
+/*
 u32 func_801E1418(u8 slot, u8 index) {
     u8 charId;
     u16* pWeight;
@@ -176,15 +185,16 @@ u32 func_801E1418(u8 slot, u8 index) {
     u32 pct;
 
     total = 0;
-    if ((u32)index >= 7 && (g_GameState.unk22B6 & 0x4000) == 0) {
+    if (index >= 7 && (g_GameState.unk22B6 & 0x4000) == 0) {
         return 0;
     }
+    i = 0;
     count = 0;
     charId = g_Menu->pManager->currentCharacterIDs[slot];
     pWeight = g_GameState.characters[charId].statWeights;
     pTable = *(u16**)((u8*)g_Menu->unk438 + 0x2578);
     pRow = (u16*)((u8*)pTable + charId * 0x110 + index * 0xE);
-    for (i = 0; i < 7; i++) {
+    for (; i < 7; i++) {
         weight = *pWeight++;
         value = pRow[i];
         if (weight != 0) {
@@ -193,10 +203,10 @@ u32 func_801E1418(u8 slot, u8 index) {
                     count++;
                 } else {
                     pct = weight * 100 / value;
-                    if (pct < 100) {
-                        total += pct;
-                    } else {
+                    if (pct >= 100) {
                         total += 100;
+                    } else {
+                        total += pct;
                     }
                     count++;
                 }
@@ -211,6 +221,7 @@ u32 func_801E1418(u8 slot, u8 index) {
     return total / count;
 }
 */
+
 // The 0x25C0-byte block g_Menu->unk438 points at, as far as this unit reaches:
 // one record per dressing-room row (13 of them), each with the MenuString for its
 // number and the digit prims the number is built from, then the per-row state
