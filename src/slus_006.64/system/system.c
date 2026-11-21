@@ -102,7 +102,7 @@ extern u16 g_SystemNumberGlyphBuffer[];
 typedef struct {
     /* 0x00 */ SPRT sprt[2][2];  // [render context][first/second half: split at 0x100 VRAM units]
     /* 0x50 */ RECT imageRect;   // VRAM rect the row's glyphs are uploaded to
-    /* 0x58 */ s16 x;
+    /* 0x58 */ s16 rowWidth;  // right edge of the row in units of 4 VRAM units
     /* 0x5A */ u8 paletteIndex;  // picks g_SystemPalette1 or g_SystemPalette2
     /* 0x5B */ u8 unk5B;
     /* 0x5C */ u8 textureV;      // VRAM y of this row's glyphs
@@ -247,7 +247,7 @@ void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y,
         pString->pChars[i].imageRect.y = vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT;
         pString->pChars[i].imageRect.w = pString->imageWidth;
         pString->pChars[i].imageRect.h = SYSTEM_GLYPH_STRIP_HEIGHT;
-        pString->pChars[i].x = 0;
+        pString->pChars[i].rowWidth = 0;
         pString->pChars[i].clut = odd ? g_SystemPalette2 : g_SystemPalette1;
         pString->pChars[i].textureV = vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT;
         pString->pChars[i].paletteIndex = odd;
@@ -741,7 +741,187 @@ void SystemStringClearLineOffset(SystemString* pString) {
     pString->lineOffset = SYSTEM_STRING_LINE_OFFSET_NONE;
 }
 
+// Width, in the units a row's width is counted in (4 VRAM units), at which the
+// row's glyphs cross from the first texture page into the second
+#define SYSTEM_STRING_PAGE_SPLIT_WIDTH 0x40
+
+// A rendered string's flag bits that this unit only sets and clears
+#define SYSTEM_STRING_FLAG_BUFFER_POP 0x4   // a buffer pop has happened; skip the next
+#define SYSTEM_STRING_FLAG_WRAPPED 0x20     // the row wrapped: relayout from the top
+#define SYSTEM_STRING_FLAG_UPLOAD_HOLD 0x40 // do not upload the rows to VRAM yet
+#define SYSTEM_STRING_FLAG_PALETTE_DOUBLE 0x100 // the palette holds two codes per glyph
+#define SYSTEM_STRING_FLAG_UPLOAD_WAIT 0x10 // an upload is in flight a frame longer
+
+// AddPrim inlined: the clear tile goes into the ordering table through the
+// two-word link below, the row sprites through func_80031798 and the draw mode
+// through the AddPrim function itself.
+#define SystemLinkPrim(pOt, pPrim)                                                             \
+    (*(u_long*)(pPrim) = (*(u_long*)(pPrim) & 0xFF000000) | (*(u_long*)(pOt) & 0xFFFFFF),       \
+     *(u_long*)(pOt) = (*(u_long*)(pOt) & 0xFF000000) | ((u_long)(pPrim) & 0xFFFFFF))
+
+extern void func_80031798(void* pOt, void* pPrim);
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
+
+// Parked at 95.08% (1556 bytes against retail's 1572: four instructions short).
+// Every phase, its order and its calls correspond; the residuals are:
+// - THE SOURCE HAS NO pChar / pSprite LOCALS. Retail re-reads pString->pChars
+//   (lw v1,40(s0)) for every single store and re-forms the sprite address each
+//   time; a pointer local CSEs all of that and comes out ~180 bytes short at 68%.
+//   Everything is spelled inline (pString->pChars[row].sprt[context][1].v0 = ...).
+// - THE CONTEXT SUM'S addu OPERAND ORDER: retail emits addu v1,s2,v1 (context
+//   * 0x28 first, then the pChars+row*0x60 sum), this body emits addu v1,v1,s3.
+//   The typed subscript cannot produce index-first; the file's own
+//   SystemDecodeGlyphCodes solves the same problem with a cast over an
+//   index-first sum, which is the next spelling to measure here (~14 sites).
+// - The buffer pop loads pBufferStack TWICE in retail (a0 for pData and the
+//   HeapFree argument, v1 for pNext). Two source reads of the member give two
+//   loads here as well, but gcc hoists the second above the bufferCount test.
+// - unk68/unk6A/unk69: retail loads unk6A twice (a0 for the test and unk68's
+//   store, a reload for unk69's store) and stores 0x69 twice, once in the
+//   branch and once after the join. A simple if plus the join store gives one
+//   load; the extra read has to come from a separate source expression.
+// - The frame is 0x78 against retail's 0x80 (one 8-byte pair of locals missing),
+//   which is what rotates i/row/context through s2/s3/s4: retail has
+//   s2 = context*0x28, s3 = row, s4 = i.
+// - Loop 2's width clamp must stay an if/else (the ternary costs 0.99%).
+/*
+void func_80034888(SystemString* pString, u_long* pOt, int context) {
+    SystemStringNode* pNode;
+    int i;
+    int row;
+
+    if (!(pString->flags & SYSTEM_STRING_FLAG_BUFFER_POP)) {
+        if (pString->bufferCount == 0) {
+            return;
+        }
+
+        pString->pCur = pString->pBufferStack->pData;
+        pNode = pString->pBufferStack;
+        pString->pBufferStack = pNode->pNext;
+        HeapFree(pNode);
+
+        pString->bufferCount--;
+        pString->flags = (pString->flags & SYSTEM_STRING_FLAG_PERSISTENT) | 0x24;
+        if (pString->unk6A != 0) {
+            pString->unk68 = pString->unk6A;
+            pString->unk6A = 0;
+        }
+        pString->unk69 = pString->unk68;
+        pString->charDelayReload = 0;
+        pString->charDelay = 0;
+    }
+
+    pString->unk69 = (pString->flags & SYSTEM_STRING_FLAG_PALETTE_DOUBLE) ? pString->unk68 * 3 : pString->unk68;
+
+    if (pString->flags & SYSTEM_STRING_FLAG_UPLOAD_HOLD) {
+        if (!(pString->flags & SYSTEM_STRING_FLAG_STOPPED)) {
+            pString->flags = (pString->flags & ~SYSTEM_STRING_FLAG_UPLOAD_HOLD) | SYSTEM_STRING_FLAG_WRAPPED;
+        }
+    }
+
+    if (pString->flags & SYSTEM_STRING_FLAG_WRAPPED) {
+        pString->scrollRow = 0;
+        pString->rowCount = 0;
+        pString->charIndex = 0;
+        pString->lineWidth = 0;
+        pString->pChars[0].textureV = pString->textureY;
+        pString->pChars[0].clut = g_SystemPalette1;
+        pString->pChars[0].paletteIndex = 0;
+        pString->pChars[0].imageRect.y = pString->textureY;
+        for (i = 0; i < pString->maxChars; i++) {
+            pString->pChars[i].rowWidth = 0;
+        }
+        pString->flags &= ~(SYSTEM_STRING_FLAG_WRAPPED | 0x1);
+    }
+
+    row = pString->scrollRow;
+    for (i = 0; i < pString->maxChars; i++) {
+        if (row >= pString->maxChars) {
+            row = 0;
+        }
+
+        if (pString->lineOffset != i) {
+            pString->pChars[row].sprt[context][1].code |= 1;
+        } else {
+            pString->pChars[row].sprt[context][1].code &= ~1;
+        }
+
+        // The second half of the row is only drawn when the row is wider than
+        // one texture page
+        if (pString->pChars[row].rowWidth > SYSTEM_STRING_PAGE_SPLIT_WIDTH) {
+            pString->pChars[row].sprt[context][1].v0 = pString->pChars[row].textureV;
+            pString->pChars[row].sprt[context][1].clut = pString->pChars[row].clut;
+            pString->pChars[row].sprt[context][1].y0 = pString->y + pString->lineHeight * i;
+            pString->pChars[row].sprt[context][1].w =
+                (pString->pChars[row].rowWidth - SYSTEM_STRING_PAGE_SPLIT_WIDTH) * 4;
+            func_80031798(pOt, &pString->pChars[row].sprt[context][1]);
+        }
+        row++;
+    }
+
+    AddPrim(pOt, &pString->drawMode[1]);
+
+    row = pString->scrollRow;
+    for (i = 0; i < pString->maxChars; i++) {
+        if (row >= pString->maxChars) {
+            row = 0;
+        }
+
+        if (pString->lineOffset != i) {
+            pString->pChars[row].sprt[context][0].code |= 1;
+        } else {
+            pString->pChars[row].sprt[context][0].code &= ~1;
+        }
+
+        // The first half of a row is a whole texture page wide as soon as the
+        // row's width passes the split
+        if (pString->pChars[row].rowWidth != 0) {
+            pString->pChars[row].sprt[context][0].v0 = pString->pChars[row].textureV;
+            pString->pChars[row].sprt[context][0].clut = pString->pChars[row].clut;
+            pString->pChars[row].sprt[context][0].y0 = pString->y + pString->lineHeight * i;
+            if (pString->pChars[row].rowWidth > SYSTEM_STRING_PAGE_SPLIT_WIDTH) {
+                pString->pChars[row].sprt[context][0].w = SYSTEM_TEXTURE_PAGE_WIDTH;
+            } else {
+                pString->pChars[row].sprt[context][0].w = pString->pChars[row].rowWidth * 4;
+            }
+            func_80031798(pOt, &pString->pChars[row].sprt[context][0]);
+        }
+        row++;
+    }
+
+    if (pString->waitFrames != 0) {
+        pString->waitFrames--;
+    } else if (pString->charDelay != 0) {
+        pString->charDelay--;
+    } else {
+        pString->charDelay = pString->charDelayReload;
+
+        if (!(pString->flags & (SYSTEM_STRING_FLAG_UPLOAD_HOLD | SYSTEM_STRING_FLAG_STOPPED |
+                                SYSTEM_STRING_FLAG_UPLOAD_WAIT))) {
+            func_80033DF0(pString);
+            LoadImage(&pString->pChars[pString->charIndex].imageRect, pString->pCharBuffer);
+        }
+    }
+
+    if (pString->waitFrames != 0) {
+        if (--pString->waitFrames == -1) {
+            pString->flags &= ~SYSTEM_STRING_FLAG_UPLOAD_WAIT;
+        }
+    }
+
+    if (!(pString->flags & SYSTEM_STRING_FLAG_PERSISTENT)) {
+        setXY0Fast(&pString->clearTile[context], pString->x - SYSTEM_STRING_CLEAR_MARGIN_X,
+                   pString->y - SYSTEM_STRING_CLEAR_MARGIN_Y);
+        setWHFast(&pString->clearTile[context], (pString->maxWidth | 1) * 4 + SYSTEM_STRING_CLEAR_PAD_WIDTH,
+                  pString->maxChars * pString->lineHeight + SYSTEM_STRING_CLEAR_PAD_HEIGHT);
+        SystemLinkPrim(pOt, &pString->clearTile[context]);
+    }
+
+    pString->flags &= ~SYSTEM_STRING_FLAG_PALETTE_DOUBLE;
+    AddPrim(pOt, &pString->drawMode[0]);
+}
+*/
 
 // Primitive code of the free-size textured rects a rendered row's sprites are
 #define SYSTEM_STRING_RECT_CODE 0x64
@@ -770,7 +950,7 @@ int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
         g_SystemString.unk69 = primitiveCode;
     } while (0);
     D_8005A000 = &g_SystemStringChars;
-    g_SystemStringChars.x = 0;
+    g_SystemStringChars.rowWidth = 0;
     g_SystemStringChars.paletteIndex = flag & 1;
 
     // The do/while block above and the two hoisted locals are load-bearing:
@@ -778,7 +958,7 @@ int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
     // pString is what puts the group's lui/addiu for $a0 at its head.
     func_80033DF0(pString);
 
-    return g_SystemString.pChars->x * 4;
+    return g_SystemString.pChars->rowWidth * 4;
 }
 
 
