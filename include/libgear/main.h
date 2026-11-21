@@ -101,7 +101,7 @@ typedef struct {
 /* Unknown list */
 struct _Temp3 {
     /* 0x0  */ u8 inUse;
-    /* 0x1  */ u8 unk1;
+    /* 0x1  */ u8 loops; // non-zero: the object restarts when its interpolation ends instead of being released
     /* 0x2  */ u8 opcode; // command code plus 3 (plus 7 for a move); the joint update dispatches on it & 0xF
     /* 0x3  */ u8 type;
     /* 0x4  */ s16 startX; // the component's value when the interpolation was queued
@@ -190,22 +190,29 @@ typedef struct {
     /* 0x0  */ s16 jointIndex; // negative: the entry is free
     /* 0x2  */ s16 unk2;
     /* 0x4  */ s16 numVectors; // SVECTORs pVectors holds
-    /* 0x6  */ s16 unk6; // counts func_801E22F8's loops run to
-    /* 0x8  */ s16 unk8;
+    /* 0x6  */ s16 numSegments; // records pSegments holds, and the outer loop count of func_801E22F8
+    /* 0x8  */ s16 numPoints; // point records pPoints[0] holds; the count its smoothing loops run to
     /* 0xA  */ s16 numSections; // sections pSections holds
-    /* 0xC  */ s16 unkC[4];
+    // Two RGB colours; func_801E22F8 feeds one of them to NCCS as the light colour
+    /* 0xC  */ u8 red0;
+    /* 0xD  */ u8 green0;
+    /* 0xE  */ u8 blue0;
+    /* 0xF  */ u8 red1;
+    /* 0x10 */ u8 green1;
+    /* 0x11 */ u8 blue1;
+    /* 0x12 */ u8 pad12[0x2];
     /* 0x14 */ SVECTOR* pVectors;
     /* 0x18 */ Temp9Section* pSections;
     /* 0x1C */ Temp9Point** pPoints;
-    /* 0x20 */ void* unk20;
+    /* 0x20 */ void* pSegments; // numSegments 0x18 byte records; the first two s16 are indices into pPoints[0]
 } Temp9; // Size: 0x24
 
 typedef struct {
     /* 0x0  */ s16 jointIndex; // joint whose matrix projects the two sources; negative = free
     /* 0x2  */ u8 is3D; // non-zero: the sources are projected in 3D and pass through the GTE
     /* 0x3  */ u8 isSemiTrans; // handed to LibGearAllocVertex
-    /* 0x4  */ u32 unk4;
-    /* 0x8  */ u32 unk8;
+    /* 0x4  */ u32 pVertexBuffer; // the VertexBuffer the vertex below is allocated from
+    /* 0x8  */ u32 pVertex; // the Vertex this entry drives; 0 = none allocated yet
     /* 0xC  */ SVECTOR sourceA; // the two points the joint's matrix projects
     /* 0x14 */ SVECTOR sourceB;
     /* 0x1C */ u16 screenA[16]; // projected x/y, two 0x10-byte slots of four SXY quads
@@ -258,7 +265,7 @@ typedef struct {
     /* 0x37  */ u8 useScaledMatrices; // non-zero: the step uses LibGearComputeScaledJointMatrices
     /* 0x38  */ u8 unk38;
     /* 0x39  */ u8 unk39;
-    /* 0x3A  */ s16 unk3A;
+    /* 0x3A  */ s16 animationBitMask; // g_LibGearModelBitMask the current animation was started with; -1 = none
     /* 0x3C  */ u16 objectType; // joint objects whose type matches it set a bit of the step result
     /* 0x3E  */ u16 unk3E;
     /* 0x40  */ s16 frameTimer; // the wait opcode's frame counter: advanced by the frame count, reset at the operand
@@ -292,8 +299,8 @@ typedef struct {
     /* 0x8A  */ s16 posY;
     /* 0x8C  */ s16 posZ;
     /* 0x8E  */ s16 unk8E;
-    /* 0x90  */ s16 unk90; // x offset; negative = no offset
-    /* 0x92  */ u16 unk92; // y offset
+    /* 0x90  */ s16 textureOffsetX; // added to the material records' texture x; negative = no offset
+    /* 0x92  */ u16 textureOffsetY; // and to their y
     /* 0x94  */ u16 blendOffsetX; // added to the blend target's x
     /* 0x96  */ u16 blendOffsetY; // and to its y
     /* 0x98  */ s16 frame; // frame of the animation script; -1 = stopped
@@ -303,7 +310,7 @@ typedef struct {
     /* 0xA0  */ u8* pScriptCursor; // the command being run
     /* 0xA4  */ u8* pScriptStart; // where pScriptCursor restarts each loop
     /* 0xA8  */ void* pModelFile;
-    /* 0xAC  */ void* unkAC;
+    /* 0xAC  */ void* pModelSource; // the model's source record; LibGearFreeModel releases it
     /* 0xB0  */ void* pSoundBank1; // the record whose +8 is the SEDS entry of battle sound bank 1
     /* 0xB4  */ void* pSoundBank2; // and bank 2
     /* 0xB8  */ POLY_FT4 polys[2];
