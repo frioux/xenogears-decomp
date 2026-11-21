@@ -60,7 +60,6 @@
 // Temp3::opcode values LibGearSetJointRotation and LibGearMoveJointToPoint queue
 
 // Temp3::type value meaning the object holds no queued command
-#define LIBGEAR_JOINT_OBJECT_TYPE_NONE 0xFF
 
 // Interpolation curves LibGearGetInterpolationFunc picks by type; 0 (the default) is the sine
 #define LIBGEAR_INTERPOLATE_RISE 1

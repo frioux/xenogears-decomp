@@ -98,6 +98,11 @@ typedef struct {
     /* 0x6 */ short curIndex;
 } VertexBuffer;
 
+// Temp3::type of a joint object with no queued command: LibGearReleaseSkeletonObjects
+// releases a component only when its type is not this, and LibGearFreeModel's by-type
+// sweep passes it.
+#define LIBGEAR_JOINT_OBJECT_TYPE_NONE 0xFF
+
 /* Unknown list */
 struct _Temp3 {
     /* 0x0  */ u8 inUse;
