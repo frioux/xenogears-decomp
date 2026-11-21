@@ -249,6 +249,19 @@ typedef union {
     } fields;
 } ActorScriptFlags;
 
+// Snapshot of the script arguments, allocated on the heap behind
+// ActorData::pScriptArgs by the indirect-argument handlers.
+typedef struct {
+    /* 0x0 */ u16 arg1;
+    /* 0x2 */ u16 arg2;
+    /* 0x4 */ u16 arg3;
+    /* 0x6 */ u16 arg4;
+    /* 0x8 */ u16 arg5;
+    /* 0xA */ u16 arg6;
+    /* 0xC */ u16 arg7;
+    /* 0xE */ u16 arg8;
+} FieldScriptArgs; // Size: 0x10
+
 typedef struct {
     /* 0x0 */ ActorScriptFlags scriptFlags;
 
@@ -317,7 +330,7 @@ typedef struct {
     /* 0x10C */ u_char soundVolume;
     /* 0x10D */ u_char soundState; // FIELD_ACTOR_SOUND_STATE_NONE = no proximity sound for this actor
     /* 0x110 */ void* pTargetTrack; // FieldActorTargetTrack, 0xC bytes on the heap
-    /* 0x114 */ void* pScriptArgs; // FieldScriptArgs, 0x10 bytes on the heap
+    /* 0x114 */ FieldScriptArgs* pScriptArgs;
     /* 0x118 */ void* pScriptWorkWords; // One u_int work word per model script
     /* 0x11C */ short lockedRotationY; // rotation.vy frozen when movement is disabled
     /* 0x11E */ short updateAngle; // Per-frame angle step of FieldMathUpdateAngle
