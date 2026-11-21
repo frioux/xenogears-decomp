@@ -420,22 +420,11 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
-/* 99.22% (508 bytes against retail's 512): the array-extern spelling for
-   g_BattlePrimStartIndex plus `g_BattleGraphicsWork->pPacketPrims` reproduces
-   retail's `lui s3/addiu s3` + `lw 0(s3)` per call, and every other instruction
-   matches (geometry, RECT, both string draws, HeapFree). 87.45 -> 99.22 in one
-   edit. Residual: the same single `andi s0,s0,0xffff` retail emits at index's
-   first use that func_8009382C is missing -- gcc 2.6.0 proves the u16 range
-   (u8 table load * 0x20 + (u8 * 2 + u8) * 2 fits) and drops the truncation, so
-   the body is 4 bytes short. Round 323 probed this to a dead end (see the note
-   under func_8009382C): 35 spellings of a bounded `u16 index` all fold, and the
-   only operands that keep the mask are unbounded ones that cost an extra
-   instruction. */
-/*
 void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     RECT rect;
     u8 *pBuf;
     u16 index;
+    s32 altEntry;
     s32 len1;
     s32 len2;
 
@@ -444,10 +433,13 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     } else {
         index = g_GameState.characters[g_BattleActorCharIds[arg0]].gearId * 0x20 + (arg2 * 2 + arg1) * 2;
     }
+    altEntry = 1;
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     len1 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index), pBuf, 0x39, 0);
-    len2 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index | 1), pBuf, 0x39, 1);
+    // load-bearing s32: cc1 keeps the HImode index's zero-extension only when the
+    // OR's right operand is a register, not the constant 1.
+    len2 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index | altEntry), pBuf, 0x39, 1);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -457,8 +449,6 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x2D0)), 0x30, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
 void BattleDrawCharStatusIfFlagged(u8 arg0, u8 arg1, u8 arg2) {
     u8 ret = 0;
 
@@ -1042,38 +1032,22 @@ void func_80093578(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x37E) = pal;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
-/* 99.04% (412 bytes against retail's 416): the array-extern spelling from
-   func_8009209C closed the &g_BattlePrimStartIndex wall here too -- retail's
-   `lui s3/addu s3` + `lw 0(s3)` per call is reproduced exactly, and every other
-   instruction is identical. The whole remainder is the one `andi s0,s0,0xffff`
-   retail emits at index's FIRST use (the truncation of the u16 local):
-   gcc 2.6.0 proves the range (u8 load * 4 + u8, * 2 -> <= 2550) and drops the
-   mask, so the body is 4 bytes short and cannot link. The mask is a HImode
-   value's zero-extension and cc1 keeps it only when nonzero_bits cannot bound
-   the operand; round 323 measured 35 spellings (u16 / s16 / s32 / u32 local,
-   volatile, bitfield, struct member, one-element array, declaration initialiser,
-   second `u16` copy, `s16` round trip, unprototyped callee, `u16` parameter on
-   the callee, `& 0xFFFF`, `| 0`, `index = index;`, `(u16)` at the use, the
-   three-statement HImode form, both arms of an if/else) and every one emits
-   retail's stream minus that instruction, under 2.6.0, 2.7.2 and 2.7.2-cdk
-   alike. The forms that do keep it are a call result, an `s32` global load,
-   `x % k` (func_80093B08's own mask on `x - (x/10)*10`) and a HImode compare,
-   each of which adds an instruction here. Measured dead earlier too: an s32
-   index with an explicit `(u16)(...)` initialiser, and gcc-2.7.2 (98.85). */
-/*
 void func_8009382C(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
     u16 index;
+    s32 altEntry;
     s32 len1;
     s32 len2;
 
     index = (g_BattleSlotTextIndex[arg0 * 0x170] * 4 + arg1) * 2;
+    altEntry = 1;
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     len1 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index), pBuf, 0x39, 0);
-    len2 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index | 1), pBuf, 0x39, 1);
+    // load-bearing s32, as in func_80091B38: cc1 keeps the HImode index's
+    // zero-extension only when the OR's right operand is a register.
+    len2 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index | altEntry), pBuf, 0x39, 1);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -1083,7 +1057,6 @@ void func_8009382C(u8 arg0, u8 arg1) {
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x2D0)), 0x88, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
-*/
 // objdiff stays at 99.87 because retail names the per-slot row table g_BattleSlotStatusRows where
 // this body reaches the same word as g_BattleWorkBlock[slot].conditionFlags (reloc addend only).
 void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
