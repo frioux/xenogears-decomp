@@ -102,7 +102,8 @@ typedef struct {
 
 // One 0x10-byte row of the per-tile-shape axis table at g_WorldMapTileShapeAxis (the same
 // bytes as g_WorldMapCameraPathHeightsMode7 + 0x28, which another unit reads as a
-// plain s16 array): the x/z direction a position is projected on.
+// plain s16 array): the x/z direction a position is projected on. g_WorldMapTileDiagonalAxes
+// is two rows of the same shape.
 typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ u8 unk4[4];
@@ -131,10 +132,7 @@ extern WorldMapTileKindRow g_WorldMapTileKindTable[];
 extern WorldMapTileShapeAxis g_WorldMapTileShapeAxis[];
 extern s32 g_WorldMapGridAngle;
 extern s32 g_WorldMapGridShadePhase;
-extern s32 g_WorldMapTileDiagonalAxes;
-extern s32 D_8009B24C;
-extern s32 D_8009B254;
-extern s32 D_8009B25C;
+extern WorldMapTileShapeAxis g_WorldMapTileDiagonalAxes[2];
 extern WorldMapTileCell* g_WorldMapTileCellPointers[];
 extern s32 g_WorldMapTileShapeHalfAxis[];
 extern s32 g_WorldMapTileShapeHalfAxisZ[];
@@ -464,10 +462,12 @@ void WorldMapBuildTilePlaneNormal(WorldMapPos* pNormal, s32 x, s32 z) {
     // own registers.
     x = (u16)(x / 8);
     z = (u16)(z / 8);
-    // sum picks which of the two edge pairs of the quad the position is nearer;
+    // sum picks which of the two edge pairs of the quad the position is nearer: the
+    // cell's up-corner flag selects which of the table's two diagonal axes the
+    // position is measured against.
     // it is written as a negated term so the compiler emits retail's negu+mult+addu.
     if (pCell->flags & WORLD_MAP_ZONE_CELL_UP_CORNER) {
-        sum = x * D_8009B254 + (-z) * D_8009B25C;
+        sum = x * g_WorldMapTileDiagonalAxes[1].x + (-z) * g_WorldMapTileDiagonalAxes[1].z;
         if (sum < 0) {
             *(s32*)0x1F800000 = 0x10;
             *(s32*)0x1F800008 = -0x10;
@@ -484,7 +484,7 @@ void WorldMapBuildTilePlaneNormal(WorldMapPos* pNormal, s32 x, s32 z) {
             *(s32*)0x1F800014 = pCell[10].height - pCell[0].height;
         }
     } else {
-        sum = (x - 0x10000) * g_WorldMapTileDiagonalAxes + (-z) * D_8009B24C;
+        sum = (x - 0x10000) * g_WorldMapTileDiagonalAxes[0].x + (-z) * g_WorldMapTileDiagonalAxes[0].z;
         if (sum < 0) {
             *(s32*)0x1F800000 = -0x10;
             *(s32*)0x1F800008 = -0x10;
@@ -509,19 +509,19 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     WorldMapPos a;
     WorldMapPos b;
     WorldMapPos c;
-    u8* pTile;
+    WorldMapTileZoneCell* pCell;
 
-    pTile = WorldMapGetTileEntry(x, z);
+    pCell = (WorldMapTileZoneCell*)WorldMapGetTileEntry(x, z);
     a.x = (u16)(x / 8);
     a.z = -(u16)(z / 8);
-    if (pTile[1] & WORLD_MAP_ZONE_CELL_UP_CORNER) {
+    if (pCell->flags & WORLD_MAP_ZONE_CELL_UP_CORNER) {
         b.x = 0;
         b.z = 0;
-        b.y = (s8)pTile[0] << 12;
+        b.y = pCell->height << 12;
     } else {
         b.x = 0x10000;
         b.z = 0;
-        b.y = (s8)pTile[4] << 12;
+        b.y = pCell[1].height << 12;
     }
     WorldMapBuildTilePlaneNormal(&c, x, z);
     WorldMapInterpolatePlaneHeight(&a, &b, &c);
@@ -685,7 +685,10 @@ s32 WorldMapGetTileAttrBits10To15(WorldMapPos* p) {
 }
 
 s32 WorldMapGetTileGroup(WorldMapPos* p) {
-    return (WorldMapGetTileEntry(p->x, p->z)[3] >> 2) & 0xF;
+    WorldMapTileZoneCell* pCell;
+
+    pCell = (WorldMapTileZoneCell*)WorldMapGetTileEntry(p->x, p->z);
+    return (pCell->unk3 >> 2) & 0xF;
 }
 
 s16 WorldMapGetTileKindValue(s16 row, s16 col) {
@@ -713,12 +716,15 @@ s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMa
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
-/* best: 98.21% (112 bytes, original 112). Instruction sequence and sizes are
-   identical; the only delta is register choice: gcc swaps the two loads and
-   puts the dz difference's operand load in the dying a0, and picks a3/v0 for
-   the two mflo results where the original has a2/v1. Six declaration orders of
-   {dx,dz,sum} all give exactly 98.21%; split-statement (dx = p0->x; dx -= p1->x)
-   forms are 91.79, single-expression 72.86. Allocator tie.
+/* best: 98.21% (112 bytes, original 112). Instruction sequence, size, mult/mflo
+   placement and the branches are identical; only register CHOICE differs: retail
+   ties each difference's dest to its minuend (subu v0,v0,v1) and takes the two
+   mflo results in a2/v1, this build ties the dest to the subtrahend
+   (subu v0,v1,v0, loads v1,v0) and takes a3/v0. Six declaration orders of
+   {dx,dz,sum}, a single reused d local, and split-statement (d = p0->x;
+   d -= p1->x) forms measured: 98.21 / 98.21 / 91.79. A 4-minute permuter run
+   (2193 iterations, base=50 best=30) found only a semantically identical
+   duplicated negu. Allocator tie.
 
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     s32 dx;
