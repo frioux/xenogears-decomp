@@ -411,3 +411,4 @@ g_MenuGearWindowIconTexIds = 0x801EA39C;
 g_MenuSavedCdSyncCallback = 0x801EA718;
 g_MenuSavedCdReadyCallback = 0x801EA71C;
 g_MenuSavedCdReadCallback = 0x801EA720;
+g_MenuColumnShadeMasks = 0x801E97F0;

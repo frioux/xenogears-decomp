@@ -49,7 +49,7 @@ extern u8 D_801E9785;
 extern u8 g_MenuRowDigitTextureIds[]; // u8 [13][5] texture ids; the per-character column masks follow it
 // One 16-bit column mask per character: column i of a character is drawn in the
 // ink colour unless its bit is clear.
-extern u16 D_801E97F0[];
+extern u16 g_MenuColumnShadeMasks[];
 extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
 extern u16 D_801E97A0[][2];
@@ -608,7 +608,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
    reading the record; the i == 0xC / kind != 2 arm re-reads
    g_GameState.characters[...].mp in full. Data: the panel tail reads are three
    separate arrays (g_MenuEquipmentSlotRowY, D_801E9DDC, D_801E9E14) and the
-   column masks are D_801E97F0 - spelling them as offsets off
+   column masks are g_MenuColumnShadeMasks - spelling them as offsets off
    g_MenuEquipmentSlotRowY / g_MenuRowDigitTextureIds costs a phantom 0x58 giv
    base. Not permuted from this body. */
 /*
@@ -742,7 +742,7 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
                 switch (arg1) {
                 case 0:
-                    if (MenuAndBitMaskLsbFirst(D_801E97F0[g_Menu->pManager->currentCharacterIDs[arg0]], i) == 0 ||
+                    if (MenuAndBitMaskLsbFirst(g_MenuColumnShadeMasks[g_Menu->pManager->currentCharacterIDs[arg0]], i) == 0 ||
                         available < value) {
                         shade = 0;
                     }
