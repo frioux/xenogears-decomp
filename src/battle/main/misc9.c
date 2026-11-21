@@ -55,7 +55,20 @@ extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 
-/* R309: 89.33% (340 bytes, retail 348) using func_8007DE78's solved tail - a
+/* R370: 93.64% (344 bytes; retail 348 = 87 insns). The family's row-base copy
+   (residual (b), 89.33 -> 93.64) IS source-controllable: give the LOOP its own
+   pointer local (`pField = pRow;` after the head store, the loop reads pField) and
+   cc1 keeps the sum pseudo live past the copy, so it emits retail's
+   `addu v1,v1,v0` / `move s5,v1` instead of coalescing the two. Not measured yet
+   on DE78/DA1C/DB78/DCF8/DFD4, which share the shape. Remaining: ONE instruction,
+   the `i++`. Retail's `addiu s1,s1,1` is in the beqz delay slot right after the
+   ClearRecordIdle call, so its source incremented i BETWEEN the call and the test;
+   with `idx = i++` cc1 emits the increment at the loop head and reorg copies
+   `slti v0,s1,3` into the FIRST slot instead of the second - 1 short, cannot link.
+   Measured worse on top of the two-pointer body: `s32 idle` and `u8 idle` holding
+   the call result with `i++` between call and test (87.10%, 332 bytes; idx/i move
+   to s2/s0 and the body loses 4 instructions). The body below is the 93.64 one.
+   ---- R309 (superseded): 89.33% (340 bytes, retail 348) using func_8007DE78's solved tail - a
    `u16 value` local, then `u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 +
    (s32)g_BattleSlotWordRegs);` and `pOut[(*arg0)[2]] = value;` reproduces
    retail's andi/sll/lw p/lui/addiu/lbu p[2]/addu/sll/addu/sh exactly. The 2
@@ -113,12 +126,14 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
     s32 count = 0;
     s32 idx;
     u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    u16 *pField;
 
     pRow[(*arg0)[2]] = 0;
+    pField = pRow;
     do {
         idx = i++;
         if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
-            if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
+            if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
             }
