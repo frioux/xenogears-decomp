@@ -9,6 +9,10 @@ extern int func_800286CC(void);
 #define ARCHIVE_DEBUG_BLOCK_HEADER_SIZE 0x20
 #define ARCHIVE_STREAM_FILE_READY 3
 
+// Sectors of the archive that hold the directory table and the file offset table.
+#define ARCHIVE_TABLE_SECTOR 0x18
+#define ARCHIVE_HEADER_SECTOR 0x28
+
 extern s32 g_ArchiveCurFileSector;
 
 extern s32 g_ArchiveStreamQueue;
@@ -25,6 +29,28 @@ extern s32 g_ArchiveDebugStreamSector;  // debug stream: sector buffer being spl
 extern s32 g_ArchiveDebugStreamPayload;  // debug stream: payload cursor inside that sector
 extern s16 g_ArchiveDebugStreamBlockCount;  // debug stream: sub-blocks in that sector
 extern u16 D_8005A4B8;  // debug stream: sector header word at +8
+
+// Stream file: the section count, then a section table of `sectionCount` entries.
+// The payload starts STREAM_FILE_HEADER_SIZE past the count, so the table has room
+// for its first entries inside the header.
+typedef struct {
+    /* 0x0 */ s32 sectionCount;
+    /* 0x4 */ ArchiveStreamFileSectionHeader sections[1];
+} ArchiveStreamFileHeader;
+
+// Archive header table, read from sector ARCHIVE_HEADER_SECTOR in ArchiveInit: one
+// sector offset per directory entry, then the disc number.
+typedef struct {
+    /* 0x0  */ u16 sectorOffsets[60];
+    /* 0x78 */ u16 discNumber;
+} ArchiveHeaderTable; // Size: 0x7A
+
+// Archive directory entry: a 3-byte sector index and a 4-byte size, both stored
+// little-endian by the PC tools that built the archive.
+typedef struct {
+    /* 0x0 */ u8 sector[3];
+    /* 0x3 */ u8 size[4];
+} ArchiveEntry; // Size: 0x7
 
 void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
     g_ArchiveCdReadStartCount = 0;
@@ -43,8 +69,8 @@ void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
         CdDataCallback(0);
         CdSyncCallback(NULL);
         CdReadyCallback(NULL);
-        CdControl(7, 0, &D_80059F1C);
-        ArchiveCdSetMode(0xA0);
+        CdControl(CdlStandby, 0, &D_80059F1C);
+        ArchiveCdSetMode(CdlModeSpeed | CdlModeSize1);
         ArchiveCdDataSync(0);
         Vsync(3);
     } else {
@@ -66,9 +92,9 @@ void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
     g_ArchiveDebugFileHandle = -1;
     
     if (!pDebugTable) {
-        ArchiveReadFileFromCdSector(0x18, pArchiveTable, (0x10 * CD_SECTOR_SIZE), 0, 0);
+        ArchiveReadFileFromCdSector(ARCHIVE_TABLE_SECTOR, pArchiveTable, (0x10 * CD_SECTOR_SIZE), 0, 0);
         ArchiveCdDataSync(0);
-        ArchiveReadFileFromCdSector(0x28, g_ArchiveHeader, 0x7A, 0, 0);
+        ArchiveReadFileFromCdSector(ARCHIVE_HEADER_SECTOR, g_ArchiveHeader, sizeof(ArchiveHeaderTable), 0, 0);
         ArchiveCdDataSync(0);
     }
 }
@@ -77,8 +103,8 @@ void ArchiveReset(void) {
     ArchiveStopTransfer(0);
     ArchiveCdDataSync(0);
     if (g_ArchiveDebugTable == 0) {
-        while (CdControlB(9, 0, &D_80059F1C) == 0);
-        ArchiveCdSetMode(0xA0);
+        while (CdControlB(CdlPause, 0, &D_80059F1C) == 0);
+        ArchiveCdSetMode(CdlModeSpeed | CdlModeSize1);
         ArchiveCdDataSync(0);
         Vsync(3);
     }
@@ -93,7 +119,7 @@ void ArchiveReset(void) {
 int ArchiveSetIndex(int directoryIndex, int entryIndex) {
     s32 nOffset;
 
-    nOffset = ((u_short*)g_ArchiveHeader)[directoryIndex + entryIndex] - 1;
+    nOffset = ((ArchiveHeaderTable*)g_ArchiveHeader)->sectorOffsets[directoryIndex + entryIndex] - 1;
     g_CurArchiveOffset = nOffset;
     if (nOffset < 0) {
         g_CurArchiveOffset = 0;
@@ -107,7 +133,7 @@ int ArchiveGetArchiveOffsetIndices(int* alignedIndex, int* remainder) {
     int nIndex;
     u_short* pArchiveHeaderEntry;
 
-    pArchiveHeaderEntry = g_ArchiveHeader;
+    pArchiveHeaderEntry = ((ArchiveHeaderTable*)g_ArchiveHeader)->sectorOffsets;
     nIndex = 0;
     
     while(nIndex < ARCHIVE_MAX_SECTIONS) {
@@ -133,12 +159,12 @@ int ArchiveGetArchiveOffsetIndices(int* alignedIndex, int* remainder) {
 }
 
 unsigned short ArchiveGetDiscNumber(void) {
-    return *((unsigned short*)(g_ArchiveHeader + 0x78));
+    return ((ArchiveHeaderTable*)g_ArchiveHeader)->discNumber;
 }
 
 int ArchiveGetRelativeEntryIndex(int directoryIndex, int entryIndex) {
     int nOffset;
-    nOffset = ((u_short*)g_ArchiveHeader)[directoryIndex + entryIndex];
+    nOffset = ((ArchiveHeaderTable*)g_ArchiveHeader)->sectorOffsets[directoryIndex + entryIndex];
     return nOffset - g_CurArchiveOffset;
 }
 
@@ -166,7 +192,7 @@ char* ArchiveReadHddFile(char* pFilePath, int* pFileSize) {
         *pFileSize = nFileSize;
     PClseek(hFile, 0, SEEK_SET);
     
-    pFileBuffer = (char*) HeapAlloc(nFileSize, 0x0);
+    pFileBuffer = HeapAlloc(nFileSize, 0);
     nBytesRead = 0;
     if (pFileBuffer) {
         for (i = 0; i < RETRY_COUNT; i++) {
@@ -220,7 +246,7 @@ int ArchiveDecodeSize(int entryIndex) {
     char* pFilepath;
     int hArchiveFile;
     int nFileSize;
-    u8* pArchiveEntry;
+    ArchiveEntry* pEntry;
     u32 nOffset;
     
     if (g_ArchiveDebugTable) {
@@ -233,13 +259,13 @@ int ArchiveDecodeSize(int entryIndex) {
         }
     }
     
-    nOffset = (entryIndex + g_CurArchiveOffset - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
-    pArchiveEntry = nOffset + g_ArchiveTable;
+    nOffset = (entryIndex + g_CurArchiveOffset - 1) * sizeof(ArchiveEntry);
+    pEntry = (ArchiveEntry*)(nOffset + g_ArchiveTable);
     nFileSize = (
-        (pArchiveEntry[6] << 0x18) + 
-        (pArchiveEntry[5] << 0x10) + 
-        (pArchiveEntry[4] << 0x8) + 
-        pArchiveEntry[3]
+        (pEntry->size[3] << 0x18) + 
+        (pEntry->size[2] << 0x10) + 
+        (pEntry->size[1] << 0x8) + 
+        pEntry->size[0]
     );
 
     exit:
@@ -251,7 +277,7 @@ int ArchiveDecodeSizeAligned(int entryIndex) {
     char* pFilepath;
     int hArchiveFile;
     int nFileSize;
-    u8* pArchiveEntry;
+    ArchiveEntry* pEntry;
     u32 nOffset;
     
     if (g_ArchiveDebugTable) {
@@ -264,13 +290,13 @@ int ArchiveDecodeSizeAligned(int entryIndex) {
         }
     }
     
-    nOffset = (entryIndex + g_ArchiveHeaderOffsetBase - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
-    pArchiveEntry = nOffset + g_ArchiveTable;
+    nOffset = (entryIndex + g_ArchiveHeaderOffsetBase - 1) * sizeof(ArchiveEntry);
+    pEntry = (ArchiveEntry*)(nOffset + g_ArchiveTable);
     nFileSize = (
-        (pArchiveEntry[6] << 0x18) + 
-        (pArchiveEntry[5] << 0x10) + 
-        (pArchiveEntry[4] << 0x8) + 
-        pArchiveEntry[3]
+        (pEntry->size[3] << 0x18) + 
+        (pEntry->size[2] << 0x10) + 
+        (pEntry->size[1] << 0x8) + 
+        pEntry->size[0]
     );
 
     exit:
@@ -290,16 +316,16 @@ int ArchiveDecodeAlignedSize(unsigned int entryIndex) {
 
 int ArchiveDecodeSizeAbsolute(int entryIndex) {
     int nFileSize;
-    u8* pArchiveEntry;
+    ArchiveEntry* pEntry;
     u32 nOffset;
     
-    nOffset = (entryIndex + g_CurArchiveOffset - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
-    pArchiveEntry = nOffset + g_ArchiveTable;
+    nOffset = (entryIndex + g_CurArchiveOffset - 1) * sizeof(ArchiveEntry);
+    pEntry = (ArchiveEntry*)(nOffset + g_ArchiveTable);
     nFileSize = (
-        (pArchiveEntry[6] << 0x18) + 
-        (pArchiveEntry[5] << 0x10) + 
-        (pArchiveEntry[4] << 0x8) + 
-        pArchiveEntry[3]
+        (pEntry->size[3] << 0x18) + 
+        (pEntry->size[2] << 0x10) + 
+        (pEntry->size[1] << 0x8) + 
+        pEntry->size[0]
     );
 
     if (nFileSize >= 0)
@@ -315,29 +341,29 @@ char* ArchiveGetFilePath(int entryIndex) {
     
     if (g_ArchiveDebugTable) {
         nOffset = (entryIndex + g_CurArchiveOffset - 1) * ARCHIVE_ENTRY_NAME_BUFFER_SIZE;
-        return nOffset + g_ArchiveDebugTable;
+        return (char*)(nOffset + g_ArchiveDebugTable);
     }
 
     return NULL;
 }
 
 int ArchiveDecodeSector(int entryIndex) {
-    u_char* pArchiveEntry;
+    ArchiveEntry* pEntry;
     unsigned int nOffset;
 
-    nOffset = (entryIndex + g_CurArchiveOffset - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
-    pArchiveEntry = nOffset + g_ArchiveTable;
-    return (pArchiveEntry[2] << 0x10) + (pArchiveEntry[1] << 0x8) + pArchiveEntry[0];
+    nOffset = (entryIndex + g_CurArchiveOffset - 1) * sizeof(ArchiveEntry);
+    pEntry = (ArchiveEntry*)(nOffset + g_ArchiveTable);
+    return (pEntry->sector[2] << 0x10) + (pEntry->sector[1] << 0x8) + pEntry->sector[0];
 }
 
 // Same as ArchiveDecodeSector, but uses g_ArchiveHeaderOffsetBase as current archive offset
 int ArchiveDecodeSectorAligned(int entryIndex) {
-    u_char* pArchiveEntry;
+    ArchiveEntry* pEntry;
     unsigned int nOffset;
 
-    nOffset = (entryIndex + g_ArchiveHeaderOffsetBase - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
-    pArchiveEntry = nOffset + g_ArchiveTable;
-    return (pArchiveEntry[2] << 0x10) + (pArchiveEntry[1] << 0x8) + pArchiveEntry[0];
+    nOffset = (entryIndex + g_ArchiveHeaderOffsetBase - 1) * sizeof(ArchiveEntry);
+    pEntry = (ArchiveEntry*)(nOffset + g_ArchiveTable);
+    return (pEntry->sector[2] << 0x10) + (pEntry->sector[1] << 0x8) + pEntry->sector[0];
 }
 
 
@@ -364,20 +390,20 @@ void* ArchiveChangeStreamingFile(void* pStreamFile) {
 }
 
 int ArchiveClearStreamFileSections(void) {
+    ArchiveStreamFileHeader* pStream;
     int nEntries;
     int i;
-    void* pStreamData;
     ArchiveStreamFileSectionHeader* pCurSectionHeader;
     ArchiveStreamFileSectionHeader* pSectionHeaderStart;
 
-    pStreamData = g_ArchiveCurStreamFile;
-    if (pStreamData == NULL) {
+    pStream = g_ArchiveCurStreamFile;
+    if (pStream == NULL) {
         return -1;
     }
     
     i = 0; 
-    nEntries = *(int*)pStreamData;
-    pSectionHeaderStart = (ArchiveStreamFileSectionHeader*)(pStreamData + 4);
+    nEntries = pStream->sectionCount;
+    pSectionHeaderStart = pStream->sections;
     
     pCurSectionHeader = pSectionHeaderStart;
     while (i < nEntries) {
@@ -552,7 +578,7 @@ int ArchiveCheckStreamFileSectionStates(int sectionIndex, int maxEntries, int ta
                 if (i >= maxEntries)
                     return 0;
                 
-                continue;
+                continue; // load-bearing: without it the loop rotates and the body compiles to 84 bytes
             }
             return 1;
         }
@@ -756,9 +782,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  * }
  */
 
-u_short ArchiveReleaseStreamBlock(u_char* pSection) {
-    u_char* pStream;
-    u_char* pStreamEnd;
+u_short ArchiveReleaseStreamBlock(ArchiveStreamFileSectionHeader* pSection) {
+    ArchiveStreamFileHeader* pStream;
+    u_char* pStreamData;
     ArchiveStreamFileSectionHeader* pSectionHeader;
     u32 nIndex;
     u16 nState;
@@ -771,17 +797,17 @@ u_short ArchiveReleaseStreamBlock(u_char* pSection) {
         return 0;
     }
 
-    pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
-    pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
-    nIndex = (u32)(pSection - pStreamEnd) >> 11;
+    pSectionHeader = pStream->sections;
+    pStreamData = (u_char*)pStream + pStream->sectionCount * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+    nIndex = (u32)((u_char*)pSection - pStreamData) / CD_SECTOR_SIZE;
     nState = pSectionHeader[nIndex].state;
     pSectionHeader[nIndex].state = 0;
     return nState;
 }
 
-u_short ArchiveReleaseStreamSection(u_char* pSection) {
-    u_char* pStream;
-    u_char* pStreamEnd;
+u_short ArchiveReleaseStreamSection(ArchiveStreamFileSectionHeader* pSection) {
+    ArchiveStreamFileHeader* pStream;
+    u_char* pStreamData;
     ArchiveStreamFileSectionHeader* pSectionHeader;
     u32 nIndex;
     u16 nState;
@@ -796,10 +822,10 @@ u_short ArchiveReleaseStreamSection(u_char* pSection) {
         return 0;
     }
 
-    nCount = *(u16*)(pSection + 6);
-    pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
-    pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
-    nIndex = (u32)(pSection - pStreamEnd) >> 11;
+    nCount = pSection->unk2;
+    pSectionHeader = pStream->sections;
+    pStreamData = (u_char*)pStream + pStream->sectionCount * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+    nIndex = (u32)((u_char*)pSection - pStreamData) / CD_SECTOR_SIZE;
     nState = pSectionHeader[nIndex].state;
 
     while (nCount > 0) {
@@ -823,7 +849,7 @@ s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32
     return ArchiveReadFile(0, pDestBuffer, arg3, flags);
 }
 
-s32 ArchiveReadFileToBuffer(s32 index, s32 pBuffer, u32 arg2, u32 flags) {
+s32 ArchiveReadFileToBuffer(s32 index, u8* pBuffer, u32 arg2, u32 flags) {
     if ((index <= 0) || (ArchiveDecodeSize(index) <= 0) || (pBuffer == NULL)) {
         return -3;
     }
