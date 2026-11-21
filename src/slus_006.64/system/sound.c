@@ -4415,20 +4415,20 @@ u8* SoundScriptSetElementRamp(u8* pScript, AudioManager* pAudioManager, AudioEle
 u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 note = pScript[1];
     s16 velocity = pScript[0];
-    s32 unk16;
+    s32 delayReload;
 
     if (note != 0) {
         if (velocity != 0) {
             velocity = velocity + ((s16)velocity * (s16)velocity) / 64;
             pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)velocity, 2);
             pAudioElements->envelopes[1].reload = velocity;
-            unk16 = pScript[2] << 2;
+            delayReload = pScript[2] << 2;
             pAudioElements->envelopes[1].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pAudioElements->envelopes[1].pStepHandler = (undefined32)SoundEnvelopeStepTriangle;
             pAudioElements->envelopes[1].handlerIndex = 2;
             pAudioElements->envelopes[1].target = 1;
             pAudioElements->envelopes[1].flags = 3;
-            pAudioElements->envelopes[1].delayReload = unk16;
+            pAudioElements->envelopes[1].delayReload = delayReload;
             pAudioElements->activeEnvelopeMask |= 0x2;
             SoundResetEnvelope(&pAudioElements->envelopes[1]);
         }
