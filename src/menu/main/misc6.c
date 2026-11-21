@@ -168,7 +168,7 @@ void MenuSetupPointerCursors(u_char a0) {
             for (i = 0; i < 4; i++) {
                 func_8002675C(g_Menu->resources, 0x108, &g_Menu->pCursors->polysCursor[i * 2],
                               g_Menu->renderContext, D_801E9A58[i], D_801E9A68[i], 0x800);
-                g_Menu->pCursors->renderContexts[i] = *(u_char*)&g_Menu->renderContext;
+                g_Menu->pCursors->renderContexts[i] = (u_char)g_Menu->renderContext;
             }
             break;
         case 1:
@@ -176,7 +176,7 @@ void MenuSetupPointerCursors(u_char a0) {
         case 3:
             func_8002675C(g_Menu->resources, 0x108, g_Menu->pCursors->polysCursor,
                           g_Menu->renderContext, 0, 0, 0x800);
-            g_Menu->pCursors->renderContexts[0] = *(u_char*)&g_Menu->renderContext;
+            g_Menu->pCursors->renderContexts[0] = (u_char)g_Menu->renderContext;
             break;
     }
 }
@@ -196,7 +196,7 @@ void MenuLoadSubMenuChoiceStrings(u_char a0) {
         MenuUploadStringTextures(g_Menu->subMenuChoiceStrings, D_801EA534, 4, 6);
         for (i = 0; i < 3; i++) {
             MenuSetQuadVertices(g_Menu->subMenuChoiceStrings[i + 3].vertices, D_801E9E4C[i * 2], D_801E9E58[i * 2], g_Menu->subMenuChoiceStrings[i + 3].width, 0xD);
-            g_Menu->subMenuChoiceStrings[i + 3].renderContext = *(u_char*)&g_Menu->renderContext;
+            g_Menu->subMenuChoiceStrings[i + 3].renderContext = (u_char)g_Menu->renderContext;
             g_Menu->subMenuChoiceStrings[i + 3].hasVertices = 1;
             g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i + 3] = 1;
         }
@@ -215,9 +215,12 @@ void MenuClearSubMenuChoiceFlags(void) {
     }
 }
 void MenuSetSubMenuChoiceStringVertices(void) {
+    // Unused stack that rounds the frame up to retail's 0x60 (0x50 and 99.98 without it)
     u8 pad[0x48];
 
     MenuLoadSubMenuChoiceStrings(0);
+    // Each store re-forms the prim address from g_Menu, so the sum stays inline: a
+    // POLY_FT4* local is 496 bytes/65.41 and polys[renderContext] 660 bytes/93.62.
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16 + D_801E9E94[g_Menu->subMenuChoice][0];
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x1 = D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16 + D_801E9E94[g_Menu->subMenuChoice][0] + g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width;
@@ -226,7 +229,7 @@ void MenuSetSubMenuChoiceStringVertices(void) {
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x3 = D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16 + D_801E9E94[g_Menu->subMenuChoice][0] + g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width;
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].renderContext = (u_char)g_Menu->renderContext;
     g_Menu->pManager->shouldRenderSubMenuChoiceStrings[g_Menu->subMenuChoice] = 1;
 }
 void MenuCreateGoldWindow(void) {
@@ -286,9 +289,9 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
 
     // Wait for the three character panels to finish tweening in
-    while (!((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].isComplete
-        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].isComplete
-        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].isComplete) {
+    while (!((MenuWindowTween*)g_Menu->windowTweens)[0].isComplete
+        && !((MenuWindowTween*)g_Menu->windowTweens)[1].isComplete
+        && !((MenuWindowTween*)g_Menu->windowTweens)[2].isComplete) {
         for (i = 0; i < 3; i++) {
             characterId = g_Menu->pManager->currentCharacterIDs[i];
             if (characterId != CHARACTER_ID_NONE) {
@@ -304,18 +307,18 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
 
     if (isCreate) {
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startX = 0x60;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startY = 6;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startX = 0x68;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startY = 0x3E;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startX = 0x70;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startY = 0x76;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetX =
-            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetY = 0;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetX =
-            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetY = 0;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetX =
-            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetY = 0;
+        ((MenuWindowTween*)g_Menu->windowTweens)[0].startX = 0x60;
+        ((MenuWindowTween*)g_Menu->windowTweens)[0].startY = 6;
+        ((MenuWindowTween*)g_Menu->windowTweens)[1].startX = 0x68;
+        ((MenuWindowTween*)g_Menu->windowTweens)[1].startY = 0x3E;
+        ((MenuWindowTween*)g_Menu->windowTweens)[2].startX = 0x70;
+        ((MenuWindowTween*)g_Menu->windowTweens)[2].startY = 0x76;
+        ((MenuWindowTween*)g_Menu->windowTweens)[0].offsetX =
+            ((MenuWindowTween*)g_Menu->windowTweens)[0].offsetY = 0;
+        ((MenuWindowTween*)g_Menu->windowTweens)[1].offsetX =
+            ((MenuWindowTween*)g_Menu->windowTweens)[1].offsetY = 0;
+        ((MenuWindowTween*)g_Menu->windowTweens)[2].offsetX =
+            ((MenuWindowTween*)g_Menu->windowTweens)[2].offsetY = 0;
         for (i = 0; i < 3; i++) {
             characterId = g_Menu->pManager->currentCharacterIDs[i];
             if (characterId != CHARACTER_ID_NONE) {
@@ -435,7 +438,7 @@ void MenuCreateWindow2Strings(u_char stringIndex) {
         MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], xPosition, (i * 16) + 0xA0, 0,
             (i / 2) * FONT_LETTER_HEIGHT + 0x4E, pString->width, FONT_LETTER_HEIGHT);
         MenuSetQuadVertices(pString->vertices, xPosition, (i * 16) + 0xA0, pString->width, FONT_LETTER_HEIGHT);
-        pString->renderContext = *(u_char*)&g_Menu->renderContext;
+        pString->renderContext = (u_char)g_Menu->renderContext;
         pString->hasVertices = 1;
     }
 
@@ -469,7 +472,7 @@ void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2) {
     func_8002675C(g_Menu->resources, 0x107, (POLY_FT4*)g_Menu->pScrollHandle, g_Menu->renderContext, a0, a1, 0x1000);
     MenuSetQuadVertices(g_Menu->pScrollHandle->vertices, a0, a1, 8, a2);
     // the original reads renderContext as a byte here, but as a word for the arg above
-    g_Menu->pScrollHandle->renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->pScrollHandle->renderContext = (u_char)g_Menu->renderContext;
     g_Menu->pManager->scrollHandleActive = 1;
 }
 void MenuFreeScrollHandle(void) {
@@ -503,7 +506,7 @@ void MenuCreateShoulderButtonUi(u_char a0, u_char a1) {
         MenuSetQuadVertices(pVertices, pPoly->x0, pPoly->y0, pPoly->x1 - pPoly->x0, pPoly->y3 - pPoly->y0);
     }
 
-    g_Menu->pShoulderButtonUi->renderContext = *(u_char*)&g_Menu->renderContext;
+    g_Menu->pShoulderButtonUi->renderContext = (u_char)g_Menu->renderContext;
     g_Menu->pManager->shoulderButtonUiActive = 1;
 }
 void MenuFreeShoulderButtonUi(void) {
@@ -543,7 +546,7 @@ void MenuSetStringTexturePrims(MenuString* pString, u_char index, u_char isGlyph
         MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, D_801EA18C[row].x, u & 0xFC, v, width, FONT_LETTER_HEIGHT);
     }
     MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, FONT_LETTER_HEIGHT);
-    pString->renderContext = *(u_char*)&g_Menu->renderContext;
+    pString->renderContext = (u_char)g_Menu->renderContext;
 }
 
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
