@@ -95,23 +95,6 @@ typedef struct {
     /* 0x58 */ BattleTilePacket tile1;
 } BattleSprite; // Size: 0x68
 
-// 0x10-byte block moved around inside the object built by BattleResetObject.
-typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ u32 unk4;
-    /* 0x8 */ u32 unk8;
-    /* 0xC */ u32 unkC;
-} BattleBlk16; // Size: 0x10
-
-// 0x20-byte matrix template copied wholesale into the two env globals below: the
-// MATRIX layout src/battling/main/misc1.c and misc2.c declare at the same
-// addresses and read .t[0..2] of (the two pad bytes step t to a word boundary).
-typedef struct {
-    /* 0x00 */ s16 m[3][3];
-    /* 0x12 */ u16 pad12;
-    /* 0x14 */ s32 t[3];
-} BattleEnv; // Size: 0x20
-
 // The 0x9C-byte object BattleCreateObject allocates and BattleResetObject clears;
 // src/battling/main/misc14.c declares the same record as Misc14ModelNode, and the
 // links at 0x8C are the ones BattleAppendListEntry walks.
@@ -119,23 +102,21 @@ typedef struct {
     /* 0x00 */ u32 state;
     /* 0x04 */ void* pData;
     /* 0x08 */ void (*pUpdate)(void);
-    /* 0x0C */ BattleBlk16 localMatrixLo; // first half of the local matrix
-    /* 0x1C */ BattleBlk16 localMatrixHi; // second half
+    /* 0x0C */ MATRIX localMatrix;
     /* 0x2C */ SVECTOR sourcePos;
     /* 0x34 */ VECTOR position;
     /* 0x44 */ SVECTOR rotation;
-    /* 0x4C */ BattleBlk16 rotMatrixLo; // first half of the rotation matrix
-    /* 0x5C */ BattleBlk16 rotMatrixHi; // second half
-    /* 0x6C */ BattleEnv matrix;
+    /* 0x4C */ MATRIX rotMatrix;
+    /* 0x6C */ MATRIX matrix;
     /* 0x8C */ BattleListNode* pList;
     /* 0x90 */ BattleListNode* pNext;
     /* 0x94 */ BattleListNode* pHead;
     /* 0x98 */ u32 unk98;
 } BattleMisc12Obj; // Size: 0x9C
 
-extern BattleEnv g_BattleBaseMatrix;
-extern BattleEnv g_BattleScaleMatrix;
-extern BattleEnv g_BattleBaseMatrixCopy;
+extern MATRIX g_BattleBaseMatrix;
+extern MATRIX g_BattleScaleMatrix;
+extern MATRIX g_BattleBaseMatrixCopy;
 
 extern u32 g_BattleOptionFlags;
 extern VECTOR g_BattleViewOrigin;
@@ -798,10 +779,8 @@ BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p) {
     p->sourcePos.vy = 0;
     p->sourcePos.vx = 0;
     p->matrix = g_BattleBaseMatrix;
-    p->rotMatrixLo = *(BattleBlk16*)&p->matrix;
-    p->rotMatrixHi = *((BattleBlk16*)&p->matrix + 1);
-    p->localMatrixLo = p->rotMatrixLo;
-    p->localMatrixHi = p->rotMatrixHi;
+    p->rotMatrix = p->matrix;
+    p->localMatrix = p->rotMatrix;
     return p;
 }
 
