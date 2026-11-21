@@ -373,7 +373,7 @@ extern void FieldFreeScriptDataStream(void);
 // Tears the field down, runs the exit fade the pending g_FieldFadeMode selects
 // and restores the screen. FieldLoad and the stream calls reset the fade state,
 // so the mode and duration are saved around them and written back afterwards.
-void func_800A5C40(void) {
+void FieldUnloadSceneAndFade(void) {
     RECT rect;
     u_long* pStagedBuffer;
     s32 nFadeMode;

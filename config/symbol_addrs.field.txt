@@ -1096,3 +1096,4 @@ FieldScriptVMMovePartyToTargets = 0x8009B398;
 FieldScriptStartCameraShake = 0x8008F90C;
 FieldProbeWalkmeshAtAngle = 0x8007B814;
 FieldGetWallEdgeDirection = 0x8007B6C4;
+FieldUnloadSceneAndFade = 0x800A5C40;
