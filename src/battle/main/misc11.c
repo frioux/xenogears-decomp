@@ -135,27 +135,25 @@ typedef struct {
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
 
-/* 99.39%: two 4-minute permuter runs (base 245 -> 50 -> 40) closed everything
-   except ONE register swap. Retail count=$t0, limit=$t1, color=$t2; this body
-   gives color=$t0, limit=$t1, count=$t2. Their two finds are both load-bearing:
-   - a real `s32 limit;` local assigned in the preheader (`limit = arg0 - 1;`)
-     instead of `i < arg0 - 1` in the test: that is retail's `move t1,v0`, and it
-     took the body from 96.29 to 99.24;
-   - the preheader pair wrapped in `do { limit = arg0 - 1; pSrc = D_800C3202; }
-     while (0);` (schedule as one cluster), 99.24 -> 99.39.
-   What is left is not an allocator accident: `color` is the unit's only
-   block-local quantity (its def and its use are in the do-while's single block),
-   so local_alloc takes $t0 for it before global_alloc hands $t0 to the
-   cross-block `count`. Retail has color LAST, i.e. cross-block, which happens
-   when `color = 0xC` is written INSIDE the loop and loop.c hoists it into its own
-   preheader block - measured: that spelling fixes count/limit ($t0/$t1) but then
-   the 0xC is rematerialised in the loop (96.82, one instruction later per
-   iteration) because the same variable is set twice there (`(color = 0x12)`,
-   which is what keeps retail's in-loop `ori v1,zero,0x12`: as a plain literal
-   loop.c hoists it too, 91.82 with count correct). So the two requirements -
-   color cross-block, and 0xC hoisted while 0x12 is not - cannot be met by one
-   variable spelled from C here. Also measured dead: `shade`/fresh variable for
-   the 0x12 (hoisted, 91.82), `(color = 0x12)` as a separate statement. */
+/* 99.39% (264 bytes, 66 insns - retail's exact size): the residual is ONE
+   register pair swapped. Retail count=$t0, limit=$t1, color=$t2 with the
+   in-loop 0x12 in the caller-saved $v1; this body gives color=$t0 (0xC and
+   0x12 both through it), limit=$t1, count=$t2. cc1 -dg shows color is the FIRST
+   allocno global_alloc processes and count the LAST (priority list "78 79 76"),
+   i.e. colour is weighted as live inside the loop while count is referenced only
+   in the entry block and after the loop - no C spelling moves count's live
+   range. Measured dead: color as s16 (99.39, same swap), as u32/s32/u8 (97.88,
+   +4 bytes), colour declared or assigned first (99.39 / 96.44), *pSrc with
+   pSrc++ (99.09, also moves the pSrc base into $a1), 0xC written inside the
+   loop (96.82, li stays in-loop in $v1 and limit takes $t0), 0x12 as a literal
+   or as 0xC+6 (94.39, GCSE hoists both constants into $t0), and dropping
+   new_var for a plain "if (arg0 > 1)" guard (different allocation, both colour
+   values in $t0). Two 4-minute permuter runs (base 245 -> 50 -> 40) plus a
+   third 3-minute run (PERMUTER_NONE, base 60 best 60, 1368 iterations) found
+   nothing. Retail's 0xC in $t2 and 0x12 in $v1 are two different registers, so
+   the original was not one variable; a plain 0x12 literal is hoisted by GCSE,
+   so that spelling is out too. The two requirements - one hard register for
+   the 0xC and a re-materialised 0x12 - are not reachable from one variable. */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
@@ -188,7 +186,6 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
     g_BattleDisplayState[0x97] = count;
     g_BattleDisplayState[0x98] = *(u8 *)&g_BattlePrimStartIndex;
 }
-
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FBE0);
 
