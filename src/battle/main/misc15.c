@@ -681,33 +681,39 @@ extern void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2);
 extern void BattleDrawColumnSpriteCells(s32 arg0);
 extern void func_8009093C(s32 arg0);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
-/* Best: 99.42% (1156 bytes vs the original's 1160). ONE instruction short and
-   the whole rest is identical instruction for instruction (jump table at
-   .rodata+0x18, both switches' case order 5,4,0,2,1,3 and 1,2,3,4, the 0x70
-   frame, every delay slot). What is missing is a `li s0,1` for the 7th
-   argument of the two BattleInitSlotGraphics calls: retail materialises a fresh 1 (s0)
-   even though `pagePending` is already 1 in s4 at that point, and gcc 2.6
-   reuses s4 (`sw s4,0x18(sp)` and no li), so `sw s0,0x48(sp)` moves up by one
-   slot too. Tried: moving the pagePending/page initialisation after
-   BattleInitPulseTrianglePrims -- that DOES give the fresh li, but the
-   sw/li save pair for s4/s5 then moves from the top of the frame (positions
-   12-15) to just before the calls, which costs 4 mismatched instructions
-   (97.17%); an s32 local for the 7th argument, and a `u8 sel` vs s32 sel
-   (the u8 local is what gives retail's andi on the call result).
-   Permuter: 439 iterations, base=178 best=178.
-   The state arms are stores-before-increments: writing
-   `g_BattleCursorScrollY = (j + 1) * 13; j++; i--;` is what reproduces
-   retail's per-arm `andi v1,(u8)j; addiu v1,v1,1` plus the -1 shared by
-   states 2 and 4 (writing `j++; ... scrollY = j * 13;` gives the
-   rematerialised `andi v1,(u8)j` at the shared tail and is 5 insns short).
-   Round 369: the missing `li s0,1` is local-alloc's constant reuse of the
-   register already holding 1 (pagePending's s4). A source local for the 7th
-   argument (`s32 pageCount = 1;`, passed to both calls) does not break it -
-   identical 1156 b - and a cc1 probe of the same two-call shape reuses the
-   register every time, so the `sw s4` spelling is what gcc 2.6.0 does with a
-   literal 1 when a live register already holds it. */
-/*
+/* Best: 99.42% (1156 bytes vs the original 1160). ONE instruction short and
+   identical instruction for instruction elsewhere (jump table at .rodata+0x18,
+   both switches 5,4,0,2,1,3 and 1,2,3,4, the 0x70 frame, every delay slot).
+   MISSING: `li s0,1` for the 7th argument of the two BattleInitSlotGraphics
+   calls. Retail materialises a fresh 1 into s0 even though pagePending already
+   holds 1 in s4, and gcc 2.6 reuses s4 (`sw s4,0x18(sp)`, no li), which also
+   moves the `sw s0,0x48(sp)` save three slots later and leaves the (u8)result
+   scratch in s1 where retail uses s0.
+   ROUND 392 re-measured: same body, same 1156 bytes, 99.42%.
+   The tie is SImode CONSTANT CSE, proved by mode rather than by spelling:
+   declaring pagePending `u8` makes the arg constant stop matching s4, and the
+   prologue then reproduces retail exactly (sw s0,72(sp) + li s0,1, sw s0,24(sp)
+   at both calls) - but a QI pagePending costs 2 instructions in the loop head
+   (`andi s0,s4,0xFF; beqz s0` for the `!= 0` test, and `page` recomputed as
+   `addiu s5,s0,-1`) = 1164 bytes. The same mode split is already visible in the
+   matched part: the byte store `g_BattleCursorScrollState = 2` gets its own
+   register (s7) next to result in s6. So the answer is NOT a spelling of the
+   literal: every s32 spelling of the value 1 (literal, u8 local, u16 local, an
+   s32 local declared before the calls, pagePending itself) measures 1156.
+   Presets screened on this body: 2.7.2-psx 99.39, 2.6.0 -O1 -G0 69.09,
+   2.6.0 -O3 -G0 93.16 (both -G8 variants fail to build through try_flags);
+   2.6.0 -O2 -G8 stays the best, so this is not a preset question.
+   Permuter (1323 iterations, -j2): base=178 best=163, and the only find hoists
+   `pagePending - 1` into a preheader local and reads it in the loop - WRONG
+   CODE: pagePending becomes 2 in the command arm, so that value is not loop
+   invariant. Rejected; the earlier run (439 iterations, base=178) found nothing.
+   Dead spellings measured earlier and not to be retried: moving the
+   pagePending/page initialisation after BattleInitPulseTrianglePrims (gives the
+   fresh li but moves the s4/s5 save pair out of the frame top, 97.17%), an s32
+   local for the 7th argument, `u8 sel` vs s32 sel.
+   The state arms are stores-before-increments: `g_BattleCursorScrollY = (j + 1) * 13;`
+   then `j++` is what reproduces retail per-arm `andi v1,(u8)j; addiu v1,v1,1`
+   plus the -1 shared by states 2 and 4. *//*
 u8 func_8008BED8(u8 arg0) {
     u8 i;
     u8 j;
@@ -849,6 +855,8 @@ u8 func_8008BED8(u8 arg0) {
     return result;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
+
 void BattleFreeSlotPrims(u8 arg0) {
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
     g_BattleDisplayState->primState = 0;
