@@ -273,6 +273,40 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
    76.6 -> 80.8) produced the pCurPackage split and the texX reuse for tex.y,
    both applied. A third run found only `count = flags;`, which drops the 0x3F
    mask - wrong code, rejected.
+   Round 384 (frame root-caused further; all of this is measured, and the three
+   spellings above were re-verified):
+   - retail's `sw $a2,0x80(sp)` is the o32 register-argument HOME SLOT, not a
+     spill: the home area starts at the callee's frame_size, so a0 is frame+0,
+     a1 +4, a2 +8. Retail's frame is 0x78, and 0x78+8 = 0x80, i.e. pAnimPackage
+     is a MEMORY parameter in its home slot, reloaded (not spilled) at each of
+     its four uses. Same mechanism as the matched battle/main/misc30
+     BattleCreateAnimTask (frame 0x58, `sw $a0,0x58(sp)`, `lw $a1,0x58(sp)`) - so
+     a plain pointer parameter CAN live in the home slot; what is unmeasured is
+     what makes cc1 2.7.2 choose it there instead of in a vars slot. Passing the
+     package BY VALUE reproduces the store and the reloads exactly
+     (`sw $a2,152(sp)` = frame+8, then `lw $t1,152(sp)` + deref, and vars drops
+     88 -> 80), BUT a 0x14-byte struct is passed as two registers plus stack, so
+     cc1 also emits `sw $a3,156(sp)` and reads struct bytes 8..0x14 out of the
+     caller's stack - bytes SpriteAnimFrameListFlush never passes (it loads only
+     a2). So by value is WRONG CODE here and measures 79.58%, not an answer.
+   - the remaining 32 bytes are slot ALIGNMENT, not slot count: this body's vars
+     slots are 0x28,0x30,0x38,...,0x68 - every spill slot 8-byte aligned, 8
+     apart - while retail's are 0x28,0x2C,0x30,0x34,... 4 apart. Retail's ONLY
+     8-aligned slot is unkFlag (visible as the 0x44 hole before its 0x48 slot),
+     which is gcc's BLKmode slot rule (align = BIGGEST_ALIGNMENT = 8). So retail's
+     other ten values sit in mode-sized (4-aligned) slots and ours all sit in
+     BLKmode/reload spills. Count the frame with `.frame` in the cc1 output (or
+     `grep vars=` in build/src/<unit>.c.s) after every change; the .i.lreg /
+     .i.greg dumps next to the input are produced by cc1 -dl -dg and list each
+     pseudo's refs, live length and "crosses N calls".
+   - retail has NO pCurPackage local: the GetClut call reloads the home slot a
+     fourth time (`lw $t1,0x80(sp)`, `lh $v0,8($t1)`, `lh $a1,0xA($t1)`). Writing
+     that faithfully (drop the local, `GetClut(pAnimPackage->clut.x + ...)` in
+     place) measures WORSE - 77.19% / 1672 bytes - because it re-merges the
+     pseudo, so the split below is load-bearing despite being un-retail-like.
+   - not a preset: gcc 2.6.0 gives the identical vars= 88, and gcc 2.7.2-cdk
+     gives vars= 64 (frame 0x80) - closer but still not 56, and the unit cannot
+     switch anyway.
 */
 /*
 void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, SpriteAnimPackage* pAnimPackage) {
@@ -441,6 +475,7 @@ void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, SpriteAnimPackage* pA
         GfxQueueImageTransfer(0, tex.x, tex.y, pBlock[4], pBlock[5]);
     }
 }
+
 */
 
 extern MATRIX g_GfxBaseMatrix;
