@@ -1205,10 +1205,10 @@ extern s32 D_800ADB98;
 int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) {
     VECTOR v;
     SVECTOR out;
-    VECTOR pad[2];
+    VECTOR pad[2];  // dead: reproduces the original's 0x78 frame
     int nAngle;
 
-    nAngle = angle & 0xFFF;
+    nAngle = angle & FIELD_ANGLE_MASK;
     v.vx = pVec->vx + rsin(nAngle) * 64;
     v.vz = pVec->vz - rcos(nAngle) * 64;
     if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
@@ -1218,7 +1218,7 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
         func_8007B6C4(angle, pPoints, &v, 0);
     } else {
         nAngle = angle - 0x100;
-        nAngle &= 0xFFF;
+        nAngle &= FIELD_ANGLE_MASK;
         v.vx = pVec->vx + rsin(nAngle) * 64;
         v.vz = pVec->vz - rcos(nAngle) * 64;
         if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
@@ -1228,7 +1228,7 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
             func_8007B6C4(angle, pPoints, &v, 0);
         } else {
             nAngle = angle + 0x100;
-            nAngle &= 0xFFF;
+            nAngle &= FIELD_ANGLE_MASK;
             v.vx = pVec->vx + rsin(nAngle) * 64;
             v.vz = pVec->vz - rcos(nAngle) * 64;
             if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
