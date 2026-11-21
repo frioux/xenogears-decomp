@@ -418,156 +418,121 @@ int ArchiveClearStreamFileSections(void) {
     return nEntries;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
+u_char* func_80028B14(void) {
+    u_char* pData;
+    ArchiveStreamFileSectionHeader* pHeader;
+    ArchiveStreamFileSectionHeader* pHeaders;
+    StreamDataQueueEntry* pEntry;
+    u_char* pPath;
+    int nSections;
+    int nIndex;
+    int nQueueIndex;
+    int nId;
+    int i;
 
-/* Best: 99.69% at retail's exact 844 bytes. 9 diff rows left, all register names,
- * all inside the queue-reopen block (retail: queue base a0, incremented index v0,
- * entry v1; ours: base v1, index a2, entry v0 - a 3-cycle permutation, so the index
- * is allocated FIRST in retail and LAST in ours).
- *
- * LOAD-BEARING, found this round (took the body 98.25 -> 99.69):
- *  - `pHeader = pHeaders + nIndex;` placed after the increment statement emits the
- *    index-then-addiu order with the sum on nIndex. Writing the sum FIRST, from the
- *    GLOBAL, before `nIndex = g_ArchiveStreamQueueIndex++;` makes cse share the one
- *    load and reproduces retail's exact preheader order (load, sll, addu for pHeader,
- *    then the increment's copy, addiu, store). Both statements are needed.
- *  - the sum must be the index-first CAST form, `(index * sizeof(T) + (u32)pHeaders)`;
- *    `pHeaders + <global>`, `<global> + pHeaders`, and `&pHeaders[<global>]` all emit
- *    retail's `addu a0,a3,v0` instead of `addu a0,v0,a3`.
- *  The g_ArchiveStreamSectionCount-read-in-the-condition and the
- *  `nIndex = g_ArchiveStreamQueueIndex++;` levers from the previous round still hold.
- *
- * The permuter cannot run this body: it rebuilds base.c with its own preprocessor and
- * cc1 then rejects the `pData += nIndex * 0x800` line with "conversion to non-scalar
- * type requested" (spelling the compound assignments out does not help).
- *
- * Measured and rejected for the last 9 rows (all still 99.69/844 unless noted):
- * 5 declaration orders, `extern StreamDataQueueEntry* g_ArchiveStreamQueue` (pointer
- * instead of s32), `pEntry->archiveIndex` instead of the u_short cast, the pData test
- * read back through the base array, storing g_ArchiveStreamQueueIndex before the lhu
- * (98.77, and reorders the store after it), moving the g_ArchiveStreamQueue load
- * outside the if (98.81), `(u8*)base + nIndex * sizeof(T)`, and `nIndex = g_X; nIndex++;`
- * or `nIndex++;` (both 99.31 and they break the OTHER block, because one nIndex pseudo
- * is shared by the two blocks and its live range feeds both allocations). A separate
- * local for this block's index is 840 bytes - one instruction short - so the shared
- * pseudo is load-bearing too. Next lever would be a way to make the index's allocno
- * outrank the entry pointer's; nothing in the source reached it.
- *
- * u_char* func_80028B14(void) {
- *     u_char* pData;
- *     ArchiveStreamFileSectionHeader* pHeader;
- *     ArchiveStreamFileSectionHeader* pHeaders;
- *     StreamDataQueueEntry* pEntry;
- *     u_char* pPath;
- *     int nSections;
- *     int nIndex;
- *     int nId;
- *     int i;
- * 
- *     if (g_ArchiveCurStreamFile == NULL) {
- *         return NULL;
- *     }
- *     pData = g_ArchiveCurStreamFile;
- * 
- *     pHeader = (ArchiveStreamFileSectionHeader*)(pData + 4);
- *     nSections = *(s32*)pData;
- *     pData = pData + nSections * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
- * 
- *     if (g_ArchiveDebugTable != 0) {
- *         if (g_ArchiveDebugFileHandle == -1) {
- *             return NULL;
- *         }
- * 
- *         if (g_ArchiveCurFileSize <= 0) {
- *             return NULL;
- *         }
- * 
- *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
- *             pHeaders = g_ArchiveStreamSections;
- *             pHeader = (ArchiveStreamFileSectionHeader*)(g_ArchiveStreamQueueIndex * sizeof(ArchiveStreamFileSectionHeader) + (u32)pHeaders);
- *             nIndex = g_ArchiveStreamQueueIndex++;
- *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount) {
- *                 g_ArchiveStreamQueueIndex = 0;
- *             }
- *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
- *                 break;
- *             }
- *         }
- * 
- *         if (pHeader->state != ARCHIVE_STREAM_FILE_NOT_LOADED) {
- *             return NULL;
- *         }
- * 
- *         pHeader->state = 3;
- *         pData = pData + nIndex * CD_SECTOR_SIZE;
- * 
- *         for (i = 0; i < RETRY_COUNT; i++) {
- *             if (PCread(g_ArchiveDebugFileHandle, pData, CD_SECTOR_SIZE) != 0) {
- *                 goto readDone;
- *             }
- *             GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
- *         }
- *         return NULL;
- * 
- *     readDone:
- * 
- *         g_ArchiveCurFileSize = g_ArchiveCurFileSize - CD_SECTOR_SIZE;
- *         if (g_ArchiveCurFileSize > 0) {
- *             return pData;
- *         }
- * 
- *         g_ArchiveCurFileSize = 0;
- *         for (i = 0; i < RETRY_COUNT; i++) {
- *             if (PCclose(g_ArchiveDebugFileHandle) == 0) {
- *                 break;
- *             }
- *             GfxDrawArchiveReadRetry(i, 0, 0, 0xFF);
- *         }
- * 
- *         g_ArchiveDebugFileHandle = -1;
- *         if (g_ArchiveStreamQueue != 0) {
- *             nIndex = g_ArchiveStreamQueueIndex + 1;
- *             pEntry = ((StreamDataQueueEntry*)g_ArchiveStreamQueue) + nIndex;
- *             nId = *(u_short*)pEntry;
- *             g_ArchiveStreamQueueIndex = nIndex;
- *             g_ArchiveCurEntryIndex = nId;
- * 
- *             if (nId > 0 && pEntry->pData != NULL) {
- *                 pPath = ArchiveGetFilePath(nId);
- *                 for (i = 0; i < RETRY_COUNT; i++) {
- *                     g_ArchiveDebugFileHandle = PCopen(pPath, 0, 0);
- *                     if (g_ArchiveDebugFileHandle != -1) {
- *                         break;
- *                     }
- *                     GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
- *                 }
- *                 g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
- *                 g_ArchivePendingReadCount = g_ArchivePendingReadCount - 1;
- *                 return pData;
- *             }
- * 
- *             g_ArchiveCurFileSize = 0;
- *         }
- * 
- *         g_ArchivePendingReadCount = 0;
- *         return pData;
- *     }
- * 
- *     for (i = 0; i < nSections; i++, pHeader++) {
- *         if (pHeader->state == 3 && pHeader->id == g_ArchiveStreamReadSectionId) {
- *             break;
- *         }
- *     }
- * 
- *     if (i == g_ArchiveStreamSectionCount) {
- *         return NULL;
- *     }
- * 
- *     g_ArchiveStreamReadSectionId += 1;
- *     return pData + i * CD_SECTOR_SIZE;
- * }
- *
- */
+    if (g_ArchiveCurStreamFile == NULL) {
+        return NULL;
+    }
+    pData = g_ArchiveCurStreamFile;
+
+    pHeader = (ArchiveStreamFileSectionHeader*)(pData + 4);
+    nSections = *(s32*)pData;
+    pData = pData + nSections * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+
+    if (g_ArchiveDebugTable != 0) {
+        if (g_ArchiveDebugFileHandle == -1) {
+            return NULL;
+        }
+
+        if (g_ArchiveCurFileSize <= 0) {
+            return NULL;
+        }
+
+        for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
+            pHeaders = g_ArchiveStreamSections;
+            pHeader = (ArchiveStreamFileSectionHeader*)(g_ArchiveStreamQueueIndex * sizeof(ArchiveStreamFileSectionHeader) + (u32)pHeaders);
+            nIndex = g_ArchiveStreamQueueIndex;
+            g_ArchiveStreamQueueIndex = nIndex + 1;
+            if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount) {
+                g_ArchiveStreamQueueIndex = 0;
+            }
+            if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
+                break;
+            }
+        }
+
+        if (pHeader->state != ARCHIVE_STREAM_FILE_NOT_LOADED) {
+            return NULL;
+        }
+
+        pHeader->state = 3;
+        pData = pData + nIndex * CD_SECTOR_SIZE;
+
+        for (i = 0; i < RETRY_COUNT; i++) {
+            if (PCread(g_ArchiveDebugFileHandle, pData, CD_SECTOR_SIZE) != 0) {
+                goto readDone;
+            }
+            GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
+        }
+        return NULL;
+
+    readDone:
+
+        g_ArchiveCurFileSize = g_ArchiveCurFileSize - CD_SECTOR_SIZE;
+        if (g_ArchiveCurFileSize > 0) {
+            return pData;
+        }
+
+        g_ArchiveCurFileSize = 0;
+        for (i = 0; i < RETRY_COUNT; i++) {
+            if (PCclose(g_ArchiveDebugFileHandle) == 0) {
+                break;
+            }
+            GfxDrawArchiveReadRetry(i, 0, 0, 0xFF);
+        }
+
+        g_ArchiveDebugFileHandle = -1;
+        if (g_ArchiveStreamQueue != 0) {
+            nQueueIndex = g_ArchiveStreamQueueIndex + 1;
+            pEntry = ((StreamDataQueueEntry*)g_ArchiveStreamQueue) + nQueueIndex;
+            nId = *(u_short*)pEntry;
+            g_ArchiveStreamQueueIndex = nQueueIndex;
+            g_ArchiveCurEntryIndex = nId;
+
+            if (nId > 0 && pEntry->pData != NULL) {
+                pPath = ArchiveGetFilePath(nId);
+                for (i = 0; i < RETRY_COUNT; i++) {
+                    g_ArchiveDebugFileHandle = PCopen(pPath, 0, 0);
+                    if (g_ArchiveDebugFileHandle != -1) {
+                        break;
+                    }
+                    GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
+                }
+                g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
+                g_ArchivePendingReadCount = g_ArchivePendingReadCount - 1;
+                return pData;
+            }
+
+            g_ArchiveCurFileSize = 0;
+        }
+
+        g_ArchivePendingReadCount = 0;
+        return pData;
+    }
+
+    for (i = 0; i < nSections; i++, pHeader++) {
+        if (pHeader->state == 3 && pHeader->id == g_ArchiveStreamReadSectionId) {
+            break;
+        }
+    }
+
+    if (i == g_ArchiveStreamSectionCount) {
+        return NULL;
+    }
+
+    g_ArchiveStreamReadSectionId += 1;
+    return pData + i * CD_SECTOR_SIZE;
+}
 
 int ArchiveCheckStreamFileSectionStates(int sectionIndex, int maxEntries, int targetState) {
     int i;
