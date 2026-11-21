@@ -54,7 +54,7 @@ typedef struct {
     /* 0x4A */ s16 moveSpeed;
     /* 0x4C */ void* pSprite;
     /* 0x50 */ s32 targetX;
-    /* 0x54 */ void* targetZ;
+    /* 0x54 */ s32 targetZ;
     /* 0x58 */ s32 trailDelay;
     /* 0x5C */ s32 drawAngle;
     /* 0x60 */ undefined32 unk60[8]; // 0x60..0x7F
@@ -115,7 +115,7 @@ typedef struct {
 } WorldMapTrailEntry; // Size: 0x4C
 
 typedef struct {
-    /* 0x00 */ undefined32 lifeTimerInit; // what lifeTimer is armed with when the slot is claimed
+    /* 0x00 */ u32 lifeTimerInit; // what lifeTimer is armed with when the slot is claimed
     /* 0x04 */ u32 lifeTimer;
     /* 0x08 */ s16 maxCount;
     /* 0x0A */ u16 count;
