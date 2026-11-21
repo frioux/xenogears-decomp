@@ -37,12 +37,16 @@ FIELD_UNKNOWN <Struct>.unk<offset> - what the uses do show, so the next reader s
 then the check_bin.sh result for each bin.`;
 
 const KEY = (w, i) => "f" + i + "_" + w.file.replace(/^(src|include)\//, "").replace(/\.[ch]$/, "").replace(/\//g, "-");
-// Rolling launch. The plan allows two foreground (not -background) agents at a time, so the
-// first `fg` workers (default 2) run on FG_MODEL and the rest on the subagent default, the
-// -background model. When a foreground worker ends, its lane starts the next entry of
-// args.queue at once (same shape as a worker, its own clone and its own file), so the
-// foreground slots stay busy instead of idling until the slowest background worker ends.
-// A failed or timed-out worker comes back as {key, ok: false, error}; its lane carries on.
+// Rolling launch. Every entry of args.workers is a lane, so workers.length is the concurrency
+// and args.queue is the backlog: when a lane's worker ends (done, failed or timed out), the
+// lane starts the next queue entry at once (same shape as a worker, its own clone and its own
+// file), foreground and background lanes alike. The first `fg` lanes (default 2; the plan
+// allows two foreground agents at a time) run on FG_MODEL, the rest on the subagent default,
+// the -background model; `fg: 0` makes every lane background. A worker's optional `model`
+// (e.g. "lunaroute/glm-5.3-background") overrides its lane's model. runs.run has no thinking
+// option (the docs say `thinking` is ignored on dispatch); a level rides on the model id as a
+// ":high" suffix, so put it in the worker's `model`. A failed or timed-out worker comes back as
+// {key, ok: false, error}; its lane carries on.
 const FG_MODEL = "lunaroute/deepseek-4.1-flash";
 const queue = [...(args.queue || [])];
 const first = [...args.workers];
@@ -51,8 +55,9 @@ while (first.length < fg && queue.length) first.push(queue.shift());
 let launched = 0;
 const launch = (w, model) => {
   const key = KEY(w, launched++);
-  return runs.run(key, { agent: "worker", task: HEADER(w), cwd: w.tree, ...(w.minutes ? { maxRuntimeMs: w.minutes * 60000 } : {}), ...(model ? { model } : {}) })
+  const m = w.model || model;
+  return runs.run(key, { agent: "worker", task: HEADER(w), cwd: w.tree, ...(w.minutes ? { maxRuntimeMs: w.minutes * 60000 } : {}), ...(m ? { model: m } : {}) })
     .then((r) => r, (e) => ({ key, ok: false, error: String((e && e.message) || e) }));
 };
-const lane = (w) => launch(w, FG_MODEL).then((r) => (queue.length ? lane(queue.shift()).then((rest) => [r, ...rest]) : [r]));
-return Promise.all(first.map((w, i) => (i < fg ? lane(w) : launch(w).then((r) => [r])))).then((lanes) => lanes.flat());
+const lane = (w, model) => launch(w, model).then((r) => (queue.length ? lane(queue.shift(), model).then((rest) => [r, ...rest]) : [r]));
+return Promise.all(first.map((w, i) => lane(w, i < fg ? FG_MODEL : undefined))).then((lanes) => lanes.flat());
