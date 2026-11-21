@@ -3314,58 +3314,27 @@ void func_801E63A8(Model* pModel) {
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
 
-// objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
-// loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
-// callee-saved assignments -- pList s3, pSkeleton s4, pChild s2, pTargetSkeleton
-// s5, numChildren s6 -- do match). Declaration orders, for/while, u_short
-// numChildren, moving pChild++ to the loop tail, an explicit `s32 offset` local,
-// `u_short i` (adds 8 bytes, order becomes pJoint/pChild/i), hoisting `i = 1`
-// into the declarations (same), `u32 i` (96.80%), `register int i` and
-// `register ModelJoint* pJoint` (both same) all leave the pair alone or score
-// lower. `pSkeleton + jointIndex` instead of the s32 cast gives 98.30%: it
-// swaps the addu operands to `addu s1,s4,v0` without touching s0/s1. Since both
-// builds emit the same insns in the same order, the choice comes from the
-// pseudo order/ties local-alloc resolves, not from anything in the body.
-// Also tried since: `int i;` declared first with the pointers after (same swap,
-// pJoint still s1), and reversing the pointer declaration order (same).
-// A `while (i < numChildren) { i++; if (...) {...} pChild++; }` body (i = 1 before
-// the three LibGearFreeJointObject calls) reproduces the original's instruction sequence
-// exactly -- i++ in the bne delay slot, pChild++ in the loop-back delay slot, and
-// `li` in the first jal's delay slot -- so the loop shape is settled; it scores
-// 96.10% because the allocator then swaps BOTH pairs (pJoint s1/i s0 and pSkeleton
-// s5/pTargetSkeleton s4). pTarget as `pTargetSkeleton + jointIndex`, no pTarget
-// local at all, and gcc 2.7.2 (try_flags.sh) all leave that map unchanged, so the
-// remaining gap looks like an allocno tie-break (allocno_compare returns 0 and the
-// original host's qsort ordered ties differently), not a source-level detail.
-// Also tried since (all still 98.63%, same s0/s1 swap): pChild's initialiser
-// moved above pJoint's, and `pChild = pChild + 1` in the loop tail.
-// Screened: 98.63 best (2.6.0 and 2.7.2 -O2 alike), 93.73 under 2.7.2-cdk. Closest park in the
-// unit, but not a preset problem.
-// Round 165 (park repair): re-measured live at 98.63%, 240 bytes against retail's
-// 240, same single s0/s1 (pJoint/i) swap and nothing else. `i = 1` hoisted by hand
-// into the declarations plus `for (; i < numChildren; i++)` changes nothing.
-// decomp-permuter could NOT be used on this body: its base fails to compile with
-// "conversion to non-scalar type requested" at the two `(ModelJoint*)` casts
-// (permuter/func_801E6578/log.txt), so the 95-99.6% class tool has not run here.
-/*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
-    int i;
-    int numChildren;
-    ModelJoint* pChild = pSkeleton;
-    ModelJoint* pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
-    ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
+    ModelJoint* pJoint;
+    ModelJoint* pTarget;
+    ModelJoint* pChild;
+    s32 numChildren;
+    s32 i;
 
-    numChildren = pChild->numChildren;
+    pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
+    pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
+    numChildren = pSkeleton->numChildren;
     pJoint->doRender = 0;
     pTarget->doRender = 1;
-
     LibGearFreeJointObject(pList, pJoint->pRotationObject);
-    pJoint->pRotationObject = 0;
-    LibGearFreeJointObject(pList, pJoint->pTranslationObject);
-    pJoint->pTranslationObject = 0;
+    do {
+        pJoint->pRotationObject = NULL;
+        LibGearFreeJointObject(pList, pJoint->pTranslationObject);
+        pJoint->pTranslationObject = NULL;
+    } while (0);
     LibGearFreeJointObject(pList, pJoint->pScaleObject);
-    pJoint->pScaleObject = 0;
-
+    pJoint->pScaleObject = NULL;
+    pChild = pSkeleton;
     for (i = 1; i < numChildren; i++) {
         pChild++;
 
@@ -3374,8 +3343,6 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
         }
     }
 }
-*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 
 void LibGearTransferJointRenderFlags(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
