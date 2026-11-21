@@ -617,7 +617,7 @@ void BattleClearAllSlotFlagB4(void) {
     for (i = 0x2A0; i >= 0; i -= 0x60) {
         g_BattleTextSlotVisible[i] = 0;
     }
-    g_BattleDisplayState->unkB5[0] = 0;
+    g_BattleDisplayState->textSlotStringDrawn = 0;
     g_BattleDisplayState->textSlotEnabled = 0;
     BattleUpdateFrame();
 }
