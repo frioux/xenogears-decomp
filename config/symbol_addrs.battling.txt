@@ -796,3 +796,4 @@ g_StrBattleElapsedTimeFormat = 0x800701B0;
 g_BattleEffectPolys = 0x80096D90;
 g_BattleEffectTiles = 0x80096DE0;
 g_BattleEffectDrawModes = 0x80096E00;
+D_80091368 = 0x80091368;
