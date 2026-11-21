@@ -578,7 +578,7 @@ int ArchiveCheckStreamFileSectionStates(int sectionIndex, int maxEntries, int ta
                 if (i >= maxEntries)
                     return 0;
                 
-                continue;
+                continue; // load-bearing: without it the loop rotates and the body compiles to 84 bytes
             }
             return 1;
         }
@@ -849,7 +849,7 @@ s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32
     return ArchiveReadFile(0, pDestBuffer, arg3, flags);
 }
 
-s32 ArchiveReadFileToBuffer(s32 index, s32 pBuffer, u32 arg2, u32 flags) {
+s32 ArchiveReadFileToBuffer(s32 index, u8* pBuffer, u32 arg2, u32 flags) {
     if ((index <= 0) || (ArchiveDecodeSize(index) <= 0) || (pBuffer == NULL)) {
         return -3;
     }
