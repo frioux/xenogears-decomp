@@ -352,6 +352,11 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
 // (92.51, not a spelling to ship) and g_BattleStateWork + 0x8000 as one expression (220
 // bytes: it folds into the address addend). Statement order cannot move it: this preset
 // runs -fschedule-insns, and two 4-minute permuter runs from 84.11 and 92.51 found nothing.
+// Re-measured this round: the frame, the byte count and the instruction multiset are
+// retail's; the FIRST difference is the work base, which retail computes into $v1 with
+// the 0x8000 in $v0 (this body swaps them), and the load placement follows from the
+// scheduler. Address-of locals for the two SVECTOR arguments (so the ads run before the
+// loads) measure the identical 84.11.
 /*
 void func_800BB9D4(void) {
     s32 *pViewTrans;
@@ -376,6 +381,7 @@ void func_800BB9D4(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
+
 // The animation-task tick's state half: the switch fills the two group positions for
 // the current state, the depth-cued block nudges the slot vectors along the gap, and the
 // tail derives the frame's rotation and distance from that gap. Three things here are
