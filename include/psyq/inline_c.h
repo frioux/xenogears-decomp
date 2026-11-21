@@ -257,6 +257,19 @@
 	: "r"( r0 )						\
 	: "$8", "$9", "$10" )
 
+/* The OP operand vector through $12-$14, interleaved; gte_ldopv1 goes
+   through $8-$10 and loads all three words before the first ctc2. */
+#define gte_ldopv1_gpr( r0 ) __asm__ volatile ( \
+	"lw\t$12, 0( %0 );" \
+	"lw\t$13, 4( %0 );" \
+	"ctc2\t$12, $0;" \
+	"lw\t$14, 8( %0 );" \
+	"ctc2\t$13, $2;" \
+	"ctc2\t$14, $4" \
+	:\
+	: "r"( r0 ) \
+	: "$12", "$13", "$14" )
+
 /* OP overwrites R11R22R33; libgte saved them in $13-$15 around the command. */
 #define gte_stR11R22R33( ) __asm__ volatile (			\
 	"cfc2	$13, $0;"					\
@@ -461,6 +474,19 @@
 	:							\
 	: "r"( r0 )						\
 	: "$8", "$9", "$10" )
+
+/* Translation rows of a MATRIX through $12-$14, interleaved with the ctc2s;
+   gte_SetTransMatrix goes through $8-$10 and loads all three words first. */
+#define gte_SetTransMatrix_gpr( r0 ) __asm__ volatile ( \
+	"lw\t$12, 20( %0 );" \
+	"lw\t$13, 24( %0 );" \
+	"ctc2\t$12, $5;" \
+	"lw\t$14, 28( %0 );" \
+	"ctc2\t$13, $6;" \
+	"ctc2\t$14, $7" \
+	:\
+	: "r"( r0 ) \
+	: "$12", "$13", "$14" )
 
 #define gte_ldtr( r0, r1, r2 ) __asm__ volatile (		\
 	"ctc2	%0, $5;"					\

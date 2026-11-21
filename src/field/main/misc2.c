@@ -7,6 +7,7 @@
 #include "system/memory.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 
 extern s16 g_FieldFogEnabled;
 extern u_char g_FieldDirectionMasks[]; // Bit mask of each of the eight movement directions
@@ -1662,7 +1663,152 @@ void FieldSetSpriteColorRGB(SpriteData* pSpriteData, u_char* pColor) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80075B44);
 
+extern s32 g_FieldP2RenderToggle;
+extern s32 g_FieldSceneReloadFlags;
+extern s32 g_GfxOTDepthShift;
+
+// 99.52%: retail's exact 1472 bytes and an instruction-identical stream; the only
+// difference is which callee-saved register holds which value. After the first
+// three callee-saved values agree (pActor and the index*0x5C accumulator chain),
+// retail uses i=$s5, &crossResult=$s4, &screenMatrix=$s3, the 0xFFFFFF mask=$s7,
+// the 0x5C accumulator=$s6, where this body gets i=$s4, &crossResult=$s3,
+// &screenMatrix=$s7, mask=$s6, accumulator=$s5 - the same allocation order rotated
+// by one, with &screenMatrix processed last instead of first. Everything else is
+// exact: the 0x110 frame with ten callee-saved registers and both arguments
+// spilled, gte_ldopv1_gpr/gte_ldopv2/gte_op12_b, the three
+// ldclmv/mvmva(1,0,3,3,0)/stclmv column transforms between
+// gte_SetRotMatrixRows_gpr and gte_SetTransMatrix_gpr, gte_ldlv0 + mvmva(1,0,0,0,0)
+// for the translation, the (scale * 0xC00) >> 12 / >> 14 clamp, ScaleMatrix,
+// gte_SetRotTransMatrix_gpr, RotAverage4 over the Quad and the addPrim tail.
+// Measured, all 99.52% at 1472 bytes: `otz >>= ...` as two statements (this fix is
+// KEPT - one statement left the otz/OT-address registers wrong), a do/while around
+// the scale block, otz/scaleX/scaleY/scaleZ declared in other positions, `long`
+// for the scale products, `int i` first, and the two MATRIX declarations swapped
+// (99.47). The permuter cannot edit this body (its C parser rejects the GTE inline
+// asm). The allocno sort keys on refs-vs-live-length of &screenMatrix against
+// &crossResult; no source shape tried moves it.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800764B4);
+/*
+void func_800764B4(u_long* pOtBase, s32 renderContextIndex) {
+    VECTOR opVec;
+    VECTOR crossX;
+    VECTOR crossResult;
+    MATRIX actorMatrix;
+    MATRIX screenMatrix;
+    MATRIX screenMatrixCopy;
+    VECTOR scale;
+    long perspective;
+    long flag;
+    FieldActor* pActor;
+    s32 scaleX;
+    s32 scaleY;
+    s32 scaleZ;
+    s32 otz;
+    int i;
+
+    screenMatrixCopy = g_Scene.worldToScreenMatrix;
+
+    if (g_FieldP2RenderToggle != 0) {
+        return;
+    }
+
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        pActor = (FieldActor*)((mem_addr)g_FieldActors + i * sizeof(FieldActor));
+        if ((*(u_int*)&pActor->status & 0x60) != 0x40) {
+            continue;
+        }
+        if (pActor->pActorData->flags & 0x102200) {
+            continue;
+        }
+        if (pActor->pActorData->flags & 0x800) {
+            continue;
+        }
+        if (pActor->pActorData->scriptFlags.flags & 0x10000) {
+            continue;
+        }
+        if (pActor->pActorData->curWalkmeshTriMaterial & 0x200002) {
+            continue;
+        }
+
+        opVec.vx = 0;
+        opVec.vy = 0;
+        opVec.vz = 0x1000;
+        gte_ldopv1_gpr(&opVec);
+        gte_ldopv2(&pActor->pActorData->curTriNormal);
+        gte_nop();
+        gte_nop();
+        gte_op12_b();
+        gte_stlvnl(&crossResult);
+        VectorNormal(&crossResult, &crossX);
+
+        gte_ldopv1_gpr(&crossX);
+        gte_ldopv2(&pActor->pActorData->curTriNormal);
+        gte_nop();
+        gte_nop();
+        gte_op12_b();
+        gte_stlvnl(&crossResult);
+        VectorNormal(&crossResult, &opVec);
+
+        actorMatrix.m[0][0] = crossX.vx;
+        actorMatrix.m[0][1] = crossX.vy;
+        actorMatrix.m[0][2] = crossX.vz;
+        actorMatrix.m[1][0] = pActor->pActorData->curTriNormal.vx;
+        actorMatrix.m[1][1] = pActor->pActorData->curTriNormal.vy;
+        actorMatrix.m[1][2] = pActor->pActorData->curTriNormal.vz;
+        actorMatrix.m[2][0] = opVec.vx;
+        actorMatrix.m[2][1] = opVec.vy;
+        actorMatrix.m[2][2] = opVec.vz;
+        actorMatrix.t[0] = pActor->transformMatrix.t[0];
+        actorMatrix.t[1] = ((SpriteData*)pActor->pSpriteData)->field_0x84;
+        actorMatrix.t[2] = pActor->transformMatrix.t[2];
+
+        gte_SetRotMatrixRows_gpr(&g_Scene.worldToScreenMatrix);
+        gte_ldclmv(&actorMatrix.m[0][0]);
+        gte_mvmva(1, 0, 3, 3, 0);
+        gte_stclmv(&screenMatrix.m[0][0]);
+        gte_ldclmv(&actorMatrix.m[0][1]);
+        gte_mvmva(1, 0, 3, 3, 0);
+        gte_stclmv(&screenMatrix.m[0][1]);
+        gte_ldclmv(&actorMatrix.m[0][2]);
+        gte_mvmva(1, 0, 3, 3, 0);
+        gte_stclmv(&screenMatrix.m[0][2]);
+        gte_SetTransMatrix_gpr(&g_Scene.worldToScreenMatrix);
+        gte_ldlv0(&actorMatrix.t[0]);
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(&screenMatrix.t[0]);
+
+        scaleX = (s16)pActor->pActorData->scaleX * 0xC00;
+        scale.vx = scaleX >> 12;
+        scaleY = (s16)pActor->pActorData->scaleY * 0xC00;
+        scale.vy = scaleY >> 12;
+        scaleZ = (s16)pActor->pActorData->scaleZ * 0xC00;
+        scale.vz = scaleZ >> 12;
+        if (g_FieldSceneReloadFlags != 0) {
+            if (pActor->pActorData->scriptFlags.flags & 0x400) {
+                scale.vx = scaleX >> 14;
+                scale.vy = scaleY >> 14;
+                scale.vz = scaleZ >> 14;
+            }
+        }
+
+        ScaleMatrix(&screenMatrix, &scale);
+        gte_SetRotTransMatrix_gpr(&screenMatrix);
+
+        otz = RotAverage4(&((Quad*)pActor->pShadow)->vertices[0],
+            &((Quad*)pActor->pShadow)->vertices[1],
+            &((Quad*)pActor->pShadow)->vertices[2],
+            &((Quad*)pActor->pShadow)->vertices[3],
+            (long*)&((Quad*)pActor->pShadow)->polys[renderContextIndex].x0,
+            (long*)&((Quad*)pActor->pShadow)->polys[renderContextIndex].x1,
+            (long*)&((Quad*)pActor->pShadow)->polys[renderContextIndex].x2,
+            (long*)&((Quad*)pActor->pShadow)->polys[renderContextIndex].x3, &perspective,
+            &flag);
+        otz >>= g_GfxOTDepthShift;
+
+        addPrim(&pOtBase[otz], &((Quad*)pActor->pShadow)->polys[renderContextIndex]);
+    }
+}
+*/
 
 u_int FieldSetActorFlag10000(SpriteData* pSpriteData) {
     ActorData* pActorData;
