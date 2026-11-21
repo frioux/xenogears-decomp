@@ -566,7 +566,16 @@ void func_8008115C(u8 arg0) {
         }
         break;
     }
-}*/
+   Re-measured round 389 with the typed-struct spelling the main/misc12 twins
+   use ("((BattleActorSlots *)g_BattleCommandQueue)->menuState = N;" and
+   "->slot[a].commandFlags[N]"): 87.59% with the store arms written as early
+   exits, 85.11% with plain if/else, against this body's 88.35 - the raw
+   g_BattleCommandQueue[0x2DD] spelling is the best measured, keep it.
+   NOT a preset: gcc-2.6.0 gives the identical 87.59 (and the unit cannot
+   switch anyway: BattleSetActorFlag34 is 97.00 under 2.6.0).
+   JTBL_LAYOUT PROVEN round 389, see func_800822C4 below: converting this
+   switch puts the C table at .rodata+0x198 instead of retail's +0x194 and
+   build/out/battle.bin ends up 4 bytes long. */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081318);
 /* 85.02% and JTBL_LAYOUT - and the solver of the whole-family theory: the C
@@ -1045,7 +1054,154 @@ void func_80081B58(u32 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
+/* 99.93% and JTBL_LAYOUT: every instruction is retail's (576 bytes, retail's
+   0x240) and the only difference is the switch's table operand (retail names
+   jtbl_800700B0, ours .rodata) and the local label names. It cannot be
+   committed: its table belongs at .rodata+0x234, which is 4 mod 8, and cc1
+   aligns jump tables to 8. Converting this body and func_80082504's makes
+   build/out/battle.bin 343940 bytes against disc's 343936 (+4) - measured in
+   round 389 - because retail's .rodata ends at 0x274, not a multiple of 8,
+   which no C jump table can reproduce. Ported from the strict-1.000 twin
+   BattleAdvanceSlotMenuStateSubMode (main/misc12.c:511); only the per-arm
+   constants differ. */
+/*
+void func_800822C4(u8 arg0) {
+    u8 a;
+
+    a = arg0;
+    switch (g_BattleMenuEvent) {
+    case 4:
+    case 6:
+    case 7:
+        if (func_8008BED8(a) != 0) {
+            BattleActivateSelectedCommand(a);
+        } else {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 8;
+        }
+        break;
+    case 0:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
+            break;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[9] != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
+            }
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
+        }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[8] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 9;
+            break;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 2) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
+        }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 3:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
+            break;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[10] != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
+            }
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
+        }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 1:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    }
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
+/* 99.91% and JTBL_LAYOUT for the cause spelled out above func_800822C4:
+   every instruction is retail's at retail's 0x1C8 bytes, the diff is the jtbl
+   operand and label names only. Its table belongs at .rodata+0x254 (4 mod 8);
+   cc1 pads it to 0x258 and the overlay comes out 4 bytes long. Ported from the
+   strict-1.000 twin BattleAdvanceSlotMenuStateRandom (main/misc12.c:583);
+   only the per-arm constants differ. */
+/*
+void func_80082504(u8 arg0) {
+    u8 a;
+
+    a = arg0;
+    switch (g_BattleMenuEvent) {
+    case 4:
+    case 6:
+    case 7:
+        if (func_8009A9D0(((BattleActorSlots *)g_BattleCommandQueue)->actorIndex) != 0) {
+            D_800C48EA = 0x40;
+        }
+        ((BattleActorSlots *)g_BattleCommandQueue)->eventHandled = 1;
+        break;
+    case 0:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
+            break;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[9] != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
+            }
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
+        }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 1:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 8;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 3:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
+            break;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[10] != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
+            }
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
+        }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
+        break;
+    }
+}*/
 /* 96.00%, and the instruction stream is identical to retail's EXCEPT one block
    position (see the end). Size is retail's 340 bytes. Four levers found, all of
    them load-bearing:
