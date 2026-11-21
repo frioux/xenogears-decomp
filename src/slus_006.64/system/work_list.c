@@ -5,15 +5,15 @@
 // TU is compiled on GCC 2.7.2 or 2.6.0
 
 // .sdata
-s32 D_80059184; // Counter the entries' task IDs (unk10) are taken from
+s32 g_WorkListNextTaskId; // Counter the entries' task IDs (unk10) are taken from
 int g_NumTimerWorkListEntries;
 int g_NumWorkListEntries;
-SpriteData* D_80059190; // Head of the list of sprites with a changed animation frame
+SpriteData* g_SpriteAnimFrameListHead; // Head of the list of sprites with a changed animation frame
 
 // .bss
-WorkListEntry* D_800594C0; // Entry the update loops are currently processing
+WorkListEntry* g_WorkListActiveEntry; // Entry the update loops are currently processing
 WorkListEntry* g_TimerWorkList;
-WorkListEntry* D_80059590; // Entry the update loops will process next
+WorkListEntry* g_WorkListUpdateCursor; // Entry the update loops will process next
 WorkListEntry* g_WorkList;
 
 // Declared in another TU, so these are not small data
@@ -66,11 +66,11 @@ void TimerWorkListUpdate(void) {
 
     // Timer has reached zero, run every timer entry
     } else {
-        D_80059590 = g_TimerWorkList;
-        while (D_80059590 != NULL) {
-            pEntry = D_80059590;
-            D_800594C0 = pEntry;
-            D_80059590 = pEntry->pNext;
+        g_WorkListUpdateCursor = g_TimerWorkList;
+        while (g_WorkListUpdateCursor != NULL) {
+            pEntry = g_WorkListUpdateCursor;
+            g_WorkListActiveEntry = pEntry;
+            g_WorkListUpdateCursor = pEntry->pNext;
             pFnCallback = pEntry->onTriggerCallback;
             if (pFnCallback) {
                 pFnCallback(pEntry);
@@ -83,11 +83,11 @@ void WorkListUpdate(void) {
     WorkListCallback_t pFnCallback;
     WorkListEntry* pEntry;
 
-    D_80059590 = g_WorkList;
-    while (D_80059590 != NULL) {
-        pEntry = D_80059590;
-        D_800594C0 = pEntry;
-        D_80059590 = pEntry->pNext;
+    g_WorkListUpdateCursor = g_WorkList;
+    while (g_WorkListUpdateCursor != NULL) {
+        pEntry = g_WorkListUpdateCursor;
+        g_WorkListActiveEntry = pEntry;
+        g_WorkListUpdateCursor = pEntry->pNext;
         pFnCallback = pEntry->onTriggerCallback;
         if (pFnCallback) {
             pFnCallback(pEntry);
@@ -121,7 +121,7 @@ void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk14_3 = 0;
     pEntry->onTriggerCallback = NULL;
     pEntry->onFreeCallback = WorkListRemoveTask;
-    pEntry->unk10 = D_80059184++;
+    pEntry->unk10 = g_WorkListNextTaskId++;
     g_NumWorkListEntries++;
 }*/
 WorkListEntry* WorkListAllocateTask(void* pData, int dataSize) {
@@ -146,8 +146,8 @@ void WorkListRemoveTask(WorkListEntry* pTargetEntry) {
                 g_WorkList = pCurEntry->pNext;
             }
 
-            if (D_80059590 == pTargetEntry) {
-                D_80059590 = pTargetEntry->pNext;
+            if (g_WorkListUpdateCursor == pTargetEntry) {
+                g_WorkListUpdateCursor = pTargetEntry->pNext;
             }
 
             break;
@@ -176,7 +176,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTas
 void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     s32 id;
 
-    id = D_80059184++;
+    id = g_WorkListNextTaskId++;
     pEntry->unk0 = pData;
     pEntry->pNext = g_TimerWorkList;
     g_TimerWorkList = pEntry;
@@ -245,8 +245,8 @@ void TimerWorkListRemoveTask(WorkListEntry* pTargetEntry) {
                 g_TimerWorkList = pCurEntry->pNext;
             }
 
-            if (D_80059590 == pTargetEntry) {
-                D_80059590 = pTargetEntry->pNext;
+            if (g_WorkListUpdateCursor == pTargetEntry) {
+                g_WorkListUpdateCursor = pTargetEntry->pNext;
             }
 
             break;
@@ -285,8 +285,8 @@ void WorkListsRemoveEntriesForData(WorkListEntry* pTargetEntry) {
             } else {
                 g_WorkList = pCurEntry->pNext;
             }
-            if (D_80059590 == pCurEntry) {
-                D_80059590 = pCurEntry->pNext;
+            if (g_WorkListUpdateCursor == pCurEntry) {
+                g_WorkListUpdateCursor = pCurEntry->pNext;
             }
 
             pFnOnDeleteCallback = pCurEntry->onFreeCallback;
@@ -310,8 +310,8 @@ void WorkListsRemoveEntriesForData(WorkListEntry* pTargetEntry) {
             } else {
                 g_TimerWorkList = pCurEntry->pNext;
             }
-            if (D_80059590 == pCurEntry) {
-                D_80059590 = pCurEntry->pNext;
+            if (g_WorkListUpdateCursor == pCurEntry) {
+                g_WorkListUpdateCursor = pCurEntry->pNext;
             }
 
             pFnOnDeleteCallback = pCurEntry->onFreeCallback;
@@ -406,11 +406,11 @@ WorkListEntry* WorkListsAddTasks(u_int allocSize, void* pData, WorkListCallback_
 
 // This may be the start of a new TU
 void SpriteAnimFrameListReset(void) {
-    D_80059190 = NULL;
+    g_SpriteAnimFrameListHead = NULL;
 }
 
 void SpriteAnimFrameListClear(void) {
-    D_80059190 = NULL;
+    g_SpriteAnimFrameListHead = NULL;
 }
 
 // Change Sprite Animation Frame maybe?
@@ -428,7 +428,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
    permuter find that moved the list cursor out of v0 and into the original's
    v1; a second permuter run raised the score to 112 by DELETING the tail
    curSpriteFrame store, which is wrong code - do not port it.
-   Tried and measured no better: plain while, guard+do/while, `D_80059190` read
+   Tried and measured no better: plain while, guard+do/while, `g_SpriteAnimFrameListHead` read
    twice, and both 2.7.2 and 2.6.0 presets.
 void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
 void SpriteClearDirTransforms(SpriteData* pSpriteData);
@@ -450,7 +450,7 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
         }
     }
     if ((pSpriteData->field_0x40 >> 17) & 1) {
-        pCurSpriteData = D_80059190;
+        pCurSpriteData = g_SpriteAnimFrameListHead;
         if (pCurSpriteData != NULL) {
           do {
             if (pCurSpriteData == pSpriteData) {
@@ -472,9 +472,9 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
           } while (pCurSpriteData != NULL);
         }
     }
-    pOldHead = D_80059190;
+    pOldHead = g_SpriteAnimFrameListHead;
     pSpriteData->curSpriteFrame = animFrame;
-    D_80059190 = pSpriteData;
+    g_SpriteAnimFrameListHead = pSpriteData;
     pSpriteData->field_0x40 |= 0x20000;
     pSpriteData->pBase->pNextSpriteData = pOldHead;
 } */
@@ -486,13 +486,13 @@ void SpriteAnimFrameListRemove(SpriteData* pSpriteData) {
     SpriteData* pPrevSpriteData;
 
     pPrevSpriteData = NULL;
-    for (pCurSpriteData = D_80059190; pCurSpriteData != NULL;
+    for (pCurSpriteData = g_SpriteAnimFrameListHead; pCurSpriteData != NULL;
          pCurSpriteData = pCurSpriteData->pBase->pNextSpriteData) {
         if (pCurSpriteData == pSpriteData) {
             if (pPrevSpriteData != NULL) {
                 pPrevSpriteData->pBase->pNextSpriteData = pCurSpriteData->pBase->pNextSpriteData;
             } else {
-                D_80059190 = pCurSpriteData->pBase->pNextSpriteData;
+                g_SpriteAnimFrameListHead = pCurSpriteData->pBase->pNextSpriteData;
             }
         } else {
             pPrevSpriteData = pCurSpriteData;
@@ -505,7 +505,7 @@ void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, void* pVramData);
 void SpriteAnimFrameListFlush(void) {
     SpriteData* pSpriteData;
 
-    pSpriteData = D_80059190;
+    pSpriteData = g_SpriteAnimFrameListHead;
     while (pSpriteData != NULL) {
         // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
         if ((u16)pSpriteData->curSpriteFrame == 0) {
@@ -517,6 +517,6 @@ void SpriteAnimFrameListFlush(void) {
         pSpriteData = pSpriteData->pBase->pNextSpriteData;
     }
 
-    D_80059190 = NULL;
+    g_SpriteAnimFrameListHead = NULL;
 }
 
