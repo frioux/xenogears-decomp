@@ -502,7 +502,7 @@ extern void FieldScriptSyncMemoryWithGameState(void);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void FieldBeginWdsFileLoad(void);
 extern void FieldFinishWdsFileLoad(void);
-extern void func_8001BB50(void);
+extern void GameStartSelectedSkinLoad(void);
 extern void ArchiveCdDataSync(int);
 extern void ChangeGameState(int);
 
@@ -557,7 +557,7 @@ void FieldAdvanceGameState(int state) {
             return;
         }
         if (g_FieldNextGameState & 0x80) {
-            func_8001BB50();
+            GameStartSelectedSkinLoad();
         }
         ChangeGameState(g_FieldNextGameState & 0x7F);
         break;

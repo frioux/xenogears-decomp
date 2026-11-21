@@ -1719,3 +1719,4 @@ ArchiveReadStreamSector = 0x80028B14;
 g_SavedGearRide = 0x8005A408;
 SoundScriptSetTriangleEnvelope1 = 0x8003DC50;
 g_ArchiveStreamSectionPositionErrors = 0x8004FDEC;
+GameStartSelectedSkinLoad = 0x8001BB50;

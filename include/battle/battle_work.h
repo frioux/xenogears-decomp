@@ -41,7 +41,7 @@ typedef struct {
     /* 0x08F */ u8 unk8F;
     /* 0x090 */ u8 panelMode[3]; // which panel the slot draws: 0 builds it, 1 draws it scaled, 2 animates it, 3 shrinks it then animates
     /* 0x093 */ u8 statDigitPrimStart[3]; // prim index each slot's stat digits were built at
-    /* 0x096 */ u8 stringTableLoaded; // set while D_800C3DE8 holds the archive entry 3 string table
+    /* 0x096 */ u8 stringTableLoaded; // set while g_BattleEntry3StringTable holds the archive entry 3 string table
     /* 0x097 */ u8 primRowCount; // rows of 0x10-byte prims built at gfx+0x908
     /* 0x098 */ u8 primRowStart; // row of that table the prims start at
     /* 0x099 */ u8 valueSpritePrimStart[3]; // prim index each slot's value digits were built at
@@ -63,7 +63,7 @@ typedef struct {
     /* 0x0AB */ u8 sizeSteps; // size increment steps accumulated, 1 per frame
     /* 0x0AC */ u8 unkAC;
     /* 0x0AD */ u8 actorDrawActive; // cleared when the acting slot's draw state is reset
-    /* 0x0AE */ u8 slotStringTableLoaded; // set while D_800D367C holds the slot's archive string table
+    /* 0x0AE */ u8 slotStringTableLoaded; // set while g_BattleSlotStringTable holds the slot's archive string table
     /* 0x0AF */ u8 actorSpriteActive; // set while the actor's sprite group at gfx+0x9C8 is live
     /* 0x0B0 */ u8 primFlags[4]; // per slot: prim flags the *PrimFlags*Slots pairs raise
     /* 0x0B4 */ u8 textSlotEnabled; // raised with the slot's screen-slot enabled flag by BattleSetSlotFlagB4, cleared by BattleClearSlotFlagB4

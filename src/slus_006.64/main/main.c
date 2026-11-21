@@ -26,7 +26,7 @@ extern void ControllerUpdate(void);
 extern int ModelGetHeapStart(void);
 extern void SoundGetPendingSpuCommandType(int);
 extern void SystemResetGlobalState(void);
-extern void func_8001BB50(void);
+extern void GameStartSelectedSkinLoad(void);
 extern void GfxResetWorkLists(void);
 extern void func_800379B4(int);
 extern void SystemNop(void);
@@ -116,7 +116,7 @@ void MainSystemInit(void) {
     HeapFree(pWdsFile5);
 
     SystemResetGlobalState();
-    func_8001BB50();
+    GameStartSelectedSkinLoad();
     GfxResetWorkLists();
     func_800379B4(0);
 

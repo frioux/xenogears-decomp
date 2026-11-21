@@ -10,10 +10,10 @@ typedef struct {
 
 extern u8 *g_BattleCommandQueue;
 
-extern u8 *D_800C3DE8;
+extern u8 *g_BattleEntry3StringTable;
 extern u8 *g_BattleDisplayState;
 extern u8 *g_BattleSpriteColumnWork;
-extern void *D_800D367C;
+extern void *g_BattleSlotStringTable;
 extern u8 *g_BattlePrimPool;
 extern u8 g_BattleCommandCodes[];
 extern u8 g_BattleCommandSlotIds[];
@@ -191,7 +191,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FBE0);
 
 void BattleFreeStringTableAE(void) {
     if (g_BattleDisplayState[0xAE] != 0) {
-        HeapFree(D_800D367C);
+        HeapFree(g_BattleSlotStringTable);
         g_BattleDisplayState[0xAE] = 0;
     }
 }
@@ -209,15 +209,15 @@ void BattleLoadStringTableAE(u8 arg0) {
         type = 2;
     }
     BattleSetArchive20Entry3();
-    D_800D367C = (void *)BattleAllocHeapBlock(ArchiveDecodeAlignedSize(type), 0);
-    ArchiveReadFileToBuffer(type, D_800D367C, 0, 0x80);
+    g_BattleSlotStringTable = (void *)BattleAllocHeapBlock(ArchiveDecodeAlignedSize(type), 0);
+    ArchiveReadFileToBuffer(type, g_BattleSlotStringTable, 0, 0x80);
     BattleWaitForArchiveSync();
     g_BattleDisplayState[0xAE] = 1;
 }
 
 void BattleFreeStringTable96(void) {
     if (g_BattleDisplayState[0x96] != 0) {
-        HeapFree(D_800C3DE8);
+        HeapFree(g_BattleEntry3StringTable);
         g_BattleDisplayState[0x96] = 0;
     }
 }
@@ -229,7 +229,7 @@ void BattleLoadStringTable96(void) {
         BattleWaitForArchiveSync();
         BattleSetArchive20Entry3();
         pBuffer = BattleAllocHeapBlock(ArchiveDecodeAlignedSize(3), 0);
-        D_800C3DE8 = (u8 *)pBuffer;
+        g_BattleEntry3StringTable = (u8 *)pBuffer;
         ArchiveReadFileToBuffer(3, (void *)pBuffer, 0, 0x80);
         BattleWaitForArchiveSync();
         g_BattleDisplayState[0x96] = 1;

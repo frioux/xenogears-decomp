@@ -16,7 +16,7 @@ SoundFile* g_SoundSedsBank;
 
 void func_8001B970(void);
 
-void func_8001BB50(void) {
+void GameStartSelectedSkinLoad(void) {
     g_GameSelectedSkinLoadPending = 1;
     D_8005946C = 0;
     func_8001B970();

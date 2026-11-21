@@ -64,7 +64,7 @@ extern u8 D_800D2F69[];
 extern u8 D_800D2F6A[];
 extern u8 D_800D2F6B[];
 extern u8 g_BattleSlotFlags[];
-extern void *D_800D367C;
+extern void *g_BattleSlotStringTable;
 extern u8 D_800C33B4[];  // 16 sprite ids, one per battle party column
 extern s16 D_800C33C4[][2];
 extern s16 D_800C3404[][2];
@@ -77,16 +77,16 @@ void BattleSetPolyFT4RectH13(POLY_FT4 *, u16, s16, u8, u8, s16);
 void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 s32 func_8009A258(u8, s32);
 void func_8009187C(u8, u8, u8);
-void func_80091B38(u8, u8, u8);
+void BattleDrawSlotStatusText(u8, u8, u8);
 void func_80093578(u8, u8);
-void func_8009382C(u8, u8);
+void BattleDrawSlotStatusTextEntry3(u8, u8);
 s32 BattleDrawSpritePackage(s32, u8 *, s32, s16);
 s32 BattleMaskHasStatusBit(s32, u8);
 extern void *BattleAllocTextBuffer(s32);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
-extern u8 *D_800C3DE8;
+extern u8 *g_BattleEntry3StringTable;
 extern u8 g_BattleSlotTextIndex[];
 extern u8 g_BattleTargetSlotIndex;
 extern u8 g_BattleAmountThirdFlag;
@@ -420,7 +420,7 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
-void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
+void BattleDrawSlotStatusText(u8 arg0, u8 arg1, u8 arg2) {
     RECT rect;
     u8 *pBuf;
     u16 index;
@@ -436,10 +436,10 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     altEntry = 1;
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
-    len1 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index), pBuf, 0x39, 0);
+    len1 = SystemRenderStringEntry(GetStringEntry(g_BattleSlotStringTable, index), pBuf, 0x39, 0);
     // load-bearing s32: cc1 keeps the HImode index's zero-extension only when the
     // OR's right operand is a register, not the constant 1.
-    len2 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index | altEntry), pBuf, 0x39, 1);
+    len2 = SystemRenderStringEntry(GetStringEntry(g_BattleSlotStringTable, index | altEntry), pBuf, 0x39, 1);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -464,7 +464,7 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, u8 arg1, u8 arg2) {
     if (ret != 0) {
         BattleDrawSlotStatusDigits(arg1, arg2, arg0);
         func_8009187C(arg0, arg1, arg2);
-        func_80091B38(arg0, arg1, arg2);
+        BattleDrawSlotStatusText(arg0, arg1, arg2);
         g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex[0];
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
     } else {
@@ -1032,7 +1032,7 @@ void func_80093578(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x37E) = pal;
 }
 */
-void func_8009382C(u8 arg0, u8 arg1) {
+void BattleDrawSlotStatusTextEntry3(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
     u16 index;
@@ -1044,10 +1044,10 @@ void func_8009382C(u8 arg0, u8 arg1) {
     altEntry = 1;
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
-    len1 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index), pBuf, 0x39, 0);
-    // load-bearing s32, as in func_80091B38: cc1 keeps the HImode index's
+    len1 = SystemRenderStringEntry(GetStringEntry(g_BattleEntry3StringTable, index), pBuf, 0x39, 0);
+    // load-bearing s32, as in BattleDrawSlotStatusText: cc1 keeps the HImode index's
     // zero-extension only when the OR's right operand is a register.
-    len2 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index | altEntry), pBuf, 0x39, 1);
+    len2 = SystemRenderStringEntry(GetStringEntry(g_BattleEntry3StringTable, index | altEntry), pBuf, 0x39, 1);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -1070,7 +1070,7 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
                            arg1)) {
         if ((g_BattleWorkBlock[arg0].conditionFlags & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);
-            func_8009382C(arg0, arg1);
+            BattleDrawSlotStatusTextEntry3(arg0, arg1);
             g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex[0];
             g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
         } else {
