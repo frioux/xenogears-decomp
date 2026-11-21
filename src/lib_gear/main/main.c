@@ -3314,7 +3314,7 @@ void func_801E63A8(Model* pModel) {
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
 
-void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
+void LibGearFreeJointAndChildren(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     ModelJoint* pJoint;
     ModelJoint* pTarget;
     ModelJoint* pChild;
@@ -3339,7 +3339,7 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
         pChild++;
 
         if (pChild->pParent == pJoint) {
-            func_801E6578(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
+            LibGearFreeJointAndChildren(pList, pChild->numChildren, pSkeleton, pTargetSkeleton);
         }
     }
 }
@@ -3383,7 +3383,7 @@ int LibGearGetFirstModelIndex(void) {
     return i;
 }
 
-int func_801E6830(Model* pModel, int type, s16* pMask) {
+int LibGearResolveModelSlot(Model* pModel, int type, s16* pMask) {
     if ((type & 0xFF) == 0xFF) {
         type = LibGearGetFirstModelIndex();
     } else if ((type & 0xFF) == 0xFE) {
@@ -3425,7 +3425,7 @@ void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
     return pResult;
 }
 
-void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
+void LibGearQueueJointTransformCommand(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
                    u8 arg4, u8 arg5, u8 arg6, s16 posX, s16 posY, s16 posZ,
                    s16 offX, s16 offY, s16 offZ, s16 arg13) {
     u8 channel;
@@ -3535,7 +3535,7 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
             pChild++;
             if (pChild->pParent == pJoint) {
-                func_801E6974(pModel, pList, pChild, flags & 0xFF, arg4, arg5, arg6,
+                LibGearQueueJointTransformCommand(pModel, pList, pChild, flags & 0xFF, arg4, arg5, arg6,
                               posX, posY, posZ, offX, offY, offZ, arg13);
             }
         }

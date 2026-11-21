@@ -45,7 +45,7 @@ void MenuPlaySoundEffect(u8);
 s32 func_8002675C(MenuResourceDirectory*, u32, POLY_FT4*, s32, s32, s32, s32);
 void SystemDecodeGlyphCodesN(u16*, u8*, int);
 s32 SystemRenderStringEntry(u8*, void*, s32, s32);
-void func_801E7C50(MenuString*, s32, s32, s32);
+void MenuSetStringPrimitives(MenuString*, s32, s32, s32);
 s32 func_801D9704(s32, u8, u8);
 void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
@@ -359,7 +359,7 @@ void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].x3 =
             0x10A + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].width;
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].y3 = slot * FONT_LETTER_HEIGHT + 0x2C;
-        func_801E7C50(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot], slot, 0x80, 0x82);
+        MenuSetStringPrimitives(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot], slot, 0x80, 0x82);
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].x0 = 0xD4;
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].y0 = slot * FONT_LETTER_HEIGHT + 0x23;
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].x1 = 0xD4 + (5400 * value) / 10000;
@@ -457,8 +457,8 @@ void func_801E1AC8(u8 slot) {
             rect.h = FONT_LETTER_HEIGHT;
             LoadImage(&rect, (u_long*)pWorkspace);
             DrawSync(0);
-            func_801E7C50(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i], i, 0x80, 0x81);
-            func_801E7C50(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i], i, 0x80, 0x82);
+            MenuSetStringPrimitives(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i], i, 0x80, 0x81);
+            MenuSetStringPrimitives(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i], i, 0x80, 0x82);
             ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x0 = 0x5C;
             ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y0 = top;
             ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x1 =

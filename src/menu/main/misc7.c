@@ -98,7 +98,7 @@ void func_801D6338(u_char index, u_char characterId);
 void func_801D680C(u_char index, u_char characterId);
 void func_801D6CF4(u_char index, u_char characterId);
 void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId);
-void func_801D74EC(u_char index, u_char characterId);
+void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId);
 void func_801D7884(u_char index, u_char characterId);
 
 void MenuSetWindowScrollBar(u_char index, u_short x, u_short y, u_short width, u_short height) {

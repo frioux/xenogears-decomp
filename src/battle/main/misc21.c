@@ -357,7 +357,7 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
     }
     return count;
 }
-s32 func_8009F1C4(BattleSprite* pSprites, s32 scale) {
+s32 BattleUpdateScaledSpriteTransforms(BattleSprite* pSprites, s32 scale) {
     BattleSprite* pSprite = pSprites;
     MATRIX* pScaleMatrix = (MATRIX*)PSX_SCRATCH;
     u32 i;

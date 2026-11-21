@@ -79,3 +79,6 @@ LibGearComputeScaledJointMatrices = 0x801DC848;
 g_LibGearMeshSlot = 0x801E8634;
 g_LibGearModelFile = 0x801E8638;
 LibGearTransferJointRenderFlags = 0x801E6668;
+LibGearResolveModelSlot = 0x801E6830;
+LibGearFreeJointAndChildren = 0x801E6578;
+LibGearQueueJointTransformCommand = 0x801E6974;

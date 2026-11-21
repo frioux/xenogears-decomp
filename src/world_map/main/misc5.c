@@ -206,7 +206,7 @@ extern int func_8007C7D8(int idx);
 extern int WorldMapInitGroup4Actor(int idx);
 extern int WorldMapUpdateGroup4Actor(int idx);
 extern int WorldMapInitGroup5Actor(int idx);
-extern int func_8007CF18(int idx);
+extern int WorldMapUpdateGroup5Actor(int idx);
 extern int WorldMapInitGroup9Actor(int idx);
 extern int WorldMapUpdateGroup9Actor(int idx);
 extern int WorldMapInitGroup10Actor(int idx);
@@ -866,7 +866,7 @@ void WorldMapInitializeModeWithGroupActors(void) {
     WorldMapAddSlot((void *)WorldMapInitActorParamsFromTable, (void *)func_8007C3B8);
     WorldMapAddSlot((void *)func_8007C724, (void *)func_8007C7D8);
     WorldMapAddSlot((void *)WorldMapInitGroup4Actor, (void *)WorldMapUpdateGroup4Actor);
-    WorldMapAddSlot((void *)WorldMapInitGroup5Actor, (void *)func_8007CF18);
+    WorldMapAddSlot((void *)WorldMapInitGroup5Actor, (void *)WorldMapUpdateGroup5Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup9Actor, (void *)WorldMapUpdateGroup9Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup10Actor, (void *)WorldMapUpdateGroup10Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup12Actor, (void *)WorldMapUpdateGroup12Actor);
@@ -1141,7 +1141,7 @@ int WorldMapInitGroup5Actor(int idx) {
     pPlayer->z = 0x200000;
     return 1;
 }
-int func_8007CF18(int idx) {
+int WorldMapUpdateGroup5Actor(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapSceneLayer *pLayer = &g_WorldMapGroups[5];
 

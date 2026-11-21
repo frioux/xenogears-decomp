@@ -174,7 +174,7 @@ typedef struct {
     /* 0x034 */ u8 doUpdate; // gates the per-frame animation update; inherited from the parent actor
     /* 0x035 */ u8 unk35;
     /* 0x036 */ u8 skipGroundSnap; // non-zero: BattleSnapActorToGround leaves the sprite's y alone
-    /* 0x037 */ u8 useScaledMatrices; // non-zero: the step runs func_8009F1C4, which folds each part's scale into its parent matrix (libgear's Model.useScaledMatrices)
+    /* 0x037 */ u8 useScaledMatrices; // non-zero: the step runs BattleUpdateScaledSpriteTransforms, which folds each part's scale into its parent matrix (libgear's Model.useScaledMatrices)
     /* 0x038 */ u8 isBusy; // keeps BattleWaitAndFreeActorBuffers and BattleWaitForOtherActorAnimations waiting while it is set
     /* 0x039 */ u8 depthShade; // set from the OT depth every frame (BattleDrawActor), and func_800AE2A4 scales it into the actor's sound volume
     /* 0x03A */ s16 savedActorMask; // command 0x6F stores g_BattleCommandActorMask here (-1 when its operand is 0); command 0x70 branches only while it still matches

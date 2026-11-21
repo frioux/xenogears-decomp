@@ -37,12 +37,12 @@
 #define WORLD_MAP_SLOT_SCALE_HOLD_FRAMES 60
 
 // a fading slot's two group scale factors grow by this much every frame, up to
-// WORLD_MAP_SLOT_SCALE_MAX (func_8007FD30 and its sibling WorldMapUpdateFadeGroups)
+// WORLD_MAP_SLOT_SCALE_MAX (WorldMapUpdateGroup9And10Actor and its sibling WorldMapUpdateFadeGroups)
 #define WORLD_MAP_SLOT_SCALE_STEP 0x180
 #define WORLD_MAP_SLOT_SCALE_MAX 0x7FFF
 
 // the color a fading slot draws its prims with walks down by this much each frame
-// until it reaches 0 and the slot deactivates (func_8007FD30)
+// until it reaches 0 and the slot deactivates (WorldMapUpdateGroup9And10Actor)
 #define WORLD_MAP_SLOT_FADE_COLOR_STEP 3
 
 // the map display buffer copied into VRAM when a mode initialises, and the
@@ -256,7 +256,7 @@ extern void func_8007EE34(int);
 extern int WorldMapInitSlotActor(int);
 extern int WorldMapUpdateSlotActor(int);
 extern int func_8007FC8C(int);
-extern int func_8007FD30(int);
+extern int WorldMapUpdateGroup9And10Actor(int);
 extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
 extern void WorldMapLoadSedsBank(void);
@@ -508,7 +508,7 @@ void func_8007D918(void) {
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
-    WorldMapAddSlot(func_8007FC8C, func_8007FD30);
+    WorldMapAddSlot(func_8007FC8C, WorldMapUpdateGroup9And10Actor);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
     WorldMapInitPrimTemplateBuffers();
@@ -1111,7 +1111,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 }
 */
 
-int func_8007FD30(int index) {
+int WorldMapUpdateGroup9And10Actor(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapGroup *pGroup = &pRoot->groups[9];

@@ -92,7 +92,7 @@ extern s16 D_8009B19C[];
 extern s16 D_8009B1A4[];
 extern void *g_WorldMapActorAnimFiles[];
 extern void *g_WorldMapCharacterAnimFiles;
-extern void *D_8009CD3C;
+extern void *g_WorldMapCharacter2AnimFiles;
 extern void WorldMapWrapDeltaScaled(WorldMapPos *);
 extern s32 SquareRoot0(s32);
 
@@ -120,7 +120,7 @@ extern WorldMapTrail g_WorldMapTrail[];
 extern u16 g_WorldMapPlayerAngle;
 extern s16 g_WorldMapTrailCursor;
 
-/* func_8008A72C, WorldMapModeInitActorSlot, func_8008BB40, func_8008C364, func_8008C844 and
+/* func_8008A72C, WorldMapModeInitActorSlot, WorldMapModeInitActorSlot2, func_8008C364, func_8008C844 and
    func_8008D678 each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
@@ -387,13 +387,13 @@ int WorldMapUpdateActorSlot(int index) {
     }
     return result;
 }
-int func_8008BB40(int index) {
+int WorldMapModeInitActorSlot2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
     s32 mode;
 
     if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
-        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+        pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapCharacter2AnimFiles, 0x120, 0x1E0, 0x160, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
         SpriteSetScale(pActor->pSprite, 0x1800);
         pActor->pSprite->flags &= ~4;
@@ -461,7 +461,7 @@ int WorldMapModeInitCharacterSprite2(int index) {
     s32 result = 1;
 
     if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
-        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+        pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapCharacter2AnimFiles, 0x120, 0x1E0, 0x160, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
         SpriteSetScale(pActor->pSprite, 0x1800);
         pActor->pSprite->flags &= ~4;
@@ -482,7 +482,7 @@ int WorldMapModeInitCharacterSprite2(int index) {
 int func_8008BDD0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+    pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapCharacter2AnimFiles, 0x120, 0x1E0, 0x160, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
     pActor->pSprite->flags &= ~4;

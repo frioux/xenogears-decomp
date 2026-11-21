@@ -15,7 +15,7 @@ extern BattleSlotWordRegs g_BattleSlotWordRegs[];
 // register saturate at its largest value before storing.
 #define BATTLE_WORD_REG_MAX 0xFFFF
 
-void func_8007AC30(u8 **p, u8 index) {
+void BattleWordRegSubImmClamp(u8 **p, u8 index) {
     u8 *pArgs = *p;
     s32 value = g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] - ((pArgs[3] << 8) + pArgs[2]);
 
@@ -24,7 +24,7 @@ void func_8007AC30(u8 **p, u8 index) {
     }
     g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] = value;
 }
-void func_8007AC80(u8 **p, u8 index) {
+void BattleWordRegMulImmClamp(u8 **p, u8 index) {
     u8 *pArgs = *p;
     s32 value = g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] * ((pArgs[3] << 8) + pArgs[2]);
 
@@ -35,7 +35,7 @@ void func_8007AC80(u8 **p, u8 index) {
 }
 
 // best 83.06% (cdk; 81.94 2.7.2/2.6.0; --expand-div drops it to 31.94, so not the
-// div trap). The tie here is the same one func_8007AC30 had (the `la` temp for the
+// div trap). The tie here is the same one BattleWordRegSubImmClamp had (the `la` temp for the
 // table base against the operand temp: retail $v0/$v1, ours $v1/$v0), and its fix
 // was to spell the bank access out at each site and to put the shifted byte first
 // (`g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] /= (pArgs[3] << 8) + pArgs[2]`);

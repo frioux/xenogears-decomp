@@ -9,6 +9,14 @@
 #define MENU_MP_DIGIT_COUNT 2
 #define MENU_LEVEL_DIGIT_COUNT 3
 #define MENU_WIDE_NUMBER_DIGIT_COUNT 7
+// String IDs per row panel of the item list (g_Menu->itemRowStrings).
+#define MENU_ITEM_ROW_STRING_COUNT 8
+// func_801C72BC's resource table: entry kind + MENU_PANEL_FREE_OFFSET unloads what that kind loaded.
+#define MENU_PANEL_FREE_OFFSET 0x10
+// Arrow cursor animation: the frame index counts down from the last frame every
+// MENU_ARROW_CURSOR_ANIM_FRAME_TICKS updates, the frame's texture being MENU_TEX_ARROW_CURSOR + index.
+#define MENU_ARROW_CURSOR_LAST_ANIM_FRAME 4
+#define MENU_ARROW_CURSOR_ANIM_FRAME_TICKS 6
 // Entries in the character window icon tables; polysIcons holds two prims per icon.
 #define MENU_CHARACTER_ICON_COUNT 20
 // Border corner prims, two per corner (one per render context).

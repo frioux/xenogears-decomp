@@ -60,7 +60,7 @@ extern void ArchiveStopTransfer(int mode);
 void MenuClearGlyphTexture(void);
 void MenuBuildGlyphTexture(s32 arg0);
 void MenuDrawCharacterSlots(s32 arg0);
-void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
+void MenuSetStringPrimitives(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
@@ -494,7 +494,7 @@ static inline void MenuSetSystemPalette(void* pPrim, u8 flag) {
     pPoly->clut = flag ? g_SystemPalette2 : g_SystemPalette1;
 }
 
-void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
+void MenuSetStringPrimitives(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
     u8 color;
     s32 i;
     POLY_FT4* pPoly;
@@ -568,8 +568,8 @@ void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s3
         pStringList[index].vramDest.w = 0x1C;
         pStringList[index].vramDest.h = FONT_LETTER_HEIGHT;
         pStringList[index + 1].vramDest = pStringList[index].vramDest;
-        func_801E7C50(&pStringList[index], index, yOffset, 0);
-        func_801E7C50(&pStringList[index + 1], index + 1, yOffset, 0);
+        MenuSetStringPrimitives(&pStringList[index], index, yOffset, 0);
+        MenuSetStringPrimitives(&pStringList[index + 1], index + 1, yOffset, 0);
         LoadImage(pRect, g_Menu->titleStrings[0].pVramBuffer);
         DrawSync(0);
     }

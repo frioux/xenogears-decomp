@@ -843,7 +843,7 @@ void func_8007252C(void) {
 
 // Adds every second prim of a run of packages to the current ordering table: each
 // package holds one POLY_FT4 per render context, and primStart selects which.
-void func_800728B8(POLY_FT4 *pPrim, s32 count, s32 primStart) {
+void BattleAddPrimListToOT(POLY_FT4 *pPrim, s32 count, s32 primStart) {
     s32 i;
 
     for (i = 0; i < count; i++) {

@@ -29,7 +29,7 @@ void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void MenuRevealSelectionMenu(s32 a0, u32* a1);
 void* GetStringEntry(void* pStringData, u32 index);
 s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 length, s32 mode);
-void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
+void MenuSetStringPrimitives(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 
 extern u32 g_MenuMainSelectionResourceIds[];
 extern u32 g_MenuShoulderButtonArrowX[];
@@ -434,7 +434,7 @@ void MenuCreateWindow2Strings(u_char stringIndex) {
         pString = g_Menu->modalStrings[i];
         pString->width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, stringIndex + i),
             pString->pVramBuffer, 0x36, i % 2);
-        func_801E7C50(pString, i, 0, 0);
+        MenuSetStringPrimitives(pString, i, 0, 0);
         MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], xPosition, (i * 16) + 0xA0, 0,
             (i / 2) * FONT_LETTER_HEIGHT + 0x4E, pString->width, FONT_LETTER_HEIGHT);
         MenuSetQuadVertices(pString->vertices, xPosition, (i * 16) + 0xA0, pString->width, FONT_LETTER_HEIGHT);

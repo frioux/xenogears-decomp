@@ -20,7 +20,7 @@ extern s32 BattleFindFirstActorInMask(void);
 extern void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, void *arg2, s32 arg3);
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
 extern void BattleSnapActorToGround(BattleActor *pActor);
-extern s32 func_8009F1C4(BattleSprite *pSprites, s16 unk1C);
+extern s32 BattleUpdateScaledSpriteTransforms(BattleSprite *pSprites, s16 unk1C);
 extern s32 BattleUpdateSpriteTransforms(BattleSprite *pSprites, s16 unk1C);
 extern s32 func_800A0838(u8 *arg0, BattleSprite *pSprites, u16 unk3C, s16 unk1C);
 extern void func_800AE2A4(BattleActor *pActor, u8 *arg1, u8 *arg2);
@@ -291,7 +291,7 @@ s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, 
         if (pActor->doUpdate != 0) {
             BattleSnapActorToGround(pActor);
             if (pActor->useScaledMatrices != 0) {
-                func_8009F1C4(pActor->pSprites, pActor->scale);
+                BattleUpdateScaledSpriteTransforms(pActor->pSprites, pActor->scale);
             } else {
                 BattleUpdateSpriteTransforms(pActor->pSprites, pActor->scale);
             }

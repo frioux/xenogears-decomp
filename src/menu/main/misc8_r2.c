@@ -5,15 +5,6 @@
 #include "system/menu.h"
 #include "psyq/libcd.h"
 
-// Arrow cursor animation: the frame index counts down from the last frame every
-// MENU_ARROW_CURSOR_ANIM_FRAME_TICKS updates, the frame's texture being MENU_TEX_ARROW_CURSOR + index.
-#define MENU_ARROW_CURSOR_LAST_ANIM_FRAME 4
-#define MENU_ARROW_CURSOR_ANIM_FRAME_TICKS 6
-// String IDs per row panel of the item list (misc9.c defines the same count).
-#define MENU_ITEM_ROW_STRING_COUNT 8
-// func_801C72BC's resource table: entry kind + 0x10 unloads what that entry kind loaded.
-#define MENU_PANEL_FREE_OFFSET 0x10
-
 extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 extern u8 g_ShopIndex;
 extern u16 D_801EA53C[]; // String IDs of the menu strings
@@ -70,7 +61,7 @@ void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
-void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
+void MenuSetStringPrimitives(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 void* GetItemName(int entryId);
 s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
@@ -145,7 +136,7 @@ void MenuFreeUnk42CPanel(void) {
       truncates again). Not fixed by spelling the mask on a u16 local or by
       dropping the mask in favour of the u16 parameter.
    3) four `addu` operand-order flips (retail base-first for the sb stores,
-      offset-first for the func_801E7C50 pointers) - the embedded-assignment
+      offset-first for the MenuSetStringPrimitives pointers) - the embedded-assignment
       lever did not move them here; permuter job.
    4) two `sb $zero` to the HIGH bytes of the two u16 glyph codes (sp+0x19 and
       sp+0x1B) happen once before the loop; a zero initializer on the buffer
@@ -155,7 +146,7 @@ void MenuFreeUnk42CPanel(void) {
    inventory starting at arg0 * 2) either clear the dangling id/qty pair, or
    render the item name + 2-digit quantity into two 16-record MenuString arrays
    at unk42C + 0x00 and + 0x800, upload both with a LoadImage of one 0x28 x 0xD
-   cell, then set up their prims with func_801E7C50 and MenuSetQuadVertices.
+   cell, then set up their prims with MenuSetStringPrimitives and MenuSetQuadVertices.
    The flag byte is pDressingRoom->pItemsData[id].displayFlags; bit 0x80 is the
    shaded variant and is dropped when bit 0x20 is set while g_ShopIndex is 0. */
 /*
@@ -201,8 +192,8 @@ void func_801DA5BC(s32 arg0) {
             } else {
                 itemFlags &= 0x80;
             }
-            func_801E7C50(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemFlags | 1);
-            func_801E7C50(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemFlags | 2);
+            MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemFlags | 1);
+            MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemFlags | 2);
             x = (i % 2) * 0x88;
             MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i].vertices, (x + 0x28) & 0xFFF8,
                                 (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i].width,

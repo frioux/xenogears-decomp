@@ -97,7 +97,7 @@ extern volatile u8 g_BattleTextSlotFlags[];
 
 extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, u16 x, s16 y, u8 u, u8 v, u8 dx);
-extern void func_800728B8(u8 *pDest, s32 packageCount, s32 primStart);
+extern void BattleAddPrimListToOT(u8 *pDest, s32 packageCount, s32 primStart);
 extern void BattleRenderActorSplitDigitPanel(s32 index, u8 arg1);
 extern void BattleRenderActorStatDigits(s32 index, u8 arg1);
 extern s32 func_80072F38(s32 index, u8 arg1);
@@ -108,7 +108,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
 /* 86.09%: all five call loops are recovered and their bodies match
    instruction-for-instruction - (1) `for (i = 0; i < g_BattleDisplayState[0x97]; i++)`
    AddPrim of a 0x10-stride prim at g_BattleGraphicsWork + 0x908 indexed by
-   g_BattleDisplayState[0x98] + i*2; (2) four func_800728B8 at g_BattleGraphicsWork + 0x2E08 +
+   g_BattleDisplayState[0x98] + i*2; (2) four BattleAddPrimListToOT at g_BattleGraphicsWork + 0x2E08 +
    i*0x320 with g_BattleDisplayState[i+0x74]/[i+0x84]; (3) three entries at 0x1E4 stride
    with a `switch` on the byte at base+0x852D (case 1 -> atlas + i*0x1E4 +
    0x835C with bytes +0x852E/+0x852C, case 2 -> the same pointer + 0xA0 with
@@ -143,7 +143,7 @@ void func_80073B64(void) {
     }
 
     for (i = 0, off = 0x2E08; i < 4; i++, off += 0x320) {
-        func_800728B8((u8 *)(g_BattleGraphicsWork + off),
+        BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off),
                       *(u8 *)(g_BattleDisplayState + i + 0x74),
                       *(u8 *)(g_BattleDisplayState + i + 0x84));
     }
@@ -153,26 +153,26 @@ void func_80073B64(void) {
             p = (u8 *)(g_BattleGraphicsWork + off3);
             switch (*(u8 *)(p + 0x852D)) {
             case 1:
-                func_800728B8((u8 *)(g_BattleGraphicsWork + off3 + 0x835C),
+                BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off3 + 0x835C),
                               *(u8 *)(p + 0x852E), *(u8 *)(p + 0x852C));
                 break;
             case 2:
-                func_800728B8((u8 *)(g_BattleGraphicsWork + off3 + 0x83FC),
+                BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off3 + 0x83FC),
                               *(u8 *)(p + 0x852F), *(u8 *)(p + 0x852C));
                 break;
             }
-            func_800728B8((u8 *)(g_BattleGraphicsWork + off),
+            BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off),
                           *(s32 *)(g_BattleDisplayState + i * 4 + 0xEC),
                           *(u8 *)(g_BattleDisplayState + i + 0x99));
         }
     }
 
     if (g_BattleDisplayState[0xAF] != 0) {
-        func_800728B8(g_BattleGraphicsWork + 0x9C8, g_BattleDisplayState[0x7B], g_BattleDisplayState[0xA4]);
+        BattleAddPrimListToOT(g_BattleGraphicsWork + 0x9C8, g_BattleDisplayState[0x7B], g_BattleDisplayState[0xA4]);
     }
 
     for (i = 0, off = 0x3A88; i < 3; i++, off += 0xC80) {
-        func_800728B8((u8 *)(g_BattleGraphicsWork + off),
+        BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off),
                       *(s32 *)(g_BattleDisplayState + i * 4 + 0xE0),
                       *(u8 *)(g_BattleDisplayState + i + 0x93));
     }
@@ -180,9 +180,9 @@ void func_80073B64(void) {
     for (i = 0, off = 0x818, off2 = 0, off3 = 0; i < 3;
          i++, off += 0x50, off2 += 0x1C, off3 += 0x1E0) {
         if ((&g_BattleSlotActorIds)[off2] != 0x7F) {
-            func_800728B8((u8 *)(g_BattleGraphicsWork + off), 1, g_BattleDisplayState[0x83]);
+            BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off), 1, g_BattleDisplayState[0x83]);
             if (*(u8 *)(g_BattleDisplayState + i + 0xCC) != 0) {
-                func_800728B8((u8 *)(g_BattleGraphicsWork + off3),
+                BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off3),
                               *(u8 *)(g_BattleDisplayState + i + 0x78), g_BattleDisplayState[0xA2]);
                 AddPrim(g_BattleCurOT[0] + 4,
                         (u8 *)(g_BattleGraphicsWork + 0x740 +
@@ -206,7 +206,7 @@ void BattleAddTwoPrimLists(void) {
     offset = 0x641C;
     do {
         pWork = g_BattleDisplayState;
-        func_800728B8((u8 *)(offset + (s32)g_BattleGraphicsWork), pWork->packageCounts[i], pWork->primStart);
+        BattleAddPrimListToOT((u8 *)(offset + (s32)g_BattleGraphicsWork), pWork->packageCounts[i], pWork->primStart);
         offset += 0xFA0;
         i++;
     } while (i < 2);
@@ -214,15 +214,15 @@ void BattleAddTwoPrimLists(void) {
 
 void BattleAddThreeFlaggedPrimLists(void) {
     if (g_BattleDisplayState->spriteColumnPending != 0) {
-        func_800728B8(g_BattleGraphicsWork + 0xBA8, g_BattleDisplayState->spriteColumnPackageCount, g_BattleDisplayState->spriteColumnPrimStart);
+        BattleAddPrimListToOT(g_BattleGraphicsWork + 0xBA8, g_BattleDisplayState->spriteColumnPackageCount, g_BattleDisplayState->spriteColumnPrimStart);
     }
 
     if (g_BattleDisplayState->cursorPending != 0) {
-        func_800728B8(g_BattleGraphicsWork + 0x27C8, g_BattleDisplayState->cursorPackageCount, g_BattleDisplayState->cursorPrimStart);
+        BattleAddPrimListToOT(g_BattleGraphicsWork + 0x27C8, g_BattleDisplayState->cursorPackageCount, g_BattleDisplayState->cursorPrimStart);
     }
 
     if (g_BattleDisplayState->menuColumnPending != 0) {
-        func_800728B8(g_BattleGraphicsWork + 0x1E68, g_BattleDisplayState->menuColumnPackageCount, g_BattleDisplayState->menuColumnPrimStart);
+        BattleAddPrimListToOT(g_BattleGraphicsWork + 0x1E68, g_BattleDisplayState->menuColumnPackageCount, g_BattleDisplayState->menuColumnPrimStart);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
@@ -266,7 +266,7 @@ void func_80073FB8(void) {
     for (i = 0; i < 7; i++) {
         if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xB0) != 0) {
             pSlot = g_BattleSlotGraphics[i];
-            func_800728B8((u8 *)pSlot, pSlot->packageCount, *(u8 *)((u8 *)pSlot + 0x5A4));
+            BattleAddPrimListToOT((u8 *)pSlot, pSlot->packageCount, *(u8 *)((u8 *)pSlot + 0x5A4));
             AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280]);
             AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x2D0]);
             AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x320]);
@@ -347,13 +347,13 @@ void BattleAddSpriteColumnPrimLists(void) {
     u16 counter;
 
     if (g_BattleDisplayState->actorPrimListsPending != 0) {
-        func_800728B8(g_BattleSpriteColumnWork->unk3E80, g_BattleSpriteColumnWork->packageCount[7],
+        BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk3E80, g_BattleSpriteColumnWork->packageCount[7],
                       g_BattleSpriteColumnWork->primStart[3]);
-        func_800728B8(g_BattleSpriteColumnWork->unk5280, g_BattleSpriteColumnWork->packageCount[12],
+        BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk5280, g_BattleSpriteColumnWork->packageCount[12],
                       g_BattleSpriteColumnWork->primStart[8]);
-        func_800728B8(g_BattleSpriteColumnWork->unk53C0, g_BattleSpriteColumnWork->packageCount[13],
+        BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk53C0, g_BattleSpriteColumnWork->packageCount[13],
                       g_BattleSpriteColumnWork->primStart[9]);
-        func_800728B8(g_BattleSpriteColumnWork->unk43D0, g_BattleSpriteColumnWork->packageCount[15],
+        BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk43D0, g_BattleSpriteColumnWork->packageCount[15],
                       g_BattleSpriteColumnWork->primStart[11]);
     }
 
@@ -361,42 +361,42 @@ void BattleAddSpriteColumnPrimLists(void) {
         return;
     }
 
-    func_800728B8(g_BattleSpriteColumnWork->unk46A0, 20, g_BattleSpriteColumnWork->panelPrimStart);
-    func_800728B8(g_BattleSpriteColumnWork->unk0, g_BattleSpriteColumnWork->packageCount[0],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk46A0, 20, g_BattleSpriteColumnWork->panelPrimStart);
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk0, g_BattleSpriteColumnWork->packageCount[0],
                   g_BattleSpriteColumnWork->primStart[15]);
-    func_800728B8(g_BattleSpriteColumnWork->unk1720, g_BattleSpriteColumnWork->packageCount[4],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk1720, g_BattleSpriteColumnWork->packageCount[4],
                   g_BattleSpriteColumnWork->primStart[0]);
 
     counter = g_BattleSpriteColumnWork->columnCounter + 1;
     g_BattleSpriteColumnWork->columnCounter = counter;
     if ((s16)counter < 15) {
-        func_800728B8(g_BattleSpriteColumnWork->unk4CE0, g_BattleSpriteColumnWork->listPackageCount,
+        BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk4CE0, g_BattleSpriteColumnWork->listPackageCount,
                       g_BattleSpriteColumnWork->listPrimStart);
     } else if ((s16)counter >= 21) {
         g_BattleSpriteColumnWork->columnCounter = 0;
     }
 
-    func_800728B8(g_BattleSpriteColumnWork->unk3AC0, g_BattleSpriteColumnWork->packageCount[5],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk3AC0, g_BattleSpriteColumnWork->packageCount[5],
                   g_BattleSpriteColumnWork->primStart[1]);
-    func_800728B8(g_BattleSpriteColumnWork->unk3E30, g_BattleSpriteColumnWork->packageCount[6],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk3E30, g_BattleSpriteColumnWork->packageCount[6],
                   g_BattleSpriteColumnWork->primStart[2]);
-    func_800728B8(g_BattleSpriteColumnWork->unk4E70, g_BattleSpriteColumnWork->packageCount[8],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk4E70, g_BattleSpriteColumnWork->packageCount[8],
                   g_BattleSpriteColumnWork->primStart[4]);
-    func_800728B8(g_BattleSpriteColumnWork->unk4FB0, g_BattleSpriteColumnWork->packageCount[9],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk4FB0, g_BattleSpriteColumnWork->packageCount[9],
                   g_BattleSpriteColumnWork->primStart[5]);
-    func_800728B8(g_BattleSpriteColumnWork->unk50A0, g_BattleSpriteColumnWork->packageCount[10],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk50A0, g_BattleSpriteColumnWork->packageCount[10],
                   g_BattleSpriteColumnWork->primStart[6]);
-    func_800728B8(g_BattleSpriteColumnWork->unk51E0, g_BattleSpriteColumnWork->packageCount[11],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk51E0, g_BattleSpriteColumnWork->packageCount[11],
                   g_BattleSpriteColumnWork->primStart[7]);
-    func_800728B8(g_BattleSpriteColumnWork->unk2530, g_BattleSpriteColumnWork->packageCount[14],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk2530, g_BattleSpriteColumnWork->packageCount[14],
                   g_BattleSpriteColumnWork->primStart[10]);
-    func_800728B8(g_BattleSpriteColumnWork->unk32A0, g_BattleSpriteColumnWork->animPackageCount,
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk32A0, g_BattleSpriteColumnWork->animPackageCount,
                   g_BattleSpriteColumnWork->animPrimStart);
-    func_800728B8(g_BattleSpriteColumnWork->unk3C0, g_BattleSpriteColumnWork->packageCount[1],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk3C0, g_BattleSpriteColumnWork->packageCount[1],
                   g_BattleSpriteColumnWork->primStart[16]);
-    func_800728B8(g_BattleSpriteColumnWork->unkD20, g_BattleSpriteColumnWork->packageCount[2],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unkD20, g_BattleSpriteColumnWork->packageCount[2],
                   g_BattleSpriteColumnWork->primStart[17]);
-    func_800728B8(g_BattleSpriteColumnWork->unkFA0, g_BattleSpriteColumnWork->packageCount[3],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unkFA0, g_BattleSpriteColumnWork->packageCount[3],
                   g_BattleSpriteColumnWork->primStart[18]);
 }
 void BattleUpdateRotationBuffer(void) {
@@ -447,11 +447,11 @@ void BattleAddThreePrimLists(void) {
         return;
     }
 
-    func_800728B8(g_BattleSpriteColumnWork->unk5550, g_BattleSpriteColumnWork->packageCount[16],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk5550, g_BattleSpriteColumnWork->packageCount[16],
                   g_BattleSpriteColumnWork->primStart[12]);
-    func_800728B8(g_BattleSpriteColumnWork->unk5640, g_BattleSpriteColumnWork->packageCount[17],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk5640, g_BattleSpriteColumnWork->packageCount[17],
                   g_BattleSpriteColumnWork->primStart[13]);
-    func_800728B8(g_BattleSpriteColumnWork->unk5C80, g_BattleSpriteColumnWork->packageCount[18],
+    BattleAddPrimListToOT(g_BattleSpriteColumnWork->unk5C80, g_BattleSpriteColumnWork->packageCount[18],
                   g_BattleSpriteColumnWork->primStart[14]);
 }
 

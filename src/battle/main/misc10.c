@@ -266,8 +266,8 @@ extern void BattleWriteRowFieldBytes(u8 **ppCommand, u8 *pArgs, u8 slot, u8 row)
 extern void BattleWriteWorkBufferWord(u8 **ppCommand);
 extern void func_8007A968(u8 **ppCommand, u8 slot);
 extern void func_8007AA60(u8 **ppCommand, u8 slot);
-extern void func_8007AC30(u8 **ppCommand, u8 slot);
-extern void func_8007AC80(u8 **ppCommand, u8 slot);
+extern void BattleWordRegSubImmClamp(u8 **ppCommand, u8 slot);
+extern void BattleWordRegMulImmClamp(u8 **ppCommand, u8 slot);
 extern void func_8007ACDC(u8 **ppCommand, u8 slot);
 extern void func_8007AD24(u8 **ppCommand, u8 slot);
 extern s32 BattleByteRegCopyToMatchedSlot(u8 **ppCommand, u8 slot, u8 row);
@@ -278,8 +278,8 @@ extern void BattleDwordRegSetReg(u8 **ppCommand, u8 slot);
 extern void BattleWordRegSetFromByteReg(u8 **ppCommand, u8 slot);
 extern void BattleStoreCommandBytes(u8 **ppCommand, u8 *pArgs, u8 row);
 extern void func_8007BD5C(u8 **ppCommand, u8 slot);
-extern void func_8007BEA8(u8 **ppCommand, u8 slot);
-extern void func_8007C040(u8 **ppCommand, u8 slot);
+extern void BattlePickFreeCharSlotWithSameTag(u8 **ppCommand, u8 slot);
+extern void BattlePickFreeActorSlotWithSameTag(u8 **ppCommand, u8 slot);
 extern void func_8007D8C0(u8 **ppCommand, u8 slot);
 extern void func_8007DA1C(u8 **ppCommand, u8 slot);
 extern void func_8007DB78(u8 **ppCommand, u8 slot);
@@ -350,10 +350,10 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleWordRegAddImmClamp(ppCommand, slot);
         break;
     case 0x11:
-        func_8007AC30(ppCommand, slot);
+        BattleWordRegSubImmClamp(ppCommand, slot);
         break;
     case 0x12:
-        func_8007AC80(ppCommand, slot);
+        BattleWordRegMulImmClamp(ppCommand, slot);
         break;
     case 0x13:
         func_8007ACDC(ppCommand, slot);
@@ -494,10 +494,10 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         func_8007BD5C(ppCommand, slot);
         break;
     case 0x41:
-        func_8007BEA8(ppCommand, slot);
+        BattlePickFreeCharSlotWithSameTag(ppCommand, slot);
         break;
     case 0x42:
-        func_8007C040(ppCommand, slot);
+        BattlePickFreeActorSlotWithSameTag(ppCommand, slot);
         break;
     case 0x43:
         BattlePickCharSlotWithDifferentTag(ppCommand, slot);

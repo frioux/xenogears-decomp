@@ -101,7 +101,7 @@ s32 BattleSlotWordVarGetSet(u8, u8, s32, s32);
 // the 11 matched functions drop to 41.73-99.09% and, with maspsx
 // --aspsx-version=2.67 as well, BattleClearByteRegs/BAB8 fall to 95.00% too. gcc 2.6.0
 // keeps all 11 matched functions at 100.00% and, of the 13 bodies parked below,
-// only func_8007C040 scores better (72.75% vs 65.42%) and it is still far off.
+// only BattlePickFreeActorSlotWithSameTag scores better (72.75% vs 65.42%) and it is still far off.
 // So every park here is an allocator tie under all three, not a wrong compiler.
 
 // best: 90.81%. The pTable = (u8 *)pField + 0x10 form is what puts the
@@ -342,7 +342,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BD5C);
 // 0x54 and steps by 0x1C). Nothing found yet that keeps the symbol inside
 // the mem address.
 // screened: cdk 77.76% and 2.6.0 76.81% against 76.81% Default - not close.
-void func_8007BEA8(BattleCommand **p, u8 index) {
+void BattlePickFreeCharSlotWithSameTag(BattleCommand **p, u8 index) {
     u8 buf[3];
 
     buf[0] = buf[1] = buf[2] = 0;
@@ -366,10 +366,10 @@ void func_8007BEA8(BattleCommand **p, u8 index) {
 // g_BattleSlotRecords entry equals the (index+3) one into a stack buffer, then pick
 // one at random; both g_BattleSlotWordRegs stores are spelled inline, retail
 // re-forms their base with a fresh lui as well). Gap is the same hoist as
-// func_8007BEA8 (g_BattleSlotRecords/g_BattleSlotFlags bases into callee-saved registers,
+// BattlePickFreeCharSlotWithSameTag (g_BattleSlotRecords/g_BattleSlotFlags bases into callee-saved registers,
 // +8 frame). -G0 changes nothing.
 // screened: 2.6.0 gives 72.75% vs 65.42% Default, still far off; cdk 65.48%.
-void func_8007C040(BattleCommand **p, u8 index) {
+void BattlePickFreeActorSlotWithSameTag(BattleCommand **p, u8 index) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;

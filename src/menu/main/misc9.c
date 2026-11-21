@@ -8,8 +8,7 @@
 // One page of the inventory window: 8 row panels of MENU_INVENTORY_ROW_ITEM_COUNT items each.
 #define MENU_INVENTORY_ROW_ITEM_COUNT 2
 #define MENU_INVENTORY_PAGE_ITEM_COUNT 16
-// String IDs per row panel of the item list and of the character list.
-#define MENU_ITEM_ROW_STRING_COUNT 8
+// String IDs per row panel of the character list.
 #define MENU_CHARACTER_ROW_STRING_COUNT 6
 // An item name is three strings: GetStringEntry(pStrings, itemId * 3 + i).
 #define MENU_ITEM_NAME_LINE_COUNT 3
@@ -21,8 +20,6 @@
 #define MENU_STAT_VALUE_COUNT 9
 // Scratch buffer one rendered item name image is built in before LoadImage.
 #define MENU_COLUMN_IMAGE_SIZE 0x618
-// func_801C72BC's resource table: entry kind + 0x10 unloads what entry kind loaded.
-#define MENU_PANEL_FREE_OFFSET 0x10
 // Sprite records at the end of the 0x430 panel: 0x1C holds a copy of the selected
 // column's string, 0x1D..0x1F the three strings func_801DCE60 renders.
 #define MENU_PANEL_COLUMN_STRING 0x1C
@@ -118,7 +115,7 @@ void func_801DA9A8(s32 arg0, s32 arg1);
 void func_801DB39C(s32 arg0);
 void MenuBuildPartyCharacterPrims(s32 arg0);
 s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
-void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
+void MenuSetStringPrimitives(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 extern u8* GetStringEntryFromBank14(s32 index);
@@ -758,11 +755,11 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
                 }
             }
             if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
-                func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[i], i, 0x80, shade | 1);
+                MenuSetStringPrimitives(&((MenuUnk430Panel*)g_Menu->unk430)->strings[i], i, 0x80, shade | 1);
                 MenuSetQuadVertices(((MenuUnk430Panel*)g_Menu->unk430)->strings[i].vertices, (i % 2) * 0x88 + 0x24,
                                     (i / 2) * 0x10 + 0x12, ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].width, 0xD);
             }
-            func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i], i, 0x80, shade | 2);
+            MenuSetStringPrimitives(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i], i, 0x80, shade | 2);
             MenuSetQuadVertices(
                 ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices, D_801E9DDC[i][0],
                 D_801E9E14[i][0],
@@ -848,13 +845,13 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
         rect.h = 0xD;
         LoadImage(&rect, pImage);
         DrawSync(0);
-        func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING], 0, 0, 0);
+        MenuSetStringPrimitives(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING], 0, 0, 0);
         MenuSetFt4QuadVertices(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].polys[g_Menu->renderContext],
                                0x1C, 0x9E, 0, 0x4E,
                                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].width, 0xD);
         MenuSetQuadVertices(((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].vertices, 0x1C, 0x9E,
                             ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].width, 0xD);
-        func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1], 1, 0, 0);
+        MenuSetStringPrimitives(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1], 1, 0, 0);
         MenuSetFt4QuadVertices(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1].polys[g_Menu->renderContext],
                                0x1C, 0xAE, 0, 0x4E,
                                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1].width, 0xD);
@@ -1703,7 +1700,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
                 rect.h = FONT_LETTER_HEIGHT;
                 LoadImage(&rect, (u_long*)pBuf);
                 DrawSync(0);
-                func_801E7C50(&g_Menu->pCharacterSpriteRecords->slotStrings[i], i + 8, 0x80, 0x81);
+                MenuSetStringPrimitives(&g_Menu->pCharacterSpriteRecords->slotStrings[i], i + 8, 0x80, 0x81);
                 MenuSetQuadVertices(g_Menu->pCharacterSpriteRecords->slotStrings[i].vertices, 0x10, i * 0x10 + 0x96,
                     g_Menu->pCharacterSpriteRecords->slotStrings[i].width, FONT_LETTER_HEIGHT);
                 g_Menu->pCharacterSpriteRecords->slotStrings[i].renderContext = g_Menu->renderContext;

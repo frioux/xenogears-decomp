@@ -4412,7 +4412,7 @@ u8* SoundScriptSetElementRamp(u8* pScript, AudioManager* pAudioManager, AudioEle
     return pScript + 3;
 }
 
-u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetTriangleEnvelope1(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s8 note = pScript[1];
     s16 velocity = pScript[0];
     s32 delayReload;

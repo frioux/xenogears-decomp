@@ -116,7 +116,7 @@ void func_801D6338(u_char index, u_char characterId);
 void func_801D680C(u_char index, u_char characterId);
 void func_801D6CF4(u_char index, u_char characterId);
 void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId);
-void func_801D74EC(u_char index, u_char characterId);
+void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId);
 void func_801D7884(u_char index, u_char characterId);
 
 void MenuSetGoldDigits(s32 x, s32 y) {
@@ -615,10 +615,10 @@ extern s32 g_MenuGearWindowWideNumberX;
 extern s32 g_MenuGearWindowWideNumberY;
 extern s32 g_MenuGearWindowWideNumber2X;
 extern s32 g_MenuGearWindowWideNumber2Y;
-extern s32 D_801E9D20;
-extern s32 D_801E9D24;
-extern s32 D_801E9D28;
-extern s32 D_801E9D2C;
+extern s32 g_MenuGearWindowWideNumber3X;
+extern s32 g_MenuGearWindowWideNumber3Y;
+extern s32 g_MenuGearWindowWideNumber4X;
+extern s32 g_MenuGearWindowWideNumber4Y;
 extern s32 D_801E9D30;
 extern s32 D_801E9D34;
 // The gear window's two stat numbers (unk44, unk48 of the character): each is
@@ -696,7 +696,7 @@ void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId) {
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
     }
 }
-void func_801D74EC(u_char index, u_char characterId) {
+void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId) {
     s32 offset;
     s32 i;
 
@@ -711,7 +711,7 @@ void func_801D74EC(u_char index, u_char characterId) {
             ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumber2PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
                 (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + (primCount * (2 * sizeof(POLY_FT4)) + 0x11D0)),
-                g_Menu->renderContext, i * MENU_DIGIT_SPACING + D_801E9D20 - offset, D_801E9D24, 0x1000);
+                g_Menu->renderContext, i * MENU_DIGIT_SPACING + g_MenuGearWindowWideNumber3X - offset, g_MenuGearWindowWideNumber3Y, 0x1000);
         }
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumber2PrimCount; i++) {
@@ -736,7 +736,7 @@ void func_801D74EC(u_char index, u_char characterId) {
                 g_Menu->resources, g_Menu->digits[2 + i],
                 (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
                             (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumber2PrimCount * (2 * sizeof(POLY_FT4)) + 0x1400)),
-                g_Menu->renderContext, i * MENU_DIGIT_SPACING + D_801E9D28 - offset, D_801E9D2C, 0x1000);
+                g_Menu->renderContext, i * MENU_DIGIT_SPACING + g_MenuGearWindowWideNumber4X - offset, g_MenuGearWindowWideNumber4Y, 0x1000);
         }
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumber2PrimCount; i++) {
@@ -839,7 +839,7 @@ void MenuSetGearWindowContents(u_char index, u_char characterId) {
     func_801D6338(index, characterId);
     func_801D680C(index, characterId);
     func_801D6CF4(index, characterId);
-    func_801D74EC(index, characterId);
+    MenuSetGearWindowWideNumber2Prims(index, characterId);
     func_801D7884(index, characterId);
     MenuSetGearWindowWideNumberPrims(index, characterId);
     g_Menu->pManager->shouldRenderUnk358Prims = 1;
