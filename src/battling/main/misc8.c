@@ -8,8 +8,6 @@ extern u16 D_80091636;
 extern u8 g_BattleScreenRestoreCount;
 extern u8 g_BattleScreenRestorePending;
 extern u16 D_80091762;
-extern u16 D_80091672;
-extern u16 D_800916AE;
 extern u8 g_BattleTextWindowVisible;
 extern u_long *g_BattleScreenImageBuffer;
 extern u8 g_BattleDrawBufferIndex;
@@ -21,16 +19,6 @@ extern u8 g_BattleTextSpriteEntry1;
 extern u16 g_BattleScreenHeight;
 extern void *g_BattleMessageStringTable;
 extern u8 g_BattleTextPadIndex;
-extern u8 D_8009A1C4;
-extern u8 D_8009A1C5;
-extern u8 D_8009A1C6;
-extern u16 D_8009A1CA;
-extern u16 D_8009A1CE;
-extern u8 D_8009A2BC;
-extern u8 D_8009A2BD;
-extern u8 D_8009A2BE;
-extern u16 D_8009A2C2;
-extern u16 D_8009A2C6;
 extern s32 g_BattleMode;
 extern s32 g_BattleSpriteArchiveBuffer;
 extern s32 g_BattleStateAdvanceRequested;
@@ -95,8 +83,6 @@ typedef struct {
 extern BattleTextList g_BattleTextLists[8];
 extern BattleTextList g_BattleDefaultTextList[];
 extern BattleTextList g_BattleOptionTextList[];
-extern BattleTextList D_80091714[];
-extern BattleTextList D_80091750[];
 extern BattleTextList *g_BattleCurrentTextList;
 extern BattleTextList *g_BattlePrevTextList;
 extern s32 g_BattleCurrentTextPadIndex;
@@ -107,11 +93,13 @@ extern s32 g_BattleButtonStateReleased;
 extern u8 g_BattleStickPushSoundPlayed;
 extern int ControllerGetType(int controllerIndex);
 
-// Per-draw-buffer slot record, 0xF8 bytes: it starts with the screen area the
-// slot's text window covers.
+// Per-draw-buffer slot record, 0xF8 bytes: the screen area the slot's text
+// window covers at +0, and the tile primitive BattleSetScreenTileGrey fills at
+// +0xE8.
 typedef struct {
     /* 0x00 */ RECT rect;
-    /* 0x08 */ u8 unk8[0xF0];
+    /* 0x08 */ u8 unk8[0xE0];
+    /* 0xE8 */ TILE tile;
 } Misc8SlotEntry; // Size: 0xF8
 
 extern Misc8SlotEntry g_BattleDrawBuffers[];
@@ -159,8 +147,8 @@ void BattleInitTextWindow(void) {
     SoundStopAllElements();
     g_BattleCurrentTextList = 0;
     BattleSetCurrentTextList(3);
-    D_80091672 = 0;
-    D_800916AE = 0;
+    g_BattleTextLists[3].row = 0;
+    g_BattleTextLists[4].row = 0;
     g_BattleMode = 0;
     g_BattleTextWindowVisible = 0;
     BattleClearTextSpriteEntries();
@@ -385,7 +373,7 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
             return;
         }
         g_BattleTextSpriteEntry1 = entry;
-        BattleRenderCenteredText(&D_80095540, entry, 1);
+        BattleRenderCenteredText(&g_BattleCenteredTextSprites[1], entry, 1);
     }
     rect.x = 0x140;
     rect.y = 0x30;
@@ -406,7 +394,7 @@ void BattleDrawTextSprites(u8 *p) {
         AddPrim(p, &pText->sprt[g_BattleDrawBufferIndex]);
     }
     if (g_BattleTextSpriteEntry1 != 0) {
-        pText = &D_80095540;
+        pText = &g_BattleCenteredTextSprites[1];
         pText->sprt[g_BattleDrawBufferIndex].w = pText->width;
         pText->sprt[g_BattleDrawBufferIndex].x0 = pText->x;
         AddPrim(p, &pText->sprt[g_BattleDrawBufferIndex]);
@@ -573,7 +561,7 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
     s32 stickY;
     s32 stickX;
 
-    if (padIndex == 0 || p == D_80091750) {
+    if (padIndex == 0 || p == &g_BattleTextLists[7]) {
         BattleSetTextSpriteEntry(g_BattleTextEntryCursor, 0);
         g_BattleTextEntryCursor = p->pEntries[p->row].messageId;
     }
@@ -612,7 +600,7 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
     pCur = g_BattleCurrentTextList;
     if (pCur != 0) {
         if (g_BattleButtonStateReleased & CTRL_BTN_CROSS) {
-            if (padIndex != 1 || p != D_80091714) {
+            if (padIndex != 1 || p != &g_BattleTextLists[6]) {
                 if (pCur == &g_BattleTextLists[p->nextListIndex] && (p->nextListIndex < 5 || p->nextListIndex > 6)) {
                     sfx = 0x24;
                 } else {
@@ -811,31 +799,31 @@ void BattleUpdateTextWindow(void) {
 void BattleSetScreenTileGrey(void) {
     u16 v = g_BattleScreenHeight;
 
-    D_8009A1CA = 0x60;
-    D_8009A2C2 = 0x60;
-    D_8009A1C4 = 0x7F;
-    D_8009A1C5 = 0x7F;
-    D_8009A1C6 = 0x7F;
-    D_8009A2BC = 0x7F;
-    D_8009A2BD = 0x7F;
-    D_8009A2BE = 0x7F;
-    D_8009A1CE = v - 0x60;
-    D_8009A2C6 = v - 0x60;
+    g_BattleDrawBuffers[0].tile.y0 = 0x60;
+    g_BattleDrawBuffers[1].tile.y0 = 0x60;
+    g_BattleDrawBuffers[0].tile.r0 = 0x7F;
+    g_BattleDrawBuffers[0].tile.g0 = 0x7F;
+    g_BattleDrawBuffers[0].tile.b0 = 0x7F;
+    g_BattleDrawBuffers[1].tile.r0 = 0x7F;
+    g_BattleDrawBuffers[1].tile.g0 = 0x7F;
+    g_BattleDrawBuffers[1].tile.b0 = 0x7F;
+    g_BattleDrawBuffers[0].tile.h = v - 0x60;
+    g_BattleDrawBuffers[1].tile.h = v - 0x60;
 }
 
 void BattleSetScreenTileBlack(void) {
     u16 v = g_BattleScreenHeight;
 
-    D_8009A1CA = 0;
-    D_8009A2C2 = 0;
-    D_8009A1C4 = 0;
-    D_8009A1C5 = 0;
-    D_8009A1C6 = 0;
-    D_8009A2BC = 0;
-    D_8009A2BD = 0;
-    D_8009A2BE = 0;
-    D_8009A1CE = v;
-    D_8009A2C6 = v;
+    g_BattleDrawBuffers[0].tile.y0 = 0;
+    g_BattleDrawBuffers[1].tile.y0 = 0;
+    g_BattleDrawBuffers[0].tile.r0 = 0;
+    g_BattleDrawBuffers[0].tile.g0 = 0;
+    g_BattleDrawBuffers[0].tile.b0 = 0;
+    g_BattleDrawBuffers[1].tile.r0 = 0;
+    g_BattleDrawBuffers[1].tile.g0 = 0;
+    g_BattleDrawBuffers[1].tile.b0 = 0;
+    g_BattleDrawBuffers[0].tile.h = v;
+    g_BattleDrawBuffers[1].tile.h = v;
 }
 
 typedef struct {
