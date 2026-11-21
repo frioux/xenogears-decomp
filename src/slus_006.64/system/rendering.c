@@ -10,8 +10,19 @@ extern void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth);
 extern void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth);
 extern void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
 extern void SpriteClearDirTransforms(SpriteData* pSpriteData);
+extern void GfxQueueImageTransfer(u_long* pAddr, s32 x, s32 y, s32 width, s16 height);
 
 // Rendering-related stuff
+
+// The source rectangle of one animation frame on the animation texture, in
+// pixels: the loop below fills x/y from the frame's descriptor entry and the
+// palette upload fills the same fields with the clut's position and size.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 w;
+    /* 0x6 */ u16 h;
+} SpriteFrameRect; // Size: 0x8
 
 // Allocate directions array
 void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
@@ -83,6 +94,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     u32 count;
     s32 dir;
     s32 clutBase;
+    SpriteAnimPackage* pCurPackage;
     s32 texX;
     u16 texY;
     u16 tpageMode;
@@ -221,6 +233,215 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
+
+/* Best attempt: 80.81% (1652 bytes, the original is 1632). NOT a register-order
+   park and not a permuter job about statement order: the residual is the FRAME.
+   Retail is 0x78 with vars= 56; this body is 0x98 with vars= 88, so every
+   sp-relative operand differs and objdiff cannot climb. Facts confirmed against
+   the .s (all of them are needed, do not "clean" them up):
+   - retail spills pAnimPackage to its own home slot (sw a2,0x80(sp)) and reloads
+     it 4 times, and keeps pBlock in $fp. This body keeps pAnimPackage in $s7 and
+     spills pBlock, which is the whole cascade. An extra `pCurPackage =
+     pAnimPackage;` inside the loop (kept below) is what moved this body 76.6 ->
+     80.5 by splitting that pseudo; the remaining two spills it needs are pBlock
+     and a rematerialised copy of pFrameData.
+   - retail local slots, in order: 0x18 tex, 0x20 rect (8 bytes), 0x28 pFrames,
+     0x2C defaultMode, 0x30 color, 0x34 (tex.x&0x3F)<<2, 0x38 (tex.x&0x3F)<<1,
+     0x3C (u8)tex.y, 0x40 count, 0x48 unkFlag. Those three precomputed atlas
+     values are SOURCE locals (they are computed before the beqz on count, in the
+     preheader block, so they are not loop.c hoists) and they must land on exactly
+     those slots, which is the part this body still misses (it puts them at
+     0x58/0x60/0x68).
+   - the texX arms need the MIXED spelling kept below:
+     `texX8 + (rect.x * 2)` / `texX4 + (rect.x * 4)`. Both-shift
+     (`(a<<1)+(b<<1)`) and both-multiply spellings make gcc reassociate to
+     `(a+b)<<n` and the precomputed value disappears (measured, probe-verified).
+   - pSpriteData->field_0x40 is cleared with TWO ands on one load (0xFFFDFFFF
+     then 0xFFF7FFFF): two statements on the lvalue give two loads and two
+     stores, one expression folds to 0xFFF5FFFF. A `flags` local spelled as
+     three statements is what produces retail exactly.
+   - the rect at 0x20 is UNSIGNED (u16 fields): the stores are lhu/sh and the
+     reloads are lhu with no sign extension, so RECT (short) is wrong there; it
+     is also filled by the palette upload and per-frame by the descriptor.
+   - the palette upload block really does leave dead stores: rect.x/rect.y/
+     rect.w/rect.h are written from pAnimPackage->clut and *pPalette << 4 and
+     then the call passes freshly loaded expressions, not the struct fields.
+   - *pPalette must be read through a u16 pointer (lhu) and the upload address
+     built as `pPalette + (*pPalette * (u16 at 0x3E & 0xF0)) + 2` in u16 units;
+     that reproduces `sll 20 / sra 16` on the width argument.
+   Two permuter runs on the body below (base 9854 -> 7546 -> 7110, i.e.
+   76.6 -> 80.8) produced the pCurPackage split and the texX reuse for tex.y,
+   both applied. A third run found only `count = flags;`, which drops the 0x3F
+   mask - wrong code, rejected.
+*/
+/*
+void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, SpriteAnimPackage* pAnimPackage) {
+    SpriteFrameData* pFrameData;
+    u8* pFrames;
+    u8* pBlock;
+    u8* pSprite;
+    u8* pEntry;
+    u16* pPalette;
+    u16* pDescriptor;
+    SVEC2 tex;
+    SpriteFrameRect rect;
+    u32 flags;
+    u32 count;
+    u32 spriteFlags;
+    u32 vramWidth;
+    u16 defaultMode;
+    u16 tpageMode;
+    u16 texPage;
+    u32 color;
+    s32 clutBase;
+    SpriteAnimPackage* pCurPackage;
+    s32 texX;
+    s32 texX4;
+    s32 texX8;
+    s32 dir;
+    s32 i;
+    u8 entryFlags;
+    u8 unkFlag;
+
+    flags = pSpriteData->field_0x40;
+    flags &= 0xFFFDFFFF;
+    flags &= 0xFFF7FFFF;
+    pSpriteData->field_0x40 = flags;
+    pFrames = pAnimPackage->pFrames;
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    if (animFrame < (*(u16*)pFrames & 0x1FF) + 1) {
+        flags = *(u32*)((u8*)pSpriteData + 0x3C);
+        if ((flags >> 30) & 1) {
+            *(u32*)((u8*)pSpriteData + 0x3C) = flags & 0xBFFFFFFF;
+            pPalette = pAnimPackage->pPalette;
+            if (*(u16*)pPalette != 0) {
+                rect.x = pAnimPackage->clut.x;
+                rect.y = pAnimPackage->clut.y;
+                rect.h = 1;
+                rect.w = *pPalette << 4;
+                GfxQueueImageTransfer((u_long*)(pPalette + (*pPalette * (*(u16*)((u8*)pSpriteData + 0x3E) & 0xF0)) + 2),
+                                      pAnimPackage->clut.x, pAnimPackage->clut.y, (s16)(*pPalette << 4), 1);
+            }
+        }
+        if (*(u16*)pFrames & 0x8000) {
+            func_8001D53C(pSpriteData, animFrame, pAnimPackage);
+            return;
+        }
+        pBlock = (u8*)((mem_addr)((u16*)pFrames)[animFrame] + (mem_addr)pFrames);
+        tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+        if (((pSpriteData->field_0x40 >> 13) & 0xF) == 0xE) {
+            SpriteNextVramSlot(&tex, pBlock[4]);
+        }
+        pSpriteData->field_0x36 = pBlock[3] * pSpriteData->scale / 0x1000;
+        pSpriteData->field_0x38 = pBlock[1] * pSpriteData->scale / 0x1000;
+        defaultMode = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
+        color = *(u32*)&pSpriteData->red;
+        texX4 = (tex.x & 0x3F) << 2;
+        texX8 = (tex.x & 0x3F) << 1;
+        texX = tex.y;
+        flags = *pBlock;
+        unkFlag = flags & 0x80;
+        count = flags & 0x3F;
+        pDescriptor = (u16*)(pBlock + 6);
+        pEntry = pBlock + count * 4 + 6;
+        dir = 4;
+        i = 0;
+        if (count != 0) {
+            do {
+                pFrameData->deltaHeight = 0;
+                pFrameData->deltaWidth = 0;
+                pFrameData->flags &= ~0x20;
+                while (1) {
+                    entryFlags = *pEntry;
+                    if (!(entryFlags & 0x80)) {
+                        break;
+                    }
+                    pEntry++;
+                    if (entryFlags & 0x40) {
+                        if (pSpriteData->pBase->pDirTransforms == 0) {
+                            pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
+                            SpriteClearDirTransforms(pSpriteData);
+                        }
+                        dir = entryFlags & 7;
+                        if (entryFlags & 0x20) {
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationX = *pEntry++;
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationY = *pEntry++;
+                        }
+                        if (entryFlags & 0x10) {
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = *pEntry++ << 4;
+                        } else {
+                            (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = 0;
+                        }
+                    } else {
+                        if (entryFlags & 4) {
+                            pFrameData->flags |= 0x20;
+                        }
+                        if (entryFlags & 1) {
+                            pFrameData->deltaWidth = *pEntry++;
+                        }
+                        if (entryFlags & 2) {
+                            pFrameData->deltaHeight = *pEntry++;
+                        }
+                    }
+                }
+
+                pCurPackage = pAnimPackage;
+                pSprite = (u8*)(pFrames + pDescriptor[0] * 4);
+                rect.x = pDescriptor[1] & 0x1F;
+                rect.y = (pDescriptor[1] >> 5) & 0x3F;
+                pDescriptor += 2;
+                spriteFlags = *(u16*)(pSprite + 2);
+                if (spriteFlags & 1) {
+                    pFrameData->flags |= 8;
+                    vramWidth = *pSprite >> 1;
+                    texX = texX8 + (rect.x * 2);
+                } else {
+                    pFrameData->flags &= ~8;
+                    vramWidth = *pSprite >> 2;
+                    texX = texX4 + (rect.x * 4);
+                }
+                pFrameData->texX = texX;
+                pFrameData->flags = (pFrameData->flags & ~7) | dir;
+                pFrameData->texY = rect.y + texX;
+                pFrameData->width = *pSprite;
+                pFrameData->height = pSprite[1];
+                pFrameData->flags = (pFrameData->flags & ~0x10) | ((*pEntry >> 2) & 0x10);
+                tpageMode = (*pEntry >> 4) & 3;
+                clutBase = *pEntry & 0xF;
+                pFrameData->colorAndCode = color;
+                if (tpageMode == 0) {
+                    tpageMode = defaultMode;
+                }
+                if (tpageMode != 0) {
+                    *(u8*)((u8*)pFrameData + 0x13) |= 2;
+                    tpageMode--;
+                }
+                texPage = ((spriteFlags & 1) << 7) | ((tpageMode & 3) << 5);
+                texPage |= (tex.y & 0x100) >> 4;
+                texPage |= (tex.x & 0x3FF) >> 6;
+                texPage |= (tex.y & 0x200) << 2;
+                pFrameData->texPage = texPage;
+                pFrameData->clutID = GetClut(pCurPackage->clut.x + clutBase * 16, pCurPackage->clut.y);
+                GfxQueueImageTransfer((u_long*)(pSprite + 4), (s16)(tex.x + rect.x), (s16)(tex.y + rect.y),
+                                      vramWidth, pSprite[1]);
+                if (unkFlag != 0) {
+                    pFrameData->tileX = pEntry[1] | ((s8)pEntry[2] << 8);
+                    pFrameData->tileY = pEntry[3] | ((s8)pEntry[4] << 8);
+                    pEntry += 2;
+                } else {
+                    pFrameData->tileX = (s8)pEntry[1];
+                    pFrameData->tileY = (s8)pEntry[2];
+                }
+                pFrameData++;
+                i++;
+                pEntry += 3;
+            } while (i != count);
+        }
+        pSpriteData->field_0x40 = (pSpriteData->field_0x40 & ~0xFC) | ((i & 0x3F) << 2);
+        GfxQueueImageTransfer(0, tex.x, tex.y, pBlock[4], pBlock[5]);
+    }
+}
+*/
 
 extern MATRIX g_GfxBaseMatrix;
 extern u8 g_IsBattle;
