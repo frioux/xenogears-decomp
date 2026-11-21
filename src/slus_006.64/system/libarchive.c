@@ -420,25 +420,38 @@ int ArchiveClearStreamFileSections(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
 
-/* Best: 98.25% at retail's exact 844 bytes; the instruction stream, block layout and
- * every branch target now match. The remaining 27 diff rows are REGISTER NAMES only
- * (retail: nSections a1, sections base a3, limit copy a1, queue-index load v1 and its
- * copy a2; ours: nSections a2, sections base a2, limit copy v1, load v0, copy a1), so
- * this is an allocation tie and not a source shape - 7 declaration orders, the
- * `(index * sizeof(T) + (mem_addr)base)` spelling for both pointers and a
- * declaration-initialiser variant all measured the identical 98.25/844.
+/* Best: 99.69% at retail's exact 844 bytes. 9 diff rows left, all register names,
+ * all inside the queue-reopen block (retail: queue base a0, incremented index v0,
+ * entry v1; ours: base v1, index a2, entry v0 - a 3-cycle permutation, so the index
+ * is allocated FIRST in retail and LAST in ours).
  *
- * The two levers that got here from 97.87% (836 bytes, two instructions short) are both
- * in the debug-table scan and both are load-bearing:
- *  - the loop bound and the wrap test read g_ArchiveStreamSectionCount DIRECTLY in the
- *    source, not through a `nLimit` local. cse merges the two global loads into one
- *    pseudo, loop.c then hoists it and emits retail's `move a1,v0` preheader copy,
- *    while the zero-trip `blez` keeps using the load register. A `nLimit` local is
- *    coalesced into the load register and costs both the copy and 4 bytes.
- *  - `nIndex = g_ArchiveStreamQueueIndex++;` (not two statements) is what produces
- *    retail's separate queue-index copy.
- * The permuter cannot run this body: its randomization at rng_seed 0 (the forced base
- * candidate) emits invalid C and it reports "Unable to compile base.c".
+ * LOAD-BEARING, found this round (took the body 98.25 -> 99.69):
+ *  - `pHeader = pHeaders + nIndex;` placed after the increment statement emits the
+ *    index-then-addiu order with the sum on nIndex. Writing the sum FIRST, from the
+ *    GLOBAL, before `nIndex = g_ArchiveStreamQueueIndex++;` makes cse share the one
+ *    load and reproduces retail's exact preheader order (load, sll, addu for pHeader,
+ *    then the increment's copy, addiu, store). Both statements are needed.
+ *  - the sum must be the index-first CAST form, `(index * sizeof(T) + (u32)pHeaders)`;
+ *    `pHeaders + <global>`, `<global> + pHeaders`, and `&pHeaders[<global>]` all emit
+ *    retail's `addu a0,a3,v0` instead of `addu a0,v0,a3`.
+ *  The g_ArchiveStreamSectionCount-read-in-the-condition and the
+ *  `nIndex = g_ArchiveStreamQueueIndex++;` levers from the previous round still hold.
+ *
+ * The permuter cannot run this body: it rebuilds base.c with its own preprocessor and
+ * cc1 then rejects the `pData += nIndex * 0x800` line with "conversion to non-scalar
+ * type requested" (spelling the compound assignments out does not help).
+ *
+ * Measured and rejected for the last 9 rows (all still 99.69/844 unless noted):
+ * 5 declaration orders, `extern StreamDataQueueEntry* g_ArchiveStreamQueue` (pointer
+ * instead of s32), `pEntry->archiveIndex` instead of the u_short cast, the pData test
+ * read back through the base array, storing g_ArchiveStreamQueueIndex before the lhu
+ * (98.77, and reorders the store after it), moving the g_ArchiveStreamQueue load
+ * outside the if (98.81), `(u8*)base + nIndex * sizeof(T)`, and `nIndex = g_X; nIndex++;`
+ * or `nIndex++;` (both 99.31 and they break the OTHER block, because one nIndex pseudo
+ * is shared by the two blocks and its live range feeds both allocations). A separate
+ * local for this block's index is 840 bytes - one instruction short - so the shared
+ * pseudo is load-bearing too. Next lever would be a way to make the index's allocno
+ * outrank the entry pointer's; nothing in the source reached it.
  *
  * u_char* func_80028B14(void) {
  *     u_char* pData;
@@ -450,29 +463,29 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *     int nIndex;
  *     int nId;
  *     int i;
- *
+ * 
  *     if (g_ArchiveCurStreamFile == NULL) {
  *         return NULL;
  *     }
  *     pData = g_ArchiveCurStreamFile;
- *
+ * 
  *     pHeader = (ArchiveStreamFileSectionHeader*)(pData + 4);
  *     nSections = *(s32*)pData;
  *     pData = pData + nSections * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
- *
+ * 
  *     if (g_ArchiveDebugTable != 0) {
  *         if (g_ArchiveDebugFileHandle == -1) {
  *             return NULL;
  *         }
- *
+ * 
  *         if (g_ArchiveCurFileSize <= 0) {
  *             return NULL;
  *         }
- *
+ * 
  *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
  *             pHeaders = g_ArchiveStreamSections;
+ *             pHeader = (ArchiveStreamFileSectionHeader*)(g_ArchiveStreamQueueIndex * sizeof(ArchiveStreamFileSectionHeader) + (u32)pHeaders);
  *             nIndex = g_ArchiveStreamQueueIndex++;
- *             pHeader = pHeaders + nIndex;
  *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount) {
  *                 g_ArchiveStreamQueueIndex = 0;
  *             }
@@ -480,14 +493,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *                 break;
  *             }
  *         }
- *
+ * 
  *         if (pHeader->state != ARCHIVE_STREAM_FILE_NOT_LOADED) {
  *             return NULL;
  *         }
- *
+ * 
  *         pHeader->state = 3;
- *         pData += nIndex * CD_SECTOR_SIZE;
- *
+ *         pData = pData + nIndex * CD_SECTOR_SIZE;
+ * 
  *         for (i = 0; i < RETRY_COUNT; i++) {
  *             if (PCread(g_ArchiveDebugFileHandle, pData, CD_SECTOR_SIZE) != 0) {
  *                 goto readDone;
@@ -495,14 +508,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
  *         }
  *         return NULL;
- *
+ * 
  *     readDone:
- *
- *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ * 
+ *         g_ArchiveCurFileSize = g_ArchiveCurFileSize - CD_SECTOR_SIZE;
  *         if (g_ArchiveCurFileSize > 0) {
  *             return pData;
  *         }
- *
+ * 
  *         g_ArchiveCurFileSize = 0;
  *         for (i = 0; i < RETRY_COUNT; i++) {
  *             if (PCclose(g_ArchiveDebugFileHandle) == 0) {
@@ -510,7 +523,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             }
  *             GfxDrawArchiveReadRetry(i, 0, 0, 0xFF);
  *         }
- *
+ * 
  *         g_ArchiveDebugFileHandle = -1;
  *         if (g_ArchiveStreamQueue != 0) {
  *             nIndex = g_ArchiveStreamQueueIndex + 1;
@@ -518,7 +531,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             nId = *(u_short*)pEntry;
  *             g_ArchiveStreamQueueIndex = nIndex;
  *             g_ArchiveCurEntryIndex = nId;
- *
+ * 
  *             if (nId > 0 && pEntry->pData != NULL) {
  *                 pPath = ArchiveGetFilePath(nId);
  *                 for (i = 0; i < RETRY_COUNT; i++) {
@@ -529,30 +542,31 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *                     GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
  *                 }
  *                 g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
- *                 g_ArchivePendingReadCount -= 1;
+ *                 g_ArchivePendingReadCount = g_ArchivePendingReadCount - 1;
  *                 return pData;
  *             }
- *
+ * 
  *             g_ArchiveCurFileSize = 0;
  *         }
- *
+ * 
  *         g_ArchivePendingReadCount = 0;
  *         return pData;
  *     }
- *
+ * 
  *     for (i = 0; i < nSections; i++, pHeader++) {
  *         if (pHeader->state == 3 && pHeader->id == g_ArchiveStreamReadSectionId) {
  *             break;
  *         }
  *     }
- *
+ * 
  *     if (i == g_ArchiveStreamSectionCount) {
  *         return NULL;
  *     }
- *
+ * 
  *     g_ArchiveStreamReadSectionId += 1;
  *     return pData + i * CD_SECTOR_SIZE;
  * }
+ *
  */
 
 int ArchiveCheckStreamFileSectionStates(int sectionIndex, int maxEntries, int targetState) {
@@ -734,7 +748,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *             PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
  *         }
  *         g_ArchiveStreamQueueIndex = i;
- *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *         g_ArchiveCurFileSize = g_ArchiveCurFileSize - CD_SECTOR_SIZE;
  *         g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
  *
  *         *pSectionOut = 0;
@@ -762,7 +776,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *     if (g_ArchiveCdMode[0] & 8) {
  *         PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
  *     }
- *     g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *     g_ArchiveCurFileSize = g_ArchiveCurFileSize - CD_SECTOR_SIZE;
  *     g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
  *     if (g_ArchiveDebugStreamSectionCount >= g_ArchiveDebugStreamBlockCount) {
  *         g_ArchiveDebugStreamSectionCount = 0;
