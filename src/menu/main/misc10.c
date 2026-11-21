@@ -561,30 +561,57 @@ void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->pEquipmentPanel);
     func_801C72BC(0x13);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
-/* Best: 99.66% (1812 bytes, retail 1812 - EXACT size, and the instruction
-   multiset is identical). The ONLY difference is that retail keeps slot in $s2
-   and lastSlot in $s1 while gcc 2.6.0 here swaps the pair: retail $s1 is used 11
-   times and $s2 22 times, this body gets exactly the mirror (s1 22 / s2 11), so
-   it is a pure allocation-order tie and nothing else.
-   What got here from the previous 98.48% park, and is worth keeping:
-   - The function takes NO parameters. Its only caller (misc1 801C53D0) does
-     'jal func_801E23CC' with a nop delay slot and no $a0 setup, so slot is a
-     LOCAL, and retail reads it uninitialised at the entry call
-     ('addu $a0,$s2,$zero' before anything writes $s2). Declaring it
-     'u8 f(void) { ... s32 slot; ... }' reproduces retail's prologue and the
-     missing 4 bytes ('move a0,s2') exactly - with it as a parameter the body is
-     1808 bytes and the prologue is short one instruction.
-   - 'active = 1;' comes BEFORE the entry call in the source (retail:
-     'ori $s6,$zero,0x1' then 'addu $a0,$s2,$zero'), which fixes the prologue save
-     order and took the body from 98.69 to 99.66.
-   - MenuInitializeGearScreenBuffers returns u8 (its andi is retail's
-     'andi $s2,$v0,0xFF'); slot itself must stay s32 or cases 9/10 gain an andi.
-   Tried and no effect: every local declaration order (slot first / second /
-   last, lastSlot first), slot or lastSlot given the other width, and two permuter
-   runs (4 min from the 98.48 body: PERMUTER_NONE 543; 3 min from THIS body:
-   PERMUTER_NONE 145). Converting the switch also owns jtbl_801C518C (the first
-   table in the unit, jtbl_align says OK), so this is not a JTBL_LAYOUT case.
+/* PARKED 99.66% (1812 bytes = retail's exact size; the instruction multiset is
+   identical, 453 instructions). The ONLY residual is that retail keeps slot in
+   $s2 and lastSlot in $s1 while this body gets the exact mirror (every one of
+   slot's 22 uses and lastSlot's 11 uses swapped). Nothing else differs: case
+   order, jump table, delay slots, frame 0x48 and the whole save set agree. The
+   jtbl_801C518C vs .rodata operand is this unit's own rodata and is expected in
+   diff_func.
+
+   WHY NO SPELLING MOVES IT - measured with cc1 2.6.0's own allocator dump (run
+   tools/gcc-2.6.0-psx/cc1 with the unit's cc_flags plus -O2 -G8 -dg on
+   build/src/menu/main/misc10.c.i; it writes build/src/menu/main/misc10.c.i.greg).
+   The global-alloc section for this function reads
+     ;; 16 regs to allocate: 208 244 273 113 207 262 148 75 72 74 96 73 71 ...
+     Register dispositions: 75 in 17  72 in 18  74 in 19  96 in 20  73 in 21
+                            71 in 22  209 in 23  91 in 30
+   Pseudo 75 is slot (the entry call's a0, and the andi after
+   MenuInitializeGearScreenBuffers) and 72 is lastSlot (its def is the 0xF3).
+   That list is the PROCESSING order and the callee-saved registers are handed
+   out in ascending order along it (74 in 19, 96 in 20, 73 in 21, 71 in 22, 209
+   in 23, 91 in fp are all monotone), so the whole tie is "slot is processed
+   before lastSlot". gcc's global.c sorts allocnos by
+   floor_log2(n_refs) * n_refs / live_length * 10000 * size: slot is SI and used
+   22 times, lastSlot is QI (retail's two andi on $s1 prove it) and used 11
+   times, and the two live ranges are the same length (both start in the same
+   preheader and span the loop), so slot's priority is about ten times
+   lastSlot's whichever way the size factor falls - retail's order cannot come
+   out of that formula for any body that emits these 453 instructions.
+
+   What got here from the earlier 98.48 body, worth keeping:
+   - The function takes NO parameters. Its only caller (misc1 801C53D0) does jal
+     with a nop delay slot and no $a0 setup, so slot is a LOCAL and retail reads
+     it uninitialised at the entry call (addu $a0,$s2,$zero before anything
+     writes $s2). That reproduces retail's prologue and the 4-byte a0 copy; as a
+     parameter the body is 1808 bytes.
+   - active = 1 before the entry call (retail: ori $s6,$zero,0x1 then the a0
+     copy) fixes the prologue save order: 98.69 -> 99.66.
+   - MenuInitializeGearScreenBuffers returns u8 (retail's andi $s2,$v0,0xFF);
+     slot must stay s32 or cases 9/10 gain an andi.
+   - lastSlot must stay u8: retail narrows it twice (andi v0,s1,0xFF for the
+     loop test, andi s0,s1,0xFF reused by MenuUpdateDressingRoomTotals and
+     MenuDrawGearScreen). Measured: s32 lastSlot with explicit (u8) casts at the
+     test and at both calls keeps those two andis but measures 99.12% at 1804
+     bytes, so the QI declaration is the right one.
+   Also tried, no better: every local declaration order, slot or lastSlot given
+   the other width, a 4-minute permuter run from the 98.48 body (PERMUTER_NONE
+   543) and a 3-minute run from this body (PERMUTER_NONE 145). gcc-2.7.2-cdk
+   scores 89.55 on this body, so the unit preset is not the answer. Converting
+   the switch owns jtbl_801C518C (the unit's first table, jtbl_align says OK),
+   so this is not JTBL_LAYOUT.
+*/
+/*
 u8 func_801E23CC(void) {
     u8 active;
     u8 lastSlot;
@@ -722,6 +749,7 @@ u8 func_801E23CC(void) {
     return 1;
 }
 */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
 void MenuInitializeCharacterScreenBuffers(void) {
     MenuLoadSubMenuChoiceStrings(1);
     g_Menu->pGearWindowPrims = HeapAlloc(0x2AF0, 0);
