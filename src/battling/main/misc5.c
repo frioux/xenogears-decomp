@@ -757,31 +757,6 @@ void BattleEffectJitterVector(VECTOR *pSrc, VECTOR *pDst) {
     pDst->vz = pSrc->vz + rand() % 64 - 32;
 }
 
-/* PARK 99.48% at retail's exact size (808 bytes). diff_func.sh shows no
-   textual instruction difference at all, yet check_bin says the bytes move, so
-   the residual is one branch target or relocation the objdump text diff folds.
-   Established here: the caller-visible signature is (VECTOR *pA, VECTOR *pB,
-   s32 type), matching the extern above; the entry copies pB, subtracts pA,
-   calls BattleVectorLength for its side effect only, then divides the three
-   deltas by 7. The double loop is 3 x 7 quads with prev = pos = *pA re-copied
-   each outer pass (that assignment order is load-bearing: pos first),
-   BattleEffectJitterVector into a second VECTOR, the per-type colour, then
-   BattleQueueLineQuad(&prev, j == 6 ? pB : &jittered, color). Levers that were
-   needed, in order of gain: (1) prev = pos = *pA, not pos = prev;
-   (2) type 1 stores color[1] inside BOTH arms of the 0x100 clamp and then reads
-   it back through color[0] = color[1] = color[1] - that is where retail's
-   lbu/sb/sb triple comes from, and the plain color[0] = color[1] is one
-   instruction short; (3) type 0 writes color[2] before color[1]; (4) type 2's
-   white arm stores 0x52, 0x51, 0x50 and its red arm 0x50, 0x52, 0x51;
-   (5) the trailing argument select is an if/else with the call duplicated and
-   the j != 6 arm FIRST - the ternary hoists &prev into a callee-saved
-   register, +2 insns; (6) v = rand(); v %= 256; v += 0x40; as three
-   statements - the single expression keeps the return in $v0 and costs the
-   bgez register. */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D334);
-
-/*
 void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
     VECTOR pos;
     VECTOR step;
@@ -790,7 +765,7 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
     u8 color[3];
     s32 i;
     s32 j;
-    s32 v;
+    s32 u;
 
     step = *pB;
     step.vx -= pA->vx;
@@ -801,7 +776,8 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
     step.vy /= 7;
     step.vz /= 7;
     for (i = 0; i < 3; i++) {
-        prev = pos = *pA;
+        pos = *pA;
+        prev = *pA;
         for (j = 0; j < 7; j++) {
             pos.vx += step.vx;
             pos.vy += step.vy;
@@ -814,16 +790,14 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
                 color[2] = 0xFF;
                 break;
             case 1:
-                v = rand();
-                v %= 256;
-                v += 0x40;
-                if (v < 0x100) {
-                    color[1] = v;
+                u = rand() % 256 + 0x40;
+                if (u < 0x100) {
+                    color[1] = u;
                 } else {
                     color[1] = 0xFF;
                 }
                 color[0] = color[1] = color[1];
-                color[2] = v / 3;
+                color[2] = u / 3;
                 break;
             case 2:
                 if (j & 1) {
@@ -846,8 +820,6 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
         }
     }
 }
-*/
-
 void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     switch (arg2) {
     case 0x11:
