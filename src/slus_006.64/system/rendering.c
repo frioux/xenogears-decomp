@@ -488,11 +488,46 @@ typedef struct {
      body emits nop plus a second beqz pair in the loop preheader where retail
      fills both delay slots).
    - NOT A PRESET: under gcc-2.7.2-cdk-psx this body is 90.15, not 100.
+   - ROUND 364 (un-parked, 5 measured edits, parked at 89.06 / 1500 = TWO
+     instructions short, retail 1508):
+     (a) THE `s32`-FOR-`int` LEVER IS A NO-OP IN THIS UNIT: `typedef signed int
+     s32` (include/types.h), so `s32` and `int` are the same type and cc1 cannot
+     see the difference. Every integer local here is already effectively `s32`.
+     (b) `lastPlane = -1;` must sit ABOVE the two early returns (the resource
+     check and `count == 0`), not below them: retail fills the FIRST `beqz`
+     delay slot with `li s7,-1`, and only then does the loop preheader lose the
+     `nop` this body used to emit. 89.01/1504 -> 88.89/1500.
+     (c) With (b) in place, `i = 0;` must come BEFORE `pVerts =
+     g_BattleSpriteQuadCorners;` (89.06/1500). The other order also gives 1500
+     but 88.89, because the `li $21,0xFFFFFF` that loop.c hoists out of the
+     addPrim bitfield store (P_TAG.addr is a 24-bit bitfield, which is where the
+     `and 0xFF000000` comes from) then lands in the delay slot. In retail it
+     sits after `la s2` - so with (b)+(c) every other instruction of segment 0
+     lines up and the ONLY residual there is that one hoisted `li`.
+     (d) Declaring tileX/tileY/drawTileX/drawTileY `u32` instead of `s32`:
+     identical 89.06/1500 (same width, so the same RTL).
+     (e) A `while (1) { ...; if (++i == count) break; }` dispatch instead of the
+     do/while: identical size, 89.05 - the invariant hoist does not move.
+     WHAT THE TWO MISSING INSTRUCTIONS ARE, now proven with cc1_probe: the
+     `addu a0,a2,zero` (drawTileX = tileX) and `addu v1,a3,zero` (drawTileY =
+     tileY) copies. A standalone cc1_probe replica of the block emits all four
+     copies in retail's exact positions - the copy right after each
+     shift, the LAST one in the `beqz` delay slot - as soon as tileX/tileY stay
+     LIVE past the flip block; with them dead after it cc1 coalesces
+     drawTileX/tileX into one register and negates in place, which is what this
+     body does. So the residual is exactly the round-349 liveness reading:
+     drawWidth/drawHeight keep their copies because `width`/`height` are
+     REASSIGNED in the uv block, and nothing in retail's code reads tileX/tileY
+     after the negations (a2 dies at `negu a0,a2`, a3 at `negu v1,a3`), so no
+     honest source makes them live. Do not re-try the four copy spellings or the
+     permuter (four runs in round 348; everything past 3802 was wrong code).
 */
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
-/*
+/* Best attempt: 89.06% (1500 bytes, TWO instructions short - both draw-tile
+   copies, see the ROUND 364 entry in the note above):
 void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     SpriteFrameData* pFrameData;
     SpriteDirectionTransform* pTransform;
@@ -537,15 +572,15 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         offsetX = -offsetX;
     }
     count = (pSpriteData->field_0x40 >> 2) & 0x3F;
+    lastPlane = -1;
     if ((u8*)g_GfxCurWorkBuffer + count * sizeof(POLY_FT4) >= (u8*)g_GfxCurWorkBufferEnd) {
         return;
     }
     if (count == 0) {
         return;
     }
-    lastPlane = -1;
-    pVerts = g_BattleSpriteQuadCorners;
     i = 0;
+    pVerts = g_BattleSpriteQuadCorners;
     do {
         // frames are grouped by layer: only the first frame of a run re-picks the
         // direction transform (and so the matrix the rest of the run is drawn with)
