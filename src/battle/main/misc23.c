@@ -802,6 +802,36 @@ extern void SoundAddSedsEntry(void *);
 extern void BattleAllocActorEntryArray(BattleActor *);
 extern void BattleSnapActorToGround(BattleActor *);
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
+/* 85.90% (unit preset: gcc 2.6.0 -G0 --expand-div). The whole body is recovered -
+   every call, both branch chains, all five loops, the 2384-byte size is 15
+   instructions away and every load/store/call operand in retail's order. What is
+   left is register allocation only: retail keeps the flags word in $s0 and, after
+   it is clobbered by pFileEnd, in $s8 (an fp copy `move s8,s0`) and spills the
+   part buffer at 0x58; this build spills the flags at 0x58 instead and keeps the
+   part buffer in $s8, which rotates every other callee-saved name by one
+   (pModelBuffer $s2 vs $s1, pActor $s3 vs $s2, pHeader $s1 vs $s7...).
+   The frame itself is already retail's 0xC8 with the same slot offsets (0x50
+   slot, 0x58 spilled pointer, 0x60/0x68/0x70/0x78 the four s16 parameters - they
+   are cc1's own spills of the stack parameters, so do NOT declare locals for
+   them - 0x80 the ppBlocks pointer).
+   Three source levers that DID pay off here, keep them:
+   (1) grab a `void **ppBlocks = pModelBuffer->ppBlocks;` local before pHeader, so
+       pModelBuffer dies early and its three loads stay in retail's order;
+   (2) write the two `flags & 0x40` branches with the condition INVERTED
+       (`if ((flags & 0x40) == 0) { mult path } else { plain path }`): retail's
+       fall-through is the mult arm and the plain arm is out of line (80.22 ->
+       85.90 together with the skeleton chain below);
+   (3) the skeleton chain nested as
+       `if ((flags & 0x40) == 0) { if (flags4A & 4) {..2,0..} else {..2,1,args..} } else {..0..}`
+       because retail's first test jumps to its then-arm out of line and shares
+       the four zero stack words between the two zero arms.
+   Still worth trying: `mode = 0; if (!(flags & 0x40)) mode = (flags4A & 0x4) == 0;`
+   compiles to srl/xori/andi here but retail has `andi 0x4` + `sltiu s4,v0,1` - a
+   width/type question on the local (s32 vs u8/s16) that was not run down. The
+   pModelSource if/else-if costs one extra nop and j versus retail's two `bnez`
+   into one out-of-line zero store. */
+/*
 // Builds the actor for one battle slot from the archive buffers the model and
 // part data were decoded into. The flag word says which parts are already there:
 // 0x1 no model data, 0x2 no model file of its own, 0x4 no part data, 0x40 a
@@ -1000,6 +1030,8 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
         pActor->pModelFile = 0;
     }
 }
+
+*/
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
 // A list of {archive file index, buffer that file is decoded into} pairs: the
 // file index at 0x0/0x8/0x10/0x18 is the argument ArchiveDecodeAlignedSize and
