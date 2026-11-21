@@ -908,8 +908,19 @@ s32 func_80081C3C(s32 index) {
 // save pair and the tail mask registers instead, 96.50%). Declaration order, u32 vs s32
 // index, RECT/pMove/i first, operand order of both setaddr sums measured no better; a
 // 4-minute permuter run (2245 iterations) found nothing.
+// Best: 99.88%, retail's exact 564 bytes; unparked and re-measured (the body now
+// takes the (s32 index) signature the extern declares). The instruction sequence, every
+// call, store offset and constant allocation match. The one residue is gcc's giv re-base:
+// retail keeps the vertex pointer at prim+0x25 (v3, the HIGHEST offset) and addresses the
+// sixteen stores at 0..-0x1D, this cc1 picks prim+0x20 (x3, the LAST store in source
+// order) with every displacement 5 larger. Same addresses, different base. `addPrim` is
+// the right spelling (hand-spelling the two setaddr pairs as u32 masks puts the base at
+// 0x25 but then allocates 0xFF000000 before 0xFFFFFF, costing the prologue save pair,
+// 96.50%). Declaration order, u32 vs s32 index, RECT/pMove/i first and both setaddr
+// operand orders measured no better; a 4-minute permuter run (2245 iterations) found
+// nothing. Preset screen not run.
 /*
-s32 func_80081D80(void) {
+s32 func_80081D80(s32 index) {
     WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
     u16 *pFade = g_WorldMapFadeTable;
     DR_MOVE *pMove;
@@ -948,8 +959,7 @@ s32 func_80081D80(void) {
     addPrim(g_WorldMapRenderContext->pOt[0], pMove);
     return 1;
 }
-
-"*/
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
 s32 WorldMapResetSlotColorFade(s32 index) {
