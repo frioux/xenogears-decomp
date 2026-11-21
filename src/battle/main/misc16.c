@@ -291,32 +291,15 @@ u8 func_8008CFB8(u8 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
-/* 96.12% (620 bytes against retail's 624). The address ASSOCIATION of the
-   u16 |= store is the lever: written offset-chain first and gfx base last,
-   `*((i + primStart) * 0x28 + j * 0xFA0 + gfx + 0x6432)`, gcc emits retail's
-   two-step `addu v0,v0,s1 / addu v0,a1,v0`; the base-first spelling of the old
-   park let cse hoist `gfx + j*0xFA0` into one register and cost 2 instructions
-   (93.85 with that body). Everything else is matched: both guards, the two SetX
-   calls, the three byte stores and the loop tails.
-   ROUND 372: re-measured, still 96.12% at 620 bytes against retail's 624. Three
-   measurements: (a) spelling the c load AND the three sb stores offset-first
-   ('(i + primStart) * 0x28 + j * 0xFA0 + gfx + 0x6420', the form the u16 |= above
-   needs) is much worse - 90.51% / 632 bytes - so only the |= store keeps that form;
-   (b) the instruction we are short is the store group's address sum: retail
-   re-computes `addu v1,s1,a1 / addu v1,a0,v1` inside the if, we keep the c load's
-   whole address in v1 and reuse it across the branch, which is a cse decision;
-   (c) the loop also carries one DEAD instruction, the inner back-branch delay slot
-   is retail's nop and ours a rotated `li a1,0x1` (the SetSemiTrans constant), so
-   this body is one live instruction short and one dead one long.
-   Left, both allocator/cse ties: retail re-forms `s1 + base` in the 0x6420
-   load's beqz delay slot and reuses the chain (a0) for the following store, and
-   the inner back-branch delay slot holds a nop where we steal `li a1,1`.
-   The old body's byte-offset spellings are struct arithmetic against today's
-   BattleWork header and do not compile; packageCounts[j], primStart and
-   primListsPending are its fields. The count must stay a live re-read of the
-   global in the for-condition - that is what makes the original reload it at
-   the loop tail.
+// Fades the rows of tile prims the battle draw block built at the current prim
+// index: sets the transparency and shading bits on each, then subtracts the packet's
+// colour offset from its r0/g0/b0. Both halves of that area are walked (0x641C and
+// 0x7DBC, one 0xFA0 apart) and packageCounts[j] * 2 prims of the row are visited.
+// The load and the tpage store spell the row offset FIRST ((i + primStart) * 0x28
+// afterwards) while the three colour stores spell the gfx base first: that
+// asymmetry is what gives retail's two addu operand orders, and it is the only
+// source-level lever in this body (every uniform spelling is 96.12% / 620 bytes,
+// one instruction short of retail's 624).
 void func_8008D328(void) {
     u8 found;
     s32 j;
@@ -330,8 +313,8 @@ void func_8008D328(void) {
 
                 SetSemiTrans(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 1);
                 SetShadeTex(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 0);
-                *(u16 *)((i + g_BattleDisplayState->primStart) * 0x28 + j * 0xFA0 + g_BattleGraphicsWork + 0x6432) |= 0x20;
-                c = *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->primStart) * 0x28);
+                *(u16 *)(j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28 + g_BattleGraphicsWork + 0x6432) |= 0x20;
+                c = *(u8 *)(j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28 + g_BattleGraphicsWork + 0x6420);
                 if (c != 0) {
                     found = 1;
                     *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
@@ -346,7 +329,6 @@ void func_8008D328(void) {
     }
 }
 
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
 // The per-slot draw block is a raw POLY_FT4 pool (0x28 stride) that
 // BattleDrawSpriteQuad appends 0x50-byte sprite packages to; BattleSlotGraphics
@@ -408,6 +390,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
    Measured worse: an s16 `left` local (80.24), s16 locals for all five values
    (70.25 pre-volatile), the x1 store listed first (72.56), and the permuter from
    both bases (base 8640, nothing better in 4 minutes).
+   ROUND 384: four more bodies, all worse - s32 locals for left/bottom/top/half/mid
+   (75.99; cse2 hoists all five definitions above the first volatile store),
+   `left = arg1 + 8` as a statement BEFORE the slot-graphics load (78.23 / 1576,
+   and it does put left in retail's $a1 in the prologue), `left` early plus
+   `arg2 + 0xFFF8` inline (80.01 / 1576 - the li/addu shape retail has, but bottom
+   lands in $t0 and mid in $a0, the mirror of retail). None beats the body below,
+   which stays the closest at 620-ish 1580 bytes; the residual is the STORE_HOIST
+   class these four rows of row builders share (see func_8008E430's note).
 */
 /*
 void func_8008DE04(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
