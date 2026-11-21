@@ -3,8 +3,6 @@
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
 
-#define ARCHIVE_HEADER_ENTRY_SIZE 0x7
-
 extern void SoundPlayAudioManager(void* pManager, s32 volume, s32 frames);
 extern s32 SoundGetPendingSpuCommandType(u32 flags);
 extern void* SoundCreateAudioManagerOnHeap(void* pFile);
@@ -66,10 +64,14 @@ typedef struct {
     /* 0x8 */ volatile u32 frameIndex;
 } MovieFileHeader; // Size: 0xC
 
+// The stream slot is the 0x138-byte record that starts 0x18 bytes into each of the
+// two draw buffers (g_MovieStreamSlots[0] is g_MovieDebugDrawBuffers[0] + 0x18), so
+// its two used fields are that buffer's draw-env auto-clear flag and its disp-env
+// RGB24 flag.
 typedef struct {
-    /* 0x0 */ u8 unk0;
+    /* 0x0 */ u8 isbg;
     /* 0x1 */ u8 pad1[0x54];
-    /* 0x55 */ u8 unk55;
+    /* 0x55 */ u8 isrgb24;
     /* 0x56 */ u8 pad56[0xE2];
 } MovieSlot; // Size: 0x138
 
@@ -114,19 +116,6 @@ extern s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut);
 extern s32 g_MovieDebugSector;
 extern s32 g_MovieDebugSectorRow;
 extern s32 g_MovieCursorIndex;
-// .bss: the second draw buffer's display flag and the two buffers' display rects,
-// reached here at the exact addresses the original object names
-// (buffer 1 starts 0x138 bytes after buffer 0, its display flag 0x18 in, its screen
-// rect at 0x64)
-extern u8 D_80077274;
-extern u16 D_80077188;
-extern u16 D_8007718A;
-extern u16 D_8007718C;
-extern u16 D_8007718E;
-extern u16 D_800772C0;
-extern u16 D_800772C2;
-extern u16 D_800772C4;
-extern u16 D_800772C6;
 extern void HeapDebugDump(u_int mode, u_int startBlockIdx, int endBlockIdx, u_int flags);
 extern void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
 extern void MovieUpdateGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
@@ -491,26 +480,20 @@ void MovieDebugSectorViewer(void) {
     SetDefDispEnv(&pBase[0].dispEnv, 0, 0xF0, 0x280, 0xF0);
     SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
     SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x280, 0xF0);
-    // The ten stores below are the display flags and screen rects of the two draw
-    // buffers, i.e. exactly the block spelled
-    // pBase[0].drawEnv.isbg = 1; pBase[1].drawEnv.isbg = 1;
-    // pBase[n].dispEnv.screen.{x,y,w,h} = 0, 0xA, 0x100, 0xD8;
-    // (buffer 1 starts 0x138 after buffer 0, so those are D_80077274 and D_80077188
-    // here). Measured: the typed spelling is instruction-identical at retail's 2072
-    // bytes and links to the same addresses, but its relocations name
-    // g_MovieDebugDrawBuffers+0x18/0x150/0x64... where the original object names the
-    // exact addresses, so objdiff reads 99.61% and diff_func.sh can no longer fold it;
-    // this spelling keeps the function provable at 100.00%.
-    g_MovieStreamSlots[0].unk0 = 1;
-    D_80077274 = 1;
-    D_80077188 = 0;
-    D_8007718A = 0xA;
-    D_8007718C = 0x100;
-    D_8007718E = 0xD8;
-    D_800772C0 = 0;
-    D_800772C2 = 0xA;
-    D_800772C4 = 0x100;
-    D_800772C6 = 0xD8;
+    // the two draw buffers' auto-clear flags and screen rects. Spelled through the
+    // array, not through pBase: retail resolves every one of these ten addresses
+    // itself (lui $at / sb|sh 0($at)) instead of using the base it already holds in
+    // s1, which only the absolute spelling makes gcc do.
+    g_MovieDebugDrawBuffers[0].drawEnv.isbg = 1;
+    g_MovieDebugDrawBuffers[1].drawEnv.isbg = 1;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.x = 0;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.y = 0xA;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.w = 0x100;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.h = 0xD8;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.x = 0;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.y = 0xA;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.w = 0x100;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.h = 0xD8;
     ArchiveReadFileFromCdSector(g_MovieDebugSector, pSectorData, 0x800, 0, 0);
     ArchiveCdDataSync(0);
 
@@ -632,26 +615,34 @@ void MovieDebugSectorViewer(void) {
     SetDefDispEnv(&pBase[0].dispEnv, 0, 0xF0, 0x140, 0xF0);
     SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, 0xF0);
     SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, 0xF0);
-    g_MovieStreamSlots[0].unk0 = 1;
-    D_80077274 = 1;
-    D_80077188 = 0;
-    D_8007718A = 0xA;
-    D_8007718C = 0x100;
-    D_8007718E = 0xD8;
-    D_800772C0 = 0;
-    D_800772C2 = 0xA;
-    D_800772C4 = 0x100;
-    D_800772C6 = 0xD8;
+    g_MovieDebugDrawBuffers[0].drawEnv.isbg = 1;
+    g_MovieDebugDrawBuffers[1].drawEnv.isbg = 1;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.x = 0;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.y = 0xA;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.w = 0x100;
+    g_MovieDebugDrawBuffers[0].dispEnv.screen.h = 0xD8;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.x = 0;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.y = 0xA;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.w = 0x100;
+    g_MovieDebugDrawBuffers[1].dispEnv.screen.h = 0xD8;
 }
 
+// One entry of the archive directory the file-size lookup below reads: a 3-byte
+// sector index and a 4-byte size, little-endian. The same 0x7-byte record as
+// ArchiveEntry in slus_006.64/system/libarchive.c, which owns the type.
+typedef struct {
+    /* 0x0 */ u8 sector[3];
+    /* 0x3 */ u8 size[4];
+} ArchiveEntry; // Size: 0x7
+
 int WorldMapSyncGearRideActors(u32 entryIndex) {
-    u8* pArchiveEntry;
+    ArchiveEntry* pEntry;
     u32 nOffset;
     int nFileSize;
 
-    nOffset = entryIndex * ARCHIVE_HEADER_ENTRY_SIZE;
-    pArchiveEntry = nOffset + g_ArchiveTable;
-    nFileSize = (pArchiveEntry[6] << 0x18) + (pArchiveEntry[5] << 0x10) + (pArchiveEntry[4] << 0x8) + pArchiveEntry[3];
+    nOffset = entryIndex * sizeof(ArchiveEntry);
+    pEntry = (ArchiveEntry*)(nOffset + g_ArchiveTable);
+    nFileSize = (pEntry->size[3] << 0x18) + (pEntry->size[2] << 0x10) + (pEntry->size[1] << 0x8) + pEntry->size[0];
     return nFileSize;
 }
 
@@ -852,22 +843,22 @@ void MovieResetPlaybackAndClearScreen(void) {
     } else if (g_MovieStreamArchiveSection == 2) {
         return;
     }
-    g_MovieStreamSlots[0].unk0 = 0;
-    g_MovieStreamSlots[1].unk0 = 0;
+    g_MovieStreamSlots[0].isbg = 0;
+    g_MovieStreamSlots[1].isbg = 0;
     if (g_MovieStreamRgb24 != 0) {
-        g_MovieStreamSlots[0].unk55 = 1;
-        g_MovieStreamSlots[1].unk55 = 1;
+        g_MovieDebugDrawBuffers[0].dispEnv.isrgb24 = 1;
+        g_MovieDebugDrawBuffers[1].dispEnv.isrgb24 = 1;
     }
     func_80076488();
     Vsync(0);
     ClearImage(&rect, 0, 0, 0);
     DrawSync(0);
     Vsync(0);
-    g_MovieStreamSlots[0].unk0 = 1;
-    g_MovieStreamSlots[1].unk0 = 1;
+    g_MovieStreamSlots[0].isbg = 1;
+    g_MovieStreamSlots[1].isbg = 1;
     if (g_MovieStreamRgb24 != 0) {
-        g_MovieStreamSlots[0].unk55 = 0;
-        g_MovieStreamSlots[1].unk55 = 0;
+        g_MovieDebugDrawBuffers[0].dispEnv.isrgb24 = 0;
+        g_MovieDebugDrawBuffers[1].dispEnv.isrgb24 = 0;
     }
 }
 
@@ -893,10 +884,10 @@ s32 MovieStartStreamWithMode(u8 mode) {
     } else if (state == 2) {
         return;
     }
-    g_MovieStreamSlots[0].unk0 = 0;
-    g_MovieStreamSlots[1].unk0 = 0;
-    g_MovieStreamSlots[0].unk55 = 1;
-    g_MovieStreamSlots[1].unk55 = 1;
+    g_MovieDebugDrawBuffers[0].drawEnv.isbg = 0;
+    g_MovieDebugDrawBuffers[1].drawEnv.isbg = 0;
+    g_MovieDebugDrawBuffers[0].dispEnv.isrgb24 = 1;
+    g_MovieDebugDrawBuffers[1].dispEnv.isrgb24 = 1;
     func_80076488();
 }
 
