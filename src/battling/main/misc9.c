@@ -331,7 +331,7 @@ typedef struct {
 } BattleGridPosition; // Size: 0x8
 
 s16 BattleGetGridValueAtPosition(BattleGridPosition* p) {
-    s32 tmp[12];
+    s32 tmp[12]; // unused: an aggregate local is what gives the original's 0x30 frame
     s32 a;
     s32 b;
     s32 col;
@@ -938,7 +938,7 @@ void BattleFadeActorLights(PolyTable* pTable, Battler9* pActor, s32 idx) {
     u8 alpha;
     u8 next;
     s32 a;
-    s32 tmp[8];
+    s32 tmp[8]; // unused: an aggregate local is what gives the original's frame size
 
     alpha = pActor->lightAlpha;
     a = alpha;
@@ -991,7 +991,8 @@ s32 BattleClearAndQueueActorPrims(Battler9* p) {
 
     pWork = p->pDisplayWork;
     BattleClearOrderingTable(pWork);
-    BattleDrawTextPrims((u8*)pWork->pOt[g_BattleDrawBufferIndex] + 4);
+    // the table's first word is its terminator, the prims start after it
+    BattleDrawTextPrims(&pWork->pOt[g_BattleDrawBufferIndex][1]);
     BattleAttachActorPrims(pWork);
     BattleAddSharedPrim();
     return 0;
