@@ -347,36 +347,10 @@ void func_801DB39C(u_char arg0) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB5E4);
-
-/* 99.93% (828 bytes = retail's size; instruction multiset identical). The only
-   difference is the register the u_char useGearPositions phi is built in: retail
-   writes `move s1,zero` in the beq delay slot, `li s1,0x1` in the == 2 arm and
-   truncates in place with `andi s1,s1,0xff` after the merge; this C builds the
-   phi in a call-clobbered register and copies at the merge
-   (`andi s1,a0,0xff`, or v0 depending on where the zero assignment sits). Tried,
-   all 99.93 and all 828 bytes: the inverted `!= 2` if/else (retail's block
-   layout, the form below), a pre-if `= 0` statement vs a declaration
-   initializer (declaration initializer is worse, 98.56), the zero assigned at the
-   top of the taken arm (moves the copy to v0), declaration order of the locals,
-   the statement order of the two currentCharacters/currentCharacterIDs reads.
-   permute.sh from the 99.93 body: PERMUTER_NONE (base=15 best=15); the first run
-   on the 99.15 body found the embedded assignment in the alloc loop above, which
-   was the other 10 instructions' worth.
-   Decode: allocates the three MenuCharacter records once (D_801E9785), zeroes
-   them, picks the label position tables by arg0 (2 = second layout row, whose
-   characters must have a gear: g_GameState.characters[id].gearId), builds each
-   party slot's prims with MenuBuildCharacterPrims and then fills the three
-   pointer-cursor quads: x 0x90..0xA0, y 0x30 + 0x38*i to 0x40 + 0x38*i. */
-/*
-// Rebuilds the three party-slot info panels: allocates their MenuCharacter
-// records once, then builds the prims of every slot whose character id is set
-// (arg0 selects the label position table: 2 is the second row of the layout).
 void func_801DB5E4(s32 arg0) {
     MenuCharacter* pCharacter;
     s32* pPositionsX;
     s32* pPositionsY;
-    u_char useGearPositions;
     u8 characterId;
     u8 shouldBuild;
     s32 i;
@@ -391,26 +365,28 @@ void func_801DB5E4(s32 arg0) {
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         bzero(g_Menu->currentCharacters[i], sizeof(MenuCharacter));
     }
+    // Retail keeps the gear-position flag in the parameter's own variable: the
+    // 0/1 store reuses its register, and a separate local lands in $v0.
     if ((u_char)arg0 != 2) {
+        arg0 = 0;
         pPositionsX = D_801EA054;
         pPositionsY = D_801EA0DC;
-        useGearPositions = 0;
     } else {
         pPositionsX = D_801EA098;
         pPositionsY = D_801EA120;
-        useGearPositions = 1;
+        arg0 = 1;
     }
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         pCharacter = g_Menu->currentCharacters[i];
         characterId = g_Menu->pManager->currentCharacterIDs[i];
         shouldBuild = 1;
         if (characterId != CHARACTER_ID_NONE) {
-            if (useGearPositions) {
+            if ((u_char)arg0) {
                 shouldBuild = g_GameState.characters[characterId].gearId != GEAR_ID_NONE;
             }
             if (shouldBuild) {
                 MenuBuildCharacterPrims(pCharacter, characterId, i, (s32)pPositionsX, (s32)pPositionsY,
-                                        useGearPositions);
+                                        (u_char)arg0);
             }
         } else {
             pCharacter->shouldRender = 0;
@@ -431,4 +407,3 @@ void func_801DB5E4(s32 arg0) {
         (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].y3 = i * 0x38 + 0x40;
     }
 }
-*/
