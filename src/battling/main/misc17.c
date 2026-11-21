@@ -250,32 +250,8 @@ void func_8008E120(void) {
     BattleEffectCopyBuffers();
 }
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
-/* best: objdiff 94.71% - 272 bytes = retail's exact size (the .size is 0x110;
-   an earlier note's "276" was wrong). Everything matches except two residuals.
-   1. the GetTPage return is truncated into the argument through the local's
-   home register (move a3,v0 / andi a3,a3,0xffff) where retail truncates
-   straight into the argument register (andi a3,v0,0xffff) three slots later,
-   after the a1/a2 setup. Measured: an s32 local puts the SAME andi at the
-   right operand but at its definition, immediately after the jal (90.58%,
-   268 bytes); passing the GetTPage call inline (or as a ternary inside the
-   SetDrawMode argument) gives retail's arms exactly but keeps that early andi
-   at 268 bytes; a u_short local is the 272-byte form kept here. Two calls, one
-   per arm, are required for retail's arms: cross-jumping merges their common
-   tail (move a2,zero / jal / move a3,zero) and leaves the duplicated
-   move a0,zero plus the j in the first arm. A shared mode local collapses
-   those arms (a0=0 hoisted to the join).
-   2. retail MATERIALISES &g_BattleEffectDrawModes twice (lui/addiu into $v0 at
-   each site); ours cse's the address constant into $s0, which is free after
-   flag dies at the beqz, and reuses it for the second AddPrim. Measured and no
-   help: s32 and u_short tpage, a DR_MODE* local for either call, sizeof vs 12,
-   (u32)index-first vs array subscript at either site, and a (u8*) cast on the
-   second site's base (a different mode does not stop the constant being
-   shared). Needs either a second symbol for the same address or the note
-   stays.
 void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     TILE* pTile;
-    u_short tpage;
 
     pTile = &g_BattleEffectTiles[g_BattleDrawBufferIndex];
     BattleSetRGBCFast(pTile, color, color, color, 0x60);
@@ -284,11 +260,13 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     BattleSetWHFast(pTile, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
     setSemiTrans(pTile, 1);
     AddPrim(pOt, pTile);
-    tpage = flag != 0 ? GetTPage(0, 2, 0, 0) : GetTPage(0, 1, 0, 0);
-    SetDrawMode(&g_BattleEffectDrawModes[g_BattleDrawBufferIndex], 0, 1, tpage, NULL);
+    if (flag != 0) {
+        SetDrawMode(&g_BattleEffectDrawModes[g_BattleDrawBufferIndex], 0, 1, GetTPage(0, 2, 0, 0), NULL);
+    } else {
+        SetDrawMode(&g_BattleEffectDrawModes[g_BattleDrawBufferIndex], 0, 1, GetTPage(0, 1, 0, 0), NULL);
+    }
     AddPrim(pOt, &g_BattleEffectDrawModes[g_BattleDrawBufferIndex]);
 }
-*/
 void BattleDrawEffectImage(u8* pOt, s32 shadeLevel, s32 drawTile) {
     POLY_FT4* pPrim;
     TILE* pTile;
@@ -547,24 +525,26 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
-/* best: objdiff 90.34% - 176 bytes, retail's exact size, frame (0x28 with the
-   unused s32 pad[2]) and every instruction identical except two residuals:
-   (1) gcc gives the doubled table index $s1 and the D_80091EE0 base $s2 where
-   retail has them the other way round (an allocator tie between two
-   equal-cost call-saved registers: the index pseudo is created before the
-   base's constant pseudo, so it takes the lower register; assigning the base
-   earlier in source does not move it, because cse sets the constant at its
-   first register use, after the $at-form read); (2) in the second block retail
-   leaves a nop in the beqz delay slot and loads the flags after it, while
-   gcc hoists the lw into the slot and leaves the nop after the andi.
-   Measured and no help: base assigned at its use (85.84%, 168 bytes), base
-   assigned before the index (90.34%, this one), the three declaration orders,
-   the index as u32, i = soundId * 2, an initialiser on the pointer,
-   pEntry = &D_80091EE0[i] with pEntry[1] (85.84%), both reads spelled
-   D_80091EE0[i] (90.70%, 184 bytes), a non-void return (90.11%) and a
-   3-minute permuter run (base 145, best 25, only a nonsense volatile return
-   type). The $at form of the first read and the base-plus-index form of the
-   second are both required.
+/* best: objdiff 90.34% - 176 bytes = retail's 44 instructions, frame (0x28 with
+   the dead s32 pad[2]) and every instruction identical except two residuals.
+   1. the doubled table index takes $s1 and the D_80091EE0 base $s2; retail has
+   them the other way round (index $s2, whose save lands first, base $s1). It is
+   an allocator tie: both pseudos cross the jal, the index one is created first
+   (the sll in the beq delay slot) and so takes the lower register. Measured and
+   no help: base assigned at its use (85.84%, 168 bytes), base assigned before
+   the index (90.34%, this one), the three declaration orders, the index as u32,
+   i = soundId * 2, an initialiser on the pointer, pEntry = &D_80091EE0[i] with
+   pEntry[1] (85.84%), both reads spelled D_80091EE0[i] (90.70%, 184 bytes), a
+   non-void return (90.11%) and a 3-minute permuter run (base 145, best 25, only
+   a nonsense volatile return type). The $at form of the first read and the
+   base-plus-index form of the second are both required.
+   2. the second block: retail leaves a nop in the beqz slot and then loads the
+   flags, gcc steals the byte's andi into the slot instead. Retail's second block
+   evaluates the flags load BEFORE the byte's andi 0x7F (its first block does the
+   opposite), but gcc puts the andi first in BOTH blocks whatever the source: the
+   | operand order swapped, and a u32 local for the flags term, both measure
+   identical here. Since the stolen insn is the andi (a load is apparently not
+   delay-slot-eligible), the only fix would be that order.
 void func_8008ED6C(BattleActor* pActor, s32 idx) {
     s32 pad[2];
     u8* pSoundTable;
