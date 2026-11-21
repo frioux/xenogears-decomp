@@ -21,7 +21,7 @@ extern s32 g_WorldMapMode4EntryTriggered;
 extern u8 *WorldMapGetTileEntry(s32 x, s32 z);
 extern u8 g_WorldMapZoneId;
 extern s16 g_WorldMapAreaId;
-extern s16 g_WorldMapViewRotationY[];
+extern u16 g_WorldMapViewRotationY[];
 extern u8 g_WorldMapZoneProximity;
 extern void *g_WorldMapAreaRect;
 extern u32 g_WorldMapZoneAreaRects[3];
@@ -491,43 +491,52 @@ void WorldMapUpdateL2R2PressEdge(void) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090A84);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
-/* best: 99.91%, same 428/416-byte size and every instruction identical; only the
-   switch table operand differs (jtbl_ vs .rodata) plus the .L label relocs.
-   PARKED FOR A LAYOUT REASON, not a codegen one: gcc emits the C jump table
-   8-byte aligned, so it lands at .rodata+0x190 where retail packs it at
-   .rodata+0x18C (4 bytes of pad at 0x18C), which shifts all of
-   world_map.bin by 4 and fails check_bin. The tables before it belong to
-   the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
-   cannot be re-laid-out for one function: converting the whole switch family
-   of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
-   match, and angle must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
-   (lhu in every case body).
-
+/* best: 99.91%, 428 bytes = retail's exact size, every instruction identical; the only
+   residual is the switch table operand (jtbl_80070B84 against .rodata) and the .L label
+   relocs, which the linker resolves to the same addresses.
+   PARKED FOR A LAYOUT REASON, re-measured and re-proved this round. Converting this stub
+   makes world_map.bin 4 bytes too long (check_bin: got 180426 against disc's 180422; the
+   first differing word is a .text pointer in misc1's rodata, i.e. TEXT_START moved by 4).
+   Cause: cc1 emits `.align 3` (8 bytes) before every C jump table - hardcoded in the MIPS
+   port, measured identical in 2.6.0, 2.7.2 and 2.7.2-cdk, and 2.7.2 rejects
+   -falign-jumps - while retail packs this unit's tables 4-byte aligned. The unit's rodata
+   (0x800709F8, exactly 0x258 bytes) holds nine tables at +0, +0x18, +0x38, +0x58, +0x15C,
+   +0x18C, +0x1BC, +0x1EC, +0x214; the last five are 4 mod 8, and the tables tile the range
+   with no slack, so the first converted table of that run lands at retail's offset +4 and
+   nothing later shrinks back. Converting func_80090E14 as well (its table follows this one)
+   leaves the same +4: 0x25C against 0x258.
+   A split unit whose .rodata range begins at 0x18C does not fix it either: the `.align 3`
+   sets the object section's sh_addralign to 8, so the linker pads the section start 0x18C
+   up to 0x190 and the table still lands 4 late.
+   The old text of this park did not compile, so its percentage came from a stale object:
+   `g_WorldMapViewRotationY` has to be read as `g_WorldMapViewRotationY[0]` with the u16
+   array extern at the top of the file - every case body reads it with lhu. angle is s16
+   (the rcos/rsin argument reads it with lh) and 0x48 is the field func_80090E14 also writes.
 s32 func_80090C68(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
-        pPlayer->angle = g_WorldMapViewRotationY;
+        pPlayer->angle = g_WorldMapViewRotationY[0];
         break;
     case 2:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x400) & 0xFFF;
         break;
     case 3:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x200) & 0xFFF;
         break;
     case 4:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x800) & 0xFFF;
         break;
     case 6:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x600) & 0xFFF;
         break;
     case 8:
-        pPlayer->angle = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x400) & 0xFFF;
         break;
     case 9:
-        pPlayer->angle = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x200) & 0xFFF;
         break;
     case 12:
-        pPlayer->angle = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x600) & 0xFFF;
         break;
     }
     if (g_WorldMapPad1Held & 0xF000) {
@@ -552,43 +561,38 @@ s32 func_80090C68(WorldMapPlayer *pPlayer) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
-/* best: 99.90%, same 428/416-byte size and every instruction identical; only the
-   switch table operand differs (jtbl_ vs .rodata) plus the .L label relocs.
-   PARKED FOR A LAYOUT REASON, not a codegen one: gcc emits the C jump table
-   8-byte aligned, so it lands at .rodata+0x190 where retail packs it at
-   .rodata+0x18C (4 bytes of pad at 0x18C), which shifts all of
-   world_map.bin by 4 and fails check_bin. The tables before it belong to
-   the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
-   cannot be re-laid-out for one function: converting the whole switch family
-   of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
-   match, and angle must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
-   (lhu in every case body).
-
+/* best: 99.90%, 416 bytes = retail's exact size, every instruction identical; the only
+   residual is the switch table operand (jtbl_80070BB4 against .rodata) and the .L label
+   relocs. PARKED FOR THE SAME LAYOUT REASON as func_80090C68 just above (its table, at
+   .rodata +0x1BC, is 4 mod 8; that note has the measurement and the arithmetic).
+   Its tail differs from func_80090C68's: a released 0x20 returns 1 only when
+   g_WorldMapAreaId != -1, a released 0x40 returns 4, and it does not call
+   WorldMapUpdateL2R2PressEdge.
 s32 func_80090E14(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
-        pPlayer->angle = g_WorldMapViewRotationY;
+        pPlayer->angle = g_WorldMapViewRotationY[0];
         break;
     case 2:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x400) & 0xFFF;
         break;
     case 3:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x200) & 0xFFF;
         break;
     case 4:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x800) & 0xFFF;
         break;
     case 6:
-        pPlayer->angle = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x600) & 0xFFF;
         break;
     case 8:
-        pPlayer->angle = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x400) & 0xFFF;
         break;
     case 9:
-        pPlayer->angle = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x200) & 0xFFF;
         break;
     case 12:
-        pPlayer->angle = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x600) & 0xFFF;
         break;
     }
     if (g_WorldMapPad1Held & 0xF000) {
