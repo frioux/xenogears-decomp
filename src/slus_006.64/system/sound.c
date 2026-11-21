@@ -58,6 +58,19 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 #define SOUND_CHANNEL_ACTIVE                0x1     // element is playing and gets stepped
 #define SOUND_CHANNEL_MUTED                 0x20    // silenced by SoundMuteElementsByFlags
 #define SOUND_CHANNEL_NTOE                  0x200   // the 0x81 script command sets it, 0x80 and the 0xB0/0xB1 pair clear it
+// AudioElement.status_flags bit 0 (the rest of the field is SOUND_STATUS_* in sound.h)
+#define SOUND_STATUS_KEY_ON                 0x1     // SoundSetElementsStatusFlag1 queues it, the element mixer assigns and keys the voice on
+// AudioElement.rampFlags: one bit per interpolator the element runs (bit 1 has no known use)
+#define SOUND_RAMP_FLAG_NOTE                0x1     // noteFrames/noteStep slide the pitch
+#define SOUND_RAMP_FLAG_SLIDE               0x4     // slideFrames is set, the note glides from currentNote to nextNote
+#define SOUND_RAMP_FLAG_ELEMENT_VOLUME      0x8     // elementVolumeFrames/elementVolumeStep
+#define SOUND_RAMP_FLAG_PAN                 0x10    // panFrames/panStep
+#define SOUND_RAMP_FLAG_VOLUME              0x20    // volumeFrames/volumeStep
+#define SOUND_RAMP_FLAG_QUEUED              0x100   // a ramp waits in `ramp`, installed into the element-volume ramp
+// AudioElement.voice_data.modeFlags: one bit per SPU voice flag register the voice is routed into
+#define SOUND_VOICE_MODE_PITCH_MODULATION   0x10
+#define SOUND_VOICE_MODE_NOISE              0x20
+#define SOUND_VOICE_MODE_REVERB             0x40
 // SoundVoiceData.flags: one bit per SPU voice register group the element scripts rewrite
 #define SOUND_VOICE_FLAG_VOLUME             0x1
 #define SOUND_VOICE_FLAG_PITCH              0x4
@@ -72,12 +85,22 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 #define SOUND_ENVELOPE_FLAG_ENABLED         0x1
 #define SOUND_ENVELOPE_FLAG_HALF_RATE       0x4     // the reloaded count doubles, the envelope steps every other tick
 #define SOUND_ENVELOPE_FLAG_DESCENDING      0x8     // the step handlers negate delta while this is set
+#define SOUND_ENVELOPE_RAMP_SCALE           0x400   // rampStep at full speed, and the rampLevel the step is scaled below
 #define SOUND_EFFECT_ELEMENT_COUNT          16      // elements of the sound-effect manager SoundInitialize creates
 #define SOUND_EFFECT_ELEMENT_PAIR_COUNT     2       // elements one sound-effect pair spans, what g_SoundEffectElementPairCount reports
+#define SOUND_EFFECT_ELEMENT_PAIR_STRIDE    8       // the two elements of a pair sit this far apart in the table, so bit 3 picks the half
+#define SOUND_EFFECT_PAIR_VOLUME            0x6000  // level the pair play helpers start a sound effect at
+#define SOUND_EFFECT_CHANNEL_COUNT_DEFAULT  8       // g_SoundSoundEffectChannelCount until the game changes it
 #define SOUND_PERCUSSION_TABLE_SIZE         0x180   // tail added to a manager's allocation when it carries a percussion map
 #define SOUND_UPLOAD_BUFFER_SIZE            0x840   // SoundInitiateReverbWorkAreaTransfer's SPU write buffer, sized so a whole tail fits
 #define SOUND_UPLOAD_CHUNK_SIZE             0x800   // largest SPU write SoundExecuteReverbWorkAreaTransfer queues at a time
 #define SOUND_TICKS_PER_WHOLE_NOTE          192     // a beat divisor of 4 splits this into 48 ticks per beat
+#define SOUND_DEFAULT_BEATS_PER_BAR         4       // beatsPerBar (and its mirror at 0x3E) before a time signature command
+#define SOUND_DEFAULT_BEAT_DIVISOR          4       // beatDivisor that makes ticksPerBeat SOUND_TICKS_PER_WHOLE_NOTE / 4
+#define SOUND_TIMER_RELOAD                  0x44E8  // RCnt2 reload count: one SoundTimerInterruptHandler per 1/240 s
+#define SOUND_TIMER_TICKS_PER_SECOND        240     // what SoundGetAudioManagerPlayTime divides playTime by to reach seconds
+#define SOUND_SECONDS_PER_MINUTE            60      // ... and the seconds in the minute it reports next
+#define SOUND_MANAGER_VOLUME_MAX            0x7F00  // SoundSetAudioManagerMaxVolume scales the tempo by this (max volume << 8)
 #define SOUND_LOOP_COUNT_NONE               0xFFFF  // "no active element seen": any real loopCount compares lower
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -381,11 +404,11 @@ void SoundInitialize(s32 flags) {
 
     EnterCriticalSection();
     g_unk_SoundEvent = OpenEvent(RCntCNT2, EvSpINT, RCntMdINTR, SoundTimerInterruptHandler);
-    SetRCnt(RCntCNT2, 0x44E8, RCntMdINTR);
+    SetRCnt(RCntCNT2, SOUND_TIMER_RELOAD, RCntMdINTR);
     StartRCnt(RCntCNT2);
     SpuSetTransferCallback(&SoundOnTransferCallback);
     SpuSetIRQCallback(&SoundSpuIRQHandler);
-    SpuSetIRQ(0);
+    SpuSetIRQ(SPU_OFF);
     g_SoundTimerTickCounter = 0;
     g_SoundSpuIRQCount = 0;
     ExitCriticalSection();
@@ -400,12 +423,12 @@ void SoundInitialize(s32 flags) {
     }
 
     g_SoundEffectAudioManager = SoundCreateAudioManagerForElementCount(SOUND_EFFECT_ELEMENT_COUNT);
-    g_SoundSoundEffectChannelCount = 8;
+    g_SoundSoundEffectChannelCount = SOUND_EFFECT_CHANNEL_COUNT_DEFAULT;
     g_SoundReverbMemoryHandle = SOUND_REVERB_MEMORY_NONE;
     g_SoundUploadDestBuffer = 0;
     g_SoundReverbType = SOUND_REVERB_TYPE_NONE;
     SoundSetReverbModeWithAllocation(SPU_REV_MODE_STUDIO_C, 0, 0, 0);
-    SpuSetReverb(1);
+    SpuSetReverb(SPU_ON);
     g_SoundSpuErrorId = 0;
 }
 
@@ -428,7 +451,7 @@ void SoundReset(void) {
     for (i = 0; i < NUM_VOICES; i++) {
         SoundSetVoiceAdsrReleaseShiftAndMode(i, 6, 3);
     }
-    SoundSetVoiceKeyOff(0xFFFFFF); // Release all voices
+    SoundSetVoiceKeyOff(SPU_ALLCH); // Release all voices
     SpuSetReverbModeDepth(0, 0);
     SpuSetReverbModeType(SPU_REV_MODE_OFF);
     g_SoundSpuErrorId = 0;
@@ -983,7 +1006,7 @@ void SoundExecuteReverbWorkAreaTransfer(void) {
 
         SoundQueueSpuWriteCommand(currentSourceAddr, g_SoundUploadDestBuffer, chunkSize, SoundExecuteReverbWorkAreaTransfer);
 
-        if ((g_SoundControlFlags & (1 << 4)) == 0) {
+        if ((g_SoundControlFlags & SOUND_CTL_FLAG_TRANSFER_BUSY) == 0) {
             SoundQueueSpuWriteCommand(currentSourceAddr, g_SoundUploadDestBuffer, chunkSize, NULL);
         }
     }
@@ -1812,9 +1835,9 @@ void SoundPlaySoundEffectOnLastPair(s32 arg0) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         s32 value = g_SoundEffectElementCount;
 
-        value -= 2;
+        value -= SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
-        func_8003B644((s16)(value | (s16)0x8000), arg0, 0x6000, 0x4000);
+        func_8003B644((s16)(value | (s16)0x8000), arg0, SOUND_EFFECT_PAIR_VOLUME, SOUND_PAN_CENTER);
     }
 }
 
@@ -1823,17 +1846,17 @@ void SoundPlaySoundEffectOnLastPair(s32 arg0) {
 void SoundSendCommandConstant(s32 arg0) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
-        func_8003B644((1 << 2) | (1 << 3) | (1 << 13) | (1 << 14), arg0, (1 << 13) | ( 1 << 14), (1 << 14));
+        func_8003B644((1 << 2) | (1 << 3) | (1 << 13) | (1 << 14), arg0, SOUND_EFFECT_PAIR_VOLUME, SOUND_PAN_CENTER);
     }
 }
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundPlaySoundEffectOnFreePair(s32 arg0) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
-        s32 value = SoundAllocateSoundEffectElements(arg0, 2);
+        s32 value = SoundAllocateSoundEffectElements(arg0, SOUND_EFFECT_ELEMENT_PAIR_COUNT);
 
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
-        func_8003B644((s16)(value | 0x2000), arg0, 0x6000, 0x4000);
+        func_8003B644((s16)(value | 0x2000), arg0, SOUND_EFFECT_PAIR_VOLUME, SOUND_PAN_CENTER);
     }
 }
 
@@ -1842,10 +1865,10 @@ void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644(
-            ((arg1 & 0xFE) ^ (1 << 3)) | (1 << 13), // wtf is this... we really need to figure out some of these macros
+            ((arg1 & 0xFE) ^ SOUND_EFFECT_ELEMENT_PAIR_STRIDE) | (1 << 13), // wtf is this... we really need to figure out some of these macros
             arg0,
-            (1 << 13) | (1 << 14),
-            (1 << 14)
+            SOUND_EFFECT_PAIR_VOLUME,
+            SOUND_PAN_CENTER
         );
     }
 }
@@ -1853,7 +1876,7 @@ void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1) {
 //----------------------------------------------------------------------------------------------------------------------
 void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
-        s32 value = SoundAllocateSoundEffectElements(arg0, 2);
+        s32 value = SoundAllocateSoundEffectElements(arg0, SOUND_EFFECT_ELEMENT_PAIR_COUNT);
 
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644((s16)(value | 0x2000), arg0, (s16)(arg1 << 8), (s16)(arg2 << 8));
@@ -1863,7 +1886,7 @@ void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
 void SoundPlaySoundEffectOnPairWithLevels(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
-        func_8003B644(((arg1 & 0xFE) ^ 0x8) | 0x2000, arg0, (s16)(arg2 << 8), (s16)(arg3 << 8));
+        func_8003B644(((arg1 & 0xFE) ^ SOUND_EFFECT_ELEMENT_PAIR_STRIDE) | 0x2000, arg0, (s16)(arg2 << 8), (s16)(arg3 << 8));
     }
 }
 
@@ -1929,8 +1952,8 @@ void SoundStopElementsByIndex(s32 elementIndex) {
     u32 cnt;
 
     elementIndex &= 0xFE;
-    elementIndex ^= 8;
-    cnt = 2;
+    elementIndex ^= SOUND_EFFECT_ELEMENT_PAIR_STRIDE;
+    cnt = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
     pManager = g_SoundEffectAudioManager;
     pElement = &pManager->elements[elementIndex];
 
@@ -1971,8 +1994,8 @@ void SoundSetElementVolumeByIndex(s32 elementIndex, s32 value) {
     u32 cnt;
 
     elementIndex &= 0xFE;
-    elementIndex ^= 8;
-    cnt = 2;
+    elementIndex ^= SOUND_EFFECT_ELEMENT_PAIR_STRIDE;
+    cnt = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
     pElement = &g_SoundEffectAudioManager->elements[elementIndex];
 
     do {
@@ -2003,7 +2026,7 @@ void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
                     pElement->volumeStep = delta / frames;
                     pElement->volumeTarget = volume;
                     pElement->volumeFrames = frames;
-                    pElement->rampFlags |= 0x20;
+                    pElement->rampFlags |= SOUND_RAMP_FLAG_VOLUME;
                 }
             }
         }
@@ -2019,8 +2042,8 @@ void SoundFadeElementVolumeByIndex(s32 elementIndex, s32 value, s32 frames) {
     s32 delta;
 
     elementIndex &= 0xFE;
-    elementIndex ^= 8;
-    cnt = 2;
+    elementIndex ^= SOUND_EFFECT_ELEMENT_PAIR_STRIDE;
+    cnt = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
     volume = value << 8;
     pElement = &g_SoundEffectAudioManager->elements[elementIndex];
 
@@ -2034,7 +2057,7 @@ void SoundFadeElementVolumeByIndex(s32 elementIndex, s32 value, s32 frames) {
                 pElement->volumeStep = delta / frames;
                 pElement->volumeTarget = volume;
                 pElement->volumeFrames = frames;
-                pElement->rampFlags |= 0x20;
+                pElement->rampFlags |= SOUND_RAMP_FLAG_VOLUME;
             }
         }
         pElement++;
@@ -2065,8 +2088,8 @@ void SoundSetElementPanByIndex(s32 elementIndex, s32 value) {
     s32 volume;
 
     elementIndex &= 0xFE;
-    elementIndex ^= 8;
-    cnt = 2;
+    elementIndex ^= SOUND_EFFECT_ELEMENT_PAIR_STRIDE;
+    cnt = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
     volume = value << 8;
     pElement = &g_SoundEffectAudioManager->elements[elementIndex];
 
@@ -2312,12 +2335,12 @@ typedef struct {
 
 void SoundGetAudioManagerPlayTime(AudioManager* pManager, SoundPlayTime* pOut) {
     u32 total = (u32)pManager->playTime >> 8;
-    u32 field = total / 240;
-    u32 index = field / 60;
+    u32 field = total / SOUND_TIMER_TICKS_PER_SECOND;
+    u32 index = field / SOUND_SECONDS_PER_MINUTE;
 
     pOut->playTicks = pManager->playTicks;
-    pOut->unk4 = total - field * 240;
-    pOut->unk6 = field - index * 60;
+    pOut->unk4 = total - field * SOUND_TIMER_TICKS_PER_SECOND;
+    pOut->unk6 = field - index * SOUND_SECONDS_PER_MINUTE;
     pOut->unk8 = index;
 }
 
@@ -2438,7 +2461,7 @@ void SoundRestoreAudioManagerBackup(AudioManager* pManager) {
 }
 
 void SoundSetAudioManagerMaxVolume(AudioManager* pManager, u16 volume) {
-    s32 newVolume = 0x7F00;
+    s32 newVolume = SOUND_MANAGER_VOLUME_MAX;
     u_long event = g_unk_SoundEvent;
 
     pManager->flags |= SOUND_MANAGER_FLAG_STOP_PENDING;
@@ -2484,7 +2507,7 @@ void SoundSetElementsStatusFlag1(AudioManager* manager) {
         if ((*(u32*)pElement & (SOUND_CHANNEL_ACTIVE | SOUND_CHANNEL_HOLD_NOTE)) == (SOUND_CHANNEL_ACTIVE | SOUND_CHANNEL_HOLD_NOTE)) {
             // I'm beginning to think that this isn't just a flag for activity considering this mask
             if ((pElement->active_flag & (SOUND_CHANNEL_PERCUSSION_ACTIVE | SOUND_CHANNEL_MUTED)) == 0) {
-                pElement->status_flags |= 0x1;
+                pElement->status_flags |= SOUND_STATUS_KEY_ON;
             }
         }
         pElement++;
@@ -2650,11 +2673,11 @@ void SoundInitializeAudioManager(AudioManager* manager) {
     manager->unk_0x1b = 0;
     manager->lowestLoopCount = 0;
     manager->beatCount = 0;
-    manager->beatsPerBar = 4;
+    manager->beatsPerBar = SOUND_DEFAULT_BEATS_PER_BAR;
     manager->tickCount = 1;
-    manager->ticksPerBeat = 48;
-    manager->beatDivisor = 4;
-    manager->unk_0x3e = 4;
+    manager->ticksPerBeat = SOUND_TICKS_PER_WHOLE_NOTE / SOUND_DEFAULT_BEAT_DIVISOR;
+    manager->beatDivisor = SOUND_DEFAULT_BEAT_DIVISOR;
+    manager->unk_0x3e = SOUND_DEFAULT_BEATS_PER_BAR;
 
     manager->tempoScaleInterpolator.currentValue = 0x01000000;
     manager->volumeInterpolator.currentValue = 0x7F000000;
@@ -3745,7 +3768,7 @@ u8* SoundScriptRepeatOrEnd(u8* pScript, AudioManager* pAudioManager, AudioElemen
         pAudioElements->loopCount++;
         pAudioElements->octave = pAudioElements->savedOctave;
     } else {
-        pAudioElements->status_flags &= ~0x3;
+        pAudioElements->status_flags &= ~(SOUND_STATUS_KEY_ON | SOUND_STATUS_REST_NOTE);
         SoundReleaseVoiceFromChannel(&pAudioElements->voice_data, pAudioElements->voice_number);
         pAudioElements->active_flag = 0;
     }
@@ -4003,7 +4026,7 @@ u8* SoundScriptClearActiveFlag800(u8* pScript, AudioManager* pAudioManager, Audi
 u8* SoundScriptSetVoiceFlags1000AndMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioElements->voice_number & 0x1) {
         pAudioElements->voice_data.flags |= 0x1000;
-        pAudioElements->voice_data.modeFlags |= 0x10;
+        pAudioElements->voice_data.modeFlags |= SOUND_VOICE_MODE_PITCH_MODULATION;
     }
 
     return pScript;
@@ -4012,7 +4035,7 @@ u8* SoundScriptSetVoiceFlags1000AndMode(u8* pScript, AudioManager* pAudioManager
 u8* SoundScriptSetVoiceFlags1000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     if (pAudioElements->voice_number & 0x1) {
         pAudioElements->voice_data.flags |= 0x1000;
-        pAudioElements->voice_data.modeFlags &= ~0x10;
+        pAudioElements->voice_data.modeFlags &= ~SOUND_VOICE_MODE_PITCH_MODULATION;
     }
 
     return pScript;
@@ -4022,7 +4045,7 @@ u8* SoundScriptSetNoiseClock(u8* pScript, AudioManager* pAudioManager, AudioElem
     pAudioManager->noiseClock = *pScript++;
     SpuSetNoiseClock(pAudioManager->noiseClock);
     pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
-    pAudioElements->voice_data.modeFlags |= 0x20;
+    pAudioElements->voice_data.modeFlags |= SOUND_VOICE_MODE_NOISE;
     return pScript;
 }
 
@@ -4030,19 +4053,19 @@ u8* SoundScriptAddNoiseClock(u8* pScript, AudioManager* pAudioManager, AudioElem
     pAudioManager->noiseClock = (pAudioManager->noiseClock + *pScript++) & 0x3F;
     SpuSetNoiseClock(pAudioManager->noiseClock);
     pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
-    pAudioElements->voice_data.modeFlags |= 0x20;
+    pAudioElements->voice_data.modeFlags |= SOUND_VOICE_MODE_NOISE;
     return pScript;
 }
 
 u8* SoundScriptSetVoiceFlags2000AndMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
-    pAudioElements->voice_data.modeFlags |= 0x20;
+    pAudioElements->voice_data.modeFlags |= SOUND_VOICE_MODE_NOISE;
     return pScript;
 }
 
 u8* SoundScriptSetVoiceFlags2000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
-    pAudioElements->voice_data.modeFlags &= ~0x20;
+    pAudioElements->voice_data.modeFlags &= ~SOUND_VOICE_MODE_NOISE;
     return pScript;
 }
 
@@ -4076,13 +4099,13 @@ u8* SoundScriptSetVoiceFlags4000AndMode(u8* pScript, AudioManager* pAudioManager
     }
 
     pAudioElements->voice_data.flags |= 0x4000;
-    pAudioElements->voice_data.modeFlags |= 0x40;
+    pAudioElements->voice_data.modeFlags |= SOUND_VOICE_MODE_REVERB;
     return pScript;
 }
 
 u8* SoundScriptSetVoiceFlags4000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.flags |= 0x4000;
-    pAudioElements->voice_data.modeFlags &= ~0x40;
+    pAudioElements->voice_data.modeFlags &= ~SOUND_VOICE_MODE_REVERB;
     return pScript;
 }
 
@@ -4210,10 +4233,10 @@ u8* SoundScriptSetUnk84Ramp(u8* pScript, AudioManager* pAudioManager, AudioEleme
 
     if (value != 0 && delta != 0) {
         pAudioElements->noteFrames = value;
-        pAudioElements->rampFlags |= 0x1;
+        pAudioElements->rampFlags |= SOUND_RAMP_FLAG_NOTE;
         pAudioElements->noteStep = delta / value;
     } else {
-        pAudioElements->rampFlags &= ~0x1;
+        pAudioElements->rampFlags &= ~SOUND_RAMP_FLAG_NOTE;
     }
     return pScript + 2;
 }
@@ -4224,7 +4247,7 @@ u8* SoundScriptToggleUnk04Bit2(u8* pScript, AudioManager* pAudioManager, AudioEl
 }
 
 u8* SoundScriptClearUnk04Bit1(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioElements->rampFlags &= ~0x1;
+    pAudioElements->rampFlags &= ~SOUND_RAMP_FLAG_NOTE;
     return pScript;
 }
 
@@ -4233,9 +4256,9 @@ u8* SoundScriptSetUnk70(u8* pScript, AudioManager* pAudioManager, AudioElement* 
 
     pAudioElements->slideFrames = value;
     if (value) {
-        pAudioElements->rampFlags |= 0x4;
+        pAudioElements->rampFlags |= SOUND_RAMP_FLAG_SLIDE;
     } else {
-        pAudioElements->rampFlags &= ~0x4;
+        pAudioElements->rampFlags &= ~SOUND_RAMP_FLAG_SLIDE;
     }
 
     return pScript;
@@ -4258,7 +4281,7 @@ u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, Au
             pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(note << 14, velocity, 3);
             pAudioElements->envelopes[0].reload = velocity;
             unk16 = pScript[2] << 2;
-            pAudioElements->envelopes[0].rampStep = 0x400;
+            pAudioElements->envelopes[0].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pAudioElements->envelopes[0].pStepHandler = (undefined32)SoundEnvelopeStepTriangleHalfRate;
             pAudioElements->envelopes[0].handlerIndex = 3;
             pAudioElements->envelopes[0].flags = 3;
@@ -4322,7 +4345,7 @@ u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioE
     pScript++;
     if (divisor) {
         divisor *= 4;
-        step = 0x400 / divisor;
+        step = SOUND_ENVELOPE_RAMP_SCALE / divisor;
         pAudioElements->envelopes[0].rampStep = step;
         pAudioElements->envelopes[0].rampLevel = step;
     }
@@ -4346,7 +4369,7 @@ u8* SoundScriptClearUnkCEAndF6(u8* pScript, AudioManager* pAudioManager, AudioEl
 u8* SoundScriptSetElementVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->elementVolume = *pScript << 24;
     pAudioElements->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
-    pAudioElements->rampFlags &= ~0x108;
+    pAudioElements->rampFlags &= ~(SOUND_RAMP_FLAG_ELEMENT_VOLUME | SOUND_RAMP_FLAG_QUEUED);
     return pScript + 1;
 }
 
@@ -4354,7 +4377,7 @@ u8* SoundScriptSetElementVolume(u8* pScript, AudioManager* pAudioManager, AudioE
 u8* SoundScriptAddElementVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->elementVolume = (pAudioElements->elementVolume + ((s8)*pScript << 24)) & 0x7FFFFFFF;
     pAudioElements->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
-    pAudioElements->rampFlags &= ~0x108;
+    pAudioElements->rampFlags &= ~(SOUND_RAMP_FLAG_ELEMENT_VOLUME | SOUND_RAMP_FLAG_QUEUED);
     return pScript + 1;
 }
 
@@ -4364,7 +4387,7 @@ u8* SoundScriptSetElementVolumeRamp(u8* pScript, AudioManager* pAudioManager, Au
 
     if (frames && delta) {
         pAudioElements->elementVolumeFrames = frames;
-        pAudioElements->rampFlags = (pAudioElements->rampFlags | 0x8) & ~0x100;
+        pAudioElements->rampFlags = (pAudioElements->rampFlags | SOUND_RAMP_FLAG_ELEMENT_VOLUME) & ~SOUND_RAMP_FLAG_QUEUED;
         pAudioElements->elementVolumeStep = delta / frames;
     }
 
@@ -4381,9 +4404,9 @@ u8* SoundScriptSetElementRamp(u8* pScript, AudioManager* pAudioManager, AudioEle
         pAudioElements->ramp.step = delta / frames;
         pAudioElements->ramp.target = start >> 16;
         pAudioElements->ramp.counter = frames;
-        pAudioElements->rampFlags = (pAudioElements->rampFlags | 0x100) & ~0x8;
+        pAudioElements->rampFlags = (pAudioElements->rampFlags | SOUND_RAMP_FLAG_QUEUED) & ~SOUND_RAMP_FLAG_ELEMENT_VOLUME;
     } else {
-        pAudioElements->rampFlags &= ~0x100;
+        pAudioElements->rampFlags &= ~SOUND_RAMP_FLAG_QUEUED;
     }
 
     return pScript + 3;
@@ -4526,7 +4549,7 @@ u8* SoundScriptSetEnvelope1Rate(u8* pScript, AudioManager* pAudioManager, AudioE
     pScript++;
     if (divisor) {
         divisor *= 4;
-        step = 0x400 / divisor;
+        step = SOUND_ENVELOPE_RAMP_SCALE / divisor;
         pAudioElements->envelopes[1].rampStep = step;
         pAudioElements->envelopes[1].rampLevel = step;
     }
@@ -4577,7 +4600,7 @@ u8* SoundScriptStartPanRamp(u8* pScript, AudioManager* pAudioManager, AudioEleme
             step = delta / frames;
             pAudioElements->panTarget = delta;
             pAudioElements->panFrames = frames;
-            pAudioElements->rampFlags |= 0x10;
+            pAudioElements->rampFlags |= SOUND_RAMP_FLAG_PAN;
             pAudioElements->panStep = step;
         }
     }
@@ -4592,7 +4615,7 @@ u8* SoundScriptSetEnvelope2Rate(u8* pScript, AudioManager* pAudioManager, AudioE
     pScript++;
     if (divisor) {
         divisor *= 4;
-        step = 0x400 / divisor;
+        step = SOUND_ENVELOPE_RAMP_SCALE / divisor;
         pAudioElements->envelopes[2].rampStep = step;
         pAudioElements->envelopes[2].rampLevel = step;
     }
@@ -4611,7 +4634,7 @@ u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, Au
             pAudioElements->envelopes[2].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)velocity, 3);
             pAudioElements->envelopes[2].reload = velocity;
             unk16 = pScript[2] << 2;
-            pAudioElements->envelopes[2].rampStep = 0x400;
+            pAudioElements->envelopes[2].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pAudioElements->envelopes[2].pStepHandler = (undefined32)SoundEnvelopeStepTriangleHalfRate;
             pAudioElements->envelopes[2].handlerIndex = 3;
             pAudioElements->envelopes[2].target = 2;
@@ -4695,7 +4718,7 @@ u8* SoundScriptSelectEnvelope(u8* pScript, AudioManager* pAudioManager, AudioEle
     }
 
     last = pScript[2];
-    pEnvelope->rampStep = 0x400;
+    pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
     pEnvelope->delayReload = 0;
     pEnvelope->target = last;
     return pScript + 3;
@@ -4768,7 +4791,7 @@ u8* SoundScriptSetCurrentEnvelopeRate(u8* pScript, AudioManager* pAudioManager, 
     if (divisor) {
         s32 scaledDivisor = divisor * 4;
 
-        step = 0x400 / scaledDivisor;
+        step = SOUND_ENVELOPE_RAMP_SCALE / scaledDivisor;
         pEnvelope->delayReload = *pScript << 2;
         pEnvelope->rampStep = step;
         pEnvelope->rampLevel = step;
@@ -4874,7 +4897,7 @@ u8* SoundScriptReleaseVoiceIfEnvelopeEnded(u8* pScript, AudioManager* pAudioMana
     SpuGetVoiceEnvelopeAttr(pAudioElements->voice_number, &keyStatus, &envx);
 
     if (envx == 0) {
-        pAudioElements->status_flags &= ~0x3;
+        pAudioElements->status_flags &= ~(SOUND_STATUS_KEY_ON | SOUND_STATUS_REST_NOTE);
         SoundReleaseVoiceFromChannel(&pAudioElements->voice_data, pAudioElements->voice_number);
         pAudioElements->active_flag = 0;
     }
@@ -5260,7 +5283,7 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
                 pElement->voice_data.flags |= SOUND_VOICE_FLAG_PITCH;
             }
 
-            if (statusFlags & 0x1) {
+            if (statusFlags & SOUND_STATUS_KEY_ON) {
                 if ((pElement->active_flag & SOUND_CHANNEL_MUTED) == 0) {
                     SoundAssignVoiceToChannelAndPlay(&pElement->voice_data, pElement->voice_number);
                 }
@@ -5354,7 +5377,7 @@ void SoundStepElementEnvelopes(AudioManager* pAudioManager, AudioElement* pEleme
                             pEnvelope->delayCount--;
                         } else {
                             value = ((s32 (*)(AudioEnvelope*))pEnvelope->pStepHandler)(pEnvelope);
-                            if ((s16)pEnvelope->rampLevel < 0x400) {
+                            if ((s16)pEnvelope->rampLevel < SOUND_ENVELOPE_RAMP_SCALE) {
                                 value = (value >> 10) * (s16)pEnvelope->rampLevel;
                                 pEnvelope->rampLevel += pEnvelope->rampStep;
                             }
