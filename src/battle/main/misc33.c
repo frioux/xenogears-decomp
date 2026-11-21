@@ -545,43 +545,32 @@ void BattleResetStateGlobals(void) {
     g_BattleState = NULL;
     g_BattleSlotBitMask = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
-/* best 99.74% (156 bytes = retail's size, one instruction pair of register choice).
-   This body supersedes the 93.82% note below: the park's "dead post-call reload" was
-   the RETURN VALUE -- misc29 declares the callee as BattleMisc33State *func_800BED4C(void)
-   and uses the result, so `return g_BattleState;` is what makes retail's trailing
-   `lw v0,0(s0)` live and lets the timer store take the BattleSetStateStep jal delay
-   slot.  With that plus `started = 1;` as its own statement before pathIndex (a plain
-   literal there makes cse share it with actionDone's 1, retail materialises them
-   separately) the only residual is which register the THIRD reload of g_BattleState
-   lands in: retail `lw v1,0(s0)` and keeps the second reload in v0 for
-   pendingStep/pathIndex/pCurSprite, ours puts the third reload in v0 and serves all
-   four stores from it (2 differing instructions, everything else identical, store
-   order and every reload position equal).  Two permuter runs (15 -> 10, then 5 and no
-   better) found nothing.  Not an ALLOCA/stack-switch stub and not BLOCKED.
 BattleMisc33State *func_800BED4C(void) {
+    // retail re-reads g_BattleState once per group of stores; one local for the
+    // whole body makes the reloads land in other registers (78.15%).
     BattleMisc33State *pState;
-    s32 started;
+    BattleMisc33State *pPending;
+    BattleMisc33State *pTimer;
 
-    g_BattleState = HeapAlloc(0x50, 0);
+    g_BattleState = HeapAlloc(sizeof(BattleMisc33State), 0);
     g_BattleState->pUpdate = func_800B9F78;
     g_BattleCommandRowIndex = 0;
     g_BattleState->commandUnhandled = 0;
     pState = g_BattleState;
-    g_BattleState->actionDone = 1;
+    pState->actionDone = 1;
     pState->unk30 = 0;
-    g_BattleState->pendingStep = 0;
-    started = 1;
-    g_BattleState->pathIndex = started;
-    g_BattleState->pCurSprite = NULL;
-    pState = g_BattleState;
-    pState->timer = 0;
+    pPending = g_BattleState;
+    pPending->pendingStep = 0;
+    pPending->pathIndex = 1;
+    pPending->pCurSprite = NULL;
+    pTimer = g_BattleState;
+    pTimer->timer = 0;
     BattleSetStateStep(0);
     g_NumFlaggedTimerWorkListEntries = 0;
-    g_FlagTimerWorkListAdds = started;
+    g_FlagTimerWorkListAdds = 1;
     return g_BattleState;
 }
-*/
+
 void BattleDestroyState(void) {
     HeapFree(g_BattleState);
     g_NumFlaggedTimerWorkListEntries = 0;
@@ -775,20 +764,28 @@ void BattleFreeSoundSeds(void) {
         g_BattleSedsLoaded = 0;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
-/* best 79.86%: everything below is retail's instruction set except one `lw`
-   (retail re-reads g_BattleActorList for the pState->pTargetSprite store: `lw a0,0(s2)` after
-   the two 0x74 stores, so its address lives in $s2 and the loaded head in $s0;
-   ours CSEs the third read onto s0 and needs no second saved register) and the
-   flags_0xA8/flags load order.  The two `lhu` of the mask ARE two separate C
-   expressions -- one per statement, with the D_800D3634 store between them --
-   and the call argument must be the later statement's load, so the argument
-   expression is written last.  The table row is 0x48 bytes at g_BattleStateWork+0x108
-   (misc25 reaches the same rows as g_BattleActorCommandIds[g_BattleCommandRowIndex - 1]), field 0x46.
+/* PARKED 93.20 percent at retail's exact 264 bytes; three instructions of register choice
+   in the 0x74-store group.  What got it here from 79.86: the row mask is read through a
+   s16 count (retail tests the low half with sll 16, a u16 count emits andi), the direction
+   goes through a u32 local so the srl is emitted before the andi/sll, and the pState
+   pTargetSprite read is a VOLATILE lvalue cast -- without it gcc CSEs the third read of
+   g_BattleActorList onto the pLast register and the frame keeps only two saved regs.
+   Residual: retail loads g_BattleState into a1 and keeps the fresh read in a0 and defers
+   the 0x4C store past the partKey block; ours swaps a0/a1 and stores 0x4C early.  Also
+   retail fills the final beq delay slot with a nop where ours puts the lw.  Measured
+   worse or wrong: putting the two 0x74 stores in a do-while (94.95 but 268 bytes),
+   a volatile store on either or both 0x74 stores (94.95, 268), reading the head back
+   through a pOut pointer (constant-folded, 93.52), partKey before the pTargetSprite
+   statement (93.95), s32 return type (no change), early return instead of an if
+   (no change).  A 4-minute permuter run from this body returned a candidate that wraps
+   the second func_800223B0 call in an if (g_BattleActorList) -- wrong code, rejected.
+*/
+/*
 void func_800BF3E8(BattleActorSprite *p) {
     BattleActorSprite *pLast;
     BattleMisc33State *pState;
-    s32 count;
+    s16 count;
+    u32 dir;
 
     D_800D3634 = D_800C3FB8[g_BattleCommandRowIndex].slotMask;
     count = BattleCollectMaskedSlotActors(D_800C3FB8[g_BattleCommandRowIndex].slotMask, (void **)&g_BattleActorList, (s32)p);
@@ -800,11 +797,13 @@ void func_800BF3E8(BattleActorSprite *p) {
     pState = g_BattleState;
     p->pTargetSprite = g_BattleActorList;
     ((BattleActorSprite *)g_BattleActorList)->pTargetSprite = p;
-    pState->pTargetSprite = g_BattleActorList;
-    pState->partKey = ((pLast->flags.word & 3) << 2) | (pLast->flags_0xA8 >> 30);
+    pState->pTargetSprite = *(BattleActorSprite *volatile *)&g_BattleActorList;
+    dir = pLast->flags_0xA8 >> 30;
+    pState->partKey = ((pLast->flags.word & 3) << 2) | dir;
     func_800223B0(p, BattleAngleToPoint(p, p->pTargetSprite));
     if (pLast->flags.sbytes[3] != 0x15) {
         func_800223B0(pLast, BattleAngleToPoint(p->pTargetSprite, p));
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
+
