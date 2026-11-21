@@ -1477,15 +1477,18 @@ extern u8 g_WorldMapQuadPrims[];
 extern s32 g_WorldMapPrimPacketIndex;
 extern s32 g_GfxOTDepthShift;
 
-// Scratchpad area the frame projection works in: GTE's input rotation at 0x00 and, at 0x48,
-// the word and flag RotTransPers4 writes for the fourth vertex. The two matrix work areas at
-// 0x08/0x28 are addressed by their own literals in retail, so they stay an unnamed span.
+// Scratchpad area the frame projection works in: GTE's input rotation at 0x00 and, at 0x48 and
+// 0x58, the word and flag RotTransPers4 writes for the fourth vertex. The two matrix work areas
+// at 0x08/0x28 are addressed by their own literals in retail, so they stay an unnamed span.
 typedef struct {
     /* 0x00 */ SVECTOR viewRotation;
     /* 0x08 */ u8 unk8[0x40];
     /* 0x48 */ long interpolated;
     /* 0x4C */ long flag;
-} WorldMapProjectionScratch; // Size: 0x50, a view of the 0x1F800000 scratchpad
+    /* 0x50 */ u8 unk50[8];
+    /* 0x58 */ long tileOtz;
+    /* 0x5C */ long tileOtzFlag;
+} WorldMapProjectionScratch; // Size: 0x60, a view of the 0x1F800000 scratchpad
 
 extern long RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* p0, long* p1,
                           long* p2, long* p3, long* xy0, long* xy1);
@@ -1569,6 +1572,83 @@ void WorldMapSetupMapPrims(void) {
     tw.h = 0;
     SetTexWindow(&g_WorldMapTileDrawModes[1], &tw);
 }
+// The two tile prims this frame draws are POLY_FT4s out of g_WorldMapTilePrims, and their
+// corner u/v words scroll with the map's rotation: retail writes each u/v byte pair as one u16
+// word, 20 words per prim (one pair every 4 words), the second prim of the frame's pair two
+// prims further along. D_8009C750 is g_WorldMapTilePrims[0].u0, the first of those words.
+extern u16 D_8009C750[];
+
+// 79.63% (744 bytes against retail's 812, 41 differing instructions). Everything that is not
+// the u/v block matches, including the RotMatrixYXZ/CompMatrix/SetRotMatrix/SetTransMatrix
+// prologue, the 2-iteration RotTransPers4 loop and the four addPrim calls, so the residual is
+// the uv block plus the 8-byte frame and prologue order it drags in.
+//
+// The block is at retail's exact address set: retail keeps ONE register (t0 = &D_8009C750) and
+// emits, per store, `addiu v1,t0,<const>; addu v1,v0,v1; sh` with v0 = g_WorldMapPrimPacketIndex
+// * 0x28 computed separately and RELOADED per pair (four `lw g_WorldMapPrimPacketIndex`), and it
+// never folds a constant into the `sh` displacement. Measured dead spellings, all of which give
+// gcc a folded `sh a3,80(v0)` (8 of them, 716-744 bytes) or a `lui $at` MASPSX macro per store:
+//   - D_8009C750[idx * 0x14 + off]              (the body below: 3 addiu/addu, 1 folded)
+//   - D_8009C750[idx + 2].uvN / [idx].uvN on a 0x28-byte uv struct (symbol displacements)
+//   - pUv = D_8009C750; pUv[idx*0x14 + off]      (probeF: folds everything into one address)
+//   - *(u16 *)(idx * 0x28 + (0x50 + (s32)pUv))   (probeG: folds to `sh 80(v0)`)
+//   - the same with a volatile store lvalue       (probeH: still folds)
+//   - pointer locals for the base and for base+0x50, and the same in both source orders
+// A cc1 probe with the +0 store FIRST does give retail's `la $4,D_8009C750` plus three
+// addiu/addu stores, so the fold is only defeated for the stores whose constant does not match
+// the `la` constant; retail has none folded, which no spelling reached here. Next lever to try:
+// make the u/v words' base a value cc1 cannot constant-fold (a pointer loaded from a global).
+/*
+void func_80073B04(void) {
+    WorldMapProjectionScratch* pScratch;
+    SVECTOR* pVec;
+    POLY_FT4* pBase;
+    POLY_FT4* pPrim;
+    P_TAG* pOt;
+    s32 i;
+    s32 nOtz;
+    s32 uvOffset;
+    u16 uv;
+    u16 uvFlip;
+
+    pScratch = (WorldMapProjectionScratch*)PSX_SCRATCH;
+    uv = (g_WorldMapViewRotationY >> 2) & 0x7F;
+    uvFlip = uv | 0x80;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0x28] = uv;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14] = uv;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0x2C] = uvFlip;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 4] = uvFlip;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0x30] = uv | 0x3F00;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 8] = uv | 0x3F00;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0x34] = uvFlip | 0x3F00;
+    D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0xC] = uvFlip | 0x3F00;
+    *(u16*)0x1F800004 = 0;
+    pScratch->viewRotation.vx = 0;
+    *(u16*)0x1F800002 = g_WorldMapViewRotationY;
+    RotMatrixYXZ(&pScratch->viewRotation, (MATRIX*)0x1F800038);
+    *(s32*)0x1F800054 = 0;
+    *(s32*)0x1F800050 = 0;
+    *(s32*)0x1F80004C = 0;
+    CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)0x1F800038, (MATRIX*)0x1F800018);
+    SetRotMatrix((MATRIX*)0x1F800018);
+    SetTransMatrix((MATRIX*)0x1F800018);
+    pVec = &g_WorldMapQuadVertices[16];
+    for (i = 0, uvOffset = 0; i < 2; i++, pVec += 4, uvOffset += 0x50) {
+        pBase = (POLY_FT4*)(g_WorldMapPrimPacketIndex * sizeof(POLY_FT4) + (s32)g_WorldMapTilePrims);
+        pPrim = (POLY_FT4*)(uvOffset + (s32)pBase);
+        nOtz = RotTransPers4(pVec, pVec + 1, pVec + 2, pVec + 3,
+                             (long*)&pPrim->x0, (long*)&pPrim->x1,
+                             (long*)&pPrim->x2, (long*)&pPrim->x3,
+                             &pScratch->tileOtz, &pScratch->tileOtzFlag);
+    }
+    if (pScratch->tileOtzFlag >= 0) {
+        pOt = (P_TAG*)((u32*)g_WorldMapRenderContext->pOt[0] + (nOtz >> g_GfxOTDepthShift));
+        addPrim(pOt, (P_TAG*)&g_WorldMapTileDrawModes[1]);
+        addPrim(pOt, (P_TAG*)&g_WorldMapTilePrims[g_WorldMapPrimPacketIndex]);
+        addPrim(pOt, (P_TAG*)&g_WorldMapTilePrims[g_WorldMapPrimPacketIndex + 2]);
+        addPrim(pOt, (P_TAG*)&g_WorldMapTileDrawModes[0]);
+    }
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 
 // The two POLY_FT4 primitives at D_8009C5C0; retail names every field store
