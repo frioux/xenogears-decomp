@@ -1150,26 +1150,18 @@ int FieldGetVec2Angle(IVEC3* pVec) {
 
 long FieldGetVec2Magnitude(long, long);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
-/* Best attempt: 84.11% but the exact 332-byte size (earlier attempts were 336
-   bytes, which can never link). Seeding nResult with nWallAngle before the range
-   test is the only form that puts `move s3,a0` in the bnez delay slot and
-   `addiu a0,a0,0x800` in the beqz delay slot like the original; the remaining
-   delta is one extra copy of nWallAngle (the original has `move v1,a0` feeding
-   both the angle sum and the early `return nWallAngle`).
-long FieldGetVec2Magnitude(long, long);
-
-int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
+int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags) {
     VECTOR v;
     VECTOR normal;
     int nAngle;
-    int nWallAngle;
-    long nResult;
+    short nWallAngle;
+    short nResult;
     long nMagnitude;
 
-    nAngle = (0xC00 - angle) & 0xFFF;
-    nWallAngle = -ratan2(pPoints[1].vz - pPoints[0].vz, pPoints[1].vx - pPoints[0].vx) & 0xFFF;
-    nAngle = (nAngle + nWallAngle) & 0xFFF;
+    nAngle = (0xC00 - angle) & FIELD_ANGLE_MASK;
+    nWallAngle = -ratan2(pPoints[1].vz - pPoints[0].vz, pPoints[1].vx - pPoints[0].vx);
+    nWallAngle &= FIELD_ANGLE_MASK;
+    nAngle = (nAngle + nWallAngle) & FIELD_ANGLE_MASK;
     nResult = nWallAngle;
     if ((u_int)(nAngle - 0x80) >= 0xF01) {
         pOut->vx = 0;
@@ -1181,7 +1173,7 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
         v.vx = pPoints[0].vx - pPoints[1].vx;
         v.vy = 0;
         v.vz = pPoints[0].vz - pPoints[1].vz;
-        nResult = (nWallAngle + 0x800) & 0xFFF;
+        nResult = (nWallAngle + 0x800) & FIELD_ANGLE_MASK;
     } else {
         v.vx = pPoints[1].vx - pPoints[0].vx;
         v.vy = 0;
@@ -1196,56 +1188,44 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
 
     return nResult;
 }
-*/
-
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode);
-int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut);
+int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags);
 extern s32 D_800ADB98;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B814);
-/* Best attempt: 96.33% (684 bytes, same size as the original). Two differences:
-   1. gcc hoists the tail's first `lw v0,0(pVec)` out of the shared func_8007B6C4
-      block into the block that jumps there, so its `j` target is 4 bytes later.
-   2. the probe angles: the original computes (angle -/+ 0x100) into s0 itself
-      (`addiu s0,s2,-0x100` / `andi s0,s0,0xfff`), gcc computes the subtraction
-      into v0 and only the mask into s0. Note the `sra s2,v0,16` at the top of the
-      else branch is not an assignment from the probe result: the bne delay slot
-      is `sll v0,s2,16`, so it is the sign extension of `angle` for `angle-0x100`,
-      and both objects agree on it. Prototypes below are the ones this attempt
-      needs; D_800ADB98 = 0x800ADB98 is in symbol_addrs.field.txt.
-// Probes the walkmesh around `angle` and drops pVec onto the floor it finds there
 int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) {
     VECTOR v;
     SVECTOR out;
-    VECTOR pad[2];
+    VECTOR pad[2];  // dead: reproduces the original's 0x78 frame
     int nAngle;
 
-    nAngle = angle & 0xFFF;
+    nAngle = angle & FIELD_ANGLE_MASK;
     v.vx = pVec->vx + rsin(nAngle) * 64;
     v.vz = pVec->vz - rcos(nAngle) * 64;
     if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
         v.vx = pVec->vx;
         v.vy = pVec->vy;
         v.vz = pVec->vz;
-        func_8007B6C4(angle, pPoints, &v);
+        func_8007B6C4(angle, pPoints, &v, 0);
     } else {
-        nAngle = (angle - 0x100) & 0xFFF;
+        nAngle = angle - 0x100;
+        nAngle &= FIELD_ANGLE_MASK;
         v.vx = pVec->vx + rsin(nAngle) * 64;
         v.vz = pVec->vz - rcos(nAngle) * 64;
         if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
             v.vx = pVec->vx;
             v.vy = pVec->vy;
             v.vz = pVec->vz;
-            func_8007B6C4(angle, pPoints, &v);
+            func_8007B6C4(angle, pPoints, &v, 0);
         } else {
-            nAngle = (angle + 0x100) & 0xFFF;
+            nAngle = angle + 0x100;
+            nAngle &= FIELD_ANGLE_MASK;
             v.vx = pVec->vx + rsin(nAngle) * 64;
             v.vz = pVec->vz - rcos(nAngle) * 64;
             if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
                 v.vz = pVec->vz;
-                func_8007B6C4(angle, pPoints, &v);
+                func_8007B6C4(angle, pPoints, &v, 0);
             } else {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
@@ -1269,17 +1249,15 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
     pActor->curYPos = (pActor->position.vy + pVec->vy) >> 16;
     return 0;
 }
-*/
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 /* Best attempt: 76.42% (1036 vs 1032 bytes). The probe sequence, the second
    func_8007BEF4 call and the tail (v.vy, pVec stores, curYPos) are
    instruction-identical; four deltas remain:
    1. the shared fallback (copy *pVec, func_8007B6C4) loses retail's leading
       dead `lw a3,0x70(sp)`, so every later label sits 4 bytes low. Retail's
-      call passes nFlags as a 4th argument that func_8007B6C4 never reads;
-      spelling it needs a 4-argument prototype of func_8007B6C4, which the
-      file already declares with three.
+      call passes a 4th argument that func_8007B6C4 never reads; the prototype
+      now declares it (func_8007B814 passes 0) and the three calls below pass
+      0 as well, so this item may already be closed - re-measure.
    2. the retry dispatch is laid out inverted: retail puts the recompute body
       FIRST (cond1 inverts to the rest of the chain, which sits after the body
       and jumps back to it) and the restore last, while the || chain below
@@ -1315,7 +1293,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
         v.vx = pVec->vx;
         v.vy = pVec->vy;
         v.vz = pVec->vz;
-        func_8007B6C4(nDirection, pPoints, &v);
+        func_8007B6C4(nDirection, pPoints, &v, 0);
     } else {
         nAngle = nDirection + 0x100;
         nAngle &= 0xFFF;
@@ -1325,7 +1303,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
             v.vx = pVec->vx;
             v.vy = pVec->vy;
             v.vz = pVec->vz;
-            func_8007B6C4(nDirection, pPoints, &v);
+            func_8007B6C4(nDirection, pPoints, &v, 0);
         } else {
             nAngle = angle & 0xFFF;
             v.vx = pVec->vx + rsin(nAngle) * 64;
@@ -1334,7 +1312,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
                 v.vz = pVec->vz;
-                func_8007B6C4(nDirection, pPoints, &v);
+                func_8007B6C4(nDirection, pPoints, &v, 0);
             } else {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
