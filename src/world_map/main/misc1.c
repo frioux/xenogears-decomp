@@ -724,24 +724,22 @@ extern s32 WorldMapSetSceneLayerTPages();
 extern s32 WorldMapHideSpriteSetGroups();
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
-/* best: 99.81% (1892 bytes = retail's exact size, 472 insns). The whole function is
-   instruction-identical except ONE store: the two `= 1` stores (g_AnimScriptExtraTicks,
-   g_WorldMapFadeActive) which retail emits as `sw v1` after the five zero stores, with `li v1,1`
-   hoisted to the top of the block; ours emits the first `sw` right after the `la` of
-   WorldMapWrapTileVertexPositions. The register choice is the whole lever: as long as
-   the constant lands in $2 it collides with the callback address and gcc must emit the
-   stores before it. Source orders measured: the statement order of that 9-store block
-   moves the score 98.7-99.83 and none of 11 orders reached 100 (best 99.83 with
-   Z4,Z1,Z2,A1,Z5,TP,Z3,DM,C1). The body below is the natural order (99.81).
-   Found by the permuter: `pLoadBuffer = g_SoundBankLoadBuffer;` at the head of the
-   0-branch and using it as memcpy's dst is what fixed the sound block (memcpy was
-   otherwise keeping &g_SoundBankLoadBuffer in $s0 and taking $s1 from pBankBuffer,
-   where retail rematerialises the address into $a0); it took the function from 97.94
-   to 98.88 and is kept below. The permuter's other two edits were wrong code (a
-   pointer truncated through a `volatile unsigned short`) and were not ported.
-   A jump table (jtbl_8006FAF4, 6 words) belongs to this function: converting it is
-   still the right first step for this unit's table chain, so an un-park must land
-   check_bin.sh world_map. */
+/* best: 99.81% (1892 bytes = retail's exact size). Instruction-identical except the two
+   `= 1` stores: retail hoists `li v1,1` above `li v0,2` and emits both `sw v1` AFTER the five
+   zero stores, where this body emits them (in v0) right after the DrawMode store. Written in
+   retail's own store order (ones after the zeros) cc1 instead moves the two stores ABOVE the
+   zeros and scores 98.88% - so the statement order is not the lever (11 orders tried, all
+   98.7-99.8).
+   cc1_probe with this unit's flags shows the mechanism: with two zero stores, or with no
+   trailing `la` statement, cc1 hoists only the `li` and leaves the stores in place (retail's
+   shape); with five zeros plus the callback assignment last it hoists the two stores too.
+   permuter (8 min, 2989 iters): PERMUTER_BETTER 80 to 70 by chaining
+   `g_WorldMapMode4EntryTriggered = (g_WorldMapL2R2Pressed = 0);` - REJECTED, it reverses those
+   two zero stores relative to retail.
+   Kept from an earlier permuter run: `pLoadBuffer = g_SoundBankLoadBuffer;` at the head of the
+   0-branch, used as memcpy's dst (memcpy otherwise keeps &g_SoundBankLoadBuffer in a saved
+   register where retail rematerialises the address into a0).
+   This function owns jtbl_8006FAF4 (6 words), so an un-park must land check_bin.sh world_map. */
 /*
 void func_80072238(void) {
     RECT rect;
