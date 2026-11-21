@@ -98,14 +98,23 @@ void func_800980D4(WorldMapMisc16Struct* p) {
     D_8009C83C = (y >> 23) + 2;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
-/* 96.44%: same instructions in the same order, only the register names differ
-   (retail col=a3 row=t1 w=t2 dst=t0 bound=t3 colBase=t3 pGrid=a0 colCur=a3 off=a1;
-   ours col=t1 row=t0 w=t3 dst=a3 bound=t2 colBase=a0 pGrid=a2 colCur=v1 off=a3), so
-   objdiff can never reach 100 here without snapping gcc's allocator tie-break. Shapes
-   that matter and are now right: w/h must be locals or the in-loop loads are not hoisted;
-   `for (i = 8; i != -1; i--)` both loops; the if/else-with-value form for the inner clamp
-   (that is what duplicates `addu v0,off,colCur` into the delay slot and after r=0);
-   row >>= 8 before the 0xA2-byte struct copy, colBase = col after it.
+/* 94.52%, 464 bytes against retail's 472 (re-measured round 381; the earlier
+   "96.44, same instructions" note was a different body and understated the gap):
+   the loop nest and the 0xA2 struct copy are structurally right, but this body is
+   TWO instructions short and the six saved values are rotated one register
+   down (retail col=a3 row=t1 w=t2 dst=t0 bound=t3 colBase=t3 pGrid=a0 colCur=a3
+   off=a1; ours col=t1 row=t0 w=t3 dst=a3 bound=t2 colBase=a0 pGrid=a2 colCur=v1
+   off=a3). So it is not the pure allocator tie the old note claimed: find the two
+   missing instructions first, then the rotation.
+   Shapes that matter and are now right: w/h are loaded as the FIRST statements
+   (retail loads both before the x division); `for (i = 8; i != -1; i--)` in both
+   loops; the if/else-with-value form for the inner clamp (that is what duplicates
+   `addu v0,off,colCur` into the delay slot and after r=0); row >>= 8 before the
+   0xA2-byte struct copy, colBase = col after it.
+   MEASURED this round: a 4-minute permuter run from this body found only
+   best=579 (base 659) - a `new_var = 1` / reuse-of-col spelling that changes
+   nothing structural. Not a preset question: the unit's own flags are the ones
+   the note was written under.
 void func_800981C8(WorldMapMisc16Struct* p) {
     s32 col;
     s32 row;
