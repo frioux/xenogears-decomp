@@ -2035,6 +2035,14 @@ extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern void* g_PartyDataBuffers[];
 extern void func_80080A74(int actorIndex);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
+
+// Round 371 re-measure: 92.49%, 428 bytes, retail 436. The residual is exactly
+// ONE register - retail keeps `lui/addiu` of &g_FieldActors in $s0 and reloads
+// `lw $v1,0($s0)` at both sites (so it also keeps 0xFF in $s7 and a 0x48 frame),
+// while this body rematerialises the two instructions at each site and keeps 0xFF
+// in $s6 (0x40 frame). Instruction counts are identical; only the saved set
+// differs. A `(s32)&g_FieldActors` cast measures the same 428 bytes.
 // 92.49%: prologue, body and epilogue match instruction for instruction, but ours
 // is 428 bytes against the original's 440. Two things are left, both from one
 // cause. The original keeps `&g_FieldActors` (the address of the global
@@ -2098,8 +2106,6 @@ void func_8008C180(int partyIndex) {
     g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
 }
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
-
 extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_8008C180(int partyIndex);
 extern void func_8008BF38(int partyIndex);
