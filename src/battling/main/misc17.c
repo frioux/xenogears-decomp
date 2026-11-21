@@ -524,6 +524,27 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
         }
     }
 }
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+/* best: objdiff 90.34% - 176 bytes = retail's 44 instructions, frame (0x28 with
+   the dead s32 pad[2]) and every instruction identical except two residuals.
+   1. the doubled table index takes $s1 and the D_80091EE0 base $s2; retail has
+   them the other way round (index $s2, whose save lands first, base $s1). It is
+   an allocator tie: both pseudos cross the jal, the index one is created first
+   (the sll in the beq delay slot) and so takes the lower register. Measured and
+   no help: base assigned at its use (85.84%, 168 bytes), base assigned before
+   the index (90.34%, this one), the three declaration orders, the index as u32,
+   i = soundId * 2, an initialiser on the pointer, pEntry = &D_80091EE0[i] with
+   pEntry[1] (85.84%), both reads spelled D_80091EE0[i] (90.70%, 184 bytes), a
+   non-void return (90.11%) and a 3-minute permuter run (base 145, best 25, only
+   a nonsense volatile return type). The $at form of the first read and the
+   base-plus-index form of the second are both required.
+   2. the second block: retail leaves a nop in the beqz slot and then loads the
+   flags, gcc steals the byte's andi into the slot instead. Retail's second block
+   evaluates the flags load BEFORE the byte's andi 0x7F (its first block does the
+   opposite), but gcc puts the andi first in BOTH blocks whatever the source: the
+   | operand order swapped, and a u32 local for the flags term, both measure
+   identical here. Since the stolen insn is the andi (a load is apparently not
+   delay-slot-eligible), the only fix would be that order.
 void func_8008ED6C(BattleActor* pActor, s32 idx) {
     s32 pad[2];
     u8* pSoundTable;
@@ -543,6 +564,7 @@ void func_8008ED6C(BattleActor* pActor, s32 idx) {
         BattleStopSoundSlotsByFlags(((pActor->flags >> 20) & 0x80) | (pSoundTable[i + 1] & 0x7F));
     }
 }
+*/
 void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 step;
