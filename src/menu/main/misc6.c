@@ -228,7 +228,8 @@ void func_801D261C(void) {
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
     g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
     g_Menu->pManager->shouldRenderSubMenuChoiceStrings[g_Menu->subMenuChoice] = 1;
-}void MenuCreateGoldWindow(void) {
+}
+void MenuCreateGoldWindow(void) {
     MenuCreateWindow(0, 0xD4, 0xB2, 0x60, 0x10, 0, 0, 4, 0);
     MenuSetGoldDigits(0xD8, 0xB6);
 }
@@ -338,35 +339,23 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
     MenuRenderFrame();
 }
-/* STALE NOTE (kept for its history - describes func_801D2D38's loop instead):
-/* Earlier note for func_801D2D38 (99.18%, 392 vs 388 bytes; the attempt it measured is
-   gone but its two findings stand):
-   Only two allocator ties are left:
-   1. the two loop registers come out swapped (retail: the 3-count index in s0 and the
-      strength-reduced 6 + i*2 in s1; ours the other way round; the same swap appears
-      with an explicit second loop counter "i++, characterSlot += 2");
-   2. the gearId value is loaded into a0 in retail (lbu a0 / beq a0 / addiu a0,a0,0xB /
-      andi a0,a0,0xff, all in place) while ours keeps it in v0 and truncates straight
-      into a0 (andi a0,v0,0xff).  Repeating the memory access in the ternary instead of
-      a local, and declaring the local first/last, both leave it in v0.
-   What got 97.09 -> 99.18: put the whole ternary in the call argument
-   (MenuLoadCharacterNameTexture((characterId == 0xFF) ? 0xFF : (u_char)(characterId + 0xB), 6 + (i << 1)))
-   instead of assigning it back to the u_char local - that reproduces retail's
-   beq/j/andi-in-the-delay-slot shape exactly.
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
-/* PARKED 99.74% (392 bytes, instruction multiset identical). The ONE difference is the
-   register the gearId value lives in: retail keeps it in a0 all the way (lbu a0,780 /
-   beq a0,s2 / addiu a0,a0,0xB / andi a0,a0,0xff), ours loads it into v0 and masks
-   straight into a0 (andi a0,v0,0xff). Tried and measured, all 99.74 or worse:
-   assigning the ternary back to the u_char local (97.65, and the 0xFF arm's li is then
-   dropped as redundant), an if/else writing back to the same local (97.76, same li
-   loss), an intermediate u_char textureId (97.65), u_char/u32/s32 gearId, the cast on
-   the arm vs on the whole ternary (99.74), and a 4-minute permuter run (1650
-   iterations, best == base). Two loops need separate counters (i and j): with one
-   shared counter the loop registers swap and it is 99.18.
-*/
-/* Best attempt (99.74%): the body below is what the note above was measured with.
+/* PARKED 99.74% (392 bytes, retail's exact size, instruction multiset identical).
+   The ONE difference is the register the gearId value lives in: retail keeps it in a0
+   all the way (lbu a0,780 / beq a0,s2 / addiu a0,a0,0xB / andi a0,a0,0xff, all in
+   place), ours loads it into v0 and masks straight into a0 (andi a0,v0,0xff). It is
+   NOT a compiler-version question: tools/scripts/try_flags.sh scores this body 99.74
+   under gcc-2.7.2 as well, while the already-matched neighbours drop (MenuMovePointer
+   Cursor 94.70, MenuSetupPointerCursors 80.21), so the unit's 2.6.0 preset is right.
+   -O1 -O3 are far off. Tried and measured, all 99.74 or worse: assigning the ternary
+   back to the u_char local (97.65, the 0xFF arm's li is then dropped as redundant), an
+   if/else writing back to the same local (97.76, same li loss), an intermediate u_char
+   textureId (97.65), u_char/u32/s32 gearId, the cast on the arm vs on the whole ternary
+   vs no cast at all, reusing the (dead) menuCharacterId local, and a 4-minute permuter
+   run (1650 iterations, best == base). Two loops need separate counters (i and j): with
+   one shared counter the loop registers swap and it is 99.18. A cc1_probe replica of
+   the same expression with simpler operands puts the value in a2, so the register is
+   decided by the surrounding allocation, not by the spelling of the ternary.
+*//*
 void func_801D2D38(void) {
     s32 i;
     s32 j;
@@ -397,8 +386,9 @@ void func_801D2D38(void) {
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
     MenuTweenCharacterWindows(1, 0);
     MenuCreatePlayTimeWindow();
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
+
 void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
