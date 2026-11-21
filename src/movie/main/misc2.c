@@ -3,8 +3,6 @@
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
 
-#define ARCHIVE_HEADER_ENTRY_SIZE 0x7
-
 extern void SoundPlayAudioManager(void* pManager, s32 volume, s32 frames);
 extern s32 SoundGetPendingSpuCommandType(u32 flags);
 extern void* SoundCreateAudioManagerOnHeap(void* pFile);
@@ -629,14 +627,22 @@ void MovieDebugSectorViewer(void) {
     g_MovieDebugDrawBuffers[1].dispEnv.screen.h = 0xD8;
 }
 
+// One entry of the archive directory the file-size lookup below reads: a 3-byte
+// sector index and a 4-byte size, little-endian. The same 0x7-byte record as
+// ArchiveEntry in slus_006.64/system/libarchive.c, which owns the type.
+typedef struct {
+    /* 0x0 */ u8 sector[3];
+    /* 0x3 */ u8 size[4];
+} ArchiveEntry; // Size: 0x7
+
 int WorldMapSyncGearRideActors(u32 entryIndex) {
-    u8* pArchiveEntry;
+    ArchiveEntry* pEntry;
     u32 nOffset;
     int nFileSize;
 
-    nOffset = entryIndex * ARCHIVE_HEADER_ENTRY_SIZE;
-    pArchiveEntry = nOffset + g_ArchiveTable;
-    nFileSize = (pArchiveEntry[6] << 0x18) + (pArchiveEntry[5] << 0x10) + (pArchiveEntry[4] << 0x8) + pArchiveEntry[3];
+    nOffset = entryIndex * sizeof(ArchiveEntry);
+    pEntry = (ArchiveEntry*)(nOffset + g_ArchiveTable);
+    nFileSize = (pEntry->size[3] << 0x18) + (pEntry->size[2] << 0x10) + (pEntry->size[1] << 0x8) + pEntry->size[0];
     return nFileSize;
 }
 
