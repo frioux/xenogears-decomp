@@ -615,6 +615,133 @@ void FieldLoadTextRenderFiles(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
+/* 89.64% (1520 bytes = retail's exact instruction count; 380 insns). Structure
+   is fully recovered: the two 2-element POLY_GT4 arrays D_800AF788 /
+   D_800AF7F0 built with the setRGB/setXY/setUV macros (one store per field,
+   absolute `lui $at` addressing - a pointer local turns all 56 stores into
+   `sb off(reg)` and drops the code by half), tpage/clut from
+   GetTPage/GetClut, the two 0x34-byte struct copies (`D_800AF788[1] =
+   D_800AF788[0]`), HeapAlloc(0x1000,1), then 16 blocks of 0x100 bytes with
+   8 SPRTs copied from sprites[0][0] and the 4x2 draw modes. That last loop is
+   already byte-identical, including the spill of pSprite to 0x18(sp) and the
+   0x48 frame - and it ONLY comes out that way if the inner loop indexes the
+   block through the global (`(FieldTextRowPrims *)(g_FieldTextRenderPrimBlocks
+   + i * 0x100)`), not through the pRow local: with pRow gcc needs one
+   callee-saved register fewer, keeps pSprite in a register and every address
+   in the 100-instruction copy run comes out with the wrong base.
+   The residual is the ORDER of the 56 poly field stores and which register
+   each constant lands in: retail groups them by constant (12 x 0xFF, then the
+   two 0x18 shorts, then 12 zero bytes, then the shorts, then the u/v bytes)
+   and re-lises v0 per group (0xFF, 0x18, 0xC8, 2, 0xE0) while this body hoists
+   four constants to the block head into v0/t1/v1/t0; within each triple retail
+   emits b,g,r (reverse) where this emits r,g,b. Tried: plain field assignments
+   (same), setXY4/setUV4 per quad (83.51%), setRGB-then-XY-then-UV grouping
+   (same), and a 4-minute permuter run (PERMUTER_BETTER 7700 -> 6505, one
+   statement moved + a nonsense (double) cast; porting the move alone scores
+   89.06%, so it was noise). A source order that reproduces retail's group
+   order was not found; the remaining delta is the old sched.c's ordering of
+   independent stores, not a missing statement.
+// One 16-pixel text row: a draw mode and a sprite per column, duplicated for
+// the two render contexts
+typedef struct {
+    DR_MODE drModes[2][4]; // 0x0
+    SPRT sprites[2][4];    // 0x60
+} FieldTextRowPrims; // Size: 0x100
+
+extern POLY_GT4 D_800AF788[2];
+extern POLY_GT4 D_800AF7F0[2];
+extern s32 g_FieldTextRenderPrimBlocks;
+
+// Build the two gradient quads the text rows are drawn through, then allocate
+// and fill the 16 rows of primitives
+void func_800AC3AC(void) {
+    FieldTextRowPrims* pRow;
+    SPRT* pSprite;
+    s32 i;
+    s32 j;
+
+    SetPolyGT4(&D_800AF788[0]);
+    SetPolyGT4(&D_800AF7F0[0]);
+
+    // Top quad: white at the top edge, black at the bottom edge
+    setRGB0(&D_800AF788[0], 0xFF, 0xFF, 0xFF);
+    setXY0(&D_800AF788[0], 0, 0);
+    setUV0(&D_800AF788[0], 0, 0);
+    setRGB1(&D_800AF788[0], 0xFF, 0xFF, 0xFF);
+    D_800AF788[0].x1 = 0x280;
+    D_800AF788[0].y1 = 0;
+    D_800AF788[0].u1 = 2;
+    D_800AF788[0].v1 = 0;
+    setRGB2(&D_800AF788[0], 0, 0, 0);
+    D_800AF788[0].x2 = 0;
+    D_800AF788[0].y2 = 0x18;
+    D_800AF788[0].u2 = 0;
+    D_800AF788[0].v2 = 2;
+    setRGB3(&D_800AF788[0], 0, 0, 0);
+    D_800AF788[0].x3 = 0x280;
+    D_800AF788[0].y3 = 0x18;
+    D_800AF788[0].u3 = 2;
+    D_800AF788[0].v3 = 2;
+
+    // Bottom quad: the gradient reversed
+    setRGB0(&D_800AF7F0[0], 0, 0, 0);
+    setXY0(&D_800AF7F0[0], 0, 0xC8);
+    setUV0(&D_800AF7F0[0], 0, 0);
+    setRGB1(&D_800AF7F0[0], 0, 0, 0);
+    D_800AF7F0[0].x1 = 0x280;
+    D_800AF7F0[0].y1 = 0xC8;
+    D_800AF7F0[0].u1 = 2;
+    D_800AF7F0[0].v1 = 0;
+    setRGB2(&D_800AF7F0[0], 0xFF, 0xFF, 0xFF);
+    D_800AF7F0[0].x2 = 0;
+    D_800AF7F0[0].y2 = 0xE0;
+    D_800AF7F0[0].u2 = 0;
+    D_800AF7F0[0].v2 = 2;
+    setRGB3(&D_800AF7F0[0], 0xFF, 0xFF, 0xFF);
+    D_800AF7F0[0].x3 = 0x280;
+    D_800AF7F0[0].y3 = 0xE0;
+    D_800AF7F0[0].u3 = 2;
+    D_800AF7F0[0].v3 = 2;
+
+    D_800AF788[0].tpage = GetTPage(1, 2, 0x3C0, 0x100);
+    D_800AF7F0[0].tpage = GetTPage(1, 2, 0x3C0, 0x100);
+    D_800AF788[0].clut = GetClut(0, 0x1FF);
+    D_800AF7F0[0].clut = GetClut(0, 0x1FF);
+    SetSemiTrans(&D_800AF788[0], 1);
+    SetSemiTrans(&D_800AF7F0[0], 1);
+
+    D_800AF788[1] = D_800AF788[0];
+    D_800AF7F0[1] = D_800AF7F0[0];
+
+    g_FieldTextRenderPrimBlocks = (s32)HeapAlloc(0x1000, 1);
+    for (i = 0; i < 0x10; i++) {
+        pRow = (FieldTextRowPrims*)(g_FieldTextRenderPrimBlocks + i * 0x100);
+        pSprite = &pRow->sprites[0][0];
+        SetSprt(pSprite);
+        setRGB0(pSprite, 0x80, 0x80, 0x80);
+        setUV0(pSprite, 0, i << 4);
+        setWH(pSprite, 0x80, 0x10);
+        setXY0(pSprite, 0x40, i << 4);
+        SetSemiTrans(pSprite, 0);
+        pSprite->clut = GetClut(0, 0x1FF);
+
+        pRow->sprites[1][0] = pRow->sprites[0][0];
+        pRow->sprites[0][1] = pRow->sprites[0][0];
+        pRow->sprites[1][1] = pRow->sprites[0][0];
+        pRow->sprites[0][2] = pRow->sprites[0][0];
+        pRow->sprites[1][2] = pRow->sprites[0][0];
+        pRow->sprites[0][3] = pRow->sprites[0][0];
+        pRow->sprites[1][3] = pRow->sprites[0][0];
+
+        for (j = 0; j < 4; j++) {
+            ((FieldTextRowPrims *)(g_FieldTextRenderPrimBlocks + i * 0x100))->sprites[0][j].x0 = 0x40 + j * 0x80;
+            ((FieldTextRowPrims *)(g_FieldTextRenderPrimBlocks + i * 0x100))->sprites[1][j].x0 = 0x40 + j * 0x80;
+            SetDrawMode(&((FieldTextRowPrims *)(g_FieldTextRenderPrimBlocks + i * 0x100))->drModes[0][j], 0, 0, GetTPage(1, 0, 0x300 + j * 0x40, 0), 0);
+            SetDrawMode(&((FieldTextRowPrims *)(g_FieldTextRenderPrimBlocks + i * 0x100))->drModes[1][j], 0, 0, GetTPage(1, 0, 0x300 + j * 0x40, 0), 0);
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
 /* 81.27% (520 bytes, same size as the original). The shape is right: addPrim
