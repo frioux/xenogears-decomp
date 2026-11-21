@@ -59,7 +59,10 @@ Take the first item below that has work; 1-3 are finite queues that three tools 
 on 2026-11-14, and each is described under its own heading further down.
 
 **Measured at round 235 (2026-11-18): items 1, 2 and 3 are all empty and item 5 has
-stopped yielding.** `fresh_stubs.py` lists **3 stubs in 3 units**, and they are the
+stopped yielding.** (Superseded for item 5 by rounds 368-370: the fresh-stub queue is
+still 4 stubs - three of them 500-875-instruction bodies - but PARK continuation is the
+queue that pays now; see the round-370 note under item 2. Read "park continuation"
+wherever the paragraphs below say parks are permuter work only.) `fresh_stubs.py` lists **3 stubs in 3 units**, and they are the
 700-1200-instruction bodies: round 234 spent three 150-minute lanes transcribing exactly
 three of that size and got **61.32 / 85.07 / 86.47% parks**, not matches - so a body that
 size is a multi-round job, not a brief. The jump-table queue is empty (rounds 203 and 231
@@ -243,8 +246,21 @@ What that cost and what it bought, so the next session does not repeat it:
    measured the same 99.91, the permuter ran 2195 iterations from the exact body and
    returned base=best, and `shop_menu`'s residual is a gcc-generated-giv preheader swap.
    That is `local_alloc` between retail's cc1 and all three compilers in `tools/`, not a
-   source shape. **Do not brief a park above ~99.5% again** - and when a lane's report
-   names this class, spend the round elsewhere rather than on a second pass.
+   source shape. When a lane's report names this class, spend the round elsewhere rather
+   than on a second pass.
+
+   **Rounds 368-370 reopened the park queue, so parks are the queue again - and the rule
+   above is about a named residual, not about a percentage.** A park whose note blames the
+   allocator without a measured construct stays closed; a park whose note names a shape
+   now has two more levers than it did (`brief.js`, "A repeated `base + i * stride` sum"
+   and "`load/load/sub` is a DECLARATION-ORDER question"). Round 370 took six lanes on
+   parks at 85-99.5 in units no recent round had touched and landed **6 matches from 3 of
+   the 6 lanes** (85.32, 89.22, 90.66, 95.11, 99.11 RELOC and 99.48, all at retail's byte
+   count), including two above 99. Two rules that came out of it, both now in `brief.js`:
+   a park note's quoted percentage AND byte count can be fiction (a body that never
+   compiled, or a note claiming 280 bytes where retail is 276), so a lane's first act is to
+   un-park, watch the COMPILE and re-measure; and objdiff's fuzzy number is not monotone
+   for one and the same delta, so judge by the instruction diff.
 3. **Jump-table stubs** ("Jump tables"). About 110 stubs that were excluded because a C
    `switch` broke the link are ordinary stubs now. They are larger than average, so
    brief them in the deep shape ("The round loop").

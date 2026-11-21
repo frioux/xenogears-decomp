@@ -268,7 +268,7 @@ extern void SoundAddSedsEntry(void *);
 extern int ArchiveSetIndex(int, int);
 extern void WorldMapAddSlot(void *, void *);
 extern void func_800978FC(void);
-extern void func_8008901C(void);
+extern void WorldMapInitPrimTemplateBuffers(void);
 extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
@@ -493,7 +493,7 @@ void WorldMapInitializeScene(void) {
     WorldMapAddSlot((void *)WorldMapSetActorPosition, (void *)func_80084068);
     WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }

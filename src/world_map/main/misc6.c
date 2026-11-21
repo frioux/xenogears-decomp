@@ -223,7 +223,7 @@ extern s32 *g_SoundAudioManager;
 extern void SoundPlayAudioManager(s32 *, int, int);
 extern void WorldMapAddSlot(void *, void *);
 extern void func_800978FC(void);
-extern void func_8008901C(void);
+extern void WorldMapInitPrimTemplateBuffers(void);
 extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
@@ -492,7 +492,7 @@ void func_8007D918(void) {
     WorldMapAddSlot(func_8007FC8C, func_8007FD30);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }
@@ -1222,7 +1222,7 @@ void WorldMapInitializeModeWithActors(void) {
     WorldMapAddSlot(func_80080A28, WorldMapUpdateFadeGroups);
     WorldMapAddSlot(WorldMapInitNop, WorldMapUpdateFrame);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapAllocSpritePrimBuffers();
     WorldMapInitRandomTimers();

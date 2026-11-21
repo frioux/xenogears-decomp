@@ -40,7 +40,7 @@ typedef struct {
     /* 0x5DA2 */ u16 columnCounter;   // frames the 0x4CE0 list has been drawn for
 } BattleSpriteColumnWork; // Size: 0x5DA4
 
-extern u8 D_8005959C;
+extern u8 g_DebugPageIndex;
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattleDisplayMode;
 extern u8 g_BattleFrameDrawSuppressed;
@@ -502,7 +502,7 @@ void BattleDrawFrameScreenMode1(void) {
 
 
 void func_800764B4(void) {
-    D_8005959C = 0;
+    g_DebugPageIndex = 0;
     func_8008FAD8();
     func_801DE594();
     func_80073FB8();

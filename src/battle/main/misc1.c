@@ -168,7 +168,7 @@ extern u8 g_BattleDisplayMode;
 extern s32 *g_BattleSlotParamTable;
 extern s32 *g_BattleStateWork;
 extern u8 D_80059180;
-extern u8 D_8005959C;
+extern u8 g_DebugPageIndex;
 extern u8 D_800C3D44;
 extern u8 D_800C3D5C;
 extern s32 D_800C3DEC;
@@ -314,7 +314,7 @@ void func_80070F40(void) {
     bzero((u8 *)g_BattleCommandQueue, 0x2F8);
 
     pAudioManager = g_SoundAudioManager;
-    D_8005959C = 0;
+    g_DebugPageIndex = 0;
     g_BattleLastMenuEvent = 0xFF;
     g_BattleMenuEventHistory = 0xFF;
     g_BattleSoundEnabled = 0;

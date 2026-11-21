@@ -82,7 +82,7 @@ extern u8 D_800CDCB8[];
 extern u8 D_800CDCBC[];
 extern u8 D_800CDCD0[];
 extern u8 D_800CDCD4[];
-extern u8 D_800D2C38;
+extern u8 g_BattleAlternateSpriteFlag;
 extern u16 g_BattleStatusFlags;
 extern u16 D_800D2C3A;
 extern s32 D_800C2054[];
@@ -142,7 +142,7 @@ extern BattleCommandQueueTail* g_BattleCommandQueue;
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleSlotDisplayValue;
 extern BattleMenuEventHistory g_BattleMenuEventHistory;
-extern u8 D_8005959C;
+extern u8 g_DebugPageIndex;
 extern u8 g_BattleDebugFontLoaded;
 extern u8 D_800D32A8;
 extern u8 D_800D32B0;
@@ -279,7 +279,7 @@ void BattleBuildBlendedSprite(void) {
     s32 i;
 
     arg0 = 0xA0;
-    if (D_800D2C38 != 0) {
+    if (g_BattleAlternateSpriteFlag != 0) {
         arg0 = 0xA1;
     }
     g_BattleSpriteColumnWork[0x5D75] = BattleDrawSpritePackage(arg0, (s32)(g_BattleSpriteColumnWork + 0x3AC0), 0xA0, 0x64);
@@ -626,8 +626,8 @@ void BattlePollMenuEvent(s32 arg0) {
                     break;
                 } else if ((g_C1ButtonStateReleased & 2) != 0) {
                     if (*g_DebuggerState != -1) {
-                        if (++D_8005959C >= 5) {
-                            D_8005959C = 0;
+                        if (++g_DebugPageIndex >= 5) {
+                            g_DebugPageIndex = 0;
                         }
                         event = 0xB;
                         if (g_BattleDebugFontLoaded == 0) {

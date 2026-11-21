@@ -51,7 +51,7 @@ extern MenuCardPrefix g_MenuCardPathPrefix1;
    order costs a 0x58 frame with an extra s3 save). firstfile/nextfile are the
    PSY-Q libapi calls and the compare is against &dir, not 0 -- `bne v0,v1` with
    v1 = sp+0x10. The store at 0x4F8A is `cardSlotCounts[a0]` (a byte, not the s32
-   cursor at slotWriteCursor that func_801C90B0 uses).
+   cursor at slotWriteCursor that MenuLoadCardChunk uses).
    Tried: prefix declared first (frame 0x58, an extra s3), both == operand orders,
    returning u_char vs int (int, matching the file's extern). */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
@@ -145,7 +145,7 @@ extern u8 g_MenuWindowTextBackPressed;
    index-first over a mem_addr base (the MenuMarkSlotsWithGameSave idiom): only
    that spelling emits retail's offset-first `addu a1,s0,a1`, and a typed
    subscript canonicalises back to base-first. */
-void func_801C90B0(u_char a0, u_char a1) {
+void MenuLoadCardChunk(u_char a0, u_char a1) {
     MenuCardPrefix prefix;
     char path[0x40];
     s32 retry = 1;

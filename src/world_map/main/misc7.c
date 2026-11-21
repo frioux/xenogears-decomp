@@ -237,7 +237,7 @@ extern u8 g_SoundBankLoadBuffer[];
 extern void *SoundCreateAudioManagerOnHeap(void *pBankBuffer);
 extern void WorldMapAddSlot(WorldMapSlotFunc pInit, WorldMapSlotFunc pUpdate);
 extern void func_800978FC(void);
-extern void func_8008901C(void);
+extern void WorldMapInitPrimTemplateBuffers(void);
 extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapAllocSpritePrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
@@ -486,7 +486,7 @@ void WorldMapInitializeFadeMode(void) {
     WorldMapAddSlot(WorldMapResetSlotColorFade, WorldMapFillFadeTable);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }
@@ -1146,7 +1146,7 @@ void WorldMapInitializeScriptMode(void) {
     WorldMapAddSlot(WorldMapReturnSuccess, WorldMapWaitForQueueDrain);
     WorldMapAddSlot(WorldMapInitNop, WorldMapUpdateFrame);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapAllocSpritePrimBuffers();
     WorldMapInitRandomTimers();

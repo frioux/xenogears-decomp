@@ -73,7 +73,7 @@ extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern void WorldMapLoadTextureClut(void);
 extern void func_800978FC(void);
-extern void func_8008901C(void);
+extern void WorldMapInitPrimTemplateBuffers(void);
 extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapAllocSpritePrimBuffers(void);
 extern void SystemTransferPaletteToVRAM(short xDest, short yDest);
@@ -524,7 +524,7 @@ void WorldMapExitMenuMode(void) {
     HeapFree(g_WorldMapSavedVramTexture);
     HeapFree(g_WorldMapSavedVramStrip);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapAllocSpritePrimBuffers();
     SystemTransferPaletteToVRAM(0x130, 0x1E0);

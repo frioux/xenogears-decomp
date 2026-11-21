@@ -130,7 +130,7 @@ extern u16 D_800926A0;
 extern s16 D_80091228[];
 extern u16 g_BattleEffectFrameCluts[];
 
-// CLUT x (0x80092698) and y (0x8009269C). func_8007B270 reads each of them as a
+// CLUT x (0x80092698) and y (0x8009269C). BattleEffectUploadClut reads each of them as a
 // short, this unit's other callers only want the low byte.
 extern u8 D_80092698[];
 extern u8 D_8009269C[];
@@ -177,11 +177,11 @@ extern void BattleEffectJitterSVector(SVector *pVec);
 extern s32 BattleVectorLength(s32 *arg0);
 extern s32 BattleVectorLength2D(s32 *arg0);
 extern void BattleQueueLineQuad(s32 *pPos, s32 *pPos2, u8 *pColor);
-extern void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type);
+extern void BattleEffectQueueLineQuads(VECTOR *pA, VECTOR *pB, s32 type);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
 
-void func_8007B270(u8 *p0, u8 *p1) {
+void BattleEffectUploadClut(u8 *p0, u8 *p1) {
     s32 r;
     s32 b;
     s32 g;
@@ -736,7 +736,7 @@ void BattleEffectJitterVector(VECTOR *pSrc, VECTOR *pDst) {
     pDst->vz = pSrc->vz + rand() % 64 - 32;
 }
 
-void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
+void BattleEffectQueueLineQuads(VECTOR *pA, VECTOR *pB, s32 type) {
     VECTOR pos;
     VECTOR step;
     VECTOR prev;
@@ -802,13 +802,13 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
 void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     switch (arg2) {
     case 0x11:
-        func_8007D334(arg0, arg1, 0);
+        BattleEffectQueueLineQuads(arg0, arg1, 0);
         break;
     case 0x12:
-        func_8007D334(arg0, arg1, 1);
+        BattleEffectQueueLineQuads(arg0, arg1, 1);
         break;
     case 0x13:
-        func_8007D334(arg0, arg1, 2);
+        BattleEffectQueueLineQuads(arg0, arg1, 2);
         break;
     }
 }

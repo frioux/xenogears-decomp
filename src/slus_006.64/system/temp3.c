@@ -534,7 +534,7 @@ void SoundFreeLoadedWdsAndAudioManager(void) {
 
 void SystemNop(void) {}
 
-extern u8 D_8005959C;
+extern u8 g_DebugPageIndex;
 extern s32* g_DebuggerState;
 extern u8 D_800C48EA;
 extern u8 D_800D3338;
@@ -553,7 +553,7 @@ extern void SystemInitializeDisplayEnvironments(void);
 void GameSetUpDisplayAndChangeState(void) {
     int gameState;
 
-    D_8005959C = 1;
+    g_DebugPageIndex = 1;
     ArchiveCdDataSync(0);
     ArchiveSetIndex(0xC, 0);
 
@@ -632,7 +632,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
 Best: 85.15%. The tail needs g_GameResumeScene/g_MenuSavedMainMenuChoice defined in this unit to get
 %gp_rel. That is safe now: maspsx only relaxes the `lui $at` form, and
 GameSetUpDisplayAndChangeState reads g_GameResumeScene through `lui $v0`, so it keeps %hi/%lo (verified
-by GameSetUpDisplayAndChangeState matching 100% while D_8005959C is defined here). The remaining
+by GameSetUpDisplayAndChangeState matching 100% while g_DebugPageIndex is defined here). The remaining
 diff is the inner loop: the original keeps the even byte on an
 advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
 gcc merges the two into one base with 0/1 offsets.
@@ -719,7 +719,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB50);
    spelling below reproduces retail's absolute lui/$at form for free.
    So the unit spans two original objects: the boundary is 0x8001B970. Retail has gp_rel for
    g_GameResumeScene/g_MenuSavedMainMenuChoice in func_8001B970 (0x8001B970) and for the four
-   globals here, while GameSetUpDisplayAndChangeState (0x8001B6C4, gp_rel only for D_8005959C,
+   globals here, while GameSetUpDisplayAndChangeState (0x8001B6C4, gp_rel only for g_DebugPageIndex,
    which this file defines) needs them absolute. Split temp3 at 0x8001B970 and this function
    plus func_8001B970 become matchable with no other change. The body below is the measured
    one; giving the tail object its own definitions of g_GameSelectedSkinLoadPending,
@@ -741,7 +741,7 @@ void func_8001BB50(void) {
 u32 g_SoundStreamReserveStart;
 u32 g_SoundStreamReserveBlock;
 u8 g_SoundEffectBankIndex;
-u8 D_8005959C;
+u8 g_DebugPageIndex;
 SoundFile* g_SoundSedsBank;
 void* g_SoundStreamBuffer;
 

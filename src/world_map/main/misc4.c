@@ -247,7 +247,7 @@ extern s32 WorldMapUpdateActorTerrainHeight(s32);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern void func_800978FC(void);
-extern void func_8008901C(void);
+extern void WorldMapInitPrimTemplateBuffers(void);
 extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
 
@@ -628,7 +628,7 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     WorldMapAddSlot(WorldMapInitActorRotationMatrix, WorldMapUpdateActorTerrainHeight);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }
@@ -1370,7 +1370,7 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     WorldMapAddSlot(WorldMapInitGroup0Actor, func_8007BBEC);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }

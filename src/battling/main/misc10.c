@@ -502,7 +502,7 @@ extern void BattleSetScreenTileBlack(void);
 extern void BattleSetScreenTileGrey(void);
 extern void BattleClearAndQueueActorPrims(void* pScene);
 extern char BattleResetForNextRound(void);
-extern void func_8007B270(u8* pColor0, u8* pColor1);
+extern void BattleEffectUploadClut(u8* pColor0, u8* pColor1);
 extern void func_80084C88(Misc10Actor* pActor, u8* pData, s32 arg2);
 
 extern void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY);
@@ -1063,7 +1063,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        BattleDrawEffectFrame();
        func_80084C88(&g_BattleActor0, D_800927B8, 1);
        BattleDrawEffectFrame();
-       func_8007B270(&g_BattleActor1.effectColorR, &g_BattleActor0.effectColorR);
+       BattleEffectUploadClut(&g_BattleActor1.effectColorR, &g_BattleActor0.effectColorR);
        BattleSetScreenTileGrey();
        if (g_BattleEffectFrameTimer != 0) {
            g_BattleEffectImageActive = (u8*)1;

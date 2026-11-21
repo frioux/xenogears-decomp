@@ -1128,3 +1128,4 @@ g_BattleAnimGroupStatesB = 0x800D30A8;
 g_BattleCommandCodes = 0x800C400B;
 g_BattleCommandSlotMasks = 0x800C4022;
 g_BattleCommandSlotIds = 0x800C402F;
+g_BattleAlternateSpriteFlag = 0x800D2C38;

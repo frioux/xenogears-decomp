@@ -703,7 +703,7 @@ extern void SoundPlayAudioManager(void* pManager, s32 volume, s32 arg2);
 extern void SoundReloadAudioManagerSamples(void* pManager, s32 volume, s32 arg2);
 extern void WorldMapInitSpriteGroupSprites(s32 arg0, s32 arg1, s32 arg2);
 extern void func_800978FC(void);
-extern void func_8008901C(void);
+extern void WorldMapInitPrimTemplateBuffers(void);
 extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapAllocSpritePrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
@@ -725,7 +725,7 @@ extern s32 func_80092DF8();
 extern s32 WorldMapSetSceneSpriteSetParents();
 extern s32 func_8008868C();
 extern s32 WorldMapSetSceneLayerTPages();
-extern s32 func_80088C90();
+extern s32 WorldMapHideSpriteSetGroups();
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
 /* best: 99.81% (1892 bytes = retail's exact size, 472 insns). The whole function is
@@ -893,7 +893,7 @@ void func_80072238(void) {
             WorldMapSetSlotEnterHandler(WorldMapSetSceneSpriteSetParents, 0xF);
             WorldMapSetSlotEnterHandler(func_8008868C, 0x10);
             WorldMapSetSlotEnterHandler(WorldMapSetSceneLayerTPages, 0x11);
-            WorldMapSetSlotEnterHandler(func_80088C90, 0x13);
+            WorldMapSetSlotEnterHandler(WorldMapHideSpriteSetGroups, 0x13);
             break;
         case 2:
         case 3:
@@ -913,7 +913,7 @@ void func_80072238(void) {
         g_FieldPlayerWalkmeshMaterial = 1;
     }
     func_800978FC();
-    func_8008901C();
+    WorldMapInitPrimTemplateBuffers();
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapAllocSpritePrimBuffers();
     if (g_WorldMapInitModeIndex == 0) {

@@ -20,9 +20,9 @@ extern s32 D_801EA70C;
 extern u8 D_801E9785; // Set once the three MenuCharacter records have been allocated
 extern u8 D_801EA710;
 extern u8 D_801EA714;
-extern CdlCB D_801EA718;
-extern CdlCB D_801EA71C;
-extern CdlCB D_801EA720;
+extern CdlCB g_MenuSavedCdSyncCallback;
+extern CdlCB g_MenuSavedCdReadyCallback;
+extern CdlCB g_MenuSavedCdReadCallback;
 extern u8 D_801EA574[];
 extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
@@ -83,9 +83,9 @@ void MenuShutdown(void) {
     DrawSync(0);
     Vsync(0);
     EnterCriticalSection();
-    CdSyncCallback(D_801EA718);
-    CdReadyCallback(D_801EA71C);
-    CdReadCallback(D_801EA720);
+    CdSyncCallback(g_MenuSavedCdSyncCallback);
+    CdReadyCallback(g_MenuSavedCdReadyCallback);
+    CdReadCallback(g_MenuSavedCdReadCallback);
     ExitCriticalSection();
 }
 

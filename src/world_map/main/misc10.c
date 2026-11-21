@@ -210,7 +210,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
    func_80088D00). Two walls, both seen elsewhere in this unit: (a) the tail
    folds +0x16A4 into the store displacements (0x16AC/0x16B0/0x16B4) where
    retail does addiu a1,a1,0x16A4 once and stores at 8/0xC/0x10; (b) both id
-   loops want an `s32 id` instead of a bare `*pIds` (see func_80088C90). The
+   loops want an `s32 id` instead of a bare `*pIds` (see WorldMapHideSpriteSetGroups). The
    0x40 frame vs retail's 0x20 comes from (b).
 s32 func_80088B40(s32 arg0) {
     u8* pDst;
@@ -249,7 +249,7 @@ s32 func_80088B40(s32 arg0) {
 }
 */
 
-s32 func_80088C90(void) {
+s32 WorldMapHideSpriteSetGroups(void) {
     s16* pIds;
     s32 id;
 
@@ -382,7 +382,7 @@ void WorldMapFreeSpriteGroupTable(void) {
     HeapFree(g_WorldMapTrailEntries);
 }
 
-void func_8008901C(void) {
+void WorldMapInitPrimTemplateBuffers(void) {
     u8* pEntry;
     s32* pSrc;
     s32* pDst;
@@ -510,7 +510,7 @@ void WorldMapInitSpriteGroupSprites(s32 groupIndex, SVECTOR* pPos, s16* pRot) {
     }
 }
 
-void func_800893E0(s32 groupIndex, SVECTOR* pTrailEnd, SVECTOR* pRot) {
+void WorldMapInitSpriteGroupSpritesTrail(s32 groupIndex, SVECTOR* pTrailEnd, SVECTOR* pRot) {
     WorldMapSprite* pSprite;
     s32 i;
     s32 found;
