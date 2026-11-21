@@ -135,29 +135,12 @@ int MenuReadFileChunk(u8* pPath, u8* pBuffer) {
 
 extern void MenuWaitCardOperationFrames(u_char index);
 
-/* Best attempt: 99.11%. Instruction multiset identical, byte count equal (448);
-   the only difference is the operand order of the two `addu`s that add a hoisted
-   offset to `g_Menu->menuUnk2`: retail emits `addu a1,s0,a1` (offset first) where
-   this emits `addu a1,a1,s0`. Tried: with/without the (char*) cast on the strcat
-   argument, `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` vs two field assignments (the two
-   statements get cross-jumped), and the `.pad0` vs `&chunks[idx]` spelling.
-   Learned: the 6-byte prefix copy is `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` -- a 6-byte
-   aggregate copy is impossible in C (a {u32;s16;} struct is 8 bytes and copies 8),
-   and two field assignments are merged by -fcross-jumping. func_801CB304 and
-   misc4's MenuEraseCardSaveFile use the same idiom. Also: slotWriteCursor is an s32 write
-   cursor here (lw/addiu/sw), not the u8 header fields around it.
-   Permuter (4 min, 1289 iterations, base=80 best=80) found nothing for the addu
-   order, so the remaining two diffs are a1/v0 register swap (GIV_TIE) in the
-   strcat index math and the MenuReadFileChunk argument's addu operand order.
-   Round 286: the `lh`/`sh` tail of the 6-byte prefix copy proves the copy is an
-   AGGREGATE of an 8-byte {u32; s16} struct (a 6-byte 4-aligned type cannot be
-   declared in C): `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` on that type inlines to
-   exactly retail's lw/lh/sw/sh pair, while a field-wise copy is 8 bytes shorter
-   and cross-jumps the two stores into one shared block (440 bytes, 94.55%). The
-   two remaining diffs are both "retail puts the OFFSET first in the addu"
-   (`addu a1,a1,v0` with a1 = k*0x5C, and `addu a1,s0,a1` with s0 = the chunk
-   offset); the index-first spellings `(slot + ...->records)` / `(k + ...->chunks)`
-   canonicalise back to base-first (88.12% with a slot local). */
+/* The prefix is a 6-byte block move out of an 8-byte {u32; s16} aggregate (a
+   6-byte 4-aligned type cannot be declared in C), so it is a memcpy of 6; a
+   field-wise copy cross-jumps the two arms. Both address sums are written
+   index-first over a mem_addr base (the MenuMarkSlotsWithGameSave idiom): only
+   that spelling emits retail's offset-first `addu a1,s0,a1`, and a typed
+   subscript canonicalises back to base-first. */
 void func_801C90B0(u_char a0, u_char a1) {
     MenuCardPrefix prefix;
     char path[0x40];
