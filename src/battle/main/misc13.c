@@ -1,4 +1,5 @@
 #include "common.h"
+#include "battle/actor.h"
 #include "main/game.h"
 #include "psyq/libgpu.h"
 
@@ -78,7 +79,6 @@ typedef struct {
 
 extern BattleCommandRecord g_BattleCommandRecords[];
 extern BattleSlotStatEntry g_BattleSlotEntriesBase[];
-extern u8 D_800CCD36[];
 extern u8 g_BattleSoundEnabled;
 extern u8 g_BattleSlotDisplayInitialized;
 extern u8 g_BattleSlotFlags[];
@@ -145,6 +145,7 @@ extern u8 D_800C400B[];
 extern u8 D_800C402F[];
 extern u8 D_800C34B3[][3];
 extern BattleCommandRow D_800CCD1C[];
+extern BattleTableEntry g_BattleWorkBlock[];
 extern void func_80087EDC(u8, u8);
 extern void func_800881B8(u8, u8);
 extern void BattleSetSlotRegistersFromActor(u8, u8);
@@ -159,7 +160,8 @@ extern s32 BattleScriptScanForOpcode62(u8);
    g_BattleActorCommandIds[arg0 * 0x48 + i] (u8, lbu, bounds sltiu 0xC, no index
    copy so a plain switch already produces retail's operands). i*0x170 is held in
    $s0 as a byte offset for the gp-relative per-slot tables (g_BattleSlotEntries,
-   g_BattleSlotEntriesBase, D_800CCD36, D_800CCDEC, D_800CCDF0, D_800CCE08,
+   g_BattleSlotEntriesBase, D_800CCD36 (= g_BattleWorkBlock + 0x56, i.e.
+   BattleTableEntry.characterId), D_800CCDEC, D_800CCDF0, D_800CCE08,
    D_800CCD38/3A, D_800CCDC4/C6); $s3 = g_BattleCommandRows + arg0*0x48 + i*2;
    $s5 = g_BattleCommandRows - 0x130 + i*0x1C; $s4 = g_BattleCommandRows - 0x138
    + i*0x170; $s6 = D_800CCDC4 + i*0x170. The four stores that go through
@@ -309,8 +311,9 @@ void BattleClearCommandSlots(void) {
    `j++` and no break, case 12 holds the body.
    `i = 0` is assigned before `pSlots = pQueue` (retail's order: a3=0 then
    t1=a2); the second copy of the queue pointer is what produces `move t1,a2`
-   in the preheader. `D_800CCD36[arg1 * 0x170 + 8]` is retail's D_800CCD3E and
-   folds to the same bytes.
+   in the preheader. The status-row index is `g_BattleWorkBlock[arg1].characterId`
+   (retail relocs D_800CCD3E, the same address with the +0x56 addend in the load
+   displacement instead; the linked bytes are identical, verified with check_bin).
 */
 // Walks the 13 command slots looking for the row whose 7-byte key matches the
 // queue's; the arm ladder below counts the found row DOWN from 12 into j, which
@@ -376,8 +379,8 @@ s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
     case 11:
         j++;
     case 12:
-        pEntry = g_BattleCommandStatusBytes[D_800CCD36[arg1 * 0x170 + 8]];
-        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
+        pEntry = g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId];
+        if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
                                         pEntry[0xC - j]) != 0) {
             result = 1;
         }
@@ -438,7 +441,7 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
         if (g_BattleCommandCharIndex[0] == 4) {
             idx = arg0 + 0xC;
         }
-        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
+        if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
                                g_BattleCommandStatusMasks[idx & 0xFF]) != 0) {
             if (g_BattleCommandQueue[0x2CC] != BATTLE_COMMAND_NONE && g_BattleCommandCharIndex[0] != 4 && g_BattleCommandCharIndex[0] < g_BattleCommandQueue[0x2CC] + 1) {
                 ok = 0;
