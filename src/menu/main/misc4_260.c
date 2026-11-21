@@ -90,28 +90,30 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
-/* 99.17% (1120 bytes, retail's exact size): ONE moved `li`. The four digit blocks
-   are retail's instruction for instruction; the frame, the argument copies and
-   every call agree.
-   Remaining delta, in the first if/else's ELSE arm: retail emits
-       lbu v1,gearId / li s3,0x5 (glyphCount) / sll chain / lw a0,hp / li s6,0x4
-   i.e. value, count, base in source order - but gcc 2.6.0 here HOISTS the else
-   arm's FIRST constant assignment to the top of the block (above the andi/sll
-   chain) and leaves the second after the gearId lbu, so (value,count,base) gives
-   `li s3,5` at the block top and `li s6,4` in the lbu slot (99.15), and
-   (value,base,count) gives `li s6,4` at the top and `li s3,5` in the lbu slot
-   (99.17). Both keep retail's instruction count; neither puts both constants
-   after the hp load as retail does. The IF arm (value,count,base) keeps source
-   order and matches, so this is the else block only. Also tried: a `u8 gearId`
-   local, the two constants before the value, and a while-loop spelling - none
-   moves the hoist. A hoist above the *whole* block is not reachable from
-   statement order, so this wants a smarter eye than another declaration order.
-   Structure worth keeping: `value` is assigned in each arm and parsed once (retail
-   has one jal MenuParseNumberToDigits); each block re-reads `g_Menu->digits[...]`
-   in its loop test; blocks 2 and 4 carry a separate placed-glyph counter for the
-   x argument while blocks 1 and 3 use the digit index; blocks 3 and 4 only run for
-   the character arm (arg5 == 0). Putting block 3's x back onto the digit index is
-   what took this from 97.79 to 99.15. */
+/* 99.17% (1120 bytes, retail's exact size; re-measured round 393). TWO residuals.
+   1. ELSE arm constant placement. Retail's stream is
+      `andi/sll chain, lbu gearId, ori s3,0x5 (glyphCount), sll chain, lw hp, ori s6,0x4
+      (glyphBase)`: each constant sits in the load-delay slot of the load above it and
+      nothing is at the block top. gcc 2.6.0 instead always puts the block's FIRST
+      constant assignment at the top of the block and the SECOND in the lbu's delay
+      slot. Measured, all at retail's 280 insns:
+        (value, base, count) 99.17  -> li base at top, li count after lbu  [this body]
+        (value, count, base) 99.15  -> li count at top, li base after lbu
+        (u8 gearId decl, count, value, base) 99.15 -> same shape
+        do { ... } while (0) around the arm 98.75 -> reshuffles s4/s6/s7/s5, worse
+      A cc1_probe.sh reproduction (two dependent loads + two constant assignments)
+      shows the hoist needs TWO loads in the block: with ONE load both `li`s stay after
+      the load in source order. So it is a load-delay/reorg placement artifact and no
+      statement order reaches it; a 3-minute permuter run scored base=90 best=90.
+   2. Prologue: retail emits `sw s5,84(sp) / move s5,a3` BEFORE `sw s8,96(sp) /
+      move s8,a1`; this build emits the a1 pair first. Everything else in the prologue
+      agrees (the lbu arg5 load, the lbu -> sw s4 pair) and the insn count is equal.
+   Structure worth keeping: `value` is assigned in each arm and parsed once (retail has
+   one jal MenuParseNumberToDigits per block); each block re-reads `g_Menu->digits[...]`
+   in its loop test; blocks 2 and 4 carry a separate placed-glyph counter for the x
+   argument while blocks 1 and 3 use the digit index; blocks 3 and 4 only run for the
+   character arm (arg5 == 0). Putting block 3's x back onto the digit index is what took
+   this from 97.79 to 99.15. */
 /* void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
     s32* pX = (s32*)arg3;
     s32* pY = (s32*)arg4;
