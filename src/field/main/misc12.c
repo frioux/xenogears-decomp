@@ -766,7 +766,7 @@ void func_8009B398(void) {
         *(volatile u_short *)&g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
         D_800B21CE = 1;
 
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
             if (g_FieldPartyActorSlots[i] != 0xFF) {
                 pActor = g_FieldActors[g_FieldPartyActorSlots[i]].pActorData;
                 rotation = pActor->rotation.vy | ~0x7FFF;
