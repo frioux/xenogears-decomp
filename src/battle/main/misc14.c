@@ -811,21 +811,25 @@ void BattleUpdatePauseMenu(u8 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
-// Best attempt: objdiff 99.03%, 828 bytes = the original size, ONE instruction out of
-// place. Everything matches except the position of `move a0,zero` (offset = 0): retail
-// emits it inside the loop setup, between the D_800D32F8 base (lui/addiu a2) and
-// `addiu t2,a2,12`, while a source-level `offset = 0;` always lands before both. That
-// is the signature of a0 being a loop.c biv initialised with the other bivs, i.e. the
-// source wrote the byte offset as an `i * 8`-shaped expression; every spelling of that
-// (D_X[i * 2] on s32 arrays, *(s32 *)((s32)D_X + i * 8), offset = i * 8; in the body)
-// makes gcc 2.6.0 strength-reduce one biv per D_ symbol instead of sharing one register,
-// which costs 12-16 bytes. Measured, do not redo: done as a u8 local (not the literal 1,
-// +0.5), active as u8 (not s32, +3.5, found by the permuter), pCounters = (u8 *)(offset +
-// (s32)pWork) with the int arithmetic so the addu comes out index-first as retail has it,
-// and the counter stores written through pCounters + 0x9E20/0x9E08/0x9E24/0x9E0C (a
+// Best attempt: objdiff 99.03%, 828 bytes = the original size, 207 insns = 207, ONE
+// instruction out of place. Everything matches except the position of `move a0,zero`
+// (offset = 0): retail emits it inside the loop preheader, between the D_800D32F8 base
+// (lui/addiu a2) and `addiu t2,a2,12`, while this body emits it BEFORE the a2 base. Both
+// a0 (offset) and a2 (array base) are loop.c inits, and loop.c inserts them newest-biv-
+// first, so a2's must be recorded after a0's - i.e. retail's a2 came from the ENTRY block
+// (a source statement), not a biv init. Preset-independent, so not a compiler question:
+// 99.03 under 2.6.0 -O2/-O3, plain 2.7.2 -O2 and -G0 alike; cdk 85.29, cdk -G0 71.94.
+// Measured, do not redo: `pSlot = D_800D32F8;` as a plain alias is copy-propagated away
+// (byte-identical output), also with the init in the for-comma list; a pointer-walk loop
+// `for (pSlot = D_800D32F8, offset = 0; pSlot < D_800D32F8 + 3; pSlot++)` keeps the base
+// in the entry block as wanted but buys a pre-test guard plus sltu: 94.76%, 852 bytes,
+// 213 insns. Also already measured (earlier rounds): done as a u8 local (not the literal
+// 1, +0.5), active as u8 (not s32, +3.5, found by the permuter), pCounters = (u8 *)(offset
+// + (s32)pWork) with the int arithmetic so the addu comes out index-first as retail has
+// it, and the counter stores written through pCounters + 0x9E20/0x9E08/0x9E24/0x9E0C (a
 // g_BattleStateWork base with a large constant is what produces retail's lui $at,1 /
-// addu / sw -0x61E0 split; through the D_ symbol the store is a bare sw macro). Two
-// 4-minute permuter runs closed the two type and width differences, then found nothing.
+// addu / sw -0x61E0 split; through the D_ symbol the store is a bare sw macro). Three
+// permuter runs (two 4-minute, one 3-minute: base=60 best=60) found nothing.
 /*
 void func_8008A684(u8 arg0) {
     u8* pWork;
