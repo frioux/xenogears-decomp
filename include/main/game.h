@@ -233,12 +233,12 @@ typedef struct {
     // masks (BattleCheckActorCommandAvailable). gearCommandMask is the word the gear's
     // accessories grant: MenuApplyGearAccessories clears its derived bits and recomputes
     // them from the pilot's accessory effect flags.
-    /* 0x04 */ s16 commandMask;
+    /* 0x04 */ u16 commandMask;
     // One bit per condition the slot can be given. The character-side and the
     // gear-side slot answer the same test from these two words, see
     // BattleDrawCharStatusIfFlagged and func_8009BAC4 in src/battle/main/misc19.
     /* 0x06 */ s16 characterConditionMask;
-    /* 0x08 */ s16 gearCommandMask;
+    /* 0x08 */ u16 gearCommandMask;
     /* 0x0A */ s16 gearConditionMask;
     /* 0x0C */ s16 unkC;
     /* 0x0E */ s16 unkE;
