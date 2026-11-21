@@ -1132,9 +1132,25 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
       sites, and an angle local at function scope. A cc1_probe of the same two-call
       group under this unit's own cc1/flags DOES put it in a callee-saved register,
       with and without an enclosing loop, so the difference is the surrounding
-      switch-in-loop context, not the spelling. Retail then reuses that same s0 for
-      `count * 2` one instruction after the last store of the constant (the
-      reuse-a-local lever), which is probably the shape the original had.
+      switch-in-loop context, not the spelling. THE CAUSE IS loop.c, read off cc1's
+      own dumps (`build/src/battle/main/misc1.c.i.greg`): this compile HOISTS the
+      constant to the function preheader (`Insn 296 (life 24) ... moved to 849`,
+      i.e. insn 849 sets the 3072 pseudo next to the i=0/scale/0x2E08 ones), so its
+      range covers the whole outer loop, global_alloc lists it conflicting with
+      every other allocno (`;; 298 conflicts: ... 74 289 ... 16`) and reload
+      rematerialises it (`Spilling reg 9` twice). Retail's `ori s0,zero,0xC00`
+      sits INSIDE case 1 (0x3860, after the argument loads), so retail did not hoist
+      it and its range covered only case 1, where s0 is free (case 0's counter is
+      dead, case 1's `first` is not yet live). The reuse-a-local theory is not
+      possible in C: the 2nd call's 9th argument is 0xC00 at 0x38C0 and
+      `first = count*2` is at 0x38C4, so two different values are live either side
+      of the first call. Measured this round, both at 1316 with the same double `li`:
+      per-case counter locals (`scaledFirst`/`k`, no sharing with case 0) 92.24%, and
+      retail's own loop shape `for (; first < count*2; first += 2)` (one variable,
+      no `j = first` copy) 97.12% - so the allocnos' conflict set does not move.
+      What is left is defeating that hoist, and none of the round-327 levers
+      (lifetime/savings) is reachable here: retail's span between the two uses is
+      LONGER than this compile's (20 vs 14 insns) yet was not hoisted.
    2. the prologue's save order: retail emits `sw s6 / move s6,zero` (actorOff, the
       i*0x1C IV) AFTER the s3/s4 IV inits; ours defines it earlier.
    3. case 1's 0x10/0x98 stack-argument immediates: retail emits them BEFORE the
