@@ -69,6 +69,10 @@ segments:
       - [0x894, rodata]
       - [0x898, .rodata, main/misc18]
       - [0x938, .rodata, main/misc19]
+      # jtbl_800704A0 belongs to func_8009BAC4, which sits in main/misc19_r1 (its run
+      # of the unit is gcc 2.6.0; see gears.toml XenoLibrary), so the table's bytes
+      # have to travel with that TU or the whole rodata block shifts.
+      - [0x9B0, .rodata, main/misc19_r1]
       - [0x9DC, .rodata, main/misc20]
       - [0xA24, .rodata, main/misc21]
       - [0xA64, .rodata, main/misc23]
@@ -109,6 +113,10 @@ segments:
       - [0x21574, c, main/misc17]
       - [0x25F88, c, main/misc18]
       - [0x2A5EC, c, main/misc19]
+      # func_8009BAC4 on is byte-identical only under gcc 2.6.0 (try_flags.sh: every
+      # already-matched function of the head stays 100 under Default, and eleven of
+      # them drop under 2.6.0, so the unit is mixed and the tail is its own TU).
+      - [0x2BFD4, c, main/misc19_r1]
       - [0x2C644, c, main/misc20]
       - [0x2F0B8, c, main/misc21]
       - [0x33398, c, main/misc22]

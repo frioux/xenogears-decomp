@@ -53,7 +53,11 @@ paths = [
     "shop_menu/main/misc.",
     "lib_gear/main/main.",
     "gear_shop_menu/main/main.",
-    "gear_shop_menu/main/render."
+    "gear_shop_menu/main/render.",
+    # battle/main/misc19 is mixed: func_8009BAC4 (and func_8009BD94, see its park) is
+    # byte-identical only under 2.6.0 while eleven head functions drop as low as 95.71
+    # under it, so config/battle.yaml splits that run out as main/misc19_r1.
+    "battle/main/misc19_r1."
 ]
 
 [[build_preset]]
