@@ -248,14 +248,14 @@ void FieldScriptSetCurActorRotationTowardActor(void) {
 }
 
 void FieldScriptSetSceneScaleInterpolation(void) {
-    g_Scene.unk8C = SCRIPT_READ_U8_REL(3);
-    if (g_Scene.unk8C == 0) {
+    g_Scene.sceneScaleFrames = SCRIPT_READ_U8_REL(3);
+    if (g_Scene.sceneScaleFrames == 0) {
         g_FieldCameraSnapFrames[0] += 2;
-        g_Scene.unk8C++;
+        g_Scene.sceneScaleFrames++;
     }
-    g_Scene.unk94 = -((g_Scene.sceneScale - FieldScriptVMGetArgument(1)) << 16) / g_Scene.unk8C;
-    g_Scene.unk90 = g_Scene.sceneScale << 16;
-    g_Scene.unk48 |= 1;
+    g_Scene.sceneScaleStep = -((g_Scene.sceneScale - FieldScriptVMGetArgument(1)) << 16) / g_Scene.sceneScaleFrames;
+    g_Scene.sceneScaleCurrent = g_Scene.sceneScale << 16;
+    g_Scene.flags |= 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
@@ -264,10 +264,10 @@ void FieldSceneStartDIPInterpolation(int start, int duration) {
         g_FieldCameraSnapFrames[0] = 2;
         duration = 1;
     }
-    g_Scene.unk78 = -((g_Scene.sceneDIP - start) << 16) / duration;
-    g_Scene.unk70 = duration;
-    g_Scene.unk74 = g_Scene.sceneDIP << 16;
-    g_Scene.unk48 |= 8;
+    g_Scene.sceneDIPStep = -((g_Scene.sceneDIP - start) << 16) / duration;
+    g_Scene.sceneDIPFrames = duration;
+    g_Scene.sceneDIPCurrent = g_Scene.sceneDIP << 16;
+    g_Scene.flags |= 8;
 }
 
 void FieldScriptSetSceneDIPInterpolation(void) {
@@ -290,7 +290,7 @@ void FieldScriptWriteCameraDirection(void) {
 
 
 void FieldScriptVMWaitWhileSceneFlagSet(void) {
-    if (!(g_Scene.unk48 & SCRIPT_READ_U8_REL(1))) {
+    if (!(g_Scene.flags & SCRIPT_READ_U8_REL(1))) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     } else {
         g_FieldScriptVMStopFlag = 1;
@@ -298,7 +298,7 @@ void FieldScriptVMWaitWhileSceneFlagSet(void) {
 }
 
 void FieldScriptVMWaitWhileSceneFlagSet2(void) {
-    if (!(g_Scene.unk48 & SCRIPT_READ_U8_REL(1))) {
+    if (!(g_Scene.flags & SCRIPT_READ_U8_REL(1))) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     } else {
         g_FieldScriptVMStopFlag = 1;
@@ -524,27 +524,27 @@ void FieldScriptSetCurActorRotationFromTable(void) {
 }
 
 void FieldScriptVMSetSceneFlag4000(void) {
-    g_Scene.unk48 |= 0x4000;
+    g_Scene.flags |= 0x4000;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 void FieldScriptVMClearSceneFlag4000(void) {
-    g_Scene.unk48 &= 0xBFFF;
+    g_Scene.flags &= 0xBFFF;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 void FieldSceneStartScreenZInterpolation(s32 start, s32 duration) {
     if (duration != 0) {
-        g_Scene.unk48 |= FIELD_SCENE_INTERPOLATING_SCREEN_Z;
-        g_Scene.unk88 = -(s32)((g_Scene.sceneScrZ - start) << 16) / duration;
-        g_Scene.unk80 = duration;
-        g_Scene.unk84 = g_Scene.sceneScrZ << 16;
+        g_Scene.flags |= FIELD_SCENE_INTERPOLATING_SCREEN_Z;
+        g_Scene.sceneScrZStep = -(s32)((g_Scene.sceneScrZ - start) << 16) / duration;
+        g_Scene.sceneScrZFrames = duration;
+        g_Scene.sceneScrZCurrent = g_Scene.sceneScrZ << 16;
     } else {
         g_FieldCameraSnapFrames[0] += 2;
         g_Scene.sceneScrZ = start;
-        g_Scene.unk80 = 0;
+        g_Scene.sceneScrZFrames = 0;
     }
-    g_Scene.unk48 &= 0xDFFF;
+    g_Scene.flags &= 0xDFFF;
 }
 
 typedef struct { s16 value; } FieldScriptGlobalS16;
@@ -800,9 +800,9 @@ void FieldSceneStartSceneAngleInterpolation(int direction, int duration) {
         g_FieldCameraSnapFrames[0] += 2;
         duration = 1;
     }
-    g_Scene.unk5C = (D_800AEA64[cameraDirection * 8 + direction] * 0x2000000) / duration;
-    g_Scene.unk66 = duration;
-    g_Scene.unk7C = ((direction + 4) & 7) << 9;
+    g_Scene.sceneAngleStep = (D_800AEA64[cameraDirection * 8 + direction] * 0x2000000) / duration;
+    g_Scene.sceneAngleFrames = duration;
+    g_Scene.sceneAngleYTarget = ((direction + 4) & 7) << 9;
 }
 
 void FieldSceneStartSceneAngleRotation(int direction, int duration) {
@@ -811,17 +811,17 @@ void FieldSceneStartSceneAngleRotation(int direction, int duration) {
         duration = 1;
     }
     if (direction == 0) {
-        g_Scene.unk5C = 0x2000000 / duration;
-        g_Scene.unk7C += 0x200;
+        g_Scene.sceneAngleStep = 0x2000000 / duration;
+        g_Scene.sceneAngleYTarget += 0x200;
     } else {
-        g_Scene.unk5C = -0x2000000 / duration;
-        g_Scene.unk7C -= 0x200;
+        g_Scene.sceneAngleStep = -0x2000000 / duration;
+        g_Scene.sceneAngleYTarget -= 0x200;
     }
-    g_Scene.unk66 = duration;
+    g_Scene.sceneAngleFrames = duration;
 }
 
 void FieldScriptVMStartSceneAngleRotation(void) {
-    if (g_Scene.unk66 == 0) {
+    if (g_Scene.sceneAngleFrames == 0) {
         FieldSceneStartSceneAngleRotation(0, FieldScriptVMGetArgument(1));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     }
@@ -829,7 +829,7 @@ void FieldScriptVMStartSceneAngleRotation(void) {
 }
 
 void FieldScriptVMStartSceneAngleRotation2(void) {
-    if (g_Scene.unk66 == 0) {
+    if (g_Scene.sceneAngleFrames == 0) {
         FieldSceneStartSceneAngleRotation(0, FieldScriptVMGetArgument(1));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     }
@@ -849,9 +849,9 @@ void func_8009B8E4(void) {
         s32 angle = (direction + 4 & 7) << 9;
 
         g_Scene.sceneAngle.vy = angle;
-        g_Scene.unk7C = angle;
+        g_Scene.sceneAngleYTarget = angle;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
-    } else if (g_Scene.unk66 == 0) {
+    } else if (g_Scene.sceneAngleFrames == 0) {
         FieldSceneStartSceneAngleInterpolation(direction, duration);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     }
@@ -859,19 +859,19 @@ void func_8009B8E4(void) {
 } */
 
 void FieldScriptSaveCameraState(void) {
-    if (g_Scene.unk66 == 0) {
-        g_Scene.unkB8 = FieldGetCameraDirection();
-        g_Scene.unkBC = g_Scene.sceneScrZ;
-        g_Scene.unkC0 = g_Scene.sceneDIP;
+    if (g_Scene.sceneAngleFrames == 0) {
+        g_Scene.savedCameraDirection = FieldGetCameraDirection();
+        g_Scene.savedSceneScrZ = g_Scene.sceneScrZ;
+        g_Scene.savedSceneDIP = g_Scene.sceneDIP;
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
     }
 }
 
 void FieldScriptRestoreCameraState(void) {
-    if (g_Scene.unk66 == 0) {
-        FieldSceneStartSceneAngleInterpolation(g_Scene.unkB8, 0x20);
-        FieldSceneStartScreenZInterpolation(g_Scene.unkBC, 0x20);
-        FieldSceneStartDIPInterpolation(g_Scene.unkC0, 0x20);
+    if (g_Scene.sceneAngleFrames == 0) {
+        FieldSceneStartSceneAngleInterpolation(g_Scene.savedCameraDirection, 0x20);
+        FieldSceneStartScreenZInterpolation(g_Scene.savedSceneScrZ, 0x20);
+        FieldSceneStartDIPInterpolation(g_Scene.savedSceneDIP, 0x20);
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
     }
 }
@@ -903,9 +903,9 @@ void func_8009BA7C(void) {
     g_Scene.sceneDIP = FieldScriptVMGetArgument(3);
     direction = (FieldScriptVMGetArgument(1) + 4) & 7;
     angle = direction << 9;
-    g_Scene.unk7C = angle;
+    g_Scene.sceneAngleYTarget = angle;
     g_Scene.sceneAngle.vy = direction << 9;
-    g_Scene.unk60 = angle << 16;
+    g_Scene.sceneAngleCurrent = angle << 16;
     z = FieldScriptVMGetArgument(5);
     g_Scene.sceneScrZ = z;
     SetGeomScreen(z);

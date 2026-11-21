@@ -248,26 +248,26 @@ void func_8007254C(void) {
 
     *(s32*)(pCam + 0x0) = 8;
     g_CamInterpolation.eyeStepDistance = 8;
-    g_Scene.unk5C = 0x400000;
-    g_Scene.unk60 = 0x8000000;
+    g_Scene.sceneAngleStep = 0x400000;
+    g_Scene.sceneAngleCurrent = 0x8000000;
     g_Scene.sceneAngle.vy = 0x800;
-    ((s32*)g_Scene.unk98)[4] = 0;
-    ((s32*)g_Scene.unk98)[3] = 0;
-    ((s32*)g_Scene.unk98)[2] = 0;
-    ((s32*)g_Scene.unk98)[7] = 0;
-    ((s32*)g_Scene.unk98)[6] = 0;
-    ((s32*)g_Scene.unk98)[5] = 0;
-    ((s16*)g_Scene.unk98)[0] = 0;
-    ((s16*)g_Scene.unk98)[2] = 0;
-    g_Scene.unk48 = 0;
+    g_Scene.shakeAmplitudeZ = 0;
+    g_Scene.shakeAmplitudeY = 0;
+    g_Scene.shakeAmplitudeX = 0;
+    g_Scene.shakeStepZ = 0;
+    g_Scene.shakeStepY = 0;
+    g_Scene.shakeStepX = 0;
+    g_Scene.shakeActive = 0;
+    g_Scene.shakeStopWhenFinished = 0;
+    g_Scene.flags = 0;
     g_CamInterpolation.curAngleY = 0;
     g_CamInterpolation.targetAngleY = 0;
     g_Scene.dollySet = 0;
     g_Scene.dollyStop = 0;
-    g_Scene.unk66 = 0;
+    g_Scene.sceneAngleFrames = 0;
     g_Scene.sceneAngle.vx = 0;
     g_Scene.sceneAngle.vz = 0;
-    g_Scene.unk7C = 0x800;
+    g_Scene.sceneAngleYTarget = 0x800;
     g_Scene.camRotation.vx = 0;
     g_Scene.camRotation.vy = 0;
     g_Scene.camRotation.vz = 0;
@@ -340,13 +340,13 @@ void func_800726E8(void) {
     int offset;
 
     if (g_Scene.dollySet != 0xFF && g_Scene.dollyStop != 0xFF) {
-        if (g_Scene.unk66 == 0) {
+        if (g_Scene.sceneAngleFrames == 0) {
             if (g_FieldDirectionMasks[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollySet) {
-                if (g_Scene.unk5C != -0x400000 && g_Scene.unk5C != 0x400000) {
-                    g_Scene.unk5C = 0x400000;
-                    g_Scene.unk7C += 0x200;
+                if (g_Scene.sceneAngleStep != -0x400000 && g_Scene.sceneAngleStep != 0x400000) {
+                    g_Scene.sceneAngleStep = 0x400000;
+                    g_Scene.sceneAngleYTarget += 0x200;
                 }
-                g_Scene.unk66 = 8;
+                g_Scene.sceneAngleFrames = 8;
             }
         }
 
@@ -355,43 +355,43 @@ void func_800726E8(void) {
                 ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9);
             if (FieldFindClearDirectionBackward(g_Scene.dollyStop,
                     ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9) < offset) {
-                g_Scene.unk5C = -0x400000;
-                g_Scene.unk7C -= 0x200;
+                g_Scene.sceneAngleStep = -0x400000;
+                g_Scene.sceneAngleYTarget -= 0x200;
             } else {
-                g_Scene.unk5C = 0x400000;
-                g_Scene.unk7C += 0x200;
+                g_Scene.sceneAngleStep = 0x400000;
+                g_Scene.sceneAngleYTarget += 0x200;
             }
-            g_Scene.unk66 = 8;
+            g_Scene.sceneAngleFrames = 8;
         }
     }
 
     if (g_FieldP1ButtonsPressed & 0x4) {
-        if (!(g_Scene.unk48 & 0x8000) && g_Scene.unk66 == 0) {
+        if (!(g_Scene.flags & 0x8000) && g_Scene.sceneAngleFrames == 0) {
             if (!(g_FieldDirectionMasks[((g_Scene.sceneAngle.vy - 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
-                g_Scene.unk5C = -0x400000;
-                g_Scene.unk66 = 8;
-                g_Scene.unk7C -= 0x200;
+                g_Scene.sceneAngleStep = -0x400000;
+                g_Scene.sceneAngleFrames = 8;
+                g_Scene.sceneAngleYTarget -= 0x200;
             }
         }
     }
 
     if (g_FieldP1ButtonsPressed & 0x8) {
-        if (!(g_Scene.unk48 & 0x8000) && g_Scene.unk66 == 0) {
+        if (!(g_Scene.flags & 0x8000) && g_Scene.sceneAngleFrames == 0) {
             if (!(g_FieldDirectionMasks[((g_Scene.sceneAngle.vy + 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
-                g_Scene.unk5C = 0x400000;
-                g_Scene.unk66 = 8;
-                g_Scene.unk7C += 0x200;
+                g_Scene.sceneAngleStep = 0x400000;
+                g_Scene.sceneAngleFrames = 8;
+                g_Scene.sceneAngleYTarget += 0x200;
             }
         }
     }
 
-    if (g_Scene.unk66 != 0) {
-        g_Scene.unk60 += g_Scene.unk5C;
-        g_Scene.sceneAngle.vy = g_Scene.unk60 >> 16;
-        g_Scene.unk66--;
+    if (g_Scene.sceneAngleFrames != 0) {
+        g_Scene.sceneAngleCurrent += g_Scene.sceneAngleStep;
+        g_Scene.sceneAngle.vy = g_Scene.sceneAngleCurrent >> 16;
+        g_Scene.sceneAngleFrames--;
     }
-    if (g_Scene.unk66 == 0) {
-        g_Scene.sceneAngle.vy = g_Scene.unk7C;
+    if (g_Scene.sceneAngleFrames == 0) {
+        g_Scene.sceneAngle.vy = g_Scene.sceneAngleYTarget;
     }
 
     if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
@@ -464,22 +464,22 @@ int FieldCameraUpdateFromTarget(VECTOR* pPos, int param) {
         FieldRotateEyeAboutAt(pEye, pAt);
     }
 
-    if (g_Scene.unk48 & 0x1) {
-        if (g_Scene.unk8C != 0) {
-            g_Scene.unk90 += g_Scene.unk94;
-            g_Scene.sceneScale = g_Scene.unk90 >> 16;
+    if (g_Scene.flags & 0x1) {
+        if (g_Scene.sceneScaleFrames != 0) {
+            g_Scene.sceneScaleCurrent += g_Scene.sceneScaleStep;
+            g_Scene.sceneScale = g_Scene.sceneScaleCurrent >> 16;
         }
-        if (--g_Scene.unk8C == 0) {
-            g_Scene.unk48 &= 0xFFFE;
+        if (--g_Scene.sceneScaleFrames == 0) {
+            g_Scene.flags &= 0xFFFE;
         }
     }
 
-    if (g_Scene.unk48 & 0x8) {
-        s32 flags = g_Scene.unk48;
-        g_Scene.unk74 += g_Scene.unk78;
-        g_Scene.sceneDIP = g_Scene.unk74 >> 16;
-        if (--g_Scene.unk70 == 0) {
-            g_Scene.unk48 = flags & 0xFFF7;
+    if (g_Scene.flags & 0x8) {
+        s32 flags = g_Scene.flags;
+        g_Scene.sceneDIPCurrent += g_Scene.sceneDIPStep;
+        g_Scene.sceneDIP = g_Scene.sceneDIPCurrent >> 16;
+        if (--g_Scene.sceneDIPFrames == 0) {
+            g_Scene.flags = flags & 0xFFF7;
         }
     }
 }
@@ -521,7 +521,7 @@ extern int rand(void);
 //    later load/store through it while the earlier zeroing stays a macro store.
 // What is left is one class of difference in three places: gcc keeps a ZERO-offset
 // symbol address in a register (`lui/addiu $t0,&g_CameraEye` then lw+sw through it; the
-// same for &g_Scene.unk98, which it then keeps live into the else-if branch) where
+// same for &g_Scene.shakeActive, which it then keeps live into the else-if branch) where
 // retail folds the displacement into the load/store (`lh $v0,152($v0)`, `lui $at / sw
 // $v0,%lo(...)($at)`). It also shifts the mult temporaries one register ($t1/$t2 here
 // against retail's $t0/$t1). Naming the g_CameraEye word and the g_Scene +0x98 block as
@@ -531,12 +531,12 @@ extern int rand(void);
 // round 170 re-measured the park at 98.25% (1212 bytes, retail's size) and tried two
 // more shapes, both of which keep the 98.25% or lose the tail:
 //  - a `s32 result` local for the store (`(cur) = result;`) - byte-identical output;
-//  - the whole +0x98 block spelled with byte indices (`*(s16*)&g_Scene.unk98[0x0]`)
-//    as the neighbouring misc.c does - that makes gcc materialise &g_Scene.unk98 in a
+//  - the whole +0x98 block spelled with byte indices (`*(s16*)&g_Scene.shakeActive[0x0]`)
+//    as the neighbouring misc.c does - that makes gcc materialise &g_Scene.shakeActive in a
 //    register for the guard too (`lh v0,0(v1)`), so it is worse; the array-cast form
 //    above is the one to keep.
 // round 185: 98.99 (1212 bytes, retail's size). The permuter closed the +0x98 half of
-// the hoist: ONE `s16* pShake = (s16*)g_Scene.unk98;` local, assigned between the eye-vx
+// the hoist: ONE `s16* pShake = (s16*)g_Scene.shakeActive;` local, assigned between the eye-vx
 // and eye-vz steps and used ONLY by the `pShake[0] != 0` guard, makes retail's guard
 // (`lui $v0 / lh %lo(v0)` straight off the symbol) come out right - the array-cast
 // spelling for the same guard materialises the address and is 98.25. Assigning it
@@ -568,14 +568,14 @@ void func_80072D74(void) {
     s32* pShakeOffset;
     s16* pShake;
 
-    if (g_Scene.unk48 & FIELD_SCENE_INTERPOLATING_SCREEN_Z) {
-        if (g_Scene.unk80 != 0) {
-            g_Scene.unk84 += g_Scene.unk88;
-            g_Scene.sceneScrZ = g_Scene.unk84 >> 16;
+    if (g_Scene.flags & FIELD_SCENE_INTERPOLATING_SCREEN_Z) {
+        if (g_Scene.sceneScrZFrames != 0) {
+            g_Scene.sceneScrZCurrent += g_Scene.sceneScrZStep;
+            g_Scene.sceneScrZ = g_Scene.sceneScrZCurrent >> 16;
         }
-        if (--g_Scene.unk80 < 0) {
-            g_Scene.unk48 &= 0xFFEF;
-            g_Scene.unk80 = 0;
+        if (--g_Scene.sceneScrZFrames < 0) {
+            g_Scene.flags &= 0xFFEF;
+            g_Scene.sceneScrZFrames = 0;
         }
     }
 
@@ -590,7 +590,7 @@ void func_80072D74(void) {
     eyeStepSq = g_CamInterpolation.eyeStepDistance * g_CamInterpolation.eyeStepDistance;
 
     FIELD_CAMERA_STEP(g_CameraEye.vx, g_CameraEye2.vx, g_CamInterpolation.eyeStepDistance, eyeStepSq);
-    pShake = (s16*)g_Scene.unk98;
+    pShake = (s16*)&g_Scene.shakeActive;
     FIELD_CAMERA_STEP(g_CameraEye.vz, g_CameraEye2.vz, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraEye.vy, g_CameraEye2.vy, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraAt.vx, g_CameraAt2.vx, g_CamInterpolation.atStepDistance, atStepSq);
@@ -603,36 +603,37 @@ void func_80072D74(void) {
     if (pShake[0] != 0) {
         s32 shakeZ;
 
-        if (((s16*)g_Scene.unk98)[1] != 0) {
-            ((s32*)g_Scene.unk98)[2] += ((s32*)g_Scene.unk98)[5];
-            ((s32*)g_Scene.unk98)[3] += ((s32*)g_Scene.unk98)[6];
-            ((s32*)g_Scene.unk98)[4] += ((s32*)g_Scene.unk98)[7];
-        } else if (((s16*)g_Scene.unk98)[2] != 0) {
-            ((s32*)g_Scene.unk98)[4] = 0;
-            ((s32*)g_Scene.unk98)[3] = 0;
-            ((s32*)g_Scene.unk98)[2] = 0;
-            ((s16*)g_Scene.unk98)[0] = 0;
-            ((s16*)g_Scene.unk98)[2] = 0;
+        if (g_Scene.shakeFrames != 0) {
+            g_Scene.shakeAmplitudeX += g_Scene.shakeStepX;
+            g_Scene.shakeAmplitudeY += g_Scene.shakeStepY;
+            g_Scene.shakeAmplitudeZ += g_Scene.shakeStepZ;
+        } else if (g_Scene.shakeStopWhenFinished != 0) {
+            g_Scene.shakeAmplitudeZ = 0;
+            g_Scene.shakeAmplitudeY = 0;
+            g_Scene.shakeAmplitudeX = 0;
+            g_Scene.shakeActive = 0;
+            g_Scene.shakeStopWhenFinished = 0;
         }
         pShakeOffset = &g_FieldCameraShakeOffset;
-        *pShakeOffset = rand() * ((s16*)g_Scene.unk98)[5];
-        g_FieldCameraShakeOffsetY = rand() * ((s16*)g_Scene.unk98)[7];
-        shakeZ = rand() * ((s16*)g_Scene.unk98)[9];
+        // retail reads the integer part with a halfword load, not a shift
+        *pShakeOffset = rand() * ((s16*)&g_Scene.shakeAmplitudeX)[1];
+        g_FieldCameraShakeOffsetY = rand() * ((s16*)&g_Scene.shakeAmplitudeY)[1];
+        shakeZ = rand() * ((s16*)&g_Scene.shakeAmplitudeZ)[1];
         g_FieldCameraShakeOffsetZ = shakeZ;
         if (*pShakeOffset < 0) {
             *pShakeOffset = 0;
-            ((s32*)g_Scene.unk98)[2] = 0;
+            g_Scene.shakeAmplitudeX = 0;
         }
         if (g_FieldCameraShakeOffsetY < 0) {
             g_FieldCameraShakeOffsetY = 0;
-            ((s32*)g_Scene.unk98)[3] = 0;
+            g_Scene.shakeAmplitudeY = 0;
         }
         if (shakeZ < 0) {
             g_FieldCameraShakeOffsetZ = 0;
-            ((s32*)g_Scene.unk98)[4] = 0;
+            g_Scene.shakeAmplitudeZ = 0;
         }
-        if (((s16*)g_Scene.unk98)[1] > 0) {
-            ((s16*)g_Scene.unk98)[1]--;
+        if (g_Scene.shakeFrames > 0) {
+            g_Scene.shakeFrames--;
         }
     }
 }*/
@@ -694,7 +695,7 @@ void func_80073230(void) {
         pos.vy = pActor->pActorData->position.vy;
         pos.vz = pActor->pActorData->position.vz;
         FieldCameraUpdateFromTarget(&pos, (s16)pActor->pActorData->curYPos);
-        if (!(g_Scene.unk48 & 0x4000)) {
+        if (!(g_Scene.flags & 0x4000)) {
             func_8007B1C4((s16)(g_CameraEye2.vx >> 16), (s16)(g_CameraEye2.vz >> 16),
                 g_FieldWalkmeshTriCount - 1, &point, &normal);
             if (point.vy < (s16)(g_CameraEye2.vy >> 16)) {
@@ -729,7 +730,7 @@ void func_80073230(void) {
         pos.vy = pActor->pActorData->position.vy;
         pos.vz = pActor->pActorData->position.vz;
         FieldCameraUpdateFromTarget(&pos, (s16)pActor->pActorData->curYPos);
-        if (!(g_Scene.unk48 & 0x4000)) {
+        if (!(g_Scene.flags & 0x4000)) {
             func_8007B1C4((s16)(g_CameraEye2.vx >> 16), (s16)(g_CameraEye2.vz >> 16),
                 g_FieldWalkmeshTriCount - 1, &point, &normal);
             if (point.vy < (s16)(g_CameraEye2.vy >> 16)) {

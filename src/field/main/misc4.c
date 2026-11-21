@@ -1646,7 +1646,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
    pRef SVECTOR out of (x,0,z), nMode) with
    nMode == -1 meaning "stop when the triangle is found".
    func_8007CD80 is the same walk with a 3-argument front end (it finds the first
-   triangle with func_8007B1C4 and clamps to g_Scene.unk4C..unk52); it inlines
+   triangle with func_8007B1C4 and clamps to g_Scene.scrollLimits); it inlines
    the three NCLIPs with gte_ldsxy3/gte_nclip/gte_stopz into one stack word
    instead of calling NormalClip. Not attempted. */
 /*

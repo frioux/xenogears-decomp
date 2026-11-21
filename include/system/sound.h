@@ -195,12 +195,13 @@ typedef struct {
     /* 0x6 */ u16 target;
 } AudioElementRamp; // Size: 0x8
 
+// unk_0x24, unk29, unk2A and unk_0x61: no instruction in the built binaries touches them.
 typedef struct {
     /* 0x0   */ u16 active_flag;
     /* 0x2   */ u16 status_flags;
     /* 0x4   */ u16 rampFlags; // one bit per running ramp
     /* 0x6   */ s8 elementIndex;
-    /* 0x7   */ s8 unk_0x07;
+    /* 0x7   */ s8 unk_0x07; // high byte of the word the SoundPlay* callers pass: 0x10 at a BGM start, 0x20/0x2C/0x80 for effects; the effect allocator only steals an element whose byte is < 0x21
     /* 0x8   */ s32 soundId;
     /* 0xC   */ u32 startTick; // g_SoundTimerTickCounter at element start; voice allocation picks the lowest
     /* 0x10  */ u32 scriptStartIP; // pScriptIP's initial value, never updated after the element starts
@@ -267,8 +268,8 @@ typedef struct AudioManager {
     /* 0x15 */ u8 percussionCount;
     /* 0x16 */ s16 sndId;
     /* 0x18 */ s16 unk_0x18;
-    /* 0x1A */ u8 unk_0x1a;
-    /* 0x1B */ u8 unk_0x1b;
+    /* 0x1A */ u8 unk_0x1a; // accumulated by the script's set/add handlers, read by nobody
+    /* 0x1B */ u8 unk_0x1b; // compared with a script byte in SoundScriptConditionalSaveIP; its only setter has no callers
     /* 0x1C */ u16 noiseClock;
     /* 0x1E */ u16 stopBar; // barCount this sequence stops at
     /* 0x20 */ s32 unk_0x20;

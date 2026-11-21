@@ -60,7 +60,7 @@ void FieldScriptSetSceneAngleY(void) {
 
     angleY = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3));
     g_Scene.sceneAngle.vy = angleY;
-    g_Scene.unk7C = angleY;
+    g_Scene.sceneAngleYTarget = angleY;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
@@ -109,7 +109,7 @@ void FieldScriptSetCameraInterpolationMode(void) {
     g_CamInterpolation.atStepDistance = 0xC;
     g_CamInterpolation.eyeStepDistance = 0xC;
     D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
-    g_Scene.unk48 |= 0x8000;
+    g_Scene.flags |= 0x8000;
     D_800AF938 = g_Scene.sceneAngle.vy;
     D_800AF936 = g_Scene.sceneDIP;
 }
@@ -134,13 +134,13 @@ void func_8008FC4C(void) {
 
     switch (g_FieldCameraMode) {
     case 0:
-        g_Scene.unk48 &= 0x7FFF;
+        g_Scene.flags &= 0x7FFF;
         break;
     case 1:
         value = FieldScriptVMGetArgument(1);
         if (value == 0) {
             g_FieldCameraMode = 0;
-            g_Scene.unk48 &= 0x7FFF;
+            g_Scene.flags &= 0x7FFF;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
             g_FieldCameraSnapFrames[0] = 2;
         } else {

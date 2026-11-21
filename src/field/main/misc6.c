@@ -846,8 +846,8 @@ s32 func_8009FA54(s32 nInstructionOffset) {
             nAngle = ((FieldScriptVMGetVariableValue(8) + 4) & 7) << 9;
         }
         g_Scene.sceneAngle.vy = nAngle;
-        g_Scene.unk7C = nAngle;
-        g_Scene.unk60 = nAngle << 16;
+        g_Scene.sceneAngleYTarget = nAngle;
+        g_Scene.sceneAngleCurrent = nAngle << 16;
 
         nRotationByte = SCRIPT_READ_U8(nOffset + 7);
         nRotation = ((nRotationByte - 2) & 7) << 9 | 0x8000;
