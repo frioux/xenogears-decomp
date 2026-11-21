@@ -295,6 +295,10 @@ extern void BattleDwordRegMulImm(u8 **ppCommand, u8 slot);
 extern void BattleSetStatusBitAllSlots(u8 **ppCommand, u8 slot);
 
 extern void BattleScriptCursorSkipWord(u8 **ppCommand);
+// Comparison opcodes whose definitions live in misc9_260.c.
+extern s32 BattleSetTextScale(u8 **ppCommand, u8 slot);
+extern s32 BattleWordRegEqImm(u8 **ppCommand, u8 slot);
+extern s32 BattleByteRegLeImm(u8 **ppCommand, u8 slot);
 
 s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
     u8 *pCommand = *ppCommand;
@@ -651,37 +655,11 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
     return row & 0xFF;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
-/* Best: 99.30%. The switch and the loop are right; one copy is missing (684
-   bytes against the original's 688). Retail's loop tail is
-
-       andi v0,s4,0xff ; beqz v0,exit ; andi v0,s0,0xff
-       lw v0,0(s1) ; or v1,s3,s0 ; lbu v0,0(v0) ; nop ; sltiu v0,v0,0x80
-       beqz v0,looptop ; addu s3,v1,zero ; addu s0,s3,zero ; andi v0,s0,0xff
-
-   i.e. the OR lands in a temp (v1) which is copied into the accumulator in the
-   back edge's delay slot, and the result is copied into ret afterwards. gcc
-   folds `acc = next; ret = acc;` into `ret = acc|ret; acc = ret`, which loses
-   that copy (`or s0,s3,s0` + `move s3,s0`, 684 bytes, this body). Spelling the
-   second statement `ret = next;` keeps the temp and the exact size but then the
-   exit branch loses its own duplicated `andi v0,s0,0xff` (96.95%). Also tried:
-   for(;;) with continue/break (93.49), chained `ret = acc = next;` (96.95),
-   `acc = next = acc | ret;` (96.02), a u8 opcode local for the loop test
-   (98.92), two inline returns (93.49), and 1225 permuter iterations from this
-   body (RESULT PERMUTER_NONE; re-run round 173 from this body, 995 more
-   iterations, again NONE). `ret = next;` AFTER the loop is the one shape that
-   does reproduce the temp the way retail has it, but it makes the exit a
-   separate block (j + `andi v0,v1,0xff`) and the body 692 bytes (95.81), i.e.
-   4 too many instead of 4 too few. Preset is not the problem: a --sweep puts
-   this body at 99.3 under every 2.7.2 -G4/-G8/-mcpu combination, 94.59 under
-   2.7.2-cdk -O2, and -O3 does not compile it. The old RODATA-BLOCKED note was stale:
-   config/battle.yaml line 61 gives main/misc10 its own .rodata range, so the
-   switch's table stays in the unit. Needs these declarations:
-     s32 BattleSetTextScale(u8 **arg0, u8 arg1);
-     s32 BattleWordRegEqImm(u8 **arg0, u8 arg1);
-     s32 BattleByteRegLeImm(u8 **arg0, u8 arg1);
-     void BattleScriptCursorSkipWord(u8 **pCursor);
-
+/* Best: 99.30%, 684 bytes against retail 688. The switch (28 cases, jtbl in this unit), the loop and every call site match; the ONLY residual is one missing copy at the loop bottom. Retail: or v1,s3,s0 ; move s3,v1 (beqz slot) ; move s0,s3 ; andi v0,s0,0xff. This body: or s0,s3,s0 ; move s3,s0 ; andi v0,s0,0xff - cc1 always coalesces acc and ret into one register, so the temp copy disappears. Tried: ret=acc moved after the loop (93.49, gcc folds to or s3,s3,s0 in the beqz slot and drops the ret copy), ret=next with return acc and 0xff (99.30, byte-identical to this body), chained acc/ret assignment, u8 opcode local, for(;;)+break, two inline returns, and a third permuter run from this body (1479 iterations, RESULT PERMUTER_NONE; rounds 173/previous also NONE). Preset is not the cause: a --sweep puts this body at 99.3 under every 2.7.2 -G4/-G8 combination, 94.59 under 2.7.2-cdk -O2. The note below was the pre-existing park text.
+   Retail loop tail: andi v0,s4,0xff ; beqz v0,exit ; andi v0,s0,0xff ; lw v0,0(s1) ; or v1,s3,s0 ; lbu v0,0(v0) ; nop ; sltiu v0,v0,0x80 ; beqz v0,looptop ; addu s3,v1,zero ; addu s0,s3,zero ; andi v0,s0,0xff.
+   BattleSetTextScale, BattleWordRegEqImm and BattleByteRegLeImm are declared at the top of this file with a u8 second parameter, which is what produces the andi a1,s2,0xff at each call.
+*/
+/*
 s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
     s32 ret = 0;
     s32 cont = 0;
@@ -783,8 +761,9 @@ s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
     } while ((*pCursor)[0] >= 0x80);
 
     return ret & 0xFF;
-}
- */
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
+
 void BattleReleaseEffectSlotIfChar4(u8 arg0) {
     if (g_BattleActorCharIds[arg0] == 4 && g_BattleDisplayState[0x8E] != 0) {
         BattleFreeSlotBuffers(0);
