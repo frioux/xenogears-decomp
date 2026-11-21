@@ -16,6 +16,24 @@
 #define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - MAX_PARTY_MEMBERS)
 // The digits g_BattleNumberDigits holds, one per: BattleParseNumberToDigits walks them.
 #define BATTLE_NUMBER_DIGIT_COUNT 9
+// The bytes each actor owns in the two per-actor action tables (include/battle/actor.h's
+// BattleRow, which this unit reads as the partial view below).
+#define BATTLE_CELL_ACTION_BLOCK_SIZE 0x5F0
+#define BATTLE_ACTION_BLOCK_SIZE 0x690
+
+// One row of either action table: the flags word at +0, whose low bits pick the row's target
+// mode and whose 0x1000/0x4000 bits pick the icon the menu draws.
+typedef struct {
+    /* 0x00 */ u16 flags;
+    /* 0x02 */ u8 unk2[0x26];
+} BattleActionRow; // Size: 0x28
+
+// The word at +0 of one 0x170-byte slot row (D_800CCD1C): bit 0x800 keeps the slot's bit in the
+// mask BattleQueueCommandF3WithSlotMask queues. src/battle/main/misc13.c declares the same row.
+typedef struct {
+    /* 0x000 */ u16 flags;
+    /* 0x002 */ u8 unk2[0x16E];
+} BattleCommandRow; // Size: 0x170
 
 // Command slot descriptor: one 0x40-byte entry per battle actor slot, in the
 // head array of the block g_BattleCommandQueue points at.
@@ -88,7 +106,16 @@ typedef struct {
 extern BattleCommandEntry g_BattleCommandEntries[];
 extern u8 g_BattleCommandGridAltUses[];
 extern u8 g_BattleCommandGridAltIds[];
-extern u8 g_BattleCommandRecords[];
+// One 0x48-byte row of the command record table g_BattleCommandRecords: the slot mask the
+// queued command covers at +0. src/battle/main/misc13 declares the rest of the same record
+// (the actor slot at +0xD, the argument word at +0x24 and the command byte at +0x31, which
+// this unit reaches through g_BattleCommandCodes / g_BattleCommandSlotIds).
+typedef struct {
+    /* 0x00 */ u16 slotMask;
+    /* 0x02 */ u8 unk2[0x46];
+} BattleCommandRecord; // Size: 0x48
+
+extern BattleCommandRecord g_BattleCommandRecords[];
 extern u8 BattleRunTargetSlotSelection(u16 arg0, u8 arg1, s32 arg2);
 extern s32 BattleIsCharacterInParty(s32 arg0);
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
@@ -189,20 +216,20 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
     u8 idx;
 
     mask = arg0 & ~BATTLE_PARTY_SLOT_MASK;
-    for (i = 0, off = 0x450; i < BATTLE_OTHER_SLOT_COUNT; i++) {
+    for (i = 0, off = MAX_PARTY_MEMBERS * sizeof(BattleCommandRow); i < BATTLE_OTHER_SLOT_COUNT; i++) {
         idx = i + MAX_PARTY_MEMBERS;
         if (BattleMaskHasSlotBit(mask, idx) != 0) {
-            if ((*(u16 *)(D_800CCD1C + off) & 0x800) == 0) {
+            if ((((BattleCommandRow *)(D_800CCD1C + off))->flags & 0x800) == 0) {
                 mask &= BattleSlotBitMaskInverted(idx);
             }
         }
-        off += 0x170;
+        off += sizeof(BattleCommandRow);
     }
     if (mask == 0) {
         return;
     }
-    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg1;
-    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xF3;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg1;
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = 0xF3;
     g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = mask;
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
 }
@@ -222,6 +249,7 @@ void BattleQueueOneActorCommand(u8 arg0) {
     u8 value;
     u16 *pActionMask;
     u16 *pMask;
+    BattleActionRow *pRow;
     s32 fillOff;
 
     g_BattleSoundEnabled = 0;
@@ -234,18 +262,19 @@ void BattleQueueOneActorCommand(u8 arg0) {
     }
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x17;
-        off = (g_BattleCommandQueue->commandId + 0x16) * 40 + arg0 * 1520;
-        sel = *(u16 *)(g_BattleCellActionRows + off) & 7;
+        off = (g_BattleCommandQueue->commandId + 0x16) * sizeof(BattleActionRow) +
+              arg0 * BATTLE_CELL_ACTION_BLOCK_SIZE;
+        pRow = (BattleActionRow *)(g_BattleCellActionRows + off);
+        sel = pRow->flags & BATTLE_COMMAND_TARGET_MODE_MASK;
     } else {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x16;
         {
-            u16 entry;
             s32 entryOff;
 
-            entryOff = (g_BattleCommandQueue->commandId + 0x15) * 40 + arg0 * 1680;
-            entry = *(u16 *)(g_BattleActionRows + entryOff);
-            sel = entry;
-            sel = sel & 7;
+            entryOff = (g_BattleCommandQueue->commandId + 0x15) * sizeof(BattleActionRow) +
+                       arg0 * BATTLE_ACTION_BLOCK_SIZE;
+            pRow = (BattleActionRow *)(g_BattleActionRows + entryOff);
+            sel = pRow->flags & BATTLE_COMMAND_TARGET_MODE_MASK;
         }
     }
     pActionMask = &g_BattleActionSlotMask;
@@ -265,10 +294,10 @@ void BattleQueueOneActorCommand(u8 arg0) {
     mask = BattleSlotBitMask(arg0);
     BattleBeginAnimTask(*pMask | mask);
     BattleInitActorSlotAnimation(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
-    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = g_BattleActionParam;
-    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
-    *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = *pMask;
-    for (i = 3; i < 11; i++) {
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = g_BattleActionParam;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = *pMask;
+    for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(*(volatile u16 *)&g_BattleActionSlotMask, i) != 0) {
             BattleSetSlotRegistersFromActor(arg0, i);
         }
@@ -573,10 +602,10 @@ void BattleActivateSelectedCommand(u8 arg0) {
     g_BattleSlotCurveRunning = 1;
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
     g_BattleSlotCurveRunning = 0;
-    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xF5;
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = 0xF5;
     g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = g_BattleActionParam;
-    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
-    *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleActionSlotMask;
     for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(g_BattleActionSlotMask, i) != 0) {
             BattleSetSlotRegistersFromActor(arg0, i);
@@ -896,8 +925,8 @@ s32 func_8008C4A8(u8 arg0) {
         D_800C4928 = result;
         BattleSetupActorSlotDisplay(arg0);
         if ((*(u16 *)(D_800CCD1C + g_BattleCommandQueue->slots[arg0].targetSlot * 0x170) & 0x800) != 0) {
-            g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
-            g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xF3;
+            g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
+            g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = 0xF3;
             g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
             g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
         }
@@ -906,8 +935,8 @@ s32 func_8008C4A8(u8 arg0) {
                 g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2C4[i] + 8;
                 BattleBeginActorAction(arg0, BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot), g_BattleCommandQueue->unk2DC - 1);
                 BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
-                g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = g_BattleCommandQueue->unk2DC - 1;
-                g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
+                g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = g_BattleCommandQueue->unk2DC - 1;
+                g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
                 *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
                 g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
             }
