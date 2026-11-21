@@ -291,7 +291,6 @@ u8 func_8008CFB8(u8 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 /* 96.12% (620 bytes against retail's 624). The address ASSOCIATION of the
    u16 |= store is the lever: written offset-chain first and gfx base last,
    `*((i + primStart) * 0x28 + j * 0xFA0 + gfx + 0x6432)`, gcc emits retail's
@@ -317,6 +316,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
    primListsPending are its fields. The count must stay a live re-read of the
    global in the for-condition - that is what makes the original reload it at
    the loop tail.
+*/
 void func_8008D328(void) {
     u8 found;
     s32 j;
@@ -330,8 +330,8 @@ void func_8008D328(void) {
 
                 SetSemiTrans(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 1);
                 SetShadeTex(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 0);
-                *(u16 *)((i + g_BattleDisplayState->primStart) * 0x28 + j * 0xFA0 + g_BattleGraphicsWork + 0x6432) |= 0x20;
-                c = *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->primStart) * 0x28);
+                *(u16 *)(j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28 + g_BattleGraphicsWork + 0x6432) |= 0x20;
+                c = *(u8 *)(j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28 + g_BattleGraphicsWork + 0x6420);
                 if (c != 0) {
                     found = 1;
                     *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
@@ -346,7 +346,6 @@ void func_8008D328(void) {
     }
 }
 
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
 // The per-slot draw block is a raw POLY_FT4 pool (0x28 stride) that
 // BattleDrawSpriteQuad appends 0x50-byte sprite packages to; BattleSlotGraphics
