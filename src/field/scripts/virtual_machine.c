@@ -15,7 +15,16 @@ extern s32 g_FieldCurActorIndex; // Current actor index
 extern s32 g_FieldScriptVMStopFlag;
 
 extern void func_800379C8(char*, ...);
-extern char D_8006FD44; // "STACKERR ACT=%d\n"
+extern char D_8006FD44[]; // "STACKERR ACT=%d\n"
+
+// Script variable addresses this file writes, named for what the stored value is
+#define SCRIPT_VAR_PLAYER_POS_X 0x1E
+#define SCRIPT_VAR_PLAYER_POS_Z 0x20
+#define SCRIPT_VAR_PLAYER_POS_Y 0x22
+#define SCRIPT_VAR_MAP_NUM 0x3C
+#define SCRIPT_VAR_PARTY_MEMBER_1 0x3E
+#define SCRIPT_VAR_PARTY_MEMBER_2 0x40
+#define SCRIPT_VAR_PARTY_MEMBER_3 0x42
 
 // Store instruction pointer + 5 on stack
 void FieldScriptVMHandlerCallScript(void) {
@@ -28,7 +37,7 @@ void FieldScriptVMHandlerCallScript(void) {
 
     // Error
     if (g_FieldSystemMode == 0) {
-        func_800379C8(&D_8006FD44, g_FieldCurActorIndex);
+        func_800379C8(D_8006FD44, g_FieldCurActorIndex);
     }
     g_FieldScriptVMStopFlag = 1;
 }
@@ -44,7 +53,7 @@ void FieldScriptVMHandlerCallScriptShort(void) {
     
     // Error
     if (g_FieldSystemMode == 0) {
-        func_800379C8(&D_8006FD44, g_FieldCurActorIndex);
+        func_800379C8(D_8006FD44, g_FieldCurActorIndex);
     }
     g_FieldScriptVMStopFlag = 1;
 }
@@ -54,7 +63,7 @@ void FieldScriptVMHandlerReturn(void) {
     // Error, invalid stack value
     if (!g_FieldScriptVMCurActor->flags12C_0x6) {
         if (g_FieldSystemMode == 0) {
-            func_800379C8(&D_8006FD44, g_FieldCurActorIndex);
+            func_800379C8(D_8006FD44, g_FieldCurActorIndex);
         }
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
@@ -121,7 +130,7 @@ void FieldScriptVMHandlerConditionalJmp(void) {
 
     nValue2 = 0;
     nValue1 = 0;
-    nArgumentsType = ((u_char*)g_FieldScriptVMCurScriptData)[g_FieldScriptVMCurActor->scriptInstructionPointer + 5] & 0xF0;
+    nArgumentsType = SCRIPT_READ_U8_REL(5) & 0xF0;
     switch (nArgumentsType) {
     case 0x0:
         nValue1 = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF);
@@ -153,7 +162,7 @@ void FieldScriptVMHandlerConditionalJmp(void) {
     }
     
     nCondResult = 0;
-    nConditionType = ((u_char*)g_FieldScriptVMCurScriptData)[g_FieldScriptVMCurActor->scriptInstructionPointer + 5] & 0xF;
+    nConditionType = SCRIPT_READ_U8_REL(5) & 0xF;
     switch (nConditionType) {
         case FIELD_SCRIPT_VM_COND_EQUAL:
             if (nValue1 == nValue2) nCondResult++;
@@ -237,7 +246,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
             return;
         }
         nInstructionPointer = g_FieldScriptVMCurActor->scriptInstructionPointer;
-        nHandlerIndex = ((u_char *)g_FieldScriptVMCurScriptData)[nInstructionPointer];
+        nHandlerIndex = SCRIPT_READ_U8(nInstructionPointer);
         g_FieldScriptVMHandlers[nHandlerIndex]();
 
         if (g_FieldScriptVMScriptEndFlag == 0) {
@@ -384,7 +393,7 @@ void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
     // Change current actor to the first actor in the list
     g_FieldScriptVMCurFieldActor = g_FieldActors;
     g_FieldScriptVMCurActor = g_FieldScriptVMCurFieldActor->pActorData;
-    pNewActor = HeapAlloc(0x138, 0x1);
+    pNewActor = HeapAlloc(sizeof(ActorData), 0x1);
     *pNewActor = *g_FieldScriptVMCurFieldActor->pActorData;
 
     // Reset all event slots
@@ -749,18 +758,18 @@ void FieldScriptMemoryWriteU16(int index, int value) {
 // scriptIndex here refers to the index of the script, which will (always?) correspond to an entity index
 // routineIndex is an index into the offset table, which points to a bytecode routine in that script.
 u_short FieldScriptGetBytecodeOffset(int scriptIndex, int routineIndex) {
+    u_short* pOffsets;
     int nOffset;
-    u_short* pScriptData;
 
-    pScriptData = &g_FieldCurScriptFile->metadata;
+    pOffsets = (u_short*)&g_FieldCurScriptFile->metadata;
     nOffset = (scriptIndex * (SCRIPT_OFFSET_TABLE_SIZE / sizeof(u_short)) + routineIndex);
-    return *(pScriptData + nOffset);
+    return pOffsets[nOffset];
 }
 
 void FieldScriptWritePartyMemberIDs(void) {
-    FieldScriptMemoryWriteU16(0x3E, g_GamePartyMembers[0]);
-    FieldScriptMemoryWriteU16(0x40, g_GamePartyMembers[1]);
-    FieldScriptMemoryWriteU16(0x42, g_GamePartyMembers[2]);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_PARTY_MEMBER_1, g_GamePartyMembers[0]);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_PARTY_MEMBER_2, g_GamePartyMembers[1]);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_PARTY_MEMBER_3, g_GamePartyMembers[2]);
 }
 
 extern u16 D_8005941C;
@@ -781,7 +790,7 @@ void FieldScriptSyncMemoryWithGameState(void) {
     FieldScriptMemoryWriteU16(6, FieldGetPlayerActorDirection() & 0xFFFF);
     FieldScriptMemoryWriteU16(8, FieldGetCameraDirection() & 0xFFFF);
     FieldScriptMemoryWriteU16(0x24, g_Scene.sceneDIP);
-    FieldScriptMemoryWriteU16(0x3C, g_GameSceneMapNum);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_MAP_NUM, g_GameSceneMapNum);
     FieldScriptWritePartyMemberIDs();
 
     for (i = 0; i < 0x200; i++) {
@@ -859,12 +868,12 @@ void FieldScriptUpdateMemoryEachFrame(void) {
         }
     }
 
-    FieldScriptMemoryWriteU16(0xC, g_PlayTimeSeconds | (g_PlayTimeMinutes << 8));
-    FieldScriptMemoryWriteU16(0xE, g_PlayTimeHours);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_SYSTEM_TIME_LOW, g_PlayTimeSeconds | (g_PlayTimeMinutes << 8));
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_SYSTEM_TIME_HIGH, g_PlayTimeHours);
 
-    FieldScriptMemoryWriteU16(0x1E, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[1]);
-    FieldScriptMemoryWriteU16(0x20, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[5]);
-    FieldScriptMemoryWriteU16(0x22, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[3]);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_PLAYER_POS_X, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[1]);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_PLAYER_POS_Z, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[5]);
+    FieldScriptMemoryWriteU16(SCRIPT_VAR_PLAYER_POS_Y, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[3]);
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
