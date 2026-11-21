@@ -53,34 +53,18 @@
 #define CTRL_BTN_DOWN 0x4000
 #define CTRL_BTN_LEFT 0x8000
 
-/*
-Controller buffer follows this structure:
-
+// One PAD buffer record, as the PAD library fills it (CONTROLLER_BUFFER_SIZE bytes).
 typedef struct {
-  u8 status:8;
-
-  u8 recvSize:4;
-  u8 type:4;
-  
-  u8 select:1;
-  u8 na2:1;
-  u8 na1:1;
-  u8 start:1;
-  u8 up:1;
-  u8 right:1;
-  u8 down:1;
-  u8 left:1;
-
-  u8 l2:1;
-  u8 r2:1;
-  u8 l1:1;
-  u8 r1:1;
-  u8 triangle:1;
-  u8 circle:1;
-  u8 ex:1;
-  u8 square:1;
-} ControllerBuffer;
-*/
+    /* 0x0 */ u_char status;
+    /* 0x1 */ u_char id;         // recvSize low nibble, controller type high nibble
+    /* 0x2 */ u_char buttons1;
+    /* 0x3 */ u_char buttons2;
+    /* 0x4 */ u_char rightStickX;
+    /* 0x5 */ u_char rightStickY;
+    /* 0x6 */ u_char leftStickX;
+    /* 0x7 */ u_char leftStickY;
+    /* 0x8 */ u_char unk8[0x1A];
+} ControllerBuffer; // Size: 0x22
 
 extern u_short g_C1ButtonState;
 extern u_short g_C1ButtonStatePressedOnce;
@@ -124,22 +108,12 @@ extern u_char g_ControllerStickToAnalogY[];
 
 extern u_char g_ControllerType;
 
-// Controller buffer start
+// Controller buffer start; the PAD library writes raw bytes here, so the record
+// view is ControllerBuffer.
 extern u_char g_C1Buffer[];
-extern u_char D_800625FD[];
 
 // Controller buffer 2
 extern u_char g_C2Buffer[];
-
-// Indexes into raw controller data buffers for C1 and C2 stick values
-extern u8 D_80062600;
-extern u8 D_80062601;
-extern u8 D_80062602;
-extern u8 D_80062603;
-extern u8 D_80062622;
-extern u8 D_80062623;
-extern u8 D_80062624;
-extern u8 D_80062625;
 
 extern int D_80050200;
 extern short D_800594EC;

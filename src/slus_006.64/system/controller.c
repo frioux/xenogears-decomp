@@ -2,20 +2,19 @@
 #include "system/controller.h"
 
 int ControllerGetButtonState(int controllerIndex) {
-    int nType;
-    u_char* pController;
+    ControllerBuffer* pController;
 
-    pController = &g_C1Buffer[controllerIndex * CONTROLLER_BUFFER_SIZE];
+    pController = (ControllerBuffer*)&g_C1Buffer[controllerIndex * CONTROLLER_BUFFER_SIZE];
     g_ControllerType = 0;
-    if (pController[CONTROLLER_STATUS] == CONTROLLER_STATUS_SUCCESS) {
-        g_ControllerType = pController[CONTROLLER_TYPE] & 0xF0;
+    if (pController->status == CONTROLLER_STATUS_SUCCESS) {
+        g_ControllerType = pController->id & 0xF0;
         if (g_ControllerType == CONTROLLER_INTERNAL_TYPE_DIGITAL_PAD || 
             g_ControllerType == CONTROLLER_INTERNAL_TYPE_ANALOG_PAD  || 
             g_ControllerType == CONTROLLER_INTERNAL_TYPE_ANALOG_STICK
         ) {
             return (
-                ~pController[CONTROLLER_BUTTONS_2] & 0xFF) | 
-                ((pController[CONTROLLER_BUTTONS_1] << 8) ^ 0xFF00);
+                ~pController->buttons2 & 0xFF) | 
+                ((pController->buttons1 << 8) ^ 0xFF00);
         }
     }
     return 0;
@@ -27,7 +26,7 @@ int ControllerGetType(int controllerIndex) {
 
     nController = controllerIndex * CONTROLLER_BUFFER_SIZE;
     if (g_C1Buffer[nController] != CONTROLLER_STATUS_ERROR) {
-        nType = D_800625FD[nController] & 0xF0;
+        nType = g_C1Buffer[nController + CONTROLLER_TYPE] & 0xF0;
         switch (nType) {
             case CONTROLLER_INTERNAL_TYPE_DIGITAL_PAD:
                 return CONTROLLER_TYPE_DIGITAL_PAD;
@@ -111,10 +110,10 @@ void ControllerPoll(void) {
             goto controller1_analog_stick;
         } else if (g_ControllerType == CONTROLLER_INTERNAL_TYPE_ANALOG_STICK) {
             controller1_analog_stick:
-            g_C1RightStickXAxis = D_80062600;
-            g_C1RightStickYAxis = D_80062601;
-            g_C1LeftStickXAxis = D_80062602;
-            g_C1LeftStickYAxis = D_80062603;
+            g_C1RightStickXAxis = ((ControllerBuffer*)g_C1Buffer)[0].rightStickX;
+            g_C1RightStickYAxis = ((ControllerBuffer*)g_C1Buffer)[0].rightStickY;
+            g_C1LeftStickXAxis = ((ControllerBuffer*)g_C1Buffer)[0].leftStickX;
+            g_C1LeftStickYAxis = ((ControllerBuffer*)g_C1Buffer)[0].leftStickY;
         } else {
             g_C1RightStickYAxis = 0;
             g_C1RightStickXAxis = 0;
@@ -155,10 +154,10 @@ void ControllerPoll(void) {
             goto controller2_analog_stick;
         } else if (g_ControllerType == CONTROLLER_INTERNAL_TYPE_ANALOG_STICK) {
             controller2_analog_stick:
-            g_C2RightStickXAxis = D_80062622;
-            g_C2RightStickYAxis = D_80062623;
-            g_C2LeftStickXAxis = D_80062624;
-            g_C2LeftStickYAxis = D_80062625;
+            g_C2RightStickXAxis = ((ControllerBuffer*)g_C2Buffer)[0].rightStickX;
+            g_C2RightStickYAxis = ((ControllerBuffer*)g_C2Buffer)[0].rightStickY;
+            g_C2LeftStickXAxis = ((ControllerBuffer*)g_C2Buffer)[0].leftStickX;
+            g_C2LeftStickYAxis = ((ControllerBuffer*)g_C2Buffer)[0].leftStickY;
         } else {
             g_C2RightStickYAxis = 0;
             g_C2RightStickXAxis = 0;
