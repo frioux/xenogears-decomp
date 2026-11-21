@@ -10,6 +10,9 @@
 // The non-party actor slots: slot numbers MAX_PARTY_MEMBERS through BATTLE_ACTOR_SLOT_COUNT - 1,
 // which are the ones the slot register file is indexed from 0 for.
 #define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - MAX_PARTY_MEMBERS)
+// The rows of the 0x48-byte command record table, which the clear loops below walk backwards by
+// byte offset from the last row's command byte: (count - 1) * 0x48 is the 0x8B8 they start at.
+#define BATTLE_COMMAND_RECORD_COUNT 32
 
 // One 8-byte battle command argument record, indexed by actor. Entry 0 sits at
 // g_BattleCommandArgs, the same address this unit clears as a 0x100-byte scratch buffer.
@@ -79,9 +82,14 @@ extern void func_800877E0(u8 arg0, u8 arg1);
 extern void func_80087EDC(u8 arg0, u8 arg1);
 extern void func_800881B8(u8 arg0, u8 arg1);
 extern void BattleBeginAnimTask(u16 arg0);
-// A 0x48-byte row of the per-battle-slot table at g_BattleCommandRecords.
+// A row of the per-battle-slot table at g_BattleCommandRecords.
 typedef u16 BattleSlotRow[36]; // Size: 0x48
 
+// Three of the row's fields are reached through byte arrays of their own, so the relocation
+// names the field's address (D_800C400B is row +0xD, D_800C4022 +0x24, D_800C402F +0x31)
+// rather than the row base: typing them as g_BattleCommandRecords[i].command folds the field
+// offset into the store's immediate and changes the instruction (battle/main/misc13 measured
+// that spelling at 96.89%).
 extern u8 g_BattleTextSlotCount;
 extern u8 D_800C400B[];
 extern BattleSlotRow D_800C4022[];
@@ -115,8 +123,8 @@ extern void func_80078E24(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
     if (g_BattleTextSlotCount != 0) {
-        D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
-        D_800C402F[g_BattleCommandQueue->count * 72] = 0xF8;
+        D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
+        D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF8;
         D_800C4022[g_BattleCommandQueue->count][0] = g_BattleTextSlotCount - 1;
         g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     }
@@ -178,7 +186,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
 
 
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFD;
+    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xFD;
     D_800C4022[g_BattleCommandQueue->count][0] = 0;
     g_BattleCommandRecords[g_BattleCommandQueue->count][0] = g_BattleCommandArgs[arg1].slotMask;
     func_800877E0(arg0, arg2);
@@ -193,11 +201,11 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFC;
+    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xFC;
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk4;
+    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = g_BattleCommandArgs[arg1].unk4;
     func_800785D4(arg0, arg1);
 }
 
@@ -206,7 +214,7 @@ void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
 }
 
 void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF9;
+    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF9;
     func_800785D4(arg0, arg1);
     g_BattleActorCountdownState[arg0] = 0xFF;
     // The empty-block wrapper keeps this store ahead of the g_BattleSlotEntries read-modify-write.
@@ -284,11 +292,11 @@ void BattleAddCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
 }
 void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
     BattleQueueCommandF8IfFlagged(arg1, arg0);
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF4;
+    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF4;
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF6;
+    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF6;
     g_BattleCommandRecords[g_BattleCommandQueue->count][0] = g_BattleCommandArgs[arg1].slotMask;
     func_800785D4(arg0, arg1);
 }
@@ -300,7 +308,7 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
     u8 value;
 
     value = BATTLE_COMMAND_NONE;
-    for (off = 0x8B8; off >= 0; off -= 0x48) {
+    for (off = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleSlotRow); off >= 0; off -= sizeof(BattleSlotRow)) {
         D_800C402F[off] = value;
     }
     j = 0;
@@ -406,19 +414,19 @@ void BattleDispatchCommandRecords(u8 arg0) {
 }
 void BattleQueueCommand1BAndFE(u8 arg0) {
     if (g_BattleSlotFlags[arg0 * 8] != 0) {
-        D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
-        D_800C402F[g_BattleCommandQueue->count * 72] = 0x1B;
+        D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
+        D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0x1B;
         g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     }
-    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFE;
+    D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
+    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xFE;
     g_BattleSoundEnabled = 0;
 }
 void func_80079778(u8 arg0) {
     g_BattleCommandQueue->count = 0;
     BattleClearSlotCurveState();
     BattleClearSlotCurveEntry();
-    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+    D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
     BattleUpdateFrame();
     BattleInitActorSlotAnimation(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
     BattleDispatchCommandRecords(arg0);
@@ -473,7 +481,7 @@ void BattleScriptResetActorState(u8 arg0) {
     do {
         *p++ = 0;
     } while (p < pEnd);
-    for (i = 0x8B8; i >= 0; i -= 0x48) {
+    for (i = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleSlotRow); i >= 0; i -= sizeof(BattleSlotRow)) {
         D_800C402F[i] = BATTLE_COMMAND_NONE;
     }
     while (*pCursor != 0xFD) {
@@ -510,7 +518,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
     if (g_BattleSlotScriptFlags[slot].unk0 != 0) {
         pCursor = g_BattleSlotRegs[slot].pScanCursor;
         p = g_BattleCommandArgs;
-        pEnd = p + 0x100;
+        pEnd = p + BATTLE_COMMAND_ARG_COUNT * sizeof(BattleCommandArg);
         do {
             *p++ = 0;
         } while (p < pEnd);
@@ -543,8 +551,8 @@ done:
 // variable and rearranges the saved registers (88.08%, 496 bytes, retail 500). Measured against the
 // typed body, only the folded relocations differ: %hi(g_BattleSlotRegs) + 12 for D_800D340C and
 // %hi(g_BattleSlotScriptFlags) + 1/+2 for D_800C3D19/D_800C3D1A (99.76%, same 500 bytes, same link).
-// The D_800C402F fill below is the command byte of 32 0x48-byte records hoisted out of the record
-// table, which this unit still walks as bytes (BattleSlotRow).
+// The D_800C402F fill below is the command byte of every 0x48-byte record, walked as a byte offset
+// into the record table because the typed spelling loses the walk's induction variable.
 void BattleRunActiveSlotScripts(void) {
     s32 i;
     s32 off;
@@ -582,7 +590,7 @@ void BattleRunActiveSlotScripts(void) {
                 continue;
             }
         }
-        for (j = 0x8B8; j >= 0; j -= 0x48) {
+        for (j = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleSlotRow); j >= 0; j -= sizeof(BattleSlotRow)) {
             D_800C402F[j] = endOp;
         }
         pEnd = p + BATTLE_COMMAND_ARG_COUNT * sizeof(BattleCommandArg);
