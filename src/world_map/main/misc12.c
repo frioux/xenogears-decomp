@@ -1157,7 +1157,9 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
     return nRet;
 }
 // The two fade-rectangle quads: prim 0 is the template this init fills in, prim 1
-// its copy.
+// its copy.  Retail reaches every field through its own absolute symbol, so the
+// typed spelling below is reloc-only: objdiff reads 97.62% because the %lo addends
+// differ, and check_bin world_map is the proof it links identically.
 extern POLY_G4 g_WorldMapFadePrims[];
 extern DR_TPAGE g_WorldMapFadeTpage;
 extern s32 g_WorldMapTpageAbr;
