@@ -1141,43 +1141,33 @@ int WorldMapInitGroup5Actor(int idx) {
     pPlayer->z = 0x200000;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007CF18);
-/* best 75.19% (356 bytes, size exact): the two `if` blocks and every store
-   are right, but gcc CSEs the three scratchpad addresses (0x1F8000A0/A2/A4,
-   each used once per block) into s3/s4/s2 across both calls -- retail
-   re-materialises them as absolute `lui $at / sh` for all but one, so our
-   frame is 0x30 not 0x28 and s5 replaces retail's single s3-held constant 1.
-   Tried: volatile on the six stores (76.84%, 364 bytes), keeping the
-   literal 1 in each comparison. The same six stores in WorldMapUpdateGroup10Actor (this
-   file, matched) do compile to the $at form, so this is an allocator tie
-   triggered by the extra `0x20` test, not a source-shape error.
 int func_8007CF18(int idx) {
-    u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
-    u8 *pWork = (u8 *)g_WorldMapGroups;
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
+    WorldMapSceneLayer *pLayer = &g_WorldMapGroups[5];
 
-    if (*(s16 *)(pPlayer + 4) == 1) {
-        *(s16 *)(pPlayer + 4) = 0;
-        *(s16 *)(pPlayer + 0x20) = 1;
+    if (pPlayer->command == 1) {
+        pPlayer->command = 0;
+        pPlayer->state = 1;
     }
-    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    WorldMapWrapPosition(pPlayer + 0x28);
-    *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
-    *(s32 *)(pWork + 0x1AC) = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(s32 *)(pWork + 0x1B0) = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(s32 *)(pWork + 0x1B4) = *(s32 *)(pPlayer + 0x30) >> 12;
-    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-    WorldMapInitSpriteGroupSprites(0x15, (void *)0x1F8000A0, 0);
-    if (*(s16 *)(pPlayer + 0x20) == 1) {
-        *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
-        *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
-        *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-        WorldMapInitSpriteGroupSprites(0x1E, (void *)0x1F8000A0, 0);
+    pPlayer->z += pPlayer->dirZ;
+    WorldMapWrapPosition(&pPlayer->x);
+    pPlayer->y = func_80093A5C(pPlayer->x, pPlayer->z) - 0x4000;
+    pLayer->pos.x = pPlayer->x >> 12;
+    pLayer->pos.y = pPlayer->y >> 12;
+    pLayer->pos.z = pPlayer->z >> 12;
+    WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
+    idx = 0x1F8000A0;
+    WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
+    ((SVECTOR *)idx)->vz = pPlayer->z >> 12;
+    WorldMapInitSpriteGroupSprites(0x15, WORLD_MAP_TILE_POS, 0);
+    if (pPlayer->state == 1) {
+        WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
+        WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
+        WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
+        WorldMapInitSpriteGroupSprites(0x1E, WORLD_MAP_TILE_POS, 0);
     }
     return 1;
 }
-*/
 int WorldMapInitGroup9Actor(int idx) {
     WorldMapSceneLayer *pLayer;
     WorldMapPlayer *pPlayer;
