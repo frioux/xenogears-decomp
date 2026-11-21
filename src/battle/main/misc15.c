@@ -207,57 +207,29 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
-/* Best: 99.90% at retail's EXACT 824 bytes (206 insns) -- the body below has the
-   right size and multiset and fails to link only on two `addu` destinations.
-   What got here (all measured):
-   1. The loop's mask read: retail re-forms lui/%hi + lhu/%lo(g_BattleActionSlotMask)
-      inside the loop (2 insns). Any `*pMask` in the loop collapses that to one
-      insn through the saved register (820). A volatile read of the symbol in the
-      loop (`*(volatile u16 *)&g_BattleActionSlotMask`) is what puts the macro form
-      back.
-   2. `new_var = &g_BattleActionSlotMask;` before the `sel` test plus
-      `pMask = new_var;` at the use site. Creating the pointer at its first use
-      instead lets gcc substitute the address at both sites (816: 3 saved regs);
-      creating it early enough to be live across the mask's own live range is what
-      buys retail's 4th saved register.
-   3. `do { D_800C402F[off] = value; } while (0);` in the 0xFF fill loop and a
-      duplicate `pMask = new_var;` inside the `sel != 0` arm (the permuter found
-      both; without them the 0xFF/0x8B8 register pair and the sel-arm ordering are
-      off, 97.03%).
-   4. A `u16 entry` local in the else arm, then `sel = entry; sel = sel & 7;` in
-      two statements -- one statement is 98.47.
-   What is left, and it is a tie the permuter cannot move (base=20 best=20 after
-   2073 iterations): retail `addu v1,v1,v0` / `addu at,at,v1` (the sum coalesces
-   with its LEFT operand, (commandId + K) * 40) where the compile writes
-   `addu v0,v1,v0` / `addu at,at,v0` -- io in the right operand's register (arg0 *
-   1520). Both arms of the g_BattleSlotFlags branch show it. Measured and worse:
-   swapping the C operand order (91.00, 816), splitting the sum into two
-   statements `off = (c + K) * 40; off = off + arg0 * 1520;` (98.33, 828), a named
-   local for `off`, and the index inlined into the load (93.68, 804).
-   Round 369 re-measured 99.90 (824 b, the only diff is the two arms' `addu`
-   destination) and found that tie IS movable: giving the else arm its own offset
-   local (`s32 entryOff;`) or inlining the `& 7` into its `sel` makes BOTH arms
-   retail's `addu v1,v1,v0`, but the 0xFF fill loop's constant pair then flips
-   (`li v0,0xFF` / `li v1,0x8B8` against retail's v1/v0): 824 b, 6 insns, 99.83.
-   Allocation is coupled across the blocks (the fill loop is a separate block and
-   still moves), so the two ties cannot be closed one at a time from source. */
-/*
+// Fills the four command-record pages with BATTLE_COMMAND_NONE, then queues the
+// command the cursor picked (commandId picks the row, arg0 the actor's column) and
+// spins until the queued command has finished.
+// `fillOff` and `entryOff` are separate from `off` on purpose: one local shared by
+// the fill loop and the two arms couples the arm sums' `addu` destination with the
+// fill loop's constant register pair, and no spelling of the shared form gets both
+// (99.83%); with the three locals split it is 100.00 at retail's 824 bytes.
 void func_8008ADD0(u8 arg0) {
     s32 off;
     s32 i;
     u16 mask;
     u16 sel;
     u8 value;
-    u16 *new_var;
+    u16 *pActionMask;
     u16 *pMask;
+    s32 fillOff;
 
     g_BattleSoundEnabled = 0;
     BattleApplySlotMaskToEffects(0);
     value = 0xFF;
-    for (off = 0x8B8; off >= 0; off -= 0x48) {
+    for (fillOff = 0x8B8; fillOff >= 0; fillOff -= 0x48) {
         do {
-            D_800C402F[off] = value;
+            D_800C402F[fillOff] = value;
         } while (0);
     }
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
@@ -268,23 +240,24 @@ void func_8008ADD0(u8 arg0) {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x16;
         {
             u16 entry;
+            s32 entryOff;
 
-            off = (g_BattleCommandQueue->commandId + 0x15) * 40 + arg0 * 1680;
-            entry = *(u16 *)(g_BattleActionRows + off);
+            entryOff = (g_BattleCommandQueue->commandId + 0x15) * 40 + arg0 * 1680;
+            entry = *(u16 *)(g_BattleActionRows + entryOff);
             sel = entry;
             sel = sel & 7;
         }
     }
-    new_var = &g_BattleActionSlotMask;
+    pActionMask = &g_BattleActionSlotMask;
     if (sel != 0) {
-        pMask = new_var;
+        pMask = pActionMask;
         if (1) {
             mask = g_BattleTargetSlotMask;
         }
     } else {
         mask = BattleSlotBitMask(g_BattleTargetSlot);
     }
-    pMask = new_var;
+    pMask = pActionMask;
     BattleQueueCommandF3WithSlotMask(mask, arg0);
     BattleClearSlotCurveEntry();
     BattleBeginActorAction(arg0, mask, g_BattleCommandQueue->unk2DC - 1);
@@ -306,7 +279,6 @@ void func_8008ADD0(u8 arg0) {
         BattleUpdateFrame();
     }
 }
-*/
 
 void BattleClearPrimFlagsFourSlots(u8 arg0) {
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
