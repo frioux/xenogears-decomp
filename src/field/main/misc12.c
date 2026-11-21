@@ -836,27 +836,22 @@ void FieldScriptVMStartSceneAngleRotation2(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B8E4);
-/* 89.26%: the 2D branch computes `(direction + 4 & 7) << 9` twice in the
-   original (the g_FieldScriptVMCurActor load clobbers v1 between the two
-   stores); here gcc keeps the shifted value in one register and schedules the
-   actor load above both stores.
 void func_8009B8E4(void) {
     int direction = FieldScriptVMGetArgument(1);
     int duration = FieldScriptVMGetArgument(3);
 
     if (g_FieldEntryRoutineFinished == 0) {
-        s32 angle = (direction + 4 & 7) << 9;
+        u_char angle = (direction + 4) & 7;
 
-        g_Scene.sceneAngle.vy = angle;
-        g_Scene.sceneAngleYTarget = angle;
+        g_Scene.sceneAngle.vy = angle << 9;
+        g_Scene.sceneAngleYTarget = angle << 9;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else if (g_Scene.sceneAngleFrames == 0) {
         FieldSceneStartSceneAngleInterpolation(direction, duration);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     }
     g_FieldScriptVMStopFlag = 1;
-} */
+}
 
 void FieldScriptSaveCameraState(void) {
     if (g_Scene.sceneAngleFrames == 0) {
