@@ -230,36 +230,36 @@ void func_80073FB8(void) {
     BattleSlotGraphics *pSlot;
     s32 i;
     u32 primOfs;
+    u32 slotPrimOfs;
     u32 primOfs2;
-    u32 primOfs3;
 
     primOfs = g_BattlePrimStartIndex * 12 + 0x8920;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(primOfs + (u32)g_BattleGraphicsWork));
 
     for (i = 0; i < 4; i++) {
-        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0x7F) != 0 && g_BattleDisplayMode == 1) {
-            primOfs2 = (i * 2 + *(u8 *)((u8 *)g_BattleDisplayState + i + 0x84)) * 52 + 0x5A0;
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(primOfs2 + (u32)g_BattleGraphicsWork));
+        if (g_BattleDisplayState->panelActive[i] != 0 && g_BattleDisplayMode == 1) {
+            slotPrimOfs = (i * 2 + g_BattleDisplayState->panelPrimStart[i]) * 52 + 0x5A0;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(slotPrimOfs + (u32)g_BattleGraphicsWork));
         }
     }
 
-    primOfs3 = g_BattlePrimStartIndex * 12 + 0x8908;
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(primOfs3 + (u32)g_BattleGraphicsWork));
+    primOfs2 = g_BattlePrimStartIndex * 12 + 0x8908;
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(primOfs2 + (u32)g_BattleGraphicsWork));
 
     for (i = 0; i < 7; i++) {
-        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xB0) != 0) {
+        if (g_BattleDisplayState->primFlags[i] != 0) {
             pSlot = g_BattleSlotGraphics[i];
-            BattleAddPrimListToOT((u8 *)pSlot, pSlot->packageCount, *(u8 *)((u8 *)pSlot + 0x5A4));
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x2D0]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x320]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x370]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x140]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x190]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x1E0]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x230]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(POLY_G4) + 0x3C0]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(DR_MODE) + 0x408]);
+            BattleAddPrimListToOT((u8 *)pSlot, pSlot->packageCount, pSlot->packagePrimStart);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x280]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x2D0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x320]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x370]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x140]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x190]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x1E0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x230]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_G4) + 0x3C0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(DR_MODE) + 0x408]);
         }
     }
 }
