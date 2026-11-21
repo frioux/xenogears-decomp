@@ -209,13 +209,13 @@ void BattleWaitForArchiveSync(void) {
         BattleUpdateFrame();
     }
 }
-void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
+void BattleQueueCommandF3WithSlotMask(u16 slotMask, u8 actorSlot) {
     u16 mask;
     s32 i;
     s32 off;
     u8 idx;
 
-    mask = arg0 & ~BATTLE_PARTY_SLOT_MASK;
+    mask = slotMask & ~BATTLE_PARTY_SLOT_MASK;
     for (i = 0, off = MAX_PARTY_MEMBERS * sizeof(BattleCommandRow); i < BATTLE_OTHER_SLOT_COUNT; i++) {
         idx = i + MAX_PARTY_MEMBERS;
         if (BattleMaskHasSlotBit(mask, idx) != 0) {
@@ -228,20 +228,20 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
     if (mask == 0) {
         return;
     }
-    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg1;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = actorSlot;
     g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = 0xF3;
     g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = mask;
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
 }
 
 // Fills the four command-record pages with BATTLE_COMMAND_NONE, then queues the
-// command the cursor picked (commandId picks the row, arg0 the actor's column) and
+// command the cursor picked (commandId picks the row, actorSlot the acting actor slot) and
 // spins until the queued command has finished.
 // `fillOff` and `entryOff` are separate from `off` on purpose: one local shared by
 // the fill loop and the two arms couples the arm sums' `addu` destination with the
 // fill loop's constant register pair, and no spelling of the shared form gets both
 // (99.83%); with the three locals split it is 100.00 at retail's 824 bytes.
-void BattleQueueOneActorCommand(u8 arg0) {
+void BattleQueueOneActorCommand(u8 actorSlot) {
     s32 off;
     s32 i;
     u16 mask;
@@ -260,10 +260,10 @@ void BattleQueueOneActorCommand(u8 arg0) {
             g_BattleCommandSlotIds[fillOff] = value;
         } while (0);
     }
-    if (g_BattleSlotFlags[arg0 * 8] == 0) {
+    if (g_BattleSlotFlags[actorSlot * 8] == 0) {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x17;
         off = (g_BattleCommandQueue->commandId + 0x16) * sizeof(BattleActionRow) +
-              arg0 * BATTLE_CELL_ACTION_BLOCK_SIZE;
+              actorSlot * BATTLE_CELL_ACTION_BLOCK_SIZE;
         pRow = (BattleActionRow *)(g_BattleCellActionRows + off);
         sel = pRow->flags & BATTLE_COMMAND_TARGET_MODE_MASK;
     } else {
@@ -272,7 +272,7 @@ void BattleQueueOneActorCommand(u8 arg0) {
             s32 entryOff;
 
             entryOff = (g_BattleCommandQueue->commandId + 0x15) * sizeof(BattleActionRow) +
-                       arg0 * BATTLE_ACTION_BLOCK_SIZE;
+                       actorSlot * BATTLE_ACTION_BLOCK_SIZE;
             pRow = (BattleActionRow *)(g_BattleActionRows + entryOff);
             sel = pRow->flags & BATTLE_COMMAND_TARGET_MODE_MASK;
         }
@@ -287,23 +287,23 @@ void BattleQueueOneActorCommand(u8 arg0) {
         mask = BattleSlotBitMask(g_BattleTargetSlot);
     }
     pMask = pActionMask;
-    BattleQueueCommandF3WithSlotMask(mask, arg0);
+    BattleQueueCommandF3WithSlotMask(mask, actorSlot);
     BattleClearSlotCurveEntry();
-    BattleBeginActorAction(arg0, mask, g_BattleCommandQueue->unk2DC - 1);
+    BattleBeginActorAction(actorSlot, mask, g_BattleCommandQueue->unk2DC - 1);
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
-    mask = BattleSlotBitMask(arg0);
+    mask = BattleSlotBitMask(actorSlot);
     BattleBeginAnimTask(*pMask | mask);
-    BattleInitActorSlotAnimation(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
+    BattleInitActorSlotAnimation(1, actorSlot, g_BattleCommandQueue->slots[actorSlot].targetSlot, BattleFindMinValueOtherSlot(actorSlot));
     g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = g_BattleActionParam;
-    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = actorSlot;
     g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = *pMask;
     for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(*(volatile u16 *)&g_BattleActionSlotMask, i) != 0) {
-            BattleSetSlotRegistersFromActor(arg0, i);
+            BattleSetSlotRegistersFromActor(actorSlot, i);
         }
     }
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
-    BattleQueueCommandFE(arg0);
+    BattleQueueCommandFE(actorSlot);
     while (g_BattleCommandQueue->commandFinished == 0) {
         BattleUpdateFrame();
     }
@@ -565,7 +565,7 @@ u8 func_8008B478(u8 arg0) {
 }
 */
 
-void BattleActivateSelectedCommand(u8 arg0) {
+void BattleActivateSelectedCommand(u8 actorSlot) {
     s32 off;
     s32 sel;
     u16 mask;
@@ -581,16 +581,16 @@ void BattleActivateSelectedCommand(u8 arg0) {
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         g_BattleCommandSlotIds[off] = value;
     }
-    BattleInitActorSlotAnimation(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
+    BattleInitActorSlotAnimation(1, actorSlot, g_BattleCommandQueue->slots[actorSlot].targetSlot, BattleFindMinValueOtherSlot(actorSlot));
     sel = g_BattleCommandEntries[g_BattleCommandQueue->commandId].flags & BATTLE_COMMAND_TARGET_MODE_MASK;
     if (sel != 0) {
         mask = g_BattleTargetSlotMask;
     } else {
         mask = BattleSlotBitMask(g_BattleTargetSlot);
     }
-    BattleQueueCommandF3WithSlotMask(mask, arg0);
+    BattleQueueCommandF3WithSlotMask(mask, actorSlot);
     BattleClearSlotCurveEntry();
-    BattleBeginAction(arg0, mask, g_BattleCommandQueue->commandId);
+    BattleBeginAction(actorSlot, mask, g_BattleCommandQueue->commandId);
     pCell = &g_BattleCommandCellFlags;
     if ((pCell->flags & 0x8000) == 0) {
         pUses = pCell->uses;
@@ -604,15 +604,15 @@ void BattleActivateSelectedCommand(u8 arg0) {
     g_BattleSlotCurveRunning = 0;
     g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = 0xF5;
     g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = g_BattleActionParam;
-    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = actorSlot;
     g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleActionSlotMask;
     for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(g_BattleActionSlotMask, i) != 0) {
-            BattleSetSlotRegistersFromActor(arg0, i);
+            BattleSetSlotRegistersFromActor(actorSlot, i);
         }
     }
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
-    BattleQueueCommandFE(arg0);
+    BattleQueueCommandFE(actorSlot);
     while (g_BattleCommandQueue->commandFinished == 0) {
         BattleUpdateFrame();
     }
