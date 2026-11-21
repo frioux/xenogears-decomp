@@ -176,47 +176,44 @@ extern BattleParticleQuad* g_BattleSpritePrimBuffers[];
 // Projects the live particles three at a time with RTPT and links one screen
 // prim per particle into the OT by its projected Z.
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
-/* best 99.78% (556 bytes = retail's exact size); the remaining difference is
-   the OR that fills the OT tag word, three times:
-       retail: or a0,a0,t7 ; sw a0,0(v1)      ours: or v0,a0,t7 ; sw v0,0(v1)
-   i.e. retail's tag value is written back into the register that held the old
-   link word, ours gets a fresh destination in $2. That is a 3->2 tie: retail's
-   `link` dies in the OR, so gcc merged link and the tag word into ONE quantity
-   and its register is then the first one free over the merged range - $2 is
-   live at the range start (pLink) and $3 is the masked address, so the merge
-   lands in a0. Our build keeps the two apart and free-choice picks $2.
-   Measured: giving the three link groups their OWN pLink/link/pTag variables
-   makes the OR in-place (chain keeps $2, and the OR becomes `or $3,$3,$15`),
-   but then the tag quantity outranks the masked one and the pair swaps
-   ($3/$4 instead of retail's $4/$3) - five differing instructions per group,
-   so keep the single-variable form. Same for a named `masked` written three
-   times, an inline `link |= 0x03000000`, a `tag` local, a `code` local for the
-   constant, indexed `&pOt[sz >> 4]` and base-first `pOt + sz` chains. The
-   leftover is qsort's QTY_CMP_PRI tie between two 2-ref quantities, which no
-   source spelling found here moves. Permuter re-run on this body: 1990
-   iterations, base 30 best 30, no lead.
-   WHAT MADE IT 99.78%: the whole entry block's register assignment hinges on
-   the shape and PLACEMENT of the pOtz pointer local. The else arm reads the
-   GTE SZ slot 0x1F8000B0 through a local pointer ASSIGNED INSIDE THE LOOP
-   (just before gte_ldv2), not in the prologue: loop-invariant hoisting then
-   emits the two constant pairs in body use order - &vec (0x1F800010) into t4
-   first, then the 0x1F8000B0 slot into t3 - which is retail's `lui t4` +
-   `lui t3` order, and that fixes pOt=t6, i=t5, dx/dy/dz in s0/t9/t8,
-   pParticle=t0's pair in a3/a1 and pQuad in a2. Assigning it in the prologue
-   rotates every t register (96.29%); writing the 0x1F8000B0 literal inline at
-   each gte_stsz call is 95.55% (an asm operand is rematerialised per use).
-   Also measured dead: a pVec local for &pScratch->vec (95.63%), moving the
-   slot assignment after the pQuad assignment (no change). The dead
-   `masked = ...` assignment in the middle group is LOAD-BEARING: without it
-   the loop re-allocates and the body costs 12 bytes / 93.19%.
-   The one-table view is exact: this walks the same 0xC g_BattleSpriteSlots
-   table BattleClearSpriteTables clears, so it uses BattleSpriteSlot
-   (x/y/z/life/vx/vz/vy) rather than a second struct; y is s16 because the
-   clamp compares it signed (lh/slti). The OT stores use the pTag pointer form
-   BattleDrawLineQuads (matched, same file) already uses.
+/* best 99.78% (556 bytes = retail's exact size, 138 insns); the remaining
+   difference is the OR that fills the OT tag word, three times:
+       retail: lw a0,0(v0) ; and v1,a2,t2 ; sw v1,0(v0) ; or a0,a0,t7 ; sw a0,0(v1)
+       ours:   lw a0,0(v0) ; and v1,a2,t2 ; sw v1,0(v0) ; or v0,a0,t7 ; sw v0,0(v1)
+   gcc cannot tie a 3-operand `or` to its input, so retail's in-place OR means the
+   original source reassigned the link word (`link |= 0x3000000`). PROVEN mechanism
+   (round 391): making all three OT inserts use their OWN pLink/link/pTag AND the
+   in-place OR reproduces retail's group 2 EXACTLY (`lw a0 / and v1 / sw v1 / or a0,a0
+   / sw a0`) where the shared-variable body swaps the pair. So the residual is the
+   local-alloc priority contest between the loaded-link qty and the masked-address
+   qty, not the C structure, and it is per group: the measured variants are
+   (a) shared vars + plain OR = this body, 99.78, OR dest $2 in all three groups;
+   (b) per-group vars + in-place OR = 98.63, group 2 EXACT, groups 1/3 pair-swapped
+       (link $3 / masked $4), same 556 bytes;
+   (c) either variable set + a NAMED `masked` shared by more than one group = 94.48 /
+       92.43 (568 bytes) because that pseudo then lives across groups and costs a
+       callee-saved save (`sw s1,4(sp)`), rotating every t register.
+   Also measured dead in earlier rounds: named `tag`/`code`/`masked` written three
+   times, `pVec`/`pScratch->vec` pointer locals, indexed `&pOt[sz >> 4]`, base-first
+   `pOt + sz`, three link-group variables under the plain OR. Permuter from this
+   exact body: 4335 iterations, base 30 best 30, no lead (an earlier run, 1990
+   iterations, base 30 best 30).
+   WHAT MADE IT 99.78%: the pOtz pointer local must be ASSIGNED INSIDE THE LOOP
+   (just before gte_ldv2), not in the prologue: loop-invariant hoisting then emits
+   the two constant pairs in body use order (&vec 0x1F800010 into t4, then the
+   0x1F8000B0 slot into t3) which fixes pOt=t6, i=t5, dx/dy/dz=s0/t9/t8 and
+   pParticle's pair in a3/a1, pQuad in a2. Prologue assignment rotates every t
+   register (96.29%); the 0x1F8000B0 literal inline at each gte_stsz is 95.55%.
+   NEXT LEAD: finish (b) - groups 1 and 3 need masked in $3 and link in $4 without a
+   variable shared across groups. Per-group masked values (disjoint live ranges) is
+   the untested combination; a hand splice of it in this session was mis-edited and
+   only measured 92.37 (548 bytes), so treat it as unmeasured.
+   The one-table view is exact: this walks the same 0xC g_BattleSpriteSlots table
+   BattleClearSpriteTables clears (x/y/z = s16, life, vx/vz/vy), and y is signed
+   because the clamp compares it with lh/slti. The OT stores use the pTag pointer
+   form that the matched neighbour BattleDrawLineQuads uses (its OR lands in place
+   in $3 there because in that function $2/$3 are the only free registers). */
 /*
-// Projects the live particles three at a time with RTPT and links one screen
-// prim per particle into the OT by its projected Z.
 void func_8007E020(u32* pOt) {
     BattleGteScratch* pScratch;
     BattleParticleQuad* pQuad;
@@ -288,8 +285,7 @@ void func_8007E020(u32* pOt) {
         pParticle->life--;
     }
 }
- */
-
+*/
 void BattleClearSpriteTables(void) {
     s32 i;
 
