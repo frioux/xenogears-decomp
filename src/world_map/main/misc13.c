@@ -509,19 +509,19 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     WorldMapPos a;
     WorldMapPos b;
     WorldMapPos c;
-    u8* pTile;
+    WorldMapTileZoneCell* pCell;
 
-    pTile = WorldMapGetTileEntry(x, z);
+    pCell = (WorldMapTileZoneCell*)WorldMapGetTileEntry(x, z);
     a.x = (u16)(x / 8);
     a.z = -(u16)(z / 8);
-    if (pTile[1] & WORLD_MAP_ZONE_CELL_UP_CORNER) {
+    if (pCell->flags & WORLD_MAP_ZONE_CELL_UP_CORNER) {
         b.x = 0;
         b.z = 0;
-        b.y = (s8)pTile[0] << 12;
+        b.y = pCell->height << 12;
     } else {
         b.x = 0x10000;
         b.z = 0;
-        b.y = (s8)pTile[4] << 12;
+        b.y = pCell[1].height << 12;
     }
     WorldMapBuildTilePlaneNormal(&c, x, z);
     WorldMapInterpolatePlaneHeight(&a, &b, &c);
@@ -685,7 +685,10 @@ s32 WorldMapGetTileAttrBits10To15(WorldMapPos* p) {
 }
 
 s32 WorldMapGetTileGroup(WorldMapPos* p) {
-    return (WorldMapGetTileEntry(p->x, p->z)[3] >> 2) & 0xF;
+    WorldMapTileZoneCell* pCell;
+
+    pCell = (WorldMapTileZoneCell*)WorldMapGetTileEntry(p->x, p->z);
+    return (pCell->unk3 >> 2) & 0xF;
 }
 
 s16 WorldMapGetTileKindValue(s16 row, s16 col) {
