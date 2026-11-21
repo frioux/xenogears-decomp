@@ -761,30 +761,52 @@ void SystemStringClearLineOffset(SystemString* pString) {
 
 extern void func_80031798(void* pOt, void* pPrim);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 
-// Parked at 95.08% (1556 bytes against retail's 1572: four instructions short).
-// Every phase, its order and its calls correspond; the residuals are:
+// Parked at 96.83% (1564 bytes against retail's 1572: TWO instructions short).
+// Everything below is measured, not guessed.
 // - THE SOURCE HAS NO pChar / pSprite LOCALS. Retail re-reads pString->pChars
 //   (lw v1,40(s0)) for every single store and re-forms the sprite address each
 //   time; a pointer local CSEs all of that and comes out ~180 bytes short at 68%.
-//   Everything is spelled inline (pString->pChars[row].sprt[context][1].v0 = ...).
-// - THE CONTEXT SUM'S addu OPERAND ORDER: retail emits addu v1,s2,v1 (context
-//   * 0x28 first, then the pChars+row*0x60 sum), this body emits addu v1,v1,s3.
-//   The typed subscript cannot produce index-first; the file's own
-//   SystemDecodeGlyphCodes solves the same problem with a cast over an
-//   index-first sum, which is the next spelling to measure here (~14 sites).
-// - The buffer pop loads pBufferStack TWICE in retail (a0 for pData and the
-//   HeapFree argument, v1 for pNext). Two source reads of the member give two
-//   loads here as well, but gcc hoists the second above the bufferCount test.
-// - unk68/unk6A/unk69: retail loads unk6A twice (a0 for the test and unk68's
-//   store, a reload for unk69's store) and stores 0x69 twice, once in the
-//   branch and once after the join. A simple if plus the join store gives one
-//   load; the extra read has to come from a separate source expression.
-// - The frame is 0x78 against retail's 0x80 (one 8-byte pair of locals missing),
-//   which is what rotates i/row/context through s2/s3/s4: retail has
-//   s2 = context*0x28, s3 = row, s4 = i.
+//   Everything stays spelled inline (pString->pChars[row].sprt[context][1].v0 = ...).
+// - THE BUFFER POP NEEDS pNode's ASSIGNMENT FIRST: pNode = pString->pBufferStack;
+//   pString->pCur = pNode->pData; pString->pBufferStack =
+//   pString->pBufferStack->pNext; HeapFree(pNode); is what puts the a0 load (the
+//   HeapFree argument and pData's base) before the v1 load (pNext) AND restores
+//   retail's nop in the `beqz bufferCount` delay slot (both observed).
+// - THE unk6A BLOCK NEEDS A SECOND STORE: the branch body must also write
+//   pString->unk69 = pString->unk6A before unk6A = 0. Retail stores 0x69 twice
+//   (once in the branch, once after the join) and reloads unk6A for the first
+//   one; without that statement gcc reuses the test's load.
+//   Those two shapes took the park 1556 -> 1564 bytes and make both blocks
+//   instruction-identical to retail's.
+// - THE REMAINING TWO INSTRUCTIONS ARE IN THE unk69/upload-hold SEAM. Retail:
+//   lbu 0x68 / nop / sb 0x69 / lhu 0x10(flags) / nop / andi 0x40. This body lets
+//   sched2 raise the flags load ABOVE the sb (lbu / lhu / sb / andi), which drops
+//   both the load-delay nop after lbu and the one after the lhu. Measured
+//   non-fixes: a volatile u16 read of flags in the if (96.04%, 1576 bytes, breaks
+//   ordering elsewhere), a volatile u8 store of unk69 (no change).
+// - THE REGISTER MAP IS ONE SWAP FROM RETAIL'S: s1 = row*0x60 (the derived giv)
+//   and s2 = context*0x28 match, but retail has s3 = row, s4 = i where this body
+//   has s3 = i, s4 = row (before it: s2 = i, s3 = context*0x28, s4 = row).
+//   Declaration order of i/row does NOT move it (both orders byte-identical) and
+//   neither does scoping each sprite loop's row/i in its own block. The row-reset
+//   loop's own counter (local j) DOES move: sharing i across all three loops
+//   gives 96.72 with that counter in s2, giving it its own j gives 96.83 with it
+//   in v1/a0 (retail has s3).
+// - THE ~9 `addu v1,s2,v1` SITES (context sum base-first) come out
+//   `addu v1,v1,s3` here. Retail has BOTH orders in the same function (0x252A0
+//   base-first, 0x2532C index-first), so this is per-site, not one spelling.
+// - THE CLEAR-TILE TAIL (retail 0x34DCC..0x34E68) is the same 26 instructions in
+//   a different order: retail materialises 0xFFFFFF in a2 and 0xFF000000 in v1
+//   AFTER the mflo, this body hoists 0xFF000000 into a1 before the mult and does
+//   the `addu s0,ctx*0x10` sum one statement later. Retail's shape is
+//   addiu a1,a1,0x48 / addu a1,s0,a1 as two statements; this body's `&clearTile
+//   [context]` + `(maxWidth|1)` group re-derives it after the tag load.
+// - The frame matches retail exactly (0x80, vars=80): the older note claiming
+//   0x78 was wrong.
 // - Loop 2's width clamp must stay an if/else (the ternary costs 0.99%).
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
+
 /*
 void func_80034888(SystemString* pString, u_long* pOt, int context) {
     SystemStringNode* pNode;
@@ -796,15 +818,16 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
             return;
         }
 
-        pString->pCur = pString->pBufferStack->pData;
         pNode = pString->pBufferStack;
-        pString->pBufferStack = pNode->pNext;
+        pString->pCur = pNode->pData;
+        pString->pBufferStack = pString->pBufferStack->pNext;
         HeapFree(pNode);
 
         pString->bufferCount--;
         pString->flags = (pString->flags & SYSTEM_STRING_FLAG_PERSISTENT) | 0x24;
         if (pString->unk6A != 0) {
             pString->unk68 = pString->unk6A;
+            pString->unk69 = pString->unk6A;
             pString->unk6A = 0;
         }
         pString->unk69 = pString->unk68;
@@ -821,6 +844,8 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
     }
 
     if (pString->flags & SYSTEM_STRING_FLAG_WRAPPED) {
+        int j;
+
         pString->scrollRow = 0;
         pString->rowCount = 0;
         pString->charIndex = 0;
@@ -829,8 +854,8 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
         pString->pChars[0].clut = g_SystemPalette1;
         pString->pChars[0].paletteIndex = 0;
         pString->pChars[0].imageRect.y = pString->textureY;
-        for (i = 0; i < pString->maxChars; i++) {
-            pString->pChars[i].rowWidth = 0;
+        for (j = 0; j < pString->maxChars; j++) {
+            pString->pChars[j].rowWidth = 0;
         }
         pString->flags &= ~(SYSTEM_STRING_FLAG_WRAPPED | 0x1);
     }
@@ -858,6 +883,7 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
             func_80031798(pOt, &pString->pChars[row].sprt[context][1]);
         }
         row++;
+    }
     }
 
     AddPrim(pOt, &pString->drawMode[1]);
