@@ -34,6 +34,14 @@ ask has stopped working.
     make check                                           # all ELEVEN outputs OK before you touch anything
     grep -rho 'INCLUDE_ASM(' src --include=*.c | wc -l   # the scoreboard: 757 at round 387
     python3 tools/rounds/next_round.py --stats           # the pool by class
+    ls -d ~/xw/r-r* 2>/dev/null                          # clones a dead session left behind
+
+If clones from an earlier session exist and no worker process is still running in them
+(`pgrep -fl subagent-runner`), adopt them before planning: for each,
+`git -C ~/xw/r-<tag>/xenogears-decomp log --oneline main..HEAD`; merge the ones with
+commits as a round of their own (merge, lint, names, `make check`, commit, tracker row),
+then delete them all. If workers are still running in them, wait for those processes
+to end first.
 
 Count stubs with exactly that grep, not `grep -c '^INCLUDE_ASM'` (a re-parked body can
 put the stub mid-line).
@@ -197,16 +205,6 @@ and you decide.
 - After any preset edit: two consecutive `make objdiff-config` runs must give the same
   per-unit flags, and every park in the unit must be re-measured.
 - A `mfhi`/`mflo` residual on a 2.7.2 unit means the unit wants 2.6.0, not another body.
-- **The allocator wall may be a compiler nobody has tried.** `tools/rounds/cc_sweep.py`
-  scores every 99%+ park under every `tools/gcc-*` directory present and keeps
-  `~/xw/cc-sweep.tsv`. See "Compiler sweep status" below for what has been run. When
-  `--report` lists a compiler that takes a park to 100.00, run
-  `--check-unit <unit> --gcc <dir>`; if every matched function stays 100.00, do the
-  switch procedure above. That is how the 2.6.0 and cdk presets were found, and each
-  was worth dozens of matches. Run the sweep only in a private clone
-  (`clone.sh new r<N>-cc`), never two at once.
-
-COMPILER_SWEEP_STATUS
 
 ## What objdiff cannot see
 
@@ -229,7 +227,7 @@ a field of a shared header. Expect to bisect by reverting one worker's file at a
   match and every park. `UNCOMMITTED <tag>` followed by `merged <tag>` means it merged.
 - A pool branch is based on `main`: `git -C ~/xw/r-<tag>/xenogears-decomp log --oneline main..HEAD`.
 - "needs attention / no activity for 300s" notices are noise; `Subagent timed out` is real.
-- `try_flags.sh`, `cc_sweep.py` and `park_sweep.py` share scratch files: never two in one
+- `try_flags.sh` and `park_sweep.py` share scratch files: never two in one
   tree, and re-run a surprising `compile-failed`.
 - After editing a brief script: `node -e "new Function('args','runs',require('fs').readFileSync('tools/rounds/brief.js','utf8'))"`.
 - A worker's thinking level is set by a suffix on `model` (`...-background:medium`); the
