@@ -1150,26 +1150,18 @@ int FieldGetVec2Angle(IVEC3* pVec) {
 
 long FieldGetVec2Magnitude(long, long);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B6C4);
-/* Best attempt: 84.11% but the exact 332-byte size (earlier attempts were 336
-   bytes, which can never link). Seeding nResult with nWallAngle before the range
-   test is the only form that puts `move s3,a0` in the bnez delay slot and
-   `addiu a0,a0,0x800` in the beqz delay slot like the original; the remaining
-   delta is one extra copy of nWallAngle (the original has `move v1,a0` feeding
-   both the angle sum and the early `return nWallAngle`).
-long FieldGetVec2Magnitude(long, long);
-
-int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
+int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags) {
     VECTOR v;
     VECTOR normal;
     int nAngle;
-    int nWallAngle;
-    long nResult;
+    short nWallAngle;
+    short nResult;
     long nMagnitude;
 
-    nAngle = (0xC00 - angle) & 0xFFF;
-    nWallAngle = -ratan2(pPoints[1].vz - pPoints[0].vz, pPoints[1].vx - pPoints[0].vx) & 0xFFF;
-    nAngle = (nAngle + nWallAngle) & 0xFFF;
+    nAngle = (0xC00 - angle) & FIELD_ANGLE_MASK;
+    nWallAngle = -ratan2(pPoints[1].vz - pPoints[0].vz, pPoints[1].vx - pPoints[0].vx);
+    nWallAngle &= FIELD_ANGLE_MASK;
+    nAngle = (nAngle + nWallAngle) & FIELD_ANGLE_MASK;
     nResult = nWallAngle;
     if ((u_int)(nAngle - 0x80) >= 0xF01) {
         pOut->vx = 0;
@@ -1181,7 +1173,7 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
         v.vx = pPoints[0].vx - pPoints[1].vx;
         v.vy = 0;
         v.vz = pPoints[0].vz - pPoints[1].vz;
-        nResult = (nWallAngle + 0x800) & 0xFFF;
+        nResult = (nWallAngle + 0x800) & FIELD_ANGLE_MASK;
     } else {
         v.vx = pPoints[1].vx - pPoints[0].vx;
         v.vy = 0;
@@ -1196,8 +1188,6 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
 
     return nResult;
 }
-*/
-
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode);
 int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags);
 extern s32 D_800ADB98;
