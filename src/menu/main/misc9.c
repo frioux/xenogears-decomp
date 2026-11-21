@@ -726,46 +726,43 @@ void func_801DD5E8(u_char arg0) {
     }
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
-
-/* Best: 95.71%, 1940 bytes - retail's exact size and the same instruction
-   multiset; the whole structure below is retail's (group dispatch on the three
-   case bodies in the order 0/1/2, the window-2 creation, the flag word read back
-   from the record, the panel loop, all four input arms, and the exit block). The
-   only residual is which callee-saved register each long-lived value gets:
-     retail  s0=arg0/i s1=refresh s2=arg2/found s3=group s4=mask s5=slot
-             s6=arg1 s7=charSlot fp=pRecord
-     ours    s0=arg0/i s1=arg2/group s2=mask s3=refresh s4=slot
-             s6=arg1 s7=charSlot fp=pRecord
-   i.e. ours shares one register between arg2 and group (retail keeps them in s2
-   and s3) and gives `found` a register of its own, so every long-lived value
-   rotates by one. Nothing else differs: the two `lw` positions in the three
-   pointer arms differ only because sched2 fills their load-delay slot from
-   whatever the register choice leaves free.
-   Tried and measured: two permute.sh runs (6+6 min). The first found the
-   `pSlots` / `heightAdd` / `charSlot` order in case 2 (3325 -> 2585, kept). The
-   second wanted a `volatile` temp for the gear maxHp load - 96.27% but 1952
-   bytes, 12 over retail, so it cannot link (a volatile forces a frame slot) and
-   it is not portable. Also measured: swapping the mask/refresh initialisation
-   order (no change, the two just trade s2/s3); `arg1 * 0x28 + (u8*)pSlots`
-   instead of the other operand order (no change); declaring
-   MenuAndBitMaskLsbFirst with a u16 return (kept - it produces retail's
-   `andi v0,v0,0xffff` after the call with no temp local); computing the record
-   base as `&pSlots[arg1] + 22/21/37` (kept - it makes all three arms
-   instruction-identical to retail, and the element offsets are the evidence that
-   the three blocks have 22 / 21 / 37 0x28-byte records before the array this
-   panel walks).
-   Facts the next agent needs: pManager (0x33C) keeps the party slots' character
-   ids at +0x30 (3 bytes, 0xFF = empty); pDressingRoom (0x330) has
-   pCharacterSlots[11] at +0x20 and pGearBlocks[20] at +0x4C. The hp/mp gate
-   before the input switch reads characters[id].mp (g_GameState+0x2BC, so the
-   record's 0x13 byte is an mp cost) for group != 2 and gears[gearId].fuel
-   (+0x9B0, so the record's 0x24 u16 is a fuel cost) for group == 2; case 4's
-   cascade compares characters[].hp with .maxHp, or gears[].hp (+0x9D8) with
-   gears[characters[currentCharacterIDs[arg1]].gearId].maxHp (+0x9DC), and the
-   second index really is arg1 (the equipment column), not the party slot.
-   The declaration `void func_801DCE60(u_char, u_char, u_char)` above must stay:
-   retail masks the second argument at this call site. */
+/* PARKED 95.96% (round 385 re-measure; the old 95.71 note is superseded). Retail
+   EXACT 1940 bytes and a byte-for-byte identical instruction MULTISET; the only
+   residual is which callee-saved register each long-lived value gets. Both compiles
+   save the same set (ra + s0-s8), so this is NOT over-allocation and freeing a
+   register cannot help:
+     retail  s0=arg0/i  s1=refresh  s2=arg2(raw, then 'found')  s3=group
+             s4=mask  s5=slot  s6=arg1  s7=charSlot  s8=pRecord
+     ours    s0=arg0/i  s1=group(and raw arg2, same reg)  s2=mask
+             s3=refresh  s4=slot  s5=found  s6=arg1  s7=charSlot  s8=pRecord
+   i.e. retail masks arg2 into a FRESH register (s3) and later lets 'found' reuse
+   the dead raw arg2 (s2); ours masks arg2 IN PLACE (s1) so group occupies arg2's
+   register for the whole loop and 'found' has to take a new one, rotating
+   refresh/mask/slot up by one. cc1 2.6.0 -dl/-dg (build/src/menu/main/misc9.c.i.lreg)
+   shows the loop-live u8 quantities as 182/80/79/181/83 with the note's
+   priority->_first_free_register map, so the ordering, not the shape, is the delta.
+   Measured this round, all at 1940 bytes / retail's size: 'mask = 0;' moved from
+   just after MenuRenderFrame to after the 'if (refresh)' block 95.71 -> 95.96
+   (kept - it is also the more natural source), the hp-gate/arms comparing the
+   local 'group' instead of 'arg2' (kept, retail compares s3), 'for (i = 0,
+   refresh = 0; ...)' so the found/i/refresh init order is retail's (kept), a live
+   copy of charSlot used by the else arm (no change, dropped). permute.sh
+   --minutes 6 -j 2 (2082 iters) 2580 -> 2209 but only via 'volatile u32
+   maxValue', which is 1952 bytes (12 over retail) and cannot link - same find as
+   the previous round, not portable.
+   Facts for the next agent: pManager (0x33C) keeps the party slots' ids at +0x30
+   (3 bytes, 0xFF = empty); pDressingRoom (0x330) has pCharacterSlots[11] at +0x20 and
+   pGearBlocks[20] at +0x4C. The three case arms build pRecord as
+   '&pSlots[arg1] + 22/21/37' (0x370/0x348/0x5C8 bytes), i.e. 22/21/37 0x28-byte
+   records precede the walked array. The hp/mp gate reads characters[id].mp
+   (g_GameState+0x2BC, the record's 0x13 byte is an mp cost) for group != 2 and
+   gears[gearId].fuel (+0x9B0, the record's 0x24 u16 a fuel cost) for group == 2;
+   case 4 compares characters[].hp/.maxHp (+0x2B8/+0x2BA) or gears[].hp (+0x9D8)
+   against gears[characters[currentCharacterIDs[arg1]].gearId].maxHp (+0x9DC) and the
+   second index really is arg1 (the equipment column). The declaration
+   'void func_801DCE60(u_char, u_char, u_char)' must stay: retail masks the second
+   argument at this call site. Switch case order is 5, 4, 1, 3 (retail's body order).
+*/
 /*
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
     MenuPointerCursors* pCursors;
@@ -809,7 +806,6 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
         slot = arg0;
         group = arg2;
         MenuRenderFrame();
-        mask = 0;
         if (refresh) {
             func_801DC3D8(slot, group);
             func_801DCE60(slot, arg1, group);
@@ -817,6 +813,7 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
             MenuBuildPartyCharacterPrims(group);
             refresh = 0;
         }
+        mask = 0;
         pCursors = g_Menu->pCursors;
         pCursors->shouldRender[2] = 0;
         pCursors->shouldRender[1] = 0;
@@ -838,7 +835,7 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
             g_Menu->pCursors->shouldRender[charSlot] = 1;
         }
         g_Menu->pManager->shouldRenderCursors = 1;
-        if (arg2 != 2) {
+        if (group != 2) {
             value = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].mp - pRecord->mpCost;
         } else {
             value = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].fuel - pRecord->fuelCost;
@@ -855,10 +852,9 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
             break;
         case 4:
             found = 0;
-            refresh = 0;
-            for (i = 0; i < 3; i++) {
+            for (i = 0, refresh = 0; i < 3; i++) {
                 if (MenuAndBitMaskLsbFirst(mask, i) != 0) {
-                    if (arg2 != 2) {
+                    if (group != 2) {
                         value = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].hp;
                         maxValue = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].maxHp;
                     } else {
@@ -870,13 +866,13 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
                         refresh = 1;
                     }
                     if (refresh) {
-                        MenuApplyDressingRoomSlotHpBonus(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[arg0], g_Menu->pManager->currentCharacterIDs[i], arg1, arg2);
+                        MenuApplyDressingRoomSlotHpBonus(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[arg0], g_Menu->pManager->currentCharacterIDs[i], arg1, group);
                     }
                 }
                 refresh = 0;
             }
             if (found) {
-                if (arg2 != 2) {
+                if (group != 2) {
                     g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].mp -= pRecord->mpCost;
                 } else {
                     g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].fuel -= pRecord->fuelCost;
@@ -888,12 +884,12 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
             refresh = 1;
             break;
         case 1:
-            if (arg2 == 0) {
+            if (group == 0) {
                 charSlot = func_801D9704(charSlot, 0, 0);
             }
             break;
         case 3:
-            if (arg2 == 0) {
+            if (group == 0) {
                 charSlot = func_801D9704(charSlot, 1, 0);
             }
             break;
@@ -913,8 +909,8 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
         D_801E9785 = 0;
     }
     MenuFreeWindow(2);
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 
 
 /* Best: 94.46%, 884 bytes - retail's exact size, 221 insns each. The whole body is
