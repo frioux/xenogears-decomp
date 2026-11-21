@@ -12,21 +12,24 @@ typedef struct {
     int hasOverlay;
 } MainGameState;
 
+// Header of one entry of the packet-node stream at g_BattlePacketNodeCursor.
 typedef struct {
-    u_char unk0;
-    u_char unk1;
-    short unk2;
+    u_char flags;
+    u_char pad1;
+    short count; // passed to the handler as its second argument
 } UnknownObject;
 
+// The leading 0x1C bytes of include/system/model.h's ModelPart, as
+// ModelRenderPacket/ModelInitializePacket read a model part.
 typedef struct {
-    /* 0x00 */ int unk0;
-    /* 0x04 */ u_short unk4;
-    /* 0x06 */ u_short unk6;
-    /* 0x08 */ void *unk8;
-    /* 0x0C */ void *unkC;
-    /* 0x10 */ UnknownObject *unk10;
-    /* 0x14 */ void *unk14;
-    /* 0x18 */ void *unk18;
+    /* 0x00 */ int flags;
+    /* 0x04 */ u_short polyCount;
+    /* 0x06 */ u_short nodeCount;
+    /* 0x08 */ void *pVertices;
+    /* 0x0C */ void *pNormals;
+    /* 0x10 */ UnknownObject *pNodes;
+    /* 0x14 */ void *pColors;
+    /* 0x18 */ void *pLightData;
 } UnknownObjectContainer; // size: 0x1C
 
 
