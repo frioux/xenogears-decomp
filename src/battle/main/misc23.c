@@ -437,44 +437,48 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
-/* 98.71% (gcc 2.6.0 --expand-div -G0, the unit preset): the whole function is
-   recovered - 232 instructions like retail, the same frame, the same registers
-   ($a1 = pSrc, $a0 = pSrc+2, $a2 = i*0x24, $a3 = i*0x18, $t0 = i) and every
-   load, store, displacement, null test and biv increment in retail's order.
-   The ONLY difference is the operand order of the 18 address addus: retail has
-   "addu v0,v0,a2" / "addu v0,v0,a3", gcc emits "addu v0,a2,v0". Semantically
-   identical, but the encoding differs so check_bin cannot pass.
-   Shapes tried on that sum (each one leaves everything else byte-identical,
-   so this is a single isolated tie and a good permuter/unpark candidate): the
-   plain array form (parked below), index constant-first (0x1740 + i*0x24), an
-   embedded assignment (pDst = ...)[K] and *((pDst = base + off) + K), a
-   pDst = g_BattleSpriteRenderData + i*0x24 per store, an integer (mem_addr) sum, and a plain
-   offset variable (s32 and u32) incremented in the body instead of a biv - all
-   still index-first. The one shape that DOES emit base-first is
-   "pDst = &g_BattleSpriteRenderData[i * 0x24 + 0x1740]; *pDst = ...", but it keeps 0x1740 in
-   the sum ("addu v0,t1,v0; sb v1,0(v0)") and moves the base to $t1. A 4-minute
-   permuter run found nothing (2036 iterations, base=300 best=300).
-   try_flags: 2.7.2 -G0 95.59, cdk -G0 79.78, 2.6.0 -O1 46.66, -O3 98.71, so
-   the preset is right.
-   Structure, for whoever unparks it: pSrc = g_BattleColorTintBase is a table of 24-byte
-   records of six 3-byte colours (advance 4 per colour). For i in 0..3: the four
-   0x1740/48/50/58 groups go into g_BattleSpriteRenderData + i*0x24, the 0x16E0 group and the
-   0x284 group (g_BattlePartPrimBuffers[0]) use i*0x18, and when g_BattleSpriteRenderData is NULL the five
-   groups are skipped with pSrc += 0x14. Then a second i in 0..1 loop writes the
-   0x2E4/2EC/2F4/2FC groups into g_BattlePartPrimBuffers[0] + i*0x24 (pSrc += 0x10 when it is
-   NULL), and the last two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers
-   set by BattleSetColorSources. Every store reloads its base global, so the
-   destination expression has to be written out in full at each store - a
-   pointer local collapses the twelve loads into one.
-   ROUND 290 re-measure of the operand-association family: the per-store element
-   pointer "pAddr = &((u8 *)g_BattleSpriteRenderData)[i * 0x24];" then
-   "pAddr[0x1740] = pSrc[0];" is still index-first ("addu a0,a3,v0") and moves
-   the base into $a3, and the constant-against-base grouping has no meaning here
-   because retail keeps 0x1740 as the store displacement while the sum is only
-   base + i*0x24. Still an open tie; the permuter has run twice (2036 and 993
-   iterations) without a find. */
-/*
+/* 98.71% at retail's exact 928 bytes / 232 instructions (unit preset gcc 2.6.0
+   --expand-div -G0): the whole function is recovered - the same frame, the same
+   registers ($a1 = pSrc, $a0 = pSrc+2, $a2 = i*0x24, $a3 = i*0x18, $t0 = i),
+   every load, store, displacement, null test and biv increment in retail's order.
+   The ONLY difference is the operand order of all 30 address addus: retail emits
+   'addu v0,v0,a2' (the reloaded g_BattleSpriteRenderData first) where this cc1
+   emits 'addu v0,a2,v0'.
+   ROUND 394 PROBES (tools/scripts/cc1_probe.sh battle/main/misc23 <snippet.c>, a
+   standalone loop with the unit's real cc1 and flags - this is the cheap way to
+   answer the question, the unit file does not need to be touched): every natural
+   spelling of the destination yields the INDEX-FIRST order -
+     g[i * 0x24 + 0x1740]                        -> addu $2,$4,$2
+     *(u8 *)(g + i * 0x24 + 0x1740)              -> addu $2,$4,$2
+     ((u8 *)(g + i * 0x24))[0x1740]             -> addu $2,$4,$2
+     ((u8 *)(off + (s32)g))[K] with s32 off      -> addu $2,$4,$2
+     offset first: i*0x24 + (s32)g + K           -> addu $2,$4,$2
+     struct view ((Row *)g)[i].c0[0]             -> addu $2,$4,$2
+   so the order comes from this cc1's address legitimisation (reload), not from the
+   source. THE ONE LEAD LEFT (lever b-embedded-assignment-temp-for-addu-order, round
+   391): an assignment embedded INSIDE the address expression does flip it - probed
+   '((u8 *)(g_BattleSpriteRenderData + (off = i * 0x24)))[0x1740] = pSrc[0];' emits
+   'addu $2,$2,$5' (base first). The probe's index then comes from a fresh
+   'sll $5,$7,2' per store instead of retail's biv $a2, so the shape to try is that
+   one with an offset variable the LOOP maintains (shared with the i*0x18 groups,
+   which need their own 0x18 stride). Also measured dead earlier: the plain
+   array form, index constant-first, embedded assignment, a per-store pointer
+   local, a mem_addr integer sum, a plain offset variable instead of a biv, and two
+   permuter runs (2036 and 993 iterations, base=300 best=300). try_flags: 2.7.2 -G0
+   95.59, cdk -G0 79.78, 2.6.0 -O1 46.66, -O3 98.71, so the preset is right too.
+   The one shape that DOES emit base-first is 'pDst = &g[i * 0x24 + 0x1740]', but it
+   keeps 0x1740 in the sum (an extra addiu per store) and moves the base to $t1.
+   Structure, for whoever picks this up: pSrc = g_BattleColorTintBase is a table of
+   0x18-byte records of six 3-byte colours (advance 4 per colour). For i in 0..3:
+   the 0x1740/48/50/58 groups go into g_BattleSpriteRenderData + i*0x24, the 0x16E0
+   group and the 0x284 group (g_BattlePartPrimBuffers[0]) use i*0x18, and when
+   g_BattleSpriteRenderData is NULL the five groups are skipped with pSrc += 0x14.
+   Then a second i in 0..1 loop writes the 0x2E4/2EC/2F4/2FC groups into
+   g_BattlePartPrimBuffers[0] + i*0x24 (pSrc += 0x10 when it is NULL), and the last
+   two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers set by
+   BattleSetColorSources. Every store reloads its base global, so the destination
+   expression has to be written out in full at each store - a pointer local
+   collapses the loads into one. *//*
 void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
@@ -541,8 +545,8 @@ void func_800A64E4(void) {
     g_BattleColorSourceB[0] = pSrc[0];
     g_BattleColorSourceB[1] = pSrc[1];
     g_BattleColorSourceB[2] = pSrc[2];
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
 
 void BattleApplyColorTint(u8 *pDst, s32 index, u8 *pSrc) {
     s32 r;
