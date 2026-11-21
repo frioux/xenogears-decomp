@@ -530,9 +530,13 @@ and `rename_data.py`), `tools/rounds/field-brief.js` (clones; renames and splits
 `unk` struct fields and proves the build) and `tools/rounds/const-brief.js` (clones;
 replaces raw numbers in matched C with named constants and proves the build).
 
-`tools/rounds/brief.js` carries the accumulated playbook (the C idioms, the
-blockers already proved, the two mandatory gates) — read it before writing a
-brief, and keep it up to date when a round teaches something new.
+`tools/rounds/brief.js` carries the worker protocol (ownership, the two mandatory
+gates, the stop rule, the report format). The accumulated C idioms and proved
+blockers live in `tools/rounds/levers.md`, looked up by symptom with
+`tools/scripts/lever.py <words>`; add a lever there when a round teaches one.
+`tools/rounds/next_round.py` plans a round (targets, clone tags, launch args),
+`tools/scripts/twin_for.py <Func>` finds an already-matched near-copy of a stub,
+and `tools/scripts/m2c_draft.sh <unit> <Func>` prints a first-draft body.
 
 Give workers the facts, not the hypothesis: the `.s` file, the current C, the
 preset for that unit, and the conventions above. Ask them to report exactly which
