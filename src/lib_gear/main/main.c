@@ -2064,6 +2064,239 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 
+// objdiff 86.24%, 2104 bytes against retail's 2136 (0x858). Every block below is
+// decoded from the .s and reproduced; what is left is 8 instructions plus the
+// frame, all of it register pressure:
+// - frame 0xF8 vs retail's 0x108: retail SPILLS width and height (word slots 0x78
+//   and 0x80, reloaded with `lhu 0x78(sp)` for the narrow uses and `lw` + `sll 16`
+//   for the `(u16)width == 0` tests). We keep both in $s2/$s3, so the two 8-byte
+//   spill slots are the whole 16-byte delta.
+// - the per-row `lw $t6,0x30(sp)` reload of pRows inside both copy loops (retail
+//   reloads the param spill each row, we hoist it into $t3 across the loop).
+// - two `move $a1,$v0` where the fill count lands in the loop-bound register, and
+//   two `move $a1,zero` for the running pixel accumulator.
+// Also allocation-only: retail has width in $s3 / height in $s2, we get the
+// reverse, and the fill colour sits in $a0 in retail, $s1 here.
+// WHAT THE CODE DOES (for the next round): fills a Temp8's three buffers from the
+// flags mask - 0x100 allocates pUnkC, 0x200 pUnk8, 0x400 pUnk4, each
+// (memoWidth * memoHeight * 2) bytes - then per 4-bit op nibble either uploads the
+// buffer with StoreImage at the triple's (x,y) or fills it (flat 15-bit colour, or
+// a 3-colour stripe picked by `(y + row) % 3`), or copies rows out of pRows.
+// Mode 0/1 rounds the width up to even ((width + 1) / 2 * 2); mode 4/5 uses it raw
+// and also handles the second buffer.
+// SOLVED, DO NOT RE-DERIVE:
+// - the mode dispatch: a `switch (mode)` with `case 0: case 1:` and
+//   `case 4: case 5:` grouped plus `default: return pTexture;` and a trailing
+//   `return pTexture;` reproduces retail's `bltz / slti 2 / slti 6 / slti 4` tree
+//   AND its two separate routes to the epilogue (an empty case group for 2/3 does
+//   not).
+// - the mask adjustments are `if ((mode & 1) == 0) mask &= 0xFD0F;` but
+//   `if (mode & 4) mask &= 0xFEFF;` - the second one's polarity is retail's
+//   (the AND is in the fall-through).
+// - the flat colour is `(((b & 0x3F) << 10) + ((g & 0x1F) << 5)) | (r & 0x1F)`:
+//   `+` for the first two fields then `|` (all `|` gives or/or, all `+` differs).
+// - `half` must be an int: `half = ((s16)width + 1) / 2;` gives retail's real
+//   signed /2 (srl 31 / addu / sra 1); an `s16 half` gives sll 15 / sra 16.
+// - the copy loop index needs the cast: `pUnk4[row * (s16)width + col]` keeps the
+//   `sra / mult / mflo` inside the inner loop as retail has it, while
+//   `row * width + col` makes gcc hoist the product into the row preheader.
+// - pRows is read as `pRows[3 * ((s16)y0 + row) + (s16)x0 + col]` (the casts are
+//   hoisted to one sra each, retail's t4/t2), and the pattern fill is
+//   `switch (((s16)y + row) % 3)` with the modulo hoisted once per row (retail's
+//   `lui/ori 0x55555556` magic-multiply).
+// - each buffer's three parameters serve as its region (x, y), its StoreImage rect
+//   origin AND its 15-bit fill colour (r = x, g = y, b = the third) - that is what
+//   retail does, not a transcription slip.
+// Tried and worse: `s16` loop counters (sign-extends every iteration), an
+// `int count` local for the fill loops (the permuter's 4-minute run, base 6619 ->
+// 6159, found ONLY that the product belongs inline in the loop condition, which is
+// in the body below), gcc 2.7.2 (84.42) and 2.7.2-cdk (80.00) via try_flags.sh.
+/*
+Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, u16 x0, u16 y0,
+                     u16 colour0, u16 x1, u16 y1, u16 colour1, u16 x, u16 y, u32 argWidth, u32 argHeight,
+                     u16 angleStep, u16 divisor, u16 offset, s16 (*pInterpolate)(u_short, s16, s16)) {
+    u32 width = argWidth;
+    u32 height = argHeight;
+    RECT rect;
+    u16 mask;
+    u16 colour;
+    int half;
+    int row;
+    int col;
+    int pixel;
+    int pixelB;
+    int i;
+
+    if (pTexture->isLoaded != 0) {
+        return NULL;
+    }
+
+    HeapChangeCurrentUser(HEAP_USER_MASA, HEAP_CONTENT_NULL);
+
+    pTexture->isLoaded = 1;
+    pTexture->unk11 = 0;
+    pTexture->mode = mode;
+    pTexture->pSource = pSource;
+    pTexture->unk14 = 0;
+    pTexture->prevFrame = 0xFFFF;
+    pTexture->angleStep = angleStep;
+    pTexture->divisor = divisor;
+    pTexture->offset = offset;
+    pTexture->pInterpolate = pInterpolate;
+    pTexture->pRows = pRows;
+
+    mask = flags;
+    if ((mode & 1) == 0) {
+        mask &= 0xFD0F;
+    }
+    if (mode & 4) {
+        mask &= 0xFEFF;
+    }
+    if (width == 0) {
+        width = 0x100;
+    }
+    if (height == 0) {
+        height = 0x100;
+    }
+
+    switch (mode) {
+        case 0:
+        case 1:
+            half = ((s16)width + 1) / 2;
+            width = half * 2;
+            pTexture->rect.x = x;
+            pTexture->rect.y = y;
+            pTexture->rect.w = width;
+            pTexture->rect.h = height;
+            pTexture->pixelCount = width * height;
+            if (mask & 0x100) {
+                pTexture->pUnkC = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+            }
+            if (mask & 0x200) {
+                pTexture->pUnk8 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+            }
+            if (mask & 0x400) {
+                pTexture->pUnk4 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+            }
+
+            switch (mask & 0xF) {
+                case 1:
+                    rect.x = x0;
+                    rect.y = y0;
+                    rect.w = width;
+                    rect.h = height;
+                    StoreImage(&rect, pTexture->pUnk4);
+                    DrawSync(0);
+                    break;
+                case 2:
+                    colour = (((colour0 & 0x3F) << 10) + ((y0 & 0x1F) << 5)) | (x0 & 0x1F);
+                    for (i = 0; i < (s16)width * (s16)height; i++) {
+                        pTexture->pUnk4[i] = colour;
+                    }
+                    break;
+            }
+
+            switch ((mask >> 4) & 0xF) {
+                case 1:
+                    rect.x = x1;
+                    rect.y = y1;
+                    rect.w = width;
+                    rect.h = height;
+                    StoreImage(&rect, pTexture->pUnk8);
+                    DrawSync(0);
+                    break;
+                case 2:
+                    colour = (((colour1 & 0x3F) << 10) + ((y1 & 0x1F) << 5)) | (x1 & 0x1F);
+                    for (i = 0; i < (s16)width * (s16)height; i++) {
+                        ((u16*)pTexture->pUnk8)[i] = colour;
+                    }
+                    break;
+            }
+            break;
+
+        case 4:
+        case 5:
+            pTexture->rect.x = x;
+            pTexture->rect.y = y;
+            pTexture->rect.w = width;
+            pTexture->rect.h = height;
+            pTexture->pixelCount = width * height;
+            if (mask & 0x100) {
+                pTexture->pUnkC = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+            }
+            if (mask & 0x200) {
+                pTexture->pUnk8 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+            }
+            if (mask & 0x400) {
+                pTexture->pUnk4 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+            }
+
+            switch (mask & 0xF) {
+                case 1:
+                    for (row = 0; row < (s16)height; row++) {
+                        for (col = 0; col < (s16)width; col++) {
+                            pTexture->pUnk4[row * (s16)width + col] = pRows[3 * ((s16)y0 + row) + (s16)x0 + col];
+                        }
+                    }
+                    break;
+                case 2:
+                    pixel = 0;
+                    for (row = 0; row < (s16)height; row++) {
+                        for (col = 0; col < (s16)width; col++) {
+                            switch (((s16)y + row) % 3) {
+                                case 0:
+                                    colour = x0;
+                                    break;
+                                case 1:
+                                    colour = y0;
+                                    break;
+                                case 2:
+                                    colour = colour0;
+                                    break;
+                            }
+                            pTexture->pUnk4[pixel + col] = colour;
+                        }
+                        pixel += width;
+                    }
+                    break;
+            }
+
+            switch ((mask >> 4) & 0xF) {
+                case 1:
+                    for (row = 0; row < (s16)height; row++) {
+                        for (col = 0; col < (s16)width; col++) {
+                            ((u16*)pTexture->pUnk8)[row * (s16)width + col] = pRows[3 * ((s16)y1 + row) + (s16)x1 + col];
+                        }
+                    }
+                    break;
+                case 2:
+                    pixelB = 0;
+                    for (row = 0; row < (s16)height; row++) {
+                        for (col = 0; col < (s16)width; col++) {
+                            switch (((s16)y + row) % 3) {
+                                case 0:
+                                    colour = x1;
+                                    break;
+                                case 1:
+                                    colour = y1;
+                                    break;
+                                case 2:
+                                    colour = colour1;
+                                    break;
+                            }
+                            ((u16*)pTexture->pUnk8)[pixelB + col] = colour;
+                        }
+                        pixelB += width;
+                    }
+                    break;
+            }
+            break;
+    }
+
+    return pTexture;
+}
+*/
+
 // objdiff 88.98%, 1048 bytes against retail's 1028. The whole structure is
 // reproduced: the unk14/angleStep advance with the pInterpolate callback, the
 // flush-on-negative path, the prevFrame latch, the four-way unk10 dispatch (0,1,4,5
@@ -2709,10 +2942,10 @@ typedef struct {
     /* 0x1A */ s16 unk1A;
 } ModelScriptCommand; // Size: 0x1C
 
-void func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 flags, u16 arg3, s16* pColorMatrix, s16 x, s16 y,
-                   s16 arg7, s16 z, s16 w, u16 unk10, s16 arg11, s16 arg12, u32 unk13, u32 unk14, s16 unk16,
-                   s16 unk18, s16 unk1A, s16 (*pInterpolate)(s16, s16, s16));
 
+Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, u16 x0, u16 y0,
+                     u16 colour0, u16 x1, u16 y1, u16 colour1, u16 x, u16 y, u32 width, u32 height,
+                     u16 angleStep, u16 divisor, u16 offset, s16 (*pInterpolate)(u_short, s16, s16));
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
 
