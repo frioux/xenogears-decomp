@@ -194,62 +194,60 @@ void BattleAddThreeFlaggedPrimLists(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
-/* 95.80% at retail's exact 186 instructions (744 bytes), frame 0x20 / s0-s2+ra
-   exact. All twelve AddPrim sites and the two g_BattlePrimStartIndex chains are
-   recovered; the 8 prim lists are called in retail's source order, which is
-   0x280, 0x2D0, 0x320, 0x370 first and then 0x140, 0x190, 0x1E0, 0x230 - not
-   ascending. What is left is two instruction-shape ties:
-   (1) retail emits `addiu a1,a1,0x...` with a1 = count*40 (constant added to the
-   PRODUCT) then `addu a1,s0,a1` (base last) in the jal delay slot; every
-   spelling of `count * 40 + CONST + (s32)pSlot` is reassociated by gcc into
-   `count*40 + (CONST + pSlot)` (`addiu v0,s0,CONST` + `addu a1,a1,v0`), and so
-   is `(s32)pSlot + (count * 40 + CONST)` (86.90%). Giving the sum its own
-   `s32 off` local does produce retail's `addiu a1,a1,CONST`, but gcc then hoists
-   the `lbu 0x5A4(s0)` out of the call sequence and it drops to 80.72.
-   (2) the two `g_BattlePrimStartIndex * 12` chains differ only in which
-   registers gcc picks ($v0/$v1 swapped) and in the final `addu` operand order
-   (`addu a1,a1,v1` against `addu a1,v0,a1`).
-   Note the last two AddPrim offsets are `count * sizeof(POLY_G4)` (36) at 0x3C0
-   and `count * sizeof(DR_MODE)` (12) at 0x408, which is what the BattleSlotGraphics
-   header's prims[2]/drawModes[2] fields lay out.
+/* 99.84% at retail's exact 744 bytes / 186 instructions, frame 0x20 and mask
+   s0-s2+ra exact. THREE instructions differ, all the same shape: the AddPrim
+   delay slot is `addu a1,a1,v1` (index sum first, prim base second) where this
+   body emits `addu a1,v1,a1` - nothing is missing on either side, only the
+   operand order of a commutative add differs.
+   The lever that got here (was 95.80): write every prim address as a SUBSCRIPT
+   on the base - `&((u8 *)g_BattleGraphicsWork)[g_BattlePrimStartIndex * 12 +
+   0x8920]` and `&((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280]` -
+   instead of the cast form `(u8 *)(prod + CONST + (s32)base)`. The cast form
+   makes gcc fold the CONSTANT onto the base (`addiu v0,s0,0x280`, product added
+   last); the subscript keeps the offset an integer expression, so the constant
+   lands on the product (`addiu a1,a1,0x280`) exactly as retail has it. That one
+   spelling closed all 13 sites and took it 95.80 -> 99.84.
+   Measured dead for the remaining operand order: a `mem_addr` or `u8 *` base
+   local assigned once at the top and summed index-first at each site (90.52%,
+   732 bytes - gcc shares the pointer and loses three address forms).
+   The permuter cannot parse this body (`conversion to non-scalar type requested`
+   from its C parser). The three sites are the two g_BattlePrimStartIndex*12
+   chains and the 0x5A0 one.
 */
 /*
 void func_80073FB8(void) {
     BattleSlotGraphics *pSlot;
     s32 i;
 
-    AddPrim(g_BattleCurOT[0] + 4,
-            (u8 *)(g_BattlePrimStartIndex * 12 + 0x8920 + (s32)g_BattleGraphicsWork));
+    AddPrim(g_BattleCurOT[0] + 4, &((u8 *)g_BattleGraphicsWork)[g_BattlePrimStartIndex * 12 + 0x8920]);
 
     for (i = 0; i < 4; i++) {
         if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0x7F) != 0 && g_BattleDisplayMode == 1) {
             AddPrim(g_BattleCurOT[0] + 4,
-                    (u8 *)((i * 2 + *(u8 *)((u8 *)g_BattleDisplayState + i + 0x84)) * 52 + 0x5A0 +
-                           (s32)g_BattleGraphicsWork));
+                    &((u8 *)g_BattleGraphicsWork)[(i * 2 + *(u8 *)((u8 *)g_BattleDisplayState + i + 0x84)) * 52 +
+                                                0x5A0]);
         }
     }
 
-    AddPrim(g_BattleCurOT[0] + 4,
-            (u8 *)(g_BattlePrimStartIndex * 12 + 0x8908 + (s32)g_BattleGraphicsWork));
+    AddPrim(g_BattleCurOT[0] + 4, &((u8 *)g_BattleGraphicsWork)[g_BattlePrimStartIndex * 12 + 0x8908]);
 
     for (i = 0; i < 7; i++) {
         if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xB0) != 0) {
             pSlot = g_BattleSlotGraphics[i];
             func_800728B8((u8 *)pSlot, pSlot->packageCount, *(u8 *)((u8 *)pSlot + 0x5A4));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x2D0 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x320 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x370 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x140 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x190 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x1E0 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x230 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(POLY_G4) + 0x3C0 + (s32)pSlot));
-            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(DR_MODE) + 0x408 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x2D0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x320]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x370]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x140]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x190]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x1E0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x230]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(POLY_G4) + 0x3C0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(DR_MODE) + 0x408]);
         }
     }
-}
-*/
+}*/
 void BattleRenderSlotStatDigits(void) {
     s32 flagOfs;
     s32 i;
@@ -434,41 +432,44 @@ void BattleAddPrimAndRenderObject(void) {
     }
 }
 
-/* 79.17% (340 bytes against retail 344, frame 0x30 and mask s0-s3+ra exact).
-   Everything is in place except two instruction-level leftovers: gcc cross-jumps
-   the shared `0x40 - w/2` / `0x9A - w/2` subu out of both arms (retail duplicates
-   it, one more instruction) and the final `+ off` addu comes out
-   `addu a0,a0,s0` where retail has `addu a0,s0,a0`. Three levers got here from
-   62.98: (1) g_BattleTextSlotVisible/g_BattleTextSlotFlags are VOLATILE - retail loads g_BattleTextSlotFlags[off]
-   twice per arm instead of CSE-ing it, and volatile is also what stops loop.c
-   from making an address biv for each (three bivs with a plain declaration);
-   (2) g_BattleCurOT is declared as an array so its address is materialised in a
-   register (retail keeps it in $s3 and reads 0($s3) and 0x30($s3) - the 0x30 is
-   g_BattlePrimStartIndex, and retail reaches it through that base ONLY in the
-   AddPrim index, the SetPolyFT4 call uses the symbol itself);
-   (3) g_BattlePrimBuffer as an array, and the prim address associated as
-   `prod + ((s32)g_BattlePrimBuffer + off)` (the `off + (prod + base)` spelling makes
-   gcc extract a `base + off` biv and costs a register and 8 bytes).
-   The source indexes with i*0x60: retail folds g_BattleTextSlotFlags[i*0x60] in the i==0
-   arm to the bare symbol, so it knew the index was 0 there.
+/* 85.91% at retail's exact 344 bytes, frame 0x30 and mask s0-s3+ra exact, and
+   the instruction multiset is now identical - what is left is a register
+   permutation inside the two arms (retail keeps the 13*(i/2) chain in $v1, the
+   flags byte in $v0 and the x argument in $a1, and puts the $a5c delay slot's
+   `srl v0,s1,0x1f` where this body puts a speculative `li a2,0xca`), plus the
+   two `addu a0,s0,a0` / `addu a1,s0,a1` operand orders (the `off + (prod + base)`
+   spelling that would produce them makes loop.c create a second accumulator).
+   Three body shapes had to be right to get here from 57: (1) `off` is an
+   accumulator local, NOT an inline `i * 0x60` - the inline form makes loop.c
+   build an address biv for every use site (four accumulators, 376 bytes, 57.11);
+   (2) the x argument gets its own `s32 x` local assigned per arm, which is what
+   keeps retail's duplicated `subu a1,a1,v0` in each arm instead of one shared
+   copy in the join block; (3) the 13*(i/2) value is carried in a `u8 v` through
+   an embedded assignment at the argument (permuter find, 79.52 -> 85.91).
+   A 5-minute permuter run from this body returned only candidates that reuse
+   `off` for x (wrong code, rejected).
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
 /*
 void func_8007500C(void) {
     s32 i;
     s32 off;
+    s32 x;
+    u8 v;
 
     i = 0;
     off = 0;
     do {
         if (g_BattleTextSlotVisible[off] != 0) {
             if (i == 0) {
+                x = 0x40 - (g_BattleTextSlotFlags[off] >> 1);
                 BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex * 40 + (s32)g_BattlePrimBuffer),
-                                        0x40 - (g_BattleTextSlotFlags[off] >> 1), 0x2C, 0, 0, g_BattleTextSlotFlags[off]);
+                                        x, 0x2C, 0, 0, g_BattleTextSlotFlags[off]);
             } else {
+                x = 0x9A - (g_BattleTextSlotFlags[off] >> 1);
                 BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex * 40 + ((s32)g_BattlePrimBuffer + off)),
-                                        0x9A - (g_BattleTextSlotFlags[off] >> 1), 0xCA, 0,
-                                        (13 * (i / 2)) & 0xFF, g_BattleTextSlotFlags[off]);
+                                        x, 0xCA, 0,
+                                        v = (13 * (i / 2)) & 0xFF, g_BattleTextSlotFlags[off]);
             }
             AddPrim(g_BattleCurOT[0] + 4,
                     (u8 *)(((s32 *)g_BattleCurOT)[12] * 40 + ((s32)g_BattlePrimBuffer + off)));
@@ -476,8 +477,8 @@ void func_8007500C(void) {
         i++;
         off += 0x60;
     } while (i < 8);
-}
-*/
+}*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
 void BattleDrawFrameScreenMode1(void) {
@@ -533,7 +534,8 @@ void BattleDrawFrameByScreenMode(void) {
     }
 }
 
-/* 97.59%: 332 bytes, retail's exact size, one instruction out of place - gcc emits
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
+/* 97.59%: 332 bytes, retail's exact size, ONE instruction out of place - gcc emits
    the `sll v0,v0,1` (the u16 scale in the g_BattleSlotScreenOrigins index) before the
    `lui %hi/addiu %lo` of the symbol, retail after it. A two-minute permuter run from
    this body returned PERMUTER_NONE at base=60 (one instruction). What the body needed:
@@ -545,6 +547,14 @@ void BattleDrawFrameByScreenMode(void) {
    the 0x5C pair; (4) the 0x5C=divisor store is the embedded assignment of the divisor
    expression (permuter find); (5) `pTail[slot + 0x90] -= 1` inside an embedded
    assignment of the base is what gives retail's `addu v1,v1,a2` operand order.
+   Re-measured this round: the body compiles and still scores 97.59. Two more
+   spellings tried for the sll: the cast form `(u16 *)((page * 3 + slot) * 2 +
+   (s32)g_BattleSlotScreenOrigins)` is byte-identical to `&arr[i]` (97.59), and the
+   two-statement `pOrigins = g_BattleSlotScreenOrigins; pOrigin = &pOrigins[...]`
+   DOES move the sll after the lui/addiu but pushes the g_BattleSlotScreenOrigins
+   load above g_BattleDisplayState and costs 9 points (88.80).
+*/
+/*
 void func_800765C4(s32 slot) {
     u16 *pOrigin;
     u8 *pTail;
@@ -589,9 +599,7 @@ void func_800765C4(s32 slot) {
     *(s32 *)(pWork + 0x54) = scaled;
     *(u8 *)(pAb + 0xAB) = 1;
     *((pTail = (u8 *)g_BattleDisplayState) + slot + 0x90) -= 1;
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 /* 95.68% at retail's exact 728 bytes; 4-minute permuter runs from 91.53 and from
    this body both returned BETTER on their own metric but the ported edits were
