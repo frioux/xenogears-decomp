@@ -1344,12 +1344,12 @@ extern s32 g_FieldArchiveStreamStatus;
 extern s32 g_FieldArchiveStreamActive;
 extern void* g_FieldArchiveStreamBlock;
 extern void* g_FieldArchiveStreamCallback;
-int func_80028B14(void);
+int ArchiveReadStreamSector(void);
 int* ArchiveAllocStreamFile(int numEntries, int allocMode);
 void ArchiveReadFileToBuffer(int fileIndex, void* pBuffer, int arg2, int size);
 
 int FieldStepArchiveStream(void) {
-    int result = func_80028B14();
+    int result = ArchiveReadStreamSector();
 
     g_FieldArchiveStreamStatus = result;
     if (result != 0) {

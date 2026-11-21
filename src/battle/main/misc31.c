@@ -83,15 +83,15 @@ extern void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4);
 extern void func_800A4654(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, s32 depth,
                           s32 primIndex, SVECTOR *pC, SVECTOR *pD, s32 scale);
 extern SVECTOR g_BattleSlotVectors;
-extern SVECTOR D_800D335C;
+extern SVECTOR g_BattleSlotVectorsB;
 extern SVECTOR D_800C3730;
 extern SVECTOR g_BattleDrawScaleX;
 extern u8 g_BattleSlotDrawSuppressed;
 extern u8 g_BattleStateWork[];
 
-extern IVEC3 *D_800D39EC;
-extern s32 D_800C3738;
-extern s16 D_800C373C;
+extern IVEC3 *g_BattleAnimSweepPos;
+extern s32 g_BattleAnimSweepRadius;
+extern s16 g_BattleAnimSweepAngle;
 
 // The battle animation frame: the two group reference vectors the slot vectors are
 // cued towards (g_BattleAnimGroupStates is that pair), the rotation built from their
@@ -105,7 +105,7 @@ typedef struct {
     /* 0x1C */ s32 distance;
 } BattleAnimFrame; // Size: 0x20
 
-extern BattleAnimFrame D_800D309C;
+extern BattleAnimFrame g_BattleAnimFrame;
 
 // The three actor-slot spawn positions the slot allocator hands out, one pair each.
 typedef struct {
@@ -364,7 +364,7 @@ void func_800BB9D4(void) {
     s32 depth;
     s32 primIndex;
 
-    BattleBuildMatrixFromThreeVectors(&g_BattleViewMatrix, &g_BattleSlotVectors, &D_800D335C,
+    BattleBuildMatrixFromThreeVectors(&g_BattleViewMatrix, &g_BattleSlotVectors, &g_BattleSlotVectorsB,
                                       &D_800C3730);
     pViewTrans = (s32 *)((u8 *)&g_BattleViewMatrix - 0x20);
     pViewTrans[0xD] += g_BattleDrawScaleX.vx;
@@ -376,7 +376,7 @@ void func_800BB9D4(void) {
         depth = *(s32 *)(pWork + 0xC54);
         primIndex = *(s32 *)(pWork + 0xC84);
         func_800A4654(&g_BattleViewMatrix, NULL, NULL, depth, primIndex, &g_BattleSlotVectors,
-                      &D_800D335C, 0x1000);
+                      &g_BattleSlotVectorsB, 0x1000);
     }
 }
 */
@@ -397,7 +397,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 // slots first. The tail's VECTORs therefore sit in their own block behind two dead ones:
 // retail's frame has 16-byte holes at 0x20, 0x30 and 0x50, and a declared-but-unused
 // local of that size is the only thing that reproduces them.
-void func_800BBAB8(void) {
+void BattleUpdateAnimFrame(void) {
     IVEC3 *pSource;
     s16 *pStates;
     s32 horizLen;
@@ -422,16 +422,16 @@ void func_800BBAB8(void) {
             SVECTOR vecA;
             SVECTOR vecB;
 
-            pSource = D_800D39EC;
+            pSource = g_BattleAnimSweepPos;
             vecA.vx = pSource->x >> 16;
             vecB.vx = vecA.vx;
             vecA.vy = pSource->y >> 16;
             vecA.vz = pSource->z >> 16;
             // the angle sweeps the second vector off the first along the y/z plane
-            vecB.vz = vecA.vz - rsin(D_800C373C) * D_800C3738 / 4096;
-            vecB.vy = vecA.vy - rcos(D_800C373C) * D_800C3738 / 4096;
-            D_800D309C.groupA = vecB;
-            D_800D309C.groupB = vecA;
+            vecB.vz = vecA.vz - rsin(g_BattleAnimSweepAngle) * g_BattleAnimSweepRadius / 4096;
+            vecB.vy = vecA.vy - rcos(g_BattleAnimSweepAngle) * g_BattleAnimSweepRadius / 4096;
+            g_BattleAnimFrame.groupA = vecB;
+            g_BattleAnimFrame.groupB = vecA;
         }
         break;
     }
@@ -441,9 +441,9 @@ void func_800BBAB8(void) {
 
         // the depth cue value scales the gap, so a small gap does not move the slot
         gte_lddp(g_BattleGteDepthCueValue);
-        gap[0] = D_800D309C.groupA.vx - g_BattleSlotVectors.vx;
-        gap[1] = D_800D309C.groupA.vy - g_BattleSlotVectors.vy;
-        gap[2] = D_800D309C.groupA.vz - g_BattleSlotVectors.vz;
+        gap[0] = g_BattleAnimFrame.groupA.vx - g_BattleSlotVectors.vx;
+        gap[1] = g_BattleAnimFrame.groupA.vy - g_BattleSlotVectors.vy;
+        gap[2] = g_BattleAnimFrame.groupA.vz - g_BattleSlotVectors.vz;
         gte_ldlvl(gap);
         gte_gpf12();
         gte_stlvl(gap);
@@ -456,28 +456,28 @@ void func_800BBAB8(void) {
             // the subobject address rather than on the frame's base register
             SVECTOR *pGroupA;
 
-            pGroupA = &D_800D309C.groupA;
+            pGroupA = &g_BattleAnimFrame.groupA;
             g_BattleSlotVectors.vx = pGroupA->vx;
             g_BattleSlotVectors.vy = pGroupA->vy;
             g_BattleSlotVectors.vz = pGroupA->vz;
         }
-        gap[0] = D_800D309C.groupB.vx - D_800D335C.vx;
-        gap[1] = D_800D309C.groupB.vy - D_800D335C.vy;
-        gap[2] = D_800D309C.groupB.vz - D_800D335C.vz;
+        gap[0] = g_BattleAnimFrame.groupB.vx - g_BattleSlotVectorsB.vx;
+        gap[1] = g_BattleAnimFrame.groupB.vy - g_BattleSlotVectorsB.vy;
+        gap[2] = g_BattleAnimFrame.groupB.vz - g_BattleSlotVectorsB.vz;
         gte_ldlvl(gap);
         gte_gpf12();
         gte_stlvl(gap);
         if ((gap[0] | gap[2] | gap[1]) != 0) {
-            D_800D335C.vx += gap[0];
-            D_800D335C.vy += gap[1];
-            D_800D335C.vz += gap[2];
+            g_BattleSlotVectorsB.vx += gap[0];
+            g_BattleSlotVectorsB.vy += gap[1];
+            g_BattleSlotVectorsB.vz += gap[2];
         } else {
             SVECTOR *pGroupB;
 
-            pGroupB = &D_800D309C.groupB;
-            D_800D335C.vx = pGroupB->vx;
-            D_800D335C.vy = pGroupB->vy;
-            D_800D335C.vz = pGroupB->vz;
+            pGroupB = &g_BattleAnimFrame.groupB;
+            g_BattleSlotVectorsB.vx = pGroupB->vx;
+            g_BattleSlotVectorsB.vy = pGroupB->vy;
+            g_BattleSlotVectorsB.vz = pGroupB->vz;
         }
     }
 
@@ -490,15 +490,15 @@ void func_800BBAB8(void) {
         VECTOR square;
 
         // the frame's rotation and distance are built from the slot vectors' gap
-        delta.vx = D_800D335C.vx - g_BattleSlotVectors.vx;
-        delta.vy = D_800D335C.vy - g_BattleSlotVectors.vy;
-        delta.vz = D_800D335C.vz - g_BattleSlotVectors.vz;
+        delta.vx = g_BattleSlotVectorsB.vx - g_BattleSlotVectors.vx;
+        delta.vy = g_BattleSlotVectorsB.vy - g_BattleSlotVectors.vy;
+        delta.vz = g_BattleSlotVectorsB.vz - g_BattleSlotVectors.vz;
         Square0(&delta, &square);
         horizLen = SquareRoot0(square.vx + square.vz);
-        D_800D309C.distance = SquareRoot0(square.vx + square.vy + square.vz);
-        D_800D309C.rotation.y = -ratan2(delta.vz, delta.vx);
-        D_800D309C.rotation.x = -ratan2(delta.vy, horizLen);
-        D_800D309C.rotation.z = 0;
+        g_BattleAnimFrame.distance = SquareRoot0(square.vx + square.vy + square.vz);
+        g_BattleAnimFrame.rotation.y = -ratan2(delta.vz, delta.vx);
+        g_BattleAnimFrame.rotation.x = -ratan2(delta.vy, horizLen);
+        g_BattleAnimFrame.rotation.z = 0;
     }
 }
 

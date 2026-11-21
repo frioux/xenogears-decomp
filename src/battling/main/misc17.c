@@ -250,7 +250,7 @@ void func_8008E120(void) {
     BattleEffectCopyBuffers();
 }
 */
-void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
+void BattleDrawEffectTile(u8* pOt, s32 color, s32 flag) {
     TILE* pTile;
 
     pTile = &g_BattleEffectTiles[g_BattleDrawBufferIndex];

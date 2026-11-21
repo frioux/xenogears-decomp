@@ -616,12 +616,12 @@ void FieldLoadTextRenderFiles(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
 /* 89.64% (1520 bytes = retail's exact instruction count; 380 insns). Structure
-   is fully recovered: the two 2-element POLY_GT4 arrays D_800AF788 /
-   D_800AF7F0 built with the setRGB/setXY/setUV macros (one store per field,
+   is fully recovered: the two 2-element POLY_GT4 arrays g_FieldTextGradientTopQuads /
+   g_FieldTextGradientBottomQuads built with the setRGB/setXY/setUV macros (one store per field,
    absolute `lui $at` addressing - a pointer local turns all 56 stores into
    `sb off(reg)` and drops the code by half), tpage/clut from
-   GetTPage/GetClut, the two 0x34-byte struct copies (`D_800AF788[1] =
-   D_800AF788[0]`), HeapAlloc(0x1000,1), then 16 blocks of 0x100 bytes with
+   GetTPage/GetClut, the two 0x34-byte struct copies (`g_FieldTextGradientTopQuads[1] =
+   g_FieldTextGradientTopQuads[0]`), HeapAlloc(0x1000,1), then 16 blocks of 0x100 bytes with
    8 SPRTs copied from sprites[0][0] and the 4x2 draw modes. That last loop is
    already byte-identical, including the spill of pSprite to 0x18(sp) and the
    0x48 frame - and it ONLY comes out that way if the inner loop indexes the
@@ -648,8 +648,8 @@ typedef struct {
     SPRT sprites[2][4];    // 0x60
 } FieldTextRowPrims; // Size: 0x100
 
-extern POLY_GT4 D_800AF788[2];
-extern POLY_GT4 D_800AF7F0[2];
+extern POLY_GT4 g_FieldTextGradientTopQuads[2];
+extern POLY_GT4 g_FieldTextGradientBottomQuads[2];
 extern s32 g_FieldTextRenderPrimBlocks;
 
 // Build the two gradient quads the text rows are drawn through, then allocate
@@ -660,58 +660,58 @@ void func_800AC3AC(void) {
     s32 i;
     s32 j;
 
-    SetPolyGT4(&D_800AF788[0]);
-    SetPolyGT4(&D_800AF7F0[0]);
+    SetPolyGT4(&g_FieldTextGradientTopQuads[0]);
+    SetPolyGT4(&g_FieldTextGradientBottomQuads[0]);
 
     // Top quad: white at the top edge, black at the bottom edge
-    setRGB0(&D_800AF788[0], 0xFF, 0xFF, 0xFF);
-    setXY0(&D_800AF788[0], 0, 0);
-    setUV0(&D_800AF788[0], 0, 0);
-    setRGB1(&D_800AF788[0], 0xFF, 0xFF, 0xFF);
-    D_800AF788[0].x1 = 0x280;
-    D_800AF788[0].y1 = 0;
-    D_800AF788[0].u1 = 2;
-    D_800AF788[0].v1 = 0;
-    setRGB2(&D_800AF788[0], 0, 0, 0);
-    D_800AF788[0].x2 = 0;
-    D_800AF788[0].y2 = 0x18;
-    D_800AF788[0].u2 = 0;
-    D_800AF788[0].v2 = 2;
-    setRGB3(&D_800AF788[0], 0, 0, 0);
-    D_800AF788[0].x3 = 0x280;
-    D_800AF788[0].y3 = 0x18;
-    D_800AF788[0].u3 = 2;
-    D_800AF788[0].v3 = 2;
+    setRGB0(&g_FieldTextGradientTopQuads[0], 0xFF, 0xFF, 0xFF);
+    setXY0(&g_FieldTextGradientTopQuads[0], 0, 0);
+    setUV0(&g_FieldTextGradientTopQuads[0], 0, 0);
+    setRGB1(&g_FieldTextGradientTopQuads[0], 0xFF, 0xFF, 0xFF);
+    g_FieldTextGradientTopQuads[0].x1 = 0x280;
+    g_FieldTextGradientTopQuads[0].y1 = 0;
+    g_FieldTextGradientTopQuads[0].u1 = 2;
+    g_FieldTextGradientTopQuads[0].v1 = 0;
+    setRGB2(&g_FieldTextGradientTopQuads[0], 0, 0, 0);
+    g_FieldTextGradientTopQuads[0].x2 = 0;
+    g_FieldTextGradientTopQuads[0].y2 = 0x18;
+    g_FieldTextGradientTopQuads[0].u2 = 0;
+    g_FieldTextGradientTopQuads[0].v2 = 2;
+    setRGB3(&g_FieldTextGradientTopQuads[0], 0, 0, 0);
+    g_FieldTextGradientTopQuads[0].x3 = 0x280;
+    g_FieldTextGradientTopQuads[0].y3 = 0x18;
+    g_FieldTextGradientTopQuads[0].u3 = 2;
+    g_FieldTextGradientTopQuads[0].v3 = 2;
 
     // Bottom quad: the gradient reversed
-    setRGB0(&D_800AF7F0[0], 0, 0, 0);
-    setXY0(&D_800AF7F0[0], 0, 0xC8);
-    setUV0(&D_800AF7F0[0], 0, 0);
-    setRGB1(&D_800AF7F0[0], 0, 0, 0);
-    D_800AF7F0[0].x1 = 0x280;
-    D_800AF7F0[0].y1 = 0xC8;
-    D_800AF7F0[0].u1 = 2;
-    D_800AF7F0[0].v1 = 0;
-    setRGB2(&D_800AF7F0[0], 0xFF, 0xFF, 0xFF);
-    D_800AF7F0[0].x2 = 0;
-    D_800AF7F0[0].y2 = 0xE0;
-    D_800AF7F0[0].u2 = 0;
-    D_800AF7F0[0].v2 = 2;
-    setRGB3(&D_800AF7F0[0], 0xFF, 0xFF, 0xFF);
-    D_800AF7F0[0].x3 = 0x280;
-    D_800AF7F0[0].y3 = 0xE0;
-    D_800AF7F0[0].u3 = 2;
-    D_800AF7F0[0].v3 = 2;
+    setRGB0(&g_FieldTextGradientBottomQuads[0], 0, 0, 0);
+    setXY0(&g_FieldTextGradientBottomQuads[0], 0, 0xC8);
+    setUV0(&g_FieldTextGradientBottomQuads[0], 0, 0);
+    setRGB1(&g_FieldTextGradientBottomQuads[0], 0, 0, 0);
+    g_FieldTextGradientBottomQuads[0].x1 = 0x280;
+    g_FieldTextGradientBottomQuads[0].y1 = 0xC8;
+    g_FieldTextGradientBottomQuads[0].u1 = 2;
+    g_FieldTextGradientBottomQuads[0].v1 = 0;
+    setRGB2(&g_FieldTextGradientBottomQuads[0], 0xFF, 0xFF, 0xFF);
+    g_FieldTextGradientBottomQuads[0].x2 = 0;
+    g_FieldTextGradientBottomQuads[0].y2 = 0xE0;
+    g_FieldTextGradientBottomQuads[0].u2 = 0;
+    g_FieldTextGradientBottomQuads[0].v2 = 2;
+    setRGB3(&g_FieldTextGradientBottomQuads[0], 0xFF, 0xFF, 0xFF);
+    g_FieldTextGradientBottomQuads[0].x3 = 0x280;
+    g_FieldTextGradientBottomQuads[0].y3 = 0xE0;
+    g_FieldTextGradientBottomQuads[0].u3 = 2;
+    g_FieldTextGradientBottomQuads[0].v3 = 2;
 
-    D_800AF788[0].tpage = GetTPage(1, 2, 0x3C0, 0x100);
-    D_800AF7F0[0].tpage = GetTPage(1, 2, 0x3C0, 0x100);
-    D_800AF788[0].clut = GetClut(0, 0x1FF);
-    D_800AF7F0[0].clut = GetClut(0, 0x1FF);
-    SetSemiTrans(&D_800AF788[0], 1);
-    SetSemiTrans(&D_800AF7F0[0], 1);
+    g_FieldTextGradientTopQuads[0].tpage = GetTPage(1, 2, 0x3C0, 0x100);
+    g_FieldTextGradientBottomQuads[0].tpage = GetTPage(1, 2, 0x3C0, 0x100);
+    g_FieldTextGradientTopQuads[0].clut = GetClut(0, 0x1FF);
+    g_FieldTextGradientBottomQuads[0].clut = GetClut(0, 0x1FF);
+    SetSemiTrans(&g_FieldTextGradientTopQuads[0], 1);
+    SetSemiTrans(&g_FieldTextGradientBottomQuads[0], 1);
 
-    D_800AF788[1] = D_800AF788[0];
-    D_800AF7F0[1] = D_800AF7F0[0];
+    g_FieldTextGradientTopQuads[1] = g_FieldTextGradientTopQuads[0];
+    g_FieldTextGradientBottomQuads[1] = g_FieldTextGradientBottomQuads[0];
 
     g_FieldTextRenderPrimBlocks = (s32)HeapAlloc(0x1000, 1);
     for (i = 0; i < 0x10; i++) {
@@ -754,7 +754,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
    lh for the y0 clone (the `& 0xFF` lets combine drop the sign extension; a
    sign-dependent use of the loaded y0 is still missing). Tried: an `other`
    local vs the inline (ctx + 1) & 1, the two poly arguments as rows of
-   D_800AF788[2][2] vs D_800AF7F0[ctx] and D_800AF7F0[ctx - 2] (the latter
+   g_FieldTextGradientTopQuads[2][2] vs g_FieldTextGradientBottomQuads[ctx] and g_FieldTextGradientBottomQuads[ctx - 2] (the latter
    reproduces the original's single base symbol plus a -0x68 fold exactly),
    the y0 stores hoisted above the inner loop as four statements (80.70%,
    512 bytes, 8 short: gcc then merges the two 0x14-stride sprite walkers into
@@ -776,7 +776,7 @@ typedef struct {
     SPRT sprites[2][4];    // 0x60
 } FieldEffectPrimBlock; // Size: 0x100
 
-extern POLY_GT4 D_800AF7F0[2];
+extern POLY_GT4 g_FieldTextGradientBottomQuads[2];
 extern s32 g_FieldTextRenderPrimBlocks;
 
 void func_800AC99C(void) {
@@ -786,8 +786,8 @@ void func_800AC99C(void) {
     int j;
 
     ctx = g_FieldCurRenderContextIndex;
-    addPrim(g_FieldCurRenderContext->ot3, &D_800AF7F0[ctx]);
-    addPrim(g_FieldCurRenderContext->ot3, &D_800AF7F0[ctx - 2]);
+    addPrim(g_FieldCurRenderContext->ot3, &g_FieldTextGradientBottomQuads[ctx]);
+    addPrim(g_FieldCurRenderContext->ot3, &g_FieldTextGradientBottomQuads[ctx - 2]);
 
     pBlock = (FieldEffectPrimBlock*)g_FieldTextRenderPrimBlocks;
     for (i = 0; i < 0x1000; i += 0x100) {

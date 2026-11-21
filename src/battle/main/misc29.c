@@ -493,7 +493,7 @@ void func_800B8098(s32 stage) {
 
 
 /* The stage origins BattleInitStageDisplay publishes: g_BattleSlotVectors is the origin
-   pair 8 bytes behind D_800D335C, so both globals are two of these. */
+   pair 8 bytes behind g_BattleSlotVectorsB, so both globals are two of these. */
 typedef struct {
     /* 0x0 */ SVEC vec;
     /* 0x6 */ u16 unk6;
@@ -502,7 +502,7 @@ typedef struct {
 extern BattleStageData *g_BattleStageData;
 extern BattleStageOrigin g_BattleAnimGroupStates[2];
 extern BattleStageOrigin g_BattleSlotVectors[2];
-extern SVEC D_800D335C;
+extern SVEC g_BattleSlotVectorsB;
 extern s32 g_GameWdsEntrySlot3;
 extern void func_801E62E0(s32 arg0);
 extern void BattleInitFrameRenderState(void);
@@ -520,7 +520,7 @@ void BattleInitStageDisplay(s32 arg0) {
                   g_BattleStageData->unk482.z);
     SpriteSetSVec(&g_BattleAnimGroupStates[1].vec, g_BattleStageData->unk47C.x, g_BattleStageData->unk47C.y,
                   g_BattleStageData->unk47C.z);
-    SpriteSetSVec(&D_800D335C, g_BattleStageData->unk47C.x, g_BattleStageData->unk47C.y,
+    SpriteSetSVec(&g_BattleSlotVectorsB, g_BattleStageData->unk47C.x, g_BattleStageData->unk47C.y,
                   g_BattleStageData->unk47C.z);
     SetDispMask(1);
 }

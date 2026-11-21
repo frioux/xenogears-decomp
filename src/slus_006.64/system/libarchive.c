@@ -418,7 +418,7 @@ int ArchiveClearStreamFileSections(void) {
     return nEntries;
 }
 
-u_char* func_80028B14(void) {
+u_char* ArchiveReadStreamSector(void) {
     u_char* pData;
     ArchiveStreamFileSectionHeader* pHeader;
     ArchiveStreamFileSectionHeader* pHeaders;

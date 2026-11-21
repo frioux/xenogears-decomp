@@ -26,7 +26,7 @@ extern u16 D_800C3BA8;
 extern u16 g_BattleSlotVectors[];
 extern s16 D_800D3356;
 extern u16 D_800D3358;
-extern u16 D_800D335C;
+extern u16 g_BattleSlotVectorsB;
 extern s16 D_800D335E;
 extern u16 D_800D3360;
 
@@ -663,7 +663,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                 vec[0] = x;
                 vec[1] = y;
                 vec[2] = z;
-                if (BattleSteerActorsTowardPoint(&D_800D335C, vec) != 0) {
+                if (BattleSteerActorsTowardPoint(&g_BattleSlotVectorsB, vec) != 0) {
                     x = vec[0];
                     z = vec[2];
                 }
@@ -746,7 +746,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                 D_800C3B9C = outX;
                 break;
             case 7:
-                D_800D335C = outX;
+                g_BattleSlotVectorsB = outX;
                 D_800D335E = outY;
                 D_800D3360 = outZ;
                 break;
@@ -812,7 +812,7 @@ s16 func_800B0B14(s32 index) {
     s32 len;
 
     pVectors = g_BattleSlotVectors;
-    dx = D_800D335C - pVectors[0];
+    dx = g_BattleSlotVectorsB - pVectors[0];
     dy = ((s16)D_800D335E - (s16)pVectors[1]) / 4;
     dz = D_800D3360 - D_800D3358;
     len = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;

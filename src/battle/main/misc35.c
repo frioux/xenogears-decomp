@@ -331,7 +331,7 @@ extern u8 D_800C4928;
 extern u8 g_BattleAnimScriptHalted;
 extern s32 g_WorkListCurTimer;
 extern SVECTOR g_BattleSlotVectors;
-extern SVECTOR D_800D335C;
+extern SVECTOR g_BattleSlotVectorsB;
 extern SVEC D_800D30B0;
 extern u16 D_800D30B8;
 extern s16 D_80059454;
@@ -567,7 +567,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
             if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_A) {
                 pBuffer = (u8 *)&g_BattleSlotVectors;
             } else {
-                pBuffer = (u8 *)&D_800D335C;
+                pBuffer = (u8 *)&g_BattleSlotVectorsB;
             }
             ((s16 *)pBuffer)[0] = ((BattleSpriteState *)pSpriteData)->position.xWhole;
             ((s16 *)pBuffer)[1] = ((BattleSpriteState *)pSpriteData)->position.yWhole;

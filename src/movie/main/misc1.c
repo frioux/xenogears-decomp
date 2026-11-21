@@ -592,7 +592,7 @@ extern s32 g_MoviePadButtons;
 extern s32 g_MoviePrevPadButtons;
 extern u8 g_MovieStreamReleaseData[];
 extern s32 g_MovieStreamReleaseSection;
-extern u32* func_80028B14(void);
+extern u32* ArchiveReadStreamSector(void);
 extern s32 func_80028F30(u8* pArg0, s32* pArg1);
 extern void ArchiveReleaseStreamBlock(u32* pStream);
 extern void ArchiveReleaseStreamSection(s32 arg0);
@@ -630,7 +630,7 @@ void MovieUpdateStream(void) {
     }
 
     if (g_MovieStreamMode == 1) {
-        g_MovieStreamBlock = func_80028B14();
+        g_MovieStreamBlock = ArchiveReadStreamSector();
         if (g_MovieStreamBlock != 0) {
             if (g_MovieStreamBytesLeft >= 0x801) {
                 for (size = 0; size < 0x200; size++) {

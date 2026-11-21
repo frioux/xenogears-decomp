@@ -812,7 +812,7 @@ extern void BattlePlaySoundEffectById(s32 id);
 extern void SystemStringFreeBufferStack(void* pString);
 extern u8* GetStringEntry(u8* pData, s32 index);
 extern void SystemStringPushBuffer(void* pString, u8* pEntry);
-extern void func_8008E2B8(u8* p0, s32 color, s32 flag);
+extern void BattleDrawEffectTile(u8* p0, s32 color, s32 flag);
 extern void BattleClearScreen(s32 arg);
 extern void BattleReturnToMainLoop(void);
 extern void func_8007107C(void);
@@ -893,7 +893,7 @@ void BattleStepDisplayState(void) {
         g_BattleScreenFadeLevel = 0xFF;
         g_BattleStateStep++;
     case 3:
-        func_8008E2B8(g_BattleRootOrderingTable, g_BattleScreenFadeLevel, 0);
+        BattleDrawEffectTile(g_BattleRootOrderingTable, g_BattleScreenFadeLevel, 0);
         if (g_BattleScreenFadeLevel < 0) {
             g_BattleScreenFadeLevel = 0;
         }
@@ -922,7 +922,7 @@ fade:
             BattleClearScreen(0);
             BattleReturnToMainLoop();
         }
-        func_8008E2B8(g_BattleRootOrderingTable, g_BattleScreenFadeLevel, 1);
+        BattleDrawEffectTile(g_BattleRootOrderingTable, g_BattleScreenFadeLevel, 1);
         goto fade;
     }
     func_8007107C();
