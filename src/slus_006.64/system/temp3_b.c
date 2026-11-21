@@ -3,21 +3,19 @@
 #include "system/memory.h"
 #include "system/sound.h"
 
-extern u8 g_GameSelectedSkinLoadPending;
-extern u8 D_8005946C;
-extern u8 g_SystemBackdropColor[3];
-extern s32 g_SystemSemiTransMode;
+// .bss
+u8 D_8005946C;
+u32 g_SoundStreamReserveStart;
+u32 g_SoundStreamReserveBlock;
+u8 g_SystemBackdropColor[3];
+u8 g_GameSelectedSkinLoadPending;
+u8 g_SoundEffectBankIndex;
+s32 g_SystemSemiTransMode;
+void* g_SoundStreamBuffer;
+SoundFile* g_SoundSedsBank;
 
 void func_8001B970(void);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3_b", func_8001BB50);
-/* Best: 80.00% (108 bytes vs retail's 92) in this TU with the four globals as `extern`; the
-   only difference is the four stores, `lui $at,%hi / sb %lo($at)` here against retail's
-   `sb $v0,0($gp)` + GPREL16. Declaring them as DEFINITIONS in this TU (maspsx relaxation is
-   object-wide) gives retail's exact 92 bytes / 23 insns with only the D_800594D5/D_800594D6
-   vs g_SystemBackdropColor+1/+2 relocation names differing -- the linked-bytes-identical
-   case. They are externs here on purpose: this file is the objdiff-config state of the split
-   (byte-identical build proven first), and the conversion is the next commit.
 void func_8001BB50(void) {
     g_GameSelectedSkinLoadPending = 1;
     D_8005946C = 0;
@@ -27,14 +25,7 @@ void func_8001BB50(void) {
     g_SystemBackdropColor[1] = 0x76;
     g_SystemBackdropColor[2] = 0x54;
     g_SystemSemiTransMode = 2;
-} */
-
-// .bss
-u32 g_SoundStreamReserveStart;
-u32 g_SoundStreamReserveBlock;
-u8 g_SoundEffectBankIndex;
-SoundFile* g_SoundSedsBank;
-void* g_SoundStreamBuffer;
+}
 
 extern StreamDataQueueEntry g_SoundSedsStreamQueue[];
 extern u8 g_SoundEffectIds[];
