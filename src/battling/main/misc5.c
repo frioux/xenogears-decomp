@@ -465,21 +465,18 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C280);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
-
-/* Best attempt: objdiff 85.17%, same size as retail (548 bytes) and the same
-   instruction multiset; the remaining 15% is gcc putting the D_80092698 /
-   arg0*4 scaling, the t2/t1/t3 motion-copy address setup and the
-   g_BattleDrawFlags / g_BattleEffectSpawnTick / 0x70 / 0x72 pair a few slots away from retail.
-   Store order matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70,
-   0x58, 0x74), so it is scheduler/allocator, not source order. Same
-   85.17 under -O3 and -G0, and 80.59 under gcc-2.7.2-cdk.
-   ROUND 292: the permuter took this to 88.20% in two rounds - (a) write
-   `u = u + arg0 * 4` instead of `u += arg0 * 4`, and (b) hoist the CLUT word
-   into a local (`v = D_800926A0;` then `pMotion->clut = v;`) so its lhu is
-   issued with the other two loads rather than after the code store. Still
-   548 bytes; the remaining gap is the store order of the x/y/drawFlags/key/
-   0x6C/0x70/z/halfWidth block and the hoisting of the second scan's i = 0. */
+/* Best attempt: objdiff 85.17%, 548 bytes = retail's exact size and instruction count.
+Round 292's two permuter edits (u = u + arg0*4 instead of +=, and hoisting the
+CLUT word into the local v before the store) re-measure NEUTRAL in round 370 -
+85.17 either way - so the residual is unchanged: retail's LOAD-DELAY SLOTS are
+filled with the following statement's load (lw pVec->vx is followed by
+lui/lw g_BattleDrawFlags, lw pVec->vz by lw g_BattleEffectSpawnTick, both hoisted
+above the store group) where our allocation leaves each load next to its own
+store, and the motion-copy address setup comes out one register over. Store order
+matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70, 0x58, 0x74) and the
+first scan loop, the slot search and the trailing key search are byte-identical.
+Same 85.17 under -O3, -G0 and gcc-2.7.2-cdk. The drawFlags scan pointer anchors
+at slots+0x72 in both, so that part is only a relocation addend difference. */
 /*
 void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     BattleSlot *pSlot;
@@ -513,7 +510,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
 
     u = D_80092698[0] * 4 + 8;
     pMotion = &pSlot->packets[0];
-    u += arg0 * 4;
+    u = u + arg0 * 4;
     pMotion->u3 = u;
     pMotion->u2 = u;
     pMotion->u1 = u;
@@ -548,8 +545,8 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
             pSlot->unk6C = (u32)pEntry;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CAA4);
 
