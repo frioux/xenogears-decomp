@@ -149,7 +149,6 @@ typedef struct BattleActor {
 } BattleActor; // Size: 0x166A
 
 extern BattleSlot g_BattleSoundSlots[];
-extern BattleSlot D_80096F0C[];
 
 extern u16 D_80096EA4;
 extern u16 D_80096EC8;
@@ -390,10 +389,10 @@ void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
     s32 i;
 
     best = 0;
-    pSel = D_80096F0C;
-    pSlot = &D_80096F0C[-3];
+    pSel = &g_BattleSoundSlots[BATTLE_SOUND_SLOT_COUNT - 1];
+    pSlot = &g_BattleSoundSlots[0];
     for (i = 0; i < BATTLE_SOUND_SLOT_COUNT; i++) {
-        pSlot = &D_80096F0C[i - 3];
+        pSlot = &g_BattleSoundSlots[i];
         if (pSlot->active == 0 || (idx == 0 && pSlot->soundId == 0)) {
             do { pSel = pSlot; } while (0); // the block keeps the copy out of the beq delay slot
             break;
