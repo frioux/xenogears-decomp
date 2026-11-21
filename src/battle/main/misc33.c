@@ -545,22 +545,10 @@ void BattleResetStateGlobals(void) {
     g_BattleState = NULL;
     g_BattleSlotBitMask = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
-/* best 99.74% (156 bytes = retail's size, one instruction pair of register choice).
-   This body supersedes the 93.82% note below: the park's "dead post-call reload" was
-   the RETURN VALUE -- misc29 declares the callee as BattleMisc33State *func_800BED4C(void)
-   and uses the result, so `return g_BattleState;` is what makes retail's trailing
-   `lw v0,0(s0)` live and lets the timer store take the BattleSetStateStep jal delay
-   slot.  With that plus `started = 1;` as its own statement before pathIndex (a plain
-   literal there makes cse share it with actionDone's 1, retail materialises them
-   separately) the only residual is which register the THIRD reload of g_BattleState
-   lands in: retail `lw v1,0(s0)` and keeps the second reload in v0 for
-   pendingStep/pathIndex/pCurSprite, ours puts the third reload in v0 and serves all
-   four stores from it (2 differing instructions, everything else identical, store
-   order and every reload position equal).  Two permuter runs (15 -> 10, then 5 and no
-   better) found nothing.  Not an ALLOCA/stack-switch stub and not BLOCKED.
 BattleMisc33State *func_800BED4C(void) {
     BattleMisc33State *pState;
+    BattleMisc33State *pPending;
+    BattleMisc33State *pTimer;
     s32 started;
 
     g_BattleState = HeapAlloc(0x50, 0);
@@ -568,20 +556,21 @@ BattleMisc33State *func_800BED4C(void) {
     g_BattleCommandRowIndex = 0;
     g_BattleState->commandUnhandled = 0;
     pState = g_BattleState;
-    g_BattleState->actionDone = 1;
+    pState->actionDone = 1;
     pState->unk30 = 0;
-    g_BattleState->pendingStep = 0;
+    pPending = g_BattleState;
+    pPending->pendingStep = 0;
     started = 1;
-    g_BattleState->pathIndex = started;
-    g_BattleState->pCurSprite = NULL;
-    pState = g_BattleState;
-    pState->timer = 0;
+    pPending->pathIndex = started;
+    pPending->pCurSprite = NULL;
+    pTimer = g_BattleState;
+    pTimer->timer = 0;
     BattleSetStateStep(0);
     g_NumFlaggedTimerWorkListEntries = 0;
     g_FlagTimerWorkListAdds = started;
     return g_BattleState;
 }
-*/
+
 void BattleDestroyState(void) {
     HeapFree(g_BattleState);
     g_NumFlaggedTimerWorkListEntries = 0;
