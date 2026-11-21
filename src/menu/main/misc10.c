@@ -738,50 +738,57 @@ void MenuFreeSubMenuPanels(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
-/* Best: 96.51% (1020 bytes; retail 1024, so one instruction short and the frame
-   now matches at 48). Applies one inventory item's stat effects to
-   g_GameState.characters[charIndex]; returns nonzero when the item could not do
-   anything (both bars already full), which is why its caller (misc9) consumes the
-   item only on 0.
+/* PARKED 99.69% (1020 bytes = retail's exact size, so it cannot link; three
+   displaced instructions in the closing result block). Applies one inventory item's
+   stat effects to g_GameState.characters[charIndex]; returns nonzero when the item
+   could not do anything (both bars already full), which is why its caller (misc9)
+   consumes the item only on 0.
 
-   Settled this round (round 374), each measured:
-   - the item record is MenuShopItem (include/system/menu.h): amount 0x8,
-     effectFlags 0xA, statFlags 0xC. The 0xA&2 block reads statFlags (not amount):
-     the low byte of statFlags is the magnitude, and the flag test and that byte
-     are two accesses of the same halfword, so the block opens with a
-     `s16 statFlags;` local that BOTH the test and the `(u8)` compare use, while
-     the add and subtract arms re-read pItem->statFlags (the store to 0x78 forces
-     the reload) - that is retail's move/andi pair in the beqz delay slot and its
-     `slt` (a byte local, not a cast at each use, which gives sltu).
-   - `s16 statFlags;` must be declared at the FUNCTION top, not inside the 0xA&2
-     block (found by the permuter; the declaration reorder changes allocation).
-   - the 0xA&1 block is a `switch (pItem->amount)` with case 1 / case 2, which is
-     what puts both `beq` tests up front with the calls out of line.
-   - the closing result block is an if/else-if with the 0x4000 test INVERTED
-     (`else if (!(pItem->effectFlags & 0x4000)) result = 0; else result = mpFull;`)
-     - a permuter find worth 1.2 points, ugly and load-bearing.
-   - retail's `li a1,0xa` (mpScale = 10) sits in the FIRST beqz's delay slot, i.e.
-     the assignment belongs between the 0x8000 if and the 0x4000 if; putting it at
-     the top is worse (94.04).
+   Retail is 1020 bytes, not 1024: the next symbol (MenuApplyDressingRoomSlotHpBonus)
+   is at 0x801E35BC. The old note asked for a missing instruction; there is none.
 
-   Residue (4 instructions): (a) retail's prologue scales itemIndex first
-   (`andi a2,a2,0xff; sll a2,a2,4` at the top, then the charId chain, then
-   `lw s0,28(a0)` with pItem in $s0 as the accumulator and `addu s0,s0,a2`
-   base-first, pChar in $a0) where this body scales later and computes pChar's
-   addu in the beqz delay slot; (b) `mult a1,v0` vs `mult v0,a1` in the mp arm;
-   (c) the result local lands in $a0 with a closing `move v0,a0` where retail
-   builds each arm straight into $v0 - `u8 result` makes gcc branchless
-   (negu/and), direct `return` per arm drops an arm and goes 1000 bytes, and
-   s32 hpFull/mpFull loses the test's andi. Tried: both scales as literals/s16/
-   u16/s32 locals at the top and inside the else arms, 2.7.2 and 2.7.2-cdk
-   (82.27 / 77.23), -O1/-O3 (79.53 / 86.60), and a 1323-iteration permuter run
-   (1593 -> 1300; the two finds above are its output).
+   Settled, each measured (round 377 unless noted):
+   - the item record is MenuShopItem (include/system/menu.h): amount at 0x8,
+     effectFlags at 0xA, statFlags at 0xC.
+   - `pItem = pDressingRoom->pItemsData; pItem = pItem + itemIndex;` as TWO
+     statements: that is what puts `andi a2,a2,0xff; sll a2,a2,4` at the top of the
+     function and gives retail's `lw s0,28(a0)` plus the base-first `addu s0,s0,a2`
+     (the one-statement forms are 94-95%).
+   - the 0xA&2 block reads statFlags through a function-top `s16 statFlags;` local
+     that both the flag test and the compare use, while the add and subtract arms
+     re-read pItem->statFlags (retail's move/andi pair in the beqz delay slot).
+   - its compare is `pChar->statBonus < (statFlags & 0xFF)`: with `(u8)statFlags`
+     gcc emits `sltu` where retail has `slt`.
+   - the 0xA&1 block is a `switch (pItem->amount)` with case 1 / case 2.
+   - the return type is `u16`. With s32 the tail is 1028 bytes (two extra moves),
+     and `volatile unsigned short` is what the permuter found - plain u16 measures
+     the same, so the u16 conversion is the load-bearing part.
+   - mpGain = 10 before the 0x8000 if and mpScale = mpGain between the two ifs
+     (permuter find, 94.18 -> 98.73): the `li a1,0xa` has to be emitted before the
+     0x8000 test to fill its beqz delay slot, and a single local assigned between
+     the ifs puts the li in the NEXT beqz slot instead.
+   - the closing block returns per arm (`hpFull ? mpFull : 0`, `hpFull`,
+     `(effectFlags & 0x4000) ? mpFull : 0`); one `result` variable plus a single
+     return is 98.82-99.51 at the same size.
+
+   Residue: retail copies the 0 into the beqz delay slot and mpFull into the j's
+   (`beqz v1,EXIT / move v0,zero / j EXIT / move v0,s2` - reorg duplicated the
+   shared zero store), where this body jumps straight to that zero store
+   (`beqz v0,<zero store> / move v0,s2 / j EXIT / nop`) and tests hpFull in $v0
+   where retail uses $v1. Two 4-minute permuter runs from this body (base 216,
+   residual one instruction) found only a do-while wrapper; the ternary, if/else
+   with two returns, and `result = 0; if (hpFull) result = mpFull;` forms all
+   measure 99.5-99.69.
 */
 /*
-s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
+u16 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
     MenuShopItem* pItem;
     s16 statFlags;
     GameCharacter* pChar;
+    // Two locals for the same 10: the li has to be emitted before the first if to
+    // fill retail's beqz delay slot, and the 0x4000 arm reads mpScale. One local
+    // measures 94.18, this pair 98.73.
+    s32 mpGain;
     u8 hpFull;
     u8 mpFull;
     s32 result;
@@ -791,7 +798,9 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
     hpFull = 0;
     mpFull = 0;
     pChar = &g_GameState.characters[charIndex];
-    pItem = pDressingRoom->pItemsData + itemIndex;
+    pItem = pDressingRoom->pItemsData;
+    pItem = pItem + itemIndex;
+    mpGain = 10;
     if (pItem->effectFlags & 0x8000) {
         if (pChar->hp == pChar->maxHp) {
             hpFull = 1;
@@ -800,12 +809,12 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
             pChar->hp = pChar->hp + pItem->amount * hpScale;
         }
     }
-    mpScale = 10;
+    mpScale = mpGain;
     if (pItem->effectFlags & 0x4000) {
         if (pChar->mp == pChar->maxMp) {
             mpFull = 1;
         } else {
-            pChar->mp = pChar->mp + pItem->amount * mpScale;
+            pChar->mp = pChar->mp + mpScale * pItem->amount;
         }
     }
     if (pChar->hp > pChar->maxHp) {
@@ -859,7 +868,7 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
             if (pChar->statBonus > 200) {
                 pChar->statBonus = 200;
             }
-        } else if (pChar->statBonus < (u8)statFlags) {
+        } else if (pChar->statBonus < (statFlags & 0xFF)) {
             pChar->statBonus = 0;
         } else {
             pChar->statBonus = pChar->statBonus - (u8)pItem->statFlags;
@@ -878,19 +887,14 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
     if (pItem->effectFlags & 0x8000) {
         if (pItem->effectFlags & 0x4000) {
             if (hpFull) {
-                result = mpFull;
+                return mpFull;
             } else {
-                result = 0;
+                return 0;
             }
-        } else {
-            result = hpFull;
         }
-    } else if (!(pItem->effectFlags & 0x4000)) {
-        result = 0;
-    } else {
-        result = mpFull;
+        return hpFull;
     }
-    return result;
+    return (pItem->effectFlags & 0x4000) ? mpFull : 0;
 }
 */
 // One equipment slot record of pDressingRoom->pCharacterSlots[], as far as this
