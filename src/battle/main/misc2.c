@@ -60,7 +60,7 @@ extern u8 g_BattleSlotFlags[];
 extern BattleSlotGraphics *g_BattleSlotGraphics[];
 
 extern u8 g_BattlePrimBuffer[];
-extern volatile u8 D_800D3725[];
+extern volatile u8 g_BattleTextSlotVisible[];
 extern volatile u8 g_BattleTextSlotFlags[];
 
 extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
@@ -439,7 +439,7 @@ void BattleAddPrimAndRenderObject(void) {
    the shared `0x40 - w/2` / `0x9A - w/2` subu out of both arms (retail duplicates
    it, one more instruction) and the final `+ off` addu comes out
    `addu a0,a0,s0` where retail has `addu a0,s0,a0`. Three levers got here from
-   62.98: (1) D_800D3725/g_BattleTextSlotFlags are VOLATILE - retail loads g_BattleTextSlotFlags[off]
+   62.98: (1) g_BattleTextSlotVisible/g_BattleTextSlotFlags are VOLATILE - retail loads g_BattleTextSlotFlags[off]
    twice per arm instead of CSE-ing it, and volatile is also what stops loop.c
    from making an address biv for each (three bivs with a plain declaration);
    (2) g_BattleCurOT is declared as an array so its address is materialised in a
@@ -461,7 +461,7 @@ void func_8007500C(void) {
     i = 0;
     off = 0;
     do {
-        if (D_800D3725[off] != 0) {
+        if (g_BattleTextSlotVisible[off] != 0) {
             if (i == 0) {
                 BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex * 40 + (s32)g_BattlePrimBuffer),
                                         0x40 - (g_BattleTextSlotFlags[off] >> 1), 0x2C, 0, 0, g_BattleTextSlotFlags[off]);
@@ -486,7 +486,7 @@ void BattleDrawFrameScreenMode1(void) {
         BattleRenderSlotStatDigits();
         func_80075938();
         func_80073538();
-        func_80073A58();
+        BattleAddScrollRowPrims();
         func_80073B64();
         BattleAddTwoPrimLists();
         BattleAddThreeFlaggedPrimLists();

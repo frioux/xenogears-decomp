@@ -54,7 +54,7 @@ extern u8 D_800C48EA;
 extern s32 *g_BattleAudioManager;
 extern BattleCommandQueueState *g_BattleCommandQueue;
 extern BattleWork *g_BattleDisplayState;
-extern u8 D_800D3725[];
+extern u8 g_BattleTextSlotVisible[];
 extern BattleCommandRecord g_BattleCommandRecords[];
 extern s32 g_BattleOverlayHeapBlock1;
 extern s32 g_BattleOverlayHeapBlock2;
@@ -615,7 +615,7 @@ void BattleClearAllSlotFlagB4(void) {
     s32 i;
 
     for (i = 0x2A0; i >= 0; i -= 0x60) {
-        D_800D3725[i] = 0;
+        g_BattleTextSlotVisible[i] = 0;
     }
     g_BattleDisplayState->unkB5[0] = 0;
     g_BattleDisplayState->textSlotEnabled = 0;
@@ -1208,7 +1208,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
 // scroll index selects gets its three colour bytes written and the two prims it holds
 // are added to the ordering table. Read through the block as a byte array: retail
 // loads 0x6410 with lbu, so that is not the s32 BattleGraphicsWork names here.
-void func_80073A58(void) {
+void BattleAddScrollRowPrims(void) {
     if (((u8 *)g_BattleGraphicsWork)[0x6415] != 0) {
         ((u8 *)g_BattleGraphicsWork)[0x63CC + ((u8 *)g_BattleGraphicsWork)[0x6414] * 24] = ((u8 *)g_BattleGraphicsWork)[0x6410];
         ((u8 *)g_BattleGraphicsWork)[0x63CD + ((u8 *)g_BattleGraphicsWork)[0x6414] * 24] = ((u8 *)g_BattleGraphicsWork)[0x6410];
