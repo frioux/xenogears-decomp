@@ -1720,6 +1720,196 @@ fills above, diff, and only then chase the pColors add/re-add shape.
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
+/*
+Body written this round (333 instructions). Best 99.02%, retail's size minus 12
+bytes - but ONLY under the preset this function actually needs:
+THE UNIT IS MIXED AND NEEDS A SPLIT AT func_8002709C (file offset 0x1789C).
+
+Evidence for the split:
+- Every positive li in [0x800248D4, 0x8002709C) is assembled addiu rt,$zero,K
+  (42 of them) - what maspsx gives with --aspsx-version=2.67, because from
+  aspsx 2.50 on expand_li is off and GNU as picks addiu. Every positive one in
+  [0x8002709C, end) is ori rt,$zero,K (17 of them), the older aspsx li
+  expansion, i.e. maspsx WITHOUT --aspsx-version.
+- This function's retail object has ori $s0,$zero,0x100 (0x800275A4) and
+  ori $v0,$zero,0xF0 (0x8002763C); the unit's preset can only produce addiu
+  there, so 100% is unreachable in this unit whatever the C says.
+- The tail also wants gcc 2.6.0. Scored with tools/scripts/try_flags.sh in
+  report mode, the body below is:
+      95.59  default (gcc-2.7.2-cdk, --aspsx-version=2.67 --expand-div)
+      94.26  gcc-2.7.2-psx, maspsx without --aspsx-version
+      99.02  gcc-2.6.0-psx, maspsx "--expand-div --use-comm-section
+             --run-assembler"
+  Under 2.6.0 the prologue and the whole stream line up: s3=a3, s4=pOT,
+  s5=band, frame 0x80, vars 72, args 24, and both ori constants match. Under
+  the current preset the matrix/OT/band parameters land in s5/s3/s4 and the
+  frame is 0x68. The head must NOT move: under 2.6.0 GfxFlushImageList drops
+  to 77.38, GfxSetRenderContext to 75.17, SpriteSetTaskHandler to 59.54 - so
+  a split at func_8002709C (a XenoLibrary-style preset plus --expand-div for
+  the tail run), not a unit switch.
+
+What the body still gets wrong: ONE region, 5 differing lines, 12 bytes short.
+Retail selects the at-point y as
+   lh v0,0x22(sp) / bgez v0,L / addu v1,v0,zero / j Lend / addu a0,zero,zero /
+   L: addu a0,v1,zero / sll v0,a0,16 / sra / slti 0xF0
+- one load, a narrowing copy and a jump; gcc 2.6.0 emits a second lhu reload and
+no jump. Spellings measured, all worse or equal: "y = (proj2.vy >= 0) ?
+proj2.vy : 0;" (no sll/sra pair, 3 short), "if (proj2.vy >= 0) { ... } else
+{ y = 0; }" (gcc makes it a branchless nor/sra/and max and y loses its stack
+slot), "y = proj2.vy; if (y < 0) y = 0;" (y loses the slot), and the same with
+the test on y after y is assigned inside the if. cc1_probe replicas under
+gcc-2.6.0 show the same three shapes, so the diamond with a j is not reachable
+by spelling alone; retail keeps ONE lh for both the test and the copy, which
+means its value survived the preceding addPrim asm block.
+
+The rest is confirmed against the .s and needs no re-derivation: VectorNormalS
+of the xz delta (delta.vy = 0) -> the two scaled RTPS projections of pTo moved
+along that normal (normal*unk340/0x1000, then *unk346/0x100) ->
+SetRotMatrix/SetTransMatrix on a3 -> span = (SquareRoot0(3D delta) - unk34A) /
+unk348 clamped to 0..0x100 (s16, which is why the clamp is a sll/sra pair) ->
+ratan2(delta.vx, delta.vz) scaled by unk328*unk330/0x1000 -> three AddPrim
+groups: f4[band].y2/y3 = clamp(proj1.vy - unk32C, 0xF0), g4[band] at
+proj1.vy..proj2.vy, f4[band + 2].y0/y1 = max(proj2.vy, 0). Returns proj1.vy.
+The frame is exact with vars 72 - proj1 0x18, proj2 0x20, delta 0x28,
+work 0x38, normal 0x40 plus the dead 8-byte slot the conditional assignment
+gives y - so only the selection shape is left. The typedef and the extern in
+the block below are what the body needs; there is no second declaration of
+either name outside it.
+*/
+/*
+// The render block func_8002709C allocates: sixteen textured quads, the flat and
+// Gouraud rows func_800273C4 fills (one bank of each per screen context), then
+// the draw state the quads are sized from.
+typedef struct {
+    POLY_FT4 ft4[16];  // 0x000
+    POLY_F4 f4[4];     // 0x280
+    POLY_G4 g4[2];     // 0x2E0
+    s32 unk328;        // 0x328
+    u16 unk32C;        // 0x32C
+    s32 unk330;        // 0x330
+    u16 unk334;        // 0x334
+    u16 unk336;        // 0x336
+    u16 unk338;        // 0x338
+    u16 unk33A;        // 0x33A
+    u16 unk33C;        // 0x33C
+    s16 unk33E;        // 0x33E
+    s16 unk340;        // 0x340
+    u16 unk342;        // 0x342
+    s16 unk344;        // 0x344
+    s16 unk346;        // 0x346
+    s16 unk348;        // 0x348
+    s16 unk34A;        // 0x34A
+} Temp2RenderBlock; // Size: 0x34C
+
+extern void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
+                          u_long* pOT, s32 bank);
+
+// Projects the eye and at points into the block's two banks: the first row of
+// flat quads and the gouraud row are placed at the projected eye height, the
+// second flat row at the projected at height. `span` is the distance between
+// the two points scaled into 0..0x100. Returns the projected eye y.
+s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
+                  MATRIX* pMatrix, u_long* pOT, s32 band) {
+    SVECTOR proj1;
+    SVECTOR proj2;
+    VECTOR delta;
+    SVECTOR work;
+    SVECTOR normal;
+    s32 angle;
+    s16 level;
+    s16 y;
+
+    if (pBlock == NULL) {
+        return 0;
+    }
+
+    delta.vx = pTo->vx - pFrom->vx;
+    delta.vy = 0;
+    delta.vz = pTo->vz - pFrom->vz;
+    VectorNormalS(&delta, &normal);
+
+    // The normal is scaled by how far the eye sits from the plane and added to
+    // the point, so the quad row follows the camera.
+    work.vx = (normal.vx * pBlock->unk340) / 0x1000 + (u16)pTo->vx;
+    work.vy = pBlock->unk33E;
+    work.vz = (normal.vz * pBlock->unk340) / 0x1000 + (u16)pTo->vz;
+
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+    gte_ldv0(&work);
+    gte_rtps();
+    gte_stsxy(&proj1);
+
+    if (pBlock->unk348 != 0) {
+        delta.vx = pTo->vx - pFrom->vx;
+        delta.vy = pTo->vy - pFrom->vy;
+        delta.vz = pTo->vz - pFrom->vz;
+        level = (SquareRoot0(delta.vx * delta.vx + delta.vy * delta.vy +
+                             delta.vz * delta.vz) -
+                 pBlock->unk34A) /
+                pBlock->unk348;
+        if (level < 0) {
+            level = 0;
+        }
+        if (level > 0x100) {
+            level = 0x100;
+        }
+    } else {
+        level = 0;
+    }
+
+    angle = pBlock->unk328 * pBlock->unk330 * (ratan2(delta.vx, delta.vz) & 0xFFF);
+    func_800278F8(pBlock, angle / 0x1000, proj1.vy, level, pOT, band);
+
+    if (pBlock->unk344 > 0) {
+        proj1.vx = proj1.vy - pBlock->unk32C;
+        if (proj1.vx > 0xF0) {
+            proj1.vx = 0xF0;
+        }
+        if (proj1.vx > 0) {
+            pBlock->f4[band].y2 = proj1.vx;
+            pBlock->f4[band].y3 = proj1.vx;
+            addPrim(pOT, &pBlock->f4[band]);
+        }
+
+        // The at point is projected a second time, this one scaled by unk346.
+        work.vx = ((normal.vx * pBlock->unk340) / 0x1000 * pBlock->unk346) /
+                      0x100 +
+                  (u16)pTo->vx;
+        work.vy = (pBlock->unk33E * pBlock->unk346) / 0x100;
+        work.vz = ((normal.vz * pBlock->unk340) / 0x1000 * pBlock->unk346) /
+                      0x100 +
+                  (u16)pTo->vz;
+        gte_ldv0(&work);
+        gte_rtps();
+        gte_stsxy(&proj2);
+
+        if (proj2.vy - proj1.vy > 0xF0) {
+            proj2.vy = proj1.vy + 0xF0;
+        }
+        y = 0;
+        if (proj2.vy >= 0) {
+            if (proj1.vy < 0xF0) {
+                pBlock->g4[band].y0 = proj1.vy;
+                pBlock->g4[band].y1 = proj1.vy;
+                pBlock->g4[band].y2 = proj2.vy;
+                pBlock->g4[band].y3 = proj2.vy;
+                addPrim(pOT, &pBlock->g4[band]);
+            }
+            y = proj2.vy;
+        }
+        if (proj2.vy < 0) {
+            y = 0;
+        }
+        if (y < 0xF0) {
+            pBlock->f4[band + 2].y0 = y;
+            pBlock->f4[band + 2].y1 = y;
+            addPrim(pOT, &pBlock->f4[band + 2]);
+        }
+    }
+    return proj1.vy;
+}
+*/
 
 // Derivation only, never diffed (no percentage yet); kept so the next worker
 // does not have to re-read 274 instructions.
