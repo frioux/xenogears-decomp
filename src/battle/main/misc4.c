@@ -82,18 +82,28 @@ extern void func_800877E0(u8 arg0, u8 arg1);
 extern void func_80087EDC(u8 arg0, u8 arg1);
 extern void func_800881B8(u8 arg0, u8 arg1);
 extern void BattleBeginAnimTask(u16 arg0);
-// A row of the per-battle-slot table at g_BattleCommandRecords.
-typedef u16 BattleSlotRow[36]; // Size: 0x48
+// One 0x48-byte row of the command record table at g_BattleCommandRecords, as the queueing
+// commands below fill it: the slot mask the command applies to, the actor slot it was queued
+// for, the word the command carries and the command byte itself. (src/battle/main/misc3.c
+// carries the same view of this table.)
+typedef struct {
+    /* 0x00 */ u16 slotMask;
+    /* 0x02 */ u8 unk2[0xB];
+    /* 0x0D */ u8 actorSlot;
+    /* 0x0E */ u8 unkE[0x16];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u8 unk26[0xB];
+    /* 0x31 */ u8 command;
+    /* 0x32 */ u8 unk32[0x16];
+} BattleCommandRecord; // Size: 0x48
 
-// Three of the row's fields are reached through byte arrays of their own, so the relocation
-// names the field's address (D_800C400B is row +0xD, D_800C4022 +0x24, D_800C402F +0x31)
-// rather than the row base: typing them as g_BattleCommandRecords[i].command folds the field
-// offset into the store's immediate and changes the instruction (battle/main/misc13 measured
-// that spelling at 96.89%).
+// The clear loops below walk the table backwards by BYTE offset, which is what retail keeps in
+// its induction register (ori $v0,zero,0x8B8 / addiu $v0,$v0,-0x48), so they reach the command
+// byte through the field's own symbol: D_800C402F is row +0x31. Rewriting such a loop as an
+// index walk over the rows (g_BattleCommandRecords[i].command) costs 8 bytes - 92.94%, 256
+// against retail's 248 - because gcc then synthesises the index times 0x48 in the preheader.
 extern u8 g_BattleTextSlotCount;
-extern u8 D_800C400B[];
-extern BattleSlotRow D_800C4022[];
-extern BattleSlotRow g_BattleCommandRecords[];
+extern BattleCommandRecord g_BattleCommandRecords[];
 extern BattleCommandQueue *g_BattleCommandQueue;
 extern u8 D_800C402F[];
 extern void func_800785D4(u8 arg0, u8 arg1);
@@ -123,9 +133,9 @@ extern void func_80078E24(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
     if (g_BattleTextSlotCount != 0) {
-        D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
-        D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF8;
-        D_800C4022[g_BattleCommandQueue->count][0] = g_BattleTextSlotCount - 1;
+        g_BattleCommandRecords[g_BattleCommandQueue->count].actorSlot = arg0;
+        g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xF8;
+        g_BattleCommandRecords[g_BattleCommandQueue->count].unk24 = g_BattleTextSlotCount - 1;
         g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     }
 }
@@ -186,9 +196,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
 
 
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xFD;
-    D_800C4022[g_BattleCommandQueue->count][0] = 0;
-    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = g_BattleCommandArgs[arg1].slotMask;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xFD;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].unk24 = 0;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleCommandArgs[arg1].slotMask;
     func_800877E0(arg0, arg2);
     if (g_BattleCommandArgs[arg1].unk4 != 1) {
         if (g_BattleSlotFlags[arg0 * 8] == 0) {
@@ -201,11 +211,11 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xFC;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xFC;
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = g_BattleCommandArgs[arg1].unk4;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = g_BattleCommandArgs[arg1].unk4;
     func_800785D4(arg0, arg1);
 }
 
@@ -214,7 +224,7 @@ void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
 }
 
 void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF9;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xF9;
     func_800785D4(arg0, arg1);
     g_BattleActorCountdownState[arg0] = 0xFF;
     // The empty-block wrapper keeps this store ahead of the g_BattleSlotEntries read-modify-write.
@@ -292,12 +302,12 @@ void BattleAddCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
 }
 void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
     BattleQueueCommandF8IfFlagged(arg1, arg0);
-    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF4;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xF4;
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xF6;
-    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = g_BattleCommandArgs[arg1].slotMask;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xF6;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleCommandArgs[arg1].slotMask;
     func_800785D4(arg0, arg1);
 }
 void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
@@ -308,7 +318,7 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
     u8 value;
 
     value = BATTLE_COMMAND_NONE;
-    for (off = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleSlotRow); off >= 0; off -= sizeof(BattleSlotRow)) {
+    for (off = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleCommandRecord); off >= 0; off -= sizeof(BattleCommandRecord)) {
         D_800C402F[off] = value;
     }
     j = 0;
@@ -414,19 +424,19 @@ void BattleDispatchCommandRecords(u8 arg0) {
 }
 void BattleQueueCommand1BAndFE(u8 arg0) {
     if (g_BattleSlotFlags[arg0 * 8] != 0) {
-        D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
-        D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0x1B;
+        g_BattleCommandRecords[g_BattleCommandQueue->count].actorSlot = arg0;
+        g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0x1B;
         g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     }
-    D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
-    D_800C402F[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = 0xFE;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].actorSlot = arg0;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xFE;
     g_BattleSoundEnabled = 0;
 }
 void func_80079778(u8 arg0) {
     g_BattleCommandQueue->count = 0;
     BattleClearSlotCurveState();
     BattleClearSlotCurveEntry();
-    D_800C400B[g_BattleCommandQueue->count * sizeof(BattleSlotRow)] = arg0;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].actorSlot = arg0;
     BattleUpdateFrame();
     BattleInitActorSlotAnimation(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
     BattleDispatchCommandRecords(arg0);
@@ -481,7 +491,7 @@ void BattleScriptResetActorState(u8 arg0) {
     do {
         *p++ = 0;
     } while (p < pEnd);
-    for (i = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleSlotRow); i >= 0; i -= sizeof(BattleSlotRow)) {
+    for (i = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleCommandRecord); i >= 0; i -= sizeof(BattleCommandRecord)) {
         D_800C402F[i] = BATTLE_COMMAND_NONE;
     }
     while (*pCursor != 0xFD) {
@@ -590,7 +600,7 @@ void BattleRunActiveSlotScripts(void) {
                 continue;
             }
         }
-        for (j = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleSlotRow); j >= 0; j -= sizeof(BattleSlotRow)) {
+        for (j = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleCommandRecord); j >= 0; j -= sizeof(BattleCommandRecord)) {
             D_800C402F[j] = endOp;
         }
         pEnd = p + BATTLE_COMMAND_ARG_COUNT * sizeof(BattleCommandArg);
