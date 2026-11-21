@@ -609,6 +609,25 @@ extern s32 g_GfxOTDepthShift;
 //   flags are right and are not the cause); -Os and -O3 reject the body. Every other
 //   instruction of the 736 is byte-identical apart from the register names of the
 //   cyclic shift, so there is no other line to fix.
+// - THE LAST 4 BYTES AND THE CYCLIC SHIFT ARE ONE ALLOCATOR DECISION, read out of
+//   cc1's own -dg dump rather than guessed at from spellings (round 375). All nine
+//   loop values need a callee-saved register, so global_alloc's sort order alone
+//   decides the assignment: pri = floor_log2(n_refs) * n_refs / live_length
+//   (allocno_compare in global.c), with the counts in the .lreg dump. Ours is
+//   104 pPacket 7*137/688, 86 pRec 7*131/684, 87 pPart 6*105/683, 80 mask 3*8/40,
+//   89 pV0 5*62/647, pV1, pV2, pV3, 0xFF000000 - so pPacket takes s0, pV0 only s4,
+//   and pDst (81, allocated 19th) lands on s0 too because it does not conflict with
+//   pPacket: the copy is then a self-move and reload deletes it. Retail's file needs
+//   pV0 s0, pRec s1, pPacket s2, pPart s3, mask s4, pV1 s5, pV2 s6, pV3 s7 and
+//   0xFF000000 in $fp, i.e. pV0 first (its priority has to triple: its live_length is
+//   the loop body itself) AND pRec above pPacket, where ours are 4 percent apart the
+//   other way. Two priority deltas that big are not reachable from any spelling of
+//   this C, which is why every spelling of the copy measured dead.
+//   Do not re-derive this: gcc 2.8.1's allocno_compare and flow.c reg_n_refs /
+//   reg_live_length are the same code, so 2.8.1 cannot differ either, and 2.6.0's own
+//   -dg order puts its packet pointer first as well. A future round should look for a
+//   compiler whose sort ranks the vertex pointer first, and check it with `cc1 -dg`
+//   for pV0's allocno at the head of "regs to allocate".
 // The vertex-table addresses must stay index first,
 // (SVECTOR *)((index << 3) + (u32)pPart), or every arm reverses its addu.
 // The typedef, the extern, the two defines and the macro above this park are
