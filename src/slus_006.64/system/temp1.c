@@ -441,6 +441,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
    that order (that is what puts the third store in the jal delay slot).
 // pAnimEntry is an animation entry: u16 word 0 holds the direction/angle flags,
 // words 1 and 2 are byte offsets to the bytecode and to the frame script.
+
+   RE-MEASURED this round after unpark: 99.89%, 716 bytes (retail's size), 178 vs 178 insns, and the
+   only residual is the one in the paragraph above. Tried this round, all 99.89 / 716 bytes: the flag
+   test as a nested `if` whose block opens with a declaration-with-initialiser local
+   (`u32 flag = (u32)pSpriteData->flags_0xA8 & 1;`) - the lever for a mirrored load/derived-value pair
+   - and the last flags RMW through a `u32 flags` local used for both the store and the test.
+   Permuter, 3 minutes, 1085 iterations: base 20 best 20, no lead. gcc-2.6.0 screens this function at
+   96.45 and breaks matched neighbours (SpriteApplyMovementStep 98.46, SpriteComputeAngleFromPoints
+   81.05, AnimTaskCreate 88.14), so the preset is not the cause and the unit cannot be switched.
+   Verdict: GIV_TIE - retail's flags word dies in place at the `andi`, ours gets a second pseudo.
 void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry) {
     SpriteDataI1* pBase;
     SpriteDataI1* pSpriteBase;
@@ -975,7 +985,7 @@ void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 
 extern void SpriteSetAnimFile(SpriteData* pSpriteData, void* pAnimFile);
 extern s32 SpriteAnimPackageTestFlag8000(void* pFrames);
 extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
-extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
+extern void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry);
 extern u8 g_IsBattle;
 
 void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
