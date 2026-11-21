@@ -47,13 +47,27 @@ extern s8 g_BattleColorTintRed[];
 extern s8 g_BattleColorTintGreen[];
 extern s8 g_BattleColorTintBlue[];
 
+// One 0x10-byte record of Misc23Block::pRecords: the five section counts and
+// offsets the model-list renderer reads back out of the part stream.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ u16 unk6;
+    /* 0x8 */ u16 unk8;
+    /* 0xA */ u16 unkA;
+    /* 0xC */ u16 unkC;
+    /* 0xE */ u16 unkE;
+} Misc23PartEntry; // Size: 0x10
+
 // Allocation block owned by the structure passed to BattleFreeModelListEntryBuffers:
 // one 0x24-byte record of BattleActor.pModelListEntries, the same record misc21.c
 // declares as BattleModelListEntry.
 typedef struct {
-    /* 0x0  */ u8 unk0[0x14];
+    /* 0x0  */ u16 unk0; // the first halfword of the record's part stream
+    /* 0x2  */ u8 unk2[0x12];
     /* 0x14 */ void *pPoints; // 8 bytes (three s16) per point
-    /* 0x18 */ void *pRecords; // 0x10 bytes per record
+    /* 0x18 */ Misc23PartEntry *pRecords; // one per section
     /* 0x1C */ void *pPackets; // one packet pointer per point
     /* 0x20 */ void *unk20;
 } Misc23Block;
@@ -73,29 +87,37 @@ typedef struct {
 // The streamed stage record g_BattleStageData points at. misc29.c declares the
 // same record as BattleStageData and owns the two SVEC origins at 0x47C/0x482.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x348];
+    /* 0x000 */ u8 unk0[0x344];
+    /* 0x344 */ s16 modelScale; // scaled into an actor's scale when its caller passes no skeleton entries
+    /* 0x346 */ u8 unk346[0x2];
     /* 0x348 */ s16 blockPoolSize;  // size passed to BattleCreateBlockPool
     /* 0x34A */ s16 spritePoolSize; // size passed to BattleCreateSpritePool
     /* 0x34C */ u8 unk34C[0x128];
     /* 0x474 */ u8 backColorRed; // the colour SetBackColor is given
     /* 0x475 */ u8 backColorGreen;
     /* 0x476 */ u8 backColorBlue;
-    /* 0x477 */ u8 unk477[0x11];
+    /* 0x477 */ u8 unk477[0x1];
+    /* 0x478 */ u8 spriteColorRed; // the colour the actor's screen quads are drawn in
+    /* 0x479 */ u8 spriteColorGreen;
+    /* 0x47A */ u8 spriteColorBlue;
+    /* 0x47B */ u8 unk47B[0xD];
 } BattleStageData; // Size: 0x488
+
+// One slot of the model part list table BattleInitializeMesh fills in: the parts
+// and their count, or a NULL pParts while the slot is free. BattleInitializeStage
+// clears all BATTLE_MODEL_SLOT_COUNT of them.
+typedef struct {
+    /* 0x0 */ void **pParts;
+    /* 0x4 */ u32 count;
+} BattleModelPartList; // Size: 0x8
+
+extern BattleModelPartList D_800C3ACC[];
 
 extern s32 g_BattleActorStepTimer;
 extern u16 g_BattleTweenVectorAngle;
 extern u8 g_BattleExtraMatrixFlag;
 extern u16 g_BattleShadeAngle;
 extern u8 g_BattleStateBit;
-// The table BattleInitializeStage zeroes: 20 records of 8 bytes, of which only
-// the first word is ever touched anywhere in the overlay.
-typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ u32 unk4;
-} Misc23PairEntry; // Size: 0x8
-
-extern Misc23PairEntry D_800C3ACC[20];
 extern u8 D_800D330A[];
 extern BattleStageData *g_BattleStageData;
 extern void BattleCreateBlockPool(u8 *, s32);
@@ -717,13 +739,267 @@ void BattleInitializeStage(void) {
     }
     // 20 entries
     for (i = 19; i >= 0; i--) {
-        D_800C3ACC[i].unk0 = 0;
+        D_800C3ACC[i].pParts = NULL;
     }
     for (i = 0x14; i >= 0; i -= 0x14) {
         *(u16 *)(D_800D330A + i) = 0;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
+// The two resolved archive buffers func_800A979C hands func_800A8BF0. Both open
+// with a count of relocatable words that ResolveArchiveEntryPointers fixes, then
+// the blocks those words point at.
+typedef struct {
+    /* 0x0 */ u32 pointerCount;
+    /* 0x4 */ void **ppParts; // [1] is the part block func_800AA898 takes, [2] its address
+    /* 0x8 */ Temp8 *pSoundBank; // whose +8 SEDS entry becomes the actor's sound bank 1
+} Misc23PartBuffer;
+
+typedef struct {
+    /* 0x0  */ u32 pointerCount;
+    /* 0x4  */ u8 *pImage; // the model image func_8002DDE4 is given
+    /* 0x8  */ u8 *pFile; // the model file the actor keeps its own copy of
+    /* 0xC  */ u8 *pFileEnd; // its end, and the entries BattleCreateModelSkeleton walks
+    /* 0x10 */ void **ppBlocks; // [1] the model header, [2...] one block per model list entry
+} Misc23ModelBuffer;
+
+// The model record a model buffer's ppBlocks[1] points at: the actor's size, the
+// command it starts with, how many of each sub-record it carries, and then the
+// variable-length part stream the model list entries are unpacked from.
+typedef struct {
+    /* 0x00 */ u16 unk0;
+    /* 0x02 */ u16 height;
+    /* 0x04 */ u16 width;
+    /* 0x06 */ u16 depth;
+    /* 0x08 */ s16 unk8; // scaled by the stage's modelScale to give the actor's scale
+    /* 0x0A */ u8 command;
+    /* 0x0C */ u16 flags; // copied into the actor's flags4A
+    /* 0x0E */ u8 numEntries;
+    /* 0x0F */ u8 padF;
+    /* 0x10 */ u8 numTextures;
+    /* 0x11 */ u8 pad11;
+    /* 0x12 */ u8 numModelListEntries;
+    /* 0x13 */ u8 pad13;
+    /* 0x14 */ u16 data[1]; // the part stream: one variable-length record per model list entry
+} Misc23ModelHeader;
+
+#define BATTLE_ACTOR_ARRAY_COUNT 32
+#define BATTLE_MODEL_SLOT_COUNT 20
+extern s32 D_800C3B6C;
+extern u8 *D_800C3B70;
+extern u8 D_800C3EB7[];
+extern void ResolveArchiveEntryPointers(u32 *);
+extern void func_80030988(s16, s16, s32, s32);
+extern void func_8002DDE4(void *, s16, s16, s16, s16, s16, s16);
+extern void func_800A7064(void *, void *, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16,
+                          u8, u8, u8, u8, u8, u8);
+extern void func_800AA898(BattleActor *, u8 *, void *, void *);
+extern BattleModelPartList *BattleInitializeMesh(u8 *, BattleModelPartList *);
+extern BattleSprite *BattleCreateModelSkeleton(void *, void *, s32, s32, s16, s16, s16, s16);
+extern s32 ModelFileTrimHeapBlock(void *);
+extern s32 ModelUnresolvePointers(void *);
+extern s32 SoundFindSedsEntry(void *, s16);
+extern void SoundAddSedsEntry(void *);
+extern void BattleAllocActorEntryArray(BattleActor *);
+extern void BattleSnapActorToGround(BattleActor *);
+
+// Builds the actor for one battle slot from the archive buffers the model and
+// part data were decoded into. The flag word says which parts are already there:
+// 0x1 no model data, 0x2 no model file of its own, 0x4 no part data, 0x40 a
+// pre-scaled model, 0x80 no model source.
+void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23ModelBuffer *pModelBuffer, s16 arg4,
+                   s16 arg5, s16 arg6, s16 arg7, s16 *pSpawnPos) {
+    BattleModelPartList *pPartList;
+    BattleActor *pActor;
+    Misc23ModelHeader *pHeader;
+    void **ppBlocks;
+    Misc23Block *pBlocks;
+    u16 *pData;
+    u8 *pImage;
+    u8 *pFile;
+    u8 *pFileEnd;
+    u8 *pModelFile;
+    s32 blockSize;
+    s32 mode;
+    s32 count;
+    s32 i;
+    s32 k;
+
+    HeapChangeCurrentUser(4, NULL);
+    if (slot >= BATTLE_ACTOR_ARRAY_COUNT) {
+        return;
+    }
+    if (g_BattleActors[slot] != NULL) {
+        return;
+    }
+    pActor = HeapAlloc(0x11C, 0);
+    if ((flags & 0x1) == 0) {
+        ResolveArchiveEntryPointers((u32 *)pModelBuffer);
+        ResolveArchiveEntryPointers((u32 *)pModelBuffer->ppBlocks);
+    }
+    pActor->hasSedsEntry1 = 0;
+    pActor->hasSedsEntry2 = 0;
+    if ((flags & 0x4) == 0) {
+        ResolveArchiveEntryPointers((u32 *)pPartBuffer);
+        ResolveArchiveEntryPointers((u32 *)pPartBuffer->pSoundBank);
+        ResolveArchiveEntryPointers((u32 *)pPartBuffer->ppParts);
+        ResolveArchiveEntryPointers((u32 *)pPartBuffer->ppParts[1]);
+        if (pPartBuffer->pSoundBank->pUnk8 != pPartBuffer->pSoundBank->pUnkC) {
+            if (SoundFindSedsEntry(pPartBuffer->pSoundBank->pUnk8, 0) == 0) {
+                SoundAddSedsEntry(pPartBuffer->pSoundBank->pUnk8);
+                pActor->hasSedsEntry1 = 1;
+            }
+        }
+    }
+    ppBlocks = pModelBuffer->ppBlocks;
+    pHeader = (Misc23ModelHeader *)ppBlocks[1];
+    pImage = pModelBuffer->pImage;
+    pFile = pModelBuffer->pFile;
+    pFileEnd = pModelBuffer->pFileEnd;
+    g_BattleActors[slot] = pActor;
+    pActor->height = pHeader->height;
+    pActor->width = pHeader->width;
+    pActor->depth = pHeader->depth;
+    pActor->commands[0] = pHeader->command;
+    pActor->flags4A = pHeader->flags;
+    if (pActor->flags4A & 0x200) {
+        func_80030988(2, 2, 0x40, 0x40);
+    }
+    if ((flags & 0x1) == 0) {
+        mode = 0;
+        if ((flags & 0x40) == 0) {
+            mode = (pActor->flags4A & 0x4) == 0;
+        }
+        func_8002DDE4(pImage, mode, arg4, arg5, mode, arg6, arg7);
+        blockSize = pFileEnd - pFile;
+        pModelFile = HeapAlloc(blockSize, 1);
+        D_800C3B70 = pModelFile;
+        memcpy(pModelFile, pFile, blockSize);
+        D_800C3B6C = 0;
+        while (D_800C3ACC[D_800C3B6C].pParts != NULL) {
+            if (++D_800C3B6C >= BATTLE_MODEL_SLOT_COUNT) {
+                break;
+            }
+        }
+        BattleInitializeMesh(D_800C3B70, &D_800C3ACC[D_800C3B6C]);
+    }
+    pActor->pMesh = &D_800C3ACC[D_800C3B6C];
+    if ((flags & 0x40) == 0) {
+        if (pActor->flags4A & 0x4) {
+            pActor->pSprites = BattleCreateModelSkeleton(pActor->pMesh, pFileEnd, 2, 0, 0, 0, 0, 0);
+        } else {
+            pActor->pSprites = BattleCreateModelSkeleton(pActor->pMesh, pFileEnd, 2, 1, arg4, arg5, arg6, arg7);
+        }
+    } else {
+        pActor->pSprites = BattleCreateModelSkeleton(pActor->pMesh, pFileEnd, 0, 0, 0, 0, 0, 0);
+    }
+    if (pSpawnPos != NULL) {
+        pActor->pSprites->pos[0] = pSpawnPos[0];
+        pActor->pSprites->pos[1] = pSpawnPos[1];
+        pActor->pSprites->pos[2] = pSpawnPos[2];
+    }
+    if ((flags & 0x1) == 0) {
+        pActor->unk90 = arg4;
+        pActor->unk92 = arg5;
+        pActor->blendOffsetX = arg6;
+        pActor->blendOffsetY = arg7;
+    } else {
+        pActor->unk90 = -1;
+    }
+    if (flags & 0x4) {
+        pActor->pModelSource = NULL;
+    } else if (flags & 0x80) {
+        pActor->pModelSource = NULL;
+    } else {
+        pActor->pModelSource = (mem_addr)pPartBuffer;
+    }
+    for (i = 0; i < 2; i++) {
+        SetPolyFT4(&pActor->polys[i]);
+        SetSemiTrans(&pActor->polys[i], 1);
+        pActor->polys[i].r0 = g_BattleStageData->spriteColorRed;
+        pActor->polys[i].g0 = g_BattleStageData->spriteColorGreen;
+        pActor->polys[i].b0 = g_BattleStageData->spriteColorBlue;
+        pActor->polys[i].clut = GetClut(0x30, 0x1CC);
+        pActor->polys[i].tpage = GetTPage(0, 2, 0x380, 0);
+        pActor->polys[i].u0 = 0xC0;
+        pActor->polys[i].v0 = 0xC0;
+        pActor->polys[i].u1 = 0xFE;
+        pActor->polys[i].v1 = 0xC0;
+        pActor->polys[i].u2 = 0xC0;
+        pActor->polys[i].v2 = 0xFE;
+        pActor->polys[i].u3 = 0xFE;
+        pActor->polys[i].v3 = 0xFE;
+    }
+    if ((flags & 0x40) == 0) {
+        pActor->scale = (pHeader->unk8 * g_BattleStageData->modelScale) >> 12;
+    } else {
+        pActor->scale = pHeader->unk8;
+    }
+    pActor->numEntries = pHeader->numEntries;
+    BattleAllocActorEntryArray(pActor);
+    pActor->numTextures = pHeader->numTextures;
+    if (pActor->numTextures != 0) {
+        pActor->pTextures = HeapAlloc(pActor->numTextures * sizeof(Temp8), 0);
+        for (i = 0; i < pActor->numTextures; i++) {
+            pActor->pTextures[i].isLoaded = 0;
+            pActor->pTextures[i].pUnk4 = NULL;
+            pActor->pTextures[i].pUnk8 = NULL;
+            pActor->pTextures[i].pUnkC = NULL;
+        }
+    }
+    pActor->numModelListEntries = pHeader->numModelListEntries;
+    if (pActor->numModelListEntries != 0) {
+        pActor->pModelListEntries = HeapAlloc(pActor->numModelListEntries * sizeof(Misc23Block), 0);
+        pBlocks = (Misc23Block *)pActor->pModelListEntries;
+        pData = pHeader->data;
+        for (i = 0; i < pActor->numModelListEntries; i++) {
+            count = (s16)pData[0x11];
+            pBlocks[i].unk0 = pData[0];
+            pData++;
+            func_800A7064(&pBlocks[i], ppBlocks[i + 2], *pData++, *pData++, *pData++, *pData++, *pData++,
+                          count, arg4 + *pData++, arg5 + *pData++, *pData++, *pData++, arg6 + *pData++, arg7,
+                          *(u8 *)pData++, *(u8 *)pData++, *(u8 *)pData++, *(u8 *)pData++, *(u8 *)pData++,
+                          *(u8 *)pData++);
+            pData += 2;
+            for (k = 0; k < count; k++) {
+                pBlocks[i].pRecords[k].unk6 = *pData++;
+                pBlocks[i].pRecords[k].unkE = *pData++;
+                pBlocks[i].pRecords[k].unk0 = *pData++;
+                pBlocks[i].pRecords[k].unk2 = *pData++;
+                pBlocks[i].pRecords[k].unk4 = *pData++;
+            }
+        }
+    }
+    pActor->unk22 = 0;
+    pActor->actorSlot = slot;
+    if (D_800C3EB7[slot * BATTLE_ACTOR_SLOT_STRIDE] != 0) {
+        if (slot < BATTLE_ACTOR_SLOT_COUNT) {
+            pActor->doUpdate = 0;
+        } else {
+            pActor->doUpdate = 1;
+        }
+    } else {
+        pActor->doUpdate = 1;
+    }
+    if ((flags & 0x40) == 0) {
+        pActor->pSoundBank1 = (u8 *)pPartBuffer->pSoundBank;
+        func_800AA898(pActor, g_BattleBlockPool, &pPartBuffer->ppParts[2], pPartBuffer->ppParts[1]);
+        BattleAppendActorCommandBytes(pActor, pActor, g_BattleBlockPool, NULL);
+        BattleSnapActorToGround(pActor);
+    }
+    if ((flags & 0x2) == 0) {
+        ModelFileTrimHeapBlock(D_800C3B70);
+        ModelUnresolvePointers(D_800C3B70);
+        blockSize = (s32)HeapGetNextBlockHeader((HeapBlock *)D_800C3B70);
+        pModelFile = HeapAlloc(blockSize, 0);
+        memcpy(pModelFile, D_800C3B70, blockSize);
+        HeapFree(D_800C3B70);
+        BattleFreeModelMesh(pActor->pMesh, 0);
+        BattleInitializeMesh(pModelFile, pActor->pMesh);
+        pActor->pModelFile = (mem_addr)pModelFile;
+    } else {
+        pActor->pModelFile = 0;
+    }
+}
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
 // A list of {archive file index, buffer that file is decoded into} pairs: the
 // file index at 0x0/0x8/0x10/0x18 is the argument ArchiveDecodeAlignedSize and
@@ -862,8 +1138,8 @@ typedef struct {
 } Misc23ArchiveData;
 
 extern void ResolveArchiveEntryPointers(u32 *);
-extern void func_8002DDE4(void *, s32, s32, s32, s32, s32, s32);
-extern void func_800A8BF0(s32, u16, void *, void *, s32, s32, s32, s32, s32);
+extern void func_8002DDE4(void *, s16, s16, s16, s16, s16, s16);
+extern void func_800A8BF0(s32, u16, Misc23PartBuffer *, Misc23ModelBuffer *, s16, s16, s16, s16, s16 *);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
 /* 85.47% (gcc 2.6.0, the unit preset, -G0 --expand-div). Shape is right -
