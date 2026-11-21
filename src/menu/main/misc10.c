@@ -588,8 +588,6 @@ void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->pEquipmentPanel);
     func_801C72BC(0x13);
 }
-/* objdiff 96.76% (1188 bytes, exactly retail's size). Structure is complete: every call, both switches and all case bodies are in retail's body order (4, 5, 1, 3, 9, 10 and the nested 0, 1, 2). The one residue is the `lastSlot = slot` copy: retail emits a two-instruction u8 copy (`move v0,s1` before the MenuComputeCharacterStats jal, `move s0,v0` in its delay slot) AFTER that call, while gcc 2.6.0 here always folds it to a single `move s0,s1` and then steals it into the PREVIOUS call's delay slot, so every branch past it is 4 bytes early and one extra instruction turns up later. Tried: plain assignment, embedded assignment in the MenuDrawGearScreen argument, an extra u8 intermediate local, and a 3 min permuter run (best was a bogus case-3 mutation at 96.04). Note the MenuMovePointerCursor prototype must be (s32, u8) or every call site gains a useless andi.
-*/
 u8 MenuRunCharacterDressingRoomLoop(void) {
     u8 active;
     u8 lastSlot;
@@ -889,10 +887,18 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
     return result;
 }
 */
+// One equipment slot record of pDressingRoom->pCharacterSlots[], as far as this
+// unit reaches (misc9 walks the same records at a 0x28 stride).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x11];
+    /* 0x11 */ u8 unk11; // multiplies the wearer's ether into the slot's hp bonus
+    /* 0x12 */ u8 unk12[0x16];
+} MenuEquipmentSlot; // Size: 0x28
+
 void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
     GameCharacter* pChar;
     GameCharacter* pTarget;
-    u8* pSlots;
+    MenuEquipmentSlot* pSlots;
     GameGear* pGear;
     u32 value;
 
@@ -901,8 +907,8 @@ void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIn
     pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
     if (isGear == 0) {
         pSlots = pDressingRoom->pCharacterSlots[charIndex];
-        pSlots = &pSlots[slotIndex * 0x28];
-        value = pChar->ether * pSlots[0x11];
+        pSlots = &pSlots[slotIndex];
+        value = pChar->ether * pSlots->unk11;
         pTarget->hp = pTarget->hp + value;
         if (pTarget->hp > pTarget->maxHp) {
             pTarget->hp = pTarget->maxHp;
