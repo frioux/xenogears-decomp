@@ -221,7 +221,7 @@ void MenuInitializeArrowCursor(u_char index) {
     g_Menu->arrowCursors[index]->animFrameDuration = 0;
 }
 
-void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
+void MenuBuildArrowCursorPrim(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
     MenuArrowCursor* pCursor;
     u8* pPoly;
     s32 ofsX;
@@ -297,7 +297,7 @@ void MenuFreeArrowCursor(u_char index) {
    Spelling the poly pointer as `renderContext * 0x28 + (u32)base` fixes the
    addu order but relocates the shift chain (87.15). Round 373 re-measured 96.75
    and did not attempt the restructure (pRow = &pRows[i] + byte-offset variable):
-   the twin func_801DB5E4 closed at 100.00 in the same round. */
+   the twin MenuBuildPartyCharacterPrims closed at 100.00 in the same round. */
 /*
 void func_801DB39C(u_char arg0) {
     POLY_FT4* pPoly;
@@ -334,7 +334,7 @@ void func_801DB39C(u_char arg0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
 
 
-void func_801DB5E4(s32 arg0) {
+void MenuBuildPartyCharacterPrims(s32 arg0) {
     MenuCharacter* pCharacter;
     s32* pPositionsX;
     s32* pPositionsY;

@@ -68,7 +68,7 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
-void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3);
+void MenuBuildArrowCursorPrim(s32 arg0, s32 arg1, u_char arg2, u_char arg3);
 void MenuFreeArrowCursor(u_char index);
 void MenuStartOpenAnimation(void);
 void MenuTweenCharacterWindows(s32 arg0, s32 arg1);
@@ -96,7 +96,7 @@ s32 func_801D9704(s32 slot, u_char direction, u_char arg2);
 void func_801DA5BC(s32 arg0);
 void func_801DA9A8(s32 arg0, s32 arg1);
 void func_801DB39C(s32 arg0);
-void func_801DB5E4(s32 arg0);
+void MenuBuildPartyCharacterPrims(s32 arg0);
 s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
@@ -176,7 +176,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
             func_801DA5BC(arg0);
             func_801DA9A8(arg1, arg0);
             func_801DB39C(1);
-            func_801DB5E4(0);
+            MenuBuildPartyCharacterPrims(0);
         }
         pCursors = g_Menu->pCursors;
         pCursors->shouldRender[2] = 0;
@@ -334,7 +334,7 @@ void MenuFitInventoryWindowToItems(void) {
    two `selectedSlot = 0xFF` store sites where gcc 2.6.0 cross-jumps them into one).
    Round 231: still 93.91% / 888. Tried, no change: `default: continue;`, `while
    (active != 0)`, chained `prevRow = prevCol = 0xFF;`, moving the
-   func_801DB0A8(selectedSlot, row, 1, 1) call after the switch (89.26), moving
+   MenuBuildArrowCursorPrim(selectedSlot, row, 1, 1) call after the switch (89.26), moving
    `selectedSlot = 0xFF` INTO the func_801DB920 if-body (92.48), and writing that
    store both inside the body and after it (93.91 - gcc CSEs the pair). The delay
    slot andi is reorg duplicating the shared loop-test block, so no statement adds
@@ -377,7 +377,7 @@ s32 func_801DBE54(void) {
             MenuCreateScrollHandle(0xC, g_MenuInventoryScrollStep * row / 100 + 0x12, g_MenuInventoryWindowHeight);
             prevRow = row;
         }
-        func_801DB0A8(col, row, 0, 0);
+        MenuBuildArrowCursorPrim(col, row, 0, 0);
         if (col != prevCol) {
             func_801DA9A8(col, row);
             prevCol = col;
@@ -389,7 +389,7 @@ s32 func_801DBE54(void) {
             needsOpen = 0;
             MenuTweenCharacterWindows(0, 0);
         }
-        func_801DB0A8(selectedSlot, row, 1, 1);
+        MenuBuildArrowCursorPrim(selectedSlot, row, 1, 1);
         switch (g_Menu->input) {
         case 4:
             if (selectedSlot == 0xFF) {
@@ -790,7 +790,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
             prevSlot = slot;
             prevCol = 0xFF;
         }
-        func_801DB0A8(col, 0, 2, 0);
+        MenuBuildArrowCursorPrim(col, 0, 2, 0);
         if (col != prevCol) {
             func_801DCE60(slot, col, arg2);
             prevCol = col;
@@ -1445,7 +1445,7 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
             MenuCreateScrollHandle(0x94, scrollY + 0x12, scrollHeight);
         }
         if (cursorVisible) {
-            func_801DB0A8(col, row, 3, 0);
+            MenuBuildArrowCursorPrim(col, row, 3, 0);
         } else {
             g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
         }
@@ -1567,7 +1567,7 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
                 cursorVisible = 0;
                 g_Menu->pCursors->shouldRender[0] = 1;
                 closeList = 1;
-                func_801DB0A8(0, row, 3, 0);
+                MenuBuildArrowCursorPrim(0, row, 3, 0);
                 col = 0;
                 prevChar = 0xFF;
                 g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
@@ -1585,7 +1585,7 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
                 cursorVisible = 0;
                 g_Menu->pCursors->shouldRender[0] = 1;
                 closeList = 1;
-                func_801DB0A8(0, row, 3, 0);
+                MenuBuildArrowCursorPrim(0, row, 3, 0);
                 col = 0;
                 g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
                 break;

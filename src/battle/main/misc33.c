@@ -545,7 +545,7 @@ void BattleResetStateGlobals(void) {
     g_BattleState = NULL;
     g_BattleSlotBitMask = 0;
 }
-BattleMisc33State *func_800BED4C(void) {
+BattleMisc33State *BattleCreateState(void) {
     // retail re-reads g_BattleState once per group of stores; one local for the
     // whole body makes the reloads land in other registers (78.15%).
     BattleMisc33State *pState;

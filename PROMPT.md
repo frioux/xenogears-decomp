@@ -936,6 +936,15 @@ and you decide.
   two presets. After any preset edit, two consecutive `make objdiff-config` runs must
   give the same per-unit flags; use `clone.sh new`, not `reset`; and re-diff every park
   in the unit, because a percentage is only valid under the preset that produced it.
+- **A `mfhi`/`mflo` division residual means the unit is on the wrong compiler, and no spelling fixes it (round 373, proved with seven `cc1_probe` runs).**
+  Under gcc 2.7.2 every spelling of `x / K` and `x % K` - s32/u32/u16/s16 dividend, one expression or two
+  statements, a narrow result local, a `(u16)` cast on the dividend - puts `mfhi` in a temp (`mfhi $5`
+  + `sra $4,$5,5`); under gcc 2.6.0 the same six spellings emit retail's in-place form (`mfhi $4` +
+  `sra $4,$4,5`) with no source change. So when a 2.7.2 unit's parks are capped by division
+  destinations, the work is a preset screen of the whole unit under 2.6.0 (`try_flags.sh <unit> --all
+  --gcc gcc-2.6.0-psx`) and then a switch or a split - never another body. This is the fifth wall of
+  the same kind (after the `$at`/cdk -G0 class, the cdk -G8 switch-order class and the pre-split
+  units) and it is the last one that caps parks in bulk.
 - Not this project's compilers: `-mcpu=r8000`, gcc 2.8.1. No `-G0` in `world_map`.
 
 ## What objdiff cannot see

@@ -154,7 +154,7 @@ void BattleIncFrameCounter(void) {
     g_BattleWaitFrameCounter++;
 }
 
-extern void func_800B7C34(s32);
+extern void BattleLoadStageActorArchive(s32);
 extern void SpriteSetCallback(SpriteData *pSpriteData, void *pCallback);
 extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
 extern void func_800BE790(void);
@@ -162,7 +162,7 @@ extern void func_800BE790(void);
 // The animation the actor is playing is byte 3 of its 0xAC flag word.
 void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData *pSpriteData) {
     if (pSpriteData->pDefaultAnimFile == NULL) {
-        func_800B7C34(arg0);
+        BattleLoadStageActorArchive(arg0);
         return;
     }
     g_BattleWaitFrameCounter = 0;
@@ -170,7 +170,7 @@ void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData *pSpriteData) {
         SpriteSetCallback(pSpriteData, BattleIncFrameCounter);
         SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
     }
-    func_800B7C34(arg0);
+    BattleLoadStageActorArchive(arg0);
     if ((s8)pSpriteData->flags_0xAC.bytes[3] != 0) {
         while (g_BattleWaitFrameCounter == 0) {
             func_800BE790();

@@ -223,7 +223,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
 void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
 }
-void func_800B7C34(s32 stage);
+void BattleLoadStageActorArchive(s32 stage);
 s32 BattleStartStageActorAnimation(void);
 
 // The three actor spawn positions the stage loader blits into the framebuffer; the
@@ -254,7 +254,7 @@ extern void BattleUnloadActorArchive(void);
 extern int *ArchiveAllocStreamFile(int numEntries, int allocMode);
 extern void func_80029EB0(int, int *, int, int, short, short, short, short, short, short);
 
-void func_800B7C34(s32 stage) {
+void BattleLoadStageActorArchive(s32 stage) {
     RECT rect;
     BattleActorSlotPos *pSpawnPos;
     BattleActorArchiveFile *pFile;
@@ -338,7 +338,7 @@ extern void TimerWorkListRemoveTask(BattleTimerEntry *pEntry);
 extern u8 g_BattleSedsLoaded;
 
 // Swaps the stage's actor animation in: rebuilds the shared animation package from the
-// archive func_800B7C34 just loaded, then either starts the animation the current
+// archive BattleLoadStageActorArchive just loaded, then either starts the animation the current
 // actor's package selects (variant 0) or attaches the special animation file (1), and
 // hands the same frame environment to the outgoing sprite.
 s32 BattleStartStageActorAnimation(void) {
@@ -396,7 +396,7 @@ void BattleRequestStageLoad(s16 stage) {
 }
 
 void BattleLoadStageActor(s32 stage) {
-    func_800B7C34(stage);
+    BattleLoadStageActorArchive(stage);
     BattleStartStageActorAnimation();
     g_BattleStageLoadQueued = 1;
 }
@@ -901,7 +901,7 @@ extern void BattleApplyStateStep(void);
 extern void BattleSetActorTargetFromPathPosition(SpriteData *pSprite);
 extern void BattleLoadActorArchiveFile(SpriteData *pSprite);
 extern void func_800BF3E8(SpriteData *pSprite);
-extern BattleUnitState *func_800BED4C(void);
+extern BattleUnitState *BattleCreateState(void);
 extern SpriteData *BattleSetCurrentActorSprite(s32 actorIndex);
 
 /* The command row table g_BattleStateWork + 0x108 starts: 0x48-byte rows, this unit
@@ -929,7 +929,7 @@ void BattleInitActorSlotAnimation(s32 arg0, s32 slot, s32 arg2, s32 arg3) {
     func_800BE790();
     g_BattleAnimScriptHalted = 0;
     g_BattleActorSlotDoneMask &= ~(1 << slot);
-    pState = func_800BED4C();
+    pState = BattleCreateState();
     g_BattleState = pState;
     pState->savedActorSlot = arg3;
     pState->initialActorIndex = slot;
