@@ -36,6 +36,15 @@
 // shrinking it (WorldMapInitSlotActor and the slot's command-2 handler)
 #define WORLD_MAP_SLOT_SCALE_HOLD_FRAMES 60
 
+// a fading slot's two group scale factors grow by this much every frame, up to
+// WORLD_MAP_SLOT_SCALE_MAX (func_8007FD30 and its sibling WorldMapUpdateFadeGroups)
+#define WORLD_MAP_SLOT_SCALE_STEP 0x180
+#define WORLD_MAP_SLOT_SCALE_MAX 0x7FFF
+
+// the color a fading slot draws its prims with walks down by this much each frame
+// until it reaches 0 and the slot deactivates (func_8007FD30)
+#define WORLD_MAP_SLOT_FADE_COLOR_STEP 3
+
 // the map display buffer copied into VRAM when a mode initialises, and the
 // VRAM position it is copied to
 #define WORLD_MAP_SCREEN_WIDTH 320
@@ -65,6 +74,17 @@ typedef struct {
     /* 0x00 */ u8 unk00[0xA0];
     /* 0xA0 */ SVECTOR position;
 } WorldMapScratchpad; // Size: 0xA8
+
+// the two GTE scale vectors the group actors of a fading slot are scaled by, in
+// the scratchpad. The address is a literal on purpose: naming a symbol here makes
+// gcc materialise %hi/%lo through a saved register where the original stores
+// through a bare lui $at.
+typedef struct {
+    /* 0x00 */ VECTOR first;
+    /* 0x10 */ VECTOR second;
+} WorldMapScaleVectors; // Size: 0x20
+
+#define WORLD_MAP_SCALE_VECTORS ((WorldMapScaleVectors *)0x1F800000)
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
@@ -104,8 +124,7 @@ typedef struct {
     /* 0x20 */ MATRIX mat;
     /* 0x40 */ WorldMapPrimHeader *pPrimHeader;
     /* 0x44 */ undefined32 unk44;
-    /* 0x48 */ void *pPrims;
-    /* 0x4C */ undefined32 pPrimsCopy;
+    /* 0x48 */ void *pPrims[2]; // prim lists, [0] source and [1] destination; g_WorldMapPrimPacketIndex picks one
     /* 0x50 */ undefined32 unk50;
 } WorldMapGroup; // Size: 0x54
 
@@ -849,7 +868,7 @@ void WorldMapBuildPolyFT4Templates(WorldMapGroup *pGroup, u8 *pPrim, int count, 
         setSemiTrans(pPoly, 1);
         setRGB0(pPoly, 0x3C, 0x3C, 0xC0);
     }
-    memcpy((u8 *)pGroup->pPrimsCopy, pGroup->pPrims, count * sizeof(POLY_FT4));
+    memcpy((u8 *)pGroup->pPrims[1], pGroup->pPrims[0], count * sizeof(POLY_FT4));
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
@@ -873,9 +892,9 @@ int func_8007ECA4(int index) {
     WorldMapSetSpriteSetParent(1, 3);
     pRoot = g_WorldMapGroups;
     pActor = &g_WorldMapSlots[index];
-    WorldMapBuildPolyFT4Templates(&pRoot->groups[1], pRoot->groups[1].pPrims, *(u16 *)((u8 *)pRoot->groups[1].pPrimHeader + 4), 3);
-    WorldMapBuildPolyFT4Templates(&pRoot->groups[2], pRoot->groups[2].pPrims, *(u16 *)((u8 *)pRoot->groups[2].pPrimHeader + 4), 3);
-    WorldMapBuildPolyFT4Templates(&pRoot->groups[3], pRoot->groups[3].pPrims, *(u16 *)((u8 *)pRoot->groups[3].pPrimHeader + 4), 1);
+    WorldMapBuildPolyFT4Templates(&pRoot->groups[1], pRoot->groups[1].pPrims[0], *(u16 *)((u8 *)pRoot->groups[1].pPrimHeader + 4), 3);
+    WorldMapBuildPolyFT4Templates(&pRoot->groups[2], pRoot->groups[2].pPrims[0], *(u16 *)((u8 *)pRoot->groups[2].pPrimHeader + 4), 3);
+    WorldMapBuildPolyFT4Templates(&pRoot->groups[3], pRoot->groups[3].pPrims[0], *(u16 *)((u8 *)pRoot->groups[3].pPrimHeader + 4), 1);
     pGroup = &g_WorldMapGroups->groups[1];
     pRot = &pGroup->rot;
     pMatrix = &pGroup->mat;
@@ -913,7 +932,7 @@ int WorldMapInitSlotActor(int index) {
     } else {
         nAbr = 3;
     }
-    WorldMapBuildPolyFT4Templates(pGroup, pGroup->pPrims, pGroup->pPrimHeader->count, nAbr);
+    WorldMapBuildPolyFT4Templates(pGroup, pGroup->pPrims[0], pGroup->pPrimHeader->count, nAbr);
     pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
     pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
     pActor->state = 0;
@@ -1077,8 +1096,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    WorldMapSetupPrimTemplates(&pRoot->groups[9], pRoot->groups[9].pPrims, pRoot->groups[9].pPrimHeader->count);
-    WorldMapSetupPrimTemplates(&pRoot->groups[10], pRoot->groups[10].pPrims, pRoot->groups[10].pPrimHeader->count);
+    WorldMapSetupPrimTemplates(&pRoot->groups[9], pRoot->groups[9].pPrims[0], pRoot->groups[9].pPrimHeader->count);
+    WorldMapSetupPrimTemplates(&pRoot->groups[10], pRoot->groups[10].pPrims[0], pRoot->groups[10].pPrimHeader->count);
     do {
         pActor->x = 0x1498000;
         pActor->y = 0xFFF80000;
@@ -1092,78 +1111,55 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FD30);
-/* 94.54% (572 bytes; retail is 576 - one instruction short). Every store, call
-   and relocation is right; the two remaining deltas are
-   (1) the unk50/unk54 clamp: retail stores the bumped value in its own
-   instruction, then compares, and fills the beqz delay slot with
-   `addiu s3,s1,0x348` (&groups[10]); ours sinks the bumped store INTO the beqz
-   delay slot because gcc already computed both group pointers up at the top
-   (ours: `addiu s2,s1,0x2F4` before the `lh`, s3 in the bne delay slot), so the
-   store has nowhere else to go - that is the missing instruction;
-   (2) the scratchpad block: retail loads unk50, stores it, then loads unk54,
-   ours loads both first (register order only).
-   permute.sh 1+3 min: base 1328 -> 803 by dropping the separate `nX` local and
-   reusing `nY` (kept below, worth 90.00 -> 94.54). Note unk54/unk58 are void*
-   in the struct: comparing them needs the (s32) casts or gcc drops the clamp
-   (sltu) and the whole unk58 branch.
-*/
-/*
 int func_8007FD30(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapRoot *pRoot = g_WorldMapGroups;
-    WorldMapGroup *pGroup9 = &pRoot->groups[9];
-    WorldMapGroup *pGroup10 = &pRoot->groups[10];
-    s32 nY;
-    s32 nZ;
+    WorldMapGroup *pGroup = &pRoot->groups[9];
+    WorldMapGroup *pNextGroup;
+    s32 nPos;
+    s32 nSpread;
 
     if (pActor->command == 1) {
         pActor->command = 0;
     }
-    nY = pActor->x >> 12;
-    pGroup10->x = nY;
-    pGroup9->x = nY;
-    nY = pActor->y >> 12;
-    pGroup10->y = nY;
-    pGroup9->y = nY;
-    nZ = pActor->z >> 12;
-    pGroup10->z = nZ;
-    pGroup9->z = nZ;
-    pGroup10->mat = g_WorldMapIdentityMatrix;
-    pGroup9->mat = pGroup10->mat;
-    nY = pActor->unk50;
-    *(s32 *)0x1F800008 = nY;
-    *(s32 *)0x1F800000 = nY;
-    *(s32 *)0x1F800014 = 0x1000;
-    *(s32 *)0x1F800004 = 0x1000;
-    nY = (s32)pActor->unk54;
-    *(s32 *)0x1F800018 = nY;
-    *(s32 *)0x1F800010 = nY;
-    ScaleMatrix(&pGroup9->mat, (VECTOR *)0x1F800000);
-    ScaleMatrix(&pGroup10->mat, (VECTOR *)0x1F800010);
-    nY = pActor->unk50 + 0x180;
-    pActor->unk50 = nY;
-    if (nY > 0x7FFF) {
-        pActor->unk50 = 0x7FFF;
+    nPos = pActor->x >> 12;
+    pGroup[1].x = nPos;
+    pGroup->x = nPos;
+    nPos = pActor->y >> 12;
+    pGroup[1].y = nPos;
+    pGroup->y = nPos;
+    nPos = pActor->z >> 12;
+    pGroup[1].z = nPos;
+    pGroup->z = nPos;
+    pGroup[1].mat = g_WorldMapIdentityMatrix;
+    pGroup->mat = pGroup[1].mat;
+    WORLD_MAP_SCALE_VECTORS->first.vx = WORLD_MAP_SCALE_VECTORS->first.vz = pActor->stateIndex;
+    nSpread = (s32)pActor->pStateIds;
+    WORLD_MAP_SCALE_VECTORS->first.vy = WORLD_MAP_SCALE_VECTORS->second.vy = 0x1000;
+    WORLD_MAP_SCALE_VECTORS->second.vx = WORLD_MAP_SCALE_VECTORS->second.vz = nSpread;
+    ScaleMatrix(&pGroup->mat, &WORLD_MAP_SCALE_VECTORS->first);
+    ScaleMatrix(&pGroup[1].mat, &WORLD_MAP_SCALE_VECTORS->second);
+    pNextGroup = pGroup + 1;
+    pActor->stateIndex += WORLD_MAP_SLOT_SCALE_STEP;
+    if (pActor->stateIndex > WORLD_MAP_SLOT_SCALE_MAX) {
+        pActor->stateIndex = WORLD_MAP_SLOT_SCALE_MAX;
     }
-    nY = (s32)pActor->unk54 + 0x180;
-    pActor->unk54 = (void *)nY;
-    if (nY > 0x7FFF) {
-        pActor->unk54 = (void *)0x7FFF;
+    pActor->pStateIds = (void *)((s32)pActor->pStateIds + WORLD_MAP_SLOT_SCALE_STEP);
+    if ((s32)pActor->pStateIds > WORLD_MAP_SLOT_SCALE_MAX) {
+        pActor->pStateIds = (void *)WORLD_MAP_SLOT_SCALE_MAX;
     }
-    WorldMapSetPrimColors(*(u8 **)((u8 *)pGroup9 + g_WorldMapPrimPacketIndex * 4 + 0x48), *(u16 *)((u8 *)pGroup9->pPrimHeader + 4),
-                  pActor->unk58, pActor->unk58, pActor->unk58);
-    WorldMapSetPrimColors(*(u8 **)((u8 *)pGroup10 + g_WorldMapPrimPacketIndex * 4 + 0x48), *(u16 *)((u8 *)pGroup10->pPrimHeader + 4),
-                  pActor->unk58, pActor->unk58, pActor->unk58);
-    nZ = (s32)pActor->unk58 - 3;
-    pActor->unk58 = (void *)nZ;
-    if (nZ < 0) {
-        pActor->unk58 = NULL;
+    WorldMapSetPrimColors(pGroup->pPrims[g_WorldMapPrimPacketIndex], pGroup->pPrimHeader->count,
+                          (s32)pActor->pStateFrames, (s32)pActor->pStateFrames, (s32)pActor->pStateFrames);
+    pGroup = pNextGroup;
+    WorldMapSetPrimColors(pGroup->pPrims[g_WorldMapPrimPacketIndex], pGroup->pPrimHeader->count,
+                          (s32)pActor->pStateFrames, (s32)pActor->pStateFrames, (s32)pActor->pStateFrames);
+    pActor->pStateFrames = (void *)((s32)pActor->pStateFrames - WORLD_MAP_SLOT_FADE_COLOR_STEP);
+    if ((s32)pActor->pStateFrames < 0) {
+        pActor->pStateFrames = NULL;
         return 3;
     }
     return 1;
 }
-*/
 
 void WorldMapInitializeModeWithActors(void) {
     RECT rect;
