@@ -356,158 +356,111 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
         pSprite->doTransform = 0;
     }
     return count;
-}INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
-/* (992 bytes vs retail's 992; identical instruction multiset except the
-   constant-1 pseudo). The structural read below is CONFIRMED - every call, branch
-   and store matches retail; what is left is ONE allocator tie and the register
-   permutation it drags along:
-   - retail keeps the two flag constants (`li a3,1` before `bne a3` and again for
-     the `sb`) in the CALLER-saved $a3, rematerialised at each of the four uses.
-     We get ONE pseudo hoisted into the callee-saved $s8 before the loop, which
-     costs the tenth callee-saved register and makes gcc spill $a0 (pSprites) to
-     the frame: prologue `sw a0,16(sp); lw s1,16(sp)`, frame 0x40 where retail has
-     0x38, and every later register shifted (ours pSprites=$s1/walker=$s17,
-     retail walker=$s3/pSprites=$s6).
-   - PROVEN: writing both compares as `if (x)` instead of `== 1` removes the
-     constant pseudo and the result is EXACTLY retail's frame (0x38, no spill,
-     identical epilogue) at 91.86%, but `!= 0` emits `beqz` where retail emits
-     `li/bne`, so it can never reach byte equality - the `== 1` spelling is
-     retail's and must stay.
-   - Both permuter runs (base 2654 -> 1202 -> 1076/1116) only produced dead
-     branches and an extra matrix pointer; the tie is an allocno-numbering
-     question, i.e. the ORDER the pseudos appear in the source, which no shape
-     tried so far moves.
-   Facts worth keeping (each cost a round):
-   - the scale matrix base is PSX_SCRATCH itself (retail's `lui $s0,0x1F80` with
-     m[2][2] at +0x10), not PSX_SCRATCH+0x10.
-   - the scale-matrix rows must be read through the WALKER pointer (`pSprite->scale.vx`),
-     not pSprites: retail's `lh v0,76(s3)` uses the walker $s3 while the pos /
-     globalTransform stores above use the pSprites copy $s6.
-   - pParent is `void*` in include/battle/actor.h, so every parent access needs the
-     `((BattleSprite*)pSprite->pParent)` cast; retail RELOADS pParent before each
-     check (`lw v0,0(s3)` twice), so the source must not keep a pParent local.
-   - the second loop clears doRotate BEFORE doTransform (`sb 0,1` then `sb 0,0`).
-   - the inverse-scale matrix is `0x1000000 / pParent->scale.v*` (signed div; the
-     unit's --expand-div turns it into the break 6/7 sequence retail has).
-   - the whole body reuses one scratch MATRIX for all three matrices; retail
-     rematerialises `lui $s1,0x1F80` inside the loop because the prologue's copy
-     died (it is reused as the globalTransform walker).
-   Round 185 (park repair, un-park + re-measure against today's headers): the body
-   still COMPILES, but it now gives 87.12% / 952 bytes, not this note's 992 - ten
-   instructions short. So the delta since round 118 is a missing statement block
-   (start of the first loop: retail loads the three scale words, stores them at
-   0x40/0x44/0x48 and does THREE mult/div matrix fills; ours diverges before the
-   loop tail), not the constant-1 allocator tie described above. Re-derive from the
-   .s before spending time on the tie.
-   Round 195 (type-width sweep, un-parked and re-measured: still 87.12% / 952 bytes
-   vs retail's 992 = 248 insns vs our 238). CONFIRMED it is a missing statement
-   block, not a width: retail's pParent block materialises the flag constant 1 with
-   a FRESH `ori a3,zero,1` at each of FOUR sites (before each `bne`, and again in
-   the delay slot before each `sb`), all in the CALLER-saved $a3, while our compile
-   CSEs all four into ONE pseudo and parks it in the CALLEE-saved $s7 - which costs
-   the s8 save/restore pair (retail frames 9 callee-saved regs, we use 8) and two
-   instructions at each of the two parent tests. Retail also re-materialises
-   `lui s1,0x1F80` (scale-matrix base) INSIDE the loop where ours keeps it. Widths
-   checked and all already retail's: count `lhu 0xA`, rotDirection `lbu 0x6`,
-   scale `lh 0x4C/0x4E/0x50` in the pre-loop but `lhu 0x20/0x22/0x24` in the loop
-   (two different access spellings of the same field), pParent `lw 0`,
-   parent->doRotate/doTransform `lbu 5/4`, rot `lh 0x54`, pos `lw 0x5C/0x60/0x64`,
-   matrix base is PSX_SCRATCH itself with m[2][2] at +0x10 (round 118 was right).
-   Everything else in the two loops is instruction-for-instruction retail's; what is
-   left is one constant-1 CSE plus the allocator permutation it drags. Not in scope
-   for a width sweep - needs a shape that keeps four independent constant-1 pseudos.
-   Parked body compiles (lint clean) at 87.12%.
-
+}
 s32 func_8009F1C4(BattleSprite* pSprites, s32 scale) {
-    MATRIX* pScaleMatrix;
-    BattleSprite* pSprite;
-    u32 count;
+    BattleSprite* pSprite = pSprites;
+    MATRIX* pScaleMatrix = (MATRIX*)PSX_SCRATCH;
     u32 i;
+    u32 count;
 
-    pSprite = pSprites;
-    pScaleMatrix = (MATRIX*)PSX_SCRATCH;
     pSprites->globalTransform.t[0] = pSprites->pos[0];
     pSprites->globalTransform.t[1] = pSprites->pos[1];
     pSprites->globalTransform.t[2] = pSprites->pos[2];
+
     count = pSprites->count;
+
     if (pSprites->rotDirection != 0) {
         RotMatrixYXZ((SVECTOR*)pSprites->rot, &pSprites->globalTransform);
     } else {
         RotMatrix((SVECTOR*)pSprites->rot, &pSprites->globalTransform);
     }
-    pScaleMatrix->m[0][0] = (scale * pSprites->scale.vx) >> 12;
+
+    pScaleMatrix->m[0][0] = (scale * pSprites->scale.vx) >> 0xC;
     pScaleMatrix->m[0][1] = 0;
     pScaleMatrix->m[0][2] = 0;
     pScaleMatrix->m[1][0] = 0;
-    pScaleMatrix->m[1][1] = (scale * pSprites->scale.vy) >> 12;
+    pScaleMatrix->m[1][1] = (scale * pSprites->scale.vy) >> 0xC;
     pScaleMatrix->m[1][2] = 0;
     pScaleMatrix->m[2][0] = 0;
     pScaleMatrix->m[2][1] = 0;
-    pScaleMatrix->m[2][2] = (scale * pSprites->scale.vz) >> 12;
+    pScaleMatrix->m[2][2] = (scale * pSprites->scale.vz) >> 0xC;
+
     MulMatrix0(&pSprites->globalTransform, pScaleMatrix, &pSprites->localTransform);
+
     pSprites->localTransform.t[0] = pSprites->globalTransform.t[0];
     pSprites->localTransform.t[1] = pSprites->globalTransform.t[1];
     pSprites->localTransform.t[2] = pSprites->globalTransform.t[2];
+
     for (i = 1; i < count; i++) {
         pSprites++;
-        if (pSprite->pParent != NULL) {
-            if (((BattleSprite*)pSprite->pParent)->doRotate == 1) {
-                pSprite->doRotate = 1;
+
+        if (pSprites->pParent != NULL) {
+            if (((BattleSprite*)pSprites->pParent)->doRotate == TRUE) {
+                pSprites->doRotate = TRUE;
             }
-            if (((BattleSprite*)pSprite->pParent)->doTransform == 1) {
-                pSprite->doTransform = 1;
-            }
-        }
-        if (pSprite->doRotate != 0) {
-            if (pSprite->rotDirection != 0) {
-                RotMatrixYXZ((SVECTOR*)pSprite->rot, &pSprite->localTransform);
-            } else {
-                RotMatrix((SVECTOR*)pSprite->rot, &pSprite->localTransform);
-            }
-            pScaleMatrix->m[0][0] = pSprite->scale.vx;
-            pScaleMatrix->m[0][1] = 0;
-            pScaleMatrix->m[0][2] = 0;
-            pScaleMatrix->m[1][0] = 0;
-            pScaleMatrix->m[1][1] = pSprite->scale.vy;
-            pScaleMatrix->m[1][2] = 0;
-            pScaleMatrix->m[2][0] = 0;
-            pScaleMatrix->m[2][1] = 0;
-            pScaleMatrix->m[2][2] = pSprite->scale.vz;
-            MulMatrix0(&pSprite->localTransform, pScaleMatrix, &pSprite->localTransform);
-            if (pSprite->pParent != NULL) {
-                pScaleMatrix->m[0][0] = 0x1000000 / ((BattleSprite*)pSprite->pParent)->scale.vx;
-                pScaleMatrix->m[0][1] = 0;
-                pScaleMatrix->m[0][2] = 0;
-                pScaleMatrix->m[1][0] = 0;
-                pScaleMatrix->m[1][1] = 0x1000000 / ((BattleSprite*)pSprite->pParent)->scale.vy;
-                pScaleMatrix->m[1][2] = 0;
-                pScaleMatrix->m[2][0] = 0;
-                pScaleMatrix->m[2][1] = 0;
-                pScaleMatrix->m[2][2] = 0x1000000 / ((BattleSprite*)pSprite->pParent)->scale.vz;
-                MulMatrix0(pScaleMatrix, &pSprite->localTransform, &pSprite->localTransform);
+            if (((BattleSprite*)pSprites->pParent)->doTransform == TRUE) {
+                pSprites->doTransform = TRUE;
             }
         }
-        if (pSprite->doTransform != 0) {
-            pSprite->localTransform.t[0] = pSprite->pos[0];
-            pSprite->localTransform.t[1] = pSprite->pos[1];
-            pSprite->localTransform.t[2] = pSprite->pos[2];
-            if (pSprite->pParent != NULL) {
-                CompMatrix(&((BattleSprite*)pSprite->pParent)->globalTransform, &pSprite->localTransform,
-                           &pSprite->globalTransform);
+
+        if (pSprites->doRotate) {
+            MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
+
+            if (pSprites->rotDirection != 0) {
+                RotMatrixYXZ((SVECTOR*)pSprites->rot, &pSprites->localTransform);
             } else {
-                pSprite->globalTransform = pSprite->localTransform;
+                RotMatrix((SVECTOR*)pSprites->rot, &pSprites->localTransform);
+            }
+
+            pScratch->m[0][0] = pSprites->scale.vx;
+            pScratch->m[0][1] = 0;
+            pScratch->m[0][2] = 0;
+            pScratch->m[1][0] = 0;
+            pScratch->m[1][1] = pSprites->scale.vy;
+            pScratch->m[1][2] = 0;
+            pScratch->m[2][0] = 0;
+            pScratch->m[2][1] = 0;
+            pScratch->m[2][2] = pSprites->scale.vz;
+
+            MulMatrix0(&pSprites->localTransform, pScratch, &pSprites->localTransform);
+
+            if (pSprites->pParent != NULL) {
+                pScratch->m[0][0] = 0x1000000 / ((BattleSprite*)pSprites->pParent)->scale.vx;
+                pScratch->m[0][1] = 0;
+                pScratch->m[0][2] = 0;
+                pScratch->m[1][0] = 0;
+                pScratch->m[1][1] = 0x1000000 / ((BattleSprite*)pSprites->pParent)->scale.vy;
+                pScratch->m[1][2] = 0;
+                pScratch->m[2][0] = 0;
+                pScratch->m[2][1] = 0;
+                pScratch->m[2][2] = 0x1000000 / ((BattleSprite*)pSprites->pParent)->scale.vz;
+
+                MulMatrix0(pScratch, &pSprites->localTransform, &pSprites->localTransform);
+            }
+        }
+
+        if (pSprites->doTransform) {
+            pSprites->localTransform.t[0] = pSprites->pos[0];
+            pSprites->localTransform.t[1] = pSprites->pos[1];
+            pSprites->localTransform.t[2] = pSprites->pos[2];
+
+            if (pSprites->pParent != NULL) {
+                CompMatrix(&((BattleSprite*)pSprites->pParent)->globalTransform, &pSprites->localTransform,
+                           &pSprites->globalTransform);
+            } else {
+                pSprites->globalTransform = pSprites->localTransform;
             }
         }
     }
-    pSprite = pSprites;
+
     for (i = 1; i < count; i++) {
         pSprite++;
-        pSprite->doRotate = 0;
-        pSprite->doTransform = 0;
+        pSprite->doRotate = FALSE;
+        pSprite->doTransform = FALSE;
     }
+
     return count;
 }
-*/
 void BattleNoOp(void) {
 }
 void BattleRenderModel(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATRIX* pLightMatrix,
