@@ -268,83 +268,54 @@ def matching_asm(twin, name):
     return p if os.path.isfile(os.path.join(ROOT, p)) else None
 
 
+CLS = {"park100": "park", "twin": "twin", "cluster": "cluster", "park": "park", "fresh": "fresh", "big": "big",
+       "redo": "redo"}
+
+
 def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
-    """Build (minutes, extra) for a lane of eligible stubs `funcs` (stub dicts) in one unit."""
+    """Build (minutes, extra) for a lane of eligible stubs `funcs` (stub dicts) in one unit.
+
+    `extra` carries only lane-specific evidence; each class's fixed procedure text is CLASS_NOTE in brief.js."""
     total = sum(f["insns"] for f in funcs)
     names = ", ".join("%s (%d insns)" % (f["func"], f["insns"]) for f in funcs)
     if cls == "park100":
         minutes = 30 if total < BIG else 60
-        why = "; ".join("%s: %s" % (f["func"], note_excerpt(f, 200)) for f in funcs)
-        extra = ("FREE PARK, probably a stale one: the note beside %s records 100.00 percent, so the body in the file may "
-                 "already match. Un-park it (python3 tools/scripts/park.py unpark %s %s <Func>), compile, run diff_func.sh "
-                 "and confirm MATCH, then check_bin.sh before committing. If it is not 100.00 under the unit's own preset the "
-                 "note's number came from another preset or a pre-edit body: say so, measure the real figure and re-park "
-                 "with it. Note text: %s" % (names, "src/%s.c" % unit, unit.split("/")[-1], why))
+        extra = "Notes say 100.00 percent (probably stale): " + " | ".join(
+            "%s (%d insns): %s" % (f["func"], f["insns"], note_excerpt(f, 160)) for f in funcs)
     elif cls == "twin":
         minutes = 30 if total < BIG else 60
         bits = []
         for f in funcs:
             t = f["twin"]
-            kind = "PORT" if t["strict"] >= 0.98 else "TEMPLATE"
             tasm = matching_asm(t, t["twin"])
-            if f["parked"]:
-                bits.append("%s also has a park at %s percent beside its stub: start from that body if it is closer" % (
-                    f["func"], "%.2f" % f["pct"] if f["pct"] is not None else "an unrecorded"))
-            bits.append("%s (%d insns) is %s of the matched %s at %s (strict %.3f, loose %.3f, %d of %d raw words identical%s)"
-                        % (f["func"], f["insns"], kind, t["twin"], t["twin_file"], t["strict"], t["loose"], t["same"],
-                           f["insns"], "; diff -u %s against your stub's .s" % tasm if tasm else ""))
-        extra = ("TWIN PORT: " + " | ".join(bits) + ". Start from that body; the .s is the authority for callees, "
-                 "constants, globals and struct offsets (a twin in another overlay calls different functions at different "
-                 "addresses). Commit after each match.")
+            bits.append("%s (%d insns) %s %s at %s, strict %.3f loose %.3f, %d of %d words identical%s%s" % (
+                f["func"], f["insns"], "PORT of" if t["strict"] >= 0.98 else "TEMPLATE from", t["twin"], t["twin_file"],
+                t["strict"], t["loose"], t["same"], f["insns"], "; twin asm " + tasm if tasm else "",
+                "; own park at %s percent" % ("%.2f" % f["pct"] if f["pct"] is not None else "?") if f["parked"] else ""))
+        extra = " | ".join(bits)
     elif cls == "cluster":
         f = funcs[0]
-        fam = ", ".join("%s (%s)" % (n, u) for u, n in f["family"])
         minutes = 30 if f["insns"] < BIG else 60
-        extra = ("FAMILY LEADER: %s (%d insns) is the smallest unmatched member of a family of near-identical stubs "
-                 "(each at least 0.90 alike by twin_for.py): %s. Matching it turns every sibling into a PORT lane next "
-                 "round, so write it as plain, cleanly parameterised C and name the constants that differ between "
-                 "the siblings in your report. Run python3 tools/scripts/twin_for.py %s to see the exact ratios."
-                 % (f["func"], f["insns"], fam, f["func"]))
+        fam = [("%s (%s)" % (n, u)) for u, n in f["family"]]
+        more = " and %d more" % (len(fam) - 10) if len(fam) > 10 else ""
+        extra = "%s (%d insns), siblings: %s%s" % (f["func"], f["insns"], ", ".join(fam[:10]), more)
     elif cls == "park":
         minutes = 60
-        bits = ["%s at %.2f percent, %d insns (note: %s)" % (f["func"], f["pct"], f["insns"], note_excerpt(f, 240))
-                for f in funcs]
-        extra = ("PARK CONTINUATION, not attempted in the last %d rounds: %s. Un-park first (python3 tools/scripts/park.py "
-                 "unpark %s %s <Func>), watch the COMPILE (diff_func.sh exits 33 with no output when cc1 fails), re-measure "
-                 "before and after each edit, and read the old note for levers already measured so you do not repeat them. "
-                 "Then run the permuter for ten minutes from the exact body (tools/scripts/permute.sh %s <Func> --minutes 10) "
-                 "and hand-port what it finds. If you cannot move it, re-park with the new best and one named cause."
-                 % (COOLDOWN, " | ".join(bits), "src/%s.c" % unit, unit.split("/")[-1], unit))
-        minutes = 60
+        extra = " | ".join("%s at %.2f percent, %d insns, note: %s" % (f["func"], f["pct"], f["insns"], note_excerpt(f, 160))
+                           for f in funcs)
     elif cls == "fresh":
         minutes = 30
-        extra = ("FRESH BODIES: %s - nobody has ever written these: no park, no note, no percentage, so you are transcribing "
-                 "from scratch. Do the smallest first. Read the unit's matched C first for the records and locals it already "
-                 "recovers, then transcribe each .s in address-order phases (prologue, each basic block in address order, "
-                 "tail last) and take callee arity from the callee's definition in src or from "
-                 "python3 tools/scripts/ghidra_info.py <Func>. Commit after each match." % names)
+        extra = "Never written, no park or note: " + names
     elif cls == "redo":
         minutes = 30 if all(f["insns"] < BIG for f in funcs) else 60
-        bits = ["%s (%d insns) %s" % (f["func"], f["insns"], "scored %.2f percent" % f["pct"] if f["pct"] is not None
-                                       else "has a note with no usable percentage") for f in funcs]
-        notes = " | ".join("%s: %s" % (f["func"], note_excerpt(f, 160)) for f in funcs if f["note"])
-        extra = ("REDO - the existing park/note is old: %s. Treat it as a reference, not a base. First un-park each one "
-                 "(python3 tools/scripts/park.py unpark src/%s.c %s <Func>) and re-measure it, because notes can be stale or "
-                 "the body may never have compiled. If it is still under 90 percent, write a fresh body from the output of "
-                 "tools/scripts/m2c_draft.sh %s <Func>, using the old body only for names and types, and run "
-                 "python3 tools/scripts/twin_for.py <Func> for a matched twin to port from. Keep whichever scores higher "
-                 "and park that one. Commit after each match. %s"
-                 % ("; ".join(bits), unit, unit.split("/")[-1], unit, ("Old notes: " + notes) if notes else ""))
+        extra = " | ".join("%s (%d insns) %s%s" % (
+            f["func"], f["insns"], "scored %.2f percent" % f["pct"] if f["pct"] is not None else "no usable percentage",
+            ", note: " + note_excerpt(f, 100) if f["note"] else "") for f in funcs)
     else:  # big
         f = funcs[0]
         minutes = 60
-        extra = ("DEEP FRESH BODY: %s (%d instructions) has never been written. Start from "
-                 "tools/scripts/m2c_draft.sh %s %s, which prints a decompiler draft: use it as a skeleton, never as the "
-                 "answer. Transcribe in address-order phases (prologue, each basic block in address order, tail last), take "
-                 "callee arity from ghidra_info.py <Func>, and PARK after each phase (python3 tools/scripts/park.py repark "
-                 "with the percentage in the note) and commit, so a kill at minute 60 loses nothing."
-                 % (f["func"], f["insns"], unit, f["func"]))
-    return minutes, extra.replace("<Func>", funcs[0]["func"])
+        extra = "%s (%d instructions), never written" % (f["func"], f["insns"])
+    return minutes, extra
 
 
 def pick(funcs, key, limit, budget):
@@ -424,6 +395,7 @@ def worker(unit, tag, funcs, cls, table):
         "symbols": sym,
         "funcs": [f["func"] for f in funcs],
         "minutes": minutes,
+        "cls": CLS[cls],
         "extra": extra,
     }
 
@@ -484,6 +456,8 @@ def main():
     ap.add_argument("--queue", type=int, default=6)
     ap.add_argument("--round", type=int)
     ap.add_argument("--kind", choices=["auto", "twin", "park", "fresh", "big", "redo"], default="auto")
+    ap.add_argument("--max-bytes", type=int, default=16000,
+                    help="drop queue entries from the end until the args JSON fits (default 16000)")
     ap.add_argument("--json", action="store_true", help="print only the JSON object")
     ap.add_argument("--stats", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="do not record in the history log")
@@ -509,6 +483,12 @@ def main():
     obj = {"round": "r%d" % round_no, "workers": workers}
     if queue:
         obj["queue"] = queue
+    while queue and len(json.dumps(obj, separators=(",", ":"))) > args.max_bytes:
+        queue.pop()
+        lanes.pop()
+        if not queue:
+            del obj["queue"]
+        print("# args over --max-bytes %d: dropped a queue entry, %d queued" % (args.max_bytes, len(queue)), file=sys.stderr)
     tags = [l[1] for l in lanes]
     deep = max(w["minutes"] for w in workers)
     # Every lane drains the queue, so the round's deadline is the worst case of the whole
@@ -516,17 +496,18 @@ def main():
     total = sum(l[0]["minutes"] for l in lanes)
     options = {"timeoutMs": int((math.ceil(total / len(workers)) + deep) * 60000)}
     if args.json:
-        print(json.dumps({"clone_tags": tags, "options": options, "args": obj}, indent=1))
+        print(json.dumps({"clone_tags": tags, "options": options, "args": obj}, separators=(",", ":")))
     else:
         print("# round %d: %d workers + %d queued%s" % (round_no, len(workers), len(queue),
                                                       "  (dry run, not recorded)" if args.dry_run else ""))
         print("# lanes: " + ", ".join("%s %s %s" % (l[1], l[2], ",".join(f["func"] for f in l[3])) for l in lanes))
+        print("# files: " + " ".join(dict.fromkeys(w["file"] for w in workers + queue)))
         print("tools/rounds/clone.sh new " + " ".join(tags))
         if len([w for w in workers if w["minutes"] > 30]) > 4:
             print("# WARNING: more than 4 deep (60+ minute) workers; PROMPT.md caps a deep round at 4 workers")
         print("subagent({workflow: \"tools/rounds/brief.js\", async: true%s, args: <below>})"
               % (", options: %s" % json.dumps(options) if options else ""))
-        print(json.dumps(obj, indent=1))
+        print(json.dumps(obj, separators=(",", ":")))
     if not args.dry_run and (args.record or not args.stats):
         record(hpath, round_no, lanes)
 

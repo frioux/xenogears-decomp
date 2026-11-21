@@ -1,6 +1,7 @@
 // Fan a round of decompilation workers out, one unit per worker.
 // args: { round, workers: [{ tree, file, unit, asm, binary, overlay, preset,
-//                            presetNote?, symbols, funcs, more?, extra?, minutes?, model? }],
+//                            presetNote?, symbols, funcs, more?, extra?, cls?, minutes?, model? }],
+//         cls: twin|cluster|park|fresh|big|redo selects the CLASS_NOTE procedure paragraph; extra is evidence only.
 //         queue?: [same shape], fg?: 2 }
 // workers.length is the concurrency (one lane each); queue is the backlog. Every lane, foreground
 // or background, starts the next queue entry when its worker ends. The first `fg` lanes run on the
@@ -10,6 +11,19 @@
 // with a queue either leave it out or make it cover the chain (see PROMPT.md "Foreground lanes").
 // Lessons (measured C idioms and blockers) live in tools/rounds/levers.md, read through
 // tools/scripts/lever.py; add new ones there, not here.
+// One procedure paragraph per lane class (worker.cls), rendered above w.extra. Plain strings: no
+// backticks and no dollar-brace, so the HEADER template literal below cannot be broken by them.
+// Every time limit here must agree with the STOP RULE in HEADER.
+const CLASS_NOTE = {
+  twin: (w) => "TWIN PORT LANE. Each function below has a matched twin (see the evidence line). Start from the twin's body, not from m2c, and diff the twin's .s against your stub's .s to see what differs. The .s is the authority for callees, constants, globals and struct offsets: a twin in another overlay calls different functions at different addresses. Commit after each match.",
+  cluster: (w) => "FAMILY LEADER LANE. The function is the smallest unmatched member of a family of near-identical stubs (each at least 0.90 alike by twin_for.py). Matching it turns every sibling into a twin lane next round, so write plain, cleanly parameterised C and name the constants that differ between siblings in your report. python3 tools/scripts/twin_for.py <Func> prints the exact ratios.",
+  park: (w) => "PARK LANE: each function has an old park with a measured percentage. In this order: (1) un-park it with python3 tools/scripts/park.py unpark " + w.file + " " + w.unit.split("/").pop() + " <Func>; (2) run diff_func.sh and read the WHOLE first output: it prints COMPILE FAILED with the compiler's errors when cc1 rejects the body, so fix those before anything else; (3) re-measure, because the old note's number can be stale or from another preset (a note that says 100.00 percent may already be MATCH: confirm, then run check_bin.sh before committing), and read the note for levers already measured so you do not repeat them; (4) look the residual up with python3 tools/scripts/lever.py <symptom words> and try exactly what it says; (5) only when the function is at 99% or better, run tools/scripts/permute.sh " + w.unit + " <Func> --minutes 3 once and hand-port what it finds. Below 99% there is no permuter run. The STOP RULE ends each function; re-park with the new best and one named cause if you cannot move it.",
+  fresh: (w) => "FRESH LANE: nobody has written these functions (no park, no note, no percentage), so you transcribe from scratch, smallest first. Read the unit's matched C first for the records and locals it already recovers. Transcribe each .s in address-order phases (prologue, each basic block in address order, tail last). Take callee arity from the callee's definition under src or from python3 tools/scripts/ghidra_info.py <Func>. Commit after each match.",
+  big: (w) => "DEEP FRESH LANE: the function has never been written. python3 tools/scripts/m2c_draft.sh " + w.unit + " <Func> prints a decompiler draft: use it as a skeleton, never as the answer. Transcribe in address-order phases (prologue, each basic block in address order, tail last), take callee arity from ghidra_info.py <Func>, and after each phase PARK it (python3 tools/scripts/park.py repark, percentage in the note) and commit, so a kill at the time limit loses nothing.",
+  redo: (w) => "REDO LANE: the existing park or note is old, so treat it as a reference, not a base. Un-park each function first (python3 tools/scripts/park.py unpark " + w.file + " " + w.unit.split("/").pop() + " <Func>), read the whole first diff_func.sh output (COMPILE FAILED means the body never compiled) and re-measure. If it is still under 90 percent, write a fresh body from tools/scripts/m2c_draft.sh " + w.unit + " <Func>, using the old body only for names and types, and run python3 tools/scripts/twin_for.py <Func> for a matched twin to port from. Keep whichever scores higher and park that one. Commit after each match. The permuter runs only under the STOP RULE exception (99% or better).",
+};
+const classNote = (w) => (w.cls && CLASS_NOTE[w.cls] ? CLASS_NOTE[w.cls](w).split("<Func>").join(w.funcs.length === 1 ? w.funcs[0] : "<Func>") + "\n" : "");
+
 const HEADER = (w) => `You are a worker on a PS1 matching decompilation (Xenogears, US). YOUR TREE: ${w.tree} - this is your own private copy of the repo; work only there. Read AGENTS.md sections 3 and 4 plus CLAUDE.md 'Known sharp edges' in it before you start.
 
 YOU OWN EXACTLY ONE FILE: ${w.file} (unit path for diffing: ${w.unit}). ${w.ownNote || "Do not edit any other .c file."}
@@ -58,7 +72,7 @@ ${w.funcs}
 ${w.more || "When you get through the list, write the report and end (STOP RULE)."}
 
 The assembly for each function is ${w.asm}/<Func>.s - read it before writing C. Matched functions already in your unit are the reference for struct layouts and idiom; read a few neighbours first.
-${w.extra || ""}
+${classNote(w)}${w.extra || ""}
 REALISTIC C - a match is step one, not the finish. The goal is source a 1998 Square programmer could have typed, and they never typed \`*(u8 *)(D_800CCE3D + slot * 0x170) = (*p)[1];\` or \`u8 *p = D_800D343F + index * 0x40;\`. Those say: there is an array of 0x170-byte (0x40-byte) structs and nobody has declared it.
 - Scaled global: \`D_X + i * 0x40\` is \`Table[i]\` of a 0x40-byte struct whose base is the lowest address the unit indexes that way (D_800D343F is field 0x3F of the table at D_800D3400). Declare the struct (offset comment per field, size comment, \`unk<offset>\` for unknown fields, a named field once its use shows what it is) and write \`D_800D3400[index].unk3F\`. Look in include/ and the unit's matched neighbours for an existing struct of that size first; extend it, never declare a second one for the same table.
 - Cast-and-offset: \`*(s16 *)(pNode + 6)\`, \`*(u16 *)((u8 *)pElement + 0xA)\` is \`pNode->unk6\`; type the pointer, including the parameter.
