@@ -23,6 +23,11 @@ extern int g_PartyIsWaitingForStreamData;
 extern void* g_PartyDataBuffers[];
 extern void* g_PartyStreamDataPointers[];
 
+// One byte per cell, 28 rows of 40.
+#define SYSTEM_CELL_ROWS 28
+#define SYSTEM_CELL_COLUMNS 40
+#define SYSTEM_CELL_COUNT (SYSTEM_CELL_ROWS * SYSTEM_CELL_COLUMNS)
+
 extern u8* g_SystemCellGrid;
 extern u8* g_SystemCellNeighborCounts;
 extern void* g_SystemCellPrimBuffers[2];
@@ -33,33 +38,33 @@ void SystemInitializeCellGridBuffers(void) {
 
     g_SystemCellPrimBuffers[0] = HeapAlloc(0x3480, 1);
     g_SystemCellPrimBuffers[1] = HeapAlloc(0x3480, 1);
-    g_SystemCellGrid = HeapAlloc(0x460, 1);
-    g_SystemCellNeighborCounts = HeapAlloc(0x460, 1);
+    g_SystemCellGrid = HeapAlloc(SYSTEM_CELL_COUNT, 1);
+    g_SystemCellNeighborCounts = HeapAlloc(SYSTEM_CELL_COUNT, 1);
 
-    for (i = 0; i < 0x1C; i++) {
-        for (j = 0; j < 0x28; j++) {
-            g_SystemCellGrid[i * 0x28 + j] = 0;
-            g_SystemCellNeighborCounts[i * 0x28 + j] = 0;
+    for (i = 0; i < SYSTEM_CELL_ROWS; i++) {
+        for (j = 0; j < SYSTEM_CELL_COLUMNS; j++) {
+            g_SystemCellGrid[i * SYSTEM_CELL_COLUMNS + j] = 0;
+            g_SystemCellNeighborCounts[i * SYSTEM_CELL_COLUMNS + j] = 0;
         }
     }
 }
 
 void SystemIncrementCellNeighborCount(s32 arg0, s32 arg1) {
     if (arg0 < 0) {
-        arg0 = 0x1C;
+        arg0 = SYSTEM_CELL_ROWS;
     }
-    if (arg0 > 0x1C) {
+    if (arg0 > SYSTEM_CELL_ROWS) {
         arg0 = 0;
     }
 
     if (arg1 < 0) {
-        arg1 = 0x28;
+        arg1 = SYSTEM_CELL_COLUMNS;
     }
-    if (arg1 > 0x28) {
+    if (arg1 > SYSTEM_CELL_COLUMNS) {
         arg1 = 0;
     }
 
-    g_SystemCellNeighborCounts[arg0 * 0x28 + arg1] += 1;
+    g_SystemCellNeighborCounts[arg0 * SYSTEM_CELL_COLUMNS + arg1] += 1;
 }
 
 extern int D_800592C8;
@@ -193,7 +198,7 @@ extern s32 g_GameAudioFadeInPending;
 extern s32 g_GameWdsBankLoadState;
 extern s32 g_FieldPartyActorIndices[3];
 extern s32 g_FieldPartyActorSlots[3];
-extern s32 D_80062524[1];
+extern void* g_GameWdsEntries[];
 
 void SystemResetGlobalState(void) {
     int i;
@@ -246,7 +251,7 @@ void SystemResetGlobalState(void) {
     }
 
     for (i = 3; i >= 0; i--) {
-        D_80062524[i - 3] = 0;
+        g_GameWdsEntries[i] = NULL;
     }
 }
 
