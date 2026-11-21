@@ -133,11 +133,11 @@ void ControllerPoll(void) {
 
     // Were any buttons released?
     if (g_C1ButtonStateReleased)
-        D_8005022C = 0;
+        g_C1FramesSinceButtonRelease = 0;
     
     g_C1ButtonStatePressedOnce = g_C1ButtonState;
-    if (D_8005022C < 0x20) {
-        D_8005022C += 1;
+    if (g_C1FramesSinceButtonRelease < 0x20) {
+        g_C1FramesSinceButtonRelease += 1;
         g_C1ButtonStatePressedOnce = g_C1ButtonStateReleased;
     } else if (g_SpuChannelMask & 3) {
         g_C1ButtonStatePressedOnce = g_C1ButtonStateReleased;
@@ -176,11 +176,11 @@ void ControllerPoll(void) {
     g_C2PrevButtonState = g_C2ButtonState;
     
     if (g_C2ButtonStateReleased)
-        D_80050230 = 0;
+        g_C2FramesSinceButtonRelease = 0;
     
     g_C2ButtonStatePressedOnce = g_C2ButtonState;
-    if (D_80050230 < 0x20) {
-        D_80050230 += 1;
+    if (g_C2FramesSinceButtonRelease < 0x20) {
+        g_C2FramesSinceButtonRelease += 1;
         g_C2ButtonStatePressedOnce = g_C2ButtonStateReleased;
     } else if (g_SpuChannelMask & 3) {
         g_C2ButtonStatePressedOnce = g_C2ButtonStateReleased;

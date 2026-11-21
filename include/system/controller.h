@@ -96,8 +96,8 @@ extern int g_C1PrevButtonState;
 extern int g_C2PrevButtonState;
 
 // Counts to keep track of how long no buttons has been released
-extern int D_8005022C;
-extern int D_80050230;
+extern int g_C1FramesSinceButtonRelease;
+extern int g_C2FramesSinceButtonRelease;
 
 // Timer interrupt count
 extern int g_SpuChannelMask;

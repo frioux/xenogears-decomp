@@ -61,7 +61,7 @@ void KernelMenuUpdate(void) {
     }
 
     // Version?
-    Sprintf(&sBuffer, &D_800182B0, D_80059484, D_80059420, (s32) D_80059418);
+    Sprintf(&sBuffer, &D_800182B0, g_PlayTimeHours, g_PlayTimeMinutes, (s32) g_PlayTimeSeconds);
 
     // Get mode / device
     pMode = &D_800182F0;

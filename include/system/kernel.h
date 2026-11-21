@@ -19,9 +19,9 @@ extern KernelMenuRenderEnvironment* g_KernelMenuCurRenderEnvironment;
 extern KernelMenuRenderEnvironment g_KernelMenuRenderEnvironments[2];
 
 // Version?
-extern char D_80059484;
-extern char D_80059420;
-extern char D_80059418;
+extern char g_PlayTimeHours;
+extern char g_PlayTimeMinutes;
+extern char g_PlayTimeSeconds;
 
 // Is Debug?
 extern int g_DebugTable;

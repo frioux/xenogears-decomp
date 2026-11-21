@@ -7,8 +7,8 @@
 
 extern u_char D_8005938C;
 extern int g_DebugTable;
-extern int D_80059390;
-extern int D_800501FC;
+extern int g_ControllerDebugBreakEnabled;
+extern int g_ControllerFrameCallback;
 extern int D_80050204;
 
 extern void ControllerResetState(void);
@@ -37,32 +37,32 @@ typedef struct {
 extern void ControllerUpdateActuatorState(ControllerBState* pState);
 extern void SendPAD(void* pDest, int destSize, void* pSrc, int srcSize);
 
-extern u_char D_800501F8;
-extern u_char D_80059370;
-extern u_char D_80059418;
-extern u_char D_80059420;
-extern u_char D_80059484;
+extern u_char g_PlayTimeStopped;
+extern u_char g_PlayTimeFrameCounter;
+extern u_char g_PlayTimeSeconds;
+extern u_char g_PlayTimeMinutes;
+extern u_char g_PlayTimeHours;
 
 void ControllerUpdatePlayTime(void) {
     int limit;
 
     limit = 0x3C;
-    if (D_800501F8 != 0)
+    if (g_PlayTimeStopped != 0)
         return;
-    if (++D_80059370 == limit) {
-        D_80059370 = 0;
-        D_80059418++;
+    if (++g_PlayTimeFrameCounter == limit) {
+        g_PlayTimeFrameCounter = 0;
+        g_PlayTimeSeconds++;
     }
-    if (D_80059418 == limit) {
-        D_80059418 = 0;
-        D_80059420++;
+    if (g_PlayTimeSeconds == limit) {
+        g_PlayTimeSeconds = 0;
+        g_PlayTimeMinutes++;
     }
-    if (D_80059420 == limit) {
-        D_80059420 = 0;
-        D_80059484++;
+    if (g_PlayTimeMinutes == limit) {
+        g_PlayTimeMinutes = 0;
+        g_PlayTimeHours++;
     }
-    if (D_80059484 == 0x64)
-        D_800501F8 = 1;
+    if (g_PlayTimeHours == 0x64)
+        g_PlayTimeStopped = 1;
 }
 
 void ControllerDumpVramToTim(RECT* pRect, char* pPath) {
@@ -91,7 +91,7 @@ typedef struct {
     /* 0x0 */ u_short blue : 5;
 } Pixel16; // Size: 0x2
 
-int func_80035FF8(RECT* pRect, char* pPath) {
+int ControllerDumpVramToRgb(RECT* pRect, char* pPath) {
     char buffer[0x100];
     Pixel16* pSrc;
     u_char* pDst;
@@ -184,7 +184,7 @@ void ControllerInit(void) {
 
     D_80050204 = 0;
     D_8005938C = 1;
-    D_80059390 = 0;
+    g_ControllerDebugBreakEnabled = 0;
     i = 7;
     pMapping = &g_ControllerButtonMappings[7];
     for (; i >= 0; i--) {
@@ -207,18 +207,18 @@ void ControllerUpdate(void) {
     ControllerPushState();
     ControllerUpdatePlayTime();
     ControllerUpdateActuators();
-    if (D_800501FC != 0)
-        ((void (*)(void))D_800501FC)();
-    if (g_DebugTable != -1 && D_80059390 != 0)
+    if (g_ControllerFrameCallback != 0)
+        ((void (*)(void))g_ControllerFrameCallback)();
+    if (g_DebugTable != -1 && g_ControllerDebugBreakEnabled != 0)
         asm("break 0x400");
 }
 
 void ControllerSetDebugBreak(int value) {
-    D_80059390 = value;
+    g_ControllerDebugBreakEnabled = value;
 }
 
 void ControllerSetFrameCallback(int value) {
-    D_800501FC = value;
+    g_ControllerFrameCallback = value;
 }
 
 void ControllerSetFlag80050200(int value) {

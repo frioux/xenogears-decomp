@@ -160,9 +160,9 @@ typedef struct {
 // The static text object SystemRenderStringEntry renders one entry through,
 // and the single row of glyph sprites it uses as that string's char buffer
 // (SystemStringInit allocates one instead; this path must not).
-extern SystemString D_80059FD8;
-extern SystemStringChar D_8005A068;
-// D_80059FD8.pChars, named separately because the typed store comes out 0x28(a0)
+extern SystemString g_SystemString;
+extern SystemStringChar g_SystemStringChars;
+// g_SystemString.pChars, named separately because the typed store comes out 0x28(a0)
 // off the live base pointer, 4 bytes short of retail (232 vs 236).
 extern void* D_8005A000;
 
@@ -735,37 +735,37 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 
 // Render string entry to a buffer
 int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
-    SystemString* pString = &D_80059FD8;
+    SystemString* pString = &g_SystemString;
     int primitiveCode;
 
-    D_80059FD8.maxWidth = mode;
-    D_80059FD8.maxChars = 1;
-    D_80059FD8.maxWidth = mode | 1;
-    D_80059FD8.spriteWidth = (s16)(mode | 1) * 4;
+    g_SystemString.maxWidth = mode;
+    g_SystemString.maxChars = 1;
+    g_SystemString.maxWidth = mode | 1;
+    g_SystemString.spriteWidth = (s16)(mode | 1) * 4;
     primitiveCode = SYSTEM_STRING_RECT_CODE;
-    D_80059FD8.pCur = pCur;
-    D_80059FD8.imageWidth = (mode | 1) + 3;
-    D_80059FD8.unk68 = 1;
+    g_SystemString.pCur = pCur;
+    g_SystemString.imageWidth = (mode | 1) + 3;
+    g_SystemString.unk68 = 1;
     do {
-        D_80059FD8.waitFrames = 0;
-        D_80059FD8.waiting = 0;
-        D_80059FD8.unk6A = 0;
-        D_80059FD8.pCharBuffer = pCharBuffer;
-        D_80059FD8.flags = 0;
-        D_80059FD8.charIndex = 0;
-        D_80059FD8.lineWidth = 0;
-        D_80059FD8.unk69 = primitiveCode;
+        g_SystemString.waitFrames = 0;
+        g_SystemString.waiting = 0;
+        g_SystemString.unk6A = 0;
+        g_SystemString.pCharBuffer = pCharBuffer;
+        g_SystemString.flags = 0;
+        g_SystemString.charIndex = 0;
+        g_SystemString.lineWidth = 0;
+        g_SystemString.unk69 = primitiveCode;
     } while (0);
-    D_8005A000 = &D_8005A068;
-    D_8005A068.x = 0;
-    D_8005A068.paletteIndex = flag & 1;
+    D_8005A000 = &g_SystemStringChars;
+    g_SystemStringChars.x = 0;
+    g_SystemStringChars.paletteIndex = flag & 1;
 
     // The do/while block above and the two hoisted locals are load-bearing:
     // without them gcc hoists the constant stores above the group (28.31%), and
     // pString is what puts the group's lui/addiu for $a0 at its head.
     func_80033DF0(pString);
 
-    return D_80059FD8.pChars->x * 4;
+    return g_SystemString.pChars->x * 4;
 }
 
 

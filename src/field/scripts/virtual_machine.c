@@ -791,9 +791,9 @@ void FieldScriptSyncMemoryWithGameState(void) {
 
 extern u16 D_800AFC6C;
 extern u16 g_FieldP1ButtonsPressed;
-extern char D_80059418;
-extern char D_80059420;
-extern char D_80059484;
+extern char g_PlayTimeSeconds;
+extern char g_PlayTimeMinutes;
+extern char g_PlayTimeHours;
 extern s32 g_PlayerActorIndex;
 extern u8 g_FieldScriptMemoryUpdateLocked;
 extern s32 g_FieldScriptWalkFrameCounter;
@@ -859,8 +859,8 @@ void FieldScriptUpdateMemoryEachFrame(void) {
         }
     }
 
-    FieldScriptMemoryWriteU16(0xC, D_80059418 | (D_80059420 << 8));
-    FieldScriptMemoryWriteU16(0xE, D_80059484);
+    FieldScriptMemoryWriteU16(0xC, g_PlayTimeSeconds | (g_PlayTimeMinutes << 8));
+    FieldScriptMemoryWriteU16(0xE, g_PlayTimeHours);
 
     FieldScriptMemoryWriteU16(0x1E, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[1]);
     FieldScriptMemoryWriteU16(0x20, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[5]);
