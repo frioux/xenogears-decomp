@@ -1255,9 +1255,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
    instruction-identical; four deltas remain:
    1. the shared fallback (copy *pVec, func_8007B6C4) loses retail's leading
       dead `lw a3,0x70(sp)`, so every later label sits 4 bytes low. Retail's
-      call passes nFlags as a 4th argument that func_8007B6C4 never reads;
-      spelling it needs a 4-argument prototype of func_8007B6C4, which the
-      file already declares with three.
+      call passes a 4th argument that func_8007B6C4 never reads; the prototype
+      now declares it (func_8007B814 passes 0) and the three calls below pass
+      0 as well, so this item may already be closed - re-measure.
    2. the retry dispatch is laid out inverted: retail puts the recompute body
       FIRST (cond1 inverts to the rest of the chain, which sits after the body
       and jumps back to it) and the restore last, while the || chain below
@@ -1293,7 +1293,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
         v.vx = pVec->vx;
         v.vy = pVec->vy;
         v.vz = pVec->vz;
-        func_8007B6C4(nDirection, pPoints, &v);
+        func_8007B6C4(nDirection, pPoints, &v, 0);
     } else {
         nAngle = nDirection + 0x100;
         nAngle &= 0xFFF;
@@ -1303,7 +1303,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
             v.vx = pVec->vx;
             v.vy = pVec->vy;
             v.vz = pVec->vz;
-            func_8007B6C4(nDirection, pPoints, &v);
+            func_8007B6C4(nDirection, pPoints, &v, 0);
         } else {
             nAngle = angle & 0xFFF;
             v.vx = pVec->vx + rsin(nAngle) * 64;
@@ -1312,7 +1312,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
                 v.vz = pVec->vz;
-                func_8007B6C4(nDirection, pPoints, &v);
+                func_8007B6C4(nDirection, pPoints, &v, 0);
             } else {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
