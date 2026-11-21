@@ -3425,37 +3425,21 @@ void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
     return pResult;
 }
 
-// objdiff 98.63%, every instruction present in the original order and the 0xA0
-// frame reproduced exactly. Body: three channels selected by flags & 0x7 (0 =
-// rotation 0x54, 1 = translation 0x5C, 2 = scale 0x4C), an optional base offset
-// (flags & 0x20) and delta base (flags & 0x40) added to the 7 stacked position
-// args, the arg4 == 0 path storing arg4/6/8 as deltas from obj->unk4/6/8, the
-// arg4 < 2 write-back of the object position into the joint vector, and the
-// flags & 0x80 recursion into every child whose pParent is this joint.
-// Remaining delta is register identity only, four sites: gcc allocates the
-// `flags` copy to s7 one instruction before the original's `andi s1,a3,0x7`
-// (the original derives the channel straight from a3), the channel mask lands in
-// v1 instead of a3, and the loop reload of pModel->pSkeleton lands in v1 instead
-// of s1 (so its numChildren load is `lhu v0,10(v1)`).
-// Tried: `u8 channel` first/last in the declarations, channel computed inline at
-// each use, baseX/Y/Z declared s16 with `= 0` initialisers (that one costs 32
-// bytes of frame: the early zeroing extends all six live ranges), and
-// (s16)/(u16) casts on the stacked args.
-/*
-void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
+void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
                    u8 arg4, u8 arg5, u8 arg6, s16 posX, s16 posY, s16 posZ,
                    s16 offX, s16 offY, s16 offZ, s16 arg13) {
-    ModelJoint* pChild;
+    u8 channel;
     Temp3* pObject;
+    ModelJoint* pChild;
     u16 baseX;
     u16 baseY;
     u16 baseZ;
     u16 offBaseX;
     u16 offBaseY;
     u16 offBaseZ;
-    u8 channel = flags & 0x7;
     s32 i;
 
+    channel = flags & 0x7;
     if (channel == 0) {
         pObject = pJoint->pRotationObject;
     } else if (channel == 1) {
@@ -3463,113 +3447,100 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
     } else {
         pObject = pJoint->pScaleObject;
     }
-
     if (pObject == NULL) {
         pObject = LibGearAllocJointObject(pList);
-        if (pObject == NULL) {
-            return;
-        }
     }
-
-    pObject->inUse = 1;
-    pObject->loops = arg6;
-    pObject->opcode = arg4 + 3;
-    pObject->type = arg5;
-
-    if (flags & 0x20) {
-        if (channel == 0) {
-            baseX = pJoint->rotation.vx;
-            baseY = pJoint->rotation.vy;
-            baseZ = pJoint->rotation.vz;
-        } else if (channel == 1) {
-            baseX = pJoint->translation.x;
-            baseY = pJoint->translation.y;
-            baseZ = pJoint->translation.z;
+    if (pObject != NULL) {
+        pObject->inUse = 1;
+        pObject->loops = arg6;
+        pObject->opcode = arg4 + 3;
+        pObject->type = arg5;
+        if (flags & 0x20) {
+            if (channel == 0) {
+                baseX = pJoint->rotation.vx;
+                baseY = pJoint->rotation.vy;
+                baseZ = pJoint->rotation.vz;
+            } else if (channel == 1) {
+                baseX = pJoint->translation.x;
+                baseY = pJoint->translation.y;
+                baseZ = pJoint->translation.z;
+            } else {
+                baseX = pJoint->scale.vx;
+                baseY = pJoint->scale.vy;
+                baseZ = pJoint->scale.vz;
+            }
         } else {
-            baseX = pJoint->scale.vx;
-            baseY = pJoint->scale.vy;
-            baseZ = pJoint->scale.vz;
+            baseX = 0;
+            baseY = 0;
+            baseZ = 0;
         }
-    } else {
-        baseX = 0;
-        baseY = 0;
-        baseZ = 0;
-    }
-
-    if (flags & 0x40) {
-        if (channel == 0) {
-            offBaseX = pJoint->rotation.vx;
-            offBaseY = pJoint->rotation.vy;
-            offBaseZ = pJoint->rotation.vz;
-        } else if (channel == 1) {
-            offBaseX = pJoint->translation.x;
-            offBaseY = pJoint->translation.y;
-            offBaseZ = pJoint->translation.z;
+        if (flags & 0x40) {
+            if (channel == 0) {
+                offBaseX = pJoint->rotation.vx;
+                offBaseY = pJoint->rotation.vy;
+                offBaseZ = pJoint->rotation.vz;
+            } else if (channel == 1) {
+                offBaseX = pJoint->translation.x;
+                offBaseY = pJoint->translation.y;
+                offBaseZ = pJoint->translation.z;
+            } else {
+                offBaseX = pJoint->scale.vx;
+                offBaseY = pJoint->scale.vy;
+                offBaseZ = pJoint->scale.vz;
+            }
         } else {
-            offBaseX = pJoint->scale.vx;
-            offBaseY = pJoint->scale.vy;
-            offBaseZ = pJoint->scale.vz;
+            offBaseX = 0;
+            offBaseY = 0;
+            offBaseZ = 0;
         }
-    } else {
-        offBaseX = 0;
-        offBaseY = 0;
-        offBaseZ = 0;
+        pObject->startX = posX + baseX;
+        pObject->startY = posY + baseY;
+        pObject->startZ = posZ + baseZ;
+        if (arg4 == 0) {
+            pObject->targetX = offX + offBaseX - pObject->startX;
+            pObject->targetY = offY + offBaseY - pObject->startY;
+            pObject->targetZ = offZ + offBaseZ - pObject->startZ;
+        } else {
+            pObject->targetX = offX + offBaseX;
+            pObject->targetY = offY + offBaseY;
+            pObject->targetZ = offZ + offBaseZ;
+        }
+        pObject->curFrame = 0;
+        pObject->endFrame = arg13;
+        if (channel == 0) {
+            if (arg4 < 2) {
+                pJoint->rotation.vx = pObject->startX;
+                pJoint->rotation.vy = pObject->startY;
+                pJoint->rotation.vz = pObject->startZ;
+            }
+            pJoint->pRotationObject = pObject;
+        } else if (channel == 1) {
+            if (arg4 < 2) {
+                pJoint->translation.x = pObject->startX;
+                pJoint->translation.y = pObject->startY;
+                pJoint->translation.z = pObject->startZ;
+            }
+            pJoint->pTranslationObject = pObject;
+        } else {
+            if (arg4 < 2) {
+                pJoint->scale.vx = pObject->startX;
+                pJoint->scale.vy = pObject->startY;
+                pJoint->scale.vz = pObject->startZ;
+            }
+            pJoint->pScaleObject = pObject;
+        }
     }
-
-    pObject->startX = posX + baseX;
-    pObject->startY = posY + baseY;
-    pObject->startZ = posZ + baseZ;
-
-    if (arg4 == 0) {
-        pObject->targetX = offX + offBaseX - pObject->startX;
-        pObject->targetY = offY + offBaseY - pObject->startY;
-        pObject->targetZ = offZ + offBaseZ - pObject->startZ;
-    } else {
-        pObject->targetX = offX + offBaseX;
-        pObject->targetY = offY + offBaseY;
-        pObject->targetZ = offZ + offBaseZ;
-    }
-
-    pObject->curFrame = 0;
-    pObject->endFrame = arg13;
-
-    if (channel == 0) {
-        if (arg4 < 2) {
-            pJoint->rotation.vx = pObject->startX;
-            pJoint->rotation.vy = pObject->startY;
-            pJoint->rotation.vz = pObject->startZ;
-        }
-        pJoint->pRotationObject = pObject;
-    } else if (channel == 1) {
-        if (arg4 < 2) {
-            pJoint->translation.x = pObject->startX;
-            pJoint->translation.y = pObject->startY;
-            pJoint->translation.z = pObject->startZ;
-        }
-        pJoint->pTranslationObject = pObject;
-    } else {
-        if (arg4 < 2) {
-            pJoint->scale.vx = pObject->startX;
-            pJoint->scale.vy = pObject->startY;
-            pJoint->scale.vz = pObject->startZ;
-        }
-        pJoint->pScaleObject = pObject;
-    }
-
     if (flags & 0x80) {
-        pChild = pModel->pSkeleton + 1;
-
+        pChild = pModel->pSkeleton;
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
+            pChild++;
             if (pChild->pParent == pJoint) {
                 func_801E6974(pModel, pList, pChild, flags & 0xFF, arg4, arg5, arg6,
                               posX, posY, posZ, offX, offY, offZ, arg13);
             }
-            pChild++;
         }
     }
 }
-*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6974);
 
 void LibGearSetJointFlag(Model* pModel, ModelJoint* pJoint, s32 flags) {
     ModelJoint* pChild;
