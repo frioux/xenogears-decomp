@@ -1199,21 +1199,9 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut) {
 */
 
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode);
-int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut);
+int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags);
 extern s32 D_800ADB98;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B814);
-/* Best attempt: 96.33% (684 bytes, same size as the original). Two differences:
-   1. gcc hoists the tail's first `lw v0,0(pVec)` out of the shared func_8007B6C4
-      block into the block that jumps there, so its `j` target is 4 bytes later.
-   2. the probe angles: the original computes (angle -/+ 0x100) into s0 itself
-      (`addiu s0,s2,-0x100` / `andi s0,s0,0xfff`), gcc computes the subtraction
-      into v0 and only the mask into s0. Note the `sra s2,v0,16` at the top of the
-      else branch is not an assignment from the probe result: the bne delay slot
-      is `sll v0,s2,16`, so it is the sign extension of `angle` for `angle-0x100`,
-      and both objects agree on it. Prototypes below are the ones this attempt
-      needs; D_800ADB98 = 0x800ADB98 is in symbol_addrs.field.txt.
-// Probes the walkmesh around `angle` and drops pVec onto the floor it finds there
 int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) {
     VECTOR v;
     SVECTOR out;
@@ -1227,25 +1215,27 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
         v.vx = pVec->vx;
         v.vy = pVec->vy;
         v.vz = pVec->vz;
-        func_8007B6C4(angle, pPoints, &v);
+        func_8007B6C4(angle, pPoints, &v, 0);
     } else {
-        nAngle = (angle - 0x100) & 0xFFF;
+        nAngle = angle - 0x100;
+        nAngle &= 0xFFF;
         v.vx = pVec->vx + rsin(nAngle) * 64;
         v.vz = pVec->vz - rcos(nAngle) * 64;
         if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
             v.vx = pVec->vx;
             v.vy = pVec->vy;
             v.vz = pVec->vz;
-            func_8007B6C4(angle, pPoints, &v);
+            func_8007B6C4(angle, pPoints, &v, 0);
         } else {
-            nAngle = (angle + 0x100) & 0xFFF;
+            nAngle = angle + 0x100;
+            nAngle &= 0xFFF;
             v.vx = pVec->vx + rsin(nAngle) * 64;
             v.vz = pVec->vz - rcos(nAngle) * 64;
             if (func_8007C694(&v, &pActor->position, pActor, pPoints, &out, -1) == -1) {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
                 v.vz = pVec->vz;
-                func_8007B6C4(angle, pPoints, &v);
+                func_8007B6C4(angle, pPoints, &v, 0);
             } else {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
@@ -1269,8 +1259,6 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
     pActor->curYPos = (pActor->position.vy + pVec->vy) >> 16;
     return 0;
 }
-*/
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 /* Best attempt: 76.42% (1036 vs 1032 bytes). The probe sequence, the second
    func_8007BEF4 call and the tail (v.vy, pVec stores, curYPos) are
