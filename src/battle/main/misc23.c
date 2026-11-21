@@ -267,22 +267,32 @@ extern s16 D_800D2D34;
 extern s16 D_800C3EA8;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
-/* 99.16% (unit preset XenoBattle260Div0): the whole function is recovered and the
-   compiled body is retail's exact size (1424 bytes) with retail's frame, register
-   roles and instruction order. The ONLY difference is the operand order of the 30
-   address addus of the two colour-copy loops: retail has "addu v0,v0,a1" /
-   "addu v0,v0,a2" (the freshly loaded pool base first), gcc emits "addu v0,a1,v0"
-   (biv first). Same value, different encoding, so objdiff cannot pass it and the
-   linked bytes differ.
-   This is the SAME tie as the parked func_800A64E4 below (98.71%, 18 sites), so one
-   source lever would close both. Shapes tried at that sum, each leaving everything
-   else byte-identical: D_X[i * 0x24 + K] (parked below), *(u8 *)(D_X + i * 0x24 + K),
-   the same with a mem_addr cast, the mem_addr sum grouped as (i * 0x24 + K), an
-   embedded assignment (pBase = (mem_addr)D_X) per load, two running byte offsets
-   (off24 += 0x24, off18 += 0x18) instead of the strength-reduced bivs, and a
-   volatile D_X (that one is worse: 98.03%, 1440 bytes). A 4-minute permuter run
-   found nothing (993 iterations, base=300 best=300). So the order is set by loop.c
-   when it builds the address giv, not by the source spelling.
+/* 99.58% (unit preset XenoBattle260Div0): the whole function is recovered, retail's
+   exact size (1424 bytes, 356 insns), retail's frame, register roles, loops and
+   instruction order. Residual: the operand order of the 15 address addus of the
+   g_BattlePartPrimBuffers[0] copy sites - retail has "addu v0,v0,a1" / "addu v0,v0,a2"
+   (the freshly loaded pointer first), gcc 2.6.0 emits "addu v0,a1,v0". Same value,
+   different encoding, so objdiff cannot pass it and the linked bytes differ.
+   ROUND 393 CLOSED HALF OF IT (99.16 -> 99.58): the 15 g_BattleSpriteRenderData sites
+   need the two-statement IN-PLACE form (lever b-in-place-addu-flips-but-loads-base-early),
+   pSlot = g_BattleSpriteRenderData; pSlot += i * 0x24; pDst[0] = pSlot[0x1740]; - the
+   assignment makes the sum the address addu's destination, which puts the base first.
+   The same trick on the prim sites is impossible: ANY spelling that hands the loaded
+   pointer to a register (pSlot = g_BattlePartPrimBuffers[0]; pSlot += i * 0x18; or
+   *((pSlot = g_BattlePartPrimBuffers[0]) + i * 0x18 + K)) makes cc1 cse the CONSTANT
+   address of g_BattlePartPrimBuffers into $t0 once before both loops ("lui t0,%hi" +
+   "addiu t0,%lo") and then reload through it ("lw v0,0(t0)") - 342 insns / 1368 bytes /
+   92.95%, and converting even 3 of the 15 sites triggers it (352 insns, 97.32%). Every
+   spelling that keeps the address inside the MEM instead (the plain subscript, and
+   *(g_BattlePartPrimBuffers[0] + i * 0x18 + K)) keeps retail's instruction count and
+   the index-first addu. So base-first order and per-site lui/lw are mutually exclusive
+   here. Permuter: none (966 iterations on this body, base=150 best=150; 2036 and 993
+   iterations on the 99.16 body). try_flags on this body: 2.6.0 -O2 -G0 99.58 (the unit
+   preset), cdk -G0 78.58, 2.7.2-psx rejects the body outright.
+   THE SAME LEVER APPLIES TO THE PARKED func_800A64E4 BELOW: its 18 sites are this
+   exact shape (12 g_BattleSpriteRenderData groups plus 6 prim groups), so whoever
+   unparks it should convert the sprite sites to the in-place form first; its 98.71%
+   then keeps only the prim residual.
    What DID matter, for whoever unparks it: the first clear loop is a BYTE OFFSET
    loop - for (offset = 0x12; offset >= 0; offset -= 6) g_BattleColorTintParams[offset] = 0; -
    and it needs its own local (retail keeps it in $v0, the other three loops use
@@ -299,6 +309,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
 void func_800A5EB4(void) {
     u8 *pEntry;
     u8 *pDst;
+    u8 *pSlot;
     s32 offset;
     s32 i;
 
@@ -319,25 +330,55 @@ void func_800A5EB4(void) {
     pDst = g_BattleColorTintBase;
     for (i = 0; i < 4; i++) {
         if (g_BattleSpriteRenderData != NULL) {
-            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1740];
-            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1741];
-            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x1742];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x1740];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x1741];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x1742];
             pDst += 4;
-            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1748];
-            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1749];
-            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x174A];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x1748];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x1749];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x174A];
             pDst += 4;
-            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1750];
-            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1751];
-            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x1752];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x1750];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x1751];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x1752];
             pDst += 4;
-            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1758];
-            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1759];
-            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x175A];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x1758];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x1759];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x175A];
             pDst += 4;
-            pDst[0] = g_BattleSpriteRenderData[i * 0x18 + 0x16E0];
-            pDst[1] = g_BattleSpriteRenderData[i * 0x18 + 0x16E1];
-            pDst[2] = g_BattleSpriteRenderData[i * 0x18 + 0x16E2];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x18;
+            pDst[0] = pSlot[0x16E0];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x18;
+            pDst[1] = pSlot[0x16E1];
+            pSlot = g_BattleSpriteRenderData;
+            pSlot += i * 0x18;
+            pDst[2] = pSlot[0x16E2];
             pDst += 4;
         } else {
             pDst += 0x14;
@@ -380,7 +421,6 @@ void func_800A5EB4(void) {
     pDst[2] = g_BattleColorSourceB[2];
 }
 */
-
 void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
     if (arg0 < 4) {
         if (arg1 >= 0) {
