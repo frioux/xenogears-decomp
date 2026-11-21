@@ -20,6 +20,10 @@ extern u8 g_FieldPlayerWalkmeshMaterial;
 extern u8 g_MenuRowDigitTextureIds[];
 
 void MenuLoadStringsFromIds(u8, void*, u8*, void*);
+u32 MenuAndBitMaskMsbFirst(u32, u8);
+u8* GetStringEntryFromBank(s32, u8);
+void MenuSetStringTexturePrims(MenuString*, u8, s32, s32);
+void func_801E1544(u8, u8, u8*, u32);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
@@ -228,8 +232,16 @@ u32 func_801E1418(u8 slot, u8 index) {
 // bytes and the stat-table pointer MenuComputeCharacterStats reads.
 #define MENU_DRESSING_ROOM_ROW_COUNT 13
 
+// One equipment slot record of pDressingRoom->pCharacterSlots[], as far as this
+// unit reaches (misc9 walks the same records at a 0x28 stride).
 typedef struct {
-    /* 0x0000 */ u8 unk0[0x680];
+    /* 0x00 */ u8 unk0[0x11];
+    /* 0x11 */ u8 unk11; // multiplies the wearer's ether into the slot's hp bonus
+    /* 0x12 */ u8 unk12[0x16];
+} MenuEquipmentSlot; // Size: 0x28
+
+typedef struct {
+    /* 0x0000 */ MenuString slotStrings[MENU_DRESSING_ROOM_ROW_COUNT]; // polys[]: the row's leading character, one per render context
     /* 0x0680 */ MenuString numberStrings[MENU_DRESSING_ROOM_ROW_COUNT]; // polys[]: the number's quad, one per render context
     /* 0x0D00 */ MenuString unk0D00;
     /* 0x0D80 */ POLY_FT4 digitPrims[MENU_DRESSING_ROOM_ROW_COUNT][5][2]; // per digit: one prim per render context
@@ -363,6 +375,126 @@ void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
+/* Best: 87.09% at retail's EXACT size (1536 bytes). Structure is decoded and every
+   call, both quads, the texture upload and the row-mode handoff are in retail's
+   order; what is left is one register's worth of allocation.
+   Facts worth keeping:
+   - `g_Menu->pManager->currentCharacterIDs[slot]` is spelled INLINE at all three
+     sites (the condition-mask test, GetStringEntryFromBank, and the 0x12F read):
+     retail re-derives it each time, and a `charId` local costs 5 points
+     (82.33 -> 87.09) and four bytes.
+   - the row block's 0x680 area is MenuString[13] (slotStrings), not opaque bytes:
+     width at +0x7E and renderContext at +0x7D are MenuString fields, and the two
+     16-store quad groups are slotStrings[i].polys[g_Menu->renderContext] and
+     numberStrings[i].polys[g_Menu->renderContext] (+0x680), each store re-spelling
+     the whole access so gcc re-derives the address as retail does.
+   - the frame is 16 bytes too big because `percent` spills to 0x30 where retail
+     keeps it in $fp; retail's flag variable lives in $v0 (short-lived) where gcc
+     here gives it a callee-saved register, and retail also carries a separate
+     s1 = i*0x80 induction register. Tried with no change: the three assignments in
+     the mask arm in a different order (87.72 at 1540 bytes), and `percent`'s
+     declaration position.
+*/
+/*
+// Draws the 13 dressing-room rows of one party slot: renders the row's leading
+// character and its number into the block's texture cells, sets both quads, and
+// hands the row's mode to func_801E1544.
+void func_801E1AC8(u8 slot) {
+    u8 code[2];
+    u8 text[8];
+    RECT rect;
+    u8* pWorkspace;
+    u8 found;
+    u8 mode;
+    u8 draw;
+    u16 hit;
+    s32 top;
+    u32 percent;
+    s32 bottom;
+    s32 i;
+
+    pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
+    code[1] = 0;
+    i = 0;
+    top = 0x1F;
+    bottom = 0x2C;
+    for (; i < MENU_DRESSING_ROOM_ROW_COUNT; i++) {
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->hasBar[i] = 0;
+        hit = MenuAndBitMaskMsbFirst(
+            g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[slot]].commandMask, i);
+        found = 0;
+        draw = 0;
+        if (hit != 0) {
+            mode = 1;
+            found = 1;
+            draw = 1;
+        } else {
+            percent = func_801E1418(slot, i);
+            if (percent < 50) {
+                mode = 0;
+            } else {
+                mode = 2;
+                draw = 1;
+            }
+        }
+        if (draw != 0) {
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].width =
+                SystemRenderStringEntry(GetStringEntryFromBank(g_Menu->pManager->currentCharacterIDs[slot], i),
+                    pWorkspace, 0x24, 0);
+            if (i < 7 && found != 0) {
+                code[0] = ((u8*)g_Menu->pDressingRoom->pCharacterSlots[g_Menu->pManager->currentCharacterIDs[slot]])
+                              [i * sizeof(MenuEquipmentSlot) + 0x12F] +
+                    0x10;
+            } else {
+                code[0] = 0xF;
+            }
+            SystemDecodeGlyphCodesN((u16*)code, text, 1);
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].width =
+                SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
+            rect.x = 0x180 + (i & 1) * 0x18;
+            rect.y = 0x80 + (i / 2) * FONT_LETTER_HEIGHT;
+            rect.w = 0x28;
+            rect.h = FONT_LETTER_HEIGHT;
+            LoadImage(&rect, (u_long*)pWorkspace);
+            DrawSync(0);
+            func_801E7C50(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i], i, 0x80, 0x81);
+            func_801E7C50(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i], i, 0x80, 0x82);
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x0 = 0x5C;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y0 = top;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x1 =
+                0x5C + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].width;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y1 = top;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x2 = 0x5C;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y2 = bottom;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x3 =
+                0x5C + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].width;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y3 = bottom;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x0 = 0xC8;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y0 = top;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x1 =
+                0xC8 + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].width;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y1 = top;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x2 = 0xC8;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y2 = bottom;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x3 =
+                0xC8 + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].width;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y3 = bottom;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].renderContext = *(u8*)&g_Menu->renderContext;
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->shouldRender[i] = 1;
+        } else {
+            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->shouldRender[i] = 0;
+        }
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->digitPrimCount[i] = 0;
+        func_801E1544(i, mode, pWorkspace, percent);
+        top += FONT_LETTER_HEIGHT;
+        bottom += FONT_LETTER_HEIGHT;
+    }
+    HeapFree(pWorkspace);
+    MenuSetStringTexturePrims(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->unk0D00, slot, 0, 2);
+    g_Menu->pManager->shouldRenderPanel[3] = 1;
+}
+*/
+
 u8 MenuRunUnk438PanelLoop(u8 slot) {
     u8 active;
     u8 lastSlot;
@@ -919,14 +1051,6 @@ u16 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
     return (pItem->effectFlags & 0x4000) ? mpFull : 0;
 }
 */
-// One equipment slot record of pDressingRoom->pCharacterSlots[], as far as this
-// unit reaches (misc9 walks the same records at a 0x28 stride).
-typedef struct {
-    /* 0x00 */ u8 unk0[0x11];
-    /* 0x11 */ u8 unk11; // multiplies the wearer's ether into the slot's hp bonus
-    /* 0x12 */ u8 unk12[0x16];
-} MenuEquipmentSlot; // Size: 0x28
-
 void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
     GameCharacter* pChar;
     GameCharacter* pTarget;
