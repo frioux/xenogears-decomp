@@ -63,7 +63,13 @@ print("\n".join(out))
 if [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ]; then
     [ -f "$target" ] || { echo "missing $target: run 'make objdiff-config' first" >&2; exit 1; }
     grep -q -- '-DSKIP_ASM' build.ninja || { echo "build.ninja is not in report mode: run 'make objdiff-config' first" >&2; exit 1; }
-    ninja "$base" >/dev/null
+    # ninja reports compile errors on stdout; show them instead of scoring a stale object.
+    if ! log=$(ninja "$base" 2>&1); then
+        echo "COMPILE FAILED: $base was not rebuilt, nothing below this line is a score" >&2
+        printf '%s\n' "$log" | grep -v '^ninja: \|^\[' | head -40 >&2
+        rm -f "$base"
+        exit 1
+    fi
 
     left=$(dump "$target" "$func")
     right=$(dump "$base" "$func")
@@ -73,17 +79,25 @@ if [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ]; then
         printf '%s\n' "$left"
         exit 1
     fi
-    if diff --side-by-side --width="${COLUMNS:-160}" <(printf '%s\n' "$left") <(printf '%s\n' "$right"); then
+    if [ "$left" = "$right" ]; then
         echo "MATCH: $func ($(printf '%s\n' "$left" | grep -vc R_MIPS) instructions)"
         exit 0
     fi
-    echo "MISMATCH: $func  (left = original, right = compiled)"
+    # Short functions: the whole side-by-side. Long ones: only the differing hunks with
+    # three lines of context, so the output is read whole instead of piped through tail.
+    # DIFF_FULL=1 forces the side-by-side.
+    if [ -n "${DIFF_FULL:-}" ] || [ "$(printf '%s\n' "$left" | wc -l)" -le 80 ]; then
+        diff --side-by-side --width="${COLUMNS:-160}" <(printf '%s\n' "$left") <(printf '%s\n' "$right") || true
+    else
+        diff -U3 --label original --label compiled <(printf '%s\n' "$left") <(printf '%s\n' "$right") | head -400 || true
+    fi
+    echo "MISMATCH: $func  (left/- = original, right/+ = compiled; $(printf '%s\n' "$left" | grep -vc R_MIPS) vs $(printf '%s\n' "$right" | grep -vc R_MIPS) instructions, $(diff <(printf '%s\n' "$left") <(printf '%s\n' "$right") | grep -c '^[<>]') differing lines)"
     exit 1
 fi
 
 # On the host: run the above in the container, then add objdiff's score if we have it.
 status=0
-docker run --rm -i --platform=linux/amd64 -v"$PWD":/xenogears-decomp -e COLUMNS="${COLUMNS:-160}" ethos:latest \
+docker run --rm -i --platform=linux/amd64 -v"$PWD":/xenogears-decomp -e COLUMNS="${COLUMNS:-160}" -e DIFF_FULL="${DIFF_FULL:-}" ethos:latest \
     /bin/bash -c ". /.venv/bin/activate && tools/scripts/diff_func.sh $(printf '%q ' "$@")" || status=$?
 
 objdiff=tools/objdiff/objdiff-cli
