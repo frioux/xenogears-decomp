@@ -128,8 +128,12 @@ extern void AddPrim(void* pOt, void* pPrim);
 extern u8* g_BattleRootOrderingTable;
 // One draw-buffer pair of sprites and tpage prims, set up by misc8's
 // func_80081ECC; misc8.c declares the same 0x14-byte block as Misc8DimSprites.
-extern SPRT D_800955F8[];
+// the sprite block's fifth element: the name the original object uses for the
+// base of the three SPRT AddPrim calls (D_800955F8 + 5 sprites)
+extern SPRT D_80095648[];
 extern DR_TPAGE g_BattleDimTpagePrims[];
+// element 2 of g_BattleDimTpagePrims; the original object names the middle pair
+extern DR_TPAGE D_800955D8[];
 // The node pointers the light group's matrices are copied into, and the two
 // effect node trees walked after them.
 extern Misc9Node* g_BattleEffectNode;
@@ -1026,29 +1030,6 @@ void BattleFadeActorLights(Misc9LightGroup* pTable, Battler9* pActor, s32 idx) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800840CC);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800846A0);
-/* PARK 99.57% (832 bytes, the original's exact size and instruction count).
-   Every instruction matches but five: the original keeps pWork in s2 and the
-   matrix pointer (&MATRIX mat at sp+0x30) in s1, this body gets them the other
-   way round (lw s1,644(s0) / addiu s1,sp,48 against the original's s2). It is a
-   callee-saved priority tie between two values and no spelling has moved it:
-   the permuter's best candidate (a do {} while (0) around the middle of the
-   body) scores worse, 98.94%.
-   The frame needs both pad locals: retail's MATRIX sits at 0x30 with a dead
-   0x20 slot before it and a dead 0x10 slot after it (0x70 frame).
-   Two shapes are load-bearing and were found by the permuter: the two shadow
-   node pointers must be read into locals (pNodeA/pNodeB) BEFORE the store to
-   pNodeA, otherwise gcc re-reads g_BattleActor0Node and the body is 8 bytes long; and
-   the matrix copy must go through the local MATRIX (retail reads it back off the
-   stack for both node stores and again for gte_SetRotMatrix_gpr).
-   D_800955F8 + n*0x14 is the SPRT block misc8.c declares as Misc8DimSprites
-   (sprt then copies[5]); the original's object names element 4 as D_80095648
-   and reaches elements 2 and 0 by -0x28/-0x50 displacement off it, and names
-   D_800955D8 for the second DR_TPAGE pair of the block at g_BattleDimTpagePrims. Only the
-   reloc names differ, not the addresses.
-// Draws one frame of battle rendering from a light group: the actor HUD panels,
-// the node trees' matrices, the two actor shadows, the camera aim ring or hexagon
-// and the shaded floor, then queues the sprite and tpage prims for the buffer.
 s32 func_800846A0(Misc9LightGroup* pGroup) {
     VECTOR padA[2]; // unused: the original's frame carries this slot before the matrix
     Misc9DisplayWork* pWork;
@@ -1069,28 +1050,33 @@ s32 func_800846A0(Misc9LightGroup* pGroup) {
     pNodeB->localMatrix = pNodeA->localMatrix;
     BattleDisableBackColor();
     pLight = pGroup->pNodes[0]->pLight;
-    pLight->b = 0x800;
-    pLight->g = 0x800;
-    pLight->r = 0x800;
+    pLight->r = (pLight->g = (pLight->b = 0x800));
     func_80030A30(0, pGroup->pNodes[0]->pLight);
     gte_SetBackColor(g_BattleBackColorA, g_BattleBackColorG, g_BattleBackColorB);
     BattleFadeActorLights(pGroup, &g_BattleActor1, 1);
+    pLight = pGroup;
     BattleUpdateNodeTree(g_BattleEffectPool);
-    BattleFadeActorLights(pGroup, &g_BattleActor0, 1);
+    BattleFadeActorLights(pLight, &g_BattleActor0, 1);
     BattleUpdateNodeTree(g_BattleEffectNode);
     gte_SetRotMatrix_gpr(&mat);
     BattleEffectSetMatrix(pWork->pOt[g_BattleDrawBufferIndex], &pGroup->pNode0->localMatrix);
-    BattleEffectQueuePrims(pWork->pOt[g_BattleDrawBufferIndex]);
-    BattleAttachActorPrims(pWork);
+    do {
+        if (pGroup) {
+            BattleEffectQueuePrims(pWork->pOt[g_BattleDrawBufferIndex]);
+            BattleAttachActorPrims(pWork);
+        } else {
+            BattleEffectQueuePrims(pWork->pOt[g_BattleDrawBufferIndex]);
+            BattleAttachActorPrims(pWork);
+        }
+    } while (0);
     BattleAddSharedPrim();
-    AddPrim(g_BattleRootOrderingTable, &D_800955F8[g_BattleDrawBufferIndex + 4]);
-    AddPrim(g_BattleRootOrderingTable, &g_BattleDimTpagePrims[g_BattleDrawBufferIndex + 2]);
-    AddPrim(g_BattleRootOrderingTable, &D_800955F8[g_BattleDrawBufferIndex + 2]);
-    AddPrim(g_BattleRootOrderingTable, &D_800955F8[g_BattleDrawBufferIndex]);
-    AddPrim(g_BattleRootOrderingTable, &g_BattleDimTpagePrims[g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095648[g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &D_800955D8[g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095648[g_BattleDrawBufferIndex - 2]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095648[g_BattleDrawBufferIndex - 4]);
+    AddPrim(g_BattleRootOrderingTable, &D_800955D8[g_BattleDrawBufferIndex - 2]);
     return 0;
 }
-*/
 
 s32 BattleClearAndQueueActorPrims(Battler9* p) {
     Misc9DisplayWork* pWork;
