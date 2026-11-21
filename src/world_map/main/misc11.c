@@ -209,29 +209,24 @@ int WorldMapModeInitCharacterSprite1(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
-/* 93.37% (248 bytes, retail 248 - same size, same multiset). Round 186 un-parked
-   this body and re-measured it live against the current field names: still 93.37,
-   so the number is real and the body builds; the -O2 sched2 prologue order below is
-   the only difference. Everything is
-   byte-identical except three insns of the prologue: retail does the index shift
-   FIRST and into v1 (sll v1,a0,7 before the 0x100 push) and stores the 0x40 stack
-   argument last, right before the jal, so v0 holds that constant and the
-   "addu s0,s0,v1" lands in the jal delay slot; gcc stores the 0x40 right after
-   "li v0,0x40" and puts the shift in v0 afterwards.
-   Round 167: the parked body used to carry the OLD field names (unk4C/unk28/...),
-   so it no longer compiled and every percentage in the older notes came from a
-   stale object - it is re-measured at 93.37 with the current field names (pSprite,
-   x, y, z, state, dirX/Y/Z, angle, moveSpeed, trailDelay). The permuter now reads
-   it and found PERMUTER_BETTER 410 -> 315 in 1608 iterations, but the winning edit
-   is a DEAD END / wrong code: it casts the 0x100 argument to (unsigned char),
-   which truncates it to 0, i.e. it buys the score by changing what the call is
-   passed (same trap as round 155's WorldMapModeInitActorSlot candidate). Do not port it.
-   Hand shapes already tried and measured no better: a pSprite local used by all
-   three calls (WorldMapInitActorSpriteBySlot style), the pointer built as
-   (u8 *)g_WorldMapSlots + index * 0x80, a flat tail without the angle local
-   (83.05), cdk (83.19). WorldMapInitPartyActorSprite0 (matched) has this exact
-   call shape and does reproduce retail's prologue, so the trigger is this
-   function's tail, not the call.
+/* 93.37% (248 bytes, retail 248 - same instruction multiset, 6 differing lines).
+   Round 389: the body below is the honest tail source order (unk24, moveSpeed, state,
+   dirZ/dirY/dirX, trailDelay, angle) and it reproduces retail's whole tail insn for insn.
+   The ONLY residual is the entry block's sched2 order, two moves:
+   retail  "li a1,0x110 / sll v1,a0,7 / li v0,0x100 / sw v0,0x10(sp) / li v0,0x40 /
+            ... / sw ra,0x1C(sp) / sw v0,0x14(sp) / jal / addu s0,s0,v1"
+           keeps 0x40 in v0 to the last store and shifts into v1,
+   gcc     "li a1,0x110 / li v0,0x100 / sw v0,0x10(sp) / li v0,0x40 / sw v0,0x14(sp) /
+            sll v0,a0,7 / ... / jal / addu s0,s0,v0".
+   The whole body is ONE basic block (no branch before the last call), so sched2's
+   order depends on the far tail, not on the call - WorldMapInitPartyActorSprite0/1/2
+   (matched, same 6-argument call, same retail prologue) get it right with a 4-statement
+   tail, so the trigger is this function's tail and not the call.
+   Round 389 measured and no better: s32 angle local (93.37, identical), direct
+   g_GameState.worldMapPlayerRotation in the last store with no local (83.05), all uses
+   spelled g_WorldMapSlots[index].field with no pActor local (61.27, 300 bytes).
+   Round 167 permuter: PERMUTER_BETTER 410 -> 315 but the winning edit casts the 0x100
+   argument to unsigned char (truncates it to 0) - wrong code, not ported.
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u16 angle;
@@ -392,26 +387,11 @@ int WorldMapUpdateActorSlot(int index) {
     }
     return result;
 }
-// 87.64% (476 bytes, retail 476). Round 186 un-parked this body and rebuilt it against
-// the current field names (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay,
-// state): it compiles and still measures 87.64, so the number is real, not a stale
-// object. The whole head before the tile-height call, the if/else inversion
-// ("if (gearRide[2] == 0) { gear position } else { state = 1; unk24 = 1; }", which puts
-// the short block out of line behind bnez as retail has it) and the whole switch
-// (cases 1-3 gear, 4-6 state = 3, 7 state = 2, 8-13 empty - the empty cases are
-// required, retail's table is 13 words) are byte-identical.
-// What is left is one sched2 tie in the block that sets up dirX/dirY/dirZ..drawAngle:
-// retail emits the three zero stores, the lhu of g_GameState+0x1824 (worldMapPlayerRotation)
-// and the g_WorldMapMode load ABOVE the moveSpeed/trailDelay constant stores, and
-// re-reads angle with lh for drawAngle (sh 0x48 then lh 0x48); gcc sinks those loads
-// below the stores and folds the re-read into an sll/sra pair. C store order does not
-// move it (sched2 runs post-reload). Tried and measured worse: volatile u16 store for
-// angle (reproduces the lh, loses the rest, 84.34), reading angle into a volatile u32
-// local before the store (72.12). The permuter from this body found nothing better.
-/*
 int func_8008BB40(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
+    s32 mode;
+
     if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
         pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
@@ -428,16 +408,18 @@ int func_8008BB40(int index) {
     pActor->dirZ = 0;
     pActor->dirY = 0;
     pActor->dirX = 0;
+    pActor->angle = g_GameState.worldMapPlayerRotation;
+    mode = g_WorldMapMode;
     pActor->moveSpeed = 8;
     pActor->trailDelay = 0x1E;
-    pActor->angle = g_GameState.worldMapPlayerRotation;
     pActor->drawAngle = pActor->angle;
-    switch (g_WorldMapMode) {
+    switch (mode) {
     case 1:
     case 2:
     case 3:
         if (g_GameState.gearRide[2] == 0) {
-            pActor->x = g_WorldMapPlayerPosition;
+            // volatile: keeps the g_WorldMapPlayerPositionZ load below this store, as retail has it
+            *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
             pActor->z = g_WorldMapPlayerPositionZ;
             pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
             pActor->angle = g_WorldMapPlayerRotation;
@@ -471,8 +453,8 @@ int func_8008BB40(int index) {
         break;
     }
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
+}
+
 
 int WorldMapModeInitCharacterSprite2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
