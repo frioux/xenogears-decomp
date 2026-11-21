@@ -51,6 +51,12 @@ extern DR_MODE D_80096E00[2];
 extern u8 g_BattleAiBehaviorLevel;
 extern u8 g_BattlePlayer2ComControlled;
 
+// The four-word sound data block a slot owns (a position, per
+// BattleUpdateSoundSlotPositions) and that BattleAcquireSoundSlot copies in.
+typedef struct {
+    /* 0x0 */ u32 w[4];
+} BattleSoundData; // Size: 0x10
+
 typedef struct {
     /* 0x00 */ u8 soundId;
     /* 0x01 */ u8 active;
@@ -60,13 +66,9 @@ typedef struct {
     /* 0x06 */ u16 pad6;
     /* 0x08 */ u32 spuAddr;
     /* 0x0C */ u32 elementMask;
-    /* 0x10 */ u32 data[4];
+    /* 0x10 */ BattleSoundData data;
     /* 0x20 */ u32* pData;
 } BattleSlot; // Size: 0x24
-
-typedef struct {
-    /* 0x0 */ u32 w[4];
-} SlotData; // Size: 0x10
 
 struct BattleActor;
 
@@ -375,7 +377,6 @@ u8* BattleSetActorSoundTable(BattleActor* pActor) {
 void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
     BattleSlot* pSlot;
     BattleSlot* pSel;
-    u32* pSrc;
     s32 best;
     s32 i;
 
@@ -401,8 +402,7 @@ void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
     pSlot->flags = flags;
     pSlot->pData = (u32*)pData;
     if (pData != 0) {
-        pSrc = (u32*)pData;
-        *(SlotData*)pSlot->data = *(SlotData*)pSrc;
+        pSlot->data = *(BattleSoundData*)pData;
     }
     pSlot->timer = 0;
     if (idx == 0) {
@@ -428,9 +428,9 @@ void BattleUpdateSoundSlotPositions(void) {
             continue;
         }
         if (pSlot->soundId == 1) {
-            pos.vx = pSlot->data[0];
-            pos.vy = pSlot->data[1];
-            pos.vz = pSlot->data[2];
+            pos.vx = pSlot->data.w[0];
+            pos.vy = pSlot->data.w[1];
+            pos.vz = pSlot->data.w[2];
         } else {
             pos.vx = pSlot->pData[0];
             pos.vy = pSlot->pData[1];
