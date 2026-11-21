@@ -1156,40 +1156,9 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
     }
     return nRet;
 }
-// The original touches every field of the two primitives at 0x8009CE6C, so
-// splat gave each field its own address symbol; naming them here keeps the
-// %lo relocations identical to the original object.
+// The two fade-rectangle quads: prim 0 is the template this init fills in, prim 1
+// its copy.
 extern POLY_G4 g_WorldMapFadePrims[];
-extern u8 D_8009CE6F;
-extern u8 D_8009CE70;
-extern u8 D_8009CE71;
-extern u8 D_8009CE72;
-extern u8 D_8009CE73;
-extern u16 D_8009CE74;
-extern u16 D_8009CE76;
-extern u8 D_8009CE78;
-extern u8 D_8009CE79;
-extern u8 D_8009CE7A;
-extern u16 D_8009CE7C;
-extern u16 D_8009CE7E;
-extern u8 D_8009CE80;
-extern u8 D_8009CE81;
-extern u8 D_8009CE82;
-extern u16 D_8009CE84;
-extern u16 D_8009CE86;
-extern u8 D_8009CE88;
-extern u8 D_8009CE89;
-extern u8 D_8009CE8A;
-extern u16 D_8009CE8C;
-extern u16 D_8009CE8E;
-extern u16 D_8009CE98;
-extern u16 D_8009CE9A;
-extern u16 D_8009CEA0;
-extern u16 D_8009CEA2;
-extern u16 D_8009CEA8;
-extern u16 D_8009CEAA;
-extern u16 D_8009CEB0;
-extern u16 D_8009CEB2;
 extern DR_TPAGE g_WorldMapFadeTpage;
 extern s32 g_WorldMapTpageAbr;
 
@@ -1203,40 +1172,39 @@ s32 WorldMapModeInitFadeRect(s32 idx) {
     nTpage = GetTPage(0, g_WorldMapTpageAbr, 0x380, 0x100);
     SetDrawTPage(&g_WorldMapFadeTpage, 1, 0, nTpage);
     pG4 = g_WorldMapFadePrims;
+    setPolyG4(&g_WorldMapFadePrims[0]);
     // the original re-reads unk50 for all twelve colour bytes; volatile stops
     // gcc folding them into one load.
-    D_8009CE6F = 8;
-    D_8009CE73 = 0x38;
-    D_8009CE70 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE71 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE72 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE78 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE79 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE7A = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE80 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE81 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE82 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE88 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE89 = *(volatile s32 *)&pPlayer->unk50;
-    D_8009CE8A = *(volatile s32 *)&pPlayer->unk50;
+    pG4->r0 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->g0 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->b0 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->r1 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->g1 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->b1 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->r2 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->g2 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->b2 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->r3 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->g3 = *(volatile s32 *)&pPlayer->unk50;
+    pG4->b3 = *(volatile s32 *)&pPlayer->unk50;
     SetSemiTrans(pG4, 1);
     pG4[1] = pG4[0];
-    D_8009CE74 = 0;
-    D_8009CE76 = 0;
-    D_8009CE7C = 0x140;
-    D_8009CE7E = 0;
-    D_8009CE84 = 0;
-    D_8009CE86 = 0xD8;
-    D_8009CE8C = 0x140;
-    D_8009CE8E = 0xD8;
-    D_8009CE98 = 0;
-    D_8009CE9A = 0;
-    D_8009CEA0 = 0x140;
-    D_8009CEA2 = 0;
-    D_8009CEA8 = 0;
-    D_8009CEAA = 0xD8;
-    D_8009CEB0 = 0x140;
-    D_8009CEB2 = 0xD8;
+    g_WorldMapFadePrims[0].x0 = 0;
+    g_WorldMapFadePrims[0].y0 = 0;
+    g_WorldMapFadePrims[0].x1 = 0x140;
+    g_WorldMapFadePrims[0].y1 = 0;
+    g_WorldMapFadePrims[0].x2 = 0;
+    g_WorldMapFadePrims[0].y2 = 0xD8;
+    g_WorldMapFadePrims[0].x3 = 0x140;
+    g_WorldMapFadePrims[0].y3 = 0xD8;
+    g_WorldMapFadePrims[1].x0 = 0;
+    g_WorldMapFadePrims[1].y0 = 0;
+    g_WorldMapFadePrims[1].x1 = 0x140;
+    g_WorldMapFadePrims[1].y1 = 0;
+    g_WorldMapFadePrims[1].x2 = 0;
+    g_WorldMapFadePrims[1].y2 = 0xD8;
+    g_WorldMapFadePrims[1].x3 = 0x140;
+    g_WorldMapFadePrims[1].y3 = 0xD8;
     return 1;
 }
 // The frame render context g_WorldMapRenderContext points at (partial view: the head of
