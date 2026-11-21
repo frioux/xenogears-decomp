@@ -520,53 +520,51 @@ extern u8 g_FieldModelSlotScratch[];
 // The actor table is a volatile pointer, so retail re-reads it at every use
 #define ACTOR(index) ((FieldActor*)((index) * sizeof(FieldActor) + (s32)g_FieldActors))
 
-// PARKED 74.78% (3488 bytes against retail's 3484: ONE instruction over, frame
-// 0xa0 and every call, branch and store in the original's order). objdiff's
-// number is not the story here - the same body with the position pairs spelled
-// inline (`ACTOR(i)->...;` twice per pair) measures 74.98% at 3520 bytes (9 over)
-// and the same body with ONE `pActor` local for the whole loop measures 75.18%
-// at 3304 bytes (45 SHORT), so the source is somewhere between: retail shares one
-// `g_FieldActors` read for each of the three transform/childMatrix PAIRS and for
-// the `status & 0x40` test plus the `|= 0x20` store (both reuse $a0 across the
-// branch), and re-reads the base for every other store. What is left is all
-// register allocation: retail's saved set is s0-s5, this body's is s0-s6, so from
-// the second phase on every s-register is one off (retail $s2 = the actor byte
-// offset / the offset-table pointer, here $s3).
-// WHAT MATCHES BYTE-FOR-BYTE (checked instruction by instruction): the 16-byte
-// rodata copy, the 0x100-byte structure copy from g_GameStagedFileBuffer to
-// g_FieldSpritePlacements (both the aligned and the lwl/lwr paths - the copy type must have
-// alignment 1 or 2 or cc1 drops the `or/andi 0x3` test), the 4x4 quad loop, the
-// five fixed FieldInitTableQuad calls, and the whole Phase-4..12 HeapAlloc +
-// FieldLZSSDecompress chain.
-// FACTS ESTABLISHED THIS ROUND (keep them):
-//  - misc3 owns exactly one .rodata item, D_8006FAF4 {0,-100,2000,0}: converting
-//    FieldLoad DELETES it (its dlabel is in the stub's .s), so the converted body
-//    must carry `const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};` at file
-//    scope. It is dropped below because the parked INCLUDE_ASM would otherwise
-//    define the symbol twice.
-//  - 0x800B0080..0x800B00B1 is ONE object in this unit's source (the init block
-//    reaches g_FieldScreenEffectParams' bytes as `0x1C($s2)` off g_FieldScreenEffectConfig and
-//    the effect-setup fields as displacements too), so FieldScreenEffectConfig
-//    above is one struct; misc.c's separate FieldScreenEffectSetup /
-//    FieldScreenEffectParams views are the same memory.
-//  - 0x800AFB18 is likewise one object (FieldWalkmesh): g_FieldSpriteData is +4,
-//    g_FieldWalkmeshMaterialFlags +8, g_FieldWalkmeshTriangles +0xC (4 pointers),
-//    g_FieldWalkmeshVertices +0x1C (4 pointers), the `>>1 /7` counts +0x2C,
-//    g_FieldWalkmeshTriCount +0x3C. Retail re-reads `-0xC($a2)` (the file
-//    pointer) per store.
-//  - the actor spawn records are 8 u16 = FieldActorFileData (the loader reads
-//    flags, then the rotation trio, then the position trio, then modelID, so the
-//    pointer bumps +2/+6/+6 and the loop tail's +2 lands in func_80080F44's delay
-//    slot). Loads are `lhu`, so the header's fields are u_short, not short.
-//  - FieldLightFileData must stay 0x2A bytes: ActorFile needs 0xE of padding
-//    before numEntitites (0x18C) and actorData is the inline array at 0x190.
-//  - the -0x20/-0xB8 first arguments of the two FieldSetMatrix calls and the
-//    RotMatrix are displacements off ONE base in retail, i.e. g_FieldModelSlotScratch
-//    .. g_FieldMotionSlotSteps is one object in the source too.
-
-// .rodata
-const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};
-
+// PARKED 77.89% (3484 bytes = retail's exact instruction count; the frame (160)
+// and the prologue's saved set s0-s5 are byte-identical to retail).
+// WHAT MATCHED, AND WHY (keep these):
+//  - the actor-table malloc must store the LOCAL, not re-read the global:
+//    pWord = HeapAlloc(...); g_FieldActors = (FieldActor*)pWord;  -- g_FieldActors
+//    is a VOLATILE pointer, so pWord = (u32*)g_FieldActors; after the store
+//    reloads it and leaves the body one instruction over (74.78 -> 75.80).
+//  - every use of the model part AFTER ModelAllocatePackets goes through
+//    pModel->pBounds, not the local: retail does lw a0,0x4(s0) before
+//    ModelInitializePacket, func_800303C8 and ModelFileTrimHeapBlock, and reloads
+//    both primitive buffers from pModel as well. pModelPart is dead after the
+//    first call, which is what frees the extra callee-saved register (75.80 ->
+//    77.89, retail's exact prologue).
+//  - the TIM offset loop is pOffsets = (s32*)pTimData + 1; ... *pOffsets++
+//    (retail puts the +4 in the loop-back branch delay slot); measured neutral.
+//  - the model-header loop is ((s32*)g_FieldModelFile)[i + 1], indexed, NOT
+//    *pOffsets++: the pointer form is retail's shape but leaves the body 8 bytes
+//    SHORT (3476) because retail also re-reads g_FieldModelFile into a saved
+//    register in the preheader (lw s2,0(s0)), and the indexed form's sll/addu per
+//    iteration is what makes up the two instructions.
+// RESIDUAL: the actor spawn loop forms a SECOND induction register for pSpawn.
+// Retail reaches ry/rz with 2(s5)/4(s5) off one register; this body keeps a
+// parallel pointer (pSpawn+6) and reads -2/0 off it. Reproduced in isolation
+// with tools/scripts/cc1_probe.sh on a 40-line replica, so it is not the
+// surrounding function; dropping the transform/childMatrix read group from the
+// replica makes the split go away, so the record's second read group is what
+// triggers loop.c's giv combining. Spellings measured and dead: *pSpawn++ vs
+// pSpawn[0] + pSpawn += 1, reading offsets 3..5 with a single += 6, u16
+// temporaries, one ACTOR(i) reload for all three pairs, gcc 2.6.0 (74.65) and
+// 2.7.2-cdk (68.46). It is not a register count: the saved set already matches.
+// STRUCT FACTS (keep): misc3 owns exactly one .rodata item, D_8006FAF4
+// {0,-100,2000,0} -- converting FieldLoad must carry
+// const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0}; at file scope, and it is
+// dropped here because the stub's .s owns that dlabel. 0x800B0080..0x800B00B1 is
+// ONE object (FieldScreenEffectConfig). 0x800AFB18 is one object (FieldWalkmesh:
+// +4 spriteData, +8 materialFlags, +0xC triangles[4], +0x1C vertices[4], +0x2C
+// the >>1 /7 counts, +0x3C triCount; retail re-reads -0xC(a2) per store). The
+// spawn records are 8 u16, so the pointer bumps +2/+6/+6 and the tail's +2 lands
+// in func_80080F44's delay slot; the loads are lhu, so they are u_short.
+// FieldLightFileData must stay 0x2A bytes (ActorFile needs 0xE of padding before
+// numEntitites at 0x18C; actorData is the inline array at 0x190). The -0x20/-0xB8
+// first arguments of the two FieldSetMatrix calls and the RotMatrix are
+// displacements off ONE base, i.e. g_FieldModelSlotScratch .. g_FieldMotionSlotSteps
+// is one object in the source too.
+/*
 void FieldLoad(void) {
     FieldActor* pActor;
     FieldActorModelData* pModel;
@@ -816,4 +814,5 @@ void FieldLoad(void) {
             }
         }
     }
-}
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldLoad);
