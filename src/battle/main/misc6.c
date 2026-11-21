@@ -1,50 +1,46 @@
 #include "common.h"
 
-// Operator argument tables: g_BattleSlotWordRegs is the 16-bit field table, g_BattleSlotByteRegs
-// the 8-bit one; both are indexed by (*p + 0x3) << 6-style slot * 0x40 bytes.
-extern u8 g_BattleSlotWordRegs[];
+// The word-register bank of the per-slot register block at g_BattleSlotRegs, seen
+// from g_BattleSlotWordRegs (its +0x20, stride 0x40): the instruction's operand1
+// byte picks the register and its two-byte immediate is the value applied to it.
+// Declared from this bank because the original addresses 0x800D3420 itself.
+typedef struct {
+    /* 0x00 */ u16 wordRegs[8];
+    /* 0x10 */ u8 unk10[0x30]; // the slot's byte registers, then the next slot's head
+} BattleSlotWordRegs; // Size: 0x40
+
+extern BattleSlotWordRegs g_BattleSlotWordRegs[];
 extern u8 g_BattleSlotByteRegs[];
 
-// All four stubs in this unit are one and the same miss: retail holds the table base
-// in $v0 while our gcc gives it $v1, the second entry of mips REG_ALLOC_ORDER (a
-// local_alloc priority tie between the `la` temp and the (*p)[k] loads). 19 source
-// shapes - declaration order, `register` locals, pointer into the entry, u8 base with
-// a scaled index, an extra address copy, s32/s16 temporaries, `|` instead of `+` - all
-// compile to byte-identical code, and -O1/-O3/-G0 also leave it at 97.0, so the tie is
-// not reachable from the source.
+// The clamp of an unsigned 16-bit register: the operators that can overflow a word
+// register saturate at its largest value before storing.
+#define BATTLE_WORD_REG_MAX 0xFFFF
 
-// best 97.00% (2.7.2 and 2.6.0; 86.75 cdk): identical instruction multiset, only
-// the g_BattleSlotWordRegs base register differs - retail $v0/$a2, gcc $v1.
-/*
 void func_8007AC30(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
-    s32 value = pField[pArgs[1]] - (pArgs[2] + (pArgs[3] << 8));
+    s32 value = g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] - ((pArgs[3] << 8) + pArgs[2]);
 
     if (value < 0) {
         value = 0;
     }
-    pField[pArgs[1]] = value;
+    g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] = value;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC30);
-// best 97.39% (2.6.0; 96.52 2.7.2; 89.35 cdk): same single-register miss as
-// func_8007AC30, the g_BattleSlotWordRegs base lands in $v1 instead of retail's $v0/$a2.
-/*
 void func_8007AC80(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
-    s32 value = pField[pArgs[1]] * (pArgs[2] + (pArgs[3] << 8));
+    s32 value = g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] * ((pArgs[3] << 8) + pArgs[2]);
 
-    if (value > 0xFFFF) {
-        value = 0xFFFF;
+    if (value > BATTLE_WORD_REG_MAX) {
+        value = BATTLE_WORD_REG_MAX;
     }
-    pField[pArgs[1]] = value;
+    g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] = value;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC80);
+
 // best 83.06% (cdk; 81.94 2.7.2/2.6.0; --expand-div drops it to 31.94, so not the
-// div trap): base in $v1 rather than $v0 renames the table loads and swaps div operands.
+// div trap). The tie here is the same one func_8007AC30 had (the `la` temp for the
+// table base against the operand temp: retail $v0/$v1, ours $v1/$v0), and its fix
+// was to spell the bank access out at each site and to put the shifted byte first
+// (`g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] /= (pArgs[3] << 8) + pArgs[2]`);
+// the body below is the older one and is what the 83.06% was measured on.
 /*
 void func_8007ACDC(u8 **p, u8 index) {
     u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
@@ -54,8 +50,8 @@ void func_8007ACDC(u8 **p, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ACDC);
-// best 83.06% (cdk; 81.94 2.7.2/2.6.0): modulus form of func_8007ACDC, same $v1 base
-// register miss, which renames the loads and the div/mflo pair.
+// best 83.06% (cdk; 81.94 2.7.2/2.6.0): modulus form of func_8007ACDC; same residual
+// and same untested lead as its `/=` sibling above.
 /*
 void func_8007AD24(u8 **p, u8 index) {
     u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
