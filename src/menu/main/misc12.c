@@ -328,6 +328,7 @@ void func_801E733C(void) {
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->v2 = 0xFF;
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->u3 = i * 0x10 + 0xC;
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->v3 = 0xFF;
+        // The index needs a temp: a plain address expression folds to index-first addu.
         ((POLY_FT4*)((u8*)g_Menu->pPrimBuffer + (primIndex = (i * 2 + g_Menu->renderContext) * 0x28) + MENU_ICON_PRIM_OFFSET))->tpage =
             GetTPage(0, 0, 0x140, 0x80);
         ((POLY_FT4*)((u8*)g_Menu->pPrimBuffer + (primIndex = (i * 2 + g_Menu->renderContext) * 0x28) + MENU_ICON_PRIM_OFFSET))->clut =
