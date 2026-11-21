@@ -106,6 +106,14 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // `sum = p[0x14] + q[0x5B]` DOES coalesce (98.39%) but onto the wrong operand's register.
 // Four permuter runs across rounds 122/123/169/369 (best 10-40) and 20+ hand shapes have not
 // moved it: it is the allocator's choice between two free registers, not a source shape.
+// Round 372 narrowed the direction: an UNSIGNED HImode sum (`u16`/`u32`/`s32`, same `u8 value`,
+// same clamp) DOES coalesce the add onto the p byte's register (`addu a1,a1,v0` + `move v1,a1`,
+// so the copy survives and value still takes v1), but then both byte loads move to a1/v0:
+// 99.03% at the same 124 bytes. `s16` is what leaves the loads in retail's v0/v1 and loses only
+// the in-place tie, so 99.68 stays the best. Measured dead this round: u8 sum (120 bytes - the
+// copy and the bnez nop both disappear), one-expression sums through u8/s16/u16 temps, a
+// declaration initialiser, a brace block around the sum, load order swapped, `short value`, and
+// comparing `sum` instead of `value`.
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
@@ -150,20 +158,33 @@ typedef struct {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 
-// PARKED (98.85%, 1252 bytes against retail's 1248). Body COMPILES.
-// Structure is retail's: the pointer set (pEntry/pState/pCondition/pGearRow/pWork), the
-// 15-row cost copy loop, the state-code switch (a `switch` reproduces retail's test chain
-// where an if/else-if chain does not), and the tails. Load-bearing shapes found this round:
+// PARKED (99.19%, 1256 bytes; retail is 1252 = 313 instructions - the old note's "1248" was
+// wrong). Body COMPILES. Structure is retail's: the pointer set (pEntry/pState/pCondition/
+// pGearRow/pWork), the 15-row cost copy loop, the state-code switch (a `switch` reproduces
+// retail's test chain where an if/else-if chain does not), and the tails. Load-bearing shapes:
 // `u8 amount` (a u32 makes gcc coalesce the division result and lose retail's `move s1,v1`),
 // the split `attack = pState->engineOutput; attack = attack * pState->unk3F;`, a `u16` local
 // for the activeEffectFlags2 test, and a SECOND pCondition pointer (`new_var2`) for the tail
-// blocks, which is what fixed retail's sp.N regs (94 -> 98.85). Remaining: four register-role
-// swaps (retail `mflo v1` / `mfhi v0`, and the unk54/amount multiply pair in v1/v0) plus the
-// `pState->statBonuses[7]` byte load, which gcc CSEs across the branch where retail reloads it
-// because retail's copy dies in the `li v0,0x1E` delay slot. Retail is 4 bytes LONGER here.
-// `new_var2` also lands in a2 where retail reuses s2, and the maxHp==hp `amount++` block is
-// stolen into the `beq` delay slot instead of staying out of line. Two permuter rounds
-// (1506 and 1597 iterations) took this from 92.76 to 98.85 and found nothing further.
+// blocks, which is what fixed retail's sp.N regs (94 -> 98.85).
+// Round 372 found the missing load and the extra one:
+//  - retail loads 0x57(s0) (statBonuses[7]) TWICE, once for the != 0 test and once for the
+//    product; the second load comes back only through a volatile read at the multiply site:
+//    pWork->cost = *(volatile u8*)&pState->statBonuses[7] * pWork->rowCosts[0];  (the 98.85
+//    body CSEs it and is one load short)
+//  - with the reload in, the body is exactly ONE instruction over retail, and that instruction is
+//    the `move a2,s2` copy of `new_var2 = pCondition;`. Spelling new_var2 as its own address
+//    expression with a declaration initialiser (u8* new_var2 = (u8*)&g_BattleWorkBlock[arg0] +
+//    0x148;) drops the copy and lands on retail's exact 1252 bytes, but new_var2 then takes $t0
+//    where retail reuses $s2 (98.21%). Using pCondition alone in the tail blocks is 96.59% at
+//    1248 (an extra `andi` appears on the *pCondition == 4 test). So (reload, no copy) is the
+//    one combination this body does not reach.
+// Remaining, and capping: the three mfhi/mflo destinations - retail `mult / mflo v0` and
+// `mfhi v0 / srl v0,v0,3`, this compiler `mflo $tN / srl v0,$tN,3` - the same 2.7.2
+// division-expansion difference that caps func_8009A9D0/BD94/B46C; try_flags tops out at 99.74
+// under gcc 2.6.0. Plus four register-role swaps around those mflo pairs, and the maxHp==hp
+// `amount++` block being stolen into the `beq` delay slot.
+// The three g_BattleWorkBlock+0x162/+0x32 condition-timer sites print as g_BattleWorkBlock+354
+// against retail's D_800CCE4A / D_800CCD1A: same linked bytes (the documented RELOC case).
 /*
 void func_8009A2D4(u8 arg0) {
     BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
@@ -184,7 +205,7 @@ void func_8009A2D4(u8 arg0) {
         pGearRow++;
     }
     if (pState->statBonuses[7] != 0) {
-        pWork->cost = pState->statBonuses[7] * pWork->rowCosts[0];
+        pWork->cost = *(volatile u8*)&pState->statBonuses[7] * pWork->rowCosts[0];
     } else {
         pWork->cost = 0x1E;
     }
@@ -415,6 +436,11 @@ void BattleFillPartySlotWeaponRecord(u8 arg0, u8 arg1) {
    permuter runs found nothing (third run, round 112: PERMUTER_NONE base=10
    best=10, 899 iterations).
    PARKED (99.66%). */
+// Round 372 re-measured: 99.66% (116 bytes), still the single mfhi/sra pair, and 100.00% under
+// gcc-2.6.0 confirmed. The whole-unit 2.6.0 screen is still mixed (BattleClearSlotFlag15A1
+// 95.71, BattleFillPartySlotWeaponRecord 96.15, BattleSetSlotFields148And162 99.05,
+// BattleResetSlotEffectWords 99.64), so this stays a one-function run that wants carving out.
+// func_8009BD94 is the same story (98.33% here, 100.00 under 2.6.0).
 /*
 s32 func_8009A9D0(void) {
     g_BattleCurWorkBlock->rowIndex = 0;
