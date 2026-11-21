@@ -20,8 +20,12 @@
 #define LIBGEAR_ANIM_ID_WAD_BASE 0x50
 #define LIBGEAR_ANIM_WAD_INDEX_OFFSET 0x4E
 
-// Psy-Q angles wrap at 0x1000, so this offset into rsin/rcos is a quarter turn
+// Psy-Q angles wrap at LIBGEAR_ANGLE_FULL_TURN, so this offset into rsin/rcos is a quarter turn
 #define LIBGEAR_QUARTER_TURN 0x400
+// A turn and its half: a difference of two angles is masked to a turn and folded into -half..+half
+#define LIBGEAR_ANGLE_MASK 0xFFF
+#define LIBGEAR_ANGLE_HALF_TURN 0x800
+#define LIBGEAR_ANGLE_FULL_TURN 0x1000
 
 // A byte of Model::commands: low 7 bits index the entry tables, bit 7 is a flag
 #define LIBGEAR_MODEL_COMMAND_ID_MASK 0x7F
@@ -55,6 +59,9 @@
 
 // Temp3::opcode values LibGearSetJointRotation and LibGearMoveJointToPoint queue
 
+// Temp3::type value meaning the object holds no queued command
+#define LIBGEAR_JOINT_OBJECT_TYPE_NONE 0xFF
+
 // Interpolation curves LibGearGetInterpolationFunc picks by type; 0 (the default) is the sine
 #define LIBGEAR_INTERPOLATE_RISE 1
 #define LIBGEAR_INTERPOLATE_FALL 2
@@ -62,6 +69,9 @@
 
 // Top of the frame range LibGearInterpolateRise and LibGearInterpolateFallClamped work in
 #define LIBGEAR_INTERPOLATE_FRAME_MAX 32
+
+// Frames an interpolation needs; fewer are written into the joint instead of queued
+#define LIBGEAR_INTERPOLATE_MIN_FRAMES 2
 
 // Frames UnkInner1::numFrames holds at most
 #define LIBGEAR_COLOR_ENTRY_FRAME_MAX 7
@@ -1787,17 +1797,17 @@ void LibGearReleaseSkeletonObjects(Temp4* pList, ModelJoint* pSkeleton) {
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
-        if (pSkeleton->pRotationObject != 0 && pSkeleton->pRotationObject->type != 0xFF) {
+        if (pSkeleton->pRotationObject != 0 && pSkeleton->pRotationObject->type != LIBGEAR_JOINT_OBJECT_TYPE_NONE) {
             LibGearFreeJointObject(pList, pSkeleton->pRotationObject);
             pSkeleton->pRotationObject = 0;
         }
 
-        if (pSkeleton->pTranslationObject != 0 && pSkeleton->pTranslationObject->type != 0xFF) {
+        if (pSkeleton->pTranslationObject != 0 && pSkeleton->pTranslationObject->type != LIBGEAR_JOINT_OBJECT_TYPE_NONE) {
             LibGearFreeJointObject(pList, pSkeleton->pTranslationObject);
             pSkeleton->pTranslationObject = 0;
         }
 
-        if (pSkeleton->pScaleObject != 0 && pSkeleton->pScaleObject->type != 0xFF) {
+        if (pSkeleton->pScaleObject != 0 && pSkeleton->pScaleObject->type != LIBGEAR_JOINT_OBJECT_TYPE_NONE) {
             LibGearFreeJointObject(pList, pSkeleton->pScaleObject);
             pSkeleton->pScaleObject = 0;
         }
@@ -2517,7 +2527,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E39F0);
 void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s32 x, s32 y, s32 z) {
     Temp3* pObject;
 
-    if (numFrames < 2) {
+    if (numFrames < LIBGEAR_INTERPOLATE_MIN_FRAMES) {
         pJoint->rotation.vx = x;
         pJoint->rotation.vy = y;
         pJoint->rotation.vz = z;
@@ -2545,21 +2555,21 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
         pObject->startY = pJoint->rotation.vy;
         pObject->startZ = pJoint->rotation.vz;
 
-        x = (x - pJoint->rotation.vx) & 0xFFF;
-        if (x >= 0x800) {
-            x -= 0x1000;
+        x = (x - pJoint->rotation.vx) & LIBGEAR_ANGLE_MASK;
+        if (x >= LIBGEAR_ANGLE_HALF_TURN) {
+            x -= LIBGEAR_ANGLE_FULL_TURN;
         }
         pObject->targetX = x;
 
-        y = (y - pJoint->rotation.vy) & 0xFFF;
-        if (y >= 0x800) {
-            y -= 0x1000;
+        y = (y - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
+        if (y >= LIBGEAR_ANGLE_HALF_TURN) {
+            y -= LIBGEAR_ANGLE_FULL_TURN;
         }
         pObject->targetY = y;
 
-        z = (z - pJoint->rotation.vz) & 0xFFF;
-        if (z >= 0x800) {
-            z -= 0x1000;
+        z = (z - pJoint->rotation.vz) & LIBGEAR_ANGLE_MASK;
+        if (z >= LIBGEAR_ANGLE_HALF_TURN) {
+            z -= LIBGEAR_ANGLE_FULL_TURN;
         }
         pObject->targetZ = z;
 
@@ -3980,7 +3990,7 @@ void LibGearFreeModel(s32 modelIndex) {
             Temp4* pPool = &g_LibGearJointObjectPool;
 
             LibGearReleaseSkeletonObjects(pPool, g_LibGearModels[modelIndex]->pSkeleton);
-            LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, LIBGEAR_JOINT_OBJECT_TYPE_NONE);
             LibGearFreeModelSkeleton(g_LibGearModels[modelIndex]->pSkeleton);
             g_LibGearModels[modelIndex]->pMesh = NULL;
             g_LibGearModels[modelIndex]->pSkeleton = NULL;
@@ -3990,7 +4000,7 @@ void LibGearFreeModel(s32 modelIndex) {
             Temp4* pPool = &g_LibGearJointObjectPool;
 
             LibGearReleaseSkeletonObjects(pPool, g_LibGearModels[modelIndex]->pSkeleton);
-            LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
+            LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, LIBGEAR_JOINT_OBJECT_TYPE_NONE);
             HeapFree(g_LibGearModels[modelIndex]->pSkeleton);
         }
     }
