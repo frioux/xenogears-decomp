@@ -134,6 +134,10 @@ int MenuReadFileChunk(u8* pPath, u8* pBuffer) {
 }
 
 extern void MenuWaitCardOperationFrames(u_char index);
+extern u32 D_801C50E0[];
+extern u8 D_801E9778;
+extern u8 g_MenuCardChangeDetectionEnabled;
+extern u8 g_MenuWindowTextBackPressed;
 
 /* The prefix is a 6-byte block move out of an 8-byte {u32; s16} aggregate (a
    6-byte 4-aligned type cannot be declared in C), so it is a memcpy of 6; a
@@ -614,292 +618,38 @@ void func_801CA5F0(s32 a0, s32 a1) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA750);
-// Best attempt: 96.91%. The template copy into 0x4B98 is 0x1B bytes in retail
-// (lw x6, then lh at source+0x18 and lb at source+0x1A storing sh/sb = a 3-byte
-// block move at alignment 2). A C aggregate of size 3 cannot exist, and a
-// 0x1C-byte struct (u32[6] + s16 + s8) copies a seventh word; splitting the
-// tail into two statements makes gcc rematerialise &D_801C50E0 and emit
-// lhu/lbu with a fresh lui instead of reusing the copy's a3 base. Second diff:
-// mfhi lands in a3 here vs v1 in retail. Tried: single 0x1C struct copy,
-// 0x18-byte head copy + two u16/s8 statements (77.87%), pointer locals for
-// source and destination.
-// Round 286: this body does NOT COMPILE any more (MenuUnk2Text and D_801C50E0 no
-// longer exist; the title template is the 0x1B-byte block at a new symbol name),
-// so the 96.91% above was measured on a stale object. The type it needs is a
-// 0x1B-byte aggregate: retail copies 6 words + lh + lb off ONE source base (a3)
-// and stores them as displacements off the reloaded menuUnk2, which is a block
-// move, not field stores. Re-measure before trusting this note.
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
+/* Best attempt: 99.89% (376 bytes = retail's exact size; TWO differing
+   instructions, both the destination register of the tens division:
+   retail `mfhi v1; sra v1,v1,2`, here `mfhi a3; sra v1,a3,2` - the ashiftrt's
+   pseudo is not coalesced with the HI extract. Nothing else differs.
+   What got here from 74.46%: the title template is a memcpy of exactly 0x1B bytes
+   whose SOURCE must be declared with 4-byte alignment (`extern u32 D_801C50E0[]`,
+   passed as the bare array): as `u8[]` gcc emits the unaligned lwl/lwr/swl/swr
+   block move (432 bytes, 74.46%), with alignment it emits retail's 6 word pairs
+   plus lh at 0x18 / lb at 0x1A. A 0x1C-byte struct copy copies a seventh word.
+   Tried for the register: `tens = n / 10` before vs after the memcpy (identical),
+   swapping the n/tens declarations (identical), a 1390-iteration 3-minute permuter
+   run (base=10 best=10, nothing). */
 /*
 void func_801CA8C0(u_char a0) {
-    s32 n;
     s32 tens;
+    s32 n;
 
     n = a0 + 1;
-    *(MenuUnk2Text*)g_Menu->menuUnk2->saveTitle = D_801C50E0;
     tens = n / 10;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1A] = 0x82;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1B] = tens + 0x4F;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1C] = 0x82;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1D] = n % 10 + 0x4F;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1E] = 0x81;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1F] = 0x40;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x20] = 0;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x21] = 0;
+    memcpy(g_Menu->menuUnk2->saveTitle, D_801C50E0, 0x1B);
+    g_Menu->menuUnk2->saveTitle[0x1A] = 0x82;
+    g_Menu->menuUnk2->saveTitle[0x1B] = tens + 0x4F;
+    g_Menu->menuUnk2->saveTitle[0x1C] = 0x82;
+    g_Menu->menuUnk2->saveTitle[0x1D] = n % 10 + 0x4F;
+    g_Menu->menuUnk2->saveTitle[0x1E] = 0x81;
+    g_Menu->menuUnk2->saveTitle[0x1F] = 0x40;
+    g_Menu->menuUnk2->saveTitle[0x20] = 0;
+    g_Menu->menuUnk2->saveTitle[0x21] = 0;
     strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
-}
-*/
-/* Best attempt: 97.36% (688 bytes vs retail's 692). Everything matches except the
-   dispatch tail of the {4,5} subtree: retail emits `beq v1,s5,case5` with an extra
-   `j` on the default path and both arms out of line, while gcc emits case 5 INLINE
-   (`bne v1,s5,test`) because that body lands next to the dispatch and its
-   `looping = 0; break;` tail cross-jumps into case 4's. Everything else is exact:
-   the do/while shape is `while (1) { ...; if (!looping) break; }`, the counter is a
-   `u8` (`addiu`+`andi` at the test), and `looping = 1;` must be assigned BEFORE the
-   `if (g_MenuCardChangeDetectionEnabled)` block -- as a later statement gcc saves the constant register
-   differently and the whole comparison drops to 95.99% (it also swaps frames/looping
-   between s2/s3). At 840k: case-body order in the switch is NOT free: (4,5,2,0) and
-   (5,4,2,0) both give 688/97.36, (0,2,4,5) 696/91.27, (0,5,2,4) 700/90.91, (2,5,0,4)
-   700/92.56; an explicit `default: break;` changes nothing. `li s1,1`/`li s5,5` come
-   from cse lifting the repeated constant 1 (two D_801E9778 stores + shouldRender[2]=1)
-   and 5 (two `input = 5` stores + the case test), so they need no source local. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
-/*
-extern u8 D_801E9778;
-extern u8 g_MenuCardChangeDetectionEnabled;
-extern u8 g_MenuWindowTextBackPressed;
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
 
-u_char func_801CAA38(u_char a0) {
-    u_char cardStatus[2];
-    u_char result;
-    u_char looping;
-    u8 frames;
-
-    cardStatus[0] = g_Menu->menuUnk2->cardStatus[0];
-    cardStatus[1] = g_Menu->menuUnk2->cardStatus[1];
-    looping = 1;
-    if (g_MenuCardChangeDetectionEnabled != 0) {
-        g_Menu->menuUnk2->cardPollMode = 2;
-    }
-    g_MenuWindowTextBackPressed = 0;
-    result = 0;
-    frames = 0xB4;
-    while (1) {
-        if (a0 == 0) {
-            g_Menu->pCursors->shouldRender[2] = 0;
-            g_Menu->pCursors->shouldRender[3] = 0;
-            if (g_Menu->input != 8) {
-                break;
-            }
-            frames -= 1;
-            if (frames == 0) {
-                break;
-            }
-        }
-        MenuRenderFrame();
-        if (a0 != 0 && g_MenuCardChangeDetectionEnabled != 0) {
-            if (cardStatus[0] != g_Menu->menuUnk2->cardStatus[0]) {
-                g_Menu->menuUnk2->cardEnumerated[0] = 0;
-                g_Menu->input = 5;
-                D_801E9778 = 1;
-            }
-            if (cardStatus[1] != g_Menu->menuUnk2->cardStatus[1]) {
-                g_Menu->menuUnk2->cardEnumerated[1] = 0;
-                g_Menu->input = 5;
-                D_801E9778 = 1;
-            }
-        }
-        switch (g_Menu->input) {
-        case 5:
-            result = 0;
-            g_MenuWindowTextBackPressed = 1;
-            looping = 0;
-            break;
-        case 4:
-            looping = 0;
-            break;
-        case 2:
-            g_Menu->pCursors->shouldRender[2] = 1;
-            g_Menu->pCursors->shouldRender[3] = 0;
-            result = 1;
-            break;
-        case 0:
-            g_Menu->pCursors->shouldRender[2] = 0;
-            g_Menu->pCursors->shouldRender[3] = 1;
-            result = 0;
-            break;
-        }
-        if (!looping) {
-            break;
-        }
-    }
-    g_Menu->pCursors->shouldRender[2] = 0;
-    g_Menu->pCursors->shouldRender[3] = 0;
-    g_Menu->menuUnk2->cardPollMode = 0;
-    return result;
-}
-*/
-
-u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
-    u_char result;
-
-    MenuCreateWindow2Strings(a0);
-    g_Menu->pCursors->shouldRender[3] = 1;
-    result = func_801CAA38(a2);
-    MenuFreeWindow2Strings();
-    if (a1 != MENU_WINDOW_TEXT_NONE && result != 0) {
-        MenuCreateWindow2Strings(a1);
-        g_Menu->pCursors->shouldRender[3] = 1;
-        result = func_801CAA38(a2);
-        MenuFreeWindow2Strings();
-    }
-    return result;
-}
-
-void MenuResetSlotSelection(void) {
-    g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
-    g_Menu->menuUnk2->selectedSlot = 0;
-    if (g_Menu->menuUnk2->cardStatus[0] == 0 && g_Menu->menuUnk2->cardStatus[1] != 0) {
-        g_Menu->menuUnk2->selectedSlot = MENU_CARD_SLOT_COUNT;
-    }
-}
-
-// The cell grid panel block g_Menu->pCellGrid points at: the row quad and the two
-// strings MenuScrollCellGridRow draws, then the scroll that drives the quad's width.
-// (misc4_260.c declares the same block locally; it is the same allocation.)
-typedef struct {
-    /* 0x000 */ POLY_F4 quads[2];          // The row quad, one per render context
-    /* 0x030 */ POLY_FT4 glyphs12[12][2];  // A twelve glyph string, one prim per render context
-    /* 0x3F0 */ POLY_FT4 glyphs2[2][2];    // A two glyph string
-    /* 0x490 */ u8 unk490[0x320];
-    /* 0x7B0 */ s32 scrollX;        // Grows by scrollStep per scroll frame, wraps past 0x100
-    /* 0x7B4 */ s32 scrollStep;
-    /* 0x7B8 */ u_char renderContext; // Picks this frame's prim out of every pair above
-    /* 0x7B9 */ u8 unk7B9[3];
-} MenuCellGridPanel; // Size: 0x7BC
-
-extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
-extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
-
-// pCellGrid is a void*, so every access reloads and re-casts it: retail reloads it
-// for each of the three colour bytes, so a pointer local must not be used here.
-// Case 0 frees the panel, 1 builds it, 2 stops its scroll.
-void MenuSetCellGridPanelState(u_char mode) {
-    switch (mode) {
-    case MENU_DATA_FREE:
-        if (g_Menu->pManager->cellGridScrollState != 0) {
-            g_Menu->pManager->cellGridScrollState = 0;
-            MenuRenderFrame();
-            HeapFree(g_Menu->pCellGrid);
-        }
-        break;
-    case MENU_DATA_INITIALIZE:
-        g_Menu->pCellGrid = HeapAlloc(sizeof(MenuCellGridPanel), 0);
-        bzero(g_Menu->pCellGrid, sizeof(MenuCellGridPanel));
-        // int-first address so the sum reaches $a0 as `addu a0,a0,v0`; every typed
-        // spelling (`->quads[i]`, `quads + i`, a u8* base) gives the swapped operands.
-        SetPolyF4((POLY_F4*)(g_Menu->renderContext * sizeof(POLY_F4) + (s32)g_Menu->pCellGrid));
-        (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->r0 = 0xA0;
-        (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->g0 = 0xA0;
-        (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->b0 = 0;
-        func_8002675C(g_Menu->resources, 0x160, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs12[0],
-                      g_Menu->renderContext, 0xA0, 0x64, 0x1000);
-        func_8002675C(g_Menu->resources, 0x161, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs2[0],
-                      g_Menu->renderContext, 0xA0, 0x64, 0x1000);
-        ((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext = *(u_char*)&g_Menu->renderContext;
-        g_Menu->pManager->cellGridScrollState = 1;
-        ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollStep = 8;
-        SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0xE0);
-        SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0xE1);
-        SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0x8F);
-        break;
-    case 2: // panel built, stop its scroll
-        if (g_Menu->pManager->cellGridScrollState == 0) {
-            break;
-        }
-        ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollX = 0x100;
-        (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->r0 = 0;
-        (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->g0 = 0xA0;
-        (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->b0 = 0;
-        g_Menu->pManager->cellGridScrollState = 2;
-        break;
-    }
-}
-
-/* Best attempt: 86.42% (272 bytes vs retail's 280). `pOdd = (u8*)&g_GameState + 1`
-   read as pOdd[offset + j] reproduces retail's two-add shape (offset+j in v0,
-   then the gs+1 constant) and its `lui %hi(g_GameState+1)` symbol, but gcc keeps
-   the constant in a SAVED register (s2, from the prologue) where retail reloads
-   it into the call-clobbered t0 in the inner preheader -- that fifth saved
-   value is the whole difference (5 saves vs retail's 4; it also pushes the
-   even-dest buffer pointer into s4). The form `((u8*)&g_GameState)[i + j + 1]`
-   is the same 86.36%. Tried: pEntry/pAll pointer locals, indexed both reads
-   (78-79%), StringEntry* advancing pointer, gcc-2.6.0 (89.15%), cdk (rejects).
-   Both loops and the decode/copy-back are otherwise exact. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB184);
-/*
-void func_801CB184(void) {
-    u8 inBuf[0x14];
-    u8 outBuf[0x14];
-    StringEntry* pEntry;
-    u8* pOdd;
-    s32 offset;
-    s32 j;
-
-    pEntry = g_GameState.strings;
-    pOdd = (u8*)&g_GameState + 1;
-    for (offset = 0; offset < 0x26C; offset += 0x14) {
-        for (j = 0; j < 0x14; j += 2) {
-            inBuf[j] = ((u8*)pEntry)[j];
-            inBuf[j + 1] = pOdd[offset + j];
-            if (((u8*)pEntry)[j] == 0 && pOdd[offset + j] == 0) {
-                break;
-            }
-        }
-        SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
-        for (j = 0; j < 0x14; j++) {
-            ((u8*)pEntry)[j] = outBuf[j];
-        }
-        pEntry++;
-    }
-}
-
-*/
-
-/* Best attempt: 86.36%. The even-byte read wants an advancing pointer
-   (s0 = &g_GameState + i, a1 = s0) and the odd-byte read wants the constant
-   base %hi(g_GameState + 0x1) rematerialised inside the outer loop, which only
-   happens when no register holds &g_GameState. Any source that inits the row
-   pointer before the loop lets gcc CSE &g_GameState into a callee-saved
-   register, which then folds the +1 into it (85.29%); assigning the pointer
-   inside the loop instead makes gcc keep `i` in one register and materialise
-   the base per iteration but lose the strength reduction (86.36%, this one).
-   Tried: pEntry in the for-increment / in the body / indexed form for both
-   reads (78.41%) / int declarations first. */
-/*
-void func_801CB184(void) {
-    u8 inBuf[0x14];
-    u8 outBuf[0x14];
-    u8* pEntry;
-    int i;
-    int j;
-
-    for (i = 0; i < 0x26C; i += 0x14) {
-        pEntry = (u8*)&g_GameState + i;
-        for (j = 0; j < 0x14; j += 2) {
-            inBuf[j] = pEntry[j];
-            inBuf[j + 1] = ((u8*)&g_GameState)[i + j + 1];
-            if (pEntry[j] == 0 && ((u8*)&g_GameState)[i + j + 1] == 0) {
-                break;
-            }
-        }
-        SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
-        for (j = 0; j < 0x14; j++) {
-            pEntry[j] = outBuf[j];
-        }
-    }
-}
-*/
 
 void MenuApplySaveSlot(u32* pSrc) {
     int i;
