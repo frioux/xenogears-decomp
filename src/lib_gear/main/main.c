@@ -2348,13 +2348,23 @@ s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
 // so the constant is not a source-shape question either.
 // Round 62: permuter, 783 iterations from this body (base 60), found nothing
 // better - the (li slot 0, store slot 14) split is confirmed out of reach here.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
+// Round 370: retail's STORE ORDER puts `frame` (0x98) after `commandCount` (0x2B) and
+// before `sourceModelSlot` (0x58), so this body stores in retail's exact order and the
+// 39 insns / 156 bytes are exact. The ONE remaining delta is the `li v1,-1` slot:
+// retail has it at insn 0, this body at 6 (just after `li v0,0x6B`). The old form with
+// `pModel->frame = negOne;` FIRST reads 94.87 (objdiff's fuzzy score is not monotone -
+// both bodies have exactly one displaced insn); that form puts the store at 8 instead.
+// Tried this round, all no better: `negOne = -1;` as a statement instead of a
+// declaration initialiser, `one = 1;` after the 0x39 store (retail's own position),
+// and a volatile store on `objectType` / `parentModelSlot` as a scheduler barrier
+// (the barrier does not move the li - it is emitted at RTL 6, so sched2 is not what
+// places it). Store order = source order in every shape, so the (li@0, store@14)
+// split still needs a decision this cc1 will not make.
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
     s16 one = 1;
 
-    pModel->frame = negOne;
     pModel->objectType = 0xFFFF;
     pModel->parentModelSlot = 0xFF;
     pModel->unk39 = 0x6B;
@@ -2364,6 +2374,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->pEntryTableLow = (Temp7**)arg3;
     pModel->pEntryTableHigh = NULL;
     pModel->commandCount = 0;
+    pModel->frame = negOne;
     pModel->sourceModelSlot = 0;
     pModel->unk35 = 0;
     pModel->useScaledMatrices = 0;
@@ -2387,8 +2398,10 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk8E = one;
     pModel->skipGroundSnap = 0;
     pModel->unk1E = negOne;
-}
-*/
+}*/
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
+
+
 void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
         if (pModel->commandCount != 0) {
@@ -2969,6 +2982,9 @@ int LibGearGetModelDistance(Model* pModel) {
 // just before the 0xFD arm and read only by the range test is simply cse'd into
 // the same pseudo, leaving the identical three-line residual. Measured dry; do not
 // re-open unless the allocator question is.
+// Round 370: re-measured live at 99.87%/464 bytes (retail size). The three residual
+// insns are the documented reg_eqv tie: retail bne v1,v0 x2 + addiu v0,a1,-1, ours
+// bne a1,v0 x2 + addiu v0,v1,-1. Copy slot, size and multiset are identical.
 /*
 void func_801E63A8(Model* pModel) {
     Model* pModel2;
@@ -3175,30 +3191,40 @@ int LibGearGetFirstModelIndex(void) {
 // exactly like the u8 conversion (92.95%): the four per-path `andi v0,a1,0xff`
 // turn into copies of `li v1,1` in the jump delay slots instead.
 // Screened: 92.95 identical under 2.6.0 and 2.7.2-cdk - not a compiler problem.
+// Round 370: the missing insn is a zero_extendqisi2 of the RESULT phi, sitting at the join
+// (.L801E68EC: `andi v0,a1,0xFF`) and cross-jumped into the four `j` delay slots of the
+// arms that reach the shift directly. Ours cross-jumps `li v0,1` into those slots
+// instead and shifts `sllv v0,v0,a1` - same 220 bytes, same instruction count.
+// New shape measured this round, identical 92.95: `u8 typeIndex = type;` for the compare
+// chain plus a SEPARATE `s32 index` result phi and `1 << (index & 0xFF)` at the store.
+// gcc deletes both the `(u8)` zero-extend and the explicit `& 0xFF` because the value's
+// only consumer is a variable shift, whose count needs only the low 5 bits - the
+// round-323 value-range wall, not a source-shape question.
 /*
 void func_801E6830(Model* pModel, int type, s16* pMask) {
-    u8 index = type;
+    u8 typeIndex = type;
+    s32 index = type;
 
-    if (index == 0xFF) {
+    if (typeIndex == 0xFF) {
         index = LibGearGetFirstModelIndex();
-    } else if (index == 0xFE) {
+    } else if (typeIndex == 0xFE) {
         index = *(u8*)&g_LibGearCurrentModelIndex;
-    } else if (index == 0xFD || index == 0xF9) {
+    } else if (typeIndex == 0xFD || typeIndex == 0xF9) {
         index = pModel->modelSlot;
-    } else if (index == 0xFC) {
+    } else if (typeIndex == 0xFC) {
         index = pModel->linkedModelSlot;
-    } else if (index == 0xFA) {
+    } else if (typeIndex == 0xFA) {
         index = 0xA;
-    } else if (index == 0xF8) {
+    } else if (typeIndex == 0xF8) {
         index = pModel->modelSlot * 2 + 8;
-    } else if (index == 0xF7) {
+    } else if (typeIndex == 0xF7) {
         index = pModel->modelSlot * 2 + 9;
     }
 
-    *pMask = 1 << index;
-}
-*/
+    *pMask = 1 << (index & 0xFF);
+}*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
+
 
 void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;
