@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 #include "battle/actor.h"
+#include "battle/battle_work.h"
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -28,40 +29,37 @@ typedef struct {
 // Digit sprite ids are indices into the glyph set that starts at this id.
 #define BATTLE_DIGIT_SPRITE_BASE 0x67
 
-// The per-slot digit-panel bookkeeping the renderers below advance. g_BattleDisplayState
-// points at the battle work block that battle_work.h's BattleWork describes for
-// misc2/misc3; the counters these two functions use sit past the fields that
-// view names, so misc1 spells out just those.
+// The command queue block g_BattleCommandQueue points at (the 0x2F8 bytes
+// func_80070F40 allocates for it), as in misc4.c's view of the same block.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x74];
-    /* 0x074 */ u8 unk74[3]; // packages drawn for the slot's panel so far, x 0x50 into its prim area
-    /* 0x077 */ u8 unk77;    // the same count for the full-scale panel
-    /* 0x078 */ u8 unk78[7];
-    /* 0x07F */ u8 unk7F[3];
-    /* 0x082 */ u8 unk82[2];
-    /* 0x084 */ u8 unk84[3]; // prim index the slot's panel was built at
-    /* 0x087 */ u8 unk87;    // the same index for the full-scale panel
-    /* 0x088 */ u8 unk88[8];
-    /* 0x090 */ u8 unk90[3]; // which panel the slot draws this frame
-    /* 0x093 */ u8 unk93[6];
-    /* 0x099 */ u8 unk99[3];
-    /* 0x09C */ u8 unk9C[0x30];
-    /* 0x0CC */ u8 unkCC[3];
-    /* 0x0CF */ u8 unkCF[0x11];
-    /* 0x0E0 */ s32 statSpriteCount[3];  // packaged sprites so far, x 0x50 into the slot's prim area
-    /* 0x0EC */ s32 valueSpriteCount[3];
-} BattleDigitState; // Size: 0xF8
+    /* 0x000 */ u8 unk000[0x2D3];
+    /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
+    /* 0x2D4 */ u8 unk2D4[6];
+    /* 0x2DA */ u8 count; // queued commands
+    /* 0x2DB */ u8 commandFinished; // 0 while a queued command runs
+    /* 0x2DC */ u8 unk2DC[0xF];
+    /* 0x2EB */ u8 charRedrawFlags[3]; // per party slot: copied into BattleWork.slotMarks
+} BattleCommandQueueState; // Size: 0x2F8
+
+// One 0x48-byte row of the command record table at g_BattleCommandRecords
+// (0x800C4000), as in misc13.c's view of it.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x31];
+    /* 0x31 */ u8 command; // BATTLE_COMMAND_NONE when the row holds no command
+    /* 0x32 */ u8 unk32[0x16];
+} BattleCommandRecord; // Size: 0x48
 
 extern u8 g_BattleOverlayEnabled;
 extern u8 D_800C48EA;
 extern s32 *g_BattleAudioManager;
-extern u8 *g_BattleCommandQueue;
-extern BattleDigitState *g_BattleDisplayState;
+extern BattleCommandQueueState *g_BattleCommandQueue;
+extern BattleWork *g_BattleDisplayState;
 extern u8 D_800D3725[];
+extern BattleCommandRecord g_BattleCommandRecords[];
 extern s32 g_BattleOverlayHeapBlock1;
 extern s32 g_BattleOverlayHeapBlock2;
 extern s32 *g_DebuggerState;
-extern u8 *g_BattleCurOT;
+extern u8 *g_BattleCurOT[];
 extern u8 *g_BattleGraphicsWork;
 
 extern void BattleSetArchive20Entry0(void);
@@ -566,12 +564,12 @@ void func_8007171C(void) {
 void BattleResetActorCountdown(void) {
     u8 index;
 
-    index = g_BattleCommandQueue[0x2D3];
+    index = g_BattleCommandQueue->actorIndex;
     if (g_BattleActorCountdownState[index] != 0xFF) {
         g_BattleActorCountdownState[index] = 0;
     }
-    g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3]] = BattleSelectActionRow(g_BattleCommandQueue[0x2D3], 0);
-    g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3] - 0xB] = g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3]];
+    g_BattleSlotCountdownTimers[g_BattleCommandQueue->actorIndex] = BattleSelectActionRow(g_BattleCommandQueue->actorIndex, 0);
+    g_BattleSlotCountdownTimers[g_BattleCommandQueue->actorIndex - 0xB] = g_BattleSlotCountdownTimers[g_BattleCommandQueue->actorIndex];
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
@@ -598,25 +596,17 @@ void func_80071964(void) {
 */
 void BattleClearCharRedrawFlags(void) {
     s32 i;
-    u8 *p;
 
     for (i = 0; i < 3; i++) {
-        p = g_BattleCommandQueue;
-        *(p + i + 0x2EB) = 0;
+        g_BattleCommandQueue->charRedrawFlags[i] = 0;
     }
 }
 
 void BattleApplyCharRedrawFlags(void) {
     s32 i;
-    u8 *pDst;
-    u8 *pSrc;
 
-    // `*(p + i + k)` and not `p[i + k]`: only the former puts the base first in
-    // the addu under both 2.6.0 and 2.7.2, which is the original's order.
     for (i = 0; i < 3; i++) {
-        pDst = (u8 *)g_BattleDisplayState;
-        pSrc = g_BattleCommandQueue;
-        *(pDst + i + 0x7C) = *(pSrc + i + 0x2EB);
+        g_BattleDisplayState->slotMarks[i] = g_BattleCommandQueue->charRedrawFlags[i];
     }
     BattleUpdateFrame();
 }
@@ -627,8 +617,8 @@ void BattleClearAllSlotFlagB4(void) {
     for (i = 0x2A0; i >= 0; i -= 0x60) {
         D_800D3725[i] = 0;
     }
-    ((u8 *)g_BattleDisplayState)[0xB5] = 0;
-    ((u8 *)g_BattleDisplayState)[0xB4] = 0;
+    g_BattleDisplayState->unkB5[0] = 0;
+    g_BattleDisplayState->textSlotEnabled = 0;
     BattleUpdateFrame();
 }
 
@@ -637,14 +627,14 @@ void BattleWaitWhileStateIs8(void) {
 
     if (D_800D2CAF != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
         BattleSetSlotFlagB4(7);
-        g_BattleCommandQueue[0x2DB] = 0;
+        g_BattleCommandQueue->commandFinished = 0;
         for (i = 0x3B; i != 0; i--) {
             BattleUpdateFrame();
             if (g_BattleMenuEvent != 8) {
                 break;
             }
         }
-        g_BattleCommandQueue[0x2DB] = 1;
+        g_BattleCommandQueue->commandFinished = 1;
         BattleClearSlotFlagB4(7);
         BattleUpdateFrame();
     }
@@ -858,7 +848,7 @@ void func_800728B8(u8 *pPrim, s32 count, s16 index) {
     s32 i;
 
     for (i = 0; i < count; i++) {
-        AddPrim(g_BattleCurOT + 4, pPrim + index * 40);
+        AddPrim(g_BattleCurOT[0] + 4, pPrim + index * 40);
         index += 2;
     }
 }
@@ -1104,7 +1094,7 @@ void BattleRenderActorValueDigits(s32 slot) {
                 0x25);
         }
     }
-    g_BattleDisplayState->unk99[slot] = g_BattlePrimStartIndex;
+    g_BattleDisplayState->valueSpritePrimStart[slot] = g_BattlePrimStartIndex;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
 /* 89.68% under 2.6.0, 1308 bytes against retail's 1312 (ONE instruction short).
@@ -1214,23 +1204,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
        }
    }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);
-/* 91.30% - the three colour stores, the `lbu 0x6415` guard, the reload-after-store
-   pattern (g_BattleGraphicsWork is a u8 * so the sb forces a reload) and both `addu a1,a1,v1`
-   (offset-first) are exact. The only remaining miss is the link address: retail
-   keeps `&g_BattleCurOT` in s0 (one lui/addiu, then `lw a0,0(s0)` per call, 0x18 frame
-   with s0 saved) while gcc re-forms lui/lw per use and needs no saved register
-   (0x10 frame). Tried: `u8 **pOt = &g_BattleCurOT` then `*pOt` (constant-propagated
-   away) and the bare `g_BattleCurOT + 4` form (identical 91.30%). Same open problem as
-   misc2's BattleAddFourSlotPrims and BattleAddPrimPair320 - no shape found in the repo makes gcc
-   materialise the address of a global once across calls.
+// While the sub-image scroll is running (BattleGraphicsWork.scrollActive), the row the
+// scroll index selects gets its three colour bytes written and the two prims it holds
+// are added to the ordering table. Read through the block as a byte array: retail
+// loads 0x6410 with lbu, so that is not the s32 BattleGraphicsWork names here.
 void func_80073A58(void) {
     if (((u8 *)g_BattleGraphicsWork)[0x6415] != 0) {
         ((u8 *)g_BattleGraphicsWork)[0x63CC + ((u8 *)g_BattleGraphicsWork)[0x6414] * 24] = ((u8 *)g_BattleGraphicsWork)[0x6410];
         ((u8 *)g_BattleGraphicsWork)[0x63CD + ((u8 *)g_BattleGraphicsWork)[0x6414] * 24] = ((u8 *)g_BattleGraphicsWork)[0x6410];
         ((u8 *)g_BattleGraphicsWork)[0x63CE + ((u8 *)g_BattleGraphicsWork)[0x6414] * 24] = ((u8 *)g_BattleGraphicsWork)[0x6410];
-        AddPrim(g_BattleCurOT + 4, (0x63C8 + ((u8 *)g_BattleGraphicsWork)[0x6414] * 24) + (u8 *)g_BattleGraphicsWork);
-        AddPrim(g_BattleCurOT + 4, (0x63F8 + ((u8 *)g_BattleGraphicsWork)[0x6414] * 12) + (u8 *)g_BattleGraphicsWork);
+        AddPrim(g_BattleCurOT[0] + 4, (0x63C8 + ((u8 *)g_BattleGraphicsWork)[0x6414] * 24) + (u8 *)g_BattleGraphicsWork);
+        AddPrim(g_BattleCurOT[0] + 4, (0x63F8 + ((u8 *)g_BattleGraphicsWork)[0x6414] * 12) + (u8 *)g_BattleGraphicsWork);
     }
 }
-*/
