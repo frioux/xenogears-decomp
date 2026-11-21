@@ -999,7 +999,186 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
 */
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082BB8);
+extern s32 D_80065B08;
+extern s32 D_800ADB68;
+extern s32 g_FieldPartyActorSlots[];
+extern u16 g_FieldP1ButtonsPressed;
+int func_8008492C(ActorData* pActor);
+int FieldProbeWalkmeshAtAngle(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
+int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
+
+/* 85.15% (1456 bytes against retail's 1472 - four instructions short, and the
+   frame is retail's exactly: 0x58 = vars 40 + 8 saved (s0-s6+ra) + 16 arg save
+   area, .mask 0x807f0000). The body below is instruction-for-instruction retail's
+   except for these, all of them block PLACEMENT rather than shape:
+   1. gcc puts the rotation-locked arm (rotation.vx |= 0x8000; animationId =
+      defaultAnimationId) inline where the source branches to it; retail has it out
+      of line at 0x2F5C, falling into the reset block at 0x2F70, and uses `beqz v0`
+      plus a `nop` delay where this body inverts to `bnez v0` with no delay.
+   2. Because retail's reset block is the fall-through of that locked arm, its
+      `if (result == -1)` comes out as `beq -> reset; lui v0,0x10000 (delay);
+      j -> join; addiu v0,-0x1001 (delay)` (4 insns); here the reset is the
+      fall-through of the test, so it is `bne -> join; li v0,-0x1001 (delay)` (2).
+   3. Same for the probe/BAC0 ternary: retail keeps func_8007BAC0 inline and the
+      cross-jumped FieldProbeWalkmeshAtAngle arm out of line (`bnez v0` with an
+      `addiu a0,sp,0x10` delay); this body inverts to `beqz v0 -> func_8007BAC0`.
+   4. The 0x1800 chain needs the two-case `switch` spelling below: as an
+      if/else-if chain gcc inverts it into `bne` tests and loses the trailing
+      `j`+`nop` (82.82 -> 84.61).
+   Also unsettled: retail gives $s5 to actorIndex (2 refs) and $s6 to pFieldActor
+   (3 refs) where global_alloc gives pFieldActor the lower number here, so every
+   s5/s6 operand is swapped (0 bytes, about ten diff rows), and the two party-slot
+   tests read g_FieldPartyActorSlots[1]/[2] (+4/+8 addends) where retail's relocs
+   name D_8005A448/D_8005A44C - the linked bytes are identical, so diff_func folds
+   them but objdiff cannot reach 100.00 there.
+   Everything else is settled: the 0x1000000 early out with D_80065B08 = actorIndex
+   written before it, hitTimer's unsigned `>= 9` test, moving = move.vx|vy|vz with
+   func_8008492C(pActor) == -1 forcing 1, the 0x40800 lock test, pos = pSprite->step
+   then three adds (that struct copy is what reproduces retail's double store of
+   step.x), the ratan2 angle wanting the (s16) cast before the negate, savedFlags
+   restoring the 0x600 bits around the probe, the `== 2 ? 0x60 : 0x30` moveSpeed
+   arms, the 0x200000 material arm (`&&` keeps the second rotation.vx test inline),
+   the animationOverride / 0x2000000 gate, and
+   FieldSetGearModelAnimationForActor(pSprite, animationId, pFieldActor). */
+void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
+    VECTOR pos;
+    SVECTOR points[2];
+    SpriteData* pSprite;
+    s32 savedFlags;
+    s32 moving;
+    s16 animationId;
+    int angle;
+    int result;
+
+    pSprite = pFieldActor->pSpriteData;
+    angle = pActor->rotation.vx;
+    D_80065B08 = actorIndex;
+    if (pActor->scriptFlags.flags & 0x1000000) {
+        return;
+    }
+    animationId = 1;
+    if ((pActor->scriptFlags.flags & 0x4000) && (g_FieldP1ButtonsPressed & 0x40) && D_800ADB68 == 1) {
+        animationId = 2;
+    }
+    if (pActor->scriptFlags.flags & 0x1800) {
+        if (pActor->curAnimationId != animationId) {
+            switch (pActor->curAnimationId) {
+            case 1:
+                animationId = 1;
+                break;
+            case 2:
+                animationId = 2;
+                break;
+            }
+        }
+    }
+    if (pActor->hitTimer >= 9) {
+        pActor->hitTimer--;
+    }
+    moving = pActor->move.vx | pActor->move.vy | pActor->move.vz;
+    if (func_8008492C(pActor) == -1) {
+        moving = 1;
+    }
+    if ((angle & 0x8000) && !moving && !(pActor->scriptFlags.flags & 0x40800)) {
+        pActor->rotation.vx |= 0x8000;
+        animationId = pActor->defaultAnimationId;
+        goto stopped;
+    }
+    if (angle & 0x8000) {
+        pos.vx = pActor->move.vx;
+        pos.vy = pActor->move.vy;
+        pos.vz = pActor->move.vz;
+        angle = pActor->rotation.vy & FIELD_ANGLE_MASK;
+    } else {
+        func_80081F80(pSprite, angle, pFieldActor);
+        pos.vx = pSprite->step.x;
+        pos.vy = pSprite->step.y;
+        pos.vz = pSprite->step.z;
+        pos.vx += pActor->move.vx;
+        pos.vy += pActor->move.vy;
+        pos.vz += pActor->move.vz;
+        pActor->rotation.vy = angle;
+    }
+    if (FieldCheckActorInZone2D((IVEC3*)&pos, pActor) != 0) {
+        goto stopped;
+    }
+    if (pos.vx != 0 || pos.vz != 0) {
+        angle = -(s16)ratan2(pos.vz, pos.vx) & FIELD_ANGLE_MASK;
+    }
+    result = -1;
+    if (pActor->walkmeshTriIds[pActor->walkmeshId] != -1) {
+        savedFlags = pActor->scriptFlags.flags;
+        if (actorIndex == g_PlayerActorIndex) {
+            if (g_FieldPartyActorSlots[1] != ACTOR_ID_INVALID) {
+                pActor->scriptFlags.flags =
+                    savedFlags | (g_FieldActors[g_FieldPartyActorSlots[1]].pActorData->scriptFlags.flags & 0x600);
+            }
+            if (g_FieldPartyActorSlots[2] != ACTOR_ID_INVALID) {
+                pActor->scriptFlags.flags |=
+                    g_FieldActors[g_FieldPartyActorSlots[2]].pActorData->scriptFlags.flags & 0x600;
+            }
+        }
+        if ((pActor->scriptFlags.flags & 0x41800) || pActor->canInteract != ACTOR_ID_INVALID || D_800ADB98 != 0) {
+            result = FieldProbeWalkmeshAtAngle(&pos, pActor, points, angle);
+        } else {
+            result = func_8007BAC0(&pos, pActor, points, angle);
+        }
+        pActor->scriptFlags.flags = (pActor->scriptFlags.flags & ~0x600) | (savedFlags & 0x600);
+    }
+    if (result == -1) {
+stopped:
+        pActor->fallSpeed = 0x10000;
+        pActor->move.vx = 0;
+        pActor->move.vy = 0;
+        pActor->move.vz = 0;
+        pos.vx = 0;
+        pos.vy = 0;
+        pos.vz = 0;
+        pSprite->step.x = 0;
+        pSprite->step.z = 0;
+        pActor->rotation.vy |= 0x8000;
+    }
+    pActor->flags &= ~0x1000;
+    if (pActor->scriptFlags.flags & 0x800) {
+        if (g_Unknown_800B2344 == 0) {
+            if (((s16*)&pSprite->position)[3] == pSprite->field_0x84) {
+                pSprite->moveSpeed = 0;
+            } else if (animationId == 2) {
+                pSprite->moveSpeed = pSprite->field_0x82 * 0x60;
+            } else {
+                pSprite->moveSpeed = pSprite->field_0x82 * 0x30;
+            }
+        }
+        animationId = g_FieldCurrentModelAnimationId[0];
+    } else {
+        if (pActor->rotation.vx & 0x8000) {
+            animationId = pActor->defaultAnimationId;
+        }
+        if (FieldActorGetWalkmeshTriMaterial(pActor) & 0x200000) {
+            if ((pActor->rotation.vx & 0x8000) && pActor->curAnimationId == 6) {
+                pActor->flags |= 0x1000;
+            }
+            animationId = 6;
+        }
+    }
+    if (pActor->animationOverride != ACTOR_ID_INVALID) {
+        animationId = pActor->animationOverride;
+    }
+    if ((pActor->curAnimationId != animationId) && !(pActor->scriptFlags.flags & 0x2000000)) {
+        pActor->curAnimationId = animationId;
+        FieldSetGearModelAnimationForActor(pSprite, animationId, pFieldActor);
+    }
+    if (pActor->curWalkmeshTriMaterial & 0x100) {
+        pos.vx >>= 1;
+        pos.vz >>= 1;
+    }
+    pActor->moveModified.vx = pos.vx;
+    pActor->moveModified.vy = pos.vy;
+    pActor->move.vx = 0;
+    pActor->move.vy = 0;
+    pActor->move.vz = 0;
+    pActor->moveModified.vz = pos.vz;
+}
 
 int FieldClampAngleDelta(int angle, int limit) {
     if (angle < 0) {
