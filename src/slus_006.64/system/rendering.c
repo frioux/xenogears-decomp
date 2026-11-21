@@ -6,7 +6,7 @@
 extern void func_8001E148(SpriteData* pSpriteData);
 extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
 extern void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt);
-extern void func_8001EE88(SpriteData* pSpriteData, void* pArg1, void* pArg2);
+extern void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth);
 extern void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth);
 extern void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
 extern void SpriteClearDirTransforms(SpriteData* pSpriteData);
@@ -1121,6 +1121,197 @@ s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
            *pOt = (*pOt & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
        }
    }
+*/
+/* Best attempt: 90.79% (852 bytes; retail is 844 = 211 instructions, so this is
+   two instructions over). Everything in the middle of the loop is already
+   retail's, instruction for instruction; what is left is ONE callee-saved
+   register (the loop.c measurement at the end) plus the texX copy.
+   Facts confirmed by measurement, in the order they were found:
+   - The frame loop is a DO/WHILE over an INDEXED access, `pFrameData[i]`, ending
+     `} while (++i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0]
+     >> 2);`. The pointer form the .s looks like (`pFrameData->` plus
+     `pFrameData++`) makes gcc's combine_givs re-base the induction register onto
+     pFrameData+6, so every u8 field goes negative (10(s3), -4(s3), ...): 83.57%
+     and 856 bytes. With pFrameData[i] the register IS the base, the
+     displacements are 0/2/4/6/7/8/9/A/C/10/14 (retail's) and `addiu s3,s3,24`
+     lands in the back-branch delay slot. Same finding as the func_8001E9BC /
+     func_8001F1D4 / func_8001E3D8 notes below.
+   - The loop bound is the BYTE reload flags_0x40.bytes[0] >> 2, not the head's
+     word-based `count`: retail re-reads the byte at the loop tail.
+   - pFrameData is loaded into a SECOND local before `count` and copied into
+     pFrameData after the two early returns (`pNextFrameData = pSpriteData->pBase
+     ->pCurRenderFramesData;` before `count = ...`, then `pFrameData =
+     pNextFrameData;`). Worth 83.57 -> 90.79, and it is what puts retail's
+     `lw a0,32(s6)` / `lw v0,48(a0)` pair between the buffer-end compare and the
+     `beqz`; without it the whole prologue is one register off. Permuter find.
+   - The x-quad arm must WRAP the two negations in a duplicated if/else on a live
+     global (`if (pSpriteData->field_0x40) { width = -width; tileX = -tileX; }
+     else { width = -width; tileX = -tileX; }`). The arms are identical, so no
+     semantics change, and it is worth 84.47 -> 85.77. Debris that is
+     load-bearing; do not tidy it away.
+   - element 0 of the quad corners is `pVerts[0].vx`, NOT
+     `g_BattleSpriteQuadCorners[0].vx`: the symbol spelling makes cc1 emit
+     `lui $at` + `sh` (two instructions per arm) instead of `sh a2,0(s4)`. That
+     is the opposite of func_8001E3D8's park, which needs the symbol form.
+   - The y arm stores elements 0,1,2,3 in that order (the x arm too), and
+     RotAverage4's arguments are `&pVerts[0..3]`, `&pPrim->x0`, `&pPrim->x1`,
+     `&pPrim->x3`, `&pPrim->x2` (x3 before x2), `&zDepth`, `&flag`; the zDepth
+     and flag slots are sp+0x28 and sp+0x2C.
+   What is still wrong, measured: gcc's loop.c HOISTS the 0x00FFFFFF that
+   addPrim's setaddr masks with out of the loop. cc1 -dL on this unit reports
+   `Loop from 71 to 677: 196 real insns` and `Insn 634: regno 263 (life 9),
+   move-insn savings 1 moved to 688`, where retail materialises it INSIDE the
+   loop (`lui a0,0xff` / `ori a0,a0,0xffff`, immediately before the u1/u3 sums).
+   The hoist takes s6, so pSpriteData lands in s5, z in s8 and pOt (the third
+   argument) in t1; retail has pSpriteData s6, z s5, pOt s8. That is the whole
+   residual: the hoisted lui/ori sit in the preheader instead of the loop (two
+   instructions) and the texX block is one instruction long -- retail is
+   `addiu v0,a1,-1` / `bgez` / `move a1,v0`, i.e. the decremented value copied
+   back into texX, where `--texX` and `texX--; if (texX < 0)` both compile to the
+   in-place `addiu` here and then compute texX+width twice. loop.c's rule is
+   `threshold * savings * lifetime >= insn_count`, so the next lever is that
+   mask's lifetime, 9 -> 8: anything that moves its two `and` uses one insn
+   closer, or grows the loop body, should unstick the register file. A 4-minute
+   permuter run from this 90.79% body found only the shapes already ported.
+*/
+/*
+    void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
+           SVECTOR* pVerts;
+           SpriteFrameData* pFrameData;
+           POLY_FT4* pPrim;
+           s32 n;
+           s32 count;
+           s32 z;
+           s32 i;
+           s32 zDepth;
+           s32 flag;
+           s32 tileX;
+           s32 tileY;
+           s32 width;
+           s32 height;
+           s32 texX;
+           s32 texY;
+           s32 texHeight;
+           s32 clip;
+           u32 spriteFlags;
+           s32 yMin;
+           s32 yMax;
+
+           n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+           z = depth << n;
+           count = (pSpriteData->field_0x40 >> 2) & 0x3F;
+           pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+           if ((u8*)g_GfxCurWorkBuffer + count * sizeof(POLY_FT4) >= (u8*)g_GfxCurWorkBufferEnd) {
+               return;
+           }
+           if (count == 0) {
+               return;
+           }
+
+           pVerts = g_BattleSpriteQuadCorners;
+           for (i = 0; i < (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++, pFrameData++) {
+               pPrim = g_GfxCurWorkBuffer;
+               g_GfxCurWorkBuffer = pPrim + 1;
+               pPrim->code = 9;
+               *(u32*)&pPrim->r0 = pFrameData[i].colorAndCode;
+               pPrim->tpage = pFrameData[i].texPage;
+               pPrim->clut = pFrameData[i].clutID;
+               tileX = pFrameData[i].tileX;
+               width = pFrameData[i].width;
+               width += (s8)pFrameData[i].deltaWidth;
+               tileY = pFrameData[i].tileY;
+               height = pFrameData[i].height;
+               height += (s8)pFrameData[i].deltaHeight;
+               n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+               width <<= n;
+               height <<= n;
+               tileX <<= n;
+               spriteFlags = pSpriteData->field_0x3C;
+               tileY <<= n;
+               if (spriteFlags & 8) {
+                   width = -width;
+                   tileX = -tileX;
+               }
+               if (spriteFlags & 0x10) {
+                   height = -height;
+                   tileY = -tileY;
+               }
+               if (!(pFrameData[i].flags & 0x10)) {
+                   pVerts[0].vx = tileX;
+                   pVerts[1].vx = tileX + width;
+                   pVerts[2].vx = tileX + width;
+                   pVerts[3].vx = tileX;
+               } else {
+                   pVerts[0].vx = tileX + width;
+                   pVerts[1].vx = tileX;
+                   pVerts[2].vx = tileX;
+                   pVerts[3].vx = tileX + width;
+               }
+
+               if (height > 0) {
+                   yMin = tileY;
+                   yMax = tileY + height;
+               } else {
+                   yMin = tileY + height;
+                   yMax = tileY;
+               }
+               if (z < yMin) {
+                   continue;
+               }
+               if (z < yMax) {
+                   clip = yMax - z;
+               } else {
+                   clip = 0;
+               }
+               height -= clip;
+               if (height < 0) {
+                   tileY -= clip;
+               }
+
+               if (!(pFrameData[i].flags & 0x20)) {
+                   pVerts[0].vy = tileY;
+                   pVerts[1].vy = tileY;
+                   pVerts[2].vy = tileY + height;
+                   pVerts[3].vy = tileY + height;
+               } else {
+                   pVerts[0].vy = tileY + height;
+                   pVerts[1].vy = tileY + height;
+                   pVerts[2].vy = tileY;
+                   pVerts[3].vy = tileY;
+               }
+
+               RotAverage4(pVerts, &pVerts[1], &pVerts[2], &pVerts[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+                   (long*)&pPrim->x3, (long*)&pPrim->x2, &zDepth, &flag);
+
+               n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+               texY = pFrameData[i].texY;
+               clip >>= n;
+               if (height > 0) {
+                   texHeight = pFrameData[i].height - clip;
+               } else {
+                   texY -= clip;
+                   texHeight = pFrameData[i].height - clip;
+               }
+               texX = pFrameData[i].texX;
+               if (pPrim->x3 < pPrim->x0) {
+                   if (--texX < 0) {
+                       texX = 0;
+                       width = pFrameData[i].width - 1;
+                   }
+               }
+               pPrim->u1 = texX + width;
+               pPrim->u3 = texX + width;
+               pPrim->u0 = texX;
+               pPrim->u2 = texX;
+               pPrim->v0 = texY;
+               pPrim->v1 = texY;
+               pPrim->v2 = texY + texHeight;
+               pPrim->v3 = texY + texHeight;
+
+               pPrim->tag = (pPrim->tag & 0xFF000000) | (*pOt & 0xFFFFFF);
+               *pOt = (*pOt & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+           }
+       }
 */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
 
