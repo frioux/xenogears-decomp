@@ -881,14 +881,15 @@ void MenuFreeSubMenuPanels(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
-/* PARKED 99.69% (1020 bytes = retail's exact size, so it cannot link; three
-   displaced instructions in the closing result block). Applies one inventory item's
-   stat effects to g_GameState.characters[charIndex]; returns nonzero when the item
-   could not do anything (both bars already full), which is why its caller (misc9)
-   consumes the item only on 0.
+/* PARKED 99.75% (1020 bytes = retail's exact size; four differing lines, the
+   residual is ONE instruction: retail's `andi v1,s1,0xff; beqz v1` where this
+   body has `nop; beqz s1`). Applies one inventory item's stat effects to
+   g_GameState.characters[charIndex]; returns nonzero when the item could not do
+   anything (both bars already full), which is why its caller (misc9) consumes the
+   item only on 0.
 
    Retail is 1020 bytes, not 1024: the next symbol (MenuApplyDressingRoomSlotHpBonus)
-   is at 0x801E35BC. The old note asked for a missing instruction; there is none.
+   is at 0x801E35BC.
 
    Settled, each measured (round 377 unless noted):
    - the item record is MenuShopItem (include/system/menu.h): amount at 0x8,
@@ -903,36 +904,34 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
    - its compare is `pChar->statBonus < (statFlags & 0xFF)`: with `(u8)statFlags`
      gcc emits `sltu` where retail has `slt`.
    - the 0xA&1 block is a `switch (pItem->amount)` with case 1 / case 2.
-   - the return type is `u16`. With s32 the tail is 1028 bytes (two extra moves),
-     and `volatile unsigned short` is what the permuter found - plain u16 measures
-     the same, so the u16 conversion is the load-bearing part.
+   - the return type is `u16`. With s32 the tail is 1028 bytes (two extra moves).
    - mpGain = 10 before the 0x8000 if and mpScale = mpGain between the two ifs
      (permuter find, 94.18 -> 98.73): the `li a1,0xa` has to be emitted before the
-     0x8000 test to fill its beqz delay slot, and a single local assigned between
-     the ifs puts the li in the NEXT beqz slot instead.
+     0x8000 test to fill its beqz delay slot.
    - the closing block returns per arm (`hpFull ? mpFull : 0`, `hpFull`,
-     `(effectFlags & 0x4000) ? mpFull : 0`); one `result` variable plus a single
-     return is 98.82-99.51 at the same size.
+     `(effectFlags & 0x4000) ? mpFull : 0`), not through one `result` variable
+     (98.82-99.51 at the same size).
 
-   Residue: retail copies the 0 into the beqz delay slot and mpFull into the j's
-   (`beqz v1,EXIT / move v0,zero / j EXIT / move v0,s2` - reorg duplicated the
-   shared zero store), where this body jumps straight to that zero store
-   (`beqz v0,<zero store> / move v0,s2 / j EXIT / nop`) and tests hpFull in $v0
-   where retail uses $v1. Two 4-minute permuter runs from this body (base 216,
-   residual one instruction) found only a do-while wrapper; the ternary, if/else
-   with two returns, and `result = 0; if (hpFull) result = mpFull;` forms all
-   measure 99.5-99.69.
-
-   Round 378: eight more tail spellings measured and all byte-identical to each other
-   at 99.69 / 1020 bytes - `if (hpFull == 0) return 0; return mpFull;`, the plain
-   else-form, a do-while wrapper around both arms, an empty `do {} while (0);` after
-   the return, and moving the count test - so nothing in the tail's SOURCE text is
-   the lever: gcc cross-jumps the nested arm's set-v0-0 onto the last arm's
-   fall-through zero, where retail threads it into the branch delay instead
-   (beqz v1,EPILOGUE / move v0,zero / j EPILOGUE / move v0,s2). The andi
-   destination ($v0 here, retail's $v1) follows the same choice. The hpFull ? mpFull
-   : 0 ternary in that arm is worse (98.18, 1004 bytes) and a three-return last arm
-   likewise. Treat this as the cross-jump/block-placement class, not a source shape.
+   THE TYPE OF hpFull DECIDES RETAIL'S TAIL LAYOUT. Retail's tail needs the
+   deep arm (`0xA&0x8000 && 0xA&0x4000 && hpFull == 0`) to materialise its 0 in the
+   beqz DELAY SLOT and mpFull in the j's. With `u8 hpFull` (a QI-mode compare)
+   cc1 2.6.0 cross-jumps that 0 onto the last arm's fall-through 0 and inverts the
+   branch instead (99.69, `beqz v0,<zero> / move v0,s2 / j / nop`). `unsigned int
+   hpFull` - the permuter's find - stops the cross-jump and gives retail's exact
+   tail (`nop` in the slot, `beqz s1,EXIT / move v0,zero / j EXIT / move v0,s2`),
+   but loses retail's QI `andi v1,s1,0xff` because hpFull is no longer narrowed:
+   99.75, 1020 bytes, 4 differing lines. The two levers are mutually exclusive in
+   this compiler:
+   - `(hpFull & 0xFF) == 0` gets the andi back and re-cross-jumps (99.69);
+   - `(u8)hpFull` in the test, or a `u8 hpDone = hpFull;` copy, gives 98.67 /
+     1012 (253 insns, the copy replaces the andi and the tail shrinks);
+   - `(hpFull & 0xFF) == 0` plus a following `if (hpFull)` return: 99.16 / 1028;
+   - last arm as `if (...) return mpFull; return 0;` or an `else if` chain:
+     98.18 / 1004 (251 insns, the mpFull copies merge too).
+   So whichever spelling narrows hpFull to QI gets the merge, and the merge is what
+   moves the 0 out of the delay slot. Two 4-minute permuter runs from the u8 body
+   had found only a do-while wrapper; a 3-minute run from the 99.69 body found this
+   type change (base 216 -> 205) and a re-run from the u8 body nothing better.
 */
 /*
 u16 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
@@ -943,7 +942,7 @@ u16 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
     // fill retail's beqz delay slot, and the 0x4000 arm reads mpScale. One local
     // measures 94.18, this pair 98.73.
     s32 mpGain;
-    u8 hpFull;
+    unsigned int hpFull;
     u8 mpFull;
     s32 result;
     s32 hpScale;
