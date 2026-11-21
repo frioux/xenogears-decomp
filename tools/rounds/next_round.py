@@ -3,7 +3,7 @@
 
     tools/rounds/next_round.py                          # 6 lanes + 6 queued, recorded in the history log
     tools/rounds/next_round.py --dry-run --json         # just the args, record nothing
-    tools/rounds/next_round.py --kind twin --lanes 4    # auto | twin | park | fresh | big
+    tools/rounds/next_round.py --kind twin --lanes 4    # auto | twin | park | fresh | big | redo
     tools/rounds/next_round.py --stats                  # the pool by class, one screen
 
 Output: the `clone.sh new` tag list and the args for
@@ -13,9 +13,11 @@ subagent({workflow: "tools/rounds/brief.js", async: true, args: ...}). One lane 
   1 park100   parks whose note records 100.00% (probably free: un-park, verify)
   2 twin      stubs with a matched twin >= 0.98 (PORT) then 0.80-0.98 (TEMPLATE), see twin_for.py
   3 cluster   smallest member of a stub-stub family (>= 0.90 alike), so one match solves them all
-  4 park      parks >= 99%, then 90-99%
+  4 park      parks >= 99%, then 80-99%
   5 fresh     never-written stubs under 350 instructions, smallest first, 2-5 per lane
-  6 big       never-written stubs of 350+ instructions, one per 90-minute lane
+  6 big       never-written stubs of 350+ instructions, one per 60-minute lane
+  7 redo      parks under 80% (or with no percentage) and noted stubs: re-measure, then rewrite
+              from m2c_draft.sh; 2-4 per 30-minute lane under 350 instructions, else one per 60
 
 Never emitted: handwritten, finished units (slus_006.64/system/model, psyq libgte*/libapi*/libcard*),
 slus_006.64/system/menu func_8001C76C, stack-switch stubs, convertible.py `insn after .size`
@@ -46,7 +48,7 @@ BIG = 350
 ABBREV = {"battle": "b", "battling": "bt", "field": "f", "menu": "m", "world_map": "wm", "lib_gear": "lg",
           "slus_006.64": "s", "gear_shop_menu": "gs", "shop_menu": "sh", "member_change_menu": "mc",
           "movie": "mv"}
-CLASS_ORDER = ["park100", "twin", "cluster", "park", "fresh", "big"]
+CLASS_ORDER = ["park100", "twin", "cluster", "park", "fresh", "big", "redo"]
 INSN = re.compile(r"^\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{8}\s*\*/")
 
 
@@ -211,9 +213,9 @@ def classify(stubs, twin_rows, clusters, items):
         elif s["family"] and not s["parked"]:
             s["cls"] = "cluster"
         elif s["parked"]:
-            s["cls"] = "park" if p is not None and p >= 90 else "parked-low"
+            s["cls"] = "park" if p is not None and p >= 80 else "redo"
         elif s["noted"]:
-            s["cls"] = "noted"
+            s["cls"] = "redo"
         else:
             s["cls"] = "big" if s["insns"] >= BIG else "fresh"
     return by
@@ -323,14 +325,26 @@ def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
                  "recovers, then transcribe each .s in address-order phases (prologue, each basic block in address order, "
                  "tail last) and take callee arity from the callee's definition in src or from "
                  "python3 tools/scripts/ghidra_info.py <Func>. Commit after each match." % names)
+    elif cls == "redo":
+        minutes = 30 if all(f["insns"] < BIG for f in funcs) else 60
+        bits = ["%s (%d insns) %s" % (f["func"], f["insns"], "scored %.2f percent" % f["pct"] if f["pct"] is not None
+                                       else "has a note with no usable percentage") for f in funcs]
+        notes = " | ".join("%s: %s" % (f["func"], note_excerpt(f, 160)) for f in funcs if f["note"])
+        extra = ("REDO - the existing park/note is old: %s. Treat it as a reference, not a base. First un-park each one "
+                 "(python3 tools/scripts/park.py unpark src/%s.c %s <Func>) and re-measure it, because notes can be stale or "
+                 "the body may never have compiled. If it is still under 90 percent, write a fresh body from the output of "
+                 "tools/scripts/m2c_draft.sh %s <Func>, using the old body only for names and types, and run "
+                 "python3 tools/scripts/twin_for.py <Func> for a matched twin to port from. Keep whichever scores higher "
+                 "and park that one. Commit after each match. %s"
+                 % ("; ".join(bits), unit, unit.split("/")[-1], unit, ("Old notes: " + notes) if notes else ""))
     else:  # big
         f = funcs[0]
-        minutes = 90
+        minutes = 60
         extra = ("DEEP FRESH BODY: %s (%d instructions) has never been written. Start from "
                  "tools/scripts/m2c_draft.sh %s %s, which prints a decompiler draft: use it as a skeleton, never as the "
                  "answer. Transcribe in address-order phases (prologue, each basic block in address order, tail last), take "
                  "callee arity from ghidra_info.py <Func>, and PARK after each phase (python3 tools/scripts/park.py repark "
-                 "with the percentage in the note) and commit, so a kill at minute 90 loses nothing."
+                 "with the percentage in the note) and commit, so a kill at minute 60 loses nothing."
                  % (f["func"], f["insns"], unit, f["func"]))
     return minutes, extra.replace("<Func>", funcs[0]["func"])
 
@@ -369,6 +383,10 @@ def candidate_lanes(cls, elig):
             lanes.append(((0 if hi else 1, -chosen[0]["pct"], chosen[0]["insns"]), unit, chosen))
         elif cls == "fresh":
             chosen = pick(fs, lambda f: f["insns"], 5, 450)
+            lanes.append(((sum(f["insns"] for f in chosen) / len(chosen),), unit, chosen))
+        elif cls == "redo":
+            small = [f for f in fs if f["insns"] < BIG]
+            chosen = pick(small, lambda f: f["insns"], 4, 450) if small else pick(fs, lambda f: f["insns"], 1, 0)
             lanes.append(((sum(f["insns"] for f in chosen) / len(chosen),), unit, chosen))
         else:
             chosen = pick(fs, lambda f: f["insns"], 1, 0)
@@ -414,7 +432,7 @@ def worker(unit, tag, funcs, cls, table):
 
 def plan(args, elig, round_no):
     kinds = {"auto": CLASS_ORDER, "twin": ["twin", "cluster"], "park": ["park100", "park"],
-             "fresh": ["fresh"], "big": ["big"]}[args.kind]
+             "fresh": ["fresh"], "big": ["big"], "redo": ["redo"]}[args.kind]
     table = list(_mod("tools/scripts/preset_for.py").presets())
     want = args.lanes + args.queue
     taken, used, tags, out = set(), set(), set(), []
@@ -440,14 +458,12 @@ def record(path, round_no, lanes):
 
 
 def stats(stubs, elig):
-    rows = collections.OrderedDict((c, [0, 0, 0, 0]) for c in CLASS_ORDER + ["parked-low", "noted"])
+    rows = collections.OrderedDict((c, [0, 0, 0, 0]) for c in CLASS_ORDER)
     excl = collections.Counter()
     for s in stubs:
         if s["reason"]:
             excl[s["reason"]] += 1
-        r = rows.get(s["cls"] if s["cls"] != "park" else "park")
-        if r is None:
-            continue
+        r = rows[s["cls"]]
         r[0] += 1
         r[1] += s["insns"] * 4
         if (s["unit"], s["func"]) in elig:
@@ -459,7 +475,8 @@ def stats(stubs, elig):
              "%-11s %6s %9s %9s %10s" % ("class", "stubs", "bytes", "eligible", "elig bytes")]
     for c, (n, b, e, eb) in rows.items():
         lines.append("%-11s %6d %9d %9d %10d" % (c, n, b, e, eb))
-    lines.append("eligible = not excluded and past the cooldown; parked-low (<90%) and noted stubs are never briefed")
+    lines.append("eligible = not excluded and past the cooldown; %d stubs are excluded outright (reasons above)"
+                 % sum(1 for s in stubs if s["reason"]))
     return "\n".join(lines)
 
 
@@ -468,7 +485,7 @@ def main():
     ap.add_argument("--lanes", type=int, default=6)
     ap.add_argument("--queue", type=int, default=6)
     ap.add_argument("--round", type=int)
-    ap.add_argument("--kind", choices=["auto", "twin", "park", "fresh", "big"], default="auto")
+    ap.add_argument("--kind", choices=["auto", "twin", "park", "fresh", "big", "redo"], default="auto")
     ap.add_argument("--json", action="store_true", help="print only the JSON object")
     ap.add_argument("--stats", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="do not record in the history log")
