@@ -411,9 +411,11 @@ extern u8 g_BattleStageLightTable[];
 extern s32 g_BattleBackColorA;
 extern s32 g_BattleBackColorG;
 extern s32 g_BattleBackColorB;
+extern u8 g_BattleFogColors; // D_80095580[0].r0; retail's object names this byte itself
 extern BattleRgb D_8009A1C4;
 extern BattleRgb D_8009A2BC;
 extern u32 g_NearColor;
+
 void BattleSetStageFogColors(void) {
     u8* p;
     s32 farR;
@@ -441,7 +443,7 @@ void BattleSetStageFogColors(void) {
     D_80095580[0].g0 = nearG;
     D_80095580[1].g0 = nearG;
     nearRG = nearR | (nearG << 8);
-    D_80095580[0].r0 = nearR;
+    g_BattleFogColors = nearR;
     D_80095580[1].r0 = nearR;
     farRG = farR | (farG << 8);
     D_80095580[0].b0 = nearB;
