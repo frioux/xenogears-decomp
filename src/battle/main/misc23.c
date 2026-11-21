@@ -1384,22 +1384,28 @@ void BattleFreeAllModelSlots(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
-/* 99.90% (816 bytes, unit preset gcc 2.6.0 --expand-div -G0): whole body recovered,
-   retail's frame (0x48) and saved set ($s0-$s5) exact, every call/load/store and both
-   loop rotations identical. 91.39 -> 99.90 came from the FIRST HALF's address shape:
-   retail keeps &g_BattleActors[arg0] in $s1 and reloads *($s1) at every use, so the
-   slot pointer is a local, and it is built in TWO statements -
+/* 99.90% (816 bytes = retail's exact size, 204 of 204 instructions, unit preset
+   gcc 2.6.0 --expand-div -G0): whole body recovered, retail's frame (0x48) and
+   saved set ($s0-$s5) exact, every call/load/store and both loop rotations equal.
+   91.39 -> 99.90 came from the FIRST HALF's address shape: retail keeps
+   &g_BattleActors[arg0] in $s1 and reloads *($s1) at every use, so the slot
+   pointer is a local, built in TWO statements -
    "ppActors = g_BattleActors; ppSlot = &ppActors[arg0];" - which is what emits
    "lui/addiu %hi(g_BattleActors)" BEFORE the "sll s4,2". The one-statement form
-   "ppSlot = &g_BattleActors[arg0];" emits sll first (98.80), and indexing the global
-   inline everywhere (the first attempt) is 91.39. The second half (0x10C up) reaches
+   "ppSlot = &g_BattleActors[arg0];" emits sll first (98.80), and indexing the
+   global inline everywhere is 91.39. The second half (0x10C up) reaches
    g_BattleActors[arg0] inline instead: that split is retail's own.
-   Only difference left: retail loads the *pSprites null-test operand into $a1 in BOTH
-   arms ("lw v0,0(s1); lw a1,4(v0); beqz a1") and cc1 uses $v0 ("lw v0,4(v0); beqz v0")
-   - same size, same instruction count, a register tie-break on a load that only feeds
-   a compare. Measured and no help: embedded assignment in the test (99.90), a pSprites
-   local assigned before the range test (95.68, 792 bytes - gcc hoists the load), -O3
-   (82.98), and a 1745-iteration permuter run (base=20 best=20, PERMUTER_NONE). */
+   The only difference left is a dead-load register tie at the two pSprites
+   null tests: retail loads the compare operand into $a1 ("lw v0,0(s1);
+   lw a1,4(v0); beqz a1") where cc1 reuses the dying base register
+   ("lw v0,4(v0); beqz v0") - same size, same instruction count, and the value
+   only feeds the branch. Measured, none of it moves the tie: embedded
+   assignment in each test (99.90); a pSprites local declared inside each arm
+   before the test (99.90, byte-identical output - cc1 cse-replaces the local
+   with the field); a pSprites local assigned before the range test (95.68, 792
+   bytes - gcc hoists the load); -O3 (82.98); gcc 2.7.2 (99.63); gcc
+   2.7.2-cdk (92.67); a 1745-iteration permuter run (base=20 best=20,
+   PERMUTER_NONE). */
 /*
 void func_800A9FF0(s32 arg0) {
     BattleActor **ppActors;
