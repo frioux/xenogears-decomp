@@ -181,28 +181,14 @@ extern void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
 
-/*
-func_8007B270 is the effect-colour helper: it packs two RGB triples into two
-5-5-5 CLUT words (D_800926A8 / D_800926AA), writes the clut size pair and hands
-the result to LoadClut2. Best attempt: objdiff 95.11%, 288 bytes against
-retail's 280. Everything matches except the LOAD SCHEDULE of the first block:
-retail is lbu r; lbu b; addiu r; lbu g; addiu b (r's load-delay slot filled by
-b's load), gcc emits lbu r; nop; addiu r; lbu b; lbu g; addiu b, one instruction
-longer, and it also swaps the b/g temporaries (b in $v0 here, $v1 in retail).
-Tried: the loads split from the -0x80 adds, the adds interleaved as retail has
-them, u8 locals for the raw channels - all three compile to the identical
-stream, so the residual is cc1's schedule, not the source. The load order was
-NOT what the previous 81.41% note was missing: the gap closed by passing the
-CLUT x/y as shorts (retail reads them with lh; only this unit's other callers
-want the low byte of each).
 void func_8007B270(u8 *p0, u8 *p1) {
     s32 r;
     s32 b;
     s32 g;
 
     r = p0[0] - 0x80;
-    b = p0[2] - 0x80;
     g = p0[1] - 0x80;
+    b = p0[2] - 0x80;
     if (r < 0) {
         r = 0;
     }
@@ -215,8 +201,8 @@ void func_8007B270(u8 *p0, u8 *p1) {
     D_800926A8[0] = ((r >> 2) & 0x1F) + ((g << 3) & 0x3E0) + ((b << 8) & 0x7C00) | -0x8000;
 
     r = p1[0] - 0x80;
-    b = p1[2] - 0x80;
     g = p1[1] - 0x80;
+    b = p1[2] - 0x80;
     if (r < 0) {
         r = 0;
     }
@@ -232,10 +218,6 @@ void func_8007B270(u8 *p0, u8 *p1) {
     D_800926AE = 0x1111;
     D_800926A0 = LoadClut2((u_long *)D_800926A8, *(s16 *)D_80092698, *(s16 *)D_8009269C);
 }
-*/
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
-
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
 
 void BattleEffectUpdateSlots(void) {
@@ -483,21 +465,18 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C280);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
-
-/* Best attempt: objdiff 85.17%, same size as retail (548 bytes) and the same
-   instruction multiset; the remaining 15% is gcc putting the D_80092698 /
-   arg0*4 scaling, the t2/t1/t3 motion-copy address setup and the
-   g_BattleDrawFlags / g_BattleEffectSpawnTick / 0x70 / 0x72 pair a few slots away from retail.
-   Store order matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70,
-   0x58, 0x74), so it is scheduler/allocator, not source order. Same
-   85.17 under -O3 and -G0, and 80.59 under gcc-2.7.2-cdk.
-   ROUND 292: the permuter took this to 88.20% in two rounds - (a) write
-   `u = u + arg0 * 4` instead of `u += arg0 * 4`, and (b) hoist the CLUT word
-   into a local (`v = D_800926A0;` then `pMotion->clut = v;`) so its lhu is
-   issued with the other two loads rather than after the code store. Still
-   548 bytes; the remaining gap is the store order of the x/y/drawFlags/key/
-   0x6C/0x70/z/halfWidth block and the hoisting of the second scan's i = 0. */
+/* Best attempt: objdiff 85.17%, 548 bytes = retail's exact size and instruction count.
+Round 292's two permuter edits (u = u + arg0*4 instead of +=, and hoisting the
+CLUT word into the local v before the store) re-measure NEUTRAL in round 370 -
+85.17 either way - so the residual is unchanged: retail's LOAD-DELAY SLOTS are
+filled with the following statement's load (lw pVec->vx is followed by
+lui/lw g_BattleDrawFlags, lw pVec->vz by lw g_BattleEffectSpawnTick, both hoisted
+above the store group) where our allocation leaves each load next to its own
+store, and the motion-copy address setup comes out one register over. Store order
+matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70, 0x58, 0x74) and the
+first scan loop, the slot search and the trailing key search are byte-identical.
+Same 85.17 under -O3, -G0 and gcc-2.7.2-cdk. The drawFlags scan pointer anchors
+at slots+0x72 in both, so that part is only a relocation addend difference. */
 /*
 void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     BattleSlot *pSlot;
@@ -531,7 +510,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
 
     u = D_80092698[0] * 4 + 8;
     pMotion = &pSlot->packets[0];
-    u += arg0 * 4;
+    u = u + arg0 * 4;
     pMotion->u3 = u;
     pMotion->u2 = u;
     pMotion->u1 = u;
@@ -566,8 +545,8 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
             pSlot->unk6C = (u32)pEntry;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CAA4);
 
@@ -757,31 +736,6 @@ void BattleEffectJitterVector(VECTOR *pSrc, VECTOR *pDst) {
     pDst->vz = pSrc->vz + rand() % 64 - 32;
 }
 
-/* PARK 99.48% at retail's exact size (808 bytes). diff_func.sh shows no
-   textual instruction difference at all, yet check_bin says the bytes move, so
-   the residual is one branch target or relocation the objdump text diff folds.
-   Established here: the caller-visible signature is (VECTOR *pA, VECTOR *pB,
-   s32 type), matching the extern above; the entry copies pB, subtracts pA,
-   calls BattleVectorLength for its side effect only, then divides the three
-   deltas by 7. The double loop is 3 x 7 quads with prev = pos = *pA re-copied
-   each outer pass (that assignment order is load-bearing: pos first),
-   BattleEffectJitterVector into a second VECTOR, the per-type colour, then
-   BattleQueueLineQuad(&prev, j == 6 ? pB : &jittered, color). Levers that were
-   needed, in order of gain: (1) prev = pos = *pA, not pos = prev;
-   (2) type 1 stores color[1] inside BOTH arms of the 0x100 clamp and then reads
-   it back through color[0] = color[1] = color[1] - that is where retail's
-   lbu/sb/sb triple comes from, and the plain color[0] = color[1] is one
-   instruction short; (3) type 0 writes color[2] before color[1]; (4) type 2's
-   white arm stores 0x52, 0x51, 0x50 and its red arm 0x50, 0x52, 0x51;
-   (5) the trailing argument select is an if/else with the call duplicated and
-   the j != 6 arm FIRST - the ternary hoists &prev into a callee-saved
-   register, +2 insns; (6) v = rand(); v %= 256; v += 0x40; as three
-   statements - the single expression keeps the return in $v0 and costs the
-   bgez register. */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D334);
-
-/*
 void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
     VECTOR pos;
     VECTOR step;
@@ -790,7 +744,7 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
     u8 color[3];
     s32 i;
     s32 j;
-    s32 v;
+    s32 u;
 
     step = *pB;
     step.vx -= pA->vx;
@@ -801,7 +755,8 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
     step.vy /= 7;
     step.vz /= 7;
     for (i = 0; i < 3; i++) {
-        prev = pos = *pA;
+        pos = *pA;
+        prev = *pA;
         for (j = 0; j < 7; j++) {
             pos.vx += step.vx;
             pos.vy += step.vy;
@@ -814,16 +769,14 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
                 color[2] = 0xFF;
                 break;
             case 1:
-                v = rand();
-                v %= 256;
-                v += 0x40;
-                if (v < 0x100) {
-                    color[1] = v;
+                u = rand() % 256 + 0x40;
+                if (u < 0x100) {
+                    color[1] = u;
                 } else {
                     color[1] = 0xFF;
                 }
                 color[0] = color[1] = color[1];
-                color[2] = v / 3;
+                color[2] = u / 3;
                 break;
             case 2:
                 if (j & 1) {
@@ -846,8 +799,6 @@ void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
         }
     }
 }
-*/
-
 void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     switch (arg2) {
     case 0x11:
@@ -862,16 +813,26 @@ void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     }
 }
 
+/* PARK 84.85% at 224 bytes, 4 instructions SHORT of retail's 240. The stored
+   body did not even COMPILE until round 370: D_800926C0 is declared here as an
+   ARRAY extern (other units index it by g_BattleDrawBufferIndex), so the plain
+   assignment D_800926C0 = HeapAlloc(...) is a type error - write
+   D_800926C0[0] = HeapAlloc(...) and read it back as D_800926C0[0] and the body
+   builds and measures 84.85, which is where the round-3xx note's number came
+   from.
+   Two residuals, both read off the diff:
+   (1) the six entry stores need a SECOND induction register: retail keeps
+   v1 = pEntry + 4 and stores z at 0(v1), y at -2(v1), life at 2(v1) with x at
+   0(a1); ours anchors all six on the base as 4(a0)/2(a0)/0(a0)/6(a0).
+   (2) retail allocates all FOUR D_800926C0/D_800926C4 pointer loads to $v0, so
+   three of them get a load-delay nop (nothing is eligible to fill the slot);
+   ours puts the third load in $v1, reorg hoists it into the previous slot and we
+   come out two instructions short there.
+   Tried with no effect: a non-void (s32) return type (no change at all, so the
+   stolen-slot lever is not the mechanism here), the pointer form pEntry++ with
+   pEntry->z (creates the +4 biv but shifts every other register: 83.82). NOT
+   tried: the permuter. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D6B8);
-
-/* Best attempt: objdiff 84.85%. Indexed form reproduces retail's registers
-   exactly (a0 = i*0xC, a1 = entry base, a2 = i, a3 = 0x6880B0F0, t0 = 2) and
-   the six entry stores in retail order, but retail keeps a second induction
-   register v1 = entry + 4 (used for the +4/+2/+6 stores, -2(v1)/(v1)/2(v1))
-   and gcc anchors every store on the base instead. The pointer form
-   (pEntry->unkX with pEntry++) does create the +4 biv and the right
-   displacements, but shifts the whole register allocation up by one
-   (i -> a3, offset -> a1) and compiles 4 instructions long: 83.82%. */
 
 /*
 void func_8007D6B8(void) {
