@@ -119,24 +119,21 @@ int PCread(int fd, char *buff, int len) {
 // emits the copy before the branch and needs a nop; letting status double as
 // the result gives the mirrored `bnez` layout. Same 79.17% under gcc 2.6.0,
 // 2.7.2-cdk, -O1, -O2. Permuter re-run from score 5 (1696 iters): NONE.
-/*
 int _SN_read(int fd, int cmd, int nbytes, char *buff) {
     register int status asm("$2");
-    register int value asm("$3");
+    int value;
     int new_var;
-    int ret;
 
     __asm__ volatile("break 261" : "=r"(status), "=r"(value));
-    ret = value;
-    if (new_var != 0) {
-        new_var = status;
-        ret = -1;
+    new_var = 0;
+    if (status != new_var) {
+        return -1;
+        do {
+        } while (new_var);
+    } else {
+        return value;
     }
-    return ret;
 }
-*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", _SN_read);
-
 int PCwrite(int fd, char *buff, int len) {
     register char *pBuff asm("$19");
     int nLeft;
