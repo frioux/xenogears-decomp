@@ -593,14 +593,14 @@ void MenuSetRowQuadVertices(s32 count, MenuString* pRows, u8* pStringIds, u32* p
     switch (mode) {
     case 0:
         MenuClearBytes(count, pFlags);
-        (g_Menu->renderContext + pRows[row].polys)->x0 = g_MenuCursorXPositions[col + row] + (pXOffsets[row] + 0x16);
-        (g_Menu->renderContext + pRows[row].polys)->y0 = g_MenuCursorYPositions[col + row] - 0x22;
-        (g_Menu->renderContext + pRows[row].polys)->x1 = (u16)(g_MenuCursorXPositions[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
-        (g_Menu->renderContext + pRows[row].polys)->y1 = g_MenuCursorYPositions[col + row] - 0x22;
-        (g_Menu->renderContext + pRows[row].polys)->x2 = g_MenuCursorXPositions[col + row] + (pXOffsets[row] + 0x16);
-        (g_Menu->renderContext + pRows[row].polys)->y2 = g_MenuCursorYPositions[col + row] - 0x15;
-        (g_Menu->renderContext + pRows[row].polys)->x3 = (u16)(g_MenuCursorXPositions[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
-        (g_Menu->renderContext + pRows[row].polys)->y3 = g_MenuCursorYPositions[col + row] - 0x15;
+        (pRows[row].polys + g_Menu->renderContext)->x0 = g_MenuCursorXPositions[col + row] + (pXOffsets[row] + 0x16);
+        (pRows[row].polys + g_Menu->renderContext)->y0 = g_MenuCursorYPositions[col + row] - 0x22;
+        (pRows[row].polys + g_Menu->renderContext)->x1 = (u16)(g_MenuCursorXPositions[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
+        (pRows[row].polys + g_Menu->renderContext)->y1 = g_MenuCursorYPositions[col + row] - 0x22;
+        (pRows[row].polys + g_Menu->renderContext)->x2 = g_MenuCursorXPositions[col + row] + (pXOffsets[row] + 0x16);
+        (pRows[row].polys + g_Menu->renderContext)->y2 = g_MenuCursorYPositions[col + row] - 0x15;
+        (pRows[row].polys + g_Menu->renderContext)->x3 = (u16)(g_MenuCursorXPositions[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
+        (pRows[row].polys + g_Menu->renderContext)->y3 = g_MenuCursorYPositions[col + row] - 0x15;
         break;
     case 1:
         MenuSetQuadVertices(pRows[row].vertices, g_MenuRowQuadMode1Xs[row], g_MenuRowQuadMode1Y[0], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
@@ -615,14 +615,14 @@ void MenuSetRowQuadVertices(s32 count, MenuString* pRows, u8* pStringIds, u32* p
         MenuSetQuadVertices(pRows[row].vertices, 0x18, g_MenuRowQuadMode3Ys[col], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
         break;
     case 4:
-        (g_Menu->renderContext + pRows[row].polys)->x0 = 0x4C;
-        (g_Menu->renderContext + pRows[row].polys)->y0 = 0x12;
-        (g_Menu->renderContext + pRows[row].polys)->x1 = pRows->width + 0x4C;
-        (g_Menu->renderContext + pRows[row].polys)->y1 = 0x12;
-        (g_Menu->renderContext + pRows[row].polys)->x2 = 0x4C;
-        (g_Menu->renderContext + pRows[row].polys)->y2 = 0x1F;
-        (g_Menu->renderContext + pRows[row].polys)->x3 = pRows->width + 0x4C;
-        (g_Menu->renderContext + pRows[row].polys)->y3 = 0x1F;
+        (pRows[row].polys + g_Menu->renderContext)->x0 = 0x4C;
+        (pRows[row].polys + g_Menu->renderContext)->y0 = 0x12;
+        (pRows[row].polys + g_Menu->renderContext)->x1 = pRows->width + 0x4C;
+        (pRows[row].polys + g_Menu->renderContext)->y1 = 0x12;
+        (pRows[row].polys + g_Menu->renderContext)->x2 = 0x4C;
+        (pRows[row].polys + g_Menu->renderContext)->y2 = 0x1F;
+        (pRows[row].polys + g_Menu->renderContext)->x3 = pRows->width + 0x4C;
+        (pRows[row].polys + g_Menu->renderContext)->y3 = 0x1F;
         break;
     case 6:
         MenuSetQuadVertices(pRows[row].vertices, g_MenuRowQuadMode6Xs[row], g_MenuRowQuadMode6Ys[row], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
@@ -649,7 +649,7 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
                     (POLY_FT4*)(g_Menu->pSelectionMenu->numCursors * 0x50 + (s32)g_Menu->pSelectionMenu),
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numCursors;
             }
-            g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
+            g_Menu->pSelectionMenu->cursorsRenderCtx = g_Menu->renderContext;
         }
         g_Menu->pSelectionMenu->numTexts = 0;
         if (i != 1) {
@@ -659,7 +659,7 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
                     (POLY_FT4*)(off + (s32)g_Menu->pSelectionMenu),
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
             }
-            g_Menu->pSelectionMenu->textsRenderCtx = *(u8*)&g_Menu->renderContext;
+            g_Menu->pSelectionMenu->textsRenderCtx = g_Menu->renderContext;
         }
         for (j = 0; j < 2; j++) {
             MenuRenderFrame();
@@ -769,7 +769,7 @@ void func_801E86C8(u_char selected) {
                 allValid = 0;
             }
         }
-        g_Menu->pSubmenuPrims->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
+        g_Menu->pSubmenuPrims->polys0RenderCtx = g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
                 MenuRenderFrame();
@@ -785,7 +785,7 @@ void func_801E86C8(u_char selected) {
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys500PrimCount;
             }
         }
-        g_Menu->pSubmenuPrims->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
+        g_Menu->pSubmenuPrims->polys500RenderCtx = g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
                 MenuRenderFrame();
@@ -816,8 +816,8 @@ void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
             (POLY_FT4*)(off + (s32)g_Menu->pSelectionMenu),
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
     }
-    g_Menu->pSelectionMenu->cursorsRenderCtx = *(u8*)&g_Menu->renderContext;
-    g_Menu->pSelectionMenu->textsRenderCtx = *(u8*)&g_Menu->renderContext;
+    g_Menu->pSelectionMenu->cursorsRenderCtx = g_Menu->renderContext;
+    g_Menu->pSelectionMenu->textsRenderCtx = g_Menu->renderContext;
     MenuMovePointerCursor(selected, 1);
     g_Menu->pManager->shouldRenderPointerCursor = 1;
 }
@@ -843,22 +843,22 @@ void MenuSetSubMenuChoicePrims(u_char selected) {
             (POLY_FT4*)(off + (s32)g_Menu->pSubmenuPrims),
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys500PrimCount;
     }
-    g_Menu->pSubmenuPrims->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
-    g_Menu->pSubmenuPrims->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
+    g_Menu->pSubmenuPrims->polys0RenderCtx = g_Menu->renderContext;
+    g_Menu->pSubmenuPrims->polys500RenderCtx = g_Menu->renderContext;
     MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
     g_Menu->pManager->shouldRenderPointerCursor = 1;
 }
 void MenuLoadCharacterNameTexture(s32 arg0, s32 arg1) {
     RECT rect;
     u8* pBuf;
-    s32 offset;
+    s32 nameIndex;
 
     pBuf = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
     bzero(pBuf, MENU_STRING_IMAGE_BUFFER_SIZE);
     if ((u_char)arg0 != CHARACTER_ID_NONE) {
-        offset = ((u_char)arg0 >> 1) * 0x28;
-        SystemRenderStringEntry((u8*)&g_GameState + offset, pBuf, 0x24, 0);
-        SystemRenderStringEntry((u8*)&g_GameState + offset + 0x14, pBuf, 0x24, 1);
+        nameIndex = (u_char)arg0 >> 1;
+        SystemRenderStringEntry((u8*)&g_GameState.strings[nameIndex * 2], pBuf, 0x24, 0);
+        SystemRenderStringEntry((u8*)&g_GameState.strings[nameIndex * 2 + 1], pBuf, 0x24, 1);
     }
     rect.x = g_MenuNameTextureX[((arg1 * 2) & 0x1FC) / sizeof(MenuTexturePos)].pos + 0x180;
     rect.y = g_MenuNameTextureY[((arg1 * 2) & 0x1FC) / sizeof(MenuTexturePos)].pos;
