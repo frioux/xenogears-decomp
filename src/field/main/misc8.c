@@ -512,7 +512,6 @@ void func_8008110C(void) {
     }
 }
 */
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
@@ -1054,7 +1053,14 @@ void func_80081F80(SpriteData*, s16, FieldActor*);
    and ANDs into v0 where retail loaded into v0, copied to v1 and ANDed v0.
    Third permuter run on this body (1796 iters) also found nothing.
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+/* R369 note: re-measured 97.03% (144 vs retail 148). The one missing instruction
+   is retail's `move v1,v0` after `lh v0,0x106`: retail loads into v0, copies to
+   v1 for the arithmetic and masks the test in v0; gcc loads straight into v1.
+   Also tried this round: the assignment embedded in the condition, an s32
+   `current`, a separate s32 copy local (coalesced, frame shrank to 0x18) and an
+   s16 `masked = current & 0x8000` local (90.14%, load became lhu plus sll/sra).
+   gcc will not materialise an SImode subreg copy of a single-live-range HImode
+   value; three permuter runs on this body found nothing. */
 /*
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
@@ -1078,8 +1084,8 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
             pActorData->rotation.vy = angle;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
@@ -1091,21 +1097,24 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
-/* 91.16%: every check matches; the only residual is the `flags & 2` early
-   return. The original keeps it as its own `li v0,-1` block after the
-   `bltz`-style tail (280 bytes), so the `beqz` above it keeps a nop delay slot
-   and the later `beqz flags&4` gets `move v0,zero` from its target; gcc here
-   cross-jumps that return into the shared epilogue and fills the delay slots
-   itself (276 bytes). Re-measured: the merge also costs the ordering of the
-   `flags & 2` block (ours hoists `li v0,0x1` above `lh v1,0x10($a0)`, the
-   original loads first) and leaves the `flags & 4` load in v0, where the
-   original uses v1 - v1 is only dead there once the `flags & 2` return is its
-   own block. Same body, same 276 bytes.
 extern s32 D_800ADB98;
 extern s32 D_800ADC0C;
 
+/* 96.01% (276 bytes; retail is 276 too - the old note said 280, that was wrong).
+   Every check matches. `new_var = pActor;` before the flags&2 test is the lever
+   (it forces the copy into $a1 and takes the body 91.16 -> 96.01); moving the
+   same assignment to the top of the function is 87.25/284, and dropping it is
+   91.16. Residual, three spots: retail puts nop in the `beqz flags&2` delay slot
+   where reorg steals our `move a1,a0`; retail keeps its `addiu v0,zero,-1` as a
+   separate block (.L80084A34, reached by the `beq v1,v0` whose delay slot is a
+   nop) where we thread `li v0,-1` into that delay slot; and retail threads
+   `move v0,zero` into the `beqz flags&4` delay slot where we keep a zero block.
+   The else-return-0 form and a nested if for the flags&2 test measure the same.
+   Permuter run from 91.16 found the new_var copy (base 461 -> 407). */
+/*
 int func_8008492C(ActorData* pActor) {
+    ActorData* new_var;
+
     if (pActor->curWalkmeshTriMaterial & 0x420000) {
         return -1;
     }
@@ -1133,15 +1142,19 @@ int func_8008492C(ActorData* pActor) {
     if (pActor->flags & 1 && pActor->walkmeshId == 0) {
         return -1;
     }
-    if (pActor->flags & 2 && pActor->walkmeshId == 1) {
-        return -1;
+    new_var = pActor;
+    if (new_var->flags & 2) {
+        if (pActor->walkmeshId == 1) {
+            return -1;
+        }
     }
-    if (pActor->flags & 4) {
+    if (new_var->flags & 4) {
         return -(pActor->walkmeshId == 2);
+    } else {
+        return 0;
     }
-    return 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
@@ -1251,7 +1264,6 @@ void FieldStopSedsPlayback(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 /* 93.00% (252 vs retail 264 bytes): the inner scan is byte-identical to retail
    (while (1) { if (pEntry->frameOffset == 0xFFFF) break; pEntry++; i++; }) and
    only the stream-id handling differs. Retail loads g_FieldStreamId ONCE into
@@ -1263,6 +1275,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
    delay slot and streamId+1 is hoisted into s0 for the loop. Tried: s16+s32
    (streamIndex = streamId) locals, a separate s32 fileIndex local, (s32)/(u16)
    casts, the bound as streamId + 1 and as streamIndex + 1.
+   R369: also tried the guard-plus-bottom-test shape (count = 0; if (streamIndex
+   + 1 > 0) { do {...; count++;} while (count < streamIndex + 1); }) - 92.91%,
+   same 252 bytes, loop.c still hoists streamIndex+1 - and moving `streamIndex =
+   streamId;` above the 0xFF early return (93.00%, no change).
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
+/*
 void func_80085788(void) {
     s16 streamId;
     s32 streamIndex;
@@ -1273,10 +1292,10 @@ void func_80085788(void) {
     SoundFile* pSoundFile;
 
     streamId = g_FieldStreamId;
+    streamIndex = streamId;
     if (streamId == 0xFF) {
         return;
     }
-    streamIndex = streamId;
     SoundStopAllElements();
     ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
     fileIndex = streamIndex + 0x115;
@@ -1302,7 +1321,6 @@ void func_80085788(void) {
     }
 }
 */
-
 extern void* g_MenuSedsFile;
 extern s32 g_SoundSedsFileStaged;
 extern void* g_SoundSedsFileBuffer;
