@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
 #include "system/memory.h"
@@ -170,6 +171,40 @@ extern u8 *g_BattleSpritePrimBufferCopy;
 extern u8 *g_BattleGridCells;
 extern u8 g_BattleDrawBufferIndex;
 
+// The TIM archive func_800852C4 decompresses: the effect sprite sheet's 12 frame
+// TIMs, then the per-effect texture TIMs the loader below reads.
+typedef struct {
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ u32 frameTims[12];
+    /* 0x34 */ u32 unk34;
+    /* 0x38 */ u32 unk38;
+    /* 0x3C */ u32 unk3C;
+    /* 0x40 */ u32 unk40;
+    /* 0x44 */ u32 unk44;
+    /* 0x48 */ u32 unk48[8];
+    /* 0x68 */ u32 unk68;
+} BattleEffectTimArchive;
+
+// The palette banks the sprite sheet's TIMs carry, shifted by the third TIM's
+// rectangle y (the per-effect brightness offset).
+extern u8 D_800911D8[];
+extern u8 D_800911E8[];
+extern u8 D_800911F8[];
+extern u8 D_80091208[];
+extern u8 D_80091218[];
+extern u8 D_800947E8[];
+extern u8 D_800947F4[];
+extern u16 D_80094800[];
+extern u16 D_80092678;
+extern u16 D_8009267C;
+extern u16 D_80092680;
+extern u16 D_80092684;
+extern u16 D_80092688;
+extern u16 D_8009268C;
+extern u16 D_80092690;
+extern void BattleInitSpriteBuffers(void);
+extern void BattleResetLineQuadQueue(void);
+
 extern int rand(void);
 
 extern void BattleDrawLineQuads(s32);
@@ -218,7 +253,184 @@ void BattleEffectUploadClut(u8 *p0, u8 *p1) {
     D_800926AE = 0x1111;
     D_800926A0 = LoadClut2((u_long *)D_800926A8, *(s16 *)D_80092698, *(s16 *)D_8009269C);
 }
+/* PARK 95.35%, 1852 bytes against retail's 1860 (frame 0x48 now exact: the dead
+   RECT below is what produces the 8 bytes of slack retail has under the TIM
+   image - without it the frame is 0x40). Structure is retail's: the 12-TIM frame
+   loop, the five BattleAction fills, the light-beam action copied from action 1
+   with its tpage ABR bits set, the 0x3C-slot packet prefill (packet[1] is a copy
+   of packet[0], whose colour word is the single store 0x2C808080 and whose tag
+   length byte is 9), then the two texture blocks and the three buffer init calls.
+   THE BIG FIND: D_80092A78..D_80092AD4 are NOT separate globals - they are
+   g_BattleEffectActions[0..4] (base 0x80092A74, stride 0x14), so the typed
+   spelling used below (g_BattleEffectActions[n].field) is the real source shape.
+   Two residuals, both visible only through diff_func's inability to fold a NAMED
+   symbol into a D_ address: every field store shows as 'sb v0,8(at) /
+   R_MIPS_LO16 g_BattleEffectActions' here against retail's 'sb v0,0(at) /
+   R_MIPS_LO16 D_80092A7C' there, which links to the same bytes (overlay absolute
+   symbols), and the body is 8 bytes / 2 instructions short of retail. Because
+   diff_func only folds D_<addr> addends, the 160 diff rows are mostly that RELOC
+   noise; the real residual has to be read off a length-2 instruction deficit.
+   Not tried: spelling the five actions through their D_ addresses (would match
+   diff_func's fold but is the untyped form), the permuter (its parser rejects
+   this body's implicit declarations). Proven in the writing of it: the ten
+   palette entries are cleared then OR'd 0x8000 in a 1..0x10 loop, the palette
+   shift loops are conditional on D_800911E8[0] == 0, and every '*(u8 *)&
+   tim.prect->y' is the byte retail loads with 'lbu 2(prect)' (misc1.c uses the
+   same ((u16 *)tim.prect)[n] idiom for the same struct). */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
+
+/*
+void func_8007B388(BattleEffectTimArchive *pTim) {
+    TIM_IMAGE tim;
+    RECT rect; // unused: retail's frame has 8 bytes of slack under the TIM image
+    BattleAction *pAction;
+    BattleSlot *pSlot;
+    SlotMotion *pPacket;
+    u16 *pPal;
+    u8 shift;
+    s32 i;
+
+    // The sheet's palette is still the unshifted one until the first TIM fills it.
+    shift = D_800911E8[0] == 0;
+    for (i = 0; i < 12; i++) {
+        OpenTIM(pTim->frameTims[i]);
+        ReadTIM(&tim);
+        D_800947E8[i] = *(u8 *)&tim.prect->x << 2;
+        D_800947F4[i] = *(u16 *)&tim.prect->y;
+        D_80094800[i] = GetClut(tim.crect->x, tim.crect->y);
+        LoadImage(tim.crect, tim.caddr);
+        LoadImage(tim.prect, tim.paddr);
+    }
+
+    pAction = &g_BattleEffectActions[0];
+    pAction->pFrameU = D_800947E8;
+    pAction->pFrameV = D_800947F4;
+    pAction->uSize = 0x26;
+    pAction->vSize = 0x26;
+    pAction->clut = 0;
+    pAction->tpage = GetTPage(0, 1, 0x3C0, 0x100);
+    pAction->frameCount = 0xC;
+    pAction->yAccel = 0;
+    pAction->sizeIndex = 0;
+
+    OpenTIM(pTim->unk34);
+    ReadTIM(&tim);
+    pPal = (u16 *)tim.caddr;
+    *pPal = 0;
+    for (i = 1; i < 0x10; i++) {
+        pPal[i] |= 0x8000;
+    }
+    if (shift) {
+        for (i = 0; i < 0x10; i++) {
+            D_800911E8[i] += *(u8 *)&tim.prect->y;
+        }
+    }
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    pAction = &g_BattleEffectActions[1];
+    pAction->pFrameU = D_800911D8;
+    pAction->pFrameV = D_800911E8;
+    pAction->uSize = 0x1F;
+    pAction->vSize = 0x1F;
+    pAction->clut = GetClut(tim.crect->x, tim.crect->y);
+    pAction->tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
+    pAction->frameCount = 0x10;
+    pAction->yAccel = -2;
+    pAction->sizeIndex = 0;
+
+    OpenTIM(pTim->unk40);
+    ReadTIM(&tim);
+    pPal = (u16 *)tim.caddr;
+    *pPal = 0;
+    for (i = 1; i < 0x10; i++) {
+        pPal[i] |= 0x8000;
+    }
+    if (shift) {
+        for (i = 0; i < 0xC; i++) {
+            D_80091208[i] += *(u8 *)&tim.prect->y;
+        }
+    }
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    pAction = &g_BattleEffectActions[2];
+    pAction->pFrameU = D_800911F8;
+    pAction->pFrameV = D_80091208;
+    pAction->uSize = 0xF;
+    pAction->vSize = 0xF;
+    pAction->clut = GetClut(tim.crect->x, tim.crect->y);
+    pAction->tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
+    pAction->frameCount = 0xC;
+    pAction->sizeIndex = 1;
+    pAction->yAccel = 0;
+
+    // The light-beam action is the second one drawn on transparent texels.
+    g_BattleEffectActions[3] = g_BattleEffectActions[1];
+    g_BattleEffectActions[3].tpage = (g_BattleEffectActions[3].tpage & 0xFF9F) | 0x40;
+
+    OpenTIM(pTim->unk68);
+    ReadTIM(&tim);
+    if (shift) {
+        for (i = 0; i < 0x10; i++) {
+            D_80091218[i] += *(u8 *)&tim.prect->y;
+        }
+    }
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    pAction = &g_BattleEffectActions[4];
+    pAction->pFrameU = D_800911F8;
+    pAction->pFrameV = D_80091218;
+    pAction->uSize = 0xF;
+    pAction->vSize = 0xF;
+    pAction->clut = GetClut(tim.crect->x, tim.crect->y);
+    pAction->tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
+    pAction->frameCount = 0x10;
+    pAction->sizeIndex = 2;
+    pAction->yAccel = 0;
+
+    for (i = 0; i < 0x3C; i++) {
+        pSlot = &g_BattleEffectSlots[i];
+        pPacket = &pSlot->packets[0];
+        *(u32 *)&pPacket->r = 0x2C808080;
+        ((u8 *)&pPacket->tag)[3] = 9;
+        pPacket->code |= 2;
+        pSlot->packets[1] = *pPacket;
+        pSlot->active = 0;
+        pSlot->frame = 0;
+    }
+
+    OpenTIM(pTim->unk38);
+    ReadTIM(&tim);
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    D_80092678 = *(u16 *)&tim.prect->x;
+    D_8009267C = *(u16 *)&tim.prect->y;
+    D_80092680 = GetClut(tim.crect->x, tim.crect->y);
+    D_80092684 = GetTPage(0, 2, tim.prect->x, tim.prect->y);
+
+    OpenTIM(pTim->unk44);
+    ReadTIM(&tim);
+    pPal = (u16 *)tim.caddr;
+    *pPal = 0;
+    for (i = 1; i < 0x10; i++) {
+        pPal[i] |= 0x8000;
+    }
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+    D_80092688 = (u8)(*(u16 *)&tim.prect->x << 2);
+    D_8009268C = *(u8 *)&tim.prect->y;
+    D_80092690 = GetClut(tim.crect->x, tim.crect->y);
+    D_80092694 = GetTPage(0, 1, tim.prect->x, tim.prect->y);
+    g_BattleEffectSpawnTick = 0x8000;
+    *(u16 *)D_80092698 = tim.crect->x;
+    *(u16 *)D_8009269C = tim.crect->y + 1;
+
+    func_8007D6B8();
+    BattleInitSpriteBuffers();
+    BattleResetLineQuadQueue();
+}
+*/
+
+
 
 void BattleEffectUpdateSlots(void) {
     BattleSlot *p = g_BattleEffectSlots;
@@ -832,7 +1044,46 @@ void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
    stolen-slot lever is not the mechanism here), the pointer form pEntry++ with
    pEntry->z (creates the +4 biv but shifts every other register: 83.82). NOT
    tried: the permuter. */
+/* PARK 95.02%, 232 bytes against retail's 240. The empty do-while block is a
+   permuter find this round (PERMUTER_BETTER base=786 best=316): it splits the
+   basic block so the four D_800926C0/D_800926C4 pointer loads are no longer
+   merged, which took the body 84.85 -> 95.02. Residual: retail keeps TWO
+   induction registers over the entry table (a1 = record base for the two x
+   stores, v1 = base+4 anchored for z/y/life) while this compile anchors all six
+   stores on v1 and uses a1 for the loop counter, and it is 2 instructions short
+   because retail's three load-delay slots hold nops (all four pointer loads go
+   to $v0) where ours fills two of them. Tried in earlier rounds: declaration
+   order, pEntry++ pointer form (83.82), a non-void return type. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D6B8);
+
+/*
+void func_8007D6B8(void) {
+    BattleSpriteEntry *pEntry;
+    s32 i;
+
+    g_BattleSpriteEntries = HeapAlloc(0x9F6, 0);
+    D_800926C0[0] = HeapAlloc(0xBF4, 0);
+    D_800926C4 = HeapAlloc(0xBF4, 0);
+    pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
+    for (i = 0; i < 0xFF; i++) {
+        ((BattlePrimTemplate *)D_800926C0[0])[i].len = 2;
+        ((BattlePrimTemplate *)D_800926C0[0])[i].colorCode = 0x6880B0F0;
+        // The empty block is load-bearing: it splits the basic block so the four
+        // template-pointer loads are not merged (retail loads each one separately).
+        do {
+        } while (0);
+        ((BattlePrimTemplate *)D_800926C4)[i].len = 2;
+        ((BattlePrimTemplate *)D_800926C4)[i].colorCode = 0x6880B0F0;
+        pEntry[i].z = 0;
+        pEntry[i].y = 0;
+        pEntry[i].x = 0;
+        pEntry[i].life = 0;
+        pEntry[i].z = 0;
+        pEntry[i].x = 0;
+    }
+}
+*/
+
 
 /*
 void func_8007D6B8(void) {
