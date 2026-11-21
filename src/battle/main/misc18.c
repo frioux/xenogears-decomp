@@ -11,6 +11,13 @@
 #define BATTLE_SWAP_CHANCE_PERCENT 50
 #define BATTLE_SWAP_CHANCE_PERCENT_CHARACTER_0 60
 
+// The row's power is in twentieths: `hp * power / this` leaves the action's amount unchanged.
+#define BATTLE_ACTION_POWER_FULL 20
+
+// The agility stat's cap: BattleResetSlotConditionCounters clamps an agility its equipment bonuses
+// pushed past it back down to it.
+#define BATTLE_AGILITY_MAX 16
+
 // The two per-actor action row tables BattleWorkBlock carries (see BattleRow): the character one
 // at +0x1058 with 0x5F0 bytes per actor, the gear one at +0x2228 with 0x690. rowIndex picks the
 // row in either.
@@ -145,7 +152,7 @@ void BattleRollSlotConditionAction(void) {
         break;
     }
 
-    dmg = hp * g_BattleCurrentRow->power / 20;
+    dmg = hp * g_BattleCurrentRow->power / BATTLE_ACTION_POWER_FULL;
     if (g_BattleCurrentRow->amountSource == 5) {
         dmg = g_BattleTargetSlotEntry->hp - 1;
     }
@@ -992,8 +999,8 @@ void BattleResetSlotConditionCounters(void) {
                     g_BattleTargetSlotState->agility += g_BattleTargetSlotState->statBonuses[j];
                 }
             }
-            if (g_BattleTargetSlotState->agility >= 0x11) {
-                g_BattleTargetSlotState->agility = 0x10;
+            if (g_BattleTargetSlotState->agility > BATTLE_AGILITY_MAX) {
+                g_BattleTargetSlotState->agility = BATTLE_AGILITY_MAX;
             }
         }
     }
@@ -1234,8 +1241,8 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
 // keeps that second base in a register of its own.
 u16 BattleDecrementSlotConditionTimers(u8 slot) {
     BattleTableEntry *pEntry = &g_BattleWorkBlock[slot];
-    BattleSlotState *pState = (BattleSlotState *)(slot * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
-    u8 *pCnt = (u8 *)(slot * 0x170 + 0x15C + (u32)g_BattleWorkBlock);
+    BattleSlotState *pState = (BattleSlotState *)(slot * sizeof(BattleTableEntry) + 0xA4 + (u32)g_BattleWorkBlock);
+    u8 *pCnt = (u8 *)(slot * sizeof(BattleTableEntry) + 0x15C + (u32)g_BattleWorkBlock);
     u32 ret;
 
     if (g_BattleSlotConditions[slot][0] & 0x80) {
