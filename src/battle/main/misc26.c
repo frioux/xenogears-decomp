@@ -623,11 +623,11 @@ extern s32 g_GfxOTDepthShift;
 //   the loop body itself) AND pRec above pPacket, where ours are 4 percent apart the
 //   other way. Two priority deltas that big are not reachable from any spelling of
 //   this C, which is why every spelling of the copy measured dead.
-//   Do not re-derive this: gcc 2.8.1's allocno_compare and flow.c reg_n_refs /
-//   reg_live_length are the same code, so 2.8.1 cannot differ either, and 2.6.0's own
-//   -dg order puts its packet pointer first as well. A future round should look for a
-//   compiler whose sort ranks the vertex pointer first, and check it with `cc1 -dg`
-//   for pV0's allocno at the head of "regs to allocate".
+//   Do not re-derive this: 2.6.0 and 2.7.2-psx each put their packet pointer first in
+//   their own -dg order and emit the same missing copy, and 2.8.1's allocno_compare
+//   and flow.c reg_n_refs / reg_live_length are the same code, so it cannot differ
+//   either. A future round needs a compiler whose sort ranks the vertex pointer
+//   first; check it with `cc1 -dg`, pV0's allocno at the head of "regs to allocate".
 // The vertex-table addresses must stay index first,
 // (SVECTOR *)((index << 3) + (u32)pPart), or every arm reverses its addu.
 // The typedef, the extern, the two defines and the macro above this park are
