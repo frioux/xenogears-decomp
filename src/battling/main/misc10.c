@@ -43,6 +43,12 @@
 #define BATTLE_GAUGE_BAR_SEGMENT1_TAPER 4
 #define BATTLE_GAUGE_BAR_SEGMENT3_TAPER 8
 
+// The two colour words BattleSetGaugeBarPrimColor stamps into the side meter
+// quad: POLY_F4's primitive code 0x28 in the top byte, then the RGB (white, or
+// red with only its first channel set).
+#define BATTLE_GAUGE_METER_COLOR_WHITE 0x2800FFFF
+#define BATTLE_GAUGE_METER_COLOR_RED 0x280000FF
+
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
 extern s16 g_BattleEffectFrameTimer;
@@ -223,6 +229,14 @@ typedef struct {
     /* 0x4 */ Misc10ModelRecord* pModel;
 } Misc10ModelNode; // Size: 0x8
 
+// The per-frame display work the actor group owns (the pointer it carries at
+// +0x284): one ordering-table pointer per draw buffer. src/battling/main/misc9.c
+// declares the same block as Misc9DisplayWork.
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ u_long* pOt[2];
+} Misc10DisplayWork; // Size: 0xC
+
 // A battle participant as this unit drives it. The offsets are the full actor
 // src/battling/main/misc4.c's Actor, misc2.c's Actor and misc3.c's BattleActor
 // declare, and the fields below carry their names.
@@ -293,7 +307,7 @@ typedef struct {
     /* 0x0D4 */ u32 stateFlags; // masked and tested by the movement code (src/battling/main/misc4.c)
     /* 0x0D8 */ u8* pTarget;
     /* 0x0DC */ u8 unk0DC[0x1A8];
-    /* 0x284 */ u32* pDisplayWork;
+    /* 0x284 */ Misc10DisplayWork* pDisplayWork;
     /* 0x288 */ u8 pad288[0x3BC];
     /* 0x644 */ s32 gaugePercent;
     /* 0x648 */ s32 facingAngle;
@@ -498,11 +512,11 @@ extern u8* func_8008B38C(u8* pArg);
 extern u8* BattleSetActorSoundTable(Misc10Actor* pActor);
 
 s32 BattleQueueActorPrims(Misc10Actor* pActor) {
-    u32* pData = pActor->pDisplayWork;
+    Misc10DisplayWork* pWork = pActor->pDisplayWork;
 
-    BattleDrawEffectImage((u8*)pData[g_BattleDrawBufferIndex + 1] + 8, 0xC0, 0);
-    BattleDrawTextPrims((u8*)pData[g_BattleDrawBufferIndex + 1] + 4);
-    BattleAttachActorPrims(pData);
+    BattleDrawEffectImage((u8*)pWork->pOt[g_BattleDrawBufferIndex] + 8, 0xC0, 0);
+    BattleDrawTextPrims((u8*)pWork->pOt[g_BattleDrawBufferIndex] + 4);
+    BattleAttachActorPrims(pWork);
     BattleAddSharedPrim();
     return 0;
 }
@@ -1172,7 +1186,7 @@ void BattleCopyVertexOffsetFlip(u16* pSrc, u16* pDst) {
     pDst[0] += 0x4F;
 }
 
-void BattleSetVertexXForFlipped(s32 flag, u16* pDst, s32 value) {
+void BattleSetVertexXForFlipped(s32 flag, s16* pDst, s32 value) {
     if (flag != 0) {
         *pDst = 0xDA - value;
     } else {
@@ -1180,7 +1194,7 @@ void BattleSetVertexXForFlipped(s32 flag, u16* pDst, s32 value) {
     }
 }
 
-void BattleSetVertexYForFlipped(s32 flag, u16* pDst, s32 value) {
+void BattleSetVertexYForFlipped(s32 flag, s16* pDst, s32 value) {
     if (flag != 0) {
         *pDst = 0x20 - value;
     } else {
@@ -1426,7 +1440,7 @@ void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly,
         break;
     }
 
-    ((u8*)pPoly)[3] = 9;
+    setlen(pPoly, 9);
     pPoly->code = 0x2D;
     pPoly->clut = GetClut(p->crect->x, p->crect->y);
     pPoly->tpage = GetTPage(mode, 0, p->prect->x, p->prect->y);
@@ -1463,7 +1477,7 @@ void BattleBuildFlippedTexturedQuad(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPo
         break;
     }
 
-    ((u8*)pPoly)[3] = 9;
+    setlen(pPoly, 9);
     pPoly->code = 0x2D;
     pPoly->clut = GetClut(p->crect->x, p->crect->y);
     pPoly->tpage = GetTPage(mode, 0, p->prect->x, p->prect->y);
@@ -1576,54 +1590,52 @@ void BattleAddSharedPrim(void) {
     AddPrim(g_BattleRootOrderingTable, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
 }
 
-void BattleQueueGaugeBarPrims(u8* pOt, u8* pBase, s32 value, s32 flag) {
-    u16* pTaper;
+void BattleQueueGaugeBarPrims(u8* pOt, POLY_F4* pBase, s32 value, s32 flag) {
+    s16* pTaper;
     s32 edge;
 
     if (value >= BATTLE_GAUGE_BAR_SEGMENT1_END) {
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), BATTLE_GAUGE_BAR_SEGMENT1_END);
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), BATTLE_GAUGE_BAR_SEGMENT1_END - BATTLE_GAUGE_BAR_SEGMENT1_TAPER);
+        BattleSetVertexXForFlipped(flag, &pBase[0].x1, BATTLE_GAUGE_BAR_SEGMENT1_END);
+        BattleSetVertexXForFlipped(flag, &pBase[0].x3, BATTLE_GAUGE_BAR_SEGMENT1_END - BATTLE_GAUGE_BAR_SEGMENT1_TAPER);
         AddPrim(pOt, pBase);
     } else {
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), value);
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), value - BATTLE_GAUGE_BAR_SEGMENT1_TAPER);
+        BattleSetVertexXForFlipped(flag, &pBase[0].x1, value);
+        BattleSetVertexXForFlipped(flag, &pBase[0].x3, value - BATTLE_GAUGE_BAR_SEGMENT1_TAPER);
         AddPrim(pOt, pBase);
         return;
     }
     if (value >= BATTLE_GAUGE_BAR_SEGMENT2_END) {
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), BATTLE_GAUGE_BAR_SEGMENT2_END);
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C), 0x40);
-        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), 0x10);
-        AddPrim(pOt, pBase + 0x18);
+        BattleSetVertexXForFlipped(flag, &pBase[1].x1, BATTLE_GAUGE_BAR_SEGMENT2_END);
+        BattleSetVertexXForFlipped(flag, &pBase[1].x3, 0x40);
+        BattleSetVertexYForFlipped(flag, &pBase[1].y3, 0x10);
+        AddPrim(pOt, &pBase[1]);
     } else {
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
-        pTaper = (u16*)(pBase + 0x2C);
+        BattleSetVertexXForFlipped(flag, &pBase[1].x1, value);
+        pTaper = &pBase[1].x3;
         edge = value - BATTLE_GAUGE_BAR_SEGMENT1_TAPER;
         BattleSetVertexXForFlipped(flag, pTaper, edge - (value - BATTLE_GAUGE_BAR_SEGMENT1_END) / 4);
-        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), (value - BATTLE_GAUGE_BAR_SEGMENT1_END) / 2 + 8);
-        AddPrim(pOt, pBase + 0x18);
+        BattleSetVertexYForFlipped(flag, &pBase[1].y3, (value - BATTLE_GAUGE_BAR_SEGMENT1_END) / 2 + 8);
+        AddPrim(pOt, &pBase[1]);
         return;
     }
-    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x3C), value);
-    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - BATTLE_GAUGE_BAR_SEGMENT3_TAPER);
-    AddPrim(pOt, pBase + 0x30);
+    BattleSetVertexXForFlipped(flag, &pBase[2].x1, value);
+    BattleSetVertexXForFlipped(flag, &pBase[2].x3, value - BATTLE_GAUGE_BAR_SEGMENT3_TAPER);
+    AddPrim(pOt, &pBase[2]);
 }
 
-s32 BattleSetGaugeBarPrimColor(s32 arg0, u8* pOut) {
-    s32 value;
-    s32* pColor;
+s32 BattleSetGaugeBarPrimColor(s32 arg0, POLY_F4* pPrim) {
+    u32 color;
 
     if (BattleCheckActorBelowBreakThreshold(arg0, 0) != 0) {
         return 0;
     }
     if (BattleCheckActorBelowBreakThreshold(arg0, 1) != 0) {
-        value = 0x2800FFFF;
-        pOut[3] = 5;
+        color = BATTLE_GAUGE_METER_COLOR_WHITE;
+        setlen(pPrim, 5);
     } else {
-        value = 0x280000FF;
-        pOut[3] = 5;
+        color = BATTLE_GAUGE_METER_COLOR_RED;
+        setlen(pPrim, 5);
     }
-    pColor = (s32*)(pOut + 4);
-    *pColor = value;
+    *(u32*)&pPrim->r0 = color;
     return 1;
 }
