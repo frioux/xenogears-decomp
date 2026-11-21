@@ -2,14 +2,22 @@
 #include "psyq/libgpu.h"
 #include "system/controller.h"
 
-extern u8 g_BattleTutorialWindow[];
+// The tutorial message window: the SystemString the tutorial text is pushed into,
+// then the byte BattleInitTutorialMessage seeds at +0x68. 0x90 bytes; the
+// g_BattleCameraPos VECTOR follows it.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x68];
+    /* 0x68 */ u8 unk68;
+} BattleTutorialWindow; // Size: 0x90
+
+extern BattleTutorialWindow g_BattleTutorialWindow;
 
 extern void BattleSetScreenMode(int mode);
 extern void SystemStringFree(void* pString);
 
 void BattleFreeMessageString(void) {
     BattleSetScreenMode(3);
-    SystemStringFree(&g_BattleTutorialWindow[0]);
+    SystemStringFree(&g_BattleTutorialWindow);
 }
 
 s32 BattleRoundDivAwayFromZero(s32 a0, s32 a1, s32 a2) {
@@ -34,10 +42,6 @@ extern s32 g_BattleCameraTargetZ;
 extern s32 g_BattleEffectPlaceYOffset;
 extern s32 g_BattleScriptCursor;
 extern s32 g_BattleScriptWait;
-extern s32 D_80097058;
-extern s32 D_800970E0;
-extern s32 D_80098774;
-extern s32 D_800987FC;
 
 /* 66.68%: original keeps &g_BattleCameraTarget in $s0 across the first call and reads and
    stores through it; ours rematerialises the address (lui at / lw / sw). The same
@@ -83,7 +87,37 @@ void func_800708C4(s32* p, s32 step) {
 }
 */
 
-extern VECTOR g_BattleActor0;
+// The battling overlay's battle state (g_BattleActor0/g_BattleActor1): the anchor
+// position every effect vector is placed against, the model index and gauge words
+// at +0x4C..+0xB6 (the same record src/battling/main/misc3 and misc4 name), and
+// the frame flags the effect cells below are switched on through. Its position is
+// a VECTOR: three sites copy 16 bytes out of it, and the two actors are the
+// VECTORs the camera is aimed between.
+typedef struct {
+    /* 0x000 */ VECTOR position;
+    /* 0x010 */ u8 unk10[0x38];
+    // Reset by BattleSetValueAndClearFlags, and set to 0xFF when
+    // BattleSetFacingAngleFromVector rebuilds a facing.
+    /* 0x048 */ u32 distance;
+    /* 0x04C */ u8 modelIndex;
+    /* 0x04D */ u8 unk4D[0x2];
+    /* 0x04F */ u8 animSpeed;
+    /* 0x050 */ u8 unk50[0x2];
+    /* 0x052 */ u8 animSpeedBonus;
+    /* 0x053 */ u8 unk53[0x5D];
+    // The height func_80082488 reports for the actor's position, refreshed every
+    // frame by the grid walk below and by BattleActorUpdateGroundMovement.
+    /* 0x0B0 */ s32 floorY;
+    /* 0x0B4 */ s16 gaugeValue;
+    /* 0x0B6 */ s16 gaugePoints;
+    /* 0x0B8 */ u8 unkB8[0x18];
+    /* 0x0D0 */ u32 flags;
+    /* 0x0D4 */ u8 unkD4[0x14];
+    /* 0x0E8 */ s32 unkE8;
+} BattleState; // Size: 0xEC
+
+extern BattleState g_BattleActor0;
+extern BattleState g_BattleActor1;
 extern VECTOR g_BattleEffectPlaceOrigin;
 extern s32 D_80098780;
 extern s32 D_80097064;
@@ -108,35 +142,9 @@ extern s32 func_80082488(VECTOR* pVec, s32 mode);
    (g_BattleSceneOriginYMirror - 0x20) - g_BattleEffectPlaceYOffset into g_BattleSceneOriginYMirror - (g_BattleEffectPlaceYOffset + 0x20).
 */
 
-// The battling overlay's battle state (g_BattleActor1): the anchor position every
-// effect vector is placed against, the model index and gauge words at +0x4C..+0xB6
-// (the same record src/battling/main/misc3 and misc4 name), and the frame flags
-// the effect cells below are switched on through. Its position is a VECTOR:
-// three sites copy 16 bytes out of it, and the g_BattleActor0 it is copied
-// against is a VECTOR.
-typedef struct {
-    /* 0x000 */ VECTOR position;
-    /* 0x010 */ u8 unk10[0x3C];
-    /* 0x04C */ u8 modelIndex;
-    /* 0x04D */ u8 unk4D[0x2];
-    /* 0x04F */ u8 animSpeed;
-    /* 0x050 */ u8 unk50[0x2];
-    /* 0x052 */ u8 animSpeedBonus;
-    /* 0x053 */ u8 unk53[0x5D];
-    // The height func_80082488 reports for the actor's position, refreshed every
-    // frame by the grid walk below and by BattleActorUpdateGroundMovement.
-    /* 0x0B0 */ s32 floorY;
-    /* 0x0B4 */ s16 gaugeValue;
-    /* 0x0B6 */ s16 gaugePoints;
-    /* 0x0B8 */ u8 unkB8[0x18];
-    /* 0x0D0 */ u32 flags;
-} BattleState; // Size: 0xD4
-
-extern BattleState g_BattleActor1;
-
 // Places the effect vector (a stack VECTOR) and the camera for the placement
 // mode g_BattleEffectPlaceMode names: recentres the tutorial message, or snaps
-// the camera onto the front actor.  objdiff 99.95%: the only difference left is
+// the camera onto the front actor.  objdiff 99.29%: the only difference left is
 // the switch's table operand (jtbl_ vs .rodata), check_bin.sh battling is OK.
 // Three spellings are load-bearing and look gratuitous:
 //  - the do-while plus its identical if/else arms: the arms are the same store,
@@ -145,6 +153,11 @@ extern BattleState g_BattleActor1;
 //  - pTargetX is a pointer to the anchor's vx word: the plain field spelling
 //    folds the address into a %lo store, and retail keeps it in $s0 across the
 //    rcos call.
+// D_80098780/D_80097064 are +0x54 of g_BattleActor1/g_BattleActor0 (the angle the
+// two placement orbits start from). Typing them as actor fields is measured worse:
+// cse then shares the base with the actor's position reads, holds it in $s0 across
+// the calls and the frame grows to 0x30 (744 bytes, 96.71), where the splat-named
+// words are re-formed per use; a volatile read of the field measures the same.
 void BattlePlaceEffectByMode(s32 mode) {
     VECTOR vec;
     VECTOR* pVec;
@@ -156,13 +169,13 @@ void BattlePlaceEffectByMode(s32 mode) {
 
     switch (mode) {
     case 0:
-        BattleAimCameraAtCombatants(&g_BattleActor1.position, &g_BattleActor0);
+        BattleAimCameraAtCombatants(&g_BattleActor1.position, &g_BattleActor0.position);
         break;
     case 1:
         vec = g_BattleActor1.position;
         goto place_message;
     case 2:
-        vec = g_BattleActor0;
+        vec = g_BattleActor0.position;
     place_message:
         vec.vy -= 0xA0;
         g_BattleEffectPlaceYOffset = 0;
@@ -200,11 +213,11 @@ void BattlePlaceEffectByMode(s32 mode) {
         break;
     case 5:
         pTargetX = &g_BattleCameraTarget.vx;
-        *pTargetX = g_BattleActor0.vx;
-        g_BattleCameraTarget.vy = g_BattleActor0.vy - 0xC0;
-        g_BattleCameraTarget.vz = g_BattleActor0.vz;
+        *pTargetX = g_BattleActor0.position.vx;
+        g_BattleCameraTarget.vy = g_BattleActor0.position.vy - 0xC0;
+        g_BattleCameraTarget.vz = g_BattleActor0.position.vz;
         g_BattleCameraPos.vx = *pTargetX + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
-        g_BattleCameraPos.vy = g_BattleActor0.vy - 0xD0;
+        g_BattleCameraPos.vy = g_BattleActor0.position.vy - 0xD0;
         g_BattleCameraPos.vz = g_BattleCameraTarget.vz + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
         break;
     }
@@ -222,7 +235,7 @@ void BattleRecenterViewPositions(s32 mode) {
     VECTOR offset;
 
     anchor = g_BattleActor1.position;
-    actor = g_BattleActor0;
+    actor = g_BattleActor0.position;
     camera = g_BattleCameraPos;
     offset = anchor;
     offset.vx += actor.vx;
@@ -275,18 +288,18 @@ void BattleRecenterViewPositions(s32 mode) {
     actor.vy = 0;
     camera.vy = -0x300;
     g_BattleActor1.position = anchor;
-    g_BattleActor0 = actor;
+    g_BattleActor0.position = actor;
     g_BattleCameraPos = camera;
     BattleClearSpriteTables();
 }
 
 void BattleSetValueAndClearFlags(s32 value) {
     g_BattleScriptCursor = value;
-    D_80098774 = 0;
-    D_80097058 = 0;
+    g_BattleActor1.distance = 0;
+    g_BattleActor0.distance = 0;
     g_BattleScriptWait = 0;
-    D_800987FC &= 0xFFFF7FFF;
-    D_800970E0 &= 0xFFFF7FFF;
+    g_BattleActor1.flags &= 0xFFFF7FFF;
+    g_BattleActor0.flags &= 0xFFFF7FFF;
 }
 
 extern s32 g_BattleFacingAngle;
@@ -502,7 +515,6 @@ extern u8 g_BattlePlayer2ComControlled;
 extern s32 g_BattleMode;
 extern u8 g_BattleOptionOn;
 extern u8* g_BattleMessageStringTable;
-extern u8 D_800929BC;
 extern s32 D_800925DC;
 extern u8 g_BattleTutorialLineOffset;
 extern s32 g_BattleEffectPlaceMode;
@@ -517,9 +529,9 @@ void BattleInitTutorialMessage(void) {
     BattleSetScreenMode(7);
     g_BattleMode = 5;
     g_BattleOptionOn = 0;
-    SystemStringInit(&g_BattleTutorialWindow[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
-    SystemStringPushBuffer(&g_BattleTutorialWindow[0], GetStringEntry(g_BattleMessageStringTable, 0x42));
-    D_800929BC = 0x1E;
+    SystemStringInit(&g_BattleTutorialWindow, 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
+    SystemStringPushBuffer(&g_BattleTutorialWindow, GetStringEntry(g_BattleMessageStringTable, 0x42));
+    g_BattleTutorialWindow.unk68 = 0x1E;
     D_800925DC = 0;
     BattleSetValueAndClearFlags(&g_BattleTutorialScript[0]);
     g_BattleTutorialLineOffset = 0;
@@ -577,7 +589,7 @@ void BattleUpdateTutorialScreen(void) {
         if ((s8)g_BattleTutorialLineOffset < 0) {
             g_BattleTutorialLineOffset = BATTLE_TUTORIAL_LINE_COUNT - 1;
         }
-        pWindow = &g_BattleTutorialWindow[0];
+        pWindow = (u8*)&g_BattleTutorialWindow;
         SystemStringSetColor(pWindow, (g_BattleDrawFlags * 7) & 0x3F, 0xC0, 0x10);
         SystemStringSetLineOffset(pWindow, (s8)g_BattleTutorialLineOffset);
         if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
@@ -594,7 +606,7 @@ void BattleUpdateTutorialScreen(void) {
     g_BattleWindowPosX += BattleRoundDivAwayFromZero(g_BattleWindowTargetX, g_BattleWindowPosX, 4);
     g_BattleWindowPosY += BattleRoundDivAwayFromZero(g_BattleWindowTargetY, g_BattleWindowPosY, 4);
     if (g_BattleTutorialWindowEnabled != 0) {
-        func_80034888(&g_BattleTutorialWindow[0], g_BattleRootOrderingTable, g_BattleDrawBufferIndex);
+        func_80034888(&g_BattleTutorialWindow, g_BattleRootOrderingTable, g_BattleDrawBufferIndex);
     }
     if (g_BattleMessageIndex != g_BattleMessageShownIndex) {
         pMsg->redraw = 3;
@@ -621,7 +633,11 @@ void BattleUpdateTutorialScreen(void) {
 // two-word stride. Retail reaches the x column through the symbol and keeps a
 // pointer to the z column, which it re-forms for the final step; that is the
 // shape the (i * 2) subscripts and pStepZ below reproduce (the same table spelled
-// as an array of a two-field struct measures 82.12%).
+// as an array of a two-field struct measures 82.12%). D_80091088 is the z column
+// (0x80091084 + 4) and cannot be folded into g_BattleGridNeighbourSteps: spelled
+// as &g_BattleGridNeighbourSteps[1] gcc derives it from the x-column base (one
+// addiu s8,s8,4 in the prologue) and stops re-forming it for the final step, which
+// is 96.31% at the exact 488 bytes against this spelling's 100.00%.
 extern s32 g_BattleGridNeighbourSteps[];
 extern s32 D_80091088[];
 extern u32 BattleGetGridCellAtPosition(VECTOR* pPos);
@@ -718,42 +734,6 @@ void func_80071F8C(s32 mode) {
 */
 
 
-extern u8 g_BattleInitDone;
-
-void BattleClearInitFlag(void) {
-    g_BattleInitDone = 0;
-}
-
-extern u8 g_BattleInitScript;
-extern u8 g_BattleInputEnabled;
-extern u8 g_BattlePlayer1ComControlled;
-extern u8 g_BattlePlayer2ComControlled;
-extern s32 g_BattleStateStep;
-extern s32 D_80092A00;
-extern s32 D_80092A10;
-extern s32 D_80092A20;
-extern s32 D_800970F8;
-extern s32 D_80098814;
-
-void BattleInitOnce(void) {
-    if (g_BattleInitDone != 0) {
-        return;
-    }
-    BattleSetValueAndClearFlags((s32)&g_BattleInitScript);
-    g_BattleInitDone = 1;
-    g_BattleInputEnabled = 0;
-    g_BattlePlayer1ComControlled = 0;
-    g_BattlePlayer2ComControlled = 0;
-    g_BattleStateStep = 0;
-    g_BattleMessageIndex = 0;
-    g_BattleMessageShownIndex = 0;
-    D_80092A00 = 1;
-    D_80092A10 = 1;
-    D_80092A20 = 1;
-    D_800970F8 = 0;
-    D_80098814 = 0;
-}
-
 #define BATTLE_EFFECT_CELL_COUNT 3
 
 // One of the effect cells BattleStepDisplayState steps: the 16.16 origin a burst is
@@ -767,6 +747,37 @@ typedef struct {
 } BattleEffectEmitter; // Size: 0x10
 
 extern BattleEffectEmitter g_BattleEffectCells[];
+
+extern u8 g_BattleInitDone;
+
+void BattleClearInitFlag(void) {
+    g_BattleInitDone = 0;
+}
+
+extern u8 g_BattleInitScript;
+extern u8 g_BattleInputEnabled;
+extern u8 g_BattlePlayer1ComControlled;
+extern u8 g_BattlePlayer2ComControlled;
+extern s32 g_BattleStateStep;
+
+void BattleInitOnce(void) {
+    if (g_BattleInitDone != 0) {
+        return;
+    }
+    BattleSetValueAndClearFlags((s32)&g_BattleInitScript);
+    g_BattleInitDone = 1;
+    g_BattleInputEnabled = 0;
+    g_BattlePlayer1ComControlled = 0;
+    g_BattlePlayer2ComControlled = 0;
+    g_BattleStateStep = 0;
+    g_BattleMessageIndex = 0;
+    g_BattleMessageShownIndex = 0;
+    g_BattleEffectCells[0].frames = 1;
+    g_BattleEffectCells[1].frames = 1;
+    g_BattleEffectCells[2].frames = 1;
+    g_BattleActor0.unkE8 = 0;
+    g_BattleActor1.unkE8 = 0;
+}
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x60];
@@ -924,7 +935,7 @@ fade:
         g_BattleMessageShownIndex = g_BattleMessageIndex;
     }
     BattlePlaceEffectByMode(g_BattleEffectPlaceMode);
-    D_80098774 = 0;
+    g_BattleActor1.distance = 0;
 }
 
 
