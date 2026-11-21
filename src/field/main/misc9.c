@@ -615,32 +615,36 @@ void FieldLoadTextRenderFiles(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
-/* 89.64% (1520 bytes = retail's exact instruction count; 380 insns). Structure
-   is fully recovered: the two 2-element POLY_GT4 arrays g_FieldTextGradientTopQuads /
-   g_FieldTextGradientBottomQuads built with the setRGB/setXY/setUV macros (one store per field,
-   absolute `lui $at` addressing - a pointer local turns all 56 stores into
-   `sb off(reg)` and drops the code by half), tpage/clut from
-   GetTPage/GetClut, the two 0x34-byte struct copies (`g_FieldTextGradientTopQuads[1] =
-   g_FieldTextGradientTopQuads[0]`), HeapAlloc(0x1000,1), then 16 blocks of 0x100 bytes with
-   8 SPRTs copied from sprites[0][0] and the 4x2 draw modes. That last loop is
-   already byte-identical, including the spill of pSprite to 0x18(sp) and the
-   0x48 frame - and it ONLY comes out that way if the inner loop indexes the
-   block through the global (`(FieldTextRowPrims *)(g_FieldTextRenderPrimBlocks
-   + i * 0x100)`), not through the pRow local: with pRow gcc needs one
-   callee-saved register fewer, keeps pSprite in a register and every address
-   in the 100-instruction copy run comes out with the wrong base.
-   The residual is the ORDER of the 56 poly field stores and which register
-   each constant lands in: retail groups them by constant (12 x 0xFF, then the
-   two 0x18 shorts, then 12 zero bytes, then the shorts, then the u/v bytes)
-   and re-lises v0 per group (0xFF, 0x18, 0xC8, 2, 0xE0) while this body hoists
-   four constants to the block head into v0/t1/v1/t0; within each triple retail
-   emits b,g,r (reverse) where this emits r,g,b. Tried: plain field assignments
-   (same), setXY4/setUV4 per quad (83.51%), setRGB-then-XY-then-UV grouping
-   (same), and a 4-minute permuter run (PERMUTER_BETTER 7700 -> 6505, one
-   statement moved + a nonsense (double) cast; porting the move alone scores
-   89.06%, so it was noise). A source order that reproduces retail's group
-   order was not found; the remaining delta is the old sched.c's ordering of
-   independent stores, not a missing statement.
+/* 97.89% - retail's exact 1520 bytes / 380 instructions, and the body matches
+   instruction for instruction but for ONE displaced instruction (`li $v1,0x280`,
+   see the end of this note). Every other row diff_func prints is only the
+   relocation spelling: retail names each store's absolute address (splat's
+   D_800AF7xx labels: `lui $at,%hi(D_800AF78E)` + `sb $v0,%lo(...)($at)`) while
+   the typed array spells the same byte as base+offset, which links to the
+   identical address.
+   The load-bearing finding: the 56 poly field stores are in a fixed ORDER and
+   sched2 preserves statement order here (it does NOT regroup them), so the
+   sequence below is transcribed from the .s one store at a time. The order is
+   grouped by constant value, not by vertex: the 12 x 0xFF stores (top v0/v1 and
+   bottom v2/v3 - the white corners), then the two 0x18 y's, then the 12 zero
+   stores (top v2/v3, bottom v0/v1 - the black corners), then XY, then UV.
+   Writing one quad at a time instead scores 89.64%.
+   Two other measured points: a pointer local for the quads collapses all 56
+   stores into `sb off(reg)` and halves the code, so every store must name the
+   global; and in the SPRT setup SetSemiTrans plus clut=GetClut must be written
+   BETWEEN setRGB0 and setUV0 (that is what puts the third RGB byte in
+   SetSemiTrans' jal delay slot). The inner 4x2 loop must index the block through
+   g_FieldTextRenderPrimBlocks, not through the pRow local, or gcc needs one
+   callee-saved register fewer and the whole copy run takes the wrong base.
+   The single residual: retail emits li v1,0x280 immediately after li v0,0xff at
+   the head of the store group (the x=0x280 constant stays in $v1 across four
+   stores far below in the XY group), while this body emits it 25 instructions
+   later beside li v0,0x18. Same instruction, same register, a different slot.
+   Measured dead: a `s32 right = 0x280;` local (declaration initialiser, gcc
+   folds it back to the same 97.89), moving the four x=0x280 stores up next to
+   the 0xFF group (93.73 - the stores move too, sched2 does not re-sort them),
+   -O3 (97.89), gcc 2.6.0 (97.82), gcc 2.7.2-cdk (70.15).
+
 // One 16-pixel text row: a draw mode and a sprite per column, duplicated for
 // the two render contexts
 typedef struct {
@@ -663,43 +667,61 @@ void func_800AC3AC(void) {
     SetPolyGT4(&g_FieldTextGradientTopQuads[0]);
     SetPolyGT4(&g_FieldTextGradientBottomQuads[0]);
 
-    // Top quad: white at the top edge, black at the bottom edge
-    setRGB0(&g_FieldTextGradientTopQuads[0], 0xFF, 0xFF, 0xFF);
-    setXY0(&g_FieldTextGradientTopQuads[0], 0, 0);
-    setUV0(&g_FieldTextGradientTopQuads[0], 0, 0);
-    setRGB1(&g_FieldTextGradientTopQuads[0], 0xFF, 0xFF, 0xFF);
+    // Retail's store order (sched2 groups by the constant register).
+    g_FieldTextGradientTopQuads[0].b0 = 0xFF;
+    g_FieldTextGradientTopQuads[0].g0 = 0xFF;
+    g_FieldTextGradientTopQuads[0].r0 = 0xFF;
+    g_FieldTextGradientTopQuads[0].b1 = 0xFF;
+    g_FieldTextGradientTopQuads[0].g1 = 0xFF;
+    g_FieldTextGradientTopQuads[0].r1 = 0xFF;
+    g_FieldTextGradientBottomQuads[0].b2 = 0xFF;
+    g_FieldTextGradientBottomQuads[0].g2 = 0xFF;
+    g_FieldTextGradientBottomQuads[0].r2 = 0xFF;
+    g_FieldTextGradientBottomQuads[0].b3 = 0xFF;
+    g_FieldTextGradientBottomQuads[0].g3 = 0xFF;
+    g_FieldTextGradientBottomQuads[0].r3 = 0xFF;
+    g_FieldTextGradientTopQuads[0].y2 = 0x18;
+    g_FieldTextGradientTopQuads[0].y3 = 0x18;
+    g_FieldTextGradientTopQuads[0].b2 = 0;
+    g_FieldTextGradientTopQuads[0].g2 = 0;
+    g_FieldTextGradientTopQuads[0].r2 = 0;
+    g_FieldTextGradientTopQuads[0].b3 = 0;
+    g_FieldTextGradientTopQuads[0].g3 = 0;
+    g_FieldTextGradientTopQuads[0].r3 = 0;
+    g_FieldTextGradientBottomQuads[0].b0 = 0;
+    g_FieldTextGradientBottomQuads[0].g0 = 0;
+    g_FieldTextGradientBottomQuads[0].r0 = 0;
+    g_FieldTextGradientBottomQuads[0].b1 = 0;
+    g_FieldTextGradientBottomQuads[0].g1 = 0;
+    g_FieldTextGradientBottomQuads[0].r1 = 0;
+    g_FieldTextGradientTopQuads[0].x0 = 0;
+    g_FieldTextGradientTopQuads[0].y0 = 0;
     g_FieldTextGradientTopQuads[0].x1 = 0x280;
     g_FieldTextGradientTopQuads[0].y1 = 0;
+    g_FieldTextGradientTopQuads[0].x2 = 0;
+    g_FieldTextGradientTopQuads[0].x3 = 0x280;
+    g_FieldTextGradientBottomQuads[0].x0 = 0;
+    g_FieldTextGradientBottomQuads[0].y0 = 0xC8;
+    g_FieldTextGradientBottomQuads[0].y1 = 0xC8;
+    g_FieldTextGradientBottomQuads[0].y2 = 0xE0;
+    g_FieldTextGradientBottomQuads[0].y3 = 0xE0;
+    g_FieldTextGradientBottomQuads[0].x1 = 0x280;
+    g_FieldTextGradientBottomQuads[0].x2 = 0;
+    g_FieldTextGradientBottomQuads[0].x3 = 0x280;
+    g_FieldTextGradientTopQuads[0].u0 = 0;
+    g_FieldTextGradientTopQuads[0].v0 = 0;
     g_FieldTextGradientTopQuads[0].u1 = 2;
     g_FieldTextGradientTopQuads[0].v1 = 0;
-    setRGB2(&g_FieldTextGradientTopQuads[0], 0, 0, 0);
-    g_FieldTextGradientTopQuads[0].x2 = 0;
-    g_FieldTextGradientTopQuads[0].y2 = 0x18;
     g_FieldTextGradientTopQuads[0].u2 = 0;
     g_FieldTextGradientTopQuads[0].v2 = 2;
-    setRGB3(&g_FieldTextGradientTopQuads[0], 0, 0, 0);
-    g_FieldTextGradientTopQuads[0].x3 = 0x280;
-    g_FieldTextGradientTopQuads[0].y3 = 0x18;
     g_FieldTextGradientTopQuads[0].u3 = 2;
     g_FieldTextGradientTopQuads[0].v3 = 2;
-
-    // Bottom quad: the gradient reversed
-    setRGB0(&g_FieldTextGradientBottomQuads[0], 0, 0, 0);
-    setXY0(&g_FieldTextGradientBottomQuads[0], 0, 0xC8);
-    setUV0(&g_FieldTextGradientBottomQuads[0], 0, 0);
-    setRGB1(&g_FieldTextGradientBottomQuads[0], 0, 0, 0);
-    g_FieldTextGradientBottomQuads[0].x1 = 0x280;
-    g_FieldTextGradientBottomQuads[0].y1 = 0xC8;
+    g_FieldTextGradientBottomQuads[0].u0 = 0;
+    g_FieldTextGradientBottomQuads[0].v0 = 0;
     g_FieldTextGradientBottomQuads[0].u1 = 2;
     g_FieldTextGradientBottomQuads[0].v1 = 0;
-    setRGB2(&g_FieldTextGradientBottomQuads[0], 0xFF, 0xFF, 0xFF);
-    g_FieldTextGradientBottomQuads[0].x2 = 0;
-    g_FieldTextGradientBottomQuads[0].y2 = 0xE0;
     g_FieldTextGradientBottomQuads[0].u2 = 0;
     g_FieldTextGradientBottomQuads[0].v2 = 2;
-    setRGB3(&g_FieldTextGradientBottomQuads[0], 0xFF, 0xFF, 0xFF);
-    g_FieldTextGradientBottomQuads[0].x3 = 0x280;
-    g_FieldTextGradientBottomQuads[0].y3 = 0xE0;
     g_FieldTextGradientBottomQuads[0].u3 = 2;
     g_FieldTextGradientBottomQuads[0].v3 = 2;
 
@@ -719,11 +741,11 @@ void func_800AC3AC(void) {
         pSprite = &pRow->sprites[0][0];
         SetSprt(pSprite);
         setRGB0(pSprite, 0x80, 0x80, 0x80);
+        SetSemiTrans(pSprite, 0);
+        pSprite->clut = GetClut(0, 0x1FF);
         setUV0(pSprite, 0, i << 4);
         setWH(pSprite, 0x80, 0x10);
         setXY0(pSprite, 0x40, i << 4);
-        SetSemiTrans(pSprite, 0);
-        pSprite->clut = GetClut(0, 0x1FF);
 
         pRow->sprites[1][0] = pRow->sprites[0][0];
         pRow->sprites[0][1] = pRow->sprites[0][0];
