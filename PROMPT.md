@@ -464,6 +464,8 @@ sitting in three matched functions is now a debt, like `func_`. A name that rest
 the type or the address (`g_BattleByteTable`, `field4`) is not a name; leave the
 placeholder.
 
+**The `D_` naming backlog is now mostly INTERIOR addresses, and a naming round on such a file returns ZERO.** Rounds 352-358 measured it three times: `world_map/misc1`, `world_map/misc12`, `movie/misc1`, `battling/misc1`, `field/main/misc` and `slus_006.64/system/system` all came back with no nameable global and 25-38 `DATA_INTERIOR` lines each - the `D_` are byte addresses inside tables that are ALREADY named and typed (`g_WorldMapGfxEnvs[i].drawEnv.dtd`, `g_BattleActor0` record fields, `g_BattleDrawBuffers[n].tile`). The productive form for those files is the interior-`D_` REWRITE, not a naming round: spell the typed member, expect a RELOC-only diff with an identical instruction stream, judge by the BYTE COUNT and prove with `check_bin.sh <bin>`. Measured across six rounds it moves ~40-60 placeholders per round with no byte changing, and it produced a match as a side effect (`battle/misc1` func_80073A58, 91.30 -> 100.00, via the array-extern lever). Boundaries, all measured: the typed member is FREE when retail forms one `lui` per store and REFUSES when retail names a distinct symbol addend per arm (gcc CSEs the base and folds the index into an `addiu`); a `*(u16 *)&table[n].f` cast must stay where retail packs two byte fields into ONE halfword store; and a splat-annotated LITERAL address (`lui %hi(D_80600000)`) must be written as a literal, because the symbol spelling is 8 bytes longer.
+
 **Globals: `D_<addr>` -> `g_Name`.** Proposed by workers, applied by you, exactly like
 function names.
 
