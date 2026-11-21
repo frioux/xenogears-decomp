@@ -1040,6 +1040,8 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
    arms, the 0x200000 material arm (`&&` keeps the second rotation.vx test inline),
    the animationOverride / 0x2000000 gate, and
    FieldSetGearModelAnimationForActor(pSprite, animationId, pFieldActor). */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082BB8);
+/*
 void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     VECTOR pos;
     SVECTOR points[2];
@@ -1179,6 +1181,7 @@ stopped:
     pActor->move.vz = 0;
     pActor->moveModified.vz = pos.vz;
 }
+*/
 
 int FieldClampAngleDelta(int angle, int limit) {
     if (angle < 0) {
