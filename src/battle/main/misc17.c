@@ -311,34 +311,19 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex[0];
     g_BattleDisplayState->spriteColumnPending = 1;
 }
-/* 94.90% (424 bytes, retail's exact size) under this unit's gcc 2.6.0 (86.04
-   under 2.7.2). The whole body now compiles against the typed externs and every
-   instruction is retail's; the two residual blocks are (1) the position of
-   `li a1,0x20` / `li a2,0xA4`, which gcc materialises straight after the
-   `andi a1,a1,0xff` param mask where retail emits them after the u/v arithmetic,
-   and (2) retail's `andi a3,a3,0xf8` sitting after the pointer load, not before.
-   The u/v ORDER is the load-bearing part: retail computes `u = (s - s / 2 * 2) *
-   0x78 & 0xF8` (a3) BEFORE `v = s / 2 * 16` (v1, the stack arg) and keeps s/2
-   live in v1; with `u8 v` gcc hoists v's `sll` above the u chain instead, and
-   declaring v `s32` with an explicit `& 0xFF` is what puts the pieces in retail's
-   order. Tried: u8/u16/u32/s32 for both u and v, u/v as locals vs inline in the
-   call, `% 2`, `(s >> 1) << 4`, a `half` local, a `rest` local, casts on the
-   arguments (all either 94.15 or 94.90), and two 4-minute permuter runs (one
-   reported score 0, which diff_func scores 94.15). Also needs the u16 second
-   parameter on the BattleSetPolyFT4RectH13 declaration below: retail narrows the
-   loop's k with `andi a1,s1,0xffff`, which an s16 parameter turns into sll/sra. */
-/*
 void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
     u32 s;
     s32 c;
     s32 i;
     u16 k;
     u8 u;
-    s32 v;
+    u8 v;
+    u32 half;
 
     s = arg1 * 2 + arg0;
-    u = (s - s / 2 * 2) * 0x78 & 0xF8;
-    v = s / 2 * 16 & 0xFF;
+    half = s / 2;
+    u = (s - half * 2) * 0x78;
+    v = half * 16;
     BattleSetPolyFT4Rect(
         (POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x140)),
         0x20, 0xA4, u, v, 0x60, 0x10);
@@ -358,10 +343,7 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
             g_BattleGraphicsWork->pPacketPrims[0x66E]++;
         }
     }
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
-/* 98.22% (704 bytes against retail's 700) under gcc 2.6.0 as well as 2.7.2, so
+}/* 98.22% (704 bytes against retail's 700) under gcc 2.6.0 as well as 2.7.2, so
    this is now a one-instruction residual and not a preset question. The whole
    body reproduces retail: the two flag-row loads need the row offset in a local
    (`off = (arg2 * 2 + arg1 + 0x16) * 0x28 + arg0 * 0x5F0;` then
