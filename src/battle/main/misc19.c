@@ -345,11 +345,11 @@ s32 BattleIsCharacterInParty(u8 arg0) {
     s32 ret;
 
     if (g_GameState.characters[4].slots[0].characterId == id) {
-        ret = 1;
+        ret = TRUE;
     } else if (g_GameState.characters[4].slots[1].characterId == id) {
-        ret = 1;
+        ret = TRUE;
     } else if (g_GameState.characters[4].slots[2].characterId == id) {
-        ret = 1;
+        ret = TRUE;
     } else {
         ret = g_GameState.characters[4].slots[3].characterId == id;
     }
