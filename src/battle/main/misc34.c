@@ -458,7 +458,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 // start and the 0x8000 flag word the pass clears its bit from.
 typedef struct {
     /* 0x0000 */ BattleActorSlot slots[BATTLE_ACTOR_SLOT_COUNT];
-    /* 0x01DC */ u8 unk01DC[0x85C];
+    /* 0x0134 */ u8 unk0134[0x904];
     /* 0x0A38 */ u16 slotFlag8000Mask;
 } BattleSlotWorkView;
 
@@ -466,54 +466,72 @@ extern BattleActor *g_BattleActors[];
 extern u16 g_BattleSlotBitMask;
 extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
 extern u16 g_BattleActorSlotDoneMask;
-extern void func_800BEE2C(SpriteData *pSprite, s32 slotIndex, s32 animId);
+extern void func_800BEE2C(s32 slot, s32 mask, s32 command);
+extern void BattleWaitAndFreeActorBuffers(void);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
-// 64.53% first attempt (508 bytes vs retail's 592): structure, calls and both loops
-// are in place, but retail's first loop is a ROTATED countdown (`beqz s1` with the
-// `addiu s1,-1` in its delay slot, then `bltz`), it recomputes slotIndex a second time
-// for the func_800BEE2C argument (mine folds the two into one), and its collect-call
-// mask is spelled `v0 & (v0 ^ g_BattleSlotBitMask)` (xor+and) where `& ~mask` gives
-// nor+and. Also mine loads D_800C3E1C before the 0xA38 word, retail the other way.
-// The view and the externs above are the shapes this body needs.
+// 91.91% under the unit's own preset (gcc-2.7.2-cdk-psx -G0) at 592 bytes, retail's
+// exact 148 instructions, so only registers/block layout differ. Confirmed the preset:
+// gcc-2.6.0 -G0 scores 56.72 and -G8 does not compile, so no preset change is wanted.
+// What matches and is load-bearing: the collect mask must be spelled
+// `m & (m ^ g_BattleSlotBitMask)` (xor+and, NOT `& ~mask` which gives nor+and); the
+// loop guard `if (i != 0) { for (i--; i >= 0; i--) }` reproduces retail's redundant
+// beqz/bltz pair around the preheader; the slot index must stay an inline MACRO at all
+// four sites (a local collapses three recomputations and costs 18 instructions);
+// func_800BEE2C takes the index TWICE (retail sets a1 = a0 in the jal's delay slot);
+// and the wait loop's `pending` must be a u8 (both its tests are andi 0xFF).
+// Residual: (a) callee-saved rotation - retail s0=state work, s6=its loop copy,
+// s4=bitmask base, s5=g_BattleActors, s3=flag, against mine s0=state work,
+// s3=bitmask base, s4=flag, s6=g_BattleActors: the same multiset, so the two sw pairs
+// and every site's register differ; (b) the index's `or` operand order (retail builds
+// it 0xAC-part first; swapping the macro's operands makes the two loads AC-first and
+// drops to 85.10); (c) the wait loop's block layout - retail's head test jumps to the
+// pending test and it re-tests count before EACH of the two calls (`beqz s2,head` with
+// pending = 0 in the delay slot), mine threads the head test straight to the return
+// block and tests count once on the back edge.
+// Tried: `if (pending != 0) {calls}` 91.51; `pending = 0` before the loop and at the
+// body end 92.25 but 588 bytes (one instruction short, cannot link); a pSlotTable
+// pointer local 90.31; the pWork->slots[] view 90.28; a 4-minute permuter run
+// (base=1341 best=1341, nothing).
 /*
-// Runs the 0x8000-flagged actor slots: every sprite the collect pass hands back is put
-// on animation 0x15 and its slot bit is added to the mask, then the pass waits until no
-// collected sprite is animating, pumping the frame loop and reloading the archive once
-// per wait. Returns the number of slots it kept.
+// A sprite's battle slot number: the top two bits of flags_0xA8 are its low bits and
+// the two low bits of flags_0xAC.flags its high bits.
+#define BATTLE_SLOT_INDEX(pSprite)                                            \
+    (((u32)(pSprite)->flags_0xA8 >> 30) | (((pSprite)->flags_0xAC.flags & 3) << 2))
+
 s32 func_800C0314(void) {
     SpriteData *slots[BATTLE_SLOT_COUNT];
     BattleSlotWorkView *pWork;
     SpriteData *pSprite;
     s32 i;
     s32 count;
-    s32 slotIndex;
     u8 flag;
     u8 pending;
 
     pWork = (BattleSlotWorkView *)g_BattleStateWork;
     count = 0;
     flag = 0;
-    i = BattleCollectMaskedSlotActors(pWork->slotFlag8000Mask & ~g_BattleSlotBitMask,
-                                     (void **)slots, (s32)D_800C3E1C);
-    for (i--; i >= 0; i--) {
-        pSprite = slots[i];
-        slotIndex = ((u32)pSprite->flags_0xA8 >> 30) |
-                    ((pSprite->flags_0xAC.flags & 3) << 2);
-        if ((g_BattleActorSlotDoneMask >> slotIndex) & 1) {
-            slots[i] = NULL;
-            continue;
+    i = BattleCollectMaskedSlotActors(pWork->slotFlag8000Mask &
+                                          (pWork->slotFlag8000Mask ^ g_BattleSlotBitMask),
+                                      (void **)slots, (s32)D_800C3E1C);
+    if (i != 0) {
+        for (i--; i >= 0; i--) {
+            pSprite = slots[i];
+            if ((g_BattleActorSlotDoneMask >> BATTLE_SLOT_INDEX(pSprite)) & 1) {
+                slots[i] = NULL;
+                continue;
+            }
+            pSprite->animScriptWaitTimer = 0;
+            if (g_BattleStateWork[BATTLE_SLOT_INDEX(pSprite)].inUse != 0) {
+                flag = 1;
+                g_BattleActors[BATTLE_SLOT_INDEX(pSprite)]->isBusy = 1;
+                func_800BEE2C(BATTLE_SLOT_INDEX(pSprite), BATTLE_SLOT_INDEX(pSprite), 0x15);
+            } else if ((s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+                SpritePlayAnimation(pSprite, 0x15);
+            }
+            count++;
+            g_BattleSlotBitMask |= 1 << BATTLE_SLOT_INDEX(pSprite);
         }
-        pSprite->animScriptWaitTimer = 0;
-        if (pWork->slots[slotIndex].inUse != 0) {
-            flag = 1;
-            g_BattleActors[slotIndex]->isBusy = 1;
-            func_800BEE2C(pSprite, slotIndex, 0x15);
-        } else if ((s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
-            SpritePlayAnimation(pSprite, 0x15);
-        }
-        count++;
-        g_BattleSlotBitMask |= 1 << slotIndex;
     }
     while (count != 0) {
         pending = 0;
@@ -535,6 +553,7 @@ s32 func_800C0314(void) {
     }
     return count;
 }
+
 */
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
 // every instruction is present and in retail's order; what is left is
