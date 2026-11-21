@@ -266,6 +266,19 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
 // (base 250 -> 30) and the only change it ever found.
 // Reads g_BattlePrimStartIndex with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
 // call's first argument is the constant 0x19, not g_BattleCommandQueue[0x2D4] + 0xF.
+/* 94.69%, 324 bytes (= retail, 81 insns): the ONLY difference is the operand
+   slots of the three `addu` that reorg places in the BattleDrawSpritePackage jal
+   delay slots - retail `addu a1,a1,v0` (chain in src1, base in src2), gcc
+   `addu a1,v0,a1`. The old note claiming 99.63% no longer reproduces (re-measured
+   from this body); the pointer form below is the best of the spellings.
+   Re-measured dead this round, all with the base in correctly-ordered registers but
+   an instruction SHORT (320 bytes, the g_BattleGraphicsWork reload disappears):
+   `(s32)((chain) + (s32)g_BattleGraphicsWork)` 69.31; `(s32)((chain) + (s32)(pWork =
+   g_BattleGraphicsWork))` 78.25 (an int local for the base); `(s32)(x * 0x50 +
+   (0x9C8 + (s32)(pWork = g_BattleGraphicsWork)))` 78.43 - the spelling that closed
+   func_80086028`s identical wall needs the base inside a `(0xCONST + (s32)(p =
+   base))` sum, which here drops the addiu into the fold.
+   Permuter 1305 iterations from this body: base=290 best=290, nothing. */
 /*
 void func_80085D34(void) {
     s32 v;
@@ -278,8 +291,7 @@ void func_80085D34(void) {
     v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D5] + 0xF, (s32)(g_BattleGraphicsWork + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x3A, 0xD0);
     g_BattleDisplayState[0x7B] += v;
     g_BattleDisplayState[0xA4] = g_BattlePrimStartIndex;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
 void BattleClearCommandSlots(void) {
     s32 i;
@@ -388,27 +400,36 @@ s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
 done:
     return result;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
-/* 91.62%, 424 bytes (retail 432). Instruction multiset and schedule match; every
-   remaining difference is the s-register NUMBER each call-crossing value gets.
-   Retail: s0=q s1=arg0 s2=arg2 s3=arg1 s4=r s5=arg3 s6=arg5 s7=arg4 fp=arg1*4;
-   ours: s0=arg5 s1=q s2=arg0 s3=r s4=arg1 s5=arg3 s6=arg1*4 s7=arg4 s8=arg2 - an
-   allocator priority tie, and we come out 8 bytes short because the two stack
-   parameters are read into different registers. Permuter: 1663 iterations, base=1530
-   best=1125 (not zero).
-   Three spellings in this body are measured, not style: `((s32 *)g_BattlePrimStartIndex)[0]`
-   reads the counter with retail's `lw` (a plain u8 spelling is lbu, 88.08%);
-   `arg2 += arg5 + 1;` reproduces retail's `addiu s6,s6,1 / addu s2,s2,s6`
-   (folding it back into the call argument is 88.08%); and the callee's first two
-   rect arguments are declared u16 because retail passes `& 0xFFFC`/`& 0xFFF8` with no
-   sign extension (s16 makes gcc add `sll 0x10`/`sra 0x10`, 89.45% - note misc16_r1/r2
-   declare the same callee with s16, which is worth re-checking against its definition).
-   Also tried and measured: the permuter's `(arg1 * 2) + counter` operand swap.
+/* 95.45%, 424 bytes. Retail is 424 too (106 insns) - the old note's "retail 432"
+   was wrong, which is why every earlier round chased a size that does not exist.
+   Three source levers closed 91.62 -> 95.45, all measured:
+   - `rows = arg5 + 1; arg2 = arg2 + rows;` gives retail's `addiu s6,s6,1` in place
+     then `addu s2,s2,s6`; the one-expression `arg2 += arg5 + 1` reassociates to
+     (arg2 + 1) + arg5 (91.72).
+   - `y = arg2 * 0x10 + 0x50;` as its own local gives retail's
+     `sll s2,s2,4 / addiu s2,s2,80 / addu s2,s2,s8`; inline, gcc attaches the 0x50 to
+     the arg1*4 side (`addiu s7,s7,80`).
+   - the second call's address as an OFFSET-FIRST int sum with an embedded assignment
+     for the base: `(s32)((arg1 * 2 + ((s32 *)g_BattlePrimStartIndex)[0]) * 0x28 +
+     (0x5550 + (s32)(pColumnWork = g_BattleSpriteColumnWork)))`. That is the only
+     spelling found that reproduces retail's `addu a0,a0,v0` in the jal delay slot
+     (the pointer form is `addu a0,v0,a0`) - same wall as func_80085D34.
+   Residual, three items, all mirror-image register pairs at retail's exact size:
+   arg1 in $s4 vs retail $s3 with r the other way round; arg1*4 in $s7 vs retail $s8
+   with arg4 the other way; and `andi a1,s2,0xfffc` one instruction earlier than
+   retail (it groups the three masks after all three argument chains).
+   Permuter from the 91.62 body: base 820 -> 415 (found the two levers above), then
+   415 -> 355 (found `y`), third run found only hoisted temps (not real source).
+   Declaration order of y/q/r/len/rows and an explicit `quad = arg1 * 4` local
+   change nothing. */
 /*
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
+    s32 y;
     s32 q;
     s32 r;
     s32 len;
+    s32 rows;
+    u8 *pColumnWork;
     RECT rect;
 
     q = arg1 / 2;
@@ -420,17 +441,19 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     rect.w = 0x1E;
     rect.h = 0xD;
     LoadImage(&rect, *arg4);
-    arg2 += arg5 + 1;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)((((s32 *)g_BattlePrimStartIndex)[0] + arg1 * 2) * 0x28 + 0x5550 + g_BattleSpriteColumnWork),
-                  (arg2 * 0x10 + 0x50 + arg1 * 4) & 0xFFFC,
+    rows = arg5 + 1;
+    arg2 = arg2 + rows;
+    y = arg2 * 0x10 + 0x50;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(s32)((arg1 * 2 + ((s32 *)g_BattlePrimStartIndex)[0]) * 0x28 + (0x5550 + (s32)(pColumnWork = g_BattleSpriteColumnWork))),
+                  (y + arg1 * 4) & 0xFFFC,
                   (0xC8 - arg1 * 0x10) & 0xFFF8,
                   (q * 0x78) & 0xF8,
                   0x1A,
                   len);
     g_BattleSpriteColumnWork[0x5D80]++;
     return arg1 + 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
 u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
     s32 ok = 1;
