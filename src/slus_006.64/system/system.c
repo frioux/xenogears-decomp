@@ -56,9 +56,6 @@ typedef struct {
 // Slots from the terminator that ends the digits back to the sign slot
 #define SYSTEM_NUMBER_GLYPH_SLOT_COUNT (SYSTEM_NUMBER_GLYPH_DIGIT_COUNT + 1)
 
-// The system data banks the getters below index are SYSTEM_STRING_BANK_* in
-// system/archive.h
-
 // Palette in g_SystemPaletteData: this many colors in one row, in two CLUTs
 #define SYSTEM_PALETTE_COLOR_COUNT 32
 #define SYSTEM_PALETTE_CLUT_COLOR_COUNT 16
@@ -399,6 +396,7 @@ u8 DialogGetHeight(DialogDataHeader* pDialogData, int dialogIndex) {
     return pDimensions->height;
 }
 
+// The banks the getters below index are SYSTEM_STRING_BANK_* in system/archive.h
 void* GetStringEntryFromBank(int groupIndex, int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[groupIndex], entryId);
 }
