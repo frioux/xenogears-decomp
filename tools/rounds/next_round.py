@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+"""Print a ready-to-launch matching round, so the orchestrator does not pick targets by hand.
+
+    tools/rounds/next_round.py                          # 6 lanes + 6 queued, recorded in the history log
+    tools/rounds/next_round.py --dry-run --json         # just the args, record nothing
+    tools/rounds/next_round.py --kind twin --lanes 4    # auto | twin | park | fresh | big
+    tools/rounds/next_round.py --stats                  # the pool by class, one screen
+
+Output: the `clone.sh new` tag list and the args for
+subagent({workflow: "tools/rounds/brief.js", async: true, args: ...}). One lane per unit
+(.c file). `auto` fills lanes in this order, each lane's `extra` naming its class:
+
+  1 park100   parks whose note records 100.00% (probably free: un-park, verify)
+  2 twin      stubs with a matched twin >= 0.98 (PORT) then 0.80-0.98 (TEMPLATE), see twin_for.py
+  3 cluster   smallest member of a stub-stub family (>= 0.90 alike), so one match solves them all
+  4 park      parks >= 99%, then 90-99%
+  5 fresh     never-written stubs under 350 instructions, smallest first, 2-5 per lane
+  6 big       never-written stubs of 350+ instructions, one per 90-minute lane
+
+Never emitted: handwritten, finished units (slus_006.64/system/model, psyq libgte*/libapi*/libcard*),
+slus_006.64/system/menu func_8001C76C, stack-switch stubs, convertible.py `insn after .size`
+walls, jump tables in units that do not own them, <15-insn literal-address data words, and
+atfree stubs of non-cdk-G0 units (except park100 and twin lanes).
+Cooldown: a function emitted in the last 12 rounds is skipped; one emitted 3+ times in the same
+class is skipped unless its park % has risen since. History: ~/xw/lane-history.tsv
+(round, unix time, unit, funcs, class, park pcts), or $LANE_HISTORY / --history.
+"""
+import argparse
+import collections
+import glob
+import importlib.util
+import json
+import math
+import os
+import re
+import sys
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(ROOT, "tools", "scripts"))
+import twin_for  # noqa: E402
+
+COOLDOWN = 12
+EVER = 3
+BIG = 350
+ABBREV = {"battle": "b", "battling": "bt", "field": "f", "menu": "m", "world_map": "wm", "lib_gear": "lg",
+          "slus_006.64": "s", "gear_shop_menu": "gs", "shop_menu": "sh", "member_change_menu": "mc",
+          "movie": "mv"}
+CLASS_ORDER = ["park100", "twin", "cluster", "park", "fresh", "big"]
+INSN = re.compile(r"^\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{8}\s*\*/")
+
+
+def _mod(rel):
+    return twin_for._load_module(rel)
+
+
+def history_path(args):
+    return os.path.expanduser(args.history or os.environ.get("LANE_HISTORY") or "~/xw/lane-history.tsv")
+
+
+def read_history(path):
+    """[(round, unit, [funcs], class, [pcts])]"""
+    out = []
+    if os.path.isfile(path):
+        for ln in open(path):
+            p = ln.rstrip("\n").split("\t")
+            if len(p) >= 5 and p[0].isdigit():
+                pcts = p[5].split(",") if len(p) > 5 else []
+                out.append((int(p[0]), p[2], p[3].split(","), p[4], pcts))
+    return out
+
+
+def tracker_round():
+    best = 0
+    try:
+        for ln in open(os.path.join(ROOT, "reports", "TRACKER.md")):
+            m = re.match(r"\| (\d+) \|", ln)
+            if m:
+                best = max(best, int(m.group(1)))
+    except OSError:
+        pass
+    return best
+
+
+def cdk0_units():
+    out = set()
+    text = open(os.path.join(ROOT, "gears.toml")).read()
+    for blk in text.split("[[build_preset]]"):
+        if "gcc-2.7.2-cdk-psx" in blk and re.search(r'gp_flag\s*=\s*"-G0"', blk):
+            out.update(x.rstrip(".") for x in re.findall(r'"([\w./]+?\.)"', blk))
+    return out
+
+
+def preset_text(unit, table):
+    binary = unit.split("/", 1)[0]
+    stripped = unit.split("/", 1)[1] if unit.count("/") > 1 else unit
+    hit = ("Default", "")
+    for name, paths, variables in table:
+        paths = [p.replace("{binary}", binary) for p in paths]
+        if any((unit + ".").startswith(p) or (stripped + ".").startswith(p) for p in paths):
+            hit = (name, variables)
+    name, variables = hit
+    pairs = dict(re.findall(r'(\w+)\s*=\s*"([^"]*)"', variables))
+    if not pairs:
+        return "Default (gcc-2.7.2-psx, -O2 -G8)"
+    parts = [pairs.pop("gcc", "gcc-2.7.2-psx")]
+    parts += ["%s %s" % (k[:-6] if k.endswith("_flags") else k, v) for k, v in pairs.items()]
+    return "%s (%s)" % (name, ", ".join(parts))
+
+
+def owns_tables(binary, unit):
+    try:
+        cfg = open(os.path.join(ROOT, "config", binary + ".yaml")).read()
+    except OSError:
+        return False
+    return re.search(r"\.rodata, %s\]" % re.escape(unit), cfg) is not None
+
+
+def is_finished(unit, func):
+    tail = "/".join(unit.split("/")[-2:])
+    if unit == "slus_006.64/system/model" or (tail.startswith("psyq/") and tail[5:] in (
+            "libgte", "libgte_b", "libapi", "libapi_2", "libapi_3", "libcard", "libcard_b")):
+        return True
+    return unit == "slus_006.64/system/menu" and func == "func_8001C76C"
+
+
+def stub_reason(path, binary, unit):
+    """Why a stub .s must never be briefed, or None."""
+    text = open(path, errors="replace").read()
+    if "Handwritten function" in text:
+        return "handwritten"
+    if re.search(r"\b(sw|sd)\s+\$sp\b", text):
+        return "stack-switch"
+    body = text.splitlines()
+    name = os.path.basename(path)[:-2]
+    size_at = next((i for i, ln in enumerate(body) if re.match(r"\.size\s+%s\b" % re.escape(name), ln)), None)
+    if size_at is not None and any(INSN.match(ln) for ln in body[size_at + 1:]):
+        return "insn-after-size"
+    if ("jtbl" in text or "jlabel" in text) and not owns_tables(binary, unit.split("/", 1)[1]):
+        return "jtbl-not-owned"
+    insns = [ln for ln in body if INSN.match(ln)]
+    if 0 < len(insns) < 15:
+        m = re.match(r"\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+([0-9A-Fa-f]{8})", insns[0])
+        word = int(m.group(1), 16)
+        word = int.from_bytes(word.to_bytes(4, "big"), "little")  # the comment is the raw bytes, little-endian
+        if 0x80000000 <= word < 0x80200000:
+            return "literal-address"
+    return None
+
+
+def census(history_rounds=None):
+    """Every stub with its insns, park, flags: a list of dicts."""
+    c = twin_for._ready()
+    insns = {(it["unit"], it["name"]): len(it["s"]) for it in c["items"] if it["stub"]}
+    parks = twin_for.park_table()
+    atfree = _mod("tools/scripts/atfree.py")
+    cdk0 = cdk0_units()
+    out, seen = [], set()
+    for sp in sorted(glob.glob(os.path.join(ROOT, "src", "**", "*.c"), recursive=True)):
+        unit = os.path.relpath(sp, os.path.join(ROOT, "src"))[:-2]
+        text = open(sp, errors="replace").read()
+        lines = text.split("\n")
+        binary = unit.split("/")[0]
+        stubs = [(m.group(1), m.group(2)) for m in re.finditer(r'INCLUDE_ASM\(\s*"([^"]+)"\s*,\s*(\w+)\s*\)', text)]
+        for n, (asm_dir, name) in enumerate(stubs):
+            if (unit, name) in seen or (unit, name) not in insns:
+                continue
+            seen.add((unit, name))
+            spath = os.path.join(ROOT, asm_dir, name + ".s")
+            if not os.path.isfile(spath):
+                continue
+            pk = parks.get((unit, name))
+            reason = "finished" if is_finished(unit, name) else stub_reason(spath, binary, unit)
+            if reason is None and unit not in cdk0 and atfree.unmatchable(spath):
+                reason = "atfree"
+            noted = False
+            if pk is None:  # a percentage near the stub with no parked body is still an attempt
+                idx = next((i for i, l in enumerate(lines) if "INCLUDE_ASM" in l and
+                            re.search(r"[,\s]%s\s*\)" % re.escape(name), l)), None)
+                if idx is not None:
+                    nxt = next((j for j in range(idx + 1, len(lines)) if "INCLUDE_ASM" in lines[j]), len(lines))
+                    noted = any(re.search(r"\d%", l) for l in lines[idx + 1:nxt])
+            out.append(dict(unit=unit, bin=binary, func=name, insns=insns[(unit, name)], file="src/%s.c" % unit,
+                            asm=asm_dir, parked=pk is not None, pct=pk[0] if pk else None,
+                            note=pk[1] if pk else "", reason=reason, noted=noted))
+    return out
+
+
+def classify(stubs, twin_rows, clusters, items):
+    """Set s['cls'] on each stub (highest class it qualifies for) and attach twin/family."""
+    by = {(s["unit"], s["func"]): s for s in stubs}
+    for s in stubs:
+        s["cls"] = None
+        s["twin"] = None
+        s["family"] = None
+    for r in twin_rows:
+        s = by.get((r["unit"], r["stub"]))
+        if s and (s["bin"] == r["bin"]):
+            s["twin"] = r
+    for g in clusters:
+        names = [(items[i]["unit"], items[i]["name"]) for i in g]
+        for k in names:
+            if k in by:
+                by[k]["family"] = [n for n in names if n != k]
+    for s in stubs:
+        p = s["pct"]
+        if s["parked"] and p is not None and p >= 99.995:
+            s["cls"] = "park100"
+        elif s["twin"]:
+            s["cls"] = "twin"
+        elif s["family"] and not s["parked"]:
+            s["cls"] = "cluster"
+        elif s["parked"]:
+            s["cls"] = "park" if p is not None and p >= 90 else "parked-low"
+        elif s["noted"]:
+            s["cls"] = "noted"
+        else:
+            s["cls"] = "big" if s["insns"] >= BIG else "fresh"
+    return by
+
+
+def cooled(s, cls, history, round_no):
+    """True when the stub may be emitted again in class `cls`."""
+    name = s["func"]
+    ever = []
+    for r, unit, funcs, c, pcts in history:
+        if name not in funcs or r == round_no:
+            continue
+        if r >= round_no - COOLDOWN:
+            return False
+        if c == cls:
+            i = funcs.index(name)
+            ever.append(float(pcts[i]) if i < len(pcts) and pcts[i] not in ("", "-") else None)
+    if len(ever) >= EVER:
+        old = [p for p in ever if p is not None]
+        if s["pct"] is None or not old or s["pct"] <= max(old):
+            return False
+    return True
+
+
+def eligible_stubs(stubs, history, round_no):
+    out = {}
+    for s in stubs:
+        cls = s["cls"]
+        if s["reason"] and not (s["reason"] == "atfree" and cls in ("park100", "twin")):
+            continue
+        if cls not in CLASS_ORDER:
+            continue
+        if cooled(s, cls, history, round_no):
+            out[(s["unit"], s["func"])] = s
+    return out
+
+
+def clean(text):
+    return text.replace("`", "'").replace("${", "$ {")
+
+
+def note_excerpt(s, n=320):
+    note = clean(re.sub(r"\s+", " ", re.sub(r"INCLUDE_ASM\([^)]*\);", "", s["note"]))).strip()
+    return note[:n] + ("..." if len(note) > n else "")
+
+
+def matching_asm(twin, name):
+    rest = twin["twin_unit"].split("/", 1)
+    p = os.path.join("asm", rest[0], "matchings", rest[1] if len(rest) > 1 else "", name + ".s")
+    return p if os.path.isfile(os.path.join(ROOT, p)) else None
+
+
+def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
+    """Build (minutes, extra) for a lane of eligible stubs `funcs` (stub dicts) in one unit."""
+    total = sum(f["insns"] for f in funcs)
+    names = ", ".join("%s (%d insns)" % (f["func"], f["insns"]) for f in funcs)
+    if cls == "park100":
+        minutes = 30 if total < BIG else 60
+        why = "; ".join("%s: %s" % (f["func"], note_excerpt(f, 200)) for f in funcs)
+        extra = ("FREE PARK, probably a stale one: the note beside %s records 100.00 percent, so the body in the file may "
+                 "already match. Un-park it (python3 tools/scripts/park.py unpark %s %s <Func>), compile, run diff_func.sh "
+                 "and confirm MATCH, then check_bin.sh before committing. If it is not 100.00 under the unit's own preset the "
+                 "note's number came from another preset or a pre-edit body: say so, measure the real figure and re-park "
+                 "with it. Note text: %s" % (names, "src/%s.c" % unit, unit.split("/")[-1], why))
+    elif cls == "twin":
+        minutes = 30 if total < BIG else 60
+        bits = []
+        for f in funcs:
+            t = f["twin"]
+            kind = "PORT" if t["strict"] >= 0.98 else "TEMPLATE"
+            tasm = matching_asm(t, t["twin"])
+            if f["parked"]:
+                bits.append("%s also has a park at %s percent beside its stub: start from that body if it is closer" % (
+                    f["func"], "%.2f" % f["pct"] if f["pct"] is not None else "an unrecorded"))
+            bits.append("%s (%d insns) is %s of the matched %s at %s (strict %.3f, loose %.3f, %d of %d raw words identical%s)"
+                        % (f["func"], f["insns"], kind, t["twin"], t["twin_file"], t["strict"], t["loose"], t["same"],
+                           f["insns"], "; diff -u %s against your stub's .s" % tasm if tasm else ""))
+        extra = ("TWIN PORT, not a from-scratch body: " + " | ".join(bits) + ". Read the twin's C first and copy it as the "
+                 "starting body, then adjust callees, constants, global names and struct offsets from the stub's .s (the .s "
+                 "is the authority, the twin is only a template); where the strict ratio is under 1.000 expect the differing "
+                 "blocks to need hand edits. A twin in another overlay calls different functions at different addresses: "
+                 "take callee names from this unit's .s. Commit after each match.")
+    elif cls == "cluster":
+        f = funcs[0]
+        fam = ", ".join("%s (%s)" % (n, u) for u, n in f["family"])
+        minutes = 30 if f["insns"] < BIG else 60
+        extra = ("FAMILY LEADER: %s (%d insns) is the smallest unmatched member of a family of near-identical stubs "
+                 "(each at least 0.90 alike by twin_for.py): %s. Matching it turns every sibling into a PORT lane next "
+                 "round, so write it as plain, cleanly parameterised C and name the constants that differ between "
+                 "the siblings in your report. Run python3 tools/scripts/twin_for.py %s to see the exact ratios."
+                 % (f["func"], f["insns"], fam, f["func"]))
+    elif cls == "park":
+        minutes = 60
+        bits = ["%s at %.2f percent, %d insns (note: %s)" % (f["func"], f["pct"], f["insns"], note_excerpt(f, 240))
+                for f in funcs]
+        extra = ("PARK CONTINUATION, not attempted in the last %d rounds: %s. Un-park first (python3 tools/scripts/park.py "
+                 "unpark %s %s <Func>), watch the COMPILE (diff_func.sh exits 33 with no output when cc1 fails), re-measure "
+                 "before and after each edit, and read the old note for levers already measured so you do not repeat them. "
+                 "Then run the permuter for ten minutes from the exact body (tools/scripts/permute.sh %s <Func> --minutes 10) "
+                 "and hand-port what it finds. If you cannot move it, re-park with the new best and one named cause."
+                 % (COOLDOWN, " | ".join(bits), "src/%s.c" % unit, unit.split("/")[-1], unit))
+        minutes = 60
+    elif cls == "fresh":
+        minutes = 30
+        extra = ("FRESH BODIES: %s - nobody has ever written these: no park, no note, no percentage, so you are transcribing "
+                 "from scratch. Do the smallest first. Read the unit's matched C first for the records and locals it already "
+                 "recovers, then transcribe each .s in address-order phases (prologue, each basic block in address order, "
+                 "tail last) and take callee arity from the callee's definition in src or from "
+                 "python3 tools/scripts/ghidra_info.py <Func>. Commit after each match." % names)
+    else:  # big
+        f = funcs[0]
+        minutes = 90
+        extra = ("DEEP FRESH BODY: %s (%d instructions) has never been written. Start from "
+                 "tools/scripts/m2c_draft.sh %s %s, which prints a decompiler draft: use it as a skeleton, never as the "
+                 "answer. Transcribe in address-order phases (prologue, each basic block in address order, tail last), take "
+                 "callee arity from ghidra_info.py <Func>, and PARK after each phase (python3 tools/scripts/park.py repark "
+                 "with the percentage in the note) and commit, so a kill at minute 90 loses nothing."
+                 % (f["func"], f["insns"], unit, f["func"]))
+    return minutes, extra.replace("<Func>", funcs[0]["func"])
+
+
+def pick(funcs, key, limit, budget):
+    """Up to `limit` funcs in `key` order whose insn total stays within budget (always at least one)."""
+    out, total = [], 0
+    for f in sorted(funcs, key=key):
+        if out and (len(out) >= limit or total + f["insns"] > budget):
+            continue
+        out.append(f)
+        total += f["insns"]
+    return out
+
+
+def candidate_lanes(cls, elig):
+    """Lanes of one class, best first: [(sort key, unit, [stub dicts])]."""
+    per = collections.defaultdict(list)
+    for s in elig.values():
+        if s["cls"] == cls:
+            per[s["unit"]].append(s)
+    lanes = []
+    for unit, fs in per.items():
+        if cls == "park100":
+            chosen = pick(fs, lambda f: f["insns"], 3, 450)
+            lanes.append(((0, sum(f["insns"] for f in chosen)), unit, chosen))
+        elif cls == "twin":
+            chosen = pick(fs, lambda f: (-f["twin"]["strict"], f["insns"]), 3, 450)
+            lanes.append(((-chosen[0]["twin"]["strict"], sum(f["insns"] for f in chosen)), unit, chosen))
+        elif cls == "cluster":
+            chosen = pick(fs, lambda f: f["insns"], 1, 0)
+            lanes.append(((-len(chosen[0]["family"]), chosen[0]["insns"]), unit, chosen))
+        elif cls == "park":
+            hi = [f for f in fs if f["pct"] >= 99]
+            chosen = pick(hi or fs, lambda f: (-f["pct"], f["insns"]), 2, 450)
+            lanes.append(((0 if hi else 1, -chosen[0]["pct"], chosen[0]["insns"]), unit, chosen))
+        elif cls == "fresh":
+            chosen = pick(fs, lambda f: f["insns"], 5, 450)
+            lanes.append(((sum(f["insns"] for f in chosen) / len(chosen),), unit, chosen))
+        else:
+            chosen = pick(fs, lambda f: f["insns"], 1, 0)
+            lanes.append(((chosen[0]["insns"],), unit, chosen))
+    lanes.sort(key=lambda x: x[0])
+    return lanes
+
+
+def make_tag(unit, round_no, used):
+    parts = unit.split("/")
+    last = parts[-1]
+    m = re.match(r"misc(\d.*)$", last)
+    tail = re.sub(r"[^a-z0-9]", "", (m.group(1) if m else last).lower())[:8]
+    base = "r%d-%s%s" % (round_no, ABBREV.get(parts[0], parts[0][:2]), tail)
+    tag, n = base, 0
+    while tag in used:
+        n += 1
+        tag = base + "abcdefgh"[n % 8]
+    used.add(tag)
+    return tag
+
+
+def worker(unit, tag, funcs, cls, table):
+    binary = unit.split("/")[0]
+    minutes, extra = lane_for(unit, funcs, cls, None)
+    sym = "config/symbol_addrs.%s.txt" % binary
+    if binary != "slus_006.64":
+        sym += " plus config/symbol_addrs.slus_006.64.txt"
+    return {
+        "tree": os.path.expanduser("~/xw/r-%s/xenogears-decomp" % tag),
+        "file": funcs[0]["file"],
+        "unit": unit,
+        "asm": funcs[0]["asm"],
+        "binary": binary,
+        "overlay": binary,
+        "preset": preset_text(unit, table),
+        "symbols": sym,
+        "funcs": [f["func"] for f in funcs],
+        "minutes": minutes,
+        "extra": extra,
+    }
+
+
+def plan(args, elig, round_no):
+    kinds = {"auto": CLASS_ORDER, "twin": ["twin", "cluster"], "park": ["park100", "park"],
+             "fresh": ["fresh"], "big": ["big"]}[args.kind]
+    table = list(_mod("tools/scripts/preset_for.py").presets())
+    want = args.lanes + args.queue
+    taken, used, tags, out = set(), set(), set(), []
+    for cls in kinds:
+        for _, unit, funcs in candidate_lanes(cls, elig):
+            if len(out) >= want:
+                break
+            if unit in taken:
+                continue
+            taken.add(unit)
+            tag = make_tag(unit, round_no, tags)
+            out.append((worker(unit, tag, funcs, cls, table), tag, cls, funcs))
+    return out
+
+
+def record(path, round_no, lanes):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    now = int(time.time())
+    with open(path, "a") as f:
+        for w, tag, cls, funcs in lanes:
+            pcts = ",".join("%.2f" % x["pct"] if x["pct"] is not None else "-" for x in funcs)
+            f.write("%d\t%d\t%s\t%s\t%s\t%s\n" % (round_no, now, w["unit"], ",".join(x["func"] for x in funcs), cls, pcts))
+
+
+def stats(stubs, elig):
+    rows = collections.OrderedDict((c, [0, 0, 0, 0]) for c in CLASS_ORDER + ["parked-low", "noted"])
+    excl = collections.Counter()
+    for s in stubs:
+        if s["reason"]:
+            excl[s["reason"]] += 1
+        r = rows.get(s["cls"] if s["cls"] != "park" else "park")
+        if r is None:
+            continue
+        r[0] += 1
+        r[1] += s["insns"] * 4
+        if (s["unit"], s["func"]) in elig:
+            r[2] += 1
+            r[3] += s["insns"] * 4
+    lines = ["pool: %d stubs, %d bytes, %d units; excluded outright: %s"
+             % (len(stubs), sum(s["insns"] * 4 for s in stubs), len({s["unit"] for s in stubs}),
+                ", ".join("%s %d" % kv for kv in excl.most_common()) or "none"),
+             "%-11s %6s %9s %9s %10s" % ("class", "stubs", "bytes", "eligible", "elig bytes")]
+    for c, (n, b, e, eb) in rows.items():
+        lines.append("%-11s %6d %9d %9d %10d" % (c, n, b, e, eb))
+    lines.append("eligible = not excluded and past the cooldown; parked-low (<90%) and noted stubs are never briefed")
+    return "\n".join(lines)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--lanes", type=int, default=6)
+    ap.add_argument("--queue", type=int, default=6)
+    ap.add_argument("--round", type=int)
+    ap.add_argument("--kind", choices=["auto", "twin", "park", "fresh", "big"], default="auto")
+    ap.add_argument("--json", action="store_true", help="print only the JSON object")
+    ap.add_argument("--stats", action="store_true")
+    ap.add_argument("--dry-run", action="store_true", help="do not record in the history log")
+    ap.add_argument("--record", action="store_true", help="record even with --stats/--json (default when not --dry-run)")
+    ap.add_argument("--history", help="history log path (default ~/xw/lane-history.tsv or $LANE_HISTORY)")
+    args = ap.parse_args()
+
+    hpath = history_path(args)
+    history = read_history(hpath)
+    round_no = args.round or 1 + max([tracker_round()] + [h[0] for h in history])
+    stubs = census()
+    rows, clusters, c = twin_for.queue_rows(0.8)
+    classify(stubs, rows, clusters, c["items"])
+    elig = eligible_stubs(stubs, history, round_no)
+    if args.stats:
+        print(stats(stubs, elig))
+        return
+    lanes = plan(args, elig, round_no)
+    if not lanes:
+        sys.exit("nothing eligible for --kind %s" % args.kind)
+    workers = [l[0] for l in lanes[:args.lanes]]
+    queue = [l[0] for l in lanes[args.lanes:]]
+    obj = {"round": "r%d" % round_no, "workers": workers}
+    if queue:
+        obj["queue"] = queue
+    tags = [l[1] for l in lanes]
+    deep = max(w["minutes"] for w in workers)
+    options = {}
+    if queue and deep > 30:
+        options["timeoutMs"] = deep * 60000 * (1 + math.ceil(len(queue) / 2))
+    if args.json:
+        print(json.dumps({"clone_tags": tags, "options": options, "args": obj}, indent=1))
+    else:
+        print("# round %d: %d workers + %d queued%s" % (round_no, len(workers), len(queue),
+                                                      "  (dry run, not recorded)" if args.dry_run else ""))
+        print("# lanes: " + ", ".join("%s %s %s" % (l[1], l[2], ",".join(f["func"] for f in l[3])) for l in lanes))
+        print("tools/rounds/clone.sh new " + " ".join(tags))
+        if len([w for w in workers if w["minutes"] > 30]) > 4:
+            print("# WARNING: more than 4 deep (60+ minute) workers; PROMPT.md caps a deep round at 4 workers")
+        print("subagent({workflow: \"tools/rounds/brief.js\", async: true%s, args: <below>})"
+              % (", options: %s" % json.dumps(options) if options else ""))
+        print(json.dumps(obj, indent=1))
+    if not args.dry_run and (args.record or not args.stats):
+        record(hpath, round_no, lanes)
+
+
+if __name__ == "__main__":
+    main()
