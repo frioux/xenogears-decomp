@@ -3459,16 +3459,16 @@ void func_8008F90C(void) {
     if (frames == 0) {
         frames = 1;
     }
-    *(s32*)&g_Scene.unk98[0x14] = ((x << 16) - *(s32*)&g_Scene.unk98[0x8]) / frames;
-    *(s32*)&g_Scene.unk98[0x18] = ((z << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
-    *(s32*)&g_Scene.unk98[0x1C] = ((y << 16) - *(s32*)&g_Scene.unk98[0xC]) / frames;
-    *(s16*)&g_Scene.unk98[0x2] = frames;
-    *(s16*)&g_Scene.unk98[0x0] = 1;
+    g_Scene.shakeStepX = ((x << 16) - g_Scene.shakeAmplitudeX) / frames;
+    g_Scene.shakeStepY = ((z << 16) - g_Scene.shakeAmplitudeY) / frames;
+    g_Scene.shakeStepZ = ((y << 16) - g_Scene.shakeAmplitudeY) / frames;
+    g_Scene.shakeFrames = frames;
+    g_Scene.shakeActive = 1;
     if (x == 0 && z == 0 && y == 0) {
-        *(s16*)&g_Scene.unk98[0x2] = frames + 2;
-        *(s16*)&g_Scene.unk98[0x4] = 1;
+        g_Scene.shakeFrames = frames + 2;
+        g_Scene.shakeStopWhenFinished = 1;
     } else {
-        *(s16*)&g_Scene.unk98[0x4] = 0;
+        g_Scene.shakeStopWhenFinished = 0;
     }
 }
 */

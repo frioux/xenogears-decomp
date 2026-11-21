@@ -85,10 +85,10 @@ extern FieldScriptGlobalU8 g_FieldClearColorG;
 extern FieldScriptGlobalU8 g_FieldClearColorB;
 
 void FieldScriptVMHandlerSetScrollLimits(void) {
-    g_Scene.unk4C[0] = FieldScriptVMGetInstructionArgumentS16(1);
-    g_Scene.unk4C[1] = FieldScriptVMGetInstructionArgumentS16(3);
-    g_Scene.unk4C[2] = FieldScriptVMGetInstructionArgumentS16(5);
-    g_Scene.unk4C[3] = -FieldScriptVMGetInstructionArgumentS16(7);
+    g_Scene.scrollLimits[0] = FieldScriptVMGetInstructionArgumentS16(1);
+    g_Scene.scrollLimits[1] = FieldScriptVMGetInstructionArgumentS16(3);
+    g_Scene.scrollLimits[2] = FieldScriptVMGetInstructionArgumentS16(5);
+    g_Scene.scrollLimits[3] = -FieldScriptVMGetInstructionArgumentS16(7);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
 
@@ -836,12 +836,12 @@ extern s32 g_FieldEntryStateGate;
 extern s32 g_FieldScriptVMStopFlag;
 
 void FieldScriptVMClearSceneEncounterFlag(void) {
-    g_Scene.unk48 &= 0x7FFF;
+    g_Scene.flags &= 0x7FFF;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 void FieldScriptVMSetSceneEncounterFlag(void) {
-    g_Scene.unk48 |= FIELD_SCENE_ENCOUNTER_FLAG;
+    g_Scene.flags |= FIELD_SCENE_ENCOUNTER_FLAG;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
@@ -849,7 +849,7 @@ void FieldScriptVMClearRandomEncounterFlags(void) {
     g_FieldControl.isRandomEncountersEnabled = 0;
     g_FieldRandomEncounterFlag[0] = 0;
     g_FieldCompassDisabled[0] = 0;
-    g_Scene.unk48 &= 0x3FFF;
+    g_Scene.flags &= 0x3FFF;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
@@ -857,7 +857,7 @@ void FieldScriptVMSetRandomEncounterFlags(void) {
     g_FieldControl.isRandomEncountersEnabled = -1;
     g_FieldRandomEncounterFlag[0] = 1;
     g_FieldCompassDisabled[0] = 1;
-    g_Scene.unk48 |= FIELD_SCENE_RANDOM_ENCOUNTER_FLAGS;
+    g_Scene.flags |= FIELD_SCENE_RANDOM_ENCOUNTER_FLAGS;
     if ((g_FieldMapChangeGate == 0) || (g_FieldEntryStateGate == 0)) {
         g_FieldScriptVMStopFlag = 1; // Stop script VM execution?
         g_FieldScriptVMCurActor->scriptInstructionPointer--;
@@ -1447,7 +1447,7 @@ void FieldResetCurrentActorMovement(void) {
 }
 
 void FieldScriptVMHandlerSetControlAngle(void) {
-    g_FieldControl.unkAngle = FieldScriptVMGetArgument(1);
+    g_FieldControl.angle = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
