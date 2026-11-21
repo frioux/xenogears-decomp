@@ -97,45 +97,15 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     }
     return ret;
 }
-// PARKED (99.68%, 124 bytes = retail's size). Body COMPILES. Round 122: the permuter
-// broke the old 95.32 wall. The `u8 value = sum;` copy retail materialises
-// (`addu v1,v0,zero`) DOES appear once the clamp's store sits in two branches -
-// `if (sum || sum) { value = 0x64; } else { value = 0x64; }` - because two store
-// sites stop gcc 2.7.2 coalescing value into the sum pseudo. Also load-bearing:
-// sum is `short` (s32 instead mirrors the two lbu), the byte sum is two statements
-// (`sum = p[0x14]; sum = sum + q[0x5B];`), and q is formed index-first
-// (`(u8*)(arg0 * 0x170) + (u32)g_BattleCurWorkBlock`) for retail's `addu a2,a2,a3`.
-// Only remaining diff, one register: retail `addu v0,v0,v1` + `move v1,v0`, here
-// `addu a0,v0,v1` + `move v1,a0`. Everything else matches, including both lbu
-// (retail p byte in v0, q byte in v1). sum's home is a0, the lowest free reg,
-// where retail kept it in v0.
-// Tried this round: u8 sum (loses the copy, 95.65), u_short sum (addu into a1,
-// 99.03), s32 sum with the split (lbu mirror a1/v0, 99.03), s32 with value loaded
-// first (98.39), one-expression sum with the duplicate store (98.06), value/sum
-// declaration order swapped (no change). Permuter rounds this session, base/best
-// score: 60/40 (split the sum), 40/20 (short sum), 20/10 (the sum || sum condition).
-// Round 123: an 8-minute permuter run from this exact body (base=10, best=10,
-// 3886 iterations) found nothing, and neither did 15 hand shapes. The pattern is
-// that a merged accumulator (u16/s32 sum, or a one-expression sum, or u8 temps
-// feeding an s32 'a + b') gives retail's two-address 'addu d,d,s' shape but puts
-// the accumulator in a1/v1, while the HImode two-statement form (this body) is the
-// only one that gets retail's two lbu (p byte v0, q byte v1) yet then needs a
-// separate home for sum (a0). `short sum = p[0x14];` written mid-block is an
-// INVALID body on this preset: gcc 2.6.0 exits 33 (mixed declarations), diff_func
-// then prints only the objdiff line and no diff at all.
-// Round 169 (re-measured): 99.68%, 124 bytes = retail's. cdk is 95.97 here, so the
-// pending cdk split would LOSE this function; do not switch the unit for it. New
-// finding about the remaining tie: the ONE-expression form `short sum = p[0x14] +
-// q[0x5B];` does give retail's in-place two-address add (`addu v1,v1,v0`, exact
-// 124-byte multiset, 98.39%) but coalesces sum with the dying p-pointer register
-// (v1) instead of a fresh one, and moves value to a0; the two-statement form below
-// gets the loads right (p byte v0, q byte v1) and loses only sum's home. So the
-// whole remaining gap is one allocator choice: retail's p-byte load went to a
-// FRESH v0 rather than reusing the base register that dies at it. A 3-minute
-// permuter run from the one-expression body (base=50 best=10, 1404 iterations)
-// walked straight back to the two-statement body below - i.e. it agrees this is
-// the floor. Shapes measured this round: swapped add operands (no change), a `u8
-// pbyte` temp (7 registers off, 98.39), the one-expression sum (98.39).
+// PARKED (99.68%, 124 bytes = retail's size). Body COMPILES. Re-measured round 369:
+// unchanged, and the whole residual is ONE instruction pair. Retail's `rand`-free tail is
+// `lbu v0,p[0x14] / lbu v1,q[0x5B] / addu v0,v0,v1 / move v1,v0` - the sum coalesces onto the
+// DYING p-byte register v0 - while this compiler gives the sum a fresh a0 and copies from
+// there. So the loads, the `move v1,v0` (the u8 `value` taking the freed q-byte register), the
+// `u8` clamp test and the `andi` return all match; only sum's home differs. The one-expression
+// `sum = p[0x14] + q[0x5B]` DOES coalesce (98.39%) but onto the wrong operand's register.
+// Four permuter runs across rounds 122/123/169/369 (best 10-40) and 20+ hand shapes have not
+// moved it: it is the allocator's choice between two free registers, not a source shape.
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
@@ -369,46 +339,6 @@ s32 BattleIsCharacterInParty(u8 arg0) {
 // operands swap. `i = 0` sits before the fourth test and `i++` leads the loop body: gcc sinks
 // a loop-initialiser written anywhere else down to the loop, and these two positions are
 // retail's fourth-bne delay slot (`addu $a3,zero,zero`) and its loop body head.
-void func_8009A854(u8 arg0, u8 arg1) {
-    u8* p = (u8*)(arg0 * 16 + 0x54F8) + (u32)g_BattleCurWorkBlock;
-    u8 id = p[6];
-    u8 row = arg1;
-    u8 i;
-
-    if (((u8*)&g_GameState)[0x502] == id) {
-        row = 0;
-    }
-    if (((u8*)&g_GameState)[0x50A] == id) {
-        row = 1;
-    }
-    if (((u8*)&g_GameState)[0x512] == id) {
-        row = 2;
-    }
-    if (((u8*)&g_GameState)[0x51A] == id) {
-        row = 3;
-    }
-    *(u8*)((u8*)&g_GameState + 0x500 + row * 8) = p[0xC];
-    *(u8*)((u8*)&g_GameState + 0x4FF + row * 8) = p[0xB];
-    *(u8*)((u8*)&g_GameState + 0x4FE + row * 8) = p[0xA];
-    *(u8*)((u8*)&g_GameState + 0x4FF + row * 8) = p[0xB];
-    ((u8*)&g_GameState)[0x56B + row] = arg0;
-    g_GameState.gearPartsIds[0x6C + arg0] = p[3];
-    ((u8*)&g_GameState)[0x56B + row] = arg0;
-    for (i = 0; i < 3; i++) {
-        u8* q = (u8*)(i * 0x170 + (u32)g_BattleCurWorkBlock);
-
-        if (q[0x56] == 4) {
-            u8* r = q + row * 8;
-
-            r[4] = p[0xC];
-            r[3] = p[0xB];
-            r[2] = p[0xA];
-            r[3] = p[0xB];
-            q[0x6F + row] = arg0;
-        }
-    }
-}
-*/
 void func_8009A854(u8 arg0, u8 arg1) {
     s32 off;
     u8* p;
