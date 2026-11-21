@@ -215,9 +215,12 @@ void MenuClearSubMenuChoiceFlags(void) {
     }
 }
 void MenuSetSubMenuChoiceStringVertices(void) {
+    // Unused stack that rounds the frame up to retail's 0x60 (0x50 and 99.98 without it)
     u8 pad[0x48];
 
     MenuLoadSubMenuChoiceStrings(0);
+    // Each store re-forms the prim address from g_Menu, so the sum stays inline: a
+    // POLY_FT4* local is 496 bytes/65.41 and polys[renderContext] 660 bytes/93.62.
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16 + D_801E9E94[g_Menu->subMenuChoice][0];
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
     (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x1 = D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16 + D_801E9E94[g_Menu->subMenuChoice][0] + g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width;
@@ -286,9 +289,9 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
 
     // Wait for the three character panels to finish tweening in
-    while (!((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].isComplete
-        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].isComplete
-        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].isComplete) {
+    while (!((MenuWindowTween*)g_Menu->windowTweens)[0].isComplete
+        && !((MenuWindowTween*)g_Menu->windowTweens)[1].isComplete
+        && !((MenuWindowTween*)g_Menu->windowTweens)[2].isComplete) {
         for (i = 0; i < 3; i++) {
             characterId = g_Menu->pManager->currentCharacterIDs[i];
             if (characterId != CHARACTER_ID_NONE) {
@@ -304,18 +307,18 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
 
     if (isCreate) {
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startX = 0x60;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startY = 6;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startX = 0x68;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startY = 0x3E;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startX = 0x70;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startY = 0x76;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetX =
-            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetY = 0;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetX =
-            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetY = 0;
-        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetX =
-            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetY = 0;
+        ((MenuWindowTween*)g_Menu->windowTweens)[0].startX = 0x60;
+        ((MenuWindowTween*)g_Menu->windowTweens)[0].startY = 6;
+        ((MenuWindowTween*)g_Menu->windowTweens)[1].startX = 0x68;
+        ((MenuWindowTween*)g_Menu->windowTweens)[1].startY = 0x3E;
+        ((MenuWindowTween*)g_Menu->windowTweens)[2].startX = 0x70;
+        ((MenuWindowTween*)g_Menu->windowTweens)[2].startY = 0x76;
+        ((MenuWindowTween*)g_Menu->windowTweens)[0].offsetX =
+            ((MenuWindowTween*)g_Menu->windowTweens)[0].offsetY = 0;
+        ((MenuWindowTween*)g_Menu->windowTweens)[1].offsetX =
+            ((MenuWindowTween*)g_Menu->windowTweens)[1].offsetY = 0;
+        ((MenuWindowTween*)g_Menu->windowTweens)[2].offsetX =
+            ((MenuWindowTween*)g_Menu->windowTweens)[2].offsetY = 0;
         for (i = 0; i < 3; i++) {
             characterId = g_Menu->pManager->currentCharacterIDs[i];
             if (characterId != CHARACTER_ID_NONE) {
