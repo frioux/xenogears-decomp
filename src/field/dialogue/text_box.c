@@ -226,6 +226,19 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C154);
    its own addu reg,s1,s0; this gcc always combines those givs into the walker,
    which also frees the register it then spends hoisting the constant 2. Same
    wall as field/main/main.c FieldLoadUITextures (87.32%).
+   Round 374 re-measured 81.50 (940 of 960) and added one fact about WHERE the
+   three addu come from: retail's `sll $s0,$s2,4` (i * 0x10) is CSEd into ONE
+   register and the three `addu reg,s1,s0` in each call are created AFTER cse,
+   by loop.c's emit_iv_add_mult - it decided the sum `pRects + i * 0x10` is not
+   worth a register (short live range, big loop body) and recomputed it at every
+   use, while this gcc keeps it. So the source cannot spell them: the walker
+   form (pRect->x for the first field only) was re-measured at 79.71 / 956
+   bytes, which is the note's 79.79 - it buys the walker (s4 = s1, +0x10 in the
+   loop tail) but the other three fields still read off one register, and it
+   costs the s8 spill. Nothing else to try from source short of loop.c's
+   register-benefit model, so it stays a park.
+*/
+/*
 s32 func_8009C154(s32 faceId) {
     FieldPortraitTIMRect* pRects;
     u_long* pTimData;
@@ -391,6 +404,8 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C5A8);
    again (99.42); `y = screenY; y = y + 0x30;` regresses the else arm (99.82);
    an empty `do { } while (0);` before the mode test changes nothing; a
    4-minute permuter run gave PERMUTER_NONE, base 200 -> best 200.
+   Round 374 re-measured the un-parked body: still 99.87% at retail's exact
+   1872 bytes, one differing instruction (the bne slot above), 469 insns.
    Mechanism: cse walks from the flags store straight into the block after the
    mode tests (that label has a single use), so two 0x94 assignments to `y` in
    this arm can never both survive; retail's extra copy is a reorg fill this
