@@ -954,6 +954,112 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 
+// Best attempt: 99.18% at the original's exact 2044 bytes. Everything structural matches -
+// the five block copies, the per-actor record (rotation+flags, status, SpriteSaveAnimState,
+// ActorData, pTargetTrack, pScriptArgs), the 0x800 script memory copy, the gearRide loop and
+// the SAVESIZE printf. What is left is register permutation only (no instruction differs):
+// the original keeps the block base in v1 and each chunk's cursor sum in v0, this build puts
+// the base in v0 and the sum in a1; the tail keeps &g_WorldMapSaveBlock in s1 where we use
+// v1; the per-actor loop loads g_FieldActors before D_800AFC50 where we load it after; and
+// the first copy's actor address comes out base-first. Measured and rejected: a pSave local
+// for the head base, pDst as two statements vs the embedded assignment at every site (only
+// the two loop sites want the embedded form - the five chunk sites regress), -O3/-G0.
+// Four permuter runs (3/6/7/8 min) took base 1728 -> 521 -> 360 -> 310 -> 280 and found the
+// two real levers that are below: the g_FieldScriptMemory pointer local (without it gcc
+// rematerialises la sym+0x800 and the copy's end pointer is two instructions instead of one)
+// and the embedded-assignment form for the two per-actor cursor bumps.
+// Needs psyq/memory.h for the unprototyped memcpy, and the ActorData copy is sizeof(ActorData)
+// (0x138: gcc's block move emits the 0x130 loop plus an 8-byte tail).
+/*
+extern u8 g_WorldMapSaveBlock[];
+extern u8* D_800AFC50;
+extern s32 g_FieldActiveActorCount;
+extern s32 D_8005A408[3];
+extern u_int* g_FieldWalkmeshMaterialFlags;
+extern VECTOR g_CameraEye;
+extern u8 g_FieldScreenEffectData[];
+extern char D_8006FD9C[]; // "SAVESIZE=%d %x\n"
+extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
+
+// Saves the field state the world map overwrites into the block after
+// g_WorldMapSaveBlock, one memcpy per state block, and back into D_8005A408.
+// FieldScriptVMSaveAnimStates (func_800A3C8C) is the reverse.
+void func_800A3F4C(void) {
+    ActorData* pActorData;
+    void** pScriptMemory;
+    u8* pDst;
+    s32 nStatus;
+    s32 nSaveSize;
+    s32 nSystemMode;
+    int i;
+
+    D_800AFC50 = g_WorldMapSaveBlock;
+    pDst = 4 + g_WorldMapSaveBlock;
+    g_WorldMapSaveBlock[0] = g_FieldNumActors;
+    D_800AFC50 = pDst;
+    memcpy(pDst, g_FieldScreenEffectData, 0x38);
+
+    pDst = D_800AFC50 + 0x38;
+    pScriptMemory = &g_FieldScriptMemory;
+    D_800AFC50 = pDst;
+    memcpy(pDst, (u8*)&g_Scene + 0xC4, 0x74);
+
+    pDst = D_800AFC50 + 0x74;
+    D_800AFC50 = pDst;
+    memcpy(pDst, g_FieldWalkmeshMaterialFlags, 0x400);
+
+    pDst = D_800AFC50 + 0x400;
+    D_800AFC50 = pDst;
+    memcpy(pDst, &g_FieldEffects, 0x2E4);
+
+    pDst = D_800AFC50 + 0x2E4;
+    D_800AFC50 = pDst;
+    memcpy(pDst, &g_CameraEye, 0x1C8);
+
+    D_800AFC50 += 0x1C8;
+
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        memcpy(D_800AFC50, &g_FieldActors[i].rotation, 8);
+        nStatus = (u_short)g_FieldActors[i].status;
+        pDst = (D_800AFC50 = D_800AFC50 + 8);
+        memcpy(pDst, &nStatus, 4);
+
+        pDst = (D_800AFC50 = D_800AFC50 + 4);
+        SpriteSaveAnimState(g_FieldActors[i].pSpriteData, pDst);
+
+        pDst = D_800AFC50 + 0x30;
+        D_800AFC50 = pDst;
+        memcpy(pDst, g_FieldActors[i].pActorData, sizeof(ActorData));
+
+        pDst = D_800AFC50 + 0x138;
+        D_800AFC50 = pDst;
+        pActorData = g_FieldActors[i].pActorData;
+        if (pActorData->flags134 & 0x80) {
+            memcpy(pDst, pActorData->pTargetTrack, 0xC);
+            D_800AFC50 += 0xC;
+        }
+        pActorData = g_FieldActors[i].pActorData;
+        if (pActorData->flags12C_0xD) {
+            memcpy(D_800AFC50, pActorData->pScriptArgs, 0x10);
+            D_800AFC50 += 0x10;
+        }
+    }
+
+    memcpy(D_800AFC50, pScriptMemory, 0x800);
+    D_800AFC50 += 0x800;
+
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        D_8005A408[i] = g_pGameState->gearRide[i];
+    }
+
+    nSystemMode = g_FieldSystemMode;
+    nSaveSize = D_800AFC50 - g_WorldMapSaveBlock;
+    if (nSystemMode == 0) {
+        func_800379C8(D_8006FD9C, D_800AFC50 - g_WorldMapSaveBlock, D_800AFC50 - g_WorldMapSaveBlock);
+    }
+}
+*/
+
 void FieldCopyScreenToFadeTexture(void) {
     FieldCopyScreenToVram(0x2c0,0x100);
 }
