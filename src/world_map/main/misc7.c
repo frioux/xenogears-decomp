@@ -12,6 +12,16 @@
 #define WORLD_MAP_FADE_LEVEL_MAX 0x40
 #define WORLD_MAP_FADE_LEVEL_MIN 2
 
+// The shade the fade quads are built with and reset to when a fade ends, and the shade
+// their RGB channels ramp up to (the fast fade steps by 4, so it stops one step short).
+#define WORLD_MAP_SHADE_NEUTRAL 0x80
+#define WORLD_MAP_SHADE_MAX 0xFF
+#define WORLD_MAP_SHADE_MAX_STEP4 0xFC
+
+// Bit 1 of a primitive code byte: the primitive is drawn semi-transparent
+// (same define as misc9.c)
+#define WORLD_MAP_PRIM_CODE_SEMI_TRANS 0x2
+
 // the map display buffer copied into VRAM when a mode initialises, and the VRAM
 // position it is copied to
 #define WORLD_MAP_SCREEN_WIDTH 320
@@ -28,6 +38,10 @@
 
 // the SPU's maximum volume, which SoundPlayAudioManager takes as its volume
 #define SPU_VOL_MAX 0x7F
+
+// frames SoundSetAudioManagerVolumeWithFade takes to reach silence
+// (same define as misc6.c)
+#define WORLD_MAP_SOUND_FADE_OUT_FRAMES 240
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -590,7 +604,8 @@ s32 WorldMapUpdateSlotState(s32 index) {
         pSlot->state = 1;
         break;
     case 0x3F:
-        SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
+        SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0,
+                                           WORLD_MAP_SOUND_FADE_OUT_FRAMES);
         WorldMapStartSlot(0, 0xD);
         g_WorldMapTpageAbr = 2;
         g_WorldMapDrawMode = 4;
@@ -781,10 +796,10 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
         pSlot->state = 0;
         pPrim = pEntry->pPackets[g_WorldMapPrimPacketIndex];
         for (i = 0; i < pEntry->pModel->polyCount; i++, pPrim++) {
-            pPrim->code &= ~2;
-            pPrim->r0 = 0x80;
-            pPrim->g0 = 0x80;
-            pPrim->b0 = 0x80;
+            pPrim->code &= ~WORLD_MAP_PRIM_CODE_SEMI_TRANS;
+            pPrim->r0 = WORLD_MAP_SHADE_NEUTRAL;
+            pPrim->g0 = WORLD_MAP_SHADE_NEUTRAL;
+            pPrim->b0 = WORLD_MAP_SHADE_NEUTRAL;
         }
         break;
     }
@@ -793,10 +808,10 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
             pSlot->unk50 += 1;
             pSlot->unk54 += 1;
             pSlot->unk58 += 1;
-            if (pSlot->unk50 >= 0xFF) {
-                pSlot->unk58 = 0xFF;
-                pSlot->unk54 = 0xFF;
-                pSlot->unk50 = 0xFF;
+            if (pSlot->unk50 >= WORLD_MAP_SHADE_MAX) {
+                pSlot->unk58 = WORLD_MAP_SHADE_MAX;
+                pSlot->unk54 = WORLD_MAP_SHADE_MAX;
+                pSlot->unk50 = WORLD_MAP_SHADE_MAX;
                 pSlot->state = 0;
             }
         }
@@ -851,8 +866,8 @@ s32 WorldMapInitScaledGroupSlot(s32 index) {
             pSlot->unk50 += 4;
             pSlot->unk54 += 2;
             pSlot->unk58 += 1;
-            if (pSlot->unk50 >= 0xFC) {
-                pSlot->unk50 = 0xFC;
+            if (pSlot->unk50 >= WORLD_MAP_SHADE_MAX_STEP4) {
+                pSlot->unk50 = WORLD_MAP_SHADE_MAX_STEP4;
                 pSlot->state = 0;
             }
         }
@@ -879,14 +894,14 @@ s32 WorldMapInitFadePrims(s32 index) {
     WorldMapFadeQuad *pQuad;
     s32 i;
 
-    ppQuadBuffers[0] = HeapAlloc(0x1E00, 0);
-    D_8009D15C = HeapAlloc(0x1E00, 0);
-    g_WorldMapFadeTable = HeapAlloc(0x180, 0);
+    ppQuadBuffers[0] = HeapAlloc(WORLD_MAP_FADE_ENTRY_COUNT * sizeof(WorldMapFadeQuad), 0);
+    D_8009D15C = HeapAlloc(WORLD_MAP_FADE_ENTRY_COUNT * sizeof(WorldMapFadeQuad), 0);
+    g_WorldMapFadeTable = HeapAlloc(WORLD_MAP_FADE_ENTRY_COUNT * sizeof(u16), 0);
     i = 0;
     level = 9;
     code = 0x2C;
     pQuad = (WorldMapFadeQuad *)ppQuadBuffers[0];
-    shade = 0x80;
+    shade = WORLD_MAP_SHADE_NEUTRAL;
     for (; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
         pQuad->code = code;
         pQuad->unk3 = level;
@@ -1105,7 +1120,7 @@ s32 WorldMapFillFadeTable(s32 index) {
     case 5:
         pFill = g_WorldMapFadeTable;
         // s16 local, not a literal: retail materialises the 2 once before the loop
-        level = 2;
+        level = WORLD_MAP_FADE_LEVEL_MIN;
         for (i = WORLD_MAP_FADE_ENTRY_COUNT - 1; i >= 0; i--) {
             *pFill++ = level;
         }
