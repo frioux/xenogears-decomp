@@ -954,29 +954,24 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 
-// Best attempt: 99.26% at the original's exact 2044 bytes, 22 of 511 instructions differing.
-// Everything structural matches - the five block copies, the per-actor record (rotation+flags,
-// status, SpriteSaveAnimState, ActorData, pTargetTrack, pScriptArgs), the 0x800 script memory
-// copy, the gearRide loop and the SAVESIZE printf. The residual is register permutation only,
-// in three places:
-//   1. the head block: retail puts the save-block base in v1 and the first chunk cursor in v0;
-//      this build swaps them (v0/v1), which cascades into the movstr's alignment `or` operand
-//      order (retail or v0,a3,a2 vs ours or v0,a2,a3). Base has 3 refs in that block and the
-//      cursor 2, so local_alloc allocates the base first and it takes the lower register.
-//      Rejected: pDst defined before the base store (2040 bytes), the cursor store embedded
-//      (`pDst = (g_WorldMapSaveCursor = 4 + block)`, 2040 bytes), a pSave local for the head.
-//   2. the per-actor loop loads g_FieldActors AFTER g_WorldMapSaveCursor; retail loads it first.
-//      Rejected: hoisting `pActorData = g_FieldActors[i].pActorData;` above the cursor read
-//      (2052 bytes), and every one-statement spelling of the pActorData copy.
-//   3. the SAVESIZE tail keeps &g_WorldMapSaveBlock in s1 where this build uses v1.
-// Six permuter runs (3/6/7/8/12/12 min) on this body went 1728 -> 521 -> 360 -> 310 -> 280 ->
-// 250 -> 240 and found two real levers, both below: the g_FieldScriptMemory pointer local
-// (without it gcc rematerialises la sym+0x800 and the copy's end pointer is two instructions
-// instead of one) and the embedded-assignment form for the two per-actor cursor bumps (the
-// five chunk sites regress with it). The 240 candidate's other two edits are dead code
-// (a new_var assigned inside the memcpy argument, an if (1) block) - not shipped.
-// Needs psyq/memory.h for the unprototyped memcpy, and the ActorData copy is sizeof(ActorData)
-// (0x138: gcc's block move emits the 0x130 loop plus an 8-byte tail).
+// PARKED 99.26% at retail's exact 2044 bytes: 511 insns on both sides, 22 differing, every one of
+// them a register preference. Retail merges each `cursor + N` sum into the register already holding
+// the loaded cursor (`lw v0,cursor / addiu v0,v0,116 / move a3,v0`), so no extra pseudo exists and
+// $3 stays free for the tail's &g_WorldMapSaveBlock (retail keeps it in s1, we use v1). Our build
+// keeps the load in v0 and the sum in a fresh v1 at the four middle chunk sites, swaps base and
+// cursor temp in the head block (retail base v1 / sum v0), loads g_FieldActors after the cursor
+// read in the actor loop (retail loads it first), and puts src first in the script-memory copy's
+// alignment `or` (retail: dst first). The actor loop's 0x30 site DOES tie in place on both sides,
+// so the tie itself is reachable; the four chunk sites simply do not.
+// Measured and rejected this round: `pDst = cursor; pDst += N;` 99.10 (68 lines), cursor store
+// moved after the memcpy 93.23 (2024 bytes, 506 insns), nSaveSize passed to the SAVESIZE printf
+// with the two tail statements swapped 98.94 (2048 bytes), gcc-2.6.0 98.88, gcc-2.7.2-cdk
+// compile-failed, reordered local declarations no change. Permuter from this body, 3 min, 1273
+// iterations: base=240 best=240, no lead; six earlier runs (3/6/7/8/12/12 min) also ended at 240.
+// Rejected by an earlier round and kept here so it is not retried: pDst defined before the base
+// store (2040), embedded cursor store `pDst = (g_WorldMapSaveCursor = 4 + block)` (2040), a pSave
+// local for the head, hoisting pActorData above the cursor read (2052), every one-statement
+// spelling of the pActorData copy.
 /*
 extern u8 g_WorldMapSaveBlock[];
 extern u8* g_WorldMapSaveCursor;
@@ -987,6 +982,7 @@ extern VECTOR g_CameraEye;
 extern u8 g_FieldScreenEffectData[];
 extern char D_8006FD9C[]; // "SAVESIZE=%d %x\n"
 extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
+extern void *memcpy();
 
 // Saves the field state the world map overwrites into the block after
 // g_WorldMapSaveBlock, one memcpy per state block, and back into g_SavedGearRide.
