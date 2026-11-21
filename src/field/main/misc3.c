@@ -435,8 +435,10 @@ typedef struct {
 } FieldVector3; // Size: 0x10
 
 // The default spawn orientation the loader copies onto the stack for the actors
-// it creates (misc3's only .rodata item).
-const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};
+// it creates (misc3's only .rodata item). Commented out while FieldLoad is a
+// stub, because the stub's own .s supplies this object; an unpark must restore
+// it or the unit loses its 0x10 bytes of .rodata.
+// const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};
 
 // The 0x100-byte block the loader copies into the sprite placement table
 typedef struct {
@@ -574,6 +576,37 @@ extern u8 g_FieldModelSlotScratch[];
 // first arguments of the two FieldSetMatrix calls and the RotMatrix are
 // displacements off ONE base, i.e. g_FieldModelSlotScratch .. g_FieldMotionSlotSteps
 // is one object in the source too.
+// PARKED 80.99% at retail's EXACT 3484 bytes and instruction count (871/871).
+// The frame is 0x98 against retail's 0xA0 and the saved set is s0-s4 against
+// retail's s0-s5, so one long-lived value is still in a caller-saved register
+// (that one 8-byte frame gap plus its sw/lw pair is the whole remaining byte
+// budget: everything else is register choice or store order inside twenty small
+// regions). Nothing structural is left - every jal count, every branch and the
+// total instruction count match retail. Region residuals, largest first:
+//   - walkmesh header: retail derives &triangles/&vertices from ONE base
+//     register (&g_FieldWalkmeshMaterialFlags, +4/+0x14) where we materialise the
+//     g_FieldWalkmeshTriangles and g_FieldWalkmeshVertices symbols separately
+//     (2 instructions). Spelling the three pointer fields as a struct whose base
+//     IS g_FieldWalkmeshMaterialFlags reproduces it, but then D_800AFD10 loses
+//     the two %hi/%lo loads retail has, so both spellings measure 3484.
+//   - screen-effect config zeroing (~0x1C..0x2C): retail mixes s2-relative stores
+//     with D_800B00xx absolute ones; our order emits two of the byte clears
+//     (unk1D/unk1E) absolute where retail reaches them off s2.
+//   - final actor loop: retail copies i into $a0 in the model arm's `j` delay
+//     slot and leaves pSpawn's +2 in the jal slot; ours swaps the two.
+//   - the spawn loop's t[]/childMatrix pairs need the `value` local (one load,
+//     two stores - without it gcc reloads *pSpawn per store, +3 instructions).
+// MEASURED LEVERS that closed the last lane's residuals, keep them:
+//   - the three t[] pairs want a value temp, not two pSpawn[] reads;
+//   - `if ((status & 0x40) == 0) { model } else { invisible }` (retail's
+//     invisible arm is OUT of line, so the test must be the inverted form);
+//   - the walkmesh counts divide is `*pWord++ / 14`, NOT `(x >> 1) / 7`: retail's
+//     0x92492493 magic is gcc's /14 expansion (pre-shift by 1 then mulhi >> 2);
+//   - D_800AFD10 = g_FieldWalkmeshTriangles[0] - g_FieldWalkmeshMaterialFlags
+//     (a pointer difference, so gcc emits subu + sra 2) is a STATEMENT the
+//     previous body was missing entirely - worth 8 instructions;
+//   - the walkmesh header words 1..7 are one continuous *pWord++ walk.
+/*
 void FieldLoad(void) {
     FieldActor* pActor;
     FieldActorModelData* pModel;
@@ -828,4 +861,6 @@ void FieldLoad(void) {
             }
         }
     }
-}
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldLoad);
+
