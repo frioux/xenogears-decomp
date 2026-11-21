@@ -234,7 +234,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
    1520). Both arms of the g_BattleSlotFlags branch show it. Measured and worse:
    swapping the C operand order (91.00, 816), splitting the sum into two
    statements `off = (c + K) * 40; off = off + arg0 * 1520;` (98.33, 828), a named
-   local for `off`, and the index inlined into the load (93.68, 804). */
+   local for `off`, and the index inlined into the load (93.68, 804).
+   Round 369 re-measured 99.90 (824 b, the only diff is the two arms' `addu`
+   destination) and found that tie IS movable: giving the else arm its own offset
+   local (`s32 entryOff;`) or inlining the `& 7` into its `sel` makes BOTH arms
+   retail's `addu v1,v1,v0`, but the 0xFF fill loop's constant pair then flips
+   (`li v0,0xFF` / `li v1,0x8B8` against retail's v1/v0): 824 b, 6 insns, 99.83.
+   Allocation is coupled across the blocks (the fill loop is a separate block and
+   still moves), so the two ties cannot be closed one at a time from source. */
 /*
 void func_8008ADD0(u8 arg0) {
     s32 off;
@@ -692,7 +699,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
    `g_BattleCursorScrollY = (j + 1) * 13; j++; i--;` is what reproduces
    retail's per-arm `andi v1,(u8)j; addiu v1,v1,1` plus the -1 shared by
    states 2 and 4 (writing `j++; ... scrollY = j * 13;` gives the
-   rematerialised `andi v1,(u8)j` at the shared tail and is 5 insns short). */
+   rematerialised `andi v1,(u8)j` at the shared tail and is 5 insns short).
+   Round 369: the missing `li s0,1` is local-alloc's constant reuse of the
+   register already holding 1 (pagePending's s4). A source local for the 7th
+   argument (`s32 pageCount = 1;`, passed to both calls) does not break it -
+   identical 1156 b - and a cc1 probe of the same two-call shape reuses the
+   register every time, so the `sw s4` spelling is what gcc 2.6.0 does with a
+   literal 1 when a live register already holds it. */
 /*
 u8 func_8008BED8(u8 arg0) {
     u8 i;
