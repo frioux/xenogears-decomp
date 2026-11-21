@@ -5,6 +5,11 @@
 #define WORLD_MAP_GRID_CELL_COUNT 81
 #define WORLD_MAP_GRID_WIDTH 9
 #define WORLD_MAP_TILE_SECTOR_SIZE 0x710
+#define WORLD_MAP_COORD_WRAP 0x800000
+#define WORLD_MAP_SLOT_WRAP_Z_LOW 1
+#define WORLD_MAP_SLOT_WRAP_Z_HIGH 2
+#define WORLD_MAP_SLOT_WRAP_X_LOW 4
+#define WORLD_MAP_SLOT_WRAP_X_HIGH 8
 
 extern VECTOR g_WorldMapClipPlaneAxisY;
 extern VECTOR g_WorldMapClipPlaneAxisX;
@@ -64,43 +69,34 @@ void WorldMapComputeClipPlaneVectors(void) {
     OuterProduct0(&g_WorldMapClipPlaneAxisX, &g_WorldMapClipPlaneDirYPos, &g_WorldMapClipPlaneYZ1);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);
-/* 93.98%, body is 240 bytes like retail: only the register names of the 0x800000
-   constant and of the y local are swapped (retail y=a2, const=a0; ours y=a0,
-   const=a2), an allocator tie - 4 decl/init orders all give the same pairing.
-   Shapes that are now right and must stay: x and y are BOTH locals loaded before
-   the g_WorldMapSlotUpdateFlags store (that is the retail top: x load, z load, li, sh);
-   the x branch writes p->x = x + / - 0x800000 (a += reloads and emits a
-   per-branch flag store); the y branch reads the y local but reloads p->z for
-   the store; the tail reloads through a y temp (y = p->x; g_WorldMapGridOrigin = (y >> 23) + 2;
-   y = p->z; D_8009C83C = (y >> 23) + 2;) - the direct form instead lets gcc hoist
-   the second load into the first load's delay slot and defer both stores (59 insns, 236 bytes).
 void func_800980D4(WorldMapMisc16Struct* p) {
     s32 y;
     s32 x;
+    s32 z;
+
     x = p->x;
-    y = p->z;
+    z = p->z;
     g_WorldMapSlotUpdateFlags = 0;
-    if (x < -0x800000) {
-        p->x = x + 0x800000;
-        g_WorldMapSlotUpdateFlags = 4;
-    } else if (x > 0x800000) {
-        p->x = x - 0x800000;
-        g_WorldMapSlotUpdateFlags = 8;
+    if (x < -WORLD_MAP_COORD_WRAP) {
+        p->x = x + WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags = WORLD_MAP_SLOT_WRAP_X_LOW;
+    } else if (x > WORLD_MAP_COORD_WRAP) {
+        p->x = x - WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags = WORLD_MAP_SLOT_WRAP_X_HIGH;
     }
-    if (y < -0x800000) {
-        p->z += 0x800000;
-        g_WorldMapSlotUpdateFlags |= 1;
-    } else if (y > 0x800000) {
-        p->z -= 0x800000;
-        g_WorldMapSlotUpdateFlags |= 2;
+    if (z < -WORLD_MAP_COORD_WRAP) {
+        p->z += WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags |= WORLD_MAP_SLOT_WRAP_Z_LOW;
+    } else if (z > WORLD_MAP_COORD_WRAP) {
+        p->z -= WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags |= WORLD_MAP_SLOT_WRAP_Z_HIGH;
     }
     y = p->x;
     g_WorldMapGridOrigin = (y >> 23) + 2;
-    y = p->z;
+    /* the z re-read has to stay below the store above it */
+    y = *(volatile s32*)&p->z;
     D_8009C83C = (y >> 23) + 2;
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
 /* 96.44%: same instructions in the same order, only the register names differ
    (retail col=a3 row=t1 w=t2 dst=t0 bound=t3 colBase=t3 pGrid=a0 colCur=a3 off=a1;
