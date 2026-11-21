@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 #include "battle/battle_work.h"
+#include "battle/actor.h"
 
 // The colour ramp the pulse triangles fade along: the whole word is stepped,
 // the low byte is the shade written into the triangle vertices.
@@ -267,7 +268,7 @@ void BattleRenderSlotStatDigits(void) {
             g_BattleDisplayState->statSpriteCount[i] = 0;
             g_BattleDisplayState->valueSpriteCount[i] = 0;
             flagOfs = i * 8; // also what keeps retail's sll in the 0x7F test's delay slot
-            if (g_BattleSlotActorIds[offset] != 0x7F) {
+            if (g_BattleSlotActorIds[offset] != BATTLE_SLOT_CHARACTER_NONE) {
                 BattleRenderActorValueDigits(i);
                 value = func_80072F38(i, g_BattleSlotFlags[flagOfs]);
                 if (g_BattleSlotFlags[flagOfs] != 0) {
