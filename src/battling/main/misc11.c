@@ -171,28 +171,6 @@ typedef struct {
 extern s32 BattleSetGaugeBarPrimColor(BattlingGaugeState *pState, POLY_F4 *pPrim);
 extern void BattleQueueGaugeBarPrims(u8 *pOt, void *pBase, s32 value, s32 flag);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
-/* Best 99.75%, at retail's exact size (1412 bytes). Everything matches but one
-   register pair, twice per function, inside the two fade loops: retail keeps the
-   reloaded fade byte in $v0 and the multiplied value in $v1
-   (lbu v0,194 / sll v1,v0,8 / subu v1,v1,v0 / sra v1,v1,8 / addu v1,a1,v1 /
-   sb v1,428), gcc 2.7.2 gives the mirror image (lbu v1 ... sb v0,428). Same
-   instruction multiset, same byte count, 17 instruction diffs.
-   Load-bearing shapes found on the way: the fade reload must be the loop's first
-   statement (else the bar pointer takes $v1 and the reload $a0); the narrow u8
-   copy of the brightness produces retail's 'move a3,a1'; and one variable reused
-   for the segment count, the bar position and the loop counter is what puts the
-   bar pointer in $a0, the count in $s2 and gives retail's six saved registers
-   (without it the body is 8 bytes short). Also needed: the multiply as its own
-   local, and the fade colour block's invariants written inside the loop so loop
-   invariant motion hoists them after the 'i = 0' initialisation.
-   Two permuter runs (4 and 3 minutes; 1702 and 1068 iterations) found nothing
-   better (second run PERMUTER_NONE, base=90 best=90). Not a preset question:
-   gcc-2.7.2-cdk scores 95.46 on this body.
-   The 0x310 layout below is confirmed by func_80085EC8, which initialises the
-   same block, and by misc10's parked func_800868E0. g_BattleBarTexV (a byte at
-   g_BattleScreenWidth + 4) is not in any symbol file yet, so the body needs
-   'g_BattleBarTexV = 0x80092860;' in config/symbol_addrs.battling.txt to link.
 void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     BattlingGaugeEnv *pEnv;
     POLY_FT4 *pPacket;
@@ -200,7 +178,6 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     s32 fade;
     s32 bright;
     s32 half;
-    s32 scaledFade;
     u8 barBright;
 
     pEnv = &g_BattleDrawEnvPair[g_BattleDrawBufferIndex];
@@ -267,14 +244,13 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     if (arg0->fade != 0) {
         fade = 0x100 - arg0->fade;
         for (i = 0; i < 3; i++) {
+            u8 fadeByte = arg0->fade;
             bright = (fade * 3) >> 3;
             barBright = bright;
             half = fade >> 1;
-            scaledFade = arg0->fade;
-            scaledFade *= 0xFF;
             pEnv->barBack[i].g0 = barBright;
             pEnv->barBack[i].b0 = half;
-            pEnv->barBack[i].r0 = bright + (scaledFade >> 8);
+            pEnv->barBack[i].r0 = bright + ((fadeByte * 0xFF) >> 8);
         }
         BattleQueueGaugeBarPrims(g_BattleRootOrderingTable, &pEnv->barBack[0], arg0->barLength, 0);
     }
@@ -282,14 +258,13 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     if (arg1->fade != 0) {
         fade = 0x100 - arg1->fade;
         for (i = 3; i < 6; i++) {
+            u8 fadeByte = arg1->fade;
             bright = (fade * 3) >> 3;
             barBright = bright;
             half = fade >> 1;
-            scaledFade = arg1->fade;
-            scaledFade *= 0xFF;
             pEnv->barBack[i].g0 = barBright;
             pEnv->barBack[i].b0 = half;
-            pEnv->barBack[i].r0 = bright + (scaledFade >> 8);
+            pEnv->barBack[i].r0 = bright + ((fadeByte * 0xFF) >> 8);
         }
         BattleQueueGaugeBarPrims(g_BattleRootOrderingTable, &pEnv->barBack[3], arg1->barLength, 1);
     }
@@ -299,8 +274,6 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     }
     AddPrim(g_BattleRootOrderingTable, &pEnv->tpage[0]);
 }
-*/
-
 void BattleInitDrawEnvPair(void) {
     func_80085EC8(g_BattleDrawEnvPair);
     g_BattleDrawEnvPair[1] = g_BattleDrawEnvPair[0];
