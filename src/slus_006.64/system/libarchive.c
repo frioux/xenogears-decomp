@@ -19,6 +19,14 @@ extern void GfxDrawArchiveReadRetry(int, int, int, int);
 extern int ArchiveDecodeSizeAligned(int entryIndex);
 extern s16 g_ArchiveDebugStreamSectionCount;
 extern s8* g_ArchiveStreamWritePointer;
+
+// Stream file: the section count, then a section table of `sectionCount` entries.
+// The payload starts STREAM_FILE_HEADER_SIZE past the count, so the table has room
+// for its first entries inside the header.
+typedef struct {
+    /* 0x0 */ s32 sectionCount;
+    /* 0x4 */ ArchiveStreamFileSectionHeader sections[1];
+} ArchiveStreamFileHeader;
 extern u16 g_ArchiveStreamNextSectionId;
 extern u8 g_ArchiveSectorScratch[];
 extern s32 g_ArchiveDebugStreamSector;  // debug stream: sector buffer being split
@@ -364,20 +372,20 @@ void* ArchiveChangeStreamingFile(void* pStreamFile) {
 }
 
 int ArchiveClearStreamFileSections(void) {
+    ArchiveStreamFileHeader* pStream;
     int nEntries;
     int i;
-    void* pStreamData;
     ArchiveStreamFileSectionHeader* pCurSectionHeader;
     ArchiveStreamFileSectionHeader* pSectionHeaderStart;
 
-    pStreamData = g_ArchiveCurStreamFile;
-    if (pStreamData == NULL) {
+    pStream = g_ArchiveCurStreamFile;
+    if (pStream == NULL) {
         return -1;
     }
     
     i = 0; 
-    nEntries = *(int*)pStreamData;
-    pSectionHeaderStart = (ArchiveStreamFileSectionHeader*)(pStreamData + 4);
+    nEntries = pStream->sectionCount;
+    pSectionHeaderStart = pStream->sections;
     
     pCurSectionHeader = pSectionHeaderStart;
     while (i < nEntries) {
@@ -756,9 +764,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  * }
  */
 
-u_short ArchiveReleaseStreamBlock(u_char* pSection) {
-    u_char* pStream;
-    u_char* pStreamEnd;
+u_short ArchiveReleaseStreamBlock(ArchiveStreamFileSectionHeader* pSection) {
+    ArchiveStreamFileHeader* pStream;
+    u_char* pStreamData;
     ArchiveStreamFileSectionHeader* pSectionHeader;
     u32 nIndex;
     u16 nState;
@@ -771,17 +779,17 @@ u_short ArchiveReleaseStreamBlock(u_char* pSection) {
         return 0;
     }
 
-    pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
-    pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
-    nIndex = (u32)(pSection - pStreamEnd) >> 11;
+    pSectionHeader = pStream->sections;
+    pStreamData = (u_char*)pStream + pStream->sectionCount * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+    nIndex = (u32)((u_char*)pSection - pStreamData) / CD_SECTOR_SIZE;
     nState = pSectionHeader[nIndex].state;
     pSectionHeader[nIndex].state = 0;
     return nState;
 }
 
-u_short ArchiveReleaseStreamSection(u_char* pSection) {
-    u_char* pStream;
-    u_char* pStreamEnd;
+u_short ArchiveReleaseStreamSection(ArchiveStreamFileSectionHeader* pSection) {
+    ArchiveStreamFileHeader* pStream;
+    u_char* pStreamData;
     ArchiveStreamFileSectionHeader* pSectionHeader;
     u32 nIndex;
     u16 nState;
@@ -796,10 +804,10 @@ u_short ArchiveReleaseStreamSection(u_char* pSection) {
         return 0;
     }
 
-    nCount = *(u16*)(pSection + 6);
-    pSectionHeader = (ArchiveStreamFileSectionHeader*)(pStream + 4);
-    pStreamEnd = pStream + *(s32*)pStream * 8 + 0x24;
-    nIndex = (u32)(pSection - pStreamEnd) >> 11;
+    nCount = pSection->unk2;
+    pSectionHeader = pStream->sections;
+    pStreamData = (u_char*)pStream + pStream->sectionCount * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+    nIndex = (u32)((u_char*)pSection - pStreamData) / CD_SECTOR_SIZE;
     nState = pSectionHeader[nIndex].state;
 
     while (nCount > 0) {
