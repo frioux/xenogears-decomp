@@ -2,6 +2,8 @@
 #include "field/actor.h"
 #include "battle/actor.h"
 #include "psyq/libgpu.h"
+#include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 #include "system/animation.h"
 
 // The 0x20-byte timer work-list task BattleQueueActorSlotTask and BattleAnimTaskAllocArchiveEntry
@@ -86,6 +88,24 @@ extern SVECTOR D_800C3730;
 extern SVECTOR g_BattleDrawScaleX;
 extern u8 g_BattleSlotDrawSuppressed;
 extern u8 g_BattleStateWork[];
+
+extern IVEC3 *D_800D39EC;
+extern s32 D_800C3738;
+extern s16 D_800C373C;
+
+// The battle animation frame: the two group reference vectors the slot vectors are
+// cued towards (g_BattleAnimGroupStates is that pair), the rotation built from their
+// difference and the distance between them.
+typedef struct {
+    /* 0x00 */ s32 unk0;
+    /* 0x04 */ SVECTOR groupA;
+    /* 0x0C */ SVECTOR groupB;
+    /* 0x14 */ SVEC rotation;
+    /* 0x1A */ u16 unk1A;
+    /* 0x1C */ s32 distance;
+} BattleAnimFrame; // Size: 0x20
+
+extern BattleAnimFrame D_800D309C;
 
 // The three actor-slot spawn positions the slot allocator hands out, one pair each.
 typedef struct {
@@ -357,6 +377,111 @@ void func_800BB9D4(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BBAB8);
+// best 99.16% at retail's exact 1064 bytes: every instruction, every branch and the
+// frame are retail's, and the ONLY residual is the frame address used for the depth-cue
+// vector - retail writes it at 0x10(sp) where this body's cueVec lands at 0x20(sp) (six
+// displacements, no other difference). Retail's stack layout is 0x10 for the cue vector
+// AND for the case-3 SVECTOR pair, then unused 16-byte holes at 0x20, 0x30 and 0x50 with
+// the tail's VECTORs at 0x40 and 0x60, so the cue vector shares a slot with the case-3
+// temporaries. This cc1 only reuses a slot between sibling BLOCK-scoped locals: moving
+// the case-3 vectors and cueVec into nested blocks made them share 0x60 and pushed the
+// tail to 0x70 (99.05), and declaring the tail's VECTORs at function scope puts them
+// first at 0x10 with the block temps after. Two spares are what reproduce the 0x40/0x60
+// tail offsets; a third plus block scoping on the switch/if locals is the shape that
+// would close it. Two findings that ARE retail's: the switch needs `case 0: break;` for
+// cc1 to emit retail's beq/slti/beq/beq chain instead of a pivot-2 tree, and the
+// fixed-point reads are `IVEC3` words shifted (gcc's store-high-part peephole turns
+// `sh (sra (lw p) 16)` into retail's `lh 2/6/A`).
+/*
+void func_800BBAB8(void) {
+    SVECTOR vecA;
+    SVECTOR vecB;
+    s32 cueVec[3];
+    VECTOR spareA;
+    VECTOR delta;
+    VECTOR spareB;
+    VECTOR square;
+    IVEC3 *pSource;
+    s16 *pStates;
+    s32 horizLen;
+
+    switch (g_BattleAnimState) {
+    case 0:
+        break;
+    case 1:
+        func_800BC460(g_BattleAnimStateId);
+        break;
+    case 2:
+        g_BattleAnimGroupStates[0] = g_BattleAnimPositionGroupA.x >> 16;
+        g_BattleAnimGroupStates[1] = g_BattleAnimPositionGroupA.y >> 16;
+        g_BattleAnimGroupStates[2] = g_BattleAnimPositionGroupA.z >> 16;
+        g_BattleAnimGroupStates[4] = g_BattleAnimPositionGroupB.x >> 16;
+        pStates = g_BattleAnimGroupStates + 4;
+        pStates[1] = g_BattleAnimPositionGroupB.y >> 16;
+        pStates[2] = g_BattleAnimPositionGroupB.z >> 16;
+        break;
+    case 3:
+        pSource = D_800D39EC;
+        vecA.vx = pSource->x >> 16;
+        vecB.vx = vecA.vx;
+        vecA.vy = pSource->y >> 16;
+        vecA.vz = pSource->z >> 16;
+        // the angle sweeps the second vector off the first along the y/z plane
+        vecB.vz = vecA.vz - rsin(D_800C373C) * D_800C3738 / 4096;
+        vecB.vy = vecA.vy - rcos(D_800C373C) * D_800C3738 / 4096;
+        D_800D309C.groupA = vecB;
+        D_800D309C.groupB = vecA;
+        break;
+    }
+
+    if (g_BattleAnimStateFlags == 1) {
+        // the depth cue value scales the gap, so a small gap does not move the slot
+        gte_lddp(g_BattleGteDepthCueValue);
+        cueVec[0] = D_800D309C.groupA.vx - g_BattleSlotVectors.vx;
+        cueVec[1] = D_800D309C.groupA.vy - g_BattleSlotVectors.vy;
+        cueVec[2] = D_800D309C.groupA.vz - g_BattleSlotVectors.vz;
+        gte_ldlvl(cueVec);
+        gte_gpf12();
+        gte_stlvl(cueVec);
+        if ((cueVec[0] | cueVec[1] | cueVec[2]) != 0) {
+            g_BattleSlotVectors.vx += cueVec[0];
+            g_BattleSlotVectors.vy += cueVec[1];
+            g_BattleSlotVectors.vz += cueVec[2];
+        } else {
+            g_BattleSlotVectors.vx = D_800D309C.groupA.vx;
+            g_BattleSlotVectors.vy = D_800D309C.groupA.vy;
+            g_BattleSlotVectors.vz = D_800D309C.groupA.vz;
+        }
+        cueVec[0] = D_800D309C.groupB.vx - D_800D335C.vx;
+        cueVec[1] = D_800D309C.groupB.vy - D_800D335C.vy;
+        cueVec[2] = D_800D309C.groupB.vz - D_800D335C.vz;
+        gte_ldlvl(cueVec);
+        gte_gpf12();
+        gte_stlvl(cueVec);
+        if ((cueVec[0] | cueVec[1] | cueVec[2]) != 0) {
+            D_800D335C.vx += cueVec[0];
+            D_800D335C.vy += cueVec[1];
+            D_800D335C.vz += cueVec[2];
+        } else {
+            D_800D335C.vx = D_800D309C.groupB.vx;
+            D_800D335C.vy = D_800D309C.groupB.vy;
+            D_800D335C.vz = D_800D309C.groupB.vz;
+        }
+    }
+
+    // the frame's rotation and distance are built from the slot vectors' gap
+    delta.vx = D_800D335C.vx - g_BattleSlotVectors.vx;
+    delta.vy = D_800D335C.vy - g_BattleSlotVectors.vy;
+    delta.vz = D_800D335C.vz - g_BattleSlotVectors.vz;
+    Square0(&delta, &square);
+    horizLen = SquareRoot0(square.vx + square.vz);
+    D_800D309C.distance = SquareRoot0(square.vx + square.vy + square.vz);
+    D_800D309C.rotation.y = -ratan2(delta.vz, delta.vx);
+    D_800D309C.rotation.x = -ratan2(delta.vy, horizLen);
+    D_800D309C.rotation.z = 0;
+}
+*/
+
 void BattleFreeAnimTask(AnimTask *pTask) {
     SpriteData *pSprite;
 
