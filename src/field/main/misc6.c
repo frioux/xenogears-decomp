@@ -961,8 +961,6 @@ typedef struct {
 } FieldSpriteDataBlob;
 
 extern s32 g_FieldPartyActorSlots[];
-extern s32 D_8005A448;
-extern s32 D_8005A44C;
 
 // The non-void return type is required: declared void, cc1 (reorg) moves `sll
 // v0,v1,1` into the `beq nActorIndex,0xFF` delay slot instead of a `nop`.
