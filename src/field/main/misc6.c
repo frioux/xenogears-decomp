@@ -47,6 +47,13 @@ extern s16 g_Unknown_800B2344;
 
 #define FIELD_ENCOUNTER_HOLD_FRAMES 0x20 // Frames a held confirm repeats as a press
 #define FIELD_TEXTBOX_COUNT 4
+// Script variables holding a party member's stored map id and position: three per
+// member (map, x, z), six apart, the first member's map at 0x2A.
+#define FIELD_SCRIPT_VAR_PARTY_MAP(member) (0x2A + (member) * 6)
+#define FIELD_SCRIPT_VAR_PARTY_X(member) (FIELD_SCRIPT_VAR_PARTY_MAP(member) + 2)
+#define FIELD_SCRIPT_VAR_PARTY_Z(member) (FIELD_SCRIPT_VAR_PARTY_MAP(member) + 4)
+// The two consecutive archive entries a model slot streams.
+#define FIELD_ARCHIVE_MODEL_ENTRY 0x6BA
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0xA = 0x1;
@@ -904,19 +911,19 @@ void FieldScriptPartyMemberDisembarkGear(void) {
 void FieldScriptResetPartyMemberPosition(int partyMemberIndex) {
     switch (partyMemberIndex) { 
         case 0:
-            FieldScriptMemoryWriteU16(0x2A, g_GameSceneMapNum & 0xFFF);
-            FieldScriptMemoryWriteU16(0x2C, 0);
-            FieldScriptMemoryWriteU16(0x2E, 0);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_MAP(0), g_GameSceneMapNum & 0xFFF);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_X(0), 0);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_Z(0), 0);
             break;
         case 1:
-            FieldScriptMemoryWriteU16(0x30, g_GameSceneMapNum & 0xFFF);
-            FieldScriptMemoryWriteU16(0x32, 0);
-            FieldScriptMemoryWriteU16(0x34, 0);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_MAP(1), g_GameSceneMapNum & 0xFFF);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_X(1), 0);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_Z(1), 0);
             break;
         case 2:
-            FieldScriptMemoryWriteU16(0x36, g_GameSceneMapNum & 0xFFF);
-            FieldScriptMemoryWriteU16(0x38, 0);
-            FieldScriptMemoryWriteU16(0x3A, 0);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_MAP(2), g_GameSceneMapNum & 0xFFF);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_X(2), 0);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_Z(2), 0);
             break;
     }
 }
@@ -961,6 +968,8 @@ extern s32 D_8005A44C;
 // v0,v1,1` into the `beq nActorIndex,0xFF` delay slot instead of a `nop`.
 // position is 16.16 fixed point, so halves 1 and 5 are the integer vx and vz
 // that the script variables hold; no ActorData field names those halfwords.
+// The slot-table pointer local is load-bearing: reading g_FieldPartyActorSlots
+// inline instead is 95.63% at 620 bytes.
 int FieldScriptWritePartyMemberPosition(int partyMemberIndex) {
     s32* pActorSlots;
     s32 nActorIndex;
@@ -976,19 +985,19 @@ int FieldScriptWritePartyMemberPosition(int partyMemberIndex) {
     nWalkmeshFlags = pActorData->walkmeshId << 14;
     switch (partyMemberIndex) {
         case 0:
-            FieldScriptMemoryWriteU16(0x2A, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
-            FieldScriptMemoryWriteU16(0x2C, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[1]);
-            FieldScriptMemoryWriteU16(0x2E, ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[5]);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_MAP(0), (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_X(0), ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[1]);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_Z(0), ((s16*)&g_FieldActors[pActorSlots[0]].pActorData->position)[5]);
             break;
         case 1:
-            FieldScriptMemoryWriteU16(0x30, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
-            FieldScriptMemoryWriteU16(0x32, ((s16*)&g_FieldActors[D_8005A448].pActorData->position)[1]);
-            FieldScriptMemoryWriteU16(0x34, ((s16*)&g_FieldActors[D_8005A448].pActorData->position)[5]);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_MAP(1), (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_X(1), ((s16*)&g_FieldActors[pActorSlots[1]].pActorData->position)[1]);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_Z(1), ((s16*)&g_FieldActors[pActorSlots[1]].pActorData->position)[5]);
             break;
         case 2:
-            FieldScriptMemoryWriteU16(0x36, (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
-            FieldScriptMemoryWriteU16(0x38, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[1]);
-            FieldScriptMemoryWriteU16(0x3A, ((s16*)&g_FieldActors[D_8005A44C].pActorData->position)[5]);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_MAP(2), (g_GameSceneMapNum & 0xFFF) | nWalkmeshFlags);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_X(2), ((s16*)&g_FieldActors[pActorSlots[2]].pActorData->position)[1]);
+            FieldScriptMemoryWriteU16(FIELD_SCRIPT_VAR_PARTY_Z(2), ((s16*)&g_FieldActors[pActorSlots[2]].pActorData->position)[5]);
             break;
     }
 }
@@ -996,19 +1005,19 @@ int FieldScriptWritePartyMemberPosition(int partyMemberIndex) {
 void FieldScriptReadPartyMemberPosition(s32 arg0, s32* arg1, s32* arg2, s32* arg3) {
     switch (arg0) {
         case 0:
-            *arg1 = FieldScriptVMGetVariableValue(0x2A);
-            *arg2 = FieldScriptVMGetVariableValue(0x2C);
-            *arg3 = FieldScriptVMGetVariableValue(0x2E);
+            *arg1 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_MAP(0));
+            *arg2 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_X(0));
+            *arg3 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_Z(0));
             break;
         case 1:
-            *arg1 = FieldScriptVMGetVariableValue(0x30);
-            *arg2 = FieldScriptVMGetVariableValue(0x32);
-            *arg3 = FieldScriptVMGetVariableValue(0x34);
+            *arg1 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_MAP(1));
+            *arg2 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_X(1));
+            *arg3 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_Z(1));
             break;
         case 2:
-            *arg1 = FieldScriptVMGetVariableValue(0x36);
-            *arg2 = FieldScriptVMGetVariableValue(0x38);
-            *arg3 = FieldScriptVMGetVariableValue(0x3A);
+            *arg1 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_MAP(2));
+            *arg2 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_X(2));
+            *arg3 = FieldScriptVMGetVariableValue(FIELD_SCRIPT_VAR_PARTY_Z(2));
             break;
     }
 }
@@ -1139,6 +1148,8 @@ void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
     pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
     if (partyId != -1) {
         func_80076AC0(g_FieldCurActorIndex, partyId, g_PartyDataBuffers[partyId], 2, 0, partyId, 1);
+        // g_FieldActors is volatile: the offset plus a fresh base load is retail's
+        // shape, and &g_FieldActors[i] hoists the base above the call (96.42%).
         nOffset = g_FieldCurActorIndex * sizeof(FieldActor);
         pStatusActor = (FieldActor*)(nOffset + (s32)g_FieldActors);
         nStatus = pStatusActor->status;
@@ -1308,6 +1319,8 @@ void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
+// The wrapper struct is load-bearing: with a plain `extern s16` cc1 puts the actor
+// base in $a0 with an extra nop and coalesces the `addiu 3` into the sum (75.67%).
 typedef struct { s16 value; } FieldScriptGlobalS16;
 extern FieldScriptGlobalS16 g_FieldGearObjectCapacity;
 
@@ -1369,7 +1382,6 @@ extern void LibGearFreeModel(int modelIndex);
 
 void FieldScriptVMHandlerReleaseActorModel(void) {
     ActorData* pActor;
-    s32* pCounter;
     s32 nModelIndex;
 
     pActor = g_FieldScriptVMCurActor;
@@ -1382,8 +1394,7 @@ void FieldScriptVMHandlerReleaseActorModel(void) {
             break;
         case 1:
             LibGearFreeModel(pActor->flags12C_0xE);
-            pCounter = g_FieldActorModelSlotCount;
-            (*pCounter)--;
+            g_FieldActorModelSlotCount[0]--;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
     }
@@ -1444,12 +1455,12 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
             LibGearFreeModel(g_FieldScriptVMCurActor->flags12C_0xE);
             nArg = FieldScriptVMGetArgument(5);
             D_800B21DC[nSlot] = nArg * 2;
-            D_800B2394[0].archiveIndex = nArg * 2 + 0x6BA;
-            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + 0x6BA), 0);
+            D_800B2394[0].archiveIndex = nArg * 2 + FIELD_ARCHIVE_MODEL_ENTRY;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY), 0);
             D_8005A420[nSlot] = (s32)pBuffer;
             D_800B2394[0].pData = pBuffer;
-            D_800B2394[1].archiveIndex = D_800B21DC[nSlot] + 0x6BB;
-            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + 0x6BB), 1);
+            D_800B2394[1].archiveIndex = D_800B21DC[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY + 1;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY + 1), 1);
             D_8005A450[nSlot] = (s32)pBuffer;
             D_800B2394[1].pData = pBuffer;
             D_800B2394[2].archiveIndex = 0;
@@ -1460,7 +1471,7 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
 
         case 2:
             if (ArchiveCdDataSync(1) == 0) {
-                FieldScriptVMGetArgument(2);
+                FieldScriptVMGetArgument(2); // the original calls it and drops the result
                 nOffset = nSlot + g_FieldActorModelSpriteRow[nSlot];
                 func_801E742C(nSlot, 0, D_8005A420[nSlot], D_8005A450[nSlot],
                     (s16)(0x240 - (nOffset << 6)), 0x100, 0,
