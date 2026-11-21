@@ -22,7 +22,8 @@ typedef struct {
 // The leading 0x1C bytes of include/system/model.h's ModelPart, as
 // ModelRenderPacket/ModelInitializePacket read a model part.
 typedef struct {
-    /* 0x00 */ int flags;
+    /* 0x00 */ u_short flags;
+    /* 0x02 */ u_short pad2;
     /* 0x04 */ u_short polyCount;
     /* 0x06 */ u_short nodeCount;
     /* 0x08 */ void *pVertices;
