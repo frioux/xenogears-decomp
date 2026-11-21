@@ -302,6 +302,23 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
    nothing (base=710 best=710). Retail's offset init lands after the giv inits,
    ie offset's init is not in the loop's entry block either; no source shape
    tried made gcc emit a biv initialiser after loop.c's preheader insertions.
+   Round 379 re-measured from THIS body, all at 672 bytes: init comma order
+   swapped (97.58, identical diff) / j = 0 as its own statement before a
+   for (offset = 0; ...) (97.58, identical) / the offset increment moved to the
+   end of the body instead of the for-latch (97.58, identical) / u32 offset
+   (97.23) / offset != 0x1974 (96.87, the slti becomes li+bne) / offset = j *
+   STRIDE as the first body statement (92.46, 680, needs an extra $s7). A
+   1706-iteration permuter run from this 97.58 body found nothing (base=120
+   best=120). The mechanism is now clear and it is not reachable from source:
+   retail's order [hoist s6][giv s3][giv s5][giv s4][biv s2] means BOTH loop.c's
+   hoisted invariant AND the giv inits were inserted ahead of the biv's
+   initialiser, whereas a front-end offset = 0 always sits before anything
+   loop.c inserts (three cc1_probe replica loops put a front-end biv init first
+   every time). So retail's biv initialiser was itself emitted by
+   strength_reduce, which only happens when loop.c creates a new register for
+   the biv - and j must stay dead for that (any shape that keeps j live is
+   668/680 bytes with an extra saved register). Parked at 97.58 with retail's
+   exact 672 bytes / 168 instructions, one displaced pair.
    The body below is the 97.58 one.
 void func_801E61B0(void) {
     s32 i;
