@@ -5,8 +5,14 @@
    in v0 and the result in v1, which is why each wrapper shifts its arguments
    down one register and turns a non-zero status into -1.
 
-   All four wrappers end in the same 8-word select, and all four are still
-   INCLUDE_ASM for the same reason (see the note above PCopen). */
+   Retail's tail is `beqz v0,L; addu v0,v1,zero; addiu v0,zero,-1; L: jr ra`:
+   the select with the value copy in the branch's own delay slot. gcc lays it
+   out that way only when the status is compared against a local holding 0 and
+   the -1 arm ends in a dead `do { } while` loop; without the loop, jump
+   optimisation inverts the branch and the copy becomes the fall-through
+   (`bnez v0; li v0,-1; move v0,v1`), the same six words in the other order.
+   PCcreate and _SN_read below are matched that way; PCopen and PClseek are the
+   same six words and their parked bodies below predate the find. */
 /* 84.38%: the argument shifting matches and the branch is the right way round
    (`beqz v0`); only the tail differs. Retail is `beqz v0,L; addu v0,v1,zero;
    addiu v0,zero,-1; L: jr ra; nop` - the value copy sits in the delay slot of a
@@ -59,22 +65,22 @@ void PCclose(int fd) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PClseek);
 
 
-/* 99.38%, decomp-permuter score 5 (base 165, then 2023 iters from 5: NONE): retail is a select, beqz v0, addu v0,v1,zero, addiu v0,zero,-1. The body below reproduces retail exactly except that the branch tests value ($v1, the copy source) instead of status ($v0). Retail needs the branch operand and the copy source in different registers, which needs a real copy statement (so the returned pseudo gets $v0) whose condition survives copy propagation - and gcc folds value==status into a branch on $v1. Every honest select form (ret=value then if, if/else, ternary, separate ret, register asm("$2")) is 84.38% or worse with li v1,-1 and the copy after jr. Semantic note: this body branches on value rather than status, which is not what retail does. */
-/* int PCcreate(char *pathname, int mode) {
+int PCcreate(char *pathname, int mode) {
+    register int status asm("$2");
     int value;
-    int status;
+    int noError;
 
     __asm__ volatile("move $5, %2\n\tmove $6, $zero\n\tbreak 258"
                      : "=r"(status), "=r"(value) : "r"(pathname));
-    value = status;
-    status = value != 0;
-    if (status)
-        value = -1;
-    status = value;
-    return status;
+    noError = 0;
+    if (status != noError) {
+        return -1;
+        do {
+        } while (noError); /* dead: keeps the -1 arm as the fall-through */
+    } else {
+        return value;
+    }
 }
-*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCcreate);
 
 int PCinit(void) {
     __asm__ volatile("break 257");
@@ -122,14 +128,14 @@ int PCread(int fd, char *buff, int len) {
 int _SN_read(int fd, int cmd, int nbytes, char *buff) {
     register int status asm("$2");
     int value;
-    int new_var;
+    int noError;
 
     __asm__ volatile("break 261" : "=r"(status), "=r"(value));
-    new_var = 0;
-    if (status != new_var) {
+    noError = 0;
+    if (status != noError) {
         return -1;
         do {
-        } while (new_var);
+        } while (noError); /* dead: keeps the -1 arm as the fall-through */
     } else {
         return value;
     }
