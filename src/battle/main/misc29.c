@@ -81,7 +81,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
 // every store through it differs. Next lever: build the record base in two
 // statements (round-291 &g_Array[i] note), and check the poly uv order (retail
 // writes u1,u2,v0,v2 shared and only u0/v1 per pass, the pass-0 arm repeating its
-// `lbu 0x54(sp)` load).
+// `lbu 0x54(sp)` load). NOTE: this body does NOT build as un-parked by park.py - the
+// BattleEffectSprite typedef and the D_800C35C4 extern live inside the same park
+// block and are deleted with it, so a fresh attempt has to declare them again first.
+// Re-measured from the un-parked body: 73.66% / 1092 bytes against retail's 275
+// instructions / 1100 (two short). Retail's inner loop keeps blockOffset (0x70),
+// rowBytes (0x64), the two row offsets (0x68/0x6C), col<<4 (0x54) and the two
+// pass z values (0x58/0x5C) in stack slots and reloads them per sprite, so the
+// record base is `pWork + lw 0x70(sp) + lw 0x64(sp) + ((col<<5)-col)<<2`.
 /*
 // One spawned effect sprite of the block func_800B7424 fills: the two textures it
 // draws (POLY_FT3s of the same tile), the 16.16 position the matrix pass measures,
@@ -247,20 +254,6 @@ extern void BattleUnloadActorArchive(void);
 extern int *ArchiveAllocStreamFile(int numEntries, int allocMode);
 extern void func_80029EB0(int, int *, int, int, short, short, short, short, short, short);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C34);
-// 99.93% (608 bytes = retail's exact size). One instruction differs: retail's
-// call-argument index ends `or a0,a0,v0` (the AC word is the or's destination),
-// ours ends `or a0,v0,a0`. Everything else, including both 0xA8/0xAC load pairs
-// (retail computes the index twice, once for the mask and once for the call) and
-// the sh in the jal delay slot, is retail's.
-// Measured spellings: AC-left at both sites 95.18 (swaps the loads), A8-left at
-// both 93.93, mask A8-left + call AC-left 95.76, AC-left on the AC field without
-// the (u32) cast 98.47, index in two locals 95.68 (one computation, 584 bytes).
-// A 3-minute permuter run found nothing (base=10 best=10).
-/*
-// Loads the stage's actor archive and its stream file, then takes the slot state the
-// archive's chunk header asks for: variant 1 frees every slot, 2 and 3 free all but
-// the acting one. The actor archive buffer is kept for the teardown to free.
 void func_800B7C34(s32 stage) {
     RECT rect;
     BattleActorSlotPos *pSpawnPos;
@@ -270,6 +263,7 @@ void func_800B7C34(s32 stage) {
     s32 mode;
     s32 fileIndex;
     s32 streamIndex;
+    s32 slotIndexLow;
 
     if (stage == 0xE3) {
         pSpawnPos = g_BattleActorSlotSpawnPos;
@@ -312,7 +306,8 @@ void func_800B7C34(s32 stage) {
         } else {
             g_BattleActorSlotUsedMask &=
                 ~(1 << ((((u32)pSprite->flags_0xAC.flags & 3) << 2) | ((u32)pSprite->flags_0xA8 >> 30)));
-            func_800BB080(((u32)pSprite->flags_0xA8 >> 30) | (((u32)pSprite->flags_0xAC.flags & 3) << 2));
+            slotIndexLow = (u32)pSprite->flags_0xA8 >> 30;
+            func_800BB080((((u32)pSprite->flags_0xAC.flags & 3) << 2) | slotIndexLow);
         }
     }
     g_BattleStageStreamFile = ArchiveAllocStreamFile(8, 0);
@@ -324,7 +319,7 @@ void func_800B7C34(s32 stage) {
     g_BattleActorArchiveBuffer = g_BattleStageActorArchive;
     HeapFree(g_BattleStageStreamFile);
 }
-*/
+
 extern u8 g_BattleAnimScriptHalted;
 extern s16 g_BattleActorAnimationIndex;
 extern u8 g_BattleAudioFadeStarted;
@@ -694,22 +689,22 @@ extern void BattleFreeSceneResources(void);
 extern void *g_BattleSoundBankMain;
 extern void *g_BattleSceneResources;
 extern u8 g_IsBattle;
-
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
-// 88.41% (576 bytes vs retail's 560). The switch tree, every call and both loops
-// are retail's; what is left is register allocation: retail runs the case loops
-// with only $s0-$s3 (it re-materialises `li v0,21` and `li v0,3` inside the loop)
-// while gcc hoists both constants into $s4/$s3 here and needs two more saves and a
-// 0x38 frame. The tail loop's 3/0xB are materialised straight into the tail block
-// in retail, in the switch tree's delay slots here. Listing case 1 first is
-// required for retail's test order (1, then the slti a0,2 branch, then 0, then 2).
-/*
 extern void BattleStartScreenFade(s32 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4);
 extern void func_800A9FF0(s32 arg0);
-extern void BattleBeginAnimTask(s32 arg0);
-extern void ArchiveReadFileToBuffer(s32 fileIndex, void *pBuffer, u32 arg2, u32 arg3);
+extern void BattleFindAnimationTask(SpriteData *pSprite, s32 arg1, s32 arg2);
 extern void *D_800D39C8;
 
+// 88.41% (576 bytes vs retail's 568 = 142 instructions). Every call, both case
+// loops, the tail loop and the switch tree are retail's; the whole residual is that
+// the two case-loop constants 0x15 and 3 are hoisted out of the loop here: retail
+// materialises them per iteration (li v0,0x15 in the beqz delay slot, li v0,3 before
+// the bottom bne) and runs the loops on $s0-$s3 only, while this compile keeps 0x15
+// in $s4 and 3 in $s3, which costs the two extra saves and the 0x38 frame. Measured
+// dead: for/while/do-while, i<3, two continues instead of the &&, and isolated
+// cc1_probe replicas of the loop (all hoist both constants); -G8 is 88.27 and 2.6.0
+// does not compile it. Listing case 1 first is required for retail's test order
+// (1, then slti a0,2, then 0, then 2).
+/*
 void func_800B853C(s32 mode) {
     BattleOwnedSprites *pOwned;
     BattleRenderState *pWork;
@@ -764,8 +759,10 @@ void func_800B853C(s32 mode) {
     HeapFree(D_800D39C8);
     pWork = (BattleRenderState *)((u8 *)g_BattleStateWork + BATTLE_RENDER_STATE_OFFSET);
     pWork->unkDA8 = 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+
+
 void BattleFreeBattleResources(void) {
     u8 *pStateBase;
     BattleRenderState *pState;
