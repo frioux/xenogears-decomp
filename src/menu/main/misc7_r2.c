@@ -704,7 +704,7 @@ void func_801D74EC(u_char index, u_char characterId) {
         g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk44);
     offset = characterId * 0x18;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumber2PrimCount = 0;
-    for (i = 0; i < 7; i++) {
+    for (i = 0; i < MENU_WIDE_NUMBER_DIGIT_COUNT; i++) {
         if (g_Menu->digits[2 + i] != MENU_DIGIT_NONE) {
             s32 primCount = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumber2PrimCount;
 
@@ -730,7 +730,7 @@ void func_801D74EC(u_char index, u_char characterId) {
         g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk48);
     offset = characterId * 0x18;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumber2PrimCount = 0;
-    for (i = 0; i < 7; i++) {
+    for (i = 0; i < MENU_WIDE_NUMBER_DIGIT_COUNT; i++) {
         if (g_Menu->digits[2 + i] != MENU_DIGIT_NONE) {
             ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumber2PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
