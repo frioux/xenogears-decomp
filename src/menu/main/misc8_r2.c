@@ -5,6 +5,15 @@
 #include "system/menu.h"
 #include "psyq/libcd.h"
 
+// Arrow cursor animation: the frame index counts down from the last frame every
+// MENU_ARROW_CURSOR_ANIM_FRAME_TICKS updates, the frame's texture being MENU_TEX_ARROW_CURSOR + index.
+#define MENU_ARROW_CURSOR_LAST_ANIM_FRAME 4
+#define MENU_ARROW_CURSOR_ANIM_FRAME_TICKS 6
+// String IDs per row panel of the item list (misc9.c defines the same count).
+#define MENU_ITEM_ROW_STRING_COUNT 8
+// func_801C72BC's resource table: entry kind + 0x10 unloads what that entry kind loaded.
+#define MENU_PANEL_FREE_OFFSET 0x10
+
 extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 extern u8 g_ShopIndex;
 extern u16 D_801EA53C[]; // String IDs of the menu strings
@@ -73,11 +82,11 @@ void MenuShutdown(void) {
     MenuClearGlyphTexture();
     MenuFreeCellPrimBlocks();
     MenuFreePrimBuffer();
-    for (i = 0; i < 0x20; i++) {
+    for (i = 0; i < MENU_CARD_COUNT * MENU_CARD_RECORD_COUNT; i++) {
         g_Menu->menuUnk2->records[i].unk58 = 0;
     }
-    g_Menu->menuUnk2->previousCardSlotCounts[0] = 0xFF;
-    g_Menu->menuUnk2->previousCardSlotCounts[1] = 0xFF;
+    g_Menu->menuUnk2->previousCardSlotCounts[0] = MENU_SLOT_NONE;
+    g_Menu->menuUnk2->previousCardSlotCounts[1] = MENU_SLOT_NONE;
     D_801EA904 = 0;
     g_MenuCardSlotTotals = 0;
     DrawSync(0);
@@ -91,9 +100,11 @@ void MenuShutdown(void) {
 
 void MenuLoadUnkDE0Strings(void) {
     if (g_MenuOverlayIndex != 2) {
-        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA53C, g_Menu->pManager->shouldRenderStringsDE0);
+        MenuLoadStringsFromIds(sizeof(g_Menu->unkDE0) / sizeof(g_Menu->unkDE0[0]), g_Menu->unkDE0, D_801EA53C,
+                               g_Menu->pManager->shouldRenderStringsDE0);
     } else {
-        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA542, g_Menu->pManager->shouldRenderStringsDE0);
+        MenuLoadStringsFromIds(sizeof(g_Menu->unkDE0) / sizeof(g_Menu->unkDE0[0]), g_Menu->unkDE0, D_801EA542,
+                               g_Menu->pManager->shouldRenderStringsDE0);
     }
 }
 
@@ -103,10 +114,11 @@ void MenuInitializeUnk42CPanel(void) {
     MenuUnk9* pMenu;
 
     MenuSetupPointerCursors(2);
-    MenuLoadStringsFromIds(8, g_Menu->itemRowStrings, g_MenuItemRowStringIds, g_Menu->pManager->shouldRenderStrings10E0);
-    pMenu = HeapAlloc(0x1198, 0);
+    MenuLoadStringsFromIds(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuItemRowStringIds,
+                           g_Menu->pManager->shouldRenderStrings10E0);
+    pMenu = HeapAlloc(sizeof(MenuUnk9), 0);
     g_Menu->pItemRows = pMenu;
-    bzero(pMenu, 0x1198);
+    bzero(pMenu, sizeof(MenuUnk9));
     func_801C72BC(0);
 }
 
@@ -115,7 +127,7 @@ void MenuFreeUnk42CPanel(void) {
     MenuFreeWindow(3);
     MenuFreeWindow(4);
     g_Menu->pManager->shouldRenderUnk42C = 0;
-    func_801C72BC(0x10);
+    func_801C72BC(MENU_PANEL_FREE_OFFSET);
     HeapFree(g_Menu->pItemRows->pVramBuffer);
     HeapFree(g_Menu->pItemRows);
     HeapFree(g_Menu->pDressingRoom->pItemsData);
@@ -215,9 +227,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA9A8);
 
 void MenuInitializeArrowCursor(u_char index) {
-    g_Menu->arrowCursors[index] = HeapAlloc(0x78, 0);
-    bzero(g_Menu->arrowCursors[index], 0x78);
-    g_Menu->arrowCursors[index]->curAnimFrame = 4;
+    g_Menu->arrowCursors[index] = HeapAlloc(sizeof(MenuArrowCursor), 0);
+    bzero(g_Menu->arrowCursors[index], sizeof(MenuArrowCursor));
+    g_Menu->arrowCursors[index]->curAnimFrame = MENU_ARROW_CURSOR_LAST_ANIM_FRAME;
     g_Menu->arrowCursors[index]->animFrameDuration = 0;
 }
 
@@ -236,10 +248,10 @@ void MenuBuildArrowCursorPrim(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
     s32 shouldDraw = 1;
 
     pCursor = g_Menu->arrowCursors[arg3];
-    if (++pCursor->animFrameDuration >= 6) {
+    if (++pCursor->animFrameDuration >= MENU_ARROW_CURSOR_ANIM_FRAME_TICKS) {
         pCursor->curAnimFrame--;
         if (pCursor->curAnimFrame < 0) {
-            pCursor->curAnimFrame = 4;
+            pCursor->curAnimFrame = MENU_ARROW_CURSOR_LAST_ANIM_FRAME;
         }
         pCursor->animFrameDuration = 0;
     }
@@ -267,10 +279,10 @@ void MenuBuildArrowCursorPrim(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
         break;
     }
     if (shouldDraw != 0) {
-        func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
+        func_8002675C(g_Menu->resources, pCursor->curAnimFrame + MENU_TEX_ARROW_CURSOR, (POLY_FT4*)pCursor,
                       g_Menu->renderContext, 0, 0, 0x1000);
         pVertices = pCursor->vertices;
-        pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
+        pPoly = (u8*)pCursor + g_Menu->renderContext * sizeof(POLY_FT4);
         lx0 = *(u16*)(pPoly + 8);
         ly0 = *(u16*)(pPoly + 0xA);
         lx1 = *(u16*)(pPoly + 0x10);
