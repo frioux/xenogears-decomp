@@ -526,8 +526,18 @@ typedef struct {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
-/* Best attempt: 89.06% (1500 bytes, TWO instructions short - both draw-tile
-   copies, see the ROUND 364 entry in the note above):
+/* Best attempt: 89.06% (1500 bytes, retail 1508 = TWO draw-tile copies short; see the note
+   above). Round 378 re-measured, both on this body: splitting the transform block's
+   shift into `transY = (s8)...; transX = (s8)...; n = ...; transY <<= n; transX <<= n;`
+   is 88.49 (worse, so the one-expression form stays), and declaring
+   `g_SpritePlaneMasks` unbounded (`extern u16 g_SpritePlaneMasks[];`) leaves the plane
+   mask read at the $at form and the score identical at 89.06/1500 - the folded base is
+   not reachable this way either.
+   The two missing instructions are drawTileX = tileX and drawTileY = tileY (retail
+   copies all four shifted values and negates the COPY; ours coalesces the two tile
+   copies because tileX/tileY die at the negation). Nothing in retail reads them after
+   the flip block, so no honest source makes them live.
+   Body as measured below:
 void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     SpriteFrameData* pFrameData;
     SpriteDirectionTransform* pTransform;
@@ -709,6 +719,8 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         }
     } while (++i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2);
 }
+
+
 */
 
 
@@ -1518,16 +1530,18 @@ SVEC2* SpriteNextVramSlot(SVEC2* pDest, s32 amount) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
-/* Best attempt: 95.16%. UPDATE: this C scores 98.52% under gcc-2.7.2-cdk-psx
-   too, so the preset is not the answer here; the miss is the allocator.
-   Also tried: loading pPackage->pFrames after the `index = pFrame[4]` byte (the
-   original's load order) -- 91.38%, so the hoisted pFrames load is correct.
-   The instruction stream (including the multiply/divide
-   sequences) is identical; only the register allocation differs. The original
-   keeps the sprite data in a1 and loads its 5th argument lazily inside the
-   second division, this version hoists that pointer to t1 and keeps the sprite
-   in t0.
-
+/* Best attempt: 95.33% (240 bytes = retail's size; was 95.16). Round 378: writing the two
+   pointer sums INDEX-FIRST (`pAnimations = *(u16*)(pAnimations + 2) + pAnimations;` and
+   `pFrame = *(u16*)(pAnimations + 4) + pAnimations;`, plus
+   `pFrame = (u8*)(((u16*)((u8*)pFrames + 2))[index] + (mem_addr)pFrames);`) reproduces
+   retail's `addu v1,v1,v0` / `addu v0,v0,v1` / `addu a0,v0,a0` operand order and is worth
+   95.16 -> 95.33. Measured no-ops: a `s32 z` temp for the pOutZ store (95.33).
+   Remaining delta (5 instructions, 240 bytes both sides): retail keeps the sprite data
+   in $a1 (`addu a1,a0,zero`) and loads the 5th argument LAZILY (`lw v0,16(sp)` between
+   `sra` and `sw` in the second division), this C puts the sprite in $t0 and hoists pOutZ
+   into $t1, which is also why the second division's mflo lands in v0 here and v1 there.
+   Preset ruled out earlier: gcc-2.7.2-cdk is 98.52 but breaks matched functions in this
+   unit. Body as measured below:
 void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ) {
     s32 index;
     SpriteAnimPackage* pPackage;
@@ -1538,8 +1552,8 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
     pPackage = pSpriteData->pVramData;
     pFrames = pPackage->pFrames;
     pAnimations = pPackage->pAnimations;
-    pAnimations += *(u16*)(pAnimations + 2);
-    pFrame = pAnimations + *(u16*)(pAnimations + 4);
+    pAnimations = *(u16*)(pAnimations + 2) + pAnimations;
+    pFrame = *(u16*)(pAnimations + 4) + pAnimations;
 
     index = pFrame[4];
     if (index != 0) {
@@ -1548,13 +1562,13 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
     if (pFrames[index] < index) {
         index = 0;
     }
-    pFrame = (u8*)pFrames + ((u16*)((u8*)pFrames + 2))[index];
+    pFrame = (u8*)(((u16*)((u8*)pFrames + 2))[index] + (mem_addr)pFrames);
 
     *pOutY = pFrame[3] * pSpriteData->scale / 0x1000;
     *pOutZ = pFrame[1] * pSpriteData->scale / 0x1000;
     *pOutX = pFrame[2] * pSpriteData->scale / 0x1000;
-}
-*/
+}*/
+
 
 /* Best attempt: 96.50%. UPDATE: this C scores 97.12% under gcc-2.7.2-cdk-psx,
    so the preset is not the answer; the miss is the allocator. Round r12: cdk is
