@@ -9,6 +9,7 @@
 #define FIELD_SCRIPT_FLAG_ROTATION_LOCKED 0x8000
 
 #include "psyq/libgte.h"
+#include "system/model.h"
 
 #define ACTOR_ID_INVALID 0xFF
 
@@ -306,7 +307,7 @@ typedef struct {
     /* 0xD0  */ VECTOR moveStep;
     /* 0xE0  */ short moveFrameTotal;
     /* 0xE2  */ u_char curDoorStep;
-    /* 0xE3  */ u_char unkE3; // timer?
+    /* 0xE3  */ u_char hitTimer; // Hit reaction ramp: +2 per frame while pushed, -1 per frame after
     /* 0xE4  */ short characterId;
     /* 0xE6  */ short defaultAnimationId;
     /* 0xE8  */ short curAnimationId;
@@ -384,15 +385,23 @@ typedef struct {
     /* 0x28 */ SVECTOR max;
 } FieldActorModelBounds; // Size: 0x30
 
-// One entry of FieldActorModelScriptTable; pCallback's return value is read
-// through ActorData::unk118 by FieldPopActorScriptWorkWord
+// One entry of FieldActorModelScriptTable: the callback plus the value it ramps.
+// ModelStepRampValue moves value toward target by step, clamped to target.
 typedef struct {
     /* 0x0  */ u_int (*pCallback)(void);
-    /* 0x4  */ undefined8 unk4[0x1C];
+    /* 0x4  */ s32 target;
+    /* 0x8  */ s32 value;
+    /* 0xC  */ s32 step;
+    /* 0x10 */ undefined8 unk10[0x10];
 } FieldActorModelScript; // Size: 0x20
 
+// Built by func_800303C8, which saves the part's arrays before repacking its
+// vertices and normals; the field side reads pCallback's return value through
+// ActorData::pScriptWorkWords (FieldPopActorScriptWorkWord).
 typedef struct {
-    /* 0x0  */ undefined8 unk0[0xC];
+    /* 0x0  */ ModelPart* pModelPart; // the part the table was built from
+    /* 0x4  */ SVECTOR* pVertices; // the part's vertex array, repacked
+    /* 0x8  */ SVECTOR* pNormals; // the part's normal array, repacked
     /* 0xC  */ s32 numScripts;
     /* 0x10 */ FieldActorModelScript* pScripts;
 } FieldActorModelScriptTable;
@@ -408,7 +417,7 @@ typedef struct {
     /* 0x18 */ s16 centerX;
     /* 0x1A */ s16 centerY;
     /* 0x1C */ s16 centerZ;
-    /* 0x1E */ s16 unk1E;
+    /* 0x1E */ s16 pad1E; // centerX is read as one SVECTOR, so this is its pad
     /* 0x20 */ s16 size;
     /* 0x22 */ undefined16 unk22;
 } FieldActorModelData; // Size: 0x24
@@ -472,9 +481,9 @@ typedef struct {
     /* 0x14C */ u_int dialogsOffset;
     /* 0x150 */ u_int triggersOffset;
     /* 0x154 */ FieldLightFileData lightData;
-    /* 0x17E */ u_char unk17E[0xE];
+    /* 0x17E */ u_char pad17E[0xE];
     /* 0x18C */ u_short numEntitites;
-    /* 0x18E */ undefined16 unk18E;
+    /* 0x18E */ undefined16 pad18E;
     /* 0x190 */ u_short actorData[0]; // Start of entity data, FieldActorFileData sized
 } ActorFile;
 

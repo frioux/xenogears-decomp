@@ -244,7 +244,7 @@ void func_80080A74(int actorIndex) {
     pActor->rotation.vz = -0x8000;
     pActor->specialAnimArchiveIndex = -1;
     pActor->flags12C_0x2 = 0;
-    pActor->unkE3 = 0;
+    pActor->hitTimer = 0;
     pActor->walkmeshTriIds[3] = 0;
     pActor->walkmeshTriIds[2] = 0;
     pActor->walkmeshTriIds[1] = 0;
