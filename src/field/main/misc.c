@@ -1662,16 +1662,19 @@ void FieldScriptSetCameraRotation(void) {
     g_Scene.camRotation.vy = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
 
-/* 93.62%: the whole instruction stream is right, only the saved-register
-   allocation differs (retail keeps pBounds in s0, pData s1, pPrev s2, pCur s3,
-   du s4; gcc picks s0/s1=pPrev/s2=pCur/s3=pData) and gcc elides the sll/sra
-   truncation of the two FieldScriptVMGetInstructionArgumentS16 results because
-   the prototype returns short. Declaration orders tried: pBounds,pData,pCur,
-   pPrev (93.62%) and pBounds,pData,pPrev,pCur (88.80%, gcc re-associates the
-   pPrimitiveBuffers[ctx] address sums).
+// Round 371 re-measure: 93.62%, 708 bytes (retail's size). Two residuals, both
+// from the same cause the note did not name: retail does `sll $v0,16` /
+// `sra $s4,16` on each FieldScriptVMGetInstructionArgumentS16 result and keeps
+// `du` in $s4, where this body's `s16 du = <short-returning callee>` needs no
+// truncation, `du` lands in caller-saved $t0 and every `+= du` becomes
+// `addu v0,v0,t0`. The callee itself (asm/field/matchings/main/misc9) returns a
+// sign-extended halfword and include/field/script_vm.h declares it `short`, so
+// retail's caller TU evidently saw a WIDER return type - that is the lever to
+// try next (a local `int`-return declaration conflicts with the header).
+
+/*
 void func_8008B5D4(void) {
     FieldActorModelData* pModel;
     FieldActorModelBounds* pBounds;
@@ -1759,7 +1762,6 @@ void func_8008B5D4(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 */
-
 extern void* g_PartyDataBuffers[];
 extern void* g_FieldPartyModelLoadBuffer;
 extern s32 g_FieldPartyModelLoadState;
