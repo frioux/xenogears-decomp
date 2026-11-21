@@ -24,6 +24,15 @@
 #define FIELD_SCREEN_VRAM_X 0x2C0
 #define FIELD_SCREEN_VRAM_Y 0x100
 
+// g_FieldZoomFadeScale is ramped by FIELD_ZOOM_FADE_SCALE_STEP per frame, up to
+// FIELD_ZOOM_FADE_SCALE_MAX (0x1000 is 1:1)
+#define FIELD_ZOOM_FADE_SCALE_MAX 0x22C0
+#define FIELD_ZOOM_FADE_SCALE_STEP 0x20
+
+// The field fades between black and FIELD_FADE_COLOR_MAX, a 16.16 fixed point
+// polygon colour (so >> 16 is the 0..0xFF channel value)
+#define FIELD_FADE_COLOR_MAX 0x800000
+
 #define FIELD_SCREEN_CENTER_X (SCREEN_WIDTH / 2)
 #define FIELD_SCREEN_CENTER_Y (SCREEN_HEIGHT / 2)
 
@@ -335,7 +344,258 @@ end:
     FieldLoadFont();
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
+extern s32 g_FieldFadeMode;
+extern s32 g_FieldFadeDuration;
+extern s32 g_FieldActive;
+extern s32 g_FieldScriptDataStreamActive;
+extern int* g_FieldScriptDataStream;
+extern int g_GameStagedFileSize;
+extern void* g_GameStagedFileBuffer;
+extern s32 g_GameWdsBankLoadState;
+extern s32 g_GameRequestedWdsBankIndex;
+extern int g_FieldZoomFadeScale;
+extern void FieldFree(void);
+extern void FieldParticlesFreeAll(void);
+extern void FieldResetActorSoundSlots(void);
+extern void FieldTextBoxFreeAll(void);
+extern void FieldMoveStoredImageToHeap(int arg0);
+extern void FieldOrVramStripPixels(void);
+extern void FieldStartWdsBankLoad(int arg0, int arg1);
+extern void FieldFadeUpdateAndDraw(u_long* pOt, int index);
+extern void FieldDisplay(void);
+extern int ArchiveDataSync(void);
+extern void GamePartySyncSkinData(void);
+extern void GamePartySyncStreamedData(void);
+extern void FieldLoad(void);
+extern void FieldStartScriptDataStream(void);
+extern void FieldFreeScriptDataStream(void);
+
+// Tears the field down, runs the fade-in for the pending g_FieldFadeMode and
+// restores the screen. FieldLoad and the stream calls reset the fade state, so
+// the mode and duration are saved around them and written back afterwards.
+void func_800A5C40(void) {
+    RECT rect;
+    u_long* pStagedBuffer;
+    s32 nFadeMode;
+    s32 nFadeDuration;
+    int i;
+    int nColor;
+
+    FontFree();
+    FieldParticlesFreeAll();
+    FieldResetActorSoundSlots();
+    FieldTextBoxFreeAll();
+    if (g_FieldFadeMode != 6) {
+        FieldStoreScreenImage();
+        if (g_FieldFadeMode != 4) {
+            FieldCopyScreenToFadeTexture();
+        }
+    }
+    DrawSync(0);
+    FieldClearAndSwapOTag();
+    FieldRenderSync();
+    FieldFree();
+
+    pStagedBuffer = HeapAlloc(g_GameStagedFileSize, 0);
+    memcpy(pStagedBuffer, g_GameStagedFileBuffer, g_GameStagedFileSize);
+    HeapUnpinBlock(g_GameStagedFileBuffer);
+    HeapFree(g_GameStagedFileBuffer);
+
+    if (g_FieldFadeMode != 6) {
+        FieldMoveStoredImageToHeap(1);
+    }
+
+    g_GameStagedFileBuffer = HeapAlloc(g_GameStagedFileSize, 1);
+    memcpy(g_GameStagedFileBuffer, pStagedBuffer, g_GameStagedFileSize);
+    HeapPinBlock(g_GameStagedFileBuffer);
+    HeapFree(pStagedBuffer);
+
+    switch (g_FieldFadeMode) {
+    case 6:
+        FieldFadeToWhite(g_FieldFadeDuration);
+        for (i = 0; i < g_FieldFadeDuration; i++) {
+            FieldClearAndSwapOTag();
+            FieldFadeUpdateAndDraw(g_FieldCurRenderContext->ot3, g_FieldCurRenderContextIndex);
+            FieldDisplay();
+        }
+        FieldClearAndSwapOTag();
+        FieldDisplay();
+        GamePartySyncSkinData();
+        GamePartySyncStreamedData();
+        nFadeMode = g_FieldFadeMode;
+        nFadeDuration = g_FieldFadeDuration;
+        FieldLoad();
+        FieldStartScriptDataStream();
+        FieldFreeScriptDataStream();
+        g_FieldFadeMode = nFadeMode;
+        g_FieldFadeDuration = nFadeDuration;
+        if (g_GameWdsBankLoadState == -1) {
+            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 0);
+        }
+        FieldFadeToBlack(g_FieldFadeDuration);
+        break;
+    case 0:
+        FieldZoomFadeEffectInitialize(0, 0);
+        FieldFadeToWhite(g_FieldFadeDuration);
+        for (i = 0; i < g_FieldFadeDuration; i++) {
+            FieldClearAndSwapOTag();
+            FieldFadeUpdateAndDraw(g_FieldCurRenderContext->ot3, g_FieldCurRenderContextIndex);
+            FieldZoomFadeEffectUpdate();
+            FieldDisplay();
+        }
+        FieldClearAndSwapOTag();
+        FieldDisplay();
+        GamePartySyncSkinData();
+        GamePartySyncStreamedData();
+        nFadeMode = g_FieldFadeMode;
+        nFadeDuration = g_FieldFadeDuration;
+        FieldLoad();
+        FieldStartScriptDataStream();
+        FieldFreeScriptDataStream();
+        g_FieldFadeMode = nFadeMode;
+        g_FieldFadeDuration = nFadeDuration;
+        if (g_GameWdsBankLoadState == -1) {
+            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 0);
+        }
+        FieldFadeToBlack(g_FieldFadeDuration);
+        break;
+    case 1:
+        FieldZoomFadeEffectInitialize(0, 0);
+        FieldStartFadeToWhite(g_FieldFadeDuration);
+        for (i = 0; i < g_FieldFadeDuration; i++) {
+            FieldClearAndSwapOTag();
+            FieldFadeUpdateAndDraw(g_FieldCurRenderContext->ot3, g_FieldCurRenderContextIndex);
+            FieldZoomFadeEffectUpdate();
+            FieldDisplay();
+        }
+        FieldRenderSync();
+        GamePartySyncSkinData();
+        GamePartySyncStreamedData();
+        nFadeMode = g_FieldFadeMode;
+        nFadeDuration = g_FieldFadeDuration;
+        FieldLoad();
+        FieldStartScriptDataStream();
+        FieldFreeScriptDataStream();
+        g_FieldFadeMode = nFadeMode;
+        g_FieldFadeDuration = nFadeDuration;
+        if (g_GameWdsBankLoadState == -1) {
+            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 0);
+        }
+        FieldStartFadeFromWhite(g_FieldFadeDuration);
+        break;
+    case 2:
+    case 4:
+        ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
+        GamePartySyncSkinData();
+        GamePartySyncStreamedData();
+        nFadeMode = g_FieldFadeMode;
+        nFadeDuration = g_FieldFadeDuration;
+        FieldLoad();
+        FieldStartScriptDataStream();
+        if (g_FieldScriptDataStreamActive == 1) {
+            while (ArchiveDataSync() != 0) {
+                FieldClearAndSwapOTag();
+                FieldZoomFadeEffectUpdate();
+                FieldDisplay();
+                if (g_FieldZoomFadeScale < FIELD_ZOOM_FADE_SCALE_MAX) {
+                    g_FieldZoomFadeScale += FIELD_ZOOM_FADE_SCALE_STEP;
+                }
+            }
+            HeapFree(g_FieldScriptDataStream);
+            g_FieldScriptDataStreamActive = 0;
+            FieldOrVramStripPixels();
+        }
+        g_FieldActive = 1;
+        g_FieldFadeMode = nFadeMode;
+        g_FieldFadeDuration = nFadeDuration;
+        if (g_GameWdsBankLoadState == -1) {
+            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 0);
+        }
+        FieldFadeToBlack(g_FieldFadeDuration);
+        nColor = FIELD_FADE_COLOR_MAX;
+        for (i = 0; i < g_FieldFadeDuration; i++) {
+            FieldUpdateFrame();
+            FieldZoomFadeEffectUpdate();
+            func_8007554C();
+            FieldTickSkipCounter();
+            FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
+            nColor -= FIELD_FADE_COLOR_MAX / g_FieldFadeDuration;
+            if (nColor < 0) {
+                nColor = 0;
+            }
+            if (g_FieldZoomFadeScale < FIELD_ZOOM_FADE_SCALE_MAX) {
+                g_FieldZoomFadeScale += FIELD_ZOOM_FADE_SCALE_STEP;
+            }
+        }
+        break;
+    case 3:
+        FieldZoomFadeEffectInitialize(0, 0);
+        FieldStartScriptDataStream();
+        FieldClearAndSwapOTag();
+        FieldZoomFadeEffectUpdate();
+        FieldDisplay();
+        GamePartySyncSkinData();
+        GamePartySyncStreamedData();
+        nFadeMode = g_FieldFadeMode;
+        nFadeDuration = g_FieldFadeDuration;
+        g_FieldActive = 1;
+        FieldLoad();
+        FieldFreeScriptDataStream();
+        g_FieldFadeMode = nFadeMode;
+        g_FieldFadeDuration = nFadeDuration;
+        if (g_GameWdsBankLoadState == -1) {
+            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 0);
+        }
+        for (i = 0; i < 4; i++) {
+            FieldUpdateFrame();
+            FieldZoomFadeEffectUpdate();
+            func_8007554C();
+            FieldTickSkipCounter();
+        }
+        break;
+    case 5:
+        FieldZoomFadeEffectInitialize(0, 0);
+        FieldStartScriptDataStream();
+        FieldClearAndSwapOTag();
+        FieldZoomFadeEffectUpdate();
+        FieldDisplay();
+        GamePartySyncSkinData();
+        GamePartySyncStreamedData();
+        nFadeMode = g_FieldFadeMode;
+        nFadeDuration = g_FieldFadeDuration;
+        g_FieldActive = 1;
+        FieldLoad();
+        FieldFreeScriptDataStream();
+        rect.x = FIELD_SCREEN_VRAM_X;
+        rect.y = FIELD_SCREEN_VRAM_Y;
+        rect.w = 0x140;
+        rect.h = 0xFF;
+        g_FieldFadeMode = nFadeMode;
+        g_FieldFadeDuration = nFadeDuration;
+        MoveImage(&rect, 0x140, 0xFF);
+        if (g_GameWdsBankLoadState == -1) {
+            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 0);
+        }
+        for (i = 0; i < 4; i++) {
+            FieldUpdateFrame();
+            FieldZoomFadeEffectUpdate();
+            func_8007554C();
+            FieldTickSkipCounter();
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (g_FieldFadeMode != 6) {
+        FieldRestoreScreenImage();
+    }
+    g_FieldFadeMode = 2;
+    g_FieldFadeDuration = 0x20;
+    g_FieldActive = 0;
+    FieldLoadFont();
+    HeapConsolidate();
+}
 
 extern SVECTOR g_FieldZoomFadeRotation;
 extern u_short D_800B00BA;
