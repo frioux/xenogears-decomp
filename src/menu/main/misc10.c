@@ -790,6 +790,17 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
    residual one instruction) found only a do-while wrapper; the ternary, if/else
    with two returns, and `result = 0; if (hpFull) result = mpFull;` forms all
    measure 99.5-99.69.
+
+   Round 378: eight more tail spellings measured and all byte-identical to each other
+   at 99.69 / 1020 bytes - `if (hpFull == 0) return 0; return mpFull;`, the plain
+   else-form, a do-while wrapper around both arms, an empty `do {} while (0);` after
+   the return, and moving the count test - so nothing in the tail's SOURCE text is
+   the lever: gcc cross-jumps the nested arm's set-v0-0 onto the last arm's
+   fall-through zero, where retail threads it into the branch delay instead
+   (beqz v1,EPILOGUE / move v0,zero / j EPILOGUE / move v0,s2). The andi
+   destination ($v0 here, retail's $v1) follows the same choice. The hpFull ? mpFull
+   : 0 ternary in that arm is worse (98.18, 1004 bytes) and a three-return last arm
+   likewise. Treat this as the cross-jump/block-placement class, not a source shape.
 */
 /*
 u16 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
