@@ -99,6 +99,9 @@ extern StreamDataQueueEntry D_8009D410;
 extern StreamDataQueueEntry D_8009D418;
 extern StreamDataQueueEntry D_8009D420;
 extern void* g_WorldMapCompressedMapData;
+extern void* g_WorldMapPartyActorAnimFile0[3];
+extern void* g_WorldMapActorAnimFiles[3];
+extern s32 D_8009C170;
 
 typedef struct {
     /* 0x0 */ s16 x;
@@ -390,7 +393,7 @@ typedef struct {
     s16 areaMode;
 } WorldMapTableEntry; // Size: 0x8
 
-extern u16 g_WorldMapLevelThresholds;
+extern u16 g_WorldMapLevelThresholds[];
 extern u16 D_8009B566;
 extern WorldMapTableEntry D_8009B57C;
 extern WorldMapTableEntry D_8009B58C;
@@ -405,23 +408,6 @@ extern s32 g_WorldMapTileColumns;
 extern s32 g_WorldMapGridColumnImageFileIndex;
 extern s32 g_WorldMapAreaMode;
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
-/* best: 96.74% (320 bytes, retail's exact size). Everything matches except the
-   g_WorldMapLevelThresholds base: retail materialises `lui v1,%hi(B564)` + `addiu v1,v1,%lo(B564)`
-   BEFORE the pre-check (the lui fills the `lhu v0,D_8009B566` load-delay slot) and
-   then does `addiu v1,v1,2` inside the if, while gcc sinks the la into the if and
-   folds the +2 into it (la B564+2) with a `nop` in the load-delay slot.
-   Round 287, the array lever measured: `extern u16 g_WorldMapLevelThresholds[];` +
-   `pTable = g_WorldMapLevelThresholds;` and `if (arg1 >= g_WorldMapLevelThresholds[1])` DOES materialise
-   `la $v1,g_WorldMapLevelThresholds` first, but the pre-check then loads through that base
-   (`lhu $v0,2($v1)`) where retail uses an absolute D_8009B566 load, and the
-   `pTable++` moves into the bnez delay slot: 92.11%, 324 bytes. Kept the
-   absolute-symbol spelling for the pre-check since 96.74% beats it.
-   Other shapes already measured dead: pTable[1] as the pre-check (base-register
-   load), (u16*)((u8*)pTable + 2), increment before vs after the if, -cdk (81.1%),
-   -G0 does not compile this unit.
-*/
-/*
 void func_80071B9C(s32 arg0, s32 arg1) {
     WorldMapTableEntry* pEntry;
     u16* pTable;
@@ -429,7 +415,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
 
     if (arg0 < 8) {
         nLevel = 1;
-        pTable = &g_WorldMapLevelThresholds;
+        pTable = g_WorldMapLevelThresholds;
         if (arg1 >= D_8009B566) {
             pTable++;
             do {
@@ -456,9 +442,9 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     g_WorldMapTileRows = pEntry->tileRows;
     g_WorldMapAreaMode = pEntry->areaMode;
 }
-*/
-
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
+// ROUND 374: re-measured 84.51% (508 bytes). The array-extern lever that closed
+// func_80071B9C does not apply here: the queue entries are separate symbols by design.
 /* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
    byte-identical; only loop 2's register shape differs. Retail keeps TWO
    running pointers advanced by 8 (a2 = index ptr = &g_WorldMapStreamQueue, a1 = pData ptr =
@@ -530,8 +516,18 @@ void func_80071CDC(void) {
 }
 */
 
-
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
+// ROUND 374: re-measured 97.37% (256 vs retail's 252). THE ARRAY SPELLING CLOSES IT:
+// `extern StreamDataQueueEntry g_WorldMapStreamQueue[];` + `pQueue = g_WorldMapStreamQueue;`
+// gives retail's exact 252 bytes and 99.21-99.37%, with `sh $v1,0($a0)` as retail has it and
+// only the pData store left as g_WorldMapStreamQueue+4 against retail's D_8009D3FC (same
+// address, links identical - round-359/374 RELOC case). It is not applied because the same
+// declaration makes the matched neighbours WorldMapQueueTwoFileLoads (160 bytes, 91.95%) and
+// WorldMapQueueFileLoads (344, 87.81%) materialise the queue base in a register where retail
+// stores the symbol through $at. Closing this needs a SECOND NAME for 0x8009D3F8 (e.g.
+// g_WorldMapStreamQueueEntries) so only this function sees the array type. Round-374
+// cc1_probe: every scalar spelling of &g_WorldMapStreamQueue (plain, (void*), (u32), +0,
+// &((Q*)&g_Q)[0], (u8*)) folds to the same %at macro; only array decay escapes the fold.
 /* best: 98.00% (256 bytes vs 252). Only the g_WorldMapStreamQueue store differs: the
    original reuses the $a0 that already holds the address for the ArchiveStartStreamQueue
    call and emits a bare "sh $v1,0($a0)"; gcc re-forms the symbol address and
@@ -1066,6 +1062,12 @@ void WorldMapInitGfxEnv(void) {
 extern void SetSemiTrans(void* p, s32 abe);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
+// ROUND 374: re-measured 96.65%, 1352 bytes against retail's 1356 - one instruction SHORT,
+// so this body can never link. The missing instruction is retail's `move s2,s5`
+// (nColor = color): this cc1 coalesces the copy away because color dies at it, while retail
+// keeps both. Retail also folds `i = count - 1` into the parameter register
+// (`addiu s7,s7,-1`) where every spelling here allocates a new one. permute.sh refuses this
+// body (the struct assignment `pG4s[1] = pG4s[0];` is outside its C parser).
 /* best: 96.65%, 1352 bytes vs retail's 1356 (one instruction short), 338 vs 339 insns.
    Everything outside the two blocks below is instruction-for-instruction identical:
    the three HeapAllocs, the FT4 init loop (setPolyFT4/setRGB0/setShadeTex IN THAT ORDER -
@@ -1183,6 +1185,7 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     HeapFree(pTpage);
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
 /* best: 93.68%, 144 bytes vs retail's 152. The table is not the blocker (retail's
    is 5 entries at .rodata+0x18 with one pad word before the next object), and the
@@ -1715,6 +1718,8 @@ extern WorldMapTilePos D_8009B6F4[0x20];
 extern s32 g_WorldMapFadeLevel;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
+// ROUND 374: re-measured 82.80%, 1176 bytes against retail's 1248 (the note below says
+// 1240; the stub is 312 instructions, so retail is 1248).
 /* best: 82.80% (1176 bytes vs retail's 1240 - the body is 18 insns SHORT). Every decoded
    fact below is confirmed against the .s; the two things left are both codegen-level.
 
@@ -1830,6 +1835,7 @@ void func_800740B8(void) {
     addPrim(g_WorldMapRenderContext->pOt[0], &D_8009C5C0[g_WorldMapPrimPacketIndex]);
 }
 */
+
 extern void* g_WorldMapSlotPositions;
 extern void* g_WorldMapSlotPrims;
 extern void* g_WorldMapSlotPrimsCopy;
