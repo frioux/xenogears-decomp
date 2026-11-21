@@ -63,13 +63,13 @@ typedef struct {
     /* 0x0  */ u_short flags;
     /* 0x2  */ u8 unk2[0x2];
     /* 0x4  */ u_short polyCount;
-    /* 0x6  */ u16 unk6;
+    /* 0x6  */ u16 nodeCount;
     /* 0x8  */ SVECTOR* pVertices;
-    /* 0xC  */ u32 unkC;
-    /* 0x10 */ u32 unk10;
+    /* 0xC  */ u32 pNormals;
+    /* 0x10 */ u32 pNodes;
     /* 0x14 */ CVECTOR* pColors;
     /* 0x18 */ void* pLightData;
-    /* 0x1C */ u32* unk1C;
+    /* 0x1C */ u32* pLodData;
     /* 0x20 */ ModelPacketInfo unk20[2];
 } ModelPart; // Size: 0x38
 

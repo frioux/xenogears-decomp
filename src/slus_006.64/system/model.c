@@ -38,14 +38,14 @@ int ModelResolvePointers(ModelFileHeader* pModelFile) {
         pCurPart = pModelFile->modelParts;
         for (i = 0; i < numParts; i++) {
             pCurPart->pVertices = (mem_addr)pCurPart->pVertices + (mem_addr)pModelFile;
-            pCurPart->unkC = (mem_addr)pCurPart->unkC + (mem_addr)pModelFile;
-            pCurPart->unk10 = (mem_addr)pCurPart->unk10 + (mem_addr)pModelFile;
+            pCurPart->pNormals = (mem_addr)pCurPart->pNormals + (mem_addr)pModelFile;
+            pCurPart->pNodes = (mem_addr)pCurPart->pNodes + (mem_addr)pModelFile;
             pCurPart->pColors = (mem_addr)pCurPart->pColors + (mem_addr)pModelFile;
             
-            if (pCurPart->unk1C != NULL) {
-                pCurPart->unk1C = (mem_addr)pCurPart->unk1C + (mem_addr)pModelFile;
-                pPacketInfo = pCurPart->unk1C + 1;
-                for (j = *pCurPart->unk1C; j != -1; j--) {
+            if (pCurPart->pLodData != NULL) {
+                pCurPart->pLodData = (mem_addr)pCurPart->pLodData + (mem_addr)pModelFile;
+                pPacketInfo = pCurPart->pLodData + 1;
+                for (j = *pCurPart->pLodData; j != -1; j--) {
                     pPacketInfo[j].lightDataSize += (mem_addr)pModelFile;
                     pPacketInfo[j].modelPacketSize += (mem_addr)pModelFile;
                 }
@@ -75,17 +75,17 @@ int ModelUnresolvePointers(ModelFileHeader* pModelFile) {
     pCurPart = pModelFile->modelParts;
     for (i = 0; i < numParts; i++) {
         pCurPart->pVertices = (mem_addr)pCurPart->pVertices - (mem_addr)pModelFile;
-        pCurPart->unkC = (mem_addr)pCurPart->unkC - (mem_addr)pModelFile;
-        pCurPart->unk10 = (mem_addr)pCurPart->unk10 - (mem_addr)pModelFile;
+        pCurPart->pNormals = (mem_addr)pCurPart->pNormals - (mem_addr)pModelFile;
+        pCurPart->pNodes = (mem_addr)pCurPart->pNodes - (mem_addr)pModelFile;
         pCurPart->pColors = (mem_addr)pCurPart->pColors - (mem_addr)pModelFile;
 
-        if (pCurPart->unk1C != NULL) {
-            pPacketInfo = pCurPart->unk1C + 1;
-            for (j = *pCurPart->unk1C; j != -1; j--) {
+        if (pCurPart->pLodData != NULL) {
+            pPacketInfo = pCurPart->pLodData + 1;
+            for (j = *pCurPart->pLodData; j != -1; j--) {
                 pPacketInfo[j].lightDataSize -= (mem_addr)pModelFile;
                 pPacketInfo[j].modelPacketSize -= (mem_addr)pModelFile;
             }
-            pCurPart->unk1C = (mem_addr)pCurPart->unk1C - (mem_addr)pModelFile;
+            pCurPart->pLodData = (mem_addr)pCurPart->pLodData - (mem_addr)pModelFile;
         }
 
         pCurPart++;
@@ -105,13 +105,13 @@ void ModelPartResolvePointers(ModelPart* pModelPart) {
     }
     pModelPart->flags = flags | 0x20;
     pModelPart->pVertices = (mem_addr)pModelPart->pVertices + (mem_addr)pModelPart;
-    pModelPart->unkC = (mem_addr)pModelPart->unkC + (mem_addr)pModelPart;
-    pModelPart->unk10 = (mem_addr)pModelPart->unk10 + (mem_addr)pModelPart;
+    pModelPart->pNormals = (mem_addr)pModelPart->pNormals + (mem_addr)pModelPart;
+    pModelPart->pNodes = (mem_addr)pModelPart->pNodes + (mem_addr)pModelPart;
     pModelPart->pColors = (mem_addr)pModelPart->pColors + (mem_addr)pModelPart;
-    if (pModelPart->unk1C != NULL) {
-        pModelPart->unk1C = (mem_addr)pModelPart->unk1C + (mem_addr)pModelPart;
-        pPacketInfo = pModelPart->unk1C + 1;
-        for (j = *pModelPart->unk1C; j != -1; j--) {
+    if (pModelPart->pLodData != NULL) {
+        pModelPart->pLodData = (mem_addr)pModelPart->pLodData + (mem_addr)pModelPart;
+        pPacketInfo = pModelPart->pLodData + 1;
+        for (j = *pModelPart->pLodData; j != -1; j--) {
             pPacketInfo[j].lightDataSize += (mem_addr)pModelPart;
             pPacketInfo[j].modelPacketSize += (mem_addr)pModelPart;
         }
@@ -933,7 +933,7 @@ void ModelUpdatePartPose(ModelPoseState* pPose) {
     }
     pModelPart = pPose->pModelPart;
     count = pPose->numLods;
-    pDeltas = (ModelLodDeltas*)(pModelPart->unk1C + 1);
+    pDeltas = (ModelLodDeltas*)(pModelPart->pLodData + 1);
     pWeight = pPose->pLodWeights;
     ModelCopyIndexedVertices((ModelVertex*)pModelPart->pVertices, pPose->pBaseVertices,
                   pDeltas[count].count, (short*)pDeltas[count].pDeltas);
@@ -942,7 +942,7 @@ void ModelUpdatePartPose(ModelPoseState* pPose) {
         ModelApplyVertexDeltas((ModelVertex*)pModelPart->pVertices, pDeltas[i].pDeltas,
                       pDeltas[i].count, scale);
         if (pModelPart->flags & 0x10) {
-            ModelApplyVertexDeltasNormalized((ModelVertex*)pModelPart->unkC, pDeltas[i].pDeltasHigh,
+            ModelApplyVertexDeltasNormalized((ModelVertex*)pModelPart->pNormals, pDeltas[i].pDeltasHigh,
                           pDeltas[i].count, scale);
         }
         pWeight++;
@@ -964,10 +964,10 @@ void ModelRestorePartVertices(ModelPartVertexBackup* pBackup) {
         pModelPart = pBackup->pModelPart;
         HeapFree(pModelPart->pVertices);
         if (pModelPart->flags & 0x10) {
-            HeapFree(pModelPart->unkC);
+            HeapFree(pModelPart->pNormals);
         }
         pModelPart->pVertices = pBackup->pVertices;
-        pModelPart->unkC = pBackup->unkC;
+        pModelPart->pNormals = pBackup->unkC;
         HeapFree(pBackup);
     }
 }
