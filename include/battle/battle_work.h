@@ -36,7 +36,9 @@ typedef struct {
     /* 0x083 */ u8 unk83;
     /* 0x084 */ u8 panelPrimStart[3]; // prim index each slot's stat panel was built at
     /* 0x087 */ u8 scaledPanelPrimStart; // the same index for the panel drawn at 1.0 scale
-    /* 0x088 */ u8 unk88[0x8];
+    /* 0x088 */ u8 unk88[0x6];
+    /* 0x08E */ u8 effectSlotActive; // raised once the char-4 panel has built slot 0's graphics, cleared after freeing that slot's buffers
+    /* 0x08F */ u8 unk8F;
     /* 0x090 */ u8 panelMode[3]; // which panel the slot draws: 0 builds it, 1 draws it scaled, 2 animates it, 3 shrinks it then animates
     /* 0x093 */ u8 statDigitPrimStart[3]; // prim index each slot's stat digits were built at
     /* 0x096 */ u8 stringTableLoaded; // set while D_800C3DE8 holds the archive entry 3 string table
@@ -65,7 +67,8 @@ typedef struct {
     /* 0x0AF */ u8 actorSpriteActive; // set while the actor's sprite group at gfx+0x9C8 is live
     /* 0x0B0 */ u8 primFlags[4]; // per slot: prim flags the *PrimFlags*Slots pairs raise
     /* 0x0B4 */ u8 textSlotEnabled; // raised with the slot's screen-slot enabled flag by BattleSetSlotFlagB4, cleared by BattleClearSlotFlagB4
-    /* 0x0B5 */ u8 unkB5[0x2];
+    /* 0x0B5 */ u8 textSlotStringDrawn; // raised when func_80071B94 renders the slot's name string, cleared with textSlotEnabled
+    /* 0x0B6 */ u8 unkB6;
     /* 0x0B7 */ u8 primState; // which prim set is up: the *PrimFlags*Slots setters store 0-3, 0 for none
     /* 0x0B8 */ u8 rectExpandActive[7]; // per slot: while set, the slot's rect grows toward its target size
     /* 0x0BF */ u8 rectExpandDone[7]; // per slot: set once w and h reached the target size
