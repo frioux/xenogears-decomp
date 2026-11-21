@@ -6,7 +6,7 @@ extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 g_BattleCurSlotIndex;
 extern BattleRow* g_BattleCurrentRow;
 extern u8* g_BattleCurSlotState;
-extern u8 g_BattleSlotConditions[];
+extern u8 g_BattleSlotConditions[][0x170];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleActorCharIds[];
 
@@ -18,7 +18,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     u8 count;
     u8 bit;
 
-    if (g_BattleSlotConditions[arg0 * 0x170] & 0x80) {
+    if (g_BattleSlotConditions[arg0][0] & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         mask = 1;
     } else {
         if (rand() % 100 < 10 && !(p->conditionFlags & 0x100) && *pStatus == 0) {
@@ -32,7 +32,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
             break;
         case 4:
             mask = 0xDF80;
-            count = 0xA;
+            count = 10;
             break;
         case 5:
             mask = 0x1000;
@@ -50,7 +50,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         case 2:
         case 9:
             mask = 0xBFE0;
-            count = 0xB;
+            count = 11;
             break;
         case 1:
         case 6:
@@ -62,7 +62,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         if (rand() % 100 < 25 && !(p->conditionFlags & 0x20)) {
             *pInfo = 2;
             bit = rand() % count;
-            if (*(u16*)&g_GameState.conditionRows[p->characterId].characterConditionMask & ((0x8000 >> bit) & mask)) {
+            if (g_GameState.conditionRows[p->characterId].characterConditionMask & ((0x8000 >> bit) & mask)) {
                 pInfo[1] = bit;
                 return;
             }
@@ -75,8 +75,8 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         mask = 1;
     }
     *pInfo = mask;
-    if (rand() % 100 < 0x50) {
-        if (rand() % 100 >= 0x3C) {
+    if (rand() % 100 < 80) {
+        if (rand() % 100 >= 60) {
             pInfo[1] = mask;
         } else {
             pInfo[1] = 0;
@@ -85,48 +85,11 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         pInfo[1] = 2;
     }
 }
-// best 98.33% (120 bytes = retail's size). Layout: g_BattleCurWorkBlock->slotStates
-// [g_BattleCurSlotIndex] = 2, then slotAmounts[g_BattleCurSlotIndex] = the row's
-// power * the slot state's maxHp / 20. Only the tail differs, and only by register:
-// retail loads the second g_BattleCurSlotIndex into $v1 and the block base into $v0,
-// then does the index-first addu and mfhi/srl IN PLACE in $v0; 2.7.2 always loads
-// the index into $v0 and the base into $v1 and leaves mfhi in $a1 with the shift in
-// $v1. PRESET_260: 100.00% under gcc-2.6.0 (same md difference as func_8009A9D0);
-// the unit cannot move - see that function's note for the screen.
-// Round 195 type-width sweep, all 97.33% / 120 bytes with the identical tail: the
-// typed form g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] (97.33, its
-// addu is index-first like retail's, so it differs in more registers than this
-// body), idx as s32 / u32 / u16 / u8 local, maxHp spelled
-// ((BattleSlotState*)g_BattleCurSlotState)->maxHp or *(s32*)(...+0x64), and the
-// destination as *(s32*)((u8*)block + 0x5F6C + idx * 4). Worse: a pointer local for
-// slotAmounts (81.47, 112 bytes, CSEs the base into a saved reg), the amount in a
-// u32/s32 local (43.33 - it moves the divide above the sb). The index always lands
-// in $v0, so the register roles are not source-controllable on 2.7.2.
-// The 98.33 came from splitting the two statements' base loads (a u8* local for the
-// first store, a plain expression for the second) and the int idx local that stops
-// the second lbu being CSE'd into the first. Permuter score 50 over 1907+1250
-// iterations. Also tried: two separate locals for idx and address, declaration
-// order swapped, u8* address local, u32 quotient local, 20u divisor, u32*
-// destination pointer local (70.17).
-// Round 306 re-measured it: the fully typed body
-// (g_BattleCurWorkBlock->slotAmounts[idx] = (u32)(power * maxHp) / 20) is 97.33%
-// with the identical tail swap, and a BattleWorkBlock* local for the store coalesces
-// away (97.33, no change), so the park below is still the best.
-// PARKED (98.33%).
-/*
 void func_8009BD94(void) {
-    int new_var;
-    u8* new_var2;
-
-    new_var2 = (u8*)g_BattleCurWorkBlock;
-    *(u8*)(new_var2 + g_BattleCurSlotIndex + 0x5FA0) = 2;
-    new_var = g_BattleCurSlotIndex;
-    new_var = (u32)g_BattleCurWorkBlock + new_var * 4 - -0x5F6C;
-    *(u32*)new_var =
-        (u32)(g_BattleCurrentRow->power * *(s32*)(g_BattleCurSlotState + 0x64)) / 20;
+    g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
+        (u32)(g_BattleCurrentRow->power * ((BattleSlotState*)g_BattleCurSlotState)->maxHp) / 20;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19_r1", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19_r1", func_8009BE0C);
 // PARKED (90.12%, 552 bytes = retail's exact size, instruction multiset equal
 // apart from the three ties below). Body COMPILES.
