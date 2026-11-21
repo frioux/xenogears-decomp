@@ -447,8 +447,8 @@ s8 BattleTryApplyCondition(u8 arg0) {
     pEntry = &g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex];
     pSlot = pEntry;
     if (arg0 != 0) {
-        chance = (s8)g_BattleTargetSlotState->weaponData[0].unk3;
-        kind = g_BattleTargetSlotState->weaponData[0].unk4;
+        chance = (s8)g_BattleTargetSlotState->weaponData[0].chance;
+        kind = g_BattleTargetSlotState->weaponData[0].conditionKind;
         flags = g_BattleTargetSlotState->weaponData[0].flags;
         amount = BATTLE_CONDITION_TIMER_FIXED_COUNT;
     } else {
@@ -668,17 +668,17 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
         sel = 3;
     }
     g_GameState.gears[id].weaponData[sel].attack = p->attack;
-    g_GameState.gears[id].weaponData[sel].unk4 = p->conditionKind;
-    g_GameState.gears[id].weaponData[sel].unk3 = p->chance;
-    g_GameState.gears[id].weaponData[sel].unk4 = p->conditionKind;
+    g_GameState.gears[id].weaponData[sel].conditionKind = p->conditionKind;
+    g_GameState.gears[id].weaponData[sel].chance = p->chance;
+    g_GameState.gears[id].weaponData[sel].conditionKind = p->conditionKind;
     g_GameState.gears[id].extraWeaponIds[sel] = arg0;
     g_GameState.gearPartsIds[0x6C + arg0] = p->partId;
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if ((g_BattleCurWorkBlock->slots + i)->characterId == 4) {
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].attack = p->attack;
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->conditionKind;
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk3 = p->chance;
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->conditionKind;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].conditionKind = p->conditionKind;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].chance = p->chance;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].conditionKind = p->conditionKind;
             g_BattleCurWorkBlock->slots[i].state.extraWeaponIds[sel] = arg0;
         }
     }

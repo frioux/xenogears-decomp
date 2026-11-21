@@ -2819,15 +2819,15 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
     pWeapon += pGear->weaponId[0];
     pGear->weaponData[0].attack = pWeapon->attack;
     pGear->weaponData[0].flags = pWeapon->flags;
-    pGear->weaponData[0].unk3 = pWeapon->unk10;
-    pGear->weaponData [0].unk4 = pWeapon->unk11;
+    pGear->weaponData[0].chance = pWeapon->unk10;
+    pGear->weaponData[0].conditionKind = pWeapon->unk11;
 
     pGear->unk5C[0] = pWeapon->unk0[0];
     pGear->unk5C[1] = pWeapon->unk0[1];
     pGear->unk5C[2] = pWeapon->unk0[2];
     pGear->unk5C[3] = pWeapon->unk0[3];
 
-    if (pGear->weaponData[0].unk4 == 100) {
+    if (pGear->weaponData[0].conditionKind == 100) {
         pGear->accessoryEffectFlags3 = pGear->accessoryEffectFlags3 & 0xFFF;
         pGear->accessoryEffectFlags3 |= pGear->weaponData[0].flags;
     }
@@ -2837,24 +2837,24 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
 
         pGear->weaponData[0].attack = pWeapon->attack;
         pGear->weaponData[0].flags = pWeapon->flags;
-        pGear->weaponData[0].unk3 = pWeapon->unk10;
-        pGear->weaponData[0].unk4 = pWeapon->unk11;
+        pGear->weaponData[0].chance = pWeapon->unk10;
+        pGear->weaponData[0].conditionKind = pWeapon->unk11;
         pGear->unk5C[1] = pWeapon->unk0[1];
 
         pWeapon = dressingRoom->pGearWeapons;
         pWeapon += pGear->extraWeaponIds[1];
         pGear->weaponData[1].attack = pWeapon->attack;
         pGear->weaponData[1].flags = pWeapon->flags;
-        pGear->weaponData[1].unk3 = pWeapon->unk10;
-        pGear->weaponData[1].unk4 = pWeapon->unk11;
+        pGear->weaponData[1].chance = pWeapon->unk10;
+        pGear->weaponData[1].conditionKind = pWeapon->unk11;
         pGear->unk5C[2] = pWeapon->unk0[2];
 
         pWeapon = dressingRoom->pGearWeapons;
         pWeapon += pGear->extraWeaponIds[3];
         pGear->weaponData[2].attack = pWeapon->attack;
         pGear->weaponData[2].flags = pWeapon->flags;
-        pGear->weaponData[2].unk3 = pWeapon->unk10;
-        pGear->weaponData[2].unk4 = pWeapon->unk11;
+        pGear->weaponData[2].chance = pWeapon->unk10;
+        pGear->weaponData[2].conditionKind = pWeapon->unk11;
         pGear->unk5C[3] = pWeapon->unk0[3];
     }
 }

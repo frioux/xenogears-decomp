@@ -40,9 +40,13 @@
 // MenuApplyEquippedItemBonuses, and, in g_GameState.characters[4], the id of the
 // character in that battle party slot at +0x6 (see BattleIsCharacterInParty).
 typedef struct {
-    /* 0x0 */ u16 flags; // OR'ed into GameCharacter.accessoryEffectFlags7 while unk3 reads 0x64 (fully charged)
-    /* 0x2 */ u8 unk2;
-    /* 0x3 */ u8 unk3;
+    /* 0x0 */ u16 flags; // OR'ed into GameCharacter.accessoryEffectFlags7 while conditionKind reads 0x64
+    // The equipped weapon record's bytes 0xA and 0xB, written by MenuApplyEquippedItemBonuses. The
+    // battle copy of this record (BattleTableEntry, include/battle/actor.h, whose first 0xA4 bytes
+    // are the GameCharacter record) names the same two offsets: BattleApplyActorConditionTimer
+    // passes them as the condition's chance and kind.
+    /* 0x2 */ u8 chance;
+    /* 0x3 */ u8 conditionKind;
     /* 0x4 */ u8 attack;
     /* 0x5 */ u8 unk5;
     /* 0x6 */ u8 characterId;
@@ -67,7 +71,7 @@ typedef struct {
     // The per-action counter the battle slot keeps at this same offset (it is incremented
     // and clamped at 0xFDE8 by BattleResolveSlotActionState) and copies into the character
     // record after the battle, see func_8009BE0C.
-    /* 0x3A */ u16 unk3A;
+    /* 0x3A */ u16 actionCount;
     // The gear window's two wide numbers, drawn by MenuSetGearWindowWideNumberPrims
     // (src/menu/main/misc7_r2.c); no function here assigns them, so they only change
     // with the save record.
@@ -112,7 +116,7 @@ typedef struct {
     // The tenths digit of the statBase + statBonus total: the gear window's stat row
     // scales that sum by ten and adds this, see func_801D7884 in src/menu/main/misc7_r2.c.
     /* 0x79 */ u8 statFraction;
-    /* 0x7A */ u16 unk7A;
+    /* 0x7A */ u16 conditionFlags; // one bit per condition, at the offset and under the name the battle copy of this record gives it (BattleTableEntry.conditionFlags)
     /* 0x7C */ u16 activeEffectFlags1; // starts the active/accessory word grid below, as in GameGear and BattleTableEntry
     // One flag word per accessory effectType: the OR of the effectFlags of the
     // worn accessories whose effectType selects it, see
@@ -127,7 +131,7 @@ typedef struct {
     /* 0x88 */ u16 activeEffectFlags4;
     /* 0x8A */ u16 accessoryEffectFlags4;
     /* 0x8C */ u16 activeEffectFlags7;
-    /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's unk3 reads 0x64
+    /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's conditionKind reads 0x64
     /* 0x90 */ u16 statWeights[8]; // one weight per dressing-room stat row (7 read), weighed against a per-character table to make a percentage, see the parked func_801E1418 in menu/main/misc10; BattleInitActiveSlotActions adds 10 to each of the first seven at battle init
     /* 0xA0 */ u_char gearId;
     /* 0xA1 */ u8 accessoryEffectFlags10; // the type-10 accessory flag word, summed not OR'ed, see MenuApplyEquippedItemBonuses
@@ -135,10 +139,13 @@ typedef struct {
 } GameCharacter; // size: 0xA4
 
 typedef struct {
-    /* 0x00 */ u16 flags; // OR'ed into GameGear.accessoryEffectFlags3's top nibble once unk4 reads 100, see MenuApplyGearWeapons
+    /* 0x00 */ u16 flags; // OR'ed into GameGear.accessoryEffectFlags3's top nibble once conditionKind reads 100, see MenuApplyGearWeapons
     /* 0x02 */ u8 attack;
-    /* 0x03 */ u8 unk3;
-    /* 0x04 */ u8 unk4;
+    // The weapon record's bytes 0x10 and 0x11, as BattleGearWeaponRecord (include/battle/actor.h)
+    // names them: BattleApplyGearWeaponRecord copies its chance and conditionKind over these two,
+    // and BattleTryApplyCondition rolls the chance as a percent and switches on the kind.
+    /* 0x03 */ u8 chance;
+    /* 0x04 */ u8 conditionKind;
     /* 0x05 */ u8 weaponId; // the weapon this cached record holds, see BattleGearHasWeaponId
     /* 0x06 */ u16 unk6;
 } GearWeaponData;
@@ -248,7 +255,8 @@ typedef struct {
     /* 0x14 */ s16 unk14;
     /* 0x16 */ s16 unk16;
     /* 0x18 */ s16 unk18;
-    /* 0x1A */ s16 unk1A;
+    /* 0x1A */ u8 unk1A;
+    /* 0x1B */ u8 unk1B; // both condition-mask resets write 7 here and nothing reads it
     /* 0x1C */ s16 unk1C;
     /* 0x1E */ u16 statusFlags; // status bit mask, tested through BattleMaskHasStatusBit
 } UnkGearState; /* size: 0x20 */

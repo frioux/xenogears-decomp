@@ -1019,23 +1019,23 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     pWeapon += pChar->weaponId[0];
     pChar->slots[0].attack = pWeapon->attack;
     pChar->slots[0].flags = pWeapon->slotFlags;
-    pChar->slots[0].unk2 = pWeapon->unkA;
-    pChar->slots[0].unk3 = pWeapon->unkB;
+    pChar->slots[0].chance = pWeapon->unkA;
+    pChar->slots[0].conditionKind = pWeapon->unkB;
     if (pChar->characterId == 4) {
         pWeapon = pDressingRoom->pWeaponsData;
         pWeapon += pChar->extraWeaponIds[0];
         pChar->slots[0].attack = pWeapon->attack;
         pChar->slots[0].flags = pWeapon->slotFlags;
-        pChar->slots[0].unk2 = pWeapon->unkA;
-        pChar->slots[0].unk3 = pWeapon->unkB;
+        pChar->slots[0].chance = pWeapon->unkA;
+        pChar->slots[0].conditionKind = pWeapon->unkB;
         pWeapon = pDressingRoom->pWeaponsData;
         pWeapon += pChar->extraWeaponIds[3];
         pChar->slots[3].attack = pWeapon->attack;
         pChar->slots[3].flags = pWeapon->slotFlags;
-        pChar->slots[3].unk2 = pWeapon->unkA;
-        pChar->slots[3].unk3 = pWeapon->unkB;
+        pChar->slots[3].chance = pWeapon->unkA;
+        pChar->slots[3].conditionKind = pWeapon->unkB;
     }
-    if (pChar->slots[0].unk3 == 0x64) {
+    if (pChar->slots[0].conditionKind == 0x64) {
         pChar->accessoryEffectFlags7 |= pChar->slots[0].flags;
     }
 }

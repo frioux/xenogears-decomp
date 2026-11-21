@@ -213,8 +213,8 @@ typedef struct {
     /* 0x6 */ u8 equipGroup; // group id
     /* 0x7 */ u8 unk7;
     /* 0x8 */ u16 slotFlags; // Copied into GameCharacterSlot.flags
-    /* 0xA */ u8 unkA; // Copied into GameCharacterSlot.unk2
-    /* 0xB */ u8 unkB; // Copied into GameCharacterSlot.unk3
+    /* 0xA */ u8 unkA; // Copied into GameCharacterSlot.chance
+    /* 0xB */ u8 unkB; // Copied into GameCharacterSlot.conditionKind
     /* 0xC */ u8 attack;
     /* 0xD */ u8 unkD[3];
 } MenuShopWeapon; // Size: 0x10
