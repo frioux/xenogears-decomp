@@ -373,6 +373,7 @@ void func_8007C040(BattleCommand **p, u8 index) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;
+    s32 lastIndex;
     u16 *pField = g_BattleSlotRegs[index].wordRegs;
 
     pField[(*p)->operand1] = 0;
@@ -385,9 +386,10 @@ void func_8007C040(BattleCommand **p, u8 index) {
             buf[count++] = idx;
         }
     }
+    // retail forms the bound before the empty check, so it is a statement here
+    lastIndex = count - 1;
     if (count != 0) {
-        s32 last = count - 1;
-        u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
+        u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, lastIndex)]);
         s32 slot = (*p)->operand1;
         u16 *pRow = g_BattleSlotRegs[index].wordRegs;
 
