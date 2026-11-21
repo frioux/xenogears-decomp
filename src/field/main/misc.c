@@ -1080,71 +1080,87 @@ void FieldScriptSetByteAFE84(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-extern FieldScriptGlobalS16 D_800B0080;
-extern FieldScriptGlobalS16 D_800B0082;
-extern FieldScriptGlobalS16 D_800B0084;
-extern FieldScriptGlobalS16 D_800B0086;
-extern FieldScriptGlobalS16 D_800B0088;
-extern FieldScriptGlobalS16 D_800B008A;
-extern FieldScriptGlobalS16 D_800B008C;
-extern FieldScriptGlobalS16 D_800B008E;
+// The screen effect setup record at 0x800B0080 (0x1C bytes, padded to the next
+// record at 0xA0): eight s16 then three s32, which FieldLoad hands to the effect
+// setup and which the two parameter ops below fill a field at a time.
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ s16 unk8;
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 unk18;
+} FieldScreenEffectSetup; // Size: 0x1C
+
+extern FieldScreenEffectSetup D_800B0080;
 
 void FieldScriptSetParams80(void) {
     int value;
 
-    D_800B0080.value = FieldScriptVMGetInstructionArgument(1);
-    D_800B0082.value = FieldScriptVMGetInstructionArgument(3);
+    D_800B0080.unk0 = FieldScriptVMGetInstructionArgument(1);
+    D_800B0080.unk2 = FieldScriptVMGetInstructionArgument(3);
     value = FieldScriptVMGetInstructionArgument(5);
-    D_800B0084.value = value;
+    D_800B0080.unk4 = value;
     if ((short)value == 0) {
-        D_800B0084.value = value + 1;
+        D_800B0080.unk4 = value + 1;
     }
-    D_800B0086.value = FieldScriptVMGetInstructionArgument(7);
-    D_800B0088.value = 0;
-    D_800B008A.value = FieldScriptVMGetInstructionArgument(9);
-    D_800B008C.value = FieldScriptVMGetInstructionArgument(0xB);
-    D_800B008E.value = FieldScriptVMGetInstructionArgument(0xD);
+    D_800B0080.unk6 = FieldScriptVMGetInstructionArgument(7);
+    D_800B0080.unk8 = 0;
+    D_800B0080.unkA = FieldScriptVMGetInstructionArgument(9);
+    D_800B0080.unkC = FieldScriptVMGetInstructionArgument(0xB);
+    D_800B0080.unkE = FieldScriptVMGetInstructionArgument(0xD);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xF;
 }
 
-extern FieldScriptGlobalS32 D_800B0090;
-extern FieldScriptGlobalS32 D_800B0094;
-extern FieldScriptGlobalS32 D_800B0098;
-
 void FieldScriptSetParams90(void) {
-    D_800B0090.value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
-    D_800B0098.value = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
-    D_800B0094.value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
+    D_800B0080.unk10 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
+    D_800B0080.unk18 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
+    D_800B0080.unk14 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 
-extern FieldScriptGlobalU8 g_FieldScreenEffectParams;
-extern FieldScriptGlobalU8 D_800B00A1;
-extern FieldScriptGlobalU8 D_800B00A2;
-extern FieldScriptGlobalU8 D_800B00A4;
-extern FieldScriptGlobalU8 D_800B00A5;
-extern FieldScriptGlobalU8 D_800B00A6;
-extern FieldScriptGlobalU8 D_800B00A8;
-extern FieldScriptGlobalU8 D_800B00A9;
-extern FieldScriptGlobalU8 D_800B00AA;
-extern FieldScriptGlobalS16 D_800B00AC;
-extern FieldScriptGlobalS16 D_800B00AE;
-extern FieldScriptGlobalS16 D_800B00B0;
+// The argument record the batch handlers below fill at 0x800B00A0 (the 4 bytes
+// before it are the alignment hole that ends the previous record at 0x9C): a run
+// of byte parameters and an s16 tail, read back as a group by FieldLoad.
+typedef struct {
+    /* 0x00 */ u8 unk0;
+    /* 0x01 */ u8 unk1;
+    /* 0x02 */ u8 unk2;
+    /* 0x03 */ u8 unk3;
+    /* 0x04 */ u8 unk4;
+    /* 0x05 */ u8 unk5;
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 unk8;
+    /* 0x09 */ u8 unk9;
+    /* 0x0A */ u8 unkA;
+    /* 0x0B */ u8 unkB;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+} FieldScreenEffectParams; // Size: 0x12
+
+extern FieldScreenEffectParams g_FieldScreenEffectParams;
 extern FieldScriptGlobalS16 g_FieldScreenEffectEnabled;
 
 void FieldScriptSetParamsA0(void) {
-    g_FieldScreenEffectParams.value = FieldScriptVMGetArgument(1);
-    D_800B00A1.value = FieldScriptVMGetArgument(3);
-    D_800B00A2.value = FieldScriptVMGetArgument(5);
-    D_800B00A4.value = FieldScriptVMGetArgument(7);
-    D_800B00A5.value = FieldScriptVMGetArgument(9);
-    D_800B00A6.value = FieldScriptVMGetArgument(0xB);
-    D_800B00A8.value = FieldScriptVMGetArgument(0xD);
-    D_800B00A9.value = FieldScriptVMGetArgument(0xF);
-    D_800B00AA.value = FieldScriptVMGetArgument(0x11);
-    D_800B00AC.value = FieldScriptVMGetArgument(0x13);
-    D_800B00AE.value = FieldScriptVMGetArgument(0x15);
-    D_800B00B0.value = FieldScriptVMGetArgument(0x17);
+    g_FieldScreenEffectParams.unk0 = FieldScriptVMGetArgument(1);
+    g_FieldScreenEffectParams.unk1 = FieldScriptVMGetArgument(3);
+    g_FieldScreenEffectParams.unk2 = FieldScriptVMGetArgument(5);
+    g_FieldScreenEffectParams.unk4 = FieldScriptVMGetArgument(7);
+    g_FieldScreenEffectParams.unk5 = FieldScriptVMGetArgument(9);
+    g_FieldScreenEffectParams.unk6 = FieldScriptVMGetArgument(0xB);
+    g_FieldScreenEffectParams.unk8 = FieldScriptVMGetArgument(0xD);
+    g_FieldScreenEffectParams.unk9 = FieldScriptVMGetArgument(0xF);
+    g_FieldScreenEffectParams.unkA = FieldScriptVMGetArgument(0x11);
+    g_FieldScreenEffectParams.unkC = FieldScriptVMGetArgument(0x13);
+    g_FieldScreenEffectParams.unkE = FieldScriptVMGetArgument(0x15);
+    g_FieldScreenEffectParams.unk10 = FieldScriptVMGetArgument(0x17);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x19;
     g_FieldScreenEffectEnabled.value = 1;
 }
