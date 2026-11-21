@@ -577,13 +577,15 @@ void BattleResetActorCountdown(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
-/* 99.51% under 2.6.0 and 2.7.2: every instruction is identical except the
-   leading flag load, which retail puts in $a1 (a dead argument register at
-   entry) and gcc in $v0 (reused by the later lhu). Both pseudos have one use
-   and no live range overlap, so this is an allocator tie; the and-operand
-   register pair is identical. Tried: compound &&, !(), nested ifs, volatile on
-   the flag, an int local for the flag, and the permuter (2081 iterations, base 20
-   best 20) - it is an allocator tie, not a source shape.
+/* 99.51% under 2.6.0 (also 99.51 under -G0, 94.59 under cdk): all 41
+   instructions identical except the leading flag load, which retail puts in
+   $a1 (a dead argument register at entry) and gcc in $v0 (reused by the later
+   lhu). Both pseudos have one use and no live range overlap. Tried: compound &&,
+   !(), nested ifs, early returns, volatile on the flag, an int local for the
+   flag, a u8 local WITH initialiser, and the permuter twice (2081 and 1343
+   iterations, base 20 best 20 both times, and base 20 of 41 instructions means
+   its metric was measuring macro-expansion noise, not this 3-instruction
+   residual) - allocator tie.
 void func_80071964(void) {
     u8 *pEntry;
     s32 i;
