@@ -251,7 +251,7 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
 
     i = 0;
     pEntry += (u_char)index;
-    pTable = (u8*)(arg2 * MENU_IMAGE_CHUNK_SIZE + (s32)g_Menu->menuUnk2) + 0xC94;
+    pTable = (u8*)g_Menu->menuUnk2 + arg2 * MENU_IMAGE_CHUNK_SIZE + 0xC94;
     pValue = pairs + 1;
     pKey = pairs;
     for (; i < 0x14; i += 2) {
@@ -636,7 +636,6 @@ void MenuRenderFrame(void);
 void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
     s32 i;
     s32 j;
-    u32 off;
 
     g_Menu->pSelectionMenu->isDisabled = 0;
     g_Menu->pSelectionMenu->isDisabledRendered = 0;
@@ -646,7 +645,7 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
             g_Menu->pSelectionMenu->numCursors = 0;
             for (j = 0; j < i; j++) {
                 g_Menu->pSelectionMenu->numCursors = func_8002675C(g_Menu->resources, pEntries[j * 2],
-                    (POLY_FT4*)(g_Menu->pSelectionMenu->numCursors * 0x50 + (s32)g_Menu->pSelectionMenu),
+                    &g_Menu->pSelectionMenu->polysCursors[g_Menu->pSelectionMenu->numCursors * 2],
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numCursors;
             }
             g_Menu->pSelectionMenu->cursorsRenderCtx = g_Menu->renderContext;
@@ -654,9 +653,8 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
         g_Menu->pSelectionMenu->numTexts = 0;
         if (i != 1) {
             for (j = 0; j < i - 1; j++) {
-                off = g_Menu->pSelectionMenu->numTexts * 0x50 + 0x8C0;
                 g_Menu->pSelectionMenu->numTexts = func_8002675C(g_Menu->resources, pEntries[j * 2 + 1],
-                    (POLY_FT4*)(off + (s32)g_Menu->pSelectionMenu),
+                    &g_Menu->pSelectionMenu->polysTexts[g_Menu->pSelectionMenu->numTexts * 2],
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
             }
             g_Menu->pSelectionMenu->textsRenderCtx = g_Menu->renderContext;
@@ -797,7 +795,6 @@ void func_801E86C8(u_char selected) {
 void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
     s32 i;
     u32 index;
-    u32 off;
 
     g_Menu->pSelectionMenu->numCursors = 0;
     g_Menu->pSelectionMenu->numTexts = 0;
@@ -808,12 +805,10 @@ void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
             index = pEntries[i * 2];
         }
         g_Menu->pSelectionMenu->numCursors = func_8002675C(g_Menu->resources, index,
-            (POLY_FT4*)(g_Menu->pSelectionMenu->numCursors * 0x50 + (s32)g_Menu->pSelectionMenu),
+            &g_Menu->pSelectionMenu->polysCursors[g_Menu->pSelectionMenu->numCursors * 2],
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numCursors;
-        // kept in a local so gcc does not fold 0x8C0 onto the base pointer
-        off = g_Menu->pSelectionMenu->numTexts * 0x50 + 0x8C0;
         g_Menu->pSelectionMenu->numTexts = func_8002675C(g_Menu->resources, pEntries[i * 2 + 1],
-            (POLY_FT4*)(off + (s32)g_Menu->pSelectionMenu),
+            &g_Menu->pSelectionMenu->polysTexts[g_Menu->pSelectionMenu->numTexts * 2],
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSelectionMenu->numTexts;
     }
     g_Menu->pSelectionMenu->cursorsRenderCtx = g_Menu->renderContext;
@@ -824,7 +819,6 @@ void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
 void MenuSetSubMenuChoicePrims(u_char selected) {
     s32 i;
     u32 index;
-    u32 off;
 
     g_Menu->pSubmenuPrims->polys0PrimCount = 0;
     g_Menu->pSubmenuPrims->polys500PrimCount = 0;
@@ -835,12 +829,11 @@ void MenuSetSubMenuChoicePrims(u_char selected) {
             index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
         }
         g_Menu->pSubmenuPrims->polys0PrimCount = func_8002675C(g_Menu->resources, index,
-            (POLY_FT4*)(g_Menu->pSubmenuPrims->polys0PrimCount * 0x50 + (s32)g_Menu->pSubmenuPrims),
+            &g_Menu->pSubmenuPrims->polys0[g_Menu->pSubmenuPrims->polys0PrimCount * 2],
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys0PrimCount;
-        off = g_Menu->pSubmenuPrims->polys500PrimCount * 0x50 + 0x500;
         g_Menu->pSubmenuPrims->polys500PrimCount = func_8002675C(g_Menu->resources,
             g_MenuSubMenuChoiceTextIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-            (POLY_FT4*)(off + (s32)g_Menu->pSubmenuPrims),
+            &g_Menu->pSubmenuPrims->polys500[g_Menu->pSubmenuPrims->polys500PrimCount * 2],
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys500PrimCount;
     }
     g_Menu->pSubmenuPrims->polys0RenderCtx = g_Menu->renderContext;
