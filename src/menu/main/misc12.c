@@ -741,32 +741,28 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    is still materialised after that statement, so the +4 form anchors either way.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-/* Best: 99.79% (688 bytes = retail's size, exact instruction multiset; only which of
-   g_MenuSubMenuChoiceIds / g_MenuSubMenuChoiceIds+4 the lui/addiu anchors differs:
-   retail has la s4 = symbol then addiu s5,s4,4, this body has la s5 = symbol+4 then
-   addiu s4,s5,-4, in identical instruction slots.
-   Round 269 (measured, new spellings only): casting the symbol through u32 before the +4
-   still folds the +4 into the lui/addiu addend (99.79, same direction); deriving the second
-   base from a live base pointer local DOES give retail's direction and slot pair
-   (la s4 = symbol, addiu s5,s4,4) but sched2 then reorders the whole entry block, 88.09;
-   the inline ((s32*)((u8*)pCursor + 4))[off] form folds the +4 into the load displacement,
-   672 bytes, 87.90. So the direction and the slots are both reachable, not together.
-   Round 373 re-measured 99.79/688 and the two-local body (88.09/688) again. The
-   two-local diff is exactly FIVE instructions and it is the save region, not the
-   loop: cc1 emits "sw s4,64(sp)" then the la pair immediately, and only afterwards
-   the remaining saves (s5/ra/s3/s1/s0), the li s1,1 and the two init stores - where
-   retail does every save first and the la pair after "lw v0,852(v1)". So the pair
-   itself is right; what moves is the prologue once a SECOND live symbol-address
-   local exists, and that is the same wall round 113 named. In the one-local body
-   the two bases differ only in which register holds symbol and which symbol+4
-   (values identical), so the whole residual is la direction + a register tie.
-
+/* Best: 99.79% at 688 bytes = retail's exact size and instruction count (172). The
+   whole residual is the la DIRECTION of the g_MenuSubMenuChoiceIds pair plus the
+   register names: retail is "lui/addiu s4 = symbol; addiu s5,s4,4", this body is
+   "lui/addiu s5 = symbol+4; addiu s4,s5,-4", in the same two slots. Values are
+   identical, so the function is one allocator tie away from matching.
+   Measured again this round: the typed spelling below - &pSubmenuPrims->polys0[count * 2]
+   and ->polys500[count * 2] instead of the raw "(POLY_FT4*)(count * 0x50 + (s32)base)"
+   casts, same idiom as MenuSetSelectionMenuPrims - is 99.79% / 688 bytes, so the raw
+   form is not load-bearing. Making the BASE the local (pIds = g_MenuSubMenuChoiceIds,
+   odd entry inline as symbol[... + 1]) is 85.36% / 688: the +1 access becomes the
+   maspsx lui $at / addu $at / lw 4($at) form and s5 disappears, so the second base
+   must be a real pointer local.
+   Two-permuter-runs-empty (rounds 104 and 285, the second PERMUTER_NONE 35 -> 35 over
+   1784 iterations) and rounds 112/113/114/269/373 already measured every two-local
+   spelling: they give retail's direction but cc1 emits the la pair inside the save
+   region (88.09%), which is the wall named in round 113. Round 373 confirmed the
+   residual is exactly five instructions of prologue placement, not the loops.
 /*
 void func_801E86C8(u_char selected) {
     s32 i;
     s32 n;
     s32 allValid;
-    u32 off;
     s32* pText;
 
     allValid = 1;
@@ -781,7 +777,7 @@ void func_801E86C8(u_char selected) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
                 g_Menu->pSubmenuPrims->polys0PrimCount = func_8002675C(g_Menu->resources,
                     g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(g_Menu->pSubmenuPrims->polys0PrimCount * 0x50 + (s32)g_Menu->pSubmenuPrims),
+                    &g_Menu->pSubmenuPrims->polys0[g_Menu->pSubmenuPrims->polys0PrimCount * 2],
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys0PrimCount;
                 g_Menu->subMenuNumChoices++;
             } else {
@@ -797,10 +793,9 @@ void func_801E86C8(u_char selected) {
         g_Menu->pSubmenuPrims->polys500PrimCount = 0;
         for (i = 0; i < n; i++) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                off = g_Menu->pSubmenuPrims->polys500PrimCount * 0x50 + 0x500;
                 g_Menu->pSubmenuPrims->polys500PrimCount = func_8002675C(g_Menu->resources,
                     pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(off + (s32)g_Menu->pSubmenuPrims),
+                    &g_Menu->pSubmenuPrims->polys500[g_Menu->pSubmenuPrims->polys500PrimCount * 2],
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys500PrimCount;
             }
         }
