@@ -421,26 +421,27 @@ extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges
 // Pushes two actors apart along the perpendicular of the segment between their
 // previous positions when their vertical spans meet.  Gives up entirely once the
 // battle has run past 0x300 frames.
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
+/* Best attempt: 97.75%, and it is the RIGHT park: 25 differing instructions against
+   the hoisted variant's 32 (objdiff reads that one 99.13% - its fuzzy score is not
+   monotone).  Instruction-for-instruction identical to the original (same 256
+   instructions, 1024 bytes, same frame, same calls and delay slots); the residual is
+   register naming only: the original caches p->edgeMidPos.y in $a2 and
+   q->baseVertexPos.y in $a1 for the overlap test (we get $a1/$a2 the other way
+   round), keeps &edge1 in $s6 / &edge2 in $s7 (we are swapped), and reuses $s6 for
+   the angle after &edge1 dies where we reach for $s3.  A NON-VOID return type is
+   required - with void gcc 2.7.2 steals the second slt into the delay slot at
+   0x80078ee4 and the function comes out 4 bytes short (255 insns).
+   MEASURED AGAIN in round 372: hoisting q->baseVertexPos.y into the angle local
+   before the test is 99.13% / 32 differing instructions, because the hoist makes the
+   local live across the calls and gcc then puts it in callee-saved $s2 - that is NOT
+   retail's shape (retail reloads 0x930($s5) in every clause), so the 97.75% body is
+   the one to continue from.  The permuter from this body scored 430 with best 230
+   (the hoist).  Also: struct Actor's 0x6C is a 4-word vector (retail does lw at
+   0x6C/0x70/0x74), not the VECTOR it used to be declared as, and the two points at
+   0x92C/0x93C are Vec4s whose .y words this function compares.
+*/
 
-/* Best attempt: 97.75%. Instruction-for-instruction identical to the original
-   (same 256 instructions, same frame, same calls and delay slots); the residual
-   is register naming only.  Every remaining difference is an allocator tie: the
-   original caches p->edgeMidPos.y in $a2 and q->baseVertexPos.y in $a1 for the overlap test
-   (we get $a1/$a2 the other way round), keeps &edge1 in $s6 / &edge2 in $s7 (we
-   are swapped), and reuses $s6 for the angle after &edge1 dies where we reach for
-   $s3.  Two levers that were measured and are worth retrying: the function wants a
-   NON-VOID return type - with void gcc 2.7.2 steals the second slt into the delay
-   slot at 0x80078ee4 and the function comes out 4 bytes short (255 insns); and
-   hoisting q->baseVertexPos.y into a variable that is live into the body (reusing the
-   angle local, i.e. 'angle = q->baseVertexPos.y;' before the test, then using angle for
-   the second term) reaches 99.13% - a dedicated local of its own does not (it
-   goes back to 97.75%), so the lever is the variable's live range, not its
-   existence.  The permuter from this body scored 430 and its best candidate (230)
-   was that hoist.  Also note struct Actor's 0x6C is a 4-word vector (retail does
-   lw at 0x6C/0x70/0x74), not the VECTOR it used to be declared as, and the two
-   points at 0x92C/0x93C are Vec4s whose .y words this function compares.
-
+/*
 s32 func_80078920(Actor* p, Actor* q) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
     Vec4 edge1;
@@ -518,8 +519,8 @@ s32 func_80078920(Actor* p, Actor* q) {
             q->z -= (rsin(angle) * lenP) >> 20;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
 
 void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
@@ -674,10 +675,16 @@ void func_80078F00(Actor* p) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
+/* Best attempt: 98.96% at retail's EXACT 1196 bytes. Only the register names of the
+   state block (retail: lw v1,stateFlags / lw v0,flags; ours the other way round) and
+   the trailing p->flags/p->prevState update differ (retail's 0xFFFEFFFF mask is
+   hoisted into a0 so the p->state load takes a1; ours keeps the mask in v1 and the
+   load in a0).  A 4-minute permuter run from this body (1832 candidates, base score
+   175, best 175) found nothing better: the residual is one allocator register pair
+   (which of v0/v1 and a0/a1 the two blocks take), not structure.
+*/
 
-/* Best attempt: 98.96%. Only the register names of the state block and
-   the trailing p->flags/p->prevState update differ (mask in v1 vs a0).
+/*
 void func_8007920C(Actor* p) {
     ActorScript* pScript = p->pScript;
     s32 pos[3][4];
@@ -773,8 +780,8 @@ void func_8007920C(Actor* p) {
     p->flags = (p->flags & 0xFFFEFFFF) | (((p->flags >> 15) & 1) << 16);
     p->prevState = p->state;
     p->stateFlags = (p->stateFlags & 0xFFFFFFF3) | ((p->stateFlags & 3) << 2);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
 
 extern u8 g_BattleInitDone;
 extern s32 g_BattleFacingAngle;
@@ -1009,7 +1016,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
    and the body drops to 96.31%; giving the flags word its OWN local is the same 96.31%
    and 4 bytes bigger.  A 4-minute permuter run from this body (1975 candidates) found
    nothing better than this shape, and an earlier run from the 96.31% shape is what
-   found the local reuse.  Levers not tried: an embedded assignment inside the store
+   found the local reuse.  Round 372 re-measured the direct form and a volatile read of
+   g_BattleFrameRateLevel (value = *(volatile u8 *)&g_BattleFrameRateLevel): both are
+   96.31% / 1072 bytes, so the early load needs a SECOND use of the scratch local and
+   no volatile spelling pins it.  A u32 scratch local is identical to s32 (99.96%).
+   Levers not tried: an embedded assignment inside the store
    (p1->flags = (value = ...) | ...), and a u32 local in place of s32.
 // The battle's frame update for the combatant pair: frame skipping, the state-slot
 // pair, the gauge/animation refresh, the input pass (one controller-pop state per
@@ -1269,18 +1280,26 @@ void BattleActorSetModelIndex9(Actor* p) {
     p->flags |= 0x2000400;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
+/* Best attempt: 92.44%, 288 bytes (retail's exact size). The g_BattleCameraTargetY /
+   g_BattleCameraPosY block is the only difference: retail loads p->y ONCE into $v1 and
+   reuses it for both the g_BattleCameraTargetY store and the addiu -0x400, then
+   subu $v1,$v1,rigYOffset, with the stores interleaved (TargetY, addiu, Target,
+   subu, PosY, TargetZ).  A plain 'p->y' reloads it after the global store (gcc will
+   not CSE a load through the parameter across a store to a global) and reassociates
+   '(y - 0x400) - rigYOffset' into 'y - (rigYOffset + 0x400)'.
+   Round 372 measured two more spellings: (a) 'y = p->y' held in a local for both uses
+   and split into two statements ('y -= 0x400; PosY = y - rigYOffset;') is 85.11% /
+   284 bytes - it does give the single load and the same-register addiu+subu, but gcc
+   then hoists all three of p->y/p->x/p->z above the store group and stores Target
+   before TargetY, 4 bytes short; (b) a separate '(y - 0x400)' temp with 'y' in its
+   own local is 92.31% and 84.83% (two locals) as recorded.  What is NOT tried: writing
+   the four stores in the order gcc then emits them (Target, TargetY, TargetZ, PosY)
+   so that the hoisted-load schedule lands on retail's store order, and a volatile
+   store on g_BattleCameraTargetY to stop the load hoist.
+*/
 
-/* Best attempt: 92.44%. The g_BattleCameraTargetY/9867C/98720 block is the only difference.
-   Retail loads p->y once into $v1 and reuses it for both the g_BattleCameraTargetY store
-   and the '- 0x400' (addiu lands in $v1), while a plain 'p->y' reloads it after
-   the global store (gcc will not CSE a load through the parameter across a store
-   to a global) and reassociates '(x - 0x400) - g_BattleCameraRigYOffset' into 'x - (g_BattleCameraRigYOffset + 0x400)'.
-   A 's32 y = p->y' local removes the reload and keeps the subtraction grouped
-   ('t = y - 0x400; g_BattleCameraPosY = t - g_BattleCameraRigYOffset;' gives retail's store order and
-   addu $v0,$v0,-0x400) but reaches only 92.31%: gcc then also keeps 0x400 out of
-   the addu and the register tie moves. Holding y and t in separate locals that
-   let gcc see both uses at once drops to 84.83%.
+/*
+/*
 void func_8007A768(Actor* p) {
     ActorScript* pScript = p->pScript;
     s32 r;
@@ -1297,8 +1316,8 @@ void func_8007A768(Actor* p) {
     g_BattleCameraTargetZ = p->z;
     g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * g_BattleCameraRigRadius) >> 12);
     g_BattleCameraPosZ = g_BattleCameraTargetZ + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
 void BattleResetScratchState(void) {
     UnkA884* p;
