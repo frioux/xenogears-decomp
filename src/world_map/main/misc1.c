@@ -442,6 +442,34 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     g_WorldMapTileRows = pEntry->tileRows;
     g_WorldMapAreaMode = pEntry->areaMode;
 }
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
+// ROUND 374: re-measured 84.51% (508 bytes). The array-extern lever that closed
+// func_80071B9C does not apply here: the queue entries are separate symbols by design.
+/* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
+   byte-identical; only loop 2's register shape differs. Retail keeps TWO
+   running pointers advanced by 8 (a2 = index ptr = &g_WorldMapStreamQueue, a1 = pData ptr =
+   &D_8009D3FC with a2 = a1-4, both incremented right after their own store),
+   nCount in $s1 and the loop index in $a0; gcc keeps ONE queue pointer (v1,
+   +8) with a `sw v0,4(v1)` displacement, nCount in $a2 and the index in $s1.
+   Retail also has no `andi 0xff` after the partyMembers lbu (gcc 2.7.2 masks it
+   because the u8 feeds a short store). Tried with no change: s32 locals for the
+   ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
+   `pQueue[nCount++].pData`, terminator stores through the absolute symbols
+   g_WorldMapStreamQueue/D_8009D3FC (grows the frame to 0x38).
+   Round 289: the two-cursor shape is NOT gcc splitting the givs of one entry
+   pointer. Writing loop 2 as `pEntry->archiveIndex` / `pEntry->pData` with
+   `pEntry++` (the pointer form the induction-base rule recommends) measures
+   84.53%, 512 bytes: the compile still keeps ONE base register with a
+   `sw v0,4(a0)` displacement, and the loop then also carries an `andi 0xff`
+   retail does not have. Retail's `la a1,D_8009D3FC` + `addiu a2,a1,-4` says the
+   source named D_8009D3FC itself, so the two cursors are two source pointers
+   (one per field), not one pointer plus displacements.
+*/
+/*
+extern void* g_WorldMapPartyActorAnimFile0[3];
+extern void* g_WorldMapActorAnimFiles[3];
+extern s32 D_8009C170;
+
 void func_80071CDC(void) {
     StreamDataQueueEntry* pQueue;
     s32 i;
@@ -486,6 +514,38 @@ void func_80071CDC(void) {
     pQueue[nCount].pData = 0;
     ArchiveStartStreamQueue(pQueue, 0, 0);
 }
+*/
+
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
+// ROUND 374: re-measured 97.37% (256 vs retail's 252). THE ARRAY SPELLING CLOSES IT:
+// `extern StreamDataQueueEntry g_WorldMapStreamQueue[];` + `pQueue = g_WorldMapStreamQueue;`
+// gives retail's exact 252 bytes and 99.21-99.37%, with `sh $v1,0($a0)` as retail has it and
+// only the pData store left as g_WorldMapStreamQueue+4 against retail's D_8009D3FC (same
+// address, links identical - round-359/374 RELOC case). It is not applied because the same
+// declaration makes the matched neighbours WorldMapQueueTwoFileLoads (160 bytes, 91.95%) and
+// WorldMapQueueFileLoads (344, 87.81%) materialise the queue base in a register where retail
+// stores the symbol through $at. Closing this needs a SECOND NAME for 0x8009D3F8 (e.g.
+// g_WorldMapStreamQueueEntries) so only this function sees the array type. Round-374
+// cc1_probe: every scalar spelling of &g_WorldMapStreamQueue (plain, (void*), (u32), +0,
+// &((Q*)&g_Q)[0], (u8*)) folds to the same %at macro; only array decay escapes the fold.
+/* best: 98.00% (256 bytes vs 252). Only the g_WorldMapStreamQueue store differs: the
+   original reuses the $a0 that already holds the address for the ArchiveStartStreamQueue
+   call and emits a bare "sh $v1,0($a0)"; gcc re-forms the symbol address and
+   needs one extra lui $at. A local StreamDataQueueEntry* does not stop that
+   folding, and neither does routing the address through an s32 local or a
+   volatile pointer: cse replaces the store's (mem (symbol_ref)) with %hi/%lo
+   regardless, because the address pseudo is created after the store. Dead end
+   unless the address comes from a runtime base.
+   Round 51: permuter 434 iterations, base=125 best=125 - no lever in the body.
+   Round 287: a volatile store (`*(volatile u16 *)&g_WorldMapStreamQueue = D_8009D3C4;`)
+   is worse, not better: 89.00%, 256 bytes - gcc then keeps the address in a callee-saved
+   $s0 across the store group and STILL emits `lui $at / sh %lo($at)` through %lo, so the
+   store itself never picks up the register.
+   Round 359: the `g_WorldMapStreamQueue[n]` spelling does not close it either - un-parked with an
+   `extern StreamDataQueueEntry g_WorldMapStreamQueue[]` it reaches retail's 252 bytes but measures
+   93.63%, because the array base is then materialised in a general register
+   (`addiu $v1,$v1,24` / `addiu $a0,$v1,-24`) and a sixth callee-saved temporary (t2) appears.
+   The body below re-measures 97.37% at 256 bytes against retail's 252.
 
 void func_80071EF0(void) {
     void* pBuffer;
@@ -506,6 +566,8 @@ void func_80071EF0(void) {
     D_8009D408.pData = g_WorldMapLoadedFileData;
     ArchiveStartStreamQueue(pQueue, 0, 0);
 }
+*/
+
 void WorldMapQueueTwoFileLoads(void) {
     void* pBuffer;
 
@@ -999,6 +1061,43 @@ void WorldMapInitGfxEnv(void) {
 
 extern void SetSemiTrans(void* p, s32 abe);
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
+// ROUND 374: re-measured 96.65%, 1352 bytes against retail's 1356 - one instruction SHORT,
+// so this body can never link. The missing instruction is retail's `move s2,s5`
+// (nColor = color): this cc1 coalesces the copy away because color dies at it, while retail
+// keeps both. Retail also folds `i = count - 1` into the parameter register
+// (`addiu s7,s7,-1`) where every spelling here allocates a new one. permute.sh refuses this
+// body (the struct assignment `pG4s[1] = pG4s[0];` is outside its C parser).
+/* best: 96.65%, 1352 bytes vs retail's 1356 (one instruction short), 338 vs 339 insns.
+   Everything outside the two blocks below is instruction-for-instruction identical:
+   the three HeapAllocs, the FT4 init loop (setPolyFT4/setRGB0/setShadeTex IN THAT ORDER -
+   putting setShadeTex before setRGB0 lets cse fold `code = 0x2c | 1` into one store and
+   loses the lbu/ori pair; the element pointer has to be a local (`pFt4 = &pFt4s[i]`, NOT
+   `pFt4s[i]` inline, which also folds), the POLY_G4 setup, the struct copy pG4s[1]=pG4s[0],
+   SetDrawTPage (which belongs BEFORE the G4 block), the two PutDispEnv/PutDrawEnv pairs,
+   the pEnv toggle written as `pEnv = (pEnv == g_WorldMapGfxEnvs) ? pEnv + 1 :
+   g_WorldMapGfxEnvs;` (the if/else form costs a `j`), the whole draw loop body, and the
+   three HeapFrees.
+   LEFT: (1) the frame is 96 where retail is 88 - gcc reserves 8 bytes of var space that no
+   instruction touches (all four slots used are 16/24/32/40(sp), retail's too);
+   (2) the FT4 geometry stores are the right SET in the right per-prim order, but the
+   value-groups come out in a different order: retail emits the 0x100 group first, then the
+   0x80 group, then the rest in source order, and this compile emits 0xEF, 0x80, 0x100, rest.
+   The four constants land in the same registers (v0=0x100, v1/v0=0x80, t0/v1=0xEF,
+   s0=0x140) so this is sched2's group order, not a register-assignment difference; the
+   x/y values are written with setXYWH + setUV4 per prim (retail's u3 of the third column is
+   0x80 while its u1 is 0x40, so setUVWH does not fit);
+   (3) the loop counter and nPrim are swapped (retail i=s7/nPrim=s6, here i=s6/nPrim=s7) and
+   the 0xFF000000/0x00FFFFFF masks are in s5/s2 instead of s5/s3;
+   (4) one instruction: retail's head test is `addiu i,i,-1; li v0,-1; beq i,v0` while every
+   plain `for (i = count - 1; i != -1; i--)` folds to `beqz count; addiu i,count,-1` (loop.c
+   counts the iterations). The body below avoids the fold by comparing against a local
+   `nEnd = -1` fed to the for's condition, which reproduces the three-instruction test; the
+   price is that nEnd needs its own register (t1 here, v0 in retail).
+   Also worth knowing: `do { } while (i != -1)` emits no entry test at all (1348), and
+   `while (1) { if (i == -1) break; ... }` reaches retail's exact 1356 but puts the test
+   after the masked-address stores instead of before them. */
+/*
 void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     POLY_FT4* pFt4s;
     POLY_FT4* pFt4;
@@ -1084,7 +1183,10 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     HeapFree(pFt4s);
     HeapFree(pG4s);
     HeapFree(pTpage);
-}INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
+}
+*/
+
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
 /* best: 93.68%, 144 bytes vs retail's 152. The table is not the blocker (retail's
    is 5 entries at .rodata+0x18 with one pad word before the next object), and the
    else path is settled: `nMode = 2; if (!(gearRide[0] | gearRide[1] | gearRide[2])) nMode = 1;`
@@ -1615,6 +1717,44 @@ extern WorldMapTriPrim D_8009C664[8];
 extern WorldMapTilePos D_8009B6F4[0x20];
 extern s32 g_WorldMapFadeLevel;
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
+// ROUND 374: re-measured 82.80%, 1176 bytes against retail's 1248 (the note below says
+// 1240; the stub is 312 instructions, so retail is 1248).
+/* best: 82.80% (1176 bytes vs retail's 1240 - the body is 18 insns SHORT). Every decoded
+   fact below is confirmed against the .s; the two things left are both codegen-level.
+
+   What the function is: per frame it builds the map's GTE matrix in the scratchpad (rotY
+   from g_WorldMapViewRotationY -> RotMatrix at 0x1F8000F0, then the three translation
+   words at 0x1F800104/108/10C), projects 4 triangles of 3 vertices each with RTPT out of
+   D_8009A340 into the 8 Gouraud packets at D_8009C664 (0x1C bytes, GPU packet order:
+   tag, colour, x0y0, colour, x1y1, colour, x2y2), and then writes the visible tiles'
+   screen positions into TILE D_8009C898[0x20 per buffer half], one bit of the 32-bit
+   visibility word at g_GameState+0x1B2C per tile, adding the DR_TPAGE D_8009C5A0 first and
+   the POLY_FT4 pair D_8009C5C0[packetIndex] last.
+   The divisors are 315 for x and 341 for y (0xD00D00D1 / 0x300C0301 signed, 0xA01A01A1 /
+   0x80601807 unsigned); offsets 0xCF/0x77 for the three script-set tiles and 0xD0/0x78 for
+   the table tiles, which is where the -1 comes from.
+
+   Remaining differences, in order of size:
+   1. The three switch arms jump into ONE shared copy of the y division (12 insns saved);
+      retail has the whole /341 sequence duplicated per arm. Tried: x0 stored inside the
+      arms with a shared y (this version), both stores inside the arms, four separate
+      if/else arms, and each arm with its own u16 local - gcc's cross_jump merges the
+      identical tails every time. The case-body ORDER is already retail's (0x18, 0x19,
+      0x1A with the 0x19 test first), and the case values are 0x18/0x19/0x1A.
+   2. addPrim(ot, &D_8009C5A0) and addPrim(ot, pTile) use a base register in retail but
+      gcc folds the symbol into `lui $at; sw` for the first store (both with the symbol
+      spelled directly and through a DR_TPAGE* local).
+   3. Frame is 0x30 where retail has 0x38 (one fewer callee-saved register: retail keeps
+      both 0x1F8000F0 in $s5 and the 0x1F800000 base in $s3; mine rematerialises the
+      0x1F8000F0 constant into $t8 after the RotMatrix call).
+   4. Register-allocation ties: retail's 0xFFFFFF/0xFF000000 pairs are duplicated (t5/a3
+      and s2/t0) and my scratchpad base and tile pointers land in different registers.
+   The tail-end of loop 2 advances nTileFlags (>>= 1), pTile (0x10) and the packed
+   position table pointer (4) while retail keeps TWO position pointers 2 bytes apart;
+   that one is cosmetic now that pPos is a pointer local.
+*/
+/*
 void func_800740B8(void) {
     WorldMapScratch* pScratch;
     WorldMapTriPrim* pTri;
@@ -1693,7 +1833,10 @@ void func_800740B8(void) {
         pPos++;
     }
     addPrim(g_WorldMapRenderContext->pOt[0], &D_8009C5C0[g_WorldMapPrimPacketIndex]);
-}extern void* g_WorldMapSlotPositions;
+}
+*/
+
+extern void* g_WorldMapSlotPositions;
 extern void* g_WorldMapSlotPrims;
 extern void* g_WorldMapSlotPrimsCopy;
 extern s32 g_WorldMapSlotPositionIndex;
