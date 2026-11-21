@@ -882,8 +882,8 @@ void func_80097D5C(void) {
         g_BattleTargetSlotState->weight += g_BattleTargetSlotState->weightFromEquipment
                                           + g_BattleTargetSlotState->unk46;
         g_BattleTargetSlotState->unk9A[2] += g_BattleTargetSlotState->unk4C;
-        g_BattleTargetSlotState->responsiveness += g_BattleTargetSlotState->unk4D;
-        g_BattleTargetSlotState->agility += g_BattleTargetSlotState->unk4E - g_BattleTargetSlotState->unk48;
+        g_BattleTargetSlotState->responsiveness += g_BattleTargetSlotState->responsivenessFromEquipment;
+        g_BattleTargetSlotState->agility += g_BattleTargetSlotState->agilityFromEquipment - g_BattleTargetSlotState->weightPenalty;
         g_BattleTargetSlotState->unk9E += g_BattleTargetSlotState->statBonuses[4];
         if (g_BattleTargetSlotState->unk4F != 0 && g_BattleActingSlot->gearId != 0x12) {
             ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] =
@@ -1042,7 +1042,7 @@ u8 BattleSelectActionRow(u8 sel) {
                                  pBase->rowIndex * sizeof(BattleRow));
             g_BattleCurrentRow = pRow;
             other = pActor->agility;
-            t = pRow->unk27;
+            t = pRow->agilityOffset;
             if (t < other) {
                 v = (other - t) * 9;
             } else {
@@ -1054,7 +1054,7 @@ u8 BattleSelectActionRow(u8 sel) {
                                      pBase->rowIndex * sizeof(BattleRow));
             g_BattleCurrentRow = pGearRow;
             other = pActor->state.agility;
-            t = pGearRow->unk27;
+            t = pGearRow->agilityOffset;
             if (t < other) {
                 v = (other - t) * 9;
             } else {

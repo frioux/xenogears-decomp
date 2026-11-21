@@ -1105,11 +1105,11 @@ void func_800A9FF0(s32 arg0) {
             HeapFree((void *)(*ppSlot)->pModelFile);
             BattleFreeModelMesh((*ppSlot)->pMesh, 1);
         }
-        if ((*ppSlot)->unk62 != 0) {
+        if ((*ppSlot)->hasSedsEntry1 != 0) {
             SoundRemoveSedsEntry(*(void **)((*ppSlot)->pSoundBank1 + 8));
         }
-        if ((*ppSlot)->unkAC != NULL) {
-            HeapFree((void *)(*ppSlot)->unkAC);
+        if ((*ppSlot)->pModelSource != NULL) {
+            HeapFree((void *)(*ppSlot)->pModelSource);
         }
         if ((u32)(arg0 - 0x13) >= 0xC) {
             if ((*ppSlot)->pSprites != NULL) {

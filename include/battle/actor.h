@@ -119,16 +119,22 @@ typedef struct {
 // position and does a whole-word read-modify-write on the 0x3C flag word, which
 // the shared header's IVEC3 and bitfield spelling cannot express; that spelling
 // is left alone because other units' matches depend on it. Only the words
-// src/battle/main/misc28 touches are named.
+// src/battle/main's misc28, misc30 and misc31 touch are named.
 typedef struct {
     /* 0x00 */ BattleFixed16Vector position;
     /* 0x0C */ IVEC3 step;
     /* 0x18 */ s32 moveSpeed;
     /* 0x1C */ u32 gravity;
     /* 0x20 */ SpriteDataI1* pBase;
-    /* 0x24 */ u8 unk24[0xE];
+    /* 0x24 */ void* pVramData; // the SpriteAnimPackage whose pFrames the animation test reads
+    /* 0x28 */ u8 unk28[0x6];
+    /* 0x2E */ s16 otDepth; // the sprite's projected depth, 0 when the projection clips
+    /* 0x30 */ s16 otDepthOffset; // added to that depth
     /* 0x32 */ s16 direction;
-    /* 0x34 */ u8 unk34[0x8];
+    /* 0x34 */ u8 unk34[0x2];
+    /* 0x36 */ u16 height; // BattleGetActorHeight for this sprite
+    /* 0x38 */ u16 halfHeight; // height >> 1
+    /* 0x3A */ u16 unk3A;
     /* 0x3C */ u32 flags;
     /* 0x40 */ u8 unk40[0x60];
     /* 0xA0 */ SVEC targetPosition;
@@ -185,8 +191,8 @@ typedef struct {
     /* 0x05D */ u8 isAttached;
     /* 0x05E */ s16 parentJointIndex; // which of the parent's sprites this one hangs off
     /* 0x060 */ s16 groundY; // height of the ground point BattleSnapActorToGround projected onto
-    /* 0x062 */ u8 unk62;
-    /* 0x063 */ u8 hasSedsEntry; // a SEDS entry is open for this actor; BattleFreeActorBuffer removes it
+    /* 0x062 */ u8 hasSedsEntry1; // a SEDS entry is open for pSoundBank1; func_800A9FF0 removes it
+    /* 0x063 */ u8 hasSedsEntry2; // and one for pSoundBank2; func_800AAD54 opens it and BattleFreeActorBuffer removes it
     /* 0x064 */ u8 unk64[0x6];
     /* 0x06A */ u16 attachOffsetX;
     /* 0x06C */ u16 attachOffsetY;
@@ -210,7 +216,7 @@ typedef struct {
     /* 0x0A0 */ mem_addr pPointCursor; // the point being run; func_800AE2A4 advances it
     /* 0x0A4 */ mem_addr pPointList; // where pPointCursor restarts after the last step
     /* 0x0A8 */ mem_addr pModelFile; // the loaded model file; freed just before BattleFreeModelMesh(pMesh)
-    /* 0x0AC */ mem_addr unkAC;
+    /* 0x0AC */ mem_addr pModelSource; // the model's source record; func_800A9FF0 releases it, as LibGearFreeModel does
     /* 0x0B0 */ u8* pSoundBank1; // the libgear texture-upload record whose +8 SEDS entry feeds battle sound bank 1
     /* 0x0B4 */ u8* pSoundBank2; // and bank 2
     /* 0x0B8 */ POLY_FT4 polys[2]; // the screen quads BattleDrawActor fills, one per double-buffered frame: quadIndex picks one
@@ -255,10 +261,11 @@ typedef struct {
     /* 0x46 */ u16 unk46;
     /* 0x48 */ u8 unk48;
     /* 0x49 */ u8 pad49;
-    /* 0x4A */ u8 pad4A[0x2];
+    /* 0x4A */ u8 weightPenalty; // subtracted from agility when the slot's stats are built (func_80097D5C), as in GameGear
+    /* 0x4B */ u8 pad4B;
     /* 0x4C */ u8 unk4C;
-    /* 0x4D */ u8 unk4D;
-    /* 0x4E */ u8 unk4E;
+    /* 0x4D */ u8 responsivenessFromEquipment; // added into responsiveness (0x9F) when the slot's stats are built
+    /* 0x4E */ u8 agilityFromEquipment; // added into agility, minus weightPenalty
     /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 statBonuses[0x10]; // per-index bonus added back into a stat: [0..3] into agility (BattleResetSlotConditionCounters), [4] into amountMultiplier, [6] into the attack at 0x3E/0x3F
     /* 0x60 */ u32 hp; // scaled current hp
@@ -417,7 +424,8 @@ typedef struct {
     /* 0x23 */ u8 unk23;
     /* 0x24 */ u16 commandPointCost; // the slot's commandPoints must reach it before the row's action runs; BattleTryUseSlotCommand then subtracts it
     /* 0x26 */ u8 pad26;
-    /* 0x27 */ s8 unk27;
+    /* 0x27 */ s8 agilityOffset; // subtracted from the slot's agility in the action countdown,
+                                 // (agility - it) * 9 (BattleSelectActionRow); at or above it the countdown is a flat 9
 } BattleRow; // Size: 0x28
 
 // One 0x14-byte record of the battle work block's two per-character gear

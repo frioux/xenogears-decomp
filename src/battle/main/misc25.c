@@ -506,9 +506,9 @@ void BattleSnapActorToGround(BattleActor *pActor) {
 
 void BattleFreeActorBuffer(BattleActor *pActor) {
     if (pActor->pBuffer != 0) {
-        if (pActor->hasSedsEntry != 0) {
+        if (pActor->hasSedsEntry2 != 0) {
             SoundRemoveSedsEntry(((s32 *)pActor->pSoundBank2)[2]);
-            pActor->hasSedsEntry = 0;
+            pActor->hasSedsEntry2 = 0;
         }
         HeapFree((void *)pActor->pBuffer);
         pActor->pBuffer = 0;
