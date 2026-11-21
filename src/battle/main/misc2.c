@@ -289,6 +289,10 @@ void BattleAddFourSlotPrims(void) {
         return;
     }
 
+    // Each AddPrim re-reads pPacketPrims, as retail does. The integer sum below (not
+    // &p->prims[i + n]) is also retail's: the subscript form puts the base first in the
+    // addu and measures 99.43%.
+
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (s32)p));
     p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (0x50 + (s32)p)));
@@ -396,7 +400,8 @@ void BattleUpdateRotationBuffer(void) {
     do {
         if (g_BattlePulseTrianglePrims->enabled[i] != 0) {
             // Retail re-derives the packet address at each store instead of keeping it in
-            // a register, which only the explicit offset form above produces.
+            // a register, which only the explicit offset form above produces; the typed
+            // g_BattlePulseTrianglePrims->prims[i] form shares it and measures 91.78%.
             ((POLY_G3 *)((i * 2 + g_BattlePulseTrianglePrims->firstPrim) * sizeof(POLY_G3) +
                          (s32)g_BattlePulseTrianglePrims))
                 ->r0 = g_BattlePulseTrianglePrims->fade.level;
