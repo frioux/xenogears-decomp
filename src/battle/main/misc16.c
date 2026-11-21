@@ -24,6 +24,13 @@
 #define BATTLE_TILE_SOURCE_STRIDE 0x18
 #define BATTLE_TILE_SOURCE_V 4
 
+// The two tile-prim lists of the battle draw work block (g_BattleGraphicsWork + 0x641C,
+// the second one 0xFA0 further on; battle/main/misc2 spells the same pair):
+// packageCounts[j] packages of two POLY_FT4 prims each, built from primStart.
+#define BATTLE_TILE_PRIM_LIST_BASE 0x641C
+#define BATTLE_TILE_PRIM_LIST_STRIDE 0xFA0
+#define BATTLE_TILE_PRIM_LIST_COUNT 2
+
 // One actor's block of the per-actor action-row table g_BattleActionRows: 42 rows per
 // actor (BattleRow, 0x28 bytes, actor.h), of which this unit reads flags (+0x0) and
 // commandPointCost (+0x24) of the four rows at +0x25. The offset stays an integer:
@@ -54,6 +61,11 @@ typedef struct {
     /* 0xC */ u8 slot;
     /* 0xD */ u8 padD;
 } BattleSlotRect; // Size: 0xE
+
+// One of the two tile-prim lists: the row of POLY_FT4 prims a tile-row builder fills.
+typedef struct {
+    /* 0x000 */ POLY_FT4 prims[BATTLE_TILE_PRIM_LIST_STRIDE / sizeof(POLY_FT4)];
+} BattleTilePrimList; // Size: 0xFA0
 
 extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
@@ -291,35 +303,43 @@ u8 func_8008CFB8(u8 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 
-// Fades the rows of tile prims the battle draw block built at the current prim
-// index: sets the transparency and shading bits on each, then subtracts the packet's
-// colour offset from its r0/g0/b0. Both halves of that area are walked (0x641C and
-// 0x7DBC, one 0xFA0 apart) and packageCounts[j] * 2 prims of the row are visited.
-// The load and the tpage store spell the row offset FIRST ((i + primStart) * 0x28
-// afterwards) while the three colour stores spell the gfx base first: that
-// asymmetry is what gives retail's two addu operand orders, and it is the only
-// source-level lever in this body (every uniform spelling is 96.12% / 620 bytes,
-// one instruction short of retail's 624).
+// Fades the prims BattleAddTwoPrimLists later combines: sets the transparency and
+// shading bits on each prim of both tile-prim lists, then subtracts the packet's colour
+// shift (0x2E0 of the command queue; battle/misc11 names it colorShift) from its
+// r0/g0/b0. packageCounts[j] * 2 prims of a row are walked from primStart.
+// Every statement re-derives its address from g_BattleGraphicsWork and the two sums are
+// associated differently on purpose (row offset first for the tpage read/write, prim
+// base first for the three colour stores): that asymmetry is what gives retail's two
+// addu operand orders. A pointer local collapses the body to 400 bytes (51.21%), and
+// the uniform `row->prims[i].field` spelling shares one base register across the store
+// group for 628 bytes (88.97%).
 void BattleFadeTilePrimRow(void) {
     u8 found;
     s32 j;
     s32 i;
 
     found = 0;
-    for (j = 0; j < 2; j++) {
+    for (j = 0; j < BATTLE_TILE_PRIM_LIST_COUNT; j++) {
         if (g_BattleDisplayState->packageCounts[j] != 0) {
             for (i = 0; i < g_BattleDisplayState->packageCounts[j] * 2; i += 2) {
                 u8 c;
 
-                SetSemiTrans(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 1);
-                SetShadeTex(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 0);
-                *(u16 *)(j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28 + g_BattleGraphicsWork + 0x6432) |= 0x20;
-                c = *(u8 *)(j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28 + g_BattleGraphicsWork + 0x6420);
+                SetSemiTrans(&((BattleTilePrimList *)(g_BattleGraphicsWork + BATTLE_TILE_PRIM_LIST_BASE +
+                                                     j * BATTLE_TILE_PRIM_LIST_STRIDE))->prims[i + g_BattleDisplayState->primStart], 1);
+                SetShadeTex(&((BattleTilePrimList *)(g_BattleGraphicsWork + BATTLE_TILE_PRIM_LIST_BASE +
+                                                    j * BATTLE_TILE_PRIM_LIST_STRIDE))->prims[i + g_BattleDisplayState->primStart], 0);
+                ((POLY_FT4 *)(j * BATTLE_TILE_PRIM_LIST_STRIDE + (i + g_BattleDisplayState->primStart) * sizeof(POLY_FT4) +
+                              g_BattleGraphicsWork + BATTLE_TILE_PRIM_LIST_BASE))->tpage |= 0x20;
+                c = ((POLY_FT4 *)(j * BATTLE_TILE_PRIM_LIST_STRIDE + (i + g_BattleDisplayState->primStart) * sizeof(POLY_FT4) +
+                                  g_BattleGraphicsWork + BATTLE_TILE_PRIM_LIST_BASE))->r0;
                 if (c != 0) {
                     found = 1;
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6421 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6422 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    ((POLY_FT4 *)(g_BattleGraphicsWork + j * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
+                                  (i + g_BattleDisplayState->primStart) * sizeof(POLY_FT4)))->r0 = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    ((POLY_FT4 *)(g_BattleGraphicsWork + j * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
+                                  (i + g_BattleDisplayState->primStart) * sizeof(POLY_FT4)))->g0 = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    ((POLY_FT4 *)(g_BattleGraphicsWork + j * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
+                                  (i + g_BattleDisplayState->primStart) * sizeof(POLY_FT4)))->b0 = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
                 }
             }
         }
