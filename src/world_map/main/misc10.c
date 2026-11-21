@@ -20,6 +20,11 @@ extern void WorldMapQueueZoneEntry(s32 arg0, s32* pVec, s32 arg2, s32 arg3);
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern void func_80089580(void);
 
+#define WORLD_MAP_SPRITE_COUNT 512
+#define WORLD_MAP_SPRITES_PER_GROUP 8
+#define WORLD_MAP_TRAIL_ENTRY_COUNT 256
+#define WORLD_MAP_SPRITE_FLAG_ACTIVE 0x80
+
 typedef struct {
     /* 0x0 */ s32 w[4];
 } Block16; // Size: 0x10
@@ -138,9 +143,10 @@ typedef struct {
     /* 0x50 */ u32 colorStep;
 } WorldMapSprite; // Size: 0x54
 
-// g_WorldMapSpriteGroups holds 8 sprites per group (0x2A0 = 8 * 0x54).
+// g_WorldMapSpriteGroups holds WORLD_MAP_SPRITES_PER_GROUP sprites per group
+// (0x2A0 = 8 * 0x54).
 typedef struct {
-    /* 0x000 */ WorldMapSprite sprites[8];
+    /* 0x000 */ WorldMapSprite sprites[WORLD_MAP_SPRITES_PER_GROUP];
 } WorldMapSpriteGroup; // Size: 0x2A0
 
 // Same layouts as misc5.c, which declares them locally too.
@@ -358,11 +364,11 @@ s32 func_80088D00(s32 arg0) {
 }
 */
 
-s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
+s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 slotIndex) {
     WorldMapPlayer* pPlayer;
     WorldMapSceneLayer* pLayer;
 
-    pPlayer = g_WorldMapSlots + arg0;
+    pPlayer = g_WorldMapSlots + slotIndex;
     pLayer = &g_WorldMapGroups[g_WorldMapLevelSpriteSetIdsHeightOffset[g_WorldMapLevelIndex]];
     pPlayer->x = pLayer->pos.x << 12;
     pPlayer->y = (pLayer->pos.y << 12) + 0x40000;
@@ -370,16 +376,16 @@ s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
     return 1;
 }
 
-s32 WorldMapQueueZoneEntryHeight60(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].x, 0x68, 0x60);
+s32 WorldMapQueueZoneEntryHeight60(s32 slotIndex) {
+    WorldMapQueueZoneEntry(slotIndex, &g_WorldMapSlots[slotIndex].x, 0x68, 0x60);
     return 1;
 }
 
-s32 WorldMapSetActorPosFromSpriteSet75(s32 arg0) {
+s32 WorldMapSetActorPosFromSpriteSet75(s32 slotIndex) {
     WorldMapPlayer* pPlayer;
     WorldMapSceneLayer* pLayer;
 
-    pPlayer = g_WorldMapSlots + arg0;
+    pPlayer = g_WorldMapSlots + slotIndex;
     pLayer = &g_WorldMapGroups[75];
     pPlayer->x = pLayer->pos.x << 12;
     pPlayer->y = pLayer->pos.y << 12;
@@ -387,25 +393,25 @@ s32 WorldMapSetActorPosFromSpriteSet75(s32 arg0) {
     return 1;
 }
 
-s32 WorldMapQueueZoneEntryHeight1A6(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].x, 0x10C, 0x1A6);
+s32 WorldMapQueueZoneEntryHeight1A6(s32 slotIndex) {
+    WorldMapQueueZoneEntry(slotIndex, &g_WorldMapSlots[slotIndex].x, 0x10C, 0x1A6);
     return 1;
 }
 
-s32 WorldMapSetActorPosFromSpriteSet(s32 arg0) {
+s32 WorldMapSetActorPosFromSpriteSet(s32 slotIndex) {
     WorldMapPlayer* pPlayer;
     WorldMapSceneLayer* pLayer;
 
     pLayer = &g_WorldMapGroups[g_WorldMapLevelSpriteSetIds[g_WorldMapLevelIndex]];
-    pPlayer = g_WorldMapSlots + arg0;
+    pPlayer = g_WorldMapSlots + slotIndex;
     pPlayer->x = pLayer->pos.x << 12;
     pPlayer->y = pLayer->pos.y << 12;
     pPlayer->z = pLayer->pos.z << 12;
     return 1;
 }
 
-s32 WorldMapQueueZoneEntryHeight392(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].x, 0xC9, 0x392);
+s32 WorldMapQueueZoneEntryHeight392(s32 slotIndex) {
+    WorldMapQueueZoneEntry(slotIndex, &g_WorldMapSlots[slotIndex].x, 0xC9, 0x392);
     return 1;
 }
 
@@ -423,7 +429,7 @@ void WorldMapInitSpriteGroupTables(void) {
     s32 i;
 
     pSprite = g_WorldMapSpriteGroups->sprites;
-    for (i = 0x1FF; i != -1; i--) {
+    for (i = WORLD_MAP_SPRITE_COUNT - 1; i != -1; i--) {
         pSprite->lifeTimer = 0;
         pSprite->count = 0;
         pSprite->timer = 0;
@@ -435,9 +441,9 @@ void WorldMapInitSpriteGroupTables(void) {
         pSprite->rotX = 0;
         pSprite++;
     }
-    g_WorldMapTrailEntries = HeapAlloc(0x4C00, 0);
+    g_WorldMapTrailEntries = HeapAlloc(WORLD_MAP_TRAIL_ENTRY_COUNT * sizeof(WorldMapTrailEntry), 0);
     pTrail = g_WorldMapTrailEntries;
-    for (i = 0xFF; i != -1; i--) {
+    for (i = WORLD_MAP_TRAIL_ENTRY_COUNT - 1; i != -1; i--) {
         pTrail->trailFlags.status.active = 0;
         pTrail->trailFlags.status.count = 0;
         pTrail++;
@@ -492,29 +498,29 @@ void WorldMapFreePrimTemplateBuffers(void) {
     HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
-void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR* pPos, s16* pRot) {
+void WorldMapInitSpriteGroupSprites(s32 groupIndex, SVECTOR* pPos, s16* pRot) {
     WorldMapSprite* pSprite;
     s32 i;
     s32 found;
 
     found = 0;
-    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    pSprite = g_WorldMapSpriteGroups[groupIndex].sprites;
     // The original retests the group's first sprite 8 times: nothing advances pSprite here.
-    for (i = 7; i != -1; i--) {
-        if (pSprite->flags & 0x80) {
+    for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
+        if (pSprite->flags & WORLD_MAP_SPRITE_FLAG_ACTIVE) {
             found++;
             break;
         }
     }
-    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    pSprite = g_WorldMapSpriteGroups[groupIndex].sprites;
     // Both null tests are evaluated and and-ed (retail's sltiu/sltiu/and); `&&` branches instead.
     if ((pPos == 0) & (pRot == 0)) {
-        for (i = 7; i != -1; i--) {
+        for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
             if (found == 0) {
                 u16 interval;
                 u32 lifeTimer;
 
-                pSprite->flags |= 0x80;
+                pSprite->flags |= WORLD_MAP_SPRITE_FLAG_ACTIVE;
                 interval = pSprite->interval;
                 lifeTimer = pSprite->lifeTimerInit;
                 pSprite->count = 0;
@@ -529,12 +535,12 @@ void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR* pPos, s16* pRot) {
             pSprite++;
         }
     } else if ((pPos != 0) & (pRot == 0)) {
-        for (i = 7; i != -1; i--) {
+        for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
             if (found == 0) {
                 u16 interval;
                 u32 lifeTimer;
 
-                pSprite->flags |= 0x80;
+                pSprite->flags |= WORLD_MAP_SPRITE_FLAG_ACTIVE;
                 interval = pSprite->interval;
                 lifeTimer = pSprite->lifeTimerInit;
                 pSprite->count = 0;
@@ -547,12 +553,12 @@ void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR* pPos, s16* pRot) {
             pSprite++;
         }
     } else if ((pPos == 0) & (pRot != 0)) {
-        for (i = 7; i != -1; i--) {
+        for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
             if (found == 0) {
                 u16 interval;
                 u32 lifeTimer;
 
-                pSprite->flags |= 0x80;
+                pSprite->flags |= WORLD_MAP_SPRITE_FLAG_ACTIVE;
                 interval = pSprite->interval;
                 lifeTimer = pSprite->lifeTimerInit;
                 pSprite->count = 0;
@@ -567,12 +573,12 @@ void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR* pPos, s16* pRot) {
             pSprite++;
         }
     } else {
-        for (i = 7; i != -1; i--) {
+        for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
             if (found == 0) {
                 u16 interval;
                 u32 lifeTimer;
 
-                pSprite->flags |= 0x80;
+                pSprite->flags |= WORLD_MAP_SPRITE_FLAG_ACTIVE;
                 interval = pSprite->interval;
                 lifeTimer = pSprite->lifeTimerInit;
                 pSprite->count = 0;
@@ -635,26 +641,26 @@ void func_800893E0(s32 arg0, u8* arg1, u8* arg2) {
 }
 */
 
-void WorldMapDeactivateSpriteGroup(s32 arg0) {
+void WorldMapDeactivateSpriteGroup(s32 groupIndex) {
     WorldMapSprite* pSprite;
     s32 i;
 
-    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
-    for (i = 7; i != -1; i--) {
-        pSprite->flags &= 0x7F;
+    pSprite = g_WorldMapSpriteGroups[groupIndex].sprites;
+    for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
+        pSprite->flags &= ~WORLD_MAP_SPRITE_FLAG_ACTIVE;
         pSprite++;
     }
 }
 
-void WorldMapClearGroupEntryFlag(s32 arg0) {
+void WorldMapClearGroupEntryFlag(s32 groupIndex) {
     WorldMapTrailEntry* pEntry;
     s32 i;
     s32 j;
 
     pEntry = g_WorldMapTrailEntries;
-    for (i = 0xFF; i != -1; i--) {
-        for (j = 0; j < 8; j++) {
-            if (pEntry->spriteIndex == (arg0 << 3) + j && pEntry->trailFlags.status.active != 0) {
+    for (i = WORLD_MAP_TRAIL_ENTRY_COUNT - 1; i != -1; i--) {
+        for (j = 0; j < WORLD_MAP_SPRITES_PER_GROUP; j++) {
+            if (pEntry->spriteIndex == (groupIndex << 3) + j && pEntry->trailFlags.status.active != 0) {
                 pEntry->trailFlags.status.count = 0;
                 break;
             }
