@@ -93,7 +93,7 @@ extern void func_8008F6E4(s32, u16, u16, u16, u16);
 extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, u16);
 extern void func_8008E430(u8, s32, s32, u16, s32);
-extern void func_8008EA70(u8, s32, s32, u16);
+extern void BattleBuildTileRow2Prims(u8, s32, s32, u16);
 extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
@@ -492,7 +492,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
    y0 value's `lw a0,48(sp) / addu a2,a2,a0` then hoists ABOVE the x0 store and
    `left` hoists above the g_BattlePrimStartIndex load (position 4; retail has 9)
    with the a3 mask following it - three displacements instead of two. So y0-first
-   stays. The sibling row builder func_8008EA70 closed at 100.00 this round with an
+   stays. The sibling row builder BattleBuildTileRow2Prims closed at 100.00 this round with an
    s32 `left` local + embedded assignment, which is the only shape that makes cc1
    emit retail's 32-bit `li/li a0,0xfff8 / addu` instead of `addiu -8`; the `left`
    here is already that shape and its placement is exact.
@@ -542,7 +542,7 @@ void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
 }
 */
 
-void func_8008EA70(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
+void BattleBuildTileRow2Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     BattleSlotGraphics *p;
     s32 left;
     s32 top;
@@ -683,7 +683,7 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     BattleDrawSpriteQuad(index, arg1, arg2, arg3, arg4);
     func_8008DE04(index, arg1, arg2, arg3);
     func_8008E430(index, arg1, arg2, arg3, arg4);
-    func_8008EA70(index, arg1, arg2, arg4);
+    BattleBuildTileRow2Prims(index, arg1, arg2, arg4);
     func_8008F0A8(index, arg1, arg2, arg3, arg4);
     p->packagePrimStart = *(u8 *)&g_BattlePrimStartIndex;
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;

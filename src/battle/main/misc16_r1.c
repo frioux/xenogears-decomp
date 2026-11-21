@@ -39,7 +39,7 @@ extern void func_8008F6E4(u8, s32, s32, s32, s32);
 extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, s32);
 extern void func_8008E430(u8, s32, s32, s32, u16);
-extern void func_8008EA70(u8, s32, s32, s32);
+extern void BattleBuildTileRow2Prims(u8, s32, s32, s32);
 extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);

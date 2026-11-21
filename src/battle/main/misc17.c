@@ -71,7 +71,7 @@ extern s16 D_800C3404[][2];
 
 void BattleReleaseEffectSlotIfChar4(void);
 void BattleSetSlotEntryFieldsTo2000(u8, s32);
-void func_800916D4(u8, u8, s32);
+void BattleDrawSlotStatusDigits(u8, u8, s32);
 void BattleParseNumberToDigits(u32);
 void BattleSetPolyFT4RectH13(POLY_FT4 *, u16, s16, u8, u8, s16);
 void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
@@ -311,7 +311,7 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex[0];
     g_BattleDisplayState->spriteColumnPending = 1;
 }
-void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
+void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
     u32 s;
     s32 c;
     s32 i;
@@ -473,7 +473,7 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, u8 arg1, u8 arg2) {
         ret = 1;
     }
     if (ret != 0) {
-        func_800916D4(arg1, arg2, arg0);
+        BattleDrawSlotStatusDigits(arg1, arg2, arg0);
         func_8009187C(arg0, arg1, arg2);
         func_80091B38(arg0, arg1, arg2);
         g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex[0];
