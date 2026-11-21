@@ -113,6 +113,14 @@ typedef struct {
     /* 0x70 */ u_long* pOt[2];
 } WorldMapGfxEnv; // Size: 0x78
 
+// The fog colour SetFarColor takes; func_800931D8 multiplies the texture colours by
+// the same three factors.
+typedef struct {
+    /* 0x0 */ u8 r;
+    /* 0x1 */ u8 g;
+    /* 0x2 */ u8 b;
+} WorldMapColorFactors; // Size: 0x3
+
 extern s32 g_WorldMapPrimPacketIndex;
 extern s32 g_WorldMapLoopActive;
 extern WorldMapGfxEnv* g_WorldMapRenderContext;
@@ -991,27 +999,7 @@ void WorldMapFreeAreaResources(void) {
     WorldMapFreeLoadQueues();
 }
 
-extern u8 g_WorldMapColorFactors;
-extern u8 D_8009BB49;
-extern u8 D_8009BB4A;
-extern u8 D_8009BBDE;
-extern u8 D_8009BBE0;
-extern u8 D_8009BBE1;
-extern u8 D_8009BBE2;
-extern u8 D_8009BBE3;
-extern u8 D_8009BC56;
-extern u8 D_8009BC58;
-extern u8 D_8009BC59;
-extern u8 D_8009BC5A;
-extern u8 D_8009BC5B;
-extern u16 D_8009BC2C;
-extern u16 D_8009BC2E;
-extern u16 D_8009BC30;
-extern u16 D_8009BC32;
-extern u16 D_8009BCA4;
-extern u16 D_8009BCA6;
-extern u16 D_8009BCA8;
-extern u16 D_8009BCAA;
+extern WorldMapColorFactors g_WorldMapColorFactors;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 g_WorldMapAreaMode;
 
@@ -1029,36 +1017,36 @@ void WorldMapInitGfxEnv(void) {
     SetDefDrawEnv(&pEnv[1].drawEnv, 0, WORLD_MAP_SCREEN_HEIGHT, WORLD_MAP_SCREEN_WIDTH, WORLD_MAP_SCREEN_HEIGHT);
     SetDefDispEnv(&pEnv[0].dispEnv, 0, WORLD_MAP_SCREEN_HEIGHT, WORLD_MAP_SCREEN_WIDTH, WORLD_MAP_SCREEN_HEIGHT);
     SetDefDispEnv(&pEnv[1].dispEnv, 0, 0, WORLD_MAP_SCREEN_WIDTH, WORLD_MAP_SCREEN_HEIGHT);
-    D_8009BC58 = 1;
-    D_8009BBE0 = 1;
-    D_8009BC56 = 1;
-    D_8009BBDE = 1;
+    g_WorldMapGfxEnvs[1].drawEnv.isbg = 1;
+    g_WorldMapGfxEnvs[0].drawEnv.isbg = 1;
+    g_WorldMapGfxEnvs[1].drawEnv.dtd = 1;
+    g_WorldMapGfxEnvs[0].drawEnv.dtd = 1;
     if (g_WorldMapAreaMode == 2) {
-        D_8009BBE1 = 0;
-        D_8009BBE2 = 0;
-        D_8009BBE3 = 0;
-        D_8009BC59 = 0;
-        D_8009BC5A = 0;
-        D_8009BC5B = 0;
+        g_WorldMapGfxEnvs[0].drawEnv.r0 = 0;
+        g_WorldMapGfxEnvs[0].drawEnv.g0 = 0;
+        g_WorldMapGfxEnvs[0].drawEnv.b0 = 0;
+        g_WorldMapGfxEnvs[1].drawEnv.r0 = 0;
+        g_WorldMapGfxEnvs[1].drawEnv.g0 = 0;
+        g_WorldMapGfxEnvs[1].drawEnv.b0 = 0;
     } else {
-        D_8009BBE1 = 0;
-        D_8009BBE2 = 0;
-        D_8009BBE3 = 0x70;
-        D_8009BC59 = 0;
-        D_8009BC5A = 0;
-        D_8009BC5B = 0x70;
+        g_WorldMapGfxEnvs[0].drawEnv.r0 = 0;
+        g_WorldMapGfxEnvs[0].drawEnv.g0 = 0;
+        g_WorldMapGfxEnvs[0].drawEnv.b0 = 0x70;
+        g_WorldMapGfxEnvs[1].drawEnv.r0 = 0;
+        g_WorldMapGfxEnvs[1].drawEnv.g0 = 0;
+        g_WorldMapGfxEnvs[1].drawEnv.b0 = 0x70;
     }
-    D_8009BCA6 = 0xA;
-    D_8009BC2E = 0xA;
-    D_8009BCA8 = 0x100;
-    D_8009BC30 = 0x100;
-    D_8009BCA4 = 0;
-    D_8009BC2C = 0;
-    D_8009BCAA = 0xD8;
-    D_8009BC32 = 0xD8;
+    g_WorldMapGfxEnvs[1].dispEnv.screen.y = 10;
+    g_WorldMapGfxEnvs[0].dispEnv.screen.y = 10;
+    g_WorldMapGfxEnvs[1].dispEnv.screen.w = 256;
+    g_WorldMapGfxEnvs[0].dispEnv.screen.w = 256;
+    g_WorldMapGfxEnvs[1].dispEnv.screen.x = 0;
+    g_WorldMapGfxEnvs[0].dispEnv.screen.x = 0;
+    g_WorldMapGfxEnvs[1].dispEnv.screen.h = WORLD_MAP_SCREEN_HEIGHT;
+    g_WorldMapGfxEnvs[0].dispEnv.screen.h = WORLD_MAP_SCREEN_HEIGHT;
     SetNearColor(0x80, 0x80, 0x80);
     SetBackColor(0x80, 0x80, 0x80);
-    SetFarColor(g_WorldMapColorFactors, D_8009BB49, D_8009BB4A);
+    SetFarColor(g_WorldMapColorFactors.r, g_WorldMapColorFactors.g, g_WorldMapColorFactors.b);
     nNear = 0x800;
     if (g_WorldMapAreaMode == 2) {
         nNear = 0xB00;
