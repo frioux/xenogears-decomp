@@ -1287,15 +1287,16 @@ void BattleActorSetModelIndex9(Actor* p) {
    subu, PosY, TargetZ).  A plain 'p->y' reloads it after the global store (gcc will
    not CSE a load through the parameter across a store to a global) and reassociates
    '(y - 0x400) - rigYOffset' into 'y - (rigYOffset + 0x400)'.
-   Round 372 measured two more spellings: (a) 'y = p->y' held in a local for both uses
-   and split into two statements ('y -= 0x400; PosY = y - rigYOffset;') is 85.11% /
-   284 bytes - it does give the single load and the same-register addiu+subu, but gcc
-   then hoists all three of p->y/p->x/p->z above the store group and stores Target
-   before TargetY, 4 bytes short; (b) a separate '(y - 0x400)' temp with 'y' in its
-   own local is 92.31% and 84.83% (two locals) as recorded.  What is NOT tried: writing
-   the four stores in the order gcc then emits them (Target, TargetY, TargetZ, PosY)
-   so that the hoisted-load schedule lands on retail's store order, and a volatile
-   store on g_BattleCameraTargetY to stop the load hoist.
+   Measured spellings: (a) 'y = p->y' held in a local, split into two statements
+   ('y -= 0x400; PosY = y - rigYOffset;') = 85.11% / 284 bytes - right op sequence but
+   gcc hoists all three p->x/p->y/p->z loads above the store group and stores Target
+   first; (b) 'PosY = y - 0x400 - rigYOffset' with the y local = 90.89% (the addiu
+   reassociates onto rigYOffset); (c) '*(s32*)&p->x' spellings = 92.15% / 90.82%.
+   -O1 on this body is 60.86 and -O2 90.82, so the preset is right.  The residual is
+   the -O2 scheduler: every spelling hoists the three p->x/p->y/p->z loads above the
+   first store and retail never does.  A 4-minute permuter run from (a) went
+   625 -> 70 and its candidate (a pointer local for &p->x) reorders the block again
+   without reaching retail.  Not tried: a longer permuter run from this body.
 */
 
 /*
