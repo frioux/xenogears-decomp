@@ -307,11 +307,11 @@ void func_80070F40(void) {
 
     nextMode = 1;
     g_BattleGraphicsWork = (u8 *)BattleAllocHeapBlock(0xA2B4, 0);
-    g_BattleDisplayState = (BattleDigitState *)BattleAllocHeapBlock(0x10C, 0);
-    g_BattleCommandQueue = (u8 *)BattleAllocHeapBlock(0x2F8, 0);
+    g_BattleDisplayState = (BattleWork *)BattleAllocHeapBlock(0x10C, 0);
+    g_BattleCommandQueue = (BattleCommandQueueState *)BattleAllocHeapBlock(0x2F8, 0);
     bzero(g_BattleGraphicsWork, 0xA2B4);
     bzero((u8 *)g_BattleDisplayState, 0x10C);
-    bzero(g_BattleCommandQueue, 0x2F8);
+    bzero((u8 *)g_BattleCommandQueue, 0x2F8);
 
     pAudioManager = g_SoundAudioManager;
     D_8005959C = 0;
@@ -644,7 +644,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
    loop (loop.c invariant) and then schedules the g_BattleDisplayState store before the sh,
    costing a callee-saved reg and a 40-byte frame vs the original 32; the original
    re-materialises `li v0,1` inside the block. Tried: plain g_BattleDisplayState[i + 0x7C]
-   (index-first addu), ((u8 *)g_BattleDisplayState + i)[0x7C] (base-first addu, now
+   (index-first addu), g_BattleDisplayState->slotMarks[i] (base-first addu, now
    identical - the cast is needed since g_BattleDisplayState became a typed pointer),
    store order before/after *pDst = *pSrc (no effect), pFlag pointer local.
    The pointer pair pDst = g_BattleSlotCountdownTimers, pSrc = pDst - 0xB reproduces the original
@@ -667,7 +667,7 @@ void func_80072270(void) {
             if (BattleMaskHasSlotBit(g_BattleCommandCellFlags, i) != 0) {
                 g_BattleActorCountdownState[i] = 0;
                 *pDst = *pSrc;
-                ((u8 *)g_BattleDisplayState + i)[0x7C] = 1;
+                g_BattleDisplayState->slotMarks[i] = 1;
             }
             pDst++;
             pSrc++;
@@ -719,7 +719,7 @@ void func_800723E0(void) {
     }
 
     if (g_BattlePendingCharIndex != 0) {
-        g_BattleCommandQueue[0x2D3] = g_BattlePendingCharIndex;
+        g_BattleCommandQueue->actorIndex = g_BattlePendingCharIndex;
         D_800D2DE3[g_BattlePendingCharIndex] = 1;
         D_800D2E04[g_BattlePendingCharIndex] = 0;
         g_BattlePendingCharIndex = 0;
@@ -727,7 +727,7 @@ void func_800723E0(void) {
         return;
     }
 
-    g_BattleCommandQueue[0x2D3] = 0;
+    g_BattleCommandQueue->actorIndex = 0;
     pCurrent = g_BattleTargetScan;
     for (i = *pCurrent; g_BattleActorCountdownState[D_800D2DD8[i]] != 1; i++) {
         if (i == 0xB) {
@@ -737,7 +737,7 @@ void func_800723E0(void) {
             break;
         }
     }
-    g_BattleCommandQueue[0x2D3] = D_800D2DD8[i] + 1;
+    g_BattleCommandQueue->actorIndex = D_800D2DD8[i] + 1;
     *pCurrent = i + 1;
     if (*pCurrent == 0xB) {
         *pCurrent = 0;
@@ -1117,8 +1117,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
       g_BattleGraphicsWork into v0 and does `addu a2,a2,v0` in the jal delay
       slot; ours loads gfxWork into a2 before the stack stores and emits
       `addu a2,v0,a2`. Same for the following loop's `addiu a0,a0,0x3768`.
-   4. case 3's two stores are mirrored: retail puts the unkCC store in the `j`
-      delay slot and jumps to the unk74 store, ours the other way round.
+   4. case 3's two stores are mirrored: retail puts the panelPending store in the `j`
+      delay slot and jumps to the panelPackageCounts store, ours the other way round.
    Load-bearing shapes found on the way (each worth 1-3 points):
    - g_BattleSlotActorIds needs its own for-clause offset local
      (`actorOff += 0x1C`); with a plain `i * 0x1C` gcc derives 28i as
@@ -1135,7 +1135,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
    reuses `first` to pass the 0x53 constant, i.e. wrong code, so nothing was
    ported.
    // Draws the three slots' stat panels for one frame: which of the three package
-   // calls each slot gets is its unk90 mode, and the packages are stacked into the
+   // calls each slot gets is its panelMode, and the packages are stacked into the
    // slot's prim area, x from the slot's screen origin.
    //
    // g_BattlePrimStartIndex is a byte where it counts packages and a word where it
@@ -1147,55 +1147,55 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
        s32 j;
        u8 *pSlotFlags;
 
-       g_BattleDisplayState->unk77 = 0;
+       g_BattleDisplayState->scaledPanelPackageCount = 0;
        for (i = 0, actorOff = 0, pSlotFlags = g_BattleSlotFlags; i < 3; i++, actorOff += 0x1C) {
            if (g_BattleSlotActorIds[actorOff] != 0x7F) {
-               switch (g_BattleDisplayState->unk90[i]) {
+               switch (g_BattleDisplayState->panelMode[i]) {
            case 0:
-               g_BattleDisplayState->unk74[i] = 0;
-               g_BattleDisplayState->unk74[i] += BattleDrawSpritePackage(0x8F,
-                   (s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) + g_BattleDisplayState->unk74[i] * 80,
+               g_BattleDisplayState->panelPackageCounts[i] = 0;
+               g_BattleDisplayState->panelPackageCounts[i] += BattleDrawSpritePackage(0x8F,
+                   (s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) + g_BattleDisplayState->panelPackageCounts[i] * 80,
                    (s16)(i * 96 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + i] + 0x44)), 0x1F);
-               g_BattleDisplayState->unk74[i] += BattleDrawSpritePackageHalfScale(0x52,
-                   (s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) + g_BattleDisplayState->unk74[i] * 80,
+               g_BattleDisplayState->panelPackageCounts[i] += BattleDrawSpritePackageHalfScale(0x52,
+                   (s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) + g_BattleDisplayState->panelPackageCounts[i] * 80,
                    (s16)(i * 96 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + i] + 0x48)), 0x1C);
-               first = g_BattleDisplayState->unk74[i];
-               g_BattleDisplayState->unk74[i] += BattleDrawSpritePackageHalfScale(0x53,
-                   (s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) + g_BattleDisplayState->unk74[i] * 80,
+               first = g_BattleDisplayState->panelPackageCounts[i];
+               g_BattleDisplayState->panelPackageCounts[i] += BattleDrawSpritePackageHalfScale(0x53,
+                   (s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) + g_BattleDisplayState->panelPackageCounts[i] * 80,
                    (s16)(i * 96 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + i] + 0x48)), 0x1C);
                // Every package of the panel that is not a digit is blended grey.
-               for (j = first * 2; j < g_BattleDisplayState->unk74[i] * 2; j += 2) {
+               for (j = first * 2; j < g_BattleDisplayState->panelPackageCounts[i] * 2; j += 2) {
                    BattleSetPrimGrey40BlendSub((POLY_FT4 *)((s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) +
                                                            (*(s32 *)&g_BattlePrimStartIndex + j) * 40));
                }
-               g_BattleDisplayState->unk84[i] = g_BattlePrimStartIndex;
-               g_BattleDisplayState->unkCC[i] = 1;
+               g_BattleDisplayState->panelPrimStart[i] = g_BattlePrimStartIndex;
+               g_BattleDisplayState->panelPending[i] = 1;
                break;
            case 1:
-               g_BattleDisplayState->unk77 = func_80025FA8(g_BattleSpriteArchive, 0x52, g_BattleGraphicsWork + 0x3768,
+               g_BattleDisplayState->scaledPanelPackageCount = func_80025FA8(g_BattleSpriteArchive, 0x52, g_BattleGraphicsWork + 0x3768,
                                                            *(s32 *)&g_BattlePrimStartIndex, 0x10, 0x98, 0x1000, 0x1000, 0xC00);
-               first = g_BattleDisplayState->unk77;
-               g_BattleDisplayState->unk77 += func_80025FA8(g_BattleSpriteArchive, 0x53,
+               first = g_BattleDisplayState->scaledPanelPackageCount;
+               g_BattleDisplayState->scaledPanelPackageCount += func_80025FA8(g_BattleSpriteArchive, 0x53,
                                                             (u8 *)((first * 80 + 0x3768) + (s32)g_BattleGraphicsWork),
                                                             *(s32 *)&g_BattlePrimStartIndex, 0x10, 0x98, 0x1000, 0x1000, 0xC00);
-               for (j = first * 2; j < g_BattleDisplayState->unk77 * 2; j += 2) {
+               for (j = first * 2; j < g_BattleDisplayState->scaledPanelPackageCount * 2; j += 2) {
                    BattleSetPrimGrey40BlendSub((POLY_FT4 *)(((*(s32 *)&g_BattlePrimStartIndex + j) * 40 + 0x3768) +
                                                            (s32)g_BattleGraphicsWork));
                }
-               g_BattleDisplayState->unk87 = g_BattlePrimStartIndex;
+               g_BattleDisplayState->scaledPanelPrimStart = g_BattlePrimStartIndex;
                break;
            case 3:
                if (*pSlotFlags == 0 || g_BattleActorCharIds[i] == 7) {
-                   g_BattleDisplayState->unk74[i] = 0;
+                   g_BattleDisplayState->panelPackageCounts[i] = 0;
                } else {
-                   g_BattleDisplayState->unkCC[i] = 0;
+                   g_BattleDisplayState->panelPending[i] = 0;
                }
                func_800765C4(i);
                // fall through
            case 2:
                func_80076710(i);
                if (*pSlotFlags == 0 || g_BattleActorCharIds[i] == 7) {
-                   g_BattleDisplayState->unk7F[i] = 0;
+                   g_BattleDisplayState->panelActive[i] = 0;
                }
                break;
                }
