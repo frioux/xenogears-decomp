@@ -3683,7 +3683,7 @@ void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pE
     s32 note;
     u16 statusFlags;
 
-    pTone = (SoundPercussionTone*)((percussionIndex * 4) + pAudioManager->pPercussionData);
+    pTone = &((SoundPercussionTone*)pAudioManager->pPercussionData)[percussionIndex];
 
     SoundApplyToneToElement(pTone->tone, pElement);
 
