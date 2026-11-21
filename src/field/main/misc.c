@@ -1178,21 +1178,24 @@ void FieldScriptWriteByteB06A0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-// 98.33% (504 bytes, same instruction multiset): the only difference is which
-// instruction fills the ArchiveSetIndex jal delay slot - the original keeps the
-// `move s0,v0` of the FieldScriptArgument1 result there and emits `move a1,zero`
-// before the call; ours is the other way round. Splitting the result into a second
-// local and computing `value + 0x7FB` after the call gives 508 bytes / 97.38%.
-// FieldLoadTIMWithClut is declared with int parameters here: the shared prototype's
-// shorts cost an sll/sra pair on each of x, y and clutY (92.09%).
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A2E8);
+
+// PARKED 98.33% (504 bytes, retail's exact size and instruction multiset): one
+// instruction is in the wrong place - the `addu $s0,$v0,zero` that saves the
+// FieldScriptArgument1 result sits right after that call here, where the original
+// has reorg steal it into the ArchiveSetIndex jal delay slot (and `addu a1,zero`
+// one instruction earlier). Re-measured this round: a separate result local,
+// `value + 0x7FB` computed after the call, and an `archiveIndex += 0x7FB`
+// statement are all 504 bytes / 98.33 - the copy's RTL position does not move
+// from source.
+// FieldLoadTIMWithClut is declared with int parameters inside the park: the
+// shared prototype's shorts cost an sll/sra pair on each of x, y and clutY (92.09%).
 /*
 extern void* D_800B1F74;
 extern void FieldStoreScreenImage(void);
 extern void FieldLoadTIMWithClut(u_long* pTimData, int x, int y, int clutX, int clutY, int clutWidth,
                                  int clutHeight);
 
-// Loads a TIM (or, for the non-zero command byte, re-blits the one already loaded)
-// into the field's screen image buffer and yields the script for one frame.
 void func_8008A2E8(void) {
     s32 clutY;
     s32 x;
@@ -1236,8 +1239,6 @@ void func_8008A2E8(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A2E8);
-
 void FieldScriptNoOpHandler1(void) {}
 void FieldScriptNoOpHandler2(void) {}
 void FieldScriptNoOpHandler3(void) {}
