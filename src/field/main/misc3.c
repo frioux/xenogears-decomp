@@ -605,8 +605,9 @@ void FieldLoad(void) {
     pTimData = HeapAlloc(size, 1);
     FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->timPackageOffset, pTimData);
     count = *(s32*)pTimData;
+    pOffsets = (s32*)pTimData + 1;
     for (i = 0; i < count; i++) {
-        FieldLoadTIM((u_long*)((u8*)pTimData + ((s32*)pTimData)[i + 1]));
+        FieldLoadTIM((u_long*)((u8*)pTimData + *pOffsets++));
     }
 
     size = STAGED_FILE->clutDataSize + 0x10;
@@ -712,14 +713,16 @@ void FieldLoad(void) {
             pModel->pBounds = (FieldActorModelBounds*)pModelPart;
             ModelAllocatePackets(pModelPart, (void**)&pModel->pPrimitiveBuffers[0],
                                  (void**)&pModel->pPrimitiveBuffers[1]);
-            ModelInitializePacket(pModelPart, pModel->pPrimitiveBuffers[0], (ACTOR(i)->status & 0xC) >> 2);
-            memcpy(pModel->pPrimitiveBuffers[1], pModel->pPrimitiveBuffers[0], pModelPart->unk20[1].modelPacketSize);
+            ModelInitializePacket((ModelPart*)pModel->pBounds, pModel->pPrimitiveBuffers[0],
+                                  (ACTOR(i)->status & 0xC) >> 2);
+            memcpy(pModel->pPrimitiveBuffers[1], pModel->pPrimitiveBuffers[0],
+                   ((ModelPart*)pModel->pBounds)->unk20[1].modelPacketSize);
             if (ACTOR(i)->status & 0x2000) {
                 HeapChangeCurrentUser(3, 0);
-                pModel->pScripts = func_800303C8(pModelPart, 0);
+                pModel->pScripts = func_800303C8((ModelPart*)pModel->pBounds, 0);
                 HeapChangeCurrentUser(8, 0);
             }
-            ModelFileTrimHeapBlock((ModelFileHeader*)pModelPart);
+            ModelFileTrimHeapBlock((ModelFileHeader*)pModel->pBounds);
         }
         pSpawn++;
         func_80080F44(i);
