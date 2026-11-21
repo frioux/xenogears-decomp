@@ -740,13 +740,6 @@ SoundFile* g_SoundSedsBank;
 void* g_SoundStreamBuffer;
 
 extern StreamDataQueueEntry g_SoundSedsStreamQueue[];
-extern void* D_8006F9C0;
-extern u16 D_8006F9C4;
-extern void* D_8006F9C8;
-extern u16 D_8006F9CC;
-extern void* D_8006F9D0;
-extern u16 D_8006F9D4;
-extern void* D_8006F9D8;
 extern u8 g_SoundEffectIds[];
 extern void SoundAddSedsEntry(SoundFile* pSoundFile);
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
@@ -766,13 +759,13 @@ void SoundLoadAndPlaySedsBank(void) {
     g_SoundStreamBuffer = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
 
     g_SoundSedsStreamQueue[0].archiveIndex = 2;
-    D_8006F9C4 = 3;
-    D_8006F9C8 = g_SoundStreamBuffer;
-    D_8006F9CC = 4;
-    D_8006F9D0 = pEndAddress;
-    D_8006F9D4 = 0;
-    D_8006F9D8 = NULL;
-    D_8006F9C0 = g_SoundSedsBank;
+    g_SoundSedsStreamQueue[1].archiveIndex = 3;
+    g_SoundSedsStreamQueue[1].pData = g_SoundStreamBuffer;
+    g_SoundSedsStreamQueue[2].archiveIndex = 4;
+    g_SoundSedsStreamQueue[2].pData = pEndAddress;
+    g_SoundSedsStreamQueue[3].archiveIndex = 0;
+    g_SoundSedsStreamQueue[3].pData = NULL;
+    g_SoundSedsStreamQueue[0].pData = g_SoundSedsBank;
     ArchiveStartStreamQueue(g_SoundSedsStreamQueue, 0, 0x80);
 
     while (ArchiveDataSync() == 3) {}
