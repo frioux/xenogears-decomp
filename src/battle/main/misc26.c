@@ -544,11 +544,21 @@ extern s32 g_GfxOTDepthShift;
     (*(u_long *)(pPrim) = (*(u_long *)(pPrim) & 0xFF000000) | (*(u_long *)(pEntry) & 0xFFFFFF), \
      *(u_long *)(pEntry) = (*(u_long *)(pEntry) & 0xFF000000) | ((u_long)(pPrim) & 0xFFFFFF))
 
-// Parked at 96.80% (2940 bytes against retail's 2944: ONE instruction short).
-// Everything but one copy is retail's: both switches in retail's body order, all
-// sixteen vertex arms, the depth pipeline, retail's TWO link tails, one
-// BattleEmitDrawTPage call, the 0x88 frame with all twelve var slots, and both
-// tags in registers the way retail has them.
+// Parked at 97.45% (2940 bytes against retail's 2944: ONE instruction short).
+// Both switches in retail's body order, all sixteen vertex arms, the depth
+// pipeline, retail's TWO link tails, one BattleEmitDrawTPage call, the 0x88
+// frame with all twelve var slots, and both tags in registers the way retail has
+// them.
+// - THE DEPTH PIPELINE'S LAST FOUR COMMANDS WERE EMITTED AS DMPSX PSEUDO WORDS
+//   (round 382, 97.13 -> 97.45). gte_avsz3() in inline_c.h is the DMPSX spelling
+//   "nop; nop; .word 0x000011bf", and maspsx leaves a .word alone, so the object
+//   carried 0x000011BF where retail has the expanded command 0x4B58002D (objdiff
+//   printed it as dsra32 v0,zero,6). The spelling that matches is the psyq one:
+//   gte_nop(); gte_nop(); gte_avsz3_b(); - same three instructions, retail's word.
+//   gte_nclip()/gte_rtpt() next door are fine because the 3.x forms of those two
+//   are written as "c2 0x..." and maspsx DOES expand that. Any park that uses a
+//   gte_* 3.x macro ending in ".word 0x0000xxxx" has the same bug; the "_b" form
+//   of the same command carries the canonical word.
 // - THE MASK HOIST IS A REGISTER QUESTION, AND THE REGISTER COMES FROM THE CODE
 //   BYTE. Retail holds 0xFFFFFF in s4 and 0xFF000000 in $fp, both loaded once in
 //   the preheader. With the saved packet code byte in its own u8 (the previous
@@ -798,7 +808,9 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
                 break;
             }
             gte_stopz(&clipTest);
-            gte_avsz3();
+            gte_nop();
+            gte_nop();
+            gte_avsz3_b();
             if (clipTest <= 0) {
                 break;
             }
@@ -828,7 +840,9 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
                 break;
             }
             gte_stopz(&clipTest);
-            gte_avsz3();
+            gte_nop();
+            gte_nop();
+            gte_avsz3_b();
             if (clipTest <= 0) {
                 break;
             }
@@ -858,7 +872,9 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
                 break;
             }
             gte_stopz(&clipTest);
-            gte_avsz3();
+            gte_nop();
+            gte_nop();
+            gte_avsz3_b();
             if (clipTest <= 0) {
                 break;
             }
@@ -885,7 +901,9 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
                 break;
             }
             gte_stopz(&clipTest);
-            gte_avsz3();
+            gte_nop();
+            gte_nop();
+            gte_avsz3_b();
             if (clipTest <= 0) {
                 break;
             }
