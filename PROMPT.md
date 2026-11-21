@@ -205,6 +205,23 @@ and you decide.
   per-unit flags, and every park in the unit must be re-measured.
 - A `mfhi`/`mflo` residual on a 2.7.2 unit means the unit wants 2.6.0, not another body.
 
+- **`tools/rounds/cc_sweep.py` re-measures every 99%+ park under every `tools/gcc-*`
+  directory** (`--report`, then `--check-unit <unit> --gcc <dir>` for the
+  already-matched-functions test; results in `~/xw/cc-sweep.tsv`; private clone only,
+  one run at a time). Measured 2026-11-21 over 62 parks and ten compilers:
+  - **Two units pass the test for gcc 2.6.0 and are not on it yet: `battle/main/misc2`
+    (park `func_80073FB8` 99.9 -> 100.00, all 17 matched functions stay 100.00) and
+    `menu/main/misc3` (park `func_801CA8C0` -> 100.00, all 11 stay).** Do the switch
+    procedure above on each as the first act of the next round with no clones out,
+    then let the planner re-brief the unit's other parks, whose percentages are now stale.
+  - `battle/main/misc19` also reaches 100.00 on one park under 2.6.0 but 6 of its 13
+    matched functions regress: a split case, not a switch.
+  - The other old-gcc builds (2.6.3, 2.7.0, 2.7.1, 2.7.2.1, 2.7.2.2, 2.7.2.3, 2.8.0)
+    unlock nothing: 2.6.3 scores exactly as 2.6.0 and the rest only regress. Do not
+    re-test them. The remaining allocator residuals are not an old-gcc version question.
+  - Park notes are stale: 7 of 62 parks noted at 99%+ re-measure 0.5-19 points lower
+    and 7 no longer compile. Workers re-measure before trusting a note.
+
 ## What objdiff cannot see
 
 `objdiff 100.00%` + `MATCH` is not proof; only `make check` is. Ways a round has broken
