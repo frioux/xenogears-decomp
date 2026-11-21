@@ -5,6 +5,55 @@
 #include "system/controller.h"
 #include "battle/actor.h"
 
+/* The battle text-list record drawn by this unit. main/misc8.c carries the full
+   definition (BattleTextEntry/BattleTextFrame/BattleTextList); this is the view
+   of the fields the option screen touches, with the frame coordinates s16
+   because retail reads them with `lh`. Owed a shared header. */
+typedef struct {
+    /* 0x0 */ u8 flags;
+    /* 0x1 */ u8 unk1[0x13];
+} BattleTextEntry; // Size: 0x14
+
+typedef struct {
+    /* 0x0 */ u8 unk0[8];
+    /* 0x8 */ s16 x;
+    /* 0xA */ s16 y;
+    /* 0xC */ s16 w;
+    /* 0xE */ u16 h;
+} BattleTextFrame; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ u8 extraWidth;
+    /* 0x01 */ u8 unk1[3];
+    /* 0x04 */ BattleTextEntry* pEntries;
+    /* 0x08 */ s16 count;
+    /* 0x0A */ s16 nextListIndex;
+    /* 0x0C */ u8 unkC[6];
+    /* 0x12 */ s16 row;
+    /* 0x14 */ s16 y;
+    /* 0x16 */ u8 unk16[6];
+    /* 0x1C */ BattleTextFrame frames[2]; /* current, saved */
+} BattleTextList; // Size: 0x3C
+
+/* One row of the option screen's text list: a text pointer and the handler
+   that reacts to the row, plus the text sprite id shown beside it. Two rows
+   per page; the pages themselves are data, at D_80091368. */
+typedef struct {
+    /* 0x00 */ u8 unk0;
+    /* 0x01 */ u8 unk1;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ u8* pText;
+    /* 0x08 */ void (*pHandler)(void);
+    /* 0x0C */ u32 unkC;
+    /* 0x10 */ u32 unk10;
+} BattleOptionRow; // Size: 0x14
+
+typedef struct {
+    /* 0x00 */ BattleOptionRow rows[2];
+} BattleOptionPage; // Size: 0x28
+
+extern BattleOptionPage D_80091368[];
+
 /* The nine flag bytes below are declared as open arrays on purpose: -G8
    classifies a 1-byte extern as small data, which makes its address one
    gp-relative insn, so gcc rematerialises it at each use instead of holding
@@ -54,20 +103,20 @@ extern s32 g_BattleMotionSpeedScale;
 extern u16 g_BattleMotionSpeedScaleOption[];
 extern u8* g_BattleSpriteArchiveBuffer;
 extern s32 g_BattleSpriteArchiveFreed;
-extern s16 D_800916E2;
-extern s16 D_8009171E;
-extern u8 D_80091369;
-extern u8 D_80091391;
 extern s32 g_BattleCursor0Step;
 extern s32 g_BattleCursor0Offset;
 extern s32 g_BattleCursor1Step;
 extern s32 g_BattleCursor1Offset;
-extern u8 g_BattleOptionTextList[];
-extern u8* D_800916DC;
-extern s16 D_800916EA;
-extern u8 D_80091714[];
-extern u8* D_80091718;
-extern s16 D_80091726;
+extern BattleTextList g_BattleOptionTextList[];
+/* Three fields of the option pages keep their own symbol because retail forms
+   each address with a fresh lui/%lo: naming them off the pPad base makes gcc
+   use the base register instead and BattleDrawVibrationOptions comes out 16
+   bytes short (588 against retail's 604). D_800916DC/D_80091718 are
+   g_BattleOptionTextList[0]/[1].pEntries, D_800916E2 is page 0's
+   nextListIndex (its `[0]` spelling emits an extra `la`). */
+extern s16 D_800916E2;
+extern BattleTextEntry* D_800916DC;
+extern BattleTextEntry* D_80091718;
 extern s32 g_BattleSlot0TextColor;
 extern s32 g_BattleSlot1TextColor;
 extern s32 g_BattleSlotConfirmLatched;
@@ -162,18 +211,8 @@ void BattleExitOptionsScreen(void) {
     BattleSetScreenMode(mode);
 }
 
-typedef struct {
-    /* 0x0 */ u8 unk0[0x12];
-    /* 0x12 */ s16 unk12;
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ u8 unk16[0xE];
-    /* 0x24 */ s16 unk24;
-    /* 0x26 */ u8 unk26[2];
-    /* 0x28 */ s16 unk28;
-} Misc7Struct; // Size: 0x2A
-
-void BattleSetRowTextColor(Misc7Struct* p, s32 arg) {
-    if (p->unk12 == arg) {
+void BattleSetRowTextColor(BattleTextList* p, s32 arg) {
+    if (p->row == arg) {
         BattleSetTextColor(1);
     } else {
         BattleSetTextColor(0);
@@ -184,12 +223,12 @@ u32 BattleGetDifficultyText(void) {
     return g_BattleDifficultyNames[g_BattleDifficultyLevel[0]];
 }
 
-void BattleDrawOptionRows0To4(Misc7Struct* p) {
+void BattleDrawOptionRows0To4(BattleTextList* p) {
     u8 buf[0x8];
     u8* pText;
     s32 value;
 
-    BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
+    BattleSetTextCursor(p->frames[0].x + p->frames[0].w - 0xA, p->y);
     BattleSetTextColor(0);
     BattleSetRowTextColor(p, 0);
     BattleDrawTextRight((u8*)BattleGetDifficultyText());
@@ -217,10 +256,10 @@ void BattleDrawOptionRows0To4(Misc7Struct* p) {
     BattleSetTextColor(0);
 }
 
-void BattleDrawOptionRows0To2(Misc7Struct* p) {
+void BattleDrawOptionRows0To2(BattleTextList* p) {
     u8 buf[0x8];
 
-    BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
+    BattleSetTextCursor(p->frames[0].x + p->frames[0].w - 0xA, p->y);
     BattleSetTextColor(0);
     BattleDrawTextRight(g_StrEmpty);
     BattleSetRowTextColor(p, 1);
@@ -234,13 +273,13 @@ void BattleDrawOptionRows0To2(Misc7Struct* p) {
 
 void BattleDrawVibrationOptions(void) {
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
-    Misc7Struct* pPad;
+    BattleTextList* pPad;
     s32 flag;
 
     BattleSetTextCursor(0xA0, 0x8C);
-    pPad = (Misc7Struct*)g_BattleOptionTextList;
+    pPad = &g_BattleOptionTextList[0];
     flag = !(g_BattleSlotConfirmFlags & 1);
-    if (flag && D_800916EA == 0) {
+    if (flag && pPad->row == 0) {
         g_BattleSlot0TextColor = 1;
     } else {
         g_BattleSlot0TextColor = 0;
@@ -251,17 +290,17 @@ void BattleDrawVibrationOptions(void) {
             BattleSetRowTextColor(pPad, 1);
         }
         BattleByteRegTestReg((g_BattlePlayer1Vibration[0] & 1) ? g_StrVibrationOn : g_StrVibrationOff);
-        D_800916DC[0x14] &= ~4;
+        D_800916DC[1].flags &= ~4;
     } else {
-        D_800916DC[0x14] |= 4;
+        D_800916DC[1].flags |= 4;
     }
     BattleSetTextColor(0);
     flag = !(g_BattleSlotConfirmFlags & 2);
     if (flag && g_BattleSlotConfirmLatched == 0) {
         flag = 0;
     }
-    pPad = (Misc7Struct*)D_80091714;
-    if (flag && D_80091726 == 0) {
+    pPad = &g_BattleOptionTextList[1];
+    if (flag && pPad->row == 0) {
         g_BattleSlot1TextColor = 1;
     } else {
         g_BattleSlot1TextColor = 0;
@@ -272,21 +311,21 @@ void BattleDrawVibrationOptions(void) {
             BattleSetRowTextColor(pPad, 1);
         }
         BattleByteRegTestReg((g_BattlePlayer2Vibration[0] & 1) ? g_StrVibrationOn : g_StrVibrationOff);
-        D_80091718[0x14] &= ~4;
+        D_80091718[1].flags &= ~4;
     } else {
-        D_80091718[0x14] |= 4;
+        D_80091718[1].flags |= 4;
     }
     BattleSetTextColor(0);
     func_8007F258(g_BattleRootOrderingTable, 1);
 }
 
-void BattleDrawOptionRows4To6(Misc7Struct* p) {
+void BattleDrawOptionRows4To6(BattleTextList* p) {
     u8 buf[0x10];
     u8* pText;
     u8 flag;
 
     BattleSetTextColor(0);
-    BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
+    BattleSetTextCursor(p->frames[0].x + p->frames[0].w - 0xA, p->y);
     BattleDrawTextRight(g_StrEmpty);
     BattleDrawTextRight(g_StrEmpty);
     BattleDrawTextRight(g_StrEmpty);
@@ -570,13 +609,13 @@ void BattleInitOptionsScreen(s32 mode) {
     }
     g_BattleMode = mode;
     D_800916E2 = (mode == 4) ? 3 : 4;
-    D_8009171E = 5;
+    g_BattleOptionTextList[1].nextListIndex = 5;
     if (mode == 3) {
-        D_80091369 = 0x27;
-        D_80091391 = 0x28;
+        D_80091368[0].rows[0].unk1 = 0x27;
+        D_80091368[1].rows[0].unk1 = 0x28;
     } else {
-        D_80091369 = 0x25;
-        D_80091391 = 0x26;
+        D_80091368[0].rows[0].unk1 = 0x25;
+        D_80091368[1].rows[0].unk1 = 0x26;
     }
     BattleSetScreenMode(1);
     g_BattleSlotConfirmFlags = 0;
