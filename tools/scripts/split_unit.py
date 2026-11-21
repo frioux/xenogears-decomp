@@ -82,6 +82,11 @@ def shared_decls(src):
         if line.startswith("#define"):
             out.append(line)
             i += 1
+            # a macro whose body continues on the next line(s) must travel whole,
+            # or the copy ends in a stray backslash (round 384: temp2_r2 failed CPP)
+            while out[-1].rstrip().endswith("\\") and i < len(lines):
+                out.append(lines[i])
+                i += 1
             continue
         if line.startswith("typedef"):
             depth = line.count("{") - line.count("}")
