@@ -69,8 +69,8 @@ void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
         CdDataCallback(0);
         CdSyncCallback(NULL);
         CdReadyCallback(NULL);
-        CdControl(7, 0, &D_80059F1C);
-        ArchiveCdSetMode(0xA0);
+        CdControl(CdlStandby, 0, &D_80059F1C);
+        ArchiveCdSetMode(CdlModeSpeed | CdlModeSize1);
         ArchiveCdDataSync(0);
         Vsync(3);
     } else {
@@ -103,8 +103,8 @@ void ArchiveReset(void) {
     ArchiveStopTransfer(0);
     ArchiveCdDataSync(0);
     if (g_ArchiveDebugTable == 0) {
-        while (CdControlB(9, 0, &D_80059F1C) == 0);
-        ArchiveCdSetMode(0xA0);
+        while (CdControlB(CdlPause, 0, &D_80059F1C) == 0);
+        ArchiveCdSetMode(CdlModeSpeed | CdlModeSize1);
         ArchiveCdDataSync(0);
         Vsync(3);
     }
