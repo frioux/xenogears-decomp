@@ -736,36 +736,34 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
 extern void WorldMapProjectTriangleNormal(SVec* pPos, SVec* pOut, SVec* pNormal, u16 setIndex,
                                           u16 triIndex);
 extern SVec g_WorldMapStepProbePos; // candidate world position in the 0x1F800000 scratchpad
-
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
-/* best: 98.72% (684 bytes vs retail's 676, so 8 bytes / 2 insns long). Body structure
-   is right; the 169-instruction stream differs in three places:
-   1. The typed-member spelling is the lever that closes the scratchpad addresses:
-      `*(s32*)0x1F800064 = x` makes cse materialise 0x1F800064 in a callee-saved
-      register (`li $s2,0x1F800000; ori $s2,$s2,0x64; sw ...0($s2)`), while
-      `((SVec*)0x1F800060)->y = x` keeps gcc's one-instruction macro form, which the
-      assembler expands per site exactly as retail does (`lui $at,0x1F80` + `sw ...0x64($at)`
-      for a store, `lui $a0,0x1F80` + `lw $a0,...0x60($a0)` for a load). With the typed
-      form 5 of the 6 scratchpad sites matched on the first try. The one that cannot be
-      closed is the first store (x at 0x1F800060) together with the WrapPosition argument
-      and the GetTilePlaneHeight load of the same address: as soon as all three are
-      literals cse shares one register across them again. Spelling that store through the
-      symbol (g_WorldMapStepProbePos.x = ...) breaks the sharing and reached 99.93% with retail's exact
-      169 instructions; it costs only a relocation, whose linked bytes are the same
-      (`lui $at,0x1F80` + `sw $2,0x60($at)`), so it is the documented reloc-only exception.
-   2. The loop's `WorldMapCheckTriangleEdgeSide(&g_WorldMapStepProbePos, ...)`: retail forms the
-      address with `lui $t0,%hi(g_WorldMapStepProbePos)` + `addiu $a0,$t0,%lo(...)` (untied temp)
-      inside the loop; every spelling measured here gives the tied `lui $a0,%hi` +
-      `addiu $a0,$a0,%lo` that GNU as produces for gcc's one-insn `la $4,g_WorldMapStepProbePos`.
-      A pointer local, an inline cast and a per-iteration assignment all give the same
-      tied pair, and a 4-minute permuter run from the 99.93% body found nothing.
-   3. WorldMapResolveStepAgainstTerrain takes `s16 kind` (its own stub loads the 5th
-      argument with `lh`, which is why widening it to s32 drops it to 99.09%), but this
-      caller reloads the 5th argument with `lw` and retail's call site never narrows it
-      (`lw $t0,0x60($sp)` then `sw $t0,0x10($sp)`). Keeping the callee's s16 signature
-      therefore costs the two sll/sra instructions that make this body 8 bytes long; the
-      s32 version (which needs the callee widened too) is the 99.93% measurement above.
-
+/* best: 99.93% (676 bytes = retail's exact size, 169 instructions = retail's
+   count). Two residuals, both measured:
+   1. RELOC ONLY, links identical: the probe-X store is spelled through the
+      symbol (g_WorldMapStepProbePos.x = ...) where retail shows the literal
+      lui at,0x1F80 plus sw 0x60(at); the linker resolves the symbol to the same
+      address. The all-literal spelling is not usable: with all three 0x1F800060
+      uses literal, cse holds that address in one callee-saved register and the
+      body loses instructions.
+   2. THE ONE REAL DIFFERENCE: inside the loop retail forms the probe address as
+      "lui t0,hi" then "addiu a0,t0,lo" (hi in a scratch, untied) while every
+      spelling here gives the tied "lui a0,hi" plus "addiu a0,a0,lo" of the
+      maspsx la expansion; only the two register fields differ. Measured and dead:
+      a pointer local before the loop, a per-iteration assignment, an inline
+      cast, an unbounded-array extern, and a 3-minute permuter run from this body
+      (1424 iterations, base 20, best 20). try_flags: gcc-2.7.2-cdk 89.1, so the
+      preset is not the answer; plain -G0 is 99.93 (no change).
+   How the 8-byte narrowing was removed, which is the find worth keeping: the
+   caller's kind stays s32 and the CALLEE keeps its s16 signature, but the call
+   is made through a K&R declaration, which makes the 5th argument a raw word
+   copy (lw t0,0x60(sp) then sw t0,0x10(sp)) exactly as retail does. The
+   prototyped declaration forces sll/sra on kind (684 bytes, 98.72%), and
+   widening the callee to s32 does the same while breaking the callee's own lh
+   load. Retail's two TUs simply disagreed about the prototype.
+   The K&R declaration sits INSIDE this block, just above the body: park.py's
+   unpark extracts only the definition, so re-add the extern line by hand after
+   un-parking or the 8 bytes come back.
+extern s32 WorldMapResolveStepAgainstTerrain();
 s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     s32 height;
     s32 count;
