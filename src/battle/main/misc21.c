@@ -353,7 +353,7 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
     }
     for (i = 1; i < count; i++) {
         pSprite++;
-        pSprites->doTransform = 0;
+        pSprite->doTransform = 0;
     }
     return count;
 }
