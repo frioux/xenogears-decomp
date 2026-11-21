@@ -390,6 +390,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
    Measured worse: an s16 `left` local (80.24), s16 locals for all five values
    (70.25 pre-volatile), the x1 store listed first (72.56), and the permuter from
    both bases (base 8640, nothing better in 4 minutes).
+   ROUND 384: four more bodies, all worse - s32 locals for left/bottom/top/half/mid
+   (75.99; cse2 hoists all five definitions above the first volatile store),
+   `left = arg1 + 8` as a statement BEFORE the slot-graphics load (78.23 / 1576,
+   and it does put left in retail's $a1 in the prologue), `left` early plus
+   `arg2 + 0xFFF8` inline (80.01 / 1576 - the li/addu shape retail has, but bottom
+   lands in $t0 and mid in $a0, the mirror of retail). None beats the body below,
+   which stays the closest at 620-ish 1580 bytes; the residual is the STORE_HOIST
+   class these four rows of row builders share (see func_8008E430's note).
 */
 /*
 void func_8008DE04(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
