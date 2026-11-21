@@ -279,7 +279,7 @@ u_char MenuIsSlotUsable(s32 a0) {
 
     switch (a0) {
     case 0:
-        if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
+        if (pMenu->cardSlotCounts[0] != 0 || pMenu->cardSlotCounts[1] != 0) {
             j = g_MenuCardSlotOrder[idx];
             if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
@@ -290,7 +290,7 @@ u_char MenuIsSlotUsable(s32 a0) {
         result = 0;
         break;
     case 1:
-        if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
+        if (pMenu->cardSlotCounts[0] != 0 || pMenu->cardSlotCounts[1] != 0) {
             j = g_MenuCardSlotOrder[idx];
             if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
@@ -338,7 +338,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
         }
         switch (a0) {
         case 0:
-            if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
+            if (g_Menu->menuUnk2->cardSlotCounts[0] != 0 || g_Menu->menuUnk2->cardSlotCounts[1] != 0) {
                 j = g_MenuCardSlotOrder[i];
                 if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE) {
                     result = i;
@@ -349,7 +349,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
             }
             break;
         case 1:
-            if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
+            if (g_Menu->menuUnk2->cardSlotCounts[0] != 0 || g_Menu->menuUnk2->cardSlotCounts[1] != 0) {
                 j = g_MenuCardSlotOrder[i];
                 if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE &&
                     g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
