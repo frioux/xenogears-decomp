@@ -2,6 +2,7 @@
 #include "main/game.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 
 extern s32 g_WorldMapLevelIndex;
 extern u16 g_WorldMapLevelSpriteSetIdsHeightOffset[];
@@ -785,7 +786,159 @@ void func_80089748(void) {
     func_80089580();
 }
 */
+// 0x1F800000 scratchpad view this routine projects through. The three matrices and the
+// delta are addressed by their own literals in retail, so the byte offsets are the contract.
+typedef struct {
+    /* 0x00 */ SVECTOR quad[4]; // the sprite's four vertices, loaded by RTPT and RTPS
+    /* 0x20 */ SVECTOR delta;   // wrapped world-space delta fed to the view rotation
+    /* 0x28 */ MATRIX view;     // copy of g_WorldMapViewMatrix
+    /* 0x48 */ MATRIX sprite;   // identity or RotMatrixZ, scaled, then given the translation
+    /* 0x68 */ MATRIX identity; // copy of g_WorldMapIdentityMatrix
+    /* 0x88 */ s32 wrap[4];     // delta WorldMapWrapDeltaScaled wraps (x, unused, z)
+    /* 0x98 */ s32 scale[3];    // the sprite matrix's x, y and depth scale
+    /* 0xA4 */ u8 unkA4[8];
+    /* 0xAC */ s32 flag;        // GTE FLAG read back after each projection
+    /* 0xB0 */ s32 otz;         // SZ3 of the fourth vertex: the ordering table index
+} WorldMapTrailScratch; // Size: 0xB4
+
+// A vertex's four texture coordinates and its position come from parallel tables whose
+// fourth element retail reaches through its own symbol, so they stay two names each.
+extern u16 D_8009AFF0[];
+extern u16 D_8009AFF6[];
+extern u8 D_8009B040[];
+extern u8 D_8009B058[];
+
+typedef struct {
+    /* 0x0 */ u8 bytes[8];
+} WorldMapSpriteQuadVertex; // Size: 0x8
+
+typedef struct {
+    /* 0x00 */ u8 unk00[0x70];
+    /* 0x70 */ u_long* pOt[2];
+} WorldMapRenderEnv; // partial view: this routine only links through the first table
+
+extern MATRIX g_WorldMapViewMatrix;
+extern MATRIX g_WorldMapIdentityMatrix;
+extern s32 g_WorldMapCameraTarget;
+extern s32 g_WorldMapCameraTargetZ;
+extern s32 g_WorldMapPrimPacketIndex;
+extern WorldMapTrailEntry* g_WorldMapTrailEntries;
+extern WorldMapRenderEnv* g_WorldMapRenderContext;
+extern void WorldMapWrapDeltaScaled(s32* pDelta);
+
+#define WORLD_MAP_TRAIL_SCREEN_W 320
+#define WORLD_MAP_TRAIL_SCREEN_H 216
+#define WORLD_MAP_TRAIL_SZ_MAX 0xC00
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089C78);
+/* 85.25% first pass (1648 bytes against retail's 1616, frame 0x48 against retail's 0x50).
+   Structure recovered and byte-identical through the whole two-matrix head and the
+   per-sprite body: the 0x100-entry WorldMapTrailEntry walk, the identity/RotMatrixZ and
+   ScaleMatrix pair into 0x1F800048, the four 8-byte vertex moves out of the 0x8009B040
+   table (lwl/lwr, so the copy needs an alignment-1 8-byte aggregate - the
+   WorldMapSpriteQuadVertex byte-array below is what produces it), the wrap/delta/MVMVA
+   transform, the RTPT + RTPS pair, the screen and SZ3 gates and the addPrim tail.
+   The right macros exist and were the whole trick: gte_SetRotMatrixRows_gpr and
+   gte_SetRotTransMatrix_gpr in psyq/inline_c.h are EXACTLY retail's interleaved
+   $12/$13/$14 ctc2 sequences, gte_mvmva(1,0,0,3,0), gte_rtpt, gte_rtps, gte_stflg,
+   gte_stsxy3/gte_stsxy2, gte_stslvnl... i.e. gte_stlvnl, gte_stsz.
+   Residual (all allocator/ordering, nothing structural):
+   (1) retail keeps a SECOND induction pointer for pEntry: mine emits
+       `addiu s2,s2,76` in the loop tail on top of retail's `addiu s0,s0,76`, so the
+       body is one instruction long there - the pointer update wants to happen once.
+   (2) retail's prologue interleaves the callee-saved stores with the two matrix copies
+       (s1 = 0x1F800000 is saved and built FIRST); mine defers all of them past the
+       copies, which is most of the remaining frame/save-order delta.
+   (3) the scratch base lands in s0 here and s1 in retail.
+   Retail sources: 0x8009AFF0/0x8009AFF6 are the interleaved u/v quad (the fourth element
+   reached through its own symbol, hence the two names) and 0x8009B040/0x8009B058 the same
+   split for the four vertices.
+/*
+void func_80089C78(void) {
+    WorldMapTrailScratch* pScratch;
+    WorldMapTrailEntry* pEntry;
+    POLY_FT4* pPrim;
+    s32 camX;
+    s32 camZ;
+    s32 i;
+
+    pScratch = (WorldMapTrailScratch*)PSX_SCRATCH;
+    *(MATRIX*)0x1F800028 = g_WorldMapViewMatrix;
+    *(MATRIX*)0x1F800068 = g_WorldMapIdentityMatrix;
+    i = 0;
+    camX = g_WorldMapCameraTarget >> 12;
+    camZ = g_WorldMapCameraTargetZ >> 12;
+    pPrim = (POLY_FT4*)g_WorldMapPrimTemplateBuffer[g_WorldMapPrimPacketIndex];
+    for (pEntry = g_WorldMapTrailEntries; i < WORLD_MAP_TRAIL_ENTRY_COUNT; i++, pEntry++) {
+        if (pEntry->trailFlags.status.active == 0) {
+            continue;
+        }
+        pScratch->scale[0] = pEntry->scaleX;
+        pScratch->scale[1] = pEntry->scaleY;
+        pScratch->scale[2] = 0x1000;
+        *(MATRIX*)0x1F800048 = *(MATRIX*)0x1F800068;
+        if (pEntry->colorStep.a & 1) {
+            RotMatrixZ(pEntry->angle, (MATRIX*)0x1F800048);
+        }
+        ScaleMatrix((MATRIX*)0x1F800048, (VECTOR*)&pScratch->scale[0]);
+        *(WorldMapSpriteQuadVertex*)((u8*)pScratch + 0x00) =
+            *(WorldMapSpriteQuadVertex*)(D_8009B040 + pEntry->spriteIndex * 0x20);
+        *(WorldMapSpriteQuadVertex*)((u8*)pScratch + 0x08) =
+            *(WorldMapSpriteQuadVertex*)(D_8009B040 + pEntry->spriteIndex * 0x20 + 0x08);
+        *(WorldMapSpriteQuadVertex*)((u8*)pScratch + 0x10) =
+            *(WorldMapSpriteQuadVertex*)(D_8009B040 + pEntry->spriteIndex * 0x20 + 0x10);
+        *(WorldMapSpriteQuadVertex*)((u8*)pScratch + 0x18) =
+            *(WorldMapSpriteQuadVertex*)(D_8009B058 + pEntry->spriteIndex * 0x20);
+        pScratch->wrap[0] = (pEntry->x >> 12) - camX;
+        pScratch->wrap[2] = (pEntry->z >> 12) - camZ;
+        WorldMapWrapDeltaScaled((s32*)0x1F800088);
+        pScratch->delta.vx = pScratch->wrap[0];
+        pScratch->delta.vz = -pScratch->wrap[2];
+        pScratch->delta.vy = pEntry->y >> 12;
+        gte_SetRotMatrixRows_gpr(&pScratch->view);
+        gte_ldv0(&pScratch->delta);
+        gte_mvmva(1, 0, 0, 3, 0);
+        gte_stlvnl((s32*)0x1F800088);
+        pScratch->sprite.t[0] = pScratch->wrap[0] + pScratch->view.t[0];
+        pScratch->sprite.t[1] = pScratch->wrap[1] + pScratch->view.t[1];
+        pScratch->sprite.t[2] = pScratch->wrap[2] + pScratch->view.t[2];
+        gte_SetRotTransMatrix_gpr(&pScratch->sprite);
+        gte_ldv3(&pScratch->quad[0], &pScratch->quad[1], &pScratch->quad[2]);
+        gte_rtpt();
+        gte_stflg(&pScratch->flag);
+        if (pScratch->flag < 0) {
+            continue;
+        }
+        gte_stsxy3(&pPrim->x0, &pPrim->x1, &pPrim->x2);
+        gte_ldv0(&pScratch->quad[3]);
+        gte_rtps();
+        gte_stflg(&pScratch->flag);
+        if (pScratch->flag & 0x80000000) {
+            continue;
+        }
+        gte_stsxy2(&pPrim->x3);
+        if (pPrim->x0 < WORLD_MAP_TRAIL_SCREEN_W || pPrim->x1 < WORLD_MAP_TRAIL_SCREEN_W ||
+            pPrim->x2 < WORLD_MAP_TRAIL_SCREEN_W || pPrim->x3 < WORLD_MAP_TRAIL_SCREEN_W) {
+            if (pPrim->y0 < WORLD_MAP_TRAIL_SCREEN_H || pPrim->y1 < WORLD_MAP_TRAIL_SCREEN_H ||
+                pPrim->y2 < WORLD_MAP_TRAIL_SCREEN_H || pPrim->y3 < WORLD_MAP_TRAIL_SCREEN_H) {
+                gte_stsz(&pScratch->otz);
+                if (pScratch->otz < WORLD_MAP_TRAIL_SZ_MAX) {
+                    pPrim->r0 = pEntry->color & 0xFF;
+                    pPrim->g0 = (pEntry->color >> 8) & 0xFF;
+                    pPrim->b0 = (pEntry->color >> 16) & 0xFF;
+                    pPrim->tpage = pEntry->tpage;
+                    *(u16*)&pPrim->u0 = D_8009AFF0[pEntry->spriteIndex * 4 + 0];
+                    *(u16*)&pPrim->u1 = D_8009AFF0[pEntry->spriteIndex * 4 + 1];
+                    *(u16*)&pPrim->u2 = D_8009AFF0[pEntry->spriteIndex * 4 + 2];
+                    *(u16*)&pPrim->u3 = D_8009AFF6[pEntry->spriteIndex * 4];
+                    addPrim(&g_WorldMapRenderContext->pOt[0][pScratch->otz >> 4], (P_TAG*)pPrim);
+                    pPrim++;
+                }
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
 /* 95.46% (612 bytes, retail 612): every instruction matches except the
    prologue, which is reordered and one register off. Retail emits

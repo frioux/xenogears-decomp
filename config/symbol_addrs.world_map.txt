@@ -604,3 +604,7 @@ g_WorldMapScrollY = 0x8009BBB8;
 g_WorldMapScrollZ = 0x8009BBBC;
 g_WorldMapTileDiagonalAxes = 0x8009B244;
 g_WorldMapGridTileRowOrigin = 0x8009C83C;
+D_8009AFF0 = 0x8009AFF0;
+D_8009AFF6 = 0x8009AFF6;
+D_8009B040 = 0x8009B040;
+D_8009B058 = 0x8009B058;
