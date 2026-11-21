@@ -3314,58 +3314,27 @@ void func_801E63A8(Model* pModel) {
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
 
-// objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
-// loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
-// callee-saved assignments -- pList s3, pSkeleton s4, pChild s2, pTargetSkeleton
-// s5, numChildren s6 -- do match). Declaration orders, for/while, u_short
-// numChildren, moving pChild++ to the loop tail, an explicit `s32 offset` local,
-// `u_short i` (adds 8 bytes, order becomes pJoint/pChild/i), hoisting `i = 1`
-// into the declarations (same), `u32 i` (96.80%), `register int i` and
-// `register ModelJoint* pJoint` (both same) all leave the pair alone or score
-// lower. `pSkeleton + jointIndex` instead of the s32 cast gives 98.30%: it
-// swaps the addu operands to `addu s1,s4,v0` without touching s0/s1. Since both
-// builds emit the same insns in the same order, the choice comes from the
-// pseudo order/ties local-alloc resolves, not from anything in the body.
-// Also tried since: `int i;` declared first with the pointers after (same swap,
-// pJoint still s1), and reversing the pointer declaration order (same).
-// A `while (i < numChildren) { i++; if (...) {...} pChild++; }` body (i = 1 before
-// the three LibGearFreeJointObject calls) reproduces the original's instruction sequence
-// exactly -- i++ in the bne delay slot, pChild++ in the loop-back delay slot, and
-// `li` in the first jal's delay slot -- so the loop shape is settled; it scores
-// 96.10% because the allocator then swaps BOTH pairs (pJoint s1/i s0 and pSkeleton
-// s5/pTargetSkeleton s4). pTarget as `pTargetSkeleton + jointIndex`, no pTarget
-// local at all, and gcc 2.7.2 (try_flags.sh) all leave that map unchanged, so the
-// remaining gap looks like an allocno tie-break (allocno_compare returns 0 and the
-// original host's qsort ordered ties differently), not a source-level detail.
-// Also tried since (all still 98.63%, same s0/s1 swap): pChild's initialiser
-// moved above pJoint's, and `pChild = pChild + 1` in the loop tail.
-// Screened: 98.63 best (2.6.0 and 2.7.2 -O2 alike), 93.73 under 2.7.2-cdk. Closest park in the
-// unit, but not a preset problem.
-// Round 165 (park repair): re-measured live at 98.63%, 240 bytes against retail's
-// 240, same single s0/s1 (pJoint/i) swap and nothing else. `i = 1` hoisted by hand
-// into the declarations plus `for (; i < numChildren; i++)` changes nothing.
-// decomp-permuter could NOT be used on this body: its base fails to compile with
-// "conversion to non-scalar type requested" at the two `(ModelJoint*)` casts
-// (permuter/func_801E6578/log.txt), so the 95-99.6% class tool has not run here.
-/*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
-    int i;
-    int numChildren;
-    ModelJoint* pChild = pSkeleton;
-    ModelJoint* pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
-    ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
+    ModelJoint* pJoint;
+    ModelJoint* pTarget;
+    ModelJoint* pChild;
+    s32 numChildren;
+    s32 i;
 
-    numChildren = pChild->numChildren;
+    pJoint = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pSkeleton);
+    pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
+    numChildren = pSkeleton->numChildren;
     pJoint->doRender = 0;
     pTarget->doRender = 1;
-
     LibGearFreeJointObject(pList, pJoint->pRotationObject);
-    pJoint->pRotationObject = 0;
-    LibGearFreeJointObject(pList, pJoint->pTranslationObject);
-    pJoint->pTranslationObject = 0;
+    do {
+        pJoint->pRotationObject = NULL;
+        LibGearFreeJointObject(pList, pJoint->pTranslationObject);
+        pJoint->pTranslationObject = NULL;
+    } while (0);
     LibGearFreeJointObject(pList, pJoint->pScaleObject);
-    pJoint->pScaleObject = 0;
-
+    pJoint->pScaleObject = NULL;
+    pChild = pSkeleton;
     for (i = 1; i < numChildren; i++) {
         pChild++;
 
@@ -3374,8 +3343,6 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
         }
     }
 }
-*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 
 void LibGearTransferJointRenderFlags(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
@@ -3416,56 +3383,26 @@ int LibGearGetFirstModelIndex(void) {
     return i;
 }
 
-// objdiff 92.95%: the only delta is one `andi v0,a1,0xff` narrowing the merged
-// index before `li v1,1; sllv` (the original's jump-delay slots then hold that
-// andi; ours hold a copy of the `li`). gcc 2.6 drops the mask in every
-// formulation tried — u8 index, s32 index with `& 0xFF`, s32 index with a
-// `(u8)` cast, and a separate `s32 n = index` temporary — because the shift
-// count only needs its low 5 bits, so the narrowing never survives.
-// objdiff 92.95%: one `andi v0,a1,0xff` short. gcc 2.6 keeps the merged u8 index in
-// SImode (jump-delay slots then hold a copy of `li v1,1`), the original truncates
-// it once at the merge. Reassigning a `u8 index = type` local in each branch (this
-// shape) reproduces the rest exactly, including the `andi v1,a1,0xff` at the top
-// and the index living in a1; u8 param, s32 index with `& 0xFF`, a `(u8)` cast and
-// an `s32 n = index` temporary all leave the same delta, because the mask only
-// feeds a shift count.
-// Round 14: an explicit `1 << (index & 0xFF)` in the store is folded away by gcc
-// exactly like the u8 conversion (92.95%): the four per-path `andi v0,a1,0xff`
-// turn into copies of `li v1,1` in the jump delay slots instead.
-// Screened: 92.95 identical under 2.6.0 and 2.7.2-cdk - not a compiler problem.
-// Round 370: the missing insn is a zero_extendqisi2 of the RESULT phi, sitting at the join
-// (.L801E68EC: `andi v0,a1,0xFF`) and cross-jumped into the four `j` delay slots of the
-// arms that reach the shift directly. Ours cross-jumps `li v0,1` into those slots
-// instead and shifts `sllv v0,v0,a1` - same 220 bytes, same instruction count.
-// New shape measured this round, identical 92.95: `u8 typeIndex = type;` for the compare
-// chain plus a SEPARATE `s32 index` result phi and `1 << (index & 0xFF)` at the store.
-// gcc deletes both the `(u8)` zero-extend and the explicit `& 0xFF` because the value's
-// only consumer is a variable shift, whose count needs only the low 5 bits - the
-// round-323 value-range wall, not a source-shape question.
-/*
-void func_801E6830(Model* pModel, int type, s16* pMask) {
-    u8 typeIndex = type;
-    s32 index = type;
-
-    if (typeIndex == 0xFF) {
-        index = LibGearGetFirstModelIndex();
-    } else if (typeIndex == 0xFE) {
-        index = *(u8*)&g_LibGearCurrentModelIndex;
-    } else if (typeIndex == 0xFD || typeIndex == 0xF9) {
-        index = pModel->modelSlot;
-    } else if (typeIndex == 0xFC) {
-        index = pModel->linkedModelSlot;
-    } else if (typeIndex == 0xFA) {
-        index = 0xA;
-    } else if (typeIndex == 0xF8) {
-        index = pModel->modelSlot * 2 + 8;
-    } else if (typeIndex == 0xF7) {
-        index = pModel->modelSlot * 2 + 9;
+int func_801E6830(Model* pModel, int type, s16* pMask) {
+    if ((type & 0xFF) == 0xFF) {
+        type = LibGearGetFirstModelIndex();
+    } else if ((type & 0xFF) == 0xFE) {
+        type = (u8)g_LibGearCurrentModelIndex;
+    } else if ((type & 0xFF) == 0xFD || (type & 0xFF) == 0xF9) {
+        type = pModel->modelSlot;
+    } else if ((type & 0xFF) == 0xFC) {
+        type = pModel->linkedModelSlot;
+    } else if ((type & 0xFF) == 0xFA) {
+        type = 0xA;
+    } else if ((type & 0xFF) == 0xF8) {
+        type = pModel->modelSlot * 2 + 8;
+    } else if ((type & 0xFF) == 0xF7) {
+        type = pModel->modelSlot * 2 + 9;
     }
 
-    *pMask = 1 << (index & 0xFF);
-}*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
+    *pMask = 1 << (type & 0xFF);
+    return type & 0xFF;
+}
 
 
 void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
@@ -3488,151 +3425,122 @@ void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
     return pResult;
 }
 
-// objdiff 98.63%, every instruction present in the original order and the 0xA0
-// frame reproduced exactly. Body: three channels selected by flags & 0x7 (0 =
-// rotation 0x54, 1 = translation 0x5C, 2 = scale 0x4C), an optional base offset
-// (flags & 0x20) and delta base (flags & 0x40) added to the 7 stacked position
-// args, the arg4 == 0 path storing arg4/6/8 as deltas from obj->unk4/6/8, the
-// arg4 < 2 write-back of the object position into the joint vector, and the
-// flags & 0x80 recursion into every child whose pParent is this joint.
-// Remaining delta is register identity only, four sites: gcc allocates the
-// `flags` copy to s7 one instruction before the original's `andi s1,a3,0x7`
-// (the original derives the channel straight from a3), the channel mask lands in
-// v1 instead of a3, and the loop reload of pModel->pSkeleton lands in v1 instead
-// of s1 (so its numChildren load is `lhu v0,10(v1)`).
-// Tried: `u8 channel` first/last in the declarations, channel computed inline at
-// each use, baseX/Y/Z declared s16 with `= 0` initialisers (that one costs 32
-// bytes of frame: the early zeroing extends all six live ranges), and
-// (s16)/(u16) casts on the stacked args.
-/*
-void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
+void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
                    u8 arg4, u8 arg5, u8 arg6, s16 posX, s16 posY, s16 posZ,
                    s16 offX, s16 offY, s16 offZ, s16 arg13) {
-    ModelJoint* pChild;
+    u8 channel;
     Temp3* pObject;
+    ModelJoint* pChild;
     u16 baseX;
     u16 baseY;
     u16 baseZ;
     u16 offBaseX;
     u16 offBaseY;
     u16 offBaseZ;
-    u8 channel = flags & 0x7;
     s32 i;
 
-    if (channel == 0) {
+    channel = flags & LIBGEAR_JOINT_CHANNEL_MASK;
+    if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
         pObject = pJoint->pRotationObject;
-    } else if (channel == 1) {
+    } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
         pObject = pJoint->pTranslationObject;
     } else {
         pObject = pJoint->pScaleObject;
     }
-
     if (pObject == NULL) {
         pObject = LibGearAllocJointObject(pList);
-        if (pObject == NULL) {
-            return;
-        }
     }
-
-    pObject->inUse = 1;
-    pObject->loops = arg6;
-    pObject->opcode = arg4 + 3;
-    pObject->type = arg5;
-
-    if (flags & 0x20) {
-        if (channel == 0) {
-            baseX = pJoint->rotation.vx;
-            baseY = pJoint->rotation.vy;
-            baseZ = pJoint->rotation.vz;
-        } else if (channel == 1) {
-            baseX = pJoint->translation.x;
-            baseY = pJoint->translation.y;
-            baseZ = pJoint->translation.z;
+    if (pObject != NULL) {
+        pObject->inUse = 1;
+        pObject->loops = arg6;
+        pObject->opcode = arg4 + LIBGEAR_JOINT_OPCODE_INTERPOLATE;
+        pObject->type = arg5;
+        if (flags & LIBGEAR_JOINT_FLAG_ADD) {
+            if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
+                baseX = pJoint->rotation.vx;
+                baseY = pJoint->rotation.vy;
+                baseZ = pJoint->rotation.vz;
+            } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
+                baseX = pJoint->translation.x;
+                baseY = pJoint->translation.y;
+                baseZ = pJoint->translation.z;
+            } else {
+                baseX = pJoint->scale.vx;
+                baseY = pJoint->scale.vy;
+                baseZ = pJoint->scale.vz;
+            }
         } else {
-            baseX = pJoint->scale.vx;
-            baseY = pJoint->scale.vy;
-            baseZ = pJoint->scale.vz;
+            baseX = 0;
+            baseY = 0;
+            baseZ = 0;
         }
-    } else {
-        baseX = 0;
-        baseY = 0;
-        baseZ = 0;
-    }
-
-    if (flags & 0x40) {
-        if (channel == 0) {
-            offBaseX = pJoint->rotation.vx;
-            offBaseY = pJoint->rotation.vy;
-            offBaseZ = pJoint->rotation.vz;
-        } else if (channel == 1) {
-            offBaseX = pJoint->translation.x;
-            offBaseY = pJoint->translation.y;
-            offBaseZ = pJoint->translation.z;
+        if (flags & 0x40) {
+            if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
+                offBaseX = pJoint->rotation.vx;
+                offBaseY = pJoint->rotation.vy;
+                offBaseZ = pJoint->rotation.vz;
+            } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
+                offBaseX = pJoint->translation.x;
+                offBaseY = pJoint->translation.y;
+                offBaseZ = pJoint->translation.z;
+            } else {
+                offBaseX = pJoint->scale.vx;
+                offBaseY = pJoint->scale.vy;
+                offBaseZ = pJoint->scale.vz;
+            }
         } else {
-            offBaseX = pJoint->scale.vx;
-            offBaseY = pJoint->scale.vy;
-            offBaseZ = pJoint->scale.vz;
+            offBaseX = 0;
+            offBaseY = 0;
+            offBaseZ = 0;
         }
-    } else {
-        offBaseX = 0;
-        offBaseY = 0;
-        offBaseZ = 0;
+        pObject->startX = posX + baseX;
+        pObject->startY = posY + baseY;
+        pObject->startZ = posZ + baseZ;
+        if (arg4 == 0) {
+            pObject->targetX = offX + offBaseX - pObject->startX;
+            pObject->targetY = offY + offBaseY - pObject->startY;
+            pObject->targetZ = offZ + offBaseZ - pObject->startZ;
+        } else {
+            pObject->targetX = offX + offBaseX;
+            pObject->targetY = offY + offBaseY;
+            pObject->targetZ = offZ + offBaseZ;
+        }
+        pObject->curFrame = 0;
+        pObject->endFrame = arg13;
+        if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
+            if (arg4 < 2) {
+                pJoint->rotation.vx = pObject->startX;
+                pJoint->rotation.vy = pObject->startY;
+                pJoint->rotation.vz = pObject->startZ;
+            }
+            pJoint->pRotationObject = pObject;
+        } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
+            if (arg4 < 2) {
+                pJoint->translation.x = pObject->startX;
+                pJoint->translation.y = pObject->startY;
+                pJoint->translation.z = pObject->startZ;
+            }
+            pJoint->pTranslationObject = pObject;
+        } else {
+            if (arg4 < 2) {
+                pJoint->scale.vx = pObject->startX;
+                pJoint->scale.vy = pObject->startY;
+                pJoint->scale.vz = pObject->startZ;
+            }
+            pJoint->pScaleObject = pObject;
+        }
     }
-
-    pObject->startX = posX + baseX;
-    pObject->startY = posY + baseY;
-    pObject->startZ = posZ + baseZ;
-
-    if (arg4 == 0) {
-        pObject->targetX = offX + offBaseX - pObject->startX;
-        pObject->targetY = offY + offBaseY - pObject->startY;
-        pObject->targetZ = offZ + offBaseZ - pObject->startZ;
-    } else {
-        pObject->targetX = offX + offBaseX;
-        pObject->targetY = offY + offBaseY;
-        pObject->targetZ = offZ + offBaseZ;
-    }
-
-    pObject->curFrame = 0;
-    pObject->endFrame = arg13;
-
-    if (channel == 0) {
-        if (arg4 < 2) {
-            pJoint->rotation.vx = pObject->startX;
-            pJoint->rotation.vy = pObject->startY;
-            pJoint->rotation.vz = pObject->startZ;
-        }
-        pJoint->pRotationObject = pObject;
-    } else if (channel == 1) {
-        if (arg4 < 2) {
-            pJoint->translation.x = pObject->startX;
-            pJoint->translation.y = pObject->startY;
-            pJoint->translation.z = pObject->startZ;
-        }
-        pJoint->pTranslationObject = pObject;
-    } else {
-        if (arg4 < 2) {
-            pJoint->scale.vx = pObject->startX;
-            pJoint->scale.vy = pObject->startY;
-            pJoint->scale.vz = pObject->startZ;
-        }
-        pJoint->pScaleObject = pObject;
-    }
-
-    if (flags & 0x80) {
-        pChild = pModel->pSkeleton + 1;
-
+    if (flags & LIBGEAR_JOINT_FLAG_RECURSE) {
+        pChild = pModel->pSkeleton;
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
+            pChild++;
             if (pChild->pParent == pJoint) {
                 func_801E6974(pModel, pList, pChild, flags & 0xFF, arg4, arg5, arg6,
                               posX, posY, posZ, offX, offY, offZ, arg13);
             }
-            pChild++;
         }
     }
 }
-*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6974);
 
 void LibGearSetJointFlag(Model* pModel, ModelJoint* pJoint, s32 flags) {
     ModelJoint* pChild;
