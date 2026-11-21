@@ -46,12 +46,19 @@ extern u16 g_MenuInventoryScrollStep;
 extern u8 g_MenuPanelRowXOffsets[];
 extern u8 g_MenuColumnRowStringIds[];
 extern u8 D_801E9785;
-extern u8 g_MenuRowDigitTextureIds[]; // u8 [13][5] texture ids, then the per-character column masks at +0x44
+extern u8 g_MenuRowDigitTextureIds[]; // u8 [13][5] texture ids; the per-character column masks follow it
+// One 16-bit column mask per character: column i of a character is drawn in the
+// ink colour unless its bit is clear.
+extern u16 D_801E97F0[];
 extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
 extern u16 D_801E97A0[][2];
 extern u8 g_ShopIndex;
 extern u16 g_MenuEquipmentSlotRowY[][2];
+// The value rows of the two quad groups of the 0x430 panel, one 0x38-byte array per
+// group (14 columns each), right after g_MenuEquipmentSlotRowY's own 8 rows.
+extern u16 D_801E9DDC[][2];
+extern u16 D_801E9E14[][2];
 
 // 0x1094-byte item panel buffer built by MenuCreateUnk430Panel: one MenuString
 // sprite record per column, then the column heading string list and one flag per
@@ -569,36 +576,41 @@ void MenuFreeUnk430Panel(u_char arg0) {
 #define MENU_PANEL_FUEL_DIGIT_COUNT 5
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
-/* Best: 97.28% (2684 bytes; retail is 2696 = 674 insns, ours 671). Loop over the 14
-   columns of the 0x430 panel. Per column: bzero 8 bytes of the digit buffer, decide
-   from the kind's per-character condition mask whether the column is shown at all
-   (i >= 0xC is always shown; kind 2 only tests even columns, mask bit i/2), render
-   the column's name string (banks 14 / 30 / 34 for kinds 0 / 1 / 2) into pImage,
-   read the slot's mp cost (kinds 0/1) or fuel cost (kind 2) from the slot record,
-   render the value as decimal glyph codes, upload them with LoadImage, then set
-   both sprite records' vertices/width/renderContext and the column flag. Columns
-   0xC/0xD carry the mp / fuel / maxmp totals and shift the row quad group by 3.
-   Layout facts: pDressingRoom->pCharacterSlots[id] + 22 records and
-   pGearBlocks[gearId] + 21 (kind 1) / + 37 (kind 2) 0x28-byte records, i.e. the
-   walked arrays start at 0x370 / 0x348 / 0x5C8 (same as func_801DD790's park).
-   The 0x70 local is the "available" amount (mp, or the gear's fuel for kind 2),
-   the arm's own number is a SECOND local: the digit loop consumes a copy of it and
-   the "can't afford it" test compares the untouched value with available.
-   Where it stands: prologue, save set, frame, both switch trees, the digit loop,
-   the RECT/LoadImage/DrawSync block and every call site are retail's. What is
-   left is (a) a cyclic callee-saved rotation - retail keeps pImage in $s7,
-   arg0 in $s3, the arm value in $s5; ours has pImage in $s8, arg0 in $s5, the
-   value in $s3 - and (b) the 0x700 of the second string set: retail folds it
-   into the store displacement off the 0x80*i accumulator (sb 0x77E(v1)) and keeps
-   a separate 0x700+i*0x80 slot for the func_801E7C50 base, ours keeps the 0x700 in
-   the sN accumulator at three sites. Three instructions short.
-   Measured levers: the digit loop must consume a COPY of the arm value (one local
-   gives a dead compare); the i == 0xC / kind != 2 arm re-reads
-   g_GameState.characters[...].mp in full instead of reusing the local; kind 2 sets
-   available = gears[gearId].fuel before reading the record; the x coordinate of
-   the name quad is (i % 2) * 0x88 + 0x24, and i % 2 (not i & 1) is what makes cc1
-   reuse the i / 2 it already computed (96.50 -> 97.28). Not permuted yet - the next
-   step is permute.sh on this body, then the register rotation. */
+/* Best: 99.77%, 2696 bytes = retail's exact 674 instructions. The whole body is
+   retail's now except SIX instructions, all of them spelling questions:
+   1. THREE `addu` operand orders. Retail adds base-first (`addu v1,v1,s6`) at the
+      three value-string byte accesses; ours says `addu v1,s6,v1`. The three are
+      the width store, the width argument of MenuSetQuadVertices and the
+      renderContext store, and ours only reaches retail's GIV there because of
+      the `(MenuString*)&g_Menu->unk430->strings[MENU_PANEL_VALUE_STRING + i]`
+      view - the plain `strings[...].width` spelling takes the 0x700+0x80*i giv
+      for them, which is what keeps that giv in $s7 (see 2).
+   2. The case-0 shade test: retail branches AWAY on the nonzero mask
+      (`bnez v0,.L801DCBB4`) and puts `shade = 0` in the `j` delay slot; ours
+      emits `beqz v0,<shade=0>` plus a `nop`. Measured: `a == 0 || b`, separate
+      if / else-if, and `a != 0 && b` inverted all give our shape.
+   HOW THE BODY GOT HERE (the round-388 find, worth keeping): retail spills the
+   0x700+0x80*i giv to 0x90(sp) and keeps the i*0x28 giv in $s8, while ours had it
+   the other way round - a cyclic callee-saved rotation. That is NOT an allocator
+   tie: cc1 `-dl`/`-dg` (files build/src/menu/main/misc9.c.i.{lreg,greg}) rank the
+   givs by floor_log2(n_refs)*n_refs/live_length, and with the 0x700 giv on FOUR
+   use sites (13 refs, 39/427) it outranks the 0x28 giv (9 refs, 27/424). Expressed
+   as `(MenuString*)&...strings[MENU_PANEL_VALUE_STRING + i]->field`, the three
+   byte accesses stop using the 0x700 giv at all (9 refs, 27/427), the 0x28 giv
+   wins the register, and the WHOLE rotation, both spill slots, the 0x700/0x77E
+   folds, the tail load order and the frame slot order all fix themselves
+   (97.28 -> 99.77 in two edits).
+   Structure confirmed: prologue/save set/frame, both 3-arm switch trees, the
+   `!= 0 || i >= 0xC` visible tests, the digit loop, the RECT/LoadImage/DrawSync
+   block, every call site and the shared tails. `i % 2` (not `i & 1`) is what
+   makes cc1 reuse the i / 2 it already computed; the digit loop must consume a
+   COPY of the arm value; kind 2 sets available = gears[gearId].fuel before
+   reading the record; the i == 0xC / kind != 2 arm re-reads
+   g_GameState.characters[...].mp in full. Data: the panel tail reads are three
+   separate arrays (g_MenuEquipmentSlotRowY, D_801E9DDC, D_801E9E14) and the
+   column masks are D_801E97F0 - spelling them as offsets off
+   g_MenuEquipmentSlotRowY / g_MenuRowDigitTextureIds costs a phantom 0x58 giv
+   base. Not permuted from this body. */
 /*
 void func_801DC3D8(u_char arg0, u_char arg1) {
     u8 digitCodes[0x10];
@@ -637,27 +649,27 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
         case 0:
             if (MenuAndBitMaskMsbFirst(
                     g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].characterConditionMask,
-                    i) != 0) {
+                    i) != 0 ||
+                i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
                 visible = 1;
             }
             break;
         case 1:
             if (MenuAndBitMaskMsbFirst(
-                    g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].gearConditionMask, i) != 0) {
+                    g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].gearConditionMask, i) != 0 ||
+                i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
                 visible = 1;
             }
             break;
         case 2:
             if ((i & 1) == 0) {
                 if (MenuAndBitMaskMsbFirst(
-                        g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].statusFlags, i / 2) != 0) {
+                        g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].statusFlags, i / 2) != 0 ||
+                    i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
                     visible = 1;
                 }
             }
             break;
-        }
-        if (i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
-            visible = 1;
         }
         if (visible) {
             count = MENU_PANEL_MP_DIGIT_COUNT;
@@ -718,7 +730,7 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             }
             digitCodes[k * 2] = (number % 10) + 0x10;
             SystemDecodeGlyphCodesN((u16*)digitCodes, stringBuffer, count);
-            ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].width =
+            ((MenuString*)&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i])->width =
                 SystemRenderStringEntry(stringBuffer, pImage, 0x24, 1);
             rect.x = (i & 1) * 0x18 + 0x180;
             rect.y = (i / 2) * 13 + 0x80;
@@ -730,9 +742,7 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
                 switch (arg1) {
                 case 0:
-                    if (MenuAndBitMaskLsbFirst(
-                            ((u16*)(g_MenuRowDigitTextureIds + 0x44))[g_Menu->pManager->currentCharacterIDs[arg0]],
-                            i) == 0 ||
+                    if (MenuAndBitMaskLsbFirst(D_801E97F0[g_Menu->pManager->currentCharacterIDs[arg0]], i) == 0 ||
                         available < value) {
                         shade = 0;
                     }
@@ -754,12 +764,12 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             }
             func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i], i, 0x80, shade | 2);
             MenuSetQuadVertices(
-                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices,
-                g_MenuEquipmentSlotRowY[MENU_PANEL_VALUE_ROW_Y + i][0],
-                g_MenuEquipmentSlotRowY[MENU_PANEL_VALUE_ROW_Y + MENU_PANEL_COLUMN_COUNT + i][0],
-                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].width, 0xD);
+                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices, D_801E9DDC[i][0],
+                D_801E9E14[i][0],
+                ((MenuString*)&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i])->width, 0xD);
             ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].renderContext = g_Menu->renderContext;
-            ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].renderContext = g_Menu->renderContext;
+            ((MenuString*)&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i])->renderContext =
+                g_Menu->renderContext;
             ((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[i] = shade | 1;
         } else {
             ((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[i] = 0;
