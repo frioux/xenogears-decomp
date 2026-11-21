@@ -121,6 +121,10 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // copy and the bnez nop both disappear), one-expression sums through u8/s16/u16 temps, a
 // declaration initialiser, a brace block around the sum, load order swapped, `short value`, and
 // comparing `sum` instead of `value`.
+// Round 391 re-measured (un-parked, live): still 99.68% at 124 bytes with exactly two instructions
+// out of place (the add's destination `a0` where retail is in place in `v0`, and the copy that
+// reads it). No lever names this shape: a-three-operand-or-never-ties says a 3-operand `addu`
+// never ties to its input, which is why no spelling reaches retail's in-place form here.
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
@@ -1044,6 +1048,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 // bytes), a shared `s32 r = rand() % 100` local (99.50), an unused u32 local,
 // `% 0x64`, early returns instead of the if/else tail, both operand orders of
 // `(0x8000 >> bit) & mask` (the swapped one is what matches).
+// Round 391: the parked body did NOT COMPILE - it said `p->unk7A`, which BattleTableEntry now
+// names `conditionFlags` at 0x7A - so the number above came from a stale object. Fixed (two
+// sites, same `lhu 0x7A` width) and re-measured live: 99.72%, 720 bytes, residual unchanged
+// (the four `mfhi` destinations). try_flags re-run this round: gcc-2.6.0 99.94, i.e. all 180
+// instructions and all 11 table words equal retail with only the jtbl spelling left, so this
+// body is a MATCH on a 2.6.0 preset.
 /*
 void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     BattleTableEntry* p = &g_BattleWorkBlock[arg0];
@@ -1054,7 +1064,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     if (g_BattleSlotConditions[arg0 * 0x170] & 0x80) {
         mask = 1;
     } else {
-        if (rand() % 100 < 10 && !(p->unk7A & 0x100) && *pStatus == 0) {
+        if (rand() % 100 < 10 && !(p->conditionFlags & 0x100) && *pStatus == 0) {
             *pInfo = 4;
             return;
         }
@@ -1092,7 +1102,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
             count = 4;
             break;
         }
-        if (rand() % 100 < 25 && !(p->unk7A & 0x20)) {
+        if (rand() % 100 < 25 && !(p->conditionFlags & 0x20)) {
             *pInfo = 2;
             bit = rand() % count;
             if (*(u16*)&g_GameState.conditionRows[p->characterId].characterConditionMask & ((0x8000 >> bit) & mask)) {
