@@ -67,9 +67,13 @@ extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, int arg1, int 
 extern void WorldMapGetGameStatePosition(void* pVector);
 
 // The stream request table at g_WorldMapStreamQueue: g_WorldMapStreamQueue and the D_ symbols
-// that follow are its entries, one object each. Retail stores every entry field through its own
-// absolute symbol, and that shape is load-bearing - one `StreamDataQueueEntry[]` object makes gcc
-// keep the base in a saved register across the HeapAlloc calls below and the function grows 8 bytes.
+// that follow are its entries, one object each, NOT g_WorldMapStreamQueue[n]. Round 359 measured the
+// indexed spelling on both WorldMapQueue*FileLoads bodies and it changes the instruction stream:
+// one `StreamDataQueueEntry[]` object makes gcc materialise the base into $s0 in the prologue
+// (WorldMapQueueFileLoads 344 bytes vs retail's 340, frame 0x20 vs 0x18, and `move a0,s0` at the
+// ArchiveStartStreamQueue call), and the entry-0 store then folds into the `la` gcc emits for the
+// queue argument (WorldMapQueueTwoFileLoads 160 bytes vs retail's 164). Retail reaches every entry
+// field through its own %hi/%lo absolute symbol, which is what the per-entry objects reproduce.
 // g_WorldMapPlayerPosition/B0/B4 are the 12.4 fixed point position written by
 // WorldMapGetGameStatePosition.
 extern void* g_MenuResourcesFile;
@@ -541,6 +545,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
    is worse, not better: 89.00%, 256 bytes - gcc then keeps the address in a callee-saved
    $s0 across the store group and STILL emits `lui $at / sh %lo($at)` through %lo, so the
    store itself never picks up the register.
+   Round 359: the `g_WorldMapStreamQueue[n]` spelling does not close it either - un-parked with an
+   `extern StreamDataQueueEntry g_WorldMapStreamQueue[]` it reaches retail's 252 bytes but measures
+   93.63%, because the array base is then materialised in a general register
+   (`addiu $v1,$v1,24` / `addiu $a0,$v1,-24`) and a sixth callee-saved temporary (t2) appears.
+   The body below re-measures 97.37% at 256 bytes against retail's 252.
 
 void func_80071EF0(void) {
     void* pBuffer;
