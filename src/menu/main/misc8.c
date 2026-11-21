@@ -230,24 +230,25 @@ void MenuSetStatBarTileColors(POLY_FT4* pPolys, u_char mode, u_char count, u_cha
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D84B4);
 
-/* 99.73%. Identical instruction multiset and frame; the only difference is
-   that gcc puts the HI result of the divide-by-10000 in $t0 and shifts it
-   into the destination (mfhi t0; sra v0,t0,12 vs the original mfhi v0;
-   sra v0,v0,12), in both divisions. Tried: nested expression, 6400*(x)/10000
-   vs (x)*6400/10000, a pct local (96.42), a temp for the whole product
-   (99.59), scale local with *= (90.47). Also tried s32 x,y args of
-   func_8002675C - irrelevant here.
+/* 99.73% (296 bytes, the original's size). The only residual, in BOTH
+   divisions, is the HI result of the /10000: retail does mfhi v0; sra v0,v0,12
+   (HI lands straight in the destination), gcc 2.7.2 does mfhi t0; sra v0,t0,12
+   (HI into a fresh temp, then shifted). This is a PRESET question, measured:
+   the body below is 100.00 under gcc-2.6.0-psx (try_flags.sh), and so is every
+   other C function in this unit (MenuSetStatBarQuadColors, MenuSetStatBarTileColors,
+   MenuMaxStatValue, MenuDrawStatTable, MenuOpenCardEvents all 100.00 under 2.6.0).
+   See report: PRESET_260 menu/main/misc8 func_801D84B4 100.00 99.73.
+   Tried under 2.7.2: nested expression 6400 * (100*x/a2) / 10000 (this body,
+   best), a scale local with *= (90.47), a temp for the whole product (99.59),
+   a pct local (96.42).
 void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
     s32 diff;
-    s32 scale;
 
     D_801EA6FC = arg0;
     D_801EA700 = arg1;
     diff = arg1 - arg0;
     D_801EA704 = diff;
-    scale = 100 * arg0 / arg2;
-    scale *= 6400;
-    D_801EA708 = scale / 10000;
+    D_801EA708 = 6400 * (100 * arg0 / arg2) / 10000;
     if (diff >= 0) {
         D_801EA710 = 2;
         D_801EA714 = 0xE3;
@@ -256,9 +257,7 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
         D_801EA714 = 0xE5;
         D_801EA704 = arg0 - arg1;
     }
-    scale = 100 * D_801EA704 / arg2;
-    scale *= 6400;
-    D_801EA70C = scale / 10000;
+    D_801EA70C = 6400 * (100 * D_801EA704 / arg2) / 10000;
 }
 */
 
