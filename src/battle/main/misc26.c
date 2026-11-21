@@ -643,6 +643,42 @@ extern s32 g_GfxOTDepthShift;
 // The typedef, the extern, the two defines and the macro above this park are
 // deliberately outside it: park.py unpark lifts only the function, so they have
 // to be live for the next unpark to compile at all.
+// - ROUND 383: THE DUMPS ARE NOT DEAD, THEY ARE FILES, AND THEY SETTLE IT. cc1's
+//   -dg/-dl output goes to <input>.greg and <input>.lreg NEXT TO THE INPUT FILE,
+//   never to stdout, which is why earlier rounds recorded "the dumps print
+//   nothing". Reproduce with:
+//     mips-linux-gnu-cpp -Iinclude -I build -D_LANGUAGE_C -DUSE_INCLUDE_ASM -P
+//       -undef -Wall -lang-c -nostdinc -DNON_MATCHING -DSKIP_ASM -o m.i <unit>.c
+//     tools/gcc-2.7.2-cdk-psx/cc1 -O2 -G0 -mips1 -mcpu=3000 -w -funsigned-char
+//       -fpeephole -ffunction-cse -fpcc-struct-return -fcommon -msoft-float
+//       -mgas -fgnu-linker -quiet -dg -dl -o m.s m.i
+//   The dump for this body, read this round:
+//     "27 regs to allocate: 103 105 440 479 518 557 577 104 86 87 80 89 91 90
+//      300 92 297 277 81 88 286 279 84 82 85 102 101"
+//   and "Register dispositions: 80 in 19  81 in 16  86 in 17  87 in 18  89 in 20
+//   90 in 22  91 in 21  92 in 23  104 in 16 ...", i.e. in register terms
+//   pPacket 104 to s0, pRec 86 to s1, pPart 87 to s2, the 0xFFFFFF mask 80 to s3,
+//   pV0 89 to s4, pV1 91 to s5, pV2 90 to s6, pV3 92 to s7; pDst 81 ALSO to s0,
+//   which is the coalescing of the copy made directly visible. Retail wants pV0
+//   first (s0), then pV0's free register handed down, pRec s1, pPacket s2,
+//   pPart s3, masks s4 and $fp, and its pDst in s1 (a block-local reuse that
+//   pRec later inherits). Only the four-way order {pV0, pPacket, pPart, pFrame}
+//   differs, rotated by one so that pV0 falls last, plus the coalesced copy.
+//   THAT ORDER IS ARITHMETIC, NOT A SPELLING: with n_refs 62 over the loop body's
+//   647 instructions (pV0's defs are all in the first switch and its last use is
+//   in the second, so its live range is the body by construction) its priority is
+//   0.48 against pPacket 1.39, pRec 1.34, pPart 0.92 and pFrame's short range.
+//   Being allocated first needs a live_length of 222 or less or 129 refs, and
+//   both are properties of the INSTRUCTION STREAM, which is retail's to the
+//   instruction; nothing that adds no instruction can add a reference (a folded
+//   use never reaches the RTL that life_analysis counts). Retail's pV0 sees the
+//   same RTL, so its cc1 simply sorted differently, and its pDst stayed a
+//   block-local quantity where ours is combined into pPacket: a compiler-version
+//   artefact, and the reason every spelling of the copy above measured dead.
+//   Newly measured this round and also dead: duplicating the copy into BOTH arms
+//   of the shadeMode test (to stop local_alloc treating pDst as block-local) is
+//   byte-for-byte the single copy at the join, because cross-jumping merges the
+//   two back before local_alloc runs - 2940 bytes, 97.45, identical diff.
 /*
 void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s32 depthBias,
                    s32 shadeMode) {
