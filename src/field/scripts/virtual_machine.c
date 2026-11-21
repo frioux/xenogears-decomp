@@ -954,20 +954,27 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 
-// Best attempt: 99.18% at the original's exact 2044 bytes. Everything structural matches -
-// the five block copies, the per-actor record (rotation+flags, status, SpriteSaveAnimState,
-// ActorData, pTargetTrack, pScriptArgs), the 0x800 script memory copy, the gearRide loop and
-// the SAVESIZE printf. What is left is register permutation only (no instruction differs):
-// the original keeps the block base in v1 and each chunk's cursor sum in v0, this build puts
-// the base in v0 and the sum in a1; the tail keeps &g_WorldMapSaveBlock in s1 where we use
-// v1; the per-actor loop loads g_FieldActors before g_WorldMapSaveCursor where we load it after; and
-// the first copy's actor address comes out base-first. Measured and rejected: a pSave local
-// for the head base, pDst as two statements vs the embedded assignment at every site (only
-// the two loop sites want the embedded form - the five chunk sites regress), -O3/-G0.
-// Four permuter runs (3/6/7/8 min) took base 1728 -> 521 -> 360 -> 310 -> 280 and found the
-// two real levers that are below: the g_FieldScriptMemory pointer local (without it gcc
-// rematerialises la sym+0x800 and the copy's end pointer is two instructions instead of one)
-// and the embedded-assignment form for the two per-actor cursor bumps.
+// Best attempt: 99.26% at the original's exact 2044 bytes, 22 of 511 instructions differing.
+// Everything structural matches - the five block copies, the per-actor record (rotation+flags,
+// status, SpriteSaveAnimState, ActorData, pTargetTrack, pScriptArgs), the 0x800 script memory
+// copy, the gearRide loop and the SAVESIZE printf. The residual is register permutation only,
+// in three places:
+//   1. the head block: retail puts the save-block base in v1 and the first chunk cursor in v0;
+//      this build swaps them (v0/v1), which cascades into the movstr's alignment `or` operand
+//      order (retail or v0,a3,a2 vs ours or v0,a2,a3). Base has 3 refs in that block and the
+//      cursor 2, so local_alloc allocates the base first and it takes the lower register.
+//      Rejected: pDst defined before the base store (2040 bytes), the cursor store embedded
+//      (`pDst = (g_WorldMapSaveCursor = 4 + block)`, 2040 bytes), a pSave local for the head.
+//   2. the per-actor loop loads g_FieldActors AFTER g_WorldMapSaveCursor; retail loads it first.
+//      Rejected: hoisting `pActorData = g_FieldActors[i].pActorData;` above the cursor read
+//      (2052 bytes), and every one-statement spelling of the pActorData copy.
+//   3. the SAVESIZE tail keeps &g_WorldMapSaveBlock in s1 where this build uses v1.
+// Six permuter runs (3/6/7/8/12/12 min) on this body went 1728 -> 521 -> 360 -> 310 -> 280 ->
+// 250 -> 240 and found two real levers, both below: the g_FieldScriptMemory pointer local
+// (without it gcc rematerialises la sym+0x800 and the copy's end pointer is two instructions
+// instead of one) and the embedded-assignment form for the two per-actor cursor bumps (the
+// five chunk sites regress with it). The 240 candidate's other two edits are dead code
+// (a new_var assigned inside the memcpy argument, an if (1) block) - not shipped.
 // Needs psyq/memory.h for the unprototyped memcpy, and the ActorData copy is sizeof(ActorData)
 // (0x138: gcc's block move emits the 0x130 loop plus an 8-byte tail).
 /*
@@ -988,6 +995,7 @@ void func_800A3F4C(void) {
     ActorData* pActorData;
     void** pScriptMemory;
     u8* pDst;
+    SVECTOR* pRot;
     s32 nStatus;
     s32 nSaveSize;
     s32 nSystemMode;
@@ -1019,20 +1027,20 @@ void func_800A3F4C(void) {
     g_WorldMapSaveCursor += 0x1C8;
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
-        memcpy(g_WorldMapSaveCursor, &g_FieldActors[i].rotation, 8);
+        pRot = &g_FieldActors[i].rotation;
+        memcpy(g_WorldMapSaveCursor, pRot, 8);
         nStatus = (u_short)g_FieldActors[i].status;
         pDst = (g_WorldMapSaveCursor = g_WorldMapSaveCursor + 8);
         memcpy(pDst, &nStatus, 4);
 
         pDst = (g_WorldMapSaveCursor = g_WorldMapSaveCursor + 4);
-        SpriteSaveAnimState(g_FieldActors[i].pSpriteData, pDst);
+        SpriteSaveAnimState((g_FieldActors + i)->pSpriteData, pDst);
 
         pDst = g_WorldMapSaveCursor + 0x30;
         g_WorldMapSaveCursor = pDst;
         memcpy(pDst, g_FieldActors[i].pActorData, sizeof(ActorData));
 
-        pDst = g_WorldMapSaveCursor + 0x138;
-        g_WorldMapSaveCursor = pDst;
+        pDst = (g_WorldMapSaveCursor = g_WorldMapSaveCursor + 0x138);
         pActorData = g_FieldActors[i].pActorData;
         if (pActorData->flags134 & 0x80) {
             memcpy(pDst, pActorData->pTargetTrack, 0xC);
