@@ -81,7 +81,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
 // every store through it differs. Next lever: build the record base in two
 // statements (round-291 &g_Array[i] note), and check the poly uv order (retail
 // writes u1,u2,v0,v2 shared and only u0/v1 per pass, the pass-0 arm repeating its
-// `lbu 0x54(sp)` load).
+// `lbu 0x54(sp)` load). NOTE: this body does NOT build as un-parked by park.py - the
+// BattleEffectSprite typedef and the D_800C35C4 extern live inside the same park
+// block and are deleted with it, so a fresh attempt has to declare them again first.
+// Re-measured from the un-parked body: 73.66% / 1092 bytes against retail's 275
+// instructions / 1100 (two short). Retail's inner loop keeps blockOffset (0x70),
+// rowBytes (0x64), the two row offsets (0x68/0x6C), col<<4 (0x54) and the two
+// pass z values (0x58/0x5C) in stack slots and reloads them per sprite, so the
+// record base is `pWork + lw 0x70(sp) + lw 0x64(sp) + ((col<<5)-col)<<2`.
 /*
 // One spawned effect sprite of the block func_800B7424 fills: the two textures it
 // draws (POLY_FT3s of the same tile), the 16.16 position the matrix pass measures,
