@@ -164,16 +164,19 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 // 98.10% at the original's exact 496 bytes: all 124 instructions are present and in
 // retail's order, and only the closing group differs - the flags_0xA8 word ends in $v0
-// where retail keeps it in $a0, and its store lands straight after the `or` instead of
-// after the 0xAC block's `andi`. Measured: this body (98.10), the shift operand first
-// `(slot << 30) | (flags & 0x3FFFFFFF)` (97.78, which does get the store position right
-// but rotates all four registers), the two-statement `&= 0x3FFFFFFF; |= slot << 30`
-// split (98.10), the word in a u32 local read before the two NULL file stores (98.10),
-// the shift in its own local just above the store (96.49, the 0x3FFFFFFF mask leaves
-// $v1), the two flag statements swapped (88.44) and the pair in a do/while(0) block
-// (91.40, which also pulls the masks into $s2/$s3 and moves a save). A 3-minute
-// permuter run from this body (1518 iterations) found nothing, so the residual is where
-// sched2 puts the store, not the C.
+// where retail keeps it in $a0, and its store lands after the 0xAC block's `andi`
+// instead of between that `andi` and its `and`. Measured: this body (98.10), the shift
+// operand first `(slot << 30) | (flags & 0x3FFFFFFF)` (97.78, which does get the store
+// position right but rotates all four registers), the two-statement
+// `&= 0x3FFFFFFF; |= slot << 30` split (98.10), the word in a u32 local read before the
+// two NULL file stores (98.10), the shift in its own local just above the store (96.49,
+// the 0x3FFFFFFF mask leaves $v1), the two flag statements swapped (88.44), the pair in a
+// do/while(0) block (91.40, which also pulls the masks into $s2/$s3 and moves a save) and
+// a VOLATILE lvalue on the flags_0xA8 store (98.10, and it is the wrong direction: the
+// store then lands straight after the `or`, before the 0xAC load, with the word still in
+// $v0 - retail's store sinks past the 0xAC load and its `andi`, so it has to stay a
+// movable plain store). A 3-minute permuter run from this body (1518 iterations) found
+// nothing, so the residual is where sched2 puts the store, not the C.
 /*
 void func_800BB350(u32 slot) {
     u8 *pBase;
@@ -319,16 +322,16 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
     pMatrix->t[2] = -vTmp.vz;
     PopMatrix();
 }
-// best 84.11% at retail's exact 228 bytes: the argument setup of func_800A4654 is the
-// same instruction multiset, only the order differs (retail loads depth 0xC54 first
-// and interleaves the two stack stores with the work-pointer build; we load primIndex
-// 0xC84 first and hoist both loads above the stores, and the addu destination is v0
-// instead of retail's v1). Statement order cannot move it: this preset runs
-// -fschedule-insns. A dead store that leaves the base in $v1
-// (pWork = (primIndex = (mem_addr)g_BattleStateWork);) measures 92.51% but is not a
-// spelling to ship; two 4-minute permuter runs from 84.11 and from 92.51 found
-// nothing beyond it. g_BattleStateWork + 0x8000 as one expression folds into the
-// address addend (220 bytes).
+// best 84.11% at retail's exact 228 bytes: the tail block's argument setup is the same
+// instruction multiset in retail's order, but the two loads (depth 0xC54 into $a3,
+// primIndex 0xC84 into $v1) sit between the three stack stores in retail and are hoisted
+// above them here, and the work base lands in $v0 instead of $v1. Spellings measured:
+// both loads in locals (84.11), both inline in the call with a mem_addr base (83.44 - the
+// base does take $v1 there, but the loads reorder to primIndex-first and depth moves into
+// the jal delay slot), depth local + primIndex inline (84.11), a dead store of the base
+// (92.51, not a spelling to ship) and g_BattleStateWork + 0x8000 as one expression (220
+// bytes: it folds into the address addend). Statement order cannot move it: this preset
+// runs -fschedule-insns, and two 4-minute permuter runs from 84.11 and 92.51 found nothing.
 /*
 void func_800BB9D4(void) {
     s32 *pViewTrans;
