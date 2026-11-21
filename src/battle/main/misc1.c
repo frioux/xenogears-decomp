@@ -502,6 +502,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
    biv. Tried: `off` as a running for-clause biv, `off = i * 0x170` inline (both
    77.62%), one-`if`-per-level nesting without continue (70.32%), splitting the
    two entry tests. The other four symbols already come out in the retail form.
+   ROUND 372: this body has NEVER COMPILED - it reads D_800CCD68 / D_800CCD6C /
+   D_800CCE08 / D_800CCE44, which nothing in this unit declares, so the 77.62%
+   above came from an earlier variant. Reach those through the row bank before
+   trusting any number here.
 void func_8007171C(void) {
     u16 v;
     u8 *pTimer;
@@ -838,17 +842,25 @@ void func_8007252C(void) {
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800728B8);
-/* 78.84% under both 2.6.0 and 2.7.2: the original recomputes index*40 inline
-   each iteration (sll 2 / addu / sll 3, the sll 2 rotated into the branch delay
-   slot) while gcc strength-reduces an int index into a pointer (+80/iteration)
-   and hoists pPrim into it. An s16 index emits the original's inline multiply
-   but adds a sll/sra pair per use. Tried under 2.6.0: index += 2 in the body,
-   index += 2 in the for clause, u32/s16/s32 index.
-void func_800728B8(u8 *pPrim, s32 count, s16 index) {
+/* 78.84% (s16 index) / 78.53% (s32 index) under 2.6.0 and 2.7.2. Retail
+   multiplies index*40 inline every iteration (sll2 / addu / sll3, the sll2 rotated
+   into the back-edge delay slot by reorg) and keeps pPrim in s3 for an addu per
+   iteration; gcc 2.6.0's loop.c always strength-reduces the biv into a pointer
+   (+80/iteration, 40-byte frame instead of retail's 0x30, no s3). Retail's index
+   is 32-bit (no sign extension): the s16 version's sll/sra pair is the only reason
+   it scores 0.3 higher. Tried in round 372: POLY_FT4 *pPrim + &pPrim[index], the
+   'scaled = index * 5' / 'scaled * 8' split, an s32 offset local, a pDst pointer
+   local, mem_addr base + 'index * 40 + base' (round-149 lever), guard+do-while
+   (round-338 construct lever), and a 4-minute permuter run (2822 iterations,
+   base 1282 best 357) whose only candidate was wrong code ('i = 5 * index;' inside
+   the body clobbers the loop counter).
+void func_800728B8(u8 *pPrim, s32 count, s32 index) {
     s32 i;
+    mem_addr base;
 
+    base = (mem_addr)pPrim;
     for (i = 0; i < count; i++) {
-        AddPrim(g_BattleCurOT[0] + 4, pPrim + index * 40);
+        AddPrim(g_BattleCurOT[0] + 4, (u8 *)(index * 40 + base));
         index += 2;
     }
 }
@@ -937,10 +949,22 @@ void BattleRenderActorStatDigits(s32 slot, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
-/* 81.16% under 2.6.0 (1088 bytes / 272 insns against retail's 1096 / 274). Every
-   instruction matches except the frame: retail saves THREE callee-saved registers
-   (s0 = 0x51EB851F, s1 = 0x66666667, s2 = 0xFF, each formed once and live to the
-   end) and ours saves two, because gcc rematerialises both division magics in
+/* 80.04% under 2.6.0 (1084 bytes against retail's 1096). ROUND 372 re-measured
+   this park: the stored body had NEVER COMPILED (it reads a `blank` local that was
+   never declared, so the 81.16% recorded below came from an earlier variant); with
+   `u8 blank;` added it is 80.04%. The 7 elided stores, the 11 digit-array stores,
+   the five-step scale division, both ratio ladders and the three zero-suppression
+   loops are still exact. What is left is the frame and the constants: retail forms
+   each division magic ONCE and holds them in s0 (0x51EB851F, the /100) and s1
+   (0x66666667, the /10), keeps the blank 0xFF in s2 and `result` in t9 (nothing
+   calls after the mode selection) - a 0x10 frame; ours rematerialises both magics,
+   holds `result` in s1 and the blank in s0, and saves one register fewer.
+   The original note follows.
+   ---
+   81.16% under 2.6.0 (1088 bytes / 272 insns against retail's 1096 / 274, that is
+   a frame difference only): retail saves THREE callee-saved registers (s0 =
+   0x51EB851F, s1 = 0x66666667, s2 = 0xFF, each formed once and live to the end)
+   and ours saves two, because gcc rematerialises both division magics in
    caller-saved registers instead of holding them across the function. Everything
    else is exact: the 4 row loads, all 7 elided stores, all 11 digit-array stores,
    the five-step scale division, both ratio ladders (one shared result = 2 arm) and
@@ -955,8 +979,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
    the source, so no two stores to the same global are adjacent (gcc deletes the
    earlier one otherwise; measured on both layouts: 1028 bytes with the chains one
    after another). Tried: pointer-biv loops, a do-while over pointers, a u8 blank
-   local for 0xFF, digits stored inline vs held to the end. A permuter run from
-   this body is the next step, not more hand shapes.
+   local for 0xFF, digits stored inline vs held to the end.
 s32 func_80072F38(s32 slot, u8 arg1) {
     s16 hp;
     s16 maxHp;
@@ -975,6 +998,7 @@ s32 func_80072F38(s32 slot, u8 arg1) {
     s32 scaledDigit3;
     s32 result;
     s32 i;
+    u8 blank;
 
     maxHp = g_BattleSlotEntriesBase[slot].unk02;
     hp = g_BattleSlotEntriesBase[slot].flags;
