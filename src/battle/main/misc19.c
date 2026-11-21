@@ -189,7 +189,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // for the activeEffectFlags2 test, and a SECOND pCondition pointer (`new_var2`) for the tail
 // blocks, which is what fixed retail's sp.N regs (94 -> 98.85). Remaining: four register-role
 // swaps (retail `mflo v1` / `mfhi v0`, and the unk54/amount multiply pair in v1/v0) plus the
-// `pState->unk50[7]` byte load, which gcc CSEs across the branch where retail reloads it
+// `pState->statBonuses[7]` byte load, which gcc CSEs across the branch where retail reloads it
 // because retail's copy dies in the `li v0,0x1E` delay slot. Retail is 4 bytes LONGER here.
 // `new_var2` also lands in a2 where retail reuses s2, and the maxHp==hp `amount++` block is
 // stolen into the `beq` delay slot instead of staying out of line. Two permuter rounds
@@ -213,8 +213,8 @@ void func_8009A2D4(u8 arg0) {
         pWork->rowCosts[i] = pGearRow->commandPointCost;
         pGearRow++;
     }
-    if (pState->unk50[7] != 0) {
-        pWork->cost = pState->unk50[7] * pWork->rowCosts[0];
+    if (pState->statBonuses[7] != 0) {
+        pWork->cost = pState->statBonuses[7] * pWork->rowCosts[0];
     } else {
         pWork->cost = 0x1E;
     }
@@ -1219,9 +1219,9 @@ void func_8009BE0C(void) {
             pChar->mp = pChar->maxMp;
         }
         for (j = 0; j < 7; j++) {
-            pChar->statWeights[j] = ((u16*)p->unk90)[j];
+            pChar->statWeights[j] = p->statWeights[j];
         }
-        pChar->unk3A = ((u16*)p->unk3A)[0];
+        pChar->unk3A = p->actionCount;
         if (p->activeEffectFlags1 & 0xC000) {
             pChar->hp = 1;
         }
@@ -1231,7 +1231,7 @@ void func_8009BE0C(void) {
         }
         if (gearId < 7 || (gearId < 0x11 && gearId > 7)) {
             *(volatile u32*)&pGear->hp = pState->hp;
-            pGear->fuel = ((u16*)&pState->unk28[0x10])[0];
+            pGear->fuel = pState->fuel;
             if (pGear->hp > pGear->maxHp) {
                 pGear->hp = pGear->maxHp;
             }

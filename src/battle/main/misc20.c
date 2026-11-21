@@ -296,10 +296,10 @@ s32 func_8009D3A0(void) {
         hit = g_BattleCurSlotState->responsiveness / 2 + hit;
     }
     if (g_BattleActingSlot->characterId == 4) {
-        if ((g_BattleCurrentRow->unk0C[4] & 0x80) && !isGear) {
+        if ((g_BattleCurrentRow->weaponSlotFlags & 0x80) && !isGear) {
             return 3;
         }
-        if ((g_BattleCurrentRow->unk0C[4] & 0x20) &&
+        if ((g_BattleCurrentRow->weaponSlotFlags & 0x20) &&
             ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->unk04[3]] == 0) {
             return 3;
         }
@@ -668,17 +668,17 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
         sel = 3;
     }
     g_GameState.gears[id].weaponData[sel].attack = p->attack;
-    g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
-    g_GameState.gears[id].weaponData[sel].unk3 = p->unk10;
-    g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
+    g_GameState.gears[id].weaponData[sel].unk4 = p->conditionKind;
+    g_GameState.gears[id].weaponData[sel].unk3 = p->chance;
+    g_GameState.gears[id].weaponData[sel].unk4 = p->conditionKind;
     g_GameState.gears[id].extraWeaponIds[sel] = arg0;
     g_GameState.gearPartsIds[0x6C + arg0] = p->partId;
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if ((g_BattleCurWorkBlock->slots + i)->characterId == 4) {
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].attack = p->attack;
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk3 = p->unk10;
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->conditionKind;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk3 = p->chance;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->conditionKind;
             g_BattleCurWorkBlock->slots[i].state.extraWeaponIds[sel] = arg0;
         }
     }

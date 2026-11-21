@@ -260,7 +260,7 @@ typedef struct {
     /* 0x4D */ u8 unk4D;
     /* 0x4E */ u8 unk4E;
     /* 0x4F */ u8 unk4F;
-    /* 0x50 */ u8 unk50[0x10];
+    /* 0x50 */ u8 statBonuses[0x10]; // per-index bonus added back into a stat: [0..3] into agility (BattleResetSlotConditionCounters), [4] into amountMultiplier, [6] into the attack at 0x3E/0x3F
     /* 0x60 */ u32 hp; // scaled current hp
     /* 0x64 */ u32 maxHp; // scaled max hp
     /* 0x68 */ u16 weight; // weightFromEquipment and unk46 are added to it
@@ -316,12 +316,13 @@ typedef struct {
     /* 0x02D */ u8 defenseFromAccessories;
     /* 0x02E */ u8 equipmentPercents[0x2]; // GameCharacter's hit and evade percentages from equipment, in that order; func_80097D5C adds [0] to evade and [1] to hit
     /* 0x030 */ u8 accessoryEffectFlags8; // as in GameCharacter: the type-8 accessory flag word, summed per accessory
-    /* 0x031 */ u8 unk31;
+    /* 0x031 */ u8 mpPercentFromAccessories; // the character record's field of this offset and name: percent of maxMp added to both mp and maxMp at battle init
     /* 0x032 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, as in GameCharacter: bit 0x40 doubles the condition timer, the 0x400/0x200 pair picks a drop rate
     /* 0x034 */ u16 blockFlags; // 0x4000/0x8000: the action is nullified; the row's actionFlags 0x100 picks which bit is tested
     /* 0x036 */ u16 unk36;
     /* 0x038 */ u16 element; // the slot's own element mask in the low 6 bits, as the row's element: bit 0x40 raises the affinity multiplier from 15 to 18
-    /* 0x03A */ u8 unk3A[0x12];
+    /* 0x03A */ u16 actionCount; // the per-action counter of the character record at this offset: BattleResolveSlotActionState adds one per action that landed and clamps it at 0xFDE8
+    /* 0x03C */ u8 unk3C[0x10];
     /* 0x04C */ u16 hp;
     /* 0x04E */ u16 maxHp; // both scaled by BATTLE_ACTOR_HP_SCALE into state.hp / state.maxHp
     /* 0x050 */ u16 mp; // the same current/max pair as hp/maxHp: scaled by 10 into slotAmounts
@@ -365,7 +366,8 @@ typedef struct {
     /* 0x08E */ u16 accessoryEffectFlags7;
     /* 0x090 */ u16 statWeights[8]; // the dressing-room stat weights of GameCharacter, at its offsets; func_8009BE0C copies the first seven over
     /* 0x0A0 */ u8 gearId; // the gear the slot's character has equipped, as in GameCharacter
-    /* 0x0A1 */ u8 unkA1[0x3];
+    /* 0x0A1 */ u8 accessoryEffectFlags10; // as in GameCharacter: the type-10 accessory flag word, summed per accessory
+    /* 0x0A2 */ u8 unkA2[0x2];
     /* 0x0A4 */ BattleSlotState state;
 } BattleTableEntry; // Size: 0x170
 
@@ -394,7 +396,8 @@ typedef struct {
     /* 0x04 */ u8 pad04[0x4];
     /* 0x08 */ u16 statusMask; // one bit per status; the highest set bit picks the slot's counter
     /* 0x0A */ u16 actionFlags;
-    /* 0x0C */ u8 unk0C[0x5];
+    /* 0x0C */ u8 unk0C[0x4];
+    /* 0x10 */ u8 weaponSlotFlags; // which weapon slots the row needs a gear part for (character 4, the one with four guns): bit 0x80 extraWeaponIds[0], 0x10 and 0x20 extraWeaponIds[3]
     /* 0x11 */ u8 power; // multiplies the target's stat to give the action's amount
     /* 0x12 */ u8 unk12[0x2];
     /* 0x14 */ u8 chanceBonus; // added to the acting slot's percent before the rand() % 100 roll
@@ -427,8 +430,8 @@ typedef struct {
     /* 0xD */ u8 unkD;
     /* 0xE */ u8 attack; // BattleApplyGearWeaponRecord copies it over the equipped weapon's attack
     /* 0xF */ u8 weaponId; // matched against the equipped GearWeaponData's weapon id
-    /* 0x10 */ u8 unk10;
-    /* 0x11 */ u8 unk11;
+    /* 0x10 */ u8 chance; // BattleApplyGearWeaponRecord copies it over the weapon record's chance, which BattleTryApplyCondition reads as an s8 percent
+    /* 0x11 */ u8 conditionKind; // and over that record's kind word, the condition BattleTryApplyCondition applies
     /* 0x12 */ u8 unk12[0x2];
 } BattleGearWeaponRecord; // Size: 0x14
 

@@ -493,12 +493,12 @@ s32 BattleRollHitResult(void) {
     }
 
     if (g_BattleActingSlot->characterId == 4) {
-        if ((g_BattleCurrentRow->unk0C[4] & 0x80) != 0 &&
+        if ((g_BattleCurrentRow->weaponSlotFlags & 0x80) != 0 &&
             g_GameState.gearPartsIds[0x6C + g_BattleActingSlot->extraWeaponIds[0]] == 0) {
             D_800C34AE = 1;
             return 3;
         }
-        if ((g_BattleCurrentRow->unk0C[4] & 0x10) != 0 &&
+        if ((g_BattleCurrentRow->weaponSlotFlags & 0x10) != 0 &&
             g_GameState.gearPartsIds[0x6C + g_BattleActingSlot->extraWeaponIds[3]] == 0) {
             D_800C34AE = 1;
             return 3;
@@ -836,8 +836,8 @@ void func_80097D5C(void) {
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102C] = g_BattleActingSlot->ether;
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102D] = g_BattleActingSlot->etherDefense;
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102E] = g_BattleActingSlot->agility;
-        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3A[2])[0];
-        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3A[6])[0];
+        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3C[0])[0];
+        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3C[4])[0];
         ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 4))[0x800] = g_BattleActingSlot->maxHp;
         pSlot = g_BattleActingSlot;
         effectFlags = 0;
@@ -858,9 +858,9 @@ void func_80097D5C(void) {
             g_BattleActingSlot->hit += g_BattleActingSlot->hit >> 2;
         }
         g_BattleActingSlot->hp = g_BattleActingSlot->hp + g_BattleActingSlot->maxHp * g_BattleActingSlot->accessoryEffectFlags8 / 20;
-        g_BattleActingSlot->mp = g_BattleActingSlot->mp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk31 / 20;
+        g_BattleActingSlot->mp = g_BattleActingSlot->mp + g_BattleActingSlot->maxMp * g_BattleActingSlot->mpPercentFromAccessories / 20;
         g_BattleActingSlot->maxHp = g_BattleActingSlot->maxHp + g_BattleActingSlot->maxHp * g_BattleActingSlot->accessoryEffectFlags8 / 20;
-        g_BattleActingSlot->maxMp = g_BattleActingSlot->maxMp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk31 / 20;
+        g_BattleActingSlot->maxMp = g_BattleActingSlot->maxMp + g_BattleActingSlot->maxMp * g_BattleActingSlot->mpPercentFromAccessories / 20;
         if (g_BattleActingSlot->hp >= 1000) {
             g_BattleActingSlot->hp = 999;
         }
@@ -884,7 +884,7 @@ void func_80097D5C(void) {
         g_BattleTargetSlotState->unk9A[2] += g_BattleTargetSlotState->unk4C;
         g_BattleTargetSlotState->responsiveness += g_BattleTargetSlotState->unk4D;
         g_BattleTargetSlotState->agility += g_BattleTargetSlotState->unk4E - g_BattleTargetSlotState->unk48;
-        g_BattleTargetSlotState->unk9E += g_BattleTargetSlotState->unk50[4];
+        g_BattleTargetSlotState->unk9E += g_BattleTargetSlotState->statBonuses[4];
         if (g_BattleTargetSlotState->unk4F != 0 && g_BattleActingSlot->gearId != 0x12) {
             ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] =
                 g_BattleTargetSlotState->maxHp / 10 * g_BattleTargetSlotState->unk4F * 2 / 9;
@@ -903,8 +903,8 @@ void func_80097D5C(void) {
         }
         g_BattleTargetSlotState->unk3F = g_BattleTargetSlotState->attackPower;
         g_BattleTargetSlotState->unk3E = g_BattleTargetSlotState->attackPower;
-        g_BattleTargetSlotState->unk3F += g_BattleTargetSlotState->unk50[6];
-        g_BattleTargetSlotState->unk3E += g_BattleTargetSlotState->unk50[6];
+        g_BattleTargetSlotState->unk3F += g_BattleTargetSlotState->statBonuses[6];
+        g_BattleTargetSlotState->unk3E += g_BattleTargetSlotState->statBonuses[6];
         if (g_BattleActingSlot->accessoryEffectFlags4 & BATTLE_GEAR_EFFECT_FLAG) {
             for (j = 0; j < 0x26; j++) {
                 ((u8 *)g_BattleCurWorkBlock)[i * 0x5F0 + j * 0x28 + 0x106B] <<= 1;
@@ -945,7 +945,7 @@ void func_80097D5C(void) {
         }
         if (g_BattleActingSlot->gearId == 0x12) {
             g_BattleActingSlot->conditionFlags = 0x238;
-            ((u16 *)&g_BattleTargetSlotState->unk28[0x10])[0] = 0x26AC;
+            g_BattleTargetSlotState->fuel = 0x26AC;
             g_BattleTargetSlotState->unk3A = 0x26AC;
             pFlags[1] = 0;
             g_GameState.conditionRows[3].statusFlags = 0x8000;
@@ -989,7 +989,7 @@ void BattleResetSlotConditionCounters(void) {
                 v = g_BattleSlotUnk98Deltas[j];
                 if (v != 0) {
                     g_BattleTargetSlotState->agility -= v;
-                    g_BattleTargetSlotState->agility += g_BattleTargetSlotState->unk50[j];
+                    g_BattleTargetSlotState->agility += g_BattleTargetSlotState->statBonuses[j];
                 }
             }
             if (g_BattleTargetSlotState->agility >= 0x11) {

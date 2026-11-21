@@ -1405,10 +1405,10 @@ void BattleResolveSlotActionState(void) {
         if (g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] ==
             g_BattleTargetSlotEntry->hp) {
             if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS) {
-                value = *(u16 *)g_BattleActingSlot->unk3A + 1;
-                *(u16 *)g_BattleActingSlot->unk3A = value;
+                value = g_BattleActingSlot->actionCount + 1;
+                g_BattleActingSlot->actionCount = value;
                 if (value > 0xFDE8) {
-                    *(u16 *)g_BattleActingSlot->unk3A = value - 1;
+                    g_BattleActingSlot->actionCount = value - 1;
                 }
             }
         }
