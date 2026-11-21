@@ -91,8 +91,13 @@ void func_8009BD94(void) {
         (u32)(g_BattleCurrentRow->power * ((BattleSlotState*)g_BattleCurSlotState)->maxHp) / 20;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19_r1", func_8009BE0C);
-// PARKED (90.12%, 552 bytes = retail's exact size, instruction multiset equal
-// apart from the three ties below). Body COMPILES.
+// PARKED (90.12% under 2.7.2 / 97.23% under this TU's gcc 2.6.0, 576 bytes against
+// retail's 580 = ONE instruction short). Body COMPILES. Round 394 re-measured both
+// numbers after the unit was split: retail's size is 580 bytes, not the 552 this note
+// used to claim (the size was never measured against the .s), and under 2.6.0 the
+// division ties below are gone - what is left is the gear-id test pair (the missing
+// instruction), the two clamp rotations, and a prologue tie: retail holds
+// &g_BattleWorkBlock in $t5 and &g_GameState in $t4, 2.6.0 swaps the two.
 // Structure is retail's: the outer 3-slot loop, the characterId==7 hp arm, the
 // character copy (hp/mp clamp, 7 stat-weight words, the 0x3A word, the 0xC000
 // flag -> hp 1), then the gear copy. Load-bearing and measured:
@@ -121,6 +126,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19_r1", func_8009BE0C);
 //     loads b first and keeps it in a register (`sltu v0,v1,v0`), so the block is
 //     two instructions rotated. Measured, no effect: the pChar->hp store volatile.
 //  3. the pChar->maxHp load is hoisted above the pChar->hp store here.
+// Round 394, on 2.6.0: the nested `if (gearId < 7) .. else if (gearId < 0x11) {
+// if (gearId > 7)` spelling with the copy body written twice is 95.64% / 588 bytes -
+// 2.6.0 does NOT cross-jump it to one copy, so the duplicated body costs 8 bytes and
+// makes the three ties worse. The single-condition spelling below stays the best.
 // A 3-minute permuter run from this body was PERMUTER_BETTER base=1601 best=1102
 // and its whole finding was `j = 0x11;` then `gearId < j`, i.e. it replaced
 // retail's `slti 17` immediate with a register compare - not a real lead.
