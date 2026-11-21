@@ -1050,16 +1050,20 @@ s32 func_800846A0(Misc9LightGroup* pGroup) {
     pNodeB->localMatrix = pNodeA->localMatrix;
     BattleDisableBackColor();
     pLight = pGroup->pNodes[0]->pLight;
-    pLight->r = (pLight->g = (pLight->b = 0x800));
+    pLight->b = 0x800;
+    pLight->g = 0x800;
+    pLight->r = 0x800;
     func_80030A30(0, pGroup->pNodes[0]->pLight);
     gte_SetBackColor(g_BattleBackColorA, g_BattleBackColorG, g_BattleBackColorB);
     BattleFadeActorLights(pGroup, &g_BattleActor1, 1);
-    pLight = pGroup;
     BattleUpdateNodeTree(g_BattleEffectPool);
-    BattleFadeActorLights(pLight, &g_BattleActor0, 1);
+    BattleFadeActorLights(pGroup, &g_BattleActor0, 1);
     BattleUpdateNodeTree(g_BattleEffectNode);
     gte_SetRotMatrix_gpr(&mat);
     BattleEffectSetMatrix(pWork->pOt[g_BattleDrawBufferIndex], &pGroup->pNode0->localMatrix);
+    // load-bearing shape: two identical arms that gcc cross-jumps into retail's
+    // single copy. Written as one straight-line pair the same two calls get pWork
+    // and &mat the other way round (99.66%), so the arms must stay duplicated.
     do {
         if (pGroup) {
             BattleEffectQueuePrims(pWork->pOt[g_BattleDrawBufferIndex]);
