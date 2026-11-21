@@ -337,7 +337,218 @@ void FieldProjectActorPointToScreen(int actorIndex, int* pScreenX, int* pScreenY
     *pScreenX = ((short*) &sxy)[0];
 }
 
+// The text box keeps a SystemString at _pad[0]. system.c owns the full layout; this
+// unit seeds its number arguments, the string ref and the buffer it pushes.
+typedef struct {
+    /* 0x00 */ undefined8 unk0[0x10];
+    /* 0x10 */ u_short flags;
+    /* 0x12 */ undefined8 unk12[0x56];
+    /* 0x68 */ u_char unk68;
+    /* 0x69 */ undefined8 unk69[0x7];
+    /* 0x70 */ s32 args[4];
+    /* 0x80 */ s16 stringRef;
+    /* 0x82 */ s16 unk82;
+    /* 0x84 */ undefined8 unk84[0xC];
+    /* 0x90 */ void* pBuffer;
+} FieldTextBoxString;
+
+// The text box keeps its string at _pad[0], which is box + 0x18.
+#define TEXT_BOX_STRING(index) ((FieldTextBoxString*)g_FieldTextBoxes[index]._pad)
+
+// Where the window ends up: the projected actor point, or the point the mode's
+// arithmetic produces.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+} FieldTextBoxAnchor;
+
+// The VRAM strip each text box uploads its glyph row to: one (x, y) pair per box.
+typedef struct {
+    /* 0x0 */ u_short vramX;
+    /* 0x2 */ u_short vramY;
+} FieldTextBoxGlyphStrip;
+
+// The portrait index sits in bits 1-3 of ActorData's script flag word at 0x12C,
+// which the header declares only as bitfields (a bitfield read narrows the load).
+typedef struct {
+    /* 0x000 */ undefined8 unk0[0x12C];
+    /* 0x12C */ u_int scriptFlags;
+} ActorScriptFlagWord;
+
+extern FieldTextBoxGlyphStrip D_800ADF54[];
+extern s32 D_800ADE90;
+extern s16 g_FieldTextScaleDivisor;
+// FieldDialogs is only ever handed straight back to GetStringEntry here.
+extern void* g_FieldDialogs;
+extern u_char* GetStringEntry(void* pDialogs, s32 dialogIndex);
+// The string init takes the values unsigned: the VRAM strip and the two extents
+// are passed without a sign extension.
+extern void SystemStringInit(void* pString, s32 vramX, s32 vramY, s32 x, s32 y, s32 maxWidth,
+                             s32 maxChars);
+
+// A character cell is 4 x 14 pixels and the window keeps an 8 pixel border on
+// every side, so the offsets to its centre are 2 * width + 8 and 7 * height + 8.
+#define FIELD_TEXT_BOX_CHAR_WIDTH 4
+#define FIELD_TEXT_BOX_LINE_HEIGHT 14
+#define FIELD_TEXT_BOX_BORDER_WIDTH 8
+// A mode 2 window is centred on the screen.
+#define FIELD_TEXT_BOX_CENTER_X 0xA0
+// Extra left inset the text takes when a portrait is drawn beside it.
+#define FIELD_TEXT_BOX_PORTRAIT_INDENT 0x44
+
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
+
+// 73.38%, 1684 bytes against retail's 1628: the whole body is in place (the
+// allocation loop, the four script variable reads, the three mode arms, the
+// portrait, the rect and string seeding, both position offsets with their two
+// division arms, and the flags tail) and every call, branch and reloc matches.
+// What is left is allocation and one address-form family.
+//  1. Retail re-forms `%hi(g_FieldTextBoxes + K)` at EVERY box access, including
+//     the eight string stores at 0x28/0x80/0x88..0x98/0xA8 (relocs read
+//     `g_FieldTextBoxes + 0x88` with `addu $at,$at,$s0`). A typed pointer
+//     (`TEXT_BOX_STRING(i)->args[n]`, what text_box.c does) makes gcc CSE the
+//     string base into a callee-saved register instead, which also costs the
+//     frame: measured 1684 bytes / vars=24. Spelling those eight accesses as raw
+//     byte offsets (`*(s32 *)((u_char *)&g_FieldTextBoxes[i] + 0x88)`) scores
+//     75.16% and brings the frame to 104 (retail 112) with x finally spilled to
+//     the stack like retail's, but emits `la $sN,g_FieldTextBoxes+K` + an extra
+//     addu per store and ends at 1744 bytes. The header's `short _pad[0x56]`
+//     covers 0x18-0xC4, so the string cannot be reached as a member chain
+//     without re-splitting that shared field.
+//  2. Retail spills x (0x28) and top (0x30) to s16 stack slots and reloads them
+//     with lhu+sll/sra at each of the five uses; this build keeps one or both in
+//     callee-saved registers, and the slots at 0x2C/0x34/0x3C suggest retail's
+//     frame also carries two unreferenced 4-byte locals (a `{ s16 left; s16
+//     top; }` struct forced to memory measures 67.48% / 1664 bytes, so the shape
+//     is not just "make them aggregates").
+//  3. Retail addresses g_FieldTextScaleDivisor through a pointer (`lui`/`addiu`
+//     into $a0 then `lh $v1,0($a0)` twice, one per division) where this build
+//     emits two direct `lui`/`lh` pairs.
+// Measured and rejected: dialogIndex as u16 (retail spills it with `sw`, so s32
+// is right), the branchless `(faceFlags & 0x800) ? 1 : 0` for box->unk412
+// (retail branches on `andi 0x800` and stores a `li 1`), and reading dialogFlags
+// straight from the field (gcc narrows `>> 16` into `lhu 0x86`; a local word
+// read is required and is in the body).
+/*
+s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s32 height,
+                  s32 curActorIndex, s32 actorIndex, s32 mode, u32 flags, u32 faceFlags) {
+    FieldTextBoxAnchor anchor;
+    u32 dialogFlags;
+    u32 upperFlags;
+    u32 lowerFlags;
+    u_int scriptFlags;
+    s32 inset;
+    s32 value;
+    s16 top;
+    s32 i;
+    s32 slot;
+
+    top = y - FIELD_TEXT_BOX_BORDER_WIDTH;
+
+    dialogFlags = g_FieldActors[curActorIndex].pActorData->dialogFlags;
+    upperFlags = dialogFlags >> 0x10;
+    if (upperFlags == 0) {
+        lowerFlags = dialogFlags & 0xFFFF;
+    } else {
+        lowerFlags = upperFlags & 0xFFFF;
+    }
+    flags |= lowerFlags;
+
+    for (i = 0; i < 4; i++) {
+        slot = D_800ADE90 & 3;
+        D_800ADE90++;
+        if (g_FieldTextBoxAllocationStates[slot] == -1) {
+            g_FieldTextBoxAllocationStates[slot] = 0;
+            break;
+        }
+    }
+
+    TEXT_BOX_STRING(textBoxIndex)->args[0] = FieldScriptVMGetVariableValue(0x16);
+    TEXT_BOX_STRING(textBoxIndex)->args[1] = FieldScriptVMGetVariableValue(0x18);
+    TEXT_BOX_STRING(textBoxIndex)->args[2] = FieldScriptVMGetVariableValue(0x1A);
+    value = FieldScriptVMGetVariableValue(0x1C);
+    TEXT_BOX_STRING(textBoxIndex)->args[3] = value;
+    TEXT_BOX_STRING(textBoxIndex)->stringRef = value;
+
+    if (mode == 2) {
+        anchor.x = FIELD_TEXT_BOX_CENTER_X;
+        anchor.y = top + 0x20;
+    } else if (mode == 3) {
+        anchor.x = x + FIELD_TEXT_BOX_BORDER_WIDTH + width * 2;
+        anchor.y = top + FIELD_TEXT_BOX_BORDER_WIDTH + height * 7;
+    } else {
+        FieldProjectActorPointToScreen(actorIndex, &anchor.x, &anchor.y, -0x40);
+    }
+
+    if (g_FieldActors[curActorIndex].pActorData->faceId != 0xFF && !(flags & 0x2)) {
+        scriptFlags = ((ActorScriptFlagWord*)g_FieldActors[curActorIndex].pActorData)->scriptFlags;
+        if (flags & 0x402) {
+            FieldTextBoxSetPortraitUV(textBoxIndex, (scriptFlags >> 1) & 0xE);
+        } else {
+            FieldTextBoxSetPortraitUV(textBoxIndex, ((scriptFlags >> 1) & 0xE) | 1);
+        }
+        g_FieldTextBoxes[textBoxIndex].portrait.shouldRenderPortrait = 1;
+        g_FieldTextBoxes[textBoxIndex].portrait.portraitID =
+            g_FieldActors[curActorIndex].pActorData->faceId;
+    } else {
+        g_FieldTextBoxes[textBoxIndex].portrait.portraitID = 0x80;
+        g_FieldTextBoxes[textBoxIndex].portrait.shouldRenderPortrait = 0;
+    }
+
+    g_FieldTextBoxes[textBoxIndex].cursor.visibility = -1;
+    FieldTextBoxSetRect(textBoxIndex, x, top, width * FIELD_TEXT_BOX_CHAR_WIDTH + FIELD_TEXT_BOX_BORDER_WIDTH * 2,
+                        height * FIELD_TEXT_BOX_LINE_HEIGHT + FIELD_TEXT_BOX_BORDER_WIDTH * 2);
+
+    inset = 0;
+    if (g_FieldActors[curActorIndex].pActorData->faceId != 0xFF) {
+        inset = (flags & 0x402) == 0 ? FIELD_TEXT_BOX_PORTRAIT_INDENT : 0;
+    }
+    SystemStringInit(TEXT_BOX_STRING(textBoxIndex), D_800ADF54[textBoxIndex].vramX,
+                     D_800ADF54[textBoxIndex].vramY, x + FIELD_TEXT_BOX_BORDER_WIDTH + inset,
+                     top + FIELD_TEXT_BOX_BORDER_WIDTH, width, height);
+
+    if (flags & 0x400) {
+        g_FieldTextBoxes[textBoxIndex].flags |= 0x20;
+    }
+    TEXT_BOX_STRING(textBoxIndex)->unk68 = g_FieldTextScaleDivisor == 8 ? 1 : 2;
+    TEXT_BOX_STRING(textBoxIndex)->pBuffer = GetStringEntry(g_FieldDialogs, dialogIndex);
+    g_FieldTextBoxes[textBoxIndex].visibility = 0;
+    TEXT_BOX_STRING(textBoxIndex)->flags |= 0x2;
+    g_FieldTextBoxes[textBoxIndex].ownerActorID = curActorIndex;
+    g_FieldTextBoxes[textBoxIndex].talkingActorID = actorIndex;
+    g_FieldTextBoxes[textBoxIndex].windowOpenTimer = g_FieldTextScaleDivisor;
+    if (faceFlags & 0x800) {
+        g_FieldTextBoxes[textBoxIndex].unk412 = 1;
+    } else {
+        g_FieldTextBoxes[textBoxIndex].unk412 = 0;
+    }
+
+    g_FieldTextBoxes[textBoxIndex].positionOffsetX =
+        (anchor.x - (width * 2 + FIELD_TEXT_BOX_BORDER_WIDTH) - x) << 16;
+    g_FieldTextBoxes[textBoxIndex].positionOffsetY =
+        (anchor.y - (height * 7 + FIELD_TEXT_BOX_BORDER_WIDTH) - top) << 16;
+
+    if (!(flags & 0x100)) {
+        g_FieldTextBoxes[textBoxIndex].positionOffsetDeltaX =
+            -(g_FieldTextBoxes[textBoxIndex].positionOffsetX / g_FieldTextScaleDivisor);
+        g_FieldTextBoxes[textBoxIndex].positionOffsetDeltaY =
+            -(g_FieldTextBoxes[textBoxIndex].positionOffsetY / g_FieldTextScaleDivisor);
+    } else {
+        g_FieldTextBoxes[textBoxIndex].windowOpenTimer = 1;
+        g_FieldTextBoxes[textBoxIndex].positionOffsetDeltaX =
+            -g_FieldTextBoxes[textBoxIndex].positionOffsetX;
+        g_FieldTextBoxes[textBoxIndex].positionOffsetDeltaY =
+            -g_FieldTextBoxes[textBoxIndex].positionOffsetY;
+    }
+
+    if ((g_FieldActors[actorIndex].pActorData->flags & 0x200) && !(flags & 0x1)) {
+        g_FieldTextBoxes[textBoxIndex].status = 0;
+        return -1;
+    }
+    return 0;
+}
+*/
+
 
 void FieldTextBoxFreeAll(void) {
     int i;
@@ -348,16 +559,6 @@ void FieldTextBoxFreeAll(void) {
         }
     }
 }
-
-// The text box keeps a SystemString at _pad[0]; system.c owns its full layout
-// (text_box.c has the other half). This unit needs the pending-push state.
-typedef struct {
-    /* 0x00 */ undefined8 unk0[0x80];
-    /* 0x80 */ s16 unk80;
-    /* 0x82 */ s16 unk82;
-    /* 0x84 */ u_char unk84[0xC];
-    /* 0x90 */ void* pBuffer;
-} FieldTextBoxString;
 
 extern int SystemStringGetUnk6B(FieldTextBoxString* pString);
 extern void SystemStringPushBuffer(FieldTextBoxString* pString, void* pBuffer);
