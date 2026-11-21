@@ -24,12 +24,6 @@ extern s32 g_MovieRandomSeedB;
 extern s32 g_MovieStreamReadCount[];
 // .bss
 extern u_char g_MovieCdControlResult[];
-extern u_char g_MovieGlowColours[];
-extern u_char D_80076FCD[];
-extern u_char D_80076FCE[];
-extern u_char g_MovieGlowTargetColours[];
-extern u_char D_80076FDD[];
-extern u_char D_80076FDE[];
 extern s32 g_MovieDarkFadeSteps[];
 extern s32 g_MovieDarkFadeDurations[];
 typedef struct {
@@ -41,6 +35,8 @@ typedef struct {
 
 extern MovieColour g_MovieDarkColours[];
 extern MovieColour g_MovieDarkTargetColours[];
+extern MovieColour g_MovieGlowColours[];
+extern MovieColour g_MovieGlowTargetColours[];
 extern s32 g_MovieGlowFadeSteps[];
 extern s32 g_MovieGlowFadeDurations[];
 
@@ -880,15 +876,13 @@ void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
 
     color = 0xFF;
 
-    // The colour triplets are 4-byte structs and splat labels every byte, so the
-    // three channels are addressed as byte arrays a stride of 4 apart.
-    for (i = 0; i < 0x10; i += 4) {
-        g_MovieGlowColours[i] = color;
-        D_80076FCD[i] = color;
-        D_80076FCE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
-        g_MovieGlowTargetColours[i] = color;
-        D_80076FDD[i] = color;
-        D_80076FDE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
+    for (i = 0; i < 4; i++) {
+        g_MovieGlowColours[i].r = color;
+        g_MovieGlowColours[i].g = color;
+        g_MovieGlowColours[i].b = (MovieGetRandomNumber() & 0x3F) - 0x42;
+        g_MovieGlowTargetColours[i].r = color;
+        g_MovieGlowTargetColours[i].g = color;
+        g_MovieGlowTargetColours[i].b = (MovieGetRandomNumber() & 0x3F) - 0x42;
     }
 
     for (j = 0; j < 4; j++) {
@@ -919,8 +913,8 @@ void MovieUpdateGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, 
     u_char* pTargetB;
 
     i = 0;
-    pColB = D_80076FCE;
-    pTargetB = D_80076FDE;
+    pColB = &g_MovieGlowColours[0].b;
+    pTargetB = &g_MovieGlowTargetColours[0].b;
     pColG = pColB - 1;
     pTargetG = pTargetB - 1;
     pColR = pColB - 2;
