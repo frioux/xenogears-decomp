@@ -786,29 +786,24 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
 // sitting in the jal delay slot.
 // preset screen: 2.7.2 81.13%, cdk 81.13%, 2.6.0 81.13% - no compiler
 // fixes it.
-/*
-extern void SpriteAllocClutRect(SpriteData*, int, int);
-
 void func_800888A4(void) {
     SpriteData* pSpriteData;
+    ActorData* pCurActor;
     int type;
     int value;
 
     pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
-    arg = 1;
-    type = FieldScriptVMGetArgument(arg) & 0xF;
-    value = ((FieldScriptVMGetArgument(arg) >> 4) << 8) + FieldScriptVMGetArgument(3);
+    type = FieldScriptVMGetArgument(1) & 0xF;
+    value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
     SpriteAllocClutRect(pSpriteData, 2, 0);
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
-    ((u_int*)g_FieldScriptVMCurActor)[0x4B] = (((u_int*)g_FieldScriptVMCurActor)[0x4B] & 0xF003FFFF) | (type << 24);
+    pCurActor = g_FieldScriptVMCurActor;
+    ((u_int*)pCurActor)[0x4B] = (((u_int*)pCurActor)[0x4B] & 0xF003FFFF) | (type << 24);
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[3] = value;
-    g_FieldScriptVMCurActor->flags130 = (g_FieldScriptVMCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
-    g_FieldScriptVMCurActor->flags12C_0x10 = 1;
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
+    pCurActor->flags130 = (pCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
+    pCurActor->flags12C_0x10 = 1;
+    pCurActor->scriptInstructionPointer += 5;
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
-
 // 88.92% (432 bytes against retail's 428; frame 0x28 and the saved set s0-s4+ra
 // are retail's exactly, every call and every store is in retail's own order).
 //   SETTLED: the four script arguments are read in this order (arg1 masked to
@@ -3420,11 +3415,17 @@ extern void FieldFreePendingAudioManager(void);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void FieldStartWdsBankLoad(int, int);
 
-// 92.24%: the two guards match as `!=` conjunctions (both `beq` jump forward to
-// the shared `g_FieldScriptVMStopFlag = 1`), but then gcc merges that store with the one for
-// the `FieldArchiveTryDataSync() != 0 || g_FieldMapChangeGate.value == 0` arm, which the original
-// keeps separate and inline. Spelling that arm as `== 1 || == -1` keeps it
-// inline (it shares the `li v1,1`) but inverts the second `beq` (90.82%).
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
+
+// PARKED 92.24% (320 bytes against retail's 340): every guard, call and load
+// matches; the whole 20-byte gap is that gcc emits ONE
+// `lui $at,%hi(g_FieldScriptVMStopFlag); sw` block that all four failing tests
+// jump to, where retail keeps the `g_FieldScriptVMStopFlag = 1` of the
+// `FieldArchiveTryDataSync() || g_FieldMapChangeGate.value == 0` arm separate
+// and inline (its own `lui $at/sw` plus a `j` to the epilogue). The two bodies
+// are the same statement, so jump's cross-jumping merges them; a flat
+// early-return form, `do {} while (0)` around either body, and a volatile
+// store on the arm-2 body all still merge (320 bytes each).
 // preset screen: 2.7.2 92.24%, cdk 92.24%, 2.6.0 92.24% - no compiler
 // fixes it.
 /*
@@ -3454,28 +3455,16 @@ void func_8008F7B8(void) {
     }
 }
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
-
-// 90.60%: everything matches except that gcc's post-reload scheduler moves the
-// `scriptInstructionPointer += 9` load/addiu/store below the three divisions and
-// the two g_Scene s16 stores (the original has it right after the frames clamp).
-// Writing the clamp first in the source makes it worse: the divs and the s16
-// stores are then all emitted before the pointer store (48.80%).
-// preset screen: 2.7.2 90.60%, cdk 72.87%, 2.6.0 90.60% - no compiler
-// fixes it.
-/*
-// Starts an interpolation of the camera position from the current g_Scene
-// position to the one passed in the script arguments.
 void func_8008F90C(void) {
     int x = FieldScriptVMGetArgument(1);
     int y = FieldScriptVMGetArgument(3);
     int z = FieldScriptVMGetArgument(5);
     int frames = FieldScriptVMGetArgument(7);
 
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     if (frames == 0) {
         frames = 1;
     }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     g_Scene.shakeStepX = ((x << 16) - g_Scene.shakeAmplitudeX) / frames;
     g_Scene.shakeStepY = ((z << 16) - g_Scene.shakeAmplitudeY) / frames;
     g_Scene.shakeStepZ = ((y << 16) - g_Scene.shakeAmplitudeY) / frames;
@@ -3488,5 +3477,3 @@ void func_8008F90C(void) {
         g_Scene.shakeStopWhenFinished = 0;
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F90C);
