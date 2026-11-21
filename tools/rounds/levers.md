@@ -155,6 +155,9 @@ try: andi lbu lhu narrow extension
 - id: e-andi-0xff-call-site | keywords: extension, narrow, s32, andi, permuter, u8
   AN 'andi 0xff' AT A CALL SITE DOES NOT PROVE THE CALLER'S PARAMETER IS WIDE. gcc 2.7.2 masks a NARROW parameter passed to a NARROW parameter, so if retail ANDs every call's argument, declare the parameter u8/char and the masks appear by themselves; declaring it s32 (which is what the disassembly looks like) loses them (round 228, battle/misc10 func_8007EF6C: s32 -> char took it 98.44% -> 100.00%, a one-line diff found by the permuter).
 
+- id: e-a-u16-parameter-that | keywords: extension, narrow, andi, u_short, prototype, declaration, K&R, callee
+  **A u_short PARAMETER whose argument retail does NOT mask means the caller's TU had no prototype in scope, and nothing in C with the real definition visible can reproduce it.** round 389 shop_menu/main/misc func_801D05BC (407 insns): retail loads its 0x32-initialised stack giv straight into `$a2` for `ShopMenuSetVertices(..., 0x32 + FONT_LETTER_HEIGHT*i, ...)` while every compile with the u_short prototype visible must emit `andi a2,0xFFFF`, which costs one extra live value and shifts the whole body (93.72%, 1632 bytes vs retail's 1628). Proof of the mechanism, not a theory: an `extern void ShopMenuSetVertices();` line (no prototype) before the function takes it to 99.97% with retail's exact 1628 bytes, and changing the params to `int` measures identically - the prototype's truncation IS the whole first delta. The honest ceiling is therefore one instruction over retail, and the neighbour func_801CDD14 (parked 97.44%, same unit) reports the same missing andi, so treat "retail passes an unmasked word to a narrow parameter defined earlier in the same TU" as a declared wall, not an unexplored shape.
+
 ## division mfhi/mflo
 
 symptoms: div/mfhi/mflo or mult/srl sequence differs
