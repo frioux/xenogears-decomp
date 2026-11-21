@@ -1411,7 +1411,7 @@ typedef struct {
 extern u_int* g_FieldWalkmeshMaterialFlags;
 extern FieldWalkmeshTriangleRecord* g_FieldWalkmeshTriangles[];
 extern FieldWalkmeshVertexRecord* g_FieldWalkmeshVertices[];
-extern u_char D_800B21CC;
+extern u_char g_FieldPartyMoveInProgress;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
 /* Best attempt: 83.66% (1916 bytes, the original's exact size). The body at
@@ -1473,7 +1473,7 @@ int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     pOut->vz = (pPos->vz + pVec->vz) >> 16;
     nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
     if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
-        nFlagMask = -(D_800B21CC < 1);
+        nFlagMask = -(g_FieldPartyMoveInProgress < 1);
     }
 
     nFlags = g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & nFlagMask;
@@ -1683,7 +1683,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
 
     nFlagMask = 0;
     if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
-        nFlagMask = -(D_800B21CC < 1);
+        nFlagMask = -(g_FieldPartyMoveInProgress < 1);
     }
 
     for (i = 0; i < 0x20; i++) {

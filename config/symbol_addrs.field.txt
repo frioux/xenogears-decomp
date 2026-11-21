@@ -1079,3 +1079,7 @@ g_FieldTalkShorts = 0x800B2340;
 g_FieldStagedFileSyncHold = 0x800ADBE8;
 g_FieldAlternatePadAngles = 0x800B2354;
 g_FieldActorModelPointerIndex = 0x800AF858;
+g_FieldScriptVMStackErrorFormat = 0x8006FD44;
+g_FieldScriptVMEventLoopErrorFormat = 0x8006FD84;
+g_FieldScriptButtonsHeld = 0x800AFC6C;
+g_FieldPartyMoveInProgress = 0x800B21CC;

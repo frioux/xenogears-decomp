@@ -18,7 +18,7 @@ extern s32 D_800B2368;
 extern u16 D_800AEA44[];
 extern u16 D_800AEA54[];
 extern s16 D_800AEA64[];
-extern s8 D_800B21CC[];
+extern s8 g_FieldPartyMoveInProgress[];
 extern s32 g_PlayerActorIndex;
 extern s32 g_FieldPartyActorSlots[];
 
@@ -645,7 +645,7 @@ void FieldScriptVMResetPartyMovement(void) {
     int i;
 
     D_800B21CF[0] = 0;
-    D_800B21CC[0] = 0;
+    g_FieldPartyMoveInProgress[0] = 0;
     D_800B2368 = 0;
     D_800B2364 = 0;
     D_800B2360 = 0;
@@ -676,11 +676,11 @@ void FieldScriptVMMovePartyToLeader(void) {
     g_FieldScriptVMStopFlag = 1;
     if (mask == 7) {
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
-        D_800B21CC[0] = 0;
+        g_FieldPartyMoveInProgress[0] = 0;
         g_FieldWalkAbortCount.value = 0;
         FieldScriptVMResetActorHistory();
     } else {
-        D_800B21CC[0] = 1;
+        g_FieldPartyMoveInProgress[0] = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer--;
     }
 }
@@ -770,9 +770,9 @@ void func_8009B398(void) {
         if (mask == 7) {
             g_FieldWalkAbortCount.value = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
-            D_800B21CC[0] = 0;
+            g_FieldPartyMoveInProgress[0] = 0;
         } else {
-            D_800B21CC[0] = 1;
+            g_FieldPartyMoveInProgress[0] = 1;
             g_FieldScriptVMCurActor->scriptInstructionPointer--;
         }
         D_800B21CE = 1;

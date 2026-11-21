@@ -354,7 +354,7 @@ void func_80080F44(int actorIndex) {
 extern s32 D_800C3910;
 extern s32 g_FieldActorModelPointerIndex;
 extern s32 D_800ADC0C;
-extern u_char D_800B21CC;
+extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_PlayerActorIndex;
 void func_800A2030(void);
 void func_80281B00(const char* pName);
@@ -500,7 +500,7 @@ void func_8008110C(void) {
         func_80281B00(D_8006FC30);
     }
     if (g_FieldControl.isRandomEncountersEnabled == 0) {
-        if (D_800B21CC == 0) {
+        if (g_FieldPartyMoveInProgress == 0) {
             func_8008399C(g_PlayerActorIndex, &g_FieldActors[g_PlayerActorIndex],
                 g_FieldActors[g_PlayerActorIndex].pActorData);
         }
@@ -522,7 +522,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
    two swapped) and indexed by the volatile s32 D_800B2360, which retail
    re-reads once per statement (13 reads). Then D_800C3910 = 0 and
    D_800B2360 = (D_800B2360 - 1) & 0x1F. Two early outs:
-   actorIndex != g_PlayerActorIndex and D_800B21CC != 0.
+   actorIndex != g_PlayerActorIndex and g_FieldPartyMoveInProgress != 0.
    Our instruction ORDER per store is value-load before the index read where
    retail reads the index first, gcc hoists &D_800B1506 (the loop's tri-id
    base) to the top where retail derives it mid-body from la a1,D_800B1510
@@ -555,7 +555,7 @@ typedef struct {
 extern FieldActorRenderPacket D_800B14F0[];
 extern volatile s32 D_800B2360;
 extern s32 D_800C3910;
-extern u_char D_800B21CC;
+extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_PlayerActorIndex;
 
 void func_80081C54(int actorIndex) {
@@ -567,7 +567,7 @@ void func_80081C54(int actorIndex) {
     if (actorIndex != g_PlayerActorIndex) {
         return;
     }
-    if (D_800B21CC != 0) {
+    if (g_FieldPartyMoveInProgress != 0) {
         return;
     }
     D_800B14F0[D_800B2360].step.x = pSprite->step.x;
@@ -810,7 +810,7 @@ int FieldGetActorDistance2D(int actorIndexA, int actorIndexB) {
 extern u_short g_FieldMaterialAngles[];
 extern s16 D_800ADFC4[];
 extern s32 g_FieldActorModelPointerIndex;
-extern u_char D_800B21CC;
+extern u_char g_FieldPartyMoveInProgress;
 extern void* g_FieldActorModelPointers[];
 
 // This unit writes one word at SpriteData+0x10, which include/field/actor.h
@@ -887,7 +887,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     ActorData* pTarget;
 
     if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
-        if (D_800B21CC == 0) {
+        if (g_FieldPartyMoveInProgress == 0) {
             triMaterial = pActor->curWalkmeshTriMaterial;
         }
     }

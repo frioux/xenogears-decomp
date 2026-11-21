@@ -45,9 +45,9 @@ extern u_long* g_BattleEffectImage;
 extern s32 g_BattleActorDistance2D;
 extern u8 g_BattleAiAppliedBehaviorLevel;
 extern u8 g_BattleDrawBufferIndex;
-extern POLY_FT4 D_80096D90[2];
-extern TILE D_80096DE0[2];
-extern DR_MODE D_80096E00[2];
+extern POLY_FT4 g_BattleEffectPolys[2];
+extern TILE g_BattleEffectTiles[2];
+extern DR_MODE g_BattleEffectDrawModes[2];
 extern u8 g_BattleAiBehaviorLevel;
 extern u8 g_BattlePlayer2ComControlled;
 
@@ -261,7 +261,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
    (andi a3,v0,0xffff) two slots after the call, i.e. at the SetDrawMode
    argument rather than at the assignment; an s32 local gets the operand right
    and the position one slot early, a u_short local copies first.
-   2. retail MATERIALISES &D_80096E00 twice, once per call (lui/addiu into v0
+   2. retail MATERIALISES &g_BattleEffectDrawModes twice, once per call (lui/addiu into v0
    each time); ours cse's the address constant, keeps it in $s0 (reused after
    flag dies) and re-uses it for the second AddPrim. Measured and no help:
    s32/u_short tpage, a DR_MODE* local for SetDrawMode only, a local for both
@@ -273,7 +273,7 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     TILE* pTile;
     s32 tpage;
 
-    pTile = &D_80096DE0[g_BattleDrawBufferIndex];
+    pTile = &g_BattleEffectTiles[g_BattleDrawBufferIndex];
     BattleSetRGBCFast(pTile, color, color, color, 0x60);
     setlen(pTile, 3);
     BattleSetXY0Fast(pTile, 0, 0);
@@ -285,9 +285,9 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     } else {
         tpage = GetTPage(0, 1, 0, 0);
     }
-    SetDrawMode((DR_MODE*)(g_BattleDrawBufferIndex * sizeof(DR_MODE) + (u32)D_80096E00), 0, 1,
+    SetDrawMode((DR_MODE*)(g_BattleDrawBufferIndex * sizeof(DR_MODE) + (u32)g_BattleEffectDrawModes), 0, 1,
                 tpage, NULL);
-    AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
+    AddPrim(pOt, &g_BattleEffectDrawModes[g_BattleDrawBufferIndex]);
 }
 */void BattleDrawEffectImage(u8* pOt, s32 shadeLevel, s32 drawTile) {
     POLY_FT4* pPrim;
@@ -296,7 +296,7 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     s32 shade;
 
     shade = shadeLevel * 2 / 3;
-    pPrim = &D_80096D90[g_BattleDrawBufferIndex];
+    pPrim = &g_BattleEffectPolys[g_BattleDrawBufferIndex];
     setlen(pPrim, 9);
     BattleSetRGBCFast(pPrim, shade, shade, shade, 0x2C);
     setShadeTex(pPrim, shade == BATTLE_EFFECT_SHADE_NEUTRAL);
@@ -315,7 +315,7 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     setRECT(&rect, 0x140, 0x100, 0x38, 0x2B);
     LoadImage(&rect, g_BattleEffectImage);
     if (drawTile != 0) {
-        pTile = &D_80096DE0[g_BattleDrawBufferIndex];
+        pTile = &g_BattleEffectTiles[g_BattleDrawBufferIndex];
         if (shadeLevel > 0x80) {
             shade = shadeLevel * 2;
             setlen(pTile, 3);
@@ -326,8 +326,8 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
             AddPrim(pOt, pTile);
         }
     }
-    SetDrawMode(&D_80096E00[g_BattleDrawBufferIndex], 0, 1, GetTPage(0, 2, 0, 0), NULL);
-    AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
+    SetDrawMode(&g_BattleEffectDrawModes[g_BattleDrawBufferIndex], 0, 1, GetTPage(0, 2, 0, 0), NULL);
+    AddPrim(pOt, &g_BattleEffectDrawModes[g_BattleDrawBufferIndex]);
 }
 void BattleInitSoundSlots(void) {
     BattleSlot* pSlot;

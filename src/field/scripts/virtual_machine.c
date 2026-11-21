@@ -15,7 +15,7 @@ extern s32 g_FieldCurActorIndex; // Current actor index
 extern s32 g_FieldScriptVMStopFlag;
 
 extern void func_800379C8(char*, ...);
-extern char D_8006FD44[]; // "STACKERR ACT=%d\n"
+extern char g_FieldScriptVMStackErrorFormat[]; // "STACKERR ACT=%d\n"
 
 // Script variable addresses this file writes, named for what the stored value is
 #define SCRIPT_VAR_PLAYER_POS_X 0x1E
@@ -37,7 +37,7 @@ void FieldScriptVMHandlerCallScript(void) {
 
     // Error
     if (g_FieldSystemMode == 0) {
-        func_800379C8(D_8006FD44, g_FieldCurActorIndex);
+        func_800379C8(g_FieldScriptVMStackErrorFormat, g_FieldCurActorIndex);
     }
     g_FieldScriptVMStopFlag = 1;
 }
@@ -53,7 +53,7 @@ void FieldScriptVMHandlerCallScriptShort(void) {
     
     // Error
     if (g_FieldSystemMode == 0) {
-        func_800379C8(D_8006FD44, g_FieldCurActorIndex);
+        func_800379C8(g_FieldScriptVMStackErrorFormat, g_FieldCurActorIndex);
     }
     g_FieldScriptVMStopFlag = 1;
 }
@@ -63,7 +63,7 @@ void FieldScriptVMHandlerReturn(void) {
     // Error, invalid stack value
     if (!g_FieldScriptVMCurActor->flags12C_0x6) {
         if (g_FieldSystemMode == 0) {
-            func_800379C8(D_8006FD44, g_FieldCurActorIndex);
+            func_800379C8(g_FieldScriptVMStackErrorFormat, g_FieldCurActorIndex);
         }
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
@@ -241,7 +241,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
         asm(ASM_BREAKPOINT);
         if (nInstructionCount > 0x400) {
             if (g_FieldSystemMode == SYSTEM_PC_HARDDRIVE) {
-                func_800379C8(D_8006FD84, g_FieldCurActorIndex); // Error printing
+                func_800379C8(g_FieldScriptVMEventLoopErrorFormat, g_FieldCurActorIndex); // Error printing
             }
             return;
         }
@@ -270,7 +270,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // ('conversion to non-scalar type requested' while randomizing), so the 90.55% tie below has
 // had no permuter pass.
 // Best attempt: 90.49% (636 bytes, same size as the original: only register assignment differs).
-// - nMinPriority = 0xF must be assigned BEFORE the D_800B21CC check; the original keeps the
+// - nMinPriority = 0xF must be assigned BEFORE the g_FieldPartyMoveInProgress check; the original keeps the
 //   `li a2,0xF` in the delay slot of that beqz.
 // - the "no free script slot" branch is taken when nMinPriority == 0xF, not !=.
 // - the flags read-modify-write belongs BEFORE the g_FieldScriptVMCurFieldActor / g_FieldCurActorIndex / g_FieldScriptVMCurActor
@@ -282,12 +282,12 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // twice; -G0/-O3 and gcc-2.7.2-cdk presets. Round 36 also: all 7 locals in 12 different declaration
 // orders (90.49% every time) and gcc-2.6.0-psx (89.86%), so the temp-register split is a
 // global.c allocno tie, not a source shape.
-// Round 40 read of the original: the 'lbu D_800B21CC' is at 0x213C, BEFORE the three
+// Round 40 read of the original: the 'lbu g_FieldPartyMoveInProgress' is at 0x213C, BEFORE the three
 // g_FieldScriptVMCurFieldActor / g_FieldCurActorIndex / g_FieldScriptVMCurActor stores at 0x2144-0x2158, and only the
 // 'beqz' on it comes after them - so the source read the byte into a local between the flag
-// read-modify-write and those stores (e.g. 'u_char bSlotLocked = D_800B21CC;').  Writing
-// 'if (D_800B21CC != 0)' there puts the load at the branch instead.
-// Round 41: 'u_char bSlotLocked = D_800B21CC;' before the three stores does put the lbu
+// read-modify-write and those stores (e.g. 'u_char bSlotLocked = g_FieldPartyMoveInProgress;').  Writing
+// 'if (g_FieldPartyMoveInProgress != 0)' there puts the load at the branch instead.
+// Round 41: 'u_char bSlotLocked = g_FieldPartyMoveInProgress;' before the three stores does put the lbu
 // there (its 'beqz' delay slot then takes the 0xF), and the loop header must spell
 // 'pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);' - that is
 // what makes the original's index-first 'addu a1,s1,v0' come out.  90.49 -> 90.55%.  What
@@ -301,7 +301,7 @@ extern s32 g_FieldMode;
 extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern s32 D_800ADB68;
 extern s32 D_800C4268;
-extern u_char D_800B21CC;
+extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_FieldPartyActorSlots[3];
 
 // Runs the field script VM for every actor that has a script pending
@@ -339,7 +339,7 @@ void func_800A2030(void) {
 
         pActor = pFieldActor->pActorData;
         pActor->scriptFlags.flags &= ~0x1000000;
-        bSlotLocked = D_800B21CC;
+        bSlotLocked = g_FieldPartyMoveInProgress;
 
         g_FieldScriptVMCurFieldActor = pFieldActor;
         g_FieldCurActorIndex = i;
@@ -798,7 +798,7 @@ void FieldScriptSyncMemoryWithGameState(void) {
     }
 }
 
-extern u16 D_800AFC6C;
+extern u16 g_FieldScriptButtonsHeld;
 extern u16 g_FieldP1ButtonsPressed;
 extern char g_PlayTimeSeconds;
 extern char g_PlayTimeMinutes;
@@ -821,7 +821,7 @@ void FieldScriptUpdateMemoryEachFrame(void) {
         return;
     }
 
-    D_800AFC6C |= g_FieldP1ButtonsPressed;
+    g_FieldScriptButtonsHeld |= g_FieldP1ButtonsPressed;
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         g_pGameState->partyMembers[i] = g_GamePartyMembers[i];
     }

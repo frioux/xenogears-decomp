@@ -793,3 +793,6 @@ g_BattleCameraOrbitAngle = 0x8009277C;
 g_BattleCameraTargetY = 0x80098680;
 g_BattleCameraTargetZ = 0x80098684;
 g_StrBattleElapsedTimeFormat = 0x800701B0;
+g_BattleEffectPolys = 0x80096D90;
+g_BattleEffectTiles = 0x80096DE0;
+g_BattleEffectDrawModes = 0x80096E00;
