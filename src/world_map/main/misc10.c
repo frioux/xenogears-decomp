@@ -5,7 +5,7 @@
 extern s32 g_WorldMapLevelIndex;
 extern u16 g_WorldMapLevelSpriteSetIdsHeightOffset[];
 extern u16 g_WorldMapLevelSpriteSetIds[];
-extern void* g_WorldMapPrimTemplateBuffer;
+extern void* g_WorldMapPrimTemplateBuffer[];
 extern void* g_WorldMapPrimTemplateBufferCopy;
 extern s16 g_WorldMapSpriteSetIds[];
 
@@ -391,16 +391,6 @@ void WorldMapFreeSpriteGroupTable(void) {
     HeapFree(g_WorldMapTrailEntries);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008901C);
-/* 90.66%: every instruction matches except the address of g_WorldMapPrimTemplateBuffer, which
-   retail keeps in s0 (lui/addiu once, used for the store across the second
-   HeapAlloc and for the reload); gcc materialises it twice (lui $at for the
-   store, then lui/lw for the reload) and reorg therefore fills the second jal's
-   delay slot with li a1,1 instead of the store. An explicit
-   `void** pSlot = &g_WorldMapPrimTemplateBuffer` compiles to the identical bytes; so does
-   `g_WorldMapPrimTemplateBuffer = HeapAlloc(); pEntry = g_WorldMapPrimTemplateBuffer; g_WorldMapPrimTemplateBufferCopy = HeapAlloc();`
-   (gcc then forwards the alloc result instead of reloading, 268 bytes either
-   way). Only cse's choice between an address register and $at differs.
 void func_8008901C(void) {
     u8* pEntry;
     s32* pSrc;
@@ -408,9 +398,9 @@ void func_8008901C(void) {
     s32* pEnd;
     s32 i;
 
-    g_WorldMapPrimTemplateBuffer = HeapAlloc(0x2800, 1);
+    g_WorldMapPrimTemplateBuffer[0] = HeapAlloc(0x2800, 1);
     g_WorldMapPrimTemplateBufferCopy = HeapAlloc(0x2800, 1);
-    pEntry = (u8*)g_WorldMapPrimTemplateBuffer;
+    pEntry = (u8*)g_WorldMapPrimTemplateBuffer[0];
     for (i = 0xFF; i != -1; i--) {
         *(u8*)(pEntry + 3) = 9;
         *(u8*)(pEntry + 7) = 0x2C;
@@ -419,7 +409,7 @@ void func_8008901C(void) {
         *(u8*)(pEntry + 7) |= 2;
         pEntry += 0x28;
     }
-    pSrc = (s32*)g_WorldMapPrimTemplateBuffer;
+    pSrc = (s32*)g_WorldMapPrimTemplateBuffer[0];
     pDst = (s32*)g_WorldMapPrimTemplateBufferCopy;
     pEnd = pSrc + 0xA00;
     do {
@@ -428,10 +418,8 @@ void func_8008901C(void) {
         pDst += 4;
     } while (pSrc != pEnd);
 }
-*/
-
 void WorldMapFreePrimTemplateBuffers(void) {
-    HeapFree(g_WorldMapPrimTemplateBuffer);
+    HeapFree(g_WorldMapPrimTemplateBuffer[0]);
     HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
