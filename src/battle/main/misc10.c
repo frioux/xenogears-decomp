@@ -4,10 +4,12 @@
 // The battle actor slots: D_800C3EB7 holds a 0x1C-byte record per slot, and the loops here walk
 // the non-party ones. Same value as include/battle/actor.h's BATTLE_ACTOR_SLOT_COUNT; duplicated
 // here because this unit does not include that header.
+// owned by include/battle/actor.h; this unit carries its own externs and cannot include it
+#define BATTLE_ACTOR_SLOT_STRIDE 0x1C
+
 #define BATTLE_ACTOR_SLOT_COUNT 11
 // Bytes per slot record in D_800C3EB7: the stride of the byte-indexed walk and of the one flag
 // byte read through it.
-#define BATTLE_ACTOR_SLOT_STRIDE 0x1C
 // The non-party actor slots: slot numbers MAX_PARTY_MEMBERS through BATTLE_ACTOR_SLOT_COUNT - 1,
 // which are the ones the slot register file is indexed from 0 for.
 #define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - MAX_PARTY_MEMBERS)

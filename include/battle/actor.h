@@ -21,6 +21,8 @@
 #define BATTLE_ACTOR_SLOT_COUNT 11
 // BattleTestSlotBit range: the 49 slot bits BattleSetFlag10000IfAllSlotBitsSet walks
 #define BATTLE_SLOT_BIT_COUNT 49
+// byte stride of one slot record in the D_800C3EB7/8 tables
+#define BATTLE_ACTOR_SLOT_STRIDE 0x1C
 // activeSlotMask holds one bit per actor slot, low bit first: the low MAX_PARTY_MEMBERS bits are
 // the party slots and the bits above them up to bit 10 are the other actors. A row runs for one
 // group only, so BattleFilterSlotMaskByGroup narrows the mask within whichever group it touches.

@@ -181,7 +181,7 @@ extern s32 g_GameWdsEntryFreed;
 extern s32 g_FieldTextRenderEnabled;
 extern s32 g_FieldDisableGearRender;
 extern s32 D_8004F37C;
-extern s32 D_8004F378;
+extern s32 g_FieldDisableCompassRender;
 extern u8 g_FieldDiscChangeFade;
 extern u8 g_GameDiscChangeRequest;
 extern s16 g_GameWdsEntryReleased;
@@ -221,7 +221,7 @@ void SystemResetGlobalState(void) {
     g_FieldTextRenderEnabled = 0;
     g_FieldDisableGearRender = 0;
     D_8004F37C = 0;
-    D_8004F378 = 0;
+    g_FieldDisableCompassRender = 0;
     g_FieldDiscChangeFade = 0;
     g_GameDiscChangeRequest = 0;
     g_GameWdsEntryReleased = 0;
@@ -680,7 +680,7 @@ void func_8001B970(void) {
     g_GameResumeScene = 0;
 } */
 
-extern u8 D_8006F9DE;
+extern u8 g_SystemStreamedFileIndex;
 extern s32 g_SystemStreamedFileBuffer;
 extern s32 D_80059520;
 extern s32 g_SystemStreamedFileData;
@@ -688,7 +688,7 @@ extern s32 g_SystemStreamedFileData;
 extern s32 func_800379D8(s32, s32, s32*, s32*, s32*);
 
 void ArchiveLoadStreamedFilePair(void) {
-    func_800379D8(D_8006F9DE, 0, &g_SystemStreamedFileBuffer, &D_80059520, &g_SystemStreamedFileData);
+    func_800379D8(g_SystemStreamedFileIndex, 0, &g_SystemStreamedFileBuffer, &D_80059520, &g_SystemStreamedFileData);
 }
 
 extern u8 g_GameSelectedSkinLoadPending;

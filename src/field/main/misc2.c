@@ -1166,7 +1166,7 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 // FieldMatrixLookAt whose pEye is (0, g_CameraEye.vy - g_CameraAt.vy,
 // -FieldGetVec2Magnitude(...) << 16) with a zero pAt, the identity/CompMatrix/MulMatrix*
 // chain over the 0x10/0x30/0x50/0x70/0x90 stack matrices, and two
-// g_FieldCompassDisabled / g_FieldSkipCounter / D_8004F378 guarded passes:
+// g_FieldCompassDisabled / g_FieldSkipCounter / g_FieldDisableCompassRender guarded passes:
 // FieldRenderQuad over the compass quad (slot 0x14) with matCoord, then
 // FieldRenderQuadScreenRect plus 20 FieldRenderQuad over the D_800B06BC quads and 4 more
 // from slot 0x15 with matProj. Tail patches a prim's top byte between
@@ -1250,7 +1250,7 @@ extern int g_FieldCurRenderContextIndex;
 extern RenderContext* g_FieldCurRenderContext;
 extern u16 g_FieldPlayerActorIndex16; // Slot the player actor occupies in g_FieldActors
 extern u_char g_FieldCompassDisabled;
-extern s32 D_8004F378;
+extern s32 g_FieldDisableCompassRender;
 extern s16 D_800ADB48; // Compass angle, interpolated towards D_800ADB4A every frame
 extern s16 D_800ADB4A; // Compass angle the player actor's facing asks for
 extern u16 D_800ADC24[]; // Eight dollyStop masks, then four x/y screen offsets for the compass
@@ -1351,7 +1351,7 @@ void func_80074108(void) {
     matWork.t[2] = 0x1000;
     CompMatrix(&matProj, &matWork, &matCoord);
 
-    if (g_FieldCompassDisabled == 0 && g_FieldSkipCounter == 0 && D_8004F378 == 0) {
+    if (g_FieldCompassDisabled == 0 && g_FieldSkipCounter == 0 && g_FieldDisableCompassRender == 0) {
         pQuad = D_800B0F7C;
         for (i = 0x14; i < 0x15; i++) {
             FieldRenderQuad(g_FieldCurRenderContext->ot3, pQuad++, &matCoord,
@@ -1377,7 +1377,7 @@ void func_80074108(void) {
     vecRot.vz = 0;
     RotMatrix(&vecRot, &matRot);
 
-    if (g_FieldCompassDisabled == 0 && g_FieldSkipCounter == 0 && D_8004F378 == 0) {
+    if (g_FieldCompassDisabled == 0 && g_FieldSkipCounter == 0 && g_FieldDisableCompassRender == 0) {
         for (i = 0x10; i < 0x14; i++) {
             FieldMatrixSetIdentity(&matWork);
             matWork.t[0] = ((s16 *)((u8 *)&g_pFieldTriggerZones + 0x40))[(i - 0x10) * 2];

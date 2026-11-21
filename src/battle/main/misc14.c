@@ -54,8 +54,8 @@ typedef struct {
     /* 0x15FB */ u8 unk15FB; // second counter done
 } BattleActorAnimFlags; // Size: 0x15FC (lower bound, the actor continues past it)
 
-extern u16 D_800C3468[];
-extern u16 D_800C3448[];
+extern u16 g_BattleStatusBitMasks[];
+extern u16 g_BattleSlotBitMasks[];
 extern u8 g_BattleDisplayMode;
 extern u8 D_800CCDC4[];
 extern u8 D_800CCDC6[];
@@ -83,7 +83,7 @@ extern u8 D_800CDCBC[];
 extern u8 D_800CDCD0[];
 extern u8 D_800CDCD4[];
 extern u8 D_800D2C38;
-extern u16 D_800D2C30;
+extern u16 g_BattleStatusFlags;
 extern u16 D_800D2C3A;
 extern s32 D_800C2054[];
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
@@ -109,7 +109,7 @@ extern void func_8008A684(u8 arg0);
 extern int rand(void);
 extern BattleUploadWork *g_BattleGraphicsWork;
 extern BattleUploadState *g_BattleDisplayState;
-extern u8 D_800C3444;
+extern u8 g_BattlePauseActive;
 extern BattlePrimPoolSlot *g_BattlePrimPool;
 extern u8 D_800C48EA;
 extern u8 g_BattleMenuEvent;
@@ -141,9 +141,9 @@ typedef struct {
 extern BattleCommandQueueTail* g_BattleCommandQueue;
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleSlotDisplayValue;
-extern BattleMenuEventHistory D_800C3E28;
+extern BattleMenuEventHistory g_BattleMenuEventHistory;
 extern u8 D_8005959C;
-extern u8 D_800C3AA0;
+extern u8 g_BattleDebugFontLoaded;
 extern u8 D_800D32A8;
 extern u8 D_800D32B0;
 extern void BattlePlaySoundIfEnabled(u8 arg0);
@@ -264,7 +264,7 @@ void BattleBuildFlaggedSlotSpriteColumn(void) {
 
     g_BattleSpriteColumnWork[0x5DA1] = 0;
     for (i = 0; i < 5; i++) {
-        if ((u16)BattleMaskHasStatusBit(D_800D2C30, i) != 0) {
+        if ((u16)BattleMaskHasStatusBit(g_BattleStatusFlags, i) != 0) {
             off = g_BattleSpriteColumnWork[0x5DA1] * 0x50 + 0x4CE0;
             g_BattleSpriteColumnWork[0x5DA1] += BattleDrawSpritePackage(i + 0xC4, (s32)(off + (s32)g_BattleSpriteColumnWork), 0xE0, pitch >> 16);
             pitch += 0xA0000;
@@ -477,22 +477,22 @@ u16 BattleRandomRange(u16 arg0, u16 arg1) {
     return (u16)(arg0 + rem);
 }
 u16 BattleStatusBitMask(u8 idx) {
-    return D_800C3468[idx];
+    return g_BattleStatusBitMasks[idx];
 }
 u16 BattleSlotBitMask(u8 idx) {
-    return D_800C3448[idx];
+    return g_BattleSlotBitMasks[idx];
 }
 u16 BattleStatusBitMaskInverted(u8 idx) {
-    return ~D_800C3468[idx];
+    return ~g_BattleStatusBitMasks[idx];
 }
 u16 BattleSlotBitMaskInverted(u8 idx) {
-    return ~D_800C3448[idx];
+    return ~g_BattleSlotBitMasks[idx];
 }
 s32 BattleMaskHasStatusBit(s32 mask, u8 idx) {
     s32 flags;
 
     if (idx < 0x10) {
-        flags = D_800C3468[idx] & mask;
+        flags = g_BattleStatusBitMasks[idx] & mask;
     } else {
         flags = 0;
     }
@@ -502,7 +502,7 @@ s32 BattleMaskHasSlotBit(s32 mask, u8 idx) {
     s32 flags;
 
     if (idx < 0x10) {
-        flags = D_800C3448[idx] & mask;
+        flags = g_BattleSlotBitMasks[idx] & mask;
     } else {
         flags = 0;
     }
@@ -539,7 +539,7 @@ void BattlePollMenuEvent(s32 arg0) {
         }
     } while (waiting != 0);
 
-    pEvent = &D_800C3E28;
+    pEvent = &g_BattleMenuEventHistory;
     pMenuExit = &D_800C48EA;
     pSlotState = &g_BattleWorkBlock[0].state.commandCounter;
     do {
@@ -551,14 +551,14 @@ void BattlePollMenuEvent(s32 arg0) {
                     event = 0xFF;
                     break;
                 }
-                if (D_800C3444 != 0) {
+                if (g_BattlePauseActive != 0) {
                     if (*g_DebuggerState != -1) {
                         if ((g_C1ButtonStatePressedOnce & 4) != 0) {
                             if ((g_C1ButtonStatePressedOnce & 8) != 0) {
                                 *pMenuExit = 1;
                                 SoundEnableAllSpuChannels();
                                 g_SpuChannelMask = channelMask;
-                                D_800C3444 = 0;
+                                g_BattlePauseActive = 0;
                                 break;
                             }
                         }
@@ -630,10 +630,10 @@ void BattlePollMenuEvent(s32 arg0) {
                             D_8005959C = 0;
                         }
                         event = 0xB;
-                        if (D_800C3AA0 == 0) {
+                        if (g_BattleDebugFontLoaded == 0) {
                             FontSetExternalBuffer((void*)0x80200000);
                             FontLoadFont(0x10, 0x10, 0x140, 0x100, 0x3E8, 0, 0x340, 0, 0x340, 0x20, 0);
-                            D_800C3AA0 += 1;
+                            g_BattleDebugFontLoaded += 1;
                         }
                     }
                     break;
@@ -646,22 +646,22 @@ void BattlePollMenuEvent(s32 arg0) {
                 }
                 event = 0xE;
                 if (D_800CCC58 != 0) {
-                    if (D_800C3444 == 0) {
+                    if (g_BattlePauseActive == 0) {
                         GraphicsDrawPauseLetters(0x88, 0x64);
                         GraphicsDrawPauseLetters(0x88, 0x144);
                         SoundMuteAllSpuChannels();
                         channelMask = g_SpuChannelMask;
-                        D_800C3444 = 1;
+                        g_BattlePauseActive = 1;
                     } else {
                         SoundEnableAllSpuChannels();
                         g_SpuChannelMask = channelMask;
-                        D_800C3444 = 0;
+                        g_BattlePauseActive = 0;
                     }
                 }
                 break;
             }
         }
-    } while (D_800C3444 != 0);
+    } while (g_BattlePauseActive != 0);
     g_BattleMenuEvent = event;
 }
 
@@ -771,14 +771,14 @@ void BattleUpdatePauseMenu(u8 arg0) {
             ControllerResetState();
         } else {
             while (ControllerPopState() != 0) {
-                if (D_800C3444 != 0) {
+                if (g_BattlePauseActive != 0) {
                     if (*g_DebuggerState != -1) {
                         if ((g_C1ButtonStatePressedOnce & 4) != 0) {
                             if ((g_C1ButtonStatePressedOnce & 8) != 0) {
                                 D_800C48EA = muted;
                                 SoundEnableAllSpuChannels();
                                 g_SpuChannelMask = channelMask;
-                                D_800C3444 = 0;
+                                g_BattlePauseActive = 0;
                                 break;
                             }
                         }
@@ -793,21 +793,21 @@ void BattleUpdatePauseMenu(u8 arg0) {
                 if (D_800CCC58 == 0) {
                     break;
                 }
-                if (D_800C3444 == 0) {
+                if (g_BattlePauseActive == 0) {
                     SoundMuteAllSpuChannels();
                     GraphicsDrawPauseLetters(0x88, 0x64);
                     GraphicsDrawPauseLetters(0x88, 0x144);
                     channelMask = g_SpuChannelMask;
-                    D_800C3444 = muted;
+                    g_BattlePauseActive = muted;
                 } else {
                     SoundEnableAllSpuChannels();
                     g_SpuChannelMask = channelMask;
-                    D_800C3444 = 0;
+                    g_BattlePauseActive = 0;
                 }
                 break;
             }
         }
-    } while (D_800C3444 != 0);
+    } while (g_BattlePauseActive != 0);
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
@@ -875,21 +875,21 @@ void func_8008A684(u8 arg0) {
                 if ((g_C1ButtonStateReleased & 0x800) == 0) {
                     continue;
                 }
-                if (D_800C3444 == 0) {
+                if (g_BattlePauseActive == 0) {
                     SoundMuteAllSpuChannels();
                     GraphicsDrawPauseLetters(0x88, 0x64);
                     GraphicsDrawPauseLetters(0x88, 0x144);
                     channelMask = g_SpuChannelMask;
-                    D_800C3444 = 1;
+                    g_BattlePauseActive = 1;
                 } else {
                     SoundEnableAllSpuChannels();
                     g_SpuChannelMask = channelMask;
-                    D_800C3444 = 0;
+                    g_BattlePauseActive = 0;
                 }
                 break;
             }
         }
-    } while (D_800C3444 != 0);
+    } while (g_BattlePauseActive != 0);
 
     if (g_BattleDisplayState->unkA0 == 0) {
         return;

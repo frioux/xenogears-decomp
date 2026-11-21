@@ -10,6 +10,9 @@
 // g_BattleSlotEntries. Same value as include/battle/actor.h's
 // BATTLE_ACTOR_SLOT_COUNT; duplicated here because this unit does not include that
 // header.
+// owned by include/battle/actor.h; this unit carries its own externs and cannot include it
+#define BATTLE_ACTOR_SLOT_STRIDE 0x1C
+
 #define BATTLE_ACTOR_SLOT_COUNT 11
 
 // One entry per battle slot, the twelfth included: the length of the candidate list
@@ -61,7 +64,7 @@ typedef struct {
 } BattleUnk1C; // Size: 0x1C
 
 extern BattleUnk1C D_800C3EBE[];
-extern u8 g_BattleSlotRecords[][0x1C];
+extern u8 g_BattleSlotRecords[][BATTLE_ACTOR_SLOT_STRIDE];
 extern u16 g_BattleTargetSlotMask;
 extern u8 g_BattleTargetSlot;
 extern u16 BattleMaskHasSlotBit(u16, u8);
@@ -113,7 +116,7 @@ typedef struct {
 } BattleSlotBaseEntry; // Size: 0x170
 
 extern u8 g_BattleSlotEnabledFlags[];
-extern u8 D_800C3EB7[][0x1C];
+extern u8 D_800C3EB7[][BATTLE_ACTOR_SLOT_STRIDE];
 extern u8 g_BattleSlotFlags[];
 extern u8 *g_BattleSlotParamTable;
 extern BattleUnk170 g_BattleSlotEntries[];

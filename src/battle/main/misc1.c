@@ -94,8 +94,8 @@ extern u16 g_BattleCommandCellFlags;
 extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 BattleSlotBitMask(u8);
 extern u16 BattleSlotBitMaskInverted(u8);
-extern u8 D_800C3EB7[][0x1C];
-extern u8 D_800C3EB8[][0x1C];
+extern u8 D_800C3EB7[][BATTLE_ACTOR_SLOT_STRIDE];
+extern u8 D_800C3EB8[][BATTLE_ACTOR_SLOT_STRIDE];
 extern BattleStatusEntry D_800C3D1B[];
 extern u16 g_BattleActorSlotDoneMask;
 extern u16 g_BattlePendingSlotMask;
@@ -174,7 +174,7 @@ extern u8 D_8005959C;
 extern u8 D_800C3D44;
 extern u8 D_800C3D5C;
 extern s32 D_800C3DEC;
-extern u8 D_800C3E28;
+extern u8 g_BattleMenuEventHistory;
 extern u8 D_800CCC58;
 extern s32 D_800D2D3C;
 extern u8 D_800D2D50;
@@ -318,7 +318,7 @@ void func_80070F40(void) {
     pAudioManager = g_SoundAudioManager;
     D_8005959C = 0;
     g_BattleLastMenuEvent = 0xFF;
-    D_800C3E28 = 0xFF;
+    g_BattleMenuEventHistory = 0xFF;
     g_BattleSoundEnabled = 0;
     g_BattleAudioManager = pAudioManager;
 

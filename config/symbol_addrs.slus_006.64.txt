@@ -1692,3 +1692,5 @@ g_SoundNoteDefaultDurations = 0x800509B0;
 g_SoundNoteTypePitchOffsets = 0x80050A94;
 ArchiveStartStreamQueue = 0x80029AFC;
 SoundApplyToneToElement = 0x8003E5BC;
+g_FieldDisableCompassRender = 0x8004F378;
+g_SystemStreamedFileIndex = 0x8006F9DE;

@@ -76,10 +76,10 @@ void MenuSetCharacterWideNumberDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterLevelDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 extern s32 g_MenuCharacterIconX[];
 extern s32 g_MenuCharacterIconY[];
-extern s32 D_801E9B60[];
-extern s32 D_801E9C20[];
+extern s32 g_MenuGearWindowIconX[];
+extern s32 g_MenuGearWindowIconY[];
 extern s32 g_MenuCharacterIconTexIds[];
-extern s32 D_801EA39C[];
+extern s32 g_MenuGearWindowIconTexIds[];
 extern s32 g_MenuCharacterHpDigitsX;
 extern s32 g_MenuCharacterMpDigitsX;
 extern s32 g_MenuCharacterMpDigitsY;
@@ -247,17 +247,17 @@ void MenuSetCharacterIconPrims(u_char characterId) {
 
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount = 0;
     for (i = 0; i < MENU_ICON_TEXTURE_COUNT; i++) {
-        if (D_801EA39C[characterId * MENU_ICON_TEXTURE_COUNT + i] == MENU_ICON_NONE) continue;
+        if (g_MenuGearWindowIconTexIds[characterId * MENU_ICON_TEXTURE_COUNT + i] == MENU_ICON_NONE) continue;
         ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount += func_8002675C(
             g_Menu->resources,
-            D_801EA39C[characterId * MENU_ICON_TEXTURE_COUNT + i],
+            g_MenuGearWindowIconTexIds[characterId * MENU_ICON_TEXTURE_COUNT + i],
             (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
                         (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount *
                              (2 * sizeof(POLY_FT4)) +
                          0xA0)),
             g_Menu->renderContext,
-            D_801E9B60[characterId * MENU_ICON_TEXTURE_COUNT + i],
-            D_801E9C20[characterId * MENU_ICON_TEXTURE_COUNT + i],
+            g_MenuGearWindowIconX[characterId * MENU_ICON_TEXTURE_COUNT + i],
+            g_MenuGearWindowIconY[characterId * MENU_ICON_TEXTURE_COUNT + i],
             0x1000);
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount; i++) {
@@ -611,10 +611,10 @@ void func_801D6CF4(u_char index, u_char row) {
     }
 }
 */
-extern s32 D_801E9D10;
-extern s32 D_801E9D14;
-extern s32 D_801E9D18;
-extern s32 D_801E9D1C;
+extern s32 g_MenuGearWindowWideNumberX;
+extern s32 g_MenuGearWindowWideNumberY;
+extern s32 g_MenuGearWindowWideNumber2X;
+extern s32 g_MenuGearWindowWideNumber2Y;
 extern s32 D_801E9D20;
 extern s32 D_801E9D24;
 extern s32 D_801E9D28;
@@ -645,8 +645,8 @@ void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId) {
                                          ->firstWideNumberPrimCount *
                                      (2 * sizeof(POLY_FT4)) +
                                  0xCD0)),
-                    g_Menu->renderContext, D_801E9D10 + i * MENU_DIGIT_SPACING - offset,
-                    D_801E9D14, 0x1000);
+                    g_Menu->renderContext, g_MenuGearWindowWideNumberX + i * MENU_DIGIT_SPACING - offset,
+                    g_MenuGearWindowWideNumberY, 0x1000);
         }
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumberPrimCount;
@@ -677,8 +677,8 @@ void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId) {
                                          ->secondWideNumberPrimCount *
                                      (2 * sizeof(POLY_FT4)) +
                                  0xF50)),
-                    g_Menu->renderContext, D_801E9D18 + i * MENU_DIGIT_SPACING - offset,
-                    D_801E9D1C, 0x1000);
+                    g_Menu->renderContext, g_MenuGearWindowWideNumber2X + i * MENU_DIGIT_SPACING - offset,
+                    g_MenuGearWindowWideNumber2Y, 0x1000);
         }
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumberPrimCount;
