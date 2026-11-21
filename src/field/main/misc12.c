@@ -49,7 +49,9 @@ extern s32 g_FieldPartyActorSlots[];
    the block after the arrival arm, so those statements must name
    g_FieldScriptVMCurActor directly, not the local), plus separate block-scoped
    rotation variables per arm - a single shared `rotation` keeps the value in a1
-   and forces an extra move. */
+   and forces an extra move. A third permuter run (2064 iterations) and reading
+   g_FieldActors through the non-volatile FIELD_ACTORS lvalue both measured
+   exactly 97.96 as well. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
 /* int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
@@ -698,7 +700,6 @@ void FieldScriptVMResetActorHistory(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
 /* 95.05%, same instruction count (179). Everything from the else arm onwards
    matches instruction for instruction; only the 2D-actor arm differs, and it
    differs by one register: our compile materialises the `D_800B21CE = 1`
@@ -724,7 +725,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
    bytes) push the loop's invariants after it instead and cost two instructions.
    Retail has the invariants BEFORE the lhu and the sb AFTER the sh, an order no
    source shape reached here. */
-/*
 void func_8009B398(void) {
     ActorData* pActor;
     short rotation;
@@ -732,7 +732,10 @@ void func_8009B398(void) {
     int mask;
 
     if (FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD)) == 0x7FFF) {
-        g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
+        // volatile: with this unit's -fschedule-insns the plain store lets sched1
+        // hoist the D_800B21CE store above it, which steals its register and shifts
+        // the loop's four constants; the volatile access is the only barrier.
+        *(volatile u_short *)&g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
         D_800B21CE = 1;
 
         for (i = 0; i < 3; i++) {
@@ -778,7 +781,6 @@ void func_8009B398(void) {
         D_800B21CE = 1;
     }
 }
-*/
 
 void FieldScriptWriteSceneScreenZ(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_Scene.sceneScrZ);
