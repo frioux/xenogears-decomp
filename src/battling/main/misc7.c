@@ -162,7 +162,28 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
    found the `new_var = D_800970E4; pB = new_var;` double copy plus the
    D_80098800 chain through a value temporary (98.75), 4 min from there found
    the one-statement-per-arithmetic-step split (new_var3, 99.17), and 3 min from
-   that found nothing (RESULT PERMUTER_NONE base=20 best=20). */
+   that found nothing (RESULT PERMUTER_NONE base=20 best=20).
+
+   ROUND 393 (new): the two chains are only ever swapped TOGETHER, and the
+   reason is now measured. A body that matches retail's ENTIRE instruction
+   order - both la, both loads, both oris, both stores and the lw-ra slot -
+   is `D_80098800[0] |= 0xC; return D_800970E4[0] |= 0xC;` with an s32
+   return type: 97.92, and its VALUE registers are already retail's ($v1 =
+   98800, $v0 = 970E4) because a returned value is forced into $2. That is
+   also evidence the retail function returns the 970E4 flags word (it has no
+   callers, so Ghidra reports no return). Its only residual is the two BASE
+   registers, $a0/$a1 for 98800/970E4 where retail has $a1/$a0.
+   Which base gets $a0 is decided by which chain's base pseudo DIES first in
+   RTL order (earliest death takes $a0), verified on four bodies: plain
+   98800-then-970E4 96.25 ($a0 = 98800), reversed 97.50 ($a0 = 970E4),
+   98800-split-store 98.33 ($a0 = 98800), return form 97.92 ($a0 = 98800).
+   Retail has the LAST-dying base in $a0, i.e. its RTL order was 970E4 first
+   while its emitted order is 98800 first, so in retail the post-reload
+   scheduler swapped the chains. No source order reproduces that, because the
+   chain order moves death order and emission order together - which is why
+   the permuter cannot find it either.
+   Preset is not the answer: on the 97.50 body try_flags --sweep gives 2.7.2
+   -O2/-O3 x -G4/-G8 = 97.5 (the max), 2.6.0 = 88.75, 2.7.2-cdk = 86.5. */
 /* void func_8007F854(void) {
     s32* new_var;
     int new_var3;
