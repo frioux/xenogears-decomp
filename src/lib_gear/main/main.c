@@ -3416,56 +3416,26 @@ int LibGearGetFirstModelIndex(void) {
     return i;
 }
 
-// objdiff 92.95%: the only delta is one `andi v0,a1,0xff` narrowing the merged
-// index before `li v1,1; sllv` (the original's jump-delay slots then hold that
-// andi; ours hold a copy of the `li`). gcc 2.6 drops the mask in every
-// formulation tried — u8 index, s32 index with `& 0xFF`, s32 index with a
-// `(u8)` cast, and a separate `s32 n = index` temporary — because the shift
-// count only needs its low 5 bits, so the narrowing never survives.
-// objdiff 92.95%: one `andi v0,a1,0xff` short. gcc 2.6 keeps the merged u8 index in
-// SImode (jump-delay slots then hold a copy of `li v1,1`), the original truncates
-// it once at the merge. Reassigning a `u8 index = type` local in each branch (this
-// shape) reproduces the rest exactly, including the `andi v1,a1,0xff` at the top
-// and the index living in a1; u8 param, s32 index with `& 0xFF`, a `(u8)` cast and
-// an `s32 n = index` temporary all leave the same delta, because the mask only
-// feeds a shift count.
-// Round 14: an explicit `1 << (index & 0xFF)` in the store is folded away by gcc
-// exactly like the u8 conversion (92.95%): the four per-path `andi v0,a1,0xff`
-// turn into copies of `li v1,1` in the jump delay slots instead.
-// Screened: 92.95 identical under 2.6.0 and 2.7.2-cdk - not a compiler problem.
-// Round 370: the missing insn is a zero_extendqisi2 of the RESULT phi, sitting at the join
-// (.L801E68EC: `andi v0,a1,0xFF`) and cross-jumped into the four `j` delay slots of the
-// arms that reach the shift directly. Ours cross-jumps `li v0,1` into those slots
-// instead and shifts `sllv v0,v0,a1` - same 220 bytes, same instruction count.
-// New shape measured this round, identical 92.95: `u8 typeIndex = type;` for the compare
-// chain plus a SEPARATE `s32 index` result phi and `1 << (index & 0xFF)` at the store.
-// gcc deletes both the `(u8)` zero-extend and the explicit `& 0xFF` because the value's
-// only consumer is a variable shift, whose count needs only the low 5 bits - the
-// round-323 value-range wall, not a source-shape question.
-/*
-void func_801E6830(Model* pModel, int type, s16* pMask) {
-    u8 typeIndex = type;
-    s32 index = type;
-
-    if (typeIndex == 0xFF) {
-        index = LibGearGetFirstModelIndex();
-    } else if (typeIndex == 0xFE) {
-        index = *(u8*)&g_LibGearCurrentModelIndex;
-    } else if (typeIndex == 0xFD || typeIndex == 0xF9) {
-        index = pModel->modelSlot;
-    } else if (typeIndex == 0xFC) {
-        index = pModel->linkedModelSlot;
-    } else if (typeIndex == 0xFA) {
-        index = 0xA;
-    } else if (typeIndex == 0xF8) {
-        index = pModel->modelSlot * 2 + 8;
-    } else if (typeIndex == 0xF7) {
-        index = pModel->modelSlot * 2 + 9;
+int func_801E6830(Model* pModel, int type, s16* pMask) {
+    if ((type & 0xFF) == 0xFF) {
+        type = LibGearGetFirstModelIndex();
+    } else if ((type & 0xFF) == 0xFE) {
+        type = (u8)g_LibGearCurrentModelIndex;
+    } else if ((type & 0xFF) == 0xFD || (type & 0xFF) == 0xF9) {
+        type = pModel->modelSlot;
+    } else if ((type & 0xFF) == 0xFC) {
+        type = pModel->linkedModelSlot;
+    } else if ((type & 0xFF) == 0xFA) {
+        type = 0xA;
+    } else if ((type & 0xFF) == 0xF8) {
+        type = pModel->modelSlot * 2 + 8;
+    } else if ((type & 0xFF) == 0xF7) {
+        type = pModel->modelSlot * 2 + 9;
     }
 
-    *pMask = 1 << (index & 0xFF);
-}*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6830);
+    *pMask = 1 << (type & 0xFF);
+    return type & 0xFF;
+}
 
 
 void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
