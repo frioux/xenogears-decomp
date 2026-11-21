@@ -13,7 +13,6 @@
 #define BATTLE_EFFECT_REMOVE_CHANCE_PERCENT 80
 
 // The row's power is in twentieths: `power * stat / this` leaves the action's amount unchanged.
-#define BATTLE_ACTION_POWER_FULL 20
 
 // A slot's penalty percent scales an action's value by (100 - it) / 100, and a full one would leave
 // nothing, so BattleTryApplyCondition clamps it one step below.

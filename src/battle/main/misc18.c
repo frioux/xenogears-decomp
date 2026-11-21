@@ -12,11 +12,9 @@
 #define BATTLE_SWAP_CHANCE_PERCENT_CHARACTER_0 60
 
 // The row's power is in twentieths: `hp * power / this` leaves the action's amount unchanged.
-#define BATTLE_ACTION_POWER_FULL 20
 
 // The agility stat's cap: BattleResetSlotConditionCounters clamps an agility its equipment bonuses
 // pushed past it back down to it.
-#define BATTLE_AGILITY_MAX 16
 
 // The two per-actor action row tables BattleWorkBlock carries (see BattleRow): the character one
 // at +0x1058 with 0x5F0 bytes per actor, the gear one at +0x2228 with 0x690. rowIndex picks the

@@ -146,7 +146,6 @@ extern u8 D_800CEF23[];
 
 // The row's power is in twentieths: `power * amount / this` leaves the action's amount unchanged,
 // and BattleComputeActionAmount forces exactly that rate on a row whose actionFlags has 0x400.
-#define BATTLE_ACTION_POWER_FULL 20
 
 
 /* 91.38% (1444 bytes against retail's 1440) under this unit's gcc 2.6.0. Every

@@ -3,6 +3,10 @@
 
 // mp and maxMp are percents times this, as hp and maxHp are percents times BATTLE_ACTOR_HP_SCALE.
 #define BATTLE_MP_SCALE 10
+// A row's action power is a rate in units of 1/BATTLE_ACTION_POWER_FULL of full power.
+#define BATTLE_ACTION_POWER_FULL 20
+// Clamp for a slot's agility once equipment bonuses have been added; the stat's cap.
+#define BATTLE_AGILITY_MAX 16
 // accessoryEffectFlags5 bit that doubles every condition timer the slot starts.
 #define BATTLE_ACCESSORY_TIMER_DOUBLE_FLAG 0x40
 
