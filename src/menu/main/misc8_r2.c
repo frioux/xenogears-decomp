@@ -289,15 +289,27 @@ void MenuFreeArrowCursor(u_char index) {
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }
 
-/* 96.75%. Instruction multiset and frame identical; three addu operand orders
-   differ (the original is base-first where gcc puts the index first), the row
-   pointer stays in $a2 in the original instead of being folded into the base
-   register, and the original keeps a second induction variable ($s2 = 0x800 +
-   i*0x80) for the second array with `i++` in the beq delay slot (read-and-bump).
-   Spelling the poly pointer as `renderContext * 0x28 + (u32)base` fixes the
-   addu order but relocates the shift chain (87.15). Round 373 re-measured 96.75
-   and did not attempt the restructure (pRow = &pRows[i] + byte-offset variable):
-   the twin MenuBuildPartyCharacterPrims closed at 100.00 in the same round. */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
+/* 97.16%. Frame, saved set ($s0-$s4 + $ra) and instruction multiset match. Five
+   sites need the poly reached OFFSET-FIRST (`rc * sizeof(POLY_FT4) + (u32)base`):
+   the plain `&base->polys[rc]` emits `addu d,base,sum` where retail has
+   `addu d,sum,base`. That plus spelling the rows as
+   `pItemRows->itemNameStrings[i]` / `->itemQuantityStrings[i]` took 96.75 -> 97.16.
+   Residuals, all in the first string loop:
+   (a) retail builds the TEST poly as `pRows + (rc*0x28 + i*0x80)` - two addus, base
+       re-derived, the row pointer left in $a2 for the renderContext load - where gcc
+       reuses the row pointer and needs one addu. The one spelling that reproduces
+       the two-addu tree, `(u32)pRows + (i * sizeof(MenuString) + rc * sizeof(POLY_FT4))`,
+       measures 95.08: it drops the saved set to four registers ($s3 gone).
+   (b) consequently retail's `addiu s1,s1,1` sits in the beq delay slot and ours at
+       the latch (BLOCK_ROTATION class).
+   (c) two `base + givSum` operand orders: `addu v1,s2,v1` (itemQuantityStrings) and
+       `addu a2,s2,v0` (itemRowStrings) where retail is offset-first.
+   permute.sh cannot parse this body (its parser rejects the cast forms:
+   "conversion to non-scalar type requested").
+   PRESET_260: under gcc 2.6.0 the same body is 98.36 - (b) and (c) come out right
+   and (a) shrinks to the single missing addu - and all seven already-matched
+   functions of this unit stay 100.00, so the unit is switchable. */
 /*
 void func_801DB39C(u_char arg0) {
     POLY_FT4* pPoly;
@@ -305,33 +317,36 @@ void func_801DB39C(u_char arg0) {
 
     func_801E8F60(3, arg0);
     func_801E8F60(4, arg0);
-    pPoly = &g_Menu->pScrollHandle->polys[g_Menu->pScrollHandle->renderContext];
+    pPoly = (POLY_FT4*)(g_Menu->pScrollHandle->renderContext * sizeof(POLY_FT4) + (u32)g_Menu->pScrollHandle);
     MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 0x10; i++) {
-        pPoly = &((MenuString*)g_Menu->pItemRows)[i].polys[((MenuString*)g_Menu->pItemRows)[i].renderContext];
+        pPoly = &g_Menu->pItemRows->itemNameStrings[i].polys[g_Menu->pItemRows->itemNameStrings[i].renderContext];
         if (pPoly->r0 != 0x20) {
             MenuSetPrimShadingMode(pPoly, arg0);
-            pPoly = &((MenuString*)g_Menu->pItemRows)[i + 0x10]
-                         .polys[((MenuString*)g_Menu->pItemRows)[i + 0x10].renderContext];
+            pPoly = &g_Menu->pItemRows->itemQuantityStrings[i]
+                         .polys[g_Menu->pItemRows->itemQuantityStrings[i].renderContext];
             MenuSetPrimShadingMode(pPoly, arg0);
         }
     }
     for (i = 0; i < 2; i++) {
-        pPoly = &g_Menu->arrowCursors[i]->polys[g_Menu->arrowCursors[i]->renderContext];
+        pPoly = (POLY_FT4*)(g_Menu->arrowCursors[i]->renderContext * sizeof(POLY_FT4) + (u32)g_Menu->arrowCursors[i]);
         MenuSetPrimShadingMode(pPoly, arg0);
     }
-    pPoly = &((MenuString*)g_Menu->pItemRows)[0x20].polys[((MenuString*)g_Menu->pItemRows)[0x20].renderContext];
+    pPoly = (POLY_FT4*)(g_Menu->pItemRows->primGroupStrings[0].renderContext * sizeof(POLY_FT4) +
+                        (u32)&g_Menu->pItemRows->primGroupStrings[0]);
     MenuSetPrimShadingMode(pPoly, arg0);
-    pPoly = &((MenuString*)g_Menu->pItemRows)[0x21].polys[((MenuString*)g_Menu->pItemRows)[0x21].renderContext];
+    pPoly = (POLY_FT4*)(g_Menu->pItemRows->primGroupStrings[1].renderContext * sizeof(POLY_FT4) +
+                        (u32)&g_Menu->pItemRows->primGroupStrings[1]);
     MenuSetPrimShadingMode(pPoly, arg0);
-    pPoly = &((MenuString*)g_Menu->pItemRows)[0x22].polys[((MenuString*)g_Menu->pItemRows)[0x22].renderContext];
+    pPoly = (POLY_FT4*)(g_Menu->pItemRows->primGroupStrings[2].renderContext * sizeof(POLY_FT4) +
+                        (u32)&g_Menu->pItemRows->primGroupStrings[2]);
     MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 8; i++) {
         pPoly = &g_Menu->itemRowStrings[i].polys[g_Menu->itemRowStrings[i].renderContext];
         MenuSetPrimShadingMode(pPoly, arg0);
     }
 }*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
+
 
 
 void MenuBuildPartyCharacterPrims(s32 arg0) {
