@@ -3439,10 +3439,10 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
     u16 offBaseZ;
     s32 i;
 
-    channel = flags & 0x7;
-    if (channel == 0) {
+    channel = flags & LIBGEAR_JOINT_CHANNEL_MASK;
+    if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
         pObject = pJoint->pRotationObject;
-    } else if (channel == 1) {
+    } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
         pObject = pJoint->pTranslationObject;
     } else {
         pObject = pJoint->pScaleObject;
@@ -3453,14 +3453,14 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
     if (pObject != NULL) {
         pObject->inUse = 1;
         pObject->loops = arg6;
-        pObject->opcode = arg4 + 3;
+        pObject->opcode = arg4 + LIBGEAR_JOINT_OPCODE_INTERPOLATE;
         pObject->type = arg5;
-        if (flags & 0x20) {
-            if (channel == 0) {
+        if (flags & LIBGEAR_JOINT_FLAG_ADD) {
+            if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
                 baseX = pJoint->rotation.vx;
                 baseY = pJoint->rotation.vy;
                 baseZ = pJoint->rotation.vz;
-            } else if (channel == 1) {
+            } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
                 baseX = pJoint->translation.x;
                 baseY = pJoint->translation.y;
                 baseZ = pJoint->translation.z;
@@ -3475,11 +3475,11 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
             baseZ = 0;
         }
         if (flags & 0x40) {
-            if (channel == 0) {
+            if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
                 offBaseX = pJoint->rotation.vx;
                 offBaseY = pJoint->rotation.vy;
                 offBaseZ = pJoint->rotation.vz;
-            } else if (channel == 1) {
+            } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
                 offBaseX = pJoint->translation.x;
                 offBaseY = pJoint->translation.y;
                 offBaseZ = pJoint->translation.z;
@@ -3507,14 +3507,14 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
         }
         pObject->curFrame = 0;
         pObject->endFrame = arg13;
-        if (channel == 0) {
+        if (channel == LIBGEAR_JOINT_CHANNEL_ROTATION) {
             if (arg4 < 2) {
                 pJoint->rotation.vx = pObject->startX;
                 pJoint->rotation.vy = pObject->startY;
                 pJoint->rotation.vz = pObject->startZ;
             }
             pJoint->pRotationObject = pObject;
-        } else if (channel == 1) {
+        } else if (channel == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
             if (arg4 < 2) {
                 pJoint->translation.x = pObject->startX;
                 pJoint->translation.y = pObject->startY;
@@ -3530,7 +3530,7 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, u8 flags,
             pJoint->pScaleObject = pObject;
         }
     }
-    if (flags & 0x80) {
+    if (flags & LIBGEAR_JOINT_FLAG_RECURSE) {
         pChild = pModel->pSkeleton;
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
             pChild++;
