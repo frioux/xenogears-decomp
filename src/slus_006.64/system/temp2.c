@@ -1734,8 +1734,7 @@ fills above, diff, and only then chase the pColors add/re-add shape.
 // `if (proj2.vy < 0) { y = 0; } else { y = proj2.vy; }` reproduces retail's
 // bgez / move v1,v0 / j merge / move a0,zero diamond and the sll-sra narrowing,
 // and that was the last 3 instructions (12 bytes) of the function.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
-/*
+
 // The render block func_8002709C allocates: sixteen textured quads, the flat and
 // Gouraud rows func_800273C4 fills (one bank of each per screen context), then
 // the draw state the quads are sized from.
@@ -1767,6 +1766,8 @@ extern void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
 // flat quads and the gouraud row are placed at the projected eye height, the
 // second flat row at the projected at height. `span` is the distance between
 // the two points scaled into 0..0x100. Returns the projected eye y.
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
+/*
 s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
                   MATRIX* pMatrix, u_long* pOT, s32 band) {
     SVECTOR proj1;
