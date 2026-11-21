@@ -97,6 +97,13 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     }
     return ret;
 }
+// Round 373 re-measured: ONE instruction differs, `addu a0,v0,v1` against retail's in-place
+// `addu v0,v0,v1` (the HImode sum coalescing with its FIRST operand where gcc picks a fresh
+// register; the `move v1,..`, the clamp and the `andi` return all match). Probed as a
+// standalone snippet the sum coalesces with its SECOND operand instead (`addu $3,$2,$3`), so
+// the probe is not representative of the frame. 99.68 under gcc-2.6.0 too, so this body is not
+// a preset question either. Five spellings with no effect: u16/s32/u8 sums, declaration order
+// swapped, the add written `q[0x5B] + sum`.
 // PARKED (99.68%, 124 bytes = retail's size). Body COMPILES. Re-measured round 369:
 // unchanged, and the whole residual is ONE instruction pair. Retail's `rand`-free tail is
 // `lbu v0,p[0x14] / lbu v1,q[0x5B] / addu v0,v0,v1 / move v1,v0` - the sum coalesces onto the
@@ -408,6 +415,12 @@ void BattleFillPartySlotWeaponRecord(u8 arg0, u8 arg1) {
     }
 }
 
+// Round 373: the tie is PROVEN a compiler difference, not a source shape. One snippet with
+// six spellings (`rand() % 100` inline, into a local, immediate compare, two returns, a store
+// before the call, misc18's own body verbatim) compiles to `mfhi $temp / sra $dest,$temp,5`
+// under 2.7.2 and to retail's in-place `mfhi $dest / sra $dest,$dest,5` under 2.6.0 - every
+// spelling, both compilers (tools/scripts/cc1_probe.sh ... --gcc gcc-2.6.0-psx). battle/misc18
+// is a XenoBattle 2.6.0 unit, so its 100.00% is not evidence that 2.7.2 can reach this shape.
 // best 99.66% on the unit's 2.7.2, 100.00% under gcc-2.6.0: the mfhi temp of the
 // `% 100` expansion is $a0 there and $a1 here, so retail's in-place
 // `mfhi a0 / sra a0,a0,5` becomes `mfhi a1 / sra a0,a1,5`. The unit cannot move to
