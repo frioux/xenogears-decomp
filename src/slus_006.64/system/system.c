@@ -56,27 +56,6 @@ extern u8 g_SystemPaletteData[];
 extern s16 g_SystemPalette1;
 extern s16 g_SystemPalette2;
 
-// One global text object (a SystemString at 0x80059FD8) and its char buffer;
-// the fields are split out because each field address is its own symbol.
-extern s16 D_80059FD8[];
-extern s16 D_80059FDA;
-extern s16 D_80059FE0;
-extern s16 D_80059FE2;
-extern s16 D_80059FE4;
-extern s16 D_80059FE8;
-extern s16 D_80059FEA;
-extern void* D_80059FF4;
-extern void* D_8005A000;
-extern void* D_8005A004;
-extern u8 D_8005A040;
-extern u8 D_8005A041;
-extern u8 D_8005A042;
-extern u8 D_8005A044;
-extern s16 D_8005A05C;
-extern u8 D_8005A068[];
-extern s16 D_8005A0C0;
-extern u8 D_8005A0C2;
-
 // Header at the start of the font file. Glyph bitmaps are 0x16 bytes each
 // (0x16 * code is how func_80034FFC addresses one) and start at 0x2's offset.
 typedef struct {
@@ -137,7 +116,7 @@ typedef struct SystemStringNode {
 } SystemStringNode; // Size: 0x8
 
 // A rendered string: glyph buffer, palette and the stack of data buffers that
-// SystemRenderStringEntry walks.
+// the renderer walks.
 typedef struct {
     /* 0x00 */ s16 lineWidth;
     /* 0x02 */ s16 charIndex;
@@ -177,6 +156,15 @@ typedef struct {
     /* 0x8A */ undefined8 unk8A[2];
     /* 0x8C */ SystemStringNode* pBufferStack;
 } SystemString; // Size: 0x90
+
+// The static text object SystemRenderStringEntry renders one entry through,
+// and the single row of glyph sprites it uses as that string's char buffer
+// (SystemStringInit allocates one instead; this path must not).
+extern SystemString D_80059FD8;
+extern SystemStringChar D_8005A068;
+// D_80059FD8.pChars, named separately because the typed store comes out 0x28(a0)
+// off the live base pointer, 4 bytes short of retail (232 vs 236).
+extern void* D_8005A000;
 
 void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y, s16 maxWidth, s16 maxChars) {
     int i;
@@ -747,37 +735,37 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 
 // Render string entry to a buffer
 int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
+    SystemString* pString = &D_80059FD8;
     int primitiveCode;
-    s16* pStringBytes;
 
-    D_80059FE2 = mode;
-    D_80059FE4 = 1;
-    D_80059FE2 = mode | 1;
-    D_80059FE0 = (s16)(mode | 1) * 4;
-    pStringBytes = D_80059FD8;
+    D_80059FD8.maxWidth = mode;
+    D_80059FD8.maxChars = 1;
+    D_80059FD8.maxWidth = mode | 1;
+    D_80059FD8.spriteWidth = (s16)(mode | 1) * 4;
     primitiveCode = SYSTEM_STRING_RECT_CODE;
-    D_80059FF4 = pCur;
-    D_80059FEA = (mode | 1) + 3;
-    D_8005A040 = 1;
+    D_80059FD8.pCur = pCur;
+    D_80059FD8.imageWidth = (mode | 1) + 3;
+    D_80059FD8.unk68 = 1;
     do {
-        D_8005A05C = 0;
-        D_8005A044 = 0;
-        D_8005A042 = 0;
-        D_8005A004 = pCharBuffer;
-        D_80059FE8 = 0;
-        D_80059FDA = 0;
-        D_80059FD8[0] = 0;
-        D_8005A041 = primitiveCode;
+        D_80059FD8.waitFrames = 0;
+        D_80059FD8.waiting = 0;
+        D_80059FD8.unk6A = 0;
+        D_80059FD8.pCharBuffer = pCharBuffer;
+        D_80059FD8.flags = 0;
+        D_80059FD8.charIndex = 0;
+        D_80059FD8.lineWidth = 0;
+        D_80059FD8.unk69 = primitiveCode;
     } while (0);
-    D_8005A000 = D_8005A068;
-    D_8005A0C0 = 0;
-    D_8005A0C2 = flag & 1;
+    D_8005A000 = &D_8005A068;
+    D_8005A068.x = 0;
+    D_8005A068.paletteIndex = flag & 1;
 
     // The do/while block above and the two hoisted locals are load-bearing:
-    // without them gcc hoists the constant stores above the group (28.31%).
-    func_80033DF0(pStringBytes);
+    // without them gcc hoists the constant stores above the group (28.31%), and
+    // pString is what puts the group's lui/addiu for $a0 at its head.
+    func_80033DF0(pString);
 
-    return ((SystemStringChar*)D_8005A000)->x * 4;
+    return D_80059FD8.pChars->x * 4;
 }
 
 
