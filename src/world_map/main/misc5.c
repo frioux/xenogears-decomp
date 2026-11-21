@@ -1156,6 +1156,9 @@ int func_8007CF18(int idx) {
     pLayer->pos.y = pPlayer->y >> 12;
     pLayer->pos.z = pPlayer->z >> 12;
     WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
+    // retail holds the scratchpad address in a general register for the vz store;
+    // a fresh local folds back to the absolute-lui form (348 bytes, 95.72%), so the
+    // dead index parameter carries it
     idx = 0x1F8000A0;
     WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
     ((SVECTOR *)idx)->vz = pPlayer->z >> 12;
