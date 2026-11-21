@@ -632,7 +632,7 @@ void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId) {
     s32 i;
 
     MenuParseNumberToDigits(
-        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[2]);
+        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk3C);
     offset = characterId * 24;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumberPrimCount = 0;
     for (i = 0; i < MENU_MAX_DIGITS - 1; i++) {
@@ -664,7 +664,7 @@ void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId) {
     }
 
     MenuParseNumberToDigits(
-        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[3]);
+        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk40);
     offset = characterId * 24;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumberPrimCount = 0;
     for (i = 0; i < MENU_MAX_DIGITS - 1; i++) {
@@ -714,7 +714,7 @@ void func_801D74EC(u_char index, u_char characterId) {
     s32 i;
 
     MenuParseNumberToDigits(
-        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[2]);
+        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk3C);
     offset = characterId * 0x18;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5 = 0;
     for (i = 0; i < 7; i++) {
@@ -783,7 +783,7 @@ void func_801D7884(u_char index, u_char row) {
     s32 x;
     s32 i;
 
-    // The character's stat row: characters[] is 0xA4 bytes and statBase/statBonus/unk79 sit 0x2E3/0x2E4/0x2E5 into g_GameState.
+    // The character's stat row: characters[] is 0xA4 bytes and statBase/statBonus/statFraction sit 0x2E3/0x2E4/0x2E5 into g_GameState.
     // Retail folds that 0x2E4 into each load's %lo half, so the row is reached through
     // g_GameState (a pointer local would burn a register on the base).
     if (row == 0) {

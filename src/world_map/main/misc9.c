@@ -799,7 +799,7 @@ s32 WorldMapInitializePlayerSlot(s32 index) {
     pSlot->unk50 = 0;
     pSlot->unk58 = 0;
     pSlot->unk5C = 0xC;
-    pCount = &g_GameState.unk1854;
+    pCount = &g_GameState.playerPlaced;
     if (*pCount == 0) {
         do {
             (*pCount)++;

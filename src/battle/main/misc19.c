@@ -747,72 +747,72 @@ void BattleInitItemInventoryAndConditionMasks(void) {
         g_GameState.itemIDs[i] = i;
         g_GameState.itemQuantities[i] = MAX_ITEM_QUANTITY;
     }
-    *(u16 *)&g_GameState.unk16BC[0].commandMask = BATTLE_COMMAND_MASK_ALL;
-    *(u16 *)&g_GameState.unk16BC[0].characterConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[0].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[0].gearConditionMask = 0xFE00;
-    *(u16 *)&g_GameState.unk16BC[0].statusFlags = 0xF000;
-    ((u_char *)&g_GameState.unk16BC[0])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[1].commandMask = 0xFFE0;
-    *(u16 *)&g_GameState.unk16BC[1].characterConditionMask = 0xFFF0;
-    *(u16 *)&g_GameState.unk16BC[1].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[1].gearConditionMask = 0xFFF0;
-    *(u16 *)&g_GameState.unk16BC[1].statusFlags = 0xC000;
-    ((u_char *)&g_GameState.unk16BC[1])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[2].commandMask = 0xFFE0;
-    *(u16 *)&g_GameState.unk16BC[2].characterConditionMask = 0xFFE0;
-    *(u16 *)&g_GameState.unk16BC[2].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[2].gearConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[2].statusFlags = 0x8000;
-    ((u_char *)&g_GameState.unk16BC[2])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[3].commandMask = 0xFFE0;
-    *(u16 *)&g_GameState.unk16BC[3].characterConditionMask = 0xFFC0;
-    *(u16 *)&g_GameState.unk16BC[3].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[3].gearConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[3].statusFlags = 0xF000;
-    ((u_char *)&g_GameState.unk16BC[3])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[4].commandMask = 0xFFC0;
-    *(u16 *)&g_GameState.unk16BC[4].characterConditionMask = 0xFFC0;
-    *(u16 *)&g_GameState.unk16BC[4].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[4].gearConditionMask = 0xFC00;
-    *(u16 *)&g_GameState.unk16BC[4].statusFlags = 0xE000;
-    ((u_char *)&g_GameState.unk16BC[4])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[5].commandMask = 0xFFC0;
-    *(u16 *)&g_GameState.unk16BC[5].characterConditionMask = 0xF000;
-    *(u16 *)&g_GameState.unk16BC[5].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[5].gearConditionMask = 0xF000;
-    *(u16 *)&g_GameState.unk16BC[5].statusFlags = 0x8000;
-    ((u_char *)&g_GameState.unk16BC[5])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[6].commandMask = 0xFFC0;
-    *(u16 *)&g_GameState.unk16BC[6].characterConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[6].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[6].gearConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[6].statusFlags = 0x8000;
-    ((u_char *)&g_GameState.unk16BC[6])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[7].commandMask = 0x0000;
-    *(u16 *)&g_GameState.unk16BC[7].characterConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[7].unk8 = 0x0000;
-    *(u16 *)&g_GameState.unk16BC[7].gearConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[7].statusFlags = 0x0000;
-    ((u_char *)&g_GameState.unk16BC[7])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[8].commandMask = 0x0000;
-    *(u16 *)&g_GameState.unk16BC[8].characterConditionMask = 0xF800;
-    *(u16 *)&g_GameState.unk16BC[8].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[8].gearConditionMask = 0x0000;
-    *(u16 *)&g_GameState.unk16BC[8].statusFlags = 0xE000;
-    ((u_char *)&g_GameState.unk16BC[8])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[9].commandMask = 0xFFE0;
-    *(u16 *)&g_GameState.unk16BC[9].characterConditionMask = 0xFFE0;
-    *(u16 *)&g_GameState.unk16BC[9].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[9].gearConditionMask = 0xFFE0;
-    *(u16 *)&g_GameState.unk16BC[9].statusFlags = 0x8000;
-    ((u_char *)&g_GameState.unk16BC[9])[0x1B] = 7;
-    *(u16 *)&g_GameState.unk16BC[10].commandMask = 0xFFC0;
-    *(u16 *)&g_GameState.unk16BC[10].characterConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[10].unk8 = 0xFFFF;
-    *(u16 *)&g_GameState.unk16BC[10].gearConditionMask = 0xFF00;
-    *(u16 *)&g_GameState.unk16BC[10].statusFlags = 0xC000;
-    ((u_char *)&g_GameState.unk16BC[10])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[0].commandMask = BATTLE_COMMAND_MASK_ALL;
+    *(u16 *)&g_GameState.conditionRows[0].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[0].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[0].gearConditionMask = 0xFE00;
+    *(u16 *)&g_GameState.conditionRows[0].statusFlags = 0xF000;
+    ((u_char *)&g_GameState.conditionRows[0])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[1].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.conditionRows[1].characterConditionMask = 0xFFF0;
+    *(u16 *)&g_GameState.conditionRows[1].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[1].gearConditionMask = 0xFFF0;
+    *(u16 *)&g_GameState.conditionRows[1].statusFlags = 0xC000;
+    ((u_char *)&g_GameState.conditionRows[1])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[2].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.conditionRows[2].characterConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.conditionRows[2].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[2].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[2].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.conditionRows[2])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[3].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.conditionRows[3].characterConditionMask = 0xFFC0;
+    *(u16 *)&g_GameState.conditionRows[3].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[3].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[3].statusFlags = 0xF000;
+    ((u_char *)&g_GameState.conditionRows[3])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[4].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.conditionRows[4].characterConditionMask = 0xFFC0;
+    *(u16 *)&g_GameState.conditionRows[4].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[4].gearConditionMask = 0xFC00;
+    *(u16 *)&g_GameState.conditionRows[4].statusFlags = 0xE000;
+    ((u_char *)&g_GameState.conditionRows[4])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[5].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.conditionRows[5].characterConditionMask = 0xF000;
+    *(u16 *)&g_GameState.conditionRows[5].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[5].gearConditionMask = 0xF000;
+    *(u16 *)&g_GameState.conditionRows[5].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.conditionRows[5])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[6].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.conditionRows[6].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[6].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[6].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[6].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.conditionRows[6])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[7].commandMask = 0x0000;
+    *(u16 *)&g_GameState.conditionRows[7].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[7].gearCommandMask = 0x0000;
+    *(u16 *)&g_GameState.conditionRows[7].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[7].statusFlags = 0x0000;
+    ((u_char *)&g_GameState.conditionRows[7])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[8].commandMask = 0x0000;
+    *(u16 *)&g_GameState.conditionRows[8].characterConditionMask = 0xF800;
+    *(u16 *)&g_GameState.conditionRows[8].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[8].gearConditionMask = 0x0000;
+    *(u16 *)&g_GameState.conditionRows[8].statusFlags = 0xE000;
+    ((u_char *)&g_GameState.conditionRows[8])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[9].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.conditionRows[9].characterConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.conditionRows[9].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[9].gearConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.conditionRows[9].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.conditionRows[9])[0x1B] = 7;
+    *(u16 *)&g_GameState.conditionRows[10].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.conditionRows[10].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[10].gearCommandMask = 0xFFFF;
+    *(u16 *)&g_GameState.conditionRows[10].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.conditionRows[10].statusFlags = 0xC000;
+    ((u_char *)&g_GameState.conditionRows[10])[0x1B] = 7;
 }
 
 // PARKED (97.59%, 536 bytes = retail's size). Body COMPILES.
@@ -1085,7 +1085,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         if (rand() % 100 < 25 && !(p->unk7A & 0x20)) {
             *pInfo = 2;
             bit = rand() % count;
-            if (*(u16*)&g_GameState.unk16BC[p->characterId].characterConditionMask & ((0x8000 >> bit) & mask)) {
+            if (*(u16*)&g_GameState.conditionRows[p->characterId].characterConditionMask & ((0x8000 >> bit) & mask)) {
                 pInfo[1] = bit;
                 return;
             }
@@ -1221,7 +1221,7 @@ void func_8009BE0C(void) {
         for (j = 0; j < 7; j++) {
             pChar->statWeights[j] = ((u16*)p->unk90)[j];
         }
-        ((u16*)&pChar->unk34[6])[0] = ((u16*)p->unk3A)[0];
+        pChar->unk3A = ((u16*)p->unk3A)[0];
         if (p->activeEffectFlags1 & 0xC000) {
             pChar->hp = 1;
         }
@@ -1269,5 +1269,5 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
 void BattleSetSlotFields148And162(u8 arg0) {
     g_BattleWorkBlock[arg0].state.commandCounter = 4;
     g_BattleWorkBlock[arg0].state.conditionTimers[7] = 3;
-    g_GameState.unk16BC[0].statusFlags |= 0x4000;
+    g_GameState.conditionRows[0].statusFlags |= 0x4000;
 }

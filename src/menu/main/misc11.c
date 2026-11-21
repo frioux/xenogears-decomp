@@ -17,8 +17,8 @@ void MenuApplyGearAccessories(MenuDressingRoom* pDressingRoom, u8 gearId) {
     pGear = &g_GameState.gears[gearId];
     characterId = g_GearPilotIds[gearId];
 
-    pFlags1 = &g_GameState.unk16BC[characterId].unk8;
-    pFlags2 = &g_GameState.unk16BC[characterId].statusFlags;
+    pFlags1 = &g_GameState.conditionRows[characterId].gearCommandMask;
+    pFlags2 = &g_GameState.conditionRows[characterId].statusFlags;
 
     pGear->defenseFromEquipment = 0;
     pGear->etherDefenseFromEquipment = 0;

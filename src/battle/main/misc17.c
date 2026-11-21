@@ -215,7 +215,7 @@ void func_80091064(u8 arg0) {
         rowOff = 0x370;
         for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
             if ((u16)BattleMaskHasStatusBit(
-                    (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].characterConditionMask,
+                    (u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask,
                     i) != 0) {
                 active[i] = 1;
                 off = rowOff + slotOff;
@@ -231,7 +231,7 @@ void func_80091064(u8 arg0) {
         rowOff = 0x348;
         for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
             if ((u16)BattleMaskHasStatusBit(
-                    (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].gearConditionMask,
+                    (u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].gearConditionMask,
                     i) != 0) {
                 active[i] = 1;
                 off = rowOff + slotOff;
@@ -483,10 +483,10 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, u8 arg1, u8 arg2) {
 
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         ret = (u16)BattleMaskHasStatusBit(
-                  (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].characterConditionMask,
+                  (u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask,
                   arg1 + arg2 * 2) != 0;
     } else if ((u16)BattleMaskHasStatusBit(
-                   (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].gearConditionMask,
+                   (u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].gearConditionMask,
                    arg1 + arg2 * 2) != 0) {
         ret = 1;
     }
@@ -1112,7 +1112,7 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     tbl[1] = D_800C3250;
     tbl[2] = D_800C3252;
     tbl[3] = D_800C323A;
-    if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags,
+    if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].statusFlags,
                            arg1)) {
         if ((g_BattleWorkBlock[arg0].conditionFlags & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);

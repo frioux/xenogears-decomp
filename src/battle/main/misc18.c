@@ -892,13 +892,13 @@ void func_80097D5C(void) {
             ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] *= 10;
         }
         pFlags[1] = 0;
-        if (g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 & 0x1C00) {
+        if (g_GameState.conditionRows[g_BattleActingSlot->characterId].gearCommandMask & 0x1C00) {
             pFlags[1] = 1;
         }
-        if (g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 & 0x380) {
+        if (g_GameState.conditionRows[g_BattleActingSlot->characterId].gearCommandMask & 0x380) {
             pFlags[1] = 2;
         }
-        if (g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 & 0x70) {
+        if (g_GameState.conditionRows[g_BattleActingSlot->characterId].gearCommandMask & 0x70) {
             pFlags[1] = 3;
         }
         g_BattleTargetSlotState->unk3F = g_BattleTargetSlotState->attackPower;
@@ -924,7 +924,7 @@ void func_80097D5C(void) {
             }
         }
         if (g_BattleActingSlot->unk61[1] >= 50) {
-            g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 |= 8;
+            g_GameState.conditionRows[g_BattleActingSlot->characterId].gearCommandMask |= 8;
         }
         if (g_BattleActingSlot->characterId == 7) {
             g_BattleTargetSlotState->hp = g_BattleActingSlot->hp * BATTLE_ACTOR_HP_SCALE;
@@ -941,14 +941,14 @@ void func_80097D5C(void) {
             }
         }
         if (g_BattleActingSlot->gearId == 0xF) {
-            g_GameState.unk16BC[g_BattleActingSlot->characterId].statusFlags &= 0x8FFF;
+            g_GameState.conditionRows[g_BattleActingSlot->characterId].statusFlags &= 0x8FFF;
         }
         if (g_BattleActingSlot->gearId == 0x12) {
             g_BattleActingSlot->conditionFlags = 0x238;
             ((u16 *)&g_BattleTargetSlotState->unk28[0x10])[0] = 0x26AC;
             g_BattleTargetSlotState->unk3A = 0x26AC;
             pFlags[1] = 0;
-            g_GameState.unk16BC[3].statusFlags = 0x8000;
+            g_GameState.conditionRows[3].statusFlags = 0x8000;
         }
         if (g_GameState.fieldScriptMemory[0] >= 0xE7) {
             if ((((u8 *)&g_GameState)[0x2355] & 0x80) == 0) {
@@ -998,10 +998,10 @@ void BattleResetSlotConditionCounters(void) {
         }
     }
 
-    flag = (u16)g_GameState.unk16BC[8].statusFlags;
+    flag = (u16)g_GameState.conditionRows[8].statusFlags;
     g_GameState.characters[8].agility = 7;
     if (flag & 0x2000) {
-        g_GameState.unk16BC[8].characterConditionMask |= 0x800;
+        g_GameState.conditionRows[8].characterConditionMask |= 0x800;
     }
     if (g_GameState.fieldScriptMemory[0] < 0xBB) {
         g_GameState.gears[0].attackPower = 10;
