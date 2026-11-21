@@ -174,7 +174,7 @@ void FieldScriptSetGearStateFlag(void) {
     int index = FieldScriptVMGetArgument(1);
     int value = FieldScriptVMGetArgument(3);
 
-    g_pGameState->unk16BC[index].statusFlags |= value;
+    g_pGameState->conditionRows[index].statusFlags |= value;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -328,8 +328,8 @@ void FieldScriptCopyCharacter(void) {
     int destIndex = FieldScriptVMGetArgument(3);
 
     g_pGameState->characters[destIndex] = g_pGameState->characters[sourceIndex];
-    *(UnkGearState*)&g_pGameState->unk16BC[destIndex].commandMask =
-        *(UnkGearState*)&g_pGameState->unk16BC[sourceIndex].commandMask;
+    *(UnkGearState*)&g_pGameState->conditionRows[destIndex].commandMask =
+        *(UnkGearState*)&g_pGameState->conditionRows[sourceIndex].commandMask;
     pGameState = g_pGameState; // reused for the first flag write only; the second reloads it
     if (destIndex == 9) {
         pGameState->unk22B6 |= 0x2000;
@@ -418,7 +418,7 @@ void FieldScriptSetByte2354(void) {
 void FieldScriptSetGameState184E(void) {
     g_pGameState->mapPosX = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     g_pGameState->mapPosZ = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
-    g_pGameState->unk1854 = 0;
+    g_pGameState->playerPlaced = 0;
     g_pGameState->mapPosZFraction = 0;
     g_pGameState->unk1856 = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
@@ -627,9 +627,9 @@ void FieldScriptSetCharacterBit2318(void) {
 
     if (partyId != CHARACTER_ID_NONE) {
         if (SCRIPT_READ_U8_REL(1) == 0) {
-            ((u_short*)&g_pGameState->unk22B6)[0x31] |= 1 << partyId;
+            g_pGameState->partyMemberFlags |= 1 << partyId;
         } else {
-            ((u_short*)&g_pGameState->unk22B6)[0x31] &= ~(1 << partyId);
+            g_pGameState->partyMemberFlags &= ~(1 << partyId);
         }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;

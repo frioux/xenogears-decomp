@@ -63,7 +63,16 @@ typedef struct {
     /* 0x30 */ u8 accessoryEffectFlags8; // the type-8 accessory flag word, summed not OR'ed: cases 8 and 9 both accumulate into it (MenuApplyEquippedItemBonuses)
     /* 0x31 */ u8 mpPercentFromAccessories; // percent of maxMp added to mp and maxMp at battle init, cleared with the equipment bonuses (MenuApplyEquippedItemBonuses)
     /* 0x32 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, see the 0x7E block
-    /* 0x34 */ u8 unk34[0x10];
+    /* 0x34 */ u8 unk34[0x6];
+    // The per-action counter the battle slot keeps at this same offset (it is incremented
+    // and clamped at 0xFDE8 by BattleResolveSlotActionState) and copies into the character
+    // record after the battle, see func_8009BE0C.
+    /* 0x3A */ u16 unk3A;
+    // The gear window's two wide numbers, drawn by MenuSetGearWindowWideNumberPrims
+    // (src/menu/main/misc7_r2.c); no function here assigns them, so they only change
+    // with the save record.
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 unk40;
     // Two 32-bit numbers the menu window draws wide (up to 8 digits) with
     // MenuParseNumberToDigits, in both the character and the gear window. BattleInitActiveSlotActions
     // (func_80098D2C) is the only function in the program that writes them: one case of its jump table
@@ -100,7 +109,9 @@ typedef struct {
     // the script cannot set below.
     /* 0x77 */ u8 statBase;
     /* 0x78 */ u8 statBonus;
-    /* 0x79 */ u8 unk79;
+    // The tenths digit of the statBase + statBonus total: the gear window's stat row
+    // scales that sum by ten and adds this, see func_801D7884 in src/menu/main/misc7_r2.c.
+    /* 0x79 */ u8 statFraction;
     /* 0x7A */ u16 unk7A;
     /* 0x7C */ u16 activeEffectFlags1; // starts the active/accessory word grid below, as in GameGear and BattleTableEntry
     // One flag word per accessory effectType: the OR of the effectFlags of the
@@ -216,16 +227,18 @@ typedef struct {
 typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ s16 unk2;
-    // unk4 and unk8 are command bit masks: unk4 is tested bit by bit against the 13
-    // learnable command rows (src/battle/main/misc13, whose battle reset sets one bit per
-    // command the character has), unk8 against the
-    // command-availability masks (BattleCheckActorCommandAvailable).
+    // The character-side and the gear-side command bit masks: each is tested bit by bit
+    // against the 13 learnable command rows (src/battle/main/misc13, whose battle reset
+    // sets one bit per command the character has) and against the command-availability
+    // masks (BattleCheckActorCommandAvailable). gearCommandMask is the word the gear's
+    // accessories grant: MenuApplyGearAccessories clears its derived bits and recomputes
+    // them from the pilot's accessory effect flags.
     /* 0x04 */ s16 commandMask;
     // One bit per condition the slot can be given. The character-side and the
     // gear-side slot answer the same test from these two words, see
     // BattleDrawCharStatusIfFlagged and func_8009BAC4 in src/battle/main/misc19.
     /* 0x06 */ s16 characterConditionMask;
-    /* 0x08 */ s16 unk8;
+    /* 0x08 */ s16 gearCommandMask;
     /* 0x0A */ s16 gearConditionMask;
     /* 0x0C */ s16 unkC;
     /* 0x0E */ s16 unkE;
@@ -247,7 +260,7 @@ typedef struct {
     /* 0x1648 */ undefined8 unk1648[0x74];
     // Eleven 0x20-byte per-character condition/command rows; the eleventh also runs over the
     // four bytes after it, which is what the eleven 0x20-byte rows at +0x16C0 of MenuResetConditionMasks cover.
-    /* 0x16BC */ UnkGearState unk16BC[11];
+    /* 0x16BC */ UnkGearState conditionRows[11];
     /* 0x17FC */ undefined8 unk17FC[0x4];
     // World map ground position in map units; << 12 gives the actor coordinate
     // WorldMapSetPositionFromState copies into g_WorldMapPlayerPosition.
@@ -286,11 +299,11 @@ typedef struct {
     /* 0x184E */ undefined16 mapPosX;
     /* 0x1850 */ undefined16 mapPosZFraction;
     /* 0x1852 */ undefined16 mapPosZ;
-    // Counted once by WorldMapInitializePlayerSlot (world map party init) when it places the
-    // player from mapPosX/mapPosZ; zero tells it to start at its own default
-    // tile instead. FieldScriptSetGameState184E clears it when a script sets a
-    // new position, and raises the flag below.
-    /* 0x1854 */ undefined16 unk1854;
+    // Zero makes WorldMapInitializePlayerSlot place the player at the map's own default
+    // start tile; that first placement counts it to 1, and from then on the player is
+    // placed from mapPosX/mapPosZ. FieldScriptSetGameState184E clears it when a script
+    // sets a new position, and raises the flag below.
+    /* 0x1854 */ undefined16 playerPlaced;
     /* 0x1856 */ undefined16 unk1856;
     /* 0x1858 */ undefined8 unk1858[0xCC];
     /* 0x1924 */ u_int gold;
@@ -322,10 +335,12 @@ typedef struct {
     /* 0x22B1 */ undefined8 gearRide[MAX_PARTY_MEMBERS];
     /* 0x22B4 */ undefined8 unk22B4[0x2];
     // The word at 0x22B6 is also the base of the 0x64-byte per-gear-weapon array the battle's gear-part
-    // countdown indexes (`((u8*)&g_GameState.unk22B6)[weaponId]`, src/battle/main/misc20.c), and
-    // `((u16*)&g_GameState.unk22B6)[0x31]` is the party bitmask at 0x2318 (FieldScriptSetCharacterBit2318).
+    // countdown indexes (`((u8*)&g_GameState.unk22B6)[weaponId]`, src/battle/main/misc20.c).
     /* 0x22B6 */ undefined16 unk22B6;
-    /* 0x22B8 */ undefined8 unk22B8[0x62];
+    /* 0x22B8 */ undefined8 unk22B8[0x60];
+    // One bit per character id that is in the party: FieldScriptSetCharacterBit2318 sets or
+    // clears the bit of the character a script names.
+    /* 0x2318 */ u16 partyMemberFlags;
     /* 0x231A */ u16 mapNum;
     // The 12-bit angle a pending field entry uses, set with mapNum by
     // FieldScriptVMHandlerSetFieldEntryState: an 8-step direction << 9, or the

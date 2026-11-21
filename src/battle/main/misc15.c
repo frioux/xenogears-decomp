@@ -364,13 +364,13 @@ u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
         off = (arg2 * 2 + arg1 + 0x16) * 40 + arg0 * 1520;
         entry = *(u16 *)(g_BattleCellActionRows + off);
         count = *(u8 *)(g_BattleCellActionRows + off + 0x13);
-        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].characterConditionMask, arg1 + arg2 * 2) != 0;
+        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask, arg1 + arg2 * 2) != 0;
     } else {
         off = (arg2 * 2 + arg1 + 0x15) * 40 + arg0 * 1680;
         entry = *(u16 *)(g_BattleActionRows + off);
         count = *(u8 *)(g_BattleActionRows + off + 0x13);
         bit = arg1 + arg2 * 2;
-        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].gearConditionMask, bit) != 0) {
+        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].gearConditionMask, bit) != 0) {
             inParty = 1;
         }
     }

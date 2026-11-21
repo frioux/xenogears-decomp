@@ -377,7 +377,7 @@ s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
         j++;
     case 12:
         pEntry = g_BattleCommandStatusBytes[D_800CCD36[arg1 * 0x170 + 8]];
-        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].commandMask,
+        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
                                         pEntry[0xC - j]) != 0) {
             result = 1;
         }
@@ -438,7 +438,7 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
         if (g_BattleCommandCharIndex[0] == 4) {
             idx = arg0 + 0xC;
         }
-        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].unk8,
+        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
                                g_BattleCommandStatusMasks[idx & 0xFF]) != 0) {
             if (g_BattleCommandQueue[0x2CC] != BATTLE_COMMAND_NONE && g_BattleCommandCharIndex[0] != 4 && g_BattleCommandCharIndex[0] < g_BattleCommandQueue[0x2CC] + 1) {
                 ok = 0;

@@ -394,8 +394,8 @@ void func_80070F40(void) {
         if (g_BattleActorCharIds[i] != 0x7F) {
             // unk4/unk6 are read unsigned here (retail's lhu); the header types
             // the pair s16 for the command-mask tests that read them as signed.
-            D_800C3E0C[i].unk0 = ((BattleCharLimitRecord *)g_GameState.unk16BC)[g_BattleActorCharIds[i]].unk4;
-            D_800C3E0C[i].unk2 = ((BattleCharLimitRecord *)g_GameState.unk16BC)[g_BattleActorCharIds[i]].unk6;
+            D_800C3E0C[i].unk0 = ((BattleCharLimitRecord *)g_GameState.conditionRows)[g_BattleActorCharIds[i]].unk4;
+            D_800C3E0C[i].unk2 = ((BattleCharLimitRecord *)g_GameState.conditionRows)[g_BattleActorCharIds[i]].unk6;
         }
     }
 
