@@ -345,6 +345,11 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // do/while moves the copy to the call site but also hands z $a0, which is what blocks
 // it there. So the 4-instruction hoist of the first call's argument copy is allocator
 // placement, not statement order.
+// Best: 94.87%, 156 bytes = retail's exact size, compiles. ONE residue: the first call's
+// a0 copy. Retail has `move a0,s0` between the pos.y lui and its sw; this cc1 emits it
+// between the unk54 `li v1,-2048` and its sw (4 slots later). cc1's own .s and RTL put the
+// copy at that point, so it is the placement of that copy, not a post-pass reorder.
+// Round 377 re-measured after unpark: 94.87, compiles, 156 bytes.
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
@@ -936,6 +941,18 @@ s32 WorldMapInitFadePrims(s32 index) {
 // 12th of the 16 corners and NOT last in retail's own store order (x3 at 0x20 is), so
 // source statement order cannot reproduce it. Preset screen this round: cdk 94.56,
 // gcc-2.6.0 99.70, unit flags 99.88.
+// Best: 99.88%, retail's exact 564 bytes, compiles. ONLY residue: the reduced-giv base,
+// `addiu s0,s2,0x25` against this cc1's 0x20, plus the 16 store displacements it shifts.
+// MECHANISM (round 377, from this unit's own cc1 -dL loop dump plus two edits): loop.c
+// records one dest-address giv per store and combine_givs reduces ALL of them onto the
+// last one recorded - the dump lists the 16 givs in source order (add 10,18,13,21,12,20,
+// 28,36,26,34,29,37,8,16,24,32) and `giv at 137 [add 32, x3] reduced to (reg 171)`. A
+// duplicate v3 store added at the end moved the base to 37, and moving x0 last moved it
+// to 8. So retail's 0x25 needs v3's store to be the last-recorded giv while its asm store
+// order ends with x3, i.e. the four x-store addresses were not dest-address givs in
+// retail's RTL (a second base variable); every spelling tried trades that for a wrong
+// store order or a second base register. gcc 2.6.0 reduces onto 137 too, so this is not a
+// compiler-version question.
 /*
 s32 func_80081D80(s32 index) {
     WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
