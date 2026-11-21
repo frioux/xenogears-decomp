@@ -775,17 +775,26 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
     g_FieldScriptMaxInstructionCount += 4;
 }
 
-// 81.13%: the struct fields are now right (ActorData flags12C_0x12 is the 10-bit
-// field at bit 18, so the mask is the original's 0xF003FFFF), but two misses
-// remain. (1) The original keeps `type` in $s1 and shifts it by 6 into a temp for
-// the sprite store, then by 24 for the bitfield (`sll s1,s1,0x18`); gcc 2.7.2 here
-// CSEs `type << 6` into $s1 first and emits `sll s1,s1,0x12` after it. The
-// original's single `<< 24` looks like source-level `(flags & 0xF003FFFF) |
-// (type << 24)` rather than a `type << 6` bitfield store. (2) `li a0,1` for the
-// first FieldScriptVMGetArgument is hoisted above the frame setup instead of
-// sitting in the jal delay slot.
-// preset screen: 2.7.2 81.13%, cdk 81.13%, 2.6.0 81.13% - no compiler
-// fixes it.
+// PARKED 82.99% (284 bytes against retail's 276). Round 371 re-measured the old
+// body, which was UNCOMPILABLE (`arg = 1;` with no `arg` in scope, so its 81.13%
+// came from a stale object): with `FieldScriptVMGetArgument(1)` spelled directly
+// and the current-actor pointer in a local it builds and scores 82.99.
+// What matches: the actor/sprite preamble, both argument reads, the
+// SpriteAllocClutRect call and the rect word 2 / 0x12C / rect word 3 stores.
+// What does not: (1) gcc hoists the shared `li $a0,1` of the two
+// FieldScriptVMGetArgument(1) reads above the frame stores and leaves a nop in
+// the first jal's delay slot where retail has the `li` itself (retail's two `ori
+// a0,zero,1` are separate); (2) the tail's two flag read-modify-writes come out
+// in the opposite order (0x12C group then 0x130, storing 0x12C first) where
+// retail loads 0x130 then 0x12C and stores 0x130 first, and the
+// `lhu 0xCC(actor)` of the script-pointer bump lands mid-group instead of before
+// the stores. Swapping the two flag statements in the source, and the untyped
+// whole-word spelling of 0x12C, both measured 80.99-82.99 with the same 284
+// bytes. The old note's preset screen (2.7.2 / cdk / 2.6.0 all 81.13) was run on
+// the body that never compiled, so it proves nothing; not re-screened this round.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
+
+/*
 void func_800888A4(void) {
     SpriteData* pSpriteData;
     ActorData* pCurActor;
@@ -804,6 +813,7 @@ void func_800888A4(void) {
     pCurActor->flags12C_0x10 = 1;
     pCurActor->scriptInstructionPointer += 5;
 }
+*/
 // 88.92% (432 bytes against retail's 428; frame 0x28 and the saved set s0-s4+ra
 // are retail's exactly, every call and every store is in retail's own order).
 //   SETTLED: the four script arguments are read in this order (arg1 masked to
