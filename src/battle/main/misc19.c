@@ -462,7 +462,7 @@ void BattleFillPartySlotWeaponRecord(u8 arg0, u8 arg1) {
 // gcc-2.6.0 confirmed. The whole-unit 2.6.0 screen is still mixed (BattleClearSlotFlag15A1
 // 95.71, BattleFillPartySlotWeaponRecord 96.15, BattleSetSlotFields148And162 99.05,
 // BattleResetSlotEffectWords 99.64), so this stays a one-function run that wants carving out.
-// func_8009BD94 is the same story (98.33% here, 100.00 under 2.6.0).
+// BattleSetSlotActionStateAndAmount is the same story (98.33% here, 100.00 under 2.6.0).
 // Round 393 re-measured: 99.66% (116 bytes, 29/29 insns), still only the mfhi a1 + sra a0,a1,5
 // pair; 100.00% under gcc-2.6.0 and 99.66% under cdk confirmed. Whole-unit 2.6.0 screen (round 393,
 // try_flags --all): 100.00 BattleGetActorActionConditionMask, BattleGetActorConditionCode,
@@ -857,7 +857,7 @@ void BattleInitItemInventoryAndConditionMasks(void) {
 // body the other way round, in both arms), retail's arg0 pointer is $s2 and limit $s0
 // (here $s0 and $s2), and retail's rand() % 100 reads mfhi $a0 and shifts in place
 // where 2.7.2 emits mfhi $t1 / sra $a0,$t1,5 -- the same md difference that keeps
-// func_8009A9D0 and func_8009BD94 off 100. Try_flags on this body: 97.81 under
+// func_8009A9D0 and BattleSetSlotActionStateAndAmount off 100. Try_flags on this body: 97.81 under
 // gcc-2.6.0, 94.63 under 2.7.2-cdk. Measured this round: limit/flags/drop declaration
 // order (no change), max/cur assigned cur-first (worse - $a1 becomes an address base).
 /*

@@ -12,7 +12,7 @@ extern u8 g_BattleActorCharIds[];
 
 extern int rand(void);
 
-void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
+void BattleRollActorActionCondition(u8 arg0, u8* pInfo, s16* pStatus) {
     BattleTableEntry* p = &g_BattleWorkBlock[arg0];
     u16 mask;
     u8 count;
@@ -85,7 +85,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         pInfo[1] = 2;
     }
 }
-void func_8009BD94(void) {
+void BattleSetSlotActionStateAndAmount(void) {
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
         (u32)(g_BattleCurrentRow->power * ((BattleSlotState*)g_BattleCurSlotState)->maxHp) / 20;
@@ -119,7 +119,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19_r1", func_8009BE0C);
 //  1. both divisions: retail `multu v0,v1 ; mfhi v0 ; srl v0,v0,4` (and /10 the
 //     same with srl 3), this compiler `mfhi $tN ; srl v0,$tN,4` - the same cc1
 //     division-expansion difference that caps func_8009A9D0 (99.66) and
-//     func_8009BD94 (98.33) in this unit. try_flags on this body: 98.26 under
+//     BattleSetSlotActionStateAndAmount (98.33) in this unit. try_flags on this body: 98.26 under
 //     gcc-2.6.0, so this is not a preset win either.
 //  2. both `if (a > b) a = b;` clamps: retail loads the LEFT operand first
 //     (`lhu v1,80(a1)` mp then `82` maxMp) and reloads b for the store, this body

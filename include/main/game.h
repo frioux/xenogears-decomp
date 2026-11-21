@@ -266,7 +266,7 @@ typedef struct {
     /* 0x04 */ u16 commandMask;
     // One bit per condition the slot can be given. The character-side and the
     // gear-side slot answer the same test from these two words, see
-    // BattleDrawCharStatusIfFlagged and func_8009BAC4 in src/battle/main/misc19.
+    // BattleDrawCharStatusIfFlagged and BattleRollActorActionCondition in src/battle/main/misc19.
     /* 0x06 */ u16 characterConditionMask;
     /* 0x08 */ u16 gearCommandMask;
     /* 0x0A */ u16 gearConditionMask;

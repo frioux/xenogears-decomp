@@ -59,7 +59,7 @@ extern void func_800898F0(u8 arg0);
 extern void BattleUpdateFrame(void);
 extern u8 BattlePairTargetable(u8 arg0, u8 arg1);
 extern void BattleClearSlotFlag15A1(u8 arg0);
-extern void func_8009BAC4(u8 arg0, u8 *pInfo, u8 *pField);
+extern void BattleRollActorActionCondition(u8 arg0, u8 *pInfo, u8 *pField);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern void BattleInitSlotRowsForActor(s32 arg0, s32 arg1);
 extern s32 func_800877E0(s32 arg0, s32 arg1);
@@ -414,7 +414,7 @@ void func_80080C94(u8 arg0) {
     g_BattleCommandQueue[0x2EA] = 1;
     g_BattleCommandQueue[0x2DE] = 0;
     BattleClearSlotFlag15A1(arg0);
-    func_8009BAC4(arg0, info, g_BattleCommandQueue + arg0 * 0x40 + 0x2A);
+    BattleRollActorActionCondition(arg0, info, g_BattleCommandQueue + arg0 * 0x40 + 0x2A);
     if (info[0] == 1 || info[0] == 2) {
         pBuf = buf;
         i = 0;
