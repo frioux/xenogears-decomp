@@ -5,7 +5,7 @@
 extern s32 g_WorldMapLevelIndex;
 extern u16 g_WorldMapLevelSpriteSetIdsHeightOffset[];
 extern u16 g_WorldMapLevelSpriteSetIds[];
-extern void* g_WorldMapPrimTemplateBuffer;
+extern void* g_WorldMapPrimTemplateBuffer[];
 extern void* g_WorldMapPrimTemplateBufferCopy;
 extern s16 g_WorldMapSpriteSetIds[];
 
@@ -249,116 +249,44 @@ s32 func_80088B40(s32 arg0) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088C90);
-/* 85.32% (108 bytes, retail 112): the load mode is the whole game. `s32 id` read
-   once in the while condition gives retail's single `lh` and drops the 16-byte
-   phantom frame; an `s16 id`, or a bare `*pIds` used as the array index, makes
-   gcc load HImode (lhu) and sign-extend with sll/sra (52.71%), which also costs a
-   register and the frame. 0x16A4 is g_WorldMapGroups[0x45] (69 * 0x54), i.e. the
-   sprite set WorldMapSetSpriteSetParent parents, so the flag store is
-   g_WorldMapGroups[0x45].hidden -- the typed form compiles to retail's
-   `sh v0,0x16A4(a1)`. Only difference left: retail loads *pIds twice after the
-   guard (a second `lh v0,0(a0)` that feeds the first body iteration, 112 vs 108
-   bytes) and has g_WorldMapGroups loaded before g_WorldMapSpriteSetIds; mine reuses the
-   tested value. `while ((id = *pIds++) != -1)` (post-increment in the condition)
-   drops the extra load and the `addiu a0,a0,-2` tail: 77.18%, 100 bytes.
 s32 func_80088C90(void) {
     s16* pIds;
     s32 id;
 
     g_WorldMapGroups[0x45].hidden = 1;
-    pIds = g_WorldMapSpriteSetIds;
-    while ((id = *pIds) != -1) {
-        g_WorldMapGroups[id].hidden = 1;
-        pIds++;
+    // The guard and the loop test read the array separately, so the body loads
+    // the id again; one `while ((id = *pIds) != -1)` merges them (lhu + sra, 16-byte frame).
+    if (g_WorldMapSpriteSetIds[0] != -1) {
+        pIds = g_WorldMapSpriteSetIds;
+        do {
+            id = *pIds++;
+            g_WorldMapGroups[id].hidden = 1;
+        } while (*pIds != -1);
     }
     return 3;
 }
-*/
-
-/* 85.32% (was 52.89): the load mode is the whole game. `s32 id` read once in
-   the while condition gives retail's single `lh` and drops the 16-byte phantom
-   frame; an `s16 id`, or a bare `*pIds * 0x54` with or without an `(s32)` cast,
-   makes gcc load HImode (lhu) and sign-extend with sll/sra, which also costs a
-   register (t0 where retail uses a3) and a 16-byte frame. Still missing:
-   retail loads g_WorldMapGroups before g_WorldMapSpriteSetIds and re-loads `lh v0,0(a0)` after
-   the branch, while mine reuses the tested value (108 vs 112 bytes).
-   Reading the array twice in the body (`id = *pIds; pIds++; use id`) is the
-   shape that produces retail's extra `lh v0,0(a0)` but it also makes gcc pick
-   the unsigned HImode load (52.89%).
-s32 func_80088C90(void) {
-    u8* pBase;
-    s16* pIds;
-    s32 id;
-
-    pBase = g_WorldMapGroups;
-    *(s16*)(pBase + 0x16A4) = 1;
-    pIds = g_WorldMapSpriteSetIds;
-    while ((id = *pIds) != -1) {
-        *(s16*)(pBase + id * 0x54) = 1;
-        pIds++;
-    }
-    return 3;
-}
-*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088D00);
-/* 84.68% (100 bytes, retail 100): every instruction is retail's except the
-   position of the g_WorldMapGroups load and the +0x16A4 fold. Retail loads
-   g_WorldMapGroups before the branch and keeps `addiu a1,a1,0x16A4` in the bne
-   delay slot, then stores at 8/0xC/0x10; gcc sinks the global load into the
-   taken block and folds 0x16A4+8 into the displacements (sw ...,0x16AC(a0)).
-   Same result for the 0x16AC form, for the WorldMapSceneLayer typed form
-   `&g_WorldMapGroups[0x45]` (0x16A4 is exactly group 0x45), for a u8* base
-   local and for a s32* pSrc indexed [2]/[3]/[4]: the pointer value is only
-   needed inside the if, so gcc sinks it and folds the constant.
+/* 84.68% (100 bytes, retail 100): only the g_WorldMapGroups load position and the
+   0x16A4 constant fold differ. Retail loads the group pointer before the branch so
+   that `addiu a1,a1,0x16A4` lands in the bne delay slot, and stores at 8/0xC/0x10;
+   every spelling below sinks the load into the taken block and folds the +0x16A4
+   into the displacements (0x16AC/0x16B0/0x16B4). Tried: the typed pointer formed
+   before or inside the if, a u8* base with (s32)pGroup + 0x16A4, s32* pSrc[2..4],
+   and the three stores written inline through g_WorldMapGroups[0x45] (that one
+   reproduces the whole prologue, `li v0,0x99` last and the v1/v0 compare operands
+   included, but still folds: 69.88%). The byte count is retail's, so this is a cse
+   fold and not a missing instruction.
 s32 func_80088D00(s32 arg0) {
     WorldMapActor* pActor;
-    WorldMapSceneLayer* pLayer;
+    WorldMapSceneLayer* pGroup;
 
-    pActor = (WorldMapActor*)&g_WorldMapSlots[arg0];
-    pLayer = &g_WorldMapGroups[0x45];
+    pGroup = g_WorldMapGroups;
+    pActor = &g_WorldMapSlots[arg0];
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pLayer->pos.x = pActor->x >> 12;
-        pLayer->pos.y = pActor->y >> 12;
-        pLayer->pos.z = pActor->z >> 12;
-    }
-    return 1;
-}
-/* 84.68%: with pSrc computed before the if (the only shape that keeps the
-   g_WorldMapGroups load above the branch, as retail does) gcc folds +0x16A4 into the
-   three store displacements (0x16AC/0x16B0/0x16B4) instead of retail's
-   addiu a1,a1,0x16A4 in the bne delay slot; the compare also lands in
-   v0/v1 swapped. Needs a shape where the base+0x16A4 pointer is materialised.
-s32 func_80088D00(s32 arg0) {
-    u8* pDst;
-    s32* pSrc;
-
-    pDst = g_WorldMapSlots + (arg0 << 7);
-    pSrc = (s32*)(g_WorldMapGroups + 0x16A4);
-    if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
-        pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;
-        pSrc[4] = *(s32*)(pDst + 0x30) >> 12;
-    }
-    return 1;
-}
-*/
-/* 84.68%: retail loads the g_WorldMapGroups pointer before the branch and keeps
-   addiu a1,a1,0x16A4 in the bne delay slot, and compares with the id in v1
-   against li v0,0x99; gcc 2.7.2 sinks the global load below the branch.
-s32 func_80088D00(s32 arg0) {
-    u8* pDst;
-    u8* pBase;
-    s32* pSrc;
-
-    pDst = g_WorldMapSlots + (arg0 << 7);
-    pBase = g_WorldMapGroups;
-    if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pSrc = (s32*)(pBase + 0x16A4);
-        pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
-        pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;
-        pSrc[4] = *(s32*)(pDst + 0x30) >> 12;
+        pGroup[0x45].pos.x = pActor->x >> 12;
+        pGroup[0x45].pos.y = pActor->y >> 12;
+        pGroup[0x45].pos.z = pActor->z >> 12;
     }
     return 1;
 }
@@ -454,16 +382,6 @@ void WorldMapFreeSpriteGroupTable(void) {
     HeapFree(g_WorldMapTrailEntries);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008901C);
-/* 90.66%: every instruction matches except the address of g_WorldMapPrimTemplateBuffer, which
-   retail keeps in s0 (lui/addiu once, used for the store across the second
-   HeapAlloc and for the reload); gcc materialises it twice (lui $at for the
-   store, then lui/lw for the reload) and reorg therefore fills the second jal's
-   delay slot with li a1,1 instead of the store. An explicit
-   `void** pSlot = &g_WorldMapPrimTemplateBuffer` compiles to the identical bytes; so does
-   `g_WorldMapPrimTemplateBuffer = HeapAlloc(); pEntry = g_WorldMapPrimTemplateBuffer; g_WorldMapPrimTemplateBufferCopy = HeapAlloc();`
-   (gcc then forwards the alloc result instead of reloading, 268 bytes either
-   way). Only cse's choice between an address register and $at differs.
 void func_8008901C(void) {
     u8* pEntry;
     s32* pSrc;
@@ -471,9 +389,9 @@ void func_8008901C(void) {
     s32* pEnd;
     s32 i;
 
-    g_WorldMapPrimTemplateBuffer = HeapAlloc(0x2800, 1);
+    g_WorldMapPrimTemplateBuffer[0] = HeapAlloc(0x2800, 1);
     g_WorldMapPrimTemplateBufferCopy = HeapAlloc(0x2800, 1);
-    pEntry = (u8*)g_WorldMapPrimTemplateBuffer;
+    pEntry = (u8*)g_WorldMapPrimTemplateBuffer[0];
     for (i = 0xFF; i != -1; i--) {
         *(u8*)(pEntry + 3) = 9;
         *(u8*)(pEntry + 7) = 0x2C;
@@ -482,7 +400,7 @@ void func_8008901C(void) {
         *(u8*)(pEntry + 7) |= 2;
         pEntry += 0x28;
     }
-    pSrc = (s32*)g_WorldMapPrimTemplateBuffer;
+    pSrc = (s32*)g_WorldMapPrimTemplateBuffer[0];
     pDst = (s32*)g_WorldMapPrimTemplateBufferCopy;
     pEnd = pSrc + 0xA00;
     do {
@@ -491,10 +409,8 @@ void func_8008901C(void) {
         pDst += 4;
     } while (pSrc != pEnd);
 }
-*/
-
 void WorldMapFreePrimTemplateBuffers(void) {
-    HeapFree(g_WorldMapPrimTemplateBuffer);
+    HeapFree(g_WorldMapPrimTemplateBuffer[0]);
     HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
@@ -594,52 +510,41 @@ void WorldMapInitSpriteGroupSprites(s32 groupIndex, SVECTOR* pPos, s16* pRot) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_800893E0);
-/* 96.03%: every instruction matches except that retail holds the entry pointer
-   in a3 and this shape holds it in v1, which also pulls the lhu of pEntry+0x10
-   one slot up (a3 is still free in ours). The address must be computed twice,
-   once per loop (writing it once gives 82.16%: gcc then keeps it in a register
-   across the first loop and drops retail's second lui/lw g_WorldMapSpriteGroups + *0x2A0).
-void func_800893E0(s32 arg0, u8* arg1, u8* arg2) {
-    u8* pBase;
-    u8* pEntry;
+void func_800893E0(s32 groupIndex, SVECTOR* pTrailEnd, SVECTOR* pRot) {
+    WorldMapSprite* pSprite;
     s32 i;
-    s32 count;
-    s32 w;
-    u16 h;
+    s32 found;
 
-    pBase = g_WorldMapSpriteGroups + arg0 * 0x2A0;
-    count = 0;
-    for (i = 7; i != -1; i--) {
-        if (*(u8*)(pBase + 0x4F) & 0x80) {
-            count++;
+    found = 0;
+    pSprite = g_WorldMapSpriteGroups[groupIndex].sprites;
+    for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
+        if (pSprite->flags & WORLD_MAP_SPRITE_FLAG_ACTIVE) {
+            found++;
             break;
         }
     }
-    pEntry = g_WorldMapSpriteGroups + arg0 * 0x2A0;
-    for (i = 7; i != -1; i--) {
-        if (count == 0) {
-            *(u8*)(pEntry + 0x4F) |= 0x80;
-            h = *(u16*)(pEntry + 0x10);
-            w = *(s32*)(pEntry + 0x0);
-            *(s16*)(pEntry + 0xA) = 0;
-            *(s16*)(pEntry + 0x12) = h;
-            *(s32*)(pEntry + 0x4) = w;
+    pSprite = g_WorldMapSpriteGroups[groupIndex].sprites;
+    for (i = WORLD_MAP_SPRITES_PER_GROUP - 1; i != -1; i--) {
+        if (found == 0) {
+            u16 interval;
+            u32 lifeTimer;
+
+            pSprite->flags |= WORLD_MAP_SPRITE_FLAG_ACTIVE;
+            interval = pSprite->interval;
+            lifeTimer = pSprite->lifeTimerInit;
+            pSprite->count = 0;
+            pSprite->timer = interval;
+            pSprite->lifeTimer = lifeTimer;
         }
-        w = *(s32*)(arg1 + 0);
-        *(s32*)(pEntry + 0x14) = 0;
-        *(s32*)(pEntry + 0x2C) = w;
-        w = *(s32*)(arg2 + 0);
-        *(s32*)(pEntry + 0x1C) = w;
-        h = *(u16*)(arg1 + 4);
-        *(s16*)(pEntry + 0x18) = 0;
-        *(s16*)(pEntry + 0x30) = h;
-        h = *(u16*)(arg2 + 4);
-        *(s16*)(pEntry + 0x20) = h;
-        pEntry += 0x54;
+        *(s32*)&pSprite->trailEnd = *(s32*)pTrailEnd;
+        *(s32*)&pSprite->x = 0;
+        *(s32*)&pSprite->rotX = *(s32*)pRot;
+        pSprite->trailEnd.vz = pTrailEnd->vz;
+        pSprite->z = 0;
+        pSprite->rotZ = pRot->vz;
+        pSprite++;
     }
 }
-*/
 
 void WorldMapDeactivateSpriteGroup(s32 groupIndex) {
     WorldMapSprite* pSprite;
@@ -994,23 +899,20 @@ s32 func_8008A52C(s32 arg0) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
 /* 90.48% (372 bytes, retail 372): identical instruction multiset, only the
-   prologue rotates - retail computes (g_WorldMapSlots + arg0*0x80) into a2 before the
-   SpriteAllocFromAnimFile arg setup and keeps li a2,0x1E0 for the jal delay slot;
-   gcc shifts into v1, emits li a2 early and lets reorg steal the addu into the
-   slot. Same wall as the func_8008B54C / func_8008BDD0 parks in misc11 ("the 0x40
-   stack store lands just before the jal"). Tried: call written inline as the
-   store rhs, a void* pSprite temp, (u8*)g_WorldMapSlots + arg0*0x80 spelling - all
-   byte-identical at 90.48%. Everything from the SpritePlayAnimation jal on
-   matches, including the 32-iteration 0x14-stride copy and the g_WorldMapScrollTargetX tail.
+   prologue rotates. Retail shifts arg0 into a2, keeps the (slots + shift) addu
+   and the sw of the 0x40 stack argument before the jal and leaves li a2,0x1E0
+   for the delay slot; gcc shifts into v1, emits li a2,0x1E0 early and lets
+   reorg steal the addu. A 573-iteration permuter run found nothing (base 595,
+   best 595). Same wall as func_8008B54C / func_8008BDD0 in misc11.
+/*
 s32 func_8008A5B8(s32 arg0) {
     WorldMapActor* pActor;
     WorldMapTrail* pTrail;
     void* pSprite;
     s32 i;
 
-    pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + arg0 * 0x80);
+    pActor = &g_WorldMapSlots[arg0];
     pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     pActor->pSprite = pSprite;
     SpritePlayAnimation(pActor->pSprite, 0);
@@ -1039,5 +941,5 @@ s32 func_8008A5B8(s32 arg0) {
     g_WorldMapScrollTargetX = *(WorldMapVec*)&pActor->x;
     g_WorldMapPlayerAngle = pActor->angle;
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
