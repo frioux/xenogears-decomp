@@ -97,7 +97,7 @@ extern u8 D_800C3EB8[][BATTLE_ACTOR_SLOT_STRIDE];
 extern BattleStatusEntry D_800C3D1B[];
 extern u16 g_BattleActorSlotDoneMask;
 extern u16 g_BattlePendingSlotMask;
-extern u8 D_800C402F[];
+extern u8 g_BattleCommandSlotIds[];
 extern u8 g_BattleCommandArgs;
 extern u8 g_BattleCommandTiles;
 extern void BattleResetActorStatDisplay(u8);
@@ -692,7 +692,7 @@ void BattleResetActorCommandSlots(void) {
                 *p++ = 0;
             } while (p < pEnd);
             for (j = 0x8B8; j >= 0; j -= 0x48) {
-                D_800C402F[j] = 0xFF;
+                g_BattleCommandSlotIds[j] = 0xFF;
             }
             g_BattleCommandArgs = 4;
             g_BattleCommandTiles = 0x17;

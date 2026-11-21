@@ -99,13 +99,13 @@ typedef struct {
 
 // The clear loops below walk the table backwards by BYTE offset, which is what retail keeps in
 // its induction register (ori $v0,zero,0x8B8 / addiu $v0,$v0,-0x48), so they reach the command
-// byte through the field's own symbol: D_800C402F is row +0x31. Rewriting such a loop as an
+// byte through the field's own symbol: g_BattleCommandSlotIds is row +0x31. Rewriting such a loop as an
 // index walk over the rows (g_BattleCommandRecords[i].command) costs 8 bytes - 92.94%, 256
 // against retail's 248 - because gcc then synthesises the index times 0x48 in the preheader.
 extern u8 g_BattleTextSlotCount;
 extern BattleCommandRecord g_BattleCommandRecords[];
 extern BattleCommandQueue *g_BattleCommandQueue;
-extern u8 D_800C402F[];
+extern u8 g_BattleCommandSlotIds[];
 extern void func_800785D4(u8 arg0, u8 arg1);
 extern void BattleQueueCommandFA(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF7(u8 arg0, u8 arg1);
@@ -171,7 +171,7 @@ void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandQueue->unk2DC = g_BattleCommandArgs[arg1].unk1 + 1;
     BattleBeginActorAction(arg0, g_BattleCommandArgs[arg1].slotMask, g_BattleCommandArgs[arg1].unk2);
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
-    D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk2;
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk2;
     pValue = g_BattleActionSlotMask;
     g_BattleCommandRecords[g_BattleCommandQueue->count][0] = *(pMask = pValue);
     func_800785D4(arg0, arg1);
@@ -180,7 +180,7 @@ void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
         i = 0;
         n = 0;
         while (n < pQueue->count) {
-            if (D_800C402F[i] == 0xFD) {
+            if (g_BattleCommandSlotIds[i] == 0xFD) {
                 *(u16 *)((u8 *)g_BattleCommandRecords + i) = *pMask;
                 break;
             }
@@ -272,9 +272,9 @@ void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleSlotScriptFlags[arg0 - MAX_PARTY_MEMBERS].unk0 = g_BattleSlotScriptFlags[slot - MAX_PARTY_MEMBERS].unk0;
     g_BattleSlotScriptFlags[arg0 - MAX_PARTY_MEMBERS].unk1 = g_BattleSlotScriptFlags[slot - MAX_PARTY_MEMBERS].unk1;
     memmove(&g_BattleWorkBlock[arg0], &g_BattleWorkBlock[slot], sizeof(BattleTableEntry));
-    D_800C4022[g_BattleCommandQueue->count][0] = slot;
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFB;
-    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+    g_BattleCommandSlotMasks[g_BattleCommandQueue->count][0] = slot;
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xFB;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
 }
  */
@@ -319,7 +319,7 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
 
     value = BATTLE_COMMAND_NONE;
     for (off = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleCommandRecord); off >= 0; off -= sizeof(BattleCommandRecord)) {
-        D_800C402F[off] = value;
+        g_BattleCommandSlotIds[off] = value;
     }
     j = 0;
     i = 0;
@@ -492,7 +492,7 @@ void BattleScriptResetActorState(u8 arg0) {
         *p++ = 0;
     } while (p < pEnd);
     for (i = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleCommandRecord); i >= 0; i -= sizeof(BattleCommandRecord)) {
-        D_800C402F[i] = BATTLE_COMMAND_NONE;
+        g_BattleCommandSlotIds[i] = BATTLE_COMMAND_NONE;
     }
     while (*pCursor != 0xFD) {
         if (*pCursor == 0xFF) {
@@ -561,7 +561,7 @@ done:
 // variable and rearranges the saved registers (88.08%, 496 bytes, retail 500). Measured against the
 // typed body, only the folded relocations differ: %hi(g_BattleSlotRegs) + 12 for D_800D340C and
 // %hi(g_BattleSlotScriptFlags) + 1/+2 for D_800C3D19/D_800C3D1A (99.76%, same 500 bytes, same link).
-// The D_800C402F fill below is the command byte of every 0x48-byte record, walked as a byte offset
+// The g_BattleCommandSlotIds fill below is the command byte of every 0x48-byte record, walked as a byte offset
 // into the record table because the typed spelling loses the walk's induction variable.
 void BattleRunActiveSlotScripts(void) {
     s32 i;
@@ -601,7 +601,7 @@ void BattleRunActiveSlotScripts(void) {
             }
         }
         for (j = (BATTLE_COMMAND_RECORD_COUNT - 1) * sizeof(BattleCommandRecord); j >= 0; j -= sizeof(BattleCommandRecord)) {
-            D_800C402F[j] = endOp;
+            g_BattleCommandSlotIds[j] = endOp;
         }
         pEnd = p + BATTLE_COMMAND_ARG_COUNT * sizeof(BattleCommandArg);
         do {

@@ -844,9 +844,9 @@ void func_800785D4(u8 color, u8 index) {
 
     pEntry = g_BattleCommandQueue;
     tile = g_BattleCommandTiles[index * 8] | (D_800D2E61[index * 8] << 8);
-    D_800C400B[pEntry[0x2DA] * 0x48] = color;
+    g_BattleCommandCodes[pEntry[0x2DA] * 0x48] = color;
     pEntry = g_BattleCommandQueue;
-    *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
+    *(u16 *)(g_BattleCommandSlotMasks + pEntry[0x2DA] * 0x48) = tile;
     pEntry[0x2DA]++;
 }
 */

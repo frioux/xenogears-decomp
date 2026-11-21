@@ -9,7 +9,7 @@
 
 extern s32 g_FieldEntryRoutineFinished; // Is current actor a 2D actor (0) maybe?
 extern s32 g_FieldCurActorIndex;
-extern s8 D_800B21CE;
+extern s8 g_FieldPartyMoveStepRan;
 extern s8 D_800B21CF[];
 extern s32 g_FieldCameraSnapFrames[];
 extern s32 g_FieldSpriteUpdateIndex;
@@ -679,7 +679,7 @@ void FieldScriptVMResetPartyMovement(void) {
     D_800B2368 = 0;
     D_800B2364 = 0;
     g_FieldSpriteUpdateIndex = 0;
-    D_800B21CE = 0;
+    g_FieldPartyMoveStepRan = 0;
 
     for (i = 0; i < 0x20; i++) {
         func_80081C54(g_PlayerActorIndex);
@@ -721,7 +721,7 @@ void FieldScriptVMResetActorHistory(void) {
     D_800B2368 = 0;
     D_800B2364 = 0;
     g_FieldSpriteUpdateIndex = 0;
-    D_800B21CE = 0;
+    g_FieldPartyMoveStepRan = 0;
 
     for (i = 0; i < 0x20; i++) {
         func_80081C54(g_PlayerActorIndex);
@@ -730,7 +730,7 @@ void FieldScriptVMResetActorHistory(void) {
 
 /* 95.05%, same instruction count (179). Everything from the else arm onwards
    matches instruction for instruction; only the 2D-actor arm differs, and it
-   differs by one register: our compile materialises the `D_800B21CE = 1`
+   differs by one register: our compile materialises the `g_FieldPartyMoveStepRan = 1`
    constant into a0 and schedules its `sb` before the `sh` of
    scriptInstructionPointer, which pushes the g_FieldPartyActorSlots pointer, the loop
    counter, the 0xFF and the -0x8000 constants from a0-a3 out into a1/a2/a3/t0
@@ -753,7 +753,7 @@ void FieldScriptVMResetActorHistory(void) {
    bytes) push the loop's invariants after it instead and cost two instructions.
    Retail has the invariants BEFORE the lhu and the sb AFTER the sh, an order no
    source shape reached here. */
-void func_8009B398(void) {
+void FieldScriptVMMovePartyToTargets(void) {
     ActorData* pActor;
     short rotation;
     int i;
@@ -761,10 +761,10 @@ void func_8009B398(void) {
 
     if (FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD)) == 0x7FFF) {
         // volatile: with this unit's -fschedule-insns the plain store lets sched1
-        // hoist the D_800B21CE store above it, which steals its register and shifts
+        // hoist the g_FieldPartyMoveStepRan store above it, which steals its register and shifts
         // the loop's four constants; the volatile access is the only barrier.
         *(volatile u_short *)&g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
-        D_800B21CE = 1;
+        g_FieldPartyMoveStepRan = 1;
 
         for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
             if (g_FieldPartyActorSlots[i] != 0xFF) {
@@ -806,7 +806,7 @@ void func_8009B398(void) {
             g_FieldPartyMoveInProgress[0] = 1;
             g_FieldScriptVMCurActor->scriptInstructionPointer--;
         }
-        D_800B21CE = 1;
+        g_FieldPartyMoveStepRan = 1;
     }
 }
 

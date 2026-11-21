@@ -339,7 +339,7 @@ s32 BattleIsCharacterInParty(u8 arg0) {
 // operands swap. `i = 0` sits before the fourth test and `i++` leads the loop body: gcc sinks
 // a loop-initialiser written anywhere else down to the loop, and these two positions are
 // retail's fourth-bne delay slot (`addu $a3,zero,zero`) and its loop body head.
-void func_8009A854(u8 arg0, u8 arg1) {
+void BattleFillPartySlotWeaponRecord(u8 arg0, u8 arg1) {
     s32 off;
     u8* p;
     u8 id;

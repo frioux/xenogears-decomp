@@ -75,9 +75,9 @@ extern void BattleBeginAnimTask(u16 arg0);
 extern void BattleApplySlotMaskToEffects(u16 arg0);
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
 extern u16 BattleSlotBitMaskInverted(u8 arg0);
-extern u8 D_800C400B[];
-extern u16 D_800C4022[];
-extern u8 D_800C402F[];
+extern u8 g_BattleCommandCodes[];
+extern u16 g_BattleCommandSlotMasks[];
+extern u8 g_BattleCommandSlotIds[];
 extern u8 D_800CCD1C[];
 extern u8 g_BattleCommandGridIds[];
 typedef struct {
@@ -92,7 +92,7 @@ extern u8 g_BattleCommandRecords[];
 extern u8 BattleRunTargetSlotSelection(u16 arg0, u8 arg1, s32 arg2);
 extern s32 BattleIsCharacterInParty(s32 arg0);
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
-extern void func_8009A854(u8 arg0);
+extern void BattleFillPartySlotWeaponRecord(u8 arg0);
 extern u16 g_BattleActionSlotMask;
 extern u16 g_BattleActionParam;
 extern u8 g_BattleSlotFlags[];
@@ -201,9 +201,9 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
     if (mask == 0) {
         return;
     }
-    D_800C400B[g_BattleCommandQueue->count * 72] = arg1;
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF3;
-    D_800C4022[g_BattleCommandQueue->count * 36] = mask;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg1;
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xF3;
+    g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = mask;
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
 }
 
@@ -214,7 +214,7 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
 // the fill loop and the two arms couples the arm sums' `addu` destination with the
 // fill loop's constant register pair, and no spelling of the shared form gets both
 // (99.83%); with the three locals split it is 100.00 at retail's 824 bytes.
-void func_8008ADD0(u8 arg0) {
+void BattleQueueOneActorCommand(u8 arg0) {
     s32 off;
     s32 i;
     u16 mask;
@@ -229,7 +229,7 @@ void func_8008ADD0(u8 arg0) {
     value = 0xFF;
     for (fillOff = 0x8B8; fillOff >= 0; fillOff -= 0x48) {
         do {
-            D_800C402F[fillOff] = value;
+            g_BattleCommandSlotIds[fillOff] = value;
         } while (0);
     }
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
@@ -265,8 +265,8 @@ void func_8008ADD0(u8 arg0) {
     mask = BattleSlotBitMask(arg0);
     BattleBeginAnimTask(*pMask | mask);
     BattleInitActorSlotAnimation(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
-    D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleActionParam;
-    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = g_BattleActionParam;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = *pMask;
     for (i = 3; i < 11; i++) {
         if (BattleMaskHasSlotBit(*(volatile u16 *)&g_BattleActionSlotMask, i) != 0) {
@@ -550,7 +550,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     BattleApplySlotMaskToEffects(0);
     value = BATTLE_COMMAND_NONE;
     for (off = 0x8B8; off >= 0; off -= 0x48) {
-        D_800C402F[off] = value;
+        g_BattleCommandSlotIds[off] = value;
     }
     BattleInitActorSlotAnimation(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
     sel = g_BattleCommandEntries[g_BattleCommandQueue->commandId].flags & BATTLE_COMMAND_TARGET_MODE_MASK;
@@ -573,9 +573,9 @@ void BattleActivateSelectedCommand(u8 arg0) {
     g_BattleSlotCurveRunning = 1;
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
     g_BattleSlotCurveRunning = 0;
-    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF5;
-    D_800C4022[g_BattleCommandQueue->count * 36] = g_BattleActionParam;
-    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xF5;
+    g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = g_BattleActionParam;
+    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
     for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(g_BattleActionSlotMask, i) != 0) {
@@ -634,7 +634,7 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
                 BattleSetPrimFlagsTwoSlots(arg0);
             }
         } else if (BattleIsCharacterInParty(value - 0x32) != 0) {
-            func_8009A854(value);
+            BattleFillPartySlotWeaponRecord(value);
             value = g_BattleCommandGridAltUses[arg2 * 2 + arg1] - 1;
             g_BattleCommandGridAltUses[arg2 * 2 + arg1] = value;
             if (value == 0) {
@@ -848,8 +848,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 /* Best: 88.52% (932 bytes vs the original's 884). Same calls, same branch tree,
    same instruction multiset in every block except two shapes:
    1. loop-invariant base hoisting. Retail re-forms each of the three command
-      table bases inside the loop (`lui at,%hi(D_800C402F); addu at,at,v1;
-      sb %lo(D_800C402F)(at)`); gcc 2.6 hoists all three symbols into s3/s4/s5 in
+      table bases inside the loop (`lui at,%hi(g_BattleCommandSlotIds); addu at,at,v1;
+      sb %lo(g_BattleCommandSlotIds)(at)`); gcc 2.6 hoists all three symbols into s3/s4/s5 in
       the loop preheader (L8008C66C) and reaches them with `addu v0,v0,sN`,
       which also grows the frame from 0x28 to 0x38. The same expression outside
       the loop compiles to retail's at-form, so the source spelling is right and
@@ -896,9 +896,9 @@ s32 func_8008C4A8(u8 arg0) {
         D_800C4928 = result;
         BattleSetupActorSlotDisplay(arg0);
         if ((*(u16 *)(D_800CCD1C + g_BattleCommandQueue->slots[arg0].targetSlot * 0x170) & 0x800) != 0) {
-            D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
-            D_800C402F[g_BattleCommandQueue->count * 72] = 0xF3;
-            D_800C4022[g_BattleCommandQueue->count * 36] = BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
+            g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
+            g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xF3;
+            g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
             g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
         }
         for (i = 0; i < 7; i++) {
@@ -906,8 +906,8 @@ s32 func_8008C4A8(u8 arg0) {
                 g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2C4[i] + 8;
                 BattleBeginActorAction(arg0, BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot), g_BattleCommandQueue->unk2DC - 1);
                 BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
-                D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandQueue->unk2DC - 1;
-                D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+                g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = g_BattleCommandQueue->unk2DC - 1;
+                g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
                 *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
                 g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
             }

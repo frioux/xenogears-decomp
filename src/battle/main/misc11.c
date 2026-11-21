@@ -15,8 +15,8 @@ extern u8 *g_BattleDisplayState;
 extern u8 *g_BattleSpriteColumnWork;
 extern void *D_800D367C;
 extern u8 *g_BattlePrimPool;
-extern u8 D_800C400B[];
-extern u8 D_800C402F[];
+extern u8 g_BattleCommandCodes[];
+extern u8 g_BattleCommandSlotIds[];
 extern u8 g_BattleSoundEnabled;
 extern u8 g_BattleSlotFlags[];
 extern BattleTargetOrder g_BattleTargetScan;
@@ -48,7 +48,7 @@ extern u8 g_BattleSlotConditions[];
 extern u8 D_800C3EB8[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
-extern u8 D_800C4022[];
+extern u8 g_BattleCommandSlotMasks[];
 extern u8 g_BattleCommandRecords[];
 extern void BattleClearFlagC6(void);
 extern void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1);
@@ -72,7 +72,7 @@ extern void func_800861D0(u8 arg0, u8 arg1);
 extern s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1);
 extern u16 g_BattleSlotCountdownTimers[];
 extern u8 g_BattleGaugeCountdownTable[][8];
-extern void func_8008ADD0(u8 arg0);
+extern void BattleQueueOneActorCommand(u8 arg0);
 extern void BattleSetSlotFlag15A1(u8 arg0);
 extern u8 g_BattleSlotDisplayInitialized;
 extern u8 g_BattleTargetSlot;
@@ -346,8 +346,8 @@ s32 BattleFindMinValueOtherSlot(u8 arg0) {
 }
 
 void BattleQueueCommandFE(u8 color) {
-    D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFE;
-    D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
+    g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFE;
+    g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = color;
     g_BattleSoundEnabled = 0;
 }
 
@@ -442,9 +442,9 @@ void func_80080C94(u8 arg0) {
     case 1:
         g_BattleSlotDisplayInitialized = 0;
         if (g_BattleActorCharIds[arg0] != 4) {
-            D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
-            D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
-            *(u16 *)(D_800C4022 + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
+            g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
+            g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
+            *(u16 *)(g_BattleCommandSlotMasks + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
             *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue[0x2DA] * 0x48) =
                 BattleSlotBitMask((g_BattleCommandQueue + idx)[0x3C]);
             g_BattleCommandQueue[0x2DA]++;
@@ -468,7 +468,7 @@ void func_80080C94(u8 arg0) {
             *(u16 *)(D_800CCD38 + i) -= cost;
             g_BattleCommandQueue[0x2E6] = info[1];
             ret = 0;
-            func_8008ADD0(arg0);
+            BattleQueueOneActorCommand(arg0);
         }
         break;
     case 4:
@@ -749,7 +749,7 @@ void func_800816F8(u8 arg0) {
     case 7:
         BattleLoadStringTableAE(a);
         if (func_8008B478(a) != 0) {
-            func_8008ADD0(a);
+            BattleQueueOneActorCommand(a);
         } else {
             g_BattleCommandQueue[0x2DD] = 4;
         }
@@ -838,10 +838,10 @@ void BattleAppendCommandRecord(u8 arg0) {
         u8 *pTarget;
         u8 *pCmd;
         u16 mask;
-        D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
-        D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
+        g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
+        g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
         pTarget = g_BattleCommandQueue + idx;
-        *(u16 *)(D_800C4022 + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
+        *(u16 *)(g_BattleCommandSlotMasks + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
         mask = BattleSlotBitMask(pTarget[0x3C]);
         pCmd = g_BattleCommandQueue;
         *(u16 *)(g_BattleCommandRecords + pCmd[0x2DA] * 0x48) = mask;

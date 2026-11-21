@@ -39,7 +39,7 @@ extern u16 D_800ADF88[];
 extern u16 g_FieldTalkShorts[];
 extern s16 D_800B2342;
 extern u8 g_FieldAlternatePadAngles;
-extern u8 D_800B21CE;
+extern u8 g_FieldPartyMoveStepRan;
 extern s32 g_FieldSpriteUpdateIndex;
 extern int FieldActorTestMaterialScriptMask(ActorData* pActor);
 extern void func_80079288(void);
@@ -757,7 +757,7 @@ void FieldScriptVMHandlerCheckActorInteraction(void) {
         } else {
             g_FieldScriptVMCurActor->rotation.vx = nAngle | 0x8000;
         }
-    } else if (D_800B21CE == 0) {
+    } else if (g_FieldPartyMoveStepRan == 0) {
         g_FieldScriptVMCurActor->scriptFlags.flags |= 0x1000000;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer++;

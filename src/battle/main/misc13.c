@@ -141,8 +141,8 @@ extern s32 g_BattleLerpFracY;
 extern u8 g_BattleLerpDone;
 extern u8 GameRandomByteRange(s32, u8);
 extern s32 BattleMaskHasSlotBit(s32, u8);
-extern u8 D_800C400B[];
-extern u8 D_800C402F[];
+extern u8 g_BattleCommandCodes[];
+extern u8 g_BattleCommandSlotIds[];
 extern u8 D_800C34B3[][3];
 extern BattleCommandRow D_800CCD1C[];
 extern BattleTableEntry g_BattleWorkBlock[];
@@ -668,14 +668,14 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
    - the D_800CCD1C site's `addu` stays offset-first; the embedded assignment there
      costs the loaded byte its register (97.37).
    - `g_BattleCommandRecords[...].param` is the typed spelling, which folds the +0x24
-     addend into the instruction (`sh $v0,36($at)`) where retail relocs D_800C4022, so
+     addend into the instruction (`sh $v0,36($at)`) where retail relocs g_BattleCommandSlotMasks, so
      objdiff cannot reach 100% on it; the linked bytes are identical. Spelling it as
-     D_800C4022 instead costs a queue-pointer reload (1016 bytes, 96.89).
+     g_BattleCommandSlotMasks instead costs a queue-pointer reload (1016 bytes, 96.89).
    Load-bearing (each measured at 1004 bytes): the u8 parameters; the five later queue
    reads as an EMBEDDED ASSIGNMENT `(pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]`
    (96.14 -> 97.45); `(u16)BattleMaskHasStatusBit`; `*(u8 *)&g_BattleActionParam`;
    `BattleSlotBitMask` returning s32; `count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA]`
-   (97.45 -> 97.83); the two record stores as plain u8 arrays `D_800C402F[... * 0x48]`
+   (97.45 -> 97.83); the two record stores as plain u8 arrays `g_BattleCommandSlotIds[... * 0x48]`
    (the typed `command` field relocs +0x31 and costs the same three diff rows).
    Permuter from this body: base=180 best=100, two finds - the `stepNo` reuse for the
    BattleScriptScanForOpcode62 result (kept, 98.17 -> 99.60) and a
@@ -726,8 +726,8 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     }
     slot = (u8)arg0;
     if (D_800CCD1C[g_BattleCommandQueue[slot * 0x40 + 0x3C]].flags & 0x800) {
-        D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
-        D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF3;
+        g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
+        g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF3;
         g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].param =
             BattleSlotBitMask((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]);
         g_BattleCommandQueue[0x2DA] = g_BattleCommandQueue[0x2DA] + 1;
@@ -735,9 +735,9 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     BattleBeginActorAction(slot, (u16)BattleSlotBitMask((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]),
                            g_BattleCommandQueue[0x2DC] - 1);
     count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA];
-    D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
+    g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
     g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].slotMask = g_BattleActionSlotMask;
-    D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = *(u8 *)&g_BattleActionParam;
+    g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = *(u8 *)&g_BattleActionParam;
     g_BattleCommandQueue[0x2DA] = g_BattleCommandQueue[0x2DA] + 1;
     BattleSetSlotRegistersFromActor(slot, (pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]);
     if ((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C] >= 3) {
