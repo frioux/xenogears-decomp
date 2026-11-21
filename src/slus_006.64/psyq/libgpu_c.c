@@ -195,20 +195,28 @@ void func_80046EFC(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
 
-/* best 99.51% (364 bytes = retail's exact size, instruction ORDER identical -
-   only registers differ). Found so far: the discarded status read is a bare
+/* best 99.51% (364 bytes = retail's exact size, 91 insns, instruction ORDER
+   identical - only two ABI-visible registers differ). The GPU timeout panic
+   handler: Vsync(-1) against a deadline, then a queue dump and a queue reset.
+   Load-bearing spellings: the discarded status read is a bare
    "(void)*D_800569A4;" statement before the first printf, the queue word
    D_800569C4 must be declared volatile AND as an array ("extern volatile u_long
    D_800569C4[];" read as D_800569C4[0]) so its address materialises with
    lui+addiu, and the queue delta and the second printf's D_800569C8 must be
    staged through locals - that is what a permuter run turned 94.49 into 99.51.
-   Left: the port pointer D_800569A4 goes to a2 where retail has v1, so the
-   g_GpuQueueHead word goes to v1 where retail has t0; every other instruction in
-   the function is byte-identical.
-   Tried: three permuter runs (350 -> 45, then nothing in 3801 iterations), the
-   pointer in a local, an explicit volatile cast, D_800569A4[0] vs a deref of
-   D_800569A4 for each of the two reads, arg3 staged through a local (88.41%),
-   and both declaration orders of the two locals. -
+   Residual (allocator tie): the D_800569A4 pointer takes a2 where retail has
+   v1, which frees v1 for g_GpuQueueHead where retail has t0; every other
+   instruction is byte-identical.
+   Tried: four permuter runs (350 -> 45, 3801 iterations nothing, round 392
+   1335 iterations base=45 best=45 PERMUTER_NONE), the pointer in a local
+   ("volatile u_long *pPort = D_800569A4;", identical 99.51), an explicit
+   volatile cast, D_800569A4[0] vs a deref of D_800569A4 for each of the two
+   reads, arg3 staged through a local (88.41%), and both declaration orders of
+   the two locals. Round 392 also proved the array-extern lever dead here:
+   "extern volatile u_long *D_800569A4[];" makes the matched func_80046DB4 and
+   func_8004709C fail to compile ("invalid operands to binary &" on
+   *D_800569A4 & 0x1000), so the shared pointer global must stay a scalar.
+   The body below is the parked attempt.
 int func_80046F30(void) {
     u_long new_var2;
     int new_var;
@@ -233,8 +241,8 @@ int func_80046F30(void) {
     }
 
     return 0;
-} */
-
+}
+*/
 
 int func_8004709C(u_long mode) {
     *D_800569A4 = 0x10000007;
