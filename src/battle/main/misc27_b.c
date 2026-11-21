@@ -85,6 +85,14 @@ typedef struct {
     /* 0x30 */ s32 animId;
 } BattleSpriteFollowTask; // Size: 0x34
 
+// The sprite's colour as the line primitives copy it: red, green, blue and the
+// primitive code as one word, which the shared SpriteData header's four u8
+// fields cannot express. system/temp2 keeps the same view.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x28];
+    /* 0x28 */ u32 color;
+} BattleSpriteColorWord; // Size: 0x2C
+
 
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk.
 BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteData, s32 minDistance,
@@ -132,9 +140,9 @@ BattlePoint* BattleGetActorJointPoint(BattlePoint* pOut, SpriteData* pSpriteData
     // first store and this function compiles 8 bytes short of retail.
     do {
         BattleGetActorJointOffset(&point, pSpriteData, index);
-        ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+        ofs = ((BattleSpriteState*)pSpriteData)->position.xWhole;
         point.x = point.x + ofs;
-        ofs = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+        ofs = ((BattleSpriteState*)pSpriteData)->position.yWhole;
     } while (0);
     point.y = point.y + ofs;
     *pOut = point;
@@ -175,7 +183,7 @@ BattleSpriteFollowTask* BattleCreateSpriteFollowTask(SpriteData* pSpriteData, u8
     pTask->pSpriteData = pSpriteData;
     pTask->pTargetSprite = pSpriteData->pTargetEntitySprite;
     // Read unsigned: the frame the follow starts on is a 16-bit value
-    pTask->curSpriteFrame = *(u16*)&pSpriteData->curSpriteFrame;
+    pTask->curSpriteFrame = (u16)pSpriteData->curSpriteFrame;
     pTask->animId = (s8)pSpriteData->flags_0xAC.bytes[3];
     pTask->sourceJoint = pArgs[0] & 0xF;
     pTask->targetJoint = pArgs[0] >> 4;
@@ -241,7 +249,7 @@ void BattleDrawActorLinePrim(WorkListEntry* pWork) {
     u32 abr;
 
     pSpriteData = pWork->pSpriteData;
-    if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
+    if ((u16)pSpriteData->curSpriteFrame != 0) {
         return;
     }
     pBuf = g_GfxCurWorkBuffer;
@@ -249,11 +257,11 @@ void BattleDrawActorLinePrim(WorkListEntry* pWork) {
         return;
     }
     pLine = (LINE_F2*)pBuf;
-    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+    ofs = ((BattleSpriteState*)pSpriteData)->position.xWhole;
     vec.vx = ofs;
-    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    ofs = ((BattleSpriteState*)pSpriteData)->position.yWhole;
     vec.vy = ofs;
-    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->zWhole;
+    ofs = ((BattleSpriteState*)pSpriteData)->position.zWhole;
     vec.vz = ofs;
     g_GfxCurWorkBuffer = pBuf + 0x10;
     if (pSpriteData->field_0x3C_2 & 1) {
@@ -271,12 +279,15 @@ void BattleDrawActorLinePrim(WorkListEntry* pWork) {
     vec.vz -= pSpriteData->step.z >> shift;
     RotTransPers(&vec, (s32*)&pLine->x1, &flag, &flag);
     setlen(pLine, 3);
-    *(u32*)&pLine->r0 = *(u32*)&pSpriteData->red;
+    *(u32*)&pLine->r0 = ((BattleSpriteColorWord*)pSpriteData)->color;
     AddPrim(&g_GfxCurOT[otz], pLine);
     pTpage = (DR_TPAGE*)g_GfxCurWorkBuffer;
     if ((u8*)(pTpage + 1) >= g_GfxCurWorkBufferEnd) {
         return;
     }
+    // Bits 5-7 of the 0x3C word sit inside the header's 20-bit field_0x3C_0; a
+    // bitfield view for them reads the byte into one register and comes out at
+    // 99.91%, so the raw byte stays.
     abr = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
     if (abr == 0) {
         return;
@@ -307,7 +318,7 @@ void func_800B6004(WorkListEntry* pWork) {
     u32 abr;
 
     pSpriteData = pWork->pSpriteData;
-    if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
+    if ((u16)pSpriteData->curSpriteFrame != 0) {
         return;
     }
     pLine = (LINE_F2*)g_GfxCurWorkBuffer;
@@ -315,11 +326,11 @@ void func_800B6004(WorkListEntry* pWork) {
     if ((u8*)(pLine + 1) >= g_GfxCurWorkBufferEnd) {
         return;
     }
-    coord = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+    coord = ((BattleSpriteState*)pSpriteData)->position.xWhole;
     vec.vx = coord;
-    coord = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    coord = ((BattleSpriteState*)pSpriteData)->position.yWhole;
     vec.vy = coord;
-    coord = ((BattleFixed16Vector*)&pSpriteData->position)->zWhole;
+    coord = ((BattleSpriteState*)pSpriteData)->position.zWhole;
     vec.vz = coord;
     g_GfxCurWorkBuffer = (u8*)(pLine + 1);
     SetRotMatrix(&g_GfxBaseMatrix);
@@ -329,21 +340,21 @@ void func_800B6004(WorkListEntry* pWork) {
     // Retail refills the same vertex from the sprite before overwriting it with
     // the linked sprite's, dead stores included. The first read keeps its own
     // local because retail still holds the projected depth in $v0 there.
-    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+    ofs = ((BattleSpriteState*)pSpriteData)->position.xWhole;
     vec.vx = ofs;
-    coord = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    coord = ((BattleSpriteState*)pSpriteData)->position.yWhole;
     vec.vy = coord;
-    coord = ((BattleFixed16Vector*)&pSpriteData->position)->zWhole;
+    coord = ((BattleSpriteState*)pSpriteData)->position.zWhole;
     vec.vz = coord;
-    coord = ((BattleFixed16Vector*)&pLinked->position)->xWhole;
+    coord = ((BattleSpriteState*)pLinked)->position.xWhole;
     vec.vx = coord;
-    coord = ((BattleFixed16Vector*)&pLinked->position)->yWhole;
+    coord = ((BattleSpriteState*)pLinked)->position.yWhole;
     vec.vy = coord;
-    coord = ((BattleFixed16Vector*)&pLinked->position)->zWhole;
+    coord = ((BattleSpriteState*)pLinked)->position.zWhole;
     vec.vz = coord;
     RotTransPers(&vec, (s32*)&pLine->x1, &p, &p);
     setlen(pLine, 3);
-    *(u32*)&pLine->r0 = *(u32*)&pSpriteData->red;
+    *(u32*)&pLine->r0 = ((BattleSpriteColorWord*)pSpriteData)->color;
     AddPrim(&g_GfxCurOT[otz], pLine);
     pTpage = (DR_TPAGE*)g_GfxCurWorkBuffer;
     if ((u8*)(pTpage + 1) >= g_GfxCurWorkBufferEnd) {
