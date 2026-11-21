@@ -30,8 +30,24 @@ typedef struct {
 extern BattleOpRegs g_BattleSlotRegs[];
 extern u8 g_BattleSlotWordRegs[];
 extern u16 D_8005A3A0[];
-extern u8 g_BattleSlotFlags[];
-extern u8 g_BattleSlotRecords[];
+
+// One of the 8-byte per-slot "can be picked" records at g_BattleSlotFlags; only
+// its first byte is read here.
+typedef struct {
+    /* 0x0 */ u8 inUse;
+    /* 0x1 */ u8 unk1[0x7];
+} BattleSlotFlag; // Size: 0x8
+
+extern BattleSlotFlag g_BattleSlotFlags[];
+
+// One of the 0x1C-byte per-slot records at g_BattleSlotRecords: the tag at +0 is
+// the character occupying the slot.
+typedef struct {
+    /* 0x0 */ u8 tag;
+    /* 0x1 */ u8 unk1[0x1B];
+} BattleSlotRecord; // Size: 0x1C
+
+extern BattleSlotRecord g_BattleSlotRecords[];
 
 // One slot of the per-slot operator argument block at D_800CCDE8 (stride
 // 0x170): g_BattleWorkBlock + 0x100, i.e. the BattleTableEntry rows seen from
@@ -282,22 +298,35 @@ void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
 // read lever does not reach a GIV base), an index-first cast
 // `*(u8 *)((idx * 8) + (s32)g_BattleSlotFlags)`. Earlier rounds: nested ifs,
 // `&&`, -G0. screened: 91.53 is the max of Default / cdk 88.92 / 2.6.0 91.53.
+// best: 91.41% (340 bytes against retail's 332; 85 instructions against 83). The
+// body is the twin of misc8's BattlePickCharSlotWithDifferentTag minus its
+// g_BattleSlotRecords comparison, and every instruction matches except the one
+// residual the round-388 note already names: gcc's strength_reduce makes a biv out
+// of `g_BattleSlotFlags + idx * 8` because idx is loop-variant, hoists the symbol
+// into a spare callee-saved register (s5, frame 56 against retail's 48) where retail
+// keeps it inside the mem operand and lets maspsx expand `lui at / addu at,at,v0 /
+// lbu %lo(at)` every iteration. The misc8 twin does NOT hoist there, so the
+// difference is the loop body's size, not the compiler: 2.6.0 hoists the same way
+// and scores the same 91.41.
+// Tried and no better (all 91.41): the misc8 `s32 slot` / `u8 idx` split (needed for
+// the s1 raw / s0 masked pair, and it is kept below), `&g_BattleSlotFlags[idx]`
+// through a u8 pointer, the `u8 *pFlags = g_BattleSlotFlags` base local, a volatile
+// read, index-first casts, nested ifs, -G0.
 /*
-void func_8007BD5C(u8 **p, u8 index) {
+void func_8007BD5C(BattleCommand **p, u8 index) {
     u8 buf[3];
     u16 *pField = g_BattleSlotRegs[index].wordRegs;
-    u8 idx;
 
     buf[0] = buf[1] = buf[2] = 0;
-    pField[(*p)[1]] = 0;
-    while (!(buf[0] & buf[1] & buf[2])) {
-        idx = GameRandomByteRange(0, 2);
+    pField[(*p)->operand1] = 0;
+    while ((buf[0] & buf[1] & buf[2]) == 0) {
+        s32 slot = GameRandomByteRange(0, 2);
+        u8 idx = slot;
+
         if (buf[idx] == 0) {
-            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)[2]) != 0) {
-                if (g_BattleSlotFlags[idx * 8] == 0) {
-                    pField[(*p)[1]] = BattleSlotBitMask(idx);
-                    break;
-                }
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)->operand2) != 0 && g_BattleSlotFlags[idx].inUse == 0) {
+                pField[(*p)->operand1] = BattleSlotBitMask(idx);
+                break;
             }
             buf[idx] = 1;
         }
@@ -313,28 +342,26 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BD5C);
 // 0x54 and steps by 0x1C). Nothing found yet that keeps the symbol inside
 // the mem address.
 // screened: cdk 77.76% and 2.6.0 76.81% against 76.81% Default - not close.
-/*
-void func_8007BEA8(u8 **p, u8 index) {
+void func_8007BEA8(BattleCommand **p, u8 index) {
     u8 buf[3];
-    u8 idx;
 
     buf[0] = buf[1] = buf[2] = 0;
-    ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] = 0;
-    while (!(buf[0] & buf[1] & buf[2])) {
-        idx = GameRandomByteRange(0, 2);
+    g_BattleSlotRegs[index].wordRegs[(*p)->operand1] = 0;
+    while ((buf[0] & buf[1] & buf[2]) == 0) {
+        s32 slot = GameRandomByteRange(0, 2);
+        u8 idx = slot;
+
         if (buf[idx] == 0) {
-            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)[2]) != 0
-                && g_BattleSlotRecords[(index + 3) * 0x1C] == g_BattleSlotRecords[idx * 0x1C]
-                && g_BattleSlotFlags[idx * 8] == 0) {
-                ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] = BattleSlotBitMask(idx);
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)->operand2) != 0
+                && g_BattleSlotRecords[index + 3].tag == g_BattleSlotRecords[idx].tag
+                && g_BattleSlotFlags[idx].inUse == 0) {
+                g_BattleSlotRegs[index].wordRegs[(*p)->operand1] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
         }
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BEA8);
 // best: 65.42%. Structure recovered (collect the 3..10 slots whose
 // g_BattleSlotRecords entry equals the (index+3) one into a stack buffer, then pick
 // one at random; both g_BattleSlotWordRegs stores are spelled inline, retail
@@ -342,24 +369,28 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BEA8);
 // func_8007BEA8 (g_BattleSlotRecords/g_BattleSlotFlags bases into callee-saved registers,
 // +8 frame). -G0 changes nothing.
 // screened: 2.6.0 gives 72.75% vs 65.42% Default, still far off; cdk 65.48%.
-/*
-void func_8007C040(u8 **p, u8 index) {
-    u8 buf[9];
+void func_8007C040(BattleCommand **p, u8 index) {
+    u8 buf[8];
+    s32 i = 3;
     s32 count = 0;
-    s32 i;
+    u16 *pField = g_BattleSlotRegs[index].wordRegs;
 
-    ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] = 0;
-    for (i = 3; i < 11; i++) {
-        if (BattleSlotFlagsC002ClearRecordIdle(i, (*p)[2]) != 0
-            && g_BattleSlotRecords[(index + 3) * 0x1C] == g_BattleSlotRecords[i * 0x1C]
-            && g_BattleSlotFlags[i * 8] == 0) {
-            buf[count++] = i;
+    pField[(*p)->operand1] = 0;
+    for (; i < 0xB; i++) {
+        u8 idx = i;
+
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)->operand2) != 0
+            && g_BattleSlotRecords[index + 3].tag == g_BattleSlotRecords[i].tag
+            && g_BattleSlotFlags[i].inUse == 0) {
+            buf[count++] = idx;
         }
     }
     if (count != 0) {
-        ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] =
-            BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
+        s32 last = count - 1;
+        u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
+        s32 slot = (*p)->operand1;
+        u16 *pRow = g_BattleSlotRegs[index].wordRegs;
+
+        pRow[slot] = result;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007C040);
