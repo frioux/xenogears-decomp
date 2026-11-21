@@ -326,33 +326,30 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     g_BattleDisplayState->primState = 2;
 }
 */
-/*
-99.62% (212 bytes = retail's 0xd4): instruction-for-instruction identical except one
-   swapped add: retail puts the -4 on the parameter (`addiu a3,s2,-4; addu a3,s0,a3`)
-   where gcc 2.7.2 folds it onto the loop GIV (`addiu a3,s0,-4; addu a3,s2,a3`).
-   Tried: arg0-4+offset, (arg0-4)+offset, offset+(arg0-4), a pre-loop `y = arg0` copy
-   used as `y - 4 + offset` (99.02), and a 4-minute permuter run (2512 iterations, no
-   improvement). The base spelling is `(u8 *)g_BattleGraphicsWork + ...`: the raw
-   `g_BattleGraphicsWork + 0xBA8` in the earlier note scaled by sizeof(BattleGraphicsWork)
-   (0xA2C8) and never compiled.
 void func_8009023C(s32 arg0) {
     s32 i;
     s32 offset;
+    s32 ofs;
     s32 size;
+    s32 sum;
 
     g_BattleDisplayState->spriteColumnPackageCount = 0;
     i = 0;
-    for (offset = 0x68; i < 9; i++) {
-        size = BattleDrawSpritePackage(0x66, (u8 *)g_BattleGraphicsWork + (g_BattleDisplayState->spriteColumnPackageCount * 0x50 + 0xBA8), 0x20, arg0 - 4 + offset);
-        g_BattleDisplayState->spriteColumnPackageCount = size + g_BattleDisplayState->spriteColumnPackageCount;
-        offset += 8;
+    offset = 0x68;
+next:
+    sum = arg0 - 4;
+    ofs = g_BattleDisplayState->spriteColumnPackageCount * 0x50;
+    ofs += 0xBA8;
+    size = BattleDrawSpritePackage(0x66, ofs + (s32)g_BattleGraphicsWork, 0x20, offset + sum);
+    g_BattleDisplayState->spriteColumnPackageCount = size + g_BattleDisplayState->spriteColumnPackageCount;
+    offset += 8;
+    i++;
+    if (i < 9) {
+        goto next;
     }
     g_BattleDisplayState->spriteColumnPrimStart = *(u8 *)&g_BattlePrimStartIndex;
     g_BattleDisplayState->spriteColumnPending = 1;
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009023C);
-/* 81.85% (400 bytes; retail 0x188 = 100 insns). The array-extern
+}/* 81.85% (400 bytes; retail 0x188 = 100 insns). The array-extern
    `extern s32 g_BattlePrimStartIndex[]` + `g_BattlePrimStartIndex[0]` gave retail's
    `lui s2,%hi / addiu s2,s2,%lo / lw v1,0(s2)` (74.61 -> 81.85); the base is
    `*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)`, which reproduces retail's
