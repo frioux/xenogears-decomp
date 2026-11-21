@@ -218,7 +218,11 @@ and you decide.
     matched functions regress: a split case, not a switch.
   - The other old-gcc builds (2.6.3, 2.7.0, 2.7.1, 2.7.2.1, 2.7.2.2, 2.7.2.3, 2.8.0)
     unlock nothing: 2.6.3 scores exactly as 2.6.0 and the rest only regress. Do not
-    re-test them. The remaining allocator residuals are not an old-gcc version question.
+    re-test them. The original Psy-Q `CC1PSX.EXE` binaries (4.0 and 4.1, run under
+    wibo) were tested too: 4.0 is identical to the 2.7.2 rebuild on every unit and
+    every 99%+ park, and 4.1 differs from the cdk rebuild only in calling `memcpy`
+    where the rebuild calls `bcopy` for a struct copy. So the allocator residuals are
+    not a compiler-version question at all; they need a source change or stay parked.
   - Park notes are stale: 7 of 62 parks noted at 99%+ re-measure 0.5-19 points lower
     and 7 no longer compile. Workers re-measure before trusting a note.
 
