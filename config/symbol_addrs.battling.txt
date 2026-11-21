@@ -797,3 +797,7 @@ g_BattleEffectPolys = 0x80096D90;
 g_BattleEffectTiles = 0x80096DE0;
 g_BattleEffectDrawModes = 0x80096E00;
 g_BattleOptionPages = 0x80091368;
+g_BattleDimTpagePrims = 0x800955C8;
+g_BattleActor0Node = 0x80097070;
+g_BattleActor1Node = 0x8009878C;
+g_BattleEffectNode = 0x8009706C;

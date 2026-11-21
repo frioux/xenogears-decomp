@@ -342,7 +342,7 @@ extern void func_80085CDC(void);
 extern void func_8008615C(void);
 extern void func_800747DC(void);
 extern void func_800848F4(void);
-extern void func_800980D4(s32* p);
+extern void WorldMapUpdateSlotGridOrigin(s32* p);
 extern void func_800981C8(s32* p);
 extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
@@ -368,7 +368,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     func_8008615C();
     func_800747DC();
     func_800848F4();
-    func_800980D4(&g_WorldMapScrollX);
+    WorldMapUpdateSlotGridOrigin(&g_WorldMapScrollX);
     if (g_WorldMapSlotUpdateFlags != 0) {
         func_800981C8(&g_WorldMapCameraTarget);
         WorldMapWaitForLoadSlotFree();

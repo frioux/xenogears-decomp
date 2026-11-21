@@ -838,7 +838,7 @@ typedef struct {
 
 extern Misc8BattleGrid g_BattleGridCells[];
 extern POLY_G4 D_80095580[2];
-extern DR_TPAGE D_800955C8[4];
+extern DR_TPAGE g_BattleDimTpagePrims[4];
 extern Misc8DimSprites D_800955F8;
 extern void BattleInitDrawEnvPair(void);
 extern void func_800732AC(void *pDst, void *pSrc, s32 n);
@@ -859,7 +859,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081ECC);
    merge them).  Everything else is byte-exact: the prologue/epilogue, the
    0x24-byte block move of D_80095580[0] into D_80095580[1] (loop of 4 words
    plus one trailing word), the four GetTPage/SetDrawTPage pairs with
-   D_800955C8 in $s0, the header stores, the func_800732AC copy of the 0x14-byte
+   g_BattleDimTpagePrims in $s0, the header stores, the func_800732AC copy of the 0x14-byte
    sprite template into five 0x14-byte copies, the eight copy fixups, the
    0x4000-entry x12 scale loop on g_BattleGridCells and the BattleInitSpanBuffers tail.
    Tried: per-vertex interleaved field writes (70.16%), all four setRGB first
@@ -890,10 +890,10 @@ void func_80081ECC(void) {
     D_80095580[0].y3 = 0x60;
     D_80095580[1] = D_80095580[0];
 
-    SetDrawTPage(&D_800955C8[0], 0, 0, GetTPage(2, 2, 0, 0x100));
-    SetDrawTPage(&D_800955C8[1], 0, 0, GetTPage(2, 2, 0, 0));
-    SetDrawTPage(&D_800955C8[2], 0, 0, GetTPage(2, 2, 0x100, 0x100));
-    SetDrawTPage(&D_800955C8[3], 0, 0, GetTPage(2, 2, 0x100, 0));
+    SetDrawTPage(&g_BattleDimTpagePrims[0], 0, 0, GetTPage(2, 2, 0, 0x100));
+    SetDrawTPage(&g_BattleDimTpagePrims[1], 0, 0, GetTPage(2, 2, 0, 0));
+    SetDrawTPage(&g_BattleDimTpagePrims[2], 0, 0, GetTPage(2, 2, 0x100, 0x100));
+    SetDrawTPage(&g_BattleDimTpagePrims[3], 0, 0, GetTPage(2, 2, 0x100, 0));
 
     setSprt(&D_800955F8.sprt);
     setRGB0(&D_800955F8.sprt, 0x70, 0x70, 0x70);

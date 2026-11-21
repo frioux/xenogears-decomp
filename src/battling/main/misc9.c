@@ -129,12 +129,12 @@ extern u8* g_BattleRootOrderingTable;
 // One draw-buffer pair of sprites and tpage prims, set up by misc8's
 // func_80081ECC; misc8.c declares the same 0x14-byte block as Misc8DimSprites.
 extern SPRT D_800955F8[];
-extern DR_TPAGE D_800955C8[];
+extern DR_TPAGE g_BattleDimTpagePrims[];
 // The node pointers the light group's matrices are copied into, and the two
 // effect node trees walked after them.
-extern Misc9Node* D_8009706C;
-extern Misc9Node* D_80097070;
-extern Misc9Node* D_8009878C;
+extern Misc9Node* g_BattleEffectNode;
+extern Misc9Node* g_BattleActor0Node;
+extern Misc9Node* g_BattleActor1Node;
 extern Misc9Node* g_BattleEffectPool;
 
 extern void BattleSetMatrixFromPoints(Misc9LightGroup* pGroup, VECTOR* pFrom, VECTOR* pTo);
@@ -1038,13 +1038,13 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800846A0);
    0x20 slot before it and a dead 0x10 slot after it (0x70 frame).
    Two shapes are load-bearing and were found by the permuter: the two shadow
    node pointers must be read into locals (pNodeA/pNodeB) BEFORE the store to
-   pNodeA, otherwise gcc re-reads D_80097070 and the body is 8 bytes long; and
+   pNodeA, otherwise gcc re-reads g_BattleActor0Node and the body is 8 bytes long; and
    the matrix copy must go through the local MATRIX (retail reads it back off the
    stack for both node stores and again for gte_SetRotMatrix_gpr).
    D_800955F8 + n*0x14 is the SPRT block misc8.c declares as Misc8DimSprites
    (sprt then copies[5]); the original's object names element 4 as D_80095648
    and reaches elements 2 and 0 by -0x28/-0x50 displacement off it, and names
-   D_800955D8 for the second DR_TPAGE pair of the block at D_800955C8. Only the
+   D_800955D8 for the second DR_TPAGE pair of the block at g_BattleDimTpagePrims. Only the
    reloc names differ, not the addresses.
 // Draws one frame of battle rendering from a light group: the actor HUD panels,
 // the node trees' matrices, the two actor shadows, the camera aim ring or hexagon
@@ -1063,8 +1063,8 @@ s32 func_800846A0(Misc9LightGroup* pGroup) {
     BattleSetMatrixFromPoints(pGroup, (VECTOR*)&g_BattleCameraPos, (VECTOR*)&g_BattleCameraTarget);
     BattleResetTextPrimQueue();
     mat = pGroup->pNode0->localMatrix;
-    pNodeA = D_80097070;
-    pNodeB = D_8009878C;
+    pNodeA = g_BattleActor0Node;
+    pNodeB = g_BattleActor1Node;
     pNodeA->localMatrix = mat;
     pNodeB->localMatrix = pNodeA->localMatrix;
     BattleDisableBackColor();
@@ -1077,17 +1077,17 @@ s32 func_800846A0(Misc9LightGroup* pGroup) {
     BattleFadeActorLights(pGroup, &g_BattleActor1, 1);
     BattleUpdateNodeTree(g_BattleEffectPool);
     BattleFadeActorLights(pGroup, &g_BattleActor0, 1);
-    BattleUpdateNodeTree(D_8009706C);
+    BattleUpdateNodeTree(g_BattleEffectNode);
     gte_SetRotMatrix_gpr(&mat);
     BattleEffectSetMatrix(pWork->pOt[g_BattleDrawBufferIndex], &pGroup->pNode0->localMatrix);
     BattleEffectQueuePrims(pWork->pOt[g_BattleDrawBufferIndex]);
     BattleAttachActorPrims(pWork);
     BattleAddSharedPrim();
     AddPrim(g_BattleRootOrderingTable, &D_800955F8[g_BattleDrawBufferIndex + 4]);
-    AddPrim(g_BattleRootOrderingTable, &D_800955C8[g_BattleDrawBufferIndex + 2]);
+    AddPrim(g_BattleRootOrderingTable, &g_BattleDimTpagePrims[g_BattleDrawBufferIndex + 2]);
     AddPrim(g_BattleRootOrderingTable, &D_800955F8[g_BattleDrawBufferIndex + 2]);
     AddPrim(g_BattleRootOrderingTable, &D_800955F8[g_BattleDrawBufferIndex]);
-    AddPrim(g_BattleRootOrderingTable, &D_800955C8[g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &g_BattleDimTpagePrims[g_BattleDrawBufferIndex]);
     return 0;
 }
 */

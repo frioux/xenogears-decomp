@@ -95,7 +95,7 @@ extern s32 g_WorldMapScrollY;
 extern s32 g_WorldMapScrollZ;
 extern s16 g_WorldMapGridOrigin;
 extern s16 D_8009C83A;
-extern s16 D_8009C83C;
+extern s16 g_WorldMapGridTileRowOrigin;
 
 s32 WorldMapUpdateLoadQueue(void) {
     s32 result = 0;
@@ -700,7 +700,7 @@ void WorldMapSetGridPosition(s32 *p) {
     z = *(volatile s32 *)&p[2];
     *(volatile s16 *)&g_WorldMapGridOrigin = 2;
     *(volatile s16 *)&D_8009C83A = 0;
-    *(volatile s16 *)&D_8009C83C = 2;
+    *(volatile s16 *)&g_WorldMapGridTileRowOrigin = 2;
     g_WorldMapScrollZ = z & 0x7FFFFF;
     func_800981C8((s32)p);
     WorldMapSubmitGridImageLoads();

@@ -219,12 +219,12 @@ void WorldMapFreeSpritePrimBuffers(void) {
 // matrix copies (g_WorldMapViewMatrix and g_WorldMapIdentityMatrix into 0x1F800028/0x1F800048), RotMatrixZ
 // and the 0x10-halfword copy of g_WorldMapClutIds are instruction-for-instruction exact, and
 // the 5x5 tile loop matches too. The remaining 20 bytes are one register:
-// retail hoists g_WorldMapPrimBlocks (s3) and &D_8009C83C (s4) but re-forms D_8009D618's
+// retail hoists g_WorldMapPrimBlocks (s3) and &g_WorldMapGridTileRowOrigin (s4) but re-forms D_8009D618's
 // address with `lui $at / addu $at,$at,v0` at each use; gcc here hoists that address
 // into a sixth callee-saved register (s5), which is the extra save/restore pair and
 // the 0x30 frame instead of 0x28. gcc also fills retail's `beq` delay slot (a nop)
 // with the row-origin load. Second delta, cosmetic only: retail's origin base is
-// &D_8009C83C with displacements 0 and -4, a struct at g_WorldMapGridOrigin gives 4 and 0 -
+// &g_WorldMapGridTileRowOrigin with displacements 0 and -4, a struct at g_WorldMapGridOrigin gives 4 and 0 -
 // the same linked bytes, so check_bin cannot see it.
 // What got the score here (in order): two separate s16 externs 88.99, then ONE loop
 // counter shared by the copy loop and the inner column loop - that is what puts

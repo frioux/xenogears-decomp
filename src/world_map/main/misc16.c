@@ -30,7 +30,7 @@ typedef struct {
 
 extern u16 g_WorldMapSlotUpdateFlags;
 extern s16 g_WorldMapGridOrigin;
-extern s16 D_8009C83C;
+extern s16 g_WorldMapGridTileRowOrigin;
 
 typedef struct {
     /* 0x0 */ s16 sin;
@@ -69,7 +69,7 @@ void WorldMapComputeClipPlaneVectors(void) {
     OuterProduct0(&g_WorldMapClipPlaneAxisX, &g_WorldMapClipPlaneDirYPos, &g_WorldMapClipPlaneYZ1);
 }
 
-void func_800980D4(WorldMapMisc16Struct* p) {
+void WorldMapUpdateSlotGridOrigin(WorldMapMisc16Struct* p) {
     s32 y;
     s32 x;
     s32 z;
@@ -95,7 +95,7 @@ void func_800980D4(WorldMapMisc16Struct* p) {
     g_WorldMapGridOrigin = (y >> 23) + 2;
     /* the z re-read has to stay below the store above it */
     y = *(volatile s32*)&p->z;
-    D_8009C83C = (y >> 23) + 2;
+    g_WorldMapGridTileRowOrigin = (y >> 23) + 2;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
 /* 94.52%, 464 bytes against retail's 472 (re-measured round 381; the earlier
@@ -130,7 +130,7 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     w = g_WorldMapTileColumns;
     h = g_WorldMapTileRows;
     col = (p->x >> 12) / 8 - ((g_WorldMapGridOrigin + 2) << 8);
-    row = (p->z >> 12) / 8 - ((D_8009C83C + 2) << 8);
+    row = (p->z >> 12) / 8 - ((g_WorldMapGridTileRowOrigin + 2) << 8);
     if (col < 0) {
         col += w << 8;
     } else if ((w << 8) < col) {
@@ -631,7 +631,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
             }
             y = *(volatile u16*)0x1F80032C;
             x = *(volatile u16*)0x1F800328;
-            pImg = g_WorldMapTileCellPointers[g_WorldMapGridTileIds.grid[(row + D_8009C83C) * 9 + col + g_WorldMapGridOrigin]];
+            pImg = g_WorldMapTileCellPointers[g_WorldMapGridTileIds.grid[(row + g_WorldMapGridTileRowOrigin) * 9 + col + g_WorldMapGridOrigin]];
             *(volatile u16*)0x1F800330 = *(volatile u16*)0x1F800340 = *(volatile u16*)0x1F800328 + 0x400;
             *(volatile u16*)0x1F800334 = y;
             *(volatile u16*)0x1F800338 = x;

@@ -999,7 +999,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
 */
 
 
-extern s32 D_80065B08;
+extern s32 g_FieldUpdatingActorIndex;
 extern s32 D_800ADB68;
 extern s32 g_FieldPartyActorSlots[];
 extern u16 g_FieldP1ButtonsPressed;
@@ -1031,7 +1031,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
    tests read g_FieldPartyActorSlots[1]/[2] (+4/+8 addends) where retail's relocs
    name D_8005A448/D_8005A44C - the linked bytes are identical, so diff_func folds
    them but objdiff cannot reach 100.00 there.
-   Everything else is settled: the 0x1000000 early out with D_80065B08 = actorIndex
+   Everything else is settled: the 0x1000000 early out with g_FieldUpdatingActorIndex = actorIndex
    written before it, hitTimer's unsigned `>= 9` test, moving = move.vx|vy|vz with
    func_8008492C(pActor) == -1 forcing 1, the 0x40800 lock test, pos = pSprite->step
    then three adds (that struct copy is what reproduces retail's double store of
@@ -1054,7 +1054,7 @@ void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
 
     pSprite = pFieldActor->pSpriteData;
     angle = pActor->rotation.vx;
-    D_80065B08 = actorIndex;
+    g_FieldUpdatingActorIndex = actorIndex;
     if (pActor->scriptFlags.flags & 0x1000000) {
         return;
     }

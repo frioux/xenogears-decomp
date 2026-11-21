@@ -103,7 +103,7 @@ extern s32 g_WorldMapCameraTarget;
 extern s32 g_WorldMapCameraTargetY;
 extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapGridOrigin;
-extern s32 D_8009C83C;
+extern s32 g_WorldMapGridTileRowOrigin;
 extern s16 g_WorldMapTrailCursor;
 extern s32 g_WorldMapCameraHeight;
 extern s16 g_WorldMapPlayerAngle;
@@ -341,7 +341,7 @@ typedef struct {
     /* 0x22D0 */ s32 fadeLevel;
     /* 0x22D4 */ WorldMapQuad scroll;
     /* 0x22E4 */ s32 gridOrigin;
-    /* 0x22E8 */ s32 unk22E8; // D_8009C83C
+    /* 0x22E8 */ s32 unk22E8; // g_WorldMapGridTileRowOrigin
     /* 0x22EC */ WorldMapQuad cameraTarget;
 } WorldMapSaveData; // Size: 0x22FC
 
@@ -365,7 +365,7 @@ void WorldMapSaveState(void) {
     pSave->cameraHeight = g_WorldMapCameraHeight;
     pSave->fadeLevel = g_WorldMapFadeLevel;
     pSave->gridOrigin = g_WorldMapGridOrigin;
-    pSave->unk22E8 = D_8009C83C;
+    pSave->unk22E8 = g_WorldMapGridTileRowOrigin;
     pSave->scroll.w0 = g_WorldMapScrollX;
     pSave->scroll.w1 = g_WorldMapScrollY;
     pSave->scroll.w2 = g_WorldMapScrollZ;
