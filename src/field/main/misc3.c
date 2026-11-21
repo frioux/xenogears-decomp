@@ -476,6 +476,11 @@ typedef struct {
 } FieldWalkmesh; // Size: 0x3E
 
 extern FieldWalkmesh g_FieldWalkmesh;
+// The header pointers the renderer reads (field/main/misc4.c uses the same names)
+extern u32* g_FieldWalkmeshMaterialFlags;
+extern s16 g_FieldWalkmeshTriCount;
+extern u32* g_FieldWalkmeshTriangles[];
+extern u32* g_FieldWalkmeshVertices[];
 extern s32 D_800AFD10;
 
 // The screen effect setup record at 0x800B0080 and the parameter record at
@@ -658,16 +663,16 @@ void FieldLoad(void) {
 
     pWalk = &g_FieldWalkmesh;
     pWord = (u32*)pWalk->pFile + 1;
-    pWalk->triCount = *(s32*)pWalk->pFile;
+    g_FieldWalkmeshTriCount = *(s32*)pWalk->pFile;
     for (i = 0; i < 4; i++) {
         pWalk->unk2C[i] = *pWord++ / 14;
     }
-    pWalk->pMaterialFlags = (u32*)((u8*)pWalk->pFile + *pWord++);
-    for (i = 0; i < pWalk->triCount; i++) {
-        pWalk->pTriangles[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
-        pWalk->pVertices[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
+    g_FieldWalkmeshMaterialFlags = (u32*)((u8*)pWalk->pFile + *pWord++);
+    for (i = 0; i < g_FieldWalkmeshTriCount; i++) {
+        g_FieldWalkmeshTriangles[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
+        g_FieldWalkmeshVertices[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
     }
-    D_800AFD10 = pWalk->pTriangles[0] - pWalk->pMaterialFlags;
+    D_800AFD10 = g_FieldWalkmeshTriangles[0] - g_FieldWalkmeshMaterialFlags;
 
     size = STAGED_FILE->spriteDataSize + 0x10;
     g_FieldSpriteData = HeapAlloc(size, 0);
@@ -815,11 +820,11 @@ void FieldLoad(void) {
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         pActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
         if (pActor->status & 0x40) {
-            if (pActor->pActorData->flags & 0x1000000) {
-                SpriteSetDirection(pActor->pSpriteData, pActor->pActorData->rotation.vz);
-            } else {
+            if ((pActor->pActorData->flags & 0x1000000) == 0) {
                 func_800223B0(pActor->pSpriteData,
                               (s16)((u16)pActor->pActorData->rotation.vz + (u16)g_CamInterpolation.curAngleY));
+            } else {
+                SpriteSetDirection(pActor->pSpriteData, pActor->pActorData->rotation.vz);
             }
         }
     }
