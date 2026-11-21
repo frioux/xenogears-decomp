@@ -67,7 +67,7 @@ extern void BattleInitActorSlotAnimation(s32 arg0, s32 arg1, s32 arg2, s32 arg3)
 extern s32 func_80087AF0(u8 arg0, u8 arg1);
 extern void BattlePlaySoundWithBaseId(u8 arg0);
 extern void BattleActorInitSpriteFromSlot(void);
-extern void func_80085D34(void);
+extern void BattleDrawCommandRowSprites(void);
 extern void func_800861D0(u8 arg0, u8 arg1);
 extern s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1);
 extern u16 g_BattleSlotCountdownTimers[];
@@ -1019,7 +1019,7 @@ void func_80081B58(u32 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue =
                 ((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue
                 - ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost;
-            func_80085D34();
+            BattleDrawCommandRowSprites();
             who = arg0;
             func_800861D0(g_BattleMenuEvent, who);
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 =

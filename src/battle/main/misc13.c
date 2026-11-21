@@ -96,7 +96,7 @@ extern void func_80085618(u8);
 extern void BattleInitActiveSlotActions(u16);
 extern void func_800941A4(void);
 extern s32 BattleSlotBitMask(u8);
-extern void func_80085D34(void);
+extern void BattleDrawCommandRowSprites(void);
 extern s32 func_800877E0(s32, s32);
 extern s32 BattleFindMinValueOtherSlot(s32);
 extern void BattleInitActorSlotAnimation(s32, s32, s32, s32);
@@ -244,7 +244,7 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
 // The base's assignment has to sit inside the `0x9C8 +` sum: as a separate local
 // gcc reassociates the constant onto the base register and the delay-slot addu
 // comes out base-first (70.44%).
-void func_80085D34(void) {
+void BattleDrawCommandRowSprites(void) {
     s32 v;
     u8 *pWork;
     u8 *pWork2;
@@ -620,7 +620,7 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
     s32 idx;
     s32 r;
 
-    func_80085D34();
+    BattleDrawCommandRowSprites();
     idx = arg0 * 0x40;
     BattleInitSlotRowsForActor(arg0, (g_BattleCommandQueue + idx)[0x3C]);
     g_BattleSoundEnabled = 0;
