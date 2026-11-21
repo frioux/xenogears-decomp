@@ -546,10 +546,11 @@ void BattleResetStateGlobals(void) {
     g_BattleSlotBitMask = 0;
 }
 BattleMisc33State *func_800BED4C(void) {
+    // retail re-reads g_BattleState once per group of stores; one local for the
+    // whole body makes the reloads land in other registers (78.15%).
     BattleMisc33State *pState;
     BattleMisc33State *pPending;
     BattleMisc33State *pTimer;
-    s32 started;
 
     g_BattleState = HeapAlloc(0x50, 0);
     g_BattleState->pUpdate = func_800B9F78;
@@ -560,14 +561,13 @@ BattleMisc33State *func_800BED4C(void) {
     pState->unk30 = 0;
     pPending = g_BattleState;
     pPending->pendingStep = 0;
-    started = 1;
-    pPending->pathIndex = started;
+    pPending->pathIndex = 1;
     pPending->pCurSprite = NULL;
     pTimer = g_BattleState;
     pTimer->timer = 0;
     BattleSetStateStep(0);
     g_NumFlaggedTimerWorkListEntries = 0;
-    g_FlagTimerWorkListAdds = started;
+    g_FlagTimerWorkListAdds = 1;
     return g_BattleState;
 }
 
