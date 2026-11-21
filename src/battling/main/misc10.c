@@ -43,6 +43,12 @@
 #define BATTLE_GAUGE_BAR_SEGMENT1_TAPER 4
 #define BATTLE_GAUGE_BAR_SEGMENT3_TAPER 8
 
+// The two colour words BattleSetGaugeBarPrimColor stamps into the side meter
+// quad: POLY_F4's primitive code 0x28 in the top byte, then the RGB (white, or
+// red with only its first channel set).
+#define BATTLE_GAUGE_METER_COLOR_WHITE 0x2800FFFF
+#define BATTLE_GAUGE_METER_COLOR_RED 0x280000FF
+
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
 extern s16 g_BattleEffectFrameTimer;
@@ -1618,18 +1624,18 @@ void BattleQueueGaugeBarPrims(u8* pOt, POLY_F4* pBase, s32 value, s32 flag) {
 }
 
 s32 BattleSetGaugeBarPrimColor(s32 arg0, POLY_F4* pPrim) {
-    s32 value;
+    u32 color;
 
     if (BattleCheckActorBelowBreakThreshold(arg0, 0) != 0) {
         return 0;
     }
     if (BattleCheckActorBelowBreakThreshold(arg0, 1) != 0) {
-        value = 0x2800FFFF;
+        color = BATTLE_GAUGE_METER_COLOR_WHITE;
         setlen(pPrim, 5);
     } else {
-        value = 0x280000FF;
+        color = BATTLE_GAUGE_METER_COLOR_RED;
         setlen(pPrim, 5);
     }
-    *(u32*)&pPrim->r0 = value;
+    *(u32*)&pPrim->r0 = color;
     return 1;
 }
