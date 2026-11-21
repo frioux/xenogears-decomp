@@ -67,7 +67,7 @@ void SystemIncrementCellNeighborCount(s32 arg0, s32 arg1) {
     g_SystemCellNeighborCounts[arg0 * SYSTEM_CELL_COLUMNS + arg1] += 1;
 }
 
-extern int D_800592C8;
+extern int g_RenderContextIndex;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
 /* Best: 98.51%. Retail is 0x3F4 bytes and this body compiles to exactly 0x3F4; the frame,
@@ -96,7 +96,7 @@ void func_8001A6E8(u_long* pOt) {
     s32 y;
     u8* pPrim;
 
-    pPrim = (u8*)g_SystemCellPrimBuffers[D_800592C8];
+    pPrim = (u8*)g_SystemCellPrimBuffers[g_RenderContextIndex];
     count = 0;
     for (i = 0, gridOffset = 0; i < 0x1C; i++, gridOffset += 0x28) {
         rowOffset = gridOffset;
@@ -188,7 +188,7 @@ extern s32 g_WorldMapAudioManagerLoaded;
 extern s32 g_GameWdsEntryFreed;
 extern s32 g_FieldTextRenderEnabled;
 extern s32 g_FieldDisableGearRender;
-extern s32 D_8004F37C;
+extern s32 g_FieldP2RenderToggle;
 extern s32 g_FieldDisableCompassRender;
 extern u8 g_FieldDiscChangeFade;
 extern u8 g_GameDiscChangeRequest;
@@ -228,7 +228,7 @@ void SystemResetGlobalState(void) {
     g_GameWdsEntryFreed = 0;
     g_FieldTextRenderEnabled = 0;
     g_FieldDisableGearRender = 0;
-    D_8004F37C = 0;
+    g_FieldP2RenderToggle = 0;
     g_FieldDisableCompassRender = 0;
     g_FieldDiscChangeFade = 0;
     g_GameDiscChangeRequest = 0;

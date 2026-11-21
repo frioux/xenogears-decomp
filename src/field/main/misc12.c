@@ -15,9 +15,9 @@ extern s32 g_FieldCameraSnapFrames[];
 extern s32 g_FieldSpriteUpdateIndex;
 extern s32 D_800B2364;
 extern s32 D_800B2368;
-extern u16 D_800AEA44[];
-extern u16 D_800AEA54[];
-extern s16 D_800AEA64[];
+extern u16 g_FieldCameraRelativeAngleLUT[];
+extern u16 g_FieldFacingAngleLUT[];
+extern s16 g_FieldCameraDirectionDelta[];
 extern s8 g_FieldPartyMoveInProgress[];
 extern s32 g_PlayerActorIndex;
 extern s32 g_FieldPartyActorSlots[];
@@ -496,7 +496,7 @@ void FieldScriptSetCurActorDirectionRelativeToCamera(void) {
 }
 
 void FieldScriptSetCurActorRotationFromTableRelativeToCamera(void) {
-    short rotationValue = PSX_ANGLE(D_800AEA44[SCRIPT_READ_U8_REL(1)] - g_CamInterpolation.targetAngleY) | 0x8000;
+    short rotationValue = PSX_ANGLE(g_FieldCameraRelativeAngleLUT[SCRIPT_READ_U8_REL(1)] - g_CamInterpolation.targetAngleY) | 0x8000;
 
     g_FieldScriptVMCurActor->rotation.vx = rotationValue;
     g_FieldScriptVMCurActor->rotation.vy = rotationValue;
@@ -510,7 +510,7 @@ void FieldScriptSetCurActorRotationFromTableRelativeToCamera(void) {
 }
 
 void FieldScriptSetCurActorRotationFromTable(void) {
-    short rotationValue = D_800AEA54[SCRIPT_READ_U8_REL(1)] | 0x8000;
+    short rotationValue = g_FieldFacingAngleLUT[SCRIPT_READ_U8_REL(1)] | 0x8000;
 
     g_FieldScriptVMCurActor->rotation.vx = rotationValue;
     g_FieldScriptVMCurActor->rotation.vy = rotationValue;
@@ -800,7 +800,7 @@ void FieldSceneStartSceneAngleInterpolation(int direction, int duration) {
         g_FieldCameraSnapFrames[0] += 2;
         duration = 1;
     }
-    g_Scene.sceneAngleStep = (D_800AEA64[cameraDirection * 8 + direction] * 0x2000000) / duration;
+    g_Scene.sceneAngleStep = (g_FieldCameraDirectionDelta[cameraDirection * 8 + direction] * 0x2000000) / duration;
     g_Scene.sceneAngleFrames = duration;
     g_Scene.sceneAngleYTarget = ((direction + 4) & 7) << 9;
 }
@@ -836,7 +836,7 @@ void FieldScriptVMStartSceneAngleRotation2(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-void func_8009B8E4(void) {
+void FieldScriptSetSceneAngleInterpolation(void) {
     int direction = FieldScriptVMGetArgument(1);
     int duration = FieldScriptVMGetArgument(3);
 
@@ -871,7 +871,7 @@ void FieldScriptRestoreCameraState(void) {
     }
 }
 
-void func_8009BA7C(void) {
+void FieldScriptSetSceneProjection(void) {
     int direction;
     int angle;
     int screenZ;

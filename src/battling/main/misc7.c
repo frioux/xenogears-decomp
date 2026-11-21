@@ -37,7 +37,7 @@ typedef struct {
 
 /* One row of the option screen's text list: a text pointer and the handler
    that reacts to the row, plus the text sprite id shown beside it. Two rows
-   per page; the pages themselves are data, at D_80091368. */
+   per page; the pages themselves are data, at g_BattleOptionPages. */
 typedef struct {
     /* 0x00 */ u8 unk0;
     /* 0x01 */ u8 unk1;
@@ -52,7 +52,7 @@ typedef struct {
     /* 0x00 */ BattleOptionRow rows[2];
 } BattleOptionPage; // Size: 0x28
 
-extern BattleOptionPage D_80091368[];
+extern BattleOptionPage g_BattleOptionPages[];
 
 /* The nine flag bytes below are declared as open arrays on purpose: -G8
    classifies a 1-byte extern as small data, which makes its address one
@@ -611,11 +611,11 @@ void BattleInitOptionsScreen(s32 mode) {
     D_800916E2 = (mode == 4) ? 3 : 4;
     g_BattleOptionTextList[1].nextListIndex = 5;
     if (mode == 3) {
-        D_80091368[0].rows[0].unk1 = 0x27;
-        D_80091368[1].rows[0].unk1 = 0x28;
+        g_BattleOptionPages[0].rows[0].unk1 = 0x27;
+        g_BattleOptionPages[1].rows[0].unk1 = 0x28;
     } else {
-        D_80091368[0].rows[0].unk1 = 0x25;
-        D_80091368[1].rows[0].unk1 = 0x26;
+        g_BattleOptionPages[0].rows[0].unk1 = 0x25;
+        g_BattleOptionPages[1].rows[0].unk1 = 0x26;
     }
     BattleSetScreenMode(1);
     g_BattleSlotConfirmFlags = 0;

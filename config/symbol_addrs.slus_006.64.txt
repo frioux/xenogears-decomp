@@ -1711,3 +1711,5 @@ g_ControllerDebugBreakEnabled = 0x80059390;
 g_ControllerFrameCallback = 0x800501FC;
 g_FieldActorModelSlotDataBuffers = 0x8005A420;
 g_FieldActorModelSlotSpriteBuffers = 0x8005A450;
+g_FieldP2RenderToggle = 0x8004F37C;
+g_RenderContextIndex = 0x800592C8;

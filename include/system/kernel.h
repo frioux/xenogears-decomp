@@ -27,6 +27,6 @@ extern char g_PlayTimeSeconds;
 extern int g_DebugTable;
 
 extern int D_800592C4;
-extern int D_800592C8; // current menu render context
+extern int g_RenderContextIndex; // current menu render context
 
 #endif

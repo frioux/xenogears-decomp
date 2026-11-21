@@ -83,11 +83,11 @@ void KernelMenuMain(void) {
 
     KernelMenuInitialize();
     g_KernelMenuIsRunning = 1;
-    D_800592C8 = 0;
-    while (g_KernelMenuIsRunning || !D_800592C8) {
+    g_RenderContextIndex = 0;
+    while (g_KernelMenuIsRunning || !g_RenderContextIndex) {
         D_800592C4++;
-        D_800592C8 = D_800592C4 & 1; // Render context
-        g_KernelMenuCurRenderEnvironment = &g_KernelMenuRenderEnvironments[D_800592C8];
+        g_RenderContextIndex = D_800592C4 & 1; // Render context
+        g_KernelMenuCurRenderEnvironment = &g_KernelMenuRenderEnvironments[g_RenderContextIndex];
         pOtag = &g_KernelMenuCurRenderEnvironment->ot;
         TermPrim(pOtag);
         FontDrawLetters(pOtag);
