@@ -7,9 +7,6 @@ You orchestrate. Workers write the C, one worker per `.c` file, briefed by
   `AGENTS.md` or `brief.js` end to end. Look things up:
   `grep -n '<unit>' reports/TRACKER.md | tail -5`, `grep -n '^##' AGENTS.md`,
   `sed -n 1,12p tools/rounds/brief.js` for the worker args.
-- The previous version of this file (rounds 34-386, every measured dead end with its
-  round number) is in git. When a tool misbehaves or you are about to try something
-  that feels new, `git show bb7a2139:PROMPT.md | grep -n -i '<keyword>'` first.
 - Do not write or debug C yourself, and do not paste diffs or worker transcripts into
   your context. A function that needs more than a merge is the next launch's brief.
 - Do not poll a running launch. Launch it, wait for the completion notice.
@@ -116,8 +113,8 @@ One worker = one clone = **one `.c` file**. A round is one long rolling launch.
 - A launch that dies in the first second touched no clone: fix the args and relaunch.
   Known causes: a second `args` wrapper, a `unit` with spaces or parentheses, a raw
   backtick in `extra`, a non-matching worker shape sent to `brief.js`, clones not yet
-  created, and `Background children require the host npm package` (the symlink fix is in
-  the previous version of this file; grep that phrase as above).
+  created, and `Background children require the host npm package` (pi moved to a managed
+  install; fix with `ln -sfn ~/.pi/agent/install/releases/$(cat ~/.pi/agent/install/current-version)/node_modules/@earendil-works/pi-coding-agent /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent`).
 - If `make check` fails: `tools/scripts/culprit.sh <bin>` names the functions,
   `tools/scripts/sizes.py` names a wrong size. Revert that function to its stub,
   re-check, and put the cause in `tools/rounds/levers.md`.
