@@ -81,7 +81,7 @@ int FieldScriptArgument8(int index, int mask) {
 void FieldScriptVMHandlerRandVariable(void) {
     int nValue;
 
-    nValue = FieldScriptVMGetInstructionArgument(1) & 0xFFFF;
+    nValue = SCRIPT_IMM_ARG(1);
     FieldScriptMemoryWriteU16(nValue, rand());
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
@@ -94,7 +94,7 @@ void FieldScriptVMHandlerMulVariableWithRand(void) {
     nRandom = rand();
     nArgument1 = FieldScriptVMGetArgument(3);
     nValue = (nRandom * (nArgument1 + 1)) >> 0xF;
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, nValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -102,10 +102,10 @@ void FieldScriptVMHandlerRShiftVariable(void) {
     int nVariableValue;
     int nArgument;
     
-    nArgument = FieldScriptVMGetInstructionArgument(1) & 0xFFFF;
+    nArgument = SCRIPT_IMM_ARG(1);
     nVariableValue = FieldScriptVMGetVariableValue(nArgument);
     nVariableValue >>= FieldScriptVMGetArgument(3);
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -113,26 +113,26 @@ void FieldScriptVMHandlerLShiftVariable(void) {
     int nVariableValue;
     int nArgument;
 
-    nArgument = FieldScriptVMGetInstructionArgument(1) & 0xFFFF;
+    nArgument = SCRIPT_IMM_ARG(1);
     nVariableValue = FieldScriptVMGetVariableValue(nArgument);
     nVariableValue <<= FieldScriptVMGetArgument(3);
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
 void FieldScriptVMHandlerIncVariable(void) {
     int nValue;
 
-    nValue = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF) + 1;
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, nValue);
+    nValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1)) + 1;
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
 void FieldScriptVMHandlerDecVariable(void) {
     int nValue;
 
-    nValue = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF) - 1;
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, nValue);
+    nValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1)) - 1;
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -140,10 +140,10 @@ void FieldScriptVMHandlerVariableUnsetBit(void) {
     int nVariableValue;
     int nBit;
 
-    nVariableValue = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF);
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nBit = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue = nVariableValue & ~(1 << nBit);
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -151,10 +151,10 @@ void FieldScriptVMHandlerVariableXOR(void) {
     int nVariableValue;
     int nArgument;
 
-    nVariableValue = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF);
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nArgument = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue = nVariableValue ^ nArgument;
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -162,10 +162,10 @@ void FieldScriptVMHandlerVariableOR(void) {
     int nVariableValue;
     int nArgument;
 
-    nVariableValue = FieldScriptVMGetVariableValue((u_short) FieldScriptVMGetInstructionArgument(1));
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nArgument = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue = nVariableValue | nArgument;
-    FieldScriptMemoryWriteU16((u_short) FieldScriptVMGetInstructionArgument(1), nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -173,10 +173,10 @@ void FieldScriptVMHandlerVariableAND(void) {
     int nVariableValue;
     int nArgument;
 
-    nVariableValue = FieldScriptVMGetVariableValue((u_short) FieldScriptVMGetInstructionArgument(1));
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nArgument = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue = nVariableValue & nArgument;
-    FieldScriptMemoryWriteU16((u_short) FieldScriptVMGetInstructionArgument(1), nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -184,10 +184,10 @@ void FieldScriptVMHandlerVariableSetBit(void) {
     int nVariableValue;
     int nBit;
 
-    nVariableValue = FieldScriptVMGetVariableValue((u_short) FieldScriptVMGetInstructionArgument(1));
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nBit = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue |= (1 << nBit);
-    FieldScriptMemoryWriteU16((u_short) FieldScriptVMGetInstructionArgument(1), nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -195,10 +195,10 @@ void FieldScriptVMHandlerVariableMul(void) {
     int nVariableValue;
     int nArgument;
 
-    nVariableValue = FieldScriptVMGetVariableValue((u_short) FieldScriptVMGetInstructionArgument(1));
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nArgument = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue = nVariableValue * nArgument;
-    FieldScriptMemoryWriteU16((u_short) FieldScriptVMGetInstructionArgument(1), nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -207,7 +207,7 @@ void FieldScriptVMHandlerVariableDiv(void) {
     int nArgument;
     int nVariableAddress;
 
-    nVariableValue = FieldScriptVMGetVariableValue((u_short) FieldScriptVMGetInstructionArgument(1));
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nArgument = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     
     // Handle division by zero
@@ -216,7 +216,7 @@ void FieldScriptVMHandlerVariableDiv(void) {
     }
 
     nVariableValue /= nArgument;
-    nVariableAddress = (u_short) FieldScriptVMGetInstructionArgument(1);
+    nVariableAddress = SCRIPT_IMM_ARG(1);
     FieldScriptMemoryWriteU16(nVariableAddress, nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
@@ -225,10 +225,10 @@ void FieldScriptVMHandlerVariableSub(void) {
     int nVariableValue;
     int nArgument;
 
-    nVariableValue = FieldScriptVMGetVariableValue((u_short) FieldScriptVMGetInstructionArgument(1));
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nArgument = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue -= nArgument;
-    FieldScriptMemoryWriteU16((u_short) FieldScriptVMGetInstructionArgument(1), nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -236,17 +236,17 @@ void FieldScriptVMHandlerVariableAdd(void) {
     int nVariableValue;
     int nArgument;
 
-    nVariableValue = FieldScriptVMGetVariableValue((u_short) FieldScriptVMGetInstructionArgument(1));
+    nVariableValue = FieldScriptVMGetVariableValue(SCRIPT_IMM_ARG(1));
     nArgument = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     nVariableValue += nArgument;
-    FieldScriptMemoryWriteU16((u_short) FieldScriptVMGetInstructionArgument(1), nVariableValue);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), nVariableValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
 void FieldScriptVMHandlerVariableSetFalse(void) {
     int nVariableAddress;
 
-    nVariableAddress = (u_short) FieldScriptVMGetInstructionArgument(1);
+    nVariableAddress = SCRIPT_IMM_ARG(1);
     FieldScriptMemoryWriteU16(nVariableAddress, 0x0);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
@@ -254,7 +254,7 @@ void FieldScriptVMHandlerVariableSetFalse(void) {
 void FieldScriptVMHandlerVariableSetTrue(void) {
     int nVariableAddress;
 
-    nVariableAddress = (u_short) FieldScriptVMGetInstructionArgument(1);
+    nVariableAddress = SCRIPT_IMM_ARG(1);
     FieldScriptMemoryWriteU16(nVariableAddress, 0x1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
@@ -263,7 +263,7 @@ void FieldScriptVMHandlerVariableAssign(void) {
     int nVariableAddress;
     int nValue;
 
-    nVariableAddress = FieldScriptVMGetInstructionArgument(1) & 0xFFFF;
+    nVariableAddress = SCRIPT_IMM_ARG(1);
     nValue = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     FieldScriptMemoryWriteU16(nVariableAddress, nValue);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
