@@ -434,6 +434,10 @@ typedef struct {
     /* 0xC */ s32 pad;
 } FieldVector3; // Size: 0x10
 
+// The default spawn orientation the loader copies onto the stack for the actors
+// it creates (misc3's only .rodata item).
+const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};
+
 // The 0x100-byte block the loader copies into the sprite placement table
 typedef struct {
     /* 0x00 */ u8 unk0[0x100];
@@ -465,13 +469,14 @@ typedef struct {
     /* 0x00 */ void* pFile;
     /* 0x04 */ void* pSpriteData;
     /* 0x08 */ u32* pMaterialFlags;
-    /* 0x0C */ void* pTriangles[4];
-    /* 0x1C */ void* pVertices[4];
+    /* 0x0C */ u32* pTriangles[4];
+    /* 0x1C */ u32* pVertices[4];
     /* 0x2C */ s32 unk2C[4];
     /* 0x3C */ s16 triCount;
 } FieldWalkmesh; // Size: 0x3E
 
 extern FieldWalkmesh g_FieldWalkmesh;
+extern s32 D_800AFD10;
 
 // The screen effect setup record at 0x800B0080 and the parameter record at
 // 0x800B00A0 that follows it (FieldScriptSetParams80 / FieldScriptSetParamsA0
@@ -564,7 +569,6 @@ extern u8 g_FieldModelSlotScratch[];
 // first arguments of the two FieldSetMatrix calls and the RotMatrix are
 // displacements off ONE base, i.e. g_FieldModelSlotScratch .. g_FieldMotionSlotSteps
 // is one object in the source too.
-/*
 void FieldLoad(void) {
     FieldActor* pActor;
     FieldActorModelData* pModel;
@@ -580,6 +584,7 @@ void FieldLoad(void) {
     s32 count;
     s32 i;
     s32 j;
+    u16 value;
     FieldVector3 defaultVector;
 
     defaultVector = D_8006FAF4;
@@ -652,16 +657,17 @@ void FieldLoad(void) {
     FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->walkmeshDataOffset, g_FieldWalkmesh.pFile);
 
     pWalk = &g_FieldWalkmesh;
-    pWord = (u32*)pWalk->pFile;
+    pWord = (u32*)pWalk->pFile + 1;
     pWalk->triCount = *(s32*)pWalk->pFile;
     for (i = 0; i < 4; i++) {
-        pWalk->unk2C[i] = (pWord[i + 1] >> 1) / 7;
+        pWalk->unk2C[i] = *pWord++ / 14;
     }
-    pWalk->pMaterialFlags = (u32*)((u8*)pWalk->pFile + pWord[5]);
+    pWalk->pMaterialFlags = (u32*)((u8*)pWalk->pFile + *pWord++);
     for (i = 0; i < pWalk->triCount; i++) {
-        pWalk->pTriangles[i] = (u8*)pWalk->pFile + pWord[i * 2 + 6];
-        pWalk->pVertices[i] = (u8*)pWalk->pFile + pWord[i * 2 + 7];
+        pWalk->pTriangles[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
+        pWalk->pVertices[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
     }
+    D_800AFD10 = pWalk->pTriangles[0] - pWalk->pMaterialFlags;
 
     size = STAGED_FILE->spriteDataSize + 0x10;
     g_FieldSpriteData = HeapAlloc(size, 0);
@@ -688,22 +694,20 @@ void FieldLoad(void) {
         ACTOR(i)->rotation.y = pSpawn[1];
         ACTOR(i)->rotation.z = pSpawn[2];
         pSpawn += 3;
+        value = pSpawn[0];
         pActor = ACTOR(i);
-        pActor->transformMatrix.t[0] = pSpawn[0];
-        pActor->childMatrix.t[0] = pSpawn[0];
+        pActor->transformMatrix.t[0] = value;
+        pActor->childMatrix.t[0] = value;
+        value = pSpawn[1];
         pActor = ACTOR(i);
-        pActor->transformMatrix.t[1] = pSpawn[1];
-        pActor->childMatrix.t[1] = pSpawn[1];
+        pActor->transformMatrix.t[1] = value;
+        pActor->childMatrix.t[1] = value;
+        value = pSpawn[2];
         pActor = ACTOR(i);
-        pActor->transformMatrix.t[2] = pSpawn[2];
-        pActor->childMatrix.t[2] = pSpawn[2];
+        pActor->transformMatrix.t[2] = value;
+        pActor->childMatrix.t[2] = value;
         pSpawn += 3;
-        if (ACTOR(i)->status & 0x40) {
-            ACTOR(i)->status |= ACTOR_STATUS_INVISIBLE;
-            ACTOR(i)->rotation.x = 0;
-            ACTOR(i)->rotation.y = 0;
-            ACTOR(i)->rotation.z = 0;
-        } else {
+        if ((ACTOR(i)->status & 0x40) == 0) {
             j = *pSpawn;
             pModel = HeapAlloc(sizeof(FieldActorModelData), 0);
             ACTOR(i)->pModelData = pModel;
@@ -721,6 +725,11 @@ void FieldLoad(void) {
                 HeapChangeCurrentUser(8, 0);
             }
             ModelFileTrimHeapBlock((ModelFileHeader*)pModel->pBounds);
+        } else {
+            ACTOR(i)->status |= ACTOR_STATUS_INVISIBLE;
+            ACTOR(i)->rotation.x = 0;
+            ACTOR(i)->rotation.y = 0;
+            ACTOR(i)->rotation.z = 0;
         }
         pSpawn++;
         func_80080F44(i);
@@ -814,5 +823,4 @@ void FieldLoad(void) {
             }
         }
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldLoad);
+}
