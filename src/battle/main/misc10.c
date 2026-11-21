@@ -5,6 +5,9 @@
 // the non-party ones. Same value as include/battle/actor.h's BATTLE_ACTOR_SLOT_COUNT; duplicated
 // here because this unit does not include that header.
 #define BATTLE_ACTOR_SLOT_COUNT 11
+// Bytes per slot record in D_800C3EB7: the stride of the byte-indexed walk and of the one flag
+// byte read through it.
+#define BATTLE_ACTOR_SLOT_STRIDE 0x1C
 // The non-party actor slots: slot numbers MAX_PARTY_MEMBERS through BATTLE_ACTOR_SLOT_COUNT - 1,
 // which are the ones the slot register file is indexed from 0 for.
 #define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - MAX_PARTY_MEMBERS)
@@ -149,7 +152,7 @@ s32 BattleStateWordLowBitsClear(void) {
 s32 func_8007EEE8(void) {
     s32 ret = 1;
     s32 i = 0;
-    s32 ofs = MAX_PARTY_MEMBERS * 0x1C;
+    s32 ofs = MAX_PARTY_MEMBERS * BATTLE_ACTOR_SLOT_STRIDE;
 
     for (; i < BATTLE_OTHER_SLOT_COUNT; i++) {
         if ((g_BattleStateFlags >> 5) != 0) {
@@ -158,7 +161,7 @@ s32 func_8007EEE8(void) {
                 break;
             }
         }
-        ofs += 0x1C;
+        ofs += BATTLE_ACTOR_SLOT_STRIDE;
     }
 
     return ret;
@@ -166,7 +169,7 @@ s32 func_8007EEE8(void) {
 s32 BattleActorSlotHasFlag80(u8 arg0) {
     s32 idx = arg0 + MAX_PARTY_MEMBERS;
 
-    return D_800C3EB7[idx * 0x1C] >> 7;
+    return D_800C3EB7[idx * BATTLE_ACTOR_SLOT_STRIDE] >> 7;
 }
 // The per-opcode handlers BattleExecScriptOpcode dispatches to. They live in misc4..misc9.c
 // and in the still-unmatched stubs of this overlay; the grid-write ones take the
