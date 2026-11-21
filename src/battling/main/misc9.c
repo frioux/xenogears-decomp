@@ -96,6 +96,11 @@ typedef struct {
 
 extern u8* g_BattleStageLightRow;
 
+// The two full-screen gradient quads the battle tile is drawn with. misc8's
+// BattleSetScreenTileGrey writes their vertices and code byte; this unit writes
+// their corner colours (corner 0/1 near, corner 2/3 far).
+extern POLY_G4 D_80095580[2];
+
 extern s32 BattleClearOrderingTable();
 extern void func_80030A30(s32 index, Poly9* pPoly);
 extern void func_80083310(s32 arg0);
@@ -393,37 +398,22 @@ void BattleMovePointInsideRadius(VECTOR* p0, VECTOR* p1, s32 radius) {
     }
 }
 
+// A plain r,g,b triple: the tile-colour bases misc8's BattleSetScreenTileGrey
+// and BattleSetScreenTileBlack also write.
+typedef struct {
+    /* 0x0 */ u8 r;
+    /* 0x1 */ u8 g;
+    /* 0x2 */ u8 b;
+} BattleRgb; // Size: 0x3
+
 extern u8 g_BattleStageLightIndex;
 extern u8 g_BattleStageLightTable[];
 extern s32 g_BattleBackColorA;
 extern s32 g_BattleBackColorG;
 extern s32 g_BattleBackColorB;
-extern u8 g_BattleFogColors;
-extern u8 D_80095585;
-extern u8 D_80095586;
-extern u16 D_8009558C;
-extern u8 D_8009558E;
-extern u16 D_80095594;
-extern u8 D_80095596;
-extern u16 D_8009559C;
-extern u8 D_8009559E;
-extern u8 D_800955A8;
-extern u8 D_800955A9;
-extern u8 D_800955AA;
-extern u16 D_800955B0;
-extern u8 D_800955B2;
-extern u16 D_800955B8;
-extern u8 D_800955BA;
-extern u16 D_800955C0;
-extern u8 D_800955C2;
-extern u8 D_8009A1C4;
-extern u8 D_8009A1C5;
-extern u8 D_8009A1C6;
-extern u8 D_8009A2BC;
-extern u8 D_8009A2BD;
-extern u8 D_8009A2BE;
+extern BattleRgb D_8009A1C4;
+extern BattleRgb D_8009A2BC;
 extern u32 g_NearColor;
-
 void BattleSetStageFogColors(void) {
     u8* p;
     s32 farR;
@@ -448,32 +438,33 @@ void BattleSetStageFogColors(void) {
     farB = p[10];
     SetNearColor(p[0xC], p[0xD], p[0xE]);
     SetFarColor(farR, farG, farB);
-    D_80095585 = nearG;
-    D_800955A9 = nearG;
+    D_80095580[0].g0 = nearG;
+    D_80095580[1].g0 = nearG;
     nearRG = nearR | (nearG << 8);
-    g_BattleFogColors = nearR;
-    D_800955A8 = nearR;
+    D_80095580[0].r0 = nearR;
+    D_80095580[1].r0 = nearR;
     farRG = farR | (farG << 8);
-    D_80095586 = nearB;
-    D_800955AA = nearB;
-    D_8009558C = nearRG;
-    D_8009558E = nearB;
-    D_800955B0 = nearRG;
-    D_800955B2 = nearB;
-    D_80095594 = farRG;
-    D_80095596 = farB;
-    D_800955B8 = farRG;
-    D_800955BA = farB;
-    D_8009559C = farRG;
-    D_8009559E = farB;
-    D_800955C0 = farRG;
-    D_800955C2 = farB;
-    D_8009A1C4 = farR;
-    D_8009A1C5 = farG;
-    D_8009A1C6 = farB;
-    D_8009A2BC = farR;
-    D_8009A2BD = farG;
-    D_8009A2BE = farB;
+    D_80095580[0].b0 = nearB;
+    D_80095580[1].b0 = nearB;
+    // each later corner's r,g is stored as one packed halfword
+    *(u16*)&D_80095580[0].r1 = nearRG;
+    D_80095580[0].b1 = nearB;
+    *(u16*)&D_80095580[1].r1 = nearRG;
+    D_80095580[1].b1 = nearB;
+    *(u16*)&D_80095580[0].r2 = farRG;
+    D_80095580[0].b2 = farB;
+    *(u16*)&D_80095580[1].r2 = farRG;
+    D_80095580[1].b2 = farB;
+    *(u16*)&D_80095580[0].r3 = farRG;
+    D_80095580[0].b3 = farB;
+    *(u16*)&D_80095580[1].r3 = farRG;
+    D_80095580[1].b3 = farB;
+    D_8009A1C4.r = farR;
+    D_8009A1C4.g = farG;
+    D_8009A1C4.b = farB;
+    D_8009A2BC.r = farR;
+    D_8009A2BC.g = farG;
+    D_8009A2BC.b = farB;
     SetFogNearFar(0x800, 0x1800, 0xC0);
     g_NearColor = (g_NearColor & 0xFFFFFF) | 0x28000000;
     gte_ldrgb(&g_NearColor);
