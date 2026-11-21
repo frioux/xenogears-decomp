@@ -813,16 +813,26 @@ void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     }
 }
 
+/* PARK 84.85% at 224 bytes, 4 instructions SHORT of retail's 240. The stored
+   body did not even COMPILE until round 370: D_800926C0 is declared here as an
+   ARRAY extern (other units index it by g_BattleDrawBufferIndex), so the plain
+   assignment D_800926C0 = HeapAlloc(...) is a type error - write
+   D_800926C0[0] = HeapAlloc(...) and read it back as D_800926C0[0] and the body
+   builds and measures 84.85, which is where the round-3xx note's number came
+   from.
+   Two residuals, both read off the diff:
+   (1) the six entry stores need a SECOND induction register: retail keeps
+   v1 = pEntry + 4 and stores z at 0(v1), y at -2(v1), life at 2(v1) with x at
+   0(a1); ours anchors all six on the base as 4(a0)/2(a0)/0(a0)/6(a0).
+   (2) retail allocates all FOUR D_800926C0/D_800926C4 pointer loads to $v0, so
+   three of them get a load-delay nop (nothing is eligible to fill the slot);
+   ours puts the third load in $v1, reorg hoists it into the previous slot and we
+   come out two instructions short there.
+   Tried with no effect: a non-void (s32) return type (no change at all, so the
+   stolen-slot lever is not the mechanism here), the pointer form pEntry++ with
+   pEntry->z (creates the +4 biv but shifts every other register: 83.82). NOT
+   tried: the permuter. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D6B8);
-
-/* Best attempt: objdiff 84.85%. Indexed form reproduces retail's registers
-   exactly (a0 = i*0xC, a1 = entry base, a2 = i, a3 = 0x6880B0F0, t0 = 2) and
-   the six entry stores in retail order, but retail keeps a second induction
-   register v1 = entry + 4 (used for the +4/+2/+6 stores, -2(v1)/(v1)/2(v1))
-   and gcc anchors every store on the base instead. The pointer form
-   (pEntry->unkX with pEntry++) does create the +4 biv and the right
-   displacements, but shifts the whole register allocation up by one
-   (i -> a3, offset -> a1) and compiles 4 instructions long: 83.82%. */
 
 /*
 void func_8007D6B8(void) {
