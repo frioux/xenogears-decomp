@@ -13,6 +13,9 @@ typedef struct {
     /* 0x8 */ u8 unk8[8];
 } MenuSectorHeader; // Size: 0x10
 
+// Height of the 8x13 font glyphs a menu row's string texture holds
+#define MENU_FONT_LETTER_HEIGHT 13
+
 // Height of the highlight quad drawn behind a menu row
 #define MENU_ROW_QUAD_HEIGHT 13
 
@@ -486,81 +489,68 @@ void func_801E78C8(s32 index) {
     }
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7C50);
-/* Best: 75.81% (528 bytes = retail's size). Structure is right: i = 0 before
-   row/column, a for loop with an empty init, pPoly strength-reduced to a cursor that
-   walks +0x28 in the loop-back delay slot; both branches' store orders are retail's.
-   What is left is two ties. (1) retail copies index to fp and flags to s7, this body
-   swaps them (index s7, flags s8); (2) retail computes (flags & 0x7F) + 0xFF inside the
-   else branch as andi/addiu 255 and stores it in the GetTPage delay slot, while this body
-   hoists it to a stack slot as andi/addiu -1 (an extra sw/lw keep or drop).
-   Round 269 (measured, all at 528 bytes unless noted): the original for (i = 0; ...) form
-   with pPoly = &pStringList->polys[i] is 72.41%; a while loop with pPoly++ and i++ at the
-   latch is 64.20% / 544 bytes; reusing the v local for the palette value gives retail's
-   in-loop andi/addiu 255 but loses the row*13 chain, 74.32% / 520 bytes; a dedicated
-   s32 pal local assigned in both branches also kills the hoist but reuses the yOffset slot
-   for row*13, 78.72% / 520 bytes (2 instructions short, so not linkable).
-   Round 285 (re-measured from this body): 75.81%, 528 bytes. The hoist is what makes the
-   frame 0x48 instead of retail's 0x40 (andi/addiu -1 plus a sw in the prologue, and an
-   lw before the 0x180 GetTPage). Reusing `color` for the palette value is not an option:
-   that byte is or-ed into tpage (`color | GetTPage(...)`), and it measures 71.32%.
+static inline void MenuSetSystemPalette(void* pPrim, u8 flag) {
+    POLY_FT4* pPoly = pPrim;
+    pPoly->clut = flag ? g_SystemPalette2 : g_SystemPalette1;
+}
 
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
-    POLY_FT4* pPoly;
     u8 color;
-    s32 row;
-    s32 column;
-    s32 u;
-    s32 v;
     s32 i;
+    POLY_FT4* pPoly;
+    // Load-bearing copy: reading `flags` directly costs this function its callee-saved
+    // assignment (the loop counter and the attribute word trade registers).
+    u32 attr = flags;
 
-    i = 0;
-    row = index / 2;
-    column = index & 1;
-    u = (row & 1) * 0x80;
-    for (; i < 2; i++) {
-        color = 0;
+    for (i = 0; i < 2; i++) {
         pPoly = &pStringList->polys[i];
+        color = 0;
+
         MenuInitializePolyFt4(pPoly);
-        if ((flags & 0xFF) == 0) {
-            pStringList->palette = column;
-            pPoly->tpage = GetTPage(0, 0, 0x140, 0);
-            pPoly->u0 = u;
-            v = (index + yOffset) / 4 * 0xD;
-            pPoly->v0 = v;
-            pPoly->u1 = u + pStringList->width;
-            pPoly->v1 = v;
-            pPoly->u2 = u;
-            pPoly->v2 = v + 0xD;
-            pPoly->u3 = u + pStringList->width;
-            pPoly->v3 = v + 0xD;
+
+        if (!(attr & 0xFF)) {
+            pStringList->palette = (index & 1);
+            setTPage(pPoly, 0, 0, 0x140, 0);
+
+            #define texCoordV  (((index + yOffset) / 4) * MENU_FONT_LETTER_HEIGHT)
+            #define texCoordU  (((index / 2) & 1) << 7)
+            setUV4(
+                pPoly,
+                texCoordU,                      texCoordV,
+                texCoordU + pStringList->width, texCoordV,
+                texCoordU,                      texCoordV + MENU_FONT_LETTER_HEIGHT,
+                texCoordU + pStringList->width, texCoordV + MENU_FONT_LETTER_HEIGHT
+            );
+            #undef texCoordV
+            #undef texCoordU
         } else {
-            if (flags & 0x80) {
+            if (!(attr & 0x80)) {
                 color = 0x20;
                 SetSemiTrans(pPoly, 1);
-                setRGB0(pPoly, 0x20, 0x20, 0x20);
+                setRGB0(pPoly, color, color, color);
             }
-            pStringList->palette = (flags & 0x7F) + 0xFF;
-            pPoly->tpage = color | GetTPage(0, 0, 0x180, 0x80);
-            v = row * 0xD + yOffset;
-            pPoly->u0 = column * 0x60;
-            pPoly->v0 = v;
-            pPoly->v1 = v;
-            pPoly->u2 = column * 0x60;
-            pPoly->v2 = v + 0xD;
-            pPoly->u1 = column * 0x60 + pStringList->width;
-            pPoly->v3 = v + 0xD;
-            pPoly->u3 = column * 0x60 + pStringList->width;
+
+            pStringList->palette = (attr & 0x7F) + 0xFF;
+            setTPage(pPoly, 0, 0, 0x180, 0x80);
+            pPoly->tpage = color | pPoly->tpage;
+
+            #define texCoordU ((index & 1) * 0x60)
+            #define texCoordV (((index / 2) * MENU_FONT_LETTER_HEIGHT) + yOffset)
+            setUV4(
+                pPoly,
+                texCoordU,                      texCoordV,
+                texCoordU + pStringList->width, texCoordV,
+                texCoordU,                      texCoordV + MENU_FONT_LETTER_HEIGHT,
+                texCoordU + pStringList->width, texCoordV + MENU_FONT_LETTER_HEIGHT
+            );
+            #undef texCoordV
+            #undef texCoordU
         }
-        if (pStringList->palette != 0) {
-            pPoly->clut = g_SystemPalette2;
-        } else {
-            pPoly->clut = g_SystemPalette1;
-        }
+
+        MenuSetSystemPalette(pPoly, pStringList->palette);
     }
     pStringList->hasVertices = 0;
 }
-*/
 void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count) {
     RECT* pRect;
     s32 i;
@@ -753,32 +743,28 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    is still materialised after that statement, so the +4 form anchors either way.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-/* Best: 99.79% (688 bytes = retail's size, exact instruction multiset; only which of
-   g_MenuSubMenuChoiceIds / g_MenuSubMenuChoiceIds+4 the lui/addiu anchors differs:
-   retail has la s4 = symbol then addiu s5,s4,4, this body has la s5 = symbol+4 then
-   addiu s4,s5,-4, in identical instruction slots.
-   Round 269 (measured, new spellings only): casting the symbol through u32 before the +4
-   still folds the +4 into the lui/addiu addend (99.79, same direction); deriving the second
-   base from a live base pointer local DOES give retail's direction and slot pair
-   (la s4 = symbol, addiu s5,s4,4) but sched2 then reorders the whole entry block, 88.09;
-   the inline ((s32*)((u8*)pCursor + 4))[off] form folds the +4 into the load displacement,
-   672 bytes, 87.90. So the direction and the slots are both reachable, not together.
-   Round 373 re-measured 99.79/688 and the two-local body (88.09/688) again. The
-   two-local diff is exactly FIVE instructions and it is the save region, not the
-   loop: cc1 emits "sw s4,64(sp)" then the la pair immediately, and only afterwards
-   the remaining saves (s5/ra/s3/s1/s0), the li s1,1 and the two init stores - where
-   retail does every save first and the la pair after "lw v0,852(v1)". So the pair
-   itself is right; what moves is the prologue once a SECOND live symbol-address
-   local exists, and that is the same wall round 113 named. In the one-local body
-   the two bases differ only in which register holds symbol and which symbol+4
-   (values identical), so the whole residual is la direction + a register tie.
-
+/* Best: 99.79% at 688 bytes = retail's exact size and instruction count (172). The
+   whole residual is the la DIRECTION of the g_MenuSubMenuChoiceIds pair plus the
+   register names: retail is "lui/addiu s4 = symbol; addiu s5,s4,4", this body is
+   "lui/addiu s5 = symbol+4; addiu s4,s5,-4", in the same two slots. Values are
+   identical, so the function is one allocator tie away from matching.
+   Measured again this round: the typed spelling below - &pSubmenuPrims->polys0[count * 2]
+   and ->polys500[count * 2] instead of the raw "(POLY_FT4*)(count * 0x50 + (s32)base)"
+   casts, same idiom as MenuSetSelectionMenuPrims - is 99.79% / 688 bytes, so the raw
+   form is not load-bearing. Making the BASE the local (pIds = g_MenuSubMenuChoiceIds,
+   odd entry inline as symbol[... + 1]) is 85.36% / 688: the +1 access becomes the
+   maspsx lui $at / addu $at / lw 4($at) form and s5 disappears, so the second base
+   must be a real pointer local.
+   Two-permuter-runs-empty (rounds 104 and 285, the second PERMUTER_NONE 35 -> 35 over
+   1784 iterations) and rounds 112/113/114/269/373 already measured every two-local
+   spelling: they give retail's direction but cc1 emits the la pair inside the save
+   region (88.09%), which is the wall named in round 113. Round 373 confirmed the
+   residual is exactly five instructions of prologue placement, not the loops.
 /*
 void func_801E86C8(u_char selected) {
     s32 i;
     s32 n;
     s32 allValid;
-    u32 off;
     s32* pText;
 
     allValid = 1;
@@ -793,7 +779,7 @@ void func_801E86C8(u_char selected) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
                 g_Menu->pSubmenuPrims->polys0PrimCount = func_8002675C(g_Menu->resources,
                     g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(g_Menu->pSubmenuPrims->polys0PrimCount * 0x50 + (s32)g_Menu->pSubmenuPrims),
+                    &g_Menu->pSubmenuPrims->polys0[g_Menu->pSubmenuPrims->polys0PrimCount * 2],
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys0PrimCount;
                 g_Menu->subMenuNumChoices++;
             } else {
@@ -809,10 +795,9 @@ void func_801E86C8(u_char selected) {
         g_Menu->pSubmenuPrims->polys500PrimCount = 0;
         for (i = 0; i < n; i++) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                off = g_Menu->pSubmenuPrims->polys500PrimCount * 0x50 + 0x500;
                 g_Menu->pSubmenuPrims->polys500PrimCount = func_8002675C(g_Menu->resources,
                     pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(off + (s32)g_Menu->pSubmenuPrims),
+                    &g_Menu->pSubmenuPrims->polys500[g_Menu->pSubmenuPrims->polys500PrimCount * 2],
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys500PrimCount;
             }
         }
