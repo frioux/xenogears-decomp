@@ -104,7 +104,11 @@ void MenuInitializeUnk438Panel(void) {
     }
     for (i = 0; i < 0xD; i++) {
         for (count = 0; count < 2; count++) {
-            /* (i * 0x48 + 0x21D0) must stay grouped for retail's address build. */
+            /* (i * 0x48 + 0x21D0) must stay grouped for retail's address build:
+               retail increments the pre-scaled i and count indices and folds
+               0x21D0 into the store displacement. Spelling this as
+               ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[i][count] is
+               91.63% (864 bytes), because gcc then forms (i * 2 + count) * 0x24. */
             SetPolyG4((POLY_G4*)((u8*)g_Menu->unk438 + (i * 0x48 + 0x21D0) + count * 0x24));
             ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->r0 = 0;
             ((POLY_G4*)((u8*)g_Menu->unk438 + i * 0x48 + count * 0x24 + 0x21D0))->g0 = 0xFF;
@@ -980,7 +984,10 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
             break;
         }
         /* Retail keeps the byte at 0xC in one register across the eight bit
-           tests, and adds it as the left operand, so spell it that way. */
+           tests, and adds it as the left operand, so spell it that way. The
+           halfword view below is load-bearing: retail tests the flags through
+           the lh/lhu at 0xC (the 0x8000 test even through an s16 load), and
+           plain `pAccessory->statFlags & 0x80` bit tests are 97.09%. */
         value = pAccessory->effectAmount;
         if (*(s16*)&pAccessory->effectAmount & 0x8000) {
             pChar->attackFromEquipment = value + pChar->attackFromEquipment;
