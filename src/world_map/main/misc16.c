@@ -5,6 +5,11 @@
 #define WORLD_MAP_GRID_CELL_COUNT 81
 #define WORLD_MAP_GRID_WIDTH 9
 #define WORLD_MAP_TILE_SECTOR_SIZE 0x710
+#define WORLD_MAP_COORD_WRAP 0x800000
+#define WORLD_MAP_SLOT_WRAP_Z_LOW 1
+#define WORLD_MAP_SLOT_WRAP_Z_HIGH 2
+#define WORLD_MAP_SLOT_WRAP_X_LOW 4
+#define WORLD_MAP_SLOT_WRAP_X_HIGH 8
 
 extern VECTOR g_WorldMapClipPlaneAxisY;
 extern VECTOR g_WorldMapClipPlaneAxisX;
@@ -64,52 +69,52 @@ void WorldMapComputeClipPlaneVectors(void) {
     OuterProduct0(&g_WorldMapClipPlaneAxisX, &g_WorldMapClipPlaneDirYPos, &g_WorldMapClipPlaneYZ1);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);
-/* 93.98%, body is 240 bytes like retail: only the register names of the 0x800000
-   constant and of the y local are swapped (retail y=a2, const=a0; ours y=a0,
-   const=a2), an allocator tie - 4 decl/init orders all give the same pairing.
-   Shapes that are now right and must stay: x and y are BOTH locals loaded before
-   the g_WorldMapSlotUpdateFlags store (that is the retail top: x load, z load, li, sh);
-   the x branch writes p->x = x + / - 0x800000 (a += reloads and emits a
-   per-branch flag store); the y branch reads the y local but reloads p->z for
-   the store; the tail reloads through a y temp (y = p->x; g_WorldMapGridOrigin = (y >> 23) + 2;
-   y = p->z; D_8009C83C = (y >> 23) + 2;) - the direct form instead lets gcc hoist
-   the second load into the first load's delay slot and defer both stores (59 insns, 236 bytes).
 void func_800980D4(WorldMapMisc16Struct* p) {
     s32 y;
     s32 x;
+    s32 z;
+
     x = p->x;
-    y = p->z;
+    z = p->z;
     g_WorldMapSlotUpdateFlags = 0;
-    if (x < -0x800000) {
-        p->x = x + 0x800000;
-        g_WorldMapSlotUpdateFlags = 4;
-    } else if (x > 0x800000) {
-        p->x = x - 0x800000;
-        g_WorldMapSlotUpdateFlags = 8;
+    if (x < -WORLD_MAP_COORD_WRAP) {
+        p->x = x + WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags = WORLD_MAP_SLOT_WRAP_X_LOW;
+    } else if (x > WORLD_MAP_COORD_WRAP) {
+        p->x = x - WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags = WORLD_MAP_SLOT_WRAP_X_HIGH;
     }
-    if (y < -0x800000) {
-        p->z += 0x800000;
-        g_WorldMapSlotUpdateFlags |= 1;
-    } else if (y > 0x800000) {
-        p->z -= 0x800000;
-        g_WorldMapSlotUpdateFlags |= 2;
+    if (z < -WORLD_MAP_COORD_WRAP) {
+        p->z += WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags |= WORLD_MAP_SLOT_WRAP_Z_LOW;
+    } else if (z > WORLD_MAP_COORD_WRAP) {
+        p->z -= WORLD_MAP_COORD_WRAP;
+        g_WorldMapSlotUpdateFlags |= WORLD_MAP_SLOT_WRAP_Z_HIGH;
     }
     y = p->x;
     g_WorldMapGridOrigin = (y >> 23) + 2;
-    y = p->z;
+    /* the z re-read has to stay below the store above it */
+    y = *(volatile s32*)&p->z;
     D_8009C83C = (y >> 23) + 2;
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
-/* 96.44%: same instructions in the same order, only the register names differ
-   (retail col=a3 row=t1 w=t2 dst=t0 bound=t3 colBase=t3 pGrid=a0 colCur=a3 off=a1;
-   ours col=t1 row=t0 w=t3 dst=a3 bound=t2 colBase=a0 pGrid=a2 colCur=v1 off=a3), so
-   objdiff can never reach 100 here without snapping gcc's allocator tie-break. Shapes
-   that matter and are now right: w/h must be locals or the in-loop loads are not hoisted;
-   `for (i = 8; i != -1; i--)` both loops; the if/else-with-value form for the inner clamp
-   (that is what duplicates `addu v0,off,colCur` into the delay slot and after r=0);
-   row >>= 8 before the 0xA2-byte struct copy, colBase = col after it.
+/* 94.52%, 464 bytes against retail's 472 (re-measured round 381; the earlier
+   "96.44, same instructions" note was a different body and understated the gap):
+   the loop nest and the 0xA2 struct copy are structurally right, but this body is
+   TWO instructions short and the six saved values are rotated one register
+   down (retail col=a3 row=t1 w=t2 dst=t0 bound=t3 colBase=t3 pGrid=a0 colCur=a3
+   off=a1; ours col=t1 row=t0 w=t3 dst=a3 bound=t2 colBase=a0 pGrid=a2 colCur=v1
+   off=a3). So it is not the pure allocator tie the old note claimed: find the two
+   missing instructions first, then the rotation.
+   Shapes that matter and are now right: w/h are loaded as the FIRST statements
+   (retail loads both before the x division); `for (i = 8; i != -1; i--)` in both
+   loops; the if/else-with-value form for the inner clamp (that is what duplicates
+   `addu v0,off,colCur` into the delay slot and after r=0); row >>= 8 before the
+   0xA2-byte struct copy, colBase = col after it.
+   MEASURED this round: a 4-minute permuter run from this body found only
+   best=579 (base 659) - a `new_var = 1` / reuse-of-col spelling that changes
+   nothing structural. Not a preset question: the unit's own flags are the ones
+   the note was written under.
 void func_800981C8(WorldMapMisc16Struct* p) {
     s32 col;
     s32 row;
