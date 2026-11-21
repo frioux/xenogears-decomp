@@ -32,12 +32,35 @@ typedef struct {
 } BattlePacketPrims; // Size: 0x670
 
 // Partial view of the sprite column draw buffer g_BattleSpriteColumnWork points at
-// (0x5DA4 bytes, allocated by BattleAllocDrawBuffer): the package count and prim
-// start every prim list is appended from, the 0x4CE0 list's pair, and the counter
-// that gates that list. A list's start and count are indexed independently: the
-// lists are appended in a different order than they are declared in.
+// (0x5DA4 bytes, allocated by BattleAllocDrawBuffer). 0x0000-0x5D70 is prim data:
+// one area per prim list, 0x50 bytes per package of that list, in the order the
+// lists were laid out. Each list's package count and prim start are then read from
+// a pair at 0x5D70 (the 0x4CE0 list and the 20-package panel list have their own),
+// plus the counter that gates the 0x4CE0 list. A list's count and start are indexed
+// independently: the lists are appended in a different order than declared here.
 typedef struct {
-    /* 0x0000 */ u8 unk0[0x5D70];
+    /* 0x0000 */ u8 unk0[0x3C0];
+    /* 0x03C0 */ u8 unk3C0[0x960];
+    /* 0x0D20 */ u8 unkD20[0x280];
+    /* 0x0FA0 */ u8 unkFA0[0x780];
+    /* 0x1720 */ u8 unk1720[0xE10];
+    /* 0x2530 */ u8 unk2530[0xD70];
+    /* 0x32A0 */ u8 unk32A0[0x820];
+    /* 0x3AC0 */ u8 unk3AC0[0x370];
+    /* 0x3E30 */ u8 unk3E30[0x50];
+    /* 0x3E80 */ u8 unk3E80[0x550];
+    /* 0x43D0 */ u8 unk43D0[0x2D0];
+    /* 0x46A0 */ u8 unk46A0[0x640];
+    /* 0x4CE0 */ u8 unk4CE0[0x190];
+    /* 0x4E70 */ u8 unk4E70[0x140];
+    /* 0x4FB0 */ u8 unk4FB0[0xF0];
+    /* 0x50A0 */ u8 unk50A0[0x140];
+    /* 0x51E0 */ u8 unk51E0[0xA0];
+    /* 0x5280 */ u8 unk5280[0x140];
+    /* 0x53C0 */ u8 unk53C0[0x190];
+    /* 0x5550 */ u8 unk5550[0xF0];
+    /* 0x5640 */ u8 unk5640[0x640];
+    /* 0x5C80 */ u8 unk5C80[0xF0];
     /* 0x5D70 */ u8 packageCount[0x13]; // packages each list holds
     /* 0x5D83 */ u8 primStart[0x13];    // prim index each list was built at
     /* 0x5D96 */ u8 animPackageCount;   // package count of the 0x32A0 list
@@ -324,13 +347,13 @@ void BattleAddSpriteColumnPrimLists(void) {
     u16 counter;
 
     if (g_BattleDisplayState->actorPrimListsPending != 0) {
-        func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x3E80, g_BattleSpriteColumnWork->packageCount[7],
+        func_800728B8(g_BattleSpriteColumnWork->unk3E80, g_BattleSpriteColumnWork->packageCount[7],
                       g_BattleSpriteColumnWork->primStart[3]);
-        func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x5280, g_BattleSpriteColumnWork->packageCount[12],
+        func_800728B8(g_BattleSpriteColumnWork->unk5280, g_BattleSpriteColumnWork->packageCount[12],
                       g_BattleSpriteColumnWork->primStart[8]);
-        func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x53C0, g_BattleSpriteColumnWork->packageCount[13],
+        func_800728B8(g_BattleSpriteColumnWork->unk53C0, g_BattleSpriteColumnWork->packageCount[13],
                       g_BattleSpriteColumnWork->primStart[9]);
-        func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x43D0, g_BattleSpriteColumnWork->packageCount[15],
+        func_800728B8(g_BattleSpriteColumnWork->unk43D0, g_BattleSpriteColumnWork->packageCount[15],
                       g_BattleSpriteColumnWork->primStart[11]);
     }
 
@@ -338,42 +361,42 @@ void BattleAddSpriteColumnPrimLists(void) {
         return;
     }
 
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x46A0, 20, g_BattleSpriteColumnWork->panelPrimStart);
-    func_800728B8(g_BattleSpriteColumnWork, g_BattleSpriteColumnWork->packageCount[0],
+    func_800728B8(g_BattleSpriteColumnWork->unk46A0, 20, g_BattleSpriteColumnWork->panelPrimStart);
+    func_800728B8(g_BattleSpriteColumnWork->unk0, g_BattleSpriteColumnWork->packageCount[0],
                   g_BattleSpriteColumnWork->primStart[15]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x1720, g_BattleSpriteColumnWork->packageCount[4],
+    func_800728B8(g_BattleSpriteColumnWork->unk1720, g_BattleSpriteColumnWork->packageCount[4],
                   g_BattleSpriteColumnWork->primStart[0]);
 
     counter = g_BattleSpriteColumnWork->columnCounter + 1;
     g_BattleSpriteColumnWork->columnCounter = counter;
     if ((s16)counter < 15) {
-        func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x4CE0, g_BattleSpriteColumnWork->listPackageCount,
+        func_800728B8(g_BattleSpriteColumnWork->unk4CE0, g_BattleSpriteColumnWork->listPackageCount,
                       g_BattleSpriteColumnWork->listPrimStart);
     } else if ((s16)counter >= 21) {
         g_BattleSpriteColumnWork->columnCounter = 0;
     }
 
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x3AC0, g_BattleSpriteColumnWork->packageCount[5],
+    func_800728B8(g_BattleSpriteColumnWork->unk3AC0, g_BattleSpriteColumnWork->packageCount[5],
                   g_BattleSpriteColumnWork->primStart[1]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x3E30, g_BattleSpriteColumnWork->packageCount[6],
+    func_800728B8(g_BattleSpriteColumnWork->unk3E30, g_BattleSpriteColumnWork->packageCount[6],
                   g_BattleSpriteColumnWork->primStart[2]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x4E70, g_BattleSpriteColumnWork->packageCount[8],
+    func_800728B8(g_BattleSpriteColumnWork->unk4E70, g_BattleSpriteColumnWork->packageCount[8],
                   g_BattleSpriteColumnWork->primStart[4]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x4FB0, g_BattleSpriteColumnWork->packageCount[9],
+    func_800728B8(g_BattleSpriteColumnWork->unk4FB0, g_BattleSpriteColumnWork->packageCount[9],
                   g_BattleSpriteColumnWork->primStart[5]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x50A0, g_BattleSpriteColumnWork->packageCount[10],
+    func_800728B8(g_BattleSpriteColumnWork->unk50A0, g_BattleSpriteColumnWork->packageCount[10],
                   g_BattleSpriteColumnWork->primStart[6]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x51E0, g_BattleSpriteColumnWork->packageCount[11],
+    func_800728B8(g_BattleSpriteColumnWork->unk51E0, g_BattleSpriteColumnWork->packageCount[11],
                   g_BattleSpriteColumnWork->primStart[7]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x2530, g_BattleSpriteColumnWork->packageCount[14],
+    func_800728B8(g_BattleSpriteColumnWork->unk2530, g_BattleSpriteColumnWork->packageCount[14],
                   g_BattleSpriteColumnWork->primStart[10]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x32A0, g_BattleSpriteColumnWork->animPackageCount,
+    func_800728B8(g_BattleSpriteColumnWork->unk32A0, g_BattleSpriteColumnWork->animPackageCount,
                   g_BattleSpriteColumnWork->animPrimStart);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x3C0, g_BattleSpriteColumnWork->packageCount[1],
+    func_800728B8(g_BattleSpriteColumnWork->unk3C0, g_BattleSpriteColumnWork->packageCount[1],
                   g_BattleSpriteColumnWork->primStart[16]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0xD20, g_BattleSpriteColumnWork->packageCount[2],
+    func_800728B8(g_BattleSpriteColumnWork->unkD20, g_BattleSpriteColumnWork->packageCount[2],
                   g_BattleSpriteColumnWork->primStart[17]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0xFA0, g_BattleSpriteColumnWork->packageCount[3],
+    func_800728B8(g_BattleSpriteColumnWork->unkFA0, g_BattleSpriteColumnWork->packageCount[3],
                   g_BattleSpriteColumnWork->primStart[18]);
 }
 void BattleUpdateRotationBuffer(void) {
@@ -424,11 +447,11 @@ void BattleAddThreePrimLists(void) {
         return;
     }
 
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x5550, g_BattleSpriteColumnWork->packageCount[16],
+    func_800728B8(g_BattleSpriteColumnWork->unk5550, g_BattleSpriteColumnWork->packageCount[16],
                   g_BattleSpriteColumnWork->primStart[12]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x5640, g_BattleSpriteColumnWork->packageCount[17],
+    func_800728B8(g_BattleSpriteColumnWork->unk5640, g_BattleSpriteColumnWork->packageCount[17],
                   g_BattleSpriteColumnWork->primStart[13]);
-    func_800728B8((u8 *)g_BattleSpriteColumnWork + 0x5C80, g_BattleSpriteColumnWork->packageCount[18],
+    func_800728B8(g_BattleSpriteColumnWork->unk5C80, g_BattleSpriteColumnWork->packageCount[18],
                   g_BattleSpriteColumnWork->primStart[14]);
 }
 
