@@ -23,6 +23,12 @@ extern void GfxDrawArchiveReadRetry(int, int, int, int);
 extern int ArchiveDecodeSizeAligned(int entryIndex);
 extern s16 g_ArchiveDebugStreamSectionCount;
 extern s8* g_ArchiveStreamWritePointer;
+extern u16 g_ArchiveStreamNextSectionId;
+extern u8 g_ArchiveSectorScratch[];
+extern s32 g_ArchiveDebugStreamSector;  // debug stream: sector buffer being split
+extern s32 g_ArchiveDebugStreamPayload;  // debug stream: payload cursor inside that sector
+extern s16 g_ArchiveDebugStreamBlockCount;  // debug stream: sub-blocks in that sector
+extern u16 D_8005A4B8;  // debug stream: sector header word at +8
 
 // Stream file: the section count, then a section table of `sectionCount` entries.
 // The payload starts STREAM_FILE_HEADER_SIZE past the count, so the table has room
@@ -31,15 +37,9 @@ typedef struct {
     /* 0x0 */ s32 sectionCount;
     /* 0x4 */ ArchiveStreamFileSectionHeader sections[1];
 } ArchiveStreamFileHeader;
-extern u16 g_ArchiveStreamNextSectionId;
-extern u8 g_ArchiveSectorScratch[];
-extern s32 g_ArchiveDebugStreamSector;  // debug stream: sector buffer being split
-extern s32 g_ArchiveDebugStreamPayload;  // debug stream: payload cursor inside that sector
-extern s16 g_ArchiveDebugStreamBlockCount;  // debug stream: sub-blocks in that sector
-extern u16 D_8005A4B8;  // debug stream: sector header word at +8
 
-// Archive header table, read from sector 0x28 in ArchiveInit: one sector offset per
-// directory entry, then the disc number.
+// Archive header table, read from sector ARCHIVE_HEADER_SECTOR in ArchiveInit: one
+// sector offset per directory entry, then the disc number.
 typedef struct {
     /* 0x0  */ u16 sectorOffsets[60];
     /* 0x78 */ u16 discNumber;
@@ -192,7 +192,7 @@ char* ArchiveReadHddFile(char* pFilePath, int* pFileSize) {
         *pFileSize = nFileSize;
     PClseek(hFile, 0, SEEK_SET);
     
-    pFileBuffer = (char*) HeapAlloc(nFileSize, 0x0);
+    pFileBuffer = HeapAlloc(nFileSize, 0);
     nBytesRead = 0;
     if (pFileBuffer) {
         for (i = 0; i < RETRY_COUNT; i++) {
@@ -341,7 +341,7 @@ char* ArchiveGetFilePath(int entryIndex) {
     
     if (g_ArchiveDebugTable) {
         nOffset = (entryIndex + g_CurArchiveOffset - 1) * ARCHIVE_ENTRY_NAME_BUFFER_SIZE;
-        return nOffset + g_ArchiveDebugTable;
+        return (char*)(nOffset + g_ArchiveDebugTable);
     }
 
     return NULL;
