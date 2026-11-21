@@ -306,17 +306,6 @@ void FieldScriptVMHandlerMoveActorToIndirectPosition(void) {
 }
 
 
-typedef struct {
-    /* 0x0 */ u16 arg1;
-    /* 0x2 */ u16 arg2;
-    /* 0x4 */ u16 arg3;
-    /* 0x6 */ u16 arg4;
-    /* 0x8 */ u16 arg5;
-    /* 0xA */ u16 arg6;
-    /* 0xC */ u16 arg7;
-    /* 0xE */ u16 arg8;
-} FieldScriptArgs; // Size: 0x10
-
 // 79.89% (684 vs 632 bytes). Structure is right - frame (0xA0, seven saves),
 // both calls, the copy loop bounds, the three MATRIX store pairs and the whole
 // zeroing tail line up. Three fixes that this attempt established (all now in the
@@ -450,14 +439,14 @@ void FieldScriptVMHandlerSnapshotIndirectArguments(void) {
         g_FieldScriptVMCurActor->pScriptArgs = HeapAlloc(0x10, 0x0);
     }
     g_FieldScriptVMCurActor->flags12C_0xD = 1;
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg1 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg2 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg3 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg4 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg5 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg6 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg7 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg8 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg1 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg2 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg3 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg4 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg5 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg6 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg7 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
+    g_FieldScriptVMCurActor->pScriptArgs->arg8 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
@@ -970,6 +959,8 @@ extern s32 D_8005A44C;
 
 // The non-void return type is required: declared void, cc1 (reorg) moves `sll
 // v0,v1,1` into the `beq nActorIndex,0xFF` delay slot instead of a `nop`.
+// position is 16.16 fixed point, so halves 1 and 5 are the integer vx and vz
+// that the script variables hold; no ActorData field names those halfwords.
 int FieldScriptWritePartyMemberPosition(int partyMemberIndex) {
     s32* pActorSlots;
     s32 nActorIndex;
@@ -1261,6 +1252,8 @@ void FieldPlayerSetScriptFlag80(void) {
 
 // g_FieldActors is volatile, so retail re-reads the base once per component pair:
 // the three pointer locals keep those reloads where the original has them.
+// pPosition views the 16.16 fixed-point position as its halves: 1, 3 and 5 are
+// the integer vx, vy and vz.
 void FieldActorApplyPositionTransform(void) {
     FieldActor* pFieldActor;
     FieldActor* pFieldActor1;
@@ -1350,7 +1343,28 @@ void FieldScriptVMHandlerIncrementCounter(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-extern u8* g_FieldActorModelPointers[];
+// The model record g_FieldActorModelPointers holds and the sprite record it
+// points at from +0x4. This unit only touches the scale, the y and the two x/z
+// words.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x5C];
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ u8 unk60[4];
+    /* 0x64 */ s32 unk64;
+} FieldActorModelSprite;
+
+typedef struct {
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ FieldActorModelSprite* unk4;
+    /* 0x08 */ u8 unk8[0x14];
+    /* 0x1C */ s16 unk1C;
+    /* 0x1E */ u8 unk1E[0x16];
+    /* 0x34 */ u8 unk34;
+    /* 0x35 */ u8 unk35[0x2B];
+    /* 0x60 */ s16 unk60;
+} FieldActorModel;
+
+extern FieldActorModel* g_FieldActorModelPointers[];
 extern void LibGearFreeModel(int modelIndex);
 
 void FieldScriptVMHandlerReleaseActorModel(void) {
@@ -1363,7 +1377,7 @@ void FieldScriptVMHandlerReleaseActorModel(void) {
     pActor->flags &= ~0x2000;
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
-            g_FieldActorModelPointers[nModelIndex][0x34] = 0;
+            g_FieldActorModelPointers[nModelIndex]->unk34 = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
         case 1:
@@ -1397,24 +1411,6 @@ typedef struct {
 
 extern FieldModelSlotScratch g_FieldModelSlotScratch;
 
-// The model record g_FieldActorModelPointers holds and the record it points at
-// from +0x4. This unit only touches the scale, the y and the two x/z words.
-typedef struct {
-    /* 0x00 */ u32 unk0;
-    /* 0x04 */ void* unk4;
-    /* 0x08 */ u8 unk8[0x14];
-    /* 0x1C */ s16 unk1C;
-    /* 0x1E */ u8 unk1E[0x42];
-    /* 0x60 */ s16 unk60;
-} FieldActorModel;
-
-typedef struct {
-    /* 0x00 */ u8 unk0[0x5C];
-    /* 0x5C */ s32 unk5C;
-    /* 0x60 */ u8 unk60[4];
-    /* 0x64 */ s32 unk64;
-} FieldActorModelSprite;
-
 void FieldScriptVMHandlerUpdateActorModelSlot(void) {
     ActorData* pActor;
     s32 nSlot;
@@ -1440,7 +1436,7 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
 
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
-            g_FieldActorModelPointers[nSlot][0x34] = 0;
+            g_FieldActorModelPointers[nSlot]->unk34 = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
 
@@ -1469,7 +1465,7 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
                 func_801E742C(nSlot, 0, D_8005A420[nSlot], D_8005A450[nSlot],
                     (s16)(0x240 - (nOffset << 6)), 0x100, 0,
                     (s16)(nSlot + 0xFC), &g_FieldModelSlotScratch.vectors[nSlot]);
-                g_FieldModelSlotScratch.animationIds[nSlot] = *(s16*)(g_FieldActorModelPointers[nSlot] + 0x1C);
+                g_FieldModelSlotScratch.animationIds[nSlot] = g_FieldActorModelPointers[nSlot]->unk1C;
                 HeapFree((void*)D_8005A450[nSlot]);
 
                 pSpriteActor = g_FieldScriptVMCurActor;
@@ -1477,13 +1473,13 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
                 pSpriteActor->flags |= 0x2000;
                 nScale = (s16)pSpriteActor->scaleX;
                 pPosition = (s16*)&pSpriteActor->position;
-                ((FieldActorModel*)g_FieldActorModelPointers[nSlot])->unk1C = (nScale * 5) >> 6;
+                g_FieldActorModelPointers[nSlot]->unk1C = (nScale * 5) >> 6;
                 // The y is a fixed-point half-word: an int local keeps the sign-extending load.
-                pModel = (FieldActorModel*)g_FieldActorModelPointers[nSlot];
+                pModel = g_FieldActorModelPointers[nSlot];
                 nPositionY = pPosition[3];
                 pModel->unk60 = nPositionY;
-                ((FieldActorModelSprite*)((FieldActorModel*)g_FieldActorModelPointers[nSlot])->unk4)->unk5C = pPosition[1];
-                ((FieldActorModelSprite*)((FieldActorModel*)g_FieldActorModelPointers[nSlot])->unk4)->unk64 = pPosition[5];
+                g_FieldActorModelPointers[nSlot]->unk4->unk5C = pPosition[1];
+                g_FieldActorModelPointers[nSlot]->unk4->unk64 = pPosition[5];
             } else {
                 g_FieldScriptVMCurActor->scriptInstructionPointer--;
             }
