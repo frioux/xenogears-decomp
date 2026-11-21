@@ -300,7 +300,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 // asymmetry is what gives retail's two addu operand orders, and it is the only
 // source-level lever in this body (every uniform spelling is 96.12% / 620 bytes,
 // one instruction short of retail's 624).
-void func_8008D328(void) {
+void BattleFadeTilePrimRow(void) {
     u8 found;
     s32 j;
     s32 i;
