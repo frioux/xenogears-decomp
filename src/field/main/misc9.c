@@ -644,6 +644,22 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
    folds it back to the same 97.89), moving the four x=0x280 stores up next to
    the 0xFF group (93.73 - the stores move too, sched2 does not re-sort them),
    -O3 (97.89), gcc 2.6.0 (97.82), gcc 2.7.2-cdk (70.15).
+   Round 385 addenda - the slot is the SCHEDULER's, not cse's: a flat replica of
+   this store group compiled with the unit's own cc1 (tools/scripts/cc1_probe.sh)
+   reproduces this body's shape exactly (`li $3,0x280` immediately after
+   `li $2,0x18`, 18 insns before its first `sh`) and under -O1 the li falls back
+   to its use, so the stores keep their order (conservative memory deps) while
+   the pure lis are hoisted greedily into one cluster headed by the 0x18 def.
+   Retail alone promoted 0x280 into the first cluster beside 0xFF. Everything
+   below measured at 1520 bytes unless noted: a do-while-0 around the WHOLE
+   56-store group 94.64 (1512, worse - the group switches to
+   register+displacement addressing), a do-while-0 around only the 12 zero
+   stores 75.68 (1388), `(s16)0x280` and `(u16)0x280` on the four x stores 97.89
+   (byte-identical to the plain literal), a `s32 right; right = 0x280;`
+   STATEMENT assignment at the group head (the declaration initialiser was
+   measured last round) folds back to the same 97.89, a store-to-load-forwarded
+   reuse (`x3 = x1`) leaves the slot unchanged in the replica, and permute.sh
+   4 min / 1519 iterations printed PERMUTER_NONE base=850 best=850.
 
 // One 16-pixel text row: a draw mode and a sprite per column, duplicated for
 // the two render contexts
