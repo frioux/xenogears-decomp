@@ -20,6 +20,17 @@ typedef struct {
     /* 0xA */ short curAngleY;
 } CameraInterpolation;
 
+// Scripted camera state: the F* camera ops copy the scene's values into it.
+// The movement flags at 0xC and the durations that follow are named on their own
+// (g_CamMovementFlags, g_CamAtMovementDuration).
+typedef struct {
+    /* 0x0 */ s32 distance; // Scaled scene depth: (sceneScrZ * sceneScale) >> 12
+    /* 0x4 */ s16 mode; // Used on its own elsewhere as g_FieldCameraMode
+    /* 0x6 */ s16 dip; // Copy of g_Scene.sceneDIP
+    /* 0x8 */ s16 angleY; // Copy of g_Scene.sceneAngle.vy
+    /* 0xA */ s16 circleScale; // 0x1000 is 1.0 in 4.12; scales the scripted circle radius
+} FieldCameraState; // Size: 0xC
+
 extern CameraInterpolation g_CamInterpolation;
 
 

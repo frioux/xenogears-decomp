@@ -8,13 +8,10 @@
 
 extern s16 g_CamEyeMovementDuration[];
 extern s16 g_CamAtMovementDuration[];
+extern FieldCameraState D_800AF930;
 extern s16 g_FieldCameraMode;
-extern s32 D_800AF930;
-extern s16 D_800AF936;
-extern s16 D_800AF938;
 extern s32 g_FieldCameraSnapFrames[];
 extern VECTOR g_CamAtMovementFrom;
-extern s16 D_800AF93A[]; // Part of a struct
 extern VECTOR g_CamAtMovementTo;
 extern VECTOR g_CamEyeMovementFrom;
 extern VECTOR g_CamEyeMovementTo;
@@ -105,13 +102,13 @@ void FieldScriptSetCameraInterpolationMode(void) {
     g_FieldCameraMode = 1;
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
-    D_800AF93A[0] = 0x1000;
+    D_800AF930.circleScale = 0x1000;
     g_CamInterpolation.atStepDistance = 0xC;
     g_CamInterpolation.eyeStepDistance = 0xC;
-    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
+    D_800AF930.distance = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
     g_Scene.flags |= 0x8000;
-    D_800AF938 = g_Scene.sceneAngle.vy;
-    D_800AF936 = g_Scene.sceneDIP;
+    D_800AF930.angleY = g_Scene.sceneAngle.vy;
+    D_800AF930.dip = g_Scene.sceneDIP;
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
@@ -440,9 +437,9 @@ void FieldScriptWriteCameraTweenPosition(void) {
 
 void FieldScriptWriteOrSetCameraAngleY(void) {
     if (SCRIPT_READ_U8_REL(3) == 0) {
-        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF938);
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF930.angleY);
     } else {
-        D_800AF938 = FieldScriptVMGetInstructionArgument(1);
+        D_800AF930.angleY = FieldScriptVMGetInstructionArgument(1);
     }
     g_FieldScriptMaxInstructionCount += 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
@@ -450,9 +447,9 @@ void FieldScriptWriteOrSetCameraAngleY(void) {
 
 void FieldScriptWriteOrSetCameraDIP(void) {
     if (SCRIPT_READ_U8_REL(3) == 0) {
-        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF936);
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF930.dip);
     } else {
-        D_800AF936 = FieldScriptVMGetInstructionArgument(1);
+        D_800AF930.dip = FieldScriptVMGetInstructionArgument(1);
     }
     g_FieldScriptMaxInstructionCount += 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
@@ -460,18 +457,18 @@ void FieldScriptWriteOrSetCameraDIP(void) {
 
 void FieldScriptWriteOrSetCameraDistance(void) {
     if (SCRIPT_READ_U8_REL(3) == 0) {
-        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF930);
+        FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF930.distance);
     } else {
-        D_800AF930 = SCRIPT_IMM_ARG(1);
+        D_800AF930.distance = SCRIPT_IMM_ARG(1);
     }
     g_FieldScriptMaxInstructionCount += 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
 void FieldScriptWriteCameraDistanceDipAndAngle(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF938);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), D_800AF936);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), D_800AF930);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), D_800AF930.angleY);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), D_800AF930.dip);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), D_800AF930.distance);
     g_FieldScriptMaxInstructionCount += 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
@@ -502,7 +499,7 @@ void FieldScriptWriteCameraMovementDestAnglesAndDistance(void) {
     );
     halfDistance = distance / 2;
     
-    D_800AF93A[0] = 0x1000;
+    D_800AF930.circleScale = 0x1000;
 
     // Cursed angle math
     yawAngle = ratan2(camAtDest.vz - camEyeDest.vz, camAtDest.vx - camEyeDest.vx);
@@ -564,8 +561,8 @@ void FieldScriptWriteRotatedCirclePointFromArgs(void) {
     angle = ((temp * 0xB60) >> 8) + 0xC00;
 
     // (number << 5) >> 0x10 is division by 0x800 = 180 degrees
-    vecResult.vy = ((-((rsin(angle) * factor) << 5) >> 0x10) * D_800AF93A[0] * 0x10) + parameter.vy;
-    vecResult.vz = ((((rcos(angle) * factor) << 5) >> 0x10) * D_800AF93A[0] * 0x10) + parameter.vz;
+    vecResult.vy = ((-((rsin(angle) * factor) << 5) >> 0x10) * D_800AF930.circleScale * 0x10) + parameter.vy;
+    vecResult.vz = ((((rcos(angle) * factor) << 5) >> 0x10) * D_800AF930.circleScale * 0x10) + parameter.vz;
     vecResult.vx = parameter.vx;
 
     FieldRotateVectorAroundPointY(&vecResult, &parameter, yAngle);
@@ -619,8 +616,8 @@ void FieldScriptWriteRotatedCirclePointFromMovement(void) {
     angle = ((temp_s1 * 0xB60) >> 8) + 0xC00;
 
     // (number << 5) >> 0x10 is division by 0x800 = 180 degrees
-    vecResult.vy = ((-((rsin(angle) * factor) << 5) >> 0x10) * D_800AF93A[0] * 0x10) + parameter.vy;
-    vecResult.vz = ((((rcos(angle) * factor) << 5) >> 0x10) * D_800AF93A[0] * 0x10) + parameter.vz;
+    vecResult.vy = ((-((rsin(angle) * factor) << 5) >> 0x10) * D_800AF930.circleScale * 0x10) + parameter.vy;
+    vecResult.vz = ((((rcos(angle) * factor) << 5) >> 0x10) * D_800AF930.circleScale * 0x10) + parameter.vz;
     vecResult.vx = parameter.vx;
 
     // Rotate difference between parameter value and the result vector by Y angle,
