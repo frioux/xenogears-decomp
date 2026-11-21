@@ -225,61 +225,45 @@ void BattleAddThreeFlaggedPrimLists(void) {
         BattleAddPrimListToOT(g_BattleGraphicsWork + 0x1E68, g_BattleDisplayState->menuColumnPackageCount, g_BattleDisplayState->menuColumnPrimStart);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
-/* 99.84% at retail's exact 744 bytes / 186 instructions, frame 0x20 and mask
-   s0-s2+ra exact. THREE instructions differ, all the same shape: the AddPrim
-   delay slot is `addu a1,a1,v1` (index sum first, prim base second) where this
-   body emits `addu a1,v1,a1` - nothing is missing on either side, only the
-   operand order of a commutative add differs.
-   The lever that got here (was 95.80): write every prim address as a SUBSCRIPT
-   on the base - `&((u8 *)g_BattleGraphicsWork)[g_BattlePrimStartIndex * 12 +
-   0x8920]` and `&((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280]` -
-   instead of the cast form `(u8 *)(prod + CONST + (s32)base)`. The cast form
-   makes gcc fold the CONSTANT onto the base (`addiu v0,s0,0x280`, product added
-   last); the subscript keeps the offset an integer expression, so the constant
-   lands on the product (`addiu a1,a1,0x280`) exactly as retail has it. That one
-   spelling closed all 13 sites and took it 95.80 -> 99.84.
-   Measured dead for the remaining operand order: a `mem_addr` or `u8 *` base
-   local assigned once at the top and summed index-first at each site (90.52%,
-   732 bytes - gcc shares the pointer and loses three address forms).
-   The permuter cannot parse this body (`conversion to non-scalar type requested`
-   from its C parser). The three sites are the two g_BattlePrimStartIndex*12
-   chains and the 0x5A0 one.
-*/
-/*
+
 void func_80073FB8(void) {
     BattleSlotGraphics *pSlot;
     s32 i;
+    u32 primOfs;
+    u32 slotPrimOfs;
+    u32 primOfs2;
 
-    AddPrim(g_BattleCurOT[0] + 4, &((u8 *)g_BattleGraphicsWork)[g_BattlePrimStartIndex * 12 + 0x8920]);
+    primOfs = g_BattlePrimStartIndex * 12 + 0x8920;
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(primOfs + (u32)g_BattleGraphicsWork));
 
     for (i = 0; i < 4; i++) {
-        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0x7F) != 0 && g_BattleDisplayMode == 1) {
-            AddPrim(g_BattleCurOT[0] + 4,
-                    &((u8 *)g_BattleGraphicsWork)[(i * 2 + *(u8 *)((u8 *)g_BattleDisplayState + i + 0x84)) * 52 +
-                                                0x5A0]);
+        if (g_BattleDisplayState->panelActive[i] != 0 && g_BattleDisplayMode == 1) {
+            slotPrimOfs = (i * 2 + g_BattleDisplayState->panelPrimStart[i]) * 52 + 0x5A0;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(slotPrimOfs + (u32)g_BattleGraphicsWork));
         }
     }
 
-    AddPrim(g_BattleCurOT[0] + 4, &((u8 *)g_BattleGraphicsWork)[g_BattlePrimStartIndex * 12 + 0x8908]);
+    primOfs2 = g_BattlePrimStartIndex * 12 + 0x8908;
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(primOfs2 + (u32)g_BattleGraphicsWork));
 
     for (i = 0; i < 7; i++) {
-        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xB0) != 0) {
+        if (g_BattleDisplayState->primFlags[i] != 0) {
             pSlot = g_BattleSlotGraphics[i];
-            BattleAddPrimListToOT((u8 *)pSlot, pSlot->packageCount, *(u8 *)((u8 *)pSlot + 0x5A4));
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x2D0]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x320]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x370]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x140]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x190]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x1E0]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x230]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(POLY_G4) + 0x3C0]);
-            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(DR_MODE) + 0x408]);
+            BattleAddPrimListToOT((u8 *)pSlot, pSlot->packageCount, pSlot->packagePrimStart);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x280]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x2D0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x320]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x370]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x140]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x190]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x1E0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_FT4) + 0x230]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(POLY_G4) + 0x3C0]);
+            AddPrim(g_BattleCurOT[0] + 4, &((u8 *)pSlot)[pSlot->packagePrimStart * sizeof(DR_MODE) + 0x408]);
         }
     }
-}*/
+}
+
 void BattleRenderSlotStatDigits(void) {
     s32 flagOfs;
     s32 i;
