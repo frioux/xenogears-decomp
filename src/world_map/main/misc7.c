@@ -802,15 +802,13 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
 // statement order and reuses $v1 for all three loads. Same blocker as
 // func_800817A0 above; pointer local, zero-store order and x/y/z order were
 // all no better (vec3 through a pointer local: 87.03, zeros first: 84.43).
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
-/*
 s32 func_800819C8(s32 index) {
     u8 *pEntry = (u8 *)g_WorldMapGroups;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->state = 0;
-    pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    pSlot->pos.y = g_WorldMapPlayerPositionY;
+    *(volatile s32 *)&pSlot->pos.x = g_WorldMapPlayerPosition.x;
+    *(volatile s32 *)&pSlot->pos.y = g_WorldMapPlayerPositionY;
     pSlot->pos.z = g_WorldMapPlayerPositionZ;
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
@@ -827,9 +825,7 @@ s32 func_800819C8(s32 index) {
     WorldMapInitPolyFt4Prims((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
                   *(u16 *)(*(u8 **)(pEntry + 0x40) + 4), 3);
     return 1;
-}
-*/
-s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
+}s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     WorldMapEntry *pEntry = &g_WorldMapGroups[0];
 
