@@ -29,6 +29,10 @@ extern s32 g_BattleCameraPosY;
 extern s32 g_BattleCameraPosZ;
 extern s32 g_BattleCameraOrbitRadius;
 extern s32 g_BattleCameraYOffset;
+extern s32 g_BattleViewOriginY;
+extern s32 g_BattleMode;
+extern s32 g_BattleCameraDebugEnabled;
+extern s32 g_BattleFloorOutlineArc;
 extern u8 g_BattleCameraLerpFrames;
 extern s32 g_BattleCameraAngleStep;
 
@@ -234,7 +238,8 @@ void BattleCopyPlaneNormal(SVECTOR* p) {
 extern void MathTriangleNormal(SVECTOR* pVertex1, SVECTOR* pVertex2, SVECTOR* pVertex3, SVECTOR* pNormal);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
-/* PARK 99.00% (1016 bytes, the original's exact size). Two things differ.
+/* PARK 99.00% (1016 bytes, the original's exact size). Six instructions differ,
+   all in the prologue's register names.
    1. The mask/index registers: retail materialises the 0xFFFFFF00 mask in a0
    (addiu a0,zero,-256 hoisted above the loads), keeps pPos->vx in t2 and
    pPos->vz in t1 and lets the mz AND overwrite the mask register; this body gets
@@ -242,7 +247,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
    register names). Six source shapes all measure identically here, including
    dropping the mask local (which is what a permuter run's best candidate did, but
    it also made the mz unmasked, so it is not shippable), so this is an allocator
-   tie, not a spelling question.
+   tie, not a spelling question. A 1532-iteration permuter run found one nearer
+   spelling: reusing the row local for pPos->vz ('row = pPos->vz; mz = row &
+   0xFFFFFF00; row = row >> 8;') puts the mask in retail's a0 and scores 99.64%,
+   but it also swaps which of x/z is loaded first, so it is SEVEN differing
+   instructions against this body's six and the body above is the closer one.
    2. g_BattlePlaneNormal.vy/.vz: retail's object names the addresses D_8009276A /
    D_8009276C (0x80092768 + 2 and + 4, fields of the SVECTOR at that address) while
    the typed spelling relocates the whole symbol with an addend. The linked bytes
@@ -291,8 +300,8 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
     x = pPos->vx;
     z = pPos->vz;
     mx = x & 0xFFFFFF00;
-    col = x >> 8;
     mz = z & 0xFFFFFF00;
+    col = x >> 8;
     row = z >> 8;
     pCell = (s32 *)((u32)((row << 7) + col) * 4 + (u32)g_BattleGridCells);
 
@@ -1028,7 +1037,91 @@ void BattleFadeActorLights(Misc9LightGroup* pTable, Battler9* pActor, s32 idx) {
     func_80030A30(2, pOwner->pLight);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800840CC);
+// The camera/floor phase of the battle frame: the camera matrix and the two HUD
+// frames, the light group's node matrices, the reference matrix the shadows and
+// the effect prims are drawn with, the floor outline and the shaded spans.
+s32 BattleRenderCameraFrame(Misc9LightGroup* pGroup) {
+    MATRIX mtx; // the base matrix translated to the view origin
+    MATRIX mat; // the light group's own node matrix
+    VECTOR pad; // unused: the original's frame carries this slot after the two matrices
+    Misc9DisplayWork* pWork;
+    Misc9Node* pNodeA;
+    Misc9Node* pNodeB;
+    Poly9* pLight;
+    VECTOR* pCamPos;
+
+    pWork = pGroup->pWork;
+    BattleClearOrderingTable(pWork);
+    BattleSetMatrixFromPoints(pGroup, (VECTOR*)&g_BattleCameraPos, (VECTOR*)&g_BattleCameraTarget);
+    // The test chain jumps forward to the two shared bodies; as an if/else chain gcc
+    // inlines the first arm and the block comes out in another order.
+    if (g_BattleSavedScreenMode == 4) {
+        goto checkMode;
+    }
+    if (g_BattleMode == 4) {
+        goto drawHud;
+    }
+    if (g_BattleSavedScreenMode == 8) {
+        goto checkMode;
+    }
+    func_80087068(&g_BattleActor1, &g_BattleActor0);
+    goto done;
+checkMode:
+    if (g_BattleMode != 4) {
+        goto done;
+    }
+drawHud:
+    BattleDrawFrameHud(&g_BattleActor1);
+    if (g_BattleCameraDebugEnabled != 0) {
+        BattleDrawFrameHud(&g_BattleActor0);
+    }
+done:
+    BattleDrawTimedSpritePrims(g_BattleRootOrderingTable);
+    BattleDrawTextPrims(g_BattleRootOrderingTable);
+    mat = pGroup->pNode0->localMatrix;
+    pNodeA = g_BattleActor0Node;
+    pNodeB = g_BattleActor1Node;
+    pNodeA->localMatrix = mat;
+    pNodeB->localMatrix = pNodeA->localMatrix;
+    pLight = pGroup->pNodes[0]->pLight;
+    pLight->b = 0x800;
+    pLight->g = 0x800;
+    pLight->r = 0x800;
+    func_80030A30(0, pGroup->pNodes[0]->pLight);
+    gte_SetBackColor(g_BattleBackColorA, g_BattleBackColorG, g_BattleBackColorB);
+    BattleFadeActorLights(pGroup, &g_BattleActor1, 1);
+    BattleUpdateNodeTree(g_BattleEffectPool);
+    BattleFadeActorLights(pGroup, &g_BattleActor0, 1);
+    BattleUpdateNodeTree(g_BattleEffectNode);
+    gte_SetRotTransMatrix_gpr(&mat);
+    BattleUpdateSoundSlotPositions();
+    BattleEffectQueueMatrixPrims(&mat, pWork->pOt[g_BattleDrawBufferIndex]);
+    gte_SetRotTransMatrix_gpr(&mat);
+    BattleEffectSetMatrix(pWork->pOt[g_BattleDrawBufferIndex], &pGroup->pNode0->localMatrix);
+    mtx = g_BattleBaseMatrix;
+    mtx.t[1] = -g_BattleViewOriginY;
+    CompMatrix(&mat, &mtx, &mtx);
+    gte_SetRotTransMatrix_gpr(&mtx);
+    BattleSetStageFogColors();
+    pCamPos = (VECTOR*)&g_BattleCameraPos;
+    BattleDrawViewOriginRing(pWork->pOt[g_BattleDrawBufferIndex], pCamPos);
+    BattleDrawActorShadow(&g_BattleActor1, pWork->pOt[g_BattleDrawBufferIndex], &mtx);
+    BattleDrawActorShadow(&g_BattleActor0, pWork->pOt[g_BattleDrawBufferIndex], &mtx);
+    gte_SetRotTransMatrix_gpr(&mtx);
+    BattleClearSpanTables();
+    if (g_BattleFloorOutlineArc != 0) {
+        BattleDrawArcOutline(pCamPos->vx, g_BattleCameraPosZ,
+                             ratan2(pCamPos->vx - g_BattleCameraTarget, g_BattleCameraPosZ - g_BattleCameraTargetZ));
+    } else {
+        BattleDrawHexagonOutline(pCamPos->vx, g_BattleCameraPosZ,
+                                 ratan2(pCamPos->vx - g_BattleCameraTarget, g_BattleCameraPosZ - g_BattleCameraTargetZ));
+    }
+    BattleRenderShadedSpans(pWork->pOt[g_BattleDrawBufferIndex], g_BattleCameraTarget, g_BattleCameraTargetZ);
+    BattleAttachActorPrims(pWork);
+    BattleAddSharedPrim();
+    func_80031678(g_BattleRootOrderingTable, &D_80095580[g_BattleDrawBufferIndex]);
+    return 0;
+}
 
 s32 BattleRenderLightGroupFrame(Misc9LightGroup* pGroup) {
     VECTOR padA[2]; // unused: the original's frame carries this slot before the matrix
