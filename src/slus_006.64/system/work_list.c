@@ -100,11 +100,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", WorkListAddTask);
    order of the four hoisted loads differs - original: counter, g_WorkList,
    0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList, counter - and the
    register assignment follows it (original has the unk10 word in v1, the unk14
-   word in a2, the counter in a3, the old head in t1). Looks like a sched2
-   ready-list order, not source order: 9 statement orderings tried (unk10 first
-   73.34, id local 86.03, count before unk10 79.76, flags first 38.74,
-   callbacks early 73.39, head local 89.34, unk0 last 82.47, unk14 first
-   43.42). gcc 2.6.0 gives 89.87, 2.7.2-cdk 84.03, so it is not the preset.
+   word in a2, the counter in a3, the old head in t1), so it is a sched2
+   ready-list order: 12 statement orderings tried (unk10 first 73.34, id local
+   86.03, count before unk10 79.76, flags first 38.74, callbacks early 73.39,
+   head local 89.34, unk0 last 82.47, unk14 first 43.42, the original's own
+   store order 69.37, and three more). gcc 2.6.0 gives 89.87, 2.7.2-cdk 84.03,
+   so it is not the preset. The original's STORE order is 0x0, g_WorkList, 0x18,
+   0x10, counter, 0x8, 0xC, g_NumWorkListEntries, 0x14; writing the body in it
+   is WORSE (69.37). A 4-minute permuter run from the body below found only
+   89.74 (it holds the NULL for the onTriggerCallback store in a local and
+   stores it after g_NumWorkListEntries++), so this is a scheduling question,
+   not a source-order one.
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
     pEntry->pNext = g_WorkList;
@@ -117,9 +123,7 @@ void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->onFreeCallback = WorkListRemoveTask;
     pEntry->unk10 = D_80059184++;
     g_NumWorkListEntries++;
-}
-*/
-
+}*/
 WorkListEntry* WorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
 
@@ -320,15 +324,14 @@ void WorkListsRemoveEntriesForData(WorkListEntry* pTargetEntry) {
     }
 }
 
-// Set pCurEntry->unk4->unk70 of target entry if unk14_1 flag is set
-// Set pCurEntry->unk4->unk70 of target entry if unk14_1 flag is set
+// Clear pCurEntry->unk4->field_0x70 of the target entry if its unk14_1 flag is set
 void TimerWorkListClearDataField70(WorkListEntry* pTargetEntry) {
     WorkListEntry* pCurEntry;
 
     for (pCurEntry = g_TimerWorkList; pCurEntry != NULL; pCurEntry = pCurEntry->pNext) {
         if (pCurEntry->unk0 == pTargetEntry) {
             if (pCurEntry->unk14 == pTargetEntry->unk10 && (pCurEntry->unk14_1 & 1)) {
-                *(u32*)(pCurEntry->unk4 + 0x70) = 0;
+                ((SpriteData*)pCurEntry->unk4)->field_0x70 = NULL;
             }
         }
     }
@@ -403,11 +406,11 @@ WorkListEntry* WorkListsAddTasks(u_int allocSize, void* pData, WorkListCallback_
 
 // This may be the start of a new TU
 void SpriteAnimFrameListReset(void) {
-    D_80059190 = 0;
+    D_80059190 = NULL;
 }
 
 void SpriteAnimFrameListClear(void) {
-    D_80059190 = 0;
+    D_80059190 = NULL;
 }
 
 // Change Sprite Animation Frame maybe?
@@ -426,7 +429,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
    v1; a second permuter run raised the score to 112 by DELETING the tail
    curSpriteFrame store, which is wrong code - do not port it.
    Tried and measured no better: plain while, guard+do/while, `D_80059190` read
-   twice, and both 2.7.2 and 2.6.0 presets. */
+   twice, and both 2.7.2 and 2.6.0 presets.
 void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
 void SpriteClearDirTransforms(SpriteData* pSpriteData);
 extern u8 g_SpriteAnimPackageDirs6[];
@@ -505,10 +508,10 @@ void SpriteAnimFrameListFlush(void) {
     pSpriteData = D_80059190;
     while (pSpriteData != NULL) {
         // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
-        if (*(u16*)&pSpriteData->curSpriteFrame == 0) {
+        if ((u16)pSpriteData->curSpriteFrame == 0) {
             pSpriteData->field_0x40 &= ~0xFC;
         } else {
-            func_8001DAE8(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame, pSpriteData->pVramData);
+            func_8001DAE8(pSpriteData, (u16)pSpriteData->curSpriteFrame, pSpriteData->pVramData);
         }
 
         pSpriteData = pSpriteData->pBase->pNextSpriteData;
