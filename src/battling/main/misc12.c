@@ -23,10 +23,16 @@ typedef struct BattleListNode {
     /* 0x94 */ struct BattleListNode* pHead;
 } BattleListNode;
 
-// Owner struct whose field 4 holds the pointer this unit offsets by 0xC.
+// Record pData in BattleMisc12Owner points at: the matrix func_800898BC fills.
+typedef struct {
+    /* 0x00 */ u8 unk0[0xC];
+    /* 0x0C */ MATRIX matrix;
+} BattleMisc12Data; // Size: 0x2C (only +0xC is reached)
+
+// Owner struct whose field 4 holds the pointer to that record.
 typedef struct {
     /* 0x0 */ u32 unk0;
-    /* 0x4 */ void* pData;
+    /* 0x4 */ BattleMisc12Data* pData;
 } BattleMisc12Owner; // Size: 0x8
 
 // 0x10-byte GPU tile packet: tag word (with its length byte), the primitive
@@ -89,23 +95,6 @@ typedef struct {
     /* 0x58 */ BattleTilePacket tile1;
 } BattleSprite; // Size: 0x68
 
-// 0x10-byte block moved around inside the object built by BattleResetObject.
-typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ u32 unk4;
-    /* 0x8 */ u32 unk8;
-    /* 0xC */ u32 unkC;
-} BattleBlk16; // Size: 0x10
-
-// 0x20-byte matrix template copied wholesale into the two env globals below: the
-// MATRIX layout src/battling/main/misc1.c and misc2.c declare at the same
-// addresses and read .t[0..2] of (the two pad bytes step t to a word boundary).
-typedef struct {
-    /* 0x00 */ s16 m[3][3];
-    /* 0x12 */ u16 pad12;
-    /* 0x14 */ s32 t[3];
-} BattleEnv; // Size: 0x20
-
 // The 0x9C-byte object BattleCreateObject allocates and BattleResetObject clears;
 // src/battling/main/misc14.c declares the same record as Misc14ModelNode, and the
 // links at 0x8C are the ones BattleAppendListEntry walks.
@@ -113,26 +102,23 @@ typedef struct {
     /* 0x00 */ u32 state;
     /* 0x04 */ void* pData;
     /* 0x08 */ void (*pUpdate)(void);
-    /* 0x0C */ BattleBlk16 localMatrixLo; // first half of the local matrix
-    /* 0x1C */ BattleBlk16 localMatrixHi; // second half
+    /* 0x0C */ MATRIX localMatrix;
     /* 0x2C */ SVECTOR sourcePos;
     /* 0x34 */ VECTOR position;
     /* 0x44 */ SVECTOR rotation;
-    /* 0x4C */ BattleBlk16 rotMatrixLo; // first half of the rotation matrix
-    /* 0x5C */ BattleBlk16 rotMatrixHi; // second half
-    /* 0x6C */ BattleEnv matrix;
+    /* 0x4C */ MATRIX rotMatrix;
+    /* 0x6C */ MATRIX matrix;
     /* 0x8C */ BattleListNode* pList;
     /* 0x90 */ BattleListNode* pNext;
     /* 0x94 */ BattleListNode* pHead;
     /* 0x98 */ u32 unk98;
 } BattleMisc12Obj; // Size: 0x9C
 
-extern BattleEnv g_BattleBaseMatrix;
-extern BattleEnv g_BattleScaleMatrix;
-extern BattleEnv g_BattleBaseMatrixCopy;
-extern s16 D_80096FE8;
+extern MATRIX g_BattleBaseMatrix;
+extern MATRIX g_BattleScaleMatrix;
+extern MATRIX g_BattleBaseMatrixCopy;
 
-extern s32 g_BattleOptionFlags;
+extern u32 g_BattleOptionFlags;
 extern VECTOR g_BattleViewOrigin;
 extern u8 g_BattleTransitionFlag;
 extern u8 g_BattleDifficultyLevel;
@@ -192,8 +178,8 @@ extern s32 D_80097004;
 extern s32 D_80097008;
 
 void BattleSetFlag10000(void) {
-    s32 value;
-    s32* pFlags;
+    u32 value;
+    u32* pFlags;
 
     pFlags = &g_BattleOptionFlags;
     value = *pFlags;
@@ -213,8 +199,8 @@ void BattleAppendExtraQueueEntry(void) {
 
 s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
     s32 slot;
-    s32 value;
-    s32* pFlags;
+    u32 value;
+    u32* pFlags;
 
     for (slot = 0; slot < BATTLE_SLOT_BIT_COUNT; slot++) {
         if (slot != 0x16) {
@@ -283,12 +269,12 @@ void BattleApplyOptionWord(void) {
     u32 flags;
     u32* pFlags;
     s32 i;
-    u8* pBytes;
+    u8* pSlotBits;
 
     if (g_BattleTransitionFlag == 0) {
         return;
     }
-    pFlags = (u32*)&g_BattleOptionFlags;
+    pFlags = &g_BattleOptionFlags;
     flags = *pFlags;
     g_BattleExtraEntryQueued = 0;
     if ((flags & 0xF) == 1) {
@@ -298,9 +284,11 @@ void BattleApplyOptionWord(void) {
         g_BattleDifficultyLevel = (flags >> 13) & 7;
         if (flags & BATTLE_OPTION_EXTRA_ENTRY) {
             i = 7;
-            pBytes = (u8*)pFlags - 1;
+            // g_BattleSlotBits is the eight-byte slot-bit array that starts just
+            // below the option word, so its last byte is pFlags - 1.
+            pSlotBits = (u8*)pFlags - 1;
             for (; i >= 0; i--) {
-                *pBytes-- = 0;
+                *pSlotBits-- = 0;
             }
         }
     } else {
@@ -558,7 +546,7 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
     g_BattleBaseMatrixCopy = g_BattleBaseMatrix;
     g_BattleScaleMatrix = g_BattleBaseMatrix;
     g_BattleScaleMatrix.m[0][0] = scaleW;
-    D_80096FE8 = scaleH;
+    g_BattleScaleMatrix.m[1][1] = scaleH;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
@@ -770,7 +758,7 @@ void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR*
     zero.vz = 0;
     zero.vx = 0;
     zero.vy = 0;
-    func_800898BC((MATRIX*)((u8*)pOwner->pData + 0xC), &offset, &zero, &scale);
+    func_800898BC(&pOwner->pData->matrix, &offset, &zero, &scale);
 }
 /*@@*/
 
@@ -791,10 +779,8 @@ BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p) {
     p->sourcePos.vy = 0;
     p->sourcePos.vx = 0;
     p->matrix = g_BattleBaseMatrix;
-    p->rotMatrixLo = *(BattleBlk16*)&p->matrix;
-    p->rotMatrixHi = *((BattleBlk16*)&p->matrix + 1);
-    p->localMatrixLo = p->rotMatrixLo;
-    p->localMatrixHi = p->rotMatrixHi;
+    p->rotMatrix = p->matrix;
+    p->localMatrix = p->rotMatrix;
     return p;
 }
 
