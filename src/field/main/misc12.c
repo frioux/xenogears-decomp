@@ -195,10 +195,10 @@ void FieldScriptSetDefaultAnimationId(void) {
 }
 
 void FieldScriptVMHandlerPlayAnimation(void) {
-    unsigned char animationID;
+    u8 animationID;
 
     g_FieldScriptVMCurActor->flags &= 0xFEFFFFFF;
-    animationID = *(u8*)&g_FieldScriptVMCurScriptData[g_FieldScriptVMCurActor->scriptInstructionPointer + 1];
+    animationID = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->animationOverride = animationID;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
