@@ -596,38 +596,52 @@ void BattleBuildTileRow2Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F0A8);
-/* 80.42% (1596 bytes against retail's 1600) with today's headers. Row 3 is the
-   vertical twin of row 2 shifted to the right end of arg1..arg1 + arg3: retail hoists
-   `addu a1,a1,a3` (the centre) to the very top, computes `addiu a3,a1,-8` after the
-   first index load and keeps left in $a3, and holds the y values in $a2 in place
-   (`addiu a2,a2,8` for the top, `addu a2,a2,a0` twice for the halves). We keep left in
-   $t0 and hoist the vertical values - the same lever func_8008E430's note describes,
-   which has to be solved there first. arg4 is the HEIGHT (lhu from the stack, so u16);
-   arg3 is added to arg1 raw, so it is s32.
-*/
-/*
+/* 80.42% at retail's exact 1596 bytes (399 instructions), up from 79.88 in round 384.
+   Row 3 is row 2 shifted to the right end of arg1..arg1 + arg3. Four differing lines,
+   one residual: retail loads the height argument INSIDE the second quad's y2 store
+   (`lhu a0,0x30(sp)` in the load-delay slot of that store's index `lw`, `addiu
+   a0,a0,-16` after the address sum), cc1 2.6.0 emits the same two instructions at the
+   top of the block (right after the `lw s1` of the slot-graphics load). That is the
+   STORE_HOIST class of the sibling func_8008E430's note.
+   Load-bearing in this body: `centre = arg1 + arg3` as its own statement AFTER the
+   slot-graphics load (that is retail's single `addu a1,a1,a3` at instruction 4, and
+   `x1`/`x3` = `centre + 8` then reuse it in place as `addiu a1,a1,8`); `left` and
+   `top` as embedded assignments at their first store; every store a volatile lvalue
+   (they are what makes cc1 reload g_BattlePrimStartIndex per store).
+   The escape that fixes the order costs more than it gains: with
+   `u16 *pHeight = &arg4;` and `(*pHeight - 16) / 2` the whole 399-instruction stream
+   is retail's EXACT order (98.47%) but gcc 2.6.0 homes an address-taken stack
+   parameter: +`lhu v0,0x38(sp)` +`sh v0,0x10(sp)`, frame 0x20 -> 0x28, 1604 bytes,
+   401 instructions, so it can never link. `const u16 arg4` gives the identical home;
+   `volatile u16 arg4` is worse still (96.61, homes through lw).
+   Also tried: `s32 half = (arg4 - 16) / 2;` as a statement at the y2 store (80.64,
+   1592 - the load still hoists, the addiu stays behind with the statement), -O3
+   (80.42), gcc 2.7.2 (80.36), 2.7.2-cdk (74.23), cdk -G0 (64.23), and a 4-minute
+   permuter run from this body (900 iterations, base 120, nothing better).
 void func_8008F0A8(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     BattleSlotGraphics *p;
+    s32 centre;
     s32 left;
     s32 top;
     s32 i;
 
     p = g_BattleSlotGraphics[arg0];
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->x0 = (left = arg1 + arg3 - 8);
+    centre = arg1 + arg3;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->x0 = (left = centre - 8);
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->y0 = (top = arg2 + 8);
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->x1 = arg1 + arg3 + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->x1 = centre + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->y1 = top;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->x2 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->y2 = top + (arg4 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->x3 = arg1 + arg3 + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->x3 = centre + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->y3 = top + (arg4 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->x0 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->y0 = top + (arg4 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->x1 = arg1 + arg3 + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->x1 = centre + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->y1 = top + (arg4 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->x2 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->y2 = top + (arg4 - 16) / 2 + (arg4 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->x3 = arg1 + arg3 + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->x3 = centre + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[3] + 2))->y3 = top + (arg4 - 16) / 2 + (arg4 - 16) / 2;
     *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->u0 = ((g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + 3 * BATTLE_TILE_SOURCE_STRIDE] & 0x3F) << 1) + 14;
     *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[3])->v0 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + 3 * BATTLE_TILE_SOURCE_STRIDE + BATTLE_TILE_SOURCE_V];
