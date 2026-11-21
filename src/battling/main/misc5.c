@@ -181,28 +181,14 @@ extern void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
 
-/*
-func_8007B270 is the effect-colour helper: it packs two RGB triples into two
-5-5-5 CLUT words (D_800926A8 / D_800926AA), writes the clut size pair and hands
-the result to LoadClut2. Best attempt: objdiff 95.11%, 288 bytes against
-retail's 280. Everything matches except the LOAD SCHEDULE of the first block:
-retail is lbu r; lbu b; addiu r; lbu g; addiu b (r's load-delay slot filled by
-b's load), gcc emits lbu r; nop; addiu r; lbu b; lbu g; addiu b, one instruction
-longer, and it also swaps the b/g temporaries (b in $v0 here, $v1 in retail).
-Tried: the loads split from the -0x80 adds, the adds interleaved as retail has
-them, u8 locals for the raw channels - all three compile to the identical
-stream, so the residual is cc1's schedule, not the source. The load order was
-NOT what the previous 81.41% note was missing: the gap closed by passing the
-CLUT x/y as shorts (retail reads them with lh; only this unit's other callers
-want the low byte of each).
 void func_8007B270(u8 *p0, u8 *p1) {
     s32 r;
     s32 b;
     s32 g;
 
     r = p0[0] - 0x80;
-    b = p0[2] - 0x80;
     g = p0[1] - 0x80;
+    b = p0[2] - 0x80;
     if (r < 0) {
         r = 0;
     }
@@ -215,8 +201,8 @@ void func_8007B270(u8 *p0, u8 *p1) {
     D_800926A8[0] = ((r >> 2) & 0x1F) + ((g << 3) & 0x3E0) + ((b << 8) & 0x7C00) | -0x8000;
 
     r = p1[0] - 0x80;
-    b = p1[2] - 0x80;
     g = p1[1] - 0x80;
+    b = p1[2] - 0x80;
     if (r < 0) {
         r = 0;
     }
@@ -232,10 +218,6 @@ void func_8007B270(u8 *p0, u8 *p1) {
     D_800926AE = 0x1111;
     D_800926A0 = LoadClut2((u_long *)D_800926A8, *(s16 *)D_80092698, *(s16 *)D_8009269C);
 }
-*/
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
-
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
 
 void BattleEffectUpdateSlots(void) {
