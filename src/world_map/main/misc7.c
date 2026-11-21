@@ -337,6 +337,14 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // all measure the identical body - the copy comes from local_alloc, not from a source
 // statement. A 4-minute permuter run (1887 iterations) found nothing. Preset screen:
 // cdk 87.51, gcc-2.6.0 87.15.
+// Round 377 re-measured after unpark: 94.87, compiles, 156 bytes. Five more cc1_probe
+// shapes (each compiled alone with this unit's cc1) give the same body with the copy
+// after the li -2048: a pArg local assigned between the pos.x and pos.y stores, one
+// assigned after the pos.y store, 0xFFF80000 in a local first, and the unk50/unk54
+// statements swapped (gcc reorders those back). Wrapping the three trailing stores in a
+// do/while moves the copy to the call site but also hands z $a0, which is what blocks
+// it there. So the 4-instruction hoist of the first call's argument copy is allocator
+// placement, not statement order.
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
@@ -919,6 +927,15 @@ s32 WorldMapInitFadePrims(s32 index) {
 // 96.50%). Declaration order, u32 vs s32 index, RECT/pMove/i first and both setaddr
 // operand orders measured no better; a 4-minute permuter run (2245 iterations) found
 // nothing. Preset screen not run.
+// Round 377: re-measured after unpark, 99.88% at retail's 564 bytes, compiles. Exactly 17
+// differing lines: the biv base (addiu s0,s2,0x25 vs 0x20) and the 16 store displacements
+// it shifts. MEASURED RULE (new this round, two diff runs in the unit): the base gcc
+// re-bases onto is the offset of the LAST corner store in source order - reordering the
+// four x stores so pQuad->x0 is last moved the base to 0x08, and wrapping those four in a
+// do/while(0) changed nothing (90.55). Retail's base is 0x25, the v3 store, which is the
+// 12th of the 16 corners and NOT last in retail's own store order (x3 at 0x20 is), so
+// source statement order cannot reproduce it. Preset screen this round: cdk 94.56,
+// gcc-2.6.0 99.70, unit flags 99.88.
 /*
 s32 func_80081D80(s32 index) {
     WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
@@ -958,8 +975,7 @@ s32 func_80081D80(s32 index) {
     pMove = &D_8009D164[g_WorldMapPrimPacketIndex];
     addPrim(g_WorldMapRenderContext->pOt[0], pMove);
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
 s32 WorldMapResetSlotColorFade(s32 index) {
