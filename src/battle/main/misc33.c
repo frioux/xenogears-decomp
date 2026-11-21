@@ -552,7 +552,7 @@ BattleMisc33State *func_800BED4C(void) {
     BattleMisc33State *pPending;
     BattleMisc33State *pTimer;
 
-    g_BattleState = HeapAlloc(0x50, 0);
+    g_BattleState = HeapAlloc(sizeof(BattleMisc33State), 0);
     g_BattleState->pUpdate = func_800B9F78;
     g_BattleCommandRowIndex = 0;
     g_BattleState->commandUnhandled = 0;
