@@ -241,58 +241,24 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
     g_BattleActionSlotIndex = c + 0xFF;
     func_800941A4();
 }
-// 99.63%: 324 bytes (= retail), identical instruction multiset, identical
-// schedule, identical registers; the ONLY difference is the operand slots of the
-// three addu that reorg places in the BattleDrawSpritePackage jal delay slots:
-// retail `addu a1,a1,v0` (chain in src1, base in src2), gcc `addu a1,v0,a1`.
-// The register split is already retail's (chain a1, base v0) in the pointer form;
-// only the RTL operand order differs, so the source order of a `base + int` pointer
-// sum cannot steer it.
-// Tried and measured, all 99.63% or worse: ofs + base; base + ofs; &base[ofs];
-// base + 0x9C8 + ofs; (s32)base + ofs (75.54%, 320 bytes); ofs + (s32)base (74.25%);
-// u32 casts (74.25%); int sums with an embedded assignment to an s32 local, base
-// first (75.98%) and base last (83.19%); a volatile re-read of the base combined
-// with the chain-first int sum (82.94%: right operand order, mirrored registers);
-// `u8 * const volatile` g_BattleGraphicsWork; a separate ofs local per call (70.57%, gcc then
-// evaluates it before the first-argument lbu).
-// Round 79 concluded the integer forms reproduce retail's operand order - they do
-// not: every int-typed sum lets gcc's reassociation move 0x9C8 onto the BASE
-// register (addiu v0,v0,2504) and the addu still comes out base-first, which is
-// what costs the 4 bytes. Only the pointer form keeps 0x9C8 on the offset chain.
-// Also probed: gcc-2.7.2-cdk and -O3 both give 99.63% (tools/scripts/try_flags.sh),
-// so this is not a preset question. Permuter: 1154 iterations in round 79, 2398
-// more in round 98, 3503 more in round m103-p13, base=30 best=30 every time.
-// g_BattleDisplayState is declared `volatile u8 *`: that was the permuter's own best edit
-// (base 250 -> 30) and the only change it ever found.
-// Reads g_BattlePrimStartIndex with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
-// call's first argument is the constant 0x19, not g_BattleCommandQueue[0x2D4] + 0xF.
-/* 94.69%, 324 bytes (= retail, 81 insns): the ONLY difference is the operand
-   slots of the three `addu` that reorg places in the BattleDrawSpritePackage jal
-   delay slots - retail `addu a1,a1,v0` (chain in src1, base in src2), gcc
-   `addu a1,v0,a1`. The old note claiming 99.63% no longer reproduces (re-measured
-   from this body); the pointer form below is the best of the spellings.
-   Re-measured dead this round, all with the base in correctly-ordered registers but
-   an instruction SHORT (320 bytes, the g_BattleGraphicsWork reload disappears):
-   `(s32)((chain) + (s32)g_BattleGraphicsWork)` 69.31; `(s32)((chain) + (s32)(pWork =
-   g_BattleGraphicsWork))` 78.25 (an int local for the base); `(s32)(x * 0x50 +
-   (0x9C8 + (s32)(pWork = g_BattleGraphicsWork)))` 78.43 - the spelling that closed
-   func_80086028`s identical wall needs the base inside a `(0xCONST + (s32)(p =
-   base))` sum, which here drops the addiu into the fold.
-   Permuter 1305 iterations from this body: base=290 best=290, nothing. */
-/*
+// The base's assignment has to sit inside the `0x9C8 +` sum: as a separate local
+// gcc reassociates the constant onto the base register and the delay-slot addu
+// comes out base-first (70.44%).
 void func_80085D34(void) {
     s32 v;
+    u8 *pWork;
+    u8 *pWork2;
+    u8 *pWork3;
 
     g_BattleDisplayState[0x7B] = 0;
-    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D4] + 0xF, (s32)(g_BattleGraphicsWork + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x2A, 0xD0);
+    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D4] + 0xF, (s32)((g_BattleDisplayState[0x7B] * 0x50) + (0x9C8 + (s32)(pWork = g_BattleGraphicsWork))), 0x2A, 0xD0);
     g_BattleDisplayState[0x7B] += v;
-    v = BattleDrawSpritePackage(0x19, (s32)(g_BattleGraphicsWork + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x32, 0xD0);
+    v = BattleDrawSpritePackage(0x19, (s32)((g_BattleDisplayState[0x7B] * 0x50) + (0x9C8 + (s32)(pWork2 = g_BattleGraphicsWork))), 0x32, 0xD0);
     g_BattleDisplayState[0x7B] += v;
-    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D5] + 0xF, (s32)(g_BattleGraphicsWork + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x3A, 0xD0);
+    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D5] + 0xF, (s32)((g_BattleDisplayState[0x7B] * 0x50) + (0x9C8 + (s32)(pWork3 = g_BattleGraphicsWork))), 0x3A, 0xD0);
     g_BattleDisplayState[0x7B] += v;
-    g_BattleDisplayState[0xA4] = g_BattlePrimStartIndex;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
+    g_BattleDisplayState[0xA4] = g_BattlePrimStartIndex[0];
+}
 void BattleClearCommandSlots(void) {
     s32 i;
 
@@ -422,9 +388,9 @@ done:
    415 -> 355 (found `y`), third run found only hoisted temps (not real source).
    Declaration order of y/q/r/len/rows and an explicit `quad = arg1 * 4` local
    change nothing. */
-/*
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     s32 y;
+    s32 n;
     s32 q;
     s32 r;
     s32 len;
@@ -432,8 +398,9 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     u8 *pColumnWork;
     RECT rect;
 
-    q = arg1 / 2;
-    r = arg1 % 2;
+    n = arg1;
+    q = n / 2;
+    r = n % 2;
     func_80076D58((u8 *)(s32)(arg1 * 0x50 + (0x5550 + (s32)g_BattleSpriteColumnWork)), r, 3);
     len = SystemRenderStringEntry((u8 *)GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg3), *arg4, 0x1B, r);
     rect.x = q * 0x1E + 0x3C0;
@@ -452,8 +419,7 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
                   len);
     g_BattleSpriteColumnWork[0x5D80]++;
     return arg1 + 1;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
 u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
     s32 ok = 1;
@@ -554,8 +520,9 @@ s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
     s32 i;
 
     count = 0;
-    q = arg1 / 2;
-    r = arg1 % 2;
+    n = arg1;
+    q = n / 2;
+    r = n % 2;
     quad = arg1 * 4;
     ofs = arg1 * 0x50;
     func_80076D58((u8 *)(s32)(ofs + (0x5550 + (s32)g_BattleSpriteColumnWork)), r, 3);
