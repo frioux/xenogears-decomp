@@ -247,20 +247,6 @@ extern void BattleUnloadActorArchive(void);
 extern int *ArchiveAllocStreamFile(int numEntries, int allocMode);
 extern void func_80029EB0(int, int *, int, int, short, short, short, short, short, short);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C34);
-// 99.93% (608 bytes = retail's exact size). One instruction differs: retail's
-// call-argument index ends `or a0,a0,v0` (the AC word is the or's destination),
-// ours ends `or a0,v0,a0`. Everything else, including both 0xA8/0xAC load pairs
-// (retail computes the index twice, once for the mask and once for the call) and
-// the sh in the jal delay slot, is retail's.
-// Measured spellings: AC-left at both sites 95.18 (swaps the loads), A8-left at
-// both 93.93, mask A8-left + call AC-left 95.76, AC-left on the AC field without
-// the (u32) cast 98.47, index in two locals 95.68 (one computation, 584 bytes).
-// A 3-minute permuter run found nothing (base=10 best=10).
-/*
-// Loads the stage's actor archive and its stream file, then takes the slot state the
-// archive's chunk header asks for: variant 1 frees every slot, 2 and 3 free all but
-// the acting one. The actor archive buffer is kept for the teardown to free.
 void func_800B7C34(s32 stage) {
     RECT rect;
     BattleActorSlotPos *pSpawnPos;
@@ -270,6 +256,7 @@ void func_800B7C34(s32 stage) {
     s32 mode;
     s32 fileIndex;
     s32 streamIndex;
+    s32 slotIndexLow;
 
     if (stage == 0xE3) {
         pSpawnPos = g_BattleActorSlotSpawnPos;
@@ -312,7 +299,8 @@ void func_800B7C34(s32 stage) {
         } else {
             g_BattleActorSlotUsedMask &=
                 ~(1 << ((((u32)pSprite->flags_0xAC.flags & 3) << 2) | ((u32)pSprite->flags_0xA8 >> 30)));
-            func_800BB080(((u32)pSprite->flags_0xA8 >> 30) | (((u32)pSprite->flags_0xAC.flags & 3) << 2));
+            slotIndexLow = (u32)pSprite->flags_0xA8 >> 30;
+            func_800BB080((((u32)pSprite->flags_0xAC.flags & 3) << 2) | slotIndexLow);
         }
     }
     g_BattleStageStreamFile = ArchiveAllocStreamFile(8, 0);
@@ -324,7 +312,7 @@ void func_800B7C34(s32 stage) {
     g_BattleActorArchiveBuffer = g_BattleStageActorArchive;
     HeapFree(g_BattleStageStreamFile);
 }
-*/
+
 extern u8 g_BattleAnimScriptHalted;
 extern s16 g_BattleActorAnimationIndex;
 extern u8 g_BattleAudioFadeStarted;
