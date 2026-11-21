@@ -274,19 +274,28 @@ s32 func_80092DF8(void) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
-/* best: 85.92% (484 bytes vs 472). Everything up to the display-list linking
-   matches; only the constant/address materialisation order inside it differs
-   (retail loads `la D_8009D2B8`, the 0xFF000000 mask, g_WorldMapPrimPacketIndex and
-   g_WorldMapRenderContext before the *40 multiply, ours interleaves them).
+/* best: 98.52% (472 bytes = retail's 472; 118 instructions = retail's 118). Every
+   instruction is retail's, in retail's order: the switch, the three string calls,
+   func_80034888 and the two display-list tag writes. The only residual is which
+   argument register each of six values gets. Retail: 0xFFFFFF - $a1, D_8009D2B8
+   base - $a0, 0xFF000000 - $a2, g_WorldMapPrimPacketIndex - $v0,
+   g_WorldMapRenderContext - $a3, the element pointer - $v1; ours: $a3, $v1, $a2,
+   $v0, $a1, $a0 - the same six registers, permuted. Tried: base as
+   &D_8009D2B8[g_WorldMapPrimPacketIndex] inline (95.17, gcc then materialises the
+   base after the *40 chain instead of before it), base through the pPrims pointer
+   local below (98.52, best - that puts the base exactly where retail has it), and a
+   4-minute permuter run (2179 iterations, base=175 best=175, no candidate).
+   GIV_TIE - see tools/rounds/levers.md; do not hand-iterate it.
 
 s32 func_80092FD8(s32 index) {
     WorldMapMenuSlot* pSlot;
+    WorldMapPrim* pPrims;
     WorldMapPrim* pPrim;
 
     pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * sizeof(WorldMapMenuSlot));
     switch (pSlot->state) {
     case WORLD_MAP_SLOT_STATE_EMPTY:
-        if (g_WorldMapMode4AreaId != -1) {
+        if (g_WorldMapMode4AreaId != WORLD_MAP_AREA_NONE) {
             SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
             SystemStringPushBuffer(g_WorldMapMode4AreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapMode4AreaId));
             pSlot->state = WORLD_MAP_SLOT_STATE_NAMED;
@@ -294,7 +303,7 @@ s32 func_80092FD8(s32 index) {
         }
         break;
     case WORLD_MAP_SLOT_STATE_NAMED:
-        if (g_WorldMapMode4AreaId == -1) {
+        if (g_WorldMapMode4AreaId == WORLD_MAP_AREA_NONE) {
             SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
             pSlot->state = WORLD_MAP_SLOT_STATE_EMPTY;
         } else if (g_WorldMapMode4AreaId != pSlot->areaId) {
@@ -304,9 +313,10 @@ s32 func_80092FD8(s32 index) {
         }
         break;
     }
-    func_80034888(g_WorldMapMode4AreaNameString, g_WorldMapRenderContext->pOt[0], (u32)g_WorldMapPrimPacketIndex);
-    if (pSlot->state == 1) {
-        pPrim = &D_8009D2B8[g_WorldMapPrimPacketIndex];
+    func_80034888(g_WorldMapMode4AreaNameString, (u32)g_WorldMapRenderContext->pOt[0], (u32)g_WorldMapPrimPacketIndex);
+    if (pSlot->state == WORLD_MAP_SLOT_STATE_NAMED) {
+        pPrims = D_8009D2B8;
+        pPrim = &pPrims[g_WorldMapPrimPacketIndex];
         pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32*)g_WorldMapRenderContext->pOt[0] & 0xFFFFFF);
         *(u32*)g_WorldMapRenderContext->pOt[0] = (*(u32*)g_WorldMapRenderContext->pOt[0] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
     }
