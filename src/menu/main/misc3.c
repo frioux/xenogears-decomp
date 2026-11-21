@@ -36,8 +36,6 @@ typedef struct {
     /* 0x4 */ s16 unk4;
 } MenuCardPrefix; // Size: 0x6
 
-extern s16 D_801C50AC;
-extern s16 D_801C50B4;
 extern MenuCardPrefix g_MenuCardPathPrefix0;
 extern MenuCardPrefix g_MenuCardPathPrefix1;
 
@@ -144,7 +142,9 @@ extern u8 g_MenuWindowTextBackPressed;
    field-wise copy cross-jumps the two arms. Both address sums are written
    index-first over a mem_addr base (the MenuMarkSlotsWithGameSave idiom): only
    that spelling emits retail's offset-first `addu a1,s0,a1`, and a typed
-   subscript canonicalises back to base-first. */
+   subscript canonicalises back to base-first (measured: `chunks[idx].pad0`
+   99.73%, both subscripts 99.11%). A struct assignment gives 95.16% -- it
+   reads the 6-byte prefix as two `lw` and stores `sw` where retail has `sh`. */
 void MenuLoadCardChunk(u_char a0, u_char a1) {
     MenuCardPrefix prefix;
     char path[0x40];
@@ -157,9 +157,9 @@ void MenuLoadCardChunk(u_char a0, u_char a1) {
         memcpy(&prefix, &g_MenuCardPathPrefix1, 6);
     }
     strcpy(path, (char*)&prefix);
-    strcat(path, ((MenuUnk2Record*)((a0 * 0x10 + a1) * sizeof(MenuUnk2Record) + (mem_addr)g_Menu->menuUnk2->records))->ids);
+    strcat(path, ((MenuUnk2Record*)((a0 * MENU_CARD_RECORD_COUNT + a1) * sizeof(MenuUnk2Record) + (mem_addr)g_Menu->menuUnk2->records))->ids);
     while (1) {
-        if (MenuReadFileChunk((u8*)path, ((MenuUnk2ImageChunk*)((a0 * 0x10 + a1) * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks))->pad0) != -1) {
+        if (MenuReadFileChunk((u8*)path, ((MenuUnk2ImageChunk*)((a0 * MENU_CARD_RECORD_COUNT + a1) * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks))->pad0) != -1) {
             break;
         }
         if (--retry == 0) {
@@ -167,8 +167,8 @@ void MenuLoadCardChunk(u_char a0, u_char a1) {
         }
         MenuWaitCardOperationFrames(a0);
     }
-    for (i = 0; i < g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0[3]; i++) {
-        g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + g_Menu->menuUnk2->slotWriteCursor] = a0 * 0x10 + a1;
+    for (i = 0; i < g_Menu->menuUnk2->chunks[a0 * MENU_CARD_RECORD_COUNT + a1].pad0[3]; i++) {
+        g_Menu->menuUnk2->slotRecordIndexes[a0 * MENU_CARD_RECORD_COUNT + g_Menu->menuUnk2->slotWriteCursor] = a0 * MENU_CARD_RECORD_COUNT + a1;
         g_Menu->menuUnk2->slotWriteCursor++;
     }
 }
@@ -179,21 +179,21 @@ void MenuMarkSlotsWithGameSave(int a0) {
     int idx;
     int matched;
 
-    for (i = 0; i < 0x10; i++) {
-        g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + i] = 0;
+    for (i = 0; i < MENU_CARD_RECORD_COUNT; i++) {
+        g_Menu->menuUnk2->slotHasGameSave[a0 * MENU_CARD_RECORD_COUNT + i] = 0;
     }
-    for (j = 0; j < 0xF; j++) {
+    for (j = 0; j < MENU_CARD_SLOT_COUNT; j++) {
         /* matched=1 in the for-init is what puts retail's li t1,1 after the
            hoisted record base; as a separate statement it lands above it. */
         for (i = 0, matched = 1; i < 0xC; i++) {
-            if (g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j]].ids[i] != g_Menu->menuUnk2->gameSerialCode[i]) {
+            if (g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[a0 * MENU_CARD_RECORD_COUNT + j]].ids[i] != g_Menu->menuUnk2->gameSerialCode[i]) {
                 matched = 0;
                 break;
             }
         }
         if (matched) {
-            g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + j] = 1;
-            idx = g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j];
+            g_Menu->menuUnk2->slotHasGameSave[a0 * MENU_CARD_RECORD_COUNT + j] = 1;
+            idx = g_Menu->menuUnk2->slotRecordIndexes[a0 * MENU_CARD_RECORD_COUNT + j];
             /* index-first into a mem_addr base: retail's addu puts the offset in
                the destination and pMenu in the addend, and &chunks[idx] alone
                gives the opposite order (99.55%). */
@@ -803,7 +803,8 @@ void MenuSetCellGridPanelState(u_char mode) {
         g_Menu->pCellGrid = HeapAlloc(sizeof(MenuCellGridPanel), 0);
         bzero(g_Menu->pCellGrid, sizeof(MenuCellGridPanel));
         // int-first address so the sum reaches $a0 as `addu a0,a0,v0`; every typed
-        // spelling (`->quads[i]`, `quads + i`, a u8* base) gives the swapped operands.
+        // spelling (`->quads[i]`, `quads + i`, a u8* base) gives the swapped operands
+        // (measured: `&->quads[renderContext]` 99.96%, `->quads[renderContext].r0` 99.73%).
         SetPolyF4((POLY_F4*)(g_Menu->renderContext * sizeof(POLY_F4) + (s32)g_Menu->pCellGrid));
         (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->r0 = 0xA0;
         (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->g0 = 0xA0;
