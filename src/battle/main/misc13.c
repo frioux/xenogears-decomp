@@ -366,31 +366,25 @@ s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
 done:
     return result;
 }
-/* 95.45%, 424 bytes. Retail is 424 too (106 insns) - the old note's "retail 432"
-   was wrong, which is why every earlier round chased a size that does not exist.
-   Three source levers closed 91.62 -> 95.45, all measured:
-   - `rows = arg5 + 1; arg2 = arg2 + rows;` gives retail's `addiu s6,s6,1` in place
-     then `addu s2,s2,s6`; the one-expression `arg2 += arg5 + 1` reassociates to
-     (arg2 + 1) + arg5 (91.72).
-   - `y = arg2 * 0x10 + 0x50;` as its own local gives retail's
-     `sll s2,s2,4 / addiu s2,s2,80 / addu s2,s2,s8`; inline, gcc attaches the 0x50 to
-     the arg1*4 side (`addiu s7,s7,80`).
-   - the second call's address as an OFFSET-FIRST int sum with an embedded assignment
-     for the base: `(s32)((arg1 * 2 + ((s32 *)g_BattlePrimStartIndex)[0]) * 0x28 +
-     (0x5550 + (s32)(pColumnWork = g_BattleSpriteColumnWork)))`. That is the only
-     spelling found that reproduces retail's `addu a0,a0,v0` in the jal delay slot
-     (the pointer form is `addu a0,v0,a0`) - same wall as func_80085D34.
-   Residual, three items, all mirror-image register pairs at retail's exact size:
-   arg1 in $s4 vs retail $s3 with r the other way round; arg1*4 in $s7 vs retail $s8
-   with arg4 the other way; and `andi a1,s2,0xfffc` one instruction earlier than
-   retail (it groups the three masks after all three argument chains).
-   Permuter from the 91.62 body: base 820 -> 415 (found the two levers above), then
-   415 -> 355 (found `y`), third run found only hoisted temps (not real source).
-   Declaration order of y/q/r/len/rows and an explicit `quad = arg1 * 4` local
-   change nothing. */
+/* 95.45%, 424 = retail's exact size (106 insns; read the ".size", the old
+   "432" was a phantom 8-byte gap five rounds chased). Two residuals, size exact:
+   1. the callee-saved pair is MIRRORED: retail holds arg1 in $s3 and r in $s4, this
+      body the other way round (every use mirrors: srl/addu/subu/andi/addiu/return).
+   2. "andi a1,s2,0xfffc" is scheduled one slot EARLY: retail groups the three
+      argument masks after the three chains, so its "sll v0,s3,4" comes first.
+   Dead this round: q*0x78 into an s32 local then &0xF8 (94.89); a char holding
+   (q*0x78)&0xF8 hoisted above "arg2 = arg2 + rows" (unchanged); an "n = arg1" live
+   copy, "arg1 = arg1;" and "r = arg1 - q*2" (all unchanged - gcc coalesces them).
+   Permuter 6 min from this body: base 355 -> 260, but both finds were those q*0x78
+   splits, so its score does not transfer to objdiff.
+   Presets: gcc-2.6.0 99.23, gcc-2.7.2-cdk 89.0, -O3 compile-failed. The unit cannot
+   switch to 2.6.0 (BattleBeginActorStatAnimation 93.18, BattleReleaseCharSlot 92.28,
+   four more at 99.1-99.8), so this body would need a unit split to benefit.
+   The register pair reads like a local_alloc tie: one basic block, the two values are
+   the same in both compiles, only their order in the callee-saved pool differs. */
+/*
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     s32 y;
-    s32 n;
     s32 q;
     s32 r;
     s32 len;
@@ -398,9 +392,8 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     u8 *pColumnWork;
     RECT rect;
 
-    n = arg1;
-    q = n / 2;
-    r = n % 2;
+    q = arg1 / 2;
+    r = arg1 % 2;
     func_80076D58((u8 *)(s32)(arg1 * 0x50 + (0x5550 + (s32)g_BattleSpriteColumnWork)), r, 3);
     len = SystemRenderStringEntry((u8 *)GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg3), *arg4, 0x1B, r);
     rect.x = q * 0x1E + 0x3C0;
@@ -419,7 +412,9 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
                   len);
     g_BattleSpriteColumnWork[0x5D80]++;
     return arg1 + 1;
-}
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
 u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
     s32 ok = 1;
@@ -520,9 +515,8 @@ s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
     s32 i;
 
     count = 0;
-    n = arg1;
-    q = n / 2;
-    r = n % 2;
+    q = arg1 / 2;
+    r = arg1 % 2;
     quad = arg1 * 4;
     ofs = arg1 * 0x50;
     func_80076D58((u8 *)(s32)(ofs + (0x5550 + (s32)g_BattleSpriteColumnWork)), r, 3);
