@@ -19,6 +19,8 @@
 // The actor slots the u16 slot mask walks one bit apiece (BattleCollectMaskedSlotActors;
 // the per-slot byte tables in misc12/misc32 hold this many entries).
 #define BATTLE_ACTOR_SLOT_COUNT 11
+// BattleTestSlotBit range: the 49 slot bits BattleSetFlag10000IfAllSlotBitsSet walks
+#define BATTLE_SLOT_BIT_COUNT 49
 // activeSlotMask holds one bit per actor slot, low bit first: the low MAX_PARTY_MEMBERS bits are
 // the party slots and the bits above them up to bit 10 are the other actors. A row runs for one
 // group only, so BattleFilterSlotMaskByGroup narrows the mask within whichever group it touches.

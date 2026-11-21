@@ -6,9 +6,11 @@
 #include "system/controller.h"
 
 // Bit of g_BattleOptionFlags that enables the extra entry BattleAppendExtraQueueEntry queues.
+// owned by include/battle/actor.h; this unit carries its own externs and cannot include it
+#define BATTLE_SLOT_BIT_COUNT 49
+
 #define BATTLE_OPTION_EXTRA_ENTRY 0x10000
 // Slot bits g_BattleSlotBits holds: BattleSetFlag10000IfAllSlotBitsSet tests every one.
-#define BATTLE_SLOT_BIT_COUNT 49
 // The screen size BattleSetScaleMatrix scales a requested size from.
 #define BATTLE_SCREEN_BASE_WIDTH 320
 #define BATTLE_SCREEN_BASE_HEIGHT 240

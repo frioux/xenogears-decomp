@@ -3,6 +3,7 @@
 #include "system/archive.h"
 #include "psyq/libgpu.h"
 #include "system/controller.h"
+#include "battle/actor.h"
 
 /* The nine flag bytes below are declared as open arrays on purpose: -G8
    classifies a 1-byte extern as small data, which makes its address one
@@ -559,7 +560,7 @@ void BattleInitOptionsScreen(s32 mode) {
     if (g_BattleSpriteArchiveFreed == 0) {
         ArchiveCdDataSync(0);
         pSprite = g_BattleSpriteRects;
-        for (i = 0; i < 0x31; i++) {
+        for (i = 0; i < BATTLE_SLOT_BIT_COUNT; i++) {
             LoadImage((RECT*)pSprite, (u_long*)(g_BattleSpriteArchiveBuffer + i * 0x1000));
             LoadImage((RECT*)(pSprite + 8), (u_long*)(g_BattleSpriteArchiveBuffer + i * 0x1000 + 0x100));
             pSprite += 0x14;
