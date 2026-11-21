@@ -490,7 +490,7 @@ extern void func_800796B8(void* pActor1, void* pActor0);
 extern void BattleUpdateCombatantPair(void* pActor1, void* pActor0);
 extern void BattleUpdateCombatantPairTransition(void* pActor1, void* pActor0);
 extern void func_800840CC(void* pScene);
-extern void func_800846A0(void* pScene);
+extern void BattleRenderLightGroupFrame(void* pScene);
 extern void func_80072858(void* pScene);
 extern void func_80084A40(void* pScene);
 extern void BattleUpdateTutorialScreen(void);
@@ -1136,7 +1136,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
                func_80079DF0(&g_BattleActor1, &g_BattleActor0);
                SetGeomScreen(0xC0);
                func_800796B8(&g_BattleActor1, &g_BattleActor0);
-               func_800846A0(pScene);
+               BattleRenderLightGroupFrame(pScene);
                break;
            case3:
            case 3:

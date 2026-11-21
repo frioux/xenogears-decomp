@@ -1030,7 +1030,7 @@ void BattleFadeActorLights(Misc9LightGroup* pTable, Battler9* pActor, s32 idx) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800840CC);
 
-s32 func_800846A0(Misc9LightGroup* pGroup) {
+s32 BattleRenderLightGroupFrame(Misc9LightGroup* pGroup) {
     VECTOR padA[2]; // unused: the original's frame carries this slot before the matrix
     Misc9DisplayWork* pWork;
     MATRIX mat;
