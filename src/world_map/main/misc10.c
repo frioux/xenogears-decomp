@@ -1,5 +1,6 @@
 #include "common.h"
 #include "main/game.h"
+#include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
 extern s32 g_WorldMapLevelIndex;
@@ -19,6 +20,9 @@ extern void SpriteSetScale(void* pSprite, s16 scale);
 extern void WorldMapQueueZoneEntry(s32 arg0, s32* pVec, s32 arg2, s32 arg3);
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern void func_80089580(void);
+
+#define WORLD_MAP_PRIM_TEMPLATE_COUNT 0x100
+#define WORLD_MAP_PRIM_TEMPLATE_POOL_SIZE (WORLD_MAP_PRIM_TEMPLATE_COUNT * sizeof(POLY_FT4))
 
 #define WORLD_MAP_SPRITE_COUNT 512
 #define WORLD_MAP_SPRITES_PER_GROUP 8
@@ -383,30 +387,31 @@ void WorldMapFreeSpriteGroupTable(void) {
 }
 
 void WorldMapInitPrimTemplateBuffers(void) {
-    u8* pEntry;
-    s32* pSrc;
-    s32* pDst;
-    s32* pEnd;
+    POLY_FT4* pPrim;
+    Block16* pSrc;
+    Block16* pDst;
+    Block16* pEnd;
     s32 i;
 
-    g_WorldMapPrimTemplateBuffer[0] = HeapAlloc(0x2800, 1);
-    g_WorldMapPrimTemplateBufferCopy = HeapAlloc(0x2800, 1);
-    pEntry = (u8*)g_WorldMapPrimTemplateBuffer[0];
-    for (i = 0xFF; i != -1; i--) {
-        *(u8*)(pEntry + 3) = 9;
-        *(u8*)(pEntry + 7) = 0x2C;
-        *(u16*)(pEntry + 0x16) = GetTPage(1, 1, 0x340, 0x100);
-        *(u16*)(pEntry + 0xE) = GetClut(0x100, 0x1FF);
-        *(u8*)(pEntry + 7) |= 2;
-        pEntry += 0x28;
+    g_WorldMapPrimTemplateBuffer[0] = HeapAlloc(WORLD_MAP_PRIM_TEMPLATE_POOL_SIZE, 1);
+    g_WorldMapPrimTemplateBufferCopy = HeapAlloc(WORLD_MAP_PRIM_TEMPLATE_POOL_SIZE, 1);
+    pPrim = g_WorldMapPrimTemplateBuffer[0];
+    for (i = WORLD_MAP_PRIM_TEMPLATE_COUNT - 1; i != -1; i--) {
+        // the GPU takes the packet's word count from the tag's high byte; a POLY_FT4 is 9 words past its tag
+        ((u8*)&pPrim->tag)[3] = 9;
+        pPrim->code = 0x2C; // POLY_FT4
+        pPrim->tpage = GetTPage(1, 1, 0x340, 0x100);
+        pPrim->clut = GetClut(0x100, 0x1FF);
+        pPrim->code |= 2; // semi-transparent
+        pPrim++;
     }
-    pSrc = (s32*)g_WorldMapPrimTemplateBuffer[0];
-    pDst = (s32*)g_WorldMapPrimTemplateBufferCopy;
-    pEnd = pSrc + 0xA00;
+    pSrc = g_WorldMapPrimTemplateBuffer[0];
+    pDst = g_WorldMapPrimTemplateBufferCopy;
+    pEnd = pSrc + WORLD_MAP_PRIM_TEMPLATE_POOL_SIZE / sizeof(Block16);
     do {
-        *(Block16*)pDst = *(Block16*)pSrc;
-        pSrc += 4;
-        pDst += 4;
+        *pDst = *pSrc;
+        pSrc++;
+        pDst++;
     } while (pSrc != pEnd);
 }
 void WorldMapFreePrimTemplateBuffers(void) {
