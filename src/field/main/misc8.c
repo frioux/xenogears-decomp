@@ -519,9 +519,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
 /* 63.38% (772 vs retail 776 bytes): the ring layout is settled - 32 entries of
    0x48 bytes based at D_800B14F0, filled from the player actor
    (pActorData = FieldActor 0x4C, pSpriteData = 0x4; the earlier note had those
-   two swapped) and indexed by the volatile s32 D_800B2360, which retail
+   two swapped) and indexed by the volatile s32 g_FieldSpriteUpdateIndex, which retail
    re-reads once per statement (13 reads). Then D_800C3910 = 0 and
-   D_800B2360 = (D_800B2360 - 1) & 0x1F. Two early outs:
+   g_FieldSpriteUpdateIndex = (g_FieldSpriteUpdateIndex - 1) & 0x1F. Two early outs:
    actorIndex != g_PlayerActorIndex and g_FieldPartyMoveInProgress != 0.
    Our instruction ORDER per store is value-load before the index read where
    retail reads the index first, gcc hoists &D_800B1506 (the loop's tri-id
@@ -553,7 +553,7 @@ typedef struct {
 } FieldActorRenderPacket; // Size: 0x48
 
 extern FieldActorRenderPacket D_800B14F0[];
-extern volatile s32 D_800B2360;
+extern volatile s32 g_FieldSpriteUpdateIndex;
 extern s32 D_800C3910;
 extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_PlayerActorIndex;
@@ -570,27 +570,27 @@ void func_80081C54(int actorIndex) {
     if (g_FieldPartyMoveInProgress != 0) {
         return;
     }
-    D_800B14F0[D_800B2360].step.x = pSprite->step.x;
-    D_800B14F0[D_800B2360].step.y = pSprite->step.y;
-    D_800B14F0[D_800B2360].step.z = pSprite->step.z;
-    D_800B14F0[D_800B2360].normal.x = pActor->curTriNormal.vx;
-    D_800B14F0[D_800B2360].normal.y = pActor->curTriNormal.vy;
-    D_800B14F0[D_800B2360].normal.z = pActor->curTriNormal.vz;
-    D_800B14F0[D_800B2360].rotation = (u_short)pActor->rotation.vy & 0xFFF;
-    D_800B14F0[D_800B2360].spriteField84 = (u_short)pSprite->field_0x84;
-    D_800B14F0[D_800B2360].positionX = ((s16*)&pActor->position)[1];
-    D_800B14F0[D_800B2360].positionY = ((s16*)&pActor->position)[3];
-    D_800B14F0[D_800B2360].positionZ = ((s16*)&pActor->position)[5];
-    D_800B14F0[D_800B2360].animationId = (u_short)pActor->curAnimationId;
-    D_800B14F0[D_800B2360].walkmeshTriMaterial = pActor->curWalkmeshTriMaterial;
-    D_800B14F0[D_800B2360].scriptFlags = pActor->scriptFlags.flags;
-    D_800B14F0[D_800B2360].flags = pActor->flags;
+    D_800B14F0[g_FieldSpriteUpdateIndex].step.x = pSprite->step.x;
+    D_800B14F0[g_FieldSpriteUpdateIndex].step.y = pSprite->step.y;
+    D_800B14F0[g_FieldSpriteUpdateIndex].step.z = pSprite->step.z;
+    D_800B14F0[g_FieldSpriteUpdateIndex].normal.x = pActor->curTriNormal.vx;
+    D_800B14F0[g_FieldSpriteUpdateIndex].normal.y = pActor->curTriNormal.vy;
+    D_800B14F0[g_FieldSpriteUpdateIndex].normal.z = pActor->curTriNormal.vz;
+    D_800B14F0[g_FieldSpriteUpdateIndex].rotation = (u_short)pActor->rotation.vy & 0xFFF;
+    D_800B14F0[g_FieldSpriteUpdateIndex].spriteField84 = (u_short)pSprite->field_0x84;
+    D_800B14F0[g_FieldSpriteUpdateIndex].positionX = ((s16*)&pActor->position)[1];
+    D_800B14F0[g_FieldSpriteUpdateIndex].positionY = ((s16*)&pActor->position)[3];
+    D_800B14F0[g_FieldSpriteUpdateIndex].positionZ = ((s16*)&pActor->position)[5];
+    D_800B14F0[g_FieldSpriteUpdateIndex].animationId = (u_short)pActor->curAnimationId;
+    D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshTriMaterial = pActor->curWalkmeshTriMaterial;
+    D_800B14F0[g_FieldSpriteUpdateIndex].scriptFlags = pActor->scriptFlags.flags;
+    D_800B14F0[g_FieldSpriteUpdateIndex].flags = pActor->flags;
     for (i = 0; i < 4; i++) {
-        D_800B14F0[D_800B2360].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];
+        D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];
     }
-    D_800B14F0[D_800B2360].walkmeshId = (u8)pActor->walkmeshId;
+    D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshId = (u8)pActor->walkmeshId;
     D_800C3910 = 0;
-    D_800B2360 = (D_800B2360 - 1) & 0x1F;
+    g_FieldSpriteUpdateIndex = (g_FieldSpriteUpdateIndex - 1) & 0x1F;
 }
 */
 int FieldActorTestMaterialScriptMask(ActorData* pActor) {

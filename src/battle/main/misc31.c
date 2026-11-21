@@ -45,8 +45,8 @@ extern u8 g_FlagTimerWorkListAdds;
 extern u8 g_TaskHeapAllocFlags;
 extern s32 g_BattlePendingActorTaskCount;
 extern u8 g_BattleAnimTaskAllocCount;
-extern u32 D_800C3674;
-extern s32 D_800C3678;
+extern u32 g_BattleGteDepthCueValue;
+extern s32 g_BattleAnimStateId;
 extern u8 g_BattleActiveAnimTaskCount;
 extern s32 g_BattleAnimStateFlags;
 extern BattleSpriteColorTask *g_BattleSpriteColorTask;
@@ -55,9 +55,9 @@ extern BattleSpriteColorTask *g_BattleSpriteColorTask;
 extern AnimTask *g_BattleAnimOwnerTaskGroupA;
 extern AnimTask *g_BattleAnimOwnerTaskGroupB;
 extern u16 g_BattleAnimSavedGroupStates[];
-extern u16 D_800C3CD4[];
+extern u16 g_BattleAnimSavedGroupStatesB[];
 extern s16 g_BattleAnimGroupStates[];
-extern u16 D_800D30A8[];
+extern u16 g_BattleAnimGroupStatesB[];
 extern void WorkListsRemoveEntriesForData(void *pTask);
 extern void AnimScriptTick(SpriteData *pSprite);
 extern void SpriteApplyMovementStep(SpriteData *pSprite);
@@ -84,7 +84,7 @@ extern SVECTOR g_BattleSlotVectors;
 extern SVECTOR D_800D335C;
 extern SVECTOR D_800C3730;
 extern SVECTOR g_BattleDrawScaleX;
-extern u8 D_800C372C;
+extern u8 g_BattleSlotDrawSuppressed;
 extern u8 g_BattleStateWork[];
 
 // The three actor-slot spawn positions the slot allocator hands out, one pair each.
@@ -285,8 +285,8 @@ void BattleQueueActorSlotTask(u8 *pEntry) {
     g_FlagTimerWorkListAdds = saved;
 }
 void BattleResetAnimState(void) {
-    D_800C3674 = 0x200;
-    D_800C3678 = -1;
+    g_BattleGteDepthCueValue = 0x200;
+    g_BattleAnimStateId = -1;
     g_BattleActiveAnimTaskCount = 0;
     g_BattleAnimStateFlags = 1;
     BattleSetAnimState(0);
@@ -345,7 +345,7 @@ void func_800BB9D4(void) {
     pViewTrans[0xD] += g_BattleDrawScaleX.vx;
     pViewTrans[0xE] += g_BattleDrawScaleX.vy;
     pViewTrans[0xF] += g_BattleDrawScaleX.vz;
-    if (D_800C372C == 0) {
+    if (g_BattleSlotDrawSuppressed == 0) {
         pWork = (mem_addr)g_BattleStateWork;
         pWork += 0x8000;
         depth = *(s32 *)(pWork + 0xC54);
@@ -373,9 +373,9 @@ void BattleFreeAnimTask(AnimTask *pTask) {
     } else if (g_BattleAnimOwnerTaskGroupB == pTask) {
         g_BattleAnimOwnerTaskGroupB = NULL;
         if (g_BattleAnimCommandsSuppressed == 0) {
-            D_800D30A8[0] = D_800C3CD4[0];
-            D_800D30A8[1] = D_800C3CD4[1];
-            D_800D30A8[2] = D_800C3CD4[2];
+            g_BattleAnimGroupStatesB[0] = g_BattleAnimSavedGroupStatesB[0];
+            g_BattleAnimGroupStatesB[1] = g_BattleAnimSavedGroupStatesB[1];
+            g_BattleAnimGroupStatesB[2] = g_BattleAnimSavedGroupStatesB[2];
         }
     }
     if (((u32)pSprite->flags_0xAC.flags >> 5) & 1) {
@@ -459,9 +459,9 @@ void BattleInitAnimTask(AnimTask *pTask) {
             }
         } else {
             g_BattleAnimOwnerTaskGroupB = pTask;
-            D_800C3CD4[0] = D_800D30A8[0];
-            D_800C3CD4[1] = D_800D30A8[1];
-            D_800C3CD4[2] = D_800D30A8[2];
+            g_BattleAnimSavedGroupStatesB[0] = g_BattleAnimGroupStatesB[0];
+            g_BattleAnimSavedGroupStatesB[1] = g_BattleAnimGroupStatesB[1];
+            g_BattleAnimSavedGroupStatesB[2] = g_BattleAnimGroupStatesB[2];
         }
     }
     g_BattleActiveAnimTaskCount++;

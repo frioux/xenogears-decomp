@@ -144,9 +144,9 @@ void FieldSetMatrix(s16* pOut, int x0, int x1, int x2, int x3, int x4, int x5, i
     pOut[8] = x8;
 }
 
-extern s32 D_8005A420[];
-extern s32 D_8005A450[];
-// The s16 entry table at D_800B21DC is followed immediately by its entry count at
+extern s32 g_FieldActorModelSlotDataBuffers[];
+extern s32 g_FieldActorModelSlotSpriteBuffers[];
+// The s16 entry table at g_FieldActorModelSlotArchiveBase is followed immediately by its entry count at
 // g_FieldActorModelSlotCount; the original reaches both through one base register.
 typedef struct {
     /* 0x000 */ s16 entries[0x44];
@@ -167,7 +167,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 // original) are right; the two remaining gaps are both gcc rematerialising where the
 // original reuses a materialised address:
 //  1. the original builds &g_FieldActorModelSlotCount into $v1 (lui+addiu), loads the count with
-//     `lw 0($v1)` and then `addiu $s4,$v1,-0x88` for the s16 table at D_800B21DC,
+//     `lw 0($v1)` and then `addiu $s4,$v1,-0x88` for the s16 table at g_FieldActorModelSlotArchiveBase,
 //     reloading the count inside the loop as `lw 0x88($s4)`. This source computes the
 //     base as one constant (`lui %hi(g_FieldActorModelSlotCount); addiu -0x88`) and re-forms a second
 //     lui/%lo pair for the count instead; gcc's fold_rtx always folds the +0x88 back to
@@ -207,7 +207,7 @@ void func_80077884(void) {
     for (i = 0; i < pSoundList->count; i++) {
         D_800B2394[i * 2 + 1].archiveIndex = pSoundList->entries[i] + 0x6BB;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BB), 1);
-        D_8005A450[i] = (s32)pBuffer;
+        g_FieldActorModelSlotSpriteBuffers[i] = (s32)pBuffer;
         D_800B2394[i * 2 + 1].pData = pBuffer;
     }
 
@@ -215,7 +215,7 @@ void func_80077884(void) {
     for (i = 0; i < pSoundList->count; i++) {
         D_800B2394[i * 2].archiveIndex = pSoundList->entries[i] + 0x6BA;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BA), 0);
-        D_8005A420[i] = (s32)pBuffer;
+        g_FieldActorModelSlotDataBuffers[i] = (s32)pBuffer;
         D_800B2394[i * 2].pData = pBuffer;
     }
 
@@ -271,12 +271,12 @@ void func_80077AB4(void) {
         pVector = (SVECTOR*)(pCount - 30);
         clut = 0xFC0000;
         texOffset = 0xFC;
-        pData = D_8005A450;
+        pData = g_FieldActorModelSlotSpriteBuffers;
         for (i = 0; i < *pCount; i++) {
             pVector->vx = 0;
             pVector->vy = 0;
             pVector->vz = 0;
-            func_801E742C(i, 0, D_8005A420[i], pData[i],
+            func_801E742C(i, 0, g_FieldActorModelSlotDataBuffers[i], pData[i],
                 (s16)(0x240 - ((i + ((u8*)&g_FieldEffects)[0xEB + texOffset]) * 0x40)), 0x100, 0,
                 clut >> 16, pVector++);
             texOffset++;

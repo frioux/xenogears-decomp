@@ -17,7 +17,7 @@ extern s32 g_FieldCurActorIndex; // Current actor index
 // Unbounded array so cc1 materialises the base in a register for a read-modify-write.
 extern s32 g_FieldActorModelSlotCount[];
 extern u8 g_FieldActorModelSpriteRow[];
-extern s16 D_800B21DC[];
+extern s16 g_FieldActorModelSlotArchiveBase[];
 extern s32 g_FieldSceneReloadFlags;
 extern int g_GameSceneMapNum;
 extern void GameWaitForCdData(void);
@@ -30,7 +30,7 @@ extern s16 D_800AFD20;
 extern u16 g_FieldP1ButtonsPressed;
 extern u16 g_FieldP1ButtonsReleased;
 extern s32 g_FieldRequestCode;
-extern s16 D_800ADB02; // Frames the player has gone without moving while interacting
+extern s16 g_FieldTalkIdleFrames; // Frames the player has gone without moving while interacting
 extern s32 D_800ADB28;
 extern s32 D_800ADB68;
 extern u16 D_800ADF68[]; // Camera-relative facing angle per d-pad direction
@@ -40,7 +40,7 @@ extern u16 g_FieldTalkShorts[];
 extern s16 D_800B2342;
 extern u8 g_FieldAlternatePadAngles;
 extern u8 D_800B21CE;
-extern s32 D_800B2360;
+extern s32 g_FieldSpriteUpdateIndex;
 extern int FieldActorTestMaterialScriptMask(ActorData* pActor);
 extern void func_80079288(void);
 extern s16 g_Unknown_800B2344;
@@ -700,13 +700,13 @@ void FieldScriptVMHandlerCheckActorInteraction(void) {
                 if (g_FieldScriptVMCurActor->prevPosition.x == ((s16*)&g_FieldScriptVMCurActor->position.vx)[1]
                     && g_FieldScriptVMCurActor->prevPosition.y == ((s16*)&g_FieldScriptVMCurActor->position.vy)[1]
                     && g_FieldScriptVMCurActor->prevPosition.z == ((s16*)&g_FieldScriptVMCurActor->position.vz)[1]) {
-                    D_800ADB02++;
+                    g_FieldTalkIdleFrames++;
                 }
             } else {
-                D_800ADB02 = 0;
+                g_FieldTalkIdleFrames = 0;
             }
-            if (D_800ADB02 > FIELD_ENCOUNTER_HOLD_FRAMES) {
-                D_800ADB02 = FIELD_ENCOUNTER_HOLD_FRAMES;
+            if (g_FieldTalkIdleFrames > FIELD_ENCOUNTER_HOLD_FRAMES) {
+                g_FieldTalkIdleFrames = FIELD_ENCOUNTER_HOLD_FRAMES;
                 if ((g_FieldP1ButtonsPressed & 0x80)
                     && !(g_FieldScriptVMCurActor->scriptFlags.flags & 0x1800)
                     && g_FieldRequestCode == 0xFF) {
@@ -725,7 +725,7 @@ void FieldScriptVMHandlerCheckActorInteraction(void) {
         confirm:
             if (!FieldActorTestMaterialScriptMask(g_FieldScriptVMCurActor)) {
                 *(volatile u32*)&g_FieldScriptVMCurActor->scriptFlags.flags |= 0x800;
-                D_800ADB28 = D_800B2360;
+                D_800ADB28 = g_FieldSpriteUpdateIndex;
             }
             goto buttons;
         talk:
@@ -734,7 +734,7 @@ void FieldScriptVMHandlerCheckActorInteraction(void) {
                 && !FieldActorTestMaterialScriptMask(g_FieldScriptVMCurActor)) {
                 pActor = g_FieldScriptVMCurActor;
                 *(volatile u32*)&pActor->scriptFlags.flags |= 0x800;
-                nSavedMessageState = D_800B2360;
+                nSavedMessageState = g_FieldSpriteUpdateIndex;
                 *(volatile s16*)&pActor->curAnimationId = 0xFF;
                 D_800ADB28 = nSavedMessageState;
                 D_800B2342 = g_FieldTalkShorts[0];
@@ -1408,8 +1408,8 @@ extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 arg1, s32 
 extern void func_801E742C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s16 arg4, s32 arg5,
                           s32 arg6, s32 arg7, SVECTOR* pVector);
 extern StreamDataQueueEntry D_800B2394[];
-extern s32 D_8005A420[];
-extern s32 D_8005A450[];
+extern s32 g_FieldActorModelSlotDataBuffers[];
+extern s32 g_FieldActorModelSlotSpriteBuffers[];
 
 // Per-slot scratch the loader fills: an SVECTOR per slot at +0x0, which the
 // sprite update reads back, and the animation id taken from the model at +0x20.
@@ -1452,14 +1452,14 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
         case 1:
             LibGearFreeModel(g_FieldScriptVMCurActor->flags12C_0xE);
             nArg = FieldScriptVMGetArgument(5);
-            D_800B21DC[nSlot] = nArg * 2;
+            g_FieldActorModelSlotArchiveBase[nSlot] = nArg * 2;
             D_800B2394[0].archiveIndex = nArg * 2 + FIELD_ARCHIVE_MODEL_ENTRY;
-            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY), 0);
-            D_8005A420[nSlot] = (s32)pBuffer;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_FieldActorModelSlotArchiveBase[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY), 0);
+            g_FieldActorModelSlotDataBuffers[nSlot] = (s32)pBuffer;
             D_800B2394[0].pData = pBuffer;
-            D_800B2394[1].archiveIndex = D_800B21DC[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY + 1;
-            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY + 1), 1);
-            D_8005A450[nSlot] = (s32)pBuffer;
+            D_800B2394[1].archiveIndex = g_FieldActorModelSlotArchiveBase[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY + 1;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_FieldActorModelSlotArchiveBase[nSlot] + FIELD_ARCHIVE_MODEL_ENTRY + 1), 1);
+            g_FieldActorModelSlotSpriteBuffers[nSlot] = (s32)pBuffer;
             D_800B2394[1].pData = pBuffer;
             D_800B2394[2].archiveIndex = 0;
             D_800B2394[2].pData = NULL;
@@ -1471,11 +1471,11 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
             if (ArchiveCdDataSync(1) == 0) {
                 FieldScriptVMGetArgument(2); // the original calls it and drops the result
                 nOffset = nSlot + g_FieldActorModelSpriteRow[nSlot];
-                func_801E742C(nSlot, 0, D_8005A420[nSlot], D_8005A450[nSlot],
+                func_801E742C(nSlot, 0, g_FieldActorModelSlotDataBuffers[nSlot], g_FieldActorModelSlotSpriteBuffers[nSlot],
                     (s16)(0x240 - (nOffset << 6)), 0x100, 0,
                     (s16)(nSlot + 0xFC), &g_FieldModelSlotScratch.vectors[nSlot]);
                 g_FieldModelSlotScratch.animationIds[nSlot] = g_FieldActorModelPointers[nSlot]->unk1C;
-                HeapFree((void*)D_8005A450[nSlot]);
+                HeapFree((void*)g_FieldActorModelSlotSpriteBuffers[nSlot]);
 
                 pSpriteActor = g_FieldScriptVMCurActor;
                 pSpriteActor->scriptInstructionPointer += 4;
@@ -1534,7 +1534,7 @@ void func_800A1364(void) {
     g_FieldActors[g_FieldCurActorIndex].status &= ~ACTOR_STATUS_INVISIBLE;
     g_FieldScriptVMCurActor->flags |= 0x2000;
     g_FieldScriptVMCurActor->flags &= ~0x800;
-    D_800B21DC[g_FieldActorModelSlotCount[0]] = arg;
+    g_FieldActorModelSlotArchiveBase[g_FieldActorModelSlotCount[0]] = arg;
     g_FieldActorModelSpriteRow[g_FieldActorModelSlotCount[0]] = 0;
     g_FieldScriptVMCurActor->flags12C_0xE = g_FieldActorModelSlotCount[0] & 7;
     g_FieldActorModelSlotCount[0]++;

@@ -12,7 +12,7 @@ extern s32 g_FieldCurActorIndex;
 extern s8 D_800B21CE;
 extern s8 D_800B21CF[];
 extern s32 g_FieldCameraSnapFrames[];
-extern s32 D_800B2360;
+extern s32 g_FieldSpriteUpdateIndex;
 extern s32 D_800B2364;
 extern s32 D_800B2368;
 extern u16 D_800AEA44[];
@@ -648,7 +648,7 @@ void FieldScriptVMResetPartyMovement(void) {
     g_FieldPartyMoveInProgress[0] = 0;
     D_800B2368 = 0;
     D_800B2364 = 0;
-    D_800B2360 = 0;
+    g_FieldSpriteUpdateIndex = 0;
     D_800B21CE = 0;
 
     for (i = 0; i < 0x20; i++) {
@@ -690,7 +690,7 @@ void FieldScriptVMResetActorHistory(void) {
 
     D_800B2368 = 0;
     D_800B2364 = 0;
-    D_800B2360 = 0;
+    g_FieldSpriteUpdateIndex = 0;
     D_800B21CE = 0;
 
     for (i = 0; i < 0x20; i++) {

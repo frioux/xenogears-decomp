@@ -1896,7 +1896,7 @@ extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* 
 extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_80081C54(int actorIndex);
 extern s32 g_PlayerActorIndex;
-extern s32 D_800B2360;
+extern s32 g_FieldSpriteUpdateIndex;
 extern s32 D_800B2364;
 extern s32 D_800B2368;
 
@@ -1945,7 +1945,7 @@ void func_80077268(void) {
 
     D_800B2368 = 0;
     D_800B2364 = 0;
-    D_800B2360 = 0;
+    g_FieldSpriteUpdateIndex = 0;
     for (i = 0; i < 0x20; i++) {
         func_80081C54(g_PlayerActorIndex);
     }
@@ -1973,7 +1973,7 @@ extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* 
 extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_80081C54(int actorIndex);
 extern s32 g_PlayerActorIndex;
-extern s32 D_800B2360;
+extern s32 g_FieldSpriteUpdateIndex;
 extern s32 D_800B2364;
 extern s32 D_800B2368;
 
@@ -2015,7 +2015,7 @@ void func_80077268(void) {
 
     D_800B2368 = 0;
     D_800B2364 = 0;
-    D_800B2360 = 0;
+    g_FieldSpriteUpdateIndex = 0;
     for (i = 0; i < 0x20; i++) {
         func_80081C54(g_PlayerActorIndex);
     }

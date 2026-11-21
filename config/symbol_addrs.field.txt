@@ -1083,3 +1083,6 @@ g_FieldScriptVMStackErrorFormat = 0x8006FD44;
 g_FieldScriptVMEventLoopErrorFormat = 0x8006FD84;
 g_FieldScriptButtonsHeld = 0x800AFC6C;
 g_FieldPartyMoveInProgress = 0x800B21CC;
+g_FieldTalkIdleFrames = 0x800ADB02;
+g_FieldActorModelSlotArchiveBase = 0x800B21DC;
+g_FieldSpriteUpdateIndex = 0x800B2360;

@@ -1709,3 +1709,5 @@ g_SystemString = 0x80059FD8;
 g_SystemStringChars = 0x8005A068;
 g_ControllerDebugBreakEnabled = 0x80059390;
 g_ControllerFrameCallback = 0x800501FC;
+g_FieldActorModelSlotDataBuffers = 0x8005A420;
+g_FieldActorModelSlotSpriteBuffers = 0x8005A450;
