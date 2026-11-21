@@ -83,7 +83,8 @@ typedef struct WorldMapEntry {
 // func_80081D80 so the wipe does not move in one block. The tpage word sits after the
 // second vertex's texcoords, where the original object reads it.
 typedef struct {
-    /* 0x00 */ u32 tag;
+    /* 0x00 */ u8 tag[3];
+    /* 0x03 */ u8 unk3;
     /* 0x04 */ u8 r;
     /* 0x05 */ u8 g;
     /* 0x06 */ u8 b;
@@ -107,6 +108,7 @@ typedef struct {
     /* 0x22 */ s16 y3;
     /* 0x24 */ u8 u3;
     /* 0x25 */ u8 v3;
+    /* 0x26 */ u16 pad26;
 } WorldMapFadeQuad; // Size: 0x28
 
 // The world map frame render context g_WorldMapRenderContext points at: partial view of the
@@ -325,40 +327,35 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
     }
 }
 
-// Best: 94.87%, 156 bytes = retail's exact size, with the two group entries typed
-// (pModel->polyCount, pPackets[0]) instead of the u8* arithmetic the older note used - the
-// same code, so the score is unchanged. The single residue is where the first call's
-// argument copy lands: retail puts `move a0,s0` between the pos.y lui and its store, this
-// alloc puts it after `li v1,-2048`. A second variable holding the group pointer
-// (pEntry = pGroup;) did not move it. The empty do/while after the pos.y store is
-// load-bearing (retail keeps the pos.y store above the Z load; without it 92.64). A
-// `s32 y = 0xFFF80000;` local assigned before the store gives 92.64 by delaying the slot
-// base. Placing that second variable before the pos.y store, after it and after the
-// do/while all measure the same, and a single pEntry variable (pEntry = g_WorldMapGroups;
-// then pEntry++) gives the identical body; a 4-minute permuter run (1887 iterations)
-// found nothing. Preset screen: cdk 87.51, gcc-2.6.0 87.15.
+// Best: 94.87%, 156 bytes = retail's exact size; the group entries are typed
+// (pModel->polyCount, pPackets[0]). The single residue is the placement of the first
+// call's argument copy: retail has `move a0,s0` between the pos.y lui and its store
+// (i.e. before the Z load), this gcc puts it after the Z load and `li v1,-2048`. The
+// empty do/while after the pos.y store is load-bearing (retail keeps the pos.y store
+// above the Z load; without it 92.64). Declaring a pEntry variable and assigning it at
+// four different source positions, and passing pGroup directly (no pEntry at all),
+// all measure the identical body - the copy comes from local_alloc, not from a source
+// statement. A 4-minute permuter run (1887 iterations) found nothing. Preset screen:
+// cdk 87.51, gcc-2.6.0 87.15.
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
-    WorldMapEntry *pEntry;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 z;
 
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = 0xFFF80000;
     do { } while (0); // keeps the pos.y store ahead of the Z load
-    pEntry = pGroup;
     z = g_WorldMapPlayerPositionZ;
     pSlot->unk54 = -0x800;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
     pSlot->pos.z = z;
-    WorldMapSetupPrimTemplates(pEntry, pEntry->pPackets[0], pEntry->pModel->polyCount);
-    pGroup++;
+    WorldMapSetupPrimTemplates(pGroup, pGroup->pPackets[0], pGroup->pModel->polyCount);
+    pGroup = pGroup + 1;
     WorldMapSetupPrimTemplates(pGroup, pGroup->pPackets[0], pGroup->pModel->polyCount);
     return 3;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
 // The two GTE scale vectors the fade groups are scaled by, in the scratchpad. The
 // address is a literal on purpose: naming a symbol here makes gcc materialise %hi/%lo
@@ -805,15 +802,13 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
 // statement order and reuses $v1 for all three loads. Same blocker as
 // func_800817A0 above; pointer local, zero-store order and x/y/z order were
 // all no better (vec3 through a pointer local: 87.03, zeros first: 84.43).
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
-/*
 s32 func_800819C8(s32 index) {
     u8 *pEntry = (u8 *)g_WorldMapGroups;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->state = 0;
-    pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    pSlot->pos.y = g_WorldMapPlayerPositionY;
+    *(volatile s32 *)&pSlot->pos.x = g_WorldMapPlayerPosition.x;
+    *(volatile s32 *)&pSlot->pos.y = g_WorldMapPlayerPositionY;
     pSlot->pos.z = g_WorldMapPlayerPositionZ;
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
@@ -830,9 +825,7 @@ s32 func_800819C8(s32 index) {
     WorldMapInitPolyFt4Prims((WorldMapEntry *)pEntry, *(u8 **)(pEntry + 0x48),
                   *(u16 *)(*(u8 **)(pEntry + 0x40) + 4), 3);
     return 1;
-}
-*/
-s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
+}s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     WorldMapEntry *pEntry = &g_WorldMapGroups[0];
 
@@ -860,47 +853,51 @@ s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     return 1;
 }
-/*
-s32 func_80081C3C(void) {
+s32 func_80081C3C(s32 index) {
+    u8 **ppQuadBuffers = g_WorldMapFadeQuadBuffers;
     Quad *pSrc;
     Quad *pDst;
+    Quad *pEnd;
     u16 *pFill;
-    u8 *p;
+    u16 value;
+    u8 level;
+    u8 code;
+    u8 shade;
+    WorldMapFadeQuad *pQuad;
     s32 i;
 
-    g_WorldMapFadeQuadBuffers[0] = HeapAlloc(0x1E00, 0);
+    ppQuadBuffers[0] = HeapAlloc(0x1E00, 0);
     D_8009D15C = HeapAlloc(0x1E00, 0);
     g_WorldMapFadeTable = HeapAlloc(0x180, 0);
-    p = g_WorldMapFadeQuadBuffers[0];
-    for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
-        p[7] = 0x2C;
-        p[3] = 9;
-        p[4] = 0x80;
-        p[5] = 0x80;
-        p[6] = 0x80;
-        p[7] |= 1;
-        *(u16 *)(p + 0x16) = GetTPage(2, 0, 0x280, 0x100);
-        p += 0x28;
+    i = 0;
+    level = 9;
+    code = 0x2C;
+    pQuad = (WorldMapFadeQuad *)ppQuadBuffers[0];
+    shade = 0x80;
+    for (; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
+        pQuad->code = code;
+        pQuad->unk3 = level;
+        pQuad->r = shade;
+        pQuad->g = shade;
+        pQuad->b = shade;
+        pQuad->code |= 1;
+        pQuad->tpage = GetTPage(2, 0, 0x280, 0x100);
+        pQuad++;
     }
     pSrc = (Quad *)g_WorldMapFadeQuadBuffers[0];
     pDst = (Quad *)D_8009D15C;
-    for (i = 0; i < 0x1E0; i++) {
+    pEnd = pSrc + 0x1E0;
+    do {
         *pDst++ = *pSrc++;
-    }
+    } while (pSrc != pEnd);
     pFill = g_WorldMapFadeTable;
+    // u16 local, not a literal: retail materialises the 1 once before the loop
+    value = 1;
     for (i = WORLD_MAP_FADE_ENTRY_COUNT - 1; i >= 0; i--) {
-        *pFill++ = 1;
+        *pFill++ = value;
     }
     return 1;
 }
-*/
-// Best: 87.09%. Allocation, both loops' shapes and GetTPage are right; the
-// differences are (1) retail keeps &g_WorldMapFadeQuadBuffers in $s0 across the three
-// HeapAlloc calls (store and later load both go through it), gcc rematerialises
-// lui/$at for each; (2) retail materialises 9 into $s4 before 0x2C into $s3.
-// Preset screen: cdk 71.46, gcc-2.6.0 87.09.
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
-
 // Best: 99.88%, retail's exact 564 bytes. The instruction sequence, every call, every
 // store offset and the constant allocation order all match; the one residue is gcc's
 // loop giv re-base. Retail keeps the vertex pointer at prim+0x25 and addresses the
@@ -911,8 +908,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
 // save pair and the tail mask registers instead, 96.50%). Declaration order, u32 vs s32
 // index, RECT/pMove/i first, operand order of both setaddr sums measured no better; a
 // 4-minute permuter run (2245 iterations) found nothing.
+// Best: 99.88%, retail's exact 564 bytes; unparked and re-measured (the body now
+// takes the (s32 index) signature the extern declares). The instruction sequence, every
+// call, store offset and constant allocation match. The one residue is gcc's giv re-base:
+// retail keeps the vertex pointer at prim+0x25 (v3, the HIGHEST offset) and addresses the
+// sixteen stores at 0..-0x1D, this cc1 picks prim+0x20 (x3, the LAST store in source
+// order) with every displacement 5 larger. Same addresses, different base. `addPrim` is
+// the right spelling (hand-spelling the two setaddr pairs as u32 masks puts the base at
+// 0x25 but then allocates 0xFF000000 before 0xFFFFFF, costing the prologue save pair,
+// 96.50%). Declaration order, u32 vs s32 index, RECT/pMove/i first and both setaddr
+// operand orders measured no better; a 4-minute permuter run (2245 iterations) found
+// nothing. Preset screen not run.
 /*
-s32 func_80081D80(void) {
+s32 func_80081D80(s32 index) {
     WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
     u16 *pFade = g_WorldMapFadeTable;
     DR_MOVE *pMove;
@@ -951,8 +959,7 @@ s32 func_80081D80(void) {
     addPrim(g_WorldMapRenderContext->pOt[0], pMove);
     return 1;
 }
-
-"*/
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
 s32 WorldMapResetSlotColorFade(s32 index) {
