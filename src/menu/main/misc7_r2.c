@@ -696,25 +696,12 @@ void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId) {
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D74EC);
-/* Best: 99.83% (920 bytes, retail's exact size). Both halves decode completely and
-   the ONLY remaining difference is two `addu` operand orders, one per half:
-   retail `addu a2,a2,t1` (prim address) where gcc gives `addu a2,t1,a2`, and
-   retail `addu a0,s1,a0` (verts pointer, offset biv + base) where gcc gives
-   `addu a0,a0,s1`. Measured: spelling either sum offset-first
-   (`(off) + (u32)base`, or the flat `field * 0x50 + K + (u32)base`) gives
-   retail's operand order but rotates t0/t1 and drops to 94.43%; an explicit
-   `vertOffset` variable (the shape that matches in func_801D7884) is 98.00 and
-   `(u8*)base + i * 0x20 + K` flat is 93.17 (928 bytes). A 2-minute permuter run
-   (885 iters, base=40) found nothing. Everything else - the twin lhu (via the
-   volatile minuend), `(i * 2 + renderContext) * 0x28` (fixes the prim base
-   register) and `i * 8 + D_x - offset` - is exact.
 void func_801D74EC(u_char index, u_char characterId) {
     s32 offset;
     s32 i;
 
     MenuParseNumberToDigits(
-        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk3C);
+        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk44);
     offset = characterId * 0x18;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5 = 0;
     for (i = 0; i < 7; i++) {
@@ -728,12 +715,13 @@ void func_801D74EC(u_char index, u_char characterId) {
         }
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5; i++) {
-        u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (i * 2 + g_Menu->renderContext) * 0x28;
+        POLY_FT4* pPrim;
+        s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
 
+        pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + primOffset + 0x11D0);
         MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x25C0)),
-                            *(u16*)(pEntry + 0x11D8), *(u16*)(pEntry + 0x11DA),
-                            *(u16*)(pEntry + 0x11E0) - *(volatile u16*)(pEntry + 0x11D8),
-                            *(u16*)(pEntry + 0x11F2) - *(volatile u16*)(pEntry + 0x11DA));
+                            pPrim->x0, pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
     }
 
     MenuParseNumberToDigits(
@@ -750,15 +738,16 @@ void func_801D74EC(u_char index, u_char characterId) {
         }
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE6; i++) {
-        u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (i * 2 + g_Menu->renderContext) * 0x28;
+        POLY_FT4* pPrim;
+        s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
 
+        pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + primOffset + 0x1400);
         MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x26A0)),
-                            *(u16*)(pEntry + 0x1408), *(u16*)(pEntry + 0x140A),
-                            *(u16*)(pEntry + 0x1410) - *(volatile u16*)(pEntry + 0x1408),
-                            *(u16*)(pEntry + 0x1422) - *(volatile u16*)(pEntry + 0x140A));
+                            pPrim->x0, pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
     }
 }
-*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7884);
 /* Best: 92.68% at retail's exact 952 bytes. Structure, every call, every branch,
    the frame (0x58, s0-s7) and the quad loop are right; what is left is one
