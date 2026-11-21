@@ -563,9 +563,10 @@ extern u8 g_FieldModelSlotScratch[];
 //  - the -0x20/-0xB8 first arguments of the two FieldSetMatrix calls and the
 //    RotMatrix are displacements off ONE base in retail, i.e. g_FieldModelSlotScratch
 //    .. g_FieldMotionSlotSteps is one object in the source too.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldLoad);
 
-/*
+// .rodata
+const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};
+
 void FieldLoad(void) {
     FieldActor* pActor;
     FieldActorModelData* pModel;
@@ -676,8 +677,8 @@ void FieldLoad(void) {
     count = STAGED_FILE->numEntitites;
     pSpawn = STAGED_FILE->actorData;
     g_FieldNumActors = count;
-    g_FieldActors = HeapAlloc(count * sizeof(FieldActor), 0);
-    pWord = (u32*)g_FieldActors;
+    pWord = HeapAlloc(count * sizeof(FieldActor), 0);
+    g_FieldActors = (FieldActor*)pWord;
     for (i = 0; i < count * (s32)(sizeof(FieldActor) / sizeof(s32)); i++) {
         pWord[i] = 0;
     }
@@ -813,4 +814,3 @@ void FieldLoad(void) {
         }
     }
 }
-*/
