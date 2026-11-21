@@ -21,7 +21,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     if (g_BattleSlotConditions[arg0][0] & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         mask = 1;
     } else {
-        if (rand() % 100 < 10 && !(p->conditionFlags & 0x100) && *pStatus == 0) {
+        if (rand() % BATTLE_PERCENT_ROLL_RANGE < 10 && !(p->conditionFlags & 0x100) && *pStatus == 0) {
             *pInfo = 4;
             return;
         }
@@ -59,7 +59,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
             count = 4;
             break;
         }
-        if (rand() % 100 < 25 && !(p->conditionFlags & 0x20)) {
+        if (rand() % BATTLE_PERCENT_ROLL_RANGE < 25 && !(p->conditionFlags & 0x20)) {
             *pInfo = 2;
             bit = rand() % count;
             if (g_GameState.conditionRows[p->characterId].characterConditionMask & ((0x8000 >> bit) & mask)) {
@@ -75,8 +75,8 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         mask = 1;
     }
     *pInfo = mask;
-    if (rand() % 100 < 80) {
-        if (rand() % 100 >= 60) {
+    if (rand() % BATTLE_PERCENT_ROLL_RANGE < 80) {
+        if (rand() % BATTLE_PERCENT_ROLL_RANGE >= 60) {
             pInfo[1] = mask;
         } else {
             pInfo[1] = 0;
