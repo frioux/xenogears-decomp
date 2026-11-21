@@ -4412,32 +4412,18 @@ u8* SoundScriptSetElementRamp(u8* pScript, AudioManager* pAudioManager, AudioEle
     return pScript + 3;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DC50);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 88.64 / 88.64 / 92.60 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (93.36%, 204 bytes, same size; ideally the register roles swap). gcc puts the running
-volume in s0 and pAudioElements in s1; the original has volume s1, pAudioElements s0 (the
-prologue save order follows). It also elides the `sll a1,16` / `sra a1,16` that converts the
-divisor argument, because gcc proves from the lbu that velocity, velocity*velocity/64 and
-their sum fit in HImode - the original could not prove it. `s32 velocity = pScript[0]` with
-`velocity + (velocity * velocity) / 64` (no s16 casts) removes the spurious `andi 0xff` and
-the extra `move v0,s1` (92.60%, 200 bytes: it drops the sll/sra pair) - that shape is the
-closest to the original's instruction sequence. `s16 volume`, `(s16)velocity` in the product
-and u8 velocity all land lower (90.34%).
 u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s32 note = (s8)pScript[1];
-    s32 velocity = pScript[0];
-    s32 volume;
+    s8 note = pScript[1];
+    s16 velocity = pScript[0];
     s32 unk16;
 
     if (note != 0) {
         if (velocity != 0) {
-            volume = velocity + (velocity * velocity) / 64;
-            pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, 2);
-            pAudioElements->envelopes[1].reload = volume;
+            velocity = velocity + ((s16)velocity * (s16)velocity) / 64;
+            pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)velocity, 2);
+            pAudioElements->envelopes[1].reload = velocity;
             unk16 = pScript[2] << 2;
-            pAudioElements->envelopes[1].rampStep = 0x400;
+            pAudioElements->envelopes[1].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pAudioElements->envelopes[1].pStepHandler = (undefined32)SoundEnvelopeStepTriangle;
             pAudioElements->envelopes[1].handlerIndex = 2;
             pAudioElements->envelopes[1].target = 1;
@@ -4450,7 +4436,6 @@ u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     return pScript + 3;
 }
-*/
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
