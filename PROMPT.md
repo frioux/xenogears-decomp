@@ -103,9 +103,12 @@ One worker = one clone = **one `.c` file**. A round is one long rolling launch.
 - Size the queue so the launch lasts 45-75 minutes. If the last round drained its queue
   in under 30 minutes, double `--queue`; if it hit `timeoutMs` with entries unstarted,
   halve it. An unstarted queue entry leaves an untouched clone, which merges as nothing.
-- **Take the planner's output as is.** Its classes, in priority order: parks recorded at
-  100.00 (free), twin PORT, twin TEMPLATE, stub families, parks 99+, parks 90-99, fresh
-  stubs under 350 instructions, `big` (350+, one function, 90 minutes, phased). It
+- **Take the planner's output as is.** Its classes, in priority order: `twin` (a matched
+  near-copy exists: PORT, then TEMPLATE), `cluster` (stub families), `park` (99+ first,
+  down to 80), `fresh` (never written, under 350 instructions), `big` (never written,
+  350+, one function, 60 minutes, phased) and `redo` (parks under 80 and stubs with only
+  a note: re-measured, then rewritten from an m2c draft with the old body as a
+  reference). It
   applies the exclusions (handwritten, finished dirs, stack switch, BLOCKED padding,
   jump tables in units that do not own them, 12-round cooldown, three strikes per class).
   If you believe it picked wrongly, fix `next_round.py` and say so in the tracker row;
