@@ -221,29 +221,14 @@ void MenuInitializeArrowCursor(u_char index) {
     g_Menu->arrowCursors[index]->animFrameDuration = 0;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB0A8);
-
-/* 98.80% (664 bytes, retail's size; instruction multiset identical). The only
-   difference is the ORDER of the four MenuSetQuadVertices argument setups:
-   retail emits `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff`
-   (both sums, then both truncations), this C emits `addu a1; andi a1; addu a2;
-   andi a2`. cse folds each single-use sum pseudo into its argument position, so
-   neither statement order nor a u16/u32/s32 local changes the interleaving.
-   Tried, all 98.80: sums as s32 locals in both orders, u32 locals, u16 locals,
-   inline expressions, hoisting the four poly loads. permute.sh, 3 minutes:
-   PERMUTER_NONE (base=60 best=60). Earlier lane also screened gcc 2.7.2-cdk,
-   -O3 and -G0 at the same 98.80.
-   Decode: pCursor = g_Menu->arrowCursors[arg3]; the poly record is
-   &pCursor->polys[g_Menu->renderContext] read as u16 at +8/+A/+10/+22
-   (POLY_FT4.x0/y0/x1/y3, hence the lhu); ofsX in $s2, ofsY in $s1.
-/*
 void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
     MenuArrowCursor* pCursor;
     u8* pPoly;
     s32 ofsX;
     s32 ofsY;
-    s32 x;
-    s32 y;
+    SVECTOR* pVertices;
+    u16 x;
+    u16 y;
     u16 lx0;
     u16 ly0;
     u16 lx1;
@@ -284,35 +269,36 @@ void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
     if (shouldDraw != 0) {
         func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
                       g_Menu->renderContext, 0, 0, 0x1000);
+        pVertices = pCursor->vertices;
         pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
         lx0 = *(u16*)(pPoly + 8);
         ly0 = *(u16*)(pPoly + 0xA);
         lx1 = *(u16*)(pPoly + 0x10);
         ly1 = *(u16*)(pPoly + 0x22);
-        y = ly0 + ofsY;
         x = lx0 + ofsX;
-        MenuSetQuadVertices(pCursor->vertices, x, y, lx1 - lx0, ly1 - ly0);
+        y = ly0 + ofsY;
+        MenuSetQuadVertices(pVertices, x, y, lx1 - lx0, ly1 - ly0);
         pCursor->renderContext = *(u8*)&g_Menu->renderContext;
         g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
     } else {
         g_Menu->pManager->shouldRenderArrowCursor[arg3] = 0;
     }
 }
-*/
-
 void MenuFreeArrowCursor(u_char index) {
     HeapFree(g_Menu->arrowCursors[index]);
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }
 
-/* 96.75%. Frame and instruction multiset identical except that the original
-   keeps the record pointer in $a2 and re-forms the poly address a second time
-   (`addu a0,a2,a1` after the `r0 != 0x20` check) where gcc CSEs it into one
-   address, and the original carries the `i * 0x80` offset in an incrementing
-   $s2 for the second array. Also `addu` operand order differs in three places
-   (original puts the byte offset first, gcc the pointer): spelling the poly
-   pointer as `renderContext * 0x28 + (u32)base` fixes the order but relocates
-   the shift chain and dropped the function to 87.15%.
+/* 96.75%. Instruction multiset and frame identical; three addu operand orders
+   differ (the original is base-first where gcc puts the index first), the row
+   pointer stays in $a2 in the original instead of being folded into the base
+   register, and the original keeps a second induction variable ($s2 = 0x800 +
+   i*0x80) for the second array with `i++` in the beq delay slot (read-and-bump).
+   Spelling the poly pointer as `renderContext * 0x28 + (u32)base` fixes the
+   addu order but relocates the shift chain (87.15). Round 373 re-measured 96.75
+   and did not attempt the restructure (pRow = &pRows[i] + byte-offset variable):
+   the twin func_801DB5E4 closed at 100.00 in the same round. */
+/*
 void func_801DB39C(u_char arg0) {
     POLY_FT4* pPoly;
     s32 i;
@@ -344,39 +330,14 @@ void func_801DB39C(u_char arg0) {
         pPoly = &g_Menu->itemRowStrings[i].polys[g_Menu->itemRowStrings[i].renderContext];
         MenuSetPrimShadingMode(pPoly, arg0);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB5E4);
 
-/* 99.93% (828 bytes = retail's size; instruction multiset identical). The only
-   difference is the register the u_char useGearPositions phi is built in: retail
-   writes `move s1,zero` in the beq delay slot, `li s1,0x1` in the == 2 arm and
-   truncates in place with `andi s1,s1,0xff` after the merge; this C builds the
-   phi in a call-clobbered register and copies at the merge
-   (`andi s1,a0,0xff`, or v0 depending on where the zero assignment sits). Tried,
-   all 99.93 and all 828 bytes: the inverted `!= 2` if/else (retail's block
-   layout, the form below), a pre-if `= 0` statement vs a declaration
-   initializer (declaration initializer is worse, 98.56), the zero assigned at the
-   top of the taken arm (moves the copy to v0), declaration order of the locals,
-   the statement order of the two currentCharacters/currentCharacterIDs reads.
-   permute.sh from the 99.93 body: PERMUTER_NONE (base=15 best=15); the first run
-   on the 99.15 body found the embedded assignment in the alloc loop above, which
-   was the other 10 instructions' worth.
-   Decode: allocates the three MenuCharacter records once (D_801E9785), zeroes
-   them, picks the label position tables by arg0 (2 = second layout row, whose
-   characters must have a gear: g_GameState.characters[id].gearId), builds each
-   party slot's prims with MenuBuildCharacterPrims and then fills the three
-   pointer-cursor quads: x 0x90..0xA0, y 0x30 + 0x38*i to 0x40 + 0x38*i. */
-/*
-// Rebuilds the three party-slot info panels: allocates their MenuCharacter
-// records once, then builds the prims of every slot whose character id is set
-// (arg0 selects the label position table: 2 is the second row of the layout).
+
 void func_801DB5E4(s32 arg0) {
     MenuCharacter* pCharacter;
     s32* pPositionsX;
     s32* pPositionsY;
-    u_char useGearPositions;
     u8 characterId;
     u8 shouldBuild;
     s32 i;
@@ -391,26 +352,28 @@ void func_801DB5E4(s32 arg0) {
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         bzero(g_Menu->currentCharacters[i], sizeof(MenuCharacter));
     }
+    // Retail keeps the gear-position flag in the parameter's own variable: the
+    // 0/1 store reuses its register, and a separate local lands in $v0.
     if ((u_char)arg0 != 2) {
+        arg0 = 0;
         pPositionsX = D_801EA054;
         pPositionsY = D_801EA0DC;
-        useGearPositions = 0;
     } else {
         pPositionsX = D_801EA098;
         pPositionsY = D_801EA120;
-        useGearPositions = 1;
+        arg0 = 1;
     }
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         pCharacter = g_Menu->currentCharacters[i];
         characterId = g_Menu->pManager->currentCharacterIDs[i];
         shouldBuild = 1;
         if (characterId != CHARACTER_ID_NONE) {
-            if (useGearPositions) {
+            if ((u_char)arg0) {
                 shouldBuild = g_GameState.characters[characterId].gearId != GEAR_ID_NONE;
             }
             if (shouldBuild) {
                 MenuBuildCharacterPrims(pCharacter, characterId, i, (s32)pPositionsX, (s32)pPositionsY,
-                                        useGearPositions);
+                                        (u_char)arg0);
             }
         } else {
             pCharacter->shouldRender = 0;
@@ -431,4 +394,3 @@ void func_801DB5E4(s32 arg0) {
         (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].y3 = i * 0x38 + 0x40;
     }
 }
-*/
