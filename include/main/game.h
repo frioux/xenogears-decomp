@@ -55,6 +55,7 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ GameCharacterSlot slots[4];
+    // No code in the program reads or writes these eight bytes.
     /* 0x20 */ u8 unk20[8];
     /* 0x28 */ u8 attackFromEquipment;
     /* 0x29 */ u8 defenseFromEquipment;
@@ -67,6 +68,9 @@ typedef struct {
     /* 0x30 */ u8 accessoryEffectFlags8; // the type-8 accessory flag word, summed not OR'ed: cases 8 and 9 both accumulate into it (MenuApplyEquippedItemBonuses)
     /* 0x31 */ u8 mpPercentFromAccessories; // percent of maxMp added to mp and maxMp at battle init, cleared with the equipment bonuses (MenuApplyEquippedItemBonuses)
     /* 0x32 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, see the 0x7E block
+    // No code in the program reads or writes these six bytes. The battle copy of this
+    // record (BattleTableEntry, include/battle/actor.h) names them blockFlags, unk36 and
+    // element.
     /* 0x34 */ u8 unk34[0x6];
     // The per-action counter the battle slot keeps at this same offset (it is incremented
     // and clamped at 0xFDE8 by BattleResolveSlotActionState) and copies into the character
@@ -87,6 +91,9 @@ typedef struct {
     /* 0x4E */ u_short maxHp;
     /* 0x50 */ u_short mp;
     /* 0x52 */ u_short maxMp;
+    // No code in the program reads or writes these two bytes. The battle copy of this
+    // record keeps a u16 here whose low byte BattleAdjustSlotAmountByCondition bumps by
+    // the action's row.
     /* 0x54 */ u8 unk54[2];
     // The same character id the battle copy of this record keeps at this offset
     // (BattleTableEntry.characterId); 4 is the character with two weapon slots,
@@ -101,6 +108,8 @@ typedef struct {
     /* 0x5D */ undefined8 unk5D;
     /* 0x5E */ u_char hitPercentage;
     /* 0x5F */ u_char evadePercentage;
+    // The battle copy of this record names this byte conditionChance and the one after it
+    // padding (BattleTableEntry); nothing here reads or writes either.
     /* 0x60 */ undefined16 unk60;
     /* 0x62 */ u_char level;
     /* 0x63 */ undefined8 unk63; // drawn as a 3-digit number beside the level digits into the same g_Menu->digits[6..8] slots (green in the member change menu), see MenuSetCharacterLevelDigits; nothing in the program writes it
@@ -164,6 +173,10 @@ typedef struct {
     /* 0x38 */ u16 fuel;
     /* 0x3A */ u16 maxFuel;
     /* 0x3C */ u8 engineOutput;
+    // Both ApplyGearEngine functions copy these three bytes out of the engine record
+    // (GearEngine.unkD into unk3D, GearEngine.unkE into both unk3E and unk3F) and nothing
+    // reads them back. The battle copy of this record keeps attackPower plus its
+    // accessory bonus at 0x3E/0x3F.
     /* 0x3D */ u8 unk3D;
     /* 0x3E */ u8 unk3E;
     /* 0x3F */ u8 unk3F;
@@ -174,6 +187,9 @@ typedef struct {
     /* 0x48 */ u16 accessoryEffectFlags9; // the type-9 accessory flag word, see GearShopMenuRecalculateGearStats
     /* 0x4A */ u8 weightPenalty; // subtracted from agility, see GearShopMenuComputeEquipWeightPenalty
     /* 0x4B */ u8 unk4B;
+    // Both ApplyGearAccessories functions clear unk4C and unk50[] and then sum them over
+    // the three equipped accessories (GearAccessory.unk18 and GearAccessory.unk10[]), and
+    // nothing reads them back; unk4E is cleared beside them and never added to or read.
     /* 0x4C */ u8 unk4C;
     /* 0x4D */ u8 responsiveness;
     /* 0x4E */ u8 unk4E;
@@ -190,6 +206,8 @@ typedef struct {
     /* 0x60 */ u32 hp;
     /* 0x64 */ u32 maxHp;
     /* 0x68 */ u16 weight;
+    // Copied into the dressing room's unkAA stat slot by MenuFillDressingRoomGearStats and
+    // GearShopMenuFillDressingRoomStats; no other code reads or writes it.
     /* 0x6A */ u16 unk6A;
     /* 0x6C */ u16 unk6C;
     /* 0x6E */ u16 accessoryEffectFlags4; // one bit per accessory attribute, accessoryEffectAmounts[] accumulates its magnitude per bit
@@ -213,9 +231,14 @@ typedef struct {
     /* 0x86 */ u16 accessoryEffectFlags3; // low 12 bits; the top nibble holds the equipped weapon's flags
     /* 0x88 */ u8 accessoryEffectAmounts[0x10]; // summed effectAmount of the accessories whose effectFlags set the matching accessoryEffectFlags4 bit
     /* 0x98 */ u8 agility;
+    // Round-tripped through the save slot as MenuSaveGear.unk38 (src/menu/main/misc11_r2.c)
+    // and read or written nowhere else.
     /* 0x99 */ u8 unk99;
     /* 0x9a */ u8 unk9A;
     /* 0x9b */ u8 unk9B;
+    // Both are copied into the dressing room's unkB5/unkB6 stat bytes. unk9D is loaded
+    // from the gear frame (GearFrame.unk16) by both ApplyGearFrame functions; nothing in
+    // the program writes unk9C.
     /* 0x9c */ u8 unk9C;
     /* 0x9d */ u8 unk9D;
     /* 0x9e */ u8 etherAmplification;
@@ -312,6 +335,7 @@ typedef struct {
     // placed from mapPosX/mapPosZ. FieldScriptSetGameState184E clears it when a script
     // sets a new position, and raises the flag below.
     /* 0x1854 */ undefined16 playerPlaced;
+    // Set to 1 by FieldScriptSetGameState184E beside playerPlaced = 0; nothing reads it.
     /* 0x1856 */ undefined16 unk1856;
     /* 0x1858 */ undefined8 unk1858[0xCC];
     /* 0x1924 */ u_int gold;
@@ -354,6 +378,10 @@ typedef struct {
     // FieldScriptVMHandlerSetFieldEntryState: an 8-step direction << 9, or the
     // current sceneAngle turned 180 degrees when the script passes -1.
     /* 0x231C */ u16 entryAngle;
+    // The other two arguments of that opcode: FieldScriptVMHandlerSetFieldEntryState stores its
+    // second argument here and its fourth in unk2320, and nothing reads either back.
+    // FieldScriptSyncMemoryWithGameState and FieldAdvanceGameState also copy
+    // fieldScriptMemory[1] into unk2320.
     /* 0x231E */ undefined16 unk231E;
     /* 0x2320 */ u16 unk2320;
     /* 0x2322 */ u16 wdsBankIndex;
