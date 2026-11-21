@@ -10,7 +10,6 @@ typedef struct {
 } BattleSlotWordRegs; // Size: 0x40
 
 extern BattleSlotWordRegs g_BattleSlotWordRegs[];
-extern u8 g_BattleSlotByteRegs[];
 
 // The clamp of an unsigned 16-bit register: the operators that can overflow a word
 // register saturate at its largest value before storing.
