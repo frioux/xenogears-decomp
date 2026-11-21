@@ -86,8 +86,7 @@ One worker = one clone = **one `.c` file**. A round is one long rolling launch.
     #   prints: the round number, the clone tags, the brief.js args JSON (workers + queue),
     #   and records what it emitted in ~/xw/lane-history.tsv (cooldowns come from that log)
     tools/rounds/clone.sh new <the tags it printed>       # BEFORE the launch, always
-    # subagent({workflow: "tools/rounds/brief.js", async: true,
-    #           options: {timeoutMs: 5400000}, args: <the JSON it printed>})
+    # launch exactly the subagent({...}) line it printed (workflow, options.timeoutMs, args)
     # ... wait for the completion notice ...
     rm -f ~/xw/r-*/xenogears-decomp/.ninja_lock           # else merge reads UNCOMMITTED
     tools/rounds/clone.sh merge <tags>

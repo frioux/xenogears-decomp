@@ -513,9 +513,10 @@ def main():
         obj["queue"] = queue
     tags = [l[1] for l in lanes]
     deep = max(w["minutes"] for w in workers)
-    options = {}
-    if queue and deep > 30:
-        options["timeoutMs"] = deep * 60000 * (1 + math.ceil(len(queue) / 2))
+    # Every lane drains the queue, so the round's deadline is the worst case of the whole
+    # backlog spread over the lanes, plus one longest lane of slack.
+    total = sum(l[0]["minutes"] for l in lanes)
+    options = {"timeoutMs": int((math.ceil(total / len(workers)) + deep) * 60000)}
     if args.json:
         print(json.dumps({"clone_tags": tags, "options": options, "args": obj}, indent=1))
     else:
