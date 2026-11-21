@@ -127,6 +127,14 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
    76.25/584 for the slot-local spellings with primOffset kept versus inlined. So the
    missing piece is a source shape that makes i's zero-init stay in the prologue
    while slot is a variable - nothing tried here does both.
+   Round 373 re-measured: 88.75% at 608 bytes. TEN instructions differ, five per
+   half, and they are the same five in each: (a) "addu v1,s1,v1" where retail has
+   "addu v1,v1,s1" (mirrored, same registers); (b) the base load takes a0 where
+   retail has a2, so the prim address becomes "addu t1,a2,a0" + a later
+   "addu a2,t1,a2" instead of retail's "addu a0,a2,s1" / "addu a2,v0,a2";
+   (c) the counter store address is "addu a0,s1,a0" against retail's
+   "addu a0,a0,s1". Same instruction count, same bytes - a pure operand/destination
+   tie in the allocator, exactly as this note says.
 #define MENU_SLOT_STAT_DIGIT_COUNT 3
 #define MENU_SLOT_STAT_DIGIT_START 6
 void func_801E6CFC(u8 index, u8* pEntry) {
@@ -200,6 +208,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
    (base 1150 -> 1050, not a match). This looks like the same class as func_801E6CFC's
    tail: the source shape is right and the addu operand order is decided by the
    allocator, not by the C.
+   Round 373 re-measured: 88.60% at 600 bytes, with the SAME ten differing
+   instructions as the twin (five per half: "addu v1,s1,v1" for retail's
+   "addu v1,v1,s1"; the base load in a0 for retail's a2, so "addu t1,a2,a0" +
+   "addu a2,t1,a2" for retail's "addu a0,a2,s1" + "addu a2,v0,a2"; and
+   "addu a0,s1,a0" for "addu a0,a0,s1"). MENU_MP_DIGIT_COUNT is 2 (header) and
+   MENU_MAX_DIGITS - MENU_MP_DIGIT_COUNT gives retail's digits[7 + i] - verified
+   against the .s (lbu 0x323, slti 2). An 'inline the whole prim expression' body
+   (no primOffset/pPrims locals) is 88.44% at 584, 16 bytes short, so the locals
+   stay.
 void func_801E6F5C(u8 index, u8* pEntry) {
     u8* pPrims;
     s32 primOffset;
@@ -308,6 +325,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E733C);
    rtl); a typed 0x277C view struct (96.72%, the s-v registers swap); and two
    4-minute permuter runs from the 97.88% and the 99.83% body (PERMUTER_NONE,
    base=best both times).
+   Round 373: these were both re-measured, 99.83% at 944 every time, so the note
+   above still holds. Two more spellings measured for the two stores: the
+   "(idx) + ((u32)base + const)" grouping (same rtl, 99.83) and the base-last
+   "(idx + const + (u32)base)" cast form the other 14 stores use (99.83). A
+   POLY_FT4* pPoly local per store is 90.39% at 960 (the sum then takes a save).
+   The destination register of the plus is a GIV_TIE; park it with the number.
 void func_801E733C(void) {
     s32 offset;
     s32 i;
@@ -740,7 +763,17 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
    (la s4 = symbol, addiu s5,s4,4) but sched2 then reorders the whole entry block, 88.09;
    the inline ((s32*)((u8*)pCursor + 4))[off] form folds the +4 into the load displacement,
    672 bytes, 87.90. So the direction and the slots are both reachable, not together.
+   Round 373 re-measured 99.79/688 and the two-local body (88.09/688) again. The
+   two-local diff is exactly FIVE instructions and it is the save region, not the
+   loop: cc1 emits "sw s4,64(sp)" then the la pair immediately, and only afterwards
+   the remaining saves (s5/ra/s3/s1/s0), the li s1,1 and the two init stores - where
+   retail does every save first and the la pair after "lw v0,852(v1)". So the pair
+   itself is right; what moves is the prologue once a SECOND live symbol-address
+   local exists, and that is the same wall round 113 named. In the one-local body
+   the two bases differ only in which register holds symbol and which symbol+4
+   (values identical), so the whole residual is la direction + a register tie.
 
+/*
 void func_801E86C8(u_char selected) {
     s32 i;
     s32 n;
@@ -792,6 +825,7 @@ void func_801E86C8(u_char selected) {
     }
 }
 */
+
 void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
     s32 i;
     u32 index;
