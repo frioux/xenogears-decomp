@@ -511,6 +511,8 @@ function names.
   is `"psyq"` for every `src/slus_006.64/psyq/*.c`, so psyq renames silently wrote no
   `symbol_addrs` entry - the round-36 link-failure class).
 
+**The `unk` count does NOT fall from a SPLIT, and reading it as a failure wastes a round.** A split turns one opaque span into named fields *and* an `unk<offset>` placeholder for every byte nothing touches, so a header pass that names six members and splits three spans can leave the count exactly where it was (round 351: `battle_work.h` gained 5 names and 3 splits, `unk` 1341 -> 1341). Judge a field round by its `FIELD`/`SPLIT` lines and by the *named* members it added, not by this number; the number falls only when a field that already had a name-less placeholder gets one.
+
 **Fields: `unk<offset>` -> a name.** Applied by a worker in a clone, because a field
 rename has to follow the struct's type through every user and only the compiler can
 check that.
