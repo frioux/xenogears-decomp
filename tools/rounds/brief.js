@@ -258,6 +258,15 @@ NAMES: every function you bring to 100.00% gets a real name, PROPOSED IN YOUR RE
 
 FINAL REPORT (the only thing I can see): one line per function you touched - \`MATCH <name> <pct>\` or \`FAIL <name> - one-line reason (best %)\` - then a \`ROUGH <name> - reason\` line for every match that still has raw pointer arithmetic or casts, then the NAME, DATA, FIELD and CONST lines, plus any symbols/headers you added and anything a later agent should know about this unit. No diffs, no code.`;
 
+// Guard: this brief needs a matching-shaped worker ({unit, file, asm, ...}). A field- or
+// naming-round worker sent here dies with "Cannot read properties of undefined (reading
+// 'replace')" before any clone is touched, which has cost two relaunches (rounds 352, 367) -
+// say so here instead.
+for (const w of [...(args.workers || []), ...(args.queue || [])]) {
+  if (!w || typeof w.unit !== "string" || typeof w.file !== "string") {
+    throw new Error("brief.js needs matching-shaped workers with `unit` and `file`; got " + JSON.stringify(w && Object.keys(w)) + ". Field workers go to field-brief.js ({file, bins, tree}), naming workers to name-brief.js ({file, tree}), const workers to const-brief.js ({file, bin, tree}) - one shape per launch.");
+  }
+}
 const KEY = (w, i) => "w" + i + "_" + w.unit.replace(/\//g, "-");
 // Rolling launch. The plan allows two foreground (not -background) agents at a time, so the
 // first `fg` workers (default 2) run on FG_MODEL and the rest on the subagent default, the
