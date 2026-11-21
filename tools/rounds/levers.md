@@ -221,6 +221,9 @@ try: store volatile reload order
 - id: h-global-declared-type-volatile | keywords: store, volatile, pointer, s32, lui, lw
   A global declared 'Type * volatile' (here g_FieldActors) reloads its pointer for EVERY store written inline. Reassign a pointer local once per pair of stores - 'pActor = (Type*)(offset + (s32)g_FieldActors);' then both stores through it - and keep the byte offset in one s32 local so gcc does not re-form 'index * sizeof(...)' (field/misc6, round 37: 6 lui/lw against retail's 3).
 
+- id: h-script-byte-shifted-one | keywords: store, hoist, lbu, sll, local, script
+  **A script byte shifted for ONE store must reach that store through a LOCAL.** round 389 `slus_006.64/system/sound` func_8003DC50 (port of its twin SoundScriptSetTriangleEnvelope2): with `delayReload = pScript[2] << 2;` assigned before the store group and the field storing `delayReload`, retail's shape comes out at 100.00; inlining `pAudioElements->envelopes[1].delayReload = pScript[2] << 2;` makes cc1 hoist the `lbu`/`sll` up into the middle of the group and the body drops to 91.68 with the mask `lhu`/`ori`/`sh` and the delay store swapping registers. Same family as STORE_HOIST, positive direction: one local per value, assigned at its source position.
+
 ## switch, jump tables and exit shape
 
 symptoms: case body order, jump table vs chain, early-exit fold
