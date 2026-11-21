@@ -1434,7 +1434,7 @@ void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly,
         break;
     }
 
-    ((u8*)pPoly)[3] = 9;
+    setlen(pPoly, 9);
     pPoly->code = 0x2D;
     pPoly->clut = GetClut(p->crect->x, p->crect->y);
     pPoly->tpage = GetTPage(mode, 0, p->prect->x, p->prect->y);
@@ -1471,7 +1471,7 @@ void BattleBuildFlippedTexturedQuad(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPo
         break;
     }
 
-    ((u8*)pPoly)[3] = 9;
+    setlen(pPoly, 9);
     pPoly->code = 0x2D;
     pPoly->clut = GetClut(p->crect->x, p->crect->y);
     pPoly->tpage = GetTPage(mode, 0, p->prect->x, p->prect->y);
