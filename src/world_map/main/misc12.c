@@ -653,7 +653,21 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
    compared with slti (s32).
    Dead ends measured: volatile s16* pRotY (adds sll/sra sign extension per read), the pad
    passed inline instead of through a local, an if/else or two-variable abs, and a 4-minute
-   permuter run. No jtbl in this stub, so parking it costs no layout work.
+   permuter run. Re-measured and added in round 392, all at 98.03 / 287 insns / 1148 bytes:
+   `u32 nPad` (byte-identical), swapping the `nTol = 0x1000` and `nDelta = g_WorldMapViewRotationZ[0]
+   - nTurn` statements (byte-identical, so the li placement is reorg's, not statement order), and
+   spelling both ramp abs as a duplicated `(x - y < 0) ? -(x - y) : (x - y)` instead of two
+   locals - 95.73%, because gcc then folds the negate into `subu y,x` where retail has `negu`.
+   The residual really is ONE allocator choice: this body coalesces nDelta into nAbs, so reorg
+   fills the bgez slot with a duplicate `slt`, while retail keeps the copy (`addu a1,v0,zero`)
+   and case 1's whole allocation follows from it - retail pad a0 / nTurn v1 / nAngle a0 with its
+   copy in a2, here v1 / a1 / a2 with its copy in a0. gcc-2.7.2-cdk scores 93.66 on this body
+   and drops three already-matched neighbours off 100, so the preset is right (retail forms
+   g_WorldMapViewRotationY's address through `$at`, the 2.7.2 macro form).
+   Not tried: block-scoped locals inside `case 1:` - the permutations above are declaration and
+   statement order, not scope, and moving the arm's locals into its own block renumbers every
+   pseudo in it, which is the cheapest remaining knob for this allocation.
+   No jtbl in this stub, so parking it costs no layout work.
 // Mode 1's per-frame slot update: ramps the slot's yaw (0x58, a 12.12 fixed-point angle,
 // with 0x5C as its angular velocity) toward the direction the pad asks for, tilts the pitch
 // accumulator 0x70 up/down, and rebuilds the slot's forward vector from both. The command
