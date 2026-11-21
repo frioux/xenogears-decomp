@@ -919,31 +919,24 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
-/* Best: 99.58% at retail's exact size (424 bytes = 106 insns; the older 416-byte
-   note here was wrong by two instructions). Six instructions differ, all
-   register/operand ties:
-   1. loop 1, second call site: retail's renderContext load address is
-      `addu v0,v1,s0` (base first), ours `addu v0,s0,v1` (offset first).
-   2. loop 2 preheader/body: retail puts g_Menu and the panel base in $v0 and the
-      i*0x80 offset in $v1; ours has the pair mirrored. The instruction shapes and
-      the order are identical, only those two scratch registers are swapped.
-   What got it here from 94.01 (round 293's park):
-   - retail has NO panel pointer local: every one of the six sites reads
-     g_Menu->unk430 fresh (`lui/lw g_Menu` + `lw 0x430`), so a `MenuString*
-     pStrings` local is wrong even though it looks tidier - inlining the global
-     is what matched the register roles (94.01 -> 99.48).
-   - the compare address is spelled with the two offsets summed first,
-     `*(u8*)((u8*)g_Menu->unk430 + (i * 0x80 + rc * 0x28) + 4)`, which is the one
-     spelling that reproduces retail's two-addu address (base untouched) while the
-     call argument reuses `(base + i*0x80) + rc*0x28`; every typed spelling CSEs
-     both uses into one address.
-   - the renderContext load needs the panel base in a local for that site only
-     (`pPanel = g_Menu->unk430;` then `&((MenuString*)pPanel)[i]`), which is what
-     turns `addu a2,s0,a0` into retail's `addu a2,a0,s0` (99.48 -> 99.58).
-   permute.sh --minutes 4 -j 2 (round 294, from this body) found exactly that last
-   edit (base=55 -> best=45); the other two runs (rounds 63, 293) found only a
-   non-portable winner that hoists g_Menu into a local and changes the size.
-   NOT realistic C yet: item 1's spelling is a raw byte cast. */
+/* Best: 99.72% at retail's exact size (424 bytes = 106 insns). The body is
+   retail's everywhere: prologue and saved set, both loops, all six call sites and
+   the delay slots. TWO instructions differ and they are the same tie twice: the
+   address of the two `lbu renderContext` loads (loop 1's second call site and
+   loop 2's body) is `base + i * 0x80`, retail emits it base-first
+   (`addu v0,v1,s0` / `addu v0,v0,v1`) and cc1 2.6.0 emits it offset-first
+   (`addu v0,s0,v1` / `addu v1,v1,v0`) - same operands, same value, same size.
+   Round 392 spellings measured from this body, all leaving the order alone and
+   some costing bytes: the base-first cast `(u8*)g_Menu->unk430 + i * 0x80 + 0x77D`,
+   the same with `sizeof(MenuString)`, an index-first cast, a whole-entry local
+   (`pAhead`, 94.40%, 412 bytes), a panel-base local assigned inside the `if`
+   (99.48%), and a `MenuString* pHeading` local in loop 2 (96.64%, 416 bytes).
+   The one shape that bought anything is the `do { } while (0)` around loop 2's
+   call, which moved that loop's g_Menu/panel pair into retail's $v0 (99.58 ->
+   99.72); kept below. permute.sh --minutes 3 -j 2 found exactly that block edit
+   (base=45 best=30) and a second run from the better body found nothing (1222
+   iterations, base=30 best=30). This stub owns no jump table, so it is
+   convertible as soon as the operand order closes. */
 /*
 void func_801DD5E8(u_char arg0) {
     MenuString* pString;
@@ -967,7 +960,9 @@ void func_801DD5E8(u_char arg0) {
     MenuSetPrimShadingMode(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
     MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[0x1C].polys[((MenuString*)g_Menu->unk430)[0x1C].renderContext], arg0);
     for (i = 0; i < 2; i++) {
-        MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[0x1E + i].polys[((MenuString*)g_Menu->unk430)[0x1E + i].renderContext], arg0);
+        do {
+            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[0x1E + i].polys[((MenuString*)g_Menu->unk430)[0x1E + i].renderContext], arg0);
+        } while (0);
     }
 }
 */
