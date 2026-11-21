@@ -392,6 +392,15 @@ try: probe dump cc1 objdiff
 - id: n-objdiff-s-fuzzy-percentage | keywords: probe, dump
   **objdiff's fuzzy percentage is NOT monotone in the diff count** (round 328): a body differing in 12 instructions read 98.53 where an earlier one differing in 13 read 98.62. Judge a park by counting the differing instructions (or by `check_bin`), not by the percentage, and never compare two parks' percentages as if they were a score.
 
+## typing a run of halfword globals, and an empty statement as an allocation barrier
+
+symptoms: three stores to consecutive halfwords, register allocation, load order, extra or missing nop, wrong destination register
+try: struct lui gp address cast, move copy missing extra, delay-slot nop jal slot
+- id: n-three-s16-globals-are | keywords: struct, lui, gp, address, cast, halfword, s16, vector, allocation
+  **Three consecutive `s16` globals written from three calls are one vector field, and typing them as one struct moves the allocator** (round 389, field/main/misc7 func_800984EC): with three separate `extern s16 D_800B21AE/B0/B2` the body scored 78.46% / 196 bytes; as `extern SVECTOR D_800B21AE;` + `.vx/.vy/.vz` (offsets +0/+2/+4 of the same base) blocks 2 and 3 became instruction-identical and it read 88.37% / 204. The store target's form changes which registers the *next* statement's loads land in, so try the typed form before hunting the allocator (misc2/misc3 read the same three halfwords as one vector, which is the evidence the type is right).
+- id: n-an-empty-statement-between | keywords: store, reload, order, barrier, allocation, nop
+  **An empty statement (`do { } while (0);`) between two statements is an allocation barrier cc1 honours** (round 389, same function): inserted between a `sh` of a call result and the next `|=` of a byte global it stopped cc1 hoisting the following statement's `lw` above the `sh`, taking 88.37% -> 91.25% and the byte count from 204 to retail's 208. It is not shippable source (a local two-step `u8 x = g | 0x80; g = x;` reproduced 91.25% without it), but as a diagnostic it separates "wrong allocator" from "wrong statement order": when a `lw`/`lhu` of the next statement refuses to stay below a store, test with the barrier before rewriting the body.
+
 ## presets, Psy-Q and tooling facts
 
 symptoms: wrong preset or compiler, psyq stub, overlay assembler
