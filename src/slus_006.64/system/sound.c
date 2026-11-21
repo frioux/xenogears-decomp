@@ -66,6 +66,7 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 #define SOUND_VOICE_FLAG_SUSTAIN            0x40
 #define SOUND_VOICE_FLAG_RELEASE            0x80
 #define SOUND_VOICE_FLAG_SUSTAIN_LEVEL      0x100
+#define SOUND_VOICE_FLAG_NOISE              0x2000  // the noise scripts set it with SpuSetNoiseClock, the voice update rewrites noise_mode
 #define SOUND_VOICE_FLAG_ALL                (SOUND_VOICE_FLAG_VOLUME | SOUND_VOICE_FLAG_PITCH | SOUND_VOICE_FLAG_ATTACK | SOUND_VOICE_FLAG_DECAY | SOUND_VOICE_FLAG_SUSTAIN | SOUND_VOICE_FLAG_RELEASE | SOUND_VOICE_FLAG_SUSTAIN_LEVEL)
 // AudioEnvelope.flags bits
 #define SOUND_ENVELOPE_FLAG_ENABLED         0x1
@@ -74,6 +75,8 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 #define SOUND_EFFECT_ELEMENT_COUNT          16      // elements of the sound-effect manager SoundInitialize creates
 #define SOUND_EFFECT_ELEMENT_PAIR_COUNT     2       // elements one sound-effect pair spans, what g_SoundEffectElementPairCount reports
 #define SOUND_PERCUSSION_TABLE_SIZE         0x180   // tail added to a manager's allocation when it carries a percussion map
+#define SOUND_UPLOAD_BUFFER_SIZE            0x840   // SoundInitiateReverbWorkAreaTransfer's SPU write buffer, sized so a whole tail fits
+#define SOUND_UPLOAD_CHUNK_SIZE             0x800   // largest SPU write SoundExecuteReverbWorkAreaTransfer queues at a time
 #define SOUND_TICKS_PER_WHOLE_NOTE          192     // a beat divisor of 4 splits this into 48 ticks per beat
 #define SOUND_LOOP_COUNT_NONE               0xFFFF  // "no active element seen": any real loopCount compares lower
 
@@ -942,7 +945,7 @@ void SoundInitiateReverbWorkAreaTransfer(s32 addr, s32 size) {
     g_SoundUploadSourceAddr = addr;
     g_SoundUploadBytesRemaining = size;
     if (g_SoundUploadDestBuffer == 0) {
-        temp_v0 = SoundHeapAllocate(0x840);
+        temp_v0 = SoundHeapAllocate(SOUND_UPLOAD_BUFFER_SIZE);
         g_SoundUploadDestBuffer = temp_v0;
         if (temp_v0 == 0) {
             SoundHandleError(SOUND_ERR_HEAP_ALLOC_FAILED);
@@ -971,7 +974,7 @@ void SoundExecuteReverbWorkAreaTransfer(void) {
         g_SoundControlFlags &= ~SOUND_CTL_FLAG_REVERB_TRANSFER;
 
     } else {
-        chunkSize = (bytesRemaining <= 0x840) ? bytesRemaining : 0x800;
+        chunkSize = (bytesRemaining <= SOUND_UPLOAD_BUFFER_SIZE) ? bytesRemaining : SOUND_UPLOAD_CHUNK_SIZE;
 
         currentSourceAddr = g_SoundUploadSourceAddr;
 
@@ -3182,7 +3185,7 @@ s32 SoundTimerInterruptHandler(void) {
         return 0;
     }
 
-    start = GetRCnt(0xF2000002);
+    start = GetRCnt(RCntCNT2);
 
     if (g_SoundTimerTickCounter++ & 1) {
         if (g_SoundVolumeController.masterInterpolator.counter != 0) {
@@ -3301,7 +3304,7 @@ s32 SoundTimerInterruptHandler(void) {
         SpuSetIRQ(1);
     }
 
-    end = GetRCnt(0xF2000002);
+    end = GetRCnt(RCntCNT2);
     if (end >= start) {
         g_SoundTimerCyclesElapsed = g_SoundTimerCyclesElapsed + (end - start);
         g_SoundTimerTicksTotal++;
@@ -3680,7 +3683,7 @@ void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pE
     s32 note;
     u16 statusFlags;
 
-    pTone = (SoundPercussionTone*)((percussionIndex * 4) + pAudioManager->pPercussionData);
+    pTone = &((SoundPercussionTone*)pAudioManager->pPercussionData)[percussionIndex];
 
     SoundApplyToneToElement(pTone->tone, pElement);
 
@@ -4018,7 +4021,7 @@ u8* SoundScriptSetVoiceFlags1000ClearMode(u8* pScript, AudioManager* pAudioManag
 u8* SoundScriptSetNoiseClock(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->noiseClock = *pScript++;
     SpuSetNoiseClock(pAudioManager->noiseClock);
-    pAudioElements->voice_data.flags |= 0x2000;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
     pAudioElements->voice_data.modeFlags |= 0x20;
     return pScript;
 }
@@ -4026,19 +4029,19 @@ u8* SoundScriptSetNoiseClock(u8* pScript, AudioManager* pAudioManager, AudioElem
 u8* SoundScriptAddNoiseClock(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioManager->noiseClock = (pAudioManager->noiseClock + *pScript++) & 0x3F;
     SpuSetNoiseClock(pAudioManager->noiseClock);
-    pAudioElements->voice_data.flags |= 0x2000;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
     pAudioElements->voice_data.modeFlags |= 0x20;
     return pScript;
 }
 
 u8* SoundScriptSetVoiceFlags2000AndMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioElements->voice_data.flags |= 0x2000;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
     pAudioElements->voice_data.modeFlags |= 0x20;
     return pScript;
 }
 
 u8* SoundScriptSetVoiceFlags2000ClearMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioElements->voice_data.flags |= 0x2000;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_NOISE;
     pAudioElements->voice_data.modeFlags &= ~0x20;
     return pScript;
 }
