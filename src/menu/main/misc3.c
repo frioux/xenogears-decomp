@@ -36,6 +36,8 @@ typedef struct {
     /* 0x4 */ s16 unk4;
 } MenuCardPrefix; // Size: 0x6
 
+extern s16 D_801C50AC;
+extern s16 D_801C50B4;
 extern MenuCardPrefix g_MenuCardPathPrefix0;
 extern MenuCardPrefix g_MenuCardPathPrefix1;
 
@@ -156,8 +158,6 @@ extern void MenuWaitCardOperationFrames(u_char index);
    (`addu a1,a1,v0` with a1 = k*0x5C, and `addu a1,s0,a1` with s0 = the chunk
    offset); the index-first spellings `(slot + ...->records)` / `(k + ...->chunks)`
    canonicalise back to base-first (88.12% with a slot local). */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
-/*
 void func_801C90B0(u_char a0, u_char a1) {
     MenuCardPrefix prefix;
     char path[0x40];
@@ -170,9 +170,9 @@ void func_801C90B0(u_char a0, u_char a1) {
         memcpy(&prefix, &g_MenuCardPathPrefix1, 6);
     }
     strcpy(path, (char*)&prefix);
-    strcat(path, g_Menu->menuUnk2->records[a0 * 0x10 + a1].ids);
+    strcat(path, ((MenuUnk2Record*)((a0 * 0x10 + a1) * sizeof(MenuUnk2Record) + (mem_addr)g_Menu->menuUnk2->records))->ids);
     while (1) {
-        if (MenuReadFileChunk((u8*)path, g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0) != -1) {
+        if (MenuReadFileChunk((u8*)path, ((MenuUnk2ImageChunk*)((a0 * 0x10 + a1) * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks))->pad0) != -1) {
             break;
         }
         if (--retry == 0) {
@@ -185,8 +185,6 @@ void func_801C90B0(u_char a0, u_char a1) {
         g_Menu->menuUnk2->slotWriteCursor++;
     }
 }
-*/
-
 void MenuMarkSlotsWithGameSave(int a0) {
     MenuUnk2ImageChunk* pChunk;
     int i;
