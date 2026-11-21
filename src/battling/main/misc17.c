@@ -251,27 +251,31 @@ void func_8008E120(void) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
-/* best: 268 bytes against retail's 276 (objdiff 90.58; the u_short tpage
-   variant reads 94.71 at 272 but carries one extra instruction, a move of the
-   GetTPage result into the local's home register before the truncation, so
-   judge this by the instruction count, not the percentage). Everything else
-   matches: the quad setup, both prim codes, the semi-transparency bit, the two
-   GetTPage arms and their duplicated a0/zero setup. Two residuals.
-   1. retail truncates the GetTPage return straight into the argument register
-   (andi a3,v0,0xffff) two slots after the call, i.e. at the SetDrawMode
-   argument rather than at the assignment; an s32 local gets the operand right
-   and the position one slot early, a u_short local copies first.
-   2. retail MATERIALISES &g_BattleEffectDrawModes twice, once per call (lui/addiu into v0
-   each time); ours cse's the address constant, keeps it in $s0 (reused after
-   flag dies) and re-uses it for the second AddPrim. Measured and no help:
-   s32/u_short tpage, a DR_MODE* local for SetDrawMode only, a local for both
-   calls, (u32)index-first and array-subscript spellings on either site, and
-   sizeof(DR_MODE) vs 0xC. The constant is shared whatever the expression, so
-   this needs either a second base symbol for the same address or the note
+/* best: objdiff 94.71% - 272 bytes = retail's exact size (the .size is 0x110;
+   an earlier note's "276" was wrong). Everything matches except two residuals.
+   1. the GetTPage return is truncated into the argument through the local's
+   home register (move a3,v0 / andi a3,a3,0xffff) where retail truncates
+   straight into the argument register (andi a3,v0,0xffff) three slots later,
+   after the a1/a2 setup. Measured: an s32 local puts the SAME andi at the
+   right operand but at its definition, immediately after the jal (90.58%,
+   268 bytes); passing the GetTPage call inline (or as a ternary inside the
+   SetDrawMode argument) gives retail's arms exactly but keeps that early andi
+   at 268 bytes; a u_short local is the 272-byte form kept here. Two calls, one
+   per arm, are required for retail's arms: cross-jumping merges their common
+   tail (move a2,zero / jal / move a3,zero) and leaves the duplicated
+   move a0,zero plus the j in the first arm. A shared mode local collapses
+   those arms (a0=0 hoisted to the join).
+   2. retail MATERIALISES &g_BattleEffectDrawModes twice (lui/addiu into $v0 at
+   each site); ours cse's the address constant into $s0, which is free after
+   flag dies at the beqz, and reuses it for the second AddPrim. Measured and no
+   help: s32 and u_short tpage, a DR_MODE* local for either call, sizeof vs 12,
+   (u32)index-first vs array subscript at either site, and a (u8*) cast on the
+   second site's base (a different mode does not stop the constant being
+   shared). Needs either a second symbol for the same address or the note
    stays.
 void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     TILE* pTile;
-    s32 tpage;
+    u_short tpage;
 
     pTile = &g_BattleEffectTiles[g_BattleDrawBufferIndex];
     BattleSetRGBCFast(pTile, color, color, color, 0x60);
@@ -280,16 +284,12 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     BattleSetWHFast(pTile, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
     setSemiTrans(pTile, 1);
     AddPrim(pOt, pTile);
-    if (flag != 0) {
-        tpage = GetTPage(0, 2, 0, 0);
-    } else {
-        tpage = GetTPage(0, 1, 0, 0);
-    }
-    SetDrawMode((DR_MODE*)(g_BattleDrawBufferIndex * sizeof(DR_MODE) + (u32)g_BattleEffectDrawModes), 0, 1,
-                tpage, NULL);
+    tpage = flag != 0 ? GetTPage(0, 2, 0, 0) : GetTPage(0, 1, 0, 0);
+    SetDrawMode(&g_BattleEffectDrawModes[g_BattleDrawBufferIndex], 0, 1, tpage, NULL);
     AddPrim(pOt, &g_BattleEffectDrawModes[g_BattleDrawBufferIndex]);
 }
-*/void BattleDrawEffectImage(u8* pOt, s32 shadeLevel, s32 drawTile) {
+*/
+void BattleDrawEffectImage(u8* pOt, s32 shadeLevel, s32 drawTile) {
     POLY_FT4* pPrim;
     TILE* pTile;
     RECT rect;
@@ -548,14 +548,23 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
 /* best: objdiff 90.34% - 176 bytes, retail's exact size, frame (0x28 with the
-   unused s32 pad[2]) and every instruction identical except that gcc gives the
-   doubled table index $s1 and the D_80091EE0 base $s2 where retail has them the
-   other way round. Tried: the three declaration orders (no change), the index
-   as u32, i = soundId * 2, an initialiser on the pointer, pEntry = &D_80091EE0[i]
-   with pEntry[1] (85.84%, 168 bytes), both reads spelled D_80091EE0[i] (90.70%,
-   184 bytes), a non-void return (90.11%) and a 3-minute permuter run (base 145,
-   best 25, only found a nonsense volatile return type). The $at form of the
-   first read and the base-plus-index form of the second are both required.
+   unused s32 pad[2]) and every instruction identical except two residuals:
+   (1) gcc gives the doubled table index $s1 and the D_80091EE0 base $s2 where
+   retail has them the other way round (an allocator tie between two
+   equal-cost call-saved registers: the index pseudo is created before the
+   base's constant pseudo, so it takes the lower register; assigning the base
+   earlier in source does not move it, because cse sets the constant at its
+   first register use, after the $at-form read); (2) in the second block retail
+   leaves a nop in the beqz delay slot and loads the flags after it, while
+   gcc hoists the lw into the slot and leaves the nop after the andi.
+   Measured and no help: base assigned at its use (85.84%, 168 bytes), base
+   assigned before the index (90.34%, this one), the three declaration orders,
+   the index as u32, i = soundId * 2, an initialiser on the pointer,
+   pEntry = &D_80091EE0[i] with pEntry[1] (85.84%), both reads spelled
+   D_80091EE0[i] (90.70%, 184 bytes), a non-void return (90.11%) and a
+   3-minute permuter run (base 145, best 25, only a nonsense volatile return
+   type). The $at form of the first read and the base-plus-index form of the
+   second are both required.
 void func_8008ED6C(BattleActor* pActor, s32 idx) {
     s32 pad[2];
     u8* pSoundTable;
@@ -566,8 +575,8 @@ void func_8008ED6C(BattleActor* pActor, s32 idx) {
     if (soundId == BATTLE_SOUND_ID_NONE) {
         return;
     }
-    i = soundId << 1;
     pSoundTable = D_80091EE0;
+    i = soundId << 1;
     if (D_80091EE0[i] != 0) {
         BattleStopSoundSlotsByFlags(((pActor->flags >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
     }
