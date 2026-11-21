@@ -51,7 +51,7 @@ extern s32 g_FieldPartyActorSlots[];
    rotation variables per arm - a single shared `rotation` keeps the value in a1
    and forces an extra move. A third permuter run (2064 iterations) and reading
    g_FieldActors through the non-volatile FIELD_ACTORS lvalue both measured
-   exactly 97.96 as well. */
+   exactly 97.96 as well. A volatile read of either solidRange moves nothing. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
 /* int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
@@ -557,18 +557,30 @@ long FieldGetVec2Magnitude(long, long);
 int FieldGetVec2Angle(IVEC3*);
 void func_8009E574(int, int);
 extern s32 g_FieldCurActorIndex;
+/* 92.39% (636 bytes, retail 632 - one instruction over, so it cannot link).
+   The block order was the whole 19.71 -> 92.39: retail's arrival tail is the
+   FALL-THROUGH and the walking body sits out of line, jumping back to it, which
+   only the goto form reproduces - `if (magnitude < distance) goto walking;` then
+   the `tail:` label, the arrival block, `return 0`, `walking:`, the body, and
+   `goto tail;` at the end. The two other measured levers are permuter finds and
+   are load-bearing: the `do {} while (0)` that encloses the tail's store group
+   and the walking body takes 644 -> 636, and the nested
+   `if (!(flags & 0x8000)) { if (direction == 0xFF) ... else ... } else ...`
+   shape is what gives retail's block order for the three-way rotation select
+   (91.48 -> 92.39 with the do-block). Reading scriptFlags.flags into a `flags`
+   local and storing `flags & ~0x02200800` at the end is also real source: it
+   moves the flags load up where retail has it.
+   Residuals, all scheduler placement at equal instruction counts in this
+   -fschedule-insns unit: (a) the FieldActor address sum comes out base-first
+   (`addu v1,v1,v0`) where retail has index-first (`addu v1,v0,v1`) - tried
+   `&g_FieldActors[i]`, `g_FieldActors + i` and `i + g_FieldActors`, all three
+   identical; (b) retail does both `lh position.vx/vz` before the magnitude
+   `addiu` where ours splits them (moving the magnitude statement after the delta
+   stores regresses to 86.86); (c) the tail's flags `lw` and `and` land one
+   cluster later than retail's. The `move a0,v0` on the position snap is a stale
+   symptom - it disappeared with a block-scoped walkRotation local. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
-/* 19.71% (636 vs 632 bytes): the C below is semantically right and matches
-   instruction for instruction except for block layout. The original emits the
-   shared tail (directional rotation + position snap + flag clear) *before* the
-   `magnitude < distance` body, i.e. on the close-enough fall-through path, and
-   the far body jumps back to it (`j .L8009AFDC`). gcc only lays blocks out in
-   source order, so the source must have the tail written in both arms (an
-   `if (magnitude >= distance) { tail } else { far + tail }`); both forms tried
-   here moved `magnitude`/`distance` out of s0/v0 into s6/s7 and grew the frame,
-   so the register allocation of the original must be reproduced some other way.
-   Also still open: `pActor->rotation.vx = rotation` emits an extra `move a0,v0`.
-int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
+/* int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     FieldActor* pFieldActor;
     ActorData* pActor;
     SpriteData* pSpriteData;
@@ -577,7 +589,8 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     int prevActorIndex;
     int actorIndex;
     int rotation;
-    int newRotation;
+    int flags;
+    int walkRotation;
     int distance;
     int magnitude;
 
@@ -585,7 +598,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     if (actorIndex == ACTOR_ID_INVALID) {
         return 0;
     }
-    pFieldActor = &g_FieldActors[actorIndex];
+    pFieldActor = actorIndex + g_FieldActors;
     if (pFieldActor->status & ACTOR_STATUS_INVISIBLE) {
         return 0;
     }
@@ -600,43 +613,58 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     delta.z = z - CONV_TO_GTE(pActor->position.vz);
     distance = FieldGetVec2Magnitude(delta.x, delta.z);
     pActor->scriptFlags.flags |= 0x400000;
+    // The goto keeps retail's block layout: the arrival tail is the fall-through and
+    // the walking body sits out of line, jumping back to it.
     if (magnitude < distance) {
-        if (pActor->prevPosition.x == CONV_TO_GTE(pActor->position.vx)
-            && pActor->prevPosition.y == CONV_TO_GTE(pActor->position.vy)
-            && pActor->prevPosition.z == CONV_TO_GTE(pActor->position.vz)) {
-            pActor->stuckFrameCount++;
-        } else {
-            pActor->stuckFrameCount = 0;
-        }
-        rotation = FieldGetVec2Angle(&delta);
-        pActor->rotation.vx = rotation;
-        pActor->rotation.vy = rotation;
-        if ((short)pActor->stuckFrameCount < 0x41 && g_FieldWalkAbortCount.value == 0) {
-            return -1;
-        }
-        pCurActor = g_FieldScriptVMCurActor;
-        prevActorIndex = g_FieldCurActorIndex;
-        g_FieldScriptVMCurActor = pActor;
-        g_FieldCurActorIndex = g_FieldPartyActorSlots[actorSlotId];
-        func_8009E574(x, z);
-        g_FieldScriptVMCurActor = pCurActor;
-        g_FieldCurActorIndex = prevActorIndex;
+        goto walking;
     }
-    if (pActor->scriptFlags.flags & 0x8000) {
-        rotation = pActor->lockedRotationY | 0x8000;
-    } else if (direction == 0xFF) {
-        rotation = pActor->rotation.vy | 0x8000;
+
+tail:
+    if (!(pActor->scriptFlags.flags & 0x8000)) {
+        if (direction == 0xFF) {
+            rotation = (u_short)pActor->rotation.vy | 0x8000;
+        } else {
+            rotation = g_FieldAngleToDirectionLUT[direction] | 0x8000;
+        }
     } else {
-        rotation = g_FieldAngleToDirectionLUT[direction] | 0x8000;
+        rotation = (u_short)pActor->lockedRotationY | 0x8000;
     }
     pActor->rotation.vx = rotation;
     pActor->rotation.vy = rotation;
+    do {
+    flags = pActor->scriptFlags.flags;
     pActor->position.vx = x << 16;
     pActor->position.vz = z << 16;
     pActor->stuckFrameCount = 0;
-    pActor->scriptFlags.flags &= ~0x02200800;
+    pActor->scriptFlags.flags = flags & ~0x02200800;
     return 0;
-} */
+
+walking:
+    if (pActor->prevPosition.x == CONV_TO_GTE(pActor->position.vx)
+        && pActor->prevPosition.y == CONV_TO_GTE(pActor->position.vy)
+        && pActor->prevPosition.z == CONV_TO_GTE(pActor->position.vz)) {
+        pActor->stuckFrameCount++;
+    } else {
+        pActor->stuckFrameCount = 0;
+    }
+    walkRotation = FieldGetVec2Angle(&delta);
+    pActor->rotation.vx = walkRotation;
+    pActor->rotation.vy = walkRotation;
+    if ((short)pActor->stuckFrameCount < 0x41 && g_FieldWalkAbortCount.value == 0) {
+        return -1;
+        do { } while (0);
+    }
+    pCurActor = g_FieldScriptVMCurActor;
+    prevActorIndex = g_FieldCurActorIndex;
+    g_FieldScriptVMCurActor = pActor;
+    g_FieldCurActorIndex = g_FieldPartyActorSlots[actorSlotId];
+    func_8009E574(x, z);
+    g_FieldScriptVMCurActor = pCurActor;
+    g_FieldCurActorIndex = prevActorIndex;
+    } while (0);
+    goto tail;
+}
+ */
 
 void FieldScriptVMSetFlag21CF(void) {
     D_800B21CF[0] = 1;
