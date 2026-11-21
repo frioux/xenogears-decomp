@@ -49,7 +49,7 @@ void MenuSetRowQuadVertices(s32, void*, void*, void*, void*, u8, u8, u8);
 void MenuCreateWindow(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
 void MenuApplyEquippedItemBonuses(MenuDressingRoom*, u8);
 void MenuComputeCharacterStats(MenuDressingRoom*, u8);
-void func_801D261C(void);
+void MenuSetSubMenuChoiceStringVertices(void);
 void MenuTweenCharacterWindows(s32, s32);
 void func_801D8EA4(u8, u8, u8, u8);
 void func_801DDF24(u8, u8, u8);
@@ -633,7 +633,7 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
             }
         }
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            func_801D261C();
+            MenuSetSubMenuChoiceStringVertices();
             MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }

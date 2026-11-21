@@ -979,6 +979,11 @@ over the BETTER park.
   forbidden to touch docker; you are not. At session start, `docker ps --format
   '{{.RunningFor}}\t{{.Mounts}}'` and `docker kill` any container older than two hours
   whose clone is not in your current round or `r-permute`.
+- **`park.py unpark`/`repark` can eat a neighbour.** They delete a park's prose note with its body
+  when the two share one `/* */` block, and `repark` then matches the NEXT unindented `}` - round 374
+  lost a `MenuEquipmentSlot` typedef and a matched function's definition that way, recovered only
+  because `check_bin.sh` printed `pSlots undeclared`. After any repark read `git diff --stat`, and
+  expect a body whose park block carried its own `typedef`/`extern` to need them re-declared.
 - **`maspsx` reads stdin to EOF.** Any script that runs it (`try_flags.sh`, `permute.sh`)
   hangs when stdin is an open pipe; they redirect `</dev/null` themselves now, and a new
   one must too.

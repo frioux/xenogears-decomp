@@ -408,7 +408,7 @@ extern s32 g_WorldMapTileColumns;
 extern s32 g_WorldMapGridColumnImageFileIndex;
 extern s32 g_WorldMapAreaMode;
 
-void func_80071B9C(s32 arg0, s32 arg1) {
+void WorldMapSetLevelFileIndices(s32 arg0, s32 arg1) {
     WorldMapTableEntry* pEntry;
     u16* pTable;
     s32 nLevel;
@@ -444,7 +444,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 // ROUND 374: re-measured 84.51% (508 bytes). The array-extern lever that closed
-// func_80071B9C does not apply here: the queue entries are separate symbols by design.
+// WorldMapSetLevelFileIndices does not apply here: the queue entries are separate symbols by design.
 /* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
    byte-identical; only loop 2's register shape differs. Retail keeps TWO
    running pointers advanced by 8 (a2 = index ptr = &g_WorldMapStreamQueue, a1 = pData ptr =

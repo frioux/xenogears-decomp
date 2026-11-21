@@ -214,7 +214,7 @@ void MenuClearSubMenuChoiceFlags(void) {
         g_Menu->pManager->shouldRenderSubMenuChoiceStrings[i] = 0;
     }
 }
-void func_801D261C(void) {
+void MenuSetSubMenuChoiceStringVertices(void) {
     u8 pad[0x48];
 
     MenuLoadSubMenuChoiceStrings(0);
