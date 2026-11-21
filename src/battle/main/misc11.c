@@ -88,6 +88,7 @@ extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
 extern void func_800826CC(u8 arg0); 
 extern u8 func_8008BED8(u8 arg0);
+extern u8 func_8008C4A8(u8 arg0);
 extern void BattleActivateSelectedCommand(u8 arg0);
 
 typedef struct {
@@ -1053,6 +1054,113 @@ void func_80081B58(u32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
+/* 96.88% (552 bytes, retail 544) and JTBL_LAYOUT - parked, not shippable.
+   The table would sit at .rodata+0x214 (4 mod 8: the unit's .rodata starts at
+   0x8006FE7C, so retail's seven switch tables are 8-aligned in vram but 4 mod 8
+   section-relative) while cc1 emits `.align 3` before a jump table, which also
+   raises the section's own alignment to 8 and makes the linker place the whole
+   unit's .rodata 4 bytes later - battle.bin 343940 against disc's 343936, the
+   measurement the func_800816F8/func_800822C4 parks already record. Converting
+   this function only moves the table to section offset 0 and its neighbours
+   (func_80160's 0x194 table and five 0x20-byte tables) stay asm-owned, so the
+   layout cannot be repaired from C here; the whole unit's rodata has to move to
+   C in address order, plus a config/battle.yaml boundary 4 bytes earlier.
+   Shape ported from the strict-0.807 twin BattleAdvanceSlotMenuStateSubMode
+   (main/misc12.c:511); the per-arm constants are this function's own. Note for
+   whoever converts it: retail masks func_8008C4A8's return to a byte
+   (`andi v0,v0,0xff` before the test), so the caller-side prototype is
+   `u8 func_8008C4A8(u8)` even though misc15.c's park declares it s32.
+   Remaining code differences: case 2 reaches the cross-jumped
+   `menuState = 3; repeatPending = 0;` tail with `j` + delay slot where retail
+   branches conditionally straight to it (that pair is most of the 8 extra
+   bytes), and the queue base lands in $5 in every case where retail uses v1
+   (cases 1 and 0), a0 (case 2) and a1 (case 3's inner test).
+   Tried and measured worse: the `||` guard-clause spelling of cases 2 and 3
+   (`if (p[0x2F6] == 0 || g_BattleLastMenuEvent != 2) { ...; break; }`) 88.85% /
+   496 bytes; routing the state stores through the local base pointer
+   (`p[0x2DD]`, `p[0x2F6]`) 84.77% / 504 bytes. Also fixed along the way: case 2
+   stores 3 to menuState, not 2 (retail's `li v0,3` sits in the beq's delay
+   slot), and the s32 return type on func_8008C4A8 cost the `andi`. */
+/*
+void func_800820A4(u8 arg0) {
+    u8 a;
+    u8 *p;
+    s32 off;
+
+    a = arg0;
+    switch (g_BattleMenuEvent) {
+    case 4:
+    case 6:
+    case 7:
+        p = g_BattleCommandQueue;
+        off = a * 0x40;
+        if (p[off + 0x3C] == 0xFF) {
+            BattlePlaySoundIfEnabled(0x4F);
+            break;
+        }
+        if (func_8008C4A8(a) != 0) {
+            g_BattleCommandQueue[0x2E1] = 1;
+        } else {
+            g_BattleCommandQueue[0x2DD] = 7;
+            g_BattleCommandQueue[0x2E2] = 0xFF;
+        }
+        break;
+    case 1:
+        p = g_BattleCommandQueue;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x32) == 0) {
+            p[0x2DD] = 8;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    case 2:
+        p = g_BattleCommandQueue;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x2C) == 0) {
+            p[0x2DD] = 9;
+            break;
+        }
+        if (p[0x2F6] != 0 && g_BattleLastMenuEvent == 2) {
+            g_BattleCommandQueue[0x2DD] = 3;
+            g_BattleCommandQueue[0x2F6] = 0;
+        } else {
+            g_BattleCommandQueue[0x2F6] = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 3:
+        p = g_BattleCommandQueue;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x2A) == 0) {
+            p[0x2DD] = 0xA;
+            break;
+        }
+        if (p[0x2F6] != 0 && g_BattleLastMenuEvent == 3) {
+            if (*(u16 *)(p + off + 0x30) != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                g_BattleCommandQueue[0x2DD] = 4;
+            }
+            g_BattleCommandQueue[0x2F6] = 0;
+        } else {
+            g_BattleCommandQueue[0x2F6] = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 0:
+        p = g_BattleCommandQueue;
+        off = a * 0x40;
+        if (*(u16 *)(p + off + 0x2E) == 0) {
+            p[0x2DD] = 1;
+            break;
+        }
+        BattlePlaySoundIfEnabled(0x4F);
+        break;
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 /* 99.93% and JTBL_LAYOUT: every instruction is retail's (576 bytes, retail's
    0x240) and the only difference is the switch's table operand (retail names
