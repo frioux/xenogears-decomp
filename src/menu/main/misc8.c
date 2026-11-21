@@ -110,25 +110,37 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
 
-/* 99.75% (812 bytes, the original's size). The stat table's row labels: reset the
-   prim count at unk35C+0x32F3, draw 7 - statGroup rows of label prims with
-   func_8002675C (7 texture ids per stat group in g_MenuStatRowLabelTexIds, x/y from
-   g_MenuStatRowLabelOffsetX/g_MenuStatRowLabelOffsetY), shade the prims of every other row 0x40, then set the
-   four quad vertices of each prim from its own x0/y0/x1/y3.
-   The LAST loop differs only in two addu operand orders: retail is
-   `addu v1,a0,v1` (base first) for the prim address and `addu a0,s0,a0`
-   (offset first) for the vertex address, gcc emits the reverse of both, which is
-   its canonical "lower register number first" order. Tried: a pPrim pointer
-   local (97.28, gcc also re-bases 0x2420 and uses v0), a volatile pPrim local
-   (98.56), (off + (u32)base) for either address (95.66 for the vertex one, no
-   change for the prim one), and two permuter runs - PERMUTER_BETTER 490->426
-   from the non-volatile body (a second copy of g_Menu->unk35C, +4 bytes) and
-   PERMUTER_NONE base=50 best=50 from this body.
-   The six lhu (retail reads x0 and y0 TWICE) come from making the width/height
-   operands volatile: without that gcc cse's each pair into one load and adds two
-   moves (98.33%, also 812 bytes).
+/* 99.11% under the unit's flags, 100.00 under gcc-2.6.0-psx (203 insns, 812 bytes,
+   verified instruction by instruction: zero real differences). The unit is a gcc
+   2.6.0 unit - report line PRESET_260 menu/main/misc8 func_801D7F50 100.00 99.11:
+   every already-matched C function of this unit is also 100.00 under 2.6.0, and the
+   other park here (func_801D84B4) goes 99.73 -> 100.00 under it.
+   What the body is: the stat table's row labels. Reset the prim count at
+   unk35C+0x32F3, draw 7 - statGroup rows of label prims with func_8002675C (7 texture
+   ids per stat group in g_MenuStatRowLabelTexIds, x/y from g_MenuStatRowLabelOffsetX/Y),
+   shade the prims of every other row 0x40, then set the four quad vertices of each prim
+   from its own x0/y0/x1/y3.
+   The `primOffset` local is what the 2.6.0 match turns on: it makes gcc emit retail's
+   base-first `addu v1,a0,v1` for the prim address instead of the index-first
+   `addu v1,v1,a0` every inline spelling gives (lever b-pointer-local-holding-base).
+   Cost: under 2.7.2 it also makes the last loop's pointer live in v0 instead of v1
+   (36 lines differ, 99.11). Without the local - the same expression inlined in all six
+   operand positions - the body is 99.75 under 2.7.2 and 99.95 under 2.6.0, whose one
+   residual is exactly that addu order. So a preset switch = 100.00; without one,
+   prefer the inlined spelling at 99.75.
+   Needed for the six lhu (retail reads x0 and y0 TWICE): the width/height operands go
+   through a `volatile POLY_FT4*` cast, otherwise gcc CSEs each pair into one load and
+   adds two moves (98.33%).
+   Tried under 2.7.2 and rejected: a pPrim pointer local (97.28), a volatile pPrim
+   local (98.56), (off + (u32)base) for either address (95.66 for the vertex, no
+   change for the prim), a u8* base local used in the loop condition (94.15 - gcc
+   strength-reduces it into a walker), a base local inside the loop (99.75 / 2.6.0
+   99.95), two permuter runs (PERMUTER_BETTER 490->426 from the non-volatile body,
+   which adds a second copy of g_Menu->unk35C; PERMUTER_NONE base=50 best=50).
+
 void func_801D7F50(s32 x, s32 y, u_char statGroup) {
     s32 texCoords[6]; // Filled and ignored
+    s32 primOffset;
     s32 start;
     s32 i;
     s32 j;
@@ -148,11 +160,12 @@ void func_801D7F50(s32 x, s32 y, u_char statGroup) {
         }
     }
     for (i = 0; i < ((u8*)g_Menu->unk35C)[0x32F3]; i++) {
+        primOffset = (g_Menu->renderContext + i * 2) * 0x28;
         MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk35C + 0x2420 + i * 0x20),
-                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x0,
-                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y0,
-                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x1 - ((volatile POLY_FT4*)((g_Menu->renderContext + i * 2) * 0x28 + (u32)g_Menu->unk35C))->x0,
-                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y3 - ((volatile POLY_FT4*)((g_Menu->renderContext + i * 2) * 0x28 + (u32)g_Menu->unk35C))->y0);
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + primOffset))->x0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + primOffset))->y0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + primOffset))->x1 - ((volatile POLY_FT4*)(primOffset + (u32)g_Menu->unk35C))->x0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + primOffset))->y3 - ((volatile POLY_FT4*)(primOffset + (u32)g_Menu->unk35C))->y0);
     }
 }
 */
