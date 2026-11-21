@@ -25,15 +25,14 @@ extern void* g_PartyStreamDataPointers[];
 
 extern u8* g_SystemCellGrid;
 extern u8* g_SystemCellNeighborCounts;
-extern void* g_SystemCellPrimBuffers;
-extern void* D_800592E0;
+extern void* g_SystemCellPrimBuffers[2];
 
 void SystemInitializeCellGridBuffers(void) {
     int i;
     int j;
 
-    g_SystemCellPrimBuffers = HeapAlloc(0x3480, 1);
-    D_800592E0 = HeapAlloc(0x3480, 1);
+    g_SystemCellPrimBuffers[0] = HeapAlloc(0x3480, 1);
+    g_SystemCellPrimBuffers[1] = HeapAlloc(0x3480, 1);
     g_SystemCellGrid = HeapAlloc(0x460, 1);
     g_SystemCellNeighborCounts = HeapAlloc(0x460, 1);
 
@@ -66,30 +65,33 @@ void SystemIncrementCellNeighborCount(s32 arg0, s32 arg1) {
 extern int D_800592C8;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
-/* Best attempt: 97.70%. Frame, callee-saved set, spill slots (gridOffset 0x20, rowOffset 0x18, pOt 0x10), count in
-   fp and every instruction match; only the callee-saved numbering of three pseudos is
-   rotated. The original allocates pField (the strength-reduced pPrim+8 induction pointer)
-   s2, j s3, i s4; this C gets j s2, i s3, pField s4, so the ~200 differing words are all the
-   same instruction with s2/s3/s4 renamed. Writing the three prim stores as offsets off
-   pPrim (pPrim[3], pPrim+4, pPrim+8) is what reproduces the original single-IV shape -- an
-   explicit pField = pPrim + 8 makes gcc split it into two IVs and spill count. gridOffset
-   must be declared after rowOffset to get the 0x18/0x20 slots. The second loop reuses i
-(both loops' counters are s4 in the original); with a separate k, k lands in a0 and the
-   compared constant in a1 instead of the original a0. Refs-driven allocation order, so
-   declaration order, explicit i-minus-one and i-plus-one locals, and a mask-style temp all
-   failed to move it.
-
+/* Best: 98.51%. Retail is 0x3F4 bytes and this body compiles to exactly 0x3F4; the frame,
+   callee-saved set and spill slots (gridOffset 0x20, rowOffset 0x18, pOt 0x10) and the
+   count-in-$fp are all identical. What is left is the callee-saved NUMBERING of three
+   pseudos: retail has pField (the strength-reduced pPrim+8 induction pointer) in $s2,
+   j in $s3, i in $s4, while this C gets j $s2, i $s3, pField $s4 - every differing word
+   is the same instruction with s2/s3/s4 renamed, so it is a GIV tie, not a shape.
+   Writing the three prim stores as offsets off pPrim (pPrim[3], pPrim+4, pPrim+8) is what
+   reproduces retail's single-IV shape; an explicit pField = pPrim + 8 splits it into two
+   IVs and spills count. gridOffset must be declared after rowOffset for the 0x18/0x20
+   slots. The second loop reuses i (both loops' counters are $s4 in retail); with a
+   separate k, k lands in $a0 and the compared constant in $a1 instead of retail's $a0.
+   Two permuter runs (base 580 -> 375, then nothing) closed 97.70 -> 98.51 with the one
+   `one = 1` decrement hint below and found nothing for the register rotation; refs-driven
+   allocation, declaration order, explicit i-minus-one/i-plus-one locals and a mask temp
+   all failed before that.
 void func_8001A6E8(u_long* pOt) {
     s32 j;
     s32 i;
     s32 count;
+    int one; // register-allocation hint: the y decrement must not fold into the add
     s32 rowOffset;
     s32 gridOffset;
     s32 x;
     s32 y;
     u8* pPrim;
 
-    pPrim = (u8*)(&g_SystemCellPrimBuffers)[D_800592C8];
+    pPrim = (u8*)g_SystemCellPrimBuffers[D_800592C8];
     count = 0;
     for (i = 0, gridOffset = 0; i < 0x1C; i++, gridOffset += 0x28) {
         rowOffset = gridOffset;
@@ -126,7 +128,7 @@ void func_8001A6E8(u_long* pOt) {
         y = rand() % 0x28;
         do {
             x = x - 1 + rand() % 3;
-            y = y - 1 + rand() % 3;
+            y = y - (one = 1) + rand() % 3;
             if (x < 0) {
                 x = 0x1C;
             }
@@ -155,7 +157,8 @@ void func_8001A6E8(u_long* pOt) {
     SystemIncrementCellNeighborCount(x + 1, y);
     SystemIncrementCellNeighborCount(x + 1, y + 1);
 }
-*/
+ */
+
 
 
 extern s32 g_GameWdsFileLoadState;
@@ -693,43 +696,41 @@ void ArchiveLoadStreamedFilePair(void) {
 
 extern u8 g_GameSelectedSkinLoadPending;
 extern u8 D_8005946C;
-extern u8 g_SystemBackdropColor;
-extern u8 D_800594D5;
-extern u8 D_800594D6;
+extern u8 g_SystemBackdropColor[3];
 extern s32 g_SystemSemiTransMode;
 
 void func_8001B970(void);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB50);
-/*
-Best: 80.87%. The original writes these globals through %gp_rel, which maspsx only
-emits for symbols the unit defines itself (a file-scope definition here turns each
-reference into %gp_rel). This file also contains functions that use %lo for the same
-symbols (e.g. GameSetUpDisplayAndChangeState on g_GameSelectedSkinLoadPending/g_GameResumeScene), so the unit cannot have both.
-The mechanism is visible in the original asm: maspsx only rewrites the `lui $at`
-form to gp_rel, and GameSetUpDisplayAndChangeState reaches those two symbols through a pointer
-held in $v0 (`lui $v0,%hi; lbu %lo($v0)`), so it keeps %hi/%lo while the same
-symbols are gp_rel elsewhere. That means the unit does define them; the reference
-form is source-level and the two can coexist. Worth retrying with declarations
-for g_GameSelectedSkinLoadPending/D_8005946C/g_SystemBackdropColor/g_SystemSemiTransMode in this unit and
-g_GameResumeScene/g_GameSelectedSkinLoadPending read through a pointer local inside GameSetUpDisplayAndChangeState;
-deciding who owns this .bss data is a unit-level call.
-Confirmed in maspsx (__init__.py, store/load gp-rel branch): a symbol is relaxed to
-%gp_rel only when it is in sbss_entries AND not in comm_symbols, i.e. only a file-local
-(.lcomm) definition does it; a plain definition here becomes .comm (fcommon) and is never
-relaxed. So making func_8001BB50 match would turn GameSetUpDisplayAndChangeState's store to g_GameSelectedSkinLoadPending
-(gp_rel here impossible - retail has lui $at %hi there) into gp_rel and break that
-function's verified 100%, which is the unit-level conflict.
+/* Best: MATCH RELOC at retail's exact 92 bytes (objdiff 99.13%; the only differing words
+   are the D_800594D5/D_800594D6 relocations, which are g_SystemBackdropColor+1/+2). It is
+   parked because reaching gp_rel for those four globals needs them DEFINED in this TU, and
+   that breaks GameSetUpDisplayAndChangeState.
+   Measured, correcting the older note: maspsx DOES relax a plain .comm definition (a store
+   to a symbol defined here comes out `sb $v0,0($gp)`), so `u8 g_GameSelectedSkinLoadPending;`
+   here turns GameSetUpDisplayAndChangeState's retail `lui $at,%hi` + `sb %lo($at)` into one
+   gp_rel store and that function drops 388 -> 380 bytes (98.85%). A store to `sym+offset` is
+   NOT relaxed (gp_allow_offset is off for 2.7.2), which is why the g_SystemBackdropColor[1]/[2]
+   spelling below reproduces retail's absolute lui/$at form for free.
+   So the unit spans two original objects: the boundary is 0x8001B970. Retail has gp_rel for
+   g_GameResumeScene/g_MenuSavedMainMenuChoice in func_8001B970 (0x8001B970) and for the four
+   globals here, while GameSetUpDisplayAndChangeState (0x8001B6C4, gp_rel only for D_8005959C,
+   which this file defines) needs them absolute. Split temp3 at 0x8001B970 and this function
+   plus func_8001B970 become matchable with no other change. The body below is the measured
+   one; giving the tail object its own definitions of g_GameSelectedSkinLoadPending,
+   D_8005946C, g_SystemBackdropColor[3], g_SystemSemiTransMode and g_GameResumeScene is
+   all that is left.
 void func_8001BB50(void) {
     g_GameSelectedSkinLoadPending = 1;
     D_8005946C = 0;
     func_8001B970();
     ArchiveCdDataSync(0);
-    g_SystemBackdropColor = 0x88;
-    D_800594D5 = 0x76;
-    D_800594D6 = 0x54;
+    g_SystemBackdropColor[0] = 0x88;
+    g_SystemBackdropColor[1] = 0x76;
+    g_SystemBackdropColor[2] = 0x54;
     g_SystemSemiTransMode = 2;
 } */
+
 
 // .bss
 u32 g_SoundStreamReserveStart;
