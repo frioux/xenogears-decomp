@@ -2538,7 +2538,232 @@ void LibGearRotateModelOffsets(Model** pModels) {
 }
 
 
+// One textured trail segment func_801E1A14 builds (stride 0x58): the texture rows the
+// segment covers, then the two Gouraud triangles that span them.
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ POLY_GT3 polys[2];
+} LibGearTrailSegment; // Size: 0x58
+
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
+
+// objdiff 72.58% (2204 bytes against retail's 2276; 551 of 569 instructions).
+// The whole body below is written from the assembly and is structurally right:
+// same four HeapAllocs, same three failure paths, both point/segment loops and
+// both 0x58-byte segment records with their two GT3s. What is left is register
+// allocation and 18 instructions of shape:
+//  - retail keeps the four texture offsets and `scale` in s0/s2/s3/s5 across the
+//    whole function; this body spills/rematerialises `scale` and one offset.
+//  - retail's point loop walks pVectors with two cursors (a3 = &vx, a2 = &vz and
+//    negative offsets); this body indexes pVectors[i] and gets a single base.
+//  - retail's three HeapFree error tails are NOT cross-jumped (path 1 frees after
+//    the pVectors = NULL store, paths 2/3 free before it); the identical
+//    HeapFree(NULL) in each of them makes gcc 2.6 cross-jump them here.
+//  - the 0xA0/0xE0/0x80 counters are addressed through the frame instead of
+//    the t registers retail keeps them in.
+/*
+void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s16 texY, s16 texZ,
+    s16 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0, u8 green0,
+    u8 blue0, u8 red1, u8 green1, u8 blue1) {
+    SVECTOR* pVectors;
+    Temp9Point** pPoints;
+    Temp9Point* pPointData;
+    Temp9Point* pPoint;
+    LibGearTrailSegment* pSegments;
+    LibGearTrailSegment* pSeg;
+    POLY_GT3* pPoly;
+    u16* pCount;
+    u16* pData;
+    u8* pIndex;
+    s16 pageX;
+    s16 pageY;
+    u16 tpage;
+    u16 clut;
+    u16 rowStep;
+    u16 nCount;
+    s16 uStep;
+    s32 nSegs;
+    s32 nRaw;
+    s32 uStart;
+    s32 uEnd;
+    s32 uRow;
+    s32 nRow;
+    s32 nV0;
+    s32 nV1;
+    s32 i;
+    s32 j;
+    s32 k;
+    Temp9Section* pSection;
+
+    pEntry->numVectors = *pCur++;
+    pEntry->numSegments = *pCur++ << 1;
+    HeapChangeCurrentUser(HEAP_USER_MASA, HEAP_CONTENT_NULL);
+
+    pVectors = HeapAlloc(pEntry->numVectors * sizeof(SVECTOR), 0x0);
+    if (pVectors == NULL) {
+        pEntry->pVectors = NULL;
+        HeapFree(NULL);
+        return;
+    }
+    pEntry->pVectors = pVectors;
+
+    for (i = 0; i < pEntry->numVectors; i++) {
+        pVectors[i].vx = (*pCur++ + texX) * scale / 4096;
+        pVectors[i].vy = (*pCur++ + texY) * scale / 4096;
+        pVectors[i].vz = (*pCur++ + texZ) * scale / 4096;
+    }
+
+    nRaw = pCur[pEntry->numVectors];
+    pEntry->numPoints = nRaw + pEntry->numVectors;
+
+    pPoints = HeapAlloc(pEntry->numVectors * sizeof(Temp9Point*), 0x0);
+    if (pPoints == NULL) {
+        HeapFree(NULL);
+        pEntry->pVectors = NULL;
+        HeapFree(pEntry->pPoints);
+        return;
+    }
+    pEntry->pPoints = pPoints;
+
+    pData = pCur + pEntry->numVectors + 1;
+    pIndex = (u8*)(pData + nRaw);
+    pPointData = HeapAlloc(pEntry->numPoints * sizeof(Temp9Point), 0x0);
+    if (pPointData == NULL) {
+        HeapFree(NULL);
+        pEntry->pVectors = NULL;
+        HeapFree(pEntry->pPoints);
+        HeapFree(pPointData);
+        return;
+    }
+
+    pPoint = pPointData;
+    pCount = pCur;
+    for (i = 0; i < pEntry->numVectors; i++) {
+        pPoints[i] = pPoint;
+        nCount = *pCount++;
+        for (j = 0; j < nCount; j++) {
+            pPoint->unk0 = *pData++ * scale / 4096;
+            pPoint->unk2 = *pIndex++ + rowBase;
+            pPoint->x = pVectors[i].vx;
+            pPoint->y = pVectors[i].vy;
+            pPoint->z = pVectors[i].vz;
+            pPoint++;
+        }
+        pPoint->unk0 = 0;
+        pPoint->unk2 = 0;
+        pPoint->x = pVectors[i].vx;
+        pPoint->y = pVectors[i].vy;
+        pPoint->z = pVectors[i].vz;
+        pPoint++;
+    }
+
+    pSegments = HeapAlloc(pEntry->numSegments * sizeof(LibGearTrailSegment), 0x0);
+    if (pSegments == NULL) {
+        HeapFree(NULL);
+        pEntry->pVectors = NULL;
+        HeapFree(pEntry->pPoints);
+        HeapFree(pPointData);
+        return;
+    }
+    pEntry->pSegments = pSegments;
+
+    pageX = tileX / 64 * 64;
+    pageY = tileY / 256 * 256;
+    tpage = GetTPage(0, 1, pageX, pageY);
+    clut = GetClut(clutX, clutY);
+    texX = (tileX - pageX) * 4;
+    texY = tileY - pageY;
+    uStep = uSpan / (pEntry->numVectors - 1);
+    uStart = 0;
+    uEnd = uStep;
+    uRow = 0;
+    pCount = pCur;
+    pSeg = pSegments;
+    for (i = 0; i < pEntry->numVectors - 1; i++) {
+        nCount = *pCount;
+        nSegs = nCount;
+        if (pCount[0] > pCount[1]) {
+            nSegs = pCount[1];
+        }
+        rowStep = vSpan / nSegs;
+        for (j = 0; j < nSegs; j++) {
+            nRow = uRow + j;
+
+            pSeg->unk0 = nRow;
+            pSeg->unk4 = nRow + 1;
+            pSeg->unk2 = nRow + nCount + 1;
+            nV0 = texY + rowStep * j;
+            nV1 = texY + rowStep * (j + 1);
+            for (k = 0; k < 2; k++) {
+                pPoly = &pSeg->polys[k];
+                SetPolyGT3(pPoly);
+                pPoly->tpage = tpage;
+                pPoly->u0 = texX + uStart;
+                pPoly->v0 = nV0;
+                pPoly->clut = clut;
+                pPoly->v1 = nV0;
+                pPoly->u2 = texX + uStart;
+                pPoly->u1 = texX + uEnd;
+                pPoly->v2 = nV1;
+            }
+            pSeg++;
+            pSeg->unk0 = nRow + nCount + 1;
+            pSeg->unk4 = nRow + 1;
+            pSeg->unk2 = nRow + nCount + 2;
+            for (k = 0; k < 2; k++) {
+                pPoly = &pSeg->polys[k];
+                SetPolyGT3(pPoly);
+                pPoly->tpage = tpage;
+                pPoly->u0 = texX + uEnd;
+                pPoly->u1 = texX + uEnd;
+                pPoly->clut = clut;
+                pPoly->u2 = texX + uStart;
+                pPoly->v0 = nV0;
+                pPoly->v1 = nV1;
+                pPoly->v2 = nV1;
+            }
+            pSeg++;
+        }
+        pCount++;
+        uStart += uStep;
+        uEnd += uStep;
+        uRow += nCount + 1;
+    }
+
+    pEntry->red0 = red0;
+    pEntry->green0 = green0;
+    pEntry->blue0 = blue0;
+    pEntry->red1 = red1;
+    pEntry->green1 = green1;
+    pEntry->blue1 = blue1;
+    pEntry->numSections = numSections;
+    if (numSections > 0) {
+        pSection = HeapAlloc(numSections * sizeof(Temp9Section), 0x0);
+
+        if (pSection == NULL) {
+            pEntry->numSections = 0;
+        }
+        if (pEntry->numSections > 0) {
+            pEntry->pSections = pSection;
+            for (i = 0; i < pEntry->numSections; i++) {
+                pSection[i].vector.vx = 0;
+                pSection[i].vector.vy = 0;
+                pSection[i].vector.vz = 0;
+                pSection[i].vector.pad = 0;
+                pSection[i].x = 0;
+                pSection[i].y = 0;
+                pSection[i].z = 0;
+                pSection[i].unkE = 0;
+            }
+        }
+    } else {
+        pEntry->pSections = NULL;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E22F8);
 

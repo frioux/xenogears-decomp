@@ -293,11 +293,9 @@ def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
             bits.append("%s (%d insns) is %s of the matched %s at %s (strict %.3f, loose %.3f, %d of %d raw words identical%s)"
                         % (f["func"], f["insns"], kind, t["twin"], t["twin_file"], t["strict"], t["loose"], t["same"],
                            f["insns"], "; diff -u %s against your stub's .s" % tasm if tasm else ""))
-        extra = ("TWIN PORT, not a from-scratch body: " + " | ".join(bits) + ". Read the twin's C first and copy it as the "
-                 "starting body, then adjust callees, constants, global names and struct offsets from the stub's .s (the .s "
-                 "is the authority, the twin is only a template); where the strict ratio is under 1.000 expect the differing "
-                 "blocks to need hand edits. A twin in another overlay calls different functions at different addresses: "
-                 "take callee names from this unit's .s. Commit after each match.")
+        extra = ("TWIN PORT: " + " | ".join(bits) + ". Start from that body; the .s is the authority for callees, "
+                 "constants, globals and struct offsets (a twin in another overlay calls different functions at different "
+                 "addresses). Commit after each match.")
     elif cls == "cluster":
         f = funcs[0]
         fam = ", ".join("%s (%s)" % (n, u) for u, n in f["family"])
