@@ -159,7 +159,7 @@ extern void BattleRenderShadedSpans(s32 pOt, s32 x, s32 z);
 extern void BattleDrawActorShadow(void* pActor, u_long* pOt, MATRIX* pMatrix);
 extern void BattleDrawFrameHud(void* pActor);
 extern void BattleDrawTimedSpritePrims(s32 pOt);
-extern void func_80087068(void* pA, void* pB);
+extern void BattleQueueGaugePrims(void* pA, void* pB);
 extern void func_80031678(void* pOt, void* pPrim);
 extern MATRIX g_BattleBaseMatrix;
 
@@ -1064,7 +1064,7 @@ s32 BattleRenderCameraFrame(Misc9LightGroup* pGroup) {
     if (g_BattleSavedScreenMode == 8) {
         goto checkMode;
     }
-    func_80087068(&g_BattleActor1, &g_BattleActor0);
+    BattleQueueGaugePrims(&g_BattleActor1, &g_BattleActor0);
     goto done;
 checkMode:
     if (g_BattleMode != 4) {

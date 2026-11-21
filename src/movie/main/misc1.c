@@ -80,7 +80,7 @@ extern s32 D_80076E8C;
 extern u32* g_MovieDebugCounters;
 extern s32 g_MovieDebugCounterTotal;
 extern s32 D_8005A49C;
-extern s32 D_8004FDEC;
+extern s32 g_ArchiveStreamSectionPositionErrors;
 extern u_int g_ArchiveReadRetryCount;
 extern u_int g_ArchiveCdDriveState;
 extern s32 g_ArchiveFilePositionErrorCount;
@@ -284,7 +284,7 @@ void func_800704E8(void) {
                    g_ArchiveCdHaltCompleteCount, g_ArchiveCdHaltErrorCount);
         fileSize = ArchiveDataSync();
         FontPrintf(D_8006FBA8, fileSize, ArchiveGetCurFileSize(), g_ArchiveFilePositionErrorCount,
-                   g_ArchiveStreamPositionErrors, D_8004FDEC, g_ArchiveStreamNextSectionId,
+                   g_ArchiveStreamPositionErrors, g_ArchiveStreamSectionPositionErrors, g_ArchiveStreamNextSectionId,
                    g_ArchiveStreamCurSectionId);
         FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
         FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);
@@ -479,7 +479,7 @@ void func_800704E8(void) {
                    g_ArchiveCdHaltCompleteCount, g_ArchiveCdHaltErrorCount);
         fileSize = ArchiveDataSync();
         FontPrintf(D_8006FBA8, fileSize, ArchiveGetCurFileSize(), g_ArchiveFilePositionErrorCount,
-                   g_ArchiveStreamPositionErrors, D_8004FDEC, g_ArchiveStreamNextSectionId,
+                   g_ArchiveStreamPositionErrors, g_ArchiveStreamSectionPositionErrors, g_ArchiveStreamNextSectionId,
                    g_ArchiveStreamCurSectionId);
         FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
         FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);

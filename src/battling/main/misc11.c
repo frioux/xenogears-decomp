@@ -171,7 +171,7 @@ typedef struct {
 extern s32 BattleSetGaugeBarPrimColor(BattlingGaugeState *pState, POLY_F4 *pPrim);
 extern void BattleQueueGaugeBarPrims(u8 *pOt, void *pBase, s32 value, s32 flag);
 
-void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
+void BattleQueueGaugePrims(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     BattlingGaugeEnv *pEnv;
     POLY_FT4 *pPacket;
     s32 i;

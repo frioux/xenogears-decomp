@@ -226,7 +226,7 @@ void BattleAddThreeFlaggedPrimLists(void) {
     }
 }
 
-void func_80073FB8(void) {
+void BattleAddPanelAndSlotPrimLists(void) {
     BattleSlotGraphics *pSlot;
     s32 i;
     u32 primOfs;
@@ -518,7 +518,7 @@ void BattleDrawFrameScreenMode1(void) {
         BattleAddThreePrimLists();
         func_800745EC();
         BattleUpdateRotationBuffer();
-        func_80073FB8();
+        BattleAddPanelAndSlotPrimLists();
         func_80088B80();
         BattleAddSpriteColumnPrimLists();
     }
@@ -529,7 +529,7 @@ void func_800764B4(void) {
     g_DebugPageIndex = 0;
     BattleExpandSlotRects();
     func_801DE594();
-    func_80073FB8();
+    BattleAddPanelAndSlotPrimLists();
 }
 
 void BattleDrawFrameScreenMode2(void) {
@@ -538,7 +538,7 @@ void BattleDrawFrameScreenMode2(void) {
     BattleAddThreeFlaggedPrimLists();
     func_8007500C();
     BattleAddPrimAndRenderObject();
-    func_80073FB8();
+    BattleAddPanelAndSlotPrimLists();
     func_80088B80();
     BattleAddSpriteColumnPrimLists();
 }

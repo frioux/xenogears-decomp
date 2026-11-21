@@ -46,7 +46,7 @@ extern int g_ArchiveStreamFileHandle;
 extern CdlLOC g_ArchiveSectorLocation;
 extern u8 g_ArchiveSectorScratch[];
 extern s32 g_ArchiveFilePositionErrorCount;
-extern s32 D_8004FDEC;
+extern s32 g_ArchiveStreamSectionPositionErrors;
 extern s32 g_ArchiveStreamResumedFile;
 extern s32 g_ArchiveStreamSeekWindow;
 extern s32 g_ArchiveStreamPositionErrors;
@@ -1105,7 +1105,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *             if (g_ArchiveCurFileSize > 0)
  *                 return;
  *         } else {
- *             D_8004FDEC += 1;
+ *             g_ArchiveStreamSectionPositionErrors += 1;
  *             pBuf = g_ArchiveSectorScratch;
  *             CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
  *             goto error;
@@ -1226,7 +1226,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  *             if (g_ArchiveCurFileSize > 0)
  *                 return;
  *         } else {
- *             D_8004FDEC += 1;
+ *             g_ArchiveStreamSectionPositionErrors += 1;
  *             pBuf = g_ArchiveSectorScratch;
  *             CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
  *             goto error;

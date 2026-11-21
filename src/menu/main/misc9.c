@@ -54,8 +54,8 @@ extern u8 g_ShopIndex;
 extern u16 g_MenuEquipmentSlotRowY[][2];
 // The value rows of the two quad groups of the 0x430 panel, one 0x38-byte array per
 // group (14 columns each), right after g_MenuEquipmentSlotRowY's own 8 rows.
-extern u16 D_801E9DDC[][2];
-extern u16 D_801E9E14[][2];
+extern u16 g_MenuPanelValueQuadX[][2];
+extern u16 g_MenuPanelValueQuadY[][2];
 
 // 0x1094-byte item panel buffer built by MenuCreateUnk430Panel: one MenuString
 // sprite record per column, then the column heading string list and one flag per
@@ -619,7 +619,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
    COPY of the arm value; kind 2 sets available = gears[gearId].fuel before
    reading the record; the i == 0xC / kind != 2 arm re-reads
    g_GameState.characters[...].mp in full. Data: the panel tail reads are three
-   separate arrays (g_MenuEquipmentSlotRowY, D_801E9DDC, D_801E9E14) and the
+   separate arrays (g_MenuEquipmentSlotRowY, g_MenuPanelValueQuadX, g_MenuPanelValueQuadY) and the
    column masks are g_MenuColumnShadeMasks - spelling them as offsets off
    g_MenuEquipmentSlotRowY / g_MenuRowDigitTextureIds costs a phantom 0x58 giv
    base. */
@@ -776,8 +776,8 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             }
             MenuSetStringPrimitives(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i], i, 0x80, shade | 2);
             MenuSetQuadVertices(
-                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices, D_801E9DDC[i][0],
-                D_801E9E14[i][0],
+                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices, g_MenuPanelValueQuadX[i][0],
+                g_MenuPanelValueQuadY[i][0],
                 ((MenuUnk430ValueStrings*)g_Menu->unk430)->valueStrings[i].width, 0xD);
             ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].renderContext = g_Menu->renderContext;
             ((MenuUnk430ValueStrings*)g_Menu->unk430)->valueStrings[i].renderContext = g_Menu->renderContext;

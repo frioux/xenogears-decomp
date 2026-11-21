@@ -302,8 +302,8 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
 // MenuRenderString's 0x10-prim call in misc4.
 #define MENU_ICON_COUNT 16
 #define MENU_ICON_PRIM_OFFSET 0x277C
-extern u16 D_801EA04C;
-extern u16 D_801EA050;
+extern u16 g_MenuIconQuadX;
+extern u16 g_MenuIconQuadY;
 void func_801E733C(void) {
     s32 primIndex;
     s32 offset;
@@ -312,14 +312,14 @@ void func_801E733C(void) {
     for (i = 0; i < MENU_ICON_COUNT; i++) {
         offset = (i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET;
         MenuInitializePolyFt4((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer));
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x0 = D_801EA04C + i * 0xC;
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y0 = D_801EA050;
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x1 = D_801EA04C + i * 0xC + 0xC;
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y1 = D_801EA050;
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x2 = D_801EA04C + i * 0xC;
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y2 = D_801EA050 + 0x10;
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x3 = D_801EA04C + i * 0xC + 0xC;
-        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y3 = D_801EA050 + 0x10;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x0 = g_MenuIconQuadX + i * 0xC;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y0 = g_MenuIconQuadY;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x1 = g_MenuIconQuadX + i * 0xC + 0xC;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y1 = g_MenuIconQuadY;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x2 = g_MenuIconQuadX + i * 0xC;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y2 = g_MenuIconQuadY + 0x10;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->x3 = g_MenuIconQuadX + i * 0xC + 0xC;
+        ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->y3 = g_MenuIconQuadY + 0x10;
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->u0 = i * 0x10;
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->v0 = 0xF0;
         ((POLY_FT4*)((i * 2 + g_Menu->renderContext) * 0x28 + MENU_ICON_PRIM_OFFSET + (u32)g_Menu->pPrimBuffer))->u1 = i * 0x10 + 0xC;

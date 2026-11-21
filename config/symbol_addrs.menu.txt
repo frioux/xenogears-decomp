@@ -416,3 +416,7 @@ g_MenuGearWindowWideNumber3X = 0x801E9D20;
 g_MenuGearWindowWideNumber3Y = 0x801E9D24;
 g_MenuGearWindowWideNumber4X = 0x801E9D28;
 g_MenuGearWindowWideNumber4Y = 0x801E9D2C;
+g_MenuPanelValueQuadX = 0x801E9DDC;
+g_MenuPanelValueQuadY = 0x801E9E14;
+g_MenuIconQuadX = 0x801EA04C;
+g_MenuIconQuadY = 0x801EA050;
