@@ -13,7 +13,7 @@ extern void func_800B3CD4();
 extern void func_800B51B0();
 extern void BattleIntegrateSpriteVelocityTask();
 extern void BattleDrawActorLinePrim();
-extern void func_800B6004();
+extern void BattleDrawLinkedActorLinePrim();
 extern void BattleUpdateDistanceWaitTask();
 extern u8* TimerWorkListAllocateTask();
 extern s32 BattleSpriteDistanceToTarget(SpriteData* pSpriteData);
@@ -304,7 +304,7 @@ void BattleSetSpriteDrawWorkCallback(SpriteData* pSpriteData) {
     WorkListSetTaskCallback(&pTask->drawEntry, BattleDrawActorLinePrim);
     pSpriteData->prim = 0x40;
 }
-void func_800B6004(WorkListEntry* pWork) {
+void BattleDrawLinkedActorLinePrim(WorkListEntry* pWork) {
     s32 coord;
     s32 ofs;
     SpriteData* pSpriteData;
@@ -373,7 +373,7 @@ void BattleSetLinkedSpriteDrawWorkCallback(SpriteData* pSpriteData) {
 
     pSpriteData->curSpriteFrame = 1;
     pTask = pSpriteData->field_0x6C;
-    WorkListSetTaskCallback(&pTask->drawEntry, func_800B6004);
+    WorkListSetTaskCallback(&pTask->drawEntry, BattleDrawLinkedActorLinePrim);
     pSpriteData->prim = 0x40;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B61F8);
