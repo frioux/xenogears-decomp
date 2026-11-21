@@ -26,10 +26,6 @@ typedef struct {
 } ControllerBState; // Size: 0x8
 
 extern ControllerBState D_8005A1BC[];
-// D_8005A1C0/D_8005A1C3 are the record array's unk4/unk7 seen through their own
-// symbol, which is how splat split the .bss labels; element stride stays 0x8.
-extern u_short D_8005A1C0[];
-extern u_char D_8005A1C3[];
 
 typedef struct {
     /* 0x0 */ u_long magic;
@@ -87,8 +83,6 @@ void ControllerDumpVramToTim(RECT* pRect, char* pPath) {
     PCclose(fd);
 }
 
-extern u_char D_80600000[];
-extern u_char D_80700000[];
 extern char D_80018ABC[];
 
 typedef struct {
@@ -97,30 +91,25 @@ typedef struct {
     /* 0x0 */ u_short blue : 5;
 } Pixel16; // Size: 0x2
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/controller_b", func_80035FF8);
-/* Best: 93.97%. The loop body and the rest of the function match exactly; the only
-difference is how the two pointer bases are formed. The original loads only
-lui %hi(D_80600000)/lui %hi(D_80700000) and reaches the bytes through
-%lo(sym+k)(base) displacements, while any C that walks a pointer over the
-symbol compiles to `la` (lui+addiu), two instructions the original does not have.
-Tried: pointer locals from the array (la), &sym[0], u_char* base, direct subscript
-(needs addu), and gcc-2.7.2-cdk (88.34%).
 int func_80035FF8(RECT* pRect, char* pPath) {
     char buffer[0x100];
     Pixel16* pSrc;
     u_char* pDst;
     int count;
-    int i;
+    s32 i; // s32 and not int: the typedef is what makes cc1 keep retail's loop copy
     int fd;
 
+    // 0x80600000/0x80700000 are the raw VRAM scratch buffers, spelled as literals
+    // in the original (a bare lui), which is why they are not symbol references.
     StoreImage(pRect, (u_long*)0x80600000);
     DrawSync(0);
     Sprintf(buffer, D_80018ABC, pRect->w, pRect->h);
 
     count = pRect->w * pRect->h;
-    pSrc = (Pixel16*)D_80600000;
-    pDst = D_80700000;
-    for (i = count; i != 0; i--) {
+    pSrc = (Pixel16*)0x80600000;
+    pDst = (u_char*)0x80700000;
+    i = count;
+    while (i-- != 0) {
         *pDst++ = pSrc->red << 3;
         *pDst++ = pSrc->green << 3;
         *pDst++ = pSrc->blue << 3;
@@ -135,7 +124,6 @@ int func_80035FF8(RECT* pRect, char* pPath) {
     PCclose(fd);
     return 0;
 }
-*/
 
 void ControllerResetActuators(void) {
     D_8005A1BC[0].unk0 = 0;
@@ -177,11 +165,11 @@ void ControllerUpdateActuators(void) {
 }
 
 void ControllerSetActuatorDuration(int index, u_short value) {
-    D_8005A1C0[index * 4] = value;
+    D_8005A1BC[index].unk4 = value;
 }
 
 void ControllerSetActuatorDisabled(int index, u_char value) {
-    D_8005A1C3[index * 8] = value;
+    D_8005A1BC[index].unk7 = value;
 }
 
 void ControllerInit(void) {
