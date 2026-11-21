@@ -359,6 +359,13 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CE860);
    threshold.  Tried: the base as a local pointer, `(pData + i)[K]` for the
    byte indexes (that fixed the addu operand order), a shared `rowOfs = i*0x20`
    local, and -O1 (55.6, so not a preset problem).  Same 88.90 in all shapes.
+   Re-measured round 394 under the unit's own preset (gcc 2.6.0, XenoMenu260): 88.90,
+   804 bytes, 201 insns against retail's 191, frame 80 vs retail's 72 - the two extra
+   callee-saved giv registers are what push the frame, exactly as diagnosed above.
+   The four mult sites retail re-emits are sll(s0,5)+0x31E0, sll(s0,7)+0x2D80,
+   sll(s0,5)+0x3100, sll(s0,7)+0x2A00, i.e. two constants used twice each; retail also
+   keeps 0x2228/0x2030/i*0x140 as three real accumulators (s1/s2/s3) bumped at the latch,
+   which the body below already does.
 void func_801CE860(void) {
     s32 i;
     s32 offset0 = 0;
@@ -519,25 +526,29 @@ void MenuAddUnk5StringPrims(void) {
         MenuRenderString(g_Menu->pSubmenuPrims->polys0PrimCount, g_Menu->pSubmenuPrims->polys0, g_Menu->pSubmenuPrims->polys0RenderCtx);
     }
 }
-/* 98.89% (608 bytes / 152 insns vs retail 612 / 153; re-measured round 394, same under 2.6.0 and 2.7.2). ONE residual: the QI mask.
-   Retail materialises `andi v0,v1,0xff` on BOTH edges into the merge block - once in the
-   delay slot of the second `bne` (the constant-1 edge) and once after `move v1,v0` in the
-   0xFF arm - so the merge label holds only `beqz v0`. This build folds the (u8)1 on the
-   constant edge and emits a single `andi $2,$3,0xff` AT the merge, so it is one
-   instruction short: gcc cannot be made to mask a value it knows is 1, and the source
-   that would fix it (the flag as an OR of two tests) costs two extra g_Menu reloads.
-   Retail also keeps `li v1,0x1` in the FIRST bne walk slot; here `li v0,0xff` takes that
-   slot and `li v1,1` the second.
-   Measured this round, all short: (u8) casts at the assignment and the test 98.89
-   (identical); `valid = character != 0xFF || i == order` 95.51 (624 B, re-loads g_Menu
-   per use); `valid = character == 0xFF ? i == order : 1` 95.64 (628 B); permute.sh 3 min
-   base=314 best=314.  Earlier rounds: else-arm assignment 96%, u32 offset local 95.10%,
-   offset+pData operand order 96.78%.  The body below is the best (98.89).
-   What makes the rest work: the three colour bytes read the low byte at 0x4D4 through a
-   u8* cast (retail uses lbu) and the AddPrim offsets must be array subscripts,
-   `&pData[ctx * N + K]`, which is what puts the addiu before the addu. */
-
-/*
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
+/* 98.89% (608 vs 612 bytes) under BOTH presets: everything matches except one
+   delay slot.  Retail fills the `character != slotRecordIndexes[i]` branch slot
+   with `li v1,0x1` (valid = 1) and leaves a dead `andi v0,v1,0xff` in the
+   `character != 0xFF` slot; gcc puts `li v0,0xFF` in the first slot and `li
+   v1,0x1` in the second, so the body is one dead u8 truncation short.  That
+   means retail's `valid` was truncated once more than `if (!valid)` needs.
+   Re-measured round 394 (2.6.0, 152 insns): the missing instruction is the QI mask on
+   the constant-1 edge.  Retail masks on BOTH edges into the merge block (in the second
+   bne's delay slot for the constant edge, after `move v1,v0` in the 0xFF arm) and the
+   merge label holds only `beqz v0`; this build folds the (u8)1 and emits one `andi` AT
+   the merge.  Measured this round, all short: (u8) casts at the assignment and the test
+   98.89 (identical); `valid = character != 0xFF || i == order` 95.51 (624 B, re-loads
+   g_Menu per use); `valid = character == 0xFF ? i == order : 1` 95.64 (628 B);
+   permute.sh 3 min base=314 best=314.  A source shape that masks the constant edge must
+   also keep the g_Menu reloads where retail has them, and the || form does not.
+   Notes: g_MenuCardSlotOrder is the overlay dlabel table in asm/menu/data/246A4.data.s so
+   it only needs an extern declaration.  The three colour bytes read the low byte
+   at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
+   written as &pData[ctx * N + K] (array subscript): that is what makes the addiu
+   land before the addu.  Also tried: else-branch assignment to valid (96%), the
+   || form valid = character != 0xFF || ... (worse), a u32 offset local hoisted
+   above each AddPrim (95.10%), and offset + pData operand order (96.78%).
 void func_801CF37C(void) {
     s32 i;
     u8 character;
@@ -574,7 +585,9 @@ void func_801CF37C(void) {
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 0x18 + 0xB0]);
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 12 + 0x140]);
     }
-}// Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
+}
+*/
+// Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
 // (allocated in misc11's MenuCreateCellPrimBlocks): the glyph quad every render context
 // gets, the two line prims, and the source vertices the quad is rendered from.
 typedef struct {
@@ -627,9 +640,7 @@ void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
             }
         }
     }
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
-
+}
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
 /* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->cardSlotState)`
