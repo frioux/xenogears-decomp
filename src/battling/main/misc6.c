@@ -172,6 +172,7 @@ typedef struct {
 
 extern BattleParticleQuad* g_BattleSpritePrimBuffers[];
 
+
 // Projects the live particles three at a time with RTPT and links one screen
 // prim per particle into the OT by its projected Z.
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
@@ -649,24 +650,23 @@ void BattleSetTextColor(s32 arg) {
 
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
-/* best 87.66% (124 bytes vs retail 128); the clean body below is 76.72%.
-   Retail reads g_SpuChannelMask TWICE, in two ADJACENT lw at the top of the
-   arg != 0 arm, before any store, and keeps the two values in v1 (red) and a0
-   (green) so both are live at once. Reads 1 and 2 cannot both be plain: gcc
-   CSEs any two identical reads of one extern in a block, whatever the cast
-   (tested *(s32 *)((u8 *)&g) and a struct-field view at offset 0 - both fold
-   to the same MEM and merge). A volatile second read gives the two lw
-   (87.66%, 124 bytes) but gcc then places the SECOND read immediately before
-   its use (after sb g_BattleTextBlue and the red sll/addu/sll), not at the
-   top - same with both reads volatile and with the volatile one first, so it
-   is not a volatility effect: the second read is moved to its use either way.
-   With one load the store order Blue/Red/Green, the sll/addu/sll by 20, the
-   li 0xFF + subu and the two-branch frame are otherwise exact, except that
-   retail materialises 0xFF three times in the then arm (v0 for Blue, v1 for
-   the subtrahend) where one load merges them into one register; a narrow
-   ('u8 white') constant local does not separate them (83.59%, 120 bytes).
+/* best 87.66% (124 bytes vs retail 128). Retail reads g_SpuChannelMask TWICE
+   in two ADJACENT lw at the top of the arg != 0 arm and keeps the two values in
+   v1 (red) and a0 (green) so both are live at once. Reads 1 and 2 cannot both be
+   plain: gcc CSEs any two identical reads of one extern in a block, whatever the
+   cast (tested *(s32 *)((u8 *)&g) and a struct-field view at offset 0 - both fold
+   to the same MEM and merge), and a volatile second read gives the two lw but
+   places the second one at its use instead of at the top (same with the volatile
+   read first, or both volatile).
+   The 0xFF is a named local, not a literal: with plain 0xFF in each store the
+   subtracts come out as `nor v0,zero,v0` (72.66%, 96 bytes); a `s32 white = 0xFF`
+   gives retail's `li v1,0xFF` + `subu`, and a narrow (u8) white separates none of
+   the three materialisations (83.59%). The one load is otherwise exact - store
+   order Blue/Red/Green, sll/addu/sll by 20, li 0xFF + subu in the then arm, the
+   single 0xFF for the else arm.
    Conclusion: the original had TWO source names for 0x80059488, which
    config/symbol_addrs cannot express (one address, one name).
+/*
 void func_8007EE68(s32 arg) {
     s32 white = 0xFF;
 
@@ -683,40 +683,41 @@ void func_8007EE68(s32 arg) {
  */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
-/* best 90.45% (204 bytes). Everything matches - frame 0x20 with s0/s1/ra, the
-   lhu of g_GameState.fieldScriptMemory[0], the HeapAlloc(0xC4,1) call with its
-   ori in the jal slot, the two globals' stores, the lh 4(...) of the 0x20-byte
-   filter entry and the slt/bnez against the limit, the
-   g_BattleEntryCount read-modify-write with sw / addiu / sll / addu, the
-   slti 0x31 loop bound and the BattleAppendExtraQueueEntry call - except WHICH
-   of the two induction pointers gets a0 and which gets a1: retail keeps the
-   0x20-byte filter-table pointer (D_80092874) in a1 and the 0xC-byte record
-   pointer (D_80091964) in a0, ours swaps them. Tried: the indexed form with
-   D_80092874[i].requiredProgress and &D_80091964[i] (90.45), explicit
-   pEntry/pRecord pointer locals with pEntry++ / pRecord += 3 (89.86), both
-   declaration orders and both assignment orders of those locals (identical
-   either way - gcc resolves the tie itself), the for-loop iteration list
-   ordered pEntry++, i++, pRecord += 3 (that DOES reproduce retail's tail
-   instruction order - addiu table, addiu i, slti, bnez with the record's
-   addiu 0xC in the delay slot - but the register tie stays: 89.71%, ours
-   table a0 / i a1 / record a2 against retail's record a0 / table a1 / i a2),
-   and (per an earlier session)
-   i*3 over an s32 array, a nested if with continue, split increments, six
-   declaration orders, -G0 / -O3 / gcc 2.6.0 / gcc 2.7.2-cdk (90.45 or worse
-   under all). The remaining 'move a3,v0' also sits one block later than
-   retail's (it copies the HeapAlloc result right after the call).
+/* best 90.10% (204 bytes = retail's exact size). Two residuals left, both
+   allocator ties:
+   1. the two induction pointers get a0/a1 the wrong way round. Retail keeps the
+      0xC record pointer in a0 and the 0x20 filter pointer in a1; ours is the
+      reverse. Nothing in the source moves it: both assignment orders, both
+      declaration orders, the indexed filter form (D_80092874[i]) instead of the
+      pointer form, and every for-list order measure 89.7-90.1% or identical.
+   2. the move a3,v0 that copies the HeapAlloc result into pQueue sits at the end
+      of the entry block here and right after the call in retail.
+   WHAT DID FIX THE REST: the record pointer is a BattleQueueRecord* (0xC bytes),
+   so pRecord++ emits retail's addiu 0xC - the earlier 90.45% body indexed an
+   s32* (&D_80091964[i], +4) which is WRONG CODE for i > 0 even though objdiff
+   scored it higher. Also load-bearing, a couple of points each: i = 0; as its
+   own statement above the for (retail's move a2,zero is the first thing after
+   the jal) and the increment list in the order pEntry++, i++, pRecord++ (that is
+   what puts the record's addiu 0xC in the bnez delay slot and the filter's
+   addiu 0x20 first). Two source names for one address are NOT involved here.
+/*
 void func_8007EEE8(s32 arg) {
+    BattleFilterEntry* pEntry;
+    BattleQueueRecord* pRecord;
     s32 i;
     s32 limit;
     s32** pQueue;
 
     limit = g_GameState.fieldScriptMemory[0];
     pQueue = HeapAlloc(0xC4, 1);
+    i = 0;
+    pEntry = D_80092874;
+    pRecord = (BattleQueueRecord*)D_80091964;
     g_BattleEntries = pQueue;
     g_BattleEntryCount = 0;
-    for (i = 0; i < 0x31; i++) {
-        if (arg == 0 || D_80092874[i].requiredProgress <= limit) {
-            pQueue[g_BattleEntryCount++] = &D_80091964[i];
+    for (; i < 0x31; pEntry++, i++, pRecord++) {
+        if (arg == 0 || pEntry->requiredProgress <= limit) {
+            pQueue[g_BattleEntryCount++] = (s32*)pRecord;
         }
     }
     if (arg != 0) {
@@ -755,28 +756,36 @@ void BattleInitSpriteRectTable(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
-/* best 84.45% (504 bytes against retail's 512). Whole body is right: the flag
-   x offset (0xD3/0x33), the two-part idx wrap against g_BattleEntryCount, the
-   0x14-byte sprite lookup through g_BattleEntries/g_BattleSpriteRects, the shade==0x40 fast
-   path with (x,0x30)-(x+0x3C,0x70), the shaded path's colour word
-   (shade+0x40 in r/g/b, code 0x2C) and its quad (x0 = x+4-k, y0 = 0x34-k,
-   w = 0x34+2k, h = 0x38+2k, k = shade>>4), the four u/v words
-   (u = sprite->texX*2 with u1 = u+0x3B, v1 = sprite->texY+0x3F) and the
-   GetClut/GetTPage/AddPrim tail are all exact.
-   Two residuals, both scheduling:
-   1. retail spends one addiu +0x40 in the bne delay slot and then gets k back
-      with addiu -0x40 in the shaded arm; ours keeps shade in a1 and adds 0x40
-      inside the arm, i.e. one instruction shorter (the 8 missing bytes).
-   2. x1 = (x0 + 0x34) + 2k in retail, ours folds to x0 + (0x34 + 2k).
-   Tried: one setlen before the branch (the permuter prefers it in its own
-   metric but it costs retail's duplicate store), a grow/2k local, splitting
-   x1/y1 into two statements, an index local, every declaration order. The
-   permuter ran 3 minutes (base 1855 -> 1465) and only found the setlen move.
-   Sprite field types here are s16: that is what makes the uv stores read
-   texY with lhu (truncated store) and the GetTPage/GetClut args with lh.
+/* best 90.98% at 512 bytes, which IS retail's exact size (the earlier 504-byte
+   body was two instructions short and could never link). Whole body is right: the
+   flag x offset (0xD3/0x33), the two-part idx wrap against g_BattleEntryCount, the
+   0x14-byte sprite lookup, the shade==0x40 fast path with (x,0x30)-(x+0x3C,0x70),
+   the shaded path's colour word and quad, the four u/v words and the
+   GetClut/GetTPage/AddPrim tail. Sprite fields are s16: that is what makes the uv
+   stores read texY with lhu and the GetTPage/GetClut args with lh.
+   THE THREE SPELLINGS THAT GOT IT TO RETAIL'S SIZE (each measured):
+   1. `grow = shade + 0x40;` BEFORE pSprite and then `color = grow;` - two names
+      for one value. That is what puts retail's addiu +0x40 in the bne delay slot
+      (the value is hoisted to the end of the entry block) and, with the same
+      statement written as a single `color = shade + 0x40;`, the add lands in the
+      middle of the entry block instead and the body is 4 bytes short.
+   2. `color | (color << 8) | (color << 16)` in that order: the other order emits
+      `or v0,v0,t0` where retail has `or v0,t0,v0`.
+   3. `half = (color - 0x40) >> 4` spelled with the -0x40 visible; gcc folds it
+      back to `shade >> 4` either way here, so it costs nothing.
+   WHAT IS LEFT: retail derives half from the colour value's register
+   (addiu t0,t0,-0x40 / sra t0,t0,4), i.e. shade's parameter register is clobbered
+   by color; here gcc keeps them in two registers and emits a bare `sra`. That also
+   drags the arm's x1/y1 association with it (retail (x0+0x34)+2k, ours
+   x0+(2k+0x34)) and swaps the last three stores' registers. Permuter: two runs
+   (base 1855 -> 1465, then base 866 -> 656) whose only leads were the y1 split
+   (93.74% but 508 bytes, one instruction SHORT - do not ship it) and the source
+   ordering above.
+/*
 void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     BattleSprite* pSprite;
     s32 count;
+    s32 color;
     s32 half;
     s32 grow;
     s32 u;
@@ -798,7 +807,9 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
         idx += count;
     }
     count = *g_BattleEntries[idx];
+    grow = shade + 0x40;
     pSprite = &g_BattleSpriteRects[count];
+    color = grow;
     if (shade == 0x40) {
         setlen(pPkt, 9);
         pPkt->code = 0x2D;
@@ -807,11 +818,9 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
         *(u_long*)&pPkt->x2 = x | (0x70 << 16);
         *(u_long*)&pPkt->x3 = (x + 0x3C) | (0x70 << 16);
     } else {
-        s32 color = shade + 0x40;
-
         setlen(pPkt, 9);
-        *(u_long*)&pPkt->r0 = (color << 8) | color | (color << 16) | 0x2C000000;
-        half = shade >> 4;
+        *(u_long*)&pPkt->r0 = color | (color << 8) | (color << 16) | 0x2C000000;
+        half = (color - 0x40) >> 4;
         x0 = x + 4 - half;
         y0 = 0x34 - half;
         grow = half * 2;
