@@ -46,6 +46,7 @@ extern u16 g_MenuInventoryScrollStep;
 extern u8 g_MenuPanelRowXOffsets[];
 extern u8 g_MenuColumnRowStringIds[];
 extern u8 D_801E9785;
+extern u8 g_MenuRowDigitTextureIds[]; // u8 [13][5] texture ids, then the per-character column masks at +0x44
 extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
 extern u16 D_801E97A0[][2];
@@ -113,6 +114,12 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
+extern u8* GetStringEntryFromBank14(s32 index);
+extern u8* GetStringEntryFromBank30(s32 index);
+extern u8* GetStringEntryFromBank34(s32 index);
+void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
+u16 MenuAndBitMaskMsbFirst(u32 mask, u8 index);
+void MenuSetStringTexturePrims(MenuString* pString, u_char index, u_char isGlyph, u_char row);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 void func_801D8EA4(u8 arg0, u8 arg1, u8 arg2, u8 arg3);
@@ -549,7 +556,225 @@ void MenuFreeUnk430Panel(u_char arg0) {
     g_Menu->pManager->playTimeDigitsActive = 1;
     g_Menu->pManager->shouldRenderWindow[1] = 1;
 }
+// One column of the 0x430 panel is a heading string plus the value image the two
+// decimal digits are rendered into; the last two columns carry the mp/fuel totals.
+#define MENU_PANEL_COLUMN_COUNT 0xE
+#define MENU_PANEL_MASKED_COLUMN_COUNT 0xC
+// The second sprite-record set of MenuUnk430Panel holds one value image per column.
+#define MENU_PANEL_VALUE_STRING 0xE
+// g_MenuEquipmentSlotRowY rows the two value quad groups are drawn at.
+#define MENU_PANEL_VALUE_ROW_Y 8
+// Rows of MenuEquipmentSlotRecord a column's mp/fuel cost is read from.
+#define MENU_PANEL_MP_DIGIT_COUNT 2
+#define MENU_PANEL_FUEL_DIGIT_COUNT 5
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
+/* Best: 97.28% (2684 bytes; retail is 2696 = 674 insns, ours 671). Loop over the 14
+   columns of the 0x430 panel. Per column: bzero 8 bytes of the digit buffer, decide
+   from the kind's per-character condition mask whether the column is shown at all
+   (i >= 0xC is always shown; kind 2 only tests even columns, mask bit i/2), render
+   the column's name string (banks 14 / 30 / 34 for kinds 0 / 1 / 2) into pImage,
+   read the slot's mp cost (kinds 0/1) or fuel cost (kind 2) from the slot record,
+   render the value as decimal glyph codes, upload them with LoadImage, then set
+   both sprite records' vertices/width/renderContext and the column flag. Columns
+   0xC/0xD carry the mp / fuel / maxmp totals and shift the row quad group by 3.
+   Layout facts: pDressingRoom->pCharacterSlots[id] + 22 records and
+   pGearBlocks[gearId] + 21 (kind 1) / + 37 (kind 2) 0x28-byte records, i.e. the
+   walked arrays start at 0x370 / 0x348 / 0x5C8 (same as func_801DD790's park).
+   The 0x70 local is the "available" amount (mp, or the gear's fuel for kind 2),
+   the arm's own number is a SECOND local: the digit loop consumes a copy of it and
+   the "can't afford it" test compares the untouched value with available.
+   Where it stands: prologue, save set, frame, both switch trees, the digit loop,
+   the RECT/LoadImage/DrawSync block and every call site are retail's. What is
+   left is (a) a cyclic callee-saved rotation - retail keeps pImage in $s7,
+   arg0 in $s3, the arm value in $s5; ours has pImage in $s8, arg0 in $s5, the
+   value in $s3 - and (b) the 0x700 of the second string set: retail folds it
+   into the store displacement off the 0x80*i accumulator (sb 0x77E(v1)) and keeps
+   a separate 0x700+i*0x80 slot for the func_801E7C50 base, ours keeps the 0x700 in
+   the sN accumulator at three sites. Three instructions short.
+   Measured levers: the digit loop must consume a COPY of the arm value (one local
+   gives a dead compare); the i == 0xC / kind != 2 arm re-reads
+   g_GameState.characters[...].mp in full instead of reusing the local; kind 2 sets
+   available = gears[gearId].fuel before reading the record; the x coordinate of
+   the name quad is (i % 2) * 0x88 + 0x24, and i % 2 (not i & 1) is what makes cc1
+   reuse the i / 2 it already computed (96.50 -> 97.28). Not permuted yet - the next
+   step is permute.sh on this body, then the register rotation. */
+/*
+void func_801DC3D8(u_char arg0, u_char arg1) {
+    u8 digitCodes[0x10];
+    u8 stringBuffer[0x10];
+    RECT rect;
+    s32 placeValues[5];
+    s32 available;
+    u8* pImage;
+    u8 visible;
+    u8 shade;
+    u8 didRound;
+    s32 count;
+    s32 i;
+    s32 j;
+    s32 k;
+    s32 digit;
+    s32 value;
+    s32 number;
+    u8 row;
+
+    row = 0;
+    available = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].mp;
+    pImage = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
+    placeValues[0] = 1;
+    placeValues[1] = 10;
+    placeValues[2] = 100;
+    placeValues[3] = 1000;
+    placeValues[4] = 10000;
+    for (i = 4; i >= 0; i--) {
+        digitCodes[i * 2 + 1] = 0;
+    }
+    for (i = 0; i < MENU_PANEL_COLUMN_COUNT; i++) {
+        bzero(digitCodes, 8);
+        visible = 0;
+        switch (arg1) {
+        case 0:
+            if (MenuAndBitMaskMsbFirst(
+                    g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].characterConditionMask,
+                    i) != 0) {
+                visible = 1;
+            }
+            break;
+        case 1:
+            if (MenuAndBitMaskMsbFirst(
+                    g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].gearConditionMask, i) != 0) {
+                visible = 1;
+            }
+            break;
+        case 2:
+            if ((i & 1) == 0) {
+                if (MenuAndBitMaskMsbFirst(
+                        g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].statusFlags, i / 2) != 0) {
+                    visible = 1;
+                }
+            }
+            break;
+        }
+        if (i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
+            visible = 1;
+        }
+        if (visible) {
+            count = MENU_PANEL_MP_DIGIT_COUNT;
+            if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
+                switch (arg1) {
+                case 0:
+                    ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].width = SystemRenderStringEntry(
+                        GetStringEntryFromBank14(g_Menu->pManager->currentCharacterIDs[arg0] * 16 + i), pImage, 0x24, 0);
+                    value = ((MenuEquipmentSlotRecord*)
+                                 g_Menu->pDressingRoom->pCharacterSlots[g_Menu->pManager->currentCharacterIDs[arg0]])[i + 22]
+                                .mpCost;
+                    break;
+                case 1:
+                    ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].width = SystemRenderStringEntry(
+                        GetStringEntryFromBank30(
+                            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId * 16 + i),
+                        pImage, 0x24, 0);
+                    value = ((MenuEquipmentSlotRecord*)
+                                 g_Menu->pDressingRoom->pGearBlocks
+                                     [g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId])[i + 21]
+                                .mpCost;
+                    break;
+                case 2:
+                    ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].width = SystemRenderStringEntry(
+                        GetStringEntryFromBank34(
+                            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId * 4 + i / 2),
+                        pImage, 0x24, 0);
+                    available = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].fuel;
+                    value = ((MenuEquipmentSlotRecord*)
+                                 g_Menu->pDressingRoom->pGearBlocks
+                                     [g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId])[i / 2 + 37]
+                                .fuelCost;
+                    count = 4;
+                    break;
+                }
+            } else if (i == MENU_PANEL_MASKED_COLUMN_COUNT) {
+                if (arg1 != 2) {
+                    value = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].mp;
+                } else {
+                    row = 3;
+                    value = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].fuel;
+                    count = MENU_PANEL_FUEL_DIGIT_COUNT;
+                }
+            } else {
+                value = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].maxMp;
+            }
+            number = value;
+            didRound = 0;
+            for (j = count - 1, k = 0; j > 0; k++, j--) {
+                digit = number / placeValues[j];
+                if (digit != 0 || didRound) {
+                    digitCodes[k * 2] = digit + 0x10;
+                    didRound = 1;
+                    number -= digit * placeValues[j];
+                } else {
+                    digitCodes[k * 2] = 0xC3;
+                }
+            }
+            digitCodes[k * 2] = (number % 10) + 0x10;
+            SystemDecodeGlyphCodesN((u16*)digitCodes, stringBuffer, count);
+            ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].width =
+                SystemRenderStringEntry(stringBuffer, pImage, 0x24, 1);
+            rect.x = (i & 1) * 0x18 + 0x180;
+            rect.y = (i / 2) * 13 + 0x80;
+            rect.w = 0x28;
+            rect.h = 0xD;
+            LoadImage(&rect, pImage);
+            DrawSync(0);
+            shade = 0x80;
+            if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
+                switch (arg1) {
+                case 0:
+                    if (MenuAndBitMaskLsbFirst(
+                            ((u16*)(g_MenuRowDigitTextureIds + 0x44))[g_Menu->pManager->currentCharacterIDs[arg0]],
+                            i) == 0 ||
+                        available < value) {
+                        shade = 0;
+                    }
+                    break;
+                case 1:
+                    shade = 0;
+                    break;
+                case 2:
+                    if (i != 0 || available < value) {
+                        shade = 0;
+                    }
+                    break;
+                }
+            }
+            if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
+                func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[i], i, 0x80, shade | 1);
+                MenuSetQuadVertices(((MenuUnk430Panel*)g_Menu->unk430)->strings[i].vertices, (i % 2) * 0x88 + 0x24,
+                                    (i / 2) * 0x10 + 0x12, ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].width, 0xD);
+            }
+            func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i], i, 0x80, shade | 2);
+            MenuSetQuadVertices(
+                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices,
+                g_MenuEquipmentSlotRowY[MENU_PANEL_VALUE_ROW_Y + i][0],
+                g_MenuEquipmentSlotRowY[MENU_PANEL_VALUE_ROW_Y + MENU_PANEL_COLUMN_COUNT + i][0],
+                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].width, 0xD);
+            ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].renderContext = g_Menu->renderContext;
+            ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].renderContext = g_Menu->renderContext;
+            ((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[i] = shade | 1;
+        } else {
+            ((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[i] = 0;
+        }
+    }
+    HeapFree(pImage);
+    MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds,
+                           g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings10E0, 6, 1, row + 2);
+    MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds,
+                           g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings10E0, 7, 1, row + 2);
+    MenuSetStringTexturePrims(&((MenuUnk430Panel*)g_Menu->unk430)->strings[0x20], arg0, arg1, 1);
+    g_Menu->pManager->shouldRenderPanel[0] = 1;
+}
+*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 /* Best: 97.64%, 1928 bytes (retail 1924 = 481 insns, ours 482). Fills one column of
    the 0x430 panel: renders the column's two heading strings into a scratch buffer,
    uploads them, points the four tail sprite records at them, copies the selected
@@ -579,7 +804,6 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
       that is the one extra instruction.
    Realism owed: `flags = *(u16*)pBase` and `(*pBase & 3)` are raw reads of a prim
    block. The panel itself is typed by MenuUnk430Panel above. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 /*
 void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
     u8* pImage;
