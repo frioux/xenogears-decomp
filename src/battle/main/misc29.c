@@ -682,22 +682,22 @@ extern void BattleFreeSceneResources(void);
 extern void *g_BattleSoundBankMain;
 extern void *g_BattleSceneResources;
 extern u8 g_IsBattle;
-
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
-// 88.41% (576 bytes vs retail's 560). The switch tree, every call and both loops
-// are retail's; what is left is register allocation: retail runs the case loops
-// with only $s0-$s3 (it re-materialises `li v0,21` and `li v0,3` inside the loop)
-// while gcc hoists both constants into $s4/$s3 here and needs two more saves and a
-// 0x38 frame. The tail loop's 3/0xB are materialised straight into the tail block
-// in retail, in the switch tree's delay slots here. Listing case 1 first is
-// required for retail's test order (1, then the slti a0,2 branch, then 0, then 2).
-/*
 extern void BattleStartScreenFade(s32 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4);
 extern void func_800A9FF0(s32 arg0);
-extern void BattleBeginAnimTask(s32 arg0);
-extern void ArchiveReadFileToBuffer(s32 fileIndex, void *pBuffer, u32 arg2, u32 arg3);
+extern void BattleFindAnimationTask(SpriteData *pSprite, s32 arg1, s32 arg2);
 extern void *D_800D39C8;
 
+// 88.41% (576 bytes vs retail's 568 = 142 instructions). Every call, both case
+// loops, the tail loop and the switch tree are retail's; the whole residual is that
+// the two case-loop constants 0x15 and 3 are hoisted out of the loop here: retail
+// materialises them per iteration (li v0,0x15 in the beqz delay slot, li v0,3 before
+// the bottom bne) and runs the loops on $s0-$s3 only, while this compile keeps 0x15
+// in $s4 and 3 in $s3, which costs the two extra saves and the 0x38 frame. Measured
+// dead: for/while/do-while, i<3, two continues instead of the &&, and isolated
+// cc1_probe replicas of the loop (all hoist both constants); -G8 is 88.27 and 2.6.0
+// does not compile it. Listing case 1 first is required for retail's test order
+// (1, then slti a0,2, then 0, then 2).
+/*
 void func_800B853C(s32 mode) {
     BattleOwnedSprites *pOwned;
     BattleRenderState *pWork;
@@ -752,8 +752,10 @@ void func_800B853C(s32 mode) {
     HeapFree(D_800D39C8);
     pWork = (BattleRenderState *)((u8 *)g_BattleStateWork + BATTLE_RENDER_STATE_OFFSET);
     pWork->unkDA8 = 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+
+
 void BattleFreeBattleResources(void) {
     u8 *pStateBase;
     BattleRenderState *pState;
