@@ -607,47 +607,63 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
 
-/* Best: 39.90% (1280 bytes against retail's 1324). First written body, ~90% of the
- * instruction multiset in place; what is left is STRUCTURE, not registers:
- *  - retail's frame is 0x50, ours 0x48: two stack locals too few, i.e. at least one
- *    source local is missing (retail's s5 holds the stream pointer and is then reused
- *    for pData - `addu s5,v0,zero` then `addiu s5,v0,0x24` - so it is ONE variable
- *    reassigned, which is done here, yet a slot is still short).
- *  - retail keeps i in s1 and pSection in s2 concurrently with pHeaders in s3 through
- *    the whole debug block; ours reuses them.
- * Known-good facts about the shape, all read off the .s and already encoded below:
- *  - `if (g_ArchiveDebugTable == 0) goto fail;` INVERTED, with the pData reassignment
- *    landing in the beqz delay slot; the debug body then falls into a shared
- *    `fail: *pSectionOut = 0;` whose label is also the target of every early exit.
- *  - The debug path and the fail path both continue into the section SEARCH loop
- *    (retail L80029378), and the loop's bound is nSections (the stream-file header
- *    count), while the success test compares i against g_ArchiveStreamSectionCount -
- *    two different counters, exactly as in func_80028B14's non-debug scan.
- *  - The `seek` block is shared by three call sites (scratch[0] == 1 twice, and
- *    `pSection->size < g_ArchiveDebugStreamBlockCount`), the last of which passes -0x28 or -0x20 depending
- *    on g_ArchiveCdMode & 8; retail then stores 0 through pSectionOut and jumps PAST
- *    the shared fail store.
- *  - g_ArchiveDebugStreamSector / g_ArchiveDebugStreamPayload / g_ArchiveDebugStreamBlockCount (s16) / D_8005A4B8 are the debug stream's
- *    per-sector state and have no symbols yet; they are splat-owned data labels, so a
- *    struct view has to be declared here rather than defined.
+/* Best: 82.12% (1296 bytes against retail's 1324, so 7 instructions are still
+ * missing). Rebuilt from the .s in address order; the block layout, every branch
+ * target and the whole debug-stream state machine now match. What is left is
+ * REGISTERS plus two block-order details, no longer structure:
+ *  - the callee-saved mapping. Retail: fp=pDataOut, s7=pSectionOut, s6=nSections,
+ *    s5=pData, s4=nOffset, s3=pHeaders, s2=pSection, s1=i, s0=pScratch. Ours hands
+ *    out the same nine values but shifted (s8=pDataOut, s4=pSectionOut, s7=nSections,
+ *    s6=pData, s5=nOffset, s3=pHeaders, s2=i, s1=pSection). Two declaration orders
+ *    measured no better; this is a global_alloc priority ordering, not a shape.
+ *  - retail's frame is 0x50 where ours is 0x48: 8 bytes of source locals that emit
+ *    no store at all (nothing is ever written below 0x28(sp) in retail). An unused
+ *    local is the lever, but only once the registers above are settled, because it
+ *    moves the whole save set.
+ *  - the three PClseek sites. Retail has ONE jal PClseek at 0x8002924C reached by
+ *    fall-through from the 0x918 site and by a j from each of the -0x28/-0x20 arms,
+ *    and each arm re-loads lui a0 / lw a0 of g_ArchiveDebugFileHandle before its j.
+ *    That is -fcross-jumping merging three separate PClseek calls each followed by
+ *    *pSectionOut = 0 and a jump to the search, which is what the body below writes;
+ *    ours merges them too but places the merged block EARLY and hoists the handle
+ *    load, giving bne where retail has beq. Do not go back to a single shared seek:
+ *    label with an nSeek local: that shape measures 79.99% and puts nSeek in a
+ *    callee-saved register.
+ *  - addu v0,s4,v0 / move s0,v0 at the sector-buffer computation: retail carries
+ *    the sum in a caller-saved temp and copies it into s0, ours assigns s0 directly,
+ *    i.e. retail's source had a second variable for the same pointer.
+ *
+ * Shape notes that are already encoded below and are load-bearing:
+ *  - the debug-stream section count is tested for zero first, with the
+ *    scan-and-split path inline and the read-more path out of line.
+ *  - the section scan is a for over g_ArchiveStreamSectionCount with pSection->size
+ *    in the increment, and the global read in the for-condition (cse plus loop.c then
+ *    emit retail's preheader copy move a1,v1), followed by a SECOND
+ *    i >= g_ArchiveStreamSectionCount test that re-loads the global.
+ *  - the seek-retry checks are two independent mode-8 blocks, each with its own
+ *    pScratch = g_ArchiveSectorScratch local (one pointer reused for the sector
+ *    buffer later, which is why retail keeps it in s0).
+ *  - g_ArchiveDebugStreamSectionCount is s16 in the == 0 test (lh) but the two
+ *    increments assemble as lhu + addiu + sh, and the wrap test sign-extends the
+ *    incremented value (sll 16 / sra 16). No single extern type produces both, so
+ *    the type is still open.
  *
  * s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
+ *     s32 i;
  *     ArchiveStreamFileSectionHeader* pSection;
  *     ArchiveStreamFileSectionHeader* pHeaders;
  *     u8* pData;
- *     u8* pSector;
+ *     u8* pScratch;
  *     s32 nSections;
+ *     s32 nBlockCount;
  *     s32 nOffset;
- *     s32 nIndex;
- *     s32 nSeek;
  *     s32 nRemaining;
- *     s32 i;
  *
  *     if (g_ArchiveCurStreamFile == NULL) {
  *         return 1;
  *     }
- *
  *     pData = g_ArchiveCurStreamFile;
+ *
  *     pHeaders = (ArchiveStreamFileSectionHeader*)(pData + 4);
  *     nSections = *(s32*)pData;
  *     pData = pData + nSections * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
@@ -655,50 +671,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *     if (g_ArchiveDebugTable == 0) {
  *         goto fail;
  *     }
- *     {
- *         if (g_ArchiveDebugFileHandle == -1) {
- *             goto fail;
- *         }
- *         if (g_ArchiveCurFileSize <= 0) {
- *             goto fail;
- *         }
+ *     if (g_ArchiveDebugFileHandle == -1) {
+ *         goto fail;
+ *     }
+ *     if (g_ArchiveCurFileSize <= 0) {
+ *         goto fail;
+ *     }
  *
- *         if (g_ArchiveDebugStreamSectionCount != 0) {
- *             if (g_ArchiveCdMode[0] & 8) {
- *                 PCread(g_ArchiveDebugFileHandle, (char*)g_ArchiveSectorScratch, 8);
- *                 if (g_ArchiveSectorScratch[0] == 1) {
- *                     nSeek = 0x918;
- *                     goto seek;
- *                 }
- *             }
- *
- *             nIndex = g_ArchiveStreamQueueIndex + 1;
- *             pSection = (ArchiveStreamFileSectionHeader*)(nIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
- *             g_ArchiveStreamQueueIndex = nIndex;
- *             pSection->state = ARCHIVE_STREAM_FILE_READY;
- *             pSection->id = g_ArchiveStreamNextSectionId;
- *             g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
- *             PCread(g_ArchiveDebugFileHandle, (char*)(g_ArchiveDebugStreamSector + g_ArchiveDebugStreamSectionCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
- *             PCread(g_ArchiveDebugFileHandle, (char*)(g_ArchiveDebugStreamPayload + g_ArchiveDebugStreamSectionCount * (CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE)), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
- *             if (g_ArchiveCdMode[0] & 8) {
- *                 PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
- *             }
- *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
- *             g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
- *             if (g_ArchiveDebugStreamSectionCount >= g_ArchiveDebugStreamBlockCount) {
- *                 g_ArchiveDebugStreamSectionCount = 0;
- *             }
- *             *pSectionOut = 0;
- *             goto search;
- *         }
- *
- *         i = 0;
- *         while (i < g_ArchiveStreamSectionCount) {
- *             pSection = (ArchiveStreamFileSectionHeader*)(i * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+ *     if (g_ArchiveDebugStreamSectionCount == 0) {
+ *         for (i = 0; i < g_ArchiveStreamSectionCount; i += pSection->size) {
+ *             pSection = g_ArchiveStreamSections + i;
  *             if (pSection->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
  *                 break;
  *             }
- *             i += pSection->size;
  *         }
  *         if (i >= g_ArchiveStreamSectionCount) {
  *             goto fail;
@@ -706,54 +691,81 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *
  *         nOffset = i * CD_SECTOR_SIZE;
  *         if (g_ArchiveCdMode[0] & 8) {
- *             PCread(g_ArchiveDebugFileHandle, (char*)g_ArchiveSectorScratch, 8);
- *             if (g_ArchiveSectorScratch[0] == 1) {
- *                 nSeek = 0x918;
- *                 goto seek;
+ *             pScratch = g_ArchiveSectorScratch;
+ *             PCread(g_ArchiveDebugFileHandle, pScratch, 8);
+ *             if (pScratch[0] == 1) {
+ *                 PClseek(g_ArchiveDebugFileHandle, 0x918, 1);
+ *                 *pSectionOut = 0;
+ *                 goto search;
  *             }
  *         }
  *
- *         pSector = (u8*)(nOffset + (mem_addr)g_ArchiveStreamWritePointer);
- *         g_ArchiveDebugStreamSector = (s32)pSector;
- *         PCread(g_ArchiveDebugFileHandle, (char*)pSector, ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
- *         g_ArchiveDebugStreamBlockCount = *(u16*)(pSector + 6);
- *         D_8005A4B8 = *(u16*)(pSector + 8);
+ *         pScratch = (u8*)(nOffset + g_ArchiveStreamWritePointer);
+ *         g_ArchiveDebugStreamSector = (s32)pScratch;
+ *         PCread(g_ArchiveDebugFileHandle, pScratch, ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *         g_ArchiveDebugStreamBlockCount = *(u16*)(pScratch + 6);
+ *         D_8005A4B8 = *(u16*)(pScratch + 8);
  *
  *         if (pSection->size < g_ArchiveDebugStreamBlockCount) {
  *             if (g_ArchiveCdMode[0] & 8) {
- *                 nSeek = -0x28;
+ *                 PClseek(g_ArchiveDebugFileHandle, -0x28, 1);
  *             } else {
- *                 nSeek = -0x20;
+ *                 PClseek(g_ArchiveDebugFileHandle, -0x20, 1);
  *             }
- *             goto seek;
+ *             *pSectionOut = 0;
+ *             goto search;
  *         }
  *
  *         pSection->state = ARCHIVE_STREAM_FILE_READY;
  *         pSection->id = g_ArchiveStreamNextSectionId;
- *         nRemaining = pSection->size - g_ArchiveDebugStreamBlockCount;
+ *         nBlockCount = g_ArchiveDebugStreamBlockCount;
+ *         nRemaining = pSection->size - nBlockCount;
  *         if (nRemaining >= 3) {
- *             pSection->size = g_ArchiveDebugStreamBlockCount + 1;
- *             pSection[g_ArchiveDebugStreamBlockCount + 1].size = nRemaining - 1;
- *             pSection[g_ArchiveDebugStreamBlockCount + 1].state = ARCHIVE_STREAM_FILE_NOT_LOADED;
- *             ArchiveConsolidateStreamFileEntry(g_ArchiveDebugStreamBlockCount + 1);
+ *             pSection->size = nBlockCount + 1;
+ *             pSection[nBlockCount + 1].size = nRemaining - 1;
+ *             pSection[nBlockCount + 1].state = ARCHIVE_STREAM_FILE_NOT_LOADED;
+ *             ArchiveConsolidateStreamFileEntry(nBlockCount + 1);
  *         }
  *
  *         g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
- *         g_ArchiveDebugStreamPayload = nOffset + (mem_addr)g_ArchiveStreamWritePointer + g_ArchiveDebugStreamBlockCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE;
- *         PCread(g_ArchiveDebugFileHandle, (char*)g_ArchiveDebugStreamPayload, CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *         g_ArchiveDebugStreamPayload = nOffset + g_ArchiveStreamWritePointer + g_ArchiveDebugStreamBlockCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE;
+ *         PCread(g_ArchiveDebugFileHandle, (u8*)g_ArchiveDebugStreamPayload, CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
  *         if (g_ArchiveCdMode[0] & 8) {
  *             PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
  *         }
  *         g_ArchiveStreamQueueIndex = i;
  *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
  *         g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
- *         *pSectionOut = 0;
- *         goto search;
  *
- *     seek:
- *         PClseek(g_ArchiveDebugFileHandle, nSeek, 1);
  *         *pSectionOut = 0;
  *         goto search;
+ *     }
+ *
+ *     if (g_ArchiveCdMode[0] & 8) {
+ *         pScratch = g_ArchiveSectorScratch;
+ *         PCread(g_ArchiveDebugFileHandle, pScratch, 8);
+ *         if (pScratch[0] == 1) {
+ *             PClseek(g_ArchiveDebugFileHandle, 0x918, 1);
+ *             *pSectionOut = 0;
+ *             goto search;
+ *         }
+ *     }
+ *
+ *     i = g_ArchiveStreamQueueIndex + 1;
+ *     pSection = g_ArchiveStreamSections + i;
+ *     g_ArchiveStreamQueueIndex = i;
+ *     pSection->state = ARCHIVE_STREAM_FILE_READY;
+ *     pSection->id = g_ArchiveStreamNextSectionId;
+ *     g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
+ *     PCread(g_ArchiveDebugFileHandle, (u8*)(g_ArchiveDebugStreamSectionCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE + g_ArchiveDebugStreamSector), ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *     PCread(g_ArchiveDebugFileHandle, (u8*)(g_ArchiveDebugStreamSectionCount * (CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE) + g_ArchiveDebugStreamPayload), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *     if (g_ArchiveCdMode[0] & 8) {
+ *         PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
+ *     }
+ *     g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *     g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
+ *     if (g_ArchiveDebugStreamSectionCount >= g_ArchiveDebugStreamBlockCount) {
+ *         g_ArchiveDebugStreamSectionCount = 0;
  *     }
  *
  * fail:
@@ -765,7 +777,6 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *             break;
  *         }
  *     }
- *
  *     if (i == g_ArchiveStreamSectionCount) {
  *         return 1;
  *     }
