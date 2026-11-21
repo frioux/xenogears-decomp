@@ -190,6 +190,23 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
    6 declaration orders, for-init comma assignment, rowBase local, while-form
    second loop, and `s32 slotOffset = arg0 * 0x170` (fixes the chain position
    but costs a stack slot, 892 bytes).
+   ROUND 372: re-measured, still 99.13% at 880 bytes / 220 instructions, and the
+   residual is exactly the two ties above. Declaring `s32 cursor;` FIRST, before the
+   codes/damage arrays, does NOT move the s2/s3 pair (same 99.13, same 880 bytes,
+   same diff), so that one is an allocno-priority tie rather than declaration order.
+   The permuter (2 runs, 1249 + 1350 iterations) then closed the row-offset tie:
+   hoisting the constant 0x25 into a local (`s32 firstRow;`) before the damage store
+   makes the strength-reduced row biv start at retail's 0x5C8 instead of 0, and the
+   base becomes g_BattleActionRows+0x24 instead of +0x5EC. The body below is that
+   find, 99.40% at 880 bytes: what is left is (a) that read spelled
+   `lhu v0,36(at)` off g_BattleActionRows where retail names D_800CEF34 with
+   displacement 0 (same address, so the RELOC case - it can never read 100 in
+   objdiff), (b) the `addu v0,s5,v0` operand order (we emit v0,v0,s5; neither the
+   offset-first C order nor a rowBase local moves it), and (c) the s2/s3 pair.
+   The next permuter run from this body found only base 130 -> 120 (a `new_var = 0`
+   for the first BattleInitSlotGraphics argument and dropping the do/while wrapper),
+   not ported. `firstRow` should become a named constant (the first action row) if
+   this body is ever finished.
 */
 /*
 u8 func_8008CFB8(u8 arg0) {
@@ -199,6 +216,7 @@ u8 func_8008CFB8(u8 arg0) {
     s32 cursorFrame;
     u8 cursorTimer;
     s32 lastCursor;
+    s32 firstRow;
     u8 limit;
     u8 state;
     s32 cursor;
@@ -221,7 +239,8 @@ u8 func_8008CFB8(u8 arg0) {
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].statusFlags, i) != 0 &&
             (g_BattleSlotStatusRows[arg0].flags & statusMasks[i]) == 0) {
             codes[i] = g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i;
-            damage[i] = *(u16 *)(g_BattleActionRows + arg0 * 0x690 + (0x25 + i) * 0x28 + 0x24);
+            firstRow = 0x25;
+            damage[i] = *(u16 *)((firstRow + i) * 0x28 + arg0 * 0x690 + g_BattleActionRows + 0x24);
         }
     }
     g_BattleDisplayState->primListsPending = 0;
@@ -271,6 +290,7 @@ u8 func_8008CFB8(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 /* 96.12% (620 bytes against retail's 624). The address ASSOCIATION of the
    u16 |= store is the lever: written offset-chain first and gfx base last,
@@ -279,6 +299,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
    park let cse hoist `gfx + j*0xFA0` into one register and cost 2 instructions
    (93.85 with that body). Everything else is matched: both guards, the two SetX
    calls, the three byte stores and the loop tails.
+   ROUND 372: re-measured, still 96.12% at 620 bytes against retail's 624. Three
+   measurements: (a) spelling the c load AND the three sb stores offset-first
+   ('(i + primStart) * 0x28 + j * 0xFA0 + gfx + 0x6420', the form the u16 |= above
+   needs) is much worse - 90.51% / 632 bytes - so only the |= store keeps that form;
+   (b) the instruction we are short is the store group's address sum: retail
+   re-computes `addu v1,s1,a1 / addu v1,a0,v1` inside the if, we keep the c load's
+   whole address in v1 and reuse it across the branch, which is a cse decision;
+   (c) the loop also carries one DEAD instruction, the inner back-branch delay slot
+   is retail's nop and ours a rotated `li a1,0x1` (the SetSemiTrans constant), so
+   this body is one live instruction short and one dead one long.
    Left, both allocator/cse ties: retail re-forms `s1 + base` in the 0x6420
    load's beqz delay slot and reuses the chain (a0) for the following store, and
    the inner back-branch delay slot holds a nop where we steal `li a1,1`.
@@ -455,6 +485,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
    EXACT register assignment - a1=left, t0=bottom, a0=right, a3=half, a2=top - for
    94.88% at 1600 bytes, so the values-as-locals structure is right and only their
    placement is wrong. `-O1` removes the hoist but rewrites everything else (77.44).
+   ROUND 372: re-measured, still 98.39% at retail's exact 1600 bytes; the residual is
+   only the order of the first two stores (retail emits the x0 `sh a1,488` before
+   y0's `addu a2,a2,v1 / addiu t0,a2,-8 / sh t0,490`, the body below emits them
+   swapped). Listing x0 first is retail's own order but measures worse, 98.20: the
+   y0 value's `lw a0,48(sp) / addu a2,a2,a0` then hoists ABOVE the x0 store and
+   `left` hoists above the g_BattlePrimStartIndex load (position 4; retail has 9)
+   with the a3 mask following it - three displacements instead of two. So y0-first
+   stays. The sibling row builder func_8008EA70 closed at 100.00 this round with an
+   s32 `left` local + embedded assignment, which is the only shape that makes cc1
+   emit retail's 32-bit `li/li a0,0xfff8 / addu` instead of `addiu -8`; the `left`
+   here is already that shape and its placement is exact.
 */
 /*
 void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
@@ -501,38 +542,26 @@ void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008EA70);
-/* 98.59% (1588 bytes against retail's 1592). Two differences, both in the note above:
-   retail computes each store's value inside that store's block where we hoist it, and
-   retail materialises the left edge as `ori $a0,0xFFF8` + `addu` (a 32-bit add) where
-   every spelling of `arg1 - 8` / `arg1 + 0xFFF8` folds to `addiu -8` - that fold is
-   why this body is one instruction short of retail's 1592. With `arg2 + 8` written
-   inline in every y store instead of through `top` the body is retail's exact 1592
-   bytes at 97.89%: the `top` local is what puts the y values in $a2 in place (retail's
-   `addu a2,a2,a3` twice) and it is worth +0.7%.
-   Row 2 is the vertical twin of row 1: x spans arg1 - 8..arg1 + 8 and arg3 is the
-   HEIGHT, split down the two stacked quads.
-*/
-/*
 void func_8008EA70(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     BattleSlotGraphics *p;
+    s32 left;
     s32 top;
     s32 i;
 
     p = g_BattleSlotGraphics[arg0];
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x0 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x0 = (left = arg1 + 0xFFF8);
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y0 = (top = arg2 + 8);
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x1 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y1 = top;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x2 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x2 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y2 = top + (arg3 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->x3 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[2])->y3 = top + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x0 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x0 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y0 = top + (arg3 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x1 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y1 = top + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x2 = arg1 + 0xFFF8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x2 = left;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y2 = top + (arg3 - 16) / 2 + (arg3 - 16) / 2;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->x3 = arg1 + 8;
     *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[2] + 2))->y3 = top + (arg3 - 16) / 2 + (arg3 - 16) / 2;
@@ -556,8 +585,6 @@ void func_8008EA70(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
         BattleSetPrimGrey80BlendModeFromGlobal(&p->tilePrims[2][g_BattlePrimStartIndex + i * 2]);
     }
 }
-*/
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F0A8);
 /* 80.42% (1596 bytes against retail's 1600) with today's headers. Row 3 is the
    vertical twin of row 2 shifted to the right end of arg1..arg1 + arg3: retail hoists
