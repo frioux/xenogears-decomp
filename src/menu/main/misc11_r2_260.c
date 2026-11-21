@@ -267,89 +267,84 @@ extern u16 g_SystemPalette1;
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
-/* Best: 94.90% under gcc 2.6.0 at retail's EXACT 672 bytes (168 instructions).
-   Re-measured in round 335 (un-parked, compiled clean).  Four finds this round
-   took the old 89.50% / 668-byte park to 94.90:
-   (1) THE MISSING INSTRUCTION was the count term's constant being folded into
-       the slot offset.  Retail keeps the resource prim address as
-       "addiu v0,s2,0xA98; addu v0,v0,t1" plus "addiu a2,a2,0x50" on the count
-       product; writing the address as pPrimBuffer + (offset + sizeof(MenuSlotQuads))
-       + (count * 0x50 + 0x50) INLINE (no temporary for the count term - a
-       "s32 primSize" local makes gcc put the count term in the base register
-       and swaps the two) reproduces it and is 672 bytes again.
-   (2) THE TWO CALL BLOCKS NEED 0x820 IN A LOCAL.  With the literal, gcc folds
-       the 0x820 into the base sum ("addu a0,s5,a0; addiu a0,a0,2080") instead of
-       onto the renderContext*0x28 product ("sll;addu;sll;addiu 2080;addu a0,v1,a0").
-       "ctxPrimsOffset = 0x820;" assigned just before each call and used as the
-       addend stops the fold, at no instruction cost (92.16 -> 94.90).
-   (3) The base must be the LEFT operand: (primOffset + (u32)g_Menu->pPrimBuffer)
-       + (g_Menu->renderContext * 0x28 + ctxPrimsOffset).  Product-first makes
-       gcc put the product in $v1 and the base in $a0, so the vertices call's
-       "addu a0,v1,a0" comes out the other way round.
-   (4) textureX: retail reads g_MenuSlotNameTextureX[j] with "lw" and shifts it
-       late, which no inline spelling reaches (the u_char u parameter narrows the
-       load to "lbu").  "textureX = g_MenuSlotNameTextureX[j];" as its own
-       statement before the call, passed as (textureX << 2) & 0xFC, is the
-       idiom the matched menu/main/misc4_260 and menu/main/misc6.c callers use
-       and it reproduces retail's "lw a3 / sll a3,0x2" exactly.
-   WHAT IS LEFT - one allocator tie, 7 instructions, byte count exact: retail
-   keeps primOffset in $s4 and the j*4 giv in $s5, ours has them swapped
-   ($s4 = j*4, $s5 = primOffset), which shows up as the prologue inits
-   ("li s4,0xa98" vs "move s4,zero"), the two "addu v1,sN,v1" base sums, the two
-   "addu at,at,sN" texture-table indexes, "addiu sN,sN,4" and the loop-tail
-   "addiu sN,sN,2172".  Both givs have two uses and the increments are in the
-   same order in both compiles, so this is global.c's priority tie
-   (floor_log2(refs)*refs/live_length: primOffset's live range is the longer one
-   here, which is why it lands in the higher register).  Measured dead: all 24
-   local declaration orders (no effect), removing primOffset and spelling
-   offset + sizeof(MenuSlotQuads) at both call sites (656 bytes - gcc derives no
-   biv), swapping primOffset/offset in the for-init, and three permuter runs
-   (base 2035 -> 1410 -> 910 -> 710; its finds are (1)-(2) above; it has not
-   touched the $s4/$s5 tie).
-   (5) 2.7.2 is not an option for this unit (loop.c, see MenuInitializeCellQuadPrims).
-   The body below is the 94.90% one.
+/*
+   Best: 97.58% under gcc 2.6.0 at retail's EXACT 672 bytes (168 instructions).
+   Retail's size, from the symbol table: the next symbol MenuAllocatePrimBuffer
+   is at 0x801E6450, so this function is 0x2A0 (the .size directive in the stub
+   .s stops one instruction early, at 0x29C). Round 378 unparked the old 94.90
+   body, closed most of the gap with one find, and measured the rest dead.
+   THE REMAINING DIFF IS TWO INSTRUCTIONS: where the loop's own initialiser is
+   emitted. Retail's preheader order is
+     [hoisted g_MenuSlotResourceIds base] [giv init j*0x50] [giv init j*4]
+     [giv init primOffset = 0xA98] [biv init offset = 0]
+   and ours always emits offset's init FIRST, ahead of the hoisted base, so
+   "sw s2,40(sp) / move s2,zero" sits at the top instead of at the bottom. The
+   s4/s5 register tie the older note blamed is a CONSEQUENCE of that order: the
+   save is emitted before a register's first definition, and the emission order
+   is the luid order, which decides live_length, which decides the register.
+   (1) THE FIND: primOffset's initialiser has to be a GIV INIT, so the value
+   must be derived from j inside the body. primOffset = j * MENU_SLOT_PRIM_STRIDE
+   + sizeof(MenuSlotQuads) as the first statement of the loop body (strength
+   reduction turns it into the same accumulator, no extra instruction) went
+   94.90 -> 97.58 at the same 672 bytes: "li s4,0xA98" is then emitted in the
+   giv group after the two j givs, which is retail's order, and $s4/$s5 land as
+   retail has them.
+   (2) The other 94.90 find is unchanged: ctxPrimsOffset = 0x820 must be a local
+   assigned just before each call, or gcc folds 0x820 into the base sum.
+   WHAT IS LEFT: offset's own init. Measured dead on this body: for / while /
+   guard-plus-do-while / for(;;) plus break / do-while / goto-dispatch (692
+   bytes) / offset initialised as a statement before the loop / offset
+   initialised from the giv / j initialised as its own statement before an
+   empty for-init / u32 primOffset / an explicit j4 biv for the texture-Y index
+   (688 bytes) / both accumulators as givs with the test on j * STRIDE (668
+   bytes, loses the primOffset accumulator) / 12 declaration orders, which
+   change nothing. A 2060-iteration permuter run from the 94.90 body found
+   nothing (base=710 best=710). Retail's offset init lands after the giv inits,
+   ie offset's init is not in the loop's entry block either; no source shape
+   tried made gcc emit a biv initialiser after loop.c's preheader insertions.
+   The body below is the 97.58 one.
+void func_801E61B0(void) {
+    s32 i;
+    s32 j;
+    s32 offset;
+    s32 primOffset;
+    s32 textureX;
+    s32 ctxPrimsOffset;
+    u8 count;
 
-   void func_801E61B0(void) {
-       s32 i;
-       s32 j;
-       s32 offset;
-       s32 primOffset;
-       s32 textureX;
-       s32 ctxPrimsOffset;
-       u8 count;
-
-       for (j = 0, offset = 0, primOffset = sizeof(MenuSlotQuads); offset < 0x1974;
-            j++, offset += MENU_SLOT_PRIM_STRIDE, primOffset += MENU_SLOT_PRIM_STRIDE) {
-           ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] = 0;
-           for (i = 0; i < 9; i++) {
-               if (g_MenuSlotResourceIds[i] != 0xFFFF) {
-                   count = ((u8*)g_Menu->pPrimBuffer + offset)[0x1312];
-                   ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] +=
-                       func_8002675C(g_Menu->resources, g_MenuSlotResourceIds[i],
-                                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer +
-                                                 (offset + sizeof(MenuSlotQuads)) +
-                                                 (count * 0x50 + 0x50)),
-                                     g_Menu->renderContext, j * 0x50 + g_MenuSlotResourceXs[i],
-                                     g_MenuSlotResourceYs[i], 0x1000);
-               }
-           }
-           ctxPrimsOffset = 0x820;
-           ((u8*)g_Menu->pPrimBuffer + offset)[0x130E] = (u_char)g_Menu->renderContext;
-           MenuInitializePolyFt4((POLY_FT4*)((primOffset + (u32)g_Menu->pPrimBuffer) +
-                                             (g_Menu->renderContext * 0x28 + ctxPrimsOffset)));
-           *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12CE) =
-               GetTPage(0, 0, 0x180, 0);
-           *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12C6) =
-               g_SystemPalette1;
-           textureX = g_MenuSlotNameTextureX[j];
-           ctxPrimsOffset = 0x820;
-           MenuSetFt4QuadVertices((POLY_FT4*)((primOffset + (u32)g_Menu->pPrimBuffer) +
-                                             (g_Menu->renderContext * 0x28 + ctxPrimsOffset)),
-                                  *(u16*)g_MenuSlotResourceXs + j * 0x50, *(u16*)g_MenuSlotResourceYs + 7,
-                                  (textureX << 2) & 0xFC, g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
-           ((u8*)g_Menu->pPrimBuffer + offset)[0x1311] = (u_char)g_Menu->renderContext;
-       }
-   }
+    for (j = 0, offset = 0; offset < 0x1974; j++, offset += MENU_SLOT_PRIM_STRIDE) {
+        primOffset = j * MENU_SLOT_PRIM_STRIDE + sizeof(MenuSlotQuads);
+        ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] = 0;
+        for (i = 0; i < 9; i++) {
+            if (g_MenuSlotResourceIds[i] != 0xFFFF) {
+                count = ((u8*)g_Menu->pPrimBuffer + offset)[0x1312];
+                ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] +=
+                    func_8002675C(g_Menu->resources, g_MenuSlotResourceIds[i],
+                                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer +
+                                              (offset + sizeof(MenuSlotQuads)) +
+                                              (count * 0x50 + 0x50)),
+                                  g_Menu->renderContext, j * 0x50 + g_MenuSlotResourceXs[i],
+                                  g_MenuSlotResourceYs[i], 0x1000);
+            }
+        }
+        ctxPrimsOffset = 0x820;
+        ((u8*)g_Menu->pPrimBuffer + offset)[0x130E] = (u_char)g_Menu->renderContext;
+        MenuInitializePolyFt4((POLY_FT4*)((primOffset + (u32)g_Menu->pPrimBuffer) +
+                                          (g_Menu->renderContext * 0x28 + ctxPrimsOffset)));
+        *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12CE) =
+            GetTPage(0, 0, 0x180, 0);
+        *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12C6) =
+            g_SystemPalette1;
+        textureX = g_MenuSlotNameTextureX[j];
+        ctxPrimsOffset = 0x820;
+        MenuSetFt4QuadVertices((POLY_FT4*)((primOffset + (u32)g_Menu->pPrimBuffer) +
+                                          (g_Menu->renderContext * 0x28 + ctxPrimsOffset)),
+                               *(u16*)g_MenuSlotResourceXs + j * 0x50,
+                               *(u16*)g_MenuSlotResourceYs + 7, (textureX << 2) & 0xFC,
+                               g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
+        ((u8*)g_Menu->pPrimBuffer + offset)[0x1311] = (u_char)g_Menu->renderContext;
+    }
+}
 */
 void MenuAllocatePrimBuffer(void) {
     void* pMem;
