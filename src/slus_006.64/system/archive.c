@@ -25,7 +25,7 @@ extern s16 g_ArchiveDebugStreamSectionCount;
 extern s32 g_ArchiveReadRetryCount;
 extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
-extern void func_8002B5D0();
+extern void func_8002B5D0(u_char status);
 extern void ArchiveStreamLoadSection(s32 unused, s32 nQueueIndex);
 extern void ArchiveImageStreamSectorCallback();
 extern void ArchiveImageStreamProcessSector();
@@ -1139,49 +1139,46 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
-/* Best attempt: objdiff 97.47% at retail's exact 736 bytes, instruction multiset
- * identical. The ONLY remaining delta is a stolen branch-delay slot: retail's
- * `beq v0,v1,\n li v0,0x1` against ours `beq ...\n li a1,0x200` (sched2 orders the
- * state constant after the CdGetSector size constant, so reorg steals the wrong
- * one, and the `sll a0,s2,0xb` lands after the wp load instead of before the sh).
- * func_8002B2F0 is instruction-identical to this function (diffed modulo addresses),
- * so a body that closes this one closes that one too.
+/* Parked: objdiff 97.47%, 736 bytes (retail's exact size), instruction multiset
+ * identical, 184 vs 184 insns. Three delta rows: one in the scan loop and two in
+ * the found-block after CdPosToInt, all of them sched2/local_alloc's choice.
+ * func_8002B2F0 is instruction-identical to this function, so one body closes both.
  *
- * Shapes that got here from 91.80%:
- *  - `entryIndex = g_ArchiveStreamQueueIndex++;` (not two statements) is what makes
- *    gcc copy the loaded index to the saved register retail uses;
- *  - the two id-counter reads must BOTH be volatile or cse merges them, and with the
- *    volatile-id-read stated FIRST the register rotation comes out retail's
- *    (a2 = stored id, a0 = shift, v1 = write pointer);
- *  - the write-pointer read must be volatile or sched2 hoists the load above the
- *    state store and maspsx then inserts a load-delay nop (+4 bytes).
- * Measured and rejected (all with the rest fixed): state and id statements swapped
- * 97.47 (same two rows); id read plain / increment volatile 96.48; both reads plain
- * with the volatile wp read only 96.48; non-volatile wp read 96.81 / 740 bytes;
- * `pCurrent = &g_ArchiveStreamSections[entryIndex]` 97.00 (base-first addu);
- * `pCurrent = NULL;` before the loop 93.83; local sector-offset or pointer local for
- * the CdGetSector argument 96.48-96.67 (gcc folds them back);
- * gcc-2.7.2-cdk 95.67, -O3 82.52; gcc-2.6.0 -O2 -G8 compiles the body today and
- * scores the same 97.47, so the preset is not the answer.
- * Round 304 re-measured, all at 97.47 / 736 unless stated: `nOffset` local for the
- * sector offset (plain and assigned just before the id reads), `do { pCurrent->state
- * = 1; } while (0)` around the state store, the queue index as two statements
- * (`entryIndex = g_ArchiveStreamQueueIndex;` + store of `entryIndex + 1`), state
- * store made volatile 96.67, plain (non-volatile) id reads 96.40 / 732 bytes. The
- * permuter cannot run this body: its C parser rejects `*(s8* volatile*)&g_...`
- * ('conversion to non-scalar type requested'), so it needs a re-spelled wp read
- * first. Where the tie lives: the delay slot holds the FIRST insn sched2 scheduled
- * in the arm, so it is rank_for_schedule's tie-break between `li v0,0x1` (feeds the
- * `sh`) and `li a1,0x200` (feeds the `jal`) - source statement order does not reach
- * it, and once `li v0,0x1` goes first the `sll` fills the `lhu a2` delay slot by
- * itself. The loop copy (`addiu v1,v0,1` before `move s2,v0`; retail after) is the
- * same class: local_alloc coalesced the load with the add instead of the copy.
- * The `if (pCurrent) {...} else {...}` tail is NOT a realistic source shape: it is
- * the permuter's find, it duplicates the cleanup arm, and it only works because
- * pCurrent is read uninitialised when the search loop is skipped (retail's asm reads
- * the raw register there too). It is worth 93.83 -> 97.47 on its own through the
- * register allocation, so whoever finishes this function should keep it in mind but
- * prefer an initialised spelling if one ever measures the same.
+ *  1. The beq on the CdPosToInt result: retail puts `li v0,0x1` (the state value)
+ *     in the delay slot, we put `li a1,0x200` (the CdGetSector size). The then-block
+ *     is the branch target's only predecessor, so reorg fills eagerly from its first
+ *     scheduled insn - and ours is the call-argument constant, because it feeds the
+ *     jal which sits on the block's critical path while the state constant only feeds
+ *     a store. rank_for_schedule compares priority first, so source order does not
+ *     reach this one: the dependency graph has to change.
+ *  2. Consequence: `sll a0,s2,0xb` (entryIndex * CD_SECTOR_SIZE) lands in the
+ *     `lw g_ArchiveStreamWritePointer` load slot instead of in `lhu a2`'s.
+ *  3. Loop head: retail `move s2,v0` then `addiu v1,s2,1`, ours `addiu v1,v0,1`
+ *     then the copy (local_alloc coalesced the add with the load temp).
+ *
+ * Measured this round, all at 736 bytes unless stated: volatile state store
+ * (`*(volatile u16*)&pCurrent->state = 1;`, the spelling ArchiveStreamLoadSection
+ * needs) 96.67; a `s8* volatile* pWritePointer` local holding the write pointer's
+ * address 97.47, same rows, and it does NOT make the body permuter-parsable; a u16
+ * id local between the two counter reads 97.47, same rows.
+ * Earlier rounds: `entryIndex = g_ArchiveStreamQueueIndex++;` is what makes the copy
+ * to $s2 exist (two statements: 97.47); both id reads must be volatile or cse merges
+ * them (both plain 96.40 / 732 bytes); the write pointer read must be volatile
+ * (plain 96.81 / 740 bytes - sched2 hoists the load above the state store and maspsx
+ * then inserts a load-delay nop); `pCurrent = &g_ArchiveStreamSections[entryIndex]`
+ * 97.00 (base-first addu); `pCurrent = NULL;` before the scan 93.83; sector-offset
+ * and destination-pointer locals 96.48-96.67 (gcc folds them back); gcc-2.7.2-cdk
+ * 95.67, -O3 82.52, gcc-2.6.0 -O2 -G8 identical 97.47.
+ *
+ * permute.sh cannot run this body: the permuter's C parser rejects it ('conversion
+ * to non-scalar type requested' on the preprocessed body), so a re-spelled write
+ * pointer / id read is a prerequisite for any permuter attempt.
+ *
+ * The `if (pCurrent) {...} else {...}` tail duplicates the cleanup arm and reads
+ * pCurrent uninitialised when the scan loop never runs - retail's asm does the same
+ * (it loads 0($s1) with $s1 never set at .L8002B6C4), so the original source had
+ * that bug too. This shape is worth 93.83 -> 97.47 through register allocation
+ * alone; prefer an initialised spelling if one ever measures the same.
  *
  * void func_8002B5D0(u_char status) {
  *     int entryIndex;
