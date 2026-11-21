@@ -46,12 +46,19 @@ extern u16 g_MenuInventoryScrollStep;
 extern u8 g_MenuPanelRowXOffsets[];
 extern u8 g_MenuColumnRowStringIds[];
 extern u8 D_801E9785;
-extern u8 g_MenuRowDigitTextureIds[]; // u8 [13][5] texture ids, then the per-character column masks at +0x44
+extern u8 g_MenuRowDigitTextureIds[]; // u8 [13][5] texture ids; the per-character column masks follow it
+// One 16-bit column mask per character: column i of a character is drawn in the
+// ink colour unless its bit is clear.
+extern u16 D_801E97F0[];
 extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
 extern u16 D_801E97A0[][2];
 extern u8 g_ShopIndex;
 extern u16 g_MenuEquipmentSlotRowY[][2];
+// The value rows of the two quad groups of the 0x430 panel, one 0x38-byte array per
+// group (14 columns each), right after g_MenuEquipmentSlotRowY's own 8 rows.
+extern u16 D_801E9DDC[][2];
+extern u16 D_801E9E14[][2];
 
 // 0x1094-byte item panel buffer built by MenuCreateUnk430Panel: one MenuString
 // sprite record per column, then the column heading string list and one flag per
@@ -568,7 +575,6 @@ void MenuFreeUnk430Panel(u_char arg0) {
 #define MENU_PANEL_MP_DIGIT_COUNT 2
 #define MENU_PANEL_FUEL_DIGIT_COUNT 5
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 /* Best: 97.28% (2684 bytes; retail is 2696 = 674 insns, ours 671). Loop over the 14
    columns of the 0x430 panel. Per column: bzero 8 bytes of the digit buffer, decide
    from the kind's per-character condition mask whether the column is shown at all
@@ -599,7 +605,6 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
    the name quad is (i % 2) * 0x88 + 0x24, and i % 2 (not i & 1) is what makes cc1
    reuse the i / 2 it already computed (96.50 -> 97.28). Not permuted yet - the next
    step is permute.sh on this body, then the register rotation. */
-/*
 void func_801DC3D8(u_char arg0, u_char arg1) {
     u8 digitCodes[0x10];
     u8 stringBuffer[0x10];
@@ -637,27 +642,27 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
         case 0:
             if (MenuAndBitMaskMsbFirst(
                     g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].characterConditionMask,
-                    i) != 0) {
+                    i) != 0 ||
+                i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
                 visible = 1;
             }
             break;
         case 1:
             if (MenuAndBitMaskMsbFirst(
-                    g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].gearConditionMask, i) != 0) {
+                    g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].gearConditionMask, i) != 0 ||
+                i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
                 visible = 1;
             }
             break;
         case 2:
             if ((i & 1) == 0) {
                 if (MenuAndBitMaskMsbFirst(
-                        g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].statusFlags, i / 2) != 0) {
+                        g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[arg0]].statusFlags, i / 2) != 0 ||
+                    i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
                     visible = 1;
                 }
             }
             break;
-        }
-        if (i >= MENU_PANEL_MASKED_COLUMN_COUNT) {
-            visible = 1;
         }
         if (visible) {
             count = MENU_PANEL_MP_DIGIT_COUNT;
@@ -730,9 +735,7 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
                 switch (arg1) {
                 case 0:
-                    if (MenuAndBitMaskLsbFirst(
-                            ((u16*)(g_MenuRowDigitTextureIds + 0x44))[g_Menu->pManager->currentCharacterIDs[arg0]],
-                            i) == 0 ||
+                    if (MenuAndBitMaskLsbFirst(D_801E97F0[g_Menu->pManager->currentCharacterIDs[arg0]], i) == 0 ||
                         available < value) {
                         shade = 0;
                     }
@@ -754,10 +757,8 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             }
             func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i], i, 0x80, shade | 2);
             MenuSetQuadVertices(
-                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices,
-                g_MenuEquipmentSlotRowY[MENU_PANEL_VALUE_ROW_Y + i][0],
-                g_MenuEquipmentSlotRowY[MENU_PANEL_VALUE_ROW_Y + MENU_PANEL_COLUMN_COUNT + i][0],
-                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].width, 0xD);
+                ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices, D_801E9DDC[i][0],
+                D_801E9E14[i][0], ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].width, 0xD);
             ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].renderContext = g_Menu->renderContext;
             ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].renderContext = g_Menu->renderContext;
             ((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[i] = shade | 1;
@@ -773,7 +774,6 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
     MenuSetStringTexturePrims(&((MenuUnk430Panel*)g_Menu->unk430)->strings[0x20], arg0, arg1, 1);
     g_Menu->pManager->shouldRenderPanel[0] = 1;
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 /* Best: 97.64%, 1928 bytes (retail 1924 = 481 insns, ours 482). Fills one column of
    the 0x430 panel: renders the column's two heading strings into a scratch buffer,
