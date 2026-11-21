@@ -1021,41 +1021,35 @@ void FieldScriptWritePartySlotOfActor(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-// One u16 field each of two 8-byte-stride records, so every reference is a
-// separate symbol with no addend.
-extern u16 g_FieldMotionSlotPathStart[];
-extern u16 D_800B22EA[];
-extern u16 D_800B22EC[];
-extern u16 g_FieldMotionSlotPathEnd[];
-extern u16 D_800B2302[];
-extern u16 D_800B2304[];
+// A record per motion slot: three s16 components written one script argument
+// at a time (vx, vz, vy), then the pad word the following array starts on.
+extern SVECTOR g_FieldMotionSlotPathStart[];
+extern SVECTOR g_FieldMotionSlotPathEnd[];
 extern s32 g_FieldMotionSlotFrameCount[];
 
 void FieldScriptSetMotionSlotPath(void) {
     int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
 
-    g_FieldMotionSlotPathStart[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
-    D_800B22EA[index * 4] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
-    D_800B22EC[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
-    g_FieldMotionSlotPathEnd[index * 4] = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
-    D_800B2302[index * 4] = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
-    D_800B2304[index * 4] = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathStart[index].vx = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathStart[index].vy = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathStart[index].vz = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathEnd[index].vx = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathEnd[index].vy = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathEnd[index].vz = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
     g_FieldMotionSlotFrameCount[index] = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
 extern s16 g_FieldMotionSlotActorIds[];
-extern s16 g_FieldMotionSlotTargetPositions[];
-extern s16 D_800B2326[];
-extern s16 D_800B2328[];
+extern SVECTOR g_FieldMotionSlotTargetPositions[];
 
 void FieldScriptSetMotionSlotTarget(void) {
     int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     int actorIndex;
 
-    g_FieldMotionSlotTargetPositions[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
-    D_800B2328[index * 4] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
-    D_800B2326[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    g_FieldMotionSlotTargetPositions[index].vx = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    g_FieldMotionSlotTargetPositions[index].vz = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
+    g_FieldMotionSlotTargetPositions[index].vy = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     actorIndex = FieldScriptVMGetActorIndex(0xA);
     if (actorIndex != ACTOR_ID_INVALID) {
         g_FieldMotionSlotActorIds[index] = actorIndex;
@@ -1631,14 +1625,12 @@ void FieldScriptHandleDistortion(void) {
 }
 
 
-extern FieldScriptGlobalS16 g_FieldRotationVector;
-extern FieldScriptGlobalS16 D_800B2186;
-extern FieldScriptGlobalS16 D_800B2188;
+extern SVECTOR g_FieldRotationVector;
 
 void FieldScriptSetRotationVector(void) {
-    g_FieldRotationVector.value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
-    D_800B2188.value = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
-    D_800B2186.value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
+    g_FieldRotationVector.vx = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
+    g_FieldRotationVector.vz = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
+    g_FieldRotationVector.vy = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 
@@ -2401,20 +2393,29 @@ void FieldScriptSetActorFaceId(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern FieldScriptGlobalS16 g_FieldRotationVectorPair;
-extern FieldScriptGlobalS16 D_800B21A2;
-extern FieldScriptGlobalS16 D_800B21A4;
-extern FieldScriptGlobalS16 D_800B21A6;
-extern FieldScriptGlobalS16 D_800B21A8;
-extern FieldScriptGlobalS16 D_800B21AA;
+// The paired rotation op writes the same three components, in the same
+// vx/vz/vy order, to two vectors of 0x6 bytes each (an SVECTOR without its pad
+// word); 0x800B21A0..0x800B21AC.
+typedef struct {
+    /* 0x0 */ s16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ s16 vz;
+} FieldRotationVector; // Size: 0x6
+
+typedef struct {
+    /* 0x0 */ FieldRotationVector first;
+    /* 0x6 */ FieldRotationVector second;
+} FieldRotationVectorPair; // Size: 0xC
+
+extern FieldRotationVectorPair g_FieldRotationVectorPair;
 
 void FieldScriptSetRotationVectorPair(void) {
-    g_FieldRotationVectorPair.value = FieldScriptVMGetInstructionArgument(1);
-    D_800B21A4.value = FieldScriptVMGetInstructionArgument(3);
-    D_800B21A2.value = FieldScriptVMGetInstructionArgument(5);
-    D_800B21A6.value = FieldScriptVMGetInstructionArgument(7);
-    D_800B21AA.value = FieldScriptVMGetInstructionArgument(9);
-    D_800B21A8.value = FieldScriptVMGetInstructionArgument(0xB);
+    g_FieldRotationVectorPair.first.vx = FieldScriptVMGetInstructionArgument(1);
+    g_FieldRotationVectorPair.first.vz = FieldScriptVMGetInstructionArgument(3);
+    g_FieldRotationVectorPair.first.vy = FieldScriptVMGetInstructionArgument(5);
+    g_FieldRotationVectorPair.second.vx = FieldScriptVMGetInstructionArgument(7);
+    g_FieldRotationVectorPair.second.vz = FieldScriptVMGetInstructionArgument(9);
+    g_FieldRotationVectorPair.second.vy = FieldScriptVMGetInstructionArgument(0xB);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xD;
 }
 
