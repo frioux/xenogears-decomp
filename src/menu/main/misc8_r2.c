@@ -221,29 +221,14 @@ void MenuInitializeArrowCursor(u_char index) {
     g_Menu->arrowCursors[index]->animFrameDuration = 0;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB0A8);
-
-/* 98.80% (664 bytes, retail's size; instruction multiset identical). The only
-   difference is the ORDER of the four MenuSetQuadVertices argument setups:
-   retail emits `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff`
-   (both sums, then both truncations), this C emits `addu a1; andi a1; addu a2;
-   andi a2`. cse folds each single-use sum pseudo into its argument position, so
-   neither statement order nor a u16/u32/s32 local changes the interleaving.
-   Tried, all 98.80: sums as s32 locals in both orders, u32 locals, u16 locals,
-   inline expressions, hoisting the four poly loads. permute.sh, 3 minutes:
-   PERMUTER_NONE (base=60 best=60). Earlier lane also screened gcc 2.7.2-cdk,
-   -O3 and -G0 at the same 98.80.
-   Decode: pCursor = g_Menu->arrowCursors[arg3]; the poly record is
-   &pCursor->polys[g_Menu->renderContext] read as u16 at +8/+A/+10/+22
-   (POLY_FT4.x0/y0/x1/y3, hence the lhu); ofsX in $s2, ofsY in $s1.
-/*
 void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
     MenuArrowCursor* pCursor;
     u8* pPoly;
     s32 ofsX;
     s32 ofsY;
-    s32 x;
-    s32 y;
+    SVECTOR* pVertices;
+    u16 x;
+    u16 y;
     u16 lx0;
     u16 ly0;
     u16 lx1;
@@ -284,35 +269,36 @@ void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
     if (shouldDraw != 0) {
         func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
                       g_Menu->renderContext, 0, 0, 0x1000);
+        pVertices = pCursor->vertices;
         pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
         lx0 = *(u16*)(pPoly + 8);
         ly0 = *(u16*)(pPoly + 0xA);
         lx1 = *(u16*)(pPoly + 0x10);
         ly1 = *(u16*)(pPoly + 0x22);
-        y = ly0 + ofsY;
         x = lx0 + ofsX;
-        MenuSetQuadVertices(pCursor->vertices, x, y, lx1 - lx0, ly1 - ly0);
+        y = ly0 + ofsY;
+        MenuSetQuadVertices(pVertices, x, y, lx1 - lx0, ly1 - ly0);
         pCursor->renderContext = *(u8*)&g_Menu->renderContext;
         g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
     } else {
         g_Menu->pManager->shouldRenderArrowCursor[arg3] = 0;
     }
 }
-*/
-
 void MenuFreeArrowCursor(u_char index) {
     HeapFree(g_Menu->arrowCursors[index]);
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }
 
-/* 96.75%. Frame and instruction multiset identical except that the original
-   keeps the record pointer in $a2 and re-forms the poly address a second time
-   (`addu a0,a2,a1` after the `r0 != 0x20` check) where gcc CSEs it into one
-   address, and the original carries the `i * 0x80` offset in an incrementing
-   $s2 for the second array. Also `addu` operand order differs in three places
-   (original puts the byte offset first, gcc the pointer): spelling the poly
-   pointer as `renderContext * 0x28 + (u32)base` fixes the order but relocates
-   the shift chain and dropped the function to 87.15%.
+/* 96.75%. Instruction multiset and frame identical; three addu operand orders
+   differ (the original is base-first where gcc puts the index first), the row
+   pointer stays in $a2 in the original instead of being folded into the base
+   register, and the original keeps a second induction variable ($s2 = 0x800 +
+   i*0x80) for the second array with `i++` in the beq delay slot (read-and-bump).
+   Spelling the poly pointer as `renderContext * 0x28 + (u32)base` fixes the
+   addu order but relocates the shift chain (87.15). Round 373 re-measured 96.75
+   and did not attempt the restructure (pRow = &pRows[i] + byte-offset variable):
+   the twin func_801DB5E4 closed at 100.00 in the same round. */
+/*
 void func_801DB39C(u_char arg0) {
     POLY_FT4* pPoly;
     s32 i;
@@ -344,9 +330,10 @@ void func_801DB39C(u_char arg0) {
         pPoly = &g_Menu->itemRowStrings[i].polys[g_Menu->itemRowStrings[i].renderContext];
         MenuSetPrimShadingMode(pPoly, arg0);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
+
+
 void func_801DB5E4(s32 arg0) {
     MenuCharacter* pCharacter;
     s32* pPositionsX;
