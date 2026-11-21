@@ -871,39 +871,19 @@ void FieldScriptRestoreCameraState(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009BA7C);
-/* 96.94% (140 bytes, original 144). Everything matches instruction for
-   instruction except the direction shifts: the original evaluates
-   `(direction << 9)` twice - `sll v1,v0,9` for the sceneAngle.vy halfword and
-   `sll v0,v0,9` for the unk7C word - and then shifts that same word by 16
-   (`sll v0,v0,16`) for unk60, so it emits three shifts where gcc emits two.
-   gcc folds the chain: an `int angle = direction << 9` local reused by both
-   stores still comes out as `sll v1,v0,9` + `sll v0,v0,25`, because cse's
-   fold_rtx merges (x<<9)<<16. Attempts made: both statement orders, * 0x200 /
-   * 0x10000, u_long temp for unk7C, an int angle local for the two word
-   stores, and 2.7.2-cdk (56.72%). The only way out would be a memory
-   round-trip for unk7C, which the original does not have.
-   Round 331 addendum, measured with cc1_probe on the bare triple: chain inline,
-   `angle <<= 16`, a u_long temp, an s16 halfword temp, a chained assignment
-   `unk60 = (unk7C = d << 9) << 16`, and reading unk7C back (cse forwards the
-   store) all fold to `sll $2,$2,25` or the same rematerialisation, under 2.7.2
-   AND 2.6.0. Retail's in-place `sll v0,v0,16` needs a register whose provenance
-   cse does not know, which no plain spelling of one basic block produces. */
-/*
 void func_8009BA7C(void) {
     int direction;
     int angle;
-    int z;
+    int screenZ;
 
     g_Scene.sceneDIP = FieldScriptVMGetArgument(3);
     direction = (FieldScriptVMGetArgument(1) + 4) & 7;
-    angle = direction << 9;
+    angle = (g_Scene.sceneAngle.vy = direction << 9);
     g_Scene.sceneAngleYTarget = angle;
-    g_Scene.sceneAngle.vy = direction << 9;
-    g_Scene.sceneAngleCurrent = angle << 16;
-    z = FieldScriptVMGetArgument(5);
-    g_Scene.sceneScrZ = z;
-    SetGeomScreen(z);
+    angle = angle << 16;
+    g_Scene.sceneAngleCurrent = angle;
+    screenZ = FieldScriptVMGetArgument(5);
+    g_Scene.sceneScrZ = screenZ;
+    SetGeomScreen(screenZ);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
-*/
