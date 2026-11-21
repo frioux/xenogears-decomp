@@ -87,7 +87,7 @@ void BattleFreeSlotBuffers(u8 arg0) {
    Tried: original `if (<)` polarity with per-arm `+=`/`=` stores (87.51, wrong
    branch direction) and a u16 `size` temp in both arms with one store after the
    if -- that gives the shared join store but gcc then puts the then arm out of
-   line behind an extra `j` plus `move v0,a1` (88.4). void func_8008FAD8(void) {
+   line behind an extra `j` plus `move v0,a1` (88.4). void BattleExpandSlotRects(void) {
     s32 i;
     u8 *p;
     u8 *pFlags;

@@ -1093,3 +1093,6 @@ FieldScriptSetSceneAngleInterpolation = 0x8009B8E4;
 FieldScriptSetSceneProjection = 0x8009BA7C;
 g_FieldPartyMoveStepRan = 0x800B21CE;
 FieldScriptVMMovePartyToTargets = 0x8009B398;
+FieldScriptStartCameraShake = 0x8008F90C;
+FieldProbeWalkmeshAtAngle = 0x8007B814;
+FieldGetWallEdgeDirection = 0x8007B6C4;

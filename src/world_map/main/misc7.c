@@ -251,9 +251,9 @@ extern s32 func_800813E8(s32 index);
 extern s32 func_80081470(s32 index);
 extern s32 func_800817A0(s32 index);
 extern s32 WorldMapUpdateSlotColorFade(s32 index);
-extern s32 func_800819C8(s32 index);
+extern s32 WorldMapInitScaledGroupSlot(s32 index);
 extern s32 WorldMapUpdateSlotColorFadeFast(s32 index);
-extern s32 func_80081C3C(s32 index);
+extern s32 WorldMapInitFadePrims(s32 index);
 extern s32 func_80081D80(s32 index);
 extern s32 WorldMapResetSlotColorFade(s32 index);
 extern s32 WorldMapFillFadeTable(s32 index);
@@ -478,8 +478,8 @@ void WorldMapInitializeFadeMode(void) {
     WorldMapAddSlot(WorldMapBeginSlotAnimFrame, WorldMapUpdateSlotState);
     WorldMapAddSlot(func_800813E8, func_80081470);
     WorldMapAddSlot(func_800817A0, WorldMapUpdateSlotColorFade);
-    WorldMapAddSlot(func_800819C8, WorldMapUpdateSlotColorFadeFast);
-    WorldMapAddSlot(func_80081C3C, func_80081D80);
+    WorldMapAddSlot(WorldMapInitScaledGroupSlot, WorldMapUpdateSlotColorFadeFast);
+    WorldMapAddSlot(WorldMapInitFadePrims, func_80081D80);
     WorldMapAddSlot(WorldMapResetSlotColorFade, WorldMapFillFadeTable);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
@@ -802,7 +802,7 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
 // statement order and reuses $v1 for all three loads. Same blocker as
 // func_800817A0 above; pointer local, zero-store order and x/y/z order were
 // all no better (vec3 through a pointer local: 87.03, zeros first: 84.43).
-s32 func_800819C8(s32 index) {
+s32 WorldMapInitScaledGroupSlot(s32 index) {
     u8 *pEntry = (u8 *)g_WorldMapGroups;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
@@ -853,7 +853,7 @@ s32 func_800819C8(s32 index) {
                   pSlot->unk50, pSlot->unk54, pSlot->unk58);
     return 1;
 }
-s32 func_80081C3C(s32 index) {
+s32 WorldMapInitFadePrims(s32 index) {
     u8 **ppQuadBuffers = g_WorldMapFadeQuadBuffers;
     Quad *pSrc;
     Quad *pDst;

@@ -3474,7 +3474,7 @@ void func_8008F7B8(void) {
     }
 }
 */
-void func_8008F90C(void) {
+void FieldScriptStartCameraShake(void) {
     int x = FieldScriptVMGetArgument(1);
     int y = FieldScriptVMGetArgument(3);
     int z = FieldScriptVMGetArgument(5);

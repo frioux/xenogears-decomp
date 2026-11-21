@@ -251,6 +251,12 @@ paths = [
     "battle/main/misc8.",
     "battle/main/misc17.",
     "battle/main/misc16.",
+    # battle/main/misc16_r2 (round 371): suspended rule screener measured EVERY C
+    # function in the unit at 100.00 under 2.6.0 (func_8008FAD8 90.53 -> 100.00,
+    # BattleInitMenuColumnPrims, func_8009023C, BattleDrawMenuEntryString,
+    # BattleDrawMenuCell, BattleStepAnimatedCursorPrim), so it joins its parent unit's
+    # compiler; func_8008FAD8's park was a free match under it.
+    "battle/main/misc16_r2.",
     # battle/main/misc9 is a mixed unit (round 261): its tail from func_8007E334 on
     # compiles byte-identically under 2.6.0 and 2.7.2 EXCEPT the head's
     # BattleStoreCharSlotFlagMask, which needs 2.7.2 (2.6.0 folds the final

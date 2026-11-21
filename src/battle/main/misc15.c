@@ -678,7 +678,7 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
 }
 extern void func_8008FE18(u8 arg0, u8 arg1, u8 arg2);
 extern void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2);
-extern void func_8009023C(s32 arg0);
+extern void BattleDrawColumnSpriteCells(s32 arg0);
 extern void func_8009093C(s32 arg0);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
@@ -753,7 +753,7 @@ u8 func_8008BED8(u8 arg0) {
             prevJ = j;
         }
         if (g_BattleCursorScrollY != prevY) {
-            func_8009023C(g_BattleCursorScrollY / 13 * 2);
+            BattleDrawColumnSpriteCells(g_BattleCursorScrollY / 13 * 2);
             func_8009093C(g_BattleCursorScrollY);
             prevY = g_BattleCursorScrollY;
         }

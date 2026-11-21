@@ -109,31 +109,11 @@ typedef struct {
 
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FAD8);
-/* 100.00% under gcc-2.6.0 (-O2 -G8), 90.53% (304 bytes against retail's 0x144 = 324)
-   under the unit's Default (2.7.2-psx). PRESET_260 for the unit, and the strongest
-   form of it: with this body and the ofs-split func_8009023C,
-   `tools/scripts/try_flags.sh battle/main/misc16_r2 --all --gcc gcc-2.6.0-psx` scores
-   EVERY function in the unit 100.00 (func_8008FAD8, BattleInitMenuColumnPrims,
-   func_8009023C, BattleDrawMenuEntryString, BattleDrawMenuCell,
-   BattleStepAnimatedCursorPrim), so the unit belongs on the same 2.6.0 preset as its
-   parent battle/main/misc16.
-   ROUND 371: this body had NEVER COMPILED, so the percentage above the note was fiction
-   until now - `pFlags = g_BattleDisplayState` assigned a BattleWork* to a u8* (cc1 2.7.2:
-   "incompatible types in assignment") and `*(g_BattleDisplayState + i + 0xBF)` scaled the
-   sum by sizeof(BattleWork). Both are cast to u8* now and both percentages re-measured.
-   The whole remaining gap on 2.7.2 is one compiler behaviour: retail reloads each field
-   inside the clamp arms (`lhu v0,8(a0); nop; addiu v0,v0,0x20` and `lhu v0,4(a0)`), i.e.
-   the compare's operands are dead across the branch; 2.7.2 CSEs them into the compare
-   registers (a2 = w, a1 = targetW) and the two `sh v0,8(a0)` stores can no longer
-   cross-jump into one.
-   Two shapes are load-bearing: the `>=` polarity (gcc then emits retail's
-   `bnez -> += 0x20` arm with `w = bound; count++` as the fall-through), and the
-   base-first pointer spelling `*(pFlags + i + 0xB8)` / `*(g_BattleDisplayState + i + 0xBF)`
-   (the array spellings `pFlags[i + 0xB8]` emit `addu a1,s0,v0`, index first, and
-   cost 0.25%). `count` is u8 (`andi v1,a1,0xFF` before the == 2 test); x and y
-   are u16 locals, so the centre sums truncate once at the assignment.
-void func_8008FAD8(void) {
+/* Retail reloads each clamp field inside the arm (the compare operands are dead across
+   the branch); 2.6.0 does too, 2.7.2 CSEs them and cannot cross-jump the two stores.
+   Load-bearing: the >= polarity, and the base-first spelling `*(pFlags + i + 0xB8)`
+   (an array subscript emits the addu index-first, -0.25%). */
+void BattleExpandSlotRects(void) {
     BattleSlotRect *p;
     u8 *pFlags;
     u8 count;
@@ -171,7 +151,6 @@ void func_8008FAD8(void) {
         func_8008F6E4(p->slot, x, y, p->w, p->h);
     }
 }
-*/
 
 /* 86.50%: instruction-for-instruction identical to retail except one callee-saved
    register too many (s0-s6 here against retail's s0-s5), which shifts every register in
@@ -334,7 +313,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     g_BattleDisplayState->primState = 2;
 }
 */
-void func_8009023C(s32 arg0) {
+void BattleDrawColumnSpriteCells(s32 arg0) {
     s32 i;
     s32 offset;
     s32 ofs;
@@ -585,7 +564,7 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
    block 2, `lw v0,0(s2)` per use); gcc 2.7.2 emits a fresh `lui/lw` pair for
    the value at every use and folds an `s32 *pPal = &g_BattlePrimStartIndex;` local back
    into exactly that. That also renumbers the magic-10 register (s2 here, s1 in
-   the original) and pushes `mfhi` into t1. Same wall as func_8009023C above.
+   the original) and pushes `mfhi` into t1. Same wall as BattleDrawColumnSpriteCells above.
    Tried: inline arg expression (69.01), separate `ofs` local + `ofs + (s32)pBase`
    (70.15), `s32 *pPal` local (70.15, folded away), the u8 `u` mask local below
    (72.46).

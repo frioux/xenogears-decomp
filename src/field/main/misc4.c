@@ -1150,7 +1150,7 @@ int FieldGetVec2Angle(IVEC3* pVec) {
 
 long FieldGetVec2Magnitude(long, long);
 
-int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags) {
+int FieldGetWallEdgeDirection(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags) {
     VECTOR v;
     VECTOR normal;
     int nAngle;
@@ -1189,10 +1189,10 @@ int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags) {
     return nResult;
 }
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode);
-int func_8007B6C4(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags);
+int FieldGetWallEdgeDirection(s16 angle, SVECTOR* pPoints, VECTOR* pOut, s32 nFlags);
 extern s32 D_800ADB98;
 
-int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) {
+int FieldProbeWalkmeshAtAngle(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) {
     VECTOR v;
     SVECTOR out;
     VECTOR pad[2];  // dead: reproduces the original's 0x78 frame
@@ -1205,7 +1205,7 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
         v.vx = pVec->vx;
         v.vy = pVec->vy;
         v.vz = pVec->vz;
-        func_8007B6C4(angle, pPoints, &v, 0);
+        FieldGetWallEdgeDirection(angle, pPoints, &v, 0);
     } else {
         nAngle = angle - 0x100;
         nAngle &= FIELD_ANGLE_MASK;
@@ -1215,7 +1215,7 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
             v.vx = pVec->vx;
             v.vy = pVec->vy;
             v.vz = pVec->vz;
-            func_8007B6C4(angle, pPoints, &v, 0);
+            FieldGetWallEdgeDirection(angle, pPoints, &v, 0);
         } else {
             nAngle = angle + 0x100;
             nAngle &= FIELD_ANGLE_MASK;
@@ -1225,7 +1225,7 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
                 v.vz = pVec->vz;
-                func_8007B6C4(angle, pPoints, &v, 0);
+                FieldGetWallEdgeDirection(angle, pPoints, &v, 0);
             } else {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
@@ -1253,10 +1253,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
 /* Best attempt: 76.42% (1036 vs 1032 bytes). The probe sequence, the second
    func_8007BEF4 call and the tail (v.vy, pVec stores, curYPos) are
    instruction-identical; four deltas remain:
-   1. the shared fallback (copy *pVec, func_8007B6C4) loses retail's leading
+   1. the shared fallback (copy *pVec, FieldGetWallEdgeDirection) loses retail's leading
       dead `lw a3,0x70(sp)`, so every later label sits 4 bytes low. Retail's
-      call passes a 4th argument that func_8007B6C4 never reads; the prototype
-      now declares it (func_8007B814 passes 0) and the three calls below pass
+      call passes a 4th argument that FieldGetWallEdgeDirection never reads; the prototype
+      now declares it (FieldProbeWalkmeshAtAngle passes 0) and the three calls below pass
       0 as well, so this item may already be closed - re-measure.
    2. the retry dispatch is laid out inverted: retail puts the recompute body
       FIRST (cond1 inverts to the rest of the chain, which sits after the body
@@ -1293,7 +1293,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
         v.vx = pVec->vx;
         v.vy = pVec->vy;
         v.vz = pVec->vz;
-        func_8007B6C4(nDirection, pPoints, &v, 0);
+        FieldGetWallEdgeDirection(nDirection, pPoints, &v, 0);
     } else {
         nAngle = nDirection + 0x100;
         nAngle &= 0xFFF;
@@ -1303,7 +1303,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
             v.vx = pVec->vx;
             v.vy = pVec->vy;
             v.vz = pVec->vz;
-            func_8007B6C4(nDirection, pPoints, &v, 0);
+            FieldGetWallEdgeDirection(nDirection, pPoints, &v, 0);
         } else {
             nAngle = angle & 0xFFF;
             v.vx = pVec->vx + rsin(nAngle) * 64;
@@ -1312,7 +1312,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
                 v.vz = pVec->vz;
-                func_8007B6C4(nDirection, pPoints, &v, 0);
+                FieldGetWallEdgeDirection(nDirection, pPoints, &v, 0);
             } else {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
@@ -1620,7 +1620,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
    The vertex fields must be signed (s16) for the packing reads, which emit `lh`;
    the edge copies read the same records as u_short and emit `lhu`, so retail's
    source had an unsigned view for the copies and a signed one for the math.
-   Six argument call, verified against func_8007B814's site: (pVec, pPos, pActor, pPoints SVECTOR[2] out,
+   Six argument call, verified against FieldProbeWalkmeshAtAngle's site: (pVec, pPos, pActor, pPoints SVECTOR[2] out,
    pRef SVECTOR out of (x,0,z), nMode) with
    nMode == -1 meaning "stop when the triangle is found".
    func_8007CD80 is the same walk with a 3-argument front end (it finds the first

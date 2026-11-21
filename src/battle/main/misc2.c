@@ -482,7 +482,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
 void BattleDrawFrameScreenMode1(void) {
     if (g_BattleFrameDrawSuppressed == 0) {
-        func_8008FAD8();
+        BattleExpandSlotRects();
         BattleRenderSlotStatDigits();
         func_80075938();
         func_80073538();
@@ -503,13 +503,13 @@ void BattleDrawFrameScreenMode1(void) {
 
 void func_800764B4(void) {
     g_DebugPageIndex = 0;
-    func_8008FAD8();
+    BattleExpandSlotRects();
     func_801DE594();
     func_80073FB8();
 }
 
 void BattleDrawFrameScreenMode2(void) {
-    func_8008FAD8();
+    BattleExpandSlotRects();
     func_80073538();
     BattleAddThreeFlaggedPrimLists();
     func_8007500C();
