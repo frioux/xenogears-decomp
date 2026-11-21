@@ -898,8 +898,8 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
 // relocation) and scores 84.25%, so the materialise-then-adjust shape needs another lever.
 /*
 extern u8 g_WorldMapSaveBlock;
-extern u8* D_800AFC50;
-extern s32 D_8005A408[3];
+extern u8* g_WorldMapSaveCursor;
+extern s32 g_SavedGearRide[3];
 extern s32 g_FieldActiveActorCount;
 extern s32 g_FieldSceneReloadFlags;
 extern void SpriteRestoreAnimState(void*, u8*);
@@ -913,21 +913,21 @@ void func_800A3C8C(void) {
     pSrc = &g_WorldMapSaveBlock;
     memcpy((u8*)&g_FieldNumActors - 0xB8, pSrc, 0x74);
     g_FieldNumActors = *pSrc;
-    D_800AFC50 = pSrc;
-    D_800AFC50 = &g_WorldMapSaveBlock + 0x3C;
-    D_800AFC50 += 0x920;
+    g_WorldMapSaveCursor = pSrc;
+    g_WorldMapSaveCursor = &g_WorldMapSaveBlock + 0x3C;
+    g_WorldMapSaveCursor += 0x920;
 
     nDiff = 0;
     for (i = 0; i < 3; i++) {
-        if (D_8005A408[i] != g_pGameState->gearRide[i]) {
+        if (g_SavedGearRide[i] != g_pGameState->gearRide[i]) {
             nDiff++;
         }
     }
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         pActorData = g_FieldActors[i].pActorData;
-        pCursor = D_800AFC50;
-        D_800AFC50 = pCursor + 0xC;
+        pCursor = g_WorldMapSaveCursor;
+        g_WorldMapSaveCursor = pCursor + 0xC;
         if (pActorData->specialAnimArchiveIndex != -1 && pActorData->animationOverride != 0xFF) {
             *(u_short*)(pCursor + 0x20) = pActorData->animationOverride;
         }
@@ -935,17 +935,17 @@ void func_800A3C8C(void) {
         pActorData = g_FieldActors[i].pActorData;
         if (!(pActorData->flags & 0x1000000) &&
             (g_FieldSceneReloadFlags == 0 || !(pActorData->scriptFlags.flags & 0x600) || nDiff == 0)) {
-            SpriteRestoreAnimState(g_FieldActors[i].pSpriteData, D_800AFC50);
+            SpriteRestoreAnimState(g_FieldActors[i].pSpriteData, g_WorldMapSaveCursor);
         }
 
         pActorData = g_FieldActors[i].pActorData;
-        pCursor = D_800AFC50;
-        D_800AFC50 = pCursor + 0x168;
+        pCursor = g_WorldMapSaveCursor;
+        g_WorldMapSaveCursor = pCursor + 0x168;
         if (pActorData->flags134 & 0x80) {
-            D_800AFC50 = pCursor + 0x174;
+            g_WorldMapSaveCursor = pCursor + 0x174;
         }
         if (*(u_int*)((u_char*)pActorData + 0x12C) & 0x1000) {
-            D_800AFC50 += 0x10;
+            g_WorldMapSaveCursor += 0x10;
         }
     }
 }
@@ -960,7 +960,7 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 // the SAVESIZE printf. What is left is register permutation only (no instruction differs):
 // the original keeps the block base in v1 and each chunk's cursor sum in v0, this build puts
 // the base in v0 and the sum in a1; the tail keeps &g_WorldMapSaveBlock in s1 where we use
-// v1; the per-actor loop loads g_FieldActors before D_800AFC50 where we load it after; and
+// v1; the per-actor loop loads g_FieldActors before g_WorldMapSaveCursor where we load it after; and
 // the first copy's actor address comes out base-first. Measured and rejected: a pSave local
 // for the head base, pDst as two statements vs the embedded assignment at every site (only
 // the two loop sites want the embedded form - the five chunk sites regress), -O3/-G0.
@@ -972,9 +972,9 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 // (0x138: gcc's block move emits the 0x130 loop plus an 8-byte tail).
 /*
 extern u8 g_WorldMapSaveBlock[];
-extern u8* D_800AFC50;
+extern u8* g_WorldMapSaveCursor;
 extern s32 g_FieldActiveActorCount;
-extern s32 D_8005A408[3];
+extern s32 g_SavedGearRide[3];
 extern u_int* g_FieldWalkmeshMaterialFlags;
 extern VECTOR g_CameraEye;
 extern u8 g_FieldScreenEffectData[];
@@ -982,7 +982,7 @@ extern char D_8006FD9C[]; // "SAVESIZE=%d %x\n"
 extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
 
 // Saves the field state the world map overwrites into the block after
-// g_WorldMapSaveBlock, one memcpy per state block, and back into D_8005A408.
+// g_WorldMapSaveBlock, one memcpy per state block, and back into g_SavedGearRide.
 // FieldScriptVMSaveAnimStates (func_800A3C8C) is the reverse.
 void func_800A3F4C(void) {
     ActorData* pActorData;
@@ -993,69 +993,69 @@ void func_800A3F4C(void) {
     s32 nSystemMode;
     int i;
 
-    D_800AFC50 = g_WorldMapSaveBlock;
+    g_WorldMapSaveCursor = g_WorldMapSaveBlock;
     pDst = 4 + g_WorldMapSaveBlock;
     g_WorldMapSaveBlock[0] = g_FieldNumActors;
-    D_800AFC50 = pDst;
+    g_WorldMapSaveCursor = pDst;
     memcpy(pDst, g_FieldScreenEffectData, 0x38);
 
-    pDst = D_800AFC50 + 0x38;
+    pDst = g_WorldMapSaveCursor + 0x38;
     pScriptMemory = &g_FieldScriptMemory;
-    D_800AFC50 = pDst;
+    g_WorldMapSaveCursor = pDst;
     memcpy(pDst, (u8*)&g_Scene + 0xC4, 0x74);
 
-    pDst = D_800AFC50 + 0x74;
-    D_800AFC50 = pDst;
+    pDst = g_WorldMapSaveCursor + 0x74;
+    g_WorldMapSaveCursor = pDst;
     memcpy(pDst, g_FieldWalkmeshMaterialFlags, 0x400);
 
-    pDst = D_800AFC50 + 0x400;
-    D_800AFC50 = pDst;
+    pDst = g_WorldMapSaveCursor + 0x400;
+    g_WorldMapSaveCursor = pDst;
     memcpy(pDst, &g_FieldEffects, 0x2E4);
 
-    pDst = D_800AFC50 + 0x2E4;
-    D_800AFC50 = pDst;
+    pDst = g_WorldMapSaveCursor + 0x2E4;
+    g_WorldMapSaveCursor = pDst;
     memcpy(pDst, &g_CameraEye, 0x1C8);
 
-    D_800AFC50 += 0x1C8;
+    g_WorldMapSaveCursor += 0x1C8;
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
-        memcpy(D_800AFC50, &g_FieldActors[i].rotation, 8);
+        memcpy(g_WorldMapSaveCursor, &g_FieldActors[i].rotation, 8);
         nStatus = (u_short)g_FieldActors[i].status;
-        pDst = (D_800AFC50 = D_800AFC50 + 8);
+        pDst = (g_WorldMapSaveCursor = g_WorldMapSaveCursor + 8);
         memcpy(pDst, &nStatus, 4);
 
-        pDst = (D_800AFC50 = D_800AFC50 + 4);
+        pDst = (g_WorldMapSaveCursor = g_WorldMapSaveCursor + 4);
         SpriteSaveAnimState(g_FieldActors[i].pSpriteData, pDst);
 
-        pDst = D_800AFC50 + 0x30;
-        D_800AFC50 = pDst;
+        pDst = g_WorldMapSaveCursor + 0x30;
+        g_WorldMapSaveCursor = pDst;
         memcpy(pDst, g_FieldActors[i].pActorData, sizeof(ActorData));
 
-        pDst = D_800AFC50 + 0x138;
-        D_800AFC50 = pDst;
+        pDst = g_WorldMapSaveCursor + 0x138;
+        g_WorldMapSaveCursor = pDst;
         pActorData = g_FieldActors[i].pActorData;
         if (pActorData->flags134 & 0x80) {
             memcpy(pDst, pActorData->pTargetTrack, 0xC);
-            D_800AFC50 += 0xC;
+            g_WorldMapSaveCursor += 0xC;
         }
         pActorData = g_FieldActors[i].pActorData;
         if (pActorData->flags12C_0xD) {
-            memcpy(D_800AFC50, pActorData->pScriptArgs, 0x10);
-            D_800AFC50 += 0x10;
+            memcpy(g_WorldMapSaveCursor, pActorData->pScriptArgs, 0x10);
+            g_WorldMapSaveCursor += 0x10;
         }
     }
 
-    memcpy(D_800AFC50, pScriptMemory, 0x800);
-    D_800AFC50 += 0x800;
+    memcpy(g_WorldMapSaveCursor, pScriptMemory, 0x800);
+    g_WorldMapSaveCursor += 0x800;
 
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
-        D_8005A408[i] = g_pGameState->gearRide[i];
+        g_SavedGearRide[i] = g_pGameState->gearRide[i];
     }
 
     nSystemMode = g_FieldSystemMode;
-    nSaveSize = D_800AFC50 - g_WorldMapSaveBlock;
+    nSaveSize = g_WorldMapSaveCursor - g_WorldMapSaveBlock;
     if (nSystemMode == 0) {
-        func_800379C8(D_8006FD9C, D_800AFC50 - g_WorldMapSaveBlock, D_800AFC50 - g_WorldMapSaveBlock);
+        func_800379C8(D_8006FD9C, g_WorldMapSaveCursor - g_WorldMapSaveBlock, g_WorldMapSaveCursor - g_WorldMapSaveBlock);
     }
 }
 */

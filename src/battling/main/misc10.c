@@ -436,7 +436,7 @@ extern u8 g_BattleRequestedDifficultyLevel;
 extern s32 D_80092798;
 extern s32 D_8009279C;
 extern void* D_800927B8;
-extern s32 D_800928B0;
+extern s32 g_BattleFloorOutlineArc;
 extern void* g_BattleActor0Node;
 extern void* g_BattleActor1Node;
 extern s32 D_80097018;
@@ -489,7 +489,7 @@ extern void func_80079DF0(void* pActor1, void* pActor0);
 extern void func_800796B8(void* pActor1, void* pActor0);
 extern void BattleUpdateCombatantPair(void* pActor1, void* pActor0);
 extern void BattleUpdateCombatantPairTransition(void* pActor1, void* pActor0);
-extern void func_800840CC(void* pScene);
+extern void BattleRenderCameraFrame(void* pScene);
 extern void BattleRenderLightGroupFrame(void* pScene);
 extern void func_80072858(void* pScene);
 extern void func_80084A40(void* pScene);
@@ -1084,7 +1084,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        for (;;) {
            FontSetColor(0, 0xFF, 0);
            g_BattleFrameWaitCount = 2;
-           D_800928B0 = 0;
+           g_BattleFloorOutlineArc = 0;
            g_BattleSavedScreenMode = g_BattleScreenMode;
            BattleUpdateEffectTimer();
            func_80034888(g_BattleMessageWindow, g_BattleRootOrderingTable, g_BattleDrawBufferIndex);
@@ -1102,7 +1102,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
            case 7:
                BattleUpdateTutorialScreen();
                SetGeomScreen(0xC0);
-               func_800840CC(pScene);
+               BattleRenderCameraFrame(pScene);
                if (g_BattleScreenMode == 3) {
                    g_BattleFrameWaitCount = 0;
                    func_8008BC04();
@@ -1114,14 +1114,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
                BattleUpdateCombatantPair(&g_BattleActor1, &g_BattleActor0);
                if (g_BattleScreenMode != 8) {
                    func_80083310(1);
-                   D_800928B0 = 1;
+                   g_BattleFloorOutlineArc = 1;
                }
                goto commonDraw;
            case 8:
                SetGeomScreen(0x200);
                BattleUpdateCombatantPairTransition(&g_BattleActor1, &g_BattleActor0);
            commonDraw:
-               func_800840CC(pScene);
+               BattleRenderCameraFrame(pScene);
                break;
            case 0:
                BattleUpdateTextWindow();

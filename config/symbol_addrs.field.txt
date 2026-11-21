@@ -1104,3 +1104,4 @@ g_FieldSpritePlacements = 0x800B1F78;
 g_FieldScreenEffectConfig = 0x800B0080;
 g_FieldTextGradientTopQuads = 0x800AF788;
 g_FieldTextGradientBottomQuads = 0x800AF7F0;
+g_WorldMapSaveCursor = 0x800AFC50;

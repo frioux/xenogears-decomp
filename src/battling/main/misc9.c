@@ -32,7 +32,7 @@ extern s32 g_BattleCameraYOffset;
 extern s32 g_BattleViewOriginY;
 extern s32 g_BattleMode;
 extern s32 g_BattleCameraDebugEnabled;
-extern s32 D_800928B0;
+extern s32 g_BattleFloorOutlineArc;
 extern u8 g_BattleCameraLerpFrames;
 extern s32 g_BattleCameraAngleStep;
 
@@ -1040,7 +1040,7 @@ void BattleFadeActorLights(Misc9LightGroup* pTable, Battler9* pActor, s32 idx) {
 // The camera/floor phase of the battle frame: the camera matrix and the two HUD
 // frames, the light group's node matrices, the reference matrix the shadows and
 // the effect prims are drawn with, the floor outline and the shaded spans.
-s32 func_800840CC(Misc9LightGroup* pGroup) {
+s32 BattleRenderCameraFrame(Misc9LightGroup* pGroup) {
     MATRIX mtx; // the base matrix translated to the view origin
     MATRIX mat; // the light group's own node matrix
     VECTOR pad; // unused: the original's frame carries this slot after the two matrices
@@ -1109,7 +1109,7 @@ done:
     BattleDrawActorShadow(&g_BattleActor0, pWork->pOt[g_BattleDrawBufferIndex], &mtx);
     gte_SetRotTransMatrix_gpr(&mtx);
     BattleClearSpanTables();
-    if (D_800928B0 != 0) {
+    if (g_BattleFloorOutlineArc != 0) {
         BattleDrawArcOutline(pCamPos->vx, g_BattleCameraPosZ,
                              ratan2(pCamPos->vx - g_BattleCameraTarget, g_BattleCameraPosZ - g_BattleCameraTargetZ));
     } else {

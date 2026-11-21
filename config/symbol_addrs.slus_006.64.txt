@@ -1716,3 +1716,4 @@ g_RenderContextIndex = 0x800592C8;
 g_DebugPageIndex = 0x8005959C;
 g_FieldUpdatingActorIndex = 0x80065B08;
 ArchiveReadStreamSector = 0x80028B14;
+g_SavedGearRide = 0x8005A408;
