@@ -252,18 +252,27 @@ void func_8008E120(void) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
-/* best: objdiff 94.71% - 272 bytes against retail's 276, typed now that the two
-   prim arrays are POLY_FT4/TILE. The quad setup, both prim codes, the added
-   semi-transparency bit and the duplicated a0/zero setup of the two GetTPage
-   calls in the if/else all match. Two differences left, one instruction each
-   way: retail truncates the GetTPage result straight into the argument register
-   (andi a3,v0,0xffff) where ours copies it first (a u_short tpage local; an s32
-   local is worse, 90.58% / 268 bytes), and retail re-forms &D_80096E00 with a
-   fresh lui/addiu for both SetDrawMode and the second AddPrim where ours keeps
-   it in $s0 across the call (three instructions cheaper, hence 272 bytes).
+/* best: 268 bytes against retail's 276 (objdiff 90.58; the u_short tpage
+   variant reads 94.71 at 272 but carries one extra instruction, a move of the
+   GetTPage result into the local's home register before the truncation, so
+   judge this by the instruction count, not the percentage). Everything else
+   matches: the quad setup, both prim codes, the semi-transparency bit, the two
+   GetTPage arms and their duplicated a0/zero setup. Two residuals.
+   1. retail truncates the GetTPage return straight into the argument register
+   (andi a3,v0,0xffff) two slots after the call, i.e. at the SetDrawMode
+   argument rather than at the assignment; an s32 local gets the operand right
+   and the position one slot early, a u_short local copies first.
+   2. retail MATERIALISES &D_80096E00 twice, once per call (lui/addiu into v0
+   each time); ours cse's the address constant, keeps it in $s0 (reused after
+   flag dies) and re-uses it for the second AddPrim. Measured and no help:
+   s32/u_short tpage, a DR_MODE* local for SetDrawMode only, a local for both
+   calls, (u32)index-first and array-subscript spellings on either site, and
+   sizeof(DR_MODE) vs 0xC. The constant is shared whatever the expression, so
+   this needs either a second base symbol for the same address or the note
+   stays.
 void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     TILE* pTile;
-    u_short tpage;
+    s32 tpage;
 
     pTile = &D_80096DE0[g_BattleDrawBufferIndex];
     BattleSetRGBCFast(pTile, color, color, color, 0x60);
@@ -277,11 +286,11 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     } else {
         tpage = GetTPage(0, 1, 0, 0);
     }
-    SetDrawMode(&D_80096E00[g_BattleDrawBufferIndex], 0, 1, tpage, NULL);
+    SetDrawMode((DR_MODE*)(g_BattleDrawBufferIndex * sizeof(DR_MODE) + (u32)D_80096E00), 0, 1,
+                tpage, NULL);
     AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
 }
-*/
-void BattleDrawEffectImage(u8* pOt, s32 shadeLevel, s32 drawTile) {
+*/void BattleDrawEffectImage(u8* pOt, s32 shadeLevel, s32 drawTile) {
     POLY_FT4* pPrim;
     TILE* pTile;
     RECT rect;
