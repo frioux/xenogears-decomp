@@ -17,7 +17,8 @@ typedef struct {
     s16 priority;
     u16 flags;
     SpuVolume volume;
-    // neither is ever read: retail clears both as halfwords when an element starts
+    // unkC and unkE are only ever cleared: retail stores a zero halfword to each when an
+    // element starts. No instruction in the built binaries touches unk10's 4 bytes or unk16's 6.
     u16 unkC;
     u16 unkE;
     u8 unk10[4];
@@ -60,9 +61,9 @@ typedef struct {
 typedef void (*SoundCommandCallback_t)(void);
 
 typedef struct {
-    /* 0x0 */ undefined16 unk0; // Flags?
-    /* 0x2 */ undefined16 unk2;
-    /* 0x4 */ undefined32 unk4;
+    /* 0x0 */ undefined16 unk0; // the heap's head block gets 0x8000, every allocated block 2; nothing reads it back
+    /* 0x2 */ undefined16 unk2; // cleared wherever unk0 is set, never read
+    /* 0x4 */ undefined32 unk4; // cleared wherever unk0 is set, never read
     /* 0x8 */ void* pPrev;
     /* 0xC */ void* pNext;
 } SoundHeapBlockHeader;
@@ -87,14 +88,15 @@ typedef struct {
 // but all supported commands has to do with data transfer.
 typedef struct {
     /* 0x0  */ u_short commandType;
-    /* 0x2  */ short unk2;
+    /* 0x2  */ short unk2; // SoundQueueTransferCommand clears it, nothing reads it
     /* 0x4  */ void* pSpuData;
     /* 0x8  */ mem_addr pTransferAddress;
     /* 0xC  */ u_long dataSize;
     /* 0x10 */ SoundCommandCallback_t pCallbackFn;
 } SoundTransferCommand;
 
-// Possibly a struct which can either be a SMD (Background Music), SED (Sound Effect) or SND entry
+// Possibly a struct which can either be a SMD (Background Music), SED (Sound Effect) or SND entry.
+// unk4, unkE, unk12 and unk1A are touched by no instruction in the built binaries.
 struct SoundFile_t {
     /* 0x0  */ u_int magic;
     /* 0x4  */ undefined32 unk4;
@@ -119,9 +121,12 @@ typedef struct {
     /* 0x6 */ u16 toneTune; // copied into AudioElement::toneTune
     /* 0x8 */ u32 adsr;
     /* 0xC */ u16 adsrModes; // attack/sustain/release mode, 3 bits each
-    /* 0xE */ u16 unkE;
+    /* 0xE */ u16 unkE; // touched by no instruction
 } SoundWdsTone; // Size: 0x10
 
+// unk1C, unk22 and unk24: no instruction in the built binaries reads or writes them. _unk0 is the
+// WDS file's first 16 bytes, whole and opaque. unk1E is handed to SoundSpuMemoryAllocateBlock and
+// SoundSpuMemoryAllocateBlockAtAddress as their last argument, which neither body uses.
 struct SoundWDSEntry_t {
     /* 0x0  */ u_char _unk0[0x10];
     /* 0x10 */ u_int headerSizeMby;
@@ -160,7 +165,7 @@ typedef struct {
 // Saved loop position for the script loop-start/loop-end handlers.
 typedef struct {
     /* 0x0 */ u8 count;
-    /* 0x1 */ u8 unk1;
+    /* 0x1 */ u8 unk1; // touched by no instruction
     /* 0x2 */ u8 savedOctave;
     /* 0x3 */ u8 endOctave;
     /* 0x4 */ u8* start;
@@ -207,9 +212,9 @@ typedef struct {
     /* 0x10  */ u32 scriptStartIP; // pScriptIP's initial value, never updated after the element starts
     /* 0x14  */ u32 pScriptIP; // next script byte to run
     /* 0x18  */ u8* savedScriptIP;
-    /* 0x1C  */ s32 unk_0x1C;
+    /* 0x1C  */ s32 unk_0x1C; // cleared when the element starts, read by nobody
     /* 0x20  */ u16 loopCount;
-    /* 0x22  */ u8 unk_0x22;
+    /* 0x22  */ u8 unk_0x22; // cleared when the element starts, read by nobody
     /* 0x23  */ u8 savedOctave;
     /* 0x24  */ u8 unk_0x24;
     /* 0x25  */ u8 sndId;
@@ -263,16 +268,16 @@ typedef struct AudioManager {
     /* 0x8  */ s32 pSeqHeader; // sequence file image
     /* 0xC  */ s32 pPercussionData;
     /* 0x10 */ s16 flags;
-    /* 0x12 */ s16 unk_0x12;
+    /* 0x12 */ s16 unk_0x12; // copied from the sequence header's 0x10 and reset to 0x7FFF, read by nobody
     /* 0x14 */ u8 elementCount;
     /* 0x15 */ u8 percussionCount;
     /* 0x16 */ s16 sndId;
-    /* 0x18 */ s16 unk_0x18;
+    /* 0x18 */ s16 unk_0x18; // copied from the sequence header's 0x18 and reset to 0x7F, read by nobody
     /* 0x1A */ u8 unk_0x1a; // accumulated by the script's set/add handlers, read by nobody
     /* 0x1B */ u8 unk_0x1b; // compared with a script byte in SoundScriptConditionalSaveIP; its only setter has no callers
     /* 0x1C */ u16 noiseClock;
     /* 0x1E */ u16 stopBar; // barCount this sequence stops at
-    /* 0x20 */ s32 unk_0x20;
+    /* 0x20 */ s32 unk_0x20; // SoundTimerInterruptHandler increments it as a tick counter; SoundCopyPercussionTable reads its low half as the percussion map's byte offset
     /* 0x24 */ s32 playTicks; // ticks driven while elements are active, the tick part of the play time
     /* 0x28 */ s32 playTime; // 1/256 s, seconds/minutes come out of it
     /* 0x2C */ s32 restoreTicks; // playTicks at which the saved backup is restored, 0 = not armed
@@ -283,13 +288,13 @@ typedef struct AudioManager {
     /* 0x38 */ s16 beatsPerBar;
     /* 0x3A */ s16 ticksPerBeat;
     /* 0x3C */ s16 beatDivisor;
-    /* 0x3E */ s16 unk_0x3e;
-    /* 0x40 */ u8 unk_0x40;
+    /* 0x3E */ s16 unk_0x3e; // set beside beatsPerBar by the time-signature handler and by the reset, read by nobody
+    /* 0x40 */ u8 unk_0x40; // touched by no instruction
     /* 0x41 */ u8 reverbType;
     /* 0x42 */ u8 reverbDelay;
     /* 0x43 */ u8 reverbFeedback;
     /* 0x44 */ s16 reverbDepth;
-    /* 0x46 */ u8 unk_0x46[0x02];
+    /* 0x46 */ u8 unk_0x46[0x02]; // touched by no instruction
     /* 0x48 */ s32 activeElementMask;
     /* 0x4C */ s32 muteFlags;
     /* 0x50 */ s32 tickAccumulator;
