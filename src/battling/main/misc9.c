@@ -238,7 +238,8 @@ void BattleCopyPlaneNormal(SVECTOR* p) {
 extern void MathTriangleNormal(SVECTOR* pVertex1, SVECTOR* pVertex2, SVECTOR* pVertex3, SVECTOR* pNormal);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
-/* PARK 99.00% (1016 bytes, the original's exact size). Two things differ.
+/* PARK 99.00% (1016 bytes, the original's exact size). Six instructions differ,
+   all in the prologue's register names.
    1. The mask/index registers: retail materialises the 0xFFFFFF00 mask in a0
    (addiu a0,zero,-256 hoisted above the loads), keeps pPos->vx in t2 and
    pPos->vz in t1 and lets the mz AND overwrite the mask register; this body gets
@@ -246,7 +247,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
    register names). Six source shapes all measure identically here, including
    dropping the mask local (which is what a permuter run's best candidate did, but
    it also made the mz unmasked, so it is not shippable), so this is an allocator
-   tie, not a spelling question.
+   tie, not a spelling question. A 1532-iteration permuter run found one nearer
+   spelling: reusing the row local for pPos->vz ('row = pPos->vz; mz = row &
+   0xFFFFFF00; row = row >> 8;') puts the mask in retail's a0 and scores 99.64%,
+   but it also swaps which of x/z is loaded first, so it is SEVEN differing
+   instructions against this body's six and the body above is the closer one.
    2. g_BattlePlaneNormal.vy/.vz: retail's object names the addresses D_8009276A /
    D_8009276C (0x80092768 + 2 and + 4, fields of the SVECTOR at that address) while
    the typed spelling relocates the whole symbol with an addend. The linked bytes
@@ -295,8 +300,8 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
     x = pPos->vx;
     z = pPos->vz;
     mx = x & 0xFFFFFF00;
-    col = x >> 8;
     mz = z & 0xFFFFFF00;
+    col = x >> 8;
     row = z >> 8;
     pCell = (s32 *)((u32)((row << 7) + col) * 4 + (u32)g_BattleGridCells);
 
@@ -1048,6 +1053,8 @@ s32 func_800840CC(Misc9LightGroup* pGroup) {
     pWork = pGroup->pWork;
     BattleClearOrderingTable(pWork);
     BattleSetMatrixFromPoints(pGroup, (VECTOR*)&g_BattleCameraPos, (VECTOR*)&g_BattleCameraTarget);
+    // The test chain jumps forward to the two shared bodies; as an if/else chain gcc
+    // inlines the first arm and the block comes out in another order.
     if (g_BattleSavedScreenMode == 4) {
         goto checkMode;
     }
