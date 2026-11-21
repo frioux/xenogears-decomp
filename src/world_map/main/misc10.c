@@ -266,36 +266,27 @@ s32 func_80088C90(void) {
     return 3;
 }
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088D00);
+/* 84.68% (100 bytes, retail 100): only the g_WorldMapGroups load position and the
+   0x16A4 constant fold differ. Retail loads the group pointer before the branch so
+   that `addiu a1,a1,0x16A4` lands in the bne delay slot, and stores at 8/0xC/0x10;
+   every spelling below sinks the load into the taken block and folds the +0x16A4
+   into the displacements (0x16AC/0x16B0/0x16B4). Tried: the typed pointer formed
+   before or inside the if, a u8* base with (s32)pGroup + 0x16A4, s32* pSrc[2..4],
+   and the three stores written inline through g_WorldMapGroups[0x45] (that one
+   reproduces the whole prologue, `li v0,0x99` last and the v1/v0 compare operands
+   included, but still folds: 69.88%). The byte count is retail's, so this is a cse
+   fold and not a missing instruction.
 s32 func_80088D00(s32 arg0) {
     WorldMapActor* pActor;
     WorldMapSceneLayer* pGroup;
-    WorldMapSceneLayer* pLayer;
 
     pGroup = g_WorldMapGroups;
-    pLayer = &pGroup[0x45];
     pActor = &g_WorldMapSlots[arg0];
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pLayer->pos.x = pActor->x >> 12;
-        pLayer->pos.y = pActor->y >> 12;
-        pLayer->pos.z = pActor->z >> 12;
-    }
-    return 1;
-}
-/* 84.68%: retail loads the g_WorldMapGroups pointer before the branch and keeps
-   addiu a1,a1,0x16A4 in the bne delay slot, and compares with the id in v1
-   against li v0,0x99; gcc 2.7.2 sinks the global load below the branch.
-s32 func_80088D00(s32 arg0) {
-    u8* pDst;
-    u8* pBase;
-    s32* pSrc;
-
-    pDst = g_WorldMapSlots + (arg0 << 7);
-    pBase = g_WorldMapGroups;
-    if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pSrc = (s32*)(pBase + 0x16A4);
-        pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
-        pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;
-        pSrc[4] = *(s32*)(pDst + 0x30) >> 12;
+        pGroup[0x45].pos.x = pActor->x >> 12;
+        pGroup[0x45].pos.y = pActor->y >> 12;
+        pGroup[0x45].pos.z = pActor->z >> 12;
     }
     return 1;
 }
