@@ -178,8 +178,10 @@ extern s32 g_MovieHeapDebugEnabled;
 //   the value is dead there, the teardown breaks out of the loop).
 // Earlier measurements: plain 0xF0 literals 98.33 (2292 bytes), a screenHeight
 // local shared by both groups 98.36 (2288), teardown-only screenHeight 98.33;
-// gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75. The one tie left in
-// this body IS a preset question - see the note below.
+// gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75. The division tie of
+// the earlier bodies was a preset question and closed when try_flags scored this
+// body 99.04 under gcc 2.6.0 with all eight already-matched functions of the unit
+// still 100.00, which is how the unit moved to XenoBattle260Div.
 
 // RE-MEASURED under the unit's gcc 2.6.0 preset: 99.04%, retail's exact 2276 bytes.
 // The /3600 magic division now lands in a2 as retail has it, and the only rows
@@ -206,203 +208,18 @@ extern s32 g_MovieHeapDebugEnabled;
 // spelling of those two assignments controls. Preset re-screened under
 // gcc-2.7.2-cdk-psx: 82.76; every already-matched function of the unit is 100.00
 // under the unit preset and 62.96-97.24 under cdk, so 2.6.0 stands.
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
-
-/* 99.04%, 2276 bytes (retail's exact size); see the note above for the last diff
-void func_800704E8(void) {
-    SVECTOR sv;
-    MovieDebugMode mode;
-    u32 spare2[6];
-    MovieDrawBuffer* pWork;
-    MovieDrawBuffer* pBase;
-    MovieDrawBuffer* pNext;
-    u32* pCounters;
-    u32* pCounter;
-    s32 i;
-    s32 action;
-    s32 fileSize;
-    s32 playTime;
-    s32 hours;
-    s32 minutes;
-    s32 seconds;
-    s32 cursor;
-
-    mode = D_8006FAF4;
-    ArchiveChangeStreamingFile(0);
-    MovieClearFrameBuffer();
-    g_MovieReadBuffer = NULL;
-    g_MovieStreamMode = 1;
-    for (i = 0xF; i >= 0; i--) {
-        g_MovieStreamReadCount[i] = 0;
-    }
-
-    pWork = &g_MovieDebugDrawBuffers[0];
-    SetDefDrawEnv(&pWork->drawEnv, 0, 0, 0x280, 0xF0);
-    SetDefDispEnv(&pWork->dispEnv, 0, 0xF0, 0x280, 0xF0);
-    SetDefDrawEnv(&pWork[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
-    SetDefDispEnv(&pWork[1].dispEnv, 0, 0, 0x280, 0xF0);
-    pWork->drawEnv.isbg = 1;
-    pWork[1].drawEnv.isbg = 1;
-    ArchiveSetIndex(0xC, 3);
-
-    pCounters = g_MovieStreamReadCount;
-    pBase = pWork;
-    while (1) {
-        pNext = &g_MovieDebugDrawBuffers[0];
-        if (g_MovieDebugDrawBuffer == pNext) {
-            pNext = &g_MovieDebugDrawBuffers[1];
-        }
-        g_MovieDebugDrawBuffer = pNext;
-        g_MovieDebugBufferParity = 1 - g_MovieDebugBufferParity;
-        ClearOTagR(pNext->ot, 0x20);
-        func_800712C4();
-        MovieUpdatePadCursor(0, 0, &action);
-        MovieUpdateStream();
-
-        if (g_MovieRandomMode != 0) {
-            FontPrintf(D_8006FAF8);
-        }
-        if (g_MovieStreamMode == 0) {
-            FontPrintf(D_8006FB08);
-        }
-        FontPrintf(D_8006FB18, g_MovieStreamCommand, g_MovieStreamReadErrors, g_MovieVsyncCount,
-                   g_ArchiveReadRetryCount, g_ArchiveCdDriveState);
-        switch (D_80076E64) {
-        case 0:
-            FontPrintf(D_8006FB44);
-            break;
-        case 1:
-            FontPrintf(D_8006FB50);
-            break;
-        case 2:
-            FontPrintf(D_8006FB5C);
-            break;
-        }
-        FontPrintf(D_8006FB68, g_ArchiveCdReadStartCount, g_ArchiveCdReadCompleteCount,
-                   g_ArchiveCdReadStatusErrorCount, g_ArchiveCdDataSectorCompleteCount,
-                   g_ArchiveCdDataSectorErrorCount, D_8005A49C, g_ArchiveCdReadRetryExhaustedCount,
-                   g_ArchiveCdHaltCompleteCount, g_ArchiveCdHaltErrorCount);
-        fileSize = ArchiveDataSync();
-        FontPrintf(D_8006FBA8, fileSize, ArchiveGetCurFileSize(), g_ArchiveFilePositionErrorCount,
-                   g_ArchiveStreamPositionErrors, g_ArchiveStreamSectionPositionErrors, g_ArchiveStreamNextSectionId,
-                   g_ArchiveStreamCurSectionId);
-        FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
-        FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);
-
-        i = 0;
-        if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
-            FontPrintf(D_8006FC40, g_MovieDebugCounters, g_MovieStreamBlock, g_MovieStreamWritePtr,
-                       g_MovieStreamBytesLeft);
-            for (; i < 7; i++) {
-                FontPrintf(D_8006FC64, g_MovieDebugCounters[i]);
-            }
-            FontPrintf(D_8006FC6C);
-            for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 7]);
-            }
-            FontPrintf(D_8006FC6C);
-            for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 14]);
-            }
-            FontPrintf(D_8006FC6C);
-            for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 21]);
-            }
-            FontPrintf(D_8006FC6C);
-            if (g_MovieStreamSections != NULL) {
-                FontPrintf(D_8006FC70, g_MovieStreamSections[0].unk4, g_MovieStreamSections[1].unk4,
-                           g_MovieStreamSections[2].unk4, g_MovieStreamSections[3].unk4);
-            }
-        }
-
-        g_MovieDebugCounterTotal = 0;
-        FontPrintf(D_8006FC8C, g_MovieStreamCancelCount);
-        for (i = 0, pCounter = pCounters; i < 0xD; i++) {
-            FontPrintf(D_8006FC98, i, *pCounter);
-            g_MovieDebugCounterTotal += *pCounter;
-            if (g_MovieStreamCommandNow == i) {
-                FontPrintf(D_8006FCA4);
-            }
-            if (g_MovieStreamCommandBefore == i) {
-                FontPrintf(D_8006FCAC);
-            }
-            FontPrintf(D_8006FC6C);
-            pCounter++;
-        }
-
-        playTime = g_MoviePlayTimeSeconds;
-        hours = playTime / 3600;
-        minutes = playTime / 60 - hours * 60;
-        seconds = playTime % 60;
-        FontPrintf(D_8006FCB4, g_MovieDebugCounterTotal, hours, minutes, seconds);
-        FontPrintf(D_8006FCD8);
-        if (g_MovieHeapDebugEnabled > 0) {
-            HeapDebugDump(1, 0, 6, 0x808D);
-        }
-
-        FontDrawLetters(g_MovieDebugDrawBuffer->ot);
-        func_80072F98((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[0], 8, 0xC, 0x270, 0xD8);
-        MovieUpdateGlowPoly((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[1], 7, 0xB, 0x272, 0xDA);
-        DrawSync(0);
-        Vsync(0);
-        PutDrawEnv(&g_MovieDebugDrawBuffer->drawEnv);
-        PutDispEnv(&g_MovieDebugDrawBuffer->dispEnv);
-        DrawOTag(&g_MovieDebugDrawBuffer->ot[0x1F]);
-        cursor = g_MovieCursorIndex;
-        if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 &&
-            g_MovieStreamCommand == 0) {
-            g_MovieHeapDebugEnabled = 0;
-            ArchiveStopTransfer(0);
-            ArchiveCdDataSync(0);
-            if (g_MovieReadBuffer != NULL) {
-                HeapFree(g_MovieReadBuffer);
-            }
-            g_MovieReadBuffer = NULL;
-            if (g_MovieDebugCounters != NULL) {
-                HeapFree(g_MovieDebugCounters);
-            }
-            g_MovieDebugCounters = NULL;
-            MovieClearFrameBuffer();
-            SetDefDrawEnv(&pBase->drawEnv, 0, 0, 0x140, 0xF0);
-            SetDefDispEnv(&pBase->dispEnv, 0, 0xF0, 0x140, 0xF0);
-            SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, i = 0xF0);
-            SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, i);
-            g_MovieDebugDrawBuffers[0].dispEnv.screen.x = 0;
-            g_MovieDebugDrawBuffers[0].dispEnv.screen.y = 0xA;
-            g_MovieDebugDrawBuffers[0].dispEnv.screen.w = 0x100;
-            g_MovieDebugDrawBuffers[0].dispEnv.screen.h = 0xD8;
-            g_MovieDebugDrawBuffers[1].dispEnv.screen.x = 0;
-            g_MovieDebugDrawBuffers[1].dispEnv.screen.y = 0xA;
-            g_MovieDebugDrawBuffers[1].dispEnv.screen.w = 0x100;
-            g_MovieDebugDrawBuffers[1].dispEnv.screen.h = 0xD8;
-            g_MovieDebugDrawBuffers[0].drawEnv.isbg = 1;
-            g_MovieDebugDrawBuffers[1].drawEnv.isbg = 1;
-            break;
-        }
-        g_MovieCursorIndex = cursor;
-    }
-}
-*/
-
-// PARKED at 99.02% (2.7.2): retail's exact size (2276 bytes), frame (0x70, mode at
-// 0x30, &action at 0x50) and register set. Every instruction now matches except ONE:
-// the /3600 magic division's `mfhi` lands in t1 where retail writes a2 (and so the
-// next insn is `addu a2,t1,t0` against retail's `addu a2,a2,t0`). Everything else the
-// diff prints is relocation spelling only: the zero loop's `addiu v1,v1,60` over
-// g_MovieStreamReadCount (= 0x80076F3C + 0x3C = retail's D_80076F78) and the first
-// `drawEnv.isbg = 1` (g_MovieDebugDrawBuffers + 0x18 = retail's g_MovieStreamSlots).
-// PRESET_260: gcc 2.6.0 gets this right. Compiled with gcc-2.6.0-psx the whole body
-// comes out instruction-identical to retail (`mfhi a2` / `addu a2,a2,t0`), and
-// tools/scripts/try_flags.sh movie/main/misc1 --all --gcc gcc-2.6.0-psx scores
-// func_800704E8 99.04 and ALL EIGHT already-matched C functions of the unit 100.00,
-// so the unit can be switched (2.7.2 expand_divmod uses a temp register for the div
-// high part, 2.6.0 writes it into the target). Not source-controllable under 2.7.2:
-// 16 hand shapes below (single/multi-statement division, div temp, self-assignment,
-// `60 * hours`, `playTime - minutes * 60`, three declaration orders, int vs s32,
-// inline-at-call, pointer local) all measure 99.02, and a 10-minute permuter run
-// (2991 iterations) is useless here: its base score is 365 for a body objdiff calls
-// 99.02%, i.e. dominated by the reloc-name rows above, and its 346 "improvement" is
-// that noise (measured 98.97% by objdiff).
+// RE-MEASURED (round 393, un-parked unchanged, 2.6.0): 99.04%, 2276 bytes, 569/569
+// instructions, the same two placement rows and nothing else. New negatives, each
+// measured: an empty `do { } while (0);` between ArchiveSetIndex and the two
+// preheader assignments does not move the `li s3,1` (99.04, identical rows); writing
+// the counters loop's base inline (`pCounter = (u32*)g_MovieStreamReadCount`) loses
+// the s4 copy (97.69, 2264 bytes, 566 insns); assigning `pBase = pWork;` at the top
+// of the teardown instead of before the loop loses it too, 99.05% at 2272 bytes
+// (568 insns) - so the preheader copy really is a source statement, and both rows
+// are gcc's own placement of a formation near its use. try_flags under the same
+// 2.6.0 with -O3 and with -G0 both measure 99.04, so it is not a flag question. A
+// 4-minute permuter run (1067 iterations) is useless here: base 460 = best 460,
+// because the reloc-name rows above dominate its score.
 /*
 void func_800704E8(void) {
     SVECTOR sv;
@@ -576,8 +393,8 @@ void func_800704E8(void) {
         }
         g_MovieCursorIndex = cursor;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 
 extern s32 g_MovieStreamCommand;
 extern MovieStreamEntry* g_MovieStreamSections;
