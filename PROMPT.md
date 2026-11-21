@@ -979,6 +979,12 @@ over the BETTER park.
   forbidden to touch docker; you are not. At session start, `docker ps --format
   '{{.RunningFor}}\t{{.Mounts}}'` and `docker kill` any container older than two hours
   whose clone is not in your current round or `r-permute`.
+- **Measure a park's true size from the symbol table before briefing it.** `menu/misc10`'s park was
+  briefed as "one instruction short, retail 1024" and retail is 1020, `battle/misc13`'s note claimed 432
+  where retail is 424 (five rounds chased that phantom 8-byte gap), and `field/misc8`'s claimed 280 where
+  it is 276. Read the function's own `.size` in the `.s`, or the next symbol's address, and put the real
+  number in the brief - a body at retail's size that differs in a few displaced instructions is a
+  different job from one that is short.
 - **Create the clones BEFORE you write the brief.** Round 375 launched five lanes against `~/xw/r-r375-*`
   paths that did not exist yet; every child aborted at start with `cwd does not exist` (nothing lost,
   the relaunch was identical). Order: `make objdiff-config` -> `clone.sh new <tags>` -> brief, and paste
