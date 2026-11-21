@@ -438,15 +438,15 @@ typedef struct {
 } FieldLightFileData;
 
 typedef struct {
-    short flags;
-    short rotationX;
-    short rotationY;
-    short rotationZ;
-    short positionX;
-    short positionY;
-    short positionZ;
-    short modelID;
-} FieldActorFileData;
+    u_short flags;
+    u_short rotationX;
+    u_short rotationY;
+    u_short rotationZ;
+    u_short positionX;
+    u_short positionY;
+    u_short positionZ;
+    u_short modelID;
+} FieldActorFileData; // Size: 0x10
 
 typedef struct {
 
@@ -472,8 +472,10 @@ typedef struct {
     /* 0x14C */ u_int dialogsOffset;
     /* 0x150 */ u_int triggersOffset;
     /* 0x154 */ FieldLightFileData lightData;
-    /* 0x18C */ u_int numEntitites;
-    /* 0x190 */ void* actorData; // Start of entity data
+    /* 0x17E */ u_char unk17E[0xE];
+    /* 0x18C */ u_short numEntitites;
+    /* 0x18E */ undefined16 unk18E;
+    /* 0x190 */ u_short actorData[0]; // Start of entity data, FieldActorFileData sized
 } ActorFile;
 
 

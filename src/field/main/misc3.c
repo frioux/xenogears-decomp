@@ -5,6 +5,7 @@
 #include "field/camera.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
+#include "system/model.h"
 
 extern void ArchiveCdDataSync(int mode);
 
@@ -377,5 +378,439 @@ void FieldResetPortraitSlots(void) {
     D_800ADB0C = 0;
 }
 
+// --- FieldLoad: reads the staged field scene file into the field globals -----
+
+extern void* g_GameStagedFileBuffer;
+extern s32 g_GameStagedFileTag;
+extern s32 g_GameStagedFileIndex;
+extern s32 g_FieldSystemMode;
+extern s32 g_FieldEntryRoutineFinished;
+extern s32 g_FieldRenderContextUseOT2;
+extern s32 g_FieldActiveActorCount;
+extern u_short g_FieldPlayerActorIndex16;
+extern s16 g_FieldScreenEffectEnabled;
+extern void* g_FieldScreenEffectData;
+extern s16 g_FieldMotionSlotSteps[];
+extern void* D_800AFB14;
+extern void* D_800ADBF0;
+extern u8 D_800658DC[];
+extern VECTOR g_CameraAt2;
+extern SVECTOR g_FieldRotationVector;
+extern u8 g_FieldBackgroundR;
+extern u8 g_FieldBackgroundG;
+extern u8 g_FieldBackgroundB;
+
+extern void func_800705DC(void);
+extern void func_8007A5C4(void);
+extern void func_8006FDEC(s16* pData);
+extern void func_80080F44(int actorIndex);
+extern void func_80077268(void);
+extern void func_800A28D4(void);
+extern void func_802812A4(void);
+extern void FieldLoadTIM(u_long* pTimData);
+extern void FieldInitTableQuad(Quad* pPart, int x, int y, int tex);
+extern void FieldSetMatrix(s16* pOut, int x0, int x1, int x2, int x3, int x4, int x5, int x6, int x7, int x8);
+extern void GfxLoadClutsAccelerated(u8* pData, int x, u16 y);
+extern void GfxAllocateWorkBuffers(int workBufferSize, unsigned int allocFlag);
+extern void WorkListsReset(void);
+extern void FieldTextBoxInitialize(void);
+extern void FieldFadeInitialize(void);
+extern void FieldLoadAndCreateObjectModels(void);
+extern void FieldLoadActorAnimationFiles(void);
+extern void FieldUpdateActorRenderModes(void);
+extern int FieldAnyActorHasFlag8000(void);
+extern void SpriteSetDirection(SpriteData* pSpriteData, s16 direction);
+extern void func_800223B0(SpriteData* pSpriteData, s32 animId);
+extern void ModelResolvePointers(ModelFileHeader* pModelFile);
+extern void ModelAllocatePackets(ModelPart* pModelPart, void** pPacket1, void** pPacket2);
+extern void ModelInitializePacket(ModelPart* pPart, void* pPacket, s32 packetIndex);
+extern int ModelFileTrimHeapBlock(ModelFileHeader* pModelFile);
+extern void* func_800303C8(ModelPart* pModelPart, s32 arg1);
+
+typedef struct {
+    /* 0x0 */ s32 vx;
+    /* 0x4 */ s32 vy;
+    /* 0x8 */ s32 vz;
+    /* 0xC */ s32 pad;
+} FieldVector3; // Size: 0x10
+
+// The 0x100-byte block the loader copies into the sprite placement table
+typedef struct {
+    /* 0x00 */ u8 unk0[0x100];
+} FieldSceneFileHeader; // Size: 0x100
+
+// Per-sprite-id placement table, stride 8 (the table misc2.c walks too)
+typedef struct {
+    /* 0x0 */ u16 texX;
+    /* 0x2 */ u16 texY;
+    /* 0x4 */ u16 clut;
+    /* 0x6 */ s16 clutLoaded;
+} FieldSpritePlacement; // Size: 0x8
+
+extern FieldSpritePlacement D_800B1F78[];
+
+// Quad table the field renders its table-mode primitives from: the 4x4 grid
+// FieldLoad fills by index, then 5 fixed quads at ids 4..8
+typedef struct {
+    /* 0x0 */ u8 unk0[0x70];
+} FieldTableQuad; // Size: 0x70
+
+extern FieldTableQuad D_800B06BC[];
+extern FieldTableQuad D_800B0DBC[];
+
+// The walkmesh file the loader decompresses and the views into it: its first
+// word is the triangle count, then the four counts and offsets it walks, then the
+// pointers the renderer reads (g_FieldWalkmeshTriangles etc.).
+typedef struct {
+    /* 0x00 */ void* pFile;
+    /* 0x04 */ void* pSpriteData;
+    /* 0x08 */ u32* pMaterialFlags;
+    /* 0x0C */ void* pTriangles[4];
+    /* 0x1C */ void* pVertices[4];
+    /* 0x2C */ s32 unk2C[4];
+    /* 0x3C */ s16 triCount;
+} FieldWalkmesh; // Size: 0x3E
+
+extern FieldWalkmesh D_800AFB18;
+
+// The screen effect setup record at 0x800B0080 and the parameter record at
+// 0x800B00A0 that follows it (FieldScriptSetParams80 / FieldScriptSetParamsA0
+// fill the same memory a field at a time).
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ s16 unk8;
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 unk18;
+    /* 0x1C */ u8 unk1C;
+    /* 0x1D */ u8 unk1D;
+    /* 0x1E */ u8 unk1E;
+    /* 0x1F */ u8 unk1F;
+    /* 0x20 */ u8 unk20;
+    /* 0x21 */ u8 unk21;
+    /* 0x22 */ u8 unk22;
+    /* 0x23 */ u8 unk23;
+    /* 0x24 */ u8 unk24;
+    /* 0x25 */ u8 unk25;
+    /* 0x26 */ u8 unk26;
+    /* 0x27 */ u8 unk27;
+    /* 0x28 */ s16 unk28;
+    /* 0x2A */ s16 unk2A;
+    /* 0x2C */ s16 unk2C;
+} FieldScreenEffectConfig; // Size: 0x2E
+
+extern FieldScreenEffectConfig D_800B0080;
+
+extern MATRIX D_800AFC30;
+extern s32 D_800AFC44;
+extern s32 D_800AFC48;
+extern s32 D_800AFC4C;
+
+// The motion slot working area g_FieldMotionSlotSteps lives in; the second
+// FieldSetMatrix layout sits 0x20 bytes in front of it
+extern u8 g_FieldModelSlotScratch[];
+
+#define STAGED_FILE ((ActorFile*)((u8*)g_GameStagedFileBuffer + 0x10C))
+// The actor table is a volatile pointer, so retail re-reads it at every use
+#define ACTOR(index) ((FieldActor*)((index) * sizeof(FieldActor) + (s32)g_FieldActors))
+
+// PARKED 74.78% (3488 bytes against retail's 3484: ONE instruction over, frame
+// 0xa0 and every call, branch and store in the original's order). objdiff's
+// number is not the story here - the same body with the position pairs spelled
+// inline (`ACTOR(i)->...;` twice per pair) measures 74.98% at 3520 bytes (9 over)
+// and the same body with ONE `pActor` local for the whole loop measures 75.18%
+// at 3304 bytes (45 SHORT), so the source is somewhere between: retail shares one
+// `g_FieldActors` read for each of the three transform/childMatrix PAIRS and for
+// the `status & 0x40` test plus the `|= 0x20` store (both reuse $a0 across the
+// branch), and re-reads the base for every other store. What is left is all
+// register allocation: retail's saved set is s0-s5, this body's is s0-s6, so from
+// the second phase on every s-register is one off (retail $s2 = the actor byte
+// offset / the offset-table pointer, here $s3).
+// WHAT MATCHES BYTE-FOR-BYTE (checked instruction by instruction): the 16-byte
+// rodata copy, the 0x100-byte structure copy from g_GameStagedFileBuffer to
+// D_800B1F78 (both the aligned and the lwl/lwr paths - the copy type must have
+// alignment 1 or 2 or cc1 drops the `or/andi 0x3` test), the 4x4 quad loop, the
+// five fixed FieldInitTableQuad calls, and the whole Phase-4..12 HeapAlloc +
+// FieldLZSSDecompress chain.
+// FACTS ESTABLISHED THIS ROUND (keep them):
+//  - misc3 owns exactly one .rodata item, D_8006FAF4 {0,-100,2000,0}: converting
+//    FieldLoad DELETES it (its dlabel is in the stub's .s), so the converted body
+//    must carry `const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};` at file
+//    scope. It is dropped below because the parked INCLUDE_ASM would otherwise
+//    define the symbol twice.
+//  - 0x800B0080..0x800B00B1 is ONE object in this unit's source (the init block
+//    reaches g_FieldScreenEffectParams' bytes as `0x1C($s2)` off D_800B0080 and
+//    the effect-setup fields as displacements too), so FieldScreenEffectConfig
+//    above is one struct; misc.c's separate FieldScreenEffectSetup /
+//    FieldScreenEffectParams views are the same memory.
+//  - 0x800AFB18 is likewise one object (FieldWalkmesh): g_FieldSpriteData is +4,
+//    g_FieldWalkmeshMaterialFlags +8, g_FieldWalkmeshTriangles +0xC (4 pointers),
+//    g_FieldWalkmeshVertices +0x1C (4 pointers), the `>>1 /7` counts +0x2C,
+//    g_FieldWalkmeshTriCount +0x3C. Retail re-reads `-0xC($a2)` (the file
+//    pointer) per store.
+//  - the actor spawn records are 8 u16 = FieldActorFileData (the loader reads
+//    flags, then the rotation trio, then the position trio, then modelID, so the
+//    pointer bumps +2/+6/+6 and the loop tail's +2 lands in func_80080F44's delay
+//    slot). Loads are `lhu`, so the header's fields are u_short, not short.
+//  - FieldLightFileData must stay 0x2A bytes: ActorFile needs 0xE of padding
+//    before numEntitites (0x18C) and actorData is the inline array at 0x190.
+//  - the -0x20/-0xB8 first arguments of the two FieldSetMatrix calls and the
+//    RotMatrix are displacements off ONE base in retail, i.e. g_FieldModelSlotScratch
+//    .. g_FieldMotionSlotSteps is one object in the source too.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldLoad);
 
+/*
+void FieldLoad(void) {
+    FieldActor* pActor;
+    FieldActorModelData* pModel;
+    ModelPart* pModelPart;
+    ActorFile* pFile;
+    FieldWalkmesh* pWalk;
+    u16* pSpawn;
+    s32* pOffsets;
+    u32* pWord;
+    void* pTimData;
+    void* pClutData;
+    s32 size;
+    s32 count;
+    s32 i;
+    s32 j;
+    FieldVector3 defaultVector;
+
+    defaultVector = D_8006FAF4;
+    func_800705DC();
+
+    *(FieldSceneFileHeader*)D_800B1F78 = *(FieldSceneFileHeader*)g_GameStagedFileBuffer;
+
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 4; j++) {
+            FieldInitTableQuad((Quad*)&D_800B06BC[i * 4 + j], j, i, 0);
+        }
+    }
+    FieldInitTableQuad((Quad*)&D_800B0DBC[0], 4, 4, 1);
+    FieldInitTableQuad((Quad*)&D_800B0DBC[1], 5, 5, 1);
+    FieldInitTableQuad((Quad*)&D_800B0DBC[2], 6, 6, 1);
+    FieldInitTableQuad((Quad*)&D_800B0DBC[3], 7, 7, 1);
+    FieldInitTableQuad((Quad*)&D_800B0DBC[4], 8, 8, 1);
+    func_8007A5C4();
+
+    size = STAGED_FILE->timPackageSize + 0x10;
+    pTimData = HeapAlloc(size, 1);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->timPackageOffset, pTimData);
+    count = *(s32*)pTimData;
+    for (i = 0; i < count; i++) {
+        FieldLoadTIM((u_long*)((u8*)pTimData + ((s32*)pTimData)[i + 1]));
+    }
+
+    size = STAGED_FILE->clutDataSize + 0x10;
+    pClutData = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->clutDataOffset, pClutData);
+    count = *(s32*)pClutData;
+    pOffsets = (s32*)pClutData + 1;
+    for (i = 0; i < count; i++) {
+        if (D_800B1F78[i].clutLoaded == 0) {
+            GfxLoadClutsAccelerated((u8*)pClutData + *pOffsets, D_800B1F78[i].texX, D_800B1F78[i].texY);
+        }
+        pOffsets++;
+    }
+    DrawSync(0);
+    HeapFree(pTimData);
+    HeapFree(pClutData);
+
+    size = STAGED_FILE->modelDataSize + 0x10;
+    D_800AFB14 = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->modelDataOffset, D_800AFB14);
+    for (i = 0; i < *(s32*)D_800AFB14; i++) {
+        ModelResolvePointers((ModelFileHeader*)((u8*)D_800AFB14 + ((s32*)D_800AFB14)[i + 1]));
+    }
+
+    FieldLZSSDecompress((void*)(STAGED_FILE->unk3Size + 0x10),
+                        (u8*)g_GameStagedFileBuffer + STAGED_FILE->pUnk3Data, D_800658DC);
+
+    size = STAGED_FILE->scriptsSize + 0x10;
+    g_FieldCurScriptFile = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->scriptsOffset, g_FieldCurScriptFile);
+    g_FieldActiveActorCount = g_FieldCurScriptFile->numScripts;
+    g_FieldScriptVMCurScriptData = (u8*)g_FieldCurScriptFile->metadata + g_FieldActiveActorCount * 0x40;
+
+    size = STAGED_FILE->triggersSize + 0x10;
+    g_pFieldTriggerZones = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->triggersOffset, g_pFieldTriggerZones);
+
+    size = STAGED_FILE->dialogsSize + 0x10;
+    D_800ADBF0 = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->dialogsOffset, D_800ADBF0);
+
+    size = STAGED_FILE->walkmeshSize + 0x10;
+    D_800AFB18.pFile = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->walkmeshDataOffset, D_800AFB18.pFile);
+
+    pWalk = &D_800AFB18;
+    pWord = (u32*)pWalk->pFile;
+    pWalk->triCount = *(s32*)pWalk->pFile;
+    for (i = 0; i < 4; i++) {
+        pWalk->unk2C[i] = (pWord[i + 1] >> 1) / 7;
+    }
+    pWalk->pMaterialFlags = (u32*)((u8*)pWalk->pFile + pWord[5]);
+    for (i = 0; i < pWalk->triCount; i++) {
+        pWalk->pTriangles[i] = (u8*)pWalk->pFile + pWord[i * 2 + 6];
+        pWalk->pVertices[i] = (u8*)pWalk->pFile + pWord[i * 2 + 7];
+    }
+
+    size = STAGED_FILE->spriteDataSize + 0x10;
+    g_FieldSpriteData = HeapAlloc(size, 0);
+    FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->spriteDataOffset, g_FieldSpriteData);
+
+    g_Scene.scrollLimits[0] = 1;
+    g_Scene.scrollLimits[1] = 1;
+    g_Scene.scrollLimits[2] = 1;
+    g_Scene.scrollLimits[3] = 1;
+    func_8006FDEC((s16*)&STAGED_FILE->lightData);
+
+    count = STAGED_FILE->numEntitites;
+    pSpawn = STAGED_FILE->actorData;
+    g_FieldNumActors = count;
+    g_FieldActors = HeapAlloc(count * sizeof(FieldActor), 0);
+    pWord = (u32*)g_FieldActors;
+    for (i = 0; i < count * (s32)(sizeof(FieldActor) / sizeof(s32)); i++) {
+        pWord[i] = 0;
+    }
+
+    for (i = 0; i < g_FieldNumActors; i++) {
+        ACTOR(i)->status = *pSpawn++;
+        ACTOR(i)->rotation.x = pSpawn[0];
+        ACTOR(i)->rotation.y = pSpawn[1];
+        ACTOR(i)->rotation.z = pSpawn[2];
+        pSpawn += 3;
+        pActor = ACTOR(i);
+        pActor->transformMatrix.t[0] = pSpawn[0];
+        pActor->childMatrix.t[0] = pSpawn[0];
+        pActor = ACTOR(i);
+        pActor->transformMatrix.t[1] = pSpawn[1];
+        pActor->childMatrix.t[1] = pSpawn[1];
+        pActor = ACTOR(i);
+        pActor->transformMatrix.t[2] = pSpawn[2];
+        pActor->childMatrix.t[2] = pSpawn[2];
+        pSpawn += 3;
+        if (ACTOR(i)->status & 0x40) {
+            ACTOR(i)->status |= ACTOR_STATUS_INVISIBLE;
+            ACTOR(i)->rotation.x = 0;
+            ACTOR(i)->rotation.y = 0;
+            ACTOR(i)->rotation.z = 0;
+        } else {
+            j = *pSpawn;
+            pModel = HeapAlloc(sizeof(FieldActorModelData), 0);
+            ACTOR(i)->pModelData = pModel;
+            pModelPart = (ModelPart*)((u8*)D_800AFB14 + ((s32*)D_800AFB14)[j + 1] + 0x10);
+            pModel->pBounds = (FieldActorModelBounds*)pModelPart;
+            ModelAllocatePackets(pModelPart, (void**)&pModel->pPrimitiveBuffers[0],
+                                 (void**)&pModel->pPrimitiveBuffers[1]);
+            ModelInitializePacket(pModelPart, pModel->pPrimitiveBuffers[0], (ACTOR(i)->status & 0xC) >> 2);
+            memcpy(pModel->pPrimitiveBuffers[1], pModel->pPrimitiveBuffers[0], pModelPart->unk20[1].modelPacketSize);
+            if (ACTOR(i)->status & 0x2000) {
+                HeapChangeCurrentUser(3, 0);
+                pModel->pScripts = func_800303C8(pModelPart, 0);
+                HeapChangeCurrentUser(8, 0);
+            }
+            ModelFileTrimHeapBlock((ModelFileHeader*)pModelPart);
+        }
+        pSpawn++;
+        func_80080F44(i);
+    }
+
+    if (g_FieldSystemMode == 0) {
+        func_802812A4();
+    }
+    FieldTextBoxInitialize();
+    FieldFadeInitialize();
+    HeapUnpinBlock(g_GameStagedFileBuffer);
+    HeapFree(g_GameStagedFileBuffer);
+    HeapChangeCurrentUser(5, 0);
+    GfxAllocateWorkBuffers(0x3C00, 0);
+    WorkListsReset();
+    HeapChangeCurrentUser(8, 0);
+    FieldSetMatrix(g_FieldMotionSlotSteps, 0x800, 0, 0, 0x800, 0, 0, 0x800, 0, 0);
+    FieldSetMatrix((s16*)(g_FieldModelSlotScratch + 0x30), 0x1F8, -0xFC1, -0x1F8, 0, 0, 0, 0, 0, 0);
+
+    g_FieldBackgroundB = 0x1E;
+    g_FieldBackgroundG = 0x1E;
+    g_FieldBackgroundR = 0x1E;
+    D_800B0080.unk4 = 0x140;
+    D_800B0080.unkE = 0;
+    D_800B0080.unk27 = 0;
+    D_800B0080.unk26 = 0;
+    D_800B0080.unk24 = 0;
+    D_800B0080.unk23 = 0;
+    D_800B0080.unk22 = 0;
+    D_800B0080.unk20 = 0;
+    D_800B0080.unk1F = 0;
+    D_800B0080.unk1E = 0;
+    D_800B0080.unk1D = 0;
+    D_800B0080.unk1C = 0;
+    D_800B0080.unk10 = 0;
+    D_800B0080.unk18 = 0x1000;
+    D_800B0080.unk2C = 0;
+    D_800B0080.unk2A = 0;
+    D_800B0080.unk28 = 0;
+    D_800B0080.unkC = 0;
+    D_800B0080.unkA = 0;
+    D_800B0080.unk8 = 0;
+    D_800B0080.unk6 = 0;
+    D_800B0080.unk2 = 0;
+    D_800B0080.unk0 = 0;
+    g_FieldScreenEffectEnabled = 0;
+    D_800B0080.unk14 = 0;
+    D_800B0080.unk25 = 0x20;
+    g_FieldEntryRoutineFinished = 0;
+
+    func_800A28D4();
+    g_FieldEntryRoutineFinished = 1;
+    RotMatrix(&g_FieldRotationVector, &D_800AFC30);
+    D_800AFC4C = 0;
+    D_800AFC48 = 0;
+    D_800AFC44 = 0;
+    if (g_FieldScreenEffectEnabled != 0) {
+        g_FieldScreenEffectData = func_8002709C(D_800B0080.unk0, D_800B0080.unk2, D_800B0080.unk4, D_800B0080.unk6,
+                                                D_800B0080.unk8, D_800B0080.unkA, D_800B0080.unkC, D_800B0080.unkE,
+                                                (VECTOR*)&D_800B0080.unk10, &D_800B0080.unk1C, D_800B0080.unk28,
+                                                D_800B0080.unk2A, D_800B0080.unk2C);
+    }
+    HeapChangeCurrentUser(8, 0);
+
+    pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (s32)g_FieldActors);
+    g_CameraAt2.vx = pActor->transformMatrix.t[0] << 16;
+    g_CameraAt2.vy = pActor->transformMatrix.t[1] << 16;
+    g_CameraAt2.vz = pActor->transformMatrix.t[2] << 16;
+    for (i = 0; i < g_FieldNumActors; i++) {
+        pActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
+        RotMatrix(&pActor->rotation, &pActor->transformMatrix);
+        pActor->childMatrix = pActor->transformMatrix;
+    }
+
+    FieldLoadAndCreateObjectModels();
+    FieldLoadActorAnimationFiles();
+    g_GameStagedFileTag = -1;
+    g_GameStagedFileIndex = -1;
+    FieldUpdateActorRenderModes();
+    func_80077268();
+    g_FieldRenderContextUseOT2 = g_FieldScreenEffectEnabled ? 1 : FieldAnyActorHasFlag8000();
+
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        pActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
+        if (pActor->status & 0x40) {
+            if (pActor->pActorData->flags & 0x1000000) {
+                SpriteSetDirection(pActor->pSpriteData, pActor->pActorData->rotation.vz);
+            } else {
+                func_800223B0(pActor->pSpriteData,
+                              (s16)((u16)pActor->pActorData->rotation.vz + (u16)g_CamInterpolation.curAngleY));
+            }
+        }
+    }
+}
+*/
