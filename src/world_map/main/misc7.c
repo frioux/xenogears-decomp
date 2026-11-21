@@ -83,7 +83,8 @@ typedef struct WorldMapEntry {
 // func_80081D80 so the wipe does not move in one block. The tpage word sits after the
 // second vertex's texcoords, where the original object reads it.
 typedef struct {
-    /* 0x00 */ u32 tag;
+    /* 0x00 */ u8 tag[3];
+    /* 0x03 */ u8 unk3;
     /* 0x04 */ u8 r;
     /* 0x05 */ u8 g;
     /* 0x06 */ u8 b;
@@ -107,6 +108,7 @@ typedef struct {
     /* 0x22 */ s16 y3;
     /* 0x24 */ u8 u3;
     /* 0x25 */ u8 v3;
+    /* 0x26 */ u16 pad26;
 } WorldMapFadeQuad; // Size: 0x28
 
 // The world map frame render context g_WorldMapRenderContext points at: partial view of the
@@ -865,7 +867,7 @@ s32 func_80081C3C(s32 index) {
     u8 level;
     u8 code;
     u8 shade;
-    u8 *p;
+    WorldMapFadeQuad *pQuad;
     s32 i;
 
     ppQuadBuffers[0] = HeapAlloc(0x1E00, 0);
@@ -874,17 +876,17 @@ s32 func_80081C3C(s32 index) {
     i = 0;
     level = 9;
     code = 0x2C;
-    p = ppQuadBuffers[0];
+    pQuad = (WorldMapFadeQuad *)ppQuadBuffers[0];
     shade = 0x80;
     for (; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
-        p[7] = code;
-        p[3] = level;
-        p[4] = shade;
-        p[5] = shade;
-        p[6] = shade;
-        p[7] |= 1;
-        *(u16 *)(p + 0x16) = GetTPage(2, 0, 0x280, 0x100);
-        p += 0x28;
+        pQuad->code = code;
+        pQuad->unk3 = level;
+        pQuad->r = shade;
+        pQuad->g = shade;
+        pQuad->b = shade;
+        pQuad->code |= 1;
+        pQuad->tpage = GetTPage(2, 0, 0x280, 0x100);
+        pQuad++;
     }
     pSrc = (Quad *)g_WorldMapFadeQuadBuffers[0];
     pDst = (Quad *)D_8009D15C;
