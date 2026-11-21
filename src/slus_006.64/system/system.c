@@ -5,9 +5,20 @@
 #include "system/font.h"
 
 // SystemString.flags bits
+#define SYSTEM_STRING_FLAG_PERSISTENT 0x2    // the only flag a reset keeps
 #define SYSTEM_STRING_FLAG_STOPPED 0x8       // rendering stopped, stopCode says why
 #define SYSTEM_STRING_FLAG_DATA_OVERRIDE 0x80 // pCur is an override of pPrev
 #define SYSTEM_STRING_FLAG_WAITING 0x200     // a wait opcode is running
+
+// Distance, in VRAM units, between two rendered rows of a string
+#define SYSTEM_STRING_LINE_HEIGHT 14
+
+// The clear tile a string is erased with overhangs its text box: this far left
+// and up, and this much wider and taller
+#define SYSTEM_STRING_CLEAR_MARGIN_X 7
+#define SYSTEM_STRING_CLEAR_MARGIN_Y 5
+#define SYSTEM_STRING_CLEAR_PAD_WIDTH 0xD
+#define SYSTEM_STRING_CLEAR_PAD_HEIGHT 0xA
 
 // lineOffset value that means no offset
 #define SYSTEM_STRING_LINE_OFFSET_NONE 0xFF
@@ -42,7 +53,8 @@ typedef struct {
 #define SYSTEM_NUMBER_GLYPH_PLUS 11
 #define SYSTEM_NUMBER_GLYPH_SET_STRIDE 16
 
-// System data banks (g_SystemDataEntries->entries) the named getters index
+// Slots from the terminator that ends the digits back to the sign slot
+#define SYSTEM_NUMBER_GLYPH_SLOT_COUNT (SYSTEM_NUMBER_GLYPH_DIGIT_COUNT + 1)
 
 // Palette in g_SystemPaletteData: this many colors in one row, in two CLUTs
 #define SYSTEM_PALETTE_COLOR_COUNT 32
@@ -79,9 +91,9 @@ extern int g_SystemFontSingleByteCodeBase;
 // Scratch buffer the number/glyph converters write to
 extern u8 g_SystemGlyphDecodeBuffer[];
 
-// Digit buffer: digits at g_SystemNumberGlyphBuffer, terminator slot at D_8005A0DE
+// Digit buffer: the digits, then the terminator slot. The sign is written in
+// front of the digits, at g_SystemNumberGlyphBuffer[-1].
 extern u16 g_SystemNumberGlyphBuffer[];
-extern u16 D_8005A0DE[];
 
 
 // One row of a rendered string. SystemStringInit sets the sprites up as free-size
@@ -176,7 +188,7 @@ void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y,
     pString->waitFrames = 0;
     pString->pBufferStack = NULL;
     pString->bufferCount = 0;
-    pString->lineHeight = 14;
+    pString->lineHeight = SYSTEM_STRING_LINE_HEIGHT;
     pString->unk68 = 1;
     pString->unk69 = 1;
     pString->maxWidth = maxWidth;
@@ -199,8 +211,9 @@ void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y,
 
     setlen(&pString->clearTile[0], 3);
     pString->clearTile[0].colorCode = 0x60 << 24; // r,g,b = 0, code = 0x60
-    setXY0Fast(&pString->clearTile[0], pString->x - 7, pString->y - 5);
-    setWHFast(&pString->clearTile[0], pString->maxWidth * 4 + 0xD, pString->maxChars * pString->lineHeight + 0xA);
+    setXY0Fast(&pString->clearTile[0], pString->x - SYSTEM_STRING_CLEAR_MARGIN_X, pString->y - SYSTEM_STRING_CLEAR_MARGIN_Y);
+    setWHFast(&pString->clearTile[0], pString->maxWidth * 4 + SYSTEM_STRING_CLEAR_PAD_WIDTH,
+              pString->maxChars * pString->lineHeight + SYSTEM_STRING_CLEAR_PAD_HEIGHT);
     SetSemiTrans(&pString->clearTile[0], 1);
     pString->clearTile[1] = pString->clearTile[0];
 
@@ -254,7 +267,7 @@ typedef struct {
 
 unsigned int ResolveArchiveEntryPointers(SystemOffsetTable* pTable) {
     u32 i;
-    u32 base = (u32)pTable;
+    mem_addr base = (mem_addr)pTable;
     for (i = 1; i <= pTable->count; i++) {
         pTable->offsets[i - 1] += base;
     }
@@ -265,7 +278,7 @@ unsigned int ResolveArchiveEntryPointers(SystemOffsetTable* pTable) {
 // Same as ResolveArchiveEntryPointers, but no return value
 void ResolveFileEntryPointers(SystemOffsetTable* pTable) {
     u32 i;
-    u32 base = (u32)pTable;
+    mem_addr base = (mem_addr)pTable;
 
     for (i = 1; i <= pTable->count; i++) {
         pTable->offsets[i - 1] += base;
@@ -383,6 +396,7 @@ u8 DialogGetHeight(DialogDataHeader* pDialogData, int dialogIndex) {
     return pDimensions->height;
 }
 
+// The banks the getters below index are SYSTEM_STRING_BANK_* in system/archive.h
 void* GetStringEntryFromBank(int groupIndex, int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[groupIndex], entryId);
 }
@@ -443,8 +457,7 @@ void* GetGearAccessoryName(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GEAR_ACCESSORY], entryId);
 }
 
-// TODO: determine what strings are in bank 51 and give this function a better name
-void *GetGearWeaponName(s32 entryId) {
+void* GetGearWeaponName(int entryId) {
     return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GEAR_WEAPON], entryId);
 }
 
@@ -511,18 +524,18 @@ int SystemFindGlyphCode(u8 firstByte, u8 secondByte) {
 int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
     int c = *pInput++;
     int glyph;
-    u8 arg0;
-    u8 arg1;
+    u8 firstByte;
+    u8 secondByte;
 
     while (c != 0) {
         if (c < g_SystemFontLeadByte) {
-            arg0 = 0;
-            arg1 = c;
+            firstByte = 0;
+            secondByte = c;
         } else {
-            arg0 = c;
-            arg1 = *pInput++;
+            firstByte = c;
+            secondByte = *pInput++;
         }
-        glyph = SystemFindGlyphCode(arg0, arg1);
+        glyph = SystemFindGlyphCode(firstByte, secondByte);
         *pOutput++ = glyph;
 
         if ((u16)glyph == SYSTEM_GLYPH_CODE_NOT_FOUND) {
@@ -570,10 +583,10 @@ void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
         divisor /= 10;
     }
 
-    pEnd = D_8005A0DE;
-    pScan = pEnd - 11;
+    pEnd = &g_SystemNumberGlyphBuffer[SYSTEM_NUMBER_GLYPH_DIGIT_COUNT];
+    pScan = pEnd - SYSTEM_NUMBER_GLYPH_SLOT_COUNT;
     pEnd[0] = SYSTEM_GLYPH_CODE_END;
-    pEnd[-11] = glyphOffset;
+    pEnd[-SYSTEM_NUMBER_GLYPH_SLOT_COUNT] = glyphOffset;
 
     /* pEnd keeps the scan start so the end is re-formed as pEnd + 10 inside
        the loop; hoisting it here makes cse fold it to pEnd - 2 and reorg
@@ -623,7 +636,7 @@ void SystemStringClearStateFlags(SystemString* pString) {
 void SystemStringResetIfIdle(SystemString* pString) {
     if (pString->waitFrames == 0) {
         pString->waiting = 0;
-        pString->flags &= 0x2;
+        pString->flags &= SYSTEM_STRING_FLAG_PERSISTENT;
     }
 }
 
@@ -650,7 +663,7 @@ void SystemStringFreeBufferStack(SystemString* pString) {
 void SystemStringReset(SystemString* pString) {
     pString->waiting = 0;
     pString->waitFrames = 0;
-    pString->flags &= 0x2;
+    pString->flags &= SYSTEM_STRING_FLAG_PERSISTENT;
     SystemStringFreeBufferStack(pString);
 }
 
