@@ -529,21 +529,26 @@ void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry) {
     }
 }
 
-*/INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
-/* Best attempt: 99.10% (312 bytes, every instruction identical except one register pair).
-   Only the AC flag word differs: the original keeps the 0xFFF8007F mask in v0 and the loaded
-   value in v1, gcc allocates the pair the other way round (and mirrors the 0xA8 word with it).
-   The 0x8000 is anim index 0x100 in the bitfield at bit 7, so the original is probably a bitfield
-   store, not this and/or. SpriteSetSpeedScale in animation_scripts.c compiles the same expression to
-   mask=v1/value=v0 too, so the shape is right and the swap is context-driven allocation.
-   Tried: statement swap (93.37%), A8 statement first (93.37%), constant-first operand order,
-   mask in a declared local, `u32 maskAC = ...` initialised at the top of the function, `maskAC`
-   assigned just before the load, loaded-word temp (96.67%), intermediate `ac = v | 0x8000`
-   (93.78%), the `((0x100 & 0xFFF) << 7)` spelling, splitting into `&= mask;` then `|= 0x8000;`
-   (gcc merges them, identical RTL), a `u32* pFlagsAC` local (82.27%), `pFlagsA8[1]`/`[0]`
-   indexing (67.63%) and the (u8*)pSpriteData casts (70-67%). Every spelling that keeps the mask
-   a constant leaves it in v1, so the choice is not source-order driven.
-
+*/
+/* Best attempt: 99.10% (312 bytes, 78 insns, the original size; every instruction identical except one
+   register pair). Only the AC flag word differs: the original keeps the 0xFFF8007F mask in v0 and the
+   loaded word in v1, gcc allocates the pair the other way round, and the 0xA8 word follows it
+   (lw v0,168 -> lw v1,168). Same idiom, same direction, as func_8002435C below: in retail the constant
+   mask takes v0 and the loaded word v1 in both functions, here the word takes v0 in both, so the
+   residual is one allocator decision shared by the two functions, not two.
+   The 0x8000 is anim index 0x100 in the 12-bit field at bit 7 of flags_0xAC (bits 7-18, the value
+   func_80023538 reads back as (>> 7 & 0xFFF) and func_80023FD8 copies with & 0x7FF80), so the original
+   may be a bitfield store rather than this and/or - but see below, a bitfield store compiles to the
+   same RTL.
+   Tried: statement swap (93.37%), A8 statement first (93.37%), constant-first operand order, mask in a
+   declared local, `u32 maskAC = ...` initialised at the top of the function, `maskAC` assigned just
+   before the load, loaded-word temp (96.67%), intermediate `ac = v | 0x8000` (93.78%), the
+   `((0x100 & 0xFFF) << 7)` spelling (in the body), splitting into `&= mask;` then `|= 0x8000;` (gcc
+   merges them, identical RTL), a `u32* pFlagsAC` local (82.27%), `pFlagsA8[1]`/`[0]` indexing (67.63%)
+   and the (u8*)pSpriteData casts (70-67%).
+   This round: a 12-bit bitfield view of flags_0xAC (SpriteAcFlagsWord, scale field at bit 7) written as
+   `fields.scale = 0x100` - 99.10%, byte-identical RTL to this body, so the bitfield theory is dead.
+   Permuter, 3 minutes, 1309 iterations: base 70 best 70, no lead.
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -583,8 +588,8 @@ void func_80023804(SpriteData* pSpriteData) {
     pSpriteData->field_0x84 = 0;
     pSpriteData->field_0x6C = NULL;
     pSpriteData->field_0x50 = 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
 
 void SpriteResetBase(SpriteDataI1* pBase) {
     pBase->rotation.x = 0;
@@ -874,8 +879,8 @@ void SpriteAllocFromAnimFileWithClut(void* pAnimFile, s16 arg1, s16 arg2, s16 ar
     g_SpritePendingClut = 0;
 }
 
-extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
-                          s16 arg6);
+extern SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
+                                 s16 arg5, s16 arg6);
 
 void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
                    s16 arg6, s32 arg7) {
@@ -884,12 +889,12 @@ void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s1
     g_SpritePendingClut = 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
-/* Best attempt: 99.19% (456 bytes, the original's size). Every instruction is present and in the
-   original's order; the ONLY difference is one register pair: the original keeps the 0x3C flag
-   word in v1 with the ~3 mask in v0, this C the other way round, and the 0x40 word follows it
-   (lw v0,64 in the original, lw v1,64 here). Two source facts were needed to get this far and are
-   load-bearing, keep them:
+/* Best attempt: 99.19% (456 bytes, the original size, 114 insns; TWO residuals, both pure register choice).
+   (a) the 0x3C flag word lands in v1 with the ~3 mask in v0 in the original, v0/v1 here, and the
+       0x40 word follows it (lw v0,64 in the original, lw v1,64 here);
+   (b) the prologue saves s6 (a1) before s0 (a0), this body the other way round (sw s0 16(sp) /
+       move s0,a0 first). So it is not one pair but two, and the note used to claim only (a).
+   Two source facts are load-bearing, keep them:
    (1) pAnimFileData = pAnimFile as the FIRST statement of the body. A plain local assigned where it
        is used is copy-propagated away, so the function saves six callee-saved registers instead of
        seven; with the copy first, gcc keeps pAnimFile in s6 for the tail (the 0x48 store and the
@@ -899,16 +904,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
        inline gcc emits that whole flag block as straight-line statement order; the local makes it
        interleave the way the original does (mask constants first, both loads, then the and/or/store
        pairs with the branch last). Worth 92.17 -> 99.19; found by the permuter.
-   Tried for the last tie: the word in a local before the store (98.45, the interleave collapses),
-   a u32 pointer local to 0x3C (99.19, folded away), a 2-bit bitfield store through the
-   SpriteFlagsWord view (92.17, the interleave collapses again), the two statements swapped (91.73),
-   s32 vs u8 for isBattle (99.19). Permuter: two 4-minute runs, the second (1582 iterations) found
-   nothing beyond the isBattle local, so this is a GIV_TIE-shaped allocator tie.
-
-extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
-extern s32 SpriteAnimPackageGetFrameCount(u16* pFlags);
-extern u8 g_IsBattle;
-
+   Tried before: the word in a local before the store (98.45), a u32 pointer local to 0x3C (99.19),
+   a 2-bit bitfield store through the SpriteFlagsWord view (92.17), the two statements swapped
+   (91.73), s32 vs u8 for isBattle (99.19), two 4-minute permuter runs (nothing past the isBattle
+   local).
+   Tried this round, all 456 bytes: the same word through g_SpriteFlags0x3C(...).flags (92.17 - the
+   interleave collapses, so the raw cast must stay), the update split into "&= ~3;" then "|= 1;"
+   (99.19, gcc merges them, identical RTL), and u8* instead of void* for pAnimFile (99.19).
+   Permuter, third run, 3 minutes: base 90 best 90, no lead. GIV_TIE-shaped allocator tie.
 SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
                           s16 arg5, s16 arg6) {
     SpriteDataI1* pBase;
@@ -958,8 +961,8 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
     SpritePlayAnimation(pSpriteData, 0);
     return pSpriteData;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
 
 void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     SpriteData* pSpriteData;
