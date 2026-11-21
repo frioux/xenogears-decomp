@@ -434,6 +434,12 @@ typedef struct {
     /* 0xC */ s32 pad;
 } FieldVector3; // Size: 0x10
 
+// The default spawn orientation the loader copies onto the stack for the actors
+// it creates (misc3's only .rodata item). Commented out while FieldLoad is a
+// stub, because the stub's own .s supplies this object; an unpark must restore
+// it or the unit loses its 0x10 bytes of .rodata.
+// const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};
+
 // The 0x100-byte block the loader copies into the sprite placement table
 typedef struct {
     /* 0x00 */ u8 unk0[0x100];
@@ -465,13 +471,19 @@ typedef struct {
     /* 0x00 */ void* pFile;
     /* 0x04 */ void* pSpriteData;
     /* 0x08 */ u32* pMaterialFlags;
-    /* 0x0C */ void* pTriangles[4];
-    /* 0x1C */ void* pVertices[4];
+    /* 0x0C */ u32* pTriangles[4];
+    /* 0x1C */ u32* pVertices[4];
     /* 0x2C */ s32 unk2C[4];
     /* 0x3C */ s16 triCount;
 } FieldWalkmesh; // Size: 0x3E
 
 extern FieldWalkmesh g_FieldWalkmesh;
+// The header pointers the renderer reads (field/main/misc4.c uses the same names)
+extern u32* g_FieldWalkmeshMaterialFlags;
+extern s16 g_FieldWalkmeshTriCount;
+extern u32* g_FieldWalkmeshTriangles[];
+extern u32* g_FieldWalkmeshVertices[];
+extern s32 D_800AFD10;
 
 // The screen effect setup record at 0x800B0080 and the parameter record at
 // 0x800B00A0 that follows it (FieldScriptSetParams80 / FieldScriptSetParamsA0
@@ -564,6 +576,36 @@ extern u8 g_FieldModelSlotScratch[];
 // first arguments of the two FieldSetMatrix calls and the RotMatrix are
 // displacements off ONE base, i.e. g_FieldModelSlotScratch .. g_FieldMotionSlotSteps
 // is one object in the source too.
+// PARKED 80.99% at retail's EXACT 3484 bytes and instruction count (871/871).
+// The frame is 0x98 against retail's 0xA0 and the saved set is s0-s4 against
+// retail's s0-s5, so one long-lived value is still in a caller-saved register
+// (that one 8-byte frame gap plus its sw/lw pair is the whole remaining byte
+// budget: everything else is register choice or store order inside twenty small
+// regions). Nothing structural is left - every jal count, every branch and the
+// total instruction count match retail. Region residuals, largest first:
+//   - walkmesh header: retail derives &triangles/&vertices from ONE base
+//     register (&g_FieldWalkmeshMaterialFlags, +4/+0x14) where we materialise the
+//     g_FieldWalkmeshTriangles and g_FieldWalkmeshVertices symbols separately
+//     (2 instructions). Spelling the three pointer fields as a struct whose base
+//     IS g_FieldWalkmeshMaterialFlags reproduces it, but then D_800AFD10 loses
+//     the two %hi/%lo loads retail has, so both spellings measure 3484.
+//   - screen-effect config zeroing (~0x1C..0x2C): retail mixes s2-relative stores
+//     with D_800B00xx absolute ones; our order emits two of the byte clears
+//     (unk1D/unk1E) absolute where retail reaches them off s2.
+//   - final actor loop: retail copies i into $a0 in the model arm's `j` delay
+//     slot and leaves pSpawn's +2 in the jal slot; ours swaps the two.
+//   - the spawn loop's t[]/childMatrix pairs need the `value` local (one load,
+//     two stores - without it gcc reloads *pSpawn per store, +3 instructions).
+// MEASURED LEVERS that closed the last lane's residuals, keep them:
+//   - the three t[] pairs want a value temp, not two pSpawn[] reads;
+//   - `if ((status & 0x40) == 0) { model } else { invisible }` (retail's
+//     invisible arm is OUT of line, so the test must be the inverted form);
+//   - the walkmesh counts divide is `*pWord++ / 14`, NOT `(x >> 1) / 7`: retail's
+//     0x92492493 magic is gcc's /14 expansion (pre-shift by 1 then mulhi >> 2);
+//   - D_800AFD10 = g_FieldWalkmeshTriangles[0] - g_FieldWalkmeshMaterialFlags
+//     (a pointer difference, so gcc emits subu + sra 2) is a STATEMENT the
+//     previous body was missing entirely - worth 8 instructions;
+//   - the walkmesh header words 1..7 are one continuous *pWord++ walk.
 /*
 void FieldLoad(void) {
     FieldActor* pActor;
@@ -580,6 +622,7 @@ void FieldLoad(void) {
     s32 count;
     s32 i;
     s32 j;
+    u16 value;
     FieldVector3 defaultVector;
 
     defaultVector = D_8006FAF4;
@@ -652,16 +695,17 @@ void FieldLoad(void) {
     FieldLZSSDecompress((void*)size, (u8*)g_GameStagedFileBuffer + STAGED_FILE->walkmeshDataOffset, g_FieldWalkmesh.pFile);
 
     pWalk = &g_FieldWalkmesh;
-    pWord = (u32*)pWalk->pFile;
-    pWalk->triCount = *(s32*)pWalk->pFile;
+    pWord = (u32*)pWalk->pFile + 1;
+    g_FieldWalkmeshTriCount = *(s32*)pWalk->pFile;
     for (i = 0; i < 4; i++) {
-        pWalk->unk2C[i] = (pWord[i + 1] >> 1) / 7;
+        pWalk->unk2C[i] = *pWord++ / 14;
     }
-    pWalk->pMaterialFlags = (u32*)((u8*)pWalk->pFile + pWord[5]);
-    for (i = 0; i < pWalk->triCount; i++) {
-        pWalk->pTriangles[i] = (u8*)pWalk->pFile + pWord[i * 2 + 6];
-        pWalk->pVertices[i] = (u8*)pWalk->pFile + pWord[i * 2 + 7];
+    g_FieldWalkmeshMaterialFlags = (u32*)((u8*)pWalk->pFile + *pWord++);
+    for (i = 0; i < g_FieldWalkmeshTriCount; i++) {
+        g_FieldWalkmeshTriangles[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
+        g_FieldWalkmeshVertices[i] = (u32*)((u8*)pWalk->pFile + *pWord++);
     }
+    D_800AFD10 = g_FieldWalkmeshTriangles[0] - g_FieldWalkmeshMaterialFlags;
 
     size = STAGED_FILE->spriteDataSize + 0x10;
     g_FieldSpriteData = HeapAlloc(size, 0);
@@ -688,22 +732,20 @@ void FieldLoad(void) {
         ACTOR(i)->rotation.y = pSpawn[1];
         ACTOR(i)->rotation.z = pSpawn[2];
         pSpawn += 3;
+        value = pSpawn[0];
         pActor = ACTOR(i);
-        pActor->transformMatrix.t[0] = pSpawn[0];
-        pActor->childMatrix.t[0] = pSpawn[0];
+        pActor->transformMatrix.t[0] = value;
+        pActor->childMatrix.t[0] = value;
+        value = pSpawn[1];
         pActor = ACTOR(i);
-        pActor->transformMatrix.t[1] = pSpawn[1];
-        pActor->childMatrix.t[1] = pSpawn[1];
+        pActor->transformMatrix.t[1] = value;
+        pActor->childMatrix.t[1] = value;
+        value = pSpawn[2];
         pActor = ACTOR(i);
-        pActor->transformMatrix.t[2] = pSpawn[2];
-        pActor->childMatrix.t[2] = pSpawn[2];
+        pActor->transformMatrix.t[2] = value;
+        pActor->childMatrix.t[2] = value;
         pSpawn += 3;
-        if (ACTOR(i)->status & 0x40) {
-            ACTOR(i)->status |= ACTOR_STATUS_INVISIBLE;
-            ACTOR(i)->rotation.x = 0;
-            ACTOR(i)->rotation.y = 0;
-            ACTOR(i)->rotation.z = 0;
-        } else {
+        if ((ACTOR(i)->status & 0x40) == 0) {
             j = *pSpawn;
             pModel = HeapAlloc(sizeof(FieldActorModelData), 0);
             ACTOR(i)->pModelData = pModel;
@@ -721,6 +763,11 @@ void FieldLoad(void) {
                 HeapChangeCurrentUser(8, 0);
             }
             ModelFileTrimHeapBlock((ModelFileHeader*)pModel->pBounds);
+        } else {
+            ACTOR(i)->status |= ACTOR_STATUS_INVISIBLE;
+            ACTOR(i)->rotation.x = 0;
+            ACTOR(i)->rotation.y = 0;
+            ACTOR(i)->rotation.z = 0;
         }
         pSpawn++;
         func_80080F44(i);
@@ -806,13 +853,14 @@ void FieldLoad(void) {
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         pActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
         if (pActor->status & 0x40) {
-            if (pActor->pActorData->flags & 0x1000000) {
-                SpriteSetDirection(pActor->pSpriteData, pActor->pActorData->rotation.vz);
-            } else {
+            if ((pActor->pActorData->flags & 0x1000000) == 0) {
                 func_800223B0(pActor->pSpriteData,
                               (s16)((u16)pActor->pActorData->rotation.vz + (u16)g_CamInterpolation.curAngleY));
+            } else {
+                SpriteSetDirection(pActor->pSpriteData, pActor->pActorData->rotation.vz);
             }
         }
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldLoad);
+
