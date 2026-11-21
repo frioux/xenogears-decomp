@@ -322,23 +322,14 @@ void FieldScriptCopyGear(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-typedef struct {
-    u32 words[0x29];
-} CharacterRecordCopy;
-
-typedef struct {
-    u8 bytes[0x20];
-} UnkGearStateShiftCopy;
-
 void FieldScriptCopyCharacter(void) {
     GameState* pGameState;
     int sourceIndex = FieldScriptVMGetArgument(1);
     int destIndex = FieldScriptVMGetArgument(3);
 
-    *(CharacterRecordCopy*)&g_pGameState->characters[destIndex] =
-        *(CharacterRecordCopy*)&g_pGameState->characters[sourceIndex];
-    *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[destIndex] + 4) =
-        *(UnkGearStateShiftCopy*)((u8*)&g_pGameState->unk16BC[sourceIndex] + 4);
+    g_pGameState->characters[destIndex] = g_pGameState->characters[sourceIndex];
+    *(UnkGearState*)&g_pGameState->unk16BC[destIndex].commandMask =
+        *(UnkGearState*)&g_pGameState->unk16BC[sourceIndex].commandMask;
     pGameState = g_pGameState; // reused for the first flag write only; the second reloads it
     if (destIndex == 9) {
         pGameState->unk22B6 |= 0x2000;
@@ -701,7 +692,8 @@ extern ParticleBankHandle g_FieldScriptParticleBank;
 // offset into `%hi` instead of retail's `%lo` + `sh 0x32`, and measure 38.77%,
 // 80.68% (pointer to the bank) and 82.27% (pointer to the array) against
 // retail's 88 bytes. Retail's own .x store two instructions later is the folded
-// `%hi/%lo(base + 0x30)` form, so the asymmetry is retail's.
+// `%hi/%lo(base + 0x30)` form, so the asymmetry is retail's and the .z store
+// stays an integer-offset cast.
 // Both pointer locals live inside the loop: hoisted, the address load comes
 // before `i = 0` and the block is 8 bytes longer.
 void FieldClearParticleBankDirections(void) {
@@ -2501,7 +2493,8 @@ int FieldActorsWithinDistance(int dstActorId, int srcActorId) {
 // position.x/y/z as `((SpriteData*)pSpriteData)->position.x` is 93.47%/500,
 // transformMatrix.t[n] typed is 78.56%/492, all seven typed 80.43%/524,
 // against 100.00%/496. The sprite cursor has to be a `u8*` local (99.44% if
-// CopyActorFieldS32 gets the same treatment).
+// CopyActorFieldS32 gets the same treatment). The selector is a parameter, so
+// no field type can name it: both stay byte-offset cursors.
 static inline void CopySpriteFieldS32(int dstId, int srcId, u32 byteOffset) {
     FieldActor* actors = g_FieldActors;
     u8* dst = (u8*)actors[dstId].pSpriteData;
@@ -2520,6 +2513,8 @@ static inline void CopySpriteField0x84(int dstId, int srcId) {
     *(u16*)&dst->field_0x84 = *(u16*)&src->field_0x84;
 }
 
+// Same runtime-offset cursor as CopySpriteFieldS32 (the offset names a word of
+// the 0xA4-byte FieldActor).
 static inline void CopyActorFieldS32(int dstId, int srcId, u32 byteOffset) {
     FieldActor* actors = g_FieldActors;
     *(s32*)((u8*)&actors[dstId] + byteOffset) = *(s32*)((u8*)&actors[srcId] + byteOffset);
