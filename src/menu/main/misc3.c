@@ -36,6 +36,8 @@ typedef struct {
     /* 0x4 */ s16 unk4;
 } MenuCardPrefix; // Size: 0x6
 
+extern s16 D_801C50AC;
+extern s16 D_801C50B4;
 extern MenuCardPrefix g_MenuCardPathPrefix0;
 extern MenuCardPrefix g_MenuCardPathPrefix1;
 
@@ -132,32 +134,17 @@ int MenuReadFileChunk(u8* pPath, u8* pBuffer) {
 }
 
 extern void MenuWaitCardOperationFrames(u_char index);
+extern u32 D_801C50E0[];
+extern u8 D_801E9778;
+extern u8 g_MenuCardChangeDetectionEnabled;
+extern u8 g_MenuWindowTextBackPressed;
 
-/* Best attempt: 99.11%. Instruction multiset identical, byte count equal (448);
-   the only difference is the operand order of the two `addu`s that add a hoisted
-   offset to `g_Menu->menuUnk2`: retail emits `addu a1,s0,a1` (offset first) where
-   this emits `addu a1,a1,s0`. Tried: with/without the (char*) cast on the strcat
-   argument, `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` vs two field assignments (the two
-   statements get cross-jumped), and the `.pad0` vs `&chunks[idx]` spelling.
-   Learned: the 6-byte prefix copy is `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` -- a 6-byte
-   aggregate copy is impossible in C (a {u32;s16;} struct is 8 bytes and copies 8),
-   and two field assignments are merged by -fcross-jumping. func_801CB304 and
-   misc4's MenuEraseCardSaveFile use the same idiom. Also: slotWriteCursor is an s32 write
-   cursor here (lw/addiu/sw), not the u8 header fields around it.
-   Permuter (4 min, 1289 iterations, base=80 best=80) found nothing for the addu
-   order, so the remaining two diffs are a1/v0 register swap (GIV_TIE) in the
-   strcat index math and the MenuReadFileChunk argument's addu operand order.
-   Round 286: the `lh`/`sh` tail of the 6-byte prefix copy proves the copy is an
-   AGGREGATE of an 8-byte {u32; s16} struct (a 6-byte 4-aligned type cannot be
-   declared in C): `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` on that type inlines to
-   exactly retail's lw/lh/sw/sh pair, while a field-wise copy is 8 bytes shorter
-   and cross-jumps the two stores into one shared block (440 bytes, 94.55%). The
-   two remaining diffs are both "retail puts the OFFSET first in the addu"
-   (`addu a1,a1,v0` with a1 = k*0x5C, and `addu a1,s0,a1` with s0 = the chunk
-   offset); the index-first spellings `(slot + ...->records)` / `(k + ...->chunks)`
-   canonicalise back to base-first (88.12% with a slot local). */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
-/*
+/* The prefix is a 6-byte block move out of an 8-byte {u32; s16} aggregate (a
+   6-byte 4-aligned type cannot be declared in C), so it is a memcpy of 6; a
+   field-wise copy cross-jumps the two arms. Both address sums are written
+   index-first over a mem_addr base (the MenuMarkSlotsWithGameSave idiom): only
+   that spelling emits retail's offset-first `addu a1,s0,a1`, and a typed
+   subscript canonicalises back to base-first. */
 void func_801C90B0(u_char a0, u_char a1) {
     MenuCardPrefix prefix;
     char path[0x40];
@@ -170,9 +157,9 @@ void func_801C90B0(u_char a0, u_char a1) {
         memcpy(&prefix, &g_MenuCardPathPrefix1, 6);
     }
     strcpy(path, (char*)&prefix);
-    strcat(path, g_Menu->menuUnk2->records[a0 * 0x10 + a1].ids);
+    strcat(path, ((MenuUnk2Record*)((a0 * 0x10 + a1) * sizeof(MenuUnk2Record) + (mem_addr)g_Menu->menuUnk2->records))->ids);
     while (1) {
-        if (MenuReadFileChunk((u8*)path, g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0) != -1) {
+        if (MenuReadFileChunk((u8*)path, ((MenuUnk2ImageChunk*)((a0 * 0x10 + a1) * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks))->pad0) != -1) {
             break;
         }
         if (--retry == 0) {
@@ -185,8 +172,6 @@ void func_801C90B0(u_char a0, u_char a1) {
         g_Menu->menuUnk2->slotWriteCursor++;
     }
 }
-*/
-
 void MenuMarkSlotsWithGameSave(int a0) {
     MenuUnk2ImageChunk* pChunk;
     int i;
@@ -633,21 +618,19 @@ void func_801CA5F0(s32 a0, s32 a1) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA750);
-// Best attempt: 96.91%. The template copy into 0x4B98 is 0x1B bytes in retail
-// (lw x6, then lh at source+0x18 and lb at source+0x1A storing sh/sb = a 3-byte
-// block move at alignment 2). A C aggregate of size 3 cannot exist, and a
-// 0x1C-byte struct (u32[6] + s16 + s8) copies a seventh word; splitting the
-// tail into two statements makes gcc rematerialise &D_801C50E0 and emit
-// lhu/lbu with a fresh lui instead of reusing the copy's a3 base. Second diff:
-// mfhi lands in a3 here vs v1 in retail. Tried: single 0x1C struct copy,
-// 0x18-byte head copy + two u16/s8 statements (77.87%), pointer locals for
-// source and destination.
-// Round 286: this body does NOT COMPILE any more (MenuUnk2Text and D_801C50E0 no
-// longer exist; the title template is the 0x1B-byte block at a new symbol name),
-// so the 96.91% above was measured on a stale object. The type it needs is a
-// 0x1B-byte aggregate: retail copies 6 words + lh + lb off ONE source base (a3)
-// and stores them as displacements off the reloaded menuUnk2, which is a block
-// move, not field stores. Re-measure before trusting this note.
+// Best attempt: 99.89% (376 bytes = retail's exact size; TWO differing
+// instructions, both the destination register of the tens division: retail
+// `mfhi v1; sra v1,v1,2`, here `mfhi a3; sra v1,a3,2` - the ashiftrt's pseudo is
+// not coalesced with the HI extract. Nothing else differs.
+// What got here from 74.46%: the title template is a memcpy of exactly 0x1B bytes
+// whose SOURCE must be declared with 4-byte alignment (`extern u32 D_801C50E0[]`,
+// passed as the bare array): as `u8[]` gcc emits an unaligned lwl/lwr/swl/swr block
+// move (432 bytes, 74.46%), with alignment it emits retail's six word pairs plus lh
+// at 0x18 / lb at 0x1A off one source base. A 0x1C-byte struct copy copies a
+// seventh word, and splitting the tail makes gcc rematerialise the source address.
+// Tried for the register: `tens = n / 10` before vs after the memcpy (identical),
+// swapping the n/tens declarations (identical), a 1390-iteration 3-minute permuter
+// run (base=10 best=10, nothing).
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
 /*
 void func_801CA8C0(u_char a0) {
@@ -655,16 +638,16 @@ void func_801CA8C0(u_char a0) {
     s32 tens;
 
     n = a0 + 1;
-    *(MenuUnk2Text*)g_Menu->menuUnk2->saveTitle = D_801C50E0;
+    memcpy(g_Menu->menuUnk2->saveTitle, D_801C50E0, 0x1B);
+    g_Menu->menuUnk2->saveTitle[0x1A] = 0x82;
     tens = n / 10;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1A] = 0x82;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1B] = tens + 0x4F;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1C] = 0x82;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1D] = n % 10 + 0x4F;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1E] = 0x81;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1F] = 0x40;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x20] = 0;
-    ((u8*)g_Menu->menuUnk2->saveTitle)[0x21] = 0;
+    g_Menu->menuUnk2->saveTitle[0x1B] = tens + 0x4F;
+    g_Menu->menuUnk2->saveTitle[0x1C] = 0x82;
+    g_Menu->menuUnk2->saveTitle[0x1D] = n % 10 + 0x4F;
+    g_Menu->menuUnk2->saveTitle[0x1E] = 0x81;
+    g_Menu->menuUnk2->saveTitle[0x1F] = 0x40;
+    g_Menu->menuUnk2->saveTitle[0x20] = 0;
+    g_Menu->menuUnk2->saveTitle[0x21] = 0;
     strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
 }
 */
@@ -681,7 +664,11 @@ void func_801CA8C0(u_char a0) {
    (5,4,2,0) both give 688/97.36, (0,2,4,5) 696/91.27, (0,5,2,4) 700/90.91, (2,5,0,4)
    700/92.56; an explicit `default: break;` changes nothing. `li s1,1`/`li s5,5` come
    from cse lifting the repeated constant 1 (two D_801E9778 stores + shouldRender[2]=1)
-   and 5 (two `input = 5` stores + the case test), so they need no source local. */
+   and 5 (two `input = 5` stores + the case test), so they need no source local.
+   Swapping the case 4 / case 5 labels changes NOTHING (gcc peels the
+   last-tested case's body out to the fall-through slot either way), and a FIFTH
+   case node (`case 1: break;`) makes gcc emit a JUMP TABLE (sltiu 6 / jr v0,
+   696 bytes) - the round-323 node-count lever fails here. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
 /*
 extern u8 D_801E9778;
