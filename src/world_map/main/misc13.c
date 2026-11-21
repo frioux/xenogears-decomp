@@ -102,7 +102,8 @@ typedef struct {
 
 // One 0x10-byte row of the per-tile-shape axis table at g_WorldMapTileShapeAxis (the same
 // bytes as g_WorldMapCameraPathHeightsMode7 + 0x28, which another unit reads as a
-// plain s16 array): the x/z direction a position is projected on.
+// plain s16 array): the x/z direction a position is projected on. g_WorldMapTileDiagonalAxes
+// is two rows of the same shape.
 typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ u8 unk4[4];
@@ -131,10 +132,7 @@ extern WorldMapTileKindRow g_WorldMapTileKindTable[];
 extern WorldMapTileShapeAxis g_WorldMapTileShapeAxis[];
 extern s32 g_WorldMapGridAngle;
 extern s32 g_WorldMapGridShadePhase;
-extern s32 g_WorldMapTileDiagonalAxes;
-extern s32 D_8009B24C;
-extern s32 D_8009B254;
-extern s32 D_8009B25C;
+extern WorldMapTileShapeAxis g_WorldMapTileDiagonalAxes[2];
 extern WorldMapTileCell* g_WorldMapTileCellPointers[];
 extern s32 g_WorldMapTileShapeHalfAxis[];
 extern s32 g_WorldMapTileShapeHalfAxisZ[];
@@ -464,10 +462,12 @@ void WorldMapBuildTilePlaneNormal(WorldMapPos* pNormal, s32 x, s32 z) {
     // own registers.
     x = (u16)(x / 8);
     z = (u16)(z / 8);
-    // sum picks which of the two edge pairs of the quad the position is nearer;
+    // sum picks which of the two edge pairs of the quad the position is nearer: the
+    // cell's up-corner flag selects which of the table's two diagonal axes the
+    // position is measured against.
     // it is written as a negated term so the compiler emits retail's negu+mult+addu.
     if (pCell->flags & WORLD_MAP_ZONE_CELL_UP_CORNER) {
-        sum = x * D_8009B254 + (-z) * D_8009B25C;
+        sum = x * g_WorldMapTileDiagonalAxes[1].x + (-z) * g_WorldMapTileDiagonalAxes[1].z;
         if (sum < 0) {
             *(s32*)0x1F800000 = 0x10;
             *(s32*)0x1F800008 = -0x10;
@@ -484,7 +484,7 @@ void WorldMapBuildTilePlaneNormal(WorldMapPos* pNormal, s32 x, s32 z) {
             *(s32*)0x1F800014 = pCell[10].height - pCell[0].height;
         }
     } else {
-        sum = (x - 0x10000) * g_WorldMapTileDiagonalAxes + (-z) * D_8009B24C;
+        sum = (x - 0x10000) * g_WorldMapTileDiagonalAxes[0].x + (-z) * g_WorldMapTileDiagonalAxes[0].z;
         if (sum < 0) {
             *(s32*)0x1F800000 = -0x10;
             *(s32*)0x1F800008 = -0x10;
