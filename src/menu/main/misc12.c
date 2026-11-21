@@ -498,6 +498,8 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
     u8 color;
     s32 i;
     POLY_FT4* pPoly;
+    // Load-bearing copy: reading `flags` directly costs this function its callee-saved
+    // assignment (the loop counter and the attribute word trade registers).
     u32 attr = flags;
 
     for (i = 0; i < 2; i++) {
