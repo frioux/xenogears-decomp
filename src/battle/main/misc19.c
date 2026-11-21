@@ -196,6 +196,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // `amount++` block being stolen into the `beq` delay slot.
 // The three g_BattleWorkBlock+0x162/+0x32 condition-timer sites print as g_BattleWorkBlock+354
 // against retail's D_800CCE4A / D_800CCD1A: same linked bytes (the documented RELOC case).
+// Round 393 re-measured this body as-is: 99.19% (314 insns / 1256 bytes against retail 313 /
+// 1252; the extra instruction is `move a2,s2`), residual = three mfhi/mflo destination sites
+// plus four register-role swaps chained off them. try_flags on this body: 99.52% under
+// gcc-2.6.0 (even a 2.6.0 carve-out would not close it), 91.31% under gcc-2.7.2-cdk. Swapping
+// the operands of the statBonuses[7] * rowCosts[0] product is WORSE: 99.15%, 119 differing lines.
 /*
 void func_8009A2D4(u8 arg0) {
     BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
@@ -458,6 +463,17 @@ void BattleFillPartySlotWeaponRecord(u8 arg0, u8 arg1) {
 // 95.71, BattleFillPartySlotWeaponRecord 96.15, BattleSetSlotFields148And162 99.05,
 // BattleResetSlotEffectWords 99.64), so this stays a one-function run that wants carving out.
 // func_8009BD94 is the same story (98.33% here, 100.00 under 2.6.0).
+// Round 393 re-measured: 99.66% (116 bytes, 29/29 insns), still only the mfhi a1 + sra a0,a1,5
+// pair; 100.00% under gcc-2.6.0 and 99.66% under cdk confirmed. Whole-unit 2.6.0 screen (round 393,
+// try_flags --all): 100.00 BattleGetActorActionConditionMask, BattleGetActorConditionCode,
+// BattleGetGameCharacterField5, BattleIsCharacterInParty, BattleResetActorStats,
+// BattleSetActorScaledHp, FieldScriptClearAnimationOverrideIfFlag16, func_8009A9D0; below 100
+// BattleSetCommandCodeForSlotKindFlag 99.96, BattleDecrementGearPartUse 99.79,
+// BattleSetSlotEntryFieldsTo2000 99.77, BattleSetSlotEntryFieldsTo1 99.71,
+// BattleResetSlotEffectWords 99.64, BattleSetSlotFlag15A1 99.57, func_8009A2D4 99.52,
+// BattleInitItemInventoryAndConditionMasks 99.38, BattleSetSlotFields148And162 99.05,
+// BattleFillPartySlotWeaponRecord 96.15, BattleClearSlotFlag15A1 95.71. So this one function needs
+// a one-function carve-out on the XenoLibrary preset, not a unit switch.
 /*
 s32 func_8009A9D0(void) {
     g_BattleCurWorkBlock->rowIndex = 0;
