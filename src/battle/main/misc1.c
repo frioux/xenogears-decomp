@@ -841,30 +841,15 @@ void func_8007252C(void) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800728B8);
-/* 78.84% (s16 index) / 78.53% (s32 index) under 2.6.0 and 2.7.2. Retail
-   multiplies index*40 inline every iteration (sll2 / addu / sll3, the sll2 rotated
-   into the back-edge delay slot by reorg) and keeps pPrim in s3 for an addu per
-   iteration; gcc 2.6.0's loop.c always strength-reduces the biv into a pointer
-   (+80/iteration, 40-byte frame instead of retail's 0x30, no s3). Retail's index
-   is 32-bit (no sign extension): the s16 version's sll/sra pair is the only reason
-   it scores 0.3 higher. Tried in round 372: POLY_FT4 *pPrim + &pPrim[index], the
-   'scaled = index * 5' / 'scaled * 8' split, an s32 offset local, a pDst pointer
-   local, mem_addr base + 'index * 40 + base' (round-149 lever), guard+do-while
-   (round-338 construct lever), and a 4-minute permuter run (2822 iterations,
-   base 1282 best 357) whose only candidate was wrong code ('i = 5 * index;' inside
-   the body clobbers the loop counter).
-void func_800728B8(u8 *pPrim, s32 count, s32 index) {
+// Adds every second prim of a run of packages to the current ordering table: each
+// package holds one POLY_FT4 per render context, and primStart selects which.
+void func_800728B8(POLY_FT4 *pPrim, s32 count, s32 primStart) {
     s32 i;
-    mem_addr base;
 
-    base = (mem_addr)pPrim;
     for (i = 0; i < count; i++) {
-        AddPrim(g_BattleCurOT[0] + 4, (u8 *)(index * 40 + base));
-        index += 2;
+        AddPrim(g_BattleCurOT[0] + 4, &pPrim[i * 2 + primStart]);
     }
 }
-*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072938);
 /* 83.62% - body is otherwise exact: POLY_FT4 array subscripted by
