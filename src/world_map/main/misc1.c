@@ -1370,21 +1370,6 @@ void WorldMapAllocWorkBuffers(void) {
 }
 
 
-/* best: 26.13% under this unit's preset (gcc 2.7.2). The blocker is NOT the
-   allocator: 2.7.2 folds the `u8* p = &D_8009D198` base into absolute
-   `D_8009D198+NN` symbol addresses, so the 40-odd `NN($v0)` offset stores
-   become `lui $at` + store pairs and the function is 106 insns instead of 68.
-   Retail keeps the base in $v0. Under gcc-2.7.2-cdk, whose `la` is two RTL
-   insns (`lui %hi` + `addiu %lo`) so the address is a runtime value, the same
-   source scores 90.34% and reproduces the shape (la $v0 + offsets); it only
-   rotates the second colour into $v0 instead of $a1 and forms the la at its
-   first use. Retail: a0=0xFF7A70, a1=0xFFF5E0, v1=0xC03745, v0=base (formed
-   BEFORE the first store), a2=8, a1 reused for 0x38.
-   Decoded layout: 0x24-stride sub-blocks at 0x00..0xFC, each with a word at
-   +0,+8,+0x10,+0x18 and bytes at +0x23 and +0x27; colours 0xFF7A70, 0xFFF5E0,
-   0xC03745; bytes 8 and 0x38; the first 0x40 bytes are reached through their
-   own absolute symbols (D_8009D197, D_8009D198, D_8009D1A0, D_8009D1A8,
-   D_8009D1B0, D_8009D1BC, D_8009D1C4, D_8009D1CC, D_8009D1D4).
 extern u32 D_8009D1A0;
 extern u32 D_8009D1A8;
 extern u32 D_8009D1B0;
@@ -1396,6 +1381,25 @@ extern u8 D_8009D197;
 extern u8 D_8009D19B;
 extern u8 D_8009D198;
 
+// best: 26.13% under this unit\x27s preset (gcc 2.7.2), 424 bytes against retail\x27s 272, 106
+// insns against retail\x27s 68 - re-measured round 399, unchanged.
+// The blocker is NOT the allocator: 2.7.2 folds the `u8* p = &D_8009D198` base into absolute
+// `D_8009D198+NN` symbol addresses (so the 40-odd `NN($v0)` offset stores become one `lui $at`
+// plus a store each and the extra symbol D_8009D297 appears), where retail keeps the base in $v0.
+// Retail: a0=0xFF7A70, a1=0xFFF5E0, v1=0xC03745, v0=base, a2=8, a1 reused for 0x38; v0 is formed
+// BEFORE the first store; the ten stores at v0-1 .. v0+0x3C go through their own absolute symbols
+// (D_8009D197, D_8009D19B, D_8009D1A0, A8, B0, BC, C4, CC, D4) and everything from 0(v0) up uses
+// the base register.
+// Decoded layout: 0x24-stride sub-blocks at 0x00..0xFC, each with a word at +0,+8,+0x10,+0x18 and
+// bytes at +0x23 and +0x27; colours 0xFF7A70, 0xFFF5E0, 0xC03745; bytes 8 and 0x38. The body
+// below is in retail store order.
+// PRESET_CDK world_map/main/misc1 func_800736DC 90.34 26.13 - cdk reproduces the shape (la $v0
+// plus offsets) and only mis-rotates the second colour into $v0 and forms the la at its first use;
+// it rotates the whole unit, though: under cdk the already-matched neighbours break
+// (WorldMapInitGfxEnv 65.09, WorldMapFreeAreaResources 95.10, WorldMapDecompressMapTables 97.53,
+// func_800737EC 82.37), so the unit cannot switch. Same class as misc1 func_80073B04: the folding
+// of a known-constant base is what gcc 2.7.2 does and 2.6.0/cdk do not.
+/*
 void func_800736DC(void) {
     u8* p;
 
@@ -1596,6 +1600,18 @@ extern u16 D_8009C750[];
 // addiu/addu stores, so the fold is only defeated for the stores whose constant does not match
 // the `la` constant; retail has none folded, which no spelling reached here. Next lever to try:
 // make the u/v words' base a value cc1 cannot constant-fold (a pointer loaded from a global).
+// ROUND 399: re-measured this body at 79.63% (744 bytes vs retail's 812; 186 vs 203 insns - it
+// lacks retail's four index reloads and two `move` copies). The missing 17 instructions are, in
+// order: retail RELOADS g_WorldMapPrimPacketIndex and recomputes idx*0x28 for every store pair
+// (4 x lui/lw + sll/addu/sll) plus two `move` copies (a2 = uv, a2 = uvFlip); cc1 instead hoists
+// the load above the whole block and CSEs the scaling, because it folds each store's constant
+// into a symbol of its own (D_8009C750 + 0x50 = D_8009C7A0) and two distinct symbols are proved
+// disjoint from g_WorldMapPrimPacketIndex. A spelling with ONE base symbol plus non-folded
+// offsets is what would force the reloads; none reached it. Reading the index through
+// *(volatile s32*)&g_WorldMapPrimPacketIndex does force the four reloads but overshoots to
+// 221 insns / 72.51% (it blocks the loop and addPrim CSE too). Preset is not the answer: cdk
+// 53.20, -O3 79.63, -G0 79.63, all measured on this body.
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 /*
 void func_80073B04(void) {
     WorldMapProjectionScratch* pScratch;
@@ -1605,11 +1621,10 @@ void func_80073B04(void) {
     P_TAG* pOt;
     s32 i;
     s32 nOtz;
-    s32 uvOffset;
+    s32 nOffset;
     u16 uv;
     u16 uvFlip;
 
-    pScratch = (WorldMapProjectionScratch*)PSX_SCRATCH;
     uv = (g_WorldMapViewRotationY >> 2) & 0x7F;
     uvFlip = uv | 0x80;
     D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0x28] = uv;
@@ -1620,6 +1635,7 @@ void func_80073B04(void) {
     D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 8] = uv | 0x3F00;
     D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0x34] = uvFlip | 0x3F00;
     D_8009C750[g_WorldMapPrimPacketIndex * 0x14 + 0xC] = uvFlip | 0x3F00;
+    pScratch = (WorldMapProjectionScratch*)PSX_SCRATCH;
     *(u16*)0x1F800004 = 0;
     pScratch->viewRotation.vx = 0;
     *(u16*)0x1F800002 = g_WorldMapViewRotationY;
@@ -1631,9 +1647,9 @@ void func_80073B04(void) {
     SetRotMatrix((MATRIX*)0x1F800018);
     SetTransMatrix((MATRIX*)0x1F800018);
     pVec = &g_WorldMapQuadVertices[16];
-    for (i = 0, uvOffset = 0; i < 2; i++, pVec += 4, uvOffset += 0x50) {
+    for (i = 0, nOffset = 0; i < 2; i++, pVec += 4, nOffset += 0x50) {
         pBase = (POLY_FT4*)(g_WorldMapPrimPacketIndex * sizeof(POLY_FT4) + (s32)g_WorldMapTilePrims);
-        pPrim = (POLY_FT4*)(uvOffset + (s32)pBase);
+        pPrim = (POLY_FT4*)(nOffset + (s32)pBase);
         nOtz = RotTransPers4(pVec, pVec + 1, pVec + 2, pVec + 3,
                              (long*)&pPrim->x0, (long*)&pPrim->x1,
                              (long*)&pPrim->x2, (long*)&pPrim->x3,
@@ -1646,8 +1662,8 @@ void func_80073B04(void) {
         addPrim(pOt, (P_TAG*)&g_WorldMapTilePrims[g_WorldMapPrimPacketIndex + 2]);
         addPrim(pOt, (P_TAG*)&g_WorldMapTileDrawModes[0]);
     }
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
+}
+*/
 
 // The two POLY_FT4 primitives at D_8009C5C0; retail names every field store
 // by its own address (D_8009C5C3 = tag.len, D_8009C5C7 = tag.code, ...), so the
