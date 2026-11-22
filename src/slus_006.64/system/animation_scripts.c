@@ -354,11 +354,29 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
    animScriptWaitTimer around func_80022660(pSpriteData, old pSpriteBytecode, flags >> 22 & 0x3F)
    and the function ends by mirroring flags_0xAC bit 3 ^ bit 2 into bit 3 of the word at 0x3C. */
 
+// REDO (round 413): un-parked, re-measured 74.09% (668 bytes, 167 insns); retail is 688/172,
+// so it is still five `move`s short. Measured this round, each on its own:
+//  (e) the arm offset GROUPED - pAnimation + (index * 2 + 4) in both the load and the add
+//      base - is worth 74.09 -> 74.33 at the same 668/167: retail adds the 4 to the OFFSET
+//      register (addiu a0,a0,0x4) where every ungrouped spelling adds it to the loaded u16.
+//  (f) computing parity and the id copy in STATEMENT order (parity first, index = animId
+//      after it) only moves the copy from a0 to a2; the copy is still emitted first and
+//      parity still lands in v0, never retail's in-place a1.
+//  (g) a second local armIndex = index for the arms is coalesced away: 74.09, 167 insns.
+//  (h) preset screen: gcc-2.6.0 -O2 scores 71.56 and gcc-2.7.2-cdk -O3 is rejected by cc1,
+//      so the unit's cdk -O2 is not the cause.
+// WHY THE FIVE MOVES ARE NOT WRITABLE: retail's copies (a3 = id at entry, v1 = pAnim in case
+// 0, a3 + a0 = index in case 1, a0 + a3 = index in case 2) all exist because retail's arms
+// run at higher register pressure - its index has to survive the arm in a3 while a0/a1 hold
+// the arm's temps. Our compile keeps the same live value in the already-dead a1 and needs no
+// second copy, so five coalescings happen and no source statement adds a live value back.
+// The permuter was not run: at 74% with five allocator-pressure moves (not a shuffle) it
+// cannot help.
 /*
 void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     s32 prevGroup;
-    s32 index = animId;
-    s32 parity = ((s16)animId + 0x400) & 1;
+    s32 parity;
+    s32 index;
     u8 animGroup;
     u32 field0x3C;
     s32 newVar;
@@ -368,6 +386,8 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     void* pOldBytecode;
 
     pSpriteData->field_0x80 = animId;
+    parity = ((s16)animId + 0x400) & 1;
+    index = animId;
     prevGroup = ((u32)pSpriteData->flags_0xA8 >> 17) & 0x7;
     if (parity) {
         pSpriteData->flags_0xAC.flags |= 4;
@@ -396,7 +416,7 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
             pAnimation = pSpriteData->pCurAnimation;
             pSpriteData->flags_0xAC.flags &= ~4;
             pSpriteData->field_0x54 =
-                (u32)(pAnimation + index * 2 + 4) + *(u16*)(pAnimation + index * 2 + 4);
+                (u32)(pAnimation + (index * 2 + 4)) + *(u16*)(pAnimation + (index * 2 + 4));
         } else {
             pAnimation = pSpriteData->pCurAnimation;
             pSpriteData->flags_0xAC.flags |= 4;
@@ -410,7 +430,7 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
             pAnimation = pSpriteData->pCurAnimation;
             pSpriteData->flags_0xAC.flags &= ~4;
             pSpriteData->field_0x54 =
-                (u32)(pAnimation + index * 2 + 4) + *(u16*)(pAnimation + index * 2 + 4);
+                (u32)(pAnimation + (index * 2 + 4)) + *(u16*)(pAnimation + (index * 2 + 4));
         } else {
             index = (index - 5) ^ 0x3;
             pAnimation = pSpriteData->pCurAnimation;
@@ -438,6 +458,7 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     *(u32*)((u8*)pSpriteData + 0x3C) = field0x3C;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223B0);
+
 
 // Run Sprite Animation VM
 // Commands below 0x80 are timing/frame commands and every command below 0x40 adds
