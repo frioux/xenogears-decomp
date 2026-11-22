@@ -111,6 +111,9 @@ segments:
       - [0x1320C, c, system/graphics]
       - [0x1332C, c, system/temp1] # Graphics stuff
       - [0x150D4, c, system/temp2] # more graphics stuff
+      # The original temp2 object ends at func_8002709C: that function and the
+      # three after it want the 2.6.0 compiler while the head needs 2.7.2-cdk.
+      - [0x1789C, c, system/temp2_r1]
       - [0x18564, c, graphics/line_scroll]
       - [0x18A30, c, system/libarchive]
       - [0x19E90, c, system/archive]
