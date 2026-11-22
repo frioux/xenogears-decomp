@@ -764,35 +764,30 @@ void BattleFreeSoundSeds(void) {
         g_BattleSedsLoaded = 0;
     }
 }
-/* PARKED 82.89 percent at retail's exact 264 bytes / 66 instructions.  Residual, all of it
-   register choice and scheduling (this unit runs -fschedule-insns, so statement order does
-   not reach the output: moving `pState = g_BattleState;` below the two 0x74 stores compiled
-   to identical bytes):
-   1. Retail reads g_BattleActorList three times -- into s0 (pLast), once more after the two
-      0x74 stores into a0 (the pState->pTargetSprite store), and keeps hi() of the global in
-      its own callee-saved s2 so the third read is `lw a0,0(s2)`.  The third read has to be a
-      VOLATILE lvalue (see the body): plain C is CSE'd onto pLast and the body comes out three
-      instructions short (63, 252 bytes, 73.30).  With the volatile, gcc hoists the reload
-      above the stores and gives the pState pointer a0 instead of retail's a1, so its 0x4C
-      store lands four instructions early and its 0x28 store follows it.
-   2. The two `lhu 0x14E` of the slot mask: retail keeps the call argument in a0 and the value
-      it stores in g_BattleActorSlotMask in v1, so it can put the `sh` in the jal delay slot; our compile
-      reuses a0 for both loads and must store between them.
-   3. Prologue: retail forms the g_BattleStateWork base (lui/addiu into v1) before it loads
-      g_BattleCommandRowIndex; our compile orders the two `lui`s the other way.
-   Measured and rejected: row base in a u8 *pRow local (73.30, same instruction multiset,
-   only the lui order differs, and the fuzzy score is positional), a u16 mask local (65 insns -
-   gcc merges the two reads), no volatile on the third read (63 insns), pState assigned at
-   first use (no change), partKey through a s32/u32 local (`dir`, which is what makes the
-   0xA8/0xAC load order match retail - kept).  A 4-minute permuter run on the earlier
-   93.20-percent D_800C3FB8 spelling only produced wrong code (an added `if (g_BattleActorList)`
-   guard).
-   NOTE D_800C3FB8 is not in config/symbol_addrs.battle.txt (the old park used it and would not
-   link); the mask is g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E, which is
-   0x800C3FB8 + 0x46, and that base spelling also reproduces retail's addiu %lo(g_BattleStateWork)
-   + `lhu 0x14E` pair.  Keep the offset in the expression, as below: a pRow local moves the
-   constant into the addiu.  */
-/*
+/* PARKED 82.89 percent at retail's exact 264 bytes / 66 instructions.  This unit runs
+   -fschedule-insns, so the residual is sched1's global ordering and not statement order:
+   the two remaining spots are one decision and they interact.
+   1. Mask block.  Retail loads the call argument first (lhu a0), the store's copy second
+      (lhu v1) and sinks the sh into the jal delay slot, which leaves move a2,s1 free to
+      be hoisted above the ra/s0 saves.  Our compile keeps move a2,s1 for the delay slot,
+      so the sh has to stay in the block: it reuses a0 for both lhu and stores between
+      them.  Same five instructions, other order.
+   2. The third read of g_BattleActorList (the pState->pTargetSprite store) must be a
+      VOLATILE lvalue: a plain read is forwarded from pLast even across the two 0x74
+      stores, which drops the load and leaves 63 instructions / 252 bytes (85.27, cannot
+      link).  With the volatile read gcc HOISTS it above the two 0x74 stores, so pState
+      takes a0 and the reload v0 where retail has pState in a1 and the reload in a0 after
+      the stores.
+   Measured and rejected on this body: both 0x74 stores volatile as well (84.65, 268
+   bytes - the store-then-reload order comes out right at last, but a volatile load's
+   delay slot is an unfillable nop, one instruction over), volatile stores with a plain
+   reload (63 insns, forwarded away), a u16 mask local (65 insns, gcc merges the two
+   lhu), a row pointer local (73.30), pState assigned at first use (no change), gcc 2.6.0
+   (69.77) and plain 2.7.2 (69.77) instead of the unit's cdk, and -O3 (does not compile).
+   The mask is g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E, which is
+   0x800C3FB8 + 0x46; D_800C3FB8 is not in config/symbol_addrs.battle.txt, so keep the
+   base spelling and keep the offset inside the expression (a row local moves the
+   constant into the addiu).  *//*
 void func_800BF3E8(BattleActorSprite *p) {
     BattleActorSprite *pLast;
     BattleMisc33State *pState;
