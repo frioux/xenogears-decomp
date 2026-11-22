@@ -5,6 +5,8 @@
 #define BATTLE_OT_DEPTH_MAX 0x1C00 // depth limit before the prim is queued
 #define BATTLE_ANGLE_QUARTER_TURN 0x400 // a quarter turn in the 4096-step angle space
 #define BATTLE_CAMERA_LERP_FRAMES 100 // frames the camera lerp restarts with
+#define BATTLE_CLUT_ENTRY_COUNT 0x100 // palette entries the backdrop TIM's CLUT holds
+#define BATTLE_SPRITE_PAIR_COUNT 0x40 // quads in the backdrop sprite pool
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
@@ -534,73 +536,90 @@ void BattleSetStageFogColors(void) {
     gte_ldrgb(&g_NearColor);
 }
 
+extern u16 D_800927A0;
+extern u16 D_800927A4;
+extern u16 D_800927A8;
+extern POLY_FT4* D_8009278C;
+extern void func_800732AC(void* pDst, void* pSrc, s32 n);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
 
-/* best 68.73%: structure recovered but three allocator/CSE differences remain.
-   - retail uses setPolyFT4 (tag length byte at offset 3, code 0x2C at 7) and
-     the 64 quads of 0x28 bytes are POLY_FT4; the store order u0,u1,v0,u2,v1,
-     u3,v2,clut,tpage,v3 is the original's.
-   - D_800927A8 is read both as a byte (lbu, for v0/v2) and a halfword (lhu,
-     for v1/v3) at the same address; the setup store into it is a sh. A union
-     of u16/u8 members reproduces both loads without hoisting an address.
-   - retail reloads the D_800927A8 address with a fresh lui per access, ours
-     CSEs the eight uses into one callee-saved register (s0) - that is the
-     blocker; and retail keeps &g_BattleDrawPrimPools in a callee-saved register across
-     the two HeapAlloc calls and stores through it in the jal delay slot.
-   - the CLUT loop wants an s32 -0x8000 local (or v0,v0,a0) and drop its
-     counter in a2, ours picks a1; D_800927A8 needs a union of u16/u8
-     members to get both loads.
-
+/* best 94.35% (0x218 bytes against the original's 0x214; 134 insns vs 133).
+   Exact: the CLUT loop (mask as an s32 local assigned in the for's comma-init is
+   what gives retail's `li a0,-32768` + `or`, with i=0 before it), the two
+   HeapAlloc calls with g_BattleDrawPrimPools[0] stored in the second jal's slot,
+   the four setPolyFT4 tag bytes at the loop top, and every store offset of the
+   quad body - gcc biases the base to p+0x25 exactly as retail does.
+   Left: (a) the quad pointer lands in $v1 where retail has $a1, which shifts the
+   scratch and constant registers one place (retail t0/t1/t2/a3, this body
+   t1/t2/t3/t0); (b) the second quad's clut/tpage stores land in a different
+   position, leaving a nop where retail has the u3 store - the 4 excess bytes.
+   Load-bearing finds: D_800927A8 must stay a plain u16; a union or a cast
+   pointer makes gcc hoist its address into a callee-saved register and the frame
+   grows to 0x38. The byte reads then fall out of the u8 target fields (lbu) and
+   the u16 stores give lhu. clut/tpage need locals re-read at the top of each quad
+   or the two lhu come out next to their stores. 68.73 -> 94.35 over five hand
+   shapes and a 3-minute permuter run (base=935 best=905).
+   When this body is un-parked, D_800927A0, D_800927A4, D_800927A8 and
+   D_8009278C need symbol_addrs entries (0x800927A0, 0x800927A4, 0x800927A8,
+   0x8009278C). */
 /*
+// Fill the 64-quad backdrop sprite pool: load the backdrop TIM, force its CLUT
+// entries opaque, then give every quad the two halves of the texture.
 void func_80082C4C(u8* pArg) {
     TIM_IMAGE tim;
     POLY_FT4* p;
     u_short* pClut;
-    s32 i;
+    u16 clut;
+    u16 tpage;
     s32 mask;
+    s32 i;
 
-    OpenTIM(*(s32*)(pArg + 0x6C));
+    OpenTIM(*(u_long**)(pArg + 0x6C));
     ReadTIM(&tim);
-    mask = -0x8000;
     pClut = (u_short*)tim.caddr;
-    for (i = 0; i < 0x100; i++) {
+    for (i = 0, mask = -0x8000; i < BATTLE_CLUT_ENTRY_COUNT; i++) {
         *pClut++ |= mask;
     }
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
     D_800927A0 = GetClut(tim.crect->x, tim.crect->y);
     D_800927A4 = GetTPage(1, 0, tim.prect->x, tim.prect->y);
-    D_800927A8.w = *(u8*)&tim.prect->y;
-    g_BattleDrawPrimPools = HeapAlloc(0xA00, 0);
+    D_800927A8 = (u8)tim.prect->y;
+    g_BattleDrawPrimPools[0] = HeapAlloc(0xA00, 0);
     D_8009278C = HeapAlloc(0xA00, 0);
-    p = (POLY_FT4*)g_BattleDrawPrimPools;
-    for (i = 0; i < 0x40; i += 2) {
+    p = g_BattleDrawPrimPools[0];
+    for (i = 0; i < BATTLE_SPRITE_PAIR_COUNT; i += 2) {
         setPolyFT4(p);
+        setPolyFT4(p + 1);
+        clut = D_800927A0;
+        tpage = D_800927A4;
         p->u0 = 0x7F;
         p->u1 = 0x7F;
-        p->v0 = D_800927A8.b + 0x3F;
+        p->v0 = D_800927A8 + 0x3F;
         p->u2 = 0x3F;
-        p->v1 = D_800927A8.w;
+        p->v1 = D_800927A8;
         p->u3 = 0x3F;
-        p->v2 = D_800927A8.b + 0x3F;
-        p->clut = D_800927A0;
-        p->tpage = D_800927A4;
-        p->v3 = D_800927A8.w;
+        p->v2 = D_800927A8 + 0x3F;
+        p->clut = clut;
+        p->tpage = tpage;
+        p->v3 = D_800927A8;
         p++;
-        setPolyFT4(p);
+        clut = D_800927A0;
+        tpage = D_800927A4;
         p->u0 = 0x3F;
         p->u1 = 0x3F;
-        p->v0 = D_800927A8.b + 0x3F;
+        p->v0 = D_800927A8 + 0x3F;
+        p->tpage = tpage;
         p->u2 = 0;
-        p->v1 = D_800927A8.w;
+        p->v1 = D_800927A8;
         p->u3 = 0;
-        p->v2 = D_800927A8.b + 0x3F;
-        p->clut = D_800927A0;
-        p->tpage = D_800927A4;
-        p->v3 = D_800927A8.w;
+        p->v2 = D_800927A8 + 0x3F;
+        p->clut = clut;
+        p->v3 = D_800927A8;
         p++;
     }
-    func_800732AC(D_8009278C, g_BattleDrawPrimPools, 0xA00);
+    func_800732AC(D_8009278C, g_BattleDrawPrimPools[0], 0xA00);
 }
 */
 
