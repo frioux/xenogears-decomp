@@ -395,6 +395,16 @@ typedef struct {
     /* 0x8 */ Misc10ActionRow* pActionRows;
 } Misc10ArchiveHeader; // Size: 0xC
 
+// The battle texture archive func_800852C4 decompresses just before it calls the
+// TIM loaders; src/battling/main/misc11.c declares the whole 0x94-byte record as
+// BattlingTextureArchive and names the entries it loads, and this function takes
+// two of the ones it leaves unnamed.
+typedef struct {
+    /* 0x00 */ s32 pointerCount;
+    /* 0x04 */ u_long* unk04[0x15];
+    /* 0x58 */ u_long* unk58[6];
+} Misc10TextureArchive; // Size: 0x70, the head of misc11's 0x94-byte archive
+
 extern Misc10ActionRow* D_80092874;
 extern Misc10Actor g_BattleActor1;
 extern Misc10Actor g_BattleActor0;
@@ -467,7 +477,7 @@ extern void func_80082C4C(u8* pArchive);
 extern void func_8007B388(void* pArchive);
 extern void BattleLoadTextTimImages(void* pArchive);
 extern void BattlingLoadTextureArchive(void* pArchive);
-extern void func_800868E0(u8* pArchive);
+extern void func_800868E0(Misc10TextureArchive* pArchive);
 extern void func_80071794(u8* pArchive);
 extern void BattleInitSpriteRectTable(void);
 extern void BattleInitMessageWindow(void);
@@ -904,7 +914,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        func_8007B388(pArchive);
        BattleLoadTextTimImages(pArchive);
        BattlingLoadTextureArchive(pArchive);
-       func_800868E0((u8*)pArchive);
+       func_800868E0((Misc10TextureArchive*)pArchive);
        func_80071794((u8*)pArchive);
        HeapFree(pArchive);
        BattleInitSpriteRectTable();
@@ -1482,64 +1492,75 @@ extern u8 D_80092864;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 
-/* 71.59% (1228 bytes against retail 1348), 3 attempts, parked for time.
+/* 86.50% (1344 bytes: 336 insns against retail 337, 1348 bytes), parked.
    The unit's data at D_80095698 is POLY_FT4[16] (0x280 bytes, ending exactly at
-   D_80095918) followed by DR_TPAGE[4]; every retail offset lands on a POLY_FT4
-   field (+3 len, +4 r0/g0/b0/code, +8 x0/y0, +0xC u0/v0, +0xE clut, +0x10
-   x1/y1), so the packets are POLY_FT4s. The word/halfword stores retail has
-   (sw 0x090007 at +8, sh 0 at +0xC, sw 0x160016 at +0x10, sw 0x2C000080 at +4)
-   are the setXY0Fast/setUV0Fast family from include/system/font.h: gcc 2.7.2
-   does NOT merge adjacent short/byte stores, so they must be written as word
-   stores (the macros above). This body has all the values, both TIM sections,
-   the SetDrawTPage/DR_TPAGE pairs, the three GetClut calls, both blocks of
-   sprite setups and all five 0x28-byte copies in retail order.
-   What is left: (1) about 30 instructions of register/loop-setup difference -
-   retail keeps the POLY base in s1 and forms the copy pointers base-relative
-   (addiu s2,s1,0xA0 / addiu t0,s1,0xF0) while keeping the scalar field stores
-   ABSOLUTE (lui $at,%hi/%lo), and its copies do not re-materialise the base per
-   copy; (2) retail's frame is 0x50 with s3-s0 saved (pActor in s3), ours 0x48
-   with s2-s0, i.e. we are one callee-saved register short; (3) the two
-   g_BattleBarTexV/D_80092864 lbu's sit earlier in retail than the stores.
-   Tried: all-array-symbol accesses (55.28%, copies also go absolute), all
-   pointer-local accesses (64.58%, scalar stores then go base-relative).
-   The form below is the mixed one.
-   void func_800868E0(Misc10Actor* pActor) {
+   D_80095918) followed by DR_TPAGE[4] (8 bytes each, so D_80095918[1] is the
+   +8 half-word pair retail's two-word copy writes). Every retail offset lands on
+   a POLY_FT4 field, and the six 0x28-byte copies retail emits as the
+   two-16-byte-iterations-plus-8-byte-tail loop ARE plain `p[n] = p[n-1]`
+   struct assignments: gcc 2.7.2 expands a 0x28-byte block move that way. The
+   scalar packets are the setXY0Fast/setUV0Fast word stores (Misc10SetXY0/
+   Misc10SetUV0 below), and -0x8000 for the CLUT's STP bit is signed, because
+   retail is addiu and not ori.
+   WHAT IS LEFT IS PURE ALLOCATOR, and it is small and narrow: everything else
+   is instruction-identical. (1) retail saves four callee-saved registers (frame
+   0x50, param in $s3, D_80095698 in $s1, the copy source in $s2, D_80095918 in
+   $s0); with the body below gcc spends only three, so the frame is 0x48 and the
+   body is exactly ONE instruction short, the fourth save/restore pair: hoisting
+   a pointer across the second TIM block buys the frame (0x50) back and one
+   instruction with it, 86.50%. (2) with that pointer the four are assigned
+   $s2/$s3 rotated against retail's $s3/$s2, and
+   the tied pair is the param (both live from entry to the second OpenTIM), so
+   per the -dg/-dl levers this is a priority contest, not a spelling.
+   Tried: all-array accesses (55.28% on the old 4-copy body), all pointer-local
+   accesses (64.58%), the mixed form (71.59%, also 4 copies: it was MISSING the
+   p[5]=p[4] and p[7]=p[6] copies, worth ~96 bytes), pBar hoisted across block B
+   (86.50%), the same hoist spelled as a raw s32* to &p[8].x1 (86.50%),
+   s16 pClut with -0x8000 (85.02 -> fixes retail's addiu). Two permuter runs
+   (base 3559 -> 2829 -> 2619) found only more address hoists, each 86.50 at
+   best; the 2619 candidate hoists &p[10].u0 above the p[10]=p[8] copy, which is
+   correct but no closer. A -da/-dl dump would decide the rotation; not done.
+   void func_800868E0(Misc10TextureArchive* pArchive) {
     TIM_IMAGE tim;
     RECT rect;
-    POLY_FT4* p;
-    u16* pClut;
+    s16* pClut;
+    POLY_FT4* pBar;
 
-    p = D_80095698;
-    OpenTIM((u_long*)pActor->pTimData);
+    OpenTIM(pArchive->unk58[0]);
     ReadTIM(&tim);
-    pClut = (u16*)tim.caddr;
+    pClut = (s16*)tim.caddr;
     pClut[0] = 0;
-    pClut[1] = 0x8000;
+    pClut[1] = -0x8000;
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
-    p[5] = p[4];
-    FieldSoundResetActorEffects((Misc10TagSrc*)&tim, 6, 7, &p[0], 0);
-    BattleBuildFlippedTexturedQuad((Misc10TagSrc*)&tim, 0x13A - tim.prect->w * 4, 7, &p[2], 0);
+    FieldSoundResetActorEffects((Misc10TagSrc*)&tim, 6, 7, &D_80095698[0], 0);
+    BattleBuildFlippedTexturedQuad((Misc10TagSrc*)&tim, 0x13A - tim.prect->w * 4, 7, &D_80095698[2], 0);
     SetDrawTPage(&D_80095918[0], 0, 1, GetTPage(1, 0, 0x380, 0x100));
     D_80095918[1] = D_80095918[0];
     SetDrawTPage(&D_80095918[2], 0, 1, GetTPage(0, 0, 0x380, 0x100));
     D_80095918[3] = D_80095918[2];
+
+    pBar = &D_80095698[8];
     setlen(&D_80095698[4], 4);
     D_80095698[4].code = 0x65;
     Misc10SetXY0(&D_80095698[4], 7, 9);
     Misc10SetUV0(&D_80095698[4], 0, 0);
     Misc10SetXY1(&D_80095698[4], 0x16, 0x16);
     D_80095698[4].clut = GetClut(0, 0x1F6);
-    p[6] = p[5];
+    D_80095698[5] = D_80095698[4];
+    D_80095698[6] = D_80095698[5];
     Misc10SetXY0(&D_80095698[6], 0x123, 0);
     D_80095698[6].u0 = 0x20;
     D_80095698[6].clut = GetClut(0, 0x1F7);
-    OpenTIM((u_long*)pActor->pModelLink);
+    D_80095698[7] = D_80095698[6];
+
+    OpenTIM(pArchive->unk58[1]);
     ReadTIM(&tim);
     LoadImage(tim.prect, tim.paddr);
-    FieldSoundResetActorEffects((Misc10TagSrc*)&tim, 6, 0x20, &p[12], 0);
-    BattleBuildFlippedTexturedQuad((Misc10TagSrc*)&tim, 0x13A - tim.prect->w * 4, 0x20, &p[14], 0);
-    Misc10SetXY1(&D_80095698[8], 0x40, 8);
+    FieldSoundResetActorEffects((Misc10TagSrc*)&tim, 6, 0x20, &D_80095698[12], 0);
+    BattleBuildFlippedTexturedQuad((Misc10TagSrc*)&tim, 0x13A - tim.prect->w * 4, 0x20, &D_80095698[14], 0);
+
+    Misc10SetXY1(pBar, 0x40, 8);
     Misc10SetRGBC(&D_80095698[12], 0x80, 0, 0, 0x2C);
     Misc10SetRGBC(&D_80095698[13], 0x80, 0, 0, 0x2C);
     Misc10SetRGBC(&D_80095698[14], 0x80, 0, 0, 0x2C);
@@ -1559,15 +1580,17 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
     D_80095698[14].clut = D_80095698[0].clut;
     D_80095698[8].clut = GetClut(0x3A0, 0x110);
     Misc10SetXY0(&D_80095698[8], 0x1E, 0xB);
-    p[10] = p[8];
+    D_80095698[10] = D_80095698[8];
     Misc10SetUV0(&D_80095698[10], 0x80, 8);
     Misc10SetXY0(&D_80095698[10], 0xE3, 0x15);
-    p[9] = p[8];
-    p[11] = p[10];
+    D_80095698[9] = D_80095698[8];
+    D_80095698[11] = D_80095698[10];
+
     setRECT(&rect, 0x3A0, 0x110, 0x10, 1);
     LoadImage(&rect, (u_long*)D_80091814);
-}
+   }
 */
+
 void BattleAddSharedPrim(void) {
     AddPrim(g_BattleRootOrderingTable, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
 }
