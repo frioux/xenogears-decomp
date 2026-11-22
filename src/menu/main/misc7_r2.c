@@ -110,7 +110,7 @@ void MenuInitializePolyFt4(POLY_FT4* pPoly);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
-void func_801D5ED4(u_char index, u_char characterId);
+void MenuSetGearWindowNamePrims(u_char index, u_char characterId);
 void MenuSetCharacterIconPrims(u_char characterId);
 void func_801D6338(u_char index, u_char characterId);
 void func_801D680C(u_char index, u_char characterId);
@@ -174,7 +174,7 @@ void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
                   g_Menu->renderContext, x + MENU_DIGIT_SPACING * 6, y, 0x1000);
     g_Menu->pPlayTimeDigits->renderContext = *(u8*)&g_Menu->renderContext;
 }
-void func_801D5ED4(u_char index, u_char row) {
+void MenuSetGearWindowNamePrims(u_char index, u_char row) {
     // The negated row offset is load-bearing: a plain `+` mirrors the addu operands
     // of every row address in this body against retail's.
     s32 rowOffset = row ? 0x18 : 0;
@@ -811,7 +811,7 @@ void func_801D7884(u_char index, u_char row) {
 }
 */
 void MenuSetGearWindowContents(u_char index, u_char characterId) {
-    func_801D5ED4(index, characterId);
+    MenuSetGearWindowNamePrims(index, characterId);
     MenuSetCharacterIconPrims(characterId);
     func_801D6338(index, characterId);
     func_801D680C(index, characterId);
