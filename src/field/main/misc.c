@@ -1810,6 +1810,32 @@ extern void func_80077268(void);
 // base register, but then the base's load and the pActorData load swap $v0/$v1
 // against retail. The whole group is one two-register coin flip; the
 // subexpression form below keeps $v0 (retail's destination) at 97.58.
+// Round 397: 99.92% (776 bytes = retail's size, 194 insns, 14 differing
+// lines). THE RESTRUCTURE THAT FIXED THE GUARD REGION: retail's shape is an
+// explicit entry guard, not a for - `prevIP; prevStopFlag; actorCount =
+// g_FieldActiveActorCount; prevMaxInstructionCount; prevActorIndex; i = 0;
+// if (actorCount > 0) { ppFieldActors = ...; do {...} while (i <
+// g_FieldActiveActorCount); }` reproduces retail's [maxinstr load][i=0][blez]
+// [la s5][la s6][iv init] exactly (97.58 -> 99.84 with the frame still 0x50);
+// the cached actorCount explains retail's EARLY count load while the bottom
+// test re-reads the global each iteration, as retail does.
+// THE FRAME: retail (and the old for-form!) has a 4th, never-accessed 8-byte
+// slot at 0x28 (vars=32) - a reload-era slot the for machinery creates. The
+// `u8 unused[8]` dummy below reproduces the frame size but its RTL-gen slot
+// lands FIRST (0x10), pushing the three real slots +8 (99.92); any aggregate
+// declared anywhere in the function lands first, so the dummy cannot close
+// this - the phantom must be reproduced by a reload-era pseudo (mechanism
+// unidentified; -dg of the for-form would name it).
+// THE addu COIN FLIP, re-measured on this body: assigned form (pFieldActor
+// assigned first) gives retail's base-first `addu v1,v0,s2` but the sum lands
+// in v1 and the load and both stores swap with it (99.84); the subexpression
+// form keeps the sum in retail's v0 but emits index-first `addu v0,s2,v0`
+// (99.92, this body). Same wall as rounds 322-323.
+// Measured dead ends this round: `if (actorCount > 0) { setup; for (; i <
+// count; i++) }` does not merge the guards (+3 insns, 788 bytes, 98.29);
+// ppFieldActors assigned INSIDE the loop is deleted, not hoisted (both actor
+// sites re-form lui/lw inline, 95.75). Permuter still cannot parse the unit
+// ("conversion to non-scalar type requested").
 /*
 void func_8008B978(int characterId) {
     FieldActor* pPrevFieldActor;
@@ -1817,6 +1843,7 @@ void func_8008B978(int characterId) {
     FieldActor* pFieldActor;
     ActorData* pPrevActor;
     s32 prevStopFlag;
+    s32 actorCount;
     s32 prevMaxInstructionCount;
     s32 prevActorIndex;
     s32 i;
@@ -1825,6 +1852,7 @@ void func_8008B978(int characterId) {
     ActorData* pWriteActor;
     s32 offset;
     u8* pScript;
+    u8 unused[8]; // original has an unused stack slot; reproduces the frame
 
     g_pGameState->characterFlags |= 1 << g_FieldPartyModelLoadCharacter;
     pPrevFieldActor = g_FieldScriptVMCurFieldActor;
@@ -1832,42 +1860,46 @@ void func_8008B978(int characterId) {
     if (g_FieldEntryRoutineFinished != 0) {
         prevIP = pPrevActor->scriptInstructionPointer;
         prevStopFlag = g_FieldScriptVMStopFlag;
+        actorCount = g_FieldActiveActorCount;
         prevMaxInstructionCount = g_FieldScriptMaxInstructionCount;
         prevActorIndex = g_FieldCurActorIndex;
-        ppFieldActors = (FieldActor**)&g_FieldActors;
-        for (i = 0; i < g_FieldActiveActorCount; i++) {
-            offset = FieldScriptGetBytecodeOffset(i, 0);
-            pScript = (u8*)g_FieldScriptVMCurScriptData + offset;
-            if (pScript[0] != FIELD_SCRIPT_OPCODE_PARTY_MODEL || pScript[1] != characterId) {
-                continue;
-            }
-            pActor = (&(*ppFieldActors)[i])->pActorData;
-            pFieldActor = &(*ppFieldActors)[i];
-            g_FieldScriptVMCurFieldActor = pFieldActor;
-            g_FieldScriptVMCurActor = pActor;
-            func_80080A74(i);
-            pWriteActor = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;
-            g_FieldCurActorIndex = i;
-            pWriteActor->scriptInstructionPointer = offset;
-            g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(i, 0);
-            g_FieldScriptVMScriptEndFlag = 0;
-            offset = FieldScriptGetBytecodeOffset(i, 0);
-            FieldActorCopyPlacement(i, g_PlayerActorIndex);
-            FieldScriptVMRun(0xFFFF);
-            func_80077268();
-            g_pGameState->characterFlags |= 1 << g_FieldPartyModelLoadCharacter;
-            if ((g_GameSceneMapNum & FIELD_MAP_GEAR_SKINS_MASK) != 0) {
-                pFieldActor = &(*ppFieldActors)[g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex]];
-                g_FieldScriptVMCurFieldActor = pFieldActor;
-                g_FieldScriptVMCurActor = pFieldActor->pActorData;
-                func_80080A74(g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex]);
-                ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData->scriptInstructionPointer = offset;
-                g_FieldCurActorIndex = g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex];
-                g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex], 0);
-                g_FieldScriptVMScriptEndFlag = 0;
-                FieldScriptVMRun(0xFFFF);
-            }
-            break;
+        i = 0;
+        if (actorCount > 0) {
+            ppFieldActors = (FieldActor**)&g_FieldActors;
+            do {
+                offset = FieldScriptGetBytecodeOffset(i, 0);
+                pScript = (u8*)g_FieldScriptVMCurScriptData + offset;
+                if (pScript[0] == FIELD_SCRIPT_OPCODE_PARTY_MODEL && pScript[1] == characterId) {
+                    pActor = (&(*ppFieldActors)[i])->pActorData;
+                    pFieldActor = &(*ppFieldActors)[i];
+                    g_FieldScriptVMCurFieldActor = pFieldActor;
+                    g_FieldScriptVMCurActor = pActor;
+                    func_80080A74(i);
+                    pWriteActor = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;
+                    g_FieldCurActorIndex = i;
+                    pWriteActor->scriptInstructionPointer = offset;
+                    g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(i, 0);
+                    g_FieldScriptVMScriptEndFlag = 0;
+                    offset = FieldScriptGetBytecodeOffset(i, 0);
+                    FieldActorCopyPlacement(i, g_PlayerActorIndex);
+                    FieldScriptVMRun(0xFFFF);
+                    func_80077268();
+                    g_pGameState->characterFlags |= 1 << g_FieldPartyModelLoadCharacter;
+                    if ((g_GameSceneMapNum & FIELD_MAP_GEAR_SKINS_MASK) != 0) {
+                        pFieldActor = &(*ppFieldActors)[g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex]];
+                        g_FieldScriptVMCurFieldActor = pFieldActor;
+                        g_FieldScriptVMCurActor = pFieldActor->pActorData;
+                        func_80080A74(g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex]);
+                        ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData->scriptInstructionPointer = offset;
+                        g_FieldCurActorIndex = g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex];
+                        g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex], 0);
+                        g_FieldScriptVMScriptEndFlag = 0;
+                        FieldScriptVMRun(0xFFFF);
+                    }
+                    break;
+                }
+                i++;
+            } while (i < g_FieldActiveActorCount);
         }
         g_FieldScriptVMCurFieldActor = pPrevFieldActor;
         g_FieldScriptVMCurActor = pPrevActor;
@@ -1876,8 +1908,7 @@ void func_8008B978(int characterId) {
         g_FieldScriptMaxInstructionCount = prevMaxInstructionCount;
         pPrevActor->scriptInstructionPointer = prevIP;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
 
 extern void FieldPartyLoadMemberSkin(int characterId, int partyIndex);
@@ -1966,6 +1997,14 @@ typedef struct {
 // steals its lui into the bne delay slot, where retail has nop and $t0.
 // Preset screen: 2.7.2 97.81%, cdk 86.01%, 2.6.0 97.81%; a 4-minute permuter
 // run found nothing (best candidate 206 vs base 317).
+// Round 397: still 97.81 (580 vs retail 584), three more spellings measured
+// identical (empty do{}while(0) around the copy loop; two-statement in-place
+// pEnd = pSrc; pEnd = (u8*)pEnd + 0x14000). -dg proves the wall: the 0x14000 is
+// emitted as a RELOAD SCRATCH with no pseudo/allocno ((set (reg:SI 2 v0)
+// (const_int 65536)) post-allocation), so which register it lands in is reload's
+// first-free-reg pick, not a source-controlled allocno; retail's $t0 held
+// &D_8005A448 live through the if, so its nop + lui/ori after the branch cannot
+// be reorg'd from C.
 /*
 void func_8008BF38(int partyIndex) {
     int characterId;
