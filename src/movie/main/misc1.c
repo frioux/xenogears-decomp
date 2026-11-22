@@ -220,6 +220,19 @@ extern s32 g_MovieHeapDebugEnabled;
 // 2.6.0 with -O3 and with -G0 both measure 99.04, so it is not a flag question. A
 // 4-minute permuter run (1067 iterations) is useless here: base 460 = best 460,
 // because the reloc-name rows above dominate its score.
+// RE-MEASURED (round 408, un-parked unchanged, 2.6.0): 99.04%, 2276 bytes, 569/569
+// instructions, and the same two placement rows and nothing else. Two more negatives:
+// moving `pCounters = g_MovieStreamReadCount; pBase = pWork;` INTO the loop as its
+// first two statements is hoisted straight back to the identical preheader position
+// (cc1 emits `la s4 / move s2 / li s3`, in that order, either way), and declaring
+// pCounters/pBase first changes nothing (99.04, identical rows).
+// MECHANISM (read off this unit's cc1 output, build/src/.../misc1.c.s): for a REGISTER-passed
+// CONSTANT argument cc1 emits the `la` in load_register_parameters, i.e. AFTER the
+// memory arguments' loads - that is why the D_8006FC40 address lands last, and it is
+// also why the other eighteen FontPrintf calls in this function are right. Retail
+// emits it at expand time, which cc1 only does for a non-constant arg; a single-use
+// pointer local is folded back into the constant (measured, round 236), so no
+// surviving spelling of `FontPrintf(D_8006FC40, ...)` reaches retail's order.
 /*
 void func_800704E8(void) {
     SVECTOR sv;
