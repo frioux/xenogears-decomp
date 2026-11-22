@@ -262,40 +262,50 @@ void func_80046EFC(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
 
-/* best 99.51% (364 bytes = retail's exact size, 91 insns, instruction ORDER
-   identical - only two ABI-visible registers differ). The GPU timeout panic
+/* best 99.51% (364 bytes = retail's exact size, 91 insns, instruction order
+   identical; only two caller-saved registers differ). The GPU timeout panic
    handler: Vsync(-1) against a deadline, then a queue dump and a queue reset.
    Load-bearing spellings: the discarded status read is a bare
-   "(void)*g_GpuGp1Port;" statement before the first printf, the queue word
+   "(void)*g_GpuGp1Port;" statement before the first printf; the queue word
    D_800569C4 must be declared volatile AND as an array ("extern volatile u_long
-   D_800569C4[];" read as D_800569C4[0]) so its address materialises with
-   lui+addiu, and the queue delta and the second printf's D_800569C8 must be
-   staged through locals - that is what a permuter run turned 94.49 into 99.51.
-   Residual (allocator tie): the g_GpuGp1Port pointer takes a2 where retail has
-   v1, which frees v1 for g_GpuQueueHead where retail has t0; every other
-   instruction is byte-identical.
-   Tried: four permuter runs (350 -> 45, 3801 iterations nothing, round 392
-   1335 iterations base=45 best=45 PERMUTER_NONE), the pointer in a local
-   ("volatile u_long *pPort = g_GpuGp1Port;", identical 99.51), an explicit
-   volatile cast, g_GpuGp1Port[0] vs a deref of g_GpuGp1Port for each of the two
-   reads, arg3 staged through a local (88.41%), and both declaration orders of
-   the two locals. Round 392 also proved the array-extern lever dead here:
-   "extern volatile u_long *g_GpuGp1Port[];" makes the matched func_80046DB4 and
-   func_8004709C fail to compile ("invalid operands to binary &" on
-   *g_GpuGp1Port & 0x1000), so the shared pointer global must stay a scalar.
+   D_800569C4[];", read as D_800569C4[0]) so its address materialises with
+   lui+addiu; and the queue delta must be staged through a local in TWO
+   statements - "(g_GpuQueueTail - g_GpuQueueHead) & 0x3F" inline measures 94.49
+   and a one-statement stage with the head in a local 94.38.
+   Residual (local-alloc ordering tie, read off -dl/-dg on the unit's own cc1):
+   the g_GpuGp1Port pointer load is qty 81, "used 3 times across 22 insns", and
+   the dump's disposition line puts it in $6/$a2 where retail has $3/$v1; the
+   g_GpuQueueHead value is qty 83, "used 2 times across 3 insns", and lands in
+   $3/$v1 where retail has $8/$t0. Both ref counts are pinned by the instruction
+   stream - the pointer's three refs are its address load plus the two volatile
+   reads, the head's two are its load plus the subu, and neither can change
+   without adding or removing an instruction - so no spelling moves them; every
+   other instruction, the frame and the saved set are exact.
+   Tried: the dead read stored to an unused local (99.51, identical), the
+   inline and one-local delta forms (94.49 / 94.38), gcc-2.7.2-cdk on this body
+   (65.03, and the unit's preset is 2.7.2 for all of its matched functions),
+   four earlier permuter runs (350 -> 45, 3801 iterations, round 392 1335
+   iterations base=45) and a fifth (1790 iterations, base=45 best=45,
+   PERMUTER_NONE), the pointer in a local (identical), an explicit volatile cast,
+   g_GpuGp1Port[0] vs a deref at each of the two reads, arg3 staged through a
+   local (88.41%), and both declaration orders of the two locals. Round 392 also
+   proved the array-extern lever dead here: "extern volatile u_long
+   *g_GpuGp1Port[];" makes the matched func_80046DB4 and func_8004709C fail to
+   compile ("invalid operands to binary &"), so the shared pointer global must
+   stay a scalar.
    The body below is the parked attempt.
 int func_80046F30(void) {
-    u_long new_var2;
-    int new_var;
+    u_long dma2ChcrWord;
+    int queued;
 
     if (g_GpuTimeoutDeadline < Vsync(-1) || g_GpuTimeoutCount++ > 0xF0000) {
         (void)*g_GpuGp1Port;
-        new_var = g_GpuQueueTail;
-        new_var = new_var - g_GpuQueueHead;
-        printf(D_80019240, new_var & 0x3F, *g_GpuGp1Port,
+        queued = g_GpuQueueTail;
+        queued = queued - g_GpuQueueHead;
+        printf(D_80019240, queued & 0x3F, *g_GpuGp1Port,
                *g_GpuDma2Chcr, *g_GpuDma2Madr);
-        new_var2 = D_800569C8;
-        printf(D_80019274, D_800569C4[0], new_var2, D_800569CC);
+        dma2ChcrWord = D_800569C8;
+        printf(D_80019274, D_800569C4[0], dma2ChcrWord, D_800569CC);
         g_GpuSavedIntrMask = SetIntrMask(0);
         g_GpuQueueHead = 0;
         g_GpuQueueTail = g_GpuQueueHead;
