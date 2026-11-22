@@ -359,6 +359,13 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CE860);
    threshold.  Tried: the base as a local pointer, `(pData + i)[K]` for the
    byte indexes (that fixed the addu operand order), a shared `rowOfs = i*0x20`
    local, and -O1 (55.6, so not a preset problem).  Same 88.90 in all shapes.
+   Re-measured round 394 under the unit's own preset (gcc 2.6.0, XenoMenu260): 88.90,
+   804 bytes, 201 insns against retail's 191, frame 80 vs retail's 72 - the two extra
+   callee-saved giv registers are what push the frame, exactly as diagnosed above.
+   The four mult sites retail re-emits are sll(s0,5)+0x31E0, sll(s0,7)+0x2D80,
+   sll(s0,5)+0x3100, sll(s0,7)+0x2A00, i.e. two constants used twice each; retail also
+   keeps 0x2228/0x2030/i*0x140 as three real accumulators (s1/s2/s3) bumped at the latch,
+   which the body below already does.
 void func_801CE860(void) {
     s32 i;
     s32 offset0 = 0;
@@ -526,6 +533,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
    `character != 0xFF` slot; gcc puts `li v0,0xFF` in the first slot and `li
    v1,0x1` in the second, so the body is one dead u8 truncation short.  That
    means retail's `valid` was truncated once more than `if (!valid)` needs.
+   Re-measured round 394 (2.6.0, 152 insns): the missing instruction is the QI mask on
+   the constant-1 edge.  Retail masks on BOTH edges into the merge block (in the second
+   bne's delay slot for the constant edge, after `move v1,v0` in the 0xFF arm) and the
+   merge label holds only `beqz v0`; this build folds the (u8)1 and emits one `andi` AT
+   the merge.  Measured this round, all short: (u8) casts at the assignment and the test
+   98.89 (identical); `valid = character != 0xFF || i == order` 95.51 (624 B, re-loads
+   g_Menu per use); `valid = character == 0xFF ? i == order : 1` 95.64 (628 B);
+   permute.sh 3 min base=314 best=314.  A source shape that masks the constant edge must
+   also keep the g_Menu reloads where retail has them, and the || form does not.
    Notes: g_MenuCardSlotOrder is the overlay dlabel table in asm/menu/data/246A4.data.s so
    it only needs an extern declaration.  The three colour bytes read the low byte
    at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
