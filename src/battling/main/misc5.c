@@ -1312,7 +1312,36 @@ merges the two loads. (5) retail's `/7` for `spread` has no sign correction
 (`(hi + len2) >> 2`), gcc emits `sra v1,len2,31` + `subu` for our s32 len2; the
 u32 cast form gets the unsigned magic (0x24924925/multu) instead, so the dividend
 must be non-negative to retail's gcc somehow.
+Round 406: the stored body was un-parked and re-measured LIVE - it compiles, and
+it is exactly 78.83% / 940 bytes / 235 insns, retail's own size. New measurements:
+  - `-O1` is 68.91%, so the hoisted `dy / 2` is not an -O level artefact either
+    (78.83 under -O2, -O3, -G0; 80.00 under gcc-2.6.0; 72.27 under cdk).
+  - cc1_probe (both 2.7.2 and 2.6.0) settles residual (5) as far as the C goes:
+    EVERY spelling of a signed division by 7 emits the `sra/subu` sign
+    correction - plain `n / 7`, after `if (n < 0) n = 0;`, after
+    `if (n < 0x10) n = 0;`, and through an int temp. The only spellings that drop
+    it switch to the unsigned magic (`multu` 0x24924925): `(u16)n / 7` and a
+    `u16 f()` divided directly. So retail's dividend had bit 31 known clear from
+    a mask, a narrow load or a comparison - NOT from a plain int - while the same
+    register is `sra $s4,31`'d in the loop for `spread - (len2 >> 31)`. That
+    pair (uncorrected /7 in the preheader, corrected use in the loop) is the
+    core of residual (5) and is not reachable by any spelling of a plain
+    division; nobody has explained it yet.
+  - The last bullet's s16 experiment must NOT be done by changing the struct:
+    BattleEffectUpdateSlots is matched at 100% reading y and vy with
+    `lhu 0x0(a1)` / `lhu 0x10(a1)`, so those two fields really are u16. Retail's
+    `addiu v0,zero,-0x10` / `-0x4` has to come from an s16 temp in this function.
+  - MEASURED NEGATIVE, do not repeat: writing `len2 / 7` INLINE at the four
+    `(norm.vx * t >> 14) + len2 / 7` uses instead of in a `spread` local does NOT
+    make gcc split retail's shape (uncorrected magic chain spilled, correction
+    left in the loop). It hoists the WHOLE chain into the preheader including
+    `sra $22,31` / `subu`, so both `count` and `spread` stay in registers, the
+    frame drops to 0x60 and the body is 916 bytes / 229 insns against retail's
+    940 / 235: 81.06%, and it can never link. Retail SPILLS both (0x30 and 0x38),
+    so the /7 has to stay out of a register - the spill is a property of retail's
+    shape, not a defect of ours.
 */
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);
 
 /*
