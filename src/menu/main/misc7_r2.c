@@ -556,8 +556,8 @@ void func_801D6CF4(u_char index, u_char row) {
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2; i++) {
         // Each of these re-forms the prim address: a shared local keeps it in a register.
-        SetShadeTex((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0),
+        SetShadeTex((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + 0xBE0 +
+                                (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)),
                     0);
         ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
                      (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->r0 = 0;
@@ -566,18 +566,18 @@ void func_801D6CF4(u_char index, u_char row) {
         ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
                      (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->b0 = 0;
         MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x2360 + i * 0x20),
-                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                         (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->x0,
-                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                         (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->y0,
-                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                         (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->x1 -
-                                *(volatile u16*)&((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                                              (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->x0,
-                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                         (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->y3 -
-                                *(volatile u16*)&((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                                              (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->y0);
+                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
+                                         -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0xBE0))->x0,
+                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
+                                         -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0xBE0))->y0,
+                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
+                                         -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0xBE0))->x1 -
+                                *(volatile u16*)&((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
+                                                              -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0xBE0))->x0,
+                            ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
+                                         -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0xBE0))->y3 -
+                                *(volatile u16*)&((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
+                                                              -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0xBE0))->y0);
     }
 }
 extern s32 g_MenuGearWindowWideNumberX;
