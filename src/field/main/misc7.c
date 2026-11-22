@@ -344,7 +344,7 @@ void FieldScriptVMHandlerWalkToPosition(void) {
 }
 
 void func_800984EC(void) {
-    u16* pIp;
+    u_short* pIp;
 
     D_800B21AE.vx = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
     D_800B21AE.vy = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
