@@ -387,6 +387,15 @@ void BattleLoadRelocatedArchiveEntry(s32 entryIndex) {
     BattleRelocateBlockPointers(pBuffer);
 }
 
+// One spec in the block that follows a Misc14AnimCfg header: the channel of a
+// node a value is driven into (3..5 its rotation x/y/z, 6..8 its source
+// position x/y/z), which node of the entry list it is, and the value.
+typedef struct {
+    /* 0x0 */ u8 channel;
+    /* 0x1 */ u8 nodeIndex;
+    /* 0x2 */ u16 value;
+} Misc14AnimSpec; // Size: 0x4
+
 // The animation a part plays (the record src/battling/main/misc15.c drives with
 // func_8008B730): the per-part channel config, the entry list and the tracks.
 typedef struct {
@@ -394,7 +403,8 @@ typedef struct {
     /* 0x2 */ s16 unk2;
     /* 0x4 */ s16 entryCount;
     /* 0x6 */ s16 trackCount;
-} Misc14AnimCfg; // Size: 0x8
+    /* 0x8 */ Misc14AnimSpec specs[1]; // entryCount entry specs, then trackCount track specs
+} Misc14AnimCfg; // Size: 0xC
 
 typedef struct {
     /* 0x0 */ u16 *pValue;
@@ -435,8 +445,6 @@ void BattleResetPartAnim(Misc14Anim *pAnim) {
         pTrack++;
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
-
 // The 0x10-byte part descriptor table Misc14Reloc::pPartList points at: which
 // node the part is appended to, which model part record it uses, and the angles
 // it is placed with. -1 in either index means "the root node" and "no model
@@ -477,6 +485,125 @@ typedef struct {
     /* 0x18 */ Misc14PartDesc *pPartDescs;
 } Misc14EntryList; // Size: 0x1C
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
+
+/* Best attempt: objdiff 97.42%, 588 bytes against retail's 592 - ONE instruction
+   short, so it cannot link as it stands. Structure is settled and everything
+   else is exact: the six-arm switch in each loop IS cross-jumped by 2.7.2 into
+   retail's two shared store blocks (pValue then isAngle 1 for the rotation
+   cases, 0 for the source-position cases), and the two jump tables land at +0
+   and +0x18 of this unit's rodata range [0xBF8, .rodata, main/misc14] in
+   address order, first table at +0, so this is the whole switch family of the
+   unit in one function.
+   Load-bearing spellings, keep them:
+   - the parameter is the raw script/base pointer and pCfg is cast from it: the
+     counts are re-read as `lh 4(s0)` / `lh 6(s0)` every iteration, and the
+     additions go through the second copy in s1;
+   - `pTrack` is computed BEFORE the entry loop and held across it (retail keeps
+     it in t2 and uses it as the track cursor later); reloading
+     `pAnim->pTracks` after the loop costs an instruction and a register (96.20);
+   - `pAnim->pEntries = pEntry;` before the pTracks computation (source order is
+     the store order: sw 4(s3) then sw 8(s3));
+   Residual, one instruction: retail's entry copy chain is
+   `move t1,a0 / move s0,t1 / ... / move s1,s0` (the copy of the script base is
+   materialised AFTER the two calls, chained off the pCfg register), ours is
+   `move s1,a0 / move s0,s1` at entry - one move fewer. Tried and measured:
+   a `u8 *pBase = pScript;` local initialised at entry (95.37, coalesced into
+   one register and the s-register set shifted), the same local assigned after
+   the HeapAlloc (92.54, gcc gives it t4 because no call separates it from its
+   use), the parameter typed Misc14AnimCfg* with `u8 *pScript = (u8 *)pCfg;`
+   (95.11, coalesced), and both C operand orders for the two `addu`s (gcc
+   normalises them: retail has value-first `addu v1,v1,s1`, we always get
+   `addu v1,s1,v1`). The permuter could not run on this body at all - its
+   randomizer fails with 'conversion to non-scalar type requested' before the
+   first iteration. */
+/*
+void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode) {
+    Misc14AnimCfg *pCfg = (Misc14AnimCfg *)pScript;
+    Misc14ModelNode **pNodes = ((Misc14EntryList *)pNode->pData)->pNodes;
+    Misc14AnimSpec *pSpec;
+    Misc14AnimEntry *pEntry;
+    Misc14AnimTrack *pTrack;
+    Misc14ModelNode *pPart;
+    u32 i;
+
+    pAnim->pConfig = pCfg;
+    HeapSetCurrentContentType(0x10);
+    pEntry = HeapAlloc(pCfg->entryCount * sizeof(Misc14AnimEntry) + pCfg->trackCount * sizeof(Misc14AnimTrack), 0);
+    pAnim->pEntries = pEntry;
+    pTrack = pEntry + pCfg->entryCount;
+    pAnim->pTracks = pTrack;
+    pSpec = pCfg->specs;
+    for (i = 0; i < pCfg->entryCount; i++) {
+        pPart = pNodes[pSpec->nodeIndex];
+        pEntry->target = pSpec->value;
+        switch (pSpec->channel & 0x7F) {
+        case 3:
+            pEntry->pValue = (u16 *)&pPart->rotation.vx;
+            pEntry->isAngle = 1;
+            break;
+        case 4:
+            pEntry->pValue = (u16 *)&pPart->rotation.vy;
+            pEntry->isAngle = 1;
+            break;
+        case 5:
+            pEntry->pValue = (u16 *)&pPart->rotation.vz;
+            pEntry->isAngle = 1;
+            break;
+        case 6:
+            pEntry->pValue = (u16 *)&pPart->sourcePos.vx;
+            pEntry->isAngle = 0;
+            break;
+        case 7:
+            pEntry->pValue = (u16 *)&pPart->sourcePos.vy;
+            pEntry->isAngle = 0;
+            break;
+        case 8:
+            pEntry->pValue = (u16 *)&pPart->sourcePos.vz;
+            pEntry->isAngle = 0;
+            break;
+        }
+        pEntry++;
+        pSpec++;
+    }
+    for (i = 0; i < pCfg->trackCount; i++) {
+        pPart = pNodes[pSpec->nodeIndex];
+        pTrack->pScript = pScript + pSpec->value;
+        pTrack->pScriptStart = pScript + pSpec->value;
+        switch (pSpec->channel & 0x7F) {
+        case 3:
+            pTrack->pValue = (u16 *)&pPart->rotation.vx;
+            pTrack->isAngle = 1;
+            break;
+        case 4:
+            pTrack->pValue = (u16 *)&pPart->rotation.vy;
+            pTrack->isAngle = 1;
+            break;
+        case 5:
+            pTrack->pValue = (u16 *)&pPart->rotation.vz;
+            pTrack->isAngle = 1;
+            break;
+        case 6:
+            pTrack->pValue = (u16 *)&pPart->sourcePos.vx;
+            pTrack->isAngle = 0;
+            break;
+        case 7:
+            pTrack->pValue = (u16 *)&pPart->sourcePos.vy;
+            pTrack->isAngle = 0;
+            break;
+        case 8:
+            pTrack->pValue = (u16 *)&pPart->sourcePos.vz;
+            pTrack->isAngle = 0;
+            break;
+        }
+        pTrack++;
+        pSpec++;
+    }
+    BattleResetPartAnim(pAnim);
+}
+*/
+
+
 extern u32 ModelResolvePointers(void *pModel);
 extern Misc14ModelNode *BattleCreateObject(void);
 extern void BattleAppendListEntry(Misc14ModelNode *pList, Misc14ModelNode *pNode);
@@ -485,7 +612,7 @@ extern void BattleSetNodeEntryList(Misc14ModelNode *pNode, Misc14EntryList *pDat
 extern Misc14EntryList *BattleCreateEntryList(void);
 extern Misc14ModelPart *BattleCreateModelPart(void);
 extern void BattleAttachModelPart(Misc14ModelPart *pPart, ModelPart *pModelPart);
-extern void func_8008B13C(void *pScript, Misc14Anim *pEntry, Misc14ModelNode *pNode);
+extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
 
