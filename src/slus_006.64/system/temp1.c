@@ -539,6 +539,22 @@ void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry) {
     }
 }
 
+   ROUND 408: re-parked at 99.89% / 716 bytes / 178 insns (retail's size) after re-measuring from this
+   same body - unchanged. Preset question is now CLOSED with numbers: the unit's own gcc-2.7.2-cdk
+   scores this body 99.89 while plain gcc-2.7.2-psx drops it to 97.54 (and AnimScriptTick 94.75,
+   AnimTaskAlloc 79.92, AnimTaskCreate 88.14, func_80023468 86.41), and cdk -O3 collapses to 80.84, so
+   cdk -O2 is right and the tie is not a preset. Mechanism analysis of the residual: retail's
+   'andi v0,v0,0x1' ties its OUTPUT to the dying input (in place), ours allocates a fresh v1 because
+   mips.md's andsi3 output is '=d' with no matching constraint - so v0 is still occupied by the input
+   when the output is placed and the constant 1 then takes v0 (li v0,1) instead of retail's
+   addiu v1,zero,1. The constant-1 pseudo and the andi result die at the SAME bne, so their allocation
+   order is the coin flip. No C spelling of a pure test has been found that forces the in-place tie.
+   Verdict: GIV_TIE.
+
+   Also measured this round: the tail written as nested ifs with an in-place local
+   ("flags = pSpriteData->flags_0xA8; flags &= 1; if (flags == 1)") - still 99.89 / 716 bytes, the AND
+   again goes to a fresh v1, so even a compound assignment on a local does not force the in-place tie.
+
 */
 /* Best attempt: 99.10% (312 bytes, 78 insns, the original size; every instruction identical except one
    register pair). Only the AC flag word differs: the original keeps the 0xFFF8007F mask in v0 and the
@@ -971,7 +987,23 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
     SpritePlayAnimation(pSpriteData, 0);
     return pSpriteData;
-}*/
+
+   ROUND 408: re-measured from this body - 99.19% / 456 bytes / 114 insns, identical to the note above,
+   with the same TWO residuals: (a) the ~3 constant and the 0x3C word swapped across v0/v1, which drags
+   the 0x40 word with it, and (b) the prologue emission order (retail pairs "sw s6,40(sp)" with
+   "addu s6,a1,zero" before the s0 pair; the register-to-parameter assignment itself is identical in both
+   bodies, so (b) is an EMISSION ORDER, not a callee-saved allocation tie, and no local moves it).
+   Measured this round for (a), all 99.19 / 456 bytes / 114 insns: the mask as a positive constant
+   (& 0xFFFFFFFC), the mask in a u32 local assigned as the first statement of the body (& mask), and the
+   C operand order reversed (0xFFFFFFFC & word). cc1 canonicalises the commute and emits the same
+   mirrored body every time, so the constant cannot be made to take v0 from source - the word's pseudo is
+   created first by expand_binop and both pseudos have refs=1 (allocator priority 0), so the allocno
+   number decides and the constant always loses. Preset also ruled out with numbers: gcc-2.7.2-psx 94.97,
+   gcc-2.7.2-cdk 99.19 (2.6.0 compile-fails on this unit), and the unit cannot move to 2.7.2 (matched
+   neighbours AnimScriptTick 94.75, AnimTaskAlloc 79.92, AnimTaskCreate 88.14, func_80023468 86.41).
+   Verdict: GIV_TIE, same decision as func_80023804 above.
+}
+*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
 
 void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
