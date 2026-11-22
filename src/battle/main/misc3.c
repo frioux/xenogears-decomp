@@ -624,14 +624,16 @@ void BattleClearFlagC6(void) {
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
-/* Prior findings for func_800780A8: retail walks two 0x28-byte packets from
-   pInfo to pInfo+0x50 and finishes with pInfo[0x5D] = 0. Retail facts:
+/* Prior findings for func_800780A8 (now MATCHED at 100.00%): retail walks two
+   0x28-byte packets from pInfo to pInfo+0x50 and finishes with pInfo[0x5D] = 0.
+   Retail facts that the matched body below reproduces:
    1. loop compare is `slt` (signed) vs a bound re-formed inside the loop
-      (addiu v0,s1,0x50; slt; bnez) with NO pre-loop guard - wants a signed
-      integer cursor/limit, not a pointer compare.
+      (addiu v0,s1,0x50; slt; bnez) with NO pre-loop guard: a do-while whose
+      cursor is a POLY_FT4 derived from an index i, compared as (s32).
    2. retail stores the flag and RE-READS it (andi v0,s3,1; sb v0,0x5C(s1);
-      lbu v0,0x5C(s1); beqz).
-   3. several stores land in jal delay slots (cdk signature). */
+      lbu v0,0x5C(s1); beqz): the flag field is volatile in the struct.
+   3. retail keeps the (slot/2)*13 multiply chain INSIDE the loop: the in-loop
+      `slot = arg;` copy is the invariant gcc hoists instead of the multiply. */
 /* Two POLY_FT4 packets plus the two flag bytes that follow them: the info block
    func_800780A8 walks. g_BattleTextSlotRects rows hand it &row->unkF[1] (the
    packets of the row above, 0x50 back), so the flags land in the next row's
@@ -639,7 +641,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
 typedef struct {
     /* 0x00 */ POLY_FT4 prims[2];
     /* 0x50 */ u8 unk50[0xC];
-    /* 0x5C */ u8 unk5C;
+    /* 0x5C */ volatile u8 usePalette2;
     /* 0x5D */ u8 unk5D;
 } BattleSlotPrimBlock; // Size: 0x5E
 
@@ -647,9 +649,8 @@ void func_800780A8(u8 *pInfo, s32 arg) {
     POLY_FT4 *p;
     u16 clut;
     s32 i;
-    s32 offset;
+    s32 slot;
 
-    offset = arg / 2;
     i = 0;
     do {
         p = &((BattleSlotPrimBlock *)pInfo)->prims[i];
@@ -659,14 +660,17 @@ void func_800780A8(u8 *pInfo, s32 arg) {
         p->b0 = 0x80;
         SetSemiTrans(p, 0);
         SetShadeTex(p, 1);
-        *(volatile u8 *)&((BattleSlotPrimBlock *)pInfo)->unk5C = arg & 1;
-        if (*(volatile u8 *)&((BattleSlotPrimBlock *)pInfo)->unk5C != 0) {
+        ((BattleSlotPrimBlock *)pInfo)->usePalette2 = arg & 1;
+        // loop-local copy of the slot number: gcc hoists this invariant
+        // instead of the row multiply, which retail keeps inside the loop
+        slot = arg;
+        if (((BattleSlotPrimBlock *)pInfo)->usePalette2 != 0) {
             clut = g_SystemPalette2;
         } else {
             clut = g_SystemPalette1;
         }
         p->clut = clut;
-        p->tpage = GetTPage(0, 0, 0x3C0, offset * 13);
+        p->tpage = GetTPage(0, 0, 0x3C0, (slot / 2) * 13);
         i++;
     } while ((s32)&((BattleSlotPrimBlock *)pInfo)->prims[i] <
              (s32)&((BattleSlotPrimBlock *)pInfo)->prims[2]);
