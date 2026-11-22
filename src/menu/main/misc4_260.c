@@ -643,52 +643,82 @@ void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
-/* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->cardSlotState)`
-   (retail loads it before the frame adjust for the guard's lbu 0x4D8); the
-   old park was missing that test, which is 52 bytes of the gap. Everything else
-   is retail structure: 5 loop-invariant constants (x0 0x1E, x1 0x1B, y 0x36,
-   scale 0x1000, base 0x4D94), rendered[2] zeroed on the stack, two func_8002675C
-   calls and the AddPrim pair. Still open: the register assignment of those
-   constants, and the first call's index argument, which retail builds as a u8
-   flag - `li v1,1` before the `unk2F` test, cleared when i ==
-   g_MenuCardSlotOrder[selectedSlot] / 16, then `andi v0,v1,0xFF` + `beqz` choosing
-   0x122/0x115 - so it was a named local (`u8 useAlt = 1; if (...) useAlt = 0;`)
-   and not the single ternary expression written here. Retail also recomputes
-   `j*2` (sll at the loop latch) and copies base into s2 for the loop.
+/* 91.32% (612 vs 620 bytes, 153 vs 156 insns).  Everything is instruction-shape
+// identical except that retail has ONE more callee-saved value and the register
+// block is therefore shifted by one: retail keeps y in $fp, scale $s7, x1 $s6,
+// count $s5, x0 $s4, base $s3, a COPY of base $s2 (move s2,s3 in the j preheader,
+// used only inside the j loop), i $s1, j $s0; ours has no copy so base sits in $s2
+// and everything else drops a slot.  That copy is the 3 missing insns (move + the
+// s8/fp save/restore).  The two blocks that made this reachable: (1) the index
+// ternary around func_8002675C must be TWO FULL CALLS in an if/else, not `? :` -
+// gcc 2.6.0 cross-jumps them, which is where retail's single jal, its duplicated
+// `lui/lw g_Menu` + `lw a2,0x32C` in both arms and the `li a1,0x115` in the
+// beqz delay slot all come from (79.94 -> 91.32); (2) glyph prim j of context c is
+// FLAT (`glyphs[2 * j + c]`, offset 0x50 added after the *40 scale) - a nested
+// glyphs[j][c] makes gcc strength-reduce j by 80 into a register instead.
+// Also open: the rendered[2] zeroing is `sb zero,0x21(sp)` before `sb zero,0x20(sp)`
+// in retail, i.e. reversed; `u8 rendered[2] = { 0, 0 };` gives a .sdata copy
+// instead (gcc 2.6.0 copies the zero literal), and the statement form stores
+// forward.  Tried and measured: pPrims held in a local (78.87), rendered[i] read
+// through a pointer local (79.94), flat expression instead of the struct
+// (79.94), {0,0} initializer (.sdata copy).  Not tried: a -dg dump of the allocno
+// order to see whether the base copy can be created by any spelling.
+// Cursor and glyph prim block of one memory card slot, in MenuUnk2's anonymous
+// blob at 0x4D94 (one 0xF0-byte block per slot): a cursor prim per render
+// context, then the slot number's glyphs, each also a context pair.
+typedef struct {
+    // 0x00 POLY_FT4 cursors[2];
+    // 0x50 POLY_FT4 glyphs[4]; // Glyph j's prim for context c at 2 * j + c
+} MenuCardSlotPrims; // Size: 0xF0
+
 void func_801CF8D8(void) {
-    s32 x0 = 0x1E;
-    s32 x1 = 0x1B;
-    s32 y = 0x36;
-    s32 scale = 0x1000;
-    s32 base = 0x4D94;
-    u8 rendered[2] = { 0, 0 };
     MenuUnk2* pData;
+    u_char useAlt;
+    u8 rendered[2];
+    s32 x0;
+    s32 x1;
+    s32 y;
+    s32 scale;
+    s32 base;
     s32 count;
     s32 i;
     s32 j;
 
+    rendered[0] = 0;
+    rendered[1] = 0;
+    x0 = 0x1E;
+    x1 = 0x1B;
+    y = 0x36;
+    scale = 0x1000;
+    base = 0x4D94;
     if (g_Menu->cardSlotState) {
         for (i = 0; i < 2; i++) {
             pData = g_Menu->menuUnk2;
             if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {
-                func_8002675C(g_Menu->resources,
-                              (g_Menu->pManager->shouldRenderCursors && i == g_MenuCardSlotOrder[pData->selectedSlot] / 16)
-                                  ? 0x122
-                                  : 0x115,
-                              (POLY_FT4*)((u8*)pData + base), g_Menu->renderContext, x0, y, scale);
-                count = func_8002675C(g_Menu->resources, i + 0x162, (POLY_FT4*)((u8*)pData + base + 0x50),
+                useAlt = 1;
+                if (g_Menu->pManager->shouldRenderCursors && i == g_MenuCardSlotOrder[pData->selectedSlot] / 16) {
+                    useAlt = 0;
+                }
+                if (useAlt) {
+                    func_8002675C(g_Menu->resources, 0x115, ((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors,
+                                  g_Menu->renderContext, x0, y, scale);
+                } else {
+                    func_8002675C(g_Menu->resources, 0x122, ((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors,
+                                  g_Menu->renderContext, x0, y, scale);
+                }
+                count = func_8002675C(g_Menu->resources, i + 0x162,
+                                      ((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->glyphs,
                                       g_Menu->renderContext, x1, y, scale);
                 rendered[i] = 1;
             }
+            // rendered[i] is set only by the branch above, which is what defines count.
             if (rendered[i]) {
                 for (j = 0; j < count; j++) {
                     AddPrim(&g_Menu->pGfxEnv->ot[4],
-                            (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
-                                    ((2 * j + g_Menu->renderContext) * sizeof(POLY_FT4) + 0x50)));
+                            &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->glyphs[2 * j + g_Menu->renderContext]);
                 }
                 AddPrim(&g_Menu->pGfxEnv->ot[4],
-                        (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
-                                g_Menu->renderContext * sizeof(POLY_FT4)));
+                        &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors[g_Menu->renderContext]);
             }
             base += 0xF0;
             x0 += 0x90;
