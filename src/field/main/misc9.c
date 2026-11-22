@@ -614,7 +614,19 @@ void FieldLoadTextRenderFiles(void) {
     ArchiveCdDataSync(0);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
+// One 16-pixel text row: a draw mode and a sprite per column, duplicated for
+// the two render contexts
+typedef struct {
+    DR_MODE drModes[2][4]; // 0x0
+    SPRT sprites[2][4];    // 0x60
+} FieldTextRowPrims; // Size: 0x100
+
+extern POLY_GT4 g_FieldTextGradientTopQuads[2];
+extern POLY_GT4 g_FieldTextGradientBottomQuads[2];
+extern s32 g_FieldTextRenderPrimBlocks;
+
+// Build the two gradient quads the text rows are drawn through, then allocate
+// and fill the 16 rows of primitives
 /* 97.89% - retail's exact 1520 bytes / 380 instructions, and the body matches
    instruction for instruction but for ONE displaced instruction (`li $v1,0x280`,
    see the end of this note). Every other row diff_func prints is only the
@@ -660,20 +672,19 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
    measured last round) folds back to the same 97.89, a store-to-load-forwarded
    reuse (`x3 = x1`) leaves the slot unchanged in the replica, and permute.sh
    4 min / 1519 iterations printed PERMUTER_NONE base=850 best=850.
-
-// One 16-pixel text row: a draw mode and a sprite per column, duplicated for
-// the two render contexts
-typedef struct {
-    DR_MODE drModes[2][4]; // 0x0
-    SPRT sprites[2][4];    // 0x60
-} FieldTextRowPrims; // Size: 0x100
-
-extern POLY_GT4 g_FieldTextGradientTopQuads[2];
-extern POLY_GT4 g_FieldTextGradientBottomQuads[2];
-extern s32 g_FieldTextRenderPrimBlocks;
-
-// Build the two gradient quads the text rows are drawn through, then allocate
-// and fill the 16 rows of primitives
+   Round 397: the preset is ruled out for good - try_flags.sh --sweep on the live
+   body scores 97.89 under 2.7.2 -O2 AND -O3 at -G4/-G8 with -mcpu=3000 and
+   =r8000, 70.15 under 2.7.2-cdk, 59.76 under -O1 (where the li falls back to its
+   use). Retail's `ori $v1,zero,0x280` sits 60 instructions before its first use
+   (0x800AC408, first `sh $v1` at 0x800AC4F8); this body's sits 18 before it.
+   Both builds hoist the GetTPage argument constants and the 0xFF def to the head
+   of the store block and leave the 0x18 / 0xC8 defs at their use, so the
+   hoisting is register- and priority-driven and the 0x280 def lost its chance at
+   the head in this build only. Conclusion: retail's def was at the head of the
+   store block in RTL, i.e. its source had a statement there whose constant cse
+   folds away in this build (every local spelling of 0x280 measures 97.89). Not
+   source-reachable: park, do not permute.
+/*
 void func_800AC3AC(void) {
     FieldTextRowPrims* pRow;
     SPRT* pSprite;
@@ -778,8 +789,8 @@ void func_800AC3AC(void) {
             SetDrawMode(&((FieldTextRowPrims *)(g_FieldTextRenderPrimBlocks + i * 0x100))->drModes[1][j], 0, 0, GetTPage(1, 0, 0x300 + j * 0x40, 0), 0);
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
 /* 81.27% (520 bytes, same size as the original). The shape is right: addPrim
