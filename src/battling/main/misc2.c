@@ -308,7 +308,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
    more shapes measured byte-identical at 98.75%/32 bytes (`*p0++ = *p1++`,
    `p0[0] = p1[0]`, the comma form, `(u32 *)` casts, s32 pointers), gcc-2.6.0 is
    also 98.75, 2.7.2-cdk rejects the unit, and a 3-minute permuter run from this
-   body (2072 iterations) found nothing. */
+   body (2072 iterations) found nothing.
+   Round 394: re-measured 98.75%/32 bytes; a declaration-with-initialiser
+   inside the loop (`u32 v = *p1; *p0 = v;`, the lever for a load/temp
+   allocator tie) is byte-identical to the plain copy, so the pick stands. */
 /* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
@@ -523,7 +526,26 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    branch; our local_alloc will not, and that is why no spelling reaches 100.
    Two permuter runs this round (from this body and from the inline one) only
    re-found the inline form with the DIVISION reading the raw load instead of
-   the sum, i.e. by changing what the body computes. */
+   the sum, i.e. by changing what the body computes.
+   Round 394: four more shapes at 72 bytes, all 18 instructions: `arg1 =
+   hw + arg1;` with the load as a separate statement 97.78 (97.22 under 2.6.0),
+   `s32 t = *(s16 *)(p0 + 0xB6) + arg1;` as one initialised declaration 98.06,
+   and `t = arg1; hw = *(s16 *)(p0 + 0xB6); t = t + hw;` (the copy-to-local
+   spelling that local-alloc ties) 97.78. The two-statement form above stays the
+   best at 98.61. Preset ruled out for this body: 2.6.0 98.06, 2.7.2-cdk
+   compile-failed (unit-wide), -O3 98.61, -O1 59.72, -G0 compile-failed. gcc
+   2.8.1 (Psy-Q 4.4) is ruled out for the whole unit: under it this body scores
+   61.39 and six of the unit's fourteen matched functions fall to 61-96
+   (BattleEffectInitContext 88.56, BattleStoreSlotPositions 86.87), so misc2 is
+   not a 2.8.1 unit. The residual is the one instruction pair: retail keeps a
+   multi-use sum in the dying parameter's $a1 (`addu a1,v1,a1`) and reuses the
+   dead $v1 for the slti, ours puts the sum in $v1 and the slti in $v0. The
+   neighbouring park above (99.91%) reports the same signature - "gcc 2.7.2's
+   local_alloc will not reuse an argument register that it charged to this
+   block; retail's compiler did" - so this unit has three stubs in one
+   allocator class; do not spend another lane hand-dialling it.
+   Round 394 also measured an empty `do { t = t + arg1; } while (0)` around the
+   sum: byte-identical 98.61, the tie does not move. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
     s32 t;
