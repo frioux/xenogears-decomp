@@ -1162,31 +1162,18 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
                   g_WorldMapGroups->entry15.pModel->polyCount);
     return 3;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
-/* 99.90%, 604 bytes = retail's exact size. The whole residual is that retail
-   loads p->scaleAngle into $v0 and stores it twice, while this body's single
-   `scale` variable is $v1 for both values. Cause: local-alloc's combine_regs
-   merges the two non-overlapping webs of the one variable, and their union
-   contains the `li $v0,0x1000` plus its two stores, so $v0 is not free and
-   both webs get $v1. Two separate locals break the merge and do give retail's
-   $v0 then $v1, but then the p->scale load is moved up to just after the
-   p->scaleAngle load (into the dead $a2): 97.16%. do/while containers (around the
-   assignment, the stores, the whole pair) move that hoist rather than remove
-   it, 94.5-97.2%, and drag the pMtxA address formation along. Volatile on one
-   scratch store: 95.12%, 608 bytes. Plain memory stores instead of the local:
-   cse reuses the 0x6000-test load and p leaves $a2, 95.5%. Embedded
-   assignment for the 0x70 store: 97.16%. permute.sh from THIS body (third
-   run; the first two ran against a body whose extern arity was wrong):
-   PERMUTER_NONE base=15 best=15, 1219 iterations.
-/*s32 func_8007A1B4(s32 index) {
+s32 func_8007A1B4(s32 index) {
     WorldMapEntry *pEntry;
     MATRIX *pMtxA;
     MATRIX *pMtxB;
     WorldMapActor *p;
+    u32 *pScratch;
     s32 result;
+    s32 angle;
     s32 scale;
 
     pEntry = (WorldMapEntry *)g_WorldMapGroups;
+    pScratch = (u32 *)PSX_SCRATCH;
     p = g_WorldMapSlots + index;
     result = 1;
     pEntry[14].pos = pEntry[0].pos;
@@ -1205,21 +1192,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
     *pMtxA = g_WorldMapIdentityMatrix;
     pMtxB = (MATRIX *)0x1F800110;
     *pMtxB = *pMtxA;
-    scale = p->scaleAngle;
-    *(u32 *)0x1F800008 = scale;
-    *(u32 *)0x1F800000 = scale;
-    *(u32 *)0x1F800014 = 0x1000;
-    *(u32 *)0x1F800004 = 0x1000;
+    // each scale goes to its vector's x and z, the second loaded before the two
+    // 0x1000 stores so the two live ranges get different registers
+    angle = p->scaleAngle;
+    pScratch[2] = angle;
+    pScratch[0] = angle;
     scale = p->scale;
-    *(u32 *)0x1F800018 = scale;
-    *(u32 *)0x1F800010 = scale;
+    pScratch[5] = 0x1000;
+    pScratch[1] = 0x1000;
+    pScratch[6] = scale;
+    pScratch[4] = scale;
     ScaleMatrix(pMtxA, (VECTOR *)0x1F800000);
     ScaleMatrix(pMtxB, (VECTOR *)0x1F800010);
     pEntry[14].matrix = *pMtxA;
     pEntry[15].matrix = *pMtxB;
     return result;
 }
-*/
 
 s32 WorldMapSetActorTimer60(s32 index) {
     WorldMapActor *p;
