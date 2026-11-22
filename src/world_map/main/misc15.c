@@ -21,7 +21,7 @@ typedef struct {
 typedef struct {
     /* 0x0 */ s32 sector;
     /* 0x4 */ u32 size;
-    /* 0x8 */ s32 dest;
+    /* 0x8 */ u8 *dest;
     /* 0xC */ u8 payload[0x18]; // CD read destination, streamed by func_80096C0C
 } Misc15CdRequest; // Size: 0x24
 
@@ -30,7 +30,7 @@ typedef struct {
 typedef struct {
     /* 0x0 */ s32 sector;
     /* 0x4 */ u32 size;
-    /* 0x8 */ s32 dest;
+    /* 0x8 */ u8 *dest;
 } Misc15CdChunk; // Size: 0xC
 
 typedef struct {
@@ -76,7 +76,7 @@ extern s32 g_WorldMapCdExpectedSector;
 extern s32 g_WorldMapCdCurrentSector;
 extern s32 g_WorldMapCdReadSectorsLeft;
 extern s32 g_WorldMapCdReadBytesLeft;
-extern s32 g_WorldMapCdReadDest;
+extern u8 *g_WorldMapCdReadDest;
 extern s32 D_8009BE48;
 extern s32 D_8009CCB0;
 extern s32 g_WorldMapCdReadErrorCount;
@@ -220,21 +220,21 @@ void WorldMapCdReadCallback(s32 mode, u8 *pResult) {
 void func_80096C0C(s32 mode, u8 *pResult) {
     CdlLOC *pLoc;
     Misc15CdChunk *pChunk;
-    u8 *pSectorBuffer;
+    CdlLOC *pSectorLoc;
     s32 sector;
     s32 nextSector;
 
     if (mode == 1) {
-        pSectorBuffer = (u8 *)&g_WorldMapCdSectorBuffer;
-        CdGetSector(pSectorBuffer, 3);
-        sector = CdPosToInt((CdlLOC *)pSectorBuffer);
+        pSectorLoc = (CdlLOC *)&g_WorldMapCdSectorBuffer;
+        CdGetSector(pSectorLoc, 3);
+        sector = CdPosToInt(pSectorLoc);
         if (sector == g_WorldMapCdExpectedSector) {
             if (g_WorldMapCdCurrentSector == sector) {
                 if (g_WorldMapCdReadBytesLeft < 0x800) {
-                    CdGetSector((void *)g_WorldMapCdReadDest, g_WorldMapCdReadBytesLeft / 4);
+                    CdGetSector(g_WorldMapCdReadDest, g_WorldMapCdReadBytesLeft / 4);
                     CdGetSector(g_WorldMapCdSectorRemainder, (0x800 - g_WorldMapCdReadBytesLeft) / 4);
                 } else {
-                    CdGetSector((void *)g_WorldMapCdReadDest, 0x200);
+                    CdGetSector(g_WorldMapCdReadDest, 0x200);
                     g_WorldMapCdReadBytesLeft -= 0x800;
                 }
                 if (--g_WorldMapCdReadSectorsLeft != 0) {
