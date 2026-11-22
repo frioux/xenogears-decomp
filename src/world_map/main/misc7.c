@@ -933,48 +933,6 @@ s32 WorldMapInitFadePrims(s32 index) {
     }
     return 1;
 }
-// Best: 99.88%, retail's exact 564 bytes. The instruction sequence, every call, every
-// store offset and the constant allocation order all match; the one residue is gcc's
-// loop giv re-base. Retail keeps the vertex pointer at prim+0x25 and addresses the
-// sixteen stores at 0 .. -0x1D; this gcc picks prim+0x20 and addresses them at 5 ..
-// -0x18, i.e. the same addresses with every displacement 5 larger. `addPrim` is the
-// right spelling (hand-spelling the two setaddr pairs as explicit u32 masks puts the
-// base at 0x25 but then allocates 0xFF000000 before 0xFFFFFF, which costs the prologue
-// save pair and the tail mask registers instead, 96.50%). Declaration order, u32 vs s32
-// index, RECT/pMove/i first, operand order of both setaddr sums measured no better; a
-// 4-minute permuter run (2245 iterations) found nothing.
-// Best: 99.88%, retail's exact 564 bytes; unparked and re-measured (the body now
-// takes the (s32 index) signature the extern declares). The instruction sequence, every
-// call, store offset and constant allocation match. The one residue is gcc's giv re-base:
-// retail keeps the vertex pointer at prim+0x25 (v3, the HIGHEST offset) and addresses the
-// sixteen stores at 0..-0x1D, this cc1 picks prim+0x20 (x3, the LAST store in source
-// order) with every displacement 5 larger. Same addresses, different base. `addPrim` is
-// the right spelling (hand-spelling the two setaddr pairs as u32 masks puts the base at
-// 0x25 but then allocates 0xFF000000 before 0xFFFFFF, costing the prologue save pair,
-// 96.50%). Declaration order, u32 vs s32 index, RECT/pMove/i first and both setaddr
-// operand orders measured no better; a 4-minute permuter run (2245 iterations) found
-// nothing. Preset screen not run.
-// Round 377: re-measured after unpark, 99.88% at retail's 564 bytes, compiles. Exactly 17
-// differing lines: the biv base (addiu s0,s2,0x25 vs 0x20) and the 16 store displacements
-// it shifts. MEASURED RULE (new this round, two diff runs in the unit): the base gcc
-// re-bases onto is the offset of the LAST corner store in source order - reordering the
-// four x stores so pQuad->x0 is last moved the base to 0x08, and wrapping those four in a
-// do/while(0) changed nothing (90.55). Retail's base is 0x25, the v3 store, which is the
-// 12th of the 16 corners and NOT last in retail's own store order (x3 at 0x20 is), so
-// source statement order cannot reproduce it. Preset screen this round: cdk 94.56,
-// gcc-2.6.0 99.70, unit flags 99.88.
-// Best: 99.88%, retail's exact 564 bytes, compiles. ONLY residue: the reduced-giv base,
-// `addiu s0,s2,0x25` against this cc1's 0x20, plus the 16 store displacements it shifts.
-// MECHANISM (round 377, from this unit's own cc1 -dL loop dump plus two edits): loop.c
-// records one dest-address giv per store and combine_givs reduces ALL of them onto the
-// last one recorded - the dump lists the 16 givs in source order (add 10,18,13,21,12,20,
-// 28,36,26,34,29,37,8,16,24,32) and `giv at 137 [add 32, x3] reduced to (reg 171)`. A
-// duplicate v3 store added at the end moved the base to 37, and moving x0 last moved it
-// to 8. So retail's 0x25 needs v3's store to be the last-recorded giv while its asm store
-// order ends with x3, i.e. the four x-store addresses were not dest-address givs in
-// retail's RTL (a second base variable); every spelling tried trades that for a wrong
-// store order or a second base register. gcc 2.6.0 reduces onto 137 too, so this is not a
-// compiler-version question.
 s32 func_80081D80(s32 index) {
     WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
     u16 *pFade = g_WorldMapFadeTable;
