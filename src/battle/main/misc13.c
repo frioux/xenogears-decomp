@@ -852,58 +852,68 @@ void BattleReleaseCharSlot(u8 arg0) {
     D_800D301D[(g_BattleSlotRecords[ofs] + sel) << 2] &= invMask;
 }
 
-/* 66.00%, 284 bytes (retail 300). The body below is the ONLY spelling found
-   that reproduces retail's TRAMPOLINE, which two earlier bodies missed: the skip
-   path is `j .Lstore` with `addu a2,v1` in its delay slot, placed BEFORE the find
-   loop, and the loop's break branches back into it (cross-jumping of `sel = rec`
-   from the else arm with `sel = i` from the break). It needs `sel` as a SEPARATE
-   variable from `rec` that is NOT initialised before the if: on the
+/* The body below reproduces retail's TRAMPOLINE, which plain spellings miss: the
+   skip path is `j .Lstore` with `addu a2,v1` in its delay slot, placed BEFORE the
+   find loop, and the loop's break branches back into it (cross-jumping of
+   `sel = rec` from the else arm with `sel = i` from the break). It needs `sel` as
+   a SEPARATE variable from `rec` that is NOT initialised before the if: on the
    loop-exhausted path the original leaves it undefined (retail's `sb $a2` there
    reads the same unset register), so this is the one body shape that matches - a
-   well-defined `rec = i; break;` spelling (the previous park) has no second
-   assignment for cse to merge and puts the loop straight after the test.
-   What is left is one mechanism, seen at four sites: gcc FOLDS the constant into
-   the addressing where retail keeps a RUNTIME index.
-   - `(rec + 0x10) * 4` becomes `rec * 4` + displacement 64 (`lbu v0,64(at)`,
-     `sb a1,D_800D301D+64($2)`), retail emits `addiu v0,v1,16; sll v0,v0,2` first.
-   - the loop base folds to `la $5,g_BattleCharSlotUsage+64` + `addu $5,$5,4`
-     (one insn per iteration, and that `la` live across the loop is what grows the
-     frame: ours 0x8 vars, retail 0x0), where retail re-forms
-     `lui at,%hi / addu at,at,a1 / lbu %lo(at)` with `li a1,0x40` then
-     `addiu a1,a1,4` - i.e. the symbol stays a DISPLACEMENT.
-   - the store block's four `g_BattleSlotRecords[ofs]` loads CSE to one
-     `la $3,g_BattleSlotRecords` + `lbu 0($3)`; retail re-forms each of the five
-     through $at.
-   So the whole residual is this repo's "$at vs base-in-a-register" family.
-   Tried and unchanged: `s32 rec` for `u8 rec`; `* 4` vs `<< 2`; a live `ofs` local
-   for the store block (63.19% per the old note); parameter table reads via the
-   parked embedded-assignment lead. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
+   well-defined `rec = i; break;` spelling has no second assignment for cse to
+   merge and puts the loop straight after the test. */
+/* PARKED 86.50%, 316 bytes (retail 300). Two measured levers took this from 66.00
+   to 86.50, both about ADDRESS SHAPE, and both worth knowing unit-wide:
+   1. Write the scaling as `<< 2`, never `* 4`: with `(rec + 0x10) * 4` gcc's
+      combine distributes the shift and folds the +0x10 into the %lo displacement
+      (lbu v0,64(at)); `(rec + 0x10) << 2` gives retail's `addiu v0,v1,0x10;
+      sll v0,v0,2` + `lbu %lo(sym)(at)` (66.00 -> 75.25). Proved in cc1_probe on
+      a 6-line replica. The matched neighbour BattleIsCharSlot18InUse uses the
+      same spelling.
+   2. The tail needs an `s32 ofs` LOCAL: spelling `(u8)arg0 * 0x1C` inline at each
+      site makes gcc materialise `la $v1,g_BattleSlotRecords` + one base register
+      reused by all five accesses; with the local every access keeps retail's
+      `lui at,%hi / addu at,at,ofs / op %lo(at)` form (75.25 -> 86.50, also proved
+      in cc1_probe).
+   Residual, all allocator/CSE ties at 316 bytes: ofs lands in a0 where retail has
+   v1 (so the const 1 is a1 vs retail's a0); gcc batches the two
+   g_BattleSlotRecords[ofs] reloads above the D_800C3EB5 store and swaps the
+   D_800D301D / g_BattleCharSlotUsage stores (retail emits them one chain at a
+   time); g_BattleSlotParamTable is reloaded for the second D_800C3EC0 chain where
+   retail keeps it in a0. Punctuation tried with no effect at all: the
+   `*(u8 *)(D_800D301D + ((... ) << 2)) = 1` cast spelling.
+   Permuter 4 min from this body (base 790 -> 521): its only find is a
+   `volatile int` copy of ofs that forces the reload into the next register - it
+   scores 93.50% but spills 8 bytes to the frame (336 bytes), so it cannot link
+   and is not source. `s32 rec` for `u8 rec` changed nothing. */
 /*
 void func_80088490(u8 arg0) {
     u8 rec;
     u8 sel;
     s32 i;
+    s32 ofs;
 
     rec = g_BattleSlotRecords[(u8)arg0 * 0x1C];
-    if (g_BattleCharSlotUsage[(rec + 0x10) * 4] == 0) {
+    if (g_BattleCharSlotUsage[(rec + 0x10) << 2] == 0) {
         sel = rec;
     } else {
         for (i = 0; i < 8; i++) {
-            if (g_BattleCharSlotUsage[(i + 0x10) * 4] == 0) {
+            if (g_BattleCharSlotUsage[(i + 0x10) << 2] == 0) {
                 sel = i;
                 break;
             }
         }
     }
-    g_BattleSlotRecords[(u8)arg0 * 0x1C] = sel;
-    D_800C3EB5[(u8)arg0 * 0x1C] = 0;
-    D_800D301D[(g_BattleSlotRecords[(u8)arg0 * 0x1C] + 0x10) * 4] = 1;
-    g_BattleCharSlotUsage[(g_BattleSlotRecords[(u8)arg0 * 0x1C] + 0x10) * 4] = 1;
-    *(u16 *)(D_800C3EBE + (u8)arg0 * 0x1C) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[(u8)arg0 * 0x1C] * 8 + 0x100);
-    *(u16 *)(D_800C3EC0 + (u8)arg0 * 0x1C) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[(u8)arg0 * 0x1C] * 8 + 0x102);
-}
-*/
+    ofs = (u8)arg0 * 0x1C;
+    g_BattleSlotRecords[ofs] = sel;
+    D_800C3EB5[ofs] = 0;
+    D_800D301D[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
+    g_BattleCharSlotUsage[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
+    *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x100);
+    *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x102);
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
+
+
 u8 BattleIsCharSlot18InUse(u8 arg0) {
     return g_BattleCharSlotUsage[(g_BattleSlotRecords[arg0 * 0x1C] + 0x18) << 2];
 }
