@@ -622,36 +622,39 @@ s32 WorldMapUpdateSlotState(s32 index) {
     }
     return 1;
 }
-// Best: 79.41%, 136 bytes = retail's exact size. Instruction multiset, relocations and
-// every store offset match; only two residues: retail loads x, y, z in that order after
-// the shakeAmount store and mine hoists the z load to the top of the function, and retail puts
-// x in $a0 / y in $a1 where this alloc gives x $a1 / y $a0. The six target stores must be
-// one do/while block or gcc interleaves them (46.63 without it, 33.94 with plain inline
-// reads); swapping the x/y declaration order, moving the command store inside the block
-// and reading the globals inline in the block all measure worse (76.03-79.41).
-// Preset screen: cdk 34.09 on the plain body.
+// Best: 94.71%, 136 bytes = retail's exact size (round 398). Ported from the misc6 twin
+// func_80080578's park: the command store must be the LAST statement INSIDE the do-block,
+// which keeps the li v0,1 six instructions above its sh v0,4 and the six target stores in
+// source order, and the posZ alias load fixes the x/y/z load order. Two deltas left, both
+// the allocator tie proved with a -da dump on that twin in round 397: (1) the register
+// rotation - retail keeps pSlot in v1 with z in a2, this body takes a2 for pSlot and v1
+// for z (pSlot is TIED to the lw g_WorldMapSlots result by the addu, so find_free_reg
+// picks the register); (2) the reorg tail - retail emits sh v0,4 / li v0,1 / jr ra /
+// sh zero,0x20, this body sh v0,4 / sh zero,0x20 / jr ra / li v0,1. Two permuter runs on
+// the twin (identical body) found nothing. Preset screen: cdk 34.09 on the plain body.
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
-    s32 y;
-    s32 x;
-    s32 z;
+    s32 posX;
+    s32 posY;
+    s32 posZ;
 
     g_WorldMapRotationMatrixValid = 0;
     pSlot->shakeAmount = 0x1000;
-    x = g_WorldMapPlayerPosition.x;
-    y = g_WorldMapPlayerPositionY;
-    z = g_WorldMapPlayerPositionZ;
-    g_WorldMapFadeLevel = 0x78;
-    do { // keeps the six target stores in source order
-        g_WorldMapCameraTarget = x;
-        g_WorldMapScrollTargetX = x;
-        g_WorldMapCameraTargetY = y;
-        g_WorldMapScrollTargetY = y;
-        g_WorldMapCameraTargetZ = z;
-        g_WorldMapScrollTargetZ = z;
+    do {
+        posZ = g_WorldMapPlayerPosition.x;
+        posX = posZ;
+        posY = g_WorldMapPlayerPositionY;
+        posZ = g_WorldMapPlayerPositionZ;
+        g_WorldMapFadeLevel = 0x78;
+        g_WorldMapCameraTarget = posX;
+        g_WorldMapScrollTargetX = posX;
+        g_WorldMapCameraTargetY = posY;
+        g_WorldMapScrollTargetY = posY;
+        g_WorldMapCameraTargetZ = posZ;
+        g_WorldMapScrollTargetZ = posZ;
+        pSlot->command = 1;
     } while (0);
-    pSlot->command = 1;
     pSlot->state = 0;
     return 1;
 }
