@@ -604,7 +604,82 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
     SpriteSetScale(pActor->pSprite, 0x2000);
     pActor->pSprite->flags &= ~4;
 }
+95.87% (460 bytes = retail's 115 insns; instruction multiset IDENTICAL except one branch).
+   Round 399. Reads the per-party-member init kind from three sources as a 3-bit
+   switch value (bit0 partyMembers[index] != CHARACTER_ID_NONE, bit1 the per-actor
+   script angle fieldScriptMemory[0x15+index*3] & 0x3FFF >= 0x400, bit2
+   gearRide[index] == 1). The switch needs the even case values listed explicitly
+   (case 0/2/4/6 share the default body, density 8/8) - with only 1/3/5/7 + default
+   cc1 2.7.2 emits a comparison chain and objdiff reads 60.90.
+   THE ONLY RESIDUALS: (1) retail branches to the shared 'result = 3' block with
+   'beq v1,v0,.L8008C400' and falls through to the jal; cc1 emits the mirror
+   'bne v1,v0' and puts that same 2-insn block (j + li s2,3 delay) between case 1's
+   test and its jal. So retail's merged block sits BEFORE case 1's test and ours
+   sits inside it: block placement, not a spelling (measured: even-cases block
+   first in the source 91.52 at 456, tail written once after the switch 82.74, tail
+   duplicated in both arms 91.52/456 - see lever d-crossjump-tail-merge-stops).
+   (2) the switch table operand: retail names jtbl_800707AC, ours .rodata+0x178
+   (the unit owns its rodata; expected in diff_func.sh, resolved by the linker).
+   The two 'volatile' stores in case 5 are load-order pins measured to be needed:
+   without them sched2 raises both global loads above 'unk24 = 0' and stores x
+   after the Z load (93.26 / 456 bytes); with them every remaining insn matches.
+/*
+s32 func_8008C364(WorldMapActor *pActor, s32 index) {
+    s32 kind = g_GameState.partyMembers[index] != CHARACTER_ID_NONE;
+    s32 result = 1;
+
+    if ((g_GameState.fieldScriptMemory[0x15 + index * 3] & 0x3FFF) >= 0x400) {
+        kind |= 2;
+    }
+    if (g_GameState.gearRide[index] == 1) {
+        kind |= 4;
+    }
+    switch (kind) {
+    case 0:
+    case 2:
+    case 4:
+    case 6:
+    default:
+        result = 3;
+        pActor->unk24 = 1;
+        pActor->y = 0;
+        pActor->z = 0;
+        pActor->x = 0;
+        break;
+    case 1:
+        if (g_GameState.characters[g_GameState.partyMembers[index]].gearId == GEAR_ID_NONE) {
+            result = 3;
+        } else {
+            WorldMapInitActorSpriteBySlot(pActor, index);
+        }
+        pActor->unk24 = 1;
+        pActor->y = 0;
+        pActor->z = 0;
+        pActor->x = 0;
+        break;
+    case 3:
+    case 7:
+        WorldMapInitActorSpriteBySlot(pActor, index);
+        pActor->unk24 = 0;
+        pActor->x = g_GameState.fieldScriptMemory[0x16 + index * 3] << 12;
+        pActor->z = g_GameState.fieldScriptMemory[0x17 + index * 3] << 12;
+        pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+        break;
+    case 5:
+        WorldMapInitActorSpriteBySlot(pActor, index);
+        // volatile: keeps the two global loads below it, as retail has them
+        *(volatile s16 *)&pActor->unk24 = 0;
+        // volatile: keeps the g_WorldMapPlayerPositionZ load below this store, as retail has it
+        *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
+        pActor->z = g_WorldMapPlayerPositionZ;
+        pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+        g_GameState.fieldScriptMemory[0x15 + index * 3] = 0x400;
+        break;
+    }
+    return result;
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
+
 // 78.83% (428 bytes, retail 444). Round 186: re-parked with the current field names
 // (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state, and
 // WorldMapTrail.angle for offset 0x10) - it builds now and re-measures at 78.83.
