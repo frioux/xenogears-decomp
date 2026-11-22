@@ -708,8 +708,19 @@ void func_80078F00(Actor* p) {
    Already measured, do not repeat: a 4-minute permuter run (1832 candidates, base
    score 175, best 175, no lead), and a 'u32 flags' copy local for the tail block,
    which coalesces away and changes nothing.
+   ROUND 408: re-measured 98.96% / 1196 bytes, both objects' symbol size 0x4AC. Per the
+   m-a-park-s-wrong-field lever the residual was re-checked field by field: BOTH bodies
+   read 0xD0 (flags), 0xD4 (stateFlags), 0xC4 (state), 0xC5 (actionPhase), 0xC6
+   (prevState) and compare the same registers, so this is not a hidden wrong field -
+   instructions 1..224 are identical and only the three tail hunks differ by register
+   name. The -da dump (build/src/.../misc4.c.i compiled with the unit's cc_flags plus
+   -da) gives the tail block as "Basic block 42: first insn 490, last 547" with
+   dispositions 76/80/85/93/95/100/137/138/141 in $3 and 77/78/79/81/82/86/94/etc in
+   $2, and lreg prints no per-qty ref counts for that block, so the margin between the
+   two mirrored quartets was not quantified - what IS known is that the pair is a
+   block-local allocator priority order and four spellings plus a permuter run have
+   not moved it.
 */
-
 /*
 void func_8007920C(Actor* p) {
     ActorScript* pScript = p->pScript;
@@ -1341,9 +1352,17 @@ void BattleActorSetModelIndex9(Actor* p) {
    the addiu reassociates onto rigYOffset), *(s32*)&p->x spellings (92.15% / 90.82%),
    a u32 flags-style copy local, and -O1 (60.86) / -O2 (90.82) on the old body.
    A 4-minute permuter run from the 85.11% body went 625 -> 70 and is where the
-   address-taken pointer came from.
+   address-taken pointer came from. The permuter has NOT been run from this 96.90 body.
+   THIS ROUND (round 408): the object symbol size is retail's EXACT 284 bytes
+   (0x11C), not 288 - the "retail is 288" in the note above is stale, so the park is
+   at retail's exact size and the residual is only the two items below.
+   Re-measured on the 96.90 body: the plain-statement form with no address-taken
+   pointer and no do-while is 85.11 (the addiu reassociates onto rigYOffset and the
+   PosY/TargetZ pair swaps, as recorded above); moving "g_BattleCameraTarget = *new_var"
+   above "y -= 0x400" is byte-identical 96.90. Preset screen on this body:
+   gcc-2.7.2-cdk 96.90, gcc-2.6.0 91.31, -O3 96.90, -G0 does not compile - the unit's
+   Default preset is right, so do not re-run try_flags.
 */
-
 /*
 void func_8007A768(Actor* p) {
     s32* new_var;
@@ -1365,7 +1384,8 @@ void func_8007A768(Actor* p) {
  do { g_BattleCameraPosY = y - g_BattleCameraRigYOffset; g_BattleCameraTargetZ = p->z; } while (0);
     g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * g_BattleCameraRigRadius) >> 12);
     g_BattleCameraPosZ = g_BattleCameraTargetZ + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
-}*/
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
 void BattleResetScratchState(void) {
