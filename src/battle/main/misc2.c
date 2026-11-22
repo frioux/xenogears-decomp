@@ -604,37 +604,35 @@ void func_800765C4(s32 slot) {
     g_BattleDisplayState->panelMode[slot]--;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
-/* 95.68% at retail's exact 728 bytes; 4-minute permuter runs from 91.53 and from
-   this body both returned BETTER on their own metric but the ported edits were
-   worse under objdiff, so nothing was kept. What is left is allocation and
-   scheduling only:
-   (1) loop 1's two `sh` sums: retail accumulates into the SHIFTED value's
-   register (`addu v0,v0,v1`, dest = the >>8 result, `sh v0,40(sp)`); every
-   operand order in C gives dest = the lhu (`addu v1,v1,v0`), and giving the
-   shift its own `u32 dx` local swaps that but then puts the reload in $v1 and
-   drops to 93.45.
-   (2) retail reaches g_BattlePrimStartIndex at both func_80025FA8 call sites as
-   `lui s0,%hi; addiu s0,s0,%lo` once plus `lw a3,0(s0)` per call; a `s32 *pCtx`
-   local (also spelled `mem_addr pCtx` with a cast) is folded back to
-   `lui a3,%hi; lw a3,%lo(a3)` per site. Only `extern s32
-   g_BattlePrimStartIndex[]` was not tried, because three already-matched
-   functions in this file read it as a scalar.
-   (3) the second call's `idx * 0x50 + 0x3768` chain: the `sll <<4` and
-   `addiu 0x3768` come out in the other order and `sll s0,s0,1` (idx*2) lands in
-   the `j` delay slot instead of before the call.
-   (4) `li a1,0x1` (SetSemiTrans' second argument) sits at the top of the loop
-   body instead of in the back-edge delay slot, and the 0xAB loop's counter is
-   $a1 instead of retail's $a3.
-   The shapes that DID have to be right: the two package-call statements and the
-   0x104/0x106 updates through the first `if` are ONE statement unit
-   (`do { ... } while (0)`), which the permuter found and is worth 2 points; the
-   0x77 byte and the 0x90 byte are raw `*(u8 *)((u8 *)g_BattleDisplayState + N)`
-   so the global is reloaded between them like retail; `off`/`off2` hold
-   `product + 0x3768` so the base is added last, which is what puts retail's
-   `addiu` before the `lui/lw` of g_BattleGraphicsWork; and the two 16-byte
-   x/y objects are one `u16 v[8]` read as v[0]/v[4] (that is what puts them at
-   sp+0x28/0x30).
+/*
+97.94% at retail's exact 728 bytes (the body compiles to 724 - ONE instruction short).
+What it took, in order: (1) `extern s32 g_BattlePrimStartIndexTable[]
+__asm__("g_BattlePrimStartIndex");` plus `pCtx = g_BattlePrimStartIndexTable;` is
+what makes cc1 2.6.0 hold that address in $s0 across both func_80025FA8 calls
+(retail: `lui s0,%hi` / `addiu s0,%lo`, then `lw a3,0(s0)` twice). A scalar extern,
+a pointer local, `&g_...` through mem_addr and a `*(s32 *)` cast all rematerialise
+`lui/lw` per call site (95.90 for the whole body). The array type has to be a
+SEPARATE declaration with that asm label: retyping the shared scalar breaks the
+other functions in this file. This bought 95.90 -> 97.94; add the declaration back
+before un-parking.
+Residual is exactly two coupled reorg decisions:
+(a) retail has the j init `sll s0,s0,1` BEFORE the second call (inside the arg
+setup, right after the second `lhu v0,0x104(v1)`) and `sll v0,v0,1` (the entry
+test's count*2) in the `j` delay slot; this body puts the j init in that delay slot
+and shares ONE sll between the entry test and the loop bottom, hence 4 bytes short.
+Writing `j = idx * 2;` as its own statement before the call puts the sll where
+retail has it but takes $s0 earlier, pushes the state pointer into $t0 and scores
+95.63 - retail's placement needs the insn at the END of the argument setup, which
+no statement order reaches (no scheduler in this unit's preset).
+(b) `li a1,0x1` (SetSemiTrans' flag) is re-materialised in the loop back-edge delay
+slot in retail; this body hoists it above the loop (the same 4 bytes), which also
+frees $a1 and makes the later sizeSteps counter $a1 instead of retail's $a3.
+Also tried and measured: `mem_addr primStart = (mem_addr)&g_BattlePrimStartIndex;`
+plus `*(s32 *)primStart` (95.90, identical - it folds), and `off` inlined into the
+call (identical 97.94 / 724). Two earlier sessions ran 4-minute permuter runs from
+91.53 and from this body; both were worthless under objdiff.
+   The do/while(0) unit around the two package calls and the 0x104/0x106 updates
+   is load-bearing too (permuter find, worth 2 points).
 */
 /*
 void func_80076710(s32 slot) {
@@ -658,7 +656,7 @@ void func_80076710(s32 slot) {
     // a statement unit: this block is scheduled as one, which is what keeps retail's
     // ordering of the two package calls and the 0x104/0x106 updates.
     do {
-    pCtx = &g_BattlePrimStartIndex;
+    pCtx = g_BattlePrimStartIndexTable;
     *(u8 *)((u8 *)g_BattleDisplayState + 0x77) = 0;
 
     *(u8 *)((u8 *)g_BattleDisplayState + 0x77) =
@@ -697,6 +695,7 @@ void func_80076710(s32 slot) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 void BattleLoadImageAndSync(RECT *pRect, u_long *pData) {
     LoadImage(pRect, pData);
     DrawSync(0);
