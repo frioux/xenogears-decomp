@@ -74,13 +74,6 @@ typedef struct {
     /* 0x12 */ u16 pad12;
 } WorldMapTrail; // Size: 0x14
 
-typedef struct {
-    /* 0x0 */ s8 r;
-    /* 0x1 */ s8 g;
-    /* 0x2 */ s8 b;
-    /* 0x3 */ s8 a;
-} WorldMapColorStep; // Size: 0x4
-
 typedef union {
     /* 0x0 */ s32 flags;
     /* 0x0 */ struct {
@@ -109,8 +102,8 @@ typedef struct {
     /* 0x3A */ u16 scaleY;
     /* 0x3C */ u16 scaleStepX;
     /* 0x3E */ u16 scaleStepY;
-    /* 0x40 */ u32 color;
-    /* 0x44 */ WorldMapColorStep colorStep;
+    /* 0x40 */ s32 color;
+    /* 0x44 */ s32 colorStep; // one signed 8-bit step per colour plane
     /* 0x48 */ u16 tpage; // ABR field taken from the sprite's flags, copied into the prim's tpage
     /* 0x4A */ undefined16 pad4A;
 } WorldMapTrailEntry; // Size: 0x4C
@@ -593,37 +586,39 @@ void WorldMapClearGroupEntryFlag(s32 groupIndex) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
-/* 48.70% (436 bytes, retail 456): RE-MEASURED round 398 - the number is real but
-   the reason is not scheduling. Retail addresses the whole body off a base of
-   entry+4 (a2 = t9 + 4 at the top of the loop; every operand is 0x0/0x4/0x8/
-   0xC/0x14/0x18/0x1C/0x24/0x28/0x2C/0x34/0x36/0x38/0x3A/0x3C/0x40 of that),
-   while the detach arm still reads spriteIndex through the entry base (lh 0(t9)).
-   So every memory operand of the computed body is 4 too high and the loop
-   pointer is split in two. The source shape that emits this is a NESTED struct:
-   the entry keeps spriteIndex/angle at 0/2 and holds one sub-object at +4
-   (trailFlags, x, y, z, vel, accel, scaleX/Y, stepX/Y, color, colorStep), read
-   through a single pointer. Next attempt: nest that sub-object in
-   WorldMapTrailEntry and re-spell the matched neighbours that touch those fields
-   (they live in this same file, so it is one edit).
-   The rest of this note is the round-397 text, still accurate: struct layout
-   recovered and the head/tests/ arithmetic are right.
-   (1) The count/active word at entry+0x04: retail loads it ONCE as a word and
-   splits it with sra 16 (active, jump to loop end when zero) and sll 16/sra 16
-   (count, blez to the detach path), so the source reads it as an s32 and the
-   WorldMapTrailFlags union below reproduces that head exactly. Retail still
-   decrements the count with a plain lhu/sh at +0 and zeroes both halves with a
-   single sw in the detach path, which is why the union needs all three members.
-   (2) sched2 ties: retail loads all six pos/vel words first, does the six adds,
-   and sinks all six stores to the end of the green path; gcc here emits
-   load/add/store per statement, and gcc also hoists the g_WorldMapSpriteGroups load out of
-   the loop whereas retail reloads it inside the out-of-line detach block.
-   Tried: six separate += statements in retail's own add order, nested if/else vs
-   continue, u16/s16 for the two halves (the unsigned form is what makes gcc emit
-   the separate lhu+beqz instead of the word split).
-   The colour step at entry+0x44 is a word in retail: r comes from lb +0, g and b
-   from (word<<16)>>24 and (word<<8)>>24, i.e. the source truncates a loaded
-   word rather than reading three s8 fields (three lb's was 46.61%).
+/* 62.19% (456 bytes = retail, 114 vs 114 insns). Structure and instruction
+   multiset are retail exactly; the residual is sched2 ORDER plus one LICM call.
+   What this body now has exactly right, all measured: the 6 pos/vel loads with the
+   6 adds (even the odd x/z/velX/velZ-then-y interleave appears when the block is
+   barrier-grouped), the count decrement as lhu/addiu/sh, the two induction pointers
+   (a2 = entry // 0x4 is produced by gcc itself - no nested struct needed), the
+   colour step as ONE packed s32, the three channel adds, the 6-clamp chain
+   (slti/bnez/li 0xFF), the pack, the scale pair, the detach arm and the 0xFF loop.
+   Two findings that fix the old parks (both were 20 bytes short and mis-diagnosed):
+   (1) WorldMapTrailEntry.color must be s32 - retail shifts it with sra, and with
+       u32 the same source emits srl. (2) colorStep is a packed s32 STEP WORD, not a
+       struct of 4 s8s: retail loads it as one lw and shift-extracts g and b with
+       sll/sra (CSE keeps ONE lw for both), while r is a plain lb - which is gcc
+       folding the (s8) of the field to a byte load. Spell it
+         r = (color & 0xFF) + (s8)pEntry->colorStep;
+         g = ((color >> 8) & 0xFF) + (s8)(pEntry->colorStep >> 8);
+         b = ((color >> 16) & 0xFF) + (s8)(pEntry->colorStep >> 16);
+       Three lb fields scored 49 and was 436 bytes; this is 456 = retail.
+   RESIDUAL: the six pos/vel stores sit interleaved with their adds here and at the
+   END of the green arm in retail, and g_WorldMapSpriteGroups is hoisted out of the
+   loop here but reloaded inside the detach arm there (LICM, source says the natural
+   thing). Note the do/while(0) below: it is a SCHEDULING BARRIER, not logic - with
+   the plain six += statements the same body is 46.22 at the same 456/114, and
+   grouping three of them takes it to 62.19. So the residual is sched2 and the next
+   step is the permuter from this body, not a re-spelling; a 4-minute run from 62.19
+   only found a hoisted g_WorldMapSpriteGroups local (4844 -> 4649, not ported).
+   Presets not yet tried on this body (it is new): try 2.6.0 / cdk0 if sched2 work
+   stalls. NOTE for the next agent: the two parked neighbours that touch this entry,
+   func_80089748 and func_80089C78, still spell colorStep as a struct
+   (*(u32*)&pEntry->colorStep, pEntry->colorStep.a); they need the s32 form when
+   they are unparked.
+*/
+/*
 void func_80089580(void) {
     WorldMapTrailEntry* pEntry;
     s32 i;
@@ -632,23 +627,23 @@ void func_80089580(void) {
     s32 g;
     s32 b;
 
-    pEntry = (WorldMapTrailEntry*)g_WorldMapTrailEntries;
-    for (i = 0xFF; i != -1; i--, pEntry++) {
+    pEntry = g_WorldMapTrailEntries;
+    for (i = WORLD_MAP_TRAIL_ENTRY_COUNT - 1; i != -1; i--, pEntry++) {
         flags = pEntry->trailFlags.flags;
         if ((flags >> 16) != 0) {
             if ((s16)flags > 0) {
                 pEntry->x += pEntry->velX;
                 pEntry->y += pEntry->velY;
-                pEntry->z += pEntry->velZ;
-                pEntry->velX += pEntry->accelX;
-                pEntry->velY += pEntry->accelY;
+                do {
+                    pEntry->z += pEntry->velZ;
+                    pEntry->velX += pEntry->accelX;
+                    pEntry->velY += pEntry->accelY;
+                } while (0);
                 pEntry->velZ += pEntry->accelZ;
                 pEntry->trailFlags.status.count = pEntry->trailFlags.status.count - 1;
-                pEntry->scaleX += pEntry->scaleStepX;
-                pEntry->scaleY += pEntry->scaleStepY;
-                r = (pEntry->color & 0xFF) + pEntry->colorStep.r;
-                g = ((pEntry->color >> 8) & 0xFF) + pEntry->colorStep.g;
-                b = ((pEntry->color >> 16) & 0xFF) + pEntry->colorStep.b;
+                r = (pEntry->color & 0xFF) + (s8)pEntry->colorStep;
+                g = ((pEntry->color >> 8) & 0xFF) + (s8)(pEntry->colorStep >> 8);
+                b = ((pEntry->color >> 16) & 0xFF) + (s8)(pEntry->colorStep >> 16);
                 if (r < 0) {
                     r = 0;
                 }
@@ -668,6 +663,8 @@ void func_80089580(void) {
                     b = 0xFF;
                 }
                 pEntry->color = (pEntry->color & 0xFF000000) | (b << 16) | (g << 8) | r;
+                pEntry->scaleX += pEntry->scaleStepX;
+                pEntry->scaleY += pEntry->scaleStepY;
             } else {
                 ((WorldMapSprite*)g_WorldMapSpriteGroups)[pEntry->spriteIndex].count--;
                 pEntry->spriteIndex = 0;
@@ -675,8 +672,9 @@ void func_80089580(void) {
             }
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
+
 /* 96.95% (1324 bytes against retail 1328; 331 vs 332 insns). Re-measured from a
    clean un-park, so the old round-398 note is dead: it claimed a byte-identical head,
    but the honest body was 0.00 and wrong on five things. What this body now has exactly
@@ -807,7 +805,7 @@ void func_80089748(void) {
                 pEntry->accelY = pSprite->accelY;
                 pEntry->accelZ = pSprite->accelZ;
                 pEntry->color = *(u32*)&pSprite->color[0];
-                *(u32*)&pEntry->colorStep = pSprite->colorStep;
+                pEntry->colorStep = pSprite->colorStep;
                 *(u32*)&pEntry->scaleX = pSprite->scale;
                 *(u32*)&pEntry->scaleStepX = pSprite->scaleStep;
                 pEntry->tpage = (flags << 5) | 0x9D;
@@ -916,7 +914,7 @@ void func_80089C78(void) {
         pScratch->scale[1] = pEntry->scaleY;
         pScratch->scale[2] = 0x1000;
         *(MATRIX*)0x1F800048 = *(MATRIX*)0x1F800068;
-        if (pEntry->colorStep.a & 1) {
+        if ((pEntry->colorStep >> 24) & 1) {
             RotMatrixZ(pEntry->angle, (MATRIX*)0x1F800048);
         }
         ScaleMatrix((MATRIX*)0x1F800048, (VECTOR*)&pScratch->scale[0]);
@@ -976,8 +974,7 @@ void func_80089C78(void) {
             }
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
 /* 95.46% (612 bytes, retail 612): every instruction matches except the
    prologue, which is reordered and one register off. Retail emits
@@ -1075,18 +1072,24 @@ s32 func_8008A2C8(s32 index) {
     return 1;
 }
 */
-/* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns;
-   the only difference is the pre-RA schedule: retail hoists sll v1,a0,0x7 to the
-   top and defers the 6th argument store (sw v0,0x14(sp)) to just before the jal,
-   gcc stores 0x40 first and shifts into v0 after it. Tried: &g_WorldMapSlots[arg0],
-   g_WorldMapSlots + arg0, an s32 byte-offset local, a void* pSprite local. The
-   round-398 park was WRONG CODE (u8* base + (arg0 << 7) scaled the index by 0x80
-   again, so it computed arg0 << 14); this body is the honest spelling.
+/* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns,
+   and the tail from the first jal delay slot on is byte-identical. The residual is
+   lever h-stack-arg-store-sink-is-a-war-tie (round 402): retail gives the index
+   shift `sll v1,a0,0x7` at insn 3, before the 0x10 push, so the 6th argument store
+   `sw v0,0x14(sp)` sinks to just before the jal; our cc1 gives the shift $v0, which
+   is a WAR on the `li v0,0x40` feeding that store, so sched2 emits the store at
+   insn 6 and the shift right after it, and the jal slot adds through v0 instead of
+   v1. The same 6 lines as misc11 func_8008B54C / func_8008BDD0, where a 4-minute
+   permuter run found only a call swap (wrong code) and try_flags --sweep topped
+   out, so this is parked instead of re-spelled. Measured identical 76.69:
+   "g_WorldMapSlots + arg0", "&g_WorldMapSlots[arg0]", and the typed twin spelling
+   of the flags clear through a 0x3C flags field instead of the u32 cast.
+   Presets: gcc 2.6.0 76.09, 2.7.2-cdk 76.69 - not a preset question.
+*/
 /*
 s32 func_8008A52C(s32 arg0) {
-    WorldMapPlayer* pActor;
+    WorldMapPlayer* pActor = &g_WorldMapSlots[arg0];
 
-    pActor = g_WorldMapSlots + arg0;
     pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
