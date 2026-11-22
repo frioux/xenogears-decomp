@@ -14,6 +14,10 @@ extern s32 func_80082488(VECTOR *pPos, s32 fixHeights);
 extern void BattleCopyPlaneNormal(SVECTOR *pNormal);
 extern void func_800316C0(void *pOt, void *pPrim);
 
+// Entries in the per-scanline span tables: BattleClearSpanTables clears this many
+// and func_80087698 stops at this column.
+#define BATTLE_SPAN_TABLE_COUNT 128
+
 // The flags word's grid-cell bits: an actor whose value here is 2 gets no
 // ground shadow (misc4 tests the same field the same way).
 #define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
@@ -282,80 +286,67 @@ void BattleInitDrawEnvPair(void) {
 void BattleClearSpanTables(void) {
     s32 i;
 
-    for (i = 0; i < 0x80; i++) {
+    for (i = 0; i < BATTLE_SPAN_TABLE_COUNT; i++) {
         g_BattleSpanTableMax[i] = 0;
         g_BattleSpanTableMin[i] = 0xFF;
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087698);
-/* Best 98.69%, at retail's exact size (260 bytes). One allocator tie is left:
-   retail keeps the interpolated value in $v1 and the clamped table byte in $a0,
-   gcc 2.7.2 swaps the pair ($a0 / $v1) in both clamp halves. Everything else is
-   exact, including the sra/addu/div prologue and the 'addu t0,t0,t1' in the
-   bnez delay slot.
-   Load-bearing shapes found: cur and step must be ASSIGNED after the swap block,
-   not declared with an initialiser (an initialiser makes gcc compute them above
-   the 'arg1 == arg3' early return and the body is 20 bytes too long); the swap
-   writes must read the parameter being overwritten first ('t = arg2; arg2 =
-   arg0; arg0 = t;'), which is what puts the temp in $v0; two separate temps for
-   the two halves (t and u here) are worth 0.15 over one shared temp; and
-   'cur += step, i++' in the for increment is what fills the back-edge delay
-   slot. Tried and worse: a u8 temp (94.08), reusing v as the second temp (97.62),
-   reordering the declarations, moving the shift after the p assignment.
-   A 4-minute 2-job permuter run (2292 iterations) produced the two-temp swap and
-   reported base=95 best=85; a second run from this body is the next step, with
-   the v/t register pair as the target.
-void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+// Interpolates a per-column value in 8.8 fixed point from (startIndex, startValue)
+// to (endIndex, endValue) and folds it into the per-column span bounds, keeping each
+// column of g_BattleSpanTableMin at or above D_80091834 and each column of
+// g_BattleSpanTableMax at or below D_800918B4 + 1.
+void func_80087698(s32 startValue, s32 startIndex, s32 endValue, s32 endIndex) {
     s32 cur;
     s32 step;
-    s32 t;
-    s32 u;
-    s32 v;
+    s32 tmpValue;
+    s32 tmpIndex;
+    s32 value;
     s32 i;
+    // HImode, not s32: the clamp temp has to lose the allocator contest for $v1.
+    s16 limit;
     u8 *p;
 
-    if (arg1 == arg3) {
+    if (startIndex == endIndex) {
         return;
     }
-    if (arg3 < arg1) {
-        t = arg2;
-        arg2 = arg0;
-        arg0 = t;
-        u = arg3;
-        arg3 = arg1;
-        arg1 = u;
+    if (endIndex < startIndex) {
+        tmpValue = endValue;
+        endValue = startValue;
+        startValue = tmpValue;
+        tmpIndex = endIndex;
+        endIndex = startIndex;
+        startIndex = tmpIndex;
     }
-    cur = arg0 << 8;
-    step = ((arg2 - arg0) << 8) / (arg3 - arg1);
-    for (i = arg1; i < arg3; cur += step, i++) {
+    cur = startValue << 8;
+    step = ((endValue - startValue) << 8) / (endIndex - startIndex);
+    for (i = startIndex; i < endIndex; cur += step, i++) {
         if (i < 0) {
             continue;
         }
-        if (i >= 0x80) {
+        if (i >= BATTLE_SPAN_TABLE_COUNT) {
             return;
         }
-        v = cur >> 8;
+        value = cur >> 8;
         p = g_BattleSpanTableMin + i;
-        if (v < *p) {
-            t = D_80091834[i];
-            if (v < t) {
-                v = t;
+        if (value < *p) {
+            limit = D_80091834[i];
+            if (value < limit) {
+                value = limit;
             }
-            *p = v;
+            *p = value;
         }
         p = g_BattleSpanTableMax + i;
-        if (*p < v) {
-            t = D_800918B4[i] + 1;
-            if (t < v) {
-                v = t;
+        if (*p < value) {
+            limit = D_800918B4[i] + 1;
+            if (limit < value) {
+                value = limit;
             }
-            *p = v;
+            *p = value;
         }
     }
 }
 
-*/
 void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     g_NearColor = (g_NearColor & 0xFFFFFF) | 0x24000000;
     gte_ldrgb(&g_NearColor);
