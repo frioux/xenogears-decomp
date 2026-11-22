@@ -57,7 +57,11 @@ paths = [
     # battle/main/misc19 is mixed: func_8009BAC4 (and func_8009BD94, see its park) is
     # byte-identical only under 2.6.0 while eleven head functions drop as low as 95.71
     # under it, so config/battle.yaml splits that run out as main/misc19_r1.
-    "battle/main/misc19_r1."
+    "battle/main/misc19_r1.",
+    # cc_sweep measured both of these whole units: every already-matched function stays
+    # 100.00 under 2.6.0 and a park closes (battle/misc2 func_80073FB8 99.9 -> 100.00,
+    # menu/misc3 func_801CA8C0 -> 100.00).
+    "battle/main/misc2."
 ]
 
 [[build_preset]]
@@ -354,6 +358,7 @@ paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main
     # Default - one commutative addu operand order that no 2.6.0 spelling moves.
     "menu/main/misc7.",
     "menu/main/misc7_r2.",
+    "menu/main/misc3.",
 ]
 
 # battle/main/misc27 is function-mixed and cannot be a single-preset unit: its

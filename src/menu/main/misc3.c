@@ -618,21 +618,6 @@ void func_801CA5F0(s32 a0, s32 a1) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA750);
-// Best attempt: 99.89% (376 bytes = retail's exact size; TWO differing
-// instructions, both the destination register of the tens division: retail
-// `mfhi v1; sra v1,v1,2`, here `mfhi a3; sra v1,a3,2` - the ashiftrt's pseudo is
-// not coalesced with the HI extract. Nothing else differs.
-// What got here from 74.46%: the title template is a memcpy of exactly 0x1B bytes
-// whose SOURCE must be declared with 4-byte alignment (`extern u32 D_801C50E0[]`,
-// passed as the bare array): as `u8[]` gcc emits an unaligned lwl/lwr/swl/swr block
-// move (432 bytes, 74.46%), with alignment it emits retail's six word pairs plus lh
-// at 0x18 / lb at 0x1A off one source base. A 0x1C-byte struct copy copies a
-// seventh word, and splitting the tail makes gcc rematerialise the source address.
-// Tried for the register: `tens = n / 10` before vs after the memcpy (identical),
-// swapping the n/tens declarations (identical), a 1390-iteration 3-minute permuter
-// run (base=10 best=10, nothing).
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
-/*
 void func_801CA8C0(u_char a0) {
     s32 n;
     s32 tens;
@@ -650,7 +635,6 @@ void func_801CA8C0(u_char a0) {
     g_Menu->menuUnk2->saveTitle[0x21] = 0;
     strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
 }
-*/
 /* Best attempt: 97.36% (688 bytes vs retail's 692). Everything matches except the
    dispatch tail of the {4,5} subtree: retail emits `beq v1,s5,case5` with an extra
    `j` on the default path and both arms out of line, while gcc emits case 5 INLINE
