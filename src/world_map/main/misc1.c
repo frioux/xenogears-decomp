@@ -1412,6 +1412,22 @@ extern u8 D_8009D198;
 // (WorldMapInitGfxEnv 65.09, WorldMapFreeAreaResources 95.10, WorldMapDecompressMapTables 97.53,
 // func_800737EC 82.37), so the unit cannot switch. Same class as misc1 func_80073B04: the folding
 // of a known-constant base is what gcc 2.7.2 does and 2.6.0/cdk do not.
+// best 26.13% under the unit preset (424 bytes, 106 insns against retail 272/68); cdk 2.7.2 -O2 -G8 = 90.34%, the highest any installed compiler reaches.
+// ROUND 412: retail needs BOTH addressing forms at once - nine stores go out as absolute
+// symbol+0 ($at form: D_8009D197, D_8009D19B, D_8009D1A0, A8, B0, BC, C4, CC, D4) and the other
+// forty go through a base register formed once (la $v0,D_8009D198, then 0/0x23/0x27/0x47..0x114).
+// The base is a CONSTANT address, so no source spelling decides this; the compiler does.
+// Measured, this body: 2.7.2 folds every constant base into symbol+const, so all forty $at
+// stores double in size (106 insns); 2.6.0 folds the same way (26.13 at -O2 and -O3, 15.44 at
+// -O1); cdk keeps the base (correct!) and even emits the nine direct globals absolutely, but
+// its cc1 schedules: it hoists li a1,0x38 above everything and emits the F5E0 group (D1D4,
+// D1CC, D1B0, D1A8) BEFORE the 7A70 group, where retail is in pure source order, and it also
+// folds the 0(v0) store to an absolute D_8009D198 - that residue plus the colour rotation
+// (F5E0 in v0 not a1) is the 9.66% left. So retail is 2.7.2-shaped order with a base register:
+// no installed compiler has both, and the unit cannot switch anyway (cdk puts WorldMapInitGfxEnv
+// at 65.09, WorldMapFreeAreaResources 95.10, WorldMapDecompressMapTables 97.53, func_800737EC
+// 82.37). Layout decoded: 8 entries of 0x24 at 0x8009D194, colours at +4/+0xC/+0x14/+0x1C and
+// bytes 8/0x38 at +3 and +7 - note +7 overlaps the +4 word, and retail stores the word first.
 /*
 void func_800736DC(void) {
     u8* p;
