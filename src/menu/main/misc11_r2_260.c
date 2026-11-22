@@ -319,6 +319,22 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
    the biv - and j must stay dead for that (any shape that keeps j live is
    668/680 bytes with an extra saved register). Parked at 97.58 with retail's
    exact 672 bytes / 168 instructions, one displaced pair.
+   ROUND 397 RE-MEASURED AND CONFIRMED 97.58 / 672 / 168 from this body.
+   THE GIV ROUTE IS CLOSED, and here is the measurement that closes it: with
+   `offset` REMOVED and every use written `j * MENU_SLOT_PRIM_STRIDE` (so the
+   test `j < 3` becomes a giv test and loop.c emits the accumulator's own init),
+   the preheader DOES become the strength_reduce group - order becomes
+   [s3 j*0x50][s5 j*4][s2 offset][s4 0xA98] and j dies, 672 bytes / 168 insns -
+   but all SEVEN `base + offset` sums flip to `addu v0,s2,v0` where retail has
+   `addu v0,v0,s2` (97.17%, 18 differing lines). Writing the sum index-first in
+   C (`j * STRIDE + (u32)g_Menu->pPrimBuffer`) does NOT flip it back, so a
+   strength_reduce giv register is always addu's FIRST operand in gcc 2.6.0;
+   the base-first order needs a front-end pseudo, which is exactly what puts
+   `move s2,zero` first. Measured dead on the same body: the neg trick
+   `base - (-(j * STRIDE))` (84.71%, 676, subu + a moved latch), and a separate
+   front-end `offset` accumulator with the test on `j < 3` (680 bytes: the front
+   end biv and the died-j are mutually exclusive - j gets $s7).
+   Two shapes that both want the same register are unreachable together.
    The body below is the 97.58 one.
 void func_801E61B0(void) {
     s32 i;
