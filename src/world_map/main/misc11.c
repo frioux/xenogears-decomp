@@ -604,25 +604,25 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
     SpriteSetScale(pActor->pSprite, 0x2000);
     pActor->pSprite->flags &= ~4;
 }
-95.87% (460 bytes = retail's 115 insns; instruction multiset IDENTICAL except one branch).
-   Round 399. Reads the per-party-member init kind from three sources as a 3-bit
-   switch value (bit0 partyMembers[index] != CHARACTER_ID_NONE, bit1 the per-actor
-   script angle fieldScriptMemory[0x15+index*3] & 0x3FFF >= 0x400, bit2
-   gearRide[index] == 1). The switch needs the even case values listed explicitly
-   (case 0/2/4/6 share the default body, density 8/8) - with only 1/3/5/7 + default
-   cc1 2.7.2 emits a comparison chain and objdiff reads 60.90.
-   THE ONLY RESIDUALS: (1) retail branches to the shared 'result = 3' block with
-   'beq v1,v0,.L8008C400' and falls through to the jal; cc1 emits the mirror
-   'bne v1,v0' and puts that same 2-insn block (j + li s2,3 delay) between case 1's
-   test and its jal. So retail's merged block sits BEFORE case 1's test and ours
-   sits inside it: block placement, not a spelling (measured: even-cases block
-   first in the source 91.52 at 456, tail written once after the switch 82.74, tail
-   duplicated in both arms 91.52/456 - see lever d-crossjump-tail-merge-stops).
-   (2) the switch table operand: retail names jtbl_800707AC, ours .rodata+0x178
-   (the unit owns its rodata; expected in diff_func.sh, resolved by the linker).
-   The two 'volatile' stores in case 5 are load-order pins measured to be needed:
-   without them sched2 raises both global loads above 'unk24 = 0' and stores x
-   after the Z load (93.26 / 456 bytes); with them every remaining insn matches.
+// 95.87% (460 bytes = retail's 115 insns; instruction multiset IDENTICAL except one branch).
+//    Round 399. Reads the per-party-member init kind from three sources as a 3-bit
+//    switch value (bit0 partyMembers[index] != CHARACTER_ID_NONE, bit1 the per-actor
+//    script angle fieldScriptMemory[0x15+index*3] & 0x3FFF >= 0x400, bit2
+//    gearRide[index] == 1). The switch needs the even case values listed explicitly
+//    (case 0/2/4/6 share the default body, density 8/8) - with only 1/3/5/7 + default
+//    cc1 2.7.2 emits a comparison chain and objdiff reads 60.90.
+//    THE ONLY RESIDUALS: (1) retail branches to the shared 'result = 3' block with
+//    'beq v1,v0,.L8008C400' and falls through to the jal; cc1 emits the mirror
+//    'bne v1,v0' and puts that same 2-insn block (j + li s2,3 delay) between case 1's
+//    test and its jal. So retail's merged block sits BEFORE case 1's test and ours
+//    sits inside it: block placement, not a spelling (measured: even-cases block
+//    first in the source 91.52 at 456, tail written once after the switch 82.74, tail
+//    duplicated in both arms 91.52/456 - see lever d-crossjump-tail-merge-stops).
+//    (2) the switch table operand: retail names jtbl_800707AC, ours .rodata+0x178
+//    (the unit owns its rodata; expected in diff_func.sh, resolved by the linker).
+//    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
+//    without them sched2 raises both global loads above 'unk24 = 0' and stores x
+//    after the Z load (93.26 / 456 bytes); with them every remaining insn matches.
 /*
 s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     s32 kind = g_GameState.partyMembers[index] != CHARACTER_ID_NONE;
@@ -680,24 +680,27 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 
-// 78.83% (428 bytes, retail 444). Round 186: re-parked with the current field names
-// (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state, and
-// WorldMapTrail.angle for offset 0x10) - it builds now and re-measures at 78.83.
-// Everything from the WorldMapGetTilePlaneHeight jal onward is byte-identical: the
-// 16-byte copies must be WorldMapVec struct assignments (which copy x,y,z AND unk34,
-// exactly retail's 4 loads/4 stores), and four separate field stores interleave
-// load/store instead. Two differences remain, both established:
-// (1) retail keeps the three zero stores (0x40/0x3C/0x38) above the g_WorldMapMode
-//     load and re-reads angle with lh for drawAngle; gcc sinks the zero stores below
-//     the mode load and folds the re-read into an sll/sra pair. C store order does not
-//     move it (sched2 is post-reload).
-// (2) block layout: retail reaches the mode<8 arm out of line (j + nop in front of
-//     "sh state / li 1 / sh unk24" at .L8008C690), gcc inlines it and puts the second
-//     store in the j delay slot, so this body is one j and three nops short.
-// The mode chain must be written inverted - "if (mode >= 4) { if (mode < 8) B } else
-// { gearRide }" - because that is what puts the gearRide block out of line behind
-// "bnez v0, A" as retail has it; the natural "if (mode < 4) A else if (mode < 8) B"
-// gives the mirror image (79.81 with the two blocks swapped, 4 bytes different).
+// 89.86% (436 bytes / 109 insns, retail 444 / 111). Round 399, rebuilt from the
+// assembly with the natural mode chain - if (mode > 0) { if (mode < 4) { gearRide[0] == 1
+// -> the trail setup } else if (mode < 8) { state = 2; unk24 = 1; } } - which scores
+// 86.43 before the volatile pins below; the round-186 inverted chain scores 78.83.
+// The four volatile pins are the file's own idiom (see WorldMapModeInitActorSlot) and
+// each was measured: the three dirX/dirY/dirZ zero stores (sched2 sank them below the
+// angle and mode loads) and 'state = 1' (sank below the position loads, 86.43 -> 89.86).
+// With those, the head, the angle/drawAngle lh pair, the position block, the
+// scroll-target 16-byte copy, the 0x20-iteration trail loop and the tail are ALL
+// byte-identical to retail.
+// TWO residuals left, both are compiler block choices, not spellings:
+// (1) the mode<8 arm: retail keeps 'slti v0,v1,8 / beqz v0,tail / li v0,2' at the
+//     dispatch and reaches the out-of-line 'sh state / li 1 / sh unk24' block with
+//     'j + nop' (that nop plus the j are 8 of the 8 missing bytes); cc1 folds test and
+//     body into one block emitted after the trail loop, so it needs no jump. Measured
+//     identical (89.86) with 'else if (mode < 8)' and with a nested 'else { if }'.
+// (2) the loop preheader: retail emits 'move a3,zero' (i = 0) before 'sw y / sh angle'
+//     and forms &g_WorldMapTrail after them; cc1 swaps exactly those two (same count).
+// NEXT for whoever picks this up: try the same body under gcc-2.7.2-cdk (-O2 -G8 scores
+// 70.17 on the sibling func_8008C364, so the unit preset is right) or permute; the
+// remaining 8 bytes are one jump plus the dispatch test, which no spelling has moved.
 /*
 s32 func_8008C530(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -706,23 +709,21 @@ s32 func_8008C530(int index) {
     s32 mode;
     s32 i;
 
-    pActor->dirZ = 0;
-    pActor->dirY = 0;
-    pActor->dirX = 0;
+    // volatile: keeps these three above the angle and mode loads, as retail has them
+    *(volatile s32 *)&pActor->dirZ = 0;
+    *(volatile s32 *)&pActor->dirY = 0;
+    *(volatile s32 *)&pActor->dirX = 0;
     pActor->angle = *(u16 *)&g_GameState.unk1826[0];
     pActor->moveSpeed = 0xC;
     pActor->drawAngle = pActor->angle;
     mode = g_WorldMapMode;
     if (mode > 0) {
-        if (mode >= 4) {
-            if (mode < 8) {
-                pActor->state = 2;
-                pActor->unk24 = 1;
-            }
-        } else {
+        if (mode < 4) {
             if (g_GameState.gearRide[0] == 1) {
-                pActor->state = 1;
-                pActor->x = g_WorldMapPlayerPosition;
+                // volatile: keeps this above the position loads, as retail has it
+                *(volatile s16 *)&pActor->state = 1;
+                // volatile: keeps the g_WorldMapPlayerPositionZ load below this store, as retail has it
+                *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
                 pActor->z = g_WorldMapPlayerPositionZ;
                 pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
                 pActor->angle = g_WorldMapPlayerRotation;
@@ -735,6 +736,9 @@ s32 func_8008C530(int index) {
                     pTrail->angle = pActor->angle;
                 }
             }
+        } else if (mode < 8) {
+            pActor->state = 2;
+            pActor->unk24 = 1;
         }
     }
     g_GameState.fieldScriptMemory[0x16] = pActor->x >> 12;
