@@ -1408,6 +1408,19 @@ int func_80080578(int index) {
    found nothing further; the earlier run's only find was the if/else above.
    gcc 2.7.2-cdk is NOT this unit's preset: this body scores 90.11 under it and
    the unit's matched neighbours fall to 96.27-99.67.
+   ROUND 398 re-measured 99.69 (768 bytes = retail's) and now PROVES the tail
+   is not a spelling question. The -da dump of this unit (mips-linux-gnu-cpp
+   -DSKIP_ASM, then tools/gcc-2.7.2-psx/cc1 with the unit flags plus -da) prints
+   "79 conflicts: 73 79 2 3 4 5 6 29 64 65 66" for the nValue pseudo, i.e. v0,
+   v1, a0, a1 AND a2 are all marked conflicting, so find_reg has only a3 left and
+   MUST put nValue there, where retail has a1. Retail's RTL therefore differs
+   in a way no shape of this tail reaches, while the RTL we already have is
+   retail's down to mfhi going straight into the value, sra a0,13 for the second
+   shift and li v0,1 in between. Also measured dead in round 398: the ONE
+   statement form `nValue = rand() % (unk7C >> 12) - (unk7C >> 13);` splits the
+   value into two pseudos (mfhi v1, subu a3,v1,a0) and stays 99.69 with an extra
+   move, so the two statement split in the body below is the shape retail has -
+   keep it. -da recipe: it is also the cheap way to settle any rotation here.
    measure: tools/scripts/diff_func.sh world_map/main/misc6 func_80080600
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
