@@ -821,47 +821,41 @@ void FieldAddParticlePrims(void) {
         &D_800B1E24[g_FieldCurRenderContextIndex * 0xC0]);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-/* Best attempt, 99.56% at the original's exact 500 bytes - identical instruction
-   for instruction, every offset and store order included, except ONE register:
-   retail keeps j*16 in v0 and, in place, (j*16 & 0x3F), with the +0x10 variant in
-   v1; ours keeps j*16 and the mask in v1 and the +0x10 value in v0, so eight
-   lines differ by that swap and nothing else does. local_alloc ranks the longer
-   lived of two overlapping quantities first, and retail ranks the SHORTER lived
-   one first; the two are the mask (last read by the u2 store) and mask+0x10 (last
-   read by u3, two instructions later).
-   Measured dead ends: the mask assigned before the x0/x2 stores and after them,
-   the mask and the +0x10 computed adjacent at retail's own position, a named
-   u1/u3 temp assigned at its first use, a 0x10 + nU operand swap, u_char on the
-   mask (94.91), declaration order of nU/nU1, an embedded assignment at the store
-   (pPoly->u0 = nU = nX & 0x3F;), a second +0x10 local feeding only u3, computing
-   nU1 straight from the inline mask, and two 4-minute permuter runs (rounds 315:
-   base=55 best=55 twice, 1314 and 1971 iterations).  gcc-2.6.0 is also 99.56
-   here, so it is not a preset question.
-   Round 337 added: the mask written back into nX (`nX &= 0x3F;` then u0/u2 = nX)
-   is 95.54 / 488 - it folds three instructions away, so the mask is a separate
-   source value; nU1 defined before nU; `nU + 0x10` inline at both u1/u3 stores;
-   and giving x1/x3 their own 0x10-stepping counter variable in the for's
-   increment clause (97.60, and it swaps the s4/s5 roles of the i and j counters),
-   which is what the disassembly's s4 counter suggests the original did - but it
-   does not touch the v0/v1 tie.
-   Round 369: fifteen further spellings measured, all 99.56 with byte-identical
-   output (so neither the shape nor the naming is the lever): a self-assign then
-   mask (`nU = j*0x10; ...; nU &= 0x3F;`, which merges nU's and nX's pseudo into
-   one quantity spanning the whole block), nU1 computed before nU, both or one of
-   nU/nU1 u_short (94.9), nIndex reused for nU or for nU1 (94.2), nX reused for
-   the mask or for the +0x10 value, declaration order, and a THIRD permuter run
-   (base=55 best=55, 2018 iterations).  The residual is local_alloc's ranking of
-   the two quantities {nX/mask} and {mask+0x10}: the one retail ranks first gets
-   v0 and the other v1, and no source spelling changed the ranking.
-   Settled facts: 14 x 20 grid of 16x16 tiles, i outer / j inner,
-   nIndex = i*20 + j, polygons is 560 POLY_GT4 (two copies of 280, the second
-   at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
-   0x7850 set to 0x80, y0/y1 = i*16 and y2/y3 = i*16 + 0x10 (s5/s3 counters),
-   x1/x3 = j*16 + 0x10 (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10,
-   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+/* PARKED 99.56% - retail's exact 500 bytes / 125 insns, instruction-identical
+   except ONE register pair: retail keeps j*16 (nX, truncated in place to the
+   mask) in v0 and the mask+0x10 value in v1; ours is mirrored (nX/mask in v1,
+   mask+0x10 in v0). Eight lines differ and nothing else does.
+   The -dl dump numbers the tie: block-local qty 122 = nX (12 refs / 22 insns,
+   pri floor_log2(12)*12*4/22 = 6.5), 123 = the mask (12 / 7 -> 20.6), 124 =
+   nU1 (9 / 6 -> 18). local_alloc processes 123 first and hands it $3 (that
+   block gives out $3 before $2: 72/77/122/123 in 3, 82/90/91/92/93/100/124 in
+   2), so 124 takes $2. Retail's pairing needs 124 -> $3, i.e. nU1 has to
+   OUTRANK the mask; refs are 3x the insns mentioning the qty, so that wants nU1
+   in a fourth insn or the mask out of the addiu, and retail's stream has
+   neither (one andi in place, one addiu from the mask, two stores each). So it
+   is a source wall, not a tie to spell: do not permute it again.
+   Tried before that dump (all 99.56, byte-identical output unless noted): the
+   mask before or after the x stores, mask and +0x10 adjacent at retail's own
+   position, a named temp at its first use, a 0x10 + nU operand swap, nU1 before
+   nU, declaration order, nX reused for the mask or for the +0x10 value, both
+   inline forms, a second 0x10 local, an x1/x3 stepping counter in the for's
+   increment clause (97.60, moves the s4/s5 roles), nX written back as nX &=
+   0x3F (95.54 / 488 - folds three insns), a block-scope declaration with
+   initialiser, u_char mask (94.91), one or both of nU/nU1 u_short (94.9),
+   nIndex reused (94.2); four permuter runs, base=55 every time (1314, 1971,
+   2018, 222 iterations).
+   Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
+   nIndex = i*20 + j, polygons is 560 POLY_GT4 (two 280 copies, the second at
+   +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/0x7850
+   set to 0x80, y0/y1 = i*16 (s5), y2/y3 = i*16 + 0x10 (s3 counter), x1/x3 =
+   j*16 + 0x10 (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10, tpage =
+   GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
    *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
+*/
+
+/*
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -922,7 +916,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
                 *pPolyNext = *pPoly;
             }
         }
-    }*/
+    }
+*/
+
 void func_800A7064(void) {
     HeapFree(g_FieldParticlePrimitives);
 }
@@ -1801,31 +1797,31 @@ void func_800A8BA4(void) {
 // One rectangle (x0,y0,x1,y1) plus one texture rectangle (u0..v3) per shape.
 extern ParticleShape D_800AF27C[];
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
-/* Best attempt, 96.58% at 512 bytes against retail's 520: every instruction of
-   the vertex block is byte-identical and the whole 8-byte shortfall is a
-   RECOMPUTED product. Retail shifts six times - x1, x0, y1, y0, then x0 and y0
-   AGAIN - because the first x0<<4 goes to a register of its own (sll a0,a1,4 off
-   x0's a1) and is then overwritten by the difference (subu a0,a3,a0), while the
-   x0 the sum uses is recomputed in place (sll a1,a1,4). x1<<4 and y1<<4 are
-   computed once and shared by the difference and the sum. Our expand gives each
-   difference a fresh pseudo, so all four products stay live, cse shares them and
-   the shape values lose a register (they land in a0..a3 where retail has a1..t0).
-   Only cse reaching two DIFFERENT RTL expressions for the same product can
-   produce retail's six shifts, so every spelling that writes the product once
-   measures 512 bytes.
-   NOTE: the previous note here claimed 97.42% for a body reading twelve separate
-   `extern u_short D_800AF27E[]`-style arrays. Those were never declared, so that
-   body never compiled and the figure came from a stale object; the typed table
-   below is the spelling that compiles.
-   Measured at 512 bytes, all of them: direct stores; four int locals for
-   vx0/vy0/vx1/vy1; those four as s16; four or eight u_short product locals; a
-   product local used at only one site (cse still maps the expression to it);
-   sums written (x1<<4)+(x0<<4); `* 16` everywhere and `* 16` mixed with `<< 4`
-   at either site. One permuter run (base=336 best=336, 222 iterations) found
-   nothing but WRONG code - its best candidate shifted an already-shifted
-   product - and rounds 315 ran two more.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
+/* PARKED 96.58% - 512 bytes / 128 insns against retail's 520 / 130: every
+   instruction matches except that retail shifts 6 times where any C gives 4.
+   Re-measured from the assembly this round (same 96.58, same 8-byte shortfall).
+   Map: a1=x0, a2=y0, a3=x1, t0=y1 (four lhu off D_800AF27C, 0x18-byte entries);
+   retail is sll a3(x1) / sll a0,a1(x0) / subu a0,a3,a0 / sll t0(y1) /
+   sll v0,a2(y0) / subu v0,t0,v0 / sll a1,a1,4 AGAIN / addu a1,a1,a3 /
+   sll a2,a2,4 AGAIN / addu a2,a2,t0, i.e. the two products the differences
+   consumed (x0<<4, y0<<4) are RECOMPUTED for the sums, while x1<<4 and y1<<4
+   are shared. C can only do that if cse sees two DIFFERENT ashift RTL
+   expressions: both operands are the same loaded pseudo in the same basic
+   block, so (x1<<4)-(x0<<4) / (x0<<4)+(x1<<4) merges to four shifts whatever
+   the spelling - that is the wall, and it is expand/cse, not the allocator.
+   Measured at 512, all identical: direct stores; four int locals then stores;
+   those four as s16; four or eight u_short product locals; a product local used
+   at one site only (cse still maps the expression to it); sums written
+   (x1<<4)+(x0<<4); * 16 everywhere and * 16 mixed with << 4 at either site.
+   Three permuter runs (rounds 315, 337, 369: base=336 best=336, 222 iterations
+   the last); the best candidate was WRONG code, shifting an already-shifted
+   product.
+   NOTE: an older note here claimed 97.42% for twelve separate
+   `extern u_short D_800AF27E[]`-style arrays; those were never declared, so that
+   body never compiled and the figure came from a stale object. The typed table
+   `extern ParticleShape D_800AF27C[]` is the spelling that compiles.
    Settled facts: 12 ParticleShape entries (0x18 each) at 0x800AF27C indexed by
    nShape; vertices[0..3].vz = 0; setRGB0 0x80; the four vx/vy pairs are
    (x1-x0)*16, (y1-y0)*16, (x0+x1)*16, (y0+y1)*16, stored vertex by vertex as
@@ -1834,52 +1830,57 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitiv
    GetTPage(0, nTextureMode, 0x3C0, 0x140); clut = GetClut(0x100,0xF7); then
    *pPolyNext = *pPoly (0x28 bytes: a 2x lw/sw unrolled loop plus one word).
    The 0x98 frame needs the unused _pad below.
-    void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, int nTextureMode) {
-        POLY_FT4* pPoly;
-        POLY_FT4* pPolyNext;
-        int x0;
-        int y0;
-        int x1;
-        int y1;
-        char _pad[0x58]; // unused, reproduces the original 0x98 frame
+*/
 
-        pPoly = &pParticle->poly[0];
-        pPolyNext = &pParticle->poly[1];
-        SetPolyFT4(pPoly);
+/*
+void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, int nTextureMode) {
+    POLY_FT4* pPoly;
+    POLY_FT4* pPolyNext;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    char _pad[0x58]; // unused, reproduces the original 0x98 frame
 
-        x0 = D_800AF27C[nShape].x0;
-        y0 = D_800AF27C[nShape].y0;
-        x1 = D_800AF27C[nShape].x1;
-        y1 = D_800AF27C[nShape].y1;
+    pPoly = &pParticle->poly[0];
+    pPolyNext = &pParticle->poly[1];
+    SetPolyFT4(pPoly);
 
-        pParticle->vertices[0].vz = 0;
-        pParticle->vertices[1].vz = 0;
-        pParticle->vertices[2].vz = 0;
-        pParticle->vertices[3].vz = 0;
+    x0 = D_800AF27C[nShape].x0;
+    y0 = D_800AF27C[nShape].y0;
+    x1 = D_800AF27C[nShape].x1;
+    y1 = D_800AF27C[nShape].y1;
 
-        setRGB0(pPoly, 0x80, 0x80, 0x80);
+    pParticle->vertices[0].vz = 0;
+    pParticle->vertices[1].vz = 0;
+    pParticle->vertices[2].vz = 0;
+    pParticle->vertices[3].vz = 0;
 
-        pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
-        pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
-        pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
-        pParticle->vertices[1].vy = (y1 << 4) - (y0 << 4);
-        pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
-        pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
-        pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
-        pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
+    setRGB0(pPoly, 0x80, 0x80, 0x80);
 
-        FieldClampPolyFT4UVs(pPoly,
-            D_800AF27C[nShape].u0, D_800AF27C[nShape].v0 + 0x40,
-            D_800AF27C[nShape].u1 - 1, D_800AF27C[nShape].v1 + 0x40,
-            D_800AF27C[nShape].u2, D_800AF27C[nShape].v2 + 0x3F,
-            D_800AF27C[nShape].u3 - 1, D_800AF27C[nShape].v3 + 0x3F);
+    pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
+    pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
+    pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
+    pParticle->vertices[1].vy = (y1 << 4) - (y0 << 4);
+    pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
+    pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
+    pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
+    pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
 
-        SetSemiTrans(pPoly, 0x1);
-        pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
-        pPoly->clut = GetClut(0x100, 0xF7);
+    FieldClampPolyFT4UVs(pPoly,
+        D_800AF27C[nShape].u0, D_800AF27C[nShape].v0 + 0x40,
+        D_800AF27C[nShape].u1 - 1, D_800AF27C[nShape].v1 + 0x40,
+        D_800AF27C[nShape].u2, D_800AF27C[nShape].v2 + 0x3F,
+        D_800AF27C[nShape].u3 - 1, D_800AF27C[nShape].v3 + 0x3F);
 
-        *pPolyNext = *pPoly;
-    }*/
+    SetSemiTrans(pPoly, 0x1);
+    pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
+    pPoly->clut = GetClut(0x100, 0xF7);
+
+    *pPolyNext = *pPoly;
+}
+*/
+
 extern int g_FieldScreenImageStored;
 extern u_long* g_FieldStoredImageBuffer;
 
