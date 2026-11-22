@@ -107,7 +107,27 @@ extern char D_80019408; // "unexpected interrupt(%04x)\n"
 extern char D_80019424; // "intr timeout(%04x:%04x)\n"
 
 /*
-void trapIntr() {
+96.06%, 122 instructions against retail's 122 (488 bytes): every instruction is
+present, every call, branch and delay slot is retail's, and the frame (0x28,
+s0-s4 + ra) is identical. The residual is the load ORDER around the
+`inInterrupt = 1` store and which register the final `and` lands in. Retail
+loads enabledInterruptsMask BEFORE that store and *g_pI_MASK after it, so it
+ends `and v1,v1,a0 / and v0,v0,v1 / move s0,v0`; cc1 here hoists the g_pI_MASK
+pointer load above the store as well and lands the final and straight in s0.
+The two field addresses below are absolute in retail's object (D_800578D4 =
+enabledInterruptsMask, D_800578A6 = inInterrupt inside g_InterruptEnvironment),
+not s1-relative, so they are read through their own symbols here.
+Tried: the whole expression in one statement (94.71), the expression before the
+store (93.36), the fields read through the struct instead of the absolute
+symbols (94.47), the mask assignment split at the store exactly as below (96.06),
+*g_pI_STAT as the first operand (89.78, and one instruction long).
+permute.sh 4 min: PERMUTER_BETTER 765 -> 730, on `mask = D_800578D4;` then
+`mask = mask & *g_pI_STAT;`, which diff_func scores 93.07 - rejected.
+
+extern u_short D_800578A6;
+extern u_short D_800578D4;
+
+void trapIntr(void) {
     int i;
     u_short mask;
 
@@ -116,8 +136,9 @@ void trapIntr() {
         ReturnFromException();
     }
 
-    g_InterruptEnvironment.inInterrupt = 1;
-    mask = (g_InterruptEnvironment.enabledInterruptsMask & *g_pI_STAT) & *g_pI_MASK;
+    mask = D_800578D4 & *g_pI_STAT;
+    D_800578A6 = 1;
+    mask &= *g_pI_MASK;
     while (mask) {
         for (i = 0; mask && i < 11; ++i, mask >>= 1) {
             if (mask & 1) {
@@ -127,7 +148,7 @@ void trapIntr() {
                 }
             }
         }
-        mask = (g_InterruptEnvironment.enabledInterruptsMask & *g_pI_STAT) & *g_pI_MASK;
+        mask = (D_800578D4 & *g_pI_STAT) & *g_pI_MASK;
     }
 
     if (*g_pI_STAT & *g_pI_MASK) {
@@ -140,7 +161,7 @@ void trapIntr() {
         D_8005893C = 0;
     }
 
-    g_InterruptEnvironment.inInterrupt = 0;
+    D_800578A6 = 0;
     ReturnFromException();
 }
 */
