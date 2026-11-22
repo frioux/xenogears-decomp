@@ -675,13 +675,16 @@ void func_80078F00(Actor* p) {
 }
 */
 
-/* Best attempt: 98.96% at retail's EXACT 1196 bytes. Only the register names of the
-   state block (retail: lw v1,stateFlags / lw v0,flags; ours the other way round) and
-   the trailing p->flags/p->prevState update differ (retail's 0xFFFEFFFF mask is
-   hoisted into a0 so the p->state load takes a1; ours keeps the mask in v1 and the
-   load in a0).  A 4-minute permuter run from this body (1832 candidates, base score
-   175, best 175) found nothing better: the residual is one allocator register pair
-   (which of v0/v1 and a0/a1 the two blocks take), not structure.
+/* Best attempt: 98.96% at retail's EXACT 1196 bytes / 299 insns.  The whole body is
+   instruction-identical except the REGISTER NAMES of three adjacent blocks, all from
+   one allocator decision: retail puts p->stateFlags in v1 and p->flags in v0 in the
+   actionPhase/state block, this body mirrors them, and the tail then follows (retail
+   keeps the 0xFFFEFFFF mask in a0 and p->state in a1, ours v1 and a0).  Retail's
+   choice is the LOWER priority pick, so its stateFlags pseudo was allocated after the
+   flags one, which no spelling of these statements reproduces here.
+   Already measured, do not repeat: a 4-minute permuter run (1832 candidates, base
+   score 175, best 175, no lead), and a 'u32 flags' copy local for the tail block,
+   which coalesces away and changes nothing.
 */
 
 /*
@@ -1280,29 +1283,29 @@ void BattleActorSetModelIndex9(Actor* p) {
     p->flags |= 0x2000400;
 }
 
-/* Best attempt: 92.44%, 288 bytes (retail's exact size). The g_BattleCameraTargetY /
-   g_BattleCameraPosY block is the only difference: retail loads p->y ONCE into $v1 and
-   reuses it for both the g_BattleCameraTargetY store and the addiu -0x400, then
-   subu $v1,$v1,rigYOffset, with the stores interleaved (TargetY, addiu, Target,
-   subu, PosY, TargetZ).  A plain 'p->y' reloads it after the global store (gcc will
-   not CSE a load through the parameter across a store to a global) and reassociates
-   '(y - 0x400) - rigYOffset' into 'y - (rigYOffset + 0x400)'.
-   Round 372 measured two more spellings: (a) 'y = p->y' held in a local for both uses
-   and split into two statements ('y -= 0x400; PosY = y - rigYOffset;') is 85.11% /
-   284 bytes - it does give the single load and the same-register addiu+subu, but gcc
-   then hoists all three of p->y/p->x/p->z above the store group and stores Target
-   before TargetY, 4 bytes short; (b) a separate '(y - 0x400)' temp with 'y' in its
-   own local is 92.31% and 84.83% (two locals) as recorded.  What is NOT tried: writing
-   the four stores in the order gcc then emits them (Target, TargetY, TargetZ, PosY)
-   so that the hoisted-load schedule lands on retail's store order, and a volatile
-   store on g_BattleCameraTargetY to stop the load hoist.
+/* Best attempt: 96.90%, 284 bytes (retail is 288; both 71 instructions). The store
+   order, the single p->y load and the addiu -0x400 on the y register all match now:
+   what produced it was taking the ADDRESS of p->x into a local and loading through it
+   ("new_var = &p->x; ... = *new_var;") with the PosY/TargetZ pair grouped in a
+   do-while block.  The address-taken pointer is what stops gcc hoisting the p->x load
+   above the store to g_BattleCameraTargetY.
+   Residual: (a) retail fills the rand() jal delay slot with "move s1,v0" and loads
+   p->y after it, this body does the reverse; (b) retail loads p->x into v0 and p->z
+   into a1, this body reuses a0 for both.  Nothing else differs.
+   Already measured, do not repeat: plain p->y twice (the old 92.44% body), a y local
+   with split statements (85.11%), "PosY = y - 0x400 - rigY" with the y local (90.89%,
+   the addiu reassociates onto rigYOffset), *(s32*)&p->x spellings (92.15% / 90.82%),
+   a u32 flags-style copy local, and -O1 (60.86) / -O2 (90.82) on the old body.
+   A 4-minute permuter run from the 85.11% body went 625 -> 70 and is where the
+   address-taken pointer came from.
 */
 
 /*
-/*
 void func_8007A768(Actor* p) {
+    s32* new_var;
     ActorScript* pScript = p->pScript;
     s32 r;
+    s32 y;
 
     g_BattleCameraRigAngleOffset = pScript->cameraAngleOffset;
     g_BattleCameraRigTargetYOffset = pScript->cameraTargetYOffset;
@@ -1310,10 +1313,12 @@ void func_8007A768(Actor* p) {
     g_BattleCameraRigRadius = pScript->cameraRadius;
     SetGeomScreen(0x200);
     r = rand();
-    g_BattleCameraTargetY = p->y;
-    g_BattleCameraTarget = p->x;
-    g_BattleCameraPosY = p->y - 0x400 - g_BattleCameraRigYOffset;
-    g_BattleCameraTargetZ = p->z;
+    y = p->y;
+    g_BattleCameraTargetY = y;
+    new_var = &p->x;
+    y -= 0x400;
+    g_BattleCameraTarget = *new_var;
+ do { g_BattleCameraPosY = y - g_BattleCameraRigYOffset; g_BattleCameraTargetZ = p->z; } while (0);
     g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * g_BattleCameraRigRadius) >> 12);
     g_BattleCameraPosZ = g_BattleCameraTargetZ + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
 }*/
