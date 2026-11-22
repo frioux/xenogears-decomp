@@ -288,31 +288,32 @@ s32 func_8008E190(s32 idx) {
     return nRet;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
-/* best: 96.21%, 396 bytes = retail's exact size, every instruction and relocation
-   right except the switch table operand (jtbl_80070A30 vs .rodata) and the position of
-   the g_WorldMapGroups load in the scratchpad tail: retail emits `lui a1,%hi / lw a1` BEFORE
-   the three `sh` stores and loads g_WorldMapViewRotationZ after `sh 0xA0`, this body emits the
-   pointer load last and hoists g_WorldMapViewRotationZ to the top of the block. Tried: x/z/y store
-   order (93.59), x/y/z (93.59), a MATRIX *pMat local for the first RotMatrixYXZ
-   argument (no change, gcc sinks the address to the argument anyway), and the three
-   tail stores made volatile (96.66 but 400 bytes, one instruction LONG: retail has a
-   `nop` between `lui %hi` and `lhu %lo` of g_WorldMapViewRotationZ that this body does
-   not emit, and the load is still hoisted above the 0xA0 store). PARKED FOR A
-   LAYOUT REASON: E190 (parked just above, 87.06) owns jtbl_800709F8/jtbl_80070A10 at
-   .rodata+0/+0x18, and C tables are emitted before asm-owned ones, so converting this
-   function alone puts its table at +0 and shifts the whole overlay (check_bin MISMATCH).
-   The two must be converted together, in address order.
+/* best: 99.80% (objdiff), 396 bytes = retail's exact size, 99 instructions and every
+   instruction is retail's; the ONLY residual is `addiu $s0,$s2,160` where the original
+   object carries `addiu $s0,$s2,%lo(D_1F8000A0)`, i.e. a reloc name, not a byte. Writing
+   the vector as the symbol (`extern u16 D_1F8000A0;` + `(SVECTOR *)&D_1F8000A0`) does buy
+   the reloc but loses the shared base register: `ori $a0,$s1,0xa0`, 388 bytes, 93.12.
+   The shape that is now proved correct: `u16 *pScratchPos = (u16 *)0x1F800000;` (one
+   `lui $s2,0x1F80` in the worldMapState bnez slot) + `pScratchPos[0x50]/[0x51]/[0x52]`
+   stores (literal offset immediates, as retail) + `(SVECTOR *)&pScratchPos[0x50]` as the
+   RotMatrixYXZ argument, in that statement order. g_WorldMapViewRotationZ MUST be read as
+   `[0]`: it is an array extern, and the bare name truncates the address (388 bytes, -8).
+   STILL PARKED FOR THE LAYOUT REASON, unchanged: jtbl_80070A30 has to sit at .rodata+0x38
+   behind func_8008E190's two tables at +0/+0x18, and cc1 emits a converted unit's tables at
+   the START of its .rodata, so converting this stub alone moves every later table of the
+   range (check_bin MISMATCH, measured in an earlier round). E190 (parked at 87%) and this
+   function have to be converted together, in address order.
+/*
 s32 func_8008E4F4(s32 idx) {
     WorldMapPlayer *pPlayer;
-    u8 *pScratch;
+    u16 *pScratchPos;
     s32 nRet;
 
     pPlayer = g_WorldMapSlots + idx;
     *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
     g_WorldMapGroups->entry[0].hidden = pPlayer->hidden;
     nRet = 1;
-    pScratch = (u8 *)0x1F800000;
+    pScratchPos = (u16 *)0x1F800000;
     if ((g_GameState.worldMapState & 0x1FFF) == 0) {
         nRet = 3;
     }
@@ -338,14 +339,15 @@ s32 func_8008E4F4(s32 idx) {
         g_WorldMapGroups->entry[1].hidden = 0;
         break;
     }
-    *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
-    *(s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
-    *(s16 *)(pScratch + 0xA2) = pPlayer->angle;
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
+    pScratchPos[0x50] = -(pPlayer->unk70 >> 12);
+    pScratchPos[0x51] = pPlayer->angle;
+    pScratchPos[0x52] = g_WorldMapViewRotationZ[0];
+    RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[0].matrix);
+    RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[1].matrix);
     return nRet;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
+
 s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 nAngle;
@@ -401,25 +403,21 @@ int WorldMapModeInitSpriteSets2And3(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800907F4);
-/* best: 98.27%. Structurally identical (same frame, same registers, two pointers
-   at g_WorldMapGroups+0xA8/+0xFC, one scratchpad base in $s0 live across both calls).
-   The only delta is the value in $s0: retail holds 0x1F800000 and so stores at
-   0xA0/0xA2/0xA4/0xA8/0xAA/0xAC and passes the two RotMatrixZYX vectors with
-   `ori a0,s0,0xA0` / `ori a0,s0,0xA8`; gcc 2.7.2 rematerialises the one-insn
-   constant and derives the vectors as base+0xA0 with `addiu` (98.27), while a
-   base of 0x1F8000A0 keeps a register but shifts all eight offsets (98.27 too,
-   mirrored). Literal 0x1F8000xx addresses make reload use $at per store (74.29);
-   cdk 72.92, so the preset is not the answer.
+// the two ramp counters (unk58, unk5C) climb and fall by this much per frame and stop at
+// WORLD_MAP_ROT_RAMP_MAX; they are the per-frame steps added to the YXZ group rotation
+#define WORLD_MAP_ROT_RAMP_STEP 4
+#define WORLD_MAP_ROT_RAMP_MAX 0x80
 
 s32 func_800907F4(s32 idx) {
     WorldMapPlayer *pPlayer;
     WorldMapRot *pRotA;
     WorldMapRot *pRotB;
+    u16 *pScratchPos;
 
+    pScratchPos = (u16 *)0x1F800000;
     pPlayer = g_WorldMapSlots + idx;
-    pRotA = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xA8);
-    pRotB = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xFC);
+    pRotA = &g_WorldMapGroups->entry[2];
+    pRotB = &g_WorldMapGroups->entry[3];
     if (pPlayer->command == 9) {
         pPlayer->command = 0;
         pPlayer->state = 1;
@@ -433,24 +431,24 @@ s32 func_800907F4(s32 idx) {
         pPlayer->unk5C = 0;
         break;
     case 1:
-        pPlayer->unk58 += 4;
+        pPlayer->unk58 += WORLD_MAP_ROT_RAMP_STEP;
         if (pPlayer->unk58 >= 0x11) {
-            pPlayer->unk5C += 4;
+            pPlayer->unk5C += WORLD_MAP_ROT_RAMP_STEP;
         }
-        if (pPlayer->unk58 >= 0x80) {
-            pPlayer->unk58 = 0x80;
+        if (pPlayer->unk58 >= WORLD_MAP_ROT_RAMP_MAX) {
+            pPlayer->unk58 = WORLD_MAP_ROT_RAMP_MAX;
         }
-        if (pPlayer->unk5C >= 0x80) {
-            pPlayer->unk5C = 0x80;
+        if (pPlayer->unk5C >= WORLD_MAP_ROT_RAMP_MAX) {
+            pPlayer->unk5C = WORLD_MAP_ROT_RAMP_MAX;
         }
-        if ((pPlayer->unk58 >= 0x80) & (pPlayer->unk5C >= 0x80)) {
+        if ((pPlayer->unk58 >= WORLD_MAP_ROT_RAMP_MAX) & (pPlayer->unk5C >= WORLD_MAP_ROT_RAMP_MAX)) {
             pPlayer->state = 3;
         }
         break;
     case 2:
-        pPlayer->unk58 -= 4;
+        pPlayer->unk58 -= WORLD_MAP_ROT_RAMP_STEP;
         if (pPlayer->unk58 < 0x70) {
-            pPlayer->unk5C -= 4;
+            pPlayer->unk5C -= WORLD_MAP_ROT_RAMP_STEP;
         }
         if (pPlayer->unk58 < 0) {
             pPlayer->unk58 = 0;
@@ -465,16 +463,16 @@ s32 func_800907F4(s32 idx) {
     }
     pPlayer->unk50 += pPlayer->unk58;
     pPlayer->unk54 -= pPlayer->unk5C;
-    *(u16 *)0x1F8000A8 = 0;
-    *(u16 *)0x1F8000A0 = 0;
-    *(u16 *)0x1F8000A2 = pPlayer->unk50;
-    *(u16 *)0x1F8000AA = pPlayer->unk54;
-    *(u16 *)0x1F8000A4 = pRotA->rotZ;
-    *(u16 *)0x1F8000AC = pRotB->rotZ;
-    RotMatrixZYX((SVECTOR *)0x1F8000A0, &pRotA->matrix);
-    RotMatrixZYX((SVECTOR *)0x1F8000A8, &pRotB->matrix);
+    pScratchPos[0x54] = 0;
+    pScratchPos[0x50] = 0;
+    pScratchPos[0x51] = pPlayer->unk50;
+    pScratchPos[0x55] = pPlayer->unk54;
+    pScratchPos[0x52] = pRotA->rotZ;
+    pScratchPos[0x56] = pRotB->rotZ;
+    RotMatrixZYX((SVECTOR *)&pScratchPos[0x50], &pRotA->matrix);
+    RotMatrixZYX((SVECTOR *)&pScratchPos[0x54], &pRotB->matrix);
     return 1;
-}*/
+}
 void WorldMapUpdateL2R2PressEdge(void) {
     u16 keys;
     s32 state;
