@@ -3089,29 +3089,60 @@ extern s32 g_FieldStreamSceneActive;
 extern s32 g_FieldMode;
 extern s32 g_FieldStreamFlags;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
+// 74.57% (114 insns / 456 bytes against retail's 118 / 472 - FOUR short: one
+// `lui/lw` load-delay `nop` missing at each of the four continuation reads, so
+// it cannot link). Round 411. The STRUCTURE is the matched twin
+// FieldScriptSetGameState17FC30's - same five-argument idiom: the first byte
+// read uses SCRIPT_READ_U8_REL(0xB), each later one
+// SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB) with a fresh
+// `pActor = g_FieldScriptVMCurActor;` placed BEFORE the store of the previous
+// result, which reproduces retail's per-call `lw v1,actor`.
+// THE RESIDUAL IS LOAD ORDER AT EACH CONTINUATION READ. Retail emits
+//   [lui/lw v1 actor][sh store][lhu v0,0xCC(v1)][lui/lw v1 scriptData][nop][addu v0,v0,v1][lbu]
+// with the ip sum in $v0; here gcc loads scriptData BEFORE the ip lhu and fills
+// that lw's delay slot with the `sh` store, so the stream is
+//   [lw actor][lui/lw a0 scriptData][lhu v1][sh store][addu v1,v1,a0][lbu]
+// One instruction shorter per site. Retail's target row is exactly what the
+// matched twin emits, so it is reachable: the twin's store is a struct field of
+// g_pGameState, and loading its base is what keeps the store in place.
+// TRIED, all 114 insns / 74.57 unless noted: a direct store of each call result
+// with no `value` local (identical), `int value`, and a
+// `do { pActor = g_FieldScriptVMCurActor; store } while (0)` block per
+// continuation read. THAT LAST ONE IS WORTH KNOWING: it reproduces retail's
+// exact size, 118 insns / 472 bytes, each site coming out as
+// [lw actor][sh store][lhu][lui/lw base][nop][addu][lbu] - but it scrambles the
+// TAIL (the D_800C3A30 lhu/andi, the ImageX/ImageY stores and the ip increment
+// end up in a very different order) and scores 65.84, so it is only a base once
+// the tail order is understood too.
+// TAIL here: retail is [li 0x140 sh D_800C3A32][li 0x40 sw g_FieldStreamFlags]
+// [li 1 sh g_FieldStreamRgb24][lhu D_800C3A30][lw actor][li 0x100 sh D_800C3A34]
+// [sh ImageX2][sh ImageY1][sh ImageX1][sh ImageY2][sh LoopPlayback][andi/sh
+// D_800C3A30][lhu ip][li 1][sw g_FieldMode][sw SceneActive][sw StopFlag]
+// [addiu/sh ip]; in this body the D_800C3A30 pair and the ip increment drift
+// down to the end of the block.
 /*
- * func_8008EA58 74.57% (456 bytes, same instruction count as retail). Every
- * segment matches except where the store of the previous argument lands: retail
- * emits [lw actor][sh g_FieldStreamFileIndex][lhu 0xCC][lui/lw scriptData][addu][lbu], we
- * emit [lw actor][lui/lw scriptData][lhu 0xCC][sh g_FieldStreamFileIndex][addu][lbu] - the
- * scheduler refuses to put the lui/sh pair before the scriptData load, so the
- * ip read takes $v1 instead of retail's $v0. Same shape as the matched
- * FieldScriptSetGameState184E, which stores through a loaded pointer
- * (sh 0x184E(reg)) and schedules correctly; the absolute lui/sh pair here does
- * not. Tried: direct assignment, an s16 value local stored before the next call,
- * pActor loaded before the store with SCRIPT_READ_U8(pActor->ip + 0xB),
- * including the load once (all 74.57%).
 void func_8008EA58(void) {
+    ActorData* pActor;
+    s16 value;
+
     if (g_FieldMapChangeGate.value == 0) {
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
     } else {
-        g_FieldStreamFileIndex = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
-        D_800C3A2A = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xB));
-        g_FieldStreamFrameBase = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xB));
-        g_FieldStreamTotalFrames = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
-        g_FieldStreamId = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xB));
+        value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
+        pActor = g_FieldScriptVMCurActor;
+        g_FieldStreamFileIndex = value;
+        value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        pActor = g_FieldScriptVMCurActor;
+        D_800C3A2A = value;
+        value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        pActor = g_FieldScriptVMCurActor;
+        g_FieldStreamFrameBase = value;
+        value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        pActor = g_FieldScriptVMCurActor;
+        g_FieldStreamTotalFrames = value;
+        value = FieldScriptArgument5(9, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        g_FieldStreamId = value;
         D_800C3A32 = 0x140;
         g_FieldStreamFlags = 0x40;
         g_FieldStreamRgb24 = 1;
@@ -3122,13 +3153,13 @@ void func_8008EA58(void) {
         g_FieldStreamImageX1 = 0;
         g_FieldStreamImageY2 = 0x100;
         g_FieldStreamLoopPlayback = 0;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
         g_FieldMode = 0;
         g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
-        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
     }
-}
- */
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 
 // 94.74% (480 bytes against retail's 484 - ONE instruction short, so it cannot
 // link yet). Everything matches: the g_FieldMapChangeGate guard, the four
