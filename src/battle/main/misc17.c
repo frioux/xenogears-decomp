@@ -546,7 +546,26 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
    0xFF) continue;` is what produces retail's cursor bump in the beq delay slot,
    and the test skips only the draw, it does not leave the loop. The
    BattlePacketPool view struct and the D_800C33B4/D_800C33C4/D_800C3404 externs
-   above are for this body. */
+   above are for this body.
+   Re-measured and narrowed (round 405): the third loop is ONE mechanism, loop.c
+   strength-reducing the height index `i * 4` into its own giv (`move s0,zero` in
+   the preheader, `addiu s0,s0,4` in the latch) where retail computes
+   `sll v0,s0,2` per iteration. The pColumns pointer alone does not help: 96.09%
+   at 316 insns (1264), because the giv takes the byte-offset register and pushes
+   pCursor to $s3. A QImode index pseudo DOES block the reduction - a `u_char
+   column` counter, or a `u_char c = i;` copy - emits retail's `sll` plus
+   `lh D_800C3404($v0)` with no giv (proved in cc1_probe), but it costs two
+   `andi 0xff` (the index conversion and the loop test, which becomes
+   `andi`+`sltiu`): 95.47% at 317 insns / 1268 bytes. Retail has neither an andi
+   nor an sltiu, so its index is s32 and something other than register pressure
+   kept its multiply alive. Also measured, all 96.09-96.28%: heights through
+   `((s16 *)D_800C3404)[i * 2]` and through a flat `s16 D_800C3404[]` + `[i * 2]`
+   (both hoist the table base into a register in the preheader, `lh 0($s0)`,
+   `addiu s0,s0,4`, at retail's 1260/315), a separate `s32 col` counter, a
+   `s16 height` local for the fourth argument, and a flat `s16 *pColumns`. The
+   table-base-hoist levers (g-strength-reduce-table-base,
+   k-array-base-pointer-local) point the wrong way here: this needs the multiply
+   UNREDUCED while the base stays in the %hi/%lo relocation. */
 /*
 void func_80092298(u8 arg0, u8 *arg1) {
     s32 i;
