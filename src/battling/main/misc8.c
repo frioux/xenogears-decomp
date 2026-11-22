@@ -407,42 +407,19 @@ void BattleDrawTextSprites(u8 *p) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
-/* 77.44% (492 bytes vs retail 496).  Shape fully decoded from the asm and
-   verified: two loops over p->count at 0x14 stride through p->pEntries;
-   loop 1 does entry->xOffset = BattleGetTextWidth(entry->unk4) / 2 and keeps the
-   running max, loop 2 stores max into entry->xOffset for the entries whose
-   flags byte has bit 1; then the frame header stores, the p->extraWidth
-   fixups, a 16-byte copy of the frame at 0x1C into 0x2C (frames[1] =
-   frames[0] gives retail's four lw then four sw) and BattleSetTextColor(0).
-   Learned: max must be s32, not s16 - as s16 gcc sign-extends max before
-   the compare where retail sign-extends the fresh quotient.
-   Remaining levers: (a) retail materialises p + 0x1C into $a0 once, before
-   the y store, and reaches frame.x / frame.w in the tail block as
-   0x8($a0) / 0xC($a0), while ours keeps every frame access s1-relative -
-   an untried `BattleTextFrame *pFrame = &p->frames[0];` pointer local used in
-   the tail block; (b) retail's max = 0 lands in the blez delay slot while
-   ours hoists it into the prologue, and i/off keep swapping register
-   roles; (c) the order of the count reload, the lhu of y and the
-   0x2A / 0x26 stores differs.
-   Note this unit's original compiler merges adjacent constant stores (see
-   the func_80080F04 and func_80081ECC parks), which is why 0x20 here is a
-   single sw of 0x60102020.
 void func_800812BC(BattleTextList *p) {
-    s32 off;
     s32 i;
     s16 w;
     s32 max;
     BattleTextEntry *pEntry;
+    BattleTextFrame *pFrame;
 
     max = 0;
-    for (i = 0, off = 0; i < p->count; i++, off += 0x14) {
-        pEntry = (BattleTextEntry *)(p->pEntries + off);
-        w = BattleGetTextWidth(pEntry->unk4) / 2;
+    for (i = 0; i < p->count; i++) {
+        pEntry = &p->pEntries[i];
+        w = BattleGetTextWidth(pEntry->pData) / 2;
         pEntry->xOffset = w;
-        if (max < w) {
-            max = w;
-        }
+        max = max < w ? w : max;
     }
     i = 0;
     p->frames[0].code = 3;
@@ -454,20 +431,22 @@ void func_800812BC(BattleTextList *p) {
     ((u8 *)&p->frames[0].mode)[3] |= 2;
     p->frames[0].h = p->count * 20 + 0x14;
     p->frames[0].y = p->y - 0xA;
-    for (off = 0; i < p->count; i++, off += 0x14) {
-        pEntry = (BattleTextEntry *)(p->pEntries + off);
+    pFrame = &p->frames[0];
+    for (; i < p->count; i++) {
+        pEntry = &p->pEntries[i];
         if (pEntry->flags & 2) {
             pEntry->xOffset = max;
         }
     }
     if (p->extraWidth != 0) {
-        p->frames[0].w += p->extraWidth;
-        p->frames[0].x -= p->extraWidth / 2;
-        p->x = 0xA0 - p->extraWidth / 2 - max;
+        pFrame->w += p->extraWidth;
+        pFrame->x -= p->extraWidth / 2;
+        p->x = 0xA0 - p->extraWidth / 2;
+        p->x -= max;
     }
     p->frames[1] = p->frames[0];
     BattleSetTextColor(0);
-}*/
+}
 
 void BattleInitTextLists(void) {
     u32 i;
