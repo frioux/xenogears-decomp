@@ -365,8 +365,33 @@ next:
    cross-jumps the shared tail into retail's `j .L80090398`) and the `& 0xF8` / `& 0xD0`
    masks on the u arguments (retail's `andi a3,a3,0xf8` / `andi a3,s1,0xd0`; a plain u8
    parameter gives `andi 0xff`).
+*/
+/* PARKED 98.70% at retail's exact size (400 bytes, 100 instructions) under the unit's
+   gcc-2.6.0. ROUND 406 redo from a 81.85% park that was 2 instructions LONG; the body below
+   is 100/100 and the only residual is one v0/v1 mirror in the palette block.
+   Measured levers, all new this round:
+   - the two calls' addresses are `(POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230))
+     + (g_BattlePrimStartIndex[0] + 8)` / `+ (10)` with the base load INLINE at both sites:
+     the pointer-arithmetic index lets cc1 distribute the constant onto the product, so the
+     chain lands in a0 and reads `sll a0,v1,2 / addu a0,a0,v1 / sll a0,a0,3 / addiu a0,a0,0x140`
+     with `addu a0,a0,t0` in the jal slot - retail's exact shape (81.85 -> 98.70). The permuter
+     found the first-site half (base=150 best=140); writing both sides inline gave the rest.
+     Byte-offset spellings (`prim * 0x28 + 0x140 + (s32)pBase`), the same sum in an `ofs` local
+     (measured on the function AND in a cc1_probe: the local alone reproduces retail's chain,
+     but in the function cc1 defers the pool load past the multiply and the chain goes to v0)
+     and `pPrims + prim + 8` all give `addiu v0,t0,320 / addu a0,a0,v0` or a mirrored addu.
+   - the palette store must be the SAME byte-arithmetic expression duplicated in both arms
+     (that is what reproduces retail's duplicate prim*5 / palette-load / multiply-join block).
+   Residual (alone): retail loads prim into v0 and the `prim * 5` product into v1, this build
+   mirrors it (prim v1, product v0) and then reuses that register for the pool base, so the
+   join reads `sll v0,v0,3` where retail has `sll v1,v1,3`. A local-alloc tie between two
+   pseudos of the same block: tried and dead - POLY_FT4 pointer + subscript, the ofs local,
+   `do { } while (0)` around each arm's store (the documented no-cost tie mover, no change),
+   and statement/declaration order. Next lever to try: a different spelling of the store's
+   base (`(u8 *)g_BattleGraphicsWork->pPacketPrims` typed vs the cast used here) or a
+   permuter run from THIS body.
+/*
 void func_80090310(u8 arg0, u8 arg1) {
-    u8 *pBase;
     s32 index;
     s32 vofs;
     s32 u;
@@ -383,10 +408,8 @@ void func_80090310(u8 arg0, u8 arg1) {
     }
     v = index / 2 * 13;
     u = index % 2 * 0x78;
-    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex[0] * 0x28 + 0x140 + (s32)pBase), 0x18, 0x33, u & 0xF8, v & 0xFF, 0x60);
-    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex[0] * 0x28 + 0x190 + (s32)pBase), 0x84, 0x33, (index % 2 << 6 | vofs) & 0xD0, v & 0xFF, 0x10);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) + (g_BattlePrimStartIndex[0] + 8), 0x18, 0x33, u & 0xF8, v & 0xFF, 0x60);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) + (g_BattlePrimStartIndex[0] + 10), 0x84, 0x33, (index % 2 << 6 | vofs) & 0xD0, v & 0xFF, 0x10);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
