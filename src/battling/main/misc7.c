@@ -142,49 +142,35 @@ void BattleByteRegTestReg(u8* pText);
 void func_8007F258(void* pOt, s32 arg);
 extern int ControllerGetType(int controllerIndex);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
-
-/* 99.17% (96 bytes, retail 96). The only residual is the ORDER of the two
-   stores: retail is `sw v1,0(a1)` [D_80098800 chain] then `lw ra,24(sp)` then
-   `sw v0,0(a0)` [D_800970E4 chain], and every spelling below emits the two
-   stores the other way round while keeping retail's registers ($a1/$v1 = the
-   D_80098800 chain, $a0/$v0 = the D_800970E4 chain) and its load/ori order.
-   This compiler allocates a chain's base/value pseudos in CREATION order, so
-   the statement order that fixes the registers is the one that also fixes the
-   store order - the two cannot be decoupled from source. Measured: two plain
-   `pA[0] |= 0xC;` / `pB[0] |= 0xC;` with pointer locals A-first 96.25 (registers
-   reversed: $a0/$v0 for the D_80098800 chain), the same with the ORs in the
-   other order 97.50 (registers right, both chains' positions swapped), the
-   D_80098800 chain written store-first 96.25/97.71, both chains via value
-   temporaries 97.71, s32 return type (pins $v0 on the last chain, no change to
-   the bases) 96.67, gcc-2.6.0 90.42 (same registers, `sw A / sw B / lw ra`),
-   gcc-2.7.2-cdk compile-fails on this body. Three permuter runs: 4 min from 97.50
-   found the `new_var = D_800970E4; pB = new_var;` double copy plus the
-   D_80098800 chain through a value temporary (98.75), 4 min from there found
-   the one-statement-per-arithmetic-step split (new_var3, 99.17), and 3 min from
-   that found nothing (RESULT PERMUTER_NONE base=20 best=20).
-
-   ROUND 393 (new): the two chains are only ever swapped TOGETHER, and the
-   reason is now measured. A body that matches retail's ENTIRE instruction
-   order - both la, both loads, both oris, both stores and the lw-ra slot -
-   is `D_80098800[0] |= 0xC; return D_800970E4[0] |= 0xC;` with an s32
-   return type: 97.92, and its VALUE registers are already retail's ($v1 =
-   98800, $v0 = 970E4) because a returned value is forced into $2. That is
-   also evidence the retail function returns the 970E4 flags word (it has no
-   callers, so Ghidra reports no return). Its only residual is the two BASE
-   registers, $a0/$a1 for 98800/970E4 where retail has $a1/$a0.
-   Which base gets $a0 is decided by which chain's base pseudo DIES first in
-   RTL order (earliest death takes $a0), verified on four bodies: plain
-   98800-then-970E4 96.25 ($a0 = 98800), reversed 97.50 ($a0 = 970E4),
-   98800-split-store 98.33 ($a0 = 98800), return form 97.92 ($a0 = 98800).
-   Retail has the LAST-dying base in $a0, i.e. its RTL order was 970E4 first
-   while its emitted order is 98800 first, so in retail the post-reload
-   scheduler swapped the chains. No source order reproduces that, because the
-   chain order moves death order and emission order together - which is why
-   the permuter cannot find it either.
-   Preset is not the answer: on the 97.50 body try_flags --sweep gives 2.7.2
-   -O2/-O3 x -G4/-G8 = 97.5 (the max), 2.6.0 = 88.75, 2.7.2-cdk = 86.5. */
-/* void func_8007F854(void) {
+// 99.17% (96 bytes, retail 96, 24 insns). Residual is the ORDER of the two
+// `|= 0xC` chains, not their registers: retail emits D_80098800's whole chain
+// (la $a1, lw $v1, ori, sw $v1) then `lw ra,24(sp)` then D_800970E4's (la $a0,
+// lw $v0, ori, sw $v0); this body emits the 970E4 chain first. In the body kept
+// below the registers are already retail's ($a1 = D_80098800, $a0 = 970E4).
+// The two are coupled through the allocator: whichever chain's base pseudo dies
+// first in RTL (i.e. is stored first) takes $a0, so the source order that fixes
+// the registers also fixes the emission order. Retail has the last-dying base in
+// $a0, i.e. its post-reload scheduler swapped the two chains - no source order
+// does that and the permuter cannot reach it either.
+// Measured this round: plain `D_80098800[0] |= 0xC; D_800970E4[0] |= 0xC;` in
+// that order 96.25 (registers mirrored: $a0 = 98800); the SAME two statements
+// reversed 95.42 (registers right, both chains' emission order mirrored - the
+// cleanest body, one scheduler decision from a match); the park below (value
+// temporaries for the 98800 chain, its store last) 99.17, i.e. the two chains
+// swapped. Older measurements: pointer locals A-first 96.25, 98800 store split
+// 98.33, both chains via value temporaries 97.71, s32 return with
+// `D_80098800[0] |= 0xC; return (D_800970E4[0] |= 0xC);` 97.92 (forces $v0/$v1 on
+// the returned value, reproduces retail's ENTIRE order, only the two bases
+// swapped), gcc-2.6.0 90.42/88.75, gcc-2.7.2-cdk 86.5, try_flags --sweep: max
+// 97.5 at 2.7.2 -O2/-O3 x -G4/-G8.
+// Permuter: three earlier runs (4/4/3 min) reached 97.50 -> 98.75 -> 99.17 -> no
+// find, plus this round a fourth 3-min run from 99.17 (2022 iterations,
+// base=20 best=20, PERMUTER_NONE). The useful body is the RETURN form above, so
+// on a candidates list prefer it: its only residual is the two base registers.
+// Evidence that retail returns the 970E4 flags word: no callers, and $v0 is
+// forced for a returned value while retail has $v0 = 970E4.
+/*
+void func_8007F854(void) {
     s32* new_var;
     int new_var3;
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
@@ -204,7 +190,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
     pB[0] |= 0xC;
     new_var2 = new_var3;
     pA[0] = new_var2;
-} */
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
+
+
 void BattleResetTextListState(void) {
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
 
