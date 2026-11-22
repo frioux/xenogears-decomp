@@ -170,23 +170,39 @@ void WorkListDeleteTask(WorkListEntry* pTask) {
     HeapFree(pTask);
 }
 
-// 58.60%: same shape as WorkListAddTask, plus the g_FlagTimerWorkListAdds arm that counts
-// the entry in g_NumFlaggedTimerWorkListEntries and sets unk14_3.
+/* Best: 84.20% (232 bytes, 58 insns vs retail's 240/60). Structure is right: one merged
+   unk14-word RMW (value from pData->unk10 + three one-at-a-time clears of bits 29/30/31),
+   unk10 word gets the counter and keeps its top bits, four mask constants hoisted to the
+   top in retail's registers, both flag arms present, head insert and count increments exact.
+   Two residuals, both sched2/register-tie (the a-base-register-takes-earliest-death lever):
+   (1) retail loads the counter early (lw a3, gp right after the masks) and keeps it in a3;
+     this body loads it late (after sw v0,12) into v0, and the unk14/unk10 words land in
+     v1/a3 where retail has v0/v1. Source order moves both together; only sched2 decouples
+     them - same wall as WorkListAddTask above (12 orderings, 89.34% ceiling).
+   (2) retail's taken arm stores through t3 and the else arm through v1 (a copy made in the
+     beqz delay slot), so the two arm-tail stores differ and cross-jumping leaves them
+     separate; gcc here cross-jumps the sw into one shared tail. A 4-min permuter run found
+     only an UNINITIALISED-pointer spelling of exactly that (new_var2 used before set,
+     base 956 -> best 806): rejected as wrong code, but it shows a second pointer pseudo in
+     the arms is what breaks the cross-jump.
+   Tried: old park shape 55.23; unk10=id between group and clears (splits the merge, two
+   0x14 stores, 58.70); group after unk0 + inline post-increment 84.20; same + id local
+   first statement 80.62 (counter load late anyway); group after callbacks 60.73 (the
+   pData->unk10 read must sit right after unk0, worth +23%); unk10 statement moved next to
+   the if 84.20 (tie). Presets: 2.6.0 79.7, 2.7.2-cdk 83.72 - both worse, preset ruled out. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
 /*
 void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
-    s32 id;
-
-    id = g_WorkListNextTaskId++;
     pEntry->unk0 = pData;
-    pEntry->pNext = g_TimerWorkList;
-    g_TimerWorkList = pEntry;
-    pEntry->onTriggerCallback = NULL;
-    pEntry->onFreeCallback = TimerWorkListRemoveTask;
     pEntry->unk14 = pData->unk10;
     pEntry->unk14_1 = 0;
     pEntry->unk14_2 = 0;
-    pEntry->unk10 = id;
+    pEntry->unk14_3 = 0;
+    pEntry->unk10 = g_WorkListNextTaskId++;
+    pEntry->onTriggerCallback = NULL;
+    pEntry->onFreeCallback = TimerWorkListRemoveTask;
+    pEntry->pNext = g_TimerWorkList;
+    g_TimerWorkList = pEntry;
     if (g_FlagTimerWorkListAdds != 0) {
         g_NumFlaggedTimerWorkListEntries++;
         pEntry->unk14_3 = 1;
@@ -195,12 +211,6 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     }
     g_NumTimerWorkListEntries++;
 }
-   Does not match yet: the same load-order/register-allocation problem as
-   WorkListAddTask above (original loads the counter into a3 first, keeps the
-   unk10 word in v1 and the unk14 word in v0, and copies pEntry to t3 because a1
-   becomes the 0xE0000000 mask; here pEntry lands in t4 and a1 takes the unk10
-   word). Four orderings tried, 31.6-58.6%. The g_FlagTimerWorkListAdds arm itself does
-   reproduce (lbu, lw plus at-store of g_NumFlaggedTimerWorkListEntries, or 0x80000000).
 */
 
 WorkListEntry* TimerWorkListAllocateTask(void* pData, int dataSize) {
