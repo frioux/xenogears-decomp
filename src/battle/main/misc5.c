@@ -500,24 +500,17 @@ void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
     }
     pRow[p->operand1] = v;
 } */
-/* 99.09% - 88 bytes, retail 88 (0x58). NAMED RESIDUAL: the mult operand order.
-   Retail is mult v1,v0 (row value in v1, p->operand2 in v0), this body emits mult v0,v1. The hardware
-   result is identical (mult is commutative) so this is one instruction ENCODING apart and it can never
-   link; every other instruction, register and the load cluster are retail exact.
-   Why it is a wall in gcc 2.7.2: the mult operands follow SOURCE order, and the load order follows
-   the same source order, so the two are locked to each other. p->operand2 first in the expression
-   gives retail load order (lbu idx, lbu operand2, addu, lbu row) with mult v0,v1; the row first
-   gives the row load before operand2 (sunk to the mult) with mult in the right PLACES but reversed
-   registers (row in v0, operand2 in v1).
-   Measured round 396 on top of rounds 20/35/135/164/167:
-   - 2.6.0 and 2.7.2-cdk emit retail load order from the row-first body, but both write slt for the
-     clamp where retail has slti, so they are the wrong compiler for this function (2.6.0 scores 99.55).
-   - two u8 locals for the operands: copy-propagated away, byte-identical to the row-first body (71.05).
-   - typed array form g_BattleSlotRegs[arg1].byteRegs[p->operand1] on both sides: 71.05, same shape.
-   - volatile read of p->operand2: 71.09, the same reversal with operand2 landing in v1.
-   - -fschedule-insns and -fschedule-insns2 under 2.7.2 change nothing (checked in cc1 output).
-   permuter 2259 iterations earlier: base=20 best=20.
-   Kept as a park: the body below is the 99.09 spelling. */
+/* 99.09% - 88 bytes, retail 88. NAMED RESIDUAL: the mult operand order. Retail is `mult v1,v0`
+   (row value in v1, p->operand2 in v0); the body below is instruction-, register- and load-cluster
+   exact everywhere else but emits `mult v0,v1`, i.e. its source order (operand2 first) is locked to
+   the load order that reproduces retail's five loads. mult is commutative, so the hardware result is
+   identical - this is one ENCODING apart and it can never link.
+   Measured round 411: the row-first spelling (`pRow[p->operand1] * p->operand2`) gives retail's mult
+   ORDER but swaps the registers (row in v0, operand2 in v1) and sinks operand2's lbu below the row
+   load: 71.05. An `s32 mul = p->operand2;` local keeps operand2 in v1 and the same 71.09.
+   2.6.0 / 2.7.2-cdk emit retail's load order from the row-first body but `slt` for the clamp where
+   retail has `slti` (2.6.0: 99.55). Two 3-minute permuter runs (1733 and 2259 iterations): base=20
+   best=20, nothing found. The body below is the 99.09 spelling. */
 /*
 void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
