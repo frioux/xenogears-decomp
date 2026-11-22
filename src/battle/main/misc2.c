@@ -558,9 +558,8 @@ void BattleDrawFrameByScreenMode(void) {
 }
 
 void func_800765C4(s32 slot) {
+    BattleWork *pWork;
     u16 *pOrigin;
-    u8 *pWork;
-    u8 *pAb;
     mem_addr origins;
     s32 index;
     s32 base;
@@ -574,37 +573,38 @@ void func_800765C4(s32 slot) {
     origins = (mem_addr)g_BattleSlotScreenOrigins;
     pOrigin = (u16 *)(index * 2 + origins);
     base = *pOrigin;
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x44) = 0x1C;
+    g_BattleDisplayState->y = 0x1C;
     offset = base + 0x48;
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x34) = slot * 0x60 + offset;
+    g_BattleDisplayState->x = slot * 0x60 + offset;
     if (g_BattleSlotFlags[slot * 8] != 0 && g_BattleActorCharIds[slot] != 7) {
         offset2 = *pOrigin + 0x44;
-        *(s32 *)((u8 *)g_BattleDisplayState + 0x44) = 0x24;
-        *(s32 *)((u8 *)g_BattleDisplayState + 0x34) = slot * 0x60 + offset2;
+        g_BattleDisplayState->y = 0x24;
+        g_BattleDisplayState->x = slot * 0x60 + offset2;
     }
 
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x3C) = 0x10;
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x4C) = 0x98;
-    pWork = (u8 *)g_BattleDisplayState;
-    height = *(s32 *)(pWork + 0x34) - 5;
-    *(s32 *)(pWork + 0x54) = height - *(s32 *)(pWork + 0x3C);
-    divisor = *(s32 *)(pWork + 0x44) + 5;
-    *(s32 *)(pWork + 0x5C) = *(s32 *)(pWork + 0x4C) - divisor;
-    divisor = *(s32 *)(pWork + 0x5C);
-    scaled = (*(u32 *)(pWork + 0x54) << 8) / divisor;
-    *(u16 *)(pWork + 0x104) = 0x800;
-    *(u8 *)((u8 *)g_BattleDisplayState + 0xA9) = 6;
-    *(s32 *)(pWork + 0x5C) = 0x100;
-    pAb = (u8 *)g_BattleDisplayState;
+    g_BattleDisplayState->xTarget = 0x10;
+    g_BattleDisplayState->yTarget = 0x98;
+    pWork = g_BattleDisplayState;
+    height = pWork->x - 5;
+    pWork->xStep = height - pWork->xTarget;
+    divisor = pWork->y + 5;
+    pWork->yStep = pWork->yTarget - divisor;
+    divisor = pWork->yStep;
+    scaled = (pWork->xStep << 8) / divisor;
+    pWork->panelScale = 0x800;
+    g_BattleDisplayState->moveSteps = 6;
+    pWork->yStep = 0x100;
     do { // a unit so the cluster keeps retail's place after the 0x5C pair
-        *(s32 *)(pWork + 0x64) = 0;
-        *(s32 *)(pWork + 0x6C) = 0;
-        *(u16 *)(pWork + 0x106) = 0;
+        pWork->xOffset = 0;
+        pWork->yOffset = 0;
+        pWork->panelAngle = 0;
     } while (0);
-    *(s32 *)(pWork + 0x54) = scaled;
-    *(u8 *)(pAb + 0xAB) = 1;
+    pWork->xStep = scaled;
+    g_BattleDisplayState->sizeSteps = 1;
     g_BattleDisplayState->panelMode[slot]--;
-}INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
+}
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 /* 95.68% at retail's exact 728 bytes; 4-minute permuter runs from 91.53 and from
    this body both returned BETTER on their own metric but the ported edits were
    worse under objdiff, so nothing was kept. What is left is allocation and
