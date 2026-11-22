@@ -548,41 +548,25 @@ void func_8008110C(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
-/* 63.38% (772 vs retail 776 bytes): the ring layout is settled - 32 entries of
-   0x48 bytes based at D_800B14F0, filled from the player actor
-   (pActorData = FieldActor 0x4C, pSpriteData = 0x4; the earlier note had those
-   two swapped) and indexed by the volatile s32 g_FieldSpriteUpdateIndex, which retail
-   re-reads once per statement (13 reads). Then D_800C3910 = 0 and
-   g_FieldSpriteUpdateIndex = (g_FieldSpriteUpdateIndex - 1) & 0x1F. Two early outs:
-   actorIndex != g_PlayerActorIndex and g_FieldPartyMoveInProgress != 0.
-   Our instruction ORDER per store is value-load before the index read where
-   retail reads the index first, gcc hoists &D_800B1506 (the loop's tri-id
-   base) to the top where retail derives it mid-body from la a1,D_800B1510
-   (-0xA and +0x10), and the 0x18 frame plus retail's addiu sp,-0x18 in the bne
-   delay slot are missing (retail has a dead ~0x18 local). Every store's reloc
-   is D_800B14F0+off here against a splat label there, which diff_func folds -
-   so this one can only be judged on a MATCH line plus equal byte count, then
-   check_bin.sh. Struct below (FieldActorRenderPacket) is declared in this .c.
 typedef struct {
-    // 0x00 u_int scriptFlags;
-    // 0x04 u_int flags;
-    // 0x08 s16 positionX;
-    // 0x0A s16 positionY;
-    // 0x0C s16 positionZ;
-    // 0x0E s16 unk0E;
-    // 0x10 u_short spriteField84;
-    // 0x12 u_short animationId;
-    // 0x14 u_short rotation;
-    // 0x16 s16 walkmeshTriIds[4];
-    // 0x1E u_short unk1E;
-    // 0x20 IVEC3 step;
-    // 0x2C s32 unk2C;
-    // 0x30 IVEC3 normal;
-    // 0x3C s32 unk3C;
-    // 0x40 u_int walkmeshTriMaterial;
-    // 0x44 u8 walkmeshId;
-    // 0x45 undefined8 pad45[3];
+    /* 0x00 */ u_int scriptFlags;
+    /* 0x04 */ u_int flags;
+    /* 0x08 */ s16 positionX;
+    /* 0x0A */ s16 positionY;
+    /* 0x0C */ s16 positionZ;
+    /* 0x0E */ s16 unk0E;
+    /* 0x10 */ u_short spriteField84;
+    /* 0x12 */ u_short animationId;
+    /* 0x14 */ u_short rotation;
+    /* 0x16 */ u_short walkmeshTriIds[4];
+    /* 0x1E */ u_short unk1E;
+    /* 0x20 */ IVEC3 step;
+    /* 0x2C */ s32 unk2C;
+    /* 0x30 */ IVEC3 normal;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ u_int walkmeshTriMaterial;
+    /* 0x44 */ u8 walkmeshId;
+    /* 0x45 */ undefined8 pad45[3];
 } FieldActorRenderPacket; // Size: 0x48
 
 extern FieldActorRenderPacket D_800B14F0[];
@@ -591,10 +575,31 @@ extern s32 D_800C3910;
 extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_PlayerActorIndex;
 
+/* R400 redo: fresh body, 63.95% (776 vs retail 776 bytes, 194 vs 194 insns).
+   Ring layout is settled: 32 entries of 0x48 at D_800B14F0, indexed by the
+   volatile s32 g_FieldSpriteUpdateIndex (13 reads, one per statement), step from
+   SpriteData (0xC/0x10/0x14) into 0x20, curTriNormal (0x50/0x54/0x58) into 0x30,
+   then rotation (0x106 & 0xFFF) into 0x14, sprite 0x84 into 0x10, position high
+   halves ((s16*)&pActor->position)[1/3/5] into 0x08, curAnimationId (0xE8) into
+   0x12, curWalkmeshTriMaterial (0x14) into 0x40, scriptFlags/flags into 0x00/0x04,
+   the walkmeshTriIds loop into 0x16, walkmeshId (0x10, sb) into 0x44, then
+   D_800C3910 = 0 and index = (index - 1) & 0x1F.
+   FOUND THIS ROUND: retail's frame is 0x18 because of a dead 0x18-byte local
+   (its `addiu sp,sp,-0x18` sits in the bne delay slot and nothing ever touches
+   the frame). Declaring `IVEC3 unused[2]` reproduces the frame exactly: 194/194
+   insns, 776 bytes = retail, 63.38 -> 63.95. Keep it.
+   Still open: every store loads the value (lw 0xC(a2)) before the volatile index
+   read where retail reads the index first and then the value, so the whole body
+   is one instruction out of phase; and gcc hoists &D_800B1506 (t2/t1) to the top
+   where retail derives it mid-body from la a1,D_800B1510. Registers follow from
+   those two (retail pActorData=t0/pSpriteData=a2, ours a3/a1). */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
+/*
 void func_80081C54(int actorIndex) {
     FieldActor* pFieldActor = &g_FieldActors[actorIndex];
     ActorData* pActor = pFieldActor->pActorData;
     SpriteData* pSprite = pFieldActor->pSpriteData;
+    IVEC3 unused[2];
     int i;
 
     if (actorIndex != g_PlayerActorIndex) {
@@ -609,23 +614,24 @@ void func_80081C54(int actorIndex) {
     D_800B14F0[g_FieldSpriteUpdateIndex].normal.x = pActor->curTriNormal.vx;
     D_800B14F0[g_FieldSpriteUpdateIndex].normal.y = pActor->curTriNormal.vy;
     D_800B14F0[g_FieldSpriteUpdateIndex].normal.z = pActor->curTriNormal.vz;
-    D_800B14F0[g_FieldSpriteUpdateIndex].rotation = (u_short)pActor->rotation.vy & 0xFFF;
-    D_800B14F0[g_FieldSpriteUpdateIndex].spriteField84 = (u_short)pSprite->field_0x84;
+    D_800B14F0[g_FieldSpriteUpdateIndex].rotation = pActor->rotation.vy & 0xFFF;
+    D_800B14F0[g_FieldSpriteUpdateIndex].spriteField84 = pSprite->field_0x84;
     D_800B14F0[g_FieldSpriteUpdateIndex].positionX = ((s16*)&pActor->position)[1];
     D_800B14F0[g_FieldSpriteUpdateIndex].positionY = ((s16*)&pActor->position)[3];
     D_800B14F0[g_FieldSpriteUpdateIndex].positionZ = ((s16*)&pActor->position)[5];
-    D_800B14F0[g_FieldSpriteUpdateIndex].animationId = (u_short)pActor->curAnimationId;
+    D_800B14F0[g_FieldSpriteUpdateIndex].animationId = pActor->curAnimationId;
     D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshTriMaterial = pActor->curWalkmeshTriMaterial;
     D_800B14F0[g_FieldSpriteUpdateIndex].scriptFlags = pActor->scriptFlags.flags;
     D_800B14F0[g_FieldSpriteUpdateIndex].flags = pActor->flags;
     for (i = 0; i < 4; i++) {
         D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];
     }
-    D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshId = (u8)pActor->walkmeshId;
+    D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshId = pActor->walkmeshId;
     D_800C3910 = 0;
     g_FieldSpriteUpdateIndex = (g_FieldSpriteUpdateIndex - 1) & 0x1F;
 }
 */
+
 int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
 
