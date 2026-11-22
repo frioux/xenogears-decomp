@@ -40,8 +40,8 @@ typedef struct {
 typedef struct {
     /* 0x0000 */ u8 unk0[0x2AE0];
     /* 0x2AE0 */ u_char renderContext;
-    /* 0x2AE1 */ u8 unk2AE1;
-    /* 0x2AE2 */ u8 unk2AE2;
+    /* 0x2AE1 */ u8 levelPrimCount; // digit prims the character's level number drew
+    /* 0x2AE2 */ u8 unk63DigitsPrimCount; // digit prims GameCharacter.unk63 drew
     /* 0x2AE3 */ u8 firstWideNumberPrimCount; // prims the first wide number drew
     /* 0x2AE4 */ u8 secondWideNumberPrimCount; // prims the second wide number drew
     /* 0x2AE5 */ u8 firstWideNumber2PrimCount; // prims the second wide number pair's first number drew
@@ -516,20 +516,20 @@ void func_801D6CF4(u_char index, u_char row) {
     s32 i;
 
     MenuParseNumberToDigits(g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].level);
-    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1 = 0;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->levelPrimCount = 0;
     for (i = 0; i < MENU_LEVEL_DIGIT_COUNT; i++) {
         if (g_Menu->digits[6 + i] != MENU_DIGIT_NONE) {
-            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1 += func_8002675C(
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->levelPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1 *
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->levelPrimCount *
                                  (2 * sizeof(POLY_FT4)) +
                              0xAF0)),
                 g_Menu->renderContext, D_801E9CE0 + i * MENU_DIGIT_SPACING - row * 24, D_801E9CE4,
                 0x1000);
         }
     }
-    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1; i++) {
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->levelPrimCount; i++) {
         s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
 
         pBase = (u8*)g_Menu->pGearWindowPrims;
@@ -541,21 +541,24 @@ void func_801D6CF4(u_char index, u_char row) {
     }
 
     MenuParseNumberToDigits(g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk63);
-    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2 = 0;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk63DigitsPrimCount = 0;
     for (i = 0; i < MENU_LEVEL_DIGIT_COUNT; i++) {
         if (g_Menu->digits[6 + i] != MENU_DIGIT_NONE) {
-            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2 += func_8002675C(
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk63DigitsPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2 *
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk63DigitsPrimCount *
                                  (2 * sizeof(POLY_FT4)) +
                              0xBE0)),
                 g_Menu->renderContext, D_801E9CE8 + i * MENU_DIGIT_SPACING - row * 24, D_801E9CEC,
                 0x1000);
         }
     }
-    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2; i++) {
-        // Each of these re-forms the prim address: a shared local keeps it in a register.
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk63DigitsPrimCount; i++) {
+        // Every use re-forms the prim address: a local would keep it in a register across
+        // the call. The constant has to precede the offset sum in SetShadeTex's argument
+        // (retail adds 0xBE0 to the offset, then the base) while the three stores add the
+        // base last.
         SetShadeTex((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + 0xBE0 +
                                 (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)),
                     0);
@@ -565,6 +568,8 @@ void func_801D6CF4(u_char index, u_char row) {
                      (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->g0 = 0x80;
         ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
                      (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0xBE0))->b0 = 0;
+        // The double-negated offset is what puts the base first in this sum's addu;
+        // every plain spelling mirrors the operands.
         MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x2360 + i * 0x20),
                             ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
                                          -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0xBE0))->x0,
