@@ -165,7 +165,7 @@ void MenuFreeUnk42CPanel(void) {
       stays in $a0 across an addu in retail but in $v0 here, and mfhi lands in
       $t0 here vs $v0 in retail. That is the round 391 preset signature, but the
       same body scores 90.48% / 1016 bytes under gcc 2.6.0, so this unit is MIXED:
-      2.6.0 is better for func_801DB39C (99.93 vs 98.77) and worse here.
+      2.6.0 is better for func_801DB39C (100.00 vs 98.77, see its park) and worse here.
    c) five addu operand flips (retail base-first, ours index-first).
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
@@ -311,51 +311,47 @@ void MenuFreeArrowCursor(u_char index) {
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
-/* PARK 98.77%, 588 bytes. Retail is 584 (146 insns: .s runs 0x1639C..0x165E4;
-   an older note's "580" was wrong), so the body is ONE instruction over and
-   cannot link until it goes. Frame, saved set ($s0-$s4 + $ra), both loop
-   counters and every other instruction match.
-   The one extra instruction: retail fills the delay slot of the item-name
-   loop's `beq v1,v0,.L801DB490` (the r0==0x20 skip) with the LATCH increment
-   `addiu s1,s1,1`, so the increment exists once; here the slot is a `nop` and
-   the addiu stays at the latch. BLOCK_ROTATION class, and the fill is invariant
-   in the source: for / while / do-while / guard+bottom-test / `goto nextRow` /
-   `for (;;)` with an empty init / `++i` / `continue` / `!(cond)` / a
-   `do {} while (0)` around the if body all measure 98.77% at 588 bytes with the
-   identical nop-in-slot. Do not re-spend a lane on the loop shape.
-   The five single-string sites need their poly reached OFFSET-FIRST
-   (`rc * sizeof(POLY_FT4) + (u32)base`): the plain `&base->polys[rc]` emits
-   `addu d,base,sum` where retail has `addu d,sum,base`.
-   The item-name loop's TEST poly must be reached through the PANEL
-   (`pItemRows->itemNameStrings[i].polys[pRow->renderContext]`) while the row
-   pointer pRow supplies the renderContext and the CALL argument. That is what
-   reproduces retail's two-addu test address (base + (rc*0x28 + i*0x80)) with the
-   row pointer left in $a2 for the renderContext load, and with it the whole
-   loop's register assignment (pRows $a0, row pointer $a2, rc $v1) comes out
-   exact - 97.16 -> 98.77. Any single-expression spelling of the test makes gcc
-   reuse the row pointer and need only one addu.
-   Two addu operand orders left (no size effect):
-   (a) quantity-string poly base: retail `addu v1,s2,v1` (giv + base), ours
-       `addu v1,v1,s2`; (b) itemRowStrings: retail `addu a2,s2,v0`, ours
-       `addu a2,v0,s2`. Both are the gcc giv+base order (the item-name loop's
-       renderContext load, also base + i*0x80, comes out right, so it is not a
-       blanket operand flip). Measured and rejected: the offset-first cast over
-       the array element (`(0x800 + i*sizeof(MenuString) + (u32)pItemRows) +
-       rc*0x28`, 94.33 / 580 bytes), `(u32)&arr[i] + rc * sizeof(POLY_FT4)`
-       (97.88, 98.49), a pPoly local instead of the inline argument, inlining
-       the rc load at both sites, a pQuantity pointer local, and a `pPanel`
-       local for the panel (92.73 / 576 - it drops the reload retail has).
-   permute.sh cannot parse this body (its parser rejects the (POLY_FT4*) casts:
-   "conversion to non-scalar type requested").
-   PRESET_260: under gcc 2.6.0 the earlier 97.16 body is 98.36 and all seven
-   already-matched functions of this unit stay 100.00, so the unit is switchable
-   if that ever helps.
+/* PARK: best 100.00% under gcc 2.6.0, 584 bytes / 172 insns, instruction for
+   instruction identical. Under this unit's Default preset (2.7.2, -O2 -G8) the
+   same body is 98.77% at 588 bytes (retail 584): the item-name loop's counter
+   `addiu s1,s1,1` sits in the LATCH here, and retail has it in the delay slot
+   of that loop's `beq v1,v0` (the r0==0x20 skip), so the slot is a nop here and
+   the body is one instruction over and cannot link.
+   That placement is a compiler-version difference, not a source shape: 2.7.2
+   emits a biv increment in the latch block, and its scheduler cannot move it
+   across the loop's if (probed with cc1_probe.sh on a standalone loop of the
+   same shape - the increment lands at the latch), so no for / while / do-while /
+   goto / continue / ++i spelling reaches retail's slot. Every shape the earlier
+   park tried measures 98.77 at 588 bytes with the identical nop.
+   PRESET_260: with `try_flags.sh menu/main/misc8_r2 --all --gcc gcc-2.6.0-psx`
+   all NINE C functions of this unit are 100.00 - MenuShutdown,
+   MenuLoadUnkDE0Strings, MenuInitializeUnk42CPanel, MenuFreeUnk42CPanel,
+   MenuInitializeArrowCursor, MenuBuildArrowCursorPrim, MenuFreeArrowCursor,
+   this function and MenuBuildPartyCharacterPrims - so the unit is switchable to
+   XenoMenu260, and this body is then a straight un-park: under 2.6.0 it is
+   100.00 at retail's exact 584 bytes. UN-PARK IT, do not re-derive it.
+   The `pRows` local is load bearing under 2.6.0: `pRows =
+   g_Menu->pItemRows->itemNameStrings; pRow = &pRows[i];` is the spelling that
+   emits retail's `addu a2,a0,s0` (panel base first), where the plain
+   `&g_Menu->pItemRows->itemNameStrings[i]` gives the mirrored `addu a2,s0,a0`
+   (99.93 at the same 584 bytes). Also measured for that addu and rejected:
+   `itemNameStrings + i` (no change) and a double-negated offset cast, which
+   promotes a register and grows the frame to 0x30 with 176 insns.
+   Two facts from the earlier park, still true under 2.6.0: the item-name loop's
+   TEST poly must be reached through the PANEL
+   (pItemRows->itemNameStrings[i].polys[pRow->renderContext]) while pRow supplies
+   the renderContext and the call argument - that produces retail's two-addu test
+   address and the loop's register assignment (pItemRows in a0, row in a2, render
+   context in v1); and the five single-string sites need their poly reached
+   OFFSET FIRST (renderContext * sizeof(POLY_FT4) + (u32)base), because the plain
+   &base->polys[rc] emits `addu d,base,sum` where retail has `addu d,sum,base`.
+   What it does: applies one shading mode (arg0) to every prim of the item panel.
 */
 /*
 void func_801DB39C(u_char arg0) {
     POLY_FT4* pPoly;
     MenuString* pRow;
+    MenuString* pRows;
     s32 rc;
     s32 i;
 
@@ -364,7 +360,8 @@ void func_801DB39C(u_char arg0) {
     pPoly = (POLY_FT4*)(g_Menu->pScrollHandle->renderContext * sizeof(POLY_FT4) + (u32)g_Menu->pScrollHandle);
     MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 0x10; i++) {
-        pRow = &g_Menu->pItemRows->itemNameStrings[i];
+        pRows = g_Menu->pItemRows->itemNameStrings;
+        pRow = &pRows[i];
         if (g_Menu->pItemRows->itemNameStrings[i].polys[pRow->renderContext].r0 != 0x20) {
             MenuSetPrimShadingMode(&pRow->polys[pRow->renderContext], arg0);
             rc = g_Menu->pItemRows->itemQuantityStrings[i].renderContext;
@@ -388,8 +385,8 @@ void func_801DB39C(u_char arg0) {
         pPoly = &g_Menu->itemRowStrings[i].polys[g_Menu->itemRowStrings[i].renderContext];
         MenuSetPrimShadingMode(pPoly, arg0);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
 
 void MenuBuildPartyCharacterPrims(s32 arg0) {
     MenuCharacter* pCharacter;
