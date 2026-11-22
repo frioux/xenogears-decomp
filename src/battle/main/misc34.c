@@ -30,6 +30,23 @@ extern void BattleSetStateStep(s32 arg0);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
 extern SpriteData *func_80023B84(SpriteData *pActor, u8 *pEntry, SpriteAnimPackage *pPackage);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
+extern u16 g_BattleSlotBitMask;
+extern u16 g_BattleActorSlotDoneMask;
+extern u16 g_BattleConditionAnimIds[];
+extern s32 BattleGetActorConditionCode(s32 slot);
+extern void func_800C0564(void);
+extern s32 func_800C0314(void);
+extern void BattleActorSetFacingFromSideFlag(s32 index);
+extern u16 FieldScriptClearAnimationOverrideIfFlag16(s32 slot);
+
+// An absolute difference, spelled with the subtraction duplicated so gcc folds the
+// negate into a reversed subu rather than emitting negu on a named difference.
+#define BATTLE_ABS_DIFF(x) ((x) < 0 ? -(x) : (x))
+
+// A sprite's battle slot number: the top two bits of flags_0xA8 are its low bits and
+// the two low bits of flags_0xAC.flags its high bits.
+#define BATTLE_SLOT_INDEX(pSprite)                                            \
+    (((u32)(pSprite)->flags_0xA8 >> 30) | (((pSprite)->flags_0xAC.flags & 3) << 2))
 
 /* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
 typedef struct {
@@ -453,48 +470,42 @@ void BattleCreateSlotAnimationTask(SpriteData *pActor, s32 arg1) {
     g_FlagTimerWorkListAdds = saved;
     pNew->flags_0xB0.flags = flags | 0x100;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
-// 73.59% first draft (327 instructions against retail's 307, 1220 bytes vs the
-// original's 1228): the five phases and the call order are right, the residual is
-// registers and the phase-1 table walk. What the draft below gets right and is
-// load-bearing: phase 1 switches on the raw (s8)flags_0xAC.bytes[3] with cases
-// 5/7/14/15/21 (gcc's min-subtract+range-check reproduces retail's
-// `addiu -5; sll 24; sra 24; sltiu 0x11` and the 18-word jtbl_80070B08); the two
-// 16-bit bit-walk loops over the animation override word at
-// ((SpriteDataI3 *)pSprite->field_0x7C)->field_0xC have their cases at bits 13/14/15
-// (animation ids 9/10/11, jtbl_80070B50 = BattleCreateSlotAnimationTask and
-// jtbl_80070B80 = BattleInvokeSpriteCallbackForActor); the done-mask test
-// `(g_BattleActorSlotDoneMask >> BATTLE_SLOT_INDEX(pSprite)) & 1` and the
-// `anim == 1` fall-back to (s8)flags_0xB0.bytes[0] are retail's.
-// KNOWN RESIDUALS: (a) retail walks phase 1's slot pointer in s2 (+0x1C) and its
-// sprite-table pointer in s3 (+4); mine merges the two induction variables;
-// (b) retail forms the 0x8C8C table offset as `li 0x8C8C; addu; lw 0(v0)` (whole
-// constant in a register), mine splits it as `li 0x8000; addu; lw 0xC8C(v0)` -- the
-// same split appears in func_800C0564's park, so find the spelling that forces the
-// whole constant into a register and both parks move;
-// (c) phase 2's abs-distance test: retail computes dz only when |dx| < 9;
-// (d) phase 4 recomputes the sprite pointer as ((u8 *)g_BattleStateWork + i * 4 +
-// 0x8C8C) rather than walking it like phases 1-2.
-// THIS STUB OWNS THE UNIT'S THREE JUMP TABLES, and jtbl_80070B08/B50/B80 are each
-// followed by one 0x00000000 word: those are the 8-byte alignment pads between the
-// tables (0x1018 + 0x44 -> 0x1060, 0x1060 + 0x2C -> 0x1090), which is what cc1 emits
-// for a switch family, so converting this function is layout-safe ONLY as one job
-// with all three switches (verify with check_bin.sh battle).
+// 74.18% (311 insns / 1244 bytes against retail 307 / 1228) under the unit preset
+// XenoBattleTailCdk0, re-measured from a live body this round (the old park said 73.59
+// at 305 insns / 1220 bytes, i.e. two instructions SHORT - that body could never link).
+// Five phases, all of retail licensing the same call order and the same three jump
+// tables: (1) per slot, a sprite whose (s8)flags_0xAC.bytes[3] is 5/7/14/15/21 and
+// differs from g_BattleConditionAnimIds[cond] is put back on animation 0x10 and its
+// bit dropped from g_BattleSlotBitMask; (2) func_800C0564, then every idle slot whose
+// sprite is more than 8 away in x or z gets flags 0x40 and animation 3;
+// (3) func_800C0564, then every sprite loses flag 0x40; (4) func_800C0564, then the
+// per-slot animation pass (facing from the side flag, func_800C0314, condition-code
+// animation, the done-mask test, the anim==1 fall-back to flags_0xB0.bytes[0], then the
+// two bit walks of the animation override word at ((SpriteDataI3 *)field_0x7C)->field_0xC
+// with bits 13/14/15 driving animation ids 9/10/11).
+// LOAD-BEARING (do not "simplify"): BATTLE_ABS_DIFF, the duplicated-subtraction
+// ternary - the named-difference form `dx = a - b; if (dx < 0) dx = -dx;` emits
+// `negu` where retail has a reversed `subu v0,v1,a0`, and the macro with the
+// subtraction inside both arms reproduces retail`s subu/bgez/slti(9)/subu/slti(9)
+// for the x test exactly (see the abs lever in tools/rounds/levers.md). The two abs
+// tests must stay ORed inside ONE condition: gcc lays the second one out inverted
+// (`bltz` + an extra `j`) otherwise, which is 6 of the 16 excess bytes.
+// RESIDUALS: (a) i and the byte base take $s3/$s4 swapped against retail`s $s4/$s3,
+// and retail carries a NINTH callee-saved register ($s8) through phase 4 that this
+// body does not use, so the whole prologue and every site`s register differs;
+// (b) the 0x8C8C sprite-table offset: retail adds the WHOLE constant
+// (`ori $v0,$zero,0x8c8c; addu; lw 0(v0)`) and this body splits it
+// (`li 0x8000; addu; lw 0xC8C(v0)`); phase 4 shows the way out - retail reaches the
+// table as `(u8 *)base + i * 4 + 0x8C8C` with base in a register held by a local, so
+// the addend is not folded onto the symbol - but rewriting phase 4 that way needs its
+// two `continue`s turned into nesting (a `continue` skips the slot pointer increment)
+// and that brace restructure was not finished;
+// (c) phase 2`s slot pointer: gcc derives it as sprite-base+0x10 and reads
+// lbu -8/lhu -2/lhu 0 where retail reads lbu 8/lhu 14/lhu 16 off its own pointer.
+// Tried this round: the negu two-local abs (73.59, 2 insns short), the abs macro
+// inline vs through a pPosition local (the local keeps pSprite in s1 and retail`s
+// lh 10(s1)), clearedBits/addedBits in retail`s order, and the phase-4 pointer form.
 /*
-// A sprite's battle slot number: the top two bits of flags_0xA8 are its low bits and
-// the two low bits of flags_0xAC.flags its high bits.
-#define BATTLE_SLOT_INDEX(pSprite)                                            \
-    (((u32)(pSprite)->flags_0xA8 >> 30) | (((pSprite)->flags_0xAC.flags & 3) << 2))
-
-extern s32 func_800C0314(void);
-extern void func_800C0564(void);
-extern void BattleActorSetFacingFromSideFlag(s32 index);
-extern u16 FieldScriptClearAnimationOverrideIfFlag16(u8 slot);
-
-// Per-slot animation pass: drops the anim-0x10 wait from every idle slot whose
-// animation id does not match its condition, aligns the slots that are too far from
-// their position, then walks the per-slot animation bits of the animation override
-// word and starts or stops the corresponding slot tasks.
 void func_800BFE48(void) {
     BattleActorSlot *pSlot;
     BattleFixed16Vector *pPosition;
@@ -504,8 +515,6 @@ void func_800BFE48(void) {
     s32 anim;
     s32 i;
     s32 bit;
-    s32 dx;
-    s32 dz;
     u16 oldBits;
     u16 newBits;
     u16 addedBits;
@@ -543,15 +552,8 @@ void func_800BFE48(void) {
             if (pSprite != NULL && BattleGetActorConditionCode(i) != 8 &&
                 (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
                 pPosition = (BattleFixed16Vector *)&pSprite->position;
-                dx = pPosition->xWhole - pSlot->x;
-                if (dx < 0) {
-                    dx = -dx;
-                }
-                dz = pPosition->zWhole - pSlot->z;
-                if (dz < 0) {
-                    dz = -dz;
-                }
-                if (dx >= 9 || dz >= 9) {
+                if (BATTLE_ABS_DIFF(pPosition->xWhole - pSlot->x) >= 9 ||
+                    BATTLE_ABS_DIFF(pPosition->zWhole - pSlot->z) >= 9) {
                     pSprite->flags_0xAC.flags |= 0x40;
                     pSprite->field_0xA0 = pSlot->x;
                     pSprite->field_0xA2 = 0;
@@ -604,8 +606,8 @@ void func_800BFE48(void) {
         pAnimState = (SpriteDataI3 *)pSprite->field_0x7C;
         oldBits = pAnimState->field_0xC;
         pAnimState->field_0xC = newBits;
-        addedBits = newBits & ~oldBits;
         clearedBits = oldBits & ~newBits;
+        addedBits = newBits & ~oldBits;
         for (bit = 0; bit != 16; bit++) {
             if (addedBits & 1) {
                 switch (bit) {
@@ -639,8 +641,8 @@ void func_800BFE48(void) {
             clearedBits >>= 1;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 
 // The battle state work block as the slot pass reads it: the actor slot rows at the
 // start and the 0x8000 flag word the pass clears its bit from.
@@ -651,9 +653,6 @@ typedef struct {
 } BattleSlotWorkView;
 
 extern BattleActor *g_BattleActors[];
-extern u16 g_BattleSlotBitMask;
-extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
-extern u16 g_BattleActorSlotDoneMask;
 extern void func_800BEE2C(s32 slot, s32 mask, s32 command);
 extern void BattleWaitAndFreeActorBuffers(void);
 
@@ -684,9 +683,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 /*
 // A sprite's battle slot number: the top two bits of flags_0xA8 are its low bits and
 // the two low bits of flags_0xAC.flags its high bits.
-#define BATTLE_SLOT_INDEX(pSprite)                                            \
-    (((u32)(pSprite)->flags_0xA8 >> 30) | (((pSprite)->flags_0xAC.flags & 3) << 2))
-
 s32 func_800C0314(void) {
     SpriteData *slots[BATTLE_SLOT_COUNT];
     BattleSlotWorkView *pWork;
@@ -822,8 +818,6 @@ void func_800C0564(void) {
     }
 }
 */
-extern u16 g_BattleConditionAnimIds[];
-extern s32 BattleGetActorConditionCode(s32 slot);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
 s32 BattleComputeVectorDistance(VECTOR *pVec0, VECTOR *pVec1) {
     VECTOR v;
