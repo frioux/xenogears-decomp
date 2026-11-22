@@ -481,6 +481,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
    s32 `left` local + embedded assignment, which is the only shape that makes cc1
    emit retail's 32-bit `li/li a0,0xfff8 / addu` instead of `addiu -8`; the `left`
    here is already that shape and its placement is exact.
+   ROUND 403: the fifth argument as a four-byte aggregate (the trick that closed
+   BattleBuildTileRow3Prims, see BattleRowSize) does NOT help here: 98.20% at the same
+   1600 bytes, i.e. exactly the plain-s32 x0-first body, because a WORD read is not a
+   narrow `lhu` and the whole y0 group still hoists above the x0 store (`left`'s addiu
+   to slot 4 where retail has 9, the a3 mask to 6, `lw 48(sp)` to 15 and its sum to 19
+   where retail has 21/22). Byte-identical to that body, so do not retry: the same
+   aggregate with the field's address taken (`s32 *pHeight = &arg4.height` - the read
+   stays a hoisted `lw`), capturing the sum without the outer `- 8`, and making the x0
+   store NON-volatile (the two stores still come out in source order, so their object
+   order is not a scheduler choice - retail's source really does list x0 first, and the
+   hoist is the only thing standing in the way). Preset closed for the whole unit as
+   well: gcc-2.7.2-cdk gives this body 92.34% and drops every matched neighbour
+   (BattleDrawSpriteQuad 84.90, BattleBuildTileRow2Prims 93.84, BattleInitSlotGraphics
+   72.47), and 2.6.0 -O3 does not compile.
 */
 /*
 void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
