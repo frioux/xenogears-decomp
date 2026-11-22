@@ -459,67 +459,40 @@ void BattleAppendCommandRecord(u8 arg0) {
     BattleClearSlotFlagsIfChar4(arg0, 0);
 }
 
-/* 98.51%, 1356 bytes (retail's exact size); the 9 remaining differing instructions
-   are two delay-slot fills and one register choice, so no size difference (see
-   REMAINING). Levers that are load-bearing:
-   (a) THE CASE ORDER IS THE TREE. Switch 1 lists 5, 4, 7, 6 (case 4 =
-       commandFlags[2], case 7 = [1], case 6 = [0]: retail's lhu 0x20/0x1E/0x1C), and
-       the third switch lists 5 (empty body), 4, 7, 6: that empty "case 5: break;" is
-       what makes cc1 emit retail's li v0,5 / beq / slti 6 four-node tree, not a chain.
-   (b) THE MASKED SLOT IS TWO LOCALS, not one: `slot` (entry, the switch arms, the
-       slot[] index) and `who` (masked again just before func_800861D0, then passed to
-       func_80087AF0 and used as the timer index). Passing arg0 to func_80087AF0
-       instead of `who` re-masks from $s1 where retail moves $s0.
-   (c) THE GAUGE SCALE IS /56, not /100: retail's magic is 0x92492493 with addu + sra 5,
-       i.e. (value * 100) / 56; the table's full-scale row byte is 0x38.
-   (d) case 5's stores are FOUR separate statements with menuState stored LAST (it
-       lands in the BattleClearFlagC6 jal delay slot).
-   (e) g_BattleGaugeCountdownTable is declared [][8] and read with the 2D subscript; the flat
-       [max * 8 + value] form, a mem_addr base and a u8 *pCost local all fold into
-       maspsx's lui at / addu at,at,idx / lbu %lo(at), and the 2D form also decides
-       the tail's registers (queue in $a1, /56 magic in $a2).
-   (f) func_800877E0 IS INSIDE `if (commandAppended == 0)`, after the switch. Retail's
-       bnez 0x2E9 targets the block AFTER that call (0x80081DB8) while the switch's
-       default jumps to the call (0x80081DA0), i.e. two different targets; with the
-       call outside the if both branches share one target and the bnez offsets differ
-       (98.23 -> 98.33).
-   (g) THE CALL ARGUMENT IS A CAST, `func_800877E0((u8)arg0, ...)`. func_800877E0's
-       first parameter is u8 (misc4.c and misc15.c both declare it that way), so the
-       call site masks; the bare `arg0` gives `move a0,s1` where retail has
-       `andi a0,s1,0xff` (98.33 -> 98.51). Round 341 measured the same cast as a
-       regression to 97.26, but that was on the body WITHOUT (f): the extra andi it
-       reported was the bnez-target damage, not the cast.
-   CLOSED THIS ROUND (341): case 4's arm ends with its OWN gaugeCost++, so the source has
-   three separate read-modify-writes of 0x2DF (case 4, case 7, case 6) - that is
-   retail's third copy at 0x80081E60, and adding it took the honest body 1328 -> 1356,
-   retail's exact size. With it round 340's two permuter duplicate-arm blocks (case 6's
-   "if (arg0) break; else break;" and the case-4 increment wrapped in
-   "if (g_BattleCommandQueue) ... else ...") are BOTH unnecessary and measure
-   identically without them. The old 96.22% note was partly a dead arm: gcc folded its
-   re-read of the global to a null base (lbu v0,740(zero) / sb v0,740(zero)).
-   REMAINING (three clusters, each compensating so the size stays 1356):
-   (i)  the third switch's case-5 `beq` has a nop in its delay slot in retail where we
-        put `slti v0,v1,6`, and retail's `li a0,4` sits in the case-4 beq's slot where
-        we keep it at the head of the arm plus a nop in the slot. Pure reorg choices
-        on an otherwise identical tree; a nop-return-type / statement reorder test is
-        the only lever left and it rewrites the whole function.
-   (ii) the gauge quotient lands in $v0 with mfhi $a3 where retail has $v1, because
-        retail materialises li v0,1 (the gaugeSpent store's constant) BETWEEN the
-        division's `sra` and the timers `sh`, and that register is then taken. A
-        `remain = 1;` statement before the timer store does hoist the constant into
-        the middle of the sequence but lands it before `mfhi` in $a0 (98.47) and also
-        moves case 4's `addiu` to $a0; moving gaugeSpent above the timers store and a
-        local for the quotient were measured in round 341 at 1368 / 97.04. A
-        do-while(0) around the two stores instead hoists `sll s0,s0,0x1` and
-        `lui a2,0x9249` out of the table sequence (1360, 97.27).
-   (iii) the g_BattleDisplayState[0xAF] = 1 store takes the base in $v1 and the 1 in
-        $v0 where retail has them the other way round.
-   The preset is right: a 4-minute permuter run on THIS body found nothing
-   (base 213 = best 213, 1572 iterations); round 341's run on the 98.23 body was
-   444 = 444. cdk is 95.31, -G0 is the same, and 2.6.0 does not compile the unit. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80081B58);
+// 99.32%, retail's exact 1356 bytes / 339 insns; one cluster left (see REMAINING).
+// Load-bearing, each measured:
+//  (a) THE TWO TRAILING IFs BELONG INSIDE case 6, not after the switch. Retail's case-5
+//      `beq` and the dispatch default jump to the EPILOGUE (0x534), i.e. they skip both
+//      `if (gaugeValue == 0)` and `if (unk2E5 != 0)`; leaving those two after the switch
+//      makes every path run them and every branch target is off: 98.51% at 1352 bytes.
+//  (b) THE RETURN TYPE IS s32, NOT void (the value is never used). `void` lets reorg steal
+//      the dispatch's `slti v0,v1,6` into the case-5 `beq` delay slot where retail has a
+//      nop: 99.03% and 4 bytes short. This is levers.md's c-stolen-delay-slot-retail
+//      entry; do not "tidy" it back to void.
+//  (c) Still load-bearing from earlier rounds: the last switch's source case order is
+//      5, 4, 7, 6 with an empty `case 5: break;` (that is what makes retail's li v0,5 /
+//      beq / slti 6 four-node tree); the masked slot is TWO locals, `slot` from the entry
+//      and `who` masked again just before func_800861D0 and used as the timer index (pass
+//      arg0 to func_80087AF0 and it re-masks from $s1); the gauge scale is /56 (magic
+//      0x92492493 with addu + sra 5, the table's full-scale row byte 0x38); case 5's four
+//      stores keep menuState last (it lands in the BattleClearFlagC6 jal delay slot);
+//      g_BattleGaugeCountdownTable is read with its 2D subscript (the flat
+//      [max * 8 + value] form folds into maspsx's lui at / addu at,at,idx / lbu);
+//      func_800877E0 is INSIDE `if (commandAppended == 0)` because retail's bnez 0x2E9
+//      targets the block after that call while the switch's default targets the call;
+//      and that call's first argument is cast, func_800877E0((u8)arg0, ...), because its
+//      parameter is u8, so the call site masks (andi a0,s1,0xff).
+// REMAINING, one cluster: retail materialises the gaugeSpent constant (li v0,1) BETWEEN
+// the division's `sra` and the timer store's `lui at`, so $v0 is taken and the quotient
+// lands in $v1 (mfhi v1, addu v1,v1,v0, sra v1, li v0,1, lui at, addu at, sh v1, j, sb v0
+// in the j slot). Ours materialises the constant just before the `sb` - a reload scratch,
+// see levers.md's a-li-constant-is-a-reload-scratch - so the quotient takes $v0 and mfhi
+// takes $a3. Same instruction count, five instructions differ. A 4-minute permuter run on
+// THIS body found nothing (base 90 = best 90, 1854 iterations); moving `gaugeSpent = 1;`
+// above the timer store re-loads the queue and moves the store's block: 97.32% / 1368.
 /*
-void func_80081B58(u32 arg0) {
+s32 func_80081B58(u32 arg0) {
     u8 who;
     u8 slot;
     s32 remain;
@@ -640,15 +613,15 @@ void func_80081B58(u32 arg0) {
         } else {
             BattlePlaySoundWithBaseId(0x4F);
         }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue == 0) {
+            BattleQueueCommandFE((u8)arg0);
+            ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 != 0) {
+            BattleQueueCommandFE((u8)arg0);
+            ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
+        }
         break;
-    }
-    if (((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue == 0) {
-        BattleQueueCommandFE((u8)arg0);
-        ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
-    }
-    if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 != 0) {
-        BattleQueueCommandFE((u8)arg0);
-        ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
     }
 }
 */
