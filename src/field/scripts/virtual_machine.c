@@ -470,16 +470,14 @@ void FieldScriptRunFirstActorRoutine3(void) {
 // base from it ('addiu s2,v1,-0x80'); the nearest spelling above emits 'lw %lo' + its own
 // 'la count-0x80'. 'extern s32 g_FieldActorModelSlotCount[]' + pCount = <array> produces retail's
 // la/lw preheader but hands the callee-saved register to &count instead of the table base.
-/*
-extern s32 g_FieldActorModelSlotCount;
-extern s32 g_FieldActiveActorCount;
 extern s32 g_GamePartySkinsInitialized;
+extern s32 g_FieldActorModelSlotCount[]; // animation id table ends 0x80 below the count word
 extern s32 g_PlayerActorIndex;
+extern s32 g_FieldActiveActorCount;
 extern u_char g_FieldScreenShakeMode;
 extern void func_800AD898(void);
-extern void LibGearSetModelAnimation(u16, u16, s32);
+extern void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2);
 
-// Applies the camera shake delta from the script globals to every actor's translation
 void func_800A24C4(void) {
     int i;
     ActorData* pActorData;
@@ -494,8 +492,10 @@ void func_800A24C4(void) {
     FieldScriptRunFirstActorRoutine(2);
     func_800AD898();
 
-    for (i = 0; i < g_FieldActorModelSlotCount; i++) {
-        LibGearSetModelAnimation(i, 0, ((s16*)&g_FieldActorModelSlotCount)[i - 0x40]);
+    pCount = g_FieldActorModelSlotCount;
+    pAnimTable = (s16*)pCount - 0x40;
+    for (i = 0; i < ((s32*)((u8*)pAnimTable + 0x80))[0]; i++) {
+        LibGearSetModelAnimation(i, 0, pAnimTable[i]);
     }
 
     pActorData = g_FieldActors[g_PlayerActorIndex].pActorData;
@@ -523,9 +523,6 @@ void func_800A24C4(void) {
         }
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
-
 extern s32 g_GamePartySkinsInitialized;
 extern s32 g_FieldActiveActorCount;
 void FieldLoadActorAnimationFiles(void) {
