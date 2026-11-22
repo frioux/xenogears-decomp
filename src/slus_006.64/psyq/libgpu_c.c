@@ -65,6 +65,73 @@ extern void SetDQB(long dqb);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
 
+/* best 91.85% (181 insns, 724 bytes against retail's 184 / 736): every call,
+   branch, store and register matches; three instructions are left, both causes
+   pinned. (1) The new tail value: retail loads g_GpuQueueTail a third time
+   ('lui; lw; addiu; andi; lui; sw' after the func store), gcc reuses the index
+   load it already made for the func store, so one lui/lw pair is missing and
+   the D_800569DC load is scheduled one block earlier. Tried: '& 0x3F' vs
+   '% 0x40', separate statements, raw D_8006BE38/D_8006BE3C/D_8006BE40 arrays
+   (88.39%, worse), moving the increment into a local. (2) The data-copy loop's
+   back edge: retail keeps 'sw a1,0(a0)' out of the 'j' delay slot and puts a
+   copy of the loop-invariant 'move v0,s1' there; gcc fills the slot with the
+   store and points 'j' at its own move. Not a flag/source-order knob found so
+   far (-O2 and -O3 identical, gcc-2.7.2-cdk 60.49%, -O1 74.97%).
+   The 91.85% body spells the queue as one struct, which is what the code shows:
+   typedef struct { void (*func)(u_long *p0, u_long *p1); // 0x0
+                    u_long *p;                            // 0x4
+                    u_long *arg;                           // 0x8
+                    u_long data[0x15]; } GpuQueueEntry;    // 0xC, Size: 0x60
+   extern GpuQueueEntry g_GpuQueueTable[0x40];  (splat carves the used words
+   into g_GpuQueueTable / D_8006BE38 / D_8006BE3C / D_8006BE40; the baseline's
+   C-typed form is below, 88.39%, and needs an 'extern u_long D_8006BE40[];').
+int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_long *arg) {
+    int i;
+
+    func_80046EFC();
+
+    while (((g_GpuQueueTail + 1) & 0x3F) == g_GpuQueueHead) {
+        if (func_80046F30() != 0)
+            return -1;
+        func_8004696C();
+    }
+
+    D_800569DC = SetIntrMask(0);
+    g_DrawSyncCallbackPending = 1;
+
+    if (D_800568D1 == 0 || (g_GpuQueueTail == g_GpuQueueHead && !(*g_GpuDma2Chcr & 0x1000000)
+            && g_DrawSyncCallbackFn == 0)) {
+        while (!(*g_GpuGp1Port & 0x4000000))
+            ;
+
+        pFunc(p, arg);
+        D_800569C4[0] = (u_long)pFunc;
+        D_800569C8 = (u_long)p;
+        D_800569CC = (u_long)arg;
+        SetIntrMask(D_800569DC);
+        return 0;
+    }
+
+    DMACallback(2, (void (*)())func_8004696C);
+
+    if (n != 0) {
+        for (i = 0; i < n / 4; i++)
+            D_8006BE3C[g_GpuQueueTail][i + 1] = p[i];
+        D_8006BE38[g_GpuQueueTail][0] = &D_8006BE3C[g_GpuQueueTail][1];
+    } else {
+        D_8006BE38[g_GpuQueueTail][0] = p;
+    }
+    D_8006BE3C[g_GpuQueueTail][0] = arg;
+    g_GpuQueueTable[g_GpuQueueTail][0] = pFunc;
+    g_GpuQueueTail = (g_GpuQueueTail + 1) & 0x3F;
+
+    SetIntrMask(D_800569DC);
+    func_8004696C();
+
+    return (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;
+} */
+
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004696C);
 
 /* best 81.20% (720 of retail's 724 bytes): everything up to and including the
