@@ -60,6 +60,14 @@ segments:
       - [0x8C, .rodata, main/misc5]
       - [0x14C, .rodata, main/misc10]
       - [0x38C, .rodata, main/misc11]
+      # The misc11 table block is 8 jump tables: func_80080160's 101-word table at
+      # +0x0, then seven 8-word tables from +0x194 on, at 4-mod-8 offsets. cc1
+      # emits `.align 3` (section-relative) before every jump table, so a switch
+      # converted inside the head can never land where retail has it (+4 bytes and
+      # the overlay grows). Starting the tail run's .rodata at 0x520 (abs
+      # 0x80070010, 8-aligned) makes every one of its tables 8-aligned, so they
+      # convert. See main/misc11_b.
+      - [0x520, .rodata, main/misc11_b]
       - [0x600, .rodata, main/misc12]
       - [0x760, .rodata, main/misc13]
       - [0x824, .rodata, main/misc15]
@@ -103,6 +111,9 @@ segments:
       - [0xE844, c, main/misc9_260]
       - [0xEF18, c, main/misc10]
       - [0x100F0, c, main/misc11]
+      # Split at func_8008115C (the first of the table-owning tail functions); the
+      # split point is the yaml rodata split above, 0x520.
+      - [0x1166C, c, main/misc11_b]
       - [0x12D30, c, main/misc12]
       - [0x15B28, c, main/misc13]
       - [0x18EA0, c, main/misc14]
