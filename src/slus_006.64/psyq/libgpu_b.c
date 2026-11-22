@@ -211,13 +211,46 @@ u_long func_80045A34(int x, int y) {
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 
-/* best: 70.27% -- same clamp as func_80045A34, E4 word.
+/* best: 79.80% (192 bytes / 48 insns; retail is 204 / 51). Same body as the
+   func_80045A34 park -- the two stubs are instruction-identical except the opcode
+   word, so whatever closes one closes both.
+   CLOSED the 0x10 phantom frame: retail's `.frame $sp,16` with no store anywhere is
+   an unused local array; `u_long t[4]` gives vars=16 and puts `subu $sp,$sp,16` in
+   the bltz delay slot exactly as retail has it. With it 70.27 -> 79.80 (ternary +
+   t[4]); the if/else-if clamp without it was 60.10.
+   NAMED RESIDUAL, 3 instructions, all in the x clamp: retail keeps THREE pseudos
+   there -- x in $a3 (`move a3,a0`), the (s16) truncation done IN PLACE on $a0, and
+   the clamp result in $v0 copied back to $a3 (`move a3,v0`) -- plus a second copy of
+   the width (`move a2,v0`) so the clamp arm re-forms W-1 (`addiu v0,a2,-1`) instead
+   of reusing the compare's. gcc cse1 merges the two W-1 into one register, so the
+   duplicate is unreachable from any spelling that names W-1 twice.
+   PROBED this round with cc1_probe.sh (11 spellings, none reproduces it): ternary
+   on the parameter, ternary on the clamped local, if/else-if with and without an
+   `else xc = x` keep arm, s16 mirror locals for the cast, s16 parameters, u_short
+   and s16 local copies of the limit, and a CLIP16 macro with the limit textually
+   duplicated. All of them coalesce xc into the parameter's register (no `move a3,a0`)
+   and truncate into a fresh register.
 u_long func_80045B00(int x, int y) {
-    x = ((s16)x < 0) ? 0 : (((s16)x > g_GpuScreenWidth - 1) ? g_GpuScreenWidth - 1 : x);
-    y = ((s16)y < 0) ? 0 : (((s16)y > g_GpuScreenHeight - 1) ? g_GpuScreenHeight - 1 : y);
-    if (g_GraphType == 1 || g_GraphType == 2)
-        return 0xE4000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
-    return 0xE4000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
+    u_long t[4]; /* load-bearing: retail allocates a 0x10 frame and stores nothing in it */
+    u_long code;
+    u_long fld;
+    u_long ret;
+    int xc;
+    int yc;
+
+    xc = ((s16)x < 0) ? 0 : (((s16)x > g_GpuScreenWidth - 1) ? g_GpuScreenWidth - 1 : x);
+    yc = ((s16)y < 0) ? 0 : (((s16)y > g_GpuScreenHeight - 1) ? g_GpuScreenHeight - 1 : y);
+    if (g_GraphType != 1 && g_GraphType != 2) {
+        fld = yc & 0x3FF;
+        fld = fld << 10;
+        code = xc & 0x3FF;
+    } else {
+        fld = yc & 0xFFF;
+        fld = fld << 12;
+        code = xc & 0xFFF;
+    }
+    ret = code | 0xE4000000;
+    return fld | ret;
 }
 */
 
