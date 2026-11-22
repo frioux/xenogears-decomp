@@ -327,7 +327,7 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
 // low bits pick an entry in the current animation's offset table, whose target
 // becomes the frame list, and a group change re-runs the VM from the new script.
 //
-// Best: 74.09% (668 bytes, 167 insns; retail is 688 bytes, 172 insns - five `move`s
+/* Best: 74.09% (668 bytes, 167 insns; retail is 688 bytes, 172 insns - five `move`s
    short, all of them register shuffles). Structure is right: the switch is the case TREE
    (beq 1 / slti 2 / beqz 0 - so the switch index must be a u8 local, an s32 one makes a
    comparison CHAIN), the case-1 <3 and case-2 <5 arms are ONE shared block (gcc tail merge,
