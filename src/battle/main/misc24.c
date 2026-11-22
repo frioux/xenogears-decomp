@@ -177,35 +177,37 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
     }
     return BattleOffsetBySin;
 }
-// 97.44%, 160 bytes compiled vs retail's 156: every one of retail's 39 insns is
-// reproduced in order, plus ONE extra. Answer to the old "where does the s16 -1
-// come from" question below: retail's `addiu v1,zero,-1` at insn 1 is the constant
-// load of an EARLY redundant s16 -1 store in the original source. Leading the body
-// with `*(s16 *)(arg0 + 0x98) = -1;` (the 0x98 store repeated) moves the load to
-// insn 1, exactly retail's shape, and the rest of the function then matches
-// instruction for instruction. What is left: gcc 2.6 cannot delete the redundant
-// store, so it emits a second `sh v1,0x98` right after `li v0,1` (40 insns). What
-// would close it is an early -1 use that survives cse but emits no instruction;
-// cse re-places the load at the first surviving use, so every local-variable
-// spelling of the -1 is back at 74.36%.
-// Measured (objdiff, not the permuter): duplicate early store of 0x3A or 0x1E -
-// 97.44% too (any of the three -1 stores works), of 0x2B 76.72, of 0x18 71.15;
-// moving a -1 store to the top instead of duplicating it 94.87 (0x98/0x3A) and
-// 93.33 (0x1E); `s16 m1 = -1;` with three uses, `m1 = -1;`, `arg1 = -1;`, a dead
-// local, and the plain literals all 74.36; volatile cast on the early store 97.44
-// (same); 0xFFFF spelling for the early one 71.79; `*(s32 *)(arg0 + 0x98) = -1;`
-// then the sh 94.74; two adjacent dup stores at the top 94.87. Permuter from this
-// body: base 100 best 100, 875 iterations, nothing better. The permuter's own
-// candidate for the old 74.36 body (score 210 -> 120) moved the 0x8 = arg2 store
-// below the 0x84 store, which measures WORSE under objdiff (69.18%) - not taken.
-// Still true from the old note: 0x3C is unsigned (ori 0xFFFF) while 0x98/0x3A/0x1E
-// are signed -1 (addiu), so the two constants must stay spelled differently.
-// Round 318 wrote the body typed (pActor->blockTag = 0xFFFF; ... rotOffset[0..2],
-// rotStep[0..2], posOffset[0..2], posStep[0..2], posX/Y/Z all 0; moveDistance = 1;
-// skipGroundSnap = 0; groundTriangleIndex = -1) in retail's store order: also
-// 74.36% at 156 bytes, i.e. EVERY store and every li lands in retail's place and
-// the only residual is the -1 load (retail's is insn 1, ours is at the first -1
-// store). So the wall is exactly the one above, not the field spelling.
+// PARKED, best 97.44% / 160 bytes vs retail 156 (round 397). Retail is 39 insns,
+// this body is 40: all 39 land in retail's order, and the surplus is the extra
+// `sh v1,0x98` at slot 9. The whole residual is ONE question: retail's
+// `addiu v1,zero,-1` is insn 1, so the -1 constant has a register home at RTL
+// position 1 with NO emitted instruction there. Every spelling measured:
+// - the three -1 stores in their logical places (literals or `s16 m1 = -1;` with
+//   three uses): 39 insns / 156 bytes / 74.36%, and the li lands at slot 7 (this
+//   round re-confirmed for the local form: cse rematerialises a constant home at
+//   its first use, so a local cannot hoist it).
+// - a DUPLICATE early store of -1 to 0x98, 0x3A or 0x1E: 97.44%, li at slot 1 as
+//   retail, surplus store at slot 9. gcc 2.6 does not eliminate the redundant
+//   store.
+// - the single store MOVED to the top: 94.87 (0x98/0x3A), 93.33 (0x1E) - li at
+//   slot 1 but the store at slot 9 instead of 15.
+// New this round: compiler sweep of the duplicate-body (try_flags --sweep) -
+// gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x -mcpu=3000/r8000 all
+// give <= 97.44, i.e. no preset deletes the surplus store, so this is not a
+// PRESET question. Also already measured here: `m1 = -1;`, `arg1 = -1;`, a dead
+// local, volatile on the early store, 0xFFFF spelling of it, `*(s32*)0x98 = -1`
+// (94.74), two adjacent duplicate stores (94.87), a `do {} while (0)` around the
+// whole store group (74.36, li still at slot 7 - so the block-end lever listed as
+// h-constant-store-group-hoist does not move it either), and a fully typed body
+// with the lib_gear/Model field names (74.36). Permuter from this body: 875
+// iterations, base 100 best 100, nothing better.
+// The twin lib_gear/main/main func_801E3534 is the same function (identical 39
+// insns) and is parked at 94.87% with 370 rounds of the same attempts, so this
+// wall is confirmed from both binaries: reaching 100 needs an early -1 use that
+// survives cse but emits no instruction, which no source spelling found produces.
+// 0x3C is unsigned (ori 0xFFFF) while 0x98/0x3A/0x1E are signed -1 (addiu), so
+// those two constants must stay spelled differently.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 /*
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(s16 *)(arg0 + 0x98) = -1;
@@ -244,7 +246,6 @@ void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(s16 *)(arg0 + 0x1E) = -1;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 
 // Appends one command byte to the actor's pending command queue, or, when the
 // queue is empty, seeds the actor's current command from the source actor's
