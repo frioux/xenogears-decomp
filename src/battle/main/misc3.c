@@ -44,6 +44,15 @@ typedef struct {
     /* 0x0F */ u8 unkF[0x51];
 } BattleScreenSlot; // Size: 0x60
 
+// One 8-byte record of the tile table at g_BattleCommandTiles, which callers index
+// by command: func_800785D4 reads its two bytes as the 16-bit tile it stores in the
+// command record's param.
+typedef struct {
+    /* 0x00 */ u8 tileLo;
+    /* 0x01 */ u8 tileHi;
+    /* 0x02 */ u8 unk2[6];
+} BattleCommandTile; // Size: 0x8
+
 // One 0x48-byte row of the command record table at g_BattleCommandRecords, as the
 // queueing tail of this unit writes it: the actor slot at +0xD, the word the
 // command carries at +0x24 and the command byte at +0x31.
@@ -103,8 +112,7 @@ extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern u8 *g_BattleCommandQueue;
 extern BattleWork *g_BattleDisplayState;
 extern BattleCommandRecord g_BattleCommandRecords[];
-extern u8 g_BattleCommandTiles[];
-extern u8 D_800D2E61[];
+extern BattleCommandTile g_BattleCommandTiles[];
 extern s32 g_SystemSemiTransMode;
 extern u8 g_BattleSlotEnabledFlags[];
 extern u8 g_BattleActorCountdownState[];
@@ -832,35 +840,16 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
         i++;
     } while (i < BATTLE_ACTOR_SLOT_COUNT);
 }
-/* 75.45% (132 bytes = retail size): the ONLY difference is that retail's two tile
-   `lbu`s (D_800D2E61[a1] and g_BattleCommandTiles[a1]) are scheduled BEFORE the
-   color `sb` while gcc 2.7.2 sinks them below it, into the `sh`'s use point; the
-   store itself and everything from the queue reload on is byte-identical, and
-   the register mirror that follows (v0/v1) is a consequence of the placement.
-   Measured shapes, all 75.45 unless noted: tile local before/after the pEntry
-   load (identical output); declaration-with-initialiser `u16 tile = ...`;
-   `s32 offset` local for index*8; inline tile in the mask store (43.00, 136
-   bytes - the loads sink AND the or chain re-registers); no pEntry (48.18,
-   prior session); `do {} while (0)` around the color store (17.12); volatile
-   color store (57.27); volatile tile loads (62.42). Source order cannot move
-   the loads: CSE rematerialises them at the sh's use. Screens: gcc-2.6.0 75.45,
-   gcc-2.7.2-cdk 40.61. A 4-minute permuter run (prior session) found nothing
-   better than 585. Retail's order is loads-then-sb: loads HOISTED above an
-   independent store; gcc 2.7.2 sinks them. Parked body (75.45):
 void func_800785D4(u8 color, u8 index) {
-    u16 tile;
     u8 *pEntry;
+    u16 tile;
 
+    tile = (g_BattleCommandTiles[index].tileHi << 8) | g_BattleCommandTiles[index].tileLo;
+    g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].actorSlot = color;
     pEntry = g_BattleCommandQueue;
-    tile = g_BattleCommandTiles[index * 8] | (D_800D2E61[index * 8] << 8);
-    g_BattleCommandCodes[pEntry[0x2DA] * 0x48] = color;
-    pEntry = g_BattleCommandQueue;
-    *(u16 *)(g_BattleCommandSlotMasks + pEntry[0x2DA] * 0x48) = tile;
+    g_BattleCommandRecords[pEntry[0x2DA]].param = tile;
     pEntry[0x2DA]++;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
-
 // A slot is only taken while g_BattleTextSlotCount is below this, the number of
 // rows the buffer has room for.
 #define BATTLE_TEXT_SLOT_MAX 9
