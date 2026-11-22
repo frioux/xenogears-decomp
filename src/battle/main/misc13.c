@@ -714,6 +714,31 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
    folds the +N into the %lo displacement), and keep the byte offset in an s32
    LOCAL (the inline spelling makes gcc materialise an `la` base pointer where
    retail has `lui at,%hi / addu at,at,off / op %lo(at)`). */
+/* PARKED 60.24%, 448 bytes (112 insns; retail 456 = 114). Structure, call set,
+   both loops, their bounds and the store order are retail's; what is left is the
+   ALLOCATOR: retail keeps i in a3 and o in a2 this body the reverse (i in a2), so
+   nearly every loop instruction differs by register alone, ofsA/ofsB land in
+   t1/t2 where retail has t0/t1, the param pointer in t0 where retail has a1, and
+   retail forms `addiu v0,v0,320; addu a0,v0,a3; lbu 0(a0)` for the first element
+   where this body folds 0x140 into the lbu (`lbu 0x140(a1)`). Same tree, same
+   operand order at every addu.
+   What is PROVED here (keep it):
+   - the three param-table index chains must be written out in full at each of the
+     four sites, not shared: the stores to D_800C48EC/EE/F0 kill the loads of
+     g_BattleSlotRecords and g_BattleSlotParamTable, which is exactly the recompute
+     retail shows (no pointer local may be hoisted - `u8 *pParam` scores 43.58%,
+     436 bytes, because gcc then hoists the whole chain out of the loop).
+   - the element byte must be a VOLATILE load: retail loads it twice in the first
+     store (`lbu v1,0(a0)` for the compare, `lbu v0,0(a0)` for the &7) with the
+     address computed once, and only volatile stops gcc CSE-ing the two loads.
+     That cast is worth +1.09% and 2 insns over the plain u8 form (59.15 -> 60.24).
+   Tried and measured, all worse or equal: plain u8 in place of the volatile cast
+   59.15% / 440 bytes; index spelled inline with no ofsA/ofsB locals 59.90% /
+   416 bytes; `u8 *pParam` hoisted 43.58% / 436 bytes; i/o declaration order swapped
+   (identical 59.15%, so gcc's allocation order is not the source order); the same
+   body under gcc-2.6.0 60.24% (identical, so the compiler version is not the
+   question) and under gcc-2.7.2-cdk 44.97%. The retail `$at` chains say this is not
+   a cdk/-G0 unit. A permuter pass is the next tool here, not more shapes. */
 /*
 s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 i;
@@ -738,14 +763,14 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     D_800C48F0[0] = 0;
     o = 6;
     for (i = 1; i < 8; i++, o += 6) {
-        if (*(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) == 0xFF) {
+        if (*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) == 0xFF) {
             break;
         }
         *(u16 *)(D_800C48EC + o) =
-            *(u16 *)(g_BattleSlotParamTable + ((*(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5));
+            *(u16 *)(g_BattleSlotParamTable + ((*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5));
         *(u16 *)(D_800C48EE + o) =
-            *(u16 *)(g_BattleSlotParamTable + ((*(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
-        D_800C48F0[o] = *(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 0x80;
+            *(u16 *)(g_BattleSlotParamTable + ((*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
+        D_800C48F0[o] = *(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 0x80;
     }
     if (g_BattleActorCharIds[a] == 4) {
         res = 1;
