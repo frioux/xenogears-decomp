@@ -241,6 +241,12 @@ void WorldMapFreeSpritePrimBuffers(void) {
 // Tried, all unchanged or worse: D_8009D618 sized [25], an explicit `slot = row * 5` biv
 // (which additionally hoisted the tile-id base, 0x30 frame), -G0 (95.40), gcc-2.7.2-cdk
 // (62.29, so not a preset). `-mno-split-addresses` is not an option in these cc1s.
+// Round 405: cc1_probe reproduces both halves of the residual, so it is not a spelling of this
+// body. A snippet with just `if (D_8009D618[i] == -1)` emits retail's bare macro load
+// (`lh $3,D_8009D618($2)`, which maspsx expands into the lui-at / addu-at / lh pair), but the same
+// access inside the 5x5 nest that contains the func_80099BFC call always comes out as
+// `la $20,D_8009D618` plus `addu $2,$2,$20` - the same under -G0, so the split is a
+// per-access reload decision, not a flag. A `s16 state = D_8009D618[...]` local changes nothing.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
 /*
 void func_8008615C(void) {
@@ -578,6 +584,15 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
 // (hoists the D_8009AF80/D_8009AF90 base-register formations above the call, which
 // pushes pPos out of s2); do/while starting at the unk2C store = 89.16 (760 bytes);
 // do/while over the post-call pPos->x/tileZ/pPos->z group = 88.62.
+// Round 405: re-measured 97.30 (756 bytes, identical instruction multiset). The mirror is two
+// pseudos: retail wants pPos (0x1F800000) in s2 and the D_8009AF90 base in s3. The -da
+// global-alloc dump proves it is an allocno ORDER question and nothing else: the callee-saved
+// hand-out is 73 in 16 s0, 139 in 17 s1 (D_8009AF80 base), 147 in 18 s2 (D_8009AF90 base),
+// 75 in 19 s3 (pPos), i.e. pPos is processed LAST of the four although it has the most refs,
+// because its live range spans the whole else branch. A retry would have to shorten pPos's
+// range without moving its lui s3,0x1f80 (retail has that instruction in the same slot),
+// which no declaration or assignment move can do. Dump recipe: cc1 -O2 -G8 -da on
+// build/src/world_map/main/misc9.c.i; 2.7.2 has no -dl, so the ref counts stay unread.
 /*
 s32 func_80087C6C(s32 index) {
     WorldMapPlayer* pSlot;
