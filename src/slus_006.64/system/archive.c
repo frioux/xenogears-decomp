@@ -342,25 +342,42 @@ int ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 channel) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
 /*
- * Best attempt: objdiff 93.58%, 940 bytes against retail's 944 (one instruction
- * SHORT, so it cannot link as written). Structure, frame (0x50, vars=24) and
- * the store block are right; what is left is which three of the six u16 stack
- * arguments take the frame slots (retail spills arg7/arg8/arg9 to 0x10/0x18/0x20
- * and keeps arg4/arg5/arg6 in $s6/$s7/$fp; this draft spills arg4's neighbours),
- * plus retail's dedicated callee-saved register for the constant 1
- * (`ori s5,zero,0x1` at the head of the store block, stored to
- * g_ArchivePendingReadCount and g_ArchiveCdDriveState) which this cc1 always
- * coalesces into a dead one ($17) instead of burning $s5 - that coalescing is
- * what leaves one register too many for the arguments.
- * Two levers that did move it (both kept below): a second copy of `index`
- * (nIndex, used at one call) buys the third frame slot, and wrapping the store
- * group from g_ArchiveStreamSections to ArchiveClearStreamFileSections in a
- * do/while(0) fixes the store order (the plain block emits D_80059F2C two
- * statements early). `if (nClose != (nClose = 0))` is what stops the PCclose
- * loop's s16 value being sign-extended twice.
- * Permuter: 3 runs, 2587 -> 1370 -> 1249 -> 1214 (still falling).
+ * PARKED 93.07% (960 bytes, 240 instructions) against retail's 944 / 236.
+ *
+ * THE 93.58% / 940-byte BODY THIS REPLACES WAS UNDEFINED BEHAVIOUR, DO NOT RE-PARK IT.
+ * It ended `if (nClose != (nClose = 0)) return -6;`, which reads a variable the same
+ * expression assigns (no sequence point), and gcc 2.7.2 performs the store first: the
+ * compare folds to `0 != 0`, and retail's `bnez $v1` + `li $v0,-6` pair disappears
+ * entirely, so that body returns 0 where retail returns -6 on retry exhaustion. The
+ * higher percentage came from the missing branch, not from a closer match. The honest
+ * body below is `if (nClose != 0) return -6;`.
+ *
+ * RESIDUAL, named and measured: the counter's HImode narrowing. Retail narrows the
+ * incremented `s16 nClose` ONCE into $v1 and reuses that one register for both
+ * `slti $v0,$v1,4` and the trailing `bnez $v1`; cc1 keeps the int value in $v1 and
+ * narrows twice, which costs exactly the 4-instruction deficit: `move $v1,$s0` in the
+ * bnez delay slot, `move $v1,$v0` after the addiu, `sll $v0,$v1,0x10` before the
+ * trailing bnez, and the `sra $v0,$v0,0x10` it needs in place of retail's `sra $v1`.
+ * `s16 nClose` with `nClose = nClose + 1;` and with `++nClose` in the if both measure
+ * 93.07 / 960 identically, so the two-statement vs pre-increment spelling is not it
+ * (tools/rounds/levers.md g-s16-counter-pre-decrement).
+ *
+ * Two other allocation deltas in the same body, both allocator order only:
+ *  - which three u16 stack args keep registers: retail keeps arg4/arg5/arg6 in
+ *    $s6/$s7/$fp and spills arg7/arg8/arg9 to 0x10/0x18/0x20; cc1 keeps
+ *    arg4/arg5/arg8 and spills arg6/arg7/arg9.
+ *  - the constant 1: retail burns a callee-saved register on it (`ori $s5,$zero,0x1`,
+ *    used by g_ArchivePendingReadCount and g_ArchiveCdDriveState); cc1 CSEs it into
+ *    $s0, which it also wants for the PCclose result.
+ * With both of those right, the three spill slots would be arg7/arg8/arg9 and the
+ * missing `move` would fit inside the frame.
+ *
+ * MEASURED VARIANTS: without the `s32 nIndex` second copy of the parameter the frame
+ * drops to 0x48 and the body is 237 instructions / 948 bytes / 92.62% (closest in
+ * size, wrong frame); with it, 240 / 960 / 93.07% (kept). The store group still needs
+ * the `do { ... } while (0)` wrapper to emit D_80059F34 after g_ArchiveStreamSections.
+ * Permuter on the earlier body: 3 runs, 2587 -> 1370 -> 1249 -> 1214, still falling.
  * The six u16 stack args are the image chunk descriptors
  * ArchiveImageStreamProcessSector consumes (D_80059F24..D_80059F38).
  *
@@ -455,7 +472,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
  *                  break;
  *          }
  *
- *          if (nClose != (nClose = 0)) {
+ *          if (nClose != 0) {
  *              return -6;
  *          }
  *
@@ -471,8 +488,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
  *      g_ArchiveCdReadStartCount += 1;
  *      CdControlF(CdlSetloc, (void*)pLoc);
  *      return 0;
- *  }
+ * }
  */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
 
 int* ArchiveAllocStreamFile(int numEntries, int allocMode) {
     int* pStreamFile;
