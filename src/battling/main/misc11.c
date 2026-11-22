@@ -15,7 +15,7 @@ extern void BattleCopyPlaneNormal(SVECTOR *pNormal);
 extern void func_800316C0(void *pOt, void *pPrim);
 
 // Entries in the per-scanline span tables: BattleClearSpanTables clears this many
-// and func_80087698 stops at this column.
+// and BattleAccumulateSpanColumns stops at this column.
 #define BATTLE_SPAN_TABLE_COUNT 128
 
 // The flags word's grid-cell bits: an actor whose value here is 2 gets no
@@ -68,8 +68,8 @@ extern BattlingGaugeEnv g_BattleDrawEnvPair[2];
 
 extern s32 g_BattleAppendEntryCount;
 extern u32 g_NearColor;
-extern u8 D_80091834[];
-extern u8 D_800918B4[];
+extern u8 g_BattleSpanLowerBound[];
+extern u8 g_BattleSpanUpperBound[];
 /* The battle span render params block BattleRenderShadedSpans copies to
    0x1F800120 (misc2_grid.c's BattleGridParams): four 8-byte shade entries, then
    the tpage/clut pair of each of the four span textures. */
@@ -294,9 +294,9 @@ void BattleClearSpanTables(void) {
 
 // Interpolates a per-column value in 8.8 fixed point from (startIndex, startValue)
 // to (endIndex, endValue) and folds it into the per-column span bounds, keeping each
-// column of g_BattleSpanTableMin at or above D_80091834 and each column of
-// g_BattleSpanTableMax at or below D_800918B4 + 1.
-void func_80087698(s32 startValue, s32 startIndex, s32 endValue, s32 endIndex) {
+// column of g_BattleSpanTableMin at or above g_BattleSpanLowerBound and each column of
+// g_BattleSpanTableMax at or below g_BattleSpanUpperBound + 1.
+void BattleAccumulateSpanColumns(s32 startValue, s32 startIndex, s32 endValue, s32 endIndex) {
     s32 cur;
     s32 step;
     s32 tmpValue;
@@ -330,7 +330,7 @@ void func_80087698(s32 startValue, s32 startIndex, s32 endValue, s32 endIndex) {
         value = cur >> 8;
         p = g_BattleSpanTableMin + i;
         if (value < *p) {
-            limit = D_80091834[i];
+            limit = g_BattleSpanLowerBound[i];
             if (value < limit) {
                 value = limit;
             }
@@ -338,7 +338,7 @@ void func_80087698(s32 startValue, s32 startIndex, s32 endValue, s32 endIndex) {
         }
         p = g_BattleSpanTableMax + i;
         if (*p < value) {
-            limit = D_800918B4[i] + 1;
+            limit = g_BattleSpanUpperBound[i] + 1;
             if (limit < value) {
                 value = limit;
             }

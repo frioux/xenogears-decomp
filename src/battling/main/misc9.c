@@ -126,7 +126,7 @@ extern void BattleSetScreenTileBlack(void);
 extern void BattleDrawTextPrims(void* p);
 extern void BattleAttachActorPrims(void* p);
 extern void BattleAddSharedPrim(void);
-extern void func_80087698(s32 x0, s32 y0, s32 x1, s32 y1);
+extern void BattleAccumulateSpanColumns(s32 x0, s32 y0, s32 x1, s32 y1);
 extern void AddPrim(void* pOt, void* pPrim);
 
 extern u8* g_BattleRootOrderingTable;
@@ -186,15 +186,15 @@ void BattleDrawHexagonOutline(s32 arg0, s32 arg1, s32 arg2) {
     for (i = 0; i < 6; i++) {
         px = bx + ((rcos(ang) * 24) >> 12);
         py = by + ((rsin(ang) * 24) >> 12);
-        func_80087698(x, y, px, py);
+        BattleAccumulateSpanColumns(x, y, px, py);
         x = px;
         y = py;
         ang += 0x100;
     }
     px = bx + ((rcos(arg2 - 0x280) * 10) >> 12);
     py = by + ((rsin(arg2 - 0x280) * 10) >> 12);
-    func_80087698(x, y, px, py);
-    func_80087698(x0, y0, px, py);
+    BattleAccumulateSpanColumns(x, y, px, py);
+    BattleAccumulateSpanColumns(x0, y0, px, py);
 }
 
 void BattleDrawArcOutline(s32 arg0, s32 arg1, s32 arg2) {
@@ -219,7 +219,7 @@ void BattleDrawArcOutline(s32 arg0, s32 arg1, s32 arg2) {
     for (i = 0; i < 3; i++) {
         px = bx + ((rcos(ang) << 5) >> 12);
         py = by + ((rsin(ang) << 5) >> 12);
-        func_80087698(x, y, px, py);
+        BattleAccumulateSpanColumns(x, y, px, py);
         x = px;
         y = py;
         ang += 0x75;
@@ -227,8 +227,8 @@ void BattleDrawArcOutline(s32 arg0, s32 arg1, s32 arg2) {
     px = bx + ((rcos(arg2 - 0x100) << 4) >> 12);
     bx = rsin(arg2 - 0x100);
     py = by + ((bx << 4) >> 12);
-    func_80087698(x, y, px, py);
-    func_80087698(x0, y0, px, py);
+    BattleAccumulateSpanColumns(x, y, px, py);
+    BattleAccumulateSpanColumns(x0, y0, px, py);
 }
 
 void BattleCopyPlaneNormal(SVECTOR* p) {
