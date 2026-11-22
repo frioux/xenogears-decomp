@@ -734,50 +734,63 @@ void func_8007819C(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
-/* 56.44%: first attempt, body below. The locals are right and they are the
-   hard part: retail's frame is 0xC8 with a TIM_IMAGE at sp+0x20 (ReadTIM's
-   output) and a 3-element array at sp+0x38 of a 0x18-byte struct, whose SIX
-   s32 fields are exactly ResourceHelperGetTexCoords' six out-pointers
-   (count, texPageId, clutX, clutY, texPageX, texPageY - see
-   system/temp2.c:539 for that signature and member_change_menu/main/misc.c:357
-   for the call shape). Retail also keeps running offsets in two stack slots
-   (sp+0x90 += 6, sp+0x98 += 0x18) because it runs out of saved registers: six
-   address givs (array base and each field) plus i, n, arg0, arg1.
-   Unresolved when I ran out of time:
-   1. the tex entry stride is 0x460 (sll/subu/sll chain on the index byte) and
-      the TIM base is arg0, i.e. OpenTIM((u_long *)(pTimData + n * 0x460));
-   2. the two g_BattleActorCharIds[i] loads and the `D_800D3294 != 0` guard: retail's
-      second test is `sltiu s2,2` on a counter that starts at -1 and is the
-      g_BattleActorCharIds index minus one, i.e. the guard is `i != 0` in some spelling
-      gcc re-based onto that biv (0xB replaces the index for the non-first
-      entries);
-   3. mine came out 356 bytes against retail's 504, so the loop was optimised
-      much harder than retail's - the six &coords[i].field arguments must be
-      taken through one index expression gcc keeps as six bivs, not as
-      coords[i].field.
-   Parked body (56.44):
+/* 60.00% (356 bytes / 89 insns against retail's 504 / 126): the body is one gcc
+   strength-reduction tie, not a source difference. Retail keeps SIX address givs for
+   the ResourceHelperGetTexCoords out-pointers (s4..s7, fp and one spilled to
+   sp+0x98), builds them in the preheader with ori 4/8/0xC/0x10/0x14, increments them
+   by 0x18 in the loop tail, and so must hold all six in callee-saved registers
+   across the OpenTIM/ReadTIM calls - hence the 0xC8 frame with ten saved registers.
+   This body makes gcc combine the six &coords[i].field addresses into ONE base giv
+   (sp+0x38) and re-form them with addiu at each use (0x98 frame, six saved
+   registers); its readbacks then index off sp + i*0x18 where retail reuses the base
+   giv, so the two shapes differ only in giv bookkeeping and the OpenTIM index chain
+   through the LoadImage/DrawSync tail is already instruction-identical.
+   Measured: plain &coords[i].count args 57.77 (same 356 bytes); the six s32 * locals
+   below assigned before OpenTIM 60.00 (gcc folds them back into givs - identical
+   code); a BattleTextureCoords *pCoords local 57.77 (identical code); s32 fields in
+   the struct would give lw readbacks where retail has lhu. Retail's local record is
+   0x18 bytes with four u16 fields 4 bytes apart (read at +8/+0xC/+0x10/+0x14), which
+   the parked body reproduces; its first two fields are the s32 outs of the same call.
+   Parked body (60.00): */
+/*
 typedef struct {
+    // 0x00
     s32 count;
+    // 0x04
     s32 texPageId;
-    s32 clutX;
-    s32 clutY;
-    s32 texPageX;
-    s32 texPageY;
-} BattleTextureCoords;
+    // 0x08
+    u16 clutX;
+    // 0x0A
+    u16 padA;
+    // 0x0C
+    u16 clutY;
+    // 0x0E
+    u16 padE;
+    // 0x10
+    u16 texPageX;
+    // 0x12
+    u16 pad12;
+    // 0x14
+    u16 texPageY;
+    // 0x16
+    u16 pad16;
+} BattleTextureCoords;  // Size: 0x18
 
 void func_80078310(u8 *pTimData, u8 index) {
     TIM_IMAGE tim;
     BattleTextureCoords coords[3];
+    s32 *pCount;
+    s32 *pTexPageId;
+    s32 *pClutX;
+    s32 *pClutY;
+    s32 *pTexPageX;
+    s32 *pTexPageY;
     s32 i;
-    s32 texPageYOffset;
-    s32 yOffset;
+    s32 n;
+    s32 texPageXOffset;
 
-    i = 0;
-    texPageYOffset = 0;
-    yOffset = 0;
-    for (; i < 3; i++) {
-        s32 n;
-
+    texPageXOffset = 0;
+    for (i = 0; i < 3; i++) {
         if (g_BattleActorCharIds[i] == 0x7F) {
             continue;
         }
@@ -785,21 +798,24 @@ void func_80078310(u8 *pTimData, u8 index) {
         if (D_800D3294 != 0 && i != 0) {
             n = 0xB;
         }
+        pCount = (s32 *)&coords[i].count;
+        pTexPageId = (s32 *)&coords[i].texPageId;
+        pClutX = (s32 *)&coords[i].clutX;
+        pClutY = (s32 *)&coords[i].clutY;
+        pTexPageX = (s32 *)&coords[i].texPageX;
+        pTexPageY = (s32 *)&coords[i].texPageY;
         OpenTIM((u_long *)(pTimData + n * 0x460));
         ReadTIM(&tim);
         ResourceHelperGetTexCoords(g_BattleSpriteArchive, index + i,
-                                   &coords[i].count, &coords[i].texPageId,
-                                   &coords[i].clutX, &coords[i].clutY,
-                                   &coords[i].texPageX, &coords[i].texPageY);
+                                   pCount, pTexPageId, pClutX, pClutY, pTexPageX, pTexPageY);
         tim.crect->x = coords[i].clutX;
         tim.crect->y = coords[i].clutY;
-        tim.prect->x = coords[i].texPageX + texPageYOffset;
+        tim.prect->x = coords[i].texPageX + texPageXOffset;
         tim.prect->y = coords[i].texPageY;
         LoadImage(tim.crect, tim.caddr);
         LoadImage(tim.prect, tim.paddr);
         DrawSync(0);
-        texPageYOffset += 6;
-        yOffset += 0x18;
+        texPageXOffset += 6;
     }
 }
 */
