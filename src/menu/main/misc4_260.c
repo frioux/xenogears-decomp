@@ -916,7 +916,9 @@ typedef struct {
 // stat strings plus the slot highlight, then the dim quad behind them.  Kicked off by
 // the character window's own prim add (misc5), so it only runs while that window is up.
 // Every use re-reads g_Menu->pPrimBuffer: the calls above can change it, so a pointer
-// kept in a local would emit retail's registers differently.
+// kept in a local would emit retail's registers differently.  The portrait quad is
+// reached index-first (`renderContext + quads`): the `quads[renderContext]` spelling
+// gives gcc the commuted `addu` retail does not have (98.48 with the subscript form).
 void func_801D02D8(void) {
     s32 i;
 
@@ -926,24 +928,24 @@ void func_801D02D8(void) {
     if (((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotPrimsBuilt == 0) {
         MenuRenderString(MENU_GLYPH_CELL_COUNT, ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->glyphQuads[0],
                          g_Menu->renderContext);
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].u0 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u0 =
             g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16;
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].v0 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v0 =
             g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
                 .unk0[g_Menu->characterCellFrame * 4];
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].u1 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u1 =
             g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16 + 0xF;
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].v1 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v1 =
             g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
                 .unk0[g_Menu->characterCellFrame * 4];
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].u2 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u2 =
             g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16;
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].v2 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v2 =
             g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
                 .unk0[g_Menu->characterCellFrame * 4] + 0xF;
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].u3 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u3 =
             g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16 + 0xF;
-        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].v3 =
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v3 =
             g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
                 .unk0[g_Menu->characterCellFrame * 4] + 0xF;
         ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].clut =
