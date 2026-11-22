@@ -4281,48 +4281,56 @@ u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, Au
     return pScript + 3;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 61.87 / 65.37 / 63.84 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (63.84%, 268 bytes vs the original's 280): the shape is right (pitch = note * abs(note)
-via the if/else, volume = velocity + velocity^2/64, the call and the envelopes[0] store order all
-line up) but gcc mirrors the callee-saved allocation: it puts pAudioElements in s2 and the
-velocity in a2/v1, where the original has pAudioElements s1 (copied in the first beqz delay slot),
-velocity s2, index s3, flags s0. `s32 velocity`/`s32 note` (in either declaration order) and
-u8/s16 local types all give the same mirror. A second miss: `((mode & 0x10) == 0) * 2 + 1` becomes
-a two-way branch here instead of the original's sltiu/sll/addiu, and `(s16)velocity * (s16)velocity`
-is elided unless the local is widened to s32. Compare the parked SoundScriptSetTriangleEnvelope0, the same function
-with a constant mode, which is stuck at 92.34% on the same allocation mirror.
+Round 398: TWIN PORT, 91.13% (268 bytes = retail's size, 67 insns both). This is
+SoundScriptSetTriangleEnvelope0 just above, with the handler index and the flags taken from the
+mode byte instead of the constant 3 - so port that body and swap 3 for mode/index, and keep its
+nested if(note) if(velocity) shape and `s16 velocity` (that is what gives the sll/sra + mult).
+Then `flags = ((mode & 0x10) == 0) * 2;` before the call and `flags + 1` AT THE STORE SITE - that
+split is what puts the late `addiu s0,s0,1` where retail has it (branchless sltiu/sll, no bnez).
+Residual: a pure callee-saved permutation. Retail flags s0 / element s1 / velocity s2 /
+index s3 / pScript s4; this body gives flags s0 / index s1 / element s2 / velocity s3, i.e. the
+index outranks element and velocity in gcc's allocno order. Retail's `andi a2,s3,0xF; move s3,a2`
+shows its index pseudo was local-alloc'd to a2 and copied to s3 by global-alloc, so the s3 copy's
+live range does not cross the call in source terms. Measured this round (all 67 insns / 268 B):
+flags before index 88.40; `mode & 0xF` inlined at the three uses with no index local 81.82
+(mode then lives across the call: 280 B, an extra andi 0xff and s5). Not screened on another
+preset this round.
+/*
 u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s8 note = pScript[1];
     s16 velocity = pScript[0];
+    s32 note = (s8)pScript[1];
     u8 mode = pScript[2];
-    s32 pitch;
-    s32 volume;
+    s32 index;
+    s32 flags;
 
-    if (note != 0 && velocity != 0) {
-        if (note < 0) {
-            pitch = note * -note;
-        } else {
-            pitch = note * note;
+    if (note != 0) {
+        if (velocity != 0) {
+            if (note < 0) {
+                note = note * -note;
+            } else {
+                note = note * note;
+            }
+            velocity = velocity + ((s16)velocity * (s16)velocity) / 64;
+            index = mode & 0xF;
+            flags = ((mode & 0x10) == 0) * 2;
+            pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(note << 14, velocity, index);
+            pAudioElements->envelopes[0].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
+            pAudioElements->envelopes[0].reload = velocity;
+            pAudioElements->envelopes[0].delayReload = 0;
+            pAudioElements->envelopes[0].pStepHandler = g_SoundEnvelopeStepHandlers[index];
+            pAudioElements->envelopes[0].handlerIndex = index;
+            pAudioElements->envelopes[0].target = 0;
+            pAudioElements->envelopes[0].flags = flags + 1;
+            pAudioElements->activeEnvelopeMask |= 0x1;
+            SoundResetEnvelope(&pAudioElements->envelopes[0]);
         }
-        volume = velocity + (velocity * velocity) / 64;
-        pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(pitch << 14, (s16)volume, mode & 0xF);
-        pAudioElements->envelopes[0].rampStep = 0x400;
-        pAudioElements->envelopes[0].reload = volume;
-        pAudioElements->envelopes[0].delayReload = 0;
-        pAudioElements->envelopes[0].handlerIndex = mode & 0xF;
-        pAudioElements->envelopes[0].target = 0;
-        pAudioElements->envelopes[0].flags = ((mode & 0x10) == 0) * 2 + 1;
-        pAudioElements->envelopes[0].pStepHandler = g_SoundEnvelopeStepHandlers[mode & 0xF];
-        pAudioElements->activeEnvelopeMask |= 0x1;
-        SoundResetEnvelope(&pAudioElements->envelopes[0]);
     }
 
     return pScript + 3;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
 
 u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
@@ -4424,39 +4432,40 @@ u8* SoundScriptSetTriangleEnvelope1(u8* pScript, AudioManager* pAudioManager, Au
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
 /*
-Attempt (78.85%, 232 bytes against retail's 244; the separate velocity/volume version) and
-(78.28%, 240 bytes; the single running local below). Round 333: the whole tail now matches
-retail's store set and order (rampStep, reload, delayReload, target, handlerIndex,
-`flags + 1`, mask |= 2, the call in the last sh's slot) and the sltiu/sll flag computation
-comes out right once `flags` is its own local computed BEFORE the call (`flags + 1` at the
-store site is what puts retail's late addiu s0,s0,1 there). Residual, in the head only:
-retail loads velocity straight into s2 and copies it to v0 for the test and the multiply
-(`move v0,s2; beqz v0; mult v0,v0`), then re-uses s2 for the volume; gcc puts the lbu in a1,
-keeps it there, and moves the sum into s2. That single missing copy plus the callee-saved
-roles (retail mode/value s3 and pAudioElements s1; ours value s1 and pAudioElements s3, i.e.
-a mirror) is the whole delta. Tried and measured this round: declaration order both ways,
-`flags` before `value` (72.89), and the parked variants below (69.46 / 71.39).
+Round 398: 84.75% (240 bytes vs retail's 244; 60 insns vs 61). The twin shape that scores
+91.13 on func_8003D9A4, applied to envelope 1: nested ifs, `s32 volume = pScript[0]` (no
+sign-extension copy, retail has none either), `volume += volume * volume / 64`, index and
+`flags = ((mode & 0x10) == 0) * 2` before the call, `flags + 1` at the store site. 6 points over
+the previous park. Residual = TWO things, both in the head: (1) retail keeps volume in s2 from the
+lbu and copies it for the test and the multiply (`move v0,s2; beqz v0; mult v0,v0`), then adds
+the square to s2 in place; here the lbu lands in a1, the sum is formed there and copied into s2
+afterwards - the same missing copy the older notes describe with `volume != 0` tested on a copy;
+(2) the callee-saved permutation of item (1) of the func_8003D9A4 note: retail element s1 /
+volume s2 / mode-index s3, here element s3 / index s1 / volume s2. Writing the sum as
+`volume = volume + volume * volume / 64` versus `+=` makes no difference; the earlier
+velocity/volume split locals and the `unk10 * 2 + 1` flag spellings are still the recorded
+59-71% variants.
+/*
 u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s8 note = pScript[1];
-    u8 mode = pScript[2];
-    s32 value;
-    s32 flags;
     s32 volume = pScript[0];
+    s32 note = (s8)pScript[1];
+    u8 mode = pScript[2];
+    s32 index;
+    s32 flags;
 
     if (note != 0) {
         if (volume != 0) {
             volume += (volume * volume) / 64;
-            value = mode & 0xF;
+            index = mode & 0xF;
             flags = ((mode & 0x10) == 0) * 2;
-            pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, value);
-            pAudioElements->envelopes[1].rampStep = 0x400;
+            pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
+            pAudioElements->envelopes[1].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pAudioElements->envelopes[1].reload = volume;
             pAudioElements->envelopes[1].delayReload = 0;
+            pAudioElements->envelopes[1].pStepHandler = g_SoundEnvelopeStepHandlers[index];
+            pAudioElements->envelopes[1].handlerIndex = index;
             pAudioElements->envelopes[1].target = 1;
-            pAudioElements->envelopes[1].pStepHandler = g_SoundEnvelopeStepHandlers[value];
-            pAudioElements->envelopes[1].handlerIndex = value;
             pAudioElements->envelopes[1].flags = flags + 1;
             pAudioElements->activeEnvelopeMask |= 0x2;
             SoundResetEnvelope(&pAudioElements->envelopes[1]);
@@ -4466,52 +4475,7 @@ u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 3;
 }
 */
-/*
-Attempt (69.46%, 244 bytes vs the original's 236). pScript reaches s4, volume s2 and the step
-handler table load v1, so the head and the tail order are right. Still different: (1) the flags
-test - the original is andi s0,s3,0x10 + sltiu s0,s0,1 + sll + addiu 1, but gcc 2.6 turns every
-spelling tried (an inline == 0 or != 0 comparison, or a `== 0` / `< 1` / `!x` local multiplied by
-2) into either a bnez pair or srl/xori/andi bit extraction; (2) the third call argument reaches a2
-through a move in the jal delay slot where the original reuses the andi a2,s3,0xF computed before
-the division; (3) with the flags local present pAudioElements moves from s1 to s3. Reusing one
-variable for the velocity and the volume (`volume += volume * volume / 64`) is what puts them in a
-single register; separate velocity/volume locals come out at 59.39% in exactly 236 bytes.
-// u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-//     s32 note = (s8)pScript[1];
-//     u8 unk2 = pScript[2];
-//     s32 value;
-//     s32 unk10;
-//     s32 volume = pScript[0];
-
-//     if (note != 0) {
-//         if (volume != 0) {
-//             volume += (volume * volume) / 64;
-//             value = unk2 & 0xF;
-//             unk10 = !(unk2 & 0x10);
-//             pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, value);
-//             pAudioElements->envelopes[1].rampStep = 0x400;
-//             pAudioElements->envelopes[1].reload = volume;
-//             pAudioElements->envelopes[1].delayReload = 0;
-//             pAudioElements->envelopes[1].target = 1;
-//             pAudioElements->envelopes[1].flags = unk10 * 2 + 1;
-//             pAudioElements->envelopes[1].pStepHandler = g_SoundEnvelopeStepHandlers[value];
-//             pAudioElements->envelopes[1].handlerIndex = value;
-//             pAudioElements->activeEnvelopeMask |= 0x2;
-//             SoundResetEnvelope(&pAudioElements->envelopes[1]);
-//         }
-//     }
-
-//     return pScript + 3;
-// }
-*/
-/*
-Attempt (71.39%, same size as the original's 236 bytes): the tail is present in the
-original's order (delta, 0x400, reload, 0, step-handler table, target, handlerIndex,
-flags, activeEnvelopeMask, call), but gcc loads the table entry into a1 instead of v1, drops the
-`lhu v0,0xCE` / `ori` from before the table load, and forms the envelope call base a0
-much earlier. `flags = ((value & 0x10) == 0) * 2 + 1` does produce the original's
-branchless sltiu/sll/addiu, and `(s16)volume` the sll/sra pair.
-*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
 
 u8* SoundScriptSetEnvelope1Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
