@@ -139,21 +139,37 @@ typedef struct {
    register pair swapped. Retail count=$t0, limit=$t1, color=$t2 with the
    in-loop 0x12 in the caller-saved $v1; this body gives color=$t0 (0xC and
    0x12 both through it), limit=$t1, count=$t2. cc1 -dg shows color is the FIRST
-   allocno global_alloc processes and count the LAST (priority list "78 79 76"),
-   i.e. colour is weighted as live inside the loop while count is referenced only
-   in the entry block and after the loop - no C spelling moves count's live
-   range. Measured dead: color as s16 (99.39, same swap), as u32/s32/u8 (97.88,
-   +4 bytes), colour declared or assigned first (99.39 / 96.44), *pSrc with
-   pSrc++ (99.09, also moves the pSrc base into $a1), 0xC written inside the
-   loop (96.82, li stays in-loop in $v1 and limit takes $t0), 0x12 as a literal
-   or as 0xC+6 (94.39, GCSE hoists both constants into $t0), and dropping
-   new_var for a plain "if (arg0 > 1)" guard (different allocation, both colour
-   values in $t0). Two 4-minute permuter runs (base 245 -> 50 -> 40) plus a
-   third 3-minute run (PERMUTER_NONE, base 60 best 60, 1368 iterations) found
-   nothing. Retail's 0xC in $t2 and 0x12 in $v1 are two different registers, so
-   the original was not one variable; a plain 0x12 literal is hoisted by GCSE,
-   so that spelling is out too. The two requirements - one hard register for
-   the 0xC and a re-materialised 0x12 - are not reachable from one variable. */
+   allocno global_alloc processes and count the LAST (processing order
+   "78 79 76"), i.e. colour is weighted as live inside the loop while count is
+   referenced only in the entry block and after the loop - no C spelling moves
+   count's live range. Measured dead: color as s16 (99.39, same swap), as
+   u32/s32/u8 (97.88, +4 bytes), colour declared or assigned first (99.39 /
+   96.44), *pSrc with pSrc++ (99.09, also moves the pSrc base into $a1), 0xC
+   written inside the loop (96.82, li stays in-loop in $v1 and limit takes
+   $t0), 0x12 as a literal or as 0xC+6 (94.39, GCSE hoists both constants into
+   $t0), dropping new_var for a plain "if (arg0 > 1)" guard (different
+   allocation, both colour values in $t0), and "u8 count = arg1;" as an
+   initialised declaration instead of an assignment (99.39, identical bytes).
+   Two 4-minute permuter runs (base 245 -> 50 -> 40) plus two 3-minute runs
+   (PERMUTER_NONE, base 60 best 60 / 1368 iterations; and base 40 best 40 /
+   1495 iterations, round 405) found nothing. Retail's 0xC in $t2 and 0x12 in
+   $v1 are two different registers, so the original was not one variable; a
+   plain 0x12 literal is hoisted by GCSE, so that spelling is out too. The two
+   requirements - one hard register for the 0xC and a re-materialised 0x12 -
+   are not reachable from one variable.
+   The -dl dump of this body proves the swap is unreachable rather than
+   untested: global_alloc processes allocnos by
+   floor_log2(refs) * refs / live_length * mode_size, and this body gives
+   count 4 refs / 49 insns / 1 byte = 0.16, limit 4 refs / 36 insns / 4 bytes =
+   0.89, color 7 refs / 28 insns / 2 bytes = 1.00, so the order is color,
+   limit, count and the three loop-live temporaries take $t0/$t1/$t2 in that
+   order. Count's terms are pinned by the machine code: 4 RTL refs are exactly
+   the move, the masked compare, the branch-set and the final store, its
+   49-insn live range is entry to the last store, and it must be QI because
+   retail's copy from arg1 is a bare "move" with no zero-extend (an s32 count
+   would need an andi there, i.e. 67 insns). No C spelling moves it above
+   limit's 4-byte 0.89. try_flags: gcc-2.6.0-psx 99.39, gcc-2.7.2-cdk-psx
+   85.14, so the preset is not the way out. */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
