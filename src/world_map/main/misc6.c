@@ -19,6 +19,11 @@
 #define WORLD_MAP_SLOT_FACING_COS 0xDA6
 #define WORLD_MAP_SLOT_FACING_SIN 0x85A
 
+// how far from the player along its facing direction the slot actor is spawned:
+// func_8007ECA4 sets x and z to the player position minus each facing component
+// times this
+#define WORLD_MAP_SLOT_SPAWN_OFFSET 13952
+
 // the slot's group turns by this much every frame, in 1.12 fixed point
 // (a sixteenth of a turn, re-wrapped with WORLD_MAP_ANGLE_MASK in
 // WorldMapUpdateSlotActor)
@@ -900,49 +905,42 @@ void WorldMapBuildPolyFT4Templates(WorldMapGroup *pGroup, u8 *pPrim, int count, 
     memcpy((u8 *)pGroup->pPrims[1], pGroup->pPrims[0], count * sizeof(POLY_FT4));
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007ECA4);
-/* 78.97%: instruction multiset identical (400 bytes both), only the tail block
-   after RotMatrixYXZ differs in evaluation order and register choice. Retail
-   evaluates the first 109*dirX multiply after the D_8009A678 lh, keeps the
-   index in $v1 and the return constant ($v0=1) in the middle of the block;
-   gcc hoists the multiply and puts the return constant first. Tried: pActor
-   assigned before/after the WorldMapSetSpriteSetParent calls (after is right - it is what
-   puts the index in $s2 and moves addu into the first WorldMapBuildPolyFT4Templates delay
-   slot), nIndex declared first vs last.
 int func_8007ECA4(int index) {
-    int nIndex;
     WorldMapActor *pActor;
     WorldMapRoot *pRoot;
     WorldMapGroup *pGroup;
     SVECTOR *pRot;
     MATRIX *pMatrix;
+    int nIndex;
 
     WorldMapSetSpriteSetParent(1, 2);
     WorldMapSetSpriteSetParent(1, 3);
     pRoot = g_WorldMapGroups;
     pActor = &g_WorldMapSlots[index];
-    WorldMapBuildPolyFT4Templates(&pRoot->groups[1], pRoot->groups[1].pPrims[0], *(u16 *)((u8 *)pRoot->groups[1].pPrimHeader + 4), 3);
-    WorldMapBuildPolyFT4Templates(&pRoot->groups[2], pRoot->groups[2].pPrims[0], *(u16 *)((u8 *)pRoot->groups[2].pPrimHeader + 4), 3);
-    WorldMapBuildPolyFT4Templates(&pRoot->groups[3], pRoot->groups[3].pPrims[0], *(u16 *)((u8 *)pRoot->groups[3].pPrimHeader + 4), 1);
+    WorldMapBuildPolyFT4Templates(&pRoot->groups[1], (u8 *)pRoot->groups[1].pPrims[0], pRoot->groups[1].pPrimHeader->count, 3);
+    WorldMapBuildPolyFT4Templates(&pRoot->groups[2], (u8 *)pRoot->groups[2].pPrims[0], pRoot->groups[2].pPrimHeader->count, 3);
+    WorldMapBuildPolyFT4Templates(&pRoot->groups[3], (u8 *)pRoot->groups[3].pPrims[0], pRoot->groups[3].pPrimHeader->count, 1);
     pGroup = &g_WorldMapGroups->groups[1];
     pRot = &pGroup->rot;
     pMatrix = &pGroup->mat;
-    pGroup->unk00 = 0;
+    pGroup->hidden = 0;
     pRot->vx = pRot->vy = pRot->vz = 0;
     RotMatrixYXZ(pRot, pMatrix);
     nIndex = g_WorldMapAreaIndex;
-    pActor->dirX = -0x85A;
-    pActor->state = 0;
-    pActor->dirY = 0;
-    pActor->dirZ = 0xDA6;
-    pActor->unk50 = D_8009A674[nIndex * 4] << 12;
-    pActor->unk54 = (void *)(D_8009A678[nIndex * 4] << 12);
-    pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * 13952;
-    pActor->y = g_WorldMapPlayerPositionY;
-    pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * 13952;
+    // volatile: the stores below are a straight-line cluster that cc1 would otherwise
+    // reorder; volatile keeps them in source order, which is retail's.
+    *(volatile s32 *)&pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
+    *(volatile s16 *)&pActor->state = 0;
+    *(volatile s32 *)&pActor->dirY = 0;
+    *(volatile s32 *)&pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
+    *(volatile s32 *)&pActor->stateIndex = D_8009A674[nIndex * 4] << 12;
+    *(volatile void **)&pActor->pStateIds = (void *)(D_8009A678[nIndex * 4] << 12);
+    *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET;
+    *(volatile s32 *)&pActor->y = g_WorldMapPlayerPositionY;
+    *(volatile s32 *)&pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET;
     return 1;
 }
-*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 // 100.00% in objdiff under -G0 (99.4 under the unit preset) but the C is 45 bytes
 // the wrong length at link time, so -G0 is NOT the answer for this overlay (its
