@@ -34,7 +34,7 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
 
-/* Best attempt: 78.37% (1416 bytes, the original is 1452). NOT a wall and not a
+/* Best attempt: 79.36% (1424 bytes, the original is 1452). NOT a wall and not a
    permuter job about register order: the remaining deficit is pure register
    PRESSURE, and it is one callee-saved register too many for gcc to fit.
    Facts a future attempt needs, all confirmed against the .s:
@@ -73,6 +73,31 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
    frame code only needs `spriteFlags` for bits 1-3, bit 4 and the >>1/>>9 fields,
    so a version that re-reads `*pSprite` per use (or types the sprite header as a
    union of bytes and a u16) may fit in nine.
+   Round 415 (measured):
+   - The clut-pair table reached through field_0x7C + 0x18 is INDEXED exactly like
+     g_SpriteVramSlotPair: retail is `sll 1 / andi 0x1C / addu` on that base too
+     and reads y at +2 then x at +0. The old body read pClutPair[0]/pClutPair[1]
+     un-indexed - wrong code. With the index added (byte offset on a u16*) the body
+     is 79.36% / 1424 bytes (was 78.37% / 1416).
+   - Frame anatomy of retail, from the .s: frame 0x68 = saves 0x28 + home area 0x10
+     + vars 0x30, slots 0x10 pFrames, 0x14 pOffsets, 0x18 texY (sh), 0x20
+     defaultMode (sh), 0x28 color, 0x2C count, 0x30 unkFlag (sb), 0x38 pSpriteData.
+     The three small ones sit 8 apart while the SImode ones pack 4 apart, so those
+     three are 8-byte reload spill slots, not declared locals.
+   - A cc1_probe.sh probe with this unit's flags proves the compiler gives
+     ADDRESSABLE locals their natural alignment (u16 at 0x18 then 0x1A then 0x1C),
+     so retail's 8-byte spacing cannot come from a local's type or order.
+   - This body compiles to frame 0x78, vars= 64, with its eight slots at
+     0x10,0x18,0x20,...,0x48 - every one 8 bytes apart - and it saves $fp without
+     ever using it: $fp appears only in the prologue/epilogue, so gcc gave it to a
+     pseudo that then died. That is the missing register: the body holds eight
+     values in s0-s7 while retail holds nine (retail's fp is pAnimPackage, mine is
+     s7). Losing it is what puts `i` in a stack slot and count in a register.
+   - Retail's `li v1,1 / andi v0,0x1 / bne v0,v1` for the flags_0xA8 test does not
+     come from `(x & 1) == 1`; this body's identical source folds to `andi / beqz`.
+   - The two signed `/ 0x1000` divisions in the prologue differ only downstream:
+     retail puts the optimistic `sra` in the bgez delay slot and keeps both halves
+     in v1/v0; this body has `nop` then re-shifts, i.e. the same allocator cascade.
 */
 /*
 extern SVEC2 g_SpriteVramSlotPair[];
@@ -189,6 +214,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
             } else {
                 if (((pSpriteData->flags_0xA8 & 1) == 1) &&
                     (pClutPair = *(u16**)((u8*)pSpriteData->field_0x7C + 0x18)) != 0) {
+                    pClutPair = (u16*)((mem_addr)pClutPair + ((spriteFlags << 1) & 0x1C));
                     texX = (pClutPair[0] & 0x3F) >> 2;
                     texY = pClutPair[1] & 0xFF;
                     texPage = ((spriteFlags & 1) << 7) | ((tpageMode & 3) << 5);
