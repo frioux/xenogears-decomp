@@ -318,20 +318,23 @@ typedef struct Misc32Task {
     /* 0x38 */ struct Misc32Task *pNext; // link in g_BattleTaskUnlinkList
     /* 0x3C */ s32 unk3C;
     /* 0x40 */ SVECTOR rot;
-    /* 0x48 */ s32 posX;
-    /* 0x4C */ s32 posY;
-    /* 0x50 */ s32 posZ;
-    /* 0x54 */ s32 pad54; // the unused 4th word of the VECTOR posX..posZ
-    /* 0x58 */ s32 scaleX;
-    /* 0x5C */ s32 scaleY;
-    /* 0x60 */ s32 scaleZ;
-    /* 0x64 */ s32 pad64; // the unused 4th word of the VECTOR scaleX..scaleZ
+    /* 0x48 */ VECTOR pos; // 16.16; the step callbacks advance vx
+    /* 0x58 */ VECTOR scale;
     /* 0x68 */ u8 unk68[0x10];
     /* 0x78 */ Misc32ActorSprite *pSprite; // the actor the effect is drawn for
     /* 0x7C */ u8 mirrored; // the actor sprite's flip bit; nonzero: posX steps the other way
     /* 0x7D */ u8 unk7D[0x3];
-    /* 0x80 */ u8 colors[0x3]; // faded by BattleStepEffectColorFade
-    /* 0x83 */ u8 flags; // bit 0 cleared and bit 1 set as the effect starts
+    // Redrawn as one word every part quad is drawn with, and as the bytes
+    // BattleStepEffectColorFade fades and the effect's flag bits.
+    /* 0x80 */ union {
+        /* 0x80 */ u32 word;
+        /* 0x80 */ struct {
+            /* 0x80 */ u8 red;
+            /* 0x81 */ u8 green;
+            /* 0x82 */ u8 blue;
+            /* 0x83 */ u8 flags; // bit 0 cleared and bit 1 set as the effect starts
+        } channels;
+    } color;
     /* 0x84 */ u32 unk84;
     /* 0x88 */ s32 timer;
     /* 0x8C */ s32 partCount;
@@ -348,7 +351,7 @@ extern Misc32Task *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCal
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, Misc32SpritePart *pOut, s16 x, s16 y);
 extern s32 BattleWriteDecimalDigits(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
 extern void BattleInitNumberSpriteTask(void);
-extern void func_800BDA1C(u8 *pTask);
+extern void func_800BDA1C(WorkListEntry *pEntry);
 extern void BattleUnlinkAndFreeTask(void *pEntry);
 extern void BattleStepEffectColorFade(Misc32Task *pTask);
 extern void BattleStepEffectPosition(Misc32Task *pTask);
@@ -490,20 +493,20 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     pTask->pSprite = pSprite;
     pTask->timer = 8;
     pTask->pNext = g_BattleTaskUnlinkList;
-    pTask->posX = pSprite->position.x;
+    pTask->pos.vx = pSprite->position.x;
     g_BattleTaskUnlinkList = pTask;
-    pTask->posY = pSprite->position.y;
-    pTask->posZ = pSprite->position.z;
-    pTask->scaleX = 0x2000;
-    pTask->scaleY = 0x2000;
-    pTask->scaleZ = 0x2000;
-    pTask->flags = 0x2D;
+    pTask->pos.vy = pSprite->position.y;
+    pTask->pos.vz = pSprite->position.z;
+    pTask->scale.vx = 0x2000;
+    pTask->scale.vy = 0x2000;
+    pTask->scale.vz = 0x2000;
+    pTask->color.channels.flags = 0x2D;
     pTask->rot.vx = 0;
     pTask->rot.vy = 0;
     pTask->rot.vz = 0;
-    pTask->colors[0] = 0x80;
-    pTask->colors[1] = 0x80;
-    pTask->colors[2] = 0x80;
+    pTask->color.channels.red = 0x80;
+    pTask->color.channels.green = 0x80;
+    pTask->color.channels.blue = 0x80;
     pTask->mirrored = (pSprite->flags >> 2) & 1;
     pTask->partCount = 0;
     if (kind != 4) {
@@ -515,14 +518,14 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     case 4:
         pTask->timer = 0x40;
         pTask->partCount = ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x7C, &pTask->parts[0], -0x14, -0x10);
-        pTask->flags = (pTask->flags & 0xFE) | 2;
+        pTask->color.channels.flags = (pTask->color.channels.flags & 0xFE) | 2;
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFade);
         break;
     case 5:
-        pTask->colors[0] = 0x80;
-        pTask->colors[1] = 0;
-        pTask->colors[2] = 0;
-        pTask->flags = (pTask->flags & 0xFE);
+        pTask->color.channels.red = 0x80;
+        pTask->color.channels.green = 0;
+        pTask->color.channels.blue = 0;
+        pTask->color.channels.flags = (pTask->color.channels.flags & 0xFE);
         break;
     case 10:
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x7F,
@@ -531,10 +534,10 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     case 11:
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x91,
                                                         &pTask->parts[pTask->partCount], tex, 0);
-        pTask->colors[2] = 0x80;
-        pTask->colors[0] = 0;
-        pTask->colors[1] = 0;
-        pTask->flags = (pTask->flags & 0xFE);
+        pTask->color.channels.blue = 0x80;
+        pTask->color.channels.red = 0;
+        pTask->color.channels.green = 0;
+        pTask->color.channels.flags = (pTask->color.channels.flags & 0xFE);
         break;
     case 1:
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x80,
@@ -545,16 +548,16 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x80,
                                                         &pTask->parts[pTask->partCount], tex, -0x10);
         tex += 0x20;
-        pTask->colors[0] = 0x80;
-        pTask->colors[2] = 0x80;
-        pTask->colors[1] = 0;
-        pTask->flags = (pTask->flags & 0xFE);
+        pTask->color.channels.red = 0x80;
+        pTask->color.channels.blue = 0x80;
+        pTask->color.channels.green = 0;
+        pTask->color.channels.flags = (pTask->color.channels.flags & 0xFE);
         break;
     case 2:
-        pTask->colors[0] = 0;
-        pTask->colors[1] = 0x80;
-        pTask->colors[2] = 0;
-        pTask->flags = (pTask->flags & 0xFE);
+        pTask->color.channels.red = 0;
+        pTask->color.channels.green = 0x80;
+        pTask->color.channels.blue = 0;
+        pTask->color.channels.flags = (pTask->color.channels.flags & 0xFE);
         break;
     }
     if (kind != 4) {
@@ -693,44 +696,37 @@ typedef struct {
 
 extern BattleGeomMatrix g_BattleGeomMatrix;
 
-// 96.95% under this unit's cdk preset (89.20 on 2.7.2). Left: (1) retail keeps the
-// g_BattleGeomMatrix base in $s0 and stores `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix;
-// gcc folds the store into one address or goes through $at. (2) retail loads the
-// three SVECTOR halves with `lh`, gcc with `lhu`. (3) retail's `i = 0` lands after
-// the ReadGeomScreen block, gcc hoists it into the delay slot. The declarations
-// above must stay LIVE for this body to build (they used to sit inside the block).
-/*
-void func_800BDA1C(u8 *pTask) {
-    u8 *pData;
+// The effect task's work callback: builds the render transform from the ten fixed-point
+// position, the rotation and the scale, then draws every part. The three `>> 16` reads
+// are what turns into retail's `lh` loads of the position's integer halves.
+void func_800BDA1C(WorkListEntry *pEntry) {
+    Misc32Task *pTask;
     MATRIX mtx;
     SVECTOR vec;
-    s32 sxy[3];
+    s32 sxy[4];
     s32 i;
-    u8 *pEntry;
+    Misc32SpritePart *pPart;
 
-    pData = *(u8 **)(pTask + 0x4);
+    pTask = (Misc32Task *)pEntry->unk4;
     g_BattleGeomMatrix.geomScreen = ReadGeomScreen();
-    vec.vx = *(s16 *)(pData + 0x4A);
-    vec.vy = *(s16 *)(pData + 0x4E);
-    vec.vz = *(s16 *)(pData + 0x52);
+    vec.vx = pTask->pos.vx >> 16;
+    vec.vy = pTask->pos.vy >> 16;
+    vec.vz = pTask->pos.vz >> 16;
     BattleProjectPointToScreen(&vec, sxy);
-    RotMatrix((SVECTOR *)(pData + 0x40), &mtx);
-    TransMatrix(&mtx, sxy);
+    RotMatrix(&pTask->rot, &mtx);
+    TransMatrix(&mtx, (VECTOR *)sxy); // only x/y/z are set by the projection
     CompMatrix((MATRIX *)&g_BattleGeomMatrix, &mtx, &mtx);
-    ScaleMatrix(&mtx, (VECTOR *)(pData + 0x58));
+    ScaleMatrix(&mtx, &pTask->scale);
     SetRotMatrix(&mtx);
     SetTransMatrix(&mtx);
     i = 0;
-    pEntry = pData + 0x90;
-    while (i != *(s32 *)(pData + 0x8C)) {
-        BattleDrawSpritePartQuad(pEntry, *(u8 **)(pData + 0x80));
+    pPart = pTask->parts;
+    while (i != pTask->partCount) {
+        BattleDrawSpritePartQuad(pPart, pTask->color.word);
         i++;
-        pEntry += 0x18;
+        pPart++;
     }
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
-// Declared after the struct: the timer update takes the task. It reads none of
+}// Declared after the struct: the timer update takes the task. It reads none of
 // the argument's fields, it works off g_BattleTimerTask.
 extern void BattleRefreshNumberSprite(Misc32Task *pTask);
 
@@ -738,9 +734,9 @@ void BattleStepEffectColorFade(Misc32Task *pTask) {
     WorkListCallback_t pCallback;
 
     BattleRefreshNumberSprite(pTask);
-    pTask->colors[0] -= 2;
-    pTask->colors[1] -= 2;
-    pTask->colors[2] -= 2;
+    pTask->color.channels.red -= 2;
+    pTask->color.channels.green -= 2;
+    pTask->color.channels.blue -= 2;
     if (--pTask->timer < 0) {
         pCallback = pTask->timerEntry.onFreeCallback;
         pCallback(pTask);
@@ -762,10 +758,10 @@ void BattleStepEffectColorFadeFromBase(Misc32Task *pTask) {
     BattleRefreshNumberSprite(pTask);
     // the volatile re-reads are required: without them cse forwards the previous
     // call's stored result into the next call's argument
-    pEffect->colors[0] = SpriteColorAddClamp(pEffect->colors[0], -8);
-    pEffect->colors[1] = SpriteColorAddClamp(*(volatile u8 *)&pTask->colors[0], -8);
-    pEffect->colors[2] = SpriteColorAddClamp(*(volatile u8 *)&pEffect->colors[0], -8);
-    if (--pTask->timer < 0 || (pTask->colors[0] | pTask->colors[1] | pEffect->colors[2]) == 0) {
+    pEffect->color.channels.red = SpriteColorAddClamp(pEffect->color.channels.red, -8);
+    pEffect->color.channels.green = SpriteColorAddClamp(*(volatile u8 *)&pTask->color.channels.red, -8);
+    pEffect->color.channels.blue = SpriteColorAddClamp(*(volatile u8 *)&pEffect->color.channels.red, -8);
+    if (--pTask->timer < 0 || (pTask->color.channels.red | pTask->color.channels.green | pEffect->color.channels.blue) == 0) {
         pCallback = pTask->timerEntry.onFreeCallback;
         pCallback(pEffect);
     }
@@ -790,7 +786,7 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // alias for the call argument (cse folds it), an alias for the stores, u8 pointer,
 // offset casts, a callback local, indexed forms, and a 3-min permuter run.
 // Round 116: moving the flags STORE after the call (compute the byte into a `u8
-// flags` local before it, `pTask->flags = flags;` after it) DOES defeat
+// flags` local before it, `pTask->color.channels.flags = flags;` after it) DOES defeat
 // combine_regs - the parameter then stays in a saved register with a real
 // `move a0,sN` argument copy - but the flag byte then lives across the call and
 // needs a SECOND saved register (0x20 frame, 108 bytes, 70.36%). Wrapping only the
@@ -805,7 +801,17 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // one slot later but does not change $a0-vs-$s0 on the three store bases: retail's
 // timer/flags base is the call-saved copy $s0 while gcc merges the call's argument
 // pseudo into it and stores through $a0. The instruction ORDER is already retail's.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
+// Round 405 re-measured, four more shapes, all <= 91.60 (100 bytes = retail's):
+// a `pEffect = pTask;` alias for the three stores (identical 91.60 code, gcc
+// coalesces the alias), `&pTask->timerEntry` as the call's first argument (timerEntry
+// is at 0, folded back), the call FIRST in the block then the two stores (86.60:
+// s0 becomes the store base but the jal lands before the stores), and a
+// do{...}while(0) around the flag store (67.00) or around both stores (55.56,
+// 96 bytes). The residual is one local-alloc choice: the store base shares $a0
+// with the call's argument copy. Retail's own RTL kept the argument copy in the
+// middle of the block (pre-reload sched-insns hoisted it there), so $s0 still had
+// uses after it and combine_regs did not fire; every spelling here puts the copy
+// last, s0 dies there and the stores are rewritten to $a0.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
@@ -814,19 +820,20 @@ void func_800BDC14(Misc32Task *pTask) {
     nextTimer = 0x10;
     if (--pTask->timer < 0) {
         pTask->timer = nextTimer;
-        pTask->flags = (pTask->flags | 2) & 0xFE;
+        pTask->color.channels.flags = (pTask->color.channels.flags | 2) & 0xFE;
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
 }*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 
 extern void func_800BDC14(Misc32Task *pTask);
 
 void BattleStepEffectPosition(Misc32Task *pTask) {
     BattleRefreshNumberSprite(pTask);
     if (pTask->mirrored != 0) {
-        pTask->posX += 0xC0000;
+        pTask->pos.vx += 0xC0000;
     } else {
-        pTask->posX -= 0xC0000;
+        pTask->pos.vx -= 0xC0000;
     }
     if (--pTask->timer < 0) {
         do { /* the do-while stops reorg hoisting the call's move a0,s0 */
