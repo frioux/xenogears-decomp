@@ -110,8 +110,8 @@ typedef struct {
     /* 0x48 */ undefined32 unk48;
     /* 0x4C */ undefined32 unk4C;
     /* 0x50 */ int stateIndex; // into the per-state tables; other map modes reuse these four words
-    /* 0x54 */ void *pStateIds;
-    /* 0x58 */ void *pStateFrames;
+    /* 0x54 */ u16 *pStateIds;
+    /* 0x58 */ u16 *pStateFrames;
     /* 0x5C */ s32 scale;
     /* 0x60 */ s32 unk60[7]; // 0x60..0x7B
     /* 0x7C */ s32 unk7C;
@@ -204,6 +204,15 @@ extern u16 g_NextMapRotationY;
 extern u16 g_NextMapFlags;
 extern u32 g_WorldMapExitFlag;
 extern u16 g_WorldMapAreaExitModes[];
+// the three effects an area plays together as one sound, i.e. the low half of
+// the id SoundPlaySoundEffectOnFreePair takes, one triple per map area
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 unk4;
+} WorldMapAreaSfxIds; // Size: 0x6
+
+extern WorldMapAreaSfxIds D_8009A5A0[];
 extern void WorldMapInitGfxEnv(void);
 extern void WorldMapDeactivateSpriteGroup(s32);
 extern void func_80072DB4(int, int, int, int);
@@ -264,7 +273,7 @@ extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern int WorldMapSetActorScriptTables(int);
-extern void func_8007DE98(int);
+extern int func_8007DE98(int);
 extern int func_8007E450(int);
 extern int func_8007E4E4(int);
 extern int WorldMapInitGroup1Actor(int);
@@ -580,7 +589,158 @@ int WorldMapSetActorScriptTables(int index) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
+int func_8007DE98(int index) {
+    // retail's frame is 0x28 with only ra/s0 saved: it reserves 0x10 of stack that no
+    // instruction touches, which only an unused local reproduces.
+    u8 unusedFrame[0x10];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
+
+    switch (pActor->state) {
+    case 1:
+        pActor->stateTimer = pActor->stateTimer - 1;
+        if ((s16)pActor->stateTimer < 0) {
+            pActor->state = pActor->pStateIds[pActor->stateIndex];
+            pActor->stateTimer = pActor->pStateFrames[pActor->stateIndex];
+            pActor->stateIndex = pActor->stateIndex + 1;
+        }
+        break;
+    case 2:
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x1C);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x1D);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x1E);
+        WorldMapStartSlot(2, 2);
+        WorldMapStartSlot(3, 2);
+        WorldMapStartSlot(4, 3);
+        WorldMapStartSlot(5, 3);
+        WorldMapStartSlot(6, 3);
+        WorldMapStartSlot(7, 3);
+        WorldMapStartSlot(8, 3);
+        pActor->state = 1;
+        break;
+    case 3:
+        WorldMapClearGroupEntryFlag(0x22);
+        WorldMapClearGroupEntryFlag(0x23);
+        WorldMapClearGroupEntryFlag(0x24);
+        WorldMapStartSlot(2, 3);
+        WorldMapStartSlot(3, 3);
+        WorldMapStartSlot(4, 3);
+        WorldMapStartSlot(5, 3);
+        WorldMapStartSlot(6, 3);
+        WorldMapStartSlot(7, 3);
+        WorldMapStartSlot(8, 3);
+        pActor->state = 1;
+        break;
+    case 4:
+        WorldMapStartSlot(2, 4);
+        WorldMapStartSlot(3, 4);
+        WorldMapStartSlot(4, 3);
+        WorldMapStartSlot(5, 3);
+        WorldMapStartSlot(6, 3);
+        WorldMapStartSlot(7, 3);
+        WorldMapStartSlot(8, 3);
+        pActor->state = 1;
+        break;
+    case 5:
+        WorldMapStartSlot(2, 5);
+        pActor->state = 1;
+        break;
+    case 6:
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 0x40;
+        pActor->state = 1;
+        break;
+    case 7:
+        WorldMapStartSlot(3, 5);
+        WorldMapStartSlot(4, 4);
+        WorldMapStartSlot(5, 4);
+        WorldMapStartSlot(6, 4);
+        WorldMapStartSlot(7, 4);
+        WorldMapStartSlot(8, 4);
+        WorldMapStartSlot(0, 0xC);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 0x40;
+        pActor->state = 1;
+        break;
+    case 8:
+        WorldMapStartSlot(2, 6);
+        pActor->state = 1;
+        break;
+    case 9:
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 0x80;
+        pActor->state = 1;
+        break;
+    case 10:
+        WorldMapStartSlot(0, 0xC);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 0x80;
+        WorldMapStartSlot(9, 1);
+        WorldMapStartSlot(2, 7);
+        pActor->state = 1;
+        break;
+    case 16:
+        WorldMapStartSlot(2, 4);
+        WorldMapStartSlot(3, 0x10);
+        WorldMapStartSlot(4, 3);
+        WorldMapStartSlot(5, 3);
+        WorldMapStartSlot(6, 3);
+        WorldMapStartSlot(7, 3);
+        WorldMapStartSlot(8, 3);
+        pActor->state = 1;
+        break;
+    case 17:
+        WorldMapStartSlot(2, 0x10);
+        pActor->state = 1;
+        break;
+    case 18:
+        WorldMapStartSlot(2, 0x11);
+        pActor->state = 1;
+        break;
+    case 24:
+        WorldMapStartSlot(2, 4);
+        WorldMapStartSlot(3, 0x18);
+        WorldMapStartSlot(4, 3);
+        WorldMapStartSlot(5, 3);
+        WorldMapStartSlot(6, 3);
+        WorldMapStartSlot(7, 3);
+        WorldMapStartSlot(8, 3);
+        pActor->state = 1;
+        break;
+    case 25:
+        WorldMapStartSlot(2, 0x18);
+        pActor->state = 1;
+        break;
+    case 61:
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | D_8009A5A0[g_WorldMapAreaIndex].unk0);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | D_8009A5A0[g_WorldMapAreaIndex].unk2);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | D_8009A5A0[g_WorldMapAreaIndex].unk4);
+        pActor->state = 1;
+        break;
+    case 62:
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x19);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x1A);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x1B);
+        pActor->state = 1;
+        break;
+    case 63:
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapTpageAbr = 2;
+        g_WorldMapDrawMode = 4;
+        pActor->state = 1;
+        break;
+    case 64:
+        g_WorldMapLoopActive = 0;
+        g_WorldMapAreaMode = 0;
+        pActor->state = 0;
+        break;
+    case 0:
+    default:
+        break;
+    }
+    return 1;
+}
 
 /* 97.97% (148 bytes = retail's 37 insns), round 311. The store tail is now
    retail's exactly, down to `li v0,1` before `sh zero,0x20(v1)` and
