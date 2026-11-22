@@ -374,46 +374,96 @@ void FieldLoadSceneAndRun(void) {
     g_FieldActive = 0;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
-/* Best attempt: 79.46% (the form below scores 78.37%, 728 bytes against the
-   original's 684). splat splits this block per word, so the original's
-   relocations name D_800B2298 (period), D_800B229C (count) and D_800B22A0
-   (values) separately while reading all three through one base register
-   (s1 = &D_800B2298; count at -4(a0), values at 0(a0) for a0 = s1 + 8, i.e.
-   combine_givs re-basing three symbols onto one pointer). Remaining deltas:
-   that rebase, and rand()'s product landing in a2/a3 instead of s1/a2.
-extern s32 g_FieldMapChangeGate;
-extern s32 g_FieldEntryStateGate;
-extern s32 g_FieldMapTransitionGate;
-extern s32 g_FieldArchiveStreamActive;
-extern u_char D_800ADB04;
-extern s32 D_800ADBD0;
-extern s32 g_FieldSuppressStateChange;
-extern s32 g_FieldRandomSkinSlots;   // countdown to the next regeneration of the slot table
-extern s32 D_800B2298;   // regeneration period, 0 disables the random skin
-extern s32 D_800B229C;   // number of slot table entries in use
-extern u16 D_800B22A0[]; // slot table; 0xFFFF marks a free slot
-extern u16 D_800B2270[]; // per-skin value handed to the field system
+// The skin slot table FieldRandomizeSkinSlots (main/misc) fills: the period at
+// +0x0, the number of slots in use at +0x4 and the slot values at +0x8. The
+// original reaches all three through one base register, so they are one block.
+#define FIELD_RANDOM_SKIN_SLOT_COUNT 32
+#define FIELD_RANDOM_SKIN_SLOT_EMPTY 0xFFFF
+
+typedef struct {
+    /* 0x0 */ s32 period;
+    /* 0x4 */ s32 count;
+    /* 0x8 */ u16 values[FIELD_RANDOM_SKIN_SLOT_COUNT];
+} FieldSkinTable; // Size: 0x48
+
+// Number of skins the selection table covers, i.e. one weight and one value per
+// skin
+#define FIELD_SKIN_COUNT 16
+
+extern FieldSkinTable D_800B2298;
+extern s32 g_FieldRandomSkinSlots; // frames left before the table is regenerated
+extern u16 D_800B2270[];    // per-skin value handed to the field system
 extern s16 D_800B2290;
 extern u_char D_80065ADC[]; // per-skin selection weight
+extern u_char D_800ADB04;
+extern s32 D_800ADBD0;
 extern u_char g_GameSelectedSkinIndex;
 extern u_char g_GameSelectedSkinLoadPending;
 extern void FieldRandomizeSkinSlots(void);
 extern void LoadGameStateOverlay(int);
 extern void func_80281204(int);
 extern int rand(void);
+extern s32 g_FieldMapChangeGate;
+extern s32 g_FieldEntryStateGate;
+extern s32 g_FieldMapTransitionGate;
+extern s32 g_FieldArchiveStreamActive;
+extern s32 g_FieldSuppressStateChange;
 
 // Ages the slot table and, once a slot frees up, rolls a skin against
 // D_80065ADC's weights and switches the party to it.
+// Best attempt: 81.59% (712 bytes; retail 684, 178 vs 171 insns).
+// What this body gets exactly right: the profile of eight gate checks, the
+// countdown (lui/lw + sw through $at, i.e. g_FieldRandomSkinSlots read as its own
+// absolute s32, NOT as a field of the table), loop 1 in full (walk pointer, count
+// re-read at -4 of the values base), the nTotal loop, the prefix-sum fill and the
+// tail from D_800B2270[i] to func_80281204. The whole "three symbols through one
+// base" rebase of the old note was NOT a giv problem: it is one struct, the
+// period at +0x0, count at +0x4 and values at +0x8 of the block at 0x800B2298,
+// and writing it as a struct reproduces retail's single s1 base and its
+// "lw -4(a0)" count read.
+// What is left, and it is all ONE root cause (the search loop's block layout):
+// retail lays the found-slot body OUT of line, behind "beqz" from the loop top,
+// so the loop itself is only "load, compare, advance" with a walk pointer, and
+// loop.c therefore hoists nothing out of it. Our compile keeps the body inline,
+// inverts the branch (bnez to an out-of-line copy of the advance), recomputes
+// values[i] with sll/addu every iteration instead of walking, and hoists the
+// nWeightSums base (sp+16) into a fifth callee-saved register, which is where
+// the extra instructions and the 5-vs-4 saved set come from.
+// Tried here: "if (values[i] == 0) { ...body...; break; }" (712), the same with
+// "...; return;" (712), "if (values[i] != 0) continue;" + break (712, identical
+// code), and a u16* pSlot walk pointer (712, worse fuzzy 77.22). Dropping the
+// break/return entirely gets 692 bytes / 80.36% but is wrong code: the loop
+// would scan on and re-roll after a skin was already chosen.
+// Best attempt: 92.85% (692 bytes; retail 684, 173 vs 171 insns).
+// The search loop is a GOTO, not a loop body: the original wrote
+//     for (i = 0; i < D_800B2298.count; i++)
+//         if (D_800B2298.values[i] == 0) goto foundSlot;
+//     return;
+// foundSlot: ...
+// which is what makes gcc lay the whole found-slot body OUT of line behind the
+// loop, with the "j end" of the failed search textually before it (91 -> 92.85,
+// 712 -> 692 bytes). Everything up to there now matches retail exactly: the
+// eight gate checks, the countdown as its own absolute s32 g_FieldRandomSkinSlots
+// (not a field of the table), loop 1, the nTotal loop, the prefix-sum fill.
+// Residual, all in the two loop tails:
+//  - our loop 2 keeps the count in a1 instead of re-reading it at -4(a1), so the
+//    loop runs "move a1,v0 / slt v0,s0,a1" where retail has "lw v0,-4(a1) /
+//    slt v0,s0,v0": retail's store to values[i] still sits inside the loop's
+//    block set, ours does not.
+//  - the frame is 112 vs retail's 120: retail has 24 bytes more of locals than
+//    the 16-int nWeightSums array (0x10..0x50) and a gap up to the saves at
+//    0x68, i.e. its array block is 88 bytes, not 64.
+//  - the last loop's found arm costs retail 2 more instructions (beqz/slt/beqz +
+//    "j" with nSum++ in the delay slot); ours branches straight to the body.
+// The -4(a1) count read means the body must still be reachable from the loop
+// header; the array block being 88 bytes is the other half of the frame delta.
+/*
 void func_80079288(void) {
-    int aWeightSums[16];
+    int nWeightSums[FIELD_SKIN_COUNT];
     int nTotal;
     int nTarget;
-    int i;
     int nSum;
-    s32* pPeriod;
-    s32* pCount;
-    u16* pSlots;
+    int i;
     u_char* pWeight;
 
     if (g_FieldMapChangeGate == 0) {
@@ -428,8 +478,7 @@ void func_80079288(void) {
     if (g_GameWdsBankLoadState == -1) {
         return;
     }
-    pPeriod = &D_800B2298;
-    if (*pPeriod == 0) {
+    if (D_800B2298.period == 0) {
         return;
     }
     if (g_FieldControl.isRandomEncountersEnabled == -1) {
@@ -444,55 +493,54 @@ void func_80079288(void) {
     if (--g_FieldRandomSkinSlots == 0) {
         FieldRandomizeSkinSlots();
     }
-    pSlots = (u16*)&pPeriod[2];
-    for (i = 0; i < pPeriod[1]; i++) {
-        if (pSlots[i] != 0xFFFF) {
-            pSlots[i] = pSlots[i] - 1;
+    for (i = 0; i < D_800B2298.count; i++) {
+        if (D_800B2298.values[i] != FIELD_RANDOM_SKIN_SLOT_EMPTY) {
+            D_800B2298.values[i]--;
         }
     }
-    pCount = &D_800B229C;
-    pSlots = (u16*)&pCount[1];
-    for (i = 0; i < *pCount; i++) {
-        if (pSlots[i] != 0) {
-            continue;
+    for (i = 0; i < D_800B2298.count; i++) {
+        if (D_800B2298.values[i] == 0) {
+            goto foundSlot;
         }
-        D_800B22A0[i] = 0xFFFF;
-        pWeight = D_80065ADC;
-        nTotal = 0;
-        for (i = 0; i < 16; i++) {
-            nTotal += pWeight[i];
-        }
-        nSum = 0;
-        for (i = 0; i < 16; i++) {
-            aWeightSums[i] = nSum;
-            nSum += pWeight[i];
-        }
-        nTarget = (rand() * (nTotal + 1)) >> 15;
-        nSum = 0;
-        for (i = 15; i >= 0; i--) {
-            if (pWeight[i] != 0 && aWeightSums[i] < nTarget) {
-                nSum++;
-                break;
+    }
+    return;
+foundSlot:
+    D_800B2298.values[i] = FIELD_RANDOM_SKIN_SLOT_EMPTY;
+            pWeight = D_80065ADC;
+            nTotal = 0;
+            for (i = 0; i < FIELD_SKIN_COUNT; i++) {
+                nTotal += pWeight[i];
             }
-        }
-        if (nSum == 0) {
-            return;
-        }
-        g_GameSelectedSkinIndex = i;
-        g_GameSelectedSkinLoadPending = 0;
-        D_800B2290 = D_800B2270[i];
-        if (g_FieldSuppressStateChange == 0) {
-            LoadGameStateOverlay(2);
-        }
-        g_FieldMapChangeGate = 0;
-        D_800ADBD0 = 1;
-        if (g_FieldSystemMode == 0) {
-            func_80281204(i);
-        }
-        break;
-    }
-}
-*/
+            nSum = 0;
+            for (i = 0; i < FIELD_SKIN_COUNT; i++) {
+                nWeightSums[i] = nSum;
+                nSum += pWeight[i];
+            }
+            nTarget = (rand() * (nTotal + 1)) >> 15;
+            nSum = 0;
+            for (i = FIELD_SKIN_COUNT - 1; i >= 0; i--) {
+                if (pWeight[i] != 0 && nWeightSums[i] < nTarget) {
+                    nSum++;
+                    break;
+                }
+            }
+            if (nSum == 0) {
+                return;
+            }
+            g_GameSelectedSkinIndex = i;
+            g_GameSelectedSkinLoadPending = 0;
+            D_800B2290 = D_800B2270[i];
+            if (g_FieldSuppressStateChange == 0) {
+                LoadGameStateOverlay(2);
+            }
+            g_FieldMapChangeGate = 0;
+            D_800ADBD0 = 1;
+            if (g_FieldSystemMode == 0) {
+                func_80281204(i);
+            }
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
+
 
 extern s32 g_FieldInitialWdsBankIndex;
 extern s32 g_FieldSuppressStateChange;
@@ -660,26 +708,35 @@ void FieldClampPolyFT4UVs(POLY_FT4* poly, short u0, short v0, short u1, short v1
     poly->v3 = v3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007A5C4);
-/* Best attempt: 77.28% (568 vs 560 bytes): vx/vz interleave reproduced, but gcc
-   strength-reduces &polys[1] (the copy at the end of the body) into an induction
-   register and addresses polys[0] off it with negative offsets, spilling the
-   uv[7] pointer to the stack: 10 callee-saved slots vs the original 9.
-   Round 43: spelling the whole body as D_800B0FEC[i].vertices[k] (indexed access,
-   no pointer local) is far worse - 73.51%, 668 bytes, because gcc then reaches
-   every field through `lui $at; addu $at,$at,$s0; sh` off a folded HI16 addend.
-   The pointer form below is the right shape; the extra biv is what costs the
-   register.
+// Best attempt: 77.28% (568 vs 560 bytes): vx/vz interleave reproduced, but gcc
+// strength-reduces &polys[1] (the copy at the end of the body) into an induction
+// register and addresses polys[0] off it with negative offsets, spilling the
+// uv[7] pointer to the stack: 10 callee-saved slots vs the original 9.
 extern u_short D_800ADE30[]; // X0,Z0 -> X3,Z3 positions per direction
 extern u_char D_800ADE70[];  // U0,V0 -> U3,V3s per direction
 extern Quad D_800B0FEC[];
 
+// Best attempt: 77.28% (568 bytes; retail 560, 140 vs 142 insns).
+// The only structural delta is ONE extra strength-reduced giv: retail keeps
+// s1 = &quad->polys[0] (+0x70 per iteration) and computes the copy limit
+// (t0 = s1 + 0x20) inside the loop, so its vertex stores are based on the quad
+// base s0 with positive offsets and it needs 9 callee-saved registers. Our
+// compile instead makes the copy LIMIT (quad + 0x40) the giv, derives
+// &polys[0] in the loop with "addu $16,$18,32", bases every vertex store off
+// quad+0x40 with negative offsets and spills the uv+7 pointer to the stack
+// (10 slots, frame 0x58 vs 0x50).
+// Tried: pQuad->polys[0] inline (77.28), a POLY_FT4* pPoly local (77.28, same
+// code), vy=0 written before vx for each vertex, which is retail's store order
+// (73.31, 572 bytes), and D_800B0FEC[i].vertices[k] indexed (73.51, 668).
+/*
 void func_8007A5C4(void) {
     int i;
     Quad* pQuad;
+    POLY_FT4* pPoly;
 
     for (i = 0, pQuad = D_800B0FEC; i < 4; i++, pQuad++) {
-        SetPolyFT4(&pQuad->polys[0]);
+        pPoly = &pQuad->polys[0];
+        SetPolyFT4(pPoly);
 
         pQuad->vertices[0].vx = D_800ADE30[i * 8 + 0];
         pQuad->vertices[0].vy = 0;
@@ -694,24 +751,22 @@ void func_8007A5C4(void) {
         pQuad->vertices[3].vy = 0;
         pQuad->vertices[3].vz = D_800ADE30[i * 8 + 7];
 
-        setRGB0(&pQuad->polys[0], 0x80, 0x80, 0x80);
+        setRGB0(pPoly, 0x80, 0x80, 0x80);
 
-        FieldClampPolyFT4UVs(&pQuad->polys[0],
+        FieldClampPolyFT4UVs(pPoly,
             D_800ADE70[i * 8 + 0], D_800ADE70[i * 8 + 1] + 0xC0,
             D_800ADE70[i * 8 + 2], D_800ADE70[i * 8 + 3] + 0xC0,
             D_800ADE70[i * 8 + 4], D_800ADE70[i * 8 + 5] + 0xC0,
             D_800ADE70[i * 8 + 6], D_800ADE70[i * 8 + 7] + 0xC0);
 
-        SetSemiTrans(&pQuad->polys[0], 1);
-        pQuad->polys[0].tpage = GetTPage(0, 2, 0x280, 0x1C0);
-        pQuad->polys[0].clut = GetClut(0x100, 0xF2);
+        SetSemiTrans(pPoly, 1);
+        pPoly->tpage = GetTPage(0, 2, 0x280, 0x1C0);
+        pPoly->clut = GetClut(0x100, 0xF2);
 
-        pQuad->polys[1] = pQuad->polys[0];
+        pPoly[1] = pPoly[0];
     }
-}
-   Previous note: 75.64% (568 vs 560 bytes). Indexing the flat arrays by symbol
-   reproduces the six middle entries and the first/last pointers correctly.
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007A5C4);
 
 
 extern SVec4 g_FieldTableQuadVertexXs[]; // X0 -> X3 positions
