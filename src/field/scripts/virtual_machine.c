@@ -478,9 +478,16 @@ extern u_char g_FieldScreenShakeMode;
 extern void func_800AD898(void);
 extern void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2);
 
+// Read through a call boundary: gcc 2.7.2 otherwise hoists this volatile load above
+// the actor address computation of the next statement (retail loads it in between).
+inline volatile s32 FieldShakeReadDeltaY(volatile u_char* pShake) {
+    return *(volatile s32*)(pShake - 0x12);
+}
+
 void func_800A24C4(void) {
     int i;
     ActorData* pActorData;
+    int new_var;
     s32* pCount;
     s16* pAnimTable;
     volatile u_char* pShake;
@@ -510,16 +517,19 @@ void func_800A24C4(void) {
             if (g_FieldActors[i].pActorData->flags12C_0) {
                 continue;
             }
-        } else if ((pShake[0] & 0x7F) == 0) {
-            g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-            g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12);
-            g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+        } else {
+            new_var = 1;
+            if ((pShake[0] & 0x7F) == 0) {
+                g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
+                g_FieldActors[i].transformMatrix.t[new_var] += FieldShakeReadDeltaY(pShake);
+                g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+            }
         }
 
         if ((pShake[0] & 0x7F) == 1) {
             g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-            g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12);
-            g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+            g_FieldActors[i].transformMatrix.t[1] += FieldShakeReadDeltaY(pShake);
+            do { g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE); } while (0);
         }
     }
 }
