@@ -3673,25 +3673,25 @@ void LibGearPlayAnimationScript(Model* pModel, Temp7* pEntry, s32 arg2) {
     }
 }
 
-// Round 14: three separate `return`s with no shared local also cross-jump the
-// same wrong pair (61.93%, 88 bytes): gcc keeps type==1 inline at the beq target.
-// Best attempt, 71.67%. The three temp8 hops are confirmed. What the original
-// does and this does not: type==1 gets its OWN copy of the `lhu 0x14 / sll 16`
-// tail (out of line, last, falling into the epilogue) while type==0 and type==2
-// share one copy. Giving the type==1 arm its own `return` produces the second
-// copy but gcc then emits type==1 inline (61.93%); with the `if (type != 1) ...
-// else return ...` spelling below gcc shares a *deeper* tail instead
-// (`lw 8(v0) / lhu 20 / sll` shared by type==1 and type==2, 88 vs 108 bytes), so
-// the split point and the block placement are one decision. A `switch` on type
-// is far off (19.74%, case bodies emitted in source order with break jumps).
-// Later round: the plain `if/else if` chain that assigns a single `pTexture`
-// local and then has ONE `return pTexture->unk14 << 16` is also 61.93%
-// (88 bytes vs the original's 108): gcc cross-jumps the type==1 and type==2
-// tails and hoists them, so the pair that merges is (1,2) instead of the
-// original's (0,2). Which of the three identical `lhu 0x14 / sll 16` tails
-// survives is the whole function.
-// Screened: 71.67% is also what 2.7.2-cdk gives (identical), so the tail
-// split is a C-shape problem, not a compiler one.
+// Returns a sound-bank base id (record field 0x14) selected by `type`, or 2 for
+// an unknown type. Best 71.67% (88 bytes against retail's 108, 22 insns of 27).
+// RESIDUAL, named: retail keeps THREE copies of the `lhu 0x14 / sll 16` tail, in
+// the block order [test0][arm 0][test1 beq arm 1][test2 bne exit][arm 2][shared
+// tail: lhu/sll, reached by arm 0's `j` AND arm 2's fall-through][arm 1, its own
+// full lw/lw/lhu/sll copy][jr ra], and its `bnez $a1` delay slot is a `nop`.
+// In every spelling here gcc 2.6.0 cross-jumps arm 0 and arm 2 INTO arm 1's copy
+// instead - its merge target is the function's LAST matching block - so the body
+// is 5 insns (20 bytes) short and the `bnez` slot takes the next test's
+// `li v0,1` in place of the nop. Measured, all 88 bytes unless noted: three
+// separate `return`s in an 0,1,2 `if` chain 61.93; one `pTexture` local and one
+// return in 0,2,1 order 64.59 (also the wrong test order); `if (type != 0) {
+// nested } else {...}` 0.00 at 96; the same nested 0,1,2 form 54.41 at 96; the
+// body below 71.67 - the only shape that reproduces retail's test ORDER and
+// POLARITY (beq for type==1, bne for type==2, arm 1 emitted last), and what the
+// residual above is measured on; duplicating the tail into each arm as well
+// measures the same 71.67. A `switch` on type is 19.74 (case bodies emitted in
+// source order with break jumps). Screened identical (71.67) under
+// gcc-2.7.2-cdk, so the tail split is not a compiler choice.
 /*
 s32 func_801E5CD8(Model* pModel, s32 type) {
     Temp8* pTexture;
@@ -3699,14 +3699,14 @@ s32 func_801E5CD8(Model* pModel, s32 type) {
     if (type == 0) {
         pTexture = g_BattleSoundBankMain;
     } else if (type != 1) {
-        if (type != 2) {
+        if (type == 2) {
+            pTexture = ((Temp8*)pModel->pSoundBank2)->pUnk8;
+        } else {
             return 2;
         }
-        pTexture = ((Temp8*)pModel->pSoundBank2)->pUnk8;
     } else {
-        return ((Temp8*)((Temp8*)pModel->pSoundBank1)->pUnk8)->unk14 << 16;
+        pTexture = ((Temp8*)pModel->pSoundBank1)->pUnk8;
     }
-
     return pTexture->unk14 << 16;
 }
 */
