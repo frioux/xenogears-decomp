@@ -211,19 +211,21 @@ void BattleSaveScreenImage(void) {
     DrawSync(0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
-/* PARK 95.60% (204 bytes vs retail 200).  Best body: the tail duplicated in
-   both arms, which cross-jumps to retail's block order
-   [test1][A][j tail][test2][B][tail][else].  Only difference: retail sets the
-   BattleSetScreenMode argument with one `addu a0,zero,zero` inside the shared
-   tail, in the jal delay slot, and leaves a plain nop in A's `j` slot; ours
-   emits it twice - once in A's `j` delay slot and once in B before its
-   D_80091762 store - and a nop in the jal slot (2 extra insns).
-   Also tried: a switch with break / default-return, which lays the case bodies
-   out before the shared tail and scores 66.70%; the tail written once after
-   the if/else-if chain with the else returning first (79.80%, gcc moves the
-   else above the tail); `s32 mode = 0` as the argument; gcc 2.7.2-cdk (85.36%).
-   The duplicated-tail shape below is the one to permute.
+/* PARK 95.60% (204 bytes vs retail 200).  Retail's shared tail block starts with
+   the BattleSetScreenMode argument setup (`addu a0,zero,zero` lands in the jal's
+   delay slot) and arm A reaches it with `j` + plain nop; ours is a duplicated
+   tail in both arms and gcc's cross-jump can only merge from the jal onward
+   (the setup is scheduled into each arm block: arm A gets `move a0,zero` in its
+   j slot, arm B hoists it above the D_80091762 store), so we carry 2 extra
+   insns.  The duplicated-tail shape still gives retail's block order
+   [test1][A][j tail][test2][B][tail][else].
+   Also tried: tail written once with the else returning first (79.80%, gcc puts
+   the else before the tail); an `s32 mode = 0` / local-variable argument
+   spelling; a 3-minute permuter run on this exact body (base=221 best=221, no
+   improvement - the merge boundary is not reachable by source edits); -O3
+   (0.0). gcc 2.7.2-cdk 85.36%, 2.6.0 compile-failed.
+*/
+/*
 void func_80080C48(s32 a0) {
     SoundStopAllElements();
     BattlePlaySoundEffectById(0x1F);
@@ -246,11 +248,12 @@ void func_80080C48(s32 a0) {
         g_BattleScreenRestoreCount = 0;
         g_BattleScreenRestorePending = 1;
         BattleSaveScreenImage();
-    } else {
+    }
+    else {
         BattleResetTextListState();
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
 
 void BattleResetTextPrimQueue(void) {
     g_BattleTextPrimCount = 0;
@@ -639,38 +642,32 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
-/* PARK 98.01% (732 bytes, retail 740: two instructions SHORT, so it cannot
-   link). g_BattleMode 1..5 selects a vibration-option screen; each arm tests
-   g_BattleSlotConfirmFlags. Every arm but case 2 is instruction-identical,
-   including the cross-jumped arms and gcc's shared tails: cases 1 and 4 share
-   the flags==0/3 handling, cases 1 and 5 share the BattleUpdateTextPadInput(list5,0) tail
-   (so case 5's flags==0 arm must NOT set g_BattleSlotConfirmLatched), case 3's call is its own
-   copy. The inverted ternary `(flags & 1) == 0 ? 4 : 5` is what gives retail's
-   bnez + li 5 + li 4 order.
-   The 98.01% body below has retail's frame (0x18) and its single case-2
-   residual is the RELOAD: retail reads g_BattleSlotConfirmFlags twice inside
-   case 2 (once per ternary, `lui v0` + `lw v0` again after the D_800916E2
-   store, then `nop; andi v0,v0,2`) and lets the arm value reuse $v0; gcc cse's
-   the two reads here (one load, arm forced into $a0/$v1). The `flags` local is
-   load-bearing: it is what stops cse from sharing the constant 1 across the two
-   BattleUpdateTextPadInput calls, which is what keeps retail's 0x18 frame (without it the
-   frame is 0x20 with +3 insns and 94.33%). Every other body shape below keeps
-   one or the other of those two properties, never both.
-   Reached 96.05% (752 bytes) by forcing the reload with
-   `*(volatile s16 *)&D_800916E2 = ...` for the first store plus
-   `(*(volatile s32 *)&g_BattleSlotConfirmFlags & 2)` for the second ternary:
-   that reproduces retail's store-then-reload order and its `nop` exactly, but
-   gcc then shares the constant 1 across the calls again (0x20 frame, `li s1,1`
-   instead of retail's `li v1,1` + `li v0,1`), i.e. +3 insns, and the two ternary
-   arms land in $v1 where retail has $v0.
-   Also tried: s32 v local for each ternary (same), g_BattleSlotConfirmLatched stored after the
-   two ternaries (91.44), a plain s32* pointer local for the second read (cse'd),
-   &g_BattleTextLists[5]/[6] vs g_BattleOptionTextList + 0x3C (both 740 in the base body),
-   gcc-2.7.2-cdk (83.90), -O3 (identical), a 4-minute permuter run from the
-   base body (nothing usable) and a 4-minute run from this 98.01% body (best
-   359 vs base 376, and every candidate reassigned `flags` between the two
-   ternaries, i.e. semantically wrong).
+/* PARK 97.74% (732 bytes, retail 740: 8 bytes SHORT, so it cannot link).  The
+   body below is the 98.01% already-known shape with D_800916E2/D_8009171E/
+   D_80091714 typed as g_BattleTextLists[5].nextListIndex,
+   g_BattleTextLists[6].nextListIndex and &g_BattleTextLists[6] (0x800915AC +
+   5*0x3C + 0xA, + 6*0x3C + 0xA, + 6*0x3C): the typed spelling reads 97.74%
+   because objdiff cannot fold those reloc addends, same 732 bytes.
+   Named residual, case 2: retail reads g_BattleSlotConfirmFlags a SECOND time
+   after the g_BattleTextLists[5].nextListIndex store (`lui v0` + `lw v0` +
+   `nop`, then `andi v0,v0,2`) and keeps the ternary arm in $v0; gcc 2.7.2 cse
+   keeps the first load because the intervening store is to a different
+   symbol, so we run one load and put the arm in $a0.  The `flags` local is
+   load-bearing: it is what stops cse sharing the constant 1 across the two
+   BattleUpdateTextPadInput calls and keeps retail's 0x18 frame (0x20 frame and
+   +3 insns without it).
+   Measured this round: `*(volatile s32 *)&g_BattleSlotConfirmFlags` for the
+   second ternary = 744 bytes, 92.03% (gets the reload, then the constant 1 is
+   shared again); the same for both ternaries = 748, 91.15%; volatile read into
+   the local after the first store = 744, 94.89%; `extern volatile s32
+   g_BattleSlotConfirmFlags` with no local = 748, 89.80%.  The local assigned
+   after the first store (instead of before) = 732, 97.74% (no change).
+   Earlier rounds also tried g_BattleTextLists[5]/[6] vs g_BattleOptionTextList
+   + 0x3C (740 in the base body), g_BattleSlotConfirmLatched stored after the
+   ternaries (91.44), a plain s32* pointer local (cse'd), gcc-2.7.2-cdk
+   (83.90), -O3 (identical) and two permuter runs (nothing usable).
+*/
+/*
 void func_80081A44(void) {
     switch (g_BattleMode) {
     case 1:
@@ -681,7 +678,7 @@ void func_80081A44(void) {
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
-            BattleUpdateTextPadInput(D_80091714, 0);
+            BattleUpdateTextPadInput(&g_BattleTextLists[6], 0);
             break;
         case 3:
             g_BattleStateAdvanceRequested = 1;
@@ -695,8 +692,8 @@ void func_80081A44(void) {
 
         g_BattleSlotConfirmLatched = 1;
         flags = g_BattleSlotConfirmFlags;
-        D_800916E2 = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
-        D_8009171E = (flags & 2) == 0 ? 4 : 5;
+        g_BattleTextLists[5].nextListIndex = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
+        g_BattleTextLists[6].nextListIndex = (flags & 2) == 0 ? 4 : 5;
         BattleUpdateTextPadInput(&g_BattleTextLists[5], 0);
         BattleUpdateTextPadInput(&g_BattleTextLists[6], 1);
         if (g_BattleSlotConfirmFlags == 3) {
@@ -714,7 +711,7 @@ void func_80081A44(void) {
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
-            BattleUpdateTextPadInput(D_80091714, 0);
+            BattleUpdateTextPadInput(&g_BattleTextLists[6], 0);
             break;
         case 3:
             g_BattleStateAdvanceRequested = 1;
@@ -731,7 +728,7 @@ void func_80081A44(void) {
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
-            BattleUpdateTextPadInput(D_80091714, 0);
+            BattleUpdateTextPadInput(&g_BattleTextLists[6], 0);
             break;
         case 3:
             g_BattleStateAdvanceRequested = 1;
@@ -767,8 +764,8 @@ void func_80081A44(void) {
         break;
     }
     BattleDrawVibrationOptions();
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
 
 void BattleUpdateTextWindow(void) {
     s32 unk[2]; /* unused: retail's frame keeps 8 bytes of locals here */
