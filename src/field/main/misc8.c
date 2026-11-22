@@ -652,6 +652,26 @@ int FieldActorTestMaterialScriptMask(ActorData* pActor) {
    v1 via lui/addiu, and spills one extra register (frame 0x38 vs 0x28).
    else if (!(flags & 0x2000)) first gives 55.87%.
 */
+/* R400 redo: fresh body from the .s, re-measured 58.17% (644 vs retail 628
+   bytes = 0x274, 161 vs 157 insns). The three rsin/rcos copies and the two
+   0x40000 scale sites are right - gcc emits the same two merged copies retail
+   has. Residuals, in the order they cascade:
+   (1) the else-branch's angle test: retail materialises (s16)angle into a2
+       (sll v0,a1,16 / sra a2,v0,16) and ANDs a2 with 0x8000, then keeps a3 free
+       for the mult results; we fold it to `bgez` on the sll result and then need
+       a3 for the extension, which pushes every `mflo a3` to `mflo t0`.
+       Tried this round: the bare test, `(s32)angle & 0x8000`, `(angle & 0x8000)
+       != 0` - all three fold to bgez. The park below is the bare form.
+   (2) the two zero-blocks: retail funnels BOTH angle tests into one out-of-line
+       block at 0x800821B0 (sw zero,0xC / sw zero,0x14 / fall through to
+       addiu v0,-0x1000); ours keeps the then-branch's copy inline and ends it
+       with a `j` over, so cross-jumping cannot merge them.
+   (3) the 0x2000 body: retail lays it out-of-line (bnez over the 0x80000 test
+       and SpriteSetDirection); ours falls through into it.
+   (4) model-pointer block: retail CSEs base+index into v1 before the first
+       store and reads the pointer twice through it; ours recomputes the index
+       after the store (pActor->pActorData / 0x12C reloads) through $at.
+   (5) frame 0x38 vs retail 0x28. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
 /*
 extern void* g_FieldActorModelPointers[];
@@ -670,7 +690,7 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
             pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
             pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
         }
-    } else if (angle & 0x8000) {
+    } else if ((angle & 0x8000) != 0) {
         pSprite->step.x = 0;
         pSprite->step.z = 0;
     } else if (pActor->pActorData->flags & 0x2000) {
