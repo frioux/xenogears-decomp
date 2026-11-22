@@ -552,73 +552,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 // Tried on the last tie: three permuter runs (565 -> 360 -> 155 -> 95, then
 // NONE), u32/int/s32 for the constant, four declaration orders, and dropping the
 // variable altogether (that one loses retail's single `lui`, 240 bytes).
-/*
-s32 func_8008390C(s32 arg0) {
-    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
-    s32 cameraHeight;
-    s32 v;
-    u32 angleZ;
-    u8 *p = (u8 *)pActor;
-
-    *(s32 *)(p + 0x7C) = 0x1000;
-    v = g_WorldMapPlayerPosition[0];
-    g_WorldMapCameraTarget = v;
-    g_WorldMapScrollTargetX = v;
-    pActor->x = v;
-    v = g_WorldMapPlayerPositionY;
-    g_WorldMapCameraTargetY = v;
-    g_WorldMapScrollTargetY = v;
-    pActor->y = v;
-    v = g_WorldMapPlayerPositionZ;
-    cameraHeight = 0x960000;
-    g_WorldMapCameraTargetZ = v;
-    g_WorldMapScrollTargetZ = v;
-    pActor->z = v;
-    v = -0x20;
-    do {
-        pActor->state = 0;
-        pActor->command = 0;
-        *(s32 *)(p + 0x5C) = cameraHeight;
-    } while (0);
-    g_WorldMapCameraRot = v;
-    g_WorldMapViewRotationY = 0x400;
-    g_WorldMapViewRotationZ = 0;
-    *(s32 *)(p + 0x50) = -0x20000;
-    *(s32 *)(p + 0x38) = -0x20000;
-    v = ((s16 *)&g_WorldMapCameraRot)[1];
-    g_WorldMapRotationMatrixValid = 0;
-    g_WorldMapCameraHeight = cameraHeight;
-    *(s32 *)(p + 0x54) = v << 12;
-    angleZ = ((s16 *)&g_WorldMapCameraRot)[2];
-    *(s32 *)(p + 0x3C) = v << 12;
-    v = angleZ;
-    g_WorldMapFadeLevel = 0x78;
-    *(s32 *)(p + 0x58) = v << 12;
-    *(s32 *)(p + 0x40) = v << 12;
-    return 1;
-}
-*/
-// one register: the 0x960000 both stores share sits in $a0 here and in $a1 in
-// retail (`lui a1,0x96` just after the third position load). Everything else,
-// retail's two `lh` reloads of the angle globals included, is byte for byte.
-// What got it here, in case it helps invert that tie:
-// - The two `lh` are STORE-TO-LOAD FOLDING, not a volatile problem. The fold
-//   only fires when the read names the symbol the store wrote, so reading the
-//   angles through the neighbouring symbol `g_WorldMapCameraRot` (base
-//   0x8009BD38; +2 and +4 are the two view rotations) as s16 defeats it and
-//   brings back retail's lui/lh/sll. That relocation is base+addend where retail
-//   names the field, so diff_func never says MATCH for this body even when it is
-//   right: judge it with check_bin.sh.
-// - `v = -0x20;` before the block and `g_WorldMapCameraRot = v;` is what puts
-//   -0x20 in $v0 as retail does; the literal is materialised later.
-// - The Z angle needs its own variable (angleZ), loaded between the two 0x3C
-//   stores; otherwise gcc coalesces it into the Y value's register and the whole
-//   tail differs.
-// - 0x960000 has to be a variable assigned just after the third position load.
-//   As a literal it is materialised at its second use and the body shifts.
-// Tried on the last tie: three permuter runs (565 -> 360 -> 155 -> 95, then
-// NONE), u32/int/s32 for the constant, four declaration orders, and dropping the
-// variable altogether (that one loses retail's single `lui`, 240 bytes).
+// Re-measured, plus these: `-dg` says the constant is the ONLY pseudo in the body
+// that needs a register (`1 regs to allocate: 78`, `78 preferences: 2`), and it
+// conflicts with $v1/$a0, so $a0 comes from local-alloc's free-register scan -
+// the mirror of retail's `$a1` with no reachable source lever found. Storing the
+// 0x960000 as a literal and reading the field back for the global
+// (`g_WorldMapCameraHeight = *(s32 *)(p + 0x5C)`) does not forward: 82.93%,
+// 248 bytes, and it moves the position temp to $a0 too. The whole family is this
+// shape - misc7's func_800827EC (parked there, 65.30) has retail's identical
+// `lui a1,0x500000` / `sw a1,92(v1)` / `sw a1,(g_WorldMapCameraHeight)` tail, so
+// the register is a property of the original's build, not of this body.
 /*
 s32 func_8008390C(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
@@ -1446,19 +1389,28 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
-// Best: 97.70% at retail's exact size (636 bytes), instruction multiset
-// identical. Everything else is now exact: the prologue save order needs `i = 0`
-// assigned BEFORE pCam is materialised (that is delta 1, fixed); the pScratch[i+6]
-// load in loop 3 must be read INLINE in the condition and in the SpriteDrawFrame
-// index, not through a local, or sched2 hoists it above the lh (delta 2, fixed);
-// and the slew arms assign to `d` (the ang-cur delta) rather than to cur, which
-// puts the result in $v1 as retail has it. The only delta left is an allocator
-// tie: retail holds ang in $a1 and cur in $a0, this body holds ang in $a0 and cur
-// in $a1, which also flips the two load orders and the two arm registers.
-// Declaration order does not move it (4 orders measured); an earlier permuter run
-// (base 770, best 555) only "improved" it by making the body semantically wrong.
-// Two relocation-only diffs remain and are byte identical: the WrapDelta argument
-// names D_1F800008 and the loop-3 tail D_1F800004 where this body folds to 8/4.
+// Best: 99.18% at retail's exact size (636 bytes / 158 insns, instruction
+// multiset identical). ONE residual: retail emits the `sw $v1,16($s0)` that stores
+// d into pActor->redStep BEFORE the arg setup of func_800223B0 (`lui/lhu` of
+// g_WorldMapViewRotationY and the `lw $a0,0($s0)` of pActor->pSprite); this body
+// emits the pSprite load and the lhu first and the store between them and the
+// `subu`. Everything else - both loops' induction variables, the scratchpad
+// pointer that advances by 4 in loop 3, the slew arms and both their delay-slot
+// fills - is instruction for instruction.
+// What got it from 97.70 to here: DROP the `s16 ang; s32 cur;` locals and read the
+// fields inline (`d = pActor->angle - pActor->redStep;`, and `pActor->redStep +
+// 0x100` / `pActor->angle` in the arms). With the locals gcc puts ang in $a0 and
+// cur in $a1 and loads them in the wrong order; the inline form lets cse pick
+// retail's registers and load order by itself.
+// The two remaining text diffs are relocations only: `addiu a0,s2,%lo(D_1F800008)`
+// where this body has `a0 = s2 + 8` and `addiu s2,s2,%lo(D_1F800004)` where it has
+// `+= 4`; both symbols are absolute in linker/undefined_syms_auto.world_map.txt, so
+// the linked bytes are equal.
+// Measured on the store position: passing `pActor->redStep` (a read-back of the
+// field just stored) as the call argument emits the identical body, and a
+// `do { } while (0)` barrier between the store and the call is worse (98.93%, 640
+// bytes). Preset screen: cdk 96.32, gcc-2.6.0 96.57, unit flags 99.18. Permuter:
+// NONE, 1433 iterations, base 130.
 /*
 void func_80085CDC(void) {
     WorldMapActor *pActor;
@@ -1466,8 +1418,6 @@ void func_80085CDC(void) {
     s32 *pScratch;
     WorldMapPos *pCam;
     s32 i;
-    s32 cur;
-    s16 ang;
     s32 d;
     s32 v;
 
@@ -1508,24 +1458,22 @@ void func_80085CDC(void) {
     for (; i < 0x40; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pScratch[i + 6] < 0xB00)) {
             SpriteDrawFrame(pActor->pSprite, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pScratch[i + 6] >> 4));
-            ang = pActor->angle;
-            cur = pActor->redStep;
-            d = ang - cur;
+            d = pActor->angle - pActor->redStep;
             if (d < 0) {
                 d += 0x1000;
             }
             if (d < 0x801) {
                 if (d >= 0x100) {
-                    d = cur + 0x100;
+                    d = pActor->redStep + 0x100;
                 } else {
-                    d = ang;
+                    d = pActor->angle;
                 }
             } else {
                 d -= 0x1000;
                 if (d < -0xFF) {
-                    d = cur - 0x100;
+                    d = pActor->redStep - 0x100;
                 } else {
-                    d = ang;
+                    d = pActor->angle;
                 }
             }
             pActor->redStep = d;
