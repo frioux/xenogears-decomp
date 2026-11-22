@@ -387,11 +387,27 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);
    t = (i << 12) / count, s = 0x1000 - t, per u16 entry
    out = (v & 0x8000) | ((cr*s + fr*t) >> 15) | (((cg*s + fg*t) >> 15) << 5)
          | (((cb*s + fb*t) >> 15) << 10), cr/cg/cb = (v&0x1F)<<3, (v>>2)&0xF8,
-   (v>>7)&0xF8. Retail facts for the next attempt: the three pFactors lbu's are
-   hoisted to the entry block (s0/t9/t8) yet the three fr*t products are NOT
-   hoisted out of the inner loop (ours are); cr/cg/cb are byte-wide pseudo
-   spills to 0(sp)/1(sp)/2(sp) (so they are u8 locals); the >> 15 is srl, so
-   the sums are unsigned; the frame also saves s3 with no use in the body.
+   (v>>7)&0xF8. Retail facts: the three pFactors lbu's are in the ENTRY block
+   (before the `blez count` guard, i.e. source-level locals fr/fg/fb, typed s32
+   - a u8 local adds an `andi 0xff` retail does not have); the inner loop
+   computes all SIX products (retail is 92 insns, ours 81-88) while gcc hoists
+   the three fr/fg/fb*t mults out of the inner loop for every spelling tried;
+   the >> 15 is srl so the sums are unsigned; the frame is 0x28 and saves five
+   callee-saved regs (s3 saved with no use in the body - our u8[3] body below
+   reproduces the 0x28 frame and 5-6 saves but not s3's death).
+   ROUND-NEW: retail's four `lhu v0,0(a3)` re-reads of *pIn are caused by the
+   three `sb` stores: gcc 2.7.2 has no alias analysis, so each store kills the
+   CSE'd load and forces a reload. The `sb v0,{0,1,2}(sp)` are therefore stores
+   into a 3-byte local (u8 rgb[3] or a 3-u8 local struct), read back as the
+   expression's cr/cg/cb - NOT register spills. Measured with `u8 rgb[3]` +
+   s32 fr/fg/fb: 61.69% (360 bytes, 88 insns) - the sb's appear and the frame
+   becomes retail's 0x28, but the stores sink to the end of the block instead
+   of filling the mult/mflo gaps, and the fr/fg/fb*t mults still hoist.
+   Tried and worse: `pFactors[k]*t` inline (the old 69.59 body, factors
+   re-loaded per pixel), u8 factor locals (60.22, adds andi 0xff), s32 factor
+   locals (60.93), u8 rgb[3] (61.69). -O1 41.66; -O3/-Os/2.6.0/cdk do not
+   compile. Next attempt should aim at the hoist: retail evaluates one
+   `cr*s + fr*t` pair at a time, ours does cr*s, cg*s, cb*s then combines.
 void func_800931D8(u8* pSrc, u8* pDst, s32 count, u8* pFactors) {
     s32 i;
     s32 j;
@@ -592,27 +608,33 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     return a.y << 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
-/* best: 71.82 percent (1080 bytes vs retail 1072 = 268 insns; ours 270). Structure is
-   right: same 8 rcos calls in the same order, same multiply/shift chain, same
-   four scratch stores at 0xA2/0xAA/0xB2/0xBA, same four sum arms, same GTE pair,
-   same interpolate call. The 2 extra instructions are ONE spilled parameter
-   (the prologue stores z to 16(sp) and reloads it) - the quad block needs 9
-   values live at peak (x, z, pTile, xa, x0, za, z0, angle, phase) and retail
-   fits exactly that (s7, fp, s6, s1, s3, s0, s2, s5, s4). Measured, all worse:
-   heights read back from scratch in the arms (63.88, gcc then keeps the 0xA2
-   address in a saved register instead of retail's fresh lui), a single shared
-   height variable (66.24), s16 heights (67.35), the quads as a 2x2 loop (46.68,
-   gcc 2.7.2 does not unroll it), x1/z1 inlined into the angle sums (identical
-   71.82). Facts for the next attempt: retail reads the tile height with lb
-   (a signed read, so (s8)pTile[n] << 3) and the tile indices with srl (so
-   ((u32)x >> 19) & 7) while the last two stores use sra 12; the arms reload
-   h00/h10/h01 as lh from scratch but keep the last corner's height (h11) in a
-   register; retail's second-half accesses 0x1F800020/0x1F800028/0x1F8000A2 go
-   through a base register holding 0x1F800000 (see WorldMapBuildTilePlaneNormal's
-   pScratch/pEdge pair above) while the arm stores use the absolute-cast lui at
-   form. A permuter run from this body found nothing usable (its best candidates
-   changed the stored values).
-
+/* best: 71.71 percent (RE-MEASURED this round: 1080 bytes vs retail 1072 = 268
+   insns; ours 270). The old 71.82 note could not be reproduced because the parked
+   text did not compile (it used the s32 table base D_8009B254/D_8009B25C/D_8009B24C
+   which are NOT the shape the object names: they are g_WorldMapTileDiagonalAxes[1].x,
+   [1].z and [0].z). Body below now compiles and spells them typed.
+   Structure is right: same 8 rcos calls in the same order, same multiply/shift
+   chain, same four scratch stores at 0xA2/0xAA/0xB2/0xBA, same four sum arms,
+   same GTE pair, same interpolate call. Residual facts, all measured:
+   - Retail keeps BOTH parameters in callee-saved registers (s7 = x, s8 = z); this
+     body spills z to 16(sp) and reloads it twice, and its frame is 64 where
+     retail's is 56. The quad block needs 9 live values (x, z, pTile, xa, x0, za,
+     z0, angle, phase) and retail fits exactly that in s7,fp,s6,s1,s3,s0,s2,s5,s4.
+   - Retail does NOT keep the four corner heights in registers: it stores each to
+     scratch and re-reads them with `lh` in the arms, and keeps only the last
+     corner's height (h11) in a2. This body keeps h00/h01/h10/h11 in registers and
+     emits no `lh` at all - that is the 4-ish instruction difference plus most of
+     the register pressure.
+   - Retail builds the scratch base ONCE (`lui s1,0x1F80` in the delay slot of the
+     first `bgez`) and then stores `sw v0,0(s1)`, calls OuterProduct0 with
+     `move a1,s1` / `ori a0,s1,0x10` / `addiu s0,s1,D_1F800020`; this body re-forms
+     every scratch address with a fresh lui/at (+~10 instructions).
+   Tried and worse: heights read back from scratch in the arms (63.88, gcc then
+   keeps the 0xA2 address in a saved register instead of retail's fresh lui), a
+   single shared height variable (66.24), s16 heights (67.35), the quads as a 2x2
+   loop (46.68, gcc 2.7.2 does not unroll it), x1/z1 inlined into the angle sums
+   (identical 71.71). A permuter run from this body found nothing usable (its best
+   candidates changed the stored values).
 s32 func_80093A5C(s32 x, s32 z) {
     u8* pTile;
     s32 xa;
@@ -656,7 +678,7 @@ s32 func_80093A5C(s32 x, s32 z) {
     xa = (u16)(x / 8);
     za = (u16)(z / 8);
     if (pTile[1] & 0x80) {
-        sum = xa * D_8009B254 + (-za) * D_8009B25C;
+        sum = xa * g_WorldMapTileDiagonalAxes[1].x + (-za) * g_WorldMapTileDiagonalAxes[1].z;
         if (sum < 0) {
             *(s32*)0x1F800000 = 0x80;
             *(s32*)0x1F800008 = -0x80;
@@ -673,7 +695,7 @@ s32 func_80093A5C(s32 x, s32 z) {
             *(s32*)0x1F800014 = h11 - h00;
         }
     } else {
-        sum = (xa - 0x10000) * g_WorldMapTileDiagonalAxes + (-za) * D_8009B24C;
+        sum = (xa - 0x10000) * g_WorldMapTileDiagonalAxes[0].x + (-za) * g_WorldMapTileDiagonalAxes[0].z;
         if (sum < 0) {
             *(s32*)0x1F800000 = -0x80;
             *(s32*)0x1F800008 = -0x80;
@@ -705,8 +727,7 @@ s32 func_80093A5C(s32 x, s32 z) {
     WorldMapInterpolatePlaneHeight((WorldMapPos*)0x1F800010, (WorldMapPos*)0x1F800020,
                                    (WorldMapPos*)0x1F800000);
     return *(s32*)0x1F800014 << 12;
-}
-*/
+}*/
 
 s32 WorldMapGetTileValue(WorldMapPos* p) {
     s16 idx;
