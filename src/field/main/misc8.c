@@ -142,6 +142,20 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
    is register naming plus the flags12C store/reload pair (retail stores after
    the 0xFFFCFFFF AND, reloads, ANDs 0xF003FFFF and stores again; gcc forwards
    the register), and the mask constants landing in swapped registers.
+   ROUND 411 re-measured the body exactly (un-parked: 77.88%, 1200 bytes, 300
+   against retail's 308) and pinned the residual: the whole 8-instruction
+   deficit is the two load-delay nops per tail read. Retail is
+   lui/lw/nop/addu/lw/nop/sll/sw; ours is
+   lw(base of the PREVIOUS statement)/lui/lw/addu/sll/sw, which has no load
+   delay to fill, so the two nops can never appear. cc1's options header has
+   neither -fschedule-insns nor -fschedule-insns2, so that interleave is not a
+   scheduler: it is cse/gcse hoisting the next statement's
+   `idx*0x5C + g_FieldActors[0]` base into the previous statement's window.
+   Wrapping the four reads in do { } while (0) changed nothing (1200 bytes, same
+   instruction count). Any spelling that keeps that base out of gcse's window is
+   the remaining lead. m2c's whole-function draft is structurally identical to
+   this body (it spells the tri-normal triple `(&normals)[walkmeshId].vx` and the
+   transform write `points[walkmeshId].vy`), so the structure is settled.
 */
 /*
 extern s16 g_FieldWalkmeshTriCount;
