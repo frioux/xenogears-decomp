@@ -707,114 +707,106 @@ int WorldMapInitGroup0Actor(int idx) {
     return 3;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
-/* PARKED 98.80% (218/218 insns) - cannot be converted on its own: the switch
-   table would land at .rodata+0x30 but retail has func_8007ADD4's two tables
-   (jtbl_8006FBF4/jtbl_8006FC14) there first; convert ADD4 and BBEC together.
-   Only remaining diff: the 16.16 x read at 0x1F800002, retail "lh", ours
-   "lhu;sll 16;sra 16" (tried ((s16*)pScratch)[1], *(s16*)((u8*)pScratch+2),
-   ((SVECTOR*)pScratch)->vy).
-    s32 func_8007BBEC(s32 idx) {
-        WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
-        WorldMapSceneLayer *pLayer;
-        WorldMapTrackPoint *pPoint;
-        u32 *pScratch = (u32 *)0x1F800000;
-        VECTOR *pVec0;
-        VECTOR *pVec1;
-        VECTOR *pVec2;
-        VECTOR *pVec3;
-        SVECTOR *pRot;
-        SVECTOR *pOutRot;
-        MATRIX *pMat;
-        s32 result = 1;
+s32 func_8007BBEC(s32 idx) {
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
+    WorldMapSceneLayer *pLayer;
+    WorldMapTrackPoint *pPoint;
+    u32 *pScratch = (u32 *)0x1F800000;
+    VECTOR *pVec0;
+    VECTOR *pVec1;
+    VECTOR *pVec2;
+    VECTOR *pVec3;
+    SVECTOR *pRot;
+    SVECTOR *pOutRot;
+    MATRIX *pMat;
+    s32 result = 1;
 
-        switch (pPlayer->unk50 >> 12) {
-        case 0:
-        case 1:
-            pPlayer->unk50 += pPlayer->unk58;
-            pPlayer->unk54 += 4;
-            break;
-        case 2:
-        case 3:
-        case 4:
-            pPlayer->unk50 += pPlayer->unk58;
-            pPlayer->unk58 -= 8;
-            if (pPlayer->unk58 < 0x80) {
-                pPlayer->unk58 = 0x80;
-            }
-            pPlayer->unk54 += 4;
-            break;
-        case 5:
-        case 6:
-        case 7:
-            pPlayer->unk50 += pPlayer->unk58;
-            pPlayer->unk58 += 8;
-            if (pPlayer->unk58 > 0x100) {
-                pPlayer->unk58 = 0x100;
-            }
-            pPlayer->unk54 -= 0x10;
-            break;
-        case 8:
-            result = 3;
-            break;
+    switch (pPlayer->unk50 >> 12) {
+    case 0:
+    case 1:
+        pPlayer->unk50 += pPlayer->unk58;
+        pPlayer->unk54 += 4;
+        break;
+    case 2:
+    case 3:
+    case 4:
+        pPlayer->unk50 += pPlayer->unk58;
+        pPlayer->unk58 -= 8;
+        if (pPlayer->unk58 < 0x80) {
+            pPlayer->unk58 = 0x80;
         }
-        pPoint = &D_8009A490[pPlayer->unk50 >> 12];
-        if (pPoint[2].unk6 != -1) {
-            WorldMapInterpolateQuadraticVector(pPlayer->unk50 & 0xFFF, (s16 *)pPoint,
-                                               (s16 *)&pPoint[1], (s16 *)&pPoint[2],
-                                               (s32 *)pScratch);
+        pPlayer->unk54 += 4;
+        break;
+    case 5:
+    case 6:
+    case 7:
+        pPlayer->unk50 += pPlayer->unk58;
+        pPlayer->unk58 += 8;
+        if (pPlayer->unk58 > 0x100) {
+            pPlayer->unk58 = 0x100;
         }
-        pVec1 = (VECTOR *)&pScratch[4];
-        pPoint = &D_8009A490[(pPlayer->unk50 + 0x80) >> 12];
-        WorldMapInterpolateQuadraticVector((pPlayer->unk50 + 0x80) & 0xFFF, (s16 *)pPoint,
-                                           (s16 *)&pPoint[1], (s16 *)&pPoint[2], (s32 *)pVec1);
-        pLayer = g_WorldMapGroups;
-        pLayer->pos.x = ((s16 *)pScratch)[1];
-        pLayer->pos.y = ((s32 *)pScratch)[1] >> 16;
-        pLayer->pos.z = ((s32 *)pScratch)[2] >> 16;
-        pVec0 = (VECTOR *)pScratch;
-        pVec1->vx = (pVec1->vx - pVec0->vx) >> 12;
-        pVec1->vy = (pVec1->vy - pVec0->vy) >> 12;
-        pVec1->vz = -((pVec1->vz - pVec0->vz) >> 12);
-        VectorNormal(pVec1, pVec0);
-        pRot = (SVECTOR *)&pScratch[0x28];
-        pRot->vx = 0;
-        pRot->vy = ratan2(pVec0->vx, pVec0->vz) & 0xFFF;
-        pRot->vz = pPlayer->unk54;
-        pMat = (MATRIX *)&pScratch[0x3C];
-        RotMatrixYXZ(pRot, pMat);
-        pRot->vx = 0;
-        pRot->vy = -0x1000;
-        pRot->vz = 0;
-        ApplyMatrix(pMat, pRot, pVec1);
-        pVec3 = (VECTOR *)&pScratch[0xC];
-        OuterProduct12(pVec0, pVec1, pVec3);
-        pVec2 = (VECTOR *)&pScratch[8];
-        VectorNormal(pVec3, pVec2);
-        OuterProduct12(pVec0, pVec2, pVec3);
-        VectorNormal(pVec3, pVec1);
-        pMat->m[0][0] = pVec2->vx;
-        pMat->m[0][1] = pVec2->vy;
-        pMat->m[0][2] = pVec2->vz;
-        pMat->m[1][0] = pVec1->vx;
-        pMat->m[1][1] = pVec1->vy;
-        pMat->m[1][2] = pVec1->vz;
-        pMat->m[2][0] = pVec0->vx;
-        pMat->m[2][1] = pVec0->vy;
-        pMat->m[2][2] = pVec0->vz;
-        TransposeMatrix(pMat, &pLayer->mat);
-        pOutRot = (SVECTOR *)&pScratch[0x2A];
-        WorldMapExtractRotationFromMatrix(pMat, pOutRot);
-        if (pLayer->pos.y >= -0x7F) {
-            pRot->vx = pLayer->pos.x;
-            pRot->vy = pLayer->pos.y;
-            pRot->vz = pLayer->pos.z;
-            pOutRot->vz = -*(u16 *)&pOutRot->vz;
-            WorldMapInitSpriteGroupSprites(0x12, pRot, (s32)pOutRot);
-        }
-        return result;
+        pPlayer->unk54 -= 0x10;
+        break;
+    case 8:
+        result = 3;
+        break;
     }
-*/
+    pPoint = &D_8009A490[pPlayer->unk50 >> 12];
+    if (pPoint[2].unk6 != -1) {
+        WorldMapInterpolateQuadraticVector(pPlayer->unk50 & 0xFFF, (s16 *)pPoint,
+                                           (s16 *)&pPoint[1], (s16 *)&pPoint[2],
+                                           (s32 *)pScratch);
+    }
+    pVec1 = (VECTOR *)&pScratch[4];
+    pPoint = &D_8009A490[(pPlayer->unk50 + 0x80) >> 12];
+    WorldMapInterpolateQuadraticVector((pPlayer->unk50 + 0x80) & 0xFFF, (s16 *)pPoint,
+                                       (s16 *)&pPoint[1], (s16 *)&pPoint[2], (s32 *)pVec1);
+    pLayer = g_WorldMapGroups;
+    pLayer->pos.x = (s16)(((s32 *)pScratch)[0] >> 16);
+    pLayer->pos.y = ((s32 *)pScratch)[1] >> 16;
+    pLayer->pos.z = ((s32 *)pScratch)[2] >> 16;
+    pVec0 = (VECTOR *)pScratch;
+    pVec1->vx = (pVec1->vx - pVec0->vx) >> 12;
+    pVec1->vy = (pVec1->vy - pVec0->vy) >> 12;
+    pVec1->vz = -((pVec1->vz - pVec0->vz) >> 12);
+    VectorNormal(pVec1, pVec0);
+    pRot = (SVECTOR *)&pScratch[0x28];
+    pRot->vx = 0;
+    pRot->vy = ratan2(pVec0->vx, pVec0->vz) & 0xFFF;
+    pRot->vz = pPlayer->unk54;
+    pMat = (MATRIX *)&pScratch[0x3C];
+    RotMatrixYXZ(pRot, pMat);
+    pRot->vx = 0;
+    pRot->vy = -0x1000;
+    pRot->vz = 0;
+    ApplyMatrix(pMat, pRot, pVec1);
+    pVec3 = (VECTOR *)&pScratch[0xC];
+    OuterProduct12(pVec0, pVec1, pVec3);
+    pVec2 = (VECTOR *)&pScratch[8];
+    VectorNormal(pVec3, pVec2);
+    OuterProduct12(pVec0, pVec2, pVec3);
+    VectorNormal(pVec3, pVec1);
+    pMat->m[0][0] = pVec2->vx;
+    pMat->m[0][1] = pVec2->vy;
+    pMat->m[0][2] = pVec2->vz;
+    pMat->m[1][0] = pVec1->vx;
+    pMat->m[1][1] = pVec1->vy;
+    pMat->m[1][2] = pVec1->vz;
+    pMat->m[2][0] = pVec0->vx;
+    pMat->m[2][1] = pVec0->vy;
+    pMat->m[2][2] = pVec0->vz;
+    TransposeMatrix(pMat, &pLayer->mat);
+    pOutRot = (SVECTOR *)&pScratch[0x2A];
+    WorldMapExtractRotationFromMatrix(pMat, pOutRot);
+    if (pLayer->pos.y >= -0x7F) {
+        pRot->vx = pLayer->pos.x;
+        pRot->vy = pLayer->pos.y;
+        pRot->vz = pLayer->pos.z;
+        pOutRot->vz = -*(u16 *)&pOutRot->vz;
+        WorldMapInitSpriteGroupSprites(0x12, pRot, (s32)pOutRot);
+    }
+    return result;
+}
 void WorldMapInitializeModeWithGroupActors(void) {
     RECT rect;
     s32 *pPos = &g_WorldMapPlayerPosition;
