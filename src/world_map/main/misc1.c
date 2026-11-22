@@ -724,21 +724,33 @@ extern s32 WorldMapSetSceneLayerTPages();
 extern s32 WorldMapHideSpriteSetGroups();
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
-/* best: 99.81% (1892 bytes = retail's exact size). Instruction-identical except the two
-   `= 1` stores: retail hoists `li v1,1` above `li v0,2` and emits both `sw v1` AFTER the five
-   zero stores, where this body emits them (in v0) right after the DrawMode store. Written in
-   retail's own store order (ones after the zeros) cc1 instead moves the two stores ABOVE the
-   zeros and scores 98.88% - so the statement order is not the lever (11 orders tried, all
-   98.7-99.8).
-   cc1_probe with this unit's flags shows the mechanism: with two zero stores, or with no
-   trailing `la` statement, cc1 hoists only the `li` and leaves the stores in place (retail's
-   shape); with five zeros plus the callback assignment last it hoists the two stores too.
-   permuter (8 min, 2989 iters): PERMUTER_BETTER 80 to 70 by chaining
-   `g_WorldMapMode4EntryTriggered = (g_WorldMapL2R2Pressed = 0);` - REJECTED, it reverses those
-   two zero stores relative to retail.
+/* best: 99.81% (1892 bytes = retail exact size). The only real difference left is the
+   g_AnimScriptExtraTicks store: retail emits li v1,1 at the head of the store group, the five
+   zero stores, then sw v1 to g_AnimScriptExtraTicks and g_WorldMapFadeActive; this body emits
+   the AnimScriptExtraTicks store right after the callback la, before the zeros. The rest of the
+   objdiff line differs only by relocations that link identically (see the end of this note).
+   Measured this round:
+   - parked body (AnimScriptExtraTicks = 1 second in C): 99.81, li v1,1 at the head and the
+     store one group early (cc1 order TpageAbr, DrawMode, la, AnimScript, zeros, FadeActive).
+   - retail own store order (zeros, then both `= 1` stores, then the callback): 98.88 - cc1
+     hoists BOTH `= 1` stores above the zeros (52 diffs, confirms the earlier note).
+   - callback assignment moved up before the zeros: 99.32 - cc1 then emits one li v0,1 for both
+     stores and pulls the callback store up next to its la.
+   - the h-constant-retail-materialises-head lever (the whole store group in a do while 0 with
+     the two `= 1` stores last): check_bin.sh world_map MISMATCH, so it is not the lever here.
+   cc1_probe of the same statement list (matrix copy plus two leading calls) DOES emit retail
+   order, so the tie is in how the surrounding block drives the pre-reload scheduler: in the
+   probe the constant lands in $2 and the address in $3, in the function $3/$2 (retail
+   registers) with the one store hoisted.
+   Two permuter runs (8 min 2989 iters, and 3 min 1116 iters this round) both stop at 80 to 70
+   by chaining two zero stores into one assignment, which reverses them relative to retail -
+   rejected as wrong code.
    Kept from an earlier permuter run: `pLoadBuffer = g_SoundBankLoadBuffer;` at the head of the
-   0-branch, used as memcpy's dst (memcpy otherwise keeps &g_SoundBankLoadBuffer in a saved
+   0-branch, used as memcpy dst (memcpy otherwise keeps &g_SoundBankLoadBuffer in a saved
    register where retail rematerialises the address into a0).
+   Reloc-only differences on the same diff: g_WorldMapSlotInitEntries[nSlot].pUpdateHandler
+   prints as an addend-4 access on the table base where retail names D_80099E90 (identical
+   linked bytes), and the switch table operand prints .rodata where retail names jtbl_8006FAF4.
    This function owns jtbl_8006FAF4 (6 words), so an un-park must land check_bin.sh world_map. */
 /*
 void func_80072238(void) {
@@ -916,6 +928,7 @@ void func_80072238(void) {
     SystemTransferPaletteToVRAM(0x130, 0x1E0);
 }
 */
+
 extern u16 g_NextMapFlags[];
 extern void* g_WorldMapTilePrimBuffer;
 extern void* g_WorldMapTilePrimBufferCopy;
