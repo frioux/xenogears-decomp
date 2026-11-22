@@ -1966,6 +1966,14 @@ typedef struct {
 // steals its lui into the bne delay slot, where retail has nop and $t0.
 // Preset screen: 2.7.2 97.81%, cdk 86.01%, 2.6.0 97.81%; a 4-minute permuter
 // run found nothing (best candidate 206 vs base 317).
+// Round 397: still 97.81 (580 vs retail 584), three more spellings measured
+// identical (empty do{}while(0) around the copy loop; two-statement in-place
+// pEnd = pSrc; pEnd = (u8*)pEnd + 0x14000). -dg proves the wall: the 0x14000 is
+// emitted as a RELOAD SCRATCH with no pseudo/allocno ((set (reg:SI 2 v0)
+// (const_int 65536)) post-allocation), so which register it lands in is reload's
+// first-free-reg pick, not a source-controlled allocno; retail's $t0 held
+// &D_8005A448 live through the if, so its nop + lui/ori after the branch cannot
+// be reorg'd from C.
 /*
 void func_8008BF38(int partyIndex) {
     int characterId;
