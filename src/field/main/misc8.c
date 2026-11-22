@@ -1243,6 +1243,12 @@ void func_80081F80(SpriteData*, s16, FieldActor*);
    s16 `masked = current & 0x8000` local (90.14%, load became lhu plus sll/sra).
    gcc will not materialise an SImode subreg copy of a single-live-range HImode
    value; three permuter runs on this body found nothing. */
+/* R396: re-measured 97.03% (144 vs retail 148). New this round: an s32 load
+   local with an s16 copy (both directions - mask on the wide one, mask on the
+   narrow one), which copy-propagates back to one pseudo; preset screen -O1
+   91.46, -O3 97.03, cdk -O3 93.78, -G0 97.03. The missing instruction is
+   retail's copy of the lh result into the arithmetic register; gcc merges the
+   two because the load has one live range. */
 /*
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
