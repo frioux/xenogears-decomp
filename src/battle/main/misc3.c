@@ -815,19 +815,21 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
         i++;
     } while (i < BATTLE_ACTOR_SLOT_COUNT);
 }
-/* 75.45%: with a pEntry local (one load of the global shared by the two uses
-   after the sb) the first store and everything from the `sh` tail on is
-   byte-identical; the ONLY difference is that retail's two tile `lbu`s are
-   scheduled BEFORE the sb while gcc puts them after it. Source order does not
-   matter (tile first / tile last / an s32 offset local all compile identically),
-   so it is gcc's scheduler placement. Also tried: no pEntry (three loads of the
-   global, 48.18), inline tile; this round: `do { } while (0)` around the color
-   store (17.12), a volatile color store (57.27), volatile tile loads (62.42),
-   tile computed before the pEntry load and after the color store (both 75.45,
-   identical output). The 4-minute permuter run found nothing better than 585
-   against this body. Retail's order is loads-then-sb, i.e. loads HOISTED above
-   an independent store; gcc 2.7.2 sinks them here.
-   Parked body (75.45):
+/* 75.45% (132 bytes = retail size): the ONLY difference is that retail's two tile
+   `lbu`s (D_800D2E61[a1] and g_BattleCommandTiles[a1]) are scheduled BEFORE the
+   color `sb` while gcc 2.7.2 sinks them below it, into the `sh`'s use point; the
+   store itself and everything from the queue reload on is byte-identical, and
+   the register mirror that follows (v0/v1) is a consequence of the placement.
+   Measured shapes, all 75.45 unless noted: tile local before/after the pEntry
+   load (identical output); declaration-with-initialiser `u16 tile = ...`;
+   `s32 offset` local for index*8; inline tile in the mask store (43.00, 136
+   bytes - the loads sink AND the or chain re-registers); no pEntry (48.18,
+   prior session); `do {} while (0)` around the color store (17.12); volatile
+   color store (57.27); volatile tile loads (62.42). Source order cannot move
+   the loads: CSE rematerialises them at the sh's use. Screens: gcc-2.6.0 75.45,
+   gcc-2.7.2-cdk 40.61. A 4-minute permuter run (prior session) found nothing
+   better than 585. Retail's order is loads-then-sb: loads HOISTED above an
+   independent store; gcc 2.7.2 sinks them. Parked body (75.45):
 void func_800785D4(u8 color, u8 index) {
     u16 tile;
     u8 *pEntry;
