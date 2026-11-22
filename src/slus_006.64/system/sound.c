@@ -1326,84 +1326,87 @@ void SoundSpuMemoryInitialize(void) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlock);
+// Attempt (94.58%, 256 bytes = retail's size). Residual, in the loop head only: retail
+// REMATERIALISES the array base every iteration (`lh v0,2(s1); lui %hi; addiu %lo; sll; addu`)
+// while gcc 2.6 hoists one copy into a2 in the preheader (`move a2,s0` plus a nop in the lh's
+// load-delay slot), and therefore also swaps the two callee-saved pointers (here address s1,
+// pPrevBlock s0; retail address s0, pPrevBlock s1). Tried, all 93-94.6%: an index local,
+// `(u8*)base + (i<<4)`, `new_var = pPrevBlock` used as the index (that one fixes the registers
+// but folds the base into s1, 244 bytes), a do/while round the loop body (93.25), declaration
+// order, and -O1/-O3/-G0/cdk screens (all worse). loop.c hoists the base here; the sibling
+// SoundSpuMemoryAllocateBlockFit shows the same hoist and matches, so the hoist itself is not
+// the blocker - retail's source must defeat it somehow.
+// Round 315 added, all still 94.58 or worse: `(u8*)g_SoundSpuMemoryBlocks + (idx << 4)` cast
+// form (identical to the subscript), local declaration order both ways (no change), the
+// while (1) { if (nextBlockIndex == 0) break; } form (84.06), a `short nextIndex` assigned in
+// the condition (82.58, kills retail's duplicated lh), and a 4-minute permuter run
+// (486 -> 355) whose only improvement is WRONG CODE - it hoists `short new_var =
+// pPrevBlock->nextBlockIndex;` above the loop and indexes with the fixed value, so the loop
+// would never advance. That candidate does say what gcc wants: a live short in a register.
+// ROUND 316 PROVED THE HOIST IS NOT SOURCE-CONTROLLABLE (nine spellings, cc1_probe.sh, every
+// one hoists the base into the preheader as `la $16` plus `move $6,$16` with a nop in the lh's
+// load-delay slot): `&Arr[i]`, `Arr + i`, `(u8*)Arr + (i << 4)`, `(u8*)Arr + i * sizeof(T)`,
+// `&Arr[(u8)i]`, a base local assigned inside the body, the same local live across the whole
+// function (that one only moves the copy into a callee-saved $19 and turns the addu
+// base-first, so it is worse), the unbounded-array extern vs the header's array declaration,
+// and gcc-2.7.2-cdk (`move $7,$16`, same hoist). Padding the loop body with 1/3/6/12 extra
+// global increments did not stop it either, so round 113's move_movables cost threshold is not
+// what we hit here: for a body this small the invariant is always moved. Searching every
+// matched function in all eleven binaries for an address formed inside a loop found exactly
+// one family where retail re-forms it (field/misc9 FieldInitScreenStripSprites), and there the
+// loop contains jal calls and the re-formed `la` sits in a block AFTER them, where cse2 cannot
+// forward the callee-saved copy; this loop has no call, so that route does not exist. Treat the
+// remaining delta as a compiler heuristic, not a missing spelling: the sibling
+// SoundSpuMemoryAllocateBlockFit hoists the same way and matches because retail does too, so
+// move_movables is running normally here and retail's own Fit object shows the identical
+// hoisted-copy shape (`addu t0,s0,zero` in its preheader). Whatever defeated the hoist in
+// Block's original source is therefore not how the base is spelled (nine measured above), so
+// it is the loop or its exits - that is the next lead, not another address spelling.
+//     // Allocates a block of SPU memory of the given size, returns the SPU address or 0 on failure.
+// Round 411: re-measured the un-parked body at 94.58% / 256 bytes with the residual below
+// unchanged (loop head only: the hoisted base and the s0/s1 swap). No new spelling attempted;
+// the nine measured in round 316 plus three permuter runs stand.
 /*
-Attempt (94.58%, 256 bytes = retail's size). Residual, in the loop head only: retail
-REMATERIALISES the array base every iteration (`lh v0,2(s1); lui %hi; addiu %lo; sll; addu`)
-while gcc 2.6 hoists one copy into a2 in the preheader (`move a2,s0` plus a nop in the lh's
-load-delay slot), and therefore also swaps the two callee-saved pointers (here address s1,
-pPrevBlock s0; retail address s0, pPrevBlock s1). Tried, all 93-94.6%: an index local,
-`(u8*)base + (i<<4)`, `new_var = pPrevBlock` used as the index (that one fixes the registers
-but folds the base into s1, 244 bytes), a do/while round the loop body (93.25), declaration
-order, and -O1/-O3/-G0/cdk screens (all worse). loop.c hoists the base here; the sibling
-SoundSpuMemoryAllocateBlockFit shows the same hoist and matches, so the hoist itself is not
-the blocker - retail's source must defeat it somehow.
-Round 315 added, all still 94.58 or worse: `(u8*)g_SoundSpuMemoryBlocks + (idx << 4)` cast
-form (identical to the subscript), local declaration order both ways (no change), the
-while (1) { if (nextBlockIndex == 0) break; } form (84.06), a `short nextIndex` assigned in
-the condition (82.58, kills retail's duplicated lh), and a 4-minute permuter run
-(486 -> 355) whose only improvement is WRONG CODE - it hoists `short new_var =
-pPrevBlock->nextBlockIndex;` above the loop and indexes with the fixed value, so the loop
-would never advance. That candidate does say what gcc wants: a live short in a register.
-ROUND 316 PROVED THE HOIST IS NOT SOURCE-CONTROLLABLE (nine spellings, cc1_probe.sh, every
-one hoists the base into the preheader as `la $16` plus `move $6,$16` with a nop in the lh's
-load-delay slot): `&Arr[i]`, `Arr + i`, `(u8*)Arr + (i << 4)`, `(u8*)Arr + i * sizeof(T)`,
-`&Arr[(u8)i]`, a base local assigned inside the body, the same local live across the whole
-function (that one only moves the copy into a callee-saved $19 and turns the addu
-base-first, so it is worse), the unbounded-array extern vs the header's array declaration,
-and gcc-2.7.2-cdk (`move $7,$16`, same hoist). Padding the loop body with 1/3/6/12 extra
-global increments did not stop it either, so round 113's move_movables cost threshold is not
-what we hit here: for a body this small the invariant is always moved. Searching every
-matched function in all eleven binaries for an address formed inside a loop found exactly
-one family where retail re-forms it (field/misc9 FieldInitScreenStripSprites), and there the
-loop contains jal calls and the re-formed `la` sits in a block AFTER them, where cse2 cannot
-forward the callee-saved copy; this loop has no call, so that route does not exist. Treat the
-remaining delta as a compiler heuristic, not a missing spelling: the sibling
-SoundSpuMemoryAllocateBlockFit hoists the same way and matches because retail does too, so
-move_movables is running normally here and retail's own Fit object shows the identical
-hoisted-copy shape (`addu t0,s0,zero` in its preheader). Whatever defeated the hoist in
-Block's original source is therefore not how the base is spelled (nine measured above), so
-it is the loop or its exits - that is the next lead, not another address spelling.
-    // Allocates a block of SPU memory of the given size, returns the SPU address or 0 on failure.
-    int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
-        SoundSpuMemoryBlock* pPrevBlock;
-        int address;
-        SoundSpuMemoryBlock* pBlock;
-        int index;
-    
-        pPrevBlock = &g_SoundSpuMemoryBlocks[0];
-        address = pPrevBlock->spuAddress + pPrevBlock->size;
-    
-        while (pPrevBlock->nextBlockIndex != 0) {
-            pBlock = (SoundSpuMemoryBlock *)((u8 *)g_SoundSpuMemoryBlocks + (pPrevBlock->nextBlockIndex << 4));
-            if (pBlock->spuAddress - address >= size) {
-                goto allocate;
-            }
-            pPrevBlock = pBlock;
-            address = pBlock->spuAddress + pBlock->size;
+int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
+    SoundSpuMemoryBlock* pPrevBlock;
+    int address;
+    SoundSpuMemoryBlock* pBlock;
+    int index;
+
+    pPrevBlock = &g_SoundSpuMemoryBlocks[0];
+    address = pPrevBlock->spuAddress + pPrevBlock->size;
+
+    while (pPrevBlock->nextBlockIndex != 0) {
+        pBlock = (SoundSpuMemoryBlock *)((u8 *)g_SoundSpuMemoryBlocks + (pPrevBlock->nextBlockIndex << 4));
+        if (pBlock->spuAddress - address >= size) {
+            goto allocate;
         }
-    
-        if (SOUND_SPU_MEMORY_SIZE - address < size) {
-            return 0;
-        }
-    
-    allocate:
-        index = SoundSpuMemoryGetFreeBlock();
-        if (index < 0) {
-            return 0;
-        }
-    
-        pBlock = &g_SoundSpuMemoryBlocks[index];
-        pBlock->flags = SPU_MEMORY_IN_USE;
-        pBlock->type = 0;
-        pBlock->spuAddress = address;
-        pBlock->size = size;
-        pBlock->nextBlockIndex = pPrevBlock->nextBlockIndex;
-        pPrevBlock->nextBlockIndex = index;
-    
-        return address;
+        pPrevBlock = pBlock;
+        address = pBlock->spuAddress + pBlock->size;
     }
+
+    if (SOUND_SPU_MEMORY_SIZE - address < size) {
+        return 0;
+    }
+
+allocate:
+    index = SoundSpuMemoryGetFreeBlock();
+    if (index < 0) {
+        return 0;
+    }
+
+    pBlock = &g_SoundSpuMemoryBlocks[index];
+    pBlock->flags = SPU_MEMORY_IN_USE;
+    pBlock->type = 0;
+    pBlock->spuAddress = address;
+    pBlock->size = size;
+    pBlock->nextBlockIndex = pPrevBlock->nextBlockIndex;
+    pPrevBlock->nextBlockIndex = index;
+
+    return address;
+}
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlock);
 
 
 int SoundSpuMemoryAllocateBlockFit(int size) {
@@ -4584,45 +4587,54 @@ u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, Au
     return pScript + 3;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
+// Round 411: 92.30% (244 bytes = retail's size, 61 insns = retail's, 12 differing lines,
+// two hunks). Body is the parked one: envelope pointer local used for every store and the
+// reset, and `short volume` - that type flip alone took the park from 84.75 to 90.34 and is
+// what produces retail's `move v0,s2` volume copy and the callee-saved assignment element s1
+// / volume s2 / index s3. Hoisting `index = mode & 0xF` into the outer if block before the
+// volume test scored 89.02 with only 14 differing lines (the best instruction distance seen).
+// Residual: (1) retail keeps `mode` in s3 from the lbu and forms the index in the call's a2,
+// copying it back (`andi a2,s3,0xf; move s3,a2`), while here mode lands in s0 and the index is
+// computed early into s3, so the jal delay slot holds `move a2,s3` instead of retail's
+// `sra a1,a1,0x10`; (2) the bgez target is 4 bytes later because of that.
+// Also measured: index first inside the inner if (90.34, 48 lines), flags before index inside
+// the inner if (87.34), `mode & 0xF` inline in all three uses with flags first (80.20, 256
+// bytes) and with the index assigned just after the call (90.54), s32 volume for each (67-84).
+// Three permuter runs: 798 -> 595 -> 531 -> 471 (the last found the envelope pointer local).
+// Next lead: retail's `move s3,a2` only appears when `mode` keeps s3 and dies at the index, so
+// the source needs the `& 0x10` test emitted before the index and the `== 0` after it.
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 57.67 / 67.11 / 67.52 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (67.52%, 232 bytes vs the original's 240): every store and the sltiu/sll
-flag computation are right; gcc gives the AudioElement s2 and volume s1 (original:
-element s1, volume s2), re-uses the velocity copy for the `addu` that forms volume so
-the original's extra `move s2,a1` is missing, and moves the `addiu s0,s0,1` and the
-`lhu 0xCE` earlier. u8/s32 velocity, value &= 0xF vs a separate index local, note/
-velocity/value declaration order, a pEnvelope local and store order all land between
-59.31% and 67.52%. type of pScript[2] is u8.
 u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s32 velocity = pScript[0];
+    short volume = pScript[0];
     s32 note = (s8)pScript[1];
-    s32 value = pScript[2];
-    s32 volume;
+    u8 mode = pScript[2];
+    AudioEnvelope* pEnvelope;
+    s32 index;
     s32 flags;
 
     if (note != 0) {
-        if (velocity != 0) {
-            volume = velocity + (velocity * velocity) / 64;
-            flags = ((value & 0x10) == 0) * 2;
-            value &= 0xF;
-            pAudioElements->envelopes[2].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, value);
-            pAudioElements->envelopes[2].rampStep = 0x400;
-            pAudioElements->envelopes[2].reload = volume;
-            pAudioElements->envelopes[2].delayReload = 0;
-            pAudioElements->envelopes[2].target = 2;
-            pAudioElements->envelopes[2].handlerIndex = value;
-            pAudioElements->envelopes[2].flags = flags + 1;
-            pAudioElements->envelopes[2].pStepHandler = g_SoundEnvelopeStepHandlers[value];
+        index = mode & 0xF;
+        if (volume != 0) {
+            volume += (volume * volume) / 64;
+            flags = ((mode & 0x10) == 0) * 2;
+            pEnvelope = &pAudioElements->envelopes[2];
+            pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
+            pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
+            pEnvelope->reload = volume;
+            pEnvelope->delayReload = 0;
+            pEnvelope->pStepHandler = g_SoundEnvelopeStepHandlers[index];
+            pEnvelope->handlerIndex = index;
+            pEnvelope->target = 2;
+            pEnvelope->flags = flags + 1;
             pAudioElements->activeEnvelopeMask |= 0x4;
-            SoundResetEnvelope(&pAudioElements->envelopes[2]);
+            SoundResetEnvelope(pEnvelope);
         }
     }
 
     return pScript + 3;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
 
 u8* SoundScriptSetUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask |= 0x4;
