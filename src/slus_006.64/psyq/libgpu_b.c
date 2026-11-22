@@ -231,7 +231,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
    duplicated. All of them coalesce xc into the parameter's register (no `move a3,a0`)
    and truncate into a fresh register.
 u_long func_80045B00(int x, int y) {
-    u_long t[4]; /* load-bearing: retail allocates a 0x10 frame and stores nothing in it */
+    u_long t[4]; // load-bearing: retail allocates a 0x10 frame and stores nothing in it
     u_long code;
     u_long fld;
     u_long ret;
