@@ -178,48 +178,35 @@ void FieldScriptSetGearStateFlag(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-// NOTE the command dispatch must be a switch: an if/else chain compiles to a linear
-// compare chain (77.68%) and the original has gcc's comparison tree. It does not
-// generate a jump table (no jtbl_ relocation, 532 bytes).
 extern s32 D_800C3A48;
 extern s32 D_800AF87C;
 extern RECT D_800AFC58[];
 extern s32 D_800ADBB4;
 extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 
-// Captures or restores the screen region described by the script instruction: 0
-// grabs it into two freshly allocated buffers, 1 copies one back with
-// func_80026F44, 2 frees the buffers and 3 only advances the pointer.
-// Round 323: still 532 bytes / 97.81%, five substituted instructions and nothing
-// else. The case-0 group is a pure $s1/$s2 flip (retail's `move s1,v0` sits in the
-// second GetArgument's delay slot, so y=s1 and h=s2; ours copies the first result
-// into s2 and shifts s1) and neither order of the `y`/`h` declarations moves it -
-// measured both. A `u16 y, h` pair costs the size (536) and `s16 offset` in case 1
-// measures 98.23% at 540 bytes (`sll s0,s0,0x19`), so both are wrong-sized. The
-// x store keeps the `lui at / sh %lo(D_800AFC58)` macro form where retail folds it
-// onto the StoreImage argument register (`sh zero,0(a0)`), with the same `la` in
-// both. A permuter run from this body (base 436 -> best 243) only proposed the
-// s16/540 shape and a castless HeapFree, so it found nothing portable.
-// Captures or restores the screen region described by the script instruction: 0
-// grabs it into two freshly allocated buffers, 1 copies one back with
-// func_80026F44, 2 frees the buffers and 3 only advances the pointer.
+// Captures or restores the screen region the script instruction describes: 0 grabs
+// it into two freshly allocated buffers, 1 copies one back with func_80026F44, 2
+// frees the buffers, 3 only advances the pointer.
 //
-// 99.59%: retail's exact 532 bytes and the same instruction multiset, one
-// allocator tie left. In case 0 retail keeps the two script-argument results in
-// $s1 (the y field, argument 2) and $s2 (the height, argument 4); this build emits
-// the mirror image - both copies sit in the same positions and only the register
-// numbers differ. Declaration order either way, a separate `size` local versus
-// `h << 9` written twice, and a 4-minute permuter run (base 25, best 25) all
-// measure 99.59.
+// The dispatch must be a switch: an if/else chain compiles to a linear compare
+// chain (77.68%) while retail has gcc's comparison tree, and there is no jtbl_
+// relocation. Two shapes are load-bearing: case 1's shift has to stay a separate
+// operand (`offset = FieldScriptVMGetArgument(2);` then `(offset << 9)` at both
+// calls, or the copy folds into the `sll` and the body loses 4 bytes), and the rect
+// stores need D_800AFC58 as an unbounded RECT array (a scalar RECT keeps the
+// `lui at / sh %lo` form, and four s16 externs cannot produce retail's
+// `sh zero,0(a0)`).
 //
-// Two shapes below are load-bearing and each was worth a fix. Case 1's shift has
-// to stay a separate operand - `offset = FieldScriptVMGetArgument(2);` and then
-// `(offset << 9)` in both func_80026F44 arguments; written as one statement the
-// copy folds into the `sll` and the body loses 4 bytes. And the four rect stores
-// need D_800AFC58 as an unbounded RECT array: declared as a scalar RECT the x
-// store keeps the `lui at / sh %lo` form, and four separate s16 externs cannot
-// produce retail's `sh zero,0(a0)` at all, while the array form keeps the rect's
-// address in the StoreImage argument register for the offset-0 store.
+// PARKED 99.59% (532 bytes: retail's exact size and instruction multiset, one
+// allocator tie). Case 0 keeps argument 2 (the y field) in $s1 and argument 4 (the
+// height) in $s2 in retail; this build emits the mirror image at every use - the
+// sll, the rect.y store and the rect.h store - with the instruction positions
+// identical. h is referenced once more than y (the sll plus rect.h), so it wins
+// global_alloc's priority contest (floor_log2(refs) * refs / live_length) here and
+// loses it in retail. Unmoved by: either declaration order, a separate `size`
+// local versus `h << 9` written twice, `u32 h`, `u16 y,h` (536 bytes), `s16
+// offset` in case 1 (98.23% / 540 bytes), and two permuter runs (base 25 best 25;
+// an earlier one reached 243 and proposed only the s16 shape).
 /*
 void func_800871B0(void) {
     u8 command = SCRIPT_READ_U8_REL(1);
@@ -1199,7 +1186,7 @@ void func_8008A2E8(void) {
     s32 y;
     s32 value;
     s32 archiveIndex;
-    s32 indexArg;
+    s32 imageId;
     u8 command;
     void* pBuffer;
 
@@ -1210,9 +1197,9 @@ void func_8008A2E8(void) {
     }
     command = SCRIPT_READ_U8_REL(1);
     if (command == 0) {
-        indexArg = FieldScriptArgument1(5, SCRIPT_READ_U8_REL(0xD));
+        imageId = FieldScriptArgument1(5, SCRIPT_READ_U8_REL(0xD));
         ArchiveSetIndex(4, 0);
-        archiveIndex = indexArg + 0x7FB;
+        archiveIndex = imageId + 0x7FB;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(archiveIndex), 0);
         D_800B1F74 = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
