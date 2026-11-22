@@ -1075,18 +1075,24 @@ s32 func_8008A2C8(s32 index) {
     return 1;
 }
 */
-/* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns;
-   the only difference is the pre-RA schedule: retail hoists sll v1,a0,0x7 to the
-   top and defers the 6th argument store (sw v0,0x14(sp)) to just before the jal,
-   gcc stores 0x40 first and shifts into v0 after it. Tried: &g_WorldMapSlots[arg0],
-   g_WorldMapSlots + arg0, an s32 byte-offset local, a void* pSprite local. The
-   round-398 park was WRONG CODE (u8* base + (arg0 << 7) scaled the index by 0x80
-   again, so it computed arg0 << 14); this body is the honest spelling.
+/* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns,
+   and the tail from the first jal delay slot on is byte-identical. The residual is
+   lever h-stack-arg-store-sink-is-a-war-tie (round 402): retail gives the index
+   shift `sll v1,a0,0x7` at insn 3, before the 0x10 push, so the 6th argument store
+   `sw v0,0x14(sp)` sinks to just before the jal; our cc1 gives the shift $v0, which
+   is a WAR on the `li v0,0x40` feeding that store, so sched2 emits the store at
+   insn 6 and the shift right after it, and the jal slot adds through v0 instead of
+   v1. The same 6 lines as misc11 func_8008B54C / func_8008BDD0, where a 4-minute
+   permuter run found only a call swap (wrong code) and try_flags --sweep topped
+   out, so this is parked instead of re-spelled. Measured identical 76.69:
+   "g_WorldMapSlots + arg0", "&g_WorldMapSlots[arg0]", and the typed twin spelling
+   of the flags clear through a 0x3C flags field instead of the u32 cast.
+   Presets: gcc 2.6.0 76.09, 2.7.2-cdk 76.69 - not a preset question.
+*/
 /*
 s32 func_8008A52C(s32 arg0) {
-    WorldMapPlayer* pActor;
+    WorldMapPlayer* pActor = &g_WorldMapSlots[arg0];
 
-    pActor = g_WorldMapSlots + arg0;
     pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
