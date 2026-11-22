@@ -243,7 +243,7 @@ void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
     s32 dst;
     s32 src;
 
-    for (i = 0; i < 11; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         idx = i;
         if (BattleMaskHasSlotBit(g_BattleCommandArgs[arg1].slotMask, idx) != 0) {
             slot = idx;
