@@ -140,6 +140,7 @@ extern s32 D_800D3668; // scaled max hp, only stored
 extern u16 D_800CCD6C[];
 extern u16 D_800CCD6E[];
 extern u8 D_800CCE44[];
+extern u16 D_800CCD68[];
 extern u16 D_800D2E1C[];
 extern u8 g_BattleValueDigitSpriteIds[];
 extern u8 g_BattleSlotDisplayValue[];
@@ -492,22 +493,33 @@ s32 BattleUpdateFrame(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
-/* 77.62% under 2.6.0. The whole control flow (the 1/2 decrement, the 0x1000
-   bit toggle on D_800D2E1C, the 0x2000 timer, the 0x80/0x1000 guards and the
-   0xB wrap) is right; the miss is that gcc strength-reduces the most-used
-   `(u8 *)SYM + off` (g_BattleSlotEntries, four uses) into a pointer biv, so its base is
-   hoisted once into a3 and the loads become `lhu 0(a3)`, where retail re-forms
-   `lui $at,%hi(SYM); addu $at,$at,$a0` at every use and keeps `off` an integer
-   biv. Tried: `off` as a running for-clause biv, `off = i * 0x170` inline (both
-   77.62%), one-`if`-per-level nesting without continue (70.32%), splitting the
-   two entry tests. The other four symbols already come out in the retail form.
-   ROUND 372: this body has NEVER COMPILED - it reads D_800CCD68 / D_800CCD6C /
-   D_800CCE08 / D_800CCE44, which nothing in this unit declares, so the 77.62%
-   above came from an earlier variant. Reach those through the row bank before
-   trusting any number here.
+/* 78.73% under 2.6.0 (400 bytes against retail's 416, 100 vs 104 insns). THIS BODY
+   COMPILES - the old "77.62% never compiled" park (it read an undeclared
+   D_800CCD68) is gone. Control flow, the 1/2 decrement, the 0x1000 bit toggle on
+   D_800D2E1C, the 0x2000 action timer, the 0x80/0x1000 guards and the 0xB wrap are
+   all retail's; the 4 missing instructions are the address forming.
+   THE BLOCKER is the assembler, not the C: retail re-forms every row address at
+   every site as `lui $at,%hi(SYM); addu $at,$at,off; lhu %lo(SYM)($at)`, which is
+   gas/ASPSX's expansion of ONE insn whose operand is `SYM($off)` (symbol plus
+   register). $at is the assembler's own scratch register, so no C can produce that
+   sequence: this cc1 instead
+   - inline form `*(u16 *)((u8 *)SYM + off)` with `off` a for-clause biv: 70.61%,
+     it CSEs the address and makes a pointer biv per symbol (lhu 0(a1), a1 += 0x170)
+     even for the 2-use i*2 sites;
+   - pointer local re-assigned per site (`pWord = (u16 *)((u8 *)SYM + off)`): 78.73%
+     (this body) - no biv, but the symbol's lui/addiu is hoisted into the preheader
+     once and each site is a single `addu a0,a1,t2`.
+   Presets screened on this body: -G0 78.73 (identical), 2.7.2 80.27 (same shape),
+   2.7.2-cdk compile-failed. So PRESET_G0 not indicated.
+   Left over even if the addressing were solved: retail keeps `off` in a0 and the
+   countdown-state base t0 as its only hoisted pointer; the `li a1,1` for dec sits in
+   the bnez delay slot (ours is nop + li). Row offsets used, all stride 0x170 from
+   g_BattleSlotEntries: +0 flags (0x1000/0x2000/0x80), +4 D_800CCD68 (0x1000), +8/+0xA
+   D_800CCD6C/D_800CCD6E (0x8000 pair), +0xE0 D_800CCE44 (byte counter).
 void func_8007171C(void) {
     u16 v;
-    u8 *pTimer;
+    u16 *pWord;
+    u8 *pByte;
     s32 dec;
     s32 i;
     s32 off;
@@ -515,9 +527,7 @@ void func_8007171C(void) {
     if (D_800D3298 == 0) {
         return;
     }
-
-    for (i = 0; i < 0xB; i++) {
-        off = i * 0x170;
+    for (i = 0, off = 0; i < 0xB; i++, off += 0x170) {
         if (g_BattleSlotEnabledFlags[i] == 0) {
             continue;
         }
@@ -528,23 +538,26 @@ void func_8007171C(void) {
         if ((*(u16 *)((u8 *)D_800CCD6C + off) | *(u16 *)((u8 *)D_800CCD6E + off)) & 0x8000) {
             dec = 2;
         }
-        if (*(u16 *)((u8 *)g_BattleSlotEntries + off) & 0x1000) {
-            v = *(u16 *)((u8 *)D_800D2E1C + i * 2) ^ 1;
-            *(u16 *)((u8 *)D_800D2E1C + i * 2) = v;
+        pWord = (u16 *)((u8 *)g_BattleSlotEntries + off);
+        if (*pWord & 0x1000) {
+            pWord = (u16 *)((u8 *)D_800D2E1C + i * 2);
+            v = *pWord ^ 1;
+            *pWord = v;
             if (v != 0) {
                 continue;
             }
         }
-        v = *(u16 *)((u8 *)g_BattleSlotEntries + off);
+        pWord = (u16 *)((u8 *)g_BattleSlotEntries + off);
+        v = *pWord;
         if (v & 0x2000) {
-            pTimer = (u8 *)((u8 *)D_800CCE44 + off);
-            *pTimer -= dec;
-            if (*pTimer != 0) {
+            pByte = (u8 *)((u8 *)D_800CCE44 + off);
+            *pByte -= dec;
+            if (*pByte != 0) {
                 continue;
             }
-            v = *(u16 *)((u8 *)g_BattleSlotEntries + off);
-            *pTimer = 0;
-            *(u16 *)((u8 *)g_BattleSlotEntries + off) = v & 0xDFFF;
+            *pByte = 0;
+            pWord = (u16 *)((u8 *)g_BattleSlotEntries + off);
+            *pWord &= 0xDFFF;
             continue;
         }
         if (v & 0x80) {
@@ -553,17 +566,18 @@ void func_8007171C(void) {
         if (*(u16 *)((u8 *)D_800CCD68 + off) & 0x1000) {
             continue;
         }
-        pTimer = (u8 *)((u8 *)g_BattleSlotCountdownTimers + i * 2);
-        v = *(u16 *)pTimer - dec;
-        *(u16 *)pTimer = v;
+        pWord = (u16 *)((u8 *)g_BattleSlotCountdownTimers + i * 2);
+        v = *pWord - dec;
+        *pWord = v;
         if ((s16)v > 0) {
             continue;
         }
         g_BattleActorCountdownState[i] = 1;
-        *(u16 *)pTimer = 0;
+        *pWord = 0;
     }
 }
 */
+
 void BattleResetActorCountdown(void) {
     u8 index;
 
@@ -705,7 +719,9 @@ void BattleResetActorCommandSlots(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
-/* 77.55% under 2.6.0 (352 bytes vs retail's 332, 88 vs 83 insns). Structure now
+/* 77.55% under 2.6.0 (352 bytes vs retail's 332, 88 vs 83 insns). ROUND 411
+   re-measured this exact body: 77.55%, 352 bytes, 88 insns - it does compile, so
+   the numbers are current. Structure now
    matches retail's block graph: mask test as bnez-forward to a reset-call block
    laid out last, E1's func_80071B94(0) cross-jumped into the shared call block
    (j .L80072504), the 0x18 frame, and the *pCurrent = i + 1 tail with the
