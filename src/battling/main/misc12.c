@@ -164,18 +164,13 @@ extern void ModelSetScreenSize(s32, s32);
 extern void BattleSetScaleMatrix(s32, s32);
 extern void func_800898BC(MATRIX*, SVECTOR*, SVECTOR*, SVECTOR*);
 
-extern s32 D_8009A0C8;
-extern s32 D_8009A0CC;
-extern s32 D_8009A0D0;
-extern s32 D_8009A918;
-extern s32 D_8009A91C;
-extern s32 D_8009A920;
-extern s32 D_80096F98;
-extern s32 D_80096F9C;
-extern s32 D_80096FA0;
-extern s32 D_80097000;
-extern s32 D_80097004;
-extern s32 D_80097008;
+// GTE scratch vectors func_800898BC builds the matrix from: the edge (result of
+// every VectorNormal), the up vector taken from the caller's scale, and two
+// working axes the OuterProduct12 calls fill.
+extern VECTOR D_8009A0C8;
+extern VECTOR D_8009A918;
+extern VECTOR D_80096F98;
+extern VECTOR D_80097000;
 
 void BattleSetFlag10000(void) {
     u32 value;
@@ -694,58 +689,33 @@ void BattleInitSpritePrims(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
     p->flags |= 0xC;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
-
-/* Best attempt: objdiff 50.18% at 464 bytes against retail's 472, and 57.30% when
-   D_8009A0C8 is spelled as an unbounded array (see below). The statement order and
-   the five VectorNormal/OuterProduct12 calls are right; what differs is the base
-   addresses. Retail materialises each one AT ITS FIRST USE, interleaved with the
-   lh's (`lh v0,0x0($a2)` / `lh v1,0x0($s5)` / `lui $s2,%hi(D_8009A0C8)` +
-   `addiu`), and reaches D_8009A0C8 through that one register for the store, the two
-   reads and every call argument. Our compile instead hoists all four `lui/addiu`
-   pairs into the prologue (it even interleaves them with the register saves) and
-   stores D_8009A0C8 through a bare `sw $v0,%lo(sym)($at)` macro, i.e. it keeps TWO
-   address computations for it; that also frees the registers earlier and changes the
-   whole allocation (retail reloads v0/v1 pairs and fills the lh delay slots with the
-   address halves, ours batches four lh's then two subu's).
-   Measured in round 292: declaring D_8009A0C8 as `extern s32 D_8009A0C8[];` and
-   spelling it D_8009A0C8[0] / (VECTOR*)D_8009A0C8 lifts it to 57.30% (456 bytes) -
-   the "array-extern materialises the address" lever does move the store to a register
-   - but the four `la`s are still hoisted, so the allocation stays retail's opposite.
-   Signatures: (MATRIX*, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale); pMat->m rows
-   come from the D_80097000 / D_8009A918 / D_80096F98 triples loaded as words and
-   stored as halves (so those globals are s32 and m is s16), pMat->t = negated
-   D_8009A0C8/CC/D0. This one needs a session of its own. */
-/*
-void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) {
-    D_8009A0C8 = pTo->vx - pFrom->vx;
-    D_8009A0CC = pTo->vy - pFrom->vy;
-    D_8009A0D0 = pTo->vz - pFrom->vz;
-    D_8009A918 = pScale->vx;
-    D_8009A91C = pScale->vy;
-    D_8009A920 = pScale->vz;
-    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_80096F98);
-    OuterProduct12((VECTOR*)&D_8009A918, (VECTOR*)&D_80096F98, (VECTOR*)&D_8009A0C8);
-    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_80097000);
-    OuterProduct12((VECTOR*)&D_80096F98, (VECTOR*)&D_80097000, (VECTOR*)&D_8009A0C8);
-    VectorNormal((VECTOR*)&D_8009A0C8, (VECTOR*)&D_8009A918);
-    pMat->m[0][0] = D_80097000;
-    pMat->m[0][1] = D_80097004;
-    pMat->m[0][2] = D_80097008;
-    pMat->m[1][0] = D_8009A918;
-    pMat->m[1][1] = D_8009A91C;
-    pMat->m[1][2] = D_8009A920;
-    pMat->m[2][0] = D_80096F98;
-    pMat->m[2][1] = D_80096F9C;
-    pMat->m[2][2] = D_80096FA0;
-    ApplyMatrix(pMat, pFrom, (VECTOR*)&D_8009A0C8);
-    MulMatrix2((MATRIX*)&g_BattleScaleMatrix, pMat);
-    pMat->t[0] = -D_8009A0C8;
-    pMat->t[1] = -D_8009A0CC;
-    pMat->t[2] = -D_8009A0D0;
+void func_800898BC(MATRIX* pMat, SVECTOR* pA, SVECTOR* pB, SVECTOR* pC) {
+    D_8009A0C8.vx = pB->vx - pA->vx;
+    D_8009A0C8.vy = pB->vy - pA->vy;
+    D_8009A0C8.vz = pB->vz - pA->vz;
+    D_8009A918.vx = pC->vx;
+    D_8009A918.vy = pC->vy;
+    D_8009A918.vz = pC->vz;
+    VectorNormal(&D_8009A0C8, &D_80096F98);
+    OuterProduct12(&D_8009A918, &D_80096F98, &D_8009A0C8);
+    VectorNormal(&D_8009A0C8, &D_80097000);
+    OuterProduct12(&D_80096F98, &D_80097000, &D_8009A0C8);
+    VectorNormal(&D_8009A0C8, &D_8009A918);
+    pMat->m[0][0] = D_80097000.vx;
+    pMat->m[0][1] = D_80097000.vy;
+    pMat->m[0][2] = D_80097000.vz;
+    pMat->m[1][0] = D_8009A918.vx;
+    pMat->m[1][1] = D_8009A918.vy;
+    pMat->m[1][2] = D_8009A918.vz;
+    pMat->m[2][0] = D_80096F98.vx;
+    pMat->m[2][1] = D_80096F98.vy;
+    pMat->m[2][2] = D_80096F98.vz;
+    ApplyMatrix(pMat, pA, &D_8009A0C8);
+    MulMatrix2(&g_BattleScaleMatrix, pMat);
+    pMat->t[0] = -D_8009A0C8.vx;
+    pMat->t[1] = -D_8009A0C8.vy;
+    pMat->t[2] = -D_8009A0C8.vz;
 }
-*/
-
 /*@BattleSetMatrixFromPoints*/
 void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
     SVECTOR scale;
