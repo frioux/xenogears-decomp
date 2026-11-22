@@ -1718,65 +1718,23 @@ EXACTLY as the original for the instruction order to come out. Start from the
 fills above, diff, and only then chase the pColors add/re-add shape.
 */
 
+// Best: 100.00% (1332 bytes, 333 instructions) under gcc-2.6.0-psx with maspsx
+// "--expand-div --use-comm-section --run-assembler", i.e. the XenoGraphicsLibrary
+// preset. It CANNOT match under this unit's XenoGraphicsDiv preset (95.78%):
+// retail's object has `ori $s0,$zero,0x100` at 0x800275A4 and
+// `ori $v0,$zero,0xF0` at 0x8002763C, and --aspsx-version=2.67 leaves `li` to
+// GNU as, which picks addiu. The unit needs a split at func_8002709C (file
+// offset 0x1789C): screened with try_flags.sh --all under 2.6.0 the tail keeps
+// this function and HeapFreeIfNotNull at 100.00 while the head collapses
+// (GfxFlushImageList 77.38, GfxSetRenderContext 75.17, SpriteSetTaskHandler
+// 59.54), so the run [0x1789C, 0x18564) is XenoGraphicsLibrary and the head
+// stays XenoGraphicsDiv. No stub in the tail owns dlabel data or a jtbl.
+// What the previous 99.02% park got wrong: the at-point y selection is a plain
+// if/else, not a leading `y = 0;` plus two ifs and not a ternary. Writing
+// `if (proj2.vy < 0) { y = 0; } else { y = proj2.vy; }` reproduces retail's
+// bgez / move v1,v0 / j merge / move a0,zero diamond and the sll-sra narrowing,
+// and that was the last 3 instructions (12 bytes) of the function.
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
-/*
-Body written this round (333 instructions). Best 99.02%, retail's size minus 12
-bytes - but ONLY under the preset this function actually needs:
-THE UNIT IS MIXED AND NEEDS A SPLIT AT func_8002709C (file offset 0x1789C).
-
-Evidence for the split:
-- Every positive li in [0x800248D4, 0x8002709C) is assembled addiu rt,$zero,K
-  (42 of them) - what maspsx gives with --aspsx-version=2.67, because from
-  aspsx 2.50 on expand_li is off and GNU as picks addiu. Every positive one in
-  [0x8002709C, end) is ori rt,$zero,K (17 of them), the older aspsx li
-  expansion, i.e. maspsx WITHOUT --aspsx-version.
-- This function's retail object has ori $s0,$zero,0x100 (0x800275A4) and
-  ori $v0,$zero,0xF0 (0x8002763C); the unit's preset can only produce addiu
-  there, so 100% is unreachable in this unit whatever the C says.
-- The tail also wants gcc 2.6.0. Scored with tools/scripts/try_flags.sh in
-  report mode, the body below is:
-      95.59  default (gcc-2.7.2-cdk, --aspsx-version=2.67 --expand-div)
-      94.26  gcc-2.7.2-psx, maspsx without --aspsx-version
-      99.02  gcc-2.6.0-psx, maspsx "--expand-div --use-comm-section
-             --run-assembler"
-  Under 2.6.0 the prologue and the whole stream line up: s3=a3, s4=pOT,
-  s5=band, frame 0x80, vars 72, args 24, and both ori constants match. Under
-  the current preset the matrix/OT/band parameters land in s5/s3/s4 and the
-  frame is 0x68. The head must NOT move: under 2.6.0 GfxFlushImageList drops
-  to 77.38, GfxSetRenderContext to 75.17, SpriteSetTaskHandler to 59.54 - so
-  a split at func_8002709C (a XenoLibrary-style preset plus --expand-div for
-  the tail run), not a unit switch.
-
-What the body still gets wrong: ONE region, 5 differing lines, 12 bytes short.
-Retail selects the at-point y as
-   lh v0,0x22(sp) / bgez v0,L / addu v1,v0,zero / j Lend / addu a0,zero,zero /
-   L: addu a0,v1,zero / sll v0,a0,16 / sra / slti 0xF0
-- one load, a narrowing copy and a jump; gcc 2.6.0 emits a second lhu reload and
-no jump. Spellings measured, all worse or equal: "y = (proj2.vy >= 0) ?
-proj2.vy : 0;" (no sll/sra pair, 3 short), "if (proj2.vy >= 0) { ... } else
-{ y = 0; }" (gcc makes it a branchless nor/sra/and max and y loses its stack
-slot), "y = proj2.vy; if (y < 0) y = 0;" (y loses the slot), and the same with
-the test on y after y is assigned inside the if. cc1_probe replicas under
-gcc-2.6.0 show the same three shapes, so the diamond with a j is not reachable
-by spelling alone; retail keeps ONE lh for both the test and the copy, which
-means its value survived the preceding addPrim asm block.
-
-The rest is confirmed against the .s and needs no re-derivation: VectorNormalS
-of the xz delta (delta.vy = 0) -> the two scaled RTPS projections of pTo moved
-along that normal (normal*unk340/0x1000, then *unk346/0x100) ->
-SetRotMatrix/SetTransMatrix on a3 -> span = (SquareRoot0(3D delta) - unk34A) /
-unk348 clamped to 0..0x100 (s16, which is why the clamp is a sll/sra pair) ->
-ratan2(delta.vx, delta.vz) scaled by unk328*unk330/0x1000 -> three AddPrim
-groups: f4[band].y2/y3 = clamp(proj1.vy - unk32C, 0xF0), g4[band] at
-proj1.vy..proj2.vy, f4[band + 2].y0/y1 = max(proj2.vy, 0). Returns proj1.vy.
-The frame is exact with vars 72 - proj1 0x18, proj2 0x20, delta 0x28,
-work 0x38, normal 0x40 plus the dead 8-byte slot the conditional assignment
-gives y - so only the selection shape is left. The typedef and the extern in
-the block below are what the body needs; there is no second declaration of
-either name outside it.
-*/
-/*
 // The render block func_8002709C allocates: sixteen textured quads, the flat and
 // Gouraud rows func_800273C4 fills (one bank of each per screen context), then
 // the draw state the quads are sized from.
@@ -1808,6 +1766,8 @@ extern void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
 // flat quads and the gouraud row are placed at the projected eye height, the
 // second flat row at the projected at height. `span` is the distance between
 // the two points scaled into 0..0x100. Returns the projected eye y.
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
+/*
 s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
                   MATRIX* pMatrix, u_long* pOT, s32 band) {
     SVECTOR proj1;
@@ -1887,7 +1847,6 @@ s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
         if (proj2.vy - proj1.vy > 0xF0) {
             proj2.vy = proj1.vy + 0xF0;
         }
-        y = 0;
         if (proj2.vy >= 0) {
             if (proj1.vy < 0xF0) {
                 pBlock->g4[band].y0 = proj1.vy;
@@ -1896,10 +1855,11 @@ s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
                 pBlock->g4[band].y3 = proj2.vy;
                 addPrim(pOT, &pBlock->g4[band]);
             }
-            y = proj2.vy;
         }
         if (proj2.vy < 0) {
             y = 0;
+        } else {
+            y = proj2.vy;
         }
         if (y < 0xF0) {
             pBlock->f4[band + 2].y0 = y;
