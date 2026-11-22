@@ -2992,32 +2992,38 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
     return equippedFlags;
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
-// Best attempt: 97.44%, 1920 bytes (retail 1900), and the 200-byte frame now matches.
-// This is the shop twin of gear_shop_menu/main/render.c GearShopMenuRenderSellItemRows (that one
-// is matched and is the reference for every shape in the body below); the residual is 5
-// instructions plus ~30 stack-slot operands, all allocator.
-// Levers already IN this body, keep them: `new_var = 0xD` immediately before the digitGlyphs[8]
-// store with `0x32 + (new_var * i)` in the FIRST ShopMenuSetVertices y (that is what makes cc1
-// CSE the 0x28 rect width into $s2 and grow the frame to retail's 200); `pItemAffordable[i] =
-// FALSE` BEFORE the bzero (fixes the bzero delay-slot order); and the price needs TWO variables,
-// `price` for the digit loop plus `itemPrice = price` right after the table load, which is what
-// makes retail spill the price and reload it for the compare (`lw t2,0x68(sp); slt`). One
-// `price` gives `slt v0,t1,s4` and no store, and scores 90.38%.
-// Residual, all allocator: (1) retail's stack slots run a1, price, &rect, 0x1DB0, 0x4030,
-// 0x32+13i, 13i, 0x3C30; this body gets a1, &rect, price, 0x1DB0, 13i, 0x4030, 0x32+13i,
-// 0x3C30, so ~30 operands read 104 where retail reads 112 and back. Moving `pRect = &rect;`
-// down next to the setRECT to flip the price/&rect order scored 91.46%.
-// (2) Both ShopMenuSetVertices y arguments come out as `andi a2,<13i giv>,0xFFFF`; retail loads
-// its 0x32-initialised accumulator and passes it with NO andi, so its giv holds the whole
-// 0x32+13i sum. A `(u_short)` cast on the sum changed nothing, and an explicit loop-carried y in
-// the for-init clause scored 89.97% at a 208 frame. func_801D05BC below has the same
-// missing-andi residual: one known wall, not two.
-// Two permuter runs from here (base 2132 -> 1108 -> 1048, ~2400 iterations) found only the two
-// levers above; nothing else moved by hand.
+// Best attempt: 97.85%, 1912 bytes (retail 1900), 478 insns (retail 475); the 200-byte frame
+// matches. Same body as before with ONE new lever: `polyColor = 0x1000;` must be assigned
+// INSIDE the `if (curItemQuantities[...])` block, immediately before the first func_8002675C,
+// not at the top of the loop. Retail's `ori $s2,0x1000` sits there and it is why s2 holds it
+// across the three calls (-2 instructions: 480 -> 478, 97.44 -> 97.85). Keeping it at the loop
+// top makes cc1 rematerialise `li $t2,0x1000` at each of the three call sites.
+// Residual, three measured walls:
+// (1) The two ShopMenuSetVertices y args are `andi a2,<giv>,0xffff`; retail passes its 0x32
+//     accumulator with NO mask. This is prototype visibility, not C shape, and it is out of
+//     reach in this TU: ShopMenuSetVertices (u_short y) is DEFINED in this file before this
+//     function, so the call converts; the matched twin gear_shop_menu/main/render.c
+//     GearShopMenuRenderSellItemRows calls GearShopMenuSetVertices (same u_short signature,
+//     another TU) with no extern declaration anywhere, i.e. through an implicit declaration,
+//     and therefore passes ints unmasked. Proof that it is unfixable here: the same file's
+//     matched ShopMenuConfirmationWindowInitialize DOES mask its y arg (`andi a2,a2,0xfff0`,
+//     a 0xffff mask folded to the 0xfff0 spelling because the value has bits 0-3 clear), so
+//     the parameter really is u_short and the mask is what a visible prototype emits. A cast
+//     on the sum changes nothing (measured again). The 3 surplus instructions are exactly the
+//     2 andis plus the `addiu a2,<13i>,0x32` the second call needs when the two calls use
+//     different y spellings.
+// (2) Unifying both y args on `0x32 + FONT_LETTER_HEIGHT * i` gives 474 insns / 1896 bytes at
+//     95.90 percent: one shared accumulator (like retail) but cc1 then REMATERIALISES the 0x28
+//     rect width instead of CSE-ing it into s2, so the frame drops 200 -> 192 and `li s2,0x28`
+//     disappears. `new_var = 0xD` + `0x32 + (new_var * i)` in the first call is what restores
+//     both; that is why the two calls cannot share one accumulator here.
+// (3) Stack slot order: retail a1, price, &rect, 0x1DB0, 0x4030, 0x32+13i, 13i, 0x3C30; this
+//     body a1, &rect, price, 0x1DB0, 13i, 0x4030, 0x32+13i, 0x3C30. Slots follow pseudo
+//     creation order. Moving `pRect = &rect;` from the loop top to just before the digit loop
+//     flips price and &rect but costs the rest: 94.51 percent at 479 insns (the old note's
+//     91.46 for the same move is stale). Two permuter runs from the previous body found only
+//     the polyColor lever above.
 /*
-// Draws one row of the buy menu (item name, price digits and the quantity in stock) and marks
-// each row in pItemAffordable with the 0x80 primitive attribute when the player can afford it.
 void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
     RECT rect;
     u8 digitGlyphs[0xE];
@@ -3050,7 +3056,6 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
         pItemAffordable[i] = FALSE;
         bzero(digitGlyphs, 0xE);
         g_Menu->pShop->inventoryPrimCounts[i] = 0;
-        polyColor = 0x1000;
 
         if (g_Menu->shopItemIDs[scrollOffset + i]) {
             switch (g_Menu->shopItemTypes[scrollOffset + i]) {
@@ -3114,6 +3119,7 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
             g_Menu->pShop->shouldRenderItemRows[i] = 1;
 
             if (g_Menu->pShop->curItemQuantities[scrollOffset + i]) {
+                polyColor = 0x1000;
                 g_Menu->pShop->inventoryPrimCounts[i] += func_8002675C(
                     g_Menu->resources, 0xF1, g_Menu->pShop->polysShopInventory[i * 4],
                     g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
@@ -3140,8 +3146,8 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
     }
 
     HeapFree(pWorkspace);
-}
-*/
+}*/
+INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
 
 // The zero-store order, the chained defense assignment, the u16 characterIndex (Billy
 // is character 4) and the slotDefense copy are load-bearing: other spellings change the
