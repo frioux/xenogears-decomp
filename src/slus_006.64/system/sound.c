@@ -364,7 +364,7 @@ extern u8 g_SoundNoteTypePitchOffsets[]; // offset of the note command's pitch f
 s32 SoundTimerInterruptHandler(void);
 void SoundSpuIRQHandler(void);
 void SoundOnTransferCallback(void);
-void func_800386C4(s32 mode);
+void SoundSetVolumeMode(s32 mode);
 void SoundHeapInitialize(void* startAddress, unsigned int size);
 void SoundSpuMemoryInitialize(void);
 void* SoundHeapAllocate(unsigned int allocSize);
@@ -414,7 +414,7 @@ void SoundInitialize(s32 flags) {
     ExitCriticalSection();
 
     SoundSpuMemoryAllocateBlockAtAddress(0x2000, 0x10000, 4);
-    func_800386C4(1);
+    SoundSetVolumeMode(1);
     SoundSetCdAttr(0, 1);
     SoundSetMasterVolumeWithFade(0x3FFF, 0);
     SoundSetCdVolumeWithFade(0x7FFF, 0);
@@ -765,7 +765,7 @@ void SoundStopAllPlayback(void) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-void func_800386C4(s32 mode) {
+void SoundSetVolumeMode(s32 mode) {
     AudioManager* pManager;
     SoundCdSeqState* pState;
     u16 volume;

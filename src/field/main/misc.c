@@ -1175,12 +1175,12 @@ void FieldScriptWriteByteB06A0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern void* D_800B1F74;
+extern void* g_FieldScreenImageBuffer;
 extern void FieldStoreScreenImage(void);
 extern void FieldLoadTIMWithClut(u_long* pTimData, int x, int y, int clutX, int clutY, int clutWidth,
                                  int clutHeight);
 
-void func_8008A2E8(void) {
+void FieldScriptScreenImageHandler(void) {
     s32 clutY;
     s32 x;
     s32 y;
@@ -1201,7 +1201,7 @@ void func_8008A2E8(void) {
         ArchiveSetIndex(4, 0);
         archiveIndex = imageId + 0x7FB;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(archiveIndex), 0);
-        D_800B1F74 = pBuffer;
+        g_FieldScreenImageBuffer = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     } else if (command == 1) {
@@ -1215,10 +1215,10 @@ void func_8008A2E8(void) {
         if (y >= 0x100 && x >= 0x2C0) {
             FieldStoreScreenImage();
         }
-        FieldLoadTIMWithClut(D_800B1F74, x, y, 0, clutY, 0, 0);
+        FieldLoadTIMWithClut(g_FieldScreenImageBuffer, x, y, 0, clutY, 0, 0);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 0xB;
     } else {
-        HeapFree(D_800B1F74);
+        HeapFree(g_FieldScreenImageBuffer);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     }
     g_FieldScriptVMStopFlag = 1;

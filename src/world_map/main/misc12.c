@@ -408,7 +408,7 @@ int WorldMapModeInitSpriteSets2And3(void) {
 #define WORLD_MAP_ROT_RAMP_STEP 4
 #define WORLD_MAP_ROT_RAMP_MAX 0x80
 
-s32 func_800907F4(s32 idx) {
+s32 WorldMapUpdateSlotRotationRamp(s32 idx) {
     WorldMapPlayer *pPlayer;
     WorldMapRot *pRotA;
     WorldMapRot *pRotB;

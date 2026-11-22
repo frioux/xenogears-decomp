@@ -95,7 +95,7 @@ extern u16 func_80096FBC(void);
 extern u16 BattleComputeSlotActionAmount(void);
 extern void func_80096494(u16 *, u16 *, u8 *);
 extern void BattleAllocPacketPrimitives(void);
-extern void func_80076EA4(void);
+extern void BattleLoadActionRowGraphics(void);
 extern s32 GetStringEntryFromBank(s32, s32);
 extern void *GetStringEntryFromBank34(s32);
 extern u_long *GetStringEntryFromBank12(s32);
@@ -199,7 +199,7 @@ void func_80091064(u8 arg0) {
     s32 i;
 
     BattleAllocPacketPrimitives();
-    func_80076EA4();
+    BattleLoadActionRowGraphics();
     func_8008FC1C(0x20, 0x30, 0x98, 0x38, 0xC);
     pBuf = BattleAllocTextBuffer(0x39);
     g_BattleTextWorkspace = pBuf;
@@ -649,7 +649,7 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     divisors[1] = 100;
     divisors[2] = 10;
     BattleAllocPacketPrimitives();
-    func_80076EA4();
+    BattleLoadActionRowGraphics();
     g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
     bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     rect.x = 0x3C0;
@@ -881,7 +881,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     divisors[1] = 100;
     divisors[2] = 10;
     BattleAllocPacketPrimitives();
-    func_80076EA4();
+    BattleLoadActionRowGraphics();
     g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
     bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     rect.x = 0x3C0;
@@ -1165,7 +1165,7 @@ void func_80093B08(u8 arg0) {
     }
     BattleAllocPacketPrimitives();
     i = 0;
-    func_80076EA4();
+    BattleLoadActionRowGraphics();
     g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
     bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     textY = 0x102;

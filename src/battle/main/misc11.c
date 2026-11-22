@@ -81,7 +81,7 @@ extern u8 D_800CCD38[];
 extern u8 D_800CDD53[];
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleLastMenuEvent;
-extern u8 func_8008B478(u8 arg0);
+extern u8 BattleRunFourSlotCommandMenu(u8 arg0);
 extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
@@ -755,7 +755,7 @@ void func_800816F8(u8 arg0) {
     case 6:
     case 7:
         BattleLoadStringTableAE(a);
-        if (func_8008B478(a) != 0) {
+        if (BattleRunFourSlotCommandMenu(a) != 0) {
             BattleQueueOneActorCommand(a);
         } else {
             g_BattleCommandQueue[0x2DD] = 4;

@@ -399,7 +399,7 @@ void BattleAdvanceSlotMenuStateCounter(u8 arg0) {
     }
 }
 extern void BattleLoadStringTableAE(u8);
-extern u8 func_8008B478(u8);
+extern u8 BattleRunFourSlotCommandMenu(u8);
 extern void BattleQueueOneActorCommand(u8);
 void BattleAdvanceSlotMenuStateAE(u8 arg0) {
     u8 a;
@@ -410,7 +410,7 @@ void BattleAdvanceSlotMenuStateAE(u8 arg0) {
     case 6:
     case 7:
         BattleLoadStringTableAE(a);
-        if (func_8008B478(a) != 0) {
+        if (BattleRunFourSlotCommandMenu(a) != 0) {
             BattleQueueOneActorCommand(a);
         } else {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x13;

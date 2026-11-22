@@ -1105,3 +1105,5 @@ g_FieldScreenEffectConfig = 0x800B0080;
 g_FieldTextGradientTopQuads = 0x800AF788;
 g_FieldTextGradientBottomQuads = 0x800AF7F0;
 g_WorldMapSaveCursor = 0x800AFC50;
+FieldScriptScreenImageHandler = 0x8008A2E8;
+g_FieldScreenImageBuffer = 0x800B1F74;

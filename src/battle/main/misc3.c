@@ -268,7 +268,7 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
-void func_80076EA4(void) {
+void BattleLoadActionRowGraphics(void) {
     u8 *pBuf[11];
     RECT rect;
     u8 **p;

@@ -6,12 +6,12 @@ extern u_long *g_GpuCurTIMHandle;
 extern volatile long g_GpuTimeoutDeadline;
 extern volatile long g_GpuTimeoutCount;
 
-extern volatile u_long *D_800569A0;
-extern volatile u_long *D_800569A4;
+extern volatile u_long *g_GpuGp0Port;
+extern volatile u_long *g_GpuGp1Port;
 extern u_long *D_800569A8;
 
-extern volatile u_long *D_800569B0;
-extern volatile u_long *D_800569C0;
+extern volatile u_long *g_GpuDma2Chcr;
+extern volatile u_long *g_GpuDmaDpcr;
 extern volatile u_long D_800569C4[];
 extern u_long D_800569C8;
 extern u_long D_800569CC;
@@ -25,11 +25,11 @@ extern int func_8004709C(u_long mode);
 extern void func_80047178(void *p, int value, int n);
 extern int func_80046F30(void);
 
-extern u_char D_8005A27C[];
+extern u_char g_GpuOpcodeShadow[];
 
 /* The GPU command queue: 64 entries of 0x60 bytes, whose three used words are
    carved up as three separate symbols by splat. */
-extern void (*D_8006BE34[][0x18])(u_long *p0, u_long *p1);
+extern void (*g_GpuQueueTable[][0x18])(u_long *p0, u_long *p1);
 extern u_long *D_8006BE38[][0x18];
 extern u_long *D_8006BE3C[][0x18];
 extern u_long g_DrawSyncCallbackPending;
@@ -43,14 +43,14 @@ extern u_long g_TmdPrimCount;
 
 extern char D_80019240[]; // "GPU timeout:que=%d,stat=%08x,chcr=%08x,madr=%08x,"
 extern char D_80019274[]; // "func=(%08x)(%08x,%08x)\n"
-extern char D_8001928C[]; // "id  =%08x\n"
-extern char D_80019298[]; // "mode=%08x\n"
-extern char D_800192A4[]; // "timaddr=%08x\n"
-extern char D_800192B4[]; // "analizing TMD...\n"
-extern char D_800192C8[]; // "\tid=%08X, flags=%d, nobj=%d, objid=%d\n"
-extern char D_800192F0[]; // "\tvert=%08X, nvert=%d\n"
-extern char D_80019308[]; // "\tnorm=%08X, nnorm=%d\n"
-extern char D_80019320[]; // "\tprim=%08X, nprim=%d\n"
+extern char g_StrTimIdFormat[]; // "id  =%08x\n"
+extern char g_StrTimModeFormat[]; // "mode=%08x\n"
+extern char g_StrTimAddrFormat[]; // "timaddr=%08x\n"
+extern char g_StrTmdAnalyzing[]; // "analizing TMD...\n"
+extern char g_StrTmdObjectFormat[]; // "\tid=%08X, flags=%d, nobj=%d, objid=%d\n"
+extern char g_StrTmdVertFormat[]; // "\tvert=%08X, nvert=%d\n"
+extern char g_StrTmdNormFormat[]; // "\tnorm=%08X, nnorm=%d\n"
+extern char g_StrTmdPrimFormat[]; // "\tprim=%08X, nprim=%d\n"
 
 extern int Vsync(int mode);
 
@@ -81,12 +81,12 @@ int func_8004696C(void) {
     u_long *pQue;
     u_long *pPending;
 
-    if (*D_800569B0 & 0x1000000)
+    if (*g_GpuDma2Chcr & 0x1000000)
         return 1;
 
     g_SavedIntrMask = SetIntrMask(0);
 
-    if (g_GpuQueueTail != g_GpuQueueHead && !(*D_800569B0 & 0x1000000)) {
+    if (g_GpuQueueTail != g_GpuQueueHead && !(*g_GpuDma2Chcr & 0x1000000)) {
         pQue = &D_800569C4;
         do {
             if (((g_GpuQueueHead + 1) & 0x3F) == g_GpuQueueTail) {
@@ -94,20 +94,20 @@ int func_8004696C(void) {
                     DMACallback(2, 0);
             }
 
-            while (!(*D_800569A4 & 0x4000000))
+            while (!(*g_GpuGp1Port & 0x4000000))
                 ;
 
-            D_8006BE34[g_GpuQueueHead][0](D_8006BE38[g_GpuQueueHead][0], D_8006BE3C[g_GpuQueueHead][0]);
-            *pQue = (u_long)D_8006BE34[g_GpuQueueHead][0];
+            g_GpuQueueTable[g_GpuQueueHead][0](D_8006BE38[g_GpuQueueHead][0], D_8006BE3C[g_GpuQueueHead][0]);
+            *pQue = (u_long)g_GpuQueueTable[g_GpuQueueHead][0];
             D_800569C8 = (u_long)D_8006BE38[g_GpuQueueHead][0];
             D_800569CC = (u_long)D_8006BE3C[g_GpuQueueHead][0];
             g_GpuQueueHead = (g_GpuQueueHead + 1) & 0x3F;
-        } while (g_GpuQueueTail != g_GpuQueueHead && !(*D_800569B0 & 0x1000000));
+        } while (g_GpuQueueTail != g_GpuQueueHead && !(*g_GpuDma2Chcr & 0x1000000));
     }
 
     SetIntrMask(g_SavedIntrMask);
 
-    if (g_GpuQueueTail == g_GpuQueueHead && !(*D_800569B0 & 0x1000000)) {
+    if (g_GpuQueueTail == g_GpuQueueHead && !(*g_GpuDma2Chcr & 0x1000000)) {
         pPending = &g_DrawSyncCallbackPending;
         if (*pPending && g_DrawSyncCallbackFn) {
             *pPending = 0;
@@ -129,18 +129,18 @@ int func_80046C58(u_long mode) {
     switch (v) {
     case 5:
     case 0:
-        *D_800569B0 = 0x401;
-        *D_800569C0 |= 0x800;
-        *D_800569A4 = 0;
-        func_80047178(D_8005A27C, 0, 0x100);
-        func_80047178(D_8006BE34, 0, 0x1800);
+        *g_GpuDma2Chcr = 0x401;
+        *g_GpuDmaDpcr |= 0x800;
+        *g_GpuGp1Port = 0;
+        func_80047178(g_GpuOpcodeShadow, 0, 0x100);
+        func_80047178(g_GpuQueueTable, 0, 0x1800);
         break;
     case 1:
     case 3:
-        *D_800569B0 = 0x401;
-        *D_800569C0 |= 0x800;
-        *D_800569A4 = 0x2000000;
-        *D_800569A4 = 0x1000000;
+        *g_GpuDma2Chcr = 0x401;
+        *g_GpuDmaDpcr |= 0x800;
+        *g_GpuGp1Port = 0x2000000;
+        *g_GpuGp1Port = 0x1000000;
         break;
     }
 
@@ -165,7 +165,7 @@ int func_80046DB4(int mode) {
                 return -1;
         }
 
-        while ((*D_800569B0 & 0x1000000) || !(*D_800569A4 & 0x4000000)) {
+        while ((*g_GpuDma2Chcr & 0x1000000) || !(*g_GpuGp1Port & 0x4000000)) {
             if (func_80046F30() != 0)
                 return -1;
         }
@@ -177,7 +177,7 @@ int func_80046DB4(int mode) {
     if (n != 0)
         func_8004696C();
 
-    if ((*D_800569B0 & 0x1000000) || !(*D_800569A4 & 0x4000000)) {
+    if ((*g_GpuDma2Chcr & 0x1000000) || !(*g_GpuGp1Port & 0x4000000)) {
         if (n == 0)
             return 1;
         return n;
@@ -199,43 +199,43 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
    identical - only two ABI-visible registers differ). The GPU timeout panic
    handler: Vsync(-1) against a deadline, then a queue dump and a queue reset.
    Load-bearing spellings: the discarded status read is a bare
-   "(void)*D_800569A4;" statement before the first printf, the queue word
+   "(void)*g_GpuGp1Port;" statement before the first printf, the queue word
    D_800569C4 must be declared volatile AND as an array ("extern volatile u_long
    D_800569C4[];" read as D_800569C4[0]) so its address materialises with
    lui+addiu, and the queue delta and the second printf's D_800569C8 must be
    staged through locals - that is what a permuter run turned 94.49 into 99.51.
-   Residual (allocator tie): the D_800569A4 pointer takes a2 where retail has
+   Residual (allocator tie): the g_GpuGp1Port pointer takes a2 where retail has
    v1, which frees v1 for g_GpuQueueHead where retail has t0; every other
    instruction is byte-identical.
    Tried: four permuter runs (350 -> 45, 3801 iterations nothing, round 392
    1335 iterations base=45 best=45 PERMUTER_NONE), the pointer in a local
-   ("volatile u_long *pPort = D_800569A4;", identical 99.51), an explicit
-   volatile cast, D_800569A4[0] vs a deref of D_800569A4 for each of the two
+   ("volatile u_long *pPort = g_GpuGp1Port;", identical 99.51), an explicit
+   volatile cast, g_GpuGp1Port[0] vs a deref of g_GpuGp1Port for each of the two
    reads, arg3 staged through a local (88.41%), and both declaration orders of
    the two locals. Round 392 also proved the array-extern lever dead here:
-   "extern volatile u_long *D_800569A4[];" makes the matched func_80046DB4 and
+   "extern volatile u_long *g_GpuGp1Port[];" makes the matched func_80046DB4 and
    func_8004709C fail to compile ("invalid operands to binary &" on
-   *D_800569A4 & 0x1000), so the shared pointer global must stay a scalar.
+   *g_GpuGp1Port & 0x1000), so the shared pointer global must stay a scalar.
    The body below is the parked attempt.
 int func_80046F30(void) {
     u_long new_var2;
     int new_var;
 
     if (g_GpuTimeoutDeadline < Vsync(-1) || g_GpuTimeoutCount++ > 0xF0000) {
-        (void)*D_800569A4;
+        (void)*g_GpuGp1Port;
         new_var = g_GpuQueueTail;
         new_var = new_var - g_GpuQueueHead;
-        printf(D_80019240, new_var & 0x3F, *D_800569A4,
-               *D_800569B0, *D_800569A8);
+        printf(D_80019240, new_var & 0x3F, *g_GpuGp1Port,
+               *g_GpuDma2Chcr, *D_800569A8);
         new_var2 = D_800569C8;
         printf(D_80019274, D_800569C4[0], new_var2, D_800569CC);
         g_GpuSavedIntrMask = SetIntrMask(0);
         g_GpuQueueHead = 0;
         g_GpuQueueTail = g_GpuQueueHead;
-        *D_800569B0 = 0x401;
-        *D_800569C0 |= 0x800;
-        *D_800569A4 = 0x2000000;
-        *D_800569A4 = 0x1000000;
+        *g_GpuDma2Chcr = 0x401;
+        *g_GpuDmaDpcr |= 0x800;
+        *g_GpuGp1Port = 0x2000000;
+        *g_GpuGp1Port = 0x1000000;
         SetIntrMask(g_GpuSavedIntrMask);
         return -1;
     }
@@ -245,23 +245,23 @@ int func_80046F30(void) {
 */
 
 int func_8004709C(u_long mode) {
-    *D_800569A4 = 0x10000007;
+    *g_GpuGp1Port = 0x10000007;
 
-    if ((*D_800569A0 & 0xFFFFFF) != 2) {
-        *D_800569A0 = (*D_800569A4 & 0x3FFF) | 0xE1001000;
-        (void)*D_800569A0; // the status port is read back to flush the write
-        if (!(*D_800569A4 & 0x1000))
+    if ((*g_GpuGp0Port & 0xFFFFFF) != 2) {
+        *g_GpuGp0Port = (*g_GpuGp1Port & 0x3FFF) | 0xE1001000;
+        (void)*g_GpuGp0Port; // the status port is read back to flush the write
+        if (!(*g_GpuGp1Port & 0x1000))
             return 0;
         if (!(mode & 8))
             return 1;
-        *D_800569A4 = 0x20000504;
+        *g_GpuGp1Port = 0x20000504;
         return 2;
     }
 
     if (!(mode & 8))
         return 3;
 
-    *D_800569A4 = 0x09000001;
+    *g_GpuGp1Port = 0x09000001;
     return 4;
 }
 
@@ -372,11 +372,11 @@ int func_80047518(u_long *p, TIM_IMAGE *tim) {
     tim->mode = *p++;
 
     if (GetGraphDebug() == 2)
-        printf(D_8001928C, 0x10);
+        printf(g_StrTimIdFormat, 0x10);
     if (GetGraphDebug() == 2)
-        printf(D_80019298, tim->mode);
+        printf(g_StrTimModeFormat, tim->mode);
     if (GetGraphDebug() == 2)
-        printf(D_800192A4, p);
+        printf(g_StrTimAddrFormat, p);
 
     if (tim->mode & 8) {
         clutSize = *p >> 2;
@@ -410,15 +410,15 @@ u_long func_80047638(u_long *tmd, int obj_no, u_long *pPrim, u_long *pVert, u_lo
     TmdObj *pObj = (TmdObj *)((u_char *)tmd + 0xC);
 
     if (GetGraphDebug() == 2)
-        printf(D_800192B4);
+        printf(g_StrTmdAnalyzing);
     if (GetGraphDebug() == 2)
-        printf(D_800192C8, tmd[0], tmd[1], tmd[2], obj_no);
+        printf(g_StrTmdObjectFormat, tmd[0], tmd[1], tmd[2], obj_no);
     if (GetGraphDebug() == 2)
-        printf(D_800192F0, pObj[obj_no].vertop, pObj[obj_no].vern);
+        printf(g_StrTmdVertFormat, pObj[obj_no].vertop, pObj[obj_no].vern);
     if (GetGraphDebug() == 2)
-        printf(D_80019308, pObj[obj_no].nortop, pObj[obj_no].norn);
+        printf(g_StrTmdNormFormat, pObj[obj_no].nortop, pObj[obj_no].norn);
     if (GetGraphDebug() == 2)
-        printf(D_80019320, pObj[obj_no].primtop, pObj[obj_no].primn);
+        printf(g_StrTmdPrimFormat, pObj[obj_no].primtop, pObj[obj_no].primn);
 
     *pVert = (u_long)((u_char *)pObj + pObj[obj_no].vertop);
     *pNorm = (u_long)((u_char *)pObj + pObj[obj_no].nortop);

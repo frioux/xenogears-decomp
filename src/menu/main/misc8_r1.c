@@ -37,7 +37,7 @@ void func_801E86C8(s32 arg0);
 void MenuSetSubMenuChoicePrims(s32 arg0);
 void MenuClearBytes(s32 arg0, void* pArg1);
 s32 SoundGetVolumeMode(void);
-void func_800386C4(s32 arg0);
+void SoundSetVolumeMode(s32 arg0);
 void MenuClearGlyphTexture(void);
 void MenuFreeCellPrimBlocks(void);
 void MenuFreePrimBuffer(void);

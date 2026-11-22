@@ -19,7 +19,7 @@ extern u8 g_BattleCommandCellUses[];
 extern u_long *g_BattleDigitImageBuffers[];
 extern u_long *g_BattleTextWorkspace;
 extern void BattleAllocPacketPrimitives(void);
-extern void func_80076EA4(void);
+extern void BattleLoadActionRowGraphics(void);
 extern void *GetItemName(s32);
 extern u8 *D_800D329C;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
@@ -236,7 +236,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
 
     if (arg2 != 0) {
         BattleAllocPacketPrimitives();
-        func_80076EA4();
+        BattleLoadActionRowGraphics();
         func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
     }
     pBuf = BattleAllocTextBuffer(0x39);

@@ -423,7 +423,7 @@ extern void BattleBuildSpriteColumn8(s32 arg0);
 extern void BattleDrawSlotSpriteQuads(s32 arg0);
 extern void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount);
 
-u8 func_8008B478(u8 arg0) {
+u8 BattleRunFourSlotCommandMenu(u8 arg0) {
     u8 i;
     u8 j;
     u8 result;

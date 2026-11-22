@@ -128,15 +128,15 @@ long ResetRCnt(long spec) {
     return 1;
 }
 
-void func_8004076C(long value) {
+void SetInitPadFlag(long value) {
     D_80056414 = value;
 }
 
-long func_8004077C(void) {
+long ReadInitPadFlag(void) {
     return D_80056414;
 }
 
-long func_8004078C(char *buf1, long len1, char *buf2, long len2) {
+long PAD_init(char *buf1, long len1, char *buf2, long len2) {
     _remove_ChgclrPAD(buf1, len1, buf2, len2);
     EnterCriticalSection();
     _patch_pad();

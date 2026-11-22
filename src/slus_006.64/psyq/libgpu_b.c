@@ -27,17 +27,17 @@ extern s16 D_800568D4;
 extern s16 D_800568D6;
 extern u_char g_GraphReverse;
 
-extern volatile u_long *D_800569A0; // GPU status register
-extern volatile u_long *D_800569A4; // GPU data register (GP0)
+extern volatile u_long *g_GpuGp0Port; // GPU status register
+extern volatile u_long *g_GpuGp1Port; // GPU data register (GP0)
 extern u_long *D_800569A8;
 extern u_long *D_800569AC;
-extern volatile u_long *D_800569B0;
+extern volatile u_long *g_GpuDma2Chcr;
 extern u_long *D_800569B4;
 extern u_long *D_800569B8;
 extern volatile u_long *D_800569BC;
-extern u_long *D_800569C0;
+extern u_long *g_GpuDmaDpcr;
 
-extern u_char D_8005A27C[]; // one byte per GP0 command
+extern u_char g_GpuOpcodeShadow[]; // one byte per GP0 command
 
 extern void func_8004668C(u_long *p, int x, int y, int w);
 extern void func_80046EFC(void);
@@ -265,11 +265,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
 
 
 u_long func_80045D44(void) {
-    return *D_800569A4;
+    return *g_GpuGp1Port;
 }
 
 int func_80045D5C(u_long *ot, int n) {
-    *D_800569C0 |= 0x08000000;
+    *g_GpuDmaDpcr |= 0x08000000;
     *D_800569BC = 0;
     *D_800569B4 = (u_long)&ot[n - 1];
     *D_800569B8 = n;
@@ -289,33 +289,33 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800460A0);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800462DC);
 
 void func_80046560(u_long value) {
-    *D_800569A4 = value;
-    D_8005A27C[value >> 24] = value;
+    *g_GpuGp1Port = value;
+    g_GpuOpcodeShadow[value >> 24] = value;
 }
 
 u_char func_80046588(int index) {
-    return D_8005A27C[index];
+    return g_GpuOpcodeShadow[index];
 }
 
 int GpuSendWordsByCpu(u_long *src, int n) {
     int i;
 
-    *D_800569A4 = 0x04000000;
+    *g_GpuGp1Port = 0x04000000;
     for (i = n - 1; i != -1; i--)
-        *D_800569A0 = *src++;
+        *g_GpuGp0Port = *src++;
     return 0;
 }
 
 void func_800465EC(u_long value) {
-    *D_800569A4 = 0x04000002;
+    *g_GpuGp1Port = 0x04000002;
     *D_800569A8 = value;
     *D_800569AC = 0;
-    *D_800569B0 = 0x01000401;
+    *g_GpuDma2Chcr = 0x01000401;
 }
 
 u_long func_80046638(u_long value) {
-    *D_800569A4 = value | 0x10000000;
-    return *D_800569A0 & 0xFFFFFF;
+    *g_GpuGp1Port = value | 0x10000000;
+    return *g_GpuGp0Port & 0xFFFFFF;
 }
 
 void siocons(u_long *p, int x, int y) {
