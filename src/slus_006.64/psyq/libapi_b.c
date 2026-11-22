@@ -7,16 +7,28 @@ extern long D_80062644;
 extern int DMACallback(int id, void (*pCallbackFn)());
 extern void _SendPAD();
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", _SendPAD);
-/*
-Best 97.80%: everything but the call-target register and one stack slot. The
-original loads the hook pointer into $t1 and keeps ra at 0x14 of a 0x18 frame
-(0x10 outgoing-args area + a live 4-byte local that no spelling here produces);
-gcc 2.7.2 puts the target in $v0 and saves ra at 0x10.
+/* Best 97.80% (40 bytes = retail 40, 10 insns both, exactly 2 lines differ, and
+   neither is a source fact:
+   - retail keeps the call target in $t1 (lui $t1 / lw $t1 / jalr $t1); every
+     spelling tried puts it in $v0. Measured with cc1_probe (psx 2.7.2 -O3 -G0):
+     direct (*hook)(), local VoidFn, register-free cast from u_long, array
+     element, struct member, hook reached through a pointer-to-pointer, volatile
+     hook, int-returning hook, and nothing changes; -O1/-O2, gcc-2.6.0 and
+     2.7.2-cdk are identical (the load is hoisted above the prologue in all of
+     them, so that part already agrees).
+   - retail saves ra at 0x14 of a 0x18 frame, i.e. its .frame line reads vars= 4:
+     one 4-byte stack slot that no instruction writes - a pseudo spilled across
+     the call whose every use was rematerialised. Every spelling above measures
+     vars= 0 (ra at 0x10); the only bodies that grow the var area are ones with
+     an address-taken local, and one of those measures vars= 8, not 4.
+   Consistent with the region: func_80040BA4 and _remove_ChgclrPAD on either
+   side of it are hand-patched asm (sw $ra to a global, BIOS vector via $t2 with
+   li $t1,0x57), and $t1 as the jump register is that style, not gcc's.
+   Body for whoever retries:/*
 void _SendPAD(void) {
     (*D_800593B8)();
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", _SendPAD);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", func_80040BA4);
 
