@@ -807,18 +807,13 @@ void func_800820A4(u8 arg0) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_800822C4);
-/* 99.93% and JTBL_LAYOUT: every instruction is retail's (576 bytes, retail's
-   0x240) and the only difference is the switch's table operand (retail names
-   jtbl_800700B0, ours .rodata) and the local label names. It cannot be
-   committed: its table belongs at .rodata+0x234, which is 4 mod 8, and cc1
-   aligns jump tables to 8. Converting this body and func_80082504's makes
-   build/out/battle.bin 343940 bytes against disc's 343936 (+4) - measured in
-   round 389 - because retail's .rodata ends at 0x274, not a multiple of 8,
-   which no C jump table can reproduce. Ported from the strict-1.000 twin
+/* 99.93% JTBL: every instruction is retail's (576 bytes, retail's 0x240), the
+   only difference is the switch's table operand (retail names jtbl_800700B0,
+   ours .rodata) and the local label names. It now links: the split into this TU
+   puts the table at .rodata+0x214 of a range that starts 8-aligned, where cc1's
+   `.align 3` is a no-op. Ported from the strict-1.000 twin
    BattleAdvanceSlotMenuStateSubMode (main/misc12.c:511); only the per-arm
    constants differ. */
-/*
 void func_800822C4(u8 arg0) {
     u8 a;
 
@@ -888,15 +883,13 @@ void func_800822C4(u8 arg0) {
         BattlePlaySoundIfEnabled(0x4F);
         break;
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80082504);
-/* 99.91% and JTBL_LAYOUT for the cause spelled out above func_800822C4:
-   every instruction is retail's at retail's 0x1C8 bytes, the diff is the jtbl
-   operand and label names only. Its table belongs at .rodata+0x254 (4 mod 8);
-   cc1 pads it to 0x258 and the overlay comes out 4 bytes long. Ported from the
-   strict-1.000 twin BattleAdvanceSlotMenuStateRandom (main/misc12.c:583);
-   only the per-arm constants differ. */
-/*
+}
+
+/* 99.91% JTBL: every instruction is retail's at retail's 0x1C8 bytes, the diff
+   is the jtbl operand and label names only. Links via the same split as
+   func_800822C4. Ported from the strict-1.000 twin
+   BattleAdvanceSlotMenuStateRandom (main/misc12.c:583); only the per-arm
+   constants differ. */
 void func_80082504(u8 arg0) {
     u8 a;
 
@@ -955,7 +948,8 @@ void func_80082504(u8 arg0) {
         ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
         break;
     }
-}*/
+}
+
 /* 96.00%, and the instruction stream is identical to retail's EXCEPT one block
    position (see the end). Size is retail's 340 bytes. Four levers found, all of
    them load-bearing:
