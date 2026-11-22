@@ -714,24 +714,24 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    is still materialised after that statement, so the +4 form anchors either way.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-/* Best: 99.79% at 688 bytes = retail's exact size and instruction count (172). The
-   whole residual is the la DIRECTION of the g_MenuSubMenuChoiceIds pair plus the
-   register names: retail is "lui/addiu s4 = symbol; addiu s5,s4,4", this body is
-   "lui/addiu s5 = symbol+4; addiu s4,s5,-4", in the same two slots. Values are
-   identical, so the function is one allocator tie away from matching.
-   Measured again this round: the typed spelling below - &pSubmenuPrims->polys0[count * 2]
-   and ->polys500[count * 2] instead of the raw "(POLY_FT4*)(count * 0x50 + (s32)base)"
-   casts, same idiom as MenuSetSelectionMenuPrims - is 99.79% / 688 bytes, so the raw
-   form is not load-bearing. Making the BASE the local (pIds = g_MenuSubMenuChoiceIds,
-   odd entry inline as symbol[... + 1]) is 85.36% / 688: the +1 access becomes the
-   maspsx lui $at / addu $at / lw 4($at) form and s5 disappears, so the second base
-   must be a real pointer local.
-   Two-permuter-runs-empty (rounds 104 and 285, the second PERMUTER_NONE 35 -> 35 over
-   1784 iterations) and rounds 112/113/114/269/373 already measured every two-local
-   spelling: they give retail's direction but cc1 emits the la pair inside the save
-   region (88.09%), which is the wall named in round 113. Round 373 confirmed the
-   residual is exactly five instructions of prologue placement, not the loops.
-/*
+/* Best: 99.85% at 688 bytes / 172 insns, which IS retail's size. Round 402
+   re-measured the old 99.79% body (3 instructions differed: the two la halves plus
+   the derived addiu) and then found that a pure PRESSURE gate on pText in the first
+   MenuRenderFrame loop - "if (pText) { MenuRenderFrame(); } else { MenuRenderFrame(); }",
+   both arms the same single call, so it is NOT realistic source - flips the la
+   anchor: the pair becomes "lui/addiu s4 = symbol+4" + "addiu s5,s4,-4" in retail's
+   exact two slots and the loops' addu operands follow, 99.85%. What is left is only
+   which of the two values owns s4: retail keeps the BASE in s4 and base+4 in s5,
+   this body keeps base+4 in s4 (the la) and the base in s5 (the derived addiu).
+   The gate works by raising pText's allocno priority, which is why round 113's
+   two-local wall survives it: two dependent address locals plus the same gate is
+   still 88.09%, the la pair emitted inside the save region. So the register tie is
+   pri-based and the next lever is a spelling that makes the BASE the pri winner
+   without a second address local - every second-local form displaces the la pair
+   out of the lw 852 load-delay slot. Permuter (3 min, round 402): PERMUTER_BETTER
+   base=35 best=25, and its only edit was exactly this gate plus an unused temp copy,
+   so the permuter has nothing left here (three runs now: rounds 104, 285, 402).
+
 void func_801E86C8(u_char selected) {
     s32 i;
     s32 n;
@@ -760,7 +760,11 @@ void func_801E86C8(u_char selected) {
         g_Menu->pSubmenuPrims->polys0RenderCtx = g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
-                MenuRenderFrame();
+                if (pText) {
+                    MenuRenderFrame();
+                } else {
+                    MenuRenderFrame();
+                }
             }
         }
         g_Menu->pSubmenuPrims->polys500PrimCount = 0;
