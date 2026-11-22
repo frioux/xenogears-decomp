@@ -976,41 +976,46 @@ void func_800A3C8C(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
-
-// PARKED 99.26% at retail's exact 2044 bytes: 511 insns on both sides, 22 differing, every one of
-// them a register preference. Retail merges each `cursor + N` sum into the register already holding
-// the loaded cursor (`lw v0,cursor / addiu v0,v0,116 / move a3,v0`), so no extra pseudo exists and
-// $3 stays free for the tail's &g_WorldMapSaveBlock (retail keeps it in s1, we use v1). Our build
-// keeps the load in v0 and the sum in a fresh v1 at the four middle chunk sites, swaps base and
-// cursor temp in the head block (retail base v1 / sum v0), loads g_FieldActors after the cursor
-// read in the actor loop (retail loads it first), and puts src first in the script-memory copy's
-// alignment `or` (retail: dst first). The actor loop's 0x30 site DOES tie in place on both sides,
-// so the tie itself is reachable; the four chunk sites simply do not.
-// Measured and rejected this round: `pDst = cursor; pDst += N;` 99.10 (68 lines), cursor store
-// moved after the memcpy 93.23 (2024 bytes, 506 insns), nSaveSize passed to the SAVESIZE printf
-// with the two tail statements swapped 98.94 (2048 bytes), gcc-2.6.0 98.88, gcc-2.7.2-cdk
-// compile-failed, reordered local declarations no change. Permuter from this body, 3 min, 1273
-// iterations: base=240 best=240, no lead; six earlier runs (3/6/7/8/12/12 min) also ended at 240.
-// Rejected by an earlier round and kept here so it is not retried: pDst defined before the base
-// store (2040), embedded cursor store `pDst = (g_WorldMapSaveCursor = 4 + block)` (2040), a pSave
-// local for the head, hoisting pActorData above the cursor read (2052), every one-statement
-// spelling of the pActorData copy.
-/*
 extern u8 g_WorldMapSaveBlock[];
 extern u8* g_WorldMapSaveCursor;
-extern s32 g_FieldActiveActorCount;
 extern s32 g_SavedGearRide[3];
 extern u_int* g_FieldWalkmeshMaterialFlags;
 extern VECTOR g_CameraEye;
 extern u8 g_FieldScreenEffectData[];
 extern char D_8006FD9C[]; // "SAVESIZE=%d %x\n"
 extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
-extern void *memcpy();
 
-// Saves the field state the world map overwrites into the block after
-// g_WorldMapSaveBlock, one memcpy per state block, and back into g_SavedGearRide.
-// FieldScriptVMSaveAnimStates (func_800A3C8C) is the reverse.
+// Pushes the field state the world map is about to overwrite into the save block,
+// one memcpy per block, then the actors' animation state and the script memory.
+// func_800A3C8C pulls it back.
+// PARKED 99.94% at retail's exact 2044 bytes (511 insns both sides, 8 differing lines).
+// The cursor advances must be spelled as a COMPOUND ASSIGNMENT ON THE GLOBAL:
+//     g_WorldMapSaveCursor += N;
+//     memcpy(g_WorldMapSaveCursor, src, N);
+// at the four state-chunk sites AND the actor loop's +0x30 site, and the head as
+//     g_WorldMapSaveCursor = g_WorldMapSaveBlock;
+//     g_WorldMapSaveBlock[0] = g_FieldNumActors;
+//     g_WorldMapSaveCursor += 4;
+//     memcpy(g_WorldMapSaveCursor, g_FieldScreenEffectData, 0x38);
+// That is what makes the sum reuse the loaded pointer's $2 (retail's addiu v0,v0,N);
+// the older `pDst = g_WorldMapSaveCursor + N; g_WorldMapSaveCursor = pDst;` copy
+// spelling always takes a fresh $3 and parks at 99.26 (this is the case the
+// a-memcpy-dst-sum-tie lever calls unreachable - the += form wins it). 99.26 -> 99.94%.
+// Left, two ties only:
+//  1. the script-memory copy at the tail prints `or v0,a2,a3` where retail has
+//     `or v0,a3,a2` - same registers and same roles (a3 = cursor/dst, a2 = src), only
+//     the commutative IOR operand order, i.e. a combine pseudo-number decision.
+//  2. the tail's `&g_WorldMapSaveBlock` lands in $v1; retail keeps it in $s1
+//     (lui s1 / addiu s1 / subu a1,a1,s1 - 3 insns).
+// Measured and rejected on this body: nSaveSize passed to the SAVESIZE printf twice
+// (2048 bytes), `&g_FieldScriptMemory` inlined at the copy (2060), pScriptMemory moved
+// down to its use (2060), u8* pScriptMemory (no change), pActorData hoisted above the
+// 0x30 cursor update (2052). Permuter 3 min from this body: base=30 best=30, 1286
+// iterations, no lead; six earlier runs (3-12 min) from the 99.26 body also empty.
+// Earlier rejected (kept so they are not retried): pDst defined before the base store
+// (2040), embedded cursor store (2040), pSave local for the head, cursor store moved
+// after the memcpy (2024), gcc-2.6.0 (98.88), gcc-2.7.2-cdk (compile fails).
+/*
 void func_800A3F4C(void) {
     ActorData* pActorData;
     void** pScriptMemory;
@@ -1022,27 +1027,22 @@ void func_800A3F4C(void) {
     int i;
 
     g_WorldMapSaveCursor = g_WorldMapSaveBlock;
-    pDst = 4 + g_WorldMapSaveBlock;
     g_WorldMapSaveBlock[0] = g_FieldNumActors;
-    g_WorldMapSaveCursor = pDst;
-    memcpy(pDst, g_FieldScreenEffectData, 0x38);
+    g_WorldMapSaveCursor += 4;
+    memcpy(g_WorldMapSaveCursor, g_FieldScreenEffectData, 0x38);
 
-    pDst = g_WorldMapSaveCursor + 0x38;
     pScriptMemory = &g_FieldScriptMemory;
-    g_WorldMapSaveCursor = pDst;
-    memcpy(pDst, (u8*)&g_Scene + 0xC4, 0x74);
+    g_WorldMapSaveCursor += 0x38;
+    memcpy(g_WorldMapSaveCursor, (u8*)&g_Scene + 0xC4, 0x74);
 
-    pDst = g_WorldMapSaveCursor + 0x74;
-    g_WorldMapSaveCursor = pDst;
-    memcpy(pDst, g_FieldWalkmeshMaterialFlags, 0x400);
+    g_WorldMapSaveCursor += 0x74;
+    memcpy(g_WorldMapSaveCursor, g_FieldWalkmeshMaterialFlags, 0x400);
 
-    pDst = g_WorldMapSaveCursor + 0x400;
-    g_WorldMapSaveCursor = pDst;
-    memcpy(pDst, &g_FieldEffects, 0x2E4);
+    g_WorldMapSaveCursor += 0x400;
+    memcpy(g_WorldMapSaveCursor, &g_FieldEffects, 0x2E4);
 
-    pDst = g_WorldMapSaveCursor + 0x2E4;
-    g_WorldMapSaveCursor = pDst;
-    memcpy(pDst, &g_CameraEye, 0x1C8);
+    g_WorldMapSaveCursor += 0x2E4;
+    memcpy(g_WorldMapSaveCursor, &g_CameraEye, 0x1C8);
 
     g_WorldMapSaveCursor += 0x1C8;
 
@@ -1056,9 +1056,8 @@ void func_800A3F4C(void) {
         pDst = (g_WorldMapSaveCursor = g_WorldMapSaveCursor + 4);
         SpriteSaveAnimState((g_FieldActors + i)->pSpriteData, pDst);
 
-        pDst = g_WorldMapSaveCursor + 0x30;
-        g_WorldMapSaveCursor = pDst;
-        memcpy(pDst, g_FieldActors[i].pActorData, sizeof(ActorData));
+        g_WorldMapSaveCursor += 0x30;
+        memcpy(g_WorldMapSaveCursor, g_FieldActors[i].pActorData, sizeof(ActorData));
 
         pDst = (g_WorldMapSaveCursor = g_WorldMapSaveCursor + 0x138);
         pActorData = g_FieldActors[i].pActorData;
@@ -1085,8 +1084,8 @@ void func_800A3F4C(void) {
     if (nSystemMode == 0) {
         func_800379C8(D_8006FD9C, g_WorldMapSaveCursor - g_WorldMapSaveBlock, g_WorldMapSaveCursor - g_WorldMapSaveBlock);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 
 void FieldCopyScreenToFadeTexture(void) {
     FieldCopyScreenToVram(0x2c0,0x100);
