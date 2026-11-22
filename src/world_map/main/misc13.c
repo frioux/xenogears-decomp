@@ -123,7 +123,7 @@ extern int rsin(int a);
 // two ordering table heads it fills each frame (the same view misc4.c and misc7.c declare).
 typedef struct {
     /* 0x00 */ u8 unk0[0x70];
-    /* 0x70 */ u_long *pOt[2];
+    /* 0x70 */ WorldMapPrim *pOt[2];
 } WorldMapRenderContext; // partial view
 
 extern u8 g_WorldMapAreaNameString[];
@@ -328,23 +328,32 @@ s32 func_80092DF8(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
-/* best: 98.52% (472 bytes = retail's 472; 118 instructions = retail's 118). Every
-   instruction is retail's, in retail's order: the switch, the three string calls,
-   func_80034888 and the two display-list tag writes. The only residual is which
-   argument register each of six values gets. Retail: 0xFFFFFF - $a1, D_8009D2B8
-   base - $a0, 0xFF000000 - $a2, g_WorldMapPrimPacketIndex - $v0,
-   g_WorldMapRenderContext - $a3, the element pointer - $v1; ours: $a3, $v1, $a2,
-   $v0, $a1, $a0 - the same six registers, permuted. Tried: base as
-   &D_8009D2B8[g_WorldMapPrimPacketIndex] inline (95.17, gcc then materialises the
-   base after the *40 chain instead of before it), base through the pPrims pointer
-   local below (98.52, best - that puts the base exactly where retail has it), and a
-   4-minute permuter run (2179 iterations, base=175 best=175, no candidate).
-   GIV_TIE - see tools/rounds/levers.md; do not hand-iterate it.
-
+/* best: 99.45% (472 bytes = retail's 472; 118 instructions = retail's 118). The base
+   address, the element pointer, the index and the tag word's register are retail's
+   ($a0 / $v1 / $v0 / $a0); every instruction and every other register matches. The
+   residual is a 3-cycle of the three remaining values: retail 0xFFFFFF=$a1,
+   0xFF000000=$a2, g_WorldMapRenderContext=$a3; ours 0xFF000000=$a1, ctx=$a2,
+   0xFFFFFF=$a3.
+   98.52 -> 99.45 came from reading the tag into a `u32 tag` local and updating that
+   local in place (`tag = pPrim->tag; tag = (tag & 0xFF000000) | (...); pPrim->tag =
+   tag;`) instead of one expression: the second assignment raises the loaded word's
+   ref count and moves base / element pointer / index into retail's registers.
+   Measured, all 472 bytes / 118 instructions: the same temp as an initialised
+   declaration (cc1 error, declaration after statement), store straight from the temp
+   expression 98.52, temp for the OT word instead of the tag 98.52, temps on BOTH
+   statements 97.11, temp on the second statement only 98.14, a
+   `pCtx = g_WorldMapRenderContext;` local 98.52, all 6 declaration orders of the
+   locals 98.52, base inline as `&D_8009D2B8[g_WorldMapPrimPacketIndex]` 95.17.
+   GIV_TIE on the last three call-clobbered registers (tools/rounds/levers.md,
+   a-refs-are-three-times and a-global-allocno-priority-is): the three qtys have equal
+   ref counts and live ranges one instruction apart, so only pseudo numbering decides,
+   and nothing in the source moves it. A 4-minute permuter run on the 98.52 body
+   (2179 iterations) found no candidate.
 s32 func_80092FD8(s32 index) {
     WorldMapMenuSlot* pSlot;
     WorldMapPrim* pPrims;
     WorldMapPrim* pPrim;
+    u32 tag;
 
     pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * sizeof(WorldMapMenuSlot));
     switch (pSlot->state) {
@@ -371,8 +380,10 @@ s32 func_80092FD8(s32 index) {
     if (pSlot->state == WORLD_MAP_SLOT_STATE_NAMED) {
         pPrims = D_8009D2B8;
         pPrim = &pPrims[g_WorldMapPrimPacketIndex];
-        pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32*)g_WorldMapRenderContext->pOt[0] & 0xFFFFFF);
-        *(u32*)g_WorldMapRenderContext->pOt[0] = (*(u32*)g_WorldMapRenderContext->pOt[0] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+        tag = pPrim->tag;
+        tag = (tag & 0xFF000000) | (g_WorldMapRenderContext->pOt[0]->tag & 0xFFFFFF);
+        pPrim->tag = tag;
+        g_WorldMapRenderContext->pOt[0]->tag = (g_WorldMapRenderContext->pOt[0]->tag & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
     }
     return 1;
 }
