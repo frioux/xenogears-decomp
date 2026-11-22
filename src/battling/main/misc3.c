@@ -663,26 +663,31 @@ extern u8 ControllerStickToAnalogY(s32 buttonState);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
-/* 97.34% (1968 vs retail's 1972 bytes). Everything is retail's except four
-   spots. (1, worth most of the gap) retail's analog-stick ramp blocks emit the
-   clamp as a real abs - `lw v0,0x8C; bgez s1; addu v1,s1; negu v1,v1; addu
-   v0,v0,s4; sw` - i.e. the `s1 < 0 ? -s1 : s1` sits BETWEEN the += 's load and
-   its add; here gcc folds the ternary to a bare `negu` (it knows s1 < 0 from
-   the guard) AND puts it above the load, so that block is 2 instructions short
-   and buys a load-delay `nop`. Giving the sign its own variable
-   (`negative = stickX2 < 0; limit = negative ? -stickX2 : stickX2;` - the form
-   the permuter found, kept below for inputLeft) does emit bgez/addu/negu, but
-   applying it to BOTH blocks costs 8 bytes and flips rampStep/decayStep from
-   retail's s4/s5 to s5/s4 (declaration order does not move it back). Tried:
-   `-stickY2` direct, abs before/after the +=, one shared sign variable, no
-   variable, limit reused as the sign, reversed ternary.
-   (2) retail stores flags at 0xD0 with a0 after BOTH `lw 0x648`/`lw 0xfc`; this
-   body stores it (in v1) between them - reordering the two `+= 0x800` above the
-   flags assignment puts the store last instead. (3) `p->distance`/`targetAngle`:
-   retail's `sw 0x48` lands in the beqz delay slot and `lh 0xce` after it, this
-   one has `nop; lh; sw`. (4) the final distance-window `subu` runs in v0 here,
-   v1 in retail. Preset is Default (-O2, gcc 2.7.2, -G8) and no scheduler runs,
-   so these are source-order/allocator artefacts, not a preset question. */
+/* 99.43% (1972 vs retail's 1972 bytes - exactly retail's size, 491 instructions,
+   22 differing lines). Nothing structural is left; two register/order artefacts.
+   (1) most of the gap, the flags read-modify-write near the top: retail loads
+   0xD0 into $a0 and puts the ~0x20000 mask in $v1, and its `lw $v1,0xFC`
+   (angleOffset) lands BEFORE `sw $a0,0xD0`; this body has the pair the other way
+   round ($a0 mask, $v1 flags) and because $v1 is then freed by the store the
+   0xFC load sinks below it. One change would fix both if the flags value got
+   $a0. Not reachable by spelling: an explicit spinBit local (98.86, 30 lines),
+   the two `+= BATTLE_ANGLE_HALF_TURN` reordered above the flags assignment
+   (store ends up last), declaration order.
+   (2) `diff = (direction & 0xFFF) - ((ratan2(...) + 0x400) & 0xFFF)` emits
+   `subu $v0,$v1,$v0` where retail is in-place on the FIRST operand
+   (`subu $v1,$v1,$v0`); naming the pad angle as a local first is 98.99, and a
+   declaration-with-initialiser for diff emits the same body as the plain local.
+   A 3-minute permuter run (1276 iterations, base 145) found nothing on either.
+
+   Two spellings closed the previous 97.34 park and are in the body below, so do
+   not undo them: (a) `limit = __builtin_abs(x)` instead of a ternary - inside
+   the `x < 0` arm gcc folds `x < 0 ? -x : x` to a bare negu and loses retail's
+   move+negu pair, one instruction; (b) `p->distance = distance;` hoisted OUT of
+   its if, because retail stores distance unconditionally, filling the beqz delay
+   slot.
+
+   Preset is Default (-O2, gcc 2.7.2, -G8); the remaining order difference is a
+   post-reload scheduling artefact, not a preset question. */
 /* The controller the actor reads: player 2's actor takes controller 1. A digital
    pad's sticks come straight from the axis globals, an analog one's from the
    button state. The four input ramps charge one direction at a time and decay
@@ -845,7 +850,7 @@ s32 func_80076884(BattleActor* p) {
             angle = 0;
         }
         if (stickY2 < 0 && enabled) {
-            limit = stickY2 < 0 ? -stickY2 : stickY2;
+            limit = __builtin_abs(stickY2);
             p->inputUp += rampStep;
             if (p->inputUp > limit) {
                 p->inputUp = limit;
@@ -868,8 +873,7 @@ s32 func_80076884(BattleActor* p) {
             }
         }
         if (stickX2 < 0 && enabled) {
-            negative = stickX2 < 0;
-            limit = negative ? -stickX2 : stickX2;
+            limit = __builtin_abs(stickX2);
             p->inputLeft += rampStep;
             if (p->inputLeft > limit) {
                 p->inputLeft = limit;
@@ -902,8 +906,8 @@ s32 func_80076884(BattleActor* p) {
     if (distance < 0x30) {
         distance = 0;
     }
+    p->distance = distance;
     if (distance != 0) {
-        p->distance = distance;
         p->targetAngle = direction + p->facingOffset;
     } else {
         p->targetAngle = 0;
