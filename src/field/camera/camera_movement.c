@@ -82,47 +82,72 @@ void FieldScriptSetCameraInterpolationMode(void) {
     D_800AF930.dip = g_Scene.sceneDIP;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
+extern s16 g_FieldCameraModeTable[] __asm__("g_FieldCameraMode");
 
-/* Best: 63.33% (224 bytes, right size and block layout; gcc keeps the address of
-   g_FieldCameraMode in %hi/%lo instead of s0 and builds a different case order).
-   Also tried a `s16* pMode = &g_FieldCameraMode;` local with the == 0 branch
-   first (42.34%: gcc folds the pointer back to the symbol and, with case 0
-   listed first, emits a jump table instead of the beq/slti/bnez chain).
-   New: a `s16* pMode = &g_FieldCameraMode;` local with the deref INSIDE the
-   switch (`switch (*pMode)`, not an if chain) and case 0 listed first does emit
-   the beq/slti/bnez chain - the jump table seen earlier came from the if/else
-   form - but it is still 63.33% and the same 224 bytes as the attempt below.
-   The missing 20 bytes are exactly the s0 save/restore plus one lui/addiu:
-   here reload rematerialises the symbol address at each of its three uses, so
-   the unblocking form probably makes the address a runtime value (a pointer
-   from memory) rather than a bare constant. Case order is a red herring.
+/* Best: 83.77% (236 bytes against retail's 244 / 61 insns). Structure is settled;
+   the two residuals are both gcc's address spelling.
+   SOLVED and load-bearing:
+   - the switch needs THREE case nodes: `case 2: return;` plus `default: return;`
+     with the `+= 3` after the switch. With only cases 0/1 gcc roots the case tree
+     at value 0 (`beqz v1,case0` first, 2 compares) and drops retail's `slti v1,2 /
+     beqz END / nop / bnez END` chain; the third node roots it at value 1 and,
+     because its label is the default's, it emits no instruction at all.
+   - `pMode = g_FieldCameraModeTable;` where that is a second declaration of the
+     symbol as an unbounded array with an asm label. That is the only spelling that
+     keeps `&g_FieldCameraMode` in $s0 across the jal (retail: lui s0 / addiu s0 /
+     lh / sh zero / sh v0); the scalar, `s16* pMode = &g_FieldCameraMode` and every
+     other local rematerialise lui+addiu or the maspsx $at macro per use.
+   - the zero path really does bump scriptInstructionPointer TWICE (+6): retail has
+     the in-branch copy and the shared tail copy. Keep both.
+   RESIDUAL 1 (2 insns / 8 bytes): retail hoists the g_FieldScriptVMCurActor load
+   out of the shared tail into BOTH predecessors (case 0 has its own lui v1 / addiu
+   / lw before its j, and .L8008FD10 loads it before falling into the tail, whose
+   lhu takes v1 as an input); ours leaves one bare `lw $3,g_FieldScriptVMCurActor`
+   in the tail. cse did not follow the jump and hoist here.
+   RESIDUAL 2: `g_Scene.flags &= 0x7FFF` - retail emits a bare lui %hi + lw %lo(reg)
+   pair plus a maspsx $at store, ours cse's the address into ONE base register
+   (`la $3,g_Scene+72 / lw / andi / sw 0($3)`): same insn count, different
+   registers. Same class as field/main/misc2's 89.20% park (func_80073230), and it
+   is probably why residual 1's registers differ too.
+   Tried and measured: per-arm `+= 3` copies (82.87 / 256 bytes), the shared tail
+   without case 2 (76.23 / 236), m2c's goto block_8 form (76.23), `case 2: break;`
+   (82.87), a `s32 flags` temp for the RMW, a volatile cast on it (identical
+   output), the increment moved before the flag clear. Permuter (1449 iters) found
+   only a do-while wrapper around the case-0 arm (84.51) that deletes the arm's j
+   so case 0 falls into case 1 - wrong code, rejected.
+*/
+/*
 void func_8008FC4C(void) {
     s32 value;
+    s16* pMode;
 
-    switch (g_FieldCameraMode) {
+    pMode = g_FieldCameraModeTable;
+    switch (*pMode) {
     case 0:
         g_Scene.flags &= 0x7FFF;
         break;
     case 1:
         value = FieldScriptVMGetArgument(1);
         if (value == 0) {
-            g_FieldCameraMode = 0;
+            *pMode = 0;
             g_Scene.flags &= 0x7FFF;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
             g_FieldCameraSnapFrames[0] = 2;
         } else {
-            g_FieldCameraMode = 2;
+            *pMode = 2;
             g_CamInterpolation.atStepDistance = value;
             g_CamInterpolation.eyeStepDistance = value;
         }
         break;
+    case 2:
+        return;
     default:
         return;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FC4C);
+
 
 void FieldScriptSetCameraInterpolationStep(void) {
     g_CamInterpolation.atStepDistance = FieldScriptVMGetArgument(1);
