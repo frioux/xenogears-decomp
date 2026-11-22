@@ -692,45 +692,76 @@ int FieldActorTestMaterialScriptMask(ActorData* pActor) {
        store and reads the pointer twice through it; ours recomputes the index
        after the store (pActor->pActorData / 0x12C reloads) through $at.
    (5) frame 0x38 vs retail 0x28. */
+/* 93.81% (616 bytes against retail's 640, 154 vs 157 insns). Frame 0x30 vs
+   retail's 0x28 (vars=8, from a local kept across the two jal sites).
+   STRUCTURE SETTLED (block order is retail's, gcc 2.7.2 does not reorder blocks):
+   `if (!(status & 0x40))` is the inline then-block and the 0x40-set half follows
+   out of line, which is why retail's test is `bnez` to the model half; the
+   0x80000 test inside the 0x2000-clear half needs the CALL as the then-block
+   (`if (!(flags & 0x80000)) SpriteSetDirection(...) else compute`) and the
+   0x20000 test needs the 0x80000-scale compute first and the model arm as the
+   else, or gcc inlines the wrong side. Read angle as s16 at the call site
+   (`s16 a = angle`) so the SET half truncates with sll/sra into a2; a 2.7.2
+   param of int changes nothing (see residual 1).
+   RESIDUALS, in cascade order:
+   (1) SET-half angle test: retail materialises (s16)angle in a2 and ANDs it with
+       0x8000 (sll/sra/andi/bnez/nop = 5 insns); gcc folds (s16)x & 0x8000 to
+       `bgez` on the sll result (3 insns), so we are 2 insns short there. Tried:
+       bare test, (s32)(s16)angle & 0x8000, `!= 0`, an int parameter with an s16
+       local, -O1/-O3/cdk/-G0 screens - the fold always fires.
+   (2) model arm: retail reloads the table ENTRY through the CSE'd address
+       (`lw v0,0(v1)` twice, v1 = &g_FieldActorModelPointers[idx]) because the
+       step.x store sits between the two reads; the pointer-local spelling
+       (`s32* pModel = g_Field...) collapses it to one load (-3) and the
+       `&table[idx]` spelling this body uses leaves one load and orders the srl
+       before the lui base pair where retail has it after (plus retail's load nop).
+   (3) tail: retail's model arm ends in `j` over the shared two-store zero block;
+       here the zero block sits in the SET half's fall-through, so the arm falls
+       into the -0x1000 tail directly (1 insn). Cross-jumping does not move it.
+   Tried in all: local vs repeated subscript (648/616/608 bytes), pModel local,
+   int vs s16 parameter, the two inner tests in both polarities. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
 /*
-extern void* g_FieldActorModelPointers[];
-
 void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
+    s16 a;
     int scale;
-    int a;
 
     if (!(pActor->status & 0x40)) {
         scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
-        if (angle & 0x8000) {
-            pSprite->step.x = 0;
-            pSprite->step.z = 0;
-        } else {
-            a = angle & 0xFFF;
+        a = angle & 0xFFF;
+        if (!(angle & 0x8000)) {
             pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
             pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
-        }
-    } else if ((angle & 0x8000) != 0) {
-        pSprite->step.x = 0;
-        pSprite->step.z = 0;
-    } else if (pActor->pActorData->flags & 0x2000) {
-        if (pActor->pActorData->flags & 0x20000) {
-            pSprite->step.x = -((s32*)g_FieldActorModelPointers[pActor->pActorData->flags12C_0xE])[0x128 / 4] << 16;
-            pSprite->step.z = -((s32*)g_FieldActorModelPointers[pActor->pActorData->flags12C_0xE])[0x130 / 4] << 16;
         } else {
+            pSprite->step.x = 0;
+            pSprite->step.z = 0;
+        }
+    } else {
+        a = angle;
+        if (a & 0x8000) {
+            pSprite->step.x = 0;
+            pSprite->step.z = 0;
+        } else if (!(pActor->pActorData->flags & 0x2000)) {
+            if (!(pActor->pActorData->flags & 0x80000)) {
+                SpriteSetDirection(pSprite, a);
+            } else {
+                scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
+                a = angle & 0xFFF;
+                pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
+                pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
+                pSprite->moveSpeed = 0x4000000 / pActor->pActorData->moveSpeed;
+            }
+        } else if (!(pActor->pActorData->flags & 0x20000)) {
             scale = (0x80000 / pActor->pActorData->moveSpeed >> 8) << 5;
             a = angle & 0xFFF;
             pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
             pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
+        } else {
+            s32** ppModel = (s32**)&g_FieldActorModelPointers[pActor->pActorData->flags12C_0xE];
+
+            pSprite->step.x = -(*ppModel)[0x128 / 4] << 16;
+            pSprite->step.z = -(*ppModel)[0x130 / 4] << 16;
         }
-    } else if (pActor->pActorData->flags & 0x80000) {
-        scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
-        a = angle & 0xFFF;
-        pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
-        pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
-        pSprite->moveSpeed = 0x4000000 / pActor->pActorData->moveSpeed;
-    } else {
-        SpriteSetDirection(pSprite, angle);
     }
     pSprite->step.x &= -0x1000;
     pSprite->step.z &= -0x1000;
@@ -1285,7 +1316,6 @@ void FieldConvertIVec3ToSVector(SVECTOR* pDst, IVEC3* pSrc) {
     pDst->vz = pSrc->z >> 0x10;
 }
 
-extern void* g_FieldActorModelPointers[];
 void SpriteSetDirection(SpriteData*, s16);
 
 void func_80081F80(SpriteData*, s16, FieldActor*);
