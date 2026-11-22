@@ -243,7 +243,7 @@ extern s32 g_WorldMapCameraTargetY;
 extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
-extern s32 func_8007A1B4(s32);
+extern s32 WorldMapUpdateGroup14And15Scale(s32);
 extern s32 func_8007A430(s32);
 extern s32 WorldMapInitActorAtScrollPositionWithSound(s32);
 extern s32 WorldMapSetupGroup14And15Prims(s32);
@@ -630,7 +630,7 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapInitActorSlotTimer40, func_80078EA4);
     WorldMapAddSlot(WorldMapInitActorAtScrollPositionWithSound, func_80079778);
-    WorldMapAddSlot(WorldMapSetupGroup14And15Prims, func_8007A1B4);
+    WorldMapAddSlot(WorldMapSetupGroup14And15Prims, WorldMapUpdateGroup14And15Scale);
     WorldMapAddSlot(WorldMapSetActorTimer60, func_8007A430);
     WorldMapAddSlot(WorldMapReturnThree, WorldMapUpdateObjectAPosition);
     WorldMapAddSlot(WorldMapInitActorRotationMatrix, WorldMapUpdateActorTerrainHeight);
@@ -1170,7 +1170,7 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
                   g_WorldMapGroups->entry15.pModel->polyCount);
     return 3;
 }
-s32 func_8007A1B4(s32 index) {
+s32 WorldMapUpdateGroup14And15Scale(s32 index) {
     WorldMapEntry *pEntry;
     MATRIX *pMtxA;
     MATRIX *pMtxB;

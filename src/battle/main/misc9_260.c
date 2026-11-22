@@ -193,13 +193,13 @@ void BattleClearSlotDwordAndSetStat4(u8 arg0) {
 // Spelled out at each operand on purpose (see BattleWordRegAnd in misc6_r2.c):
 // with the base in one local gcc 2.6.0 keeps it in $v1, with three accesses it
 // allocates retail's $a2.
-void func_8007E6A0(BattleCommand **ppCmd, u8 index) {
+void BattleDwordRegAdd(BattleCommand **ppCmd, u8 index) {
     BattleCommand *pCmd = *ppCmd;
 
     g_BattleSlotRows[index].dwordRegs[pCmd->operand3] =
         g_BattleSlotRows[index].dwordRegs[pCmd->operand1] + g_BattleSlotRows[index].dwordRegs[pCmd->operand2];
 }
-void func_8007E6F0(BattleCommand **ppCmd, u8 index) {
+void BattleDwordRegSub(BattleCommand **ppCmd, u8 index) {
     BattleCommand *pCmd = *ppCmd;
 
     g_BattleSlotRows[index].dwordRegs[pCmd->operand3] =

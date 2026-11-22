@@ -151,7 +151,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_8008115C);
    `jal; nop` with `li a0,0x4F` sitting in each predecessor's branch delay slot,
    ours is `jal; li a0,0x4F` (reorg always steals the constant into the jal slot
    when it is the last insn before the call). Same two shapes, unresolved, in
-   func_800816F8 (99.90%, JTBL-only there). Tried: literal vs. local argument,
+   BattleAdvanceSlotMenuStateEventFourSlot (99.90%, JTBL-only there). Tried: literal vs. local argument,
    both if/else orders, p/off locals vs. inline g_BattleCommandQueue indexing. */
 /*
 void func_8008115C(u8 arg0) {
@@ -230,7 +230,7 @@ void func_8008115C(u8 arg0) {
    split 88.35% at 440 bytes against retail's 444; the typed-struct twin port the
    main/misc12 neighbours use measures 87.59, so this raw spelling stays. */
 
-void func_80081318(u8 arg0) {
+void BattleAdvanceSlotMenuStateEventActivate(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -291,7 +291,7 @@ void func_80081318(u8 arg0) {
     }
 }
 
-void func_80081504(u8 arg0) {
+void BattleAdvanceSlotMenuStateEventExit(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -354,7 +354,7 @@ void func_80081504(u8 arg0) {
     }
 }
 
-void func_800816F8(u8 arg0) {
+void BattleAdvanceSlotMenuStateEventFourSlot(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -657,7 +657,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_800820A4);
    layout: the JTBL_LAYOUT paragraph this park used to carry is stale. The unit's
    .rodata range starts 8-aligned at 0x80070010, and cc1 emits each switch table
    at its function's position in the file, so converting an in-family stub in
-   address order keeps retail's table offsets - func_80081318/80081504/800816F8
+   address order keeps retail's table offsets - BattleAdvanceSlotMenuStateEventActivate/80081504/800816F8
    converted this way and check_bin.sh battle prints OK. The real residue is the
    cross-jumped `menuState = 3; repeatPending = 0;` tail (case 2 reaches it with
    `j` + delay slot where retail branches to it conditionally) plus the queue
