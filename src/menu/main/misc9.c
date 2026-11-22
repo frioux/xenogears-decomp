@@ -856,8 +856,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
      Close delta 2 first, then re-read this.
    Realism owed: flags = (u16) pBase read and (pBase[0] and 3) are raw reads of
    a prim block. The panel itself is typed by MenuUnk430Panel above.
-   NOTE: the extern at the top of this file must stay (u_char, s32, u_char) -
-   a u_char second param is a conflicting-type error against this body. */
+   NOTE: the declaration at the top of this file is (u_char, u_char, u_char) as of
+   round 400 - retail masks the second argument at every call site and this body's
+   own code masks $a1 before its shifts, so the second parameter is a u_char. The
+   DEFINITION line of the body below still says s32, which the compiler takes as a
+   conflicting type; change it to u_char arg1 when un-parking and re-measure (the
+   97.64% above was measured with s32). */
 /*
 void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
     u8* pImage;
