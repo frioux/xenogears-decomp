@@ -218,11 +218,11 @@ typedef struct {
     POLY_F4 f4[4];     // 0x280
     POLY_G4 g4[2];     // 0x2E0
     s32 unk328;        // 0x328
-    u16 unk32C;        // 0x32C
+    s32 unk32C;        // 0x32C
     s32 unk330;        // 0x330
-    u16 unk334;        // 0x334
-    u16 unk336;        // 0x336
-    u16 unk338;        // 0x338
+    s16 unk334;        // 0x334
+    s16 unk336;        // 0x336
+    s16 unk338;        // 0x338
     u16 unk33A;        // 0x33A
     u16 unk33C;        // 0x33C
     s16 unk33E;        // 0x33E
@@ -295,7 +295,7 @@ s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
     func_800278F8(pBlock, angle / 0x1000, proj1.vy, level, pOT, band);
 
     if (pBlock->unk344 > 0) {
-        proj1.vx = proj1.vy - pBlock->unk32C;
+        proj1.vx = proj1.vy - (u16)pBlock->unk32C;
         if (proj1.vx > 0xF0) {
             proj1.vx = 0xF0;
         }
@@ -390,47 +390,50 @@ s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
 // 7. AddPrim(pOT, pPrim): the retail lw/lw/and 0xFF000000/and 0xFFFFFF/or/sw
 //    pair IS libgs' AddPrim macro, so arg5 is a u_long* OT slot (reloaded from
 //    the stack around GetTPage because it is call-clobbered).
+
+// PARKED 73.58% (1060 bytes against retail's 1096, 265 instructions against
+// 274). Measured this round under the unit's own preset (XenoGraphicsLibrary,
+// gcc 2.6.0); the body below is the best of four scored variants.
+// What now matches exactly: the prologue and the 0x50 frame with the same
+// saved set, the four divisions with their divide-by-zero/INT_MIN traps, the
+// loop preheader (i = 0, span + 0x100 in s6, the 0xFFFFFF mask in s5, top in
+// fp as well as t3, s0 = &pPrim->tpage), the GetTPage arguments, the AddPrim
+// macro, the eight-iteration bound and the break at rowEnd.
+// Three shapes this round bought, do not undo them:
+//  - rowStart must be initialised to 0 before the if; the first body read it
+//    uninitialised (undefined behaviour that happened to score the same).
+//  - `half += (half * span) / 0x100;` written in place gives retail's
+//    addu v1,v1,v0 / subu v0,a1,v1 pair; a separate local is fused into v0.
+//  - top must be held by a second value (`yTop = top;` after the early return,
+//    used for y2/y3) or the move s8,t3 in the preheader never appears and the
+//    whole prologue shifts.
+// The store order was written in the order the .s emits (x0,x1,x2,y2,x3,y3,
+// u0,y0,y1,u1,v0,u2,v1,v2,u3,v3) and is worth about +0.8%; gcc 2.6 does
+// follow source order for these stores, so retail's source was written that
+// way. Computing rowEnd after the col update instead of before it scores
+// 72.49% on identical bytes, so keep it before.
+// What is left is register allocation, not structure:
+//  - retail emits nine instructions this body does not, and they are all
+//    allocator copies (move s3,v1, move t2,v0, move t0,zero, move a0,v0,
+//    move a3,v1, move a2,v1, and a j with its delay slot at .L80027A50). The
+//    body here is uniformly tighter, i.e. the two allocations differ rather
+//    than any construct being missing.
+//  - retail computes (s16)col >> (2 - unk338) and texColumn before the mask
+//    and u/width; this body emits the mask group first even when texColumn's
+//    expression is written first in the source, so statement order does not
+//    steer it.
+//  - uOffset: gcc sign-extends the shift operand to 16 bits before the sllv
+//    when the local is u16 (a valid transform, since the store truncates);
+//    retail does not. Declaring 0x334/0x336/0x338 s16 (which the lh reads
+//    prove, and which the struct now does) does not remove it.
+//  - the clip path's /256 is srl in retail and sra here, same instruction
+//    count. Both are edge-case-only (rowStart + height >= 0x141).
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_r1", func_800278F8);
 
-// First body written, 72.38% (972 bytes against the original's 1096). The
-// structure above is confirmed (the derivation's "not a POLY_FT4" is wrong: it
-// IS a POLY_FT4, whose vertex coordinates are s16, which is why every
-// coordinate store is sh, and s0 = &pPrim->tpage is gcc's re-based common base,
-// not a different record). Everything the .s shows is present: the same five
-// divisions with the div traps, the same GetTPage arguments, AddPrim, the 8
-// iteration bound and the break at rowEnd >= 0x140.
-// What the diff still gets wrong, measured once:
-//  - arg3 (span) is used as a raw s32 everywhere (mult v1,a3, addiu a2,a3,0x100):
-//    this body declares it s32 and that part now matches, so do NOT narrow it.
-//  - retail keeps arg2 in fp (move s8,t3) and computes the colour mask
-//    0xFFFFFF into s5 (lui 0xff/ori 0xffff) BEFORE the loop; this body lets the
-//    first fall to a stack slot and re-materialises the mask per use.
-//  - retail's `half + (half * span) / 0x100` lands in its own register
-//    (addu v1,v1,v0 then subu v0,a1,v1); writing it inline into the subtraction
-//    fuses the two and shifts everything after it.
-//  - the loop body's register assignment diverges from the first statement, so
-//    the per-vertex store order (retail interleaves x/y/u/v across vertices:
-//    x0,x1,x2,y2,x3,y3,u0,y0,y1,u1,v0,u2,v1,u3,v2,v3) was not chased yet.
-// Worth about 20 more minutes with these four in hand.
 /*
-// The 0x34C render block func_8002709C allocates: sixteen textured quads (the
-// two 0x140-byte banks this helper fills), then the prims and draw state it
-// copies in.
-typedef struct {
-    POLY_FT4 ft4[16];              // 0x000
-    u8 unk280[0xA8];               // 0x280
-    s32 unk328;                    // 0x328
-    s32 unk32C;                    // 0x32C
-    s32 unk330;                    // 0x330
-    u16 unk334;                    // 0x334
-    u16 unk336;                    // 0x336
-    u16 unk338;                    // 0x338
-    u8 unk33A;                     // 0x33A
-} Temp2RenderBlock; // Size: 0x33B
-
 // Fills one bank of eight textured quads: the block's unk328 columns are spread
 // over the 0x140-wide screen, each row of quads is column-shifted by unk334>>2,
-// and the rows stop when they reach the screen edge or eight quads are written.
+// and rows stop at the screen edge or after eight quads.
 void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
                    u_long* pOT, s32 bank) {
     POLY_FT4* pPrim;
@@ -445,12 +448,13 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     s32 height;
     s32 texColumn;
     s32 i;
+    s32 yTop;
     u16 uOffset;
-    u16 v;
 
     quotient = (pBlock->unk328 << 8) / (span + 0x100);
     half = (0x140 - quotient) / 2;
-    col = (s16)(left - (half + (half * span) / 0x100)) % pBlock->unk328;
+    half += (half * span) / 0x100;
+    col = (s16)(left - half) % pBlock->unk328;
     if ((s16)col < 0) {
         col += (u16)pBlock->unk328;
     }
@@ -463,43 +467,42 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     if ((s16)rows <= 0) {
         return;
     }
-    uOffset = ((s16)pBlock->unk334 % 64) << (2 - (s16)pBlock->unk338);
+    yTop = top;
+    uOffset = (pBlock->unk334 % 64) << (2 - pBlock->unk338);
     for (i = 0; i < 8; i++, pPrim++) {
-        texColumn = (u16)pBlock->unk334 + ((s16)col >> (2 - (s16)pBlock->unk338));
-        u = (col + uOffset) & ((0x100 >> (s16)pBlock->unk338) - 1);
+        texColumn = (u16)pBlock->unk334 + ((s16)col >> (2 - pBlock->unk338));
+        u = (col + uOffset) & ((0x100 >> pBlock->unk338) - 1);
         width = 0x100 - u;
         if (pBlock->unk328 < (s16)col + (s16)width) {
             width = (u16)pBlock->unk328 - col;
         }
-        height = (width << 8) / (span + 0x100);
+        height = ((s16)width << 8) / (span + 0x100);
         rowEnd = rowStart + height;
         if ((s16)rowStart + (s16)height >= 0x141) {
             height = 0x140 - rowStart;
-            col = (s16)(col + (height * (span + 0x100)) / 256) % pBlock->unk328;
-        } else {
-            col = (s16)(col + width) % pBlock->unk328;
+            width = ((s16)height * (span + 0x100)) / 256;
         }
-        v = pBlock->unk33A;
+        col = (s16)(col + width) % pBlock->unk328;
         pPrim->x0 = rowStart;
-        pPrim->y0 = top - rows;
-        pPrim->u0 = u;
-        pPrim->v0 = v;
         pPrim->x1 = rowEnd;
+        pPrim->x2 = rowStart;
+        pPrim->y2 = yTop;
+        pPrim->x3 = rowEnd;
+        pPrim->y3 = yTop;
+        pPrim->u0 = u;
+        pPrim->y0 = top - rows;
         pPrim->y1 = top - rows;
         pPrim->u1 = width + u - 1;
-        pPrim->v1 = v;
-        pPrim->x2 = rowStart;
-        pPrim->y2 = top;
+        pPrim->v0 = pBlock->unk33A;
         pPrim->u2 = u;
+        pPrim->v1 = pBlock->unk33A;
         pPrim->v2 = pBlock->unk33A + (u8)pBlock->unk32C;
-        pPrim->x3 = rowEnd;
-        pPrim->y3 = top;
         pPrim->u3 = width + u - 1;
         pPrim->v3 = pBlock->unk33A + (u8)pBlock->unk32C;
-        pPrim->tpage = GetTPage((s16)pBlock->unk338, 0,
+        pPrim->tpage = GetTPage(pBlock->unk338, 0,
                                 (s16)texColumn / 64 * 64,
-                                (s16)pBlock->unk336 / 256 * 256);
-        AddPrim(pOT, pPrim);
+                                pBlock->unk336 / 256 * 256);
+        addPrim(pOT, pPrim);
         if ((s16)rowEnd >= 0x140) {
             break;
         }
