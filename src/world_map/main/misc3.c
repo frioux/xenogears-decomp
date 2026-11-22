@@ -3,6 +3,9 @@
 #include "psyq/libgpu.h"
 #include "system/sound.h"
 
+// A scroll step under this snaps the player straight onto the target instead of moving.
+#define WORLD_MAP_STEP_SNAP_MAX 512
+
 // One slot of the pool g_WorldMapSlots (stride 0x80), partial view: only the script
 // cursor and the wait countdown are used here. The cursor is halfword
 // addressed; 0x50 of a slot is a pointer to the current command word.
@@ -343,19 +346,19 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
         pDelta->stepX = pDelta->x >> 3;
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;
-        if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x200) {
+        if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < WORLD_MAP_STEP_SNAP_MAX) {
             g_WorldMapScrollXTable[0] += pDelta->x;
             pPlayer->x = g_WorldMapScrollTargetXTable[0];
         } else {
             g_WorldMapScrollXTable[0] += pDelta->stepX;
             pPlayer->x += pDelta->stepX;
         }
-        if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x200) {
+        if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < WORLD_MAP_STEP_SNAP_MAX) {
             pPlayer->y = g_WorldMapScrollTargetY;
         } else {
             pPlayer->y += pDelta->stepY;
         }
-        if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x200) {
+        if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < WORLD_MAP_STEP_SNAP_MAX) {
             g_WorldMapScrollZTable[0] += pDelta->z;
             pPlayer->z = g_WorldMapScrollTargetZ;
         } else {
