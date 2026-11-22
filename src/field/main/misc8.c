@@ -1336,8 +1336,201 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
+void FieldGetTrianglePlaneHeight(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR* pNormal);
 
+// Height the polygon check starts from: no polygon was under the test point
+#define FIELD_POLY_HEIGHT_NONE 0x7FFFFFFF
+// Command bit that says the primitive has four vertices instead of three
+#define FIELD_POLY_COMMAND_QUAD 0x8
+
+// One word of the command stream pBounds->pCommands points at: either the command
+// word itself (primitiveCount << 16 | opcode) or a pair of vertex indices.
+typedef union {
+    /* 0x0 */ u32 command;
+    /* 0x0 */ u16 indices[2];
+} FieldModelCommandWord;
+
+// The 0xB8-byte scratch block the polygon check runs in: it holds the polygon
+// transformed to screen space, the matrices the GTE works from and the lowest
+// plane height found so far.
+typedef struct {
+    /* 0x00 */ s32 sxy[4]; // Screen x/y of the four transformed vertices
+    /* 0x10 */ s32 sxyRef; // Screen x/y of the point the check is made for
+    /* 0x14 */ SVECTOR v[4]; // The polygon's vertices, transformed
+    /* 0x34 */ SVECTOR planePoint; // x/z of the test point, y the plane's height there
+    /* 0x3C */ long flag; // RotTransSV's flag word
+    /* 0x40 */ MATRIX screenMatrix; // Actor to screen, the one handed to the GTE
+    /* 0x60 */ MATRIX workMatrix;
+    /* 0x80 */ MATRIX parentMatrix;
+    /* 0xA0 */ s32 minHeight;
+    /* 0xA4 */ SVECTOR* pVertices;
+    /* 0xA8 */ undefined32 unkA8;
+    /* 0xAC */ u32 command; // opcode of the command being walked
+    /* 0xB0 */ SVECTOR rotation;
+} FieldPolyCheckScratch; // Size: 0xB8
+
+extern MATRIX D_800AFC30;
+
+// Returns 0 and the height of the lowest polygon under (refX, refZ) in *pHeight,
+// -1 when the actor's model has no polygon there.
+/* PARKED 74.01% (446 insns / 1784 bytes vs retail 451 / 1804). The whole shape is
+   retail's: one switch over flags12C_0 with case 0 = the parent-matrix path, the
+   RotMatrix/MulMatrix2/translation tail shared by cases 1-3 (needs the goto: three
+   duplicated tails measure 66.81% / 502 insns because this cc1 does NOT cross-jump
+   them), SetRotMatrix/SetTransMatrix, the command stream walk (0xC4/0xC8 skip,
+   bit 8 = quad) and the min-height tail.
+   Spelling that took 48.17 -> 62.02 and must stay: NO pFieldActor / pActor locals -
+   every use spells g_FieldActors[actorIndex]... so the volatile table pointer is
+   re-read, which is what retail does (it reloads the base + pActorData at each use
+   and keeps pActor in $a1 only from the dispatch to case 1).
+   Residuals measured this round:
+   (1) the reference x/z: retail spills them with sw and reads them back with lw for
+       the (x << 16) + z and with lhu only for the planePoint halfword stores; u16
+       params give sh/lhu/lhu here. Tried u16 only so far.
+   (2) actorIndex lands in s1 and pBounds in s5 here; retail has s5/s6.
+   (3) retail's case bodies 2 and 3 reload the g_FieldActors chain (6 insns each)
+       where case 1 reuses $a1 - a gcc CSE effect I could not reproduce by spelling.
+   (4) the sxy[] stores and the first NormalClip's argument loads interleave in
+       retail (store 0, load 0, store 1, load 1, store 2 in the jal slot); this body
+       stores all three first. Same instruction count, different schedule.
+   Not tried: int params, the (pCmd++)->indices[1] increment-form, permuter. */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
+/*
+s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, u16 refX, u16 refZ, s32* pHeight, VECTOR* pNormal) {
+    FieldPolyCheckScratch* pScratch;
+    FieldModelCommandWord* pCmd;
+    MATRIX* pSourceMatrix;
+    u32 command;
+    int numPrimitives;
+    int i;
+    int j;
+
+    pScratch = (FieldPolyCheckScratch*)FieldAllocScratchpad(sizeof(FieldPolyCheckScratch));
+    pCmd = (FieldModelCommandWord*)pBounds->pCommands;
+    pScratch->minHeight = FIELD_POLY_HEIGHT_NONE;
+    pScratch->pVertices = ((SVECTOR**)pBounds->unk8)[0];
+    pScratch->sxyRef = (refX << 16) + refZ;
+    switch (g_FieldActors[actorIndex].pActorData->flags12C_0) {
+    case 1:
+        pScratch->rotation.vy = 0;
+        pScratch->rotation.vz = 0;
+        pScratch->rotation.vx = g_FieldActors[actorIndex].pActorData->hideModeParam;
+        goto rotate;
+    case 2:
+        pScratch->rotation.vx = 0;
+        pScratch->rotation.vz = 0;
+        pScratch->rotation.vy = g_FieldActors[actorIndex].pActorData->hideModeParam;
+        goto rotate;
+    case 3:
+        pScratch->rotation.vx = 0;
+        pScratch->rotation.vy = 0;
+        pScratch->rotation.vz = g_FieldActors[actorIndex].pActorData->hideModeParam;
+        goto rotate;
+    default:
+        pScratch->screenMatrix.t[2] = 0;
+        pScratch->screenMatrix.t[1] = 0;
+        pScratch->screenMatrix.t[0] = 0;
+        pScratch->parentMatrix.t[2] = 0;
+        pScratch->parentMatrix.t[1] = 0;
+        pScratch->parentMatrix.t[0] = 0;
+        CompMatrix(&g_Scene.worldRotationMatrix, &D_800AFC30, &pScratch->parentMatrix);
+        if (g_FieldActors[actorIndex].pActorData->parentActorId != ACTOR_ID_INVALID) {
+            CompMatrix(&pScratch->parentMatrix,
+                &g_FieldActors[g_FieldActors[actorIndex].pActorData->parentActorId].childMatrix,
+                &pScratch->workMatrix);
+            pSourceMatrix = &pScratch->workMatrix;
+        } else {
+            pSourceMatrix = &pScratch->parentMatrix;
+        }
+        CompMatrix(pSourceMatrix, &g_FieldActors[actorIndex].transformMatrix, &pScratch->screenMatrix);
+        break;
+    }
+    RotMatrix(&pScratch->rotation, &pScratch->workMatrix);
+    MulMatrix2(&g_FieldActors[actorIndex].transformMatrix, &pScratch->workMatrix);
+    pScratch->workMatrix.t[0] = g_FieldActors[actorIndex].transformMatrix.t[0];
+    pScratch->workMatrix.t[1] = g_FieldActors[actorIndex].transformMatrix.t[1];
+    pScratch->workMatrix.t[2] = g_FieldActors[actorIndex].transformMatrix.t[2];
+    CompMatrix(&g_Scene.worldRotationMatrix, &pScratch->workMatrix, &pScratch->screenMatrix);
+rotate:
+    SetRotMatrix(&pScratch->screenMatrix);
+    SetTransMatrix(&pScratch->screenMatrix);
+
+    for (i = pBounds->numCommands; i > 0; i--) {
+        command = pCmd->command;
+        pScratch->command = command & 0xFF;
+        numPrimitives = command >> 16;
+        if ((command & 0xFF) == 0xC4 || (command & 0xFF) == 0xC8) {
+            pCmd++;
+            continue;
+        }
+        pCmd++;
+        if (!(command & FIELD_POLY_COMMAND_QUAD)) {
+            for (j = 0; j < numPrimitives; j++) {
+                RotTransSV(&pScratch->pVertices[pCmd->indices[0]], &pScratch->v[0], &pScratch->flag);
+                RotTransSV(&pScratch->pVertices[pCmd->indices[1]], &pScratch->v[1], &pScratch->flag);
+                pCmd++;
+                RotTransSV(&pScratch->pVertices[pCmd->indices[0]], &pScratch->v[2], &pScratch->flag);
+                pCmd++;
+                pScratch->sxy[0] = (pScratch->v[0].vx << 16) + pScratch->v[0].vz;
+                pScratch->sxy[1] = (pScratch->v[1].vx << 16) + pScratch->v[1].vz;
+                pScratch->sxy[2] = (pScratch->v[2].vx << 16) + pScratch->v[2].vz;
+                if (NormalClip(pScratch->sxy[0], pScratch->sxy[1], pScratch->sxyRef) < 0 ||
+                    NormalClip(pScratch->sxy[1], pScratch->sxy[2], pScratch->sxyRef) < 0 ||
+                    NormalClip(pScratch->sxy[2], pScratch->sxy[0], pScratch->sxyRef) < 0 ||
+                    NormalClip(pScratch->sxy[0], pScratch->sxy[1], pScratch->sxy[2]) < 0) {
+                    continue;
+                }
+                pScratch->planePoint.vx = refX;
+                pScratch->planePoint.vz = refZ;
+                FieldGetTrianglePlaneHeight(&pScratch->v[0], &pScratch->v[1], &pScratch->v[2],
+                    &pScratch->planePoint, pNormal);
+                if (pScratch->planePoint.vy < pScratch->minHeight) {
+                    pScratch->minHeight = pScratch->planePoint.vy;
+                }
+            }
+        } else {
+            for (j = 0; j < numPrimitives; j++) {
+                RotTransSV(&pScratch->pVertices[pCmd->indices[0]], &pScratch->v[0], &pScratch->flag);
+                RotTransSV(&pScratch->pVertices[pCmd->indices[1]], &pScratch->v[1], &pScratch->flag);
+                pCmd++;
+                RotTransSV(&pScratch->pVertices[pCmd->indices[0]], &pScratch->v[2], &pScratch->flag);
+                RotTransSV(&pScratch->pVertices[pCmd->indices[1]], &pScratch->v[3], &pScratch->flag);
+                pCmd++;
+                pScratch->sxy[0] = (pScratch->v[0].vx << 16) + pScratch->v[0].vz;
+                pScratch->sxy[1] = (pScratch->v[1].vx << 16) + pScratch->v[1].vz;
+                pScratch->sxy[2] = (pScratch->v[2].vx << 16) + pScratch->v[2].vz;
+                pScratch->sxy[3] = (pScratch->v[3].vx << 16) + pScratch->v[3].vz;
+                if (NormalClip(pScratch->sxy[0], pScratch->sxy[1], pScratch->sxyRef) < 0 ||
+                    NormalClip(pScratch->sxy[1], pScratch->sxy[3], pScratch->sxyRef) < 0 ||
+                    NormalClip(pScratch->sxy[3], pScratch->sxy[2], pScratch->sxyRef) < 0 ||
+                    NormalClip(pScratch->sxy[2], pScratch->sxy[0], pScratch->sxyRef) < 0 ||
+                    NormalClip(pScratch->sxy[0], pScratch->sxy[1], pScratch->sxy[2]) < 0) {
+                    continue;
+                }
+                pScratch->planePoint.vx = refX;
+                pScratch->planePoint.vz = refZ;
+                if (NormalClip(pScratch->sxy[1], pScratch->sxy[2], pScratch->sxyRef) >= 0) {
+                    FieldGetTrianglePlaneHeight(&pScratch->v[0], &pScratch->v[1], &pScratch->v[2],
+                        &pScratch->planePoint, pNormal);
+                } else {
+                    FieldGetTrianglePlaneHeight(&pScratch->v[1], &pScratch->v[3], &pScratch->v[2],
+                        &pScratch->planePoint, pNormal);
+                }
+                if (pScratch->planePoint.vy < pScratch->minHeight) {
+                    pScratch->minHeight = pScratch->planePoint.vy;
+                }
+            }
+        }
+    }
+    if (pScratch->minHeight != FIELD_POLY_HEIGHT_NONE) {
+        *pHeight = pScratch->minHeight;
+        FieldFreeScratchpad(sizeof(FieldPolyCheckScratch));
+        return 0;
+    }
+    FieldFreeScratchpad(sizeof(FieldPolyCheckScratch));
+    return -1;
+}
+*/
 void FieldNoOp(void) {
 }
 
