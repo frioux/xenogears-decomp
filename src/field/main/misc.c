@@ -3221,25 +3221,35 @@ void func_8008EC30(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 
-// 79.22%: everything up to the last four stores matches. The original's
-// post-reload scheduler emits them as [lhu D_800C3A30][lw g_FieldScriptVMCurActor]
-// [sh g_FieldStreamRgb24][andi/sh D_800C3A30][lhu ip][li 1][sw g_FieldStreamSceneActive][addiu/sh ip];
-// ours puts the g_FieldStreamSceneActive store before the actor load and the ip load after it.
-// preset screen: 2.7.2 79.22%, cdk 79.22%, 2.6.0 79.22% - no compiler
-// fixes it.
-// 81.16%: the whole body matches except the order of the last block. Retail
-// emits [lhu D_800C3A30][lw actor][sh g_FieldStreamRgb24][andi/sh D_800C3A30]
-// [lhu ip][li 1][sw g_FieldStreamSceneActive][addiu/sh ip]; ours hoists the g_FieldStreamSceneActive store
-// above the lhu and the ip lhu above the andi. All 24 statement orders of the
-// last four stores compile to the same schedule, and marking the globals
-// `volatile` keeps the order but loses every `li` in a jal delay slot (360
-// bytes). Was 79.22% with `u16 value = call(9)` (that hoists the 9th call to the
-// top); assigning it after argument 7 is what a `u16 value;` local fixes.
-// preset screen: 2.7.2 81.16%, cdk 79.22%, 2.6.0 81.16% - no compiler fixes it.
+// 89.63% (84 insns / 336 bytes against retail's 82 / 328 - TWO short, cannot
+// link). Round 411. Everything matches from the FieldScriptVMGetArgument calls
+// through the D_800C3A30 store and the loopPlayback if/else, and the actor load
+// sits in retail's slot. Two residuals:
+//   (1) the value mask: retail masks at the assignment (`andi s0,v0,0xffff`)
+//   and stores the raw call result (`sh v0`); here gcc keeps the raw result in
+//   s0 for the store and masks a COPY into v1 for the compare
+//   (`move s0,v0` + `andi v1,s0,0xffff`), one instruction more. Measured
+//   identical: `u16 value = call(9)` (hoists the call), a chained
+//   `D_800C3A30 = value = call(9)`, `value = (u16)call(9)`, and a volatile
+//   D_800C3A30 extern (which also leaves the reload of the `& 0xF` unchanged,
+//   so the reload is ordinary gcc, not volatile).
+//   (2) the tail: retail is [lhu ip][li v1,1][lui/sw SceneActive][addiu][sh ip],
+//   here [lhu ip][nop][addiu][sh ip][li][sw] - the g_FieldStreamSceneActive
+//   store is emitted after the whole increment instead of between the load and
+//   its add, so the load delay is a nop. Writing the store BEFORE the increment
+//   is worse: gcc then hoists it above the whole D_800C3A30 block (88.96).
+//   Earlier rounds measured all 24 statement orders of the last four stores
+//   giving the same schedule.
+// THE POINTER FORM IS WHAT BOUGHT 81.16 -> 89.63: `pIp = &actor->ip; *pIp +=
+// 0x13;` makes cc1 emit the read-modify-write strictly in place (lever
+// h-address-taken-field-pointer-forces-in-place-rmw); the plain
+// `actor->scriptInstructionPointer += 0x13` hoists the lhu above the andi.
+// Preset screened on this body: 2.7.2 89.63, 2.6.0 89.63.
 /*
 void func_8008EE14(void) {
     u16 value;
     s16 pos;
+    u16 *pIp;
 
     g_FieldStreamFileIndex = FieldScriptVMGetArgument(1);
     D_800C3A2A = FieldScriptVMGetArgument(3);
@@ -3263,10 +3273,11 @@ void func_8008EE14(void) {
     g_FieldStreamFlags = value & 0x40;
     g_FieldStreamId = 0xFF;
     g_FieldMode = 2;
-    D_800C3A30 &= 0xF;
     g_FieldStreamRgb24 = 0;
+    D_800C3A30 &= 0xF;
+    pIp = &g_FieldScriptVMCurActor->scriptInstructionPointer;
+    *pIp += 0x13;
     g_FieldStreamSceneActive = 1;
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 0x13;
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
