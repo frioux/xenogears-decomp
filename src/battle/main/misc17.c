@@ -342,24 +342,40 @@ void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
             g_BattleGraphicsWork->pPacketPrims[0x66E]++;
         }
     }
-}/* 98.22% (704 bytes against retail's 700) under gcc 2.6.0 as well as 2.7.2, so
-   this is now a one-instruction residual and not a preset question. The whole
-   body reproduces retail: the two flag-row loads need the row offset in a local
+}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
+/* 98.22% (704 bytes against retail's 700, 175 vs 174 insns) under gcc 2.6.0.
+   The body is retail's except for the switch's case-1 arm and two addu operand
+   pairs; the flags load wants the row offset in a local
    (`off = (arg2 * 2 + arg1 + 0x16) * 0x28 + arg0 * 0x5F0;` then
    `*(u16 *)(g_BattleCellActionRows + off)`), which is what makes gcc emit
-   retail's symbol+register `lui $at` macro form; the row pick is 9 (0x4000) /
-   7 (0x1000) / 8; the prim base needs a `u8 *pRec` local assigned before each
-   palette if; and the switch case bodies must be listed 0, 2, default, 1 to get
-   retail's layout (97.48 with 1, 0, 2, default).
-   The residual is the FIRST beq's delay slot: retail keeps case 1's body out of
-   line at the end of the switch and fills that slot with `slti v0,v1,2`, gcc
-   fills it with a nop (and, for the ==2 test, inverts to `bne` with the next
-   statement's `li a1,0xda` stolen into the slot where retail has
-   `beq` + `li s2,0x15`). Listing the cases 0, 2, 1, default instead DOES give
-   retail's exact 700 bytes (97.62) but puts case 1's body in that slot, so the
-   tie is which instruction gcc parks there, not the tree shape. Tried: every
-   case listing order, `s32 t = flags & 0xF; switch (t)`, `u8 t`, and a
-   pre-initialised `col = 0xC` with a two-case switch. */
+   retail's symbol+register `lui $at` macro form. The row pick is 9 (0x4000) /
+   7 (0x1000 set) / 8; the prim base needs a `u8 *pRec` local assigned before
+   each palette if; `pal` must be ONE value stored after the if/else (retail's
+   `sh v0,0x32E(v1)` sits after the join), not a store duplicated in both arms.
+   THE SWITCH is where the last 4 bytes live. Both this function and
+   func_80093578 below have the identical retail switch (cases 0 -> 0xC,
+   1 -> 0xD, 2 -> 0x15, default -> 0xC) and func_80093578's compile reproduces it
+   exactly, so the C shape is known; only reorg's slot choice differs here:
+   - cases listed 0, 2, default, 1 (this park): retail's BODY order (0xC, 0x15,
+     0xC, 0xD in memory) and case 1 out of line at the end, but gcc leaves a NOP
+     in the first beq's slot (retail fills it with `slti v0,v1,2`) and inverts
+     the ==2 test to `bne` with `li a1,0xDA` stolen into its slot: 98.22, 704.
+   - cases listed 0, 1, 2, default: the first beq's slot is filled, but with case
+     1's own `li s2,0xD` (gcc threads that block), losing retail's out-of-line
+     arm: 97.48, 696 (4 bytes SHORT, cannot link).
+   - three statements for the flags offset (`rowOff = (..)*0x28; slotOff =
+     arg0*0x5F0; rowOff += slotOff;`): the sum then lands in a fresh $a1 and the
+     else arm's block order changes: 98.02, 176 insns.
+   - a 3-minute permuter run found nothing shippable (its best candidate wrapped
+     a palette arm in `if (g_BattleActionRows)`, wrong code).
+   The other ties, measured: the byte-offset sum `off` lands in the slot-offset
+   register (`addu v0,v1,v0`) where retail keeps it in the row-offset one
+   (`addu v1,v1,v0`, both flag loads), and pRec takes $v0 where retail has $v1
+   (so the palette value takes $v1). Every spelling of `pRec` tried elsewhere in
+   this file (`prims + idx * 0x28`, the `- (-(idx * 0x28))` double negation used
+   by the matched neighbours, a two-statement `pRec = prims; pRec += ...`) is
+   measured in func_80093578's note below. */
 /*
 void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     u16 flags;
@@ -419,7 +435,6 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     *(u16 *)(pRec + 0x37E) = pal;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
 void BattleDrawSlotStatusText(u8 arg0, u8 arg1, u8 arg2) {
     RECT rect;
     u8 *pBuf;
@@ -945,35 +960,37 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
-/* 97.72% at objdiff's 692 bytes -- retail's EXACT size, and every instruction
-   is retail's: the only difference left is which register three values land in
-   (retail keeps `row` in $s0 where it holds the dying arg1, this body takes $a0;
-   `g_BattlePrimStartIndex[0]` is $v1 in retail and $t0 here; `pRec` is formed
-   with `addu v1,v1,v0` in place in retail). Structure that took it from 83.74:
+/* 97.83% at objdiff's 692 bytes / 173 insns -- retail's EXACT size, and every
+   instruction is retail's: the only difference left is which register four
+   values land in (retail keeps the row pick in $s0, the register the dying
+   `index = arg1 + 0x25` had, where this body's pick takes $a0; retail's
+   `g_BattlePrimStartIndex` address is in $s1 and this body's in $s0, which
+   follows from the pick's register; and the second pRec is formed with
+   `addu v1,v1,v0` in place in retail where this body needs a fresh $t1).
+   Structure that took it from 83.74:
    (1) the flags word wants a named index local -- `index = arg1 + 0x25;` then
    `row = index * 0x28;` before the load, otherwise gcc folds 0x25 * 0x28 into
    the lhu's reloc addend (+0x5C8) where retail emits `addiu s0,s0,37` first;
    (2) the row pick is 9 for flags & 0x4000, then 7 when 0x1000 is SET and 8 when
-   it is clear -- the older 9/8/7 reading had the delay-slot arm inverted;
+   it is clear;
    (3) the switch needs `case 0`, `case 1`, `case 2` then `default: col = 0xC`,
    listed in that order (case 0 present is what makes gcc emit the
-   `slti v0,v1,2` range test); listing them 0,2,1 or dropping case 0 loses the j;
+   `slti v0,v1,2` range test), and this compile reproduces retail's switch
+   instruction for instruction;
    (4) `pRec = g_BattleGraphicsWork->pPacketPrims;` before the 0x320 call.
-   Tried: declaration orders (six, no change), u16/s32 for row, index and ofs,
-   an `ofs` local vs `row * 4` inline (ofs lands in $t1 and costs 4 bytes), and
-   three 4-minute permuter runs (base 926 -> 655 -> 600 -> 385); the last one's
-   only improvement swapped `D_800D2F69[col * 4]` for `D_800D2F69[0xC * 4]`,
-   which is wrong code. Round 294 added an 11-shape sweep (one shared variable for
-   the offset and the pick, 97.30 -- it does move the pick into an $s register but
-   then the two parameters swap $s0/$s1; a separate `rowIdx` for the pick, 97.60;
-   pick into `index`, 97.21; the offset inlined into the flags address, 96.56; u32
-   index, identical; s16 row, 97.60; `row = index; row *= 0x28;`, 97.30; reversed
-   product, identical; a `u16 *pFlags` local, 95.92 at 696 bytes; switch before the
-   pick, 87.86) and a fourth permuter run (base 385 -> 375, its only find a
-   `-(-(x))` double negation on the second pRec line that buys 0.05 and is not
-   shippable code). Preset screen: gcc-2.7.2 96.21, gcc-2.7.2-cdk 57.83, so 2.6.0 is
-   right. Only the allocator tie for `row` is left. Un-parking needs no new
-   externs. */
+   Measured this round on the two pRec addresses: `prims + idx * 0x28` 97.72;
+   the `prims - (-(idx * 0x28))` double negation the matched neighbours in this
+   file use 97.83 (this park -- it puts both pRec sums in place, but keeps the
+   fresh-register operand order); two statements `pRec = prims; pRec += idx *
+   0x28;` 83.52 at 696 bytes (it hoists the pool load); an `ofs` local for the
+   flags byte offset 97.83 with more differing lines. Earlier rounds measured
+   six declaration orders (no change), u16/s32/u32 row/index/ofs, an ofs local
+   for the table lookups (costs 4 bytes), a separate `rowIdx` (97.60), one
+   shared variable for the offset and the pick (97.30 -- it does put the pick in
+   an $s register but then swaps the two parameters' $s0/$s1), and four
+   permuter runs (base 926 -> 655 -> 600 -> 375, the last find a double negation,
+   not shippable). Preset screen: gcc-2.7.2 96.21, gcc-2.7.2-cdk 57.83, so 2.6.0
+   is right. Only the allocator tie for the row pick is left. */
 /*
 void func_80093578(u8 arg0, u8 arg1) {
     u8 *pRec;
@@ -1013,7 +1030,7 @@ void func_80093578(u8 arg0, u8 arg1) {
     pRec = g_BattleGraphicsWork->pPacketPrims;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(pRec + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
                             0x24, 0xA6, D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
-    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
     if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
@@ -1023,7 +1040,7 @@ void func_80093578(u8 arg0, u8 arg1) {
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                          (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
                             0x48, 0xA6, D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
-    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
     if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
