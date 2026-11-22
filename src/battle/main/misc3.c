@@ -624,47 +624,55 @@ void BattleClearFlagC6(void) {
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
-/* 61.46%: retail walks two 0x28-byte packets from pInfo to pInfo+0x50 and
-   finishes with pInfo[0x5D] = 0. What retail does that no attempt so far
-   reproduces:
-   1. its loop compare is `slt` (signed) against a register holding pInfo+0x50,
-      and it re-forms that bound inside the loop (addiu s0,s0,0x28; addiu
-      v0,s1,0x50; slt; bnez) with NO pre-loop guard. A POLY_FT4* compare (the
-      body below) still gives `sltu` plus a hoisted `addiu v0,s2,0x50; sltu;
-      beqz` guard, and so does a u8* compare, so the signed compare is not a
-      pointer-vs-u8* question; it wants a signed integer cursor/limit.
+/* Prior findings for func_800780A8: retail walks two 0x28-byte packets from
+   pInfo to pInfo+0x50 and finishes with pInfo[0x5D] = 0. Retail facts:
+   1. loop compare is `slt` (signed) vs a bound re-formed inside the loop
+      (addiu v0,s1,0x50; slt; bnez) with NO pre-loop guard - wants a signed
+      integer cursor/limit, not a pointer compare.
    2. retail stores the flag and RE-READS it (andi v0,s3,1; sb v0,0x5C(s1);
-      lbu v0,0x5C(s1); beqz) - every plain store-then-test spelling lets cse
-      forward the store and compare the register instead.
-   3. retail's GetTPage has a0=0 preloaded in the beqz delay slot and
-      p->clut = tile lands in the jal's delay slot.
-   Parked body (61.46):
+      lbu v0,0x5C(s1); beqz).
+   3. several stores land in jal delay slots (cdk signature). */
+/* Two POLY_FT4 packets plus the two flag bytes that follow them: the info block
+   func_800780A8 walks. g_BattleTextSlotRects rows hand it &row->unkF[1] (the
+   packets of the row above, 0x50 back), so the flags land in the next row's
+   unkC. */
+typedef struct {
+    /* 0x00 */ POLY_FT4 prims[2];
+    /* 0x50 */ u8 unk50[0xC];
+    /* 0x5C */ u8 unk5C;
+    /* 0x5D */ u8 unk5D;
+} BattleSlotPrimBlock; // Size: 0x5E
+
 void func_800780A8(u8 *pInfo, s32 arg) {
     POLY_FT4 *p;
     u16 clut;
+    s32 i;
     s32 offset;
 
-    for (p = (POLY_FT4 *)pInfo; p < (POLY_FT4 *)(pInfo + 0x50); p++) {
+    offset = arg / 2;
+    i = 0;
+    do {
+        p = &((BattleSlotPrimBlock *)pInfo)->prims[i];
         SetPolyFT4(p);
         p->r0 = 0x80;
         p->g0 = 0x80;
         p->b0 = 0x80;
         SetSemiTrans(p, 0);
         SetShadeTex(p, 1);
-        pInfo[0x5C] = arg & 1;
-        if (pInfo[0x5C] != 0) {
+        *(volatile u8 *)&((BattleSlotPrimBlock *)pInfo)->unk5C = arg & 1;
+        if (*(volatile u8 *)&((BattleSlotPrimBlock *)pInfo)->unk5C != 0) {
             clut = g_SystemPalette2;
         } else {
             clut = g_SystemPalette1;
         }
         p->clut = clut;
-        offset = arg / 2;
         p->tpage = GetTPage(0, 0, 0x3C0, offset * 13);
-    }
-    pInfo[0x5D] = 0;
+        i++;
+    } while ((s32)&((BattleSlotPrimBlock *)pInfo)->prims[i] <
+             (s32)&((BattleSlotPrimBlock *)pInfo)->prims[2]);
+    ((BattleSlotPrimBlock *)pInfo)->unk5D = 0;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
+
 /* 98.39% (372 bytes = retail size, 93 insns = retail count, addresses verified correct):
    the body is instruction-identical to retail EXCEPT that the two induction-varying
    byte offsets trade registers. Retail keeps offset A = 0x60 + 0xC0k (init li s3,0x60)
