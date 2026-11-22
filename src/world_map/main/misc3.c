@@ -145,13 +145,19 @@ extern s32 D_8009BD48;
 extern s32 g_WorldMapCameraTargetY;
 extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollTargetX;
-extern s32 g_WorldMapScrollTargetY;
-extern s32 g_WorldMapScrollTargetZ;
+// volatile: retail re-reads Y and Z in the delta block; without it cc1 reuses the values
+// it loaded for the compare and the body comes out four instructions short.
+extern volatile s32 g_WorldMapScrollTargetY;
+extern volatile s32 g_WorldMapScrollTargetZ;
 extern s32 g_WorldMapScrollZ;
 extern s16 g_WorldMapCameraRot;
 // Second declarations with an asm label: an address taken from a scalar global is a
 // rematerialisable constant, so cc1 re-forms lui/addiu at each use; the array form makes
-// it a value that survives a call in a saved register.
+// it a value that survives a call in a saved register, and gives a store's base a register
+// instead of the $at macro form.
+extern s32 g_WorldMapScrollXTable[] __asm__("g_WorldMapScrollX");
+extern s32 g_WorldMapScrollZTable[] __asm__("g_WorldMapScrollZ");
+extern s32 g_WorldMapScrollTargetXTable[] __asm__("g_WorldMapScrollTargetX");
 extern s16 g_WorldMapCameraRotTable[] __asm__("g_WorldMapCameraRot");
 extern s16 g_WorldMapViewRotationYTable[] __asm__("g_WorldMapViewRotationY");
 extern s32 g_WorldMapPathFrameTable[] __asm__("g_WorldMapPathFrame");
@@ -327,18 +333,10 @@ void WorldMapApproachHeight(WorldMapPlayer* pPlayer) {
         }
     }
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
-/* Best attempt: 75.16%. Same skeleton as WorldMapApproachViewRotation (compare the three
-   player fields against the g_WorldMapScrollTargetX/560/564 goal, wrap the delta through
-   WorldMapWrapDelta, 1/8 step, |step| < 0x200 snaps to the goal). Remaining diff:
-   inside the if-block gcc cse reuses the g_WorldMapScrollTargetX/560/564 values it loaded
-   for the compare (in a2/a3/a1), while the original reloads g_WorldMapScrollTargetY and
-   g_WorldMapScrollTargetZ plus the player fields, so everything after shifts by two
-   instructions. The four-word copy at the end is WorldMapPos4.
 void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
-    if ((pPlayer->x != g_WorldMapScrollTargetX) | (pPlayer->y != g_WorldMapScrollTargetY) |
+    if ((pPlayer->x != g_WorldMapScrollTargetXTable[0]) | (pPlayer->y != g_WorldMapScrollTargetY) |
         (pPlayer->z != g_WorldMapScrollTargetZ)) {
-        pDelta->x = g_WorldMapScrollTargetX - pPlayer->x;
+        pDelta->x = g_WorldMapScrollTargetXTable[0] - pPlayer->x;
         pDelta->y = g_WorldMapScrollTargetY - pPlayer->y;
         pDelta->z = g_WorldMapScrollTargetZ - pPlayer->z;
         WorldMapWrapDelta(pDelta);
@@ -346,10 +344,10 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;
         if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x200) {
-            g_WorldMapScrollX += pDelta->x;
-            pPlayer->x = g_WorldMapScrollTargetX;
+            g_WorldMapScrollXTable[0] += pDelta->x;
+            pPlayer->x = g_WorldMapScrollTargetXTable[0];
         } else {
-            g_WorldMapScrollX += pDelta->stepX;
+            g_WorldMapScrollXTable[0] += pDelta->stepX;
             pPlayer->x += pDelta->stepX;
         }
         if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x200) {
@@ -358,17 +356,15 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
             pPlayer->y += pDelta->stepY;
         }
         if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x200) {
-            g_WorldMapScrollZ += pDelta->z;
+            g_WorldMapScrollZTable[0] += pDelta->z;
             pPlayer->z = g_WorldMapScrollTargetZ;
         } else {
-            g_WorldMapScrollZ += pDelta->stepZ;
+            g_WorldMapScrollZTable[0] += pDelta->stepZ;
             pPlayer->z += pDelta->stepZ;
         }
     }
     *(WorldMapPos4*)&g_WorldMapCameraTarget = *(WorldMapPos4*)&pPlayer->x;
 }
-*/
-
 s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2) {
     s32 delta;
     s32 limit;
