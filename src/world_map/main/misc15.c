@@ -82,7 +82,7 @@ extern s32 D_8009CCB0;
 extern s32 g_WorldMapCdReadErrorCount;
 extern s32 g_WorldMapCdRetryCount;
 extern void WorldMapCdReadCallback(s32 mode, u8 *pResult);
-extern void func_80096C0C(u_char mode, u_char *pResult);
+extern void func_80096C0C(s32 mode, u8 *pResult);
 extern s32 g_WorldMapCdSectorBuffer;
 extern s32 D_8009BCD0;
 extern s32 D_8009BCD4;
@@ -217,73 +217,64 @@ void WorldMapCdReadCallback(s32 mode, u8 *pResult) {
         }
     }
 }
-// Best: 64.15% (800 bytes against retail's 780). Everything is decoded: the
-// sector header at g_WorldMapCdSectorBuffer, CdPosToInt/CdIntToPos, the 0xC
-// chunk cursor, the two sector copies of the short-tail read, all four
-// CdControlF call sites and the shared "expected sector + 1" tail. What differs
-// is BLOCK LAYOUT: gcc lays the two retry copies out inline (the top test comes
-// out `beq` into the success chain) where retail keeps the success chain first
-// with both retry copies late, and it loses the single shared `jal CdControlF`
-// tail that retail cross-jumps the three call sites into, for 5 extra
-// instructions.
-/*
-void func_80096C0C(u_char mode, u_char *pResult) {
+void func_80096C0C(s32 mode, u8 *pResult) {
     CdlLOC *pLoc;
     Misc15CdChunk *pChunk;
+    u8 *pSectorBuffer;
     s32 sector;
+    s32 nextSector;
 
     if (mode == 1) {
-        CdGetSector(&g_WorldMapCdSectorBuffer, 3);
-        sector = CdPosToInt((CdlLOC *)&g_WorldMapCdSectorBuffer);
-        if (sector != g_WorldMapCdExpectedSector) {
-            g_WorldMapCdRetryCount++;
-            CdReadyCallback(NULL);
-            if (pResult[0] & CdlStatShellOpen) {
-                g_WorldMapCdReadState = 10;
-                g_WorldMapCdReadErrorCount++;
-                CdControlF(CdlNop, NULL);
-            } else {
-                g_WorldMapCdReadState = 11;
-                CdControlF(CdlGetTN, NULL);
-            }
-            return;
-        }
-        if (sector == g_WorldMapCdCurrentSector) {
-            if (g_WorldMapCdReadBytesLeft < 0x800) {
-                CdGetSector((void *)g_WorldMapCdReadDest, g_WorldMapCdReadBytesLeft / 4);
-                CdGetSector(g_WorldMapCdSectorRemainder, (0x800 - g_WorldMapCdReadBytesLeft) / 4);
-            } else {
-                CdGetSector((void *)g_WorldMapCdReadDest, 0x200);
-                g_WorldMapCdReadBytesLeft -= 0x800;
-            }
-            if (--g_WorldMapCdReadSectorsLeft != 0) {
-                g_WorldMapCdCurrentSector++;
-                g_WorldMapCdReadDest += 0x800;
-            } else {
-                pChunk = (Misc15CdChunk *)g_WorldMapCdRequestCursor;
-                sector = pChunk->sector;
-                g_WorldMapCdCurrentSector = sector;
-                g_WorldMapCdReadSectorsLeft = (pChunk->size + 0x7FF) >> 11;
-                g_WorldMapCdRequestCursor = (u8 *)(pChunk + 1);
-                g_WorldMapCdReadBytesLeft = pChunk->size;
-                g_WorldMapCdReadDest = pChunk->dest;
-                if (sector == 0) {
-                    g_WorldMapCdReadState = 3;
-                    CdReadyCallback(NULL);
-                    CdControlF(CdlPause, NULL);
-                } else if (sector - g_WorldMapCdExpectedSector < 0x13) {
-                    g_WorldMapCdExpectedSector++;
+        pSectorBuffer = (u8 *)&g_WorldMapCdSectorBuffer;
+        CdGetSector(pSectorBuffer, 3);
+        sector = CdPosToInt((CdlLOC *)pSectorBuffer);
+        if (sector == g_WorldMapCdExpectedSector) {
+            if (g_WorldMapCdCurrentSector == sector) {
+                if (g_WorldMapCdReadBytesLeft < 0x800) {
+                    CdGetSector((void *)g_WorldMapCdReadDest, g_WorldMapCdReadBytesLeft / 4);
+                    CdGetSector(g_WorldMapCdSectorRemainder, (0x800 - g_WorldMapCdReadBytesLeft) / 4);
                 } else {
-                    g_WorldMapCdExpectedSector = sector;
-                    g_WorldMapCdReadState = 1;
-                    pLoc = &g_WorldMapCdReadLocation;
-                    CdIntToPos(sector, pLoc);
-                    CdControlF(CdlSetloc, (u8 *)pLoc);
-                    return;
+                    CdGetSector((void *)g_WorldMapCdReadDest, 0x200);
+                    g_WorldMapCdReadBytesLeft -= 0x800;
+                }
+                if (--g_WorldMapCdReadSectorsLeft != 0) {
+                    g_WorldMapCdCurrentSector++;
+                    g_WorldMapCdReadDest += 0x800;
+                } else {
+                    pChunk = (Misc15CdChunk *)g_WorldMapCdRequestCursor;
+                    nextSector = pChunk->sector;
+                    g_WorldMapCdCurrentSector = nextSector;
+                    g_WorldMapCdReadSectorsLeft = (pChunk->size + 0x7FF) >> 11;
+                    g_WorldMapCdRequestCursor = (u8 *)(pChunk + 1);
+                    g_WorldMapCdReadBytesLeft = pChunk->size;
+                    g_WorldMapCdReadDest = pChunk->dest;
+                    if (nextSector == 0) {
+                        g_WorldMapCdReadState = 3;
+                        CdReadyCallback(NULL);
+                        CdControlF(CdlPause, NULL);
+                    } else if (nextSector - g_WorldMapCdExpectedSector >= 0x13) {
+                        g_WorldMapCdExpectedSector = nextSector;
+                        g_WorldMapCdReadState = 1;
+                        pLoc = &g_WorldMapCdReadLocation;
+                        CdIntToPos(nextSector, pLoc);
+                        CdControlF(CdlSetloc, (u8 *)pLoc);
+                        return;
+                    }
                 }
             }
+            g_WorldMapCdExpectedSector++;
+            return;
         }
-        g_WorldMapCdExpectedSector++;
+        g_WorldMapCdRetryCount++;
+        CdReadyCallback(NULL);
+        if (pResult[0] & CdlStatShellOpen) {
+            g_WorldMapCdReadState = 10;
+            g_WorldMapCdReadErrorCount++;
+            CdControlF(CdlNop, NULL);
+        } else {
+            g_WorldMapCdReadState = 11;
+            CdControlF(CdlGetTN, NULL);
+        }
     } else {
         g_WorldMapCdRetryCount++;
         CdReadyCallback(NULL);
@@ -296,8 +287,7 @@ void func_80096C0C(u_char mode, u_char *pResult) {
             CdControlF(CdlGetTN, NULL);
         }
     }
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
+}
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
 // Best: 82.56% (336 bytes, 84 insns; retail 344 / 86). Every call, argument, fold
