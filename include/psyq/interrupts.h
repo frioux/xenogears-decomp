@@ -54,7 +54,7 @@ extern volatile int g_VsyncInterruptCount;
 extern volatile int g_VsyncPrevInterruptCount;
 extern volatile int g_HsyncInterruptCount;
 
-extern int D_8005893C;
+extern int g_IntrTimeoutCount;
 
 extern volatile u_short* g_pI_STAT;
 extern volatile u_short* g_pI_MASK;

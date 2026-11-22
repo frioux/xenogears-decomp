@@ -134,13 +134,13 @@ void trapIntr(void) {
     }
 
     if (*g_pI_STAT & *g_pI_MASK) {
-        if (D_8005893C++ > INTR_TIMEOUT_LIMIT) {
+        if (g_IntrTimeoutCount++ > INTR_TIMEOUT_LIMIT) {
             printf(&D_80019424, *g_pI_STAT, *g_pI_MASK);
-            D_8005893C = 0;
+            g_IntrTimeoutCount = 0;
             *g_pI_STAT = 0;
         }
     } else {
-        D_8005893C = 0;
+        g_IntrTimeoutCount = 0;
     }
 
     D_800578A6 = 0;

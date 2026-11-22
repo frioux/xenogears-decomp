@@ -212,7 +212,7 @@ typedef struct {
     /* 0x4 */ u16 unk4;
 } WorldMapAreaSfxIds; // Size: 0x6
 
-extern WorldMapAreaSfxIds D_8009A5A0[];
+extern WorldMapAreaSfxIds g_WorldMapAreaSfxIds[];
 extern void WorldMapInitGfxEnv(void);
 extern void WorldMapDeactivateSpriteGroup(s32);
 extern void func_80072DB4(int, int, int, int);
@@ -273,7 +273,7 @@ extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern int WorldMapSetActorScriptTables(int);
-extern int func_8007DE98(int);
+extern int WorldMapUpdateSlotStateMachine(int);
 extern int func_8007E450(int);
 extern int func_8007E4E4(int);
 extern int WorldMapInitGroup1Actor(int);
@@ -527,7 +527,7 @@ void func_8007D918(void) {
     g_SoundAudioManager = SoundCreateAudioManagerOnHeap(g_SoundBankLoadBuffer);
     SoundPlayAudioManager(g_SoundAudioManager, SPU_VOL_MAX, 0);
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
-    WorldMapAddSlot(WorldMapSetActorScriptTables, func_8007DE98);
+    WorldMapAddSlot(WorldMapSetActorScriptTables, WorldMapUpdateSlotStateMachine);
     WorldMapAddSlot(func_8007E450, func_8007E4E4);
     WorldMapAddSlot(WorldMapInitGroup1Actor, func_8007EE34);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
@@ -589,7 +589,7 @@ int WorldMapSetActorScriptTables(int index) {
     return 1;
 }
 
-int func_8007DE98(int index) {
+int WorldMapUpdateSlotStateMachine(int index) {
     // retail's frame is 0x28 with only ra/s0 saved: it reserves 0x10 of stack that no
     // instruction touches, which only an unused local reproduces.
     u8 unusedFrame[0x10];
@@ -713,9 +713,9 @@ int func_8007DE98(int index) {
         pActor->state = 1;
         break;
     case 61:
-        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | D_8009A5A0[g_WorldMapAreaIndex].unk0);
-        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | D_8009A5A0[g_WorldMapAreaIndex].unk2);
-        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | D_8009A5A0[g_WorldMapAreaIndex].unk4);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | g_WorldMapAreaSfxIds[g_WorldMapAreaIndex].unk0);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | g_WorldMapAreaSfxIds[g_WorldMapAreaIndex].unk2);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | g_WorldMapAreaSfxIds[g_WorldMapAreaIndex].unk4);
         pActor->state = 1;
         break;
     case 62:

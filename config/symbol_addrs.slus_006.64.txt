@@ -1749,3 +1749,4 @@ g_GpuScreenHeight = 0x800568D6;
 g_GraphQue = 0x800568D1;
 g_GpuQueueIntrMask = 0x800569DC;
 g_SystemFontDummyGlyph = 0x800501D0;
+g_IntrTimeoutCount = 0x8005893C;
