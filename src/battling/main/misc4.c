@@ -1482,36 +1482,67 @@ void BattleUpdateCameraPosition(Actor* p) {
     }
 }
 
+extern void func_8007A768(Actor* p);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
 
-/* Best attempt: 78.58%. All 120 instructions are present; only two shapes differ.
-   (a) Each 16-byte copy: the original groups three word loads then three word
-   stores, then a separate fourth load/store with a delay nop; gcc 2.7.2 emits
-   2/2/2/2 for a 16-byte block move (the shape BattleSaveActorVectors matches with) and
-   2/2 + 1/1 for a 12-byte copy, so the original's copies are not plain VECTOR
-   assignments. (b) The original materialises the destination address before the
-   source and keeps g_BattleActor1/g_BattleActor0 in t0/a3 across the function; ours
-   rematerialises them and picks a0 for the destination.
-   Shapes tried: eight plain VECTOR assignments (77.46%), VECTOR* locals for the
-   two reused bases (78.58%), Vec3(0xC) copy + separate [3] word store with
-   global or pointer bases (52%/50% - gcc sinks all four word stores to the end
-   of the function, 576 bytes).
+/* Best attempt: 88.89%, 472 bytes, 118 instructions (retail: 117, 472 bytes).
+   Reached from BattleSetScreenMode: it puts the pair back where the transition
+   saved them, re-seeds the cached camera vectors and points the camera rig at the
+   side the result belongs to.
+   Every 16-byte block move already has retail's exact shape - the four that touch
+   an actor base come out 3 loads / 3 stores / load / nop / store, the other four
+   2/2/2/2 - so the residual is register allocation plus one tail instruction.
+   Retail keeps &g_BattleActor1 in $t0 and &g_BattleActor0 in $a3 across the whole
+   function, uses $a0/$a1 as the mid copies' destination/source base and $v0/$v1 as
+   their temps; ours puts &g_BattleActor1 in $v1, which pushes the temps to
+   $v0/$a0 and the bases to $a1/$a2. Cause: gcc lets the tail's pActor copy
+   coalesce with the register already holding &g_BattleActor1, so that arm needs no
+   instruction and the tail becomes "beqz v0 / nop / move v1,a3 / jal / move a0,v1"
+   where retail has "bnez v0 / addu a0,a3,zero / addu a0,t0,zero / jal". In retail
+   pActor is therefore a separate pseudo in $a0 (a move in BOTH arms), and the
+   allocator hands the two actor addresses the late registers.
+   Measured, do not repeat: the plain eight VECTOR assignments with the ternary
+   inline 88.89; the same with an Actor* pActor local and if/else 88.89; a VECTOR*
+   local for the D_8009794C source 88.89; the condition spelled "== 0" with the arms
+   swapped 87.01; the two actor copies typed as g_BattleActorN.prevPosition (which
+   is what D_80098798 / D_8009707C are: actor+0x6C) 88.76; VECTOR* locals for both
+   actor bases (the older park) 78.58; a 12-byte copy plus a separate word 52/50.
+   Preset screen on the best body: gcc-2.7.2-cdk 69.84, gcc-2.6.0 88.89, -O3 88.89,
+   so the unit's Default preset is right. A 4-minute permuter run reported
+   PERMUTER_ZERO on a candidate that adds a dead "else if (new_var)" arm and a
+   VECTOR* local for the copy-6 source; porting that local alone reproduces 88.89
+   byte for byte, so the ZERO is a scoring artefact, not a find.
+   Untried lead: levers.md's a-semantically-empty-branch-on - a semantically empty
+   two-arm gate around the tail call is what raises a pointer's allocno priority, so
+   try gating the func_8007A768 call on pActor before spending another lane on the
+   allocator by hand.
+   Evidence for the next agent: the four sources of the first four copies are
+   g_BattleSavedPositions + 0/0x10/0x20/0x30, i.e. a Vec4[4] of saved vectors (the
+   D_80092A38/48/58/68 words BattleSaveActorVectors sets to 0x100 are their .y), and
+   the two destinations at the end are g_BattleActor0.prevPosition /
+   g_BattleActor1.prevPosition filled from each actor's own offset 0. */
+/*
 void func_8007AC3C(void) {
-    VECTOR* pA = (VECTOR*)&g_BattleActor1;
-    VECTOR* pB = (VECTOR*)&g_BattleActor0;
+    Actor* pActor;
 
-    g_BattleTransitionCountdown = 0x96;
+    g_BattleTransitionCountdown = 150;
     g_BattleMotionSpeedScale = 0x100;
     SetGeomScreen(0x200);
-    *pA = *(VECTOR*)&g_BattleSavedPositions;
-    *pB = *(VECTOR*)&D_80092A44;
+    *(VECTOR*)&g_BattleActor1 = *(VECTOR*)&g_BattleSavedPositions;
+    *(VECTOR*)&g_BattleActor0 = *(VECTOR*)&D_80092A44;
     *(VECTOR*)&D_80099068 = *(VECTOR*)&D_80092A54;
     *(VECTOR*)&D_8009794C = *(VECTOR*)&D_80092A64;
     *(VECTOR*)&D_80099088 = *(VECTOR*)&D_80099068;
     *(VECTOR*)&D_8009796C = *(VECTOR*)&D_8009794C;
-    *(VECTOR*)&D_80098798 = *pA;
-    *(VECTOR*)&D_8009707C = *pB;
-    func_8007A768(g_BattleResultSide != 0 ? (Actor*)pB : (Actor*)pA);
+    *(VECTOR*)&D_80098798 = *(VECTOR*)&g_BattleActor1;
+    *(VECTOR*)&D_8009707C = *(VECTOR*)&g_BattleActor0;
+    if (g_BattleResultSide != 0) {
+        pActor = &g_BattleActor0;
+    } else {
+        pActor = &g_BattleActor1;
+    }
+    func_8007A768(pActor);
 }
 */
 
