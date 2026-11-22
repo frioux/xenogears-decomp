@@ -107,6 +107,19 @@ typedef struct {
     /* 0x66F */ u8 numberPrimsPending; // set once the number prims are in the pool
 } BattleMenuPrims; // Size: 0x670
 
+// One row of the command table g_BattleCommandEntries; the flags word picks the icon
+// the cell draws (battle/main/misc15 declares the same 0x10-byte row).
+typedef struct {
+    /* 0x0 */ u16 flags;
+    /* 0x2 */ u8 pad2[0xE];
+} BattleCommandEntry; // Size: 0x10
+extern BattleCommandEntry g_BattleCommandEntries[];
+// Per-row icon sprite coordinates and palette picker, indexed by the row times four.
+extern u8 D_800D2F69[];
+extern u8 D_800D2F6A[];
+extern u8 D_800D2F6B[];
+extern u8 g_BattleActionRowIconSprites[];
+
 
 
 /* Retail reloads each clamp field inside the arm (the compare operands are dead across
@@ -378,38 +391,48 @@ void func_80090310(u8 arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_800904A0);
-/* 73.99%: the structure is right -- flags = *(u16 *)(g_BattleCommandEntries +
-   g_BattleCommandGridIds[idx] * 0x10), the 0x4000/0x1000 row pick (9/7/8), the 3-case
-   switch on flags & 0xF giving col (0xC/0xD/0x15, no default case), the two
-   BattleSetPolyFT4RectH13 blocks (record offsets 0x320 and 0x370, u = D_800D2F6A[ofs],
-   v = D_800D2F6B[ofs], dx = g_BattleActionRowIconSprites[ofs], ofs = row * 4 then
-   (col & 0xFF) * 4) and the two palette stores at +0x32E/+0x37E selected by
-   D_800D2F69[ofs]. g_BattlePrimStartIndex must be reached through a `s32 *pMode =
-   &g_BattlePrimStartIndex` local -- that is what produces the retail `lui/addiu` + `lw`
-   pair per call instead of a folded `lui/lw sym`.
-   Remaining gaps: (1) retail keeps row in s0 (`li s0,9`) and shifts it once
-   after the switch, gcc puts row in a0 and reorg duplicates `sll s0,a0,2` into
-   the switch compares' delay slots; (2) retail precomputes pBase + mode*0x28 in
-   the beqz delay slot of the palette test (`addu v1,v1,v0` then
-   `sh v0,0x32E(v1)`), ours computes it after the branch; (3) the call argument
-   is `addu a0,a0,t0` in retail (index term first) and `addu a0,t0,a0` here --
-   casting the base to (s32) to flip it instead moves the multiply earlier
-   (sll a0,0x3 before the +0x320) and drops to 70%; col lands in s1 here, s2 in
-   retail. Tried: a `u8 *pRec` local for the palette address (in the parked body
-   below, 73.99), both parentheses associativities for the call argument, and
-   the (s32)-cast sum form.
+/* PARKED 79.85% at retail's exact size (620 bytes = 0x26C, 155 insns) under the unit's
+   gcc-2.6.0. ROUND 400 redo: the old 73.99 note came from a body that never compiled here
+   (g_BattleCommandEntries, D_800D2F69/6A/6B and g_BattleActionRowIconSprites were undeclared
+   in this unit; their declarations are now at the top of the file, so unparking compiles).
+   Three measured levers took it 73.99 -> 79.85:
+   - the row/col table indexes are INLINE (D_800D2F6A[row * 4], D_800D2F6A[col * 4], no ofs
+     local) and col is a u8: that is what stops reorg duplicating the ofs sll into all three
+     switch delay slots (with an ofs local it is duplicated 3 times and the body is 153 insns
+     / 612 bytes). The u8 col also reproduces retail's andi s0,s2,0xFF before the second
+     half's sll.
+   - pMode = &g_BattlePrimStartIndex must be ASSIGNED TWICE, once per half: retail re-forms
+     the lui/addiu pair at .L80090620 (the join of the first palette if/else) and cse cannot
+     propagate the constant across that label, so the second half re-emits the la into the
+     same register. One assignment for the whole body is 2 insns short (612 bytes). The array
+     form g_BattlePrimStartIndex[0] is NOT it: it folds to the mips macro lw (that is what the
+     matched BattleDrawMenuEntryString does).
+   - pal is ONE value stored after the if/else join, in both halves.
+   Remaining, three causes, all measured: (1) retail emits li a1,0xA8 / li a2,0x33 BEFORE the
+   la of pMode in the join block, so reorg copies li a1,0xA8 into two switch delay slots; here
+   the la comes first and those two slots stay nops (same instruction count, 5 lines).
+   (2) the palette blocks: retail computes prim * 0x28 in pieces AROUND the pPacketPrims load
+   (sll/addu, then sll 3 after the lw), this build loads g_BattleGraphicsWork first and
+   finishes the multiply before the lbu D_800D2F69. Hoisting the multiply into a local
+   (primOfs) reproduces that order and reads 85.86 but drops to 600 bytes / 150 insns because
+   the two halves then share one address computation - it cannot link, do not ship it.
+   (3) addu a0,t0,a0 here against retail's addu a0,a0,t0 (the call argument is base-first);
+   the (s32)pBase and ((x + 0x320) + (s32)pBase) cast forms fold the constant onto the base
+   (74.60, and 68.47 with an ofs local).
+   A 4-minute permuter run found only the 600-byte primOfs edit (PERMUTER_BETTER 2375 -> 1826,
+   rejected for the size mismatch). Next lever to try: a spelling that puts the two constant
+   arguments first in the join block, e.g. the calls routed through local argument variables.
+/*
 void func_800904A0(u8 arg0, u8 arg1) {
     u8 *pBase;
     u8 *pRec;
-    s32 *pMode;
     u16 flags;
     u16 pal;
     s32 row;
-    s32 col;
-    s32 ofs;
+    u8 col;
+    s32 *pMode;
 
-    flags = *(u16 *)(g_BattleCommandEntries + g_BattleCommandGridIds[arg1 * 2 + arg0] * 0x10);
+    flags = g_BattleCommandEntries[g_BattleCommandGridIds[arg1 * 2 + arg0]].flags;
     if (flags & 0x4000) {
         row = 9;
     } else if (flags & 0x1000) {
@@ -429,32 +452,33 @@ void func_800904A0(u8 arg0, u8 arg1) {
         break;
     }
     pMode = &g_BattlePrimStartIndex;
-    ofs = row * 4;
     pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x320)), 0xA8, 0x33,
-        D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
+        D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
     pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
     pRec = pBase + *pMode * 0x28;
-    if (D_800D2F69[ofs] != 0) {
+    if (D_800D2F69[row * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x32E) = pal;
-    ofs = (col & 0xFF) * 4;
+    pMode = &g_BattlePrimStartIndex;
     pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x370)), 0xD0, 0x33,
-        D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
+        D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
     pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
     pRec = pBase + *pMode * 0x28;
-    if (D_800D2F69[ofs] != 0) {
+    if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x37E) = pal;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_800904A0);
+
+
 void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
