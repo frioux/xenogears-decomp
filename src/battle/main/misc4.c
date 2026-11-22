@@ -123,6 +123,8 @@ extern u8 D_800D340C[];
 extern BattleTableEntry D_800CCD1C[];
 extern void BattleSetOverlayArg(u8 arg0);
 
+extern u8 g_BattleCommandSlotMasks[];
+extern u8 g_BattleCommandCodes[];
 extern u8 D_800C3E3D[];
 extern u8 D_800D3404[];
 extern u8 D_800D3408[];
@@ -234,52 +236,35 @@ void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleSlotEntries[arg0].flags &= 0x8000;
 }
 
-/* Best: 70.25%, retail's exact 560 bytes. The prologue, the slot-bit scan and everything from the
-   memmove on match; the difference is INSTRUCTION ORDER inside the copy block, and it is a
-   SCHEDULER difference, not a CSE one. Retail keeps the four register-file copies interleaved
-   load/store with one register (v0) and emits the index chains between them
-   ((slot-3)*0x40, (arg0-3)*0x40 first, then &g_BattleWorkBlock[arg0], then &g_BattleWorkBlock[slot]
-   between the 2nd and 4th copies); our compile hoists all four `lw` above every store and puts both
-   &g_BattleWorkBlock chains at the top of the block. Retail's four copies are four DISTINCT symbol
-   relocations (g_BattleSlotRegs, D_800D3404, D_800D3408, D_800D340C, each with the same src/dst
-   index), which is four lui/addiu $at pairs - a single 0x40-byte struct with 4 u32 fields would need
-   one base and 3 fewer instructions, so the four-symbol form is the right one.
-   Measured and discarded: -O1 63.53, -O3 70.25 (same C, so not a flag/level question), u8 src/dst
-   locals 62.56, (slot-3)*0x40 inline at every use 68.14/552 bytes, the four copies in a do/while
-   block 68.89, 2-argument definition (does not compile - the extern takes 3). */
-/*
 void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
     u8 slot;
     u8 idx;
     s32 i;
-    s32 src;
     s32 dst;
+    s32 src;
 
-    for (i = 0; i < 11; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         idx = i;
         if (BattleMaskHasSlotBit(g_BattleCommandArgs[arg1].slotMask, idx) != 0) {
             slot = idx;
             break;
         }
     }
-    src = (slot - 3) * 0x40;
-    dst = (arg0 - 3) * 0x40;
+    dst = (arg0 - MAX_PARTY_MEMBERS) * sizeof(BattleSlotRegs);
+    src = (slot - MAX_PARTY_MEMBERS) * sizeof(BattleSlotRegs);
     D_800C3E3D[arg0] = D_800C3E3D[slot];
     *(u32 *)((u8 *)g_BattleSlotRegs + dst) = *(u32 *)((u8 *)g_BattleSlotRegs + src);
-    *(u32 *)(D_800D3404 + dst) = *(u32 *)(D_800D3404 + src);
-    *(u32 *)(D_800D3408 + dst) = *(u32 *)(D_800D3408 + src);
-    *(u32 *)(D_800D340C + dst) = *(u32 *)(D_800D340C + src);
+    *(u32 *)((u8 *)g_BattleSlotRegs + dst + 0x4) = *(u32 *)((u8 *)g_BattleSlotRegs + src + 0x4);
+    *(u32 *)((u8 *)g_BattleSlotRegs + dst + 0x8) = *(u32 *)((u8 *)g_BattleSlotRegs + src + 0x8);
+    *(u32 *)((u8 *)g_BattleSlotRegs + dst + 0xC) = *(u32 *)((u8 *)g_BattleSlotRegs + src + 0xC);
     g_BattleSlotScriptFlags[arg0 - MAX_PARTY_MEMBERS].unk0 = g_BattleSlotScriptFlags[slot - MAX_PARTY_MEMBERS].unk0;
     g_BattleSlotScriptFlags[arg0 - MAX_PARTY_MEMBERS].unk1 = g_BattleSlotScriptFlags[slot - MAX_PARTY_MEMBERS].unk1;
     memmove(&g_BattleWorkBlock[arg0], &g_BattleWorkBlock[slot], sizeof(BattleTableEntry));
-    g_BattleCommandSlotMasks[g_BattleCommandQueue->count][0] = slot;
-    g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = 0xFB;
-    g_BattleCommandCodes[g_BattleCommandQueue->count * 72] = arg0;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].unk24 = slot;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xFB;
+    g_BattleCommandRecords[g_BattleCommandQueue->count].actorSlot = arg0;
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
 }
- */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
-
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     BattleSlotByteVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1, g_BattleCommandArgs[arg1].unk4, 0);
 }
