@@ -6,6 +6,7 @@
 
 // gear hp/maxHp are 32-bit, so their window numbers have five digits
 #define MENU_GEAR_HP_DIGIT_COUNT 5
+#define MENU_GEAR_FUEL_DIGIT_COUNT 4
 
 // the icon texture id tables hold one entry per slot of the character's icon strip
 #define MENU_ICON_TEXTURE_COUNT 24
@@ -48,7 +49,8 @@ typedef struct {
     /* 0x2AE6 */ u8 secondWideNumber2PrimCount; // prims the second wide number pair's second number drew
     /* 0x2AE7 */ u8 hpPrimCount; // digit prims the hp number drew
     /* 0x2AE8 */ u8 maxHpPrimCount; // digit prims the maxHp number drew
-    /* 0x2AE9 */ u8 unk2AE9[0x2];
+    /* 0x2AE9 */ u8 mpPrimCount; // digit prims the mp number drew
+    /* 0x2AEA */ u8 maxMpPrimCount; // digit prims the maxMp number drew
     /* 0x2AEB */ u8 digitPrimCount; // digit prims the gear window's number draws appended
     /* 0x2AEC */ u8 iconPrimCount; // digit prims the character's icon ids drew
 } MenuGearWindowPrims; // Size: 0x2AF0
@@ -384,33 +386,33 @@ void func_801D680C(u_char index, u_char characterId) {
     s32 i;
 
     if (characterId == 0) {
-        count = 2;
-        digitOffset = 7;
+        count = MENU_MP_DIGIT_COUNT;
+        digitOffset = MENU_MAX_DIGITS - count;
         x = D_801E9D00;
         y = D_801E9D04;
         MenuParseNumberToDigits(
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].mp);
     } else {
-        count = 4;
-        digitOffset = 5;
+        count = MENU_GEAR_FUEL_DIGIT_COUNT;
+        digitOffset = MENU_MAX_DIGITS - count;
         x = D_801E9D00;
         y = D_801E9D04 + 8;
         MenuParseNumberToDigits(
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].fuel);
     }
-    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] = 0;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount = 0;
     for (i = 0; i < count; i++) {
         if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
-            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] += func_8002675C(
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[digitOffset + i],
                 (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] *
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount *
                                  (2 * sizeof(POLY_FT4)) +
                              0x1950)),
                 g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - characterId * 24, y, 0x1000);
         }
     }
-    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0]; i++) {
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount; i++) {
         POLY_FT4* pPrim;
         s32 primOffset;
 
@@ -435,20 +437,22 @@ void func_801D680C(u_char index, u_char characterId) {
         x = D_801E9D08 - 0x20;
         y = D_801E9D0C + 0x10;
     }
-    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] = 0;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount = 0;
     for (i = 0; i < count; i++) {
         if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
-            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] += func_8002675C(
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[digitOffset + i],
                 (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] *
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount *
                                  (2 * sizeof(POLY_FT4)) +
                              0x1AE0)),
                 g_Menu->renderContext, x - characterId * 24, y, 0x1000);
+            // The bump is conditional in this half only: retail's loop-back delay slot
+            // holds a nop here and the `addiu` inside the block (half 1 is the reverse).
             x += MENU_DIGIT_SPACING;
         }
     }
-    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1]; i++) {
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount; i++) {
         POLY_FT4* pPrim;
         s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
 
