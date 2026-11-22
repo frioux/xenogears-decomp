@@ -1432,6 +1432,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
 /* 99.90% (816 bytes = retail's exact size, 204 of 204 instructions, unit preset
    gcc 2.6.0 --expand-div -G0): whole body recovered, retail's frame (0x48) and
    saved set ($s0-$s5) exact, every call/load/store and both loop rotations equal.
+   The sound-bank read is typed through Temp8 (byte-identical to the raw
+   (void**) cast form, 99.90).
    91.39 -> 99.90 came from the FIRST HALF's address shape: retail keeps
    &g_BattleActors[arg0] in $s1 and reloads *($s1) at every use, so the slot
    pointer is a local, built in TWO statements -
@@ -1444,13 +1446,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
    null tests: retail loads the compare operand into $a1 ("lw v0,0(s1);
    lw a1,4(v0); beqz a1") where cc1 reuses the dying base register
    ("lw v0,4(v0); beqz v0") - same size, same instruction count, and the value
-   only feeds the branch. Measured, none of it moves the tie: embedded
+   only feeds the branch. The tie IS reachable from C: lib_gear's
+   LibGearFreeModel (this function's twin, matched 100.00% under XenoLibrary)
+   has the identical "lw a1,4(v0); beqz a1" at both sites, so it is a
+   whole-function local-alloc tie set by the function's pseudo numbering, not
+   by the spelling at the site. Measured, none of it moves the tie: embedded
    assignment in each test (99.90); a pSprites local declared inside each arm
    before the test (99.90, byte-identical output - cc1 cse-replaces the local
    with the field); a pSprites local assigned before the range test (95.68, 792
-   bytes - gcc hoists the load); -O3 (82.98); gcc 2.7.2 (99.63); gcc
-   2.7.2-cdk (92.67); a 1745-iteration permuter run (base=20 best=20,
-   PERMUTER_NONE). */
+   bytes - gcc hoists the load); u8 *pPool =
+   g_BattleBlockPool declared in each arm, the twin's pool-local shape (99.90,
+   byte-identical); all six declaration orders of ppActors/ppSlot/i (99.90,
+   byte-identical); the twin's whole body ported verbatim, i.e. inline
+   g_BattleActors[arg0] everywhere (98.90, 12 differing lines: the $a1 pair
+   twice PLUS "sw zero,0(s0)" relocated into the recursion tail's delay slot,
+   so the tail's inline/pointer split is genuinely retail's); that twin body
+   under -G8 (98.90); this split body under -G8 (99.90); -O3 (82.98); gcc
+   2.7.2 (99.63); gcc 2.7.2-cdk (92.67); a 1745-iteration permuter run
+   (base=20 best=20, PERMUTER_NONE). */
 /*
 void func_800A9FF0(s32 arg0) {
     BattleActor **ppActors;
@@ -1465,7 +1478,7 @@ void func_800A9FF0(s32 arg0) {
             BattleFreeModelMesh((*ppSlot)->pMesh, 1);
         }
         if ((*ppSlot)->hasSedsEntry1 != 0) {
-            SoundRemoveSedsEntry(*(void **)((*ppSlot)->pSoundBank1 + 8));
+            SoundRemoveSedsEntry(((Temp8 *)(*ppSlot)->pSoundBank1)->pUnk8);
         }
         if ((*ppSlot)->pModelSource != NULL) {
             HeapFree((void *)(*ppSlot)->pModelSource);
