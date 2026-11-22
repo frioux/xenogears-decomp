@@ -638,18 +638,19 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
       lbu v0,0x5C(s1); beqz): the flag field is volatile in the struct.
    3. retail keeps the (slot/2)*13 multiply chain INSIDE the loop: the in-loop
       `slot = arg;` copy is the invariant gcc hoists instead of the multiply. */
-/* Two POLY_FT4 packets plus the two flag bytes that follow them: the info block
-   func_800780A8 walks. g_BattleTextSlotRects rows hand it &row->unkF[1] (the
-   packets of the row above, 0x50 back), so the flags land in the next row's
-   unkC. */
+/* Two POLY_FT4 packets plus the head of the next g_BattleTextSlotRects row:
+   what func_800780A8 walks. Callers hand it a row's polys at +0x10 (0x50 back
+   into the row above), so its palette/enabled land on the NEXT row's +0xC/+0xD
+   bytes (misc5.c's BattleScreenSlot view names them). palette is volatile
+   because the function stores it and re-reads it. */
 typedef struct {
     /* 0x00 */ POLY_FT4 prims[2];
     /* 0x50 */ u8 unk50[0xC];
-    /* 0x5C */ volatile u8 usePalette2;
-    /* 0x5D */ u8 unk5D;
+    /* 0x5C */ volatile u8 palette;
+    /* 0x5D */ u8 enabled;
 } BattleSlotPrimBlock; // Size: 0x5E
 
-void func_800780A8(u8 *pInfo, s32 arg) {
+void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
     POLY_FT4 *p;
     u16 clut;
     s32 i;
@@ -657,18 +658,18 @@ void func_800780A8(u8 *pInfo, s32 arg) {
 
     i = 0;
     do {
-        p = &((BattleSlotPrimBlock *)pInfo)->prims[i];
+        p = &pInfo->prims[i];
         SetPolyFT4(p);
         p->r0 = 0x80;
         p->g0 = 0x80;
         p->b0 = 0x80;
         SetSemiTrans(p, 0);
         SetShadeTex(p, 1);
-        ((BattleSlotPrimBlock *)pInfo)->usePalette2 = arg & 1;
+        pInfo->palette = arg & 1;
         // loop-local copy of the slot number: gcc hoists this invariant
         // instead of the row multiply, which retail keeps inside the loop
         slot = arg;
-        if (((BattleSlotPrimBlock *)pInfo)->usePalette2 != 0) {
+        if (pInfo->palette != 0) {
             clut = g_SystemPalette2;
         } else {
             clut = g_SystemPalette1;
@@ -676,9 +677,9 @@ void func_800780A8(u8 *pInfo, s32 arg) {
         p->clut = clut;
         p->tpage = GetTPage(0, 0, 0x3C0, (slot / 2) * BATTLE_TEXT_ROW_HEIGHT);
         i++;
-    } while ((s32)&((BattleSlotPrimBlock *)pInfo)->prims[i] <
-             (s32)&((BattleSlotPrimBlock *)pInfo)->prims[2]);
-    ((BattleSlotPrimBlock *)pInfo)->unk5D = 0;
+    } while ((s32)&pInfo->prims[i] <
+             (s32)&pInfo->prims[2]);
+    pInfo->enabled = 0;
 }
 
 /* 98.39% (372 bytes = retail size, 93 insns = retail count, addresses verified correct):
