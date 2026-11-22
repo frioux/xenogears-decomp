@@ -4150,27 +4150,32 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
     }
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
 // 98.61%, 2024 bytes (retail 2032), frame and every stack slot identical to retail. Ported from
 // the 100% twin gear_shop_menu/main/render.c GearShopMenuSellMenu (same gcc 2.6.0 preset).
 // Two findings that got it from 95.12 to 98.61:
-// 1. The key-item test is NOT an inline 'a || b' expression: retail emits
-//    andi/sltiu/addu v1,v0/andi 0xff, which only comes from a u_char local assigned TRUE, then
-//    overwritten in an if/else. The '||' spelling compiles to srl/xori/andi (97.79%).
-// 2. The coalesce loop counter must be a separate counter copied into itemCount after the loop
-//    (the twin's itemType shape). Making itemCount itself the counter - the shape that matches
-//    retail's per-iteration store - makes gcc give itemCount $s6 and spill pItemSellQtys to
-//    0x70, shifting every later slot by 8 (95.95%).
-// The whole remaining delta is ONE allocation: retail's counter is memory-resident and synced
-// every iteration ("addiu t4,t4,1 / sw t4,0x90($fp) / lbu v0,0(a2) / lw t4,0x90($fp)", retail
-// 0xC05C); ours keeps it in $a3 and stores it once in the jal delay slot, which is what the twin
-// does and is 2 instructions short. Tried without effect: itemCount as the counter (95.95),
-// itemCount declared first / last / with an initializer, 'itemCount = itemCount + 1', volatile
-// itemCount (90.49), a separate int j counter, itemType as the only counter with no itemCount
-// local, pItemSellQtys declared before the allocas, the '&&' guard form, moving
-// 'itemCount = itemType' into the loop (98.65, register scramble). Two permuter runs (4 and 8
-// minutes from this body, base 701 -> 666) found only a declaration-order no-op and a
-// semantics-changing write to continueProcessing, so this needs a real lever, not more shapes.
+// 1. The key-item test is NOT an inline OR expression: retail emits andi/sltiu/addu v1,v0/andi
+//    0xff, which only comes from a u_char local assigned TRUE, then overwritten in an if/else (the
+//    OR spelling compiles to srl/xori/andi, 97.79%).
+// 2. The coalesce-loop counter must be a separate counter copied into itemCount after the loop
+//    (the twin's itemType shape), because making itemCount itself the counter moves the frame.
+// THE RESIDUAL, exact: retail's counter lives at 0x90(fp) and is synced every iteration -
+// "addiu t4,t4,1 / sw t4,0x90(fp) / lbu v0,0(a2) / lw t4,0x90(fp)" at 0xC05C - while the three
+// output stores still run through the pointer induction variables t0/t1/t2. The park keeps the
+// counter in $a3 and stores it once in the jal delay slot: 2 instructions / 8 bytes short, with i
+// and the counter swapped ($t4/$a3) against retail. Retail has NO store of 0 to 0x90 (its init is
+// "addu t4,zero,zero"), so the variable is written by the loop but its pre-loop value needs no
+// store: it is neither an ordinary MEM/aggregate pseudo (an int[1] spelling loses the pointer ivs
+// and reloads the counter per store, 90.79) nor a plain register pseudo.
+// Measured and worse this round, do not re-try: itemCount as the counter 95.95 (2040 bytes, frame
+// +8: itemCount takes $s7 and pItemSellQtys is spilled, every later slot shifts by 8), the same
+// with int itemCount[1] 90.79, with a declaration initialiser 94.65, as u_int 95.84, with
+// "itemCount += 1" 95.95, with a volatile store to itemCount 91.27, volatile int itemCount 90.49,
+// itemType as the only counter with itemCount deleted and the two while-loop reads using itemType
+// 95.16 (2044), and two counters (itemType++ and itemCount++, loop.c merges the givs) 95.95.
+// Preset ruled out with try_flags.sh on this body: 2.7.2 -O2 -G8 = 97.01, 2.7.2-cdk = 72.55, so
+// the unit's 2.6.0 is right. Earlier notes also record two permuter runs (4 and 8 minutes from
+// this body, base 701 -> 666) that found only a declaration-order no-op and a semantics-changing
+// write to continueProcessing, so this needs a lever, not more shapes.
 /*
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
@@ -4369,7 +4374,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
     }
 }
 */
-
+INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
 
 int ShopMenuSellEquipmentMenu(void) {
     u_char itemIDs[8];
