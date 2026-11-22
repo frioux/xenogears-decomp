@@ -901,6 +901,15 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
    gcc-2.7.2-cdk-psx (both 99.15 - worse, so the 2.6.0 preset is right and the
    fold is not a compiler-version question). Every no-extra-instruction spelling
    that breaks cse's value knowledge is exhausted; this is a gcc 2.6.0 cse wall.
+   Round 414 (this lane): re-measured the body above at 99.61%/612 bytes, then
+   tried "mode = 2; if (arg1) mode = 3;" and "u_char mode;" - both 99.61% with the
+   same single "move a1,s1" - and a third 3-minute permuter run (970 iterations,
+   RESULT PERMUTER_NONE base=200 best=200). Mechanism, from the .s: the last call
+   is the only site reached through a SINGLE-predecessor block (loop 6's bnez
+   fall-through), so cse still holds the masked QImode value there and folds the
+   conversion; each loop head is a join, which is why retail keeps those six
+   andis. Defeating it needs a second predecessor for the last call, i.e. a branch
+   retail does not have, so this stays parked as a gcc 2.6.0 cse wall.
 void func_801E8F60(u8 arg0, u8 arg1) {
     s32 mode;
     s32 i;
