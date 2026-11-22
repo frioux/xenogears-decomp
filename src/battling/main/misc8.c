@@ -3,6 +3,9 @@
 #include "psyq/libgpu.h"
 #include "system/controller.h"
 
+// the battle tile grid is 128 rows by 128 columns of 4-byte cells
+#define BATTLE_GRID_CELL_COUNT 16384
+
 extern u16 D_800915BE;
 extern u16 D_80091636;
 extern u8 g_BattleScreenRestoreCount;
@@ -860,14 +863,14 @@ void func_80081ECC(void) {
     setShadeTex(&pDim->sprt, 0);
     setSemiTrans(&pDim->sprt, 1);
 
-    func_800732AC(&pDim->copies[0], &pDim->sprt, 0x64);
+    func_800732AC(&pDim->copies[0], &pDim->sprt, sizeof(pDim->copies));
 
     pDim->copies[1].u0 = pDim->copies[2].u0 = 0x80;
     pDim->copies[1].x0 = pDim->copies[2].x0 = 0x80;
     pDim->copies[3].x0 = pDim->copies[4].x0 = 0x100;
     pDim->copies[3].w = pDim->copies[4].w = 0x40;
 
-    for (i = 0; i < 0x4000; i++) {
+    for (i = 0; i < BATTLE_GRID_CELL_COUNT; i++) {
         g_BattleGridCells[i].height = g_BattleGridCells[i].height * 12;
     }
     BattleInitSpanBuffers();
