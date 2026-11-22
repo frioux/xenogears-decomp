@@ -10,6 +10,8 @@
 #define MENU_CHARACTER_CELL_FRAME_COUNT 6 // frames in one character cell animation cycle
 #define MENU_SELECTION_TINT_DISABLED 0x20 // r0/g0/b0 of a disabled selection menu prim
 #define MENU_SELECTION_TINT_NORMAL 0x80 // r0/g0/b0 of an enabled one
+#define MENU_GLYPH_CELL_COUNT 0x20 // glyph cells of the menu font, one quad pair each in the prim buffer
+#define MENU_ICON_COUNT 16 // icon quads packed in the shared prim buffer
 
 void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
@@ -869,7 +871,130 @@ void MenuAddCellGridPrims(void) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801D02D8);
+// One party slot's prim context in the scratch prim buffer g_Menu->pPrimBuffer
+// (allocated in misc11's MenuAllocatePrimBuffer): the portrait quad, the slot label,
+// the six three-digit stat strings, the highlight quad, then the counts and render
+// contexts those strings were packed with.  The prims of one string hold two per
+// glyph, one per render context, which is what the [glyph][context] shapes are.
+typedef struct {
+    /* 0x000 */ POLY_FT4 portrait[2]; // Portrait quad, one prim per render context
+    /* 0x050 */ POLY_FT4 labelGlyphs[9][2];
+    /* 0x320 */ POLY_FT4 statGlyphs0[3][2];
+    /* 0x410 */ POLY_FT4 statGlyphs1[3][2];
+    /* 0x500 */ POLY_FT4 statGlyphs2[3][2];
+    /* 0x5F0 */ POLY_FT4 statGlyphs3[3][2];
+    /* 0x6E0 */ POLY_FT4 statGlyphs4[2][2];
+    /* 0x780 */ POLY_FT4 statGlyphs5[2][2];
+    /* 0x820 */ POLY_FT4 highlight[2];
+    /* 0x870 */ u8 statCount0;
+    /* 0x871 */ u8 statCount1;
+    /* 0x872 */ u8 statCount2;
+    /* 0x873 */ u8 statCount3;
+    /* 0x874 */ u8 statCount4;
+    /* 0x875 */ u8 statCount5;
+    /* 0x876 */ u_char labelRenderContext;
+    /* 0x877 */ u_char renderContext;
+    /* 0x878 */ u_char enabled; // Packed by MenuDrawCharacterSlots, 0 = the slot stays blank
+    /* 0x879 */ u_char highlightRenderContext;
+    /* 0x87A */ u_char labelGlyphCount;
+    /* 0x87B */ u8 pad87B;
+} MenuSlotPrimBlock; // Size: 0x87C
+
+// The scratch prim buffer g_Menu->pPrimBuffer, as far as this unit draws from it.
+typedef struct {
+    /* 0x0000 */ POLY_FT4 glyphQuads[MENU_GLYPH_CELL_COUNT][2]; // Menu glyph cells, one prim per render context
+    /* 0x0A00 */ POLY_FT4 slotHighlightQuads[2]; // Quad behind a party slot, one per render context
+    /* 0x0A50 */ POLY_G4 slotHighlightShades[2]; // Dim quad drawn behind the highlight
+    /* 0x0A98 */ MenuSlotPrimBlock slots[MAX_PARTY_MEMBERS];
+    /* 0x240C */ POLY_FT4 playTimeGlyphs[11][2];
+    /* 0x277C */ POLY_FT4 iconQuads[MENU_ICON_COUNT][2];
+    /* 0x2C7C */ POLY_FT4 unk2C7C[4][2];
+    /* 0x2DBC */ u8 slotPrimsBuilt; // Set by misc12's MenuUpdateCharacterWindow once the slots were packed
+} MenuPrimBuffer; // Size: 0x2DC0
+// Draws the character window's prims: without a packed slot list the menu glyph cells
+// and the selected character's portrait quad, with one the per-slot portrait, label and
+// stat strings plus the slot highlight, then the dim quad behind them.  Kicked off by
+// the character window's own prim add (misc5), so it only runs while that window is up.
+// Every use re-reads g_Menu->pPrimBuffer: the calls above can change it, so a pointer
+// kept in a local would emit retail's registers differently.  The portrait quad is
+// reached index-first (`renderContext + quads`): the `quads[renderContext]` spelling
+// gives gcc the commuted `addu` retail does not have (98.48 with the subscript form).
+void func_801D02D8(void) {
+    s32 i;
+
+    if (!g_Menu->pManager->characterWindowBuilt) {
+        return;
+    }
+    if (((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotPrimsBuilt == 0) {
+        MenuRenderString(MENU_GLYPH_CELL_COUNT, ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->glyphQuads[0],
+                         g_Menu->renderContext);
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u0 =
+            g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16;
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v0 =
+            g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
+                .unk0[g_Menu->characterCellFrame * 4];
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u1 =
+            g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16 + 0xF;
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v1 =
+            g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
+                .unk0[g_Menu->characterCellFrame * 4];
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u2 =
+            g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16;
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v2 =
+            g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
+                .unk0[g_Menu->characterCellFrame * 4] + 0xF;
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->u3 =
+            g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16 + 0xF;
+        (g_Menu->renderContext + ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads)->v3 =
+            g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]]
+                .unk0[g_Menu->characterCellFrame * 4] + 0xF;
+        ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext].clut =
+            GetClut(g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] * 16,
+                    g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]] / 16 + 0x1C1);
+        AddPrim(&g_Menu->pGfxEnv->ot[4],
+                &((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightQuads[g_Menu->renderContext]);
+    } else {
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+            if (((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].enabled) {
+                MenuRenderString(((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].labelGlyphCount,
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].labelGlyphs[0],
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].labelRenderContext);
+                MenuRenderString(((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statCount0,
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statGlyphs0[0],
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].renderContext);
+                MenuRenderString(((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statCount1,
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statGlyphs1[0],
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].renderContext);
+                MenuRenderString(((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statCount2,
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statGlyphs2[0],
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].renderContext);
+                MenuRenderString(((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statCount3,
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statGlyphs3[0],
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].renderContext);
+                MenuRenderString(((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statCount4,
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statGlyphs4[0],
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].renderContext);
+                MenuRenderString(((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statCount5,
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].statGlyphs5[0],
+                                 ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].renderContext);
+                AddPrim(&g_Menu->pGfxEnv->ot[4],
+                        &((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].portrait[
+                            ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[0].renderContext]);
+                AddPrim(&g_Menu->pGfxEnv->ot[4],
+                        &((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].highlight[
+                            ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[i].highlightRenderContext]);
+            }
+        }
+        MenuRenderString(11, ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->playTimeGlyphs[0],
+                         ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[0].renderContext);
+        MenuRenderString(4, ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->unk2C7C[0],
+                         ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[0].renderContext);
+        MenuRenderString(MENU_ICON_COUNT, ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->iconQuads[0],
+                         ((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slots[0].renderContext);
+    }
+    AddPrim(&g_Menu->pGfxEnv->ot[4],
+            &((MenuPrimBuffer*)g_Menu->pPrimBuffer)->slotHighlightShades[g_Menu->renderContext]);
+}
 void MenuRenderQuad(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex) {
     long interpolated;
     long flag;
