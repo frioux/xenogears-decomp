@@ -314,6 +314,57 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045E44);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800460A0);
 
+/* best: 86.60% (145 insns; retail 143, 572 bytes vs my 580). Structure is right:
+   LoadImage(rect, p) -- clamp w/h to D_800568D4/D_800568D6, total = w*h+1, guard
+   total/2 > 0, split into 16-word DMA blocks plus a CPU-sent tail, 0xA0 image-load
+   command (the dead `mode = 0` local really is in retail: gcc 2.7.2 keeps the
+   beqz s5 branch even though mode is a constant zero). What is left is callee-saved
+   allocation: retail has rect=s1, p=s2, i=s0, blocks=s4, 0x04000000=s3 and a 0x50
+   frame; mine gets rect=s0, p=s1, i stays in a0, 0x04000000=s2 and a 0x58 frame.
+   Also retail's `while (!(*g_GpuGp1Port & 0x04000000))` loop is not rotated and
+   reloads the mask register inside the loop, mine hoists it and rotates the test.
+   Tried: guard before/after the /32 (86.60 vs 83.77).
+int func_800460A0(RECT *rect, u_long *p) {
+    u_long cmd;
+    int total;
+    int blocks;
+    int rest;
+    int mode;
+    int i;
+
+    func_80046EFC();
+    mode = 0;
+    rect->w = rect->w < 0 ? 0 : (rect->w > D_800568D4 ? D_800568D4 : rect->w);
+    rect->h = rect->h < 0 ? 0 : (rect->h > D_800568D6 ? D_800568D6 : rect->h);
+    total = rect->w * rect->h + 1;
+    if (total / 2 <= 0)
+        return -1;
+    blocks = total / 32;
+    rest = total / 2 - blocks * 16;
+    while (*g_GpuGp1Port & 0x04000000) {
+        if (func_80046F30())
+            return -1;
+    }
+    *g_GpuGp1Port = 0x04000000;
+    *g_GpuGp0Port = 0x01000000;
+    cmd = 0xA0000000;
+    if (mode)
+        cmd = 0xB0000000;
+    *g_GpuGp0Port = cmd;
+    *g_GpuGp0Port = *(u_long *)&rect->x;
+    *g_GpuGp0Port = *(u_long *)&rect->w;
+    for (i = rest - 1; i != -1; i--)
+        *g_GpuGp0Port = *p++;
+    if (blocks != 0) {
+        *g_GpuGp1Port = 0x04000002;
+        *g_GpuDma2Madr = (u_long)p;
+        *g_GpuDma2Bcr = (blocks << 16) | 0x10;
+        *g_GpuDma2Chcr = 0x01000201;
+    }
+    return 0;
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800462DC);
 
 void func_80046560(u_long value) {
