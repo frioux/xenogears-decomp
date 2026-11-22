@@ -914,56 +914,55 @@ void BattleFinishActorAnimationAndReleaseSlot(s32 index) {
         func_800BE790();
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
-/* 72.77%: instruction for instruction the loop is retail's -- the same three
-   guard branches, the `addu s2,s0,s4` stolen into the first beq's delay slot,
-   the shared increment block and the tail call.  Two constant loads and the
-   frame are all that differ:
-     retail  ori v0,zero,0x8CB8 / addu v0,s0,v0 / sw zero,0(v0)
-     ours    li  s5,0x8000      / addu v0,s0,s5 / sw zero,3256(v0)
-   and retail re-materialises the loop bound (`li v0,3` before the bne) where
-   gcc hoists it into $s4.  The two hoists add $s5/$s6, so the frame is 0x30
-   against retail's 0x28, and the three branch targets are 4 bytes late.
-   Tried: inline store (gcc splits 0x8CB8 into 0x8000+0xCB8), a named pSlot2
-   local, both store orders, `i != 3` as a for-step vs. a body step, pointer
-   increments vs. an indexed slot, and a 4-minute permuter run (base=1104,
-   best=574) whose only scoring edit moved the second store out of the if --
-   not usable.  The remaining shape (two loop-invariant constants hoisted into
-   callee-saved registers) is a loop.c cost decision, not a source one.
-   Lever found next door (BattleFinishActorAnimationAndReleaseSlot, matched): a `mem_addr base` local plus
-   `s32 off = 0x8C8C` and `pEntry + off` stops gcc folding the offset into the
-   symbol's %lo (D_800CCB3C) and reproduces retail's `lui/addiu base` + a
-   separate reg-reg add of the constant.
-   Round 176: re-measured 72.77%, frame 0x30 against 0x28 -- gcc hoists `3` into $s4
-   and 0x8CB8 (split into 0x8000 + 0xCB8) into $s5, where retail materialises both
-   at the use site (`li v0,3` before the bne, `ori v0,zero,0x8CB8` in the jalr delay
-   slot) and hoists only 0x8C8C.  Not the preset: try_flags gives 77.23% under both
-   gcc-2.7.2-psx -G0 and gcc-2.6.0-psx -G0, and -O3 does not compile in this unit.
+/* 75.98%, 188 bytes = retail's exact size, 47 instructions both sides, and every
+   branch target matches.  The C is a do-while whose two store addresses are
+   recomputed from pEntry (no pSlot local): that is what makes gcc emit ONE base
+   for both stores instead of the park's separate li 0x8CB8 + addu.
+   Left over, three loop.c hoist/split decisions, none of them a shape error:
+     1. retail hoists only 0x8C8C (li s4 in the preheader) and adds it in the
+        body (addu s2,s0,s4); ours splits 0x8CB8 as 0x8000 + 0xCB8 so both
+        stores address off a hoisted 0x8000 (sw zero,3212(s0) / 3256(s0)) --
+        fewer body insns, one more saved register, frame 0x30 against 0x28.
+     2. retail re-materialises the trip count (li v0,3 before the bne); ours
+        hoists it (li s4,3).
+     3. registers shifted accordingly (retail pEntry s0, ours s2).
+   Tried this session, all under the unit's cdk -G0 preset: pSlot local + inline
+   0x8CB8 store (63.36%, 51 insns), mem_addr( ) cast on the store address (no
+   change), do-while with both addresses recomputed (75.98%, kept), pSlot local
+   at top of body + mem_addr store (72.74%, 51 insns), a for loop with an off
+   local (63.36%).  Preset is not the answer: gcc-2.7.2-psx -G0 scores this body
+   76.91 but breaks the unit's matched functions (BattleIncrementStateTimer
+   99.09, BattleApplyStateStep 87.22, BattleActorSnapToTargetAndFace 85.40), and
+   gcc-2.6.0-psx -G0 does not compile the unit.
+/*
 void func_800BB080(s32 arg0) {
-    s32 i = 0;
-    u8* pEntry = g_BattleStateWork;
+    s32 i;
+    u8* pEntry;
+    u8* pSlot;
     SpriteData* pSprite;
     void* pTask;
-    u8* pSlot;
-    u8* pSlot2;
 
-    for (; i != 3; i++) {
+    i = 0;
+    pEntry = g_BattleStateWork;
+    do {
+        pSlot = pEntry + 0x8C8C;
         if (i != arg0) {
-            pSlot = pEntry + 0x8C8C;
             pSprite = *(SpriteData**)pSlot;
             if (pSprite != NULL && pSprite->pDefaultAnimFile == NULL) {
                 pTask = pSprite->field_0x6C;
                 (*(void (**)(void*))((u8*)pTask + 0xC))(pTask);
                 *(u32*)pSlot = 0;
-                pSlot2 = pEntry + 0x8CB8;
-                *(u32*)pSlot2 = 0;
+                *(u32*)((mem_addr)pEntry + 0x8CB8) = 0;
             }
         }
+        i++;
         pEntry += 4;
-    }
+    } while (i != 3);
     BattleWaitForOtherActorAnimations(arg0);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
+
+
 void BattleActorSyncPositionFromModel(AnimTask* pTask) {
     BattleActorSprite* pSprite;
     BattleSlotRecord* pRecord;
