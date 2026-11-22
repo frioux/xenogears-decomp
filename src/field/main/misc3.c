@@ -287,8 +287,6 @@ void FieldFree(void) {
     FieldFreeSpritePrimitives();
 }
 
-
-
 void FieldLoadTIMWithClut(u_long *pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight) {
     TIM_IMAGE* pTIM;
     TIM_IMAGE tim;   
