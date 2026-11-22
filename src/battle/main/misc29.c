@@ -71,7 +71,6 @@ void BattleAllocWorkBuffer(void) {
     pWork->workEntry.unk4 = pWork;
     func_800B7424(pWork);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
 // 73.66% (1092 bytes vs retail's 1100). The frame (a 0xA0 with all ten saved
 // registers), the pWork spill, the three loops and every rand()/GTE call are
 // retail's. The residual is the address arithmetic: retail keeps blockOffset,
@@ -89,32 +88,44 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
 // rowBytes (0x64), the two row offsets (0x68/0x6C), col<<4 (0x54) and the two
 // pass z values (0x58/0x5C) in stack slots and reloads them per sprite, so the
 // record base is `pWork + lw 0x70(sp) + lw 0x64(sp) + ((col<<5)-col)<<2`.
-/*
+
 // One spawned effect sprite of the block func_800B7424 fills: the two textures it
 // draws (POLY_FT3s of the same tile), the 16.16 position the matrix pass measures,
 // and the matrix-transformed offset ApplyMatrixLV leaves at 0x68.
 typedef struct {
-    // 0x00 s16 x;
-    // 0x02 s16 y;
-    // 0x04 s16 z;
-    // 0x06 s16 unk6;
-    // 0x08 s16 unk8; // the random tint offsets added to the flat colour
-    // 0x0A s16 unkA;
-    // 0x0C s16 unkC;
-    // 0x0E s16 unkE;
-    // 0x10 s32 unk10; // 16.16 position Square0 measures and ratan2 aims from
-    // 0x14 s32 unk14;
-    // 0x18 s32 unk18;
-    // 0x1C s32 unk1C;
-    // 0x20 s32 unk20;
-    // 0x24 POLY_FT3 polys[2];
-    // 0x64 s32 unk64;
-    // 0x68 s32 unk68[4];
-    // 0x78 s32 unk78;
+    /* 0x00 */ s16 x;
+    /* 0x02 */ s16 y;
+    /* 0x04 */ s16 z;
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ s16 unk8; // the random tint offsets added to the flat colour
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s32 unk10; // 16.16 position Square0 measures and ratan2 aims from
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 unk18;
+    /* 0x1C */ s32 unk1C;
+    /* 0x20 */ s32 unk20;
+    /* 0x24 */ POLY_FT3 polys[2];
+    /* 0x64 */ s32 unk64;
+    /* 0x68 */ s32 unk68[4];
+    /* 0x78 */ s32 unk78;
 } BattleEffectSprite; // Size: 0x7C
 
 extern s32 D_800C35C4[3]; // the offset ApplyMatrixLV rotates, its z jittered per sprite
 
+// 73.66% (1092 bytes / 273 insns vs retail 275 / 1100). Frame (0xA0), the pWork
+// spill, the three loops, both poly arms and every rand()/GTE call are retail's.
+// The residual is register ALLOCATION: retail spills radius to 0x48 and keeps the
+// column counter in $fp with colCoord in $s7, this body keeps radius in a register,
+// so the record address and every store through it differ. Rebuilt from scratch
+// with the row-loop z snapshots as separate locals (rowOffset/passOffset), an
+// SVECTOR offset, D_800C35C4.vz and a uCoord local: frame and the 0x58/0x5C/0x60
+// slots then match retail exactly, but 1080 bytes / 270 insns / 68.79%. Also dead:
+// a typed &((T*)base)[col] index (274 insns, 1096 bytes, 70.57%). gcc strength-
+// reduces `col * 0x7C` into an induction register where retail recomputes
+// sll/subu/sll per iteration - that is the allocator difference.
+/*
 void func_800B7424(BattleWorkBuffer *pWork) {
     s32 vec[4];
     SVECTOR angles;
@@ -217,8 +228,9 @@ void func_800B7424(BattleWorkBuffer *pWork) {
         blockOffset = blockOffset + 0x87A0;
         pass++;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
 void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
