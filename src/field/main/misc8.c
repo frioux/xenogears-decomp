@@ -358,6 +358,14 @@ extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_PlayerActorIndex;
 void func_800A2030(void);
 void func_80281B00(const char* pName);
+// the five strings this stub owns in .rodata (0x11C, misc8's range); the body
+// below needs them declared, and converting the stub means defining them here
+// as const char[0xC] or the unit's .rodata range comes up 0x54 bytes short.
+extern const char D_8006FC0C[];
+extern const char D_8006FC18[];
+extern const char D_8006FC24[];
+extern const char D_8006FC30[];
+extern const char D_8006FC3C[];
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
@@ -395,6 +403,32 @@ void SpritePlayAnimation(int, int);
    jumps past the jal) - rejected as wrong code.
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
+/* R396: re-measured 98.13% (315 insns / 1260 bytes vs retail 313 / 1252) and
+   pinned WHERE the two extra instructions are - both are nops that retail fills
+   with a real instruction it placed earlier:
+   (a) arm 2: retail's `lh a1,234(s0)` (the SpritePlayAnimation 2nd argument,
+       pActor->animationOverride) sits in the load-delay slot of the
+       `lw v0,0(v0)` that reloads g_FieldActors, four instructions before its
+       `jal`; ours loads it last, after `addu v0,s3,v0` / `lw a0,4(v0)`, so that
+       slot gets a nop. `s16 animOverride = pActor->animationOverride;` on its
+       own statement before the call does NOT move the load (measured, 98.13
+       unchanged).
+   (b) third loop: retail forms the walker in a TEMP (`addu a1,s3,v0`,
+       index-first), does the status load through the temp (`lhu v1,88(a1)`), and
+       copies `move s1,a1` into the beqz delay slot; ours forms the walker
+       directly (`addu s1,v0,s3`, base-first) and its slot is a `nop`. Splitting
+       the status read back onto `g_FieldActors[i]` to make that pair is 96.04 /
+       322 insns (worse), so the temp/walker pair is not reachable that way.
+   Because both excess sites are +4 bytes, every branch offset in the object
+   carries the +8; that is why 40 of the 50 diff hunks are offsets. The real C
+   residuals left are then only: loop 1's register set (retail count a1 / biv a0
+   / actor v1 vs ours a0 / v1 / s0), arm 3's `addu a2,s3,a2` vs our
+   `addu a2,a2,s3`, and (a)+(b). Also tried this round: `while (i < count) {
+   ...; i++; }` for the first loop to put the counter increment in the body
+   block (retail has `addiu s2,s2,1` in the `lw`'s delay slot there) - 96.22 /
+   319 insns, so loop inversion changes more than that slot.
+   This body also needs the five `extern const char D_8006FC1x[]` declarations
+   that now sit above it, and converting it needs those strings defined in C. */
 /*
 void func_8008110C(void) {
     FieldActor* pFieldActor;
