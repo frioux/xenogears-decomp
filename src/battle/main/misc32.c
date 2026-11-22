@@ -348,7 +348,7 @@ extern Misc32Task *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCal
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, Misc32SpritePart *pOut, s16 x, s16 y);
 extern s32 BattleWriteDecimalDigits(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
 extern void BattleInitNumberSpriteTask(void);
-extern void func_800BDA1C(u8 *pTask);
+extern void func_800BDA1C(WorkListEntry *pEntry);
 extern void BattleUnlinkAndFreeTask(void *pEntry);
 extern void BattleStepEffectColorFade(Misc32Task *pTask);
 extern void BattleStepEffectPosition(Misc32Task *pTask);
@@ -699,38 +699,34 @@ extern BattleGeomMatrix g_BattleGeomMatrix;
 // three SVECTOR halves with `lh`, gcc with `lhu`. (3) retail's `i = 0` lands after
 // the ReadGeomScreen block, gcc hoists it into the delay slot. The declarations
 // above must stay LIVE for this body to build (they used to sit inside the block).
-/*
-void func_800BDA1C(u8 *pTask) {
-    u8 *pData;
+void func_800BDA1C(WorkListEntry *pEntry) {
+    Misc32Task *pTask;
     MATRIX mtx;
     SVECTOR vec;
-    s32 sxy[3];
+    s32 sxy[4];
     s32 i;
-    u8 *pEntry;
+    Misc32SpritePart *pPart;
 
-    pData = *(u8 **)(pTask + 0x4);
+    pTask = (Misc32Task *)pEntry->unk4;
     g_BattleGeomMatrix.geomScreen = ReadGeomScreen();
-    vec.vx = *(s16 *)(pData + 0x4A);
-    vec.vy = *(s16 *)(pData + 0x4E);
-    vec.vz = *(s16 *)(pData + 0x52);
+    vec.vx = pTask->posX >> 16;
+    vec.vy = pTask->posY >> 16;
+    vec.vz = pTask->posZ >> 16;
     BattleProjectPointToScreen(&vec, sxy);
-    RotMatrix((SVECTOR *)(pData + 0x40), &mtx);
-    TransMatrix(&mtx, sxy);
+    RotMatrix(&pTask->rot, &mtx);
+    TransMatrix(&mtx, (VECTOR *)sxy);
     CompMatrix((MATRIX *)&g_BattleGeomMatrix, &mtx, &mtx);
-    ScaleMatrix(&mtx, (VECTOR *)(pData + 0x58));
+    ScaleMatrix(&mtx, (VECTOR *)&pTask->scaleX);
     SetRotMatrix(&mtx);
     SetTransMatrix(&mtx);
     i = 0;
-    pEntry = pData + 0x90;
-    while (i != *(s32 *)(pData + 0x8C)) {
-        BattleDrawSpritePartQuad(pEntry, *(u8 **)(pData + 0x80));
+    pPart = pTask->parts;
+    while (i != pTask->partCount) {
+        BattleDrawSpritePartQuad(pPart, *(u32 *)&pTask->colors[0]);
         i++;
-        pEntry += 0x18;
+        pPart++;
     }
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
-// Declared after the struct: the timer update takes the task. It reads none of
+}// Declared after the struct: the timer update takes the task. It reads none of
 // the argument's fields, it works off g_BattleTimerTask.
 extern void BattleRefreshNumberSprite(Misc32Task *pTask);
 
@@ -805,7 +801,17 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // one slot later but does not change $a0-vs-$s0 on the three store bases: retail's
 // timer/flags base is the call-saved copy $s0 while gcc merges the call's argument
 // pseudo into it and stores through $a0. The instruction ORDER is already retail's.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
+// Round 405 re-measured, four more shapes, all <= 91.60 (100 bytes = retail's):
+// a `pEffect = pTask;` alias for the three stores (identical 91.60 code, gcc
+// coalesces the alias), `&pTask->timerEntry` as the call's first argument (timerEntry
+// is at 0, folded back), the call FIRST in the block then the two stores (86.60:
+// s0 becomes the store base but the jal lands before the stores), and a
+// do{...}while(0) around the flag store (67.00) or around both stores (55.56,
+// 96 bytes). The residual is one local-alloc choice: the store base shares $a0
+// with the call's argument copy. Retail's own RTL kept the argument copy in the
+// middle of the block (pre-reload sched-insns hoisted it there), so $s0 still had
+// uses after it and combine_regs did not fire; every spelling here puts the copy
+// last, s0 dies there and the stores are rewritten to $a0.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
@@ -818,6 +824,7 @@ void func_800BDC14(Misc32Task *pTask) {
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
 }*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 
 extern void func_800BDC14(Misc32Task *pTask);
 
