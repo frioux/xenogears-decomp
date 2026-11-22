@@ -45,7 +45,8 @@ typedef struct {
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
-    /* 0x60 */ u8 unk60[0x20];
+    /* 0x60 */ u8 unk60[0x1C];
+    /* 0x7C */ u32 unk7C;
 } WorldMapPlayer; // Size: 0x80
 
 // sound-effect bank header: +0x14 is the sed id sound commands are played from,
@@ -1030,43 +1031,42 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
-/* 44.62%: instruction multiset and size identical (180 bytes), only gcc sched2
-   order differs. Retail puts the 0x7C store right after the addu and emits the
-   three D_8009C5xx loads after it, and keeps li 0xffc0 late; gcc hoists the
-   g_WorldMapPlayerPositionY/B4 loads, sinks the 0x7C store next to the 0x58 store and hoists
-   li 0xffc0 to the top. Tried: unk5C indexed vs a named unk7C field, s32
-   locals for the three loads, plain globals (all three give the same 180-byte
-   schedule), -O3 (41.22%). Same class as misc4 WorldMapResetActorSlotWithSound (70%) and misc6
-   func_80080578 (34.97%).
+// The volatile casts, the pRot pointer local and the empty do-while are all
+// load-bearing, not debris: without them gcc's -O2 scheduler hoists the three
+// position loads above the unk7C store and sinks the six target stores below
+// the unk58/unk50 stores (44.62% at the same 180 bytes); the do-while's basic-
+// block boundary is what lets the unk50 store land in the jr delay slot.
 int func_8007C724(int idx) {
     WorldMapPlayer *pPlayer;
     s32 a;
     s32 b;
+    s16 *pRot;
     s32 c;
 
-    g_WorldMapFadeLevel = 0x78;
-    g_WorldMapCameraHeight = 0x400000;
+    *(volatile s32 *)&g_WorldMapFadeLevel = 0x78;
+    *(volatile s32 *)&g_WorldMapCameraHeight = 0x400000;
     pPlayer = g_WorldMapSlots + idx;
-    g_WorldMapRotationMatrixValid = 1;
-    ((u32 *)&pPlayer->unk5C)[8] = 0x1000;
-    a = g_WorldMapPlayerPosition;
-    b = g_WorldMapPlayerPositionY;
-    c = g_WorldMapPlayerPositionZ;
-    g_WorldMapCameraRot = -0x40;
-    g_WorldMapViewRotationY = 0;
-    g_WorldMapViewRotationZ = 0;
-    g_WorldMapCameraTarget = a;
-    g_WorldMapScrollTargetX = a;
-    g_WorldMapCameraTargetY = b;
-    g_WorldMapScrollTargetY = b;
-    g_WorldMapCameraTargetZ = c;
-    g_WorldMapScrollTargetZ = c;
-    pPlayer->unk58 = 0x40;
+    *(volatile s32 *)&g_WorldMapRotationMatrixValid = 1;
+    *(volatile u32 *)&pPlayer->unk7C = 0x1000;
+    a = *(volatile s32 *)&g_WorldMapPlayerPosition;
+    pRot = &g_WorldMapCameraRot;
+    b = *(volatile s32 *)&g_WorldMapPlayerPositionY;
+    c = *(volatile s32 *)&g_WorldMapPlayerPositionZ;
+    do {
+    } while (0);
+    *(volatile s16 *)pRot = -0x40;
+    *(volatile s16 *)&g_WorldMapViewRotationY = 0;
+    *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+    *(volatile s32 *)&g_WorldMapCameraTarget = a;
+    *(volatile s32 *)&g_WorldMapScrollTargetX = a;
+    *(volatile s32 *)&g_WorldMapCameraTargetY = b;
+    *(volatile s32 *)&g_WorldMapScrollTargetY = b;
+    *(volatile s32 *)&g_WorldMapCameraTargetZ = c;
+    *(volatile s32 *)&g_WorldMapScrollTargetZ = c;
+    *(volatile s32 *)&pPlayer->unk58 = 0x40;
     pPlayer->unk50 = 0;
     return 1;
 }
-*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
 int WorldMapInitGroup4Actor(int idx) {
