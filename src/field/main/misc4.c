@@ -1305,25 +1305,10 @@ int FieldProbeWalkmeshAtAngle(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints,
     return 0;
 }
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BAC0);
-/* Best attempt: 76.42% (1036 vs 1032 bytes). The probe sequence, the second
-   func_8007BEF4 call and the tail (v.vy, pVec stores, curYPos) are
-   instruction-identical; four deltas remain:
-   1. the shared fallback (copy *pVec, FieldGetWallEdgeDirection) loses retail's leading
-      dead `lw a3,0x70(sp)`, so every later label sits 4 bytes low. Retail's
-      call passes a 4th argument that FieldGetWallEdgeDirection never reads; the prototype
-      now declares it (FieldProbeWalkmeshAtAngle passes 0) and the three calls below pass
-      0 as well, so this item may already be closed - re-measure.
-   2. the retry dispatch is laid out inverted: retail puts the recompute body
-      FIRST (cond1 inverts to the rest of the chain, which sits after the body
-      and jumps back to it) and the restore last, while the || chain below
-      compiles body-last. Duplicating the body per arm so cross-jumping can
-      merge it does not work: gcc keeps all four copies (1264 bytes, 62.19%).
-   3. (nDirection - 0x100) & 0xFFF must be two statements, else gcc masks into
-      the local through v0 instead of computing into s0.
-   4. the restore copies sit in temporaries (t0..t4) instead of r-tail regs,
-      i.e. downstream of 1 and 2.
-   nPosY is retail's `lh 0x26(pActor)`, the high half of position.vy, which no
-   field of ActorData names.
+/* Best attempt: 99.22% (1076 bytes, retail exact; 269 insns both). ONE instruction is displaced: retail lw a2,0x24(s2) (pActor position vy) sits between lh v0,0x42(sp) and sra v1,v1,8 in a FRESH a2; this body emits it two slots later into v1. Frame (0xa8), saved set, every branch target and every other instruction match.
+   Structure found this round: arm 1 is if (out.vy < nPosY) with the fixup as its FALLTHROUGH (a label inside the then-block, goto retry from the other arms) - that puts the fixup block before the flag tests like retail, where the plain OR chain compiled it after (81.90). The 0x420000 arm must branch on the FALSE case (mat & flags == 0 -> restore) or gcc merges its branch with the 0x40 test (95.64).
+   The if (pVec) else duplication in the restore block is LOAD-BEARING: it is what makes the restore emit retail extra two reloads (lh v0,0x42(sp) and lw a0,0x20(sp)), 1068 to 1076 bytes, 98.30 to 99.22. pVec is dereferenced at the top of the body, so it is inert. Honest alternatives measured: single restore reached by goto restore 267 insns 1068 bytes 98.30; same block duplicated in two condition arms so cross-jumping merges it 260 insns 1040 bytes 93.93. Two permuter runs (1629, 1775 iterations) found nothing past this.
+
 int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode, s32* pFlags);
 
 int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) {
@@ -1348,7 +1333,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
         v.vx = pVec->vx;
         v.vy = pVec->vy;
         v.vz = pVec->vz;
-        FieldGetWallEdgeDirection(nDirection, pPoints, &v, 0);
+        FieldGetWallEdgeDirection(nDirection, pPoints, &v, nFlags);
     } else {
         nAngle = nDirection + 0x100;
         nAngle &= 0xFFF;
@@ -1358,7 +1343,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
             v.vx = pVec->vx;
             v.vy = pVec->vy;
             v.vz = pVec->vz;
-            FieldGetWallEdgeDirection(nDirection, pPoints, &v, 0);
+            FieldGetWallEdgeDirection(nDirection, pPoints, &v, nFlags);
         } else {
             nAngle = angle & 0xFFF;
             v.vx = pVec->vx + rsin(nAngle) * 64;
@@ -1367,7 +1352,7 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
                 v.vz = pVec->vz;
-                FieldGetWallEdgeDirection(nDirection, pPoints, &v, 0);
+                FieldGetWallEdgeDirection(nDirection, pPoints, &v, nFlags);
             } else {
                 v.vx = pVec->vx;
                 v.vy = pVec->vy;
@@ -1389,29 +1374,47 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
     savedOut.vz = out.vz;
     nPosY = ((s16*)&pActor->position.vy)[1];
 
-    if (out.vy < nPosY
-        || (nFlags & 0x200000) != 0
-        || ((nFlags & 0x420000) != 0 && (pActor->curWalkmeshTriMaterial & 0x420000) != 0)
-        || out.vy < nPosY + 0x40) {
+    if (out.vy < nPosY) {
+    retry:
         dir.vx = -v.vx >> 8;
         dir.vz = -v.vz >> 8;
         dir.vy = ((out.vy << 16) - pActor->position.vy) >> 8;
         VectorNormal(&dir, &normal);
         nMagnitude = FieldGetVec2Magnitude(v.vx >> 8, v.vz >> 8);
-        v.vx = -(normal.vx * nMagnitude) >> 4;
-        v.vy = (normal.vy * nMagnitude) >> 4;
-        v.vz = -(normal.vz * nMagnitude) >> 4;
+        v.vx = -(nMagnitude * normal.vx) >> 4;
+        v.vy = (nMagnitude * normal.vy) >> 4;
+        v.vz = -(nMagnitude * normal.vz) >> 4;
         if (func_8007BEF4(&v, &pActor->position, pActor, pPoints, &out, 0, &nFlags) == -1) {
             return -1;
         }
         pActor->scriptFlags.flags |= 0x4000000;
-    } else {
-        v.vx = savedV.vx;
-        v.vy = savedV.vy;
-        v.vz = savedV.vz;
-        out.vx = savedOut.vx;
-        out.vy = savedOut.vy;
-        out.vz = savedOut.vz;
+    } else if ((nFlags & 0x200000) != 0) {
+        goto retry;
+    } else if ((nFlags & 0x420000) != 0) {
+        if ((pActor->curWalkmeshTriMaterial & 0x420000) == 0) {
+            goto restore;
+        }
+        goto retry;
+    } else if (out.vy < nPosY + 0x40) {
+        goto retry;
+    }
+restore:
+    {
+        if (pVec) {
+            v.vx = savedV.vx;
+            v.vy = savedV.vy;
+            v.vz = savedV.vz;
+            out.vx = savedOut.vx;
+            out.vy = savedOut.vy;
+            out.vz = savedOut.vz;
+        } else {
+            v.vx = savedV.vx;
+            v.vy = savedV.vy;
+            v.vz = savedV.vz;
+            out.vx = savedOut.vx;
+            out.vy = savedOut.vy;
+            out.vz = savedOut.vz;
+        }
     }
 
     v.vy = (out.vy << 16) - pActor->position.vy;
@@ -1420,8 +1423,8 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
     pVec->vz = v.vz;
     pActor->curYPos = (pActor->position.vy + pVec->vy) >> 16;
     return 0;
-}
-*/
+}*/
+
 
 typedef struct {
     /* 0x0 */ s16 v0;
