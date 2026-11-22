@@ -592,50 +592,6 @@ typedef struct {
     /* 0x0700 */ MenuString valueStrings[MENU_PANEL_VALUE_STRING_COUNT];
 } MenuUnk430ValueStrings; // Size: 0x1080
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
-/* Best: 99.81%, 2696 bytes = retail's exact 674 instructions. THREE instructions
-   left, all in ONE residual: the case-0 shade test.
-   SOLVED this round (was 99.77%): the three `addu` operand orders at the
-   value-string byte accesses. Retail adds BASE-first (`addu v1,v1,s6`); every
-   spelling that starts from `strings[MENU_PANEL_VALUE_STRING + i]` adds
-   INDEX-first. The fix is to view the panel's tail as its own array
-   (MenuUnk430ValueStrings above): a value record is
-   ((MenuUnk430ValueStrings*)g_Menu->unk430)->valueStrings[i], which is how a 1998
-   programmer would have typed it (14 column records, then 19 value records of the
-   same MenuString) and which makes cc1 fold the 0x700 into the store's
-   displacement with the base first. Confirmed in isolation with cc1_probe.sh: a
-   member-array access of the same struct emits `addu $2,$2,$4`, the
-   `&strings[0xE + i]` cast `addu $2,$4,$2`.
-   LEFT: retail's case-0 arm keeps its OWN store block -
-     bnez v0,<avail test> / nop / j <join> / addu s2,zero,zero (store in the slot)
-   - while ours has an empty then-block and branches straight to the shared store:
-     beqz v0,<shared store> / nop / j <avail test> / nop.
-   Retail's layout is [cond0][store+j][case2 cond][avail test][shared store][join],
-   ours [cond0][case2 cond][avail test][store][join], same instruction count: the
-   store+j block and the shared store are two blocks in retail, one in ours.
-   Tried, each measuring IDENTICAL to this body (99.81%): `a == 0 || b`;
-   `if (a == 0) { shade = 0; break; } if (available < value) shade = 0;`;
-   `if (a == 0) S; else if (b) S;` for both arms. permute.sh --minutes 10 -j 2 from
-   this body: base 430, best 430 (PERMUTER_NONE). Preset is not the answer: under
-   gcc-2.7.2-cdk-psx try_flags scores this function 91.23 and breaks the unit's
-   matched functions (2.6.0 is right).
-   HOW THE REST OF THE BODY GOT HERE (round 388, worth keeping): retail spills the
-   0x700+0x80*i giv to 0x90(sp) and keeps the i*0x80 giv in $s6; cc1 `-dl`/`-dg`
-   (build/src/menu/main/misc9.c.i.{lreg,greg}) rank givs by
-   floor_log2(n_refs)*n_refs/live_length, so every extra use of the 0x700 giv
-   flips that rotation - hence reaching the value records through their own array.
-   Structure confirmed: prologue/save set/frame, both 3-arm switch trees, the
-   `!= 0 || i >= 0xC` visible tests, the digit loop, the RECT/LoadImage/DrawSync
-   block, every call site and the shared tails. `i % 2` (not `i & 1`) is what
-   makes cc1 reuse the i / 2 it already computed; the digit loop must consume a
-   COPY of the arm value; kind 2 sets available = gears[gearId].fuel before
-   reading the record; the i == 0xC / kind != 2 arm re-reads
-   g_GameState.characters[...].mp in full. Data: the panel tail reads are three
-   separate arrays (g_MenuEquipmentSlotRowY, g_MenuPanelValueQuadX, g_MenuPanelValueQuadY) and the
-   column masks are g_MenuColumnShadeMasks - spelling them as offsets off
-   g_MenuEquipmentSlotRowY / g_MenuRowDigitTextureIds costs a phantom 0x58 giv
-   base. */
-/*
 void func_801DC3D8(u_char arg0, u_char arg1) {
     u8 digitCodes[0x10];
     u8 stringBuffer[0x10];
@@ -766,8 +722,11 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
                 switch (arg1) {
                 case 0:
-                    if (MenuAndBitMaskLsbFirst(g_MenuColumnShadeMasks[g_Menu->pManager->currentCharacterIDs[arg0]], i) == 0 ||
-                        available < value) {
+                    if (MenuAndBitMaskLsbFirst(g_MenuColumnShadeMasks[g_Menu->pManager->currentCharacterIDs[arg0]], i) != 0) {
+                        if (available < value) {
+                            shade = 0;
+                        }
+                    } else {
                         shade = 0;
                     }
                     break;
@@ -806,7 +765,6 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
     MenuSetStringTexturePrims(&((MenuUnk430Panel*)g_Menu->unk430)->strings[0x20], arg0, arg1, 1);
     g_Menu->pManager->shouldRenderPanel[0] = 1;
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 /* Best: 97.64%, 1928 bytes - and retail's object is ALSO 1928 bytes / 482 insns
    (objdiff-cli: expected/asm/menu/main/misc9.s.o func_801DCE60 size 1928; the
