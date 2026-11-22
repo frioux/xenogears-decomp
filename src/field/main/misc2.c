@@ -2031,42 +2031,48 @@ void FieldLoadTIM(u_long* pTimData) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
-// 68.96% (544 bytes vs the original's 548). Structure is right: both loops, both
-// calls and all sixteen stores land in the original's order and the tail matches
-// instruction for instruction. What is left is three allocator/scheduler
-// tie-breaks, not a source shape:
-// (1) head - the original loads g_PlayerActorIndex a second time for the address
-// of the ActorData it reads position 0x26 from (`lui/lw v0`, then its own
-// `sll/addu/sll/subu/sll` chain into v1 and a separate `addu v1,v1,v0`), and
-// keeps that chain apart from the add of the pointer; gcc CSEs the second read of
-// the global across the volatile `lw g_FieldActors` and merges the add into
-// `addu v1,v0,v1`. Ordering the pointer read before the ActorData read (a
-// `pPlayerActor` local for arg2) is required and gets the two `lw g_FieldActors`
-// into the original's order; two separate expression spellings of the index do
-// not produce the reload.
-// (2) loop - identical instruction multiset, but gcc swaps $v0/$v1 on
-// `li 0x200` / `lhu` / `andi` and permutes the callee-saved set (original
-// s0=pActorData, s1=counter, s2=sprite, s3=actor base, s4=byte offset; ours
-// s0=counter, s1=sprite, s2=actor base, s3=pActorData). Reordering the local
-// declarations and a `u16 status` temp both leave it unchanged.
-// (3) the sprite copy - gcc sinks each `sw` past the next statement's address
-// setup and parks the loaded value in $a0; the original stores straight out of
-// $v0 (`lw v0,0(v0); nop; sw v0,0(s2)`).
-// Findings worth keeping: g_FieldActors IS volatile, so every `g_FieldActors[x]`
-// statement re-reads the pointer and the value at ActorData+0x26 is the s16 view
-// pPosition[3] (misc6's FieldActorApplyPositionTransform idiom); FieldActor+0x4 is pSpriteData and
-// +0x20/+0x24/+0x28 is transformMatrix.t[0..2].
-// screened: Default 68.96 (best), cdk 68.85, 2.6.0 68.90 - not the preset; the allocator and CSE differences noted above.
-/*
-extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* pData);
-extern int FieldCharacterIdToPartyId(int characterId);
-extern void func_80081C54(int actorIndex);
-extern s32 g_PlayerActorIndex;
+extern volatile s32 g_PlayerActorIndex;
 extern s32 g_FieldSpriteUpdateIndex;
 extern s32 D_800B2364;
 extern s32 D_800B2368;
+extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* pData);
+extern int FieldCharacterIdToPartyId(int characterId);
+extern void func_80081C54(int actorIndex);
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
+
+// 97.49% (732 bytes = retail's exact 0x2dc / 183 instructions; objdiff lists 10
+// differing lines). The whole body is instruction-identical except TWO placements
+// in the head: retail loads the arg3 base (`lui a2,%hi(g_FieldActors); lw a2`) as
+// the third of the three loads that sit BEFORE the `addiu sp` prologue and keeps
+// its `sll v1,v1,2` (pActorData index * 4) AFTER the second base load; ours emits
+// the arg3 base next to the pData base load and the `sll` before both. Same
+// instruction multiset, the four volatile loads keep retail's relative order, so
+// it is a sched2/prologue-interaction residual, not a source shape.
+// WHAT GOT IT HERE (the two levers, both measured this round):
+// 1. `g_PlayerActorIndex` must be declared volatile in this unit: retail re-reads
+//    it AND re-forms the whole index*0x5C chain for each of the TWELVE copy
+//    statements (68.46 -> 80.73, 135 -> 174 insns). A plain `extern s32` lets cse
+//    keep one index chain in a register for the whole block.
+// 2. The six destination stores must go through a volatile lvalue
+//    (`*(volatile int*)&pSpriteData->position.x = ...`): with plain stores sched2
+//    sinks the next statement's volatile `lw g_PlayerActorIndex` between this
+//    statement's value load and its store and burns the load-delay nops retail
+//    has (86.28 -> 97.43, 183 instructions in retail's order). 10 instructions.
+// 3. pCurActor must be RE-FORMED after the FieldCharacterIdToPartyId call as
+//    `(FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors)` - that is what
+//    gives retail's `addu v0,s4,v0` operand order (offset-first) and the second
+//    `lw v0,76(v0)` that arg2's y is read through (a plain `&g_FieldActors[i]`
+//    gives `addu v0,v0,s4` and reads y out of the saved pData: 97.43).
+// Tried and dead: pActor as its own local before / after pPlayerData (94.32 /
+// 96.86 - the arg3 base then loads early, as retail wants, but the second index
+// load moves to $a1 and the loop's $s1/$s2 pair swaps back); the offset form for
+// arg3 inline in the call (97.43); three declaration orders.
+// Permuter cannot run on this body: its base compile dies with "conversion to
+// non-scalar type requested" in the re-emitted temp file.
+// preset re-screened on THIS body: 2.7.2 -G0 (unit) 97.49, 2.6.0 97.38,
+// 2.7.2-cdk 82.78 - not a preset question.
+/*
 void func_80077268(void) {
     ActorData* pData;
     int i;
@@ -2074,87 +2080,13 @@ void func_80077268(void) {
     FieldActor* pActor;
     FieldActor* pCurActor;
     int partyId;
+    ActorData* pPlayerData;
     int actorIndex;
 
     actorIndex = g_PlayerActorIndex;
-    {
-        FieldActor* pPlayerActor = &g_FieldActors[actorIndex];
-        ActorData* pPlayerData = g_FieldActors[g_PlayerActorIndex].pActorData;
-        func_80084A40(actorIndex, ((s16*)&pPlayerData->position)[3], pPlayerActor, pPlayerData);
-    }
-
-    for (i = 0; i < g_FieldActiveActorCount; i++) {
-        u16 status;
-
-        pActor = &g_FieldActors[i];
-        status = pActor->status;
-        pData = pActor->pActorData;
-        if ((status & 0xF80) != 0x200) {
-            continue;
-        }
-        partyId = FieldCharacterIdToPartyId(pData->characterId);
-        if (partyId == -1) {
-            continue;
-        }
-        pCurActor = &g_FieldActors[i];
-        pSpriteData = (SpriteData*)pCurActor->pSpriteData;
-        if (partyId == 0) {
-            continue;
-        }
-        func_80084A40(i, ((s16*)&pCurActor->pActorData->position)[3], pActor, pData);
-        pSpriteData->position.x = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.x;
-        pSpriteData->position.y = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.y;
-        pSpriteData->position.z = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.z;
-        pActor->transformMatrix.t[0] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[0];
-        pActor->transformMatrix.t[1] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[1];
-        pActor->transformMatrix.t[2] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[2];
-    }
-
-    D_800B2368 = 0;
-    D_800B2364 = 0;
-    g_FieldSpriteUpdateIndex = 0;
-    for (i = 0; i < 0x20; i++) {
-        func_80081C54(g_PlayerActorIndex);
-    }
-}
-*/
-
-// 67.56% (548 bytes, same as the original's 548): every load, store, call and the
-// two loops are in place. What is left: (1) the head - the original loads the
-// g_PlayerActorIndex chain into $v0/$v1 the other way round and puts the
-// `addu a2,a2,v0` in the jal delay slot, where gcc emits it before the `lh` and
-// burns the slot on `move a3,s0`; (2) the copy blocks - gcc sinks each
-// `sw` past the next block's address setup and parks the value in $a0, the
-// original stores straight out of $v0 (3 more instructions after each lw in the
-// original are `lw v0,0(v0)` then `nop` then `sw v0,0(s2)`).
-// Findings: (1) g_FieldActors IS volatile here - the original re-loads it once per
-// statement and re-forms `&g_FieldActors[i]` after the FieldCharacterIdToPartyId
-// call, so the post-call block needs its own `pCurActor = &g_FieldActors[i]`
-// local (that base is used for both pSpriteData and pActorData) while a2 still
-// gets the loop-top pointer; (2) `FieldActor`'s copy target at 0x20/0x24/0x28 is
-// transformMatrix.t[0..2], not a position member (misc6's FieldActorApplyPositionTransform has the
-// same idiom); (3) the s16 argument at ActorData+0x26 is the high half of
-// position.vy, read as a short lvalue like misc6's `pPosition[1]`.
-/*
-extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* pData);
-extern int FieldCharacterIdToPartyId(int characterId);
-extern void func_80081C54(int actorIndex);
-extern s32 g_PlayerActorIndex;
-extern s32 g_FieldSpriteUpdateIndex;
-extern s32 D_800B2364;
-extern s32 D_800B2368;
-
-void func_80077268(void) {
-    FieldActor* pActor;
-    FieldActor* pCurActor;
-    ActorData* pData;
-    SpriteData* pSpriteData;
-    int partyId;
-    int i;
-
-    pData = g_FieldActors[g_PlayerActorIndex].pActorData;
-    func_80084A40(g_PlayerActorIndex, ((s16*)&pData->position.vy)[1],
-        &g_FieldActors[g_PlayerActorIndex], pData);
+    pPlayerData = g_FieldActors[g_PlayerActorIndex].pActorData;
+    func_80084A40(actorIndex, ((s16*)&pPlayerData->position.vy)[1], &g_FieldActors[actorIndex],
+        pPlayerData);
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         pActor = &g_FieldActors[i];
@@ -2166,18 +2098,18 @@ void func_80077268(void) {
         if (partyId == -1) {
             continue;
         }
-        pCurActor = &g_FieldActors[i];
-        pSpriteData = (SpriteData*)pCurActor->pSpriteData;
+        pCurActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
+        pSpriteData = pCurActor->pSpriteData;
         if (partyId == 0) {
             continue;
         }
         func_80084A40(i, ((s16*)&pCurActor->pActorData->position.vy)[1], pActor, pData);
-        pSpriteData->position.x = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.x;
-        pSpriteData->position.y = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.y;
-        pSpriteData->position.z = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.z;
-        pActor->transformMatrix.t[0] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[0];
-        pActor->transformMatrix.t[1] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[1];
-        pActor->transformMatrix.t[2] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[2];
+        *(volatile int*)&pSpriteData->position.x = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.x;
+        *(volatile int*)&pSpriteData->position.y = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.y;
+        *(volatile int*)&pSpriteData->position.z = ((SpriteData*)g_FieldActors[g_PlayerActorIndex].pSpriteData)->position.z;
+        *(volatile int*)&pActor->transformMatrix.t[0] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[0];
+        *(volatile int*)&pActor->transformMatrix.t[1] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[1];
+        *(volatile int*)&pActor->transformMatrix.t[2] = g_FieldActors[g_PlayerActorIndex].transformMatrix.t[2];
     }
 
     D_800B2368 = 0;
@@ -2188,6 +2120,7 @@ void func_80077268(void) {
     }
 }
 */
+
 
 void FieldLoadFont(void) {
     if (g_FieldSystemMode == 0) {
