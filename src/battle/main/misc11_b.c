@@ -220,9 +220,11 @@ void func_8008115C(u8 arg0) {
    g_BattleCommandQueue[0x2DD] spelling is the best measured, keep it.
    NOT a preset: gcc-2.6.0 gives the identical 87.59 (and the unit cannot
    switch anyway: BattleSetActorFlag34 is 97.00 under 2.6.0).
-   JTBL_LAYOUT PROVEN round 389, see func_800822C4 below: converting this
-   switch puts the C table at .rodata+0x198 instead of retail's +0x194 and
-   build/out/battle.bin ends up 4 bytes long. */
+   JTBL_LAYOUT no longer applies: the split into main/misc11_b puts this table
+   at .rodata+0x0 of a range that starts 8-aligned (see the header comment), so
+   only the two block-placement differences above remain. Re-measured after the
+   split 88.35% at 440 bytes against retail's 444; the typed-struct twin port the
+   main/misc12 neighbours use measures 87.59, so this raw spelling stays. */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80081318);
 /* 85.02% and JTBL_LAYOUT - and the solver of the whole-family theory: the C
