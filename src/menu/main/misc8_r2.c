@@ -148,7 +148,27 @@ void MenuFreeUnk42CPanel(void) {
    at unk42C + 0x00 and + 0x800, upload both with a LoadImage of one 0x28 x 0xD
    cell, then set up their prims with MenuSetStringPrimitives and MenuSetQuadVertices.
    The flag byte is pDressingRoom->pItemsData[id].displayFlags; bit 0x80 is the
-   shaded variant and is dropped when bit 0x20 is set while g_ShopIndex is 0. */
+   shaded variant and is dropped when bit 0x20 is set while g_ShopIndex is 0.
+   RE-MEASURED AND IMPROVED (round 394), best 95.44% (1024 vs 1012 bytes, 256 vs
+   251 insns). Item 1 above is SOLVED: the two fail paths now sit out of line
+   exactly where retail has them and share one shouldRenderRows[i] = 0. The
+   source shape is the NESTED one, not the leading-continue one -- the outer test
+   POSITIVE with the main body in the inner if and the inner test written
+   `!= 0` so the main body is generated before its else (91.33 leading-continue,
+   93.54 nested with the inner test `== 0`, 95.44 nested with the inner `!= 0`).
+   Still open, all re-measured on this body:
+   a) both (x + 0x28) & 0xFFF8 and (x + 0x90) & 0xFFF8 emit an extra
+      `li t0,-8` + `and` in front of retail's single `andi a1,a1,0xfff8`; that is
+      4 of the 5 surplus insns. Unchanged by a u16 x local (re-probed on this
+      body: still 256 / 95.44), by the sizeof spelling and by dropping the mask.
+   b) x and y swap registers (retail keeps x in $s1, y in $s0), the /10 magic
+      stays in $a0 across an addu in retail but in $v0 here, and mfhi lands in
+      $t0 here vs $v0 in retail. That is the round 391 preset signature, but the
+      same body scores 90.48% / 1016 bytes under gcc 2.6.0, so this unit is MIXED:
+      2.6.0 is better for func_801DB39C (99.93 vs 98.77) and worse here.
+   c) five addu operand flips (retail base-first, ours index-first).
+*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
 /*
 void func_801DA5BC(s32 arg0) {
     u8 digitCodes[4];
@@ -164,57 +184,56 @@ void func_801DA5BC(s32 arg0) {
     digitCodes[1] = 0;
     digitCodes[3] = 0;
     for (i = 0; i < 0x10; i++) {
-        if (g_GameState.itemIDs[arg0 * 2 + i] == 0) {
-            g_GameState.itemQuantities[arg0 * 2 + i] = 0;
-        } else if (g_GameState.itemQuantities[arg0 * 2 + i] == 0) {
-            g_GameState.itemIDs[arg0 * 2 + i] = 0;
-        } else {
-            if (g_GameState.itemQuantities[arg0 * 2 + i] >= 0x64) {
-                g_GameState.itemQuantities[arg0 * 2 + i] = 0x63;
-            }
-            ((MenuString*)g_Menu->pItemRows)[i].width =
-                SystemRenderStringEntry(GetItemName(g_GameState.itemIDs[arg0 * 2 + i]), pWorkspace, 0x24, 0);
-            tens = g_GameState.itemQuantities[arg0 * 2 + i] / 10;
-            digitCodes[0] = tens != 0 ? tens + 0x10 : 0xC3;
-            digitCodes[2] = g_GameState.itemQuantities[arg0 * 2 + i] % 10 + 0x10;
-            SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
-            ((MenuString*)g_Menu->pItemRows)[i + 0x10].width =
-                SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
-            rect.x = 0x180 + (i & 1) * 0x18;
-            rect.y = 0x80 + (i / 2) * FONT_LETTER_HEIGHT;
-            rect.w = 0x28;
-            rect.h = FONT_LETTER_HEIGHT;
-            LoadImage(&rect, (u_long*)pWorkspace);
-            DrawSync(0);
-            itemFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].displayFlags;
-            if ((itemFlags & 0x20) && (g_ShopIndex == 0)) {
-                itemFlags = 0;
+        if (g_GameState.itemIDs[arg0 * 2 + i] != 0) {
+            if (g_GameState.itemQuantities[arg0 * 2 + i] != 0) {
+                    if (g_GameState.itemQuantities[arg0 * 2 + i] >= 0x64) {
+                        g_GameState.itemQuantities[arg0 * 2 + i] = 0x63;
+                    }
+                    ((MenuString*)g_Menu->pItemRows)[i].width =
+                        SystemRenderStringEntry(GetItemName(g_GameState.itemIDs[arg0 * 2 + i]), pWorkspace, 0x24, 0);
+                    tens = g_GameState.itemQuantities[arg0 * 2 + i] / 10;
+                    digitCodes[0] = tens != 0 ? tens + 0x10 : 0xC3;
+                    digitCodes[2] = g_GameState.itemQuantities[arg0 * 2 + i] % 10 + 0x10;
+                    SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
+                    ((MenuString*)g_Menu->pItemRows)[i + 0x10].width =
+                        SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
+                    rect.x = 0x180 + (i & 1) * 0x18;
+                    rect.y = 0x80 + (i / 2) * FONT_LETTER_HEIGHT;
+                    rect.w = 0x28;
+                    rect.h = FONT_LETTER_HEIGHT;
+                    LoadImage(&rect, (u_long*)pWorkspace);
+                    DrawSync(0);
+                    itemFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].displayFlags;
+                    if ((itemFlags & 0x20) && (g_ShopIndex == 0)) {
+                        itemFlags = 0;
+                    } else {
+                        itemFlags &= 0x80;
+                    }
+                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemFlags | 1);
+                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemFlags | 2);
+                    x = (i % 2) * 0x88;
+                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i].vertices, (x + 0x28) & 0xFFF8,
+                                        (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i].width,
+                                        FONT_LETTER_HEIGHT);
+                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i + 0x10].vertices, (x + 0x90) & 0xFFF8,
+                                        (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i + 0x10].width,
+                                        FONT_LETTER_HEIGHT);
+                    ((MenuString*)g_Menu->pItemRows)[i].renderContext = *(u8*)&g_Menu->renderContext;
+                    ((MenuString*)g_Menu->pItemRows)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
+                g_Menu->pItemRows->shouldRenderRows[i] = 1;
             } else {
-                itemFlags &= 0x80;
+                g_GameState.itemIDs[arg0 * 2 + i] = 0;
+                g_Menu->pItemRows->shouldRenderRows[i] = 0;
             }
-            MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemFlags | 1);
-            MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemFlags | 2);
-            x = (i % 2) * 0x88;
-            MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i].vertices, (x + 0x28) & 0xFFF8,
-                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i].width,
-                                FONT_LETTER_HEIGHT);
-            MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i + 0x10].vertices, (x + 0x90) & 0xFFF8,
-                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i + 0x10].width,
-                                FONT_LETTER_HEIGHT);
-            ((MenuString*)g_Menu->pItemRows)[i].renderContext = *(u8*)&g_Menu->renderContext;
-            ((MenuString*)g_Menu->pItemRows)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
-            g_Menu->pItemRows->shouldRenderRows[i] = 1;
-            continue;
+        } else {
+            g_GameState.itemQuantities[arg0 * 2 + i] = 0;
+            g_Menu->pItemRows->shouldRenderRows[i] = 0;
         }
-        g_Menu->pItemRows->shouldRenderRows[i] = 0;
     }
     HeapFree(pWorkspace);
     g_Menu->pManager->shouldRenderUnk42C = 1;
 }
-
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
-
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA9A8);
 
 void MenuInitializeArrowCursor(u_char index) {
