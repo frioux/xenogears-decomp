@@ -343,32 +343,17 @@ void FieldScriptVMHandlerWalkToPosition(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_800984EC);
-
-/* Best attempt (91.25%, 208 bytes = retail's, 52/52 instructions). Blocks 1-3
-   match exactly once the three halfwords are typed as one SVECTOR (0x800B21AE,
-   vx/vy/vz); the two s16 externs the earlier park used (78.46%) gave gcc a
-   different allocation for blocks 2-3 and lost 12 bytes. Residual is the tail
-   only: retail loads g_FieldScriptVMCurActor into v1 right after the
-   g_FieldScreenShakeMode lbu and takes the ip `lhu` AFTER the `sb`, so its
-   addiu needs a load-delay nop; this body takes the actor pointer in a0 after
-   the sb and the `lhu` first. Tried: `do { } while (0);` after the third store
-   (same 91.25%, that barrier is what moves the load off the store), a second
-   barrier (90.77%: right tail order but 54 insns, duplicate actor load), a
-   local s16 for the third result, an explicit ActorData* local for the
-   increment, an explicit ip temp, and the `u8 shakeMode` two-step kept here.
 void func_800984EC(void) {
+    u_short* pIp;
+
     D_800B21AE.vx = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
     D_800B21AE.vy = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
     D_800B21AE.vz = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
-    {
-        u8 shakeMode;
-        shakeMode = g_FieldScreenShakeMode | 0x80;
-        g_FieldScreenShakeMode = shakeMode;
-    }
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
+    g_FieldScreenShakeMode |= 0x80;
+    pIp = &g_FieldScriptVMCurActor->scriptInstructionPointer;
+    *pIp += 8;
 }
-*/
+
 
 void FieldScriptVMHandlerDebugPrintVariable(void) {
     if (g_FieldSystemMode == 0) {
