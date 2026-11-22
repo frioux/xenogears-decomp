@@ -267,23 +267,6 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
-/* 98.19%: every instruction but ONE operand order is byte-exact (464 bytes,
-   same frame, same save order). Retail's store into the local packet-pointer
-   array is `sll s0,s2,2 / addiu s5,sp,0x10 / addu s0,s5,s0` (base first), we
-   get `addu s0,s0,s5`. `pBuf[i]`, i[pBuf], *(pBuf+i), (u8 *)pBuf + i * 4,
-   (s32)i * 4 + (s32)pBuf and a `u8 **pBase = pBuf;` local all give index-first,
-   so the order is a combine/allocator choice, not source-driven. A separate
-   `pSlot = pBuf + i` statement does give retail's order, but the address is
-   then formed before the call (468 bytes, `li a0,0x1B` falls out of the jal
-   delay slot, 90.83).
-   Two things this body had to get right: `i = 0;` must be the first statement
-   (not the for-init) because the prologue's save+init pairs are emitted in
-   first-assignment order and retail saves s2 first (96.80 -> 98.15); and the
-   third loop's offset must be zeroed in the for-init clause
-   (`for (i = 0, off2 = 0; ...)`) so `move s1,zero` lands after `li s3,0xD`
-   where retail has it (98.15 -> 98.19). That third loop walks a byte offset
-   because g_BattleDigitImageBuffers is typed u8 *, so `g_BattleDigitImageBuffers + off` double-scales.
-   Parked body (98.19):
 void func_80076EA4(void) {
     u8 *pBuf[11];
     RECT rect;
@@ -295,16 +278,19 @@ void func_80076EA4(void) {
     s32 off2;
     s32 y;
     s32 h;
+    u8 **pSlot;
 
     i = 0;
     y = 0x10D;
     h = 0xD;
     off = 0x2C;
     for (; i < 11; i++) {
-        pBuf[i] = BattleAllocTextBuffer(0x1B);
-        bzero(pBuf[i], 0x30C);
-        D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), pBuf[i], 0x1B, 0);
-        result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), pBuf[i], 0x1B, 1);
+        // the assignment inside the store's address expression is what makes gcc
+        // form the slot address after the call and base-first, as retail does
+        *(pSlot = pBuf + i) = BattleAllocTextBuffer(0x1B);
+        bzero(*pSlot, 0x30C);
+        D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), *pSlot, 0x1B, 0);
+        result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), *pSlot, 0x1B, 1);
         g_BattleActionRowIconSprites[off] = result;
         pEntry = (u8 *)(g_BattleActionRowIconSprites + off);
         D_800D2F3E[off] = pEntry[2] = 0x78;
@@ -315,7 +301,7 @@ void func_80076EA4(void) {
         rect.y = y;
         rect.w = 0x1E;
         rect.h = 0xD;
-        BattleLoadImageAndSync(&rect, pBuf[i]);
+        BattleLoadImageAndSync(&rect, *pSlot);
         y += 0xD;
         h += 0xD;
         off += 4;
@@ -324,17 +310,16 @@ void func_80076EA4(void) {
     for (i = 0; i < 11; i++) {
         HeapFree(*p++);
     }
-    for (i = 0, off2 = 0; i < 0xA; i++) {
+    for (i = 0; i < 0xA; i++) {
         rect.x = 0x3DE + i * 2;
         rect.y = 0x100;
         rect.w = 6;
         rect.h = 0xD;
+        off2 = i * sizeof(u8 *);
         BattleLoadImageAndSync(&rect, *(u8 **)((u8 *)g_BattleDigitImageBuffers + off2));
-        off2 += 4;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
+
 void BattleInitPacketPrimitives(void) {
     g_BattleGraphicsWork->pPacketPrims[0x669] = 0;
     g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
