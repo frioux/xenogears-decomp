@@ -307,7 +307,10 @@ def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
         minutes = 30
         extra = "Never written, no park or note: " + names
     elif cls == "redo":
-        minutes = 30 if all(f["insns"] < BIG for f in funcs) else 60
+        # A redo lane rewrites the body from an m2c draft, which is slower than re-spelling a
+        # park: round 398 ran five of 18 lanes into the 30-minute cap, so 45 minutes and at
+        # most two functions per lane.
+        minutes = 45 if all(f["insns"] < BIG for f in funcs) else 60
         extra = " | ".join("%s (%d insns) %s%s" % (
             f["func"], f["insns"], "scored %.2f percent" % f["pct"] if f["pct"] is not None else "no usable percentage",
             ", note: " + note_excerpt(f, 100) if f["note"] else "") for f in funcs)
@@ -355,7 +358,7 @@ def candidate_lanes(cls, elig):
             lanes.append(((sum(f["insns"] for f in chosen) / len(chosen),), unit, chosen))
         elif cls == "redo":
             small = [f for f in fs if f["insns"] < BIG]
-            chosen = pick(small, lambda f: f["insns"], 4, 450) if small else pick(fs, lambda f: f["insns"], 1, 0)
+            chosen = pick(small, lambda f: f["insns"], 2, 450) if small else pick(fs, lambda f: f["insns"], 1, 0)
             lanes.append(((sum(f["insns"] for f in chosen) / len(chosen),), unit, chosen))
         else:
             chosen = pick(fs, lambda f: f["insns"], 1, 0)
