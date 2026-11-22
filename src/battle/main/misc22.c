@@ -823,15 +823,11 @@ typedef struct {
     /* 0x0C */ MATRIX localTransform;
     /* 0x2C */ MATRIX globalTransform;
     /* 0x4C */ u8 unk4C[0x6];
-    /* 0x52 */ s16 state; // selects how the part is drawn and which packet path it takes
+    /* 0x52 */ u16 state; // selects how the part is drawn and which packet path it takes
     /* 0x54 */ s16 rot[3];
     /* 0x5A */ u16 pad5A;
     /* 0x5C */ s32 pos[3];
-    /* 0x68 */ void *p68;
-    /* 0x6C */ void *p6C;
-    /* 0x70 */ u8 *p70;
-    /* 0x74 */ u8 *p74;
-    /* 0x78 */ u8 *p78;
+    /* 0x68 */ void *packets[5]; // one render packet per packetIndex
 } BattleMisc22Sprite; // Size: 0x7C
 
 typedef struct {
@@ -839,31 +835,6 @@ typedef struct {
     /* 0x4 */ u32 count;
 } BattleMisc22Mesh; // Size: 0x8
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
-/* 97.30% (592 bytes, retail 588); identical instruction multiset, ONE store
-   position left. Everything else is byte-for-byte: prologue save order, the
-   loop bound (count - 1, hoisted to $s7), the (u16)(state + 0xFFFF) < 2 range
-   test, the matrix fixup block, the 4..7 flag switch tree, the two per-branch
-   part/packet computations and the loop tail. Facts established here:
-   - the signature has EIGHT params, not twelve: gcc 2.6.0 addresses incoming
-     stack args at frame_size + 16 + (n - 5) * 4, so pOt/packetIndex/otIndex
-     land on 0x54/0x58/0x5C only when they are params 6/7/8. A twelve-param
-     prototype puts them at 0x64 and scores 90.8%.
-   - the state field at sprite+0x52 is read as u16 for the range test
-     (lhu + li 0xFFFF + addu + andi + sltiu) but as s16 at each later use
-     (three `lh` reloads, not one CSE'd value): write the cast per use.
-   - `pOt + otIndex - 1` emits the original's sll/addu + addiu (-4 in the j
-     delay slot); `&pOt[otIndex - 1]` folds the -4 before the base add.
-   - the part argument MUST be computed in the state==0 branch itself, or
-     gcc cross-jumps it into the else branch's copy (5 instructions shared,
-     572 bytes). A `void *pPart` local in that one branch breaks the merge.
-   Remaining: the else branch's `g_GfxOTDepthShift = oldShift` store sits
-   third in our RTL and last before the jal in retail. Tried: the store last
-   in source (unchanged), pPart/pPacket locals in both orders (interleaves
-   the two address computations, 95.6%), &pOt[] vs pointer arithmetic, and a
-   4-minute permuter run (PERMUTER_NONE, base=120 best=120). The mips
-   scheduler, not the source, puts the two incoming-stack loads above the
-   store.
 void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRIX *pMatrix,
                    s32 arg3, s32 arg4, u_long *pOt, s32 packetIndex, s32 otIndex) {
     MATRIX *pMat = (MATRIX *)((u8 *)PSX_SCRATCH + 0x40);
@@ -871,6 +842,7 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
     u_int numChildren;
     u_int i;
     s32 flags;
+    u_int stateMinusOne;
 
     oldShift = g_GfxOTDepthShift;
     numChildren = pSkeleton->count - 1;
@@ -878,14 +850,16 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
     for (i = 0; i < numChildren; i++, pSkeleton++) {
         if (pSkeleton->jointIndex != 0xFFFF && pSkeleton->isVisible != 0) {
             CompMatrix(pMatrix, &pSkeleton->globalTransform, pMat);
-            if ((u16)(pSkeleton->state + 0xFFFF) < 2) {
+            // state - 1 modulo 2^16, so states 0 and 1 both land below 2
+            stateMinusOne = pSkeleton->state + 0xFFFF;
+            if ((u16)stateMinusOne < 2) {
                 pMat->m[0][0] = 0x1000;
                 pMat->m[0][2] = 0;
                 pMat->m[1][0] = 0;
                 pMat->m[1][2] = 0;
                 pMat->m[2][0] = 0;
                 pMat->m[2][2] = 0x1000;
-                if (pSkeleton->state == 1) {
+                if ((s16)pSkeleton->state == 1) {
                     pMat->m[0][1] = pMatrix->m[0][1];
                     pMat->m[1][1] = pMatrix->m[1][1];
                     pMat->m[2][1] = pMatrix->m[2][1];
@@ -897,7 +871,7 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
             }
             SetRotMatrix(pMat);
             SetTransMatrix(pMat);
-            switch (pSkeleton->state) {
+            switch ((s16)pSkeleton->state) {
             case 4:
                 flags = 2;
                 break;
@@ -914,22 +888,21 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
                 flags = 0;
                 break;
             }
-            if (pSkeleton->state == 0) {
+            if ((s16)pSkeleton->state == 0) {
                 void *pPart = pMesh->pParts[pSkeleton->jointIndex];
 
                 g_GfxOTDepthShift = 0x10;
-                ModelRenderPacket(pPart, ((void **)&pSkeleton->p68)[packetIndex], pOt + otIndex - 1,
+                ModelRenderPacket(pPart, pSkeleton->packets[packetIndex], pOt + otIndex - 1,
                                   flags);
             } else {
                 g_GfxOTDepthShift = oldShift;
                 ModelRenderPacket(pMesh->pParts[pSkeleton->jointIndex],
-                                  ((void **)&pSkeleton->p68)[packetIndex], pOt, flags);
+                                  pSkeleton->packets[packetIndex], pOt, flags);
             }
         }
     }
     g_GfxOTDepthShift = oldShift;
 }
-*/
 s32 BattlePushTargetOutOfCircles(u16 *pPos, s16 *pTarget) {
     s32 result = 0;
     u16 *pSrc = g_BattleCircles;
