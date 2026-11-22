@@ -488,6 +488,101 @@ void WorldMapUpdateL2R2PressEdge(void) {
     g_WorldMapL2R2PressedLast = state;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090A84);
+/* best: 99.92% (objdiff), 484 bytes = retail's exact size, every instruction identical. The
+   only residual is the switch table operand (jtbl_80070B54 against .rodata) and the .L label
+   relocs of the `j` instructions, which the linker resolves to the same addresses.
+   PARKED FOR A LAYOUT REASON, and this one is arithmetic, not a hunch. All of this unit's
+   rodata (0x800709F8, 0x258 bytes) is nine jump tables and nothing else, and cc1 emits a
+   converted unit's tables FIRST in its .rodata, each preceded by a hardcoded `.align 3`
+   (identical in 2.6.0 / 2.7.2 / cdk). In function order the tables are
+   E190 0x18 @+0, E190 0x20 @+0x18, E4F4 0x20 @+0x38, E76C 0x104 @+0x58, this one 0x30
+   @+0x15C, C68 @+0x18C, E14 @+0x1BC, 914D0 @+0x1EC and @+0x214. E76C's 65-word table is
+   0x104 bytes, so every table after it sits at 4 mod 8 of the range and cc1 pads +4 in
+   front of the first of them: converting the whole family in address order puts this table
+   at +0x160 and makes the overlay 4 bytes too long (the C68/E14 parks below carry the
+   measurement: 180426 against disc's 180422). Converting this stub alone is worse still -
+   its asm table leaves the asm part of the object and the C table goes to +0, shifting the
+   other eight by 0x30. The unit stays blocked until someone can emit a 4-aligned jump
+   table; the C below is finished, so un-park it the day that is solved.
+   Body: it is func_80090C68's body plus one arm. The released-0x20 test has an
+   `else if (g_WorldMapAreaId != -1)` that returns 1 when the current area record's mode
+   (0xE) is 1; gcc keeps the -1 in v0 across both compares, as retail does. angle is s16
+   (lhc for rcos/rsin reads it) at 0x48; the switch cases are 1,2,3,4,6,8,9,12, case 1
+   storing the raw view rotation and the rest masked with 0xFFF, all read as
+   g_WorldMapViewRotationY[0] (u16 array extern - the bare name truncates the address).
+// The area record g_WorldMapAreaRect points at: the layout src/world_map/main/misc14 walks
+// (the mode at 0xE picks the area-selection rule there and here).
+typedef struct {
+    // 0x0
+    s16 left;
+    // 0x2
+    s16 top;
+    // 0x4
+    s16 width;
+    // 0x6
+    s16 height;
+    // 0x8
+    s16 kind;
+    // 0xA
+    s16 unkA;
+    // 0xC
+    u16 value;
+    // 0xE
+    s16 mode;
+} WorldMapRect; // Size: 0x10
+
+s32 func_80090A84(WorldMapPlayer *pPlayer) {
+    switch (g_WorldMapPad1Held >> 12) {
+    case 1:
+        pPlayer->angle = g_WorldMapViewRotationY[0];
+        break;
+    case 2:
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x400) & 0xFFF;
+        break;
+    case 3:
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x200) & 0xFFF;
+        break;
+    case 4:
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x800) & 0xFFF;
+        break;
+    case 6:
+        pPlayer->angle = (g_WorldMapViewRotationY[0] + 0x600) & 0xFFF;
+        break;
+    case 8:
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x400) & 0xFFF;
+        break;
+    case 9:
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x200) & 0xFFF;
+        break;
+    case 12:
+        pPlayer->angle = (g_WorldMapViewRotationY[0] - 0x600) & 0xFFF;
+        break;
+    }
+    if (g_WorldMapPad1Held & 0xF000) {
+        pPlayer->dirX = rcos(pPlayer->angle);
+        pPlayer->dirZ = -rsin(pPlayer->angle);
+    }
+    if (g_WorldMapPad1Released & 0x20) {
+        if (g_WorldMapZoneProximity != 0) {
+            return 3;
+        }
+        if (g_WorldMapAreaId != WORLD_MAP_AREA_NONE) {
+            return 1;
+        }
+    } else if (g_WorldMapAreaId != WORLD_MAP_AREA_NONE) {
+        if (((WorldMapRect *)g_WorldMapAreaRect)->mode == 1) {
+            return 1;
+        }
+    }
+    if (g_WorldMapPad1Released & 0x10) {
+        if ((g_WorldMapMode4AreaId == WORLD_MAP_AREA_NONE) && (g_WorldMapAreaId == g_WorldMapMode4AreaId)) {
+            g_WorldMapMode4EntryTriggered = 1;
+        }
+    }
+    WorldMapUpdateL2R2PressEdge();
+    return 0;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
 /* best: 99.91%, 428 bytes = retail's exact size, every instruction identical; the only
    residual is the switch table operand (jtbl_80070B84 against .rodata) and the .L label
