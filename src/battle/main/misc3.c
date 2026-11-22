@@ -9,6 +9,10 @@
 // POLY_G3 at +0x0 and the fade ramp and flags that follow them at +0xE0.
 #define BATTLE_PULSE_TRIANGLE_POOL_SIZE 0xEC
 
+// Height of one text-slot row in VRAM: the slot rects are 13 px tall
+// (func_8007819C sets h = 0xD) and the row's y offset is (slot / 2) * 13.
+#define BATTLE_TEXT_ROW_HEIGHT 13
+
 // tpage's semi-transparency rate field, the `abr` arg of GetTPage (bits 5-6): the
 // add and subtract modes the BlendAdd and BlendSub setters below turn on in it.
 #define BATTLE_PRIM_TPAGE_BLEND_ADD 0x20
@@ -670,7 +674,7 @@ void func_800780A8(u8 *pInfo, s32 arg) {
             clut = g_SystemPalette1;
         }
         p->clut = clut;
-        p->tpage = GetTPage(0, 0, 0x3C0, (slot / 2) * 13);
+        p->tpage = GetTPage(0, 0, 0x3C0, (slot / 2) * BATTLE_TEXT_ROW_HEIGHT);
         i++;
     } while ((s32)&((BattleSlotPrimBlock *)pInfo)->prims[i] <
              (s32)&((BattleSlotPrimBlock *)pInfo)->prims[2]);
