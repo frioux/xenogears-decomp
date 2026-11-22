@@ -323,39 +323,42 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
     }
 }
 
-/* Best: 73.54% (668 vs 668 bytes, retail's exact size). Structure is right: the dispatch
-   is the case TREE, the case-1 <3 and case-2 <5 arms are ONE shared block (gcc's tail merge,
-   so writing both arms identically is correct), and every arm's instruction sequence is
-   present. What is left is pure register naming, and it cascades from the PROLOGUE: retail
-   copies the raw animId out of $a1 (move a3,a1) and computes (s16)animId + 0x400 IN PLACE in
-   $a1, so $a1 is free and the arms pick $a2/$a0; ours keeps the raw id in $a1, computes the
-   cast into $v0 ($a3 then holds prevGroup, where retail uses $t0) and every arm's registers
-   shift. Measured dead ends for that copy: the same body with the uint cast only (64.66%,
-   652 bytes), prevGroup assigned after the if (69.41%, 648), a permuter run from the 64.66%
-   body (4 min, 1308 iterations) found only the u16-load split below (64.66 -> 73.54, size
-   652 -> 668). Kept: (a) the switch index is a u8 local - as an s32 gcc emits a comparison
-   CHAIN (beq 1 / beqz 0 / beq 2) instead of retail's slti-based tree, so this is the lever
-   that closes the dispatch; (b) field_0x54 needs the u16 table entry in its OWN variable,
-   the inlined expression is 8 bytes short; (c) the 0x3C word is a whole-word RMW of BIT 3
-   (li v0,-9 + or/sll), not of a named bitfield - the header's field_0x3C_6 is bit 28.
-   Facts: arg is s32 (field_0x80 = arg is sh of the raw, and case 0 uses arg + 0x400 without
-   a sign-extend); (s16)animId + 0x400 & 1 sets/clears flags_0xAC bit 2; savedGroup =
-   (flags_0xA8 >> 17) & 7 is compared again after the switch; case 0 = raw id, index 0 in
-   the u16 table at anim + 4; case 1 index = ((s16)animId + 0x600) >> 10 & 3, index 3 uses
-   entry 1 (anim + 6) and sets bit 2; case 2 index = ((s16)animId + 0x500) >> 9 & 7, 5..7
-   remapped as (index - 5) ^ 3; cases 1/2 write flags_0xA8 = (flags & 0xFFF1FFFF) |
-   ((index & 7) << 17); the group-changed tail saves animScriptWaitTimer around
-   func_80022660(pSpriteData, old pSpriteBytecode, (u32)flags_0xA8 >> 22 & 0x3F) and the
-   function ends by mirroring flags_0xAC bit 3 ^ bit 2 into bit 3 of the word at 0x3C.
-
-extern void func_80022660(SpriteData* pSpriteData, void* pSpriteBytecode, s32 scriptIndex);
-
 // Select the animation group for an animation id and restart the script: the id's
 // low bits pick an entry in the current animation's offset table, whose target
 // becomes the frame list, and a group change re-runs the VM from the new script.
+//
+// Best: 74.09% (668 bytes, 167 insns; retail is 688 bytes, 172 insns - five `move`s
+   short, all of them register shuffles). Structure is right: the switch is the case TREE
+   (beq 1 / slti 2 / beqz 0 - so the switch index must be a u8 local, an s32 one makes a
+   comparison CHAIN), the case-1 <3 and case-2 <5 arms are ONE shared block (gcc tail merge,
+   so writing both arms identically is correct), and every arm's sequence is present.
+   The residual is ONE register: retail keeps the raw animId in $a3 for the whole switch and
+   therefore frees $a1 to hold the parity computation IN PLACE (sll/sra/addiu/andi a1), while
+   every compile here gives the copy $a0 (copy declared first) or $a2 (any other order) and
+   the parity temp $v0, so all four argument registers shift and the arms take different
+   temporaries - the 5 missing instructions are the `move`s that follow from that.
+   MEASURED: (a) the entry copy `s32 index = animId` must exist and must be REASSIGNED in
+   case 1/2 (that is what stops copy-propagation) - without it there is no `move a3,a1` at
+   all (73.54%, and 73.54% again when the case-1/2 index expressions are written off `index`
+   instead of `animId`, which lets gcc coalesce the copy away, 664 bytes); (b) the parity as
+   its own local `s32 parity = ((s16)animId + 0x400) & 1` is worth +0.55 (73.54 -> 74.09,
+   same 668 bytes); (c) declaration ORDER of those two locals only moves the copy between
+   $a0 and $a2 (both 74.09%), never to retail's $a3; (d) a named `s16 sAnimId = animId` for
+   the parity instead of the cast is 73.51%. Facts: arg is s32 (field_0x80 = arg is `sh` of
+   the raw, and case 0 uses arg + 0x400 with no sign-extend); `(s16)animId + 0x400 & 1` sets
+   bit 2 of flags_0xAC; prevGroup = (flags_0xA8 >> 17) & 7 is recomputed and compared after
+   the switch; case 0 = raw id, entry 0 of the u16 table at anim + 4; case 1 index =
+   ((s16)animId + 0x600) >> 10 & 3, index 3 uses entry 1 (anim + 6) and sets bit 2; case 2
+   index = ((s16)animId + 0x500) >> 9 & 7, 5..7 remapped as (index - 5) ^ 3; cases 1/2 write
+   flags_0xA8 = (flags & 0xFFF1FFFF) | ((index & 7) << 17); the group-changed tail saves
+   animScriptWaitTimer around func_80022660(pSpriteData, old pSpriteBytecode, flags >> 22 & 0x3F)
+   and the function ends by mirroring flags_0xAC bit 3 ^ bit 2 into bit 3 of the word at 0x3C. */
+
+/*
 void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     s32 prevGroup;
-    s32 index;
+    s32 index = animId;
+    s32 parity = ((s16)animId + 0x400) & 1;
     u8 animGroup;
     u32 field0x3C;
     s32 newVar;
@@ -366,7 +369,7 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
 
     pSpriteData->field_0x80 = animId;
     prevGroup = ((u32)pSpriteData->flags_0xA8 >> 17) & 0x7;
-    if (((s16)animId + 0x400) & 1) {
+    if (parity) {
         pSpriteData->flags_0xAC.flags |= 4;
     } else {
         pSpriteData->flags_0xAC.flags &= ~4;
@@ -377,7 +380,7 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     animGroup = ((u32)pSpriteData->flags_0xA8 >> 20) & 0x3;
     switch (animGroup) {
     case 0:
-        if (((animId + 0x400) & 0xFFF) >= 0x801) {
+        if (((index + 0x400) & 0xFFF) >= 0x801) {
             pSpriteData->flags_0xAC.flags |= 4;
         } else {
             pSpriteData->flags_0xAC.flags &= ~4;
@@ -433,9 +436,7 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
                   (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1))
                  << 3);
     *(u32*)((u8*)pSpriteData + 0x3C) = field0x3C;
-}
-*/
-
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223B0);
 
 // Run Sprite Animation VM
