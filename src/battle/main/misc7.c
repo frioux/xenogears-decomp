@@ -281,59 +281,32 @@ void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
 
     pField[(*p)->operand1] = value;
 }
-// best: 91.41% with the typed bank below (91.53 with the untyped pField of the
-// earlier rounds). Structure recovered: the
-// three `sb zero` are `buf[0] = buf[1] = buf[2] = 0`, and the two copies of the
-// test come from the top-tested while being rotated. Sole gap: gcc's
-// strength_reduce turns `g_BattleSlotFlags + idx * 8` into a GIV because idx is
-// loop-VARIANT and hoists the symbol's address into a spare callee-saved
-// register (s5, frame 56 against retail's 48), where retail keeps the symbol
-// inside the mem operand and lets maspsx expand `lui $at / addu $at,$at,v0 /
-// lbu %lo($at)` every iteration (pField then also lands in s4 instead of a1).
-// cc1_probe.sh names the trigger: the same access with a loop-INVARIANT index
-// (`index * 8` from a parameter) takes $2 and no saved register, and a
-// `u8 *pFlags = g_BattleSlotFlags` inside the body hoists as well.
-// Tried and no better (all 91.41): the global declared as a scalar with
-// `(&g_BattleSlotFlags)[idx * 8]`, a `*(volatile u8 *)` read (the round-299
-// read lever does not reach a GIV base), an index-first cast
-// `*(u8 *)((idx * 8) + (s32)g_BattleSlotFlags)`. Earlier rounds: nested ifs,
-// `&&`, -G0. screened: 91.53 is the max of Default / cdk 88.92 / 2.6.0 91.53.
-// best: 91.41% (340 bytes against retail's 332; 85 instructions against 83). The
-// body is the twin of misc8's BattlePickCharSlotWithDifferentTag minus its
-// g_BattleSlotRecords comparison, and every instruction matches except the one
-// residual the round-388 note already names: gcc's strength_reduce makes a biv out
-// of `g_BattleSlotFlags + idx * 8` because idx is loop-variant, hoists the symbol
-// into a spare callee-saved register (s5, frame 56 against retail's 48) where retail
-// keeps it inside the mem operand and lets maspsx expand `lui at / addu at,at,v0 /
-// lbu %lo(at)` every iteration. The misc8 twin does NOT hoist there, so the
-// difference is the loop body's size, not the compiler: 2.6.0 hoists the same way
-// and scores the same 91.41.
-// Tried and no better (all 91.41): the misc8 `s32 slot` / `u8 idx` split (needed for
-// the s1 raw / s0 masked pair, and it is kept below), `&g_BattleSlotFlags[idx]`
-// through a u8 pointer, the `u8 *pFlags = g_BattleSlotFlags` base local, a volatile
-// read, index-first casts, nested ifs, -G0.
-/*
+// The two pointers are deliberately the untyped word bank: the typed
+// g_BattleSlotRegs[index].wordRegs spelling folds the +0x20 into the symbol
+// and names g_BattleSlotRegs instead of g_BattleSlotWordRegs in the relocation.
+// The second copy of the row pointer is load-bearing (retail re-forms it in
+// the store path; one variable leaves it in a1 and costs the frame).
 void func_8007BD5C(BattleCommand **p, u8 index) {
     u8 buf[3];
-    u16 *pField = g_BattleSlotRegs[index].wordRegs;
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
 
     buf[0] = buf[1] = buf[2] = 0;
     pField[(*p)->operand1] = 0;
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
+        u8 tried = buf[idx];
+        u16 *pLoopField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
 
-        if (buf[idx] == 0) {
+        if (tried == 0) {
             if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)->operand2) != 0 && g_BattleSlotFlags[idx].inUse == 0) {
-                pField[(*p)->operand1] = BattleSlotBitMask(idx);
+                pLoopField[(*p)->operand1] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
         }
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BD5C);
 // best: 76.81%. Same body as func_8007BD5C plus the g_BattleSlotRecords entry
 // comparison; the frame/register set is off for the same reason - gcc
 // hoists the absolute bases of g_BattleSlotRecords and g_BattleSlotFlags into extra
