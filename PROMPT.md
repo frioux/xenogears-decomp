@@ -152,11 +152,16 @@ had three lanes has had the same reader three times. `brief.js` accepts a per-wo
 `model`. For park-class entries that `~/xw/lane-history.tsv` shows were briefed twice or
 more, set `"model": "lunaroute/glm-5.3-background"` on every second one (the other half
 stays on the default as the control). Record `glm L/M` and `flash L/M` (lanes/matches on
-those re-briefed parks) in the tracker row. After 30 lanes on each, keep whichever
-yields more and write the result here. If a worker with the override fails at start
-(model unavailable, 402), drop the field for the rest of the session and log a
-`DECISION:` line. Only `lunaroute/*` models: anything else routes through OpenRouter,
-which is out of credits.
+those re-briefed parks) in the tracker row. Only `lunaroute/*` models: anything else
+routes through OpenRouter, which is out of credits.
+
+**Measured (rounds 397-399, 50 re-briefed lanes): `glm 14 lanes / 4 matches`, `flash 36
+lanes / 9 matches` - the same rate, but ALL FOUR 45-minute timeouts in those rounds were
+glm lanes and flash had none.** glm reads and reasons more per turn, so on a fixed lane
+budget it lands the same matches with a third of the throughput. Do not set the override
+by default. It is still worth a deliberate second opinion on ONE park that flash has
+failed three times: give that lane the override and no queue behind it, so the timeout
+costs nothing.
 
 ## Quality lanes (beside matching, never instead)
 
