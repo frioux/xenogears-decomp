@@ -189,7 +189,7 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
 // at retail's 0x5C8 and the read is based on D_800CEF34 (g_BattleActionRows + 0x24);
 // the step call is a plain statement, not a do/while(0), which is what puts `cursor`
 // in $s3 and the codes walk in $s2.
-u8 func_8008CFB8(u8 arg0) {
+u8 BattleRunSlotCommandMenu(u8 arg0) {
     u8 codes[4];
     u16 damage[4];
     u16 statusMasks[4];

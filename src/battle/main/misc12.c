@@ -640,7 +640,7 @@ void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
     }
 }
 extern void BattleLoadStringTable96(u8);
-extern u8 func_8008CFB8(u8);
+extern u8 BattleRunSlotCommandMenu(u8);
 void BattleAdvanceSlotMenuStateText(u8 arg0) {
     u8 a;
 
@@ -650,7 +650,7 @@ void BattleAdvanceSlotMenuStateText(u8 arg0) {
     case 6:
     case 7:
         BattleLoadStringTable96(a);
-        if (func_8008CFB8(a) != 0) {
+        if (BattleRunSlotCommandMenu(a) != 0) {
             BattleQueueOneActorCommand(a);
         } else {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x18;

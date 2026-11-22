@@ -293,7 +293,7 @@ s32 FieldCheckSpriteSlotFlag(s32 index) {
     return -1;
 }
 
-extern RECT D_800AF5C0[5];
+extern RECT g_FieldSpriteSlotRects[5];
 
 /* PARKED 68.25% (592 bytes, retail 668, 148 vs 164 insns). Every call, table
    walk, branch and store order matches; the residual is gcc loop strength
@@ -331,16 +331,16 @@ void func_800AB808(void) {
             }
 
             pDst = pImage;
-            for (j = 0; j < D_800AF5C0[i].h; j++) {
-                memcpy(pDst, (u_long*)tim.paddr + (j + D_800AF5C0[i].y) * 0x50 + D_800AF5C0[i].x / 4,
-                    D_800AF5C0[i].w);
-                pDst += D_800AF5C0[i].w / 4;
+            for (j = 0; j < g_FieldSpriteSlotRects[i].h; j++) {
+                memcpy(pDst, (u_long*)tim.paddr + (j + g_FieldSpriteSlotRects[i].y) * 0x50 + g_FieldSpriteSlotRects[i].x / 4,
+                    g_FieldSpriteSlotRects[i].w);
+                pDst += g_FieldSpriteSlotRects[i].w / 4;
             }
 
-            tim.prect->x = D_800AF5C0[i].x / 2 + 0x300;
-            tim.prect->y = D_800AF5C0[i].y + 0x100;
-            tim.prect->w = D_800AF5C0[i].w / 2;
-            tim.prect->h = D_800AF5C0[i].h;
+            tim.prect->x = g_FieldSpriteSlotRects[i].x / 2 + 0x300;
+            tim.prect->y = g_FieldSpriteSlotRects[i].y + 0x100;
+            tim.prect->w = g_FieldSpriteSlotRects[i].w / 2;
+            tim.prect->h = g_FieldSpriteSlotRects[i].h;
             LoadImage(tim.prect, pImage);
             DrawSync(0);
         }
@@ -363,7 +363,7 @@ typedef struct {
     s32 unk1C;
 } FieldMapSpriteEntry; // Size: 0x20
 
-extern FieldMapSpriteEntry D_800AF47C[];
+extern FieldMapSpriteEntry g_FieldMapSpriteTable[];
 
 extern s32 g_GameSceneMapNum;
 extern u16 g_FieldButtonsPressedOnce;
@@ -380,13 +380,13 @@ extern void func_800AB808();
    enters it with no top test and loops with a backward beqz.
    Residual, one construct: retail keeps the table BASE in s2 and the scaled
    index in s1 and re-forms addu reg,s2,s1 for each of the five
-   D_800AF47C[index] field reads (sched2 hoists all five together), i.e. it kept
+   g_FieldMapSpriteTable[index] field reads (sched2 hoists all five together), i.e. it kept
    the two operands instead of their sum; this cc1 cse-s base+(index*0x20) into
    one callee-saved register, which needs one callee-saved register fewer and
    moves pImage from s3 to s2 (frame 0x38 vs 0x40). That is 4 addu, the
    archiveIndex load moving into the field-load group, and the register shapes.
    Tried: pTable[index] with pTable a local pointer (best), the bare symbol form
-   D_800AF47C[index] everywhere (75.74 - gcc then uses symbol+offset macros
+   g_FieldMapSpriteTable[index] everywhere (75.74 - gcc then uses symbol+offset macros
    through $at), while instead of do-while for the poll loop (-2.37).
    try_flags --sweep: 82.61 is the best of every gcc x -O x -G x -mcpu row on the
    old body, so the preset is not the question.
@@ -397,14 +397,14 @@ extern void func_800AB808();
    the LoadImage restore. The poll loop MUST be a do-while (retail enters it with
    no top test and loops back with beqz; while costs 2.37 points).
    Residual: retail keeps the table BASE in s2 and the scaled index in s1 and
-   re-forms addu reg,s2,s1 for each of the five D_800AF47C[index] field reads
+   re-forms addu reg,s2,s1 for each of the five g_FieldMapSpriteTable[index] field reads
    (sched2 hoists all five together), i.e. it kept the two operands instead of
    their sum; this cc1 cse-s base + index*0x20 into one callee-saved register,
    which needs one callee-saved register fewer, moves pImage from s3 to s2 and
    gives frame 0x38 vs 0x40. That is 4 addu, the archiveIndex load joining the
    field-load group, and the register shapes.
    Tried: pTable[index] with pTable a local pointer (best), the bare symbol form
-   D_800AF47C[index] everywhere (75.74 - gcc then uses symbol+offset macros
+   g_FieldMapSpriteTable[index] everywhere (75.74 - gcc then uses symbol+offset macros
    through $at), and while instead of do-while (-2.37). try_flags --sweep on the
    earlier body: the unit preset is the best of every gcc x -O x -G x -mcpu row.
    This body needs FieldDrawScreenOverlayPrims to take int, not s8: retail passes
@@ -423,7 +423,7 @@ void func_800ABA98(void) {
     s32 index;
 
     mapNum = g_GameSceneMapNum & 0x3FFF;
-    pTable = D_800AF47C;
+    pTable = g_FieldMapSpriteTable;
     for (index = 0;; index++) {
         if (pTable[index].mapNum == 0xFFFF) {
             return;
