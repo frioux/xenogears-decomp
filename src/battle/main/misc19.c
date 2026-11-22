@@ -193,6 +193,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // plus four register-role swaps chained off them. try_flags on this body: 99.52% under
 // gcc-2.6.0 (even a 2.6.0 carve-out would not close it), 91.31% under gcc-2.7.2-cdk. Swapping
 // the operands of the statBonuses[7] * rowCosts[0] product is WORSE: 99.15%, 119 differing lines.
+// Round 414 measured the third combination and re-confirmed the other two: the copy of
+// pCondition declared (`u8* new_var2 = pCondition;`) instead of assigned mid-body gives retail's
+// exact 313 insns / 1252 bytes but 98.21% (new_var2 takes `$t0` and `move t0,s2` moves into the
+// entry block, which frees the `beq` slot so retail's stolen `amount++` is no longer stolen -
+// 93 differing lines of register roles downstream); dropping the second pointer entirely is
+// 96.59% / 312 insns / 1248 bytes. So the three sizes bracket retail's and none of them is it;
+// the residual that caps all of them is the md: retail `mflo v0` / `mfhi v0 / srl v0,v0,3`,
+// this compiler `mflo $tN / srl v0,$tN,3` (same family as func_8009A9D0).
+
 /*
 void func_8009A2D4(u8 arg0) {
     BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
@@ -313,8 +322,8 @@ void func_8009A2D4(u8 arg0) {
             }
         }
     }
-}
-*/
+}*/
+
 
 
 u8 BattleGetGameCharacterField5(u8 arg0) {
@@ -466,6 +475,17 @@ void BattleFillPartySlotWeaponRecord(u8 arg0, u8 arg1) {
 // BattleInitItemInventoryAndConditionMasks 99.38, BattleSetSlotFields148And162 99.05,
 // BattleFillPartySlotWeaponRecord 96.15, BattleClearSlotFlag15A1 95.71. So this one function needs
 // a one-function carve-out on the XenoLibrary preset, not a unit switch.
+// Round 414: still 99.66% (116 bytes, 29/29 insns); the single residual is the signed
+// divmod's mfhi destination - retail `mfhi a0 / sra a0,a0,5`, gcc 2.7.2 gives
+// `mfhi a1 / sra a0,a1,5` (2.6.0 gives retail's; try_flags 100.00). The near-twin
+// BattleRollPercentAndSetState38 (misc18) does have retail's mfhi a0, but misc18 is a
+// XenoBattle260 (2.6.0) unit, so that shape is not transferable here. Also measured
+// this round with no change: -O3 (99.66), if/else instead of the trailing return
+// (99.66), the modulo result in a local (99.31).
+// Needs a one-function carve-out onto XenoLibrary: config/battle.yaml has
+// [0x2A5EC, c, main/misc19] up to [0x2BFD4, c, main/misc19_r1] and this function is
+// at 0x2AEE0, so the split is 0x2A5EC..0x2AEE0 / 0x2AEE0..0x2AF58 / 0x2AF58..0x2BFD4.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
 /*
 s32 func_8009A9D0(void) {
     g_BattleCurWorkBlock->rowIndex = 0;
@@ -476,7 +496,7 @@ s32 func_8009A9D0(void) {
     return 0;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
+
 
 
 void BattleSetSlotFlag15A1(u8 arg0) {
