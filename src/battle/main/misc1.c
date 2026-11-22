@@ -655,33 +655,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
    store order before/after *pDst = *pSrc (no effect), pFlag pointer local.
    The pointer pair pDst = g_BattleSlotCountdownTimers, pSrc = pDst - 0xB reproduces the original
    addiu s2,s1,-0x16 exactly. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
-/* 72.36% under 2.6.0 and 2.7.2. The pointer pair (pSrc = pDst - 0xB gives the
-   original addiu s2,s1,-22) and every operand are right; gcc's loop.c hoists
-   `li s3,1` for the flag store into a callee-saved register, so the frame is
-   0x28 instead of 0x20 and the g_BattleDisplayState load lands after the sh instead of
-   before the lhu. Tried under 2.6.0: 0x7C store before/after *pDst = *pSrc.
+/* 72.36% park note kept below:
+   gcc's loop.c hoists `li s3,1` for the flag store into a callee-saved register,
+   so the frame is 0x28 instead of 0x20 and the g_BattleDisplayState load lands after
+   the sh instead of before the lhu. */
 void func_80072270(void) {
     s32 i;
-    u16 *pSrc;
-    u16 *pDst;
 
-    if ((g_BattleCommandCellFlags & 7) != 0) {
-        pDst = g_BattleSlotCountdownTimers;
-        pSrc = pDst - 0xB;
+    if (g_BattleCommandCellFlags & 7) {
         for (i = 0; i < 3; i++) {
             if (BattleMaskHasSlotBit(g_BattleCommandCellFlags, i) != 0) {
                 g_BattleActorCountdownState[i] = 0;
-                *pDst = *pSrc;
+                g_BattleSlotCountdownTimers[i] = g_BattleSlotCountdownTimers[i - 0xB];
                 g_BattleDisplayState->slotMarks[i] = 1;
             }
-            pDst++;
-            pSrc++;
         }
     }
     g_BattleCommandCellFlags = 0;
 }
-*/
 
 void BattleResetActorCommandSlots(void) {
     u8 *pBuf;
@@ -709,48 +700,66 @@ void BattleResetActorCommandSlots(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
-/* 68.84% under 2.6.0 (69.63 under 2.7.2). Whole structure is right (0x18 frame,
-   both early-exit paths, the 0xB wrap and the *pCurrent = i + 1 tail). Misses:
-   gcc invents a 4th lbu of g_BattlePendingCharIndex in the middle block, reloads
-   D_800D2DD8[i] after the loop instead of reusing the loop's slot register,
-   materialises a second `li 0xb` for the tail compare where the original keeps
-   a3, and hoists `move a0,zero` out of the final jal's delay slot.
+/* 77.55% under 2.6.0 (352 bytes vs retail's 332, 88 vs 83 insns). Structure now
+   matches retail's block graph: mask test as bnez-forward to a reset-call block
+   laid out last, E1's func_80071B94(0) cross-jumped into the shared call block
+   (j .L80072504), the 0x18 frame, and the *pCurrent = i + 1 tail with the
+   0xB wrap. Two residuals:
+   1. THE ROTATED ENTRY (the real blocker): retail evaluates the loop condition
+      once in the preheader and `j`s straight to the single bottom test
+      (j .L800724CC), keeping t0=1 in a register from the beqz delay slot and
+      a3=0xB in the j's delay slot. gcc 2.6.0/2.7.2/2.7.2-cdk all emit an extra
+      inline `beq state,1` at the entry for while/for/do-while/goto shapes
+      (probed with cc1_probe.sh: while+return-exit, while+break, for, plain
+      do-while, guarded do-while, goto-check - ALL keep the inline entry branch,
+      none thread it into the bottom test). Cost: 4 instructions + t0/a3 hoisting.
+      A compiler with real loop rotation (gcc 2.8+? not in tools/) is the likely
+      answer; worth a try_flags screen if one is ever added.
+   2. The found-handler reloads D_800D2DD8[i] (3 insns) where retail reuses the
+      loop's slot register (v1); tied to the same register allocation as (1).
+   Tried: while + circle-exit func_80071B94(0)+return (77.55), same with the
+   final call shared after the inner if/else (75.11 - the shared call merged
+   E1's call site; keep this), for-loop (68.84, old park), else-if nesting.
+   Semantics note: the circle path (scan wrapped all 11 entries without a
+   ready slot) must call func_80071B94(0) WITHOUT the actorIndex/cursor stores
+   - retail's beq at the loop head jumps directly to the call.
 void func_800723E0(void) {
     u8 *pCurrent;
     s32 i;
 
-    if (g_BattlePendingSlotMask != 0) {
-        BattleResetActorCommandSlots();
-        return;
-    }
-
-    if (g_BattlePendingCharIndex != 0) {
-        g_BattleCommandQueue->actorIndex = g_BattlePendingCharIndex;
-        D_800D2DE3[g_BattlePendingCharIndex] = 1;
-        D_800D2E04[g_BattlePendingCharIndex] = 0;
-        g_BattlePendingCharIndex = 0;
+    if (g_BattlePendingSlotMask == 0) {
+        if (g_BattlePendingCharIndex != 0) {
+            g_BattleCommandQueue->actorIndex = g_BattlePendingCharIndex;
+            D_800D2DE3[g_BattlePendingCharIndex] = 1;
+            D_800D2E04[g_BattlePendingCharIndex] = 0;
+            g_BattlePendingCharIndex = 0;
+        } else {
+            g_BattleCommandQueue->actorIndex = 0;
+            pCurrent = g_BattleTargetScan;
+            i = *pCurrent;
+            while (g_BattleActorCountdownState[D_800D2DD8[i]] != 1) {
+                i++;
+                if (i == 0xB) {
+                    i = 0;
+                }
+                if (i == *pCurrent) {
+                    func_80071B94(0);
+                    return;
+                }
+            }
+            g_BattleCommandQueue->actorIndex = D_800D2DD8[i] + 1;
+            *pCurrent = i + 1;
+            if (*pCurrent == 0xB) {
+                *pCurrent = 0;
+            }
+        }
         func_80071B94(0);
-        return;
+    } else {
+        BattleResetActorCommandSlots();
     }
-
-    g_BattleCommandQueue->actorIndex = 0;
-    pCurrent = g_BattleTargetScan;
-    for (i = *pCurrent; g_BattleActorCountdownState[D_800D2DD8[i]] != 1; i++) {
-        if (i == 0xB) {
-            i = 0;
-        }
-        if (i == *pCurrent) {
-            break;
-        }
-    }
-    g_BattleCommandQueue->actorIndex = D_800D2DD8[i] + 1;
-    *pCurrent = i + 1;
-    if (*pCurrent == 0xB) {
-        *pCurrent = 0;
-    }
-    func_80071B94(0);
 }
 */
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
 /* 91.63% under 2.6.0 (892 bytes against retail's 908). Both loops and the whole
    control flow are instruction-identical to retail modulo REGISTER NUMBERING: the
