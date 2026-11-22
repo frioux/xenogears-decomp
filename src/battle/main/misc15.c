@@ -20,6 +20,10 @@
 // BattleRow, which this unit reads as the partial view below).
 #define BATTLE_CELL_ACTION_BLOCK_SIZE 0x5F0
 #define BATTLE_ACTION_BLOCK_SIZE 0x690
+// The eight cells the four-slot command menu moves its cursor over, and the seven of them that
+// hold a queued command: cell BATTLE_COMBO_STEP_MAX is the one that confirms.
+#define BATTLE_COMBO_CELL_COUNT 8
+#define BATTLE_COMBO_STEP_MAX 7
 
 // One row of either action table: the flags word at +0, whose low bits pick the row's target
 // mode and whose 0x1000/0x4000 bits pick the icon the menu draws.
@@ -72,7 +76,8 @@ typedef struct {
     /* 0x0B0 */ u8 primFlags[4]; // per slot: prim flags the *PrimFlags*Slots pairs below raise
     /* 0x0B4 */ u8 unkB4[3];
     /* 0x0B7 */ u8 primState; // which prim set is up; func_800745EC switches five ways on it, 0 for none
-    /* 0x0B8 */ u8 unkB8[0xE];
+    /* 0x0B8 */ u8 rectExpandActive[7]; // per slot: while set, the slot's rect grows toward its target size
+    /* 0x0BF */ u8 rectExpandDone[7]; // per slot: set once w and h reached the target size
     /* 0x0C6 */ u8 pulseTriangleActive;
     /* 0x0C7 */ u8 unkC7[4];
     /* 0x0CB */ u8 primListsPending;
@@ -98,6 +103,13 @@ extern u16 g_BattleCommandSlotMasks[];
 extern u8 g_BattleCommandSlotIds[];
 extern u8 D_800CCD1C[];
 extern u8 g_BattleCommandGridIds[];
+// The per-slot character id table the main exe holds (one byte per actor slot), which indexes
+// g_GameState's condition rows: the battle overlay's g_BattleActorCharIds is a second copy.
+extern u8 D_80059468[];
+// One byte per command slot of the entry the four-slot menu queued (the cell it was picked at).
+extern u8 D_800C3DE0[];
+// One 8-byte row per actor slot: byte 0 is the slot's remaining command budget.
+extern u8 g_BattleSlotDisplayValue[];
 typedef struct {
     /* 0x0 */ u16 flags; // & 7 picks the target mode, 0xF and 0x1000/0x4000 pick the drawn icon
     /* 0x2 */ u8 pad2[0xE];
@@ -138,7 +150,7 @@ extern void BattleApplySlotCurveAndStep(u8 arg0);
 extern void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2);
 extern s32 BattleFindMinValueOtherSlot(u8 arg0);
 extern void BattleInitActorSlotAnimation(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
-extern s32 func_8008C81C(u8 arg0);
+extern u8 func_8008C81C(u8 arg0);
 extern void BattleNoOpCallback(s32 arg0, s32 arg1);
 extern void func_800877E0(u8 arg0, u8 arg1);
 extern void func_80087EDC(u8 arg0, u8 arg1);
@@ -950,6 +962,165 @@ s32 func_8008C4A8(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
+/* Best: 80.20% (1204 bytes against the original's 1200, 301 against 300 instructions).
+   The whole shape is transcribed and every block is present in retail's order (5, 4, 0, 1,
+   2, 3 then the 6/7/9/10 group, the switch table at .rodata+0, both call sites of
+   BattleInitSlotGraphics, the wait on rectExpandDone[0]/[1], and `return result - 1`), so what
+   is left is register assignment plus the frame:
+   1. FRAME: retail's is 0x90, this body's 0x80. Retail's local area is 0x48 bytes and holds
+      FIVE 8-byte arrays at 0x20/0x28/0x30/0x38/0x40, but only three of them are read (cmdIdx
+      at 0x20 by func_80092784, cmdCost at 0x30 by func_80092784 and the pick arm, the backup
+      array at 0x40 by the backspace arm) and only one is written-through (0x28, cleared by a
+      pointer loop and never read again). Nothing writes 0x38 at all, so that slot is a gcc
+      dead slot no source spelling reproduces: giving cellQueued 16 bytes instead of 8 moves
+      cmdCost to 0x38 and measures 80.22, i.e. the offsets are not where the score is. Retail
+      also has three 4-byte slots at 0x54/0x5C/0x64 that nothing in the object references.
+   2. One extra saved register: this body hoists `sp+0x30` (the cmdCost base) into $s0 for the
+      whole while loop, retail re-forms it with `addiu v0,sp,0x30` per arm. That shift moves
+      arg0 to $s1 (retail $s0), remaining to $s5 ($s6), picked $s6 ($s7) and result $s7 (fp),
+      and it is why every register in the tail differs.
+   3. Structurally the case-4 arm costs one extra instruction: retail falls INTO the confirm
+      block from `bne v0,s1` and jumps over the empty-queue `result = 2`, this body jumps to
+      the result = 2 block instead (+4 bytes, 301 vs 300).
+   The dead cellQueued clear loop is in the body because retail has it (a pointer loop
+   `while (p < end) *p++ = 0;` over 8 bytes; a plain indexed loop compiles to gcc's downward
+   clear instead). */
+/*
+// The four-slot command menu's entry phase: it reads the acting slot's action rows to build the
+// list of commands the player may still use (and what each costs), then lets the player queue up
+// to BATTLE_COMBO_STEP_MAX of them while the running total fits the slot's budget
+// (g_BattleSlotDisplayValue). The last cell of the eight confirms, menu event 5 takes the last
+// pick back. Returns 1 once the target selection ran, 0 if it was cancelled.
+u8 func_8008C81C(u8 arg0) {
+    u8 cmdIdx[8];
+    u8 cellQueued[8];
+    u8 cmdCost[8];
+    u8 backup[8];
+    s32 primIndex;
+    u8 primCount;
+    u8 dirty;
+    s32 slotOff;
+    u8 remaining;
+    u8 cursor;
+    u8 picked;
+    s32 result;
+    s32 i;
+    s32 k;
+
+    cursor = 0;
+    picked = 0;
+    result = 0;
+    dirty = 1;
+    remaining = g_BattleSlotDisplayValue[arg0 * 8];
+    primIndex = 4;
+    primCount = 0;
+    g_BattleDisplayState->primListsPending = 0;
+    for (i = 0; i < BATTLE_COMBO_STEP_MAX; i++) {
+        cmdIdx[i] = BATTLE_COMMAND_NONE;
+        cmdCost[i] = 0;
+        g_BattleCommandQueue->unk2C4[i] = BATTLE_COMMAND_NONE;
+        D_800C3DE0[i] = BATTLE_COMMAND_NONE;
+    }
+    // retail clears this array and never reads it again
+    for (i = 0; i < BATTLE_COMBO_CELL_COUNT; i++) {
+        cellQueued[i] = 0;
+    }
+    slotOff = arg0 * BATTLE_CELL_ACTION_BLOCK_SIZE;
+    k = 0;
+    for (i = 0; i < BATTLE_COMBO_STEP_MAX; i++) {
+        if (BattleMaskHasStatusBit(
+                *(u16 *)((u8 *)&g_GameState + 0x16C0 + D_80059468[arg0] * 0x20), i) != 0) {
+            cmdIdx[k] = i;
+            cmdCost[k] = g_BattleCellActionRows[slotOff + (i + BATTLE_COMBO_STEP_MAX) * 0x28 + 0x17];
+            k++;
+        }
+    }
+    BattleInitSlotGraphics(0, 0x16, 0x5C, 0x122, 0x4C, 1, 1);
+    BattleInitSlotGraphics(1, 0x10, 0x2C, 0xE8, 0x2C, 1, 1);
+    while (g_BattleDisplayState->rectExpandDone[0] == 0 ||
+           g_BattleDisplayState->rectExpandDone[1] == 0) {
+        BattleUpdateFrame();
+    }
+    func_80092784(arg0, cmdIdx, cmdCost);
+    BattleInitPulseTrianglePrims();
+    while (result == 0) {
+        if (dirty != 0) {
+            func_80092B74(arg0, remaining);
+            dirty = 0;
+        }
+        BattleStepAnimatedCursorPrim((cursor & 1) * 0x88 + (cursor & 1) * 4 + 0x1E,
+                                     (cursor >> 1) * 16 + 0x64, &primIndex, &primCount);
+        BattleUpdateFrame();
+        switch (g_BattleMenuEvent) {
+        case 5:
+            if (picked != 0) {
+                picked--;
+                dirty = 1;
+                g_BattleCommandQueue->unk2C4[picked] = BATTLE_COMMAND_NONE;
+                D_800C3DE0[picked] = BATTLE_COMMAND_NONE;
+                remaining += backup[picked];
+            } else {
+                result = 2;
+            }
+            break;
+        case 4:
+            if (cursor == BATTLE_COMBO_STEP_MAX) {
+                if (g_BattleCommandQueue->unk2C4[0] != BATTLE_COMMAND_NONE) {
+                    BattleFreeSlotPrims(0);
+                    g_BattleDisplayState->pulseTriangleActive = 1;
+                    if (BattleRunTargetSlotSelection(0x1000, arg0, 1) != 0) {
+                        g_BattleSlotDisplayValue[arg0 * 8] = remaining;
+                        result = 1;
+                    } else {
+                        g_BattleDisplayState->pulseTriangleActive = 0;
+                        BattleSetPrimFlagsTwoSlotsMode3(arg0);
+                    }
+                } else {
+                    result = 2;
+                }
+            } else if (picked != BATTLE_COMBO_STEP_MAX) {
+                if (cmdIdx[cursor] != BATTLE_COMMAND_NONE && remaining >= cmdCost[cursor]) {
+                    g_BattleCommandQueue->unk2C4[picked] = cmdIdx[cursor];
+                    D_800C3DE0[picked] = cursor;
+                    backup[picked] = cmdCost[cursor];
+                    picked++;
+                    dirty = 1;
+                    remaining -= cmdCost[cursor];
+                }
+            }
+            break;
+        case 0:
+            if (++cursor >= BATTLE_COMBO_CELL_COUNT) {
+                cursor--;
+            }
+            break;
+        case 1:
+            cursor += 2;
+            if (cursor >= BATTLE_COMBO_CELL_COUNT) {
+                cursor -= 2;
+            }
+            break;
+        case 2:
+            if (cursor != 0) {
+                cursor--;
+            }
+            break;
+        case 3:
+            if (cursor >= 2) {
+                cursor -= 2;
+            }
+            break;
+        case 6:
+        case 7:
+        case 9:
+        case 10:
+            cursor = BATTLE_COMBO_STEP_MAX;
+            break;
+        }
+    }
+    return result - 1;
+}
+*/
 void BattleClearPrimFlagsThreeSlots(u8 arg0) {
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
     g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = g_BattleDisplayState->primFlags[2] = 0;
