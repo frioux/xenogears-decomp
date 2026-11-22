@@ -821,47 +821,41 @@ void FieldAddParticlePrims(void) {
         &D_800B1E24[g_FieldCurRenderContextIndex * 0xC0]);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-/* Best attempt, 99.56% at the original's exact 500 bytes - identical instruction
-   for instruction, every offset and store order included, except ONE register:
-   retail keeps j*16 in v0 and, in place, (j*16 & 0x3F), with the +0x10 variant in
-   v1; ours keeps j*16 and the mask in v1 and the +0x10 value in v0, so eight
-   lines differ by that swap and nothing else does. local_alloc ranks the longer
-   lived of two overlapping quantities first, and retail ranks the SHORTER lived
-   one first; the two are the mask (last read by the u2 store) and mask+0x10 (last
-   read by u3, two instructions later).
-   Measured dead ends: the mask assigned before the x0/x2 stores and after them,
-   the mask and the +0x10 computed adjacent at retail's own position, a named
-   u1/u3 temp assigned at its first use, a 0x10 + nU operand swap, u_char on the
-   mask (94.91), declaration order of nU/nU1, an embedded assignment at the store
-   (pPoly->u0 = nU = nX & 0x3F;), a second +0x10 local feeding only u3, computing
-   nU1 straight from the inline mask, and two 4-minute permuter runs (rounds 315:
-   base=55 best=55 twice, 1314 and 1971 iterations).  gcc-2.6.0 is also 99.56
-   here, so it is not a preset question.
-   Round 337 added: the mask written back into nX (`nX &= 0x3F;` then u0/u2 = nX)
-   is 95.54 / 488 - it folds three instructions away, so the mask is a separate
-   source value; nU1 defined before nU; `nU + 0x10` inline at both u1/u3 stores;
-   and giving x1/x3 their own 0x10-stepping counter variable in the for's
-   increment clause (97.60, and it swaps the s4/s5 roles of the i and j counters),
-   which is what the disassembly's s4 counter suggests the original did - but it
-   does not touch the v0/v1 tie.
-   Round 369: fifteen further spellings measured, all 99.56 with byte-identical
-   output (so neither the shape nor the naming is the lever): a self-assign then
-   mask (`nU = j*0x10; ...; nU &= 0x3F;`, which merges nU's and nX's pseudo into
-   one quantity spanning the whole block), nU1 computed before nU, both or one of
-   nU/nU1 u_short (94.9), nIndex reused for nU or for nU1 (94.2), nX reused for
-   the mask or for the +0x10 value, declaration order, and a THIRD permuter run
-   (base=55 best=55, 2018 iterations).  The residual is local_alloc's ranking of
-   the two quantities {nX/mask} and {mask+0x10}: the one retail ranks first gets
-   v0 and the other v1, and no source spelling changed the ranking.
-   Settled facts: 14 x 20 grid of 16x16 tiles, i outer / j inner,
-   nIndex = i*20 + j, polygons is 560 POLY_GT4 (two copies of 280, the second
-   at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
-   0x7850 set to 0x80, y0/y1 = i*16 and y2/y3 = i*16 + 0x10 (s5/s3 counters),
-   x1/x3 = j*16 + 0x10 (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10,
-   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+/* PARKED 99.56% - retail's exact 500 bytes / 125 insns, instruction-identical
+   except ONE register pair: retail keeps j*16 (nX, truncated in place to the
+   mask) in v0 and the mask+0x10 value in v1; ours is mirrored (nX/mask in v1,
+   mask+0x10 in v0). Eight lines differ and nothing else does.
+   The -dl dump numbers the tie: block-local qty 122 = nX (12 refs / 22 insns,
+   pri floor_log2(12)*12*4/22 = 6.5), 123 = the mask (12 / 7 -> 20.6), 124 =
+   nU1 (9 / 6 -> 18). local_alloc processes 123 first and hands it $3 (that
+   block gives out $3 before $2: 72/77/122/123 in 3, 82/90/91/92/93/100/124 in
+   2), so 124 takes $2. Retail's pairing needs 124 -> $3, i.e. nU1 has to
+   OUTRANK the mask; refs are 3x the insns mentioning the qty, so that wants nU1
+   in a fourth insn or the mask out of the addiu, and retail's stream has
+   neither (one andi in place, one addiu from the mask, two stores each). So it
+   is a source wall, not a tie to spell: do not permute it again.
+   Tried before that dump (all 99.56, byte-identical output unless noted): the
+   mask before or after the x stores, mask and +0x10 adjacent at retail's own
+   position, a named temp at its first use, a 0x10 + nU operand swap, nU1 before
+   nU, declaration order, nX reused for the mask or for the +0x10 value, both
+   inline forms, a second 0x10 local, an x1/x3 stepping counter in the for's
+   increment clause (97.60, moves the s4/s5 roles), nX written back as nX &=
+   0x3F (95.54 / 488 - folds three insns), a block-scope declaration with
+   initialiser, u_char mask (94.91), one or both of nU/nU1 u_short (94.9),
+   nIndex reused (94.2); four permuter runs, base=55 every time (1314, 1971,
+   2018, 222 iterations).
+   Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
+   nIndex = i*20 + j, polygons is 560 POLY_GT4 (two 280 copies, the second at
+   +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/0x7850
+   set to 0x80, y0/y1 = i*16 (s5), y2/y3 = i*16 + 0x10 (s3 counter), x1/x3 =
+   j*16 + 0x10 (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10, tpage =
+   GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
    *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
+*/
+
+/*
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -922,7 +916,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
                 *pPolyNext = *pPoly;
             }
         }
-    }*/
+    }
+*/
+
 void func_800A7064(void) {
     HeapFree(g_FieldParticlePrimitives);
 }
