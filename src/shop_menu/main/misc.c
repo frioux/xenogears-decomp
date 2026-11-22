@@ -3963,29 +3963,31 @@ s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D05BC);
-// Best attempt: 93.72%, 1632 bytes (retail 1628) - exactly ONE instruction over: the
-// `andi a2,0xFFFF` that this TU must emit for ShopMenuSetVertices' u_short y argument, which
-// retail does not emit. Structure is retail's throughout (three-way compare tree, shared switch
-// tail, digit loop with the places giv, both setRECT/LoadImage pairs, the doubled renderContext
-// store, the 192-byte frame); the 153 differing lines are the register shifts that one extra
-// live value causes (our masked y takes $s2 across the first ShopMenuSetVertices call).
-// THE WALL, and the only way through it: ShopMenuSetVertices is defined earlier in THIS file with
-// u_short params, so the prototype truncates the y; retail's TU for this function evidently did
-// not have that prototype in scope - it loads its 0x32-initialised stack giv straight into $a2
-// with no mask. An `extern void ShopMenuSetVertices();` line before the function reproduces it.
-// MEASURED with that one line in place: 99.97%, 1628 bytes (retail's exact size), 407 insns, 4
-// differing lines - the residual is two equal-address addressing ties (retail uses `addiu
-// a0,sp,40` for the DecodeGlyphCodesN source and `sb v0,16($fp)` for the glyph[16] store; ours
-// swaps which of the pair goes through $fp). NOT SHIPPED without approval: a non-prototype
-// declaration for a function defined 3000 lines above is a lie about this unit, and every call
-// after it in the file would inherit it (no other function here calls it that late).
+// Best attempt: 99.97%, 1628 bytes (retail 1628), 407 insns (retail 407) - retail's exact size and
+// instruction count. TWO residual lines remain, both equal-address addressing ties, i.e. the same
+// VALUE in a different ENCODING, so the linked bytes differ and this cannot be shipped as a match:
+//   1. SystemDecodeGlyphCodesN source: retail `addiu a0,sp,0x28` (the digitBuffer at sp+0x28), ours
+//      `addiu a0,s8,8` (&rect+8 == sp+0x28) - same address, $sp vs $s8.
+//   2. Last digit store: retail `sb v0,0x10(s8)` (&rect+0x10), ours `sb v0,0x30(sp)` - same
+//      address again; the two ties are exact mirror images of each other.
+// `extern void ShopMenuSetVertices();` above the body is what takes it from 93.72 to 99.97: retail
+// passes the y argument in $a2 with NO mask, which no declared parameter type produces (u_short
+// gives andi 0xFFFF, s32/s16 give andi or sll/sra). The callee's own u_short params are PROVEN:
+// giving ShopMenuSetVertices `s32 y` drops the callee ITSELF to 90.45% (84 vs 88 bytes), so retail's
+// TU saw an old-style declaration at this call site (its source order was not address order). No
+// call to ShopMenuSetVertices appears after this function in the file, so nothing else inherits it.
 // Levers IN this body, keep them: `new_var = SHOP_MAX_ITEMS_IN_VIEW;` before `places[4] = 10000`
-// plus its use in the DecodeGlyphCodesN offset - that is what puts &rect in $fp and the frame at
-// retail's 192. Address the RECT directly as `rect`; a `pRect` local makes cc1 keep a SECOND
-// pseudo of &rect and spill it (that was the previous park: 94.20%, 1652 bytes).
-// Permuter: two 5-minute runs (894 and 1640 iterations), from the honest and the extern body;
-// it found `new_var` and nothing further.
+// AND its use as the DecodeGlyphCodesN offset - that is what pins &rect in $s8 and the frame at
+// retail's 192; address the RECT directly as `rect` (a pRect local keeps a second pseudo, 1652 B).
+// Measured and rejected this round: decode source `&rect + 8` as a literal 95.94%, 1616 bytes, the
+// frame collapses to 176 without new_var there; decode source `(u16*)digitBuffer` 95.94%, 1616
+// bytes, the same collapse, so retail's sp-based decode cannot be spelled from digitBuffer while
+// keeping &rect live; permuter 4 min / 1264 iterations base=5 best=5 found nothing (two earlier
+// 5-minute runs, from the honest and the extern body, found only new_var).
 /*
+extern void ShopMenuSetVertices();   // retail's call site for it saw no prototype
+
+
 void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT rect;
     u8 digitBuffer[0xE];
