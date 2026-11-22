@@ -9,7 +9,6 @@
 
 extern void ArchiveCdDataSync(int mode);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_8006FDEC);
 
 // Best attempt, 93.66% at 660 bytes against retail's 672 (three instructions
 // short). Structure and every call match; two sched2/allocator spots differ.
@@ -35,7 +34,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_8006FDEC);
 // reaches as `addiu $a1,$s1,-0x110` are g_CameraEye/At/Up at g_Scene-0x110,
 // -0x100, -0xF0, and plain &g_CameraEye gives a separate lui/addiu pair that
 // cannot match, so the casts off &g_Scene stay.
-/*
 typedef struct {
     s32 vx;
     s32 vy;
@@ -72,6 +70,20 @@ extern s16 D_800AFB04;
 extern s16 D_800AFB06;
 extern s16 D_800AFB08;
 
+// Round 394 re-measure: 93.66% / 660 bytes against retail's 672 (three instructions
+// short, so it can never link). Re-parked from a now-compiling body. Newly measured
+// this round: gcc-2.6.0 -O2 -G8 gives the SAME 93.66 and 2.7.2-cdk 92.89, so this is
+// not a preset question; element-wise field copies for the two pLights copies are
+// 70.00% (704 bytes, worse); *pLight1 = pLights[0] / *pLight2 = pLights[0] is
+// byte-identical to the struct assignment; dropping the (now removed) volatile on
+// D_800AFB00 changes nothing. The two residuals are unchanged and both are gcc
+// hoisting what retail left alone: (1) the 22-instruction copy block moves above the
+// third light's sll/sh because its loads took $v1/$a2/$a3/$t0 - retail's copy
+// loads take $v0 and so cannot pass the sh that reads $v0; (2) the third ambient
+// lhu fills the second one's load-delay nop into a fresh $v1 (2 of the 3 missing
+// instructions). Both come from the same cause: retail keeps every one of those
+// values in $v0, ours frees it.
+/*
 void func_8006FDEC(s16* pData) {
     FieldLight* pLights;
     FieldLight* pLight1;
@@ -117,7 +129,7 @@ void func_8006FDEC(s16* pData) {
     pData++;
     D_800AFAFC = (u_short)*pData++ << 3;
     D_800AFAFE = (u_short)*pData++ << 3;
-    *(volatile s16*)&D_800AFB00 = (u_short)*pData++ << 3;
+    D_800AFB00 = (u_short)*pData++ << 3;
     pData++;
 
     pLights[1] = pLights[0];
@@ -138,8 +150,9 @@ void func_8006FDEC(s16* pData) {
     func_80030B14(&g_Scene.worldToScreenMatrix);
     SetRotMatrix(&g_Scene.worldToScreenMatrix);
     SetTransMatrix(&g_Scene.worldToScreenMatrix);
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_8006FDEC);
+
 
 
 
@@ -148,7 +161,6 @@ void FieldLZSSDecompress(void* _unused, void* pCompressed, void* pDecompressed) 
     LZSSDecompress(pCompressed, pDecompressed);
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 
 // Best attempt, 98.66% at 652 bytes against retail's 656 (one instruction short).
 // The body is otherwise identical: ResetGraph, WorkListsFreeAllEntries, the
@@ -173,14 +185,35 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 //  - the actor loop must index as `(i * sizeof(FieldActor) + (int)g_FieldActors)`
 //    for the original's index-first `addu`, with one status read feeding both
 //    masks; g_FieldLineScrolls is 0x144 bytes, same layout as misc11.c.
-/*
+// Round 394: the park did not COMPILE as stored (it declared g_FieldDialogs /
+// g_FieldModelFile / g_FieldWalkmesh / g_FieldScreenEffectData as `s32` when the
+// same file declares `void*` / `FieldWalkmesh` further down), so its 98.66 was a
+// stale number in a stale spelling. Fixed by giving the block the file's real
+// types and freeing `g_FieldWalkmesh.pFile` (offset 0 of the struct, which is
+// what the `lw $a0,%lo(g_FieldWalkmesh)` frees); re-measured 98.66 / 652 bytes
+// against retail's 656 in report mode, so the number stands. The FieldWalkmesh
+// typedef now sits above FieldFree and the later duplicate was removed.
 extern s32 g_FieldActorModelSlotCount[];
 extern void* g_FieldArchiveQueueBuffer;
-extern s32 g_FieldDialogs;
-extern s32 g_FieldWalkmesh;
-extern s32 g_FieldModelFile;
+extern void* g_FieldDialogs;
+extern void* g_FieldModelFile;
 extern s16 g_FieldScreenEffectEnabled;
-extern s32 g_FieldScreenEffectData;
+extern void* g_FieldScreenEffectData;
+
+// The walkmesh file the loader decompresses and the views into it: its first
+// word is the triangle count, then the four counts and offsets it walks, then the
+// pointers the renderer reads (g_FieldWalkmeshTriangles etc.).
+typedef struct {
+    /* 0x00 */ void* pFile;
+    /* 0x04 */ void* pSpriteData;
+    /* 0x08 */ u32* pMaterialFlags;
+    /* 0x0C */ u32* pTriangles[4];
+    /* 0x1C */ u32* pVertices[4];
+    /* 0x2C */ s32 unk2C[4];
+    /* 0x3C */ s16 triCount;
+} FieldWalkmesh; // Size: 0x3E
+
+extern FieldWalkmesh g_FieldWalkmesh;
 
 extern void WorkListsFreeAllEntries(void);
 extern void GfxFlushImageList(void);
@@ -207,6 +240,9 @@ typedef struct {
 
 extern LineScrollTable g_FieldLineScrolls;
 
+INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
+
+/*
 void FieldFree(void) {
     FieldActor* pActor;
     s32* pCount;
@@ -250,7 +286,7 @@ void FieldFree(void) {
     HeapFree(g_pFieldTriggerZones);
     HeapFree(g_FieldDialogs);
     HeapFree(g_FieldCurScriptFile);
-    HeapFree(g_FieldWalkmesh);
+    HeapFree(g_FieldWalkmesh.pFile);
     HeapFree(g_FieldModelFile);
     HeapFree(g_FieldSpriteData);
 
@@ -464,20 +500,6 @@ typedef struct {
 extern FieldTableQuad D_800B06BC[];
 extern FieldTableQuad D_800B0DBC[];
 
-// The walkmesh file the loader decompresses and the views into it: its first
-// word is the triangle count, then the four counts and offsets it walks, then the
-// pointers the renderer reads (g_FieldWalkmeshTriangles etc.).
-typedef struct {
-    /* 0x00 */ void* pFile;
-    /* 0x04 */ void* pSpriteData;
-    /* 0x08 */ u32* pMaterialFlags;
-    /* 0x0C */ u32* pTriangles[4];
-    /* 0x1C */ u32* pVertices[4];
-    /* 0x2C */ s32 unk2C[4];
-    /* 0x3C */ s16 triCount;
-} FieldWalkmesh; // Size: 0x3E
-
-extern FieldWalkmesh g_FieldWalkmesh;
 // The header pointers the renderer reads (field/main/misc4.c uses the same names)
 extern u32* g_FieldWalkmeshMaterialFlags;
 extern s16 g_FieldWalkmeshTriCount;
