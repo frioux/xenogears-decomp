@@ -714,7 +714,7 @@ extern s32 WorldMapModeInitCharacterSprite2();
 extern s32 WorldMapModeInitPartyActor0();
 extern s32 WorldMapModeInitPartyActor1();
 extern s32 WorldMapModeInitPartyActor2();
-extern s32 func_8008E4F4();
+extern s32 WorldMapModeInitGroupRotations();
 extern s32 WorldMapModeInitSpriteSets2And3();
 extern s32 WorldMapInitAreaNameString();
 extern s32 func_80092DF8();
@@ -885,7 +885,7 @@ void func_80072238(void) {
         WorldMapSetSlotEnterHandler(WorldMapModeInitPartyActor0, 4);
         WorldMapSetSlotEnterHandler(WorldMapModeInitPartyActor1, 5);
         WorldMapSetSlotEnterHandler(WorldMapModeInitPartyActor2, 6);
-        WorldMapSetSlotEnterHandler(func_8008E4F4, 7);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitGroupRotations, 7);
         WorldMapSetSlotEnterHandler(WorldMapModeInitSpriteSets2And3, 8);
         WorldMapSetSlotEnterHandler(WorldMapInitAreaNameString, 0xC);
         WorldMapSetSlotEnterHandler(func_80092DF8, 0xD);

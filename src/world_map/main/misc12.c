@@ -185,7 +185,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
      the jal slot; this body hoists both global loads above the state store and loses
      retail's load-delay nop (that nop is the missing instruction). (3) the same shape
      in case 7. The two jtbl_ operands are the only other diff.
-   The layout worry is gone: func_8008E4F4 was converted on its own and its table kept
+   The layout worry is gone: WorldMapModeInitGroupRotations was converted on its own and its table kept
    retail's .rodata+0x38 with check_bin OK, so cc1 emits a jump table beside its own
    function's .text, not at the front of the unit's .rodata. Only the unit's 4-mod-8
    tables (at and after +0x15C) stay unconvertible, because of cc1's `.align 3`.
@@ -293,7 +293,7 @@ s32 func_8008E190(s32 idx) {
 // (`jtbl_80070A30` against `.rodata`), the other is `addiu $s0,$s2,%lo(D_1F8000A0)`, which
 // this body writes as the folded literal 0xA0 off the same base register. Reaching the
 // reloc by naming the symbol costs the shared base (388 bytes, 93.12).
-s32 func_8008E4F4(s32 idx) {
+s32 WorldMapModeInitGroupRotations(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 *pScratchPos;
     s32 nRet;
@@ -593,7 +593,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
    at 0x18C (`.align 3` raises the object's sh_addralign to 8, so ld pads the start to 0x190),
    a linker trick, converting the whole family (same +4), and 2.6.0 / cdk (same `.align 3`).
    The run BEFORE the wall is layout-neutral, so those three functions are free to convert:
-   func_8008E190's two tables (+0, +0x18), func_8008E4F4's (+0x38) and func_8008E76C's
+   func_8008E190's two tables (+0, +0x18), WorldMapModeInitGroupRotations's (+0x38) and func_8008E76C's
    65-word table (+0x58, `sltiu 0x41` on an unbiased 0..0x40 index, ending at +0x15C where an
    asm table with no .align follows) need no
    pad, and E190's first table is 5 real entries (sltiu 5) plus retail's 4-byte zero word,
