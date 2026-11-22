@@ -620,8 +620,13 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
 // further attempt from that form.
 // Tried and dead: the 2.7.2 body (72.46), distinct v/d/u locals per block (76.54, 145
 // insns, copy unchanged), 'u32 eo' (identical), cdk preset (compile-failed).
-// Not tried: a spelling that stops gcc duplicate-copying 'eo' at the first branch; that
-// copy is the entire size gap.
+// ROUND 412: the double mask IS reachable and the lever is (u16) on the sum - writing
+// `(u16)(d * 8 + 0x78) & 0xF8` at all four sites drops the surplus `li -8` + `and` pair
+// and takes the body to 145 insns / 580 bytes / 76.39% (from 148 / 592 / 77.70). It does
+// NOT drop the `move s4,s0` copy of eo, so 12 instructions of surplus remain in the
+// block-2..4 address chains (`lw t0,-24016(at)`/`addu a0,a0,t0` where retail orders the
+// pool load after the `sll` chain and adds through v0/v1). A cc1_probe of the four blocks
+// alone reproduces the same extra mask, so it is cc1's, not the surrounding body's.
 /*
 void func_80090C44(u8 arg0) {
     u8 *pBase;
