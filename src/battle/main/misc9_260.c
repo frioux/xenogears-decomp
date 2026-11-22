@@ -30,7 +30,15 @@ extern u8 g_BattleRowStatValues[];
 extern u8 g_BattlePendingCharIndex;
 extern u8 *g_BattlePrimPool;
 extern u8 *g_BattleSlotParamTable;
-extern u32 g_BattleSlotRows[][BATTLE_SLOT_REG_ROW_WORDS];
+// A slot's battle register file seen from its dword registers (g_BattleSlotRows is
+// g_BattleSlotRegs + 0x10): see misc8.c, which declares the same 0x40-byte row.
+typedef struct {
+    /* 0x00 */ u32 dwordRegs[4];
+    /* 0x10 */ u16 wordRegs[8];
+    /* 0x20 */ u8 byteRegs[0x10];
+    /* 0x30 */ u8 pad30[0x10];
+} BattleSlotRow; // Size: 0x40
+extern BattleSlotRow g_BattleSlotRows[];
 extern u16 g_BattleSlotWordRegs[][BATTLE_SLOT_REG_ROW_HALFWORDS];
 extern u8 D_800D32F1[];
 extern u8 g_BattleSlotByteRegs[][BATTLE_SLOT_REG_ROW_BYTES];
@@ -182,54 +190,32 @@ void BattleClearSlotDwordAndSetStat4(u8 arg0) {
     D_800D2C60[arg0] = 0;
     g_BattleRowStatValues[arg0] = 4;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9_260", func_8007E6A0);
-/* best: 99.00%. Identical instruction multiset and order; the only difference
-   is the register holding the g_BattleSlotRows sum base: original a2 (and it is never
-   reused), gcc v1 (which the p[1] scale temp then reuses). Same allocator tie as
-   func_8007E6F0/E740/E98C/E8AC and the misc6 D_800D34x0 family. R201 re-tested,
-   every shape 99.00%: `u8 arg1` (the andi then comes from the u8 multiply, same
-   two insns), a `u8 slot` narrowing copy, an s32 rowBase local, `register s32 *pRow`,
-   pRow declared before p, and a 4-minute permuter run (base=20 best=20, 2357
-   iterations, nothing better). Two shapes that break the shape instead: a
-   `mem_addr base` assigned then summed index-first, and a staged
-   `u8 *pRows = g_BattleSlotRows`, both 79.00% (one extra insn). Tried before:
-   split summand locals (84.35%, reorders the three lbu's RHS-first), three
-   explicit `s32 i3/i1/i2 = p[..]` index locals (99.00%, same base v1), the
-   byte-pointer form `(s32 *)((u8 *)g_BattleSlotRows + (arg1 & 0xFF) * 0x40)` (99.00%),
-   and `g_BattleSlotRows + ((arg1 & 0xFF) << 6)` (99.00%). Also tried before: pRow/p in
-   both orders, `s32 arg1` + explicit mask, element-unit base, all references
-   inline. No try_flags.sh row reaches 100 (2.6.0 99.0, cdk 96.5, -O1 51.9), and
-   the unit cannot move to cdk at all: BattleSetSlotRecordByteAndRelease 79.68%, BattleClearSlotDwordAndSetStat4 10.45%
-   under cdk while matched under Default.
-void func_8007E6A0(u8 **arg0, s32 arg1) {
-    u8 *p = *arg0;
-    s32 *pRow = (s32 *)(g_BattleSlotRows + (arg1 & 0xFF) * 0x40);
+// Spelled out at each operand on purpose (see BattleWordRegAnd in misc6_r2.c):
+// with the base in one local gcc 2.6.0 keeps it in $v1, with three accesses it
+// allocates retail's $a2.
+void func_8007E6A0(BattleCommand **ppCmd, u8 index) {
+    BattleCommand *pCmd = *ppCmd;
 
-    pRow[p[3]] = pRow[p[1]] + pRow[p[2]];
+    g_BattleSlotRows[index].dwordRegs[pCmd->operand3] =
+        g_BattleSlotRows[index].dwordRegs[pCmd->operand1] + g_BattleSlotRows[index].dwordRegs[pCmd->operand2];
 }
- */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9_260", func_8007E6F0);
-/* best: 99.00%. Same miss as func_8007E6A0 (the g_BattleSlotRows sum base: original
-   a2, gcc v1); the subtraction itself is byte-exact. See the note there for the
-   shapes already tried, including R201's permuter run.
-void func_8007E6F0(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    s32 *pRow = (s32 *)(g_BattleSlotRows + arg1 * 0x40);
+void func_8007E6F0(BattleCommand **ppCmd, u8 index) {
+    BattleCommand *pCmd = *ppCmd;
 
-    pRow[p[3]] = pRow[p[1]] - pRow[p[2]];
+    g_BattleSlotRows[index].dwordRegs[pCmd->operand3] =
+        g_BattleSlotRows[index].dwordRegs[pCmd->operand1] - g_BattleSlotRows[index].dwordRegs[pCmd->operand2];
 }
- */
 // The product is 2.6.0's: retail reuses the element value's dead $v0 for the
 // mflo (mult a0,v0 / mflo v0 / sw v0,0(v1)); gcc 2.7.2 gives it a fresh $a2.
 void BattleDwordRegMulImm(BattleCommand **ppCmd, u8 arg1) {
     BattleCommand *pCmd = *ppCmd;
-    u32 *pRow = g_BattleSlotRows[arg1];
+    u32 *pRow = g_BattleSlotRows[arg1].dwordRegs;
 
     pRow[pCmd->operand1] = pCmd->operand2 * pRow[pCmd->operand1];
 }
 void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
     BattleCommand *pCmd = *ppCmd;
-    u32 *pRow = g_BattleSlotRows[arg1];
+    u32 *pRow = g_BattleSlotRows[arg1].dwordRegs;
 
     pRow[pCmd->operand1] /= pCmd->operand2;
 }
