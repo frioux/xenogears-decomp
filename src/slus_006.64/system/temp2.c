@@ -1239,14 +1239,34 @@ void ResourceHelperNoOp(void) {
 
 // Queues one semi-transparent textured quad per record of the dirent.
 //
-// Un-park screen: cdk 68.00%, gcc-2.6.0 67.64%, gcc-2.7.2 67.82%, cdk -G0
-// 67.17% - no compiler switch helps; it is the GP-rel split below.
-// Best 68.00%: blocked on the same GP-rel split as GfxSetRenderContext. The original
-// object reads g_GfxCurWorkBuffer and g_GfxCurWorkBufferEnd with lui/%hi+%lo
-// here (they were externs in this function's original TU), but the matched
-// functions 80025180/800251C8/8002541C/80025544 need %gp_rel for both, which
-// maspsx only emits when the unit itself defines the symbol in .sbss. This
-// function can only match from a separate TU that does not define them.
+// BLOCKED on a TU boundary, not on the body. Best 68.00% (130 insns against
+// retail's 138). Screen this round: unit flags 68.00, cdk -G0 67.17, 2.6.0
+// 67.64, 2.7.2 67.82, index-loop variants 66.43 / 67.51.
+//
+// The original object reaches g_GfxCurWorkBuffer and g_GfxCurWorkBufferEnd with
+// the assembler's ABSOLUTE expansion (lui %hi then lw %lo in the same register,
+// and lui $at for the store), so neither symbol was in that TU's small data.
+// include/system/animation.h declares both as tentative definitions, so this TU
+// emits ".comm g_GfxCurWorkBuffer,4" and maspsx (sdata limit 8, plus
+// --use-comm-section) rewrites EVERY reference to %gp_rel: see
+// tools/maspsx/maspsx/__init__.py, the "%gp_rel" branches, which fire on
+// "symbol in self.sbss_entries". The decision is per symbol per TU, and the
+// matched neighbours GfxQueueSpriteTileData, GfxQueueImageTransfer,
+// GfxSetRenderContext and SpriteDrawTile need %gp_rel, so one TU cannot produce
+// both shapes. Verified reachable: with -G0 the absolute lui/lw form does come
+// out of this same unit, so the fix is a config/slus_006.64.yaml split at this
+// function's file offset 0x173A4 into its own unit that only declares the two
+// externs (no new preset needed).
+//
+// Once split, what is left of the body: retail walks the records as
+// pDirent plus a byte offset (pDirent spilled at 0x10(sp), the offset at
+// 0x1C(sp) starting at 4 and incremented by 0x1C, the loop counter at 0x14(sp)),
+// where this body keeps a pData pointer induction. Retail loads record+0 twice,
+// the second time as lh, and loads record+0x04, +0x06 and +0x08 with lh too,
+// while include/system/menu.h declares u, width, height and x as u16 (this body
+// emits lhu for all four, and the header cannot change: ResourceHelperGetSpriteList
+// is matched on the u16 reads). Retail also keeps the record's u in a stack slot
+// at 0x20(sp) and reloads it for the prim's u0/u2 stores.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026BA4);
 /*
 void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* ot) {
