@@ -683,37 +683,24 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
-// 99.91% at retail's exact size (224 bytes): the dispatch, all four arm bodies and
-// the shared decrement tail line up, and ONE instruction is left. Retail keeps two
-// identical copies of the "idx = extraWeaponIds[0]" arm (cases 0 and 15, at
-// .L8009E7C0 and .L8009E814); plain C merges them into one block and comes out 0x18
-// bytes short (200 bytes, 89.11%). The volatile load in case 15 is the only lever
-// found that keeps the two blocks rtx-unequal, and it costs an andi: gcc cannot fuse
-// a volatile QI load with its zero-extension, so case 15 comes out
-// "lbu v0,4(v0)" plus "andi v1,v0,0xff" in the jump delay slot where retail has the
-// lbu straight into v1. Measured at 200 bytes (merged): a s32, u8, s16 and u32 index
-// local, a copy through a second local (coalesced away), *arr against arr[0], a
-// volatile global pointer, a volatile pointer to the array, arr[0] & 0xFF, braces
-// and do-while(0) around the arm; and 208 bytes with a u8 index local. That the
-// MERGE is what costs the 24 bytes is confirmed by a value difference
-// (extraWeaponIds[1] in case 15), which gives 224 bytes at 99.80%.
-// Re-measured with diff_func.sh on this body: 98.66% at 224 bytes, the two
-// instructions being lbu v0,4 + andi v1,v0,0xff where retail has lbu v1,4 + nop.
-// tools/scripts/permute.sh (base=205) reported a ZERO candidate that appends
-// "idx = extraWeaponIds[3]" after the volatile load. Do NOT port it: that leaves
-// the volatile value dead, so case 15 falls into the extraWeaponIds[3] block and
-// reads 0x7 instead of 0x4 (wrong code), and objdiff reads only 99.73% - the case
-// 15 block only looks aligned while one nop is still missing. Also re-tested here: the
-// pointer-cast spelling *(u8 *)arr and a u8 shadow local are rtx-identical to
-// case 0, so gcc 2.6.0 cross-jumps and the function is back to 200 bytes. Only a
-// volatile load keeps the duplicate block, so this is a structural wall.
-// RE-TESTED (permuter sweep, base=205 best=0): ported that candidate verbatim, diff_func.sh
-// reads 99.73% at 224 bytes and the arm is still wrong - the dead volatile load makes gcc
-// thread case 15 into the .L8009E82C block (its j lands 8 bytes inside that block, on the
-// 'lbu v1,7'), so case 15 reads 0x7. Both notes agree: do not port it.
-// New fact from that attempt: the andi is the zero-extension of a LIVE volatile QI load;
-// with the value dead gcc emits 'lbu v1,4' + 'nop' exactly as retail, so the only thing
-// standing between this body and a match is a free rtx difference between the two arms.
+// Best 98.66% at retail's exact size (224 bytes / 56 insns): every instruction of the
+// dispatch, all four arm bodies and the shared decrement tail lines up. The residual is
+// that retail keeps TWO byte-identical copies of the "idx = extraWeaponIds[0]" arm (cases
+// 0 and 15, at .L8009E7C0 and .L8009E814 - both lui/lw/nop/lbu v1,4/j/nop, same jump
+// target), and cc1 2.6.0 cross-jumps identical switch arms into one block: the plain body
+// is 200 bytes (89.11%). The only spelling found that keeps both blocks is a volatile load
+// in case 15, and it costs the zero-extension of a live volatile QI value, so the block
+// comes out "lbu v0,4(v0)" + "andi v1,v0,0xff" in the j delay slot where retail has
+// "lbu v1,4(v0)" + "nop" - 2 of 56 instructions, hence 224 bytes at 98.66%.
+// Measured with diff_func.sh this round: s32 idx + volatile load 224/98.66; u8 idx +
+// volatile load 208/84.29 (the extraWeaponIds[3] load gains an andi too); plain s32 idx
+// 200/89.11; value difference extraWeaponIds[1] in case 15 224/99.80 but it is wrong code.
+// See tools/rounds/levers.md "fcross-jumping merges identical" (written from this
+// function): flag-level spellings all merge (u8 temp local, volatile pointer, pointer
+// cast); a permuter ZERO candidate (base=205) appends a dead volatile read that makes case
+// 15 fall through to the 0x7 arm, i.e. wrong code, and only looks aligned. No source-level
+// statement costs an instruction in that arm without changing an instruction retail has,
+// so this is a structural wall, not a park to retry by hand.
 /*
 void func_8009E788(void) {
     s32 idx;
@@ -721,6 +708,13 @@ void func_8009E788(void) {
     switch (g_BattleCurWorkBlock->rowIndex) {
     case 0:
         idx = g_BattleTargetSlotState->extraWeaponIds[0];
+        break;
+    case 1:
+    case 16:
+        return;
+    case 2:
+    case 17:
+        idx = g_BattleTargetSlotState->extraWeaponIds[3];
         break;
     case 3:
     case 4:
@@ -742,10 +736,6 @@ void func_8009E788(void) {
         break;
     case 15:
         idx = *(volatile u8 *)&g_BattleTargetSlotState->extraWeaponIds[0];
-        break;
-    case 2:
-    case 17:
-        idx = g_BattleTargetSlotState->extraWeaponIds[3];
         break;
     default:
         return;
