@@ -311,7 +311,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
    body (2072 iterations) found nothing.
    Round 394: re-measured 98.75%/32 bytes; a declaration-with-initialiser
    inside the loop (`u32 v = *p1; *p0 = v;`, the lever for a load/temp
-   allocator tie) is byte-identical to the plain copy, so the pick stands. */
+   allocator tie) is byte-identical to the plain copy, so the pick stands.
+   Round 408: re-measured again from the park, 98.75%/32 bytes, only `lw
+   t0,0(a1)` vs `lw v0,0(a1)`. Below 99 so no permuter run; the note above is
+   the whole story. */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 /* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
@@ -320,7 +324,6 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
         p0++;
     } while ((s32)p1 != n);
 } */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
 extern BattleEffect *BattleEffectCreateWorkKind(s32, s32);
 extern void BattleEffectAllocEntries(BattleEffect *, s32);
@@ -694,13 +697,19 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073F34);
 
 extern s32 g_BattleDrawFlags;
 extern s32 g_BattleGaugeHighlightValue;
-/* Per-side gauge record; only the first side of the 0x14-byte stride is named,
-   the rest of each record is a separate D_ symbol in the symbol table. */
-extern s32 g_BattleSlotGauges[];
-extern s32 D_80096FC0[];
-extern s32 D_80096FC4[];
-extern s32 D_80096FC8[];
-extern u8 D_80096FBC[];
+/* Per-side gauge record; the later fields are separate D_ symbols in the
+   symbol table (0x80096FBC/FC0/FC4/FC8). misc3 and misc4 declare the same
+   0x14-byte record. */
+typedef struct {
+    /* 0x00 */ u32 value;
+    /* 0x04 */ u8 percent;
+    /* 0x05 */ u8 pad5[0x3];
+    /* 0x08 */ u32 prevValue;
+    /* 0x0C */ u32 frameStart;
+    /* 0x10 */ u32 frameCurrent;
+} BattleSlotGauge; // Size: 0x14
+
+extern BattleSlotGauge g_BattleSlotGauges[];
 extern s32 BattleEffectPackKey(s32, u8, s16, s32);
 extern void func_8007CD44(s32, void *, void *, s32);
 extern void func_8007C880(s32, void *, s32, s32);
@@ -711,22 +720,38 @@ extern void BattleResetMessageQueue(Actor *);
    the flags at every site, so the expression stays inline. */
 #define BATTLE_ACTOR_SIDE(p) ((((p)->flags) >> 27) & 1)
 
-/* 90.12% (1464 bytes against retail's 1416): the frame, the saved set, the
-   vertex/effect prologue, both spawn arms and both slot-search loops match in
-   place. What is left, measured from this body:
+/* 92.03% (1464 bytes against retail's 1416; 357 vs 366 instructions). The frame,
+   the saved set, the vertex/effect prologue, both spawn arms, the gauge stores
+   and both slot-search loops match in place.
+
+   The gauge record: retail stores through five separately named symbols that are
+   the fields of ONE per-side 0x14-byte record (0x80096FB8 +0, FBC +4, FC0 +8,
+   FC4 +0xC, FC8 +0x10). Declaring that record (as misc3/misc4 already do) and
+   writing `g_BattleSlotGauges[side].field` is 92.03%, up from 90.12% for the
+   `s32 D_x[side*5]` spelling, and it removes the base-address CSE that the
+   `[side*5]` form provoked (retail re-forms `lui at,%hi(sym); addu at,at,v1`
+   per store). The remaining `sw v0,16(at)` / `%lo(g_BattleSlotGauges)` against
+   retail's `%lo(D_80096FC8)` is the typed-data-addend class: same linked bytes.
+
+   What is left:
+   - FRAME: retail is 0x78, ours 0x68. Every stack reference in retail is
+     0x10-0x1F (outgoing args) or 0x20-0x3F (vecA, vecB); nothing touches
+     0x40-0x57, so retail carries 0x18 bytes of locals that no source statement
+     we can write accounts for. `u32 spare[2]`/`spare[4]` are DCE'd (byte
+     identical), so the frame cannot be filled from our side - this is the
+     blocker that keeps the function off 100.00 (the two addiu sp immediates and
+     the eight save offsets differ). Do not chase the frame again without a
+     reason, and do not trade the body for it: the C is right.
    - the `kind` dispatch: retail tests the kind with THREE separate branches
      (`slti 4` / `slti 0x27` / `slti 0x21`, each jumping to the search block),
      ours folds `kind >= 0x21 && kind < 0x27` into one `addiu -33 / sltiu 6`
      range test. Three separate `if (...) goto search;` statements give retail's
-     three tests (90.16%) but 20 extra bytes, so the shape is a goto chain the
-     if/else-if form cannot express - a later round should try a switch-free
-     spelling where the search block is spelled ONCE and the arms tail-jump.
+     three tests (90.16% on the old body) but ~20 extra bytes.
+   - the two `g_BattleGaugeHighlightValue` stores: retail loads the global once
+     AFTER the index multiply and keeps it in $v0; ours schedules the load above
+     `srl/andi` and so takes $a0. Scheduler + allocator, one instruction.
    - `if (arg2 == 0) return;` makes gcc hand `percent` the freed $s5, retail
      keeps $s5 and re-reads gaugePercent into $v1 in the second half.
-   - the shared `sh $v0,6($v1)` that both pState read-modify-writes reach: retail
-     cross-jumps the two stores into one, ours emits one per arm.
-   - 8 bytes of frame are missing (0x78 vs 0x70); an unused 8-byte local did not
-     restore it in this body.
    The two `taken` tests are retail's own dead `bnez a2`/`beqz a2` (a source
    variable that is only ever set to 0), kept here because they are load-bearing
    for the two loop shapes. */
@@ -734,7 +759,6 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
 /* void func_800740E4(Actor *pActor, u8 *p1, s32 arg2) {
     VECTOR vecA;
     VECTOR vecB;
-    u32 spare2[2];
     BattleActorSlot *pSlot;
     s32 key;
     s32 single;
@@ -785,18 +809,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
         BattleResetMessageQueue(pActor);
         pActor->pState->flags &= 0x7FFF;
     store:
-        D_80096FC8[BATTLE_ACTOR_SIDE(pActor) * 5] = pActor->frameAccum;
-        D_80096FC4[BATTLE_ACTOR_SIDE(pActor) * 5] = pActor->frameAccum;
-        D_80096FC0[BATTLE_ACTOR_SIDE(pActor) * 5] = g_BattleGaugeHighlightValue;
-        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor) * 5] = g_BattleGaugeHighlightValue;
-        D_80096FBC[BATTLE_ACTOR_SIDE(pActor) * 0x14] = pActor->unk1600[0x18];
+        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].frameCurrent = pActor->frameAccum;
+        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].frameStart = pActor->frameAccum;
+        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].prevValue = g_BattleGaugeHighlightValue;
+        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].value = g_BattleGaugeHighlightValue;
+        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].percent = pActor->unk1600[0x18];
         return;
     }
-    if (D_80096FC0[BATTLE_ACTOR_SIDE(pActor) * 5] != g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor) * 5]) {
-        D_80096FC4[BATTLE_ACTOR_SIDE(pActor) * 5] = pActor->frameAccum;
-        D_80096FC0[BATTLE_ACTOR_SIDE(pActor) * 5] = g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor) * 5];
+    if (g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].prevValue != g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].value) {
+        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].frameStart = pActor->frameAccum;
+        g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].prevValue = g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].value;
     }
-    D_80096FC8[BATTLE_ACTOR_SIDE(pActor) * 5] = pActor->frameAccum;
+    g_BattleSlotGauges[BATTLE_ACTOR_SIDE(pActor)].frameCurrent = pActor->frameAccum;
     kind = p1[1];
     percent = pActor->gaugePercent;
     if (kind == 4) {
