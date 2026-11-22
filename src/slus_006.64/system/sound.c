@@ -3494,6 +3494,28 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
 // on ACTIVE_FLAG (0(s2)) - SOUND_CHANNEL_NTOE - not on status_flags; and the script loop's continue
 // test is `active_flag & 0x500`, the `cmd < 0x80` mark at the end sets/clears 0x1000 on active_flag.
 // gateRatio is tested 0xF first and 0x10 second, and the envelope loop reads flags once into a local.
+// ROUND 415 (re-measured, unchanged): 75.84% / 1440 bytes, retail 1436. The note above
+// stands; these are the spellings round 415 scored, all worse, all reverted:
+//   (i)  `u8 note` (retail's `lbu 0x64(s0)` + `sb 0x63(s0)` suggests the sum is QImode): 75.02%
+//        / 1452. It buys the lbu but costs an andi at the percussion call and an andi at the store.
+//   (ii) `selector = *pScript++` moved before the note add (retail's `addiu s1,s1,1` sits between
+//        the two table reads): 75.53% / 1444.
+//   (iii) `if (cmd == 0x80 || (cmd >= 0xB0 && cmd <= 0xB1))`, since retail's 0x80 test and its
+//        0xB0/0xB1 range test are adjacent and share the clear tail: 71.94% / 1440. gcc had
+//        already merged the tails; the merged test only moves the 0x81 test after the range test.
+// WHERE THE REMAINING 24% IS (mnemonic-level diff with registers folded, round 415): 51 of the 82
+// differing lines are pure register renames; the real ones are (a)-(h) above plus the extra
+// instruction, which is the PEELED SCAN-LOOP BOTTOM: retail does `bnez s1,.L8003CA48` (one shared
+// bottom, 5 `slti v0,a2,0x80` in the function), ours inlines a copy of `lbu a2,0(s1)/slti/bnez`
+// after the 0x90 arm (6). Every shape that removes it moves the block order more than it fixes.
+// The dominant residual is BLOCK ORDER, not any single instruction: gcc emits our post-first-loop
+// block (0x800 test, loopIndex, `cmd = *pScript`, scan loop) directly after `sw s1,0x12(s0)` and
+// inlines the 0x80/0x81 tails inside the scan loop, where retail puts those tails out of line
+// (before .L8003C950) and hoists 0x80/0x81 into a3/a1 instead of re-materialising them per use
+// (`li v0,0x80`, `li v0,0x9a` twice in ours). No source shape tried reproduces retail's layout.
+// HEADER EVIDENCE, not applied (shared header): retail reads durationBias (0x60) with `lbu` then
+// `sll 24 / sra 24`, i.e. a sign-extended UNSIGNED byte; the header declares it s8 and we emit a
+// bare `lb`. Whatever the field is, the source must sign-extend an unsigned byte.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 /*
 void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
