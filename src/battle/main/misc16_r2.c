@@ -547,68 +547,61 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     g_BattleDisplayState->cursorPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
     *(volatile u8 *)&g_BattleDisplayState->cursorPending = 1;
 }
-/* 72.46%: the four draw blocks have the right shape (divide-by-10 magic, the
-   ROUND 371: this body had NEVER COMPILED - `g_BattlePrimStartIndex * 0x28` on the unit's
-   `s32 g_BattlePrimStartIndex[]` declaration is "invalid operands to binary *" and the
-   four `*(u8 **)(g_BattleGraphicsWork + 0xA230)` bases scaled by
-   sizeof(BattleGraphicsWork) (cc1 emitted `lw $3,1730221440($2)`, which maspsx refused).
-   Fixed here as `g_BattlePrimStartIndex[0]` and `(u8 *)g_BattleGraphicsWork + 0xA230`;
-   re-measured 73.76% (592 bytes against retail's 0x238 = 568). The residual is gcc saving
-   one register too many (s0-s4 against retail's s0-s3: it keeps a second copy of `eo` in
-   s4, `move s4,s0`, where retail reaches all four D_800CCD38/D_800CCD3A sites through s0)
-   and the first block's ofs being scheduled before `li v0,8` instead of after. Re-measured
-   dead: dropping the `v` local and reloading the field inline at all four sites.
-   u16 truncations, the (idx*0x28 + K) + base order, and the literal 8 for arg6
-   which gcc does hoist into a register from block 2 on, as the original does).
-   Remaining gap: the original keeps `&g_BattlePrimStartIndex` in s2 (`lui/addiu` once in
-   block 2, `lw v0,0(s2)` per use); gcc 2.7.2 emits a fresh `lui/lw` pair for
-   the value at every use and folds an `s32 *pPal = &g_BattlePrimStartIndex;` local back
-   into exactly that. That also renumbers the magic-10 register (s2 here, s1 in
-   the original) and pushes `mfhi` into t1. Same wall as BattleDrawColumnSpriteCells above.
-   Tried: inline arg expression (69.01), separate `ofs` local + `ofs + (s32)pBase`
-   (70.15), `s32 *pPal` local (70.15, folded away), the u8 `u` mask local below
-   (72.46).
+PARKED 77.70% (592 bytes / 148 insns; retail 0x238 = 568 / 142). Re-measured under
+the unit's gcc-2.6.0 - the older 72.46 note here was measured under 2.7.2, before the
+round-371 preset switch. Every block's shape and the
+'lui at,%hi(D_800CCD38); addu at,at,s0; lhu %lo(at)' address form are retail's, and the
+divide/modulo magic, the four 0x28-stride prim bases and the argument order all match.
+The residual is 6 excess instructions from ONE defect: gcc keeps a redundant second copy
+of 'eo' in s4 ('move s4,s0' in block 1's beqz delay slot, 'addu at,at,s4' in block 4,
+plus its save/restore). The other two are block 3/4 masking '& 0xF8' twice ('li s0,-8'
+then 'and') when the u argument is the u8 conversion of an inline mask.
+BEST ALTERNATIVE, measured 76.39% / 580 bytes / 145 insns: hoist 's32 u;
+u = (d * 8 + 0x78) & 0xF8;' before each call. That drops both extra masks - only the s4
+copy is left - and blocks 1 and 3 then read 'sll a3,v0,3 / addiu a3,a3,120 / andi
+a3,a3,0xf8' exactly as retail. It scores 1.3 lower on diff alignment alone, so start any
+further attempt from that form.
+Tried and dead: the 2.7.2 body (72.46), distinct v/d/u locals per block (76.54, 145
+insns, copy unchanged), 'u32 eo' (identical), cdk preset (compile-failed).
+Not tried: a spelling that stops gcc duplicate-copying 'eo' at the first branch; that
+copy is the entire size gap.
+/*
 void func_80090C44(u8 arg0) {
     u8 *pBase;
     s32 eo;
     s32 ofs;
-    u32 v;
+    u16 v;
     u16 d;
-    u8 u;
 
     eo = arg0 * 0x170;
     v = *(u16 *)(D_800CCD38 + eo);
     d = v / 10;
     if (d != 0) {
-        u = (d * 8 + 0x78) & 0xF8;
-        pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
+        pBase = g_BattleGraphicsWork->pPacketPrims;
         ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x460;
-        BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x104, 0xC6, u, 0, 8);
+        BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x104, 0xC6, (d * 8 + 0x78) & 0xF8, 0, 8);
     }
     v = *(u16 *)(D_800CCD38 + eo);
     d = v % 10;
-    u = (d * 8 + 0x78) & 0xF8;
-    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
+    pBase = g_BattleGraphicsWork->pPacketPrims;
     ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x4B0;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x10C, 0xC6, u, 0, 8);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x10C, 0xC6, (d * 8 + 0x78) & 0xF8, 0, 8);
     v = *(u16 *)(D_800CCD3A + eo);
     d = v / 10;
     if (d != 0) {
-        u = (d * 8 + 0x78) & 0xF8;
-        pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
+        pBase = g_BattleGraphicsWork->pPacketPrims;
         ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x500;
-        BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x11C, 0xC6, u, 0, 8);
+        BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x11C, 0xC6, (d * 8 + 0x78) & 0xF8, 0, 8);
     }
     v = *(u16 *)(D_800CCD3A + eo);
     d = v % 10;
-    u = (d * 8 + 0x78) & 0xF8;
-    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
+    pBase = g_BattleGraphicsWork->pPacketPrims;
     ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x550;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x124, 0xC6, u, 0, 8);
-}
-*/
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x124, 0xC6, (d * 8 + 0x78) & 0xF8, 0, 8);
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
-extern void func_80090C44(u8);
+
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
 /* 83.46% (488 bytes = retail's exact 122 instructions). Both draw blocks and both
