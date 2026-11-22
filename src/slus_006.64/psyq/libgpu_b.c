@@ -167,7 +167,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
 /* best: 98.53% (68 bytes = retail's exact size, identical instruction
    multiset; only the register holding the masked x differs: retail masks it into
    $v0 and lui's 0xE5000000 into $a0, gcc the reverse, which also swaps the two
-   closing `or` operands). Levers already found, all load-bearing: the mode test
+   closing `or` operands). CAUSE MEASURED with `cc1 -O3 -G0 -dg` on this body:
+   global_alloc's order is `76 75 74 73 72` and the 0xE5000000 constant allocno is
+   FIRST, so it always takes $v0; the masked-x allocno comes next to last (3 refs
+   over ~7 insns, priority floor_log2(refs)*refs/live*size) and can only outrank a
+   2-ref, 2-insn live constant at 8+ refs, i.e. with instructions retail does not
+   have. The order is unchanged with `u_long code` (SImode, 4x the HImode
+   allocno_size) and with the natural no-dead-test body, so this is not a
+   source-reachable tie. Measured this round, 98.53 or worse: `code |=
+   0xE5000000; return fld | code;` (86.76 - the two arms then cross-jump and two
+   instructions disappear), `return fld | code | 0xE5000000;` (85.29 - code takes
+   $v1 and the or order flips), `if (t) ret = ...; else ret = ...; return fld |
+   ret;` (98.53), u_long code (98.53), a 3-minute permuter run from this body
+   (base=25 best=25, 1428 iterations). Levers already found, all load-bearing: the mode test
    written INVERTED (11-bit arm first) so gcc threads bnez onto the 12-bit arm,
    the shift as its own statement, the dead trailing test that makes reorg fill
    the bnez slot, and a SEPARATE ret plus a u_short local for the masked x
