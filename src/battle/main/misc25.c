@@ -23,12 +23,8 @@ extern u16 D_800C3B9C;
 extern s16 D_800C3BA0;
 extern s16 D_800C3BA4;
 extern u16 D_800C3BA8;
-extern u16 g_BattleSlotVectors[];
-extern s16 D_800D3356;
-extern u16 D_800D3358;
-extern u16 g_BattleSlotVectorsB;
-extern s16 D_800D335E;
-extern u16 D_800D3360;
+extern SVECTOR g_BattleSlotVectors;
+extern SVECTOR g_BattleSlotVectorsB;
 
 extern u8 g_BattleAnimCommandsSuppressed;
 extern u16 g_BattleCommandActorMask;
@@ -562,26 +558,37 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
-/* 97.17% (2124 bytes vs retail's 2120): the whole body is in place - the two
-   follow-actors modes, the slot 7 / slot 8 orbit terms, the two interpolation
-   styles (absolute and per-frame step), the block-free bookkeeping and the
-   nine-entry output switch (the jump table's 4-byte zero word at 0xCD0 is the
-   assembler's .align before BattleTestActorCommandMask's table). One instruction
-   too many and a register shift are left: retail's y computation reaches v1 in
-   BOTH arms of the actor/table if-else so one addu s2,v1,zero serves both, where
-   ours gives the if-arm's temp v0 and copies twice; retail also keeps pBlock in
-   s5 (x,y,z in s1..s3) where ours has it in s1. The free/finished branch is
-   written INVERTED (if (!(slot < 7)) { curFrame = endFrame - 1 } else { free }),
-   which the permuter found and is worth 96.31 -> 97.17. Tried: y through a u16
-   local before/after the pos loads (both arms, either arm), z = z + (...) vs +=,
-   a pTween second block pointer (retail keeps two identical block pointers in
-   s5/s6; +4%: 89.19 -> 93.85), outX/outY/outZ as separate results (+3.7%),
-   declaration order, and four permuter runs (8 min on the 96.31% body: no zero).
-// Runs every queued movement command for arg1 frames. A block interpolates its
-// sprite position from its start to its target, then publishes the result: slots
-// 0..6 into their own word, 7 and 8 into the two slot vectors. A block whose tag
-// is D_800C3B84 reports to D_800C3B88 - bit 1 while it still runs, bit 2 once it
-// has finished and been freed.
+/* 95.81% (2120 bytes = retail's exact size; the previous park's 97.17% was 2124, one
+   instruction long). Two things changed in round 405 and both are keepers:
+   1. the y of the first actor/table block goes through an s32 `dy` local that both
+      arms assign, with `y = dy;` after the if/else - cc1 then emits retail's ONE
+      shared copy at the join (move s2,v1 at 0xF8) instead of one copy per arm,
+      which is exactly the 4 extra bytes the old park carried. The arms still
+      subtract per-arm, as retail does (subu in the jal delay slot / late in the
+      table path). Both operands are (u16) casts: retail loads targetY with lhu.
+   2. g_BattleSlotVectors / g_BattleSlotVectorsB are declared SVECTOR (they are the
+      3-short slot position vectors misc31/misc35 also declare that way), so the
+      slot 7/8 case publishes .vx/.vy/.vz instead of five separate D_ symbols.
+   THE ONE NAMED RESIDUAL is the callee-saved rotation, and -dg says it is a wall:
+   pseudo 95 (pBlock) has 75 refs over 276 insns (quotient ~6.5) against x/y/z at
+   48/160, 39/135, 48/180 (~2.7-3.0), so global.c hands pBlock $s1 and pushes
+   x,y,z,orbitY down one (retail has x=$s1 y=$s2 z=$s3 orbitY=$s4 pBlock=$s5
+   pTween=$s6 outX=$s7 orbitR=$s0; ours pBlock=$s1 x=$s2 y=$s3 z=$s4 orbitY=$s5).
+   pBlock cannot lose that contest by spelling - only by a source that touches the
+   block pointer far fewer times, which retail's s5/s6 split does not show. Dump:
+   cc1 ... -da on build/src/battle/main/misc25.c.i, then the "46 regs to allocate"
+   line of m.i.greg and the "Register NN used" lines of m.i.lreg.
+   Already measured dead in the older park: y through a u16 local, z += vs z = z +,
+   pTween second block pointer (that one is REQUIRED, +4%), outX/Y/Z as separate
+   results, declaration order, and five permuter runs (none reached 0).
+   Also measured this round: writing kind before pTween instead of after changes
+   nothing; the parked func_800B0B14 below still spells the slot vectors as an
+   array of u16, respell it as g_BattleSlotVectors.vx/.vy/.vz when unparking.
+   Runs every queued movement command for arg1 frames. A block interpolates its
+   sprite position from its start to its target, then publishes the result: slots
+   0..6 into their own word, 7 and 8 into the two slot vectors. A block whose tag
+   is D_800C3B84 reports to D_800C3B88 - bit 1 while it still runs, bit 2 once it
+   has finished and been freed.
 void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     u16 vec[3];
     s32 i;
@@ -600,6 +607,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     s16 rateX;
     s16 rateY;
     s16 rateZ;
+    s32 dy;
     s32 orbitY;
     s32 orbitR;
     s32 height;
@@ -624,13 +632,14 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                 if (pActor != NULL) {
                     pSprite = pActor->pSprites;
                     x = (u16)pSprite->pos[0];
-                    y = (u16)pSprite->pos[1] - (u16)pBlock->targetY;
+                    dy = (u16)pSprite->pos[1] - (u16)pBlock->targetY;
                     z = (u16)pSprite->pos[2];
                 } else {
                     x = D_800C3EBE[pBlock->targetX].x;
-                    y = D_800C3EBE[pBlock->targetX].y - (u16)pBlock->targetY;
+                    dy = D_800C3EBE[pBlock->targetX].y - (u16)pBlock->targetY;
                     z = D_800C3EBE[pBlock->targetX].z;
                 }
+                y = dy;
                 if (pBlock->targetZ >= 0) {
                     pActor = g_BattleActors[pBlock->targetZ];
                     if (pActor != NULL) {
@@ -663,7 +672,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                 vec[0] = x;
                 vec[1] = y;
                 vec[2] = z;
-                if (BattleSteerActorsTowardPoint(&g_BattleSlotVectorsB, vec) != 0) {
+                if (BattleSteerActorsTowardPoint((u16 *)&g_BattleSlotVectorsB, vec) != 0) {
                     x = vec[0];
                     z = vec[2];
                 }
@@ -746,14 +755,14 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                 D_800C3B9C = outX;
                 break;
             case 7:
-                g_BattleSlotVectorsB = outX;
-                D_800D335E = outY;
-                D_800D3360 = outZ;
+                g_BattleSlotVectorsB.vx = outX;
+                g_BattleSlotVectorsB.vy = outY;
+                g_BattleSlotVectorsB.vz = outZ;
                 break;
             case 8:
-                g_BattleSlotVectors = outX;
-                D_800D3356 = outY;
-                D_800D3358 = outZ;
+                g_BattleSlotVectors.vx = outX;
+                g_BattleSlotVectors.vy = outY;
+                g_BattleSlotVectors.vz = outZ;
                 break;
             }
         }
