@@ -869,6 +869,17 @@ void BattleInitItemInventoryAndConditionMasks(void) {
 // func_8009A9D0 and BattleSetSlotActionStateAndAmount off 100. Try_flags on this body: 97.81 under
 // gcc-2.6.0, 94.63 under 2.7.2-cdk. Measured this round: limit/flags/drop declaration
 // order (no change), max/cur assigned cur-first (worse - $a1 becomes an address base).
+// Round 397 re-measured live: 97.59% (536 bytes, 134 insns = retail's size), 97.81 under
+// gcc-2.6.0-psx (try_flags), matching the note below. The s0/s2 mirror is now PROVEN
+// unreachable by spelling via the -da dump (tools/gcc-2.7.2-psx/cc1, `-da` on the unit's
+// preprocessed file): the three callee-saved allocnos are arg0 (6 refs / 97 insns live,
+// priority 2*6/97*4 = 0.495), drop (3 / 25, 0.48) and limit (3 / 34, 0.353), so arg0 takes
+// $s0 and limit $s2; retail's limit=$s0 would need limit to outrank arg0, i.e. a 6-ref
+// pointer losing to a 3-ref constant, which no declaration order, width (`u8 drop` measured:
+// no change at all) or statement spelling reaches. The mfhi/mflo in-place read-backs are the
+// round-373-proven 2.7.2 md wall (mfhi t1 / sra a0,t1,5 vs retail's in-place pair), and
+// the loop's v1/a1 maxHp/hp mirror is the same allocator contest. Three independent
+// residuals, no preset closes the function, unit is mixed under 2.6.0: park is final.
 /*
 void func_8009B46C(u16* arg0) {
     u8 count = 0;
@@ -931,6 +942,7 @@ void func_8009B46C(u16* arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
+
 void BattleSetCommandCodeForSlotKindFlag(u8 arg0, u16 arg1) {
     switch (arg0) {
     case 0:
