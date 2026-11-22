@@ -45,8 +45,9 @@ typedef struct {
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
-    /* 0x60 */ u8 unk60[0x1C];
-    /* 0x7C */ u32 unk7C;
+    /* 0x60 */ s32 unk60; // path speed acceleration per frame
+    /* 0x64 */ u8 unk64[0x18];
+    /* 0x7C */ s32 unk7C; // 12.12 proximity scale, walked between 0x1000 and 0xF000
 } WorldMapPlayer; // Size: 0x80
 
 // sound-effect bank header: +0x14 is the sed id sound commands are played from,
@@ -113,6 +114,11 @@ extern u16 D_8009BD44;
 extern u16 D_8009BD48;
 extern u16 D_8009BD4A;
 extern u16 D_8009BD4C;
+extern s32 D_8009BD50;
+extern s32 D_8009BD54;
+extern s32 D_8009BD58;
+extern WorldMapTrackPoint g_WorldMapCameraPathPoints[];
+extern void WorldMapWrapDelta(void *pVec);
 extern MATRIX g_WorldMapViewMatrix;
 extern void func_80096F18(void *, void *, s32, void *);
 extern void func_80097244(s32 *pPos);
@@ -128,6 +134,7 @@ extern s32 g_WorldMapCameraHeight;
 extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
+extern s32 g_WorldMapScrollZ;
 extern s32 g_WorldMapRotationMatrixValid;
 extern SoundSedsBank *g_MenuSedsFile;
 extern s32 g_WorldMapWorkBuffer1;
@@ -1061,6 +1068,167 @@ int func_8007C724(int idx) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
+// PARKED 74.06% (1180 bytes / 295 insns; retail 1172 / 293) - ALREADY PARKED
+// BEFORE THE FIRST ATTEMPT: this unit's rodata range (0x8006FBC4 + 0x1C8) cannot
+// hold the switch family's tables once they come from C. This stub's two tables
+// (jtbl_8006FD58 at range+0x194, jtbl_8006FD70 at +0x1AC) are 4 mod 8, and cc1
+// hardcodes `.align 3` before a C jump table (lever i-jtbl-align-3-hardcoded), so
+// even converting the whole family in address order ends the range at 0x1CC
+// (JTBL_LAYOUT, same conclusion as func_8007C3B8 above); converting this stub
+// alone puts its tables at .rodata+0x30 and +0x48 and shifts every asm-owned table
+// by 0x38, i.e. world_map_TEXT_START moves. Report only - do not convert without
+// moving the unit's data to C as one address-ordered job.
+// Structure is settled and mirrors retail block for block: the first switch is
+// command-1 over 6 cases (case 4 empty, so the table keeps 6 entries) with gcc
+// cross-jumping `command = 0` + `unk60 = 1|8` and the two `command = 0` +
+// `state = 3|4` pairs; func_80096F18 is called ONCE, after the switch, guarded by
+// !g_WorldMapRotationMatrixValid; the second switch (state 0..6) has cases 2 -> 1
+// -> 0 falling through, cases 3/4/5 jumping to case 0's head and case 6 sharing
+// the interpolate tail with a different table base. Retail's `lhu;addiu -1;sll;sra`
+// on command means the source narrowed an unsigned read to s16: keep the
+// `(u16)pPlayer->command - 1` spelling.
+// RESIDUAL (2 insns / 8 bytes over retail): the 16.16 x read is right (`lh 0x2`),
+// the two `D_8009BD4C/48` halves are right, so what is left is (a) retail holds
+// &g_WorldMapScrollTargetZ/&g_WorldMapCameraTargetZ in $s0/$s1 across the
+// WorldMapWrapDelta call in cases 0 and 6, ours rematerialises each address, so our
+// pPlayer lands in $s1 and the scratch base in $s2 where retail has $s2/$s3 (one
+// fewer callee-saved slot, frame 40 vs 48) - pointer locals for the two targets
+// measured the same 73.45 and made no difference, gcc rematerialises SYMBOL_REF
+// regardless; (b) case 4: retail has `move a2,zero` + `sh zero,0xA2` before the two
+// global loads, ours puts them after (same shape as func_8007C3B8's park note).
+// Do not re-run the permuter on this: it cannot fix a register map.
+/*
+// unk50 is the walk position in 12.12 fixed point, unk58 the speed and unk60 the
+// acceleration; unk5C is the position the current state ends at.
+s32 func_8007C7D8(s32 idx) {
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
+    WorldMapTrackPoint *pPoint;
+    s32 *pScratch = (s32 *)PSX_SCRATCH; // interpolated position (16.16), then the wrap delta
+    s16 nCommand;
+    s32 jitter;
+
+    nCommand = (u16)pPlayer->command - 1;
+    switch (nCommand) {
+    case 0:
+        pPlayer->state = 1;
+        pPlayer->unk5C = 0x8200;
+        pPlayer->command = 0;
+        pPlayer->unk60 = 1;
+        break;
+    case 1:
+        pPlayer->command = 0;
+        pPlayer->state = 3;
+        break;
+    case 2:
+        pPlayer->command = 0;
+        pPlayer->state = 4;
+        break;
+    case 3:
+        pPlayer->state = 5;
+        pPlayer->unk5C = 0xA800;
+        pPlayer->command = 0;
+        pPlayer->unk60 = 8;
+        break;
+    case 4:
+        break;
+    case 5:
+        pPlayer->state = 6;
+        pPlayer->command = 0;
+        pPlayer->unk50 = 0;
+        pPlayer->unk58 = 0x40;
+        break;
+    }
+    if (g_WorldMapRotationMatrixValid == 0) {
+        func_80096F18(g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+    }
+    switch (pPlayer->state) {
+    case 2:
+        pPlayer->unk58 -= pPlayer->unk60;
+        if (pPlayer->unk58 < 0) {
+            pPlayer->unk58 = 0;
+            pPlayer->state = 0;
+        }
+        // fallthrough
+    case 1:
+        pPlayer->unk50 += pPlayer->unk58;
+        if (pPlayer->unk50 > pPlayer->unk5C) {
+            pPlayer->state = 2;
+        }
+        // fallthrough
+    case 0:
+    moveCamera:
+        pScratch[1] = 0;
+        pScratch[0] = 0;
+        pScratch[2] = g_WorldMapScrollTargetZ - g_WorldMapCameraTargetZ;
+        WorldMapWrapDelta(pScratch);
+        g_WorldMapScrollZ += pScratch[2];
+        g_WorldMapCameraTargetZ = g_WorldMapScrollTargetZ;
+        pPoint = &g_WorldMapCameraPathPoints[33 + (pPlayer->unk50 >> 12)];
+        break;
+    case 3:
+        pPlayer->unk7C = 0xF000;
+        pPlayer->state = 0;
+        goto moveCamera;
+    case 4:
+        ((u16 *)pScratch)[0x51] = 0;
+        ((u16 *)pScratch)[0x50] = g_WorldMapCameraTarget >> 12;
+        ((u16 *)pScratch)[0x52] = g_WorldMapCameraTargetZ >> 12;
+        WorldMapInitSpriteGroupSprites(0x1A, &((u16 *)pScratch)[0x50], 0);
+        WorldMapInitSpriteGroupSprites(0x1B, &((u16 *)pScratch)[0x50], 0);
+        pPlayer->unk7C -= 0x120;
+        if (pPlayer->unk7C < 0x1000) {
+            pPlayer->unk7C = 0x1000;
+            pPlayer->state = 0;
+            WorldMapDeactivateSpriteGroup(0x1A);
+            WorldMapDeactivateSpriteGroup(0x1B);
+        }
+        goto moveCamera;
+    case 5:
+        pPlayer->unk58 = 0x100;
+        pPlayer->state = 1;
+        goto moveCamera;
+    case 6:
+        pScratch[1] = 0;
+        pScratch[0] = 0;
+        pScratch[2] = g_WorldMapScrollTargetZ - g_WorldMapCameraTargetZ;
+        WorldMapWrapDelta(pScratch);
+        g_WorldMapScrollZ += pScratch[2];
+        g_WorldMapCameraTarget = g_WorldMapScrollTargetX;
+        g_WorldMapCameraTargetY = g_WorldMapScrollTargetY;
+        g_WorldMapCameraTargetZ = g_WorldMapScrollTargetZ;
+        pPlayer->unk50 += pPlayer->unk58;
+        if (pPlayer->unk50 >= 0x4801) { // past the end of the walk
+            pPlayer->unk58--;
+            if (pPlayer->unk58 < 0) {
+                pPlayer->unk58 = 0;
+            }
+        }
+        pPoint = &g_WorldMapCameraPathPoints[47 + (pPlayer->unk50 >> 12)];
+        break;
+    }
+    if (pPoint[2].unk6 != -1) {
+        WorldMapInterpolateQuadraticVector(pPlayer->unk50 & 0xFFF, (s16 *)pPoint,
+                                           (s16 *)&pPoint[1], (s16 *)&pPoint[2], pScratch);
+        D_8009BD4C = 0;
+        D_8009BD48 = 0;
+        D_8009BD58 = 0;
+        D_8009BD50 = 0;
+        D_8009BD54 = -0x1000;
+        g_WorldMapPathFrame[0].vx = pScratch[0] >> 16;
+        D_8009BD44 = -(pScratch[2] >> 16);
+        D_8009BD4A = g_WorldMapCameraTargetY >> 12;
+        D_8009BD42 = pScratch[1] >> 16;
+    }
+    func_80097244((s32 *)g_WorldMapPathFrame);
+    WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, (SVECTOR *)&g_WorldMapCameraRot);
+    jitter = rand() % (pPlayer->unk7C >> 12) - (pPlayer->unk7C >> 13);
+    ((u16 *)pScratch)[0x51] = jitter;
+    D_8009BD42 += jitter;
+    D_8009BD4A += ((u16 *)pScratch)[0x51];
+    return 1;
+}
+*/
 int WorldMapInitGroup4Actor(int idx) {
     WorldMapSceneLayer *pLayer;
     WorldMapPlayer *pPlayer;
