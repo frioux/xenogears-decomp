@@ -6,6 +6,7 @@
 
 // gear hp/maxHp are 32-bit, so their window numbers have five digits
 #define MENU_GEAR_HP_DIGIT_COUNT 5
+#define MENU_GEAR_FUEL_DIGIT_COUNT 4
 
 // the icon texture id tables hold one entry per slot of the character's icon strip
 #define MENU_ICON_TEXTURE_COUNT 24
@@ -48,7 +49,8 @@ typedef struct {
     /* 0x2AE6 */ u8 secondWideNumber2PrimCount; // prims the second wide number pair's second number drew
     /* 0x2AE7 */ u8 hpPrimCount; // digit prims the hp number drew
     /* 0x2AE8 */ u8 maxHpPrimCount; // digit prims the maxHp number drew
-    /* 0x2AE9 */ u8 unk2AE9[0x2];
+    /* 0x2AE9 */ u8 mpPrimCount; // digit prims the mp number drew
+    /* 0x2AEA */ u8 maxMpPrimCount; // digit prims the maxMp number drew
     /* 0x2AEB */ u8 digitPrimCount; // digit prims the gear window's number draws appended
     /* 0x2AEC */ u8 iconPrimCount; // digit prims the character's icon ids drew
 } MenuGearWindowPrims; // Size: 0x2AF0
@@ -371,136 +373,99 @@ extern s32 D_801E9D0C;
 
 // The gear window's mp (character: two digits) or fuel (gear: four digits) numbers:
 // the same two digit-prim passes and quad pass as the stat numbers above.
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D680C);
-/* Best: 99.62% at retail's EXACT 1256 bytes (314 instructions, frame 0x68). The
-   structure, all seven calls, both digit loops and both quad loops are exact; the
-   ONLY residue is the fill of one load-delay slot in the SECOND digit loop: retail
-   puts `addiu s1,s1,8` (the x bump) in the `lbu` count load's delay slot and a
-   `nop` in the loop-back branch's delay slot; this build puts the nop in the lbu
-   slot and the addiu in the branch slot. Same instruction multiset, so no spelling
-   moves it - this is the delay-slot-fill class AGENTS.md records as having no
-   source lever, and a 4-minute permuter run (1636 iterations, base=380 best=380)
-   from the 97.60% body found nothing. The FIRST digit loop is identical in both
-   compiles WITH the addiu in the branch delay slot, so retail's two halves really
-   do differ only in this placement.
-   FACTS LEARNED (97.57 -> 99.62, all re-measured under gcc 2.6.0):
-   - this is the mp (character) / fuel (gear) window: characters[id].mp/maxMp
-     (0x50/0x52) with 2 digits from g_Menu->digits[7 + i], and
-     gears[characters[id].gearId].fuel/maxFuel (0x38/0x3A) with 4 digits from
-     digits[5 + i]; count and digitOffset are set once at the top and reused by
-     both halves (s3/s6).
-   - x/y are per-arm locals: D_801E9D00 / D_801E9D04 (half 1), D_801E9D08 (0x20
-     less for a gear) / D_801E9D0C (+0x10 for a gear) (half 2). Half 2's arms must
-     call MenuParseNumberToDigits FIRST and assign x/y AFTER it.
-   - the FIRST quad loop's verts sum must inline the global:
-     `(SVECTOR*)(vertOffset + (u32)(u8*)g_Menu->pGearWindowPrims)`. With a pPrims
-     local there, g_Menu's loop-carried reload lands in $v1 where retail has $a0,
-     and both quad loops then emit their two loads in the wrong order with the
-     wrong register set (97.60% at the same size).
-   - the first quad loop's prim address keeps a LOCAL base
-     (`pBase = (u8*)g_Menu->pGearWindowPrims; pEntry = pBase + primOffset;`): with
-     the global inline in that sum, the address comes out `addu v1,v1,a0` where
-     retail has base-first `addu v1,a0,v1` (99.59 vs 99.62).
-   - the two verts offsets need SEPARATE locals (`vertOffset = 0x28C0 + i * 0x20`
-     in loop 1, `vertsOffset = 0x2960 + i * 0x20` in loop 2): one variable shared
-     by both loops is not strength-reduced in loop 1 (gcc recomputes
-     `sll i,5 / addiu` there) and the body drops to 95.08% at 1260 bytes.
-   - an explicit `vertOffset = 0x28C0;` before the loop plus a `+= 0x20` latch is
-     97.09% at 1252 bytes: the `li` is hoisted ABOVE the loop guard, retail has it
-     after.
-   - the x bump stays the last statement of each digit loop body; the
-     for-increment comma form is 98.90% and moving it inside the `if` is 99.28%.
-   void func_801D680C(u_char index, u_char characterId) {
-       u8* pPrims;
-       u8* pBase;
-       u8* pEntry;
-       s32 vertOffset;
-       s32 vertsOffset;
-       s32 count;
-       s32 digitOffset;
-       s32 x;
-       s32 y;
-       s32 i;
+void func_801D680C(u_char index, u_char characterId) {
+    u8* pPrims;
+    u8* pBase;
+    u8* pEntry;
+    s32 vertOffset;
+    s32 vertsOffset;
+    s32 count;
+    s32 digitOffset;
+    s32 x;
+    s32 y;
+    s32 i;
 
-       if (characterId == 0) {
-           count = 2;
-           digitOffset = 7;
-           x = D_801E9D00;
-           y = D_801E9D04;
-           MenuParseNumberToDigits(
-               g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].mp);
-       } else {
-           count = 4;
-           digitOffset = 5;
-           x = D_801E9D00;
-           y = D_801E9D04 + 8;
-           MenuParseNumberToDigits(
-               g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].fuel);
-       }
-       ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] = 0;
-       for (i = 0; i < count; i++) {
-           if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
-               ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[digitOffset + i],
-                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                               (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] *
-                                    (2 * sizeof(POLY_FT4)) +
-                                0x1950)),
-                   g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - characterId * 24, y, 0x1000);
-           }
-       }
-       for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0]; i++) {
-           POLY_FT4* pPrim;
-           s32 primOffset;
+    if (characterId == 0) {
+        count = MENU_MP_DIGIT_COUNT;
+        digitOffset = MENU_MAX_DIGITS - count;
+        x = D_801E9D00;
+        y = D_801E9D04;
+        MenuParseNumberToDigits(
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].mp);
+    } else {
+        count = MENU_GEAR_FUEL_DIGIT_COUNT;
+        digitOffset = MENU_MAX_DIGITS - count;
+        x = D_801E9D00;
+        y = D_801E9D04 + 8;
+        MenuParseNumberToDigits(
+            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].fuel);
+    }
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount = 0;
+    for (i = 0; i < count; i++) {
+        if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount += func_8002675C(
+                g_Menu->resources, g_Menu->digits[digitOffset + i],
+                (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount *
+                                 (2 * sizeof(POLY_FT4)) +
+                             0x1950)),
+                g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - characterId * 24, y, 0x1000);
+        }
+    }
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->mpPrimCount; i++) {
+        POLY_FT4* pPrim;
+        s32 primOffset;
 
-           primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
-           pBase = (u8*)g_Menu->pGearWindowPrims;
-           pEntry = pBase + primOffset;
-           pPrim = (POLY_FT4*)(pEntry + 0x1950);
-           vertOffset = 0x28C0 + i * 0x20;
-           MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)(u8*)g_Menu->pGearWindowPrims), pPrim->x0,
-                               pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
-                               pPrim->y3 - *(volatile u16*)&pPrim->y0);
-       }
+        primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+        pBase = (u8*)g_Menu->pGearWindowPrims;
+        pEntry = pBase + primOffset;
+        pPrim = (POLY_FT4*)(pEntry + 0x1950);
+        vertOffset = 0x28C0 + i * 0x20;
+        MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)(u8*)g_Menu->pGearWindowPrims), pPrim->x0,
+                            pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+    }
 
-       if (characterId == 0) {
-           MenuParseNumberToDigits(
-               g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].maxMp);
-           x = D_801E9D08;
-           y = D_801E9D0C;
-       } else {
-           MenuParseNumberToDigits(
-               g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].maxFuel);
-           x = D_801E9D08 - 0x20;
-           y = D_801E9D0C + 0x10;
-       }
-       ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] = 0;
-       for (i = 0; i < count; i++) {
-           if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
-               ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[digitOffset + i],
-                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                               (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] *
-                                    (2 * sizeof(POLY_FT4)) +
-                                0x1AE0)),
-                   g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - characterId * 24, y, 0x1000);
-           }
-       }
-       for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1]; i++) {
-           POLY_FT4* pPrim;
-           s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+    if (characterId == 0) {
+        MenuParseNumberToDigits(
+            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].maxMp);
+        x = D_801E9D08;
+        y = D_801E9D0C;
+    } else {
+        MenuParseNumberToDigits(
+            g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].maxFuel);
+        x = D_801E9D08 - 0x20;
+        y = D_801E9D0C + 0x10;
+    }
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount = 0;
+    for (i = 0; i < count; i++) {
+        if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount += func_8002675C(
+                g_Menu->resources, g_Menu->digits[digitOffset + i],
+                (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount *
+                                 (2 * sizeof(POLY_FT4)) +
+                             0x1AE0)),
+                g_Menu->renderContext, x - characterId * 24, y, 0x1000);
+            // The bump is conditional in this half only: retail's loop-back delay slot
+            // holds a nop here and the `addiu` inside the block (half 1 is the reverse).
+            x += MENU_DIGIT_SPACING;
+        }
+    }
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxMpPrimCount; i++) {
+        POLY_FT4* pPrim;
+        s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
 
-           vertsOffset = 0x2960 + i * 0x20;
-           pPrims = (u8*)g_Menu->pGearWindowPrims;
-           pBase = pPrims;
-           pEntry = pBase + primOffset;
-           pPrim = (POLY_FT4*)(pEntry + 0x1AE0);
-           MenuSetQuadVertices((SVECTOR*)(vertsOffset + (u32)pPrims), pPrim->x0, pPrim->y0,
-                               pPrim->x1 - *(volatile u16*)&pPrim->x0,
-                               pPrim->y3 - *(volatile u16*)&pPrim->y0);
-       }
-   }
-*/
+        vertsOffset = 0x2960 + i * 0x20;
+        pPrims = (u8*)g_Menu->pGearWindowPrims;
+        pBase = pPrims;
+        pEntry = pBase + primOffset;
+        pPrim = (POLY_FT4*)(pEntry + 0x1AE0);
+        MenuSetQuadVertices((SVECTOR*)(vertsOffset + (u32)pPrims), pPrim->x0, pPrim->y0,
+                            pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+    }
+}
 extern s32 g_MenuGearWindowLevelX;
 extern s32 g_MenuGearWindowLevelY;
 extern s32 g_MenuGearWindowUnk63X;
