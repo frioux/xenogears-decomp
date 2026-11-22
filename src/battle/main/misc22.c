@@ -534,37 +534,47 @@ extern void func_80026F44(s32 count, s32 level, u16 *pDst, u16 *pSrc);
 extern u32 func_80026FE8(s32 count, s32 level, u16 *pDst, u16 *pSrc, u16 *pSrc2);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
-/* best 90.63% (1036 bytes; retail 1028 = 0x404, so two instructions over).
-   The shape is right end to end: the pInterpolate sign-extension pair, the
-   four case bodies in source order 0/1/4/5 with the balanced ==1 / <2 / ==4 /
-   ==5 tree, the two cross-jumped LoadImage tails, the rect clip with its
-   lh-then-lhu reload pairs, and both copy loops. What is left:
-   - the prevFrame early exit: retail is `lhu v0,0x18(s0)` + `beq s1,v0,`
-     straight to the epilogue; ours is bne + j + `move v0,s1`, because gcc
-     folds `return pArg->prevFrame` (and a u16 local of it) to the s16 frame it
-     was just compared with. Tried: the field, a u16 local, the swapped compare
-     operand order - all fold. Worth two instructions and the size excess.
-   - the `sh s2,0x18(s0)` store: retail stores the raw callback result, ours
-     copies it to v1 in the bgez delay slot first (so the store is `sh v1`).
-   - register swaps left in the loops: retail pSrcBase/pResultPixels=t2 and
-     pDstBase/pPixels=t3, ours the other way round, and the dst row product's
-     mflo lands in a0 instead of retail's a2.
-   Facts that closed the big gaps (found with tools/scripts/permute.sh, which
-   took the body 88.34 -> 90.63 in two runs):
-   - pInterpolate returns something WIDER than s16: retail sign-extends its
-     result explicitly (sll/sra into s1) and keeps the raw value in s2 for the
-     prevFrame store and the tail returns, so the field is declared s32 (...)
-     and the body keeps `level` (s32) and `frame` (s16) as two variables.
-   - loop B's source address needs the embedded assignment
-     `*(pSrcRow = pRows + 3 * (srcY + y) + (srcX + x))`: the plain expression
-     makes gcc put the scaled index first (base-last addu).
-   - `dstAddr = dstRect.x; dstAddr = dstAddr * 2 + (u32)pDstBase;` (two
-     statements) beats the one-line form.
-   - case 1 needs the pixelCount in its own s16 local.
-   - pDstBase/pSrcBase must be locals assigned before the mode test, or the
-     two base loads are not hoisted (1036 vs 1048 bytes).
-   The lib_gear twin of this body (func_801E1258 in src/lib_gear/main/main.c)
-   is the same function and is parked at 88.98% with the same two walls.
+/* best 90.65% (1040 bytes; retail 1028 = 0x404, 257 insns, so three over).
+   The simplest form of the tail (early `if (frame == prevFrame) return
+   prevFrame;`, in the history) measured 90.63 / 1036, two over. Shape is right
+   end to end: the pInterpolate sign-extension pair, the four case bodies in
+   source order 0/1/4/5, the two cross-jumped LoadImage tails, the rect clip
+   with its lh-then-lhu reload pairs, and both copy loops.
+   WHAT IS LEFT, and what was measured this round:
+   - The prevFrame early exit's BRANCH SHAPE is solved by moving the early
+     return out: `if (frame != prevFrame) { <everything> return (s16)level; }`
+     then `return prevFrame;`. That gives retail's `beq s1,v0,<epilogue>`
+     directly (retail branch, not the `bne` + `j` + `move v0,s1` the early-
+     return form produces). The cost moves to the tail: on the path where the
+     two compare equal gcc folds prevFrame to the s16 frame (record_jump_equiv
+     maps the loaded field to the compared register), so the equal path still
+     needs one `move v0,s1`, that block lands after the truncating exit, and
+     the truncating exit therefore needs a `j` -> +2 there. No spelling of the
+     returned expression avoided the fold: the field, a u16 local, an s32 and a
+     u32 local of it, and both compare operand orders all fold.
+   - `sh s2,0x18(s0)`: retail stores the raw callback result; ours copies it
+     into v1 in the bgez delay slot (`move v1,s2`) and stores v1 - the store of
+     an s32 into the u16 field materialises the truncation. prevFrame declared
+     s32 / u16 / s16 changes nothing.
+   - The mode dispatch costs one extra instruction: retail has
+     `blez v0,<sll block>` with `li v0,0x1` in the delay slot (reused by the
+     `sb v0,17(t1)`); ours fills that slot with `sll v0,s2,0x10` and needs the
+     `li` as an instruction.
+   - Registers and interleave in both loops: retail pSource->pPixels=t3 and
+     pArg->pResultPixels=t2, ours t2 and a1; retail puts the store-row product
+     in a2 and the load-row product in v1, ours a0 and v0; retail interleaves
+     the two address chains with the two mults, ours runs them serially. Both
+     loops are the same length as retail's (25 and 24 instructions), so this is
+     allocation plus statement interleave, not structure.
+   Facts that still hold (measured in earlier rounds): pInterpolate returns
+   something wider than s16 - keep `level` s32 and `frame` s16 as two
+   variables; loop B's source address needs the embedded assignment
+   `*(pSrcRow = pRows + 3 * (srcY + y) + (srcX + x))`; case 1 needs the
+   pixelCount in its own s16 local; pDstBase/pSrcBase must be locals assigned
+   before the mode test (1036 vs 1048 bytes).
+   The lib_gear twin func_801E1258 is the same function, parked at 88.98%.
+   Two earlier permuter runs took this body 88.34 -> 90.63; a 4-minute run on
+   the early-return form was PERMUTER_NONE (base=120 best=120).
 s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
     BattleMisc22Image *pSource;
     BattleMisc22Rect srcRect;
@@ -593,36 +603,34 @@ s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
         return frame;
     }
     prevFrame = pArg->prevFrame;
-    if (frame == prevFrame) {
-        return prevFrame;
-    }
-    pArg->prevFrame = level;
+    if (frame != prevFrame) {
+        pArg->prevFrame = level;
 
-    switch (pArg->mode) {
-    case 0:
-        func_80026F44(pArg->pixelCount, frame, pArg->pResultPixels, pArg->pPixels);
-        if (pArg->pSource == 0) {
-            LoadImage(&pArg->rect28, pArg->pResultPixels);
+        switch (pArg->mode) {
+        case 0:
+            func_80026F44(pArg->pixelCount, frame, pArg->pResultPixels, pArg->pPixels);
+            if (pArg->pSource == 0) {
+                LoadImage(&pArg->rect28, pArg->pResultPixels);
+            }
+            break;
+        case 1:
+            pixelCount = pArg->pixelCount;
+            func_80026FE8(pixelCount, frame, pArg->pResultPixels, pArg->pStartPixels,
+                          pArg->pPixels);
+            if (pArg->pSource == 0) {
+                LoadImage(&pArg->rect28, pArg->pResultPixels);
+            }
+            break;
+        case 4:
+            BattleScaleImageRegion(pArg, frame);
+            break;
+        case 5:
+            BattleBlendImageRegion(pArg, frame);
+            break;
         }
-        break;
-    case 1:
-        pixelCount = pArg->pixelCount;
-        func_80026FE8(pixelCount, frame, pArg->pResultPixels, pArg->pStartPixels,
-                      pArg->pPixels);
-        if (pArg->pSource == 0) {
-            LoadImage(&pArg->rect28, pArg->pResultPixels);
-        }
-        break;
-    case 4:
-        BattleScaleImageRegion(pArg, frame);
-        break;
-    case 5:
-        BattleBlendImageRegion(pArg, frame);
-        break;
-    }
 
-    pSource = pArg->pSource;
-    if (pSource == 0) {
+        pSource = pArg->pSource;
+        if (pSource == 0) {
         return (s16)level;
     }
     if (pSource->isLoaded == 0) {
@@ -677,7 +685,9 @@ s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
         }
     }
 
-    return (s16)level;
+        return (s16)level;
+    }
+    return prevFrame;
 }
 */
 void BattleFreeImageEntry(BattleMisc22Image *pArg) {
