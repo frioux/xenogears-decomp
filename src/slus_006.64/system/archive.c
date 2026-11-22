@@ -1010,6 +1010,125 @@ error:
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 
+/* Parked (round 403): objdiff 97.47%, 736 bytes - retail's EXACT size, 184 vs 184
+ * insns, same instruction multiset, 8 differing lines in 3 rows. func_8002B5D0 is
+ * instruction-identical (twin_for 1.000), so this body parks both; its note below
+ * is the older 96.81 attempt.
+ *
+ * The three rows (all inside the scan loop head and the found-block):
+ *  1. scan loop head: ours `addiu v1,v0,1` then `move s2,v0`, retail `move s2,v0`
+ *     then `addiu v1,s2,1` (local_alloc coalesced the add with the load temp).
+ *  2. the beq after CdPosToInt: retail fills the slot with `li v0,0x1` (the state
+ *     store's value), ours with `li a1,0x200` (the CdGetSector size argument).
+ *     This is levers.md c-a-call-argument-constant-beats: reorg takes the FIRST
+ *     scheduled insn of the target block and sched2 ranks the jal's arg constant
+ *     ahead of the store-only constant, so no source order reaches it.
+ *  3. consequence of 2: `sll a0,s2,0xb` lands after the write-pointer `lw`
+ *     instead of in the slot after `lhu a2`.
+ *
+ * Measured this round (all 736 bytes unless stated): two-statement queue index
+ * (`entryIndex = g_ArchiveStreamQueueIndex; g_ArchiveStreamQueueIndex =
+ * entryIndex + 1;`) scores 97.93 but is 732 bytes / 183 insns - the copy
+ * disappears, so it cannot link; first id read plain + second volatile 96.48;
+ * `pCurrent = NULL` initialiser 92.50 / 740 bytes / 185 insns (the duplicated
+ * tail's cross-jump no longer happens). Reading the write pointer through a
+ * `volatile u32*` local measures the same 97.47 as the inline `s8* volatile*`
+ * cast and is the spelling parked here.
+ *
+ * permute.sh still cannot run this body: the permuter's parser reports
+ * 'conversion to non-scalar type requested' on the write-pointer assignment line
+ * for every spelling of it tried (`s8* volatile*` inline, `s8* volatile*` local,
+ * `volatile u32*` local), so the body is hand-only until that is fixed. The lever
+ * above says row 2 is unreachable anyway; park it, do not re-hunt.
+ *
+ * void func_8002B2F0(u_char status) {
+ *     int entryIndex;
+ *     ArchiveStreamFileSectionHeader* pCurrent;
+ *     volatile u32* pWritePointer;
+ *     CdlLOC* pLoc;
+ *     u8* pBuf;
+ *     int i;
+ *     int k;
+ *     int l;
+ *
+ *     if (status != CdlDataReady)
+ *         goto error;
+ *
+ *     if (g_ArchiveStreamStopFlag > 0) {
+ *         CdReadyCallback(NULL);
+ *         CdDataCallback(NULL);
+ *         g_ArchiveCurFileSize = 0;
+ *         ArchiveCdSeekToFile(g_ArchiveCdChannel);
+ *         g_ArchivePendingReadCount = 0;
+ *         return;
+ *     }
+ *
+ *     if (g_ArchiveCurFileSize > 0) {
+ *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
+ *             entryIndex = g_ArchiveStreamQueueIndex++;
+ *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+ *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
+ *                 g_ArchiveStreamQueueIndex = 0;
+ *             if (pCurrent->state == 0)
+ *                 break;
+ *         }
+ *
+ *         if (pCurrent->state != 0)
+ *             goto errorNoInc;
+ *
+ *         pLoc = &g_ArchiveSectorLocation;
+ *         CdGetSector(pLoc, 3);
+ *         if (CdPosToInt(pLoc) == g_ArchiveCurFileSector) {
+ *             pCurrent->state = 1;
+ *             pCurrent->id = *(volatile u16*)&g_ArchiveStreamNextSectionId;
+ *             g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;
+ *             pWritePointer = (volatile u32*)&g_ArchiveStreamWritePointer;
+ *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)*pWritePointer), CD_SECTOR_SIZE / 4);
+ *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *             g_ArchiveCurFileSector += 1;
+ *             if (g_ArchiveCurFileSize > 0)
+ *                 return;
+ *         } else {
+ *             g_ArchiveStreamSectionPositionErrors += 1;
+ *             pBuf = g_ArchiveSectorScratch;
+ *             CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
+ *             goto error;
+ *         }
+ *     }
+ *
+ *     if (pCurrent) {
+ *         CdReadyCallback(NULL);
+ *         g_ArchiveCurFileSize = 0;
+ *         return;
+ *     } else {
+ *         CdReadyCallback(NULL);
+ *         g_ArchiveCurFileSize = 0;
+ *         return;
+ *     }
+ *
+ * error:
+ *     g_ArchiveReadRetryCount += 1;
+ * errorNoInc:
+ *     g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
+ *     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
+ *     if (g_ArchiveReadRetryCount < 3) {
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
+ *     } else {
+ *         for (k = 9999; k >= 0; k--) {
+ *             for (l = 1999; l >= 0; l--) {
+ *             }
+ *         }
+ *         g_ArchiveReadRetryCount = 0;
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
+ *         g_ArchiveCdReadRetryExhaustedCount += 1;
+ *     }
+ *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
+ *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
+ *     CdControlF(CdlNop, NULL);
+ * }
+ *
+ */
+
 /* NOTE: the park below func_8002B5D0 is the same body taken to 97.47% (retail's
  * exact 736 bytes) - read that note first, it supersedes the measurements here.
  *
