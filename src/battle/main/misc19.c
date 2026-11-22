@@ -622,6 +622,15 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
 // PARKED (88.68%). Body COMPILES (park triage, round 111) and is 356 bytes
 // against retail's 348: 8 bytes too long, so it cannot be converted even if it
 // reached 100. See the note above for the /20 ordering difference.
+// Round 397 re-measured live: 88.68% (356 bytes, 89 insns vs retail 87) under the unit's
+// 2.7.2, and 100.0 under gcc-2.6.0-psx at -O2 -G8 (try_flags), confirming the note below.
+// The whole 2.7.2 residual per '/20' block is the 2.6.0 ordering: retail fills the branch
+// delay slot with the constant's `lui`, keeps the magic in v1 with the loaded value in v0,
+// and does `mfhi v0 / srl v0,v0,0x4` in place, where 2.7.2 emits a nop delay slot, the lhu
+// first, the constant in v0, and `mfhi a3 / srl v1,a3,0x4`. Splitting the load from the
+// division (val = p[0x4E]; val = val / 20;) measured no change. The unit is mixed under
+// 2.6.0 (round 393 screen: BattleClearSlotFlag15A1 95.71, BattleFillPartySlotWeaponRecord
+// 96.15), so like func_8009A9D0 this is a one-function XenoLibrary carve-out candidate.
 /*
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
     u8* p = arg0 * 0x170 + (u32)g_BattleCurWorkBlock;
@@ -860,6 +869,17 @@ void BattleInitItemInventoryAndConditionMasks(void) {
 // func_8009A9D0 and BattleSetSlotActionStateAndAmount off 100. Try_flags on this body: 97.81 under
 // gcc-2.6.0, 94.63 under 2.7.2-cdk. Measured this round: limit/flags/drop declaration
 // order (no change), max/cur assigned cur-first (worse - $a1 becomes an address base).
+// Round 397 re-measured live: 97.59% (536 bytes, 134 insns = retail's size), 97.81 under
+// gcc-2.6.0-psx (try_flags), matching the note below. The s0/s2 mirror is now PROVEN
+// unreachable by spelling via the -da dump (tools/gcc-2.7.2-psx/cc1, `-da` on the unit's
+// preprocessed file): the three callee-saved allocnos are arg0 (6 refs / 97 insns live,
+// priority 2*6/97*4 = 0.495), drop (3 / 25, 0.48) and limit (3 / 34, 0.353), so arg0 takes
+// $s0 and limit $s2; retail's limit=$s0 would need limit to outrank arg0, i.e. a 6-ref
+// pointer losing to a 3-ref constant, which no declaration order, width (`u8 drop` measured:
+// no change at all) or statement spelling reaches. The mfhi/mflo in-place read-backs are the
+// round-373-proven 2.7.2 md wall (mfhi t1 / sra a0,t1,5 vs retail's in-place pair), and
+// the loop's v1/a1 maxHp/hp mirror is the same allocator contest. Three independent
+// residuals, no preset closes the function, unit is mixed under 2.6.0: park is final.
 /*
 void func_8009B46C(u16* arg0) {
     u8 count = 0;
@@ -922,6 +942,7 @@ void func_8009B46C(u16* arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
+
 void BattleSetCommandCodeForSlotKindFlag(u8 arg0, u16 arg1) {
     switch (arg0) {
     case 0:
