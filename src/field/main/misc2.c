@@ -236,11 +236,19 @@ void FieldMathIntersectLines(SVec4* pA, SVec4* pB, SVec4* pOut) {
 // flag question. Permuter (round 146, 5 min, this body, base = the parked body)
 // found nothing better: RESULT PERMUTER_NONE, best candidate 465 against our 408-byte
 // base.
-/*
-extern void FieldMatrixSetIdentity(MATRIX* pMatrix);
 extern VECTOR g_CameraEye;
-extern VECTOR g_CameraUp;
 
+// round 396 re-measure: 91.81% / 408 bytes (retail's size, 102 vs retail's 103 insns). Nothing
+// new: the address-taken launder is the reason the base never reaches $s0 - an address-taken
+// local is a MEMORY variable to gcc, so it stays in the frame by construction (that is the
+// extra frame slot and the lw after the jal), while the plain pointer (62.01%) is a constant
+// pseudo gcc rematerialises per use. NEW this round: screened the LAUNDER body under other
+// presets (the note above only screened the plain form) - gcc-2.6.0 -O2 -G0 gives 93.88, cdk
+// compile-fails, 2.6.0 -O1 62.95, -O3 compile-fails. Not switchable: under 2.6.0 the unit's
+// already-matched functions drop (FieldActorApplyRotationAndScale 99.12, FieldMathIntersectLines
+// 98.11, FieldCameraUpdateFromTarget 99.81, FieldMatrixLookAt 95.50, FieldUpdateActorRenderModes
+// 99.86), so there is no clean 93.88 -> 100 to chase here.
+/*
 void func_8007254C(void) {
     u_char* pCam = (u_char*)&g_CamInterpolation;
     u_char** pCamRef = &pCam;
@@ -305,9 +313,7 @@ void func_8007254C(void) {
     *(s16*)(pCam - 0x48) = 0;
     *(s16*)(pCam - 0x46) = 0;
     *(s16*)(pCam - 0x24) = 0;
-}
-*/
-
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 
@@ -561,6 +567,21 @@ extern int rand(void);
 // accesses; the s32-array and long casts; a do-while around the store (that one only
 // renumbers the base to $a3 and measures 98.93). Stop here unless the register allocator
 // is understood better than this note.
+// round 396: un-parked and re-measured = 98.99% / 1212 bytes (retail's size, 303 insns),
+// unchanged. All 36 differing lines have ONE cause: the eye-vx step's g_CameraEye address
+// (offset 0) is used twice (load + store) so cse keeps it in $t0, and the register it takes
+// is the one retail uses for atStepSq ($t0), shifting every mult temporary. Retail forms
+// both accesses symbolically (lui $a1 / lw $a1,%lo; lui $at / sw %lo($at)) - see the note
+// above, do not re-try the lvalue spellings. Not a preset question (screened).
+// round 396 NEW BEST 99.06% / 1212 bytes (retail's size, 303 insns). One change landed: the
+// `pShake = (s16*)&g_Scene.shakeActive;` assignment moves UP, before the two step-square
+// multiplies, instead of sitting between the eye-vx and eye-vz steps (98.99 - the round 185
+// note above measured "assigning it anywhere else loses the tail" on an earlier tree; with
+// this body the earlier assignment is worth 0.07). Everything still differing is the ONE
+// cause from round 186: the eye-vx step's g_CameraEye offset-0 address is used twice (load
+// and store) so cse keeps it in a register ($t1 now, $t0 before) and pushes the per-step
+// square from $t1 to $t2; retail forms the two accesses symbolically. Permuter from this
+// body (2 min, 812 iterations) found nothing: RESULT PERMUTER_NONE, best 285 = base 285.
 /*
 void func_80072D74(void) {
     s32 atStepSq;
@@ -587,11 +608,11 @@ void func_80072D74(void) {
         (*pSnapFrames)--;
     }
 
+    pShake = (s16*)&g_Scene.shakeActive;
     atStepSq = g_CamInterpolation.atStepDistance * g_CamInterpolation.atStepDistance;
     eyeStepSq = g_CamInterpolation.eyeStepDistance * g_CamInterpolation.eyeStepDistance;
 
     FIELD_CAMERA_STEP(g_CameraEye.vx, g_CameraEye2.vx, g_CamInterpolation.eyeStepDistance, eyeStepSq);
-    pShake = (s16*)&g_Scene.shakeActive;
     FIELD_CAMERA_STEP(g_CameraEye.vz, g_CameraEye2.vz, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraEye.vy, g_CameraEye2.vy, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraAt.vx, g_CameraAt2.vx, g_CamInterpolation.atStepDistance, atStepSq);
