@@ -51,9 +51,23 @@ extern s32 g_FieldPartyActorSlots[];
    rotation variables per arm - a single shared `rotation` keeps the value in a1
    and forces an extra move. A third permuter run (2064 iterations) and reading
    g_FieldActors through the non-volatile FIELD_ACTORS lvalue both measured
-   exactly 97.96 as well. A volatile read of either solidRange moves nothing. */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
-/* int func_80099AC0(int arg0) {
+   exactly 97.96 as well. A volatile read of either solidRange moves nothing.
+   ROUND 397 re-measurement: the residual is exactly ONE instruction - the load-delay
+   `nop` after `lw s0,0x4C(v1)` in the case 2 arm (1076 bytes vs retail 1080; the
+   body is otherwise instruction-identical apart from the jump-table symbol and
+   label naming). Retail's scheduler had the `g_FieldScriptVMCurActor` pointer load
+   hoisted ABOVE `addu v1,v1,a0`, so the next insn after `lw s0` was the target's
+   `lhu v0,0x1E(s0)` and gcc emitted a hazard nop; ours sinks that load below
+   `lw s0` and fills the slot with the cur-actor `lhu`. Re-measured this round:
+   target-first `pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange`
+   97.72 (its two `lhu` order does match retail's, but the cur load still sinks and
+   the arm loses the round/register pair), `FIELD_ACTORS` lvalue instead of
+   `g_FieldActors` identical (97.72 in that pairing, so the volatile read is not
+   what pins the schedule), and two block-scoped `u_short` range locals 97.72.
+   Best remains the cur-first body below at 97.96. Three permuter runs have already
+   been spent on this body (see the note above). */
+/*
+int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
     SpriteData* pSpriteData;
@@ -154,8 +168,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
     g_FieldScriptVMCurActor->rotation.vy = rotation;
     return -1;
 }
- */
-
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
 void FieldScriptVMWriteCurCharacterID(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_FieldScriptVMCurActor->characterId);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -579,8 +593,23 @@ extern s32 g_FieldCurActorIndex;
    stores regresses to 86.86); (c) the tail's flags `lw` and `and` land one
    cluster later than retail's. The `move a0,v0` on the position snap is a stale
    symptom - it disappeared with a block-scoped walkRotation local. */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
-/* int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
+/* 93.65% (636 bytes, retail 636). Round 397: the tail's flags word is NOT read into
+   a `flags` local - `pActor->scriptFlags.flags &= ~0x02200800;` measured 92.39 ->
+   93.65 and puts both the `lw a0,0(s2)` and the `and` in retail's slots (the local
+   version hoisted the `and` two slots early). Remaining three residuals are the
+   -fschedule-insns unit's hoisting: retail emits `lui/ori` mask, `move v0,zero`,
+   `lw a0,0(s2)`, then `sll v1,s3,0x10`/`sw`, while ours hoists that sll above the
+   mask constants and swaps `move v0,zero` after the lw (tail), emits `sw zero,20(sp)`
+   (delta.y) before the two `lh` where retail emits it after `addiu s0,v0,1`, and
+   `addu v1,v1,v0` where retail has `addu v1,v0,v1` (see the addu levers: not a hand
+   job). Tried and identical/not better: a `FieldActor* pActors = g_FieldActors;
+   pFieldActor = pActors + actorIndex;` base local (identical, 92.39 before the tail
+   change), and the whole body under gcc-2.6.0 scores 92.99 (try_flags), so the
+   preset is right. Earlier levers still load-bearing: the goto block layout, the
+   `do {} while (0)` around the tail store group + walking body, the nested
+   if/else-if/else rotation select, and the block-scoped walkRotation local. */
+/*
+int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     FieldActor* pFieldActor;
     ActorData* pActor;
     SpriteData* pSpriteData;
@@ -632,11 +661,10 @@ tail:
     pActor->rotation.vx = rotation;
     pActor->rotation.vy = rotation;
     do {
-    flags = pActor->scriptFlags.flags;
     pActor->position.vx = x << 16;
     pActor->position.vz = z << 16;
     pActor->stuckFrameCount = 0;
-    pActor->scriptFlags.flags = flags & ~0x02200800;
+    pActor->scriptFlags.flags &= ~0x02200800;
     return 0;
 
 walking:
@@ -664,8 +692,8 @@ walking:
     } while (0);
     goto tail;
 }
- */
-
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
 void FieldScriptVMSetFlag21CF(void) {
     D_800B21CF[0] = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
