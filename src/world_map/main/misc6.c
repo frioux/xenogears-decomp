@@ -564,7 +564,6 @@ int WorldMapSetActorScriptTables(int index) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 /* 97.97% (148 bytes = retail's 37 insns), round 311. The store tail is now
    retail's exactly, down to `li v0,1` before `sh zero,0x20(v1)` and
    `sw zero,0x50(v1)` in the jr delay slot. The lever is the one measured on the
@@ -587,7 +586,24 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
    is one register swap (pActor v1 <-> posZ a2) over an otherwise byte-identical
    stream, i.e. local-alloc's tie-break. Parked.
 */
-/* int func_8007E450(int index) {
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
+/* Round 397: the -da dump (tools/gcc-2.7.2-psx/cc1 ... -da on the preprocessed
+   unit) proves the residual is not reachable by spelling. pActor's pseudo is
+   TIED to the `lw g_WorldMapSlots` result by the two-address `addu`
+   (addsi3 operand 0 tied to operand 1), so the one real decision is which hard
+   register that load result gets: local-alloc's find_free_reg, processing
+   pseudos in ascending pseudo-number order, hands it `$a2` where retail has
+   `$v1`, and it only avoided `$a0` because the `index` parameter still holds it
+   at the load's birth. Every other pseudo (X/$a0, Y/$a1, the constants/$v0)
+   lands as retail does. The dump's hard-reg set is 2 3 4 5 6 with pActor =
+   10 refs over 20 insns in `$a2`, i.e. one find_free_reg class-order choice.
+   Preset is ruled out for this body: 2.6.0 48.62, 2.7.2-cdk 92.03 against
+   2.7.2's 97.97 (try_flags.sh). Round 397 also measured the three value locals
+   declared Z,Y,X (97.97, unchanged) and the chained
+   `posX = posZ = *(u32 *)g_WorldMapPlayerPosition;` (97.97, unchanged).
+   The percent and byte count are stale-safe: re-measured 97.97 / 148 bytes.
+/*
+int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u32 posX;
     u32 posY;
@@ -1289,8 +1305,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
    changes nothing. Putting the `return 1;` INSIDE the block with it (so
    loop.c could hoist the return constant into the preheader the way it hoists
    the command's `li v0,1`) is 86.47 and DROPS the command store - do not retry.
+   ROUND 397: the register rotation is the same unfixable artifact as the twin
+   func_8007E450 above, and it is now proven rather than guessed. The -da dump of
+   this unit shows pActor's pseudo is tied to the `lw g_WorldMapSlots` result by
+   the two-address `addu` (addsi3 ties operand 0 to operand 1), so the one real
+   decision is which register that load result gets: local-alloc's find_free_reg
+   hands it `$a2` where retail has `$v1` (it only skips `$a0` because the index
+   parameter still holds it at the load's birth). -G0 leaves it at 94.71, 2.6.0 is
+   48.62 and 2.7.2-cdk 92.03 on the twin, so the preset is not the lever either.
+   Round 397 also measured `nResult` (an `int nResult = 1;` before the state store,
+   `return nResult;`) to try to keep the return's `li v0,1` ahead of `sh zero,0x20`
+   the way retail has it: gcc folds it and the tail is unchanged at 94.71, because
+   our RTL ends `sh ... / sh zero / li v0,1 / jr` so reorg takes the li into the
+   delay slot. Re-measured 94.71 / 136 bytes after the -da and -G0 screens.
 */
-/* int func_80080578(int index) {
+/*
+int func_80080578(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u32 posX;
     u32 posY;
