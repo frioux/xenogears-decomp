@@ -644,6 +644,9 @@ void func_8008F0A8(u8 arg0, s32 arg1, s32 arg2, s32 arg3, BattleRowSize arg4) {
    unit's tile-row builders use (identical output); sums as right/bottom locals (516);
    s32 params (508); p loaded after the 0xB0 store (61.88%); u32/u8 index; a 4-minute
    permuter run (540 bytes, 73.98%).
+   The call to func_8008F0A8 below passes its h as a BattleRowSize aggregate, not the
+   bare value, because that function's retail object reads h from the caller's frame:
+   declare a BattleRowSize, set its height to h, and pass that.
 */
 /*
 void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
