@@ -503,7 +503,7 @@ extern void BattleSetScreenTileGrey(void);
 extern void BattleClearAndQueueActorPrims(void* pScene);
 extern char BattleResetForNextRound(void);
 extern void BattleEffectUploadClut(u8* pColor0, u8* pColor1);
-extern void func_80084C88(Misc10Actor* pActor, u8* pData, s32 arg2);
+extern void func_80084C88(Misc10Actor* pActor, Misc10Block* pData, s32 arg2);
 
 extern void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY);
 extern void BattleClearTpageAndClut(void);
@@ -568,140 +568,122 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     pDraw->rotZ = BATTLE_ANGLE_QUARTER_TURN;
 }
 
+/* 97.37% objdiff, retail's exact 840 bytes / 210 insns (round 400 redo). Renaming the pActor register to s0 and pNode to s1 makes the instruction stream line up: what is left is
+   1. ONE allocator decision - pActor in s1 and pNode in s0 instead of s0/s1. pNode (func_8008B38C's result, held across BattleCreateObject) is a block-local qty and local-alloc hands it s0 before global-alloc reaches pActor. Retail's pNode got s1, so in retail it was a global allocno; every spelling tried here keeps it block-local. MEASURED, same size 840 throughout: the old parked order (pModelLink stored after the switch, 12 insns later) gives pActor s0/pNode s1 back but costs the store position -> 95.02. So the two are exclusive with every body tried: 88.91 = old park (|=1/|=2 duplicated, |=3 fused, pVisiblePartIndices re-read from pActor->pScript); 94.57 = the |=1 arm falling through into case 38 (one shared |=2 body, retail's exact case-body order 35/36, 38, 3.., 13, default); 95.02 = pVisiblePartIndices formed from pHeader instead of pActor->pScript; 95.78 = the pModelLink store moved to its retail position (before typeFlags = 0); 97.37 = pActions read into a local before the pModelScriptOffsets store (permuter find, other 539-iteration candidates were all this same hoist), which is what makes pPartTimings load/store adjacent as retail has it.
+   2. The loop's pActionRow temp is a1 where retail has a0, and the 0x100 rect width constant reuses the pNode register where retail reuses pActor's - both consequences of 1.
+   3. One addu operand order: retail addu v0,v0,v1 (offset + pHeader) where the honest C 'pHeader + pHeader->visiblePartIndicesOffset' emits addu v0,v1,v0. Only the unnatural 'offset + pointer' spelling would flip it, so it was left.
+   Not a jtbl park: the table (jtbl_800701C0) comes out at the unit rodata start with retail's exact 40 entries and targets, so only the .rodata-vs-jtbl operand differs.
+*/
+/*
+void func_80084C88(Misc10Actor* pActor, Misc10Block* pData, s32 arg2) {
+    RECT rect;
+    Misc10SpriteHeader* pHeader;
+    Misc10ActionRow* pRow;
+    Misc10ModelNode* pNode;
+    Misc10ActionSlot* pActions;
+    u8* pObj;
+    u8* pBuf;
+    u8* pSrc;
+    u8* pDst;
+    u8* pRead;
+    s32 row;
+    s32 col;
+    s32 i;
+
+    pActor->flags = (pActor->flags & 0xF7FFFFFF) | ((arg2 & 1) << 27);
+    if (arg2 != 0) {
+        BattleSetTpageAndClut(0x380, 0, 0, 0x1FE);
+        pActor->pTarget = (u8*)&g_BattleActor1;
+    } else {
+        BattleSetTpageAndClut(0x3C0, 0, 0, 0x1FF);
+        pActor->pTarget = (u8*)&g_BattleActor0;
+    }
+    BattleRelocateBlockPointers(pData);
+    pNode = (Misc10ModelNode*)func_8008B38C((u8*)pData);
+    pObj = (u8*)BattleCreateObject();
+    pActor->pObject = pObj;
+    BattleAppendListEntry(pObj, pNode);
+    pActor->pModelLink = pNode;
+    pActor->pActionRow = &D_80092874[pActor->typeId];
+    pActor->typeFlags = 0;
+    switch (pActor->typeId) {
+    case 35:
+    case 36:
+        pActor->typeFlags |= 1;
+    case 38:
+        pActor->typeFlags |= 2;
+        break;
+    case 3:
+    case 14:
+    case 27:
+    case 34:
+    case 39:
+    case 41:
+    case 42:
+        pActor->typeFlags |= 4;
+        break;
+    case 13:
+        BattleClearTpageAndClut();
+        BattleActorCreateRotatedPart(pActor);
+        break;
+    }
+    BattleSetActorSoundTable(pActor);
+    pHeader = pData->pHeader;
+    pActor->pScript = (u8*)pHeader;
+    pActor->pPartTimings = pData->pPartTimings;
+    pActions = pData->pActions;
+    pActor->pModelScriptOffsets = (s16*)&pHeader[1];
+    pActor->pActions = pActions;
+    pActor->pVisiblePartIndices = (u8*)pHeader + pHeader->visiblePartIndicesOffset;
+    pActor->visiblePartCount = pHeader->visiblePartCount;
+    pActor->effectColorR = pHeader->effectColorR;
+    pActor->effectColorG = pHeader->effectColorG;
+    pActor->effectColorB = pHeader->effectColorB;
+    pActor->flaggedActionCount = 0;
+    pActor->unflaggedActionCount = 0;
+    pRow = pActor->pActionRow;
+    for (i = 0; i < 0xE; i++) {
+        if (pRow->slotFlags[i] != 0) {
+            if (pActor->pActions[i].flags != 0) {
+                pActor->flaggedActionCount++;
+            } else {
+                pActor->unflaggedActionCount++;
+            }
+        }
+    }
+    rect.x = 0;
+    rect.y = arg2 + 0x1F6;
+    rect.w = 0x100;
+    rect.h = 1;
+    LoadImage(&rect, (u_long*)pData->pImage);
+    rect.x = arg2 * 0x10 + 0x380;
+    rect.y = 0x100;
+    rect.w = 0xB;
+    rect.h = 0x16;
+    if (arg2 != 0) {
+        LoadImage(&rect, (u_long*)(pData->pImage + 0x200));
+    } else {
+        pSrc = pData->pImage + 0x200;
+        pBuf = (u8*)HeapAlloc(0x1E4, 0);
+        pDst = pBuf;
+        for (row = 0; row < 0x16; row++) {
+            pRead = pSrc + 0x15;
+            for (col = 0; col < 0x16; col++) {
+                *pDst++ = *pRead--;
+            }
+            pSrc += 0x16;
+        }
+        LoadImage(&rect, (u_long*)pBuf);
+        HeapDelayedFree(pBuf, 1);
+    }
+    rect.x = 0x3A0;
+    rect.y = arg2 * 8 + 0x100;
+    rect.w = 0x10;
+    rect.h = 8;
+    LoadImage(&rect, (u_long*)(pData->pImage + 0x3E4));
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
 
-/* 89.37% objdiff, 832 bytes against retail 840. Structure, call order, the
-   prologue save order and every s-register except one pair match, and the
-   jump table comes out at the unit rodata start where retail has it. Because
-   the stub owns a jtbl_ table, this function can never print MATCH in
-   diff_func.sh (the original dump stops at the first case label, which gas
-   makes a symbol when .rodata references it) - objdiff% and check_bin.sh are
-   the only judges.
-   What is still wrong:
-   1. Best body below keeps pActor->pModelLink = pNode AFTER the switch, which is
-      what makes gcc hand pActor s0 / pNode s1 (global-alloc priority order
-      pActor, pData, arg2, pNode, with s1 already reserved by the flip-loop
-      buffer through local-alloc). Moving that store to its retail position
-      (middle block, before the pActionRow store) makes pNode block-local, so
-      local-alloc takes s0 for it and pActor falls to s1 - the whole function
-      then reads 86% with s0/s1 swapped. That trade-off is the whole gap.
-   2. pActor->typeFlags |= 1; pActor->typeFlags |= 2; (retail case 35/36) is cse-d
-      into one |= 3 by gcc; retail has two lbu/ori/sb pairs. Untried:
-      bitfields, or a union member for that byte.
-   3. gcc cross-jumps the three case-body sb v0,0x90A into one shared tail;
-      retail has one per case (2 instructions, the size difference).
-   Key trick that fixed the prologue: assign pSrc = pData->pImage + 0x200
-   BEFORE HeapAlloc in the arg2 == 0 branch - retail keeps it in s0 across
-   the HeapAlloc call (its addiu lands in the call delay slot), which is what
-   pushes the heap buffer to s1 and pData/arg2 to s2/s3.
-   void func_80084C88(Misc10Actor* pActor, Misc10Block* pData, s32 arg2) {
-       RECT rect;
-       Misc10SpriteHeader* pHeader;
-       Misc10ActionRow* pRow;
-       u8* pNode;
-       u8* pObj;
-       u8* pBuf;
-       u8* pSrc;
-       u8* pDst;
-       u8* pRead;
-       s32 row;
-       s32 col;
-       s32 i;
-
-       pActor->flags = (pActor->flags & 0xF7FFFFFF) | ((arg2 & 1) << 27);
-       if (arg2 != 0) {
-           BattleSetTpageAndClut(0x380, 0, 0, 0x1FE);
-           pActor->pTarget = (u8*)&g_BattleActor1;
-       } else {
-           BattleSetTpageAndClut(0x3C0, 0, 0, 0x1FF);
-           pActor->pTarget = (u8*)&g_BattleActor0;
-       }
-       BattleRelocateBlockPointers(pData);
-       pNode = func_8008B38C((u8*)pData);
-       pObj = (u8*)BattleCreateObject();
-       pActor->pObject = pObj;
-       BattleAppendListEntry(pObj, pNode);
-       pActor->pActionRow = &D_80092874[pActor->typeId];
-       pActor->typeFlags = 0;
-       switch (pActor->typeId) {
-       case 3:
-       case 14:
-       case 27:
-       case 34:
-       case 39:
-       case 41:
-       case 42:
-           pActor->typeFlags |= 4;
-           break;
-       case 13:
-           BattleClearTpageAndClut();
-           BattleActorCreateRotatedPart(pActor);
-           break;
-       case 35:
-       case 36:
-           pActor->typeFlags |= 1;
-           pActor->typeFlags |= 2;
-           break;
-       case 38:
-           pActor->typeFlags |= 2;
-           break;
-       }
-       pActor->pModelLink = pNode;
-       BattleSetActorSoundTable(pActor);
-       pHeader = pData->pHeader;
-       pActor->pScript = (u8*)pHeader;
-       pActor->pPartTimings = pData->pPartTimings;
-       pActor->pModelScriptOffsets = (s16*)&pHeader[1];
-       pActor->pActions = pData->pActions;
-       pActor->pVisiblePartIndices = pActor->pScript + pHeader->visiblePartIndicesOffset;
-       pActor->visiblePartCount = pHeader->visiblePartCount;
-       pActor->effectColorR = pHeader->effectColorR;
-       pActor->effectColorG = pHeader->effectColorG;
-       pActor->effectColorB = pHeader->effectColorB;
-       pActor->flaggedActionCount = 0;
-       pActor->unflaggedActionCount = 0;
-       pRow = pActor->pActionRow;
-       for (i = 0; i < 0xE; i++) {
-           if (pRow->slotFlags[i] != 0) {
-               if (pActor->pActions[i].flags != 0) {
-                   pActor->flaggedActionCount++;
-               } else {
-                   pActor->unflaggedActionCount++;
-               }
-           }
-       }
-       rect.x = 0;
-       rect.y = arg2 + 0x1F6;
-       rect.w = 0x100;
-       rect.h = 1;
-       LoadImage(&rect, (u_long*)pData->pImage);
-       rect.x = arg2 * 0x10 + 0x380;
-       rect.y = 0x100;
-       rect.w = 0xB;
-       rect.h = 0x16;
-       if (arg2 != 0) {
-           LoadImage(&rect, (u_long*)(pData->pImage + 0x200));
-       } else {
-           pSrc = pData->pImage + 0x200;
-           pBuf = (u8*)HeapAlloc(0x1E4, 0);
-           pDst = pBuf;
-           for (row = 0; row < 0x16; row++) {
-               pRead = pSrc + 0x15;
-               for (col = 0; col < 0x16; col++) {
-                   *pDst++ = *pRead--;
-               }
-               pSrc += 0x16;
-           }
-           LoadImage(&rect, (u_long*)pBuf);
-           HeapDelayedFree(pBuf, 1);
-       }
-       rect.x = 0x3A0;
-       rect.y = arg2 * 8 + 0x100;
-       rect.w = 0x10;
-       rect.h = 8;
-       LoadImage(&rect, (u_long*)(pData->pImage + 0x3E4));
-   }
-*/
 
 void BattleUpdateEffectImage(void) {
     if (g_BattleEffectImageActive != NULL && (g_SpuChannelMask & 0x1)) {
@@ -1059,9 +1041,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        HeapFree(D_800927B8);
        D_800927B8 = pBuf;
        BattleDrawEffectFrame();
-       func_80084C88(&g_BattleActor1, g_BattleSlotEntryBuffers[0], 0);
+       func_80084C88(&g_BattleActor1, (Misc10Block*)g_BattleSlotEntryBuffers[0], 0);
        BattleDrawEffectFrame();
-       func_80084C88(&g_BattleActor0, D_800927B8, 1);
+       func_80084C88(&g_BattleActor0, (Misc10Block*)D_800927B8, 1);
        BattleDrawEffectFrame();
        BattleEffectUploadClut(&g_BattleActor1.effectColorR, &g_BattleActor0.effectColorR);
        BattleSetScreenTileGrey();
