@@ -1797,31 +1797,31 @@ void func_800A8BA4(void) {
 // One rectangle (x0,y0,x1,y1) plus one texture rectangle (u0..v3) per shape.
 extern ParticleShape D_800AF27C[];
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
-/* Best attempt, 96.58% at 512 bytes against retail's 520: every instruction of
-   the vertex block is byte-identical and the whole 8-byte shortfall is a
-   RECOMPUTED product. Retail shifts six times - x1, x0, y1, y0, then x0 and y0
-   AGAIN - because the first x0<<4 goes to a register of its own (sll a0,a1,4 off
-   x0's a1) and is then overwritten by the difference (subu a0,a3,a0), while the
-   x0 the sum uses is recomputed in place (sll a1,a1,4). x1<<4 and y1<<4 are
-   computed once and shared by the difference and the sum. Our expand gives each
-   difference a fresh pseudo, so all four products stay live, cse shares them and
-   the shape values lose a register (they land in a0..a3 where retail has a1..t0).
-   Only cse reaching two DIFFERENT RTL expressions for the same product can
-   produce retail's six shifts, so every spelling that writes the product once
-   measures 512 bytes.
-   NOTE: the previous note here claimed 97.42% for a body reading twelve separate
-   `extern u_short D_800AF27E[]`-style arrays. Those were never declared, so that
-   body never compiled and the figure came from a stale object; the typed table
-   below is the spelling that compiles.
-   Measured at 512 bytes, all of them: direct stores; four int locals for
-   vx0/vy0/vx1/vy1; those four as s16; four or eight u_short product locals; a
-   product local used at only one site (cse still maps the expression to it);
-   sums written (x1<<4)+(x0<<4); `* 16` everywhere and `* 16` mixed with `<< 4`
-   at either site. One permuter run (base=336 best=336, 222 iterations) found
-   nothing but WRONG code - its best candidate shifted an already-shifted
-   product - and rounds 315 ran two more.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
+/* PARKED 96.58% - 512 bytes / 128 insns against retail's 520 / 130: every
+   instruction matches except that retail shifts 6 times where any C gives 4.
+   Re-measured from the assembly this round (same 96.58, same 8-byte shortfall).
+   Map: a1=x0, a2=y0, a3=x1, t0=y1 (four lhu off D_800AF27C, 0x18-byte entries);
+   retail is sll a3(x1) / sll a0,a1(x0) / subu a0,a3,a0 / sll t0(y1) /
+   sll v0,a2(y0) / subu v0,t0,v0 / sll a1,a1,4 AGAIN / addu a1,a1,a3 /
+   sll a2,a2,4 AGAIN / addu a2,a2,t0, i.e. the two products the differences
+   consumed (x0<<4, y0<<4) are RECOMPUTED for the sums, while x1<<4 and y1<<4
+   are shared. C can only do that if cse sees two DIFFERENT ashift RTL
+   expressions: both operands are the same loaded pseudo in the same basic
+   block, so (x1<<4)-(x0<<4) / (x0<<4)+(x1<<4) merges to four shifts whatever
+   the spelling - that is the wall, and it is expand/cse, not the allocator.
+   Measured at 512, all identical: direct stores; four int locals then stores;
+   those four as s16; four or eight u_short product locals; a product local used
+   at one site only (cse still maps the expression to it); sums written
+   (x1<<4)+(x0<<4); * 16 everywhere and * 16 mixed with << 4 at either site.
+   Three permuter runs (rounds 315, 337, 369: base=336 best=336, 222 iterations
+   the last); the best candidate was WRONG code, shifting an already-shifted
+   product.
+   NOTE: an older note here claimed 97.42% for twelve separate
+   `extern u_short D_800AF27E[]`-style arrays; those were never declared, so that
+   body never compiled and the figure came from a stale object. The typed table
+   `extern ParticleShape D_800AF27C[]` is the spelling that compiles.
    Settled facts: 12 ParticleShape entries (0x18 each) at 0x800AF27C indexed by
    nShape; vertices[0..3].vz = 0; setRGB0 0x80; the four vx/vy pairs are
    (x1-x0)*16, (y1-y0)*16, (x0+x1)*16, (y0+y1)*16, stored vertex by vertex as
@@ -1830,52 +1830,57 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitiv
    GetTPage(0, nTextureMode, 0x3C0, 0x140); clut = GetClut(0x100,0xF7); then
    *pPolyNext = *pPoly (0x28 bytes: a 2x lw/sw unrolled loop plus one word).
    The 0x98 frame needs the unused _pad below.
-    void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, int nTextureMode) {
-        POLY_FT4* pPoly;
-        POLY_FT4* pPolyNext;
-        int x0;
-        int y0;
-        int x1;
-        int y1;
-        char _pad[0x58]; // unused, reproduces the original 0x98 frame
+*/
 
-        pPoly = &pParticle->poly[0];
-        pPolyNext = &pParticle->poly[1];
-        SetPolyFT4(pPoly);
+/*
+void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, int nTextureMode) {
+    POLY_FT4* pPoly;
+    POLY_FT4* pPolyNext;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    char _pad[0x58]; // unused, reproduces the original 0x98 frame
 
-        x0 = D_800AF27C[nShape].x0;
-        y0 = D_800AF27C[nShape].y0;
-        x1 = D_800AF27C[nShape].x1;
-        y1 = D_800AF27C[nShape].y1;
+    pPoly = &pParticle->poly[0];
+    pPolyNext = &pParticle->poly[1];
+    SetPolyFT4(pPoly);
 
-        pParticle->vertices[0].vz = 0;
-        pParticle->vertices[1].vz = 0;
-        pParticle->vertices[2].vz = 0;
-        pParticle->vertices[3].vz = 0;
+    x0 = D_800AF27C[nShape].x0;
+    y0 = D_800AF27C[nShape].y0;
+    x1 = D_800AF27C[nShape].x1;
+    y1 = D_800AF27C[nShape].y1;
 
-        setRGB0(pPoly, 0x80, 0x80, 0x80);
+    pParticle->vertices[0].vz = 0;
+    pParticle->vertices[1].vz = 0;
+    pParticle->vertices[2].vz = 0;
+    pParticle->vertices[3].vz = 0;
 
-        pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
-        pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
-        pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
-        pParticle->vertices[1].vy = (y1 << 4) - (y0 << 4);
-        pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
-        pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
-        pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
-        pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
+    setRGB0(pPoly, 0x80, 0x80, 0x80);
 
-        FieldClampPolyFT4UVs(pPoly,
-            D_800AF27C[nShape].u0, D_800AF27C[nShape].v0 + 0x40,
-            D_800AF27C[nShape].u1 - 1, D_800AF27C[nShape].v1 + 0x40,
-            D_800AF27C[nShape].u2, D_800AF27C[nShape].v2 + 0x3F,
-            D_800AF27C[nShape].u3 - 1, D_800AF27C[nShape].v3 + 0x3F);
+    pParticle->vertices[0].vx = (x1 << 4) - (x0 << 4);
+    pParticle->vertices[0].vy = (y1 << 4) - (y0 << 4);
+    pParticle->vertices[1].vx = (x0 << 4) + (x1 << 4);
+    pParticle->vertices[1].vy = (y1 << 4) - (y0 << 4);
+    pParticle->vertices[2].vx = (x1 << 4) - (x0 << 4);
+    pParticle->vertices[2].vy = (y0 << 4) + (y1 << 4);
+    pParticle->vertices[3].vx = (x0 << 4) + (x1 << 4);
+    pParticle->vertices[3].vy = (y0 << 4) + (y1 << 4);
 
-        SetSemiTrans(pPoly, 0x1);
-        pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
-        pPoly->clut = GetClut(0x100, 0xF7);
+    FieldClampPolyFT4UVs(pPoly,
+        D_800AF27C[nShape].u0, D_800AF27C[nShape].v0 + 0x40,
+        D_800AF27C[nShape].u1 - 1, D_800AF27C[nShape].v1 + 0x40,
+        D_800AF27C[nShape].u2, D_800AF27C[nShape].v2 + 0x3F,
+        D_800AF27C[nShape].u3 - 1, D_800AF27C[nShape].v3 + 0x3F);
 
-        *pPolyNext = *pPoly;
-    }*/
+    SetSemiTrans(pPoly, 0x1);
+    pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
+    pPoly->clut = GetClut(0x100, 0xF7);
+
+    *pPolyNext = *pPoly;
+}
+*/
+
 extern int g_FieldScreenImageStored;
 extern u_long* g_FieldStoredImageBuffer;
 
