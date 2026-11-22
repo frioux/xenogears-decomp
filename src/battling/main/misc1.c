@@ -43,49 +43,39 @@ extern s32 g_BattleEffectPlaceYOffset;
 extern s32 g_BattleScriptCursor;
 extern s32 g_BattleScriptWait;
 
-/* 66.68%: original keeps &g_BattleCameraTarget in $s0 across the first call and reads and
-   stores through it; ours rematerialises the address (lui at / lw / sw). The same
-   C without the pointer local scores the same; -G0 65.72, gcc 2.6.0 65.72.
-   func_80070808's body shows g_BattleCameraTarget/80/84 are the vx/vy/vz of one VECTOR:
-   it reads 0x0(a0) with 0x0(s0) and stores the result back through 0x0(s0).
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
+// Advances the camera anchor vx/vz/vy one step toward the vector's position. The two
+// pointer locals are load-bearing: retail keeps the anchor's vx address in $s0 across
+// the first call and reads the sources through a pointer, and the field spellings
+// instead make gcc hoist that source load above the vz store.
+void func_80070808(VECTOR* pVec, s32 step) {
+    s32* pTargetX = &g_BattleCameraTarget.vx;
+    s32* pSourceY = &pVec->vy;
 
-/* 66.68% attempt:
-void func_80070808(s32* p, s32 step) {
-    s32* pX = &g_BattleCameraTarget;
-
-    *pX += BattleRoundDivAwayFromZero(p[0], *pX, step);
-    g_BattleCameraTargetZ += BattleRoundDivAwayFromZero(p[2], g_BattleCameraTargetZ, step);
-    g_BattleCameraTargetY += BattleRoundDivAwayFromZero(p[1], g_BattleCameraTargetY + g_BattleEffectPlaceYOffset, step);
+    *pTargetX += BattleRoundDivAwayFromZero(pVec->vx, *pTargetX, step);
+    g_BattleCameraTargetZ += BattleRoundDivAwayFromZero(pVec->vz, g_BattleCameraTargetZ, step);
+    g_BattleCameraTargetY += BattleRoundDivAwayFromZero(*pSourceY, g_BattleCameraTargetY + g_BattleEffectPlaceYOffset, step);
 }
-*/
-
 extern VECTOR g_BattleCameraPos;
 extern s32 g_BattleCameraPosY;
 extern s32 g_BattleCameraPosZ;
-extern void BattleMovePointInsideRadius(s32* pA, s32* pB, s32 limit);
+extern void BattleMovePointInsideRadius(VECTOR* pPos, VECTOR* pDelta, s32 radius);
 
-/* 74.00%: same missing shape as func_80070808, the original keeps &g_BattleCameraPos in
-   $s2 across all four calls and reaches it through the register; ours re-forms it
-   with lui/addiu each time. g_BattleCameraPos/20/24 are also one VECTOR seen by
-   func_800708C4 as 0x0/0x4/0x8(s2).
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
+// Moves the camera to within 0x3D00 of the vector: the three step deltas are clamped
+// as one offset before they are added back, so the anchor's vx is read and written
+// through the pointer while vy/vz stay named globals (retail addresses them that way).
+void func_800708C4(VECTOR* pVec, s32 step) {
+    VECTOR delta;
+    VECTOR* pPos;
 
-/* 74.00% attempt:
-void func_800708C4(s32* p, s32 step) {
-    s32 values[3];
-
-    values[0] = BattleRoundDivAwayFromZero(p[0], g_BattleCameraPos, step);
-    values[1] = BattleRoundDivAwayFromZero(p[1], g_BattleCameraPosY, step);
-    values[2] = BattleRoundDivAwayFromZero(p[2], g_BattleCameraPosZ, step);
-    BattleMovePointInsideRadius(&g_BattleCameraPos, values, 0x3D00);
-    g_BattleCameraPos += values[0];
-    g_BattleCameraPosY += values[1];
-    g_BattleCameraPosZ += values[2];
+    pPos = &g_BattleCameraPos;
+    delta.vx = BattleRoundDivAwayFromZero(pVec->vx, pPos->vx, step);
+    delta.vy = BattleRoundDivAwayFromZero(pVec->vy, g_BattleCameraPosY, step);
+    delta.vz = BattleRoundDivAwayFromZero(pVec->vz, g_BattleCameraPosZ, step);
+    BattleMovePointInsideRadius(pPos, &delta, 0x3D00);
+    pPos->vx += delta.vx;
+    g_BattleCameraPosY += delta.vy;
+    g_BattleCameraPosZ += delta.vz;
 }
-*/
 
 // The battling overlay's battle state (g_BattleActor0/g_BattleActor1): the anchor
 // position every effect vector is placed against, the model index and gauge words
@@ -393,26 +383,28 @@ typedef struct {
 extern BattleTexBlock D_8009A14C;
 extern BattleTexBlock D_8009A244;
 
-/* 79.36%: every statement is right and the size is retail's 300 bytes, but
-   gcc re-forms the second load's base (lui v1,%hi(g_BattleTpagePrims); lw v1,4(v1)) where
-   retail reuses the $s0 already holding the address, hoists the GetClut argument
-   loads (lh a0/lh a1) above the D_800929EC stores, and sinks the `sh v0,
-   D_8009A15A` of GetClut's result below the 16-byte struct copy. Tried: two u32
-   loads hoisted into locals, (u32*)pTPage[i] vs pTPage->tag/->code[0] (both
-   rematerialise), a DR_TPAGE struct copy for the pair (fixes $s0 but makes the
-   second store a %lo(D_800929EC+4) reloc), copy via pointer local, and
-   (u_short*)tim.prect instead of RECT fields (gcc still narrows to lbu where
-   retail has lhu, so the andi 0x3F follows a halfword load). The unused RECT
-   local is load-bearing: it reproduces retail's 0x38 frame.
+/* 92.36%: frame, calls, constants and the 16-byte D_8009A244 copy are right, but this
+   body is 308 bytes against retail's 300 (one extra load-delay nop plus one
+   instruction), so it cannot link as it stands. The do-while(0) is load-bearing: it
+   is what hoists the prect load and the GetClut argument loads; the plain spelling of
+   the same statements is 79.36 at retail's exact 300 bytes. Residuals, all in the
+   GetClut tail: retail loads tim.crect (sp+0x14) and both GetClut arguments (lh a0/
+   lh a1) BEFORE the D_8009A158/A159 stores, reads 0(a0) with lhu where gcc narrows
+   the (x & 0x3F) read to lbu, and re-forms the second pPrims load (lui
+   %hi(g_BattleTpagePrims); lw 4) where retail reuses the $s0 SetDrawTPage already
+   had. Tried: field spellings pTPage->tag/->code[0] and (u32*)pTPage[i], both
+   re-form; a DR_TPAGE struct copy for the pair (fixes $s0, but the second store
+   becomes a %lo(D_800929EC+4) reloc); u16 tpageBits and (u_short*)tim.prect locals
+   (gcc still narrows to lbu); do-while(0) with the copy inside it (85.49); the
+   unused RECT local is load-bearing, it reproduces retail's 0x38 frame.
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
-
-/* 79.36% attempt:
+/*
 void func_80071794(u8* p) {
     TIM_IMAGE tim;
     u_short tpage;
+    u16 tpageBits;
     s16* pClut;
-    DR_TPAGE* pTPage;
+    u32* pPrims;
     BattleTexBlock* pBlock;
     RECT rect;
 
@@ -425,18 +417,21 @@ void func_80071794(u8* p) {
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
     tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
-    pTPage = (DR_TPAGE*)&g_BattleTpagePrims[0];
-    SetDrawTPage(pTPage, 0, 0, tpage);
-    D_800929EC = pTPage->tag;
-    D_800929F0 = pTPage->code[0];
-    D_8009A158 = (((u_short*)tim.prect)[0] & 0x3F) << 2;
-    D_8009A159 = ((u_short*)tim.prect)[1];
-    D_8009A15A = GetClut(tim.crect->x, tim.crect->y);
-    pBlock = &D_8009A244;
+    pPrims = (u32*)g_BattleTpagePrims;
+    SetDrawTPage((DR_TPAGE*)pPrims, 0, 0, tpage);
+    D_800929EC = pPrims[0];
+    D_800929F0 = pPrims[1];
+    tpageBits = *(u16*)tim.prect;
+    D_8009A158 = (tpageBits & 0x3F) << 2;
+    do {
+        D_8009A159 = ((u16*)tim.prect)[1];
+        D_8009A15A = GetClut(tim.crect->x, tim.crect->y);
+        pBlock = &D_8009A244;
+    } while (0);
     *pBlock = D_8009A14C;
 }
 */
-
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
 extern s32 g_BattleMessageIndex;
 extern s32 g_BattleMessageShownIndex;
 
