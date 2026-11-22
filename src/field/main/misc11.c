@@ -288,7 +288,7 @@ int FieldScriptVMAdvanceIpReturnAlt(void) {
 
 extern u_int* g_FieldWalkmeshMaterialFlags;
 
-void func_800924D4(int, int, int);
+void func_800924D4(int index, int byteIndex, u_int value);
 void FieldResetCurrentActorMovement(void);
 
 // Read one byte of the 4-byte record at the given index of g_FieldWalkmeshMaterialFlags
@@ -307,29 +307,25 @@ int FieldScriptGetRecordByte(int index, int byteIndex) {
 }
 
 // Write one byte of the 4-byte record at the given index of g_FieldWalkmeshMaterialFlags
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800924D4);
-
-/* Best attempt: 69.47%. Same instruction count and the correct masks
-   (case 1's mask really is 0xFFFF00FF; splat's comment is right), but gcc keeps
-   the record offset in a0 instead of the original's v1 and merges the tail of
-   case 0 with cases 1-3, which the original does not.
-void func_800924D4(int index, int byteIndex, int value) {
+void func_800924D4(int index, int byteIndex, u_int value) {
     switch (byteIndex) {
         case 0:
             g_FieldWalkmeshMaterialFlags[index] = (g_FieldWalkmeshMaterialFlags[index] & ~0xFF) | value;
             break;
         case 1:
-            g_FieldWalkmeshMaterialFlags[index] = (value << 8) | (g_FieldWalkmeshMaterialFlags[index] & ~0xFF00);
+            value <<= 8;
+            g_FieldWalkmeshMaterialFlags[index] = (g_FieldWalkmeshMaterialFlags[index] & ~(0xFF << 8)) | value;
             break;
         case 2:
-            g_FieldWalkmeshMaterialFlags[index] = (value << 16) | (g_FieldWalkmeshMaterialFlags[index] & ~0xFF0000);
+            value <<= 16;
+            g_FieldWalkmeshMaterialFlags[index] = (g_FieldWalkmeshMaterialFlags[index] & ~(0xFF << 16)) | value;
             break;
         case 3:
-            g_FieldWalkmeshMaterialFlags[index] = (value << 24) | (g_FieldWalkmeshMaterialFlags[index] & ~0xFF000000);
+            value <<= 24;
+            g_FieldWalkmeshMaterialFlags[index] = (g_FieldWalkmeshMaterialFlags[index] & ~(0xFF << 24)) | value;
             break;
     }
 }
-*/
 
 extern s32 g_FieldFrameDelay;
 extern s16 g_FieldTextScaleDivisor;
