@@ -725,17 +725,17 @@ s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMa
     }
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
-/* best: 98.21% (112 bytes, original 112). Instruction sequence, size, mult/mflo
-   placement and the branches are identical; only register CHOICE differs: retail
-   ties each difference's dest to its minuend (subu v0,v0,v1) and takes the two
-   mflo results in a2/v1, this build ties the dest to the subtrahend
-   (subu v0,v1,v0, loads v1,v0) and takes a3/v0. Six declaration orders of
-   {dx,dz,sum}, a single reused d local, and split-statement (d = p0->x;
-   d -= p1->x) forms measured: 98.21 / 98.21 / 91.79. A 4-minute permuter run
-   (2193 iterations, base=50 best=30) found only a semantically identical
-   duplicated negu. Allocator tie.
-
+/* best: 98.21% (112 bytes, original 112; 28 insns both). Instruction sequence, size,
+   mult/mflo placement and the branches are identical; only register CHOICE differs:
+   retail ties each difference dest to its minuend (subu v0,v0,v1) and takes the two
+   mflo results in a2/v1, this build ties the dest to the subtrahend (subu v0,v1,v0,
+   loads v1,v0) and takes a3/v0 - the same six registers, permuted. Retested this
+   round: single-expression sums (72.86), separate sqx+sqz locals (79.46); earlier six
+   declaration orders of {dx,dz,sum}, a single reused d local and split-statement
+   (d = p0->x; d -= p1->x) forms (98.21 / 98.21 / 91.79). A 4-minute permuter run
+   (2193 iterations, base=50 best=30) found only a semantically identical duplicated
+   negu. Allocator tie - see the regalloc levers; do not hand-iterate it.
+/*
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     s32 dx;
     s32 dz;
@@ -752,9 +752,7 @@ s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     }
     sum += (dz >> 12) * (dz >> 12);
     return SquareRoot0(sum);
-}
-*/
-void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
+}void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
     s32 dx;
     s32 dz;
 
@@ -763,4 +761,6 @@ void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* 
     *pAngle = (ratan2(dz, dx) + WORLD_MAP_ANGLE_QUARTER_TURN) & WORLD_MAP_ANGLE_MASK;
     pVector[0] = rcos(*pAngle);
     pVector[2] = -rsin(*pAngle);
-}
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
+
