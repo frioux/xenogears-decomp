@@ -659,6 +659,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
    Retail loop tail: andi v0,s4,0xff ; beqz v0,exit ; andi v0,s0,0xff ; lw v0,0(s1) ; or v1,s3,s0 ; lbu v0,0(v0) ; nop ; sltiu v0,v0,0x80 ; beqz v0,looptop ; addu s3,v1,zero ; addu s0,s3,zero ; andi v0,s0,0xff.
    BattleSetTextScale, BattleWordRegEqImm and BattleByteRegLeImm are declared at the top of this file with a u8 second parameter, which is what produces the andi a1,s2,0xff at each call.
 */
+/* RE-PARKED round 405: re-measured 99.30% / 684 bytes against retail's 688 (172 insns, ours 171) - one instruction short, so it can never link. Residual is EXACTLY as tools/rounds/levers.md d-loop-bottom-accumulator-copy records: retail tail is 'or v1,s3,s0' / 'move s3,v1' (beqz delay slot) / exit 'move s0,s3' / 'andi v0,s0,0xff'; every spelling gives 'or s0,s3,s0' / 'move s3,s0' / 'andi v0,s0,0xff' because cc1 coalesces the OR result into ret's register. New measurement this round: the temp in the loop PLUS the copy after it ('next = acc | ret; acc = next;' then 'ret = acc;' below the loop) = 93.49%, 684 bytes, cc1 folds next into acc ('or s3,s3,s0') and the exit copy into the return ('andi v0,s3,0xff'). Also a fourth permuter run from this body: RESULT PERMUTER_NONE base=111 best=111, 1502 iterations. Nothing left to try by hand; see the lever. */
 /*
 s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
     s32 ret = 0;
