@@ -655,33 +655,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
    store order before/after *pDst = *pSrc (no effect), pFlag pointer local.
    The pointer pair pDst = g_BattleSlotCountdownTimers, pSrc = pDst - 0xB reproduces the original
    addiu s2,s1,-0x16 exactly. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
-/* 72.36% under 2.6.0 and 2.7.2. The pointer pair (pSrc = pDst - 0xB gives the
-   original addiu s2,s1,-22) and every operand are right; gcc's loop.c hoists
-   `li s3,1` for the flag store into a callee-saved register, so the frame is
-   0x28 instead of 0x20 and the g_BattleDisplayState load lands after the sh instead of
-   before the lhu. Tried under 2.6.0: 0x7C store before/after *pDst = *pSrc.
+/* 72.36% park note kept below:
+   gcc's loop.c hoists `li s3,1` for the flag store into a callee-saved register,
+   so the frame is 0x28 instead of 0x20 and the g_BattleDisplayState load lands after
+   the sh instead of before the lhu. */
 void func_80072270(void) {
     s32 i;
-    u16 *pSrc;
-    u16 *pDst;
 
-    if ((g_BattleCommandCellFlags & 7) != 0) {
-        pDst = g_BattleSlotCountdownTimers;
-        pSrc = pDst - 0xB;
+    if (g_BattleCommandCellFlags & 7) {
         for (i = 0; i < 3; i++) {
             if (BattleMaskHasSlotBit(g_BattleCommandCellFlags, i) != 0) {
                 g_BattleActorCountdownState[i] = 0;
-                *pDst = *pSrc;
+                g_BattleSlotCountdownTimers[i] = g_BattleSlotCountdownTimers[i - 0xB];
                 g_BattleDisplayState->slotMarks[i] = 1;
             }
-            pDst++;
-            pSrc++;
         }
     }
     g_BattleCommandCellFlags = 0;
 }
-*/
 
 void BattleResetActorCommandSlots(void) {
     u8 *pBuf;
