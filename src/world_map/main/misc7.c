@@ -975,7 +975,6 @@ s32 WorldMapInitFadePrims(s32 index) {
 // retail's RTL (a second base variable); every spelling tried trades that for a wrong
 // store order or a second base register. gcc 2.6.0 reduces onto 137 too, so this is not a
 // compiler-version question.
-/*
 s32 func_80081D80(s32 index) {
     WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
     u16 *pFade = g_WorldMapFadeTable;
@@ -995,14 +994,14 @@ s32 func_80081D80(s32 index) {
         pQuad->u1 = 0xC0;
         pQuad->u2 = 0;
         pQuad->u3 = 0xC0;
-        pQuad->y2 = i + 1;
-        pQuad->y3 = i + 1;
-        pQuad->v2 = i + 1;
-        pQuad->v3 = i + 1;
         pQuad->x0 = delta + 0x40;
         pQuad->x1 = delta + 0x100;
         pQuad->x2 = delta + 0x40;
         pQuad->x3 = delta + 0x100;
+        pQuad->y2 = i + 1;
+        pQuad->y3 = i + 1;
+        pQuad->v2 = i + 1;
+        pQuad->v3 = i + 1;
         addPrim(g_WorldMapRenderContext->pOt[0], pQuad);
         pQuad++;
     }
@@ -1014,9 +1013,7 @@ s32 func_80081D80(s32 index) {
     pMove = &D_8009D164[g_WorldMapPrimPacketIndex];
     addPrim(g_WorldMapRenderContext->pOt[0], pMove);
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
-
+}
 s32 WorldMapResetSlotColorFade(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
