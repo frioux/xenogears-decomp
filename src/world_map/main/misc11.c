@@ -227,6 +227,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
    spelled g_WorldMapSlots[index].field with no pActor local (61.27, 300 bytes).
    Round 167 permuter: PERMUTER_BETTER 410 -> 315 but the winning edit casts the 0x100
    argument to unsigned char (truncates it to 0) - wrong code, not ported.
+   Round 402: the tail re-written in the twin's source order is 93.37 (sched2 puts retail's
+   order back), g_WorldMapSlots + index 93.37, and try_flags --sweep tops out at 93.37
+   (2.6.0 93.03, cdk 83.19). The residual is a WAR dependency, not a schedule: the index
+   shift took v0 where retail has v1, which pins sw v0,0x14(sp) before the shift - see lever
+   h-stack-arg-store-sink-is-a-war-tie. A 4-minute permuter run: base 410 best 395, its only
+   edit swapped SpriteSetScale above SpritePlayAnimation (wrong code).
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u16 angle;
@@ -478,6 +484,10 @@ int WorldMapModeInitCharacterSprite2(int index) {
 // and 0x1E0 argument setup and keeps 0x40 in v0 until the sw in front of the jal; gcc
 // stores 0x40 right after li 0x40 and shifts into v0 afterwards. The tail is
 // byte-identical; -O2 sched2 post-reload makes this a whole-function context effect.
+// Round 402 measured the same wall from the other side: the residual is a WAR dependency - gcc
+// puts the index shift in v0 and that pins sw v0,0x14(sp) before it, where retail's shift is in
+// v1 and its store sits last. Re-measured live with a top-declared u16 angle (not the nested
+// block below): 93.37%, 62 insns, retail's 248 bytes. Park it.
 /*
 int func_8008BDD0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
