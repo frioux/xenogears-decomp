@@ -81,7 +81,7 @@ typedef struct {
 } MenuEquipmentSlotRecord; // Size: 0x28
 
 void func_801DC3D8(u_char arg0, u_char arg1);
-void func_801DCE60(u_char arg0, s32 arg1, u_char arg2);
+void func_801DCE60(u_char arg0, u_char arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
@@ -371,8 +371,20 @@ void MenuFitInventoryWindowToItems(void) {
    at +0x00 and +0x30) and leave func_801E05D0 as INCLUDE_ASM at +0x60, which is
    exact. */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
-/*
+/* PARKED 93.91%, 888 bytes / 222 insns against retail's 896 / 224 - re-measured this
+   round from the body below. The two missing instructions are both reorg decisions,
+   named in the note above: (1) retail duplicates the loop test's `andi v0,s6,0xFF`
+   into the out-of-range dispatch's branch delay slot and targets the `bnez`, which
+   leaves `sll v0,v1,2` as an ordinary instruction; ours puts the sll in the slot, so
+   the switch region is one instruction short. (2) ours cross-jumps case 4's success
+   store and case 5's `selectedSlot = 0xFF` into one site where retail keeps
+   .L801DC054 and .L801DC070 as two jumps. Re-measured this round: spelling case 4's
+   shared tail once - the `func_801DB920(row, col) == 0` guard breaking after
+   `selectedSlot = 0xFF`, the swap in an else, then prevRow/prevCol/selectedSlot =
+   0xFF once after the join - gives 93.37 at the same 888 bytes, worse; the
+   three-statement duplicated form below stays.
+   Preset ruled out (earlier round): 93.66 on plain 2.7.2, 84.82 on 2.7.2-cdk, 65.55
+   at -O3, and 14 functions of this unit are 100.00 under gcc 2.6.0. *//*
 s32 func_801DBE54(void) {
     u8 active;
     u8 needsOpen;
@@ -506,8 +518,8 @@ s32 func_801DBE54(void) {
     MenuFreeArrowCursor(1);
     MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings10E0);
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 
 
 void MenuCreateUnk430Panel(u_char arg0) {
@@ -1221,8 +1233,31 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    dimensions are D_801E9788/94/A0[kind][0], u16 tables 0xC bytes apart, stride 4
    (282/282/162, 218/218/200, 82/82/100 - one row per character slot). `kind` is the
    s32 arg2 masked to a byte; cases 0 and 2 are disabled when it is 2. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
-/*
+/* PARKED 94.46%, 884 bytes - retail's exact size, 221 insns each - re-measured this
+   round from the body below. The only residual is which value gets the ninth
+   callee-saved register: retail never allocates the a6=1 argument (it rematerialises
+   `li t0,0x1` before each of the four MenuCreateWindow calls) and keeps needsOpen in
+   $s5, which is why its `move s5,zero` lands in the `if (arg1)` branch delay slot;
+   cc1 2.6.0 hoists that same constant into a register (`li s8,0x1` below), so
+   needsOpen spills to 0x38($sp) and the frame is 0x70 against retail's 0x68. The
+   prologue, both dispatch sites, all eight case bodies, every call and every other
+   delay slot are retail's.
+   GAINED THIS ROUND, and it is in the file for good: func_801DCE60's second
+   parameter was declared s32 but is a u_char - retail masks it at this call site
+   (`andi a1,s1,0xff`) and func_801DCE60's own body masks $a1 before `sll` - so the
+   declaration at the top of this file is now (u_char, u_char, u_char) and the
+   function went 94.14 -> 94.46.
+   Tried in earlier rounds (notes above): needsOpen/active/slot/kind declaration
+   order (94.45-94.46), a preheader `s32 mode = 4;` for the a7 argument (94.81 but
+   888 bytes, 4 over retail, so it cannot link), `u_char border = 1;` for a6
+   (identical), moving the needsOpen init after the prologue calls (93.31), and a
+   permuter run whose winner assigned needsOpen before the window-4 call - wrong code,
+   not ported.
+   JUMP TABLE: this stub owns jtbl_801C512C at +0x30 of the unit's .rodata range
+   (0xFC..0x18C = three 0x30-byte tables: func_801DBE54 at +0x00, this one at +0x30,
+   func_801E05D0 at +0x60). C .rodata lands before asm .rodata, so convert
+   func_801DBE54 and this one TOGETHER (C tables then land at +0x00/+0x30), leave
+   func_801E05D0 as INCLUDE_ASM at +0x60, and judge with check_bin.sh menu. *//*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
     u8 needsOpen;
@@ -1269,7 +1304,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
         }
         switch (g_Menu->input) {
         case 4:
-            if (((MenuUnk430Panel*)g_Menu->unk430)->unk1084[col] & 0x80) {
+            if (((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[col] & 0x80) {
                 func_801DD790(slot, col, arg2);
                 prevSlot = 0xFF;
                 prevCol = 0xFF;
@@ -1314,8 +1349,8 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     } while (active);
     MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings10E0);
     MenuFreeArrowCursor(0);
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
 
 s32 MenuRunUnk430Panel(u_char arg0, u_char arg1) {
     func_801DDF24(arg0, arg1, 0);
