@@ -189,15 +189,28 @@ void BattleActorFaceTarget(BattleSpriteState *pActor) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
-/* 98.03% at the original's exact 600 bytes; the whole body matches except the
-   register the z-axis turn limit is formed in. The original truncates the angle
-   difference into $v0 and then copies it twice (move $a3,$v0 for the turn,
-   move $v1,$v0 for the magnitude); gcc merges the truncation into $a3, so the
-   block reads sra $a3,$v1,20 / move $v1,$a3 / bgez $a3 and is one move short
-   with one spare elsewhere. The y-axis block (listed plain, magnitude in a
-   do-while block) comes out right, so the two blocks differ only in that merge.
-   Tried: the plain form in either block (98.03 only when y is plain and z is an
-   embedded assignment inside a do-while magnitude block), a separate delta temp
+/* 98.03% at the original's exact 600 bytes / 150 instructions (re-measured).
+   Two residuals, both register-choice ties, neither a size difference:
+   1) the magnitude: retail is bgez $v1 / move $v0,$v1 / negu $v0,$v0, ours is
+      move $v0,$v1 / negu $v0,$v1, i.e. it negates the source instead of the
+      copy. Lever a-ternary-abs-over-a (world_map/misc12 func_80090FB4) parks at
+      the same 98.03 on this same shape and could not close it either.
+   2) the z block: retail truncates the angle difference into its own $v0 and
+      copies it twice (move $a3,$v0 for the turn, move $v1,$v0 for the
+      magnitude); ours folds the sra into $a3, so the three quantities collapse
+      to two.
+   Measured this round, y block left as it is and z varied:
+   - z as three plain statements: 97.47, the magnitude took $a0 and the delta
+     still folded into $a3.
+   - z with the magnitude first and turn = delta after it: 95.85, the delta
+     moved to $a0 in BOTH blocks (one pseudo, two defs) and a load nop appeared.
+   - z with its own deltaZ/magZ locals: 92.87 / 596 bytes. That DOES give the z
+     block the y block's shape (delta in $v1, magnitude coalesced with it, the
+     turn copy in the beqz slot) and is one instruction short of retail's third
+     quantity. So a shared delta conflicts the two blocks while a split one
+     makes gcc drop the magnitude copy; both keep residual 1.
+   Earlier: plain form in either block (98.03 only when y is plain and z is an
+   embedded assignment in a do-while magnitude block), a separate delta temp
    for the (u16) subtraction, turn=delta before/after the magnitude,
    delta = turn, two do-while blocks, a pointer local to vec (98.70 but 596
    bytes, one instruction short), and three permuter runs (2063 -> 641 -> 296).
