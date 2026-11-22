@@ -185,10 +185,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
      the jal slot; this body hoists both global loads above the state store and loses
      retail's load-delay nop (that nop is the missing instruction). (3) the same shape
      in case 7. The two jtbl_ operands are the only other diff.
-   PARKED FOR A LAYOUT REASON TOO: this stub owns jtbl_800709F8/jtbl_80070A10 at
-   .rodata+0/+0x18 and func_8008E4F4 owns jtbl_80070A30 at +0x38, so the whole
-   switch family (E190, E4F4, both at retail's +0/+0x18/+0x38 which is 8-byte
-   aligned throughout) has to be converted in address order in one go.
+   The layout worry is gone: func_8008E4F4 was converted on its own and its table kept
+   retail's .rodata+0x38 with check_bin OK, so cc1 emits a jump table beside its own
+   function's .text, not at the front of the unit's .rodata. Only the unit's 4-mod-8
+   tables (at and after +0x15C) stay unconvertible, because of cc1's `.align 3`.
 s32 func_8008E190(s32 idx) {
     WorldMapPlayer *pPlayer;
     u8 *pScratch;
@@ -288,22 +288,11 @@ s32 func_8008E190(s32 idx) {
     return nRet;
 }
 */
-/* best: 99.80% (objdiff), 396 bytes = retail's exact size, 99 instructions and every
-   instruction is retail's; the ONLY residual is `addiu $s0,$s2,160` where the original
-   object carries `addiu $s0,$s2,%lo(D_1F8000A0)`, i.e. a reloc name, not a byte. Writing
-   the vector as the symbol (`extern u16 D_1F8000A0;` + `(SVECTOR *)&D_1F8000A0`) does buy
-   the reloc but loses the shared base register: `ori $a0,$s1,0xa0`, 388 bytes, 93.12.
-   The shape that is now proved correct: `u16 *pScratchPos = (u16 *)0x1F800000;` (one
-   `lui $s2,0x1F80` in the worldMapState bnez slot) + `pScratchPos[0x50]/[0x51]/[0x52]`
-   stores (literal offset immediates, as retail) + `(SVECTOR *)&pScratchPos[0x50]` as the
-   RotMatrixYXZ argument, in that statement order. g_WorldMapViewRotationZ MUST be read as
-   `[0]`: it is an array extern, and the bare name truncates the address (388 bytes, -8).
-   STILL PARKED FOR THE LAYOUT REASON, unchanged: jtbl_80070A30 has to sit at .rodata+0x38
-   behind func_8008E190's two tables at +0/+0x18, and cc1 emits a converted unit's tables at
-   the START of its .rodata, so converting this stub alone moves every later table of the
-   range (check_bin MISMATCH, measured in an earlier round). E190 (parked at 87%) and this
-   function have to be converted together, in address order.
-/*
+// objdiff reads 99.80% here and always will: the two differences are both spellings of
+// retail's bytes, not different bytes (check_bin OK). One is the switch's table operand
+// (`jtbl_80070A30` against `.rodata`), the other is `addiu $s0,$s2,%lo(D_1F8000A0)`, which
+// this body writes as the folded literal 0xA0 off the same base register. Reaching the
+// reloc by naming the symbol costs the shared base (388 bytes, 93.12).
 s32 func_8008E4F4(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 *pScratchPos;
@@ -345,8 +334,7 @@ s32 func_8008E4F4(s32 idx) {
     RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[1].matrix);
     return nRet;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
+}
 
 s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -500,10 +488,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090A84);
    0x104 bytes, so every table after it sits at 4 mod 8 of the range and cc1 pads +4 in
    front of the first of them: converting the whole family in address order puts this table
    at +0x160 and makes the overlay 4 bytes too long (the C68/E14 parks below carry the
-   measurement: 180426 against disc's 180422). Converting this stub alone is worse still -
-   its asm table leaves the asm part of the object and the C table goes to +0, shifting the
-   other eight by 0x30. The unit stays blocked until someone can emit a 4-aligned jump
-   table; the C below is finished, so un-park it the day that is solved.
+   measurement: 180426 against disc's 180422). Converting this stub alone is no better: a C
+   table keeps its own function's place in the object (measured on E4F4 this round, check_bin
+   OK), so the pad lands exactly as it does for the whole family, +4. The unit stays blocked
+   until someone can emit a 4-aligned jump table; the C below is finished, so un-park it the
+   day that is solved.
    Body: it is func_80090C68's body plus one arm. The released-0x20 test has an
    `else if (g_WorldMapAreaId != -1)` that returns 1 when the current area record's mode
    (0xE) is 1; gcc keeps the -1 in v0 across both compares, as retail does. angle is s16
