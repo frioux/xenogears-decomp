@@ -535,7 +535,7 @@ void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
    - volatile read of p->operand2: 71.09, the same reversal with operand2 landing in v1.
    - -fschedule-insns and -fschedule-insns2 under 2.7.2 change nothing (checked in cc1 output).
    permuter 2259 iterations earlier: base=20 best=20.
-   Kept as a park: the body below is the 99.09 spelling.
+   Kept as a park: the body below is the 99.09 spelling. */
 /*
 void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
