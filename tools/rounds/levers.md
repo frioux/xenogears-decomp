@@ -120,6 +120,9 @@ try: addu operand index-first base-first
 - id: b-second-lever-same-class | keywords: addu, operand, delay, jal, s32
   THE SECOND LEVER FOR THE SAME CLASS IS OPERAND ASSOCIATION (round 289): retail often emits '(product + constant) + base' where gcc normalises to '(base + constant) + product'. Only writing the constant against the base - 'p[0x66A] * 40 + (0x320 + (s32)p)' - keeps retail's 'addu a1,a1,v1' in the jal delay slot.
 
+- id: a-addu-index-first-is-the-legitimiser | keywords: addu, operand, order, address, reload, base-first, probe, hedged
+  **Which side of an address `addu` the base lands on is decided by this cc1's address legitimisation, not by the C - every spelling gives INDEX-first** (round 394, battle/misc23 func_800A64E4, parked 98.71% at retail's exact 928 bytes / 232 instructions with the 30 `addu v0,v0,a2` vs `addu v0,a2,v0` operands as the ONLY residual). Measured with `tools/scripts/cc1_probe.sh battle/main/misc23 <snippet.c>` on a standalone copy of the loop (the cheap way to answer an order question: the unit file is never touched): `g[i * 0x24 + K]`, `*(u8 *)(g + i * 0x24 + K)`, `((u8 *)(g + i * 0x24))[K]`, `((u8 *)(off + (s32)g))[K]` with an s32 offset variable, the offset written FIRST (`i * 0x24 + (s32)g + K`) and a struct view `((Row *)g)[i].c0[0]` all compile to `addu $2,$4,$2`. The one shape that emits base-first (`pDst = &g[i * 0x24 + K]`) keeps K in the sum, so it costs an addiu per store. Do not re-spell the subscript, and do not re-brief this residual as a hand job.
+
 ## delay slot
 
 symptoms: nop vs instruction in a delay or load slot
@@ -157,6 +160,8 @@ try: delay-slot nop jal slot
 
 symptoms: one extra or missing move / second copy of a value
 try: move copy missing extra
+- id: d-mult-by-2-emits-a-copy | keywords: move, copy, sll, mult, shift, expand_binop, park
+  **`x * 2` whose result has to live in a callee-saved register costs an extra `move`; `x << 1` does not** (round 394, battle/misc23 func_800A9540, 376 -> retail's 372 bytes, 94.49 -> 94.73). cc1's expand of `index = slotTextIndex * 2;` emits a TEMP plus a copy (`sll v1,v1,1` / `move s0,v1`, confirmed in the -dg dump as a `(set (reg 100) (ashift (reg 74) 1))` followed by `(set (reg 76) (reg 100))` in the pre-alloc .combine dump, i.e. it is in the RTL, not the allocator), while `index = slotTextIndex << 1;` expands the shift straight into index's allocno (`sll s0,v1,1`) and reaches retail's byte count. When a body is exactly one `move` too long and the value is a multiply by two, write the shift.
 - id: d-repeated-base-i-stride | keywords: move, copy, loop, addu, cc1, delay, permuter, pointer
   **A repeated `base + i * stride` sum that retail COPIES into a second register is source-controllable: give the LOOP its own pointer local.** round 370, battle/misc9 (a permuter find, base 974 -> 263): `pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs); pRow[idx] = 0; pField = pRow;` and then the loop reads `pField` - the sum pseudo stays live past the copy, so cc1 emits retail's `addu v1,v1,v0` + `move s5,v1` instead of coalescing both uses into `addu s5,v1,a0`. The same body then parked ONE instruction short (93.64%, 344 vs retail's 348) because retail has the `i++` in the beqz delay slot after a call while reorg target-fills the loop test there; that residual is not reachable from source, so park it with the number.
 - id: d-live-value-costs-nothing | keywords: move, copy, s32, addiu, addu, li, loop, lw
