@@ -3,29 +3,41 @@
 #include "system/archive.h"
 #include "psyq/memory.h"
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
-/* 99.94%, 316 bytes = retail's exact size and instruction stream. The ONE
-   remaining difference is a real 4-BYTE BRANCH DISPLACEMENT, not a label name:
-   the inner loop's back edge is `bnez v0,+0x74` in retail (targeting the
-   mult/mflo hazard nop, which aspsx placed AFTER the loop label) and
+/* 99.94%, 316 bytes = retail's exact size, 79 instructions, and an identical
+   instruction STREAM. The ONE remaining difference is a real 4-BYTE BRANCH
+   DISPLACEMENT, not a label name: the inner loop's back edge is `bnez v0,+0x74`
+   in retail (targeting the mult/mflo hazard nop at the loop head) and
    `bnez v0,+0x78` here (targeting the `mult s2,s3`, because maspsx placed its
    hazard nop BEFORE the label). The bytes therefore differ and check_bin can
    never pass, so this is not an objdiff artifact.
-   WHY NO C SHAPE CAN MOVE IT - verified in the raw cc1 output
+   RE-CONFIRMED this round: 99.94 / 316 / 79 insns, 2 differing lines, only that
+   branch. WHY NO C SHAPE MOVES IT - re-verified in the raw cc1 output
    (build/src/slus_006.64/system/archive_b.c.s): cc1 emits
      mult $20,$18 / mflo $8 / addu $17,$8,$22 / $L8: / mult $18,$19
-   and maspsx's _handle_mflo_mfhi (tools/maspsx, the `next_next_instruction is
-   mult` branch) emits, for the mflo LINE, [addu, nop] as a unit and only then
-   replays the `$L8:` line it collected, giving addu / nop / $L8: / mult. The
-   nop is appended in the same res.extend as the instruction following mflo, so
-   the label can only ever land after it; putting the label before the addu (or
-   removing the addu) moves the label to the addu, and the other maspsx branch
-   (next IS a mult) emits two nops and 8 extra bytes. nop_mflo_mfhi off (aspsx <
-   2.30) drops the nop and 4 bytes. Shapes already measured: for(;;)+break,
-   for(j=i;j<nCount;j++), an empty do/while at the loop head (all 99.94% with
-   this same single difference), a do/while around the three memcpys
-   (95.29%/312), if/else+continue (81.78%), a pRow pointer (97.15%), and a
-   permuter run (503 iterations, base=1 best=1). Leave as INCLUDE_ASM.
+   and maspsx `_handle_mflo_mfhi` (tools/maspsx/maspsx/__init__.py, the
+   next_next_instruction-is-mult branch) appends the follower and the nop as one
+   unit (`res.extend([expand_move(inst), "nop # DEBUG..."])`) and only then
+   replays the collected `$L8:` line, so the label can only ever land AFTER the
+   nop. The three reachable label positions, all measured: after the nop (this
+   body, 99.94), at the addu (label line before the follower, 4 bytes the other
+   way), and before the nops (the next-is-mult branch, which emits TWO nops and
+   costs 8 bytes). Retail's build put the label between the addu and the nop -
+   its assembler's mflo handler emits label-before-nop, the opposite convention
+   to maspsx's (maspsx does emit label-then-nop in its OTHER handler,
+   _handle_nop_before_next_instruction), so closing this needs a maspsx change,
+   which is out of bounds for a unit.
+   PRESET SCREENED this round: Default (2.7.2 -O2 -G8) 99.94, -O3 99.94, -G0
+   99.94, 2.7.2-cdk 95.59 (with and without -G0), 2.6.0 93.54 - the preset is
+   right and no version reaches it.
+   Shapes already measured: for(;;)+break, for(j=i;j<nCount;j++), an empty
+   do/while at the loop head (all 99.94 with this same single difference), a
+   do/while around the three memcpys (95.29%/312), if/else+continue (81.78%), a
+   pRow pointer (97.15%), and a permuter run (503 iterations, base=1 best=1).
+   The inner loop IS a selection sort: pCompare picks the extreme element in
+   [i,nCount) and three memcpys rotate it into slot i through a HeapAlloc'd temp.
+   Leave as INCLUDE_ASM.
+ */
+/*
 typedef s32 (*ArchiveCompareFn)(u8* pA, u8* pB);
 
 void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) {
@@ -49,31 +61,29 @@ void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) 
         memcpy(pData + nSize * k, pTemp, nSize);
     }
     HeapFree(pTemp);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379B4);
-/* 96.00%: byte-identical size (20) and instruction stream, including the
-   address-in-a-register form. The ONE remaining difference is that register:
-   retail is `lui/addiu $t0` then `sw $a0,0($t0)`, ours is the same three
-   instructions with `$v0`. Dropping `volatile` (or making the global a scalar
-   instead of an array) puts the store back to the `sw $4,sym` macro form through
-   $at, 77.80%; array decay plus `volatile` gets gcc to `la` but its allocator
-   always hands a lone forced-address pseudo $v0 ($2 is the first entry of the
-   register order, and nothing else in this 5-instruction body competes for it).
-   Not a preset: 96.00 under gcc-2.6.0 and -O3, 77.80 under 2.7.2-cdk (with and
-   without -G0, which emits `lui $2` + `sw $4,%lo` and no addiu), 77.80 under
-   gcc-2.8.1 (same `lui $2` + `sw %lo($2)` form). decomp-permuter from this body:
-   5643 iterations, base=20 best=20, nothing better. Everything else tried:
-   pointer local, volatile-pointer local, `register volatile` local, a store
-   through a `(volatile u32*)` cast, element [0] instead of `*ptr`, and an s32
-   return type to move $v0 out of the way.
 extern volatile u32 D_80050618[3];
 
+/* RE-MEASURED 96.00%, 20 bytes = retail EXACT size and instruction stream; the
+   one residual is the address register: retail lui/addiu $t0 then sw $a0,0($t0),
+   ours the same three with $v0. The brief said 99.94 (stale). cc1 emits
+   la $2,D_80050618 for EVERY spelling of a lone store - probed with cc1_probe
+   this round: *A, A[i], struct field A.x, (u32*)u8-array cast, pointer local,
+   *((u32*)A+0), &A[0]; all la $2 - so no source shape can reach $8 (seven live
+   values would have to precede it and this body has one). Non-volatile drops to
+   the bare sw-through-$at 2-instruction form (77.80, 16 bytes); 2.6.0 also 96.00;
+   cdk -G0 77.80 (lui $2 + sw %lo); 2.8.1 77.80. Permuter 5643 iters base=20
+   best=20. So $t0 came from something outside gcc 2.7.2 source shapes (a
+   hand-written/hand-assembled store or a different libc-era compiler). Leave as
+   INCLUDE_ASM.
+ */
+/*
 void func_800379B4(u32 value) {
     *D_80050618 = value;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379B4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379C8);
 /* 0%: retail is a bare `j FontPrintf` plus a nop delay slot and nothing else, so
