@@ -174,52 +174,6 @@ void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
                   g_Menu->renderContext, x + MENU_DIGIT_SPACING * 6, y, 0x1000);
     g_Menu->pPlayTimeDigits->renderContext = *(u8*)&g_Menu->renderContext;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D5ED4);
-/* Best: 99.32% at retail's exact 704 bytes (176 insns, so it WOULD link).
-   STRUCTURE AND INSTRUCTION MULTISET ARE SETTLED. The residual is ONE allocator
-   tie repeated at four sites: this build coalesces the `base + renderContext *
-   0x28` address sum with the OFFSET pseudo, retail with the BASE pseudo, so the
-   then-arm store address is $v1 here and $a0 in retail, the else-arm $a0 here
-   and $v1 in retail, and the first MenuSetQuadVertices pair keeps base in $a1 /
-   ctx in $v1 here against retail's $v1 / $a1. Same 176 insns, same order, same
-   frame - objdiff's 99.32 is six register names.
-   TYPES (recovered, and the x0/y0 pair below is typed with them; that spelling
-   is code-identical, re-measured 99.32 at 704 bytes): the 0x28-byte stride is
-   POLY_FT4 (sizeof 0x28). base + ctx*0x28 + 0x08 / 0x0A are POLY_FT4.x0/.y0 of
-   the prim array at offset 0; base + 0x50 + ctx*0x28 is the second POLY_FT4
-   array, whose .clut (+0x0E -> 0x5E) takes the SystemPalette and whose .tpage
-   (+0x16 -> 0x66) takes the GetTPage result.
-   HOW IT GOT HERE (all re-measured under gcc 2.6.0; the unit preset is right -
-   every other function of this unit is 100.00 under 2.6.0, 83.4-99.8 under
-   2.7.2, 79.5-99.9 under cdk):
-   - the four 0x5E palette stores must have their OWN address variable per arm
-     (pBase in the then arm, pRow - a copy - in the else arm). A single shared
-     pBase over both arms lets the allocator CSE the two SystemPalette1 stores
-     into one block, which costs 4 instructions and every branch offset
-     (87.10% at 688 bytes). Fully inline in both arms is 85.84%.
-   - the 0x66 GetTPage store must stay INLINE: assigning pBase before it makes
-     cc1 hoist the address above the GetTPage call (97.13%).
-   - `((texX << 1) << 1) & 0xFC` (two shifts, not one) is worth 97.13 -> 99.32
-     and retail's exact size; a single `x << 2` makes gcc narrow the
-     g_MenuNameTextureX load to `lbu` (retail has `lw`), which is 4
-     instructions in the wrong place. texX is an s32 local for the same reason.
-   MEASURED THIS ROUND, DO NOT REPEAT:
-   - the in-place form `pBase = base; pBase += ctx * 0x28;` DOES flip the addu to
-     retail's base-first shape and makes the then arm match instruction for
-     instruction, but the else arm then loads g_Menu->pGearWindowPrims EARLY
-     into $a2 (ctx still occupies $v1) where retail loads it late into $v1:
-     98.32% at the same 704 bytes.
-   - one `s32 ctxOffset = renderContext * 0x28;` local shared by the two
-     address blocks is hoisted into a callee-saved $s5 across the calls: 89.83%
-     at 680 bytes. Per-arm copies instead compact the palette stores: 97.16%.
-   - a cast-over-subscript `((POLY_FT4*)base)[renderContext]`, the
-     embedded-assignment `(q = base + off)` inside the lhu, and offset-first vs
-     base-first C operand order all emit the SAME mirrored addu; only the
-     in-place update changes it.
-   - permute.sh --minutes 3 (1392 iterations) found nothing (base 120, best 120).
-   Not tried: an older permuter candidate with a junk `if (g_Menu)` arm in the
-   else branch measured better; port only if the register tie can be closed.
-
 void func_801D5ED4(u_char index, u_char row) {
     s32 rowOffset = row ? 0x18 : 0;
     u8* pRow;
@@ -230,21 +184,21 @@ void func_801D5ED4(u_char index, u_char row) {
     func_8002675C(g_Menu->resources, index + 0x14B, (POLY_FT4*)g_Menu->pGearWindowPrims,
                   g_Menu->renderContext, 0x18 - rowOffset, 0xE, 0x1000);
     MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EA0),
-                        ((POLY_FT4*)g_Menu->pGearWindowPrims)[g_Menu->renderContext].x0,
-                        ((POLY_FT4*)g_Menu->pGearWindowPrims)[g_Menu->renderContext].y0, 0x30, 0x30);
+                        ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28)))->x0,
+                        ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28)))->y0, 0x30, 0x30);
     MenuInitializePolyFt4((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
                                       (u8*)g_Menu->pGearWindowPrims));
-    *(u16*)((u8*)g_Menu->pGearWindowPrims + g_Menu->renderContext * 0x28 + 0x66) =
+    *(u16*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28) + 0x66) =
         GetTPage(0, 0, 0x180, 0);
     if (row == 0) {
-        pBase = (u8*)g_Menu->pGearWindowPrims + g_Menu->renderContext * 0x28;
+        pBase = (u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28);
         if (g_Menu->pManager->currentCharacterIDs[index] & 1) {
             *(u16*)(pBase + 0x5E) = g_SystemPalette2;
         } else {
             *(u16*)(pBase + 0x5E) = g_SystemPalette1;
         }
     } else {
-        pBase = (u8*)g_Menu->pGearWindowPrims + g_Menu->renderContext * 0x28;
+        pBase = (u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28);
         pRow = pBase;
         if ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId + 0xB) & 1) {
             *(u16*)(pRow + 0x5E) = g_SystemPalette2;
@@ -261,7 +215,6 @@ void func_801D5ED4(u_char index, u_char row) {
     MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EC0),
                         D_801E9D38 - rowOffset, D_801E9D3C, width, 0xD);
 }
-*/
 void MenuSetCharacterIconPrims(u_char characterId) {
     s32 i;
     u8* pBase;
