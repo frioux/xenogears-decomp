@@ -369,80 +369,91 @@ void MenuOverlayMain(void) {
     }
     MenuFinalizeMenuData();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
-
-/* Best: 98.62% (500 bytes = retail's exact size), instruction-identical modulo the saved
-   register ROTATION: retail pBuffer=s0, i=s1, lineCount=s2 against gcc's i=s0, lineCount=s1,
-   pBuffer=s2. Both compiles save exactly s0-s2 plus ra, so it is a register-assignment tie,
-   not a missing or extra local, and nothing below moves it.
+/* Best: 98.62% (500 bytes = retail's exact size, 125 insns), instruction-identical except
+   the three saved-register NAMES: retail pBuffer=s0, i=s1, lineCount=s2 against gcc's
+   i=s0, lineCount=s1, pBuffer=s2.
+   REACHABILITY, MEASURED (round 396) - read this before trying another spelling. `-da` on
+   build/src/menu/main/misc1.c.i gives the pre-global-alloc lreg/flow dump, whose per-pseudo
+   "Register N used X times across Y insns; ... Z bytes" lines are exactly the terms of gcc
+   2.6.0 flow.c's allocno priority floor_log2(refs) * refs / live_length * size, and the greg
+   dump prints the resulting order ("11 regs to allocate: 119 72 73 142 146 74 71 ...") with
+   pseudo 72 (i), 74 (lineCount), 71 (pBuffer) going to s0, s1, s2. The numbers: i = 5*38/70*4
+   = 108570, lineCount = 3*8/34*2 = 14117, pBuffer = 2*6/42*4 = 11428. Retail needs pBuffer to
+   outrank an 38-reference pseudo while holding 6, so no spelling of this body reaches it
+   (same conclusion as levers.md a-global-allocno-priority-is, menu/main/misc10).
    Fixed on the way: the `cardPollMode = 0` store was missing (5 insns, 90.45 -> 94.45), the
-   newline scan must read `if (c != '\n') { i++; continue; }` (newline block out of line after
+   newline scan must read `if (c != 0x0A) { i++; continue; }` (newline block out of line after
    the `j` to the loop top), and the 0xFFFF needs a local (lineCountDelta) or `li a0,0xa` and
    `li a1,0xffff` swap order (98.53).
-   Tried for the rotation, all measured: declaration orders (4), separate scan index (96.75),
-   separate init counter (96.75, the counter falls to v1), lineCount u32/s32 (97.82), s16
-   (97.66), i u32 (97.74), s16 (73.26), lineCountDelta u32 (98.62), s16 (97.62), u8 (98.05),
-   j u32 (98.14), s16 (86.49), u8 (92.73), a `u8 *pBuffer = NULL;` initializer (98.62 - the
-   dead store is eliminated, the pseudo number does not move the tie), `i = i + 2`, `!= 10`,
-   `pBuffer + i`, `if (lineCount)`, `(u8 *)(pBuffer + i)` (all 98.62), gcc 2.7.2 (98.62), -O3
-   (98.62), cdk (94.69), permuter 3x4min (stuck at 170). Load-bearing: the scan shape above,
-   lineCountDelta, the `cardPollMode = 0` store, and pInfo for the two tail stores (inline
-   g_Menu->menuUnk2 there is 93.02% at 520 bytes, 5 insns too many).
+   Tried for the rotation, all measured: declaration orders (4), a named `u8 c = pBuffer[i]`
+   temp in the scan (98.62, the pseudo count does not move the three-way order), separate scan
+   index (96.75), separate init counter (96.75, the counter falls to v1), lineCount u32/s32
+   (97.82), s16 (97.66), i u32 (97.74), s16 (73.26), lineCountDelta u32 (98.62), s16 (97.62),
+   u8 (98.05), j u32 (98.14), s16 (86.49), u8 (92.73), a `u8 *pBuffer = NULL;` initializer
+   (98.62), `i = i + 2`, `!= 10`, `pBuffer + i`, `if (lineCount)`, `(u8 *)(pBuffer + i)` (all
+   98.62), gcc 2.7.2 (98.62), -O3 (98.62), cdk (94.69), permuter 3x4min (stuck at 170).
+   Load-bearing: the scan shape above, lineCountDelta, the `cardPollMode = 0` store, and pInfo
+   for the two tail stores (inline g_Menu->menuUnk2 there is 93.02% at 520 bytes, 5 insns too
+   many).
+*/
+/*
 void func_801C6400(void) {
-   u8* pBuffer;
-   s32 i;
-   s32 j;
-   u16 lineCount;
-   s32 lineCountDelta;
-   u8* p;
-   MenuUnk2* pInfo;
+    u8* pBuffer;
+    s32 i;
+    s32 j;
+    u16 lineCount;
+    s32 lineCountDelta;
+    u8* p;
+    MenuUnk2* pInfo;
 
-   for (i = 0; i < 2; i++) {
-       g_Menu->menuUnk2->cardEnumerated[i] = 0;
-       g_Menu->menuUnk2->cardSlotCounts[i] = 0;
-       g_Menu->menuUnk2->previousCardSlotCounts[i] = 0xFF;
-   }
-   g_Menu->menuUnk2->cardPollMode = 0;
-   for (i = 0; i < 0x20; i++) {
-       g_Menu->menuUnk2->records[i].unk58 = 0;
-       g_Menu->menuUnk2->slotRecordIndexes[i] = 0xFF;
-   }
-   lineCount = g_GameState.fieldScriptMemory[0];
-   i = 0;
-   ArchiveSetIndex(0x10, 1);
-   pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(1), 1);
-   ArchiveReadFileToBuffer(1, pBuffer, 0, 0x80);
-   ArchiveCdDataSync(0);
-   if (lineCount != 0) {
-       lineCountDelta = 0xFFFF;
-       for (;;) {
-           if (pBuffer[i] >= 0x80) {
-               i += 2;
-               continue;
-           }
-           if (pBuffer[i] != '\n') {
-               i++;
-               continue;
-           }
-           lineCount += lineCountDelta;
-           i++;
-           if (lineCount != 0) {
-               continue;
-           }
-           break;
-       }
-   }
-   p = &pBuffer[i];
-   for (j = 0; j < 0x1E; j++) {
-       g_Menu->menuUnk2->saveTitleSuffix[j] = p[j];
-   }
-   pInfo = g_Menu->menuUnk2;
-   pInfo->saveTitleSuffix[0x1F] = 0;
-   pInfo->saveTitleSuffix[0x1E] = 0;
-   ArchiveSetIndex(0x10, 0);
-   HeapFree(pBuffer);
+    for (i = 0; i < 2; i++) {
+        g_Menu->menuUnk2->cardEnumerated[i] = 0;
+        g_Menu->menuUnk2->cardSlotCounts[i] = 0;
+        g_Menu->menuUnk2->previousCardSlotCounts[i] = 0xFF;
+    }
+    g_Menu->menuUnk2->cardPollMode = 0;
+    for (i = 0; i < 0x20; i++) {
+        g_Menu->menuUnk2->records[i].unk58 = 0;
+        g_Menu->menuUnk2->slotRecordIndexes[i] = 0xFF;
+    }
+    lineCount = g_GameState.fieldScriptMemory[0];
+    i = 0;
+    ArchiveSetIndex(0x10, 1);
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(1), 1);
+    ArchiveReadFileToBuffer(1, pBuffer, 0, 0x80);
+    ArchiveCdDataSync(0);
+    if (lineCount != 0) {
+        lineCountDelta = 0xFFFF;
+        for (;;) {
+            if (pBuffer[i] >= 0x80) {
+                i += 2;
+                continue;
+            }
+            if (pBuffer[i] != '\n') {
+                i++;
+                continue;
+            }
+            lineCount += lineCountDelta;
+            i++;
+            if (lineCount != 0) {
+                continue;
+            }
+            break;
+        }
+    }
+    p = &pBuffer[i];
+    for (j = 0; j < 0x1E; j++) {
+        g_Menu->menuUnk2->saveTitleSuffix[j] = p[j];
+    }
+    pInfo = g_Menu->menuUnk2;
+    pInfo->saveTitleSuffix[0x1F] = 0;
+    pInfo->saveTitleSuffix[0x1E] = 0;
+    ArchiveSetIndex(0x10, 0);
+    HeapFree(pBuffer);
 }
 */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
+
 #define FIELD_TEX_COUNT(_i) ((_i) * 6) + 0
 #define FIELD_TEX_PAGE(_i)  ((_i) * 6) + 1
 #define FIELD_CLUT_X(_i)    ((_i) * 6) + 2
