@@ -14,6 +14,14 @@
 // the archive directory this overlay's files are read through
 #define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
 
+// the scale animation an actor runs: the angle advances by a fixed step each frame,
+// wrapping at WORLD_MAP_SCALE_ANGLE_LIMIT, and each wrap advances the scale until it
+// reaches the maximum that ends the animation.
+#define WORLD_MAP_SCALE_ANGLE_STEP 0xC0
+#define WORLD_MAP_SCALE_ANGLE_LIMIT 0x800
+#define WORLD_MAP_SCALE_STEP 0x100
+#define WORLD_MAP_ACTOR_SCALE_MAX 0x6000
+
 typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
@@ -1178,22 +1186,21 @@ s32 func_8007A1B4(s32 index) {
     result = 1;
     pEntry[14].pos = pEntry[0].pos;
     pEntry[15].pos = pEntry[14].pos;
-    p->scaleAngle += 0xC0;
-    if (p->scaleAngle >= 0x800) {
-        p->scale = (p->scale + 0x100) & 0x7FFF;
+    p->scaleAngle += WORLD_MAP_SCALE_ANGLE_STEP;
+    if (p->scaleAngle >= WORLD_MAP_SCALE_ANGLE_LIMIT) {
+        p->scale = (p->scale + WORLD_MAP_SCALE_STEP) & 0x7FFF;
     }
-    if (p->scale >= 0x6000) {
+    if (p->scale >= WORLD_MAP_ACTOR_SCALE_MAX) {
         result = 3;
         p->command = 0;
         p->scale = 0;
         p->scaleAngle = 0;
     }
-    pMtxA = (MATRIX *)0x1F8000F0;
+    pMtxA = (MATRIX *)&pScratch[0x3C];
     *pMtxA = g_WorldMapIdentityMatrix;
-    pMtxB = (MATRIX *)0x1F800110;
+    pMtxB = (MATRIX *)&pScratch[0x44];
     *pMtxB = *pMtxA;
-    // each scale goes to its vector's x and z, the second loaded before the two
-    // 0x1000 stores so the two live ranges get different registers
+    // the second scale is loaded before the two 0x1000 stores, as retail does
     angle = p->scaleAngle;
     pScratch[2] = angle;
     pScratch[0] = angle;
@@ -1202,8 +1209,8 @@ s32 func_8007A1B4(s32 index) {
     pScratch[1] = 0x1000;
     pScratch[6] = scale;
     pScratch[4] = scale;
-    ScaleMatrix(pMtxA, (VECTOR *)0x1F800000);
-    ScaleMatrix(pMtxB, (VECTOR *)0x1F800010);
+    ScaleMatrix(pMtxA, (VECTOR *)pScratch);
+    ScaleMatrix(pMtxB, (VECTOR *)&pScratch[4]);
     pEntry[14].matrix = *pMtxA;
     pEntry[15].matrix = *pMtxB;
     return result;
