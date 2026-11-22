@@ -748,11 +748,20 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
    2. THE ONE REAL DIFFERENCE: inside the loop retail forms the probe address as
       "lui t0,hi" then "addiu a0,t0,lo" (hi in a scratch, untied) while every
       spelling here gives the tied "lui a0,hi" plus "addiu a0,a0,lo" of the
-      maspsx la expansion; only the two register fields differ. Measured and dead:
-      a pointer local before the loop, a per-iteration assignment, an inline
-      cast, an unbounded-array extern, and a 3-minute permuter run from this body
-      (1424 iterations, base 20, best 20). try_flags: gcc-2.7.2-cdk 89.1, so the
-      preset is not the answer; plain -G0 is 99.93 (no change).
+      maspsx la expansion; only the two register fields differ. THIS IS THE
+      COMPILER, NOT THE SOURCE (round 408): cc1_probe.sh on this unit shows both
+      gcc-2.7.2-psx and gcc-2.6.0-psx emit one "la $4,sym" - which GNU as then
+      ties - for every spelling of the address (bare symbol, symbol plus field
+      offset, array extern, u8 pointer plus 0x60, local pointer, store then take)
+      and only gcc-2.7.2-cdk-psx emits the split. cdk would not match this body
+      either: 89.1% at 644 bytes (32 short), and 67.8% at 676 with
+      -fno-schedule-insns/-insns2. Measured and dead in the source: a pointer
+      local before the loop, a per-iteration assignment, an inline cast, an
+      unbounded-array extern, and a 3-minute permuter run from this body (1424
+      iterations, base 20, best 20). The unit cannot switch to cdk (ten matched
+      functions drop to 75-97) so this is a MIXED unit: one function whose TU was
+      built with the splitting cc1, and neither a preset switch nor a unit split
+      buys it.
    How the 8-byte narrowing was removed, which is the find worth keeping: the
    caller's kind stays s32 and the CALLEE keeps its s16 signature, but the call
    is made through a K&R declaration, which makes the 5th argument a raw word
