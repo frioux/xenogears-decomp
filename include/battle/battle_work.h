@@ -108,7 +108,7 @@ typedef struct {
 typedef struct {
     /* 0x0000 */ u8 unk0[0x6410];
     /* 0x6410 */ s32 scrollOffset; // sub-image scroll BattleUpdateImageUpload steps by 4 between 0x7C and 0x81
-    /* 0x6414 */ u8 unk6414;
+    /* 0x6414 */ u8 scrollRowPrimStart; // prim index the scroll row's 0x18-byte prim and its two rects were built at
     /* 0x6415 */ u8 scrollActive; // while set, scrollOffset steps every update
     /* 0x6416 */ u8 scrollDir; // 0 counts scrollOffset up to 0x81, 1 counts down
     /* 0x6417 */ u8 unk6417[0x2539];
