@@ -20,7 +20,7 @@
 #define WORLD_MAP_SLOT_FACING_SIN 0x85A
 
 // how far from the player along its facing direction the slot actor is spawned:
-// func_8007ECA4 sets x and z to the player position minus each facing component
+// WorldMapInitGroup1Actor sets x and z to the player position minus each facing component
 // times this
 #define WORLD_MAP_SLOT_SPAWN_OFFSET 13952
 
@@ -225,7 +225,7 @@ extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern s16 g_WorldMapSpawnPositions[];
 extern s16 D_8009A5B6[];
 extern s16 D_8009A5B8[];
-extern s16 D_8009A674[];
+extern s16 g_WorldMapAreaSpawnPositions[];
 extern s16 D_8009A678[];
 extern s32 g_WorldMapPrimPacketIndex;
 extern void WorldMapSetPrimColors(u8 *, s32, s32, s32, s32);
@@ -267,7 +267,7 @@ extern int WorldMapSetActorScriptTables(int);
 extern void func_8007DE98(int);
 extern int func_8007E450(int);
 extern int func_8007E4E4(int);
-extern int func_8007ECA4(int);
+extern int WorldMapInitGroup1Actor(int);
 extern void func_8007EE34(int);
 extern int WorldMapInitSlotActor(int);
 extern int WorldMapUpdateSlotActor(int);
@@ -520,7 +520,7 @@ void func_8007D918(void) {
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapSetActorScriptTables, func_8007DE98);
     WorldMapAddSlot(func_8007E450, func_8007E4E4);
-    WorldMapAddSlot(func_8007ECA4, func_8007EE34);
+    WorldMapAddSlot(WorldMapInitGroup1Actor, func_8007EE34);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
@@ -905,7 +905,7 @@ void WorldMapBuildPolyFT4Templates(WorldMapGroup *pGroup, u8 *pPrim, int count, 
     memcpy((u8 *)pGroup->pPrims[1], pGroup->pPrims[0], count * sizeof(POLY_FT4));
 }
 
-int func_8007ECA4(int index) {
+int WorldMapInitGroup1Actor(int index) {
     WorldMapActor *pActor;
     WorldMapRoot *pRoot;
     WorldMapGroup *pGroup;
@@ -933,7 +933,7 @@ int func_8007ECA4(int index) {
     *(volatile s16 *)&pActor->state = 0;
     *(volatile s32 *)&pActor->dirY = 0;
     *(volatile s32 *)&pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
-    *(volatile s32 *)&pActor->stateIndex = D_8009A674[nIndex * 4] << 12;
+    *(volatile s32 *)&pActor->stateIndex = g_WorldMapAreaSpawnPositions[nIndex * 4] << 12;
     *(volatile void **)&pActor->pStateIds = (void *)(D_8009A678[nIndex * 4] << 12);
     *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET;
     *(volatile s32 *)&pActor->y = g_WorldMapPlayerPositionY;

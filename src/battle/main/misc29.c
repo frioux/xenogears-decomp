@@ -259,7 +259,7 @@ extern u8 g_BattleActorSlotMode;
 extern u8 g_BattleActorArchiveLoading;
 extern BattleActorArchiveFile *g_BattleStageActorArchive;
 extern int *g_BattleStageStreamFile;
-extern void func_800BB080(s32 arg0);
+extern void BattleClearFinishedSlotSprites(s32 arg0);
 extern int ArchiveReadFileToBuffer(s32 fileIndex, void *pBuffer, u32 arg2, u32 arg3);
 extern int ArchiveDecodeAlignedSize(s32 fileIndex);
 extern void BattleUnloadActorArchive(void);
@@ -313,13 +313,13 @@ void BattleLoadStageActorArchive(s32 stage) {
         g_BattleActorSlotMode = mode;
         BattleBeginAnimTask(0);
         if (mode == 1) {
-            func_800BB080(-1);
+            BattleClearFinishedSlotSprites(-1);
             g_BattleActorSlotUsedMask = 0;
         } else {
             g_BattleActorSlotUsedMask &=
                 ~(1 << ((((u32)pSprite->flags_0xAC.flags & 3) << 2) | ((u32)pSprite->flags_0xA8 >> 30)));
             slotIndexLow = (u32)pSprite->flags_0xA8 >> 30;
-            func_800BB080((((u32)pSprite->flags_0xAC.flags & 3) << 2) | slotIndexLow);
+            BattleClearFinishedSlotSprites((((u32)pSprite->flags_0xAC.flags & 3) << 2) | slotIndexLow);
         }
     }
     g_BattleStageStreamFile = ArchiveAllocStreamFile(8, 0);

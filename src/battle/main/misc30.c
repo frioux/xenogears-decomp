@@ -945,7 +945,7 @@ void BattleFinishActorAnimationAndReleaseSlot(s32 index) {
    76.91 but breaks the unit's matched functions (BattleIncrementStateTimer
    99.09, BattleApplyStateStep 87.22, BattleActorSnapToTargetAndFace 85.40), and
    gcc-2.6.0-psx -G0 does not compile the unit. */
-void func_800BB080(s32 arg0) {
+void BattleClearFinishedSlotSprites(s32 arg0) {
     BattleSlotTables* pWork;
     s32 i;
     SpriteData* pSprite;
