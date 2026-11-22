@@ -142,7 +142,7 @@ extern WorldMapRoot *g_WorldMapGroups;
 extern u8 g_WorldMapPlayerPosition[];
 extern u32 g_WorldMapPlayerPositionY;
 extern u32 g_WorldMapPlayerPositionZ;
-extern u16 g_WorldMapScriptStateIds;
+extern u16 g_WorldMapScriptStateIds[];
 extern u16 g_WorldMapScriptStateFrames[];
 extern u16 g_WorldMapSlotScales[];
 extern u16 g_WorldMapGroupInitialScale[];
@@ -178,7 +178,16 @@ extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
 extern void WorldMapFreeGridImages(void);
 extern void WorldMapFreeSlotPool(void);
-extern u8 *g_MenuSedsFile;
+// the sound-effect bank header, read for the sed id this overlay's effects are
+// played from. The field is the one SoundFile declares at 0x14; this unit does
+// not include include/system/sound.h (its g_SoundControlFlags is wider than the
+// one this overlay reads), so the two words it needs are declared here.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x14];
+    /* 0x14 */ u16 sedId;
+} SoundSedsBank; // Size: unknown, only +0x14 is read
+
+extern SoundSedsBank *g_MenuSedsFile;
 extern u8 *g_WorldMapWorkBuffer1;
 extern u8 *g_WorldMapWorkBuffer2;
 extern u8 *g_WorldMapTilePrimBuffer;
@@ -200,6 +209,8 @@ extern MATRIX g_WorldMapIdentityMatrix;
 extern MATRIX g_WorldMapModeMatrix;
 extern s32 g_WorldMapTpageAbr;
 extern s32 g_WorldMapDrawMode;
+extern s32 g_WorldMapLoopActive;
+extern s32 g_WorldMapAreaMode;
 extern s32 g_WorldMapMode4EntryTriggered;
 extern void WorldMapWrapTileVertexPositions(void);
 extern void (*g_WorldMapWrapPositionsCallback)(void);
@@ -268,7 +279,9 @@ extern void WorldMapInitSlotAtScrollPosition(void);
 extern void func_80080944(void);
 extern void func_80080A28(void);
 extern void WorldMapUpdateFadeGroups(void);
-extern void func_80080370(void);
+extern int func_80080370(int);
+extern void WorldMapStartSlot(s32, s32);
+extern void SoundPlaySoundEffectOnFreePair(s32);
 extern int func_80080578(int);
 extern int func_80080600(int);
 extern int WorldMapInitActorScript(int);
@@ -1284,11 +1297,93 @@ int WorldMapInitActorScript(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
     pActor->stateIndex = 0;
-    pActor->state = g_WorldMapScriptStateIds;
+    pActor->state = g_WorldMapScriptStateIds[0];
     pActor->stateTimer = g_WorldMapScriptStateFrames[pActor->stateIndex];
     return 1;
 }
 
+/* Best: 99.92%, 520 bytes = retail's exact size, objdiff 99.92% (round 400). Every
+   instruction is identical to retail's; the ONLY residual is the switch's table
+   operand (retail names jtbl_800701E0 at .rodata+0, this body's table is
+   .rodata+0x18) plus the .L label naming of the jump targets. Both are the
+   JTBL_LAYOUT blocker, and check_bin proves it: with this body in place
+   world_map.bin comes out 180426 against disc's 180422, exactly +4.
+   The arithmetic: misc6's .rodata range is 0x29C..0x7F4 of the overlay and its
+   eight tables tile it with no slack; this function's table is the LAST one, at
+   range offset 0x454 - 4 mod 8 - and cc1's `.rdata / .align 3` pads it up to
+   0x458 (see lever i-jtbl-align-3-hardcoded and i-jtbl-midchain-4mod8: the
+   align 3 is hardcoded in all three cc1s). misc5 and misc12 parks hit the same
+   wall.
+   Do not retry this one until a maspsx `.align 3` -> `.align 2` rewrite for
+   `.rdata` case tables exists.
+   Shapes measured on the way: `default: break;` alone (no `case 0:`) makes gcc
+   fold the index to `state - 1` and emit 64 entries with `sltiu ... 64` instead
+   of retail's 65 / `sltiu ... 0x41` - the `case 0:` label is what keeps the
+   table's slot 0. The state-1 arm, the WorldMapStartSlot/global-set cases and the
+   three SoundPlaySoundEffectOnFreePair calls are all instruction-exact.
+*/
+/*
+int func_80080370(int index) {
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
+
+    switch (pActor->state) {
+    case 1:
+        pActor->stateTimer = pActor->stateTimer - 1;
+        if ((s16)pActor->stateTimer < 0) {
+            pActor->state = g_WorldMapScriptStateIds[pActor->stateIndex];
+            pActor->stateTimer = g_WorldMapScriptStateFrames[pActor->stateIndex];
+            pActor->stateIndex = pActor->stateIndex + 1;
+        }
+        break;
+    case 2:
+        WorldMapStartSlot(3, 1);
+        pActor->state = 1;
+        break;
+    case 3:
+        WorldMapStartSlot(2, 2);
+        pActor->state = 1;
+        break;
+    case 4:
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 0x80;
+        pActor->state = 1;
+        break;
+    case 5:
+        WorldMapStartSlot(0, 0xC);
+        WorldMapStartSlot(4, 1);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 0x80;
+        pActor->state = 1;
+        break;
+    case 6:
+        WorldMapStartSlot(2, 3);
+        pActor->state = 1;
+        break;
+    case 7:
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapTpageAbr = 2;
+        g_WorldMapDrawMode = 4;
+        pActor->state = 1;
+        break;
+    case 8:
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x16);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x17);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x18);
+        pActor->state = 1;
+        break;
+    case 0x40:
+        g_WorldMapLoopActive = 0;
+        g_WorldMapAreaMode = 0;
+        pActor->state = 0;
+        break;
+    case 0:
+    default:
+        break;
+    }
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
