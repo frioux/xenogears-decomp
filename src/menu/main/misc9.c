@@ -81,7 +81,7 @@ typedef struct {
 } MenuEquipmentSlotRecord; // Size: 0x28
 
 void func_801DC3D8(u_char arg0, u_char arg1);
-void func_801DCE60(u_char arg0, u_char arg1, u_char arg2);
+void func_801DCE60(u_char arg0, s32 arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
@@ -796,35 +796,56 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
-/* Best: 97.64%, 1928 bytes (retail 1924 = 481 insns, ours 482). Fills one column of
-   the 0x430 panel: renders the column's two heading strings into a scratch buffer,
-   uploads them, points the four tail sprite records at them, copies the selected
-   column's record into MENU_PANEL_COLUMN_STRING and sets the row flags the prim
-   adder in misc5 renders. arg2 selects the panel kind (item / gear list / gear two
+/* Best: 97.64%, 1928 bytes - and retail's object is ALSO 1928 bytes / 482 insns
+   (objdiff-cli: expected/asm/menu/main/misc9.s.o func_801DCE60 size 1928; the
+   old note's "retail 1924 = 481" was STALE). Byte count is exact: only three
+   equal-count spelling deltas remain. Fills one column of the 0x430 panel:
+   renders the column's two heading strings into a scratch buffer, uploads them,
+   points the four tail sprite records at them, copies the selected column's
+   record into MENU_PANEL_COLUMN_STRING and sets the row flags the prim adder
+   in misc5 renders. arg2 selects the panel kind (item / gear list / gear two
    columns) and with it the string id base and the dressing room prim block.
-   Confirmed retail's: prologue and save set, frame 0x48, both switch trees, every
-   call site and store, the shared exits, the 0x4E/0xD constants hoisted to $s0/$s1.
-   Two edits got it from ~91% to here:
-   - arg1 must be declared s32, not u_char: as u_char cc1 emits a `move a0,a1`
-     parameter copy and masks that copy where retail masks $a1 in place, which also
-     puts the arms' `(arg1 & 0xFF)` masks back (97.27 -> 97.64).
-   - `(u32)(arg1 & 0xFF) >> 1` for the two-column prim offset: the signed shift
-     gives `sra` where retail has `srl`.
-   Three deltas left (permute.sh --minutes 4 -j 2: PERMUTER_BETTER 1751 -> 1210, the
-   winner is an inline_fn helper, not portable):
-   1. kind 2's shared `addu s0`: retail `addu s0,v0,v1` (the gearId << 3 side as the
-      destination), ours `addu s0,v1,v0`. Kinds 0 and 1 match. Tried both operand
-      orders, `gearId * 8` for `<< 3`, and an (arg1 & 0xFE)-first sum: cc1
-      canonicalises to offset-first every time.
-   2. the row flag: retail `andi 0x1000 / sltiu / move`, ours `srl 0xc / xori / andi`.
-      Tried `== 0`, `!(...)`, `< 1`, a u_int flags local and a (u16) cast on the masked
-      value: cc1 folds all of them to the bit-test form. Same instruction count.
-   3. tail: g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets and the literal 2 land in $s1/$s2/$s0
-      where retail has $s0/$s1/$s2 (cyclic rotation), and the second
-      MenuSetRowQuadVertices call's setup is scheduled around the first call's tail -
-      that is the one extra instruction.
-   Realism owed: `flags = *(u16*)pBase` and `(*pBase & 3)` are raw reads of a prim
-   block. The panel itself is typed by MenuUnk430Panel above. */
+   Confirmed retail's: prologue and save set, frame 0x48, both switch trees,
+   every call site and store, the shared exits, the 0x4E/0xD constants hoisted
+   to $s0/$s1, and the FIRST switch's per-arm code (arm asm is byte-identical).
+   Measured this round (round r397 worker lane):
+   - try_flags: gcc-2.7.2-psx 96.93, gcc-2.7.2-cdk compile-fails, 2.6.0 with
+     -G0 or -O3 no change (97.64). The preset is right; all three residuals are
+     2.6.0 source/allocator issues.
+   - Delta 1 (kind 2's shared addu) is a CROSS-JUMP tie: the three arms' sum
+     insns must be text-identical to share ONE addu. Ours all read addu s0,v1,v0
+     (first RTL operand in v1: id for kinds 0/1, arg1 and 0xFE for kind 2),
+     retail's all read addu s0,v0,v1. Flipping the C operand order in ALL THREE
+     arms (arg1-side first in 0/1, gearId first in 2) restructures: gcc emits the
+     id LOAD first either way, but the arg1 side then lands in $a0 and arms 0/1
+     cross-jump a 3-insn tail (sll, sll, addu) that retail does not have:
+     96.09%, 480 insns.
+   - Delta 2 (row flag) MECHANISM FOUND: gcc 2.6.0's combine folds
+     (flags and 0x1000) == 0 into srl 12, xori 1, andi 1 whenever the andi and
+     the seq are in the SAME basic block. Retail's andi v0,v1,0x1000 sits in
+     the beqz DELAY SLOT and the compare stays sltiu+move. The spelling that
+     defeats the fold AND keeps retail's delay-slot fill (measured 97.28%, the
+     whole row-flag shape exact: andi 0x4000, beqz, andi 0x1000 delay, j,
+     li v1,2 delay, sltiu):
+       cond = flags & 0x4000;    (u_int)
+       masked = flags & 0x1000;  (u_int)
+       if (cond) row = 2; else row = masked == 0;
+     Residual at 97.28: ours loads flags into v0 and cond into v1 (retail:
+     flags in v1, cond+masked in v0) and lacks retail's move v1,v0 (a
+     tmp = masked == 0; row = tmp; split is UNTRIED and may restore the move).
+     u16 cond/masked instead of u_int reorders the andis and inverts the branch
+     (96.69%, 480 insns); masked computed BEFORE the if also inverts the branch,
+     because the else shrinks to one insn and reorg puts the sltiu itself in
+     the beqz delay slot (96.69%, 480 insns).
+   - Delta 3 (tail: g_MenuColumnRowStringIds / g_MenuPanelRowXOffsets / the
+     literal 2 in $s1/$s2/$s0 vs retail's $s0/$s1/$s2, plus the second call's
+     setup scheduled around the first call's tail) is probably DOWNSTREAM of
+     delta 2: retail's move v1,v0 adds a pseudo that reshuffles the allocator.
+     Close delta 2 first, then re-read this.
+   Realism owed: flags = (u16) pBase read and (pBase[0] and 3) are raw reads of
+   a prim block. The panel itself is typed by MenuUnk430Panel above.
+   NOTE: the extern at the top of this file must stay (u_char, s32, u_char) -
+   a u_char second param is a conflicting-type error against this body. */
 /*
 void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
     u8* pImage;
