@@ -1188,19 +1188,6 @@ void FieldScriptWriteByteB06A0(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008A2E8);
-
-// PARKED 98.33% (504 bytes, retail's exact size and instruction multiset): one
-// instruction is in the wrong place - the `addu $s0,$v0,zero` that saves the
-// FieldScriptArgument1 result sits right after that call here, where the original
-// has reorg steal it into the ArchiveSetIndex jal delay slot (and `addu a1,zero`
-// one instruction earlier). Re-measured this round: a separate result local,
-// `value + 0x7FB` computed after the call, and an `archiveIndex += 0x7FB`
-// statement are all 504 bytes / 98.33 - the copy's RTL position does not move
-// from source.
-// FieldLoadTIMWithClut is declared with int parameters inside the park: the
-// shared prototype's shorts cost an sll/sra pair on each of x, y and clutY (92.09%).
-/*
 extern void* D_800B1F74;
 extern void FieldStoreScreenImage(void);
 extern void FieldLoadTIMWithClut(u_long* pTimData, int x, int y, int clutX, int clutY, int clutWidth,
@@ -1212,6 +1199,7 @@ void func_8008A2E8(void) {
     s32 y;
     s32 value;
     s32 archiveIndex;
+    s32 indexArg;
     u8 command;
     void* pBuffer;
 
@@ -1222,9 +1210,9 @@ void func_8008A2E8(void) {
     }
     command = SCRIPT_READ_U8_REL(1);
     if (command == 0) {
-        archiveIndex = FieldScriptArgument1(5, SCRIPT_READ_U8_REL(0xD));
+        indexArg = FieldScriptArgument1(5, SCRIPT_READ_U8_REL(0xD));
         ArchiveSetIndex(4, 0);
-        archiveIndex += 0x7FB;
+        archiveIndex = indexArg + 0x7FB;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(archiveIndex), 0);
         D_800B1F74 = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
@@ -1248,7 +1236,7 @@ void func_8008A2E8(void) {
     }
     g_FieldScriptVMStopFlag = 1;
 }
-*/
+
 void FieldScriptNoOpHandler1(void) {}
 void FieldScriptNoOpHandler2(void) {}
 void FieldScriptNoOpHandler3(void) {}
