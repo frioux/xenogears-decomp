@@ -240,9 +240,6 @@ typedef struct {
 
 extern LineScrollTable g_FieldLineScrolls;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
-
-/*
 void FieldFree(void) {
     FieldActor* pActor;
     s32* pCount;
@@ -256,9 +253,9 @@ void FieldFree(void) {
 
     i = 0;
     do {
+        next = i + 1;
         GfxFlushImageList();
         DrawSync(0);
-        next = i + 1;
         i = next;
         GfxSetRenderContext((g_FieldCurRenderContextIndex + i) & 1);
         GfxFlushImageList();
@@ -312,8 +309,6 @@ void FieldFree(void) {
     HeapFreeBlocksWithFlag(3);
     FieldFreeSpritePrimitives();
 }
-*/
-
 
 
 
