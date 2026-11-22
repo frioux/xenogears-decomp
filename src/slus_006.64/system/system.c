@@ -1006,4 +1006,215 @@ int SystemGetGlyphWidth(u16 first, u16 second) {
     return SYSTEM_GLYPH_WIDTH_WIDE;
 }
 
+// Bytes one glyph takes in the font file's glyph table: 11 words of 8 pixels,
+// one bit per pixel
+#define SYSTEM_FONT_GLYPH_SIZE 0x16
+// Rows of a glyph bitmap
+#define SYSTEM_FONT_GLYPH_ROW_COUNT 11
+// Bytes the double-byte glyph table spends on one lead byte: 0x100 trail bytes
+// of 0x16 bytes each
+#define SYSTEM_FONT_LEAD_BYTE_STRIDE 0x1600
+
+// Two glyph sets share a texture page, so a 4bpp pixel holds one set in bits 0-1
+// and the other in bits 2-3: a destination row is cleared with the other set's
+// pair before this glyph is written into it
+#define SYSTEM_FONT_PLANE0_CLEAR 0xCCCC
+#define SYSTEM_FONT_PLANE1_CLEAR 0x3333
+
+// Byte value whose doubled code names the dummy glyph
+#define SYSTEM_FONT_DUMMY_CODE 0xFF
+
+// Dummy glyph bitmap the renderer draws for the dummy code (0x16 bytes)
+extern u16 D_800501D0[];
+
+// Parked at 58.11% (421 instructions against retail's 424, 1684 bytes against
+// 1696). The whole structure below is measured.
+// - PRESET IS RIGHT: 2.6.0 scores 56.87 and 2.7.2-cdk 50.35 on this body.
+// - THE PROLOGUE IS INSTRUCTION-IDENTICAL except for the two-instruction frame
+//   this body needs. Retail uses NO callee-saved register and has no frame:
+//   pGlyph = a0, pDest = a2, stride*2 = t4, word = t0, pAhead = t1,
+//   pBehind = t2, the third word's pointer = t3, i = t5. Here pGlyph lands in
+//   s0 and i in s1 because the loop optimizer mints extra derived givs: it
+//   replaces the pAhead/pBehind +2 and +4 word accesses with their own
+//   induction variables (five addus per iteration), while retail keeps
+//   immediates off t1/t2 and has exactly ONE derived giv, t3 = pDest + 2
+//   (used as -2(t3) and 0(t3)). That extra pressure is the frame.
+//   Measured non-fixes: a declared pMid = pDest + 2 pointer used for the third
+//   word (56.32%, 427 instructions), which adds a fifth giv instead of removing
+//   one; moving pDest += rowStride into the for-increment expression (no
+//   change at all: 58.11%, same byte count).
+// - THE 0xFF TEST IS A BYTE: retail compares firstByte with 0xFF, not with the
+//   end-of-text code 0xFFFF (SYSTEM_FONT_DUMMY_CODE).
+// - rowStride IS SIGN-EXTENDED ONCE AND DOUBLED TWICE in retail
+//   (sll v1,a3,16 / sra v1,v1,16 / sll v0,v1,1, then a second sll v1,v1,1 for
+//   pBehind), so the source scales it in two places separately; this body folds
+//   both into one sra 15 and one value in t5.
+// - THE TWO PLANE BODIES ARE COPIES: everything in the second is the first with
+//   its masks shifted two bits (0x222 -> 0x888, 0x212 -> 0x848, 0x21 -> 0x84,
+//   (word >> 4) & 2 -> (word >> 2) & 8, word & 2 -> (word << 2) & 8), which is
+//   what a macro taking the shift would fold to.
+// - The last write of each group goes through the third word's pointer, i.e.
+//   the source addresses pDest[1] and pDest[2] (no other spelling was tried
+//   before the stop rule fired).
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
+
+/*
+// Draw one glyph bitmap into a rendered row's pixel buffer, spreading each
+// bitmap row over the row above and the row below it. pDest points one row into
+// the buffer, rowStride is the buffer's row width in pixels and plane picks
+// which of the two glyph sets of the page the pixels belong to.
+void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int plane) {
+    u16* pGlyph;
+    u16* pAhead;
+    u16* pBehind;
+    u16 word;
+    u16 mask;
+    int i;
+
+    if (firstByte == 0) {
+        pGlyph = (u16*)((u8*)g_SystemFontGlyphData +
+                        (secondByte - g_SystemFontSingleByteCodeBase) * SYSTEM_FONT_GLYPH_SIZE);
+    } else if (firstByte == SYSTEM_FONT_DUMMY_CODE && secondByte == SYSTEM_FONT_DUMMY_CODE) {
+        pGlyph = D_800501D0;
+    } else {
+        pGlyph = (u16*)((u8*)g_SystemFontGlyphData + secondByte * SYSTEM_FONT_GLYPH_SIZE +
+                        g_SystemFontDoubleByteGlyphOffset +
+                        (firstByte - g_SystemFontLeadByte) * SYSTEM_FONT_LEAD_BYTE_STRIDE);
+    }
+
+    if (plane == 0) {
+        pDest[0] &= SYSTEM_FONT_PLANE0_CLEAR;
+        pDest[1] &= SYSTEM_FONT_PLANE0_CLEAR;
+        pDest[2] &= SYSTEM_FONT_PLANE0_CLEAR;
+
+        pDest += rowStride;
+        pAhead = pDest + rowStride;
+        pBehind = pDest - rowStride;
+
+        pDest[0] &= SYSTEM_FONT_PLANE0_CLEAR;
+        pDest[1] &= SYSTEM_FONT_PLANE0_CLEAR;
+        pDest[2] &= SYSTEM_FONT_PLANE0_CLEAR;
+
+        for (i = 0; i < SYSTEM_FONT_GLYPH_ROW_COUNT; i++, pDest += rowStride) {
+            pAhead[0] &= SYSTEM_FONT_PLANE0_CLEAR;
+            pAhead[1] &= SYSTEM_FONT_PLANE0_CLEAR;
+            pAhead[2] &= SYSTEM_FONT_PLANE0_CLEAR;
+
+            word = *pGlyph++;
+
+            mask = (word & 0x80) ? 0x222 : 0;
+            if (word & 0x40) mask |= 0x2220;
+            if (word & 0x20) mask |= 0x2200;
+            if (word & 0x10) mask |= 0x2000;
+            pBehind[0] |= mask;
+            pAhead[0] |= mask;
+
+            mask = (word & 0x80) ? 0x212 : 0;
+            if (word & 0x40) mask |= 0x2120;
+            if (word & 0x20) mask |= 0x1200;
+            if (word & 0x10) mask |= 0x2000;
+            pDest[0] |= mask;
+
+            mask = (word & 0x08) ? 0x222 : ((word & 0x10) ? 0x22 : ((word >> 4) & 2));
+            if (word & 0x04) mask |= 0x2220;
+            if (word & 0x02) mask |= 0x2200;
+            if (word & 0x01) mask |= 0x2000;
+            pBehind[1] |= mask;
+            pAhead[1] |= mask;
+
+            mask = (word >> 4) & 2;
+            if (word & 0x10) mask |= 0x21;
+            if (word & 0x08) mask |= 0x212;
+            if (word & 0x04) mask |= 0x2120;
+            if (word & 0x02) mask |= 0x1200;
+            if (word & 0x01) mask |= 0x2000;
+            pDest[1] |= mask;
+
+            mask = (word & 0x8000) ? 0x222 : ((word & 0x01) ? 0x22 : (word & 0x02));
+            if (word & 0x4000) mask |= 0x2220;
+            if (word & 0x2000) mask |= 0x2200;
+            if (word & 0x1000) mask |= 0x2000;
+            pBehind[2] |= mask;
+            pAhead[2] |= mask;
+
+            mask = word & 0x02;
+            if (word & 0x01) mask |= 0x21;
+            if (word & 0x8000) mask |= 0x212;
+            if (word & 0x4000) mask |= 0x2120;
+            if (word & 0x2000) mask |= 0x1200;
+            if (word & 0x1000) mask |= 0x2000;
+            pDest[2] |= mask;
+
+            pAhead += rowStride;
+            pBehind += rowStride;
+        }
+    } else {
+        // The second glyph set of the page: the same rows, two bits higher
+        pDest[0] &= SYSTEM_FONT_PLANE1_CLEAR;
+        pDest[1] &= SYSTEM_FONT_PLANE1_CLEAR;
+        pDest[2] &= SYSTEM_FONT_PLANE1_CLEAR;
+
+        pDest += rowStride;
+        pAhead = pDest + rowStride;
+        pBehind = pDest - rowStride;
+
+        pDest[0] &= SYSTEM_FONT_PLANE1_CLEAR;
+        pDest[1] &= SYSTEM_FONT_PLANE1_CLEAR;
+        pDest[2] &= SYSTEM_FONT_PLANE1_CLEAR;
+
+        for (i = 0; i < SYSTEM_FONT_GLYPH_ROW_COUNT; i++, pDest += rowStride) {
+            pAhead[0] &= SYSTEM_FONT_PLANE1_CLEAR;
+            pAhead[1] &= SYSTEM_FONT_PLANE1_CLEAR;
+            pAhead[2] &= SYSTEM_FONT_PLANE1_CLEAR;
+
+            word = *pGlyph++;
+
+            mask = (word & 0x80) ? 0x888 : 0;
+            if (word & 0x40) mask |= 0x8880;
+            if (word & 0x20) mask |= 0x8800;
+            if (word & 0x10) mask |= 0x8000;
+            pBehind[0] |= mask;
+            pAhead[0] |= mask;
+
+            mask = (word & 0x80) ? 0x848 : 0;
+            if (word & 0x40) mask |= 0x8480;
+            if (word & 0x20) mask |= 0x4800;
+            if (word & 0x10) mask |= 0x8000;
+            pDest[0] |= mask;
+
+            mask = (word & 0x08) ? 0x888 : ((word & 0x10) ? 0x88 : ((word >> 2) & 8));
+            if (word & 0x04) mask |= 0x8880;
+            if (word & 0x02) mask |= 0x8800;
+            if (word & 0x01) mask |= 0x8000;
+            pBehind[1] |= mask;
+            pAhead[1] |= mask;
+
+            mask = (word >> 2) & 8;
+            if (word & 0x10) mask |= 0x84;
+            if (word & 0x08) mask |= 0x848;
+            if (word & 0x04) mask |= 0x8480;
+            if (word & 0x02) mask |= 0x4800;
+            if (word & 0x01) mask |= 0x8000;
+            pDest[1] |= mask;
+
+            mask = (word & 0x8000) ? 0x888 : ((word & 0x01) ? 0x88 : ((word << 2) & 8));
+            if (word & 0x4000) mask |= 0x8880;
+            if (word & 0x2000) mask |= 0x8800;
+            if (word & 0x1000) mask |= 0x8000;
+            pBehind[2] |= mask;
+            pAhead[2] |= mask;
+
+            mask = (word << 2) & 8;
+            if (word & 0x01) mask |= 0x84;
+            if (word & 0x8000) mask |= 0x848;
+            if (word & 0x4000) mask |= 0x8480;
+            if (word & 0x2000) mask |= 0x4800;
+            if (word & 0x1000) mask |= 0x8000;
+            pDest[2] |= mask;
+
+            pAhead += rowStride;
+            pBehind += rowStride;
+        }
+    }
+}
+*/
