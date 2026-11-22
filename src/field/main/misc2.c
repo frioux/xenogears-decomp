@@ -1262,6 +1262,23 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 // build/src/field/main/misc2.c.o /tmp/out` disassembles the compiled object (relocations
 // resolved, labels printed) without docker, so a loop's exact instruction order can be read
 // instead of inferred from diff_func's side-by-side.
+//
+// Round 415 re-measured the parked body: 97.44% / 1432 bytes / 358 insns against retail's
+// 357, so it still cannot link. The residual is confirmed as ONE instruction: loop 3's
+// back-edge delay slot holds `move a1,s1` (a dead second-biv increment) where retail has
+// the tail's `lui a3,0xFF0000`. Re-measured loop 3 spelled `pQuad = D_800B0FEC;` with
+// `pQuad++` in the argument: 96.28% / 1432, the SAME +1 latch copy, plus the wrong
+// preheader order (`lui/addiu s1` before `li s0,0x15`; retail has it after) - so the index
+// spelling stays the best. NEW fact that narrows it: the trip count is NOT the trigger. The
+// compass loop (loop 1) is the same construct, and giving it loop 3's bound (0x18, four
+// iterations) still produces retail's body-top copy with a `nop` back-edge slot and NO
+// latch copy. Our loop 1 and loop 3 compiled bodies are the same sequence ([move a1,s1,
+// addiu s1, addiu a2, addiu s0]) yet only loop 3 gains the latch copy, and loop 3 is the
+// only one whose fall-through is a duplicate `lui` that reorg could have taken for the slot.
+// So the trigger is loop 3's context (the third guard's register state, which is also why
+// the tail keeps the mask in $t1 where retail has $a3 - residual 2), not the loop
+// construct. Source-side spellings of this loop are exhausted; next lead is the tail's
+// register rotation, which shares that state.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
 /*
