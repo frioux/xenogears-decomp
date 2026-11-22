@@ -812,57 +812,38 @@ typedef struct {
     /* 0x14 */ SPRT copies[5];
 } Misc8DimSprites; // Size: 0x78
 
-extern Misc8BattleGrid g_BattleGridCells[];
+extern Misc8BattleGrid *g_BattleGridCells;
 extern POLY_G4 D_80095580[2];
 extern DR_TPAGE g_BattleDimTpagePrims[4];
+extern u8 g_BattleFogColors;
 extern Misc8DimSprites D_800955F8;
 extern void BattleInitDrawEnvPair(void);
 extern void func_800732AC(void *pDst, void *pSrc, s32 n);
 extern void BattleInitSpanBuffers(void);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081ECC);
-/* PARK 70.16% (752 bytes vs retail 684; 188 insns vs 171).  The whole geometry
-   is recovered; the residual is that retail wrote WIDER stores than any source
-   type here can ask for.  13 of the 17 extra insns are merged constant stores:
-   in the POLY_G4 block retail has sh 0x6010 for (r1,g1), sh 0x7F7F for (r2,g2)
-   and (r3,g3), sw 0x140 for (x1,y1), sw 0 for (x0,y0), sw 0x600000 for (x2,y2)
-   and sw 0x600140 for (x3,y3); in the SPRT template sw 0x64707070 covers
-   (r0,g0,b0,code), sw 0 for (x0,y0), sh 0 for (u0,v0) and sw 0xDB0080 for
-   (w,h).  Ours emits one sb/sh per field.  The merge cannot be the source doing
-   it either: inside the SAME struct r0,g0 stay two byte stores while r1,g1
-   merge, so no field type explains both.  Measured with cc1_probe.sh (POLY_G4
-   r1=0x10, g1=0x60, x1=0x140, y1=0, plus a globals-only variant):
-   gcc-2.7.2-psx, gcc-2.6.0-psx and gcc-2.7.2-cdk-psx all emit sb/sb, never a
-   sh, for an adjacent constant byte pair, so no preset reaches this.  The
-   merge also forces one more difference: retail reads the sprite code byte back
-   with lbu/andi 0xFE/ori 2 (setSemiTrans cannot see the merged store), ours
-   folds it to li 0x66.
-   Remaining 4 insns, all fixable if the merges ever are: retail loads
-   g_BattleGridCells as a POINTER (lw a0, %lo(g_BattleGridCells)) so that extern
-   should be a pointer, not an array; and (x3,y3) must be the absolute
-   sw %lo(D_800955A0) through $at, ours re-uses a2 as base (sh a0,32(a2)).
-   Tried: per-vertex setRGB then setXYWH order (67.89 - setXYWH is what makes
-   x3,y3 come out as the single 0x600140 constant, so it is probably the right
-   shape and only the merging is missing); interleaved per-vertex field writes
-   (70.16, the body below).
 void func_80081ECC(void) {
+    POLY_G4 *pQuad;
+    Misc8DimSprites *pDim;
     s32 i;
 
     BattleInitDrawEnvPair();
 
-    setPolyG4(&D_80095580[0]);
-    setRGB0(&D_80095580[0], 0x10, 0x60, 0x7F);
-    D_80095580[0].x0 = 0;
-    D_80095580[0].y0 = 0;
-    setRGB1(&D_80095580[0], 0x10, 0x60, 0x7F);
-    D_80095580[0].x1 = 0x140;
-    D_80095580[0].y1 = 0;
-    setRGB2(&D_80095580[0], 0x7F, 0x7F, 0x7F);
-    D_80095580[0].x2 = 0;
-    D_80095580[0].y2 = 0x60;
-    setRGB3(&D_80095580[0], 0x7F, 0x7F, 0x7F);
-    D_80095580[0].x3 = 0x140;
-    D_80095580[0].y3 = 0x60;
+    pQuad = &D_80095580[0];
+    setPolyG4(pQuad);
+    // each corner below is written packed: r,g as one halfword, x,y as one word
+    g_BattleFogColors = 0x10;
+    pQuad->g0 = 0x60;
+    pQuad->b0 = 0x7F;
+    *(u16 *)&pQuad->r1 = 0x6010;
+    *(u16 *)&pQuad->r2 = 0x7F7F;
+    *(u16 *)&pQuad->r3 = 0x7F7F;
+    *(u32 *)&pQuad->x1 = 0x140;
+    pQuad->b1 = 0x7F;
+    pQuad->b2 = 0x7F;
+    pQuad->b3 = 0x7F;
+    *(u32 *)&pQuad->x0 = 0;
+    *(u32 *)&pQuad->x2 = 0x600000;
+    *(u32 *)&pQuad->x3 = 0x600140;
     D_80095580[1] = D_80095580[0];
 
     SetDrawTPage(&g_BattleDimTpagePrims[0], 0, 0, GetTPage(2, 2, 0, 0x100));
@@ -870,30 +851,24 @@ void func_80081ECC(void) {
     SetDrawTPage(&g_BattleDimTpagePrims[2], 0, 0, GetTPage(2, 2, 0x100, 0x100));
     SetDrawTPage(&g_BattleDimTpagePrims[3], 0, 0, GetTPage(2, 2, 0x100, 0));
 
-    setSprt(&D_800955F8.sprt);
-    setRGB0(&D_800955F8.sprt, 0x70, 0x70, 0x70);
-    D_800955F8.sprt.x0 = 0;
-    D_800955F8.sprt.y0 = 0;
-    D_800955F8.sprt.u0 = 0;
-    D_800955F8.sprt.v0 = 0;
-    D_800955F8.sprt.w = 0x80;
-    D_800955F8.sprt.h = 0xDB;
-    setSemiTrans(&D_800955F8.sprt, 1);
+    pDim = &D_800955F8;
+    *(u32 *)&pDim->sprt.r0 = 0x64707070;
+    setlen(&pDim->sprt, 4);
+    *(u32 *)&pDim->sprt.x0 = 0;
+    *(u16 *)&pDim->sprt.u0 = 0;
+    *(u32 *)&pDim->sprt.w = 0xDB0080;
+    setShadeTex(&pDim->sprt, 0);
+    setSemiTrans(&pDim->sprt, 1);
 
-    func_800732AC(&D_800955F8.copies[0], &D_800955F8.sprt, 0x64);
+    func_800732AC(&pDim->copies[0], &pDim->sprt, 0x64);
 
-    D_800955F8.copies[1].x0 = 0x80;
-    D_800955F8.copies[1].u0 = 0x80;
-    D_800955F8.copies[2].x0 = 0x80;
-    D_800955F8.copies[2].u0 = 0x80;
-    D_800955F8.copies[3].x0 = 0x100;
-    D_800955F8.copies[3].w = 0x40;
-    D_800955F8.copies[4].x0 = 0x100;
-    D_800955F8.copies[4].w = 0x40;
+    pDim->copies[1].u0 = pDim->copies[2].u0 = 0x80;
+    pDim->copies[1].x0 = pDim->copies[2].x0 = 0x80;
+    pDim->copies[3].x0 = pDim->copies[4].x0 = 0x100;
+    pDim->copies[3].w = pDim->copies[4].w = 0x40;
 
     for (i = 0; i < 0x4000; i++) {
         g_BattleGridCells[i].height = g_BattleGridCells[i].height * 12;
     }
     BattleInitSpanBuffers();
 }
-*/
