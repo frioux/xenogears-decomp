@@ -439,7 +439,7 @@ extern void *g_SystemStreamedFileBuffer;
 extern u8 D_800CCB94[];
 extern u8 D_800C4A39[];
 
-void func_800B8098(s32 stage) {
+void BattleLoadStage(s32 stage) {
     u8 *pBase;
     u8 colorFlag;
 

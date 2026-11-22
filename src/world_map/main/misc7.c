@@ -94,7 +94,7 @@ typedef struct WorldMapEntry {
 } WorldMapEntry; // Size: 0x54
 
 // One world map fade quad: a textured quad per fade-table entry, jittered by
-// func_80081D80 so the wipe does not move in one block. The tpage word sits after the
+// WorldMapUpdateFadeQuads so the wipe does not move in one block. The tpage word sits after the
 // second vertex's texcoords, where the original object reads it.
 typedef struct {
     /* 0x00 */ u8 tag[3];
@@ -135,7 +135,7 @@ typedef struct {
 extern WorldMapSlot *g_WorldMapSlots;
 extern WorldMapEntry *g_WorldMapGroups;
 extern WorldMapRenderContext *g_WorldMapRenderContext;
-extern DR_MOVE D_8009D164[];
+extern DR_MOVE g_WorldMapDrawMovePrims[];
 extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr);
 extern u8 D_8009A758[];
 extern void WorldMapStartSlot(s32 arg0, s32 arg1);
@@ -268,7 +268,7 @@ extern s32 WorldMapUpdateSlotColorFade(s32 index);
 extern s32 WorldMapInitScaledGroupSlot(s32 index);
 extern s32 WorldMapUpdateSlotColorFadeFast(s32 index);
 extern s32 WorldMapInitFadePrims(s32 index);
-extern s32 func_80081D80(s32 index);
+extern s32 WorldMapUpdateFadeQuads(s32 index);
 extern s32 WorldMapResetSlotColorFade(s32 index);
 extern s32 WorldMapFillFadeTable(s32 index);
 extern s32 WorldMapEnterNop(s32 index);
@@ -506,7 +506,7 @@ void WorldMapInitializeFadeMode(void) {
     WorldMapAddSlot(func_800813E8, func_80081470);
     WorldMapAddSlot(func_800817A0, WorldMapUpdateSlotColorFade);
     WorldMapAddSlot(WorldMapInitScaledGroupSlot, WorldMapUpdateSlotColorFadeFast);
-    WorldMapAddSlot(WorldMapInitFadePrims, func_80081D80);
+    WorldMapAddSlot(WorldMapInitFadePrims, WorldMapUpdateFadeQuads);
     WorldMapAddSlot(WorldMapResetSlotColorFade, WorldMapFillFadeTable);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
@@ -933,7 +933,7 @@ s32 WorldMapInitFadePrims(s32 index) {
     }
     return 1;
 }
-s32 func_80081D80(s32 index) {
+s32 WorldMapUpdateFadeQuads(s32 index) {
     WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
     u16 *pFade = g_WorldMapFadeTable;
     DR_MOVE *pMove;
@@ -967,8 +967,8 @@ s32 func_80081D80(s32 index) {
     rect.w = 0xC0;
     rect.h = 0xD8;
     rect.y = g_WorldMapPrimPacketIndex * 0xD8;
-    SetDrawMove(&D_8009D164[g_WorldMapPrimPacketIndex], &rect, 0x280, 0x100);
-    pMove = &D_8009D164[g_WorldMapPrimPacketIndex];
+    SetDrawMove(&g_WorldMapDrawMovePrims[g_WorldMapPrimPacketIndex], &rect, 0x280, 0x100);
+    pMove = &g_WorldMapDrawMovePrims[g_WorldMapPrimPacketIndex];
     addPrim(g_WorldMapRenderContext->pOt[0], pMove);
     return 1;
 }

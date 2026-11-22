@@ -80,7 +80,7 @@ typedef struct {
     /* 0x26 */ u8 unk26[0x2];
 } MenuEquipmentSlotRecord; // Size: 0x28
 
-void func_801DC3D8(u_char arg0, u_char arg1);
+void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1);
 void func_801DCE60(u_char arg0, u_char arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
@@ -601,7 +601,7 @@ typedef struct {
     /* 0x0700 */ MenuString valueStrings[MENU_PANEL_VALUE_STRING_COUNT];
 } MenuUnk430ValueStrings; // Size: 0x1080
 
-void func_801DC3D8(u_char arg0, u_char arg1) {
+void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1) {
     u8 digitCodes[0x10];
     u8 stringBuffer[0x10];
     RECT rect;
@@ -1052,7 +1052,7 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
         group = arg2;
         MenuRenderFrame();
         if (refresh) {
-            func_801DC3D8(slot, group);
+            MenuBuildUnk430PanelColumns(slot, group);
             func_801DCE60(slot, arg1, group);
             func_801DD5E8(1);
             MenuBuildPartyCharacterPrims(group);
@@ -1251,7 +1251,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     do {
         MenuRenderFrame();
         if (slot != prevSlot) {
-            func_801DC3D8(slot, arg2);
+            MenuBuildUnk430PanelColumns(slot, arg2);
             prevSlot = slot;
             prevCol = 0xFF;
         }

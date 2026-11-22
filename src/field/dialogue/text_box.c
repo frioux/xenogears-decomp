@@ -124,7 +124,7 @@ void FieldScriptVMHandlerOpenTextBoxForActor(void) {
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
         nActorIndex = FieldScriptVMGetActorIndex(1);
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
-        if (func_8009C5A8(nActorIndex, 0) == -1) {
+        if (FieldTextBoxOpen(nActorIndex, 0) == -1) {
             g_FieldScriptVMCurActor->scriptInstructionPointer--;
         }
         return;
@@ -133,19 +133,19 @@ void FieldScriptVMHandlerOpenTextBoxForActor(void) {
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode0(void) {
-    func_8009C5A8(g_FieldCurActorIndex, 0);
+    FieldTextBoxOpen(g_FieldCurActorIndex, 0);
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode1(void) {
-    func_8009C5A8(g_FieldCurActorIndex, 1);
+    FieldTextBoxOpen(g_FieldCurActorIndex, 1);
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode2(void) {
-    func_8009C5A8(g_FieldCurActorIndex, 2);
+    FieldTextBoxOpen(g_FieldCurActorIndex, 2);
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode3(void) {
-    func_8009C5A8(g_FieldCurActorIndex, 3);
+    FieldTextBoxOpen(g_FieldCurActorIndex, 3);
 }
 
 int FieldTextBoxCheckPortraitIdAvailable(int targetId);
@@ -386,7 +386,7 @@ extern void func_8007F8DC(short x, short y, u16 dialogIndex, s32 textBoxIndex, s
 // Opens the text box a script instruction asked for: picks the slot, sizes the
 // window from the dialog string and the instruction's mode, and records the
 // layout in the text box table. Returns 0 when a box was opened, -1 otherwise.
-s32 func_8009C5A8(s32 actorIndex, s32 mode) {
+s32 FieldTextBoxOpen(s32 actorIndex, s32 mode) {
     s32 foundIndex;
     s32 textBoxIndex;
     s32 x;

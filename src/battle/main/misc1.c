@@ -207,7 +207,7 @@ extern void ArchiveSetIndex(s32, s32);
 extern void ArchiveCdDataSync(s32);
 extern void HeapFree(void *);
 extern void func_801E0A34(void);
-extern void func_800B8098(s32);
+extern void BattleLoadStage(s32);
 extern void BattleInitStageDisplay(s32);
 extern void BattleStartScreenFade(s32, u8, u8, u8, u8);
 extern s32 *SoundCreateAndPlayAudioManager(u8 *, s32, s32);
@@ -352,7 +352,7 @@ void func_80070F40(void) {
         ArchiveCdDataSync(0);
     }
     memmove(D_8006F9DC, D_800658DC + g_GameSelectedSkinIndex * 0x20, 0x20);
-    func_800B8098(g_SoundEffectBankIndex);
+    BattleLoadStage(g_SoundEffectBankIndex);
     func_8007252C();
     display = D_800C3DEC;
     g_BattleDisplayMode = 2;
