@@ -1244,38 +1244,6 @@ void BattleActorSetFlag80000(BattleActor* p) {
     p->flags |= 0x80000;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
-
-/* 97.90%: 430 of 430 instructions, same size (1720) and same .rodata (both jump
-   tables in case order). The whole instruction multiset matches; three residuals,
-   all of them allocation/layout, not structure:
-   - the `p->actionWaitTimer = 0xF` block of the reset path is placed after the case-1
-     guard here, and after the shared case-1/2 body (falling straight into
-     BattleResetMessageQueue, whose copy case 0 also uses) in the original. The
-     two cases' reset blocks are identical so cc1 cross-jumps them and keeps the
-     FIRST copy; retail kept the LAST one. Tried: case order 1,0,2 and 0,1,2
-     (92.52 both, 1760 bytes), case order 2,1 (97.74), `if (pEntry[0] != 0)
-     {body} else {reset}` and the body-first `if (...) {body; break;} reset`
-     (95.52 both - the cross-jump then does not happen at all), early-break
-     spelling of the case bodies (same 97.90).
-   - after BattleActorSelectActionEntry the original copies the result to $a1
-     immediately and tests p->state in $v0; gcc 2.7.2 keeps it in $v0 and copies
-     to $a1 in the bnez delay slot (so the flags load lands in $v1 and the
-     `ori 0x1000` in $a0).
-   - case 3 of the first switch: `flag = 1` gives `li $s2,1` two instructions
-     earlier than retail.
-   Structure worth keeping: the switch on BattleDequeueMessage takes 6 cases and
-   the first switch's cases must be LISTED 1, 2, 0, 3, 4, 5 (retail's body order);
-   the second switch on p->state is ascending 0-4, and its case 1 recomputes
-   p->animSpeedBonus with `/ 4096` (gcc's signed divide-by-power-of-2 sequence) while the
-   shared tail uses `>> 16`. BattleDequeueMessage must be declared s32: with a u8
-   return every caller gets an `andi v0,v0,0xff` retail does not have (verified:
-   the callee still matches 100.00% as s32).
-   Permuter: 1679 iterations from this body found nothing (base=462, best=462).
-   Round 203 preset screen of this body (tools/scripts/try_flags.sh): 2.6.0 94.41,
-   2.7.2-cdk 94.51, -O3 85.76, Default (2.7.2 -O2 -G8) 97.90 - the preset is right.
-   Re-un-parked and re-measured in round 203: still 97.90%, 1720 bytes, so the
-   three residuals above are current, not stale.
 extern s32 BattleEffectAddSlotFromVector(Vec4* pVec, s32 action);
 extern void func_8008ED6C(u8* p, s32 idx);
 extern void BattlePlayActorSoundPair(u8* p, s32 idx, void* pData, s32 flags);
@@ -1283,6 +1251,38 @@ extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern s32 BattleAccumulateGaugePoints(BattleActor* p, s32 points, s32 mode);
 extern u8 g_BattleCameraLerpFrames;
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
+
+/* 97.90%: 430/430 instructions, retail's exact 1720 bytes, both jump tables in
+   case order. Three residuals, all block placement / allocation, not structure:
+   (1) the merged `p->actionWaitTimer = 0xF` reset block: cc1 has ONE copy (the
+   cross-jump fires) but places it between the case-1 and case-2 entries, jumping
+   to case 0's BattleResetMessageQueue block; retail places it after the shared
+   case-1/2 body so it FALLS THROUGH into case 0's block (3 vs 2 instructions).
+   (2) after BattleActorSelectActionEntry retail copies the result to $a1 at once
+   and tests p->state in $v0; gcc keeps it in $v0 and copies in the bnez delay
+   slot, so the flags load goes to $v1 and the `ori 0x1000` to $a0 across the
+   whole body. (3) case 3 sets `flag = 1` -> `li $s2,1` two instructions earlier
+   than retail.
+   Round 397 re-measured the park at 97.90% / 1720 bytes (not stale) and added two
+   spellings: a shared label (`p->actionWaitTimer = 0xF; goto resetQueue;` in both
+   arms, `case 0: resetQueue:` on the BattleResetMessageQueue) = 94.72%, 1764 bytes
+   - cc1 still emits the block at case 1's position, now with an inverted branch
+   plus a `j`, so the layout hypothesis is wrong, not just the spelling; and the
+   body-first `if (pEntry[0] != 0) {body} else {reset}` in the 1,2,0 case order
+   = 95.52%, 1760 bytes (confirms the earlier note: the cross-jump does not fire
+   at all when the body comes first). Already tried and still current: case orders
+   1,0,2 and 0,1,2 (92.52), 2,1 (97.74), early-break bodies (97.90), permuter
+   1679 iterations base=462 best=462, preset screen 2.6.0 94.41 / cdk 94.51 /
+   -O3 85.76 / Default 97.90, so the preset is right.
+   Structure worth keeping: the first switch's cases must be LISTED 1, 2, 0, 3, 4,
+   5; the second switch on p->state is ascending 0-4 and its case 1 recomputes
+   p->animSpeedBonus with `/ 4096` while the shared tail uses `>> 16`;
+   BattleDequeueMessage must be declared s32 or every caller gains an
+   `andi v0,v0,0xff`.
+*/
+
+/*
 // The battle actor's action state machine: a queued message selects the action
 // (the first switch), then the state at 0xC4 recomputes the gauge word.
 void func_80077A9C(BattleActor* p) {
@@ -1486,9 +1486,8 @@ void func_80077A9C(BattleActor* p) {
         p->flags &= ~0x8000;
     }
 }
+
 */
-
-
 void BattleActorApplyCenterPosition(BattleActor* p) {
     p->position = p->centerPosition;
     p->modelIndex = 0;
