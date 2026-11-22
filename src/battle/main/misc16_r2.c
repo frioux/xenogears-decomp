@@ -499,20 +499,28 @@ void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
     ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primStart = ((u8 *)g_BattlePrimStartIndex)[0];
     ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primsPending = 1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009093C);
-/* 36.86%: first attempt. The shape is right -- the slti 0x68 / -0x68 /
-   vofs 0x10 split, the two (idx*0x28 + K) palette sh stores, four
-   BattleSetPolyFT4Rect(p, x, y, u, v, dx, dy) calls with the 0x60/0x10 dx and the
-   0x68 dy held in saved registers across them, and the trailing 0x668 store.
-   The gap is this unit's documented wall: retail materialises
-   `a2 = &g_BattlePrimStartIndex` (lui/addiu) and reloads `lw v0,0(a2)`, ours emits
-   `lui/lw g_BattlePrimStartIndex` at each use; retail also keeps pal in a1 and pBase in
-   a0 across the .L800909F4 join, so cc1 here reorders the two sh stores and
-   pushes the g_BattlePrimStartIndex*0x28 multiply around. Not attempted: a pPal/pBase
-   local pair (the same fold that parked func_80090C44 / func_80090E7C).
+// PARKED 68.62% (544 bytes / 136 insns; retail's 0x254 = 596 / 149). Re-measured from
+// scratch under the unit's gcc-2.6.0; the old 36.86 body was measured under 2.7.2 and also
+// multiplied the `s32 g_BattlePrimStartIndex[]` array by 0x28, which cannot compile.
+// What matches: the slti 0x68 / -0x68 / vofs 0x10 split, `pal` live in a1 across the join
+// from either palette symbol, the (primIdx*0x28 + K) strides, all four BattleSetPolyFT4Rect
+// argument sets (u 0 / 0x78 / vofs / vofs|0x40, v = index narrowed to u8 once, dx 0x60 and
+// 0x10, dy 0x68) and the trailing lbu/sb of the prim index at +0x668.
+// THE WHOLE 13-INSTRUCTION GAP IS ONE BLOCK: retail's first palette store sits inside BOTH
+// if-arms (the store at +0xE duplicated, ~12 instructions each, each arm also re-forming
+// `lui/addiu &g_BattlePrimStartIndex`), while gcc 2.6.0 cross-jumps my two identical arm
+// tails into the join and drops the copy - the same cross-jump func_80090310's note above
+// hit. To match, the arms have to differ in pseudo-registers; tried and still merged: the
+// store written twice from the inline expression, and a per-arm `u16 *pSlot = ...;
+// *pSlot = pal;` local. The body is 13 instructions short, so no amount of register work
+// can finish it - the duplicated arm tail is the target.
+// Tried and dead: `s32 *pPrim = g_BattlePrimStartIndex` + `*pPrim` at every site (532
+// bytes, 68.22, and no lui/addiu form, unlike func_800904A0), `vofs = 0` hoisted above the
+// if (identical 544), gcc-2.7.2 (56.88), gcc-2.7.2-cdk (compile-failed).
+/*
 void func_8009093C(s32 arg0) {
     s32 index;
-    u16 vofs;
+    s32 vofs;
     u16 pal;
 
     index = arg0;
@@ -520,19 +528,21 @@ void func_8009093C(s32 arg0) {
         index -= 0x68;
         vofs = 0x10;
         pal = g_SystemPalette2;
+        *(u16 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0xE) = pal;
     } else {
         vofs = 0;
         pal = g_SystemPalette1;
+        *(u16 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0xE) = pal;
     }
-    *(u16 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xE) = pal;
-    *(u16 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x5E) = pal;
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28), 0x30, 0x60, 0, index, 0x60, 0x68);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x50), 0xB4, 0x60, 0x78, index, 0x60, 0x68);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xA0), 0x98, 0x60, vofs, index, 0x10, 0x68);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xF0), 0x11C, 0x60, vofs | 0x40, index, 0x10, 0x68);
-    *(u8 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + 0x668) = g_BattlePrimStartIndex;
+    *(u16 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0x5E) = pal;
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28), 0x30, 0x60, 0, index, 0x60, 0x68);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0x50), 0xB4, 0x60, 0x78, index, 0x60, 0x68);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0xA0), 0x98, 0x60, vofs, index, 0x10, 0x68);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0xF0), 0x11C, 0x60, vofs | 0x40, index, 0x10, 0x68);
+    g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009093C);
 void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     if (++*pCount >= BATTLE_CURSOR_STEP_FRAMES) {
         if (--*pIndex < 0) {
