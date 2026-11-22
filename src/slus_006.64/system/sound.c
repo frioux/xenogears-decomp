@@ -765,21 +765,6 @@ void SoundStopAllPlayback(void) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800386C4);
-/*
-Attempt (97.73%, retail's exact 352 bytes). Everything matches except ONE instruction's position:
-retail is `sh s0,0x66(s1); li v0,1; sh v0,0x36(s1); sh v0,0x62(s1)`, ours puts the `li` first (the
-constant is materialised at the head of the block). Screened: gcc-2.7.2-cdk / gcc-2.7.2 / this
-unit's gcc-2.6.0 = 93.18 / 97.67 / 97.73, so the preset is not the answer either.
-Measured dead on the `li`: source statement order in both directions (0x36/0x62 last is 97.58),
-`unk62 = unk36 = 1;`, a `u16` local assigned 1 AFTER the 0x66 store, a `do { } while (0);` around
-the flag pair, around the 0x66 store alone and around all three stores, and a volatile store on
-unk66 (97.73 all). Duplicating the three stores in BOTH volume arms (so cross-jumping forms the
-tail) does give retail's store order but moves the `li` into the beq delay slot instead. A 4-minute
-PERMUTER_NONE run (1811 iterations, base=60 best=60) found nothing, and cc1_probe shows cc1 itself
-hoists the constant, so this is the STORE_HOIST class. The switch tree needs `case 0: break;` (with
-only cases 1-3 gcc pivots on 2), and volume must be shifted into itself (`volume <<= 7/6`) so only
-one sll is emitted.
 void func_800386C4(s32 mode) {
     AudioManager* pManager;
     SoundCdSeqState* pState;
@@ -823,18 +808,19 @@ void func_800386C4(s32 mode) {
                 pState->unk38 = volume;
                 pState->unk3A = 0;
                 pState->unk64 = 0;
+                pState->unk66 = volume;
             } else {
                 volume <<= 6;
                 pState->unk38 = volume;
                 pState->unk3A = volume;
                 pState->unk64 = volume;
+                pState->unk66 = volume;
             }
-            pState->unk66 = volume;
-            pState->unk62 = pState->unk36 = 1;
+            pState->unk36 = 1;
+            pState->unk62 = 1;
         }
     }
 }
-*/
 
 //----------------------------------------------------------------------------------------------------------------------
 s32 SoundGetVolumeMode(void) {
