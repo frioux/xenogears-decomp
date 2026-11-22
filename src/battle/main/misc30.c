@@ -101,7 +101,7 @@ typedef struct BattleActorSprite {
     /* 0x70 */ u8 unk70[0x4];
     /* 0x74 */ struct BattleActorSprite* pTargetEntitySprite;
     /* 0x78 */ u32 field_0x78;
-    /* 0x7C */ u8 unk7C[0x4];
+    /* 0x7C */ SpriteDataI3* pAnimState; // the sprite's animation state record
     /* 0x80 */ s16 field_0x80;
     /* 0x82 */ s16 field_0x82;
     /* 0x84 */ s16 field_0x84;
@@ -132,7 +132,8 @@ typedef struct {
 
 // The 0x1C-byte per-slot records at the head of g_BattleStateWork.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x7];
+    /* 0x00 */ u8 unk0[0x6];
+    /* 0x06 */ u8 mode; // actor slot mode: indexes the per-mode animation frame tables
     /* 0x07 */ u8 flags; // tested against 0 only; while set, the 0xFF state arm replays no animation
     /* 0x08 */ u8 inUse; // non-zero while the slot is claimed; every reader here tests it against 0
     /* 0x09 */ u8 unk9;
@@ -160,6 +161,20 @@ typedef struct {
 } BattleSlotTables;
 
 extern BattleSlotRecord* g_BattleActors[];
+
+// Retail's call sites hand this the sprite; the callback body ignores it.
+void BattleApplyStateStep();
+extern s32 func_800C0314(void);
+extern void SpriteSetFieldB0(SpriteData* pSprite, u16 arg1);
+extern void SpriteSetSpecialAnimFile(SpriteData* pSprite, void* pAnimFile);
+extern s32 SpriteAnimPackageTestFlag8000(void* pFrames);
+extern s32 BattleLoadSoundSeds(void);
+extern void BattleSetActorTargetFromPathPosition(SpriteData* pSprite);
+extern u8 g_BattleSedsLoaded;
+extern void* g_BattleActorArchiveBuffer;
+extern s16 D_800C3626;
+extern s16 D_800C3630[]; // per actor slot mode: the first frame of its animation range
+extern s16 D_800C3648[]; // and one past its last frame
 
 extern void SpriteSetScale(BattleActorSprite* pSprite, s16 scale);
 extern void SpriteInitFromAnimFileWithClut(BattleActorSprite* pSprite, void* pAnimFile, s16 arg2,
@@ -195,7 +210,7 @@ extern void BattleUnloadActorArchive(void);
 extern void BattleLoadSoundWdsFile(void);
 extern void BattleSetAnimTaskShort(s32 arg0);
 extern void BattleLoadActorArchiveFile(BattleActorSprite* pSprite);
-extern void BattleSetCurrentActorSprite(s32 actorIndex);
+extern SpriteData* BattleSetCurrentActorSprite(s32 actorIndex);
 extern void func_800BF3E8(BattleActorSprite* pSprite);
 extern void func_800BC460(u16 mask);
 extern void BattleLoadArchiveEntryFile(void);
@@ -387,6 +402,171 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9508);
+/* 72.11% (390 instructions against retail's 394). The prologue, the dispatch
+   over 0xF3..0xFF and the whole jump table are exact, and the case-body ORDER
+   in the source is load-bearing: retail's blocks come out F3,F4,F5,F6,F7,F8,FA
+   / F9 / FF (falling into FE) / FE / FD / FC / FB / default, so the 0xFB..0xFD
+   arms have to be written AFTER the 0xFF/0xFE pair (that reorder alone took
+   this body from 6.21% to 69.42%). Two more that are kept: `code` must be an
+   s32 local (a u8 makes gcc re-extend it with `andi 0xff` after the lbu), and
+   the arms that read the command row re-materialise `g_BattleStateWork`
+   themselves (`lui`/`addiu` into a caller-saved temp) instead of using the
+   pBase copy the switch head and the default arm keep in $s3 - writing pBase
+   there costs one instruction per arm, nine in total.
+   Left over, in order of size:
+   1. the 0xFE arm's slot access: retail keeps the work base in a register and
+      reads `lhu 0xe(base)` / `lhu 0x10(base)`; mine folds the +0xE/+0x10 into
+      the symbol (`%hi(g_BattleStateWork+0xe)` with `lhu 0x0`). Same instruction
+      count, reloc-only difference, four sites (the two compares and the two
+      stores).
+   2. the 0xFF arm: retail holds flags_0xA8 in $a1 across BOTH tests and
+      materialises g_BattleStateWork with its own lui/addiu for the slot-0x07
+      probe; mine reloads 0xAC after the tests and reaches the slot through
+      $s3 (writing the probe as `((BattleActorSlot *)pBase)[mode].flags` is
+      what keeps it on $s3).
+   3. the 0xFB arm's heap tail: retail loads pSprite->pBase ONCE into $a0 and
+      stores 0x2C and 0x30 through it; mine loads 0x20(s2) twice.
+   Tried: u8 vs s32 for `code` (s32 is the match); the 0xFB/0xFC/0xFD arms
+   before vs after the 0xFF/0xFE pair; one `&&` condition vs two early returns
+   for the 0xFF probe (two ifs is closer, 72.11 against 69.42); a
+   `*(u32 *)((u8 *)p + 0xE)` cast for the animation-state copy (emits lw/sw where
+   retail has lwl/lwr - the `&->texX` spelling used below gives retail's
+   unaligned pair); and pBase vs the global in every row access.
+   NEXT: give the 0xFE arm a `BattleActorSlot *pSlot` local built from
+   `&((BattleActorSlot *)g_BattleStateWork)[g_BattleState->actorIndex]` so the
+   +0xE lands as a displacement, then re-check the instruction count. */
+/*
+void func_800B9508(BattleActorSprite* pSprite) {
+    u8* pBase;
+    SpriteData* pSlotSprite;
+    BattleActorSprite* pTarget;
+    void* pBlock;
+    s32 code;
+    s32 index;
+    s32 frames;
+    s32 mode;
+
+    if (*(s16*)&D_800C3614 != 0) {
+        D_800C3614 = D_800C3614 - 1;
+        return;
+    }
+    pBase = g_BattleStateWork;
+    code = pBase[g_BattleCommandRowIndex * 0x48 + 0x17F];
+    switch (code) {
+        case 0xF3:
+        case 0xF4:
+        case 0xF5:
+        case 0xF6:
+        case 0xF7:
+        case 0xF8:
+        case 0xFA:
+            func_800B9284((SpriteData*)pSprite, code);
+            g_BattleCommandRowIndex += 1;
+            return;
+        case 0xF9:
+            SpritePlayAnimation(pSprite, 5);
+            BattleBeginAnimTask(0);
+            return;
+        case 0xFF:
+            SpriteSetCallback(pSprite, NULL);
+            g_BattleState->pendingAction = 1;
+            if (func_800C0314() == 0) {
+                if (((pSprite->flags_0xA8 >> 28) & 3) != 0) {
+                    return;
+                }
+                mode = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
+                if (((BattleActorSlot*)pBase)[mode].flags != 0) {
+                    return;
+                }
+                SpritePlayAnimation(pSprite, pSprite->animId);
+                return;
+            }
+            falls through to the 0xFE arm
+        case 0xFE:
+            g_BattleState->pendingAction = 0;
+            pSprite = (BattleActorSprite*)BattleSetCurrentActorSprite(g_BattleState->initialActorIndex);
+            func_800BF3E8(pSprite);
+            SpriteSetCallback(pSprite, BattleApplyStateStep);
+            BattleSetStateStep(5);
+            if (pSprite->position.parts.xWhole == *(u16*)(g_BattleStateWork + g_BattleState->actorIndex * 0x1C + 0xE) &&
+                pSprite->position.parts.zWhole == *(u16*)(g_BattleStateWork + g_BattleState->actorIndex * 0x1C + 0x10)) {
+                BattleApplyStateStep(pSprite);
+                return;
+            }
+            pSprite->targetPosition.x = *(u16*)(g_BattleStateWork + g_BattleState->actorIndex * 0x1C + 0xE);
+            pSprite->targetPosition.y = 0;
+            pSprite->targetPosition.z = *(u16*)(g_BattleStateWork + g_BattleState->actorIndex * 0x1C + 0x10);
+            SpritePlayAnimation(pSprite, 4);
+            return;
+        case 0xFD:
+            g_BattleState->pendingAction = 1;
+            if (*(u16*)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x172) == 0) {
+                g_BattleState->pendingAction = 0;
+                BattleSetActorTargetFromPathPosition((SpriteData*)pSprite);
+                SpriteSetCallback(pSprite, BattleApplyStateStep);
+            }
+            g_BattleCommandRowIndex += 1;
+            return;
+        case 0xFC:
+            SpriteSetCallback(pSprite, NULL);
+            g_BattleState->pendingAction = 1;
+            SpriteSetFieldB0((SpriteData*)pSprite, *(u16*)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x172));
+            g_BattleCommandRowIndex += 1;
+            return;
+        case 0xFB:
+            SpriteSetCallback(pSprite, NULL);
+            g_BattleState->pendingAction = 1;
+            index = *(u16*)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x172);
+            pSlotSprite = *(SpriteData**)(pBase + index * 4 + 0x8C8C);
+            pSprite->pVramData = pSlotSprite->pVramData;
+            *(u32*)&pSprite->pAnimState->texX = *(u32*)&((SpriteDataI3*)pSlotSprite->field_0x7C)->texX;
+            pSprite->flags |= 0x40000000;
+            HeapFree(pSprite->pBase->pFramesData);
+            pBlock = HeapAlloc(HeapGetNextBlockHeader(pSlotSprite->pBase->pFramesData), 0);
+            pSprite->pBase->pFramesData = pBlock;
+            pSprite->pBase->pCurRenderFramesData = pBlock;
+            g_BattleCommandRowIndex += 1;
+            return;
+        default:
+            pTarget = pSprite->pTargetEntitySprite;
+            D_800C3626 = 0;
+            BattleSetSpriteTemplate(pSprite);
+            SpriteSetCallback(pSprite, BattleApplyStateStep);
+            index = ((pTarget->flags_0xAC.flags & 3) << 2) | (pTarget->flags_0xA8 >> 30);
+            pSprite->pAnimState->field_0x8 = pBase[g_BattleCommandRowIndex * 0x48 + 0x150 + index];
+            if (SpriteAnimPackageTestFlag8000(((SpriteAnimPackage*)pSprite->pVramData)->pFrames) != 0) {
+                SpritePlayAnimation(pSprite, code);
+                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
+                mode = ((pTarget->flags_0xAC.flags & 3) << 2) | (pTarget->flags_0xA8 >> 30);
+                func_800BC460((1 << index) | (1 << mode));
+            } else if (code >= 0x10) {
+                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
+                mode = ((BattleActorSlot*)pBase)[index].mode;
+                frames = (code - 0x10) + D_800C3630[mode];
+                pSprite->flags_0xAC.bytes.animId = (frames < D_800C3648[mode]) ? 0x1C : 0x11;
+                BattleActorWaitFramesWithCallback(frames, pSprite);
+                BattleSetPendingCommand(pSprite);
+            } else {
+                if (g_BattleSedsLoaded == 0) {
+                    if (g_BattleActorArchiveBuffer != NULL) {
+                        BattleWaitArchiveSync();
+                        pSprite->pSedsFile = BattleLoadSoundSeds();
+                        SpriteSetSpecialAnimFile((SpriteData*)pSprite, g_BattleActorArchiveBuffer);
+                    }
+                }
+                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
+                if (g_BattleState->initialActorIndex == index) {
+                    SpritePlayAnimation(pSprite, ~code);
+                } else {
+                    SpritePlayAnimation(pSprite, code);
+                }
+            }
+            g_BattleState->pendingAction = 0;
+            g_BattleCommandRowIndex += 1;
+            return;
+    }
+}
+*/
 
 void BattleApplyStateStep(void) {
     g_BattleState->pendingAction = 1;
