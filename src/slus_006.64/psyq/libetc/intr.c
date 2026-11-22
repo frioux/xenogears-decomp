@@ -3,6 +3,9 @@
 
 // Adapted from https://github.com/sozud/psy-q-decomp
 
+#define INTR_HANDLER_COUNT 11
+#define INTR_TIMEOUT_LIMIT 0x800
+
 
 int setjmp(int*);
 SetVsyncIntrCallback_t startIntrVSync();
@@ -101,31 +104,13 @@ void* startIntr() {
     return &g_InterruptEnvironment;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libetc/intr", trapIntr);
-
 extern char D_80019408; // "unexpected interrupt(%04x)\n"
 extern char D_80019424; // "intr timeout(%04x:%04x)\n"
 
-/*
-96.06%, 122 instructions against retail's 122 (488 bytes): every instruction is
-present, every call, branch and delay slot is retail's, and the frame (0x28,
-s0-s4 + ra) is identical. The residual is the load ORDER around the
-`inInterrupt = 1` store and which register the final `and` lands in. Retail
-loads enabledInterruptsMask BEFORE that store and *g_pI_MASK after it, so it
-ends `and v1,v1,a0 / and v0,v0,v1 / move s0,v0`; cc1 here hoists the g_pI_MASK
-pointer load above the store as well and lands the final and straight in s0.
-The two field addresses below are absolute in retail's object (D_800578D4 =
-enabledInterruptsMask, D_800578A6 = inInterrupt inside g_InterruptEnvironment),
-not s1-relative, so they are read through their own symbols here.
-Tried: the whole expression in one statement (94.71), the expression before the
-store (93.36), the fields read through the struct instead of the absolute
-symbols (94.47), the mask assignment split at the store exactly as below (96.06),
-*g_pI_STAT as the first operand (89.78, and one instruction long).
-permute.sh 4 min: PERMUTER_BETTER 765 -> 730, on `mask = D_800578D4;` then
-`mask = mask & *g_pI_STAT;`, which diff_func scores 93.07 - rejected.
-
-extern u_short D_800578A6;
-extern u_short D_800578D4;
+// The original object reaches these two fields through their own symbols at
+// g_InterruptEnvironment+2 and +0x30, not through the struct base.
+extern u_short D_800578A6; // inInterrupt
+extern u_short D_800578D4; // enabledInterruptsMask
 
 void trapIntr(void) {
     int i;
@@ -136,11 +121,9 @@ void trapIntr(void) {
         ReturnFromException();
     }
 
-    mask = D_800578D4 & *g_pI_STAT;
     D_800578A6 = 1;
-    mask &= *g_pI_MASK;
-    while (mask) {
-        for (i = 0; mask && i < 11; ++i, mask >>= 1) {
+    while ((mask = D_800578D4 & *g_pI_STAT & *g_pI_MASK) != 0) {
+        for (i = 0; mask && i < INTR_HANDLER_COUNT; ++i, mask >>= 1) {
             if (mask & 1) {
                 *g_pI_STAT = ~(1 << i);
                 if (g_InterruptEnvironment.handlers[i]) {
@@ -148,11 +131,10 @@ void trapIntr(void) {
                 }
             }
         }
-        mask = (D_800578D4 & *g_pI_STAT) & *g_pI_MASK;
     }
 
     if (*g_pI_STAT & *g_pI_MASK) {
-        if (D_8005893C++ > 0x800) {
+        if (D_8005893C++ > INTR_TIMEOUT_LIMIT) {
             printf(&D_80019424, *g_pI_STAT, *g_pI_MASK);
             D_8005893C = 0;
             *g_pI_STAT = 0;
@@ -164,7 +146,6 @@ void trapIntr(void) {
     D_800578A6 = 0;
     ReturnFromException();
 }
-*/
 
 VoidCallback_t setIntr(int index, VoidCallback_t fn) {
     VoidCallback_t pHandlerFn;
