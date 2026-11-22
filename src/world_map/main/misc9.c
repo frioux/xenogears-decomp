@@ -836,19 +836,27 @@ s32 WorldMapInitializePlayerSlot(s32 index) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
-// Best: 76.81% (152 bytes vs retail's 148). Two-pointer walk over the interleaved
-// s16 pairs of D_8009AFA0 offset by base = D_8009B688[g_WorldMapLevelIndex], ending at a
-// -1 sentinel; all four `lh`/`addu`/`jal` operands and the if + do-while shape are
-// retail's. ONE residual, and everything else follows from it: retail lets the loop
-// test's -1 die after the call and rematerialises `li v0,-1` before the `bne`, so
-// that li is the body's last instruction and reorg then steals the exit block's
-// `li v0,1` into the branch slot; gcc here keeps a second live copy in $s3
-// (li s3,-1 in the preheader, frame 0x28 instead of 0x20), which makes the pY bump
-// the body's last instruction and it gets stolen instead. Every decl order,
-// do-while, `*pX++`/`pX += 2`, interleaved-vs-grouped increments, pointer-vs-index
-// and an s32 `end = -1` local measured the same 76.81. Permuter run 1
-// (base=1021 best=727, 2419 iters) only found a candidate that reads *pY for the
-// guard, i.e. wrong code - rejected. Screen: cdk 61.86, 2.6.0 76.81, best 76.81 here.
+// Best: 76.81% (152 bytes vs retail's 148 insns-vs-insns 38 vs 37). No twin, no presets:
+// screen cdk 61.86, 2.6.0 76.81, unit flags 76.81.
+// Structure is retail's: two-pointer walk over the interleaved s16 pairs of D_8009AFA0
+// (pY = pX + 1, each +2), base = D_8009B688[g_WorldMapLevelIndex], -1 sentinel, all four
+// lh/addu/jal operands and the if + do-while shape. ONE residual and the other three
+// differences follow from it: retail's loop-bottom -1 is a bare CONST_INT at the compare
+// (`lh v1,0(s0); li v0,-1; bne v1,v0`), so it is the body's last insn and reorg steals the
+// exit block's `li v0,1` into the bne slot; gcc 2.7.2 registers the twice-used constant
+// (li s3,-1 in the preheader, +4 frame bytes for the s3 save pair), which instead makes the
+// pY bump the body's last insn and steals that, and puts the pY init in the beq slot.
+// Tried this round, all 76.81 (same 152 bytes): early `if (*pX == -1) return 1;` + do-while,
+// and the park body below. Tried earlier: every decl order, do-while, *pX++/pX += 2,
+// interleaved-vs-grouped increments, pointer-vs-index, s32/s16 `end = -1` locals.
+// Plain `while (*pX != -1)` is WORSE, 69.00% (168 bytes): with one static use of the sentinel
+// cse leaves it a CONST_INT (retail's shape) but gcc then keeps the guard's HImode load as a
+// loop-carried value (lhu $6 hoisted, sll/sra in the body) and the frame grows to 0x38.
+// So the win, if any, is a spelling that keeps the two dereferences separate (as this body
+// does) AND keeps the constant out of a register: cse's per-mode constant trick
+// (levers.md a-constant-cse-is-per-mode) needs a narrow-typed competitor and this body has none.
+// Permuter run 1 earlier (base=1021 best=727) found only a wrong-code candidate (guard read
+// *pY) - rejected.
 /*
 s32 func_8008868C(void) {
     s32 base = D_8009B688[g_WorldMapLevelIndex];
