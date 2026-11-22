@@ -81,6 +81,7 @@ extern u8 D_800CCD38[];
 extern u8 D_800CDD53[];
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleLastMenuEvent;
+extern void BattleLoadStringTableAE(u8 arg0);
 extern u8 BattleRunFourSlotCommandMenu(u8 arg0);
 extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
@@ -226,25 +227,6 @@ void func_8008115C(u8 arg0) {
    split 88.35% at 440 bytes against retail's 444; the typed-struct twin port the
    main/misc12 neighbours use measures 87.59, so this raw spelling stays. */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80081318);
-/* 85.02% and JTBL_LAYOUT - and the solver of the whole-family theory: the C
-   jump table cannot reach retail's address. This unit's eight tables tile its
-   .rodata 0x38C..0x600 exactly (func_80080160's 101-word table at +0x194, then
-   seven 0x20-byte tables), so jtbl_80070030 sits at +0x1B4 and jtbl_80070050 at
-   +0x1D4 - both 4-mod-8 - while cc1 emits `.align 3` before every jump table. A
-   converted switch therefore lands at +0x1B8 and 4 pad bytes appear where retail
-   has the table's first word (measured at battle.bin 0x540: retail 0x80081388,
-   ours 0x00000000). Converting the whole family cannot fix it either: the first
-   table's 0x194 length is not a multiple of 8, so from the second table on the
-   pad is forced and the unit's .rodata ends at 0x278 instead of 0x274.
-   The rest of the body is instruction-identical; what is left is (a) gcc
-   cross-jumps the three `sb v0,0x2DD(v1)` case tails into one shared block that
-   retail keeps inline, which also flips case 0's and case 1's branch arms, and
-   (b) the two `repeatPending = 1; BattlePlaySoundIfEnabled(0x4F);` sites lose retail's
-   early `li a0,0x4F` to the jal delay slot. Writing the plain stores through a
-   local `BattleActorSlots *p` (as the func_800816F8 park does) is worse here:
-   81.27% / 440 bytes. */
-/*
 void func_80081318(u8 arg0) {
     u8 a;
 
@@ -271,10 +253,10 @@ void func_80081318(u8 arg0) {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
-        } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
         ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
@@ -291,114 +273,86 @@ void func_80081318(u8 arg0) {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             }
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
-        } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 8;
+            break;
         }
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     }
 }
-*/
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80081504);
-/* 86.26% and JTBL_LAYOUT for the same reason as func_80081318 above:
-   jtbl_80070050 is at .rodata +0x1D4, 4-mod-8, and cc1 aligns jump tables to 8,
-   so no switch of this unit can be converted on its own or with the rest of the
-   family. Same remaining code differences too - the three `sb v0,0x2DD(v1)`
-   tails are cross-jumped into one shared block retail keeps inline (which flips
-   the case arms) and the `li a0,0x4F` sites lose their early materialisation.
-   The local-pointer store form scores 78.69%. */
-/*
 void func_80081504(u8 arg0) {
+    u8 a;
+
+    a = arg0;
     switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
-        BattleSetSlotFlag15A1(arg0);
+        BattleSetSlotFlag15A1(a);
         ((BattleActorSlots *)g_BattleCommandQueue)->menuRunning = 0;
         ((BattleActorSlots *)g_BattleCommandQueue)->eventHandled = 1;
         break;
     case 0:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[9] == 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[9] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
             break;
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
-            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[5] != 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
-        } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[11] != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
+            break;
         }
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 3:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[10] == 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[10] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
             break;
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
-            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[7] != 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             }
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
-        } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[8] != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[8] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 9;
+            break;
         }
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     }
 }
-*/
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_800816F8);
-/* 99.90% and JTBL_LAYOUT: with the switch converted, the C jump table is
-   emitted with `.align 3` at object offset 0x1F4, so cc1 inserts a 4-byte pad
-   word and the unit's .rodata becomes 0x278 instead of 0x274 - check_bin.sh
-   battle then reports MISMATCH (build/out/battle.bin is 4 bytes long) while
-   every instruction of the function is byte-identical. The table cannot be
-   moved to an 8-aligned offset: the three 0x20-byte asm tables before it
-   (func_8008115C/80081318/80081504) plus func_80080160's 0x194 table put it at
-   0x1F4, and the backend hardcodes the table alignment. Only convertible
-   together with a change that makes the offset 8-aligned. Best body kept.
-   Re-measured: converting this one alone gives check_bin.sh battle MISMATCH
-   with build/out/battle.bin 343940 bytes against disc's 343936 - exactly the
-   one pad word - while the function is 420 bytes, retail's. The unit's .rodata
-   starts at 0x8006FE7C (file 0x38C), 4 mod 8, and retail's seven switch tables
-   sit at .rodata-relative 0x194, 0x1B4, ... 0x254, i.e. all 4 mod 8 (they are
-   8-aligned in vram, which is the alignment cc1's `.align 3` does NOT use). So
-   every one of them pads and only the 101-word table at +0 can be aligned. */
-/*
 void func_800816F8(u8 arg0) {
     u8 a;
-    u8 *p;
-    s32 off;
 
     a = arg0;
     switch (g_BattleMenuEvent) {
@@ -409,51 +363,45 @@ void func_800816F8(u8 arg0) {
         if (BattleRunFourSlotCommandMenu(a) != 0) {
             BattleQueueOneActorCommand(a);
         } else {
-            g_BattleCommandQueue[0x2DD] = 4;
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
         }
         break;
     case 0:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x2E) == 0) {
-            p[0x2DD] = 1;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[9] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
             break;
         }
-        if (p[0x2F6] != 0 && g_BattleLastMenuEvent == 0) {
-            if (*(u16 *)(p + off + 0x26) != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                g_BattleCommandQueue[0x2DD] = 7;
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
-            g_BattleCommandQueue[0x2F6] = 0;
-        } else {
-            g_BattleCommandQueue[0x2F6] = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x32) == 0) {
-            p[0x2DD] = 2;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        g_BattleCommandQueue[0x2DD] = 3;
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
         break;
     case 3:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x2A) == 0) {
-            p[0x2DD] = 0xA;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     }
-}*/
+}
 
 void BattleInitTargetSlotFlags(s32 arg0) {
     s32 i;
