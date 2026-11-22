@@ -162,37 +162,14 @@ void FieldLZSSDecompress(void* _unused, void* pCompressed, void* pDecompressed) 
 }
 
 
-// Best attempt, 98.66% at 652 bytes against retail's 656 (one instruction short).
-// The body is otherwise identical: ResetGraph, WorkListsFreeAllEntries, the
-// two-pass render context loop, the actor loop with status & 0x40 / 0x2000 and
-// its four frees, the eight HeapFrees, the line scroll loop and the sound list
-// teardown. The single remaining difference is the render context loop counter:
-// retail emits `addiu $v0,$s1,1` then `move $s1,$v0` after the
-// g_FieldCurRenderContextIndex load, our compile a single `addiu $s1,$s1,1`
-// which reorg steals into the previous `jal GfxFlushImageList` delay slot (retail
-// has a `nop` there). Every spelling measured the same: `++i` inside the
-// argument, `(i = i + 1)`, `next = i + 1; i = next;` plus `i` in the argument
-// (all coalesce to one addiu), separate `i++`, `i += 1`. A non-void return type
-// did not bring retail's `nop` back either. This is the two-live-copies lever
-// and it needs the permuter; the permuter cannot parse the body as written
-// (base.c does not compile), so it is unrun here.
-// Two levers that DID land, and are in the parked body:
-//  - g_FieldActorModelSlotCount wants the unbounded-ARRAY extern
-//    (`extern s32 g_FieldActorModelSlotCount[];` + `pCount[0] = 0`), which
-//    materialises &symbol in $s0 once (`lui`/`addiu`) and reuses it for the read
-//    and the store; the scalar declaration rematerialises `lui`+`lw %lo` /
-//    `lui at`+`sw %lo` instead (this alone took 97.34 -> 98.66).
-//  - the actor loop must index as `(i * sizeof(FieldActor) + (int)g_FieldActors)`
-//    for the original's index-first `addu`, with one status read feeding both
-//    masks; g_FieldLineScrolls is 0x144 bytes, same layout as misc11.c.
-// Round 394: the park did not COMPILE as stored (it declared g_FieldDialogs /
-// g_FieldModelFile / g_FieldWalkmesh / g_FieldScreenEffectData as `s32` when the
-// same file declares `void*` / `FieldWalkmesh` further down), so its 98.66 was a
-// stale number in a stale spelling. Fixed by giving the block the file's real
-// types and freeing `g_FieldWalkmesh.pFile` (offset 0 of the struct, which is
-// what the `lw $a0,%lo(g_FieldWalkmesh)` frees); re-measured 98.66 / 652 bytes
-// against retail's 656 in report mode, so the number stands. The FieldWalkmesh
-// typedef now sits above FieldFree and the later duplicate was removed.
+// FieldFree's render-context loop computes `i + 1` before the flush pair and
+// copies it into `i` after it: written as `i++` gcc coalesces the increment into
+// one `addiu` and reorg steals it into GfxFlushImageList's jal delay slot, where
+// the original has a `nop`.
+// g_FieldActorModelSlotCount is an unbounded-array extern on purpose (the address
+// is materialised once for the read and the store), and the actor loop indexes as
+// `i * sizeof(FieldActor) + base` because that is the spelling whose addu is
+// index-first, as the original's is.
 extern s32 g_FieldActorModelSlotCount[];
 extern void* g_FieldArchiveQueueBuffer;
 extern void* g_FieldDialogs;
@@ -240,13 +217,10 @@ typedef struct {
 
 extern LineScrollTable g_FieldLineScrolls;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
-
-/*
 void FieldFree(void) {
     FieldActor* pActor;
     s32* pCount;
-    void* pModelData;
+    FieldActorModelData* pModelData;
     u_short status;
     int i;
     int next;
@@ -256,27 +230,27 @@ void FieldFree(void) {
 
     i = 0;
     do {
+        next = i + 1;
         GfxFlushImageList();
         DrawSync(0);
-        next = i + 1;
         i = next;
         GfxSetRenderContext((g_FieldCurRenderContextIndex + i) & 1);
         GfxFlushImageList();
         DrawSync(0);
         GfxFreeWorkBuffers();
-    } while (i < 2);
+    } while (i < FIELD_RENDER_CONTEXT_COUNT);
 
     for (i = 0; i < g_FieldNumActors; i++) {
         FieldFreeActorData(i);
         pActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
-        status = *(u_short*)&pActor->status;
+        status = pActor->status;
         if (!(status & 0x40)) {
             pModelData = pActor->pModelData;
             if (status & 0x2000) {
-                ModelRestorePartVertices(*(void**)((u8*)pModelData + 0x14));
+                ModelRestorePartVertices(pModelData->pScripts);
             }
-            ModelPartFreeLightData(*(void**)((u8*)pModelData + 0x4));
-            HeapFree(*(void**)((u8*)pModelData + 0x8));
+            ModelPartFreeLightData(pModelData->pBounds);
+            HeapFree(pModelData->pPrimitiveBuffers[0]);
             HeapFree(g_FieldActors[i].pModelData);
         }
     }
@@ -312,10 +286,6 @@ void FieldFree(void) {
     HeapFreeBlocksWithFlag(3);
     FieldFreeSpritePrimitives();
 }
-*/
-
-
-
 
 void FieldLoadTIMWithClut(u_long *pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight) {
     TIM_IMAGE* pTIM;
