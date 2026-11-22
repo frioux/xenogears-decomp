@@ -491,7 +491,6 @@ s32 BattleUpdateFrame(void) {
     return 0;
 }
 
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
 /* 77.62% under 2.6.0. The whole control flow (the 1/2 decrement, the 0x1000
    bit toggle on D_800D2E1C, the 0x2000 timer, the 0x80/0x1000 guards and the
@@ -577,15 +576,21 @@ void BattleResetActorCountdown(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
-/* 99.51% under 2.6.0 (also 99.51 under -G0, 94.59 under cdk): all 41
-   instructions identical except the leading flag load, which retail puts in
-   $a1 (a dead argument register at entry) and gcc in $v0 (reused by the later
-   lhu). Both pseudos have one use and no live range overlap. Tried: compound &&,
-   !(), nested ifs, early returns, volatile on the flag, an int local for the
-   flag, a u8 local WITH initialiser, and the permuter twice (2081 and 1343
-   iterations, base 20 best 20 both times, and base 20 of 41 instructions means
-   its metric was measuring macro-expansion noise, not this 3-instruction
-   residual) - allocator tie.
+/* 99.51% under 2.6.0 (also 99.51 -G0, 98.78 2.7.2, 94.59 cdk): 41 of 41
+   insns and 164 bytes = retail's, and the ONLY residual is the entry flag
+   load, retail 'lbu a1' against our 'lbu v0'. Round 405 re-measured 20
+   spellings, all emitting lbu $2: compound &&, plain, !(), nested ifs, two
+   ifs, early return, goto-label, if(0), while(0), switch on the flag,
+   u8/char/int/register/u8-with-init locals, pointer deref, volatile, literal
+   mask, D_800D2CAE[1], a hoisted u16 mask temp, -fschedule-insns/2. The flag
+   qty is block-local (lbu+beqz in one block), so local-alloc gives it $2; the
+   repo's global-alloc'd entry loads (libarchive's g_ArchiveCurStreamFile,
+   which spans blocks) do land in $a1, so retail's $a1 implies a block-spanning
+   live range, and every spelling that spans blocks here adds an instruction
+   (measured: 'flag == 1' reaches $3 but costs li+bne, 42 insns). Permuter
+   twice (2081/1343 iters, base 20 best 20 - it scores maspsx expansion noise
+   on this body). Verdict: allocator tie, leave it a stub.
+
 void func_80071964(void) {
     u8 *pEntry;
     s32 i;
@@ -598,8 +603,8 @@ void func_80071964(void) {
             BattleUpdateFrame();
         }
     }
-}
-*/
+}*/
+
 void BattleClearCharRedrawFlags(void) {
     s32 i;
 
