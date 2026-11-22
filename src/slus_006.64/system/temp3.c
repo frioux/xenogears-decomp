@@ -70,21 +70,18 @@ void SystemIncrementCellNeighborCount(s32 arg0, s32 arg1) {
 extern int g_RenderContextIndex;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
-/* Best: 98.51%. Retail is 0x3F4 bytes and this body compiles to exactly 0x3F4; the frame,
-   callee-saved set and spill slots (gridOffset 0x20, rowOffset 0x18, pOt 0x10) and the
-   count-in-$fp are all identical. What is left is the callee-saved NUMBERING of three
-   pseudos: retail has pField (the strength-reduced pPrim+8 induction pointer) in $s2,
-   j in $s3, i in $s4, while this C gets j $s2, i $s3, pField $s4 - every differing word
-   is the same instruction with s2/s3/s4 renamed, so it is a GIV tie, not a shape.
-   Writing the three prim stores as offsets off pPrim (pPrim[3], pPrim+4, pPrim+8) is what
-   reproduces retail's single-IV shape; an explicit pField = pPrim + 8 splits it into two
-   IVs and spills count. gridOffset must be declared after rowOffset for the 0x18/0x20
-   slots. The second loop reuses i (both loops' counters are $s4 in retail); with a
-   separate k, k lands in $a0 and the compared constant in $a1 instead of retail's $a0.
-   Two permuter runs (base 580 -> 375, then nothing) closed 97.70 -> 98.51 with the one
-   `one = 1` decrement hint below and found nothing for the register rotation; refs-driven
-   allocation, declaration order, explicit i-minus-one/i-plus-one locals and a mask temp
-   all failed before that.
+/* Best: 98.51%, 253 insns, 1012 bytes = retail's exact 0x3F4. Re-measured this round; the residual is
+   a PURE CALLEE-SAVED PERMUTATION, nothing else: every differing word is the same instruction with the
+   same operands, only retail's i=$s4 / j=$s3 / pField=$s2 comes out here as i=$s3 / j=$s2 / pField=$s4
+   (the save slots 52/56 swap with them). The frame, the callee-saved set, the spill slots (gridOffset
+   0x20, rowOffset 0x18, pOt 0x10) and count-in-$fp are all identical. tools/scripts/lever.py regalloc
+   callee-saved swapped tie says this is decided by gcc's allocno_compare (floor_log2(refs)*refs/
+   live_length*size) and to stop after one look rather than permute - i, j and pField all start in the
+   loop preheader and span the loops, so they tie on live_length and only refs/size can separate them;
+   the two earlier permuter runs (base 580 -> 375, then nothing) closed 97.70 -> 98.51 on the one
+   `one = 1` y-decrement hint and found nothing for the rotation, and refs-driven allocation,
+   declaration order, explicit i-minus-one/i-plus-one locals and a mask temp all failed before that.
+   Do not re-brief this without a -dg dump that shows the three pseudos' sorted order.
 void func_8001A6E8(u_long* pOt) {
     s32 j;
     s32 i;
@@ -162,7 +159,7 @@ void func_8001A6E8(u_long* pOt) {
     SystemIncrementCellNeighborCount(x + 1, y);
     SystemIncrementCellNeighborCount(x + 1, y + 1);
 }
- */
+*/
 
 
 
@@ -629,17 +626,24 @@ void SystemSetDrawEnvBackgroundColor(DRAWENV* pDrawEnv) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
 /*
-Best: 85.15%. The tail needs g_GameResumeScene/g_MenuSavedMainMenuChoice defined in this unit to get
-%gp_rel. That is safe now: maspsx only relaxes the `lui $at` form, and
-GameSetUpDisplayAndChangeState reads g_GameResumeScene through `lui $v0`, so it keeps %hi/%lo (verified
-by GameSetUpDisplayAndChangeState matching 100% while g_DebugPageIndex is defined here). The remaining
-diff is the inner loop: the original keeps the even byte on an
-advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
-gcc merges the two into one base with 0/1 offsets.
-A restructured attempt (gp_rel tail confirmed OK by defining g_GameResumeScene/g_MenuSavedMainMenuChoice here)
-left three gaps: gcc hoists the 0xF literal and the odd base out of the outer loop into
-s4/s5 (the original reloads both per row into t1/t2 and saves only s0-s3), and the copy-back
-loop comes out `sltu` where the original has `slt`, so the source compared something signed.
+Best: 85.15%. Retail is 424 bytes / 103 insns; this body is 102 insns and every difference is in the
+inner scan loop, which retail spells with TWO source addresses for the same bytes:
+  - the even byte comes from an induction pointer (a0 = &g_GameState[i] advanced by 2 per step, and
+    s1 = &g_GameState + i advanced by 0x14 per row);
+  - the odd byte is recomputed every step as (i + j) + (g_GameState + 1) (reloc %lo(g_GameState+1),
+    index-first addu), and the 0xF literal is re-materialised once per row (li t1,0xf).
+Spelt honestly as pSrc[i + j + 1] gcc merges it into the even base with a 0x1 offset (a0+1), which is
+why this body is one instruction short.
+Measured alternatives, none better: spelling the odd as ((u8*)&g_GameState)[i + j + 1] (the retail
+reloc) makes gcc hoist the base into callee-saved s4 (or s4+s5 with an indexed inBuf dest), so the
+frame grows 0x58 -> 0x60 and the score drops to 76.14 / 78.65; a (u32)&g_GameState cast with the
+index-first order gets 78.65 with the odd base CSE'd onto s1 as s1+1. All three keep the odd base in a
+callee-saved register, while retail keeps it in $t2, so the residual is that hoist, not a shape.
+The tail also needs g_MenuSavedMainMenuChoice and g_GameResumeScene DEFINED in this unit (the original
+temp3.o does own them: they are reached with %gp_rel while GameSetUpDisplayAndChangeState reaches them
+absolutely through lui $v0, which maspsx cannot relax). Defining them here fixes those two stores
+exactly but drops objdiff to 84.08% (408 bytes) only while the inner loop is still wrong, so it is not
+worth carrying while the function is parked.
 void func_8001B970(void) {
     u8 inBuf[0x14];
     u8 outBuf[0x14];
@@ -686,8 +690,8 @@ void func_8001B970(void) {
     }
     g_MenuSavedMainMenuChoice = 6;
     g_GameResumeScene = 0;
-} */
-
+}
+*/
 extern u8 g_SystemStreamedFileIndex;
 extern s32 g_SystemStreamedFileBuffer;
 extern s32 D_80059520;
@@ -701,3 +705,4 @@ void ArchiveLoadStreamedFilePair(void) {
 
 // .bss
 u8 g_DebugPageIndex;
+
