@@ -441,6 +441,29 @@ extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges
    0x92C/0x93C are Vec4s whose .y words this function compares.
 */
 
+// Best attempt: 98.11% (1024 bytes, 255 insns - retail's exact size; 28 differing
+// lines, all callee-saved naming). The decision tree now matches EXACTLY: the
+// earlier park compared p->baseVertexPos.y against q->edgeMidPos.y in the FOURTH
+// clause where retail compares it with q->baseVertexPos.y (slt v0,v1,a1 with
+// $v1=p->baseVertexPos.y, $a1=q->baseVertexPos.y). Fixing that also equalises the
+// reference counts of all four y values (5 each), which is what the allocator
+// needed: it then hands out $a2=p.edgeMidPos.y, $a1=q.baseVertexPos.y,
+// $v1=p.baseVertexPos.y, $a0=q.edgeMidPos.y exactly as retail does (97.75 -> 98.11).
+// Remaining residual, everything after the two Vec4 copies: retail holds &edge1 in
+// $s6 and &edge2 in $s7 (we are swapped), then reuses the dead $s6 for dist0 and
+// again for the angle rcos/rsin read; we put dist0 in $s0 and the angle in $s3.
+// Measured with -da on this unit's own cc1: the two address allocnos tie on refs
+// (3 each), so only live_length decides, and ours differ by 3 insns (18 vs 16,
+// the definition gap) - the shorter one gets the lower register. Both go through
+// local-alloc's lowest-free-register order, so no C spelling moved them.
+// Also measured: the unit is NOT a cdk unit (BattleUpdateCombatantPair is 100.0
+// under 2.7.2 and 97.09 under 2.7.2-cdk; BattleActorUpdateGroundMovement 100.0
+// under both), so the jal-delay-slot shape below is not a preset question.
+// The ratan2/BattleVectorLength2D boundary is the other half of the same cause:
+// retail fills ratan2's slot with the angle copy and puts the next call's
+// addiu a0,s4,16 in ITS delay slot, while our RTL emits the next call's argument
+// setup before the angle copy (insn 406 before insn 401 in the lreg dump) and
+// reorg then moves the copy into the BattleVectorLength2D slot instead.
 /*
 s32 func_80078920(Actor* p, Actor* q) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
@@ -468,7 +491,7 @@ s32 func_80078920(Actor* p, Actor* q) {
     if ((p->edgeMidPos.y < q->baseVertexPos.y && q->edgeMidPos.y < p->edgeMidPos.y) ||
         (q->baseVertexPos.y < p->baseVertexPos.y && p->baseVertexPos.y < q->edgeMidPos.y) ||
         (q->edgeMidPos.y < p->baseVertexPos.y && p->edgeMidPos.y < q->edgeMidPos.y) ||
-        (p->baseVertexPos.y < q->edgeMidPos.y && q->baseVertexPos.y < p->edgeMidPos.y)) {
+        (p->baseVertexPos.y < q->baseVertexPos.y && q->baseVertexPos.y < p->edgeMidPos.y)) {
         mid.x = (p->prevPosition.x + q->prevPosition.x) / 2;
         mid.z = (p->prevPosition.z + q->prevPosition.z) / 2;
         perp.z = (q->prevPosition.x - p->prevPosition.x) + mid.z;
