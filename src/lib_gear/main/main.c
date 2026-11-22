@@ -2080,36 +2080,34 @@ int LibGearFreeJointObject(Temp4* pList, Temp3* pObject) {
     return index;
 }
 
-// Best attempt below: objdiff 70.90%, frame 0x48 (same as the original) and the
-// whole loop body -- both channels, the NULL/0xFF paths, the release path, the
-// 0xFFFF-rematerialised compares and the 6-byte-per-joint keyframe stride --
-// emits the same instructions in the same order. What is left is the allocator:
-//   * the original keeps pSkeleton/pJoint in s0 and pBlock/pKeyframe coalesced in
-//     s1; here pBlock takes s0 (so pJoint reuses s0) and pKeyframe gets its own
-//     s1, because the `(u16*)((u8*)pBlock + 0x18)` copy is not combined with the
-//     dead parameter. `pBlock->keyframes` coalesces but grows the frame to 0x50.
-//   * the original spills `count` to 0x10(sp) and holds 0xFF in s7; here `count`
-//     wins s7 and the `type` parameter is copied to 0x10(sp) instead, so the
-//     pObject->type test compares against a register loaded inside the loop.
-//   * the original reads pBlock->type with `lhu` (unsigned); u16, s16 and a u16
-//     cast on the s16 header field all still emit `lh`.
-// Also tried: `pJoint = pSkeleton` as a declaration initialiser (68.76%), using
-// pSkeleton as the joint cursor instead of a separate pJoint (68.76%), no
-// `flag1` local with `flags & 0x1` inline (70.81%), declaration-order variations.
-// Screened: 71.21 best (2.6.0), 70.49 under 2.7.2-cdk - not a preset problem.
+// objdiff 74.39%, 720 bytes and 180 instructions: retail's exact size and count.
+// Every instruction of the loop is present; what is left is a callee-saved
+// permutation: retail keeps pSkeleton in $s0 (advanced as the joint cursor) and
+// pBlock/$s1 (advanced to the keyframe cursor), ours gives pBlock $s0 and
+// pSkeleton $s5, with frame/flag1 mirrored between $s6/$s8.
+// Shapes that got here and that the next attempt should keep: `s32 type` (a u8
+// parameter makes gcc copy it to a fresh 0x10(sp) slot and the frame grows to
+// 0x50; s32 keeps retail's 0x48 frame and count at 0x10(sp)), no pJoint local
+// (advance pSkeleton itself), a pOpcode local = (u8*)&pKeyframe[2] live across
+// both calls (this is what takes a callee-saved register in retail), and
+// JointObject::value.step.pScript/pCursor as two statements for retail's
+// sw 0x4 / sw 0x8 order.
+// Tried: u8 type (frame 0x50, 73.57), a separate pJoint cursor (74.31), 0xFFFF
+// and 0xFF compared against rematerialised constants, declaration-order and
+// (u16)/s16 cast variations on endFrame/numRotFrames.
 /*
-s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
+s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, s32 type) {
     u16 numRotFrames;
-    u16 numChildren;
     u16 numTransFrames;
     u16 blockFlags;
     u16 count;
     u8 flag1;
-    s16 frame;
+    u16 frame;
     u16* pKeyframe;
+    u8* pOpcode;
     u8* pVertexData;
-    Temp3* pObject;
-    ModelJoint* pJoint;
+    u8* pVertex;
+    JointObject* pObject;
     int i;
 
     if (pBlock->type != 0) {
@@ -2119,22 +2117,19 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     }
 
     numRotFrames = pBlock->numRotFrames;
-    numChildren = pSkeleton->numChildren;
-    count = numChildren;
-    numTransFrames = pBlock->numTransFrames;
-    blockFlags = pBlock->flags;
-    flag1 = flags & 0x1;
-
-    if (numRotFrames + 1 < numChildren) {
+    count = pSkeleton->numChildren;
+    if (numRotFrames + 1 < count) {
         count = numRotFrames + 1;
     }
-
+    numTransFrames = pBlock->numTransFrames;
+    flag1 = flags & 0x1;
     frame = pBlock->endFrame;
-    if (!flag1) {
+    if (flag1 == 0) {
         frame--;
     }
+    blockFlags = pBlock->flags;
 
-    pKeyframe = (u16*)((u8*)pBlock + 0x18);
+    pKeyframe = (u16*)pBlock->keyframes;
     pVertexData = (u8*)pKeyframe + (numRotFrames + 1) * 6;
     if (!(blockFlags & 0x1)) {
         pVertexData += numRotFrames * 6;
@@ -2143,40 +2138,41 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         pVertexData += numTransFrames * 6;
     }
 
-    pJoint = pSkeleton;
     for (i = 0; i < count; i++) {
-        if (pKeyframe[0] != 0xFFFF) {
-            pObject = pJoint->pRotationObject;
+        pOpcode = (u8*)&pKeyframe[2];
+        if (pKeyframe[0] != LIBGEAR_JOINT_INDEX_NONE) {
+            pObject = (JointObject*)pSkeleton->pRotationObject;
             if (pObject == NULL) {
-                pObject = LibGearAllocJointObject(pList);
+                pObject = (JointObject*)LibGearAllocJointObject(pList);
             } else if (pObject->type == 0xFF) {
-                goto next1;
+                goto next;
             }
             if (pObject != NULL) {
                 pObject->inUse = 1;
                 pObject->loops = flag1;
                 pObject->type = type;
-                pObject->opcode = ((u8*)pKeyframe)[4];
+                pObject->opcode = pOpcode[0];
                 pObject->curFrame = 0;
                 pObject->endFrame = frame;
-                *(u32*)&pObject->startX = *(u32*)&pObject->startZ = (u32)(pVertexData + pKeyframe[0]);
-                pJoint->pRotationObject = pObject;
+                pVertex = pVertexData + pKeyframe[0];
+                pObject->value.step.pScript = pVertex;
+                pObject->value.step.pCursor = pVertex;
+                pSkeleton->pRotationObject = (Temp3*)pObject;
             }
         } else {
-            pObject = pJoint->pRotationObject;
+            pObject = (JointObject*)pSkeleton->pRotationObject;
             if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
-                LibGearFreeJointObject(pList, (s8*)pObject);
-                pJoint->pRotationObject = 0;
+                LibGearFreeJointObject(pList, (Temp3*)pObject);
+                pSkeleton->pRotationObject = NULL;
             }
         }
-    next1:
-
+    next:
         pKeyframe++;
 
-        if (pKeyframe[0] != 0xFFFF) {
-            pObject = pJoint->pTranslationObject;
+        if (pKeyframe[0] != LIBGEAR_JOINT_INDEX_NONE) {
+            pObject = (JointObject*)pSkeleton->pTranslationObject;
             if (pObject == NULL) {
-                pObject = LibGearAllocJointObject(pList);
+                pObject = (JointObject*)LibGearAllocJointObject(pList);
             } else if (pObject->type == 0xFF) {
                 goto next2;
             }
@@ -2184,29 +2180,30 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->inUse = 1;
                 pObject->loops = flag1;
                 pObject->type = type;
-                pObject->opcode = ((u8*)pKeyframe)[4];
+                pObject->opcode = pOpcode[1];
                 pObject->curFrame = 0;
                 pObject->endFrame = frame;
-                *(u32*)&pObject->startX = *(u32*)&pObject->startZ = (u32)(pVertexData + pKeyframe[0]);
-                pJoint->pTranslationObject = pObject;
+                pVertex = pVertexData + pKeyframe[0];
+                pObject->value.step.pScript = pVertex;
+                pObject->value.step.pCursor = pVertex;
+                pSkeleton->pTranslationObject = (Temp3*)pObject;
             }
         } else {
-            pObject = pJoint->pTranslationObject;
+            pObject = (JointObject*)pSkeleton->pTranslationObject;
             if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
-                LibGearFreeJointObject(pList, (s8*)pObject);
-                pJoint->pTranslationObject = 0;
+                LibGearFreeJointObject(pList, (Temp3*)pObject);
+                pSkeleton->pTranslationObject = NULL;
             }
         }
     next2:
-
         pKeyframe += 2;
-        pJoint++;
+        pSkeleton++;
     }
 
     return 0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
+
 
 // objdiff 79.40%, 996 bytes against retail's 968. Every one of retail's 242
 // instructions is reproduced in order -- the two 6-byte-stride channels, the
@@ -2233,6 +2230,12 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 // so the pVertex temp is required). A 4-minute permuter run (1754 iterations,
 // base 5790) reached 5260 and found only new_var splits -- no structural win.
 // Screened earlier: 74.89 under 2.7.2-cdk, so not a preset problem.
+// Re-measured round 400 with the same two changes that helped func_801DF7F4:
+// a pOpcode local = (u8*)&pKeyframe[2] used for both opcode bytes (retail
+// spills exactly that to 0x18(sp)) plus `s32 type` measured 80.21% / 1016
+// bytes / 254 insns, and with u8 type 79.33% / 1020 / 255; both are worse
+// than the 996 / 249 above, and s32 type also spills flag1 to 56(sp) where
+// retail keeps it in $fp, so the body below stays as measured.
 /*
 s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
