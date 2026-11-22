@@ -280,6 +280,15 @@ extern s32 WorldMapSetActorParams(s32);
 extern s32 func_8008390C(s32);
 extern s32 WorldMapInterpolatePlaneHeight(WorldMapPos *p0, WorldMapPos *p1, WorldMapPos *p2);
 extern s32 func_80083A00(s32);
+extern s16 g_WorldMapPathFrame;
+extern s32 g_WorldMapScrollX;
+extern s32 g_WorldMapScrollZ;
+extern u16 D_8009BD42;
+extern u16 D_8009BD4A;
+extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern void WorldMapApproachViewRotation(WorldMapActor *pActor, void *pScratch);
+extern void WorldMapApproachHeight(WorldMapActor *pActor, void *pScratch);
+extern void func_80076FA8(WorldMapActor *pActor, void *pScratch);
 extern void WorldMapDeactivateSpriteGroup(s32 arg0);
 extern s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2);
 extern void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR *pPos, s16 *pRot);
@@ -609,6 +618,212 @@ s32 func_8008390C(s32 arg0) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083A00);
+/* Best: 63.80% (352 insns against retail's 395; 1408 bytes against retail's 0x1d4 = 468
+   of .text). The whole body is DECODED below and the switch shapes are right; the
+   residual is one construct, repeated in all six cases.
+
+   THE RESIDUAL: retail STORES a view rotation and then re-reads it with `lh` from the
+   same symbol - `sh $v0,%lo(g_WorldMapViewRotationY)` then, four instructions later,
+   `lui $v0,%hi(g_WorldMapViewRotationY)` / `lh $v0,%lo(...)` / `sll $v0,12`. cc1 2.7.2
+   forwards that store into the load and folds `0x400 << 12` to a constant (attempt 1:
+   `lui $v0,0x40`, every case 3 insns short, 66.92%, 336 insns). Reading the two view
+   rotations through the neighbouring symbol instead - `((s16 *)&g_WorldMapCameraRot)[1]`
+   and `[2]`, the spelling that closed the sibling func_8008390C to 96.15% - stops the
+   fold, but then cc1 treats the two symbol_refs as distinct objects and HOISTS the
+   `lh` above the `sh` that writes it (`lh $3,g_WorldMapCameraRot+2` lands before
+   `sh $2,g_WorldMapCameraRot`), which is what this 63.80% body does. A
+   `*(volatile s16 *)&g_WorldMapViewRotationY` read keeps the load after the store but
+   makes every other store in the case block float around it (59.73%, 370 insns, and
+   the load comes out `lhu` + `sll 16` because the extern is u16). Those are the three
+   measured spellings; nothing else was tried on this construct.
+   - the six cases are one state table: command 1..6 sets state 1..6, command 0, a
+     redStep that is ALSO the g_WorldMapCameraHeight value (one register in retail, so
+     one local is the likely source), the three camera angles and the pose, then reads
+     the two view angles back to fill green/dirY and blue/dirZ.
+   - the first switch is `switch ((s16)(pActor->command - 1))`: retail's `lhu` of 0x4
+     plus `addiu -1` plus `sll 16`/`sra 16` says the field is read unsigned there and
+     narrowed to s16 before the switch, while the same field is `lh` in
+     WorldMapUpdateSpriteSetPrims (this unit's struct has it as s16 command). The
+     best body reproduces the load-and-narrow sequence exactly - do not "fix" the type.
+   - the second switch (on state) has SEVEN table entries indexed from 0, so the source
+     has a case 0 (or the table spans 0); cases 1 and 6 are the only bodies.
+   - tail: `rand() % (pActor->unk7C >> 12) - (pActor->unk7C >> 13)` stored to the
+     scratchpad halfword at 0x1F8000A2, then added to D_8009BD42 and, via a RELOAD of
+     that halfword, to D_8009BD4A - the first add uses the register, the second a fresh
+     `lhu`, so the source re-reads the scratch slot for the second one only.
+   - both switch tables (0x9A0/0x9B8) belong to this unit, so diff_func can never print
+     MATCH here (operand is `.rodata` vs `jtbl_`); judge any future attempt with
+     check_bin.sh world_map.
+/*
+s32 func_80083A00(s32 arg0) {
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
+    u8 *pScratch = (u8 *)PSX_SCRATCH;
+    s16 phase;
+    s32 jitter;
+    s32 viewY;
+    s32 viewZ;
+
+    phase = pActor->command - 1;
+    switch (phase) {
+    case 0:
+        pActor->state = 1;
+        pActor->command = 0;
+        pActor->redStep = 0x960000;
+        g_WorldMapCameraRot = -0x20;
+        g_WorldMapViewRotationY = 0x400;
+        g_WorldMapViewRotationZ = 0;
+        pActor->red = -0x20000;
+        pActor->dirX = -0x20000;
+        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
+        pActor->green = viewY;
+        pActor->dirY = viewY;
+        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
+        pActor->blue = viewZ;
+        pActor->dirZ = viewZ;
+        g_WorldMapCameraHeight = 0x960000;
+        break;
+    case 1:
+        pActor->state = 2;
+        pActor->command = 0;
+        pActor->redStep = 0x180000;
+        g_WorldMapCameraRot = 0x40;
+        g_WorldMapViewRotationY = 0x1A0;
+        g_WorldMapViewRotationZ = 0;
+        pActor->red = 0x40000;
+        pActor->dirX = 0x40000;
+        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
+        pActor->green = viewY;
+        pActor->dirY = viewY;
+        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
+        pActor->blue = viewZ;
+        pActor->dirZ = viewZ;
+        g_WorldMapCameraHeight = 0x180000;
+        g_WorldMapCameraTargetY = -0xA0000;
+        g_WorldMapScrollTargetY = -0xA0000;
+        pActor->y = -0xA0000;
+        break;
+    case 2:
+        pActor->state = 3;
+        pActor->command = 0;
+        pActor->redStep = 0x120000;
+        g_WorldMapCameraRot = -0x2A0;
+        g_WorldMapViewRotationY = 0x6A0;
+        g_WorldMapViewRotationZ = 0;
+        pActor->red = -0x2A0000;
+        pActor->dirX = -0x2A0000;
+        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
+        pActor->green = viewY;
+        pActor->dirY = viewY;
+        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
+        pActor->blue = viewZ;
+        pActor->dirZ = viewZ;
+        g_WorldMapCameraHeight = 0x120000;
+        g_WorldMapCameraTarget = 0x1700000;
+        g_WorldMapScrollTargetX = 0x1700000;
+        pActor->x = 0x1700000;
+        g_WorldMapScrollX += 0x1700000 - g_WorldMapPlayerPosition[0];
+        break;
+    case 3:
+        pActor->state = 4;
+        pActor->command = 0;
+        pActor->redStep = 0x180000;
+        g_WorldMapCameraRot = -0x10;
+        g_WorldMapViewRotationY = 0xA50;
+        g_WorldMapViewRotationZ = 0;
+        pActor->red = -0x10000;
+        pActor->dirX = -0x10000;
+        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
+        pActor->green = viewY;
+        pActor->dirY = viewY;
+        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
+        pActor->blue = viewZ;
+        pActor->dirZ = viewZ;
+        g_WorldMapCameraHeight = 0x180000;
+        g_WorldMapCameraTarget = 0x1800000;
+        g_WorldMapScrollTargetX = 0x1800000;
+        pActor->x = 0x1800000;
+        g_WorldMapCameraTargetZ = 0x1900000;
+        g_WorldMapScrollTargetZ = 0x1900000;
+        pActor->z = 0x1900000;
+        g_WorldMapCameraTargetY = -0x80000;
+        g_WorldMapScrollTargetY = -0x80000;
+        pActor->y = -0x80000;
+        g_WorldMapScrollX += 0x100;
+        g_WorldMapScrollZ -= 0x100;
+        break;
+    case 4:
+        pActor->state = 5;
+        pActor->command = 0;
+        pActor->redStep = 0x260000;
+        g_WorldMapCameraRot = -0x100;
+        g_WorldMapViewRotationY = 0x670;
+        g_WorldMapViewRotationZ = 0;
+        pActor->red = -0x100000;
+        pActor->dirX = -0x100000;
+        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
+        pActor->green = viewY;
+        pActor->dirY = viewY;
+        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
+        pActor->blue = viewZ;
+        pActor->dirZ = viewZ;
+        g_WorldMapCameraTargetY = -0x110000;
+        g_WorldMapScrollTargetY = -0x110000;
+        pActor->y = -0x110000;
+        g_WorldMapCameraTargetZ = 0x1A80000;
+        g_WorldMapScrollTargetZ = 0x1A80000;
+        pActor->z = 0x1A80000;
+        g_WorldMapCameraHeight = 0x260000;
+        g_WorldMapScrollZ += 0x180;
+        break;
+    case 5:
+        pActor->state = 6;
+        pActor->command = 0;
+        pActor->redStep = 0x620000;
+        g_WorldMapCameraRot = -0x80;
+        g_WorldMapViewRotationY = 0xA70;
+        g_WorldMapViewRotationZ = 0;
+        pActor->red = -0x80000;
+        pActor->dirX = -0x80000;
+        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
+        pActor->green = viewY;
+        pActor->dirY = viewY;
+        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
+        pActor->blue = viewZ;
+        pActor->dirZ = viewZ;
+        g_WorldMapCameraTargetY = -0x120000;
+        g_WorldMapScrollTargetY = -0x120000;
+        pActor->y = -0x120000;
+        g_WorldMapCameraTargetZ = 0x1980000;
+        g_WorldMapScrollTargetZ = 0x1980000;
+        pActor->z = 0x1980000;
+        g_WorldMapCameraHeight = 0x620000;
+        g_WorldMapScrollZ -= 0x100;
+        break;
+    }
+    if (g_WorldMapRotationMatrixValid == 0) {
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      (u16 *)&g_WorldMapCameraRot);
+    }
+    switch (pActor->state) {
+    case 1:
+        pActor->red = WorldMapApproachValue(pActor->red, -0x400000, -0x8000);
+        pActor->green = WorldMapApproachValue(pActor->green, 0, -0x8000);
+        pActor->redStep = WorldMapApproachValue(pActor->redStep, 0x380000, 0xFFFF3000);
+        break;
+    case 6:
+        pActor->red = WorldMapApproachValue(pActor->red, 0x200000, 0x2000);
+        break;
+    }
+    WorldMapApproachViewRotation(pActor, pScratch);
+    WorldMapApproachHeight(pActor, pScratch);
+    func_80076FA8(pActor, pScratch);
+    jitter = rand() % (pActor->unk7C >> 12) - (pActor->unk7C >> 13);
+    *(s16 *)(pScratch + 0xA2) = jitter;
+    D_8009BD42 += jitter;
+    D_8009BD4A += *(u16 *)(pScratch + 0xA2);
+    return 1;
+}
+*/
 
 s32 WorldMapSetActorPosition(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
