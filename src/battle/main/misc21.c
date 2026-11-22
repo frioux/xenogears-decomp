@@ -871,6 +871,535 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
    words). Convert it as C with real switch statements and judge with
    check_bin.sh battle, not diff_func. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
+// objdiff 82.92%, 5100 bytes against retail's 4888 (53 instructions over; the whole
+// body is present and both owned jump tables render). This is the SAME function as
+// lib_gear/main/main's func_801DDBF8 - twin_for.py ratio 1.000 and the two .s files
+// are mnemonic-for-mnemonic identical (1222 each) - so the body below is that unit's
+// park, ported with the pool released through BattleFreeBlock.
+// Improvements measured over the ported 79.62% / 4892 bytes (1 instruction over):
+//  - the SET and ADD arms drive pObject->value.step.pCursor per channel instead of
+//    through a local, which is what retail does (0x30DCC lw a0,0x8(s0); lhu 0(a0);
+//    sh; lw v0,0x8(s0); addiu v0,v0,2; sw) - alone: 80.68% / 5104 bytes;
+//  - the RELATIVE arms read `*(s8*)pObject->value.step.pCursor++` and consume three
+//    bytes on the -0x80 literal (retail stores the cursor +1, +2, +3 once each; the
+//    port stored it four times) - alone: 82.52% / 5056 bytes. Both together 82.92%.
+// Residual of this body: the prologue frame is 0xA8 against retail's 0xB8 (gcc .frame
+// vars=112 against 128), so every local above 0x54 shifts and the register set
+// differs throughout - retail spills a0..a3, result and count at 0x28,0x30,0x38,
+// 0x40,0x48,0x50 and keeps the joint walker at 0x30, biased +4 in s1, incrementing
+// the spilled home too. 16 bytes of locals are missing, most likely a second
+// VECTOR-shaped temporary. Retail also hoists `lw a0,0x8(s0)` above each channel's
+// NO_X test where this body loads it inside the arm.
+// The LIBGEAR_* constants and the JointObject view below duplicate
+// lib_gear/main/main.c's file-local spellings; they belong in include/libgear/main.h.
+// Temp3::opcode & this mask is the command the queued-object update dispatches on,
+// and the update's result bits below. The spellings are lib_gear/main/main.c's, where
+// this function also lives; they belong in include/libgear/main.h and are repeated
+// here only because that unit defines them file-locally.
+#define LIBGEAR_JOINT_OPCODE_MASK 0xF
+#define LIBGEAR_JOINT_OBJECT_SET 0
+#define LIBGEAR_JOINT_OBJECT_RELATIVE 1
+#define LIBGEAR_JOINT_OBJECT_ADD 2
+#define LIBGEAR_JOINT_OBJECT_STEP 4
+#define LIBGEAR_JOINT_OBJECT_ACCUMULATE 5
+#define LIBGEAR_JOINT_OBJECT_NO_X 0x10
+#define LIBGEAR_JOINT_OBJECT_NO_Y 0x20
+#define LIBGEAR_JOINT_OBJECT_NO_Z 0x40
+#define LIBGEAR_SCRIPT_LITERAL -0x80
+#define LIBGEAR_JOINT_UPDATE_ADVANCED 0x1
+#define LIBGEAR_JOINT_UPDATE_FINISHED 0x2
+#define LIBGEAR_JOINT_UPDATE_LOOPED 0x4
+#define LIBGEAR_JOINT_UPDATE_ADVANCED_ANY 0x100
+#define LIBGEAR_JOINT_UPDATE_FINISHED_ANY 0x200
+#define LIBGEAR_JOINT_UPDATE_LOOPED_ANY 0x400
+#define LIBGEAR_JOINT_FRAME_ACCUMULATE_MAX 0x7D00
+#define LIBGEAR_ANGLE_MASK 0xFFF
+#define LIBGEAR_ANGLE_HALF_TURN 0x800
+#define LIBGEAR_ANGLE_FULL_TURN 0x1000
+
+// A joint's queued object (Temp3) as the update reads it: bytes 0x4..0xE are a byte
+// script while opcode & 0xF is below LIBGEAR_JOINT_OPCODE_INTERPOLATE and an
+// interpolation from there up, so they share one union.
+typedef struct {
+    /* 0x0 */ u8* pScript;
+    /* 0x4 */ u8* pCursor;
+} JointObjectStep;
+typedef struct {
+    /* 0x0 */ s16 startX;
+    /* 0x2 */ s16 startY;
+    /* 0x4 */ s16 startZ;
+    /* 0x6 */ s16 targetX;
+    /* 0x8 */ s16 targetY;
+    /* 0xA */ s16 targetZ;
+} JointObjectLerp;
+typedef union {
+    JointObjectStep step;
+    JointObjectLerp lerp;
+} JointObjectValue;
+typedef struct {
+    /* 0x0  */ u8 inUse;
+    /* 0x1  */ u8 loops;
+    /* 0x2  */ u8 opcode;
+    /* 0x3  */ u8 type;
+    /* 0x4  */ JointObjectValue value;
+    /* 0x10 */ s16 curFrame;
+    /* 0x12 */ s16 endFrame;
+} JointObject; // Size: 0x14
+
+/*
+s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType, s32 scale) {
+    JointObject* pObject;
+    ModelJoint* pJoint;
+    ModelJoint* pMesh;
+    u16 numChildren;
+    u32 i;
+    s32 result;
+    s16 frame;
+    u16* pWord;
+    u8* pCursor;
+    u8 opcode;
+    s8 delta;
+    SVECTOR vec;
+    VECTOR out;
+    s16 dx;
+    s16 dy;
+    s16 dz;
+    s32 dist;
+    s16 angle;
+    s16 maxStep;
+
+    result = 0;
+    numChildren = pSkeleton->numChildren;
+    pMesh = pSkeleton;
+
+    for (i = 0; i < numChildren; i++) {
+        pJoint = pMesh;
+
+        // Rotation channel
+        pObject = (JointObject*)pJoint->pRotationObject;
+        if (pObject != NULL) {
+            opcode = pObject->opcode;
+
+            switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
+            case LIBGEAR_JOINT_OBJECT_SET:
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
+                    pJoint->rotation.vx = *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
+                    pJoint->rotation.vy = *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
+                    pJoint->rotation.vz = *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_RELATIVE:
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
+                    delta = *(s8*)pObject->value.step.pCursor++;
+                    if (delta != LIBGEAR_SCRIPT_LITERAL) {
+                        pJoint->rotation.vx += delta;
+                    } else {
+                        pCursor = pObject->value.step.pCursor;
+                        pObject->value.step.pCursor++;
+                        pJoint->rotation.vx = pCursor[0] | (pCursor[1] << 8);
+                        pObject->value.step.pCursor++;
+                    }
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
+                    delta = *(s8*)pObject->value.step.pCursor++;
+                    if (delta != LIBGEAR_SCRIPT_LITERAL) {
+                        pJoint->rotation.vy += delta;
+                    } else {
+                        pCursor = pObject->value.step.pCursor;
+                        pObject->value.step.pCursor++;
+                        pJoint->rotation.vy = pCursor[0] | (pCursor[1] << 8);
+                        pObject->value.step.pCursor++;
+                    }
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
+                    delta = *(s8*)pObject->value.step.pCursor++;
+                    if (delta != LIBGEAR_SCRIPT_LITERAL) {
+                        pJoint->rotation.vz += delta;
+                    } else {
+                        pCursor = pObject->value.step.pCursor;
+                        pObject->value.step.pCursor++;
+                        pJoint->rotation.vz = pCursor[0] | (pCursor[1] << 8);
+                        pObject->value.step.pCursor++;
+                    }
+                }
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_ADD:
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
+                    pJoint->rotation.vx += *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
+                    pJoint->rotation.vy += *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
+                    pJoint->rotation.vz += *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                break;
+
+            case LIBGEAR_JOINT_OPCODE_INTERPOLATE:
+                frame = pObject->curFrame + 1;
+                pJoint->rotation.vx = pObject->value.lerp.startX +
+                    (pObject->value.lerp.targetX * frame) / pObject->endFrame;
+                pJoint->rotation.vy = pObject->value.lerp.startY +
+                    (pObject->value.lerp.targetY * frame) / pObject->endFrame;
+                pJoint->rotation.vz = pObject->value.lerp.startZ +
+                    (pObject->value.lerp.targetZ * frame) / pObject->endFrame;
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_STEP:
+                dx = (pObject->value.lerp.targetX - pJoint->rotation.vx) / pObject->endFrame;
+                dy = (pObject->value.lerp.targetY - pJoint->rotation.vy) / pObject->endFrame;
+                dz = (pObject->value.lerp.targetZ - pJoint->rotation.vz) / pObject->endFrame;
+                if ((dx == 0) && (dy == 0) && (dz == 0)) {
+                    pObject->curFrame = pObject->endFrame;
+                    pJoint->rotation.vx = pObject->value.lerp.targetX;
+                    pJoint->rotation.vy = pObject->value.lerp.targetY;
+                    pJoint->rotation.vz = pObject->value.lerp.targetZ;
+                } else {
+                    pJoint->rotation.vx += dx;
+                    pJoint->rotation.vy += dy;
+                    pJoint->rotation.vz += dz;
+                    pObject->curFrame = 0;
+                }
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_ACCUMULATE:
+                pObject->value.lerp.startX += pObject->value.lerp.targetX;
+                pJoint->rotation.vx += pObject->value.lerp.startX;
+                pObject->value.lerp.startY += pObject->value.lerp.targetY;
+                pJoint->rotation.vy += pObject->value.lerp.startY;
+                pObject->value.lerp.startZ += pObject->value.lerp.targetZ;
+                pJoint->rotation.vz += pObject->value.lerp.startZ;
+                break;
+
+            case LIBGEAR_JOINT_OPCODE_MOVE_BASE:
+            case LIBGEAR_JOINT_OPCODE_MOVE_BASE + 1:
+                dx = pObject->value.lerp.targetX - pJoint->translation.x;
+                dy = pObject->value.lerp.targetY - pJoint->translation.y;
+                dz = pObject->value.lerp.targetZ - pJoint->translation.z;
+                dist = SquareRoot0((dx * dx) + (dy * dy) + (dz * dz)) + 1;
+                maxStep = pObject->value.lerp.startY +
+                    ((dist + pObject->curFrame) * pObject->value.lerp.startZ) /
+                        pObject->value.lerp.startX;
+                angle = (ratan2(-dx, -dz) - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
+                if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
+                    angle -= LIBGEAR_ANGLE_FULL_TURN;
+                }
+                if ((angle < 0 ? -angle : angle) >= maxStep) {
+                    angle = (angle < 0) ? -maxStep : maxStep;
+                }
+                pJoint->rotation.vy += angle;
+                if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) == LIBGEAR_JOINT_OPCODE_MOVE_BASE) {
+                    angle = (ratan2(dy, SquareRoot0((dx * dx) + (dz * dz))) -
+                                pJoint->rotation.vx) &
+                        LIBGEAR_ANGLE_MASK;
+                    if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
+                        angle -= LIBGEAR_ANGLE_FULL_TURN;
+                    }
+                    if ((angle < 0 ? -angle : angle) >= maxStep) {
+                        angle = (angle < 0) ? -maxStep : maxStep;
+                    }
+                    pJoint->rotation.vx += angle;
+                }
+                if (pObject->curFrame < LIBGEAR_JOINT_FRAME_ACCUMULATE_MAX) {
+                    pObject->curFrame += pObject->endFrame;
+                }
+                break;
+            }
+
+            pObject->curFrame++;
+            if (pObject->curFrame >= pObject->endFrame) {
+                if (pObject->loops == 0) {
+                    if (pObject->type == objectType) {
+                        result |= LIBGEAR_JOINT_UPDATE_FINISHED;
+                    }
+                    result |= LIBGEAR_JOINT_UPDATE_FINISHED_ANY;
+                    BattleFreeBlock(pPool, (BattleBlock*)pObject);
+                    pJoint->pRotationObject = NULL;
+                } else {
+                    if (pObject->type == objectType) {
+                        result |= LIBGEAR_JOINT_UPDATE_LOOPED;
+                    }
+                    result |= LIBGEAR_JOINT_UPDATE_LOOPED_ANY;
+                    if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) < LIBGEAR_JOINT_OPCODE_INTERPOLATE) {
+                        pObject->curFrame = 0;
+                        pObject->value.step.pCursor = pObject->value.step.pScript;
+                    } else {
+                        pObject->curFrame = -1;
+                        if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) == LIBGEAR_JOINT_OBJECT_ACCUMULATE) {
+                            pObject->value.lerp.targetX = 0;
+                            pObject->value.lerp.targetY = 0;
+                            pObject->value.lerp.targetZ = 0;
+                        }
+                    }
+                }
+            } else {
+                if (pObject->type == objectType) {
+                    result |= LIBGEAR_JOINT_UPDATE_ADVANCED;
+                }
+                result |= LIBGEAR_JOINT_UPDATE_ADVANCED_ANY;
+            }
+
+            pJoint->doRotate = TRUE;
+            pJoint->doTransform = TRUE;
+        }
+
+        // Translation channel
+        pObject = (JointObject*)pJoint->pTranslationObject;
+        if (pObject != NULL) {
+            opcode = pObject->opcode;
+
+            switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
+            case LIBGEAR_JOINT_OBJECT_SET:
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
+                    pJoint->translation.x = *(s16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
+                    pJoint->translation.y = *(s16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
+                    pJoint->translation.z = *(s16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                }
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_RELATIVE:
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
+                    delta = *(s8*)pObject->value.step.pCursor++;
+                    if (delta != LIBGEAR_SCRIPT_LITERAL) {
+                        pJoint->translation.x += delta;
+                    } else {
+                        pCursor = pObject->value.step.pCursor;
+                        pObject->value.step.pCursor++;
+                        pJoint->translation.x = pCursor[0] | (pCursor[1] << 8);
+                        pObject->value.step.pCursor++;
+                    }
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
+                    delta = *(s8*)pObject->value.step.pCursor++;
+                    if (delta != LIBGEAR_SCRIPT_LITERAL) {
+                        pJoint->translation.y += delta;
+                    } else {
+                        pCursor = pObject->value.step.pCursor;
+                        pObject->value.step.pCursor++;
+                        pJoint->translation.y = pCursor[0] | (pCursor[1] << 8);
+                        pObject->value.step.pCursor++;
+                    }
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
+                    delta = *(s8*)pObject->value.step.pCursor++;
+                    if (delta != LIBGEAR_SCRIPT_LITERAL) {
+                        pJoint->translation.z += delta;
+                    } else {
+                        pCursor = pObject->value.step.pCursor;
+                        pObject->value.step.pCursor++;
+                        pJoint->translation.z = pCursor[0] | (pCursor[1] << 8);
+                        pObject->value.step.pCursor++;
+                    }
+                }
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_ADD:
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
+                    vec.vx = *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                } else {
+                    vec.vx = 0;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
+                    vec.vy = *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                } else {
+                    vec.vy = 0;
+                }
+                if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
+                    vec.vz = *(u16*)pObject->value.step.pCursor;
+                    pObject->value.step.pCursor += 2;
+                } else {
+                    vec.vz = 0;
+                }
+                vec.vx = (vec.vx * pJoint->scale.vx) >> 12;
+                vec.vy = (vec.vy * pJoint->scale.vy) >> 12;
+                vec.vz = (vec.vz * pJoint->scale.vz) >> 12;
+                ApplyMatrix(&pJoint->globalTransform, &vec, &out);
+                pJoint->translation.x += (scale * out.vx) >> 12;
+                pJoint->translation.y += (scale * out.vy) >> 12;
+                pJoint->translation.z += (scale * out.vz) >> 12;
+                break;
+
+            case LIBGEAR_JOINT_OPCODE_INTERPOLATE:
+                frame = pObject->curFrame + 1;
+                pJoint->translation.x = pObject->value.lerp.startX +
+                    (pObject->value.lerp.targetX * frame) / pObject->endFrame;
+                pJoint->translation.y = pObject->value.lerp.startY +
+                    (pObject->value.lerp.targetY * frame) / pObject->endFrame;
+                pJoint->translation.z = pObject->value.lerp.startZ +
+                    (pObject->value.lerp.targetZ * frame) / pObject->endFrame;
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_STEP:
+                dx = (pObject->value.lerp.targetX - pJoint->translation.x) / pObject->endFrame;
+                dy = (pObject->value.lerp.targetY - pJoint->translation.y) / pObject->endFrame;
+                dz = (pObject->value.lerp.targetZ - pJoint->translation.z) / pObject->endFrame;
+                if ((dx == 0) && (dy == 0) && (dz == 0)) {
+                    pObject->curFrame = pObject->endFrame;
+                    pJoint->translation.x = pObject->value.lerp.targetX;
+                    pJoint->translation.y = pObject->value.lerp.targetY;
+                    pJoint->translation.z = pObject->value.lerp.targetZ;
+                } else {
+                    pJoint->translation.x += dx;
+                    pJoint->translation.y += dy;
+                    pJoint->translation.z += dz;
+                    pObject->curFrame = 0;
+                }
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_ACCUMULATE:
+                pObject->value.lerp.startX += pObject->value.lerp.targetX;
+                pJoint->translation.x += pObject->value.lerp.startX;
+                pObject->value.lerp.startY += pObject->value.lerp.targetY;
+                pJoint->translation.y += pObject->value.lerp.startY;
+                pObject->value.lerp.startZ += pObject->value.lerp.targetZ;
+                pJoint->translation.z += pObject->value.lerp.startZ;
+                break;
+            }
+
+            pObject->curFrame++;
+            if (pObject->curFrame >= pObject->endFrame) {
+                if (pObject->loops == 0) {
+                    if (pObject->type == objectType) {
+                        result |= LIBGEAR_JOINT_UPDATE_FINISHED;
+                    }
+                    result |= LIBGEAR_JOINT_UPDATE_FINISHED_ANY;
+                    BattleFreeBlock(pPool, (BattleBlock*)pObject);
+                    pJoint->pTranslationObject = NULL;
+                } else {
+                    if (pObject->type == objectType) {
+                        result |= LIBGEAR_JOINT_UPDATE_LOOPED;
+                    }
+                    result |= LIBGEAR_JOINT_UPDATE_LOOPED_ANY;
+                    if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) < LIBGEAR_JOINT_OPCODE_INTERPOLATE) {
+                        pObject->curFrame = 0;
+                        pObject->value.step.pCursor = pObject->value.step.pScript;
+                    } else {
+                        pObject->curFrame = -1;
+                        if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) == LIBGEAR_JOINT_OBJECT_ACCUMULATE) {
+                            pObject->value.lerp.targetX = 0;
+                            pObject->value.lerp.targetY = 0;
+                            pObject->value.lerp.targetZ = 0;
+                        }
+                    }
+                }
+            } else {
+                if (pObject->type == objectType) {
+                    result |= LIBGEAR_JOINT_UPDATE_ADVANCED;
+                }
+                result |= LIBGEAR_JOINT_UPDATE_ADVANCED_ANY;
+            }
+
+            pJoint->doRotate = TRUE;
+            pJoint->doTransform = TRUE;
+        }
+
+        // Scale channel; it has no script form, so its opcode starts at the interpolation
+        pObject = (JointObject*)pJoint->pScaleObject;
+        if (pObject != NULL) {
+            switch (pObject->opcode & LIBGEAR_JOINT_OPCODE_MASK) {
+            case LIBGEAR_JOINT_OPCODE_INTERPOLATE:
+                frame = pObject->curFrame + 1;
+                pJoint->scale.vx = pObject->value.lerp.startX +
+                    (pObject->value.lerp.targetX * frame) / pObject->endFrame;
+                pJoint->scale.vy = pObject->value.lerp.startY +
+                    (pObject->value.lerp.targetY * frame) / pObject->endFrame;
+                pJoint->scale.vz = pObject->value.lerp.startZ +
+                    (pObject->value.lerp.targetZ * frame) / pObject->endFrame;
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_STEP:
+                dx = (pObject->value.lerp.targetX - pObject->value.lerp.startX) /
+                    pObject->endFrame;
+                dy = (pObject->value.lerp.targetY - pObject->value.lerp.startY) /
+                    pObject->endFrame;
+                dz = (pObject->value.lerp.targetZ - pObject->value.lerp.startZ) /
+                    pObject->endFrame;
+                if ((dx == 0) && (dy == 0) && (dz == 0)) {
+                    pObject->curFrame = pObject->endFrame;
+                    pJoint->scale.vx = pObject->value.lerp.targetX;
+                    pJoint->scale.vy = pObject->value.lerp.targetY;
+                    pJoint->scale.vz = pObject->value.lerp.targetZ;
+                } else {
+                    pObject->value.lerp.startX += dx;
+                    pObject->value.lerp.startY += dy;
+                    pObject->value.lerp.startZ += dz;
+                    pJoint->scale.vx = pObject->value.lerp.startX;
+                    pJoint->scale.vy = pObject->value.lerp.startY;
+                    pJoint->scale.vz = pObject->value.lerp.startZ;
+                    pObject->curFrame = 0;
+                }
+                break;
+
+            case LIBGEAR_JOINT_OBJECT_ACCUMULATE:
+                pObject->value.lerp.startX += pObject->value.lerp.targetX;
+                pJoint->scale.vx += pObject->value.lerp.startX;
+                pObject->value.lerp.startY += pObject->value.lerp.targetY;
+                pJoint->scale.vy += pObject->value.lerp.startY;
+                pObject->value.lerp.startZ += pObject->value.lerp.targetZ;
+                pJoint->scale.vz += pObject->value.lerp.startZ;
+                break;
+            }
+
+            pObject->curFrame++;
+            if (pObject->curFrame >= pObject->endFrame) {
+                if (pObject->loops == 0) {
+                    if (pObject->type == objectType) {
+                        result |= LIBGEAR_JOINT_UPDATE_FINISHED;
+                    }
+                    result |= LIBGEAR_JOINT_UPDATE_FINISHED_ANY;
+                    BattleFreeBlock(pPool, (BattleBlock*)pObject);
+                    pJoint->pScaleObject = NULL;
+                } else {
+                    if (pObject->type == objectType) {
+                        result |= LIBGEAR_JOINT_UPDATE_LOOPED;
+                    }
+                    result |= LIBGEAR_JOINT_UPDATE_LOOPED_ANY;
+                    pObject->curFrame = -1;
+                    if ((pObject->opcode & LIBGEAR_JOINT_OPCODE_MASK) ==
+                        LIBGEAR_JOINT_OBJECT_ACCUMULATE) {
+                        pObject->value.lerp.targetX = 0;
+                        pObject->value.lerp.targetY = 0;
+                        pObject->value.lerp.targetZ = 0;
+                    }
+                }
+            } else {
+                if (pObject->type == objectType) {
+                    result |= LIBGEAR_JOINT_UPDATE_ADVANCED;
+                }
+                result |= LIBGEAR_JOINT_UPDATE_ADVANCED_ANY;
+            }
+
+            pJoint->doRotate = TRUE;
+            pJoint->doTransform = TRUE;
+        }
+
+        pMesh++;
+    }
+
+    return result;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
 /*
    `andi` is the only non-multiset insn). The remaining delta is register
