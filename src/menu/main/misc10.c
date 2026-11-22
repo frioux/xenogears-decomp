@@ -962,6 +962,24 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
    moves the 0 out of the delay slot. Two 4-minute permuter runs from the u8 body
    had found only a do-while wrapper; a 3-minute run from the 99.69 body found this
    type change (base 216 -> 205) and a re-run from the u8 body nothing better.
+   ROUND 405 (this lane), all measured at retail's 1020 bytes / 255 insns:
+   - every spelling that puts retail's `andi` in that slot also loses the tail
+     arrangement (99.69): `(hpFull & 0xFF) == 0`, `(hpFull & 0xFF) ? mpFull : 0`,
+     `(u8)hpFull`, and a QI-to-SI copy (`u8 hpFull; unsigned int hpFullW;
+     hpFullW = hpFull;`). The named cause is jump.c: the masked 0x4000 operand is a
+     fresh temp, and the deep arm's `return 0` block is then redirected onto the
+     last arm's trailing `move v0,zero` (the branch inverts, mpFull takes the delay
+     slot). With an SI compare on hpFull itself jump.c leaves the block alone, so
+     the tail is retail's and only the ANDI is missing. Retail's compile did neither
+     inversion: its deep branch targets the epilogue with 0 in the delay slot (reorg
+     threaded the block), and it kept the ANDI.
+   - permuter 3 min from the 99.69 (masked) body: base 216 -> best 124, its candidate
+     routes the deep arm through a local (`deepResult = ...; return deepResult;`)
+     which measures 99.51 / 1024 bytes, one instruction MORE than retail - rejected,
+     not a closer body.
+   So the residual is a jump.c redirect decision, not a source shape: any spelling
+   with the mask inverts, any spelling with retail's tail has no mask. Parked at
+   99.75 (the SI body) because that is the highest measured and the simplest source.
 */
 /*
 u16 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
