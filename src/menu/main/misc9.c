@@ -24,6 +24,9 @@
 // column's string, 0x1D..0x1F the three strings func_801DCE60 renders.
 #define MENU_PANEL_COLUMN_STRING 0x1C
 #define MENU_PANEL_HEADING_STRING 0x1E
+// Row sprite records at the start of the 0x430 panel; 0xE..0x1B is the shaded copy
+// of the same rows that func_801DD5E8 walks alongside them.
+#define MENU_PANEL_ROW_STRING_COUNT 0xC
 // The one character with two weapon slots: its equipment panel carries a second
 // weapon slot group, which the left/right input and the weapon move below both
 // switch between.
@@ -923,25 +926,33 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
 }
 */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
-/* Best: 99.72% at retail's exact size (424 bytes = 106 insns). The body is
-   retail's everywhere: prologue and saved set, both loops, all six call sites and
-   the delay slots. TWO instructions differ and they are the same tie twice: the
-   address of the two `lbu renderContext` loads (loop 1's second call site and
-   loop 2's body) is `base + i * 0x80`, retail emits it base-first
-   (`addu v0,v1,s0` / `addu v0,v0,v1`) and cc1 2.6.0 emits it offset-first
-   (`addu v0,s0,v1` / `addu v1,v1,v0`) - same operands, same value, same size.
-   Round 392 spellings measured from this body, all leaving the order alone and
-   some costing bytes: the base-first cast `(u8*)g_Menu->unk430 + i * 0x80 + 0x77D`,
-   the same with `sizeof(MenuString)`, an index-first cast, a whole-entry local
-   (`pAhead`, 94.40%, 412 bytes), a panel-base local assigned inside the `if`
-   (99.48%), and a `MenuString* pHeading` local in loop 2 (96.64%, 416 bytes).
-   The one shape that bought anything is the `do { } while (0)` around loop 2's
-   call, which moved that loop's g_Menu/panel pair into retail's $v0 (99.58 ->
-   99.72); kept below. permute.sh --minutes 3 -j 2 found exactly that block edit
-   (base=45 best=30) and a second run from the better body found nothing (1222
-   iterations, base=30 best=30). This stub owns no jump table, so it is
-   convertible as soon as the operand order closes. */
+/* PARKED 99.72% (round 405 re-measure; unchanged since round 392) at retail's exact
+   424 bytes / 106 insns. TWO `addu` operands are the only residual, and they are the
+   same tie twice: the address of the two `lbu renderContext` loads of the 0x430
+   panel's shifted sprite groups (displacements 0x77D and 0xF7D) is `base + i * 0x80`;
+   retail writes it base-first (`addu v0,v1,s0`, `addu v0,v0,v1`) and cc1 2.6.0
+   offset-first (`addu v0,s0,v1`, `addu v1,v1,v0`) - same operands, same value, same
+   size, same instruction multiset. This is the address LEGITIMISER, not the source
+   order: every site in this function that only feeds a call argument is retail's,
+   and only these two MEMORY operands are swapped.
+   Spellings measured, all leaving the order alone unless noted: the base-first cast
+   `(u8*)g_Menu->unk430 + i * 0x80 + 0x77D`, the same with sizeof(MenuString), an
+   index-first cast, a whole-entry local (`pAhead`, 94.40%, 412 bytes), a panel-base
+   local assigned inside the `if` (99.48%), a `MenuString* pHeading` local in loop 2
+   (96.64%, 416 bytes). Round 405, from a fully typed spelling: the panel as a
+   `MenuString*` local with subscripts throughout (86.25%, 384 bytes - cc1 puts
+   `panel + i * 0x80` in a callee-saved register as a GIV and drops the per-iteration
+   reload), the same with `pPanel[i + 0xE]` at the second call site (89.75%, 404
+   bytes, frame 0x30), and `pString[0xE]` off the loop's live entry pointer (96
+   insns, same GIV collapse). So the panel base must stay a `g_Menu->unk430` load at
+   every use; that is what keeps retail's 106 insns.
+   The one shape that ever bought anything is the `do { } while (0)` around loop 2's
+   call (99.58 -> 99.72, kept below). permute.sh -j 2: two runs in round 392 and a
+   third in round 405 (1386 iters, base=30 best=30) all end at this body. No jump
+   table and no dlabel data in this stub's .s, so it converts the moment the operand
+   order closes.
+*/
+
 /*
 void func_801DD5E8(u_char arg0) {
     MenuString* pString;
@@ -952,7 +963,7 @@ void func_801DD5E8(u_char arg0) {
 
     func_801E8F60(5, arg0);
     func_801E8F60(6, arg0);
-    for (i = 0; i < 0xC; i++) {
+    for (i = 0; i < MENU_PANEL_ROW_STRING_COUNT; i++) {
         pPanel = g_Menu->unk430;
         pString = &((MenuString*)pPanel)[i];
         rc = pString->renderContext;
@@ -963,14 +974,16 @@ void func_801DD5E8(u_char arg0) {
         }
     }
     MenuSetPrimShadingMode(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
-    MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[0x1C].polys[((MenuString*)g_Menu->unk430)[0x1C].renderContext], arg0);
+    MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_COLUMN_STRING].polys[((MenuString*)g_Menu->unk430)[MENU_PANEL_COLUMN_STRING].renderContext], arg0);
     for (i = 0; i < 2; i++) {
         do {
-            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[0x1E + i].polys[((MenuString*)g_Menu->unk430)[0x1E + i].renderContext], arg0);
+            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].polys[((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].renderContext], arg0);
         } while (0);
     }
 }
 */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
+
 /* PARKED 95.96% (round 385 re-measure; the old 95.71 note is superseded). Retail
    EXACT 1940 bytes and a byte-for-byte identical instruction MULTISET; the only
    residual is which callee-saved register each long-lived value gets. Both compiles
