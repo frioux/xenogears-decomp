@@ -86,19 +86,25 @@ void func_800379B4(u32 value) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379B4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379C8);
-/* 0%: retail is a bare `j FontPrintf` plus a nop delay slot and nothing else, so
-   it is a sibling call of a one-line printf wrapper (heap_debug.c stores it in
-   g_HeapDebugPrintfFn, archive.c and field/scripts/virtual_machine.c call it with
-   varargs). No C reproduces it with the compilers this repo has: gcc 2.7.2 emits
-   a 32-byte frame + jal for `void f(char*) { FontPrintf(pFormat); }` and a
-   48-byte varargs version, gcc-2.6.0 is 0.0% too, and gcc-2.8.1 still emits the
-   frame + jal (its mips.md has no sibcall patterns, which arrive in 3.x). A
-   non-prototype `extern void FontPrintf();` does not help either. It is also the
-   ONLY function in the whole linked binary and every overlay whose first
-   instruction is `j` (grep over every glabel in asm/), so retail's bytes are a
-   hand-written thunk or a compiler this project does not have. Leave as
-   INCLUDE_ASM.
-void func_800379C8(char* pFormat) {
+/* PARKED 0%, RE-MEASURED this round: 8 bytes retail against 32 (honest signature)
+   and 48 (variadic). Retail is `j FontPrintf` + `nop` - the disc word at 0x281C8
+   is 0x0800DC03 (opcode 2, target 0x8003700C = FontPrintf, which splat prints
+   byte-swapped as `03DC0008`) - with no frame and a0 untouched, i.e. a SIBLING
+   CALL that forwards the caller's varargs unchanged. That is the only shape
+   consistent with the callers (archive.c, field/scripts/virtual_machine.c and
+   heap_debug.c all pass extra arguments; FontPrintf is variadic), and it is not
+   expressible on this target:
+   - gcc 2.7.2's mips.md has no sibcall patterns (they arrive in 3.x). Probed with
+     cc1_probe.sh: `void f(char* p){ FontPrintf(p); }` gives subu sp / sw ra /
+     jal / lw ra / addu sp / j ra, unchanged by -foptimize-sibling-calls and
+     unchanged by an __attribute__((noreturn)) declaration of the callee.
+   - the variadic signature `void f(char* p, ...){ FontPrintf(p); }` is worse: the
+     frame plus the a1-a3 save area.
+   - gcc-2.6.0 and 2.7.2-cdk 0%, 2.8.1 (an earlier round) frame + jal too.
+   No other glabel in the linked binary or in any overlay starts with `j`, so
+   retail's 8 bytes are a hand-written thunk or a compiler this project lacks.
+   Leave as INCLUDE_ASM.
+void func_800379C8(char* pFormat, ...) {
     FontPrintf(pFormat);
 }
 */
