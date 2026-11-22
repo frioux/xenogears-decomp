@@ -240,27 +240,64 @@ extern void func_801E738C(s16 arg0);
 extern void func_801E742C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s16 arg4, s32 arg5, s32 arg6,
                           s32 arg7, SVECTOR* pVector);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077AB4);
-// 64.39%: the C below is structurally right (count guard, then HeapChangeCurrentUser(8, NULL))
-// but the original materialises &g_FieldActorModelSlotCount into $s0 ONCE and reaches the loop vectors and
-// g_FieldMotionSlotSteps with `addiu` off it, while gcc rematerialises a %hi/%lo pair for every one of
-// those addresses. Same root cause as FieldRenderGearFrame (misc2) and func_800A0EE8 (misc6).
-// The loop itself is: 8 max entries of three zeroed SVECTOR vertices (8 bytes apart) plus a
-// per-entry s32 result; the third and eighth arguments are a `0xFC` byte counter (offsets
-// into g_FieldEffects) and `0xFC0000 + i * 0x10000` read as `>> 16`.
+// PARKED 66.92% (460 bytes / 115 insns; retail 428 bytes / 107). Re-measured from
+// scratch this round: the old 64.39 note is superseded and its body is replaced by
+// the one below, which takes its loop shape from the twin misc6
+// FieldScriptVMHandlerUpdateActorModelSlot case 2 (same func_801E742C call:
+// (s16)(0x240 - (offset << 6)), 0x100, 0, (s16)(nSlot + 0xFC), &vectors[nSlot]).
+// VERIFIED STRUCTURE (keep): count guard, FieldWaitForArchiveSync,
+// FieldRenderSyncAndFlush, func_801E738C(g_FieldGearObjectCapacity),
+// D_801E8644 = g_FieldMotionSlotSteps, SetBackColor, the slot loop,
+// HeapChangeCurrentUser(8, NULL). Layout, in words off &g_FieldActorModelSlotCount
+// (0x800B2264): count at +0x00, g_FieldMotionSlotSteps at -0x28 (0x800B223C),
+// g_FieldModelSlotScratch at -0x78 (0x800B21EC) with the SVECTOR the loop zeroes at
+// its +0x00 and the s32 animation ids it fills at its +0x20 (i.e. count - 0x58),
+// i.e. misc6's FieldModelSlotScratch. The third argument's row byte is
+// g_FieldActorModelSpriteRow[i]: retail's lbu %lo(g_FieldEffects+0xEB)(at) with
+// at = hi + 0xFC + i resolves to 0x800B225F + i = g_FieldActorModelSpriteRow, so the
+// source keeps ONE counter that starts at 0xFC and is used both as that byte index
+// and as clut >> 16 (clut starting at 0xFC0000, += 0x10000 per slot). The data-buffer
+// argument is a POST-INCREMENTED pointer (lw a2,0(s6) then addiu s6,s6,4 in the jal
+// delay slot); the sprite buffer is read twice from one indexed address (argument and
+// HeapFree).
+// THE WALL, and it is the whole remaining cost: retail materialises &count into $s0
+// in the prologue (its sw s0,0x30(sp) comes before sw ra) and does everything off that
+// ONE register - lw 0(s0) for the count twice, addiu v0,s0,-40 for D_801E8644,
+// addiu s7,s0,-120 for the scratch, and inside the loop lw 0x78(s7) plus
+// addiu v1,s7,32. This build folds every *pCount load back to the maspsx
+// lui %hi / lw %lo macro and re-forms lui/addiu for the two address constants, which
+// is +1 instruction per count read and per address (the budget above).
+// MEASURED DEAD this round, all landing on 66.92 / 460 except where noted:
+// pCount = &g_FieldActorModelSlotCount with *pCount; the same symbol re-declared as an
+// unbounded array (extern s32 g_FieldActorModelSlotCount[]; pCount = symbol; pCount[0],
+// 63.28 at 464 - the array giv also lands at -2(s2)); the pointer assigned after a
+// direct-global guard; (s32*)(mem_addr)&g_FieldActorModelSlotCount; the loop count
+// reloaded through the scratch base as ((s32*)(pScratch + 0x78))[0], misc3's round-306
+// spelling that did reproduce a lw 0x80(s2) there. Presets: gcc-2.6.0 66.92, -O3 66.92,
+// -G0 63.28, 2.7.2-cdk compile-fails (mixed declarations) - not a preset question.
+// This is the same fold_rtx / SCALAR_ADDR wall that holds func_80077884 above, misc3
+// FieldFree and virtual_machine func_800A24C4.
+// STILL SHAPED WRONG once the address is solved: retail indexes the sprite buffer and
+// the animation-ids array with a shared i*4 (sll s1,s3,2 then addu, s1 recomputed every
+// iteration) where this body strength-reduces both into walking pointers, which is why
+// it needs a ninth saved register (sw s8,80(sp); frame 0x58 matches retail, saved set
+// s0-s8 against retail's s0-s7); and retail's vector zero-fill walks a pointer with
+// stores at 0/2/4 where this body's giv ends up at -2(s2)/0(s2). Both are downstream of
+// the address wall, so fix that first.
 /*
 void func_80077AB4(void) {
     s32* pCount;
     SVECTOR* pVector;
     s32* pData;
+    u8* pScratch;
     s32 i;
     s32 clut;
     int texOffset;
 
-    pCount = &g_FieldActorModelSlotCount;
-    if (*pCount == 0) {
+    if (g_FieldActorModelSlotCount == 0) {
         return;
     }
+    pCount = &g_FieldActorModelSlotCount;
 
     FieldWaitForArchiveSync();
     FieldRenderSyncAndFlush();
@@ -268,26 +305,27 @@ void func_80077AB4(void) {
     D_801E8644 = pCount - 10;
     SetBackColor(g_FieldBackgroundR, g_FieldBackgroundG, g_FieldBackgroundB);
     if (*pCount > 0) {
-        pVector = (SVECTOR*)(pCount - 30);
+        pScratch = (u8*)pCount - 0x78;
+        pVector = (SVECTOR*)pScratch;
         clut = 0xFC0000;
         texOffset = 0xFC;
-        pData = g_FieldActorModelSlotSpriteBuffers;
-        for (i = 0; i < *pCount; i++) {
+        pData = g_FieldActorModelSlotDataBuffers;
+        for (i = 0; i < ((s32*)(pScratch + 0x78))[0]; i++) {
             pVector->vx = 0;
             pVector->vy = 0;
             pVector->vz = 0;
-            func_801E742C(i, 0, g_FieldActorModelSlotDataBuffers[i], pData[i],
+            func_801E742C(i, 0, *pData++, g_FieldActorModelSlotSpriteBuffers[i],
                 (s16)(0x240 - ((i + ((u8*)&g_FieldEffects)[0xEB + texOffset]) * 0x40)), 0x100, 0,
                 clut >> 16, pVector++);
             texOffset++;
-            HeapFree(pData[i]);
-            ((s32*)(pCount - 22))[i] = *(s16*)((u8*)g_FieldActorModelPointers[i] + 0x1C);
+            HeapFree((void*)g_FieldActorModelSlotSpriteBuffers[i]);
+            ((s32*)(pScratch + 0x20))[i] = *(s16*)((u8*)g_FieldActorModelPointers[i] + 0x1C);
             clut += 0x10000;
         }
     }
     HeapChangeCurrentUser(8, NULL);
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077AB4);
 
 void FieldLoadAndCreateObjectModels(void) {
     func_80077884();
