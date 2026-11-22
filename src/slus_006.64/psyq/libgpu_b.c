@@ -172,22 +172,21 @@ u_long DrawMode(int dfe, int dtd, u_short tpage) {
     return mode | tp;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
-
-/* best: 79.12% (188 bytes; retail is 204). The unused u_long t[4] local IS the
-   lever that buys retail's 0x10 frame, allocated in the bltz delay slot and never
-   stored into: 71.18 -> 79.12% and 176 -> 188 bytes. What is left is register
-   roles, not structure. Retail per axis: copy the raw parameter to a spare
-   register, truncate the value to s16 IN PLACE, bltz onto an out-of-line "v = 0",
-   then "slt max-1,v" + bnez onto the clamp value and a j/move of the raw copy for
-   the keep case; the merge copies the winner back through v0. gcc instead keeps
-   the raw parameter in $a0, truncates into a fresh register, and CSEs the two
-   "g_GpuScreenWidth - 1" of the ternary into the one it fed the slt. With explicit
-   copies (int rx = x; used in the keep arm) the diff shrinks to 196 bytes but
-   scores 78.82. Measured worse: s32 sx/sy, u_short xi/yi, if/else clamp blocks
-   (65.10), one-expression returns (73.08), parameter reassignment (79.12 same
-   size). The E3 tail is func_80045BCC's tail (masked x in v0, lui 0xE3000000 in
-   a0), so the u_short code / u_long ret idiom is the right one here too.
+// best: 79.12% (188 bytes; retail is 204 = 4 instructions more). Retail per
+// axis: copy the raw parameter out (move a3,a0), truncate the parameter register
+// IN PLACE (sll a0; sra a0), bltz to an out-of-line v=0, then slt of W-1 against
+// the truncated value, bnez to an out-of-line clamp whose delay slot recomputes
+// 'addiu v0,a2,-1' from a2 = the W copy; the keep arm is 'j merge; move v0,raw'.
+// The two extra instructions per axis are the 'move a2,v0' W copy plus that
+// recomputation: gcc CSEs g_GpuScreenWidth-1 into one register, so it emits
+// 'addiu v1,v0,-1' once and moves it into the merge. Only the y axis comes out
+// with retail's register roles (a1 = yi, a2 = truncated scratch).
+// Measured this round: u_long t[4] frame + ternary (below) 79.12; the same body
+// with if/else clamp blocks over u_long xi/yi (xi = x; if ((s16)xi < 0) ...)
+// 65.59; gcc-2.7.2-cdk under this unit's flags 75.78; gcc-2.6.0 79.12. Earlier
+// rounds: s32 sx/sy, u_short xi/yi, explicit 'int rx = x' copies (78.82, 196
+// bytes), one-expression returns (73.08), parameter reassignment (79.12).
+/*
 u_long func_80045A34(int x, int y) {
     u_long t[4];
     u_short code;
@@ -209,8 +208,8 @@ u_long func_80045A34(int x, int y) {
     }
     ret = code | 0xE3000000;
     return fld | ret;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 
 /* best: 70.27% -- same clamp as func_80045A34, E4 word.
 u_long func_80045B00(int x, int y) {
@@ -305,25 +304,42 @@ u_long func_80045C10(RECT *tw) {
 }
 */
 
-/* best: 68.48% -- retail merges the two `return p->x` blocks and shares the
-   `0x400 - w - p->x` tail between the mode 1 and mode 2 arms (case 2 jumps into
-   case 1's tail); gcc keeps p in $a1 and emits every arm separately. A shared
-   `offs` local with one trailing return scores worse (53.43%).
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
+
+/* best: 92.73% (184 bytes; retail is 176). The dispatch is a switch: retail is
+   beq/beq/j with the default (return p->x) block last, and the three "return p->x"
+   paths already merge into retail's single lh v0,0(a0) block here. What is left is
+   the shared - 0x400 - v - p->x - tail: retail keeps it inline in case 1 and case
+   2's reverse arm jumps INTO it at +0x40 with li v0,1024 in the delay slot, i.e.
+   gcc merged case 2's whole tail into case 1's. Every spelling tried makes gcc
+   merge only the last subu, into a third block that costs one instruction.
+   Measured: plain return 0x400 - p->w - p->x in both arms 88.02 (gcc reassociates
+   to (0x400 - p->x) - p->w, which swaps the two loads and kills the merge);
+   92.68 with the w = p->w / 2 local in case 2; 87.16 with the v = 0x400 - p->w
+   form in both arms (the v/w locals are what force the natural operand order);
+   92.73 with both. A 4-minute permuter run (base=457 best=317) found only the
+   un-parenthesised case-2 arm, which scores 88.07.
 u_long func_80045C94(RECT *p) {
-    if (g_GraphType == 1) {
-        if (g_GraphReverse)
-            return 0x400 - p->w - p->x;
-        return p->x;
-    } else if (g_GraphType == 2) {
-        if (g_GraphReverse)
-            return 0x400 - p->w / 2 - p->x;
+    int v;
+    int w;
+
+    switch (g_GraphType) {
+    case 1:
+        if (g_GraphReverse) {
+            v = 0x400 - p->w;
+            return v - p->x;
+        }
+        break;
+    case 2:
+        if (g_GraphReverse) {
+            w = p->w / 2;
+            return 0x400 - w - p->x;
+        }
         return p->x / 2;
     }
     return p->x;
 }
 */
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
 
 
 u_long func_80045D44(void) {
