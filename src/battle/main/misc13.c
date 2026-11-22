@@ -617,7 +617,10 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
         res = 1;
     }
     return res;
-}void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
+}
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
+void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
     s32 i;
 
     for (i = 0; i < BATTLE_COMMAND_RECORD_COUNT; i++) {
@@ -625,8 +628,7 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
         g_BattleCommandRecords[i].actorSlot = arg0;
         g_BattleCommandRecords[i].slotMask = BattleSlotBitMask(arg1);
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
+}
 
 void BattleSetupActorSlotDisplay(u8 arg0) {
     s32 idx;
