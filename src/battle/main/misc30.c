@@ -403,35 +403,38 @@ void BattleActorSnapToTargetAndFace(BattleActorSprite* pSprite, BattleActorSprit
     SpritePlayAnimation(pSprite, pSprite->animId);
     BattleFaceActorsTowardEachOther(pSprite, pTarget);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
-/* 76.54%, 800 bytes against retail's 768 (192 insns).  The head is exact -- the
-   D_800C3614 lh/lhu pair (a signed test plus the unsigned decrement, hence the
-   `*(s16 *)&D_800C3614` read), the 0x48-stride row index, the 0x8C8C sprite
-   table with `offset = 0x8C8C` in a local, the 0x4A clear and the `sb` of 0xA73.
-   The dispatch is retail's too (13-entry table 0xF3..0xFF, the 0xF9 hole taking
-   the default label, bodies emitted in retail's order 0xFF, 0xFE, 0xFC, 0xFD,
-   the five-way group, 0xFB, 0xF4, default).
-
-   Two things are left, and both are known shapes:
-   1. The arms need the row base in a REGISTER, not folded into the symbol:
-      writing `*(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E)` makes gcc fold
-      0x14E into the lui/addiu pair (`addiu v1,v1,334` + `lhu a1,0(v0)`, 744
-      bytes, 77.18%) where retail keeps `addiu v1,v1,%lo(g_BattleStateWork)` and loads
-      `lhu a1,334(v0)`.  Tree fold reassociates sym+const, so the constant has to
-      stay out of the address tree: two statements
-      (`pRow = g_BattleStateWork; pRow += g_BattleCommandRowIndex * 0x48;`) reproduce retail's
-      instruction multiset and displacement in every arm, at the cost of the
-      register ties below.  A single assignment (`pRow = g_BattleStateWork + idx * 0x48`)
-      already emits the base after the index load and leaves a `nop` in the load
-      delay slot; using the function-wide pBase for it puts the base in $s2.
-   2. The 0xFD and default arms keep separate copies: retail cross-jumps them into
-      one tail (a0/a2 set before the shared block, +12 insns shared), mine emits
-      `move a0,s3` inside the block at a different position in each arm, so
-      jump.c finds nothing identical.  That is the +8 instructions.
-   Register ties in every arm once (1) is right: retail keeps the base in $v1 and
-   the sum in $v0, ours picks a1/v0 or a0/v0; and code/index land in $s3/$s2
-   where retail has $s2/$s3.  A 4-minute permuter run (base=5831, best=3891) only
-   found a semantically wrong rewrite of the 0xF4 increment, so no help there.
+/* 76.54% re-measured this session: 800 bytes / 208 instructions against
+   retail's 768 / 200, so +8 instructions and +32 bytes.  The head is exact (the
+   D_800C3614 lh/lhu pair from the signed test plus the unsigned decrement, the
+   0x48-stride row index, the 0x8C8C sprite table with the offset in a local, the
+   g_BattleState->commandUnhandled clear and the sb of 0xA73) and the dispatch is
+   retail's (13-entry table 0xF3..0xFF with the 0xF9 hole on the default label,
+   bodies in retail's order 0xFF, 0xFE, 0xFC, 0xFD, five-way group, 0xFB, 0xF4,
+   default).
+   Where the +8 lives, verified against the instruction stream this round:
+   1. the 0xFE arm -- retail materialises the row base in $v1 with its lui ahead
+      of the g_BattleCommandRowIndex load and reads g_BattleState->initialActorIndex
+      into $a0 BEFORE the 0x14E lhu; ours issues the g_BattleState lw after the
+      row sum and carries one extra addu in that sum (register-shifted, same
+      multiset otherwise).  Both loads are independent, so that is the scheduler.
+   2. the 0xFD and default arms keep separate copies of the shared
+      (func_800BEE2C(index, row 0x14E, arg) + row index increment) tail: retail
+      cross-jumps them into one block (a0/a2 set, then +12 shared insns), ours
+      places `move a0,s3` at a different position in each arm so jump.c finds
+      nothing identical.  Cross-jumping is a threshold, not a source shape.
+   Rows still hold from earlier rounds (kept): the row base must stay out of the
+   lhu address tree or gcc folds 0x14E into the lui/addiu pair (744 bytes,
+   77.18%); two statements `pRow = g_BattleStateWork; pRow += g_BattleCommandRowIndex
+   * 0x48;` give retail's displacement, one statement puts the base after the
+   index load.  Tried before: 0x8C8C/0x8CB8 folds, index-first sums, declaration
+   reorders, an s32 slot local, three permuter runs (best 3891, only finds were
+   wrong code).
+   Preset is NOT the answer for this unit: gcc-2.7.2-psx -G0 (and 2.6.0 -G0,
+   which does not even compile it) break the already-matched neighbours --
+   BattleIncrementStateTimer 99.09, BattleApplyStateStep 87.22,
+   BattleActorSnapToTargetAndFace 85.40, BattleFinishActorAnimationAndReleaseSlot
+   78.81 under 2.7.2-psx -G0 -- so the cdk -G0 tail preset is right.
+/*
 void func_800B9C78(void) {
     BattleActorSprite* pSprite;
     u8* pBase;
@@ -517,8 +520,8 @@ void func_800B9C78(void) {
             g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
 void BattleLoadActorSlotAnimation(s32 index) {
