@@ -288,31 +288,16 @@ s32 func_8008E190(s32 idx) {
     return nRet;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
-/* best: 96.21%, 396 bytes = retail's exact size, every instruction and relocation
-   right except the switch table operand (jtbl_80070A30 vs .rodata) and the position of
-   the g_WorldMapGroups load in the scratchpad tail: retail emits `lui a1,%hi / lw a1` BEFORE
-   the three `sh` stores and loads g_WorldMapViewRotationZ after `sh 0xA0`, this body emits the
-   pointer load last and hoists g_WorldMapViewRotationZ to the top of the block. Tried: x/z/y store
-   order (93.59), x/y/z (93.59), a MATRIX *pMat local for the first RotMatrixYXZ
-   argument (no change, gcc sinks the address to the argument anyway), and the three
-   tail stores made volatile (96.66 but 400 bytes, one instruction LONG: retail has a
-   `nop` between `lui %hi` and `lhu %lo` of g_WorldMapViewRotationZ that this body does
-   not emit, and the load is still hoisted above the 0xA0 store). PARKED FOR A
-   LAYOUT REASON: E190 (parked just above, 87.06) owns jtbl_800709F8/jtbl_80070A10 at
-   .rodata+0/+0x18, and C tables are emitted before asm-owned ones, so converting this
-   function alone puts its table at +0 and shifts the whole overlay (check_bin MISMATCH).
-   The two must be converted together, in address order.
 s32 func_8008E4F4(s32 idx) {
     WorldMapPlayer *pPlayer;
-    u8 *pScratch;
+    u16 *pScratchPos;
     s32 nRet;
 
     pPlayer = g_WorldMapSlots + idx;
     *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
     g_WorldMapGroups->entry[0].hidden = pPlayer->hidden;
     nRet = 1;
-    pScratch = (u8 *)0x1F800000;
+    pScratchPos = (u16 *)0x1F800000;
     if ((g_GameState.worldMapState & 0x1FFF) == 0) {
         nRet = 3;
     }
@@ -338,14 +323,13 @@ s32 func_8008E4F4(s32 idx) {
         g_WorldMapGroups->entry[1].hidden = 0;
         break;
     }
-    *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
-    *(s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
-    *(s16 *)(pScratch + 0xA2) = pPlayer->angle;
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
+    pScratchPos[0x50] = -(pPlayer->unk70 >> 12);
+    pScratchPos[0x51] = pPlayer->angle;
+    pScratchPos[0x52] = g_WorldMapViewRotationZ[0];
+    RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[0].matrix);
+    RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[1].matrix);
     return nRet;
 }
-*/
 s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 nAngle;
@@ -401,6 +385,11 @@ int WorldMapModeInitSpriteSets2And3(void) {
     return 1;
 }
 
+// the two ramp counters (unk58, unk5C) climb and fall by this much per frame and stop at
+// WORLD_MAP_ROT_RAMP_MAX; they are the per-frame steps added to the YXZ group rotation
+#define WORLD_MAP_ROT_RAMP_STEP 4
+#define WORLD_MAP_ROT_RAMP_MAX 0x80
+
 s32 func_800907F4(s32 idx) {
     WorldMapPlayer *pPlayer;
     WorldMapRot *pRotA;
@@ -424,24 +413,24 @@ s32 func_800907F4(s32 idx) {
         pPlayer->unk5C = 0;
         break;
     case 1:
-        pPlayer->unk58 += 4;
+        pPlayer->unk58 += WORLD_MAP_ROT_RAMP_STEP;
         if (pPlayer->unk58 >= 0x11) {
-            pPlayer->unk5C += 4;
+            pPlayer->unk5C += WORLD_MAP_ROT_RAMP_STEP;
         }
-        if (pPlayer->unk58 >= 0x80) {
-            pPlayer->unk58 = 0x80;
+        if (pPlayer->unk58 >= WORLD_MAP_ROT_RAMP_MAX) {
+            pPlayer->unk58 = WORLD_MAP_ROT_RAMP_MAX;
         }
-        if (pPlayer->unk5C >= 0x80) {
-            pPlayer->unk5C = 0x80;
+        if (pPlayer->unk5C >= WORLD_MAP_ROT_RAMP_MAX) {
+            pPlayer->unk5C = WORLD_MAP_ROT_RAMP_MAX;
         }
-        if ((pPlayer->unk58 >= 0x80) & (pPlayer->unk5C >= 0x80)) {
+        if ((pPlayer->unk58 >= WORLD_MAP_ROT_RAMP_MAX) & (pPlayer->unk5C >= WORLD_MAP_ROT_RAMP_MAX)) {
             pPlayer->state = 3;
         }
         break;
     case 2:
-        pPlayer->unk58 -= 4;
+        pPlayer->unk58 -= WORLD_MAP_ROT_RAMP_STEP;
         if (pPlayer->unk58 < 0x70) {
-            pPlayer->unk5C -= 4;
+            pPlayer->unk5C -= WORLD_MAP_ROT_RAMP_STEP;
         }
         if (pPlayer->unk58 < 0) {
             pPlayer->unk58 = 0;
@@ -860,7 +849,7 @@ s32 func_80091430(s32 idx) {
         }
     }
     return 1;
-}*/
+}
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
 s32 WorldMapModeInitActorAngleSets(s32 idx) {
