@@ -110,15 +110,15 @@ extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, u16);
 extern void func_8008E430(u8, s32, s32, u16, s32);
 extern void BattleBuildTileRow2Prims(u8, s32, s32, u16);
-// The fifth argument of func_8008F0A8 arrives as a four-byte aggregate, not a bare
+// The fifth argument of BattleBuildTileRow3Prims arrives as a four-byte aggregate, not a bare
 // u16: gcc 2.6.0 loads a narrow stack parameter into a register in the function
 // prologue, while an aggregate parameter stays in the caller's frame, and the
-// original reads it with `lhu` from the y2 store (func_8008F0A8's note).
+// original reads it with `lhu` from the y2 store (BattleBuildTileRow3Prims's note).
 typedef struct {
     /* 0x0 */ u16 height; // the row's height: every y is inset by 8, then advanced by (height - 16) / 2
     /* 0x2 */ u16 unk2;   // unread by this unit
 } BattleRowSize; // Size: 0x4
-extern void func_8008F0A8(u8, s32, s32, s32, BattleRowSize);
+extern void BattleBuildTileRow3Prims(u8, s32, s32, s32, BattleRowSize);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void BattleDrawMenuEntryString(u8, u8);
@@ -574,7 +574,7 @@ void BattleBuildTileRow2Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
 // Builds the two greyscale quads of tile row 3, the row shifted to the right end of
 // arg1..arg1 + arg3, at the slot's current prim index, then sets both quads' blend
 // mode. The slot-graphics load comes first; `centre` is the row's right edge.
-void func_8008F0A8(u8 arg0, s32 arg1, s32 arg2, s32 arg3, BattleRowSize arg4) {
+void BattleBuildTileRow3Prims(u8 arg0, s32 arg1, s32 arg2, s32 arg3, BattleRowSize arg4) {
     BattleSlotGraphics *p;
     s32 centre;
     s32 left;
@@ -644,7 +644,7 @@ void func_8008F0A8(u8 arg0, s32 arg1, s32 arg2, s32 arg3, BattleRowSize arg4) {
    unit's tile-row builders use (identical output); sums as right/bottom locals (516);
    s32 params (508); p loaded after the 0xB0 store (61.88%); u32/u8 index; a 4-minute
    permuter run (540 bytes, 73.98%).
-   The call to func_8008F0A8 below passes its h as a BattleRowSize aggregate, not the
+   The call to BattleBuildTileRow3Prims below passes its h as a BattleRowSize aggregate, not the
    bare value, because that function's retail object reads h from the caller's frame:
    declare a BattleRowSize, set its height to h, and pass that.
 */
@@ -668,7 +668,7 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     func_8008DE04(index, arg1, arg2, arg3);
     func_8008E430(index, arg1, arg2, arg3, arg4);
     BattleBuildTileRow2Prims(index, arg1, arg2, arg4);
-    func_8008F0A8(index, arg1, arg2, arg3, arg4);
+    BattleBuildTileRow3Prims(index, arg1, arg2, arg3, arg4);
     p->packagePrimStart = *(u8 *)&g_BattlePrimStartIndex;
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;
 }*/

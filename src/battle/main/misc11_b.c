@@ -708,7 +708,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_800820A4);
    section-relative) while cc1 emits `.align 3` before a jump table, which also
    raises the section's own alignment to 8 and makes the linker place the whole
    unit's .rodata 4 bytes later - battle.bin 343940 against disc's 343936, the
-   measurement the func_800816F8/func_800822C4 parks already record. Converting
+   measurement the func_800816F8/BattleAdvanceSlotMenuStateEventSubMode parks already record. Converting
    this function only moves the table to section offset 0 and its neighbours
    (func_80160's 0x194 table and five 0x20-byte tables) stay asm-owned, so the
    layout cannot be repaired from C here; the whole unit's rodata has to move to
@@ -816,7 +816,7 @@ void func_800820A4(u8 arg0) {
    `.align 3` is a no-op. Ported from the strict-1.000 twin
    BattleAdvanceSlotMenuStateSubMode (main/misc12.c:511); only the per-arm
    constants differ. */
-void func_800822C4(u8 arg0) {
+void BattleAdvanceSlotMenuStateEventSubMode(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -889,10 +889,10 @@ void func_800822C4(u8 arg0) {
 
 /* 99.91% JTBL: every instruction is retail's at retail's 0x1C8 bytes, the diff
    is the jtbl operand and label names only. Links via the same split as
-   func_800822C4. Ported from the strict-1.000 twin
+   BattleAdvanceSlotMenuStateEventSubMode. Ported from the strict-1.000 twin
    BattleAdvanceSlotMenuStateRandom (main/misc12.c:583); only the per-arm
    constants differ. */
-void func_80082504(u8 arg0) {
+void BattleAdvanceSlotMenuStateEventRandom(u8 arg0) {
     u8 a;
 
     a = arg0;

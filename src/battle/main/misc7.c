@@ -286,7 +286,7 @@ void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
 // and names g_BattleSlotRegs instead of g_BattleSlotWordRegs in the relocation.
 // The second copy of the row pointer is load-bearing (retail re-forms it in
 // the store path; one variable leaves it in a1 and costs the frame).
-void func_8007BD5C(BattleCommand **p, u8 index) {
+void BattlePickRandomFreeCharSlot(BattleCommand **p, u8 index) {
     u8 buf[3];
     u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
 
@@ -307,7 +307,7 @@ void func_8007BD5C(BattleCommand **p, u8 index) {
         }
     }
 }
-// best: 76.81%. Same body as func_8007BD5C plus the g_BattleSlotRecords entry
+// best: 76.81%. Same body as BattlePickRandomFreeCharSlot plus the g_BattleSlotRecords entry
 // comparison; the frame/register set is off for the same reason - gcc
 // hoists the absolute bases of g_BattleSlotRecords and g_BattleSlotFlags into extra
 // callee-saved registers instead of re-forming `lui %hi` each iteration

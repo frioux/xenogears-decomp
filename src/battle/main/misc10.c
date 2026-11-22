@@ -277,7 +277,7 @@ extern void BattleWordTableLoadReg(u8 **ppCommand, u8 slot);
 extern void BattleDwordRegSetReg(u8 **ppCommand, u8 slot);
 extern void BattleWordRegSetFromByteReg(u8 **ppCommand, u8 slot);
 extern void BattleStoreCommandBytes(u8 **ppCommand, u8 *pArgs, u8 row);
-extern void func_8007BD5C(u8 **ppCommand, u8 slot);
+extern void BattlePickRandomFreeCharSlot(u8 **ppCommand, u8 slot);
 extern void BattlePickFreeCharSlotWithSameTag(u8 **ppCommand, u8 slot);
 extern void BattlePickFreeActorSlotWithSameTag(u8 **ppCommand, u8 slot);
 extern void func_8007D8C0(u8 **ppCommand, u8 slot);
@@ -495,7 +495,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleWordRegSetRandomRange(ppCommand, slot);
         break;
     case 0x40:
-        func_8007BD5C(ppCommand, slot);
+        BattlePickRandomFreeCharSlot(ppCommand, slot);
         break;
     case 0x41:
         BattlePickFreeCharSlotWithSameTag(ppCommand, slot);
