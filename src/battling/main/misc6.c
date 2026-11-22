@@ -176,43 +176,58 @@ extern BattleParticleQuad* g_BattleSpritePrimBuffers[];
 // Projects the live particles three at a time with RTPT and links one screen
 // prim per particle into the OT by its projected Z.
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
-/* best 99.78% (556 bytes = retail's exact size, 138 insns); the remaining
-   difference is the OR that fills the OT tag word, three times:
-       retail: lw a0,0(v0) ; and v1,a2,t2 ; sw v1,0(v0) ; or a0,a0,t7 ; sw a0,0(v1)
-       ours:   lw a0,0(v0) ; and v1,a2,t2 ; sw v1,0(v0) ; or v0,a0,t7 ; sw v0,0(v1)
-   gcc cannot tie a 3-operand `or` to its input, so retail's in-place OR means the
-   original source reassigned the link word (`link |= 0x3000000`). PROVEN mechanism
-   (round 391): making all three OT inserts use their OWN pLink/link/pTag AND the
-   in-place OR reproduces retail's group 2 EXACTLY (`lw a0 / and v1 / sw v1 / or a0,a0
-   / sw a0`) where the shared-variable body swaps the pair. So the residual is the
-   local-alloc priority contest between the loaded-link qty and the masked-address
-   qty, not the C structure, and it is per group: the measured variants are
-   (a) shared vars + plain OR = this body, 99.78, OR dest $2 in all three groups;
-   (b) per-group vars + in-place OR = 98.63, group 2 EXACT, groups 1/3 pair-swapped
-       (link $3 / masked $4), same 556 bytes;
-   (c) either variable set + a NAMED `masked` shared by more than one group = 94.48 /
-       92.43 (568 bytes) because that pseudo then lives across groups and costs a
-       callee-saved save (`sw s1,4(sp)`), rotating every t register.
-   Also measured dead in earlier rounds: named `tag`/`code`/`masked` written three
-   times, `pVec`/`pScratch->vec` pointer locals, indexed `&pOt[sz >> 4]`, base-first
-   `pOt + sz`, three link-group variables under the plain OR. Permuter from this
-   exact body: 4335 iterations, base 30 best 30, no lead (an earlier run, 1990
-   iterations, base 30 best 30).
-   WHAT MADE IT 99.78%: the pOtz pointer local must be ASSIGNED INSIDE THE LOOP
-   (just before gte_ldv2), not in the prologue: loop-invariant hoisting then emits
-   the two constant pairs in body use order (&vec 0x1F800010 into t4, then the
-   0x1F8000B0 slot into t3) which fixes pOt=t6, i=t5, dx/dy/dz=s0/t9/t8 and
-   pParticle's pair in a3/a1, pQuad in a2. Prologue assignment rotates every t
-   register (96.29%); the 0x1F8000B0 literal inline at each gte_stsz is 95.55%.
-   NEXT LEAD: finish (b) - groups 1 and 3 need masked in $3 and link in $4 without a
-   variable shared across groups. Per-group masked values (disjoint live ranges) is
-   the untested combination; a hand splice of it in this session was mis-edited and
-   only measured 92.37 (548 bytes), so treat it as unmeasured.
-   The one-table view is exact: this walks the same 0xC g_BattleSpriteSlots table
-   BattleClearSpriteTables clears (x/y/z = s16, life, vx/vz/vy), and y is signed
-   because the clamp compares it with lh/slti. The OT stores use the pTag pointer
-   form that the matched neighbour BattleDrawLineQuads uses (its OR lands in place
-   in $3 there because in that function $2/$3 are the only free registers). */
+// Best 99.78% (556 bytes = retail's exact size, 138 insns, 6 differing
+// instructions). Re-measured round 403 by un-parking; the number stands.
+// The ONLY residual is the OR that fills each prim's OT tag word, three times:
+//     retail: lw a0,0(v0) ; and v1,a2,t2 ; sw v1,0(v0) ; or a0,a0,t7 ; sw a0,0(v1)
+//     ours:   lw a0,0(v0) ; and v1,a2,t2 ; sw v1,0(v0) ; or v0,a0,t7 ; sw v0,0(v1)
+// Every other instruction is retail's, including the 8-byte frame (s0 only) and
+// the whole t-register map: t1 = 0x1F800000, t2 = mask, t3 = 0x1F8000B0,
+// t4 = vec, t5 = i, t6 = pOt, t7 = 0x3000000, t8 = viewZ, t9 = viewY,
+// s0 = viewX, and a1/a2/a3 = pParticle+6 / pQuad / pParticle. All 9 t regs are
+// live through the loop, so this is a global_alloc tie: the OR's result pseudo
+// and the loaded link pseudo are simultaneously live at the `or`, so gcc gives
+// the result a fresh $v0 instead of the dying link's $a0.
+// MEASURED THIS ROUND (all from this exact body):
+//  - shared `link |= 0x3000000; *pTag = link;` in all three groups = 93.51%,
+//    568 bytes: the OR DOES land in place in $a0 as retail has it, but the
+//    whole prologue rotates by one t register (code -> t8, pLink's address
+//    -> a1 instead of v0) and viewX/viewY both spill to s1+s0 (+12 bytes).
+//    A dead `masked = link;`/`link ^ 0` copy does not prevent it.
+//  - per-group variables (pLink0..2, pTag0..2, link0..2; plain OR and the
+//    in-place OR compile identically) = 98.63%, 556 bytes: group 2 becomes
+//    EXACT (lw a0 / and v1 / sw v1 / or a0,a0,t7 / sw a0,0(v1)) and groups 1
+//    and 3 have the pair swapped (link $v1, masked $a0). Explicit per-group
+//    `masked0..2` variables holding `&pQuad[n] & 0xFFFFFF`, used for both the
+//    pLink store and the tag pointer, change nothing (still 98.63 / 556).
+//  - shared pLink/pTag with only `link` split per group = 97.95%, 560 bytes,
+//    139 insns.
+//  - the dead store `masked = (u32)&pQuad[1] & 0xFFFFFF` in group 2 IS
+//    LOAD-BEARING: delete it and its declaration and the body measures 93.19%,
+//    568 bytes (a callee-saved s1 appears). It is not dead code to be cleaned.
+//  - preset screen: gcc-2.7.2-cdk 94.48, gcc-2.6.0 99.50, Default 99.78.
+//  - permuter, third run from this body: 1352 iterations, base 30 best 30,
+//    PERMUTER_NONE (earlier runs: 4335 and 1990 iterations, both base 30
+//    best 30). Do not spend another run on it.
+// WHAT MADE IT 99.78%: the pOtz pointer local must be ASSIGNED INSIDE THE LOOP
+// (just before gte_ldv2), not in the prologue: loop-invariant hoisting then
+// emits the two constant pairs in body use order (&vec 0x1F800010 into t4, then
+// the 0x1F8000B0 slot into t3), which is what fixes the whole t map. Prologue
+// assignment is 96.29%; the 0x1F8000B0 literal inline at each gte_stsz is
+// 95.55%. Also measured dead in earlier rounds: named `tag`/`code`/`masked`
+// written three times, pVec/pScratch->vec pointer locals, indexed
+// `&pOt[sz >> 4]`, base-first `pOt + sz`, a `masked` shared by more than one
+// group (94.48 / 92.43, 568 bytes - the pseudo then lives across groups and
+// costs a callee-saved save).
+// NEXT LEAD: none left in the allocator-nudge family. If this is picked up
+// again, start from the -dg/-dl dumps of the two bodies (build/src/<unit>.c.i
+// .greg/.lreg) and compare the OR-result allocno's refs and live length rather
+// than trying more spellings; and check the per-group (98.63) split again, where
+// one of the three groups already produces retail's in-place OR.
+// The one-table view is exact: this walks the same 0xC g_BattleSpriteSlots
+// table BattleClearSpriteTables clears (x/y/z = s16, life, vx/vz/vy), and y is
+// signed because the clamp compares it with lh/slti. The OT stores use the pTag
+// pointer form that the matched neighbour BattleDrawLineQuads uses.
 /*
 void func_8007E020(u32* pOt) {
     BattleGteScratch* pScratch;
@@ -286,6 +301,7 @@ void func_8007E020(u32* pOt) {
     }
 }
 */
+
 void BattleClearSpriteTables(void) {
     s32 i;
 
