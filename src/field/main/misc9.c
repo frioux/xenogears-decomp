@@ -231,7 +231,7 @@ extern s32 g_PlayerActorIndex;
 extern s32 g_FieldScreenOverlayScaleX;
 extern s32 g_FieldScreenOverlayScaleY;
 
-void FieldDrawScreenOverlayPrims(s8 color) {
+void FieldDrawScreenOverlayPrims(int color) {
     ActorData* pActor;
     int i;
     int y;
@@ -293,22 +293,28 @@ s32 FieldCheckSpriteSlotFlag(s32 index) {
     return -1;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB808);
-/* 68.25%: shape is right (archive read, OpenTIM/ReadTIM, per-slot copy loop,
-   rect fill, LoadImage) but the original's frame is 0x80 and it keeps pFile in
-   its 0x28 stack slot across every use, while gcc keeps it in s8 for me; the
-   original also spills a temp at 0x50. The extra frame bytes suggest two more
-   live locals in the original source than I have recovered.
 extern RECT D_800AF5C0[5];
 
-// Upload the five inventory-slot TIM pages for the slots that are enabled
+/* PARKED 68.25% (592 bytes, retail 668, 148 vs 164 insns). Every call, table
+   walk, branch and store order matches; the residual is gcc loop strength
+   reduction. Retail gives each RECT field a giv at BOTH loop levels (outer:
+   s3=h, s7=y, s8=w; inner copies s4/s6/s2) and re-forms x from the symbol each
+   inner iteration, so i spills to 0x38, the rect walker to 0x48, pFile/pImage to
+   0x28/0x30 (frame 0x80). This cc1 combines the two levels into 3 givs (x, y, h)
+   and re-forms w from the symbol, so i stays in a register (frame 0x58).
+   Tried: u_char* vs u_long* pDst (w/4*4 vs w/4 - identical code), the word-index
+   source (u_long*)tim.paddr + (j + y) * 0x50 + x / 4 (compiles to the same
+   bytes), u_long* pFile/pImage. No twin (twin_for) and m2c only transcribes
+   the givs, so the duplication above is not source-reachable on this evidence.
+*/
+/*
 void func_800AB808(void) {
     TIM_IMAGE tim;
-    void* pFile;
-    void* pImage;
+    u_long* pFile;
+    u_long* pImage;
     s32 i;
     s32 j;
-    u_char* pDst;
+    u_long* pDst;
 
     pFile = HeapAlloc(ArchiveDecodeAlignedSize(0x802), 0);
     ArchiveReadFileToBuffer(0x802, pFile, 0, 0x80);
@@ -326,9 +332,9 @@ void func_800AB808(void) {
 
             pDst = pImage;
             for (j = 0; j < D_800AF5C0[i].h; j++) {
-                memcpy(pDst, (u_char*)tim.paddr + (j + D_800AF5C0[i].y) * 0x140 + D_800AF5C0[i].x / 4 * 4,
+                memcpy(pDst, (u_long*)tim.paddr + (j + D_800AF5C0[i].y) * 0x50 + D_800AF5C0[i].x / 4,
                     D_800AF5C0[i].w);
-                pDst += D_800AF5C0[i].w / 4 * 4;
+                pDst += D_800AF5C0[i].w / 4;
             }
 
             tim.prect->x = D_800AF5C0[i].x / 2 + 0x300;
@@ -342,18 +348,10 @@ void func_800AB808(void) {
 
     HeapFree(pFile);
     HeapFree(pImage);
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB808);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
-/* 82.61% (624 bytes, original is 668). Shape is right (table walk, item check,
-   StoreImage/archive read/FieldLoadTIMWithClut, the three render loops, the
-   LoadImage restore) but gcc keeps the table base D_800AF47C in a call-clobbered
-   register and re-forms `lui/addiu` after every call, where the original keeps
-   it in s2 for the whole function and does five separate `addu v0,s2,s1` for
-   the entry fields. Also undefined-1 sentinel was 0xFFFF (fixed) and the frame
-   is 0x38 vs the original 0x40 (no s3). Tried: index loop / pointer loop /
-   both a base and a walker pointer, and -1 vs 0xFFFF for the sentinel.
+
 typedef struct {
     s32 mapNum;
     s32 unk4;
@@ -371,6 +369,50 @@ extern s32 g_GameSceneMapNum;
 extern u16 g_FieldButtonsPressedOnce;
 extern void func_800AB808();
 
+/* PARKED 84.86% (620 bytes, retail 668, 155 vs 160 insns). With
+   FieldDrawScreenOverlayPrims declared int instead of s8 the same body scores
+   87.23% (612 bytes, 153 insns) - retail passes index<<3 up to 0x80 and the
+   constant 0x80 with NO truncation at either call site, so its param is int;
+   the s8 declaration (an already-matched signature) costs the two masks.
+   Everything else now matches: the table walk, the item check, StoreImage, the
+   archive read, FieldLoadTIMWithClut, the func_800AB808 call, all three render
+   loops and the LoadImage restore. The poll loop MUST be a do-while: retail
+   enters it with no top test and loops with a backward beqz.
+   Residual, one construct: retail keeps the table BASE in s2 and the scaled
+   index in s1 and re-forms addu reg,s2,s1 for each of the five
+   D_800AF47C[index] field reads (sched2 hoists all five together), i.e. it kept
+   the two operands instead of their sum; this cc1 cse-s base+(index*0x20) into
+   one callee-saved register, which needs one callee-saved register fewer and
+   moves pImage from s3 to s2 (frame 0x38 vs 0x40). That is 4 addu, the
+   archiveIndex load moving into the field-load group, and the register shapes.
+   Tried: pTable[index] with pTable a local pointer (best), the bare symbol form
+   D_800AF47C[index] everywhere (75.74 - gcc then uses symbol+offset macros
+   through $at), while instead of do-while for the poll loop (-2.37).
+   try_flags --sweep: 82.61 is the best of every gcc x -O x -G x -mcpu row on the
+   old body, so the preset is not the question.
+*/
+/* PARKED 87.23% (612 bytes, retail 668, 153 vs 160 insns). Everything but one
+   construct matches: the table walk, the item check, StoreImage, the archive
+   read, FieldLoadTIMWithClut, the func_800AB808 call, all three render loops and
+   the LoadImage restore. The poll loop MUST be a do-while (retail enters it with
+   no top test and loops back with beqz; while costs 2.37 points).
+   Residual: retail keeps the table BASE in s2 and the scaled index in s1 and
+   re-forms addu reg,s2,s1 for each of the five D_800AF47C[index] field reads
+   (sched2 hoists all five together), i.e. it kept the two operands instead of
+   their sum; this cc1 cse-s base + index*0x20 into one callee-saved register,
+   which needs one callee-saved register fewer, moves pImage from s3 to s2 and
+   gives frame 0x38 vs 0x40. That is 4 addu, the archiveIndex load joining the
+   field-load group, and the register shapes.
+   Tried: pTable[index] with pTable a local pointer (best), the bare symbol form
+   D_800AF47C[index] everywhere (75.74 - gcc then uses symbol+offset macros
+   through $at), and while instead of do-while (-2.37). try_flags --sweep on the
+   earlier body: the unit preset is the best of every gcc x -O x -G x -mcpu row.
+   This body needs FieldDrawScreenOverlayPrims to take int, not s8: retail passes
+   index << 3 (up to 0x80) and the literal 0x80 with no truncation, so s8 (the
+   spelling that was here) cost two masks per call site - under s8 this scores
+   84.86.
+*/
+/*
 void func_800ABA98(void) {
     RECT rect;
     FieldMapSpriteEntry* pTable;
@@ -425,12 +467,12 @@ void func_800ABA98(void) {
             FieldDisplay();
         }
 
-        while (!(g_FieldButtonsPressedOnce & 0x100)) {
+        do {
             FieldClearAndSwapOTag();
             FieldDrawScreenOverlayPrims(0x80);
             FieldDisplay();
             FieldPollControllers();
-        }
+        } while (!(g_FieldButtonsPressedOnce & 0x100));
 
         for (index = 0x10; index > 0; index--) {
             FieldClearAndSwapOTag();
@@ -445,8 +487,8 @@ void func_800ABA98(void) {
         DrawSync(0);
         HeapFree(pImage);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
 
 extern SpriteList3 g_FieldScreenStripSprites;
 
