@@ -43,24 +43,18 @@ extern s32 g_BattleEffectPlaceYOffset;
 extern s32 g_BattleScriptCursor;
 extern s32 g_BattleScriptWait;
 
-/* 66.68%: original keeps &g_BattleCameraTarget in $s0 across the first call and reads and
-   stores through it; ours rematerialises the address (lui at / lw / sw). The same
-   C without the pointer local scores the same; -G0 65.72, gcc 2.6.0 65.72.
-   func_80070808's body shows g_BattleCameraTarget/80/84 are the vx/vy/vz of one VECTOR:
-   it reads 0x0(a0) with 0x0(s0) and stores the result back through 0x0(s0).
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
+// Advances the camera anchor vx/vz/vy one step toward the vector's position. The two
+// pointer locals are load-bearing: retail keeps the anchor's vx address in $s0 across
+// the first call and reads the sources through a pointer, and the field spellings
+// instead make gcc hoist that source load above the vz store.
+void func_80070808(VECTOR* pVec, s32 step) {
+    s32* pTargetX = &g_BattleCameraTarget.vx;
+    s32* pSourceY = &pVec->vy;
 
-/* 66.68% attempt:
-void func_80070808(s32* p, s32 step) {
-    s32* pX = &g_BattleCameraTarget;
-
-    *pX += BattleRoundDivAwayFromZero(p[0], *pX, step);
-    g_BattleCameraTargetZ += BattleRoundDivAwayFromZero(p[2], g_BattleCameraTargetZ, step);
-    g_BattleCameraTargetY += BattleRoundDivAwayFromZero(p[1], g_BattleCameraTargetY + g_BattleEffectPlaceYOffset, step);
+    *pTargetX += BattleRoundDivAwayFromZero(pVec->vx, *pTargetX, step);
+    g_BattleCameraTargetZ += BattleRoundDivAwayFromZero(pVec->vz, g_BattleCameraTargetZ, step);
+    g_BattleCameraTargetY += BattleRoundDivAwayFromZero(*pSourceY, g_BattleCameraTargetY + g_BattleEffectPlaceYOffset, step);
 }
-*/
-
 extern VECTOR g_BattleCameraPos;
 extern s32 g_BattleCameraPosY;
 extern s32 g_BattleCameraPosZ;
