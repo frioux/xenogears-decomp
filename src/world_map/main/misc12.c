@@ -719,63 +719,58 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
     return 0;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
-/* best: 98.03%, 1148 bytes = retail's exact size, every relocation right, frame and
-   saved set exact (0x28 with ra/s1/s0, pPlayer in s1, &g_WorldMapViewRotationY across the
-   two rcos calls in s0). Decoded: the 0x64 phase dispatch, the four pad arms that build a
-   turn target and a 16.16 velocity target, the two "ramp toward the target by at most a
-   step, clamped to the remaining distance" blocks, the 0x6C pitch state machine, the 0x80
-   move-speed ramp with its +/-moveSpeed<<12 clamp, then the trig tail and the return ladder
-   1/4/0. Left is pure register naming plus one constant position:
-   - retail keeps pad in a0 and nTurn in v1 (this body v1 and a1); nTol is t2 and pRotZ t1
-     here t1 and t2. Eight declaration-order and statement-order permutations measured,
-     all 98.03%.
-   - the abs in both ramp blocks: retail is bgez / move a1,v0 / negu a1,a1, this body
-     bgez / slt (a duplicate that reorg steals into the slot) / negu. An if/else and a
-     second-variable spelling both measured the same; the permuter's best candidate scored
-     better in its own metric but compiled to the identical object.
-   - the `li 0x1000` for nTol: retail emits it before `subu`, reorg puts it in the `bgez`
-     delay slot here (retail has a nop there).
-   Spellings that ARE load-bearing, measured one at a time from 91.2% to here:
-   - `extern s16 g_WorldMapViewRotationY[];` and `pRotY[0]` for both rcos arguments. With a
-     scalar extern gcc uses the %hi/%lo macro form twice and the function loses a saved
-     register (1144 bytes, s1 never used).
-   - `pRotZ = g_WorldMapViewRotationZ;` (array decay, as a statement, not `&global`): that is
-     what makes retail's lui+addiu into t1 with the lh and the sh both through it.
-   - inside case 1 the FIRST initialisation is `nVel = 0`, which is the one reorg puts in
-     the dispatch's branch delay slot, as retail does. nTurn = 0 first puts nTurn there.
-   - the tail is `pPlayer->angle = (pPlayer->unk58 >> 12) & 0xFFF;` followed by
-     `g_WorldMapViewRotationY[0] = pPlayer->angle;`. Reading the field back keeps the shift
-     on the sum's register after the 0x58 store; a separate angle local puts `sra` into a
-     fresh register before the store (97.4%).
-   - the ramp's add/sub is a conditional expression, `(x < t) ? (x + s) : (x - s)`, which is
-     what emits retail's bnez / addu / subu / shared store.
-   - the 0x80 block really does test g_WorldMapPad1Held & 0x80 twice (retail re-reads the
-     global between the step and the clamp).
-   Field evidence for the struct: 0x64 is a phase counter here (0 then 1), not the camera-path
-   pointer the camera modes store in it; 0x4A moveSpeed is read with `lh` (so s16); 0x6C is
-   compared with slti (s32).
-   Dead ends measured: volatile s16* pRotY (adds sll/sra sign extension per read), the pad
-   passed inline instead of through a local, an if/else or two-variable abs, and a 4-minute
-   permuter run. Re-measured and added in round 392, all at 98.03 / 287 insns / 1148 bytes:
-   `u32 nPad` (byte-identical), swapping the `nTol = 0x1000` and `nDelta = g_WorldMapViewRotationZ[0]
-   - nTurn` statements (byte-identical, so the li placement is reorg's, not statement order), and
-   spelling both ramp abs as a duplicated `(x - y < 0) ? -(x - y) : (x - y)` instead of two
-   locals - 95.73%, because gcc then folds the negate into `subu y,x` where retail has `negu`.
-   The residual really is ONE allocator choice: this body coalesces nDelta into nAbs, so reorg
-   fills the bgez slot with a duplicate `slt`, while retail keeps the copy (`addu a1,v0,zero`)
-   and case 1's whole allocation follows from it - retail pad a0 / nTurn v1 / nAngle a0 with its
-   copy in a2, here v1 / a1 / a2 with its copy in a0. gcc-2.7.2-cdk scores 93.66 on this body
-   and drops three already-matched neighbours off 100, so the preset is right (retail forms
-   g_WorldMapViewRotationY's address through `$at`, the 2.7.2 macro form).
-   Not tried: block-scoped locals inside `case 1:` - the permutations above are declaration and
-   statement order, not scope, and moving the arm's locals into its own block renumbers every
-   pseudo in it, which is the cheapest remaining knob for this allocation.
-   No jtbl in this stub, so parking it costs no layout work.
+// best: 98.71%, 1148 bytes / 287 insns = retail's exact size, every branch offset and every
+// relocation right, frame and saved set exact (0x28 with ra/s1/s0, pPlayer in s1,
+// &g_WorldMapViewRotationY across the two rcos calls in s0).
+// Closed in round 405: the abs in the two ramp blocks. Retail's `bgez / move rd,rs /
+// negu rd,rd` pair is what cc1 emits for `__builtin_abs(x)`, not for any hand-written
+// ternary or if/else: every copy-variable spelling (`nAbs = (d < 0) ? -d : d;`, an if/else
+// either polarity, `nAbs = d; if (...) nAbs = -nAbs;`) is coalesced into ONE pseudo before
+// register allocation (a -dc dump shows `(reg 87) = 107 - 82` then `(reg 87) = -(reg 87)`),
+// so reorg fills the bgez slot with a duplicate `slt` and the body is one instruction short
+// of retail's shape. `__builtin_abs` keeps the copy: 98.03 -> 98.52. That also needs TWO abs
+// locals, one per ramp block (`nAbs`, `nAbsVel`): a single shared one gives both blocks the
+// same register where retail uses a1 then a0 - two locals, 98.52 -> 98.71, and the whole
+// second ramp block (0x5C, the 16.16 velocity ramp) is then instruction-for-instruction
+// retail's, `move a0,v0 / negu a0,a0` included.
+// What is left is ONE register rotation inside `case 1:` and nothing else: retail keeps
+// nTurn in $v1 (and the pad value in $a0), this body keeps nTurn in $a0 (pad in $v1), and
+// the rest of the block's caller-saved names follow (nTol t2 vs t1, pRotZ t1 vs t2, nAngle
+// a0 + copy a2 vs a1 + copy v1). It is a global-alloc priority contest for $a0 between the
+// pad value and nTurn; measured and unchanged by: eight declaration orders, `u32 nPad`
+// instead of `u16`, reading g_WorldMapPad1Held inline at all five tests instead of through
+// the local (cse merges the loads either way), block-scoped locals inside `case 1:` (98.01),
+// the `if (d >= 0)` if/else abs (95.78, 292 insns), gcc-2.7.2-cdk (93.66, and it drops three
+// matched neighbours off 100, so the preset is right), and a 4-minute permuter run from the
+// 98.03 body - not re-run on this one, so a fresh permute is a fair next attempt.
+// Spellings that ARE load-bearing, measured one at a time from 91.2% to here:
+// - `extern s16 g_WorldMapViewRotationY[];` and `pRotY[0]` for both rcos arguments. With a
+//   scalar extern gcc uses the %hi/%lo macro form twice and the function loses a saved
+//   register (1144 bytes, s1 never used).
+// - `pRotZ = g_WorldMapViewRotationZ;` (array decay, as a statement, not `&global`): that is
+//   what makes retail's lui+addiu into t1 with the lh and the sh both through it.
+// - inside case 1 the FIRST initialisation is `nVel = 0`, which is the one reorg puts in
+//   the dispatch's branch delay slot, as retail does. nTurn = 0 first puts nTurn there.
+// - the tail is `pPlayer->angle = (pPlayer->unk58 >> 12) & 0xFFF;` followed by
+//   `g_WorldMapViewRotationY[0] = pPlayer->angle;`. Reading the field back keeps the shift
+//   on the sum's register after the 0x58 store; a separate angle local puts `sra` into a
+//   fresh register before the store (97.4%).
+// - the ramp's add/sub is a conditional expression, `(x < t) ? (x + s) : (x - s)`, which is
+//   what emits retail's bnez / addu / subu / shared store.
+// - the 0x80 block really does test g_WorldMapPad1Held & 0x80 twice (retail re-reads the
+//   global between the step and the clamp).
+// - the first ramp block keeps the delta in place (`if (nDelta < 0) nDelta = -nDelta;` then
+//   `nStep = nDelta >> 4`), which is retail's bare `negu v0,v0` with no copy - only the two
+//   later ramp blocks use __builtin_abs.
+// Field evidence for the struct: 0x64 is a phase counter here (0 then 1), not the camera-path
+// pointer the camera modes store in it; 0x4A moveSpeed is read with `lh` (so s16); 0x6C is
+// compared with slti (s32).
+// No jtbl in this stub, so parking it costs no layout work.
 // Mode 1's per-frame slot update: ramps the slot's yaw (0x58, a 12.12 fixed-point angle,
 // with 0x5C as its angular velocity) toward the direction the pad asks for, tilts the pitch
 // accumulator 0x70 up/down, and rebuilds the slot's forward vector from both. The command
 // byte 0x64 is the phase: 0 seeds the ramp from the current angle, 1 runs it.
+/*
 s32 func_80090FB4(WorldMapPlayer *pPlayer) {
     s16 *pRotY;
     s16 *pRotZ;
@@ -787,7 +782,8 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
     s32 nDelta;
     s32 nLimit;
     s32 nAbs;
-    u16 nPad;
+    s32 nAbsVel;
+    u32 nPad;
 
     switch (pPlayer->unk64) {
     case 0:
@@ -829,7 +825,7 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
         nAngle = *pRotZ;
         if (nAngle != nTurn) {
             nDelta = nAngle - nTurn;
-            nAbs = (nDelta < 0) ? -nDelta : nDelta;
+            nAbs = __builtin_abs(nDelta);
             if (nAbs < nStep) {
                 nStep = nAbs;
             }
@@ -838,9 +834,9 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
         }
         if (pPlayer->unk5C != nVel) {
             nDelta = pPlayer->unk5C - nVel;
-            nAbs = (nDelta < 0) ? -nDelta : nDelta;
-            if (nAbs < nTol) {
-                nTol = nAbs;
+            nAbsVel = __builtin_abs(nDelta);
+            if (nAbsVel < nTol) {
+                nTol = nAbsVel;
             }
             if (pPlayer->unk5C < nVel) {
                 pPlayer->unk5C += nTol;
@@ -940,6 +936,7 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
     return 0;
 }
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
 /* best: 91.20%, 160-byte body at retail's size and every branch offset identical.
    Retail keeps &g_WorldMapViewRotationY (s16) in $v1 across the `sh` store and the
