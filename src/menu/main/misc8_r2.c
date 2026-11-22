@@ -124,49 +124,38 @@ void MenuFreeUnk42CPanel(void) {
     HeapFree(g_Menu->pDressingRoom->pItemsData);
 }
 
-/* 91.33% (1028 vs 1012 bytes). Decode of the whole body is settled; every call,
-   store and loop is in retail's order. Remaining deltas, all small:
-   1) block order: retail lays the two failure paths out AFTER the main body and
-      merges them at one `unk1184[i] = 0`; this C makes gcc emit the fail path
-      inline with `bnez` and jump over it. The source shape is the early-continue
-      form below, which is logically the same but gcc chose the other order.
-   2) `(x + 0x28) & 0xFFF8` and `(x + 0x90) & 0xFFF8`: retail emits a single
-      `andi a1,a1,0xfff8`; here gcc emits `li t0,-8 / and` plus `andi 0xfff8`
-      (it simplifies the mask to -8 once it knows the value is 16-bit, then
-      truncates again). Not fixed by spelling the mask on a u16 local or by
-      dropping the mask in favour of the u16 parameter.
-   3) four `addu` operand-order flips (retail base-first for the sb stores,
-      offset-first for the MenuSetStringPrimitives pointers) - the embedded-assignment
-      lever did not move them here; permuter job.
-   4) two `sb $zero` to the HIGH bytes of the two u16 glyph codes (sp+0x19 and
-      sp+0x1B) happen once before the loop; a zero initializer on the buffer
-      makes gcc copy from .sdata, four explicit stores keep all four, so the
-      attempt below writes the two bytes directly.
-   Shape summary: for each of 16 item slots (2 columns x 8 rows, g_GameState
-   inventory starting at arg0 * 2) either clear the dangling id/qty pair, or
-   render the item name + 2-digit quantity into two 16-record MenuString arrays
-   at unk42C + 0x00 and + 0x800, upload both with a LoadImage of one 0x28 x 0xD
-   cell, then set up their prims with MenuSetStringPrimitives and MenuSetQuadVertices.
-   The flag byte is pDressingRoom->pItemsData[id].displayFlags; bit 0x80 is the
-   shaded variant and is dropped when bit 0x20 is set while g_ShopIndex is 0.
-   RE-MEASURED AND IMPROVED (round 394), best 95.44% (1024 vs 1012 bytes, 256 vs
-   251 insns). Item 1 above is SOLVED: the two fail paths now sit out of line
-   exactly where retail has them and share one shouldRenderRows[i] = 0. The
-   source shape is the NESTED one, not the leading-continue one -- the outer test
-   POSITIVE with the main body in the inner if and the inner test written
-   `!= 0` so the main body is generated before its else (91.33 leading-continue,
-   93.54 nested with the inner test `== 0`, 95.44 nested with the inner `!= 0`).
-   Still open, all re-measured on this body:
-   a) both (x + 0x28) & 0xFFF8 and (x + 0x90) & 0xFFF8 emit an extra
-      `li t0,-8` + `and` in front of retail's single `andi a1,a1,0xfff8`; that is
-      4 of the 5 surplus insns. Unchanged by a u16 x local (re-probed on this
-      body: still 256 / 95.44), by the sizeof spelling and by dropping the mask.
-   b) x and y swap registers (retail keeps x in $s1, y in $s0), the /10 magic
-      stays in $a0 across an addu in retail but in $v0 here, and mfhi lands in
-      $t0 here vs $v0 in retail. That is the round 391 preset signature, but the
-      same body scores 90.48% / 1016 bytes under gcc 2.6.0, so this unit is MIXED:
-      2.6.0 is better for func_801DB39C (100.00 vs 98.77, see its park) and worse here.
-   c) five addu operand flips (retail base-first, ours index-first).
+/* 97.17% (1008 vs retail 1004 bytes, 252 vs 251 insns), round 406.
+   Body shape is settled: nested if (outer test POSITIVE, inner test `!= 0`) so
+   the two fail paths sit out of line where retail has them.
+   SOLVED this round, each measured:
+   - `(u16)(u16)(x + 0x28) & 0xFFF8` gives retail's SINGLE `andi a1,a1,0xfff8`. A bare
+     `(u16)(x + 0x28) & 0xFFF8` inside a loop whose trip count bounds x lets cc1 prove
+     the sum is 16-bit, so it emits `li t0,-8` + `and` AND a second `andi` for
+     the u16 parameter truncation (4 surplus insns, 95.44). The cast on the SUM
+     defeats the fold; a u16 local holding the sum works too, a u16 local
+     holding x does not (the subreg is seen through).
+   - `(i / 2) * 0x10 | 0xE` (not `+ 0xE`) gives retail's `ori s0,s0,0xe`, and
+     the `andi s0,s0,0xffff` truncation stays 0xffff.
+   - separate `displayFlags` and `itemShade` locals instead of mutating one flag
+     variable: retail keeps the byte in $v1 and writes the masked value to $s0
+     (`andi s0,v1,0x80`); one mutable variable gives `andi s0,s0,0x80`.
+   RESIDUAL, all measured on this body:
+   a) one surplus `nop`: after `lw v1,0x42C(v1)` retail fills the load-delay
+      slot with the /10 magic `lui a0,0xcccc` and keeps it in $a0 with the
+      dividend in $v0, coalescing `mfhi v0`; this body materialises the magic
+      later in $v0 and lands the HI in $t0. permute.sh 1447 iterations,
+      base=715 best=715, so not a register shuffle.
+   b) eight `addu` operand flips, consistently MIRRORED: retail is base-first at
+      the four `rows[k].field` store sites and index-first at the four
+      `&rows[k]` argument sites; this body is the exact opposite in both groups,
+      so no single spelling flips them together. A pointer local for
+      g_Menu->pItemRows is the known trap (it hoists the pool load, lever
+      b-inplace round 396); the double-negated offset moves only the store group.
+   c) `andi a1,a1,0xfff8` comes one instruction early: retail emits it after the
+      y `sll`/`ori` pair, here before.
+   Presets: gcc-2.6.0 scores 94.65 on this body (2.7.2 97.17), so this function
+   wants 2.7.2 even though every already-matched function in the unit is 100.00
+   under 2.6.0.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
 /*
@@ -176,7 +165,8 @@ void func_801DA5BC(s32 arg0) {
     RECT rect;
     void* pWorkspace;
     u8 tens;
-    s32 itemFlags;
+    u8 itemShade;
+    u8 displayFlags;
     s32 x;
     s32 i;
 
@@ -203,20 +193,20 @@ void func_801DA5BC(s32 arg0) {
                     rect.h = FONT_LETTER_HEIGHT;
                     LoadImage(&rect, (u_long*)pWorkspace);
                     DrawSync(0);
-                    itemFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].displayFlags;
-                    if ((itemFlags & 0x20) && (g_ShopIndex == 0)) {
-                        itemFlags = 0;
+                    displayFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].displayFlags;
+                    if ((displayFlags & 0x20) && (g_ShopIndex == 0)) {
+                        itemShade = 0;
                     } else {
-                        itemFlags &= 0x80;
+                        itemShade = displayFlags & 0x80;
                     }
-                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemFlags | 1);
-                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemFlags | 2);
+                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemShade | 1);
+                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemShade | 2);
                     x = (i % 2) * 0x88;
-                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i].vertices, (x + 0x28) & 0xFFF8,
-                                        (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i].width,
+                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i].vertices, (u16)(x + 0x28) & 0xFFF8,
+                                        (i / 2) * 0x10 | 0xE, ((MenuString*)g_Menu->pItemRows)[i].width,
                                         FONT_LETTER_HEIGHT);
-                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i + 0x10].vertices, (x + 0x90) & 0xFFF8,
-                                        (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i + 0x10].width,
+                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i + 0x10].vertices, (u16)(x + 0x90) & 0xFFF8,
+                                        (i / 2) * 0x10 | 0xE, ((MenuString*)g_Menu->pItemRows)[i + 0x10].width,
                                         FONT_LETTER_HEIGHT);
                     ((MenuString*)g_Menu->pItemRows)[i].renderContext = *(u8*)&g_Menu->renderContext;
                     ((MenuString*)g_Menu->pItemRows)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
