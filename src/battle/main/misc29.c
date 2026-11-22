@@ -439,15 +439,6 @@ extern void *g_SystemStreamedFileBuffer;
 extern u8 D_800CCB94[];
 extern u8 D_800C4A39[];
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
-// 99.86% (292 bytes = retail's size). Only the jump-table operand differs
-// (retail names jtbl_80070A10, we say .rodata) and the label targets, i.e. the
-// body is right. It cannot be converted alone: func_800B7870 still owns the
-// table at the head of this unit's .rodata range (0xF0C, 0x14 bytes) and
-// jtbl_80070A10 sits at +0x14, which is 4 mod 8 - converting only this function
-// moves the table to the range start (or to an 8-aligned +0x18) and shifts the
-// overlay. Convert func_800B7870's switch in the same change.
-/*
 void func_800B8098(s32 stage) {
     u8 *pBase;
     u8 colorFlag;
@@ -489,7 +480,7 @@ void func_800B8098(s32 stage) {
     pBase = (u8 *)g_BattleStateWork;
     pBase[0xB88] = colorFlag;
     BattleSetColorSources(D_800C4A39, pBase + 0x4BF9);
-}*/
+}
 
 
 /* The stage origins BattleInitStageDisplay publishes: g_BattleSlotVectors is the origin
