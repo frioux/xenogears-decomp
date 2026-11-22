@@ -2,6 +2,9 @@
 #include "main/game.h"
 #include "psyq/libgpu.h"
 
+// Played when the pressed menu event has no command bound to it.
+#define BATTLE_SOUND_MENU_DENIED 0x4F
+
 // Candidate scan order for target selection.
 typedef struct {
     /* 0x0 */ u8 cursor;     // next entry of order[] to consider
@@ -248,7 +251,7 @@ void func_80081318(u8 arg0) {
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
+                BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
@@ -256,7 +259,7 @@ void func_80081318(u8 arg0) {
             break;
         }
         ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 2:
         ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
@@ -268,7 +271,7 @@ void func_80081318(u8 arg0) {
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
+                BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             }
@@ -276,14 +279,14 @@ void func_80081318(u8 arg0) {
             break;
         }
         ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 1:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 8;
             break;
         }
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     }
 }
@@ -307,7 +310,7 @@ void func_80081504(u8 arg0) {
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
+                BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
@@ -315,14 +318,14 @@ void func_80081504(u8 arg0) {
             break;
         }
         ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 1:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
             break;
         }
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 3:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[10] == 0) {
@@ -331,7 +334,7 @@ void func_80081504(u8 arg0) {
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
+                BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             }
@@ -339,14 +342,14 @@ void func_80081504(u8 arg0) {
             break;
         }
         ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 2:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[8] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 9;
             break;
         }
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     }
 }
@@ -373,7 +376,7 @@ void func_800816F8(u8 arg0) {
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
+                BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
@@ -381,14 +384,14 @@ void func_800816F8(u8 arg0) {
             break;
         }
         ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 1:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
             break;
         }
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 2:
         ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
@@ -398,7 +401,7 @@ void func_800816F8(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             break;
         }
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     }
 }
@@ -650,17 +653,15 @@ void func_80081B58(u32 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_800820A4);
-/* 96.88% (552 bytes, retail 544) and JTBL_LAYOUT - parked, not shippable.
-   The table would sit at .rodata+0x214 (4 mod 8: the unit's .rodata starts at
-   0x8006FE7C, so retail's seven switch tables are 8-aligned in vram but 4 mod 8
-   section-relative) while cc1 emits `.align 3` before a jump table, which also
-   raises the section's own alignment to 8 and makes the linker place the whole
-   unit's .rodata 4 bytes later - battle.bin 343940 against disc's 343936, the
-   measurement the func_800816F8/BattleAdvanceSlotMenuStateEventSubMode parks already record. Converting
-   this function only moves the table to section offset 0 and its neighbours
-   (func_80160's 0x194 table and five 0x20-byte tables) stay asm-owned, so the
-   layout cannot be repaired from C here; the whole unit's rodata has to move to
-   C in address order, plus a config/battle.yaml boundary 4 bytes earlier.
+/* 96.88% (552 bytes, retail 544) - parked on an 8-byte code difference, NOT on
+   layout: the JTBL_LAYOUT paragraph this park used to carry is stale. The unit's
+   .rodata range starts 8-aligned at 0x80070010, and cc1 emits each switch table
+   at its function's position in the file, so converting an in-family stub in
+   address order keeps retail's table offsets - func_80081318/80081504/800816F8
+   converted this way and check_bin.sh battle prints OK. The real residue is the
+   cross-jumped `menuState = 3; repeatPending = 0;` tail (case 2 reaches it with
+   `j` + delay slot where retail branches to it conditionally) plus the queue
+   base landing in $5 where retail uses v1/a0/a1, i.e. 8 extra bytes.
    Shape ported from the strict-0.807 twin BattleAdvanceSlotMenuStateSubMode
    (main/misc12.c:511); the per-arm constants are this function's own. Note for
    whoever converts it: retail masks func_8008C4A8's return to a byte
