@@ -684,7 +684,23 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
    Dead spellings: `charId`/`commandNo` locals at the arm (identical), `& 0xFF` in the
    arm's source (implicit through the u8 parameter), the `else if (...)` form instead of
    `else { stepNo = ...; if (...) }`, `*(g_BattleCommandQueue + i + K)`,
-   `(s32)g_BattleCommandQueue[0x2DC] < 8`, the non-volatile step read (1000 bytes). */
+   `(s32)g_BattleCommandQueue[0x2DC] < 8`, the non-volatile step read (1000 bytes).
+   ROUND 400: un-parked and re-measured unchanged (99.60%, 1004 bytes = retail, 251
+   insns = retail's). The residual is ONE pattern at THREE sites, and it is a
+   register-order tie, not three separate problems: for the queue-row sum
+   `g_BattleCommandQueue + slot * 0x40 + 0x3C` retail keeps the loaded queue base in
+   $v0 and the scaled slot in $v1 (`addu v0,v0,v1`, base first) at the two
+   func_80087EDC/func_800881B8 calls and at D_800CCD1C, while this build mirrors the
+   pair (index in $v0, base in $v1, `addu v0,v0,v1`). The five later reads already
+   use the embedded form and already match, which is why the note calls that form
+   load-bearing. Permuter 4 min / 1931 iterations from this body: base=100 best=100
+   (nothing found - the shuffle is the allocator's, and it also carries the `>= 8`
+   arm's step byte, which retail masks in place in $a1 where this build copies
+   `andi a1,v0,0xFF`). Preset screened this round: gcc-2.6.0 scores 99.6 on the same
+   body (identical), gcc-2.7.2-cdk compile-failed, so this is not the 2.7.2/2.6.0
+   commuted-PLUS difference either. The D_800CCD1C site's other diff row is the
+   typed `.param` store, which relocs g_BattleCommandRecords+0x24 where retail names
+   g_BattleCommandSlotMasks; the linked bytes are identical. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 /*
 s32 func_80087AF0(u8 arg0, u8 arg1) {
@@ -748,8 +764,7 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     }
     BattleApplySlotCurveAndStep(count);
     return done;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
 /* 82.72%, 692 bytes (retail 684). The sel ladder is now retail's
    (`sel = 0; if (arg1 < 3) sel = (arg0 >= 3) * 8;`), the mask needs
