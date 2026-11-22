@@ -120,7 +120,8 @@ extern int rcos(int a);
 extern int rsin(int a);
 
 // The world map frame render context g_WorldMapRenderContext points at: partial view of the
-// two ordering table heads it fills each frame (the same view misc4.c and misc7.c declare).
+// two ordering table heads it fills each frame (the same view misc4.c and misc7.c
+// declare); a head's first word is the packet this unit's D_8009D2B8 entry links in.
 typedef struct {
     /* 0x00 */ u8 unk0[0x70];
     /* 0x70 */ WorldMapPrim *pOt[2];
