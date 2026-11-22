@@ -1771,7 +1771,7 @@ void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
-/* Best: 98.56%, 2468 bytes (retail 2472), 617 vs 618 insns - 4 bytes short, so
+/* Best: 98.88%, 2468 bytes (retail 2472), 617 vs 618 insns - 4 bytes short, so
    PARKED. Everything in the body below is retail's: the prologue save order, all
    three redraw guards, both switches with retail's case-body order (outer: 5, 4,
    0/2, 1, 3, 9, 10; inner: 5, 4, 1, 3), the eight setXYWH stores with their
@@ -1785,14 +1785,25 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
    MEASURED SPELLINGS of the closeList/shouldRender pair: `closeList = 1;` then a
    separate `g_Menu->pCursors->shouldRender[0] = 1;` (either statement order)
    cse's the two constants into one, so the store becomes `sb s0,0x140` and the
-   body is 615 insns (2460 bytes, 98.22%); the order `shouldRender[0] = 1;` then
+   body is 615 insns (2464 bytes, 98.39%); the order `shouldRender[0] = 1;` then
    `closeList = 1;` (what the body below uses) keeps retail's TWO `li 1` - `li
    t0` for the store, `li s0` for closeList - but still sinks the `li s0`
    (617/2468); the embedded form `closeList = g_Menu->pCursors->shouldRender[0]
    = 1;` gives the same shape as that, and `store = closeList = 1` or a
-   `do { } while (0);` around the pair are worse (615/2460). An 8-minute
-   permute.sh run on the 98.42% body (2205 iterations) found only the slotRow
-   change below, so this tie is not reachable by random statement reordering.
+   `do { } while (0);` around the pair are worse (615/2464). Putting
+   `closeList = 1;` BEFORE the `MenuCopyEquipmentToPanel(arg0, kind)` call in the
+   same arm breaks the arm: 620 insns, 2480 bytes, 93.26%. An 8-minute permute.sh
+   run on the 98.42% body (2205 iterations) found only the slotRow change below,
+   so this tie is not reachable by random statement reordering.
+   PROLOGUE: the init block must assign prevRow = 0xFF and row = 0 AFTER
+   listOpen = 0, not before needsPanel - that is worth 98.56 to 98.88. The two
+   prologue rows still differing are the `sb t0,0x38` (active) and `sb t0,0x40`
+   (needsWindow) stores, emitted about two insns later than retail's among the
+   callee-save spills; the statement order already equals retail's, so those are
+   the same scheduler floating stores and not a source shape to hunt.
+   PRESET RULED OUT (round 396, this body): 98.56 on the unit's gcc-2.6.0, 98.3
+   on plain 2.7.2, 95.0 on 2.7.2-cdk, 71.7 on 2.6.0 -O3, and 2.6.0 -G0 does not
+   compile the unit at all.
    Also needed and already in: prevChar is u_char and group is u_char (retail
    masks both sides of every `!= prevChar` and does `andi ...s6,0xff` at the
    calls); `scrollY = 100 * row / count; scrollY = scrollY / 2;` as two
@@ -1850,12 +1861,12 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
     col = 0;
     prevSlot = 0xFF;
     prevCol = 0xFF;
-    row = 0;
-    prevRow = 0xFF;
     needsPanel = 0;
     cursorVisible = 0;
     reopenList = 0;
     listOpen = 0;
+    prevRow = 0xFF;
+    row = 0;
     kind = arg2;
 
     g_Menu->pManager->shouldRenderUnk358Prims = 0;
