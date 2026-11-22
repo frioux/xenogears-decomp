@@ -547,24 +547,24 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     g_BattleDisplayState->cursorPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
     *(volatile u8 *)&g_BattleDisplayState->cursorPending = 1;
 }
-PARKED 77.70% (592 bytes / 148 insns; retail 0x238 = 568 / 142). Re-measured under
-the unit's gcc-2.6.0 - the older 72.46 note here was measured under 2.7.2, before the
-round-371 preset switch. Every block's shape and the
-'lui at,%hi(D_800CCD38); addu at,at,s0; lhu %lo(at)' address form are retail's, and the
-divide/modulo magic, the four 0x28-stride prim bases and the argument order all match.
-The residual is 6 excess instructions from ONE defect: gcc keeps a redundant second copy
-of 'eo' in s4 ('move s4,s0' in block 1's beqz delay slot, 'addu at,at,s4' in block 4,
-plus its save/restore). The other two are block 3/4 masking '& 0xF8' twice ('li s0,-8'
-then 'and') when the u argument is the u8 conversion of an inline mask.
-BEST ALTERNATIVE, measured 76.39% / 580 bytes / 145 insns: hoist 's32 u;
-u = (d * 8 + 0x78) & 0xF8;' before each call. That drops both extra masks - only the s4
-copy is left - and blocks 1 and 3 then read 'sll a3,v0,3 / addiu a3,a3,120 / andi
-a3,a3,0xf8' exactly as retail. It scores 1.3 lower on diff alignment alone, so start any
-further attempt from that form.
-Tried and dead: the 2.7.2 body (72.46), distinct v/d/u locals per block (76.54, 145
-insns, copy unchanged), 'u32 eo' (identical), cdk preset (compile-failed).
-Not tried: a spelling that stops gcc duplicate-copying 'eo' at the first branch; that
-copy is the entire size gap.
+// PARKED 77.70% (592 bytes / 148 insns; retail 0x238 = 568 / 142). Re-measured under
+// the unit's gcc-2.6.0 - the older 72.46 note here was measured under 2.7.2, before the
+// round-371 preset switch. Every block's shape and the
+// 'lui at,%hi(D_800CCD38); addu at,at,s0; lhu %lo(at)' address form are retail's, and the
+// divide/modulo magic, the four 0x28-stride prim bases and the argument order all match.
+// The residual is 6 excess instructions from ONE defect: gcc keeps a redundant second copy
+// of 'eo' in s4 ('move s4,s0' in block 1's beqz delay slot, 'addu at,at,s4' in block 4,
+// plus its save/restore). The other two are block 3/4 masking '& 0xF8' twice ('li s0,-8'
+// then 'and') when the u argument is the u8 conversion of an inline mask.
+// BEST ALTERNATIVE, measured 76.39% / 580 bytes / 145 insns: hoist 's32 u;
+// u = (d * 8 + 0x78) & 0xF8;' before each call. That drops both extra masks - only the s4
+// copy is left - and blocks 1 and 3 then read 'sll a3,v0,3 / addiu a3,a3,120 / andi
+// a3,a3,0xf8' exactly as retail. It scores 1.3 lower on diff alignment alone, so start any
+// further attempt from that form.
+// Tried and dead: the 2.7.2 body (72.46), distinct v/d/u locals per block (76.54, 145
+// insns, copy unchanged), 'u32 eo' (identical), cdk preset (compile-failed).
+// Not tried: a spelling that stops gcc duplicate-copying 'eo' at the first branch; that
+// copy is the entire size gap.
 /*
 void func_80090C44(u8 arg0) {
     u8 *pBase;
