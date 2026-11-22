@@ -3335,39 +3335,41 @@ void SoundTickInterpolator(AudioInterpolator* interpolator) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
+// Parked at 99.96%: retail's exact 548 bytes / 137 insns, ONE instruction differs - the base
+// register of the rampFlags store (retail `sh a3,2(a0)` with $a0 = &status_flags, i.e. element+2;
+// ours `sh a3,4(a1)` off the element base). Same address, different encoding, so it cannot link.
+// ROUND 404 FIXED THE LOOP TAIL: `s16 count = elementCount;` with `} while (--count != 0);` gives
+// retail's `addiu v0,a2,-1 / move a2,v0 / sll v0,v0,0x10` exactly, 99.92 -> 99.96. The round-403
+// two-variable tail (`next = count - 1; count = next;` tested through `(s16)next`) let gcc test the
+// loop-carried copy instead and emitted `sll v0,a2,0x10`. A u16 count with `--count` folds to
+// `addu a2,a2,t3` + `andi a2,a2,0xffff` (98.42, one instruction short); an s32 count drops the sll.
+// THE LAST STORE IS A BIND, both sides measured:
+//  - plain `pElement->rampFlags = elementFlags;` DOES give retail's `sh a3,2(a0)`, because the loop's
+//    offsetable giv (add_val 2) absorbs the address, but reorg then steals the store into the
+//    `bne t1,v0` delay slot and pushes `addiu t2,t2,-1` after the 0x1000 arm (98.10, 8 lines).
+//  - any volatile lvalue keeps retail's position but forms the address off the element base, because
+//    the cast defeats the giv: `*(volatile u16*)(&pElement->status_flags + 1)` (the form kept below),
+//    `*(volatile u16*)&pElement->rampFlags` and `((volatile AudioElement*)pElement)->rampFlags` all
+//    measure 99.96 with the same single `4(a1)` line.
+//  - a u16* local holding &pElement->status_flags takes a fresh register ($t5) and costs 2-4 lines,
+//    whether one store or both stores use it (99.53 with the rampFlags store alone, 99.09 with the
+//    statusFlags store too).
+// A 3-minute permuter run (1417 iterations, base 10, best 10) found nothing; the round-403 5-minute
+// run's only candidate (66) moved the store into a single arm, which is wrong code (retail's one
+// `sh a3,2(a0)` sits in the shared tail and all four arms reach it). try_flags.sh --gcc
+// gcc-2.7.2-cdk-psx scores 95.76, so this is not a preset question.
+// The header's AudioManager tempoFrames/tempoTarget and AudioElement volumeStep/volumeFrames are u16
+// (the original loads them with lhu, not lh).
 /*
-Attempt (99.92%, retail's exact 548 bytes; 2 instructions differ, so it cannot link yet). The element
-walk, the flag masks, the two 16-bit counters packed in the word at 0x5C, the ramp accumulators and
-the key-off tail are all instruction for instruction right. What is left:
-(1) the loop tail's last shift: retail `sll v0,v0,0x10` reads the fresh `next` ($v0), ours reads the
-    loop-carried `count` ($a2) - gcc knows `next == count` after the copy. Needs the TWO-variable tail
-    `next = count - 1; count = next;` with `while ((s16)next != 0)`. Measured dead on it: a `u16`
-    count with `count--` (combine folds it to `addu a2,a2,t3` off a hoisted 0xFFFF, 96.45),
-    `while ((u16)count != 0)` (andi, 96.90), `count = count - 1; next = count;` (97.30), `s16 next`
-    (98.46, and it adds an `sra`).
-(2) the base register of the rampFlags store: retail `sh a3,0x2($a0)` with $a0 = &status_flags (the
-    whole function reaches the element at -2 from that base), ours `sh a3,0x4($a1)` with $a1 = the
-    element base. Same address, different encoding.
-The VOLATILE STORE below is load-bearing: without it reorg steals that store into the `bne`
-`fermataTicks` delay slot and the restTicks `addiu` stays in the block (98.07, one swapped pair).
-`*(volatile u16*)(&pElement->status_flags + 1)` and the plain `pElement->rampFlags` are the same
-address; both spellings of the volatile lvalue give 99.92, and the element-base spelling
-(`*(volatile u16*)&pElement->rampFlags`) does too. A 5-minute permuter run (output-66) offered moving
-this store into the `elementFlags & 0x20` arm (66 vs base 127) - that is WRONG CODE (retail's single
-`sh a3,0x2(a0)` sits in the shared tail and is reached from all four arms), so it was not taken.
-The header's AudioManager tempoFrames/tempoTarget and AudioElement volumeStep/volumeFrames are u16
-(the original loads them with lhu, not lh).
 void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
     u16 activeFlags;
-    s32 count = elementCount;
+    s16 count = elementCount;
     u16 tickCounter = pManager->tempoFrames;
     u32 fermataTimer;
     s32 fermataTicks;
     s32 restTicks;
     u16 statusFlags;
     u16 elementFlags;
-    s32 next;
 
     if (tickCounter != 0) {
         tickCounter--;
@@ -3441,11 +3443,10 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
             pElement->status_flags = statusFlags;
         }
         pElement++;
-        next = count - 1;
-        count = next;
-    } while ((s16)next != 0);
-}
-*/
+    } while (--count != 0);
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
+
 // 75.84%, retail's 1436 bytes against this body's 1440 (ONE instruction long). The element loop,
 // the note path, the gate/duration arithmetic and the envelope reset are instruction for
 // instruction right, and the frame is now retail's exactly: 0x48, s0-s8+ra saved (retail's $fp is
