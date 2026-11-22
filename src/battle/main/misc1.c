@@ -766,24 +766,38 @@ void func_800723E0(void) {
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
-/* 91.63% under 2.6.0 (892 bytes against retail's 908). Both loops and the whole
-   control flow are instruction-identical to retail modulo REGISTER NUMBERING: the
-   only real miss is that retail keeps the loop counter in s1 and the 0x170 offset
-   biv in s0, ours the other way round, which shifts every later register by one
-   and reorders the prologue's save/increment pairs. The other gap is 3
-   instructions in the tail: retail reloads g_BattleStateFlags for the second
-   (0x7) test and again for the mask local (lui/lhu/nop each time) where cse
-   follows the jump and reuses the first load.
-   Tried: listing each if/else arm in retail's order (done - worth 11 points),
-   s32 vs u16 mask (the s32 form reproduces retail's bare `bnez s2`), a u8 loop
-   counter for the 3..0xA loop (gcc then emits sltu for the test and an andi per
-   iteration - wrong), and a permuter run, which only found candidates that hoist
-   BattleSlotBitMask(i) unconditionally - a call retail does not make on the
-   continue paths, so wrong code. The 91.63% was measured with
-   `extern s32 BattleMaskHasSlotBit(s32, u8)` and a `(u16)` cast on each result,
-   which is the shape the mask loop wants; that prototype cannot live in this
-   file, because BattleResetActorCommandSlots' call then loses its
-   `andi v0,v0,0xFFFF` and that function links 4 bytes short.
+/* 93.02% under 2.6.0 (904 bytes against retail's 908, 226 vs 227 insns).
+   Control flow, both loops and every load/store shape are retail's. Three
+   residuals, in the order they cost:
+   1. TAIL, 3 of the 4 missing bytes: retail RELOADS g_BattleStateFlags for the
+      0x7F8 test, again for the 0x7 test, and once more for `mask`; our non-volatile
+      global is cse'd into one load. Measured cure: `extern volatile u16
+      g_BattleStateFlags;` (line ~164) makes both test loads appear (91.63 -> 93.02,
+      892 -> 904 bytes) but ALSO turns the `mask = g_BattleStateFlags` load into
+      `lhu v0 / andi s2,v0,0xffff` where retail has a bare `lui s2 / lhu s2`, so
+      that one read has to stay non-volatile (a `*(u16 *)&` cast-away, or a second
+      alias). The other user of the global in this unit (animFlags, line ~370) is a
+      single load, so a volatile declaration does not change its code - it was not
+      re-diffed, verify before committing it.
+   2. REGISTER NUMBERING, the remaining byte: retail uses 7 callee-saved regs
+      (s0 = the masked slot, s1 = i, s2..s5 = the four bivs, s6 = 0xFF; 0x30 frame
+      saving ra+s0-s6) and we use 6, so every register from s0 up is one lower and
+      the prologue/epilogue are 2 instructions shorter (the whole 4 byte gap is
+      prologue/epilogue + the tail load). Retail materialises `(u8)i` into s0 in the
+      `beqz` delay slots at +0x148/+0x1B0 and then passes it with `move a1,s0` /
+      `move a0,s0`, i.e. the u8 conversion is one CSE'd pseudo with a callee-saved
+      register; gcc 2.6.0 keeps our equivalent in a1 and re-does `andi` at each call.
+      Tried: `u8 slot = i;` at the top of the loop body (slot lands in a1, 90.13%),
+      `s32`/`u16` mask (the s32 form is what reproduces retail's bare `bnez s2`), a u8
+      loop counter (gcc emits sltu plus an andi per iteration - wrong), three if/else
+      arm orderings (retail's order is the best one and is what the body below uses).
+   3. An addu-operand-only difference on the loop-2 enabled test: retail spells it
+      D_800D2DCF[j] with j = i-3 in its own biv, we spell it g_BattleSlotEnabledFlags[i]
+      with a 3(at) immediate. Same bytes after linking, folded by diff_func, still
+      worth one objdiff point.
+   A 4 minute permuter run (base 2434 -> best 1584) only found bodies that hoist
+   `BattleSlotBitMask(i)` out of the branches - a call retail does not make on the
+   continue paths, so wrong code; and one earlier run did the same.
 */
 /*
 // Rebuilds g_BattleStateFlags, the mask of the slots that have an active action
