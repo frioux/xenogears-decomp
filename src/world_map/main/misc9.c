@@ -872,6 +872,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
 // (levers.md a-constant-cse-is-per-mode) needs a narrow-typed competitor and this body has none.
 // Permuter run 1 earlier (base=1021 best=727) found only a wrong-code candidate (guard read
 // *pY) - rejected.
+// Round 411 re-measured the parked body live: still 76.81% / 152 bytes with the exact
+// diff above (li s3,-1 hoisted across the jal, sw/lw s3, the bne slot left a nop),
+// and m2c_draft produced the same shape under temp names. lever
+// g-sentinel-guard-must-deref was measured on this very function: both compares are
+// SImode so there is no per-mode cse escape. Nothing else tried, nothing gained.
 /*
 s32 func_8008868C(void) {
     s32 base = D_8009B688[g_WorldMapLevelIndex];
