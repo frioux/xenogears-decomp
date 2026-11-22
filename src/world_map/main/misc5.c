@@ -105,8 +105,9 @@ extern u16 g_WorldMapActorParamStateFrames[];
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
-// camera position / rotation halfwords, accumulated by the random jitter below
-extern u16 g_WorldMapPathFrame;
+// the two offsets accumulated by the random jitter below: [0] the path frame
+// func_80097244 builds the view matrix from, [1] the one func_80096F18 fills
+extern SVECTOR g_WorldMapPathFrame[];
 extern u16 D_8009BD42;
 extern u16 D_8009BD44;
 extern u16 D_8009BD48;
@@ -322,157 +323,148 @@ int WorldMapInitActorScrollScale(int idx) {
     *(volatile s32 *)&pPlayer->unk50 = 0x1000;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
-/* PARKED 87.56% (1064 bytes / 266 insns; retail 1068 / 267). Two switches plus a
-   shared rand-jitter tail; every block is found and the ONE remaining defect is
-   the 4th argument of the tail call.
-   NEEDS these externs (the parked body below is spelled for them; the scalar
-   D_8009BD3x/4x and g_WorldMapCameraTarget/2C/30 declarations give the same 87.56%):
-       extern SVECTOR g_WorldMapCameraRot[];   // rotation, offset, target: 3 SVECTORs
-       extern SVECTOR g_WorldMapPathFrame[];   // offset + target, same bytes
-       extern WorldMapPos g_WorldMapCameraTarget[];
-   Switching them makes the two already-matched neighbours read objdiff 99.00 /
-   99.85 (MATCH, identical bytes: only reloc addends move), so only do it with
-   this body in place.
-   SOLVED (was 81.35%): the three read-modify-write globals retail addresses
-   through a HELD register - case 4 g_WorldMapCameraTargetZ in $a2, case 5 g_WorldMapViewRotationY in $a3,
-   tail g_WorldMapPathFrame in $t1 - are UNBOUNDED ARRAY declarations. That is what makes
-   gcc keep the base in a general register instead of the `sw $r,sym` macro form
-   that maspsx expands through $at. And only the FIRST RMW of a basic block does
-   it, which is exactly retail's tail (BD40 in $t1, then BD48/BD42/BD4A via $at).
-   The held base only appears when the RMW is at offset 0 of its array symbol:
-   g_WorldMapCameraRot[1].vx += x emits the $at macro form, g_WorldMapPathFrame[0].vx += x the
-   held base. That is why g_WorldMapPathFrame needs its own declaration.
-   REMAINING 4 BYTES, one decision: retail materialises &g_WorldMapPathFrame fresh in $a0
-   for func_80096F18 and AGAIN in $t1 after the two rand() calls; with arg1 and
-   the tail RMW both spelled &g_WorldMapPathFrame gcc hoists the address into the SAVED
-   register $s0 before the calls (which also pushes the player pointer to $s1 and
-   the scratch base to $s2, adding a save/restore pair): 1072 bytes, 85.93%.
-   Spelling arg1 as &g_WorldMapCameraRot[1] kills the hoist (that is this 87.56% body) but
-   gcc then derives the 4th argument as `addu $a3,$a0,-8` where retail emits a
-   fresh `la`, so the function comes out 4 bytes SHORT. All three roles need
-   values gcc cannot relate: arg1 g_WorldMapPathFrame, arg4 g_WorldMapCameraRot and the tail base
-   g_WorldMapPathFrame -i.e. two spellings of the same address that differ where it
-   matters. Tried: arg1 &D_8009BD48[-1] (the hoist returns, 1072), arg4
-   &g_WorldMapPathFrame[-1] (81.91%, 1048), the whole tail in a do/while (0) block (80.44%,
-   1072), arg4 through a pointer local. Permuter from this body twice, both
-   PERMUTER_BETTER and both SHORTER than retail, so neither can link:
-   `s32 nTargetZ = pPlayer->unk5C;` before the BD40[1] stores (92.26%, 1060) and
-   `nAngle = g_WorldMapPlayerPosition;` between case 3 and case 4 with unk58 = nAngle + 0xC7C00
-   (93.93%, 1052). The unused return value is not the lever here (tried void).
-   Compiler is not the preset: -G0 85.93, gcc-2.6.0 85.89, cdk -G0 66.51.
-   Do not convert func_8007BBEC/8007C3B8/8007C7D8 before this one: their tables
-   must follow its two (jtbl_8006FBF4 at .rodata+0x30, jtbl_8006FC14 at +0x50,
-   with 4 pad bytes between them from the align before the second table).
-    int func_8007ADD4(s32 idx) {
-        WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
-        u16 *pJitter = (u16 *)PSX_SCRATCH;
-        s32 nAngle;
-        s16 nState;
-        s16 nTimer;
+// PARKED 78.98% (1084 bytes / 271 insns; retail 1068 / 267) - fresh body this round.
+// STRUCTURE IS SETTLED, and it corrects the older note below: func_80096F18 is
+// called from EACH of the cases 0,1,2,3,5 and NOT once after the switch. gcc
+// cross-jumps the five copies into one block and case 4 then jumps over it, which
+// is retail's 'j <tail>' exactly. Same body with the call after the switch reads
+// 80.83% and lets case 4 fall into the call, i.e. wrong code. Evidence for the
+// per-case shape: misc4's func_80078EA4 (the same slot family) calls it per case.
+// g_WorldMapPathFrame is declared SVECTOR[] (unbounded) so the four jitter RMWs
+// give retail's held base in a general register; no neighbour uses that symbol.
+// RESIDUAL, 4 insns over retail, all in typed-data spelling, not structure:
+//   case 4: g_WorldMapCameraTargetZ += 0x3A000 buys the address through $at
+//     (lui at + sw), so the beqz delay slot takes a nop; retail holds the address
+//     in $a2 (lui + addiu) and puts the sw in the delay slot. 1 insn.
+//   case 5: g_WorldMapViewRotationY += 4 likewise rebuys it; retail holds $a3.
+//     1 insn, plus one nop where retail stores scratch[0xA0] in the second
+//     rand() call's delay slot. The remaining diff is sched2 store permutation
+//     in cases 2/3/4/5 (same instruction multiset).
+// MEASURED ALTERNATIVE: 'extern SVECTOR g_WorldMapCameraRot[]' plus
+// 'extern WorldMapPos g_WorldMapCameraTarget[]' take this same body to 82.66% /
+// 1076 bytes / 269 insns, but func_8007C724 loses its macro store (pRot =
+// &g_WorldMapCameraRot[0].vx no longer folds; 100.00 -> 78.56, same size,
+// different registers) and WorldMapInitActorScrollScale goes to 99.00. Re-spell
+// func_8007C724 in the same change before taking that.
+/*
+int func_8007ADD4(s32 idx) {
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
+    u8 *pJitter = (u8 *)PSX_SCRATCH;
+    s16 nState;
+    s16 nAngle;
 
-        nState = pPlayer->command - 1;
-        switch (nState) {
-        case 0:
-            pPlayer->command = 0;
-            pPlayer->state = 1;
-            break;
-        case 1:
-            pPlayer->state = 2;
-            pPlayer->command = 0;
-            pPlayer->unk50 = 0x40000;
-            break;
-        case 2:
-            g_WorldMapCameraHeight = 0x640000;
-            pPlayer->command = 0;
-            pPlayer->state = 0;
-            g_WorldMapCameraRot[0].vx = -0x1E0;
-            g_WorldMapCameraRot[0].vy = 0x480;
-            g_WorldMapCameraRot[0].vz = 0;
-            break;
-        case 3:
-            pPlayer->command = 0;
-            pPlayer->state = 0;
-            g_WorldMapCameraHeight = 0x1E0000;
-            g_WorldMapCameraRot[0].vx = 0x40;
-            g_WorldMapCameraRot[0].vy = 0x418;
-            g_WorldMapCameraRot[0].vz = 0;
-            g_WorldMapRotationMatrixValid = 0;
-            g_WorldMapCameraTarget[0].z = g_WorldMapPlayerPositionZ;
-            break;
-        case 4:
-            pPlayer->command = 0;
-            pPlayer->state = 3;
-            break;
-        case 5:
-            pPlayer->command = 0;
-            pPlayer->state = 4;
-            pPlayer->unk58 = g_WorldMapPlayerPosition + 0xC7C00;
-            g_WorldMapRotationMatrixValid = 1;
-            pPlayer->unk5C = g_WorldMapPlayerPositionZ + 0x3EC400;
-            break;
-        case 6:
-            pPlayer->command = 0;
-            pPlayer->state = 5;
-            break;
-        }
-        switch (pPlayer->state) {
-        case 0:
-            break;
-        case 1:
-            pPlayer->unk50 += 0x200;
-            if (pPlayer->unk50 > 0x8000) {
-                pPlayer->unk50 = 0x8000;
-                pPlayer->state = 0;
-            }
-            break;
-        case 2:
-            pPlayer->unk50 -= 0x200;
-            if (pPlayer->unk50 < 0x8000) {
-                pPlayer->unk50 = 0x8000;
-                pPlayer->state = 0;
-            }
-            break;
-        case 3:
-            pPlayer->unk50 -= 0x100;
-            if (pPlayer->unk50 < 0x1000) {
-                pPlayer->unk50 = 0x1000;
-                pPlayer->state = 0;
-            }
-            break;
-        case 4:
-            g_WorldMapCameraTarget[0].z += 0x3A000;
-            if (g_WorldMapCameraTarget[0].z > 0x77FFFFF) {
-                pPlayer->state = 0;
-            }
-            g_WorldMapPathFrame[0].vx = (pPlayer->unk58 - g_WorldMapCameraTarget[0].x) >> 12;
-            g_WorldMapPathFrame[1].vz = 0;
-            g_WorldMapPathFrame[1].vx = 0;
-            nAngle = g_WorldMapCameraTarget[0].y >> 12;
-            g_WorldMapPathFrame[1].vy = nAngle;
-            g_WorldMapPathFrame[0].vy = nAngle - 0x40;
-            g_WorldMapPathFrame[0].vz = (g_WorldMapCameraTarget[0].z - pPlayer->unk5C) >> 12;
-            func_80097244((s32 *)&g_WorldMapPathFrame[0]);
-            WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, &g_WorldMapCameraRot[0]);
-            break;
-        case 5:
-            g_WorldMapCameraRot[0].vy += 4;
-            nTimer = g_WorldMapCameraRot[0].vy;
-            if (nTimer > 0x600) {
-                pPlayer->state = 0;
-            }
-            break;
-        }
-        func_80096F18(&g_WorldMapCameraRot[1], &g_WorldMapCameraTarget[0], g_WorldMapCameraHeight, &g_WorldMapCameraRot[0]);
-        pJitter[0x50] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
-        pJitter[0x51] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
-        g_WorldMapPathFrame[0].vx += pJitter[0x50];
-        g_WorldMapPathFrame[1].vx += pJitter[0x50];
-        g_WorldMapPathFrame[0].vy += pJitter[0x51];
-        g_WorldMapPathFrame[1].vy += pJitter[0x51];
-        return 1;
+    nState = pPlayer->command - 1;
+    switch (nState) {
+    case 0:
+        pPlayer->command = 0;
+        pPlayer->state = 1;
+        break;
+    case 1:
+        pPlayer->state = 2;
+        pPlayer->command = 0;
+        pPlayer->unk50 = 0x40000;
+        break;
+    case 2:
+        g_WorldMapCameraHeight = 0x640000;
+        pPlayer->command = 0;
+        pPlayer->state = 0;
+        g_WorldMapCameraRot = -0x1E0;
+        g_WorldMapViewRotationY = 0x480;
+        g_WorldMapViewRotationZ = 0;
+        break;
+    case 3:
+        pPlayer->command = 0;
+        pPlayer->state = 0;
+        g_WorldMapCameraHeight = 0x1E0000;
+        g_WorldMapCameraRot = 0x40;
+        g_WorldMapViewRotationY = 0x418;
+        g_WorldMapViewRotationZ = 0;
+        g_WorldMapRotationMatrixValid = 0;
+        g_WorldMapCameraTargetZ = g_WorldMapPlayerPositionZ;
+        break;
+    case 4:
+        pPlayer->command = 0;
+        pPlayer->state = 3;
+        break;
+    case 5:
+        pPlayer->command = 0;
+        pPlayer->state = 4;
+        pPlayer->unk58 = g_WorldMapPlayerPosition + 0xC7C00;
+        g_WorldMapRotationMatrixValid = 1;
+        pPlayer->unk5C = g_WorldMapPlayerPositionZ + 0x3EC400;
+        break;
+    case 6:
+        pPlayer->command = 0;
+        pPlayer->state = 5;
+        break;
     }
-*/
+    switch (pPlayer->state) {
+    case 0:
+        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+        break;
+    case 1:
+        pPlayer->unk50 += 0x200;
+        if (pPlayer->unk50 > 0x8000) {
+            pPlayer->unk50 = 0x8000;
+            pPlayer->state = 0;
+        }
+        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+        break;
+    case 2:
+        pPlayer->unk50 -= 0x200;
+        if (pPlayer->unk50 < 0x8000) {
+            pPlayer->unk50 = 0x8000;
+            pPlayer->state = 0;
+        }
+        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+        break;
+    case 3:
+        pPlayer->unk50 -= 0x100;
+        if (pPlayer->unk50 < 0x1000) {
+            pPlayer->unk50 = 0x1000;
+            pPlayer->state = 0;
+        }
+        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+        break;
+    case 4:
+        g_WorldMapCameraTargetZ += 0x3A000;
+        if (g_WorldMapCameraTargetZ > 0x77FFFFF) {
+            pPlayer->state = 0;
+        }
+        g_WorldMapPathFrame[0].vx = (pPlayer->unk58 - g_WorldMapCameraTarget) >> 12;
+        g_WorldMapPathFrame[1].vz = 0;
+        g_WorldMapPathFrame[1].vx = 0;
+        nAngle = g_WorldMapCameraTargetY >> 12;
+        g_WorldMapPathFrame[1].vy = nAngle;
+        g_WorldMapPathFrame[0].vy = nAngle - 0x40;
+        g_WorldMapPathFrame[0].vz = (g_WorldMapCameraTargetZ - pPlayer->unk5C) >> 12;
+        func_80097244((s32 *)&g_WorldMapPathFrame[0]);
+        WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, (SVECTOR *)&g_WorldMapCameraRot);
+        break;
+    case 5:
+        g_WorldMapViewRotationY += 4;
+        nAngle = g_WorldMapViewRotationY;
+        if (nAngle > 0x600) {
+            pPlayer->state = 0;
+        }
+        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+        break;
+    }
+    *(volatile u16 *)(pJitter + 0xA0) = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+    *(volatile u16 *)(pJitter + 0xA2) = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+    g_WorldMapPathFrame[0].vx += *(volatile u16 *)(pJitter + 0xA0);
+    g_WorldMapPathFrame[1].vx += *(volatile u16 *)(pJitter + 0xA0);
+    g_WorldMapPathFrame[0].vy += *(volatile u16 *)(pJitter + 0xA2);
+    g_WorldMapPathFrame[1].vy += *(volatile u16 *)(pJitter + 0xA2);
+    return 1;
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
+
 
 int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
