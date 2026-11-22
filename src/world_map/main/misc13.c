@@ -229,11 +229,28 @@ void WorldMapFreeAreaNameString(void) {
     SystemStringFree(g_WorldMapAreaNameString);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
-/* best: 91.17% (480 bytes vs 472). Instruction stream and the 0x28-byte copy
-   loop are identical; the only delta is that retail hoists each `li` of a
-   repeated constant one statement earlier than gcc does here (e.g. `li v1,296`
-   lands before the D_8009D2C2 store). Store order below is retail's.
+/* best: 98.05% (480 bytes = retail 480, 120 insns both); this body is the 91.17 one.
+   Two measured steps took it 91.17 -> 98.05, and the residual is only where five `li`s
+   sit (each one store-group later than retail: retail li order is 0x2C, 0x98, 0x70,
+   0x128, 0xB4, 0x80, 0xFF, 0x3F while this body emits 0x2C, 0x70, 0x98, 0x128, ...):
+   1. declare the flags global as an ARRAY (`extern u16 g_WorldMapAreaNamePanelFlags[];`)
+      and write `g_WorldMapAreaNamePanelFlags[0]`: that is what makes cc1 2.7.2 put the
+      address in a register (`la a1` + `lhu 0(a1)` + `sh 0(a1)`, retail exactly) instead
+      of two `lui at` macro forms - 96.34. It also buys retail's `sh` in the
+      SystemStringResetIfIdle jal slot and the early `move a0,s0`. CANNOT be committed as
+      it stands: the array type takes the already-matched WorldMapInitAreaNameString from
+      100.00 to 86.14, so un-parking this needs an alias symbol at the same address for
+      this function only (config/symbol_addrs.world_map.txt), which is also a reloc
+      name objdiff will then flag.
+   2. move `D_8009D2C0 = 0x98;` above `D_8009D2CA = 0x70;` - 96.34 -> 98.05 (moving it
+      above D_8009D2C2 instead is 98.02; moving `D_8009D2BB = 9;` down is 96.11). The
+      emitted store order stays retail's either way.
+   Two permuter runs (1466 and 1605 iterations) both returned PERMUTER_BETTER on
+   candidates that move a store in a way objdiff scores WORSE (96.11), so judge its
+   candidates with diff_func.sh here, not with its score.
+   Not a preset question: --all under 2.6.0 (91.17, and five matched functions fall to
+   99.4-99.9) and under 2.7.2-cdk (91.17, most matched functions 84-100) are both worse;
+   -fschedule-insns was tested on the unit .i directly and leaves the li order unchanged.
 
 s32 func_80092DF8(void) {
     u16 flags;
@@ -271,7 +288,44 @@ s32 func_80092DF8(void) {
     D_8009D2B8[1] = D_8009D2B8[0];
     return 1;
 }
-*/
+/*
+s32 func_80092DF8(void) {
+    u16 flags;
+
+    g_WorldMapMode4AreaId = WORLD_MAP_AREA_NONE;
+    SystemStringInit(g_WorldMapMode4AreaNameString, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
+    flags = g_WorldMapAreaNamePanelFlags;
+    D_8009BDCC = 8;
+    g_WorldMapAreaNamePanelFlags = flags | 2;
+    SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
+    D_8009D2BB = 9;
+    D_8009D2BF = 0x2C;
+    D_8009D2C2 = 0x70;
+    D_8009D2CA = 0x70;
+    D_8009D2C8 = 0x128;
+    D_8009D2D8 = 0x128;
+    D_8009D2C0 = 0x98;
+    D_8009D2D0 = 0x98;
+    D_8009D2D2 = 0xB4;
+    D_8009D2DA = 0xB4;
+    D_8009D2C4 = 0x80;
+    D_8009D2C5 = 0;
+    D_8009D2CC = 0xFF;
+    D_8009D2CD = 0;
+    D_8009D2D4 = 0x80;
+    D_8009D2D5 = 0x3F;
+    D_8009D2DC = 0xFF;
+    D_8009D2DD = 0x3F;
+    D_8009D2BC = 0x80;
+    D_8009D2BD = 0x80;
+    D_8009D2BE = 0x80;
+    D_8009D2CE = GetTPage(0, 0, 0x380, 0x100);
+    D_8009D2C6 = GetClut(0x130, 0x1E4);
+    SetSemiTrans(D_8009D2B8, 1);
+    D_8009D2B8[1] = D_8009D2B8[0];
+    return 1;
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
 /* best: 98.52% (472 bytes = retail's 472; 118 instructions = retail's 118). Every
@@ -725,17 +779,16 @@ s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMa
     }
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
-/* best: 98.21% (112 bytes, original 112). Instruction sequence, size, mult/mflo
-   placement and the branches are identical; only register CHOICE differs: retail
-   ties each difference's dest to its minuend (subu v0,v0,v1) and takes the two
-   mflo results in a2/v1, this build ties the dest to the subtrahend
-   (subu v0,v1,v0, loads v1,v0) and takes a3/v0. Six declaration orders of
-   {dx,dz,sum}, a single reused d local, and split-statement (d = p0->x;
-   d -= p1->x) forms measured: 98.21 / 98.21 / 91.79. A 4-minute permuter run
-   (2193 iterations, base=50 best=30) found only a semantically identical
-   duplicated negu. Allocator tie.
-
+/* best: 98.21% (112 bytes, original 112; 28 insns both). Instruction sequence, size,
+   mult/mflo placement and the branches are identical; only register CHOICE differs:
+   retail ties each difference dest to its minuend (subu v0,v0,v1) and takes the two
+   mflo results in a2/v1, this build ties the dest to the subtrahend (subu v0,v1,v0,
+   loads v1,v0) and takes a3/v0 - the same six registers, permuted. Retested this
+   round: single-expression sums (72.86), separate sqx+sqz locals (79.46); earlier six
+   declaration orders of {dx,dz,sum}, a single reused d local and split-statement
+   (d = p0->x; d -= p1->x) forms (98.21 / 98.21 / 91.79). A 4-minute permuter run
+   (2193 iterations, base=50 best=30) found only a semantically identical duplicated
+   negu. Allocator tie - see the regalloc levers; do not hand-iterate it.
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     s32 dx;
     s32 dz;
@@ -754,6 +807,7 @@ s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     return SquareRoot0(sum);
 }
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
 void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
     s32 dx;
     s32 dz;
@@ -764,3 +818,4 @@ void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* 
     pVector[0] = rcos(*pAngle);
     pVector[2] = -rsin(*pAngle);
 }
+
