@@ -4584,45 +4584,54 @@ u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, Au
     return pScript + 3;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
+// Round 411: 92.30% (244 bytes = retail's size, 61 insns = retail's, 12 differing lines,
+// two hunks). Body is the parked one: envelope pointer local used for every store and the
+// reset, and `short volume` - that type flip alone took the park from 84.75 to 90.34 and is
+// what produces retail's `move v0,s2` volume copy and the callee-saved assignment element s1
+// / volume s2 / index s3. Hoisting `index = mode & 0xF` into the outer if block before the
+// volume test scored 89.02 with only 14 differing lines (the best instruction distance seen).
+// Residual: (1) retail keeps `mode` in s3 from the lbu and forms the index in the call's a2,
+// copying it back (`andi a2,s3,0xf; move s3,a2`), while here mode lands in s0 and the index is
+// computed early into s3, so the jal delay slot holds `move a2,s3` instead of retail's
+// `sra a1,a1,0x10`; (2) the bgez target is 4 bytes later because of that.
+// Also measured: index first inside the inner if (90.34, 48 lines), flags before index inside
+// the inner if (87.34), `mode & 0xF` inline in all three uses with flags first (80.20, 256
+// bytes) and with the index assigned just after the call (90.54), s32 volume for each (67-84).
+// Three permuter runs: 798 -> 595 -> 531 -> 471 (the last found the envelope pointer local).
+// Next lead: retail's `move s3,a2` only appears when `mode` keeps s3 and dies at the index, so
+// the source needs the `& 0x10` test emitted before the index and the `== 0` after it.
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 57.67 / 67.11 / 67.52 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (67.52%, 232 bytes vs the original's 240): every store and the sltiu/sll
-flag computation are right; gcc gives the AudioElement s2 and volume s1 (original:
-element s1, volume s2), re-uses the velocity copy for the `addu` that forms volume so
-the original's extra `move s2,a1` is missing, and moves the `addiu s0,s0,1` and the
-`lhu 0xCE` earlier. u8/s32 velocity, value &= 0xF vs a separate index local, note/
-velocity/value declaration order, a pEnvelope local and store order all land between
-59.31% and 67.52%. type of pScript[2] is u8.
 u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s32 velocity = pScript[0];
+    short volume = pScript[0];
     s32 note = (s8)pScript[1];
-    s32 value = pScript[2];
-    s32 volume;
+    u8 mode = pScript[2];
+    AudioEnvelope* pEnvelope;
+    s32 index;
     s32 flags;
 
     if (note != 0) {
-        if (velocity != 0) {
-            volume = velocity + (velocity * velocity) / 64;
-            flags = ((value & 0x10) == 0) * 2;
-            value &= 0xF;
-            pAudioElements->envelopes[2].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, value);
-            pAudioElements->envelopes[2].rampStep = 0x400;
-            pAudioElements->envelopes[2].reload = volume;
-            pAudioElements->envelopes[2].delayReload = 0;
-            pAudioElements->envelopes[2].target = 2;
-            pAudioElements->envelopes[2].handlerIndex = value;
-            pAudioElements->envelopes[2].flags = flags + 1;
-            pAudioElements->envelopes[2].pStepHandler = g_SoundEnvelopeStepHandlers[value];
+        index = mode & 0xF;
+        if (volume != 0) {
+            volume += (volume * volume) / 64;
+            flags = ((mode & 0x10) == 0) * 2;
+            pEnvelope = &pAudioElements->envelopes[2];
+            pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
+            pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
+            pEnvelope->reload = volume;
+            pEnvelope->delayReload = 0;
+            pEnvelope->pStepHandler = g_SoundEnvelopeStepHandlers[index];
+            pEnvelope->handlerIndex = index;
+            pEnvelope->target = 2;
+            pEnvelope->flags = flags + 1;
             pAudioElements->activeEnvelopeMask |= 0x4;
-            SoundResetEnvelope(&pAudioElements->envelopes[2]);
+            SoundResetEnvelope(pEnvelope);
         }
     }
 
     return pScript + 3;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
 
 u8* SoundScriptSetUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask |= 0x4;
