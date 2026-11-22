@@ -28,6 +28,11 @@ extern void MenuRenderFrame(void);
 extern u_char MenuLoadWindow2Text(u_char, u_char, u_char);
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 g_MenuCardSlotTotals[];
+extern void func_801C9EF4(s32 a0, s32 a1);
+extern void func_801CA1D4(s32 a0, s32 a1);
+extern void func_801CA480(s32 a0, s32 a1);
+extern void func_801CA5F0(s32 a0, s32 a1);
+extern void MenuUpdateCharacterWindow(s32 arg0, u_char arg1);
 
 // The memory card directory prefix a slot's filename is appended to: g_MenuCardPathPrefix0
 // reads "bu00:", g_MenuCardPathPrefix1 "bu10:".
@@ -617,7 +622,38 @@ void func_801CA5F0(s32 a0, s32 a1) {
 }
 */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA750);
+s32 func_801CA750(s32 a0) {
+    s32 result;
+
+    result = 0;
+    switch (g_Menu->input) {
+    case MENU_INPUT_CONFIRM:
+        result = 1;
+        break;
+    case MENU_INPUT_BACK:
+        result = 2;
+        break;
+    case MENU_INPUT_RIGHT:
+        func_801C9EF4(a0, g_Menu->menuUnk2->selectedSlot);
+        break;
+    case MENU_INPUT_LEFT:
+        func_801CA1D4(a0, g_Menu->menuUnk2->selectedSlot);
+        break;
+    case MENU_INPUT_DOWN:
+        func_801CA480(a0, g_Menu->menuUnk2->selectedSlot);
+        break;
+    case MENU_INPUT_UP:
+        func_801CA5F0(a0, g_Menu->menuUnk2->selectedSlot);
+        break;
+    }
+    if (g_Menu->menuUnk2->selectedSlot != g_Menu->menuUnk2->previousSelectedSlot) {
+        MenuUpdateCharacterWindow(g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]],
+            g_Menu->menuUnk2->slotHasGameSave[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]);
+        g_Menu->menuUnk2->previousSelectedSlot = g_Menu->menuUnk2->selectedSlot;
+    }
+    return result;
+}
+
 void func_801CA8C0(u_char a0) {
     s32 n;
     s32 tens;
