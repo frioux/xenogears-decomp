@@ -1590,7 +1590,7 @@ void FieldRenderScreenEffect(void) {
     at.y = CONV_TO_GTE(g_CameraAt.vy);
     at.z = CONV_TO_GTE(g_CameraAt.vz);
 
-    func_800273C4(g_FieldScreenEffectData, &eye, &at, (MATRIX*)((u_char*)&g_CameraEye + 0x1E4),
+    GfxProjectQuadBanks(g_FieldScreenEffectData, &eye, &at, (MATRIX*)((u_char*)&g_CameraEye + 0x1E4),
         (int*)(g_FieldScriptRenderContextIndex * 4 + (int)g_FieldCurRenderContext + 0x40CC),
         g_FieldCurRenderContextIndex);
 }

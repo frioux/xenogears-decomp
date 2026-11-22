@@ -39,7 +39,7 @@ spilled with sw, height gets the plain `bgez` + addiu 0xFF of a 32-bit signed
 u16 (lhu) and pVec is read with lhu at 0/4/8 for the colour halves but lw at 8
 for the `vz < 0` test, so pVec->vz is both.
 
-// Block func_8002709C allocates: the prims func_800273C4 fills, then the
+// Block func_8002709C allocates: the prims GfxProjectQuadBanks fills, then the
 // draw state it copies in.
 
 typedef struct {
@@ -211,7 +211,7 @@ fills above, diff, and only then chase the pColors add/re-add shape.
 */
 
 // The render block func_8002709C allocates: sixteen textured quads, the flat and
-// Gouraud rows func_800273C4 fills (one bank of each per screen context), then
+// Gouraud rows GfxProjectQuadBanks fills (one bank of each per screen context), then
 // the draw state the quads are sized from.
 typedef struct {
     POLY_FT4 ft4[16];  // 0x000
@@ -241,7 +241,7 @@ extern void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
 // flat quads and the gouraud row are placed at the projected eye height, the
 // second flat row at the projected at height. `span` is the distance between
 // the two points scaled into 0..0x100. Returns the projected eye y.
-s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
+s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
                   MATRIX* pMatrix, u_long* pOT, s32 band) {
     SVECTOR proj1;
     SVECTOR proj2;
@@ -346,7 +346,7 @@ s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
 // Derivation only, never diffed (no percentage yet); kept so the next worker
 // does not have to re-read 274 instructions.
 //
-// Signature, from its only caller func_800273C4 (jal at 0x80027600):
+// Signature, from its only caller GfxProjectQuadBanks (jal at 0x80027600):
 //   (pBlock, s32 a1, s32 a2, s16 a3, u_long* pOT, s32 bank)
 // a0 is the 0x34C block func_8002709C allocates; a3 is 0..0x100 from the
 // caller's clamp and is the divisor's base everywhere below; arg6 is 0 or 1
