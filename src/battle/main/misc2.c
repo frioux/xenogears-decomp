@@ -557,32 +557,11 @@ void BattleDrawFrameByScreenMode(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
-/* 97.59%: 332 bytes, retail's exact size, ONE instruction out of place - gcc emits
-   the `sll v0,v0,1` (the u16 scale in the g_BattleSlotScreenOrigins index) before the
-   `lui %hi/addiu %lo` of the symbol, retail after it. A two-minute permuter run from
-   this body returned PERMUTER_NONE at base=60 (one instruction). What the body needed:
-   (1) every access is written as an inline `((u8 *)g_BattleDisplayState + off)` so gcc
-   reloads the global per block like retail (four loads) instead of keeping one register
-   live; (2) the second half of the 0x34..0xAB run goes through two pointer locals
-   (`pWork`, and `pAb` for the 0xAB store) because retail reloads into $v0 and $v1 there;
-   (3) the three zero stores are a do/while(0) unit so they keep retail's place after
-   the 0x5C pair; (4) the 0x5C=divisor store is the embedded assignment of the divisor
-   expression (permuter find); (5) `pTail[slot + 0x90] -= 1` inside an embedded
-   assignment of the base is what gives retail's `addu v1,v1,a2` operand order.
-   Re-measured this round: the body compiles and still scores 97.59. Two more
-   spellings tried for the sll: the cast form `(u16 *)((page * 3 + slot) * 2 +
-   (s32)g_BattleSlotScreenOrigins)` is byte-identical to `&arr[i]` (97.59), and the
-   two-statement `pOrigins = g_BattleSlotScreenOrigins; pOrigin = &pOrigins[...]`
-   DOES move the sll after the lui/addiu but pushes the g_BattleSlotScreenOrigins
-   load above g_BattleDisplayState and costs 9 points (88.80).
-*/
-/*
 void func_800765C4(s32 slot) {
+    BattleWork *pWork;
     u16 *pOrigin;
-    u8 *pTail;
-    u8 *pWork;
-    u8 *pAb;
+    mem_addr origins;
+    s32 index;
     s32 base;
     s32 offset;
     s32 offset2;
@@ -590,70 +569,70 @@ void func_800765C4(s32 slot) {
     u32 divisor;
     s32 scaled;
 
-    pOrigin = &g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot];
+    index = g_BattleSlotPageIndex * 3 + slot;
+    origins = (mem_addr)g_BattleSlotScreenOrigins;
+    pOrigin = (u16 *)(index * 2 + origins);
     base = *pOrigin;
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x44) = 0x1C;
+    g_BattleDisplayState->y = 0x1C;
     offset = base + 0x48;
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x34) = slot * 0x60 + offset;
+    g_BattleDisplayState->x = slot * 0x60 + offset;
     if (g_BattleSlotFlags[slot * 8] != 0 && g_BattleActorCharIds[slot] != 7) {
         offset2 = *pOrigin + 0x44;
-        *(s32 *)((u8 *)g_BattleDisplayState + 0x44) = 0x24;
-        *(s32 *)((u8 *)g_BattleDisplayState + 0x34) = slot * 0x60 + offset2;
+        g_BattleDisplayState->y = 0x24;
+        g_BattleDisplayState->x = slot * 0x60 + offset2;
     }
 
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x3C) = 0x10;
-    *(s32 *)((u8 *)g_BattleDisplayState + 0x4C) = 0x98;
-    pWork = (u8 *)g_BattleDisplayState;
-    height = *(s32 *)(pWork + 0x34) - 5;
-    *(s32 *)(pWork + 0x54) = height - *(s32 *)(pWork + 0x3C);
-    divisor = *(s32 *)(pWork + 0x44) + 5;
-    *(s32 *)(pWork + 0x5C) = *(s32 *)(pWork + 0x4C) - divisor;
-    divisor = *(s32 *)(pWork + 0x5C);
-    scaled = (*(u32 *)(pWork + 0x54) << 8) / divisor;
-    *(u16 *)(pWork + 0x104) = 0x800;
-    *(u8 *)((u8 *)g_BattleDisplayState + 0xA9) = 6;
-    *(s32 *)(pWork + 0x5C) = 0x100;
-    pAb = (u8 *)g_BattleDisplayState;
+    g_BattleDisplayState->xTarget = 0x10;
+    g_BattleDisplayState->yTarget = 0x98;
+    pWork = g_BattleDisplayState;
+    height = pWork->x - 5;
+    pWork->xStep = height - pWork->xTarget;
+    divisor = pWork->y + 5;
+    pWork->yStep = pWork->yTarget - divisor;
+    divisor = pWork->yStep;
+    scaled = (pWork->xStep << 8) / divisor;
+    pWork->panelScale = 0x800;
+    g_BattleDisplayState->moveSteps = 6;
+    pWork->yStep = 0x100;
     do { // a unit so the cluster keeps retail's place after the 0x5C pair
-        *(s32 *)(pWork + 0x64) = 0;
-        *(s32 *)(pWork + 0x6C) = 0;
-        *(u16 *)(pWork + 0x106) = 0;
+        pWork->xOffset = 0;
+        pWork->yOffset = 0;
+        pWork->panelAngle = 0;
     } while (0);
-    *(s32 *)(pWork + 0x54) = scaled;
-    *(u8 *)(pAb + 0xAB) = 1;
-    *((pTail = (u8 *)g_BattleDisplayState) + slot + 0x90) -= 1;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
-/* 95.68% at retail's exact 728 bytes; 4-minute permuter runs from 91.53 and from
-   this body both returned BETTER on their own metric but the ported edits were
-   worse under objdiff, so nothing was kept. What is left is allocation and
-   scheduling only:
-   (1) loop 1's two `sh` sums: retail accumulates into the SHIFTED value's
-   register (`addu v0,v0,v1`, dest = the >>8 result, `sh v0,40(sp)`); every
-   operand order in C gives dest = the lhu (`addu v1,v1,v0`), and giving the
-   shift its own `u32 dx` local swaps that but then puts the reload in $v1 and
-   drops to 93.45.
-   (2) retail reaches g_BattlePrimStartIndex at both func_80025FA8 call sites as
-   `lui s0,%hi; addiu s0,s0,%lo` once plus `lw a3,0(s0)` per call; a `s32 *pCtx`
-   local (also spelled `mem_addr pCtx` with a cast) is folded back to
-   `lui a3,%hi; lw a3,%lo(a3)` per site. Only `extern s32
-   g_BattlePrimStartIndex[]` was not tried, because three already-matched
-   functions in this file read it as a scalar.
-   (3) the second call's `idx * 0x50 + 0x3768` chain: the `sll <<4` and
-   `addiu 0x3768` come out in the other order and `sll s0,s0,1` (idx*2) lands in
-   the `j` delay slot instead of before the call.
-   (4) `li a1,0x1` (SetSemiTrans' second argument) sits at the top of the loop
-   body instead of in the back-edge delay slot, and the 0xAB loop's counter is
-   $a1 instead of retail's $a3.
-   The shapes that DID have to be right: the two package-call statements and the
-   0x104/0x106 updates through the first `if` are ONE statement unit
-   (`do { ... } while (0)`), which the permuter found and is worth 2 points; the
-   0x77 byte and the 0x90 byte are raw `*(u8 *)((u8 *)g_BattleDisplayState + N)`
-   so the global is reloaded between them like retail; `off`/`off2` hold
-   `product + 0x3768` so the base is added last, which is what puts retail's
-   `addiu` before the `lui/lw` of g_BattleGraphicsWork; and the two 16-byte
-   x/y objects are one `u16 v[8]` read as v[0]/v[4] (that is what puts them at
-   sp+0x28/0x30).
+    pWork->xStep = scaled;
+    g_BattleDisplayState->sizeSteps = 1;
+    g_BattleDisplayState->panelMode[slot]--;
+}
+
+/*
+97.94% at retail's exact 728 bytes (the body compiles to 724 - ONE instruction short).
+What it took, in order: (1) `extern s32 g_BattlePrimStartIndexTable[]
+__asm__("g_BattlePrimStartIndex");` plus `pCtx = g_BattlePrimStartIndexTable;` is
+what makes cc1 2.6.0 hold that address in $s0 across both func_80025FA8 calls
+(retail: `lui s0,%hi` / `addiu s0,%lo`, then `lw a3,0(s0)` twice). A scalar extern,
+a pointer local, `&g_...` through mem_addr and a `*(s32 *)` cast all rematerialise
+`lui/lw` per call site (95.90 for the whole body). The array type has to be a
+SEPARATE declaration with that asm label: retyping the shared scalar breaks the
+other functions in this file. This bought 95.90 -> 97.94; add the declaration back
+before un-parking.
+Residual is exactly two coupled reorg decisions:
+(a) retail has the j init `sll s0,s0,1` BEFORE the second call (inside the arg
+setup, right after the second `lhu v0,0x104(v1)`) and `sll v0,v0,1` (the entry
+test's count*2) in the `j` delay slot; this body puts the j init in that delay slot
+and shares ONE sll between the entry test and the loop bottom, hence 4 bytes short.
+Writing `j = idx * 2;` as its own statement before the call puts the sll where
+retail has it but takes $s0 earlier, pushes the state pointer into $t0 and scores
+95.63 - retail's placement needs the insn at the END of the argument setup, which
+no statement order reaches (no scheduler in this unit's preset).
+(b) `li a1,0x1` (SetSemiTrans' flag) is re-materialised in the loop back-edge delay
+slot in retail; this body hoists it above the loop (the same 4 bytes), which also
+frees $a1 and makes the later sizeSteps counter $a1 instead of retail's $a3.
+Also tried and measured: `mem_addr primStart = (mem_addr)&g_BattlePrimStartIndex;`
+plus `*(s32 *)primStart` (95.90, identical - it folds), and `off` inlined into the
+call (identical 97.94 / 724). Two earlier sessions ran 4-minute permuter runs from
+91.53 and from this body; both were worthless under objdiff.
+   The do/while(0) unit around the two package calls and the 0x104/0x106 updates
+   is load-bearing too (permuter find, worth 2 points).
 */
 /*
 void func_80076710(s32 slot) {
@@ -677,7 +656,7 @@ void func_80076710(s32 slot) {
     // a statement unit: this block is scheduled as one, which is what keeps retail's
     // ordering of the two package calls and the 0x104/0x106 updates.
     do {
-    pCtx = &g_BattlePrimStartIndex;
+    pCtx = g_BattlePrimStartIndexTable;
     *(u8 *)((u8 *)g_BattleDisplayState + 0x77) = 0;
 
     *(u8 *)((u8 *)g_BattleDisplayState + 0x77) =
@@ -716,6 +695,7 @@ void func_80076710(s32 slot) {
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 void BattleLoadImageAndSync(RECT *pRect, u_long *pData) {
     LoadImage(pRect, pData);
     DrawSync(0);
