@@ -419,54 +419,40 @@ extern void BattleReleaseFinishedSoundSlots(void);
 extern void BattleCompactOrderingTable(s32 limit);
 extern void BattleCaptureTimerCount(void);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
+/* Best attempt: objdiff 96.84% at 812 bytes against retail's 816 (203 vs 204 insns),
+   with the frame of 0x40, the 0x14-byte DISPENV copy to sp+0x10 as five lwl/lwr +
+   swl/swr pairs, the draw-buffer toggle, every call in order and the divu/mflo rate.
+   Round 397 took this from 91.13% to 96.84% with ONE source change: the byte-index
+   round-trip needs its own QImode local -
+       u8 drawIndex = (drawFlags + 1) & 1;
+       g_BattleDrawBufferIndex = drawIndex;
+       ... pSlot = &pBuf[drawIndex];
+   Spelling it as g_BattleDrawBufferIndex = (drawFlags + 1) & 1; and indexing with
+   the global instead lets cc1 substitute the SImode value it already holds, which
+   drops retail's andi 0xFF and moves the sb after the g_BattleDisplaySlot store
+   (91.13%). The u8 local keeps the value QImode, so the sb sits in retail's place
+   and the index use zero-extends, giving retail's andi a0,a0,0xFF.
+   What is left, in order of cost:
+   - retail's preheader has a DEAD lw of g_SpuChannelMask (lui v0 + lw v0, 8 bytes,
+     never read: the loop's first sll overwrites $v0). Initialising prevMask there
+     makes the load live in a callee-saved register instead; making either read of
+     g_SpuChannelMask plain or volatile in every combination measured here does not
+     produce the dead pair, so the loop pass does not hoist it. prevMask is read
+     before it is written on the first iteration (subu v1,v1,s3), so the retail
+     source read an uninitialised variable and the dead load is not its initialiser.
+   - prevMask and pWork hold retail's two registers SWAPPED (retail $s2 = work,
+     $s3 = prevMask; here $s3/$s2). Declaring prevMask before pWork and the reverse
+     changes nothing: it is a global-alloc priority tie.
+   - retail re-forms the g_BattleDrawBuffers base into $v1 between the two address
+     computations, ours sits at the loop top in $a2. Dropping the pBuf local and
+     indexing g_BattleDrawBuffers directly measures 93.68% at 820 bytes (one
+     instruction OVER retail), so the pBuf local stays, and its live use at the end
+     of the loop (PutDispEnv(pBuf = &disp)) is the one unrealistic line in the body:
+     it is what keeps the base out of a callee-saved register instead of costing a
+     fifth saved register (88.17%).
+   A 4-minute permuter run from the 91.13% body found only that embedded assignment. */
 
-/* Best attempt: objdiff 91.13% at 808 bytes against retail's 816, with retail's
-   four saved registers (s0 count, s1 rate, s2 work, s3 prev), its frame of 0x40,
-   the 0x14-byte DISPENV copy to sp+0x10 as five lwl/lwr + swl/swr pairs, the
-   draw-buffer toggle, every call in order, and the divu/mflo rate. Three
-   residuals keep it out of reach:
-   - retail's preheader has a DEAD `lw $v0,%lo(g_SpuChannelMask)` (loaded, never
-     read: the loop's first statement overwrites $v0). Writing the obvious
-     `prevMask = g_SpuChannelMask;` before the loop puts that load in the loop's
-     own register (live), so the dead form has no source spelling found yet; it
-     is the whole 8-byte gap.
-   - retail stores g_BattleDrawBufferIndex with `sb` and then ANDs the same
-     register with 0xFF for the slot index, i.e. the index was read back from
-     the byte global and cse substituted the stored value. Every spelling tried
-     (read the global back, a u8 local copy, an extra & 0xFF) lets cc1 fold the
-     truncation away, so the `andi` and the `sb`'s position (retail puts it
-     before the g_BattleDisplaySlot store) do not come back.
-   - the buffer base must stay in a CALL-CLOBBERED register re-formed every
-     iteration (`lui $v1,%hi` + `addiu` before the first addu). With both slots
-     written as &g_BattleDrawBuffers[i] cc1's cse/loop hoists the address into a
-     callee-saved register in the preheader, which costs a fifth saved register
-     (s4) and 88.17%. The lever that reproduces retail's shape is giving the
-     buffer-base pointer a LIVE USE at the end of the loop body - PutDispEnv
-     taking `pBuf = &disp` below - which is what the parked body does; a plain
-     `PutDispEnv(&disp)` re-hoists. That embedded assignment is what is still
-     unrealistic here; the rest of the body is typed source.
-   A 4-minute permuter run from this body found only that embedded assignment
-   (1457 -> 1007), which is how the base hoist was broken. Round 292's wall on
-   func_80088A40 is unrelated and untouched. */
 /*
-extern u_long* g_BattleRootOrderingTable;
-extern s32 D_80050618;
-extern s32 D_800595C0;
-extern s32 g_BattleEmittedPacketCount;
-extern char D_800706AC[];
-extern char D_800706C0[];
-extern char D_800706D4[];
-extern void* BattleCreateWorkBlock(void* pEntry, u32 arg1, u32 stackTop, s32 size);
-extern void func_8008BB3C(void* pWork);
-extern void GameCheckAndHandleSoftReset(void);
-extern void FontDrawLetters(void* pOt);
-extern void FontSetColor(s32 red, s32 green, s32 blue);
-extern s32 Vsync(s32 mode);
-extern void BattleReleaseFinishedSoundSlots(void);
-extern void BattleCompactOrderingTable(s32 limit);
-extern void BattleCaptureTimerCount(void);
-
 void func_80088E90(void) {
     DISPENV disp;
     BattleEntry* pBuf;
@@ -476,6 +462,7 @@ void func_80088E90(void) {
     u32 prevMask;
     u32 frameRate;
     s32 frameCount;
+    u8 drawIndex;
 
     BattleInitGraphics();
     pWork = BattleCreateWorkBlock(func_80088BFC[D_80050618], 0, 0x801FE000, 0x400);
@@ -484,10 +471,11 @@ void func_80088E90(void) {
         D_800595C0 = 0;
         g_BattleEmittedPacketCount = 0;
         pBuf = g_BattleDrawBuffers;
-        g_BattleDrawBufferIndex = (drawFlags + 1) & 1;
+        drawIndex = (drawFlags + 1) & 1;
+        g_BattleDrawBufferIndex = drawIndex;
         g_BattleDisplaySlot = &pBuf[drawFlags & 1];
         g_BattleDrawFlags = drawFlags + 1;
-        pSlot = &pBuf[g_BattleDrawBufferIndex];
+        pSlot = &pBuf[drawIndex];
         g_BattleDrawSlot = pSlot;
         g_BattleRootOrderingTable = &pSlot->ot;
         disp = pSlot->dispEnv;
@@ -528,6 +516,7 @@ void func_80088E90(void) {
     }
 }
 */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
 void* BattleLoadArchiveEntry(s32 entryIndex) {
     void* pBuffer;
