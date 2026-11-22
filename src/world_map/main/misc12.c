@@ -303,7 +303,7 @@ s32 func_8008E190(s32 idx) {
    the START of its .rodata, so converting this stub alone moves every later table of the
    range (check_bin MISMATCH, measured in an earlier round). E190 (parked at 87%) and this
    function have to be converted together, in address order.
-/*
+*/
 s32 func_8008E4F4(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 *pScratchPos;
@@ -345,8 +345,7 @@ s32 func_8008E4F4(s32 idx) {
     RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[1].matrix);
     return nRet;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
+}
 
 s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
