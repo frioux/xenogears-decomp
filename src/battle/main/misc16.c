@@ -40,6 +40,7 @@
 // each read.
 #define BATTLE_ACTION_ROW_STRIDE 0x690
 extern u8 g_BattleActionRows[];
+extern u8 D_800CEF34[];
 
 // One sprite package of the per-slot draw block: the two POLY_FT4
 // BattleDrawSpritePackage writes, i.e. the 0x50-byte stride the block's package
@@ -220,7 +221,6 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
    not ported. `firstRow` should become a named constant (the first action row) if
    this body is ever finished.
 */
-/*
 u8 func_8008CFB8(u8 arg0) {
     u8 codes[4];
     u16 damage[4];
@@ -252,7 +252,7 @@ u8 func_8008CFB8(u8 arg0) {
             (g_BattleSlotStatusRows[arg0].flags & statusMasks[i]) == 0) {
             codes[i] = g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i;
             firstRow = 0x25;
-            damage[i] = *(u16 *)((firstRow + i) * 0x28 + arg0 * 0x690 + g_BattleActionRows + 0x24);
+            damage[i] = *(u16 *)((u8 *)D_800CEF34 + (firstRow + i) * 0x28 + arg0 * 0x690);
         }
     }
     g_BattleDisplayState->primListsPending = 0;
@@ -266,7 +266,7 @@ u8 func_8008CFB8(u8 arg0) {
             BattleDrawCharStatusIfMaskUnset(arg0, cursor);
             lastCursor = cursor;
         }
-        do { BattleStepAnimatedCursorPrim(0x8C, cursor * 0x10 + 0x58, &cursorFrame, &cursorTimer); } while (0);
+        BattleStepAnimatedCursorPrim(0x8C, cursor * 0x10 + 0x58, &cursorFrame, &cursorTimer);
         BattleUpdateFrame();
         switch (g_BattleMenuEvent) {
         case 5:
@@ -300,8 +300,7 @@ u8 func_8008CFB8(u8 arg0) {
     BattleFreeSlotBuffers(2);
     return state;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
+
 
 // Fades the prims BattleAddTwoPrimLists later combines: sets the transparency and
 // shading bits on each prim of both tile-prim lists, then subtracts the packet's colour
@@ -668,27 +667,6 @@ void func_8008F0A8(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
 // Fills both greyscale quads' corners at the slot's current prim index, draws the
 // slot's four sprite packages and records the prim index they were built at. The
 // callees take u16 coordinates, so each argument is truncated once here.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
-/* 69.38% (532 bytes against retail's 528) with today's headers. Everything but
-   one register tie is in the body below; what retail's .s shows:
-   - the coordinates are u16: gcc masks each of x/y/w/h once with 0xFFFF (they go
-     to the callees' s32 parameters) and reuses the masked registers for all five
-     calls. Declaring them s32 loses all four masks (508 bytes, 70.05%).
-   - g_BattlePrimStartIndex must be volatile: retail re-reads it with a fresh
-     lui/lw for EVERY one of the eight sh stores (see the declaration above).
-   - the slot pointer g_BattleSlotGraphics[index] is loaded once into a saved
-     register (s2) and all eight prim stores go through it; the eight stores are
-     p->prims[index].x0/y0/x1/y1/x2/y2/x3/y3 with the sums (x+w, y+h) left inline
-     so gcc CSEs each into one register.
-   - the trailing byte store reads the index back with lbu, hence the u8 cast.
-   Left: retail keeps index in s3, x s1, y s0, w s5, h s4, p s2; we get index s1,
-   p s0, x s3, y s4, w s5, h s6 and copy a3 to a temp for w where retail masks w
-   in place (one extra move). Hand shapes tried: sums as right/bottom locals
-   (516 bytes), p loaded after the 0xB0 store (61.88%), u32/u8 index, s32 params
-   with u16 callee coordinates (520); a 4-minute permuter run from this body
-   found only a worse-sized variant (540 bytes, 73.98%). Next lever: the u16
-   narrowing that closed BattleInitSlotGraphics below (a u16 copy of arg0 feeding a u8
-   index) - not yet tried here.
 void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     BattleSlotGraphics *p;
     u8 index;
@@ -712,7 +690,6 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     p->packagePrimStart = *(u8 *)&g_BattlePrimStartIndex;
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;
 }
-*/
 // Allocates a slot's draw block and rect list on first use, then either fills the
 // rect list from the four coordinates and marks the slot dirty (arg5) or hands
 // them to func_8008F6E4 and advances the frame (arg6).
