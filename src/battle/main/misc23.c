@@ -1177,7 +1177,10 @@ void func_800A9540(s32 arg0) {
     pTail->pBuffer1 = NULL;
     ArchiveStartStreamQueue(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(pos.alignedIndex, pos.remainder);
-}void BattleAllocateArchiveFilePair(s32 arg0) {
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+
+void BattleAllocateArchiveFilePair(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
     s32 remainder;
@@ -1200,8 +1203,7 @@ void func_800A9540(s32 arg0) {
     pEntry->pBuffer3 = 0;
     ArchiveStartStreamQueue(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+}
 
 // Payload reached through Misc23ArchiveEntry::pBuffer3: a count-prefixed list of
 // 16-bit entries plus the block bounded by pBlockStart..pBlockEnd.
