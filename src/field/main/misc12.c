@@ -26,47 +26,40 @@ extern s32 g_FieldPartyActorSlots[];
 // that follows an index through it; read the pointer through a plain lvalue instead.
 #define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))
 
-/* 97.96% (1076 bytes, original 1080). Parked attempt. The switch dispatch is NOT
-   the residual: gcc already emits retail's three-insn form `lui at,%hi(tbl);
-   addu at,at,v0; lw v0,%lo(tbl)(at)`, differing only in the table symbol
-   (`%hi(.rodata)` vs retail's `%hi(jtbl_8006FD30)`) - the objdiff jump-table
-   exception. The residual is ONE load-delay nop in the case 2 arm, which is why
-   the body is 4 bytes short and the exception cannot apply. Retail loads the
-   g_FieldScriptVMCurActor pointer BEFORE the `addu` that forms the target actor
-   address: `lui a0,%hi(g_FieldActors); lw a0 / lui a1,%hi(g_FieldScriptVMCurActor);
-   lw a1 / addu v1,v1,a0 / lw s0,76(v1) / nop / lhu v0,30(s0) / lhu a0,30(a1) /
-   addu a0,v0,a0`. Every source spelling tried emits the cur-actor load at the
-   START of the radius statement instead (in gcc's own .s, before the target's
-   lhu), where maspsx steals it into `lw s0`'s delay slot and the nop vanishes.
-   Tried: operand order (target+cur 97.72, cur+target 97.96 - retail's lhu order
-   proves the source was target-first, so the swap is score-only), a u16 local for
-   either range, a block-scoped cur-actor pointer local, an element-pointer local,
-   a sum temp, x/z assigned first, `do/while(0)` around the arm and around the
-   radius statement; two decomp-permuter runs (977 and 3777 iterations) found
-   nothing. Everything else in the function is instruction-identical.
-   What got it this far: a local pointer for the shared tail (the original keeps
-   it in call-clobbered a2 and reloads the global after FieldGetVec2Angle and in
-   the block after the arrival arm, so those statements must name
-   g_FieldScriptVMCurActor directly, not the local), plus separate block-scoped
-   rotation variables per arm - a single shared `rotation` keeps the value in a1
-   and forces an extra move. A third permuter run (2064 iterations) and reading
-   g_FieldActors through the non-volatile FIELD_ACTORS lvalue both measured
-   exactly 97.96 as well. A volatile read of either solidRange moves nothing.
-   ROUND 397 re-measurement: the residual is exactly ONE instruction - the load-delay
-   `nop` after `lw s0,0x4C(v1)` in the case 2 arm (1076 bytes vs retail 1080; the
-   body is otherwise instruction-identical apart from the jump-table symbol and
-   label naming). Retail's scheduler had the `g_FieldScriptVMCurActor` pointer load
-   hoisted ABOVE `addu v1,v1,a0`, so the next insn after `lw s0` was the target's
-   `lhu v0,0x1E(s0)` and gcc emitted a hazard nop; ours sinks that load below
-   `lw s0` and fills the slot with the cur-actor `lhu`. Re-measured this round:
-   target-first `pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange`
-   97.72 (its two `lhu` order does match retail's, but the cur load still sinks and
-   the arm loses the round/register pair), `FIELD_ACTORS` lvalue instead of
-   `g_FieldActors` identical (97.72 in that pairing, so the volatile read is not
-   what pins the schedule), and two block-scoped `u_short` range locals 97.72.
-   Best remains the cur-first body below at 97.96. Three permuter runs have already
-   been spent on this body (see the note above). */
-/*
+/* 97.96% (1076 bytes, retail 1080 - ONE instruction short). Parked attempt.
+   The switch dispatch is not the residual: gcc already emits retail's three-insn
+   form `lui at,%hi(tbl); addu at,at,v0; lw v0,%lo(tbl)(at)`, differing only in the
+   table symbol (the objdiff jump-table exception). The whole residual is the
+   load-delay `nop` after `lw s0,0x4C(v1)` in the case 2 arm, and it is a
+   SCHEDULING placement, not a source order. Retail's arm is: index scaling, then
+   `lui a0,%hi(g_FieldActors); lw a0; lui a1,%hi(g_FieldScriptVMCurActor); lw a1;
+   addu v1,v1,a0; lw s0,0x4C(v1); nop; lhu v0,0x1E(s0); lhu a0,0x1E(a1)` - the two
+   pointer loads ADJACENT and the base load deferred below the index's last `sll`.
+   Every build measured here loads the base BEFORE that `sll` and the cur-actor
+   pointer AFTER `lw s0`, so gas has a free slot and no nop is emitted (4 bytes
+   short, so the jump-table exception cannot carry it either).
+   ROUND 408 measurements: cur-first body (below) 97.96; target-first
+   `pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange` 97.72 (its two
+   `lhu` order and the addu operand order DO match retail, the two pointer loads
+   are still displaced); FIELD_ACTORS non-volatile lvalue + target-first 97.72, so
+   the volatile read is not what pins the schedule. The unit's own cc1 on the
+   built .i with -fno-schedule-insns AND -fno-schedule-insns2 emits the SAME order
+   (base load first, cur load right after `lw s0`), so no sched1/sched2 flag
+   reaches it either. Presets: 2.6.0-psx 95.27, 2.7.2-cdk-psx 96.74 (it too emits
+   the cur load after `lw s0`), -O3 does not compile this unit. Unit stays Default:
+   under cdk 8 matched neighbours fall (FieldSceneStartDIPInterpolation 49.82,
+   FieldScriptSetSceneScaleInterpolation 84.06, FieldScriptVMWaitWhileSceneFlagSet
+   90.24, FieldScriptSetCurActorRotationTowardPartySlot 90.41, FieldGetCameraDirection
+   98.75), under 2.6.0 five do (FieldScriptVMWriteCurCharacterID 82.00,
+   FieldScriptPlayAnimationAndClearFlag16 84.29, FieldScriptVMHandlerGetActorDirection
+   85.00, FieldScriptSetSceneDIPInterpolation 89.09, FieldScriptSetCurActorRotationTowardActor
+   94.63). Earlier rounds tried operand order, u16 range locals, block-scoped
+   pointer locals, an element-pointer local, a sum temp, x/z assigned first,
+   do/while(0) around the arm, volatile reads, and THREE decomp-permuter runs.
+   What got it this far: a local pointer for the shared tail (the original keeps it
+   in call-clobbered a2 and re-reads the global after FieldGetVec2Angle and in the
+   arrival arm, so those statements must name g_FieldScriptVMCurActor directly) and
+   separate block-scoped rotation variables per arm. *//*
 int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
@@ -167,9 +160,9 @@ int func_80099AC0(int arg0) {
     g_FieldScriptVMCurActor->rotation.vx = rotation;
     g_FieldScriptVMCurActor->rotation.vy = rotation;
     return -1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
+
 void FieldScriptVMWriteCurCharacterID(void) {
     FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_FieldScriptVMCurActor->characterId);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
