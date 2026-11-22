@@ -82,7 +82,35 @@ void SetDrawMode(DR_MODE *p, int dfe, int dtd, int tpage, RECT *tw) {
     *(u_long*)&p->code[1] = func_80045C10(tw);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045534);
+void func_80045534(DR_ENV *drEnv, DRAWENV *env) {
+    DR_ENV *p = drEnv;
+    RECT rect;
+    int n;
+
+    p->code[0] = func_80045A34(env->clip.x, env->clip.y);
+    p->code[1] = func_80045B00((s16)(env->clip.w + env->clip.x - 1), (s16)(env->clip.y + env->clip.h - 1));
+    p->code[2] = func_80045BCC(env->ofs[0], env->ofs[1]);
+    p->code[3] = DrawMode(env->dfe, env->dtd, env->tpage);
+    p->code[4] = func_80045C10(&env->tw);
+    p->code[5] = 0xE6000000;
+    n = 7;
+    if (env->isbg) {
+        rect.x = env->clip.x;
+        rect.y = env->clip.y;
+        rect.w = env->clip.w;
+        rect.h = env->clip.h;
+        rect.w = rect.w < 0 ? 0 : (rect.w > D_800568D4 - 1 ? D_800568D4 - 1 : rect.w);
+        rect.h = rect.h < 0 ? 0 : (rect.h > D_800568D6 - 1 ? D_800568D6 - 1 : rect.h);
+        rect.x -= env->ofs[0];
+        rect.y -= env->ofs[1];
+        ((u_long *)p)[n++] = 0x60000000 | (env->b0 << 16) | (env->g0 << 8) | env->r0;
+        ((u_long *)p)[n++] = *(u_long *)&rect.x;
+        ((u_long *)p)[n++] = *(u_long *)&rect.w;
+        rect.x += env->ofs[0];
+        rect.y += env->ofs[1];
+    }
+    setlen(p, n - 1);
+}
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_8004574C);
 
