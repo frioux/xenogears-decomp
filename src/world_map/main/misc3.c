@@ -109,7 +109,8 @@ typedef struct {
     /* 0x54 */ s32 targetRotY;
     /* 0x58 */ s32 targetRotZ;
     /* 0x5C */ s32 cameraHeight; // g_WorldMapCameraHeight interpolates to this
-} WorldMapPlayer; // Size: 0x60
+    /* 0x60 */ u8 unk60[0x20];
+} WorldMapPlayer; // Size: 0x80, the stride of g_WorldMapSlots
 
 // Four-word position record; misc12.c copies the same bytes through a Quad.
 typedef struct {
@@ -148,6 +149,13 @@ extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
 extern s32 g_WorldMapScrollZ;
 extern s16 g_WorldMapCameraRot;
+// Second declarations with an asm label: an address taken from a scalar global is a
+// rematerialisable constant, so cc1 re-forms lui/addiu at each use; the array form makes
+// it a value that survives a call in a saved register.
+extern s16 g_WorldMapCameraRotTable[] __asm__("g_WorldMapCameraRot");
+extern s16 g_WorldMapViewRotationYTable[] __asm__("g_WorldMapViewRotationY");
+extern s32 g_WorldMapPathFrameTable[] __asm__("g_WorldMapPathFrame");
+extern s32 g_WorldMapCameraTargetTable[] __asm__("g_WorldMapCameraTarget");
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
 
@@ -519,56 +527,51 @@ s32 WorldMapExitMode(void) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_8007756C);
-/* Best attempt: 73.78% at retail's exact size, 368 bytes (the older park here
-   read 74.59% but was 380 bytes, three instructions over, so it could never link).
-   Structure decoded and right: the 16-byte copy pSlot+0x28 to +0x38 is one
-   struct assignment (lw x4 then sw x4) and the three 8-byte copies around
-   0x1F8000A0 swap g_WorldMapPathFrame with D_8009BD48 through the scratchpad
-   (needs a 1-byte-aligned struct, which is what gives lwl/lwr).
-   Remaining diffs, in the order they appear:
-   (1) retail holds &g_WorldMapCameraRot in a3 for the single sh (lui+addiu, and
-       the ra/s0 saves land after it); gcc uses the %lo($at) macro form.
-   (2) retail keeps &g_WorldMapPathFrame in s0 from just before the
-       func_80096F18 call through both name swaps (sw s0,0x10(sp) in the prologue,
-       and addu a0,s0,zero in the jal slot); gcc rematerialises lui/addiu for a
-       constant symbol address rather than saving a register, and the frame drops
-       s0. Tried the pointer local as u8* and as WorldMapName8*, and with the
-       address used before the call too.
-   (3) retail RELOADS g_WorldMapViewRotationY (lh + sll 12) after storing 0x200 to
-       it; gcc forwards the constant and folds to lui 0x200000. A volatile cast on
-       the read gives lhu + sll 16/sra 4 (three instructions worse); making the
-       pSlot+0x28 store volatile (as below) keeps the size right but gcc still
-       folds the read.
-   (4) retail stores g_WorldMapCameraTarget through the a1 that is also the call
-       argument, then BE30, BE2C; gcc uses $at for all three and orders BE28 first.
-   Preset screen already done: gcc-2.7.2 -G0 scores 85.30 here and leaves all 18
-   matched functions of this unit at 100.00 (every symbol in this unit is an
-   absolute from undefined_syms_auto, nothing is gp-relative), so -G0 is not the
-   answer. A 4-minute permuter run from this body found nothing usable.
+/* Best attempt: 93.22%, 93 instructions and 372 bytes against retail's 93/368. Everything but two
+   instruction placements in the single basic block matches, including the s0 hold of
+   &g_WorldMapPathFrame across the call and the three lwl/lwr 8-byte swaps.
+   What moved it here from the old 73.78% park: (1) func_80096F18 takes FOUR arguments and
+   retail passes a3 = &g_WorldMapCameraRot, the same register the leading
+   'sh -0x80' stores through - that is why retail forms that address in a3 instead of
+   with $at, and the old three-argument park could not compile at all (cc1: too few
+   arguments), so its percentage was stale. (2) levers.md a-an-asm-label-array-extern
+   applies twice: the array-with-asm-label declarations below make &g_WorldMapPathFrame a
+   value that survives the call in s0 (retail's 'move a0,s0' jal slot) and make
+   g_WorldMapViewRotationY reload through a register (retail's lh + sll), which supersedes
+   the old note's item (3). (3) pPlayer->x is the literal -0x80000, not a re-read of
+   g_WorldMapCameraRot - retail has the folded constant there.
+   Left: retail puts 'sh zero,g_WorldMapViewRotationZ' before the slot->x store and we
+   emit it after the pathFrame la (moving the statement earlier changed nothing), and
+   retail's 'sw v0,0(a1)' (g_WorldMapCameraTarget x) comes before the CameraTargetZ
+   store where ours follows it: source order x,Y,Z emits Z,x,Y; x,Z,Y emits Y,x,Z; and
+   Y,x,Z drops the score to 87.78. Permuter from this body: base 780, best 335 - the
+   93.22 body itself (it removed the pTarget local, using g_WorldMapCameraTargetTable
+   inline at both sites).
 s32 func_8007756C(s32 arg0) {
-    u8* pSlot = (u8*)g_WorldMapSlots + (arg0 << 7);
-    u8* pName = (u8*)&g_WorldMapPathFrame;
-    s16 rotY;
+    WorldMapPlayer* pPlayer = &((WorldMapPlayer*)g_WorldMapSlots)[arg0];
+    s16* pRot = g_WorldMapCameraRotTable;
+    u8* pName = (u8*)g_WorldMapPathFrameTable;
 
-    g_WorldMapCameraRot = -0x80;
+    *pRot = -0x80;
     g_WorldMapViewRotationY = 0x200;
     g_WorldMapCameraHeight = 0x400000;
     g_WorldMapViewRotationZ = 0;
-    *(volatile s32*)(pSlot + 0x28) = 0xFFF80000;
+    pPlayer->x = -0x80000;
     g_WorldMapFadeLevel = 0x78;
-    *(s32*)(pSlot + 0x2C) = g_WorldMapViewRotationY << 12;
-    *(WorldMapPos4*)(pSlot + 0x38) = *(WorldMapPos4*)(pSlot + 0x28);
+    pPlayer->y = g_WorldMapViewRotationYTable[0] << 12;
+    *(WorldMapPos4*)&pPlayer->rotX = *(WorldMapPos4*)&pPlayer->x;
     g_WorldMapRotationMatrixValid = 0;
-    g_WorldMapCameraTarget = g_WorldMapPlayerPosition;
+    *g_WorldMapCameraTargetTable = *(s32*)g_WorldMapPlayerPosition;
     g_WorldMapCameraTargetY = g_WorldMapPlayerPositionY;
     g_WorldMapCameraTargetZ = g_WorldMapPlayerPositionZ;
-    func_80096F18((WorldMapName8*)pName, &g_WorldMapCameraTarget, g_WorldMapCameraHeight);
+    func_80096F18((s16*)pName, g_WorldMapCameraTargetTable, g_WorldMapCameraHeight, (u16*)pRot);
     *(WorldMapName8*)0x1F8000A0 = *(WorldMapName8*)pName;
     *(WorldMapName8*)pName = *(WorldMapName8*)&D_8009BD48;
     *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)0x1F8000A0;
     return 1;
 }
 */
+
 extern u16 g_WorldMapPad1Released;
 extern u16 g_WorldMapPad1Held;
 extern s32 g_WorldMapProjectionDistance;
