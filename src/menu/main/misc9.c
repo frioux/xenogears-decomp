@@ -136,27 +136,39 @@ void MenuDrawStatTable(u8 arg0, u8 arg1, u8 arg2, u8 arg3);
 void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 characterId);
 void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
-/* Best: 96.76, 1064 bytes (retail 1068). Structure matches retail everywhere
-   except two points:
-   1. Loop order: retail emits the loop-entry `if (active)` test BEFORE the
-      hoisted idx/pQuantity setup, i.e. its source computed `idx = arg0 * 2 + arg1`
-      and `pQuantity = &g_GameState.itemQuantities[idx]` INSIDE the while body and
-      loop.c hoisted them into the preheader. Both are inside the loop below; that
-      is worth 92.79 -> 96.76.
-   2. The itemIDs clear in the `quantity == 0` branch, and with it the whole
-      instruction deficit: retail has lui/addiu(g_GameState+0x1F90) + addiu 0x96 +
-      addu fp + sb (5 insns) where ours has the assembler's 3-insn %at macro
-      `sb $0,%lo(g_GameState+0x2026)(fp)`. Re-measured with cc1_probe.sh: SEVEN
-      spellings of the clear (field index, itemQuantities + MAX + idx through a u8*
-      or u32 local, a two-statement pointer walk, &arr[MAX] + idx) ALL compile to
-      that same bare `sb $0,g_GameState+8230(reg)`, so cc1 always folds the 150 into
-      the symbol addend. Retail's addiu 0x96 off a fresh `la` means its base was NOT
-      known to be a constant, which no spelling of this address reproduces.
-   3. Callee-saved rotation is a knock-on of 2: retail refresh=$s1, &itemIDs=$s2,
-      result=$s3; ours $s3, $s1, $s2 (the other seven agree).
-   permute.sh --minutes 3 on the earlier 92.79 body: PERMUTER_BETTER, cosmetic
-   only. Not re-run from this body. */
+/* PARKED 97.10%, 1072 bytes (retail 1068), 268 vs 267 insns - 4 bytes OVER, so PARKED.
+   Everything but one site is retail's: prologue, the hoisted idx/pQuantity preheader, both
+   cursor-mask dispatches, all four switch arms, every call, store and delay slot, and the
+   teardown. Register rotation is the only other delta (retail refresh=s1, result=s3;
+   ours s3/s2) and it is a knock-on.
+   THE RESIDUAL IS ONE ADDRESS: the itemIDs clear in the quantity==0 branch. Retail
+   (5 insns) = la(g_GameState+0x1F90) [lui+addiu], addiu v0,t0,150, addu v0,fp,v0, sb -
+   i.e. gcc kept the 150 OUT of the symbol addend and added it as an immediate to the base.
+   Every honest spelling of the target byte (g_GameState.itemIDs[idx], itemQuantities
+   [150+idx], &itemQuantities[150] then [idx], a u8/u32 local, a two-statement pointer
+   walk, a cast through (u8 *)&g_GameState) folds 0x1F90+150 into ONE symbol addend, and
+   that form is unrepresentable here: cc1 emits the bare 'sb $0,g_GameState+8230(reg)'
+   macro (3 insns, 1064 bytes, 96.76). Probed again this round (cc1_probe.sh, 12 spellings
+   with the live pQuantity pointer): gcc only keeps base+150 separate when a REGISTER
+   already holds base, and then it also keeps it live - an extra callee-saved slot, 0xC0
+   frame. The body below is the one spelling that recovers the 5th instruction: a short
+   offset local the permuter found (base=874 -> 784 over 1255 iters in 4 min), but it lands
+   the add on the INDEX side ('li t0,0x96; addu v0,t0,fp; la; addu'), so it is 6 insns, 4
+   OVER retail, and the type is not shippable as written: the honest line is
+   'g_GameState.itemIDs[idx] = 0;' (same byte, 96.76 / 1064 / 4 short). Port whichever side
+   of that trade the next attempt wants; what is left is one instruction either way.
+   JUMP TABLE: this stub owns NO table (no jtbl/.rodata reference in its .s). The unit's
+   three tables belong to func_801DBE54 (+0x00), func_801DDF24 (+0x30) and func_801E05D0
+   (+0x60), so the family cannot be converted whole (a C table is 0x2C + .align 3 = 0x30,
+   three of them are 4 short of the 0x90 range). Do not convert this one expecting a table
+   shift. func_801DB920 returns u_char (retail does andi v0,v0,0xFF after the call).
+   Semantics: the item-use panel - arg0/arg1 select the inventory slot (idx = arg0*2+arg1),
+   the pItem at itemIDs[idx] must have displayFlags 0x80 (and 0x20 unless g_ShopIndex is 0),
+   flags bit 0 marks the paged multi-character item; the loop renders frames until BACK,
+   confirming applies the item to every character in the cursor mask via func_801E31C0 and
+   decrements the quantity, and both exits free the three currentCharacters.
+*/
+
 /*
 u8 func_801DB920(s32 arg0, s32 arg1) {
     MenuShopItem* pItem;
@@ -173,6 +185,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     u8 active;
     u8* pItemId;
     u8 quantity;
+    s16 idOffset;
 
     slot = g_Menu->characterSlot;
     D_801E9785 = 0;
@@ -208,6 +221,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
         pCursors->shouldRender[2] = 0;
         pCursors->shouldRender[1] = 0;
         pCursors->shouldRender[0] = 0;
+        idOffset = MAX_INVENTORY_ITEMS;
         if (paged) {
             i = 0;
             while (1) {
@@ -249,7 +263,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
                 quantity = *pQuantity - 1;
                 *pQuantity = quantity;
                 if (quantity == 0) {
-                    g_GameState.itemQuantities[idx + MAX_INVENTORY_ITEMS] = 0;
+                    *(g_GameState.itemQuantities + idOffset + idx) = 0;
                 }
             } else {
                 MenuPlaySoundEffect(4);
@@ -281,8 +295,8 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     D_801E9785 = 0;
     MenuFreeWindow(2);
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
 
 void MenuSwapInventoryItems(s32 index0, s32 index1) {
     u_char tmp;
