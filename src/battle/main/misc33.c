@@ -764,22 +764,34 @@ void BattleFreeSoundSeds(void) {
         g_BattleSedsLoaded = 0;
     }
 }
-/* PARKED 93.20 percent at retail's exact 264 bytes; three instructions of register choice
-   in the 0x74-store group.  What got it here from 79.86: the row mask is read through a
-   s16 count (retail tests the low half with sll 16, a u16 count emits andi), the direction
-   goes through a u32 local so the srl is emitted before the andi/sll, and the pState
-   pTargetSprite read is a VOLATILE lvalue cast -- without it gcc CSEs the third read of
-   g_BattleActorList onto the pLast register and the frame keeps only two saved regs.
-   Residual: retail loads g_BattleState into a1 and keeps the fresh read in a0 and defers
-   the 0x4C store past the partKey block; ours swaps a0/a1 and stores 0x4C early.  Also
-   retail fills the final beq delay slot with a nop where ours puts the lw.  Measured
-   worse or wrong: putting the two 0x74 stores in a do-while (94.95 but 268 bytes),
-   a volatile store on either or both 0x74 stores (94.95, 268), reading the head back
-   through a pOut pointer (constant-folded, 93.52), partKey before the pTargetSprite
-   statement (93.95), s32 return type (no change), early return instead of an if
-   (no change).  A 4-minute permuter run from this body returned a candidate that wraps
-   the second func_800223B0 call in an if (g_BattleActorList) -- wrong code, rejected.
-*/
+/* PARKED 82.89 percent at retail's exact 264 bytes / 66 instructions.  Residual, all of it
+   register choice and scheduling (this unit runs -fschedule-insns, so statement order does
+   not reach the output: moving `pState = g_BattleState;` below the two 0x74 stores compiled
+   to identical bytes):
+   1. Retail reads g_BattleActorList three times -- into s0 (pLast), once more after the two
+      0x74 stores into a0 (the pState->pTargetSprite store), and keeps hi() of the global in
+      its own callee-saved s2 so the third read is `lw a0,0(s2)`.  The third read has to be a
+      VOLATILE lvalue (see the body): plain C is CSE'd onto pLast and the body comes out three
+      instructions short (63, 252 bytes, 73.30).  With the volatile, gcc hoists the reload
+      above the stores and gives the pState pointer a0 instead of retail's a1, so its 0x4C
+      store lands four instructions early and its 0x28 store follows it.
+   2. The two `lhu 0x14E` of the slot mask: retail keeps the call argument in a0 and the value
+      it stores in D_800D3634 in v1, so it can put the `sh` in the jal delay slot; our compile
+      reuses a0 for both loads and must store between them.
+   3. Prologue: retail forms the g_BattleStateWork base (lui/addiu into v1) before it loads
+      g_BattleCommandRowIndex; our compile orders the two `lui`s the other way.
+   Measured and rejected: row base in a u8 *pRow local (73.30, same instruction multiset,
+   only the lui order differs, and the fuzzy score is positional), a u16 mask local (65 insns -
+   gcc merges the two reads), no volatile on the third read (63 insns), pState assigned at
+   first use (no change), partKey through a s32/u32 local (`dir`, which is what makes the
+   0xA8/0xAC load order match retail - kept).  A 4-minute permuter run on the earlier
+   93.20-percent D_800C3FB8 spelling only produced wrong code (an added `if (g_BattleActorList)`
+   guard).
+   NOTE D_800C3FB8 is not in config/symbol_addrs.battle.txt (the old park used it and would not
+   link); the mask is g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E, which is
+   0x800C3FB8 + 0x46, and that base spelling also reproduces retail's addiu %lo(g_BattleStateWork)
+   + `lhu 0x14E` pair.  Keep the offset in the expression, as below: a pRow local moves the
+   constant into the addiu.  */
 /*
 void func_800BF3E8(BattleActorSprite *p) {
     BattleActorSprite *pLast;
@@ -787,8 +799,8 @@ void func_800BF3E8(BattleActorSprite *p) {
     s16 count;
     u32 dir;
 
-    D_800D3634 = D_800C3FB8[g_BattleCommandRowIndex].slotMask;
-    count = BattleCollectMaskedSlotActors(D_800C3FB8[g_BattleCommandRowIndex].slotMask, (void **)&g_BattleActorList, (s32)p);
+    D_800D3634 = *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E);
+    count = BattleCollectMaskedSlotActors(*(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E), (void **)&g_BattleActorList, (s32)p);
     g_BattleActorListCount = count;
     if (count == 0) {
         g_BattleActorList = p;
@@ -806,4 +818,3 @@ void func_800BF3E8(BattleActorSprite *p) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
-
