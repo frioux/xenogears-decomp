@@ -58,28 +58,24 @@ void func_80070808(VECTOR* pVec, s32 step) {
 extern VECTOR g_BattleCameraPos;
 extern s32 g_BattleCameraPosY;
 extern s32 g_BattleCameraPosZ;
-extern void BattleMovePointInsideRadius(s32* pA, s32* pB, s32 limit);
+extern void BattleMovePointInsideRadius(VECTOR* pPos, VECTOR* pDelta, s32 radius);
 
-/* 74.00%: same missing shape as func_80070808, the original keeps &g_BattleCameraPos in
-   $s2 across all four calls and reaches it through the register; ours re-forms it
-   with lui/addiu each time. g_BattleCameraPos/20/24 are also one VECTOR seen by
-   func_800708C4 as 0x0/0x4/0x8(s2).
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
+// Moves the camera to within 0x3D00 of the vector: the three step deltas are clamped
+// as one offset before they are added back, so the anchor's vx is read and written
+// through the pointer while vy/vz stay named globals (retail addresses them that way).
+void func_800708C4(VECTOR* pVec, s32 step) {
+    VECTOR delta;
+    VECTOR* pPos;
 
-/* 74.00% attempt:
-void func_800708C4(s32* p, s32 step) {
-    s32 values[3];
-
-    values[0] = BattleRoundDivAwayFromZero(p[0], g_BattleCameraPos, step);
-    values[1] = BattleRoundDivAwayFromZero(p[1], g_BattleCameraPosY, step);
-    values[2] = BattleRoundDivAwayFromZero(p[2], g_BattleCameraPosZ, step);
-    BattleMovePointInsideRadius(&g_BattleCameraPos, values, 0x3D00);
-    g_BattleCameraPos += values[0];
-    g_BattleCameraPosY += values[1];
-    g_BattleCameraPosZ += values[2];
+    pPos = &g_BattleCameraPos;
+    delta.vx = BattleRoundDivAwayFromZero(pVec->vx, pPos->vx, step);
+    delta.vy = BattleRoundDivAwayFromZero(pVec->vy, g_BattleCameraPosY, step);
+    delta.vz = BattleRoundDivAwayFromZero(pVec->vz, g_BattleCameraPosZ, step);
+    BattleMovePointInsideRadius(pPos, &delta, 0x3D00);
+    pPos->vx += delta.vx;
+    g_BattleCameraPosY += delta.vy;
+    g_BattleCameraPosZ += delta.vz;
 }
-*/
 
 // The battling overlay's battle state (g_BattleActor0/g_BattleActor1): the anchor
 // position every effect vector is placed against, the model index and gauge words
