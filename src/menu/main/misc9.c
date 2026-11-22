@@ -101,7 +101,7 @@ void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
 void MenuSetupPointerCursors(s32 arg0);
 void MenuInitializeArrowCursor(s32 arg0);
 void MenuCreateShoulderButtonUi(s32 arg0, s32 arg1);
-void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
+void MenuCopyGearEquipmentSlots(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
 void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, s32 gearId);
@@ -1691,7 +1691,7 @@ void MenuUpdateDressingRoomTotals(u_char arg0) {
     u8 charId;
 
     charId = g_Menu->pManager->currentCharacterIDs[arg0];
-    func_801E3ECC(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
+    MenuCopyGearEquipmentSlots(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
     charId = g_Menu->pManager->currentCharacterIDs[arg0];
     MenuFillDressingRoomGearStats(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
     g_Menu->pDressingRoom->statValues[0] = g_Menu->pDressingRoom->totalAttack;

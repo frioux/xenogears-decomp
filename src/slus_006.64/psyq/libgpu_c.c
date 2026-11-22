@@ -70,7 +70,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
    pinned. (1) The new tail value: retail loads g_GpuQueueTail a third time
    ('lui; lw; addiu; andi; lui; sw' after the func store), gcc reuses the index
    load it already made for the func store, so one lui/lw pair is missing and
-   the D_800569DC load is scheduled one block earlier. Tried: '& 0x3F' vs
+   the g_GpuQueueIntrMask load is scheduled one block earlier. Tried: '& 0x3F' vs
    '% 0x40', separate statements, raw D_8006BE38/D_8006BE3C/D_8006BE40 arrays
    (88.39%, worse), moving the increment into a local. (2) The data-copy loop's
    back edge: retail keeps 'sw a1,0(a0)' out of the 'j' delay slot and puts a
@@ -96,10 +96,10 @@ int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_lon
         func_8004696C();
     }
 
-    D_800569DC = SetIntrMask(0);
+    g_GpuQueueIntrMask = SetIntrMask(0);
     g_DrawSyncCallbackPending = 1;
 
-    if (D_800568D1 == 0 || (g_GpuQueueTail == g_GpuQueueHead && !(*g_GpuDma2Chcr & 0x1000000)
+    if (g_GraphQue == 0 || (g_GpuQueueTail == g_GpuQueueHead && !(*g_GpuDma2Chcr & 0x1000000)
             && g_DrawSyncCallbackFn == 0)) {
         while (!(*g_GpuGp1Port & 0x4000000))
             ;
@@ -108,7 +108,7 @@ int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_lon
         D_800569C4[0] = (u_long)pFunc;
         D_800569C8 = (u_long)p;
         D_800569CC = (u_long)arg;
-        SetIntrMask(D_800569DC);
+        SetIntrMask(g_GpuQueueIntrMask);
         return 0;
     }
 
@@ -125,7 +125,7 @@ int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_lon
     g_GpuQueueTable[g_GpuQueueTail][0] = pFunc;
     g_GpuQueueTail = (g_GpuQueueTail + 1) & 0x3F;
 
-    SetIntrMask(D_800569DC);
+    SetIntrMask(g_GpuQueueIntrMask);
     func_8004696C();
 
     return (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;

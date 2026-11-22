@@ -55,12 +55,12 @@ extern char D_8001920C[]; // "DrawOTagEnv(%08x,%08x)...\n"
 
 extern GpuSysFuncs *g_GpuSysFuncs;
 extern u_char g_GraphType;
-extern u_char D_800568D1;
+extern u_char g_GraphQue;
 extern u_char g_GraphReverse;
 extern char D_8005698C;
 
-extern short D_800568D4;
-extern short D_800568D6;
+extern short g_GpuScreenWidth;
+extern short g_GpuScreenHeight;
 
 // MoveImage's DR_MOVE packet: tag/0x80000000 at D_80056964+0x14, then the fields
 // filled in below, ending with the 0x04FFFFFF end marker at D_8005698C
@@ -360,9 +360,9 @@ int ResetGraph(int mode) {
         GPU_cw((u_long)g_GpuSysFuncs & 0xFFFFFF);
         nMode = func_80046C58(mode);
         *pLevel = nMode;
-        D_800568D1 = 1;
-        D_800568D4 = *(pWidth = &D_80056950[nMode]);
-        D_800568D6 = *(pHeight = &D_80056964[nMode]);
+        g_GraphQue = 1;
+        g_GpuScreenWidth = *(pWidth = &D_80056950[nMode]);
+        g_GpuScreenHeight = *(pHeight = &D_80056964[nMode]);
         func_80047178(pLevel + 0x10, -1, sizeof(DRAWENV));
         func_80047178(pLevel + 0x6C, -1, sizeof(DISPENV));
         return *pLevel;
@@ -413,7 +413,7 @@ int SetGraphDebug(int level) {
 }
 
 int SetGraphQue(int que) {
-    u_char *pQue = &D_800568D1;
+    u_char *pQue = &g_GraphQue;
     int nPrev = *pQue;
 
     if (g_GraphDebugLevel >= 2)
@@ -472,8 +472,8 @@ int CheckPrim(char *name, u_long *pRect) {
 
     switch (g_GraphDebugLevel) {
     case 1:
-        if (rect->w > D_800568D4 || rect->w + rect->x > D_800568D4 ||
-            rect->y > D_800568D6 || rect->y + rect->h > D_800568D6 ||
+        if (rect->w > g_GpuScreenWidth || rect->w + rect->x > g_GpuScreenWidth ||
+            rect->y > g_GpuScreenHeight || rect->y + rect->h > g_GpuScreenHeight ||
             rect->w <= 0 || rect->x < 0 || rect->y < 0 || rect->h <= 0) {
             g_GpuPrintf(D_8001915C, name);
             g_GpuPrintf(D_80019168, rect->x, rect->y, rect->w, rect->h);

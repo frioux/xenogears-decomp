@@ -1299,7 +1299,7 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     pDressingRoom->unkB5 = pGear->unk9D;
     pDressingRoom->unkB6 = pGear->unk9C;
 }
-void func_801E3ECC(MenuDressingRoom* pDressingRoom, u8 gearId) {
+void MenuCopyGearEquipmentSlots(MenuDressingRoom* pDressingRoom, u8 gearId) {
     u8 i;
 
     MenuApplyGearAccessories(pDressingRoom, gearId);

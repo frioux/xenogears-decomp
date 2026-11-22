@@ -23,8 +23,8 @@ typedef struct {
 
 extern GpuSysFuncs *g_GpuSysFuncs;
 extern u_char g_GraphType;
-extern s16 D_800568D4;
-extern s16 D_800568D6;
+extern s16 g_GpuScreenWidth;
+extern s16 g_GpuScreenHeight;
 extern u_char g_GraphReverse;
 
 extern volatile u_long *g_GpuGp0Port; // GPU status register
@@ -99,8 +99,8 @@ void func_80045534(DR_ENV *drEnv, DRAWENV *env) {
         rect.y = env->clip.y;
         rect.w = env->clip.w;
         rect.h = env->clip.h;
-        rect.w = rect.w < 0 ? 0 : (rect.w > D_800568D4 - 1 ? D_800568D4 - 1 : rect.w);
-        rect.h = rect.h < 0 ? 0 : (rect.h > D_800568D6 - 1 ? D_800568D6 - 1 : rect.h);
+        rect.w = rect.w < 0 ? 0 : (rect.w > g_GpuScreenWidth - 1 ? g_GpuScreenWidth - 1 : rect.w);
+        rect.h = rect.h < 0 ? 0 : (rect.h > g_GpuScreenHeight - 1 ? g_GpuScreenHeight - 1 : rect.h);
         rect.x -= env->ofs[0];
         rect.y -= env->ofs[1];
         ((u_long *)p)[n++] = 0x60000000 | (env->b0 << 16) | (env->g0 << 8) | env->r0;
@@ -148,7 +148,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
    then "slt max-1,v" + bnez onto the clamp value and a j/move of the raw copy for
    the keep case; the merge copies the winner back through v0. gcc instead keeps
    the raw parameter in $a0, truncates into a fresh register, and CSEs the two
-   "D_800568D4 - 1" of the ternary into the one it fed the slt. With explicit
+   "g_GpuScreenWidth - 1" of the ternary into the one it fed the slt. With explicit
    copies (int rx = x; used in the keep arm) the diff shrinks to 196 bytes but
    scores 78.82. Measured worse: s32 sx/sy, u_short xi/yi, if/else clamp blocks
    (65.10), one-expression returns (73.08), parameter reassignment (79.12 same
@@ -162,8 +162,8 @@ u_long func_80045A34(int x, int y) {
     u_long xi;
     u_long yi;
 
-    xi = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
-    yi = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
+    xi = ((s16)x < 0) ? 0 : (((s16)x > g_GpuScreenWidth - 1) ? g_GpuScreenWidth - 1 : x);
+    yi = ((s16)y < 0) ? 0 : (((s16)y > g_GpuScreenHeight - 1) ? g_GpuScreenHeight - 1 : y);
     if (g_GraphType != 1 && g_GraphType != 2) {
         fld = yi & 0x3FF;
         fld = fld << 10;
@@ -180,8 +180,8 @@ u_long func_80045A34(int x, int y) {
 
 /* best: 70.27% -- same clamp as func_80045A34, E4 word.
 u_long func_80045B00(int x, int y) {
-    x = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
-    y = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
+    x = ((s16)x < 0) ? 0 : (((s16)x > g_GpuScreenWidth - 1) ? g_GpuScreenWidth - 1 : x);
+    y = ((s16)y < 0) ? 0 : (((s16)y > g_GpuScreenHeight - 1) ? g_GpuScreenHeight - 1 : y);
     if (g_GraphType == 1 || g_GraphType == 2)
         return 0xE4000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
     return 0xE4000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
@@ -315,7 +315,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045E44);
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800460A0);
 
 /* best: 86.60% (145 insns; retail 143, 572 bytes vs my 580). Structure is right:
-   LoadImage(rect, p) -- clamp w/h to D_800568D4/D_800568D6, total = w*h+1, guard
+   LoadImage(rect, p) -- clamp w/h to g_GpuScreenWidth/g_GpuScreenHeight, total = w*h+1, guard
    total/2 > 0, split into 16-word DMA blocks plus a CPU-sent tail, 0xA0 image-load
    command (the dead `mode = 0` local really is in retail: gcc 2.7.2 keeps the
    beqz s5 branch even though mode is a constant zero). What is left is callee-saved
@@ -334,8 +334,8 @@ int func_800460A0(RECT *rect, u_long *p) {
 
     func_80046EFC();
     mode = 0;
-    rect->w = rect->w < 0 ? 0 : (rect->w > D_800568D4 ? D_800568D4 : rect->w);
-    rect->h = rect->h < 0 ? 0 : (rect->h > D_800568D6 ? D_800568D6 : rect->h);
+    rect->w = rect->w < 0 ? 0 : (rect->w > g_GpuScreenWidth ? g_GpuScreenWidth : rect->w);
+    rect->h = rect->h < 0 ? 0 : (rect->h > g_GpuScreenHeight ? g_GpuScreenHeight : rect->h);
     total = rect->w * rect->h + 1;
     if (total / 2 <= 0)
         return -1;
