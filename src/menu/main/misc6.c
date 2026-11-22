@@ -342,23 +342,36 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
     MenuRenderFrame();
 }
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
 /* PARKED 99.74% (392 bytes, retail's exact size, instruction multiset identical).
-   The ONE difference is the register the gearId value lives in: retail keeps it in a0
-   all the way (lbu a0,780 / beq a0,s2 / addiu a0,a0,0xB / andi a0,a0,0xff, all in
-   place), ours loads it into v0 and masks straight into a0 (andi a0,v0,0xff). It is
-   NOT a compiler-version question: tools/scripts/try_flags.sh scores this body 99.74
-   under gcc-2.7.2 as well, while the already-matched neighbours drop (MenuMovePointer
-   Cursor 94.70, MenuSetupPointerCursors 80.21), so the unit's 2.6.0 preset is right.
-   -O1 -O3 are far off. Tried and measured, all 99.74 or worse: assigning the ternary
-   back to the u_char local (97.65, the 0xFF arm's li is then dropped as redundant), an
-   if/else writing back to the same local (97.76, same li loss), an intermediate u_char
-   textureId (97.65), u_char/u32/s32 gearId, the cast on the arm vs on the whole ternary
-   vs no cast at all, reusing the (dead) menuCharacterId local, and a 4-minute permuter
-   run (1650 iterations, best == base). Two loops need separate counters (i and j): with
-   one shared counter the loop registers swap and it is 99.18. A cc1_probe replica of
-   the same expression with simpler operands puts the value in a2, so the register is
-   decided by the surrounding allocation, not by the spelling of the ternary.
-*//*
+   The ONE difference is the register the loaded gearId takes up: retail loads it into
+   a0 and keeps it there (lbu a0,780 / beq a0,s2 / addiu a0,a0,0xB in the branch delay
+   slot / andi a0,a0,0xff in place), ours loads into v0 and folds the u_char truncation
+   into the copy to the argument register (andi a0,v0,0xff). The frame is retail's
+   exactly (0x20, ra/s2/s1/s0 only), which proves gearId is NOT live across the first
+   MenuLoadCharacterNameTexture call: the load can only be after it, where both $2 (the
+   dead stride offset) and $4 (the dead argument) are free, so this is a local-alloc
+   priority contest between two free registers, not a spelling.
+   Measured, all 99.74 or worse: the same ternary inlined as the call's first argument
+   with the array expression written twice (99.74, byte-identical to this body, gcc
+   CSEs it to one load); ALL 120 declaration orders of the five locals (99.74, so the
+   allocno-order lever does not reach it); u_char/u32/s32 gearId; the ternary assigned
+   back to the u_char local (97.65, the 0xFF arm's li is then dropped as redundant); an
+   if/else writing the same local (97.76, same li loss); an intermediate u_char
+   textureId (97.65); the cast on the arm vs on the whole ternary vs none; reusing the
+   dead menuCharacterId local; a 4-minute permuter run (1650 iterations, best == base).
+   Not a preset question either: 99.74 under gcc-2.7.2 too, and the matched neighbours
+   drop (MenuMovePointerCursor 94.70, MenuSetupPointerCursors 80.21), so the unit's
+   2.6.0 preset is right; -O1 and -O3 are far off. A cc1_probe replica of the same
+   expression with simpler operands puts the value in a2, so the register is decided by
+   the surrounding allocation.
+   Two counter locals are load-bearing: with `j * 2` for the first call's second
+   argument (the natural spelling, no characterIndex) it is 93.87 / 404 bytes and a
+   third callee-saved counter appears, because characterIndex's u_char width is what
+   makes the truncation `sll a1,s0,1 / andi a1,a1,0xFE`; and writing the second call's
+   6 + (characterIndex * 2) instead of 6 + (j << 1) stops the strength reduction and
+   costs 94.28 / 400.
+   Parked body below:
 void func_801D2D38(void) {
     s32 i;
     s32 j;
@@ -368,10 +381,10 @@ void func_801D2D38(void) {
 
     if (g_MenuOverlayIndex == 0) {
         for (i = 0; i < 2; i++) {
-            g_Menu->windows[i] = HeapAlloc(0x720, 0);
-            bzero(g_Menu->windows[i], 0x720);
-            g_Menu->windowParameters[i] = HeapAlloc(0x18, 0);
-            bzero(g_Menu->windowParameters[i], 0x18);
+            g_Menu->windows[i] = HeapAlloc(sizeof(MenuWindow), 0);
+            bzero(g_Menu->windows[i], sizeof(MenuWindow));
+            g_Menu->windowParameters[i] = HeapAlloc(sizeof(MenuWindowParameters), 0);
+            bzero(g_Menu->windowParameters[i], sizeof(MenuWindowParameters));
             MenuInitializeWindowGraphics(i);
         }
         MenuPlaySoundEffect(0x5E);
@@ -379,18 +392,18 @@ void func_801D2D38(void) {
 
     for (j = 0; j < 3; j++) {
         menuCharacterId = g_Menu->pManager->currentCharacterIDs[j];
-        if (menuCharacterId != 0xFF) {
+        if (menuCharacterId != CHARACTER_ID_NONE) {
             characterIndex = j;
             MenuLoadCharacterNameTexture(menuCharacterId, characterIndex * 2);
             gearId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
-            MenuLoadCharacterNameTexture((u_char)((gearId == 0xFF) ? 0xFF : gearId + 0xB), 6 + (j << 1));
+            MenuLoadCharacterNameTexture((u_char)((gearId == CHARACTER_ID_NONE) ? CHARACTER_ID_NONE : gearId + 0xB), 6 + (j << 1));
         }
     }
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
     MenuTweenCharacterWindows(1, 0);
     MenuCreatePlayTimeWindow();
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
+}
+*/
 
 void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);

@@ -173,6 +173,9 @@ try: addu operand index-first base-first
 
 
 
+- id: a-u-char-local-width-drives | keywords: regalloc, u-char, andi, mask, local, sweep, declaration, tie
+  **A `u_char` LOCAL THAT LOOKS LIKE IT ONLY EXISTS TO MAKE A MASK IS LOAD-BEARING: ITS QI WIDTH IS WHAT TURNS `x * 2` INTO `sll` + `andi 0xFE`, and the same-typed `s32` loop counter spelling costs a callee-saved register and 12 bytes** (round 401, menu/main/misc6 func_801D2D38, parked 99.74% at retail's exact 392 bytes / 98 insns). Retail's first `MenuLoadCharacterNameTexture` takes `sll a1,s0,1 / andi a1,a1,0xFE`; passing the `s32` counter itself (`f(id, j * 2)`, the spelling a reader would write) gives 93.87% / 404 bytes and a THIRD callee-saved counter, so `u_char characterIndex = j;` must stay even though it reads like a cast-only local. The second call's argument is the opposite: `6 + (characterIndex * 2)` stops the strength reduction and is 94.28% / 400, while `6 + (j << 1)` is 99.74 - so a mask on one call's argument and a strength-reduced induction variable on the next are both visible signals, not noise. **Cheap dead-end killer measured on the way**: when a lone register tie survives every spelling, sweep ALL declaration orders of the function's locals mechanically (five locals = 120 permutations, `itertools.permutations` over the declaration block + a `diff_func.sh` run each, about 3 minutes) - it is the cheapest test of the allocno-order hypothesis, and if all 120 score identically the tie is a local-alloc contest between two free registers (here $2, the dead stride offset, vs $4, the dead call argument) and belongs in the park note, not in another lane.
+
 ## delay slot
 
 symptoms: nop vs instruction in a delay or load slot
