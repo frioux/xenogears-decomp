@@ -210,23 +210,6 @@ EXACTLY as the original for the instruction order to come out. Start from the
 fills above, diff, and only then chase the pColors add/re-add shape.
 */
 
-// Best: 100.00% (1332 bytes, 333 instructions) under gcc-2.6.0-psx with maspsx
-// "--expand-div --use-comm-section --run-assembler", i.e. the XenoGraphicsLibrary
-// preset. It CANNOT match under this unit's XenoGraphicsDiv preset (95.78%):
-// retail's object has `ori $s0,$zero,0x100` at 0x800275A4 and
-// `ori $v0,$zero,0xF0` at 0x8002763C, and --aspsx-version=2.67 leaves `li` to
-// GNU as, which picks addiu. The unit needs a split at func_8002709C (file
-// offset 0x1789C): screened with try_flags.sh --all under 2.6.0 the tail keeps
-// this function and HeapFreeIfNotNull at 100.00 while the head collapses
-// (GfxFlushImageList 77.38, GfxSetRenderContext 75.17, SpriteSetTaskHandler
-// 59.54), so the run [0x1789C, 0x18564) is XenoGraphicsLibrary and the head
-// stays XenoGraphicsDiv. No stub in the tail owns dlabel data or a jtbl.
-// What the previous 99.02% park got wrong: the at-point y selection is a plain
-// if/else, not a leading `y = 0;` plus two ifs and not a ternary. Writing
-// `if (proj2.vy < 0) { y = 0; } else { y = proj2.vy; }` reproduces retail's
-// bgez / move v1,v0 / j merge / move a0,zero diamond and the sll-sra narrowing,
-// and that was the last 3 instructions (12 bytes) of the function.
-
 // The render block func_8002709C allocates: sixteen textured quads, the flat and
 // Gouraud rows func_800273C4 fills (one bank of each per screen context), then
 // the draw state the quads are sized from.

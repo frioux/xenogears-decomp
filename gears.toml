@@ -87,8 +87,11 @@ build_variables = {
 }
 paths = [
     "{binary}/graphics/line_scroll.",
-    # system/temp2 is mixed: its tail (func_8002709C onwards) is 100.0 only under
-    # 2.6.0, so config/slus_006.64.yaml splits that run out as system/temp2_r1.
+    # system/temp2 is mixed: screened with try_flags.sh --all, the tail from
+    # func_8002709C (file offset 0x1789C) keeps func_800273C4 and
+    # HeapFreeIfNotNull at 100.0 under 2.6.0 while the head collapses
+    # (GfxFlushImageList 77.38, GfxSetRenderContext 75.17, SpriteSetTaskHandler
+    # 59.54), so config/slus_006.64.yaml splits that run out as system/temp2_r1.
     "{binary}/system/temp2_r1.",
 ]
 
