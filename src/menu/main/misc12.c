@@ -876,18 +876,59 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
    is retail's. The call sites are the MenuWindow poly arrays
    (polysWindowBorderCorners[8] at 0x0, polysWindowBorderTop/Bottom/Left/Right[4]
    at 0x140/0x1E0/0x280/0x320, polysScrollBarEnds[4] at 0x410,
-   polysScrollBarEmpty[2] at 0x3C0) indexed [i * 2 + pWindow->renderContext].
+   polysScrollBarEmpty[2] at 0x3C0) indexed [i * 2 + renderContext], written
+   inline as "&g_Menu->windows[arg0]->polyX[i * 2 + g_Menu->windows[arg0]->renderContext]".
    Rounds 111/121/123/285/318 tried ~20 spellings (u_char mode, "u8 shade =
    mode;", "s32 shade = mode;", an explicit (u_char) cast, "mode & 0xFF", a
    do/while around the call, "mode = mode;") and two permuter runs: all stay at
-   99.61% with "move a1,s1". cc1_probe (this round, six variants) shows why: the
-   last block is reached only from loop 6's exit branch, so cse carries s1's
-   known value (2 or 3) into it and folds the u_char conversion, while the loop
-   heads (two predecessors) keep their "andi". A 4-minute permuter run this
-   round found that "i = arg1 ? 3 : 2; mode = i;" DOES restore the andi (base
-   200 -> 126) but only by keeping the constant in a second register and copying
-   it ("move s1,s0", +4 bytes, 616 bytes), so it cannot be the original source -
-   retail assigns the constant straight into s1 ("li s1,0x2"/"li s1,0x3"). */
+   99.61% with "move a1,s1". cc1_probe (r318, six variants) shows why: the last
+   block is reached only from loop 6's exit branch, so cse carries s1's known
+   value (2 or 3) into it and folds the u_char conversion, while the loop heads
+   (two predecessors) keep their "andi". A 4-minute permuter run (r318) found
+   that "i = arg1 ? 3 : 2; mode = i;" DOES restore the andi (base 200 -> 126)
+   but only by keeping the constant in a second register and copying it
+   ("move s1,s0", +4 bytes, 616 bytes), so it cannot be the original source -
+   retail assigns the constant straight into s1 ("li s1,0x2"/"li s1,0x3").
+   Round 399 re-measured the un-parked body: same 99.61%/612 bytes, and the
+   gates closed every remaining door: lever.py (d-combine-folds-mask-eq-zero,
+   d-loop-bottom-accumulator-copy - neither covers a cse value-fold on a call
+   argument), a fresh 3-minute permuter run from the live body (1038 iterations,
+   RESULT PERMUTER_NONE, base=200 best=200), and try_flags gcc-2.7.2-psx and
+   gcc-2.7.2-cdk-psx (both 99.15 - worse, so the 2.6.0 preset is right and the
+   fold is not a compiler-version question). Every no-extra-instruction spelling
+   that breaks cse's value knowledge is exhausted; this is a gcc 2.6.0 cse wall.
+void func_801E8F60(u8 arg0, u8 arg1) {
+    s32 mode;
+    s32 i;
+
+    mode = arg1 ? 3 : 2;
+    for (i = 0; i < 4; i++) {
+        MenuSetPrimShadingMode(
+            &g_Menu->windows[arg0]->polysWindowBorderCorners[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+    }
+    for (i = 0; i < 4; i++) {
+        MenuSetPrimShadingMode(
+            &g_Menu->windows[arg0]->polysWindowBorderTop[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+    }
+    for (i = 0; i < 4; i++) {
+        MenuSetPrimShadingMode(
+            &g_Menu->windows[arg0]->polysWindowBorderBottom[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+    }
+    for (i = 0; i < 4; i++) {
+        MenuSetPrimShadingMode(
+            &g_Menu->windows[arg0]->polysWindowBorderLeft[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+    }
+    for (i = 0; i < 4; i++) {
+        MenuSetPrimShadingMode(
+            &g_Menu->windows[arg0]->polysWindowBorderRight[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+    }
+    for (i = 0; i < 2; i++) {
+        MenuSetPrimShadingMode(
+            &g_Menu->windows[arg0]->polysScrollBarEnds[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+    }
+    MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysScrollBarEmpty[g_Menu->windows[arg0]->renderContext], mode);
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
 void MenuSetPolySemiTransGrey(P_TAG* pTag) {
     SetSemiTrans(pTag, 1);
