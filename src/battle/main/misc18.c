@@ -776,36 +776,41 @@ void BattleClearAllSlotStates(void) {
         g_BattleCurWorkBlock->slotAmounts[i] = 0;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
-/* 98.55%, 3020 bytes against retail's 3032 (round 232). Four permuter runs from the 95.18%
-   park (tools/scripts/permute.sh ... --minutes 10 -j 2), hand-ported, closed 124 differing
-   instructions down to 74. Every one of them is a statement position or an own-pointer local:
-   - the g_BattleTargetSlotState->weight += ... statement belongs BEFORE the unk9A[2] += one, not after it;
-   - the attack -> engineOutput copy in the characterId == 7 arm wants its own pointer local
-     (pStats = &g_BattleActingSlot->unk57) taken before the three statements above it;
-   - the blockFlags = 0 store wants its own pointer local (pSlot = g_BattleActingSlot;) taken
-     after the maxHp store: that is what makes it store through the PRE-reload register, i.e.
-     retail's 'sh zero,52(a1)' one += group earlier than a plain g_BattleActingSlot-> spelling
-     puts it;
-   - that pSlot position also wants an 'effectFlags = 0;' between it and the maxMp store, and
-     the unk68 += must then be indexed [effectFlags] and not [0] - the zero has to be sitting
-     in a register, which is retail's shape. That is the one ROUGH site left in the body.
-   Remaining 12 bytes / 3 instructions: retail reloads g_BattleCurWorkBlock and re-computes
-   i * 8 in EACH arm of the characterId == 4 test and cross-jumps only the store tail, while
-   gcc hoists our single sll above the bne and fills the delay slot with it (the deref spelling
-   does not change that). The rest is register naming - retail keeps the acting slot in a1 and
-   the work block in a0 - and retail materialising 0xCCCCCCCD inline before each /10 where ours
-   hoists it into the prologue.
-   Source facts, do not re-derive: the four growth statements divide by 20 (retail 0x66666667
-   >> 3), not 10; the 0x2814 field under the 0x2228 row table is stored, then /= 10, then *= 10
-   (retail's inline 0xCCCCCCCD), and that store written as one statement with no value local
-   scores 97.52% - the best form found, the 'value = store = expr' fusion is worse; the two row
-   tables are 0x26 and 0x2A rows of 0x28 bytes at +0x1058 and +0x2228 with the flag byte at row
-   +0x13 and must be indexed FLAT or gcc re-forms the base; the gates are
-   accessoryEffectFlags4 & 0x2000 (double every row) and accessoryEffectFlags5 & 0x4000
-   (halve); the g_GameState tail (0x1930 u16, 0x89A, 0x834, and g_BattleOptionFlags + 9 ==
-   g_GameState + 0x2355) must be reached through g_GameState itself, one base and four
-   displacements. The last permuter run fell 2078 -> 1343 and then stalled.
+// PARKED 98.83% (round 396), retail's exact 3024 bytes / 752 instructions, every branch offset
+// matching. Residual is the base-vs-index addu order in the block-plus-index stores, measured
+// levers below.
+// Un-parked from the stale 98.55 note: that body no longer compiled, because the slot structs
+// were renamed since round 232 - state.unkA4 is now state.commandCounter, unk9E is
+// amountMultiplier, unk61[1] is the low byte of commandPoints (as misc19 spells it) and unk3A is
+// maxFuel. Fixing those names alone scored 98.63. Then the SIZE BLOCKER fell: the body was 4
+// bytes short, and the cause was the characterId == 4 test - both arms want their own pointer
+// local (pDst = (u8 *)g_BattleCurWorkBlock + i * 8; inside each arm), which makes cc1 duplicate
+// the index sll per arm and cross-jump only the store tail, which is retail's shape exactly
+// (retail: nop in the bne slot, sll in the j slot, sll again at the second arm). 98.63 -> 98.83
+// with the byte count exact. That is the one ROUGH site left: the real code has no pDst.
+// The remaining 112 differing lines are ONE construct, the 12 or so block-plus-index addus:
+// retail is base-first (addu v0,v0,t1), ours index-first. Measured this round, do not redo:
+// - the 3-statement in-place form (pDst = base; pDst += i * 8; pDst[k] = ...) DOES give
+// base-first for a single site - it took the 0x1029 store from index-first to retail's order
+// and 98.63 -> 98.64 - but applying it to all six byte stores drops to 98.43 (cc1 then hoists
+// a single base load and the statement order changes); the 2-statement pointer local for those
+// six scores 98.39, and the shared-pDst variant loses three instructions (96.04).
+// - the u32/u16 pair at 0x3F4/0x800 with a base pointer local is score-neutral (98.83), still
+// index-first, so the base local alone does not buy the order here (lever a's legitimisation).
+// - the two row loops (0x106B / 0x223B) want addu v1,v1,v0; the in-place pointer inside the loop
+// moves the hoisted i*0x5F0 from a1 to a2 and drops the function to 98.43.
+// - the 0x2814 store (store, then /= 10, then *= 10) materialises 0xCCCCCCCD after the base
+// load; retail loads the base first. It is a statement-order diff, not a value one.
+// Everything else is register naming that follows from those addus. gcc 2.6.0 keeps source
+// operand order for a commutative plus, so these are spellings, not the preset.
+// Source facts, do not re-derive: the four growth statements divide by 20 (retail 0x66666667
+// >> 3), not 10; the two row tables are 0x26 and 0x2A rows of 0x28 bytes at +0x1058 and +0x2228
+// with the flag byte at row +0x13 and must be indexed FLAT or gcc re-forms the base; the gates
+// are accessoryEffectFlags4 & 0x2000 (double every row) and accessoryEffectFlags5 & 0x4000
+// (halve); the g_GameState tail (0x1930 u16, 0x89A, 0x834, and g_BattleOptionFlags + 9 ==
+// g_GameState + 0x2355) must be reached through g_GameState itself, one base and four
+// displacements. Four permuter runs from the older 95.18 park stalled at 2078 -> 1343.
+/*
 void func_80097D5C(void) {
     BattleTableEntry *pSlot;
     u8 i;
@@ -814,6 +819,7 @@ void func_80097D5C(void) {
     u16 effectFlags;
     u8 *pSlotBytes;
     u8 *pStats;
+    u8 *pDst;
 
     for (i = 0; i < 3; i++) {
         if (g_BattleActorCharIds[i] == BATTLE_SLOT_CHARACTER_NONE) {
@@ -821,7 +827,7 @@ void func_80097D5C(void) {
         }
         g_BattleActingSlot = &g_BattleCurWorkBlock->slots[i];
         g_BattleTargetSlotState = &g_BattleActingSlot->state;
-        pFlags = &g_BattleActingSlot->state.unkA4;
+        pFlags = &g_BattleActingSlot->state.commandCounter;
         if (g_BattleActorCharIds[i] == 9) {
             g_GameState.characters[9].characterId = 9;
             g_BattleActingSlot->characterId = 9;
@@ -831,9 +837,11 @@ void func_80097D5C(void) {
             g_BattleActingSlot->characterId = 10;
         }
         if (g_BattleActingSlot->characterId == 4) {
-            ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1028] = g_BattleActingSlot->unk04[0] + g_BattleActingSlot->unk04[0x18];
+            pDst = (u8 *)g_BattleCurWorkBlock + i * 8;
+            pDst[0x1028] = g_BattleActingSlot->unk04[0] + g_BattleActingSlot->unk04[0x18];
         } else {
-            ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1028] = g_BattleActingSlot->attack + g_BattleActingSlot->unk04[0];
+            pDst = (u8 *)g_BattleCurWorkBlock + i * 8;
+            pDst[0x1028] = g_BattleActingSlot->attack + g_BattleActingSlot->unk04[0];
         }
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1029] = g_BattleActingSlot->evade;
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102A] = g_BattleActingSlot->defense + g_BattleActingSlot->defenseFromAccessories;
@@ -841,12 +849,13 @@ void func_80097D5C(void) {
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102C] = g_BattleActingSlot->ether;
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102D] = g_BattleActingSlot->etherDefense;
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102E] = g_BattleActingSlot->agility;
-        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3C[0])[0];
-        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3C[4])[0];
-        ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 4))[0x800] = g_BattleActingSlot->maxHp;
+        pDst = (u8 *)g_BattleCurWorkBlock;
+        ((u32 *)(pDst + i * 8))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3C[0])[0];
+        ((u32 *)(pDst + i * 8))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3C[4])[0];
+        ((u16 *)(pDst + i * 4))[0x800] = g_BattleActingSlot->maxHp;
         pSlot = g_BattleActingSlot;
         effectFlags = 0;
-        ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 4))[0x801] = g_BattleActingSlot->maxMp;
+        ((u16 *)(pDst + i * 4))[0x801] = g_BattleActingSlot->maxMp;
         g_BattleActingSlot->attack += g_BattleActingSlot->attackFromEquipment;
         pSlot->blockFlags = 0;
         g_BattleActingSlot->defense += g_BattleActingSlot->defenseFromEquipment;
@@ -889,7 +898,7 @@ void func_80097D5C(void) {
         g_BattleTargetSlotState->unk9A[2] += g_BattleTargetSlotState->unk4C;
         g_BattleTargetSlotState->responsiveness += g_BattleTargetSlotState->responsivenessFromEquipment;
         g_BattleTargetSlotState->agility += g_BattleTargetSlotState->agilityFromEquipment - g_BattleTargetSlotState->weightPenalty;
-        g_BattleTargetSlotState->unk9E += g_BattleTargetSlotState->statBonuses[4];
+        g_BattleTargetSlotState->amountMultiplier += g_BattleTargetSlotState->statBonuses[4];
         if (g_BattleTargetSlotState->unk4F != 0 && g_BattleActingSlot->gearId != 0x12) {
             ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] =
                 g_BattleTargetSlotState->maxHp / 10 * g_BattleTargetSlotState->unk4F * 2 / 9;
@@ -928,7 +937,7 @@ void func_80097D5C(void) {
                     (((u8 *)g_BattleCurWorkBlock)[i * 0x690 + j * 0x28 + 0x223B] + 1) >> 1;
             }
         }
-        if (g_BattleActingSlot->unk61[1] >= 50) {
+        if (*(u8 *)&g_BattleActingSlot->commandPoints >= 50) {
             g_GameState.conditionRows[g_BattleActingSlot->characterId].gearCommandMask |= 8;
         }
         if (g_BattleActingSlot->characterId == 7) {
@@ -951,7 +960,7 @@ void func_80097D5C(void) {
         if (g_BattleActingSlot->gearId == 0x12) {
             g_BattleActingSlot->conditionFlags = 0x238;
             g_BattleTargetSlotState->fuel = 0x26AC;
-            g_BattleTargetSlotState->unk3A = 0x26AC;
+            g_BattleTargetSlotState->maxFuel = 0x26AC;
             pFlags[1] = 0;
             g_GameState.conditionRows[3].statusFlags = 0x8000;
         }
@@ -973,8 +982,9 @@ void func_80097D5C(void) {
         g_BattleCurWorkBlock->characterAmounts[i] = 0;
         g_BattleCurWorkBlock->gearAmounts[i] = 0;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
+
 void BattleResetSlotConditionCounters(void) {
     u8 i;
     u8 j;
