@@ -301,38 +301,6 @@ extern void SpriteDrawFrame(void *p, u32 *pTbl);
 extern void GfxSetBaseMatrix(MATRIX *p);
 extern void AnimScriptTick(void *p);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8_b", func_80084068);
-// Best: 99.96%, retail's exact size (932 bytes), every instruction identical -
-// the ONLY diff is the second switch's table operand (retail names
-// jtbl_800704C8, the object says `.rodata`). It cannot link, and the cause is
-// arithmetic, not C: this unit's .rodata range is [0x98C, 0x9EC) = vram
-// 0x8007047C, which is 4 mod 8, and cc1 hardcodes `.rdata / .align 3` in front of
-// every switch table (report-mode object: .rodata 0x2c = 0x14 table + 4 pad +
-// 0x14 table, and the table reloc reads `lw $2,24($2)`). Retail's tables in that
-// range are packed 4-byte aligned with no pad at all (+0x00 5 words from
-// WorldMapUpdateSpriteSetPrims' C switch, +0x14 and +0x2C owned by the
-// func_80083A00 stub's asm, +0x4C this one), so a converted table at +0x4C is
-// padded to +0x50 and check_bin.sh world_map reports +4 bytes: build/out
-// world_map.bin 180426 against disc 180422, measured. The alignment is
-// section-relative, so no C spelling of the switch reaches it, and maspsx has no
-// alignment option (tools/maspsx/maspsx/__init__.py line 426 is a TODO).
-// Lever: i-jtbl-align-3-hardcoded. Do not retry this one alone.
-// What the body gets right, keep it: `switch (pActor->command)` with cases 1..4
-// and NO default gives retail's comparison tree; the second
-// `switch (pActor->state)` needs an explicit `case 0: break;` or gcc counts 4
-// cases, skips the table and emits a chain (90.13%). The scratchpad must be a
-// base-pointer local (`u8 *pScratch = (u8 *)PSX_SCRATCH;`, stores written
-// `*(s16 *)(pScratch + 0xA0)`), which is what keeps 0x1F800000 in a saved
-// register across the calls; an SVECTOR spelling of that vector is untested and
-// is the one readability debt left here. The tail's two sprite sets need the
-// pointer local `pEntry = &g_WorldMapGroups[7]` with the stores written
-// pEntry[1].x then pEntry[0].x (the globals form is 95.48% and 8 bytes short),
-// and the declaration order pActor, pEntry, pScratch is what reproduces retail's
-// entry-block load order - g_WorldMapSlots before g_WorldMapGroups; declaring
-// pEntry first costs 0.22% on that row and nothing else.
-// Externs it needs (kept above): WorldMapDeactivateSpriteGroup(s32),
-// WorldMapApproachValue(s32,s32,s32), WorldMapInitSpriteGroupSprites(s32,SVECTOR*,s16*).
-/*
 s32 func_80084068(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
     WorldMapEntry *pEntry = &g_WorldMapGroups[7];
@@ -431,7 +399,6 @@ s32 func_80084068(s32 arg0) {
     pEntry[0].z = z;
     return 1;
 }
-*/
 void WorldMapLoadTextureClut(void) {
     RECT rect;
     FadeParams factors = D_800704DC;
