@@ -23,7 +23,7 @@ typedef struct BattleListNode {
     /* 0x94 */ struct BattleListNode* pHead;
 } BattleListNode;
 
-// Record pData in BattleMisc12Owner points at: the matrix func_800898BC fills.
+// Record pData in BattleMisc12Owner points at: the matrix BattleBuildScaledMatrixFromVectors fills.
 typedef struct {
     /* 0x00 */ u8 unk0[0xC];
     /* 0x0C */ MATRIX matrix;
@@ -162,15 +162,15 @@ extern void BattleInitDrawEnvs(s32, s32);
 extern BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p);
 extern void ModelSetScreenSize(s32, s32);
 extern void BattleSetScaleMatrix(s32, s32);
-extern void func_800898BC(MATRIX*, SVECTOR*, SVECTOR*, SVECTOR*);
+extern void BattleBuildScaledMatrixFromVectors(MATRIX*, SVECTOR*, SVECTOR*, SVECTOR*);
 
-// GTE scratch vectors func_800898BC builds the matrix from: the edge (result of
+// GTE scratch vectors BattleBuildScaledMatrixFromVectors builds the matrix from: the edge (result of
 // every VectorNormal), the up vector taken from the caller's scale, and two
 // working axes the OuterProduct12 calls fill.
-extern VECTOR D_8009A0C8;
-extern VECTOR D_8009A918;
-extern VECTOR D_80096F98;
-extern VECTOR D_80097000;
+extern VECTOR g_BattleMatrixWorkVector;
+extern VECTOR g_BattleMatrixAxisY;
+extern VECTOR g_BattleMatrixAxisZ;
+extern VECTOR g_BattleMatrixAxisX;
 
 void BattleSetFlag10000(void) {
     u32 value;
@@ -689,32 +689,32 @@ void BattleInitSpritePrims(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
     p->flags |= 0xC;
 }
 
-void func_800898BC(MATRIX* pMat, SVECTOR* pA, SVECTOR* pB, SVECTOR* pC) {
-    D_8009A0C8.vx = pB->vx - pA->vx;
-    D_8009A0C8.vy = pB->vy - pA->vy;
-    D_8009A0C8.vz = pB->vz - pA->vz;
-    D_8009A918.vx = pC->vx;
-    D_8009A918.vy = pC->vy;
-    D_8009A918.vz = pC->vz;
-    VectorNormal(&D_8009A0C8, &D_80096F98);
-    OuterProduct12(&D_8009A918, &D_80096F98, &D_8009A0C8);
-    VectorNormal(&D_8009A0C8, &D_80097000);
-    OuterProduct12(&D_80096F98, &D_80097000, &D_8009A0C8);
-    VectorNormal(&D_8009A0C8, &D_8009A918);
-    pMat->m[0][0] = D_80097000.vx;
-    pMat->m[0][1] = D_80097000.vy;
-    pMat->m[0][2] = D_80097000.vz;
-    pMat->m[1][0] = D_8009A918.vx;
-    pMat->m[1][1] = D_8009A918.vy;
-    pMat->m[1][2] = D_8009A918.vz;
-    pMat->m[2][0] = D_80096F98.vx;
-    pMat->m[2][1] = D_80096F98.vy;
-    pMat->m[2][2] = D_80096F98.vz;
-    ApplyMatrix(pMat, pA, &D_8009A0C8);
+void BattleBuildScaledMatrixFromVectors(MATRIX* pMat, SVECTOR* pA, SVECTOR* pB, SVECTOR* pC) {
+    g_BattleMatrixWorkVector.vx = pB->vx - pA->vx;
+    g_BattleMatrixWorkVector.vy = pB->vy - pA->vy;
+    g_BattleMatrixWorkVector.vz = pB->vz - pA->vz;
+    g_BattleMatrixAxisY.vx = pC->vx;
+    g_BattleMatrixAxisY.vy = pC->vy;
+    g_BattleMatrixAxisY.vz = pC->vz;
+    VectorNormal(&g_BattleMatrixWorkVector, &g_BattleMatrixAxisZ);
+    OuterProduct12(&g_BattleMatrixAxisY, &g_BattleMatrixAxisZ, &g_BattleMatrixWorkVector);
+    VectorNormal(&g_BattleMatrixWorkVector, &g_BattleMatrixAxisX);
+    OuterProduct12(&g_BattleMatrixAxisZ, &g_BattleMatrixAxisX, &g_BattleMatrixWorkVector);
+    VectorNormal(&g_BattleMatrixWorkVector, &g_BattleMatrixAxisY);
+    pMat->m[0][0] = g_BattleMatrixAxisX.vx;
+    pMat->m[0][1] = g_BattleMatrixAxisX.vy;
+    pMat->m[0][2] = g_BattleMatrixAxisX.vz;
+    pMat->m[1][0] = g_BattleMatrixAxisY.vx;
+    pMat->m[1][1] = g_BattleMatrixAxisY.vy;
+    pMat->m[1][2] = g_BattleMatrixAxisY.vz;
+    pMat->m[2][0] = g_BattleMatrixAxisZ.vx;
+    pMat->m[2][1] = g_BattleMatrixAxisZ.vy;
+    pMat->m[2][2] = g_BattleMatrixAxisZ.vz;
+    ApplyMatrix(pMat, pA, &g_BattleMatrixWorkVector);
     MulMatrix2(&g_BattleScaleMatrix, pMat);
-    pMat->t[0] = -D_8009A0C8.vx;
-    pMat->t[1] = -D_8009A0C8.vy;
-    pMat->t[2] = -D_8009A0C8.vz;
+    pMat->t[0] = -g_BattleMatrixWorkVector.vx;
+    pMat->t[1] = -g_BattleMatrixWorkVector.vy;
+    pMat->t[2] = -g_BattleMatrixWorkVector.vz;
 }
 /*@BattleSetMatrixFromPoints*/
 void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
@@ -732,7 +732,7 @@ void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR*
     zero.vz = 0;
     zero.vx = 0;
     zero.vy = 0;
-    func_800898BC(&pOwner->pData->matrix, &offset, &zero, &scale);
+    BattleBuildScaledMatrixFromVectors(&pOwner->pData->matrix, &offset, &zero, &scale);
 }
 /*@@*/
 

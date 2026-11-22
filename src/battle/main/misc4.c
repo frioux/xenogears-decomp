@@ -131,7 +131,7 @@ extern u8 D_800D3408[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
 extern void func_80078998(u8 arg0, u8 arg1, u8 arg2);
-extern void func_80078E24(u8 arg0, u8 arg1, u8 arg2);
+extern void BattleQueueCommandFB(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
     if (g_BattleTextSlotCount != 0) {
@@ -236,7 +236,7 @@ void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleSlotEntries[arg0].flags &= 0x8000;
 }
 
-void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
+void BattleQueueCommandFB(u8 arg0, u8 arg1, u8 arg2) {
     u8 slot;
     u8 idx;
     s32 i;
@@ -371,7 +371,7 @@ void BattleDispatchCommandRecords(u8 arg0) {
             BattleQueueCommandF9(arg0, i, slot);
             break;
         case 0x7:
-            func_80078E24(arg0, i, slot);
+            BattleQueueCommandFB(arg0, i, slot);
             break;
         case 0x8:
             BattleApplyCommandByteVar(arg0, i, slot);

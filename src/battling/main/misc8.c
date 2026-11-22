@@ -105,7 +105,7 @@ typedef struct {
 extern Misc8SlotEntry g_BattleDrawBuffers[];
 
 extern void BattleDrawTextSprites(u8 *p);
-extern void func_800812BC(BattleTextList *p);
+extern void BattleLayoutTextWindowList(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
 extern s32 BattleUpdateTextPadInput(BattleTextList *p, s32 a1);
 extern void func_80081A44(void);
@@ -407,7 +407,7 @@ void BattleDrawTextSprites(u8 *p) {
     }
 }
 
-void func_800812BC(BattleTextList *p) {
+void BattleLayoutTextWindowList(BattleTextList *p) {
     s32 i;
     s16 w;
     s32 max;
@@ -453,7 +453,7 @@ void BattleInitTextLists(void) {
     BattleTextList *p;
 
     for (i = 0, p = g_BattleTextLists; i < 8; i++, p++) {
-        func_800812BC(p);
+        BattleLayoutTextWindowList(p);
     }
     g_BattleCurrentTextList = 0;
     g_BattleCursorIndex0 = 0;
