@@ -39,6 +39,9 @@
 // 468, 87.56%), where retail forms the row term first and re-forms the symbol for
 // each read.
 #define BATTLE_ACTION_ROW_STRIDE 0x690
+// The first of the four action rows this unit reads (rows 0x25..0x28 of the actor's
+// 42-row block).
+#define BATTLE_ACTION_ROW_FIRST 0x25
 extern u8 g_BattleActionRows[];
 extern u8 D_800CEF34[];
 
@@ -179,48 +182,13 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-/* 99.13% at retail's 880 bytes, up from 98.49% in round 167. Two
-   differences left, both register and constant ties:
-   1. s2 and s3 are swapped between `cursor` and the codes pointer: retail has
-      cursor = s3, codes = s2. Everything else matches (s4 masked arg0, s5 row
-      offset, s6 arg0 * 0x170, s1 damage pointer, s7 the constant 2).
-   2. Retail runs its row offset from 0x5C8 with the base materialised as
-      D_800CEF34; we strength-reduce i * 0x28 from 0 and fold 0x5C8 + 0x24 into
-      the base (D_800CF4FC), so the preheader has `move s5,zero` where retail
-      has `li s5,0x5c8`, and the addu operands come out swapped.
-   The damage read must stay `(0x25 + i) * 0x28` inline in the address. An
-   explicit rowOffset local (for-init or statement before the loop, with or
-   without a rowBase) puts `li s5,0x5c8` at the top of the preheader instead,
-   before the arg0 * 0x170 chain, for 98.49-98.54%; a statement form that also
-   changes the base fold gets 97.13% / 876 bytes. `limit` must stay: writing 4
-   in both places drops to 98.38%.
-   Permuter: base 180 to 170 from a do-while(0) around the
-   BattleStepAnimatedCursorPrim call. That wrapper alone is worth the +0.05% (a
-   plain block is not, and the empty `if (1)` block it also found does nothing);
-   a second 1262-iteration run found no further improvement. The 99.13% body was
-   found by hand afterwards, not by the permuter.
-   Tried earlier (round 167): u8/s16/s32 limit, u8/s32 state, s32 cursorTimer,
-   6 declaration orders, for-init comma assignment, rowBase local, while-form
-   second loop, and `s32 slotOffset = arg0 * 0x170` (fixes the chain position
-   but costs a stack slot, 892 bytes).
-   ROUND 372: re-measured, still 99.13% at 880 bytes / 220 instructions, and the
-   residual is exactly the two ties above. Declaring `s32 cursor;` FIRST, before the
-   codes/damage arrays, does NOT move the s2/s3 pair (same 99.13, same 880 bytes,
-   same diff), so that one is an allocno-priority tie rather than declaration order.
-   The permuter (2 runs, 1249 + 1350 iterations) then closed the row-offset tie:
-   hoisting the constant 0x25 into a local (`s32 firstRow;`) before the damage store
-   makes the strength-reduced row biv start at retail's 0x5C8 instead of 0, and the
-   base becomes g_BattleActionRows+0x24 instead of +0x5EC. The body below is that
-   find, 99.40% at 880 bytes: what is left is (a) that read spelled
-   `lhu v0,36(at)` off g_BattleActionRows where retail names D_800CEF34 with
-   displacement 0 (same address, so the RELOC case - it can never read 100 in
-   objdiff), (b) the `addu v0,s5,v0` operand order (we emit v0,v0,s5; neither the
-   offset-first C order nor a rowBase local moves it), and (c) the s2/s3 pair.
-   The next permuter run from this body found only base 130 -> 120 (a `new_var = 0`
-   for the first BattleInitSlotGraphics argument and dropping the do/while wrapper),
-   not ported. `firstRow` should become a named constant (the first action row) if
-   this body is ever finished.
-*/
+// Runs the slot-command cursor menu: fills each action row's code/damage from the
+// slot's status, builds the four status rows, then loops on g_BattleMenuEvent until
+// the player confirms or cancels, moving the cursor and starting the chosen command.
+// Load-bearing spellings (each measured): `firstRow` is a local so the row biv starts
+// at retail's 0x5C8 and the read is based on D_800CEF34 (g_BattleActionRows + 0x24);
+// the step call is a plain statement, not a do/while(0), which is what puts `cursor`
+// in $s3 and the codes walk in $s2.
 u8 func_8008CFB8(u8 arg0) {
     u8 codes[4];
     u16 damage[4];
@@ -251,8 +219,8 @@ u8 func_8008CFB8(u8 arg0) {
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].statusFlags, i) != 0 &&
             (g_BattleSlotStatusRows[arg0].flags & statusMasks[i]) == 0) {
             codes[i] = g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i;
-            firstRow = 0x25;
-            damage[i] = *(u16 *)((u8 *)D_800CEF34 + (firstRow + i) * 0x28 + arg0 * 0x690);
+            firstRow = BATTLE_ACTION_ROW_FIRST;
+            damage[i] = *(u16 *)((u8 *)D_800CEF34 + (firstRow + i) * sizeof(BattleRow) + arg0 * BATTLE_ACTION_ROW_STRIDE);
         }
     }
     g_BattleDisplayState->primListsPending = 0;
@@ -667,6 +635,28 @@ void func_8008F0A8(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
 // Fills both greyscale quads' corners at the slot's current prim index, draws the
 // slot's four sprite packages and records the prim index they were built at. The
 // callees take u16 coordinates, so each argument is truncated once here.
+/* 69.38% (532 bytes against retail's 528, 133 insns against 132) - one extra `move` per
+   coordinate is the whole difference. Source shape, callee-saved assignment and every
+   instruction offset are right; gcc 2.6.0 masks each u16 coordinate into a FRESH
+   register (`move t3,t1; andi s4,t3,0xffff`) where retail masks its callee-saved copy
+   in place (`move s1,t0; andi s1,s1,0xffff`), i.e. retail keeps 2 pseudos per
+   coordinate (raw for the x+w / y+h sums, masked for the eight stores and the five
+   call argument sets) and this C gets 3. That copy per coordinate drops the whole
+   callee-saved assignment (retail p=s2 index=s3 x=s1 y=s0 w=s5 h=s4; here p=s0
+   index=s1 x=s4 y=s3 w=s5 h=s2) and is the extra 4 bytes.
+   From the -da/-dl dumps (cc1 -O2 -G8 ... -da on build/src/battle/main/misc16.c.i,
+   greg/lreg), the allocno priorities of the six are p 1.45 (refs 10 / live 82),
+   index 1.13 (9/95), h 1.60 (5/24), y 0.59 (6/82), x 0.57 (6/84), w 0.53 (5/75) and
+   find_reg hands out $s0..$s5 along that order, so the numbers are close enough that
+   the copy, not a tie, is what has to go.
+   Measured and no better: u16 x/y/w/h locals assigned from the params and used for
+   both the stores and the call arguments (byte-identical output - the copies
+   coalesce); the `(g_BattlePrimStartIndex + p->prims)` index-first sum idiom this
+   unit's tile-row builders use (identical output); sums as right/bottom locals (516);
+   s32 params (508); p loaded after the 0xB0 store (61.88%); u32/u8 index; a 4-minute
+   permuter run (540 bytes, 73.98%).
+*/
+/*
 void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     BattleSlotGraphics *p;
     u8 index;
@@ -689,7 +679,9 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     func_8008F0A8(index, arg1, arg2, arg3, arg4);
     p->packagePrimStart = *(u8 *)&g_BattlePrimStartIndex;
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;
-}
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
+
 // Allocates a slot's draw block and rect list on first use, then either fills the
 // rect list from the four coordinates and marks the slot dirty (arg5) or hands
 // them to func_8008F6E4 and advances the frame (arg6).
