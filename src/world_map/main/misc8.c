@@ -634,41 +634,40 @@ s32 WorldMapSetActorPosition(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
-// Best: 99.74% at retail's exact size (932 bytes) and instruction identical -
+// Best: 99.96%, retail's exact size (932 bytes), every instruction identical -
 // the ONLY diff is the second switch's table operand (retail names
-// jtbl_800704C8, the object says `.rodata`). It cannot be linked: `make check`
-// shifts the whole overlay by 4 bytes. Cause is the table's placement, not the C.
-// This unit's .rodata range is [0x98C, 0x9EC) and retail's tables inside it are
-//   +0x00 5 words - the C switch table of WorldMapUpdateSpriteSetPrims
-//   +0x14 jtbl_80070490 (6 words) and +0x2C jtbl_800704A8 (8 words), both owned
-//         by the func_80083A00 stub's asm
-//   +0x4C jtbl_800704C8 (5 words) - this function's table
-// cc1 emits named/asm rodata and the switch tables in source order, so the order
-// above reproduces exactly; what does not is the last table's ALIGNMENT: it lands
-// at section offset 0x4C (4 mod 8) and cc1's `.align 3` pads 4 bytes, giving
-// 0x50 (build/out shows the extra zero word at 0x9D8). Section-relative, so no C
-// spelling of the switch reaches it - do not retry this one alone. It needs the
-// 4 mod 8 parity broken, i.e. every rodata owner in the unit converted in address
-// order (func_80083A00 is the big one, 392 insns with two switches) - and even
-// then the pad lands wherever the preceding data ends, so measure before trusting.
-// Everything else here is exact and worth keeping: a `switch (pActor->command)`
-// with cases 1..4 and NO default compiles to retail's balanced comparison tree,
-// and the second `switch (pActor->state)` needs an explicit `case 0: break;` (so
-// gcc counts 5 cases, its table threshold) to become a jump table at all - without
-// it gcc emits a comparison chain (90.13%).
-// Other levers found here: the scratchpad must be a base-pointer local
-// (`u8 *pScratch = (u8 *)PSX_SCRATCH;`, stores written `*(s16 *)(pScratch + 0xA0)`),
-// which is what keeps 0x1F800000 in a saved register across the calls; the tail's
-// two sprite sets need a pointer local `pEntry = &g_WorldMapGroups[7]` with the
-// stores written `pEntry[1].x` then `pEntry[0].x` (the globals form is 95.48% and
-// 8 bytes short); and the declaration order `pEntry`, `pActor`, `pScratch` is what
-// reproduces retail's entry-block load order.
+// jtbl_800704C8, the object says `.rodata`). It cannot link, and the cause is
+// arithmetic, not C: this unit's .rodata range is [0x98C, 0x9EC) = vram
+// 0x8007047C, which is 4 mod 8, and cc1 hardcodes `.rdata / .align 3` in front of
+// every switch table (report-mode object: .rodata 0x2c = 0x14 table + 4 pad +
+// 0x14 table, and the table reloc reads `lw $2,24($2)`). Retail's tables in that
+// range are packed 4-byte aligned with no pad at all (+0x00 5 words from
+// WorldMapUpdateSpriteSetPrims' C switch, +0x14 and +0x2C owned by the
+// func_80083A00 stub's asm, +0x4C this one), so a converted table at +0x4C is
+// padded to +0x50 and check_bin.sh world_map reports +4 bytes: build/out
+// world_map.bin 180426 against disc 180422, measured. The alignment is
+// section-relative, so no C spelling of the switch reaches it, and maspsx has no
+// alignment option (tools/maspsx/maspsx/__init__.py line 426 is a TODO).
+// Lever: i-jtbl-align-3-hardcoded. Do not retry this one alone.
+// What the body gets right, keep it: `switch (pActor->command)` with cases 1..4
+// and NO default gives retail's comparison tree; the second
+// `switch (pActor->state)` needs an explicit `case 0: break;` or gcc counts 4
+// cases, skips the table and emits a chain (90.13%). The scratchpad must be a
+// base-pointer local (`u8 *pScratch = (u8 *)PSX_SCRATCH;`, stores written
+// `*(s16 *)(pScratch + 0xA0)`), which is what keeps 0x1F800000 in a saved
+// register across the calls; an SVECTOR spelling of that vector is untested and
+// is the one readability debt left here. The tail's two sprite sets need the
+// pointer local `pEntry = &g_WorldMapGroups[7]` with the stores written
+// pEntry[1].x then pEntry[0].x (the globals form is 95.48% and 8 bytes short),
+// and the declaration order pActor, pEntry, pScratch is what reproduces retail's
+// entry-block load order - g_WorldMapSlots before g_WorldMapGroups; declaring
+// pEntry first costs 0.22% on that row and nothing else.
 // Externs it needs (kept above): WorldMapDeactivateSpriteGroup(s32),
 // WorldMapApproachValue(s32,s32,s32), WorldMapInitSpriteGroupSprites(s32,SVECTOR*,s16*).
 /*
 s32 func_80084068(s32 arg0) {
-    WorldMapEntry *pEntry = &g_WorldMapGroups[7];
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
+    WorldMapEntry *pEntry = &g_WorldMapGroups[7];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s32 x;
     s32 y;
@@ -763,6 +762,7 @@ s32 func_80084068(s32 arg0) {
     pEntry[1].z = z;
     pEntry[0].z = z;
     return 1;
+}
 */
 void WorldMapLoadTextureClut(void) {
     RECT rect;
