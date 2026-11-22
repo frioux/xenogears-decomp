@@ -1413,75 +1413,57 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
 }
 */
 
-/* 69.38% (1024 vs retail's 968 bytes; ~6 excess instructions in the body). The structural
-   read below is CONFIRMED against the .s, and three facts cost a round to establish:
-   - the 5th parameter is a WORD, not a byte. Declared `u32 tag`, gcc uses the incoming
-     stack slot in place and emits retail's two `lbu 0x88(sp)` (the `sb t0,0x3(a0)` narrows
-     it). Declared `u8 tag`, gcc makes a register copy of the stack argument at entry,
-     spills it, and the frame becomes 0x80 instead of retail's 0x78, shifting every stack
-     slot by 8. That is the whole "0x50 vs 0x48 frame" mystery noted on func_800A2434.
-   - `pData->unk06` is u16: retail loads it with `lhu` (the field is changed above).
-   - there must be NO `if (limit <= 0) return 0;` - retail's `blez 0x30(sp)` entry test IS
-     the `for` loop's own test (same as the func_800A1B50 note below).
-   - the index-0xFFFF case and the block-tag-0xFF case SHARE one tail (`pValues += 3;
-     numA++`): retail jumps to it from both tests, with `andi v0,s6,1` stolen into both
-     delay slots. Writing the tag case as a plain `else if` on the NULL check converges it
-     onto the update block instead (tried: 62.81%). A `u32 active` flag in the source is the
-     only shape found that gives retail's two edges, and it did not improve the compile.
-   Remaining delta is ONE allocator tie and the branch layout it drags along: retail keeps
-   flagA in $fp and spills pBytes to 0x18(sp) (retail slots: 0x18 pBytes, 0x20 countA,
-   0x28 countB, 0x30 limit, 0x38 unk12, 0x48 the constant 1 held in $a1 and spilled around
-   BattleAllocBlock); this version keeps pBytes in $fp and spills flagA to 0x38, which
-   renumbers the loop registers (retail pValues=$s0 pTable=$s7 animFlags=$s6 numA=$s5
-   numB=$s4 flagA=$fp; ours $s0/$s4/$s7/$s6/$s5) and inverts the availability test (mine
-   inlines the BattleAllocBlock call, retail puts it out of line at .L800A2874).
-   permuter: 1465 iterations / 4 min, base 7767 best 6517, and all it found were the merged
-   double store and the `countB > numB` operand swap (both ported here: 66.4 -> 69.4%).
-   Next: a longer permuter run, or the source lever that makes pBytes the spilled value.
-   Original structural read (still accurate): 5 parameters (BattleBlockPool* pPool,
-   BattleSprite* pSprites, BattleAnimData* pData, u32 flags, tag on the stack at 0x88(sp)).
-     if (pData->unk06 != 0) { BattleFreeAllSpriteBlocks(pPool, pSprites);
-                              func_800A1B50(pSprites, pData); return 1; }
-     flagA = flags & 1; countA = pData->countA; numA = 0; limit = pSprites->count;
-     countB = pData->countB; numB = 0; if (countA + 1 < limit) limit = countA + 1;
-     unk12 = *(u16*)(pData->unk00 + 2); if (!flagA) unk12--;
-     animFlags = pData->flags; pFrame = (u16*)(pData + 1);
-     pValues = (s16*)((u8*)pFrame + (countA + 1) * 6); pTable = (u8*)pValues;
-     if (!(animFlags & 1)) pTable += countA * 6;  if (!(animFlags & 2)) pTable += countB * 6;
-     for (i = 0; i < limit; i++) with TWO mirrored halves per sprite: frame record is
-     6 bytes (u16 indexA, u16 indexB, u8 byteA, u8 byteB), indexA drives pSprites->p70
-     (rot at 0x54, lhu, plus doTransform and doRotate), indexB drives p74 (pos at 0x5C,
-     lh/sw, plus doTransform only); each half: block from the sprite field, else
-     BattleAllocBlock(pPool); while the half is enabled (!(animFlags & n) && i != 0 &&
-     counter < countN) the three frame shorts are copied and the counter advances, else
-     pValues += 3; block init: unk0 = 1, unk1[0] = flagA, unk1[1] = byteA/byteB,
-     unk1[2] = tag, unk1[0xF] = 0 (sh), unk1[0x11] = unk12 (sh), unk1[3] and unk1[7] =
-     pTable + index, then the sprite block field = pBlock. Retail's registers: s1 =
-     pSprites + 0x74 (sprite fields as negative displacements), s6 = animFlags,
-     fp = flagA, s3 = i, s5 = rot counter, s4 = pos counter, s0 = frame walker, s7 = pTable.
- */
+/* The frame record is 6 bytes per sprite (u16 indexA, u16 indexB, u8 byteA,
+   u8 byteB); indexA drives pSprites->p70 (rot at 0x54, loaded lhu, plus
+   doTransform and doRotate), indexB drives p74 (pos at 0x5C, loaded lh and
+   stored sw, plus doTransform only). Block init order in retail: inUse, flags,
+   opcode, tag, curFrame, endFrame, then the same pointer value to +4 and +8,
+   then the sprite's block field. */
+/* 77.19%, 1036 bytes vs retail's 968 / 242 insns (was 69.38% at 1024 before
+   this round). Body ported from the lib_gear twin func_801DFAC4 (identical asm,
+   parked at 79.40%), translated to this unit's names; the twin's `goto` labels
+   ARE retail's edges - the tag-0xFF case re-enters the 0xFFFF arm's own guard
+   test (`skipRot`), so it still advances pValues/numA, and the rotation copy
+   sits BEFORE the `if (pBlock != NULL)` fill test, as retail's .L800A288C ->
+   .L800A28E0 order shows.
+   Frame is retail's 0x78 and the stack slot map is retail's (pPool 0x10, countA
+   0x20, countB 0x28, limit 0x30, endFrame 0x38).
+   Deltas left:
+   1. flagA (u32) is spilled to 0x40(sp) and reloaded for its own test
+      (`sw a3,0x40(sp) ... lw t0,0x40(sp); bnez`) where retail keeps it in $fp;
+      retail spends its 9 callee-saved registers on pValues/pSprites/pFrame/i/
+      numB/numA/animFlags/pTable/flagA and spills pBytes and the hoisted 1, we
+      spend them the same way but still lose one to flagA. `u16 flagA` was the
+      lever tried for this on func_800A2434 and cost instructions there.
+   2. the pSprites/pData permutation: retail s1=pSprites, s2=pData(->pFrame);
+      ours s1=pData, s7=pSprites. Same inversion as func_800A2434 and as the
+      lib_gear twin's own note - pData's short init-block live range outranks the
+      walker.
+   3. `u8 tag` gave retail's `lbu` reload but the parameter copy grew the frame
+      to 0x80 -> 1040 bytes / 260 insns, 74.76%. `u32 tag` is parked.
+   `pBytes = (u8*)pFrame + 4` as a loop local and the inline
+   `((u8*)&pFrame[2])[n]` spelling compile identically (same 259 insns / 1036
+   bytes); the local is kept for readability. */
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
 /*
-    Round 164 park repair: did not compile for the same reason (header field
-    renames). Repaired; re-measured 69.38%, 1024 bytes vs retail's 968, i.e. the
-    note above is still accurate - the remaining work is the pBytes-spill
-    allocator tie and the out-of-line BattleAllocBlock call.
-    Round 185 (park repair): still compiles, 69.38% / 1024 bytes - confirmed.
 s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                   u32 tag) {
     BattleBlock* pBlock;
+    BattleSprite* pSprite;
+    u16 countA;
+    u16 numA;
+    u16 countB;
+    u16 numB;
+    u16 limit;
+    u16 animFlags;
+    u16 endFrame;
     u16* pFrame;
-    s16* pValues;
+    u16* pValues;
     u8* pTable;
     u8* pBytes;
-    u16 countA;
-    u16 countB;
-    u16 limit;
-    u16 unk12;
-    u16 animFlags;
-    u16 numA;
-    u16 numB;
     u32 flagA;
+    mem_addr pValue;
     s32 i;
 
     if (pData->unk06 != 0) {
@@ -1493,18 +1475,18 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     countA = pData->countA;
     numA = 0;
     limit = pSprites->count;
-    countB = pData->countB;
-    numB = 0;
     if (countA + 1 < limit) {
         limit = countA + 1;
     }
-    unk12 = *(u16*)(pData->unk00 + 2);
+    countB = pData->countB;
+    numB = 0;
+    endFrame = *(u16*)((u8*)pData + 2);
     if (flagA == 0) {
-        unk12--;
+        endFrame--;
     }
     animFlags = pData->flags;
-    pFrame = (u16*)(pData + 1);
-    pValues = (s16*)((u8*)pFrame + (countA + 1) * 6);
+    pFrame = (u16*)((u8*)pData + 0x18);
+    pValues = pFrame + (countA + 1) * 3;
     pTable = (u8*)pValues;
     if (!(animFlags & 1)) {
         pTable += countA * 6;
@@ -1512,22 +1494,25 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     if (!(animFlags & 2)) {
         pTable += countB * 6;
     }
+    pSprite = pSprites;
     for (i = 0; i < limit; i++) {
-        pBytes = (u8*)(pFrame + 2);
-        if (*pFrame != 0xFFFF) {
-            pBlock = pSprites->p70;
-            if (pBlock == NULL) {
+        pBytes = (u8*)pFrame + 4;
+        if (pFrame[0] != 0xFFFF) {
+            pBlock = pSprite->p70;
+            if (pBlock != NULL) {
+                if (pBlock->tag == 0xFF) {
+                    goto skipRot;
+                }
+            } else {
                 pBlock = BattleAllocBlock(pPool);
-            } else if (pBlock->tag == 0xFF) {
-                pBlock = NULL;
             }
             if (!(animFlags & 1) && i != 0 && numA < countA) {
-                pSprites->rot[0] = *pValues++;
-                pSprites->rot[1] = *pValues++;
-                pSprites->rot[2] = *pValues++;
+                pSprite->rot[0] = *pValues++;
+                pSprite->rot[1] = *pValues++;
+                pSprite->rot[2] = *pValues++;
                 numA++;
-                pSprites->doTransform = 1;
-                pSprites->doRotate = 1;
+                pSprite->doTransform = 1;
+                pSprite->doRotate = 1;
             }
             if (pBlock != NULL) {
                 pBlock->inUse = 1;
@@ -1535,29 +1520,35 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pBlock->tag = tag;
                 pBlock->opcode = pBytes[0];
                 pBlock->curFrame = 0;
-                pBlock->endFrame = unk12;
-                *(u32*)((u8*)pBlock + 4) = (u32)(pTable + *pFrame);
-                *(u32*)((u8*)pBlock + 8) = (u32)(pTable + *pFrame);
-                pSprites->p70 = pBlock;
+                pBlock->endFrame = endFrame;
+                pValue = (mem_addr)(pTable + pFrame[0]);
+                *(u32*)&pBlock->startX = pValue;
+                *(u32*)&pBlock->startZ = pValue;
+                pSprite->p70 = pBlock;
             }
-        } else if (!(animFlags & 1) && i != 0 && numA < countA) {
-            pValues += 3;
-            numA++;
+        } else {
+        skipRot:
+            if (!(animFlags & 1) && i != 0 && numA < countA) {
+                pValues += 3;
+                numA++;
+            }
         }
         pFrame++;
-        if (*pFrame != 0xFFFF) {
-            pBlock = pSprites->p74;
-            if (pBlock == NULL) {
+        if (pFrame[0] != 0xFFFF) {
+            pBlock = pSprite->p74;
+            if (pBlock != NULL) {
+                if (pBlock->tag == 0xFF) {
+                    goto skipTrans;
+                }
+            } else {
                 pBlock = BattleAllocBlock(pPool);
-            } else if (pBlock->tag == 0xFF) {
-                pBlock = NULL;
             }
             if (!(animFlags & 2) && i != 0 && numB < countB) {
-                pSprites->pos[0] = *pValues++;
-                pSprites->pos[1] = *pValues++;
-                pSprites->pos[2] = *pValues++;
+                pSprite->pos[0] = *(s16*)pValues++;
+                pSprite->pos[1] = *(s16*)pValues++;
+                pSprite->pos[2] = *(s16*)pValues++;
                 numB++;
-                pSprites->doTransform = 1;
+                pSprite->doTransform = 1;
             }
             if (pBlock != NULL) {
                 pBlock->inUse = 1;
@@ -1565,16 +1556,21 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pBlock->tag = tag;
                 pBlock->opcode = pBytes[1];
                 pBlock->curFrame = 0;
-                pBlock->endFrame = unk12;
-                *(u32*)((u8*)pBlock + 8) = (*(u32*)((u8*)pBlock + 4) = (u32)(pTable + *pFrame));
-                pSprites->p74 = pBlock;
+                pBlock->endFrame = endFrame;
+                pValue = (mem_addr)(pTable + pFrame[0]);
+                *(u32*)&pBlock->startX = pValue;
+                *(u32*)&pBlock->startZ = pValue;
+                pSprite->p74 = pBlock;
             }
-        } else if (!(animFlags & 2) && i != 0 && countB > numB) {
-            pValues += 3;
-            numB++;
+        } else {
+        skipTrans:
+            if (!(animFlags & 2) && i != 0 && numB < countB) {
+                pValues += 3;
+                numB++;
+            }
         }
-        pSprites++;
-        pFrame += 3;
+        pFrame += 2;
+        pSprite++;
     }
     return 0;
 }
