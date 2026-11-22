@@ -409,8 +409,8 @@ s32 func_800907F4(s32 idx) {
 
     pScratchPos = (u16 *)0x1F800000;
     pPlayer = g_WorldMapSlots + idx;
-    pRotA = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xA8);
-    pRotB = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xFC);
+    pRotA = &g_WorldMapGroups->entry[2];
+    pRotB = &g_WorldMapGroups->entry[3];
     if (pPlayer->command == 9) {
         pPlayer->command = 0;
         pPlayer->state = 1;
