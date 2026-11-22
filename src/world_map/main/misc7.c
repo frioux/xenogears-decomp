@@ -756,21 +756,25 @@ void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count,
     memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT4));
 }
 
-// Best: 79.06%, 200 bytes = retail's exact size. Structure, relocations and every store
-// offset match; the residues are placement only: the g_WorldMapGroups load sits in the
-// prologue here (retail parks it between the pos.y load and its add), and the Z load is
-// hoisted above the pos.x store (retail loads it after the three unk stores). The
-// do/while after the state store is required (66.00 without it). Preset screen: cdk
-// 75.76, gcc-2.6.0 compile-failed.
+// Best: 89.56%, 200 bytes = retail's exact size (round 398). Two finds off the old
+// 79.06 body: declaring pEntry WITHOUT an initialiser and assigning it between the pos.y
+// and pos.z lines puts the lw g_WorldMapGroups in retail's exact slot (after the y load,
+// before the addu), and the do/while after the state store is still required.
+// One residue left: the scheduler hoists the posZ load above the pos.x store, which drags
+// the y addu + pos.y store below the three zero stores (retail has y add and store
+// adjacent, z load then zeros then z store). Measured worse or equal: a do/while barrier
+// before the pos.z line (86.48), an s32 posZ local loaded between pEntry and the zeros
+// (89.56, unchanged). Preset screen: cdk 75.76, gcc-2.6.0 compile-failed.
 /*
 s32 func_800817A0(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
-    WorldMapEntry *pEntry = &g_WorldMapGroups[2];
+    WorldMapEntry *pEntry;
 
     pSlot->state = 0;
     do { } while (0); // keeps the position loads below the state store
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = g_WorldMapPlayerPositionY + 0xFFF00000;
+    pEntry = &g_WorldMapGroups[2];
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
