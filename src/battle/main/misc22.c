@@ -6,6 +6,7 @@
 #include "system/graphics.h"
 
 #define BATTLE_TWEEN_STEP_MAX 7
+#define BATTLE_PART_NO_JOINT 0xFFFF
 
 typedef struct {
     /* 0x0 */ struct _BattleMisc22Spr *pSprites;
@@ -858,7 +859,7 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
     numChildren = pSkeleton->count - 1;
     pSkeleton++;
     for (i = 0; i < numChildren; i++, pSkeleton++) {
-        if (pSkeleton->jointIndex != 0xFFFF && pSkeleton->isVisible != 0) {
+        if (pSkeleton->jointIndex != BATTLE_PART_NO_JOINT && pSkeleton->isVisible != 0) {
             CompMatrix(pMatrix, &pSkeleton->globalTransform, pMat);
             // state - 1 modulo 2^16, so states 0 and 1 both land below 2
             stateMinusOne = pSkeleton->state + 0xFFFF;
