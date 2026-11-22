@@ -207,6 +207,14 @@ extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 // local versus `h << 9` written twice, `u32 h`, `u16 y,h` (536 bytes), `s16
 // offset` in case 1 (98.23% / 540 bytes), and two permuter runs (base 25 best 25;
 // an earlier one reached 243 and proposed only the s16 shape).
+// Re-measured on this body (round 414): 99.59% / 532 bytes exactly as above;
+// gcc-2.6.0-psx 95.56 and gcc-2.7.2-cdk-psx 94.54, so the preset is not the
+// cause; `s32 h; s32 y;` (declaration order swapped, calls untouched) is
+// instruction-identical to `s32 y; s32 h;`, so the pseudo's declaration order
+// does not decide the tie either; `s16 h` costs the sll/sra pair (536 bytes,
+// 98.80); an empty `do { } while (0)` around the two HeapAlloc statements moves
+// the D_800AF87C store out of its slot (98.53); and a third permuter run on this
+// body is PERMUTER_NONE base=25 best=25 over 718 iterations.
 /*
 void func_800871B0(void) {
     u8 command = SCRIPT_READ_U8_REL(1);
@@ -252,8 +260,7 @@ void func_800871B0(void) {
         g_FieldScriptVMStopFlag = 1;
         break;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800871B0);
 
 extern u8 g_FieldActorModelSpriteRow[];
@@ -1836,6 +1843,15 @@ extern void func_80077268(void);
 // ppFieldActors assigned INSIDE the loop is deleted, not hoisted (both actor
 // sites re-form lui/lw inline, 95.75). Permuter still cannot parse the unit
 // ("conversion to non-scalar type requested").
+// Round 414 (re-measured): WITH the dummy 99.92, WITHOUT it 99.84 - and without
+// it the three spills land on retail's own 0x10/0x18/0x20, so the whole residual
+// is the frame alone (sp -0x50 against retail's -0x58, all ten saves and
+// restores 8 low). Frame and slot offsets are therefore locked together: the
+// frame needs an allocation that ENDS above 0x28, and every expand-time object
+// takes 0x10 (the dummy proves it), so only a reload-era slot can sit at 0x28 -
+// most plausibly a pseudo that alter_reg gave a slot and reload then
+// rematerialised (an address constant). gcc-2.6.0-psx scores this body 97.84,
+// so the preset is not the answer either.
 /*
 void func_8008B978(int characterId) {
     FieldActor* pPrevFieldActor;
