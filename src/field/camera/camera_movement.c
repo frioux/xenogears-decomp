@@ -61,42 +61,13 @@ void FieldScriptSetSceneAngleY(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", func_8008FB28);
-
-/* Best: 66.43% (112 bytes, right size). gcc 2.7.2 always defers the multiply's
-   mflo/sra/store to the last insn of the block, so the D_800AF930 store lands
-   after the scriptInstructionPointer read-modify-write instead of before it (and
-   the RMW's `sh` therefore misses the jr delay slot). Reordering the source
-   statements, storing through a local, or computing the mult into a local first
-   all give the same 66.43%.
 void func_8008FB28(void) {
-    D_800AF93A[0] = 0x1000;
-    D_800AF936 = g_Scene.sceneDIP;
-    D_800AF938 = g_Scene.sceneAngle.vy;
-    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
+    D_800AF930.circleScale = 0x1000;
+    D_800AF930.angleY = g_Scene.sceneAngle.vy;
+    D_800AF930.dip = g_Scene.sceneDIP;
+    D_800AF930.distance = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
-*/
-
-/* Best: 66.43% (112 bytes). The original expands the multiply first, then fills
-   the mult/mflo gap with the scene loads and the three D_800AF stores, and only
-   then loads the actor; gcc hoists the actor load and the scriptInstructionPointer
-   read-modify-write above the stores and leaves a nop in the jr delay slot. Both
-   the assignment order above and putting the multiply first give the same 66.43%.
-   Two more orders gave the same score: a `s32 z = mult...;` local stored last, and
-   the scriptInstructionPointer RMW moved to the top (that one adds 8 bytes, 53.39%).
-   Root cause is gcc's post-reload reorder: it moves the g_FieldScriptVMCurActor
-   load and the RMW store above the D_800AF93x stores because the symbol_refs cannot
-   alias, whatever the source order. To unblock, the actor read has to depend on
-   something the stores define.
-void func_8008FB28(void) {
-    D_800AF930 = ((s32)g_Scene.sceneScrZ * g_Scene.sceneScale) >> 12;
-    D_800AF93A[0] = 0x1000;
-    D_800AF936 = g_Scene.sceneDIP;
-    D_800AF938 = g_Scene.sceneAngle.vy;
-    g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
-}
-*/
 
 void FieldScriptSetCameraInterpolationMode(void) {
     g_FieldCameraMode = 1;
