@@ -277,6 +277,12 @@ extern s32 WorldMapSetSlotScriptTable(s32 index);
 extern s32 WorldMapRunSlotScript(s32 index);
 extern s32 func_800827EC(s32 index);
 extern s32 func_800828DC(s32 index);
+// the camera easing helpers (misc3.c) and the wrap check they feed their deltas to
+extern s32 WorldMapApproachValue(s32 value, s32 target, s32 step);
+extern void WorldMapApproachViewRotation(WorldMapSlot *pSlot, s32 *pScratch);
+extern void WorldMapApproachHeight(WorldMapSlot *pSlot, s32 *pScratch);
+extern void func_80076FA8(WorldMapSlot *pSlot, s32 *pScratch);
+extern void WorldMapWrapPosition(s32 *pPos);
 extern s32 WorldMapSetupSpriteSetPrims(s32 index);
 extern s32 WorldMapUpdateSpriteSetPrims(s32 index);
 extern s32 WorldMapReturnSuccess(s32 index);
@@ -1265,4 +1271,244 @@ s32 func_800827EC(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
 
+// Best: 71.22%, 1668 bytes against retail's 1672 (417 instructions against 418: one
+// short). Both switches, the state machine, the func_80096F18 call and the shake tail decode
+// to retail's instructions, and the two jump tables land at retail's rodata offsets (this
+// compile's .rodata operands are +0x138 and +0x168; retail's jtbl_8007041C/jtbl_8007044C
+// are 0x92C/0x95C, i.e. +0x138/+0x168 from the 0x7F4 range start), so no table shift is
+// owed. Residues, all allocation/scheduling:
+// 1. Register rotation. Retail: $s1 = pSlot, $s2 = pScratch, $s0 = &g_WorldMapScrollTargetX
+//    held across the two approach calls of case 11. This body gets $s0 = pSlot, $s1 =
+//    pScratch and rematerialises &g_WorldMapScrollTargetX as lui/addiu at the
+//    WorldMapWrapPosition call, so its prologue saves three words where retail saves four
+//    and the body is one instruction short. local_alloc will not keep the address in a third
+//    saved register: tried a `s32 *pScrollTargetX` local assigned in case 11 (kept), and
+//    moving that declaration in front of pSlot/pScratch (identical, 1668 bytes).
+// 2. Per-case scheduling: this gcc hoists the `lh g_WorldMapViewRotationY/Z` reloads and
+//    sinks the command/state/unk5C stores of the five big cases; retail keeps the source
+//    order and fills the rotY load delay with a nop.
+// Load-bearing spellings, do not simplify:
+// - the rotY/rotZ refills must be volatile stores, else gcc folds the later `<< 12` reload
+//   to the immediate 0xD70000/0 and the body drops to 383 instructions (1608 bytes).
+// - the `do { } while (0);` after `pSlot->unk3C = ...` stops gcc cross-jumping the two
+//   rotation quadruples of all five big cases into one shared block: without it 402
+//   instructions, 77.38% - objdiff prefers the shorter body, the byte count does not.
+// - `s32 shake`, not s16: an s16 local adds a `move v1,a1` subreg copy before the store.
+// - `s16 request = pSlot->command - 1; switch (request)` is the lhu/addiu/sll/sra shape,
+//   the same idiom as the matched WorldMapFillFadeTable in this unit.
+// Permuter: 4 min, -j2, base=16042 best=11332; the only find was a redundant
+// `new_var = 0x06D8A000` in case 9. Ported and measured 73.45% but 1692 bytes / 423
+// instructions (five over retail), so it was not kept: the permuter scores instruction
+// match, not size.
+// Preset screen: unit flags 71.22, gcc-2.7.2-cdk 69.68, gcc-2.6.0 77.61 - but 2.6.0 breaks
+// three functions already matched in this unit (WorldMapInitSlotAtScrollPosition 95.00,
+// WorldMapBeginSlotAnimFrame 95.26, WorldMapUpdateSlotColorFade 96.81), so the unit is not
+// a 2.6.0 unit and the preset is not the answer.
+/*
+s32 func_800828DC(s32 index) {
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    u8 *pScratch = (u8 *)0x1F800000;
+    s32 *pScrollTargetX;
+    s16 request;
+    s32 shake;
+
+    request = pSlot->command - 1;
+    switch (request) {
+    case 0:
+        pSlot->command = 0;
+        pSlot->state = 1;
+        pSlot->unk50 = pSlot->unk38;
+        pSlot->unk54 = pSlot->unk3C;
+        pSlot->unk58 = pSlot->unk40;
+        break;
+    case 1:
+        pSlot->command = 0;
+        pSlot->state = 0;
+        pSlot->unk5C = 0x3E0000;
+        g_WorldMapCameraRot = -0x20;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0xD70;
+        *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        pSlot->unk50 = 0xFFFE0000;
+        pSlot->unk38 = 0xFFFE0000;
+        pSlot->unk54 = g_WorldMapViewRotationY << 12;
+        pSlot->unk3C = g_WorldMapViewRotationY << 12;
+        do { } while (0);
+        g_WorldMapCameraHeight = 0x3E0000;
+        pSlot->unk58 = g_WorldMapViewRotationZ << 12;
+        pSlot->unk40 = g_WorldMapViewRotationZ << 12;
+        break;
+    case 2:
+        pSlot->command = 0;
+        pSlot->state = 2;
+        break;
+    case 3:
+        pSlot->command = 0;
+        pSlot->state = 3;
+        g_WorldMapScrollTargetX = 0x07499000;
+        g_WorldMapScrollTargetY = 0xFFE74000;
+        g_WorldMapScrollTargetZ = 0x0408A000;
+        break;
+    case 4:
+        pSlot->command = 0;
+        pSlot->state = 4;
+        break;
+    case 5:
+        pSlot->state = 5;
+        pSlot->shakeAmount = 0x1000;
+        pSlot->command = 0;
+        pSlot->unk5C = 0x320000;
+        g_WorldMapCameraRot = 0x40;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0xD40;
+        *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        pSlot->unk50 = 0x40000;
+        pSlot->unk38 = 0x40000;
+        pSlot->unk54 = g_WorldMapViewRotationY << 12;
+        pSlot->unk3C = g_WorldMapViewRotationY << 12;
+        do { } while (0);
+        g_WorldMapCameraHeight = 0x320000;
+        pSlot->unk58 = g_WorldMapViewRotationZ << 12;
+        pSlot->unk40 = g_WorldMapViewRotationZ << 12;
+        g_WorldMapScrollTargetX = 0x01379000;
+        pSlot->pos.x = 0x01379000;
+        g_WorldMapScrollTargetY = 0xFFEE0000;
+        pSlot->pos.y = 0xFFEE0000;
+        g_WorldMapScrollTargetZ = 0x04B2A000;
+        pSlot->pos.z = 0x04B2A000;
+        break;
+    case 6:
+        pSlot->command = 0;
+        pSlot->state = 6;
+        break;
+    case 7:
+        pSlot->state = 7;
+        pSlot->command = 0;
+        pSlot->unk5C = 0x100000;
+        g_WorldMapCameraRot = -0x90;
+        *(volatile s16 *)&g_WorldMapViewRotationY = -0x510;
+        *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        pSlot->unk50 = 0xFFF70000;
+        pSlot->unk38 = 0xFFF70000;
+        pSlot->unk54 = g_WorldMapViewRotationY << 12;
+        pSlot->unk3C = g_WorldMapViewRotationY << 12;
+        do { } while (0);
+        g_WorldMapCameraHeight = 0x100000;
+        pSlot->unk58 = g_WorldMapViewRotationZ << 12;
+        pSlot->unk40 = g_WorldMapViewRotationZ << 12;
+        g_WorldMapScrollTargetX = 0x07529000;
+        pSlot->pos.x = 0x07529000;
+        g_WorldMapScrollTargetY = 0xFFE74000;
+        pSlot->pos.y = 0xFFE74000;
+        g_WorldMapScrollTargetZ = 0x02A3A000;
+        pSlot->pos.z = 0x02A3A000;
+        break;
+    case 8:
+        pSlot->command = 0;
+        pSlot->state = 8;
+        break;
+    case 9:
+        pSlot->state = 9;
+        pSlot->command = 0;
+        pSlot->unk5C = 0x320000;
+        g_WorldMapCameraRot = -0x160;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0xDE0;
+        *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        pSlot->unk50 = 0xFFEA0000;
+        pSlot->unk38 = 0xFFEA0000;
+        pSlot->unk54 = g_WorldMapViewRotationY << 12;
+        pSlot->unk3C = g_WorldMapViewRotationY << 12;
+        do { } while (0);
+        g_WorldMapCameraHeight = 0x320000;
+        pSlot->unk58 = g_WorldMapViewRotationZ << 12;
+        pSlot->unk40 = g_WorldMapViewRotationZ << 12;
+        g_WorldMapScrollTargetX = 0x02659000;
+        pSlot->pos.x = 0x02659000;
+        g_WorldMapScrollTargetY = 0xFFEF0000;
+        pSlot->pos.y = 0xFFEF0000;
+        g_WorldMapScrollTargetZ = 0x06D8A000;
+        pSlot->pos.z = 0x06D8A000;
+        break;
+    case 10:
+        pSlot->state = 10;
+        pSlot->command = 0;
+        pSlot->unk5C = 0x290000;
+        g_WorldMapCameraRot = -0x1A0;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0x160;
+        *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        pSlot->unk50 = 0xFFE60000;
+        pSlot->unk38 = 0xFFE60000;
+        pSlot->unk54 = g_WorldMapViewRotationY << 12;
+        pSlot->unk3C = g_WorldMapViewRotationY << 12;
+        do { } while (0);
+        g_WorldMapCameraHeight = 0x290000;
+        pSlot->unk58 = g_WorldMapViewRotationZ << 12;
+        pSlot->unk40 = g_WorldMapViewRotationZ << 12;
+        g_WorldMapScrollTargetX = 0x04BA9000;
+        pSlot->pos.x = 0x04BA9000;
+        g_WorldMapScrollTargetY = 0xFFD78000;
+        pSlot->pos.y = 0xFFD78000;
+        g_WorldMapScrollTargetZ = 0x01DDA000;
+        pSlot->pos.z = 0x01DDA000;
+        break;
+    case 11:
+        pSlot->command = 0;
+        pSlot->state = 11;
+        break;
+    }
+    if (g_WorldMapRotationMatrixValid == 0) {
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      (u16 *)&g_WorldMapCameraRot);
+    }
+    switch (pSlot->state) {
+    case 1:
+        pSlot->unk50 = WorldMapApproachValue(pSlot->unk50, 0xFFFE0000, 0x5D17);
+        pSlot->unk54 = WorldMapApproachValue(pSlot->unk54, 0x580000, 0x10000);
+        break;
+    case 2:
+        pSlot->unk50 = WorldMapApproachValue(pSlot->unk50, 0xFFE10000, 0xFFFF0000);
+        pSlot->unk54 = WorldMapApproachValue(pSlot->unk54, 0x01290000, 0x10000);
+        pSlot->unk5C = WorldMapApproachValue(pSlot->unk5C, 0x490000, 0x10000);
+        break;
+    case 3:
+        pSlot->unk50 = WorldMapApproachValue(pSlot->unk50, 0xFFFF0000, 0x10000);
+        pSlot->unk54 = WorldMapApproachValue(pSlot->unk54, 0x01290000, 0x10000);
+        pSlot->unk5C = WorldMapApproachValue(pSlot->unk5C, 0x2B0000, 0xFFFF0000);
+        break;
+    case 4:
+        pSlot->shakeAmount = pSlot->shakeAmount + 0x200;
+        if (pSlot->shakeAmount > 0x8000) {
+            pSlot->shakeAmount = 0x8000;
+            pSlot->state = 0;
+        }
+        break;
+    case 6:
+        pSlot->unk54 = WorldMapApproachValue(pSlot->unk54, 0xF40000, 0x4000);
+        break;
+    case 8:
+        pSlot->unk50 = WorldMapApproachValue(pSlot->unk50, 0x50000, 0x2000);
+        pSlot->unk54 = WorldMapApproachValue(pSlot->unk54, 0x10000, 0x8000);
+        break;
+    case 11:
+        pSlot->unk50 = WorldMapApproachValue(pSlot->unk50, 0xFFF80000, 0x2400);
+        pSlot->unk54 = WorldMapApproachValue(pSlot->unk54, 0x2C0000, 0x2C00);
+        pSlot->unk5C = WorldMapApproachValue(pSlot->unk5C, 0x100000, -0x3200);
+        pScrollTargetX = &g_WorldMapScrollTargetX;
+        *pScrollTargetX = WorldMapApproachValue(*pScrollTargetX, 0x04CD9000, 0x2600);
+        g_WorldMapScrollTargetY = WorldMapApproachValue(g_WorldMapScrollTargetY, 0xFFEA4000, 0x2580);
+        g_WorldMapScrollTargetZ = WorldMapApproachValue(g_WorldMapScrollTargetZ, 0x01C8A000, -0x2A00);
+        WorldMapWrapPosition(pScrollTargetX);
+        break;
+    case 0:
+    default:
+        break;
+    }
+    WorldMapApproachViewRotation(pSlot, (s32 *)pScratch);
+    WorldMapApproachHeight(pSlot, (s32 *)pScratch);
+    func_80076FA8(pSlot, (s32 *)pScratch);
+    shake = rand() % (pSlot->shakeAmount >> 12) - (pSlot->shakeAmount >> 13);
+    *(s16 *)(pScratch + 0xA2) = shake;
+    D_8009BD42 = D_8009BD42 + shake;
+    D_8009BD4A = D_8009BD4A + *(s16 *)(pScratch + 0xA2);
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800828DC);
