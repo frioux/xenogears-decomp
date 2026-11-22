@@ -6,6 +6,10 @@
 #include "psyq/inline_c.h"
 #include "system/animation.h"
 
+// The screen radius the slot projection keeps the group inside: under it the frame uses
+// the projection's own distance, over it the distance is scaled by radius / this.
+#define BATTLE_ANIM_RADIUS_MAX 120
+
 // The 0x20-byte timer work-list task BattleQueueActorSlotTask and BattleAnimTaskAllocArchiveEntry
 // queue (TimerWorkListAllocateTask payload 4): a work-list entry followed by the
 // 4-byte payload they carry - a pointer for one, an archive index for the other.
@@ -68,7 +72,7 @@ extern u16 D_800C3CDC;
 extern u16 D_80059454;
 extern IVEC3 g_BattleAnimPositionGroupA;
 extern IVEC3 g_BattleAnimPositionGroupB;
-extern void func_800BC460(s32 arg0);
+extern void func_800BC460(u32 actorMask);
 extern s32 g_BattleAnimState;
 extern void func_800BB350(u32 slot);
 extern void BattleActorSyncPositionFromModel(AnimTask *pTask);
@@ -136,7 +140,10 @@ typedef struct {
 // The 0x1C-byte per-slot records at the head of g_BattleStateWork, as this unit
 // reads them: the slot's spawn point in whole screen units.
 typedef struct {
-    /* 0x00 */ u8 unk0[0xE];
+    /* 0x00 */ u8 unk0[0x7];
+    /* 0x07 */ u8 unk7; // nonzero: the slot is skipped by the frame fit
+    /* 0x08 */ u8 unk8; // nonzero: the slot's height is projected as well
+    /* 0x09 */ u8 unk9[0x5];
     /* 0x0E */ u16 x;
     /* 0x10 */ u16 z;
     /* 0x12 */ u8 unk12[0xA];
@@ -677,6 +684,233 @@ void BattleSetAnimTaskShort(s16 value) {
     D_800C3740 = value;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
+// FIRST BODY, 78.88% at 1592 bytes against retail's 1604 (398 vs 401 instructions); no
+// twin and no earlier park. The frame is 264 where retail's is 288: retail's local region
+// is the 232 bytes 0x10..0xF7 and this body declares 204, so 28 are unaccounted - a
+// never-referenced 16-byte VECTOR at 0xD8, plus the two 4-byte spill slots at 0x6C (in the
+// loop body, between sxy at 0x68 and the SVECTOR at 0x70) and 0xF4. Everything else in
+// retail's frame is here in declaration order: VECTOR total 0x10, the group SVECTORs at
+// 0x20/0x28, MATRIX 0x30, VECTOR 0x50, the loop's vertex 0x60, sxy 0x68, SVECTOR 0x70,
+// the two RotTransPers out-params 0x78/0x7C, then 0x80/0xA0/0xB0/0xB8/0xE8 for the two
+// ReadGeomScreen branches.
+// Facts measured while writing it, for whoever takes this back:
+// - The 0x10 block is memset of 16 bytes, then s32 sums at +0/+4/+8 (a VECTOR shape, and
+//   the 4th word is never touched). The averages are written there with sw AND read at the
+//   tail with lhu at +0/+4/+8, i.e. a 16-bit view of the same words, which is why the tail
+//   of this body spells them (u16) - that is the one construct still ROUGH here.
+// - Three identical loops: `for (i = 0, bit = actorMask; i != 11; i++, bit >>= 1)` with an
+//   independent 0x1C-byte row pointer AND a 4-byte pointer for the slot sprite table
+//   (`*(SpriteData **)(pSlotWork + 0x8C8C)`), the shape misc32's
+//   BattleApplySlotMaskToEffects uses; the bit is u16 (retail's andi 0xFFFF then srl).
+// - Loop 2's seeds are `sum / spriteCount * 2` computed in retail's order x, z, y, and its
+//   body pairs `slt t3,x / slt x,v1` per axis in the order x, z, y (max in the first
+//   register, min in the second).
+// - The tail writes six words of g_BattleAnimGroupStates: [0..2] = average -x/+y/-z of the
+//   projected offset, then through `g_BattleAnimGroupStates + 4` the plain average - the
+//   same pointer-walk idiom BattleSetAnimState in this file already matches with.
+// - `distance < 120` branch: TWO ReadGeomScreen() calls, each doubled (one a sh into the
+//   SVECTOR's vz, one the 32-bit store into D_800C3CDC). Else branch:
+//   scale = distance * 0x4000 / 120, then scale = scale * 2 * ReadGeomScreen() / 0x4000
+//   (the 0x88888889 / sra 6 sequence is division by 120, not by a magic constant).
+// - D_800C3CDC is a 32-bit global here (sw) but BattleBeginAnimTask reads it with lhu, so
+//   the file's `extern u16` suits that matched function and this body stores through a
+//   (s32 *) cast. 0x800C3688 is an unnamed u8 gate (a "skip the height pass" flag);
+//   adding it to config/symbol_addrs.battle.txt BREAKS the battle split - splat fails
+//   right after "Splitting battle" - so the body has to reach it another way.
+//   BattleSlotWorkRow in this file gained unk7/unk8 for the two per-slot gates.
+// - The if-branch's ApplyMatrix out VECTOR sits at 0x60, the slot of the loop's vertex
+//   SVECTOR and sxy: retail's vertex/sxy/out-params are block-scoped in the loop so the
+//   later sibling branch reuses the slot. This body declares them at function scope, which
+//   is part of the frame difference above.
+/*
+void func_800BC460(u32 actorMask) {
+    VECTOR total;
+    SVECTOR groupA;
+    SVECTOR groupB;
+    MATRIX frameMatrix;
+    VECTOR projected;
+    SVECTOR vertex;
+    long sxy;
+    SVECTOR zeroVec;
+    long p;
+    long flag;
+    MATRIX nearMatrix;
+    VECTOR nearScreen;
+    SVECTOR nearVec;
+    MATRIX farMatrix;
+    SVECTOR farVec;
+    u8 *pWork;
+    u8 *pSlotWork;
+    BattleSlotWorkRow *pRow;
+    SpriteData *pSprite;
+    BattleActorSprite *pActorSprite;
+    s16 *pGroupStates;
+    s32 i;
+    u16 bit;
+    s32 spriteCount;
+    s32 maxX;
+    s32 minX;
+    s32 maxY;
+    s32 minY;
+    s32 maxZ;
+    s32 minZ;
+    s32 distance;
+    s32 radius;
+    s32 scale;
+
+    memset(&total, 0, sizeof(total));
+    distance = 0;
+    g_BattleAnimStateId = actorMask;
+    spriteCount = 0;
+    pWork = g_BattleStateWork;
+    pRow = (BattleSlotWorkRow *)pWork;
+    pSlotWork = pWork;
+    for (i = 0, bit = actorMask; i != BATTLE_ACTOR_SLOT_COUNT; i++, bit >>= 1) {
+        if ((bit & 1) != 0 && pRow->unk7 == 0) {
+            pSprite = *(SpriteData **)(pSlotWork + 0x8C8C);
+            if (pSprite != NULL) {
+                spriteCount++;
+                total.vx += pSprite->position.x >> 1;
+                total.vy += pSprite->position.y >> 1;
+                total.vz += pSprite->position.z >> 1;
+            }
+        }
+        pSlotWork += 4;
+        pRow++;
+    }
+    if (spriteCount == 0) {
+        return;
+    }
+    total.vx = total.vx / spriteCount * 2;
+    total.vz = total.vz / spriteCount * 2;
+    total.vy = total.vy / spriteCount * 2;
+    minX = total.vx;
+    maxX = total.vx;
+    minZ = total.vz;
+    maxZ = total.vz;
+    minY = total.vy;
+    maxY = total.vy;
+    pRow = (BattleSlotWorkRow *)pWork;
+    pSlotWork = pWork;
+    for (i = 0, bit = actorMask; i != BATTLE_ACTOR_SLOT_COUNT; i++, bit >>= 1) {
+        if ((bit & 1) != 0 && pRow->unk7 == 0) {
+            pSprite = *(SpriteData **)(pSlotWork + 0x8C8C);
+            if (pSprite != NULL) {
+                if (maxX < pSprite->position.x) {
+                    maxX = pSprite->position.x;
+                }
+                if (pSprite->position.x < minX) {
+                    minX = pSprite->position.x;
+                }
+                if (maxZ < pSprite->position.z) {
+                    maxZ = pSprite->position.z;
+                }
+                if (pSprite->position.z < minZ) {
+                    minZ = pSprite->position.z;
+                }
+                if (maxY < pSprite->position.y) {
+                    maxY = pSprite->position.y;
+                }
+                if (pSprite->position.y < minY) {
+                    minY = pSprite->position.y;
+                }
+            }
+        }
+        pSlotWork += 4;
+        pRow++;
+    }
+    total.vx = (minX + maxX) / 2;
+    total.vy = (minY + maxY) / 2;
+    total.vz = (minZ + maxZ) / 2;
+    total.vx = (minX + maxX) >> 17;
+    total.vy = (minY + maxY) >> 17;
+    total.vz = (minZ + maxZ) >> 17;
+    RotMatrixZYX((SVECTOR *)&g_BattleAnimSweepAngle, &frameMatrix);
+    zeroVec.vx = 0;
+    zeroVec.vy = 0;
+    zeroVec.vz = ReadGeomScreen() * 8;
+    ApplyMatrix(&frameMatrix, &zeroVec, &projected);
+    groupA.vx = (u16)total.vx;
+    groupA.vy = (u16)total.vy;
+    groupA.vz = (u16)total.vz;
+    groupB.vx = (u16)total.vx;
+    groupB.vy = (u16)total.vy;
+    groupB.vz = (u16)total.vz;
+    groupA.vx -= (u16)projected.vx;
+    groupA.vy += (u16)projected.vy;
+    groupA.vz -= (u16)projected.vz;
+    BattleBuildMatrixFromThreeVectors(&frameMatrix, &groupA, &groupB, &D_800C3730);
+    SetRotMatrix(&frameMatrix);
+    SetTransMatrix(&frameMatrix);
+    pRow = (BattleSlotWorkRow *)pWork;
+    pSlotWork = pWork;
+    for (i = 0, bit = actorMask; i != BATTLE_ACTOR_SLOT_COUNT; i++, bit >>= 1) {
+        if ((bit & 1) != 0 && pRow->unk7 == 0) {
+            pActorSprite = *(BattleActorSprite **)(pSlotWork + 0x8C8C);
+            if (pActorSprite != NULL) {
+                vertex.vx = pActorSprite->position.xWhole;
+                vertex.vy = pActorSprite->position.yWhole;
+                vertex.vz = pActorSprite->position.zWhole;
+                RotTransPers(&vertex, &sxy, &p, &flag);
+                radius = ((s16)sxy - 0xA0) * ((s16)sxy - 0xA0) +
+                         ((s16)(sxy >> 16) - 0xA4) * ((s16)(sxy >> 16) - 0xA4);
+                sxy = (((s16)(sxy >> 16) - 0xA4) * 4 << 16) | (((s16)sxy - 0xA0) * 4 & 0xFFFF);
+                if (distance < radius) {
+                    distance = radius;
+                }
+                if (pRow->unk8 != 0 && g_BattleAnimHeightPassSuppressed == 0) {
+                    vertex.vy = pActorSprite->position.yWhole - pActorSprite->height;
+                    RotTransPers(&vertex, &sxy, &p, &flag);
+                    radius = ((s16)sxy - 0xA0) * ((s16)sxy - 0xA0) +
+                             ((s16)(sxy >> 16) - 0xA4) * ((s16)(sxy >> 16) - 0xA4);
+                    sxy = (((s16)(sxy >> 16) - 0xA4) * 4 << 16) |
+                          (((s16)sxy - 0xA0) * 4 & 0xFFFF);
+                    if (distance < radius) {
+                        distance = radius;
+                    }
+                }
+            }
+        }
+        pSlotWork += 4;
+        pRow++;
+    }
+    distance = SquareRoot0(distance);
+    if (distance < BATTLE_ANIM_RADIUS_MAX) {
+        RotMatrixZYX((SVECTOR *)&g_BattleAnimSweepAngle, &nearMatrix);
+        nearVec.vx = 0;
+        nearVec.vy = 0;
+        nearVec.vz = ReadGeomScreen() * 2;
+        *(s32 *)&D_800C3CDC = ReadGeomScreen() * 2;
+        ApplyMatrix(&nearMatrix, &nearVec, &projected);
+        groupA.vx = (u16)total.vx - (u16)projected.vx;
+        groupA.vy = (u16)total.vy + (u16)projected.vy;
+        groupA.vz = (u16)total.vz - (u16)projected.vz;
+    } else {
+        scale = distance * 0x4000 / BATTLE_ANIM_RADIUS_MAX;
+        scale = scale * 2 * ReadGeomScreen() / 0x4000;
+        *(s32 *)&D_800C3CDC = scale;
+        RotMatrixZYX((SVECTOR *)&g_BattleAnimSweepAngle, &farMatrix);
+        farVec.vx = 0;
+        farVec.vy = 0;
+        farVec.vz = scale;
+        ApplyMatrix(&farMatrix, &farVec, &nearScreen);
+        groupA.vx = (u16)total.vx - (u16)nearScreen.vx;
+        groupA.vy = (u16)total.vy + (u16)nearScreen.vy;
+        groupA.vz = (u16)total.vz - (u16)nearScreen.vz;
+    }
+    groupB.vx = (u16)total.vx;
+    groupB.vy = (u16)total.vy;
+    groupB.vz = (u16)total.vz;
+    pGroupStates = g_BattleAnimGroupStates;
+    pGroupStates[0] = groupA.vx;
+    g_BattleAnimGroupStates[1] = groupA.vy;
+    g_BattleAnimGroupStates[2] = groupA.vz;
+    pGroupStates = g_BattleAnimGroupStates + 4;
+    pGroupStates[0] = groupB.vx;
+    pGroupStates[1] = groupB.vy;
+    pGroupStates[2] = groupB.vz;
+}
+*/
 
 void BattleSetAnimState4(void) {
     if (g_BattleAnimCommandsSuppressed == 0) {
