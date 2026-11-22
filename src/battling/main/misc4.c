@@ -1029,25 +1029,46 @@ extern void BattleRandomizeCameraSpin(void);
 extern void func_80075B50(Actor*);
 extern void func_8007920C(Actor*);
 
+// Best attempt: 99.96% at retail's EXACT 1068 bytes (0x42c), 267 vs 267 instructions,
+// same frame and same saved set.  ONE residual: the register the p1->flags word is
+// written through.  Retail does it in place on the register the flags load went to
+// (lw v1,0xD0(s1) / and v1,v1,a1 / or v1,v1,v0 / sw v1,0xD0(s1)); this body keeps the
+// load and the `and` in v1 (both match) but leaves the `or` in a2 (or a2,v1,v0 /
+// sw a2,0xD0(s1)), because the expression is assigned to the scratch local and that
+// local's allocno is the frame-rate one, which is in a2.
+//
+// The scratch-local reuse IS load bearing: with the direct form
+//   p1->flags = (p1->flags & ~0x40) | ((g_BattlePlayer1ComControlled & 1) << 6);
+// the frame-rate pseudo has one use, sched1 sinks its lbu to the countdown store and
+// the whole state-slot block is re-allocated (v0/v1 swap for the pState stores, an
+// extra move a0,s1 late instead of early): 96.31%, 268 insns, 1072 bytes.
+//
+// Measured in round 404, all 1068 bytes / 267 insns unless noted, none better:
+//  - in-place compound chain on the same local (value = p1->flags; value &= ~0x40;
+//    value |= ...; p1->flags = value;) -> ONE pseudo for the whole chain, so the load
+//    and the and land in a2 too: 99.89.  This shape can never match: retail uses TWO
+//    registers (a2 for the frame rate, v1 for the chain), so the chain must be split.
+//  - own local for the chain, in place (flags = p1->flags; flags &= ~0x40; ...) -> the
+//    chain is v1/v1/v1 as in retail, but the frame-rate load sinks again: 96.31%,
+//    268 insns (the `flags` local also costs the `move a0,s1` postion).
+//  - value = p1->flags; p1->flags = (value & ~0x40) | (...);  -> complementary 99.96:
+//    the `or` is v1 (retail's) but the load and the and are a2 (lw a2,208(s1) /
+//    and v1,a2,a1).  Same 4 differing lines.
+//  - u8 scratch local instead of s32: identical to the direct form (96.31%).
+//  - the embedded assignment p1->flags = (value = ...) is identical to this body.
+//  - permuter 3-minute run from this body: RESULT PERMUTER_NONE, base 10 best 10,
+//    1311 iterations (an earlier 4-minute run from the same body: 1975, also none).
+//  - preset screen: the same body is 99.96 under gcc-2.7.2-cdk-psx and 99.96 under
+//    gcc-2.6.0-psx as well, so the residual is not a compiler-version question.
+// The remaining difference is one local-alloc coalesce decision: retail's chain is a
+// single fresh pseudo (load/and/or all in v1) while its frame rate lives in a2; both
+// halves are reachable separately (above) and the two together need the frame-rate
+// pseudo pinned early, which every spelling that pins it does by making the chain
+// reuse that same pseudo.  Parked as a tie, not a spelling.
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
-/* Best attempt: 99.96% at retail's EXACT 1068 bytes (0x42c), 268 instructions, same
-   frame and same saved set.  ONE difference: the p1->flags word.  Retail keeps it in
-   the register the load went to (lw v1,0xD0(s1) / and v1,v1,a1 / or v1,v1,v0 /
-   sw v1,0xD0(s1)); this body routes the same expression through the scratch local,
-   which reproduces the rest of the block exactly but leaves the result in a2
-   (or a2,v1,v0 / sw a2,0xD0(s1)).  The scratch-local reuse IS load bearing: with the
-   direct form p1->flags = (p1->flags and ~0x40) | ((g_BattlePlayer1ComControlled and 1) << 6)
-   the g_BattleFrameRateLevel load is re-materialised after the p1->pNextState store
-   and the body drops to 96.31%; giving the flags word its OWN local is the same 96.31%
-   and 4 bytes bigger.  A 4-minute permuter run from this body (1975 candidates) found
-   nothing better than this shape, and an earlier run from the 96.31% shape is what
-   found the local reuse.  Round 372 re-measured the direct form and a volatile read of
-   g_BattleFrameRateLevel (value = *(volatile u8 *)&g_BattleFrameRateLevel): both are
-   96.31% / 1072 bytes, so the early load needs a SECOND use of the scratch local and
-   no volatile spelling pins it.  A u32 scratch local is identical to s32 (99.96%).
-   Levers not tried: an embedded assignment inside the store
-   (p1->flags = (value = ...) | ...), and a u32 local in place of s32.
+/*
+
 // The battle's frame update for the combatant pair: frame skipping, the state-slot
 // pair, the gauge/animation refresh, the input pass (one controller-pop state per
 // loop, which is where the pad whose START prompt is up is chosen) and the ground,
