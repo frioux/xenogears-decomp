@@ -919,7 +919,7 @@ typedef struct {
 // kept in a local would emit retail's registers differently.  The portrait quad is
 // reached index-first (`renderContext + quads`): the `quads[renderContext]` spelling
 // gives gcc the commuted `addu` retail does not have (98.48 with the subscript form).
-void func_801D02D8(void) {
+void MenuAddCharacterSlotPrims(void) {
     s32 i;
 
     if (!g_Menu->pManager->characterWindowBuilt) {

@@ -1025,7 +1025,7 @@ int SystemGetGlyphWidth(u16 first, u16 second) {
 #define SYSTEM_FONT_DUMMY_CODE 0xFF
 
 // Dummy glyph bitmap the renderer draws for the dummy code (0x16 bytes)
-extern u16 D_800501D0[];
+extern u16 g_SystemFontDummyGlyph[];
 
 // Parked at 58.11% (421 instructions against retail's 424, 1684 bytes against
 // 1696). The whole structure below is measured.
@@ -1075,7 +1075,7 @@ void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int
         pGlyph = (u16*)((u8*)g_SystemFontGlyphData +
                         (secondByte - g_SystemFontSingleByteCodeBase) * SYSTEM_FONT_GLYPH_SIZE);
     } else if (firstByte == SYSTEM_FONT_DUMMY_CODE && secondByte == SYSTEM_FONT_DUMMY_CODE) {
-        pGlyph = D_800501D0;
+        pGlyph = g_SystemFontDummyGlyph;
     } else {
         pGlyph = (u16*)((u8*)g_SystemFontGlyphData + secondByte * SYSTEM_FONT_GLYPH_SIZE +
                         g_SystemFontDoubleByteGlyphOffset +

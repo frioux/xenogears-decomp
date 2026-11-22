@@ -10,7 +10,7 @@ extern void MenuRenderWindow(s32 menuIndex, u_char hasScrollBar);
 
 extern void MenuAddUnk5StringPrims(void);
 extern void MenuAddCellGridPrims(void);
-extern void func_801D02D8(void);
+extern void MenuAddCharacterSlotPrims(void);
 extern void MenuRenderWindows(void);
 extern void MenuAddUnk4E0Prims(void);
 extern void MenuDelayLoop8(void);
@@ -426,7 +426,7 @@ void MenuAddScreen0Prims(void) {
     MenuAddSpriteGroupPrims();
     MenuRenderPointerCursors();
     MenuRenderSelectionCursor();
-    func_801D02D8();
+    MenuAddCharacterSlotPrims();
     MenuAddCellGridPrims();
     MenuAddCharacterWindowPrims();
     MenuAddUnk358Prims();
@@ -451,7 +451,7 @@ void MenuAddScreen2Prims(void) {
     MenuAddSpriteGroupPrims();
     MenuRenderPointerCursors();
     MenuRenderSelectionCursor();
-    func_801D02D8();
+    MenuAddCharacterSlotPrims();
     MenuAddCellGridPrims();
     MenuAddSelectionMenuPrims();
     MenuAddUnk5StringPrims();
@@ -463,7 +463,7 @@ void MenuAddScreen6Prims(void) {
     MenuRenderPointerCursors();
     MenuAddSpriteGroupPrims();
     MenuRenderSelectionCursor();
-    func_801D02D8();
+    MenuAddCharacterSlotPrims();
     MenuAddCellGridPrims();
     MenuRenderWindows();
     MenuAddUnk5StringPrims();
