@@ -29,12 +29,12 @@ extern u_char g_GraphReverse;
 
 extern volatile u_long *g_GpuGp0Port; // GPU status register
 extern volatile u_long *g_GpuGp1Port; // GPU data register (GP0)
-extern u_long *D_800569A8;
-extern u_long *D_800569AC;
+extern u_long *g_GpuDma2Madr;
+extern u_long *g_GpuDma2Bcr;
 extern volatile u_long *g_GpuDma2Chcr;
-extern u_long *D_800569B4;
-extern u_long *D_800569B8;
-extern volatile u_long *D_800569BC;
+extern u_long *g_GpuDma6Madr;
+extern u_long *g_GpuDma6Bcr;
+extern volatile u_long *g_GpuDma6Chcr;
 extern u_long *g_GpuDmaDpcr;
 
 extern u_char g_GpuOpcodeShadow[]; // one byte per GP0 command
@@ -270,12 +270,12 @@ u_long func_80045D44(void) {
 
 int func_80045D5C(u_long *ot, int n) {
     *g_GpuDmaDpcr |= 0x08000000;
-    *D_800569BC = 0;
-    *D_800569B4 = (u_long)&ot[n - 1];
-    *D_800569B8 = n;
-    *D_800569BC = 0x11000002;
+    *g_GpuDma6Chcr = 0;
+    *g_GpuDma6Madr = (u_long)&ot[n - 1];
+    *g_GpuDma6Bcr = n;
+    *g_GpuDma6Chcr = 0x11000002;
     func_80046EFC();
-    while (*D_800569BC & 0x1000000) {
+    while (*g_GpuDma6Chcr & 0x1000000) {
         if (func_80046F30())
             return -1;
     }
@@ -308,8 +308,8 @@ int GpuSendWordsByCpu(u_long *src, int n) {
 
 void func_800465EC(u_long value) {
     *g_GpuGp1Port = 0x04000002;
-    *D_800569A8 = value;
-    *D_800569AC = 0;
+    *g_GpuDma2Madr = value;
+    *g_GpuDma2Bcr = 0;
     *g_GpuDma2Chcr = 0x01000401;
 }
 

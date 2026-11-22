@@ -8,7 +8,7 @@ extern volatile long g_GpuTimeoutCount;
 
 extern volatile u_long *g_GpuGp0Port;
 extern volatile u_long *g_GpuGp1Port;
-extern u_long *D_800569A8;
+extern u_long *g_GpuDma2Madr;
 
 extern volatile u_long *g_GpuDma2Chcr;
 extern volatile u_long *g_GpuDmaDpcr;
@@ -226,7 +226,7 @@ int func_80046F30(void) {
         new_var = g_GpuQueueTail;
         new_var = new_var - g_GpuQueueHead;
         printf(D_80019240, new_var & 0x3F, *g_GpuGp1Port,
-               *g_GpuDma2Chcr, *D_800569A8);
+               *g_GpuDma2Chcr, *g_GpuDma2Madr);
         new_var2 = D_800569C8;
         printf(D_80019274, D_800569C4[0], new_var2, D_800569CC);
         g_GpuSavedIntrMask = SetIntrMask(0);

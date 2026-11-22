@@ -72,7 +72,7 @@ void MenuDrawSlotResourceSprites(u8 index, u8* pEntry);
 void func_801E6CFC(u8 index, u8* pEntry);
 void func_801E6F5C(u8 index, u8* pEntry);
 void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2);
-void func_801E733C(void);
+void MenuInitializeIconQuads(void);
 
 extern s32 g_MenuSubMenuChoiceIds[];
 extern s32 g_MenuSubMenuChoiceTextIds[];
@@ -304,7 +304,7 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
 #define MENU_ICON_PRIM_OFFSET 0x277C
 extern u16 g_MenuIconQuadX;
 extern u16 g_MenuIconQuadY;
-void func_801E733C(void) {
+void MenuInitializeIconQuads(void) {
     s32 primIndex;
     s32 offset;
     s32 i;
@@ -357,7 +357,7 @@ void MenuDrawCharacterSlots(s32 arg0) {
         offset += MENU_SLOT_PRIM_STRIDE;
     }
     MenuBuildPlayTimePrims(pEntry);
-    func_801E733C();
+    MenuInitializeIconQuads();
 }
 
 void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
