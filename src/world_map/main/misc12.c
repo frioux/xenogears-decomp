@@ -584,27 +584,36 @@ s32 func_80090A84(WorldMapPlayer *pPlayer) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
-/* best: 99.91%, 428 bytes = retail's exact size, every instruction identical; the only
-   residual is the switch table operand (jtbl_80070B84 against .rodata) and the .L label
-   relocs, which the linker resolves to the same addresses.
-   PARKED FOR A LAYOUT REASON, re-measured and re-proved this round. Converting this stub
-   makes world_map.bin 4 bytes too long (check_bin: got 180426 against disc's 180422; the
-   first differing word is a .text pointer in misc1's rodata, i.e. TEXT_START moved by 4).
-   Cause: cc1 emits `.align 3` (8 bytes) before every C jump table - hardcoded in the MIPS
-   port, measured identical in 2.6.0, 2.7.2 and 2.7.2-cdk, and 2.7.2 rejects
-   -falign-jumps - while retail packs this unit's tables 4-byte aligned. The unit's rodata
-   (0x800709F8, exactly 0x258 bytes) holds nine tables at +0, +0x18, +0x38, +0x58, +0x15C,
-   +0x18C, +0x1BC, +0x1EC, +0x214; the last five are 4 mod 8, and the tables tile the range
-   with no slack, so the first converted table of that run lands at retail's offset +4 and
-   nothing later shrinks back. Converting func_80090E14 as well (its table follows this one)
-   leaves the same +4: 0x25C against 0x258.
-   A split unit whose .rodata range begins at 0x18C does not fix it either: the `.align 3`
-   sets the object section's sh_addralign to 8, so the linker pads the section start 0x18C
-   up to 0x190 and the table still lands 4 late.
-   The old text of this park did not compile, so its percentage came from a stale object:
-   `g_WorldMapViewRotationY` has to be read as `g_WorldMapViewRotationY[0]` with the u16
-   array extern at the top of the file - every case body reads it with lhu. angle is s16
-   (the rcos/rsin argument reads it with lh) and 0x48 is the field func_80090E14 also writes.
+/* best: 99.91% (objdiff), 428 bytes = retail's exact size, and the instruction diff is the
+   switch table operand only (jtbl_80070B84 against .rodata) plus the .L label relocs of the
+   `j` instructions, which the linker resolves to the same addresses. Re-measured this round
+   by un-parking the stored body, so the number belongs to the body below and not to a stale
+   object.
+   PARKED FOR A LAYOUT REASON, and it is an invariant rather than arithmetic that might be
+   dodged: cc1 emits `.align 3` in front of every C jump table (hardcoded in all three MIPS
+   cc1s, and 2.7.2 rejects -falign-jumps), so a C table always lands 8-aligned inside the
+   object's .rodata, and the linker can only place that section start 8-aligned too. Every
+   retail table of this unit at and after .rodata +0x15C is 4 mod 8 (+0x15C, +0x18C, +0x1BC,
+   +0x1EC, +0x214), so no table order, unit split or yaml carve can put this one at
+   0x80070B84. That is why the earlier attempts could only move the pad around.
+   Measured, with this and func_80090E14 both un-parked: `check_bin.sh world_map` builds
+   180426 bytes (sha ac6884a6...) against disc's 180422, i.e. exactly +4; the pad lands in
+   front of the first C table of the run (A84's asm table ends at +0x18C, cc1 pads to
+   +0x190) and nothing later shrinks back, because the nine tables tile the 0x258-byte range
+   with no slack. Already measured and not worth retrying: a split whose .rodata range starts
+   at 0x18C (`.align 3` raises the object's sh_addralign to 8, so ld pads the start to 0x190),
+   a linker trick, converting the whole family (same +4), and 2.6.0 / cdk (same `.align 3`).
+   The run BEFORE the wall is layout-neutral, so those three functions are free to convert:
+   func_8008E190's two tables (+0, +0x18), func_8008E4F4's (+0x38) and func_8008E76C's
+   65-word table (+0x58, `sltiu 0x41` on an unbiased 0..0x40 index, ending at +0x15C where an
+   asm table with no .align follows) need no
+   pad, and E190's first table is 5 real entries (sltiu 5) plus retail's 4-byte zero word,
+   which cc1's own pad reproduces byte for byte. The wall starts at func_80090A84's table.
+   Types are settled: angle is s16 at 0x48 (rcos/rsin read it with lh), 0x48 is also the field
+   func_80090E14 writes, and g_WorldMapViewRotationY must be read as
+   g_WorldMapViewRotationY[0] through the u16 array extern at the top of the file (the bare
+   name truncates the address, which is why an older version of this body did not compile and
+   scored from a stale object).
 s32 func_80090C68(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
@@ -654,10 +663,12 @@ s32 func_80090C68(WorldMapPlayer *pPlayer) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
-/* best: 99.90%, 416 bytes = retail's exact size, every instruction identical; the only
-   residual is the switch table operand (jtbl_80070BB4 against .rodata) and the .L label
-   relocs. PARKED FOR THE SAME LAYOUT REASON as func_80090C68 just above (its table, at
-   .rodata +0x1BC, is 4 mod 8; that note has the measurement and the arithmetic).
+/* best: 99.90% (objdiff), 416 bytes = retail's exact size, instruction diff limited to the
+   switch table operand (jtbl_80070BB4 against .rodata) and the .L label relocs. Re-measured
+   this round by un-parking it alongside func_80090C68.
+   PARKED FOR THE SAME WALL as func_80090C68: its table sits at .rodata +0x1BC, which is
+   4 mod 8, and a C table is always 8-aligned, so it cannot be placed there. The note above
+   carries the proof and the check_bin measurement (180426 against disc's 180422).
    Its tail differs from func_80090C68's: a released 0x20 returns 1 only when
    g_WorldMapAreaId != -1, a released 0x40 returns 4, and it does not call
    WorldMapUpdateL2R2PressEdge.
