@@ -9,6 +9,10 @@
 // POLY_G3 at +0x0 and the fade ramp and flags that follow them at +0xE0.
 #define BATTLE_PULSE_TRIANGLE_POOL_SIZE 0xEC
 
+// Height of one text-slot row in VRAM: the slot rects are 13 px tall
+// (func_8007819C sets h = 0xD) and the row's y offset is (slot / 2) * 13.
+#define BATTLE_TEXT_ROW_HEIGHT 13
+
 // tpage's semi-transparency rate field, the `abr` arg of GetTPage (bits 5-6): the
 // add and subtract modes the BlendAdd and BlendSub setters below turn on in it.
 #define BATTLE_PRIM_TPAGE_BLEND_ADD 0x20
@@ -624,47 +628,60 @@ void BattleClearFlagC6(void) {
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
-/* 61.46%: retail walks two 0x28-byte packets from pInfo to pInfo+0x50 and
-   finishes with pInfo[0x5D] = 0. What retail does that no attempt so far
-   reproduces:
-   1. its loop compare is `slt` (signed) against a register holding pInfo+0x50,
-      and it re-forms that bound inside the loop (addiu s0,s0,0x28; addiu
-      v0,s1,0x50; slt; bnez) with NO pre-loop guard. A POLY_FT4* compare (the
-      body below) still gives `sltu` plus a hoisted `addiu v0,s2,0x50; sltu;
-      beqz` guard, and so does a u8* compare, so the signed compare is not a
-      pointer-vs-u8* question; it wants a signed integer cursor/limit.
+/* Prior findings for func_800780A8 (now MATCHED at 100.00%): retail walks two
+   0x28-byte packets from pInfo to pInfo+0x50 and finishes with pInfo[0x5D] = 0.
+   Retail facts that the matched body below reproduces:
+   1. loop compare is `slt` (signed) vs a bound re-formed inside the loop
+      (addiu v0,s1,0x50; slt; bnez) with NO pre-loop guard: a do-while whose
+      cursor is a POLY_FT4 derived from an index i, compared as (s32).
    2. retail stores the flag and RE-READS it (andi v0,s3,1; sb v0,0x5C(s1);
-      lbu v0,0x5C(s1); beqz) - every plain store-then-test spelling lets cse
-      forward the store and compare the register instead.
-   3. retail's GetTPage has a0=0 preloaded in the beqz delay slot and
-      p->clut = tile lands in the jal's delay slot.
-   Parked body (61.46):
-void func_800780A8(u8 *pInfo, s32 arg) {
+      lbu v0,0x5C(s1); beqz): the flag field is volatile in the struct.
+   3. retail keeps the (slot/2)*13 multiply chain INSIDE the loop: the in-loop
+      `slot = arg;` copy is the invariant gcc hoists instead of the multiply. */
+/* Two POLY_FT4 packets plus the head of the next g_BattleTextSlotRects row:
+   what func_800780A8 walks. Callers hand it a row's polys at +0x10 (0x50 back
+   into the row above), so its palette/enabled land on the NEXT row's +0xC/+0xD
+   bytes (misc5.c's BattleScreenSlot view names them). palette is volatile
+   because the function stores it and re-reads it. */
+typedef struct {
+    /* 0x00 */ POLY_FT4 prims[2];
+    /* 0x50 */ u8 unk50[0xC];
+    /* 0x5C */ volatile u8 palette;
+    /* 0x5D */ u8 enabled;
+} BattleSlotPrimBlock; // Size: 0x5E
+
+void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
     POLY_FT4 *p;
     u16 clut;
-    s32 offset;
+    s32 i;
+    s32 slot;
 
-    for (p = (POLY_FT4 *)pInfo; p < (POLY_FT4 *)(pInfo + 0x50); p++) {
+    i = 0;
+    do {
+        p = &pInfo->prims[i];
         SetPolyFT4(p);
         p->r0 = 0x80;
         p->g0 = 0x80;
         p->b0 = 0x80;
         SetSemiTrans(p, 0);
         SetShadeTex(p, 1);
-        pInfo[0x5C] = arg & 1;
-        if (pInfo[0x5C] != 0) {
+        pInfo->palette = arg & 1;
+        // loop-local copy of the slot number: gcc hoists this invariant
+        // instead of the row multiply, which retail keeps inside the loop
+        slot = arg;
+        if (pInfo->palette != 0) {
             clut = g_SystemPalette2;
         } else {
             clut = g_SystemPalette1;
         }
         p->clut = clut;
-        offset = arg / 2;
-        p->tpage = GetTPage(0, 0, 0x3C0, offset * 13);
-    }
-    pInfo[0x5D] = 0;
+        p->tpage = GetTPage(0, 0, 0x3C0, (slot / 2) * BATTLE_TEXT_ROW_HEIGHT);
+        i++;
+    } while ((s32)&pInfo->prims[i] <
+             (s32)&pInfo->prims[2]);
+    pInfo->enabled = 0;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
+
 /* 98.39% (372 bytes = retail size, 93 insns = retail count, addresses verified correct):
    the body is instruction-identical to retail EXCEPT that the two induction-varying
    byte offsets trade registers. Retail keeps offset A = 0x60 + 0xC0k (init li s3,0x60)
@@ -815,19 +832,21 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
         i++;
     } while (i < BATTLE_ACTOR_SLOT_COUNT);
 }
-/* 75.45%: with a pEntry local (one load of the global shared by the two uses
-   after the sb) the first store and everything from the `sh` tail on is
-   byte-identical; the ONLY difference is that retail's two tile `lbu`s are
-   scheduled BEFORE the sb while gcc puts them after it. Source order does not
-   matter (tile first / tile last / an s32 offset local all compile identically),
-   so it is gcc's scheduler placement. Also tried: no pEntry (three loads of the
-   global, 48.18), inline tile; this round: `do { } while (0)` around the color
-   store (17.12), a volatile color store (57.27), volatile tile loads (62.42),
-   tile computed before the pEntry load and after the color store (both 75.45,
-   identical output). The 4-minute permuter run found nothing better than 585
-   against this body. Retail's order is loads-then-sb, i.e. loads HOISTED above
-   an independent store; gcc 2.7.2 sinks them here.
-   Parked body (75.45):
+/* 75.45% (132 bytes = retail size): the ONLY difference is that retail's two tile
+   `lbu`s (D_800D2E61[a1] and g_BattleCommandTiles[a1]) are scheduled BEFORE the
+   color `sb` while gcc 2.7.2 sinks them below it, into the `sh`'s use point; the
+   store itself and everything from the queue reload on is byte-identical, and
+   the register mirror that follows (v0/v1) is a consequence of the placement.
+   Measured shapes, all 75.45 unless noted: tile local before/after the pEntry
+   load (identical output); declaration-with-initialiser `u16 tile = ...`;
+   `s32 offset` local for index*8; inline tile in the mask store (43.00, 136
+   bytes - the loads sink AND the or chain re-registers); no pEntry (48.18,
+   prior session); `do {} while (0)` around the color store (17.12); volatile
+   color store (57.27); volatile tile loads (62.42). Source order cannot move
+   the loads: CSE rematerialises them at the sh's use. Screens: gcc-2.6.0 75.45,
+   gcc-2.7.2-cdk 40.61. A 4-minute permuter run (prior session) found nothing
+   better than 585. Retail's order is loads-then-sb: loads HOISTED above an
+   independent store; gcc 2.7.2 sinks them. Parked body (75.45):
 void func_800785D4(u8 color, u8 index) {
     u16 tile;
     u8 *pEntry;
