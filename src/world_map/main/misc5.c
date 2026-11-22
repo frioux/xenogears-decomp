@@ -922,11 +922,13 @@ int WorldMapInitActorParamsFromTable(int idx) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
 /* 98.13%, 876 bytes = retail's exact size and 219 instructions; the whole body is
-   decoded and only ONE pair of instructions is swapped, in case 0x10: retail schedules
-   `ori a1,a2,0xA0` + `sh zero,0xA2(a2)` BEFORE the two global loads, our compile puts
-   them after the loads and before the two sra. Nothing else differs (four hand shapes:
-   the three store orders, loading the two shifts into locals, and a `u8*`/`s16*` scratch
-   local; permute.sh 4 min / 2179 iterations found nothing, base=120 best=120).
+   decoded and only ONE pair of instructions is placed differently, in case 0x10: retail
+   has `ori a1,a2,0xA0` (the call's tile pointer) + `sh zero,0xA2(a2)` BEFORE the two
+   global loads, our compile puts the same adjacent pair AFTER them (before the two sra).
+   Nothing else differs. Shapes tried, all 98.13% / 876 bytes: the three store orders,
+   the two shifts loaded into locals, a u8-pointer and a s16-pointer scratch local, and a
+   `u16 *pTilePos = &pScratchPos[0x50];` local for the call argument (round 396).
+   permute.sh 4 min / 2179 iterations: base=120 best=120.
    Structural facts that are settled and must be kept:
    - the switch is over 0..0x40 and MUST have a `case 0: break;`, or gcc range-folds it
      to `addiu -1 / sltiu` and the table shifts by one word.
@@ -937,13 +939,17 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
      function with 0x50/0x51/0x52 indexes: that is what puts `lui a2,0x1F800000` in the
      beqz delay slot, forms the argument as `ori a1,a2,0xA0` and keeps the stores at
      0xA0/0xA2/0xA4(a2). A local declared inside the case gives lui $at per store.
-   Do NOT convert this stub before the rodata question below is settled, even at 100%:
-   jtbl_8006FC50 sits at unit rodata offset 0x8C (4 mod 8), and cc1 emits `.align 3`
-   before a jump table, so the table lands at 0x90 and the unit's four zero bytes at
-   0x190 move to 0x8C - the overlay shifts by 4 bytes inside misc5's own rodata range
-   and check_bin fails. See the report for the align analysis (retail's tables in this
-   unit are not all 8-aligned, so the pad at 0x190 is either a 4-byte datum no C switch
-   emits or a pad this compiler cannot place).
+   JTBL_LAYOUT, settled in round 396 - this stub cannot be converted, even at 100%.
+   cc1 hardcodes `.align 3` before a C jump table in all three compilers (lever
+   i-jtbl-align-3-hardcoded) and jtbl_8006FC50 sits at unit rodata offset 0x8C, i.e.
+   4 mod 8 (the misc5 rodata range is 0x8006FBC4 + 0x1C8 bytes; its seven tables tile it
+   at 0x0/0x30/0x50/0x68/0x8C/0x194/0x1AC). Converting the whole switch family in address
+   order gives C offsets 0x0/0x30/0x50/0x68 then 0x8C padded to 0x90, and the next table
+   (retail 0x194) padded on to 0x198, so the range ends at 0x1CC instead of 0x1C8: the
+   overlay grows 4 bytes and TEXT_START moves. Converting this stub alone is worse: the C
+   table lands at 0x30 of the object's .rodata, after WorldMapUpdateActorState's 0x30-byte
+   table, so the diff shows `lw v0,48(at)` against retail's `lw v0,0(at)`. Lever
+   i-jtbl-midchain-4mod8 has the arithmetic.
 */
 /*s32 func_8007C3B8(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
