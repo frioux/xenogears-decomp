@@ -304,7 +304,9 @@ def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
         extra = " | ".join("%s at %.2f percent, %d insns, note: %s" % (f["func"], f["pct"], f["insns"], note_excerpt(f, 160))
                            for f in funcs)
     elif cls == "fresh":
-        minutes = 30
+        # Never-written stubs are a from-scratch transcription: round 401 capped three of
+        # twelve lanes at 30 minutes and all three were over 140 instructions.
+        minutes = 45
         extra = "Never written, no park or note: " + names
     elif cls == "redo":
         # A redo lane rewrites the body from an m2c draft, which is slower than re-spelling a
