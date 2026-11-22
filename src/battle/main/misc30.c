@@ -151,6 +151,14 @@ typedef struct BattleSlotResource {
     /* 0x0C */ void (*pOnFree)(struct BattleSlotResource* pSelf);
 } BattleSlotResource; // Size: 0x10
 
+// The two per-slot pointer tables at the tail of g_BattleStateWork: the slot
+// sprites at 0x8C8C and the slot resources at 0x8CB8, eleven entries each.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x8C8C];
+    /* 0x8C8C */ SpriteData* slotSprites[BATTLE_ACTOR_SLOT_COUNT];
+    /* 0x8CB8 */ BattleSlotResource* slotResources[BATTLE_ACTOR_SLOT_COUNT];
+} BattleSlotTables;
+
 extern BattleSlotRecord* g_BattleActors[];
 
 extern void SpriteSetScale(BattleActorSprite* pSprite, s16 scale);
@@ -936,35 +944,29 @@ void BattleFinishActorAnimationAndReleaseSlot(s32 index) {
    local (63.36%).  Preset is not the answer: gcc-2.7.2-psx -G0 scores this body
    76.91 but breaks the unit's matched functions (BattleIncrementStateTimer
    99.09, BattleApplyStateStep 87.22, BattleActorSnapToTargetAndFace 85.40), and
-   gcc-2.6.0-psx -G0 does not compile the unit.
-/*
+   gcc-2.6.0-psx -G0 does not compile the unit. */
 void func_800BB080(s32 arg0) {
+    BattleSlotTables* pWork;
     s32 i;
-    u8* pEntry;
-    u8* pSlot;
     SpriteData* pSprite;
-    void* pTask;
+    BattleSlotResource* pResource;
 
     i = 0;
-    pEntry = g_BattleStateWork;
     do {
-        pSlot = pEntry + 0x8C8C;
+        pWork = (BattleSlotTables*)g_BattleStateWork;
         if (i != arg0) {
-            pSprite = *(SpriteData**)pSlot;
+            pSprite = pWork->slotSprites[i];
             if (pSprite != NULL && pSprite->pDefaultAnimFile == NULL) {
-                pTask = pSprite->field_0x6C;
-                (*(void (**)(void*))((u8*)pTask + 0xC))(pTask);
-                *(u32*)pSlot = 0;
-                *(u32*)((mem_addr)pEntry + 0x8CB8) = 0;
+                pResource = pSprite->field_0x6C;
+                pResource->pOnFree(pResource);
+                pWork->slotSprites[i] = NULL;
+                pWork->slotResources[i] = NULL;
             }
         }
         i++;
-        pEntry += 4;
     } while (i != 3);
     BattleWaitForOtherActorAnimations(arg0);
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
-
+}
 
 void BattleActorSyncPositionFromModel(AnimTask* pTask) {
     BattleActorSprite* pSprite;
