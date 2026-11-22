@@ -549,8 +549,6 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
     g_BattleScaleMatrix.m[1][1] = scaleH;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
-
 /* Best attempt: objdiff 97.91%, but 508 bytes against retail's 512, so it cannot
    link yet. The tile packet is a BattleTilePacket at D_8009A1C0 (tag/len at +0/+3,
    code at +4, x/y at +8/+0xA, w/h at +0xC/+0xE) and the 16-byte copy is
@@ -569,7 +567,23 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
    into the sh and the body is byte-identical to the version with no locals at all.
    The shape retail shows is a HI-mode pseudo that cannot be copied partially, so
    the source stored a genuine narrow *variable* that was live across something -
-   but every u16 source spelling so far is folded away. */
+   but every u16 source spelling so far is folded away.
+   ROUND 397: re-measured the same 97.91% and broke the copy question down with
+   cc1_probe (a self-contained function storing the same tile from two s32
+   parameters). Every store spelling folds to `sh $sN`: u16 and s16 struct field, a
+   :16 bitfield, a bare u16 global, a u16 local assigned from the parameter (which
+   coalesces - local-alloc CAN coalesce a HI pseudo with a HI subreg of the
+   parameter), a u16 local shared by both stores, and the same under gcc-2.6.0 and
+   2.7.2-cdk, so this is neither a preset nor a plain allocator tie. The ONE
+   construct that makes cse build a fresh HImode pseudo is reading the value back
+   out of the s16 global (D_8009A1C0.w = g_BattleScreenWidth after
+   g_BattleScreenWidth = w), and that is not retail: it needs two more scratch
+   registers for x/y, duplicates a store, and measures 94.77% at 524 bytes. A
+   static inline helper taking u16 parameters folds as well. Conclusion: retail's
+   two copies came from a TU-level construct this unit does not have (an inlined
+   helper, or the original's own tile macro), so 97.91% is the source ceiling here
+   and the stub stays. */
+
 /*
 void func_80089330(s32 w, s32 h) {
     DISPENV* pDisp;
@@ -615,6 +629,7 @@ void func_80089330(s32 w, s32 h) {
     D_8009A2B8 = D_8009A1C0;
 }
 */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
 
 void BattleInitDrawEnvs(s32 w, s32 h) {
     u8* pDtd;
