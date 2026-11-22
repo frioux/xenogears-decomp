@@ -770,7 +770,7 @@ void func_800386C4(s32 mode) {
     SoundCdSeqState* pState;
     u16 volume;
 
-    g_SoundControlFlags &= ~0x700;
+    g_SoundControlFlags &= ~SOUND_CTL_MASK_VOLUME_MODE;
 
     switch (mode) {
         case 0:
