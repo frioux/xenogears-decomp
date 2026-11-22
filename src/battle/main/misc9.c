@@ -148,43 +148,55 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
 }
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
-/* best: 75.77%. Same family as func_8007D8C0/DE78 (see D8C0's note). Structure
-   recovered and confirmed byte-for-byte against the -(13) prologue, the row
-   zero, the count loop and the call sequence; two misses remain:
-   (1) the tail store. Retail re-forms the row base with `lui a1,%hi / addiu a1 /
-   addu a0,a0,a1` (a real register via `la`) and then adds the index; every shape
-   tried (inline byte expression, (u16*)cast array index, s32 base local in both
-   operand orders, u8 *pBase local, reuse of the pRow local) makes gcc fold the
-   two register terms first and emit `sh v0,g_BattleSlotWordRegs(a0)`, i.e. maspsx's
-   $at form. So it is gcc's combine merging (sym+reg) into the store address that
-   retail's compiler did not do, not a source detail.
-   (2) retail steals `addiu s1,s1,1` into the beqz delay slot after the
-   BattleSlotFlagsC002ClearRecordIdle call; gcc emits it at the loop bottom.
-   func_8007DE78 is this function with i starting at 0, the loop bound 3 and
-   BattleSlotFlagsC002ClearRecordIdle's second argument 1, so it shares both misses.
+/* best: 95.38% (352 bytes; retail 0x8007DA1C..0x8007DD1C = 87 insns / 348
+   bytes, this body 88). R398: the func_8007D8C0 R370 two-pointer recipe DOES
+   transfer to this stub - pField = pRow after the head store, the index-first
+   base with an (s32) cast on the symbol and a u16 value local at the tail - and
+   the loop has to be a while on i from 3 to 0xB: 75.77 -> 95.38 in one step.
+   The ONE remaining instruction is the loop increment. Retail has
+   [jal ClearRecordIdle][andi v0,v0,0xFF][beqz v0][addiu s1,s1,1], i.e. i is
+   incremented unconditionally between the call and the test on its result, so
+   reorg fills that delay slot with the increment and duplicates slti only into
+   the beqz v1 slot and the latch (two copies). With idx = i++ gcc increments at
+   the loop head, so that slot gets a COPY of the target slti instead and the
+   body carries three copies - one instruction too many to link. Measured, all
+   on top of this body: increment between call and test via an s32 idle local
+   88.25% (336 bytes; the allocator swaps count and idx, the frame shrinks);
+   increment at the body end after the if 88.67% (332 bytes; the idx copy in s3
+   disappears); the same loop written do-while 93.77% (344 bytes, one SHORT -
+   slti is not duplicated at all); idx = i; i++; is identical to idx = i++.
+   Cosmetic only: the prologue emits the s6 = arg1 copy before the count and i
+   inits (retail after them), and the tail beqz s2 slot holds move a0,zero where
+   retail has addiu a1,s2,-1. Not a preset question (cdk 76.66% on sibling DB78).
+ */
+/*
 void func_8007DA1C(u8 **arg0, s32 arg1) {
     u8 buf[8];
+    s32 i = 3;
     s32 count = 0;
-    s32 i;
-    u8 idx;
-    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
+    s32 idx;
+    u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    u16 *pField;
 
     pRow[(*arg0)[2]] = 0;
-    for (i = 3; i < 0xB; i++) {
-        idx = i;
+    pField = pRow;
+    while (i < 0xB) {
+        idx = i++;
         if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
-            if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
-                buf[count] = i;
+            if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
+                buf[count] = idx;
                 count++;
             }
         }
     }
     if (count != 0) {
-        u8 *pBase = g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40;
+        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
 
-        *(u16 *)(pBase + (*arg0)[2] * 2) = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
+        pOut[(*arg0)[2]] = value;
     }
-} */
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
 /* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
