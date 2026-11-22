@@ -586,6 +586,15 @@ void MenuFreeUnk430Panel(u_char arg0) {
 // The panel's second sprite-record set: one value image per column, the tail of the
 // same MenuString array as the column records.
 #define MENU_PANEL_VALUE_STRING_COUNT 0x13
+// One column's value image: a 0x28x0xD tile uploaded on a 0x18-pixel column pitch,
+// one row of tiles per two columns.
+#define MENU_VALUE_IMAGE_WIDTH 0x28
+#define MENU_VALUE_IMAGE_HEIGHT 0xD
+#define MENU_VALUE_IMAGE_COLUMN_PITCH 0x18
+// Glyph codes SystemDecodeGlyphCodesN turns into texture tiles: '0'..'9' start at
+// 0x10 and a suppressed (leading) digit is drawn as the blank glyph.
+#define MENU_GLYPH_DIGIT_ZERO 0x10
+#define MENU_GLYPH_BLANK 0xC3
 
 typedef struct {
     /* 0x0000 */ MenuString columnStrings[MENU_PANEL_VALUE_STRING];
@@ -701,21 +710,21 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             for (j = count - 1, k = 0; j > 0; k++, j--) {
                 digit = number / placeValues[j];
                 if (digit != 0 || didRound) {
-                    digitCodes[k * 2] = digit + 0x10;
+                    digitCodes[k * 2] = digit + MENU_GLYPH_DIGIT_ZERO;
                     didRound = 1;
                     number -= digit * placeValues[j];
                 } else {
-                    digitCodes[k * 2] = 0xC3;
+                    digitCodes[k * 2] = MENU_GLYPH_BLANK;
                 }
             }
-            digitCodes[k * 2] = (number % 10) + 0x10;
+            digitCodes[k * 2] = (number % 10) + MENU_GLYPH_DIGIT_ZERO;
             SystemDecodeGlyphCodesN((u16*)digitCodes, stringBuffer, count);
             ((MenuUnk430ValueStrings*)g_Menu->unk430)->valueStrings[i].width =
                 SystemRenderStringEntry(stringBuffer, pImage, 0x24, 1);
-            rect.x = (i & 1) * 0x18 + 0x180;
-            rect.y = (i / 2) * 13 + 0x80;
-            rect.w = 0x28;
-            rect.h = 0xD;
+            rect.x = (i & 1) * MENU_VALUE_IMAGE_COLUMN_PITCH + 0x180;
+            rect.y = (i / 2) * MENU_VALUE_IMAGE_HEIGHT + 0x80;
+            rect.w = MENU_VALUE_IMAGE_WIDTH;
+            rect.h = MENU_VALUE_IMAGE_HEIGHT;
             LoadImage(&rect, pImage);
             DrawSync(0);
             shade = 0x80;
@@ -743,13 +752,14 @@ void func_801DC3D8(u_char arg0, u_char arg1) {
             if (i < MENU_PANEL_MASKED_COLUMN_COUNT) {
                 MenuSetStringPrimitives(&((MenuUnk430Panel*)g_Menu->unk430)->strings[i], i, 0x80, shade | 1);
                 MenuSetQuadVertices(((MenuUnk430Panel*)g_Menu->unk430)->strings[i].vertices, (i % 2) * 0x88 + 0x24,
-                                    (i / 2) * 0x10 + 0x12, ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].width, 0xD);
+                                    (i / 2) * 0x10 + 0x12, ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].width,
+                                    MENU_VALUE_IMAGE_HEIGHT);
             }
             MenuSetStringPrimitives(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i], i, 0x80, shade | 2);
             MenuSetQuadVertices(
                 ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_VALUE_STRING + i].vertices, g_MenuPanelValueQuadX[i][0],
                 g_MenuPanelValueQuadY[i][0],
-                ((MenuUnk430ValueStrings*)g_Menu->unk430)->valueStrings[i].width, 0xD);
+                ((MenuUnk430ValueStrings*)g_Menu->unk430)->valueStrings[i].width, MENU_VALUE_IMAGE_HEIGHT);
             ((MenuUnk430Panel*)g_Menu->unk430)->strings[i].renderContext = g_Menu->renderContext;
             ((MenuUnk430ValueStrings*)g_Menu->unk430)->valueStrings[i].renderContext = g_Menu->renderContext;
             ((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[i] = shade | 1;
