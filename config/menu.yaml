@@ -58,6 +58,10 @@ segments:
       - [0xE0, rodata]
       - [0xFC, .rodata, main/misc9]
       - [0x18C, .rodata, main/misc10]
+      # The four zero bytes after main/misc10's last jump table: retail's jtbl_801C522C
+      # carries a trailing zero word that the seven-case `switch` in func_801E3ECC
+      # does not emit, so the unit's .rodata needs this carve to tile to 0x24C.
+      - [0x248, rodata]
       - [0x24C, .rodata, main/misc11]
       - [0x278, .rodata, main/misc12]
       - [0x294, rodata]

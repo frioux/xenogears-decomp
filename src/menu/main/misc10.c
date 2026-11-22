@@ -1299,18 +1299,6 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     pDressingRoom->unkB5 = pGear->unk9D;
     pDressingRoom->unkB6 = pGear->unk9C;
 }
-// func_801E3ECC: body measured objdiff 99.94%, 676 bytes = retail's exact 0x2A4, the
-// only residual being the switch table operand (retail names jtbl_801C522C, ours .rodata).
-// It cannot be converted: retail's jtbl_801C522C is EIGHT words - the seven case entries
-// plus a trailing 00000000 at 0x248 - and a seven-case `switch` emits seven. misc10's
-// .rodata range (0x18C..0x24C) tiles as 0x28/0x28/0x28/0x28/0x20, so converting this
-// function drops those 4 bytes, .text starts 4 bytes early and check_bin reports the whole
-// overlay shifted by -4 (build/out/menu.bin 153860 against disc's 153864). Segment
-// offsets are not the problem (the five tables sit at section offsets 0/0x28/0x50/0x78/
-// 0xA0, all 8-aligned), so nothing in C can supply the last word; it needs a 4-byte
-// `.rodata` carve at 0x248 between misc10.c.o and misc11.c.o in linker/menu.ld.
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3ECC);
-/*
 void func_801E3ECC(MenuDressingRoom* pDressingRoom, u8 gearId) {
     u8 i;
 
@@ -1368,7 +1356,6 @@ void func_801E3ECC(MenuDressingRoom* pDressingRoom, u8 gearId) {
         break;
     }
 }
-*/
 void MenuRecalculateGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     MenuApplyGearFrame(pDressingRoom, gearIndex);
     MenuApplyGearEngine(pDressingRoom, gearIndex);
