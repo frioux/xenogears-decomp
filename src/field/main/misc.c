@@ -3106,14 +3106,15 @@ extern s32 g_FieldStreamFlags;
 // matched twin emits, so it is reachable: the twin's store is a struct field of
 // g_pGameState, and loading its base is what keeps the store in place.
 // TRIED, all 114 insns / 74.57 unless noted: a direct store of each call result
-// with no `value` local (identical), `int value`, and a
-// `do { pActor = g_FieldScriptVMCurActor; store } while (0)` block per
-// continuation read. THAT LAST ONE IS WORTH KNOWING: it reproduces retail's
-// exact size, 118 insns / 472 bytes, each site coming out as
-// [lw actor][sh store][lhu][lui/lw base][nop][addu][lbu] - but it scrambles the
-// TAIL (the D_800C3A30 lhu/andi, the ImageX/ImageY stores and the ip increment
-// end up in a very different order) and scores 65.84, so it is only a base once
-// the tail order is understood too.
+// with no `value` local (identical), `int value`, and a barrier block
+// `do { pActor = g_FieldScriptVMCurActor; <read + call> } while (0)` around each
+// continuation read, with the store of the previous result left outside it.
+// THAT LAST ONE IS WORTH KNOWING: it reproduces retail's exact size, 118 insns /
+// 472 bytes, and every site gains its missing base-load nop, but each site's row
+// comes out [sh store][lw actor][lw base][lhu][nop][addu][lbu] (the store before
+// the actor load where retail has the actor load first) and it scrambles the
+// tail, scoring 65.84 - so it is only a base once the site and tail order are
+// understood too. Lever c-a-per-site-do-while-restores-the-load-delay.
 // TAIL here: retail is [li 0x140 sh D_800C3A32][li 0x40 sw g_FieldStreamFlags]
 // [li 1 sh g_FieldStreamRgb24][lhu D_800C3A30][lw actor][li 0x100 sh D_800C3A34]
 // [sh ImageX2][sh ImageY1][sh ImageX1][sh ImageY2][sh LoopPlayback][andi/sh
