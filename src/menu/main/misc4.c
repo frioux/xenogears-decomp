@@ -16,7 +16,7 @@ extern u_char func_801C93A8(void);
 extern s32 MenuIsSlotUsable(s32 arg0);
 extern s32 MenuFindFirstValidSlot(s32 arg0);
 extern u_char MenuLoadWindow2Text(u_char arg0, u_char arg1, u_char arg2);
-extern s32 func_801CA750(s32 arg0);
+extern s32 MenuHandleCardSlotInput(s32 arg0);
 extern void MenuCreateWindow2Strings(u_char arg0);
 extern void MenuFreeWindow2Strings(void);
 extern void MenuPlaySoundEffect(u_char soundEffectId);
@@ -72,7 +72,7 @@ u_char MenuEraseCardSaveFile(void) {
             }
         }
         g_Menu->pManager->shouldRenderCursors = 1;
-        switch (func_801CA750(0)) {
+        switch (MenuHandleCardSlotInput(0)) {
             case 1:
                 g_Menu->pCursors->shouldUpdatePosition[0] = 0;
                 g_Menu->menuUnk2->cardPollMode = 0;

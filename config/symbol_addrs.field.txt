@@ -1107,3 +1107,4 @@ g_FieldTextGradientBottomQuads = 0x800AF7F0;
 g_WorldMapSaveCursor = 0x800AFC50;
 FieldScriptScreenImageHandler = 0x8008A2E8;
 g_FieldScreenImageBuffer = 0x800B1F74;
+FieldScriptSetRecordByte = 0x800924D4;

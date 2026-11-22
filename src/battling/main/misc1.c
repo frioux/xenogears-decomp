@@ -47,7 +47,7 @@ extern s32 g_BattleScriptWait;
 // pointer locals are load-bearing: retail keeps the anchor's vx address in $s0 across
 // the first call and reads the sources through a pointer, and the field spellings
 // instead make gcc hoist that source load above the vz store.
-void func_80070808(VECTOR* pVec, s32 step) {
+void BattleStepCameraTargetTowardVector(VECTOR* pVec, s32 step) {
     s32* pTargetX = &g_BattleCameraTarget.vx;
     s32* pSourceY = &pVec->vy;
 
@@ -63,7 +63,7 @@ extern void BattleMovePointInsideRadius(VECTOR* pPos, VECTOR* pDelta, s32 radius
 // Moves the camera to within 0x3D00 of the vector: the three step deltas are clamped
 // as one offset before they are added back, so the anchor's vx is read and written
 // through the pointer while vy/vz stay named globals (retail addresses them that way).
-void func_800708C4(VECTOR* pVec, s32 step) {
+void BattleMoveCameraPosTowardVector(VECTOR* pVec, s32 step) {
     VECTOR delta;
     VECTOR* pPos;
 
@@ -114,8 +114,8 @@ extern s32 D_80097064;
 extern s32 g_BattleSceneOriginYMirror;
 extern s32 g_BattleSceneOriginZ;
 
-extern void func_80070808(VECTOR* pVec, s32 step);
-extern void func_800708C4(VECTOR* pVec, s32 step);
+extern void BattleStepCameraTargetTowardVector(VECTOR* pVec, s32 step);
+extern void BattleMoveCameraPosTowardVector(VECTOR* pVec, s32 step);
 extern void BattleAimCameraAtCombatants(VECTOR* pA, VECTOR* pB);
 extern s32 func_80082488(VECTOR* pVec, s32 mode);
 
@@ -169,7 +169,7 @@ void BattlePlaceEffectByMode(s32 mode) {
     place_message:
         vec.vy -= 0xA0;
         g_BattleEffectPlaceYOffset = 0;
-        func_80070808(&vec, 4);
+        BattleStepCameraTargetTowardVector(&vec, 4);
         break;
     case 3:
         scale = 0xA0;
@@ -188,12 +188,12 @@ void BattlePlaceEffectByMode(s32 mode) {
         vec = g_BattleEffectPlaceOrigin;
         pVec = &vec;
         vec.vy += g_BattleEffectPlaceYOffset;
-        func_80070808(pVec, 0x10);
+        BattleStepCameraTargetTowardVector(pVec, 0x10);
         vec.vx = g_BattleActor1.position.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
         y = g_BattleActor1.position.vy - 0x20;
         vec.vy = y - g_BattleEffectPlaceYOffset;
         vec.vz = g_BattleActor1.position.vz + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
-        func_800708C4(pVec, 0x46);
+        BattleMoveCameraPosTowardVector(pVec, 0x46);
         delta = func_80082488(&g_BattleCameraPos, 0) - 0x40;
         offset = delta;
         offset -= g_BattleEffectPlaceYOffset;

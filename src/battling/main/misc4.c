@@ -1381,8 +1381,8 @@ extern char g_StrCameraCamFormat[];
 extern char g_StrCameraLenFormat[];
 
 extern s32 BattleVectorDistance(Vec4*, Vec4*);
-extern void func_80070808(Vec4*, s32);
-extern void func_800708C4(Vec4*, s32);
+extern void BattleStepCameraTargetTowardVector(Vec4*, s32);
+extern void BattleMoveCameraPosTowardVector(Vec4*, s32);
 extern void func_800379C8(char*, s32);
 
 // Places the battle camera on the actor's midpoint, at the orbit the tuner's
@@ -1428,11 +1428,11 @@ void BattleUpdateCameraPosition(Actor* p) {
 
     pos = p->midPosition;
     pos.y = p->y - g_BattleCameraRigTargetYOffset;
-    func_80070808(&pos, 8);
+    BattleStepCameraTargetTowardVector(&pos, 8);
     pos.y = p->y - g_BattleCameraRigYOffset;
     pos.x = p->x + ((rcos(p->angle + g_BattleCameraRigAngleOffset) * g_BattleCameraRigRadius) >> 12);
     pos.z = p->z + ((rsin(p->angle + g_BattleCameraRigAngleOffset) * g_BattleCameraRigRadius) >> 12);
-    func_800708C4(&pos, 0x10);
+    BattleMoveCameraPosTowardVector(&pos, 0x10);
 
     pCam = (Vec4*)&g_BattleCameraPos;
     while (BattleVectorDistance(pCam, (Vec4*)p) < 0x200) {

@@ -436,7 +436,7 @@ void BattleWordRegSetImm(BattleCommand **pCommand, u8 arg1) {
     regFileBase = (mem_addr)g_BattleSlotWordRegs;
     *((u16 *)((p->operand1 << 1) + (arg1 * 0x40 + regFileBase))) = val;
 }
-void func_8007A968(BattleCommand **pCommand, u8 arg1) {
+void BattleDwordRegSetImm(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
     u32 val = ((p->operand3 << 8) + p->operand2) * 0x10;
 

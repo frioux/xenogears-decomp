@@ -622,7 +622,7 @@ void func_801CA5F0(s32 a0, s32 a1) {
 }
 */
 
-s32 func_801CA750(s32 a0) {
+s32 MenuHandleCardSlotInput(s32 a0) {
     s32 result;
 
     result = 0;
@@ -968,7 +968,7 @@ void MenuApplySaveSlot(u32* pSrc) {
    retail's instructions. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
 /*extern u_char func_801C93A8(void);
-extern s32 func_801CA750(s32 arg0);
+extern s32 MenuHandleCardSlotInput(s32 arg0);
 extern void func_801C72BC(u8 arg0);
 extern void MenuPlaySoundEffect(u8 arg0);
 
@@ -1018,7 +1018,7 @@ u_char func_801CB304(void) {
             }
         }
         g_Menu->pManager->shouldRenderCursors = 1;
-        switch (func_801CA750(1)) {
+        switch (MenuHandleCardSlotInput(1)) {
         case 1:
             g_Menu->pCursors->shouldUpdatePosition[0] = 0;
             g_Menu->menuUnk2->cardPollMode = 0;

@@ -264,7 +264,7 @@ extern void BattleWordTableStoreImm(u8 **ppCommand);
 extern void BattleWordTableStoreReg(u8 **ppCommand, u8 slot);
 extern void BattleWriteRowFieldBytes(u8 **ppCommand, u8 *pArgs, u8 slot, u8 row);
 extern void BattleWriteWorkBufferWord(u8 **ppCommand);
-extern void func_8007A968(u8 **ppCommand, u8 slot);
+extern void BattleDwordRegSetImm(u8 **ppCommand, u8 slot);
 extern void func_8007AA60(u8 **ppCommand, u8 slot);
 extern void BattleWordRegSubImmClamp(u8 **ppCommand, u8 slot);
 extern void BattleWordRegMulImmClamp(u8 **ppCommand, u8 slot);
@@ -321,7 +321,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleWordRegSetImm(ppCommand, slot);
         break;
     case 0x06:
-        func_8007A968(ppCommand, slot);
+        BattleDwordRegSetImm(ppCommand, slot);
         break;
     case 0x07:
         BattleWordTableStoreImm(ppCommand);

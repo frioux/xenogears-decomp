@@ -53,7 +53,7 @@ extern s32 g_BattlePendingActorTaskCount;
 extern void *g_BattleWdsEntry;
 extern u8 g_BattleSoundArchiveLoaded;
 extern u8 g_BattleActorArchiveReady;
-extern u16 D_800D3634;
+extern u16 g_BattleActorSlotMask;
 extern void BattleFreeActorArchiveAndSoundSeds(void);
 extern void BattleQueueActorSlotTask(s32 index);
 extern void BattleFreeWdsEntry(void);
@@ -252,7 +252,7 @@ void BattleSetCurrentSpriteAndTarget(s32 arg0, s32 arg1) {
     pTargetSlot = (SpriteData **)((u8 *)pSlots + (arg1 * 4) + 0x8C8C);
     D_800C3E1C = pSprite;
     pSprite->pTargetEntitySprite = *pTargetSlot;
-    D_800D3634 = 1 << arg1;
+    g_BattleActorSlotMask = 1 << arg1;
     g_BattleActorList[0] = (s32)*pTargetSlot;
     g_BattleActorList[1] = 0;
 }

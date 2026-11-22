@@ -110,7 +110,7 @@ extern u8 g_BattleBlockingEffectActive;
 extern s16 g_BattleDigitTextureIds[];
 extern s32 g_BattleColorMode;
 extern u8 *g_BattleSpriteArchive;
-extern s16 D_800D3634;
+extern s16 g_BattleActorSlotMask;
 extern s16 g_BattleActorListCount;
 extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
 extern void func_800B9F78();
@@ -776,7 +776,7 @@ void BattleFreeSoundSeds(void) {
       above the stores and gives the pState pointer a0 instead of retail's a1, so its 0x4C
       store lands four instructions early and its 0x28 store follows it.
    2. The two `lhu 0x14E` of the slot mask: retail keeps the call argument in a0 and the value
-      it stores in D_800D3634 in v1, so it can put the `sh` in the jal delay slot; our compile
+      it stores in g_BattleActorSlotMask in v1, so it can put the `sh` in the jal delay slot; our compile
       reuses a0 for both loads and must store between them.
    3. Prologue: retail forms the g_BattleStateWork base (lui/addiu into v1) before it loads
       g_BattleCommandRowIndex; our compile orders the two `lui`s the other way.
@@ -799,7 +799,7 @@ void func_800BF3E8(BattleActorSprite *p) {
     s16 count;
     u32 dir;
 
-    D_800D3634 = *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E);
+    g_BattleActorSlotMask = *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E);
     count = BattleCollectMaskedSlotActors(*(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E), (void **)&g_BattleActorList, (s32)p);
     g_BattleActorListCount = count;
     if (count == 0) {

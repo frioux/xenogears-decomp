@@ -288,7 +288,7 @@ int FieldScriptVMAdvanceIpReturnAlt(void) {
 
 extern u_int* g_FieldWalkmeshMaterialFlags;
 
-void func_800924D4(int index, int byteIndex, u_int value);
+void FieldScriptSetRecordByte(int index, int byteIndex, u_int value);
 void FieldResetCurrentActorMovement(void);
 
 // Read one byte of the 4-byte record at the given index of g_FieldWalkmeshMaterialFlags
@@ -307,7 +307,7 @@ int FieldScriptGetRecordByte(int index, int byteIndex) {
 }
 
 // Write one byte of the 4-byte record at the given index of g_FieldWalkmeshMaterialFlags
-void func_800924D4(int index, int byteIndex, u_int value) {
+void FieldScriptSetRecordByte(int index, int byteIndex, u_int value) {
     switch (byteIndex) {
         case 0:
             g_FieldWalkmeshMaterialFlags[index] = (g_FieldWalkmeshMaterialFlags[index] & ~0xFF) | value;
@@ -354,7 +354,7 @@ void FieldScriptVMHandlerSetControllerBtnMask(void) {
 }
 
 void FieldScriptVMHandlerSetRecordByte(void) {
-    func_800924D4(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2), FieldScriptVMGetArgument(3));
+    FieldScriptSetRecordByte(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2), FieldScriptVMGetArgument(3));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -363,7 +363,7 @@ void FieldScriptVMHandlerOrRecordByte(void) {
 
     value = FieldScriptGetRecordByte(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2));
     value |= FieldScriptVMGetArgument(3);
-    func_800924D4(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2), value);
+    FieldScriptSetRecordByte(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2), value);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -372,7 +372,7 @@ void FieldScriptVMHandlerAndRecordByte(void) {
 
     value = FieldScriptGetRecordByte(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2));
     value &= FieldScriptVMGetArgument(3);
-    func_800924D4(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2), value);
+    FieldScriptSetRecordByte(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2), value);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 

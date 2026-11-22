@@ -90,8 +90,8 @@ g_BattleRenderModelColor = 0x8009262C;
 
 BattleFreeMessageString = 0x800707A8;
 BattleRoundDivAwayFromZero = 0x800707D8;
-func_80070808 = 0x80070808;
-func_800708C4 = 0x800708C4;
+BattleStepCameraTargetTowardVector = 0x80070808;
+BattleMoveCameraPosTowardVector = 0x800708C4;
 BattlePlaceEffectByMode = 0x8007099C;
 BattleRecenterViewPositions = 0x80070C7C;
 BattleSetValueAndClearFlags = 0x80070F80;
