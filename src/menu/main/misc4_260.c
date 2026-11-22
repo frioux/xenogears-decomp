@@ -90,24 +90,28 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
-/* 99.17% (1120 bytes, retail's exact size; re-measured round 393). TWO residuals.
-   1. ELSE arm constant placement. Retail's stream is
-      `andi/sll chain, lbu gearId, ori s3,0x5 (glyphCount), sll chain, lw hp, ori s6,0x4
-      (glyphBase)`: each constant sits in the load-delay slot of the load above it and
-      nothing is at the block top. gcc 2.6.0 instead always puts the block's FIRST
-      constant assignment at the top of the block and the SECOND in the lbu's delay
-      slot. Measured, all at retail's 280 insns:
-        (value, base, count) 99.17  -> li base at top, li count after lbu  [this body]
-        (value, count, base) 99.15  -> li count at top, li base after lbu
-        (u8 gearId decl, count, value, base) 99.15 -> same shape
-        do { ... } while (0) around the arm 98.75 -> reshuffles s4/s6/s7/s5, worse
-      A cc1_probe.sh reproduction (two dependent loads + two constant assignments)
-      shows the hoist needs TWO loads in the block: with ONE load both `li`s stay after
-      the load in source order. So it is a load-delay/reorg placement artifact and no
-      statement order reaches it; a 3-minute permuter run scored base=90 best=90.
-   2. Prologue: retail emits `sw s5,84(sp) / move s5,a3` BEFORE `sw s8,96(sp) /
-      move s8,a1`; this build emits the a1 pair first. Everything else in the prologue
-      agrees (the lbu arg5 load, the lbu -> sw s4 pair) and the insn count is equal.
+/* 99.17% (1120 bytes = retail's exact size, 280 insns; re-measured round 407). TWO
+   residuals, and both are cc1's SCHEDULERS placing one insn, not the C:
+   1. ELSE arm constant placement. Retail is
+      `andi/sll chain, lbu gearId, li count=5, sll chain, lw hp, li base=4`: each
+      constant sits in the load-delay slot of the load above it and nothing is at the
+      block top. This build hoists `li base,4` to the block top and puts `li count,5`
+      in the lbu's slot. Six source orders measured (levers.md c-two-loads-hoist-the):
+        (value, base, count) 99.17 [this body]   (value, count, base) 99.15
+        (u8 gearId decl, count, value, base) 99.15   do-while(0) around the arm 98.75
+      New this round, by compiling this same .i with the schedulers toggled:
+      -fno-schedule-insns2 keeps `li base` at the block top; -fno-schedule-insns moves
+      it to just before the lbu; with BOTH off the block ends `lw hp, li base, li count`,
+      i.e. retail's stream order, and reorg then fills the two load slots. So the
+      displacement is the PRE reload scheduler's (sched-insns), the second scheduler
+      moves it back to the lbu, and no statement order reaches retail's pair placement.
+      permute.sh 3 min this round: base=90 best=90, 1383 iterations.
+   2. PROLOGUE: retail emits `sw s5,84(sp) / move s5,a3` BEFORE `sw s8,96(sp) /
+      move s8,a1`; the two parameter copies are therefore NOT in parm order (a3 first).
+      This build emits them in parm order (a1 then a3) under every flag set measured
+      (-fno-schedule-insns gives a1-then-a3 too; with both schedulers off the prologue
+      is the plain descending save sequence, which retail is not). Same sched2 wall, so
+      the a3/a1 pair order is not source-reachable either.
    Structure worth keeping: `value` is assigned in each arm and parsed once (retail has
    one jal MenuParseNumberToDigits per block); each block re-reads `g_Menu->digits[...]`
    in its loop test; blocks 2 and 4 carry a separate placed-glyph counter for the x
