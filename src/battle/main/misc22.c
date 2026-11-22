@@ -6,6 +6,7 @@
 #include "system/graphics.h"
 
 #define BATTLE_TWEEN_STEP_MAX 7
+#define BATTLE_PART_NO_JOINT 0xFFFF
 
 typedef struct {
     /* 0x0 */ struct _BattleMisc22Spr *pSprites;
@@ -534,37 +535,47 @@ extern void func_80026F44(s32 count, s32 level, u16 *pDst, u16 *pSrc);
 extern u32 func_80026FE8(s32 count, s32 level, u16 *pDst, u16 *pSrc, u16 *pSrc2);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
-/* best 90.63% (1036 bytes; retail 1028 = 0x404, so two instructions over).
-   The shape is right end to end: the pInterpolate sign-extension pair, the
-   four case bodies in source order 0/1/4/5 with the balanced ==1 / <2 / ==4 /
-   ==5 tree, the two cross-jumped LoadImage tails, the rect clip with its
-   lh-then-lhu reload pairs, and both copy loops. What is left:
-   - the prevFrame early exit: retail is `lhu v0,0x18(s0)` + `beq s1,v0,`
-     straight to the epilogue; ours is bne + j + `move v0,s1`, because gcc
-     folds `return pArg->prevFrame` (and a u16 local of it) to the s16 frame it
-     was just compared with. Tried: the field, a u16 local, the swapped compare
-     operand order - all fold. Worth two instructions and the size excess.
-   - the `sh s2,0x18(s0)` store: retail stores the raw callback result, ours
-     copies it to v1 in the bgez delay slot first (so the store is `sh v1`).
-   - register swaps left in the loops: retail pSrcBase/pResultPixels=t2 and
-     pDstBase/pPixels=t3, ours the other way round, and the dst row product's
-     mflo lands in a0 instead of retail's a2.
-   Facts that closed the big gaps (found with tools/scripts/permute.sh, which
-   took the body 88.34 -> 90.63 in two runs):
-   - pInterpolate returns something WIDER than s16: retail sign-extends its
-     result explicitly (sll/sra into s1) and keeps the raw value in s2 for the
-     prevFrame store and the tail returns, so the field is declared s32 (...)
-     and the body keeps `level` (s32) and `frame` (s16) as two variables.
-   - loop B's source address needs the embedded assignment
-     `*(pSrcRow = pRows + 3 * (srcY + y) + (srcX + x))`: the plain expression
-     makes gcc put the scaled index first (base-last addu).
-   - `dstAddr = dstRect.x; dstAddr = dstAddr * 2 + (u32)pDstBase;` (two
-     statements) beats the one-line form.
-   - case 1 needs the pixelCount in its own s16 local.
-   - pDstBase/pSrcBase must be locals assigned before the mode test, or the
-     two base loads are not hoisted (1036 vs 1048 bytes).
-   The lib_gear twin of this body (func_801E1258 in src/lib_gear/main/main.c)
-   is the same function and is parked at 88.98% with the same two walls.
+/* best 90.65% (1040 bytes; retail 1028 = 0x404, 257 insns, so three over).
+   The simplest form of the tail (early `if (frame == prevFrame) return
+   prevFrame;`, in the history) measured 90.63 / 1036, two over. Shape is right
+   end to end: the pInterpolate sign-extension pair, the four case bodies in
+   source order 0/1/4/5, the two cross-jumped LoadImage tails, the rect clip
+   with its lh-then-lhu reload pairs, and both copy loops.
+   WHAT IS LEFT, and what was measured this round:
+   - The prevFrame early exit's BRANCH SHAPE is solved by moving the early
+     return out: `if (frame != prevFrame) { <everything> return (s16)level; }`
+     then `return prevFrame;`. That gives retail's `beq s1,v0,<epilogue>`
+     directly (retail branch, not the `bne` + `j` + `move v0,s1` the early-
+     return form produces). The cost moves to the tail: on the path where the
+     two compare equal gcc folds prevFrame to the s16 frame (record_jump_equiv
+     maps the loaded field to the compared register), so the equal path still
+     needs one `move v0,s1`, that block lands after the truncating exit, and
+     the truncating exit therefore needs a `j` -> +2 there. No spelling of the
+     returned expression avoided the fold: the field, a u16 local, an s32 and a
+     u32 local of it, and both compare operand orders all fold.
+   - `sh s2,0x18(s0)`: retail stores the raw callback result; ours copies it
+     into v1 in the bgez delay slot (`move v1,s2`) and stores v1 - the store of
+     an s32 into the u16 field materialises the truncation. prevFrame declared
+     s32 / u16 / s16 changes nothing.
+   - The mode dispatch costs one extra instruction: retail has
+     `blez v0,<sll block>` with `li v0,0x1` in the delay slot (reused by the
+     `sb v0,17(t1)`); ours fills that slot with `sll v0,s2,0x10` and needs the
+     `li` as an instruction.
+   - Registers and interleave in both loops: retail pSource->pPixels=t3 and
+     pArg->pResultPixels=t2, ours t2 and a1; retail puts the store-row product
+     in a2 and the load-row product in v1, ours a0 and v0; retail interleaves
+     the two address chains with the two mults, ours runs them serially. Both
+     loops are the same length as retail's (25 and 24 instructions), so this is
+     allocation plus statement interleave, not structure.
+   Facts that still hold (measured in earlier rounds): pInterpolate returns
+   something wider than s16 - keep `level` s32 and `frame` s16 as two
+   variables; loop B's source address needs the embedded assignment
+   `*(pSrcRow = pRows + 3 * (srcY + y) + (srcX + x))`; case 1 needs the
+   pixelCount in its own s16 local; pDstBase/pSrcBase must be locals assigned
+   before the mode test (1036 vs 1048 bytes).
+   The lib_gear twin func_801E1258 is the same function, parked at 88.98%.
+   Two earlier permuter runs took this body 88.34 -> 90.63; a 4-minute run on
+   the early-return form was PERMUTER_NONE (base=120 best=120).
 s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
     BattleMisc22Image *pSource;
     BattleMisc22Rect srcRect;
@@ -593,36 +604,34 @@ s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
         return frame;
     }
     prevFrame = pArg->prevFrame;
-    if (frame == prevFrame) {
-        return prevFrame;
-    }
-    pArg->prevFrame = level;
+    if (frame != prevFrame) {
+        pArg->prevFrame = level;
 
-    switch (pArg->mode) {
-    case 0:
-        func_80026F44(pArg->pixelCount, frame, pArg->pResultPixels, pArg->pPixels);
-        if (pArg->pSource == 0) {
-            LoadImage(&pArg->rect28, pArg->pResultPixels);
+        switch (pArg->mode) {
+        case 0:
+            func_80026F44(pArg->pixelCount, frame, pArg->pResultPixels, pArg->pPixels);
+            if (pArg->pSource == 0) {
+                LoadImage(&pArg->rect28, pArg->pResultPixels);
+            }
+            break;
+        case 1:
+            pixelCount = pArg->pixelCount;
+            func_80026FE8(pixelCount, frame, pArg->pResultPixels, pArg->pStartPixels,
+                          pArg->pPixels);
+            if (pArg->pSource == 0) {
+                LoadImage(&pArg->rect28, pArg->pResultPixels);
+            }
+            break;
+        case 4:
+            BattleScaleImageRegion(pArg, frame);
+            break;
+        case 5:
+            BattleBlendImageRegion(pArg, frame);
+            break;
         }
-        break;
-    case 1:
-        pixelCount = pArg->pixelCount;
-        func_80026FE8(pixelCount, frame, pArg->pResultPixels, pArg->pStartPixels,
-                      pArg->pPixels);
-        if (pArg->pSource == 0) {
-            LoadImage(&pArg->rect28, pArg->pResultPixels);
-        }
-        break;
-    case 4:
-        BattleScaleImageRegion(pArg, frame);
-        break;
-    case 5:
-        BattleBlendImageRegion(pArg, frame);
-        break;
-    }
 
-    pSource = pArg->pSource;
-    if (pSource == 0) {
+        pSource = pArg->pSource;
+        if (pSource == 0) {
         return (s16)level;
     }
     if (pSource->isLoaded == 0) {
@@ -677,7 +686,9 @@ s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
         }
     }
 
-    return (s16)level;
+        return (s16)level;
+    }
+    return prevFrame;
 }
 */
 void BattleFreeImageEntry(BattleMisc22Image *pArg) {
@@ -823,15 +834,11 @@ typedef struct {
     /* 0x0C */ MATRIX localTransform;
     /* 0x2C */ MATRIX globalTransform;
     /* 0x4C */ u8 unk4C[0x6];
-    /* 0x52 */ s16 state; // selects how the part is drawn and which packet path it takes
+    /* 0x52 */ u16 state; // selects how the part is drawn and which packet path it takes
     /* 0x54 */ s16 rot[3];
     /* 0x5A */ u16 pad5A;
     /* 0x5C */ s32 pos[3];
-    /* 0x68 */ void *p68;
-    /* 0x6C */ void *p6C;
-    /* 0x70 */ u8 *p70;
-    /* 0x74 */ u8 *p74;
-    /* 0x78 */ u8 *p78;
+    /* 0x68 */ void *packets[5]; // one render packet per packetIndex
 } BattleMisc22Sprite; // Size: 0x7C
 
 typedef struct {
@@ -839,31 +846,6 @@ typedef struct {
     /* 0x4 */ u32 count;
 } BattleMisc22Mesh; // Size: 0x8
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A48EC);
-/* 97.30% (592 bytes, retail 588); identical instruction multiset, ONE store
-   position left. Everything else is byte-for-byte: prologue save order, the
-   loop bound (count - 1, hoisted to $s7), the (u16)(state + 0xFFFF) < 2 range
-   test, the matrix fixup block, the 4..7 flag switch tree, the two per-branch
-   part/packet computations and the loop tail. Facts established here:
-   - the signature has EIGHT params, not twelve: gcc 2.6.0 addresses incoming
-     stack args at frame_size + 16 + (n - 5) * 4, so pOt/packetIndex/otIndex
-     land on 0x54/0x58/0x5C only when they are params 6/7/8. A twelve-param
-     prototype puts them at 0x64 and scores 90.8%.
-   - the state field at sprite+0x52 is read as u16 for the range test
-     (lhu + li 0xFFFF + addu + andi + sltiu) but as s16 at each later use
-     (three `lh` reloads, not one CSE'd value): write the cast per use.
-   - `pOt + otIndex - 1` emits the original's sll/addu + addiu (-4 in the j
-     delay slot); `&pOt[otIndex - 1]` folds the -4 before the base add.
-   - the part argument MUST be computed in the state==0 branch itself, or
-     gcc cross-jumps it into the else branch's copy (5 instructions shared,
-     572 bytes). A `void *pPart` local in that one branch breaks the merge.
-   Remaining: the else branch's `g_GfxOTDepthShift = oldShift` store sits
-   third in our RTL and last before the jal in retail. Tried: the store last
-   in source (unchanged), pPart/pPacket locals in both orders (interleaves
-   the two address computations, 95.6%), &pOt[] vs pointer arithmetic, and a
-   4-minute permuter run (PERMUTER_NONE, base=120 best=120). The mips
-   scheduler, not the source, puts the two incoming-stack loads above the
-   store.
 void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRIX *pMatrix,
                    s32 arg3, s32 arg4, u_long *pOt, s32 packetIndex, s32 otIndex) {
     MATRIX *pMat = (MATRIX *)((u8 *)PSX_SCRATCH + 0x40);
@@ -871,21 +853,24 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
     u_int numChildren;
     u_int i;
     s32 flags;
+    u_int stateMinusOne;
 
     oldShift = g_GfxOTDepthShift;
     numChildren = pSkeleton->count - 1;
     pSkeleton++;
     for (i = 0; i < numChildren; i++, pSkeleton++) {
-        if (pSkeleton->jointIndex != 0xFFFF && pSkeleton->isVisible != 0) {
+        if (pSkeleton->jointIndex != BATTLE_PART_NO_JOINT && pSkeleton->isVisible != 0) {
             CompMatrix(pMatrix, &pSkeleton->globalTransform, pMat);
-            if ((u16)(pSkeleton->state + 0xFFFF) < 2) {
+            // state - 1 modulo 2^16, so states 0 and 1 both land below 2
+            stateMinusOne = pSkeleton->state + 0xFFFF;
+            if ((u16)stateMinusOne < 2) {
                 pMat->m[0][0] = 0x1000;
                 pMat->m[0][2] = 0;
                 pMat->m[1][0] = 0;
                 pMat->m[1][2] = 0;
                 pMat->m[2][0] = 0;
                 pMat->m[2][2] = 0x1000;
-                if (pSkeleton->state == 1) {
+                if ((s16)pSkeleton->state == 1) {
                     pMat->m[0][1] = pMatrix->m[0][1];
                     pMat->m[1][1] = pMatrix->m[1][1];
                     pMat->m[2][1] = pMatrix->m[2][1];
@@ -897,7 +882,7 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
             }
             SetRotMatrix(pMat);
             SetTransMatrix(pMat);
-            switch (pSkeleton->state) {
+            switch ((s16)pSkeleton->state) {
             case 4:
                 flags = 2;
                 break;
@@ -914,22 +899,21 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
                 flags = 0;
                 break;
             }
-            if (pSkeleton->state == 0) {
+            if ((s16)pSkeleton->state == 0) {
                 void *pPart = pMesh->pParts[pSkeleton->jointIndex];
 
                 g_GfxOTDepthShift = 0x10;
-                ModelRenderPacket(pPart, ((void **)&pSkeleton->p68)[packetIndex], pOt + otIndex - 1,
+                ModelRenderPacket(pPart, pSkeleton->packets[packetIndex], pOt + otIndex - 1,
                                   flags);
             } else {
                 g_GfxOTDepthShift = oldShift;
                 ModelRenderPacket(pMesh->pParts[pSkeleton->jointIndex],
-                                  ((void **)&pSkeleton->p68)[packetIndex], pOt, flags);
+                                  pSkeleton->packets[packetIndex], pOt, flags);
             }
         }
     }
     g_GfxOTDepthShift = oldShift;
 }
-*/
 s32 BattlePushTargetOutOfCircles(u16 *pPos, s16 *pTarget) {
     s32 result = 0;
     u16 *pSrc = g_BattleCircles;
