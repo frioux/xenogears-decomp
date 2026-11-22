@@ -1194,36 +1194,42 @@ typedef struct {
 
 extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
 
-/* Best attempt: 94.12% (828 bytes vs retail's 836 -- two instructions short).
-   Structure is settled, and three of its four lessons are reusable:
-   - the function is MenuSaveSlotHeader* (a0), one dead parameter (a1) and a byte
-     (a2) that it drops into header 0x23; it ends by writing the save's disc
-     number to g_GameState+0x19D4 and calling MenuSaveSlotWriteGameState +
-     func_801CB184, so the 0x24-byte record at the slot front is the save header.
-   - case-1/phase-2 allocator note for the family: nothing here.
-   Two differences remain:
-   (1) mp and maxMp (game state 0x2BC/0x2BE) are BYTE loads in retail, not lhu.
-       GameCharacter declares them u_short, so a cast/view does not reproduce it:
-       every cast spelling makes gcc hoist the constant base into a register
-       ("addu v0,v0,t1 / lbu 0(v0)") instead of retail's per-site
-       "lui at,%hi(g_GameState) / addu at,at,v0 / lbu %lo(g_GameState+0x2BC)(at)".
-       The only spelling that folds -- i.e. a member access on the declared
-       GameCharacter type -- is unk54[-4] / unk54[-2] (0x54-4 = 0x50), which is
-       what the body below uses; that is raw but it is what separates 91.49% from
-       94.12%. The honest fix is for GameCharacter to declare mp/maxMp as two
-       bytes each, but field/party/stats matches on the u_short form (lhu/sh at
-       0x2BC), so the header cannot simply be retyped.
-   (2) gcc reuses the lbu of pManager->currentCharacterIDs[i] for the store to
-       header 0x1C, where retail reloads it (test and store are the same basic
-       block in both, so it is not a block-layout difference). That is one of the
-       two missing instructions; the other is the mirror-image register tie below.
-   Also learned: the text loop is over g_GameState.strings (31 entries of 0x14 =
-   StringEntry), zero-filling a 0x14-byte out buffer (both buffers are byte
-   arrays: the zero fill is sb) and calling SystemEncodeGlyphCodes, then copying
-   the buffer back. Retail keeps the 3-iteration index in s1 and the gs pointer
-   in s0 and puts the "id == 0xFF" arm out of line at the end of the loop body
-   (beq to it), which is what "if (id != 0xFF) { big } else { small }" gives.
-   Permuter not run for the last 2 instructions (ran out of round time). */
+/* Best attempt: 96.29% (836 bytes = retail's exact size, 209 = 209 instructions;
+   everything matches except that retail has the text walker in $s0 and the loop
+   index in $s1 and this build mirrors them, which also puts the g_GameState
+   address formation one statement earlier in the preheader).
+   The mirror is DECIDED ARITHMETICALLY, not by spelling: gcc-2.6.0's global.c
+   allocno_compare processes the callee-saved candidates in descending
+   floor_log2(refs) * refs * 10000 / (live_length * size), and this body's two
+   are 76 = the shared index (28 refs over 117 insns -> 2393) and 75 = the
+   walker (11 refs over 36 insns -> 2291) per -da m.i.greg / m.i.lreg. For the
+   walker to take $s0 first it needs live_length <= 34 (two instructions less)
+   or 12 refs at live_length <= 37. Its live range starts at the preheader
+   lui/addiu, which loop.c hoists to the head of the block, so source order
+   cannot move it: initialising the walker last in the preheader measures the
+   same 96.29, and a separate per-loop index (which frees the walker into $s0
+   upstream, at 95.93 with 68 differing lines) is the wrong structure -- retail
+   reuses $s1 for the character loop and the text loop, so the index is ONE
+   variable live across the SystemEncodeGlyphCodes call. Also measured dead:
+   an indexed access (&g_GameState.strings[i] inside the loop) at 93.67% /
+   852 bytes / 213 insns, and declaring the walker before the index (no change).
+   Two earlier residuals are GONE by using the shape below, so do not redo them:
+   - mp/maxMp are BYTE loads in retail (0x2BC/0x2BE) while GameCharacter
+     declares them u_short; the only spelling that folds to retail's per-site
+     lui at / addu at / lbu is a member access on the declared type, i.e.
+     unk54[-4] / unk54[-2] (0x54-4 = 0x50). Retyping the header is not an
+     option: field/party/stats matches on the u_short form.
+   - the copy loop counter must be its OWN variable (n below): sharing one `i`
+     with the later loops makes it live across the calls, so it takes a saved
+     register where retail uses $a1.
+   Structure notes: MenuSaveSlotHeader* (a0), one dead parameter (a1) and a byte
+   (a2) dropped into header 0x23; ends by writing the disc number to
+   g_GameState+0x19D4 and calling MenuSaveSlotWriteGameState + func_801CB184.
+   The text loop is over g_GameState.strings (31 entries of 0x14 = StringEntry),
+   zero-filling a 0x14-byte out buffer (byte arrays, so the zero fill is sb),
+   calling SystemEncodeGlyphCodes and copying the buffer back; the "id == 0xFF"
+   arm is out of line at the end of the body (beq to it). Fixed-width copy of
+   0x10 halfwords from D_8005A3A0 to D_8006F958 at the top. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 /*
 void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
@@ -1232,10 +1238,11 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     u8* pText;
     s32 i;
     s32 j;
+    s32 n;
     s32 discNumber;
 
-    for (i = 0; i < 0x10; i++) {
-        D_8006F958[i] = D_8005A3A0[i];
+    for (n = 0; n < 0x10; n++) {
+        D_8006F958[n] = D_8005A3A0[n];
     }
     for (i = 0; i < 3; i++) {
         if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
@@ -1250,10 +1257,10 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
             pSlot->characterIds[i] = 0xFF;
         }
     }
-    pText = (u8*)g_GameState.strings;
     pSlot->unk1F = 0;
     pSlot->index = index;
     pSlot->spuChannelMask = g_SpuChannelMask;
+    pText = (u8*)g_GameState.strings;
     for (i = 0; i < 0x1F; i++) {
         for (j = 0; j < 0x14; j++) {
             inBuf[j] = pText[j];
