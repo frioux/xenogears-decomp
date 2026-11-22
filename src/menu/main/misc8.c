@@ -132,36 +132,40 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
-
-/* 99.11% under the unit's flags, 100.00 under gcc-2.6.0-psx (203 insns, 812 bytes,
-   verified instruction by instruction: zero real differences). The unit is a gcc
-   2.6.0 unit - report line PRESET_260 menu/main/misc8 func_801D7F50 100.00 99.11:
-   every already-matched C function of this unit is also 100.00 under 2.6.0, and the
-   other park here (func_801D84B4) goes 99.73 -> 100.00 under it.
-   What the body is: the stat table's row labels. Reset the prim count at
-   unk35C+0x32F3, draw 7 - statGroup rows of label prims with func_8002675C (7 texture
-   ids per stat group in g_MenuStatRowLabelTexIds, x/y from g_MenuStatRowLabelOffsetX/Y),
-   shade the prims of every other row 0x40, then set the four quad vertices of each prim
-   from its own x0/y0/x1/y3.
+/* 99.11% under the unit's Default preset, 100.00 under gcc-2.6.0-psx (203 insns,
+   812 bytes = retail's exact size, verified instruction by instruction). The unit is a
+   gcc 2.6.0 unit: every already-matched C body in it is 100.00 under 2.6.0 and this body
+   goes 99.11 -> 100.00 there. Report:
+   PRESET_260 menu/main/misc8 func_801D7F50 100.00 99.11.
+   What the body is: the stat table's row labels. Reset the prim count at unk35C+0x32F3,
+   draw 7 - statGroup rows of label prims with func_8002675C (7 texture ids per stat group
+   in g_MenuStatRowLabelTexIds, x/y from g_MenuStatRowLabelOffsetX/Y), shade the prims of
+   every other row 0x40, then set the four quad vertices of each prim from its own
+   x0/y0/x1/y3. Called by MenuDrawStatTable.
    The `primOffset` local is what the 2.6.0 match turns on: it makes gcc emit retail's
    base-first `addu v1,a0,v1` for the prim address instead of the index-first
    `addu v1,v1,a0` every inline spelling gives (lever b-pointer-local-holding-base).
-   Cost: under 2.7.2 it also makes the last loop's pointer live in v0 instead of v1
-   (36 lines differ, 99.11). Without the local - the same expression inlined in all six
-   operand positions - the body is 99.75 under 2.7.2 and 99.95 under 2.6.0, whose one
-   residual is exactly that addu order. So a preset switch = 100.00; without one,
-   prefer the inlined spelling at 99.75.
+   Under 2.7.2 it also makes the last loop's pointer live in v0 instead of v1 (36 lines
+   differ, 99.11). Without the local - the same expression inlined in all six operand
+   positions - the body is 99.75 under 2.7.2 and 99.95 under 2.6.0, whose one residual is
+   exactly that addu order. So prefer this body if the preset is switched to 2.6.0,
+   otherwise the inlined one scores better (99.75).
+   The residual is unreachable under 2.7.2: lever o-272-vs-260-operand-order (round 391,
+   this function) - 2.7.2 canonicalises a commutative PLUS to the LOWER-REGISTER-NUMBER
+   operand first and 2.6.0 keeps the source order, so the ten swapped `addu` lines are a
+   compiler property, not a spelling. Round 404 permuter run on the 99.75 inlined body:
+   PERMUTER_NONE base=50 best=50 (1218 iterations); two earlier runs also found nothing
+   (PERMUTER_BETTER 490->426 on the non-volatile body, which adds a second copy of
+   g_Menu->unk35C).
    Needed for the six lhu (retail reads x0 and y0 TWICE): the width/height operands go
-   through a `volatile POLY_FT4*` cast, otherwise gcc CSEs each pair into one load and
-   adds two moves (98.33%).
-   Tried under 2.7.2 and rejected: a pPrim pointer local (97.28), a volatile pPrim
-   local (98.56), (off + (u32)base) for either address (95.66 for the vertex, no
-   change for the prim), a u8* base local used in the loop condition (94.15 - gcc
-   strength-reduces it into a walker), a base local inside the loop (99.75 / 2.6.0
-   99.95), two permuter runs (PERMUTER_BETTER 490->426 from the non-volatile body,
-   which adds a second copy of g_Menu->unk35C; PERMUTER_NONE base=50 best=50).
-
+   through a `volatile POLY_FT4*` cast, otherwise gcc CSEs each pair into one load and adds
+   two moves (98.33%).
+   Tried under 2.7.2 and rejected: a pPrim pointer local (97.28), a volatile pPrim local
+   (98.56), (off + (u32)base) for either address (95.66 for the vertex, no change for the
+   prim), a u8* base local used in the loop condition (94.15 - gcc strength-reduces it into
+   a walker), a base local inside the loop (99.75 / 2.6.0 99.95).
+*/
+/*
 void func_801D7F50(s32 x, s32 y, u_char statGroup) {
     s32 texCoords[6]; // Filled and ignored
     s32 primOffset;
@@ -191,8 +195,10 @@ void func_801D7F50(s32 x, s32 y, u_char statGroup) {
                       ((POLY_FT4*)((u8*)g_Menu->unk35C + primOffset))->x1 - ((volatile POLY_FT4*)(primOffset + (u32)g_Menu->unk35C))->x0,
                       ((POLY_FT4*)((u8*)g_Menu->unk35C + primOffset))->y3 - ((volatile POLY_FT4*)(primOffset + (u32)g_Menu->unk35C))->y0);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
+
+
 void MenuSetStatBarQuadColors(POLY_G4* pPolys, u_char mode) {
     POLY_G4* pPoly;
     u8 rgb[3];
@@ -265,19 +271,22 @@ void MenuSetStatBarTileColors(POLY_FT4* pPolys, u_char mode, u_char count, u_cha
         pPoly->b0 = rgb[2];
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D84B4);
-
-/* 99.73% (296 bytes, the original's size). The only residual, in BOTH
-   divisions, is the HI result of the /10000: retail does mfhi v0; sra v0,v0,12
-   (HI lands straight in the destination), gcc 2.7.2 does mfhi t0; sra v0,t0,12
-   (HI into a fresh temp, then shifted). This is a PRESET question, measured:
-   the body below is 100.00 under gcc-2.6.0-psx (try_flags.sh), and so is every
-   other C function in this unit (MenuSetStatBarQuadColors, MenuSetStatBarTileColors,
-   MenuMaxStatValue, MenuDrawStatTable, MenuOpenCardEvents all 100.00 under 2.6.0).
-   See report: PRESET_260 menu/main/misc8 func_801D84B4 100.00 99.73.
-   Tried under 2.7.2: nested expression 6400 * (100*x/a2) / 10000 (this body,
-   best), a scale local with *= (90.47), a temp for the whole product (99.59),
-   a pct local (96.42).
+/* 99.73% under the unit's Default preset (296 bytes, 74 insns = retail's exact size).
+   The only residual, in BOTH divisions, is the HI destination of the /10000: retail
+   `mfhi v0; sra v0,v0,12`, gcc 2.7.2 `mfhi t0; sra v0,t0,12`. NOT a source question:
+   lever o-272-vs-260-operand-order and round 373 (seven cc1_probe spellings of x/K and
+   x%K) prove 2.7.2 always puts the magic-division high half in a fresh temp while 2.6.0
+   coalesces it into the destination. This body is 100.00 under gcc-2.6.0-psx
+   (try_flags.sh) and so is EVERY other C body in the unit (MenuSetStatBarQuadColors,
+   MenuSetStatBarTileColors, MenuMaxStatValue, MenuDrawStatTable, MenuOpenCardEvents,
+   func_801D7F50 - all 100.00 under 2.6.0), so menu/main/misc8 wants the XenoMenu260
+   preset, not a respelling. Report: PRESET_260 menu/main/misc8 func_801D84B4 100.00 99.73.
+   Also measured 99.73 under -O3 and under -G0, 57.57 under -O1, so no flag but the
+   compiler version moves it.
+   Tried earlier under 2.7.2: a scale local with *= (90.47), a temp for the whole product
+   (99.59), a pct local (96.42).
+*/
+/*
 void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
     s32 diff;
 
@@ -295,8 +304,8 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
         D_801EA704 = arg0 - arg1;
     }
     D_801EA70C = 6400 * (100 * D_801EA704 / arg2) / 10000;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D84B4);
 
 s32 MenuMaxStatValue(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
     SVECTOR unusedFrame[3]; // original allocates a 0x18 frame it never writes
