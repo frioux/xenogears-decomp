@@ -28,7 +28,11 @@ typedef struct {
     /* 0x668 */ u8 ft4PrimIndex;  // prim index of the blocks at +0x0/+0x50/+0xA0/+0xF0
     /* 0x669 */ u8 pending;       // while set, the four blocks at +0x0 have prims to add
     /* 0x66A */ u8 pairPrimIndex; // prim index of the lists at +0x280/+0x2D0/+0x320/+0x370
-    /* 0x66B */ u8 unk66B[5];
+    /* 0x66B */ u8 pairPrimsPending; // while set, the pair lists and the menu cell list are added
+    /* 0x66C */ u8 cellPrimIndex;  // prim index the cell prims were built at
+    /* 0x66D */ u8 labelDrawn;     // set once the cell drew its label string
+    /* 0x66E */ u8 digitCount;     // digits written into that bank
+    /* 0x66F */ u8 numberPrimsPending; // while set, the cell's number prims are added
 } BattlePacketPrims; // Size: 0x670
 
 // Partial view of the sprite column draw buffer g_BattleSpriteColumnWork points at
@@ -327,6 +331,97 @@ void BattleAddPrimPair280(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
+/* Parked at 99.87%, retail's exact 1228 bytes (0x4CC) / 307 insns: every
+   instruction is identical except one register. The switch table operand
+   (jtbl_8006FAF4 vs .rodata) is expected, this unit owns its table. The
+   residual is the menu-cell list call in case 1: retail loads pPacketPrims
+   into $a0 and emits `addiu a0,a0,0x190`, we load it into $v0/$v1 and emit
+   `addiu a0,v0,0x190`, i.e. gcc 2.6 does not tie the add to the dying input
+   here. Tried and measured identical 99.87% / 1228 bytes: inline
+   `(u8 *)p + 0x190` ($v1), a separate `u8 *pPrims = (u8 *)p` copy ($v1), and
+   an in-place `pPrims += 0x190` with the two bytes pre-loaded through
+   `pPrims` ($v0) - the in-place C update still gets a fresh output pseudo.
+   The permuter cannot run on this body: its parser rejects the (u8 *)
+   argument casts ("conversion to non-scalar type requested").
+   Two more measured facts: sizeof(POLY_FT4) strides reproduce retail's
+   (idx * 0x28) for every block, and cases 1 and 4 share retail's tail
+   (`BattleAddPrimPair280(); BattleAddPrimPair320();`) as plain code, so no
+   goto is needed. Case 3 of case 2's cell pair uses 36/24-byte strides.
+void func_800745EC(void) {
+    BattlePacketPrims *p;
+
+    switch (g_BattleDisplayState->primState) {
+    case 1:
+        BattleAddFourSlotPrims();
+        p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+        if (p->pending != 0) {
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x410 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x460 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x4B0 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x500 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x550 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x5A0 + (s32)p)));
+        }
+        p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+        if (p->pairPrimsPending != 0) {
+            if (p->digitCount != 0) {
+                AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x3C0 + (s32)p)));
+            }
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x140 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            BattleAddPrimListToOT((u8 *)p + 0x190, p->digitCount, p->pairPrimIndex);
+            BattleAddPrimPair280();
+            BattleAddPrimPair320();
+        }
+        break;
+    case 2:
+        BattleAddFourSlotPrims();
+        p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+        if (p->pairPrimsPending != 0) {
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x140 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x190 + (s32)p)));
+        }
+        p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+        if (p->labelDrawn != 0) {
+            BattleAddPrimPair320();
+            BattleAddPrimPair280();
+        }
+        break;
+    case 3:
+        BattleAddFourSlotPrims();
+        p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+        if (p->numberPrimsPending != 0) {
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * 36 + (0x5F0 + (s32)p)));
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * 24 + (0x638 + (s32)p)));
+        }
+        break;
+    case 4:
+        BattleAddFourSlotPrims();
+        p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+        if (p->pairPrimsPending != 0) {
+            if (p->digitCount != 0) {
+                AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->cellPrimIndex * sizeof(POLY_FT4) + (0x3C0 + (s32)p)));
+            }
+            p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x140 + (s32)p)));
+            BattleAddPrimPair280();
+            BattleAddPrimPair320();
+        }
+        break;
+    case 5:
+        BattleAddFourSlotPrims();
+        break;
+    }
+}
+ */
 void BattleAddSpriteColumnPrimLists(void) {
     u16 counter;
 
