@@ -1331,6 +1331,15 @@ it is exactly 78.83% / 940 bytes / 235 insns, retail's own size. New measurement
     BattleEffectUpdateSlots is matched at 100% reading y and vy with
     `lhu 0x0(a1)` / `lhu 0x10(a1)`, so those two fields really are u16. Retail's
     `addiu v0,zero,-0x10` / `-0x4` has to come from an s16 temp in this function.
+  - MEASURED NEGATIVE, do not repeat: writing `len2 / 7` INLINE at the four
+    `(norm.vx * t >> 14) + len2 / 7` uses instead of in a `spread` local does NOT
+    make gcc split retail's shape (uncorrected magic chain spilled, correction
+    left in the loop). It hoists the WHOLE chain into the preheader including
+    `sra $22,31` / `subu`, so both `count` and `spread` stay in registers, the
+    frame drops to 0x60 and the body is 916 bytes / 229 insns against retail's
+    940 / 235: 81.06%, and it can never link. Retail SPILLS both (0x30 and 0x38),
+    so the /7 has to stay out of a register - the spill is a property of retail's
+    shape, not a defect of ours.
 */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);
