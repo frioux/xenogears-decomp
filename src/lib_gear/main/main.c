@@ -2080,9 +2080,7 @@ int LibGearFreeJointObject(Temp4* pList, Temp3* pObject) {
     return index;
 }
 
-// objdiff: see note below after measuring
-// objdiff 74.39%, 720 bytes and 180 instructions -- retail
-'s exact size and count.
+// objdiff 74.39%, 720 bytes and 180 instructions: retail's exact size and count.
 // Every instruction of the loop is present; what is left is a callee-saved
 // permutation: retail keeps pSkeleton in $s0 (advanced as the joint cursor) and
 // pBlock/$s1 (advanced to the keyframe cursor), ours gives pBlock $s0 and
@@ -2232,6 +2230,12 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 // so the pVertex temp is required). A 4-minute permuter run (1754 iterations,
 // base 5790) reached 5260 and found only new_var splits -- no structural win.
 // Screened earlier: 74.89 under 2.7.2-cdk, so not a preset problem.
+// Re-measured round 400 with the same two changes that helped func_801DF7F4:
+// a pOpcode local = (u8*)&pKeyframe[2] used for both opcode bytes (retail
+// spills exactly that to 0x18(sp)) plus `s32 type` measured 80.21% / 1016
+// bytes / 254 insns, and with u8 type 79.33% / 1020 / 255; both are worse
+// than the 996 / 249 above, and s32 type also spills flag1 to 56(sp) where
+// retail keeps it in $fp, so the body below stays as measured.
 /*
 s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 flags, u8 type) {
     u16 numRotFrames;
