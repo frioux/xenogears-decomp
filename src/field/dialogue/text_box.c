@@ -398,7 +398,6 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
     s32 height;
     s32 visibleCount;
     s32 flagsUnion;
-    s32 position;
     s32 i;
     u32 dialogFlags;
     u32 faceFlags;
