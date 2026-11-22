@@ -581,7 +581,8 @@ extern WorldMapMisc16Tex D_8009D654[];
 extern u16 D_8009CCB4[];
 extern u16 g_WorldMapTpageIds[];
 extern s32 D_8009D7DC;
-extern void func_80099708(u8* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
+extern void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
+extern void func_8009980C(u32* pSrc, u8* p1, u8* p2);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
 /* 63.53% first attempt. Structure read off the asm and believed right: two u16 copy
@@ -663,16 +664,33 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
-/* 78.20%: loop shape and instruction multiset now match retail (`for (i = 8; i != -1; i--)`
-   gives the addiu/-1 countdown; the if/else assigns the *already <<16-shifted* value in each
-   branch, which is what puts retail's sll in the `j` delay slot and folds the else path to
-   `sll 24; sra 5`). What is left is a global register-allocation rotation: retail keeps
-   pSrc in s0 (frame 0x20, saves s0+s1) and the mult temp in s1, and uses a0=x / a3=xCur /
-   v1=v, while our compile keeps pSrc in a0 (frame 0x18) and puts idx/ii in a2/a3. 6 source
-   shapes (incl. named product local) all score 78.20, and cdk is also 78.2, so it is not
-   the preset. Retail's `addiu t0,t0,%lo(D_1F800008)` is splat naming the +8 of pPkt++, i.e.
-   a reloc the C cannot emit; objdiff can never reach 100 here even if the allocation did.
-void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
+/* 94.82%, 260 bytes = retail 65 insns, correct code, ONE temp rotation left.
+   The instruction stream (other than registers) is retail: s0=pSrc s1=prod t9=pTbl a0=x
+   t4=y t5=iCol t6=col t7=oi t8=-1 and the frame 0x20 with s0,s1,ra are all retail.
+   WHAT CLOSED 78.20 -> 94.82 (keep every one):
+   - the tail call is THREE args, func_8009980C(pSrc, p1, p2): a1/a2 are forwarded to the
+     handwritten callee, and declaring it (or calling it with only pSrc) frees a1/a2 for
+     the body, which costs the p1 save and a second callee-saved (69 insns at best).
+   - the shade/angle table MUST be a hoisted pointer local (pTbl = D_800523F0). Written as
+     the global directly, gcc re-forms the address through $at at BOTH lookups.
+   - sinVal/prod as separate locals, and the if-arm split into TWO statements
+     (`c = (s8)v << 3; c = ((prod >> 20) + c) << 16;`) - the permuter found this, it is what
+     puts sll/sra of v between mult and mflo. One statement measures 81.95.
+   - `oi = 8;` as its own statement above the loop with `for (; oi != -1; oi--)` instead of
+     `for (oi = 8; ...)`: that is what puts retail's li t7,8 before the pTbl lui (91.34 ->
+     94.82). Both loop counters count 8 down to -1.
+   LEFTOVER: a four-register rotation among the temps. Retail keeps xCur in a3 (the argument
+   register the dead pRect frees) and idx in t1; this body has idx in a3 and xCur in t1, so
+   ii moves to t0 and pPkt to t2. Plus retail sign-extends v in place (sll v1 / sra v1) where
+   this body uses v0 as the shift intermediate. Tried and measured identical or worse:
+   xCur hoisted to the preheader with a re-set at the loop end, a separate vx local for the
+   vxy expression, `c = (s8)v; c = c << 3;`, and three permuter runs (best 130 vs base 325
+   on its own metric, its finds were the two-statement split kept above plus a do-while(0)
+   that is transparent to gcc). Holds a3 against idx because idx's live range is shorter;
+   next lever would be a spelling that lengthens idx's live range, e.g. reloading it from
+   the global at the bottom of the outer body. */
+/*
+void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect) {
     WorldMapMisc16Pkt* pPkt;
     WorldMapMisc16TblEntry* pTbl;
     u32* p;
@@ -684,23 +702,29 @@ void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
     s32 idx;
     s32 oi;
     s32 ii;
+    s32 sinVal;
+    s32 prod;
     u32 v;
     s32 c;
 
     pPkt = (WorldMapMisc16Pkt*)0x1F800000;
-    pTbl = D_800523F0;
     p = pSrc;
+    oi = 8;
+    pTbl = D_800523F0;
+    col = g_WorldMapGridShadePhase;
     x = pRect->x;
     y = pRect->y;
-    col = g_WorldMapGridShadePhase;
-    for (oi = 8; oi != -1; oi--) {
+    for (; oi != -1; oi--) {
         xCur = x;
         iCol = pTbl[col & 0xFFF].sin * 2;
         idx = g_WorldMapGridAngle;
         for (ii = 8; ii != -1; ii--) {
             v = *p;
             if (v & 0x1000) {
-                c = (((pTbl[idx & 0xFFF].sin * iCol) >> 20) + ((s8)v << 3)) << 16;
+                sinVal = pTbl[idx & 0xFFF].sin;
+                prod = sinVal * iCol;
+                c = (s8)v << 3;
+                c = ((prod >> 20) + c) << 16;
             } else {
                 c = (s8)v << 19;
             }
@@ -714,7 +738,7 @@ void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
         y -= 0x80;
         col += 0x200;
     }
-    func_8009980C(pSrc);
+    func_8009980C(pSrc, p1, p2);
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009980C);
