@@ -713,9 +713,13 @@ void func_80078F00(Actor* p) {
    read 0xD0 (flags), 0xD4 (stateFlags), 0xC4 (state), 0xC5 (actionPhase), 0xC6
    (prevState) and compare the same registers, so this is not a hidden wrong field -
    instructions 1..224 are identical and only the three tail hunks differ by register
-   name. The -da dump's tail block (block 42, insns 490..547 of the .lreg) hands out
-   $2/$3/$4 from the ref counts the body fixes, so the mirror is the allocator's
-   priority order and not reachable by spelling.
+   name. The -da dump (build/src/.../misc4.c.i compiled with the unit's cc_flags plus
+   -da) gives the tail block as "Basic block 42: first insn 490, last 547" with
+   dispositions 76/80/85/93/95/100/137/138/141 in $3 and 77/78/79/81/82/86/94/etc in
+   $2, and lreg prints no per-qty ref counts for that block, so the margin between the
+   two mirrored quartets was not quantified - what IS known is that the pair is a
+   block-local allocator priority order and four spellings plus a permuter run have
+   not moved it.
 */
 /*
 void func_8007920C(Actor* p) {
