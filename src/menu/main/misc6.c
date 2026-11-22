@@ -371,6 +371,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
    makes the truncation `sll a1,s0,1 / andi a1,a1,0xFE`; and writing the second call's
    6 + (characterIndex * 2) instead of 6 + (j << 1) stops the strength reduction and
    costs 94.28 / 400.
+   Round 414 re-measured this body (99.74 / 392 bytes, 8 diff lines, the single tie
+   above) and ran a second permuter pass on it (991 iterations, base 25 best 25), so
+   the park is final: two permuter runs and two lanes of spellings found nothing. A
+   u_char intermediate with the arm cast explicit measures the same 97.65 / 388 /
+   97 insns as the uncast one (the shape turns beq+j into bne and loses a word).
    Parked body below:
 void func_801D2D38(void) {
     s32 i;
