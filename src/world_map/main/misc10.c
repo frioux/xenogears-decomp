@@ -209,50 +209,63 @@ extern WorldMapTrail g_WorldMapTrail[];
 extern u16 g_WorldMapPlayerAngle;
 extern u16 g_WorldMapTrailCursor;
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
-/* 73.64%: structure confirmed (loop over g_WorldMapSpriteSetIds calling WorldMapSetSpriteSetParent(0x45,id),
-   sh 0 at pDst+0x20, the 0x99 branch, then the >>12 tail shared with
-   func_80088D00). Two walls, both seen elsewhere in this unit: (a) the tail
-   folds +0x16A4 into the store displacements (0x16AC/0x16B0/0x16B4) where
-   retail does addiu a1,a1,0x16A4 once and stores at 8/0xC/0x10; (b) both id
-   loops want an `s32 id` instead of a bare `*pIds` (see WorldMapHideSpriteSetGroups). The
-   0x40 frame vs retail's 0x20 comes from (b).
+/* 89.25% (336 bytes, retail 336): 84 vs 84 insns, whole body correct and every
+   instruction present; the residual is register allocation and one delay slot.
+   (1) retail keeps the ids base in a0 for the guard and COPIES it to s0 in the
+   beq delay slot (move s0,a0), then fills that slot with sll v0,s2,0x7 on the
+   loop backedge; gcc allocates s0 to the guard pseudo directly (lui s0) and
+   leaves a nop in the backedge. (2) pActor lands in a0 here and in a2 in retail
+   (hence v0/v1 swapped on the 0x153 compare). (3) the tail: retail forms
+   &g_WorldMapGroups[0x45] in a register (addiu a1,a1,0x16A4) and stores at
+   8/0xC/0x10; gcc folds the 0x16A4 into the displacements (0x16AC/0x16B0/0x16B4)
+   whatever the spelling - tried pLayer = &pGroup[0x45] (the body below, one load
+   shared with the else arm), pGroup[0x45].pos.x inline, and the global written
+   directly three times (that one reloaded g_WorldMapGroups, 78.45%). Frame and
+   the tail instruction count are retail's.
+   The round-398 park was WRONG CODE twice over: u8* base + (arg0 << 7) scaled
+   the index by 0x80 again (arg0 << 14), and its second id loop had no -1 guard.
+/*
 s32 func_80088B40(s32 arg0) {
-    u8* pDst;
-    u8* pBase;
-    s32* pSrc;
+    WorldMapPlayer* pActor;
+    WorldMapSceneLayer* pGroup;
+    WorldMapSceneLayer* pLayer;
     s16* pIds;
-    s32 ret;
+    s32 id;
+    s32 result;
 
     pIds = g_WorldMapSpriteSetIds;
-    while (*pIds != -1) {
-        WorldMapSetSpriteSetParent(0x45, *pIds);
-        pIds++;
+    if (*pIds != -1) {
+        do {
+            WorldMapSetSpriteSetParent(0x45, *pIds++);
+        } while (*pIds != -1);
     }
-    pDst = g_WorldMapSlots + (arg0 << 7);
-    *(s16*)(pDst + 0x20) = 0;
-    pBase = g_WorldMapGroups;
+    pActor = g_WorldMapSlots + arg0;
+    pGroup = g_WorldMapGroups;
+    pActor->state = 0;
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        *(s32*)(pDst + 0x28) = 0x2000000;
-        *(s32*)(pDst + 0x30) = 0x4120000;
-        *(s32*)(pDst + 0x2C) = 0;
-        ret = 1;
+        pActor->x = 0x2000000;
+        pActor->z = 0x4120000;
+        pActor->y = 0;
+        result = 1;
     } else {
-        *(s16*)(pBase + 0x16A4) = 1;
-        pIds = g_WorldMapSpriteSetIds;
-        while (*pIds != -1) {
-            *(s16*)(pBase + *pIds * 0x54) = 1;
-            pIds++;
+        pGroup[0x45].hidden = 1;
+        if (g_WorldMapSpriteSetIds[0] != -1) {
+            pIds = g_WorldMapSpriteSetIds;
+            do {
+                id = *pIds++;
+                pGroup[id].hidden = 1;
+            } while (*pIds != -1);
         }
-        ret = 3;
+        result = 3;
     }
-    pSrc = (s32*)(pBase + 0x16A4);
-    pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
-    pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;
-    pSrc[4] = *(s32*)(pDst + 0x30) >> 12;
-    return ret;
-}
-*/
+    pLayer = &pGroup[0x45];
+    pLayer->pos.x = pActor->x >> 12;
+    pLayer->pos.y = pActor->y >> 12;
+    pLayer->pos.z = pActor->z >> 12;
+    return result;
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
+
 
 s32 WorldMapHideSpriteSetGroups(void) {
     s16* pIds;
@@ -581,8 +594,20 @@ void WorldMapClearGroupEntryFlag(s32 groupIndex) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
-/* 48.70% (436 bytes, retail 456): struct layout recovered and the head/tests/
-   arithmetic are right; two differences remain.
+/* 48.70% (436 bytes, retail 456): RE-MEASURED round 398 - the number is real but
+   the reason is not scheduling. Retail addresses the whole body off a base of
+   entry+4 (a2 = t9 + 4 at the top of the loop; every operand is 0x0/0x4/0x8/
+   0xC/0x14/0x18/0x1C/0x24/0x28/0x2C/0x34/0x36/0x38/0x3A/0x3C/0x40 of that),
+   while the detach arm still reads spriteIndex through the entry base (lh 0(t9)).
+   So every memory operand of the computed body is 4 too high and the loop
+   pointer is split in two. The source shape that emits this is a NESTED struct:
+   the entry keeps spriteIndex/angle at 0/2 and holds one sub-object at +4
+   (trailFlags, x, y, z, vel, accel, scaleX/Y, stepX/Y, color, colorStep), read
+   through a single pointer. Next attempt: nest that sub-object in
+   WorldMapTrailEntry and re-spell the matched neighbours that touch those fields
+   (they live in this same file, so it is one edit).
+   The rest of this note is the round-397 text, still accurate: struct layout
+   recovered and the head/tests/ arithmetic are right.
    (1) The count/active word at entry+0x04: retail loads it ONCE as a word and
    splits it with sra 16 (active, jump to loop end when zero) and sll 16/sra 16
    (count, blez to the detach path), so the source reads it as an s32 and the
@@ -1036,33 +1061,34 @@ s32 func_8008A2C8(s32 index) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
-/* 76.69%: only two insns are transposed (everything else is byte-identical).
-   Retail emits sll v1,a0,0x7 at the top and defers the 0x40 stack argument's
-   store (sw v0,0x14(sp)) to just before the jal; gcc puts the arg store first
-   and then sinks the sll into the argument region, which needs v0 and is why
-   the shift lands in v0 where retail has v1. Identical bytes for: the scaled
-   index inline, as a named s32 local, pActor declared first or last, and the
-   call written directly as the store's rhs.
+/* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns;
+   the only difference is the pre-RA schedule: retail hoists sll v1,a0,0x7 to the
+   top and defers the 6th argument store (sw v0,0x14(sp)) to just before the jal,
+   gcc stores 0x40 first and shifts into v0 after it. Tried: &g_WorldMapSlots[arg0],
+   g_WorldMapSlots + arg0, an s32 byte-offset local, a void* pSprite local. The
+   round-398 park was WRONG CODE (u8* base + (arg0 << 7) scaled the index by 0x80
+   again, so it computed arg0 << 14); this body is the honest spelling.
+/*
 s32 func_8008A52C(s32 arg0) {
-    u8* pSprite;
-    u8* pActor;
+    WorldMapPlayer* pActor;
 
-    pActor = g_WorldMapSlots + (arg0 << 7);
-    pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
-    *(u8**)(pActor + 0x4C) = pSprite;
-    SpritePlayAnimation(pSprite, 0);
-    SpriteSetScale(*(u8**)(pActor + 0x4C), 0x1800);
-    *(u32*)(*(u8**)(pActor + 0x4C) + 0x3C) &= ~4;
+    pActor = g_WorldMapSlots + arg0;
+    pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x1800);
+    *(u32*)((u8*)pActor->pSprite + 0x3C) &= ~4;
     return 1;
-}
-*/
-/* 90.48% (372 bytes, retail 372): identical instruction multiset, only the
-   prologue rotates. Retail shifts arg0 into a2, keeps the (slots + shift) addu
-   and the sw of the 0x40 stack argument before the jal and leaves li a2,0x1E0
-   for the delay slot; gcc shifts into v1, emits li a2,0x1E0 early and lets
-   reorg steal the addu. A 573-iteration permuter run found nothing (base 595,
-   best 595). Same wall as func_8008B54C / func_8008BDD0 in misc11.
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
+
+
+/* 90.48% (372 bytes, retail 372): re-measured round 398, still 93 vs 93 insns
+   with 14 differing lines - the whole body is right and only the prologue
+   rotates. Retail shifts arg0 into a2 (sll a2,a0,0x7), does the (slots + shift)
+   addu BEFORE the jal and leaves addiu a2,0x1E0 for the delay slot; gcc shifts
+   into v0 and lets reorg steal the addu. A 573-iteration permuter run found
+   nothing (base 595, best 595). Same wall as func_8008A52C and
+   func_8008B54C/func_8008BDD0 in misc11.
 /*
 s32 func_8008A5B8(s32 arg0) {
     WorldMapActor* pActor;
