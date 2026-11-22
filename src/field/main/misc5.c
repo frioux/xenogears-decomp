@@ -822,102 +822,106 @@ void FieldAddParticlePrims(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
-/* PARKED 99.56% - retail's exact 500 bytes / 125 insns, instruction-identical
-   except ONE register pair: retail keeps j*16 (nX, truncated in place to the
-   mask) in v0 and the mask+0x10 value in v1; ours is mirrored (nX/mask in v1,
-   mask+0x10 in v0). Eight lines differ and nothing else does.
-   The -dl dump numbers the tie: block-local qty 122 = nX (12 refs / 22 insns,
-   pri floor_log2(12)*12*4/22 = 6.5), 123 = the mask (12 / 7 -> 20.6), 124 =
-   nU1 (9 / 6 -> 18). local_alloc processes 123 first and hands it $3 (that
-   block gives out $3 before $2: 72/77/122/123 in 3, 82/90/91/92/93/100/124 in
-   2), so 124 takes $2. Retail's pairing needs 124 -> $3, i.e. nU1 has to
-   OUTRANK the mask; refs are 3x the insns mentioning the qty, so that wants nU1
-   in a fourth insn or the mask out of the addiu, and retail's stream has
-   neither (one andi in place, one addiu from the mask, two stores each). So it
-   is a source wall, not a tie to spell: do not permute it again.
-   Tried before that dump (all 99.56, byte-identical output unless noted): the
-   mask before or after the x stores, mask and +0x10 adjacent at retail's own
-   position, a named temp at its first use, a 0x10 + nU operand swap, nU1 before
-   nU, declaration order, nX reused for the mask or for the +0x10 value, both
-   inline forms, a second 0x10 local, an x1/x3 stepping counter in the for's
-   increment clause (97.60, moves the s4/s5 roles), nX written back as nX &=
-   0x3F (95.54 / 488 - folds three insns), a block-scope declaration with
-   initialiser, u_char mask (94.91), one or both of nU/nU1 u_short (94.9),
-   nIndex reused (94.2); four permuter runs, base=55 every time (1314, 1971,
-   2018, 222 iterations).
-   Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
-   nIndex = i*20 + j, polygons is 560 POLY_GT4 (two 280 copies, the second at
-   +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/0x7850
-   set to 0x80, y0/y1 = i*16 (s5), y2/y3 = i*16 + 0x10 (s3 counter), x1/x3 =
-   j*16 + 0x10 (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10, tpage =
-   GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
-   *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
-*/
-
+// PARKED 99.56%, re-measured (round 412): retail's exact 500 bytes / 125 insns,
+// instruction-identical except ONE register pair. Retail keeps j*16 (nX, truncated
+// in place to the mask) in v0 and the mask+0x10 value (nU1) in v1; ours is mirrored
+// (nX/mask in v1, nU1 in v0). 18 differing lines, nothing else.
+//
+// Fresh -dl on this body (cc1 with the unit flags + -dl): pseudo 77 = j (12 refs /
+// 5 insns, pri 3*12*4/5 = 28.8), 78 = the mask (12 / 7 -> 20.6), 79 = nU1
+// (9 / 6 -> 18.0), 122 = nX (12 / 22 -> 6.5). Dispositions: 77 in 3, 78 in 3,
+// 79 in 2, 122 in 3, i.e. the mask (20.6, highest after j) is processed first,
+// takes 3, drags nX into 3 by copy suggestion, and nU1 falls to 2. Retail needs
+// nU1 above the mask: mask live_length >= 9 (16.0) or nU1 refs >= 11 (22.0).
+// Both of the mask's endpoints are pinned by retail's own stream - the andi sits
+// right after the two sh stores and its last use is the u2 store - so its live
+// length cannot move, and a fourth instruction mentioning nU1 would cost bytes
+// (retail has exactly three). A 12% quotient gap with no free term, so this is not
+// a tie to spell and the permuter has already had it.
+//
+// Preset screen on this body: 2.7.2-cdk 99.52, 2.6.0 99.56, -O3 does not compile.
+//
+// Tried before that dump (all 99.56, byte-identical unless noted): the mask before
+// or after the x stores, mask and +0x10 adjacent at retail's own position, a named
+// temp at its first use, a 0x10 + nU operand swap, nU1 before nU, declaration
+// order, nX reused for the mask or for the +0x10 value, both inline forms, a second
+// 0x10 local, an x1/x3 stepping counter in the for increment clause (97.60, moves
+// the s4/s5 roles), nX written back as nX &= 0x3F (95.54 / 488 - folds three
+// insns), a block-scope declaration with initialiser, u_char mask (94.91), one or
+// both of nU/nU1 u_short (94.9), nIndex reused (94.2); four permuter runs, base=55
+// every time (1314, 1971, 2018, 222 iterations).
+//
+// Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
+// nIndex = i*20 + j, polygons is 560 POLY_GT4 (two 280 copies, the second at
+// +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/0x7850 set
+// to 0x80, y0/y1 = i*16 (s5), y2/y3 = i*16 + 0x10 (s3 counter), x1/x3 = j*16 + 0x10
+// (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10, tpage =
+// GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
+// *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
 /*
-    void func_800A6E70(void) {
-        FieldParticlePrimitiveSet* pPrims;
-        POLY_GT4* pPoly;
-        POLY_GT4* pPolyNext;
-        int i;
-        int j;
-        int nIndex;
-        int nU;
-        int nU1;
-        int nX;
+void func_800A6E70(void) {
+    FieldParticlePrimitiveSet* pPrims;
+    POLY_GT4* pPoly;
+    POLY_GT4* pPolyNext;
+    int i;
+    int j;
+    int nIndex;
+    int nU;
+    int nU1;
+    int nX;
 
-        g_FieldParticlePrimitives = HeapAlloc(sizeof(FieldParticlePrimitiveSet), 0x1);
-        for (i = 0; i < FIELD_PARTICLE_GRID_ROWS; i++) {
-            for (j = 0; j < FIELD_PARTICLE_GRID_COLUMNS; j++) {
-                pPrims = g_FieldParticlePrimitives;
-                nIndex = i * FIELD_PARTICLE_GRID_COLUMNS + j;
-                pPoly = pPrims->polygons + nIndex;
-                pPolyNext = pPrims->polygons + FIELD_PARTICLE_GRID_ROWS * FIELD_PARTICLE_GRID_COLUMNS + nIndex;
-                pPrims->unk71C0[nIndex] = 0x80;
-                pPrims->unk73F0[nIndex] = 0x80;
-                pPrims->unk7620[nIndex] = 0x80;
-                pPrims->unk7850[nIndex] = 0x80;
-                SetPolyGT4(pPoly);
+    g_FieldParticlePrimitives = HeapAlloc(sizeof(FieldParticlePrimitiveSet), 0x1);
+    for (i = 0; i < FIELD_PARTICLE_GRID_ROWS; i++) {
+        for (j = 0; j < FIELD_PARTICLE_GRID_COLUMNS; j++) {
+            pPrims = g_FieldParticlePrimitives;
+            nIndex = i * FIELD_PARTICLE_GRID_COLUMNS + j;
+            pPoly = pPrims->polygons + nIndex;
+            pPolyNext = pPrims->polygons + FIELD_PARTICLE_GRID_ROWS * FIELD_PARTICLE_GRID_COLUMNS + nIndex;
+            pPrims->unk71C0[nIndex] = 0x80;
+            pPrims->unk73F0[nIndex] = 0x80;
+            pPrims->unk7620[nIndex] = 0x80;
+            pPrims->unk7850[nIndex] = 0x80;
+            SetPolyGT4(pPoly);
 
-                nX = j * 0x10;
-                pPoly->x0 = nX;
-                pPoly->x2 = nX;
-                nU = nX & 0x3F;
-                nU1 = nU + 0x10;
-                pPoly->r0 = 0x80;
-                pPoly->g0 = 0x80;
-                pPoly->b0 = 0x80;
-                pPoly->r1 = 0x80;
-                pPoly->g1 = 0x80;
-                pPoly->b1 = 0x80;
-                pPoly->r2 = 0x80;
-                pPoly->g2 = 0x80;
-                pPoly->b2 = 0x80;
-                pPoly->r3 = 0x80;
-                pPoly->g3 = 0x80;
-                pPoly->b3 = 0x80;
-                pPoly->y0 = i * 0x10;
-                pPoly->x1 = nX + 0x10;
-                pPoly->y1 = i * 0x10;
-                pPoly->y2 = i * 0x10 + 0x10;
-                pPoly->x3 = nX + 0x10;
-                pPoly->y3 = i * 0x10 + 0x10;
-                pPoly->u0 = nU;
-                pPoly->v0 = i * 0x10;
-                pPoly->u1 = nU1;
-                pPoly->v1 = i * 0x10;
-                pPoly->u2 = nU;
-                pPoly->v2 = i * 0x10 + 0x10;
-                pPoly->u3 = nU1;
-                pPoly->v3 = i * 0x10 + 0x10;
-                pPoly->tpage = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
-                SetSemiTrans(pPoly, 0x1);
-                *pPolyNext = *pPoly;
-            }
+            nX = j * 0x10;
+            pPoly->x0 = nX;
+            pPoly->x2 = nX;
+            nU = nX & 0x3F;
+            nU1 = nU + 0x10;
+            pPoly->r0 = 0x80;
+            pPoly->g0 = 0x80;
+            pPoly->b0 = 0x80;
+            pPoly->r1 = 0x80;
+            pPoly->g1 = 0x80;
+            pPoly->b1 = 0x80;
+            pPoly->r2 = 0x80;
+            pPoly->g2 = 0x80;
+            pPoly->b2 = 0x80;
+            pPoly->r3 = 0x80;
+            pPoly->g3 = 0x80;
+            pPoly->b3 = 0x80;
+            pPoly->y0 = i * 0x10;
+            pPoly->x1 = nX + 0x10;
+            pPoly->y1 = i * 0x10;
+            pPoly->y2 = i * 0x10 + 0x10;
+            pPoly->x3 = nX + 0x10;
+            pPoly->y3 = i * 0x10 + 0x10;
+            pPoly->u0 = nU;
+            pPoly->v0 = i * 0x10;
+            pPoly->u1 = nU1;
+            pPoly->v1 = i * 0x10;
+            pPoly->u2 = nU;
+            pPoly->v2 = i * 0x10 + 0x10;
+            pPoly->u3 = nU1;
+            pPoly->v3 = i * 0x10 + 0x10;
+            pPoly->tpage = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
+            SetSemiTrans(pPoly, 0x1);
+            *pPolyNext = *pPoly;
         }
     }
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+
 
 void func_800A7064(void) {
     HeapFree(g_FieldParticlePrimitives);
