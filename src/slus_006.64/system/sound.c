@@ -5044,22 +5044,19 @@ void SoundAbortVoiceOnChannel(SoundVoiceData* voiceData, u32 channelIndex) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
-/*
-Attempt (98.51%, 604 bytes = the original's size; the instruction multiset and the order of
-every instruction agree): the only difference is one register pair - retail keeps the SPU
-voice-register base in t0 and the loop index in t1, gcc gives t0 to the index and t1 to the
-base. Every other register agrees (updateMask t2, the channel array t3, the three masks
-t4/t5/t6, the adsr biv a2, flags a3). Tried: for(;;) vs do/while, both pointer increments in
-every position, the local declaration order, the statement order of the initialisations (this
-one fixed the prologue and the loop latch exactly), a modeFlags local, and 4 minutes of the
-permuter (base=225 best=225, 1172 iterations). gcc 2.6.0's local-alloc hands t0 to the index
-inside the mask-update block, where the index is referenced five times and the base not at
-all; retail's allocator made the opposite call.
-*/
-/*
-// Voice register update requested by the channel scripts: each SoundVoiceData's
-// flags say which SPU registers to refresh, then the voice's flags are cleared.
+/* Attempt (98.51%, retail's exact 604 bytes / 151 insns; the instruction multiset, the order of every
+instruction, the frame and the saved set all agree): ONE register pair is mirrored. Retail keeps the
+SPU voice base in t0 (so the post-loop pSpu pseudo reuses t0) and the loop counter in t1; gcc 2.6.0
+gives t0 to the counter and t1 to the base, which also costs the post-loop base its t0 (it lands in
+v1) and turns every adsr temp from a0 into v1 - so all 72 differing lines are this one cause.
+Tried: for(;;) vs do/while, both pointer increments in every position, local declaration order,
+initialisation statement order (fixed the prologue and the loop latch exactly), a modeFlags local,
+and a 4-minute permuter run (base=225 best=225, 1172 iterations). Measured this round: the explicit
+derived adsr pointer (`u16* pAdsr = (u16*)pVoice + 4; ... pAdsr += 8;`) makes the biv set gcc's own
+and scores 93.75% / 620 bytes (155 insns, worse); gcc-2.7.2 is 98.51 and gcc-2.7.2-cdk 98.31, so the
+preset is not the answer. This is a local-alloc qty tie: the counter has 5 refs against the base's
+4 over the same live range, and no spelling moves either count without changing an instruction.
+*//*
 void func_8003E900(void) {
     SpuUnion* pSpu;
     SPU_VOICE_REG* pVoice;
@@ -5152,8 +5149,8 @@ void func_8003E900(void) {
         pSpu->_rxx.key_on[1] = keyOnFlags >> 16;
         g_SoundKeyOnFlags = 0;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E900);
 
 void SoundApplyPendingKeyOff(void) {
     u32 flags = g_unk_VoicesNeedingProcessing;
