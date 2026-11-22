@@ -407,42 +407,19 @@ void BattleDrawTextSprites(u8 *p) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
-/* 77.44% (492 bytes vs retail 496).  Shape fully decoded from the asm and
-   verified: two loops over p->count at 0x14 stride through p->pEntries;
-   loop 1 does entry->xOffset = BattleGetTextWidth(entry->unk4) / 2 and keeps the
-   running max, loop 2 stores max into entry->xOffset for the entries whose
-   flags byte has bit 1; then the frame header stores, the p->extraWidth
-   fixups, a 16-byte copy of the frame at 0x1C into 0x2C (frames[1] =
-   frames[0] gives retail's four lw then four sw) and BattleSetTextColor(0).
-   Learned: max must be s32, not s16 - as s16 gcc sign-extends max before
-   the compare where retail sign-extends the fresh quotient.
-   Remaining levers: (a) retail materialises p + 0x1C into $a0 once, before
-   the y store, and reaches frame.x / frame.w in the tail block as
-   0x8($a0) / 0xC($a0), while ours keeps every frame access s1-relative -
-   an untried `BattleTextFrame *pFrame = &p->frames[0];` pointer local used in
-   the tail block; (b) retail's max = 0 lands in the blez delay slot while
-   ours hoists it into the prologue, and i/off keep swapping register
-   roles; (c) the order of the count reload, the lhu of y and the
-   0x2A / 0x26 stores differs.
-   Note this unit's original compiler merges adjacent constant stores (see
-   the func_80080F04 and func_80081ECC parks), which is why 0x20 here is a
-   single sw of 0x60102020.
 void func_800812BC(BattleTextList *p) {
-    s32 off;
     s32 i;
     s16 w;
     s32 max;
     BattleTextEntry *pEntry;
+    BattleTextFrame *pFrame;
 
     max = 0;
-    for (i = 0, off = 0; i < p->count; i++, off += 0x14) {
-        pEntry = (BattleTextEntry *)(p->pEntries + off);
-        w = BattleGetTextWidth(pEntry->unk4) / 2;
+    for (i = 0; i < p->count; i++) {
+        pEntry = &p->pEntries[i];
+        w = BattleGetTextWidth(pEntry->pData) / 2;
         pEntry->xOffset = w;
-        if (max < w) {
-            max = w;
-        }
+        max = max < w ? w : max;
     }
     i = 0;
     p->frames[0].code = 3;
@@ -454,20 +431,22 @@ void func_800812BC(BattleTextList *p) {
     ((u8 *)&p->frames[0].mode)[3] |= 2;
     p->frames[0].h = p->count * 20 + 0x14;
     p->frames[0].y = p->y - 0xA;
-    for (off = 0; i < p->count; i++, off += 0x14) {
-        pEntry = (BattleTextEntry *)(p->pEntries + off);
+    pFrame = &p->frames[0];
+    for (; i < p->count; i++) {
+        pEntry = &p->pEntries[i];
         if (pEntry->flags & 2) {
             pEntry->xOffset = max;
         }
     }
     if (p->extraWidth != 0) {
-        p->frames[0].w += p->extraWidth;
-        p->frames[0].x -= p->extraWidth / 2;
-        p->x = 0xA0 - p->extraWidth / 2 - max;
+        pFrame->w += p->extraWidth;
+        pFrame->x -= p->extraWidth / 2;
+        p->x = 0xA0 - p->extraWidth / 2;
+        p->x -= max;
     }
     p->frames[1] = p->frames[0];
     BattleSetTextColor(0);
-}*/
+}
 
 void BattleInitTextLists(void) {
     u32 i;
@@ -842,31 +821,30 @@ extern void func_800732AC(void *pDst, void *pSrc, s32 n);
 extern void BattleInitSpanBuffers(void);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081ECC);
-/* PARK 70.16% (752 bytes vs retail 684).  The whole geometry of the function
-   is recovered and every block matches except the store WIDTHS of the first
-   two packets: retail combines adjacent field writes into wider stores and our
-   gcc 2.7.2 does not.  Retail writes the quad colours as
-   `li v0,0x6010 ; sh v0,D_8009558C` (r1,g1 merged), `li v0,0x7F7F ; sh` for
-   (r2,g2) and (r3,g3), `sw $zero,D_80095588` for (x0,y0), `sw 0x140` for
-   (x1,y1), `sw 0x600000` for (x2,y2) and `sw 0x600140` for (x3,y3); the same
-   on the sprite template, where `sw 0x64707070,D_800955FC` is r0,g0,b0 and the
-   setSprt code byte merged, and `sw 0xDB0080,D_80095608` is w,h.  We emit two
-   `sh`/`sb` per pair instead, so the instruction stream is ~68 bytes longer -
-   a per-pair difference, not a scheduling one (reordering the source does not
-   merge them).  Everything else is byte-exact: the prologue/epilogue, the
-   0x24-byte block move of D_80095580[0] into D_80095580[1] (loop of 4 words
-   plus one trailing word), the four GetTPage/SetDrawTPage pairs with
-   g_BattleDimTpagePrims in $s0, the header stores, the func_800732AC copy of the 0x14-byte
-   sprite template into five 0x14-byte copies, the eight copy fixups, the
-   0x4000-entry x12 scale loop on g_BattleGridCells and the BattleInitSpanBuffers tail.
-   Tried: per-vertex interleaved field writes (70.16%), all four setRGB first
-   then setXYWH(0,0,0x140,0x60) (67.89% - setXYWH is what makes retail's
+/* PARK 70.16% (752 bytes vs retail 684; 188 insns vs 171).  The whole geometry
+   is recovered; the residual is that retail wrote WIDER stores than any source
+   type here can ask for.  13 of the 17 extra insns are merged constant stores:
+   in the POLY_G4 block retail has sh 0x6010 for (r1,g1), sh 0x7F7F for (r2,g2)
+   and (r3,g3), sw 0x140 for (x1,y1), sw 0 for (x0,y0), sw 0x600000 for (x2,y2)
+   and sw 0x600140 for (x3,y3); in the SPRT template sw 0x64707070 covers
+   (r0,g0,b0,code), sw 0 for (x0,y0), sh 0 for (u0,v0) and sw 0xDB0080 for
+   (w,h).  Ours emits one sb/sh per field.  The merge cannot be the source doing
+   it either: inside the SAME struct r0,g0 stay two byte stores while r1,g1
+   merge, so no field type explains both.  Measured with cc1_probe.sh (POLY_G4
+   r1=0x10, g1=0x60, x1=0x140, y1=0, plus a globals-only variant):
+   gcc-2.7.2-psx, gcc-2.6.0-psx and gcc-2.7.2-cdk-psx all emit sb/sb, never a
+   sh, for an adjacent constant byte pair, so no preset reaches this.  The
+   merge also forces one more difference: retail reads the sprite code byte back
+   with lbu/andi 0xFE/ori 2 (setSemiTrans cannot see the merged store), ours
+   folds it to li 0x66.
+   Remaining 4 insns, all fixable if the merges ever are: retail loads
+   g_BattleGridCells as a POINTER (lw a0, %lo(g_BattleGridCells)) so that extern
+   should be a pointer, not an array; and (x3,y3) must be the absolute
+   sw %lo(D_800955A0) through $at, ours re-uses a2 as base (sh a0,32(a2)).
+   Tried: per-vertex setRGB then setXYWH order (67.89 - setXYWH is what makes
    x3,y3 come out as the single 0x600140 constant, so it is probably the right
-   shape and only the store merging is missing).  Next lever: find the source
-   form that makes cc1 emit the wider stores, e.g. writing the colour pairs
-   through a u16 lvalue and the coordinate pairs through a u32 lvalue.
-   NOTE the x3,y3 store must stay absolute (retail uses %lo(D_800955A0)($at),
-   ours re-used the copy's base register as `sh a0,32(a2)`).
+   shape and only the merging is missing); interleaved per-vertex field writes
+   (70.16, the body below).
 void func_80081ECC(void) {
     s32 i;
 
