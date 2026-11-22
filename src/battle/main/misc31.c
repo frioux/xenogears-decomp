@@ -197,6 +197,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 // $v0 - retail's store sinks past the 0xAC load and its `andi`, so it has to stay a
 // movable plain store). A 3-minute permuter run from this body (1518 iterations) found
 // nothing, so the residual is where sched2 puts the store, not the C.
+// R396 re-measured 98.10 at 496 bytes: the whole difference is one register - retail
+// holds the flags_0xA8 word in $a0 and the slot<<30 temp in $v0, this body the other
+// way round, and the sunk store follows from it ($v0 is needed again by the 0xAC
+// block's srl). Also measured: the shift in a local computed above the pVramData
+// store (96.49, and the mask's ori moves).
 /*
 void func_800BB350(u32 slot) {
     u8 *pBase;
@@ -342,6 +347,7 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
     pMatrix->t[2] = -vTmp.vz;
     PopMatrix();
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 // best 84.11% at retail's exact 228 bytes: the tail block's argument setup is the same
 // instruction multiset in retail's order, but the two loads (depth 0xC54 into $a3,
 // primIndex 0xC84 into $v1) sit between the three stack stores in retail and are hoisted
@@ -356,7 +362,12 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
 // retail's; the FIRST difference is the work base, which retail computes into $v1 with
 // the 0x8000 in $v0 (this body swaps them), and the load placement follows from the
 // scheduler. Address-of locals for the two SVECTOR arguments (so the ads run before the
-// loads) measure the identical 84.11.
+// loads) measure the identical 84.11. R396: the -dg dump shows why - insn 78/79 (the
+// address of g_BattleStateWork) is a reg/v USER variable that takes $v0 and insn 82's
+// 32768 takes $v1, so local-alloc hands primIndex the dead base register; retail has the
+// constant in $v0 and the base in $v1 instead, which only the inline-load form reaches
+// (and there gcc's right-to-left argument expansion loads 0xC84 before 0xC54, 83.44).
+// primIndex as a local with depth inline in the call: also 83.44.
 /*
 void func_800BB9D4(void) {
     s32 *pViewTrans;
@@ -378,9 +389,7 @@ void func_800BB9D4(void) {
         func_800A4654(&g_BattleViewMatrix, NULL, NULL, depth, primIndex, &g_BattleSlotVectors,
                       &g_BattleSlotVectorsB, 0x1000);
     }
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
+}*/
 
 // The animation-task tick's state half: the switch fills the two group positions for
 // the current state, the depth-cued block nudges the slot vectors along the gap, and the
