@@ -666,24 +666,26 @@ s32 func_800813E8(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
-// Best: 78.69%, 580 bytes against retail's 636. The clamp/easing chain is byte-identical:
-// unk50 -0x10000 down to 0x630000 with g_WorldMapCameraHeight eased by diff >> 5, unk54
-// += 0x1000 clamped to 0x10000 and eased into unk58 by diff >> 4 driving
-// g_WorldMapCameraRot, unk5C += 0x10000 clamped to 0x4B0000 and eased into unk60 the same
-// way, plus the func_80096F18 call and the rand()/shakeAmount jitter. Every residue is one
-// class: THIS gcc forwards a constant store to a later load where retail reloads.
-// 1. retail stores -0x80 to g_WorldMapCameraRot and -0x200 to g_WorldMapViewRotationY and
-//    then READS BOTH BACK to build unk58/unk54 and unk60/unk5C (retail's cameraRot address
-//    is CSE'd into $a0, ViewRotationY's is rematerialised, so the original kept a pointer
-//    to the rot); here gcc folds both to 0xFFF80000/0xFFE00000. A `s16 *pRot` local did not
-//    stop it, and a volatile read reloads but changes the extension (lhu + sll 16/sra 4
-//    instead of lh + sll 12).
-// 2. the same in the tail: retail reloads the scratchpad halfword for `D_8009BD4A += ...`
-//    (lhu 0xA2(s1) after the sh) where this gcc reuses the register.
-// 3. the command switch: retail has the two-case decision tree (beq 2 / slti 3 / bne 1)
-//    with an empty case 2; this gcc merges a bodyless case into the default and emits one
-//    bne. A narrow s16 switch index did not bring the tree back.
-// Preset screen not run; the body's structure is settled.
+// Best: 78.69% (re-measured this round), 580 bytes against retail's 620 (0x800816DC is
+// the next function, so this round's "636" was wrong; retail is 155 instructions against
+// this body's 145). The clamp/easing chain is byte-identical: unk50 -0x10000 clamped at
+// 0x630000 with g_WorldMapCameraHeight eased by diff >> 5, unk54 += 0x1000 clamped to
+// 0x10000 and eased into unk58 by diff >> 4 driving g_WorldMapCameraRot, unk5C += 0x10000
+// clamped to 0x4B0000 and eased into unk60 the same way, plus the func_80096F18 call and
+// the rand()/shakeAmount jitter.
+// Residues: (1) retail's case 1 keeps `&g_WorldMapCameraRot` in $a0 across the -0x80 store
+// and the reload that fills unk58/unk54, while this gcc propagates the address and stores
+// through $at, then folds the reload to a constant; a `s16 *pRot` local does not survive the
+// propagation. (2) the scratchpad halfword is re-read by retail for `D_8009BD4A += ...`
+// (lhu 0xA2(s1) after the sh) where this gcc reuses the register. (3) the command switch:
+// retail has the three-test tree (beq 2 / slti 3 / bne 1) with an empty case 2; this gcc
+// merges a bodyless case into the default and emits one bne.
+// A fresh body written from the .s this round (u8 *pScratch for the 0x1F8000A2 accesses,
+// ((s16 *)&g_WorldMapCameraRot)[1] for the ViewRotationY reload - the neighbour read does
+// bring back retail's lui/lh/sll 12 pair - a u16 *pShakeAcc for D_8009BD42 and a
+// cameraHeight local for the 0x980000) measures 77.21%, 600 bytes, 150 instructions: it
+// fixes the ViewRotationY fold but loses the $a0 pointer frame, so the old body is kept.
+// Preset screen not run.
 /*
 s32 func_80081470(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -750,8 +752,7 @@ s32 func_80081470(s32 index) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
-void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr) {
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr) {
     s32 i;
 
     for (i = 0; i < count; i++, pPrim++) {
@@ -1225,19 +1226,32 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
     g_WorldMapSlots[index].unk50 = (u32)D_8009A758;
     return 1;
 }
-// Best: 65.30%, 240 bytes against retail's 200 (objdiff prints 46.63 without the
-// two do/while barriers, 19.28 with plain per-statement reads). Retail's emission order
-// is reproduced exactly for the three position triples (one reused s32 local, as retail
-// reuses $v0) and the volatile zero stores are what keep retail's `lh` reloads, but gcc
-// permutes the constant stores of the tail and fills the three load-delay slots with
-// nops where retail fills them from the tail. Preset screen: cdk 36.73, gcc-2.6.0 40.43.
+// Best: 96.08%, 240 bytes and 60 instructions = retail's own (0x800828DC is the next
+// function, so the old "200 bytes" note was wrong). Ported from the misc8 twin
+// func_8008390C's park: the position triples reuse one s32 local (retail reuses $v0), the
+// camera height constant is a variable assigned right after the third position load, the
+// state/command/unk5C stores are a do-block, and the two view-angle reads go through
+// ((s16 *)&g_WorldMapCameraRot)[1]/[2] so store-to-load folding does not eat retail's
+// lui/lh/sll (that spelling is a base+addend relocation, so diff_func can never print
+// MATCH for this body; the linked bytes are identical).
+// Residues: (1) the 0x500000 constant lives in $a0 here and in $a1 in retail (its lui and
+// both its sw differ) - the same allocator tie misc8's func_8008390C is parked on at
+// 96.15; (2) the angleZ `lh` lands between the two `<< 12` stores where retail has it
+// after both.
+// Tried: typed struct fields instead of the u8 *p casts (76.47 - the cast spelling is
+// load-bearing), literals instead of the cameraHeight local (92.73), dropping the
+// do-block (87.57), both `<< 12` stores ahead of the angleZ load (92.58), two declaration
+// orders and a separate rotation local (identical), permuter 4 min -j2 (2056 iterations,
+// base 95 best 95, NONE).
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 v;
+    s32 cameraHeight;
+    u32 angleZ;
+    u8 *p = (u8 *)pSlot;
 
-    pSlot->shakeAmount = 0x1000;
-    do { } while (0); // keeps the position stores above the constant stores
+    *(s32 *)(p + 0x7C) = 0x1000;
     v = g_WorldMapPlayerPosition.x;
     g_WorldMapCameraTarget = v;
     g_WorldMapScrollTargetX = v;
@@ -1247,30 +1261,35 @@ s32 func_800827EC(s32 index) {
     g_WorldMapScrollTargetY = v;
     pSlot->pos.y = v;
     v = g_WorldMapPlayerPositionZ;
+    cameraHeight = 0x500000;
     g_WorldMapCameraTargetZ = v;
     g_WorldMapScrollTargetZ = v;
     pSlot->pos.z = v;
-    do { } while (0);
-    pSlot->state = 0;
-    pSlot->command = 0;
-    pSlot->unk5C = 0x500000;
-    g_WorldMapCameraRot = -0x220;
-    *(volatile s16 *)&g_WorldMapViewRotationY = 0;
-    *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
-    pSlot->unk50 = 0xFFDE0000;
-    pSlot->unk38 = 0xFFDE0000;
+    v = -0x220;
+    do {
+        pSlot->state = 0;
+        pSlot->command = 0;
+        *(s32 *)(p + 0x5C) = cameraHeight;
+    } while (0);
+    g_WorldMapCameraRot = v;
+    g_WorldMapViewRotationY = 0;
+    g_WorldMapViewRotationZ = 0;
+    *(s32 *)(p + 0x50) = -0x220000;
+    *(s32 *)(p + 0x38) = -0x220000;
+    v = ((s16 *)&g_WorldMapCameraRot)[1];
     g_WorldMapRotationMatrixValid = 0;
-    g_WorldMapCameraHeight = 0x500000;
-    pSlot->unk54 = g_WorldMapViewRotationY << 12;
-    pSlot->unk3C = g_WorldMapViewRotationY << 12;
+    g_WorldMapCameraHeight = cameraHeight;
+    *(s32 *)(p + 0x54) = v << 12;
+    angleZ = ((s16 *)&g_WorldMapCameraRot)[2];
+    *(s32 *)(p + 0x3C) = v << 12;
+    v = angleZ;
     g_WorldMapFadeLevel = 0x78;
-    pSlot->unk58 = g_WorldMapViewRotationZ << 12;
-    pSlot->unk40 = g_WorldMapViewRotationZ << 12;
+    *(s32 *)(p + 0x58) = v << 12;
+    *(s32 *)(p + 0x40) = v << 12;
     return 1;
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
-
 // Best: 71.22%, 1668 bytes against retail's 1672 (417 instructions against 418: one
 // short). Both switches, the state machine, the func_80096F18 call and the shake tail decode
 // to retail's instructions, and the two jump tables land at retail's rodata offsets (this
