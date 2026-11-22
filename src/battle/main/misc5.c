@@ -518,26 +518,25 @@ void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
     }
     pRow[p->operand1] = v;
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
-/* 99.09% - 88 bytes, the original's size; the only difference is the mult's
-   operand order: retail has mult v1,v0 (row value first, p->operand2 second), this body
-   emits mult v0,v1. Every other instruction, register included, is retail's.
-   The load order (lbu p->operand1, lbu p->operand2, addu row base, lbu row) only comes out of a
-   source that names p->operand2 first, and gcc then puts p->operand2's register first in the
-   mult. Measured rules (round 167):
-   - With p->operand2 as the mult's memory operand (sunk to the mult, collapsed to a
-     single-use local) gcc does NOT swap, so the source order survives: p->operand2 first
-     gives mult v0,v1, row-first spellings give mult v0,v1 with row in v0 instead
-     (the row value then lands in the wrong register, and p->operand2's load moves to
-     after the row load: 71.05%).
-   - With BOTH operands in registers (a volatile read keeps p->operand2 out of cse) gcc
-     DOES swap, so row-first source gives mult with the row value first - but the
-     p->operand2 load then no longer sits after lbu p->operand1 where retail has it.
-   Tried round 167: the 2 x 2 of source order against memory/reg operands, u8/s16/
-   s32/u8-cast operand types, element pointer local, row value local, volatile
-   reads of p->operand1 and p->operand2 (best 98.64%: retail's exact load order and register
-   allocation, but the addu and the mult both with their operands inverted), and
-   permuter 2259 iterations, base=20 best=20. Rounds 20/35/135/164 tried the rest.
+/* 99.09% - 88 bytes, retail 88 (0x58). NAMED RESIDUAL: the mult operand order.
+   Retail is mult v1,v0 (row value in v1, p->operand2 in v0), this body emits mult v0,v1. The hardware
+   result is identical (mult is commutative) so this is one instruction ENCODING apart and it can never
+   link; every other instruction, register and the load cluster are retail exact.
+   Why it is a wall in gcc 2.7.2: the mult operands follow SOURCE order, and the load order follows
+   the same source order, so the two are locked to each other. p->operand2 first in the expression
+   gives retail load order (lbu idx, lbu operand2, addu, lbu row) with mult v0,v1; the row first
+   gives the row load before operand2 (sunk to the mult) with mult in the right PLACES but reversed
+   registers (row in v0, operand2 in v1).
+   Measured round 396 on top of rounds 20/35/135/164/167:
+   - 2.6.0 and 2.7.2-cdk emit retail load order from the row-first body, but both write slt for the
+     clamp where retail has slti, so they are the wrong compiler for this function (2.6.0 scores 99.55).
+   - two u8 locals for the operands: copy-propagated away, byte-identical to the row-first body (71.05).
+   - typed array form g_BattleSlotRegs[arg1].byteRegs[p->operand1] on both sides: 71.05, same shape.
+   - volatile read of p->operand2: 71.09, the same reversal with operand2 landing in v1.
+   - -fschedule-insns and -fschedule-insns2 under 2.7.2 change nothing (checked in cc1 output).
+   permuter 2259 iterations earlier: base=20 best=20.
+   Kept as a park: the body below is the 99.09 spelling.
+/*
 void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
@@ -548,7 +547,9 @@ void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
         res = 0xFF;
     }
     pRow[p->operand1] = res;
-} */
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
+
 void BattleByteRegDivImm(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
