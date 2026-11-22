@@ -258,8 +258,6 @@ extern void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
 // flat quads and the gouraud row are placed at the projected eye height, the
 // second flat row at the projected at height. `span` is the distance between
 // the two points scaled into 0..0x100. Returns the projected eye y.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_r1", func_800273C4);
-/*
 s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
                   MATRIX* pMatrix, u_long* pOT, s32 band) {
     SVECTOR proj1;
@@ -361,7 +359,6 @@ s32 func_800273C4(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
     }
     return proj1.vy;
 }
-*/
 
 // Derivation only, never diffed (no percentage yet); kept so the next worker
 // does not have to re-read 274 instructions.
