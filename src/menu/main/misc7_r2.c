@@ -114,7 +114,7 @@ void MenuSetGearWindowNamePrims(u_char index, u_char characterId);
 void MenuSetCharacterIconPrims(u_char characterId);
 void func_801D6338(u_char index, u_char characterId);
 void func_801D680C(u_char index, u_char characterId);
-void func_801D6CF4(u_char index, u_char characterId);
+void MenuSetGearWindowLevelDigits(u_char index, u_char characterId);
 void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId);
 void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId);
 void func_801D7884(u_char index, u_char characterId);
@@ -501,15 +501,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D680C);
        }
    }
 */
-extern s32 D_801E9CE0;
-extern s32 D_801E9CE4;
-extern s32 D_801E9CE8;
-extern s32 D_801E9CEC;
+extern s32 g_MenuGearWindowLevelX;
+extern s32 g_MenuGearWindowLevelY;
+extern s32 g_MenuGearWindowUnk63X;
+extern s32 g_MenuGearWindowUnk63Y;
 
 // The gear window's level number and the character's unk63: both are parsed into the
 // same g_Menu->digits[6..8] slots and drawn as three digits, then every prim each
 // number produced is grown to its glyph box.
-void func_801D6CF4(u_char index, u_char row) {
+void MenuSetGearWindowLevelDigits(u_char index, u_char row) {
     u8* pBase;
     u8* pEntry;
     POLY_FT4* pPrim;
@@ -525,7 +525,7 @@ void func_801D6CF4(u_char index, u_char row) {
                             (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->levelPrimCount *
                                  (2 * sizeof(POLY_FT4)) +
                              0xAF0)),
-                g_Menu->renderContext, D_801E9CE0 + i * MENU_DIGIT_SPACING - row * 24, D_801E9CE4,
+                g_Menu->renderContext, g_MenuGearWindowLevelX + i * MENU_DIGIT_SPACING - row * 24, g_MenuGearWindowLevelY,
                 0x1000);
         }
     }
@@ -550,7 +550,7 @@ void func_801D6CF4(u_char index, u_char row) {
                             (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk63DigitsPrimCount *
                                  (2 * sizeof(POLY_FT4)) +
                              0xBE0)),
-                g_Menu->renderContext, D_801E9CE8 + i * MENU_DIGIT_SPACING - row * 24, D_801E9CEC,
+                g_Menu->renderContext, g_MenuGearWindowUnk63X + i * MENU_DIGIT_SPACING - row * 24, g_MenuGearWindowUnk63Y,
                 0x1000);
         }
     }
@@ -812,7 +812,7 @@ void MenuSetGearWindowContents(u_char index, u_char characterId) {
     MenuSetCharacterIconPrims(characterId);
     func_801D6338(index, characterId);
     func_801D680C(index, characterId);
-    func_801D6CF4(index, characterId);
+    MenuSetGearWindowLevelDigits(index, characterId);
     MenuSetGearWindowWideNumber2Prims(index, characterId);
     func_801D7884(index, characterId);
     MenuSetGearWindowWideNumberPrims(index, characterId);
