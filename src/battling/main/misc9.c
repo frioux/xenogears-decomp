@@ -262,6 +262,17 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
    shapes measured identically, and a 1532-iteration permuter run found a 99.64
    spelling ('row = pPos->vz; mz = row & 0xFFFFFF00;') that also unmasks mz and
    swaps which of x/z loads first - 7 differing instructions, wrong code.
+   Round 408, all 99.00% / 1016 bytes / 252 insns, byte-for-byte the same
+   prologue as the park: (a) direct field uses with the and/sra pairs
+   interleaved exactly as retail emits them (mx,col,mz,row, no x/z locals);
+   (b) a real 's32 mask = 0xFFFFFF00;' local (gcc folds it back to the same
+   constant pseudo); (c) the constant written first ('mx = 0xFFFFFF00 & x');
+   (d) the unit's own s32* coordinate idiom ('pCoord[0] >> 8', as
+   BattleGetGridCellAtPosition writes it). gcc-2.6.0 scores 97.70 on this body
+   (gcc-2.7.2-cdk 89.19), so no preset reaches it. A third permuter run
+   (4 min, -j2, 1857 iterations) again only found 'mz = pPos->vz' = the dropped
+   mask, wrong code. Note retail leaves BOTH a1 and a3 idle and still puts the
+   two loads in t2/t1, which no spelling of these six lines reproduces here.
    The other residual: g_BattlePlaneNormal.vy/.vz - retail's object names
    D_8009276A / D_8009276C (0x80092768 + 2 and + 4) where the typed field spelling
    relocates g_BattlePlaneNormal with addend 2/4. Linked bytes are identical (the
