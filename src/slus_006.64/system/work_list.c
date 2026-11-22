@@ -95,22 +95,20 @@ void WorkListUpdate(void) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", WorkListAddTask);
-/* Best: 89.34% (identical instruction multiset, 38 insns, same frame). Only the
-   order of the four hoisted loads differs - original: counter, g_WorkList,
-   0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList, counter - and the
-   register assignment follows it (original has the unk10 word in v1, the unk14
-   word in a2, the counter in a3, the old head in t1), so it is a sched2
-   ready-list order: 12 statement orderings tried (unk10 first 73.34, id local
-   86.03, count before unk10 79.76, flags first 38.74, callbacks early 73.39,
-   head local 89.34, unk0 last 82.47, unk14 first 43.42, the original's own
-   store order 69.37, and three more). gcc 2.6.0 gives 89.87, 2.7.2-cdk 84.03,
-   so it is not the preset. The original's STORE order is 0x0, g_WorkList, 0x18,
-   0x10, counter, 0x8, 0xC, g_NumWorkListEntries, 0x14; writing the body in it
-   is WORSE (69.37). A 4-minute permuter run from the body below found only
-   89.74 (it holds the NULL for the onTriggerCallback store in a local and
-   stores it after g_NumWorkListEntries++), so this is a scheduling question,
-   not a source-order one.
+/* Best: 89.34% (152 bytes, 38 insns, identical instruction multiset and frame).
+   Only the order of the four hoisted loads differs - original: counter, g_WorkList,
+   0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList, counter - and the register
+   assignment follows it (original: unk10 word in v1, unk14 word in a2, counter in a3,
+   old head in t1), so it is a sched2 ready-list order. 12 statement orderings measured
+   (unk10 first 73.34, id local 86.03, count before unk10 79.76, flags first 38.74,
+   callbacks early 73.39, head local 89.34, unk0 last 82.47, unk14 first 43.42, the
+   original store order 69.37). Not the preset: 2.6.0 89.87, 2.7.2-cdk 84.03, cdk with
+   --dont-expand-li 84.03. A 4-minute permuter run from this body found only 89.74 (it
+   holds the NULL for the onTriggerCallback store in a local and stores it after the
+   counter increment). The bitfield writes are right: unk10 gets the counter and keeps
+   its top 3 bits, unk14 gets pData->unk10 and clears bits 29-31 one and at a time,
+   exactly retail. */
+/*
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
     pEntry->pNext = g_WorkList;
@@ -124,6 +122,8 @@ void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk10 = g_WorkListNextTaskId++;
     g_NumWorkListEntries++;
 }*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", WorkListAddTask);
+
 WorkListEntry* WorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
 
@@ -132,6 +132,7 @@ WorkListEntry* WorkListAllocateTask(void* pData, int dataSize) {
     pEntry->onFreeCallback = WorkListDeleteTask;
     return pEntry;
 }
+
 
 void WorkListRemoveTask(WorkListEntry* pTargetEntry) {
     WorkListEntry* pPrevEntry;
@@ -413,28 +414,26 @@ void SpriteAnimFrameListClear(void) {
     g_SpriteAnimFrameListHead = NULL;
 }
 
-// Change Sprite Animation Frame maybe?
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
-/* Best: 97.53% (328 bytes against the original's 324). Every branch, delay slot
-   and store order matches except the pair of address constants: the original
-   forms both with $v0 as the %hi scratch (lui v0,%hi(Dirs6) IN the beqz delay
-   slot, addiu a1,v0,%lo) and holds them in a1/a0, while cc1 ties each %hi to its
-   destination here (lui a0 / addiu a0) and leaves a nop in the slot - so the
-   body is one instruction long. field_0x40 is tested with shift-and-mask
-   (srl/andi) in the original, so write (x >> 20) & 1 rather than x & 0x100000;
-   curSpriteFrame is read as u16 (lhu). Reading the old head into a local
-   pOldHead and storing it last reproduces the original's tail store order
-   (0x34, head, 0x40, 0x38). The duplicated `if (animFrame)` advance below is a
-   permuter find that moved the list cursor out of v0 and into the original's
-   v1; a second permuter run raised the score to 112 by DELETING the tail
-   curSpriteFrame store, which is wrong code - do not port it.
-   Tried and measured no better: plain while, guard+do/while, `g_SpriteAnimFrameListHead` read
-   twice, and both 2.7.2 and 2.6.0 presets.
-void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
 void SpriteClearDirTransforms(SpriteData* pSpriteData);
-extern u8 g_SpriteAnimPackageDirs6[];
-extern u8 g_SpriteAnimPackageDirs5[];
+void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, void* pVramData);
+extern SpriteAnimPackage g_SpriteAnimPackageDirs6;
+extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 
+// Change Sprite Animation Frame maybe?
+/* Best: 97.53% under the unit flags (328 bytes, retail 324). PRESET: this body is
+   INSTRUCTION-IDENTICAL to retail under gcc-2.7.2-cdk-psx + maspsx --dont-expand-li
+   (100.00, verified by objdump side-by-side). Retail has two things plain 2.7.2 cannot
+   emit: (a) the address pair is lui $v0,%hi in the beqz delay slot then addiu a1,v0,%lo,
+   i.e. the high and low halves are SEPARATE RTL insns with different registers, which
+   only cdk produces (plain 2.7.2 ties %hi to its destination and leaves a nop, one
+   instruction long); (b) retail assembles li 1 as addiu $v1,$zero,1 where maspsx
+   expand_li gives ori. Under the unit flags the best measured residual is 97.53; the
+   body itself is right. field_0x40 is tested with srl+andi, curSpriteFrame is read as
+   u16. Tried and measured worse: plain while, guard+do/while, head read twice, 2.6.0
+   (94.44), 2.7.2 + --dont-expand-li (98.27, one instruction short). The duplicated
+   if (animFrame) advance is a permuter find that put the list cursor in v1; its arms
+   are identical on purpose. */
+/*
 void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     SpriteData* pOldHead;
     SpriteData* pCurSpriteData;
@@ -455,8 +454,8 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
           do {
             if (pCurSpriteData == pSpriteData) {
                 if (
-                    pSpriteData->pVramData != &g_SpriteAnimPackageDirs6[0] &&
-                    pSpriteData->pVramData != &g_SpriteAnimPackageDirs5[0] &&
+                    pSpriteData->pVramData != &g_SpriteAnimPackageDirs6 &&
+                    pSpriteData->pVramData != &g_SpriteAnimPackageDirs5 &&
                     ((pSpriteData->field_0x40 >> 19) & 1) == 0
                 ) {
                     SpriteApplyFrameDirTransforms(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame, pSpriteData->pVramData);
@@ -478,6 +477,7 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     pSpriteData->field_0x40 |= 0x20000;
     pSpriteData->pBase->pNextSpriteData = pOldHead;
 } */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
 
 
 // Unlink SpriteData entry from list
@@ -504,14 +504,16 @@ void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, void* pVramData);
 
 void SpriteAnimFrameListFlush(void) {
     SpriteData* pSpriteData;
+    u16 animFrame;
 
     pSpriteData = g_SpriteAnimFrameListHead;
     while (pSpriteData != NULL) {
         // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
-        if ((u16)pSpriteData->curSpriteFrame == 0) {
+        animFrame = (u16)pSpriteData->curSpriteFrame;
+        if (animFrame == 0) {
             pSpriteData->field_0x40 &= ~0xFC;
         } else {
-            func_8001DAE8(pSpriteData, (u16)pSpriteData->curSpriteFrame, pSpriteData->pVramData);
+            func_8001DAE8(pSpriteData, animFrame, pSpriteData->pVramData);
         }
 
         pSpriteData = pSpriteData->pBase->pNextSpriteData;
