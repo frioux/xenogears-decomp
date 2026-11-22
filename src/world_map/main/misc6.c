@@ -1300,25 +1300,39 @@ int WorldMapInitActorScript(int index) {
     return 1;
 }
 
-/* Best: 99.92%, 520 bytes = retail's exact size, objdiff 99.92% (round 400). Every
-   instruction is identical to retail's; the ONLY residual is the switch's table
-   operand (retail names jtbl_800701E0 at .rodata+0, this body's table is
-   .rodata+0x18) plus the .L label naming of the jump targets. Both are the
-   JTBL_LAYOUT blocker, and check_bin proves it: with this body in place
-   world_map.bin comes out 180426 against disc's 180422, exactly +4.
-   The arithmetic: misc6's .rodata range is 0x29C..0x7F4 of the overlay and its
-   eight tables tile it with no slack; this function's table is the LAST one, at
-   range offset 0x454 - 4 mod 8 - and cc1's `.rdata / .align 3` pads it up to
-   0x458 (see lever i-jtbl-align-3-hardcoded and i-jtbl-midchain-4mod8: the
-   align 3 is hardcoded in all three cc1s). misc5 and misc12 parks hit the same
-   wall.
-   Do not retry this one until a maspsx `.align 3` -> `.align 2` rewrite for
-   `.rdata` case tables exists.
+/* Best: 99.92%, 520 bytes = retail's exact size, objdiff 99.92% (round 400,
+   re-measured live in round 414). Every instruction is identical to retail's;
+   the ONLY residual is the switch table's PLACEMENT: retail has `lw v0,0(at)`
+   with %lo(jtbl_800701E0), this body `lw v0,24(at)` with %lo(.rodata) - the same
+   table at object offset 0x18 (report mode) / 0x458 (matching mode) against
+   retail's range offset 0x454. permute.sh on the live body: PERMUTER_ZERO
+   base=0 best=0 in one iteration, i.e. the instruction stream already equals the
+   original and only the relocation's target/addend differs, so no C spelling can
+   close this - do not unpark it for C work.
+   JTBL_LAYOUT, and round 414 supersedes the old "needs a maspsx rewrite" verdict:
+   the table is convertible via the lever i-rodata-head-carve-moves route, but it
+   needs a UNIT SPLIT, not a yaml-only carve. Arithmetic: misc6's .rodata range
+   0x29C..0x7F4 holds eight tables at range offsets 0, 0x108, 0x168, 0x1D0, 0x230,
+   0x338, 0x440 (all 8-aligned) and this one at 0x454 (4 mod 8), tiling its 0x558
+   bytes with no slack. cc1's .align 3 is section-relative and hardcoded (lever
+   i-jtbl-align-3-hardcoded), so a C table can only land at an 8-aligned OBJECT
+   offset, and the 4 mod 8 comes from the one preceding C table -
+   WorldMapUpdateSlotActor's 5-word jtbl_800701CC (0x14 bytes, not a multiple of
+   8) - which is already matched in this unit and must not move. The table's
+   ABSOLUTE address 0x800701E0 IS 8-aligned, so the fix is: a new main/misc6_b
+   whose .rodata range starts at overlay 0x6F0 (yaml `- [0x29C, .rodata,
+   main/misc6]` becomes `- [0x6F0, .rodata, main/misc6]` plus `- [0x6F0,
+   .rodata, main/misc6_b]`) with the code range split at this function's file
+   offset 0x10880 (`- [0x10880, c, main/misc6_b]`, misc6's `c` range ending
+   there), the tail functions moved to misc6_b.c, and a gears.toml path entry for
+   it because XenoWorldMapDiv is keyed per file. Its table then sits at object
+   offset 0 where `.align 3` is a no-op.
    Shapes measured on the way: `default: break;` alone (no `case 0:`) makes gcc
    fold the index to `state - 1` and emit 64 entries with `sltiu ... 64` instead
-   of retail's 65 / `sltiu ... 0x41` - the `case 0:` label is what keeps the
-   table's slot 0. The state-1 arm, the WorldMapStartSlot/global-set cases and the
-   three SoundPlaySoundEffectOnFreePair calls are all instruction-exact.
+   of retail's 65 / `sltiu ... 0x41` (lever i-case-0-label-keeps-table-base) - the
+   `case 0:` label is what keeps the table's slot 0. The state-1 arm, the
+   WorldMapStartSlot/global-set cases and the three
+   SoundPlaySoundEffectOnFreePair calls are all instruction-exact.
 */
 /*
 int func_80080370(int index) {
