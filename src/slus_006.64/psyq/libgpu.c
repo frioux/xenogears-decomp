@@ -606,97 +606,76 @@ DRAWENV* GetDrawEnv(DRAWENV* env) {
     return env;
 }
 
-/* best: 89.51% (1140 bytes of retail's 1192). Decoded body below; the
-   residuals are all in the two comparison blocks and the 0x05 command:
+// The saved env's halfword compares are the only spelling that reproduces retail's
+// "lhu + sll 16 + sra 16": a plain short field load folds to "lh" (36 bytes short),
+// and a non-volatile unsigned read folds the same way. The first compare is the one
+// retail materialises the address for, which the volatile read gives for free.
+DISPENV* PutDispEnv(DISPENV *env) {
+    u_long hw = 0x08000000;
+    s32 x0;
+    s32 x1;
+    s32 y0;
+    s32 y1;
+    u_long nCmd;
 
-   1. The four screen and four disp compares load the saved env's halfwords as
-      "lhu + sll 16 + sra 16" (a zero-extended load that is then sign-extended)
-      where every spelling here gives a plain "lh": the field is a plain short in
-      DISPENV, and gcc folds even "(s16)*(u_short*)&g_GpuDispEnv.screen.x" to lh.
-      retail's first compare additionally materialises the address
-      (lui + addiu + "lhu 0(v0)") where the other three use the lui/lhu macro
-      form, so the source reached that one through a computed pointer. Net +11
-      instructions. SetDrawArea in libgpu_b shows the same lhu/sll/sra shape for
-      "(s16)(pt->x + pt->w - 1)", i.e. a 16-bit narrowing gcc knows about; a
-      narrowing use of these reads is the untried idea.
-   2. The 8-flag word at DISPENV+0x10 is compared as one "lw" in retail, so that
-      compare is written through a u_long alias here.
-   3. The 0x05 command: retail loads its 0x05000000 high half at the end of each
-      arm (v0 in one, v1 in the other) and keeps the "or" at the join. Writing
-      the constant inside both arms is the closest shape measured; gcc still
-      hoists the arm's "lui a0,0x500" above the func_80045C94 call.
-   4. hw is allocated to $s2 where retail has $s3 (same byte count); the four
-      clamp ternaries and the two GetVideoMode blocks are byte-identical.
-*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDispEnv);
+    if (g_GraphDebugLevel >= 2)
+        g_GpuPrintf(D_80019228, env);
 
-/*
-   DISPENV* PutDispEnv(DISPENV *env) {
-       u_long hw = 0x08000000;
-       s32 x0;
-       s32 x1;
-       s32 y0;
-       s32 y1;
-       u_long nCmd;
+    if (g_GraphType == 1 || g_GraphType == 2)
+        nCmd = ((env->disp.y & 0xFFF) << 12) | (func_80045C94(&env->disp) & 0xFFF) | 0x05000000;
+    else
+        nCmd = ((env->disp.y & 0x3FF) << 10) | (env->disp.x & 0x3FF) | 0x05000000;
+    g_GpuSysFuncs->unk10(nCmd);
 
-       if (g_GraphDebugLevel >= 2)
-           g_GpuPrintf(D_80019228, env);
+    if ((s16)(*(volatile u_short*)&g_GpuDispEnv.screen.x) != env->screen.x ||
+        (s16)(*(volatile u_short*)&g_GpuDispEnv.screen.y) != env->screen.y ||
+        (s16)(*(volatile u_short*)&g_GpuDispEnv.screen.w) != env->screen.w ||
+        (s16)(*(volatile u_short*)&g_GpuDispEnv.screen.h) != env->screen.h) {
+        env->pad0 = GetVideoMode();
+        x0 = env->screen.x * 10 + 0x260;
+        y0 = env->screen.y + (env->pad0 ? 0x13 : 0x10);
+        x1 = env->screen.w ? x0 + env->screen.w * 10 : x0 + 0xA00;
+        y1 = env->screen.h ? y0 + env->screen.h : y0 + 0xF0;
+        x0 = (x0 < 0x1F4) ? 0x1F4 : ((x0 >= 0xCDB) ? 0xCDA : x0);
+        x1 = (x1 < x0 + 0x50) ? (x0 + 0x50) : ((x1 >= 0xCDB) ? 0xCDA : x1);
+        y0 = (y0 < 0x10) ? 0x10 : (env->pad0 ? (y0 >= 0x137) : (y0 >= 0x101)) ? (env->pad0 ? 0x136 : 0x100) : y0;
+        y1 = (y1 < y0 + 2) ? (y0 + 2) : (env->pad0 ? (y1 >= 0x139) : (y1 >= 0x103)) ? (env->pad0 ? 0x138 : 0x102) : y1;
+        g_GpuSysFuncs->unk10(0x06000000 | ((x1 & 0xFFF) << 12) | (x0 & 0xFFF));
+        g_GpuSysFuncs->unk10(0x07000000 | ((y1 & 0x3FF) << 10) | (y0 & 0x3FF));
+    }
 
-       if (g_GraphType == 1 || g_GraphType == 2)
-           nCmd = 0x05000000 | ((env->disp.y & 0xFFF) << 12) | (func_80045C94(&env->disp) & 0xFFF);
-       else
-           nCmd = 0x05000000 | ((env->disp.y & 0x3FF) << 10) | (env->disp.x & 0x3FF);
-       g_GpuSysFuncs->unk10(nCmd);
+    if (*(u_long*)&g_GpuDispEnv.isinter != *(u_long*)&env->isinter ||
+        (s16)(*(volatile u_short*)&g_GpuDispEnv.disp.x) != env->disp.x || (s16)(*(volatile u_short*)&g_GpuDispEnv.disp.y) != env->disp.y ||
+        (s16)(*(volatile u_short*)&g_GpuDispEnv.disp.w) != env->disp.w || (s16)(*(volatile u_short*)&g_GpuDispEnv.disp.h) != env->disp.h) {
+        env->pad0 = GetVideoMode();
+        if (env->pad0 == 1)
+            hw |= 0x08;
+        if (env->isrgb24)
+            hw |= 0x10;
+        if (env->isinter)
+            hw |= 0x20;
+        if (g_GraphReverse)
+            hw |= 0x80;
+        if (env->disp.w < 0x119)
+            ;
+        else if (env->disp.w < 0x161)
+            hw |= 0x01;
+        else if (env->disp.w < 0x191)
+            hw |= 0x40;
+        else if (env->disp.w < 0x231)
+            hw |= 0x02;
+        else
+            hw |= 0x03;
+        if (env->disp.h < (env->pad0 ? 0x121 : 0x101))
+            ;
+        else
+            hw |= 0x24;
+        g_GpuSysFuncs->unk10(hw);
+    }
 
-       if (g_GpuDispEnv.screen.x != env->screen.x ||
-           g_GpuDispEnv.screen.y != env->screen.y ||
-           g_GpuDispEnv.screen.w != env->screen.w ||
-           g_GpuDispEnv.screen.h != env->screen.h) {
-           env->pad0 = GetVideoMode();
-           x0 = env->screen.x * 10 + 0x260;
-           y0 = env->screen.y + (env->pad0 ? 0x13 : 0x10);
-           x1 = env->screen.w ? x0 + env->screen.w * 10 : x0 + 0xA00;
-           y1 = env->screen.h ? y0 + env->screen.h : y0 + 0xF0;
-           x0 = (x0 < 0x1F4) ? 0x1F4 : ((x0 >= 0xCDB) ? 0xCDA : x0);
-           x1 = (x1 < x0 + 0x50) ? (x0 + 0x50) : ((x1 >= 0xCDB) ? 0xCDA : x1);
-           y0 = (y0 < 0x10) ? 0x10 : (env->pad0 ? (y0 >= 0x137) : (y0 >= 0x101)) ? (env->pad0 ? 0x136 : 0x100) : y0;
-           y1 = (y1 < y0 + 2) ? (y0 + 2) : (env->pad0 ? (y1 >= 0x139) : (y1 >= 0x103)) ? (env->pad0 ? 0x138 : 0x102) : y1;
-           g_GpuSysFuncs->unk10(0x06000000 | ((x1 & 0xFFF) << 12) | (x0 & 0xFFF));
-           g_GpuSysFuncs->unk10(0x07000000 | ((y1 & 0x3FF) << 10) | (y0 & 0x3FF));
-       }
-
-       if (*(u_long*)&g_GpuDispEnv.isinter != *(u_long*)&env->isinter ||
-           (s16)g_GpuDispEnv.disp.x != env->disp.x || (s16)g_GpuDispEnv.disp.y != env->disp.y ||
-           (s16)g_GpuDispEnv.disp.w != env->disp.w || (s16)g_GpuDispEnv.disp.h != env->disp.h) {
-           if (env->pad0 == MODE_PAL)
-               hw |= 0x08;
-           if (env->isrgb24)
-               hw |= 0x10;
-           if (env->isinter)
-               hw |= 0x20;
-           if (g_GraphReverse)
-               hw |= 0x80;
-           if (env->disp.w < 0x119)
-               ;
-           else if (env->disp.w < 0x161)
-               hw |= 0x01;
-           else if (env->disp.w < 0x191)
-               hw |= 0x40;
-           else if (env->disp.w < 0x231)
-               hw |= 0x02;
-           else
-               hw |= 0x03;
-           if (env->disp.h < (env->pad0 ? 0x121 : 0x101))
-               ;
-           else
-               hw |= 0x24;
-           g_GpuSysFuncs->unk10(hw);
-       }
-
-       memcpy(&g_GpuDispEnv, env, sizeof(DISPENV));
-       return env;
-   }
-*/
+    memcpy(&g_GpuDispEnv, env, sizeof(DISPENV));
+    return env;
+}
 
 DISPENV* GetDispEnv(DISPENV* env) {
     memcpy(env, &g_GpuDispEnv, sizeof(DISPENV));
