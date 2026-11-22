@@ -313,31 +313,27 @@ void FieldScriptVMHandlerMoveActorToIndirectPosition(void) {
 }
 
 
-// 79.89% (684 vs 632 bytes). Structure is right - frame (0xA0, seven saves),
-// both calls, the copy loop bounds, the three MATRIX store pairs and the whole
-// zeroing tail line up. Three fixes that this attempt established (all now in the
-// parked body below):
-//  - the transform/child pairs need the pointer-local REASSIGNED before each
-//    pair: `pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);` then two
-//    stores through it. g_FieldActors is `FieldActor* volatile`, so an inline
-//    `g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[n] = x;` reloads the pointer for
-//    every store (6 `lui/lw g_FieldActors` where retail has 3); with the local,
-//    the pair shares one base (`sw s4,32(v0)` + `sw s4,64(v0)`) exactly as retail.
-//    `offset` must be one local, gcc CSEs the `g_FieldCurActorIndex * sizeof(FieldActor)`.
-//  - the flag written last is scriptFlags.flags at +0x0, NOT ActorData::flags at
-//    +0x4: retail does `lw v1,0(a1) ... and ~0x40000 ... or 0x400000 ... sw v1,0(a1)`.
-//  - curYPos at +0x72 is written TWICE: first `points[walkmeshId].vy` (sh right
-//    after the position stores), then `((s16*)&position)[3]` (lh 0x26 - signed
-//    read, `lhu` in the old attempt was wrong).
-// What is still left, and why this is parked:
-//  (a) loop body schedule only. Retail keeps `sh v0,8(a0)` where the address is
-//      computed and lets `addiu s1,s1,8` (the points pointer) fill the `bnez`
-//      delay slot; gcc 2.7.2 sched2 sinks the store into the delay slot and hoists
-//      s1's bump to the top of the body. Same insn multiset, no size change, so this
-//      is reorg/sched2, not source order (the C already reads in retail's order).
-//  (b) allocator: retail keeps pActor in $a1 and &normals[0] in $a0, gcc swaps them
-//      ($a0 / $a2). Tried two declaration orders (pActor/pSprite/pFieldActor/
-//      offset permuted): byte-identical 79.89%.
+// PARKED 80.25% (656 bytes; retail 664 / 167 insns). No twin, m2c draft agrees
+// with the body, so the structure is settled; the instruction MULTISET is identical
+// and the only size gap is the three load-delay nops retail carries because its
+// schedule is tighter, so this body cannot link as it stands.
+// What this redo added (79.89 -> 80.25): the transform/child matrix t[1] pair needs
+// points[walkmeshId].vy in ONE s16 local. Retail reads it once and stores it twice
+// and so must the C: an inline second read costs 7 instructions, because the store
+// through the pFieldActor base invalidates the stack load.
+// Presets ruled out on this body: 2.6.0 77.34, 2.7.2-cdk 79.80, Default 80.25.
+// Residual (a) schedule: retail puts sh v0,8(a0) where the address is computed and
+// fills the bnez slot with addiu s1,s1,8; gcc hoists the points bump to the top of
+// the body and sinks sh into the delay slot, and it hoists the two g_FieldActors
+// loads of the t[1]/t[2] pairs together where retail interleaves them. Statement
+// order is already retail's.
+// Residual (b) allocator: retail keeps pActor in $a1 and &normals[0] in $a0, this
+// build gives $a0 and $a2 and an extra $t0 for the pair bases. Two declaration
+// orders measured earlier were byte-identical; '&g_FieldActors[idx]' instead of the
+// offset local scores 80.22 and loses retail's index-first addu v0,a0,v0.
+// Tried, all worse or equal: pointer-local do-while loop with &points[i] as a giv
+// (77.55), '&g_FieldActors[idx]' per pair (80.22), m2c's per-pair temp pointers
+// (unchanged).
 /*
 extern s16 g_FieldWalkmeshTriCount;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
@@ -350,6 +346,7 @@ void func_8009E574(s32 nX, s32 nY) {
     SpriteData* pSprite;
     int i;
     FieldActor* pFieldActor;
+    s16 nWalkY;
     s32 offset;
 
     pSprite = (SpriteData*)g_FieldActors[g_FieldCurActorIndex].pSpriteData;
@@ -365,9 +362,10 @@ void func_8009E574(s32 nX, s32 nY) {
     pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->transformMatrix.t[0] = nX;
     pFieldActor->childMatrix.t[0] = nX;
+    nWalkY = points[pActor->walkmeshId].vy;
     pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
-    pFieldActor->transformMatrix.t[1] = points[pActor->walkmeshId].vy;
-    pFieldActor->childMatrix.t[1] = points[pActor->walkmeshId].vy;
+    pFieldActor->transformMatrix.t[1] = nWalkY;
+    pFieldActor->childMatrix.t[1] = nWalkY;
     pFieldActor = (FieldActor*)(offset + (s32)g_FieldActors);
     pFieldActor->transformMatrix.t[2] = nY;
     pFieldActor->childMatrix.t[2] = nY;
@@ -398,8 +396,7 @@ void func_8009E574(s32 nX, s32 nY) {
     pActor->scriptYPos = 0;
     pActor->curYPos = ((s16*)&pActor->position)[3];
     pActor->scriptFlags.flags = (pActor->scriptFlags.flags & ~0x40000) | 0x400000;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
 
 
