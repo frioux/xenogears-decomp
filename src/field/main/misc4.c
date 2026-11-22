@@ -708,26 +708,26 @@ void FieldClampPolyFT4UVs(POLY_FT4* poly, short u0, short v0, short u1, short v1
     poly->v3 = v3;
 }
 
-// Best attempt: 77.28% (568 vs 560 bytes): vx/vz interleave reproduced, but gcc
-// strength-reduces &polys[1] (the copy at the end of the body) into an induction
-// register and addresses polys[0] off it with negative offsets, spilling the
-// uv[7] pointer to the stack: 10 callee-saved slots vs the original 9.
 extern u_short D_800ADE30[]; // X0,Z0 -> X3,Z3 positions per direction
 extern u_char D_800ADE70[];  // U0,V0 -> U3,V3s per direction
 extern Quad D_800B0FEC[];
 
-// Best attempt: 77.28% (568 bytes; retail 560, 140 vs 142 insns).
-// The only structural delta is ONE extra strength-reduced giv: retail keeps
-// s1 = &quad->polys[0] (+0x70 per iteration) and computes the copy limit
-// (t0 = s1 + 0x20) inside the loop, so its vertex stores are based on the quad
-// base s0 with positive offsets and it needs 9 callee-saved registers. Our
-// compile instead makes the copy LIMIT (quad + 0x40) the giv, derives
-// &polys[0] in the loop with "addu $16,$18,32", bases every vertex store off
-// quad+0x40 with negative offsets and spills the uv+7 pointer to the stack
-// (10 slots, frame 0x58 vs 0x50).
-// Tried: pQuad->polys[0] inline (77.28), a POLY_FT4* pPoly local (77.28, same
-// code), vy=0 written before vx for each vertex, which is retail's store order
-// (73.31, 572 bytes), and D_800B0FEC[i].vertices[k] indexed (73.51, 668).
+// Best attempt: 77.28% (568 bytes; retail 560, 142 vs 140 insns).
+// The body is structurally retail's. The residual is ONE extra strength-reduced
+// giv, the block move's LIMIT (pPoly + 0x20 == quad + 0x40). Retail keeps two
+// givs, s0 = the Quad and s1 = &quad->polys[0], both +0x70, and recomputes
+// "addiu t0,s1,32" inside the loop; our compile gives the limit its own register
+// (s1 = quad+0x40, +0x70), bases the vertex stores off it with negative offsets
+// and needs a tenth callee-saved slot, so the uv+7 pointer is spilled
+// (frame 0x58 vs 0x50).
+// Tried, each measured: pQuad->polys[0] inline (77.28), a POLY_FT4* pPoly local
+// (77.28, same code), a POLY_FT4* pNextPoly for the copy (77.28), a SVECTOR*
+// pVertex for the vertices (77.28), vy=0 before vx, retail's store order (73.31),
+// D_800B0FEC[i] indexed (73.51, 668 bytes), pPoly++ in the for-update (rejected:
+// POLY_FT4's stride is 0x28, not the quad's 0x70, so that body is wrong code).
+// One 4-minute permuter run reached 81.72 by taking &pQuad in the last vertex
+// store, which puts pQuad in memory: gcc then stops strength-reducing it and
+// derives &polys[0] from the reload instead, so it is not retail either.
 /*
 void func_8007A5C4(void) {
     int i;
