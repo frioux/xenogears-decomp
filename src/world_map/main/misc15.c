@@ -298,15 +298,38 @@ void func_80096C0C(u_char mode, u_char *pResult) {
     }
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
-// Best: 59.80%. The structure is decoded and every call/argument is right (the
-// scratchpad rot vector at 0x1F8000A0, the matrix at 0x1F8000F0, the vectors at
-// 0x1F800000/0x1F800010, RotMatrixYXZ / ApplyMatrixLV / RotMatrixYXZ /
-// ApplyMatrix, and the >>12 and ->>12 folds). What differs is the frame: gcc
-// CSEs 0x1F8000A0/0xA2/0xA4 into the callee-saved s3/s4/s5, so the frame is
-// 0x30 with six saved registers, while the original keeps only 0xA0 in s3 and
-// reaches 0xA2/0xA4 with a fresh lui $at plus maspsx's low-half offset fold
-// (sh $v0,0xA2($at)) -- a 4-byte size difference and a different allocation.
+// Best: 82.56% (336 bytes, 84 insns; retail 344 / 86). Every call, argument, fold
+// and store is decoded and right; two residuals are left.
+// (1) Retail keeps the 0x1F8000A0 address in $s3 for the two "vx = 0" stores of the
+//     2nd and 3rd rotation-vector writes (`ori s3,s3,0xA0` before the first of them,
+//     `sh zero,0(s3)` twice; its %hi is formed in the entry block). This body emits
+//     `lui $at,0x1F80` + `sh zero,0xA0($at)` twice: same instruction count, but retail
+//     also pays the s3 save/restore pair, which is the -2 insns / -8 bytes.
+// (2) Retail's A0/A2/A4 stores keep the `lui $at` + `sh off($at)` macro form, which
+//     means the original object held SYMBOL references for the scratchpad (a
+//     `(mem (symbol_ref))` stays an assembler macro, while a constant address becomes
+//     an explicit high/lo_sum pseudo in a register). Measured this round:
+//     - `extern SVECTOR D_1F8000A0;` + `D_1F8000A0.vx/vy/vz` stores, literal-cast call
+//       arguments, and a dead-parameter carry for the two "vx = 0" stores: 344 bytes /
+//       86 insns (retail's exact size) but objdiff 78.34%, because each reloc'd
+//       `lui $at,%hi(D_*)` scores as `lui at,0x0` -- the linked bytes are identical,
+//       the percentage never can be. Side effect worth knowing: with the symbol
+//       spelling retail's `sh zero,0(s3)` DOES appear (the argument pseudo is cse'd
+//       into a saved register), which is the shape (1) asks for.
+//     - literal casts everywhere: 59.80% (cse hoists 0xA0/0xA2/0xA4 into s3/s4/s5 in
+//       the entry block, frame 0x30, 87 insns); adding the dead-parameter carry on
+//       top of that does not help (59.80%, the carry coalesces onto the constant
+//       pseudo). `cc1_probe.sh` shows the split directly: a literal cast emits
+//       `li $r,0x1f800000 / ori $r,$r,0x0a0` into a register, a symbol store emits a
+//       bare `sh $2,D_1F8000A0` that maspsx expands to `lui $at` + `sh 0xA0($at)`.
+// (3) Also open with the symbol spelling: retail re-forms the RotMatrixYXZ /
+//     ApplyMatrix addresses into $a0/$a1 once PER CALL SITE, while `&D_1F8000A0` is
+//     cse'd into one saved register and passed with `move`. misc5's
+//     WorldMapUpdateGroup5Actor (matched at 100%) shows the register form retail
+//     wants, but only on the store side.
+// try_flags not run: the residual is symbol-vs-literal, not a preset question.
 /*
 void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     pOut->targetX = 0;
@@ -333,6 +356,7 @@ void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, &pOut->upAxis);
 }
 */
+
 typedef struct {
     /* 0x0 */ s16 rotX;
     /* 0x2 */ s16 rotY;
