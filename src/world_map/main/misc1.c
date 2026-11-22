@@ -1640,7 +1640,24 @@ extern u16 D_8009C750[];
 // *(volatile s32*)&g_WorldMapPrimPacketIndex does force the four reloads but overshoots to
 // 221 insns / 72.51% (it blocks the loop and addPrim CSE too). Preset is not the answer: cdk
 // 53.20, -O3 79.63, -G0 79.63, all measured on this body.
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
+// best 79.63%, 744 bytes against retail 812, 186 insns against 203, frame 72 against retail 64
+// (ROUND 412 re-measured: unchanged). The tail matches - the RotMatrixYXZ/CompMatrix/SetRot
+// Matrix/SetTransMatrix prologue, the 2-iteration RotTransPers4 loop and the four addPrim calls
+// (DR_MODE[1], TilePrims[idx], TilePrims[idx+2], DR_MODE[0]) are instruction-identical.
+// The whole residual is the eight uv stores (D_8009C750 is g_WorldMapTilePrims[0].u0, so the
+// offsets 0/8/0x10/0x18 are prim idx u0v0/u1v1/u2v2/u3v3 and 0x50/0x58/0x60/0x68 the same four
+// of prim idx+2). Retail, per pair: reload g_WorldMapPrimPacketIndex (lui+lw), sll/addu/sll to
+// idx*0x28, then addiu t0,CONST and addu addr,scaled,that - so EVERY store is sh val,0(reg), no
+// displacement anywhere - and it reloads the index FOUR times for eight stores, i.e. one read per
+// pair. This compile reloads it once (cse keeps it: nothing provably clobbers it) and folds the
+// +0x50 base into a second symbol, D_8009C7A0, formed with its own la at the top (hence
+// addiu v0,a2,-80 later); that fold plus one load instead of four is the 17 instructions.
+// Dead spellings measured earlier: index-first vs base-first, pointer locals for the base and for
+// base+0x50, a 0x28-byte uv struct, volatile on the index (forces the four reloads but overshoots
+// to 221 insns / 72.51 - it blocks the loop and addPrim cse too). Preset: cdk 53.20, -O3 79.63,
+// -G0 79.63. UNTRIED LEAD for the next lane: retail one-load-per-pair plus its two `move` copies
+// fits a CHAINED assignment, uv = .. written as *(u16 *)(pOff + idx * 0x28) = value, where one
+// statement holds both addresses and cse folds the single index read into both.
 /*
 void func_80073B04(void) {
     WorldMapProjectionScratch* pScratch;
@@ -1691,8 +1708,8 @@ void func_80073B04(void) {
         addPrim(pOt, (P_TAG*)&g_WorldMapTilePrims[g_WorldMapPrimPacketIndex + 2]);
         addPrim(pOt, (P_TAG*)&g_WorldMapTileDrawModes[0]);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 
 // The two POLY_FT4 primitives at D_8009C5C0; retail names every field store
 // by its own address (D_8009C5C3 = tag.len, D_8009C5C7 = tag.code, ...), so the
