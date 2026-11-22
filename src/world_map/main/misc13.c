@@ -789,7 +789,6 @@ s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMa
    (d = p0->x; d -= p1->x) forms (98.21 / 98.21 / 91.79). A 4-minute permuter run
    (2193 iterations, base=50 best=30) found only a semantically identical duplicated
    negu. Allocator tie - see the regalloc levers; do not hand-iterate it.
-/*
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     s32 dx;
     s32 dz;
@@ -806,7 +805,10 @@ s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     }
     sum += (dz >> 12) * (dz >> 12);
     return SquareRoot0(sum);
-}void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
+}
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
+void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* pVector, s16* pAngle) {
     s32 dx;
     s32 dz;
 
@@ -815,6 +817,5 @@ s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     *pAngle = (ratan2(dz, dx) + WORLD_MAP_ANGLE_QUARTER_TURN) & WORLD_MAP_ANGLE_MASK;
     pVector[0] = rcos(*pAngle);
     pVector[2] = -rsin(*pAngle);
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
+}
 
