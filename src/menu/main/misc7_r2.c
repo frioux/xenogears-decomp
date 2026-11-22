@@ -175,6 +175,8 @@ void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     g_Menu->pPlayTimeDigits->renderContext = *(u8*)&g_Menu->renderContext;
 }
 void func_801D5ED4(u_char index, u_char row) {
+    // The negated row offset is load-bearing: a plain `+` mirrors the addu operands
+    // of every row address in this body against retail's.
     s32 rowOffset = row ? 0x18 : 0;
     u8* pRow;
     u8* pBase;
@@ -184,21 +186,21 @@ void func_801D5ED4(u_char index, u_char row) {
     func_8002675C(g_Menu->resources, index + 0x14B, (POLY_FT4*)g_Menu->pGearWindowPrims,
                   g_Menu->renderContext, 0x18 - rowOffset, 0xE, 0x1000);
     MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EA0),
-                        ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28)))->x0,
-                        ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28)))->y0, 0x30, 0x30);
-    MenuInitializePolyFt4((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
+                        ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * sizeof(POLY_FT4))))->x0,
+                        ((POLY_FT4*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * sizeof(POLY_FT4))))->y0, 0x30, 0x30);
+    MenuInitializePolyFt4((POLY_FT4*)((g_Menu->renderContext * sizeof(POLY_FT4) + 0x50) +
                                       (u8*)g_Menu->pGearWindowPrims));
-    *(u16*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28) + 0x66) =
+    *(u16*)((u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * sizeof(POLY_FT4)) + 0x66) =
         GetTPage(0, 0, 0x180, 0);
     if (row == 0) {
-        pBase = (u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28);
+        pBase = (u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * sizeof(POLY_FT4));
         if (g_Menu->pManager->currentCharacterIDs[index] & 1) {
             *(u16*)(pBase + 0x5E) = g_SystemPalette2;
         } else {
             *(u16*)(pBase + 0x5E) = g_SystemPalette1;
         }
     } else {
-        pBase = (u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * 0x28);
+        pBase = (u8*)g_Menu->pGearWindowPrims - -(g_Menu->renderContext * sizeof(POLY_FT4));
         pRow = pBase;
         if ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId + 0xB) & 1) {
             *(u16*)(pRow + 0x5E) = g_SystemPalette2;
@@ -208,7 +210,7 @@ void func_801D5ED4(u_char index, u_char row) {
     }
     width = 0x18 * row + 0x48;
     texX = g_MenuNameTextureX[3 * row + index];
-    MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
+    MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * sizeof(POLY_FT4) + 0x50) +
                                        (u8*)g_Menu->pGearWindowPrims),
                            0, 0, ((texX << 1) << 1) & 0xFC,
                            g_MenuNameTextureY[(3 * row + index) * 4], width, 0xD);
