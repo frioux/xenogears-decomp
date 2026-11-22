@@ -125,6 +125,7 @@ extern void bzero(void *p, s32 n);
 extern void BattleInitSlotGraphics(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void *BattleAllocTextBuffer(s32 arg0);
 extern u8 D_800D36C0[];
+extern u8 g_BattleTextSlotBuffers[];
 extern u8 g_BattlePrimBuffer[];
 extern BattleSlotGraphics *g_BattleSlotGraphics[];
 extern u8 g_SystemBackdropColor[];
@@ -267,23 +268,6 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
-/* 98.19%: every instruction but ONE operand order is byte-exact (464 bytes,
-   same frame, same save order). Retail's store into the local packet-pointer
-   array is `sll s0,s2,2 / addiu s5,sp,0x10 / addu s0,s5,s0` (base first), we
-   get `addu s0,s0,s5`. `pBuf[i]`, i[pBuf], *(pBuf+i), (u8 *)pBuf + i * 4,
-   (s32)i * 4 + (s32)pBuf and a `u8 **pBase = pBuf;` local all give index-first,
-   so the order is a combine/allocator choice, not source-driven. A separate
-   `pSlot = pBuf + i` statement does give retail's order, but the address is
-   then formed before the call (468 bytes, `li a0,0x1B` falls out of the jal
-   delay slot, 90.83).
-   Two things this body had to get right: `i = 0;` must be the first statement
-   (not the for-init) because the prologue's save+init pairs are emitted in
-   first-assignment order and retail saves s2 first (96.80 -> 98.15); and the
-   third loop's offset must be zeroed in the for-init clause
-   (`for (i = 0, off2 = 0; ...)`) so `move s1,zero` lands after `li s3,0xD`
-   where retail has it (98.15 -> 98.19). That third loop walks a byte offset
-   because g_BattleDigitImageBuffers is typed u8 *, so `g_BattleDigitImageBuffers + off` double-scales.
-   Parked body (98.19):
 void func_80076EA4(void) {
     u8 *pBuf[11];
     RECT rect;
@@ -295,16 +279,19 @@ void func_80076EA4(void) {
     s32 off2;
     s32 y;
     s32 h;
+    u8 **pSlot;
 
     i = 0;
     y = 0x10D;
     h = 0xD;
     off = 0x2C;
     for (; i < 11; i++) {
-        pBuf[i] = BattleAllocTextBuffer(0x1B);
-        bzero(pBuf[i], 0x30C);
-        D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), pBuf[i], 0x1B, 0);
-        result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), pBuf[i], 0x1B, 1);
+        // the assignment inside the store's address expression is what makes gcc
+        // form the slot address after the call and base-first, as retail does
+        *(pSlot = pBuf + i) = BattleAllocTextBuffer(0x1B);
+        bzero(*pSlot, 0x30C);
+        D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), *pSlot, 0x1B, 0);
+        result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), *pSlot, 0x1B, 1);
         g_BattleActionRowIconSprites[off] = result;
         pEntry = (u8 *)(g_BattleActionRowIconSprites + off);
         D_800D2F3E[off] = pEntry[2] = 0x78;
@@ -315,7 +302,7 @@ void func_80076EA4(void) {
         rect.y = y;
         rect.w = 0x1E;
         rect.h = 0xD;
-        BattleLoadImageAndSync(&rect, pBuf[i]);
+        BattleLoadImageAndSync(&rect, *pSlot);
         y += 0xD;
         h += 0xD;
         off += 4;
@@ -324,17 +311,16 @@ void func_80076EA4(void) {
     for (i = 0; i < 11; i++) {
         HeapFree(*p++);
     }
-    for (i = 0, off2 = 0; i < 0xA; i++) {
+    for (i = 0; i < 0xA; i++) {
         rect.x = 0x3DE + i * 2;
         rect.y = 0x100;
         rect.w = 6;
         rect.h = 0xD;
+        off2 = i * sizeof(u8 *);
         BattleLoadImageAndSync(&rect, *(u8 **)((u8 *)g_BattleDigitImageBuffers + off2));
-        off2 += 4;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
+
 void BattleInitPacketPrimitives(void) {
     g_BattleGraphicsWork->pPacketPrims[0x669] = 0;
     g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
@@ -679,25 +665,28 @@ void func_800780A8(u8 *pInfo, s32 arg) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
-/* 94.68% (372 bytes = retail's size; only address shape differs): retail keeps
-   ONE bare offset register (0x60 + 0xC0k, `li s3,0x60` incremented in the loop)
-   shared by all three uses - two `lui $at,%hi(sym); addu $at,$at,s3; sw
-   %lo(sym)($at)` stores and one `addu v0,s3,s5` for the RECT copy destination -
-   plus a SECOND offset register (s0 = 0xC0k, `addu a0,s0,a0` for the first
-   func_800780A8 base) and a third giv for base+0x10+offset (s4). With the
-   symbol+0x60 folded into the address (this body) gcc instead makes s3 a
-   pointer giv onto g_BattleTextSlotBuffers. Tried this round: explicit `offset` local
-   incremented in the loop (88.25, 356 bytes - one giv short, the copy
-   destination becomes base+0x60+offset); `offset` + `offset2 = offset + 0x60`
-   (94.45, 368 bytes - the s3 and s0 shape is right but base+0x10+offset is
-   computed inline instead of kept as a giv); the same plus a `pPrims` pointer
-   for the second call (87.98, 380 bytes - a 7th register, s6). The two offset
-   givs and the base+0x10 giv coexist only with six registers, which none of
-   these spellings reach. Parked body (94.68):
+/* 98.39% (372 bytes = retail size, 93 insns = retail count, addresses verified correct):
+   the body is instruction-identical to retail EXCEPT that the two induction-varying
+   byte offsets trade registers. Retail keeps offset A = 0x60 + 0xC0k (init li s3,0x60)
+   in s3 and uses it for both pointer stores (lui at,%hi(D_800D36C0); addu at,at,s3;
+   sw %lo(at), and the same off g_BattleTextSlotBuffers) AND for the RECT copy
+   destination (addu v0,s3,s5); offset B = 0xC0k (init move s0,zero, one use) only
+   serves the func_800780A8 prim base. cc1 2.7.2 does the mirror: B in s3, A in s0, and
+   it re-folds each store address to symbol+0x60 + B (store 1 becomes %lo(D_800D3720)
+   with addend 0, store 2 g_BattleTextSlotBuffers with addend 96), i.e. cse
+   canonicalises the decomposed form and only the copy destination keeps A. Tried:
+   i*0x60+0x60 written as (i+1)*0x60 and as an explicit off local assigned in the loop
+   (identical output); off = 0x60 assigned before the loop and += 0xC0 at the bottom
+   (this one DOES give retail shape for both stores but costs a 7th saved register,
+   384 bytes, 90.80); a second loop variable n = i + 1 (103 insns, 412 bytes). The park
+   below is the (i+1)*0x60 form. A cse/regalloc tie, not source-driven.
+   Parked body (98.39): */
+/*
 void func_8007819C(void) {
     RECT *pRect;
     u8 *pBuf;
     s32 i;
+    s32 off;
 
     BattleInitSlotGraphics(5, 8, 0x2A, 0x70, 0x12, 0, 0);
     ((u8 *)g_BattleDisplayState)[0xB5] = 0;
@@ -705,16 +694,17 @@ void func_8007819C(void) {
     ((u8 *)g_BattleDisplayState)[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
         pBuf = BattleAllocTextBuffer(0x39);
-        *(u8 **)(D_800D36C0 + i * 0x60 + 0x60) = pBuf;
-        *(u8 **)(g_BattleTextSlotBuffers + i * 0x60 + 0x60) = pBuf;
-        pRect = (RECT *)(g_BattleTextSlotRects + i * 0x60);
+        off = (i + 1) * 0x60;
+        *(u8 **)(D_800D36C0 + off) = pBuf;
+        *(u8 **)(g_BattleTextSlotBuffers + off) = pBuf;
+        pRect = (RECT *)((u8 *)g_BattleTextSlotRects + i * 0x60);
         pRect->x = 0x3C0;
         pRect->y = (i / 2) * 13;
         pRect->w = 0x3C;
         pRect->h = 0xD;
-        *(RECT *)(g_BattleTextSlotRects + i * 0x60 + 0x60) = *pRect;
-        func_800780A8(g_BattleTextSlotRects - 0x50 + i * 0x60, i);
-        func_800780A8(g_BattleTextSlotRects + i * 0x60 + 0x10, i + 1);
+        *(RECT *)((u8 *)g_BattleTextSlotRects + off) = *pRect;
+        func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + i * 0x60, i);
+        func_800780A8((u8 *)g_BattleTextSlotRects + i * 0x60 + 0x10, i + 1);
     }
 }
 */
