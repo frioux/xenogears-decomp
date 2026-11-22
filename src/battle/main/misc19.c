@@ -97,34 +97,26 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     }
     return ret;
 }
-// Round 373 re-measured: ONE instruction differs, `addu a0,v0,v1` against retail's in-place
-// `addu v0,v0,v1` (the HImode sum coalescing with its FIRST operand where gcc picks a fresh
-// register; the `move v1,..`, the clamp and the `andi` return all match). Probed as a
-// standalone snippet the sum coalesces with its SECOND operand instead (`addu $3,$2,$3`), so
-// the probe is not representative of the frame. 99.68 under gcc-2.6.0 too, so this body is not
-// a preset question either. Five spellings with no effect: u16/s32/u8 sums, declaration order
-// swapped, the add written `q[0x5B] + sum`.
-// PARKED (99.68%, 124 bytes = retail's size). Body COMPILES. Re-measured round 369:
-// unchanged, and the whole residual is ONE instruction pair. Retail's `rand`-free tail is
-// `lbu v0,p[0x14] / lbu v1,q[0x5B] / addu v0,v0,v1 / move v1,v0` - the sum coalesces onto the
-// DYING p-byte register v0 - while this compiler gives the sum a fresh a0 and copies from
-// there. So the loads, the `move v1,v0` (the u8 `value` taking the freed q-byte register), the
-// `u8` clamp test and the `andi` return all match; only sum's home differs. The one-expression
-// `sum = p[0x14] + q[0x5B]` DOES coalesce (98.39%) but onto the wrong operand's register.
-// Four permuter runs across rounds 122/123/169/369 (best 10-40) and 20+ hand shapes have not
-// moved it: it is the allocator's choice between two free registers, not a source shape.
-// Round 372 narrowed the direction: an UNSIGNED HImode sum (`u16`/`u32`/`s32`, same `u8 value`,
-// same clamp) DOES coalesce the add onto the p byte's register (`addu a1,a1,v0` + `move v1,a1`,
-// so the copy survives and value still takes v1), but then both byte loads move to a1/v0:
-// 99.03% at the same 124 bytes. `s16` is what leaves the loads in retail's v0/v1 and loses only
-// the in-place tie, so 99.68 stays the best. Measured dead this round: u8 sum (120 bytes - the
-// copy and the bnez nop both disappear), one-expression sums through u8/s16/u16 temps, a
-// declaration initialiser, a brace block around the sum, load order swapped, `short value`, and
-// comparing `sum` instead of `value`.
-// Round 391 re-measured (un-parked, live): still 99.68% at 124 bytes with exactly two instructions
-// out of place (the add's destination `a0` where retail is in place in `v0`, and the copy that
-// reads it). No lever names this shape: a-three-operand-or-never-ties says a 3-operand `addu`
-// never ties to its input, which is why no spelling reaches retail's in-place form here.
+// PARKED (99.68%, 124 bytes = retail's size, 31 insns). Body COMPILES; re-measured round 405.
+// The residual is ONE instruction pair at the sum. Retail's tail is
+//   lbu v0,20(v1) / lbu v1,91(a2) / addu v0,v0,v1 / move v1,v0 / andi v0,v1,0xff / sltiu v0,v0,0x65
+// i.e. the HImode sum is IN PLACE in the DYING p-byte register v0 and the u8 `value` copy takes the
+// freed q-byte register v1. This cc1 gives the add a fresh `a0` and copies from there
+// (addu a0,v0,v1 / move v1,a0); the two loads, the copy, the clamp and the andi return all match.
+// The mechanism is named: an HImode add goes through an SImode temp, and a 3-operand `addu` has no
+// copy suggestion from a dying input, so the HImode sum never ties in place.
+// The SImode family is the other horn: it DOES tie (addu a1,a1,v0 + move v1,a1, so the copy
+// survives and value keeps v1) but shifts BOTH loads to a1/v0 - 99.03% at the same 124 bytes.
+// Measured this round, all at 124 bytes: s32/u16 sums, `+=`, (short)/(s32) casts on the summands,
+// a `short b` summand, a brace block, `register short`, declaration initialisers, q-first and
+// commuted sums, u8 byte locals (98.39), volatile p read (98.39), volatile q read (99.19, addu
+// a1,v0,a1), s16-via-s32-temp (98.39). Every plain HImode spelling lands on the identical 99.68
+// pair. Dropping the value copy (plain `if (value > 0x64) value = 0x64;`) costs the copy AND the
+// bnez nop: 120 bytes, 95.97%.
+// Presets are not the way out: this body 99.68 / 95.97 (2.6.0 / cdk), the s32 body 99.03 / 95.97,
+// and the unit is mixed under 2.6.0 (see the func_8009A9D0 note). Fifth permuter run (this round):
+// PERMUTER_NONE base=10 best=10 over 1587 iterations. Park is final: local-alloc's choice between
+// two free registers.
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
