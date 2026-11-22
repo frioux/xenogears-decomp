@@ -26,7 +26,7 @@ typedef struct {
     /* 0x0 */ volatile u_long madr;
     /* 0x4 */ volatile u_long bcr;
     /* 0x8 */ volatile u_long chcr;
-    /* 0xC */ u_long padC;
+    /* 0xC */ u_long unkC;
 } DmaChannelRegs; // Size: 0x10
 
 extern DmaChannelRegs* D_8005898C; // channel 0's registers
