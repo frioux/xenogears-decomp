@@ -417,6 +417,10 @@ def plan(args, elig, round_no):
                 break
             if unit in taken:
                 continue
+            # Round 408: a header field pass edits every user of the header, so the
+            # round's matching lanes must stay out of that header's binaries.
+            if args.exclude_binaries and unit.split("/", 1)[0] in args.exclude_binaries:
+                continue
             taken.add(unit)
             tag = make_tag(unit, round_no, tags)
             out.append((worker(unit, tag, funcs, cls, table), tag, cls, funcs))
@@ -457,6 +461,9 @@ def stats(stubs, elig):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--exclude-binary", dest="exclude_binaries", action="append", default=[],
+                    help="skip units in this binary/overlay (repeatable) - use when a header "
+                         "field pass is editing every user of that binary's headers")
     ap.add_argument("--lanes", type=int, default=6)
     ap.add_argument("--queue", type=int, default=6)
     ap.add_argument("--round", type=int)
