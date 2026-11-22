@@ -288,6 +288,22 @@ s32 func_8008E190(s32 idx) {
     return nRet;
 }
 */
+/* best: 99.80% (objdiff), 396 bytes = retail's exact size, 99 instructions and every
+   instruction is retail's; the ONLY residual is `addiu $s0,$s2,160` where the original
+   object carries `addiu $s0,$s2,%lo(D_1F8000A0)`, i.e. a reloc name, not a byte. Writing
+   the vector as the symbol (`extern u16 D_1F8000A0;` + `(SVECTOR *)&D_1F8000A0`) does buy
+   the reloc but loses the shared base register: `ori $a0,$s1,0xa0`, 388 bytes, 93.12.
+   The shape that is now proved correct: `u16 *pScratchPos = (u16 *)0x1F800000;` (one
+   `lui $s2,0x1F80` in the worldMapState bnez slot) + `pScratchPos[0x50]/[0x51]/[0x52]`
+   stores (literal offset immediates, as retail) + `(SVECTOR *)&pScratchPos[0x50]` as the
+   RotMatrixYXZ argument, in that statement order. g_WorldMapViewRotationZ MUST be read as
+   `[0]`: it is an array extern, and the bare name truncates the address (388 bytes, -8).
+   STILL PARKED FOR THE LAYOUT REASON, unchanged: jtbl_80070A30 has to sit at .rodata+0x38
+   behind func_8008E190's two tables at +0/+0x18, and cc1 emits a converted unit's tables at
+   the START of its .rodata, so converting this stub alone moves every later table of the
+   range (check_bin MISMATCH, measured in an earlier round). E190 (parked at 87%) and this
+   function have to be converted together, in address order.
+/*
 s32 func_8008E4F4(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 *pScratchPos;
@@ -329,7 +345,9 @@ s32 func_8008E4F4(s32 idx) {
     RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[1].matrix);
     return nRet;
-}
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
+
 s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 nAngle;
@@ -849,7 +867,7 @@ s32 func_80091430(s32 idx) {
         }
     }
     return 1;
-}
+}*/
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
 s32 WorldMapModeInitActorAngleSets(s32 idx) {
