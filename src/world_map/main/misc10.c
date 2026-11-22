@@ -119,14 +119,14 @@ typedef struct {
     /* 0x00 */ u32 lifeTimerInit; // what lifeTimer is armed with when the slot is claimed
     /* 0x04 */ u32 lifeTimer;
     /* 0x08 */ s16 maxCount;
-    /* 0x0A */ u16 count;
+    /* 0x0A */ s16 count;
     /* 0x0C */ s16 trailCount;
     /* 0x0E */ s16 trailActive;
     /* 0x10 */ u16 interval;
-    /* 0x12 */ u16 timer;
-    /* 0x14 */ u16 x;
-    /* 0x16 */ u16 y;
-    /* 0x18 */ u16 z;
+    /* 0x12 */ s16 timer;
+    /* 0x14 */ s16 x;
+    /* 0x16 */ s16 y;
+    /* 0x18 */ s16 z;
     /* 0x1A */ undefined16 pad1A;
     /* 0x1C */ u16 rotX;
     /* 0x1E */ u16 rotY;
@@ -135,9 +135,9 @@ typedef struct {
     /* 0x24 */ SVECTOR trailStart; // local point a trail is emitted from; rotated by rot, added to x/y/z
     /* 0x2C */ SVECTOR trailEnd; // local point a trail heads for; (trailEnd - trailStart) is its direction
     /* 0x34 */ s32 speed;
-    /* 0x38 */ u16 accelX;
-    /* 0x3A */ u16 accelY;
-    /* 0x3C */ u16 accelZ;
+    /* 0x38 */ s16 accelX;
+    /* 0x3A */ s16 accelY;
+    /* 0x3C */ s16 accelZ;
     /* 0x3E */ undefined16 unk3E;
     /* 0x40 */ u16 trailStartSpread; // random spread of trailStart; flags & 0x4 uses it unrandomized
     /* 0x42 */ u16 trailEndSpread; // random spread of trailEnd; flags & 0x8 uses it unrandomized
@@ -677,29 +677,41 @@ void func_80089580(void) {
     }
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
-/* 1324 bytes against retail's 1328, head byte-identical through the flags/0x10 block;
-   objdiff-cli reports 0.00% on this body (target_size comes back null), so score it
-   with the instruction diff, not the percentage. Structure recovered: 0x200-sprite
-   loop over g_WorldMapSpriteGroups, the packed low/high lifeTimer pair that is only
-   reloaded under flags & 0x10 and stored back at the tail of every active sprite
-   (`high << 16 | low`), the timer/interval reload, the trailActive&maxCount&count gate,
-   the 0xFF-entry scan for a free trail slot, and inside it RotMatrixYXZ of
-   pSprite->rotX into 0x1F8000F0, two ApplyMatrix calls (trailStart at 0x24, trailEnd at
-   0x2C) against the scratch vector at 0x1F800020, three rand()-seeded direction vectors
-   normalised into 0x1F800000 (the 0x14 component is skipped under flags & 0x20 / 0x40),
-   the spread pair (0x40/0x42 fields vs rand() % field under flags & 4 / 8), the
-   entry->x/y/z = (out << 12) + in * spread + (sprite->xyz << 12) blocks, the difference
-   >> 12, the second VectorNormal feeding velX/Y/Z = (vec * speed) >> 12, ratan2 of the
-   x/y components for entry->angle, and the word copies of accel/scale/color/colorStep/
-   scaleStep plus tpage = (flags & 3) << 5 | 0x9D. Remaining delta: my compile keeps the
-   sprite base in s5 where retail uses s6 (and swaps fp/s6 for the lifeTimer pair), so
-   the prologue save order and the 0x40 vs 0x38 frame differ, and the flags ^= 0x80 arm
-   is a taken jump instead of retail's fall-through into the store. pScratch
-   ((u8 *)0x1F800000) is load-bearing: absolute `*(s32 *)0x1F800004`-style accesses make
-   gcc hoist 0x1F800004/0x1F800008 into two extra callee-saved registers.
-
-/*
+/* 96.95% (1324 bytes against retail 1328; 331 vs 332 insns). Re-measured from a
+   clean un-park, so the old round-398 note is dead: it claimed a byte-identical head,
+   but the honest body was 0.00 and wrong on five things. What this body now has exactly
+   right, all measured: the 0x200-sprite loop and its two induction pointers, the whole
+   packed lifeTimer pair (high in fp, low via sll/sra, packed again as high<<16|low), the
+   timer countdown with retail is move-then-addiu copy, the trailActive/maxCount/count
+   AND chain with one beqz and the 0xFF scan init in its delay slot, the free-entry scan,
+   RotMatrixYXZ + two ApplyMatrix against 0x1F800000 scratch offsets, the three rand
+   direction vectors with the flags 0x20/0x40 zero arms branching to the zero store and
+   the 0x4/0x8 arms to the field, both spread pairs, the six position blocks, the delta
+   shift, the second VectorNormal, the three vel stores, ratan2, and every tail word copy
+   plus tpage = (flags & 3) << 5 | 0x9D and the count increment.
+   TYPES these needed, all in the WorldMapSprite struct of this file: timer s16 (retail
+   loads it with lh but the decrement truncates so lhu appears at the store), x/y/z s16,
+   accelX/Y/Z s16, count s16, trailActive s16 read as != 0 so gcc emits sltu.
+   RESIDUAL, three constructs, all allocator / block layout:
+   (1) retail keeps the sprite base in s6 and low in s5, this body mirrors it (sprite s5,
+   low s6): the save order follows it, so the whole prologue and eight body lines differ.
+   Retail allocates low FIRST, which for two pseudos of the same live length needs low to
+   outrank a 15-ref pointer, so a -da allocno dump is the next step, not more spellings.
+   (2) retail own lifeTimer store block has TWO entry points (a sll at the fall-through
+   label and a duplicated sll in the one j delay slot), which is retail extra instruction
+   and 4 bytes; this body enters it once. Same shape as the classic dbr duplicate.
+   (3) the flags ^= 0x80 arm: retail branches beqz to an out-of-line sb that falls into the
+   store, this body emits bnez + xori + j with the sb in the j slot (one instruction more,
+   which is why the totals differ by one rather than two). Tried both orderings of the
+   test, if/else-if/else, and the flat goto form, all identical.
+   PERMUTER: 3 minutes, 1122 iterations, base 1585 best 1015. Its one real find is
+   load-bearing and is in this body: store pEntry->scaleStep BEFORE pEntry->tpage. That
+   alone moved the pEntry strength-reduction base from 0x3C to retail 0x48 and took the
+   function from 93.4 to 96.95. Run the permuter again from this body before more hand work.
+   The uninitialised low/high read on the not-flags-0x10 path is RETAIL OWN: the lifeTimer
+   load sits inside the flags-0x10 block and the pack store at the loop tail is shared, so
+   those registers really are stale; zeroing them costs two instructions and cannot match.
+*//*
 void func_80089748(void) {
     WorldMapSprite* pSprite;
     WorldMapTrailEntry* pEntry;
@@ -729,20 +741,19 @@ void func_80089748(void) {
                 low--;
                 goto storeLifeTimer;
             }
-            if (high == 0) {
+            if (high != 0) {
+                high--;
+            } else {
                 pSprite->flags ^= 0x80;
                 goto storeLifeTimer;
             }
-            high--;
         }
         if (pSprite->timer != 0) {
-            pSprite->timer--;
+            pSprite->timer = pSprite->timer - 1;
             goto storeLifeTimer;
         }
         pSprite->timer = pSprite->interval;
-        if (!((pSprite->trailActive > 0) & (pSprite->maxCount > 0) & (pSprite->count < pSprite->maxCount))) {
-            goto storeLifeTimer;
-        }
+        if ((pSprite->trailActive != 0) & (pSprite->maxCount > 0) & (pSprite->count < pSprite->maxCount)) {
         pEntry = g_WorldMapTrailEntries;
         for (j = 0xFF; j != -1; j--) {
             if (pEntry->trailFlags.status.active == 0) {
@@ -750,10 +761,10 @@ void func_80089748(void) {
                 pEntry->trailFlags.flags = *(u32*)&pSprite->trailCount;
                 RotMatrixYXZ((SVECTOR*)&pSprite->rotX, (MATRIX*)(pScratch + 0xF0));
                 ApplyMatrix((MATRIX*)(pScratch + 0xF0), (SVECTOR*)&pSprite->trailStart, (VECTOR*)(pScratch + 0x20));
-                if (flags & 0x20) {
-                    *(s32*)(pScratch + 0x014) = 0;
-                } else {
+                if (!(flags & 0x20)) {
                     *(s32*)(pScratch + 0x014) = (rand() & 0xFFF) - 0x800;
+                } else {
+                    *(s32*)(pScratch + 0x014) = 0;
                 }
                 *(s32*)(pScratch + 0x010) = (rand() & 0xFFF) - 0x800;
                 *(s32*)(pScratch + 0x018) = (rand() & 0xFFF) - 0x800;
@@ -767,10 +778,10 @@ void func_80089748(void) {
                 pEntry->y = (*(s32*)(pScratch + 0x024) << 12) + *(s32*)(pScratch + 0x004) * spread + (pSprite->y << 12);
                 pEntry->z = (*(s32*)(pScratch + 0x028) << 12) + *(s32*)(pScratch + 0x008) * spread + (pSprite->z << 12);
                 ApplyMatrix((MATRIX*)(pScratch + 0xF0), (SVECTOR*)&pSprite->trailEnd, (VECTOR*)(pScratch + 0x20));
-                if (flags & 0x40) {
-                    *(s32*)(pScratch + 0x014) = 0;
-                } else {
+                if (!(flags & 0x40)) {
                     *(s32*)(pScratch + 0x014) = (rand() & 0xFFF) - 0x800;
+                } else {
+                    *(s32*)(pScratch + 0x014) = 0;
                 }
                 *(s32*)(pScratch + 0x010) = (rand() & 0xFFF) - 0x800;
                 *(s32*)(pScratch + 0x018) = (rand() & 0xFFF) - 0x800;
@@ -795,22 +806,25 @@ void func_80089748(void) {
                 pEntry->accelX = pSprite->accelX;
                 pEntry->accelY = pSprite->accelY;
                 pEntry->accelZ = pSprite->accelZ;
-                *(u32*)&pEntry->scaleX = pSprite->scale;
-                *(u32*)&pEntry->colorStep = pSprite->colorStep;
                 pEntry->color = *(u32*)&pSprite->color[0];
-                pEntry->tpage = (flags << 5) | 0x9D;
+                *(u32*)&pEntry->colorStep = pSprite->colorStep;
+                *(u32*)&pEntry->scaleX = pSprite->scale;
                 *(u32*)&pEntry->scaleStepX = pSprite->scaleStep;
+                pEntry->tpage = (flags << 5) | 0x9D;
                 pSprite->count++;
                 break;
             }
             pEntry++;
         }
+        }
     storeLifeTimer:
         pSprite->lifeTimer = (high << 16) | low;
     }
     func_80089580();
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
+
+
 // 0x1F800000 scratchpad view this routine projects through. The three matrices and the
 // delta are addressed by their own literals in retail, so the byte offsets are the contract.
 typedef struct {
