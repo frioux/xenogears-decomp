@@ -548,15 +548,27 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    block; retail's compiler did" - so this unit has three stubs in one
    allocator class; do not spend another lane hand-dialling it.
    Round 394 also measured an empty `do { t = t + arg1; } while (0)` around the
-   sum: byte-identical 98.61, the tie does not move. */
+   sum: byte-identical 98.61, the tie does not move.
+   Round 410: un-parked and re-measured 98.61% / 72 bytes (retail's size). The
+   realistic typing of the same body - `Actor *p0`, `t = (s16)p0->gaugePoints`,
+   `p0->gaugeValue` and BATTLE_GAUGE_POINTS_PER_LEVEL (the parked body below) -
+   is byte-identical at 98.61, so the residual is not a typing artefact.
+   Also measured this round, both 18 insns / 72 bytes: writing the sum twice so
+   cse merges it into one two-use pseudo (`if ((t + arg1) >= 0x1001) return
+   ((t + arg1 - 0xFF1) / 20) < ...`) is 98.06 and still allocates the sum to
+   `$v1`; a `u32 amount = arg1` copy of the parameter (the parameter-copy
+   signedness lever) coalesces to no instruction and leaves the code identical.
+   One fact for a later lane: retail reads 0xB6 with `lh` here but with `lhu`
+   in BattleAccumulateGaugePoints (asm/battling/main/misc2.s line 986), so the
+   field is u16 and this function's original C read it as signed. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
-/* s32 func_80073DE4(u8 *p0, s32 arg1) {
+/* s32 func_80073DE4(Actor *p0, s32 arg1) {
     s32 t;
 
-    t = *(s16 *)(p0 + 0xB6);
+    t = (s16)p0->gaugePoints;
     t = t + arg1;
     if (t >= 0x1001) {
-        return ((t - 0xFF1) / 20) < *(s16 *)(p0 + 0xB4);
+        return ((t - 0xFF1) / BATTLE_GAUGE_POINTS_PER_LEVEL) < p0->gaugeValue;
     }
     return 1;
 } */
