@@ -57,48 +57,71 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
 void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDirentCount, s32* pTexPageId, s32* pClutX, s32* pClutY, s32* pTexPageX, s32* pTexPageY);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
-
-/* 78.55% (596 bytes, same size as the original). Full decode: arg1 != 0
-   guards the whole body. ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 0, then two
-   windows: func_8002675C(g_Menu->resources, D_801E977C[i], 0x1E00 + i*0x50
-   + pGearWindowPrims, g_Menu->renderContext, 0x78 + i*0x20, 0x5A, 0x1000) and
-   MenuSetQuadVertices(0x2AA0 + i*0x20 + pGearWindowPrims, x, y, right - x, bottom - y) with
-   a u8* pEntry = pGearWindowPrims + (renderContext + i*2)*0x28 and fields +0x1E08,
-   +0x1E0A, +0x1E10, +0x1E22 (i.e. 0x1E00-relative 40-byte records).
-   Then MenuSetPolySemiTransGrey(pGearWindowPrims + (renderContext + 2*(arg2 == 0))*0x28),
-   *(u16*)(pEntry+0x1E16) |= 0x20, *(u8*)(pEntry+0x1E04/05/06) = 0x20,
-   ((u8*)pGearWindowPrims)[0x2AEE] = *(u8*)&g_Menu->renderContext,
-   ((u8*)pGearWindowPrims)[0x2AED] = 2. Post-call statements must repeat the whole
-   address expression inline (a pEntry local kept in a register gives 46.14%,
-   this version 78.55%). Remaining diffs: (1) gcc's loop.c strength-reduces
-   the D_801E977C[i] giv into an incrementing pointer, which costs a sixth
-   saved register and shifts every other saved reg one up (retail keeps the
-   indexed lui %hi + addu + lw %lo at-form, and has s0=i, s1=0x1E00+0x50i,
-   s2=0x78+0x20i, s3=0x2AA0+0x20i, s4=(arg2 == 0)); frame 0x40 vs 0x38
-   follows from that. (2) retail does not CSE the twin lhu of +0x1E08 (loads
-   it into a1 and again into v0 for the width subtraction) and loads x/y
-   straight into a1/a2, where gcc emits move a1,v0 / move a2,v1.
-   func_8002675C args must be s32 x,y,scale (u16 costs an extra andi).
-   Also declared: MenuSetQuadVertices, MenuSetPolySemiTransGrey, D_801E977C.
+/* PARKED 97.08% under gcc-2.6.0-psx (596 bytes, retail's exact size and its
+   150-instruction count) and 87.48% under the unit's Default 2.7.2 (604 bytes,
+   151 insns).
+   PRESET_260 menu/main/misc8 func_801D7CFC 97.08 87.48 - every already-matched C
+   function of the unit is also 100.00 under 2.6.0 (MenuDrawStatTable,
+   MenuMaxStatValue, MenuOpenCardEvents, MenuSetStatBarQuadColors,
+   MenuSetStatBarTileColors), so a unit switch makes this body a candidate.
+   What the body is: the gear window's two window quads and the selected prim
+   pair. The 0x2AED store is UNCONDITIONAL in retail - it sits in the beqz delay
+   slot, so it runs when arg1 is 0 too - then arg1 guards the rest.
+   Four things closed the gap from the old 78.55 park:
+   1. the 0x2AED store moved above the `if (arg1 != 0)` (retail's pGearWindowPrims
+      load and that store precede the beqz): 78.55 -> 85.60 under 2.7.2, and
+      87.95 -> 92.78 under 2.6.0.
+   2. the MenuSetPolySemiTransGrey address needs the 0x1E00 the old park omitted;
+      retail has the `addiu a0,a0,0x1E00` for it.
+   3. the loop's prim address needs pBase = (u8*)g_Menu->pGearWindowPrims and then
+      pEntry = pBase + off (lever b-pointer-local-holding-base), which is what
+      gives retail's base-first `addu v1,v1,v0`; the single-expression spelling
+      stays index-first.
+   4. `u_char selected`, not s32: with u_char gcc masks arg2 first and emits
+      retail's `sltiu a2,a2,1` + `move s4,a2`: 93.65 -> 97.08 under 2.6.0.
+   Residual under 2.6.0: ONE construct, the position of the
+   g_Menu->pGearWindowPrims load in the two tail prim-color statements. Retail
+   loads it at insn 99, i.e. BEFORE the *0x28 shift chain of the `tpage |= 0x20`
+   read-modify-write, and forms `addu a0,a0,v1` base-first; the compile loads it
+   one slot later (between the addu and the last sll) and keeps `addu v1,v1,v0`
+   index-first. The following byte store is the mirror image: retail loads the
+   base after the last sll, the compile one slot earlier. Everything else - frame
+   0x38, saves, the whole loop, the call, the two trailing stores - is identical,
+   and both are 150 instructions, so this is an instruction-order residual, not a
+   size one.
+   Tried under 2.6.0 and rejected: an embedded-assignment temp for the base in
+   either store (96.78 with one shared temp name - it also perturbs the loop's
+   allocation - and 97.08 with a fresh one), a POLY_FT4 typed tpage field
+   (identical), the POLY_FT4 array subscript form [0xC0 + ctx + sel*2] for the
+   three byte stores (identical code), s32 selected (93.65), dropping pBase
+   (92.78), an off local alone (92.78).
+   Under the unit's 2.7.2 the loop's D_801E977C[i] is strength-reduced into a
+   walking pointer (a 6th saved register, frame 0x40), which is why that preset
+   cannot reach this body - see lever o-272-vs-260-operand-order.
+*/
+/*
 void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
-    s32 selected = (arg2 == 0);
+    u_char selected = (arg2 == 0);
     u8* pEntry;
+    u8* pBase;
+    s32 off;
     s32 i;
 
+    ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 0;
     if (arg1 != 0) {
-        ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 0;
         for (i = 0; i < 2; i++) {
             func_8002675C(g_Menu->resources, D_801E977C[i],
                           (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + 0x1E00 + i * 0x50),
                           g_Menu->renderContext, 0x78 + i * 0x20, 0x5A, 0x1000);
-            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
+            off = (g_Menu->renderContext + i * 2) * 0x28;
+            pBase = (u8*)g_Menu->pGearWindowPrims;
+            pEntry = pBase + off;
             MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x2AA0 + i * 0x20),
                           *(u16*)(pEntry + 0x1E08), *(u16*)(pEntry + 0x1E0A),
                           *(u16*)(pEntry + 0x1E10) - *(u16*)(pEntry + 0x1E08),
                           *(u16*)(pEntry + 0x1E22) - *(u16*)(pEntry + 0x1E0A));
         }
-        MenuSetPolySemiTransGrey((P_TAG*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28));
+        MenuSetPolySemiTransGrey((P_TAG*)((u8*)g_Menu->pGearWindowPrims + 0x1E00 + (g_Menu->renderContext + selected * 2) * 0x28));
         *(u16*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E16) |= 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E04) = 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E05) = 0x20;
@@ -106,8 +129,9 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
         ((u8*)g_Menu->pGearWindowPrims)[0x2AEE] = *(u8*)&g_Menu->renderContext;
         ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 2;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
 
 /* 99.11% under the unit's flags, 100.00 under gcc-2.6.0-psx (203 insns, 812 bytes,
