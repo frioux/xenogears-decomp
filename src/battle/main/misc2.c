@@ -557,32 +557,12 @@ void BattleDrawFrameByScreenMode(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
-/* 97.59%: 332 bytes, retail's exact size, ONE instruction out of place - gcc emits
-   the `sll v0,v0,1` (the u16 scale in the g_BattleSlotScreenOrigins index) before the
-   `lui %hi/addiu %lo` of the symbol, retail after it. A two-minute permuter run from
-   this body returned PERMUTER_NONE at base=60 (one instruction). What the body needed:
-   (1) every access is written as an inline `((u8 *)g_BattleDisplayState + off)` so gcc
-   reloads the global per block like retail (four loads) instead of keeping one register
-   live; (2) the second half of the 0x34..0xAB run goes through two pointer locals
-   (`pWork`, and `pAb` for the 0xAB store) because retail reloads into $v0 and $v1 there;
-   (3) the three zero stores are a do/while(0) unit so they keep retail's place after
-   the 0x5C pair; (4) the 0x5C=divisor store is the embedded assignment of the divisor
-   expression (permuter find); (5) `pTail[slot + 0x90] -= 1` inside an embedded
-   assignment of the base is what gives retail's `addu v1,v1,a2` operand order.
-   Re-measured this round: the body compiles and still scores 97.59. Two more
-   spellings tried for the sll: the cast form `(u16 *)((page * 3 + slot) * 2 +
-   (s32)g_BattleSlotScreenOrigins)` is byte-identical to `&arr[i]` (97.59), and the
-   two-statement `pOrigins = g_BattleSlotScreenOrigins; pOrigin = &pOrigins[...]`
-   DOES move the sll after the lui/addiu but pushes the g_BattleSlotScreenOrigins
-   load above g_BattleDisplayState and costs 9 points (88.80).
-*/
-/*
 void func_800765C4(s32 slot) {
     u16 *pOrigin;
-    u8 *pTail;
     u8 *pWork;
     u8 *pAb;
+    mem_addr origins;
+    s32 index;
     s32 base;
     s32 offset;
     s32 offset2;
@@ -590,7 +570,9 @@ void func_800765C4(s32 slot) {
     u32 divisor;
     s32 scaled;
 
-    pOrigin = &g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot];
+    index = g_BattleSlotPageIndex * 3 + slot;
+    origins = (mem_addr)g_BattleSlotScreenOrigins;
+    pOrigin = (u16 *)(index * 2 + origins);
     base = *pOrigin;
     *(s32 *)((u8 *)g_BattleDisplayState + 0x44) = 0x1C;
     offset = base + 0x48;
@@ -621,9 +603,8 @@ void func_800765C4(s32 slot) {
     } while (0);
     *(s32 *)(pWork + 0x54) = scaled;
     *(u8 *)(pAb + 0xAB) = 1;
-    *((pTail = (u8 *)g_BattleDisplayState) + slot + 0x90) -= 1;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
+    g_BattleDisplayState->panelMode[slot]--;
+}INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 /* 95.68% at retail's exact 728 bytes; 4-minute permuter runs from 91.53 and from
    this body both returned BETTER on their own metric but the ported edits were
    worse under objdiff, so nothing was kept. What is left is allocation and
