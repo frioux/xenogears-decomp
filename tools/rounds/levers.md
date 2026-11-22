@@ -787,6 +787,18 @@ try: preset psyq overlay
 
 - id: i-rodata-head-carve-moves | keywords: jtbl, carve, rodata, align, head, check_bin, chain, split
   **A 4-MOD-8 JUMP TABLE IS CONVERTIBLE AFTER ALL: CARVE THE UNIT'S RANGE HEAD OUT AS A SPLAT `rodata` SUBSEGMENT ENDING AT THE TABLE'S OWN (8-ALIGNED) ADDRESS, SO THE UNIT'S C `.rodata` STARTS THERE** (round 404, battle/main/misc29 func_800B8098, 73 insns, XenoBattleTailCdk0). misc29's range is 0xF0C..0xF38 and holds two tables: func_800B7870's 5-word `jtbl_800709FC` at +0 (still an `INCLUDE_ASM` stub) and func_800B8098's 6-word `jtbl_80070A10` at +0x14. Converting 8098 alone measured 99.86% / 292 bytes = retail's exact size with only the `jtbl_` vs `.rodata` operand left - the ordinary MATCH-JTBL shape - and `check_bin.sh battle` then failed by exactly +4 (`build/out/battle.bin 343940` vs disc `343936`) with the pad visible at 0xF20 (`0000 0000`, then the C table at 0xF24): the stub's asm table is emitted FIRST (stream order, the include sits above the C definition), then cc1's `.align 3` pads. FIX, two lines of yaml and no C change: `- [0xF0C, rodata]` + `- [0xF20, .rodata, main/misc29]`; splat then writes `asm/battle/data/F0C.rodata.s` (the same words, `dlabel jtbl_800709FC`, its own `.align 3` at object offset 0 is a no-op), `linker/battle.ld` lists it before `misc29.c.o(.rodata)`, and because 0xF20 = 0x80070A10 is 8-aligned the C table lands at retail's offset with no pad: `check_bin.sh battle` prints OK with the C body live (MISMATCH before the carve, OK after - measured both ways). The stub's `%hi(jtbl_800709FC)` still resolves, so a carve does NOT require converting the table's owner. The test is arithmetic and strictly stronger than i-jtbl-align-3-hardcoded: a table is convertible iff its ABSOLUTE address is 8-aligned and every byte before it in the unit's range is either a C table emitted at an earlier file position (i-jtbl-offset-follows-file-position) or carved; this is how the older "the range starts 4 mod 8 so this unit can never host a switch" notes should be re-read (it does not help world_map/misc12, whose offending tables are at absolute 4-mod-8 addresses).
+ Round 406 measured the opposite case in `world_map/main/misc8`: its range starts 4 mod 8
+(0x8007047C) and holds four tables, ALL of them 8-aligned in absolute terms (0x8007047C is
+the only 4-mod-8 one, and it is a C table whose `.align 3` at object offset 0 is a no-op),
+so `func_80084068` (233 insns) reaches 99.96% / 932 bytes = retail's exact size, every
+instruction identical, and `check_bin.sh world_map` fails by exactly +4 (180426 vs 180422)
+for the last table alone (jtbl_800704C8, absolute 0x800704C8, 8-aligned). The carve here
+CANNOT be done alone: the carve point 0x9D8 sits after a C-emitted table (0x98C, from
+`WorldMapUpdateSpriteSetPrims` in the same file) and after the two tables the
+`func_80083A00` stub's asm owns (0x9A0, 0x9B8), so the object that emits this table must be
+the one whose `.rodata` starts at 0x9D8 - i.e. the unit needs a code+rodata range split at
+0x14578 into `misc8_b` (an ordinary AGENTS unit split, not a yaml-only carve). Until then
+the body stays parked at 99.96%.
 
 ## unit preset, splits and stale parks
 
