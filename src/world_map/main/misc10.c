@@ -586,6 +586,39 @@ void WorldMapClearGroupEntryFlag(s32 groupIndex) {
     }
 }
 
+/* 62.19% (456 bytes = retail, 114 vs 114 insns). Structure and instruction
+   multiset are retail exactly; the residual is sched2 ORDER plus one LICM call.
+   What this body now has exactly right, all measured: the 6 pos/vel loads with the
+   6 adds (even the odd x/z/velX/velZ-then-y interleave appears when the block is
+   barrier-grouped), the count decrement as lhu/addiu/sh, the two induction pointers
+   (a2 = entry // 0x4 is produced by gcc itself - no nested struct needed), the
+   colour step as ONE packed s32, the three channel adds, the 6-clamp chain
+   (slti/bnez/li 0xFF), the pack, the scale pair, the detach arm and the 0xFF loop.
+   Two findings that fix the old parks (both were 20 bytes short and mis-diagnosed):
+   (1) WorldMapTrailEntry.color must be s32 - retail shifts it with sra, and with
+       u32 the same source emits srl. (2) colorStep is a packed s32 STEP WORD, not a
+       struct of 4 s8s: retail loads it as one lw and shift-extracts g and b with
+       sll/sra (CSE keeps ONE lw for both), while r is a plain lb - which is gcc
+       folding the (s8) of the field to a byte load. Spell it
+         r = (color & 0xFF) + (s8)pEntry->colorStep;
+         g = ((color >> 8) & 0xFF) + (s8)(pEntry->colorStep >> 8);
+         b = ((color >> 16) & 0xFF) + (s8)(pEntry->colorStep >> 16);
+       Three lb fields scored 49 and was 436 bytes; this is 456 = retail.
+   RESIDUAL: the six pos/vel stores sit interleaved with their adds here and at the
+   END of the green arm in retail, and g_WorldMapSpriteGroups is hoisted out of the
+   loop here but reloaded inside the detach arm there (LICM, source says the natural
+   thing). Note the do/while(0) below: it is a SCHEDULING BARRIER, not logic - with
+   the plain six += statements the same body is 46.22 at the same 456/114, and
+   grouping three of them takes it to 62.19. So the residual is sched2 and the next
+   step is the permuter from this body, not a re-spelling; a 4-minute run from 62.19
+   only found a hoisted g_WorldMapSpriteGroups local (4844 -> 4649, not ported).
+   Presets not yet tried on this body (it is new): try 2.6.0 / cdk0 if sched2 work
+   stalls. NOTE for the next agent: the two parked neighbours that touch this entry,
+   func_80089748 and func_80089C78, still spell colorStep as a struct
+   (*(u32*)&pEntry->colorStep, pEntry->colorStep.a); they need the s32 form when
+   they are unparked.
+*/
+/*
 void func_80089580(void) {
     WorldMapTrailEntry* pEntry;
     s32 i;
@@ -594,8 +627,8 @@ void func_80089580(void) {
     s32 g;
     s32 b;
 
-    pEntry = (WorldMapTrailEntry*)g_WorldMapTrailEntries;
-    for (i = 0xFF; i != -1; i--, pEntry++) {
+    pEntry = g_WorldMapTrailEntries;
+    for (i = WORLD_MAP_TRAIL_ENTRY_COUNT - 1; i != -1; i--, pEntry++) {
         flags = pEntry->trailFlags.flags;
         if ((flags >> 16) != 0) {
             if ((s16)flags > 0) {
@@ -639,7 +672,10 @@ void func_80089580(void) {
             }
         }
     }
-}/* 96.95% (1324 bytes against retail 1328; 331 vs 332 insns). Re-measured from a
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
+
+/* 96.95% (1324 bytes against retail 1328; 331 vs 332 insns). Re-measured from a
    clean un-park, so the old round-398 note is dead: it claimed a byte-identical head,
    but the honest body was 0.00 and wrong on five things. What this body now has exactly
    right, all measured: the 0x200-sprite loop and its two induction pointers, the whole
@@ -938,8 +974,7 @@ void func_80089C78(void) {
             }
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
 /* 95.46% (612 bytes, retail 612): every instruction matches except the
    prologue, which is reordered and one register off. Retail emits
