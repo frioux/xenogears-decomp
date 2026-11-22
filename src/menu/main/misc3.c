@@ -671,24 +671,22 @@ void func_801CA8C0(u_char a0) {
     g_Menu->menuUnk2->saveTitle[0x21] = 0;
     strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
 }
-/* Best attempt: 97.36% (688 bytes vs retail's 692). Everything matches except the
-   dispatch tail of the {4,5} subtree: retail emits `beq v1,s5,case5` with an extra
-   `j` on the default path and both arms out of line, while gcc emits case 5 INLINE
-   (`bne v1,s5,test`) because that body lands next to the dispatch and its
-   `looping = 0; break;` tail cross-jumps into case 4's. Everything else is exact:
-   the do/while shape is `while (1) { ...; if (!looping) break; }`, the counter is a
-   `u8` (`addiu`+`andi` at the test), and `looping = 1;` must be assigned BEFORE the
-   `if (g_MenuCardChangeDetectionEnabled)` block -- as a later statement gcc saves the constant register
-   differently and the whole comparison drops to 95.99% (it also swaps frames/looping
-   between s2/s3). At 840k: case-body order in the switch is NOT free: (4,5,2,0) and
-   (5,4,2,0) both give 688/97.36, (0,2,4,5) 696/91.27, (0,5,2,4) 700/90.91, (2,5,0,4)
-   700/92.56; an explicit `default: break;` changes nothing. `li s1,1`/`li s5,5` come
-   from cse lifting the repeated constant 1 (two D_801E9778 stores + shouldRender[2]=1)
-   and 5 (two `input = 5` stores + the case test), so they need no source local.
-   Swapping the case 4 / case 5 labels changes NOTHING (gcc peels the
-   last-tested case's body out to the fall-through slot either way), and a FIFTH
-   case node (`case 1: break;`) makes gcc emit a JUMP TABLE (sltiu 6 / jr v0,
-   696 bytes) - the round-323 node-count lever fails here. */
+/* Best attempt: 97.36% (688 bytes vs retail's 692, 172 vs 176 insns). Everything
+   matches except the tail of the {4,5} dispatch subtree. Retail ends the tree with
+   `beq v1,5,<case5 body>` plus a `j <loop test>` on the fall-through, and keeps TWO
+   copies of the `move s3,zero; j <andi>` break tail (one per arm); this build emits
+   `bne v1,5,<default>` and lays case 5's body down at the fall-through, sharing
+   case 4's break tail. So the body order, the `default: break;` position (front and
+   back both measured this round, 688/97.36 either way), the arm order (4,5,2,0)
+   and the case labels all leave the same 688. Everything else is exact: the
+   do/while shape is `while (1) { ...; if (!looping) break; }`, the counter is a u8
+   (`addiu`+`andi` at the test), and `looping = 1;` must be assigned BEFORE the
+   `if (g_MenuCardChangeDetectionEnabled)` block -- as a later statement gcc saves the
+   constant register differently and the whole comparison drops to 95.99% (it also
+   swaps frames/looping between s2/s3). Case-body order is not free: (0,2,4,5) 696,
+   (0,5,2,4) 700, (2,5,0,4) 700; a FIFTH case node (`case 1: break;`) makes gcc emit
+   a JUMP TABLE (696 bytes). `li s1,1`/`li s5,5` come from cse lifting the repeated
+   constant 1 and 5, so they need no source local. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
 /*
 extern u8 D_801E9778;
