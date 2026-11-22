@@ -295,19 +295,27 @@ s32 FieldCheckSpriteSlotFlag(s32 index) {
 
 extern RECT g_FieldSpriteSlotRects[5];
 
-/* PARKED 68.25% (592 bytes, retail 668, 148 vs 164 insns). Every call, table
-   walk, branch and store order matches; the residual is gcc loop strength
-   reduction. Retail gives each RECT field a giv at BOTH loop levels (outer:
-   s3=h, s7=y, s8=w; inner copies s4/s6/s2) and re-forms x from the symbol each
-   inner iteration, so i spills to 0x38, the rect walker to 0x48, pFile/pImage to
-   0x28/0x30 (frame 0x80). This cc1 combines the two levels into 3 givs (x, y, h)
-   and re-forms w from the symbol, so i stays in a register (frame 0x58).
-   Tried: u_char* vs u_long* pDst (w/4*4 vs w/4 - identical code), the word-index
-   source (u_long*)tim.paddr + (j + y) * 0x50 + x / 4 (compiles to the same
-   bytes), u_long* pFile/pImage. No twin (twin_for) and m2c only transcribes
-   the givs, so the duplication above is not source-reachable on this evidence.
-*/
 /*
+PARKED 68.25% (592 bytes, retail 668, 148 vs 164 insns). The source shape is
+settled: this body is step for step retail's except for gcc's giv selection.
+Retail holds FOUR outer field walkers (s3 = &h, s7 = &y, fp = &w and &x in stack
+slot 0x48), each addiu +8 at the outer bottom, plus inner recomputations (s4 =
+i*8 + &h, s6 = a copy of &y, s2 = a copy of &w), so it spills i, &x, pFile and
+pImage and runs a 0x80 frame. This cc1 makes only three field givs (h, x, y)
+plus i*8 in s2 and re-forms w as lui at / addu at,at,s2 / lh 4(at), which costs
+one callee-saved register fewer, so pFile/pImage stay in s8/s7 and the frame is
+0x58. Everything else matches: the two continue guards, the do-while outer loop
+(bottom-only slti 5), pDst's (w/4)*4 advance, the four prect stores with
+tim.prect re-loaded each time, LoadImage/DrawSync and both HeapFrees.
+Tried this round: rect pointer walk "for (i = 0; i < 5; i++, pRect++)" over
+pRect->h/y/x/w (68.26%, 528 bytes, 132 insns - ONE walker with displacements and
+no field givs at all, so the index form is the right base); the pointer taken per
+iteration for the prect stores only, inner loop left indexed (63.69%, 576 bytes,
+144 insns); a nested "if (flag == -1 && paddr)" body instead of the two continues
+(byte-identical to this body, 68.25%).
+Preset ruled out for good: try_flags.sh --sweep over 2.6.0 / 2.7.2 / 2.7.2-cdk x
+-O1/-O2/-O3 x -G4/-G8 x -mcpu 3000/r8000, plus cdk -G0 and 2.6.0 -G0, all score
+at or below this body; -O2 under Default is the maximum and -G0 == -G8.
 void func_800AB808(void) {
     TIM_IMAGE tim;
     u_long* pFile;
@@ -326,7 +334,7 @@ void func_800AB808(void) {
             if (FieldCheckSpriteSlotFlag(i) != -1) {
                 continue;
             }
-            if (tim.paddr == 0) {
+            if (tim.paddr == NULL) {
                 continue;
             }
 
@@ -348,9 +356,9 @@ void func_800AB808(void) {
 
     HeapFree(pFile);
     HeapFree(pImage);
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB808);
-
 
 typedef struct {
     s32 mapNum;
