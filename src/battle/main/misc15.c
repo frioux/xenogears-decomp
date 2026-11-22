@@ -354,7 +354,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
    Round 297 re-measured: the bit local in BOTH arms makes cse merge the two sums
    into one (584 bytes), and hoisting the mask call to the first statement of an
    arm re-orders the loads and costs a saved register. The two retail sums differ
-   only in operand order, so the open question is which sum gcc emits first. */
+   only in operand order, so the open question is which sum gcc emits first.
+   Round 396 re-measured, 596 bytes / 96.54 confirmed: arm 1 does emit both sums
+   but places the raw one after the entry/count loads (so raw arg1 has to survive
+   in t0, hence the prologue `move t0,a1` and a delay slot reading t0); arm 2 CSEs
+   the two sums into one, which is the single instruction this body is short.
+   Also measured dead: no bit local at all in arm 2 (600 bytes, 95.94), the bit
+   local as the FIRST statement of arm 1 (588, 92.09), the bit local after the
+   loads in arm 1 (588, 95.38). The two count loads also want a symbol at
+   g_BattleCellActionRows+0x13 / g_BattleActionRows+0x13 (retail names
+   D_800CDD53 / D_800CEF23) where the typed spelling folds the 0x13 into the LO16
+   addend -- same linked bytes, but objdiff cannot fold it. */
 /*
 u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     u8 result;
@@ -413,25 +423,6 @@ extern void BattleBuildSpriteColumn8(s32 arg0);
 extern void BattleDrawSlotSpriteQuads(s32 arg0);
 extern void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
-/* Best: 98.42% (1176 vs the original's 1168; the switch table is at .rodata+0 so
-   this function's table is the unit's first). Two shapes left:
-   1. the fall-through state arm (case 4 of the switch on g_BattleCursorScrollState):
-      retail keeps the compare's `(j - 1) * 16` in $v0 across the `j--` and stores it
-      through the shared tail at .L8008B878; gcc 2.6 rematerialises it there
-      (`andi v0,(u8)j; sll v0,v0,4`, +2 insns). Cases 1..3 reuse v0 fine. Tried this
-      round: an s32 nextY local holding the compare value (1192, both the initializer
-      and the assignment form), the store before the `j--` (1192),
-      `g_BattleCursorScrollY = (j - 1) * 16` with j-- after (1192), `(j - 1 + 1) * 16`
-      (1176, in the body below).
-   2. the i/j tie: retail keeps i in $s2 and j in $s3, gcc gives i $s3 (the prologue's
-      two sw/move save pairs swap order with it). Swapping the declarations of i and j
-      does not move it.
-   Permuter: 1487 iterations, base=439, and the only lower candidates (384, 419) got
-   their score by substituting prevI for j, which is wrong code. No usable lead.
-   Everything else is identical: both switches' case order (5,4,0,2,1,3 and 1,2,3,4),
-   the 0x50 frame, the andi placement, every delay slot, the jump table. */
-/*
 u8 func_8008B478(u8 arg0) {
     u8 i;
     u8 j;
@@ -521,34 +512,36 @@ u8 func_8008B478(u8 arg0) {
             }
             break;
         }
+        // Each arm stores the same expression it compares against, so the scroll
+        // target is computed once and reaches the store in the compare's register.
         switch (g_BattleCursorScrollState) {
         case 1:
             if (g_BattleCursorScrollY >= (j + 1) * 16) {
+                g_BattleCursorScrollY = (j + 1) * 16;
                 j++;
                 i--;
-                g_BattleCursorScrollY = j * 16;
                 g_BattleCursorScrollState = 0;
             }
             break;
         case 2:
             if (g_BattleCursorScrollY < (j - 1) * 16) {
+                g_BattleCursorScrollY = (j - 1) * 16;
                 j--;
                 i++;
-                g_BattleCursorScrollY = j * 16;
                 g_BattleCursorScrollState = 0;
             }
             break;
         case 3:
             if (g_BattleCursorScrollY >= (j + 1) * 16) {
+                g_BattleCursorScrollY = (j + 1) * 16;
                 j++;
-                g_BattleCursorScrollY = j * 16;
                 g_BattleCursorScrollState = 0;
             }
             break;
         case 4:
             if (g_BattleCursorScrollY < (j - 1) * 16) {
+                g_BattleCursorScrollY = (j - 1) * 16;
                 j--;
-                g_BattleCursorScrollY = (j - 1 + 1) * 16;
                 g_BattleCursorScrollState = 0;
             }
             break;
@@ -563,8 +556,6 @@ u8 func_8008B478(u8 arg0) {
     BattleFreeSlotBuffers(3);
     return result;
 }
-*/
-
 void BattleActivateSelectedCommand(u8 actorSlot) {
     s32 off;
     s32 sel;
