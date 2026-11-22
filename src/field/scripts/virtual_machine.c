@@ -470,19 +470,39 @@ void FieldScriptRunFirstActorRoutine3(void) {
 // base from it ('addiu s2,v1,-0x80'); the nearest spelling above emits 'lw %lo' + its own
 // 'la count-0x80'. 'extern s32 g_FieldActorModelSlotCount[]' + pCount = <array> produces retail's
 // la/lw preheader but hands the callee-saved register to &count instead of the table base.
-/*
-extern s32 g_FieldActorModelSlotCount;
-extern s32 g_FieldActiveActorCount;
 extern s32 g_GamePartySkinsInitialized;
+extern s32 g_FieldActorModelSlotCount[]; // animation id table ends 0x80 below the count word
 extern s32 g_PlayerActorIndex;
+extern s32 g_FieldActiveActorCount;
 extern u_char g_FieldScreenShakeMode;
 extern void func_800AD898(void);
-extern void LibGearSetModelAnimation(u16, u16, s32);
+extern void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2);
 
-// Applies the camera shake delta from the script globals to every actor's translation
+// Read through a call boundary: gcc 2.7.2 otherwise hoists this volatile load above
+// the actor address computation of the next statement (retail loads it in between).
+static inline s32 FieldShakeReadDeltaY(volatile u_char* pShake) {
+    return *(volatile s32*)(pShake - 0x12);
+}
+
+// Round 399 redo: best 85.58% (592 bytes = retail, 148 vs 148 insns, size-exact). Residuals are register and order ties:
+//  - the t[1] delta read must go through the static inline FieldShakeReadDeltaY helper: with a plain
+//    volatile read gcc 2.7.2 hoists it above the next statement's g_FieldActors load and the shake
+//    blocks lose their per-field nops (76.59%). Permuter find 1.
+//  - the else block must spell the Y field as t[new_var] with new_var = 1, and the mode==1 block's Z
+//    update must sit in a do-while(0): permuter find 2, together 83.68 -> 85.58 and size-exact.
+//  - wrapping the mode==0 block's Z update in do-while(0) as well reads 88.06% but 151 insns / 604 bytes:
+//    oversized, rejected - the permuter's internal score (1926 vs 2054) and objdiff disagree there.
+//  - anim loop preheader now exact: pCount = g_FieldActorModelSlotCount (unbounded-array extern, decay
+//    materialises and-count once), pAnimTable = (s16*)pCount - 0x40, bound read as
+//    ((s32*)((u8*)pAnimTable + 0x80))[0]; guard loads 0(reg), reload 128(s2), addiu s2 from the same reg.
+//    Left: the blez delay slot takes addiu s2 instead of retail's andi a0, plus v0/v1 swaps in the count
+//    load and the player block (allocator ties).
+//  - permuter: 3 runs, PERMUTER_BETTER each time (3056->1867, 2606->2054, 2054->1926).
+/*
 void func_800A24C4(void) {
     int i;
     ActorData* pActorData;
+    int new_var;
     s32* pCount;
     s16* pAnimTable;
     volatile u_char* pShake;
@@ -494,8 +514,10 @@ void func_800A24C4(void) {
     FieldScriptRunFirstActorRoutine(2);
     func_800AD898();
 
-    for (i = 0; i < g_FieldActorModelSlotCount; i++) {
-        LibGearSetModelAnimation(i, 0, ((s16*)&g_FieldActorModelSlotCount)[i - 0x40]);
+    pCount = g_FieldActorModelSlotCount;
+    pAnimTable = (s16*)pCount - 0x40;
+    for (i = 0; i < ((s32*)((u8*)pAnimTable + 0x80))[0]; i++) {
+        LibGearSetModelAnimation(i, 0, pAnimTable[i]);
     }
 
     pActorData = g_FieldActors[g_PlayerActorIndex].pActorData;
@@ -510,20 +532,22 @@ void func_800A24C4(void) {
             if (g_FieldActors[i].pActorData->flags12C_0) {
                 continue;
             }
-        } else if ((pShake[0] & 0x7F) == 0) {
-            g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-            g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12);
-            g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+        } else {
+            new_var = 1;
+            if ((pShake[0] & 0x7F) == 0) {
+                g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
+                g_FieldActors[i].transformMatrix.t[new_var] += FieldShakeReadDeltaY(pShake);
+                g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+            }
         }
 
         if ((pShake[0] & 0x7F) == 1) {
             g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-            g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12);
-            g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+            g_FieldActors[i].transformMatrix.t[1] += FieldShakeReadDeltaY(pShake);
+            do { g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE); } while (0);
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
