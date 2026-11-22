@@ -1108,7 +1108,21 @@ int WorldMapUpdateSlotActor(int index) {
    the same volatile on the current body changes nothing (93.41).
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
-/* int func_8007FC8C(int index) {
+/* 93.41% (164 bytes, 41 insns both): only the tail store block differs in
+   register rotation and the li 3 position. Retail: lui v1/ori (x), lui a0/ori
+   (z), li v0,3, then stores with y/pStateIds/pStateFrames constants in v1.
+   Ours: x's constant takes v0, z's v1, and the li 3 sinks to the end because
+   v0's last earlier use is the li 0x80 for pStateFrames.
+   Round 396 re-measured this body live at 93.41 and tried three new shapes:
+   `int result = 3;` assigned right after the calls and returned at the end
+   (88.66 - cse folds it back to a plain return and the li sinks anyway),
+   the same plus nX/nZ locals holding the two hoisted constants in retail's
+   load order (88.66 - cse substitutes the constants into the stores and
+   deletes the sets). cdk -O2 -G8 also 88.66 on that body, gcc 2.6.0 81.07,
+   -G0 does not compile, so the preset is right. Root cause unchanged from
+   round 325: circular - the store constants claim v0 because the 3 is not
+   in it, and the 3 sinks to the end because the constants hold v0.
+int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
@@ -1126,7 +1140,6 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
     return 3;
 }
 */
-
 int WorldMapUpdateGroup9And10Actor(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapRoot *pRoot = g_WorldMapGroups;
