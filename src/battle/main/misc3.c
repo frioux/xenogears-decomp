@@ -45,7 +45,7 @@ typedef struct {
 } BattleScreenSlot; // Size: 0x60
 
 // One 8-byte record of the tile table at g_BattleCommandTiles, which callers index
-// by command: func_800785D4 reads its two bytes as the 16-bit tile it stores in the
+// by command: BattleQueueCommandSlotAndTile reads its two bytes as the 16-bit tile it stores in the
 // command record's param.
 typedef struct {
     /* 0x00 */ u8 tileLo;
@@ -856,7 +856,7 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
         i++;
     } while (i < BATTLE_ACTOR_SLOT_COUNT);
 }
-void func_800785D4(u8 color, u8 index) {
+void BattleQueueCommandSlotAndTile(u8 color, u8 index) {
     u8 *pEntry;
     u16 tile;
 

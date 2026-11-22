@@ -106,7 +106,7 @@ extern u8 g_BattleTextSlotCount;
 extern BattleCommandRecord g_BattleCommandRecords[];
 extern BattleCommandQueue *g_BattleCommandQueue;
 extern u8 g_BattleCommandSlotIds[];
-extern void func_800785D4(u8 arg0, u8 arg1);
+extern void BattleQueueCommandSlotAndTile(u8 arg0, u8 arg1);
 extern void BattleQueueCommandFA(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF7(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF8(u8 arg0);
@@ -176,7 +176,7 @@ void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk2;
     pValue = g_BattleActionSlotMask;
     g_BattleCommandRecords[g_BattleCommandQueue->count][0] = *(pMask = pValue);
-    func_800785D4(arg0, arg1);
+    BattleQueueCommandSlotAndTile(arg0, arg1);
     if (g_BattleCommandArgs[arg1].slotMask != *pValue) {
         pQueue = g_BattleCommandQueue;
         i = 0;
@@ -210,15 +210,15 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
         }
     }
     BattleBeginAnimTask(BattleSlotBitMask(arg0) | g_BattleCommandArgs[arg1].slotMask);
-    func_800785D4(arg0, arg1);
+    BattleQueueCommandSlotAndTile(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xFC;
-    func_800785D4(arg0, arg1);
+    BattleQueueCommandSlotAndTile(arg0, arg1);
 }
 void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandRecords[g_BattleCommandQueue->count].command = g_BattleCommandArgs[arg1].unk4;
-    func_800785D4(arg0, arg1);
+    BattleQueueCommandSlotAndTile(arg0, arg1);
 }
 
 void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
@@ -227,7 +227,7 @@ void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
 
 void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xF9;
-    func_800785D4(arg0, arg1);
+    BattleQueueCommandSlotAndTile(arg0, arg1);
     g_BattleActorCountdownState[arg0] = 0xFF;
     // The empty-block wrapper keeps this store ahead of the g_BattleSlotEntries read-modify-write.
     do {
@@ -288,12 +288,12 @@ void BattleAddCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
 void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xF4;
-    func_800785D4(arg0, arg1);
+    BattleQueueCommandSlotAndTile(arg0, arg1);
 }
 void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xF6;
     g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleCommandArgs[arg1].slotMask;
-    func_800785D4(arg0, arg1);
+    BattleQueueCommandSlotAndTile(arg0, arg1);
 }
 void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
     s32 i;
