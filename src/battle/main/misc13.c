@@ -23,6 +23,10 @@
 // with, and the id that marks a digit position left blank.
 #define BATTLE_VALUE_DIGIT_COUNT 4
 #define BATTLE_VALUE_DIGIT_NONE 0xFF
+// The battle slots func_80085618 steps and how many of them are character slots
+// (BattleReleaseCharSlot is called for the rest).
+#define BATTLE_ACTIVE_SLOT_COUNT 11
+#define BATTLE_CHAR_SLOT_COUNT 3
 
 extern u8 *g_BattleCommandQueue;
 extern u8 *g_BattleCommandSlotRows[];
@@ -31,6 +35,8 @@ extern volatile u8 *g_BattleDisplayState;
 extern u8 g_BattleSlotRecords[];
 extern u8 g_BattleCharSlotUsage[];
 extern u16 g_BattleStateFlags;
+extern u8 g_BattleSlotEnabledFlags[];
+extern u8 g_BattleSlotCurveRunning;
 extern u16 g_BattleSlotFlag8000Mask;
 extern u16 g_BattleActionSlotMask;
 extern u16 g_BattleActionStateFlags;
@@ -72,9 +78,19 @@ typedef struct {
 typedef struct {
     /* 0x000 */ u16 hp;
     /* 0x002 */ u16 maxHp;
-    /* 0x004 */ u8 unk4[0x2C];
+    /* 0x004 */ u16 unk4;
+    /* 0x006 */ u16 unk6;
+    /* 0x008 */ u8 unk8[0x28];
     /* 0x030 */ BattleSlotEffectFlags activeEffects[5];
-    /* 0x044 */ u8 unk44[0x12C];
+    /* 0x044 */ u8 unk44[0x4C];
+    /* 0x090 */ u16 unk90;
+    /* 0x092 */ u16 unk92;
+    /* 0x094 */ u8 unk94[0x24];
+    /* 0x0B8 */ s32 unkB8;
+    /* 0x0BC */ s32 unkBC;
+    /* 0x0C0 */ u8 unkC0[0x14];
+    /* 0x0D4 */ u16 unkD4;
+    /* 0x0D6 */ u8 unkD6[0x9A];
 } BattleSlotStatEntry; // Size: 0x170
 
 extern BattleCommandRecord g_BattleCommandRecords[];
@@ -151,26 +167,142 @@ extern void func_800881B8(u8, u8);
 extern void BattleSetSlotRegistersFromActor(u8, u8);
 extern s32 BattleScriptScanForOpcode62(u8);
 
-/* NOT ATTEMPTED - decoded map only (no body written, nothing measured).
-   311 insns, owns the FIRST jump table of the unit (jtbl_80070250, 12 entries,
-   arms shared: 0/5/7/8 -> .L8008570C, 1/9 -> .L80085908, 4/6 -> .L80085A70,
-   2 -> .L8008583C, 3 -> .L80085954, 10 -> .L800859CC, 11 -> .L80085A18).
-   Shape: for (i = 0; i < 11; i++) over battle slots, early skip when
-   g_BattleSlotEnabledFlags[i] == 0, then a switch on
-   g_BattleActorCommandIds[arg0 * 0x48 + i] (u8, lbu, bounds sltiu 0xC, no index
-   copy so a plain switch already produces retail's operands). i*0x170 is held in
-   $s0 as a byte offset for the gp-relative per-slot tables (g_BattleSlotEntries,
-   g_BattleSlotEntriesBase, D_800CCD36 (= g_BattleWorkBlock + 0x56, i.e.
-   BattleTableEntry.characterId), D_800CCDEC, D_800CCDF0, D_800CCE08,
-   D_800CCD38/3A, D_800CCDC4/C6); $s3 = g_BattleCommandRows + arg0*0x48 + i*2;
-   $s5 = g_BattleCommandRows - 0x130 + i*0x1C; $s4 = g_BattleCommandRows - 0x138
-   + i*0x170; $s6 = D_800CCDC4 + i*0x170. The four stores that go through
-   $s4 + 0x8F3C / +0x8E84 / +0x8E88 / +0x8F14 are absolute per-slot symbols that
-   fit neither addiu nor a plain lui pair, so gcc emitted lui 0x1 + addu + %lo
-   with a negative displacement - expect those to need the exact D_ address.
-   Loop tail: s3 += 2, s6/s4/s0 += 0x170, s2 += 1, slti 0xB, s5 += 0x1C.
-   Every case ends by storing 1 to g_BattleCommandQueue[i + 0x2EB]. */
+/* PARKNOTE 60.72%, 1172 bytes (retail 1196 = 299 insns, 6 short): every arm's shape,
+   load widths, call sites and the two queue-store groupings below are retail's; the
+   residual is the loop's INDUCTION VARIABLES. Retail keeps six (s0 = i*0x170 as a byte
+   offset for the gp-relative per-slot symbols, s2 = i, s3 = g_BattleCommandRows +
+   arg0*0x48 + i*2 as a u16 pointer with displacement 0, s4 = g_BattleCommandRows -
+   0x138, s5 = g_BattleCommandRows - 0x130 + i*0x1C for the 0x1C-byte per-slot record,
+   s6 = D_800CCDC4 + i*0x170 for the +0x90 word); this body gets four. Evidence that
+   retail had ONE SYMBOL PER PER-SLOT FIELD, not one struct: the original object relocs
+   D_800CCD36 (+2), D_800CCD38/3A (+4/+6), D_800CCDC4/C6 (+0x90/+0x92), D_800CCDEC
+   (+0xB8), D_800CCDF0 (+0xBC), D_800CCE08 (+0xD4) with zero addend, plus
+   g_BattleSlotEntries for the +0x30 word. Trying `extern u16 D_800CCDC4[]` +
+   `D_800CCDC4[i * 0xB8]` is the untried lever: that strength-reduces to retail's s6
+   pointer, while `g_BattleSlotEntriesBase[i].unk90` (this body) does not.
+   Two other things retail shows that this body cannot spell from one struct:
+   - the +0 and +4 words are read SIGNED (lh) in arms 0/5/7/8 and 1/9 but UNSIGNED
+     (lhu) in cases 2, 3, 10 and 11, and the duration word likewise - the original
+     must have had two typed aliases of each address; here that is the (s16 *) casts
+     at the signed sites, and those casts are not the source's shape either.
+   - the four stores at +0/+4/+0x90/+0xB8 go through s4 = g_BattleCommandRows - 0x138
+     as `lui at,1 / addu at,s4,at / sh -0x71xx(at)` (base + 0x8E84..0x8F3C). That is
+     gcc forming the address from an already-live nearby symbol; no plain
+     `g_BattleSlotEntriesBase[i].field` reproduces it, so those 12 instructions differ
+     however the fields are spelled.
+   Verified while decoding, do not re-derive: cases 1/9 only decrement and do NOT store
+   to the queue; case 3 only clamps and does NOT store to the queue (its two exits jump
+   past .L80085A5C to the loop tail); cases 2/10/11 and both halves of 0/5/7/8 do;
+   the 0x8000 test and the enabled test both continue without touching anything.
+   Best body (60.72%); the arms' arm-order/queue-store split is right, so a rewrite only
+   needs to change how the per-slot words are named and how the duration row is indexed. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
+/*
+void func_80085618(u8 arg0) {
+    s32 i;
+    u16 v;
+    u32 u;
+    s32 c;
+    s16 a;
+    s16 d;
+
+    for (i = 0; i < BATTLE_ACTIVE_SLOT_COUNT; i++) {
+        if (g_BattleSlotEnabledFlags[i] == 0) {
+            continue;
+        }
+        if (g_BattleSlotEntriesBase[i].activeEffects[0].active & 0x8000) {
+            g_BattleSlotFlag8000Mask |= BattleSlotBitMask(i);
+            continue;
+        }
+        switch (g_BattleActorCommandIds[arg0 * 0x48 + i]) {
+        case 0:
+        case 5:
+        case 7:
+        case 8:
+            a = *(s16 *)&g_BattleSlotEntriesBase[i].hp;
+            d = ((s16 *)g_BattleCommandRows)[arg0 * 0x24 + i];
+            if ((g_BattleSlotRecords[i * 0x1C + 4] == 0)) {
+                if (a - d > 0) {
+                    *(s16 *)&g_BattleSlotEntriesBase[i].hp = a - d;
+                } else {
+                    *(s16 *)&g_BattleSlotEntriesBase[i].hp = 0;
+                    g_BattleSlotFlag8000Mask |= BattleSlotBitMask(i);
+                    g_BattleSlotEntriesBase[i].activeEffects[0].active |= 0x8000;
+                    if (i >= BATTLE_CHAR_SLOT_COUNT) {
+                        BattleReleaseCharSlot(i);
+                    }
+                }
+            } else {
+                c = g_BattleSlotEntriesBase[i].unkB8 - g_BattleCommandRows[arg0 * 0x24 + i];
+                if (c > 0) {
+                    g_BattleSlotEntriesBase[i].unkB8 = c;
+                } else {
+                    g_BattleSlotEntriesBase[i].unkB8 = 0;
+                    g_BattleSlotFlag8000Mask |= BattleSlotBitMask(i);
+                    g_BattleSlotEntriesBase[i].unkD4 |= 0x8000;
+                    g_BattleSlotEntriesBase[i].activeEffects[0].active |= 0x8000;
+                    if (i >= BATTLE_CHAR_SLOT_COUNT) {
+                        BattleReleaseCharSlot(i);
+                    }
+                }
+            }
+            g_BattleCommandQueue[i + 0x2EB] = 1;
+            break;
+        case 1:
+        case 9:
+            a = *(s16 *)&g_BattleSlotEntriesBase[i].unk4;
+            d = ((s16 *)g_BattleCommandRows)[arg0 * 0x24 + i];
+            if (a - d > 0) {
+                *(s16 *)&g_BattleSlotEntriesBase[i].unk4 = a - d;
+            } else {
+                *(s16 *)&g_BattleSlotEntriesBase[i].unk4 = 0;
+            }
+            break;
+        case 2:
+            if ((g_BattleSlotRecords[i * 0x1C + 4] != 0) && (g_BattleSlotCurveRunning == 0)) {
+                u = g_BattleSlotEntriesBase[i].unkB8 + g_BattleCommandRows[arg0 * 0x24 + i];
+                g_BattleSlotEntriesBase[i].unkB8 = u;
+                if ((u32)g_BattleSlotEntriesBase[i].unkBC < u) {
+                    g_BattleSlotEntriesBase[i].unkB8 = g_BattleSlotEntriesBase[i].unkBC;
+                }
+            } else {
+                v = g_BattleSlotEntriesBase[i].hp + g_BattleCommandRows[arg0 * 0x24 + i];
+                g_BattleSlotEntriesBase[i].hp = v;
+                if (g_BattleSlotEntriesBase[i].maxHp < v) {
+                    g_BattleSlotEntriesBase[i].hp = g_BattleSlotEntriesBase[i].maxHp;
+                }
+            }
+            g_BattleCommandQueue[i + 0x2EB] = 1;
+            break;
+        case 3:
+            if ((g_BattleSlotRecords[i * 0x1C + 4] == 0) || (g_BattleSlotCurveRunning != 0)) {
+                v = g_BattleSlotEntriesBase[i].unk4 + g_BattleCommandRows[arg0 * 0x24 + i];
+                g_BattleSlotEntriesBase[i].unk4 = v;
+                if (g_BattleSlotEntriesBase[i].unk6 < v) {
+                    g_BattleSlotEntriesBase[i].unk4 = g_BattleSlotEntriesBase[i].unk6;
+                }
+            }
+            break;
+        case 10:
+            if (g_BattleSlotEntriesBase[i].unk90 - g_BattleCommandRows[arg0 * 0x24 + i] > 0) {
+                g_BattleSlotEntriesBase[i].unk90 = g_BattleSlotEntriesBase[i].unk90 - g_BattleCommandRows[arg0 * 0x24 + i];
+            } else {
+                g_BattleSlotEntriesBase[i].unk90 = 0;
+            }
+            g_BattleCommandQueue[i + 0x2EB] = 1;
+            break;
+        case 11:
+            v = g_BattleSlotEntriesBase[i].unk90 + g_BattleCommandRows[arg0 * 0x24 + i];
+            g_BattleSlotEntriesBase[i].unk90 = v;
+            if (g_BattleSlotEntriesBase[i].unk92 < v) {
+                g_BattleSlotEntriesBase[i].unk90 = g_BattleSlotEntriesBase[i].unk92;
+            }
+            g_BattleCommandQueue[i + 0x2EB] = 1;
+            break;
+        }
+    }
+}
+*/
 void BattleResetActorStatDisplay(s32 arg0) {
     s32 i = 2;
     BattleSlotEffectFlags *pFlags;
