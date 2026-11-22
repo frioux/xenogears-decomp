@@ -60,17 +60,49 @@ typedef struct {
     /* 0xE */ u16 unkE;
 } Misc23PartEntry; // Size: 0x10
 
+// One 0x18-byte point of a model-list entry's trail (stride 0x18): the scaled
+// part-stream value, the row it sits on, then the position the vertex takes.
+typedef struct {
+    /* 0x0  */ s16 unk0;
+    /* 0x2  */ s16 unk2;
+    /* 0x4  */ s16 x;
+    /* 0x6  */ s16 y;
+    /* 0x8  */ s16 z;
+    /* 0xA  */ u8 padA[0xE];
+} Misc23TrailPoint; // Size: 0x18
+
+// One 0x58-byte textured trail segment func_800A7064 builds: the point indices
+// the segment spans, then the two Gouraud triangles that cover them.
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+    /* 0x8 */ POLY_GT3 polys[2];
+} Misc23TrailSegment; // Size: 0x58
+
 // Allocation block owned by the structure passed to BattleFreeModelListEntryBuffers:
 // one 0x24-byte record of BattleActor.pModelListEntries, the same record misc21.c
 // declares as BattleModelListEntry.
 typedef struct {
     /* 0x0  */ u16 unk0; // the first halfword of the record's part stream
-    /* 0x2  */ u8 unk2[0x12];
-    /* 0x14 */ void *pPoints; // 8 bytes (three s16) per point
-    /* 0x18 */ Misc23PartEntry *pRecords; // one per section
-    /* 0x1C */ void *pPackets; // one packet pointer per point
-    /* 0x20 */ void *unk20;
-} Misc23Block;
+    /* 0x2  */ u16 pad2;
+    /* 0x4  */ s16 numVectors; // SVECTOR count for pVectors
+    /* 0x6  */ s16 numSegments; // trail segment count for pSegments
+    /* 0x8  */ s16 numPoints; // point count of the block pPoints[0] starts
+    /* 0xA  */ s16 numSections; // section count for pSections
+    /* 0xC  */ u8 red0; // the two colours of the trail's top and bottom row
+    /* 0xD  */ u8 green0;
+    /* 0xE  */ u8 blue0;
+    /* 0xF  */ u8 red1;
+    /* 0x10 */ u8 green1;
+    /* 0x11 */ u8 blue1;
+    /* 0x12 */ u16 pad12;
+    /* 0x14 */ SVECTOR *pVectors;
+    /* 0x18 */ Misc23PartEntry *pSections;
+    /* 0x1C */ Misc23TrailPoint **pPoints; // one run of points per vector
+    /* 0x20 */ Misc23TrailSegment *pSegments;
+} Misc23Block; // Size: 0x24
 
 // 0xE-byte node of the tree rooted at g_BattleTriangles, indexed by g_BattleTriangleCount.
 typedef struct {
@@ -741,18 +773,257 @@ void BattleUploadAndFreeImageResources(void) {
     HeapFree(g_BattleColorTintWork);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
+// 75.69% (2172 bytes against retail's 2276; 543 of 569 instructions) under this
+// unit's preset, gcc 2.6.0 -G0 --expand-div, with retail's saved set ($s0-$s8 and
+// $ra) and a 0x138 frame against retail's 0x130.
+// func_801E1A14 in lib_gear/main/main is THIS FUNCTION instruction for
+// instruction - 569 insns, same frame, same 20-argument signature, verified by
+// diffing the two .s files with the addresses and labels normalised away - so
+// that unit's 72.58% park is the same task and either one closes both.
+// Everything structural is recovered and in retail's order: the five HeapAllocs
+// (numVectors*8, numVectors*4, numPoints*0x18, numSegments*0x58,
+// numSections*0x10), the four failure paths with their exact frees (path 1 only
+// stores pVectors = NULL; path 2 then HeapFree(NULL); path 3 HeapFree(NULL) then
+// pVectors = NULL then HeapFree(pPoints); path 4 the same plus
+// HeapFree(pPointData)), the three loops, both 0x58-byte segments per step with
+// their two GT3s and the byte-wide u/v stores that POLY_GT3's u_char fields
+// force, and the tail colours plus the eight zero stores of each section record.
+// MEASURED LEVER (round 403): the part-stream counts are re-read from MEMORY at
+// every use in retail - lhu 0(t1) at 0x1584/0x1614/0x16F0/0x1704/0x17D0 and in
+// the point loop's inner bound - because the stores through pSeg may alias them.
+// Writing the reads inline (for (j = 0; j < *pCount; j++), pSeg->unk2 = nRow +
+// *pCount + 1, uRow += pCount[0] + 1) instead of a u16 nCount local reproduced
+// all of them and took 75.49 -> 75.65; the nSegs pick is retail's sltu shape,
+// nSegs = pCount[1] then "if (pCount[0] < nSegs) nSegs = pCount[0]".
+// RESIDUAL, allocator and sched2 rather than source as far as this lane got:
+// retail runs the whole segment loop with uRow (0x80), tpage (0x88), rowStep
+// (0x90, re-read after every SetPolyGT3), uStep (0xA0) and uStart (0xE0)
+// MEMORY-resident and keeps pCur in $t1 with a1-a3/t0-t4 spilled around each of
+// the four SetPolyGT3 calls (eight words at 0xE8-0x104). This compile keeps
+// rowStep/uStart/uEnd in registers and pCur in a callee-saved $s2, so the spill
+// dance and 26 instructions disappear. The same cause shows in the poly stores
+// (retail writes u0,v0,clut,v1,u2,u1,v2, exactly the source order this body
+// uses; this compile puts clut after u2) and in the vector loop, where retail
+// walks pVectors with two cursors (a3 = &vx, a2 = &vz, stores at 0(a3), -2(v1),
+// 0(v1)) and this body gets one base with +0/+2/+4. Not tried: permuter - the
+// lane ran out with the score still rising, and a 100-byte gap of spill code
+// wants the allocation fixed, not a 4-minute random walk.
+// One open question for whoever un-parks: numSections (the 7th argument) is
+// copied as a WORD (lw 0x14C -> sw 0x18) in retail and then narrowed with
+// sll 16/sra 16, while the six s16 arguments after it are copied with lhu/sh;
+// s16 against s32 for that one parameter would decide it and was not run down.
+/*
+// Builds one model-list entry's trail from the entry's part stream: the SVECTOR
+// array the points are placed along, one run of points per vector, then the
+// textured segments between them. numSections records are cleared for it too.
+void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 texX, s16 texY, s16 texZ,
+                   s16 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0,
+                   u8 green0, u8 blue0, u8 red1, u8 green1, u8 blue1) {
+    SVECTOR *pVectors;
+    Misc23TrailPoint **pPoints;
+    Misc23TrailPoint *pPointData;
+    Misc23TrailPoint *pPoint;
+    Misc23TrailSegment *pSegments;
+    Misc23TrailSegment *pSeg;
+    Misc23PartEntry *pSection;
+    POLY_GT3 *pPoly;
+    u16 *pCount;
+    u16 *pData;
+    u8 *pIndex;
+    s16 pageX;
+    s16 pageY;
+    u16 tpage;
+    u16 clut;
+    u16 rowStep;
+    s16 uStep;
+    s32 nSegs;
+    s32 nRaw;
+    s32 uStart;
+    s32 uEnd;
+    s32 uRow;
+    s32 nRow;
+    s32 nV0;
+    s32 nV1;
+    s32 i;
+    s32 j;
+    s32 k;
+
+    pEntry->numVectors = *pCur++;
+    pEntry->numSegments = *pCur++ << 1;
+    HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
+
+    pVectors = HeapAlloc(pEntry->numVectors * sizeof(SVECTOR), 0);
+    if (pVectors == NULL) {
+        pEntry->pVectors = NULL;
+        return;
+    }
+    pEntry->pVectors = pVectors;
+
+    for (i = 0; i < pEntry->numVectors; i++) {
+        pVectors[i].vx = (*pCur++ + texX) * scale / 4096;
+        pVectors[i].vy = (*pCur++ + texY) * scale / 4096;
+        pVectors[i].vz = (*pCur++ + texZ) * scale / 4096;
+    }
+
+    nRaw = pCur[pEntry->numVectors];
+    pEntry->numPoints = nRaw + pEntry->numVectors;
+
+    pPoints = HeapAlloc(pEntry->numVectors * sizeof(Misc23TrailPoint *), 0);
+    if (pPoints == NULL) {
+        pEntry->pVectors = NULL;
+        HeapFree(NULL);
+        return;
+    }
+    pEntry->pPoints = pPoints;
+
+    pData = pCur + pEntry->numVectors + 1;
+    pIndex = (u8 *)(pData + nRaw);
+    pPointData = HeapAlloc(pEntry->numPoints * sizeof(Misc23TrailPoint), 0);
+    if (pPointData == NULL) {
+        HeapFree(NULL);
+        pEntry->pVectors = NULL;
+        HeapFree(pEntry->pPoints);
+        return;
+    }
+
+    pPoint = pPointData;
+    pCount = pCur;
+    for (i = 0; i < pEntry->numVectors; i++) {
+        pPoints[i] = pPoint;
+        for (j = 0; j < *pCount; j++) {
+            pPoint->unk0 = *pData++ * scale / 4096;
+            pPoint->unk2 = *pIndex++ + rowBase;
+            pPoint->x = pVectors[i].vx;
+            pPoint->y = pVectors[i].vy;
+            pPoint->z = pVectors[i].vz;
+            pPoint++;
+        }
+        pPoint->unk0 = 0;
+        pPoint->unk2 = 0;
+        pPoint->x = pVectors[i].vx;
+        pPoint->y = pVectors[i].vy;
+        pPoint->z = pVectors[i].vz;
+        pPoint++;
+        pCount++;
+    }
+
+    pSegments = HeapAlloc(pEntry->numSegments * sizeof(Misc23TrailSegment), 0);
+    if (pSegments == NULL) {
+        HeapFree(NULL);
+        pEntry->pVectors = NULL;
+        HeapFree(pEntry->pPoints);
+        HeapFree(pPointData);
+        return;
+    }
+    pEntry->pSegments = pSegments;
+
+    pageX = tileX / 64 * 64;
+    pageY = tileY / 256 * 256;
+    tpage = GetTPage(0, 1, pageX, pageY);
+    clut = GetClut(clutX, clutY);
+    texX = (tileX - pageX) * 4;
+    texY = tileY - pageY;
+    uStep = uSpan / (pEntry->numVectors - 1);
+    uStart = 0;
+    uEnd = uStep;
+    uRow = 0;
+
+    pCount = pCur;
+    pSeg = pSegments;
+    for (i = 0; i < pEntry->numVectors - 1; i++) {
+        nSegs = pCount[1];
+        if (pCount[0] < nSegs) {
+            nSegs = pCount[0];
+        }
+        rowStep = vSpan / nSegs;
+        for (j = 0; j < nSegs; j++) {
+            nRow = uRow + j;
+
+            pSeg->unk0 = nRow;
+            pSeg->unk4 = nRow + 1;
+            pSeg->unk2 = nRow + *pCount + 1;
+            nV0 = texY + rowStep * j;
+            nV1 = texY + rowStep * (j + 1);
+            for (k = 0; k < 2; k++) {
+                pPoly = &pSeg->polys[k];
+                SetPolyGT3(pPoly);
+                pPoly->tpage = tpage;
+                pPoly->u0 = texX + uStart;
+                pPoly->v0 = nV0;
+                pPoly->clut = clut;
+                pPoly->v1 = nV0;
+                pPoly->u2 = texX + uStart;
+                pPoly->u1 = texX + uEnd;
+                pPoly->v2 = nV1;
+            }
+            pSeg++;
+            pSeg->unk0 = nRow + *pCount + 1;
+            pSeg->unk4 = nRow + 1;
+            pSeg->unk2 = nRow + *pCount + 2;
+            for (k = 0; k < 2; k++) {
+                pPoly = &pSeg->polys[k];
+                SetPolyGT3(pPoly);
+                pPoly->tpage = tpage;
+                pPoly->u0 = texX + uEnd;
+                pPoly->u1 = texX + uEnd;
+                pPoly->clut = clut;
+                pPoly->u2 = texX + uStart;
+                pPoly->v0 = nV0;
+                pPoly->v1 = nV1;
+                pPoly->v2 = nV1;
+            }
+            pSeg++;
+        }
+        uStart += uStep;
+        uEnd += uStep;
+        uRow += pCount[0] + 1;
+        pCount++;
+    }
+
+    pEntry->red0 = red0;
+    pEntry->green0 = green0;
+    pEntry->blue0 = blue0;
+    pEntry->red1 = red1;
+    pEntry->green1 = green1;
+    pEntry->blue1 = blue1;
+    pEntry->numSections = numSections;
+    if (numSections > 0) {
+        pSection = HeapAlloc(numSections * sizeof(Misc23PartEntry), 0);
+        if (pSection == NULL) {
+            pEntry->numSections = 0;
+        }
+        if (pEntry->numSections > 0) {
+            pEntry->pSections = pSection;
+            for (i = 0; i < pEntry->numSections; i++) {
+                pSection[i].unk0 = 0;
+                pSection[i].unk2 = 0;
+                pSection[i].unk4 = 0;
+                pSection[i].unk6 = 0;
+                pSection[i].unk8 = 0;
+                pSection[i].unkA = 0;
+                pSection[i].unkC = 0;
+                pSection[i].unkE = 0;
+            }
+        }
+    } else {
+        pEntry->pSections = NULL;
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
 void BattleFreeModelListEntryBuffers(Misc23Block *pBlock) {
-    if (pBlock->pPoints != NULL) {
+    if (pBlock->pVectors != NULL) {
+        HeapFree(pBlock->pVectors);
+        // the point block is reached through the first run pointer into it
+        HeapFree(pBlock->pPoints[0]);
         HeapFree(pBlock->pPoints);
-        HeapFree(*(void **)pBlock->pPackets);
-        HeapFree(pBlock->pPackets);
-        HeapFree(pBlock->unk20);
-        if (pBlock->pRecords != NULL) {
-            HeapFree(pBlock->pRecords);
+        HeapFree(pBlock->pSegments);
+        if (pBlock->pSections != NULL) {
+            HeapFree(pBlock->pSections);
         }
-        pBlock->pPoints = NULL;
+        pBlock->pVectors = NULL;
     }
 }
 
@@ -834,8 +1105,8 @@ extern u8 D_800C3EB7[];
 extern void ResolveArchiveEntryPointers(u32 *);
 extern void func_80030988(s16, s16, s32, s32);
 extern void func_8002DDE4(void *, s16, s16, s16, s16, s16, s16);
-extern void func_800A7064(void *, void *, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16,
-                          u8, u8, u8, u8, u8, u8);
+extern void func_800A7064(Misc23Block *, u16 *, s32, s32, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16, u8,
+                          u8, u8, u8, u8, u8);
 extern void func_800AA898(BattleActor *, u8 *, void *, void *);
 extern BattleModelPartList *BattleInitializeMesh(u8 *, BattleModelPartList *);
 extern BattleSprite *BattleCreateModelSkeleton(void *, void *, s32, s32, s16, s16, s16, s16);
@@ -1035,11 +1306,11 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
                           *(u8 *)pData++);
             pData += 2;
             for (k = 0; k < count; k++) {
-                pBlocks[i].pRecords[k].unk6 = *pData++;
-                pBlocks[i].pRecords[k].unkE = *pData++;
-                pBlocks[i].pRecords[k].unk0 = *pData++;
-                pBlocks[i].pRecords[k].unk2 = *pData++;
-                pBlocks[i].pRecords[k].unk4 = *pData++;
+                pBlocks[i].pSections[k].unk6 = *pData++;
+                pBlocks[i].pSections[k].unkE = *pData++;
+                pBlocks[i].pSections[k].unk0 = *pData++;
+                pBlocks[i].pSections[k].unk2 = *pData++;
+                pBlocks[i].pSections[k].unk4 = *pData++;
             }
         }
     }
