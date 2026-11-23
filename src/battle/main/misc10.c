@@ -655,14 +655,17 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
     return row & 0xFF;
 }
 
-/* Best: 99.30%, 684 bytes against retail 688. The switch (28 cases, jtbl in this unit), the loop and every call site match; the ONLY residual is one missing copy at the loop bottom. Retail: or v1,s3,s0 ; move s3,v1 (beqz slot) ; move s0,s3 ; andi v0,s0,0xff. This body: or s0,s3,s0 ; move s3,s0 ; andi v0,s0,0xff - cc1 always coalesces acc and ret into one register, so the temp copy disappears. Tried: ret=acc moved after the loop (93.49, gcc folds to or s3,s3,s0 in the beqz slot and drops the ret copy), ret=next with return acc and 0xff (99.30, byte-identical to this body), chained acc/ret assignment, u8 opcode local, for(;;)+break, two inline returns, and a third permuter run from this body (1479 iterations, RESULT PERMUTER_NONE; rounds 173/previous also NONE). Preset is not the cause: a --sweep puts this body at 99.3 under every 2.7.2 -G4/-G8 combination, 94.59 under 2.7.2-cdk -O2. The note below was the pre-existing park text.
-   Retail loop tail: andi v0,s4,0xff ; beqz v0,exit ; andi v0,s0,0xff ; lw v0,0(s1) ; or v1,s3,s0 ; lbu v0,0(v0) ; nop ; sltiu v0,v0,0x80 ; beqz v0,looptop ; addu s3,v1,zero ; addu s0,s3,zero ; andi v0,s0,0xff.
-   BattleSetTextScale, BattleWordRegEqImm and BattleByteRegLeImm are declared at the top of this file with a u8 second parameter, which is what produces the andi a1,s2,0xff at each call.
-*/
-/* RE-PARKED round 405: re-measured 99.30% / 684 bytes against retail's 688 (172 insns, ours 171) - one instruction short, so it can never link. Residual is EXACTLY as tools/rounds/levers.md d-loop-bottom-accumulator-copy records: retail tail is 'or v1,s3,s0' / 'move s3,v1' (beqz delay slot) / exit 'move s0,s3' / 'andi v0,s0,0xff'; every spelling gives 'or s0,s3,s0' / 'move s3,s0' / 'andi v0,s0,0xff' because cc1 coalesces the OR result into ret's register. New measurement this round: the temp in the loop PLUS the copy after it ('next = acc | ret; acc = next;' then 'ret = acc;' below the loop) = 93.49%, 684 bytes, cc1 folds next into acc ('or s3,s3,s0') and the exit copy into the return ('andi v0,s3,0xff'). Also a fourth permuter run from this body: RESULT PERMUTER_NONE base=111 best=111, 1502 iterations. Nothing left to try by hand; see the lever. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
+
+/* Best: 99.80%, 688 bytes / 172 insns - retail's EXACT size, so only the register choices below stand in the way.
+   Residual (one cause, 3 rows, all in the loop tail): retail's tail is 'andi v0,s0,0xff' (beqz delay slot) / 'lw v0,0(s1)' / 'or v1,s3,s0' / 'lbu v0,0(v0)' / ... / 'beqz v0,top' + 'move s3,v1' / 'move s0,s3' / 'andi v0,s0,0xff'. This body gives 'or v1,v1,s3' / 'move s0,v1' and the delay-slot andi lands in v1, because the OR's second operand is the ZERO-EXTENDED COPY of the char 'ret' rather than ret's own register s0 - gcc CSEs that extension with the return mask, so one instruction has to serve both uses.
+   What produced the two loop-bottom copies at all (round 419): the temp must be LIVE AT A MERGE, i.e. a 'goto out' label shared by the cont==0 exit and the loop exit, with the exit copy reading the temp ('ret = next' before the label). Without the goto gcc folds the temp away.
+   'char ret' (or u8) + the split copy 'next = ret; next = acc | next;' is what makes cc1 keep the temp; it is also what buys retail's schedule (the OR stays after the 'lw' and reorg fills the beqz slot from the exit block) - a plain 's32 ret' body with the same goto merge keeps the temp but reorg steals the OR into the beqz delay slot and the exit copy reads the temp (99.30 at 684 bytes, 4 short, unlinkable).
+   Measured, all with the goto merge: s32 ret 99.30/684 (OR folded, one copy lost); s16/s8/short ret 98.84/692 (exit-block andi lost); u16 99.73/688 (andi 0xffff); exit reading acc instead of next 94.04/688 ('or s3,v1,s3'); 'acc |= ret' 94.07/688; declaration reorder 99.67-99.80; OR operand swapped 99.80. Permuter (5 rounds total, this round three: base 266 -> 31 -> 21) found only 'char ret' and the split copy, both ported above; the remaining 3 rows are a register tie it could not close.
+   The switch (28 cases, jtbl_8006FE0C owned by this unit), every call site and both returns match. BattleSetTextScale etc. are declared with a u8 second parameter, which is what produces 'andi a1,s2,0xff'. */
 /*
 s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
-    s32 ret = 0;
+    char ret = 0;
     s32 cont = 0;
     s32 acc = 0;
     s32 next;
@@ -754,16 +757,18 @@ s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
         }
         BattleScriptCursorSkipWord(pCursor);
         if (!(cont & 0xFF)) {
-            return ret & 0xFF;
+            goto out;
         }
-        next = acc | ret;
+        next = ret;
+        next = acc | next;
         acc = next;
-        ret = acc;
     } while ((*pCursor)[0] >= 0x80);
 
+    ret = next;
+out:
     return ret & 0xFF;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
+}
+*/
 
 void BattleReleaseEffectSlotIfChar4(u8 arg0) {
     if (g_BattleActorCharIds[arg0] == 4 && g_BattleDisplayState[0x8E] != 0) {
