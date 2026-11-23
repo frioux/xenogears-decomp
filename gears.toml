@@ -360,6 +360,11 @@ paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main
     "menu/main/misc7.",
     "menu/main/misc7_r2.",
     "menu/main/misc3.",
+    # Round 418: the whole unit is 100.0 under 2.6.0 (try_flags --all, every C body) and
+    # proved end to end with check_bin menu; func_801D7F50 and func_801D84B4 are the two
+    # parks it unlocks (2.7.2 loses the mfhi destination and the addu operand order).
+    # misc8_r1 stays XenoCdk and misc8_r2 stays Default.
+    "menu/main/misc8.",
 ]
 
 # battle/main/misc27 is function-mixed and cannot be a single-preset unit: its

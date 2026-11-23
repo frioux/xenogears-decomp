@@ -3330,7 +3330,7 @@ void ShopMenuSetQuantityHeldGraphics(u_char itemType, u_char itemID) {
 // marker on the portraits that already have the item equipped, and each portrait's stat-change
 // digits) and returns the item's price. The third argument is passed by the caller but unused.
 
-s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
+s32 ShopMenuUpdateBuyItemDescriptionGraphics(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
     RECT rect;
     s32 delta[2];
     s8 isImprovement[2];
@@ -3653,7 +3653,7 @@ u_char ShopMenuBuyMenu(void) {
 
         // Did we change our currently selected item in any way?
         if ((curChoice != prevChoice) || (scrollOffset != prevScrollOffset)) {
-            itemPrice = func_801CEB3C(curChoice, scrollOffset, &sp28);
+            itemPrice = ShopMenuUpdateBuyItemDescriptionGraphics(curChoice, scrollOffset, &sp28);
             prevChoice = curChoice;
             prevScrollOffset = scrollOffset;
             g_Menu->pManager->shouldRenderShop = TRUE;

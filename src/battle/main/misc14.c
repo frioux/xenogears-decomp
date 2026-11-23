@@ -10,7 +10,7 @@ typedef struct {
     /* 0x000 */ u8 unk0[0x30];
     /* 0x030 */ u32 sourceWordOffset; // word offset into each sub-image source, 4 words per upload
     /* 0x034 */ u8 unk34[0x6C];
-    /* 0x0A0 */ u8 unkA0; // func_8008A684 returns unless set
+    /* 0x0A0 */ u8 unkA0; // BattleUpdatePauseAndEffectTimers returns unless set
     /* 0x0A1 */ u8 unkA1[0x8];
     /* 0x0A9 */ u8 moveSteps; // position interpolation steps accumulated, 6 per frame
     /* 0x0AA */ u8 frameCount; // incremented every update; the upload runs on odd values
@@ -105,7 +105,7 @@ extern void BattleBuildGrey80BlendSpriteColumn7(void);
 extern void BattleBuildGrey80BlendSpriteColumn2(void);
 extern void BattleUpdatePauseMenu(u8 arg0);
 extern void BattleUpdateImageUpload(u8 arg0);
-extern void func_8008A684(u8 arg0);
+extern void BattleUpdatePauseAndEffectTimers(u8 arg0);
 extern int rand(void);
 extern BattleUploadWork *g_BattleGraphicsWork;
 extern BattleUploadState *g_BattleDisplayState;
@@ -810,7 +810,7 @@ void BattleUpdatePauseMenu(u8 arg0) {
     } while (g_BattlePauseActive != 0);
 }
 
-void func_8008A684(u8 arg0) {
+void BattleUpdatePauseAndEffectTimers(u8 arg0) {
     u8* pWork;
     u8* pCounters;
     BattleActorAnimFlags** pSlot;
@@ -919,7 +919,7 @@ void func_8008A684(u8 arg0) {
 void BattleUpdateEffectByScreenMode(u8 arg0) {
     switch (g_BattleDisplayMode) {
     case 0:
-        func_8008A684(arg0);
+        BattleUpdatePauseAndEffectTimers(arg0);
         break;
     case 1:
         BattleUpdateImageUpload(arg0);
