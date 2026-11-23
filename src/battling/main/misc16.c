@@ -404,7 +404,7 @@ void BattleEffectHalveEntryCountIfBelow(Misc16Work* pWork) {
 
     if (pWork->count > 0) {
         count = pWork->unk2;
-        if (func_80082488(pWork, 0) < count) {
+        if (BattleGetFloorHeightAtPosition(pWork, 0) < count) {
             pWork->count = -pWork->count / 2;
         }
     }

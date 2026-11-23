@@ -99,7 +99,7 @@ typedef struct BattleStateTag {
     // battle script's wait opcodes start.
     /* 0x058 */ s32 targetAngle;
     /* 0x05C */ u8 unk5C[0x54];
-    // The height func_80082488 reports for the actor's position, refreshed every
+    // The height BattleGetFloorHeightAtPosition reports for the actor's position, refreshed every
     // frame by the grid walk below and by BattleActorUpdateGroundMovement.
     /* 0x0B0 */ s32 floorY;
     /* 0x0B4 */ s16 gaugeValue;
@@ -129,12 +129,12 @@ extern s32 g_BattleSceneOriginZ;
 extern void BattleStepCameraTargetTowardVector(VECTOR* pVec, s32 step);
 extern void BattleMoveCameraPosTowardVector(VECTOR* pVec, s32 step);
 extern void BattleAimCameraAtCombatants(VECTOR* pA, VECTOR* pB);
-extern s32 func_80082488(VECTOR* pVec, s32 mode);
+extern s32 BattleGetFloorHeightAtPosition(VECTOR* pVec, s32 mode);
 
 /* 92.82%: same size as retail and every statement/call/constant is right; the
    gaps are allocation and position. Remaining diffs, all in the case 3/4 tail:
    (a) retail forms &vec (s0) after the g_BattleEffectPlaceOrigin copy, ours hoists the
-   addiu s0 above it; (b) the func_80082488 delta keeps retail's -0x40 in $v0
+   addiu s0 above it; (b) the BattleGetFloorHeightAtPosition delta keeps retail's -0x40 in $v0
    (the call result) while ours copies it to $a0 first; (c) case 5 keeps
    &g_BattleCameraTarget in $s0 across the rcos call (sw v0,0(s0), then lw v0,0(s0)) where
    ours rematerialises the symbol as a direct %lo store. A pointer local does
@@ -151,7 +151,7 @@ extern s32 func_80082488(VECTOR* pVec, s32 mode);
 // Three spellings are load-bearing and look gratuitous:
 //  - the do-while plus its identical if/else arms: the arms are the same store,
 //    and the join is what puts &vec's addiu after the g_BattleEffectPlaceOrigin copy;
-//  - the delta/offset copy keeps the func_80082488 result in $v0 for the -0x40;
+//  - the delta/offset copy keeps the BattleGetFloorHeightAtPosition result in $v0 for the -0x40;
 //  - pTargetX is a pointer to the anchor's vx word: the plain field spelling
 //    folds the address into a %lo store, and retail keeps it in $s0 across the
 //    rcos call.
@@ -206,7 +206,7 @@ void BattlePlaceEffectByMode(s32 mode) {
         vec.vy = y - g_BattleEffectPlaceYOffset;
         vec.vz = g_BattleActor1.position.vz + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
         BattleMoveCameraPosTowardVector(pVec, 0x46);
-        delta = func_80082488(&g_BattleCameraPos, 0) - 0x40;
+        delta = BattleGetFloorHeightAtPosition(&g_BattleCameraPos, 0) - 0x40;
         offset = delta;
         offset -= g_BattleEffectPlaceYOffset;
         if (offset < g_BattleCameraPos.vy) {
@@ -989,26 +989,26 @@ void BattleActorWalkDownGrid(BattleState* p) {
     pStepZ = D_80091088;
     count = 0;
     do {
-        best = pActor->position.vy = func_80082488(&pActor->position, 1);
+        best = pActor->position.vy = BattleGetFloorHeightAtPosition(&pActor->position, 1);
         for (i = 0; i < BATTLE_GRID_NEIGHBOUR_COUNT; i++) {
             pos = pActor->position;
             pos.vx += g_BattleGridNeighbourSteps[i * 2] * BATTLE_GRID_CELL_STEP;
             pos.vz += pStepZ[i * 2] * BATTLE_GRID_CELL_STEP;
-            value = func_80082488(&pos, 1);
+            value = BattleGetFloorHeightAtPosition(&pos, 1);
             if (value < best - BATTLE_GRID_WALK_TOLERANCE) {
                 bestIndex = i;
                 best = value;
             }
         }
         if (best >= pActor->position.vy - BATTLE_GRID_WALK_TOLERANCE) {
-            pActor->position.vy = func_80082488(&pActor->position, 1);
+            pActor->position.vy = BattleGetFloorHeightAtPosition(&pActor->position, 1);
             break;
         }
         pActor->position.vx -= g_BattleGridNeighbourSteps[bestIndex * 2] * BATTLE_GRID_CELL_STEP;
         pActor->position.vz -= pStepZ[bestIndex * 2] * BATTLE_GRID_CELL_STEP;
         count++;
     } while (count < BATTLE_GRID_WALK_MAX_STEPS);
-    p->floorY = func_80082488(&p->position, 1);
+    p->floorY = BattleGetFloorHeightAtPosition(&p->position, 1);
     p->flags = (p->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) |
                (((BattleGetGridCellAtPosition(&p->position) >> 24) & 3) << 29);
 }

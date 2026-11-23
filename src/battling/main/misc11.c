@@ -10,7 +10,7 @@ extern u8 *g_BattleSpanTableMin;
 extern u8 g_BattleDrawBufferIndex;
 extern VECTOR g_BattleViewOrigin;
 extern VECTOR g_BattleViewOriginZ;
-extern s32 func_80082488(VECTOR *pPos, s32 fixHeights);
+extern s32 BattleGetFloorHeightAtPosition(VECTOR *pPos, s32 fixHeights);
 extern void BattleCopyPlaneNormal(SVECTOR *pNormal);
 extern void func_800316C0(void *pOt, void *pPrim);
 
@@ -478,7 +478,7 @@ void BattleDrawActorShadow(BattlingPacketOwner *pOwner, u_long *pOt, MATRIX *pMa
 
     shadowMatrix.t[0] = center.vx - g_BattleViewOrigin.vx;
     pPacket = &pOwner->packet[g_BattleDrawBufferIndex];
-    shadowMatrix.t[1] = func_80082488(&center, 0);
+    shadowMatrix.t[1] = BattleGetFloorHeightAtPosition(&center, 0);
     shadowMatrix.t[2] = center.vz - g_BattleViewOriginZ.vx;
     BattleCopyPlaneNormal(&normal);
     shadowMatrix.m[0][0] = 0x1000;

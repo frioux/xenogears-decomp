@@ -259,7 +259,7 @@ typedef union {
 // The cast view of the dot-product terms at &v3 and the three unused SVECTOR
 // locals are load-bearing for the 0x70 frame: a VECTOR local there makes it
 // 0x80 and dropping the unused ones shrinks it to 0x58.
-s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
+s32 BattleGetFloorHeightAtPosition(VECTOR* pPos, s32 fixHeights) {
     SVECTOR padTop[1];
     SVECTOR v0;
     SVECTOR v1;
@@ -727,7 +727,7 @@ extern s32 g_BattleResultSide;
 extern s32 g_BattleTransitionCountdown;
 extern Battler9 g_BattleActor0;
 extern Battler9 g_BattleActor1;
-extern s32 func_80082488(VECTOR* pPos, s32 fixHeights);
+extern s32 BattleGetFloorHeightAtPosition(VECTOR* pPos, s32 fixHeights);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083310);
 /* best 75.14% (0x3A4 bytes against the original's 0x38C). The body is
@@ -827,7 +827,7 @@ void func_80083310(s32 arg0) {
     BattleMovePointInsideRadius(pCamPos, &delta, 0x3D00);
     pCamPos->vx += delta.vx;
     g_BattleCameraPosZ += delta.vz;
-    floorY = func_80082488(pCamPos, 0);
+    floorY = BattleGetFloorHeightAtPosition(pCamPos, 0);
     if (floorY < pos.vy) {
         pos.vy = floorY;
     }
@@ -906,7 +906,7 @@ void BattleAimCameraAtCombatants(VECTOR* pA, VECTOR* pB) {
             ((rcos(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
     pos.vz = g_BattleCameraTargetZ + ((rsin(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
     // the ground height reuses lenPos: a fresh local puts it in the wrong register
-    lenPos = func_80082488(&pos, 0) - 0x100;
+    lenPos = BattleGetFloorHeightAtPosition(&pos, 0) - 0x100;
     if (lenPos < pos.vy) {
         pos.vy = lenPos;
     }

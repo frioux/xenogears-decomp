@@ -124,7 +124,7 @@ extern s32 func_8007CD44();
 extern void BattleEffectAddSlotFromVector();
 extern void BattleSpawnSpriteEntries();
 extern void func_8007DC74();
-extern s32 func_80082488();
+extern s32 BattleGetFloorHeightAtPosition();
 extern u32 BattleGetGridCellAtPosition();
 extern void BattleMovePointInsideRadius();
 extern void BattleUpdateControllerActuator();
@@ -506,7 +506,7 @@ s32 BattlePushActorsApart(Actor* p, Actor* q) {
 void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
 
-    p->floorY = func_80082488(p, 1);
+    p->floorY = BattleGetFloorHeightAtPosition(p, 1);
     p->flags = (p->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) |
                (((BattleGetGridCellAtPosition(p) >> 24) & 3) << 29);
     if ((p->flags & BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) == BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) {
@@ -810,7 +810,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
    result in a local (this body does that; the straight two-statement form stores the
    angle before the call and loses the jal). (c) The third point's y is
    g_BattleCameraTargetY - (min(3Ddist/4, 0x300) + 0x40) and the ground clamp compares that with
-   func_80082488(&g_BattleCameraPos, 0) - 0x100. Nothing here was permuted yet.
+   BattleGetFloorHeightAtPosition(&g_BattleCameraPos, 0) - 0x100. Nothing here was permuted yet.
 // Aim the camera at the two combatants: the facing angle and their distance are
 // published for the rest of the battle code, the camera target is mirrored on their
 // midpoint, and the camera orbits to the nearer of the two candidate points on an
@@ -878,7 +878,7 @@ void func_800796B8(Actor* p1, Actor* p2) {
     BattleMovePointInsideRadius((Vec4*)&g_BattleCameraPos, &posB, 0x3A00);
     g_BattleCameraPos += posB.x;
     g_BattleCameraPosZ += posB.z;
-    floorY = func_80082488((Vec4*)&g_BattleCameraPos, 0) - 0x100;
+    floorY = BattleGetFloorHeightAtPosition((Vec4*)&g_BattleCameraPos, 0) - 0x100;
     if (floorY < posA.y) {
         posA.y = floorY;
     }
@@ -1656,7 +1656,7 @@ void BattleUpdateCombatantPairTransition(Actor* p1, Actor* p2) {
         break;
     }
 
-    floorY = func_80082488(&g_BattleCameraPos, 0) - g_BattleCameraRigYOffset;
+    floorY = BattleGetFloorHeightAtPosition(&g_BattleCameraPos, 0) - g_BattleCameraRigYOffset;
     if (floorY < g_BattleCameraPosY) {
         g_BattleCameraPosY = floorY;
     }

@@ -500,24 +500,10 @@ void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
     }
     pRow[p->operand1] = v;
 } */
-/* 99.09% under the unit's Default preset (88 bytes = retail's 88), 100.00 under gcc 2.6.0:
-   this function is in a 2.6.0 TU, like battle/misc9_260's BattleByteRegLeImm. Measured round 437:
-   the body marked "2.6.0" below compiles BYTE-IDENTICALLY to retail under gcc-2.6.0-psx (objdump
-   -dr of the whole function, relocations and addends included, cmp-clean), and `try_flags.sh
-   battle/main/misc5 --all --gcc gcc-2.6.0-psx` scores every OTHER function of this unit exactly
-   as under Default (the six matched ones stay 100.00), so a unit switch buys this function for
-   free - see the PRESET_260 report. Default cannot do it: 2.7.2 expands a multiply's operands in
-   source order, so retail's `mult v1,v0` (row value in v1, p->operand2 in v0) needs the row first
-   in the source, and that spelling loads p->operand2 AFTER the row (71.05%, 79.85 row-first with
-   a u8 local). The "Default 99.09" body below keeps retail's five-load cluster and both registers
-   and differs only in that one ENCODING (mult is commutative, so objdiff can never close it).
-   Tried and measured: row-first s16 71.05, row-first s32 61.95 (80 bytes, loses the sll/sra 16),
-   `u8 imm = p->operand2;` statement 71.05, s32 mul local 71.09, 2.7.2-cdk 71.05, 2.6.0 99.55 with
-   the typed g_BattleSlotRegs[arg1].byteRegs spelling (the +0x30 reloc addend is all that is left
-   there - the g_BattleSlotByteRegs[arg1] spelling below closes even that). Three permuter runs
-   (2259, 1733 iterations, base=20 best=20) found nothing.
-   // 100.00 under gcc-2.6.0-psx, un-park this one (plus the extern it needs) after the switch:
+// gcc 2.6.0 (this unit's preset): the row must be indexed first so the
+// commutative multiply's operands stay in retail's order.
 extern u8 g_BattleSlotByteRegs[][0x40];
+
 void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotByteRegs[arg1];
@@ -528,21 +514,6 @@ void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
     }
     pRow[p->operand1] = v;
 }
-   // 99.09 under Default, the best of the entirely different 2.7.2 allocation:
-void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
-    BattleCommand *p = *pCommand;
-    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
-    s16 v = p->operand2 * pRow[p->operand1];
-    u8 res = v;
-
-    if (v >= 0x100) {
-        res = 0xFF;
-    }
-    pRow[p->operand1] = res;
-}
-
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
 
 void BattleByteRegDivImm(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
