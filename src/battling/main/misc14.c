@@ -516,7 +516,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
    normalises them: retail has value-first `addu v1,v1,s1`, we always get
    `addu v1,s1,v1`). The permuter could not run on this body at all - its
    randomizer fails with 'conversion to non-scalar type requested' before the
-   first iteration. */
+   first iteration.
+   Round 429 dead ends: writing the `pCfg = (Misc14AnimCfg *)pScript;` assignment
+   at its first use instead of in the declaration is bit-identical (97.42); the
+   parameter typed Misc14AnimCfg* with the loop-2 base spelled `(u8 *)pCfg`
+   inline is 93.84 / 576; a third base local assigned between the HeapAlloc and
+   the pAnim->pEntries store is still 92.54 (the register set shifts: pAnim
+   moves to $s2). So the third copy retail has between them is not reachable by
+   declaring the base a second time. */
 /*
 void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode) {
     Misc14AnimCfg *pCfg = (Misc14AnimCfg *)pScript;
@@ -930,7 +937,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
    separate locals, a u32* destination, a (long long) struct copy, a non-void
    return type, a dead re-read and volatile sources all put the temps in $2/$3
    under 2.7.2, 2.6.0 and 2.7.2-cdk, so the $t0/$t1 choice is not reachable from
-   source with these compilers. */
+   source with these compilers.
+   Round 429: re-measured 94.29 / 28 bytes (retail's exact size), tried -G0
+   (94.29, so the access mode is not the mechanism) and the deferred-assignment
+   and local-temp shapes again. New evidence for the orchestrator: this and its
+   sibling func_8008BB1C are the ONLY two functions in the whole unit whose
+   original uses $t0/$t1 (grep for 'lui $t0' in asm/battling/nonmatchings/main/
+   misc14/), and both are the same two-word copy idiom. The body is one basic
+   block with no calls, so local-alloc (not global_alloc) hands the two load
+   QTYs the first free registers, and every compiler in tools/ starts that scan
+   at $2; retail's lands at $8. So this looks like a compiler-build trait
+   (REG_ALLOC_ORDER / scan start), not a spelling - it needs a different cc1,
+   not a different body. */
 /*
 void func_8008BB00(Misc14Entry *pDst) {
     pDst->unk0 = D_80096D88;
