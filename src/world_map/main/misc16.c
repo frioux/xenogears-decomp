@@ -175,10 +175,14 @@ typedef struct {
 } WorldMapMisc16Tex; // Size: 0x8
 
 typedef struct {
+    /* 0x0 */ s16 corner[4];
+} WorldMapMisc16Clip; // Size: 0x8
+
+typedef struct {
     /* 0x0 */ WorldMapMisc16Tex entry[25];
 } WorldMapMisc16TileMask; // Size: 0xC8
 
-extern WorldMapMisc16Tex D_8009D650[];
+extern WorldMapMisc16Clip D_8009D650[];
 extern u8 D_1F8000C8[];
 extern s16 D_8009D618[];
 extern WorldMapMisc16TileMask D_8009B7A8[];
@@ -582,92 +586,82 @@ void func_80098CC0(void) {
 }
 */
 
-extern WorldMapMisc16Tex D_8009D654[];
 extern u16 D_8009CCB4[];
 extern u16 g_WorldMapTpageIds[];
 extern s32 D_8009D7DC;
 extern void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
 extern void func_8009980C(u32* pSrc, u8* p1, u8* p2);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
-/* 63.53% first attempt. Structure read off the asm and believed right: two u16 copy
-   loops from D_8009CCB4 (0x40) and g_WorldMapTpageIds (7) into scratchpad 0x1F800288/0x1F800308,
-   the 0x20-byte MATRIX copy of g_WorldMapGridMatrix to 0x1F800350, CompMatrix/SetRotMatrix/
-   SetTransMatrix on 0x1F800370, the 5x5 tile loop (row/fp, col/s4, flat k/s7 whose *8
-   biv is retail's s3), the four RECT corners built at 0x1F800330/0x338 from the volatile
-   0x1F800328/0x1F80032C coords, and the four func_80099708 calls selected by
-   (s16)(D_8009D650[k].unk0 | .unk2 | D_8009D654[k].unk0 | .unk2) == -1. Scratchpad
-   accesses MUST stay volatile: retail reloads 0x1F800320 right after storing it and
-   loads 0x1F800328 twice per iteration, which cse only allows through volatile.
-   What is wrong: allocation only. Retail col=s4 k=s2? no - retail has base=s2, col=s4,
-   row=s8, k=s7 and frame 0x38 (10 saves); ours puts base in s6, col in s5, spills to a
-   0x40 frame (11 slots) and reorders the k++/col++ epilogue. 6 shapes not tried yet.
-   Next: try col/k as a single flat counter, and read D_8009D650[k] into locals before
-   the coords so the OR chain does not force the base register.
 void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
+    u8* pScratch;
     s32 i;
     s32 row;
-    s32 col;
     s32 k;
-    s16 x;
-    s16 y;
-    s16 all;
+    u16 y0;
+    u16 x0;
+    u16 x1;
+    u16 y1;
+    s16 clip;
     u8* pImg;
 
+    pScratch = (u8*)0x1F800000;
     for (i = 0; i < 0x40; i++) {
-        ((u16*)0x1F800288)[i] = D_8009CCB4[i];
+        *(u16*)(pScratch + 0x288 + i * 2) = D_8009CCB4[i];
     }
     for (i = 0; i < 7; i++) {
-        ((u16*)0x1F800308)[i] = g_WorldMapTpageIds[i];
+        *(u16*)(pScratch + 0x308 + i * 2) = g_WorldMapTpageIds[i];
     }
-    *(MATRIX*)0x1F800350 = g_WorldMapGridMatrix;
-    CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)0x1F800350, (MATRIX*)0x1F800370);
-    SetRotMatrix((MATRIX*)0x1F800370);
-    SetTransMatrix((MATRIX*)0x1F800370);
-    *(s32*)0x1F800318 = -((p->x >> 12) & 0x7FF) - 0x1000;
-    *(s32*)0x1F800320 = -((p->z >> 12) & 0x7FF) - 0x1000;
-    *(volatile u16*)0x1F80032C = -*(s32*)0x1F800320;
+    *(MATRIX*)(pScratch + 0x350) = g_WorldMapGridMatrix;
+    CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)(pScratch + 0x350), (MATRIX*)(pScratch + 0x370));
+    SetRotMatrix((MATRIX*)(pScratch + 0x370));
+    SetTransMatrix((MATRIX*)(pScratch + 0x370));
+    *(s32*)(pScratch + 0x318) = -((p->x >> 12) & 0x7FF) - 0x1000;
+    *(volatile s32*)(pScratch + 0x320) = -((p->z >> 12) & 0x7FF) - 0x1000;
+    *(volatile u16*)(pScratch + 0x32C) = -*(volatile s32*)(pScratch + 0x320);
     D_8009D7DC = 0;
     k = 0;
     for (row = 0; row < 5; row++) {
-        *(volatile u16*)0x1F800328 = *(s32*)0x1F800318;
-        for (col = 0; col < 5; col++, k++) {
+        *(volatile u16*)(pScratch + 0x328) = *(s32*)(pScratch + 0x318);
+        for (i = 0; i < 5; i++, k++) {
             if (D_8009D618[k] == -1) {
                 continue;
             }
-            y = *(volatile u16*)0x1F80032C;
-            x = *(volatile u16*)0x1F800328;
-            pImg = g_WorldMapTileCellPointers[g_WorldMapGridTileIds.grid[(row + g_WorldMapGridTileRowOrigin) * 9 + col + g_WorldMapGridOrigin]];
-            *(volatile u16*)0x1F800330 = *(volatile u16*)0x1F800340 = *(volatile u16*)0x1F800328 + 0x400;
-            *(volatile u16*)0x1F800334 = y;
-            *(volatile u16*)0x1F800338 = x;
-            *(volatile u16*)0x1F80033C = *(volatile u16*)0x1F800344 = *(volatile u16*)0x1F80032C - 0x400;
-            all = D_8009D650[k].unk0 | D_8009D650[k].unk2 | D_8009D654[k].unk0 | D_8009D654[k].unk2;
-            if (all != -1) {
-                func_80099708(pImg, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800328);
-                func_80099708(pImg + 0x144, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800330);
-                func_80099708(pImg + 0x288, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800338);
-                func_80099708(pImg + 0x3CC, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800340);
+            y0 = *(volatile u16*)(pScratch + 0x32C);
+            x0 = *(volatile u16*)(pScratch + 0x328);
+            pImg = g_WorldMapTileCellPointers[g_WorldMapGridTileIds.grid[(row + g_WorldMapGridTileRowOrigin) * WORLD_MAP_GRID_WIDTH + i + g_WorldMapGridOrigin]];
+            x1 = *(volatile u16*)(pScratch + 0x328) + 0x400;
+            y1 = *(volatile u16*)(pScratch + 0x32C) - 0x400;
+            *(u16*)(pScratch + 0x330) = x1;
+            *(u16*)(pScratch + 0x340) = x1;
+            *(u16*)(pScratch + 0x334) = y0;
+            *(u16*)(pScratch + 0x338) = x0;
+            *(u16*)(pScratch + 0x33C) = y1;
+            *(u16*)(pScratch + 0x344) = y1;
+            clip = D_8009D650[k].corner[0] | D_8009D650[k].corner[1] | D_8009D650[k].corner[2] | D_8009D650[k].corner[3];
+            if (clip != -1) {
+                func_80099708((u32*)pImg, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x328));
+                func_80099708((u32*)(pImg + 0x144), p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x330));
+                func_80099708((u32*)(pImg + 0x288), p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x338));
+                func_80099708((u32*)(pImg + 0x3CC), p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x340));
             } else {
-                if (y != all) {
-                    func_80099708(pImg, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800328);
+                if (D_8009D650[k].corner[0] != clip) {
+                    func_80099708((u32*)pImg, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x328));
                 }
-                if (D_8009D650[k].unk2 != all) {
-                    func_80099708(pImg + 0x144, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800330);
+                if (D_8009D650[k].corner[1] != clip) {
+                    func_80099708((u32*)(pImg + 0x144), p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x330));
                 }
-                if (D_8009D654[k].unk0 != all) {
-                    func_80099708(pImg + 0x288, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800338);
+                if (D_8009D650[k].corner[2] != clip) {
+                    func_80099708((u32*)(pImg + 0x288), p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x338));
                 }
-                if (D_8009D654[k].unk2 != all) {
-                    func_80099708(pImg + 0x3CC, p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)0x1F800340);
+                if (D_8009D650[k].corner[3] != clip) {
+                    func_80099708((u32*)(pImg + 0x3CC), p0, p1 + D_8009D7DC * 0x20, (WorldMapMisc16Rect*)(pScratch + 0x340));
                 }
             }
+            *(volatile u16*)(pScratch + 0x328) += 0x800;
         }
-        *(volatile u16*)0x1F800328 += 0x800;
-        *(volatile u16*)0x1F80032C -= 0x800;
+        *(volatile u16*)(pScratch + 0x32C) -= 0x800;
     }
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
 /* 94.82%, 260 bytes = retail 65 insns, correct code, ONE temp rotation left.
    The instruction stream (other than registers) is retail: s0=pSrc s1=prod t9=pTbl a0=x
