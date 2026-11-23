@@ -214,6 +214,25 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
    for the (u16) subtraction, turn=delta before/after the magnitude,
    delta = turn, two do-while blocks, a pointer local to vec (98.70 but 596
    bytes, one instruction short), and three permuter runs (2063 -> 641 -> 296).
+   Round 419 re-measured this body at the same 98.03 / 600 bytes and tried the
+   two abs levers:
+   - __builtin_abs(delta) shared by both blocks: 95.50 / 596 bytes / 149 insns.
+     It DOES give retail's per-block abs shape (bgez $v1 / move rd,$v1 /
+     negu rd,rd, where this body has negu rd,$v1), but reorg then hoists the
+     rate sll past the bgez and the body is one instruction short.
+   - per-site locals deltaY/deltaZ/magY/magZ/turnY/turnZ with __builtin_abs:
+     95.29 / 604 / 151. Both abs shapes are retail's and the z copy
+     move $v1,$v0 survives, but rate lands in $a0 (retail $a1), the y turn in
+     $a1 (retail $a3), and sched1 inserts two load nops where retail has none.
+   - plain turn = delta; mag = delta; (turn before the magnitude, plain
+     statements, no do-while) in BOTH blocks: 93.70 / 604 / 151 - one pseudo for
+     both blocks' delta makes gcc copy it twice.
+   So the abs shapes want __builtin_abs while the size and the rate/turn
+   registers want this do-while body; no one spelling has both, and the unit
+   runs -fschedule-insns, so the z block's two load nops are the scheduler.
+   Retail's y delta in $v1 against its z delta in $v0 does say the original had
+   two delta locals (one pseudo per variable), but every split spelling measured
+   here or earlier loses either a register or a byte.
 void func_800B65B0(BattleSpriteState *pSprite, u8 *p) {
     SVECTOR rot;
     SVECTOR curRot;
