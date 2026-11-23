@@ -84,7 +84,7 @@ typedef struct {
 } MenuEquipmentSlotRecord; // Size: 0x28
 
 void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1);
-void func_801DCE60(u_char arg0, s32 arg1, u_char arg2);
+void func_801DCE60(u_char arg0, u_char arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
@@ -1353,7 +1353,34 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    hand-out plus needsOpen's spill: retail keeps the `4` (fp) and rematerialises
    the a6 `1` four times, ours keeps BOTH (s7=4, s8=1) and spills needsOpen to
    0x38(sp), which is exactly the extra saved word that makes the frame 0x70
-   against retail's 0x68. Parked as is. *//*
+   against retail's 0x68. Parked as is.
+   ROUND 433: still 94.46 percent / 884 bytes / 221 insns = retail's exact size,
+   measured with the file-scope prototype of func_801DCE60 put back to
+   (u_char, u_char, u_char): retail masks the second argument at this call site
+   (andi a1,s1,0xff) and the s32 declaration that func_801DCE60's own park needs
+   costs 4 bytes here (94.14). Register map read both ways this round: retail
+   spills `kind` (0x38, reloaded with lw in cases 0 and 2) and rematerialises the
+   a6 constant 1 at each of the four window calls, which is what leaves s5 for
+   needsOpen; ours keeps the a6 1 in s8 and spills BOTH kind (0x40) and needsOpen
+   (0x38) - that fourth local slot is the extra saved word that makes our frame
+   0x70. Both bodies hold eleven live values in nine callee-saved registers and
+   spill two, so the residual is a pure priority tie between needsOpen (3 refs) and
+   the shared const-1 pseudo (4 refs): gcc 2.6.0 prefers the constant, retail's
+   compiler preferred the variable. Tried this round: `s32 kind` with
+   `kind = arg2 & 0xFF` (reproduces retail's lw compare but 90.28 / 892 bytes), a
+   preheader `s32 mode = 4;` passed as a7 (93.80 / 888, 4 over), and permuter
+   4 min from the 94.46 body: PERMUTER_BETTER 4368 -> 270, but the winner passes
+   needsOpen where retail passes 0 (func_801D9704's direction and
+   MenuFreeArrowCursor's index) - wrong code, rejected. Preset screen: gcc-2.7.2
+   scores 94.81 here but the unit cannot switch (under it
+   MenuFitInventoryWindowToItems 96.00, MenuBuildUnk430PanelColumns 98.87,
+   MenuRunUnk430Panel 67.27, MenuEquipItemFromPanel 98.62,
+   MenuRenderEquipmentSlotStrings 96.83, MenuReturnWeaponToInventory 98.11, all
+   100.00 under 2.6.0). The u_char declaration is also what func_801DD790's park
+   wants; func_801DCE60's own parked body measured 482 insns / 1928 bytes with
+   s32 arg1, so reconcile the two when that one is un-parked. */
+
+/*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
     u8 needsOpen;
