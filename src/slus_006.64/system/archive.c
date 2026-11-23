@@ -1422,6 +1422,29 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
  *     CdControlF(CdlNop, NULL);
  * }
+ *
+ * ROUND 418 (measurements on the body below, all with the permuter's
+ * `entryIndex * 8` substitution in place - it scores the same 97.47 and is what
+ * makes the body parsable, so the sizeof spelling is not the blocker):
+ *  - permuter ran (4 min, -j 2, 1667 iterations, base=335 best=197). Its best
+ *    edit is a real find but cannot link: `nOffset = entryIndex * 8 + base;
+ *    pCurrent = (ArchiveStreamFileSectionHeader*)nOffset;` plus `pIdHeader =
+ *    pCurrent; pIdHeader->id = ...;` with the tail test moved to `if (pIdHeader)`
+ *    scores 98.28% and fixes the `sll a0,s2,0xb` slot (row 2's cascade), but it
+ *    needs one extra `move s0,s1` - 740 bytes / 185 insns against retail's 184,
+ *    so it can never link. The copy is the price of two live pseudos for one
+ *    pointer (pIdHeader must survive to the tail test).
+ *  - with the tail test back on `pCurrent` (pIdHeader only around the id store)
+ *    gcc coalesces it away: 97.47 / 736 bytes, the same 8 lines as below, i.e.
+ *    the nOffset split also folds back.
+ *  - the ArchiveStreamLoadSection live-in trick does fix row 1 but mirrors the
+ *    pair: `void func_8002B5D0(u_char status, s32 entryIndex)` gives retail's
+ *    `move s1,v0 / addiu v1,s1,1` and then the header pointer takes $s2 instead
+ *    of $s1 and the prologue grows a `sw s1,28(sp)` - 96.71 / 740 bytes / 185
+ *    insns. Rejected.
+ * Verdict unchanged: row 1 needs the index to be a live-in in $s2 (unreachable:
+ * the entry parameter lands in $s1), and row 2 is the c-a-call-argument-constant
+ * reorg ceiling. Park.
  */
 
 
