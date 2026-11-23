@@ -1178,13 +1178,15 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    everything matches except that retail has the text walker in $s0 and the loop
    index in $s1 and this build mirrors them, which also puts the g_GameState
    address formation one statement earlier in the preheader).
+   Re-measured round-in-place: still 96.29% / 836 bytes / 209 insns.
    The mirror is DECIDED ARITHMETICALLY, not by spelling: gcc-2.6.0's global.c
    allocno_compare processes the callee-saved candidates in descending
    floor_log2(refs) * refs * 10000 / (live_length * size), and this body's two
    are 76 = the shared index (28 refs over 117 insns -> 2393) and 75 = the
    walker (11 refs over 36 insns -> 2291) per -da m.i.greg / m.i.lreg. For the
    walker to take $s0 first it needs live_length <= 34 (two instructions less)
-   or 12 refs at live_length <= 37. Its live range starts at the preheader
+   or 12 refs at live_length <= 37 (tools/rounds/levers.md
+   a-a-near-miss-allocno-quotient records the same numbers). Its live range starts at the preheader
    lui/addiu, which loop.c hoists to the head of the block, so source order
    cannot move it: initialising the walker last in the preheader measures the
    same 96.29, and a separate per-loop index (which frees the walker into $s0
@@ -1210,7 +1212,6 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    calling SystemEncodeGlyphCodes and copying the buffer back; the "id == 0xFF"
    arm is out of line at the end of the body (beq to it). Fixed-width copy of
    0x10 halfwords from D_8005A3A0 to D_8006F958 at the top. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 /*
 void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     u8 inBuf[0x14];
@@ -1260,8 +1261,8 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     g_GameState.fieldScriptMemory[0x52] = discNumber;
     MenuSaveSlotWriteGameState(pSlot);
     func_801CB184();
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 
 /* Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594).
    The card save-write routine: pick a slot, delete the record's old file, write the
