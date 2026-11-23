@@ -904,8 +904,9 @@ void FieldAddParticlePrims(void) {
 // an u_int block-scope copy of nU1 (copy-propagated away, identical), and try_flags
 // --sweep over 2.7.2 / 2.6.0 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x -mcpu
 // 3000/r8000 (best 99.56 under 2.7.2 -O2 and 2.6.0 -O2, cdk 99.52, -O1 75.83, -O3
-// does not compile), so no preset produces retail's pair. A sixth permuter run is
-// pointless after five at base=55.
+// does not compile), so no preset produces retail's pair. A sixth 3-minute permuter
+// run on this exact body this round: base=55 best=55, 1423 iterations - six runs,
+// base=55 every time, so no local edit reaches the pair.
 // Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
 /*
 void func_800A6E70(void) {
