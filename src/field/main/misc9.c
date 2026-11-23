@@ -733,7 +733,10 @@ extern s32 g_FieldTextRenderPrimBlocks;
    the head in this build only. Conclusion: retail's def was at the head of the
    store block in RTL, i.e. its source had a statement there whose constant cse
    folds away in this build (every local spelling of 0x280 measures 97.89). Not
-   source-reachable: park, do not permute.
+   source-reachable: park, do not permute. Round 420 un-parked and re-measured
+   this body on today's externs: it compiles and scores the same 97.89 / 1520
+   bytes / 380 insns, with the displaced `li $v1,0x280` the ONLY non-relocation
+   row - do not brief it again.
 /*
 void func_800AC3AC(void) {
     FieldTextRowPrims* pRow;
