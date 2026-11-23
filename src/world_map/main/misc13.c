@@ -372,67 +372,69 @@ void WorldMapFreeMode4AreaNameString(void) {
     SystemStringFree(g_WorldMapMode4AreaNameString);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);
-/* best: 69.59% (316 bytes vs 380). 16-row CLUT fade: 2 nested loops,
-   t = (i << 12) / count, s = 0x1000 - t, per u16 entry
-   out = (v & 0x8000) | ((cr*s + fr*t) >> 15) | (((cg*s + fg*t) >> 15) << 5)
-         | (((cb*s + fb*t) >> 15) << 10), cr/cg/cb = (v&0x1F)<<3, (v>>2)&0xF8,
-   (v>>7)&0xF8. Retail facts: the three pFactors lbu's are in the ENTRY block
-   (before the `blez count` guard, i.e. source-level locals fr/fg/fb, typed s32
-   - a u8 local adds an `andi 0xff` retail does not have); the inner loop
-   computes all SIX products (retail is 92 insns, ours 81-88) while gcc hoists
-   the three fr/fg/fb*t mults out of the inner loop for every spelling tried;
-   the >> 15 is srl so the sums are unsigned; the frame is 0x28 and saves five
-   callee-saved regs (s3 saved with no use in the body - our u8[3] body below
-   reproduces the 0x28 frame and 5-6 saves but not s3's death).
-   ROUND-NEW: retail's four `lhu v0,0(a3)` re-reads of *pIn are caused by the
-   three `sb` stores: gcc 2.7.2 has no alias analysis, so each store kills the
-   CSE'd load and forces a reload. The `sb v0,{0,1,2}(sp)` are therefore stores
-   into a 3-byte local (u8 rgb[3] or a 3-u8 local struct), read back as the
-   expression's cr/cg/cb - NOT register spills. Measured with `u8 rgb[3]` +
-   s32 fr/fg/fb: 61.69% (360 bytes, 88 insns) - the sb's appear and the frame
-   becomes retail's 0x28, but the stores sink to the end of the block instead
-   of filling the mult/mflo gaps, and the fr/fg/fb*t mults still hoist.
-   Tried and worse: `pFactors[k]*t` inline (the old 69.59 body, factors
-   re-loaded per pixel), u8 factor locals (60.22, adds andi 0xff), s32 factor
-   locals (60.93), u8 rgb[3] (61.69). -O1 41.66; -O3/-Os/2.6.0/cdk do not
-   compile. Next attempt should aim at the hoist: retail evaluates one
-   `cr*s + fr*t` pair at a time, ours does cr*s, cg*s, cb*s then combines.
+/* best: 65.59% (356 bytes vs retail 380 = 92 insns; ours 87). ONE residual: loop.c
+   hoists the three invariant products fr*t / fg*t / fb*t out of the pixel loop into
+   the row loop (a mult + mflo pair before the pixel-loop head for each), 3 mult +
+   3 mflo = exactly the 24 missing bytes; retail recomputes them per pixel. Everything
+   else is retail's: the four lhu re-reads of *pIn, the three sb stores into a 3-byte
+   u8 rgb[3] local (that is what kills the cse'd load and forces the re-reads - the
+   rgb values themselves come back from the register cse recorded for the store, there
+   is no lbu from the stack), srl ...15 (so t/s are u32; an s32 spelling emits sra),
+   bnez with no andi (so the zero test reads *pIn, not a u16 local), pIn reset per row
+   from pSrc while pOut is carried across both loops, and 0x1000 materialised in the
+   row loop.
+   The 69.59% / 316 byte / 79 insn body parked here before round 427 scores higher on
+   objdiff's alignment metric but is 30 bytes FURTHER from retail and lacks the reload
+   and sb structure; it is in git at commit 95f975b4 if a later lane wants to compare.
+   Tried and measured on the reload body: pFactors[k] inline in the pixel loop 65.81
+   (368 bytes, 90 insns - the products stay in the loop because a memory load is not
+   hoistable, but three lbu appear); the products as three statements into a u32
+   accumulator 65.59, byte-identical; t*fr operand order 65.59; u8* vs u16* parameters
+   65.59 (keep u8*, it is what misc8/misc15 declare); s32 fr/fg/fb locals 61.69 (older
+   measurement); u8 factor locals 60.22. Not a preset question: gcc-2.6.0 58.52, and
+   gcc-2.7.2-cdk does not compile the body.
+   Next attempt: find the spelling loop.c refuses to hoist for an invariant product of
+   two registers that is used once in a nested conditional block. */
+/*
 void func_800931D8(u8* pSrc, u8* pDst, s32 count, u8* pFactors) {
     s32 i;
     s32 j;
-    s32 t;
-    s32 s;
+    u32 t;
+    u32 s;
+    s32 fr;
+    s32 fg;
+    s32 fb;
+    u8 rgb[3];
     u16* pIn;
     u16* pOut;
-    u32 v;
-    u8 cr;
-    u8 cg;
-    u8 cb;
 
+    fr = pFactors[0];
+    fg = pFactors[1];
+    fb = pFactors[2];
     pOut = (u16*)pDst;
     for (i = 0; i < count; i++) {
         t = (i << 12) / count;
         s = 0x1000 - t;
         pIn = (u16*)pSrc;
         for (j = 0; j < 0x100; j++) {
-            v = *pIn;
-            if (v == 0) {
-                *pOut = v;
+            if (*pIn == 0) {
+                *pOut = *pIn;
             } else {
-                cr = (v & 0x1F) << 3;
-                cg = (v >> 2) & 0xF8;
-                cb = (v >> 7) & 0xF8;
-                *pOut = (v & 0x8000) | ((u32)(cr * s + pFactors[0] * t) >> 15) |
-                        (((u32)(cg * s + pFactors[1] * t) >> 15) << 5) |
-                        (((u32)(cb * s + pFactors[2] * t) >> 15) << 10);
+                rgb[0] = (*pIn & 0x1F) << 3;
+                rgb[1] = (*pIn >> 2) & 0xF8;
+                rgb[2] = (*pIn >> 7) & 0xF8;
+                *pOut = (*pIn & 0x8000) | ((rgb[0] * s + fr * t) >> 15) |
+                        (((rgb[1] * s + fg * t) >> 15) << 5) |
+                        (((rgb[2] * s + fb * t) >> 15) << 10);
             }
             pIn++;
             pOut++;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);
+
+
 void WorldMapWrapPosition(WorldMapPos* p) {
     if (p->x >= g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12)) {
         p->x -= g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12);
@@ -597,34 +599,33 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     WorldMapInterpolatePlaneHeight(&a, &b, &c);
     return a.y << 3;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
-/* best: 71.71 percent (RE-MEASURED this round: 1080 bytes vs retail 1072 = 268
-   insns; ours 270). The old 71.82 note could not be reproduced because the parked
-   text did not compile (it used the s32 table base D_8009B254/D_8009B25C/D_8009B24C
-   which are NOT the shape the object names: they are g_WorldMapTileDiagonalAxes[1].x,
-   [1].z and [0].z). Body below now compiles and spells them typed.
-   Structure is right: same 8 rcos calls in the same order, same multiply/shift
-   chain, same four scratch stores at 0xA2/0xAA/0xB2/0xBA, same four sum arms,
-   same GTE pair, same interpolate call. Residual facts, all measured:
+/* best: 71.71% (RE-MEASURED round 427 from this exact text: 1080 bytes vs retail 1072
+   = 268 insns; ours 270). Structure is right: same 8 rcos calls in the same order,
+   same multiply/shift chain, same four scratch stores at 0xA2/0xAA/0xB2/0xBA, same
+   four sum arms, same GTE pair, same interpolate call. The earlier 71.82 note could
+   not be reproduced because its parked text did not compile (it used s32 bases
+   D_8009B254/D_8009B25C/D_8009B24C); the body below compiles and spells those as
+   g_WorldMapTileDiagonalAxes[1].x, [1].z and [0].z. Residual facts, all measured:
    - Retail keeps BOTH parameters in callee-saved registers (s7 = x, s8 = z); this
-     body spills z to 16(sp) and reloads it twice, and its frame is 64 where
-     retail's is 56. The quad block needs 9 live values (x, z, pTile, xa, x0, za,
-     z0, angle, phase) and retail fits exactly that in s7,fp,s6,s1,s3,s0,s2,s5,s4.
+     body spills z to 16(sp) and reloads it twice, and its frame is 64 against
+     retail's 56. The quad block needs 9 live values (x, z, pTile, xa, x0, za, z0,
+     angle, phase) and retail fits exactly that in s7,fp,s6,s1,s3,s0,s2,s5,s4.
    - Retail does NOT keep the four corner heights in registers: it stores each to
-     scratch and re-reads them with `lh` in the arms, and keeps only the last
-     corner's height (h11) in a2. This body keeps h00/h01/h10/h11 in registers and
-     emits no `lh` at all - that is the 4-ish instruction difference plus most of
-     the register pressure.
-   - Retail builds the scratch base ONCE (`lui s1,0x1F80` in the delay slot of the
-     first `bgez`) and then stores `sw v0,0(s1)`, calls OuterProduct0 with
-     `move a1,s1` / `ori a0,s1,0x10` / `addiu s0,s1,D_1F800020`; this body re-forms
-     every scratch address with a fresh lui/at (+~10 instructions).
-   Tried and worse: heights read back from scratch in the arms (63.88, gcc then
-   keeps the 0xA2 address in a saved register instead of retail's fresh lui), a
-   single shared height variable (66.24), s16 heights (67.35), the quads as a 2x2
-   loop (46.68, gcc 2.7.2 does not unroll it), x1/z1 inlined into the angle sums
-   (identical 71.71). A permuter run from this body found nothing usable (its best
-   candidates changed the stored values).
+     scratch and re-reads them with lh in the arms, keeping only the last corner's
+     height (h11) in a2. This body keeps h00/h01/h10/h11 in registers and emits no lh
+     at all - that is the 4-ish instruction difference plus most of the pressure.
+   - Retail builds the scratch base ONCE (lui s1,0x1F80 in the delay slot of the
+     first bgez) and then stores sw v0,0(s1), calling OuterProduct0 with move a1,s1 /
+     ori a0,s1,0x10 / addiu s0,s1,D_1F800020; this body re-forms every scratch address
+     with a fresh lui/at (about 10 instructions).
+   Tried and worse: heights read back from scratch in the arms 63.88 (gcc then keeps
+   the 0xA2 address in a saved register instead of retail's fresh lui), a single
+   shared height variable 66.24, s16 heights 67.35, the quads as a 2x2 loop 46.68
+   (gcc 2.7.2 does not unroll it), x1/z1 inlined into the angle sums 71.71
+   (identical). A permuter run from this body found nothing usable (its best
+   candidates changed the stored values). 268 insns of this size is not a hand-edit
+   job: park. */
+/*
 s32 func_80093A5C(s32 x, s32 z) {
     u8* pTile;
     s32 xa;
@@ -718,6 +719,7 @@ s32 func_80093A5C(s32 x, s32 z) {
                                    (WorldMapPos*)0x1F800000);
     return *(s32*)0x1F800014 << 12;
 }*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
 
 s32 WorldMapGetTileValue(WorldMapPos* p) {
     s16 idx;
