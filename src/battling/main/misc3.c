@@ -1259,40 +1259,26 @@ extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern s32 BattleAccumulateGaugePoints(BattleActor* p, s32 points, s32 mode);
 extern u8 g_BattleCameraLerpFrames;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
-
-/* 97.90%: 430/430 instructions, retail's exact 1720 bytes, both jump tables in
-   case order. Three residuals, all block placement / allocation, not structure:
-   (1) the merged `p->actionWaitTimer = 0xF` reset block: cc1 has ONE copy (the
-   cross-jump fires) but places it between the case-1 and case-2 entries, jumping
-   to case 0's BattleResetMessageQueue block; retail places it after the shared
-   case-1/2 body so it FALLS THROUGH into case 0's block (3 vs 2 instructions).
-   (2) after BattleActorSelectActionEntry retail copies the result to $a1 at once
-   and tests p->state in $v0; gcc keeps it in $v0 and copies in the bnez delay
-   slot, so the flags load goes to $v1 and the `ori 0x1000` to $a0 across the
-   whole body. (3) case 3 sets `flag = 1` -> `li $s2,1` two instructions earlier
-   than retail.
-   Round 397 re-measured the park at 97.90% / 1720 bytes (not stale) and added two
-   spellings: a shared label (`p->actionWaitTimer = 0xF; goto resetQueue;` in both
-   arms, `case 0: resetQueue:` on the BattleResetMessageQueue) = 94.72%, 1764 bytes
-   - cc1 still emits the block at case 1's position, now with an inverted branch
-   plus a `j`, so the layout hypothesis is wrong, not just the spelling; and the
-   body-first `if (pEntry[0] != 0) {body} else {reset}` in the 1,2,0 case order
-   = 95.52%, 1760 bytes (confirms the earlier note: the cross-jump does not fire
-   at all when the body comes first). Already tried and still current: case orders
-   1,0,2 and 0,1,2 (92.52), 2,1 (97.74), early-break bodies (97.90), permuter
-   1679 iterations base=462 best=462, preset screen 2.6.0 94.41 / cdk 94.51 /
-   -O3 85.76 / Default 97.90, so the preset is right.
-   Structure worth keeping: the first switch's cases must be LISTED 1, 2, 0, 3, 4,
-   5; the second switch on p->state is ascending 0-4 and its case 1 recomputes
-   p->animSpeedBonus with `/ 4096` while the shared tail uses `>> 16`;
-   BattleDequeueMessage must be declared s32 or every caller gains an
-   `andi v0,v0,0xff`.
-*/
-
-/*
-// The battle actor's action state machine: a queued message selects the action
-// (the first switch), then the state at 0xC4 recomputes the gauge word.
+/* 99.49%: retail's exact 1720 bytes / 430 insns, every instruction identical except ONE
+   displaced `li s2,1` (plus the jtbl_ vs .rodata operand, expected here).
+   Round 421 replaced round 397's two duplicated case-1/2 arms with a real
+   shared block: each arm does `pEntry = BattleActorSelectActionEntry(p, N); goto
+   actionEntry;` and an `actionEntry:` label sits between case 2 and case 0. That
+   reproduces retail's block order and its merged `jal
+   BattleActorSelectActionEntry` tail (retail's case 1 jumps to the shared jal
+   with `li a1,1` in the jump delay slot, case 2 falls in with `move a1,zero`) and
+   fixed all three round-397 residuals except the last: 97.90 -> 99.49 at the same
+   byte count. Inside the shared block the body-first polarity
+   (`if (pEntry[0] != 0) body else reset`) is REQUIRED: it puts the reset block
+   after the body so it falls into case 0's BattleResetMessageQueue as retail
+   does, and the `== 0` spelling costs a `j` (1724 bytes, 98.19).
+   Residual: case 3's `flag = 1;` emits `li s2,1` second in the block (after sb
+   modelIndex) where retail has it 6th, after the sw of flags |= 0x1000. Source
+   order does not control it: identical output with flag = 1 as the arm's last
+   statement; the modelIndex if/else as a ternary is worse (98.85, wrong polarity).
+   Preset re-screened on this body: Default 99.49, cdk compile-failed, 2.6.0 breaks
+   the unit's matched functions.
+*//*
 void func_80077A9C(BattleActor* p) {
     u8* pEntry;
     u32 flags;
@@ -1324,46 +1310,32 @@ void func_80077A9C(BattleActor* p) {
         case 1:
             if (p->actionWaitTimer == 0) {
                 pEntry = BattleActorSelectActionEntry(p, 1);
-                if (!(p->state & 2)) {
-                    if (pEntry[0] == 0) {
-                        p->actionWaitTimer = 0xF;
-                        BattleResetMessageQueue(p);
-                    } else {
-                        p->modelIndex = pEntry[0] + 0x12;
-                        p->prevPartIndex = 0xFF;
-                        flags = p->flags | 0x1000;
-                        p->flags = flags;
-                        if (pEntry[1] != 0) {
-                            flag = 1;
-                        }
-                        p->flags = flags | 1;
-                        p->actionPhase = 2;
-                        p->pActionEntry = pEntry;
-                        p->gaugePercent = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
-                    }
-                }
+                goto actionEntry;
             }
             break;
         case 2:
             if (p->actionWaitTimer == 0) {
                 pEntry = BattleActorSelectActionEntry(p, 0);
-                if (!(p->state & 2)) {
-                    if (pEntry[0] == 0) {
-                        p->actionWaitTimer = 0xF;
-                        BattleResetMessageQueue(p);
-                    } else {
-                        p->modelIndex = pEntry[0] + 0x12;
-                        p->prevPartIndex = 0xFF;
-                        flags = p->flags | 0x1000;
-                        p->flags = flags;
-                        if (pEntry[1] != 0) {
-                            flag = 1;
-                        }
-                        p->flags = flags | 1;
-                        p->actionPhase = 2;
-                        p->pActionEntry = pEntry;
-                        p->gaugePercent = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
+                goto actionEntry;
+            }
+            break;
+        actionEntry:
+            if (!(p->state & 2)) {
+                if (pEntry[0] != 0) {
+                    p->modelIndex = pEntry[0] + 0x12;
+                    p->prevPartIndex = 0xFF;
+                    flags = p->flags | 0x1000;
+                    p->flags = flags;
+                    if (pEntry[1] != 0) {
+                        flag = 1;
                     }
+                    p->flags = flags | 1;
+                    p->actionPhase = 2;
+                    p->pActionEntry = pEntry;
+                    p->gaugePercent = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
+                } else {
+                    p->actionWaitTimer = 0xF;
+                    BattleResetMessageQueue(p);
                 }
             }
             break;
@@ -1494,8 +1466,9 @@ void func_80077A9C(BattleActor* p) {
         p->flags &= ~0x8000;
     }
 }
-
 */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
+
 void BattleActorApplyCenterPosition(BattleActor* p) {
     p->position = p->centerPosition;
     p->modelIndex = 0;
@@ -1503,6 +1476,7 @@ void BattleActorApplyCenterPosition(BattleActor* p) {
     p->actionPhase = 0;
     p->flags |= 0x2000000;
 }
+
 
 extern s32 g_BattleAiTargetDistance;
 extern u8 g_BattleOptionOn;
