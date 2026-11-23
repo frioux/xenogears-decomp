@@ -1581,6 +1581,19 @@ void ResourceHelperNoOp(void) {
 // emits lhu for all four, and the header cannot change: ResourceHelperGetSpriteList
 // is matched on the u16 reads). Retail also keeps the record's u in a stack slot
 // at 0x20(sp) and reloads it for the prim's u0/u2 stores.
+//
+// Re-measured (redo lane): 68.00% again for the parked body (130 insns, 520
+// bytes); a pDirent+offset loop with `offset += sizeof(*pData)` in the for
+// increment is 67.44% (132 insns, 528 bytes) and a variant whose locals are
+// assigned after the two calls is 51.31% (122 insns) because it drops the s-reg
+// save set, so the pointer-induction body above stays. -G0 does NOT recover the
+// score (66.36% / 67.17%), so the split alone will not close this: retail reads
+// record+0x04/+0x06/+0x08 with lh (lhu for +0x16/+0x18), which this TU's
+// MenuResourceTextureMetadata (u16 width/height/x) cannot spell without a second
+// struct for the record, and the loop's spill set (0x50 frame, five slots) wants
+// the offset form. A probe subtype with s16 u/v/width/height/x and u16
+// texPageX/texPageY (the lh/lhu set retail emits) scores 65.53%, so the
+// signedness alone is not the gap either - do not retry it on its own.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026BA4);
 /*
 void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* ot) {
