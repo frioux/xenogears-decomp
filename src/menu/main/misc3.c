@@ -1180,7 +1180,7 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    everything matches except that retail has the text walker in $s0 and the loop
    index in $s1 and this build mirrors them, which also puts the g_GameState
    address formation one statement earlier in the preheader).
-   Re-measured round-in-place: still 96.29% / 836 bytes / 209 insns.
+   Re-measured this round: still 96.29% / 836 bytes / 209 insns.
    The mirror is DECIDED ARITHMETICALLY, not by spelling: gcc-2.6.0's global.c
    allocno_compare processes the callee-saved candidates in descending
    floor_log2(refs) * refs * 10000 / (live_length * size), and this body's two
