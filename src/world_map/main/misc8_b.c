@@ -163,6 +163,16 @@ typedef struct {
     /* 0x40 */ VECTOR delta; // vx and vz only
 } WorldMapClipWork; // Size: 0x4C
 
+// The part of the scratchpad GTE work area the sprite pass projects through: the
+// SVECTOR handed to RTPS, the wrapped x/z delta the sprite keeps, and one depth
+// per actor slot.
+typedef struct {
+    /* 0x00 */ SVECTOR vec;
+    /* 0x08 */ WorldMapPos delta; // x and z only
+    /* 0x14 */ s32 pad14;
+    /* 0x18 */ s32 depth[0x40];
+} WorldMapSpriteProjection; // Size: 0x118
+
 // One sprite set definition inside the block g_WorldMapSpriteSetTable points at.
 typedef struct {
     /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
@@ -285,7 +295,14 @@ extern s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2);
 extern void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR *pPos, s16 *pRot);
 extern s32 WorldMapSetActorPosition(s32);
 extern s32 func_80084068(s32);
-extern u8 *g_WorldMapRenderContext;
+// Partial view of the render environment g_WorldMapRenderContext points at: the
+// sprite pass only reaches the first ordering table.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderEnv;
+
+extern WorldMapRenderEnv *g_WorldMapRenderContext;
 extern MATRIX g_WorldMapViewMatrix;
 extern void WorldMapWrapDelta(void *pDelta);
 extern void WorldMapWrapDeltaScaled(WorldMapPos *pDelta);
@@ -1023,50 +1040,37 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
     return clip;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8_b", func_80085CDC);
-// Best: 99.18% at retail's exact size (636 bytes / 158 insns, instruction
-// multiset identical). ONE residual: retail emits the `sw $v1,16($s0)` that stores
-// d into pActor->redStep BEFORE the arg setup of func_800223B0 (`lui/lhu` of
-// g_WorldMapViewRotationY and the `lw $a0,0($s0)` of pActor->pSprite); this body
-// emits the pSprite load and the lhu first and the store between them and the
-// `subu`. Everything else - both loops' induction variables, the scratchpad
-// pointer that advances by 4 in loop 3, the slew arms and both their delay-slot
-// fills - is instruction for instruction.
-// What got it from 97.70 to here: DROP the `s16 ang; s32 cur;` locals and read the
-// fields inline (`d = pActor->angle - pActor->redStep;`, and `pActor->redStep +
-// 0x100` / `pActor->angle` in the arms). With the locals gcc puts ang in $a0 and
-// cur in $a1 and loads them in the wrong order; the inline form lets cse pick
-// retail's registers and load order by itself.
-// The two remaining text diffs are relocations only: `addiu a0,s2,%lo(D_1F800008)`
-// where this body has `a0 = s2 + 8` and `addiu s2,s2,%lo(D_1F800004)` where it has
-// `+= 4`; both symbols are absolute in linker/undefined_syms_auto.world_map.txt, so
-// the linked bytes are equal.
-// Measured on the store position: passing `pActor->redStep` (a read-back of the
-// field just stored) as the call argument emits the identical body, and a
-// `do { } while (0)` barrier between the store and the call is worse (98.93%, 640
-// bytes). Preset screen: cdk 96.32, gcc-2.6.0 96.57, unit flags 99.18. Permuter:
-// NONE, 1433 iterations, base 130.
-/*
+// Projects every visible actor slot through the camera, then draws the sprites
+// the projection kept on screen and slews each one's turn step toward its facing.
+//
+// The slew stores the new step in all four arms: cc1 cross-jumps the four
+// identical stores into the one `sw` retail has after the join, and that block
+// boundary is what keeps the store ahead of the call's argument loads (a single
+// store below the join is scheduled after them).
+//
+// Retail names the scratchpad addresses (D_1F800008 / D_1F800004) where the typed
+// spelling folds to 8 / 4: both symbols are absolute, the linked bytes are equal,
+// so judge this function with `tools/scripts/check_bin.sh world_map`.
 void func_80085CDC(void) {
     WorldMapActor *pActor;
+    WorldMapSpriteProjection *pProj;
     MATRIX *pMat;
-    s32 *pScratch;
     WorldMapPos *pCam;
     s32 i;
     s32 d;
     s32 v;
 
-    pScratch = (s32 *)0x1F800000;
+    pProj = (WorldMapSpriteProjection *)0x1F800000;
     i = 0;
     pCam = (WorldMapPos *)&g_WorldMapCameraTarget;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
-            pScratch[2] = pActor->x - pCam->x;
-            pScratch[4] = pActor->z - pCam->z;
-            WorldMapWrapDelta(&pScratch[2]);
-            ((WorldMapSpritePos *)pActor->pSprite)->x = pScratch[2] << 4;
-            ((WorldMapSpritePos *)pActor->pSprite)->z = -pScratch[4] << 4;
+            pProj->delta.x = pActor->x - pCam->x;
+            pProj->delta.z = pActor->z - pCam->z;
+            WorldMapWrapDelta(&pProj->delta);
+            ((WorldMapSpritePos *)pActor->pSprite)->x = pProj->delta.x << 4;
+            ((WorldMapSpritePos *)pActor->pSprite)->z = -pProj->delta.z << 4;
             ((WorldMapSpritePos *)pActor->pSprite)->y = pActor->y << 4;
         }
     }
@@ -1077,22 +1081,22 @@ void func_80085CDC(void) {
     for (i = 0; i < 0x40; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->x;
-            ((SVECTOR *)pScratch)->vx = v;
+            pProj->vec.vx = v;
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->y;
-            ((SVECTOR *)pScratch)->vy = v;
+            pProj->vec.vy = v;
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->z;
-            ((SVECTOR *)pScratch)->vz = v;
-            gte_ldv0((SVECTOR *)pScratch);
+            pProj->vec.vz = v;
+            gte_ldv0(&pProj->vec);
             gte_rtps();
-            gte_stsz(&pScratch[i + 6]);
+            gte_stsz(&pProj->depth[i]);
         }
     }
     GfxSetBaseMatrix(&g_WorldMapViewMatrix);
     i = 0;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
-        if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pScratch[i + 6] < 0xB00)) {
-            SpriteDrawFrame(pActor->pSprite, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pScratch[i + 6] >> 4));
+        if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pProj->depth[i] < 0xB00)) {
+            SpriteDrawFrame(pActor->pSprite, g_WorldMapRenderContext->pOt[0] + (pProj->depth[i] >> 4));
             d = pActor->angle - pActor->redStep;
             if (d < 0) {
                 d += 0x1000;
@@ -1100,21 +1104,23 @@ void func_80085CDC(void) {
             if (d < 0x801) {
                 if (d >= 0x100) {
                     d = pActor->redStep + 0x100;
+                    pActor->redStep = d;
                 } else {
                     d = pActor->angle;
+                    pActor->redStep = d;
                 }
             } else {
                 d -= 0x1000;
                 if (d < -0xFF) {
                     d = pActor->redStep - 0x100;
+                    pActor->redStep = d;
                 } else {
                     d = pActor->angle;
+                    pActor->redStep = d;
                 }
             }
-            pActor->redStep = d;
             func_800223B0(pActor->pSprite, (d - *(u16 *)&g_WorldMapViewRotationY - 0x400) & 0xFFF);
             AnimScriptTick(pActor->pSprite);
         }
     }
 }
-*/
