@@ -764,30 +764,31 @@ void BattleFreeSoundSeds(void) {
         g_BattleSedsLoaded = 0;
     }
 }
-/* PARKED 82.89 percent at retail's exact 264 bytes / 66 instructions.  This unit runs
-   -fschedule-insns, so the residual is sched1's global ordering and not statement order:
-   the two remaining spots are one decision and they interact.
-   1. Mask block.  Retail loads the call argument first (lhu a0), the store's copy second
-      (lhu v1) and sinks the sh into the jal delay slot, which leaves move a2,s1 free to
-      be hoisted above the ra/s0 saves.  Our compile keeps move a2,s1 for the delay slot,
-      so the sh has to stay in the block: it reuses a0 for both lhu and stores between
-      them.  Same five instructions, other order.
-   2. The third read of g_BattleActorList (the pState->pTargetSprite store) must be a
-      VOLATILE lvalue: a plain read is forwarded from pLast even across the two 0x74
-      stores, which drops the load and leaves 63 instructions / 252 bytes (85.27, cannot
-      link).  With the volatile read gcc HOISTS it above the two 0x74 stores, so pState
-      takes a0 and the reload v0 where retail has pState in a1 and the reload in a0 after
-      the stores.
-   Measured and rejected on this body: both 0x74 stores volatile as well (84.65, 268
-   bytes - the store-then-reload order comes out right at last, but a volatile load's
-   delay slot is an unfillable nop, one instruction over), volatile stores with a plain
-   reload (63 insns, forwarded away), a u16 mask local (65 insns, gcc merges the two
-   lhu), a row pointer local (73.30), pState assigned at first use (no change), gcc 2.6.0
-   (69.77) and plain 2.7.2 (69.77) instead of the unit's cdk, and -O3 (does not compile).
-   The mask is g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E, which is
-   0x800C3FB8 + 0x46; D_800C3FB8 is not in config/symbol_addrs.battle.txt, so keep the
-   base spelling and keep the offset inside the expression (a row local moves the
-   constant into the addiu).  *//*
+/* PARKED 85.91 percent at retail's exact 264 bytes / 66 instructions with every
+   register right (pLast in s0, pState in a1, the reload in a0).  The residual is
+   sched1's interleaving of the five instructions around the reload: retail orders
+   both 0x74 stores, the reload, the two flag loads, then store 0x4C(a1) and store
+   0x28(a1), while this body sinks the 0x74(s0) store to the end and swaps the two
+   pState stores.  This unit compiles with -fschedule-insns, so statement order
+   cannot fix that (the same five statements inside a do..while(0) block measure
+   85.82 at the same 66 insns with a third interleave).  Two 4-minute permuter runs
+   from this body: base 970 best 810 and base 1020 best 815, both only reorderings.
+   THE RELOAD: retail names g_BattleActorList a second time for one plain lw and
+   cc1 2.7.2-cdk FORWARDS that second read across both 0x74 struct stores.  Measured
+   this round, all 63 insns / 252 bytes / 85.27: the plain read, a local holding
+   &g_BattleActorList dereferenced, *ppList first with the named read last, and the
+   non-volatile pointer cast *(BattleActorSprite **)&g_BattleActorList (with that one
+   pState gets a0 and the two pState stores swap).  The volatile cast is the only
+   spelling measured that emits the load at all; keeping it between the two 0x74
+   stores in source is what puts pState in a1 and the reload in a0 (85.17).
+   MEASURED, 66 insns / 264 bytes unless noted: reload after both stores and partKey
+   82.89; store 0x74(s1), reload, partKey, store 0x74(s0) last 85.91 (this body);
+   partKey before the reload with the 0x74(s0) store last 85.17; volatile stores
+   instead of the volatile load 84.65 / 268 bytes (the reload then owns an
+   unfillable nop, the round-411 note).
+   The mask is g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E, i.e.
+   D_800C3FB8 + 0x46; D_800C3FB8 is not in config/symbol_addrs.battle.txt, so keep the
+   base spelling and keep the offset inside the expression. *//*
 void func_800BF3E8(BattleActorSprite *p) {
     BattleActorSprite *pLast;
     BattleMisc33State *pState;
@@ -803,10 +804,10 @@ void func_800BF3E8(BattleActorSprite *p) {
     pLast = g_BattleActorList;
     pState = g_BattleState;
     p->pTargetSprite = g_BattleActorList;
-    ((BattleActorSprite *)g_BattleActorList)->pTargetSprite = p;
     pState->pTargetSprite = *(BattleActorSprite *volatile *)&g_BattleActorList;
     dir = pLast->flags_0xA8 >> 30;
     pState->partKey = ((pLast->flags.word & 3) << 2) | dir;
+    ((BattleActorSprite *)g_BattleActorList)->pTargetSprite = p;
     func_800223B0(p, BattleAngleToPoint(p, p->pTargetSprite));
     if (pLast->flags.sbytes[3] != 0x15) {
         func_800223B0(pLast, BattleAngleToPoint(p->pTargetSprite, p));
