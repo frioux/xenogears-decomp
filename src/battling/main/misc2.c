@@ -314,9 +314,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
    allocator tie) is byte-identical to the plain copy, so the pick stands.
    Round 408: re-measured again from the park, 98.75%/32 bytes, only `lw
    t0,0(a1)` vs `lw v0,0(a1)`. Below 99 so no permuter run; the note above is
-   the whole story. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
-/* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
+   the whole story.
+   Round 424: re-measured 98.75%/32 bytes (only `lw t0,0(a1)` vs `lw v0,0(a1)`);
+   -O3 also 98.75. Below 99 so no permuter. The pick is local_alloc order
+   ($v0 before $t0 in REG_ALLOC_ORDER), out of source reach; see the note above. */
+/*
+void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
         *p0 = *p1;
@@ -324,6 +327,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
         p0++;
     } while ((s32)p1 != n);
 } */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
 extern BattleEffect *BattleEffectCreateWorkKind(s32, s32);
 extern void BattleEffectAllocEntries(BattleEffect *, s32);
@@ -771,9 +775,16 @@ extern void BattleResetMessageQueue(Actor *);
      keeps $s5 and re-reads gaugePercent into $v1 in the second half.
    The two `taken` tests are retail's own dead `bnez a2`/`beqz a2` (a source
    variable that is only ever set to 0), kept here because they are load-bearing
-   for the two loop shapes. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
-/* void func_800740E4(Actor *pActor, u8 *p1, s32 arg2) {
+   for the two loop shapes.
+   Round 424: re-measured 92.03%/1464 bytes (366 insns). A `frame` local feeding
+   both gauge stores (retail has ONE `lh v0,0x99E(s1)` serving +0x10 and +0xC)
+   scores 91.50%/1456/364: gcc hoists the load out of the store block and the
+   gauge-highlight load then lands in $a0, so the plain double expression stays.
+   Preset re-checked on this body: 2.6.0 89.53, 2.7.2-cdk 83.89, -G0 92.03 -
+   the unit preset is right and the 0x18 frame gap (retail vars 56 against our
+   32, bytes 0x40-0x57 never touched) remains the blocker. */
+/*
+void func_800740E4(Actor *pActor, u8 *p1, s32 arg2) {
     VECTOR vecA;
     VECTOR vecB;
     BattleActorSlot *pSlot;
@@ -870,7 +881,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
             }
         }
     }
-} */
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
 void BattleUpdatePartDrawFlags(Actor *p0) {
