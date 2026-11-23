@@ -266,76 +266,46 @@ extern u8 g_MenuSlotNameTextureY[];
 extern u16 g_SystemPalette1;
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
 /*
    Best: 97.58% under gcc 2.6.0 at retail's EXACT 672 bytes (168 instructions).
-   Retail's size, from the symbol table: the next symbol MenuAllocatePrimBuffer
-   is at 0x801E6450, so this function is 0x2A0 (the .size directive in the stub
-   .s stops one instruction early, at 0x29C). Round 378 unparked the old 94.90
-   body, closed most of the gap with one find, and measured the rest dead.
-   THE REMAINING DIFF IS TWO INSTRUCTIONS: where the loop's own initialiser is
-   emitted. Retail's preheader order is
-     [hoisted g_MenuSlotResourceIds base] [giv init j*0x50] [giv init j*4]
-     [giv init primOffset = 0xA98] [biv init offset = 0]
-   and ours always emits offset's init FIRST, ahead of the hoisted base, so
-   "sw s2,40(sp) / move s2,zero" sits at the top instead of at the bottom. The
-   s4/s5 register tie the older note blamed is a CONSEQUENCE of that order: the
-   save is emitted before a register's first definition, and the emission order
-   is the luid order, which decides live_length, which decides the register.
-   (1) THE FIND: primOffset's initialiser has to be a GIV INIT, so the value
-   must be derived from j inside the body. primOffset = j * MENU_SLOT_PRIM_STRIDE
-   + sizeof(MenuSlotQuads) as the first statement of the loop body (strength
-   reduction turns it into the same accumulator, no extra instruction) went
-   94.90 -> 97.58 at the same 672 bytes: "li s4,0xA98" is then emitted in the
-   giv group after the two j givs, which is retail's order, and $s4/$s5 land as
-   retail has them.
-   (2) The other 94.90 find is unchanged: ctxPrimsOffset = 0x820 must be a local
-   assigned just before each call, or gcc folds 0x820 into the base sum.
-   WHAT IS LEFT: offset's own init. Measured dead on this body: for / while /
-   guard-plus-do-while / for(;;) plus break / do-while / goto-dispatch (692
-   bytes) / offset initialised as a statement before the loop / offset
-   initialised from the giv / j initialised as its own statement before an
-   empty for-init / u32 primOffset / an explicit j4 biv for the texture-Y index
-   (688 bytes) / both accumulators as givs with the test on j * STRIDE (668
-   bytes, loses the primOffset accumulator) / 12 declaration orders, which
-   change nothing. A 2060-iteration permuter run from the 94.90 body found
-   nothing (base=710 best=710). Retail's offset init lands after the giv inits,
-   ie offset's init is not in the loop's entry block either; no source shape
-   tried made gcc emit a biv initialiser after loop.c's preheader insertions.
-   Round 379 re-measured from THIS body, all at 672 bytes: init comma order
-   swapped (97.58, identical diff) / j = 0 as its own statement before a
-   for (offset = 0; ...) (97.58, identical) / the offset increment moved to the
-   end of the body instead of the for-latch (97.58, identical) / u32 offset
-   (97.23) / offset != 0x1974 (96.87, the slti becomes li+bne) / offset = j *
-   STRIDE as the first body statement (92.46, 680, needs an extra $s7). A
-   1706-iteration permuter run from this 97.58 body found nothing (base=120
-   best=120). The mechanism is now clear and it is not reachable from source:
-   retail's order [hoist s6][giv s3][giv s5][giv s4][biv s2] means BOTH loop.c's
-   hoisted invariant AND the giv inits were inserted ahead of the biv's
-   initialiser, whereas a front-end offset = 0 always sits before anything
-   loop.c inserts (three cc1_probe replica loops put a front-end biv init first
-   every time). So retail's biv initialiser was itself emitted by
-   strength_reduce, which only happens when loop.c creates a new register for
-   the biv - and j must stay dead for that (any shape that keeps j live is
-   668/680 bytes with an extra saved register). Parked at 97.58 with retail's
-   exact 672 bytes / 168 instructions, one displaced pair.
-   ROUND 397 RE-MEASURED AND CONFIRMED 97.58 / 672 / 168 from this body.
-   THE GIV ROUTE IS CLOSED, and here is the measurement that closes it: with
-   `offset` REMOVED and every use written `j * MENU_SLOT_PRIM_STRIDE` (so the
-   test `j < 3` becomes a giv test and loop.c emits the accumulator's own init),
-   the preheader DOES become the strength_reduce group - order becomes
-   [s3 j*0x50][s5 j*4][s2 offset][s4 0xA98] and j dies, 672 bytes / 168 insns -
-   but all SEVEN `base + offset` sums flip to `addu v0,s2,v0` where retail has
-   `addu v0,v0,s2` (97.17%, 18 differing lines). Writing the sum index-first in
-   C (`j * STRIDE + (u32)g_Menu->pPrimBuffer`) does NOT flip it back, so a
-   strength_reduce giv register is always addu's FIRST operand in gcc 2.6.0;
-   the base-first order needs a front-end pseudo, which is exactly what puts
-   `move s2,zero` first. Measured dead on the same body: the neg trick
-   `base - (-(j * STRIDE))` (84.71%, 676, subu + a moved latch), and a separate
-   front-end `offset` accumulator with the test on `j < 3` (680 bytes: the front
-   end biv and the died-j are mutually exclusive - j gets $s7).
-   Two shapes that both want the same register are unreachable together.
-   The body below is the 97.58 one.
+   ROUND 426 RE-MEASURED FROM THIS BODY AND CONFIRMED 97.58 / 672 / 168. The whole
+   instruction stream is identical except one displaced pair, sw s2,40(sp) /
+   move s2,zero: retail emits it LAST in the loop preheader group
+     [hoisted g_MenuSlotResourceIds base][giv j*0x50][giv j*4][giv primOffset 0xA98]
+     [biv offset 0]
+   and we emit it FIRST, ahead of the hoisted base.
+   THE MECHANISM (round 397; lever b-strength-reduce-giv-is-always-first). A
+   front-end accumulator's initialiser is always emitted before anything loop.c
+   inserts, so retail's biv init must itself have come from strength_reduce. The
+   giv route that DOES produce retail's preheader order (offset removed, every use
+   written j * MENU_SLOT_PRIM_STRIDE, test j < 3) flips all seven base-first sums to
+   addu v0,s2,v0 (97.17%), and writing the sum index-first in C, the neg trick
+   base - (-(j * STRIDE)) (84.71, 676, subu) and a separate front-end accumulator
+   with the test on j < 3 (680, j takes $s7: a front-end biv and the died-j are
+   mutually exclusive) all fail. Round 426 sharpens why the two halves are one
+   register: retail's s2 is BOTH the value the slti tests AND the addend at all
+   seven body sites, so any body whose init comes from loop.c gives up the
+   front-end pseudo those base-first addus belong to.
+   PRESET RULED OUT (round 426, try_flags.sh on this function): gcc-2.7.2-cdk
+   73.08, -G0 97.58 (identical), 2.6.0 -O3 and 2.7.2 fail to compile the unit's
+   own .i. XenoMenu260 is right.
+   THE TWO FINDS THAT GOT HERE: (1) primOffset must be j * MENU_SLOT_PRIM_STRIDE +
+   sizeof(MenuSlotQuads) as the first statement of the loop body, so its init is a
+   giv init emitted in retail's group (94.90 -> 97.58 at the same 672 bytes);
+   (2) ctxPrimsOffset = 0x820 must be a local assigned just before each call or
+   gcc folds 0x820 into the base sum.
+   MEASURED DEAD on this body, all at 672 bytes unless noted: for / while /
+   guard-plus-do-while / for(;;)+break / do-while / goto-dispatch (692), offset
+   initialised as a statement before the loop, offset from the giv, j as its own
+   statement before an empty for-init, u32 offset (97.23), offset != 0x1974
+   (96.87), offset = j * STRIDE as the first body statement (92.46, 680, needs
+   $s7), both accumulators as givs with the test on j * STRIDE (668, loses the
+   primOffset accumulator), 12 declaration orders, init comma order swapped, the
+   offset increment moved out of the for-latch, an explicit j4 biv for the
+   texture-Y index (688). Two permuter runs (2060 and 1706 iterations) found
+   nothing. Parked at the best body with retail's exact size.
+*/
+/*
 void func_801E61B0(void) {
     s32 i;
     s32 j;
@@ -379,6 +349,8 @@ void func_801E61B0(void) {
     }
 }
 */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
+
 void MenuAllocatePrimBuffer(void) {
     void* pMem;
     u32 unk[2]; // unused: the original frame has 8 bytes of locals we cannot express
@@ -389,6 +361,7 @@ void MenuAllocatePrimBuffer(void) {
     MenuInitializeGlyphQuadPrims();
     MenuInitializeSlotHighlightPrims();
 }
+
 void MenuFreePrimBuffer(void) {
     void* pMem;
     MenuManager* pManager;
