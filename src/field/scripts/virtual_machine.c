@@ -924,8 +924,109 @@ void FieldScriptUpdateMemoryEachFrame(void) {
     FieldScriptMemoryWriteU16(SCRIPT_VAR_PLAYER_POS_Y, ((s16*)&g_FieldActors[g_PlayerActorIndex].pActorData->position)[3]);
 }
 
+extern u8 g_WorldMapSaveBlock[];
+extern u8* g_WorldMapSaveCursor;
+extern s32 g_FieldActiveActorCount;
+extern s32 g_SavedGearRide[3];
+extern u_int* g_FieldWalkmeshMaterialFlags;
+extern VECTOR g_CameraEye;
+extern u8 g_FieldScreenEffectData[];
+extern char D_8006FD9C[]; // "SAVESIZE=%d %x\n"
+extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
+
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
 
+// Pulls the field state that func_800A3F4C pushed into the save block back out, one memcpy
+// per block, then each actor's ActorData and the script memory.
+//
+// PARKED 99.08% at retail's exact 518 instructions / 2072 bytes (20 differing lines, all of
+// them scheduling or commuted-operand artifacts):
+//  1. the rotation copy's destination prints `addu v0,s0,v0` where retail has `addu v0,v0,s0`
+//     (same register pair, commuted PLUS); it is the only one of the four actor sites that
+//     differs, and `&(g_FieldActors + i)->rotation` measures exactly the same.
+//  2. the status store's `lui/lw g_FieldActors` is hoisted above the `cursor += 8` store,
+//     where retail schedules it after the 4-byte status copy. A `do { } while (0)` around the
+//     status store makes the whole body worse (97.90).
+//  3. the `pScriptWorkWords` store's `sw t1,280` lands after the next statement's address
+//     computation; retail has it adjacent (`lw v0,76(v0)` / `nop` / `sw t1,280(v0)`). A
+//     do-while there costs two instructions (98.84, 520 insns).
+// What IS load-bearing, and the reason this body is 99.08 and not 95:
+//  - the cursor advances are compound assignments on the global and the copy source is the
+//    global itself (`memcpy(dst, g_WorldMapSaveCursor, N)`), which is what makes the sum reuse
+//    the loaded $v0 and the copy read the reloaded cursor;
+//  - the two `do { } while (0)` blocks around the two HeapAlloc stores are what stops sched2
+//    from hoisting the following statement's `lui/lw g_FieldActors` above the store: each is
+//    worth exactly that store's load-delay `nop` (98.84 without the first, 98.44 without the
+//    second). Found by permute.sh, base=1294 best=958.
+//  - `pActorData = g_FieldActors[i].pActorData;` feeds BOTH the pScriptWorkWords read and the
+//    ActorData copy's destination (one evaluation, retail's single `lw 0x4C`); the store that
+//    restores pScriptWorkWords and both HeapAlloc sites re-evaluate the expression instead,
+//    which is what retail's extra `lw 0x4C` per site shows.
+/*
+// Pulls the field state back out of the save block, one memcpy per block, then each
+// actor's ActorData and the script memory. func_800A3F4C pushes it.
+void func_800A3474(void) {
+    int i;
+    void* pScriptWorkWords;
+    ActorData* pActorData;
+    void** pScriptMemory;
+    int nStatus;
+
+    g_WorldMapSaveCursor = g_WorldMapSaveBlock;
+    g_FieldNumActors = g_WorldMapSaveBlock[0];
+    g_WorldMapSaveCursor += 4;
+    memcpy(g_FieldScreenEffectData, g_WorldMapSaveCursor, 0x38);
+
+    g_WorldMapSaveCursor += 0x38;
+    memcpy((u8*)&g_Scene + 0xC4, g_WorldMapSaveCursor, 0x74);
+
+    g_WorldMapSaveCursor += 0x74;
+    memcpy(g_FieldWalkmeshMaterialFlags, g_WorldMapSaveCursor, 0x400);
+
+    g_WorldMapSaveCursor += 0x400;
+    memcpy(&g_FieldEffects, g_WorldMapSaveCursor, 0x2E4);
+
+    g_WorldMapSaveCursor += 0x2E4;
+    memcpy(&g_CameraEye, g_WorldMapSaveCursor, 0x1C8);
+
+    g_WorldMapSaveCursor += 0x1C8;
+
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        memcpy(&g_FieldActors[i].rotation, g_WorldMapSaveCursor, 8);
+        g_WorldMapSaveCursor += 8;
+        memcpy(&nStatus, g_WorldMapSaveCursor, 4);
+        g_FieldActors[i].status = nStatus;
+
+        pActorData = g_FieldActors[i].pActorData;
+        pScriptWorkWords = pActorData->pScriptWorkWords;
+        g_WorldMapSaveCursor += 0x34;
+        memcpy(pActorData, g_WorldMapSaveCursor, sizeof(ActorData));
+        g_FieldActors[i].pActorData->pScriptWorkWords = pScriptWorkWords;
+
+        g_WorldMapSaveCursor += 0x138;
+        if (g_FieldActors[i].pActorData->flags134 & 0x80) {
+            do {
+                g_FieldActors[i].pActorData->pTargetTrack = HeapAlloc(0xC, 0);
+            } while (0);
+            memcpy(g_FieldActors[i].pActorData->pTargetTrack, g_WorldMapSaveCursor, 0xC);
+            g_WorldMapSaveCursor += 0xC;
+        }
+        if (g_FieldActors[i].pActorData->flags12C_0xD) {
+            do {
+                g_FieldActors[i].pActorData->pScriptArgs = HeapAlloc(0x10, 0);
+            } while (0);
+            memcpy(g_FieldActors[i].pActorData->pScriptArgs, g_WorldMapSaveCursor, 0x10);
+            g_WorldMapSaveCursor += 0x10;
+        }
+    }
+
+    pScriptMemory = &g_FieldScriptMemory;
+    memcpy(pScriptMemory, g_WorldMapSaveCursor, 0x800);
+    g_WorldMapSaveCursor += 0x800;
+}
+*/
+
+INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 // Best attempt: 86.75% (692 bytes vs 696). Everything structural already matches: the 0x74-byte
 // memcpy through `(u8*)&g_FieldNumActors - 0xB8` reproduces the original's two-loop
 // mips_expand_block_move verbatim (the (src|dst)&3 alignment test, the lwl/lwr loop, the lw loop and
@@ -998,16 +1099,6 @@ void func_800A3C8C(void) {
     }
 }
 */
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
-
-extern u8 g_WorldMapSaveBlock[];
-extern u8* g_WorldMapSaveCursor;
-extern s32 g_SavedGearRide[3];
-extern u_int* g_FieldWalkmeshMaterialFlags;
-extern VECTOR g_CameraEye;
-extern u8 g_FieldScreenEffectData[];
-extern char D_8006FD9C[]; // "SAVESIZE=%d %x\n"
-extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
 
 // Pushes the field state the world map is about to overwrite into the save block,
 // one memcpy per block, then the actors' animation state and the script memory.
