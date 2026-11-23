@@ -522,38 +522,10 @@ extern s32 ArchiveDataSync(void);
 extern s32 ControllerGetType(s32 port);
 extern void FieldPollControllers(void);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldMain);
-// PARKED 99.46% (3284 bytes / 821 insns; retail 0xCD4 = 3284 / 821 - SAME sizes).
-// Only THREE lines differ, and two of them are the frame:
-//   addiu sp,sp,-56 (retail) vs -48, and every save slot 8 bytes higher in retail.
-//   The saved set is identical (ra,s0-s5) and there are no other ($sp) references in
-//   the original, so retail's 8 extra bytes are outgoing-arg/local area, not a spill.
-//   Third: the WDS bank-index temp - retail `li v0,0xFF` / `lui v0` / `lhu v0` into the
-//   bnez delay slot then `sw v0,%lo(g_GameRequestedWdsBankIndex)($at)`; this body picks
-//   $a1 for the same three instructions. Nothing else in 821 instructions differs.
-// RESIDUAL, NAMED: FRAME_ARG_AREA (8 bytes) + one caller-saved tie ($v0 vs $a1).
-// STRUCTURE THAT IS RIGHT (keep - it cost two of the four diff runs):
-//  1. the ctx==1/map-change swap block does NOT break out of the loop in its
-//     D_800ADBD0==1 arm: retail's `j .L80078494` continues into the map-transition
-//     block. Only the else arm sets advanceState=0 and breaks to the teardown. Writing
-//     `break` after both arms is 99.46 -> wrong shape, one extra instruction.
-//  2. the pause blocks' saved SPU mask and advanceState (the argument to
-//     FieldAdvanceGameState) are ONE local in retail: $s0 holds both (the
-//     D_800ADBD0==1 path breaks... reads s0 without ever assigning it, which is only
-//     possible when the pause temp and the advance state are the same pseudo).
-//  3. `asm("break 0x400")` at the g_FieldSystemMode==0 arm: retail has a literal
-//     `break 1` there (0x80078128) and no C emits it; the unit's matched
-//     FieldClearAndSwapOTagInternal uses this exact spelling.
-// TRIED: a separate channelMask local (identical 99.46 / 3284), a u16 bank index
-// (identical), `break` in both arms (99.46 but 822 insns). lever.py over
-// "register v0 a1 scratch tie frame stack" matched no lever exactly; the closest
-// (a-one-arm-local-spanning-a-call, a-dead-store-to-an-unused-local) both predict a
-// frame change from a pseudo, which this frame already matches in every other respect.
-// NEXT IDEA: the 8 bytes look like a 24-byte outgoing-arg area in retail (16 here),
-// i.e. one callee in retail's TU was prototyped with 5+ parameters; find it and the
-// frame, the save offsets and (probably) the $v0 tie all fall out together.
-/*
 void FieldMain(void) {
+    // Never touched: retail's frame spends 8 bytes below the saves (0x10-0x17) on
+    // a local that the optimiser emptied out, and only an addressable local buys them.
+    u_long scratch[2];
     s32 bankIndex;
     s32 voiceBankLoaded;
     s32 walkmeshUpdateStarted;
@@ -814,4 +786,4 @@ void FieldMain(void) {
     HeapFree((void*)g_FieldStreamDataSize);
     FieldAdvanceGameState(advanceState);
 }
-*/
+
