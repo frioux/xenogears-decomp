@@ -90,27 +90,26 @@ void func_800379B4(u32 value) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379B4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379C8);
-/* PARKED 0%, RE-MEASURED this round: 8 bytes retail against 32 (honest signature)
-   and 48 (variadic). Retail is `j FontPrintf` + `nop` - the disc word at 0x281C8
-   is 0x0800DC03 (opcode 2, target 0x8003700C = FontPrintf, which splat prints
-   byte-swapped as `03DC0008`) - with no frame and a0 untouched, i.e. a SIBLING
-   CALL that forwards the caller's varargs unchanged. That is the only shape
-   consistent with the callers (archive.c, field/scripts/virtual_machine.c and
-   heap_debug.c all pass extra arguments; FontPrintf is variadic), and it is not
-   expressible on this target:
-   - gcc 2.7.2's mips.md has no sibcall patterns (they arrive in 3.x). Probed with
-     cc1_probe.sh: `void f(char* p){ FontPrintf(p); }` gives subu sp / sw ra /
-     jal / lw ra / addu sp / j ra, unchanged by -foptimize-sibling-calls and
-     unchanged by an __attribute__((noreturn)) declaration of the callee.
-   - the variadic signature `void f(char* p, ...){ FontPrintf(p); }` is worse: the
-     frame plus the a1-a3 save area.
-   - gcc-2.6.0 and 2.7.2-cdk 0%, 2.8.1 (an earlier round) frame + jal too.
+/* PARKED 0%. Retail is 8 bytes: `j FontPrintf` + `nop` - the disc word at 0x281C8
+   is 0x0800DC03 (opcode 2, target 0x8003700C), no frame and a0 untouched, i.e. a
+   SIBLING CALL that forwards the caller's arguments unchanged (callers in
+   archive.c, field/scripts/virtual_machine.c and heap_debug.c pass up to five,
+   and FontPrintf is variadic).
+   RE-MEASURED (round 422, live, not stale): the variadic spelling
+   `func_800379C8(char* pFormat, ...) { FontPrintf(pFormat); }` is 48 bytes /
+   12 insns (the a1-a3 save area plus subu sp / sw ra / jal / lw ra / addu sp /
+   j ra) and the one-argument spelling is 32 bytes / 8 insns. Both 0.00%.
+   NOT EXPRESSIBLE ON THIS TOOLCHAIN: gcc 2.7.2 MIPS has no sibcall patterns -
+   checked in the compiler source this round, /private/tmp/gcc-2.7.2.3/config/
+   mips/mips.md has no sibcall/sib_call define_expand (neither does 2.8.1's), they
+   arrive in gcc 3.x. Probed earlier with cc1_probe.sh under the unit's flags: the
+   call still frames and `jal`s with -foptimize-sibling-calls and with a
+   `__attribute__((noreturn))` callee declaration.
+   - gcc-2.6.0 and 2.7.2-cdk 0%, gcc 2.8.1 frames + jal too (round 406).
    No other glabel in the linked binary or in any overlay starts with `j`, so
    retail's 8 bytes are a hand-written thunk or a compiler this project lacks.
-   Leave as INCLUDE_ASM.
-void func_800379C8(char* pFormat, ...) {
-    FontPrintf(pFormat);
-}
+   Levers: delay slot / c-a-bare-j-tail-call-thunk. Report SIBLING_CALL; a lone
+   `j`-first glabel is not worth further diff runs. Leave as INCLUDE_ASM.
 */
 
 void ArchiveNoOp(void) {
