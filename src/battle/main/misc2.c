@@ -84,6 +84,9 @@ extern u8 *g_BattleCurOT[];
 extern s32 g_BattleRenderString;
 extern BattlePrimPool *g_BattlePrimPool;
 extern s32 g_BattlePrimStartIndex;
+// the same object as g_BattlePrimStartIndex, declared as an array so cc1 2.6.0 holds
+// its address in a register across a call (a scalar extern is rematerialised).
+extern s32 g_BattlePrimStartIndexTable[] __asm__("g_BattlePrimStartIndex");
 extern void *g_BattleSpriteArchive;
 extern BattleWork *g_BattleDisplayState;
 extern BattlePulseWork *g_BattlePulseTrianglePrims;
@@ -108,94 +111,126 @@ extern s32 func_80072F38(s32 index, u8 arg1);
 extern void BattleRenderActorValueDigits(s32 index);
 extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 y, u16 u, u16 v, u16 w);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
-/* 86.09%: all five call loops are recovered and their bodies match
-   instruction-for-instruction - (1) `for (i = 0; i < g_BattleDisplayState[0x97]; i++)`
-   AddPrim of a 0x10-stride prim at g_BattleGraphicsWork + 0x908 indexed by
-   g_BattleDisplayState[0x98] + i*2; (2) four BattleAddPrimListToOT at g_BattleGraphicsWork + 0x2E08 +
-   i*0x320 with g_BattleDisplayState[i+0x74]/[i+0x84]; (3) three entries at 0x1E4 stride
-   with a `switch` on the byte at base+0x852D (case 1 -> atlas + i*0x1E4 +
-   0x835C with bytes +0x852E/+0x852C, case 2 -> the same pointer + 0xA0 with
-   +0x852F/+0x852C; the code below folds case 2 into +0x83FC, but retail
-   adds the 0xA0 to the case-1 pointer LAST, so `pAtlas + 0xA0` is the shape to
-   try)
-   plus the 0xEC/[0x99] draw at 0x6008 + i*0x140; (4) the optional 0xAF draw at
-   0x9C8 and three draws at 0x3A88 + i*0xC80; (5) three entries at 0x1C/0x50/
-   0x1E0 strides, skipping entries whose g_BattleSlotActorIds[i*0x1C] is 0x7F, and the
-   AddPrim whose index is `(i * 2 + ctx) * 36` where ctx is g_BattlePrimStartIndex reached
-   as `&g_BattleCurOT + 0x30` (that is how retail gets it here:
-   `lw v1,0x30(s4)` off the hoisted `la g_BattleCurOT`). Remaining differences are
-   all allocation: retail keeps &g_BattleCurOT in $s4 (saving it in the prologue;
-   we rematerialise `lui/lw` at each AddPrim and lose the s4 slot), the
-   `off + (s32)g_BattleGraphicsWork` adds come out base-first here and offset-first in
-   retail (`addu a0,a1,v0` vs `addu a0,v0,a1`, and the AddPrim prim argument
-   likewise), and loop 3's four big-displacement byte loads make gcc hoist
-   `0x852C` into a register (`li s1,0x852C`) instead of keeping retail's
-   base+off3 register with 0x852C..0x852F displacements. Two `u16 v[8]`-style
-   tricks were not needed: this frame (0x30, s0-s4+ra) matches as written. */
 /*
+89.56%, retail's EXACT size and instruction count (201 insns, 804 bytes = 0x4074..0x4398),
+so nothing is missing from the body: the residual is register allocation across the six
+loops plus three load-order/operand-order spots.
+THE OLD NOTE'S OFFSETS WERE WRONG BY 0x10 and the old body did not compile. maspsx
+renders an out-of-range displacement as `lui $at,1; addu $at,base,$at; lbu rt,-0x7AC3($at)`,
+i.e. imm 0x853D sign-extended -0x7AC3, so retail's four bytes are 0x853C..0x853F
+(= off3 + 0x835C + 0x1E0..0x1E3, the last four bytes of each 0x1E4-byte entry), NOT
+0x852C..0x852F. And g_BattleDisplayState is a BattleWork pointer now, so the old
+`g_BattleDisplayState[0x97]` park was a compile error: measured parks in this file must be
+re-unparked and re-measured, never trusted.
+What the body is now (all of it improved over the old park): typed BattleWork fields
+(primRowCount/primRowStart, valueSpriteCount/valueSpritePrimStart, statSpriteCount,
+statDigitPrimStart, actorSprite*, BATTLE_SLOT_CHARACTER_NONE); `pOT = g_BattleCurOT` as a
+local for the LAST loop only, which reproduces retail's hoist of &g_BattleCurOT into $s4
+(`lui/addiu s4` in the preheader, `lw a0,0(s4)` / `lw v1,0x30(s4)` in the body) - do not
+"simplify" it back to g_BattleCurOT[0], that is what lost the s4 slot; `off + (u32)
+g_BattleGraphicsWork` offset-first for the addu order; case 2 adds the 0xA0 to the case-1
+pointer LAST (`... + gfx) + 0xA0`), which retail also does.
+Residual, all allocation (nothing structural left):
+The five call loops, as retail runs them: (1) primRowCount iterations of AddPrim into
+g_BattleCurOT[0] + 4 of the 0x10-stride prim at gfx + 0x908 indexed by
+(primRowStart + i * 2) * 0x10; (2) FOUR (not three) BattleAddPrimListToOT at
+gfx + 0x2E08 + i * 0x320 with the byte run at state + i + 0x74 / + 0x84, which is the
+three panels plus the 1.0-scale one (panelPackageCounts / panelPrimStart / then
+scaledPanelPackageCount / scaledPanelPrimStart) - that is why the header's 3-long arrays
+have to be walked with a byte pointer here; (3) three 0x1E4-stride entries, gated by
+state + i + 0xCC, a switch on the byte at gfx + off3 + 0x853D into the atlas at
+off3 + 0x835C (+ 0xA0 for case 2), then the draw at gfx + 0x6008 + i * 0x140 with
+valueSpriteCount[i] / valueSpritePrimStart[i]; (4) the optional actorSpriteActive draw at
+gfx + 0x9C8; (5) three draws at gfx + 0x3A88 + i * 0xC80 with statSpriteCount[i] /
+statDigitPrimStart[i]; (6) three entries at 0x1C / 0x50 / 0x1E0 strides, skipping those
+whose g_BattleSlotActorIds[i * 0x1C] is BATTLE_SLOT_CHARACTER_NONE, and the AddPrim whose
+index is (i * 2 + pOT[0xC]) * 36 + 0x740 (0x30 bytes into g_BattleCurOT is the ctx).
+(1)-(6) above are allocation-only residuals:
+(1) retail's saved-register plan is loop1 i=s0; loop2 i=s0 off=s1; loop3 i=s0 off=s2
+    off3=s1 0x835C=s3; loop5 i=s0 off=s1; loop6 i=s0 off=s2 off2=s1 off3=s3 pOT=s4.
+    This body rotates off/off2/off3 through s1/s2/s3 differently in loops 3 and 6 (retail
+    gives the FIRST-declared the HIGHER register there), which is what carries most of the
+    92 differing lines.
+(2) loop 1's `lbu` of primRowStart lands in $v1 here (reusing the state pointer's
+    register) where retail puts it in $a1 and keeps state in $v1; base-first vs
+    constant-first spelling of the same expression does not change it.
+(3) loop 6's `state + i` addus come out index-first here (`addu v1,s0,a2`) vs retail's
+    `addu v1,a2,s0`. Writing the byte reads as `*(u8 *)((u8 *)g_BattleDisplayState + i +
+    0xCC)` instead of subscripts bought 0.1 (89.46 -> 89.56); it is the only lever that
+    moved the number.
+Tried and measured, do not repeat: the old base-first `g_BattleGraphicsWork + off` spelling
+(89.43), loop-6 for-init reordered to off3/off/off2 (identical), p[0x852D] vs the correct
+0x853D (that one is semantic, not a lever).
+*//*
 void func_80073B64(void) {
     s32 i;
     s32 off;
     s32 off2;
     s32 off3;
     u8 *p;
+    u8 **pOT;
 
-    for (i = 0; i < g_BattleDisplayState[0x97]; i++) {
+    for (i = 0; i < g_BattleDisplayState->primRowCount; i++) {
         AddPrim(g_BattleCurOT[0] + 4,
-                (u8 *)(g_BattleGraphicsWork + 0x908 + (g_BattleDisplayState[0x98] + i * 2) * 0x10));
+                (u8 *)(0x908 + (g_BattleDisplayState->primRowStart + i * 2) * 0x10 +
+                       (u32)g_BattleGraphicsWork));
     }
 
     for (i = 0, off = 0x2E08; i < 4; i++, off += 0x320) {
-        BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off),
-                      *(u8 *)(g_BattleDisplayState + i + 0x74),
-                      *(u8 *)(g_BattleDisplayState + i + 0x84));
+        BattleAddPrimListToOT((u8 *)(off + (u32)g_BattleGraphicsWork),
+                              *(u8 *)((u8 *)g_BattleDisplayState + i + 0x74),
+                              *(u8 *)((u8 *)g_BattleDisplayState + i + 0x84));
     }
 
     for (i = 0, off = 0x6008, off3 = 0; i < 3; i++, off += 0x140, off3 += 0x1E4) {
-        if (*(u8 *)(g_BattleDisplayState + i + 0xCC) != 0) {
-            p = (u8 *)(g_BattleGraphicsWork + off3);
-            switch (*(u8 *)(p + 0x852D)) {
+        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xCC) != 0) {
+            p = (u8 *)(off3 + (u32)g_BattleGraphicsWork);
+            switch (p[0x853D]) {
             case 1:
-                BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off3 + 0x835C),
-                              *(u8 *)(p + 0x852E), *(u8 *)(p + 0x852C));
+                BattleAddPrimListToOT((u8 *)(off3 + 0x835C + (u32)g_BattleGraphicsWork),
+                                      p[0x853E], p[0x853C]);
                 break;
             case 2:
-                BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off3 + 0x83FC),
-                              *(u8 *)(p + 0x852F), *(u8 *)(p + 0x852C));
+                BattleAddPrimListToOT((u8 *)(off3 + 0x835C + (u32)g_BattleGraphicsWork) + 0xA0,
+                                      p[0x853F], p[0x853C]);
                 break;
             }
-            BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off),
-                          *(s32 *)(g_BattleDisplayState + i * 4 + 0xEC),
-                          *(u8 *)(g_BattleDisplayState + i + 0x99));
+            BattleAddPrimListToOT((u8 *)(off + (u32)g_BattleGraphicsWork),
+                                  g_BattleDisplayState->valueSpriteCount[i],
+                                  g_BattleDisplayState->valueSpritePrimStart[i]);
         }
     }
 
-    if (g_BattleDisplayState[0xAF] != 0) {
-        BattleAddPrimListToOT(g_BattleGraphicsWork + 0x9C8, g_BattleDisplayState[0x7B], g_BattleDisplayState[0xA4]);
+    if (g_BattleDisplayState->actorSpriteActive != 0) {
+        BattleAddPrimListToOT((u8 *)(0x9C8 + (u32)g_BattleGraphicsWork),
+                              g_BattleDisplayState->actorSpritePackageCount,
+                              g_BattleDisplayState->actorSpritePrimStart);
     }
 
     for (i = 0, off = 0x3A88; i < 3; i++, off += 0xC80) {
-        BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off),
-                      *(s32 *)(g_BattleDisplayState + i * 4 + 0xE0),
-                      *(u8 *)(g_BattleDisplayState + i + 0x93));
+        BattleAddPrimListToOT((u8 *)(off + (u32)g_BattleGraphicsWork),
+                              g_BattleDisplayState->statSpriteCount[i],
+                              g_BattleDisplayState->statDigitPrimStart[i]);
     }
 
+    pOT = g_BattleCurOT;
     for (i = 0, off = 0x818, off2 = 0, off3 = 0; i < 3;
          i++, off += 0x50, off2 += 0x1C, off3 += 0x1E0) {
-        if ((&g_BattleSlotActorIds)[off2] != 0x7F) {
-            BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off), 1, g_BattleDisplayState[0x83]);
-            if (*(u8 *)(g_BattleDisplayState + i + 0xCC) != 0) {
-                BattleAddPrimListToOT((u8 *)(g_BattleGraphicsWork + off3),
-                              *(u8 *)(g_BattleDisplayState + i + 0x78), g_BattleDisplayState[0xA2]);
-                AddPrim(g_BattleCurOT[0] + 4,
-                        (u8 *)(g_BattleGraphicsWork + 0x740 +
-                               (i * 2 + ((s32 *)&g_BattleCurOT)[0xC]) * 36));
+        if (g_BattleSlotActorIds[off2] != BATTLE_SLOT_CHARACTER_NONE) {
+            BattleAddPrimListToOT((u8 *)(off + (u32)g_BattleGraphicsWork), 1,
+                                  g_BattleDisplayState->unk83);
+            if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xCC) != 0) {
+                BattleAddPrimListToOT((u8 *)(off3 + (u32)g_BattleGraphicsWork),
+                                      *(u8 *)((u8 *)g_BattleDisplayState + i + 0x78),
+                                      g_BattleDisplayState->unkA2);
+                AddPrim(pOT[0] + 4,
+                        (u8 *)((i * 2 + ((s32 *)pOT)[0xC]) * 36 + 0x740 +
+                               (u32)g_BattleGraphicsWork));
             }
         }
     }
-}
- */
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
 
 void BattleAddTwoPrimLists(void) {
     s32 i;
@@ -710,7 +745,19 @@ a pointer local, `&g_...` through mem_addr and a `*(s32 *)` cast all remateriali
 SEPARATE declaration with that asm label: retyping the shared scalar breaks the
 other functions in this file. This bought 95.90 -> 97.94; add the declaration back
 before un-parking.
-Residual is exactly two coupled reorg decisions:
+Residual is exactly two coupled reorg decisions, and both are the lever
+[g-rotated-entry-j-to-bottom-test]: retail evaluates the loop condition in the
+PREHEADER and `j`s straight to the SINGLE bottom test, so `lbu v0,0x77(state)` /
+`j .L80076908` / `sll v0,v0,1` (count*2 in the j delay slot) is the preheader's own
+evaluation, and the bottom test body is `lbu / addiu s0,s0,2 / sll v0,v0,1 / slt /
+bnez` with `ori a1,0x1` (SetSemiTrans' flag, re-materialised per iteration) in the
+bnez delay slot. Every loop spelling gives the ROTATED form instead - the entry's
+own inline branch, ONE count*2 (evaluated at the bottom only, which is the missing
+4 bytes), the j init `sll s0,s0,1` parked in the j delay slot, and `li a1,0x1`
+HOISTED into the preheader (where retail has `nop`). That lever records the shape as
+unreachable from any spelling under gcc 2.6.0, 2.7.2 and 2.7.2-cdk (round 398,
+battle/main/misc1 func_800723E0, probed with cc1_probe.sh), so the two residuals are
+one blocker, not two:
 (a) retail has the j init `sll s0,s0,1` BEFORE the second call (inside the arg
 setup, right after the second `lhu v0,0x104(v1)`) and `sll v0,v0,1` (the entry
 test's count*2) in the `j` delay slot; this body puts the j init in that delay slot
@@ -722,6 +769,10 @@ no statement order reaches (no scheduler in this unit's preset).
 (b) `li a1,0x1` (SetSemiTrans' flag) is re-materialised in the loop back-edge delay
 slot in retail; this body hoists it above the loop (the same 4 bytes), which also
 frees $a1 and makes the later sizeSteps counter $a1 instead of retail's $a3.
+(b) NOTE the third residual, the 2nd call's arg setup: retail emits `sll a2,a2,0x4`
+right after `addu a2,a2,s0` and `addiu a2,a2,14184` two slots later, with `sll
+s0,s0,0x1` in the slot this body uses for `addiu a2,a2,14184`. Same insn count,
+just interleaved - do not chase it before (a)/(b), which are 4 bytes short.
 Also tried and measured: `mem_addr primStart = (mem_addr)&g_BattlePrimStartIndex;`
 plus `*(s32 *)primStart` (95.90, identical - it folds), and `off` inlined into the
 call (identical 97.94 / 724). Two earlier sessions ran 4-minute permuter runs from
@@ -788,13 +839,13 @@ void func_80076710(s32 slot) {
     if (v[4] >= *(u32 *)((u8 *)g_BattleDisplayState + 0x4C)) {
         *(u8 *)((u8 *)g_BattleDisplayState + slot + 0x90) = 1;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 void BattleLoadImageAndSync(RECT *pRect, u_long *pData) {
     LoadImage(pRect, pData);
     DrawSync(0);
 }
+
 
 void BattleDrawSpritePackage(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
     func_8002675C(g_BattleSpriteArchive, arg0, arg1, g_BattlePrimStartIndex, arg2, arg3, 0x1000);
