@@ -408,10 +408,9 @@ void SpritePlayAnimation(int, int);
        SpritePlayAnimation out of the curAnimationId test - wrong code).
    Both excess instructions are scheduler slots (a load-delay nop retail fills
    with an independent load), so this is not a source-shape job.
-   Converting it needs the five debug strings below defined in C in the same
-   commit; they are at the head of the unit rodata range, so plain `const char`
-   definitions in this file keep retail layout, but it is moot until the body is
-   exact. */
+   Since R432 the five debug strings are NOT needed in C: the unit's rodata is
+   linked as an anonymous blob (config/field.yaml [0x11C, rodata]), so defining
+   them here would duplicate the blob's symbols - keep them extern. */
 /*
 void func_8008110C(void) {
     FieldActor* pFieldActor;
