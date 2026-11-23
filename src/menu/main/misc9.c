@@ -167,6 +167,16 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
    flags bit 0 marks the paged multi-character item; the loop renders frames until BACK,
    confirming applies the item to every character in the cursor mask via func_801E31C0 and
    decrements the quantity, and both exits free the three currentCharacters.
+   ROUND 429, 17 more spellings measured, the folding is total: cc1_probe in a body that keeps
+   pQuantity live yields ONE bare 'sb $0,g_GameState+8230(idx)' for itemIDs[idx],
+   itemQuantities[150+idx], itemQuantities[idx+150], the (u32) cast form, base += 150 then [idx],
+   &itemQuantities[150] then [idx], and the (u8 *) pointer+const form; in context those are
+   96.76 / 1064 (one instruction short). A u8 *p local assigned at the site is HOISTED into a
+   callee-saved register and CSEd with pQuantity, giving 'sb $0,150(reg)' (1048, 90.32). Only a
+   RUNTIME base keeps 150 as an immediate (probe: a u8 *parameter gives 'addiu $2,$17,$18' then
+   'sb $0,150($2)'), and this base is a static symbol, so retail's la+addiu+addu+sb cannot be
+   spelled. Presets do not help: 2.6.0 -O2 -G8 97.10 (unit), 2.7.2 93.64, 2.7.2-cdk 90.70,
+   2.6.0 -G0 97.10, -O3 97.10. PARKED at 97.10 / 1072 / 4 OVER; do not re-park it lower.
 */
 
 /*
@@ -297,6 +307,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
+
 
 void MenuSwapInventoryItems(s32 index0, s32 index1) {
     u_char tmp;
