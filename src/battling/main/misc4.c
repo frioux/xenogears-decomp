@@ -728,6 +728,19 @@ void func_80078F00(Actor* p) {
    two mirrored quartets was not quantified - what IS known is that the pair is a
    block-local allocator priority order and four spellings plus a permuter run have
    not moved it.
+   ROUND 424: the diff isolates the ONE decision, and it is not stateFlags but the
+   0xFFFEFFFF MASK: cc1 materialises it as 'lui'+'ori' in the join block and reorg
+   sinks the lui into the res/sound arms' delay slots; retail gets $a0, this body $v1.
+   Everything else follows with no freedom - retail a0=mask, a1=p->state, v0=flags,
+   v1=stateFlags read/RMW result and the tail's li -13 also $v1 after the mask dies,
+   so retail can emit 'li v1,-13' BEFORE 'sw a0,208' while this body must store the
+   mask value first because v1 is still live in it.  i.e. the mask constant's pseudo
+   is allocated BEFORE the state lbu there and AFTER it here.  A 'u32 mask' local
+   assigned 'mask = 0xFFFEFFFF;' just above the statement re-measured at exactly
+   98.96 / 34 differing lines again (the local coalesces into the constant, as the
+   'u32 flags' copy local did), so a named mask is not the lever and the const has no
+   second use to raise its ref count.  Do not spend another permuter run: this body
+   already had one (base=175 best=175) and the residual is a reload/reg-order pick.
 */
 /*
 void func_8007920C(Actor* p) {
@@ -1390,6 +1403,13 @@ void BattleActorSetModelIndex9(Actor* p) {
    above "y -= 0x400" is byte-identical 96.90. Preset screen on this body:
    gcc-2.7.2-cdk 96.90, gcc-2.6.0 91.31, -O3 96.90, -G0 does not compile - the unit's
    Default preset is right, so do not re-run try_flags.
+   ROUND 424: an "s32 x" local for p->x instead of the address-taken pointer is 94.15
+   (gcc hoists the p->x load above the TargetY store); the plain statements WITHOUT the
+   do-while are 92.15 and there p->z DOES take a1 and move s1,v0 comes before the p->y
+   load, but the TargetY/Target stores sink past the rigYOffset and p->z loads.  So
+   both halves of the residual are reachable, just not in one body: the do-while is
+   what holds the stores in order and it is what hands p->z a0.  A 4-minute permuter
+   run from THIS body (2608 iterations) is base=80 best=80, no lead.  Park it.
 */
 /*
 void func_8007A768(Actor* p) {
@@ -1412,8 +1432,7 @@ void func_8007A768(Actor* p) {
  do { g_BattleCameraPosY = y - g_BattleCameraRigYOffset; g_BattleCameraTargetZ = p->z; } while (0);
     g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * g_BattleCameraRigRadius) >> 12);
     g_BattleCameraPosZ = g_BattleCameraTargetZ + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
-}
-*/
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
 void BattleResetScratchState(void) {
