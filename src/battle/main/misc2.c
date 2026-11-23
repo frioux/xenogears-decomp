@@ -76,6 +76,12 @@ typedef struct {
     /* 0x5DA2 */ u16 columnCounter;     // frames the 0x4CE0 list has been drawn for
 } BattleSpriteColumnWork; // Size: 0x5DA4
 
+// the slot's display value, one 8-byte record per slot
+typedef struct {
+    /* 0x0 */ u8 value;
+    /* 0x1 */ u8 unk1[7];
+} BattleSlotDisplayValue; // Size: 0x8
+
 extern u8 g_DebugPageIndex;
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattleDisplayMode;
@@ -96,8 +102,7 @@ extern u8 g_BattleActorCharIds[];
 extern BattleSpriteColumnWork *g_BattleSpriteColumnWork;
 extern u8 g_BattleSlotActorIds[];
 extern u8 g_BattleSlotFlags[];
-// the slot's display value, one 8-byte record per slot
-extern u8 g_BattleSlotDisplayValue[];
+extern BattleSlotDisplayValue g_BattleSlotDisplayValue[];
 // the per-slot table family (stride 0x170) seen from the slot's value pair:
 // D_800CCDC4 is the slot's current value, D_800CCDC6 the value it is filled to
 // the same object, read through a volatile lvalue: retail re-reads it (and so
@@ -665,43 +670,28 @@ void func_8007500C(void) {
     } while (i < 8);
 }*/
 
-/*
-// Builds the slot gauge bars: for each of the three slots, a pair of Gouraud quads
-// in g_BattleGraphicsWork's 0x24-stride prim block at +0x744, two prims per slot.
-// Slots whose 0x853D status byte is 0 draw nothing; status 1 sizes the bar from the
-// slot's display value (two pixels per unit) and draws it green, status 2 from the
-// slot's value pair at D_800CCDC4/D_800CCDC6, coloured by how full the gauge is.
-98.87% at retail's EXACT 2000 bytes and 500 instructions (objdiff's 58 differing lines are register names only), so the structure is complete: what is left is one rotation, not a missing construct.
-LOAD-BEARING SPELLINGS (each measured, do not 'simplify'):
-(1) every prim store is a VOLATILE lvalue and the prim index is read through a volatile alias of g_BattlePrimStartIndex. Without them cc1 2.6.0 CSEs the whole prim address into one register and the body shrinks to 1420 bytes / 66%: retail reloads the index and re-derives the address before every one of the 28 stores. Same lever as misc16's BattleBuildTileRow*Prims.
-(2) the colour cascade is written >= : if (value >= full / 4) blue else if (value >= full / 8) yellow else pink. The < form lays the arms out the other way round and costs 3 instructions.
-(3) the SIX last stores of the arms (case 1's r1 and every arm's b1) are NOT volatile: retail has each of them in a jump delay slot, and reorg will not move a volatile store there (a nop appears instead, +3 instructions).
-(4) the display value is walked as a pointer loop-carried local (pDisplayValue += 8), which is what gives retail's t5 biv; indexing g_BattleSlotDisplayValue[slot * 8] costs 4 instructions per use and rotates the whole allocation (96.46%).
-(5) width = value * 100 / full * 5600 / 10000 reproduces retail's divu + 5600 shift chain + 0xD1B71759>>13 /10000 magic exactly.
-RESIDUAL (allocation only, 58 lines): retail gives the dv pointer t5, slot*0x170 t6 and 0x28+off t7; this body rotates them to t7/t5/t6, and the two hoisted 0x22/0x26 constants land in s0/s1 instead of s1/s0 (retail saves s1 before s0). Also the loop tail's biv increments are ordered dv-pointer-last here vs 0x170/prim/dv in retail, and the prologue hoists the dv lui/addiu to the top instead of after move a2,zero. Next lever: permuter (the structure is right), then try declaring pDisplayValue last / first to rotate the three caller-saved bivs. Tried and measured dead: non-volatile geometry stores (66.45), array-index form instead of the pointer walk (96.46), the < colour form (97.89), volatile b1 stores (98.55).
-/*
 void func_80075168(void) {
     s32 slot;
     u32 value;
     u32 full;
     u32 width;
     u8 *pGraphics;
-    u8 *pDisplayValue;
+    u8 *pSlotGraphics;
 
-    for (slot = 0, pDisplayValue = g_BattleSlotDisplayValue; slot < 3;
-         slot++, pDisplayValue += 8) {
+    for (slot = 0; slot < 3; slot++) {
         pGraphics = (u8 *)g_BattleGraphicsWork;
+        pSlotGraphics = pGraphics + slot * 0x1E4;
         // 0x853D is the slot's (0x1E4 stride) status byte in the graphics work block.
-        switch (pGraphics[slot * 0x1E4 + 0x853D]) {
+        switch (pSlotGraphics[0x853D]) {
         case 1:
             // a value bar: two pixels per unit of the slot's display value, drawn green
             *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].x0 = slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x28);
             *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].y0 = 0x22;
-            *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].x1 = slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x28) + (*pDisplayValue) * 2;
+            *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].x1 = slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x28) + g_BattleSlotDisplayValue[slot].value * 2;
             *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].y1 = 0x22;
             *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].x2 = slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x28);
             *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].y2 = 0x26;
-            *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].x3 = slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x28) + (*pDisplayValue) * 2;
+            *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].x3 = slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x28) + g_BattleSlotDisplayValue[slot].value * 2;
             *(volatile s16 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].y3 = 0x26;
             *(volatile u8 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].r0 = 0;
             *(volatile u8 *)&((POLY_G4 *)((u32)g_BattleGraphicsWork + 0x740))[slot * 2 + g_BattlePrimStartIndexVolatile].g0 = 0xFF;
@@ -748,8 +738,7 @@ void func_80075168(void) {
             break;
         }
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
+}
 
 // 92.72% at 2780 bytes / 695 insns against retail 696. Structurally COMPLETE: filtering the 201 differing diff lines for changed OPCODES leaves four (a delay-slot sll vs li+nop, one sll a1,t1,2 vs nop, and a hoisted li a1,0x14 that retail reloads), everything else is register naming. Residual: cc1 2.6.0 does not form retail biv for g_BattleSlotActorIds[slot * 0x1C] (this body emits sll/subu/sll from t1 every pass where retail walks t6 += 0x1C) and rotates the caller-saved set (the width array base is t0 in the panelMode==0 arm and a freshly computed a2 in the else arm, so the source took &width[slot] twice; the texture byte is in a0 and the width word in v0, this body has them swapped).
 // LOAD-BEARING SPELLINGS: every prim store is a volatile lvalue and the index is read through g_BattlePrimStartIndexVolatile (same lever as func_80075168; without them the body collapses); the two quads are POLY_GT4s at gfx+0x5A0 indexed slot*2+primIndex, the panel quad at 6+primIndex; x0/x2 must be spelled origin + slot*0x60 + 0x2D, NOT slot-first (addu operand order, 90.61 with slot-first); the width term of x1/x3 wants (u16)width[slot] + 1, which keeps retail lhu+addiu.
