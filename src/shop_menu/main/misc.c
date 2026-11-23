@@ -4099,13 +4099,14 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 // 1. The key-item test is NOT an inline OR expression: retail emits andi/sltiu/addu v1,v0/andi
 //    0xff, which only comes from a u_char local assigned TRUE, then overwritten in an if/else (the
 //    OR spelling compiles to srl/xori/andi, 97.79%).
-// 2. The coalesce loop's counter IS itemCount, not the twin's reused itemType: retail stores the
-//    counter to 0x90(fp) once per iteration ("addiu t4,t4,1 / sw t4,0x90(fp)" at 0xC05C) while the
-//    three output stores still run through the t0/t1/t2 pointer induction variables. Writing that
-//    as "itemCount = ++itemType;" inside the sellable block (itemType staying the counter, as in
-//    the twin) is what closed 98.61 -> 99.73 and reproduced retail's 2032 bytes.
-// 3. The pre-loop "itemType = 0" and the twin's "itemCount = itemType" after the loop must both
-//    go: the assignment has to be in the block, or the frame moves.
+// 2. The coalesce loop's counter stays the twin's reused itemType, but itemCount is copied from it
+//    INSIDE the block: retail's per-iteration "addiu t4,t4,1 / sw t4,0x90(fp)" at 0xC05C is that
+//    copy (the three output stores still run through the t0/t1/t2 pointer induction variables).
+//    Moving the twin's after-loop "itemCount = itemType;" into the block as
+//    "itemCount = ++itemType;" is what closed 98.61 -> 99.73 and reproduced retail's 2032 bytes.
+// 3. The twin's "itemCount = itemType;" after the loop must GO: the copy belongs in the sellable
+//    block, as item 2 spells it, or the counter is never stored and the function is 8 bytes short.
+//    The pre-loop "itemType = 0;" stays - it initialises the counter.
 // THE RESIDUAL, exact and final: a register rotation inside the coalesce loop only. Retail keeps
 // the counter in $t4 and i in $a3, with pItemIds/pItemQtys/pItemIsOwned/pItemTypes in
 // $t0/$t1/$t2/$t3; this body keeps the counter in $a3 (it is the itemType pseudo, which lives from
