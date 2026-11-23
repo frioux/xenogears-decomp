@@ -1282,6 +1282,17 @@ extern u8 g_BattleCameraLerpFrames;
    statement; the modelIndex if/else as a ternary is worse (98.85, wrong polarity).
    Preset re-screened on this body: Default 99.49, cdk compile-failed, 2.6.0 breaks
    the unit's matched functions.
+   Round 433 A/B on this body, with the unit's exact flags on misc3.c.i: the C's
+   post-reload order is retail's. Adding -fno-schedule-insns puts `li $s2,1` in
+   retail's slot exactly (after the sw of flags |= 0x1000, 6th in the arm);
+   -fno-schedule-insns2 alone leaves it 2nd. So the residual is sched1 hoisting a
+   DEPENDENCY-FREE constant-set to the top of the block, not source order. Three
+   more source positions re-measured on this body: flag = 1 as the arm's last
+   statement 99.49, flags |= 0x1000 moved before prevPartIndex 99.49, an explicit
+   local for the second flags read-modify-write 99.09 (1708 bytes, an insn short).
+   permute.sh 3 min / 1326 variants: base=60 best=60, PERMUTER_NONE. Closing this
+   needs the 1 to depend on the preceding store, which no spelling of the arm gives
+   at zero instruction cost; the byte count and the instruction multiset are exact.
 *//*
 void func_80077A9C(BattleActor* p) {
     u8* pEntry;
