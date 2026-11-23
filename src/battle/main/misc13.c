@@ -835,69 +835,38 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
     g_BattleSoundEnabled = 1;
     g_BattleSlotDisplayInitialized = 0;
 }
-/* 99.60%, 1004 bytes (= retail). Two of the round-339 residuals closed, both by a
-   LOCAL'S TYPE rather than by shape:
-   - the `< 8` arm needs `s32 commandNo;` holding `arg1 & 0xFF` (assigned before the
-     store, the mask written in the source): that reproduces retail's whole arm - the
-     `andi $a0,$s0,0xFF` in the beqz delay slot, then `sll $v0,$a1,1` / `addu $v0,$v0,$a1`
-     on the RAW lbu. The round-323 `andi $a0,$a1,0xFF` hoist before the `sltiu`
-     disappears with it, so that class was an artifact of the mask being shared with
-     the compare, not of the value range.
-   - the `>= 8` arm's step byte wants its own variable: `stepNo = *(volatile u8 *)
-     (&g_BattleCommandQueue[0x2DC]) - 8;` then `BattleMaskHasStatusBit(..., stepNo)`.
-     Inline as the call's second argument gcc orders the charIds chain FIRST; the local
-     gives retail's `lbu $a1,0x2DC($a2)` at the head of the arm.
-   Residual, all of it register order at retail's exact size and instruction multiset:
-   - the first block's two `g_BattleCommandQueue[(u8)arg0 * 0x40 + 0x3C]` sites are a
-     pure $v0/$v1 mirror (retail's offset in $v1 and base in $v0, ours the reverse).
-     Embedded assignment, statement pointer local, base-in-a-local and `*(p + i + K)`
-     all measured 96.89-97.75.
-   - the `>= 8` arm keeps the step in $v0 and the charId chain in $v1 where retail has
-     $a1/$v0, so the call site copies (`andi $a1,$v0,0xFF`) instead of retail's in-place
-     `andi $a1,$a1,0xFF`.
-   - the D_800CCD1C site's `addu` stays offset-first; the embedded assignment there
-     costs the loaded byte its register (97.37).
-   - `g_BattleCommandRecords[...].param` is the typed spelling, which folds the +0x24
-     addend into the instruction (`sh $v0,36($at)`) where retail relocs g_BattleCommandSlotMasks, so
-     objdiff cannot reach 100% on it; the linked bytes are identical. Spelling it as
-     g_BattleCommandSlotMasks instead costs a queue-pointer reload (1016 bytes, 96.89).
-   Load-bearing (each measured at 1004 bytes): the u8 parameters; the five later queue
-   reads as an EMBEDDED ASSIGNMENT `(pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]`
-   (96.14 -> 97.45); `(u16)BattleMaskHasStatusBit`; `*(u8 *)&g_BattleActionParam`;
-   `BattleSlotBitMask` returning s32; `count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA]`
-   (97.45 -> 97.83); the two record stores as plain u8 arrays `g_BattleCommandSlotIds[... * 0x48]`
-   (the typed `command` field relocs +0x31 and costs the same three diff rows).
-   Permuter from this body: base=180 best=100, two finds - the `stepNo` reuse for the
-   BattleScriptScanForOpcode62 result (kept, 98.17 -> 99.60) and a
-   `g_BattleCommandQueue - -(slot * 0x40)` neg-neg at the BattleBeginActorAction call
-   (no effect on top of the stepNo reuse, not kept).
-   Dead spellings: `charId`/`commandNo` locals at the arm (identical), `& 0xFF` in the
-   arm's source (implicit through the u8 parameter), the `else if (...)` form instead of
-   `else { stepNo = ...; if (...) }`, `*(g_BattleCommandQueue + i + K)`,
-   `(s32)g_BattleCommandQueue[0x2DC] < 8`, the non-volatile step read (1000 bytes).
-   ROUND 400: un-parked and re-measured unchanged (99.60%, 1004 bytes = retail, 251
-   insns = retail's). The residual is ONE pattern at THREE sites, and it is a
-   register-order tie, not three separate problems: for the queue-row sum
-   `g_BattleCommandQueue + slot * 0x40 + 0x3C` retail keeps the loaded queue base in
-   $v0 and the scaled slot in $v1 (`addu v0,v0,v1`, base first) at the two
-   func_80087EDC/func_800881B8 calls and at D_800CCD1C, while this build mirrors the
-   pair (index in $v0, base in $v1, `addu v0,v0,v1`). The five later reads already
-   use the embedded form and already match, which is why the note calls that form
-   load-bearing. Permuter 4 min / 1931 iterations from this body: base=100 best=100
-   (nothing found - the shuffle is the allocator's, and it also carries the `>= 8`
-   arm's step byte, which retail masks in place in $a1 where this build copies
-   `andi a1,v0,0xFF`). Preset screened this round: gcc-2.6.0 scores 99.6 on the same
-   body (identical), gcc-2.7.2-cdk compile-failed, so this is not the 2.7.2/2.6.0
-   commuted-PLUS difference either. The D_800CCD1C site's other diff row is the
-   typed `.param` store, which relocs g_BattleCommandRecords+0x24 where retail names
-   g_BattleCommandSlotMasks; the linked bytes are identical. */
+/* 99.96%, 1004 bytes / 251 insns (= retail); `check_bin.sh battle` prints OK, so the
+   linked bytes are identical. The only objdiff row left is the spelling of the
+   g_BattleCommandRecords store: the typed `[idx].param` folds the +0x24 addend into the
+   instruction (`sh $v0,36($at)` off %hi(g_BattleCommandRecords)) where retail relocs
+   g_BattleCommandSlotMasks with displacement 0; both link to the same word, and the
+   `extern u8 g_BattleCommandSlotMasks[]` spelling costs a queue-pointer reload
+   (1016 bytes, 96.89), so the typed one stays.
+   Round 427 closed the three register mirrors with two levers:
+   - the negated offset (`g_BattleCommandQueue - -(slot * 0x40))[0x3C]`) at the two
+     first-block sites and at D_800CCD1C; it is what makes cc1 put the loaded queue in
+     $v0 and the scaled slot in $v1, base first (99.60 -> 99.68 -> 99.76 -> 99.80).
+   - `u16 step;` (not s32) for the `>= 8` arm's step byte; its own variable, so the arm
+     no longer shares a pseudo with the BattleScriptScanForOpcode62 result, and u16 is
+     what makes gcc keep it in $a1 and mask in place (99.80 -> 99.96). Found by the
+     permuter (base=130 best=10).
+   Load-bearing (each measured at 1004 bytes): the u8 parameters; `s32 commandNo;`
+   holding `arg1 & 0xFF`; the five later queue reads as an EMBEDDED ASSIGNMENT
+   `(pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]`; `(u16)BattleMaskHasStatusBit`;
+   `*(u8 *)&g_BattleActionParam`; `BattleSlotBitMask` returning s32;
+   `count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA]`; the two record stores as
+   plain u8 arrays `g_BattleCommandSlotIds[... * 0x48]`.
+   Dead spellings: `*(g_BattleCommandQueue + i + K)`, `(s32)g_BattleCommandQueue[0x2DC] < 8`,
+   the non-volatile step read (1000 bytes), `*arg0`-style base locals, the embedded
+   assignment at D_800CCD1C (97.37), `charId`/`commandNo` locals at the arm (identical),
+   gcc-2.6.0 (99.96 identical) and gcc-2.7.2-cdk (compile-failed). */
 s32 func_80087AF0(u8 arg0, u8 arg1) {
     u8 *pQueueRow;
     u8 slot;
     u8 count;
     s32 commandNo;
     s32 stepNo;
-    s32 step;
+    u16 step; // u16, not s32: keeps the step byte in $a1 and masks it in place
     u8 rawStep;
     s32 done;
 
@@ -905,6 +874,7 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     if (g_BattleSlotDisplayInitialized == 0) {
         if (g_BattleSlotFlags[(u8)arg0 * 8] == 0) {
             if (g_BattleActorCharIds[(u8)arg0] != 4) {
+                // The negated offset is what makes retail's addu put the queue base first.
                 func_80087EDC((u8)arg0, (g_BattleCommandQueue - -((u8)arg0 * 0x40))[0x3C]);
             }
         } else {
@@ -932,6 +902,7 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
         g_BattleCommandQueue[0x2DC] = g_BattleCommandQueue[0x2DC] + 1;
     }
     slot = (u8)arg0;
+    // Same negated offset: retail's addu is base-first at this site too.
     if (D_800CCD1C[(g_BattleCommandQueue - -(slot * 0x40))[0x3C]].flags & 0x800) {
         g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
         g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF3;
