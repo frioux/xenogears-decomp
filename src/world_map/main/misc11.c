@@ -1228,7 +1228,26 @@ int WorldMapInitPartyActorSprite1(int index) {
     pActor->moveSpeed = 0xC;
     pActor->angle = *(u16 *)&g_GameState.unk1826[2];
     return 1;
-}
+}INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
+// 99.96% (445 insns / 1780 bytes = retail's exact size; the ONLY differing rows are the
+// two `lw v0,<jtbl>` operands, i.e. the owned-table form this unit always shows). PORTED
+// from the matched twin WorldMapUpdateActorSlot (this file, same command/state family):
+// the whole body is retail's instruction-for-instruction.
+// CHECK_BIN FAILS BY 4 BYTES, and it is JTBL_LAYOUT, not the C: this function owns the
+// LAST two tables of this unit's .rodata range (jtbl_800708D4, jtbl_800708F4), which sit
+// at 0x3BC and 0x3DC from the range start - both 4 mod 8 - and cc1 emits `.align 3` before
+// a switch table, so the assembler pads 4 bytes there and the table, plus every later byte
+// of the overlay, lands +4 (build/out/world_map.bin 180426 vs disc 180422). No C spelling
+// moves a table's section-relative alignment, so this cannot link from C.
+// Facts worth keeping: command arm 4 is the gearRide[index-4] write; the state switch is
+// 65 entries only because of `case 64: break;` (state 0x40 is a live case whose body is
+// the exit); the 0x30 arm (case 48) does NOT fall through into 49 (retail jumps to the
+// shared `state` store - worth exactly the 4 bytes above); the countdowns are
+// `(s16)--pActor->unk22 <= 0` (u16 field read with lhu, signed test -> lhu/sll 16/bgtz);
+// the tail's `slot = index - 4` must stay an s32 local (folding it into the constant
+// costs the addiu and adds an sll/sra pair). A 4-minute permuter run found nothing
+// (base=312 best=312).
+/*
 int func_8008D678(int index) {
     s32 *pScratch = (s32 *)0x1F800000;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1304,7 +1323,7 @@ int func_8008D678(int index) {
         pActor->targetZ = pTarget->z >> 12;
         SpritePlayAnimation(pActor->pSprite, 1);
         pActor->state++;
-        /* falls through */
+        // falls through
     case 9:
         if (WorldMapMoveActorTowardTarget(pActor) == 3) {
             pActor->state++;
@@ -1330,7 +1349,7 @@ int func_8008D678(int index) {
         pActor->targetZ >>= 12;
         SpritePlayAnimation(pActor->pSprite, 1);
         pActor->state++;
-        /* falls through */
+        // falls through
     case 17:
         if (WorldMapMoveActorTowardTarget(pActor) == 3) {
             pActor->state++;
@@ -1422,6 +1441,7 @@ int func_8008D678(int index) {
     ((u16 *)&g_GameState.unk1826)[index - 4] = pActor->angle;
     return 1;
 }
+*/
 // 81.33% (304 bytes, retail 300). Round 186: re-parked with the current field names
 // (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state) - it
 // builds now and re-measures at 81.33. The same two head differences as func_8008D3F0:
