@@ -3,7 +3,321 @@
 #include "system/animation.h"
 #include "psyq/inline_c.h"
 
+typedef void (*SpriteScriptCallback)(SpriteData* pSpriteData);
+
+// SpriteData's 0x3C flag word: the shared header only splits bits 20-31 into
+// fields, so the two-bit mode and the flip bit this interpreter maintains sit
+// inside its 20-bit field_0x3C_0 (the same view system/temp1.c declares).
+typedef union {
+    /* 0x0 */ u32 flags;
+    struct {
+        /* 0x0 */ u32 mode: 2;
+        /* 0x2 */ u32 unk2: 1;
+        /* 0x3 */ u32 flipX: 1;
+        /* 0x4 */ u32 flipY: 1;
+        /* 0x5 */ u32 unk5: 27;
+    } fields;
+} SpriteStateFlags;
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x3C];
+    /* 0x3C */ SpriteStateFlags flags_0x3C;
+} SpriteStateFlagsView;
+
+#define g_SpriteStateFlags(pSpriteData) (((SpriteStateFlagsView*)(pSpriteData))->flags_0x3C)
+
+// flags_0xA8 packs the frame counter (bits 11..16) and the script index (bits
+// 22..27); both are read and written whole, so they live in masks.
+#define ANIM_SCRIPT_FRAME_COUNTER_MASK 0xFFFE07FF
+#define ANIM_SCRIPT_FRAME_COUNTER_SHIFT 11
+#define ANIM_SCRIPT_SCRIPT_INDEX_MASK 0xF03FFFFF
+#define ANIM_SCRIPT_SCRIPT_INDEX_SHIFT 22
+#define ANIM_SCRIPT_COUNTER_MASK 0x3F
+#define ANIM_SCRIPT_COUNTER(word, shift) (((u32)(word) >> (shift)) & ANIM_SCRIPT_COUNTER_MASK)
+// Bits 28-29 of flags_0xA8 are the slot mode; 0x10000000 arms it.
+#define ANIM_SCRIPT_MODE_MASK 0xCFFFFFFF
+#define ANIM_SCRIPT_MODE_SET 0x10000000
+// The 12-bit speed field of flags_0xAC, the 8-bit divisor a frame count is
+// scaled by, and the animation id byte beside it.
+#define ANIM_SCRIPT_SPEED_SHIFT 7
+#define ANIM_SCRIPT_SPEED_MASK 0xFFF
+#define ANIM_SCRIPT_SPEED_SCALE 256
+#define ANIM_SCRIPT_ANIM_ID_DEFAULT 0x3F
+#define ANIM_SCRIPT_FLIP_BIT 8
+// The jump displacement is the 16-bit word the opcode carries, signed from its
+// second byte; 0xFA builds the same word from its third byte.
+#define SCRIPT_JUMP_AT(p) ((s32)((s16)((p)[1] << 8) | (p)[0]))
+#define SCRIPT_JUMP_SHORT_AT(p) (((s16)((p)[2] << 8)) | (p)[1])
+
+extern u8 g_IsBattle;
+extern u8 g_AnimScriptCommandLengths[];  // per-opcode instruction length, indexed by the opcode byte
+extern s32 g_WorkListCurTimer;
+extern void func_800C11CC(SpriteData* pSpriteData);
+extern void func_8001D2B0(SpriteData* pSpriteData, s32 frame);
+extern void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData);
+extern void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId);
+extern void func_8001FBE4(SpriteData* pSpriteData, s32 code, u8* pArgs);
+extern void* AnimScriptResolveVariablePointer(SpriteData* pSpriteData, u8* pIndex);
+extern void AnimScriptStackPushU24(SpriteData* pSpriteData, s32 value);
+extern s32 AnimScriptStackPopU24(SpriteData* pSpriteData);
+extern u_char AnimScriptStackPopU8(SpriteData* pSpriteData);
+extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
+
+// Best 71.83% (1628 bytes against retail's 1612, 407 vs 437 instruction lines): the
+// whole arm set is transcribed and instruction-for-instruction right, the residual is
+// register naming plus 16 bytes. Ported from the func_800C11CC park in
+// src/battle/main/misc35.c (the battle twin of this interpreter, same arm order) with
+// the field SpriteData spelling of src/slus_006.64/system/temp1.c / animation_scripts.c.
+// Measured levers, in the order they paid:
+//   - the dispatch MUST be a goto loop (label + `goto dispatch`), not while/for:
+//     a switch inside a loop construct gives loop.c the outer LOOP notes and it hoists
+//     both `li 1` and the &g_AnimScriptCommandLengths lui/addiu into the function
+//     preheader as s5/s6 -> 61.25% and a 0x30 frame. goto: 67.82%, frame 0x28 = retail's.
+//   - 0x82's `step.y` needs its OWN local (stepY): as part of `count` it is the one
+//     live range that spans calls, so `count` got a callee-saved register and every
+//     other register shifted one up (67.82 -> 69.15). With it, pSpriteData=s1, code=s2
+//     (u8), frames=s3, pArgs=s0 exactly as retail.
+//   - the script-index tail wants the masked flags in a local FIRST (mask = flags &
+//     0xF03FFFFF, then mask |= count << 22) and the count == 0 arm re-derives from that
+//     local, not from the stored field: 71.78. The signed `(count >> 6) & 8` and
+//     `(flags >> 3 & 1) ^ (flags >> 2 & 1)` coped 71.83.
+// WHAT IS LEFT (16 bytes over, 2 instructions in the head, the rest in 0x8E/0xE2):
+//   - head tail: retail emits `addu v1,v1,s3; sh v1,158(s1)` BEFORE `sw a1,168(s1)`;
+//     gcc emits the flags store first whatever the statement order (tried both).
+//   - retail cross-jumps the head's count == 0 tail's `or; sw` with 0x81's
+//     `| 0x10000000` store (:L80024DBC); ours emits its own pair.
+//   - 0x8E: retail's `j` puts the pSpriteBytecode = NULL store in its delay slot, ours
+//     does not.
+//   - 0xE2: retail computes SCRIPT_JUMP_AT(pArgs) before the PushU24 call and re-signs
+//     it after; with an `offset` local we get that, but the arm then also needs the
+//     post-call add re-formed (ours cross-jumps into 0xE1's tail instead).
+//   - 0xBE: retail loads flags_0xAC then the 0x3C word; gcc loads them the other way up.
+// Not tried: the permuter (the body is below its 85% bar). This is the same wall the
+// misc35 twin parked on (67.82 there) - one extra callee-saved register.
+/*
+void func_800248D4(SpriteData* pSpriteData) {
+    u8* pArgs;
+    u8 code;
+    s32 frames;
+    s32 count;
+    s32 offset;
+    s32 stepY;
+    u32 flags;
+    u32 mask;
+    u8* pBuffer;
+
+    if (g_IsBattle) {
+        func_800C11CC(pSpriteData);
+        return;
+    }
+dispatch:
+    if (pSpriteData->animScriptWaitTimer != 0) {
+        return;
+    }
+    {
+        code = *(u8*)pSpriteData->pSpriteBytecode;
+        pArgs = (u8*)pSpriteData->pSpriteBytecode + 1;
+        if (code < 0x80) {
+            pSpriteData->pSpriteBytecode = pArgs;
+            if (code < 0x10) {
+                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
+                frames = (code & 0xF) + 1;
+            } else if (code < 0x20) {
+                pSpriteData->flags_0xA8 =
+                    (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_COUNTER_MASK) |
+                    (((ANIM_SCRIPT_COUNTER(pSpriteData->flags_0xA8, ANIM_SCRIPT_FRAME_COUNTER_SHIFT) + 1) &
+                      ANIM_SCRIPT_COUNTER_MASK)
+                     << ANIM_SCRIPT_FRAME_COUNTER_SHIFT);
+                SpriteSetFrameFromAnimIndex(pSpriteData);
+                frames = (code & 0xF) + 1;
+            } else if (code < 0x30) {
+                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
+                frames = (code & 0xF) + 1;
+            }
+            if (code < 0x40) {
+                frames = (code & 0xF) + 1;
+            }
+            frames = frames * (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
+                     ANIM_SCRIPT_SPEED_SCALE;
+            if (frames == 0) {
+                frames = 1;
+            }
+            flags = pSpriteData->flags_0xA8;
+            mask = flags & ANIM_SCRIPT_SCRIPT_INDEX_MASK;
+            count = (ANIM_SCRIPT_COUNTER(flags, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) + 1) & ANIM_SCRIPT_COUNTER_MASK;
+            mask |= count << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT;
+            pSpriteData->animScriptWaitTimer += frames;
+            pSpriteData->flags_0xA8 = mask;
+            if (count == 0) {
+                pSpriteData->flags_0xA8 =
+                    (mask & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
+                    (((ANIM_SCRIPT_COUNTER(mask, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) - 1) & ANIM_SCRIPT_COUNTER_MASK)
+                     << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT);
+            }
+            return;
+        }
+        switch (code) {
+        case 0xBE:
+            count = pArgs[0] | ((s8)pArgs[1] << 8);
+            frames = ((count >> 11) & 0xF) + 1;
+            frames = frames * (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
+                     ANIM_SCRIPT_SPEED_SCALE;
+            if (frames == 0) {
+                frames = 1;
+            }
+            offset = count & 0x1FF;
+            if (g_SpriteStateFlags(pSpriteData).fields.mode != 1) {
+                pSpriteData->curSpriteFrame = offset;
+            } else {
+                if (count < 0) {
+                    if (offset != 0) {
+                        offset = *(u8*)(pSpriteData->field_0x60 + offset - 1);
+                    }
+                }
+                flags = pSpriteData->flags_0xAC.flags;
+                mask = g_SpriteStateFlags(pSpriteData).flags;
+                flags = (flags & ~ANIM_SCRIPT_FLIP_BIT) | ((count >> 6) & ANIM_SCRIPT_FLIP_BIT);
+                pSpriteData->flags_0xAC.flags = flags;
+                mask = (mask & ~ANIM_SCRIPT_FLIP_BIT) | ((((flags >> 3) & 1) ^ ((flags >> 2) & 1)) << 3);
+                if ((count >> 10) & 1) {
+                    g_SpriteStateFlags(pSpriteData).flags = mask | 0x10;
+                } else {
+                    g_SpriteStateFlags(pSpriteData).flags = mask & ~0x10;
+                }
+                func_8001D2B0(pSpriteData, offset);
+            }
+            pSpriteData->animScriptWaitTimer += frames;
+            pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + 3;
+            return;
+        case 0x8E:
+            pSpriteData->pSpriteBytecode = NULL;
+            return;
+        case 0xE2:
+            offset = SCRIPT_JUMP_AT(pArgs);
+            AnimScriptStackPushU24(pSpriteData, (s32)pSpriteData->pSpriteBytecode + 3);
+            pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + offset;
+            goto dispatch;
+        case 0x85:
+            pSpriteData->pSpriteBytecode =
+                (void*)(((u32)pSpriteData->pSpriteBytecode & 0xFF000000) | AnimScriptStackPopU24(pSpriteData));
+            goto dispatch;
+        case 0xFA:
+            if (*(u8*)AnimScriptResolveVariablePointer(pSpriteData, pArgs) != 0) {
+                pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_SHORT_AT(pArgs);
+                goto dispatch;
+            }
+            break;
+        case 0xD4:
+            pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+            }
+            goto dispatch;
+        case 0x86:
+            if (pSpriteData->step.y < 0) {
+                pSpriteData->animScriptWaitTimer = 1;
+                return;
+            }
+            break;
+        case 0x87:
+            if ((s16)(pSpriteData->position.y >> 16) < pSpriteData->field_0x84) {
+                pSpriteData->animScriptWaitTimer = 1;
+                return;
+            }
+            break;
+        case 0x80:
+            mask = ANIM_SCRIPT_MODE_MASK;
+            pSpriteData->flags_0xA8 &= mask;
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+                return;
+            }
+            if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
+                SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
+            }
+            pSpriteData->flags_0xA8 &= mask;
+            return;
+        case 0x98:
+            if (pSpriteData->field_0x70 == NULL) {
+                break;
+            }
+            pSpriteData->animScriptWaitTimer = 1;
+            if ((s8)((SpriteData*)pSpriteData->field_0x70)->flags_0xAC.bytes[3] != pSpriteData->field_0x8D) {
+                break;
+            }
+            if ((((u32)((SpriteData*)pSpriteData->field_0x70)->flags_0xA8 >> 28) & 3) != 2) {
+                break;
+            }
+            return;
+        case 0x82:
+            stepY = pSpriteData->step.y;
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+            }
+            SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
+            pSpriteData->step.y = stepY;
+            pSpriteData->animScriptWaitTimer = 0;
+            func_800248D4(pSpriteData);
+            return;
+        case 0x81:
+            if ((s8)pSpriteData->flags_0xAC.bytes[3] == ANIM_SCRIPT_ANIM_ID_DEFAULT) {
+                mask = ANIM_SCRIPT_MODE_MASK;
+                pSpriteData->flags_0xA8 &= mask;
+                if (pSpriteData->field_0x68 != NULL) {
+                    ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+                    return;
+                }
+                if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
+                    SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
+                }
+                pSpriteData->flags_0xA8 &= mask;
+                return;
+            }
+            pSpriteData->animScriptWaitTimer = 0;
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+            }
+            mask = ANIM_SCRIPT_MODE_MASK;
+            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & mask) | ANIM_SCRIPT_MODE_SET;
+            return;
+        case 0xE4:
+            count = AnimScriptStackPopU8(pSpriteData);
+            if (count != 0) {
+                AnimScriptStackPushU8(pSpriteData, count - 1);
+                pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+                goto dispatch;
+            }
+            break;
+        case 0xE1:
+            pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+            goto dispatch;
+        case 0xA7:
+            pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
+            if (pArgs[0] & 0x80) {
+                g_WorkListCurTimer = (pArgs[0] & 0x7F) + 1;
+                pSpriteData->animScriptWaitTimer++;
+                return;
+            }
+            count = (pArgs[0] + 2) *
+                    (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
+                    ANIM_SCRIPT_SPEED_SCALE;
+            if (count == 0) {
+                count = 1;
+            }
+            pSpriteData->animScriptWaitTimer += count;
+            return;
+        case 0xC8:
+            func_8001FBE4(pSpriteData, pArgs[0], AnimScriptResolveVariablePointer(pSpriteData, pArgs + 1));
+            break;
+        default:
+            func_8001FBE4(pSpriteData, code, pArgs);
+            break;
+        }
+        pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
+    }
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
+
 
 // Work list and image-list setup; g_GfxWorkListCapacity is the work list entry budget.
 extern u32 g_GfxWorkListCapacity;
