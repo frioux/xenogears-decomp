@@ -567,89 +567,41 @@ void BattleBuildTileRow0Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
-/* 98.39% at retail's exact 1600 bytes (98.20 with retail's own store order, x0 then
-   y0). The only difference is where gcc puts each store's VALUE: retail computes it
-   inside that store's block (addiu a1,a1,8 lands after the first index load, the arg4
-   load and its sum at the y0 store), while ours hoists the value computations of later
-   volatile stores above the first store. Listing y0 first moves `left` to retail's
-   exact slot and gives the 98.39% body below, at the price of emitting the two stores
-   in swapped order. Permuter: 1791 iterations from the 98.20 body found only that swap
-   (base 580 -> 200); a 2129-iteration run from the 98.39 body found nothing.
-   Load-bearing spellings: every store must be a volatile lvalue (otherwise cc1 lifts
-   the next store's g_BattlePrimStartIndex load above this one and the 27 load-delay
-   nops disappear); quad 1 must stay `(p->tilePrims[1] + 2)` so +0x50 is a
-   displacement; the index-first sum `(g_BattlePrimStartIndex + p->tilePrims[1])` gives
-   retail's addu v0,v0,s1; and `(left = arg1 + 8)` is an embedded assignment on purpose
-   - it keeps left in $a1 as retail has it and stops gcc reassociating
-   (arg1 + 8) + half into arg1 + (half + 8).
-   Tried and worse: an s32 `left` statement before the stores (left, the arg3 mask and
-   the arg4 load all hoist; 98.20 at 1604 bytes), a `top` statement local, a
-   `*(volatile s32 *)&arg4` read (1612 bytes), gcc-2.7.2 (98.14).
-   ROUND 300: the value hoist is cse2's invariant-expression hoist to the top of the
-   basic block, and it is NOT source-spellable away: probed with tools/scripts/
-   cc1_probe.sh on a 2-store replica (a `quad[1]` stand-in for tilePrims[1]) and the
-   arg4 load + `addu` still hoist above the first store with the values inline, in an
-   embedded assignment, in brace blocks, in `do { } while (0)` blocks (one per store
-   and one for all), with a per-store scoped temporary, with an s16-dest cast, with
-   array-index vs pointer-sum addressing, and under gcc-2.6.0, 2.7.2 and 2.7.2-cdk.
-   The one lever that DOES keep the load in its own block is taking the argument's
-   address (`s32 *pArg4; pArg4 = &arg4;` then `arg2 + *pArg4 - 8`): the escaped
-   address stops the hoist - but gcc then narrows the read to `lhu` where retail has
-   `lw` (same size, same place, still not 100%). A second datapoint: five locals
-   (left/bottom/top/right/farRight, each assigned at its first store) give retail's
-   EXACT register assignment - a1=left, t0=bottom, a0=right, a3=half, a2=top - for
-   94.88% at 1600 bytes, so the values-as-locals structure is right and only their
-   placement is wrong. `-O1` removes the hoist but rewrites everything else (77.44).
-   ROUND 372: re-measured, still 98.39% at retail's exact 1600 bytes; the residual is
-   only the order of the first two stores (retail emits the x0 `sh a1,488` before
-   y0's `addu a2,a2,v1 / addiu t0,a2,-8 / sh t0,490`, the body below emits them
-   swapped). Listing x0 first is retail's own order but measures worse, 98.20: the
-   y0 value's `lw a0,48(sp) / addu a2,a2,a0` then hoists ABOVE the x0 store and
-   `left` hoists above the g_BattlePrimStartIndex load (position 4; retail has 9)
-   with the a3 mask following it - three displacements instead of two. So y0-first
-   stays. The sibling row builder BattleBuildTileRow2Prims closed at 100.00 this round with an
-   s32 `left` local + embedded assignment, which is the only shape that makes cc1
-   emit retail's 32-bit `li/li a0,0xfff8 / addu` instead of `addiu -8`; the `left`
-   here is already that shape and its placement is exact.
-   ROUND 403: the fifth argument as a four-byte aggregate (the trick that closed
-   BattleBuildTileRow3Prims, see BattleRowSize) does NOT help here: 98.20% at the same
-   1600 bytes, i.e. exactly the plain-s32 x0-first body, because a WORD read is not a
-   narrow `lhu` and the whole y0 group still hoists above the x0 store (`left`'s addiu
-   to slot 4 where retail has 9, the a3 mask to 6, `lw 48(sp)` to 15 and its sum to 19
-   where retail has 21/22). Byte-identical to that body, so do not retry: the same
-   aggregate with the field's address taken (`s32 *pHeight = &arg4.height` - the read
-   stays a hoisted `lw`), capturing the sum without the outer `- 8`, and making the x0
-   store NON-volatile (the two stores still come out in source order, so their object
-   order is not a scheduler choice - retail's source really does list x0 first, and the
-   hoist is the only thing standing in the way). Preset closed for the whole unit as
-   well: gcc-2.7.2-cdk gives this body 92.34% and drops every matched neighbour
-   (BattleDrawSpriteQuad 84.90, BattleBuildTileRow2Prims 93.84, BattleInitSlotGraphics
-   72.47), and 2.6.0 -O3 does not compile.
-*/
-/*
+// Builds the two greyscale quads of tile row 1 at the slot's current prim index, then
+// sets both quads' blend mode. Every store is a volatile lvalue (otherwise cc1 lifts the
+// next store's g_BattlePrimStartIndex load above this one and the load-delay nops vanish),
+// and the five values are locals assigned at their first store: that is what gives retail's
+// register set (a1=left, a0=right, a3=half, a2=top, t0=bottom). `pArg4 = &arg4` is
+// load-bearing: without the escaped address cc1 hoists the y0 value above the x0 store
+// (98.20%); with it the stores keep retail's order and the block matches.
 void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
     BattleSlotGraphics *p;
     s32 left;
+    s32 top;
+    s32 bottom;
+    s32 half;
+    s32 right;
+    s32 *pArg4;
     s32 i;
 
     p = g_BattleSlotGraphics[arg0];
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y0 = arg2 + arg4 - 8;
+    pArg4 = &arg4;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->x0 = (left = arg1 + 8);
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->x1 = left + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y1 = arg2 + arg4 - 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y0 = (bottom = (top = arg2 + *pArg4) - 8);
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->x1 = (right = left + (half = (arg3 - 16) / 2));
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y1 = bottom;
     *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->x2 = left;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y2 = arg2 + arg4 + 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->x3 = left + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y3 = arg2 + arg4 + 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x0 = left + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y0 = arg2 + arg4 - 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x1 = left + (arg3 - 16) / 2 + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y1 = arg2 + arg4 - 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x2 = left + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y2 = arg2 + arg4 + 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x3 = left + (arg3 - 16) / 2 + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y3 = arg2 + arg4 + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y2 = top + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->x3 = right;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->y3 = top + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x0 = right;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y0 = bottom;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x1 = right + half;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y1 = bottom;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x2 = right;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y2 = top + 8;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->x3 = right + half;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[1] + 2))->y3 = top + 8;
     *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->u0 = ((g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_STRIDE] & 0x3F) << 1) - 8;
     *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->v0 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_STRIDE + BATTLE_TILE_SOURCE_V];
     *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[1])->u1 = ((g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_STRIDE] & 0x3F) << 1) - 1;
@@ -670,7 +622,6 @@ void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
         BattleSetPrimGrey80BlendModeFromGlobal(&p->tilePrims[1][g_BattlePrimStartIndex + i * 2]);
     }
 }
-*/
 
 void BattleBuildTileRow2Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     BattleSlotGraphics *p;
