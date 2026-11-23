@@ -91,7 +91,7 @@ extern u8 g_BattleSlotTextIndex[];
 extern u8 g_BattleTargetSlotIndex;
 extern u8 g_BattleAmountThirdFlag;
 extern s32 BattleRollHitResult(void);
-extern u16 func_80096FBC(void);
+extern u16 BattleComputeActionAttackValue(void);
 extern u16 BattleComputeSlotActionAmount(void);
 extern void func_80096494(u16 *, u16 *, u8 *);
 extern void BattleAllocPacketPrimitives(void);
@@ -1538,7 +1538,7 @@ void BattleComputeActionAmount(void) {
         return;
     }
     command = BattleRollHitResult();
-    atkValue = func_80096FBC();
+    atkValue = BattleComputeActionAttackValue();
     defValue = BattleComputeSlotActionAmount();
     pAtk = g_BattleActingSlot;
     if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 8) {

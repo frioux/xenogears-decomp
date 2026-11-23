@@ -107,7 +107,7 @@ extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(s32, u16, u16, u16, u16);
 extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
-extern void func_8008DE04(u8, s32, s32, u16);
+extern void BattleBuildTileRow0Prims(u8, s32, s32, u16);
 extern void func_8008E430(u8, s32, s32, u16, s32);
 extern void BattleBuildTileRow2Prims(u8, s32, s32, u16);
 // The fifth argument of BattleBuildTileRow3Prims arrives as an aggregate, not a bare
@@ -519,7 +519,7 @@ void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
 // operand order. The embedded assignments are load-bearing: a plain `arg2 - 8` folds
 // to `addiu`, `(bottom = arg2 + 0xFFF8)` gives retail's `li 0xfff8 / addu`, and the
 // named half/mid/right locals stop gcc reassociating left+half into arg1+(half+8).
-void func_8008DE04(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
+void BattleBuildTileRow0Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     BattleSlotGraphics *p;
     s32 left;
     s32 bottom;
@@ -819,7 +819,7 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     p->prims[g_BattlePrimStartIndex].x3 = arg1 + arg3;
     p->prims[g_BattlePrimStartIndex].y3 = arg2 + arg4;
     BattleDrawSpriteQuad(index, arg1, arg2, arg3, arg4);
-    func_8008DE04(index, arg1, arg2, arg3);
+    BattleBuildTileRow0Prims(index, arg1, arg2, arg3);
     func_8008E430(index, arg1, arg2, arg3, arg4);
     BattleBuildTileRow2Prims(index, arg1, arg2, arg4);
     BattleBuildTileRow3Prims(index, arg1, arg2, arg3, (BattleRowSize){arg4, 0});

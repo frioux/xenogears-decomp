@@ -49,9 +49,9 @@ extern u16 g_BattleCommandCellFlags;
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleSlotConditions[][0x170];
 extern u8 D_800CCE44[][0x170];
-// The per-slot byte at +0x02 of the same 0x170-byte slot family: func_80096FBC scales a
+// The per-slot byte at +0x02 of the same 0x170-byte slot family: BattleComputeActionAttackValue scales a
 // character 8 slot's action amount by it / 4.
-extern u8 D_800CCE2A[][0x170];
+extern u8 g_BattleSlotAmountPercent[][0x170];
 
 // Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
 // bytes apart. Only the word at +0 is read here.
@@ -586,7 +586,7 @@ s32 BattleRollHitResult(void) {
     }
     return 1;
 }
-s16 func_80096FBC(void) {
+s16 BattleComputeActionAttackValue(void) {
     u8 weaponAttacks[5];
     u16 amount;
     u16 total;
@@ -697,7 +697,7 @@ s16 func_80096FBC(void) {
         }
         if (g_BattleActingSlot->characterId == 8 && (g_BattleSlotConditions[g_BattleTargetSlotIndex][0] & 0x80) == 0 &&
             (g_BattleCurrentRow->actionFlags & 0x100)) {
-            amount = amount * D_800CCE2A[g_BattleTargetSlotIndex][0] / 4;
+            amount = amount * g_BattleSlotAmountPercent[g_BattleTargetSlotIndex][0] / 4;
         }
         if (g_BattleActingSlot->characterId == 10) {
             amount += amount / 5;

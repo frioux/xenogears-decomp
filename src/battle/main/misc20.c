@@ -369,7 +369,7 @@ s32 func_8009D3A0(void) {
 }
 */
 u16 BattleScaleValueByMultiplierByte(void) {
-    u16 ret = func_80096FBC();
+    u16 ret = BattleComputeActionAttackValue();
     u16 f;
     u32 b;
     s32 n;
