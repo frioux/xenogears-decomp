@@ -1052,43 +1052,6 @@ void WorldMapInitGfxEnv(void) {
 
 extern void SetSemiTrans(void* p, s32 abe);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
-// ROUND 374: re-measured 96.65%, 1352 bytes against retail's 1356 - one instruction SHORT,
-// so this body can never link. The missing instruction is retail's `move s2,s5`
-// (nColor = color): this cc1 coalesces the copy away because color dies at it, while retail
-// keeps both. Retail also folds `i = count - 1` into the parameter register
-// (`addiu s7,s7,-1`) where every spelling here allocates a new one. permute.sh refuses this
-// body (the struct assignment `pG4s[1] = pG4s[0];` is outside its C parser).
-/* best: 96.65%, 1352 bytes vs retail's 1356 (one instruction short), 338 vs 339 insns.
-   Everything outside the two blocks below is instruction-for-instruction identical:
-   the three HeapAllocs, the FT4 init loop (setPolyFT4/setRGB0/setShadeTex IN THAT ORDER -
-   putting setShadeTex before setRGB0 lets cse fold `code = 0x2c | 1` into one store and
-   loses the lbu/ori pair; the element pointer has to be a local (`pFt4 = &pFt4s[i]`, NOT
-   `pFt4s[i]` inline, which also folds), the POLY_G4 setup, the struct copy pG4s[1]=pG4s[0],
-   SetDrawTPage (which belongs BEFORE the G4 block), the two PutDispEnv/PutDrawEnv pairs,
-   the pEnv toggle written as `pEnv = (pEnv == g_WorldMapGfxEnvs) ? pEnv + 1 :
-   g_WorldMapGfxEnvs;` (the if/else form costs a `j`), the whole draw loop body, and the
-   three HeapFrees.
-   LEFT: (1) the frame is 96 where retail is 88 - gcc reserves 8 bytes of var space that no
-   instruction touches (all four slots used are 16/24/32/40(sp), retail's too);
-   (2) the FT4 geometry stores are the right SET in the right per-prim order, but the
-   value-groups come out in a different order: retail emits the 0x100 group first, then the
-   0x80 group, then the rest in source order, and this compile emits 0xEF, 0x80, 0x100, rest.
-   The four constants land in the same registers (v0=0x100, v1/v0=0x80, t0/v1=0xEF,
-   s0=0x140) so this is sched2's group order, not a register-assignment difference; the
-   x/y values are written with setXYWH + setUV4 per prim (retail's u3 of the third column is
-   0x80 while its u1 is 0x40, so setUVWH does not fit);
-   (3) the loop counter and nPrim are swapped (retail i=s7/nPrim=s6, here i=s6/nPrim=s7) and
-   the 0xFF000000/0x00FFFFFF masks are in s5/s2 instead of s5/s3;
-   (4) one instruction: retail's head test is `addiu i,i,-1; li v0,-1; beq i,v0` while every
-   plain `for (i = count - 1; i != -1; i--)` folds to `beqz count; addiu i,count,-1` (loop.c
-   counts the iterations). The body below avoids the fold by comparing against a local
-   `nEnd = -1` fed to the for's condition, which reproduces the three-instruction test; the
-   price is that nEnd needs its own register (t1 here, v0 in retail).
-   Also worth knowing: `do { } while (i != -1)` emits no entry test at all (1348), and
-   `while (1) { if (i == -1) break; ... }` reaches retail's exact 1356 but puts the test
-   after the masked-address stores instead of before them. */
-/*
 void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     POLY_FT4* pFt4s;
     POLY_FT4* pFt4;
@@ -1099,8 +1062,6 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     WorldMapGfxEnv* pEnv;
     s32 nPrim;
     s32 i;
-    s32 nColor;
-    s32 nEnd;
 
     pFt4s = (POLY_FT4*)HeapAlloc(WORLD_MAP_SCREEN_COLUMN_COUNT * sizeof(POLY_FT4), 1);
     pG4s = (POLY_G4*)HeapAlloc(2 * sizeof(POLY_G4), 1);
@@ -1121,7 +1082,7 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     setUV4(&pFt4s[1], 0, 0, WORLD_MAP_SCREEN_COLUMN_WIDTH, 0, 0, WORLD_MAP_BUFFER_HEIGHT - 1,
            WORLD_MAP_SCREEN_COLUMN_WIDTH, WORLD_MAP_BUFFER_HEIGHT - 1);
     setUV4(&pFt4s[2], 0, 0, WORLD_MAP_SCREEN_COLUMN_WIDTH_LAST, 0, 0, WORLD_MAP_BUFFER_HEIGHT - 1,
-           WORLD_MAP_SCREEN_COLUMN_WIDTH, WORLD_MAP_BUFFER_HEIGHT - 1);
+           WORLD_MAP_SCREEN_COLUMN_WIDTH_LAST, WORLD_MAP_BUFFER_HEIGHT - 1);
     pFt4s[0].tpage = GetTPage(2, 0, WORLD_MAP_SCREEN_TPAGE_X, WORLD_MAP_SCREEN_TPAGE_Y);
     pFt4s[1].tpage = GetTPage(2, 0, WORLD_MAP_SCREEN_TPAGE_X + WORLD_MAP_SCREEN_COLUMN_WIDTH,
                              WORLD_MAP_SCREEN_TPAGE_Y);
@@ -1144,9 +1105,11 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     PutDrawEnv((DRAWENV*)((u8*)pDispEnv - 0x5C));
     pEnv = g_WorldMapGfxEnvs;
     nPrim = 0;
-    nColor = color;
-    nEnd = -1;
-    for (i = count - 1; i != nEnd; i--) {
+    // one scratch variable carries the column counter and then the ramp: a second local for the
+    // ramp gets its own register and loses the `move` retail spends copying the parameter
+    i = color;
+    count--;
+    for (; count != -1; count--) {
         pEnv = (pEnv == g_WorldMapGfxEnvs) ? pEnv + 1 : g_WorldMapGfxEnvs;
         ClearOTagR(pEnv->pOt[0], WORLD_MAP_OT_SIZE);
         addPrim(&pEnv->pOt[0][1], &pFt4s[0]);
@@ -1155,18 +1118,18 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
         nPrim ^= 1;
         // the sum has to stay integer arithmetic: `&pG4s[nPrim]` flips the addu operands
         pG4 = (POLY_G4*)(nPrim * sizeof(POLY_G4) + (s32)pG4s);
-        setRGB0(pG4, nColor, nColor, nColor);
-        setRGB1(pG4, nColor, nColor, nColor);
-        setRGB2(pG4, nColor, nColor, nColor);
-        setRGB3(pG4, nColor, nColor, nColor);
+        setRGB0(pG4, i, i, i);
+        setRGB1(pG4, i, i, i);
+        setRGB2(pG4, i, i, i);
+        setRGB3(pG4, i, i, i);
         addPrim(&pEnv->pOt[0][0], pG4);
         addPrim(&pEnv->pOt[0][0], pTpage);
         DrawSync(0);
         Vsync(0);
         PutDispEnv(&pEnv->dispEnv);
         PutDrawEnv(&pEnv->drawEnv);
-            nColor += colorStep;
-            DrawOTag(&pEnv->pOt[0][WORLD_MAP_OT_SIZE - 1]);
+        i += colorStep;
+        DrawOTag(&pEnv->pOt[0][WORLD_MAP_OT_SIZE - 1]);
     }
     DrawSync(0);
     Vsync(0);
@@ -1175,7 +1138,7 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
     HeapFree(pG4s);
     HeapFree(pTpage);
 }
-*/
+
 
 // best: 93.68%, 144 bytes vs retail's 152. Round 435: the merge is in jump optimisation, not
 //    in the C - the compiled .s labels the shared block '$L83: $L84:' while the jump table keeps
