@@ -505,7 +505,7 @@ void func_8007171C(void) {
     if (D_800D3298 == 0) {
         return;
     }
-    for (i = 0; i < 0xB; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (g_BattleSlotEnabledFlags[i] == 0) {
             continue;
         }
