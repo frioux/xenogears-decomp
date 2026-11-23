@@ -641,6 +641,7 @@ void func_8007500C(void) {
     } while (i < 8);
 }*/
 
+/*
 // Builds the slot gauge bars: for each of the three slots, a pair of Gouraud quads
 // in g_BattleGraphicsWork's 0x24-stride prim block at +0x744, two prims per slot.
 // Slots whose 0x853D status byte is 0 draw nothing; status 1 sizes the bar from the
