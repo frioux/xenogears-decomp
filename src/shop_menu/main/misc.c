@@ -4118,7 +4118,6 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 // the unit's 2.6.0 is right. Earlier notes also record two permuter runs (4 and 8 minutes from
 // this body, base 701 -> 666) that found only a declaration-order no-op and a semantics-changing
 // write to continueProcessing, so this needs a lever, not more shapes.
-/*
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
     u8 redrawWindows = TRUE;
@@ -4175,13 +4174,12 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
                     pItemIds[itemType] = pInventoryItemIds[i];
                     pItemQtys[itemType] = pInventoryQtys[i];
                     pItemIsOwned[itemType] = 1;
-                    itemType++;
+                    itemCount = ++itemType;
                 }
             }
         }
     }
 
-    itemCount = itemType;
     ShopMenuInitializeArrowCursor(0);
 
     while (continueProcessing) {
@@ -4315,9 +4313,6 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
         }
     }
 }
-*/
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
-
 int ShopMenuSellEquipmentMenu(void) {
     u_char itemIDs[8];
     u_char itemQuantities[8];
