@@ -598,30 +598,42 @@ extern s32 D_800C3910;
 extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_PlayerActorIndex;
 
-/* R400 redo: fresh body, 63.95% (776 vs retail 776 bytes, 194 vs 194 insns).
-   Ring layout is settled: 32 entries of 0x48 at D_800B14F0, indexed by the
-   volatile s32 g_FieldSpriteUpdateIndex (13 reads, one per statement), step from
-   SpriteData (0xC/0x10/0x14) into 0x20, curTriNormal (0x50/0x54/0x58) into 0x30,
-   then rotation (0x106 & 0xFFF) into 0x14, sprite 0x84 into 0x10, position high
-   halves ((s16*)&pActor->position)[1/3/5] into 0x08, curAnimationId (0xE8) into
-   0x12, curWalkmeshTriMaterial (0x14) into 0x40, scriptFlags/flags into 0x00/0x04,
-   the walkmeshTriIds loop into 0x16, walkmeshId (0x10, sb) into 0x44, then
-   D_800C3910 = 0 and index = (index - 1) & 0x1F.
-   FOUND THIS ROUND: retail's frame is 0x18 because of a dead 0x18-byte local
-   (its `addiu sp,sp,-0x18` sits in the bne delay slot and nothing ever touches
-   the frame). Declaring `IVEC3 unused[2]` reproduces the frame exactly: 194/194
-   insns, 776 bytes = retail, 63.38 -> 63.95. Keep it.
-   Still open: every store loads the value (lw 0xC(a2)) before the volatile index
-   read where retail reads the index first and then the value, so the whole body
-   is one instruction out of phase; and gcc hoists &D_800B1506 (t2/t1) to the top
-   where retail derives it mid-body from la a1,D_800B1510. Registers follow from
-   those two (retail pActorData=t0/pSpriteData=a2, ours a3/a1). */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
+/* R428 redo: 69.69% (ours 768 bytes / 192 insns; retail 776 / 194). Parked body
+   is the best of four spellings measured this round. Ring layout is settled (see
+   the R400 note in the stub above): 32 entries of 0x48 at D_800B14F0 indexed by
+   the volatile s32 g_FieldSpriteUpdateIndex, one read per store (18 reads: 17
+   stores plus the trailing index update), and IVEC3 unused[2] reproduces retail's
+   dead 0x18 frame.
+   THE RESIDUAL IS A VALUE-TEMPORARY ALLOCATOR TIE, not statement order. With the
+   typed spelling D_800B14F0[i].field gcc gives the stored value $a0 while the
+   index sits in $v1, so sched2 fills the index load's delay slot with the value
+   load and every one of the 15 singleton stores comes out one instruction early
+   (63.95%, 194/194 insns, 776 bytes = retail's exact size, but ~200 differing
+   lines). Writing the same store as a cast to a computed address puts the value
+   in $v1, i.e. retail's phase, because retail's value load and its index load
+   share $v1 (that is also why retail has an unfilled nop after every index
+   load) - but gcc then materialises the ring base in a register and derives
+   addu $5,$4,<offset> per statement (69.56%, 780 bytes).
+   RETAIL MIXES THE TWO FORMS, which is why neither pure spelling closes it: the
+   nine singleton groups use lui $at,%hi(sym) / addu $at,$at,$v0 / sw %lo(sym)($at)
+   (the typed spelling), while the three normal stores go through a0 = D_800B1510
+   + 0x10 with displacements 0/4/8 and the walkmeshTriIds loop through t2 = a1
+   - 0xA, both derived from ONE la a1,D_800B1510 placed mid-body. The parked body
+   reproduces that normal/loop base derivation from u8* pRingStep = (u8*)&D_800B14F0[0].step
+   and keeps the typed spelling elsewhere, which is what buys 69.69 over 69.56,
+   but it is 2 instructions short of retail's 194.
+   Measured this round: all-typed 63.95 (776, 194); all-cast to (u8*)D_800B14F0 +
+   offset 69.56 (780, 195); typed + pRingStep for normal/loop 69.69 (768, 192);
+   all-cast + a pRingNormal base at +0x10 67.32 (776, 194).
+   Next attempt: find a spelling that keeps retail's phase AND the $at form - i.e.
+   the value temp in $v1 with the index while the address stays symbol+offset. A
+   shared source-level value local was not tried. */
 /*
 void func_80081C54(int actorIndex) {
     FieldActor* pFieldActor = &g_FieldActors[actorIndex];
     ActorData* pActor = pFieldActor->pActorData;
     SpriteData* pSprite = pFieldActor->pSpriteData;
+    u8* pRingStep = (u8*)&D_800B14F0[0].step;
     IVEC3 unused[2];
     int i;
 
@@ -634,9 +646,9 @@ void func_80081C54(int actorIndex) {
     D_800B14F0[g_FieldSpriteUpdateIndex].step.x = pSprite->step.x;
     D_800B14F0[g_FieldSpriteUpdateIndex].step.y = pSprite->step.y;
     D_800B14F0[g_FieldSpriteUpdateIndex].step.z = pSprite->step.z;
-    D_800B14F0[g_FieldSpriteUpdateIndex].normal.x = pActor->curTriNormal.vx;
-    D_800B14F0[g_FieldSpriteUpdateIndex].normal.y = pActor->curTriNormal.vy;
-    D_800B14F0[g_FieldSpriteUpdateIndex].normal.z = pActor->curTriNormal.vz;
+    *(s32*)(pRingStep + 0x10 + g_FieldSpriteUpdateIndex * 0x48) = pActor->curTriNormal.vx;
+    *(s32*)(pRingStep + 0x14 + g_FieldSpriteUpdateIndex * 0x48) = pActor->curTriNormal.vy;
+    *(s32*)(pRingStep + 0x18 + g_FieldSpriteUpdateIndex * 0x48) = pActor->curTriNormal.vz;
     D_800B14F0[g_FieldSpriteUpdateIndex].rotation = pActor->rotation.vy & 0xFFF;
     D_800B14F0[g_FieldSpriteUpdateIndex].spriteField84 = pSprite->field_0x84;
     D_800B14F0[g_FieldSpriteUpdateIndex].positionX = ((s16*)&pActor->position)[1];
@@ -647,13 +659,14 @@ void func_80081C54(int actorIndex) {
     D_800B14F0[g_FieldSpriteUpdateIndex].scriptFlags = pActor->scriptFlags.flags;
     D_800B14F0[g_FieldSpriteUpdateIndex].flags = pActor->flags;
     for (i = 0; i < 4; i++) {
-        D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];
+        *(u_short*)(pRingStep - 0xA + g_FieldSpriteUpdateIndex * 0x48 + i * 2) = pActor->walkmeshTriIds[i];
     }
     D_800B14F0[g_FieldSpriteUpdateIndex].walkmeshId = pActor->walkmeshId;
     D_800C3910 = 0;
     g_FieldSpriteUpdateIndex = (g_FieldSpriteUpdateIndex - 1) & 0x1F;
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
 
 int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
