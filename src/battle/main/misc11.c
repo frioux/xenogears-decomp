@@ -168,8 +168,18 @@ typedef struct {
    49-insn live range is entry to the last store, and it must be QI because
    retail's copy from arg1 is a bare "move" with no zero-extend (an s32 count
    would need an andi there, i.e. 67 insns). No C spelling moves it above
-   limit's 4-byte 0.89. try_flags: gcc-2.6.0-psx 99.39, gcc-2.7.2-cdk-psx
-   85.14, so the preset is not the way out. */
+   limit's 4-byte 0.89. A third 3-minute permuter run (round 418, base 40 best
+   40, 1474 iterations) found nothing, and tools/rounds/levers.md's margin rule
+   settles it: a 6x quotient gap is a different function, not a missing
+   spelling. One reading note kept for the next attempt: retail's 0xC is
+   materialised in the PREHEADER and 0x12 re-materialised inside the loop, so
+   0x910 gets 0xC on every iteration; "(color = 0x12)" is the only spelling
+   whose shape (invariant held, 0x12 in-loop) matches, and it is the
+   first-iteration/next-iteration reading of the same bytes - "color + 6" for
+   the 0x914 store instead lets GCSE hoist both constants (94.39, still 66
+   insns / 264 bytes, 26 differing lines). try_flags: gcc-2.6.0-psx 99.39,
+   gcc-2.7.2-cdk-psx 85.14, so the preset is not the way out. */
+// PARKED 99.39% (264 bytes, 66 insns - retail's exact size): count/color swapped.
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
@@ -201,8 +211,7 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
     }
     g_BattleDisplayState[0x97] = count;
     g_BattleDisplayState[0x98] = *(u8 *)&g_BattlePrimStartIndex;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FBE0);
 
 void BattleFreeStringTableAE(void) {
