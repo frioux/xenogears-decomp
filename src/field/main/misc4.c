@@ -1416,7 +1416,7 @@ typedef struct {
     /* 0x8 */ s16 n1; // ... across v1-v2
     /* 0xA */ s16 n2; // ... across v2-v0
     /* 0xC */ u_char material;
-    /* 0xD */ u_char stepHeight;
+    /* 0xD */ s8 stepHeight;
 } FieldWalkmeshTriangleRecord; // Size: 0xE
 
 typedef struct {
@@ -1501,7 +1501,6 @@ int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     }
 
     for (i = 0; i < 0x20; i++) {
-        nSavedTri = nTri;
         vA = (pVerts[pTri[nTri].v0].vx << 16) + pVerts[pTri[nTri].v0].vz;
         vB = (pVerts[pTri[nTri].v1].vx << 16) + pVerts[pTri[nTri].v1].vz;
         vC = (pVerts[pTri[nTri].v2].vx << 16) + pVerts[pTri[nTri].v2].vz;
@@ -1829,6 +1828,165 @@ void FieldFreeScratchpad(int size) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
+/* Best attempt: 86.66%, 1092 bytes = retail's EXACT size, and every block is in
+   retail's order: the three NCLIP tests, the eight-arm switch (each arm's
+   neighbour field, cases 3/5/6 calling NormalClip(vB|vA|vC, nRef, nPos)), the
+   loop tail's `i == 0x20` exhaustion test, the plane-height call, the shared
+   0x7FFFFFFF "not steppable" arm reached from both material-flag copies, and the
+   single `*pY = nY; FieldSetRangeByDelta(pY, pYMax, nStep);` join whose store
+   retail keeps in the jal's delay slot.
+   WHAT IS MEASURED AND STILL WRONG:
+   1. frame 0x78 against retail's 0x80: retail has an 8-byte local slot at
+      0x50..0x57 that NOTHING in the function references (the whole .s touches
+      0x18,0x1A,0x1C,0x20,0x28,0x30,0x38,0x40,0x48,0x90,0x94 and no other sp
+      offset), i.e. the original source held one more in-memory local than the
+      code uses - the sibling func_8007BEF4/func_8007C694 parks carry the same
+      8-byte gap. A dead `nSavedTri = nTri;` leftover allocates no slot (gcc
+      keeps it in a register and drops the copy), so this needs the real name.
+   2. `(pActor->position.vx >> 16) << 16` comes out as `lh 0x22(a0); sll 16`
+      (combine narrows it) where retail keeps the full word loaded for the x sum
+      and does `sra 16; sll 16`. Identical residual to func_8007BEF4's note.
+   3. prologue: retail issues all four position/moveModified loads before the
+      first store to `out`; here gcc stores out.vx first, and a store to an
+      addressable local blocks the CSE of the later pos.vz/mod.vz loads.
+   4. the third moveModified test compiles to `beqz` where retail's three tests
+      are all `bnez` (arm layout only, same instruction count).
+   NOT to be undone: case 6 must be written `< 0 -> n1 else n2` (that is the
+   polarity retail's `bgez n2` branch and its n1-before-n2 block order show);
+   writing it `>= 0 -> n2 else n1` inverts the branch and swaps the two shared
+   neighbour blocks. An earlier body that duplicated `*pY = out.vy;
+   FieldSetRangeByDelta(...)` in both arms measured 89.29% but only 1080 bytes
+   (12 short of retail, so it could never link) because gcc merged the two
+   copies; the nY-local shape above is the one that reproduces retail's tail.
+   Permuter: 4 min, base=2598 best=2353 - the only real edit was hoisting the
+   pVerts load above nTri, which measured 86.16% / 1096 bytes on port (worse);
+   the rest of the candidate was `if (1) {}` noise. */
+/*
+// Height of the walkmesh set nSetIndex under the point the actor's next step
+// reaches: walks the triangle graph from the actor's current triangle until the
+// point is inside one, then reports that triangle, the plane height there and
+// the range the actor may be lifted through
+s32 func_8007D3D4(ActorData* pActor, s32 nSetIndex, s32* pY, VECTOR* pNormal, s16* pTriIndex, s32* pYMax) {
+    FieldWalkmeshTriangleRecord* pTri;
+    FieldWalkmeshVertexRecord* pVerts;
+    SVECTOR out;
+    s32 nRef;
+    s32 nFlagMask;
+    s32 nPos;
+    s32 nClip;
+    s32 nTri;
+    s32 vA;
+    s32 vB;
+    s32 vC;
+    s32 nStep;
+    s32 nY;
+    s32 i;
+
+    nTri = pActor->walkmeshTriIds[nSetIndex];
+    pTri = g_FieldWalkmeshTriangles[nSetIndex];
+    pVerts = g_FieldWalkmeshVertices[nSetIndex];
+    if (nTri == -1) {
+        return -1;
+    }
+
+    out.vx = (pActor->position.vx + pActor->moveModified.vx) >> 16;
+    nRef = (out.vx << 16) + ((pActor->position.vz + pActor->moveModified.vz) >> 16);
+    nFlagMask = 0;
+    out.vy = 0;
+    nPos = ((pActor->position.vx >> 16) << 16) + (pActor->position.vz >> 16);
+    out.vz = (pActor->position.vz + pActor->moveModified.vz) >> 16;
+    if (!((pActor->flags >> (nSetIndex + 3)) & 1)) {
+        nFlagMask = -(g_FieldPartyMoveInProgress < 1);
+    }
+
+    for (i = 0; i < 0x20; i++) {
+        nSavedTri = nTri;
+        vA = (pVerts[pTri[nTri].v0].vx << 16) + pVerts[pTri[nTri].v0].vz;
+        vB = (pVerts[pTri[nTri].v1].vx << 16) + pVerts[pTri[nTri].v1].vz;
+        vC = (pVerts[pTri[nTri].v2].vx << 16) + pVerts[pTri[nTri].v2].vz;
+
+        nClip = NormalClip(vA, vB, nRef) < 0;
+        if (NormalClip(vB, vC, nRef) < 0) {
+            nClip |= 2;
+        }
+        if (NormalClip(vC, vA, nRef) < 0) {
+            nClip |= 4;
+        }
+
+        switch (nClip) {
+        case 0:
+            i = 0xFF;
+            break;
+        case 1:
+            nTri = pTri[nTri].n0;
+            break;
+        case 2:
+            nTri = pTri[nTri].n1;
+            break;
+        case 3:
+            if (NormalClip(vB, nRef, nPos) < 0) {
+                nTri = pTri[nTri].n0;
+            } else {
+                nTri = pTri[nTri].n1;
+            }
+            break;
+        case 4:
+            nTri = pTri[nTri].n2;
+            break;
+        case 5:
+            if (NormalClip(vA, nRef, nPos) < 0) {
+                nTri = pTri[nTri].n2;
+            } else {
+                nTri = pTri[nTri].n0;
+            }
+            break;
+        case 6:
+            if (NormalClip(vC, nRef, nPos) < 0) {
+                nTri = pTri[nTri].n1;
+            } else {
+                nTri = pTri[nTri].n2;
+            }
+            break;
+        case 7:
+            nTri = -1;
+            break;
+        }
+        if (nTri == -1) {
+            return -1;
+        }
+    }
+    if (i == 0x20) {
+        return -1;
+    }
+
+    FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], &out, pNormal);
+    *pTriIndex = nTri;
+    nStep = pTri[nTri].stepHeight * 4;
+    if (nStep < 0) {
+        nStep = 0;
+    }
+    if (pActor->walkmeshId != nSetIndex) {
+        if ((g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & 0x800000 & nFlagMask) != 0) {
+            *pY = 0x7FFFFFFF;
+            *pYMax = 0x7FFFFFFF;
+            return 0;
+        }
+        nY = out.vy;
+    } else if ((g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & 0x800000 & nFlagMask) != 0) {
+        *pY = 0x7FFFFFFF;
+        *pYMax = 0x7FFFFFFF;
+        return 0;
+    } else if (pActor->moveModified.vx != 0 || pActor->moveModified.vy != 0 || pActor->moveModified.vz != 0) {
+        nY = (s16)pActor->curYPos;
+    } else {
+        nY = out.vy;
+    }
+    *pY = nY;
+    FieldSetRangeByDelta(pY, pYMax, nStep);
+    return 0;
+}
+
+*/
 
 int FieldGetDominantComponent(int x, int y, int z);
 
