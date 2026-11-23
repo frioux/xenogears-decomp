@@ -54,7 +54,10 @@ CLASS_ORDER = ["park100", "twin", "cluster", "park", "fresh", "big", "redo"]
 # lane) while `fresh`, `big` and `redo` got no seat at all. In `auto` a single
 # class may therefore hold at most this share of the round's lanes, so the later
 # classes always get lanes; an explicit --kind is not capped.
-CLASS_SHARE = {"park": 0.6}
+# Round 420 measured the mix: with park capped at 0.6 the fresh lanes that got seats
+# matched 3 of 7 while park's 43 lanes of rounds 418-420 matched 5 (0.12 a lane). Park
+# therefore now takes at most 0.4 of an auto round.
+CLASS_SHARE = {"park": 0.4}
 INSN = re.compile(r"^\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{8}\s*\*/")
 
 
