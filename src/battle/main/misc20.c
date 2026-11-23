@@ -23,6 +23,9 @@
 // unchanged.
 #define BATTLE_AMOUNT_MULTIPLIER_UNCHANGED 4
 
+// The amount func_8009CBC4 clamps an action's value to before storing it in the work block.
+#define BATTLE_ACTION_AMOUNT_MAX 9999
+
 extern u8 *D_800C3D60;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleActingSlot;
@@ -38,8 +41,12 @@ extern u8 *g_BattleCommandCounter;
 extern s32 D_800C34DC[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u16 g_BattleActionSlotMask;
+extern s32 g_BattleCurveTargets[];
+extern u8 g_BattleCurveTargetModes[];
 extern s8 BattleTryApplyCondition(u8);
 extern s32 BattleComputeSlotActionAmount();
+extern s32 func_8009D3A0(void);
+extern void func_80096494(u16 *, u16 *, u8 *);
 extern void BattleSetSlotEntryFieldsTo2000(u8);
 extern void BattleRollPercentAndSetState38(void);
 
@@ -225,7 +232,139 @@ void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     }
     pSlot->activeEffectFlags3 = v;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CBC4);
+void func_8009CBC4(void) {
+    u16 atkValue;
+    u16 defValue;
+    s8 command;
+    s32 rate;
+    s32 amount;
+    s32 mulAtk;
+    s32 mulDef;
+    s32 amountSource;
+    u8 reduction;
+
+    rate = g_BattleCurrentRow->power;
+    command = func_8009D3A0();
+    atkValue = BattleScaleValueByMultiplierByte();
+    defValue = BattleApplySlotPercentToValue();
+    func_80096494(&atkValue, &defValue, &command);
+    if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 8) {
+        atkValue += atkValue / 5;
+    }
+    if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 2) {
+        atkValue += atkValue / 10;
+    }
+    if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 4) {
+        atkValue -= atkValue / 5;
+    }
+    if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 1) {
+        atkValue -= atkValue / 10;
+    }
+    if ((g_BattleCurSlotState->activeEffectFlags2 | g_BattleCurSlotState->accessoryEffectFlags2) & 4) {
+        defValue += defValue / 5;
+    }
+    if ((g_BattleCurSlotState->activeEffectFlags2 | g_BattleCurSlotState->accessoryEffectFlags2) & 1) {
+        defValue += defValue / 10;
+    }
+    if ((g_BattleCurSlotState->activeEffectFlags2 | g_BattleCurSlotState->accessoryEffectFlags2) & 8) {
+        defValue -= defValue / 5;
+    }
+    if ((g_BattleCurSlotState->activeEffectFlags2 | g_BattleCurSlotState->accessoryEffectFlags2) & 2) {
+        defValue -= defValue / 10;
+    }
+    if (g_BattleCurrentRow->element & 0x10) {
+        if (!(g_BattleTargetSlotEntry->accessoryEffectFlags2 & 0x40)) {
+            g_BattleTargetSlotEntry->activeEffectFlags2 |= 0x40;
+        }
+        if ((g_BattleTargetSlotState->activeEffectFlags3 | g_BattleTargetSlotState->accessoryEffectFlags3) & 0x4000) {
+            g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 3;
+            g_BattleCurveTargets[g_BattleTargetSlotIndex] =
+                (u16)(g_BattleActingSlot->maxMp / BATTLE_MP_SCALE) * 2;
+        }
+        if ((g_BattleTargetSlotState->activeEffectFlags3 | g_BattleTargetSlotState->accessoryEffectFlags3) & 0x1000) {
+            g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 2;
+            g_BattleCurveTargets[g_BattleTargetSlotIndex] = g_BattleTargetSlotState->maxHp / 10 * 2;
+        }
+    }
+    if (g_BattleCurrentRow->element & 0x20) {
+        if (!(g_BattleTargetSlotEntry->accessoryEffectFlags2 & 0x80)) {
+            g_BattleTargetSlotEntry->activeEffectFlags2 |= 0x80;
+        }
+    }
+    if (g_BattleTargetSlotEntry->activeEffectFlags2 & 0x40) {
+        defValue -= defValue >> 2;
+        g_BattleTargetSlotEntry->activeEffectFlags2 &= ~0x40;
+    }
+    if (g_BattleActingSlot->activeEffectFlags2 & 0x80) {
+        atkValue -= atkValue >> 2;
+        g_BattleActingSlot->activeEffectFlags2 &= ~0x80;
+    }
+    if (g_BattleCurrentRow->actionFlags & 0x400) {
+        rate = BATTLE_ACTION_POWER_FULL;
+    }
+    if (g_BattleCurrentRow->actionFlags & 0x100) {
+        mulAtk = 5;
+        mulDef = 4;
+    } else {
+        mulAtk = 4;
+        mulDef = 3;
+    }
+    if (defValue != 0) {
+        amount = mulAtk * atkValue - mulDef * defValue;
+    } else {
+        amount = mulAtk * atkValue;
+    }
+    amountSource = g_BattleCurrentRow->amountSource;
+    if (amountSource >= 0) {
+        if (amountSource < 2) {
+            amount = rate * amount / BATTLE_ACTION_POWER_FULL;
+        }
+    }
+    if (amount <= 0) {
+        amount = 0;
+    } else if (amount < 15) {
+        amount += rand() % 3;
+    } else {
+        amount += rand() % (amount / 15 + 2);
+    }
+    if (g_BattleCurrentRow->statusMask != 0) {
+        amount = BattleScaleValueByRowBitPercent(amount);
+    }
+    switch (command) {
+    case 1:
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
+        break;
+    case 2:
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 5;
+        reduction = g_BattleCurSlotState->unk9A[2];
+        if (reduction >= BATTLE_ACTION_POWER_FULL / 2) {
+            reduction = BATTLE_ACTION_POWER_FULL / 2 - 1;
+        }
+        if (amount != 0) {
+            amount = amount * (BATTLE_ACTION_POWER_FULL / 2 - reduction) / BATTLE_ACTION_POWER_FULL;
+        }
+        break;
+    case 3:
+        amount = 0;
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 4;
+        break;
+    case 4:
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
+        break;
+    }
+    if (g_BattleAmountThirdFlag != 0) {
+        if ((g_BattleCurrentRow->actionFlags & 0x100) && amount != 0) {
+            amount /= 3;
+        }
+    }
+    if (amount > BATTLE_ACTION_AMOUNT_MAX) {
+        amount = BATTLE_ACTION_AMOUNT_MAX;
+    }
+    if (amount < 0) {
+        amount = 0;
+    }
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = amount;
+}
 void BattleSetCurrentSlotState6(void) {
     BattleWorkBlock *p;
     u8 i;
