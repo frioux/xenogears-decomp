@@ -114,73 +114,88 @@ typedef struct {
 
 extern s32 D_800C35C4[3]; // the offset ApplyMatrixLV rotates, its z jittered per sprite
 
-// 73.66% (1092 bytes / 273 insns vs retail 275 / 1100). Frame (0xA0), the pWork
-// spill, the three loops, both poly arms and every rand()/GTE call are retail's.
-// The residual is register ALLOCATION: retail spills radius to 0x48 and keeps the
-// column counter in $fp with colCoord in $s7, this body keeps radius in a register,
-// so the record address and every store through it differ. Rebuilt from scratch
-// with the row-loop z snapshots as separate locals (rowOffset/passOffset), an
-// SVECTOR offset, D_800C35C4.vz and a uCoord local: frame and the 0x58/0x5C/0x60
-// slots then match retail exactly, but 1080 bytes / 270 insns / 68.79%. Also dead:
-// a typed &((T*)base)[col] index (274 insns, 1096 bytes, 70.57%). gcc strength-
-// reduces `col * 0x7C` into an induction register where retail recomputes
-// sll/subu/sll per iteration - that is the allocator difference.
+// 71.49% (1104 bytes / 276 insns) against retail's 1100 / 275. Frame (0xA0), the
+// ten-save prologue, the pWork home slot at 0xA0 and both loop latches are retail's;
+// every call in the right order. THE OLD 73.66% BODY IN THIS SLOT WAS WRONG CODE and
+// its number is not comparable: it called rand() twice where retail calls it once
+// (`D_800C35C4[2] = 0xFE0C0000; rand(); D_800C35C4[2] -= (rand() % 1000) << 16;` - the
+// source is the assignment plus ONE `-=`, whose store gcc puts in the jal delay slot),
+// it swapped the two pass constants (retail's `addiu v0,s7,-0x9B` is the pass == 0
+// path and `-0x95` the pass != 0 one), it assigned the two row z snapshots the wrong
+// way round, and it returned void where retail's tail is `lw v0,0xA0(sp)` (pWork).
+// Residual, named: lever g-scaled-record-index-is-a-giv. cc1 makes `col * 0x7C` a mult
+// giv (`addiu sN,sN,124` in the column latch) and spills the column counter to pay for
+// it, which keeps `radius` in $s8/register where retail reloads it from 0x48(sp); retail
+// recomputes `sll v0,fp,0x5 / subu v0,v0,fp / sll v0,v0,0x2` per iteration instead, so
+// every record address and every store through it differs. Tried and measured dead on
+// this body: dropping the rowCoord local and writing `row << 4` at its three uses
+// (1076 bytes / 269 insns / 78.03% - fuzzy rose, 24 bytes SHORT, so the local is
+// load-bearing); earlier rounds: per-row rowOffset/passOffset locals 1080 / 270 / 68.79,
+// typed `&((BattleEffectSprite *)base)[col]` index 1096 / 274 / 70.57. Preset screened on
+// this body, whole unit: gcc 2.6.0 gives 63.64 here and breaks 20 of the 22 matched
+// functions, -O3 gives the same 71.66 here and breaks 7 of them - the preset is right.
+// So the park is at retail's instruction list with the whole allocation displaced; it
+// needs a mechanism that stops loop.c recording the mult giv, not another spelling.
+// Retail's slot map for a future round: 0x10 vec, 0x20 angles, 0x28 matrix, 0x48
+// radius, 0x4C row, 0x50 pass, 0x54 rowCoord, 0x58/0x5C the row z snapshots, 0x60
+// colCoord, 0x64 rowBytes, 0x68/0x6C the two z accumulators, 0x70 blockOffset.
 /*
-void func_800B7424(BattleWorkBuffer *pWork) {
-    s32 vec[4];
+BattleWorkBuffer *func_800B7424(BattleWorkBuffer *pWork) {
+    VECTOR vec;
     SVECTOR angles;
     MATRIX matrix;
     BattleEffectSprite *pSprite;
     POLY_FT3 *pPoly;
     s32 radius;
-    s32 dist;
-    s32 rowOffset;
-    s32 passOffset;
+    s32 row;
+    s32 pass;
+    s32 rowCoord;
+    s32 zRow0;
+    s32 zRow1;
+    s32 colCoord;
     s32 rowBytes;
-    s32 zPass0;
-    s32 zPass1;
-    s32 colOffset;
+    s32 zAcc1;
+    s32 zAcc0;
     s32 blockOffset;
+    s32 dist;
     s32 angle;
     s32 scale;
-    s32 pass;
-    s32 row;
     s32 col;
     s32 i;
 
     pWork->frameCount = 0;
     radius = SquareRoot0(0x9500) << 10;
-    blockOffset = 0x3C;
     pass = 0;
+    blockOffset = 0x3C;
     while (pass != 2) {
-        rowBytes = 0;
-        zPass1 = -0xCA0;
-        zPass0 = -0xD60;
         row = 0;
+        rowBytes = 0;
+        zAcc1 = -0xCA0;
+        zAcc0 = -0xD60;
         while (row != 0xE) {
-            passOffset = zPass1;
-            rowOffset = zPass0;
-            colOffset = 0;
+            rowCoord = row << 4;
+            colCoord = 0;
+            zRow0 = zAcc0;
+            zRow1 = zAcc1;
             col = 0;
             while (col != 0x14) {
-                pSprite = (BattleEffectSprite *)((u8 *)pWork + (blockOffset + rowBytes) + col * 0x7C);
+                pSprite = (BattleEffectSprite *)((u8 *)pWork + (blockOffset + rowBytes + col * 0x7C));
                 pSprite->x = 0;
                 pSprite->y = 0;
                 pSprite->z = 0;
                 if (pass == 0) {
-                    pSprite->unk10 = (col * 16 - 0x95) << 5;
+                    pSprite->unk10 = (colCoord - 0x9B) << 5;
                     pSprite->unk18 = 0x4000;
-                    pSprite->unk14 = rowOffset;
+                    pSprite->unk14 = zRow0;
                 } else {
-                    pSprite->unk10 = (col * 16 - 0x9B) << 5;
+                    pSprite->unk10 = (colCoord - 0x95) << 5;
                     pSprite->unk18 = 0x4000;
-                    pSprite->unk14 = passOffset;
+                    pSprite->unk14 = zRow1;
                 }
-                D_800C35C4[2] = 0xFE0C0000;
-                rand();
-                D_800C35C4[2] -= (rand() % 1000) << 16;
-                Square0((VECTOR *)&pSprite->unk10, (VECTOR *)vec);
-                dist = SquareRoot0(vec[0] + vec[1]);
+                D_800C35C4[2] = -0x1F40000;
+                D_800C35C4[2] += -(rand() % 1000) << 16;
+                Square0((VECTOR *)&pSprite->unk10, &vec);
+                dist = SquareRoot0(vec.vx + vec.vy);
                 pSprite->unk64 = (radius / 32 - dist) / 0x800;
                 pSprite->unk64 = dist / 0x400;
                 angle = ratan2(pSprite->unk14, pSprite->unk10) + 0x600;
@@ -194,40 +209,39 @@ void func_800B7424(BattleWorkBuffer *pWork) {
                 pSprite->unk8 = (rand() & 0xFF) - 0x7F;
                 pSprite->unkA = (rand() & 0xFF) - 0x7F;
                 pSprite->unkC = (rand() & 0x1FF) - 0xFF;
-                i = 0;
-                while (i != 2) {
-                    pPoly = (POLY_FT3 *)((u8 *)pSprite + 0x24 + i * 0x20);
+                for (i = 0; i != 2; i++) {
+                    pPoly = &pSprite->polys[i];
                     SetPolyFT3(pPoly);
                     SetShadeTex(pPoly, 0);
                     pPoly->r0 = 0xFF;
                     pPoly->g0 = 0xFF;
                     pPoly->b0 = 0xFF;
                     pPoly->code = pPoly->code & 0xFD;
-                    pPoly->tpage = GetTPage(2, 1, col * 16 + 0x2C0, 0x100);
-                    pPoly->u1 = (col * 16 & 0x3F) + 0x10;
-                    pPoly->u2 = col * 16 & 0x3F;
-                    pPoly->v0 = row * 16;
-                    pPoly->v2 = row * 16 + 0x10;
+                    pPoly->tpage = GetTPage(2, 1, colCoord + 0x2C0, 0x100);
+                    pPoly->u1 = (colCoord & 0x3F) + 0x10;
+                    pPoly->u2 = colCoord & 0x3F;
+                    pPoly->v0 = rowCoord;
+                    pPoly->v2 = rowCoord + 0x10;
                     if (pass == 0) {
-                        pPoly->u0 = col * 16 & 0x3F;
-                        pPoly->v1 = row * 16;
+                        pPoly->u0 = colCoord & 0x3F;
+                        pPoly->v1 = rowCoord;
                     } else {
-                        pPoly->u0 = (col * 16 & 0x3F) + 0x10;
-                        pPoly->v1 = row * 16 + 0x10;
+                        pPoly->u0 = (colCoord & 0x3F) + 0x10;
+                        pPoly->v1 = rowCoord + 0x10;
                     }
-                    i++;
                 }
-                colOffset = colOffset + 0x10;
+                colCoord += 0x10;
                 col++;
             }
-            zPass0 = zPass0 + 0x200;
-            zPass1 = zPass1 + 0x200;
-            rowBytes = rowBytes + 0x9B0;
+            rowBytes += 0x9B0;
+            zAcc1 += 0x200;
+            zAcc0 += 0x200;
             row++;
         }
-        blockOffset = blockOffset + 0x87A0;
+        blockOffset += 0x87A0;
         pass++;
     }
+    return pWork;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
 
