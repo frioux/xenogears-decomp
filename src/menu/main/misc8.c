@@ -464,11 +464,19 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
    0x30) and therefore places the return block differently. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
 
-/* 84.26%. Frame and instruction multiset identical (260 bytes both). gcc lays
-   the `arg2` test out the other way round in both cases: it makes the 0x60
-   (unk60) block the fall-through and branches with `beqz a2` to the 0x30
-   (currentCharacterIDs) block, where the original branches `bnez a2` to the
-   0x60 block and falls through into the 0x30 one. Tried: if/else-if in both
+/* 84.26% re-measured under the unit's XenoMenu260 preset (260 bytes / 65
+   insns, retail's exact size and count). Two residuals, both block order:
+   (a) the `arg2` if/else: retail is `bnez a2 -> gear block` with the
+   currentCharacterIDs arm as the fall-through, gcc always emits the gear arm as
+   the fall-through and `beqz a2` to the characterIDs arm; (b) the case-0
+   prologue order (`addiu a0,a0,1` before the `andi a2,a2,0xff`/`lui g_Menu`
+   group where retail has it last).
+   Round 430: an else-less then-arm ending in an explicit `continue` (which is
+   the shape retail's duplicated `addiu a0,a0,1` in both back-edge delay slots
+   suggests), the same with the arms swapped, and an `if (!arg2)` spelling all
+   compile to output byte-identical to the if/else-if body below - gcc
+   canonicalises the two arms, so arm order cannot reach (a).
+   Tried: if/else-if in both
    orders, `for (arg0++; 1; arg0++)` vs `while (1)` + trailing arg0++, a
    pManager local (66.43%, makes gcc drop the second block's reload), goto
    labels (right order, but the loop stops being recognised so g_Menu and the
