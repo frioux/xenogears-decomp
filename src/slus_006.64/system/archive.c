@@ -1075,7 +1075,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * `entryIndex * 8 + (mem_addr)g_ArchiveStreamSections` instead of
  * `entryIndex * sizeof(ArchiveStreamFileSectionHeader) + ...` scores the same 97.47
  * and every earlier "the permuter cannot parse this body" note here is wrong about
- * the cause - the write-pointer casts are fine. A 3-minute run (base=8) found one
+ * the cause - the write-pointer casts are fine. A 3-minute run (-j 2) found one
  * edit worth taking seriously: a copy of the section pointer taken after
  * `CdGetSector(pLoc, 3)` and used in the found-block and the duplicated tail, which
  * scores 97.66 but 740 bytes / 185 insns, i.e. still not retail's shape. Land the
