@@ -59,7 +59,18 @@ extern s32 g_FieldPartyActorSlots[];
    What got it this far: a local pointer for the shared tail (the original keeps it
    in call-clobbered a2 and re-reads the global after FieldGetVec2Angle and in the
    arrival arm, so those statements must name g_FieldScriptVMCurActor directly) and
-   separate block-scoped rotation variables per arm. *//*
+   separate block-scoped rotation variables per arm.
+   ROUND 429 re-measured from the un-parked body: 97.96% (1076 bytes) stands. Two
+   spellings the above did not cover. Target-first written as
+   `(FIELD_ACTORS + FieldScriptVMGetActorIndex(1))->pActorData` with
+   `pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange` gives 97.72 at
+   the same 1076 bytes: its lhu pair and addu operand order DO reach retail's, the
+   two pointer loads still do not, so the base load stays above the index's last
+   `sll`. And making the cur-actor read volatile
+   through a cast pointer does NOT pin that load ahead of `lw s0` - it is still
+   sunk into the load-delay slot - so the placement belongs to the scheduler and
+   is not reachable from source order. */
+/*
 int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
