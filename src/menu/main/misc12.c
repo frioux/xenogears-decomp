@@ -37,6 +37,13 @@ typedef struct {
 #define MENU_SLOT_PRIM_CONTEXT 0x130F
 #define MENU_SLOT_PRIM_ENABLED 0x1310
 
+// Digits func_801E6CFC draws of each of the two slot stats it formats:
+// MenuParseNumberToDigits leaves the value in the tail of g_Menu->digits, any
+// leading digit marked MENU_DIGIT_NONE.
+#define MENU_SLOT_STAT_DIGIT_COUNT 3
+// Where those digits start in g_Menu->digits.
+#define MENU_SLOT_STAT_DIGIT_START (MENU_MAX_DIGITS - MENU_SLOT_STAT_DIGIT_COUNT)
+
 extern u8 D_801EA8C4[0x20];
 extern RECT D_801EA8E4;
 extern RECT D_801EA8EC;
@@ -56,6 +63,7 @@ extern void ArchiveCdDataSync(int mode);
 extern u_char ArchiveCdSetMode(u_char mode);
 extern u32 ArchiveGetDebugTable(void);
 extern void ArchiveStopTransfer(int mode);
+extern s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 
 void MenuClearGlyphTexture(void);
 void MenuBuildGlyphTexture(s32 arg0);
@@ -138,8 +146,17 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
    (c) the counter store address is "addu a0,s1,a0" against retail's
    "addu a0,a0,s1". Same instruction count, same bytes - a pure operand/destination
    tie in the allocator, exactly as this note says.
-#define MENU_SLOT_STAT_DIGIT_COUNT 3
-#define MENU_SLOT_STAT_DIGIT_START 6
+   Round 437 (this tree) measured three more spellings of the loop body, each
+   reverted: the double-negated offset from lever c-a-double-negated-offset-flips
+   ((u8*)g_Menu->pPrimBuffer - -(index * MENU_SLOT_PRIM_STRIDE)) turns the address
+   into subu a0,a0,s2 off a negative accumulator, 80.13% / 624 bytes / 156 insns;
+   the embedded-assignment temps (pSlot/pCount inside the += address and the
+   counter read, which is what the matched twin MenuDrawSlotResourceSprites in
+   menu/main/misc11_r2_b uses) give 82.70% / 612, with the addiu for
+   index*stride+0xA98 hoisted into the beq delay slot and the prim base in t1;
+   and the full twin shape (that plus continue, plus a pCounter variable) is
+   82.57% / 612. So in THIS unit the plain inline spelling in the park below is
+   still the best body, and the ten mirrored addu operands stay the residual.
 void func_801E6CFC(u8 index, u8* pEntry) {
     u8* pPrims;
     s32 primOffset;
@@ -1007,44 +1024,21 @@ void MenuReadPcFile(char* pName, char* pBuffer, int len) {
     PCread(fd, pBuffer, len);
     PCclose(fd);
 }
-// Triage r111: BUILDS (needed the MenuSectorHeader view + externs at the top of the file; the body's own externs for g_ArchiveTable/Header/DebugTable stay). As stored: 96.65%. Changing three lines - "header = D_801C5294;" instead of a pointer cast, "CdControlB(0x15, 0, pStat)" instead of &g_MenuCdStatus, and "(*pStat & 1)" for the status test - gives 96.81% (756 bytes): the remaining 16 bytes are (a) retail re-materialises &g_MenuCdStatus into s0 before the 0x15 query and reads *pStat through it where this body re-derives the address (a2 for the call, v1 for the read); a second pStat = &g_MenuCdStatus there scores worse (96.65%, address in a2 only), and (b) retail's last block ends with j epilogue + move v0,s0 where this body falls through into the shared move v0,s0, and retail places move s0,zero (result = 0) after the argument setup where this body puts it in the bne delay slot.
-/* Best: 96.65% under gcc-2.6.0 (764 bytes vs retail's 772). Recovered shape:
-   a 16-byte sector header struct copied from the zero datum D_801C5294 (that
-   copy reproduces exactly), ArchiveCdDataSync(0), then either the PC-file path
-   when ArchiveGetDebugTable() != 0 (three MenuReadPcFile reads, cdrom*.mdg/fid/
-   fnd chosen by `disc == 1`, merged tail by -fcross-jumping) or the CD path:
-   CdIntToPos(0,&pos) then three CdControlB(1,0,&g_MenuCdStatus) status loops, the
-   0x13/2/0x15 sector-17 header read loop, then ArchiveCdSetMode(0xA0) and the
-   0x18/0x28 archive table reads; returns 2 if the header tag word is not
-   "_XEN" (0x4E45585F), 3 if header byte 3 is not `disc + 0x30`, else 0.
-   What is left: retail keeps &g_MenuCdStatus in a saved register (s0) across the
-   first three status loops -- a `u_char* pStat = &g_MenuCdStatus;` local is what
-   took it 91.33 -> 96.65 -- and it re-forms the address with a fresh lui/addiu
-   for the 0x13 loop and again for the 0x15 call (mine reuses pStat in the 0x13
-   loop), so the frame is 8 bytes short and the register/loop-exit shapes differ
-   around the 0x13/0x15 retry: retail's is `if ((stat & 1) && (D_801EA8F5 &
-   0x40) && ret == 0) return 2; if (ret != 0) break;` inside the 0x13 loop.
-typedef struct {
-    u32 unk0;
-    u32 tag;
-    u32 unk8;
-    u32 unkC;
-} MenuSectorHeader; // Size: 0x10
-
-extern u8 D_801C5294[];
-extern char D_801C52A4[];
-extern char D_801C52B8[];
-extern char D_801C52CC[];
-extern char D_801C52E0[];
-extern char D_801C52F4[];
-extern char D_801C5308[];
-extern u_char g_MenuCdStatus;
-extern u_char D_801EA8F5;
-extern s32 g_ArchiveTable;
-extern s32 g_ArchiveHeader;
-extern s32 g_ArchiveDebugTable;
-extern s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
-
+// Best: 98.39% (760 bytes, 190 insns; retail 772 bytes / 193 insns). Two named residuals:
+// (1) the 0x15 query: retail re-materialises &g_MenuCdStatus into s0 there ("lui s0 / addiu s0 /
+// move a2,s0 in the jal slot / lbu v1,0(s0)"). This body reuses pStat (already s0 from the first
+// three status loops), so the lui/addiu pair is missing (-2 insns). A SECOND pointer variable
+// assigned at that site (pStatus = &g_MenuCdStatus) makes gcc materialise inline into a2 and
+// re-derive the lbu address into v1: 98.23% / 768 bytes / 192 insns - one insn short instead of
+// three, register split still different. Trying both spellings is where the next agent starts.
+// (2) the tail needs a DUPLICATE return copy: retail success ends "j epilogue; addu v0,s0" and the
+// merged failure return "addu v0,s0" follows it, so retail has both "move s0,zero" (result = 0)
+// and the copy. ONE "return result;" gives only the fallthrough copy (96.81% / 756). An explicit
+// "return result;" in the success block gives the j, but then gcc const-propagates the 0: it drops
+// "move s0,zero" and writes "move v0,zero" (this body, +8 bytes). A return per path (three
+// "return result;" statements) makes gcc const-propagate all three into li v0 (96.70% / 760).
+// Nothing tried keeps the s0 = 0 assignment AND the duplicate copy.
+/*
 s32 func_801E93A0(s32 disc) {
     MenuSectorHeader header;
     CdlLOC pos;
@@ -1052,7 +1046,7 @@ s32 func_801E93A0(s32 disc) {
     s32 result;
     s32 ret;
 
-    header = *(MenuSectorHeader*)D_801C5294;
+    header = D_801C5294;
     ArchiveCdDataSync(0);
     if (ArchiveGetDebugTable() != 0) {
         result = 0;
@@ -1089,8 +1083,8 @@ s32 func_801E93A0(s32 disc) {
         do {
             Vsync(3);
         } while (CdControlB(2, (u_char*)&pos, &g_MenuCdStatus) == 0);
-        ret = CdControlB(0x15, 0, &g_MenuCdStatus);
-        if ((g_MenuCdStatus & 1) && (D_801EA8F5 & 0x40) && (ret == 0)) {
+        ret = CdControlB(0x15, 0, pStat);
+        if ((*pStat & 1) && (D_801EA8F5 & 0x40) && (ret == 0)) {
             return 2;
         }
         if (ret != 0) {
@@ -1112,9 +1106,10 @@ s32 func_801E93A0(s32 disc) {
             ArchiveCdDataSync(0);
             ArchiveReadFileFromCdSector(0x28, (void*)g_ArchiveHeader, 0x7A, 0, 0);
             ArchiveCdDataSync(0);
+            return result;
         }
     }
     return result;
-}
-*/
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E93A0);
+
