@@ -111,7 +111,7 @@ extern u16 BattleSelectActionRow(s32, s32);
 extern void BattleSetSlotFlagB4(s32);
 extern void BattleClearSlotFlagB4(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
-extern u8 g_BattlePrimStartIndex;
+extern s32 g_BattlePrimStartIndex;
 extern u8 g_BattleStatDigitSpriteIds[];
 extern u8 g_BattleSlotDigitSpriteIds[];
 // The scene resource block pointer's word is followed by the scene's three
@@ -871,32 +871,51 @@ void BattleAddPrimListToOT(POLY_FT4 *pPrim, s32 count, s32 primStart) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072938);
-/* 83.62% - body is otherwise exact: POLY_FT4 array subscripted by
-   `g_BattlePrimStartIndex + i * 2` repeated per store (which is why the original reloads
-   g_BattlePrimStartIndex four times per iteration), SetShadeTex first, then r0/g0, then b0.
-   The `!= 1` spelling is what reproduces the original's branch layout (beq to the
-   out-of-line r0/g0 = 0x80 block, fall through to r0 = 0x80 / g0 = 0).
-   Left: 2.7.2 keeps the index `i` in a callee-saved reg and re-does `sll i,1` each
-   iteration (6 saved regs, 0x30 frame) and re-masks `mode` in the loop; ours makes
-   `i*2` itself the loop induction and hoists `andi mode,0xFF` into the preheader
-   (5 saved regs, 0x28 frame), which also shifts s3-s5 down by one.
+/* PARKED 95.62% under 2.6.0, 348 bytes against retail's 352 - ONE instruction
+   short, so it can never link. Body is otherwise instruction-for-instruction:
+   0x30 frame, six saved regs, the in-loop `sll s0,s2,1`, SetShadeTex first, then
+   r0/g0, then b0, and the `!= 1` spelling gives retail's out-of-line 0x80/0x80 arm.
+   THE RESIDUAL is the loop latch. Retail: `... sb zero,6(v0) / addiu s2,s2,1 /
+   slt / bnez / nop`, with a `nop` also in the load-delay slot after `lw
+   g_BattlePrimStartIndex`. Ours emits the b0 address chain AFTER the increment, so
+   reorg steals `addiu s2,s2,1` into that `lw`'s load-delay slot and `sb zero,6(v1)`
+   into the `bnez` slot - two instructions instead of three, hence 4 bytes short.
+   The increment is emitted before the b0 store because in this compile `i` dies at
+   the loop body's first statement.
+   MEASURED DEAD this round: the plain body without the `prim` local - 85.06 with
+   `lbu` and 89.10 once the global is a word - because loop.c then strength-reduces
+   `i * 2` into a `s0 += 2` biv (`sll v0,s2,1` in the loop test) and the frame drops
+   to 0x28; the `prim = i * 2;` body's FIRST STATEMENT is what stops that reduction
+   and buys 89.10 -> 95.62. Also dead: `s32` return type (95.62, unchanged, so the
+   c-stolen-delay-slot-retail lever does not apply here), a while-loop with `i++`
+   as the body's last statement (identical), index written `i * 2 + g` (equivalent,
+   89.10 with the biv reduction), gcc 2.7.2 (89.26), cdk (compile fails). The
+   permuter's best (3 min, base 531 -> 161) hoists the else arm's `g0 = 0x80` out of
+   its arm - wrong code (it overwrites the other arm's g0 = 0), rejected.
+   NOTE the eval order that matters: `g_BattlePrimStartIndex` must be typed s32 in
+   this file for retail's `lw` (it is read as a byte only by func_80071B94 and
+   func_80073538, both still stubs).
+*/
+/*
 void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
     s32 i;
+    s32 prim;
 
     for (i = first; i < last; i++) {
-        SetShadeTex(&pPrim[g_BattlePrimStartIndex + i * 2], 0);
+        prim = i * 2;
+        SetShadeTex(&pPrim[g_BattlePrimStartIndex + prim], 0);
         if ((mode & 0xFF) != 1) {
-            pPrim[g_BattlePrimStartIndex + i * 2].r0 = 0x80;
-            pPrim[g_BattlePrimStartIndex + i * 2].g0 = 0;
+            pPrim[g_BattlePrimStartIndex + prim].r0 = 0x80;
+            pPrim[g_BattlePrimStartIndex + prim].g0 = 0;
         } else {
-            pPrim[g_BattlePrimStartIndex + i * 2].r0 = 0x80;
-            pPrim[g_BattlePrimStartIndex + i * 2].g0 = 0x80;
+            pPrim[g_BattlePrimStartIndex + prim].r0 = 0x80;
+            pPrim[g_BattlePrimStartIndex + prim].g0 = 0x80;
         }
-        pPrim[g_BattlePrimStartIndex + i * 2].b0 = 0;
+        pPrim[g_BattlePrimStartIndex + prim].b0 = 0;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072938);
+
 void BattleRenderActorSplitDigitPanel(s32 slot, u8 arg1) {
     s32 first;
     s32 i;
@@ -1126,70 +1145,46 @@ void BattleRenderActorValueDigits(s32 slot) {
     g_BattleDisplayState->valueSpritePrimStart[slot] = g_BattlePrimStartIndex;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
-/* 97.12% under 2.6.0, 1316 bytes against retail's 1312 (ONE instruction long).
-   Every other instruction is present: the residuals are three orderings and the
-   one extra `li`.
-   1. THE SIZE GAP: the 9th argument of both func_80025FA8 calls (0xC00) is one
-      callee-saved register in retail (`ori s0,zero,0xC00` once, then `sw s0,0x20(sp)`
-      for both calls); this cc1 rematerialises `li t1,0xC00` per call. Measured dead:
-      the literal in both calls, a block-scope `s16 angle = 0xC00;` used at both
-      sites, and an angle local at function scope. A cc1_probe of the same two-call
-      group under this unit's own cc1/flags DOES put it in a callee-saved register,
-      with and without an enclosing loop, so the difference is the surrounding
-      switch-in-loop context, not the spelling. THE CAUSE IS loop.c, read off cc1's
-      own dumps (`build/src/battle/main/misc1.c.i.greg`): this compile HOISTS the
-      constant to the function preheader (`Insn 296 (life 24) ... moved to 849`,
-      i.e. insn 849 sets the 3072 pseudo next to the i=0/scale/0x2E08 ones), so its
-      range covers the whole outer loop, global_alloc lists it conflicting with
-      every other allocno (`;; 298 conflicts: ... 74 289 ... 16`) and reload
-      rematerialises it (`Spilling reg 9` twice). Retail's `ori s0,zero,0xC00`
-      sits INSIDE case 1 (0x3860, after the argument loads), so retail did not hoist
-      it and its range covered only case 1, where s0 is free (case 0's counter is
-      dead, case 1's `first` is not yet live). The reuse-a-local theory is not
-      possible in C: the 2nd call's 9th argument is 0xC00 at 0x38C0 and
-      `first = count*2` is at 0x38C4, so two different values are live either side
-      of the first call. Measured this round, both at 1316 with the same double `li`:
-      per-case counter locals (`scaledFirst`/`k`, no sharing with case 0) 92.24%, and
-      retail's own loop shape `for (; first < count*2; first += 2)` (one variable,
-      no `j = first` copy) 97.12% - so the allocnos' conflict set does not move.
-      What is left is defeating that hoist, and none of the round-327 levers
-      (lifetime/savings) is reachable here: retail's span between the two uses is
-      LONGER than this compile's (20 vs 14 insns) yet was not hoisted.
-   2. the prologue's save order: retail emits `sw s6 / move s6,zero` (actorOff, the
-      i*0x1C IV) AFTER the s3/s4 IV inits; ours defines it earlier.
-   3. case 1's 0x10/0x98 stack-argument immediates: retail emits them BEFORE the
+/* PARKED 96.74% under 2.6.0, 1316 bytes against retail's 1312 - ONE instruction
+   long, so it can never link. Re-measured this round on the parked body (the
+   older 97.12% note came from an equivalent loop shape; both are 96.74 now).
+   1. THE SIZE GAP: the 9th argument (0xC00) of both func_80025FA8 calls. Retail
+      emits `li s0,0xc00` ONCE inside case 1 (after the argument loads) and stores
+      that same register for both calls; this cc1 rematerialises `li t1,0xc00` per
+      call, which is exactly the extra instruction. cc1's .greg dump shows loop.c
+      hoisting the 3072 pseudo to the function preheader, so its allocno conflicts
+      with every other one and reload rematerialises it. Measured dead this round:
+      a function-scope `s16 angle` with `angle = 0xC00;` as case 1's FIRST
+      STATEMENT (identical - the assignment is still hoisted), the block-scope
+      initialiser (identical), case 0/case 1 loops written both as
+      `for (j = first; ...)` and as retail's `for (; first < count * 2; first += 2)`
+      (identical, the parked body uses the latter), and the case-3 arm written as
+      `*pSlotFlags != 0 && charIds != 7` with the pending store first (95.73%,
+      1332 bytes - worse). Earlier rounds measured dead: the literal in both calls,
+      per-case counter locals (92.24), a `do { } while (0)` around case 1 (93.95).
+   2. the prologue's save order: retail emits `sw s7,68 / li s7,0x1000` and
+      `sw s6,64 / move s6,zero` in a different position among the s5/s3/s4 IV
+      initialisations than this compile.
+   3. case 1's 0x10/0x98 stack immediates: retail emits them BEFORE the
       `lui a3,g_BattlePrimStartIndex` load, ours after.
-   4. case 3's two stores are mirrored: retail puts `sb zero,0xCC(a1)`
-      (panelPending) in the `j` delay slot and jumps to `sb zero,0x74(a1)`
-      (panelPackageCounts), so its chain is `beq ... beq ... j`; ours inverts the
-      polarity to `bne` and swaps the two stores.
-   Load-bearing shapes found this round (each measured):
-   - `first` must be `pState->...Count * 2`, ASSIGNED BEFORE the following package
-     call (90.56 -> 95.93): written as `first = <count>` with `first * 2` in the
-     loop init, gcc defers the `sll` into the loop preheader and fills retail's nop.
-   - the loop-invariant bases must be SOURCE locals assigned before the loop, in
-     this order: `i = 0;` as its own statement, `pOrigins = g_BattleSlotScreenOrigins;`,
-     `scale = 0x1000;`, then the for-init clause (95.93 -> 97.12: it fixes the whole
-     prologue save order and every case-0 register choice). With them spliced inline
-     the invariants are loop.c-hoisted to a different point of the preheader.
-   - case 1 needs `off`/`off2` locals holding `product + 0x3768` so the
-     g_BattleGraphicsWork base is added last.
-   - the flags need the walking pointer (`pSlotFlags += 8`), and g_BattleSlotActorIds
-     needs its own for-clause IV (`actorOff += 0x1C`): a plain `i * 0x1C` makes gcc
-     derive 28i as 4*(8i-i), drop s6 and shift the frame.
-   - a `do { } while (0)` around case 1 is worse (93.95%, 1328 bytes).
-// Draws the three slots' stat panels for one frame: which of the three package
-// calls each slot gets is its panelMode, and the packages are stacked into the
-// slot's prim area, x from the slot's screen origin.
-//
-// g_BattlePrimStartIndex is a byte where it counts packages and a word where it
-// indexes the pool; retail reads it both ways here.
+   4. case 3's two stores sit in the opposite arms' order (ours bne, retail beq).
+   Preset is right: 2.6.0 (2.7.2 is worse across this unit).
+   The parked body casts g_BattlePrimStartIndex to s32 on purpose: retail reads it
+   with `lbu` in this function (0x3D24) and with `lw` at every other site.
+   Load-bearing shapes found in earlier rounds (each measured): `first` must be
+   `<count> * 2` ASSIGNED BEFORE the following package call; the loop-invariant
+   bases must be source locals assigned before the loop in the order `i = 0;`,
+   `pOrigins = g_BattleSlotScreenOrigins;`, `scale = 0x1000;`, then the for-init;
+   case 1 needs `off`/`off2` locals holding `product + 0x3768` so the
+   g_BattleGraphicsWork base is added last; the flags need the walking pointer
+   (`pSlotFlags += 8`) and g_BattleSlotActorIds needs its own for-clause IV
+   (`actorOff += 0x1C`), else gcc derives 28i as 4*(8i-i) and shifts the frame.
+*/
+/*
 void func_80073538(void) {
     s32 actorOff;
     s32 first;
     s32 i;
-    s32 j;
     s32 off;
     s32 off2;
     u8 *pSlotFlags;
@@ -1216,9 +1211,9 @@ void func_80073538(void) {
                     (s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) + g_BattleDisplayState->panelPackageCounts[i] * 80,
                     (s16)(i * 96 + (pOrigins[g_BattleSlotPageIndex * 3 + i] + 0x48)), 0x1C);
                 // Every package of the panel that is not a digit is blended grey.
-                for (j = first; j < g_BattleDisplayState->panelPackageCounts[i] * 2; j += 2) {
+                for (; first < g_BattleDisplayState->panelPackageCounts[i] * 2; first += 2) {
                     BattleSetPrimGrey40BlendSub((POLY_FT4 *)((s32)(g_BattleGraphicsWork + (i * 0x320 + 0x2E08)) +
-                                                             (*(s32 *)&g_BattlePrimStartIndex + j) * 40));
+                                                             (*(s32 *)&g_BattlePrimStartIndex + first) * 40));
                 }
                 g_BattleDisplayState->panelPrimStart[i] = g_BattlePrimStartIndex;
                 g_BattleDisplayState->panelPending[i] = 1;
@@ -1232,8 +1227,8 @@ void func_80073538(void) {
                 g_BattleDisplayState->scaledPanelPackageCount += func_80025FA8(g_BattleSpriteArchive, 0x53,
                     (u8 *)(off + (s32)g_BattleGraphicsWork),
                     *(s32 *)&g_BattlePrimStartIndex, 0x10, 0x98, scale, scale, angle);
-                for (j = first; j < g_BattleDisplayState->scaledPanelPackageCount * 2; j += 2) {
-                    off2 = (j + *(s32 *)&g_BattlePrimStartIndex) * 40 + 0x3768;
+                for (; first < g_BattleDisplayState->scaledPanelPackageCount * 2; first += 2) {
+                    off2 = (first + *(s32 *)&g_BattlePrimStartIndex) * 40 + 0x3768;
                     BattleSetPrimGrey40BlendSub((POLY_FT4 *)(off2 + (s32)g_BattleGraphicsWork));
                 }
                 g_BattleDisplayState->scaledPanelPrimStart = g_BattlePrimStartIndex;
@@ -1257,8 +1252,9 @@ void func_80073538(void) {
         }
         pSlotFlags += 8;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
+
 // While the sub-image scroll is running (BattleGraphicsWork.scrollActive), the row the
 // scroll index selects gets its three colour bytes written and the two prims it holds
 // are added to the ordering table. Read through the block as a byte array: retail
