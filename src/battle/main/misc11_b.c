@@ -70,7 +70,7 @@ extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern void BattleInitSlotRowsForActor(s32 arg0, s32 arg1);
 extern s32 func_800877E0(s32 arg0, s32 arg1);
 extern void BattleInitActorSlotAnimation(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
-extern s32 func_80087AF0(u8 arg0, u8 arg1);
+extern s32 BattleAdvanceCommandStep(u8 arg0, u8 arg1);
 extern void BattlePlaySoundWithBaseId(u8 arg0);
 extern void BattleActorInitSpriteFromSlot(void);
 extern void BattleDrawCommandRowSprites(void);
@@ -125,7 +125,7 @@ typedef struct {
     /* 0x2DC */ u8 unk2DC;
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
-    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; func_80087AF0 also uses it as the step index into the action-id table
+    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; BattleAdvanceCommandStep also uses it as the step index into the action-id table
     /* 0x2E0 */ u8 colorShift; // subtracted from each colour byte of the slot's prims after << 4
     /* 0x2E1 */ u8 commandQueued; // set when a handler queued its command, so its next call returns at once
     /* 0x2E2 */ u8 lastMenuState; // the menuState the current frame was built for
@@ -446,7 +446,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80081B58);
 //      5, 4, 7, 6 with an empty `case 5: break;` (that is what makes retail's li v0,5 /
 //      beq / slti 6 four-node tree); the masked slot is TWO locals, `slot` from the entry
 //      and `who` masked again just before func_800861D0 and used as the timer index (pass
-//      arg0 to func_80087AF0 and it re-masks from $s1); the gauge scale is /56 (magic
+//      arg0 to BattleAdvanceCommandStep and it re-masks from $s1); the gauge scale is /56 (magic
 //      0x92492493 with addu + sra 5, the table's full-scale row byte 0x38); case 5's four
 //      stores keep menuState last (it lands in the BattleClearFlagC6 jal delay slot);
 //      g_BattleGaugeCountdownTable is read with its 2D subscript (the flat
@@ -591,7 +591,7 @@ s32 func_80081B58(u32 arg0) {
             who = arg0;
             func_800861D0(g_BattleMenuEvent, who);
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 =
-                func_80087AF0(who, ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost);
+                BattleAdvanceCommandStep(who, ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost);
             g_BattleSlotCountdownTimers[who] =
                 (g_BattleGaugeCountdownTable[((BattleActorSlots *)g_BattleCommandQueue)->gaugeMax]
                             [((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue] * 100) / 56;

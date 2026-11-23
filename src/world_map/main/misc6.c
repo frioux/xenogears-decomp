@@ -293,7 +293,7 @@ extern void WorldMapInitSlotAtScrollPosition(void);
 extern void func_80080944(void);
 extern void func_80080A28(void);
 extern void WorldMapUpdateFadeGroups(void);
-extern int func_80080370(int);
+extern int WorldMapUpdateSlotActorScriptState(int);
 extern void WorldMapStartSlot(s32, s32);
 extern void SoundPlaySoundEffectOnFreePair(s32);
 extern int func_80080578(int);
@@ -1431,7 +1431,7 @@ void WorldMapInitializeModeWithActors(void) {
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
-    WorldMapAddSlot(WorldMapInitActorScript, func_80080370);
+    WorldMapAddSlot(WorldMapInitActorScript, WorldMapUpdateSlotActorScriptState);
     WorldMapAddSlot(func_80080578, func_80080600);
     WorldMapAddSlot(WorldMapInitSlotAtScrollPosition, func_80080944);
     WorldMapAddSlot(func_80080A28, WorldMapUpdateFadeGroups);

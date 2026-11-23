@@ -114,6 +114,9 @@ u_int HeapGetCurrentUser(void);
 void HeapSetCurrentUser(u_int userTag);
 u_int HeapToggleErrorHandler(u_int status);
 void HeapGetAllocInformation(mem_addr* pAllocSourceAddr, u_int* pAllocSize);
+// HeapAlloc allocFlags: scan the free list for the smallest block that fits.
+#define HEAP_ALLOC_BEST_FIT 2
+
 void* HeapAlloc(u_int allocSize, u_int allocFlags);
 void* HeapInsertAlloc(HeapBlock* pMem, u_int allocSize);
 void HeapConsolidate(void);

@@ -26,10 +26,6 @@
 // Primitive code of the free-size tile a rendered string's text is erased with
 #define SYSTEM_STRING_TILE_CODE 0x60
 
-// HeapAlloc allocFlags: carve the allocation out of the smallest free block that
-// fits rather than the first one
-#define HEAP_ALLOC_BEST_FIT 2
-
 // One entry of the glyph code table: the two bytes that identify a glyph
 typedef struct {
     /* 0x0 */ u8 firstByte;

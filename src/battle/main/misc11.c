@@ -64,7 +64,7 @@ extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern void BattleInitSlotRowsForActor(s32 arg0, s32 arg1);
 extern s32 func_800877E0(s32 arg0, s32 arg1);
 extern void BattleInitActorSlotAnimation(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
-extern s32 func_80087AF0(u8 arg0, u8 arg1);
+extern s32 BattleAdvanceCommandStep(u8 arg0, u8 arg1);
 extern void BattlePlaySoundWithBaseId(u8 arg0);
 extern void BattleActorInitSpriteFromSlot(void);
 extern void BattleDrawCommandRowSprites(void);
@@ -118,7 +118,7 @@ typedef struct {
     /* 0x2DC */ u8 unk2DC;
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
-    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; func_80087AF0 also uses it as the step index into the action-id table
+    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; BattleAdvanceCommandStep also uses it as the step index into the action-id table
     /* 0x2E0 */ u8 colorShift; // subtracted from each colour byte of the slot's prims after << 4
     /* 0x2E1 */ u8 commandQueued; // set when a handler queued its command, so its next call returns at once
     /* 0x2E2 */ u8 lastMenuState; // the menuState the current frame was built for
@@ -480,7 +480,7 @@ void func_80080C94(u8 arg0) {
         ret = 0;
         r = func_800877E0(arg0, (g_BattleCommandQueue + idx)[0x3C]);
         BattleInitActorSlotAnimation(r, arg0, (g_BattleCommandQueue + idx)[0x3C], BattleFindMinValueOtherSlot(arg0));
-        func_80087AF0(arg0, info[1] + 1);
+        BattleAdvanceCommandStep(arg0, info[1] + 1);
         BattleQueueCommandFE(arg0);
         break;
     case 2:

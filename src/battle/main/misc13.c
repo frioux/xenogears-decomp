@@ -19,10 +19,11 @@
 // The most steps a linear move takes in one frame: BattleSetupLinearMove rolls
 // g_BattleLerpStepsPerFrame from 1 to it.
 #define BATTLE_LERP_STEPS_PER_FRAME_MAX 8
+// The last step index g_BattleCommandQueue's step counter walks through.
+#define BATTLE_COMMAND_STEP_MAX 8
 // The digit sprites BattleParseNumberToDigits fills g_BattleValueDigitSpriteIds
 // with, and the id that marks a digit position left blank.
 #define BATTLE_VALUE_DIGIT_COUNT 4
-#define BATTLE_VALUE_DIGIT_NONE 0xFF
 // The battle slots func_80085618 steps and how many of them are character slots
 // (BattleReleaseCharSlot is called for the rest).
 #define BATTLE_ACTIVE_SLOT_COUNT 11
@@ -159,7 +160,7 @@ extern u8 GameRandomByteRange(s32, u8);
 extern s32 BattleMaskHasSlotBit(s32, u8);
 extern u8 g_BattleCommandCodes[];
 extern u8 g_BattleCommandSlotIds[];
-extern u8 D_800C34B3[][3];
+extern u8 g_BattleCommandStepTable[][3];
 extern BattleCommandRow D_800CCD1C[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern void func_80087EDC(u8, u8);
@@ -860,7 +861,7 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
    the non-volatile step read (1000 bytes), `*arg0`-style base locals, the embedded
    assignment at D_800CCD1C (97.37), `charId`/`commandNo` locals at the arm (identical),
    gcc-2.6.0 (99.96 identical) and gcc-2.7.2-cdk (compile-failed). */
-s32 func_80087AF0(u8 arg0, u8 arg1) {
+s32 BattleAdvanceCommandStep(u8 arg0, u8 arg1) {
     u8 *pQueueRow;
     u8 slot;
     u8 count;
@@ -884,18 +885,18 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     }
     BattleClearSlotCurveEntry();
     if (g_BattleSlotFlags[(u8)arg0 * 8] == 0) {
-        if (g_BattleCommandQueue[0x2DC] < 8) {
+        if (g_BattleCommandQueue[0x2DC] < BATTLE_COMMAND_STEP_MAX) {
             commandNo = arg1 & 0xFF;
-            g_BattleCommandQueue[0x2DC] = D_800C34B3[g_BattleCommandQueue[0x2DC]][commandNo];
+            g_BattleCommandQueue[0x2DC] = g_BattleCommandStepTable[g_BattleCommandQueue[0x2DC]][commandNo];
         } else {
             rawStep = *(volatile u8 *)&g_BattleCommandQueue[0x2DC];
-            step = rawStep - 8;
+            step = rawStep - BATTLE_COMMAND_STEP_MAX;
             if ((u16)BattleMaskHasStatusBit(
                            *(u16 *)((u8 *)&g_GameState + 0x16C0 + g_BattleActorCharIds[(u8)arg0] * 0x20),
                            step) != 0) {
                 done = 1;
             } else {
-                g_BattleCommandQueue[0x2DC] = 7;
+                g_BattleCommandQueue[0x2DC] = BATTLE_COMMAND_STEP_MAX - 1;
             }
         }
     } else {

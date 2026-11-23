@@ -151,7 +151,7 @@ typedef struct {
     /* 0x2DC */ u8 commandCostIndex; // one-based index into g_BattleCommandCost of the command just queued, so the confirm handler charges that row
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
-    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; func_80087AF0 also uses it as the step index into the action-id table
+    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; BattleAdvanceCommandStep also uses it as the step index into the action-id table
     /* 0x2E0 */ u8 colorShift; // subtracted from each colour byte of the slot's prims after << 4
     /* 0x2E1 */ u8 commandQueued; // set when a handler queued its command, so its next call returns at once
     /* 0x2E2 */ u8 lastMenuState; // the menuState the current frame was built for; the dispatcher rebuilds when it differs
@@ -718,7 +718,7 @@ extern void BattlePlaySoundWithBaseId(u8);
 extern int func_80086F98(u8, u8);
 extern u32 BattleCheckActorCommandAvailable(u8, u8);
 extern void BattleAppendCommandRecord(u8);
-extern void func_80087AF0(u8, u8);
+extern void BattleAdvanceCommandStep(u8, u8);
 extern void func_800898F0(u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
 /* 87.92% (1696 bytes against retail's 1708: 3 instructions short). The whole event
@@ -885,7 +885,7 @@ u32 func_80083948(u8 arg0) {
             }
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4 =
                 (u8)func_80086F98(index - 1, arg0) == 0;
-            func_80087AF0(arg0, index);
+            BattleAdvanceCommandStep(arg0, index);
             g_BattleSlotEntries[arg0].counter =
                 g_BattleSlotEntries[arg0].counter - g_BattleCommandCost[((BattleActorSlots *)g_BattleCommandQueue)->commandCostIndex];
             func_800898F0(arg0);

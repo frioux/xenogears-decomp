@@ -229,7 +229,7 @@ void* HeapAlloc(u_int allocSize, u_int allocFlags) {
             bOutOfMemory = 0;
     
             if (allocFlags != 1) {
-                if (allocFlags != 2) {
+                if (allocFlags != HEAP_ALLOC_BEST_FIT) {
                     goto l_0x1B4;
                 }
 

@@ -10,8 +10,6 @@
 #define BATTLE_PRIM_POOL_SLOT_COUNT 16
 // The debug pages g_DebugPageIndex cycles through.
 #define BATTLE_DEBUG_PAGE_COUNT 5
-// A digit table entry that leaves its position blank (BATTLE_VALUE_DIGIT_NONE of misc13).
-#define BATTLE_VALUE_DIGIT_NONE 0xFF
 
 // Partial view of the per-frame battle work block (g_BattleDisplayState). The shared
 // include/battle/battle_work.h owns the type other units read; this view names

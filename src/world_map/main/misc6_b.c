@@ -48,7 +48,7 @@ extern void SoundPlaySoundEffectOnFreePair(s32);
    misc6_b's .rodata starts at 0x6F0 (8-aligned), so the table is at offset 0. The
    explicit `case 0:` is what keeps the table's slot 0: without it gcc folds the
    index to `state - 1` and emits 64 entries. */
-int func_80080370(int index) {
+int WorldMapUpdateSlotActorScriptState(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
     switch (pActor->state) {

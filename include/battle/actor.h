@@ -40,6 +40,8 @@
 #define BATTLE_ELEMENT_MASK 0x3F
 // The slotStates byte that means no state at all: what BattleClearAllSlotStates fills.
 #define BATTLE_SLOT_STATE_CLEARED 0xFF
+// A digit table entry that leaves its position blank.
+#define BATTLE_VALUE_DIGIT_NONE 0xFF
 // g_BattleActorCharIds holds this in a slot no character occupies.
 #define BATTLE_SLOT_CHARACTER_NONE 0x7F
 // The hp stat's cap: BattleSetSlotConditionActionValue clamps maxHp to it.
