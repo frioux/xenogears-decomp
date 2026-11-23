@@ -372,6 +372,30 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
 // second copy, so five coalescings happen and no source statement adds a live value back.
 // The permuter was not run: at 74% with five allocator-pressure moves (not a shuffle) it
 // cannot help.
+// ROUND 426 (redo), re-measured 74.33% (668 bytes, 167 insns) - the parked body already
+// carries the grouped arm offset (e). The entry block below is the whole remaining gap:
+// retail does `addu a3,a1,zero` (raw id copy) and then the parity chain IN PLACE in $a1
+// (`sll a1,a1,16 / sra / addiu 0x400 / andi 0x1`), while every spelling here computes the
+// chain into a fresh $v0 and keeps the raw id in the argument register, so $v0/$v1 swap and
+// the three case-arm `move`s (a3/a0 in case 1, a0/a3 in case 2) never appear: 688-668 = 5.
+// Measured this round, each on its own:
+//  (i) parity as an s16 INTERMEDIATE, `parity = (s16)animId + 0x400; if (parity & 1)` with
+//      prevGroup between the two: 73.77 / 664 (the copy `index = animId` disappears and the
+//      chain is still $v0).
+//  (j) `index = animId; ... parity = animId; parity = (s16)parity + 0x400;` (a copy that the
+//      chain then destroys, which should make $a3 necessary): 73.77 / 664, identical code -
+//      copy-prop folds the two initialisations into one `(s16)animId + 0x400` and drops the
+//      copy, so the copy still does not exist.
+//  (k) splitting the chain (`parity = (s16)animId; parity += 0x400;`) and even assigning the
+//      result back INTO the parameter (`animId = parity; if (animId & 1)`) 73.77 / 664: gcc
+//      2.7.2-cdk never makes the parameter's own register self-modifying here, it always
+//      materialises (s16)x + K in a new $v0.
+//  (l) the m2c draft shape (flag value through a temp variable instead of |= / &= ~, the two
+//      arm tests inverted to `>=`, the whole body wrapped in `if (pDefaultAnimFile != NULL)`):
+//      60.69 / 596, 149 insns - it loses the tail-merged case-1/2 arm block, so it is a
+//      different structure, not a closer allocation.
+// Conclusion: the copy and the two case-arm moves are not reachable from source with this
+// compiler; the park is the honest ceiling. Do not re-try (i)-(l).
 /*
 void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     s32 prevGroup;
