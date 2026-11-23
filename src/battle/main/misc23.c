@@ -7,7 +7,7 @@
 extern u8 *g_BattleColorSourceA;
 extern u8 *g_BattleColorSourceB;
 extern u8 *g_BattleSpriteRenderData;
-extern u8 *g_BattlePartPrimBuffers[2];
+extern u8 *g_BattlePartPrimBuffers; /* [2] in misc22; only element 0 is used here */
 extern u8 g_BattleSpritePool[];
 extern u8 g_BattleBlockPool[];
 extern u16 g_BattleCurrentActorSlot;
@@ -299,44 +299,48 @@ extern s16 D_800D2D34;
 extern s16 D_800C3EA8;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
-/* 99.58% (unit preset XenoBattle260Div0): the whole function is recovered, retail's
-   exact size (1424 bytes, 356 insns), retail's frame, register roles, loops and
-   instruction order. Residual: the operand order of the 15 address addus of the
-   g_BattlePartPrimBuffers[0] copy sites - retail has "addu v0,v0,a1" / "addu v0,v0,a2"
-   (the freshly loaded pointer first), gcc 2.6.0 emits "addu v0,a1,v0". Same value,
-   different encoding, so objdiff cannot pass it and the linked bytes differ.
-   ROUND 393 CLOSED HALF OF IT (99.16 -> 99.58): the 15 g_BattleSpriteRenderData sites
-   need the two-statement IN-PLACE form (lever b-in-place-addu-flips-but-loads-base-early),
-   pSlot = g_BattleSpriteRenderData; pSlot += i * 0x24; pDst[0] = pSlot[0x1740]; - the
-   assignment makes the sum the address addu's destination, which puts the base first.
-   The same trick on the prim sites is impossible: ANY spelling that hands the loaded
-   pointer to a register (pSlot = g_BattlePartPrimBuffers[0]; pSlot += i * 0x18; or
-   *((pSlot = g_BattlePartPrimBuffers[0]) + i * 0x18 + K)) makes cc1 cse the CONSTANT
-   address of g_BattlePartPrimBuffers into $t0 once before both loops ("lui t0,%hi" +
-   "addiu t0,%lo") and then reload through it ("lw v0,0(t0)") - 342 insns / 1368 bytes /
-   92.95%, and converting even 3 of the 15 sites triggers it (352 insns, 97.32%). Every
-   spelling that keeps the address inside the MEM instead (the plain subscript, and
-   *(g_BattlePartPrimBuffers[0] + i * 0x18 + K)) keeps retail's instruction count and
-   the index-first addu. So base-first order and per-site lui/lw are mutually exclusive
-   here. Permuter: none (966 iterations on this body, base=150 best=150; 2036 and 993
-   iterations on the 99.16 body). try_flags on this body: 2.6.0 -O2 -G0 99.58 (the unit
-   preset), cdk -G0 78.58, 2.7.2-psx rejects the body outright.
-   THE SAME LEVER APPLIES TO THE PARKED func_800A64E4 BELOW: its 18 sites are this
-   exact shape (12 g_BattleSpriteRenderData groups plus 6 prim groups), so whoever
-   unparks it should convert the sprite sites to the in-place form first; its 98.71%
-   then keeps only the prim residual.
-   What DID matter, for whoever unparks it: the first clear loop is a BYTE OFFSET
-   loop - for (offset = 0x12; offset >= 0; offset -= 6) g_BattleColorTintParams[offset] = 0; -
-   and it needs its own local (retail keeps it in $v0, the other three loops use
-   $a3); with i * 6 gcc keeps a counter and an offset register and the window is
-   five instructions wrong. The func_800A3640 call takes 19 parameters - a0 is
-   &g_BattleImage, a1 0, a2 1, a3 0x601 and the fifteen stack words 0x10..0x48 are
-   0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C,
-   D_800C3EA8, 0, 0, 0, 0 (the s16 ones are passed as promoted shorts, which is
-   why each is one sign-extended word in its own slot) - and with that prototype in
-   scope that whole call is byte-identical. D_800D360C = 0 belongs between the call
-   and the first HeapAlloc; the two 0x88 allocations fill g_BattleColorTintBase (the copy
-   destination) and g_BattleColorTintWork. */
+/* 99.16% (1412 bytes / 353 insns; retail 1424 / 356) - NOT comparable with the
+   previous 99.58 park in this slot: that body was retail's exact size but had all 15
+   g_BattlePartPrimBuffers operand orders mirrored (30 differing lines, judged
+   unreachable); this one has EVERY instruction, displacement, branch, frame and
+   operand order right and is 3 instructions SHORT, with one named residual:
+   RETAIL RELOADS THE PRIM POINTER FOR LOOP 1'S FIRST STORE. Retail's
+   .L800A61A4 is lui/lw (guard) + beqz + addiu a1,a1,0x24, then lui/lw AGAIN + addu
+   v0,v0,a2; cc1 2.6.0 cse's the store's load into the guard's register and drops
+   the second lui/lw/nop (353). Loop 2's first store DOES reuse the guard's value
+   (retail's addu sits in the beqz delay slot), so only loop 1 reloads, and a single
+   declaration cannot be volatile for one site only: `extern u8 * volatile g_...`
+   makes loop 2 reload too (359), and `pSlot = *(u8 * volatile *)&g` reloads but
+   emits lui/addiu/lw (3 insns) because volatile forces an indirect address
+   (357, 1428 bytes, 99.71 - the reg-based address costs the extra addiu).
+   HOW THE 15 OPERAND ORDERS WERE CLOSED (new lever, also in levers.md): the
+   g_BattlePartPrimBuffers sites failed the in-place trick with the array extern
+   (`extern u8 *g_BattlePartPrimBuffers[2]`) because cc1 hoists `la t0,gArr` out of
+   both loops and reloads through it (1368 bytes, 92.95%). This TU's declaration is
+   now the SCALAR `extern u8 *g_BattlePartPrimBuffers` (misc22 owns the pair; only
+   element 0 is used here) - for a scalar extern cc1 emits the DIRECT symbolic
+   `lw v0,sym` per site, and the two-statement in-place form
+   (pSlot = g; pSlot += i * 0x18; pDst[0] = pSlot[0x284];) then gives retail's
+   base-first `addu v0,v0,a2` with retail's per-site lui/lw. So "MEM base at a
+   constant address" was never the obstacle; ARRAY-ness was.
+   Tried for the reload, all measured: the plain subscript for the first store
+   (reloads but index-first, 99.4x), an embedded assignment inside the address,
+   `if ((mem_addr)g != 0)` as the guard (no effect - pointers and ints are both
+   SImode on MIPS, so no mode difference to block cse), the volatile cast (above),
+   and a double-negated offset for all 15 sites (cc1 turns it into a negative biv:
+   subu + addiu a1,a1,-36, 90.19%). No permuter run on this body - the residual is
+   a MISSING instruction, which the permuter cannot add.
+   Everything else the old note said still holds: the first clear loop is a byte
+   OFFSET loop (for (offset = 0x12; offset >= 0; offset -= 6)) needing its own local,
+   the func_800A3640 call takes 19 parameters (a0 &g_BattleImage, a1 0, a2 1,
+   a3 0x601, stack words 0x10..0x48 = 0, D_800D2D30, D_800D2D34, 0, 0, 0, 0,
+   D_800D2D30, D_800D2D34, D_800D2D2C, D_800C3EA8, 0, 0, 0, 0), D_800D360C = 0 goes
+   between that call and the first HeapAlloc, and the two 0x88 allocations fill
+   g_BattleColorTintBase then g_BattleColorTintWork. The sprite sites (0x1740..0x175A
+   with i*0x24, 0x16E0 with i*0x18) already use the same in-place form.
+   The parked func_800A64E4 below needs the same in-place form over a scalar extern
+   to close its own prim sites - its 18 sites are this shape too, and its body still
+   reads g_BattlePartPrimBuffers[0], which no longer matches the declaration above. */
 /*
 void func_800A5EB4(void) {
     u8 *pEntry;
@@ -415,32 +419,63 @@ void func_800A5EB4(void) {
         } else {
             pDst += 0x14;
         }
-        if (g_BattlePartPrimBuffers[0] != NULL) {
-            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x18 + 0x284];
-            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x18 + 0x285];
-            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x18 + 0x286];
+        if (g_BattlePartPrimBuffers != NULL) {
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x18;
+            pDst[0] = pSlot[0x284];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x18;
+            pDst[1] = pSlot[0x285];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x18;
+            pDst[2] = pSlot[0x286];
         }
         pDst += 4;
     }
     for (i = 0; i < 2; i++) {
-        if (g_BattlePartPrimBuffers[0] != NULL) {
-            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E4];
-            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E5];
-            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E6];
+        if (g_BattlePartPrimBuffers != NULL) {
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x2E4];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x2E5];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x2E6];
             pDst += 4;
-            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EC];
-            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2ED];
-            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EE];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x2EC];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x2ED];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x2EE];
             pDst += 4;
-            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F4];
-            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F5];
-            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F6];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x2F4];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x2F5];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x2F6];
             pDst += 4;
-            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FC];
-            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FD];
-            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FE];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[0] = pSlot[0x2FC];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[1] = pSlot[0x2FD];
+            pSlot = g_BattlePartPrimBuffers;
+            pSlot += i * 0x24;
+            pDst[2] = pSlot[0x2FE];
             pDst += 4;
         } else {
+
             pDst += 0x10;
         }
     }
