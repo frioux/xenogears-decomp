@@ -564,7 +564,22 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    signedness lever) coalesces to no instruction and leaves the code identical.
    One fact for a later lane: retail reads 0xB6 with `lh` here but with `lhu`
    in BattleAccumulateGaugePoints (asm/battling/main/misc2.s line 986), so the
-   field is u16 and this function's original C read it as signed. */
+   field is u16 and this function's original C read it as signed.
+   Round 425: re-parked at 98.61% / 72 bytes (retail's size, 18 insns). The
+   residual is ONE root cause, the sum's register: retail keeps it in the dying
+   parameter's $a1 (addu a1,v1,a1 / slti v1,a1,4097 / addiu v1,a1,-4081) and
+   ours puts it in the load temp's $v1 (addu v1,v1,a1 / slti v0,v1,4097), with
+   the bnez operand and the addiu following. Fresh evidence: the -da .lreg dump
+   for this exact body shows cc1's RTL makes the sum the SAME pseudo as the load
+   ((set (reg/v:SI 74) (plus:SI (reg/v:SI 74) (reg:SI 5 a1))), "Register 74
+   used 5 times across 7 insns", live into basic block 2), so it is a GLOBAL
+   allocno handed $v1 by REG_ALLOC_ORDER - the load temp never gets its own
+   register to lose. A cc1 probe (same cc_flags, -G8) of five other spellings -
+   arg1 += t, arg1 = arg1 + t, arg1 = t + arg1, s16 load + s32 sum, and an
+   initialised-declaration sum - emits lh $2 / addu $3 / slt $2 in all five,
+   i.e. load $v0, sum $v1, compare $v0, and none hands the sum the parameter's
+   $a1. Retail's hand-out needs an allocno preferenced to $a1 that our cc1 has
+   no source shape for: park it, do not re-dial. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 /* s32 func_80073DE4(Actor *p0, s32 arg1) {
     s32 t;
