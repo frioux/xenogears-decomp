@@ -193,8 +193,6 @@ void func_80091064(u8 arg0) {
     void *pBuf;
     u8 *pStr;
     u32 off;
-    s32 rowOff;
-    s32 slotOff;
     u8 index;
     s32 i;
 
@@ -343,39 +341,25 @@ void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
-/* 98.22% (704 bytes against retail's 700, 175 vs 174 insns) under gcc 2.6.0.
-   The body is retail's except for the switch's case-1 arm and two addu operand
-   pairs; the flags load wants the row offset in a local
-   (`off = (arg2 * 2 + arg1 + 0x16) * 0x28 + arg0 * 0x5F0;` then
-   `*(u16 *)(g_BattleCellActionRows + off)`), which is what makes gcc emit
-   retail's symbol+register `lui $at` macro form. The row pick is 9 (0x4000) /
-   7 (0x1000 set) / 8; the prim base needs a `u8 *pRec` local assigned before
-   each palette if; `pal` must be ONE value stored after the if/else (retail's
-   `sh v0,0x32E(v1)` sits after the join), not a store duplicated in both arms.
-   THE SWITCH is where the last 4 bytes live. Both this function and
-   func_80093578 below have the identical retail switch (cases 0 -> 0xC,
-   1 -> 0xD, 2 -> 0x15, default -> 0xC) and func_80093578's compile reproduces it
-   exactly, so the C shape is known; only reorg's slot choice differs here:
-   - cases listed 0, 2, default, 1 (this park): retail's BODY order (0xC, 0x15,
-     0xC, 0xD in memory) and case 1 out of line at the end, but gcc leaves a NOP
-     in the first beq's slot (retail fills it with `slti v0,v1,2`) and inverts
-     the ==2 test to `bne` with `li a1,0xDA` stolen into its slot: 98.22, 704.
-   - cases listed 0, 1, 2, default: the first beq's slot is filled, but with case
-     1's own `li s2,0xD` (gcc threads that block), losing retail's out-of-line
-     arm: 97.48, 696 (4 bytes SHORT, cannot link).
-   - three statements for the flags offset (`rowOff = (..)*0x28; slotOff =
-     arg0*0x5F0; rowOff += slotOff;`): the sum then lands in a fresh $a1 and the
-     else arm's block order changes: 98.02, 176 insns.
-   - a 3-minute permuter run found nothing shippable (its best candidate wrapped
-     a palette arm in `if (g_BattleActionRows)`, wrong code).
-   The other ties, measured: the byte-offset sum `off` lands in the slot-offset
-   register (`addu v0,v1,v0`) where retail keeps it in the row-offset one
-   (`addu v1,v1,v0`, both flag loads), and pRec takes $v0 where retail has $v1
-   (so the palette value takes $v1). Every spelling of `pRec` tried elsewhere in
-   this file (`prims + idx * 0x28`, the `- (-(idx * 0x28))` double negation used
-   by the matched neighbours, a two-statement `pRec = prims; pRec += ...`) is
-   measured in func_80093578's note below. */
+/* 99.89% at objdiff's 700 bytes / 175 insns -- retail's EXACT size, and every
+   instruction is retail's except two `addu` operand pairs in the flags offset
+   (retail `addu v1,v1,v0` then `addu at,at,v1`; this body `addu v0,v1,v0` then
+   `addu at,at,v0`): the sum's destination is the slot-offset register instead of
+   the row-offset one. What took it from 98.22 to 99.89:
+   (1) BOTH palette prim pointers want the double-negated offset, pRec =
+   prims - (-(idx * 0x28)) -- that alone moved every register into retail's
+   place (pRec $v1, palette value $v0) and 98.22 -> 99.47 at retail's byte count;
+   (2) with that fixed the switch also wants its cases listed 0, 1, 2, default
+   (not the 0, 2, default, 1 order this note used to require), and the switch is
+   now instruction for instruction retail's. The first call keeps the inline
+   `prims + (idx * 0x28 + 0x320)` form; the negation belongs only to the two
+   palette sites.
+   Measured dead on the remaining pair: the triple statement
+   `rowOff = (..) * 0x28; rowOff += arg0 * 0x5F0; off = rowOff;` is 99.69 (it
+   moves the *5 chain into a fresh $a1); `off = (..) * 0x28 - (-(arg0 * 0x5F0))`
+   compiles IDENTICAL to the plain sum (the negation folds away, no pointer base
+   to legitimise); and a fourth permuter round on this body (1435 iterations,
+   base=20 best=20) is PERMUTER_NONE. */
 /*
 void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     u16 flags;
@@ -405,19 +389,19 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     case 0:
         col = 0xC;
         break;
+    case 1:
+        col = 0xD;
+        break;
     case 2:
         col = 0x15;
         break;
     default:
         col = 0xC;
         break;
-    case 1:
-        col = 0xD;
-        break;
     }
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
                            0xDA, 0xAA, D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
-    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
     if (D_800D2F69[row * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
@@ -426,15 +410,15 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     *(u16 *)(pRec + 0x32E) = pal;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
                            0xFE, 0xAA, D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
-    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
     if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x37E) = pal;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
 void BattleDrawSlotStatusText(u8 arg0, u8 arg1, u8 arg2) {
     RECT rect;
     u8 *pBuf;
@@ -971,53 +955,19 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     g_BattleDisplayState->unkB7 = 4;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
-/* 97.83% at objdiff's 692 bytes / 173 insns -- retail's EXACT size, and every
-   instruction is retail's: the only difference left is which register four
-   values land in (retail keeps the row pick in $s0, the register the dying
-   `index = arg1 + 0x25` had, where this body's pick takes $a0; retail's
-   `g_BattlePrimStartIndex` address is in $s1 and this body's in $s0, which
-   follows from the pick's register; and the second pRec is formed with
-   `addu v1,v1,v0` in place in retail where this body needs a fresh $t1).
-   Structure that took it from 83.74:
-   (1) the flags word wants a named index local -- `index = arg1 + 0x25;` then
-   `row = index * 0x28;` before the load, otherwise gcc folds 0x25 * 0x28 into
-   the lhu's reloc addend (+0x5C8) where retail emits `addiu s0,s0,37` first;
-   (2) the row pick is 9 for flags & 0x4000, then 7 when 0x1000 is SET and 8 when
-   it is clear;
-   (3) the switch needs `case 0`, `case 1`, `case 2` then `default: col = 0xC`,
-   listed in that order (case 0 present is what makes gcc emit the
-   `slti v0,v1,2` range test), and this compile reproduces retail's switch
-   instruction for instruction;
-   (4) `pRec = g_BattleGraphicsWork->pPacketPrims;` before the 0x320 call.
-   Measured this round on the two pRec addresses: `prims + idx * 0x28` 97.72;
-   the `prims - (-(idx * 0x28))` double negation the matched neighbours in this
-   file use 97.83 (this park -- it puts both pRec sums in place, but keeps the
-   fresh-register operand order); two statements `pRec = prims; pRec += idx *
-   0x28;` 83.52 at 696 bytes (it hoists the pool load); an `ofs` local for the
-   flags byte offset 97.83 with more differing lines. Earlier rounds measured
-   six declaration orders (no change), u16/s32/u32 row/index/ofs, an ofs local
-   for the table lookups (costs 4 bytes), a separate `rowIdx` (97.60), one
-   shared variable for the offset and the pick (97.30 -- it does put the pick in
-   an $s register but then swaps the two parameters' $s0/$s1), and four
-   permuter runs (base 926 -> 655 -> 600 -> 375, the last find a double negation,
-   not shippable). Preset screen: gcc-2.7.2 96.21, gcc-2.7.2-cdk 57.83, so 2.6.0
-   is right. Only the allocator tie for the row pick is left. */
-/*
 void func_80093578(u8 arg0, u8 arg1) {
     u8 *pRec;
-    s32 index;
     u16 flags;
     u16 pal;
     s32 row;
     s32 col;
+    u32 off;
 
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                      (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x140)),
                          0x7C, 0xA4, 0, (u8)(arg1 * 0x10), 0x60, 0x10);
-    index = arg1 + 0x25;
-    row = index * 0x28;
-    flags = *(u16 *)(g_BattleActionRows + row + arg0 * 0x690);
+    off = (arg1 + 0x25) * 0x28 + arg0 * 0x690;
+    flags = *(u16 *)(g_BattleActionRows + off);
     if (flags & 0x4000) {
         row = 9;
     } else if (flags & 0x1000) {
@@ -1039,18 +989,16 @@ void func_80093578(u8 arg0, u8 arg1) {
         col = 0xC;
         break;
     }
-    pRec = g_BattleGraphicsWork->pPacketPrims;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(pRec + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
                             0x24, 0xA6, D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
     pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
-    if (D_800D2F69[col * 4] != 0) {
+    if (D_800D2F69[row * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x32E) = pal;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
-                                         (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
                             0x48, 0xA6, D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
     pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
     if (D_800D2F69[col * 4] != 0) {
@@ -1060,7 +1008,6 @@ void func_80093578(u8 arg0, u8 arg1) {
     }
     *(u16 *)(pRec + 0x37E) = pal;
 }
-*/
 void BattleDrawSlotStatusTextEntry3(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
