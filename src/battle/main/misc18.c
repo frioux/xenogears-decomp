@@ -913,40 +913,46 @@ void BattleClearAllSlotStates(void) {
         g_BattleCurWorkBlock->slotAmounts[i] = 0;
     }
 }
-// PARKED 98.83% (round 396), retail's exact 3024 bytes / 752 instructions, every branch offset
-// matching. Residual is the base-vs-index addu order in the block-plus-index stores, measured
-// levers below.
-// Un-parked from the stale 98.55 note: that body no longer compiled, because the slot structs
-// were renamed since round 232 - state.unkA4 is now state.commandCounter, unk9E is
-// amountMultiplier, unk61[1] is the low byte of commandPoints (as misc19 spells it) and unk3A is
-// maxFuel. Fixing those names alone scored 98.63. Then the SIZE BLOCKER fell: the body was 4
-// bytes short, and the cause was the characterId == 4 test - both arms want their own pointer
-// local (pDst = (u8 *)g_BattleCurWorkBlock + i * 8; inside each arm), which makes cc1 duplicate
-// the index sll per arm and cross-jump only the store tail, which is retail's shape exactly
-// (retail: nop in the bne slot, sll in the j slot, sll again at the second arm). 98.63 -> 98.83
-// with the byte count exact. That is the one ROUGH site left: the real code has no pDst.
-// The remaining 112 differing lines are ONE construct, the 12 or so block-plus-index addus:
-// retail is base-first (addu v0,v0,t1), ours index-first. Measured this round, do not redo:
-// - the 3-statement in-place form (pDst = base; pDst += i * 8; pDst[k] = ...) DOES give
-// base-first for a single site - it took the 0x1029 store from index-first to retail's order
-// and 98.63 -> 98.64 - but applying it to all six byte stores drops to 98.43 (cc1 then hoists
-// a single base load and the statement order changes); the 2-statement pointer local for those
-// six scores 98.39, and the shared-pDst variant loses three instructions (96.04).
-// - the u32/u16 pair at 0x3F4/0x800 with a base pointer local is score-neutral (98.83), still
-// index-first, so the base local alone does not buy the order here (lever a's legitimisation).
-// - the two row loops (0x106B / 0x223B) want addu v1,v1,v0; the in-place pointer inside the loop
-// moves the hoisted i*0x5F0 from a1 to a2 and drops the function to 98.43.
-// - the 0x2814 store (store, then /= 10, then *= 10) materialises 0xCCCCCCCD after the base
-// load; retail loads the base first. It is a statement-order diff, not a value one.
-// Everything else is register naming that follows from those addus. gcc 2.6.0 keeps source
-// operand order for a commutative plus, so these are spellings, not the preset.
+// PARKED 99.51% (round 435), retail's exact 3024 bytes / 752 instructions, every branch offset
+// matching. The 43 differing lines are now TWO allocation mirrors plus one operand order:
+// (a) the four row loops and the maxHp/maxMp pair keep the base in $v0 where retail has $v1
+//     (retail lui/lw v1 + addu v1,v1,v0 + lbu v0; ours lui/lw v0 + addu v0,v0,v1 + lbu v1);
+// (b) the characterId == 4 arms mirror $a0/$a2 the same way, and their sum is still index-first
+//     (ours addu a0,a1,a0, retail addu v1,v1,a1).
+// THIS ROUND'S WINS, keep them: the EMBEDDED-ASSIGNMENT temp (an assignment written inside the
+// address, lever b-embedded-assignment-temp-for-addu-order) closed 15 of the 59 differing lines
+// and is the only spelling that ever moved this function off 98.83:
+//   98.83 -> 99.41  ((u16*)((u8*)g_BattleCurWorkBlock + (gearRowOffset = i * 0x690)))[0x140A]
+//                   (the 0x2814 store: cc1 now loads the base before the /9 reciprocal)
+//   99.41 -> 99.49  the same temp on the six snapshot byte stores at 0x1029..0x102E
+//   99.49 -> 99.51  the same temp on the u32/u16 pair at 0x3F4/0x800
+//   each edit is one site and the temp must sit INSIDE the address; assigning it in its own
+//   statement hoists the base load instead. The temp is s32 snapOffset / gearRowOffset.
+// MEASURED THIS ROUND, do not redo (all worse than 99.51):
+// - double negation on the six byte stores, (u8*)base - -(i * 8): 98.23, cc1 commoned the
+//   negated index into one `negu` and printed `subu`, where retail has addu (+1 instruction).
+// - a typed BattleRow view of the row tables, [i * 38 + j].unk12[1]: 96.85; the same cast but
+//   keeping i * 0x5F0 and folding +0x1058 into the displacement: 97.76. The typed member write
+//   costs the base register retail has, so keep the flat byte subscript.
+// - the embedded temp inside the arms' pDst (pDst = (u8*)base + (snapOffset = i * 8)):
+//   98.82 and 750 instructions - it breaks the per-arm sll duplication that the byte count needs.
+// - index-first source for the six stores, *(u8 *)(i * 8 + (mem_addr)g_BattleCurWorkBlock + K):
+//   byte-identical to the base-first subscript (99.41 at the time), so the order is the
+//   legitimiser, not the C (lever a-addu-index-first-is-the-legitimiser).
+// - PRESET CONFIRMED CLOSED: try_flags.sh on this body gives 2.7.2-cdk 91.23 and plain 2.7.2
+//   93.92 against 98.83 under the unit's XenoBattle260, so the unit preset is right.
+// Earlier rounds' measurements (still valid): the 3-statement in-place form (pDst = base;
+// pDst += i * 8; pDst[k]) gives base-first for ONE site (98.64) but drops to 98.43 across all
+// six; the 2-statement pointer local for those six is 98.39; the shared-pDst variant loses three
+// instructions (96.04); the in-place pointer inside a row loop moves the hoisted i*0x5F0 from a1
+// to a2 (98.43). Five permuter runs total, the last (878 iterations) finding the embedded temp.
 // Source facts, do not re-derive: the four growth statements divide by 20 (retail 0x66666667
 // >> 3), not 10; the two row tables are 0x26 and 0x2A rows of 0x28 bytes at +0x1058 and +0x2228
 // with the flag byte at row +0x13 and must be indexed FLAT or gcc re-forms the base; the gates
 // are accessoryEffectFlags4 & 0x2000 (double every row) and accessoryEffectFlags5 & 0x4000
 // (halve); the g_GameState tail (0x1930 u16, 0x89A, 0x834, and g_BattleOptionFlags + 9 ==
 // g_GameState + 0x2355) must be reached through g_GameState itself, one base and four
-// displacements. Four permuter runs from the older 95.18 park stalled at 2078 -> 1343.
+// displacements.
 /*
 void func_80097D5C(void) {
     BattleTableEntry *pSlot;
@@ -957,6 +963,8 @@ void func_80097D5C(void) {
     u8 *pSlotBytes;
     u8 *pStats;
     u8 *pDst;
+    s32 gearRowOffset;
+    s32 snapOffset;
 
     for (i = 0; i < 3; i++) {
         if (g_BattleActorCharIds[i] == BATTLE_SLOT_CHARACTER_NONE) {
@@ -980,19 +988,19 @@ void func_80097D5C(void) {
             pDst = (u8 *)g_BattleCurWorkBlock + i * 8;
             pDst[0x1028] = g_BattleActingSlot->attack + g_BattleActingSlot->unk04[0];
         }
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1029] = g_BattleActingSlot->evade;
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102A] = g_BattleActingSlot->defense + g_BattleActingSlot->defenseFromAccessories;
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102B] = g_BattleActingSlot->hit;
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102C] = g_BattleActingSlot->ether;
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102D] = g_BattleActingSlot->etherDefense;
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102E] = g_BattleActingSlot->agility;
+        ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x1029] = g_BattleActingSlot->evade;
+        ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102A] = g_BattleActingSlot->defense + g_BattleActingSlot->defenseFromAccessories;
+        ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102B] = g_BattleActingSlot->hit;
+        ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102C] = g_BattleActingSlot->ether;
+        ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102D] = g_BattleActingSlot->etherDefense;
+        ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102E] = g_BattleActingSlot->agility;
         pDst = (u8 *)g_BattleCurWorkBlock;
-        ((u32 *)(pDst + i * 8))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3C[0])[0];
-        ((u32 *)(pDst + i * 8))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3C[4])[0];
-        ((u16 *)(pDst + i * 4))[0x800] = g_BattleActingSlot->maxHp;
+        ((u32 *)(pDst + (snapOffset = i * 8)))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3C[0])[0];
+        ((u32 *)(pDst + (snapOffset = i * 8)))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3C[4])[0];
+        ((u16 *)(pDst + (snapOffset = i * 4)))[0x800] = g_BattleActingSlot->maxHp;
         pSlot = g_BattleActingSlot;
         effectFlags = 0;
-        ((u16 *)(pDst + i * 4))[0x801] = g_BattleActingSlot->maxMp;
+        ((u16 *)(pDst + (snapOffset = i * 4)))[0x801] = g_BattleActingSlot->maxMp;
         g_BattleActingSlot->attack += g_BattleActingSlot->attackFromEquipment;
         pSlot->blockFlags = 0;
         g_BattleActingSlot->defense += g_BattleActingSlot->defenseFromEquipment;
@@ -1037,7 +1045,9 @@ void func_80097D5C(void) {
         g_BattleTargetSlotState->agility += g_BattleTargetSlotState->agilityFromEquipment - g_BattleTargetSlotState->weightPenalty;
         g_BattleTargetSlotState->amountMultiplier += g_BattleTargetSlotState->statBonuses[4];
         if (g_BattleTargetSlotState->unk4F != 0 && g_BattleActingSlot->gearId != 0x12) {
-            ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] =
+            // The offset is formed by an assignment inside the address: cc1 then loads the
+            // base before it materialises the /9 reciprocal, which is retail's order.
+            ((u16 *)((u8 *)g_BattleCurWorkBlock + (gearRowOffset = i * BATTLE_GEAR_ROW_STRIDE)))[0x140A] =
                 g_BattleTargetSlotState->maxHp / 10 * g_BattleTargetSlotState->unk4F * 2 / 9;
             ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] /= 10;
             ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] *= 10;
@@ -1119,7 +1129,8 @@ void func_80097D5C(void) {
         g_BattleCurWorkBlock->characterAmounts[i] = 0;
         g_BattleCurWorkBlock->gearAmounts[i] = 0;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 
 void BattleResetSlotConditionCounters(void) {
