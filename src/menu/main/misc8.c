@@ -144,6 +144,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
    gcc-2.6.0-psx` scores every C body of the unit 100.00 (MenuSetStatBarQuadColors,
    MenuSetStatBarTileColors, MenuMaxStatValue, MenuDrawStatTable, MenuOpenCardEvents,
    func_801D7F50, func_801D84B4), so this is a preset switch, not a split.
+   Round 418 also PROVED the switch end to end: with `menu/main/misc8.` added to
+   XenoMenu260 and BOTH bodies below converted to C, `tools/scripts/check_bin.sh menu`
+   printed `build/out/menu.bin: OK` in matching mode - the preset change plus these two
+   un-comments (and nothing else) is byte-identical whole-binary, not just objdiff-100.
+   The gears.toml edit was reverted afterwards because this lane does not own presets; apply
+   it in one line and un-park both bodies, then gate with check_bin.
    What the body is: the stat table's row labels - reset the prim count at unk35C+0x32F3,
    draw MENU_STAT_LABEL_ROW_COUNT - statGroup label prims with func_8002675C (their texture
    ids in g_MenuStatRowLabelTexIds, x/y from g_MenuStatRowLabelOffsetX/Y), shade the prims
