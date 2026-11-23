@@ -693,23 +693,23 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
     pInfo->enabled = 0;
 }
 
-/* MATCHED IN OBJDIFF, BLOCKED AT LINK TIME (round 419). The body below reads
-   100.00% - retail's exact 372 bytes / 93 instructions - but it must NOT be
-   un-parked on its own: with it in C, the already-matched neighbour func_800780A8
-   in this same TU grows from 0xF4 to 0x114 bytes (frame 0x28 -> 0x30, +8 insns),
-   so battle.bin comes out 32 bytes long and check_bin fails while every function
-   still reads 100.00% (verified: the two objects' .text are identical up to
-   func_800780A8 and diverge exactly there). So this is cc1's TU-global pseudo
-   numbering moving that function's allocator tie, not a spelling problem;
-   whoever un-parks this must re-match func_800780A8 in the same change.
-   What produced the 100.00% for THIS function: name the two byte-offset
-   induction variables (tools/rounds/levers.md, g-a-named-offset-local-pins-the-giv).
-   offPrev = i * sizeof(BattleScreenSlot) is slot i (0xC0 per pass) and pins the
-   giv that cse otherwise re-folds onto its sibling as symbol+0x60; off =
-   (i + 1) * sizeof(BattleScreenSlot) is slot i+1, used by both buffer stores and
-   by the RECT copy destination. Measured on the way: the typed struct-array index
-   form is 90.23% / 101 insns and two explicit incremented offsets are 90.00%.
-*/
+/* Matched at 100.00% (372 bytes / 93 insns) only with the byte-offset spelling
+   below: name the two offset givs (tools/rounds/levers.md,
+   g-a-named-offset-local-pins-the-giv) - offPrev = i * sizeof(BattleScreenSlot)
+   is slot i (0xC0 per pass) and pins the giv cse otherwise re-folds onto its
+   sibling as symbol+0x60, off = (i + 1) * sizeof(BattleScreenSlot) is slot i+1,
+   used by the buffer stores and by the RECT copy destination. The typed form
+   (BattleScreenSlot *pSlot/pNext with ->rect/->pBuf) is structural, not a
+   register tie: retail keeps one base register plus an offset giv where the
+   typed access folds the destination into a small immediate, 82.41% / 84 insns;
+   the pure struct-array index form is 73.85% / 78 insns. Round 419's warning
+   that un-parking this grew func_800780A8 from 0xF4 to 0x114 does not reproduce
+   under this unit's 2.6.0 preset (it stays 0xF4, objdiff 100.00).
+   What the addresses say: the slot table is 0x60-byte rows of
+   {RECT, pBuf, palette, enabled, textWidth, pad, POLY_FT4 polys[2]} (misc5.c's
+   view), this loop runs over the even slots: it gives even slot i the rect and
+   copies it to slot i + 1, puts the new buffer in slot i + 1, and hands
+   func_800780A8 slot i's quads at 0x50 before row i and slot i + 1's at row i. */
 void func_8007819C(void) {
     RECT *pRect;
     u8 *pBuf;
@@ -733,8 +733,9 @@ void func_8007819C(void) {
         pRect->w = 0x3C;
         pRect->h = BATTLE_TEXT_ROW_HEIGHT;
         *(RECT *)((u8 *)g_BattleTextSlotRects + off) = *pRect;
-        func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + offPrev, i);
-        func_800780A8((u8 *)g_BattleTextSlotRects + offPrev + 0x10, i + 1);
+        // slot i's quads sit 0x50 before its row, slot i + 1's at the row's +0x10
+        func_800780A8((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev - 0x50), i);
+        func_800780A8((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev + 0x10), i + 1);
     }
 }
 /* 81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
