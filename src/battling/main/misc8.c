@@ -634,18 +634,17 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
 //    first ternary result in $v0 (li v0,5 / li v0,4 / sh v0,D_800916E2), ours in
 //    $a0. culprit.sh reports exactly "func_80081A44 3 bytes 0x80081AEA-0x80081AF6",
 //    so the function cannot link.
-//    MECHANISM, now measured from the allocator dumps rather than guessed: the HI
-//    pseudo holding the ternary value conflicts with $v0 and $v1
-//    (m.i.greg: "84 conflicts: 84 2 3 29", dispositions "84 in 4"), so it can only
-//    take $a0. The conflict with $v0 comes from sched1, not from the C: at combine
-//    time the block is [94 li v1,1][96 sw latched][101 lw flags][102 andi][502 li 5]
-//    [104 bnez], but after sched1 (m.i.sched: "basic block number 13 from 89 to
-//    104", ready list "T-3: 502 (1)") insn 502 has scheduler priority 1 (no
-//    intra-block dependence, its only user is the sh in the next block) and is
-//    hoisted to the HEAD of the block, so the HI pseudo is live across the lw and
-//    cannot use $v0. Retail sched1 left 502 in the delay slot. Reproduce the dump:
-//    cc1 -O2 -G8 -da on build/src/battling/main/misc8.c.i in the build container
-//    (writes m.i.greg/m.i.lreg next to the input).
+//    MECHANISM, measured from the allocator dumps rather than guessed: the HI pseudo
+//    holding the ternary value cannot take $v0 - m.i.greg says "84 conflicts: 84 2 3
+//    29" and "84 in 4" ($a0). The conflict with $v0 comes from sched1, not from the
+//    C: at combine time block 13 is [94 li v1,1][96 sw latched][101 lw flags][102
+//    andi][502 li 5][104 bnez], but in m.i.sched the ready list shows 502 with
+//    scheduler priority 1 (no intra-block user - its only reader is the sh in the
+//    next block), so the backward pass drops it into the FIRST slot: post-sched1
+//    order is [502][101][94][96][102][104] and the HI pseudo is live across the lw,
+//    which is what bars $v0. Retail sched1 left 502 in the delay slot. Reproduce:
+//    tools/gcc-2.7.2-psx/cc1 -O2 -G8 -da on build/src/battling/main/misc8.c.i in the
+//    build container (writes m.i.greg / m.i.lreg next to the input).
 //    What DID work in an earlier round (all needed for the 744 bytes):
 //    - the second nextListIndex read must be a STATEMENT through a volatile cast,
 //      flags = *(volatile s32 &g_BattleSlotConfirmFlags); a plain read is CSE d
@@ -660,15 +659,19 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
 //    the second ternary (748, 94.65); volatile on the first read only (752); flags
 //    read twice through volatile (748, 98.60); (x & 1) ? 5 : 4 arm order (744,
 //    99.37); plain first store (740, 97.46); the latched store moved after the
-//    ternary (744, 96.91); a (u16) cast on the ternary (744, 99.70, no change).
-//    Preset screens this round: gcc-2.7.2-cdk 99.70, -O3 99.70, -O1 81.79, -Os
-//    compile-failed, gcc-2.6.0 rejects the body - so the preset is not the way out.
-//    Permuter: base=45 best=45 over 1320 iterations (its score is dominated by the
-//    branch-label renaming every diff shows, so it cannot see a one-register move);
-//    an earlier 3-minute run also reported base=45 best=45.
-//    Next idea if anyone retries: break the sched1 hoist (make insn 502 depend on
-//    the tested value without changing the emitted code) - no spelling tried so far
-//    moves it.
+//    ternary (744, 96.91); a (u16) cast on the ternary (744, 99.70, unchanged);
+//    one s32 flags local reused as the ternary result (flags = (flags & 1) ? 5 : 4,
+//    then store flags) to force the load and the arms into ONE pseudo: 748, 98.90,
+//    and the andi then reads v1 - the pseudo sharing costs an insn and does not
+//    clear the conflict.
+//    Preset screens: gcc-2.7.2-cdk 99.70, -O3 99.70, -O1 81.79, -Os compile-failed,
+//    gcc-2.6.0 rejects the body - the preset is not the way out.
+//    Permuter: base=45 best=45 over 1320 iterations this round (its score is
+//    dominated by the branch-label renaming every diff shows, so it cannot see a
+//    one-register move); an earlier 3-minute run reported the same base and best.
+//    Next idea if anyone retries: raise insn 502 scheduler priority (a reader in the
+//    same block) or make the HI pseudo share the load pseudo without adding an insn;
+//    no spelling tried so far moves 502 out of the block head.
 /*
 void func_80081A44(void) {
     switch (g_BattleMode) {
@@ -768,7 +771,6 @@ void func_80081A44(void) {
     BattleDrawVibrationOptions();
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
-
 
 
 void BattleUpdateTextWindow(void) {
