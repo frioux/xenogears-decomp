@@ -249,6 +249,17 @@ void WorldMapFreeSpritePrimBuffers(void) {
 // access inside the 5x5 nest that contains the func_80099BFC call always comes out as
 // `la $20,D_8009D618` plus `addu $2,$2,$20` - the same under -G0, so the split is a
 // per-access reload decision, not a flag. A `s16 state = D_8009D618[...]` local changes nothing.
+// Round 429 (re-measured 95.40 / 660): gcc-2.6.0 DOES emit retail's macro loads for this body
+// (`lh $3,D_8009D618($2)` and `lh $2,g_WorldMapGridTileIds($2)`, one `la` for neither) and scores
+// 97.81, but 2.6.0 breaks eleven matched functions of the unit (WorldMapRelocateMapEntryOffsets
+// 93.68, WorldMapWrapTileVertexPositions 90.53, WorldMapInitSlotAngleStep8 55.00,
+// WorldMapBuildBasisMatrix 90.69, WorldMapInitializePlayerSlot 90.07, ...), so this function's
+// shape is a 2.7.2-only artefact of the unit's own preset, not a preset miss. 2.7.2 with
+// -fno-rerun-cse-after-loop keeps every matched function at 100.00 and leaves this one at 95.40,
+// so the post-loop CSE is not the pass that splits the address either. Other spellings measured
+// this round: `*(s16*)((u8*)D_8009D618 + (row * 5 + i) * 2)` 95.40 / 660 (identical code), a
+// `slot` biv (`for (row = 0, slot = 0; row < 5; row++, slot += 5)` with `D_8009D618[slot + i]`)
+// 90.80 / 672 - it splits the tile-id base as well, i.e. s5 AND s6.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
 /*
 void func_8008615C(void) {
@@ -595,6 +606,16 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
 // range without moving its lui s3,0x1f80 (retail has that instruction in the same slot),
 // which no declaration or assignment move can do. Dump recipe: cc1 -O2 -G8 -da on
 // build/src/world_map/main/misc9.c.i; 2.7.2 has no -dl, so the ref counts stay unread.
+// Round 429 (re-measured 97.30 / 756 bytes, 189/189 insns, the same 34-line s2/s3 swap): the
+// other two axes measured and closed. Preset: gcc-2.6.0 94.81, -O3 97.30, gcc-2.7.2-cdk
+// compile-failed (cc1 rejects the mixed declarations in this unit), so the unit's
+// XenoWorldMap preset is right for this function. Spelling: a bare `{ }` block in place of the
+// load-bearing do/while(0) measures 96.77 at 752 bytes (it loses retail's load-delay nop), and
+// moving `pPos = (WorldMapPos*)0x1F800000;` into the else branch measures 92.09 at 772 (the lui
+// leaves retail's slot right after the first call). Reordering the locals (pPos declared first)
+// and replacing the `pCount` local with direct g_GameState accesses both measure 97.30 / 756 with
+// the identical 34-line swap, which is the lever a-lreg-dump prediction: the hand-out is not
+// sensitive to pseudo numbering here.
 /*
 s32 func_80087C6C(s32 index) {
     WorldMapPlayer* pSlot;
