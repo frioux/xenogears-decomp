@@ -817,6 +817,16 @@ s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMa
    (a-global-allocno-priority-is / a-lreg-dump-gives-the): there is no callee-saved
    register in play at all, so the -dl/-da dump has nothing to decide - the contest is
    between two 1-ref dying quantities inside one block. Do not hand-iterate it.
+   Round 433 measured the split/in-place family (all 112 bytes / 28 insns unless
+   noted): `dx = p0->x; dx -= p1->x;` alone is 91.79 (cc1 hoists one sra into the
+   bgez delay slot and duplicates it); the same split plus `dx >>= 12; sum = dx*dx;`
+   is 95.00 - it DOES give retail's subu tie (dest = the minuend's register) and
+   retail's bgez/nop/negu/sra/mult chain exactly, but the load/dest pair moves to
+   $v1 (retail $v0) and the z half to $a0/$v0, so the mirror only relocates; and
+   writing the difference as `p1->x - p0->x` (identical under the abs) costs a
+   `move a2,a0` parameter copy, 116 bytes / 29 insns, 94.29. So the constant form's
+   mirrored tie and the in-place form's mirrored register pair are exclusive and the
+   98.21 constant form above stays the best.
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     s32 dx;
     s32 dz;
