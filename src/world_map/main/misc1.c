@@ -724,27 +724,33 @@ extern s32 WorldMapSetSceneLayerTPages();
 extern s32 WorldMapHideSpriteSetGroups();
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
-/* best: 99.81% (1892 bytes = retail exact size). The only real difference left is the
-   g_AnimScriptExtraTicks store: retail emits li v1,1 at the head of the store group, the five
-   zero stores, then sw v1 to g_AnimScriptExtraTicks and g_WorldMapFadeActive; this body emits
-   the AnimScriptExtraTicks store right after the callback la, before the zeros. The rest of the
-   objdiff line differs only by relocations that link identically (see the end of this note).
-   Measured this round:
-   - parked body (AnimScriptExtraTicks = 1 second in C): 99.81, li v1,1 at the head and the
-     store one group early (cc1 order TpageAbr, DrawMode, la, AnimScript, zeros, FadeActive).
-   - retail own store order (zeros, then both `= 1` stores, then the callback): 98.88 - cc1
-     hoists BOTH `= 1` stores above the zeros (52 diffs, confirms the earlier note).
-   - callback assignment moved up before the zeros: 99.32 - cc1 then emits one li v0,1 for both
-     stores and pulls the callback store up next to its la.
-   - the h-constant-retail-materialises-head lever (the whole store group in a do while 0 with
-     the two `= 1` stores last): check_bin.sh world_map MISMATCH, so it is not the lever here.
-   cc1_probe of the same statement list (matrix copy plus two leading calls) DOES emit retail
-   order, so the tie is in how the surrounding block drives the pre-reload scheduler: in the
-   probe the constant lands in $2 and the address in $3, in the function $3/$2 (retail
-   registers) with the one store hoisted.
-   Two permuter runs (8 min 2989 iters, and 3 min 1116 iters this round) both stop at 80 to 70
-   by chaining two zero stores into one assignment, which reverses them relative to retail -
-   rejected as wrong code.
+/* best: 99.81% (1892 bytes = retail exact size), 42 differing lines. Retail's store group is
+   li v1,1 / li v0,2 / sw g_WorldMapTpageAbr / li v0,4 / sw g_WorldMapDrawMode / lui+addiu the
+   callback address / five zero stores / sw v1 g_AnimScriptExtraTicks / sw v1
+   g_WorldMapFadeActive / sw v0 callback. This body emits the AnimScriptExtraTicks store right
+   after the callback address, before the zeros. Measured (every body below is 1892 bytes, so
+   this is an ordering tie in one 3-instruction cluster, not a size problem):
+   - parked body, re-measured: 99.81.
+   - both `= 1` stores cast to `*(volatile s32 *)&`: NO effect, byte-identical output - gcc
+     2.7.2's pre-reload scheduler does not treat a volatile store as a barrier against plain
+     stores, so volatile is not the escape here.
+   - callback assignment moved before the zeros: 99.32 - the callback store then follows its la.
+   - the two `= 1` stores wrapped in `do { } while (0)`: THE DO-WHILE IS THE BARRIER, the pair
+     stays after the five zero stores exactly as retail has them (99.46). What is then left is
+     the `li`, which lands after the DrawMode store in v0 where retail has it at the head in v1,
+     and the callback address takes v1 instead of retail's v0.
+   - that body plus `void* pCallback` (assigned before the zeros, stored last): the lui/addiu is
+     then early like retail's, still 99.46 with the same li/register residual.
+   - an `s32 nActive = 1` local used by both stores: 99.46, identical body; where it is
+     established (before or after the matrix copy) changes nothing, sched places the li.
+   - permute.sh 3 min, 1242 iterations, from the do-while body: PERMUTER_NONE base=250.
+   So every instruction but that cluster is identical here, and the cluster is one sched1
+   decision: which of the constant `li` and the address `la` it hoists first, and therefore
+   which of them gets v0.
+   Earlier rounds: retail's own source order (zeros, then both `= 1`, then the callback) 98.88 -
+   cc1 hoists both `= 1` stores above the zeros; do-while 0 with the two `= 1` last: check_bin
+   MISMATCH. Two permuter runs (8 min 2989 iters, 3 min 1116 iters) stop at 80 and 70 by
+   chaining two zero stores into one assignment, which reverses them - rejected as wrong code.
    Kept from an earlier permuter run: `pLoadBuffer = g_SoundBankLoadBuffer;` at the head of the
    0-branch, used as memcpy dst (memcpy otherwise keeps &g_SoundBankLoadBuffer in a saved
    register where retail rematerialises the address into a0).
