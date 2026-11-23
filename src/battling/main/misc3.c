@@ -343,7 +343,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
    Round 203: `r * r` in the final expression is REQUIRED - spelling it as
    `vSq.vz` (Square0's z output, which is the same value) drops to 85.13% and
    308 bytes (retail is 320, `r * r` is 320). Also measured 2.6.0 / cdk / -O3:
-   see the note on func_80077A9C; Default is this unit's preset.
+   see the note on BattleUpdateActorState; Default is this unit's preset.
 s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     VECTOR v;
     VECTOR vSq;
@@ -1263,7 +1263,7 @@ extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern s32 BattleAccumulateGaugePoints(BattleActor* p, s32 points, s32 mode);
 extern u8 g_BattleCameraLerpFrames;
 
-void func_80077A9C(BattleActor* p) {
+void BattleUpdateActorState(BattleActor* p) {
     u8* pEntry;
     u32 flags;
     s32 flag;

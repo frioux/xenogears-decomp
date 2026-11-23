@@ -14,7 +14,7 @@
 // The fall speed at which a landing in state 4 bounces back instead of stopping.
 #define BATTLE_ACTOR_BOUNCE_VY_MIN 0x40
 // The pair is only pushed apart while they are this close: farther apart and the
-// edges cannot overlap (func_80078920 reads it as g_BattleActorDistance2D too).
+// edges cannot overlap (BattlePushActorsApart reads it as g_BattleActorDistance2D too).
 #define BATTLE_ACTOR_SEPARATION_RANGE_MAX 768
 // A quarter of the 12-bit angle rcos/rsin/ratan2 work in: the base facing each side
 // starts at (misc3's BATTLE_ANGLE_HALF_TURN is the half turn of the same space).
@@ -294,7 +294,7 @@ struct Actor {
     /* 0x05C */ ActorPart* pPart;
     /* 0x060 */ u8 pad60[0xC];
     // The position x,y,z,pad copied here before the frame's movement
-    // (BattleUpdateCombatantPair); func_80078920 takes the angle between two of them.
+    // (BattleUpdateCombatantPair); BattlePushActorsApart takes the angle between two of them.
     /* 0x06C */ Vec4 prevPosition;
     /* 0x07C */ u8 pad7C[0x8];
     /* 0x084 */ u8* pActionEntry;
@@ -358,7 +358,7 @@ struct Actor {
     // (misc3 sets 0x28 when a move begins and decrements it per frame).
     /* 0x916 */ s16 moveReentryTimer;
     /* 0x918 */ u8 pad918[0x14];
-    // Two world points whose y words bound the actor vertically; func_80078920
+    // Two world points whose y words bound the actor vertically; BattlePushActorsApart
     // compares them with the other actor's before pushing the two apart.
     /* 0x92C */ Vec4 baseVertexPos;
     /* 0x93C */ Vec4 edgeMidPos;
@@ -425,7 +425,7 @@ extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges
 // previous positions when their vertical spans meet, sharing the push between them
 // by the length of their velocity vectors.  Gives up while the pair is farther
 // apart than BATTLE_ACTOR_SEPARATION_RANGE_MAX.
-s32 func_80078920(Actor* p, Actor* q) {
+s32 BattlePushActorsApart(Actor* p, Actor* q) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
     Vec4 edge1;
     Vec4 edge2;
@@ -987,7 +987,7 @@ extern s32 ControllerGetType(s32);
 extern void func_80076884(Actor*);
 extern void BattleUpdateRoundOverState(Actor*, Actor*);
 extern void BattleUpdateActorStatus(Actor*);
-extern void func_80077A9C(Actor*);
+extern void BattleUpdateActorState(Actor*);
 extern void func_80078194(Actor*);
 extern void func_80074BA4(Actor* p);
 extern void func_80080C48(s32);
@@ -1167,15 +1167,15 @@ skipFacing:
     BattleUpdateActorStatus(p1);
     BattleUpdateActorStatus(p2);
     FontSetPositionsByOffsetClamped(0x4A, 0);
-    func_80077A9C(p1);
+    BattleUpdateActorState(p1);
     FontSetPositionsByOffsetClamped(0x6A, 0);
-    func_80077A9C(p2);
+    BattleUpdateActorState(p2);
     FontSetPositionsByOffsetClamped(0xA, 0x80);
     func_80078194(p1);
     func_80078194(p2);
     BattleActorUpdateGroundMovement(p2);
     BattleActorUpdateGroundMovement(p1);
-    func_80078920(p1, p2);
+    BattlePushActorsApart(p1, p2);
     BattleActorSetPartTransform(p2);
     BattleActorSetPartTransform(p1);
     BattleStepDisplayState();
@@ -1532,7 +1532,7 @@ extern void func_8007A768(Actor* p);
 //    VECTOR* pSrc and ONE VECTOR* pDst variable reused by all eight copies (which is
 //    what retail's reused $a1/$a0 look like) - byte-identical 88.89%: gcc coalesces
 //    each pointer assignment into the per-copy address pseudo, so the copies keep
-//    their own allocnos. Only a value that is a real computation (func_80078920 in
+//    their own allocnos. Only a value that is a real computation (BattlePushActorsApart in
 //    this unit needed exactly that) survives as one long-lived pseudo.
 /*
 void func_8007AC3C(void) {
@@ -1672,7 +1672,7 @@ void BattleUpdateCombatantPairTransition(Actor* p1, Actor* p2) {
     func_80078194(p2);
     BattleActorUpdateGroundMovement(p2);
     BattleActorUpdateGroundMovement(p1);
-    func_80078920(p1, p2);
+    BattlePushActorsApart(p1, p2);
     BattleActorSetPartTransform(p2);
     BattleActorSetPartTransform(p1);
     if (p1->flags & 0x800000) {

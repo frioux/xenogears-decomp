@@ -50,7 +50,6 @@
 // The commands a slot can be given, one per status condition BattleTryUseSlotCommand
 // gates on it: statusMasks, codes and damage hold one entry each, the menu's cursor
 // walks all of them, and a slot's text index maps to the first of its command codes.
-#define BATTLE_SLOT_COMMAND_COUNT 4
 extern u8 g_BattleActionRows[];
 extern u8 D_800CEF34[];
 

@@ -902,7 +902,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
         BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
         started = 0;
         if (*pId != 0xFF) {
-            SystemRenderStringEntry(GetStringEntryFromBank34(g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i),
+            SystemRenderStringEntry(GetStringEntryFromBank34(g_BattleSlotTextIndex[arg0 * 0x170] * BATTLE_SLOT_COMMAND_COUNT + i),
                                     pBufs[i], 0x1B, 0);
             glyphRect.x = 0x380;
             glyphRect.y = i * 16 + 0x102;
@@ -1020,7 +1020,7 @@ void BattleDrawSlotStatusTextEntry3(u8 arg0, u8 arg1) {
     s32 len1;
     s32 len2;
 
-    index = (g_BattleSlotTextIndex[arg0 * 0x170] * 4 + arg1) * 2;
+    index = (g_BattleSlotTextIndex[arg0 * 0x170] * BATTLE_SLOT_COMMAND_COUNT + arg1) * 2;
     altEntry = 1;
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
