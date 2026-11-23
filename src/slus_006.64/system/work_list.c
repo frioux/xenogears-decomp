@@ -446,6 +446,26 @@ extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
    (94.44), 2.7.2 + --dont-expand-li (98.27, one instruction short). The duplicated
    if (animFrame) advance is a permuter find that put the list cursor in v1; its arms
    are identical on purpose. */
+Best: 97.53% under the unit flags (328 bytes vs retail 324, 81 vs 82 insns).
+   PRESET: this body is 100.00 under gcc-2.7.2-cdk-psx + maspsx --dont-expand-li
+   --use-comm-section --run-assembler, and so is EVERY other function of the unit
+   (tools/scripts/try_flags.sh slus_006.64/system/work_list --all --gcc
+   gcc-2.7.2-cdk-psx --maspsx '--dont-expand-li --use-comm-section --run-assembler'),
+   27 of 27 at 100.00. So the unit is a clean switch to a new preset of that shape;
+   the body needs no change. Under cdk alone (unit maspsx flags) the same body is
+   99.26 - the last 0.74 is maspsx expanding the li 1 as ori where retail has
+   addiu r,zero,1, i.e. the XenoRendering/XenoPauseText class.
+   Why plain 2.7.2 cannot do it: retail forms each of the two package addresses as
+   lui v0,hi in the beqz delay slot then addiu a1,v0,lo - two SEPARATE RTL insns
+   with different registers, which only cdk emits; plain 2.7.2 ties hi to its
+   destination, so the pair is one insn, reorg leaves a nop in the delay slot and
+   the function is one instruction long. The register pair also lands swapped
+   (mine Dirs6 in a0, retail Dirs6 in a1) for the same reason.
+   Tried and measured worse: plain while, guard+do/while, head read twice, 2.6.0
+   (94.44), 2.7.2 + --dont-expand-li (98.27, one instruction short). field_0x40 is
+   tested with srl+andi, curSpriteFrame is read as u16. The duplicated
+   if (animFrame) advance is a permuter find that put the list cursor in v1; its
+   arms are identical on purpose. */
 /*
 void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     SpriteData* pOldHead;
@@ -489,8 +509,9 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     g_SpriteAnimFrameListHead = pSpriteData;
     pSpriteData->field_0x40 |= 0x20000;
     pSpriteData->pBase->pNextSpriteData = pOldHead;
-} */
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
+
 
 
 // Unlink SpriteData entry from list
