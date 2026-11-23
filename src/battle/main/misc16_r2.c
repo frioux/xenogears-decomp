@@ -233,6 +233,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
    address pseudo a single use so loop.c has nothing shared to hoist; also untried for
    this body: separate ofs-style temporaries per digit site, a pointer local per arm,
    and the permuter.
+   ROUND 419 re-measure: 96.18 under the unit's 2.6.0 at retail's exact 265 instructions /
+   1060 bytes; 95.58 under gcc-2.7.2 and gcc-2.7.2-cdk FAILS TO COMPILE this body, so the
+   preset is not the lever (the 92.77 above is stale). The hoist is the
+   a-g-strength-reduce-table-base lever's case - it ends when the loop leaves no free
+   callee-saved register - but inside the loop the two builds are instruction-identical
+   (same loads, multu/mfhi chains, calls and stores), so there is NO folded-away live value
+   to port back, and the four index spellings all emit the same la.
+   Second, ADDITIVE residual measured this round: retail's locals are 8 bytes bigger -
+   cellUses at 0xD0 and cellIds at 0x100 against our 0xC8 / 0xF8 - and retail never reads or
+   writes 0xC8..0xCF (every stack offset in the stub enumerated). That dead slot is also what
+   makes the frame 0x148 with six saves at 0x130..0x144 instead of our 0x128..0x140. No
+   construct I can justify allocates an untouched 8-byte slot.
+   Third, one insn: retail `addu s0,v1,v0` (index-first) against our `addu s0,v0,v1` at the
+   bufs[i] store - the `bufs + i` spelling is untried.
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
