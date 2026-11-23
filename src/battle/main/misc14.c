@@ -2,6 +2,16 @@
 #include "psyq/libgpu.h"
 #include "libgear/main.h"
 #include "battle/actor.h"
+#include "system/controller.h"
+
+// The status and slot mask tables hold one entry per bit of a u16 mask word.
+#define BATTLE_MASK_BIT_COUNT 16
+// The g_BattlePrimPool records the pause menu counts down, one timer each.
+#define BATTLE_PRIM_POOL_SLOT_COUNT 16
+// The debug pages g_DebugPageIndex cycles through.
+#define BATTLE_DEBUG_PAGE_COUNT 5
+// A digit table entry that leaves its position blank (BATTLE_VALUE_DIGIT_NONE of misc13).
+#define BATTLE_VALUE_DIGIT_NONE 0xFF
 
 // Partial view of the per-frame battle work block (g_BattleDisplayState). The shared
 // include/battle/battle_work.h owns the type other units read; this view names
@@ -318,7 +328,7 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
     BattleParseNumberToDigits(D_800D2C2A);
     while (i < 5) {
         s32 slot = D_800C3CF8[i++];
-        if (slot != 0xFF) {
+        if (slot != BATTLE_VALUE_DIGIT_NONE) {
             off = g_BattleSpriteColumnWork[0x5D78] * 0x50 + 0x4E70;
             g_BattleSpriteColumnWork[0x5D78] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x46);
             pitch += 0x60000;
@@ -345,7 +355,7 @@ void BattleBuildGrey80BlendSpriteColumn6(void) {
         pitch = 0x11A << 16;
         while (i < 2) {
             s32 slot = D_800C3CFB[i++];
-            if (slot != 0xFF) {
+            if (slot != BATTLE_VALUE_DIGIT_NONE) {
                 off = g_BattleSpriteColumnWork[0x5D79] * 0x50 + 0x4FB0;
                 g_BattleSpriteColumnWork[0x5D79] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x4E);
                 pitch += 0x60000;
@@ -372,7 +382,7 @@ void BattleBuildGrey80BlendSpriteColumn7(void) {
     columnBase = 0x50A0;
     BattleParseNumberToDigits(D_800D2C36);
     for (i = 0; i < 3; i++) {
-        if (D_800C3CFA[i] != 0xFF) {
+        if (D_800C3CFA[i] != BATTLE_VALUE_DIGIT_NONE) {
             off = g_BattleSpriteColumnWork[0x5D7A] * 0x50 + 0x50A0;
             g_BattleSpriteColumnWork[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x56);
             pitch += 0x60000;
@@ -396,7 +406,7 @@ void BattleBuildGrey80BlendSpriteColumn2(void) {
     BattleParseNumberToDigits(D_800D2C35);
     while (i < 2) {
         s32 slot = D_800C3CFB[i++];
-        if (slot != 0xFF) {
+        if (slot != BATTLE_VALUE_DIGIT_NONE) {
             off = g_BattleSpriteColumnWork[0x5D7B] * 0x50 + 0x51E0;
             g_BattleSpriteColumnWork[0x5D7B] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x5E);
             pitch += 0x60000;
@@ -491,7 +501,7 @@ u16 BattleSlotBitMaskInverted(u8 idx) {
 s32 BattleMaskHasStatusBit(s32 mask, u8 idx) {
     s32 flags;
 
-    if (idx < 0x10) {
+    if (idx < BATTLE_MASK_BIT_COUNT) {
         flags = g_BattleStatusBitMasks[idx] & mask;
     } else {
         flags = 0;
@@ -501,7 +511,7 @@ s32 BattleMaskHasStatusBit(s32 mask, u8 idx) {
 s32 BattleMaskHasSlotBit(s32 mask, u8 idx) {
     s32 flags;
 
-    if (idx < 0x10) {
+    if (idx < BATTLE_MASK_BIT_COUNT) {
         flags = g_BattleSlotBitMasks[idx] & mask;
     } else {
         flags = 0;
@@ -553,8 +563,8 @@ void BattlePollMenuEvent(s32 arg0) {
                 }
                 if (g_BattlePauseActive != 0) {
                     if (*g_DebuggerState != -1) {
-                        if ((g_C1ButtonStatePressedOnce & 4) != 0) {
-                            if ((g_C1ButtonStatePressedOnce & 8) != 0) {
+                        if ((g_C1ButtonStatePressedOnce & CTRL_BTN_L1) != 0) {
+                            if ((g_C1ButtonStatePressedOnce & CTRL_BTN_R1) != 0) {
                                 *pMenuExit = 1;
                                 SoundEnableAllSpuChannels();
                                 g_SpuChannelMask = channelMask;
@@ -563,51 +573,51 @@ void BattlePollMenuEvent(s32 arg0) {
                             }
                         }
                     }
-                } else if ((g_C1ButtonStatePressedOnce & 0x2000) != 0) {
+                } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_RIGHT) != 0) {
                     BattlePlaySoundIfEnabled(0x4C);
                     prevEvent = pEvent->last;
                     event = 0;
                     pEvent->last = event;
                     pEvent->previous = prevEvent;
                     break;
-                } else if ((g_C1ButtonStatePressedOnce & 0x4000) != 0) {
+                } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) != 0) {
                     BattlePlaySoundIfEnabled(0x4C);
                     prevEvent = pEvent->last;
                     event = 1;
                     pEvent->last = event;
                     pEvent->previous = prevEvent;
                     break;
-                } else if ((g_C1ButtonStatePressedOnce & 0x8000) != 0) {
+                } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_LEFT) != 0) {
                     BattlePlaySoundIfEnabled(0x4C);
                     prevEvent = pEvent->last;
                     event = 2;
                     pEvent->last = event;
                     pEvent->previous = prevEvent;
                     break;
-                } else if ((g_C1ButtonStatePressedOnce & 0x1000) != 0) {
+                } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_UP) != 0) {
                     BattlePlaySoundIfEnabled(0x4C);
                     prevEvent = pEvent->last;
                     event = 3;
                     pEvent->last = event;
                     pEvent->previous = prevEvent;
                     break;
-                } else if ((g_C1ButtonStateReleased & 0x20) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) != 0) {
                     event = 4;
                     BattlePlaySoundIfEnabled(0x4D);
                     break;
-                } else if ((g_C1ButtonStateReleased & 0x40) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_CROSS) != 0) {
                     event = 5;
                     BattlePlaySoundIfEnabled(0x4E);
                     break;
-                } else if ((g_C1ButtonStateReleased & 0x80) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_SQUARE) != 0) {
                     event = 6;
                     BattlePlaySoundIfEnabled(0x4D);
                     break;
-                } else if ((g_C1ButtonStateReleased & 0x10) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_TRIANGLE) != 0) {
                     event = 7;
                     BattlePlaySoundIfEnabled(0x4D);
                     break;
-                } else if ((g_C1ButtonStateReleased & 1) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_L2) != 0) {
                     event = 0xC;
                     if (*g_DebuggerState != -1) {
                         g_BattleSlotDisplayValue = 0x1C;
@@ -624,9 +634,9 @@ void BattlePollMenuEvent(s32 arg0) {
                         pSlotState[0x2FA] = 0xFF;
                     }
                     break;
-                } else if ((g_C1ButtonStateReleased & 2) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_R2) != 0) {
                     if (*g_DebuggerState != -1) {
-                        if (++g_DebugPageIndex >= 5) {
+                        if (++g_DebugPageIndex >= BATTLE_DEBUG_PAGE_COUNT) {
                             g_DebugPageIndex = 0;
                         }
                         event = 0xB;
@@ -637,11 +647,11 @@ void BattlePollMenuEvent(s32 arg0) {
                         }
                     }
                     break;
-                } else if ((g_C1ButtonStateReleased & 0x100) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_SELECT) != 0) {
                     event = 0xD;
                     break;
                 }
-                if ((g_C1ButtonStateReleased & 0x800) == 0) {
+                if ((g_C1ButtonStateReleased & CTRL_BTN_START) == 0) {
                     continue;
                 }
                 event = 0xE;
@@ -753,7 +763,7 @@ void BattleUpdatePauseMenu(u8 arg0) {
 
     BattleUploadImageFrame();
     if (g_BattleDisplayState->slotTimersActive != 0) {
-        for (i = 0; i < 0x10; i++) {
+        for (i = 0; i < BATTLE_PRIM_POOL_SLOT_COUNT; i++) {
             if (g_BattlePrimPool[i].timerActive != 0) {
                 if (--g_BattlePrimPool[i].timer < 0) {
                     g_BattlePrimPool[i].timer = 0;
@@ -773,8 +783,8 @@ void BattleUpdatePauseMenu(u8 arg0) {
             while (ControllerPopState() != 0) {
                 if (g_BattlePauseActive != 0) {
                     if (*g_DebuggerState != -1) {
-                        if ((g_C1ButtonStatePressedOnce & 4) != 0) {
-                            if ((g_C1ButtonStatePressedOnce & 8) != 0) {
+                        if ((g_C1ButtonStatePressedOnce & CTRL_BTN_L1) != 0) {
+                            if ((g_C1ButtonStatePressedOnce & CTRL_BTN_R1) != 0) {
                                 D_800C48EA = muted;
                                 SoundEnableAllSpuChannels();
                                 g_SpuChannelMask = channelMask;
@@ -783,11 +793,11 @@ void BattleUpdatePauseMenu(u8 arg0) {
                             }
                         }
                     }
-                } else if ((g_C1ButtonStateReleased & 0x20) != 0) {
+                } else if ((g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) != 0) {
                     g_BattleMenuEvent = 4;
                     break;
                 }
-                if ((g_C1ButtonStateReleased & 0x800) == 0) {
+                if ((g_C1ButtonStateReleased & CTRL_BTN_START) == 0) {
                     continue;
                 }
                 if (D_800CCC58 == 0) {
@@ -850,11 +860,11 @@ void BattleUpdatePauseAndEffectTimers(u8 arg0) {
             ControllerResetState();
         } else {
             while (ControllerPopState() != 0) {
-                if ((g_C1ButtonStateReleased & 0x20) != 0) {
+                if ((g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) != 0) {
                     g_BattleMenuEvent = 4;
                     break;
                 }
-                if ((g_C1ButtonStateReleased & 0x800) == 0) {
+                if ((g_C1ButtonStateReleased & CTRL_BTN_START) == 0) {
                     continue;
                 }
                 if (g_BattlePauseActive == 0) {
