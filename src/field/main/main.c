@@ -188,7 +188,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 // ROUND 437: THE DECLARATION OF g_FieldActorModelSlotCount IS PART OF THE MATCH.
 // The body below is 90.25% / 560 bytes (retail's exact size) with the SCALAR
 // `extern s32 g_FieldActorModelSlotCount;` at the top of this file, which is what it
-// now is. With the unbounded-array form `extern s32 g_FieldActorModelSlotCount[];`
+// now is. With the unbounded-array form `extern s32 g_FieldActorModelSlotCount;`
 // the very same body is 87.24% (`g_FieldActorModelSlotCount == 0` then compares the
 // ARRAY ADDRESS, an always-false guard that cc1 turns into `la s0,sym` in the
 // prologue) and 86.18% with the guard spelled `[0]`. So if a later change to
@@ -280,59 +280,105 @@ typedef struct {
     /* 0x78 */ s32 slotCount;
 } FieldActorModelSlots; // Size: 0x7C
 
-INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077AB4);
-// PARKED 72.42% (444 bytes / 111 insns; retail 428 / 107) - redo lane, best measured.
-// THE STRUCT SPELLING IS THE WIN (keep it): with the count declared as an unbounded
-// array (g_FieldActorModelSlotCount[]) and everything else as displacements off the
-// FieldActorModelSlots base derived from it, the prologue and both guards become
-// retail's exactly - `lui s0,%hi(count)` + `addiu s0,s0,%lo` scheduled into the save
-// block, `lw v0,0(s0)` for both guards, `addiu v0,s0,-40` for the D_801E8644 store,
-// frame 0x58, s0-s7, every call and the arg stack slots 0x10/0x14/0x18/0x1C/0x20.
-// A scalar extern rematerialises `lui/lw %lo` at every use (62.99), which is what the
-// older 62.64/66.92 parks were fighting.
-// RESIDUAL 1, named - OVER-ALLOCATION BY ONE (this is the whole remaining byte
-// budget): retail 7 live + s0 transient, this body 8 live + s0 transient = s0-s8.
-//  - gcc strength-reduces the two g_FieldActorModelSlotSpriteBuffers[i] uses into a
-//    pointer walker (`addiu s3,s3,4` per iteration, one extra saved reg). Retail
-//    re-forms the address each iteration: `lui s0,%hi(SpriteBuffers); addiu;
-//    addu s0,s1,s0` from s1 = i*4, and reuses s0 for both the argument load and the
-//    HeapFree load - i.e. retail did NOT get a giv here. This is the repo's known
-//    repeated-&array CSE wall, in the direction of a walker instead of a fresh la.
-//  - with 9 saved regs gcc then rematerialises the scratch base as its own constant
-//    la (`lui s5,%hi(count); addiu s5,s5,-120`, +1 insn) instead of retail's
-//    `addiu s7,s0,-120`, and the loop bound as a folded `lui v0,%hi; lw v0,0(v0)`
-//    (+1 insn) instead of retail's `lw v0,0x78(s7)`. Both follow from the base not
-//    being derived from the s0 register; the D_801E8644 -0x28 store, one statement
-//    earlier, DOES come off s0 - so it is the live-across-the-loop value that gcc
-//    rematerialises.
-// RESIDUAL 2 - pVector takes TWO induction registers 8 apart: ours stores vx off the
-// pre-increment pointer and vy/vz at -2/0 off the post-increment one, where retail
-// zeroes 0/2/4 off a single register and then `addiu s2,s2,8`.
-// TRIED, one line each (all measured this round unless dated):
-//  - `pVector++` in the call vs a separate `pVector++;` statement - identical 72.42.
-//  - the scratch declared at its own symbol (g_FieldModelSlotScratch, count at +0x78
-//    of the struct): 66.35%, 109 insns - the guards fold to `lui v0,%hi; lw v0,0x78`
-//    so no register is kept and it still needs s8.
-//  - `s32[]` extern + `*pCount` vs `pCount[0]` - identical 62.99 before the struct.
-//  - u8-array extern reached as ((s32*)g_X)[0] (lever k-array-extern-fix-address):
-//    does not materialise here, the two guard loads stay folded.
-//  - asm-label array alias (lever a-an-asm-label-array-extern), early return guard,
-//    hoisted pSteps: all measured in the previous round, none moved the load shape.
-//  - presets -G0 65.49, cdk -G0 60.94, 2.6.0 compile-fails (previous round).
-// NEXT IDEA, untried: free ONE loop register (the sprite walker) so gcc stops
-// rematerialising the scratch base - e.g. an access spelling for the sprite table
-// that loop.c cannot turn into a giv - and the -0x78/loop-bound shapes should follow.
+// PARKED 68.07% (424 bytes / 106 insns; retail 428 / 107) - redo lane, re-measured this round.
+// THE STRUCT SPELLING IS THE WIN (keep it): the count reached as its own address and every
+// other part of the working area as a byte displacement off it, with the vectors zeroed as
+// `pSlots->vectors[i]` and passed as `&pSlots->vectors[i]`, reproduces retail's prologue,
+// frame 0x58, both guards (`lw v0,0(s0)` twice off the count address) and ONE pVector walker
+// (`sh zero,0/2/4(sN)` + `addiu sN,sN,8` in the jal delay slot). The older `pVector++` body
+// split that pointer into two induction registers 8 apart and is strictly worse.
+// THE DECLARATION OF g_FieldActorModelSlotCount CHANGES THE SCORE: this body with
+// `extern s32 g_FieldActorModelSlotCount[];` and `pCount = g_FieldActorModelSlotCount;`
+// (array decay) is 75.93% at the same 424 bytes / 106 insns. It is parked on the SCALAR
+// declaration (`&g_FieldActorModelSlotCount`) because round 437 established the scalar form
+// as the one func_80077884 needs (87.24 array vs 90.25 scalar), and that stub is parked at
+// 90.25. If func_80077884 is settled some other way, flip this file to the array form and
+// this body gains 8 points for free.
+// RESIDUAL, named - TWO loop.c MULT GIVs, which is the whole remaining gap. Retail holds SIX
+// values in its loop (i s3, pVector s2, pData s6, nRow s4, clut s5, pSlots s7) plus two
+// transients (s0 = i*4, reused as the sprite element address; s1 = i*4, then
+// `&animationIds[0] + i*4`) = s0-s7, its exact saved set. It re-forms both array bases every
+// iteration: `sll s1,s3,2` once, `lui s0,%hi(SpriteBuffers); addiu; addu s0,s1,s0`, then
+// `lw a3,0(s0)` for the argument AND `lw a0,0(s0)` for HeapFree, and
+// `addiu v1,s7,0x20; addu s1,s1,v1` for the animation-id store, with the loop bound read as
+// `lw v0,0x78(s7)`. Our compile turns the double-use `sprite[i]` and the single-use
+// `animationIds[i]` into walkers (`la sN,sym` in the preheader, `addiu sN,sN,4` in the
+// latch), keeps only `i*4` unreduced (the ModelPointers access does come out as retail's
+// `lw v0,sym($reg)`), and so needs 8 held + 1 = s0-s8. Per lever
+// g-qimode-index-blocks-the-mult-giv this is not source-reachable: retail has neither an
+// `andi` on the index nor an `sltiu` test, so its counter is s32 and the multiply cannot be
+// kept unreduced from C.
+// TRIED THIS ROUND, one line each (scalar declaration unless the line says otherwise):
+// - byte-offset casts for both sprite uses and for the animation-id store
+//   (`*(s32*)((u8*)g_FieldActorModelSlotSpriteBuffers + i * 4)`, `*(s32*)((u8*)pSlots + 0x20 + i * 4)`):
+//   byte-identical to the `[i]` spelling, cc1 canonicalises them (75.93 under the array decl).
+// - named `offset = i * 4;` used for the three array addresses: 67.56 / 448 / 112, the offsets
+//   themselves get givs.
+// - source biv `offset = 0;` with `offset += 4;` at the loop bottom: 71.36 but retail's exact
+//   428 bytes / 107 insns - the sprite base still walks, pSlots still takes the 9th register,
+//   and it adds a `move sN,zero` init retail does not have.
+// - `pSprite = sprite[i]` loaded once into a local and passed to BOTH calls: 67.92 / 428 / 107,
+//   gcc re-loads it from the walking base anyway.
+// - try_flags this round: gcc-2.6.0 -O2 -G8 75.93 (equal to the array-decl body, so not a
+//   preset answer), gcc-2.7.2-cdk -O2 -G8 70.60. Previous round: -G0 65.49, cdk -G0 60.94.
+// PARKED 68.07% (424 bytes / 106 insns; retail 428 / 107) - redo lane, re-measured this round.
+// THE STRUCT SPELLING IS THE WIN (keep it): the count reached as its own address and every
+// other part of the working area as a byte displacement off it, with the vectors zeroed as
+// `pSlots->vectors[i]` and passed as `&pSlots->vectors[i]`, reproduces retail's prologue,
+// frame 0x58, both guards (`lw v0,0(s0)` twice off the count address) and ONE pVector walker
+// (`sh zero,0/2/4(sN)` then `addiu sN,sN,8` in the jal delay slot). The `pVector++` body this
+// park replaces split that pointer into two induction registers 8 apart and is 3.5 points
+// worse (see the declaration note) - do not go back to it.
+// THE DECLARATION OF g_FieldActorModelSlotCount CHANGES THE SCORE of this body by 8 points:
+// with the unbounded-array extern (`extern s32 g_FieldActorModelSlotCount[];` and
+// `pCount = g_FieldActorModelSlotCount;`, array decay) it is 75.93% at the same 424 bytes /
+// 106 insns; with the SCALAR extern the file has now it is 68.07% (`pCount =
+// &g_FieldActorModelSlotCount` - at 65.88% with the older pVector++ body). It is parked on the
+// scalar form because round 437 established it as the one func_80077884 needs (that stub is
+// parked at 90.25 and measures 87.24 under the array form). If func_80077884 is settled some
+// other way, flip this file to the array form and this body gains 8 points for free.
+// CAUTION: the park this replaces carried 72.42% from the ARRAY declaration that round 437
+// removed, and its `pCount = g_FieldActorModelSlotCount;` now assigns an int to a pointer, so
+// re-measuring it verbatim reads 69.75% through a deref of the count VALUE - undefined
+// behaviour, not a valid base. The 68.07 above is well-defined C.
+// RESIDUAL, named - TWO loop.c MULT GIVs, which is the whole remaining gap. Retail holds SIX
+// values in its loop (i s3, pVector s2, pData s6, nRow s4, clut s5, pSlots s7) plus two
+// transients (s0 = i*4, reused as the sprite element address; s1 = i*4, then
+// `&animationIds[0] + i*4`) = s0-s7, its exact saved set. It re-forms both array bases every
+// iteration: one `sll s1,s3,2`, then `lui s0,%hi(SpriteBuffers); addiu; addu s0,s1,s0` with
+// `lw a3,0(s0)` for the argument AND `lw a0,0(s0)` for HeapFree, and
+// `addiu v1,s7,0x20; addu s1,s1,v1` for the animation-id store, the loop bound read as
+// `lw v0,0x78(s7)`. Our compile turns the double-use `sprite[i]` and the single-use
+// `animationIds[i]` into walkers (`la sN,sym` in the preheader, `addiu sN,sN,4` in the
+// latch); only `i*4` stays unreduced (the ModelPointers access does come out as retail's
+// `lw v0,sym($reg)`), so the body needs 8 held + 1 = s0-s8. Per lever
+// g-qimode-index-blocks-the-mult-giv this is not source-reachable: retail has neither an
+// `andi` on the index nor an `sltiu` test, so its counter is s32 and the multiply cannot be
+// kept unreduced from C.
+// TRIED THIS ROUND, one line each (scalar declaration unless the line says otherwise):
+// - byte-offset casts for both sprite uses and for the animation-id store
+//   (`*(s32*)((u8*)g_FieldActorModelSlotSpriteBuffers + i * 4)`, `*(s32*)((u8*)pSlots + 0x20 + i * 4)`):
+//   same 68.07 / 424 / 106, cc1 canonicalises them (75.93 under the array decl), so write the
+//   `[i]` form.
+// - named `offset = i * 4;` used for the three array addresses: 67.56 / 448 / 112, the offsets
+//   themselves get givs.
+// - source biv `offset = 0;` with `offset += 4;` at the loop bottom: 71.36 but retail's exact
+//   428 bytes / 107 insns - the sprite base still walks, pSlots still takes the 9th register,
+//   and it adds a `move sN,zero` init retail does not have.
+// - `pSprite = sprite[i]` loaded once into a local and passed to BOTH calls: 67.92 / 428 / 107,
+//   gcc re-loads it from the walking base anyway.
+// - try_flags this round: gcc-2.6.0 -O2 -G8 75.93 (equal to the array-decl body, so not a
+//   preset answer), gcc-2.7.2-cdk -O2 -G8 70.60. Previous round: -G0 65.49, cdk -G0 60.94.
 /*
 void func_80077AB4(void) {
     FieldActorModelSlots* pSlots;
-    SVECTOR* pVector;
     s32* pData;
     s32* pCount;
     s32 i;
     s32 clut;
     s32 nRow;
 
-    pCount = g_FieldActorModelSlotCount;
+    pCount = &g_FieldActorModelSlotCount;
     if (pCount[0] != 0) {
         FieldWaitForArchiveSync();
         FieldRenderSyncAndFlush();
@@ -340,17 +386,17 @@ void func_80077AB4(void) {
         D_801E8644 = (s32*)((u8*)pCount - 0x28);
         SetBackColor(g_FieldBackgroundR, g_FieldBackgroundG, g_FieldBackgroundB);
         pSlots = (FieldActorModelSlots*)((u8*)pCount - 0x78);
-        pVector = pSlots->vectors;
         pData = g_FieldActorModelSlotDataBuffers;
         clut = 0xFC0000;
         nRow = 0xFC;
         for (i = 0; i < pSlots->slotCount; i++) {
-            pVector->vx = 0;
-            pVector->vy = 0;
-            pVector->vz = 0;
-            func_801E742C(i, 0, *pData++, g_FieldActorModelSlotSpriteBuffers[i],
+            pSlots->vectors[i].vx = 0;
+            pSlots->vectors[i].vy = 0;
+            pSlots->vectors[i].vz = 0;
+            func_801E742C(i, 0, *pData++,
+                          g_FieldActorModelSlotSpriteBuffers[i],
                           (s16)(0x240 - ((i + ((u8*)&g_FieldEffects)[0xEB + nRow]) << 6)), 0x100, 0,
-                          clut >> 16, pVector++);
+                          clut >> 16, &pSlots->vectors[i]);
             nRow++;
             HeapFree((void*)g_FieldActorModelSlotSpriteBuffers[i]);
             pSlots->animationIds[i] = *(s16*)((u8*)g_FieldActorModelPointers[i] + 0x1C);
@@ -359,7 +405,7 @@ void func_80077AB4(void) {
         HeapChangeCurrentUser(8, NULL);
     }
 }*/
-
+INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077AB4);
 
 void FieldLoadAndCreateObjectModels(void) {
     func_80077884();
