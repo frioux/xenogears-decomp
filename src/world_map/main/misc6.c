@@ -780,6 +780,25 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
    declared Z,Y,X (97.97, unchanged) and the chained
    `posX = posZ = *(u32 *)g_WorldMapPlayerPosition;` (97.97, unchanged).
    The percent and byte count are stale-safe: re-measured 97.97 / 148 bytes.
+
+   ROUND 420 re-measured 97.97 (148 bytes) and read the -dl dispositions for this
+   body (cpp -DSKIP_ASM, then tools/gcc-2.7.2-psx/cc1 with the unit flags plus
+   -da -dl): `73 in 6  75 in 4  76 in 6  77 in 4  78 in 5  79 in 3`, with
+   `Hard regs used: 2 3 4 5 6`, `Registers live at start: 4 29 30` and NO
+   `N regs to allocate` line - global-alloc never runs for this single-block
+   function, so the hand-out is local-alloc's alone. 73 is pActor (the
+   `reg/v:SI` plus of the g_WorldMapSlots load 76 and the `index << 7` 75, tied
+   to 76 by addsi3), 77/78/79 are posX/posY/posZ (loads at insns 35/38/41), and
+   the pair that differs is 73<->79: 73 is used 7 times over 20 insns, 79 10
+   times over 18 insns, so the ascending-n_refs hand-out (the 0x1000 constant 80
+   first, then 73, then 77/78/79) IS retail's $v1/$a0/$a1/$a2, and our compile
+   allocated 79 before 73 instead - a quantity-set difference from posZ's extra
+   REG_DEP_ANTI refs, not a spelling of this body. Shapes re-measured this round:
+   the three values as initialised declarations inside the do-block (96.62, posX
+   takes $v1), the chained
+   `g_WorldMapScrollTargetX = g_WorldMapCameraTarget[0] = *(u32 *)g_WorldMapPlayerPosition;`
+   form for all three (85.68 - it also moves the FadeLevel store above the
+   loads), and the body without the posZ alias (96.62).
 /*
 int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1598,6 +1617,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
    the way retail has it: gcc folds it and the tail is unchanged at 94.71, because
    our RTL ends `sh ... / sh zero / li v0,1 / jr` so reorg takes the li into the
    delay slot. Re-measured 94.71 / 136 bytes after the -da and -G0 screens.
+   ROUND 420 re-measured this body live at 94.71 / 136 bytes: the two deltas are
+   still (1) the twin func_8007E450's register rotation (pActor $a2 here, $v1 in
+   retail; posZ $v1 here, $a2 in retail) whose -dl dispositions and quantity
+   analysis are in that twin's note above, and (2) the tail reorg - retail emits
+   `sh v0,4(v1)` / `li v0,1` / `jr ra` / `sh zero,0x20(v1)` while this body emits
+   `sh v0,4` / `sh zero,0x20` / `jr ra` / `li v0,1`, i.e. retail's return
+   constant sits before the state store in its RTL and ours after it, so reorg
+   steals a different instruction into the delay slot. The twin gets retail's
+   tail for free because its `pStateFrames = 0x40` store forces a v0 reload
+   between the command store and the return.
 */
 /*
 int func_80080578(int index) {
