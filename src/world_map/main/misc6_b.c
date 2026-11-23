@@ -41,6 +41,17 @@ extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern void WorldMapStartSlot(s32, s32);
 extern void SoundPlaySoundEffectOnFreePair(s32);
+extern u32 g_WorldMapRotationMatrixValid;
+extern s16 g_WorldMapCameraRot[];
+extern s16 g_WorldMapViewRotationY;
+extern u16 g_WorldMapViewRotationZ;
+extern s32 g_WorldMapCameraHeight;
+extern s32 g_WorldMapCameraTarget[];
+extern u16 g_WorldMapPathFrame;
+extern u16 D_8009BD42[];
+extern u16 D_8009BD4A;
+extern int rand(void);
+extern void func_80096F18(void *, void *, s32, void *);
 
 /* This unit exists to hold this function's 65-word jump table: the table must sit
    at overlay 0x6F0, and misc6's .rodata starts at 0x29C, so there it would land at
@@ -187,71 +198,11 @@ int func_80080578(int index) {
 }
 */
 
-/* 99.69%, round 325 (was 96.01%). objdiff reports 768 bytes on both sides, so the
-   body below is exactly retail's size, and the WHOLE function now matches byte
-   for byte except ten instructions of the rand tail, where only the register
-   NAMES differ (identical instruction multiset).
-   Round 325 took 96.01 -> 99.69 with four finds, all in the body:
-   - case 1 of the first switch: the angle base landed in $v1 (retail: $a0),
-     which dragged the 0x800000 constant into $v0 and scrambled the rest of the
-     case. What fixes it is that `pAngle = g_WorldMapCameraRot; pActor->state = 1;`
-     is written TWICE, once per arm of an if/else on g_WorldMapViewRotationY:
-     98.65 -> 99.69, and 0x800000 then takes $v1 as retail has it. It reads like
-     debris and is load-bearing - the same family as the repo's empty do-while
-     and unreachable-use levers. Without it case 1 is 98.65.
-   - the case-1 constants land in retail's positions only with TWO SEQUENTIAL
-     do-blocks, not one: block 1 = command, camRot; block 2 = ViewY, ViewZ,
-     stateIndex. A do-block's preheader is where cc1's loop.c hoists one loop
-     invariant constant per register, so ONE block puts `li v0,16` and
-     `lui v1,0x80` both at its head, while two put `li v0,16` before the command
-     store and `lui v1,0x80` after the camRot store - retail's exact placement.
-     `stateIndex = 0x800000` must be INSIDE block 2: its `lui` is hoisted above
-     the two volatile stores while its `sw` stays last.
-   - the pStateFrames update wants the EMBEDDED assignment, like its unk60 twin:
-     nValue = (s32)(pActor->pStateFrames = (void *)((s32)pActor->pStateFrames + (nDelta >> 4)));
-     Split as `nValue = ...; pActor->pStateFrames = nValue;` the sum takes a third
-     register, the sra runs before the sw, and it parks at 97.10.
-   - the two `pAngle[0] << 12` / `g_WorldMapViewRotationY << 12` shifts want
-     SEPARATE locals (nAngle); sharing `nValue` ties them to one register and the
-     second sll lands in $a3 instead of retail's $v0.
-   Still needed from earlier rounds, do not undo: the pStateFrames/pStateIds
-   stores stay volatile (88.41 without), the three case-1 stores stay volatile
-   (86.95 without the do-block), g_WorldMapCameraRot is declared as an unbounded
-   ARRAY so cc1 keeps its address in a register (round 316), `pScratch` is
-   declared before `pActor` so its save lands in retail's prologue slot, and the
-   second switch needs its `case 0: break;` (four nodes make retail's chain).
-   Residual: the rand tail. Retail assigns nValue=$a1, the D_8009BD42 base=$a3,
-   the reloaded scratchpad value=$a2; we get $a3/$a2/$a1 - a cyclic rotation of
-   the same three registers over an identical instruction stream, i.e. global
-   allocation's tie-break, which it decides from the whole function's allocno
-   order. Measured dead in round 325: a pointer local for D_8009BD42 (declared at
-   the top or at the use), `D_8009BD42[0] = D_8009BD42[0] + nValue`, base-first
-   vs index-first scratch addressing, a separate local for the >>13 shift (764
-   bytes, one instruction short), a separate variable for the scratch reload (760
-   bytes), a do-block around the tail (98.39, rotates the other way), a do-block
-   around only the three stores (96.38), `if (1) { }` (no change), and two local
-   declaration orders (no change).
-   Two permuter runs from this body (2011 then 2388 iterations) got base=60 and
-   found nothing further; the earlier run's only find was the if/else above.
-   gcc 2.7.2-cdk is NOT this unit's preset: this body scores 90.11 under it and
-   the unit's matched neighbours fall to 96.27-99.67.
-   ROUND 398 re-measured 99.69 (768 bytes = retail's) and now PROVES the tail
-   is not a spelling question. The -da dump of this unit (mips-linux-gnu-cpp
-   -DSKIP_ASM, then tools/gcc-2.7.2-psx/cc1 with the unit flags plus -da) prints
-   "79 conflicts: 73 79 2 3 4 5 6 29 64 65 66" for the nValue pseudo, i.e. v0,
-   v1, a0, a1 AND a2 are all marked conflicting, so find_reg has only a3 left and
-   MUST put nValue there, where retail has a1. Retail's RTL therefore differs
-   in a way no shape of this tail reaches, while the RTL we already have is
-   retail's down to mfhi going straight into the value, sra a0,13 for the second
-   shift and li v0,1 in between. Also measured dead in round 398: the ONE
-   statement form `nValue = rand() % (unk7C >> 12) - (unk7C >> 13);` splits the
-   value into two pseudos (mfhi v1, subu a3,v1,a0) and stays 99.69 with an extra
-   move, so the two statement split in the body below is the shape retail has -
-   keep it. -da recipe: it is also the cheap way to settle any rotation here.
-   measure: tools/scripts/diff_func.sh world_map/main/misc6 func_80080600
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6_b", func_80080600);
-/*
+/* The rand tail needs its own short-lived local (`nRand`, not the shared
+   `nValue`): reusing the function-wide nValue gave a 3-register rotation
+   that sat at 99.69% through three rounds and two permuter runs, while a
+   fresh local makes the tail allocnos come out in retail's order ($a1
+   value, $a3 D_8009BD42 base, $a2 scratch reload). */
 int func_80080600(int index) {
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s16 *pAngle;
@@ -259,6 +210,7 @@ int func_80080600(int index) {
     s32 nValue;
     s32 nDelta;
     s32 nAngle;
+    s32 nRand;
 
     switch (pActor->command) {
     case 1:
@@ -342,11 +294,10 @@ int func_80080600(int index) {
         }
         break;
     }
-    nValue = rand() % (pActor->unk7C >> 12);
-    nValue -= pActor->unk7C >> 13;
-    *(s16 *)(0xA2 + pScratch) = (s16)nValue;
-    D_8009BD42[0] += nValue;
+    nRand = rand() % (pActor->unk7C >> 12);
+    nRand -= pActor->unk7C >> 13;
+    *(s16 *)(0xA2 + pScratch) = (s16)nRand;
+    D_8009BD42[0] += nRand;
     D_8009BD4A += *(u16 *)(0xA2 + pScratch);
     return 1;
 }
-*/
