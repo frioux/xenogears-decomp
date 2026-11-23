@@ -668,6 +668,15 @@ s32 func_8008390C(s32 arg0) {
 //   rematerialises it - the same rematerialisation residue as misc7's
 //   func_800827EC. Untried: a local s32 *pScrollX.
 //
+// Two stored levers say how to read that: h-one-retail-store-at-a-join-is-a-
+// cross-jumped-per-arm-store and h-volatile-store-pins-the-arg-pair. Merging a
+// repeated store into one at a join is cc1's NORMAL behaviour here, so the six
+// unmerged copies in retail mean its arms each differ somewhere in the tail - and
+// every attempt to make them differ cost more than the merge it prevented. Also
+// from those levers: a volatile cast on a store whose address a pointer iv would
+// otherwise fold costs the body bytes, which is why pinning command/redStep here
+// lost more than it bought.
+//
 // Preset screened and not the answer: gcc-2.7.2-cdk 67.03, gcc-2.6.0 does not
 // compile this body. Both switch tables live in this unit's rodata range
 // (0x98C..0x9D8, main/misc8), so diff_func can never print MATCH here; judge any
