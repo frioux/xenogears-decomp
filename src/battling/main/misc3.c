@@ -661,8 +661,6 @@ extern s32 ControllerGetType(s32 controllerIndex);
 extern u8 ControllerStickToAnalogX(s32 buttonState);
 extern u8 ControllerStickToAnalogY(s32 buttonState);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
-
 /* 99.43% (1972 bytes = retail's exact size, 491 vs 491 instructions, 22 differing
    lines). Both residuals are register-name ties; nothing structural is left.
    (1) 17 lines, the flags read-modify-write of 0xD0: retail has the mask in $v1
@@ -677,17 +675,24 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
    LOWER regno, which the expander cannot produce for `flags & const`.
    Measured, all identical to this body or worse: a single-use `u32 newFlags =
    p->flags;` and a single-use `u32 clearSpin = ~0x20000;` local (both folded
-   back into the constant by copy propagation); the constant written first as
-   `(~0x20000 & p->flags)` (gcc canonicalises commutative operands); the same
-   `flags` variable reassigned before the RMW (one pseudo for the whole
-   function, so BOTH live ranges land in $4: 99.41, 30 lines); an explicit
-   spinBit local (98.86); the two `+= BATTLE_ANGLE_HALF_TURN` moved above the
-   RMW (the schedule collapses, worse).
+   back into the constant by copy propagation); splitting the AND into a local
+   (`newFlags = p->flags & ~0x20000; p->flags = newFlags | ...;`, round 431 -
+   byte-identical at 99.43, the AND result coalesces the same way); the constant
+   written first as `(~0x20000 & p->flags)` (gcc canonicalises commutative
+   operands); the same `flags` variable reassigned before the RMW (one pseudo
+   for the whole function, so BOTH live ranges land in $4: 99.41, 30 lines); an
+   explicit spinBit local (98.86); the two `+= BATTLE_ANGLE_HALF_TURN` moved
+   above the RMW (the schedule collapses, worse).
    (2) 5 lines: `subu` ties its output to the SECOND operand ($v0) where retail
-   works in place on the first ($v1). A pad-angle local is 98.99, and
+   works in place on the first ($v1); the following negu and slti ride the same
+   register, so it is one pseudo's hand-out. A pad-angle local is 98.99, and
    `diff = direction & 0xFFF; diff -= ...` makes diff callee-saved (98.81,
    36 differing lines).
-   Permuter from this body: 784 iterations, base 145 best 145.
+   Permuter from this body: 784 iterations (round ~415) and 1181 iterations
+   (round 431), both base 145 best 145 - two runs agree, nothing left there.
+   Preset screen on this body (round 431): gcc-2.7.2-cdk 98.38, gcc-2.6.0 97.88,
+   Default 99.43, so the unit preset is right and this is not a cdk scheduling
+   case.
    Keep these two spellings, they closed the previous 97.34 park: `limit =
    __builtin_abs(x)` inside the x < 0 arms (a ternary folds to a bare negu and
    loses retail's move+negu pair) and `p->distance = distance;` hoisted out of
@@ -712,7 +717,6 @@ s32 func_80076884(BattleActor* p) {
     s32 direction;
     s32 distance;
     s32 limit;
-    s32 negative;
     s32 diff;
     u32 flags;
 
@@ -932,8 +936,8 @@ s32 func_80076884(BattleActor* p) {
             p->flags |= 0x80000;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
 extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleFacingAngle;
