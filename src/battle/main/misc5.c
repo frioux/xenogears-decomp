@@ -510,7 +510,11 @@ void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
    load: 71.05. An `s32 mul = p->operand2;` local keeps operand2 in v1 and the same 71.09.
    2.6.0 / 2.7.2-cdk emit retail's load order from the row-first body but `slt` for the clamp where
    retail has `slti` (2.6.0: 99.55). Two 3-minute permuter runs (1733 and 2259 iterations): base=20
-   best=20, nothing found. The body below is the 99.09 spelling. */
+   best=20, nothing found. The body below is the 99.09 spelling.
+   Round 424 re-measured from the lever f-mult-operand-order-follows: one more spelling (a
+   `u8 imm = p->operand2;` statement before a row-first multiply) is 71.05 and mirrors the whole
+   allocation exactly like the earlier row-first bodies, so the load cluster and the mult order are
+   one expand order. Parked, not a spelling job. */
 /*
 void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
