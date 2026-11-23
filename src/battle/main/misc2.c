@@ -105,6 +105,12 @@ extern u8 g_BattleSlotDisplayValue[];
 extern volatile s32 g_BattlePrimStartIndexVolatile __asm__("g_BattlePrimStartIndex");
 extern BattleTableEntry D_800CCDC4[];
 extern BattleTableEntry D_800CCDC6[];
+// the same table family seen from its other fields: the entry's +0x50 word and the
+// two +0xA8 words, indexed 0xB8 words apart (the 0x170-byte stride)
+extern u16 g_BattleSlotEntries[];
+extern u16 D_800CCD6C[];
+extern u16 D_800CCD6E[];
+extern s16 g_BattleSlotCountdownTimers[];
 extern BattleSlotGraphics *g_BattleSlotGraphics[];
 
 extern u8 g_BattlePrimBuffer[];
@@ -745,7 +751,141 @@ void func_80075168(void) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
 
+// 92.72% at 2780 bytes / 695 insns against retail 696. Structurally COMPLETE: filtering the 201 differing diff lines for changed OPCODES leaves four (a delay-slot sll vs li+nop, one sll a1,t1,2 vs nop, and a hoisted li a1,0x14 that retail reloads), everything else is register naming. Residual: cc1 2.6.0 does not form retail biv for g_BattleSlotActorIds[slot * 0x1C] (this body emits sll/subu/sll from t1 every pass where retail walks t6 += 0x1C) and rotates the caller-saved set (the width array base is t0 in the panelMode==0 arm and a freshly computed a2 in the else arm, so the source took &width[slot] twice; the texture byte is in a0 and the width word in v0, this body has them swapped).
+// LOAD-BEARING SPELLINGS: every prim store is a volatile lvalue and the index is read through g_BattlePrimStartIndexVolatile (same lever as func_80075168; without them the body collapses); the two quads are POLY_GT4s at gfx+0x5A0 indexed slot*2+primIndex, the panel quad at 6+primIndex; x0/x2 must be spelled origin + slot*0x60 + 0x2D, NOT slot-first (addu operand order, 90.61 with slot-first); the width term of x1/x3 wants (u16)width[slot] + 1, which keeps retail lhu+addiu.
+// Tried: slot-first x spelling 90.61, (u16) width term 92.72. Next lever: permuter - structure is right, only allocation and four opcodes differ.
+/*
+void func_80075938(void) {
+    s32 slot;
+    s32 width[4];
+    u16 clut;
+    s16 *pTimer;
+    s16 *pLimit;
+
+    func_80075168();
+    g_BattleDisplayState->unk82 = 0;
+    pTimer = g_BattleSlotCountdownTimers;
+    pLimit = pTimer - 0xB;
+    for (slot = 0; slot < 3; slot++, pTimer++, pLimit++) {
+        if (g_BattleSlotActorIds[slot * 0x1C] != BATTLE_SLOT_CHARACTER_NONE) {
+            if (width[slot] < 0) {
+                width[slot] = 0;
+            }
+            if (g_BattleDisplayState->panelMode[slot] == 0) {
+                width[slot] = (100 - (*pTimer * 100) / *pLimit) * 5600 / 10000;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].x0 =
+                    g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + slot * 0x60 + 0x2D;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].y0 = 0x1A;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].x1 =
+                    slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x2C) + ((u16)width[slot] + 1);
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].y1 = 0x1A;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].x2 =
+                    g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + slot * 0x60 + 0x2D;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].y2 = 0x1E;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].x3 =
+                    slot * 0x60 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x2C) + ((u16)width[slot] + 1);
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].y3 = 0x1E;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].u0 =
+                    (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].v0 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248];
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].u1 =
+                    (width[slot] + (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F)) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].v1 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248];
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].u2 =
+                    (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].v2 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248] + 4;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].u3 =
+                    (width[slot] + (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F)) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].v3 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248] + 4;
+                if (((D_800CCD6C[slot * 0xB8] | D_800CCD6E[slot * 0xB8]) & 0x8000) != 0) {
+                    clut = ((u16 *)(g_BattleGraphicsWork + 0xA2AC))[3];
+                } else if ((g_BattleSlotEntries[slot * 0xB8] & 0x1000) != 0) {
+                    clut = ((u16 *)(g_BattleGraphicsWork + 0xA2AC))[2];
+                } else {
+                    clut = ((u16 *)(g_BattleGraphicsWork + 0xA2AC))[0];
+                }
+                *(volatile u16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [slot * 2 + g_BattlePrimStartIndexVolatile].clut = clut;
+                g_BattleDisplayState->panelActive[slot] = 1;
+            } else {
+                width[slot] = (100 - *pTimer) * 5600 / 10000;
+                if (g_BattleSlotFlags[slot * 8] != 0 && g_BattleActorCharIds[slot] != 7) {
+                    width[slot] = (D_800CCDC4[slot].flags * 100 / D_800CCDC6[slot].flags) * 5600 / 10000;
+                }
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].x0 = 0xC;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].y0 = 0xCE;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].x1 = 0xC;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].y1 = 0xCE - width[slot] * 2;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].x2 = 0x14;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].y2 = 0xCE;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].x3 = 0x14;
+                *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].y3 = 0xCE - width[slot] * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].u0 =
+                    (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].v0 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248];
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].u1 =
+                    (width[slot] + (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F)) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].v1 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248];
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].u2 =
+                    (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].v2 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248] + 4;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].u3 =
+                    (width[slot] + (((u8 *)g_BattleGraphicsWork)[0xA244] & 0x3F)) * 2;
+                *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].v3 =
+                    ((u8 *)g_BattleGraphicsWork)[0xA248] + 4;
+                *(volatile u16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
+                     [6 + g_BattlePrimStartIndexVolatile].clut =
+                    ((u16 *)(g_BattleGraphicsWork + 0xA2AC))[1];
+                if (g_BattleDisplayState->primListsPending != 0) {
+                    g_BattleDisplayState->unk82 = 1;
+                }
+            }
+        } else {
+            g_BattleDisplayState->panelActive[slot] = 0;
+        }
+    }
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
+
 void BattleDrawFrameScreenMode1(void) {
     if (g_BattleFrameDrawSuppressed == 0) {
         BattleExpandSlotRects();
