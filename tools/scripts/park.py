@@ -74,11 +74,29 @@ def unpark(text, name, asm_line):
     return None
 
 
+def comment(note):
+    """A note written as free text must not land in the file as live C."""
+    lines = [l if l.lstrip().startswith(("//", "/*")) else "// " + l for l in note.splitlines()]
+    return "".join(l + "\n" for l in lines)
+
+
+def existing_asm_line(text, name):
+    """The INCLUDE_ASM line this file already holds for `name`, so the unit
+    argument cannot invent a path (`misc16_r2` is not `misc16`)."""
+    m = re.search(r'INCLUDE_ASM\("[^"]*",\s*' + name + r"\s*\);", text)
+    return m.group(0) if m else None
+
+
 def repark(text, name, asm_line, note=""):
+    # A stale INCLUDE_ASM for the function we are parking would leave it both
+    # stubbed and defined, which lint_sources.py rejects.
+    stale = existing_asm_line(text, name)
+    if stale:
+        text = text.replace(stale + "\n", "")
     m = re.search(DEF % name, text, re.M)
     if not m:
         return None
-    return text[:m.start()] + note + "/*\n" + m.group(0) + "*/\n" + asm_line + "\n" + text[m.end():]
+    return text[:m.start()] + comment(note) + "/*\n" + m.group(0) + "*/\n" + asm_line + "\n" + text[m.end():]
 
 
 def main():
@@ -91,8 +109,9 @@ def main():
     ap.add_argument("--note", default="", help="comment lines to put above the re-parked body")
     a = ap.parse_args()
 
-    asm_line = 'INCLUDE_ASM("asm/%s", %s);' % (a.asm_dir, a.function)
     text = open(a.source).read()
+    asm_line = existing_asm_line(text, a.function) or \
+        'INCLUDE_ASM("asm/%s", %s);' % (a.asm_dir, a.function)
     if a.action == "unpark":
         out = unpark(text, a.function, asm_line)
     else:
