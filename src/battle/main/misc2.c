@@ -670,7 +670,7 @@ void func_8007500C(void) {
     } while (i < 8);
 }*/
 
-void func_80075168(void) {
+void BattleBuildSlotGaugePrims(void) {
     s32 slot;
     u32 value;
     u32 full;
@@ -741,7 +741,7 @@ void func_80075168(void) {
 }
 
 // 92.72% at 2780 bytes / 695 insns against retail 696. Structurally COMPLETE: filtering the 201 differing diff lines for changed OPCODES leaves four (a delay-slot sll vs li+nop, one sll a1,t1,2 vs nop, and a hoisted li a1,0x14 that retail reloads), everything else is register naming. Residual: cc1 2.6.0 does not form retail biv for g_BattleSlotActorIds[slot * 0x1C] (this body emits sll/subu/sll from t1 every pass where retail walks t6 += 0x1C) and rotates the caller-saved set (the width array base is t0 in the panelMode==0 arm and a freshly computed a2 in the else arm, so the source took &width[slot] twice; the texture byte is in a0 and the width word in v0, this body has them swapped).
-// LOAD-BEARING SPELLINGS: every prim store is a volatile lvalue and the index is read through g_BattlePrimStartIndexVolatile (same lever as func_80075168; without them the body collapses); the two quads are POLY_GT4s at gfx+0x5A0 indexed slot*2+primIndex, the panel quad at 6+primIndex; x0/x2 must be spelled origin + slot*0x60 + 0x2D, NOT slot-first (addu operand order, 90.61 with slot-first); the width term of x1/x3 wants (u16)width[slot] + 1, which keeps retail lhu+addiu.
+// LOAD-BEARING SPELLINGS: every prim store is a volatile lvalue and the index is read through g_BattlePrimStartIndexVolatile (same lever as BattleBuildSlotGaugePrims; without them the body collapses); the two quads are POLY_GT4s at gfx+0x5A0 indexed slot*2+primIndex, the panel quad at 6+primIndex; x0/x2 must be spelled origin + slot*0x60 + 0x2D, NOT slot-first (addu operand order, 90.61 with slot-first); the width term of x1/x3 wants (u16)width[slot] + 1, which keeps retail lhu+addiu.
 // Tried: slot-first x spelling 90.61, (u16) width term 92.72. Next lever: permuter - structure is right, only allocation and four opcodes differ.
 /*
 void func_80075938(void) {
@@ -751,7 +751,7 @@ void func_80075938(void) {
     s16 *pTimer;
     s16 *pLimit;
 
-    func_80075168();
+    BattleBuildSlotGaugePrims();
     g_BattleDisplayState->unk82 = 0;
     pTimer = g_BattleSlotCountdownTimers;
     pLimit = pTimer - 0xB;

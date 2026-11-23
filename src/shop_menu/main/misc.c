@@ -2998,7 +2998,7 @@ extern void ShopMenuSetVertices();
 // The digit codes are written through the rect struct's own expression (`&rect` + the
 // post-loop `k`), as in ShopMenuRenderSellItemRows: a RECT* local for the units digit and the
 // two LoadImage calls costs the `li s2,0x28` hoist and moves i from $s3 to $s2.
-void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
+void ShopMenuRenderBuyItemRows(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
     RECT rect;
     u8 digitGlyphs[0xE];
     u8 decodedGlyphs[0xE];
@@ -3616,7 +3616,7 @@ u_char ShopMenuBuyMenu(void) {
         ShopMenuUpdateAndRender();
 
         if ((scrollOffset != prevScrollOffset) || refreshGoldGraphics) {
-            func_801CDD14(scrollOffset, newGoldAmount, &sp28);
+            ShopMenuRenderBuyItemRows(scrollOffset, newGoldAmount, &sp28);
             ShopMenuUpdateScrollBarHandle(12, 50, 60, g_ShopItemCount, scrollOffset);
         }
 

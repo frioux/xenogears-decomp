@@ -652,7 +652,7 @@ extern void WorldMapSyncGearRideActors(void);
 extern void WorldMapLoadTextureClut(void);
 extern void WorldMapLoadClutAndTpageIds(void);
 extern void func_800736DC(void);
-extern void func_80073E30(void);
+extern void WorldMapInitSemiTransPrims(void);
 extern void WorldMapRelocateMapEntryOffsets(void);
 extern void GfxAllocateWorkBuffers(s32 size, s32 flags);
 extern void WorldMapAllocPrimBuffers(void);
@@ -790,7 +790,7 @@ void func_80072238(void) {
     WorldMapInitSpriteSets();
     WorldMapQueueFileLoads();
     func_800736DC();
-    func_80073E30();
+    WorldMapInitSemiTransPrims();
     WorldMapRelocateMapEntryOffsets();
     GfxAllocateWorkBuffers(0x1400, 0);
     WorldMapAllocPrimBuffers();
@@ -1707,9 +1707,9 @@ void func_80073B04(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 
 // The world map's two full-screen textured quads; the second is a copy of the first.
-extern POLY_FT4 D_8009C5C0[2];
-extern DR_TPAGE D_8009C5A0;
-extern TILE D_8009C898[0x40];
+extern POLY_FT4 g_WorldMapOverlayQuads[2];
+extern DR_TPAGE g_WorldMapOverlayDrawTpage;
+extern TILE g_WorldMapOverlayTiles[0x40];
 
 // A projected map triangle, in GPU packet order: colour, screen pair, colour, pair, colour,
 // pair. 0x1C bytes each, four per buffer half.
@@ -1735,7 +1735,7 @@ typedef struct {
     /* 0x1A */ s16 y2;
 } WorldMapTriPrim; // Size: 0x1C
 
-extern WorldMapTriPrim D_8009C664[8];
+extern WorldMapTriPrim g_WorldMapOverlayTriPrims[8];
 
 /* best: 97.23% (648 bytes, 162 insns = retail exactly). The store order and every per-field
    symbol are right; the residual is WHERE the constant loads land, not a register tie.
@@ -1750,15 +1750,15 @@ extern WorldMapTriPrim D_8009C664[8];
    and the callee-save saves already sit mid-block exactly as retail has them, so the unit
    flags are right. Not worth a permuter round (scheduler, per the lever).
    The one cosmetic diff is the TILE loop base: retail forms %hi(D_8009C8A6) (the array seen
-   through tile->h) and stores at -0xB..0, ours forms D_8009C898+0xE; links identically.
+   through tile->h) and stores at -0xB..0, ours forms g_WorldMapOverlayTiles+0xE; links identically.
 */
-void func_80073E30(void) {
+void WorldMapInitSemiTransPrims(void) {
     POLY_FT4* pPrim;
     POLY_G3* pPoly;
     TILE* pTile;
     s32 i;
 
-    pPrim = D_8009C5C0;
+    pPrim = g_WorldMapOverlayQuads;
     setPolyFT4(pPrim);
     pPrim->x0 = 208;
     pPrim->y0 = 120;
@@ -1783,8 +1783,8 @@ void func_80073E30(void) {
     pPrim->clut = GetClut(0x100, 0x1FE);
     SetSemiTrans(pPrim, 1);
     pPrim[1] = pPrim[0];
-    SetDrawTPage(&D_8009C5A0, 1, 0, GetTPage(0, 1, 0x380, 0x100));
-    pPoly = (POLY_G3*)D_8009C664;
+    SetDrawTPage(&g_WorldMapOverlayDrawTpage, 1, 0, GetTPage(0, 1, 0x380, 0x100));
+    pPoly = (POLY_G3*)g_WorldMapOverlayTriPrims;
     for (i = 0; i < 8; i++, pPoly++) {
         setPolyG3(pPoly);
         pPoly->r0 = 0xFF;
@@ -1798,7 +1798,7 @@ void func_80073E30(void) {
         pPoly->b2 = 0;
         SetSemiTrans(pPoly, 1);
     }
-    pTile = D_8009C898;
+    pTile = g_WorldMapOverlayTiles;
     for (i = 0; i < 64; i++, pTile++) {
         setTile(pTile);
         pTile->r0 = 0x80;
@@ -1841,11 +1841,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
    What the function is: per frame it builds the map's GTE matrix in the scratchpad (rotY
    from g_WorldMapViewRotationY -> RotMatrix at 0x1F8000F0, then the three translation
    words at 0x1F800104/108/10C), projects 4 triangles of 3 vertices each with RTPT out of
-   D_8009A340 into the 8 Gouraud packets at D_8009C664 (0x1C bytes, GPU packet order:
+   D_8009A340 into the 8 Gouraud packets at g_WorldMapOverlayTriPrims (0x1C bytes, GPU packet order:
    tag, colour, x0y0, colour, x1y1, colour, x2y2), and then writes the visible tiles'
-   screen positions into TILE D_8009C898[0x20 per buffer half], one bit of the 32-bit
-   visibility word at g_GameState+0x1B2C per tile, adding the DR_TPAGE D_8009C5A0 first and
-   the POLY_FT4 pair D_8009C5C0[packetIndex] last.
+   screen positions into TILE g_WorldMapOverlayTiles[0x20 per buffer half], one bit of the 32-bit
+   visibility word at g_GameState+0x1B2C per tile, adding the DR_TPAGE g_WorldMapOverlayDrawTpage first and
+   the POLY_FT4 pair g_WorldMapOverlayQuads[packetIndex] last.
    The divisors are 315 for x and 341 for y (0xD00D00D1 / 0x300C0301 signed, 0xA01A01A1 /
    0x80601807 unsigned); offsets 0xCF/0x77 for the three script-set tiles and 0xD0/0x78 for
    the table tiles, which is where the -1 comes from.
@@ -1857,7 +1857,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
       if/else arms, and each arm with its own u16 local - gcc's cross_jump merges the
       identical tails every time. The case-body ORDER is already retail's (0x18, 0x19,
       0x1A with the 0x19 test first), and the case values are 0x18/0x19/0x1A.
-   2. addPrim(ot, &D_8009C5A0) and addPrim(ot, pTile) use a base register in retail but
+   2. addPrim(ot, &g_WorldMapOverlayDrawTpage) and addPrim(ot, pTile) use a base register in retail but
       gcc folds the symbol into `lui $at; sw` for the first store (both with the symbol
       spelled directly and through a DR_TPAGE* local).
    3. Frame is 0x30 where retail has 0x38 (one fewer callee-saved register: retail keeps
@@ -1891,7 +1891,7 @@ void func_800740B8(void) {
     pGteMatrix = (MATRIX*)0x1F8000F0;
     // the scroll the camera follows is one x/y/z triple, so both ends come off one base
     pTarget = &g_WorldMapScrollTargetX;
-    pTri = &D_8009C664[g_WorldMapPrimPacketIndex * 4];
+    pTri = &g_WorldMapOverlayTriPrims[g_WorldMapPrimPacketIndex * 4];
     pVertex = D_8009A340;
     for (i = 0; i < 4; i++) {
         pScratch->rotation.vy = 0;
@@ -1912,13 +1912,13 @@ void func_800740B8(void) {
     }
 
     nTileFlags = ((u32*)g_GameState.fieldScriptMemory)[0x7F];
-    pTile = &D_8009C898[g_WorldMapPrimPacketIndex * 0x20];
+    pTile = &g_WorldMapOverlayTiles[g_WorldMapPrimPacketIndex * 0x20];
     // the three tiles the map script marks are replaced by script-set positions
     pPoint18 = (u16*)&g_GameState.scriptPosX;
     pPoint19 = &g_GameState.mapPosX;
     pPoint1A = (u16*)&g_GameState.playerMapPosX;
     pPos = D_8009B6F4;
-    pDrawPage = &D_8009C5A0;
+    pDrawPage = &g_WorldMapOverlayDrawTpage;
     addPrim(g_WorldMapRenderContext->pOt[0], pDrawPage);
     for (i = 0; i < 0x20; i++) {
         if (nTileFlags & 1) {
@@ -1947,7 +1947,7 @@ void func_800740B8(void) {
         pTile++;
         pPos++;
     }
-    addPrim(g_WorldMapRenderContext->pOt[0], &D_8009C5C0[g_WorldMapPrimPacketIndex]);
+    addPrim(g_WorldMapRenderContext->pOt[0], &g_WorldMapOverlayQuads[g_WorldMapPrimPacketIndex]);
 }*/
 
 extern void* g_WorldMapSlotPositions;

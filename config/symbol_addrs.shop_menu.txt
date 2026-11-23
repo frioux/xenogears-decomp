@@ -84,6 +84,7 @@ ShopMenuShopModeMenuMain = 0x801CCAD8;
 
 ShopMenuMain = 0x801CCD28;
 
+ShopMenuRenderBuyItemRows = 0x801CDD14; // type:func
 ShopMenuSetStatChangeColor = 0x801CD404;
 ShopMenuUpdateCharacterPortraits = 0x801CD5D0;
 ShopMenuUpdateBuyMenuExplanationGraphics = 0x801CD6F8;
