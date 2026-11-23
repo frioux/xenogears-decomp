@@ -90,6 +90,36 @@ extern void func_800826CC(u8 arg0);
 extern u8 func_8008BED8(u8 arg0);
 extern u8 func_8008C4A8(u8 arg0);
 extern void BattleActivateSelectedCommand(u8 arg0);
+extern u8 g_BattleTaskListBusy;
+extern u8 g_BattleMenuEventHistory;
+extern u8 g_BattleSlotDisplayValue[];
+extern u8 g_BattleSlotEntries[];
+extern u8 g_BattleSlotStatusRows[];
+extern u16 g_BattleSlotDisplayValues[];
+extern u16 D_800C3234[];
+extern u8 D_800D32A4[];
+extern u8 D_800C4928;
+extern void BattleClearCommandSlots(void);
+extern void BattleNoOpCallback(s32 arg0, s32 arg1);
+extern s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2);
+extern s32 func_80081B58(u8 arg0);
+extern u32 func_80083948(u8 arg0);
+extern void BattleAdvanceSlotMenuStateEventDisplay(u8 arg0);
+extern void BattleAdvanceSlotMenuStateEventActivate(u8 arg0);
+extern void BattleAdvanceSlotMenuStateEventExit(u8 arg0);
+extern void BattleAdvanceSlotMenuStateEventFourSlot(u8 arg0);
+extern void BattleAdvanceSlotMenuStateEventQueue(u8 arg0);
+extern void BattleAdvanceSlotMenuStateEventSubMode(u8 arg0);
+extern void BattleAdvanceSlotMenuStateEventRandom(u8 arg0);
+extern void BattleAdvanceSlotMenuState(u8 arg0);
+extern void BattleSetActorSlotDisplayMode(u8 arg0);
+extern void BattleSetActorSlotMenuMode(u8 arg0);
+extern void BattleAdvanceSlotMenuStateCounter(u8 arg0);
+extern void BattleAdvanceSlotMenuStateAE(u8 arg0);
+extern void BattleAdvanceSlotMenuStateSlotFlags(u8 arg0);
+extern void BattleAdvanceSlotMenuStateSubMode(u8 arg0);
+extern void BattleAdvanceSlotMenuStateRandom(u8 arg0);
+extern void BattleAdvanceSlotMenuStateText(u8 arg0);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x10];
@@ -344,6 +374,225 @@ void BattleResetActorDrawState(u8 arg0) {
     HeapFree(g_BattleSpriteColumnWork);
 }
 
+/* PARKED 92.56% (2440 bytes against retail's 2436, +4 bytes): whole 610-
+   instruction body written from the assembly; every block, call, branch and the
+   101-word jump table are in retail's order, and the function is one instruction
+   longer than retail. 348 differing lines, all register/order residuals:
+   (a) `addu` operand order on the displayState row addresses - retail is
+       base-first (`addu v0,v0,a1`, `addu v0,v0,s0`), every spelling tried gives
+       index-first (`addu v0,a1,v0`): `g_BattleDisplayState[arg0 + 0x90]` and
+       `*(u8 *)(g_BattleDisplayState + (arg0 + 0x90))` measure the same 92.56%
+       (see levers.md a-addu-index-first-is-the-legitimiser: the legitimiser
+       decides it for a plain `u8 *` global).
+   (b) retail loads g_BattleCommandQueue once and stores BOTH 0x2D5 and 0x2D4
+       through that one base; two global subscripts reload it, because a char
+       store through the pointer can alias the pointer variable itself. Worth
+       ~3 instructions at that pair; a pointer local only there is untested.
+   (c) the two per-slot 0x1C/0x20 mask stores and the commandFlags fill loop
+       share retail's single `sll a0,a0,6`; this body re-forms `arg0 * 0x40`.
+   Round status: 5 scored runs, best 92.56% on the first body; no new best after
+   the addu respelling, so parked under the STOP rule. The register set, the
+   frame (0x28) and the saved set ($ra,$s0-$s3) already match retail's.
+*/
+/*
+void func_80080160(u8 arg0) {
+    u8 gauge;
+    u8 hasWeapon;
+    s32 i;
+    u8 v;
+
+    g_BattleCommandQueue[0x2EA] = 1;
+    g_BattleCommandQueue[0x2E9] = 0;
+    g_BattleCommandQueue[0x2DE] = 0;
+    g_BattleCommandQueue[0x2E0] = 0;
+    g_BattleCommandQueue[0x2E1] = 0;
+    g_BattleCommandQueue[0x2E2] = 0xFF;
+    g_BattleCommandQueue[0x2E3] = 0;
+    g_BattleCommandQueue[0x2E4] = 0;
+    g_BattleCommandQueue[0x2DC] = 0;
+    gauge = D_800D32A4[arg0 * 8];
+    g_BattleCommandQueue[0x2D5] = gauge;
+    g_BattleCommandQueue[0x2D4] = gauge;
+    *(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) = 3;
+    g_BattleCommandQueue[0x2E7] = 0;
+    g_BattleLastMenuEvent = 0xFF;
+    g_BattleTaskListBusy = 0;
+    while (*(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) != 1) {
+        BattleUpdateFrame();
+    }
+    g_BattleSoundEnabled = 1;
+    BattlePlaySoundIfEnabled(0x5A);
+    g_BattleSoundEnabled = 0;
+    for (i = 0; i < 0x10; i++) {
+        ((u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C))[i] =
+            *(u16 *)(g_BattleSlotStatusRows + arg0 * 0x170) & D_800C3234[i];
+    }
+    if (g_BattleActorCharIds[arg0] == 7 && g_BattleSlotFlags[arg0 * 8] != 0) {
+        *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x36) = D_800C3234[13];
+        *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x24) = D_800C3234[4];
+    }
+    if (g_BattleActorCharIds[arg0] == 4) {
+        if (g_BattleSlotFlags[arg0 * 8] == 0) {
+            if (*(u8 *)((u8 *)&g_GameState + 0x2286 +
+                    g_GameState.characters[4].extraWeaponIds[0]) == 0) {
+                *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C) = D_800C3234[0];
+            }
+            hasWeapon = *(u8 *)((u8 *)&g_GameState + 0x2286 +
+                g_GameState.characters[4].extraWeaponIds[3]);
+        } else {
+            if (*(u8 *)((u8 *)&g_GameState + 0x22B6 +
+                    g_GameState.gears[g_GameState.characters[4].gearId].extraWeaponIds[0]) == 0) {
+                *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C) = D_800C3234[0];
+            }
+            hasWeapon = *(u8 *)((u8 *)&g_GameState + 0x22B6 +
+                g_GameState.gears[g_GameState.characters[g_BattleActorCharIds[arg0]].gearId]
+                    .extraWeaponIds[3]);
+        }
+        if (hasWeapon == 0) {
+            *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x20) = D_800C3234[2];
+        }
+    }
+    if (g_BattleSlotFlags[arg0 * 8] == 0) {
+        if (*(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x2E) == 0) {
+            g_BattleCommandQueue[0x2DD] = 1;
+            g_BattleMenuEventHistory = 0;
+        } else {
+            g_BattleCommandQueue[0x2DD] = 4;
+            g_BattleMenuEventHistory = 3;
+        }
+        if (g_BattleSlotEntries[arg0 * 0x170] & 2) {
+            g_BattleCommandQueue[0x2DD] = 2;
+            g_BattleMenuEventHistory = 1;
+        }
+        BattleAllocDrawBuffer();
+    } else {
+        if (*(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x2E) == 0) {
+            g_BattleCommandQueue[0x2DD] = 0x10;
+            g_BattleMenuEventHistory = 0;
+        } else {
+            g_BattleCommandQueue[0x2DD] = 0x13;
+            g_BattleMenuEventHistory = 3;
+        }
+        func_8007FF14(arg0);
+    }
+    BattleClearCommandSlots();
+    BattleClearSlotFlag15A1(arg0);
+    BattleBeginAnimTask(BattleSlotBitMask(arg0) |
+        BattleSlotBitMask(*(u8 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x3C)));
+    v = *(u8 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x3C);
+    if (v == 0xFF) {
+        v = 0;
+    }
+    BattleApplySlotMaskToEffects(BattleSlotBitMask(v));
+    while (g_BattleCommandQueue[0x2DE] == 0 && D_800C48EA == 0 &&
+           g_BattleCommandQueue[0x2DB] == 0) {
+        if (g_BattleSlotFlags[arg0 * 8] == 0) {
+            func_8007FBE0(g_BattleCommandQueue[0x2D5], g_BattleCommandQueue[0x2D4]);
+        }
+        if (g_BattleCommandQueue[0x2E2] != g_BattleCommandQueue[0x2DD]) {
+            g_BattleCommandQueue[0x2F6] = 0;
+            g_BattleCommandQueue[0x2E2] = g_BattleCommandQueue[0x2DD];
+            g_BattleDisplayState[0xCB] = 0;
+            g_BattleDisplayState[0xA3] = func_8008D598(arg0,
+                g_BattleCommandQueue[0x2DD], g_BattleCommandQueue[0x2E0]);
+            g_BattleDisplayState[0xCB] = 1;
+        }
+        if (g_BattleMenuEvent != 0xFF) {
+            BattleUpdateFrame();
+            if (g_BattleCommandQueue[0x2DB] == 0) {
+                if (g_BattleCommandQueue[0x2E0] == 0) {
+                    g_BattleSoundEnabled = 1;
+                }
+                switch (g_BattleCommandQueue[0x2DD]) {
+                case 0x1:
+                    BattleAdvanceSlotMenuStateEventDisplay(arg0);
+                    break;
+                case 0x2:
+                    BattleAdvanceSlotMenuStateEventActivate(arg0);
+                    break;
+                case 0x3:
+                    BattleAdvanceSlotMenuStateEventExit(arg0);
+                    break;
+                case 0x4:
+                    BattleAdvanceSlotMenuStateEventFourSlot(arg0);
+                    break;
+                case 0x64:
+                    g_BattleCommandQueue[0x2E2] = 0xFF;
+                    // fallthrough
+                case 0x5:
+                    func_80081B58(arg0);
+                    break;
+                case 0x7:
+                    BattleAdvanceSlotMenuStateEventQueue(arg0);
+                    break;
+                case 0x8:
+                    BattleAdvanceSlotMenuStateEventSubMode(arg0);
+                    break;
+                case 0x9:
+                    BattleAdvanceSlotMenuStateEventRandom(arg0);
+                    break;
+                case 0xA:
+                    BattleAdvanceSlotMenuState(arg0);
+                    break;
+                case 0x10:
+                    BattleSetActorSlotDisplayMode(arg0);
+                    break;
+                case 0x11:
+                    BattleSetActorSlotMenuMode(arg0);
+                    break;
+                case 0x12:
+                    BattleAdvanceSlotMenuStateCounter(arg0);
+                    break;
+                case 0x13:
+                    BattleAdvanceSlotMenuStateAE(arg0);
+                    break;
+                case 0x15:
+                    BattleAdvanceSlotMenuStateSlotFlags(arg0);
+                    break;
+                case 0x16:
+                    BattleAdvanceSlotMenuStateSubMode(arg0);
+                    break;
+                case 0x17:
+                    BattleAdvanceSlotMenuStateRandom(arg0);
+                    break;
+                case 0x18:
+                    BattleAdvanceSlotMenuStateText(arg0);
+                    break;
+                case 0x65:
+                    g_BattleCommandQueue[0x2E2] = 0xFF;
+                    // fallthrough
+                case 0x19:
+                    func_80083948(arg0);
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+    }
+    g_BattleDisplayState[0xCB] = 0;
+    g_BattleDisplayState[0xAF] = 0;
+    *(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) = 0;
+    *(u8 *)(g_BattleDisplayState + (arg0 + 0x7F)) = 0;
+    if (g_BattleCommandQueue[0x2E3] != 0) {
+        g_BattleSlotDisplayValue[arg0 * 8] += g_BattleCommandQueue[0x2D4];
+        if (g_BattleSlotDisplayValue[arg0 * 8] >= 0x1D) {
+            g_BattleSlotDisplayValue[arg0 * 8] = 0x1C;
+        }
+    }
+    g_BattleSoundEnabled = 0;
+    BattleNoOpCallback(arg0, 0x100);
+    if (g_BattleCommandQueue[0x2DE] != 0 || D_800C48EA != 0) {
+        BattleFreeStringTableAE();
+        BattleFreeStringTable96();
+        BattleResetActorDrawState(arg0);
+        BattleReleaseEffectSlotIfChar4(arg0);
+    }
+    g_BattleSlotCountdownTimers[arg0] = g_BattleSlotDisplayValues[arg0];
+    *(u8 *)(g_BattleDisplayState + (arg0 + 0x7C)) = 1;
+    D_800C4928 = 0;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
     s32 best = 0xFF;
