@@ -525,7 +525,21 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
    sites over the scalar extern, not with casts. If a guard load is then cse'd into
    the block's first store (retail reloads it there), the round-431 lever is a
    volatile alias 'extern u8 * volatile gVBuf __asm__("g_BattlePartPrimBuffers");'
-   used at that one store only. *//*
+   used at that one store only.
+   ROUND 433 TRIED IT AND THE CEILING IS 93.73, not 100: re-spelling all 30 sites over
+   the scalar extern with the two-statement in-place form (pSlot = g_...; pSlot += i *
+   0x24; pSlot[K] = pSrc[N];, no volatile) DOES give retail's base-first
+   'addu vN,vN,a2/a3' at every site and lands on retail's exact 928 bytes / 232
+   instructions - but the whole body then sits on a $v0/$v1 MIRROR: retail keeps the
+   reloaded pointer in $v0 and the lbu result in $v1, this cc1 the other way round, at
+   all 30 sites (93.73%, 294 differing lines, two of them the block's first store
+   copying v0->v1). The array-extern park below keeps its 98.71 because objdiff scores
+   the index-first operand order higher than the mirrored registers; neither is a
+   match. Measured dead on the in-place body: swapping the pSrc/pSlot declarations
+   (byte-identical, 93.73) and a 3-minute two-job permuter run (no change to the
+   pointer/byte pair). cc1_probe.sh on a standalone 3-store loop reproduces the same
+   mirror (addu $3,$3,$5 / lbu $2), so the $v0 for the pointer is the compiler's
+   local-alloc scan, not the unit's surround - probe before re-spelling this again. *//*
 void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
