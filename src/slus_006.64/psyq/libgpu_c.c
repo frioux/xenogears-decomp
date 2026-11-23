@@ -293,6 +293,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
    *g_GpuGp1Port[];" makes the matched func_80046DB4 and func_8004709C fail to
    compile ("invalid operands to binary &"), so the shared pointer global must
    stay a scalar.
+   Round 419 closed the tie out as an allocator artefact rather than a spelling
+   question: the -dl dump of this body shows the head at 2 refs over 3 insns and
+   the pointer at 3 refs over 22, so if local-alloc sorted by refs/live the head
+   would win the first free caller-saved register ($v1) - but moving the head's
+   def ABOVE the dead read (the one spelling that changes that order) measures
+   94.66% with 30 differing lines and the pointer STILL lands in $a2, so neither
+   priority nor qty order is what puts it there. Also measured identical at
+   99.51/14 lines: "u_long queued", the head as its own two-statement local, a
+   separate "volatile u_long *statusPort" local for the dead read (gcc CSEs it
+   back to the one pointer load), -O2 (99.51) and gcc-2.6.0 (99.51) on this body;
+   a sixth permuter run scored base=45 best=45 (1420 iterations, PERMUTER_NONE).
    The body below is the parked attempt.
 int func_80046F30(void) {
     u_long dma2ChcrWord;
