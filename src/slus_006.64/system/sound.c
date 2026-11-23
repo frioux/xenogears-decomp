@@ -2792,43 +2792,7 @@ void func_8003B424(AudioManager* pManager) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
-/*
-Attempt (96.74%, 748 bytes = the original's size): the ONLY residual is ONE instruction. Retail
-shifts the volume VARIABLE (`srl v0,s8,0xf` then `andi v0,v0,1`); this compile folds the scaling
-shift into it (`srl v0,v0,0x16` on the product's register), so the clamp test reads the product
-instead of volume. Everything else is identical - the sed search loop, the WDS fallback, the whole
-element store block, the envelope loop, the count/pWds registers and the 0x50 frame.
-What got it here from the previous 96.32 park, do not regress:
-(1) the scaling must be ONE assignment, `volume = (u32)((s16)volume * tablebyte) >> 7;`. Two
-    statements give `mflo sN / srl sN,sN,7` (retail's shift shape, no fold) but the WRONG volume
-    register ($s6 instead of $s8) - the merged form has half the references, which is what makes
-    gcc hand volume the last callee-saved register.
-(2) the `if (pWds == NULL)` fallback must NOT be wrapped in `do { } while (0);` any more: with the
-    merged assignment that wrapper rotates pWds to $s6 and count to $s7 (retail: pWds $s7, count
-    $s6). It was only needed by the old two-statement body.
-Measured dead: the declaration order of `count`/`volume` (any order; the tie does not follow the
-pseudo number), `s32` vs `u32 count`, and `value = volume >> 15;` as its own statement (96.66).
-Two 3-minute permuter runs on this body found nothing (base 190 = this score, best 190).
-Reached from an older body, worth keeping: `level` is s32 (so `(s16)volume` really narrows -
-retail has the sll 16/sra 16 pair), `u32 volume = level;` makes volume reuse level's register
-(retail's `move s8,a2` at the entry), and the `elementFlags = element >> 8;` assignment has to sit
-just before `pScriptOffset = ...`.
-The tone-table byte needs the LEFT-ASSOCIATIVE pointer sum below - `- (-off)` is the permuter
-spelling: retail emits `addu v0,s2,v0` and then adds the masked index, and this form also gets the
-`lhu 24(s2)` table-offset load emitted before the `lw 16(sp)` soundId reload. The realistic
-`+ pSoundFile->volumeTableOffset` form scores 95.35 (one instruction order swap) - retry it only
-if the fold above is ever solved.
-All six callers of this function stay at 100.00% with the real four-argument prototype in scope.
-Round 322, measured on the fold: splitting the scaling as `value = (u32)((s16)volume * tablebyte);`
-then `volume = value >> 7;` DOES give retail's exact register shape (`srl s8,v0,0x7` - product left
-in $v0, volume in $s8) and still folds the test shift into the product's register: 96.66. So the
-register question is closed and the residual is purely cse's equivalence note on the shift's
-destination letting combine rewrite `(lshltr (lshltr product 7) 15)` as `product >> 22`; the two
-statements `volume = volume >> 7` variant coalesces the product into volume's $s6 (96.16), and
-`if (volume & 0x8000)` loses the `srl 15` instruction entirely (one short of retail's size - cannot
-link). Nothing in source order, declaration order or a do/while block moved the fold.
-*/
+// Round 437 re-measure: 96.74% at retail's exact 748 bytes / 187 insns, so this body would link - it is 4 residual clusters, not the ONE the old note claimed (that note was written before the last two edits, or measured on a stale object). Cluster 1, the documented wall: retail srl v0,s8,0xf then andi v0,v0,1 (the clamp test reads the volume VARIABLE) where the compile folds to srl v0,v0,0x16 off the mult result. Clusters 2-4 are scheduler placements that follow from statement order: retail has lhu t0,24(sp) + addiu a0,s1,96 emitted late (right after sw v0,81(s0)) where the compile emits addiu a0,s1,96 early after sh v0,0(s1) and lhu t0,24(sp) late, and retail has lbu v0,22(s2) before sw s7,5(s0) where the compile has them swapped. Everything from the old note that got it to 96.74 still holds and must not regress: the ONE-assignment scaling volume = (u32)((s16)volume * tablebyte) >> 7 (two statements rotate volume to s6), level being s32, u32 volume = level, the LEFT-ASSOCIATIVE - (-off) tone-table sum, the if (pWds == NULL) fallback NOT in a do-while, and elementFlags = element >> 8 sitting just before pScriptOffset. Measured dead this round: a u32 clampTest = volume; copy between the scaling and the test (flow deletes the copy, still folds); moving elementFlags = element >> 8 up between the scaling and the clamp (the srl t0,s0,8 is then HOISTED above the mult, 16 differing lines, 95.03, and the fold survives - so combine is NOT adjacency-limited and no intervening statement can block it). Preset ruled out this round: 2.7.2-cdk 94.57, 2.7.2 94.72 against 2.6.0's 96.74. Also already dead per the old note: value = volume >> 15 as its own statement (96.66), s32 vs u32 count, declaration order, if (volume & 0x8000) (loses the srl, one instruction short) and two 3-minute permuter runs (base 190, best 190). Next idea, not tried: get the test into a different basic block so combine cannot know volume's value - a label between them with no extra instruction is not spellable from this C.
 /*
 void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
@@ -2930,8 +2894,9 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pManager->flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
+
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
     AudioManager* pEntry = pManager->pBackup;
 
@@ -4770,22 +4735,8 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
+// Round 437 re-measure: 95.31% (124 bytes = the original's size, but MINE IS 31 INSN AND RETAIL 32 - one short, so this body cannot link yet). Everything in the old note still holds: prologue, s-register block (pScript s1, pAudioElements s2, envelope s0, index s3) and statement order are retail's. The residual is exactly retail's addiu s1,s1,1 (in place, scheduled in the 0x1E load-delay slot) followed by addu v0,s1,zero against mine's single addiu v0,s1,1; the flags temp roles (retail v0, mine v1) are downstream of that missing copy. Measured dead this round, all 95.31% / 31 insns, i.e. flow copy-propagates every one of them: bare pScript++; return pScript; (in and out of the do-while wrapper), return ++pScript;, pScript += 1; return pScript;, return pScript += 1;. The one spelling that DOES keep two instructions is moving the increment up so its OLD value is needed - index = *pScript++;, the trick SoundScriptSetVolume in this file uses for the same tail - but here it then lives across the SoundResetEnvelope call and costs 33 insns / 132 bytes / 84.16%, rotating the whole s-block (envelope s3, elements s2). So the open question is a use of pScript's pre-increment value that costs nothing; retail's 32 instructions contain none. Structurally stuck: two permuter runs already found nothing (best 150), do not re-permute.
 /*
-Round 190 attempt: 95.31% (124 bytes, the original's size). The prologue, the
-s-register assignment (pScript s1, pAudioElements s2, envelope s0, index s3) and the
-statement order now all match. Two levers got there: the do-while wrapping the two
-closing statements (it looks gratuitous and is not - it is what fixes the
-s-registers; the old 94.84% note already had it as `pScript += 1; return pScript;`),
-and the u16 mask local instead of the shift inline (94.84 -> 95.31).
-What is left is one coalescing: gcc computes the increment into the return register
-(`addiu v0,s1,1`) and never writes s1, which then pushes the post-call temps into
-v1/a0, where retail increments in place (`addiu s1,s1,1`), keeps v0 for the flags
-temp and the mask base and closes with `move v0,s1`. Tried: return pScript + 1,
-pScript += 1 with return pScript, ++pScript, pNext = pScript + 1 returned, the
-increment moved before and after the mask store, and permute.sh twice from this body
-(best 150, reached only with new_var/new_var2 debris). Structurally stuck: stop
-permuting.
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = *pScript;
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[index];
@@ -4793,14 +4744,11 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     SoundResetEnvelope(pEnvelope);
     pEnvelope->flags |= 0x1;
-    do {
-        mask = 1 << index;
-        pAudioElements->activeEnvelopeMask |= mask;
-        pScript += 1;
-        return pScript;
-    } while (0);
-}
-*/
+    mask = 1 << index;
+    pAudioElements->activeEnvelopeMask |= mask;
+    return pScript += 1;
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
 
 void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
