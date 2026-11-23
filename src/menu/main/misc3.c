@@ -8,6 +8,8 @@
 // MenuLoadWindow2Text's second text id when there is no second text to load.
 // MenuFindFreeChunkIndex's index argument when the caller has none and wants a free one.
 #define MENU_CHUNK_INDEX_NONE 0xFF
+// The frame budget func_801CAA38 spends waiting for a memory card status byte to change.
+#define MENU_CARD_CHANGE_WAIT_FRAMES 180
 
 extern u8 g_MenuCardChunkInUse[][0x10];
 extern u8* g_MenuCardChunkData;
@@ -671,28 +673,8 @@ void func_801CA8C0(u_char a0) {
     g_Menu->menuUnk2->saveTitle[0x21] = 0;
     strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
 }
-/* Best attempt: 97.36% (688 bytes vs retail's 692, 172 vs 176 insns). Everything
-   matches except the tail of the {4,5} dispatch subtree. Retail ends the tree with
-   `beq v1,5,<case5 body>` plus a `j <loop test>` on the fall-through, and keeps TWO
-   copies of the `move s3,zero; j <andi>` break tail (one per arm); this build emits
-   `bne v1,5,<default>` and lays case 5's body down at the fall-through, sharing
-   case 4's break tail. So the body order, the `default: break;` position (front and
-   back both measured this round, 688/97.36 either way), the arm order (4,5,2,0)
-   and the case labels all leave the same 688. Everything else is exact: the
-   do/while shape is `while (1) { ...; if (!looping) break; }`, the counter is a u8
-   (`addiu`+`andi` at the test), and `looping = 1;` must be assigned BEFORE the
-   `if (g_MenuCardChangeDetectionEnabled)` block -- as a later statement gcc saves the
-   constant register differently and the whole comparison drops to 95.99% (it also
-   swaps frames/looping between s2/s3). Case-body order is not free: (0,2,4,5) 696,
-   (0,5,2,4) 700, (2,5,0,4) 700; a FIFTH case node (`case 1: break;`) makes gcc emit
-   a JUMP TABLE (696 bytes). `li s1,1`/`li s5,5` come from cse lifting the repeated
-   constant 1 and 5, so they need no source local. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
-/*
-extern u8 D_801E9778;
-extern u8 g_MenuCardChangeDetectionEnabled;
-extern u8 g_MenuWindowTextBackPressed;
-
+// Waits up to MENU_CARD_CHANGE_WAIT_FRAMES frames for the two card status bytes to
+// change, rendering a frame each pass, and returns the confirm/back result.
 u_char func_801CAA38(u_char a0) {
     u_char cardStatus[2];
     u_char result;
@@ -707,12 +689,12 @@ u_char func_801CAA38(u_char a0) {
     }
     g_MenuWindowTextBackPressed = 0;
     result = 0;
-    frames = 0xB4;
+    frames = MENU_CARD_CHANGE_WAIT_FRAMES;
     while (1) {
         if (a0 == 0) {
             g_Menu->pCursors->shouldRender[2] = 0;
             g_Menu->pCursors->shouldRender[3] = 0;
-            if (g_Menu->input != 8) {
+            if (g_Menu->input != MENU_INPUT_IDLE) {
                 break;
             }
             frames -= 1;
@@ -724,30 +706,32 @@ u_char func_801CAA38(u_char a0) {
         if (a0 != 0 && g_MenuCardChangeDetectionEnabled != 0) {
             if (cardStatus[0] != g_Menu->menuUnk2->cardStatus[0]) {
                 g_Menu->menuUnk2->cardEnumerated[0] = 0;
-                g_Menu->input = 5;
+                g_Menu->input = MENU_INPUT_BACK;
                 D_801E9778 = 1;
             }
             if (cardStatus[1] != g_Menu->menuUnk2->cardStatus[1]) {
                 g_Menu->menuUnk2->cardEnumerated[1] = 0;
-                g_Menu->input = 5;
+                g_Menu->input = MENU_INPUT_BACK;
                 D_801E9778 = 1;
             }
         }
         switch (g_Menu->input) {
-        case 5:
+        case MENU_INPUT_CONFIRM:
+            looping = 0;
+            break;
+        case MENU_INPUT_BACK:
             result = 0;
+            // Load-bearing order: with looping assigned last, gcc merges this arm's
+            // tail into MENU_INPUT_CONFIRM's and the function comes out 4 bytes short.
+            looping = 0;
             g_MenuWindowTextBackPressed = 1;
-            looping = 0;
             break;
-        case 4:
-            looping = 0;
-            break;
-        case 2:
+        case MENU_INPUT_LEFT:
             g_Menu->pCursors->shouldRender[2] = 1;
             g_Menu->pCursors->shouldRender[3] = 0;
             result = 1;
             break;
-        case 0:
+        case MENU_INPUT_RIGHT:
             g_Menu->pCursors->shouldRender[2] = 0;
             g_Menu->pCursors->shouldRender[3] = 1;
             result = 0;
@@ -762,8 +746,6 @@ u_char func_801CAA38(u_char a0) {
     g_Menu->menuUnk2->cardPollMode = 0;
     return result;
 }
-*/
-
 u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
     u_char result;
 
@@ -1198,13 +1180,15 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    everything matches except that retail has the text walker in $s0 and the loop
    index in $s1 and this build mirrors them, which also puts the g_GameState
    address formation one statement earlier in the preheader).
+   Re-measured this round: still 96.29% / 836 bytes / 209 insns.
    The mirror is DECIDED ARITHMETICALLY, not by spelling: gcc-2.6.0's global.c
    allocno_compare processes the callee-saved candidates in descending
    floor_log2(refs) * refs * 10000 / (live_length * size), and this body's two
    are 76 = the shared index (28 refs over 117 insns -> 2393) and 75 = the
    walker (11 refs over 36 insns -> 2291) per -da m.i.greg / m.i.lreg. For the
    walker to take $s0 first it needs live_length <= 34 (two instructions less)
-   or 12 refs at live_length <= 37. Its live range starts at the preheader
+   or 12 refs at live_length <= 37 (tools/rounds/levers.md
+   a-a-near-miss-allocno-quotient records the same numbers). Its live range starts at the preheader
    lui/addiu, which loop.c hoists to the head of the block, so source order
    cannot move it: initialising the walker last in the preheader measures the
    same 96.29, and a separate per-loop index (which frees the walker into $s0
@@ -1230,7 +1214,6 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    calling SystemEncodeGlyphCodes and copying the buffer back; the "id == 0xFF"
    arm is out of line at the end of the body (beq to it). Fixed-width copy of
    0x10 halfwords from D_8005A3A0 to D_8006F958 at the top. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 /*
 void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     u8 inBuf[0x14];
@@ -1280,8 +1263,8 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     g_GameState.fieldScriptMemory[0x52] = discNumber;
     MenuSaveSlotWriteGameState(pSlot);
     func_801CB184();
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 
 /* Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594).
    The card save-write routine: pick a slot, delete the record's old file, write the
