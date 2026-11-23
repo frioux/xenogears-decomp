@@ -108,7 +108,15 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
    has one jal MenuParseNumberToDigits per block); each block re-reads
    `g_Menu->digits[...]` in its loop test; blocks 2 and 4 carry a separate
    placed-glyph counter for the x argument while blocks 1 and 3 use the digit
-   index; blocks 3 and 4 only run for the character arm (arg5 == 0). */
+   index; blocks 3 and 4 only run for the character arm (arg5 == 0).
+   Round 436 re-measured 99.29 (1120 bytes = retail's size, 280 insns) and added two dead
+   spellings: an empty `do { } while (0)` between the value load and the base assignment is
+   byte-identical 99.29 (the round-433 barrier that pins a `li` below a STORE does not work
+   across a load), and the else arm written as its own `gearId` statement, then glyphCount,
+   then value, then glyphBase - retail's exact stream order with scheduling off - is 99.26 with
+   FOUR differing lines, because sched1 hoists the FIRST `li` (count) to the block top and drops
+   the second (base) into the `lbu` delay slot.  So the statement order really is irrelevant here
+   and only `-fno-schedule-insns` reproduces retail (-O1, which turns sched1 off, is 69.74).  */
 /*
 void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
     s32* pY = (s32*)arg4;
