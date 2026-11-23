@@ -182,7 +182,10 @@ void MenuFreeUnk42CPanel(void) {
       records the same cc1 2.6.0 behaviour for `base + i * STRIDE` with a base loaded at
       the use site and lists six spellings that all stay offset-first, so this is cc1's
       address legitimisation, not the source. A pointer local for g_Menu->pItemRows is
-      the known trap (it hoists the pool load).
+      the known trap (it hoists the pool load). The one spelling NOT yet measured for the
+      four store sites is lever c-pointer-from-memory-paren-sum-is-base-first, i.e.
+      `((MenuString*)((u8*)g_Menu->pItemRows + i * sizeof(MenuString)))->width`; start
+      there. It cannot make this function match on its own, see below.
    b) `andi a1,a1,0xfff8` comes one instruction early: retail emits it after the y
       `sll`/`ori` pair, here before.
    Under 2.7.2 (round 406) the same body was 97.17% with only (a) plus one surplus nop,
