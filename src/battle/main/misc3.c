@@ -739,88 +739,82 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
-/* 60.00% (356 bytes / 89 insns against retail's 504 / 126): the body is one gcc
-   strength-reduction tie, not a source difference. Retail keeps SIX address givs for
-   the ResourceHelperGetTexCoords out-pointers (s4..s7, fp and one spilled to
-   sp+0x98), builds them in the preheader with ori 4/8/0xC/0x10/0x14, increments them
-   by 0x18 in the loop tail, and so must hold all six in callee-saved registers
-   across the OpenTIM/ReadTIM calls - hence the 0xC8 frame with ten saved registers.
-   This body makes gcc combine the six &coords[i].field addresses into ONE base giv
-   (sp+0x38) and re-form them with addiu at each use (0x98 frame, six saved
-   registers); its readbacks then index off sp + i*0x18 where retail reuses the base
-   giv, so the two shapes differ only in giv bookkeeping and the OpenTIM index chain
-   through the LoadImage/DrawSync tail is already instruction-identical.
-   Measured: plain &coords[i].count args 57.77 (same 356 bytes); the six s32 * locals
-   below assigned before OpenTIM 60.00 (gcc folds them back into givs - identical
-   code); a BattleTextureCoords *pCoords local 57.77 (identical code); s32 fields in
-   the struct would give lw readbacks where retail has lhu. Retail's local record is
-   0x18 bytes with four u16 fields 4 bytes apart (read at +8/+0xC/+0x10/+0x14), which
-   the parked body reproduces; its first two fields are the s32 outs of the same call.
-   Parked body (60.00): */
+/* 81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
+   and the residual is ONE register. Under this unit's preset gcc 2.7.2 forms the
+   address of g_BattleActorCharIds[i] from the loop counter (addu at,at,i) and
+   reads the four metadata halfwords with lw, while retail keeps a SEPARATE giv
+   register holding i-1, adds it to %hi(D_800D2D25) (the +1 folded into the
+   symbol), fills the delay slot of the D_800D3294 test with sltiu (i-1),2 for
+   "i != 0", and so runs one register short: the sixth out-pointer (metadata
+   offset 0x14) is spilled at 0x98(sp), which is the whole 0xC8 vs 0xC0 frame and
+   the 126 vs 121 instruction gap.
+   RETAIL IS gcc 2.6.0 - see PRESET_260 in the round report.
+   tools/scripts/try_flags.sh battle/main/misc3 func_80078310 --gcc
+   gcc-2.6.0-psx scores this same body 86.57, and its assembled object is
+   instruction-identical to retail from the lhu readbacks to the return: same
+   "addu v0,sp,s0 / lhu 0x40..0x4C(v0)" sequence, same slti loop test, same six
+   offset givs. Under 2.6.0 only the i-1 giv and the 0x14 spill above are
+   missing. try_flags --all shows every already-matched function in this unit
+   stays 100.00 under 2.6.0, so the unit can be switched to it.
+   Tried, all measured: s32 charId 81.06; u8 charId (it produces the andi 0xFF
+   retail has before the x0x460 multiply) 81.38; "i > 0" for "i != 0" 86.13 under
+   2.6.0; struct-typed metadata rows (BattleTextureCoords, u16 fields) 60.00.
+   An s32 metadata[18] is right: gcc narrows the four RECT stores to lhu itself.
+   What the body establishes: ResourceHelperGetTexCoords' six out-parameters are
+   six consecutive s32, one 0x18-byte row per party member, read back as
+   halfwords only because they feed RECT.s16; the six offsets start at 0/4/8/0xC
+   /0x10/0x14 and the tex-page x offset accumulates 6 per member, skipped slots
+   included (so the += 6 is the loop tail's statement, not part of the if).
+   Parked body (81.38): */
 /*
-typedef struct {
-    // 0x00
-    s32 count;
-    // 0x04
-    s32 texPageId;
-    // 0x08
-    u16 clutX;
-    // 0x0A
-    u16 padA;
-    // 0x0C
-    u16 clutY;
-    // 0x0E
-    u16 padE;
-    // 0x10
-    u16 texPageX;
-    // 0x12
-    u16 pad12;
-    // 0x14
-    u16 texPageY;
-    // 0x16
-    u16 pad16;
-} BattleTextureCoords;  // Size: 0x18
+// Where the six ResourceHelperGetTexCoords out-parameters of one texture sit in
+// a metadata row: the row is six s32 and each texture uses one whole row.
+#define BATTLE_TEX_COUNT(_i)  ((_i) * 6) + 0
+#define BATTLE_TEX_PAGE(_i)   ((_i) * 6) + 1
+#define BATTLE_TEX_CLUT_X(_i) ((_i) * 6) + 2
+#define BATTLE_TEX_CLUT_Y(_i) ((_i) * 6) + 3
+#define BATTLE_TEX_PAGE_X(_i) ((_i) * 6) + 4
+#define BATTLE_TEX_PAGE_Y(_i) ((_i) * 6) + 5
+// Bytes of one party member's sprite TIM block in the archive pTimData points at.
+#define BATTLE_CHAR_TIM_BYTES 0x460
+// An empty party slot in g_BattleActorCharIds.
+#define BATTLE_CHAR_ID_EMPTY 0x7F
+// The character sprite every party member but the first is drawn with while
+// D_800D3294 (the character override) is set.
+#define BATTLE_OVERRIDE_CHAR_ID 0xB
+// Halfwords a texture page is shifted by per party member to pack the three
+// sprites side by side in VRAM.
+#define BATTLE_TEX_PAGE_STEP 6
 
 void func_80078310(u8 *pTimData, u8 index) {
     TIM_IMAGE tim;
-    BattleTextureCoords coords[3];
-    s32 *pCount;
-    s32 *pTexPageId;
-    s32 *pClutX;
-    s32 *pClutY;
-    s32 *pTexPageX;
-    s32 *pTexPageY;
-    s32 i;
-    s32 n;
+    s32 metadata[18];
+    u8 charId;
     s32 texPageXOffset;
+    s32 i;
 
     texPageXOffset = 0;
-    for (i = 0; i < 3; i++) {
-        if (g_BattleActorCharIds[i] == 0x7F) {
-            continue;
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_BattleActorCharIds[i] != BATTLE_CHAR_ID_EMPTY) {
+            charId = g_BattleActorCharIds[i];
+            if (D_800D3294 != 0 && i != 0) {
+                charId = BATTLE_OVERRIDE_CHAR_ID;
+            }
+            OpenTIM((u_long *)(pTimData + charId * BATTLE_CHAR_TIM_BYTES));
+            ReadTIM(&tim);
+            ResourceHelperGetTexCoords(g_BattleSpriteArchive, index + i,
+                                       &metadata[BATTLE_TEX_COUNT(i)], &metadata[BATTLE_TEX_PAGE(i)],
+                                       &metadata[BATTLE_TEX_CLUT_X(i)], &metadata[BATTLE_TEX_CLUT_Y(i)],
+                                       &metadata[BATTLE_TEX_PAGE_X(i)], &metadata[BATTLE_TEX_PAGE_Y(i)]);
+            tim.crect->x = metadata[BATTLE_TEX_CLUT_X(i)];
+            tim.crect->y = metadata[BATTLE_TEX_CLUT_Y(i)];
+            tim.prect->x = metadata[BATTLE_TEX_PAGE_X(i)] + texPageXOffset;
+            tim.prect->y = metadata[BATTLE_TEX_PAGE_Y(i)];
+            LoadImage(tim.crect, tim.caddr);
+            LoadImage(tim.prect, tim.paddr);
+            DrawSync(0);
         }
-        n = g_BattleActorCharIds[i];
-        if (D_800D3294 != 0 && i != 0) {
-            n = 0xB;
-        }
-        pCount = (s32 *)&coords[i].count;
-        pTexPageId = (s32 *)&coords[i].texPageId;
-        pClutX = (s32 *)&coords[i].clutX;
-        pClutY = (s32 *)&coords[i].clutY;
-        pTexPageX = (s32 *)&coords[i].texPageX;
-        pTexPageY = (s32 *)&coords[i].texPageY;
-        OpenTIM((u_long *)(pTimData + n * 0x460));
-        ReadTIM(&tim);
-        ResourceHelperGetTexCoords(g_BattleSpriteArchive, index + i,
-                                   pCount, pTexPageId, pClutX, pClutY, pTexPageX, pTexPageY);
-        tim.crect->x = coords[i].clutX;
-        tim.crect->y = coords[i].clutY;
-        tim.prect->x = coords[i].texPageX + texPageXOffset;
-        tim.prect->y = coords[i].texPageY;
-        LoadImage(tim.crect, tim.caddr);
-        LoadImage(tim.prect, tim.paddr);
-        DrawSync(0);
-        texPageXOffset += 6;
+        texPageXOffset += BATTLE_TEX_PAGE_STEP;
     }
 }
 */
