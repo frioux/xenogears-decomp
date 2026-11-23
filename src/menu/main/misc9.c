@@ -401,7 +401,25 @@ void MenuFitInventoryWindowToItems(void) {
    0xFF once after the join - gives 93.37 at the same 888 bytes, worse; the
    three-statement duplicated form below stays.
    Preset ruled out (earlier round): 93.66 on plain 2.7.2, 84.82 on 2.7.2-cdk, 65.55
-   at -O3, and 14 functions of this unit are 100.00 under gcc 2.6.0. *//*
+   at -O3, and 14 functions of this unit are 100.00 under gcc 2.6.0.
+   ROUND 420, re-measured from the body below: 93.91% / 888 bytes, so the note
+   above was still accurate. NEW AND IT CLOSES RESIDUAL (1): an empty
+   `do { } while (0);` at the END of case 2's arm (after `prevCol = 0xFF;`, before
+   `break;`) shifts reorg's block numbering so that reorg DUPLICATES the loop
+   test's `andi v0,sX,0xFF` into the dispatch `beqz` delay slot exactly as retail
+   prints it, with `sll v0,v1,2` as an ordinary instruction after the branch:
+   93.91 -> 94.17%, 888 -> 892 bytes. It also swaps active/needsOpen between $s5
+   and $s6 (retail: s5 = needsOpen, s6 = active), which is now one of the two
+   residuals. The permuter (3 min, 1323 iterations) found the do-while
+   (base 1337 best 1103); its other edit, a `volatile int new_var` passed as the
+   a6 argument of the window-4 call, was NOT ported (debris, wrong code).
+   Residual left, 892 bytes vs retail's 896: (a) the s5/s6 swap; (b) retail keeps
+   an extra `j .L801DC070` - its case 4 tail stores prevCol=0xFF and JUMPS to the
+   `selectedSlot = 0xFF; goto test` block shared with case 5's `!= 0xFF` arm,
+   while ours merges prevCol's store into that block and falls through, which is
+   the one instruction we are short. A second empty do-while between
+   `prevCol = 0xFF` and `selectedSlot = 0xFF` in case 4 measures identical
+   (94.17 / 892), so the block boundary is not reachable that way. *//*
 s32 func_801DBE54(void) {
     u8 active;
     u8 needsOpen;
@@ -513,6 +531,7 @@ s32 func_801DBE54(void) {
                 }
             }
             prevCol = 0xFF;
+            do { } while (0);
             break;
         case 9:
             row += 8;
@@ -1264,7 +1283,13 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    (0xFC..0x18C = three 0x30-byte tables: func_801DBE54 at +0x00, this one at +0x30,
    func_801E05D0 at +0x60). C .rodata lands before asm .rodata, so convert
    func_801DBE54 and this one TOGETHER (C tables then land at +0x00/+0x30), leave
-   func_801E05D0 as INCLUDE_ASM at +0x60, and judge with check_bin.sh menu. *//*
+   func_801E05D0 as INCLUDE_ASM at +0x60, and judge with check_bin.sh menu.
+   ROUND 420: un-parked and re-measured, 94.46% at 884 bytes = retail's exact
+   size, so the note is current, and the whole diff is the nine callee-saved
+   hand-out plus needsOpen's spill: retail keeps the `4` (fp) and rematerialises
+   the a6 `1` four times, ours keeps BOTH (s7=4, s8=1) and spills needsOpen to
+   0x38(sp), which is exactly the extra saved word that makes the frame 0x70
+   against retail's 0x68. Parked as is. *//*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
     u8 needsOpen;
