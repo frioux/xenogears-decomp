@@ -764,7 +764,28 @@ int WorldMapUpdateSlotStateMachine(int index) {
    is one register swap (pActor v1 <-> posZ a2) over an otherwise byte-identical
    stream, i.e. local-alloc's tie-break. Parked.
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
+/* 97.97% (148 bytes = retail's 37 insns), round 311. The store tail is now
+   retail's exactly, down to `li v0,1` before `sh zero,0x20(v1)` and
+   `sw zero,0x50(v1)` in the jr delay slot. The lever is the one measured on the
+   twin func_80080578 below: the command store belongs INSIDE the do-block as
+   its last statement, not after the block - that is what keeps `li v0,1` alive
+   in v0 across the six target stores while the `sh v0,4(v1)` stays at the
+   store's own position.
+   The only remaining delta is the register rotation: retail keeps pActor in v1
+   with the three player-position values in a0/a1/a2, ours takes a2 for pActor
+   and v1/a0/a1 for the values. Reading g_WorldMapPlayerPositionZ inline at both
+   stores, reading all three inline, and loading posZ just before its stores all
+   leave pActor in a2, so it is an allocator tie, not a spelling.
+   Round 333 re-measured 97.97 (148 bytes) and killed the remaining spellings
+   for the rotation: `pActor` declared after the three value locals, a two
+   statement `pActor = &g_WorldMapSlots[index];` instead of the declaration
+   initialiser, and s32 instead of u32 values all measure 97.97 unchanged, while
+   dropping the posZ alias costs the load order (96.62 - the alias is
+   load-bearing, keep it). A 4-minute permuter run from this body (2502
+   iterations, base=75 best=75) found nothing - the second run on it. The delta
+   is one register swap (pActor v1 <-> posZ a2) over an otherwise byte-identical
+   stream, i.e. local-alloc's tie-break. Parked.
+*/
 /* Round 397: the -da dump (tools/gcc-2.7.2-psx/cc1 ... -da on the preprocessed
    unit) proves the residual is not reachable by spelling. pActor's pseudo is
    TIED to the `lw g_WorldMapSlots` result by the two-address `addu`
@@ -799,6 +820,25 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
    `g_WorldMapScrollTargetX = g_WorldMapCameraTarget[0] = *(u32 *)g_WorldMapPlayerPosition;`
    form for all three (85.68 - it also moves the FadeLevel store above the
    loads), and the body without the posZ alias (96.62).
+*/
+// 97.97% (148 bytes = retail's 37 insns), round 434. Body unchanged from round 420:
+//    the store tail is retail's exactly; the ONLY delta is the pActor register
+//    (retail $v1, ours $a2) and the consequent posZ swap ($a2 / $v1). All 24
+//    differing lines are that one rotation. The -da/-dl analysis in the old note
+//    below (73 = pActor tied to the slots load, 79 = posZ, local-alloc handout)
+//    still stands: the value locals are always allocated before the pointer, in
+//    every spelling measured.
+//    Round 434 measured four new shapes, none better: the same body WITHOUT the
+//    do-block (36.03 - the command store's li sinks and the tail loses retail's
+//    delay slot, so the do-block is load-bearing); pActor replaced by
+//    'g_WorldMapSlots[index].field' at every site, no pointer local (80.41 - cse
+//    keeps one add but the load lands in v0 and the sll moves after it); the whole
+//    statement list inside the do-block with the declaration outside (71.16 - the
+//    slots load sinks into the block); the plain 'posX = *(u32 *)g_WorldMapPlayerPosition;'
+//    without the posZ alias (96.62 - posX/posY then take v1/a0 and the loads keep
+//    retail's order, so the alias is what buys a0/a1 for X/Y but costs the pActor
+//    register). Preset fully screened: 2.6.0 48.62, 2.7.2-cdk 92.03.
+//    PARKED - no spelling of this body moves the rotation.
 /*
 int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -826,8 +866,10 @@ int func_8007E450(int index) {
     pActor->state = 0;
     pActor->stateIndex = 0;
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
+
+
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
 /* 91.44% (1720 bytes against retail's 1752), round 431. The old "BLOCKED, it can
@@ -1304,7 +1346,6 @@ int WorldMapUpdateSlotActor(int index) {
    but leaves the `li` after the group (88.66, and the constants still rotate);
    the same volatile on the current body changes nothing (93.41).
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 /* 93.41% (164 bytes, 41 insns both): only the tail store block differs in
    register rotation and the li 3 position. Retail: lui v1/ori (x), lui a0/ori
    (z), li v0,3, then stores with y/pStateIds/pStateFrames constants in v1.
@@ -1319,6 +1360,34 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
    -G0 does not compile, so the preset is right. Root cause unchanged from
    round 325: circular - the store constants claim v0 because the 3 is not
    in it, and the 3 sinks to the end because the constants hold v0.
+// 93.41% (164 bytes = retail's 41 insns), round 434. Store ORDER, both calls and every relocation
+//    match; the two deltas are (1) where retail's 'addiu v0,zero,3' sits - third
+//    instruction of the store group, before every store, so v0 is reserved and the
+//    group's constants go to v1 and a0 where ours all take v0 - and (2) the
+//    register rotation that follows from it. Per instructions this is 14 differing
+//    of 41 - the rest of the function is byte-identical.
+//    ROUND 434 ran a cc1 probe matrix (tools/scripts/cc1_probe.sh, the unit's real
+//    cc1 and flags) on the tail, which settles the mechanism: with the do-block
+//    around the stores (this body) the emitted order is retail's exactly
+//    x,y,pStateIds,state,z,stateIndex,pStateFrames, and the '3' is emitted AFTER
+//    the last register-needing store; WITHOUT the block the '3' is emitted earlier
+//    (after the pStateFrames store, before the three stores whose values are
+//    already in registers) but the pStateFrames store then glues itself to its own
+//    constant load and jumps to 4th - the 88.66 body. With 'return 3' inside the
+//    block the '3' does lead the group but pStateFrames jumps up again (measured,
+//    same 88.66 shape). A volatile pStateFrames store does NOT pin it (volatile is
+//    allowed to move earlier past non-volatile stores), so that combination is
+//    dead too. Retail's '3' leads ALL stores, i.e. its RTL had the set before the
+//    group, which no spelling of a plain 'return 3' produces: the set is emitted at
+//    the position gcc chooses for the return pseudo and cse deletes any constant
+//    local that would move it (rounds 396 and 325 measured those).
+//    PRESET_RULED_OUT: try_flags --all under gcc-2.7.2-cdk gives this body 93.41
+//    (identical) while every matched function in the unit drops (InitGroup12/13
+//    99.67, InitGroup16 99.65, Group16 96.27, BuildPolyFT4 97.84, ...), so cdk is
+//    not a candidate for the unit and the tail is compiler-stable across 2.7.2 and
+//    2.7.2-cdk.
+//    PARKED - the residual is a quantity-set difference, not a spelling.
+/*
 int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1335,8 +1404,10 @@ int func_8007FC8C(int index) {
         pActor->pStateFrames = (void *)0x80;
     } while (0);
     return 3;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
+
+
 int WorldMapUpdateGroup9And10Actor(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapRoot *pRoot = g_WorldMapGroups;
