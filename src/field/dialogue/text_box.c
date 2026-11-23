@@ -182,13 +182,13 @@ typedef struct {
     /* 0x4 */ void* pBuffer;
 } FieldArchiveRequest; // Size: 0x8
 
-extern FieldPortraitSlot D_800B06A4[3];
+extern FieldPortraitSlot g_FieldPortraitSlots[3];
 extern FieldPortraitTIMRect D_800AEAE4[3];
 extern FieldArchiveRequest D_800B00C8[];
 extern u8 D_800AE1E0[]; // the two archive entry indices of each portrait face
 extern u_long* D_800ADB10;
 extern u_long* D_800ADB14;
-extern s32 D_800ADB0C; // which portrait slot the next allocation starts from
+extern s32 g_FieldPortraitSlotCursor; // which portrait slot the next allocation starts from
 
 // https://decomp.me/scratch/tL6mE
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C154);
@@ -251,15 +251,15 @@ s32 func_8009C154(s32 faceId) {
 
     pRects = D_800AEAE4;
     for (i = 0; i < 3; i++) {
-        if (D_800B06A4[i].state == 1) {
+        if (g_FieldPortraitSlots[i].state == 1) {
             if (ArchiveCdDataSync(1) != 0) {
                 return -1;
             }
 
-            D_800B06A4[i].state = 2;
+            g_FieldPortraitSlots[i].state = 2;
             FieldLoadTIMWithClut(D_800ADB10, pRects[i].x, pRects[i].y, pRects[i].clutX,
                 pRects[i].clutY, 0x100, 1);
-            if (D_800B06A4[i].hasSecondTexture == 0) {
+            if (g_FieldPortraitSlots[i].hasSecondTexture == 0) {
                 pTimData = D_800ADB10;
             } else {
                 pTimData = D_800ADB14;
@@ -267,10 +267,10 @@ s32 func_8009C154(s32 faceId) {
             FieldLoadTIMWithClut(pTimData, pRects[i].secondX, pRects[i].secondY,
                 pRects[i].secondClutX, pRects[i].secondClutY, 0x100, 1);
             return -1;
-        } else if (D_800B06A4[i].state == 2) {
+        } else if (g_FieldPortraitSlots[i].state == 2) {
             HeapFree(D_800ADB10);
-            D_800B06A4[i].state = 0;
-            if (D_800B06A4[i].hasSecondTexture == 1) {
+            g_FieldPortraitSlots[i].state = 0;
+            if (g_FieldPortraitSlots[i].hasSecondTexture == 1) {
                 HeapFree(D_800ADB14);
             }
             return -1;
@@ -278,7 +278,7 @@ s32 func_8009C154(s32 faceId) {
     }
 
     for (i = 0; i < 3; i++) {
-        if (D_800B06A4[i].portraitId == faceId) {
+        if (g_FieldPortraitSlots[i].portraitId == faceId) {
             g_FieldScriptVMCurActor->flags12C_0x2 = i;
             return 0;
         }
@@ -286,11 +286,11 @@ s32 func_8009C154(s32 faceId) {
 
     found = 0;
     for (i = 0; i < 3; i++) {
-        D_800ADB0C++;
-        if (D_800ADB0C >= 3) {
-            D_800ADB0C = 0;
+        g_FieldPortraitSlotCursor++;
+        if (g_FieldPortraitSlotCursor >= 3) {
+            g_FieldPortraitSlotCursor = 0;
         }
-        if (FieldTextBoxCheckPortraitIdAvailable(D_800B06A4[D_800ADB0C].portraitId) == 0) {
+        if (FieldTextBoxCheckPortraitIdAvailable(g_FieldPortraitSlots[g_FieldPortraitSlotCursor].portraitId) == 0) {
             found++;
             break;
         }
@@ -300,12 +300,12 @@ s32 func_8009C154(s32 faceId) {
         return -1;
     }
 
-    g_FieldScriptVMCurActor->flags12C_0x2 = D_800ADB0C;
+    g_FieldScriptVMCurActor->flags12C_0x2 = g_FieldPortraitSlotCursor;
     ArchiveSetIndex(4, 0);
     pEntries = &D_800AE1E0[faceId * 2];
-    D_800B06A4[D_800ADB0C].portraitId = faceId;
-    D_800B06A4[D_800ADB0C].state = 1;
-    D_800B06A4[D_800ADB0C].hasSecondTexture = 0;
+    g_FieldPortraitSlots[g_FieldPortraitSlotCursor].portraitId = faceId;
+    g_FieldPortraitSlots[g_FieldPortraitSlotCursor].state = 1;
+    g_FieldPortraitSlots[g_FieldPortraitSlotCursor].hasSecondTexture = 0;
 
     entryIndex = pEntries[0] + 0x46;
     D_800B00C8[0].size = entryIndex;
@@ -316,7 +316,7 @@ s32 func_8009C154(s32 faceId) {
     requestIndex = 1;
     if (pEntries[1] != pEntries[0]) {
         entryIndex = pEntries[1] + 0x46;
-        D_800B06A4[D_800ADB0C].hasSecondTexture = 1;
+        g_FieldPortraitSlots[g_FieldPortraitSlotCursor].hasSecondTexture = 1;
         D_800B00C8[1].size = entryIndex;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 0);
         D_800ADB14 = pBuffer;

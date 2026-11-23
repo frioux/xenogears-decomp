@@ -38,7 +38,7 @@ extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
 extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void BattleBuildTileRow0Prims(u8, s32, s32, s32);
-extern void func_8008E430(u8, s32, s32, s32, u16);
+extern void BattleBuildTileRow1Prims(u8, s32, s32, s32, u16);
 extern void BattleBuildTileRow2Prims(u8, s32, s32, s32);
 extern void BattleBuildTileRow3Prims(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);

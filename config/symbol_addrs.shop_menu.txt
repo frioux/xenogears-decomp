@@ -166,3 +166,4 @@ g_NewGoldAmountTextY = 0x801D225C;
 g_SelectedItemQuantityHeld = 0x801D2260;
 g_ShopMenuStringIds = 0x801D2018;
 g_ShopSubmenuTextTextureIds = 0x801D1F70;
+ShopMenuRenderSellItemRows = 0x801D05BC;

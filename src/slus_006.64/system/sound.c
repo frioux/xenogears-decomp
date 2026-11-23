@@ -3272,7 +3272,7 @@ s32 SoundTimerInterruptHandler(void) {
                 count = pManager->elementCount;
                 if (count != 0) {
                     pElements = pManager->elements;
-                    func_8003C4C4(pManager, pElements, count);
+                    SoundTickTempoAndElementRamps(pManager, pElements, count);
                     func_8003C6E8(pManager, pElements, count);
                 }
 
@@ -3340,7 +3340,7 @@ void SoundTickInterpolator(AudioInterpolator* interpolator) {
 //----------------------------------------------------------------------------------------------------------------------
 // `pFlags` holds &status_flags (the loop's offset-2 giv, $a0 in retail) and the volatile cast on the
 // rampFlags store keeps reorg from sinking that store into the `bne` delay slot.
-void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
+void SoundTickTempoAndElementRamps(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
     u16 activeFlags;
     s16 count = elementCount;
     u16 tickCounter = pManager->tempoFrames;

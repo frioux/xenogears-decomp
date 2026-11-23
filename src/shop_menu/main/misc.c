@@ -3990,7 +3990,7 @@ s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
 // and takes this function from 1628 to 1632 bytes.
 extern void ShopMenuSetVertices();
 
-void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
+void ShopMenuRenderSellItemRows(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT rect;
     u8 digitBuffer[0xE];
     u8 stringBuffer[0xE];
@@ -4246,7 +4246,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
         ShopMenuUpdateAndRender();
 
         if ((scrollOffset != newScrollOffset) || redrawTransactionSummary) {
-            func_801D05BC(scrollOffset, pItemIds, pItemTypes, pItemSellQtys, pItemQtys);
+            ShopMenuRenderSellItemRows(scrollOffset, pItemIds, pItemTypes, pItemSellQtys, pItemQtys);
             ShopMenuUpdateScrollBarHandle(0xC, 0x32, 0x3C, itemCount, scrollOffset);
         }
 

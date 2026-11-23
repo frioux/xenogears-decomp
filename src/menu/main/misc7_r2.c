@@ -114,8 +114,8 @@ s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetGearWindowNamePrims(u_char index, u_char characterId);
 void MenuSetCharacterIconPrims(u_char characterId);
-void func_801D6338(u_char index, u_char characterId);
-void func_801D680C(u_char index, u_char characterId);
+void MenuSetGearWindowHpDigits(u_char index, u_char characterId);
+void MenuSetGearWindowMpDigits(u_char index, u_char characterId);
 void MenuSetGearWindowLevelDigits(u_char index, u_char characterId);
 void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId);
 void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId);
@@ -252,14 +252,14 @@ void MenuSetCharacterIconPrims(u_char characterId) {
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
     }
 }
-extern s32 D_801E9CF0;
-extern s32 D_801E9CF4;
-extern s32 D_801E9CF8;
-extern s32 D_801E9CFC;
+extern s32 g_MenuGearWindowHpX;
+extern s32 g_MenuGearWindowHpY;
+extern s32 g_MenuGearWindowMaxHpX;
+extern s32 g_MenuGearWindowMaxHpY;
 
 // The character (3 digits) or gear (5 digits) hp and maxHp window numbers: two
 // digit-prim passes and the quad pass that grows each prim to its glyph box.
-void func_801D6338(u_char index, u_char characterId) {
+void MenuSetGearWindowHpDigits(u_char index, u_char characterId) {
     u8* pPrims;
     u8* pBase;
     u8* pEntry;
@@ -273,13 +273,13 @@ void func_801D6338(u_char index, u_char characterId) {
     if (characterId == 0) {
         count = MENU_HP_DIGIT_COUNT;
         digitOffset = MENU_MAX_DIGITS - count;
-        x = D_801E9CF0;
+        x = g_MenuGearWindowHpX;
         MenuParseNumberToDigits(
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].hp);
     } else {
         count = MENU_GEAR_HP_DIGIT_COUNT;
         digitOffset = MENU_MAX_DIGITS - count;
-        x = D_801E9CF0 + 8;
+        x = g_MenuGearWindowHpX + 8;
         MenuParseNumberToDigits(
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].hp);
     }
@@ -293,7 +293,7 @@ void func_801D6338(u_char index, u_char characterId) {
                                  (2 * sizeof(POLY_FT4)) +
                              0x1630)),
                 g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - characterId * 24,
-                D_801E9CF4, 0x1000);
+                g_MenuGearWindowHpY, 0x1000);
         }
     }
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->hpPrimCount; i++) {
@@ -313,11 +313,11 @@ void func_801D6338(u_char index, u_char characterId) {
     if (characterId == 0) {
         MenuParseNumberToDigits(
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].maxHp);
-        x = D_801E9CF8;
+        x = g_MenuGearWindowMaxHpX;
     } else {
         MenuParseNumberToDigits(
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].maxHp);
-        x = D_801E9CF8 - 0x20;
+        x = g_MenuGearWindowMaxHpX - 0x20;
     }
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxHpPrimCount = 0;
     for (i = 0; i < count; i++) {
@@ -328,7 +328,7 @@ void func_801D6338(u_char index, u_char characterId) {
                             (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->maxHpPrimCount *
                                  (2 * sizeof(POLY_FT4)) +
                              0x17C0)),
-                g_Menu->renderContext, x - characterId * 24, characterId * 8 + D_801E9CFC,
+                g_Menu->renderContext, x - characterId * 24, characterId * 8 + g_MenuGearWindowMaxHpY,
                 0x1000);
             x += MENU_DIGIT_SPACING;
         }
@@ -354,7 +354,7 @@ extern s32 D_801E9D0C;
 
 // The gear window's mp (character: two digits) or fuel (gear: four digits) numbers:
 // the same two digit-prim passes and quad pass as the stat numbers above.
-void func_801D680C(u_char index, u_char characterId) {
+void MenuSetGearWindowMpDigits(u_char index, u_char characterId) {
     u8* pPrims;
     u8* pBase;
     u8* pEntry;
@@ -756,8 +756,8 @@ void func_801D7884(u_char index, u_char row) {
 void MenuSetGearWindowContents(u_char index, u_char characterId) {
     MenuSetGearWindowNamePrims(index, characterId);
     MenuSetCharacterIconPrims(characterId);
-    func_801D6338(index, characterId);
-    func_801D680C(index, characterId);
+    MenuSetGearWindowHpDigits(index, characterId);
+    MenuSetGearWindowMpDigits(index, characterId);
     MenuSetGearWindowLevelDigits(index, characterId);
     MenuSetGearWindowWideNumber2Prims(index, characterId);
     func_801D7884(index, characterId);

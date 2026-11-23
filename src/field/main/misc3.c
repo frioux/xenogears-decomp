@@ -369,19 +369,19 @@ void FieldMatrixSetIdentity(MATRIX* dest) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_800705DC);
 
-extern s16 D_800B06A4[3][3];
+extern s16 g_FieldPortraitSlots[3][3];
 extern s16 D_800B06A6[3][3];
-extern s32 D_800ADB0C;
+extern s32 g_FieldPortraitSlotCursor;
 
 void FieldResetPortraitSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {
-        D_800B06A4[i][0] = 0xFF;
+        g_FieldPortraitSlots[i][0] = 0xFF;
         D_800B06A6[i][0] = 0xFF;
     }
 
-    D_800ADB0C = 0;
+    g_FieldPortraitSlotCursor = 0;
 }
 
 // --- FieldLoad: reads the staged field scene file into the field globals -----

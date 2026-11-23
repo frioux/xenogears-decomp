@@ -122,19 +122,19 @@ extern u8 D_800926BA;
 extern u32 g_BattleEffectSpawnTick;
 extern u32 g_BattleLineQuadQueueCount;
 extern u32 g_BattleLineQuadDrawCount;
-extern u16 D_800926A8[];
+extern u16 g_BattleEffectClutPalette[];
 extern u16 D_800926AA;
 extern u16 D_800926AC;
 extern u16 D_800926AE;
 extern u16 D_80092694;
-extern u16 D_800926A0;
+extern u16 g_BattleEffectClutId;
 extern s16 D_80091228[];
 extern u16 g_BattleEffectFrameCluts[];
 
 // CLUT x (0x80092698) and y (0x8009269C). BattleEffectUploadClut reads each of them as a
 // short, this unit's other callers only want the low byte.
-extern u8 D_80092698[];
-extern u8 D_8009269C[];
+extern u8 g_BattleEffectClutX[];
+extern u8 g_BattleEffectClutY[];
 extern s32 g_BattleDrawFlags;
 extern VECTOR g_BattleViewOrigin;
 
@@ -233,7 +233,7 @@ void BattleEffectUploadClut(u8 *p0, u8 *p1) {
     if (b < 0) {
         b = 0;
     }
-    D_800926A8[0] = ((r >> 2) & 0x1F) + ((g << 3) & 0x3E0) + ((b << 8) & 0x7C00) | -0x8000;
+    g_BattleEffectClutPalette[0] = ((r >> 2) & 0x1F) + ((g << 3) & 0x3E0) + ((b << 8) & 0x7C00) | -0x8000;
 
     r = p1[0] - 0x80;
     g = p1[1] - 0x80;
@@ -251,7 +251,7 @@ void BattleEffectUploadClut(u8 *p0, u8 *p1) {
 
     D_800926AC = 0;
     D_800926AE = 0x1111;
-    D_800926A0 = LoadClut2((u_long *)D_800926A8, *(s16 *)D_80092698, *(s16 *)D_8009269C);
+    g_BattleEffectClutId = LoadClut2((u_long *)g_BattleEffectClutPalette, *(s16 *)g_BattleEffectClutX, *(s16 *)g_BattleEffectClutY);
 }
 /* PARK 95.35%, 1852 bytes against retail's 1860 (frame 0x48 now exact: the dead
    RECT below is what produces the 8 bytes of slack retail has under the TIM
@@ -421,8 +421,8 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     D_80092690 = GetClut(tim.crect->x, tim.crect->y);
     D_80092694 = GetTPage(0, 1, tim.prect->x, tim.prect->y);
     g_BattleEffectSpawnTick = 0x8000;
-    *(u16 *)D_80092698 = tim.crect->x;
-    *(u16 *)D_8009269C = tim.crect->y + 1;
+    *(u16 *)g_BattleEffectClutX = tim.crect->x;
+    *(u16 *)g_BattleEffectClutY = tim.crect->y + 1;
 
     func_8007D6B8();
     BattleInitSpriteBuffers();
@@ -720,21 +720,21 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
         return;
     }
 
-    u = D_80092698[0] * 4 + 8;
+    u = g_BattleEffectClutX[0] * 4 + 8;
     pMotion = &pSlot->packets[0];
     u = u + arg0 * 4;
     pMotion->u3 = u;
     pMotion->u2 = u;
     pMotion->u1 = u;
     pMotion->u0 = u;
-    v = D_8009269C[0];
+    v = g_BattleEffectClutY[0];
     pMotion->v3 = v;
     pMotion->v2 = v;
     pMotion->v1 = v;
     pMotion->v0 = v;
     pMotion->tpage = D_80092694;
     pMotion->code &= 0xFE;
-    pMotion->clut = D_800926A0;
+    pMotion->clut = g_BattleEffectClutId;
     pSlot->packets[1] = *pMotion;
 
     pSlot->frameCount = 7;
@@ -817,13 +817,13 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->vy = pVec->vy;
 
     pMotion = &pSlot->packets[0];
-    u = D_80092698[0] * 4 + 8;
+    u = g_BattleEffectClutX[0] * 4 + 8;
     u += arg0 * 4;
     pMotion->u3 = u;
     pMotion->u2 = u;
     pMotion->u1 = u;
     pMotion->u0 = u;
-    v = D_8009269C[0];
+    v = g_BattleEffectClutY[0];
     pMotion->v3 = v;
     pMotion->v2 = v;
     pMotion->v1 = v;
@@ -835,7 +835,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->unk68 = pVec->vz;
     pMotion->tpage = D_80092694;
     pMotion->code &= 0xFE;
-    pMotion->clut = D_800926A0;
+    pMotion->clut = g_BattleEffectClutId;
     pSlot->packets[1] = *pMotion;
 
     id = g_BattleEffectSpawnTick - 1;

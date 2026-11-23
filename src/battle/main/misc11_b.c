@@ -141,11 +141,11 @@ typedef struct {
     /* 0x2F6 */ u8 repeatPending; // the last event was this one, so take it as a repeat
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
-// The slot-menu handlers from func_8008115C on (rodata 0x520-0x600). cc1 emits
+// The slot-menu handlers from BattleAdvanceSlotMenuStateEventDisplay on (rodata 0x520-0x600). cc1 emits
 // `.align 3` before every jump table, so their tables have to come from a TU
 // whose .rodata starts 8-aligned (abs 0x80070010); main/misc11 keeps
 // func_80080160, whose 101-word table is the 4-mod-8 first table of the old range.
-void func_8008115C(u8 arg0) {
+void BattleAdvanceSlotMenuStateEventDisplay(u8 arg0) {
     u8 a;
 
     a = arg0;
@@ -596,7 +596,7 @@ s32 func_80081B58(u32 arg0) {
     }
 }
 */
-void func_800820A4(u8 arg0) {
+void BattleAdvanceSlotMenuStateEventQueue(u8 arg0) {
     u8 a;
 
     a = arg0;

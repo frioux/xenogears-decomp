@@ -1111,3 +1111,5 @@ FieldScriptSetRecordByte = 0x800924D4;
 g_FieldMapSpriteTable = 0x800AF47C;
 g_FieldSpriteSlotRects = 0x800AF5C0;
 FieldTextBoxOpen = 0x8009C5A8;
+g_FieldPortraitSlots = 0x800B06A4;
+g_FieldPortraitSlotCursor = 0x800ADB0C;

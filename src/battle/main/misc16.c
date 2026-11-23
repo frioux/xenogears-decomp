@@ -108,7 +108,7 @@ extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(s32, u16, u16, u16, u16);
 extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void BattleBuildTileRow0Prims(u8, s32, s32, u16);
-extern void func_8008E430(u8, s32, s32, u16, s32);
+extern void BattleBuildTileRow1Prims(u8, s32, s32, u16, s32);
 extern void BattleBuildTileRow2Prims(u8, s32, s32, u16);
 // The fifth argument of BattleBuildTileRow3Prims arrives as an aggregate, not a bare
 // u16: gcc 2.6.0 loads a narrow stack parameter into a register in the function
@@ -574,7 +574,7 @@ void BattleBuildTileRow0Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
 // register set (a1=left, a0=right, a3=half, a2=top, t0=bottom). `pArg4 = &arg4` is
 // load-bearing: without the escaped address cc1 hoists the y0 value above the x0 store
 // (98.20%); with it the stores keep retail's order and the block matches.
-void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
+void BattleBuildTileRow1Prims(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
     BattleSlotGraphics *p;
     s32 left;
     s32 top;
@@ -771,7 +771,7 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     p->prims[g_BattlePrimStartIndex].y3 = arg2 + arg4;
     BattleDrawSpriteQuad(index, arg1, arg2, arg3, arg4);
     BattleBuildTileRow0Prims(index, arg1, arg2, arg3);
-    func_8008E430(index, arg1, arg2, arg3, arg4);
+    BattleBuildTileRow1Prims(index, arg1, arg2, arg3, arg4);
     BattleBuildTileRow2Prims(index, arg1, arg2, arg4);
     BattleBuildTileRow3Prims(index, arg1, arg2, arg3, (BattleRowSize){arg4, 0});
     p->packagePrimStart = *(u8 *)&g_BattlePrimStartIndex;
