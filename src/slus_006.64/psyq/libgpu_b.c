@@ -172,20 +172,29 @@ u_long DrawMode(int dfe, int dtd, u_short tpage) {
     return mode | tp;
 }
 
-// best: 79.12% (188 bytes; retail is 204 = 4 instructions more). Retail per
-// axis: copy the raw parameter out (move a3,a0), truncate the parameter register
-// IN PLACE (sll a0; sra a0), bltz to an out-of-line v=0, then slt of W-1 against
-// the truncated value, bnez to an out-of-line clamp whose delay slot recomputes
-// 'addiu v0,a2,-1' from a2 = the W copy; the keep arm is 'j merge; move v0,raw'.
-// The two extra instructions per axis are the 'move a2,v0' W copy plus that
-// recomputation: gcc CSEs g_GpuScreenWidth-1 into one register, so it emits
-// 'addiu v1,v0,-1' once and moves it into the merge. Only the y axis comes out
-// with retail's register roles (a1 = yi, a2 = truncated scratch).
-// Measured this round: u_long t[4] frame + ternary (below) 79.12; the same body
-// with if/else clamp blocks over u_long xi/yi (xi = x; if ((s16)xi < 0) ...)
-// 65.59; gcc-2.7.2-cdk under this unit's flags 75.78; gcc-2.6.0 79.12. Earlier
-// rounds: s32 sx/sy, u_short xi/yi, explicit 'int rx = x' copies (78.82, 196
-// bytes), one-expression returns (73.08), parameter reassignment (79.12).
+/* best: 79.12% (188 bytes / 47 insns; retail is 204 / 51, so 4 instructions
+   short and unlinkable). Named residual, 2 instructions per axis: retail computes
+   the limit TWICE and both times from a caller-saved copy of the loaded global
+   (`addu a2,v0,zero` then `addiu v0,v0,-1` for the compare, `addiu v0,a2,-1` in
+   the clamp arm); ours keeps ONE pseudo for the value and copies it into the arm
+   (`addiu v1,v0,-1` / `move a0,v1`). The limit is a cheap reg+const expression
+   behind a conditional branch, so whether cse1 reuses the register or regenerates
+   it from a preserved base is the pass's decision, not the source's - 14 probe
+   spellings measured this round, every one gives a single -1 plus a move:
+   ternary on the parameter, if/else-if with and without an else arm, a
+   limitRange-style macro on a local, the same macro with the limit textually
+   duplicated, an s16 mirror local, int/u_short locals holding W-1, `>=
+   g_GpuScreenWidth` (limit then computed after the slt), `int w = g_GpuScreenWidth`
+   with `w - 1` written twice, sequential ifs, and m2c's hoisted-limit shape.
+   The x axis additionally wants `addu a3,a0,zero` (raw x preserved, truncation in
+   place in $a0); we get the truncation into a fresh register instead. Earlier
+   rounds: whole-body if/else clamps over u_long xi/yi 65.59, s32 sx/sy 78.82 at
+   196 bytes, one-expression returns 73.08; gcc-2.7.2-cdk 75.78, gcc-2.6.0 79.12.
+   Load-bearing in this body: `u_long t[4]` reproduces retail's 0x10 phantom frame
+   (`.frame $sp,16` with no store anywhere) and puts the `addiu sp,sp,-16` in the
+   bltz delay slot; `g_GraphType != 1 && g_GraphType != 2` gives retail's
+   sltiu + bnez with the 12-bit andi in the delay slot, and the masked x is a
+   u_short local (`code`) so the `or` tree keeps retail's shape.*/
 /*
 u_long func_80045A34(int x, int y) {
     u_long t[4];
