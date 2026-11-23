@@ -44,7 +44,7 @@ extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 g_WorldMapCameraHeight;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationZ[];
-extern u16 g_WorldMapPlayerAngle;
+extern s16 g_WorldMapPlayerAngle;
 extern u32 g_WorldMapScrollTargetX[];
 extern s16 g_WorldMapCameraPathAnglesModes1To5[];
 extern s16 g_WorldMapCameraPathAnglesMode7[];
@@ -958,7 +958,276 @@ s32 func_80091430(s32 idx) {
     return 1;
 }*/
 
+// The scroll delta buffer WorldMapWrapDelta takes: the wrapped xyz offset at 0x00 and
+// its 1/8 step at 0x10 (the type src/world_map/main/misc3.c uses for the same callee).
+typedef struct {
+    /* 0x00 */ s32 x;
+    /* 0x04 */ s32 y;
+    /* 0x08 */ s32 z;
+    /* 0x0C */ s32 pad0C;
+    /* 0x10 */ s32 stepX;
+    /* 0x14 */ s32 stepY;
+    /* 0x18 */ s32 stepZ;
+} WorldMapScrollDelta; // Size: 0x1C
+
+// The view yaw is read signed here (lh) and stored with sh.
+extern s16 g_WorldMapViewRotationYAngle[] __asm__("g_WorldMapViewRotationY");
+extern s32 g_WorldMapScrollX;
+extern s32 g_WorldMapScrollZ;
+extern s32 g_WorldMapScrollTargetZ;
+extern void WorldMapWrapDelta(WorldMapScrollDelta *pDelta);
+extern void WorldMapStartSlot(s32, s32);
+
+#define WORLD_MAP_SCROLL_SNAP_STEP 64
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
+/* best: 89.42%, 1680 bytes / 420 insns against retail's 1664 / 416 (four long).
+   Whole structure
+   decoded and every relocation right; what is left is gcc's block and delay-slot
+   scheduling, not structure. Facts a later agent should not re-derive:
+   - Two jump tables (jtbl_80070BE4 9 entries, jtbl_80070C0C 17 entries) and this
+     unit's tables CANNOT be reproduced from C: retail's first table is 0x28 bytes at
+     .rodata+0x1EC (4 mod 8, i.e. 8 words + one trailing 0 word) and mine is 9 words at
+     an .align 3 address, so converting this function moves the whole overlay (-4 and a
+     shifted base) even when the instructions agree. JTBL_LAYOUT: leave it a stub unless
+     the unit's rodata is moved to `const` label tables as one job (the note above
+     func_80090C68 describes that job, and it waits on func_8008E190/func_8008E76C too).
+   - Both switches must list EVERY case or gcc emits a decision tree instead of the
+     table: `command - 9` with cases 0..8 (2-5 empty) and `state` with cases 0..0x10
+     (3-0xF empty). `s16 nCommand; nCommand = pPlayer->command - 9;` is what makes the
+     load `lhu` (retail) instead of `lh` - the truncation to s16 kills the sign
+     extension, and the sll/sra pair retail has falls out of it.
+   - States 0 and 1 share ONE copy of the yaw ramp in retail, reached by a jump from
+     state 1's body: gcc 2.7.2 has no cross-jumping, so the source has to share it
+     explicitly (`ramp:` label + `goto ramp;`, see the parked body).
+   - The second switch's position walk covers states 0,1,2 AND 0x10 (retail's
+     `bltz v1` after `slti v1,4` proves state 0 is in the same group), state 3 has its
+     own y-only walk.
+   - The ramps need `__builtin_abs` (round 405's lever), and the step abs in the
+     position walk is the in-place `if (x < 0) x = -x;` form - retail's nop-filled
+     `bgez/negu` there is not the __builtin_abs shape.
+   - LEFT: (1) retail keeps `&g_WorldMapScrollTargetX` in $s1 and `&g_WorldMapScrollX`
+     in $a0/$a2 across the WorldMapWrapDelta call and the walk; this body re-forms
+     both addresses with lui/at (try pointer locals). (2) `(pPlayer->unk58 >> 12)`
+     written twice to feed both the store and the compare reloads 0x58 in this body
+     where retail keeps the shift's register. (3) `nAbs`/`nDelta` land in different
+     registers in the case 2/0x10 ramps (retail coalesces the rotY load into the
+     result register). (4) retail has a dozen delay-slot nops this body schedules
+     over. Not permuter-tested.
+   The WorldMapScrollDelta typedef, the s16 alias for g_WorldMapViewRotationY and the
+   externs above this stub are live so the parked body below still compiles. */
+/*// Modes 1-8's per-frame slot update: the command word picks the state and the initial
+// target yaw, the state ramps the view yaw toward it, and the slot's position walks to
+// the scroll target (state 3 only lifts it) before it is published as the camera target.
+s32 func_800914D0(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    WorldMapScrollDelta delta;
+    s16 nCommand;
+    s16 nRotY;
+    s32 nDelta;
+    s32 nAbs;
+    u16 nTurn;
+
+    pPlayer = g_WorldMapSlots + idx;
+    nCommand = pPlayer->command - 9;
+    switch (nCommand) {
+    case 0:
+        pPlayer->command = 0;
+        pPlayer->state = 2;
+        pPlayer->unk50 = g_WorldMapPlayerAngle;
+        nRotY = g_WorldMapViewRotationYAngle[0];
+        pPlayer->unk58 = nRotY << 12;
+        break;
+    case 1:
+        pPlayer->command = 0;
+        pPlayer->state = 0;
+        nRotY = g_WorldMapViewRotationYAngle[0];
+        pPlayer->unk50 = nRotY;
+        break;
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+        break;
+    case 6:
+        pPlayer->state = 0x10;
+        pPlayer->command = 0;
+        pPlayer->unk50 = 0x800;
+        break;
+    case 7:
+        pPlayer->state = 0x10;
+        pPlayer->command = 0;
+        pPlayer->unk50 = 0xA00;
+        break;
+    case 8:
+        pPlayer->state = 0x10;
+        pPlayer->command = 0;
+        pPlayer->unk50 = 0xC00;
+        break;
+    }
+    switch (pPlayer->state) {
+    case 0:
+        nTurn = (g_WorldMapPad1Held >> 2) & 3;
+        switch (nTurn) {
+        case 1:
+        case 3:
+            pPlayer->state = 1;
+            pPlayer->unk54 = -0x40;
+            pPlayer->unk5C = (pPlayer->unk50 - 0x200) & 0xFFF;
+            break;
+        case 2:
+            pPlayer->state = 1;
+            pPlayer->unk54 = 0x40;
+            pPlayer->unk5C = (pPlayer->unk50 + 0x200) & 0xFFF;
+            break;
+        }
+    // States 0 and 1 both end by ramping the view yaw toward the slot's target yaw; the
+    // label is the shared tail (retail has one copy of it, reached by a jump from state 1).
+    ramp:
+        nRotY = g_WorldMapViewRotationYAngle[0];
+        if (nRotY != pPlayer->unk50) {
+            nDelta = pPlayer->unk50 - nRotY;
+            nAbs = __builtin_abs(nDelta);
+            if (nAbs >= 0xC01) {
+                if (nDelta < 0) {
+                    nDelta += 0x1000;
+                } else {
+                    nDelta -= 0x1000;
+                }
+            }
+            pPlayer->unk58 = (pPlayer->unk58 + ((nDelta << 12) >> 3)) & 0xFFFFFF;
+            g_WorldMapViewRotationYAngle[0] = pPlayer->unk58 >> 12;
+        } else {
+            pPlayer->unk58 = nRotY << 12;
+        }
+        break;
+    case 1:
+        pPlayer->unk50 = (pPlayer->unk50 + pPlayer->unk54) & 0xFFF;
+        if (pPlayer->unk50 == pPlayer->unk5C) {
+            pPlayer->state = 0;
+        }
+        goto ramp;
+    case 2:
+        nDelta = pPlayer->unk50 - g_WorldMapViewRotationYAngle[0];
+        nAbs = __builtin_abs(nDelta);
+        if (nAbs >= 0x801) {
+            if (nDelta < 0) {
+                nDelta += 0x1000;
+            } else {
+                nDelta -= 0x1000;
+            }
+        }
+        nAbs = __builtin_abs(nDelta);
+        if (nAbs >= 0x181) {
+            if (nDelta < 0) {
+                nDelta = -0x180;
+            } else {
+                nDelta = 0x180;
+            }
+        }
+        pPlayer->unk58 = (pPlayer->unk58 + ((nDelta << 12) >> 3)) & 0xFFFFFF;
+        g_WorldMapViewRotationYAngle[0] = pPlayer->unk58 >> 12;
+        if (((pPlayer->unk58 >> 12) == pPlayer->unk50) & (pPlayer->unk60 == 0)) {
+            pPlayer->state = 3;
+            WorldMapStartSlot(7, 0xB);
+        }
+        break;
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 0xA:
+    case 0xB:
+    case 0xC:
+    case 0xD:
+    case 0xE:
+    case 0xF:
+        break;
+    case 0x10:
+        nDelta = pPlayer->unk50 - g_WorldMapViewRotationYAngle[0];
+        nAbs = __builtin_abs(nDelta);
+        if (nAbs >= 0x801) {
+            if (nDelta < 0) {
+                nDelta += 0x1000;
+            } else {
+                nDelta -= 0x1000;
+            }
+        }
+        nAbs = __builtin_abs(nDelta);
+        if (nAbs >= 0x181) {
+            if (nDelta < 0) {
+                nDelta = -0x180;
+            } else {
+                nDelta = 0x180;
+            }
+        }
+        pPlayer->unk58 = (pPlayer->unk58 + ((nDelta << 12) >> 5)) & 0xFFFFFF;
+        g_WorldMapViewRotationYAngle[0] = pPlayer->unk58 >> 12;
+        if (((pPlayer->unk58 >> 12) == pPlayer->unk50) & (pPlayer->unk60 == 0)) {
+            pPlayer->state = 3;
+        }
+        break;
+    }
+    switch (pPlayer->state) {
+    case 0:
+    case 1:
+    case 2:
+    case 0x10:
+        if ((pPlayer->x != (s32)g_WorldMapScrollTargetX[0]) | (pPlayer->y != g_WorldMapScrollTargetY) |
+            (pPlayer->z != g_WorldMapScrollTargetZ)) {
+            delta.x = (s32)g_WorldMapScrollTargetX[0] - pPlayer->x;
+            delta.y = g_WorldMapScrollTargetY - pPlayer->y;
+            delta.z = g_WorldMapScrollTargetZ - pPlayer->z;
+            WorldMapWrapDelta(&delta);
+            delta.stepX = delta.x >> 3;
+            delta.stepY = delta.y >> 3;
+            delta.stepZ = delta.z >> 3;
+            if (delta.stepX < 0) {
+                delta.stepX = -delta.stepX;
+            }
+            if (delta.stepZ < 0) {
+                delta.stepZ = -delta.stepZ;
+            }
+            if ((delta.stepX < WORLD_MAP_SCROLL_SNAP_STEP) & (delta.stepZ < WORLD_MAP_SCROLL_SNAP_STEP)) {
+                pPlayer->unk60 = 0;
+                g_WorldMapScrollX += delta.x;
+                g_WorldMapScrollZ += delta.z;
+                pPlayer->x = (s32)g_WorldMapScrollTargetX[0];
+                pPlayer->z = g_WorldMapScrollTargetZ;
+            } else {
+                pPlayer->unk60 = 1;
+                pPlayer->x += delta.stepX;
+                pPlayer->z += delta.stepZ;
+                g_WorldMapScrollX += delta.stepX;
+                g_WorldMapScrollZ += delta.stepZ;
+            }
+            pPlayer->y += delta.stepY;
+        }
+        break;
+    case 3:
+        if ((pPlayer->x != (s32)g_WorldMapScrollTargetX[0]) | (pPlayer->y != g_WorldMapScrollTargetY) |
+            (pPlayer->z != g_WorldMapScrollTargetZ)) {
+            delta.x = (s32)g_WorldMapScrollTargetX[0] - pPlayer->x;
+            delta.y = g_WorldMapScrollTargetY - pPlayer->y;
+            delta.z = g_WorldMapScrollTargetZ - pPlayer->z;
+            WorldMapWrapDelta(&delta);
+            pPlayer->y += delta.y >> 4;
+            g_WorldMapScrollX += delta.x;
+            g_WorldMapScrollZ += delta.z;
+            pPlayer->x = (s32)g_WorldMapScrollTargetX[0];
+            pPlayer->z = g_WorldMapScrollTargetZ;
+        }
+        break;
+    }
+    WorldMapWrapPosition(&pPlayer->x);
+    *(Quad *)&g_WorldMapCameraTarget = *(Quad *)&pPlayer->x;
+    return 1;
+}
+*/
+
 s32 WorldMapModeInitActorAngleSets(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
