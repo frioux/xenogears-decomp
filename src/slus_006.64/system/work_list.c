@@ -192,8 +192,9 @@ void WorkListDeleteTask(WorkListEntry* pTask) {
    0x14 stores, 58.70); group after unk0 + inline post-increment 84.20; same + id local
    first statement 80.62 (counter load late anyway); group after callbacks 60.73 (the
    pData->unk10 read must sit right after unk0, worth +23%); unk10 statement moved next to
-   the if 84.20 (tie). Presets: 2.6.0 79.7, 2.7.2-cdk 83.72 - both worse, preset ruled out. */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
+   the if 84.20 (tie). Presets: 2.6.0 79.7, 2.7.2-cdk 83.72 - both worse, preset ruled out. Under gcc-2.7.2-cdk-psx + maspsx
+   --dont-expand-li (the preset this unit wants, see func_8001D2B0's note) this same
+   body is 89.55, its best so far: re-measure it after any preset switch. */
 /*
 void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
@@ -213,8 +214,8 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
         pEntry->unk14_3 = 0;
     }
     g_NumTimerWorkListEntries++;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
 
 WorkListEntry* TimerWorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
@@ -433,20 +434,7 @@ extern SpriteAnimPackage g_SpriteAnimPackageDirs6;
 extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 
 // Change Sprite Animation Frame maybe?
-/* Best: 97.53% under the unit flags (328 bytes, retail 324). PRESET: this body is
-   INSTRUCTION-IDENTICAL to retail under gcc-2.7.2-cdk-psx + maspsx --dont-expand-li
-   (100.00, verified by objdump side-by-side). Retail has two things plain 2.7.2 cannot
-   emit: (a) the address pair is lui $v0,%hi in the beqz delay slot then addiu a1,v0,%lo,
-   i.e. the high and low halves are SEPARATE RTL insns with different registers, which
-   only cdk produces (plain 2.7.2 ties %hi to its destination and leaves a nop, one
-   instruction long); (b) retail assembles li 1 as addiu $v1,$zero,1 where maspsx
-   expand_li gives ori. Under the unit flags the best measured residual is 97.53; the
-   body itself is right. field_0x40 is tested with srl+andi, curSpriteFrame is read as
-   u16. Tried and measured worse: plain while, guard+do/while, head read twice, 2.6.0
-   (94.44), 2.7.2 + --dont-expand-li (98.27, one instruction short). The duplicated
-   if (animFrame) advance is a permuter find that put the list cursor in v1; its arms
-   are identical on purpose. */
-Best: 97.53% under the unit flags (328 bytes vs retail 324, 81 vs 82 insns).
+/* Best: 97.53% under the unit flags (328 bytes vs retail 324, 81 vs 82 insns).
    PRESET: this body is 100.00 under gcc-2.7.2-cdk-psx + maspsx --dont-expand-li
    --use-comm-section --run-assembler, and so is EVERY other function of the unit
    (tools/scripts/try_flags.sh slus_006.64/system/work_list --all --gcc
