@@ -295,7 +295,14 @@ extern s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2);
 extern void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR *pPos, s16 *pRot);
 extern s32 WorldMapSetActorPosition(s32);
 extern s32 func_80084068(s32);
-extern u8 *g_WorldMapRenderContext;
+// Partial view of the render environment g_WorldMapRenderContext points at: the
+// sprite pass only reaches the first ordering table.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderEnv;
+
+extern WorldMapRenderEnv *g_WorldMapRenderContext;
 extern MATRIX g_WorldMapViewMatrix;
 extern void WorldMapWrapDelta(void *pDelta);
 extern void WorldMapWrapDeltaScaled(WorldMapPos *pDelta);
@@ -1089,7 +1096,7 @@ void func_80085CDC(void) {
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pProj->depth[i] < 0xB00)) {
-            SpriteDrawFrame(pActor->pSprite, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pProj->depth[i] >> 4));
+            SpriteDrawFrame(pActor->pSprite, g_WorldMapRenderContext->pOt[0] + (pProj->depth[i] >> 4));
             d = pActor->angle - pActor->redStep;
             if (d < 0) {
                 d += 0x1000;
