@@ -737,12 +737,37 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
    416 bytes; `u8 *pParam` hoisted 43.58% / 436 bytes; i/o declaration order swapped
    (identical 59.15%, so gcc's allocation order is not the source order); the same
    body under gcc-2.6.0 60.24% (identical, so the compiler version is not the
-   question) and under gcc-2.7.2-cdk 44.97%. The retail `$at` chains say this is not
+   question) and under gcc-2.7.2-cdk 44.97%. The retail $at chains say this is not
    a cdk/-G0 unit. A permuter pass is the next tool here, not more shapes. */
-/*
+/* PARKED 60.28%, 448 bytes (112 insns; retail 456 = 114). Structure, call set,
+   both loops, their bounds, the store order and every addu operand order are
+   retail's; the residual is the ALLOCATOR. Retail gives o -> a2 and i -> a3, this
+   body the reverse (i in a2), so every loop instruction differs by register name;
+   retail also keeps the masked arg0 in t2 across the loop (this body remasks
+   arg0 at the exit), and retail's first element address is materialised once as
+   addiu 0x140 + addu i + two lbu 0(a0) where this body folds 0x140 into the lbu.
+   ROUND 426 measurements, all new:
+   - declaring the park's o BEFORE i (for (o = 0, i = 0; ...)) is 60.28% and
+     identical otherwise - declaration order is NOT the a2/a3 lever (60.24 with
+     i first, 60.28 with o first).
+   - a u8 *pElem local inside the loop holding base + 0x140, used as pElem[i] at
+     all four sites, is 58.04% / 376 bytes: gcc CSEs the whole recA/recB chain and
+     the g_BattleSlotParamTable load out of the loop, which retail never does.
+     Re-confirms that no pointer local may name any part of the chain.
+   - spelling the offset as i * 6 (dropping the o variable: *(u16 *)(D_800C48EC
+     + i * 6)) is 64.31% / 476 bytes - the best score so far and the second loop's
+     BIV really does land in a2 with addiu a2,a2,6 in the delay slot, exactly
+     retail - BUT gcc then strength-reduces each store to a POINTER BIV
+     (lui/addiu %hi/%lo of D_800C48EC and D_800C48EE, sh 0(base), base += 6) where
+     retail has ONE offset added as lui at,%hi / addu at,at,o / sh %lo(at), and
+     it reloads g_BattleSlotParamTable at two of the three sites (119 insns). So
+     retail's source had a real s32 offset local, i.e. the o variable this body
+     has. The lead for a later round is a spelling that keeps an s32 offset local
+     AND makes gcc give that offset a2 (perhaps via a BIV whose base stays a
+     symbol constant).  *//*
 s32 func_800877E0(s32 arg0, s32 arg1) {
-    s32 i;
     s32 o;
+    s32 i;
     u8 a;
     u8 b;
     s32 ofsA;
@@ -750,7 +775,7 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 res;
 
     res = 0;
-    for (i = 0, o = 0; i < 9; i++, o += 6) {
+    for (o = 0, i = 0; i < 9; i++, o += 6) {
         *(u16 *)(D_800C48EC + o) = 0xFFFF;
         *(u16 *)(D_800C48EE + o) = 0xFFFF;
     }
@@ -776,18 +801,9 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
         res = 1;
     }
     return res;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
-void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
-    s32 i;
 
-    for (i = 0; i < BATTLE_COMMAND_RECORD_COUNT; i++) {
-        g_BattleCommandRecords[i].command = BATTLE_COMMAND_NONE;
-        g_BattleCommandRecords[i].actorSlot = arg0;
-        g_BattleCommandRecords[i].slotMask = BattleSlotBitMask(arg1);
-    }
-}
 
 void BattleSetupActorSlotDisplay(u8 arg0) {
     s32 idx;
