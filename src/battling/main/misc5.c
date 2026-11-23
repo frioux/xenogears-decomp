@@ -1268,82 +1268,45 @@ void BattleInitSpriteBuffers(void) {
     func_800732AC(g_BattleSpritePrimBufferCopy, g_BattleSpritePrimBuffers, 0x21C0);
 }
 
-/*
-func_8007DC74 fills up to `steps` free BattleSpriteSlots along the line between two
-points with a spray: it builds a (dz, dy, -dx) vector from the two VECTORS, takes
-its length / 6 as the slot budget, normalises the horizontal part for the spray
-direction and gives each slot a random offset, a life count from the height
-difference and a gravity value; the slots are spawned at the first point jittered
-by +-0x10 and shifted by their own velocity * 2.
 
-Best attempt: objdiff 79.08%, 940 bytes = retail's EXACT size (235 insns). Facts
-read off the asm, each one measured:
-  - the slot budget is BattleVectorLength(&vec) / 6 (retail's magic 0x2AAAAAAB);
-  - `count` is a u32: retail compares it with sltiu 0x79 before clamping to 0x78;
-  - the height test is written `if (dy >= 9) {life = count; vy = 1 - rand() %
-    (dy/2);} else {vy = -4; life = 0x14;}` - the rand arm is the inline
-    fall-through, which only comes out of the >= form;
-  - the local VECTOR's components are STORED vz, vx, vy (sp+0x18, 0x10, 0x14);
-  - the norm copy after VectorNormal(&vec, &vec) writes only vx -> sp+0x20 and
-    vz -> sp+0x28, i.e. a second VECTOR local of which only vx/vz are used;
-  - **pSlot = (BattleSpriteSlot *)g_BattleSpriteSlots; belongs BETWEEN the vec.vx
-    and vec.vy assignments** (not with the loop): retail loads the global into a
-    callee-saved register at that point, i.e. before the two BattleVectorLength
-    calls, and that single placement was worth 76.42 -> 78.83 and retail's byte
-    count. With the assignment down by the loop the global is loaded after the
-    calls and the whole prologue is one register off.
-  - y and vy want to be s16: with u16 the two constant stores come out as
-    `li v0,0xfff0` / `li v0,0xfffc`, with s16 as retail's `addiu v0,zero,-0x10`
-    / `addiu v0,zero,-0x4` (79.08 vs 78.83; reverted here because the only
-    evidence comes from this function).
-Residual (all at once, which is why it is parked): (1) gcc hoists the `dy / 2`
-divisor into the loop preheader and spills it to sp+0x40, so the frame is 0x70
-against retail's 0x68 and every s0-s8 number shifts - retail computes it inline
-at the `div` with `srl/addu/sra` on the pre-loop abs value. Two permuter runs
-only "fixed" this by breaking dy's invariance (i.e. with wrong code), and gcc
-does it under Default, 2.6.0 (80.00%) and cdk (72.27%), so it is not a preset
-question; it looks like loop.c accepting a spill because all of s0-s8 are live.
-(2) the giv base gcc picks for the slot pointer is pSlot+4, retail's is pSlot+2,
-so life is `lh 2(s1)` against retail's `lh 4(s1)` and every other displacement is
--2. (3) retail groups `pA->vx - 0x10` ahead of the rand()%32 in the two spawn
-sums (`addiu a1,v0,-0x10` in the modulo's bgez slot), gcc folds the -0x10 after
-the modulo. (4) the two norm stores are load/nop/store pairs in retail, gcc
-merges the two loads. (5) retail's `/7` for `spread` has no sign correction
-(`(hi + len2) >> 2`), gcc emits `sra v1,len2,31` + `subu` for our s32 len2; the
-u32 cast form gets the unsigned magic (0x24924925/multu) instead, so the dividend
-must be non-negative to retail's gcc somehow.
-Round 406: the stored body was un-parked and re-measured LIVE - it compiles, and
-it is exactly 78.83% / 940 bytes / 235 insns, retail's own size. New measurements:
-  - `-O1` is 68.91%, so the hoisted `dy / 2` is not an -O level artefact either
-    (78.83 under -O2, -O3, -G0; 80.00 under gcc-2.6.0; 72.27 under cdk).
-  - cc1_probe (both 2.7.2 and 2.6.0) settles residual (5) as far as the C goes:
-    EVERY spelling of a signed division by 7 emits the `sra/subu` sign
-    correction - plain `n / 7`, after `if (n < 0) n = 0;`, after
-    `if (n < 0x10) n = 0;`, and through an int temp. The only spellings that drop
-    it switch to the unsigned magic (`multu` 0x24924925): `(u16)n / 7` and a
-    `u16 f()` divided directly. So retail's dividend had bit 31 known clear from
-    a mask, a narrow load or a comparison - NOT from a plain int - while the same
-    register is `sra $s4,31`'d in the loop for `spread - (len2 >> 31)`. That
-    pair (uncorrected /7 in the preheader, corrected use in the loop) is the
-    core of residual (5) and is not reachable by any spelling of a plain
-    division; nobody has explained it yet.
-  - The last bullet's s16 experiment must NOT be done by changing the struct:
-    BattleEffectUpdateSlots is matched at 100% reading y and vy with
-    `lhu 0x0(a1)` / `lhu 0x10(a1)`, so those two fields really are u16. Retail's
-    `addiu v0,zero,-0x10` / `-0x4` has to come from an s16 temp in this function.
-  - MEASURED NEGATIVE, do not repeat: writing `len2 / 7` INLINE at the four
-    `(norm.vx * t >> 14) + len2 / 7` uses instead of in a `spread` local does NOT
-    make gcc split retail's shape (uncorrected magic chain spilled, correction
-    left in the loop). It hoists the WHOLE chain into the preheader including
-    `sra $22,31` / `subu`, so both `count` and `spread` stay in registers, the
-    frame drops to 0x60 and the body is 916 bytes / 229 insns against retail's
-    940 / 235: 81.06%, and it can never link. Retail SPILLS both (0x30 and 0x38),
-    so the /7 has to stay out of a register - the spill is a property of retail's
-    shape, not a defect of ours.
+/* PARK 80.47% at 932 bytes / 233 insns against retail's 940 / 235: TWO
+   INSTRUCTIONS SHORT, so it can never link. Kept because it is the closest body by
+   a wide margin (the pointer-walk shape it replaces was 78.83% / 940 / 235).
+   THE FIND THIS ROUND: indexing the slot array instead of walking a pointer -
+   `pSlot = &((BattleSpriteSlot *)g_BattleSpriteSlots)[i];` INSIDE the loop - makes
+   gcc keep the `dy / 2` divisor in the loop. The loop now emits retail's own
+   `srl v1,s3,0x1f / addu v1,s3,v1 / sra v1,v1,0x1` immediately before the `div`,
+   the sp+0x40 spill of the hoisted divisor is gone, and the frame is retail's
+   0x68 with an identical saved set (0x40..0x64) and epilogue. The preheader
+   `sra v0,s4,0x1f / subu` pair also moved back into the loop, matching retail's
+   correction in the rand() delay slot. The vec/norm build, the length/6 budget,
+   the count clamp, the three-arm spray and the height/gravity tail all line up.
+   Residuals, read off the 2-instruction deficit plus these rows:
+   (a) TWO INDUCTION REGISTERS: retail keeps s7 = base and s1 = base + 2 and
+   increments both (`addiu s1,s1,12` plus `addiu s7,s7,12`); this body counts a
+   byte offset in s7 (`move s7,zero` before the loop) and forms s1 = base + s7
+   once, so stores come out at 0/2/4/6/8/9/10(s1) where retail has -2/0/2/4/6/7/8
+   (s1) with x through s7. That is 1 of the 2 missing insns, and it is why retail
+   anchored at +2: y..vy then fit 0..8 and only x needs the base register.
+   (b) THE PREHEADER APPLIES THE `len2 >> 31` CORRECTION TWICE: it stores the
+   corrected `spread` at sp+0x38 and then subtracts the correction again in the
+   loop, where retail stores it uncorrected and corrects once. Harmless (len2 is
+   clamped >= 0 by `if (len2 < 0x10) len2 = 0;`, so both corrections are zero),
+   but it is 2 of our insns and not the source's shape.
+   (c) `li v0,0xfffc` / `li v0,0xfff0` where retail has `li v0,-4` / `li v0,-16`:
+   the two negative stores want a signed spelling. On the pointer-walk body an s16
+   temp bought 79.08 vs 78.83; not tried on this body.
+   (d) the two norm loads are merged here (`lw v0,16(sp); lw v1,24(sp); sw; sw`)
+   where retail has load/nop/store pairs.
+   (e) the spawn sums fold the `-0x10` after the `% 32`; retail hoists it into the
+   bgez delay slot as `addiu a1,v0,-0x10`.
+   Tried this round, both worse: the correction inlined at the four uses (74.59%,
+   236 insns) and an early `pBase` local with `&pBase[i]` (79.81%, 230 insns - it
+   reloads g_BattleSpriteSlots after the two vector calls). Not a preset question:
+   the pointer-walk body measured gcc 2.6.0 80.00, cdk 72.27, and -O3 / -G0
+   unchanged. Next: permute THIS body (the /2 hoist that defeated the two earlier
+   permuter runs is gone) or find the second induction register.
 */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);
-
 /*
 void func_8007DC74(VECTOR *pA, VECTOR *pB) {
     VECTOR vec;
@@ -1364,7 +1327,6 @@ void func_8007DC74(VECTOR *pA, VECTOR *pB) {
 
     vec.vz = pB->vx - pA->vx;
     vec.vx = pA->vz - pB->vz;
-    pSlot = (BattleSpriteSlot *)g_BattleSpriteSlots;
     vec.vy = pA->vy - pB->vy;
 
     steps = BattleVectorLength((s32 *)&vec) / 6;
@@ -1393,7 +1355,8 @@ void func_8007DC74(VECTOR *pA, VECTOR *pB) {
     }
     spread = len2 / 7;
 
-    for (i = 0; i < 0x218; i++, pSlot++) {
+    for (i = 0; i < 0x218; i++) {
+        pSlot = &((BattleSpriteSlot *)g_BattleSpriteSlots)[i];
         if (steps == 0) {
             break;
         }
@@ -1426,5 +1389,5 @@ void func_8007DC74(VECTOR *pA, VECTOR *pB) {
         pSlot->z = pA->vz - 0x10 + (rand() % 32) + pSlot->vz * 2;
         steps--;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);
