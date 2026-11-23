@@ -39,13 +39,22 @@ def body_in(block, name):
     if m:
         return m.group(0).lstrip(" \t")
     return None
-BLOCK = re.compile(r"^/\*((?:[^*]|\*(?!/))*?)\*/\n", re.M)
+# A park's note and its body are often two blocks glued on one line ("*//*"), so a
+# block may also start right after a previous one closes; requiring line-start-only
+# made fresh_census call three round-433 parks "never written".
+BLOCK = re.compile(r"(?:^|(?<=\*/))[ \t]*/\*((?:[^*]|\*(?!/))*?)\*/[ \t]*(?=\n)", re.M)
 FILLER = re.compile(r"^(?:[ \t]*(?://.*)?\n)*$")
 # A park's prose note is often its own /* ... */ block between the stub and the
 # body block ("PARKED 99.75%" above the /* body */), so a comment block counts as
 # filler. Without this, parked_funcs missed those parks entirely and the census
 # counted them as unwritten bodies (round 306: seven of nine lanes hit parks).
 NOTE_BLOCK = re.compile(r"/\*((?:[^*]|\*(?!/))*?)\*/", re.S)
+
+
+def nl(s):
+    """Guarantee a line break before an inserted body (a park may start right
+    after a note block's `*/` on the same line)."""
+    return s if not s or s.endswith("\n") else s + "\n"
 
 
 def filler_only(segment):
@@ -68,9 +77,9 @@ def unpark(text, name, asm_line):
             continue
         body = body.rstrip(" \t") + "\n"
         if m.end() <= inc and filler_only(text[m.end():inc]):
-            return text[:m.start()] + body + text[end:]
+            return nl(text[:m.start()]) + body + text[end:]
         if m.start() >= end and filler_only(text[end:m.start()]):
-            return text[:inc] + body + text[m.end():]
+            return nl(text[:inc]) + body + text[m.end():]
     return None
 
 
@@ -81,10 +90,20 @@ def comment(note):
 
 
 def existing_asm_line(text, name):
-    """The INCLUDE_ASM line this file already holds for `name`, so the unit
-    argument cannot invent a path (`misc16_r2` is not `misc16`)."""
+    """The INCLUDE_ASM line this file already holds for `name`."""
     m = re.search(r'INCLUDE_ASM\("[^"]*",\s*' + name + r"\s*\);", text)
     return m.group(0) if m else None
+
+
+def asm_line_for(text, name, unit_dir):
+    """The stub line to write, taking the asm directory from the file itself: any
+    sibling stub in the same unit names it, so the unit argument (`misc16_r2` is
+    not `misc16`) cannot invent a build-breaking path."""
+    line = existing_asm_line(text, name)
+    if line:
+        return line
+    m = re.search(r'INCLUDE_ASM\("([^"]*/[^/"]*)",', text)
+    return 'INCLUDE_ASM("%s", %s);' % (m.group(1) if m else "asm/" + unit_dir, name)
 
 
 def repark(text, name, asm_line, note=""):
@@ -110,8 +129,7 @@ def main():
     a = ap.parse_args()
 
     text = open(a.source).read()
-    asm_line = existing_asm_line(text, a.function) or \
-        'INCLUDE_ASM("asm/%s", %s);' % (a.asm_dir, a.function)
+    asm_line = asm_line_for(text, a.function, a.asm_dir)
     if a.action == "unpark":
         out = unpark(text, a.function, asm_line)
     else:
