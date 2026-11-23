@@ -891,6 +891,22 @@ void FieldAddParticlePrims(void) {
 // both of nU/nU1 u_short (94.9), nIndex reused (94.2); five permuter runs, base=55
 // every time (1314, 1971, 2018, 222, 1550 iterations).
 //
+// Re-measured this round: 99.56 percent, 500 bytes = retail's exact size, 125 insns,
+// the same 18 v0/v1 lines and nothing else. Fresh -dg/-dl on this body: dispositions
+// 78 in 3 (mask, 12 refs across 7 insns), 122 in 3 (j*16 - retail's own in-place andi
+// ties the mask to it) and 123 in 2 (mask+0x10, 9 refs across 6 insns). mask+0x10
+// holds the first-handed $v0, so it was processed BEFORE the mask, which pins the
+// sort key as deaths/refs (1/9 beats 1/12); the round-412 note's refs/live_length
+// reading (1.71 vs 1.50) predicts the opposite and is wrong. The flip therefore
+// needs nU1 at 13 refs (5 insns), the mask at 2 deaths, the mask at live_length 5 or
+// nU1 at live_length 8 - and every one of those endpoints is pinned by retail's own
+// stream (one andi, one addiu off it, two stores each). New dead ends measured today:
+// an u_int block-scope copy of nU1 (copy-propagated away, identical), and try_flags
+// --sweep over 2.7.2 / 2.6.0 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x -mcpu
+// 3000/r8000 (best 99.56 under 2.7.2 -O2 and 2.6.0 -O2, cdk 99.52, -O1 75.83, -O3
+// does not compile), so no preset produces retail's pair. A sixth 3-minute permuter
+// run on this exact body this round: base=55 best=55, 1423 iterations - six runs,
+// base=55 every time, so no local edit reaches the pair.
 // Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
 /*
 void func_800A6E70(void) {
