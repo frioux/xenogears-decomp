@@ -1857,7 +1857,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
    `closeList = 1;` BEFORE the `MenuCopyEquipmentToPanel(arg0, kind)` call in the
    same arm breaks the arm: 620 insns, 2480 bytes, 93.26%. An 8-minute permute.sh
    run on the 98.42% body (2205 iterations) found only the slotRow change below,
-   so this tie is not reachable by random statement reordering.
+   so this tie is not reachable by random statement reordering. Round 419 measured
+   two more orders, both 616 insns / 2464 bytes / 98.71: `closeList = 1;` between
+   the MenuCopyEquipmentToPanel call and `cursorVisible = 0;`, and between
+   `cursorVisible = 0;` and the shouldRender store - in both, cse merges the two QI
+   1s (lever c-moved-constant-merges-then-sinks).
    PROLOGUE: the init block must assign prevRow = 0xFF and row = 0 AFTER
    listOpen = 0, not before needsPanel - that is worth 98.56 to 98.88. The two
    prologue rows still differing are the `sb t0,0x38` (active) and `sb t0,0x40`
@@ -1877,13 +1881,22 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
    is what retail CSEs into $s0), and that row index in its own `s32 slotRow`
    local at the 2nd and 3rd y store, which is what closed the old v0/v1-vs-v1/v0
    swap of the table and prim addresses (98.42 -> 98.56; found by permute.sh).
-   JUMP TABLE, AND WHY THIS CANNOT SHIP ALONE EVEN AT 100%: this stub owns
-   jtbl_801C515C at +0x60 of the unit's .rodata range (0xFC..0x18C, three
-   0x30-byte tables: func_801DBE54's at +0x00, func_801DDF24's at +0x30, this one
-   last; 11 cases = 44 bytes plus 4 of pad each). C .rodata lands before asm
-   .rodata in the same object, so converting this function while the other two
-   are still stubs moves its table to +0x00. Convert the three IN ADDRESS ORDER,
-   first to last, and judge with `tools/scripts/check_bin.sh menu`.
+   JUMP TABLE (round 419, MEASURED - this replaces the old "C .rodata lands before
+   asm .rodata" reading, which is the REPORT-mode artifact lever
+   i-jtbl-offset-follows-file-position describes): this stub owns jtbl_801C515C at
+   +0x60 of the unit's .rodata range (0xFC..0x18C, three 0x30-byte tables:
+   func_801DBE54's at +0x00, func_801DDF24's at +0x30, this one last; 11 cases =
+   44 bytes plus 4 of pad each). Unparking this body and building in MATCHING mode
+   (check_bin.sh menu) gives an object .rodata of 0x8C with the two asm tables at
+   +0x00 and +0x30 and this function's C table at +0x60 - retail's EXACT address -
+   because cc1 emits function_rodata after its own function's body
+   (build/src/menu/main/misc9.c.s ends with the .align 3 table, i.e. after the two
+   earlier stubs' .include'd .rodata). The only thing missing is the trailing
+   4-byte zero word, so the unit's .rodata is 4 short of its range and
+   `culprit.sh menu` then lists every function of the overlay as shifted - exactly
+   the misc10 case config/menu.yaml already fixes with a 4-byte carve
+   (`[0x248, rodata]` there). So this function ships iff (a) the C reaches retail's
+   2472 bytes and (b) `[0x188, rodata]` is added before main/misc10's range.
    Semantics: the character/gear equipment panel - arg2 != 0 is the gear panel,
    arg1 asks for the open animation, and group (toggled by LEFT/RIGHT on
    character id 4 and by a successful equip) selects the weapon vs accessory page
