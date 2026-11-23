@@ -57,15 +57,19 @@ def unpark(text, name, asm_line):
     inc = text.find(asm_line)
     if inc < 0:
         return None
+    end = inc + len(asm_line)
+    if text[end:end + 1] == "\n":
+        end += 1
     for m in BLOCK.finditer(text):
         if not re.search(r"\b" + name + r"\s*\(", m.group(1)):
             continue
         body = body_in(m.group(1), name)
         if not body:
             continue
+        body = body.rstrip(" \t") + "\n"
         if m.end() <= inc and filler_only(text[m.end():inc]):
-            return text[:m.start()] + body + text[inc + len(asm_line) + 1:]
-        if m.start() >= inc + len(asm_line) and filler_only(text[inc + len(asm_line):m.start()]):
+            return text[:m.start()] + body + text[end:]
+        if m.start() >= end and filler_only(text[end:m.start()]):
             return text[:inc] + body + text[m.end():]
     return None
 
