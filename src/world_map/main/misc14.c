@@ -772,6 +772,23 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
    The K&R declaration sits INSIDE this block, just above the body: park.py's
    unpark extracts only the definition, so re-add the extern line by hand after
    un-parking or the 8 bytes come back.
+   ROUND 421 re-measurement (unparked, rebuilt in this tree): 99.93% / 676
+   bytes / 169 insns, the note above confirmed, and the body still compiles with
+   the K&R extern in place. Rejected this round, each measured:
+   - the probe-X store spelled literal like the y/z stores: cc1 hoists the
+     address into a callee-saved $s0 and keeps it across the calls, 97.50% / 676
+     bytes / 12 differing lines, so the symbol spelling of that ONE store is
+     load-bearing for the frame's register set.
+   - gcc-2.7.2 at -G0: 99.93 (identical), at -O1: 71.22; -O3 and -Os are
+     rejected by cc1 on this unit.
+   - cc1_probe.sh with the store-then-take shape of tools/scripts/probe_example.c
+     (ProbeStoreFirst, the one shape whose docs say cc1 splits %hi from %lo)
+     prints one `la $4,g_Probe` on this unit's cc1, so that shape does not reach
+     the split here either: a 2.7.2 cc1 forms a single `la` in every context.
+   - a second permuter run from this body: 1273 iterations, base=20 best=20.
+   Nothing left in the source. Even a perfect instruction stream would still read
+   99.9x here, because the probe-X store carries a relocation against
+   g_WorldMapStepProbePos where retail's store is a bare constant.
 extern s32 WorldMapResolveStepAgainstTerrain();
 s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     s32 height;
