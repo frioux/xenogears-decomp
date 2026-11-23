@@ -233,6 +233,25 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
    Retail's y delta in $v1 against its z delta in $v0 does say the original had
    two delta locals (one pseudo per variable), but every split spelling measured
    here or earlier loses either a register or a byte.
+   Round 434 re-measured at 98.03 / 600 / 150 and re-ran the abs levers with the
+   per-site-local recipe of d-an-abs-needs-one-local-per-site (shared delta,
+   magY/magZ). All three keep retail's 600 bytes / 150 insns:
+   - magY/magZ = __builtin_abs(delta), shared delta: 93.32. This DOES give
+     retail's per-block abs shape in BOTH blocks (bgez / move v0,X / negu v0,v0)
+     but the delta pseudo then lands in $a0 in BOTH blocks (retail has $v1 in y
+     and $v0 in z) and the z block's turn/mag copies collapse with it; the
+     builtin also takes $v0 for both sites, so the per-site locals did not split
+     them here the way they do on world_map/misc12.
+   - magY/magZ = delta with if (mag < 0) mag = -mag: 92.92, the three copies
+     collapse and the second block's curRot.vy reload moves above the store.
+   - the same per-site pair behind the do-while barrier: 95.85, delta back in
+     $a0 in both blocks (the barrier does not restore the winning body's $v1
+     once mag has two pseudos).
+   So the 98.03 body's SHARED single `mag` is what holds delta in retail's $v1;
+   every split of it costs the y block more than it can win in the z block.
+   Preset screened as well: gcc-2.6.0 -G0 scores 95.47 here and drops
+   BattleActorFaceTarget to 76.34; gcc-2.7.2 -G0 scores 98.00 and drops the same
+   function, so XenoBattleTailCdk0 is the right preset for the unit.
 void func_800B65B0(BattleSpriteState *pSprite, u8 *p) {
     SVECTOR rot;
     SVECTOR curRot;
