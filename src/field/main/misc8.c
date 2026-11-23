@@ -1605,30 +1605,34 @@ extern MATRIX D_800AFC30;
 
 // Returns 0 and the height of the lowest polygon under (refX, refZ) in *pHeight,
 // -1 when the actor's model has no polygon there.
-/* PARKED 74.01% (446 insns / 1784 bytes vs retail 451 / 1804). The whole shape is
-   retail's: one switch over flags12C_0 with case 0 = the parent-matrix path, the
-   RotMatrix/MulMatrix2/translation tail shared by cases 1-3 (needs the goto: three
-   duplicated tails measure 66.81% / 502 insns because this cc1 does NOT cross-jump
-   them), SetRotMatrix/SetTransMatrix, the command stream walk (0xC4/0xC8 skip,
-   bit 8 = quad) and the min-height tail.
-   Spelling that took 48.17 -> 62.02 and must stay: NO pFieldActor / pActor locals -
-   every use spells g_FieldActors[actorIndex]... so the volatile table pointer is
-   re-read, which is what retail does (it reloads the base + pActorData at each use
-   and keeps pActor in $a1 only from the dispatch to case 1).
-   Residuals measured this round:
-   (1) the reference x/z: retail spills them with sw and reads them back with lw for
-       the (x << 16) + z and with lhu only for the planePoint halfword stores; u16
-       params give sh/lhu/lhu here. Tried u16 only so far.
-   (2) actorIndex lands in s1 and pBounds in s5 here; retail has s5/s6.
-   (3) retail's case bodies 2 and 3 reload the g_FieldActors chain (6 insns each)
-       where case 1 reuses $a1 - a gcc CSE effect I could not reproduce by spelling.
-   (4) the sxy[] stores and the first NormalClip's argument loads interleave in
-       retail (store 0, load 0, store 1, load 1, store 2 in the jal slot); this body
-       stores all three first. Same instruction count, different schedule.
-   Not tried: int params, the (pCmd++)->indices[1] increment-form, permuter. */
+/* PARKED 83.18% (448 insns / 1792 bytes vs retail 451 / 1804). Structure measured
+   this round, in order of what each one bought:
+   62 -> 75.91 the min-height tail is written as if (minHeight == NONE) { free; return -1; }
+   then the store/free/return 0; that is the only form whose beq lands on the -1 block
+   (the negated if emits bne and puts the two blocks the other way round).
+   75.91 -> 78.75 refX/refZ are int, not u16: retail spills them with sw and reloads with
+   lw. The loop's planePoint.vx/vz stores still come out lhu/sh either way.
+   78.75 -> 83.18 the case-0 (parent matrix) block must be emitted AFTER the rotation
+   block, so the switch is switch (flags12C_0 and 3) with cases 1,2,3 where case 3 breaks
+   into a rotate label, default is a single goto parent, and the parent block plus the
+   shared CompMatrix follow. Retail's dispatch jumps straight to the parent block because
+   that goto is threaded away.
+   Residuals, all measured:
+   (1) case 1 in retail reads lhu 0x70(a1) reusing the pActorData pointer the dispatch
+       already loaded; this body reloads the g_FieldActors chain there (6 insns).
+       Cases 2 and 3 reload in retail too, so no plain pActorData local reproduces it.
+   (2) 3 instructions / 12 bytes short, all in the parent-matrix block: retail keeps
+       s2 = g_FieldActors and a single pSourceMatrix in s0 across the two CompMatrix
+       calls; here the address is re-formed each time.
+   (3) actorIndex and pBounds land in s1/s5 here, retail has s5/s6 (the loop body below
+       is otherwise instruction-identical, so this is purely the allocator's priority).
+   (4) the six matrix t[] zero stores schedule around the first CompMatrix here, retail
+       emits all six first.
+   Tried and rejected: u16 refX/refZ (74.01), a pActorData local (kills the reloads in
+   cases 2/3 too), duplicating the rotate tail per case (66.81). */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 /*
-s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, u16 refX, u16 refZ, s32* pHeight, VECTOR* pNormal) {
+s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, int refX, int refZ, s32* pHeight, VECTOR* pNormal) {
     FieldPolyCheckScratch* pScratch;
     FieldModelCommandWord* pCmd;
     MATRIX* pSourceMatrix;
@@ -1642,7 +1646,7 @@ s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, u16 refX, u16 
     pScratch->minHeight = FIELD_POLY_HEIGHT_NONE;
     pScratch->pVertices = ((SVECTOR**)pBounds->unk8)[0];
     pScratch->sxyRef = (refX << 16) + refZ;
-    switch (g_FieldActors[actorIndex].pActorData->flags12C_0) {
+    switch (g_FieldActors[actorIndex].pActorData->flags12C_0 & 3) {
     case 1:
         pScratch->rotation.vy = 0;
         pScratch->rotation.vz = 0;
@@ -1657,33 +1661,35 @@ s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, u16 refX, u16 
         pScratch->rotation.vx = 0;
         pScratch->rotation.vy = 0;
         pScratch->rotation.vz = g_FieldActors[actorIndex].pActorData->hideModeParam;
-        goto rotate;
-    default:
-        pScratch->screenMatrix.t[2] = 0;
-        pScratch->screenMatrix.t[1] = 0;
-        pScratch->screenMatrix.t[0] = 0;
-        pScratch->parentMatrix.t[2] = 0;
-        pScratch->parentMatrix.t[1] = 0;
-        pScratch->parentMatrix.t[0] = 0;
-        CompMatrix(&g_Scene.worldRotationMatrix, &D_800AFC30, &pScratch->parentMatrix);
-        if (g_FieldActors[actorIndex].pActorData->parentActorId != ACTOR_ID_INVALID) {
-            CompMatrix(&pScratch->parentMatrix,
-                &g_FieldActors[g_FieldActors[actorIndex].pActorData->parentActorId].childMatrix,
-                &pScratch->workMatrix);
-            pSourceMatrix = &pScratch->workMatrix;
-        } else {
-            pSourceMatrix = &pScratch->parentMatrix;
-        }
-        CompMatrix(pSourceMatrix, &g_FieldActors[actorIndex].transformMatrix, &pScratch->screenMatrix);
         break;
+    default:
+        goto parent;
     }
+rotate:
     RotMatrix(&pScratch->rotation, &pScratch->workMatrix);
     MulMatrix2(&g_FieldActors[actorIndex].transformMatrix, &pScratch->workMatrix);
     pScratch->workMatrix.t[0] = g_FieldActors[actorIndex].transformMatrix.t[0];
     pScratch->workMatrix.t[1] = g_FieldActors[actorIndex].transformMatrix.t[1];
     pScratch->workMatrix.t[2] = g_FieldActors[actorIndex].transformMatrix.t[2];
     CompMatrix(&g_Scene.worldRotationMatrix, &pScratch->workMatrix, &pScratch->screenMatrix);
-rotate:
+    goto setMatrices;
+parent:
+    pScratch->screenMatrix.t[2] = 0;
+    pScratch->screenMatrix.t[1] = 0;
+    pScratch->screenMatrix.t[0] = 0;
+    pScratch->parentMatrix.t[2] = 0;
+    pScratch->parentMatrix.t[1] = 0;
+    pScratch->parentMatrix.t[0] = 0;
+    pSourceMatrix = &pScratch->parentMatrix;
+    CompMatrix(&g_Scene.worldRotationMatrix, &D_800AFC30, pSourceMatrix);
+    if (g_FieldActors[actorIndex].pActorData->parentActorId != ACTOR_ID_INVALID) {
+        pSourceMatrix = &pScratch->workMatrix;
+        CompMatrix(&pScratch->parentMatrix,
+            &g_FieldActors[g_FieldActors[actorIndex].pActorData->parentActorId].childMatrix,
+            pSourceMatrix);
+    }
+    CompMatrix(pSourceMatrix, &g_FieldActors[actorIndex].transformMatrix, &pScratch->screenMatrix);
+setMatrices:
     SetRotMatrix(&pScratch->screenMatrix);
     SetTransMatrix(&pScratch->screenMatrix);
 
@@ -1754,15 +1760,16 @@ rotate:
             }
         }
     }
-    if (pScratch->minHeight != FIELD_POLY_HEIGHT_NONE) {
-        *pHeight = pScratch->minHeight;
+    if (pScratch->minHeight == FIELD_POLY_HEIGHT_NONE) {
         FieldFreeScratchpad(sizeof(FieldPolyCheckScratch));
-        return 0;
+        return -1;
     }
+    *pHeight = pScratch->minHeight;
     FieldFreeScratchpad(sizeof(FieldPolyCheckScratch));
-    return -1;
+    return 0;
 }
 */
+
 void FieldNoOp(void) {
 }
 
