@@ -22,6 +22,8 @@ extern u_char* g_WorldMapSpritePrims[];
 extern u_char* g_WorldMapSpritePrimCopy;
 extern u_char* g_WorldMapSemiTransPrims[];
 extern u_char* g_WorldMapSemiTransPrimCopy;
+// Interleaved {parent id, child id} pairs of the sprite-set parent table; the
+// pairs are offsets from the level's group base and a parent of -1 ends the list
 extern s16 D_8009AFA0[];
 extern u16 D_8009B688[];
 extern u16 g_WorldMapTileGroupIds[];
@@ -850,53 +852,16 @@ s32 WorldMapInitializePlayerSlot(s32 index) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
-// Best: 76.81% (152 bytes vs retail's 148 insns-vs-insns 38 vs 37). No twin, no presets:
-// screen cdk 61.86, 2.6.0 76.81, unit flags 76.81.
-// Structure is retail's: two-pointer walk over the interleaved s16 pairs of D_8009AFA0
-// (pY = pX + 1, each +2), base = D_8009B688[g_WorldMapLevelIndex], -1 sentinel, all four
-// lh/addu/jal operands and the if + do-while shape. ONE residual and the other three
-// differences follow from it: retail's loop-bottom -1 is a bare CONST_INT at the compare
-// (`lh v1,0(s0); li v0,-1; bne v1,v0`), so it is the body's last insn and reorg steals the
-// exit block's `li v0,1` into the bne slot; gcc 2.7.2 registers the twice-used constant
-// (li s3,-1 in the preheader, +4 frame bytes for the s3 save pair), which instead makes the
-// pY bump the body's last insn and steals that, and puts the pY init in the beq slot.
-// Tried this round, all 76.81 (same 152 bytes): early `if (*pX == -1) return 1;` + do-while,
-// and the park body below. Tried earlier: every decl order, do-while, *pX++/pX += 2,
-// interleaved-vs-grouped increments, pointer-vs-index, s32/s16 `end = -1` locals.
-// Plain `while (*pX != -1)` is WORSE, 69.00% (168 bytes): with one static use of the sentinel
-// cse leaves it a CONST_INT (retail's shape) but gcc then keeps the guard's HImode load as a
-// loop-carried value (lhu $6 hoisted, sll/sra in the body) and the frame grows to 0x38.
-// So the win, if any, is a spelling that keeps the two dereferences separate (as this body
-// does) AND keeps the constant out of a register: cse's per-mode constant trick
-// (levers.md a-constant-cse-is-per-mode) needs a narrow-typed competitor and this body has none.
-// Permuter run 1 earlier (base=1021 best=727) found only a wrong-code candidate (guard read
-// *pY) - rejected.
-// Round 411 re-measured the parked body live: still 76.81% / 152 bytes with the exact
-// diff above (li s3,-1 hoisted across the jal, sw/lw s3, the bne slot left a nop),
-// and m2c_draft produced the same shape under temp names. lever
-// g-sentinel-guard-must-deref was measured on this very function: both compares are
-// SImode so there is no per-mode cse escape. Nothing else tried, nothing gained.
-/*
 s32 func_8008868C(void) {
     s32 base = D_8009B688[g_WorldMapLevelIndex];
-    s16* pX = D_8009AFA0;
-    s16* pY = D_8009AFA0 + 1;
+    s32 i = 0;
 
-    if (*pX != -1) {
-        do {
-            s32 vx = *pX;
-            s32 vy = *pY;
-
-            pX += 2;
-            pY += 2;
-            WorldMapSetSpriteSetParent(base + vx, base + vy);
-        } while (*pX != -1);
+    while (D_8009AFA0[i * 2] != -1) {
+        WorldMapSetSpriteSetParent(base + D_8009AFA0[i * 2], base + D_8009AFA0[i * 2 + 1]);
+        i++;
     }
     return 1;
 }
-*/
-
 // Four-word position quad copied whole out of the scratchpad
  typedef struct {
     /* 0x0 */ s32 x;
