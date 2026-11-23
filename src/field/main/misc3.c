@@ -523,7 +523,12 @@ extern FieldRotationVectorPair g_FieldRotationVectorPair;
 extern void FieldResetPortraitSlots(void);
 extern void FieldInitScreenStripSprites(void);
 
-// 426 insns, huge straight-line global-reset block. Best measured 89.55% (1708 bytes, 427 vs 426 insns) with the raw flat-symbol spelling; 84.78% (1692) after reworking the four table bases onto shared pointer locals. Residual (named): (1) retail's stack frame is 0x38 with the SVECTOR at sp+0x20 and 0x20 bytes of unused local space below it - our frame is 0x28/SVECTOR at 0x10, so gcc allocated a 0x20-byte local we have not found; no callee takes it (all 15 calls' args are registers) so the source local is unknown. (2) the store block's schedule: retail keeps $v0 live across the six pad-zero stores (li 5 ... sb 0(s0)) while our sched2 hoists each constant store next to its li. (3) loop register assignment: retail a0=pGameState walk, v1=pDest, a2=+0x400, a1=counter; ours picks a1/a0/v1. (4) li 0xffff vs li -1 for g_FieldControl.controllerBtnMask (header field is short; retail's is unsigned).
+// 426 insns, huge straight-line global-reset block. Best measured 89.55% (1708 bytes, 427 vs 426 insns) with the raw flat-symbol spelling; 84.78% (1692) after reworking the four table bases onto shared pointer locals. Residual (named): (1) retail's stack frame is 0x38 with the SVECTOR at sp+0x20 and 0x20 bytes of unused local space below it - our frame is 0x28/SVECTOR at 0x10, so gcc allocated a 0x20-byte local we have not found; no callee takes it (all 15 calls' args are registers) so the source local is unknown. (2) the store block's schedule: retail keeps $v0 live across the six pad-zero stores (li 5 ... sb 0(s0)) while our sched2 hoists each constant store next to its li. (3) loop register assignment: retail a0=pGameState walk, v1=pDest, a2=+0x400, a1=counter; ours picks a1/a0/v1. (4) li 0xffff vs li -1 for g_FieldControl.controllerBtnMask (header field is short; retail's is unsigned). The 89.55 body is this one with the four table bases spelled as raw
+// offsets instead of pointer locals: pSlot = (s16*)((u8*)&g_FieldScriptSoundEffectBank - 0x70),
+// pSlot = &g_FieldScriptRenderContextIndex + 0x5D, ((u_short*)&g_FieldScriptMemory)[i] and
+// [0x200 + i], and the 32-entry loop based on D_800B22DE; that spelling keeps the 16-loop and
+// copy-loop base addresses in one register (retail: la v1 + sh 0(v1) + addiu a2,v1,0xBA) which
+// the pointer-local form folded into a fresh la of sym+0xBA and lost three instructions.
 /*
 void func_800705DC(void) {
     SVECTOR rotation;
