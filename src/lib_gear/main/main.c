@@ -3135,23 +3135,39 @@ typedef struct {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 
-// objdiff 72.58% (2204 bytes against retail's 2276; 551 of 569 instructions).
-// The whole body below is written from the assembly and is structurally right:
-// same four HeapAllocs, same three failure paths, both point/segment loops and
-// both 0x58-byte segment records with their two GT3s. What is left is register
-// allocation and 18 instructions of shape:
-//  - retail keeps the four texture offsets and `scale` in s0/s2/s3/s5 across the
-//    whole function; this body spills/rematerialises `scale` and one offset.
-//  - retail's point loop walks pVectors with two cursors (a3 = &vx, a2 = &vz and
-//    negative offsets); this body indexes pVectors[i] and gets a single base.
-//  - retail's three HeapFree error tails are NOT cross-jumped (path 1 frees after
-//    the pVectors = NULL store, paths 2/3 free before it); the identical
-//    HeapFree(NULL) in each of them makes gcc 2.6 cross-jump them here.
-//  - the 0xA0/0xE0/0x80 counters are addressed through the frame instead of
-//    the t registers retail keeps them in.
+// objdiff 76.11% (2172 bytes against retail's 2276; 543 of 569 instructions) under
+// gcc 2.6.0 -G8 --expand-div. NOT a preset question: try_flags gives 16.24 for
+// gcc-2.7.2-cdk and 17.83 for plain 2.7.2, and -O1/-O3 do not build this unit.
+// battle/main/misc23's func_800A7064 is this function instruction for instruction
+// and its park says the same things; this body is that park plus the six fixes
+// below, all measured (72.58 -> 76.11):
+//  - numSections (arg 7) is a 32-bit parameter: retail copies it with lw 0x14C /
+//    sw 0x18, and the tail re-reads that slot and narrows it with sll 16 / sra 16,
+//    which is `if (pEntry->numSections > 0)` on the just-stored s16 field.
+//  - rowBase and scale are 32-bit parameters too: retail uses a2/a3 directly with
+//    no sll 16 / sra 16, i.e. in s6/s5.
+//  - failure path 1 (pVectors == NULL) only stores pVectors = NULL; there is no
+//    HeapFree NULL call in it.
+//  - failure path 2 (pPoints == NULL) stores pVectors = NULL and frees ONCE; it
+//    does not free pEntry->pPoints.
+//  - the part-stream counts are re-read from memory at every use (they alias the
+//    stores through pSeg): `for (j = 0; j < *pCount; j++)`, `nRow + *pCount + 1`,
+//    `uRow += pCount[0] + 1`.
+//  - the per-vector segment count is retail's unsigned pick: nSegs = pCount[1];
+//    if (pCount[0] < nSegs) nSegs = pCount[0];  (sltu, not a signed compare).
+// The frame is now retail's 0x130 and the head, vector loop, point loop, the two
+// failure tails and the section tail all line up instruction for instruction up to
+// registers; what is left (26 insns, 104 bytes) is allocation, all of it inside the
+// segment loop: retail keeps uRow/tpage/rowStep/uStep/uStart in the frame and spills
+// eight words around each SetPolyGT3 (ours spills six and homes two of the six s16
+// arguments in registers, e.g. tileY in $fp where retail keeps texX+uStart there),
+// and retail forms a second base register 4 bytes into each walk of a 0x8-byte
+// SVECTOR and of a 0x28-byte POLY_GT3 (lhu 0(a3) / lhu -2(a2) / lhu 0(a2)) where
+// this compile uses one base with displacements 0/2/4. Not tried: permuter, which
+// cannot move this (a 100-byte gap of spill code, not a statement or operand shape).
 /*
-void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s16 texY, s16 texZ,
-    s16 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0, u8 green0,
+void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s16 texY, s16 texZ,
+    s32 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0, u8 green0,
     u8 blue0, u8 red1, u8 green1, u8 blue1) {
     SVECTOR* pVectors;
     Temp9Point** pPoints;
@@ -3168,7 +3184,6 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
     u16 tpage;
     u16 clut;
     u16 rowStep;
-    u16 nCount;
     s16 uStep;
     s32 nSegs;
     s32 nRaw;
@@ -3190,7 +3205,6 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
     pVectors = HeapAlloc(pEntry->numVectors * sizeof(SVECTOR), 0x0);
     if (pVectors == NULL) {
         pEntry->pVectors = NULL;
-        HeapFree(NULL);
         return;
     }
     pEntry->pVectors = pVectors;
@@ -3206,9 +3220,8 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
 
     pPoints = HeapAlloc(pEntry->numVectors * sizeof(Temp9Point*), 0x0);
     if (pPoints == NULL) {
-        HeapFree(NULL);
         pEntry->pVectors = NULL;
-        HeapFree(pEntry->pPoints);
+        HeapFree(NULL);
         return;
     }
     pEntry->pPoints = pPoints;
@@ -3228,8 +3241,7 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
     pCount = pCur;
     for (i = 0; i < pEntry->numVectors; i++) {
         pPoints[i] = pPoint;
-        nCount = *pCount++;
-        for (j = 0; j < nCount; j++) {
+        for (j = 0; j < *pCount; j++) {
             pPoint->unk0 = *pData++ * scale / 4096;
             pPoint->unk2 = *pIndex++ + rowBase;
             pPoint->x = pVectors[i].vx;
@@ -3243,6 +3255,7 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
         pPoint->y = pVectors[i].vy;
         pPoint->z = pVectors[i].vz;
         pPoint++;
+        pCount++;
     }
 
     pSegments = HeapAlloc(pEntry->numSegments * sizeof(LibGearTrailSegment), 0x0);
@@ -3268,10 +3281,9 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
     pCount = pCur;
     pSeg = pSegments;
     for (i = 0; i < pEntry->numVectors - 1; i++) {
-        nCount = *pCount;
-        nSegs = nCount;
-        if (pCount[0] > pCount[1]) {
-            nSegs = pCount[1];
+        nSegs = pCount[1];
+        if (pCount[0] < nSegs) {
+            nSegs = pCount[0];
         }
         rowStep = vSpan / nSegs;
         for (j = 0; j < nSegs; j++) {
@@ -3279,7 +3291,7 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
 
             pSeg->unk0 = nRow;
             pSeg->unk4 = nRow + 1;
-            pSeg->unk2 = nRow + nCount + 1;
+            pSeg->unk2 = nRow + *pCount + 1;
             nV0 = texY + rowStep * j;
             nV1 = texY + rowStep * (j + 1);
             for (k = 0; k < 2; k++) {
@@ -3295,9 +3307,9 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
                 pPoly->v2 = nV1;
             }
             pSeg++;
-            pSeg->unk0 = nRow + nCount + 1;
+            pSeg->unk0 = nRow + *pCount + 1;
             pSeg->unk4 = nRow + 1;
-            pSeg->unk2 = nRow + nCount + 2;
+            pSeg->unk2 = nRow + *pCount + 2;
             for (k = 0; k < 2; k++) {
                 pPoly = &pSeg->polys[k];
                 SetPolyGT3(pPoly);
@@ -3312,10 +3324,10 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
             }
             pSeg++;
         }
-        pCount++;
         uStart += uStep;
         uEnd += uStep;
-        uRow += nCount + 1;
+        uRow += pCount[0] + 1;
+        pCount++;
     }
 
     pEntry->red0 = red0;
@@ -3325,8 +3337,8 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
     pEntry->green1 = green1;
     pEntry->blue1 = blue1;
     pEntry->numSections = numSections;
-    if (numSections > 0) {
-        pSection = HeapAlloc(numSections * sizeof(Temp9Section), 0x0);
+    if (pEntry->numSections > 0) {
+        pSection = HeapAlloc(pEntry->numSections * sizeof(Temp9Section), 0x0);
 
         if (pSection == NULL) {
             pEntry->numSections = 0;
@@ -3347,8 +3359,8 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s16 rowBase, s16 scale, s16 texX, s
     } else {
         pEntry->pSections = NULL;
     }
-}
-*/
+}*/
+
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E22F8);
 
