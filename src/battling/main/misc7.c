@@ -169,6 +169,14 @@ extern int ControllerGetType(int controllerIndex);
 // on a candidates list prefer it: its only residual is the two base registers.
 // Evidence that retail returns the 970E4 flags word: no callers, and $v0 is
 // forced for a returned value while retail has $v0 = 970E4.
+// Round 422 re-measured the park at 99.17 (its residual is the two STORES
+// swapped around the `lw ra` fill: 970E4 then 98800 against retail's 98800 then
+// 970E4; every address, load and ori is already retail's) and tried two fresh
+// shapes, both 96.25: loading BOTH words before storing either
+// (`a = A[0]; b = B[0]; A[0] = a | 0xC; B[0] = b | 0xC;`) is byte-identical to
+// the plain form, and a pointer local for the 98800 chain with the 970E4 chain
+// spelled directly (`p = D_80098800; p[0] |= 0xC; D_800970E4[0] |= 0xC;`) is the
+// plain form too - so neither moves the store order off the register pair.
 /*
 void func_8007F854(void) {
     s32* new_var;
