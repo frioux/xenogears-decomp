@@ -699,37 +699,9 @@ void WorldMapExtractRotationFromMatrix(MATRIX* pMtx, SVECTOR* pRot);
 void WorldMapInitSpriteGroupSprites(s32 arg0, void* pSrc, void* pRot);
 void WorldMapDeactivateSpriteGroup(s32 arg0);
 void WorldMapQueueZoneEntry(s32 arg0, s32* pVec, s32 arg2, s32 arg3);
+extern MATRIX D_1F800150;
+extern SVECTOR D_1F8000A8;
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
-// Best: 96.81% (1440 bytes = retail's exact size; instruction multiset identical
-// apart from three residuals, none of them structure):
-//  (a) prologue order. Retail spills `sw s4,48(sp) / lui s4,0x1F80` and loads
-//      g_WorldMapSlots before `sll a1,s6,7`, then `addu s1,a0,a1` before the
-//      g_WorldMapLevelGroupIds chain, and loads g_WorldMapGroups there too; gcc here loads
-//      g_WorldMapSlots after the B674 chain, g_WorldMapGroups after the *0x54 chain (into
-//      v1 not a0) and steals `addu s1,a0,a1` into the `beqz` delay slot where
-//      retail has the pLayer `addu s2,a0,v0`. Swapping the first two source
-//      assignments changes nothing (measured).
-//  (b) WorldMapInitSpriteGroupSprites's second argument: retail `ori a1,s4,0xA0`, this body
-//      `addiu a1,s4,0xA0`. The literal `(SVECTOR*)0x1F8000A0` form is worse
-//      (all three 0xA0 stores become `lui $at` + store); deriving them from pPos
-//      as below is what reproduces retail's `sh v0,160(s4)` bases.
-//  (c) cosmetic: retail's `addiu s0,s4,%lo(D_1F800150)` / `%lo(D_1F8000A8)`
-//      name absolute symbols, this body emits the same addends as immediates -
-//      the linked bytes are the same.
-// Everything from the WorldMapWrapDeltaScaled after func_80094154 to the
-// epilogue is instruction-identical, including both smoothing filters
-// (`(x + old*63) << 6 >> 12`, the two shifts are real: /64 with a *64 first),
-// the D_8009CD68 ring writes, the WorldMapBuildBasisMatrix argument block and
-// the whole dist threshold chain (note the two conditions must both read
-// `pPos->unk4 >= -0xBF`, and the two distance variables must be separate locals
-// or gcc copies the func_80094154 return into v1 and never fills the bgez slot).
-// Reading pPos->z before pPos->unk4 = g_GameState.scriptPosY is required for the
-// 0x182C block to match.
-// Permuter run 1 (base=1695 -> 1352) only found `s16 tilt = (s16)pSlot->unk4A`
-// hoisted before the 0x182E store; that scores 96.22 but costs a callee-saved
-// register and grows the file to 1444, so it is not a match.
-/*
 s32 func_80087FD0(s32 index) {
     WorldMapPlayer* pSlot;
     WorldMapSceneLayer* pLayer;
@@ -740,10 +712,10 @@ s32 func_80087FD0(s32 index) {
     s32 tileDist;
     s32 dist;
 
+    pPos = (WorldMapPos*)0x1F800000;
     tileIndex = g_WorldMapLevelGroupIds[g_WorldMapLevelIndex];
     pSlot = &g_WorldMapSlots[index];
     pLayer = &g_WorldMapGroups[tileIndex];
-    pPos = (WorldMapPos*)0x1F800000;
     if (g_GameState.fieldScriptMemory[0] < 0xCD) {
         pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
         pLayer->x = pSlot->x >> 12;
@@ -809,7 +781,8 @@ s32 func_80087FD0(s32 index) {
             pRot->vz = pLayer->z;
             TransposeMatrix(&pLayer->mat, (MATRIX*)((u8*)pPos + 0x150));
             WorldMapExtractRotationFromMatrix((MATRIX*)((u8*)pPos + 0x150), (SVECTOR*)((u8*)pPos + 0xA8));
-            WorldMapInitSpriteGroupSprites(0x13, pRot, (SVECTOR*)((u8*)pPos + 0xA8));
+            // the scratchpad's low half is zero, so `|` is the offset retail encodes with ori
+            WorldMapInitSpriteGroupSprites(0x13, (SVECTOR*)((u32)pPos | 0xA0), (SVECTOR*)((u8*)pPos + 0xA8));
         } else {
             WorldMapDeactivateSpriteGroup(0x13);
         }
@@ -823,7 +796,6 @@ s32 func_80087FD0(s32 index) {
     WorldMapQueueZoneEntry(index, (s32*)pPos, 0x80, 0xB0);
     return 1;
 }
-*/
 s32 WorldMapInitializePlayerSlot(s32 index) {
     WorldMapPlayer* pSlot;
     u16* pCount;
