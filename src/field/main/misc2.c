@@ -582,6 +582,19 @@ extern int rand(void);
 // and store) so cse keeps it in a register ($t1 now, $t0 before) and pushes the per-step
 // square from $t1 to $t2; retail forms the two accesses symbolically. Permuter from this
 // body (2 min, 812 iterations) found nothing: RESULT PERMUTER_NONE, best 285 = base 285.
+// round 418: re-measured live = 99.06% / 1212 bytes = retail's exact size (303 insns), unchanged.
+// All 34 differing lines are the eye-vx step. NEW evidence for why no spelling closes it, from
+// cc1_probe of the step in isolation: this cc1 ALWAYS emits one shared `la $r,&g_CameraEye` for an
+// offset-0 symbol address used twice (the load before the if and the store inside it), and then the
+// load and the store both go through that one register, which takes $t1 - so the step square's
+// `mflo` reads $t2 where retail has $t1 (that shift is 30 of the 34 lines). Retail instead has BOTH
+// accesses symbolic (`lui $a1 / lw $a1,%lo(g_CameraEye)($a1)`, then `lui $at / sw $v0,%lo($at)`),
+// i.e. maspsx's fold of TWO single-use la pairs - so its cse never made the address a pseudo.
+// Probed and all still one `la`: the macro as written, the compound assignment
+// (`g_CameraEye.vx += (target - g_CameraEye.vx) / step`), the s32-cast spelling
+// (`*(s32*)&g_CameraEye` both sides), and a volatile store. Offsets +4 and +8 of the same vector
+// already match, so only the 0-offset site is left, and it is not a preset question: cdk scores
+// 69.05 on this body. Permuter from this body: 1130 iterations, RESULT PERMUTER_NONE, best 285 = base 285.
 /*
 void func_80072D74(void) {
     s32 atStepSq;
