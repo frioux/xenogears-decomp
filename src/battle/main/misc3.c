@@ -233,52 +233,54 @@ void BattleSetPolyFT4Rect(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy)
     p->u3 = u + dx;
     p->v3 = v + dy;
 }
-/* 92.31%: the do-while below reproduces retail's loop tail exactly
-   (`addiu s0,s0,0x28; addiu v0,s2,0x50; slt; bnez`, signed, no pre-loop
-   guard) and the whole switch. The only difference is gcc's combine_givs
-   re-basing the induction onto the address of the last memory reference:
-   mine keeps p (calls + compare) in one register AND p+0xE (all the field
-   accesses, displacements -0xA/-9/-8/0/8) in another, so it saves a 6th
-   register (frame 0x30 vs 0x28). Retail keeps one register (p) with literal
-   displacements 4/5/6/0xE/0x16. Tried: POLY_FT4* p++ with p < pInfo+2
-   (83.14, also sltu + hoisted guard), u8* for-loop (83.14), do-while on u8*
-   (92.31, this one), s32 cursor (85.66). Not found: the shape that stops the
-   re-base.
-   Parked body (92.31):
+/* 92.31% (344 bytes / 86 insns against retail "s 332 / 83): the do-while, the
+   switch chain and the whole tail are already exact (`addiu s0,s0,0x28;
+   addiu v0,s2,0x50; slt; bnez`, signed compare, no pre-loop guard). The residual
+   is ONE extra induction variable minted by loop.c: retail keeps a single cursor
+   (s0 = p) and reaches every field as a displacement off it (sb 4/5/6, sh 0xE,
+   sh 0x16), while every body below also gets a second giv at p+0xE (s0) for the
+   five field accesses with displacements -0xA/-9/-8/0/8, i.e. +1 addiu, a 6th
+   saved register and frame 0x30 instead of 0x28. Tried and measured: u8 *p with
+   byte offsets (92.31, the park below in its first shape), typed POLY_FT4 *p
+   with -> members (92.31, identical RTL - so the g-index-form lever does NOT
+   transfer here), the cursor in the parameter with a separate start local
+   (84.96, 90 insns), and a 4-minute permuter run (2188 iterations, base 952
+   best 520) whose only lead DELETES the advancing cursor and reads every field
+   through a cast of pInfo (wrong code - rejected).
+   Parked body (92.31): /*
 void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
-    u8 *p;
+    POLY_FT4 *p;
 
-    p = pInfo;
+    p = (POLY_FT4 *)pInfo;
     do {
         SetPolyFT4(p);
-        p[4] = 0x80;
-        p[5] = 0x80;
-        p[6] = 0x80;
+        p->r0 = 0x80;
+        p->g0 = 0x80;
+        p->b0 = 0x80;
         SetSemiTrans(p, 0);
         SetShadeTex(p, 1);
         switch (mode) {
         case 0:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x380, 0);
+            p->tpage = GetTPage(0, 0, 0x380, 0);
             break;
         case 1:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x380, 0x100);
+            p->tpage = GetTPage(0, 0, 0x380, 0x100);
             break;
         case 2:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, 0x100);
+            p->tpage = GetTPage(0, 0, 0x3C0, 0x100);
             break;
         case 3:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, 0);
+            p->tpage = GetTPage(0, 0, 0x3C0, 0);
             break;
         }
         if (flag != 0) {
-            *(u16 *)(p + 0xE) = g_SystemPalette2;
+            p->clut = g_SystemPalette2;
         } else {
-            *(u16 *)(p + 0xE) = g_SystemPalette1;
+            p->clut = g_SystemPalette1;
         }
-        p += 0x28;
+        p++;
     } while ((s32)p < (s32)pInfo + 0x50);
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
 void BattleLoadActionRowGraphics(void) {
     u8 *pBuf[11];
@@ -332,6 +334,7 @@ void BattleLoadActionRowGraphics(void) {
         BattleLoadImageAndSync(&rect, *(u8 **)((u8 *)g_BattleDigitImageBuffers + off2));
     }
 }
+
 
 void BattleInitPacketPrimitives(void) {
     g_BattleGraphicsWork->pPacketPrims[0x669] = 0;
@@ -668,11 +671,12 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
     do {
         p = &pInfo->prims[i];
         SetPolyFT4(p);
-        p->r0 = 0x80;
-        p->g0 = 0x80;
-        p->b0 = 0x80;
-        SetSemiTrans(p, 0);
-        SetShadeTex(p, 1);
+        ((POLY_FT4 *)pInfo)->r0 = 0x80;
+        ((POLY_FT4 *)pInfo)->g0 = 0x80;
+        ((POLY_FT4 *)pInfo)->b0 = 0x80;
+        SetSemiTrans((POLY_FT4 *)pInfo, 0);
+        SetShadeTex((POLY_FT4 *)pInfo, 1);
+        pInfo += 0x28;
         pInfo->palette = arg & 1;
         // loop-local copy of the slot number: gcc hoists this invariant
         // instead of the row multiply, which retail keeps inside the loop
@@ -690,16 +694,28 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
     pInfo->enabled = 0;
 }
 
-// Clears the two halves of the slot display, then fills the eight text slots: each
-// gets a 0x39-byte render buffer in both buffer tables, a 0x3C x 13 VRAM rect that is
-// also copied onto its pair slot, and the two 0x28-byte prim blocks func_800780A8
-// builds.
+/* 98.39% (372 bytes = retail size, 93 insns = retail count, addresses verified correct):
+   the body is instruction-identical to retail EXCEPT that the two induction-varying
+   byte offsets trade registers. Retail keeps offset A = 0x60 + 0xC0k (init li s3,0x60)
+   in s3 and uses it for both pointer stores (lui at,%hi(D_800D36C0); addu at,at,s3;
+   sw %lo(at), and the same off g_BattleTextSlotBuffers) AND for the RECT copy
+   destination (addu v0,s3,s5); offset B = 0xC0k (init move s0,zero, one use) only
+   serves the func_800780A8 prim base. cc1 2.7.2 does the mirror: B in s3, A in s0, and
+   it re-folds each store address to symbol+0x60 + B (store 1 becomes %lo(D_800D3720)
+   with addend 0, store 2 g_BattleTextSlotBuffers with addend 96), i.e. cse
+   canonicalises the decomposed form and only the copy destination keeps A. Tried:
+   i*0x60+0x60 written as (i+1)*0x60 and as an explicit off local assigned in the loop
+   (identical output); off = 0x60 assigned before the loop and += 0xC0 at the bottom
+   (this one DOES give retail shape for both stores but costs a 7th saved register,
+   384 bytes, 90.80); a second loop variable n = i + 1 (103 insns, 412 bytes). The park
+   below is the (i+1)*0x60 form. A cse/regalloc tie, not source-driven.
+   Parked body (98.39): */
+/*
 void func_8007819C(void) {
     RECT *pRect;
     u8 *pBuf;
     s32 i;
     s32 off;
-    s32 offPrev;
 
     BattleInitSlotGraphics(5, 8, 0x2A, 0x70, 0x12, 0, 0);
     ((u8 *)g_BattleDisplayState)[0xB5] = 0;
@@ -707,20 +723,22 @@ void func_8007819C(void) {
     ((u8 *)g_BattleDisplayState)[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
         pBuf = BattleAllocTextBuffer(0x39);
-        offPrev = i * sizeof(BattleScreenSlot);
-        off = (i + 1) * sizeof(BattleScreenSlot);
+        off = (i + 1) * 0x60;
         *(u8 **)(D_800D36C0 + off) = pBuf;
         *(u8 **)(g_BattleTextSlotBuffers + off) = pBuf;
-        pRect = (RECT *)((u8 *)g_BattleTextSlotRects + offPrev);
+        pRect = (RECT *)((u8 *)g_BattleTextSlotRects + i * 0x60);
         pRect->x = 0x3C0;
-        pRect->y = (i / 2) * BATTLE_TEXT_ROW_HEIGHT;
+        pRect->y = (i / 2) * 13;
         pRect->w = 0x3C;
-        pRect->h = BATTLE_TEXT_ROW_HEIGHT;
+        pRect->h = 0xD;
         *(RECT *)((u8 *)g_BattleTextSlotRects + off) = *pRect;
-        func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + offPrev, i);
-        func_800780A8((u8 *)g_BattleTextSlotRects + offPrev + 0x10, i + 1);
+        func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + i * 0x60, i);
+        func_800780A8((u8 *)g_BattleTextSlotRects + i * 0x60 + 0x10, i + 1);
     }
-}/* 60.00% (356 bytes / 89 insns against retail's 504 / 126): the body is one gcc
+}
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
+/* 60.00% (356 bytes / 89 insns against retail's 504 / 126): the body is one gcc
    strength-reduction tie, not a source difference. Retail keeps SIX address givs for
    the ResourceHelperGetTexCoords out-pointers (s4..s7, fp and one spilled to
    sp+0x98), builds them in the preheader with ori 4/8/0xC/0x10/0x14, increments them
