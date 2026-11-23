@@ -633,7 +633,16 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
    retail's). m2c_draft decodes the digit loop to the same shape this body has (an
    ids pointer walked to g_BattleValueDigitSpriteIds + 4, the four stores sharing one
    count*8 off the rect base), so there is no structural port left: the residual is
-   the BIV/mirror, not a body. */
+   the BIV/mirror, not a body.
+   ROUND 426: un-parked and re-measured unchanged, 87.15% / 784 bytes / 196 insns
+   (retail 784 / 196), so byte and instruction counts are already exact. Read whole,
+   the diff is ONE shift: retail has s7 = arg1 and s8 = the g_BattleValueDigitSpriteIds
+   cursor with its bound (ids + 4) in s1; this body has s8 = arg1 and s7 = the cursor
+   with the bound rematerialised (lui/addiu) every iteration and s1 holding the loop's
+   exit test. Everything else that differs follows from that: this body keeps the
+   strength-reduced rects[count] base in s0 and bumps it by 8, retail has no BIV and
+   re-forms sp+24+count*8 each iteration, so the saved-register order is a symptom of
+   the BIV rather than a second bug. Nothing new was tried this round. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
 /*
 s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
