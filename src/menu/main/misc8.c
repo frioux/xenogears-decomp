@@ -114,7 +114,6 @@ void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDi
    walking pointer (a 6th saved register, frame 0x40), which is why that preset
    cannot reach this body - see lever o-272-vs-260-operand-order.
 */
-/*
 void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
     u_char selected = (arg2 == 0);
     u8* pEntry;
@@ -137,15 +136,14 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
                           *(u16*)(pEntry + 0x1E22) - *(u16*)(pEntry + 0x1E0A));
         }
         MenuSetPolySemiTransGrey((P_TAG*)((u8*)g_Menu->pGearWindowPrims + 0x1E00 + (g_Menu->renderContext + selected * 2) * 0x28));
-        *(u16*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E16) |= 0x20;
+        *(u16*)((u8*)g_Menu->pGearWindowPrims - -((g_Menu->renderContext + selected * 2) * sizeof(POLY_FT4)) + 0x1E16) |= 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E04) = 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E05) = 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E06) = 0x20;
         ((u8*)g_Menu->pGearWindowPrims)[0x2AEE] = *(u8*)&g_Menu->renderContext;
         ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 2;
     }
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
+}
 
 void func_801D7F50(s32 x, s32 y, u_char statGroup) {
     s32 texCoords[6]; // Filled and ignored
