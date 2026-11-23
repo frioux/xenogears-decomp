@@ -160,7 +160,7 @@ extern StreamDataQueueEntry D_800B2394[];
 // Unbounded-array extern on purpose: the slot count's ADDRESS has to live in a
 // callee-saved register across the calls below, which a scalar declaration (a
 // rematerialisable constant) never does.
-extern s32 g_FieldActorModelSlotCount[];
+extern s32 g_FieldActorModelSlotCount;
 extern void* g_FieldArchiveQueueBuffer;
 extern s32 g_FieldStreamDataSize;
 extern s32 g_FieldSuppressStateChange;
@@ -185,6 +185,24 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 //     the branch and keeps the constant path as the fall-through with a `j` at the end;
 //     both `if (x == 0) const else call` and a pre-computed `nSize` give the same size
 //     but reorder the block.
+// ROUND 437: THE DECLARATION OF g_FieldActorModelSlotCount IS PART OF THE MATCH.
+// The body below is 90.25% / 560 bytes (retail's exact size) with the SCALAR
+// `extern s32 g_FieldActorModelSlotCount;` at the top of this file, which is what it
+// now is. With the unbounded-array form `extern s32 g_FieldActorModelSlotCount[];`
+// the very same body is 87.24% (`g_FieldActorModelSlotCount == 0` then compares the
+// ARRAY ADDRESS, an always-false guard that cc1 turns into `la s0,sym` in the
+// prologue) and 86.18% with the guard spelled `[0]`. So if a later change to
+// func_80077AB4 puts the array form back, this body drops ~3 points before you touch it.
+// Measured this round, all worse than 90.25 / 560, do not repeat:
+//  - presets (try_flags): gcc-2.6.0 86.18, gcc-2.7.2-cdk compile-failed.
+//  - `if (g_FieldSuppressStateChange != 0) nSize = ArchiveDecodeAlignedSize(0x6B9);
+//    else nSize = (g_FieldStreamDataSize & 0xFFFFFF) + 0xFFE23FF8;` 87.59 / 568.
+//  - `[0]`-spelled guard, everything else unchanged: 86.18 / 564.
+// Retail's per-loop preheader (`lui v1,%hi(count); addiu v1,v1,%lo(count);
+// lw v0,0(v1)` then `addiu s4,v1,-136`) is the same fold_rtx wall as RESIDUAL 1:
+// our compile folds `0x88(base)` back to the bare symbol and forms the base as its
+// own `lui/addiu count-136` constant, so the count load and the base are two values
+// instead of one register plus an addiu. Same instruction count, different registers.
 // Note the pData stores below relocate against D_800B2394+4, splat prints them as
 // D_800B2398; that one is link-identical and only costs objdiff points.
 /*
