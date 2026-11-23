@@ -23,6 +23,13 @@
 // lineOffset value that means no offset
 #define SYSTEM_STRING_LINE_OFFSET_NONE 0xFF
 
+// Primitive code of the free-size tile a rendered string's text is erased with
+#define SYSTEM_STRING_TILE_CODE 0x60
+
+// HeapAlloc allocFlags: carve the allocation out of the smallest free block that
+// fits rather than the first one
+#define HEAP_ALLOC_BEST_FIT 2
+
 // One entry of the glyph code table: the two bytes that identify a glyph
 typedef struct {
     /* 0x0 */ u8 firstByte;
@@ -205,12 +212,12 @@ void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y,
     pString->imageWidth = pString->maxWidth + 3;
 
     HeapSetCurrentContentType(HEAP_CONTENT_MES_WORK);
-    pString->pChars = HeapAlloc(pString->maxChars * sizeof(SystemStringChar), 0x2);
+    pString->pChars = HeapAlloc(pString->maxChars * sizeof(SystemStringChar), HEAP_ALLOC_BEST_FIT);
     HeapSetCurrentContentType(HEAP_CONTENT_MES_IMAGE);
-    pString->pCharBuffer = HeapAlloc(pString->imageWidth * 0x1C, 0x2);
+    pString->pCharBuffer = HeapAlloc(pString->imageWidth * 0x1C, HEAP_ALLOC_BEST_FIT);
 
     setlen(&pString->clearTile[0], 3);
-    pString->clearTile[0].colorCode = 0x60 << 24; // r,g,b = 0, code = 0x60
+    pString->clearTile[0].colorCode = SYSTEM_STRING_TILE_CODE << 24; // r,g,b = 0, code in the top byte
     setXY0Fast(&pString->clearTile[0], pString->x - SYSTEM_STRING_CLEAR_MARGIN_X, pString->y - SYSTEM_STRING_CLEAR_MARGIN_Y);
     setWHFast(&pString->clearTile[0], pString->maxWidth * 4 + SYSTEM_STRING_CLEAR_PAD_WIDTH,
               pString->maxChars * pString->lineHeight + SYSTEM_STRING_CLEAR_PAD_HEIGHT);
@@ -679,7 +686,7 @@ int SystemStringPushBuffer(SystemString* pString, void* pData) {
 
     pString->bufferCount++;
     HeapSetCurrentContentType(HEAP_CONTENT_MES_CUE);
-    pNode = HeapAlloc(sizeof(SystemStringNode), 0x2);
+    pNode = HeapAlloc(sizeof(SystemStringNode), HEAP_ALLOC_BEST_FIT);
     pNode->pData = pData;
     pNode->pNext = NULL;
 
