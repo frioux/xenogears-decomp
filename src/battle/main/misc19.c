@@ -97,26 +97,39 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     }
     return ret;
 }
-// PARKED (99.68%, 124 bytes = retail's size, 31 insns). Body COMPILES; re-measured round 405.
+// PARKED (99.68%, 124 bytes = retail's size, 31 insns). Body COMPILES; re-measured round 418.
 // The residual is ONE instruction pair at the sum. Retail's tail is
 //   lbu v0,20(v1) / lbu v1,91(a2) / addu v0,v0,v1 / move v1,v0 / andi v0,v1,0xff / sltiu v0,v0,0x65
-// i.e. the HImode sum is IN PLACE in the DYING p-byte register v0 and the u8 `value` copy takes the
+// i.e. the sum is IN PLACE in the DYING p-byte register v0 and the u8 `value` copy takes the
 // freed q-byte register v1. This cc1 gives the add a fresh `a0` and copies from there
 // (addu a0,v0,v1 / move v1,a0); the two loads, the copy, the clamp and the andi return all match.
-// The mechanism is named: an HImode add goes through an SImode temp, and a 3-operand `addu` has no
-// copy suggestion from a dying input, so the HImode sum never ties in place.
-// The SImode family is the other horn: it DOES tie (addu a1,a1,v0 + move v1,a1, so the copy
-// survives and value keeps v1) but shifts BOTH loads to a1/v0 - 99.03% at the same 124 bytes.
-// Measured this round, all at 124 bytes: s32/u16 sums, `+=`, (short)/(s32) casts on the summands,
+// Round 418 read the `-da` RTL dump and named the mechanism with its pseudo numbers:
+//   insn 60  (reg/v:HI 87)  = zero_extend:HI (mem QI p+0x14)   -> 87 in $2 (v0)
+//   insn 64  (reg:HI 104)   = zero_extend:HI (mem QI q+0x5B)   -> 104 in $3 (v1)
+//   insn 66  (reg:SI 105)   = plus:SI (subreg 87) (subreg 104) -> 105 in $4 (a0)  <- the residual
+//   insn 71  (reg/v:QI 88)  = subreg:QI (105)                  -> 88 in $3 (v1), the surviving move
+// Retail needs 105 in $2 (the add in place on the dying p load). With the plain clamp, combine FOLDS
+// the copy into the add - (set (subreg:SI (reg/v:QI 88)) (plus:SI ...)) - one insn, no move, 120
+// bytes / 95.97 (re-measured). The move exists here only because the sum has a second use (the
+// `sum || sum` arm test); that use is in the NEXT block, so 87/105 become global allocnos and
+// global_alloc's priority order (88 first, then 105) hands 105 $4 while $2 is held by 87, whose live
+// range overlaps 105's def: a 3-operand SI add whose output is a fresh allocno can never share the
+// dying input's register. The two horns are structural, not spelling:
+//   - no second use -> combine folds and the move is gone (120 bytes, 95.97)
+//   - second use in another block -> the move survives, the add leaves v0 (124 bytes, 99.68)
+// A second use in the SAME block would keep the sum local and local-alloc DOES tie output to the
+// dying input (that is why the 120-byte body is in place on the p load), but nothing keeps such a
+// use: a dead `sum = 0;` after the copy is deleted before combine (re-measured: still 120 / 95.97).
+// The SImode family is the other horn: `s32 sum` DOES tie (addu a1,a1,v0 + move v1,a1, so the copy
+// survives and value keeps v1) but shifts BOTH loads up to a1/v0 - 99.03% at the same 124 bytes
+// (re-measured round 418).
+// Measured in round 405, all at 124 bytes: s32/u16 sums, `+=`, (short)/(s32) casts on the summands,
 // a `short b` summand, a brace block, `register short`, declaration initialisers, q-first and
 // commuted sums, u8 byte locals (98.39), volatile p read (98.39), volatile q read (99.19, addu
 // a1,v0,a1), s16-via-s32-temp (98.39). Every plain HImode spelling lands on the identical 99.68
-// pair. Dropping the value copy (plain `if (value > 0x64) value = 0x64;`) costs the copy AND the
-// bnez nop: 120 bytes, 95.97%.
-// Presets are not the way out: this body 99.68 / 95.97 (2.6.0 / cdk), the s32 body 99.03 / 95.97,
-// and the unit is mixed under 2.6.0 (see the func_8009A9D0 note). Fifth permuter run (this round):
-// PERMUTER_NONE base=10 best=10 over 1587 iterations. Park is final: local-alloc's choice between
-// two free registers.
+// pair. Presets are not the way out: this body 99.68 / 95.97 (2.6.0 / cdk), the s32 body 99.03 /
+// 95.97, and the unit is mixed under 2.6.0 (see the func_8009A9D0 note). Fifth and sixth permuter
+// runs: PERMUTER_NONE base=10 best=10 (1587 and 1429 iterations).
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
