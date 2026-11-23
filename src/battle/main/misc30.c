@@ -263,25 +263,36 @@ extern void func_800B9284(SpriteData* pSprite, s32 code);
 extern u16 D_800D39E4;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
-/* 94.47%, 508 bytes against retail's 512, so ONE instruction short.  Everything
-   the earlier 86.54% park was missing is now exact and driven by the source:
-   the mask loads the 0xA8 word before the 0xAC one because each index is
-   written `(A8 >> 30) | ((AC & 3) << 2)` (the AC-left spelling flips the `or`
-   destination to the AC word and swaps the loads -- 85.60%); the x/0x50 block
-   is laid out retail's way (bne to the non-equal body, beq to the equal one,
-   the `slt` in the beq's delay slot) only when written as
+/* 94.47%, 508 bytes = retail's exact size, and BOTH bodies are 127 instructions:
+   the older note's "one instruction short" was wrong -- retail's duplicated
+   `slt` in the beq delay slot is replaced by our `nop`, and the slt itself is
+   emitted once, below the z compare.  Everything the earlier 86.54% park was
+   missing is exact and driven by the source: the mask loads the 0xA8 word
+   before the 0xAC one because each index is written
+   `(A8 >> 30) | ((AC & 3) << 2)` (the AC-left spelling flips the `or`
+   destination to the AC word and swaps the loads -- re-measured this round at
+   89.73%); the x/0x50 block is laid out retail's way (bne to the non-equal
+   body, beq to the equal one) only when written as
    `if (x != pSlot->x || z != pSlot->z) { non-equal } else { equal }` --
    the `==`/`&&` form puts the equal body first with inverted branches; and the
    z store needs an s32 local (an s16 store value makes gcc use lhu, retail lh).
-   Left over, both allocator ties: retail keeps x in $a2 for the +-0x50
-   arithmetic and a COPY in $a1 for the compares (`move a1,a2`) and so re-issues
-   `slt v0,a1,a3` in BOTH branch delay slots -- that duplicate is the missing
-   instruction; and the six u16 copies at the end carry the source base in $v0
-   and the destination in $v1 where ours are swapped.
+   Left over, all three allocator ties, instruction for instruction:
+   1. in each of the three key blocks retail's `or` DESTINATION is the 0xAC word
+      register (`or v1,v1,v0` / `or v0,v0,v1`) where ours is the 0xA8 word
+      register -- i.e. retail's in-place-or shape over an AC-left expression, but
+      that spelling puts the AC load first, which costs more than it buys (see
+      the 89.73 measurement);
+   2. retail keeps x in $a2 for the +-0x50 arithmetic and a COPY in $a1 for the
+      compares (`move a1,a2`) and so re-issues `slt v0,a1,a3` in BOTH branch
+      delay slots;
+   3. the six u16 copies at the end carry the source base in $v0 and the
+      destination in $v1 where ours are swapped.
    Tried: s16 vs s32 for x and z, `&&` vs `||`, nested if vs else-if, AC-left vs
-   A8-left mask, one expression vs index locals (locals defer both `sllv` past
-   the second index), and a 4-minute permuter run (base=1388, best=1188) whose
-   only usable find was the z hoist kept below.
+   A8-left mask (all three sites), one expression vs index locals (locals defer
+   both `sllv` past the second index), the mask through two key locals in
+   retail's emission order (91.32%, it re-loads pTarget and keeps the keys in
+   $a0/$a1), and a 4-minute permuter run (base=1388, best=1188) whose only
+   usable find was the z hoist kept below.
 void func_800B905C(void) {
     BattleActorSprite* pSprite;
     BattleActorSprite* pTarget;
@@ -368,7 +379,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
    `idx * 0x48 + pBase` (96.61%), declaring pBase before pSlot (96.61%) and the
    0xF3 arm's RMW written inline again (96.40%).  The 388-byte/0xF3 arm also
    differs in ORDER: retail's `lui a1,%hi(g_BattleActorSlotDoneMask)` is hoisted to the top of the
-   arm and its `lhu` of the global precedes the slot `lhu`. */
+   arm and its `lhu` of the global precedes the slot `lhu`.
+   Round 439 re-measured 96.61% (644 bytes, retail's size) and closed the preset
+   axis with `try_flags.sh --sweep`: cdk -G4/-G8 (all -O levels) 89.09, 2.7.2-psx
+   -G0 76.38, so -G0 cdk is right.  Why the pair cannot be spelled: local-alloc
+   orders block-local quantities by deaths/refs and then shorter live_length
+   first.  In this arm the base is 1 death / 3 refs (lui, addiu, the final addu)
+   live over 8 insns and the slot index is 1 death / 3 refs live over 4, so the
+   INDEX is processed first and takes $v1 in every body that emits these
+   instructions -- retail's base-in-$v1 needs the base to outrank it, which needs
+   either a 4th index use or a 2-ref base, and both change the instruction count.
+*/
 /*
 void func_800B9284(SpriteData* pSprite, s32 code) {
     u8 *pSlot;
@@ -433,6 +454,9 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
     }
 }
 */
+
+
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9508);
 /* 76.27%, 1568 bytes against retail's 1576, so TWO instructions short.  The head,
