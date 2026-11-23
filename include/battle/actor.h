@@ -50,6 +50,8 @@
 #define BATTLE_ACTOR_HP_SCALE 50
 // BattleSlotState.hp and .maxHp are clamped to it once the scaled stat overflows.
 #define BATTLE_SCALED_HP_MAX 99999
+// A computed action amount (BattleComputeActionAmount*) is clamped to it before it is stored.
+#define BATTLE_ACTION_AMOUNT_MAX 9999
 // Bit of the BattleGetActorActionConditionMask result set while hp is under an eighth of maxHp.
 #define BATTLE_ACTION_CONDITION_LOW_HP 0x2
 // hp and maxHp are percents, so this is a stat at full; BattleResetActorStats

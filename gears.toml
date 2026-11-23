@@ -363,8 +363,13 @@ paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main
     # Round 418: the whole unit is 100.0 under 2.6.0 (try_flags --all, every C body) and
     # proved end to end with check_bin menu; func_801D7F50 and func_801D84B4 are the two
     # parks it unlocks (2.7.2 loses the mfhi destination and the addu operand order).
-    # misc8_r1 stays XenoCdk and misc8_r2 stays Default.
+    # misc8_r1 stays XenoCdk; misc8_r2 joined in round 421 (all nine of its matched C
+    # functions are 100.00 under 2.6.0, and func_801DB39C is 100.00 only there - 2.7.2
+    # puts the item-name loop counter in the latch where retail has it in the branch
+    # delay slot). Its other park, func_801DA5BC, measures 97.17 on Default and 94.65
+    # here: park progress traded for a match.
     "menu/main/misc8.",
+    "menu/main/misc8_r2.",
 ]
 
 # battle/main/misc27 is function-mixed and cannot be a single-preset unit: its

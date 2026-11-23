@@ -1753,3 +1753,5 @@ g_IntrTimeoutCount = 0x8005893C;
 SoundTickTempoAndElementRamps = 0x8003C4C4;
 g_PadSendHook = 0x800593B8;
 g_ArchiveStreamHeader = 0x8005A1E8;
+g_GpuClearPacket = 0x8005A238;
+g_GpuClearRestorePacket = 0x8005A25C;

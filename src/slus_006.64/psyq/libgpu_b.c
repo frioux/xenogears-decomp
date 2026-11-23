@@ -407,8 +407,8 @@ int func_80045D5C(u_long *ot, int n) {
    and offset the fill had to overwrite. g_GpuSysFuncsTable holds this function's
    address in the g_GpuSysFuncs.unk0C slot that ClearImage/ClearImage2 pass to the
    DMA sender. */
-extern u_long D_8005A238[9]; // tag + 8 words
-extern u_long D_8005A25C[4]; // tag + 3 words
+extern u_long g_GpuClearPacket[9]; // tag + 8 words
+extern u_long g_GpuClearRestorePacket[4]; // tag + 3 words
 
 int func_80045E44(RECT *rect, u_long color) {
     limitRange(rect->w, 0, g_GpuScreenWidth - 1);
@@ -423,33 +423,33 @@ int func_80045E44(RECT *rect, u_long color) {
         u_long drawMode;
 
         drawMode = (color >> 31 << 10) | 0xE1000000;
-        D_8005A238[0] = 0x08000000 | ((u_long)D_8005A25C & 0xFFFFFF);
-        D_8005A238[1] = 0xE3000000;
-        D_8005A238[2] = 0xE4FFFFFF;
-        D_8005A238[3] = 0xE5000000;
-        D_8005A238[4] = 0xE6000000;
-        D_8005A238[5] = (*g_GpuGp1Port & 0x7FF) | drawMode;
-        D_8005A238[6] = 0x60000000 | (color & 0xFFFFFF);
-        D_8005A238[7] = *(u_long *)&rect->x;
-        D_8005A238[8] = *(u_long *)&rect->w;
-        D_8005A25C[0] = 0x03FFFFFF;
-        D_8005A25C[1] = 0xE3000000 | func_80046638(3);
-        D_8005A25C[2] = 0xE4000000 | func_80046638(4);
-        D_8005A25C[3] = 0xE5000000 | func_80046638(5);
+        g_GpuClearPacket[0] = 0x08000000 | ((u_long)g_GpuClearRestorePacket & 0xFFFFFF);
+        g_GpuClearPacket[1] = 0xE3000000;
+        g_GpuClearPacket[2] = 0xE4FFFFFF;
+        g_GpuClearPacket[3] = 0xE5000000;
+        g_GpuClearPacket[4] = 0xE6000000;
+        g_GpuClearPacket[5] = (*g_GpuGp1Port & 0x7FF) | drawMode;
+        g_GpuClearPacket[6] = 0x60000000 | (color & 0xFFFFFF);
+        g_GpuClearPacket[7] = *(u_long *)&rect->x;
+        g_GpuClearPacket[8] = *(u_long *)&rect->w;
+        g_GpuClearRestorePacket[0] = 0x03FFFFFF;
+        g_GpuClearRestorePacket[1] = 0xE3000000 | func_80046638(3);
+        g_GpuClearRestorePacket[2] = 0xE4000000 | func_80046638(4);
+        g_GpuClearRestorePacket[3] = 0xE5000000 | func_80046638(5);
     } else {
         /* load-bearing: written inline, cc1 folds 0xE1000000 onto the status read
            and the result lands in the wrong register (96.03%) */
         u_long drawMode;
 
         drawMode = (color >> 31 << 10) | 0xE1000000;
-        D_8005A238[0] = 0x05FFFFFF;
-        D_8005A238[1] = 0xE6000000;
-        D_8005A238[2] = (*g_GpuGp1Port & 0x7FF) | drawMode;
-        D_8005A238[3] = 0x02000000 | (color & 0xFFFFFF);
-        D_8005A238[4] = *(u_long *)&rect->x;
-        D_8005A238[5] = *(u_long *)&rect->w;
+        g_GpuClearPacket[0] = 0x05FFFFFF;
+        g_GpuClearPacket[1] = 0xE6000000;
+        g_GpuClearPacket[2] = (*g_GpuGp1Port & 0x7FF) | drawMode;
+        g_GpuClearPacket[3] = 0x02000000 | (color & 0xFFFFFF);
+        g_GpuClearPacket[4] = *(u_long *)&rect->x;
+        g_GpuClearPacket[5] = *(u_long *)&rect->w;
     }
-    func_800465EC((u_long)D_8005A238);
+    func_800465EC((u_long)g_GpuClearPacket);
     return 0;
 }
 

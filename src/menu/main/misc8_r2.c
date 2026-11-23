@@ -301,54 +301,6 @@ void MenuFreeArrowCursor(u_char index) {
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }
 
-/* PARK: best 100.00% under gcc 2.6.0, 584 bytes / 172 insns, instruction for
-   instruction identical. Under this unit's Default preset (2.7.2, -O2 -G8) the
-   same body is 98.77% at 588 bytes (retail 584): the item-name loop's counter
-   `addiu s1,s1,1` sits in the LATCH here, and retail has it in the delay slot
-   of that loop's `beq v1,v0` (the r0==0x20 skip), so the slot is a nop here and
-   the body is one instruction over and cannot link.
-   That placement is a compiler-version difference, not a source shape: 2.7.2
-   emits a biv increment in the latch block, and its scheduler cannot move it
-   across the loop's if (probed with cc1_probe.sh on a standalone loop of the
-   same shape - the increment lands at the latch), so no for / while / do-while /
-   goto / continue / ++i spelling reaches retail's slot. Every shape the earlier
-   park tried measures 98.77 at 588 bytes with the identical nop.
-   PRESET_260: with `try_flags.sh menu/main/misc8_r2 --all --gcc gcc-2.6.0-psx`
-   all NINE C functions of this unit are 100.00 - MenuShutdown,
-   MenuLoadUnkDE0Strings, MenuInitializeUnk42CPanel, MenuFreeUnk42CPanel,
-   MenuInitializeArrowCursor, MenuBuildArrowCursorPrim, MenuFreeArrowCursor,
-   this function and MenuBuildPartyCharacterPrims - so the unit is switchable to
-   XenoMenu260, and this body is then a straight un-park: under 2.6.0 it is
-   100.00 at retail's exact 584 bytes. UN-PARK IT, do not re-derive it.
-   The `pRows` local is load bearing under 2.6.0: `pRows =
-   g_Menu->pItemRows->itemNameStrings; pRow = &pRows[i];` is the spelling that
-   emits retail's `addu a2,a0,s0` (panel base first), where the plain
-   `&g_Menu->pItemRows->itemNameStrings[i]` gives the mirrored `addu a2,s0,a0`
-   (99.93 at the same 584 bytes). Also measured for that addu and rejected:
-   `itemNameStrings + i` (no change) and a double-negated offset cast, which
-   promotes a register and grows the frame to 0x30 with 176 insns.
-   Two facts from the earlier park, still true under 2.6.0: the item-name loop's
-   TEST poly must be reached through the PANEL
-   (pItemRows->itemNameStrings[i].polys[pRow->renderContext]) while pRow supplies
-   the renderContext and the call argument - that produces retail's two-addu test
-   address and the loop's register assignment (pItemRows in a0, row in a2, render
-   context in v1); and the five single-string sites need their poly reached
-   OFFSET FIRST (renderContext * sizeof(POLY_FT4) + (u32)base), because the plain
-   &base->polys[rc] emits `addu d,base,sum` where retail has `addu d,sum,base`.
-   What it does: applies one shading mode (arg0) to every prim of the item panel.
-*/
-/* MEASURED ROUND 421: this body is 98.77% / 588 bytes under Default (retail
-   584 bytes, 146 insns) and 98.77 under cdk; the SAME body is 100.00% / 584
-   bytes, instruction for instruction, under gcc-2.6.0-psx, and
-   `try_flags.sh menu/main/misc8_r2 --all --gcc gcc-2.6.0-psx` scores all NINE C
-   functions of the unit 100.00 - so closing it is a unit switch (XenoMenu260) or
-   a split, not a C change. The one Default residual is the item-name loop
-   counter: retail has `addiu s1,s1,1` in the delay slot of the `beq v1,v0`
-   (the r0==0x20 skip) and Default puts it in the latch with a nop in the slot,
-   which is one instruction over and can never link. That is the compiler-version
-   fact in levers.md o-a-loop-counter-in-a-branch (twelve loop shapes plus a
-   cc1_probe of the same loop all measure 588); the permuter cannot help.
-*//*
 void func_801DB39C(u_char arg0) {
     POLY_FT4* pPoly;
     MenuString* pRow;
@@ -386,8 +338,7 @@ void func_801DB39C(u_char arg0) {
         pPoly = &g_Menu->itemRowStrings[i].polys[g_Menu->itemRowStrings[i].renderContext];
         MenuSetPrimShadingMode(pPoly, arg0);
     }
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
+}
 
 void MenuBuildPartyCharacterPrims(s32 arg0) {
     MenuCharacter* pCharacter;

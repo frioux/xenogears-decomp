@@ -23,8 +23,7 @@
 // unchanged.
 #define BATTLE_AMOUNT_MULTIPLIER_UNCHANGED 4
 
-// The amount func_8009CBC4 clamps an action's value to before storing it in the work block.
-#define BATTLE_ACTION_AMOUNT_MAX 9999
+// The amount BattleComputeActionAmountFromSlotStates clamps an action's value to before storing it in the work block.
 
 extern u8 *D_800C3D60;
 extern BattleRow *g_BattleCurrentRow;
@@ -232,7 +231,7 @@ void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     }
     pSlot->activeEffectFlags3 = v;
 }
-void func_8009CBC4(void) {
+void BattleComputeActionAmountFromSlotStates(void) {
     u16 atkValue;
     u16 defValue;
     s8 command;

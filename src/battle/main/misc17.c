@@ -136,7 +136,6 @@ extern u8 D_800CDD53[];
 extern u8 D_800CEF23[];
 
 // The largest amount the current action may deal; the tail of BattleComputeActionAmount clamps to it.
-#define BATTLE_ACTION_AMOUNT_MAX 9999
 
 // Number of action rows of one battle slot's status panel.
 #define BATTLE_STATUS_ROW_COUNT 16
