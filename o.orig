@@ -1,0 +1,492 @@
+lui	v0,0x0
+R_MIPS_HI16	g_IsBattle
+lbu	v0,0(v0)
+R_MIPS_LO16	g_IsBattle
+addiu	sp,sp,-40
+sw	s1,20(sp)
+move	s1,a0
+sw	ra,32(sp)
+sw	s3,28(sp)
+sw	s2,24(sp)
+beqz	v0,<func_800248D4+0x38>
+sw	s0,16(sp)
+jal <func_800248D4>
+R_MIPS_26	func_800C11CC
+nop
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+nop
+lh	v0,158(s1)
+nop
+bnez	v0,<.L80024EC8+0x38>
+nop
+lw	v0,100(s1)
+nop
+lbu	s2,0(v0)
+addiu	s0,v0,1
+andi	v1,s2,0xff
+sltiu	v0,v1,128
+beqz	v0,<func_800248D4+0x184>
+sltiu	v0,v1,16
+beqz	v0,<func_800248D4+0x80>
+sw	s0,100(s1)
+lhu	a1,52(s1)
+move	a0,s1
+j <func_800248D4+0xdc>
+R_MIPS_26	.text
+addiu	a1,a1,1
+sltiu	v0,v1,32
+beqz	v0,<func_800248D4+0xc4>
+lui	v0,0xfffe
+ori	v0,v0,0x7ff
+lw	v1,168(s1)
+move	a0,s1
+and	v0,v1,v0
+srl	v1,v1,0xb
+andi	v1,v1,0x3f
+addiu	v1,v1,1
+andi	v1,v1,0x3f
+sll	v1,v1,0xb
+or	v0,v0,v1
+jal <func_800248D4>
+R_MIPS_26	SpriteSetFrameFromAnimIndex
+sw	v0,168(s1)
+j <func_800248D4+0xe8>
+R_MIPS_26	.text
+andi	v0,s2,0xf
+sltiu	v0,v1,48
+beqz	v0,<func_800248D4+0xec>
+move	a0,s1
+lhu	a1,52(s1)
+nop
+addiu	a1,a1,-1
+jal <func_800248D4>
+R_MIPS_26	SpriteAnimFrameListSetFrame
+nop
+andi	v0,s2,0xf
+addiu	s3,v0,1
+sltiu	v0,s2,64
+beqz	v0,<func_800248D4+0xfc>
+andi	v0,s2,0xf
+addiu	s3,v0,1
+lw	v0,172(s1)
+nop
+srl	v0,v0,0x7
+andi	v0,v0,0xfff
+mult	s3,v0
+mflo	v0
+bgez	v0,<func_800248D4+0x124>
+sra	s3,v0,0x8
+addiu	v0,v0,255
+sra	s3,v0,0x8
+bnez	s3,<func_800248D4+0x130>
+lui	a2,0xf03f
+li	s3,1
+ori	a2,a2,0xffff
+lw	v0,168(s1)
+lhu	v1,158(s1)
+and	a1,v0,a2
+srl	v0,v0,0x16
+andi	v0,v0,0x3f
+addiu	v0,v0,1
+andi	v0,v0,0x3f
+sll	a0,v0,0x16
+or	a1,a1,a0
+addu	v1,v1,s3
+sh	v1,158(s1)
+bnez	v0,<.L80024EC8+0x38>
+sw	a1,168(s1)
+and	v1,a1,a2
+srl	v0,a1,0x16
+andi	v0,v0,0x3f
+addiu	v0,v0,-1
+andi	v0,v0,0x3f
+j <.L80024D80+0x3c>
+R_MIPS_26	.text
+sll	v0,v0,0x16
+addiu	v1,v1,-128
+sltiu	v0,v1,123
+beqz	v0,<func_800248D4+0x18c>
+R_MIPS_PC16	.L80024EC8
+lui	v0,0x0
+R_MIPS_HI16	jtbl_800186E0
+addiu	v0,v0,0
+R_MIPS_LO16	jtbl_800186E0
+sll	v1,v1,0x2
+addu	v1,v1,v0
+lw	v0,0(v1)
+nop
+jr	v0
+nop
+
+000001b0 <.L80024A84>:
+lb	v0,1(s0)
+lbu	v1,0(s0)
+sll	v0,v0,0x8
+or	a2,v1,v0
+sra	v1,a2,0xb
+andi	v1,v1,0xf
+lw	v0,172(s1)
+addiu	s0,v1,1
+srl	v0,v0,0x7
+andi	v0,v0,0xfff
+mult	s0,v0
+mflo	v1
+bgez	v1,<.L80024A84+0x3c>
+andi	a3,a2,0x1ff
+addiu	v1,v1,255
+sra	s0,v1,0x8
+bnez	s0,<.L80024A84+0x4c>
+nop
+li	s0,1
+lw	v0,60(s1)
+li	v1,1
+andi	v0,v0,0x3
+beq	v0,v1,<.L80024A84+0x70>
+nop
+lhu	v0,158(s1)
+lw	v1,100(s1)
+j <.L80024A84+0x108>
+R_MIPS_26	.text
+sh	a3,52(s1)
+bgez	a2,<.L80024A84+0x94>
+li	a1,-9
+beqz	a3,<.L80024A84+0x98>
+sra	v0,a2,0x6
+lw	v0,96(s1)
+nop
+addu	v0,a3,v0
+lbu	a3,-1(v0)
+li	a1,-9
+sra	v0,a2,0x6
+andi	v0,v0,0x8
+lw	a0,172(s1)
+lw	v1,60(s1)
+and	a0,a0,a1
+or	a0,a0,v0
+and	a1,v1,a1
+srl	v0,a0,0x3
+andi	v0,v0,0x1
+srl	v1,a0,0x2
+andi	v1,v1,0x1
+xor	v0,v0,v1
+sll	v0,v0,0x3
+or	a1,a1,v0
+sra	v0,a2,0xa
+andi	v0,v0,0x1
+sw	a0,172(s1)
+beqz	v0,<.L80024A84+0xe8>
+sw	a1,60(s1)
+j <.L80024A84+0xf0>
+R_MIPS_26	.text
+ori	v0,a1,0x10
+li	v0,-17
+and	v0,a1,v0
+sw	v0,60(s1)
+move	a0,s1
+jal <func_800248D4>
+R_MIPS_26	SpriteAnimFrameListSetFrame
+move	a1,a3
+lhu	v0,158(s1)
+lw	v1,100(s1)
+addu	v0,v0,s0
+addiu	v1,v1,3
+sh	v0,158(s1)
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+sw	v1,100(s1)
+
+000002cc <.L80024BA0>:
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+sw	zero,100(s1)
+
+000002d4 <.L80024BA8>:
+move	a0,s1
+lw	a1,100(s1)
+lbu	v0,1(s0)
+lbu	s0,0(s0)
+addiu	a1,a1,3
+sll	v0,v0,0x18
+sra	v0,v0,0x10
+jal <func_800248D4>
+R_MIPS_26	AnimScriptStackPushU24
+addu	s0,s0,v0
+sll	s0,s0,0x10
+lw	v0,100(s1)
+sra	s0,s0,0x10
+addu	v0,v0,s0
+j <func_800248D4+0x38>
+R_MIPS_26	.text
+sw	v0,100(s1)
+
+00000310 <.L80024BE4>:
+jal <func_800248D4>
+R_MIPS_26	AnimScriptStackPopU24
+move	a0,s1
+lw	v1,100(s1)
+lui	a0,0xff00
+and	v1,v1,a0
+or	v1,v1,v0
+j <func_800248D4+0x38>
+R_MIPS_26	.text
+sw	v1,100(s1)
+
+00000330 <.L80024C04>:
+move	a0,s1
+jal <func_800248D4>
+R_MIPS_26	AnimScriptResolveVariablePointer
+move	a1,s0
+lbu	v0,0(v0)
+nop
+beqz	v0,<.L80024EC8+0x18>
+lui	v0,0x0
+R_MIPS_HI16	g_AnimScriptCommandLengths
+lbu	v0,2(s0)
+lbu	a0,1(s0)
+j <.L80024DEC+0x8>
+R_MIPS_26	.text
+nop
+
+0000035c <.L80024C30>:
+lbu	v0,1(s0)
+lbu	v1,0(s0)
+sll	v0,v0,0x18
+sra	v0,v0,0x10
+or	v0,v0,v1
+lw	v1,100(s1)
+lw	a1,104(s1)
+addu	v1,v1,v0
+beqz	a1,<func_800248D4+0x38>
+sw	v1,100(s1)
+jalr	a1
+move	a0,s1
+j <func_800248D4+0x38>
+R_MIPS_26	.text
+nop
+
+00000394 <.L80024C68>:
+lw	v0,16(s1)
+nop
+bgez	v0,<.L80024EC8+0x18>
+lui	v0,0x0
+R_MIPS_HI16	g_AnimScriptCommandLengths
+j <.L80024C80+0x18>
+R_MIPS_26	.text
+li	v0,1
+
+000003ac <.L80024C80>:
+lh	v0,6(s1)
+lh	v1,132(s1)
+nop
+slt	v0,v0,v1
+beqz	v0,<.L80024EC8+0x14>
+li	v0,1
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+sh	v0,158(s1)
+
+000003cc <.L80024CA0>:
+lui	s0,0xcfff
+ori	s0,s0,0xffff
+lw	v0,168(s1)
+lw	v1,104(s1)
+and	v0,v0,s0
+beqz	v1,<.L80024CA0+0x2c>
+sw	v0,168(s1)
+jalr	v1
+move	a0,s1
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+nop
+lb	a1,176(s1)
+nop
+bltz	a1,<.L80024CA0+0x44>
+nop
+jal <func_800248D4>
+R_MIPS_26	SpritePlayAnimation
+move	a0,s1
+lw	v0,168(s1)
+nop
+and	v0,v0,s0
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+sw	v0,168(s1)
+
+00000424 <.L80024CF8>:
+lw	a0,112(s1)
+nop
+beqz	a0,<.L80024EC8+0x14>
+li	v0,1
+sh	v0,158(s1)
+lb	v1,175(a0)
+lb	v0,141(s1)
+nop
+bne	v1,v0,<.L80024EC8+0x18>
+lui	v0,0x0
+R_MIPS_HI16	g_AnimScriptCommandLengths
+lw	v0,168(a0)
+li	v1,2
+srl	v0,v0,0x1c
+andi	v0,v0,0x3
+beq	v0,v1,<.L80024EC8+0x38>
+lui	v0,0x0
+R_MIPS_HI16	g_AnimScriptCommandLengths
+j <.L80024EC8+0x1c>
+R_MIPS_26	.text
+addiu	v0,v0,0
+R_MIPS_LO16	g_AnimScriptCommandLengths
+
+0000046c <.L80024D40>:
+lw	v0,104(s1)
+nop
+beqz	v0,<.L80024D40+0x18>
+nop
+jalr	v0
+move	a0,s1
+lb	a1,175(s1)
+lw	s0,16(s1)
+jal <func_800248D4>
+R_MIPS_26	SpritePlayAnimation
+move	a0,s1
+move	a0,s1
+sw	s0,16(a0)
+jal <func_800248D4>
+R_MIPS_26	func_800248D4
+sh	zero,158(a0)
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+nop
+
+000004ac <.L80024D80>:
+lb	v1,175(s1)
+li	v0,63
+beq	v1,v0,<.L80024CA0+0x4>
+lui	s0,0xcfff
+lw	v0,104(s1)
+nop
+beqz	v0,<.L80024D80+0x28>
+sh	zero,158(s1)
+jalr	v0
+move	a0,s1
+lui	v0,0xcfff
+lw	v1,168(s1)
+ori	v0,v0,0xffff
+and	v1,v1,v0
+lui	v0,0x1000
+or	v1,v1,v0
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+sw	v1,168(s1)
+
+000004f4 <.L80024DC8>:
+jal <func_800248D4>
+R_MIPS_26	AnimScriptStackPopU8
+move	a0,s1
+move	a1,v0
+andi	v0,a1,0xff
+beqz	v0,<.L80024EC8+0x14>
+addiu	a1,a1,-1
+move	a0,s1
+jal <func_800248D4>
+R_MIPS_26	AnimScriptStackPushU8
+andi	a1,a1,0xff
+
+00000518 <.L80024DEC>:
+lbu	v0,1(s0)
+lbu	a0,0(s0)
+lw	v1,100(s1)
+sll	v0,v0,0x18
+sra	v0,v0,0x10
+or	v0,v0,a0
+addu	v1,v1,v0
+j <func_800248D4+0x38>
+R_MIPS_26	.text
+sw	v1,100(s1)
+
+0000053c <.L80024E10>:
+lui	v0,0x0
+R_MIPS_HI16	g_AnimScriptCommandLengths
+addiu	v0,v0,0
+R_MIPS_LO16	g_AnimScriptCommandLengths
+addu	v0,s2,v0
+lbu	v1,0(v0)
+lw	v0,100(s1)
+nop
+addu	v0,v0,v1
+sw	v0,100(s1)
+lbu	v1,0(s0)
+nop
+andi	v0,v1,0x80
+beqz	v0,<.L80024E10+0x50>
+andi	v0,v1,0x7f
+lhu	v1,158(s1)
+addiu	v0,v0,1
+lui	at,0x0
+R_MIPS_HI16	g_WorkListCurTimer
+sw	v0,0(at)
+R_MIPS_LO16	g_WorkListCurTimer
+addiu	v1,v1,1
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+sh	v1,158(s1)
+lbu	v1,0(s0)
+lw	v0,172(s1)
+addiu	v1,v1,2
+srl	v0,v0,0x7
+andi	v0,v0,0xfff
+mult	v1,v0
+mflo	v1
+bgez	v1,<.L80024E10+0x78>
+nop
+addiu	v1,v1,255
+sra	v1,v1,0x8
+bnez	v1,<.L80024E10+0x88>
+nop
+li	v1,1
+lhu	v0,158(s1)
+nop
+addu	v0,v0,v1
+j <.L80024EC8+0x38>
+R_MIPS_26	.text
+sh	v0,158(s1)
+
+000005d8 <.L80024EAC>:
+move	a0,s1
+jal <func_800248D4>
+R_MIPS_26	AnimScriptResolveVariablePointer
+addiu	a1,s0,1
+move	a0,s1
+lbu	a1,0(s0)
+j <.L80024EC8+0xc>
+R_MIPS_26	.text
+move	a2,v0
+
+000005f4 <.L80024EC8>:
+move	a0,s1
+move	a1,s2
+move	a2,s0
+jal <func_800248D4>
+R_MIPS_26	func_8001FBE4
+nop
+lui	v0,0x0
+R_MIPS_HI16	g_AnimScriptCommandLengths
+addiu	v0,v0,0
+R_MIPS_LO16	g_AnimScriptCommandLengths
+addu	v0,s2,v0
+lbu	v1,0(v0)
+lw	v0,100(s1)
+nop
+addu	v0,v0,v1
+j <func_800248D4+0x38>
+R_MIPS_26	.text
+sw	v0,100(s1)
+lw	ra,32(sp)
+lw	s3,28(sp)
+lw	s2,24(sp)
+lw	s1,20(sp)
+lw	s0,16(sp)
+addiu	sp,sp,40
+jr	ra
+nop
+
