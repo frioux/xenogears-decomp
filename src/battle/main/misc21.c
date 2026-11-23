@@ -2075,7 +2075,7 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     if (!(animFlags & 2)) {
         pTable += countB * 6;
     }
-        for (i = 0; i < limit; i++) {
+    for (i = 0; i < limit; i++) {
         pBytes = (u8*)pFrame + 4;
         if (pFrame[0] != 0xFFFF) {
             pBlock = pSprites->p70;
