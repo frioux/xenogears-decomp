@@ -327,6 +327,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
    The earlier 99.45 note's measurements (tag local in place 98.52 -> 99.45, temps on
    both statements 97.11, `pCtx` local 98.52, base inline 95.17) still apply to the
    spellings above it.
+   Round 430 (re-measured with the parked body as written: 99.58%, 472 bytes, 118 insns,
+   the $a1/$a3 mirror only): a third permuter run from this body found nothing (1666
+   iterations, base 50 best 50), and putting the 0xFFFFFF mask in a `u32 otMask` local
+   used at both sites makes it a callee-saved global allocno - 480 bytes / 120 insns,
+   99.58 -> 0.00. The mask's pseudo-creation order is not the knob either
+   (a-in-place-update-of-a-load-temp already measured primAddr-above-tag at 99.58).
 s32 func_80092FD8(s32 index) {
     WorldMapMenuSlot* pSlot;
     WorldMapPrim* pPrims;
