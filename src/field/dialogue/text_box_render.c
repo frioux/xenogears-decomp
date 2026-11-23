@@ -370,8 +370,6 @@ extern u8 g_SystemBackdropColor;
 extern u8 D_800594D5;
 extern u8 D_800594D6;
 extern RECT D_800ADE9C[];
-extern RECT g_FieldCursorFrameRects[5];
-extern RECT g_FieldContinueArrowFrameRects[5];
 
 // PARKED 63.05%: 1784 bytes against retail 1952, 446 instructions against 488.
 // The body is a faithful longhand transcription of the original: every
@@ -410,10 +408,10 @@ void FieldTextBoxInitializePrimitives(int index) {
     g_FieldTextBoxes[index].background.tiles[1] = g_FieldTextBoxes[index].background.tiles[0];
 
     // Continue arrow
-    rect.x = g_FieldContinueArrowFrameRects.x;
-    rect.y = g_FieldContinueArrowFrameRects.y;
-    rect.w = g_FieldContinueArrowFrameRects.w;
-    rect.h = g_FieldContinueArrowFrameRects.h;
+    rect.x = g_FieldContinueArrowFrameRects[0].x;
+    rect.y = g_FieldContinueArrowFrameRects[0].y;
+    rect.w = g_FieldContinueArrowFrameRects[0].w;
+    rect.h = g_FieldContinueArrowFrameRects[0].h;
     SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[0], NULL, 0,
                 GetTPage(0, 0, 0x298, 0x1C0), &rect);
     SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[1], NULL, 0,
@@ -429,10 +427,10 @@ void FieldTextBoxInitializePrimitives(int index) {
         g_FieldTextBoxes[index].continueArrow.sprites[0];
 
     // Cursor
-    rect.x = g_FieldCursorFrameRects.x;
-    rect.y = g_FieldCursorFrameRects.y;
-    rect.w = g_FieldCursorFrameRects.w;
-    rect.h = g_FieldCursorFrameRects.h;
+    rect.x = g_FieldCursorFrameRects[0].x;
+    rect.y = g_FieldCursorFrameRects[0].y;
+    rect.w = g_FieldCursorFrameRects[0].w;
+    rect.h = g_FieldCursorFrameRects[0].h;
     SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[0], NULL, 0,
                 GetTPage(0, 0, 0x288, 0x1C0), &rect);
     SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[1], NULL, 0,
