@@ -340,42 +340,23 @@ void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
         }
     }
 }
-/* 99.89% at objdiff's 700 bytes / 175 insns -- retail's EXACT size, and every
-   instruction is retail's except two `addu` operand pairs in the flags offset
-   (retail `addu v1,v1,v0` then `addu at,at,v1`; this body `addu v0,v1,v0` then
-   `addu at,at,v0`): the sum's destination is the slot-offset register instead of
-   the row-offset one. What took it from 98.22 to 99.89:
-   (1) BOTH palette prim pointers want the double-negated offset, pRec =
-   prims - (-(idx * 0x28)) -- that alone moved every register into retail's
-   place (pRec $v1, palette value $v0) and 98.22 -> 99.47 at retail's byte count;
-   (2) with that fixed the switch also wants its cases listed 0, 1, 2, default
-   (not the 0, 2, default, 1 order this note used to require), and the switch is
-   now instruction for instruction retail's. The first call keeps the inline
-   `prims + (idx * 0x28 + 0x320)` form; the negation belongs only to the two
-   palette sites.
-   Measured dead on the remaining pair: the triple statement
-   `rowOff = (..) * 0x28; rowOff += arg0 * 0x5F0; off = rowOff;` is 99.69 (it
-   moves the *5 chain into a fresh $a1); `off = (..) * 0x28 - (-(arg0 * 0x5F0))`
-   compiles IDENTICAL to the plain sum (the negation folds away, no pointer base
-   to legitimise); and a fourth permuter round on this body (1435 iterations,
-   base=20 best=20) is PERMUTER_NONE. */
-/*
 void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     u16 flags;
     u16 pal;
     u8 *pRec;
     s32 row;
     s32 col;
-    u32 off;
     s32 rowOff;
-    s32 slotOff;
 
+    // The row index stays a named local and the slot term is summed inside the address: as
+    // one expression cc1 puts the address addu's destination on the slot register, retail's
+    // is on the row one.
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
-        off = (arg2 * 2 + arg1 + 0x16) * 0x28 + arg0 * 0x5F0;
-        flags = *(u16 *)(g_BattleCellActionRows + off);
+        rowOff = arg2 * 2 + arg1 + 0x16;
+        flags = *(u16 *)(g_BattleCellActionRows + rowOff * 0x28 + arg0 * 0x5F0);
     } else {
-        off = (arg2 * 2 + arg1 + 0x15) * 0x28 + arg0 * 0x690;
-        flags = *(u16 *)(g_BattleActionRows + off);
+        rowOff = arg2 * 2 + arg1 + 0x15;
+        flags = *(u16 *)(g_BattleActionRows + rowOff * 0x28 + arg0 * 0x690);
     }
     if (flags & 0x4000) {
         row = 9;
@@ -416,8 +397,7 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x37E) = pal;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
+}
 void BattleDrawSlotStatusText(u8 arg0, u8 arg1, u8 arg2) {
     RECT rect;
     u8 *pBuf;
