@@ -324,59 +324,59 @@ void BattleFadeTilePrimRow(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
-/* 71.88% at 1652 bytes against retail's 1692 (413 vs 423 instructions) - the whole
-   function, never matched. Structure that IS right and measured: the fade path, the
-   two-entry table init (through a u8** to the D_800C3000 element, which is what keeps
-   retail's two `lw 0(t0)` per iteration), the record walk (8-byte BattleTileRecord,
-   cmd 0xFFFF terminator, the >= 0x4000 queue lookup with its 0xFF continue), the
-   package append and the two grey-level loops. Residual, named: the frame. Retail keeps
-   exactly six locals in memory (listIndex@0x10, codes@0x18, rowOffset@0x20,
-   pListIndex@0x28, pCodesStart@0x30, pCodes@0x38, pLists@0x40) and re-forms
-   `pCodesStart + 2` from a spilled pointer (`lw t1,0x30(sp); addiu v0,t1,2`) where gcc
-   2.6.0 here folds the bound to the constant address `sp+0x1A` and spills a different
-   set, so every register and every spill slot after the init loop differs.
-   Tried: a plain `for (pCodes = codes; pCodes < pCodesStart + 2; pCodes++, pLists++,
-   offset += 2)` outer walk (this body); the offset-first store addresses in the two
-   grey-level loops (worth +9% by itself: 62.73 -> 71.88, retail's `v1 = offset` then
-   `v1 = v1 + listbase` association, kept); an index-only outer loop. NOT tried: the
-   permuter (no run - structure, not registers, is the gap) and a two-array
-   stack-layout swap.
-   To resume: make the outer bound a value gcc cannot constant-fold (e.g. keep the end
-   pointer in a variable that is only read after an aliasing store) and re-measure.
-// One entry of a command's tile list (D_800C2F4C[code]) that BattleBuildTileRows walks:
+// One entry of a command's tile list (D_800C2F4C[code]) that this page builder walks:
 // the command to resolve, the sprite the package is drawn at, and the grey level its
 // prims get. 0xFFFF in cmd ends the list.
 typedef struct {
-    // 0x0 u16 cmd; // 0xFFFF ends the list; 0x4000 and above selects one of the slot's four 0x2C0 entries
-    // 0x2 s16 x;
-    // 0x4 s16 y;
-    // 0x6 u16 shade; // the level the prims are set to; 0x2000 and above gates it on the slot's command flag
+    /* 0x0 */ u16 cmd;   // 0xFFFF ends the list; 0x4000 and above selects one of the slot's 0x2C0 entries
+    /* 0x2 */ s16 x;
+    /* 0x4 */ s16 y;
+    /* 0x6 */ u16 shade; // the level the prims are set to; 0x2000 and above gates it on the slot's command flag
 } BattleTileRecord; // Size: 0x8
 
 extern BattleTileRecord *D_800C2F4C[];
 extern u8 *D_800C3000[];
 
-// Draws one battle menu page: for each of the two tile-prim lists the page's table
-// entry names, appends a sprite package per record of the command's tile list and
-// sets the new prims' grey level, then returns the prim index the page started at.
-// The no-rebuild path (colorShift set) only fades the prims already built.
+/* 86.41% at 1664 bytes against retail's 1692 (416 vs 423 instructions), up from the
+   previous park's 71.88. THE WIN: the inner record walk RE-FETCHES the command table
+   instead of caching it - cmd, x/y and shade are three separate
+   D_800C2F4C[codes[i]][r].field expressions in the C, which is why retail does
+   lbu from the codes biv and lw from D_800C2F4C three times per record. Caching the
+   pointer (a BattleTileRecord *pRecords local) is 78.35 at 1720 bytes and needs a
+   callee-saved register retail does not have; the older park's explicit
+   pCodes/pCodesStart/pLists pointer walk is 71.88.
+   Also measured: cmd is s32 (u32 gives sltiu v0,a0,16384 where retail has slti, and
+   u16 gives a stray andi 0xffff before each compare), shade is u32 (retail's
+   sltiu v0,v0,0x2000), action is u32. The record index r*4 on a u16 base (sll s4,1
+   plus addiu s4,4) and [r] on a BattleTileRecord* are the same 8 bytes and compile
+   identically, so nothing is owed there.
+   THE REMAINING GAP, named: retail spills FOUR pointer locals and reloads them at
+   every use - pListIndex at 0x28, pCodesStart at 0x30, pCodes at 0x38, pLists at
+   0x40 - plus rowOffset at 0x20, while this body needs only two (sw t1,40(sp); lw
+   t1,40(sp); sw t1,56(sp)) and keeps the array addresses in $s6/$s7, so every
+   register assignment from the outer-loop head on differs. The 7 missing
+   instructions are retail's second listIndex biv (lw s6,64(sp) and lw s3,0x28(sp)
+   where this body has one) and its lw/nop reload pairs.
+   Tried and no better: gcc-2.7.2 (71.51 on the old body), -O1 (52.95), -O3 (71.88),
+   a do-while outer walk (70.53), an explicit outer pointer walk with an offset
+   (71.88), and a pQueue = g_BattleCommandQueue + rowOffset local for the three queue
+   accesses (85.15, 1640 bytes - cc1 hoists the base load).
+   Next: lever c-pointer-from-memory-paren-sum-is-base-first records that a u16*
+   volatile pair reproduces exactly this "spilled pointer pair" allocation, so
+   measure this body with the four pointers declared volatile to prove the rest is
+   right, then hunt the non-volatile spelling that keeps them spilled.
+*/
+/*
 s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     u16 listIndex[2];
     u8 codes[2];
-    BattleTileRecord *pRecords;
+    s32 rowOffset;
     u8 **pTableEntry;
-    u8 *pCodes;
-    u8 *pCodesStart;
-    u16 *pLists;
-    u16 *pListIndex;
-    u16 cmd;
-    u16 action;
-    u16 shade;
+    s32 cmd;
+    u32 action;
+    u32 shade;
     s32 count;
     s32 level;
-    s32 rowOffset;
-    s32 offset;
     s32 first;
     s32 i;
     s32 r;
@@ -393,16 +393,11 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
         g_BattleDisplayState->packageCounts[i] = 0;
     }
     rowOffset = arg0 << 6;
-    offset = 0;
-    pListIndex = listIndex;
-    pLists = listIndex;
-    pCodesStart = codes;
-    for (pCodes = codes; pCodes < pCodesStart + 2; pCodes++, pLists++, offset += 2) {
-        if (*pLists == 0xFF) {
+    for (i = 0; i < 2; i++) {
+        if (listIndex[i] == 0xFF) {
             break;
         }
-        pRecords = D_800C2F4C[*pCodes];
-        for (r = 0, cmd = pRecords[0].cmd; cmd != 0xFFFF; r++, cmd = pRecords[r].cmd) {
+        for (r = 0, cmd = D_800C2F4C[codes[i]][0].cmd; cmd != 0xFFFF; r++, cmd = D_800C2F4C[codes[i]][r].cmd) {
             if (cmd >= 0x4000) {
                 g_BattleCommandQueue[0x2C0 + (cmd & 3)] = g_BattleCommandQueue[rowOffset + (cmd & 0xFF)];
                 action = g_BattleCommandQueue[rowOffset + (cmd & 0xFF)];
@@ -412,14 +407,14 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
             } else {
                 action = cmd;
             }
-            count = g_BattleDisplayState->packageCounts[*pLists];
-            g_BattleDisplayState->packageCounts[*pLists] += BattleDrawSpritePackage(
+            count = g_BattleDisplayState->packageCounts[listIndex[i]];
+            g_BattleDisplayState->packageCounts[listIndex[i]] += BattleDrawSpritePackage(
                 action,
-                (u8 *)(*pLists * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE + g_BattleGraphicsWork) +
+                (u8 *)(listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE + g_BattleGraphicsWork) +
                     count * sizeof(BattleSpritePackage),
-                pRecords[r].x, pRecords[r].y);
+                D_800C2F4C[codes[i]][r].x, D_800C2F4C[codes[i]][r].y);
             first = count * 2;
-            shade = pRecords[r].shade;
+            shade = D_800C2F4C[codes[i]][r].shade;
             level = (shade & 0xFF) >> 1;
             if (shade >= 0x2000) {
                 level = 0x10;
@@ -428,7 +423,7 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
                 }
             }
             if (level != 0) {
-                if (first < g_BattleDisplayState->packageCounts[*pLists] * 2) {
+                if (first < g_BattleDisplayState->packageCounts[listIndex[i]] * 2) {
                     for (j = first; j < g_BattleDisplayState->packageCounts[listIndex[i]] * 2; j += 2) {
                         SetSemiTrans((POLY_FT4 *)(listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                                   g_BattleGraphicsWork + (j + g_BattlePrimStartIndex) * sizeof(POLY_FT4)), 1);
@@ -449,7 +444,7 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
                     }
                 }
             } else {
-                if (first < g_BattleDisplayState->packageCounts[*pLists] * 2) {
+                if (first < g_BattleDisplayState->packageCounts[listIndex[i]] * 2) {
                     for (j = first; j < g_BattleDisplayState->packageCounts[listIndex[i]] * 2; j += 2) {
                         ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
@@ -466,8 +461,9 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
         }
     }
     return g_BattlePrimStartIndex;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
+
 
 // The per-slot draw block is a raw POLY_FT4 pool (0x28 stride) that
 // BattleDrawSpriteQuad appends 0x50-byte sprite packages to; BattleSlotGraphics
