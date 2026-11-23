@@ -170,7 +170,12 @@ index is (i * 2 + pOT[0xC]) * 36 + 0x740 (0x30 bytes into g_BattleCurOT is the c
 Tried and measured, do not repeat: the old base-first `g_BattleGraphicsWork + off` spelling
 (89.43), loop-6 for-init reordered to off3/off/off2 (identical), p[0x852D] vs the correct
 0x853D (that one is semantic, not a lever).
-*//*
+*/
+// 89.56% (re-measured this round), retail's exact size and count: 201 insns / 804 bytes (0x4074..0x4398), frame 0x30, saves ra+s0-s4 exact. Nothing structural left: the 92 differing lines are register allocation across the six call loops plus the placement of the loop increments (retail puts each accumulator's addiu right after its last use and the OTHER increment in the jal delay slot; this body swaps that per loop).
+// Re-measured with every remaining raw cast replaced by the typed BattleWork field (panelPackageCounts[i], panelPrimStart[i], panelPending[i], unk78[i], valueSpritePrimStart[i], statDigitPrimStart[i]): identical instruction stream, 89.56% - the typed form is what this park now holds.
+// Root residual, exactly: in loop 3 retail has off3 in $s1 and off in $s2, in loop 6 off2 in $s1, off in $s2 and off3 in $s3; this body gives off $s1 in both, so the increments land in the wrong slots. Retail's loop-6 preheader emits the for-init as off3, off, off2 (this body emits off, off2, off3) - reordering the init to off3/off/off2 was tried and is identical, and so was the old base-first gfx spelling (89.43).
+// A permuter run is the right next step (structure is right, all six loops present, exact size); it is out of scope for a lane that cannot exceed 99%.
+/*
 void func_80073B64(void) {
     s32 i;
     s32 off;
@@ -187,12 +192,12 @@ void func_80073B64(void) {
 
     for (i = 0, off = 0x2E08; i < 4; i++, off += 0x320) {
         BattleAddPrimListToOT((u8 *)(off + (u32)g_BattleGraphicsWork),
-                              *(u8 *)((u8 *)g_BattleDisplayState + i + 0x74),
-                              *(u8 *)((u8 *)g_BattleDisplayState + i + 0x84));
+                              g_BattleDisplayState->panelPackageCounts[i],
+                              g_BattleDisplayState->panelPrimStart[i]);
     }
 
     for (i = 0, off = 0x6008, off3 = 0; i < 3; i++, off += 0x140, off3 += 0x1E4) {
-        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xCC) != 0) {
+        if (g_BattleDisplayState->panelPending[i] != 0) {
             p = (u8 *)(off3 + (u32)g_BattleGraphicsWork);
             switch (p[0x853D]) {
             case 1:
@@ -228,9 +233,9 @@ void func_80073B64(void) {
         if (g_BattleSlotActorIds[off2] != BATTLE_SLOT_CHARACTER_NONE) {
             BattleAddPrimListToOT((u8 *)(off + (u32)g_BattleGraphicsWork), 1,
                                   g_BattleDisplayState->unk83);
-            if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xCC) != 0) {
+            if (g_BattleDisplayState->panelPending[i] != 0) {
                 BattleAddPrimListToOT((u8 *)(off3 + (u32)g_BattleGraphicsWork),
-                                      *(u8 *)((u8 *)g_BattleDisplayState + i + 0x78),
+                                      g_BattleDisplayState->unk78[i],
                                       g_BattleDisplayState->unkA2);
                 AddPrim(pOT[0] + 4,
                         (u8 *)((i * 2 + ((s32 *)pOT)[0xC]) * 36 + 0x740 +
@@ -887,6 +892,15 @@ call (identical 97.94 / 724). Two earlier sessions ran 4-minute permuter runs fr
    The do/while(0) unit around the two package calls and the 0x104/0x106 updates
    is load-bearing too (permuter find, worth 2 points).
 */
+// Re-measured this round after unpark: 97.94%, 724 bytes / 181 insns against retail's 728 / 182.
+// The single missing instruction is retail's SECOND count*2 shift. Retail computes 'j = idx * 2' in
+// the 2nd func_80025FA8 argument setup (sll s0,s0,1 before the jal) and then emits count*2 twice:
+// once in the 'j .L80076908' delay slot at loop entry and once at the loop bottom (sll v0,v0,1
+// before slt). This body emits the j init in the 'j' delay slot and the entry jumps INTO the
+// bottom's sll, so the two count*2 computations CSE into one: 4 bytes short, and the second
+// residual (retail's li a1,1 in the loop-back delay slot vs this body's hoisted copy) is the
+// same 4 bytes. Recorded unreachable from any spelling under gcc 2.6.0 / 2.7.2 / 2.7.2-cdk
+// (round 398 probe).
 /*
 void func_80076710(s32 slot) {
     u16 v[8];
