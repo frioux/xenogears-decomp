@@ -1023,30 +1023,6 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
     return clip;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8_b", func_80085CDC);
-// Best: 99.18% at retail's exact size (636 bytes / 158 insns, instruction
-// multiset identical). ONE residual: retail emits the `sw $v1,16($s0)` that stores
-// d into pActor->redStep BEFORE the arg setup of func_800223B0 (`lui/lhu` of
-// g_WorldMapViewRotationY and the `lw $a0,0($s0)` of pActor->pSprite); this body
-// emits the pSprite load and the lhu first and the store between them and the
-// `subu`. Everything else - both loops' induction variables, the scratchpad
-// pointer that advances by 4 in loop 3, the slew arms and both their delay-slot
-// fills - is instruction for instruction.
-// What got it from 97.70 to here: DROP the `s16 ang; s32 cur;` locals and read the
-// fields inline (`d = pActor->angle - pActor->redStep;`, and `pActor->redStep +
-// 0x100` / `pActor->angle` in the arms). With the locals gcc puts ang in $a0 and
-// cur in $a1 and loads them in the wrong order; the inline form lets cse pick
-// retail's registers and load order by itself.
-// The two remaining text diffs are relocations only: `addiu a0,s2,%lo(D_1F800008)`
-// where this body has `a0 = s2 + 8` and `addiu s2,s2,%lo(D_1F800004)` where it has
-// `+= 4`; both symbols are absolute in linker/undefined_syms_auto.world_map.txt, so
-// the linked bytes are equal.
-// Measured on the store position: passing `pActor->redStep` (a read-back of the
-// field just stored) as the call argument emits the identical body, and a
-// `do { } while (0)` barrier between the store and the call is worse (98.93%, 640
-// bytes). Preset screen: cdk 96.32, gcc-2.6.0 96.57, unit flags 99.18. Permuter:
-// NONE, 1433 iterations, base 130.
-/*
 void func_80085CDC(void) {
     WorldMapActor *pActor;
     MATRIX *pMat;
@@ -1100,21 +1076,23 @@ void func_80085CDC(void) {
             if (d < 0x801) {
                 if (d >= 0x100) {
                     d = pActor->redStep + 0x100;
+                    pActor->redStep = d;
                 } else {
                     d = pActor->angle;
+                    pActor->redStep = d;
                 }
             } else {
                 d -= 0x1000;
                 if (d < -0xFF) {
                     d = pActor->redStep - 0x100;
+                    pActor->redStep = d;
                 } else {
                     d = pActor->angle;
+                    pActor->redStep = d;
                 }
             }
-            pActor->redStep = d;
             func_800223B0(pActor->pSprite, (d - *(u16 *)&g_WorldMapViewRotationY - 0x400) & 0xFFF);
             AnimScriptTick(pActor->pSprite);
         }
     }
 }
-*/
