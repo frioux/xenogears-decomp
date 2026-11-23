@@ -163,6 +163,16 @@ typedef struct {
     /* 0x40 */ VECTOR delta; // vx and vz only
 } WorldMapClipWork; // Size: 0x4C
 
+// The part of the scratchpad GTE work area the sprite pass projects through: the
+// SVECTOR handed to RTPS, the wrapped x/z delta the sprite keeps, and one depth
+// per actor slot.
+typedef struct {
+    /* 0x00 */ SVECTOR vec;
+    /* 0x08 */ WorldMapPos delta; // x and z only
+    /* 0x14 */ s32 pad14;
+    /* 0x18 */ s32 depth[0x40];
+} WorldMapSpriteProjection; // Size: 0x118
+
 // One sprite set definition inside the block g_WorldMapSpriteSetTable points at.
 typedef struct {
     /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
@@ -1023,26 +1033,37 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
     return clip;
 }
 */
+// Projects every visible actor slot through the camera, then draws the sprites
+// the projection kept on screen and slews each one's turn step toward its facing.
+//
+// The slew stores the new step in all four arms: cc1 cross-jumps the four
+// identical stores into the one `sw` retail has after the join, and that block
+// boundary is what keeps the store ahead of the call's argument loads (a single
+// store below the join is scheduled after them).
+//
+// Retail names the scratchpad addresses (D_1F800008 / D_1F800004) where the typed
+// spelling folds to 8 / 4: both symbols are absolute, the linked bytes are equal,
+// so judge this function with `tools/scripts/check_bin.sh world_map`.
 void func_80085CDC(void) {
     WorldMapActor *pActor;
+    WorldMapSpriteProjection *pProj;
     MATRIX *pMat;
-    s32 *pScratch;
     WorldMapPos *pCam;
     s32 i;
     s32 d;
     s32 v;
 
-    pScratch = (s32 *)0x1F800000;
+    pProj = (WorldMapSpriteProjection *)0x1F800000;
     i = 0;
     pCam = (WorldMapPos *)&g_WorldMapCameraTarget;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
-            pScratch[2] = pActor->x - pCam->x;
-            pScratch[4] = pActor->z - pCam->z;
-            WorldMapWrapDelta(&pScratch[2]);
-            ((WorldMapSpritePos *)pActor->pSprite)->x = pScratch[2] << 4;
-            ((WorldMapSpritePos *)pActor->pSprite)->z = -pScratch[4] << 4;
+            pProj->delta.x = pActor->x - pCam->x;
+            pProj->delta.z = pActor->z - pCam->z;
+            WorldMapWrapDelta(&pProj->delta);
+            ((WorldMapSpritePos *)pActor->pSprite)->x = pProj->delta.x << 4;
+            ((WorldMapSpritePos *)pActor->pSprite)->z = -pProj->delta.z << 4;
             ((WorldMapSpritePos *)pActor->pSprite)->y = pActor->y << 4;
         }
     }
@@ -1053,22 +1074,22 @@ void func_80085CDC(void) {
     for (i = 0; i < 0x40; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->x;
-            ((SVECTOR *)pScratch)->vx = v;
+            pProj->vec.vx = v;
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->y;
-            ((SVECTOR *)pScratch)->vy = v;
+            pProj->vec.vy = v;
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->z;
-            ((SVECTOR *)pScratch)->vz = v;
-            gte_ldv0((SVECTOR *)pScratch);
+            pProj->vec.vz = v;
+            gte_ldv0(&pProj->vec);
             gte_rtps();
-            gte_stsz(&pScratch[i + 6]);
+            gte_stsz(&pProj->depth[i]);
         }
     }
     GfxSetBaseMatrix(&g_WorldMapViewMatrix);
     i = 0;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
-        if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pScratch[i + 6] < 0xB00)) {
-            SpriteDrawFrame(pActor->pSprite, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pScratch[i + 6] >> 4));
+        if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pProj->depth[i] < 0xB00)) {
+            SpriteDrawFrame(pActor->pSprite, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pProj->depth[i] >> 4));
             d = pActor->angle - pActor->redStep;
             if (d < 0) {
                 d += 0x1000;
