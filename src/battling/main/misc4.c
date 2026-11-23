@@ -13,6 +13,9 @@
 #define BATTLE_ELAPSED_FRAMES_MAX 179999
 // The fall speed at which a landing in state 4 bounces back instead of stopping.
 #define BATTLE_ACTOR_BOUNCE_VY_MIN 0x40
+// The pair is only pushed apart while they are this close: farther apart and the
+// edges cannot overlap (func_80078920 reads it as g_BattleActorDistance2D too).
+#define BATTLE_ACTOR_SEPARATION_RANGE_MAX 768
 // A quarter of the 12-bit angle rcos/rsin/ratan2 work in: the base facing each side
 // starts at (misc3's BATTLE_ANGLE_HALF_TURN is the half turn of the same space).
 #define BATTLE_ANGLE_QUARTER_TURN 0x400
@@ -472,7 +475,6 @@ extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges
 // instruction sequence is already retail's exactly, so no spelling shifts it.
 // Also measured this round: naming the two addresses (Vec4* pE1 = &edge1; ...)
 // compiles byte-identically to this body (gcc coalesces them), 98.11% / 28 lines.
-/*
 s32 func_80078920(Actor* p, Actor* q) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
     Vec4 edge1;
@@ -486,14 +488,13 @@ s32 func_80078920(Actor* p, Actor* q) {
     s32 radiusQ;
     s32 radiusSum;
     s32 dist;
-    s32 dist0;
+    s32 dist0; // reused: holds the first edge distance, then the push angle
     s32 dist2;
-    s32 angle;
     s32 lenP;
     s32 lenQ;
     s32 lenSum;
 
-    if (g_BattleActorDistance2D >= 0x301) {
+    if (g_BattleActorDistance2D > BATTLE_ACTOR_SEPARATION_RANGE_MAX) {
         return;
     }
     if ((p->edgeMidPos.y < q->baseVertexPos.y && q->edgeMidPos.y < p->edgeMidPos.y) ||
@@ -533,7 +534,7 @@ s32 func_80078920(Actor* p, Actor* q) {
             } else {
                 dist = radiusSum - dist;
             }
-            angle = ratan2(p->prevPosition.x - q->prevPosition.x, p->prevPosition.z - q->prevPosition.z);
+            dist0 = ratan2(p->prevPosition.x - q->prevPosition.x, p->prevPosition.z - q->prevPosition.z);
             lenP = BattleVectorLength2D(&p->vx);
             lenQ = BattleVectorLength2D(&q->vx);
             lenSum = lenP + lenQ;
@@ -544,14 +545,13 @@ s32 func_80078920(Actor* p, Actor* q) {
             }
             lenP = ((lenP * dist) << 8) / lenSum;
             lenQ = ((lenQ * dist) << 8) / lenSum;
-            p->x += (rcos(angle) * lenQ) >> 20;
-            p->z += (rsin(angle) * lenQ) >> 20;
-            q->x -= (rcos(angle) * lenP) >> 20;
-            q->z -= (rsin(angle) * lenP) >> 20;
+            p->x += (rcos(dist0) * lenQ) >> 20;
+            p->z += (rsin(dist0) * lenQ) >> 20;
+            q->x -= (rcos(dist0) * lenP) >> 20;
+            q->z -= (rsin(dist0) * lenP) >> 20;
         }
     }
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
+}
 
 void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
@@ -1531,44 +1531,53 @@ void BattleUpdateCameraPosition(Actor* p) {
 
 extern void func_8007A768(Actor* p);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
-
-/* Best attempt: 88.89%, 472 bytes, 118 instructions (retail: 117, 472 bytes).
-   Reached from BattleSetScreenMode: it puts the pair back where the transition
-   saved them, re-seeds the cached camera vectors and points the camera rig at the
-   side the result belongs to.
-   Every 16-byte block move already has retail's exact shape - the four that touch
-   an actor base come out 3 loads / 3 stores / load / nop / store, the other four
-   2/2/2/2 - so the residual is register allocation plus one tail instruction.
-   Retail keeps &g_BattleActor1 in $t0 and &g_BattleActor0 in $a3 across the whole
-   function, uses $a0/$a1 as the mid copies' destination/source base and $v0/$v1 as
-   their temps; ours puts &g_BattleActor1 in $v1, which pushes the temps to
-   $v0/$a0 and the bases to $a1/$a2. Cause: gcc lets the tail's pActor copy
-   coalesce with the register already holding &g_BattleActor1, so that arm needs no
-   instruction and the tail becomes "beqz v0 / nop / move v1,a3 / jal / move a0,v1"
-   where retail has "bnez v0 / addu a0,a3,zero / addu a0,t0,zero / jal". In retail
-   pActor is therefore a separate pseudo in $a0 (a move in BOTH arms), and the
-   allocator hands the two actor addresses the late registers.
-   Measured, do not repeat: the plain eight VECTOR assignments with the ternary
-   inline 88.89; the same with an Actor* pActor local and if/else 88.89; a VECTOR*
-   local for the D_8009794C source 88.89; the condition spelled "== 0" with the arms
-   swapped 87.01; the two actor copies typed as g_BattleActorN.prevPosition (which
-   is what D_80098798 / D_8009707C are: actor+0x6C) 88.76; VECTOR* locals for both
-   actor bases (the older park) 78.58; a 12-byte copy plus a separate word 52/50.
-   Preset screen on the best body: gcc-2.7.2-cdk 69.84, gcc-2.6.0 88.89, -O3 88.89,
-   so the unit's Default preset is right. A 4-minute permuter run reported
-   PERMUTER_ZERO on a candidate that adds a dead "else if (new_var)" arm and a
-   VECTOR* local for the copy-6 source; porting that local alone reproduces 88.89
-   byte for byte, so the ZERO is a scoring artefact, not a find.
-   Untried lead: levers.md's a-semantically-empty-branch-on - a semantically empty
-   two-arm gate around the tail call is what raises a pointer's allocno priority, so
-   try gating the func_8007A768 call on pActor before spending another lane on the
-   allocator by hand.
-   Evidence for the next agent: the four sources of the first four copies are
-   g_BattleSavedPositions + 0/0x10/0x20/0x30, i.e. a Vec4[4] of saved vectors (the
-   D_80092A38/48/58/68 words BattleSaveActorVectors sets to 0x100 are their .y), and
-   the two destinations at the end are g_BattleActor0.prevPosition /
-   g_BattleActor1.prevPosition filled from each actor's own offset 0. */
+// Best attempt: 88.89%, 472 bytes, 118 instructions (retail: 117, 472 bytes).
+//    Reached from BattleSetScreenMode: it puts the pair back where the transition
+//    saved them, re-seeds the cached camera vectors and points the camera rig at the
+//    side the result belongs to.
+//    Every 16-byte block move already has retail's exact shape - the four that touch
+//    an actor base come out 3 loads / 3 stores / load / nop / store, the other four
+//    2/2/2/2 - so the residual is register allocation plus one tail instruction.
+//    Retail keeps &g_BattleActor1 in $t0 and &g_BattleActor0 in $a3 across the whole
+//    function, uses $a0/$a1 as the mid copies' destination/source base and $v0/$v1 as
+//    their temps; ours puts &g_BattleActor1 in $v1, which pushes the temps to
+//    $v0/$a0 and the bases to $a1/$a2. Cause: gcc lets the tail's pActor copy
+//    coalesce with the register already holding &g_BattleActor1, so that arm needs no
+//    instruction and the tail becomes "beqz v0 / nop / move v1,a3 / jal / move a0,v1"
+//    where retail has "bnez v0 / addu a0,a3,zero / addu a0,t0,zero / jal". In retail
+//    pActor is therefore a separate pseudo in $a0 (a move in BOTH arms), and the
+//    allocator hands the two actor addresses the late registers.
+//    Measured, do not repeat: the plain eight VECTOR assignments with the ternary
+//    inline 88.89; the same with an Actor* pActor local and if/else 88.89; a VECTOR*
+//    local for the D_8009794C source 88.89; the condition spelled "== 0" with the arms
+//    swapped 87.01; the two actor copies typed as g_BattleActorN.prevPosition (which
+//    is what D_80098798 / D_8009707C are: actor+0x6C) 88.76; VECTOR* locals for both
+//    actor bases (the older park) 78.58; a 12-byte copy plus a separate word 52/50.
+//    Preset screen on the best body: gcc-2.7.2-cdk 69.84, gcc-2.6.0 88.89, -O3 88.89,
+//    so the unit's Default preset is right. A 4-minute permuter run reported
+//    PERMUTER_ZERO on a candidate that adds a dead "else if (new_var)" arm and a
+//    VECTOR* local for the copy-6 source; porting that local alone reproduces 88.89
+//    byte for byte, so the ZERO is a scoring artefact, not a find.
+//    Untried lead: levers.md's a-semantically-empty-branch-on - a semantically empty
+//    two-arm gate around the tail call is what raises a pointer's allocno priority, so
+//    try gating the func_8007A768 call on pActor before spending another lane on the
+//    allocator by hand.
+//    Evidence for the next agent: the four sources of the first four copies are
+//    g_BattleSavedPositions + 0/0x10/0x20/0x30, i.e. a Vec4[4] of saved vectors (the
+//    D_80092A38/48/58/68 words BattleSaveActorVectors sets to 0x100 are their .y), and
+//    the two destinations at the end are g_BattleActor0.prevPosition /
+//    g_BattleActor1.prevPosition filled from each actor's own offset 0.
+//    ROUND 433, re-measured from this body: 88.89% / 472 bytes / 118 insns, unchanged.
+//    Both remaining leads tried and dead: a semantically empty two-arm gate on pActor
+//    around the tail call (if (pActor) func_8007A768(pActor); else func_8007A768(pActor))
+//    is 87.35% / 484 bytes / 121 insns - the extra test costs a register and the tail
+//    grows by three instructions; and "pActor = &g_BattleActor1; if (side) pActor =
+//    &g_BattleActor0;" (default-then-override) is byte-identical to the two-arm if/else,
+//    88.89% / 118 insns. Do not retry either. The whole residual is one local-alloc
+//    decision - &g_BattleActor1 in $t0 (retail) against $v1 (here) - and every other
+//    register in the function follows from it: retail's temps are then $v0/$v1/$a0 with
+//    the source in $a1, ours $v0/$a0/$a1 with the source in $a2. So one register, six
+//    diff hunks.
 /*
 void func_8007AC3C(void) {
     Actor* pActor;
@@ -1584,14 +1593,14 @@ void func_8007AC3C(void) {
     *(VECTOR*)&D_8009796C = *(VECTOR*)&D_8009794C;
     *(VECTOR*)&D_80098798 = *(VECTOR*)&g_BattleActor1;
     *(VECTOR*)&D_8009707C = *(VECTOR*)&g_BattleActor0;
+    pActor = &g_BattleActor1;
     if (g_BattleResultSide != 0) {
         pActor = &g_BattleActor0;
-    } else {
-        pActor = &g_BattleActor1;
     }
     func_8007A768(pActor);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
+
 
 
 extern char g_StrBattleMoveCheck3[];
