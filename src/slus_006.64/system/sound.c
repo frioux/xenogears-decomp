@@ -3338,32 +3338,8 @@ void SoundTickInterpolator(AudioInterpolator* interpolator) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-// Parked at 99.96%: retail's exact 548 bytes / 137 insns, ONE instruction differs - the base
-// register of the rampFlags store (retail `sh a3,2(a0)` with $a0 = &status_flags, i.e. element+2;
-// ours `sh a3,4(a1)` off the element base). Same address, different encoding, so it cannot link.
-// ROUND 404 FIXED THE LOOP TAIL: `s16 count = elementCount;` with `} while (--count != 0);` gives
-// retail's `addiu v0,a2,-1 / move a2,v0 / sll v0,v0,0x10` exactly, 99.92 -> 99.96. The round-403
-// two-variable tail (`next = count - 1; count = next;` tested through `(s16)next`) let gcc test the
-// loop-carried copy instead and emitted `sll v0,a2,0x10`. A u16 count with `--count` folds to
-// `addu a2,a2,t3` + `andi a2,a2,0xffff` (98.42, one instruction short); an s32 count drops the sll.
-// THE LAST STORE IS A BIND, both sides measured:
-//  - plain `pElement->rampFlags = elementFlags;` DOES give retail's `sh a3,2(a0)`, because the loop's
-//    offsetable giv (add_val 2) absorbs the address, but reorg then steals the store into the
-//    `bne t1,v0` delay slot and pushes `addiu t2,t2,-1` after the 0x1000 arm (98.10, 8 lines).
-//  - any volatile lvalue keeps retail's position but forms the address off the element base, because
-//    the cast defeats the giv: `*(volatile u16*)(&pElement->status_flags + 1)` (the form kept below),
-//    `*(volatile u16*)&pElement->rampFlags` and `((volatile AudioElement*)pElement)->rampFlags` all
-//    measure 99.96 with the same single `4(a1)` line.
-//  - a u16* local holding &pElement->status_flags takes a fresh register ($t5) and costs 2-4 lines,
-//    whether one store or both stores use it (99.53 with the rampFlags store alone, 99.09 with the
-//    statusFlags store too).
-// A 3-minute permuter run (1417 iterations, base 10, best 10) found nothing; the round-403 5-minute
-// run's only candidate (66) moved the store into a single arm, which is wrong code (retail's one
-// `sh a3,2(a0)` sits in the shared tail and all four arms reach it). try_flags.sh --gcc
-// gcc-2.7.2-cdk-psx scores 95.76, so this is not a preset question.
-// The header's AudioManager tempoFrames/tempoTarget and AudioElement volumeStep/volumeFrames are u16
-// (the original loads them with lhu, not lh).
-/*
+// `pFlags` holds &status_flags (the loop's offset-2 giv, $a0 in retail) and the volatile cast on the
+// rampFlags store keeps reorg from sinking that store into the `bne` delay slot.
 void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
     u16 activeFlags;
     s16 count = elementCount;
@@ -3373,6 +3349,7 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
     s32 restTicks;
     u16 statusFlags;
     u16 elementFlags;
+    u16* pFlags;
 
     if (tickCounter != 0) {
         tickCounter--;
@@ -3386,55 +3363,56 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
     }
 
     do {
+        pFlags = &pElement->status_flags;
         activeFlags = pElement->active_flag;
         if (activeFlags != 0) {
             fermataTimer = *(u32*)&pElement->fermataDuration;
             fermataTicks = fermataTimer & 0xFFFF;
             restTicks = fermataTimer >> 16;
-            statusFlags = pElement->status_flags;
+            statusFlags = *pFlags;
 
             if (fermataTicks != 0) {
                 elementFlags = pElement->rampFlags;
 
-                if (elementFlags & 0x8) {
+                if (elementFlags & SOUND_RAMP_FLAG_ELEMENT_VOLUME) {
                     statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
                     if (--pElement->elementVolumeFrames == 0) {
-                        elementFlags &= ~0x8;
+                        elementFlags &= ~SOUND_RAMP_FLAG_ELEMENT_VOLUME;
                     }
                     pElement->elementVolume += pElement->elementVolumeStep;
                 }
-                if (elementFlags & 0x1) {
+                if (elementFlags & SOUND_RAMP_FLAG_NOTE) {
                     statusFlags |= SOUND_STATUS_PLAYING_NTOE;
                     if (!(elementFlags & 0x2)) {
                         if (--pElement->noteFrames == 0) {
-                            elementFlags &= ~0x1;
+                            elementFlags &= ~SOUND_RAMP_FLAG_NOTE;
                         }
                     }
                     pElement->note += pElement->noteStep;
                 }
-                if (elementFlags & 0x10) {
+                if (elementFlags & SOUND_RAMP_FLAG_PAN) {
                     if (--pElement->panFrames == 0) {
                         pElement->pan = pElement->panTarget;
-                        elementFlags &= ~0x10;
+                        elementFlags &= ~SOUND_RAMP_FLAG_PAN;
                     } else {
                         pElement->pan += pElement->panStep;
                     }
                     statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
                 }
-                if (elementFlags & 0x20) {
+                if (elementFlags & SOUND_RAMP_FLAG_VOLUME) {
                     if (--pElement->volumeFrames == 0) {
                         pElement->volume = pElement->volumeTarget;
-                        elementFlags &= ~0x20;
+                        elementFlags &= ~SOUND_RAMP_FLAG_VOLUME;
                     } else {
                         pElement->volume += pElement->volumeStep;
                     }
                     statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
                 }
-                *(volatile u16*)(&pElement->status_flags + 1) = elementFlags;
+                *(volatile u16*)(pFlags + 1) = elementFlags;
                 if (--fermataTicks == 1) {
                     if (activeFlags & 0x1000) {
                         pElement->voice_data.releaseRate = 6;
-                        pElement->voice_data.flags |= 0x80;
+                        pElement->voice_data.flags |= SOUND_VOICE_FLAG_RELEASE;
                     }
                 }
                 if (--restTicks == 0) {
@@ -3443,13 +3421,11 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
                 }
                 *(u32*)&pElement->fermataDuration = fermataTicks + (restTicks << 16);
             }
-            pElement->status_flags = statusFlags;
+            *pFlags = statusFlags;
         }
         pElement++;
     } while (--count != 0);
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
-
+}
 // 75.84%, retail's 1436 bytes against this body's 1440 (ONE instruction long). The element loop,
 // the note path, the gate/duration arithmetic and the envelope reset are instruction for
 // instruction right, and the frame is now retail's exactly: 0x48, s0-s8+ra saved (retail's $fp is
