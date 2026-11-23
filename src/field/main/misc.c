@@ -2021,6 +2021,10 @@ typedef struct {
 // first-free-reg pick, not a source-controlled allocno; retail's $t0 held
 // &D_8005A448 live through the if, so its nop + lui/ori after the branch cannot
 // be reorg'd from C.
+// Round 420: re-measured 97.81% (580 bytes, retail 584, one instruction short) and
+// confirmed this is lever a-li-constant-is-a-reload-scratch: the 0x14000 gets
+// $v0 (dead at the bne) so reorg fills the delay slot; retail has `li 0x14000`
+// in $t0 and a nop. No new spelling attempted - the lever records ten.
 /*
 void func_8008BF38(int partyIndex) {
     int characterId;
@@ -3212,6 +3216,14 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 // volatile raw store with `D_800C3A30 = type` (476) both lose the 4 bytes; the
 // head's three-instruction residual is the copy-and-AND-order trade recorded
 // above and nothing reorders it.
+// Round 420: re-measured 94.74% (480 bytes, retail 484 - still ONE short). Three
+// more spellings tried: (a) flags store before the type mask with `D_800C3A30 =
+// type;` -> 476/90.16; (b) `u16 type` (assigned either side of the raw store)
+// -> 480/86.97, gcc masks into a fresh register and stores the raw value from v0,
+// so the wasteful `move v1,v0` / `sh v1` / `andi v1,v1,0xc0` triple retail keeps
+// is unreachable: 2.7.2 folds copy+AND whenever the copy has one use; (c) -O3 by
+// try_flags -> 94.74. The 3-line `lhu 0xCC`/`li 1` hoist at the tail is probably
+// downstream of the same missing copy.
 /*
 void func_8008EC30(void) {
     u16 value;
