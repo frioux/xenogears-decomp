@@ -1436,36 +1436,31 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 
-/* Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594).
-   The card save-write routine: pick a slot, delete the record's old file, write the
-   0x1F00-byte save to the "__tmp_file" temp name a block at a time and rename it to
-   serial+chunk digit. The 5-retry loops, the checksum, the prefix/record filename
-   build (memcpy 6 + strcat of records[slotRecordIndexes[g_MenuCardSlotOrder[slot]]].ids)
-   and the shared success/failure tail all come out as retail's instructions. Tried
-   nothing else yet: this is a first transcription (ghidra arity: 1 arg, returns a
-   byte; the caller is MenuUpdateSubMenuChoice and uses the result).
-   Two named residuals:
-   (1) 0xFF IN A CALLEE-SAVED REGISTER. Retail keeps MENU_SLOT_NONE in $s8 from just
-       after MenuResetSlotSelection and uses it for the selectedSlot compare, both
-       previousCardSlotCounts stores and the slotRecordIndexes compare (sw s8,... and
-       sb s8,...); this body rematerialises li a3,0xff at every site. That is the
-       "constant the original loads once" idiom, so the original most likely held it in
-       a source local; not tried yet (ran out of lane).
-   (2) FRAME 0x100 vs 0xE8: retail's six trailing scalars sit 8 bytes apart (0xA8, 0xB0,
-       0xB8, 0xC0, 0xC8, 0xD0) where u_char locals in this unit are normally 4 apart (see
-       MenuWaitForCardStatusChange: prev[2] at 0x10, changed 0x18, result 0x1C), i.e.
-       retail has six 4-byte slots this body does not name. Every stack offset in the
-       diff follows from this: none of them can be fixed without finding those locals. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
+// Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594), re-measured in a
+// redo lane. The parked body did NOT compile (undeclared `ownCard`, a duplicated `slot`
+// declaration), so the old 78.17% came from a stale object; with `card` for `ownCard` (retail
+// passes $s5, the destination card, to MenuWaitCardOperationFrames) it compiles and scores
+// 78.17% honestly.
+// The card save-write routine: pick a slot, delete the record's old file, write the 0x1F00-byte
+// save to the D_801C50B8 temp name a block at a time, then rename it to serial plus chunk digit.
+// The retry loops, the checksum, the prefix/record filename build and the shared success/failure
+// tail all come out as retail's instructions.
+// Residuals, and both come from ONE allocation difference:
+// (3) FRAME 0x100 vs 0xE8 is NOT six unnamed locals (the old note's guess - wrong). Retail's
+//     .frame is vars=200 and its six slots at 0xA8..0xD0 are 8 bytes apart, i.e. SPILL slots:
+//     retail spilled arg0, repeat, fileFd, ready, result and chunkIndex. This body is vars=176
+//     with four spills (0xA0, 0xA8, 0xB0, 0xB8) because gcc kept chunkIndex's 0xFF in $s7 and 1
+//     in $fp, where retail keeps &path in $s7 and MENU_SLOT_NONE (0xFF) in $fp. Every stack
+//     offset and every s-register name in the diff follows from that one hoist tie-break.
+// (4) The 15 missing instructions (579 vs 594) are those spill stores/reloads, not a missing
+//     block: the 62 jal calls match as a multiset and differ only in block order (gcc places the
+//     MenuFreeWindow2Strings/0x5C pair and the close/erase failure exit differently).
+// Tried and dead: MENU_SLOT_NONE held in a source local (u_char slotNone at all seven sentinel
+// sites, the load-the-constant-once idiom) - byte-identical 78.17%, because gcc hoists one
+// constant per loop and chunkIndex's 0xFF already won the tie. Presets screened on this body:
+// gcc-2.7.2 78.09, 2.7.2-cdk does not compile, so the unit preset (gcc-2.6.0) is not the issue.
+// Not tried: the permuter (an allocation/hoist tie in a 594-insn body, not a scheduling one).
 /*
-extern void MenuPlaySoundEffect(u8 arg0);
-extern void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index);
-extern u8 D_801C50B8[];
-
-   Writes the save in the slot MenuResetSlotSelection/MenuFindFirstValidSlot picked to
-   the card, into the chunk its record names: every block goes to the temp file
-   D_801C50B8 and the file is renamed to the serial plus the chunk's digit once the
-   whole save is written.
 u_char func_801CBD90(u_char a0) {
     char newPath[0x40];
     char path[0x40];
@@ -1483,7 +1478,6 @@ u_char func_801CBD90(u_char a0) {
     u_char textId;
     s32 slot;
     s32 recordIndex;
-    s32 slot;
     s32 fd;
     u8* pBuffer;
     u8* pData;
@@ -1592,7 +1586,7 @@ u_char func_801CBD90(u_char a0) {
                 fd = open(path, (g_Menu->menuUnk2->saveBlockCount << 16) | 0x200);
                 if (fd == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(ownCard);
+                    MenuWaitCardOperationFrames(card);
                 } else {
                     fileFd = fd;
                 }
@@ -1613,7 +1607,7 @@ u_char func_801CBD90(u_char a0) {
                 fd = open(path, 2);
                 if (fd == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(ownCard);
+                    MenuWaitCardOperationFrames(card);
                 }
                 if (fd != 0) {
                     break;
@@ -1633,7 +1627,7 @@ u_char func_801CBD90(u_char a0) {
             while (1) {
                 if (write(fd, g_Menu->menuUnk2->saveFileMagic, 0x100) == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(ownCard);
+                    MenuWaitCardOperationFrames(card);
                 }
                 if (fd != 0) {
                     break;
@@ -1664,7 +1658,7 @@ u_char func_801CBD90(u_char a0) {
                 while (1) {
                     if (write(fd, pData, 0x100) != 0x100) {
                         fd = 0;
-                        MenuWaitCardOperationFrames(ownCard);
+                        MenuWaitCardOperationFrames(card);
                     }
                     if (fd != 0) {
                         break;
@@ -1688,7 +1682,7 @@ u_char func_801CBD90(u_char a0) {
             while (1) {
                 if (rename(path, newPath) != 0) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(ownCard);
+                    MenuWaitCardOperationFrames(card);
                 }
                 if (fd != 0) {
                     break;
@@ -1735,8 +1729,10 @@ u_char func_801CBD90(u_char a0) {
     g_Menu->menuUnk2->cardPollMode = 1;
     g_Menu->unk334 = 1;
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
+
+
 /* Best attempt: 81.86% (2860 bytes vs retail's 2960, 715 insns vs retail's 757).
    The save-COPY routine of the card submenu: it moves the record of the selected
    slot (records[slotRecordIndexes[g_MenuCardSlotOrder[selectedSlot]]]) from the
