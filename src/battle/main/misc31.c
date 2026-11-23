@@ -216,6 +216,16 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
 // not what local-alloc is sorting on here; `(slot << 30) | (flags & 0x3FFFFFFF)` 97.78.
 // The mirror is what the fourth spelling below cannot reach: retail's order is
 // shift->$v0, mask->$v1, load->$a0, ours load->$v0, mask->$v1, shift->$a0.
+// R434 re-measured 98.10 at 496 bytes: the whole residual is the mirror this note names.
+// One new spelling: the flipped operand order (slot << 30) | (flags & 0x3FFFFFFF) is
+// 97.78, and it shows why the register splits rotate - the 0x3FFFFFFF mask's pseudo
+// moves too (lui a0 instead of lui v1), so the very source order that gives the shift
+// $v0 hands the mask $a0. Per levers a-flag-word-rmw-mask-can-never-take-v0,
+// a-bitfield-store-is-the-same-rtl and a-single-use-constant-local-is-folded this is
+// the flag-word RMW allocator family: the masked word and the shift result tie at
+// priority 1.0 and the earlier-created pseudo (the load, here) takes $v0, so retail's
+// mirror needs the shift's pseudo created before the load's, which no spelling that
+// keeps the load first reaches.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 /*
 void func_800BB350(u32 slot) {
@@ -267,6 +277,7 @@ void func_800BB350(u32 slot) {
     pSprite->flags_0xA8 = (pSprite->flags_0xA8 & 0x3FFFFFFF) | (slot << 30);
     pSprite->flags_0xAC.flags = (pSprite->flags_0xAC.flags & ~3) | ((slot >> 2) & 3);
 }*/
+
 void BattleSpawnActorSlot(BattleAnimWorkTask *pTask) {
     s32 i;
     u16 slotBit;
@@ -386,6 +397,19 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
 // for that, which an addsi3 constant split cannot do: `offset = 0x8000; pWork += offset`
 // folds back to the immediate, and `0x8000 + base` folds the whole add into the symbol's
 // addend (220 bytes).
+// R434 re-measured 84.11% at retail's exact 228 bytes / 57 insns: the whole diff is the tail
+// block, and it has three parts that are really one decision. (1) The base pair: retail
+// has lui/addiu g_BattleStateWork into $v1 and li 0x8000 into $v0, this body the mirror
+// - lever a-symbol-plus-a-big-immediate was measured on THIS function in round 396 and
+// its -dg shows insn 78/79 is the reg/v USER address pseudo, which always takes the
+// lower free register, so retail's pair is unreachable while the base is a source
+// variable. (2) The base computation sits above the two argument moves (move a0,s0 /
+// move a1,zero) here and below them in retail. (3) Retail's two loads straddle the two
+// sw s2/s1 stack stores; ours are adjacent - sched1/sched2 placement that follows (1).
+// One new spelling: the base as a block-scope declaration-with-initialiser
+// (`u8 *pSlotWork = g_BattleStateWork; pSlotWork += 0x8000;`) compiles to the
+// IDENTICAL body (84.11, 228 bytes), so a-declaration-with-initialiser-in-the-loop
+// does not reach a base-vs-constant tie either.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 /*
 void func_800BB9D4(void) {
