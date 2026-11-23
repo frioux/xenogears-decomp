@@ -683,24 +683,23 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
-// Best 98.66% at retail's exact size (224 bytes / 56 insns): every instruction of the
-// dispatch, all four arm bodies and the shared decrement tail lines up. The residual is
-// that retail keeps TWO byte-identical copies of the "idx = extraWeaponIds[0]" arm (cases
-// 0 and 15, at .L8009E7C0 and .L8009E814 - both lui/lw/nop/lbu v1,4/j/nop, same jump
-// target), and cc1 2.6.0 cross-jumps identical switch arms into one block: the plain body
-// is 200 bytes (89.11%). The only spelling found that keeps both blocks is a volatile load
-// in case 15, and it costs the zero-extension of a live volatile QI value, so the block
-// comes out "lbu v0,4(v0)" + "andi v1,v0,0xff" in the j delay slot where retail has
-// "lbu v1,4(v0)" + "nop" - 2 of 56 instructions, hence 224 bytes at 98.66%.
-// Measured with diff_func.sh this round: s32 idx + volatile load 224/98.66; u8 idx +
-// volatile load 208/84.29 (the extraWeaponIds[3] load gains an andi too); plain s32 idx
-// 200/89.11; value difference extraWeaponIds[1] in case 15 224/99.80 but it is wrong code.
-// See tools/rounds/levers.md "fcross-jumping merges identical" (written from this
-// function): flag-level spellings all merge (u8 temp local, volatile pointer, pointer
-// cast); a permuter ZERO candidate (base=205) appends a dead volatile read that makes case
-// 15 fall through to the 0x7 arm, i.e. wrong code, and only looks aligned. No source-level
-// statement costs an instruction in that arm without changing an instruction retail has,
-// so this is a structural wall, not a park to retry by hand.
+// Best honest body 89.11% (200 bytes / 50 insns against retail's 224 / 56). Everything but ONE
+// block matches: retail keeps two byte-identical copies of the "idx = extraWeaponIds[0]" arm
+// (case 0 at .L8009E7C0 and case 15 at .L8009E814, both lui/lw/nop/lbu v1,4/j tail/nop), and
+// this cc1 deletes one of them. The arm ORDER below is retail's own block order (case 0, the
+// case 3..14 group, case 15, the case 2/17 group, the returns) and reproduces retail's layout
+// exactly, minus the second copy.
+// Not a spelling problem: the copy has to survive, and the merge is a whole-block RTL compare,
+// so a spelling that emits the same six instructions cannot differ in RTL. Measured: volatile
+// load in case 15 keeps both blocks but the un-fusable volatile QI load costs "lbu v0,4 / andi
+// v1,v0,0xff" where retail has "lbu v1,4 / nop" - 224 bytes at 98.66%, measured and not kept.
+// The source position of the two arms does not help either: in both orders the later copy wins
+// and the earlier one is deleted.
+// Not a preset problem either: gcc-2.7.2 85.41%, gcc-2.7.2-cdk 66.39%, unit flags 89.11.
+// This cc1 (2.6.0) rejects -fno-cross-jumping outright ("Invalid option"), so the
+// identical-block merge cannot be turned off for one function, and the unit's other matched
+// functions pin it to 2.6.0. A 4-minute permuter run found only a wrong-code candidate (dead
+// volatile read that drops case 15 into the 0x7 arm). Wall: leave the stub.
 /*
 void func_8009E788(void) {
     s32 idx;
@@ -708,13 +707,6 @@ void func_8009E788(void) {
     switch (g_BattleCurWorkBlock->rowIndex) {
     case 0:
         idx = g_BattleTargetSlotState->extraWeaponIds[0];
-        break;
-    case 1:
-    case 16:
-        return;
-    case 2:
-    case 17:
-        idx = g_BattleTargetSlotState->extraWeaponIds[3];
         break;
     case 3:
     case 4:
@@ -735,8 +727,14 @@ void func_8009E788(void) {
         idx = g_BattleTargetSlotState->extraWeaponIds[3];
         break;
     case 15:
-        idx = *(volatile u8 *)&g_BattleTargetSlotState->extraWeaponIds[0];
+        idx = g_BattleTargetSlotState->extraWeaponIds[0];
         break;
+    case 2:
+    case 17:
+        idx = g_BattleTargetSlotState->extraWeaponIds[3];
+        break;
+    case 1:
+    case 16:
     default:
         return;
     }
