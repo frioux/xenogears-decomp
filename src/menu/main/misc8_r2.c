@@ -337,7 +337,18 @@ void MenuFreeArrowCursor(u_char index) {
    &base->polys[rc] emits `addu d,base,sum` where retail has `addu d,sum,base`.
    What it does: applies one shading mode (arg0) to every prim of the item panel.
 */
-/*
+/* MEASURED ROUND 421: this body is 98.77% / 588 bytes under Default (retail
+   584 bytes, 146 insns) and 98.77 under cdk; the SAME body is 100.00% / 584
+   bytes, instruction for instruction, under gcc-2.6.0-psx, and
+   `try_flags.sh menu/main/misc8_r2 --all --gcc gcc-2.6.0-psx` scores all NINE C
+   functions of the unit 100.00 - so closing it is a unit switch (XenoMenu260) or
+   a split, not a C change. The one Default residual is the item-name loop
+   counter: retail has `addiu s1,s1,1` in the delay slot of the `beq v1,v0`
+   (the r0==0x20 skip) and Default puts it in the latch with a nop in the slot,
+   which is one instruction over and can never link. That is the compiler-version
+   fact in levers.md o-a-loop-counter-in-a-branch (twelve loop shapes plus a
+   cc1_probe of the same loop all measure 588); the permuter cannot help.
+*//*
 void func_801DB39C(u_char arg0) {
     POLY_FT4* pPoly;
     MenuString* pRow;
