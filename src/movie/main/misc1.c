@@ -233,6 +233,30 @@ extern s32 g_MovieHeapDebugEnabled;
 // emits it at expand time, which cc1 only does for a non-constant arg; a single-use
 // pointer local is folded back into the constant (measured, round 236), so no
 // surviving spelling of `FontPrintf(D_8006FC40, ...)` reaches retail's order.
+// PROBED (round 423, cc1_probe.sh under both gcc-2.6.0-psx and gcc-2.7.2-psx, six
+// spellings of that call inside a while(1)/if block of this exact shape: the bare
+// symbol, `char* pFormat = D_8006FC40;` as the block's first statement, a (char*)
+// cast, &D_8006FC40[0], D_8006FC40 + 0, and the pointer assigned before the if):
+// every in-block spelling emits `lw a1 / lw a2 / lw a3 / lw v0 / la a0` under both
+// compilers, i.e. cc1 always stores the constant-address argument after the memory
+// arguments, so retail's la-first order at .L800708B4 is not reachable from the
+// call's C. The only spelling that hoists the `la` is the pointer assigned ABOVE the
+// branch, and that emits it before the slt/beqz instead of inside the block. try_flags
+// scores this body 99.02 under gcc-2.7.2-psx with the same two rows and cdk 82.76, so
+// the preset is not the answer either; the two rows are the whole residual.
+// ROUND 423 BEST: 99.28% / retail's exact 2276 bytes / 569 insns, from an `s32 isbg`
+// local (`isbg = 1;` right after ArchiveSetIndex, read as `isbg - g_MovieDebugBufferParity`
+// and by the two teardown `drawEnv.isbg = isbg` stores). That ONE front-end statement
+// puts the shared constant 1 in retail's preheader slot - `li s3,1` before `la s4` /
+// `move s2`, which no arrangement of the loop.c-hoisted invariant reaches, because cc1
+// emits front-end materialisation before anything loop.c inserts (probed with
+// cc1_probe on a standalone copy of the same shape). What it costs: the switch's
+// `case 1` test stops sharing that register - `li v0,1 / beq v1,v0` where retail has
+// `beq v1,s3` + a nop - because the constant's register equivalence is flushed at the
+// loop-start label. Spell the parity `1 - g_MovieDebugBufferParity` instead (constant
+// created inside the loop, so the compare is retail's again) and the `li` goes back to
+// the END of the preheader at 2288 bytes / 572 insns / 98.69 (measured this round).
+// So the last two rows in the switch are one TRADE, not two residuals.
 /*
 void func_800704E8(void) {
     SVECTOR sv;
@@ -251,6 +275,7 @@ void func_800704E8(void) {
     s32 minutes;
     s32 seconds;
     s32 cursor;
+    s32 isbg;
 
     mode = D_8006FAF4;
     ArchiveChangeStreamingFile(0);
@@ -270,6 +295,7 @@ void func_800704E8(void) {
     pWork[1].drawEnv.isbg = 1;
     ArchiveSetIndex(0xC, 3);
 
+    isbg = 1;
     pCounters = g_MovieStreamReadCount;
     pBase = pWork;
     while (1) {
@@ -278,7 +304,7 @@ void func_800704E8(void) {
             pNext = &g_MovieDebugDrawBuffers[1];
         }
         g_MovieDebugDrawBuffer = pNext;
-        g_MovieDebugBufferParity = 1 - g_MovieDebugBufferParity;
+        g_MovieDebugBufferParity = isbg - g_MovieDebugBufferParity;
         ClearOTagR(pNext->ot, 0x20);
         func_800712C4();
         MovieUpdatePadCursor(0, 0, &action);
@@ -400,8 +426,8 @@ void func_800704E8(void) {
             g_MovieDebugDrawBuffers[1].dispEnv.screen.y = 0xA;
             g_MovieDebugDrawBuffers[1].dispEnv.screen.w = 0x100;
             g_MovieDebugDrawBuffers[1].dispEnv.screen.h = 0xD8;
-            g_MovieDebugDrawBuffers[0].drawEnv.isbg = 1;
-            g_MovieDebugDrawBuffers[1].drawEnv.isbg = 1;
+            g_MovieDebugDrawBuffers[0].drawEnv.isbg = isbg;
+            g_MovieDebugDrawBuffers[1].drawEnv.isbg = isbg;
             break;
         }
         g_MovieCursorIndex = cursor;
