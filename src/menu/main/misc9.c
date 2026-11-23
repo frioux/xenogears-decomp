@@ -1664,13 +1664,9 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                     break;
                 case 5:
                     if (MenuAndBitMaskLsbFirst(pAccessory->equipFlags, g_Menu->pManager->currentCharacterIDs[arg0]) != 0) {
-                        if (pAccessory->equipGroup == 0) {
-                            flag = 1;
-                        } else if ((slotGroup & pAccessory->equipGroup) != 0) {
-                            flag = 1;
-                        } else if ((groupMask & pAccessory->equipGroup) != 0) {
-                            flag = 0;
-                        } else {
+                        if (pAccessory->equipGroup == 0
+                            || (slotGroup & pAccessory->equipGroup) != 0
+                            || (groupMask & pAccessory->equipGroup) == 0) {
                             flag = 1;
                         }
                     }
@@ -1695,13 +1691,9 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                     break;
                 case 5:
                     if (MenuAndBitMaskLsbFirst32(pGearAccessory->equipFlags, g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId) != 0) {
-                        if (pGearAccessory->equipGroup == 0) {
-                            flag = 1;
-                        } else if ((slotGroup & pGearAccessory->equipGroup) != 0) {
-                            flag = 1;
-                        } else if ((groupMask & pGearAccessory->equipGroup) != 0) {
-                            flag = 0;
-                        } else {
+                        if (pGearAccessory->equipGroup == 0
+                            || (slotGroup & pGearAccessory->equipGroup) != 0
+                            || (groupMask & pGearAccessory->equipGroup) == 0) {
                             flag = 1;
                         }
                     }
