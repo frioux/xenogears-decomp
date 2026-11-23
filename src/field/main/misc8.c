@@ -408,10 +408,9 @@ void SpritePlayAnimation(int, int);
        SpritePlayAnimation out of the curAnimationId test - wrong code).
    Both excess instructions are scheduler slots (a load-delay nop retail fills
    with an independent load), so this is not a source-shape job.
-   Converting it needs the five debug strings below defined in C in the same
-   commit; they are at the head of the unit rodata range, so plain `const char`
-   definitions in this file keep retail layout, but it is moot until the body is
-   exact. */
+   Since R432 the five debug strings are NOT needed in C: the unit's rodata is
+   linked as an anonymous blob (config/field.yaml [0x11C, rodata]), so defining
+   them here would duplicate the blob's symbols - keep them extern. */
 /*
 void func_8008110C(void) {
     FieldActor* pFieldActor;
@@ -1776,6 +1775,28 @@ void FieldNoOp(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
+/* R432: converted nothing yet - the body was not attempted, so there is no
+   percentage. What IS settled: the unit's rodata is now an anonymous blob
+   (config/field.yaml), so this function carries no data and needs only the two
+   externs above (D_8006FC48 "POLYCHECK %d\n", D_8006FC58 "HITOFF\n").
+   Signature and frame, from the .s: (int actorIndex, FieldActor* pFieldActor,
+   ActorData* pActor); frame 0xC8, saves ra/fp/s7..s0, s1 = pActor, fp =
+   actorIndex, a1 only travels on to func_80084A40's 3rd argument. 501 insns.
+   Structure: IVEC3 targetPos = pActor->position + pActor->moveModified, then
+   FieldConvertIVec3ToSVector(&svec, &targetPos); playerHeadY = (s16)
+   (pActor->position.vy >> 16) - pActor->height (retail reads the halfword at
+   +0x26, so that spelling costs one `lh` per read); loop i <
+   g_FieldActiveActorCount skipping i == actorIndex and scriptFlags.flags & 1,
+   pOther = g_FieldActors[i].pActorData, pOther->flags &= ~0xC100 first; then
+   three arms: flags & 0x80 -> func_80083288(i, ((FieldActorModelData*)
+   g_FieldActors[i].pModelData)->pBounds, targetX, targetZ, &bottomY, &normal)
+   with the 0x4000 / curTriNormal copy on a hit, scriptFlags & 0x2000 ->
+   FieldCheckPointInExtentZone, else -> Square0 on the scratchpad block. Tails:
+   nearest tracked from D_800ADB94 when D_800ADB98; pTargetTrack =
+   HeapAlloc(0xC, 0) + FieldActorTargetTrack writes; func_80084A40(actorIndex,
+   nearest, pFieldActor, pActor, hitCount); then
+   g_FieldActors[actorIndex].pSpriteData->field_0x7C->unkC == 1 ->
+   ControllerResetState() and clear scriptFlags 0x800; FieldFreeScratchpad(0x20). */
 
 extern s32 D_800ADB98;
 extern s32 D_800ADC0C;

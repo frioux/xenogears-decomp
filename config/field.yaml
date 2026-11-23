@@ -58,7 +58,7 @@ segments:
       - [0x14, .rodata, main/misc2]
       - [0x90, .rodata, main/main]
       - [0x9C, .rodata, main/misc4]
-      - [0x11C, .rodata, main/misc8]
+      - [0x11C, rodata]
       - [0x198, .rodata, main/misc]
       - [0x1B8, .rodata, main/misc11]
       - [0x22C, .rodata, main/misc7]
