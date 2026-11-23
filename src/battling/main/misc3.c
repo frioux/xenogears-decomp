@@ -78,13 +78,44 @@ typedef struct {
     /* 0x31 */ u8 scale;
     /* 0x32 */ u8 drawKind;
     /* 0x33 */ u8 mode;
-    /* 0x34 */ u8 pad34[0x4];
+    // The extent the slot is tested against: func_80075B50 skips a slot whose
+    // world height does not reach the actor's body and whose extent is under the
+    // actor's hit radius.
+    /* 0x34 */ s32 extent;
     /* 0x38 */ s32 key;
     /* 0x3C */ s16 percent;
     /* 0x3E */ s16 dirWeight;
     /* 0x40 */ s16 life;
     /* 0x42 */ u8 pad42[0x2];
 } BattleEffectSlot; // Size: 0x44
+
+// The word at +0x44 of a slot record, read as flags and as four bytes; the
+// layout is misc2's (BattleSlotFlags), the unit that owns the record.
+typedef union {
+    /* 0x0 */ u32 flags;
+    struct {
+        /* 0x0 */ u8 unk44;
+        /* 0x1 */ u8 state;
+        /* 0x2 */ u8 actionId;
+        /* 0x3 */ u8 gaugePercent;
+    } byte;
+} BattleSlotFlags; // Size: 0x4
+
+// One of the actor's sixteen 0x54-byte slot records, misc2's BattleActorSlot: the
+// four quad positions a slot animates through and the state machine that walks
+// it.
+typedef struct {
+    /* 0x00 */ Vec4 pos;
+    /* 0x10 */ Vec4 prevPos;
+    /* 0x20 */ Vec4 endPos;
+    /* 0x30 */ Vec4 prevEndPos;
+    /* 0x40 */ u8 unk40[0x3];
+    /* 0x43 */ u8 partIndex;
+    /* 0x44 */ BattleSlotFlags slotFlags;
+    /* 0x48 */ u8 unk48;
+    /* 0x4C */ s32 unk4C;
+    /* 0x50 */ s32 pActionEntry;
+} BattleActorSlot; // Size: 0x54
 
 // A battle participant as this unit drives it. Only the fields this unit
 // touches are named; 0x166A is a lower bound on the real size (other battle
@@ -190,9 +221,7 @@ typedef struct BattleActor {
     /* 0x00F8 */ u8 padF8[0x4];
     /* 0x00FC */ s32 angleOffset;
     /* 0x0100 */ s32 movePhase;
-    // Sixteen 0x54-byte slot records (misc2's BattleActorSlot): BattleCommitSlotStates
-    // walks all sixteen and reads the state byte at +0x44 of each.
-    /* 0x0104 */ u8 slots[0x540];
+    /* 0x0104 */ BattleActorSlot slots[16];
     /* 0x0644 */ s32 gaugePercent;
     /* 0x0648 */ s32 facingAngle;
     /* 0x064C */ BattleEffectSlot effectSlots[8];
@@ -483,7 +512,178 @@ done:
 }
 
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
+extern s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
+extern void BattleCommitSlotStates(BattleActor* p);
+extern s32 g_BattleEffectEntryCount;
+extern Vec4 g_BattleEffectPosX;
+
+/* Starts the move the actor takes this frame: it tests the target's eight effect
+   slots and sixteen slot records against the actor's body, and the record that
+   gets closest turns into the step's goal (moveGoalPosition) with the delay
+   charged to stateTimer and the light flare on the hit. */
+s32 func_80075B50(BattleActor* p) {
+    BattleEffectSlot* pSlot;
+    BattleActorSlot* pRecord;
+    Vec4 center;
+    Vec4 base;
+    Vec4 point;
+    Vec4 goal;
+    s32 i;
+    s32 hit;
+    s32 amount;
+    s32 actionId;
+    s32 hitCount;
+    s32 bestAmount;
+    s32 t;
+    s32 dBase;
+    s32 dCenter;
+    s32 dPos;
+    s32 y;
+    s32 angle;
+    s32 diff;
+    s32 step;
+
+    hitCount = 0;
+    center = p->centerPosition;
+    base = p->baseVertexPos;
+    bestAmount = 0;
+    actionId = 0;
+    for (i = 0; i < 8; i++) {
+        pSlot = &p->pTarget->effectSlots[i];
+        if (!pSlot->active) {
+            continue;
+        }
+        hit = 0;
+        if (base.y < pSlot->pos.vy && pSlot->pos.vy < center.y) {
+            t = ((pSlot->pos.vy - center.y) << 12) / (base.y - center.y);
+            point.x = (((base.x - center.x) * t) >> 12) + center.x;
+            point.y = (((base.y - center.y) * t) >> 12) + center.y;
+            point.z = (((base.z - center.z) * t) >> 12) + center.z;
+            hit = func_80075888(pSlot->prevPos.vx, pSlot->prevPos.vz, pSlot->pos.vx, pSlot->pos.vz, point.x, point.z, ((u8*)p->pScript)[0x13]);
+        } else if (pSlot->extent < ((u8*)p->pScript)[0x13]) {
+            dBase = __builtin_abs(base.y - pSlot->prevPos.vy);
+            dCenter = __builtin_abs(center.y - pSlot->prevPos.vy);
+            dPos = __builtin_abs(pSlot->pos.vy - pSlot->prevPos.vy);
+            if (dBase < dCenter) {
+                if (dBase < dPos) {
+                    point = base;
+                    hit = 1;
+                }
+            } else if (dCenter < dPos) {
+                point = center;
+                hit = 1;
+            }
+        }
+        if (!hit) {
+            continue;
+        }
+        p->lightAlpha = 0xFF;
+        p->stateFlags |= 0x20;
+        angle = pSlot->percent;
+        diff = (ratan2(pSlot->velocity.vx, pSlot->velocity.vz) - p->angle) & 0xFFF;
+        if ((u32)(diff - 0x601) >= 0x3FF) {
+            if (p->flags & 4) {
+                BattlePlayActorSoundPair((u8*)p, 0xF, &point, 1);
+                amount = angle / 2;
+                p->lightAlpha = 0x80;
+            } else {
+                BattlePlayActorSoundPair((u8*)p, 0xC, &point, 1);
+            }
+        } else {
+            amount = angle * 2;
+            actionId = 3;
+            BattlePlayActorSoundPair((u8*)p, 0xC, &point, 1);
+        }
+        step = amount * 2 / 3;
+        p->moveReentryTimer += step;
+        p->stateTimer += step;
+        p->effectPosition = point;
+        if (amount) {
+            hitCount++;
+        }
+        g_BattleEffectPosX = point;
+        bestAmount = amount;
+        g_BattleEffectEntryCount = 0x10;
+        p->moveEndTimer = amount / 3 + 12;
+        goal = point;
+        pSlot->active = 0;
+        break;
+    }
+    for (i = 0; i < 16; i++) {
+        pRecord = &p->pTarget->slots[i];
+        if (pRecord->slotFlags.byte.state != 1) {
+            continue;
+        }
+        if (pRecord->slotFlags.flags & 1) {
+            continue;
+        }
+        hit = 0;
+        if (pRecord->slotFlags.flags & 2) {
+            if (base.y < pRecord->pos.y && pRecord->pos.y < center.y) {
+                t = ((pRecord->pos.y - center.y) << 12) / (base.y - center.y);
+                point.x = (((base.x - center.x) * t) >> 12) + center.x;
+                point.y = (((base.y - center.y) * t) >> 12) + center.y;
+                point.z = (((base.z - center.z) * t) >> 12) + center.z;
+                hit = func_80075888(pRecord->prevPos.x, pRecord->prevPos.z, pRecord->pos.x, pRecord->pos.z, point.x, point.z, ((u8*)p->pScript)[0x13]);
+            }
+        } else {
+            y = (pRecord->pos.y + pRecord->prevPos.y + pRecord->endPos.y + pRecord->prevEndPos.y) / 4;
+            if (base.y < y && y < center.y) {
+                t = ((y - center.y) << 12) / (base.y - center.y);
+                point.x = (((base.x - center.x) * t) >> 12) + center.x;
+                point.y = (((base.y - center.y) * t) >> 12) + center.y;
+                point.z = (((base.z - center.z) * t) >> 12) + center.z;
+                hit = BattleActorHitTestCircle((BattleActor*)pRecord, point.x, point.z, ((u8*)p->pScript)[0x13]);
+            }
+        }
+        if (!hit) {
+            continue;
+        }
+        p->pTarget->flags &= ~0x4000000;
+        point.x = g_BattleHitPointX;
+        point.z = g_BattleHitPointZ;
+        if (p->flags & 4) {
+            BattlePlayActorSoundPair((u8*)p, 0xF, &point, 1);
+            amount = pRecord->slotFlags.byte.gaugePercent >> 1;
+            g_BattleEffectPosX = point;
+            g_BattleEffectEntryCount = 4;
+            p->lightAlpha = 0xC0;
+            p->stateFlags |= 0x20;
+        } else {
+            BattlePlayActorSoundPair((u8*)p, *(s16*)pRecord->unk40, &point, 1);
+            BattleEffectAddSlotFromVector(&point, 0);
+            g_BattleEffectPosX = point;
+            g_BattleEffectEntryCount = 0x10;
+            p->lightAlpha = 0xFF;
+            p->stateFlags &= ~0x20;
+            amount = pRecord->slotFlags.byte.gaugePercent;
+        }
+        p->moveEndTimer = amount;
+        step = amount * 6 / 5;
+        p->moveReentryTimer += step;
+        p->stateTimer += step;
+        p->effectPosition = point;
+        if (amount) {
+            hitCount++;
+        }
+        if (bestAmount < amount) {
+            bestAmount = amount;
+            goal = pRecord->pos;
+            actionId = pRecord->slotFlags.byte.actionId;
+        }
+        BattleCommitSlotStates(p->pTarget);
+        break;
+    }
+    if (hitCount) {
+        p->movePhase = actionId + 1;
+        p->gaugeDrain = bestAmount;
+        p->moveGoalPosition = goal;
+        p->moveCount++;
+    } else {
+        p->movePhase = 0;
+    }
+    return 0;
+}
 
 void BattleQueueMessage(BattleActor* p, u8 value) {
     u8 idx;
