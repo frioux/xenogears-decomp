@@ -1283,5 +1283,304 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
 }
 */
 
+/* Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594).
+   The card save-write routine: pick a slot, delete the record's old file, write the
+   0x1F00-byte save to the "__tmp_file" temp name a block at a time and rename it to
+   serial+chunk digit. The 5-retry loops, the checksum, the prefix/record filename
+   build (memcpy 6 + strcat of records[slotRecordIndexes[g_MenuCardSlotOrder[slot]]].ids)
+   and the shared success/failure tail all come out as retail's instructions. Tried
+   nothing else yet: this is a first transcription (ghidra arity: 1 arg, returns a
+   byte; the caller is MenuUpdateSubMenuChoice and uses the result).
+   Two named residuals:
+   (1) 0xFF IN A CALLEE-SAVED REGISTER. Retail keeps MENU_SLOT_NONE in $s8 from just
+       after MenuResetSlotSelection and uses it for the selectedSlot compare, both
+       previousCardSlotCounts stores and the slotRecordIndexes compare (sw s8,... and
+       sb s8,...); this body rematerialises li a3,0xff at every site. That is the
+       "constant the original loads once" idiom, so the original most likely held it in
+       a source local; not tried yet (ran out of lane).
+   (2) FRAME 0x100 vs 0xE8: retail's six trailing scalars sit 8 bytes apart (0xA8, 0xB0,
+       0xB8, 0xC0, 0xC8, 0xD0) where u_char locals in this unit are normally 4 apart (see
+       MenuWaitForCardStatusChange: prev[2] at 0x10, changed 0x18, result 0x1C), i.e.
+       retail has six 4-byte slots this body does not name. Every stack offset in the
+       diff follows from this: none of them can be fixed without finding those locals. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
+/*
+extern void MenuPlaySoundEffect(u8 arg0);
+extern void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index);
+extern u8 D_801C50B8[];
+
+   Writes the save in the slot MenuResetSlotSelection/MenuFindFirstValidSlot picked to
+   the card, into the chunk its record names: every block goes to the temp file
+   D_801C50B8 and the file is renamed to the serial plus the chunk's digit once the
+   whole save is written.
+u_char func_801CBD90(u_char a0) {
+    char newPath[0x40];
+    char path[0x40];
+    MenuCardPrefix prefix;
+    char chunkDigit[2];
+    u_char arg0;
+    s32 repeat;
+    s32 fileFd;
+    u_char ready;
+    u_char result;
+    u_char chunkIndex;
+    u_char card;
+    u_char ok;
+    u_char retry;
+    u_char textId;
+    s32 slot;
+    s32 recordIndex;
+    s32 fd;
+    u8* pBuffer;
+    u8* pData;
+    u8* pSum;
+    s32 offset;
+    s32 sum;
+    s32 count;
+
+    chunkIndex = MENU_CHUNK_INDEX_NONE;
+    ready = 1;
+    arg0 = a0;
+    repeat = 1;
+    result = 0;
+    MenuResetSlotSelection();
+    while (repeat) {
+        if (func_801C93A8() & 0xFF) {
+            result = 1;
+            break;
+        }
+        if (ready) {
+            if (g_Menu->pManager->window2StringsActive) {
+                MenuFreeWindow2Strings();
+            }
+            ready = 0;
+            g_Menu->pCursors->shouldRender[0] = 1;
+        }
+        if (!MenuIsSlotUsable(2)) {
+            slot = MenuFindFirstValidSlot(2);
+            g_Menu->menuUnk2->selectedSlot = slot;
+            if (slot == MENU_SLOT_NONE) {
+                MenuLoadWindow2Text(0xAC, MENU_WINDOW_TEXT_NONE, 0);
+                break;
+            }
+        }
+        g_Menu->pManager->shouldRenderCursors = 1;
+        switch (MenuHandleCardSlotInput(2)) {
+        case 1:
+            g_Menu->pCursors->shouldUpdatePosition[0] = 0;
+            g_Menu->menuUnk2->cardPollMode = 0;
+            ok = 1;
+            if (g_Menu->menuUnk2->selectedSlot < MENU_CARD_SLOT_COUNT) {
+                memcpy(&prefix, &g_MenuCardPathPrefix0, 6);
+                card = 0;
+            } else {
+                memcpy(&prefix, &g_MenuCardPathPrefix1, 6);
+                card = 1;
+            }
+            if (g_Menu->menuUnk2->cardErrorCodes[card] == -2) {
+                if (MenuWaitForCardStatusChange(card) == 0) {
+                    g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+                    break;
+                }
+                MenuCreateWindow2Strings(0x26);
+                if (format((char*)&prefix) == 0) {
+                    ok = 0;
+                    MenuFreeWindow2Strings();
+                    repeat = 0;
+                } else {
+                    MenuFreeWindow2Strings();
+                    MenuLoadWindow2Text(0x5C, MENU_WINDOW_TEXT_NONE, 0);
+                }
+            }
+            if (ok) {
+                recordIndex = g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot];
+                if (g_Menu->menuUnk2->slotRecordIndexes[recordIndex] == MENU_SLOT_NONE) {
+                    if (MenuLoadWindow2Text(0x5F, MENU_WINDOW_TEXT_NONE, 1) == 0) {
+                        ok = 0;
+                        g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+                    }
+                } else if (g_Menu->menuUnk2->slotHasGameSave[recordIndex] == 0) {
+                    MenuLoadWindow2Text(0xC4, MENU_WINDOW_TEXT_NONE, 0);
+                    g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+                    break;
+                } else if (MenuLoadWindow2Text(0x38, MENU_WINDOW_TEXT_NONE, 1)) {
+                    recordIndex = g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]];
+                    strcpy(path, (char*)&prefix);
+                    strcat(path, (char*)g_Menu->menuUnk2->records[recordIndex].ids);
+                    erase(path);
+                    chunkIndex = g_Menu->menuUnk2->chunks[recordIndex].index;
+                } else {
+                    ok = 0;
+                    g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+                }
+            }
+            if (ok == 0) {
+                goto updateCursor;
+            }
+            g_Menu->pManager->shouldRenderCursors = 0;
+            g_Menu->pManager->characterWindowBuilt = 0;
+            g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+            g_Menu->menuUnk2->previousCardSlotCounts[0] = MENU_SLOT_NONE;
+            g_Menu->menuUnk2->previousCardSlotCounts[1] = MENU_SLOT_NONE;
+            chunkIndex = MenuFindFreeChunkIndex(card, chunkIndex);
+            chunkDigit[0] = chunkIndex + 0x30;
+            chunkDigit[1] = 0;
+            strcpy(newPath, (char*)&prefix);
+            strcpy(path, (char*)&prefix);
+            retry = 3;
+            strcat(newPath, (char*)g_Menu->menuUnk2->gameSerialCode);
+            strcat(newPath, chunkDigit);
+            strcat(path, (char*)D_801C50B8);
+            MenuCreateWindow2Strings(0x32);
+            g_Menu->soundEffectsEnabled = 0;
+            erase(path);
+            while (1) {
+                fd = open(path, (g_Menu->menuUnk2->saveBlockCount << 16) | 0x200);
+                if (fd == -1) {
+                    fd = 0;
+                    MenuWaitCardOperationFrames(card);
+                } else {
+                    fileFd = fd;
+                }
+                if (fd != 0) {
+                    break;
+                }
+                retry--;
+                if (retry == 0) {
+                    break;
+                }
+            }
+            close(fileFd);
+            if (fd == 0) {
+                goto freeWindow;
+            }
+            retry = 3;
+            while (1) {
+                fd = open(path, 2);
+                if (fd == -1) {
+                    fd = 0;
+                    MenuWaitCardOperationFrames(card);
+                }
+                if (fd != 0) {
+                    break;
+                }
+                retry--;
+                if (retry == 0) {
+                    erase(path);
+                    break;
+                }
+            }
+            MenuRenderFrame();
+            if (fd == 0) {
+                goto freeWindow;
+            }
+            func_801CA8C0(chunkIndex);
+            retry = 3;
+            while (1) {
+                if (write(fd, g_Menu->menuUnk2->saveFileMagic, 0x100) == -1) {
+                    fd = 0;
+                    MenuWaitCardOperationFrames(card);
+                }
+                if (fd != 0) {
+                    break;
+                }
+                retry--;
+                if (retry == 0) {
+                    close(0);
+                    erase(path);
+                    goto freeWindow;
+                }
+            }
+            pBuffer = HeapAlloc(0x1F00, 1);
+            bzero(pBuffer, 0x1F00);
+            pData = pBuffer;
+            func_801CBA4C((MenuSaveSlotHeader*)pBuffer, card, chunkIndex);
+            pSum = pBuffer;
+            sum = 0;
+            count = 0x1EFE;
+            do {
+                sum += *pSum++;
+            } while (--count >= 0);
+            *pSum = sum;
+            MenuSetCellGridPanelState(1);
+            offset = 0x100;
+            do {
+                MenuRenderFrame();
+                retry = 3;
+                while (1) {
+                    if (write(fd, pData, 0x100) != 0x100) {
+                        fd = 0;
+                        MenuWaitCardOperationFrames(card);
+                    }
+                    if (fd != 0) {
+                        break;
+                    }
+                    retry--;
+                    if (retry == 0) {
+                        close(fileFd);
+                        strcpy(path, (char*)&prefix);
+                        strcat(path, (char*)D_801C50B8);
+                        erase(path);
+                        goto freeBuffer;
+                    }
+                }
+                offset += 0x100;
+                pData += 0x100;
+            } while (offset < (g_Menu->menuUnk2->saveBlockCount << 13));
+            close(fd);
+            strcpy(path, (char*)&prefix);
+            strcat(path, (char*)D_801C50B8);
+            retry = 3;
+            while (1) {
+                if (rename(path, newPath) != 0) {
+                    fd = 0;
+                    MenuWaitCardOperationFrames(card);
+                }
+                if (fd != 0) {
+                    break;
+                }
+                retry--;
+                if (retry == 0) {
+                    erase(path);
+                    break;
+                }
+            }
+        freeBuffer:
+            HeapFree(pBuffer);
+        freeWindow:
+            MenuFreeWindow2Strings();
+            MenuSetCellGridPanelState(2);
+            if (fd == 0) {
+                textId = 0x35;
+            } else {
+                g_Menu->soundEffectsEnabled = 1;
+                MenuPlaySoundEffect(0x34);
+                g_Menu->soundEffectsEnabled = 0;
+                textId = 0x5C;
+            }
+            MenuLoadWindow2Text(textId, MENU_WINDOW_TEXT_NONE, 0);
+            MenuSetCellGridPanelState(0);
+            g_Menu->menuUnk2->cardPollMode = 2;
+            while (g_Menu->cardCheckTimer != 1) {
+                MenuRenderFrame();
+            }
+            g_Menu->menuUnk2->cardEnumerated[0] = 0;
+            g_Menu->menuUnk2->cardEnumerated[1] = 0;
+        updateCursor:
+            g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+            g_Menu->soundEffectsEnabled = 1;
+            if (arg0 == 0) {
+                repeat = 0;
+            }
+            break;
+        case 2:
+            repeat = 0;
+            break;
+        }
+    }
+    g_Menu->menuUnk2->cardPollMode = 1;
+    g_Menu->unk334 = 1;
+    return result;
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CC6D8);
