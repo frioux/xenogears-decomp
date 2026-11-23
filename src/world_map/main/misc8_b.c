@@ -35,6 +35,25 @@
 
 // CLUT ids WorldMapLoadTextureClut builds, one GetClut per row it fills
 #define WORLD_MAP_CLUT_ID_COUNT 16
+// the CLUT row WorldMapLoadTextureClut reads out of VRAM and uploads back: the row
+// it sits at, and how many entries wide it is
+#define WORLD_MAP_TEXTURE_CLUT_VRAM_Y 0x1F0
+#define WORLD_MAP_TEXTURE_CLUT_ROW_WIDTH 0x100
+
+// the scale all three axes of a sprite set's mesh get before ScaleMatrix (a half,
+// in the 1.12 form it reads)
+#define WORLD_MAP_SPRITE_SET_SCALE 0x800
+
+// an angle is a 4096-step turn counter
+#define WORLD_MAP_ANGLE_FULL_TURN 0x1000
+// the quarter turn func_80085CDC takes off the sprite's facing angle. Owned by
+// misc13.c (identical value); this unit does not include it.
+#define WORLD_MAP_ANGLE_QUARTER_TURN 0x400
+// sums of angles are wrapped back into the turn counter. Owned by
+// include/main/game.h (identical value); this unit does not include it.
+#define WORLD_MAP_ANGLE_MASK 0xFFF
+// how far an actor slot's facing turns each frame toward its target
+#define WORLD_MAP_ACTOR_TURN_STEP 0x100
 
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -442,15 +461,15 @@ void WorldMapLoadTextureClut(void) {
     pData = HeapAlloc(0x200, 1);
     pDst = HeapAlloc(0x2000, 1);
     rect.x = 0;
-    rect.y = 0x1F0;
-    rect.w = 0x100;
+    rect.y = WORLD_MAP_TEXTURE_CLUT_VRAM_Y;
+    rect.w = WORLD_MAP_TEXTURE_CLUT_ROW_WIDTH;
     rect.h = 1;
     StoreImage(&rect, (u_long *)pData);
     DrawSync(0);
     func_800931D8(pData, pDst, WORLD_MAP_CLUT_ID_COUNT, (u8 *)&factors);
     rect.x = 0;
-    rect.y = 0x1F0;
-    rect.w = 0x100;
+    rect.y = WORLD_MAP_TEXTURE_CLUT_VRAM_Y;
+    rect.w = WORLD_MAP_TEXTURE_CLUT_ROW_WIDTH;
     rect.h = 0xF;
     LoadImage(&rect, (u_long *)pDst);
     DrawSync(0);
@@ -831,9 +850,9 @@ void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMa
     pMat->t[2] = 0;
     pMat->t[0] = 0;
     pMat->t[1] = pEntry->y;
-    pWork->scale.vz = 0x800;
-    pWork->scale.vy = 0x800;
-    pWork->scale.vx = 0x800;
+    pWork->scale.vz = WORLD_MAP_SPRITE_SET_SCALE;
+    pWork->scale.vy = WORLD_MAP_SPRITE_SET_SCALE;
+    pWork->scale.vx = WORLD_MAP_SPRITE_SET_SCALE;
     pB = (VECTOR *)0x1F800010;
     ScaleMatrix(pMat, pB);
     SetRotMatrix(pMat);
@@ -883,9 +902,9 @@ s32 WorldMapCheckTriangleEdgeSide(WorldMapPos *pPos, s32 yOffset, u16 setIndex, 
     pMat->t[2] = 0;
     pMat->t[0] = 0;
     pMat->t[1] = pEntry->y;
-    pWork->scale.vz = 0x800;
-    pWork->scale.vy = 0x800;
-    pWork->scale.vx = 0x800;
+    pWork->scale.vz = WORLD_MAP_SPRITE_SET_SCALE;
+    pWork->scale.vy = WORLD_MAP_SPRITE_SET_SCALE;
+    pWork->scale.vx = WORLD_MAP_SPRITE_SET_SCALE;
     pB = (VECTOR *)0x1F800010;
     ScaleMatrix(pMat, pB);
     SetRotMatrix(pMat);
@@ -1109,27 +1128,27 @@ void func_80085CDC(void) {
             SpriteDrawFrame(pActor->pSprite, g_WorldMapRenderContext->pOt[0] + (pProj->depth[i] >> 4));
             d = pActor->angle - pActor->redStep;
             if (d < 0) {
-                d += 0x1000;
+                d += WORLD_MAP_ANGLE_FULL_TURN;
             }
             if (d < 0x801) {
-                if (d >= 0x100) {
-                    d = pActor->redStep + 0x100;
+                if (d >= WORLD_MAP_ACTOR_TURN_STEP) {
+                    d = pActor->redStep + WORLD_MAP_ACTOR_TURN_STEP;
                     pActor->redStep = d;
                 } else {
                     d = pActor->angle;
                     pActor->redStep = d;
                 }
             } else {
-                d -= 0x1000;
+                d -= WORLD_MAP_ANGLE_FULL_TURN;
                 if (d < -0xFF) {
-                    d = pActor->redStep - 0x100;
+                    d = pActor->redStep - WORLD_MAP_ACTOR_TURN_STEP;
                     pActor->redStep = d;
                 } else {
                     d = pActor->angle;
                     pActor->redStep = d;
                 }
             }
-            func_800223B0(pActor->pSprite, (d - *(u16 *)&g_WorldMapViewRotationY - 0x400) & 0xFFF);
+            func_800223B0(pActor->pSprite, (d - *(u16 *)&g_WorldMapViewRotationY - WORLD_MAP_ANGLE_QUARTER_TURN) & WORLD_MAP_ANGLE_MASK);
             AnimScriptTick(pActor->pSprite);
         }
     }
