@@ -2,6 +2,7 @@
 
 #include "psyq/libapi.h"
 #include "system/menu.h"
+#include "system/graphics.h"
 #include "psyq/libcd.h"
 
 #define MENU_STAT_BAR_WIDTH_MAX 6400 // width a stat value is scaled into, see the stat bar quads
@@ -36,12 +37,37 @@ extern CdlCB g_MenuSavedCdSyncCallback;
 extern CdlCB g_MenuSavedCdReadyCallback;
 extern CdlCB g_MenuSavedCdReadCallback;
 extern u8 D_801EA574[];
-extern u8 g_MenuNameTextureX[];
+extern u8 g_MenuGlyphSjisTable[]; // Glyph id of each character's name strip
+extern u16 D_801E9D88[][2]; // Y offset of each equipment row of the equipment panel
+extern s32 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
 extern s32 g_MenuStatRowLabelOffsetX[]; // X offset of each stat row of the stat table
 extern s32 g_MenuStatRowLabelOffsetY[]; // Y offset of each stat row of the stat table
 extern s32 g_MenuStatRowLabelTexIds[]; // Texture id of each stat row's label, 7 rows per stat group
+extern u8* GetWeaponName(s32 itemId);
+extern u8* GetGearWeaponName(s32 itemId);
+extern u8* GetAccessoryName(s32 itemId);
+extern u8* GetGearAccessoryName(s32 itemId);
+extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 length, s32 mode);
+
+#define MENU_STAT_VALUE_COUNT 9 // stat values MenuCopyEquipmentToPanel copies out of the dressing room
+#define MENU_EQUIPMENT_ROW_COUNT 5 // rows of the character panel; the two gear panels draw 4
+
+// The buffer g_Menu->pEquipmentPanel points at (HeapAlloc(0x2AC) in MenuLoadEquipmentPanel):
+// one MenuString per equipment row, then the ids those rows draw the name of.
+typedef struct {
+    /* 0x000 */ MenuString strings[MENU_EQUIPMENT_ROW_COUNT];
+    /* 0x280 */ u16 statValues[MENU_STAT_VALUE_COUNT];
+    /* 0x292 */ u8 unk292[0x2];
+    /* 0x294 */ u8 builtRows[MENU_EQUIPMENT_ROW_COUNT]; // one flag per row MenuBuildEquipmentRows drew
+    /* 0x299 */ u8 renderContext; // renderContext the string prims were built for
+    /* 0x29A */ u8 unk29A[0x2];
+    /* 0x29C */ u8 weaponIds[MENU_EQUIPMENT_ROW_COUNT];
+    /* 0x2A1 */ u8 extraWeaponIds[MENU_EQUIPMENT_ROW_COUNT];
+    /* 0x2A6 */ u8 accessoryIds[MENU_EQUIPMENT_ROW_COUNT];
+    /* 0x2AB */ u8 unk2AB;
+} MenuEquipmentPanel; // Size: 0x2AC
 
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
@@ -423,7 +449,151 @@ void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
     g_Menu->pManager->shouldRenderUnk35C = 1;
     g_Menu->unk35C->renderContext = *(u_char*)&g_Menu->renderContext;
 }
+
+// Draws the name rows of the equipment panel: one row per equipped weapon or
+// accessory, its name rendered into the row's MenuString and the row's quad set
+// from that width. arg0 is the party slot whose ids are shown, arg1 picks the row
+// group (0 the character's own equipment, 1 and 2 the two gear panels), arg2 reads
+// the ids the panel itself holds instead of the live records, and arg3 takes the
+// names from the character's gear rather than the character.
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
+/* PARKED 89.81% under XenoMenu260 (gcc 2.6.0): 2152 bytes / 538 insns against retail 2144 / 536.
+ Residual: the prologue save order. Retail spills s4 = a1 (arg1) right after s1 = a0 and then
+ uses a1 as its g_Menu scratch; this body saves s4 after s0 and uses t0 for g_Menu, so every
+ later register name shifts, and two instructions in that head are extra. Local slot picture is
+ retail's exactly (0x20 rowCount, 0x28 rowX, 0x30 rowTableOfs, 0x38/0x40 the id pointers,
+ 0x48 loadImage, 0x50 the masked arg0) after declaring the three row scalars first and the
+ RECT second (89.77 -> 89.81).
+ What is right: the whole shape - the 5-vs-4 row count, the 0xD0/0x28 row X and the 9/5
+ D_801E9D88 offset picked by arg1, the three id pointers (characters weaponId /
+ extraWeaponIds / accessorySlots, the gears copy under arg3, the panel's own 0x29C/0x2A1/0x2A6
+ copies under arg2), the four-way i == 0 name render, the i == 4 and arg3 == 0 skip, the arg1 < 2
+ accessory rows with their i == 1 gear weaponId[3] special case, the extraWeaponIds[i] rows for
+ arg1 == 2, the i & 1 / arg3 loadImage chain including its uninitialised path (retail really does
+ read the slot without storing it), the RECT + LoadImage + DrawSync block, MenuSetStringPrimitives
+ per row, the i == 4 tpage/CLUT/uv block and the MenuSetQuadVertices row.
+ Also tried: declaring the RECT first (89.77).
+Ghidra/asm facts worth keeping: pEquipmentPanel is a 0x2AC buffer of 5 MenuString plus its own
+ id copies; g_MenuNameTextureX is s32[] (lw, stride 4) not u8[]; g_MenuGlyphSjisTable is read as
+ u8 with stride 4; D_801E9D88 is u16[][2] with stride 4 (13 rows, 0x801E9DBC is
+ g_MenuEquipmentSlotRowY); rect.x resolves to 0x140 + ((i / 2) & 1) * 0x20 and rect.y to
+ 0x27 + (i / 4) * FONT_LETTER_HEIGHT.
+void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
+    s32 rowCount;
+    s32 rowX;
+    s32 rowTableOfs;
+    RECT rect;
+    u8* pWeaponIds;
+    u8* pExtraIds;
+    u8* pAccessoryIds;
+    u8* pExtraId;
+    u8* pHeap;
+    u16 palette;
+    u_char loadImage;
+    s32 i;
+
+    rowCount = MENU_EQUIPMENT_ROW_COUNT;
+    rowX = 0xD0;
+    rowTableOfs = 0;
+    pWeaponIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].weaponId;
+    pExtraIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].extraWeaponIds;
+    pAccessoryIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].accessorySlots;
+    if (arg1 != 0) {
+        rowCount = MENU_EQUIPMENT_ROW_COUNT - 1;
+        rowX = 0x28;
+        rowTableOfs = 9;
+        if (arg1 == 1) {
+            rowTableOfs = 5;
+        }
+        ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->builtRows[MENU_EQUIPMENT_ROW_COUNT - 1] = 0;
+    }
+    if (arg3 != 0) {
+        pWeaponIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId].weaponId;
+        pExtraIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId].extraWeaponIds;
+        pAccessoryIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId].accessorySlots;
+    }
+    if (arg2 != 0) {
+        pWeaponIds = ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->weaponIds;
+        pExtraIds = ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->extraWeaponIds;
+        pAccessoryIds = ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->accessoryIds;
+    }
+    pHeap = HeapAlloc(0x3F6, 0);
+    pExtraId = pExtraIds;
+    for (i = 0; i < rowCount; i++) {
+        if (i == 0) {
+            if (arg1 == 2) {
+                if (arg3 == 0) {
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetWeaponName(pExtraIds[0]), pHeap, 0x24, 0);
+                } else {
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetGearWeaponName(pExtraIds[0]), pHeap, 0x24, 0);
+                }
+            } else if (arg3 == 0) {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetWeaponName(pWeaponIds[0]), pHeap, 0x24, 0);
+            } else {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetGearWeaponName(pWeaponIds[0]), pHeap, 0x24, 0);
+            }
+        } else if (i == MENU_EQUIPMENT_ROW_COUNT - 1 && arg3 == 0) {
+            // The character panel's fifth row is left empty.
+        } else if (arg1 < 2) {
+            if (arg3 == 0) {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetAccessoryName(pAccessoryIds[i - 1]), pHeap, 0x24, i % 2);
+            } else if (arg1 != 0) {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearAccessoryName(pAccessoryIds[i - 1]), pHeap, 0x24, i % 2);
+            } else if (i == 1) {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearWeaponName(pWeaponIds[3]), pHeap, 0x24, 1);
+            } else {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearAccessoryName(pAccessoryIds[i - 2]), pHeap, 0x24, i % 2);
+            }
+        } else if (arg3 == 0) {
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetWeaponName(*pExtraId), pHeap, 0x24, i % 2);
+        } else {
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearWeaponName(*pExtraId), pHeap, 0x24, i % 2);
+        }
+        if (i & 1) {
+            loadImage = 1;
+        } else if (arg3 == 0) {
+            loadImage = 0;
+        } else if (arg1 == 0 && i == MENU_EQUIPMENT_ROW_COUNT - 1) {
+            loadImage = 1;
+        }
+        if (loadImage != 0) {
+            rect.x = 0x140 + ((i / 2) & 1) * 0x20;
+            rect.y = 0x27 + (i / 4) * FONT_LETTER_HEIGHT;
+            rect.w = 0x28;
+            rect.h = FONT_LETTER_HEIGHT;
+            LoadImage(&rect, pHeap);
+            DrawSync(0);
+        }
+        MenuSetStringPrimitives(&((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i], i, 0xC, 0);
+        if (i == MENU_EQUIPMENT_ROW_COUNT - 1 && arg3 == 0) {
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
+            if ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId + 0xB) & 1) {
+                palette = g_SystemPalette2;
+            } else {
+                palette = g_SystemPalette1;
+            }
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].clut = palette;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u0 = g_MenuNameTextureX[arg0 & 0xFF] * 4;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v0 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4];
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u1 = g_MenuNameTextureX[arg0 & 0xFF] * 4 + 0x60;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v1 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4];
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u2 = g_MenuNameTextureX[arg0 & 0xFF] * 4;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v2 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4] + FONT_LETTER_HEIGHT;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u3 = g_MenuNameTextureX[arg0 & 0xFF] * 4 + 0x60;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v3 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4] + FONT_LETTER_HEIGHT;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = 0x60;
+        }
+        MenuSetQuadVertices(((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].vertices, rowX,
+                            D_801E9D88[i + rowTableOfs][0],
+                            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width, FONT_LETTER_HEIGHT);
+        pExtraId++;
+        ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->builtRows[i] = 1;
+    }
+    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->renderContext = g_Menu->renderContext;
+    g_Menu->pManager->shouldRenderPanel[1] = 1;
+    HeapFree(pHeap);
+}
+*/
 /* 84.26%. Same instruction multiset; gcc lays the `arg2` if/else out the
    other way in case 1 (it falls through to the 0x60 block and jumps to
    0x30) and therefore places the return block differently. */
@@ -490,8 +660,8 @@ s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
         break;
     }
     return arg0;
-}
-*/
+}*/
+
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
 
