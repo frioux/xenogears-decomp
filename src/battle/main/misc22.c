@@ -983,14 +983,45 @@ typedef struct {
     /* 0x01A */ u8 pad1A[0xA];
     /* 0x024 */ BattleMisc22OtPrim otPrims[4];
     /* 0x054 */ SVECTOR verts[9][9]; // the grid; one row and one column more than the quad count
-    /* 0x2DC */ POLY_GT4 quads[2][64];
+    /* 0x2DC */ POLY_FT4 quads[2][64];
     /* 0x16DC */ POLY_F4 flatQuads[4];
     /* 0x173C */ POLY_G4 gradQuads[4];
 } BattleMisc22RenderData; // Size: 0x17CC
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
+/* best 85.22% (2480 bytes; retail 0x9C4 = 2500, 619 insns vs our 614, so the body is
+   five instructions SHORT and can never link as it stands). Structure is right end to
+   end and every construct is identified: the two addPrims of the 12-byte otPrims pair
+   (otPrims[index + 2] first, otPrims[index] last), the two RTPS projections of the
+   pArg->faceScale corner offsets scaled by nearScale (POLY_G4 [index+2] / POLY_F4
+   [index+2]) and by farScale (POLY_G4 [index], the y derived from the first corner),
+   the ratan2/VectorNormalS/RotMatrix/RotMatrixYXZ/CompMatrix chain that places the 9x9
+   SVECTOR grid, the scroll -> (u, v) wrap through texPeriod/2, and the 8x8 RTPT + NCLIP
+   + RTPS loop that fills the POLY_FT4 grid (SXY3 into +8/+0x10/+0x18, SXY into +0x20,
+   u0..u3 at 0xC/0x14/0x1C/0x24, v0..v3 at 0xD/0x15/0x1D/0x25).
+   WHAT IS LEFT is the frame and the allocator, not the source:
+   - retail's frame is 0xE8 with the locals starting at 0x18; ours is 0xE0 with the
+     locals at 0x10, i.e. the whole stack layout is shifted by 8, which alone accounts
+     for most of the 606 differing lines. Retail's two screen-position records each
+     occupy 8 bytes (0x70 and 0x78, 4 used and 4 spare), which is where the 8 bytes go;
+     declaring the struct as 8 bytes does NOT reproduce it (gcc 2.6 packs it to 4 and
+     the frame stays 0xE0).
+   - register numbering: retail pArg in $s3, ours in $s2; retail pMatrix in $fp, ours in
+     $s8; the nclip branch, the angle/zoom chain and the loop counters all shift with it.
+   - the `if (faceSxy.y >= 0) { ... } else faceSxy.y = 0;` converging to the POLY_F4
+     test: retail re-tests faceSxy.y at the join (0x50B8) where we emit a `j`.
+   Tried and measured: POLY_GT4 for the 128 textured quads (the header's POLY_GT4 is 0x34,
+   retail's records are 0x28 = POLY_FT4, so that was +0x600 on every array offset;
+   fixing it 83.20 -> 85.41); `(x + 0xFF) >> 8` instead of `/ 256` for the near/far
+   scaling (79.17 -> 83.21, retail really has the sign-correcting division); a u16
+   texMask (85.41% but emits an `andi` retail does not have, so the s32 form at 85.22 is
+   kept); an 8-byte screen-position record (no change). Not tried: a permuter run (the
+   residual is an 8-byte frame shift plus a global register tie, which it cannot reach).
+/* 85.22%, 2480 bytes against retail 2500.
 void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, MATRIX *pMatrix,
                    u_long *pOt, s32 index) {
     VECTOR vec;
+    VECTOR dir;
     SVECTOR normal;
     SVECTOR corner;
     SVECTOR rot;
@@ -999,7 +1030,7 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
     BattleMisc22ScreenPos cornerSxy;
     BattleMisc22ScreenPos faceSxy;
     SVECTOR *pVert;
-    POLY_GT4 *pQuad;
+    POLY_FT4 *pQuad;
     s32 nclip;
     s32 angle;
     s32 zoom;
@@ -1012,7 +1043,7 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
     s32 uEnd;
     s32 vStart;
     s32 vEnd;
-    u16 texMask;
+    s32 texMask;
 
     if (pArg == 0) {
         return;
@@ -1020,10 +1051,10 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
 
     addPrim(pOt, &pArg->otPrims[index + 2]);
 
-    vec.vx = pTo->vx - pFrom->vx;
-    vec.vy = 0;
-    vec.vz = pTo->vz - pFrom->vz;
-    VectorNormalS(&vec, &normal);
+    dir.vx = pTo->vx - pFrom->vx;
+    dir.vy = 0;
+    dir.vz = pTo->vz - pFrom->vz;
+    VectorNormalS(&dir, &normal);
 
     corner.vx = pTo->vx + normal.vx * pArg->faceScale / 0x1000;
     corner.vy = pArg->topY;
@@ -1067,7 +1098,7 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
     gte_ldv0(&corner);
     gte_rtps();
     gte_stsxy(&faceSxy);
-    faceSxy.y = cornerSxy.y * 2 - faceSxy.y - 8;
+    faceSxy.y = (s16)cornerSxy.y * 2 - faceSxy.y - 8;
     if (cornerSxy.x < 0x1E0U && (s16)faceSxy.y < 0xF0) {
         pArg->gradQuads[index].y0 = cornerSxy.x;
         pArg->gradQuads[index].y1 = cornerSxy.x;
@@ -1145,7 +1176,7 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
     }
     addPrim(pOt, &pArg->otPrims[index]);
 }
-
+*/
 s32 BattleGetTriangleVertexTable(void) {
     return (s32)g_BattleTriangleVertices;
 }
