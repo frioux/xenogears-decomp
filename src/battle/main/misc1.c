@@ -592,19 +592,24 @@ void BattleResetActorCountdown(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
 /* 99.51% under 2.6.0 (also 99.51 -G0, 98.78 2.7.2, 94.59 cdk): 41 of 41
    insns and 164 bytes = retail's, and the ONLY residual is the entry flag
-   load, retail 'lbu a1' against our 'lbu v0'. Round 405 re-measured 20
-   spellings, all emitting lbu $2: compound &&, plain, !(), nested ifs, two
-   ifs, early return, goto-label, if(0), while(0), switch on the flag,
-   u8/char/int/register/u8-with-init locals, pointer deref, volatile, literal
-   mask, D_800D2CAE[1], a hoisted u16 mask temp, -fschedule-insns/2. The flag
-   qty is block-local (lbu+beqz in one block), so local-alloc gives it $2; the
-   repo's global-alloc'd entry loads (libarchive's g_ArchiveCurStreamFile,
-   which spans blocks) do land in $a1, so retail's $a1 implies a block-spanning
-   live range, and every spelling that spans blocks here adds an instruction
-   (measured: 'flag == 1' reaches $3 but costs li+bne, 42 insns). Permuter
-   twice (2081/1343 iters, base 20 best 20 - it scores maspsx expansion noise
-   on this body). Verdict: allocator tie, leave it a stub.
-
+   load, retail 'lbu a1,D_800D2CAF' against our 'lbu v0'. Round 418 closed the
+   last door on it with a repo-wide scan of the matched objects: of the 171
+   functions whose first two insns are 'lui r,%hi(sym)' plus a load into the
+   same r that feeds the entry branch, 155 take $v0 and EVERY non-$v0 case is
+   either a parameter or a value read again in a later block (libarchive's
+   ArchiveReleaseStreamBlock/StreamSection, the only two $a1). This value dies
+   in the entry block, so local-alloc hands it $v0; moving it means putting the
+   load and its test in different blocks, which needs a branch between them and
+   costs an instruction. 24 spellings measured in rounds 405/418 (compound &&,
+   plain, !(), nested ifs, two ifs, early return, goto-label, if(0), while(0),
+   switch on the flag, u8/char/int/register/u8-with-init locals, pointer deref,
+   volatile, D_800D2CAE[1], literal mask, hoisted u16 mask temp,
+   -fschedule-insns/2) all emit lbu $2; 'flag == 1' reaches $3 but costs li+bne
+   (42 insns). Three permuter runs (2081, 1343 and 1351 iterations) base 20
+   best 20 - it scores maspsx expansion noise on this body. Verdict: allocator
+   tie, leave it a stub.
+*/
+/*
 void func_80071964(void) {
     u8 *pEntry;
     s32 i;
