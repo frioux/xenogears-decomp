@@ -342,41 +342,42 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
     MenuRenderFrame();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
-/* PARKED 99.74% (392 bytes, retail's exact size, instruction multiset identical).
+/* PARKED 99.74% (392 bytes, retail's exact size, 98 insns, instruction multiset identical).
    The ONE difference is the register the loaded gearId takes up: retail loads it into
    a0 and keeps it there (lbu a0,780 / beq a0,s2 / addiu a0,a0,0xB in the branch delay
    slot / andi a0,a0,0xff in place), ours loads into v0 and folds the u_char truncation
    into the copy to the argument register (andi a0,v0,0xff). The frame is retail's
    exactly (0x20, ra/s2/s1/s0 only), which proves gearId is NOT live across the first
-   MenuLoadCharacterNameTexture call: the load can only be after it, where both $2 (the
-   dead stride offset) and $4 (the dead argument) are free, so this is a local-alloc
-   priority contest between two free registers, not a spelling.
+   MenuLoadCharacterNameTexture call: every one of the three uses is in place on the
+   loaded value, i.e. retail has ONE quantity here where our spelling has a ternary
+   result plus a separate narrowing, and local-alloc hands that block's quantities
+   $5/$2/$3 and never $4, so a0 is not one of the registers it gives out here.
    Measured, all 99.74 or worse: the same ternary inlined as the call's first argument
-   with the array expression written twice (99.74, byte-identical to this body, gcc
-   CSEs it to one load); ALL 120 declaration orders of the five locals (99.74, so the
-   allocno-order lever does not reach it); u_char/u32/s32 gearId; the ternary assigned
-   back to the u_char local (97.65, the 0xFF arm's li is then dropped as redundant); an
-   if/else writing the same local (97.76, same li loss); an intermediate u_char
-   textureId (97.65); the cast on the arm vs on the whole ternary vs none; reusing the
-   dead menuCharacterId local; a 4-minute permuter run (1650 iterations, best == base).
-   Not a preset question either: 99.74 under gcc-2.7.2 too, and the matched neighbours
-   drop (MenuMovePointerCursor 94.70, MenuSetupPointerCursors 80.21), so the unit's
-   2.6.0 preset is right; -O1 and -O3 are far off. A cc1_probe replica of the same
-   expression with simpler operands puts the value in a2, so the register is decided by
-   the surrounding allocation.
-   Two counter locals are load-bearing: with `j * 2` for the first call's second
-   argument (the natural spelling, no characterIndex) it is 93.87 / 404 bytes and a
-   third callee-saved counter appears, because characterIndex's u_char width is what
-   makes the truncation `sll a1,s0,1 / andi a1,a1,0xFE`; and writing the second call's
-   6 + (characterIndex * 2) instead of 6 + (j << 1) stops the strength reduction and
-   costs 94.28 / 400.
-   Round 414 re-measured this body (99.74 / 392 bytes, 8 diff lines, the single tie
-   above) and ran a second permuter pass on it (991 iterations, base 25 best 25), so
-   the park is final: two permuter runs and two lanes of spellings found nothing. A
-   u_char intermediate with the arm cast explicit measures the same 97.65 / 388 /
+   with the array expression written twice (99.74, byte-identical, gcc CSEs the load);
+   ALL 120 declaration orders of the five locals; u_char/u32/s32 gearId; the ternary
+   assigned back to the u_char local (97.65, the 0xFF arm's li is then dropped);
+   an if/else writing the same local (97.76); an intermediate u_char textureId (97.65);
+   an intermediate s32 + separate (u_char) cast at the call (96.73 / 388 / 97 insns,
+   the ternary result still lands in v0); the cast on the arm vs on the whole ternary
+   vs none; reusing the dead menuCharacterId local.
+   Not a preset question: 99.74 under gcc-2.7.2 too, and the matched neighbours drop
+   (MenuMovePointerCursor 94.70, MenuSetupPointerCursors 80.21), so 2.6.0 is right;
+   -O1 and -O3 are far off. A cc1_probe replica of the same expression with simpler
+   operands puts the value in a2, so the register is decided by the surrounding
+   allocation; a -dl/-da dump of this body (round 421) puts block 6's eleven quantities
+   in $2/$3/$5 only, with v0 free at the gearId load.
+   Two counters are load-bearing: writing `j * 2` for the first call's second argument
+   (the natural spelling) is 93.87 / 404 bytes and grows a third callee-saved counter,
+   because characterIndex's u_char width is what yields sll a1,s0,1 / andi a1,a1,0xFE;
+   and writing the second call's 6 + (characterIndex * 2) stops the strength
+   reduction (94.28 / 400).
+   A u_char intermediate with the arm cast explicit measures the same 97.65 / 388 /
    97 insns as the uncast one (the shape turns beq+j into bne and loses a word).
+   Three permuter runs on this body found nothing (1650 iterations best==base, 991
+   best==base, round 421 1217 iterations base 25 best 25), so the park is final.
    Parked body below:
+*/
+/*
 void func_801D2D38(void) {
     s32 i;
     s32 j;
@@ -407,8 +408,8 @@ void func_801D2D38(void) {
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
     MenuTweenCharacterWindows(1, 0);
     MenuCreatePlayTimeWindow();
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
 
 void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);
