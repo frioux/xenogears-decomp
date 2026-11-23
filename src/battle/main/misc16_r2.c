@@ -60,7 +60,7 @@ extern void BattleBuildTileRow1Prims(u8, s32, s32, s32, u16);
 extern void BattleBuildTileRow2Prims(u8, s32, s32, s32);
 extern void BattleBuildTileRow3Prims(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
-extern void func_800904A0(u8, u8);
+extern void BattleDrawCommandCellIcons(u8, u8);
 extern void BattleDrawMenuEntryString(u8, u8);
 extern void *g_BattleSpriteArchive;
 extern u8 g_BattleDisplayMode;
@@ -415,7 +415,7 @@ void func_80090310(u8 arg0, u8 arg1) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
 
-void func_800904A0(u8 arg0, u8 arg1) {
+void BattleDrawCommandCellIcons(u8 arg0, u8 arg1) {
     u8 *pRec;
     u16 flags;
     u16 pal;
@@ -504,7 +504,7 @@ void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
     func_80090310(arg0, arg1);
     if (flag != 0 && arg2 == 0) {
         BattleDrawMenuEntryString(arg0, arg1);
-        func_800904A0(arg0, arg1);
+        BattleDrawCommandCellIcons(arg0, arg1);
         ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->labelDrawn = 1;
     }
     ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primStart = ((u8 *)g_BattlePrimStartIndex)[0];
@@ -526,7 +526,7 @@ void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
 // *pSlot = pal;` local. The body is 13 instructions short, so no amount of register work
 // can finish it - the duplicated arm tail is the target.
 // Tried and dead: `s32 *pPrim = g_BattlePrimStartIndex` + `*pPrim` at every site (532
-// bytes, 68.22, and no lui/addiu form, unlike func_800904A0), `vofs = 0` hoisted above the
+// bytes, 68.22, and no lui/addiu form, unlike BattleDrawCommandCellIcons), `vofs = 0` hoisted above the
 // if (identical 544), gcc-2.7.2 (56.88), gcc-2.7.2-cdk (compile-failed).
 /*
 void func_8009093C(s32 arg0) {

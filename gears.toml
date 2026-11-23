@@ -495,3 +495,16 @@ build_variables = {
     maspsx_flags = "--expand-div --use-comm-section --run-assembler"
 }
 paths = [ "movie/main/misc2." ]
+
+# slus_006.64/system/work_list (round 426): every one of the unit's 25 C functions
+# scores 100.00 under gcc-2.7.2-cdk-psx with maspsx leaving `li` to the assembler, and
+# the unit's park func_8001D2B0 comes out at 100.00 there against 97.53 under the
+# Default flags - the last 0.74 is maspsx expanding `li 1` as `ori` where the original
+# has `addiu r,zero,1`. Same shape as XenoRendering/XenoBattleTailCdk.
+[[build_preset]]
+name = "XenoWorkList"
+build_variables = {
+    gcc = "gcc-2.7.2-cdk-psx",
+    maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
+}
+paths = [ "{binary}/system/work_list." ]

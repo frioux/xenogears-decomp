@@ -338,7 +338,7 @@ extern s16 D_80059454;
 extern IVEC3 g_BattleAnimPositionGroupA;
 extern IVEC3 g_BattleAnimPositionGroupB;
 
-extern void func_8001D2B0(SpriteData *pSpriteData, s32 frame);
+extern void SpriteAnimFrameListSetFrame(SpriteData *pSpriteData, s32 frame);
 extern void SpriteSetFrameFromAnimIndex(SpriteData *pSpriteData);
 extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void SpriteSetMoveSpeed(SpriteData *pSpriteData, s32 speed);
@@ -457,7 +457,7 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 //    (addiu s0,sp,0x20 then two "addu ...s0"); ours re-forms sp+0x20 per call.
 //  - curSpriteFrame is read unsigned: (u16)pSpriteData->curSpriteFrame gives
 //    retail's lhu in both frame-step arms (misc31 uses the same cast).
-//  - the func_8001D2B0 +1/-1 call tails are cross-jumped as retail does
+//  - the SpriteAnimFrameListSetFrame +1/-1 call tails are cross-jumped as retail does
 //    (j $L198 shared by the code<0x10 and code<0x30 arms) because both arms end
 //    with frames = (code & 0xF) + 1; before the shared if (code < 0x40).
 //  - the 0x9A/0x9C tails are ONE tail in source (goto animApplyRotation after each
@@ -495,7 +495,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
         if (code < 0x80) {
             pSpriteData->pSpriteBytecode = pArgs;
             if (code < 0x10) {
-                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
+                SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
                 frames = (code & 0xF) + 1;
             } else if (code < 0x20) {
                 pSpriteData->flags_0xA8 =
@@ -506,7 +506,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 SpriteSetFrameFromAnimIndex(pSpriteData);
                 frames = (code & 0xF) + 1;
             } else if (code < 0x30) {
-                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
+                SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
                 frames = (code & 0xF) + 1;
             }
             if (code < 0x40) {
@@ -776,7 +776,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 } else {
                     ((BattleSpriteState *)pSpriteData)->flags &= ~0x10;
                 }
-                func_8001D2B0(pSpriteData, offset);
+                SpriteAnimFrameListSetFrame(pSpriteData, offset);
             }
             pSpriteData->animScriptWaitTimer += frames;
             pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + 3;

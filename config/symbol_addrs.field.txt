@@ -784,6 +784,7 @@ FieldCopyScreenToVram = 0x800A476C;
 FieldActorApplyRotationAndScale = 0x80072254;
 FieldFindClearDirectionForward = 0x8007234C;
 FieldFindClearDirectionBackward = 0x80072398;
+FieldUpdateSceneDollyAngle = 0x800726E8;
 FieldMathIntersectLines = 0x800723E4;
 FieldRotateEyeAboutAt = 0x80073684;
 FieldSignExtendHighHalves = 0x80073734;

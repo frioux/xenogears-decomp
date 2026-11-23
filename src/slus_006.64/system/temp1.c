@@ -112,7 +112,7 @@ void SpriteApplyMovementStep(SpriteData* pSpriteData) {
 }
 
 // non-prototype on purpose: the second argument is a frame index, not in the header's prototype
-extern void func_8001D2B0();
+extern void SpriteAnimFrameListSetFrame();
 
 void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     u16* pAnimFlags;
@@ -139,7 +139,7 @@ void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     // single read-modify-write of the word's flip field
     g_SpriteFlags0x3C(pSpriteData).fields.flipX = (((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
                                                  (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1);
-    func_8001D2B0(pSpriteData, frameIndex);
+    SpriteAnimFrameListSetFrame(pSpriteData, frameIndex);
 }
 
 extern void AnimScriptTick(SpriteData* pSpriteData);
@@ -265,7 +265,7 @@ void SpriteSetFrameAndFlips(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg
     pSpriteData->flags_0xA8 &= ~0x300000;
     pSpriteData->flags_0xA8 &= ~0xE0000;
     // arg1 is passed through in a1, which is what keeps a1 out of the mask allocation above
-    func_8001D2B0(pSpriteData, arg1);
+    SpriteAnimFrameListSetFrame(pSpriteData, arg1);
 }
 // Blocks whose data table sits at a self-relative byte offset stored at 0xC
 typedef struct {

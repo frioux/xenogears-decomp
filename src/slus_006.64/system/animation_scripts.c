@@ -514,7 +514,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 // callee is AnimScriptStackPushU24) and jumps by the signed 16-bit offset made of
 // pBytecode[1] + ((s8)pBytecode[2] << 8). 0xBE reads a u16 operand pBytecode[1] |
 // pBytecode[2] << 8: bit 9 -> flags_0xAC bit 3 (flip), bits 0..8 compared against
-// curSpriteFrame (unsigned load) to decide the func_8001D2B0 call, bits 11..14 add to
+// curSpriteFrame (unsigned load) to decide the SpriteAnimFrameListSetFrame call, bits 11..14 add to
 // animScriptWaitTimer. The wait-timer increment is in a local the frame commands assign, so
 // the control-opcode path adds the previous command's value, as retail does; a
 // `(s16)value >> 11` spelling is needed for retail's sra in the 0xBE timer term.
@@ -628,7 +628,7 @@ typedef struct {
 #define ANIM_SCRIPT_FLIP_BIT 8
 
 extern u8 g_AnimScriptCommandLengths[]; // instruction length per opcode
-extern void func_8001D2B0(SpriteData* pSpriteData, s32 frame);
+extern void SpriteAnimFrameListSetFrame(SpriteData* pSpriteData, s32 frame);
 extern void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData);
 
 void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
@@ -654,7 +654,7 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
         if (code < 0x80) {
             pSpriteData->pSpriteBytecode = pBytecode + 1;
             if (code < 0x10) {
-                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
+                SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
                 ticks = (code & 0xF) + 1;
             } else if (code < 0x20) {
                 pSpriteData->flags_0xA8 =
@@ -665,7 +665,7 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
                 SpriteSetFrameFromAnimIndex(pSpriteData);
                 ticks = (code & 0xF) + 1;
             } else if (code < 0x30) {
-                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
+                SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
                 ticks = (code & 0xF) + 1;
             }
             if (code < 0x40) {
@@ -704,7 +704,7 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
                                  (((((flags >> 2) >> 1) & 1) ^ ((flags >> 2) & 1)) << 3);
                 ((SpriteTransformFlagsView*)pSpriteData)->flags_0x3C.flags = transformFlags;
                 if ((u16)pSpriteData->curSpriteFrame != (value & 0x1FF)) {
-                    func_8001D2B0(pSpriteData, value & 0x1FF);
+                    SpriteAnimFrameListSetFrame(pSpriteData, value & 0x1FF);
                 }
                 pSpriteData->animScriptWaitTimer += ((value >> 11) & 0xF) + 1;
                 break;

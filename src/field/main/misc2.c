@@ -321,7 +321,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 // The masks test the dolly byte as the LEFT operand and the two button blocks live
 // inside the dolly if: that is what puts the shared `frames == 0` tail last and
 // fills the `lh sceneAngle.vy` load delay with the dolly load (99.93 -> 100.00).
-void func_800726E8(void) {
+void FieldUpdateSceneDollyAngle(void) {
     int offset;
 
     if (g_Scene.dollySet != 0xFF && g_Scene.dollyStop != 0xFF) {
@@ -699,7 +699,7 @@ void func_80073230(void) {
         if (++D_800ADBB0 >= 65) {
             *pMode = 0;
         }
-        func_800726E8();
+        FieldUpdateSceneDollyAngle();
         pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (mem_addr)g_FieldActors);
         pos.vx = pActor->pActorData->position.vx;
         pos.vy = pActor->pActorData->position.vy;
@@ -734,7 +734,7 @@ void func_80073230(void) {
                 ? 8 : g_CamInterpolation.eyeStepDistance - 2;
         }
         D_800ADBAC++;
-        func_800726E8();
+        FieldUpdateSceneDollyAngle();
         pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (mem_addr)g_FieldActors);
         pos.vx = pActor->pActorData->position.vx;
         pos.vy = pActor->pActorData->position.vy;

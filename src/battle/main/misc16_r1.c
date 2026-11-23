@@ -42,7 +42,7 @@ extern void BattleBuildTileRow1Prims(u8, s32, s32, s32, u16);
 extern void BattleBuildTileRow2Prims(u8, s32, s32, s32);
 extern void BattleBuildTileRow3Prims(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
-extern void func_800904A0(s32, s32);
+extern void BattleDrawCommandCellIcons(s32, s32);
 extern void BattleDrawMenuEntryString(u8, u8);
 extern void *g_BattleSpriteArchive;
 extern u8 g_BattleDisplayMode;

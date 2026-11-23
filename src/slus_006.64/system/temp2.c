@@ -53,7 +53,7 @@ extern u8 g_IsBattle;
 extern u8 g_AnimScriptCommandLengths[];  // per-opcode instruction length, indexed by the opcode byte
 extern s32 g_WorkListCurTimer;
 extern void func_800C11CC(SpriteData* pSpriteData);
-extern void func_8001D2B0(SpriteData* pSpriteData, s32 frame);
+extern void SpriteAnimFrameListSetFrame(SpriteData* pSpriteData, s32 frame);
 extern void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData);
 extern void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId);
 extern void func_8001FBE4(SpriteData* pSpriteData, s32 code, u8* pArgs);
@@ -120,7 +120,7 @@ dispatch:
         if (code < 0x80) {
             pSpriteData->pSpriteBytecode = pArgs;
             if (code < 0x10) {
-                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
+                SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
                 frames = (code & 0xF) + 1;
             } else if (code < 0x20) {
                 pSpriteData->flags_0xA8 =
@@ -131,7 +131,7 @@ dispatch:
                 SpriteSetFrameFromAnimIndex(pSpriteData);
                 frames = (code & 0xF) + 1;
             } else if (code < 0x30) {
-                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
+                SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
                 frames = (code & 0xF) + 1;
             }
             if (code < 0x40) {
@@ -184,7 +184,7 @@ dispatch:
                 } else {
                     g_SpriteStateFlags(pSpriteData).flags = mask & ~0x10;
                 }
-                func_8001D2B0(pSpriteData, offset);
+                SpriteAnimFrameListSetFrame(pSpriteData, offset);
             }
             pSpriteData->animScriptWaitTimer += frames;
             pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + 3;
