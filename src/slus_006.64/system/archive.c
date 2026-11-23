@@ -1059,6 +1059,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * `volatile u32*` local), so the body is hand-only until that is fixed. The lever
  * above says row 2 is unreachable anyway; park it, do not re-hunt.
  *
+ * ROUND 417 re-measurements on this body, plus the proof that the permuter blocker
+ * is UNIT-WIDE and not this spelling: `permute.sh slus_006.64/system/archive
+ * ArchiveStreamLoadSection` (an already-matched 100.00% body in the same file) dies
+ * with the same `conversion to non-scalar type requested` from the preprocessed
+ * text, so no function of this unit can be permuted at all. Re-measured: dest
+ * pointer computed first (`pBuf = (u8*)(...);` then state/id, then `CdGetSector(pBuf,
+ * ...)`) 96.67 / 740 bytes; `*(volatile u16*)&pCurrent->state = 1` with a PLAIN
+ * first id read 96.48 / 736; two-statement queue index re-confirmed 97.93 / 732
+ * bytes, one insn short (the `addu s2,v0,zero` copy is what the single statement
+ * buys); `(mem_addr)` dropped from the write-pointer sum measures the same 97.47.
+ *
  * void func_8002B2F0(u_char status) {
  *     int entryIndex;
  *     ArchiveStreamFileSectionHeader* pCurrent;
