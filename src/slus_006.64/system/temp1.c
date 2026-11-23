@@ -556,25 +556,30 @@ void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry) {
    again goes to a fresh v1, so even a compound assignment on a local does not force the in-place tie.
 
 */
-/* Best attempt: 99.10% (312 bytes, 78 insns, the original size; every instruction identical except one
-   register pair). Only the AC flag word differs: the original keeps the 0xFFF8007F mask in v0 and the
-   loaded word in v1, gcc allocates the pair the other way round, and the 0xA8 word follows it
-   (lw v0,168 -> lw v1,168). Same idiom, same direction, as func_8002435C below: in retail the constant
-   mask takes v0 and the loaded word v1 in both functions, here the word takes v0 in both, so the
-   residual is one allocator decision shared by the two functions, not two.
-   The 0x8000 is anim index 0x100 in the 12-bit field at bit 7 of flags_0xAC (bits 7-18, the value
-   func_80023538 reads back as (>> 7 & 0xFFF) and func_80023FD8 copies with & 0x7FF80), so the original
-   may be a bitfield store rather than this and/or - but see below, a bitfield store compiles to the
-   same RTL.
-   Tried: statement swap (93.37%), A8 statement first (93.37%), constant-first operand order, mask in a
-   declared local, `u32 maskAC = ...` initialised at the top of the function, `maskAC` assigned just
-   before the load, loaded-word temp (96.67%), intermediate `ac = v | 0x8000` (93.78%), the
-   `((0x100 & 0xFFF) << 7)` spelling (in the body), splitting into `&= mask;` then `|= 0x8000;` (gcc
-   merges them, identical RTL), a `u32* pFlagsAC` local (82.27%), `pFlagsA8[1]`/`[0]` indexing (67.63%)
-   and the (u8*)pSpriteData casts (70-67%).
-   This round: a 12-bit bitfield view of flags_0xAC (SpriteAcFlagsWord, scale field at bit 7) written as
-   `fields.scale = 0x100` - 99.10%, byte-identical RTL to this body, so the bitfield theory is dead.
-   Permuter, 3 minutes, 1309 iterations: base 70 best 70, no lead.
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
+/* Best attempt: 99.10% (312 bytes, 78 insns - retail's exact size). Every instruction is identical
+   except ONE caller-saved pair: retail keeps the 0xFFF8007F mask of flags_0xAC in v0 and the loaded
+   word in v1, we compile the mask to v1 and the word to v0, and the flags_0xA8 word follows it
+   (lw v0,168 -> lw v1,168). Instruction order, the frame and every other register are exact.
+
+   Mechanism (why the pair cannot be flipped): mips.md's andsi3 takes its constant operand as 'd',
+   so force_reg materialises the mask into a fresh pseudo AFTER expand_binop has created the loaded
+   word's pseudo, and local-alloc's priority floor_log2(n_refs)*n_refs/live_length*size is 6 for the
+   word (3 refs over the 2 insns load..and, updated in place) against 4 for the mask (3 refs over its
+   3 insns li/ori/and): the word wins v0 on live length in every spelling. Retail has the mask in v0,
+   i.e. the mirror. This function's OWN 0x3C chain shows the rule holding
+   (word in v0 via 'lw v0,60(t0)', the three big mask constants in a2/a1/a0), so the AC statement is
+   the exception that no spelling of `flags & mask | value` reproduces.
+   Tried and measured (all 99.10% / 312 bytes / same pair, unless noted): a 12-bit bitfield view of
+   the field at bit 7 written as `fields.unk7 = 0x100` - byte-identical RTL, bitfield theory dead
+   (re-confirmed round 409); `((0x100 & 0xFFF) << 7)` and `| 0x8000` spellings; constant-first
+   operand order; mask in a declared local / initialised at the top / assigned just before the load;
+   loaded-word temp (96.67%); intermediate `ac = v | 0x8000` (93.78%); `pFlagsA8[1]`/`[0]` indexing
+   (67.63%); casting EVERY access through (u8*)pSpriteData (70-67%, so keep exactly the mix below -
+   raw casts for the 0x3C/0x40 chains, typed flag words for 0xA8/0xAC); statement swap (93.37%);
+   gcc-2.7.2-psx instead of cdk (77.18, so the
+   unit's XenoGraphics preset is right). Permuter twice (1309 and 1001 iterations, 3 min each):
+   base 70 best 70, no lead. Verdict: GIV_TIE - park and do not re-brief as a hand job.
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -615,7 +620,7 @@ void func_80023804(SpriteData* pSpriteData) {
     pSpriteData->field_0x6C = NULL;
     pSpriteData->field_0x50 = 0;
 }*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
+
 
 void SpriteResetBase(SpriteDataI1* pBase) {
     pBase->rotation.x = 0;
