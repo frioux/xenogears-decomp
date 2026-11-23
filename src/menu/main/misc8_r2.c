@@ -130,10 +130,14 @@ void MenuFreeUnk42CPanel(void) {
     HeapFree(g_Menu->pDressingRoom->pItemsData);
 }
 
-/* 97.17% (1008 vs retail 1004 bytes, 252 vs 251 insns), round 406.
+/* 94.65% under this unit's XenoMenu260 (gcc 2.6.0): 996 vs retail 1004 bytes, 249 vs
+   251 insns, round 428. THE HEADLINE USED TO READ 97.17 - that number is gcc 2.7.2
+   (Default) and this unit was moved to 2.6.0 on purpose in round 421, trading this park
+   for func_801DB39C (100.00 only on 2.6.0). 94.65 is the number to work from here; see
+   SPLIT below if the trade is ever revisited.
    Body shape is settled: nested if (outer test POSITIVE, inner test `!= 0`) so
    the two fail paths sit out of line where retail has them.
-   SOLVED this round, each measured:
+   SOLVED in round 406, each measured, and all still in the live body:
    - `(u16)(u16)(x + 0x28) & 0xFFF8` gives retail's SINGLE `andi a1,a1,0xfff8`. A bare
      `(u16)(x + 0x28) & 0xFFF8` inside a loop whose trip count bounds x lets cc1 prove
      the sum is 16-bit, so it emits `li t0,-8` + `and` AND a second `andi` for
@@ -159,9 +163,38 @@ void MenuFreeUnk42CPanel(void) {
       b-inplace round 396); the double-negated offset moves only the store group.
    c) `andi a1,a1,0xfff8` comes one instruction early: retail emits it after the
       y `sll`/`ori` pair, here before.
-   Presets: gcc-2.6.0 scores 94.65 on this body (2.7.2 97.17), so this function
-   wants 2.7.2 even though every already-matched function in the unit is 100.00
-   under 2.6.0.
+   UNDER 2.6.0 THE RESIDUAL IS REGISTER ALLOCATION, NOT SPELLING. Retail keeps arg0 in
+   $s6 and recomputes the row index twice per iteration (`sll v0,s6,1; addu v1,v0,s2` at
+   0x15620, then `sll s1,s6,1; addu s1,s1,s2` at 0x156C8); 2.6.0 keeps arg0 in $s0 and
+   strength-reduces the index into $s4 (`sll s4,s0,1` in the preheader, `addiu s4,s4,1`
+   in the latch delay slot), which is exactly where the two missing instructions are.
+   That one choice also reorders the prologue saves (retail: s6 first, then s8..s0
+   descending; 2.6.0: s0 first, then s8..s2 with s1 last in the HeapAlloc delay slot)
+   and cascades into every temp register, so it is not a spelling the source can reach.
+   MEASURED THIS ROUND: gcc-2.7.2-cdk-psx 92.76 (worse), 2.6.0 -O1 59.62, -O3 94.65
+   (identical to -O2, so no -O level helps), and `x = (i & 1) * 0x88` - copying the
+   `andi v1,s2,0x1` retail uses for rect.x - is WORSE at 93.75% / 245 insns, because it
+   derives x and y from one index and loses four instructions.
+   RESIDUAL beyond the allocation:
+   a) eight addu operand swaps, consistently MIRRORED: retail is base-first at the four
+      `rows[k].field` store sites and index-first at the four `&rows[k]` argument sites;
+      this body is the reverse in both groups. Lever a-empty-do-while-block-nudges
+      records the same cc1 2.6.0 behaviour for `base + i * STRIDE` with a base loaded at
+      the use site and lists six spellings that all stay offset-first, so this is cc1's
+      address legitimisation, not the source. A pointer local for g_Menu->pItemRows is
+      the known trap (it hoists the pool load). The one spelling NOT yet measured for the
+      four store sites is lever c-pointer-from-memory-paren-sum-is-base-first, i.e.
+      `((MenuString*)((u8*)g_Menu->pItemRows + i * sizeof(MenuString)))->width`; start
+      there. It cannot make this function match on its own, see below.
+   b) `andi a1,a1,0xfff8` comes one instruction early: retail emits it after the y
+      `sll`/`ori` pair, here before.
+   Under 2.7.2 (round 406) the same body was 97.17% with only (a) plus one surplus nop,
+   and permute.sh ran 1447 iterations to base=715 best=715, so neither residual is a
+   register shuffle.
+   SPLIT: under Default (2.7.2) this body scores 97.17 and the register set matches
+   retail's, i.e. this function really is 2.7.2 code sitting in a 2.6.0 unit. Splitting
+   its range out of config/menu.yaml like menu/main/misc11_r2_260 would buy 2.5 points
+   but not a match, so it is not worth a unit split on its own.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
 /*
@@ -230,6 +263,7 @@ void func_801DA5BC(s32 arg0) {
     g_Menu->pManager->shouldRenderUnk42C = 1;
 }
 */
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA9A8);
 /* 98.08% (1664 vs retail 1668 bytes, 416 vs 417 insns), round 422, gcc 2.6.0 (XenoMenu260).
    NEVER WRITTEN BEFORE THIS ROUND; whole body written from the .s and the misc9
