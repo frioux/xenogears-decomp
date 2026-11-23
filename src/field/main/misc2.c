@@ -318,38 +318,29 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800726E8);
-// 93.36% (856 bytes vs the original's 844). Re-checked under the unit's
-// XenoFieldNoGp (-G0) preset: still 93.36. Retail's frame is 0x18 with ONE saved
-// register ($ra at 0x14, $s0 at 0x10), so exactly one of the two addresses the
-// block touches twice can live in a register across the FieldFindClearDirectionForward call;
-// retail keeps &g_Scene.dollyStop (+0x65) and re-forms %hi/%lo for
-// g_Scene.sceneAngle.vy on each use, gcc keeps the vy address (materialised
-// first, for the table index) and re-forms dollyStop. That is a CSE winner
-// choice, not a source shape: the vy address is created first in every spelling
-// tried, and forcing dollyStop (a u_char* local, 89.89%) loses the frame.
-// field camera dolly. The structure,
-// the calls and every store match; what is left is (1) block 2 (the dollyStop
-// mask + the two func_800723* calls): the original holds &g_Scene.dollyStop in
-// $s0 and re-forms %hi/%lo for sceneAngle.vy on each use, gcc here holds
-// &g_Scene.sceneAngle.vy in $s0 instead (a `u_char* pDollyStop` local in the
-// block is worse, 89.89%); (2) the shared `unk66 == 0` tail: the original lays
-// it out at the end of the function (+0x2B0) where gcc puts it at +0x168, so the
-// early `dollySet/dollyStop == 0xFF` exits branch forward 0x148 instead of 0x2B0.
-// Note the two expression spellings are required: `((u_int)vy & 0xFFF) >> 9`
-// gives the original's lhu/srl in the first two blocks, while the plain signed
-// `(vy +/- 0x200) & 0xFFF) >> 9` gives lh/sra in the button blocks.
-// screened: Default 93.36 (best), cdk 65.00, 2.6.0 92.51 - not the preset; the dollyStop base register and the branch layout.
-/*
-extern void func_80284EA4(void);
-
+// The masks test the dolly byte as the LEFT operand and the two button blocks live
+// inside the dolly if: that is what puts the shared `frames == 0` tail last and
+// fills the `lh sceneAngle.vy` load delay with the dolly load (99.93 -> 100.00).
 void func_800726E8(void) {
     int offset;
 
     if (g_Scene.dollySet != 0xFF && g_Scene.dollyStop != 0xFF) {
         if (g_Scene.sceneAngleFrames == 0) {
-            if (g_FieldDirectionMasks[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollySet) {
+            if (g_Scene.dollySet & g_FieldDirectionMasks[((u_int)g_Scene.sceneAngle.vy & FIELD_ANGLE_MASK) >> 9]) {
                 if (g_Scene.sceneAngleStep != -0x400000 && g_Scene.sceneAngleStep != 0x400000) {
+                    g_Scene.sceneAngleStep = 0x400000;
+                    g_Scene.sceneAngleYTarget += 0x200;
+                }
+                g_Scene.sceneAngleFrames = 8;
+            }
+            if (g_Scene.dollyStop & g_FieldDirectionMasks[((u_int)g_Scene.sceneAngle.vy & FIELD_ANGLE_MASK) >> 9]) {
+                offset = FieldFindClearDirectionForward(g_Scene.dollyStop,
+                    ((u_int)g_Scene.sceneAngle.vy & FIELD_ANGLE_MASK) >> 9);
+                if (FieldFindClearDirectionBackward(g_Scene.dollyStop,
+                        ((u_int)g_Scene.sceneAngle.vy & FIELD_ANGLE_MASK) >> 9) < offset) {
+                    g_Scene.sceneAngleStep = -0x400000;
+                    g_Scene.sceneAngleYTarget -= 0x200;
+                } else {
                     g_Scene.sceneAngleStep = 0x400000;
                     g_Scene.sceneAngleYTarget += 0x200;
                 }
@@ -357,37 +348,23 @@ void func_800726E8(void) {
             }
         }
 
-        if (g_FieldDirectionMasks[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollyStop) {
-            offset = FieldFindClearDirectionForward(g_Scene.dollyStop,
-                ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9);
-            if (FieldFindClearDirectionBackward(g_Scene.dollyStop,
-                    ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9) < offset) {
-                g_Scene.sceneAngleStep = -0x400000;
-                g_Scene.sceneAngleYTarget -= 0x200;
-            } else {
-                g_Scene.sceneAngleStep = 0x400000;
-                g_Scene.sceneAngleYTarget += 0x200;
-            }
-            g_Scene.sceneAngleFrames = 8;
-        }
-    }
-
-    if (g_FieldP1ButtonsPressed & 0x4) {
-        if (!(g_Scene.flags & 0x8000) && g_Scene.sceneAngleFrames == 0) {
-            if (!(g_FieldDirectionMasks[((g_Scene.sceneAngle.vy - 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
-                g_Scene.sceneAngleStep = -0x400000;
-                g_Scene.sceneAngleFrames = 8;
-                g_Scene.sceneAngleYTarget -= 0x200;
+        if (g_FieldP1ButtonsPressed & 0x4) {
+            if (!(g_Scene.flags & 0x8000) && g_Scene.sceneAngleFrames == 0) {
+                if (!(g_Scene.dollyStop & g_FieldDirectionMasks[((g_Scene.sceneAngle.vy - 0x200) & FIELD_ANGLE_MASK) >> 9])) {
+                    g_Scene.sceneAngleStep = -0x400000;
+                    g_Scene.sceneAngleFrames = 8;
+                    g_Scene.sceneAngleYTarget -= 0x200;
+                }
             }
         }
-    }
 
-    if (g_FieldP1ButtonsPressed & 0x8) {
-        if (!(g_Scene.flags & 0x8000) && g_Scene.sceneAngleFrames == 0) {
-            if (!(g_FieldDirectionMasks[((g_Scene.sceneAngle.vy + 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
-                g_Scene.sceneAngleStep = 0x400000;
-                g_Scene.sceneAngleFrames = 8;
-                g_Scene.sceneAngleYTarget += 0x200;
+        if (g_FieldP1ButtonsPressed & 0x8) {
+            if (!(g_Scene.flags & 0x8000) && g_Scene.sceneAngleFrames == 0) {
+                if (!(g_Scene.dollyStop & g_FieldDirectionMasks[((g_Scene.sceneAngle.vy + 0x200) & FIELD_ANGLE_MASK) >> 9])) {
+                    g_Scene.sceneAngleStep = 0x400000;
+                    g_Scene.sceneAngleFrames = 8;
+                    g_Scene.sceneAngleYTarget += 0x200;
+                }
             }
         }
     }
@@ -405,8 +382,6 @@ void func_800726E8(void) {
         func_80284EA4();
     }
 }
-*/
-
 extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
 extern void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt);
 extern VECTOR g_CameraEye2;
@@ -2102,6 +2077,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 // non-scalar type requested" in the re-emitted temp file.
 // preset re-screened on THIS body: 2.7.2 -G0 (unit) 97.49, 2.6.0 97.38,
 // 2.7.2-cdk 82.78 - not a preset question.
+// cc1's own output (build/src/field/main/misc2.c.s) shows the split: cc1 emits
+// `sll $3,$3,2` (index*4) BEFORE the two `lw g_FieldActors` volatile loads, and
+// retail has it AFTER the chain's base load, i.e. in that load's delay slot.
+// Re-measured: 97.49 (30 s), pActor local again 94.32, the two head statements
+// swapped 97.43 - so the residual is the pre-reload sched/load-delay placement
+// inside one address expression, not a statement order.
 /*
 void func_80077268(void) {
     ActorData* pData;
