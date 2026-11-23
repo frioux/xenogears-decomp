@@ -1493,37 +1493,33 @@ extern u8 D_80091814[];
 extern u8 g_BattleBarTexV;
 extern u8 D_80092864;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
-
-/* 86.50% (1344 bytes: 336 insns against retail 337, 1348 bytes), parked.
-   The unit's data at D_80095698 is POLY_FT4[16] (0x280 bytes, ending exactly at
-   D_80095918) followed by DR_TPAGE[4] (8 bytes each, so D_80095918[1] is the
-   +8 half-word pair retail's two-word copy writes). Every retail offset lands on
-   a POLY_FT4 field, and the six 0x28-byte copies retail emits as the
-   two-16-byte-iterations-plus-8-byte-tail loop ARE plain `p[n] = p[n-1]`
-   struct assignments: gcc 2.7.2 expands a 0x28-byte block move that way. The
-   scalar packets are the setXY0Fast/setUV0Fast word stores (Misc10SetXY0/
-   Misc10SetUV0 below), and -0x8000 for the CLUT's STP bit is signed, because
-   retail is addiu and not ori.
-   WHAT IS LEFT IS PURE ALLOCATOR, and it is small and narrow: everything else
-   is instruction-identical. (1) retail saves four callee-saved registers (frame
-   0x50, param in $s3, D_80095698 in $s1, the copy source in $s2, D_80095918 in
-   $s0); with the body below gcc spends only three, so the frame is 0x48 and the
-   body is exactly ONE instruction short, the fourth save/restore pair: hoisting
-   a pointer across the second TIM block buys the frame (0x50) back and one
-   instruction with it, 86.50%. (2) with that pointer the four are assigned
-   $s2/$s3 rotated against retail's $s3/$s2, and
-   the tied pair is the param (both live from entry to the second OpenTIM), so
-   per the -dg/-dl levers this is a priority contest, not a spelling.
-   Tried: all-array accesses (55.28% on the old 4-copy body), all pointer-local
-   accesses (64.58%), the mixed form (71.59%, also 4 copies: it was MISSING the
-   p[5]=p[4] and p[7]=p[6] copies, worth ~96 bytes), pBar hoisted across block B
-   (86.50%), the same hoist spelled as a raw s32* to &p[8].x1 (86.50%),
-   s16 pClut with -0x8000 (85.02 -> fixes retail's addiu). Two permuter runs
-   (base 3559 -> 2829 -> 2619) found only more address hoists, each 86.50 at
-   best; the 2619 candidate hoists &p[10].u0 above the p[10]=p[8] copy, which is
-   correct but no closer. A -da/-dl dump would decide the rotation; not done.
-   void func_800868E0(Misc10TextureArchive* pArchive) {
+// PARKED 86.50% (1344 bytes, 336 insns against retail's 1348/337), re-measured from a
+//   live body this round. The frame and the saved set are retail's exactly (0x50,
+//   s0-s3); the residual is a WHOLE-FUNCTION callee-saved rotation plus ~17
+//   scheduling positions (18 deletes, 17 inserts): the parameter is $s3 in retail
+//   and $s2 here, retail keeps the FIRST copy's source pointer (base+0xA0) in $s2
+//   across the whole first TIM block where this body keeps base+0x140 instead, and
+//   retail loads the second block's D_80095878 base before the LoadImage call where
+//   this body loads it after. Nothing about the arithmetic, the copy loops or the
+//   stores differs.
+//   NOT A PRESET QUESTION, measured: try_flags.sh --sweep on this body is 86.50 for
+//   gcc 2.6.0 and gcc 2.7.2 at -O2/-O3 in -G4 and -G8 with -mcpu=3000 and r8000
+//   alike (53.07 at -O1), and 69.64 for gcc-2.7.2-cdk, so no unit preset reaches it.
+//   Tried this round: hoisting the pBar base = &D_80095698[8] later (out of the
+//   live-across-calls region) 84.62% and four instructions short; a pointer local
+//   for the first copy (pPrim[1] = pPrim[0], with the address taken before the
+//   second LoadImage, where retail forms it) 85.46% and three instructions short.
+//   Earlier rounds: all-array 55.28, all-pointer 64.58, mixed 71.59, two permuter
+//   runs (base 3559 -> 2619) found only more address hoists, all 86.50 at best.
+//   Idem facts still worth keeping: D_80095698 is POLY_FT4[16] (0x280 bytes,
+//   ending exactly at D_80095918, DR_TPAGE[4] of 8 each), every retail offset
+//   lands on a POLY_FT4 field, the 0x28-byte copies are plain p[n] = p[n-1]
+//   struct assignments (gcc 2.7.2 expands a block move as two 16-byte
+//   iterations plus an 8-byte tail), -0x8000 into the CLUT's STP bit is signed
+//   because retail is addiu, and the next cheap step is a -da/-dl dump of the
+//   four callee-saved allocnos (recipe in tools/rounds/levers.md).
+/*
+void func_800868E0(Misc10TextureArchive* pArchive) {
     TIM_IMAGE tim;
     RECT rect;
     s16* pClut;
@@ -1591,8 +1587,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 
     setRECT(&rect, 0x3A0, 0x110, 0x10, 1);
     LoadImage(&rect, (u_long*)D_80091814);
-   }
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
+
 
 void BattleAddSharedPrim(void) {
     AddPrim(g_BattleRootOrderingTable, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
