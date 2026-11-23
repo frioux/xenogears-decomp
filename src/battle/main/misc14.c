@@ -10,6 +10,14 @@
 #define BATTLE_PRIM_POOL_SLOT_COUNT 16
 // The debug pages g_DebugPageIndex cycles through.
 #define BATTLE_DEBUG_PAGE_COUNT 5
+// The status flag bits that get a column sprite: BattleBuildFlaggedSlotSpriteColumn
+// builds one sprite per set bit among the lowest BATTLE_STATUS_ICON_COUNT of them.
+#define BATTLE_STATUS_ICON_COUNT 5
+// The per-slot effect counter records BattleUpdatePauseAndEffectTimers steps: one
+// D_800D32F8 slot pointer and one pair of counter entries each (stride 8 in the tables).
+#define BATTLE_EFFECT_SLOT_COUNT 3
+// Digit sprite ids are indices into the value glyph set that starts at this id.
+#define BATTLE_VALUE_DIGIT_SPRITE_BASE 0x92
 
 // Partial view of the per-frame battle work block (g_BattleDisplayState). The shared
 // include/battle/battle_work.h owns the type other units read; this view names
@@ -271,7 +279,7 @@ void BattleBuildFlaggedSlotSpriteColumn(void) {
     s32 off;
 
     g_BattleSpriteColumnWork[0x5DA1] = 0;
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < BATTLE_STATUS_ICON_COUNT; i++) {
         if ((u16)BattleMaskHasStatusBit(g_BattleStatusFlags, i) != 0) {
             off = g_BattleSpriteColumnWork[0x5DA1] * 0x50 + 0x4CE0;
             g_BattleSpriteColumnWork[0x5DA1] += BattleDrawSpritePackage(i + 0xC4, (s32)(off + (s32)g_BattleSpriteColumnWork), 0xE0, pitch >> 16);
@@ -328,7 +336,7 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
         s32 slot = D_800C3CF8[i++];
         if (slot != BATTLE_VALUE_DIGIT_NONE) {
             off = g_BattleSpriteColumnWork[0x5D78] * 0x50 + 0x4E70;
-            g_BattleSpriteColumnWork[0x5D78] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x46);
+            g_BattleSpriteColumnWork[0x5D78] += BattleDrawSpritePackage(slot + BATTLE_VALUE_DIGIT_SPRITE_BASE, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x46);
             pitch += 0x60000;
         }
     }
@@ -355,7 +363,7 @@ void BattleBuildGrey80BlendSpriteColumn6(void) {
             s32 slot = D_800C3CFB[i++];
             if (slot != BATTLE_VALUE_DIGIT_NONE) {
                 off = g_BattleSpriteColumnWork[0x5D79] * 0x50 + 0x4FB0;
-                g_BattleSpriteColumnWork[0x5D79] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x4E);
+                g_BattleSpriteColumnWork[0x5D79] += BattleDrawSpritePackage(slot + BATTLE_VALUE_DIGIT_SPRITE_BASE, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x4E);
                 pitch += 0x60000;
                 n++;
             }
@@ -382,7 +390,7 @@ void BattleBuildGrey80BlendSpriteColumn7(void) {
     for (i = 0; i < 3; i++) {
         if (D_800C3CFA[i] != BATTLE_VALUE_DIGIT_NONE) {
             off = g_BattleSpriteColumnWork[0x5D7A] * 0x50 + 0x50A0;
-            g_BattleSpriteColumnWork[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x56);
+            g_BattleSpriteColumnWork[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + BATTLE_VALUE_DIGIT_SPRITE_BASE, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x56);
             pitch += 0x60000;
             n++;
         }
@@ -406,7 +414,7 @@ void BattleBuildGrey80BlendSpriteColumn2(void) {
         s32 slot = D_800C3CFB[i++];
         if (slot != BATTLE_VALUE_DIGIT_NONE) {
             off = g_BattleSpriteColumnWork[0x5D7B] * 0x50 + 0x51E0;
-            g_BattleSpriteColumnWork[0x5D7B] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x5E);
+            g_BattleSpriteColumnWork[0x5D7B] += BattleDrawSpritePackage(slot + BATTLE_VALUE_DIGIT_SPRITE_BASE, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x5E);
             pitch += 0x60000;
         }
     }
@@ -916,7 +924,7 @@ void BattleUpdatePauseAndEffectTimers(u8 arg0) {
         }
         offset += 8;
         pSlot++;
-    } while ((int)pSlot < (int)(D_800D32F8 + 3));
+    } while ((int)pSlot < (int)(D_800D32F8 + BATTLE_EFFECT_SLOT_COUNT));
     if (active == 0) {
         func_801DF270();
         func_801DF4C0();
