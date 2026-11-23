@@ -277,7 +277,7 @@ extern int WorldMapUpdateSlotStateMachine(int);
 extern int func_8007E450(int);
 extern int func_8007E4E4(int);
 extern int WorldMapInitGroup1Actor(int);
-extern void func_8007EE34(int);
+extern int func_8007EE34(int);
 extern int WorldMapInitSlotActor(int);
 extern int WorldMapUpdateSlotActor(int);
 extern int func_8007FC8C(int);
@@ -436,7 +436,7 @@ int WorldMapUpdateGroup16Actor(int index) {
     switch (pActor->command) {
     case 1:
         // volatile: keeps the g_WorldMapCameraTarget load below these two stores, as retail has it
-        *(volatile s16 *)&pActor->command = 0;
+        pActor->command = 0;
         *(volatile s16 *)&pGroup->hidden = 0;
         pActor->x = g_WorldMapCameraTarget[0];
         pActor->z = g_WorldMapCameraTargetZ + 0x400000;
@@ -1158,22 +1158,312 @@ int WorldMapInitGroup1Actor(int index) {
     // volatile: the stores below are a straight-line cluster that cc1 would otherwise
     // reorder; volatile keeps them in source order, which is retail's.
     *(volatile s32 *)&pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
-    *(volatile s16 *)&pActor->state = 0;
+    pActor->state = 0;
     *(volatile s32 *)&pActor->dirY = 0;
     *(volatile s32 *)&pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
     *(volatile s32 *)&pActor->stateIndex = g_WorldMapAreaSpawnPositions[nIndex * 4] << 12;
     *(volatile void **)&pActor->pStateIds = (void *)(D_8009A678[nIndex * 4] << 12);
     *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET;
     *(volatile s32 *)&pActor->y = g_WorldMapPlayerPositionY;
-    *(volatile s32 *)&pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET;
+    pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET;
     return 1;
 }
 
+// 98.17% objdiff (2692 bytes vs retail 2704, 673 vs 676 insns), round 435.
+// Full body reconstructed from the .s; all three jump tables, both call families
+// (WorldMapStartSlot 4..8, WorldMapInitSpriteGroupSprites 0x20..0x27/0x22) and every
+// constant are in place. The residual is 13 instruction placements, and three of the
+// 16 differing hunks are the jtbl_/\.rodata table operand (link-identical, expected
+// in this unit). Remaining, per the instruction diff:
+//  - case 3/23: gcc hoists the `lui/lw g_WorldMapPlayerPosition` into case 3s block
+//    ahead of the shared tail; retail keeps it inside the tail after the two sh.
+//  - state 0: `lw v0,0x54(s3)` moved one slot earlier than retail.
+//  - state 2 and 16: `addiu s0,s4,0xA0` lands in the branch delay slot; retail
+//    materialises it later, right before `move a1,s0`.
+//  - state 16: retail splits `li 0x1F9DFFF` around the load so `ori` fills the load
+//    delay slot; ours emits lui/ori adjacent and a nop.
+//  - case 2/3 arm: retail puts `sw v0,0x14(s4)` (pVec1->vy = 0x1000) in the
+//    OuterProduct12 jal delay slot; ours stores it before the call.
+// What moved the number this round: `*(volatile s16/s32 *)&...` on the command,
+// state and x stores of the first switch arms (the file's WorldMapInitGroup1Actor
+// idiom) - it pins the store order and stops the global loads being hoisted, taking
+// the body 91.50 -> 96.96 -> 98.17 in three steps; and writing the third switch's
+// cases in the order 0/1/16/25, 4/17/65, 2/3, which is the block order retail has.
+// The z store must stay non-volatile: retail schedules it into the tail / j delay
+// slot. Preset ruled out: cdk gives 83.56 on this body.
+/*
+int func_8007EE34(int index) {
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
+    WorldMapGroup *pGroup = &g_WorldMapGroups->groups[1];
+    u8 *pScratch = (u8 *)PSX_SCRATCH;
+    s16 nCommand;
+    s32 nResult;
+    s32 nIndex;
+
+    nResult = 1;
+    if (pActor->command != 0) {
+        pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
+        pActor->dirY = 0;
+        pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
+        nIndex = g_WorldMapAreaIndex;
+        pActor->stateIndex = g_WorldMapAreaSpawnPositions[nIndex * 4] << 12;
+        pActor->pStateIds = (u16 *)(D_8009A678[nIndex * 4] << 12);
+    }
+    nCommand = *(u16 *)&pActor->command - 1;
+    switch (nCommand) {
+    case 0:
+        *(volatile s16 *)&pActor->command = 0;
+        *(volatile s16 *)&pActor->state = 0;
+        *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET;
+        *(volatile s32 *)&pActor->y = g_WorldMapPlayerPositionY;
+        pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET;
+        break;
+    case 1:
+        *(volatile s16 *)&pActor->command = 0;
+        *(volatile s16 *)&pActor->state = 0;
+        *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirX * 0x2D00;
+        pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirZ * 0x2D00;
+        break;
+    case 2:
+        *(volatile s16 *)&pActor->command = 0;
+        *(volatile s16 *)&pActor->state = 0;
+        *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirX * 0x1E00;
+        pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirZ * 0x1E00;
+        break;
+    case 3:
+        pActor->command = 0;
+        pActor->state = 1;
+        *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirX * 0x3300;
+        pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirZ * 0x3300;
+        break;
+    case 4:
+        pActor->state = 2;
+        *(volatile s32 *)&pActor->dirX = -0x988;
+        *(volatile s32 *)&pActor->dirY = 0x227;
+        pActor->command = 0;
+        *(volatile s32 *)&pActor->dirZ = -0xCAB;
+        *(volatile s32 *)&pActor->x = 0x1F9E000;
+        pActor->z = 0x5998000;
+        break;
+    case 15:
+        pActor->command = 0;
+        pActor->state = 0x10;
+        *(volatile s32 *)&pActor->x = pActor->dirX * 0x3300 + 0x56F2000;
+        pActor->z = pActor->dirZ * 0x3300 + 0x7F2C000;
+        break;
+    case 23:
+        pActor->command = 0;
+        pActor->state = 0x18;
+        pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirX * 0x3300;
+        pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + pActor->dirZ * 0x3300;
+        break;
+    }
+    pActor->x += pActor->dirX * 128;
+    pActor->y += pActor->dirY * 128;
+    pActor->z += pActor->dirZ * 128;
+
+    switch (pActor->state) {
+    case 0:
+        if (pActor->x < pActor->stateIndex && (s32)pActor->pStateIds < pActor->z) {
+            pActor->x = pActor->stateIndex;
+            pActor->z = (s32)pActor->pStateIds;
+            WorldMapStartSlot(4, 2);
+            WorldMapStartSlot(5, 2);
+            WorldMapStartSlot(6, 2);
+            WorldMapStartSlot(7, 2);
+            WorldMapStartSlot(8, 2);
+        }
+        break;
+    case 1: {
+        SVECTOR *pPos = (SVECTOR *)(pScratch + 0xA0);
+
+        if (pActor->x <= 0x1F9DFFF && pActor->z > 0x5998000) {
+            pActor->x = 0x1F9E000;
+            pActor->z = 0x5998000;
+            pActor->state = 0x40;
+            pPos->vx = pActor->x >> 12;
+            pPos->vy = pActor->y >> 12;
+            pPos->vz = pActor->z >> 12;
+            WorldMapInitSpriteGroupSprites(0x20, (SVECTOR *)((u32)pScratch | 0xA0), NULL);
+        }
+        break;
+    }
+    case 2: {
+        SVECTOR *pPos = (SVECTOR *)(pScratch + 0xA0);
+
+        if (pActor->y > -0x80000) {
+            pPos->vx = 0x1498;
+            pPos->vz = 0x4AF2;
+            pPos->vy = WorldMapGetTilePlaneHeight(0x1498000, 0x4AF2000) >> 12;
+            WorldMapInitSpriteGroupSprites(0x25, pPos, NULL);
+            WorldMapInitSpriteGroupSprites(0x26, pPos, NULL);
+            WorldMapInitSpriteGroupSprites(0x27, pPos, NULL);
+            pActor->state = 3;
+        }
+        break;
+    }
+    case 3:
+        if (pActor->y > 0x100000) {
+            pActor->x -= pActor->dirX * 128;
+            pActor->y -= pActor->dirY * 128;
+            pActor->z -= pActor->dirZ * 128;
+            pGroup[2].hidden = 1;
+            pGroup[1].hidden = 1;
+            pGroup->hidden = 1;
+            pActor->state = 0x41;
+        }
+        break;
+    case 16: {
+        SVECTOR *pPos = (SVECTOR *)(pScratch + 0xA0);
+
+        if (pActor->x <= 0x1F9DFFF && pActor->z > 0x5998000) {
+            pActor->state = 0x11;
+            pPos->vx = 0x1F9E;
+            pPos->vz = 0x5998;
+            pPos->vy = pActor->y >> 12;
+            WorldMapInitSpriteGroupSprites(0x20, pPos, NULL);
+            WorldMapInitSpriteGroupSprites(0x21, pPos, NULL);
+        }
+        break;
+    }
+    case 17:
+        if (pActor->x <= 0x199CFFF && pActor->z > 0x6367000) {
+            pActor->x = 0x199D000;
+            pActor->z = 0x6367000;
+            pGroup[2].hidden = 1;
+            pGroup[1].hidden = 1;
+            pGroup->hidden = 1;
+            WorldMapStartSlot(4, 5);
+            WorldMapStartSlot(5, 5);
+            WorldMapStartSlot(6, 5);
+            WorldMapStartSlot(7, 5);
+            WorldMapStartSlot(8, 5);
+            nResult = 3;
+        }
+        break;
+    case 24:
+        if (pActor->x <= 0x1EB4FFF && pActor->z > 0x5EE6000) {
+            pGroup[2].hidden = 1;
+            pGroup[1].hidden = 1;
+            pGroup->hidden = 1;
+            WorldMapStartSlot(4, 2);
+            WorldMapStartSlot(5, 2);
+            WorldMapStartSlot(6, 2);
+            WorldMapStartSlot(7, 2);
+            WorldMapStartSlot(8, 2);
+            pActor->state = 0x41;
+        }
+        break;
+    case 64:
+        pActor->x = 0x1F9E000;
+        pActor->z = 0x5998000;
+        break;
+    case 65:
+        nResult = 3;
+        break;
+    }
+    WorldMapWrapPosition((VECTOR *)&pActor->x);
+    pGroup->x = pActor->x >> 12;
+    pGroup->y = pActor->y >> 12;
+    pGroup->z = pActor->z >> 12;
+
+    switch (pActor->state) {
+    case 0:
+    case 1:
+    case 16:
+    case 25: {
+        MATRIX *pRotMat = (MATRIX *)(pScratch + 0xF0);
+        MATRIX *pTmp = (MATRIX *)(pScratch + 0x110);
+        VECTOR *pScale = (VECTOR *)pScratch;
+        SVECTOR *pPos = (SVECTOR *)(pScratch + 0xA0);
+        SVECTOR *pAngle = (SVECTOR *)(pScratch + 0xA8);
+
+        pRotMat->m[0][0] = WORLD_MAP_SLOT_FACING_COS;
+        pRotMat->m[0][1] = 0;
+        pRotMat->m[0][2] = WORLD_MAP_SLOT_FACING_SIN;
+        pRotMat->m[1][0] = 0;
+        pRotMat->m[1][1] = -0x1000;
+        pRotMat->m[1][2] = 0;
+        pRotMat->m[2][0] = -WORLD_MAP_SLOT_FACING_SIN;
+        pRotMat->m[2][1] = 0;
+        pRotMat->m[2][2] = WORLD_MAP_SLOT_FACING_COS;
+        pGroup->rot.vz = (pGroup->rot.vz + WORLD_MAP_SLOT_ANGLE_STEP) & WORLD_MAP_ANGLE_MASK;
+        RotMatrixYXZ(&pGroup->rot, pTmp);
+        MulMatrix0((MATRIX *)((u32)pScratch | 0xF0), pTmp, &pGroup->mat);
+        pScale->vx = pScale->vy = 0x800;
+        pScale->vz = 0x1800;
+        ScaleMatrix(&pGroup->mat, pScale);
+        pPos->vx = pActor->x >> 12;
+        pPos->vy = pActor->y >> 12;
+        pPos->vz = pActor->z >> 12;
+        pAngle->vx = pAngle->vz = 0;
+        pAngle->vy = ratan2(WORLD_MAP_SLOT_FACING_SIN, WORLD_MAP_SLOT_FACING_COS) & WORLD_MAP_ANGLE_MASK;
+        WorldMapInitSpriteGroupSprites(0x22, (SVECTOR *)((u32)pScratch | 0xA0), (SVECTOR *)((u32)pScratch | 0xA8));
+        break;
+    }
+    case 4:
+    case 17:
+    case 65:
+        WorldMapDeactivateSpriteGroup(0x22);
+        return nResult;
+    case 2:
+    case 3: {
+        VECTOR *pVec0 = (VECTOR *)pScratch;
+        VECTOR *pVec1 = (VECTOR *)(pScratch + 0x10);
+        VECTOR *pVec2 = (VECTOR *)(pScratch + 0x20);
+        MATRIX *pMat = (MATRIX *)(pScratch + 0x150);
+        MATRIX *pRotMat = (MATRIX *)(pScratch + 0xF0);
+        MATRIX *pTmp = (MATRIX *)(pScratch + 0x110);
+        VECTOR *pScale = (VECTOR *)pScratch;
+        SVECTOR *pPos = (SVECTOR *)(pScratch + 0xA0);
+        SVECTOR *pAngle = (SVECTOR *)(pScratch + 0xA8);
+
+        pVec0->vx = 0x988;
+        pVec0->vy = -0x227;
+        pVec0->vz = -0xCAB;
+        pVec1->vx = 0;
+        pVec1->vy = 0x1000;
+        pVec1->vz = 0;
+        OuterProduct12(pVec1, pVec0, pVec2);
+        VectorNormal(pVec2, pVec2);
+        OuterProduct12(pVec0, pVec2, pVec1);
+        VectorNormal(pVec1, pVec1);
+        pMat->m[0][0] = pVec2->vx;
+        pMat->m[0][1] = pVec2->vy;
+        pMat->m[0][2] = pVec2->vz;
+        pMat->m[1][0] = pVec1->vx;
+        pMat->m[1][1] = pVec1->vy;
+        pMat->m[1][2] = pVec1->vz;
+        pMat->m[2][0] = pVec0->vx;
+        pMat->m[2][1] = pVec0->vy;
+        pMat->m[2][2] = pVec0->vz;
+        WorldMapExtractRotationFromMatrix(pMat, pAngle);
+        TransposeMatrix(pMat, pRotMat);
+        pGroup->rot.vz = (pGroup->rot.vz + WORLD_MAP_SLOT_ANGLE_STEP) & WORLD_MAP_ANGLE_MASK;
+        RotMatrixYXZ(&pGroup->rot, pTmp);
+        MulMatrix0(pRotMat, pTmp, &pGroup->mat);
+        pScale->vx = pScale->vy = 0x800;
+        pScale->vz = 0x1800;
+        ScaleMatrix(&pGroup->mat, pScale);
+        pPos->vx = pActor->x >> 12;
+        pPos->vy = pActor->y >> 12;
+        pPos->vz = pActor->z >> 12;
+        WorldMapInitSpriteGroupSprites(0x22, (SVECTOR *)((u32)pScratch | 0xA0), pAngle);
+        break;
+    }
+    }
+    return nResult;
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
-// 100.00% in objdiff under -G0 (99.4 under the unit preset) but the C is 45 bytes
-// the wrong length at link time, so -G0 is NOT the answer for this overlay (its
-// globals are absolute symbols from undefined_syms_auto, and -G0 changes that
-// addressing). Do not re-try -G0 here.
+
 
 int WorldMapInitSlotActor(int index) {
     int nType = index - WORLD_MAP_SLOT_ACTOR_INDEX_BASE;
