@@ -615,6 +615,21 @@ void MovieInitDarkPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
 // reachable from the source, so retail's order would need those two defs to be
 // loop-hoisted movables, i.e. the assignments to live INSIDE the loop - which no
 // plausible source does. Preset screen: unit preset 98.67, cdk 89.61.
+// ROUND 419 (new measurements, no new best): the residual IS source-reachable in
+// the TYPED form but not together with the re-reads. Writing all six colour walks
+// as `g_MovieDarkColours[i].r/.g/.b` and `g_MovieDarkTargetColours[i].r/.g/.b`
+// (no pointer locals) emits retail's EXACT preheader order - colours base at +2,
+// target base at +2, then the -1/-1 and -2/-2 derived givs AROUND the steps base,
+// and the same order in the latch - but scores 90.47% / 896 bytes / 222 insns
+// because gcc CSEs the three sum reads that retail re-reads (the 4 missing
+// insns). Making those three reads volatile on the typed form costs the giv
+// derivation entirely: 81.67% / 992 bytes / 246 insns. Dropping the two R pointer
+// locals and reading `pColB[-2]` / `pTargetB[-2]` instead folds the -2 offsets
+// inline as displacements with no derived giv: 95.77% / 904 bytes / 224 insns.
+// The hybrid (a source `s32* pStep` walking pointer kept, durations still indexed
+// by `i`) hoists the durations base into a register and shrinks the frame to
+// 0x48: 93.25% / 880 bytes / 218 insns. So the ordering is only produced by the
+// six-derived-giv shape, and that shape cannot also produce the re-reads.
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
 /* 98.67%, 912 bytes, retail's exact size
