@@ -4125,6 +4125,9 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 // a declaration-order no-op and a semantics-changing write to continueProcessing.
 // Preset ruled out with try_flags.sh on this body: 2.7.2 -O2 -G8 = 97.01, 2.7.2-cdk = 72.55, so
 // the unit's 2.6.0 is right.
+// Not a rodata blocker: the C switch's table lands at +0x28 of the unit's .rodata, the same offset
+// as jtbl_801C5028, so once the rotation is fixed the conversion needs no table work - prove it
+// with check_bin.sh shop_menu, not diff_func.sh.
 /*
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
