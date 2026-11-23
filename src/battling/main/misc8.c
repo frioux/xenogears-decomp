@@ -628,31 +628,38 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
     }
 }
 
-/* PARK 97.74% (732 bytes, retail 740: 8 bytes SHORT, so it cannot link).  The
-   body below is the 98.01% already-known shape with D_800916E2/D_8009171E/
-   D_80091714 typed as g_BattleTextLists[5].nextListIndex,
-   g_BattleTextLists[6].nextListIndex and &g_BattleTextLists[6] (0x800915AC +
-   5*0x3C + 0xA, + 6*0x3C + 0xA, + 6*0x3C): the typed spelling reads 97.74%
-   because objdiff cannot fold those reloc addends, same 732 bytes.
-   Named residual, case 2: retail reads g_BattleSlotConfirmFlags a SECOND time
-   after the g_BattleTextLists[5].nextListIndex store (`lui v0` + `lw v0` +
-   `nop`, then `andi v0,v0,2`) and keeps the ternary arm in $v0; gcc 2.7.2 cse
-   keeps the first load because the intervening store is to a different
-   symbol, so we run one load and put the arm in $a0.  The `flags` local is
-   load-bearing: it is what stops cse sharing the constant 1 across the two
-   BattleUpdateTextPadInput calls and keeps retail's 0x18 frame (0x20 frame and
-   +3 insns without it).
-   Measured this round: `*(volatile s32 *)&g_BattleSlotConfirmFlags` for the
-   second ternary = 744 bytes, 92.03% (gets the reload, then the constant 1 is
-   shared again); the same for both ternaries = 748, 91.15%; volatile read into
-   the local after the first store = 744, 94.89%; `extern volatile s32
-   g_BattleSlotConfirmFlags` with no local = 748, 89.80%.  The local assigned
-   after the first store (instead of before) = 732, 97.74% (no change).
-   Earlier rounds also tried g_BattleTextLists[5]/[6] vs g_BattleOptionTextList
-   + 0x3C (740 in the base body), g_BattleSlotConfirmLatched stored after the
-   ternaries (91.44), a plain s32* pointer local (cse'd), gcc-2.7.2-cdk
-   (83.90), -O3 (identical) and two permuter runs (nothing usable).
-*/
+/* PARK 99.70% (744 bytes = retail's exact size, 186 instructions = retail's
+   count).  Retail is 744 bytes, not the 740 older notes claimed (objdiff's symbol
+   size and the .s agree: 0x11F54..0x1223C).
+   The body is instruction-identical except THREE BYTES in case 2: retail's first
+   ternary puts its result in $v0 (li v0,5 / li v0,4 / sh v0,D_800916E2) and ours
+   in $a0.  culprit.sh reports exactly 'func_80081A44 3 bytes 0x80081AEA-0x80081AF6',
+   so the function cannot link.  Named residual: register-only, an allocator
+   preference for the dying register that retail took and this build did not
+   (gcc prefers to keep the loaded flags value alive in $v0 and allocates $a0
+   for the arms; retail destroys it and reloads, which is why retail has the
+   second lw at all).
+   What DID work this round (all needed for the 744 bytes):
+   - the second nextListIndex read must be a STATEMENT through a volatile cast,
+     flags = *(volatile s32 &g_BattleSlotConfirmFlags);  a plain read is
+     CSE'd into a register across the store to the other global (gcc 2.7.2 has no
+     alias analysis) and never reloaded, which is the 2-instruction shortfall;
+   - the FIRST store must be volatile too (*(volatile u16 &D_800916E2 = ...),
+     or sched2 sinks it below the reload (740 bytes, 97.46-97.74);
+   - the second call is BattleUpdateTextPadInput(g_BattleOptionTextList + 1, 1),
+     which gives retail's single addiu a0,s0,0x3C; the typed second-list spelling
+     costs one instruction (lui+addiu);
+   - the two nextListIndex stores must be the D_ globals D_800916E2/D_8009171E:
+     g_BattleTextLists[5].nextListIndex makes cc1 materialise the address in a
+     register (3 insns against retail's lui at + sh).
+   Measured, all worse: no 'flags' local (736, s1 spill, 91.37); volatile inline
+   in the second ternary (748, 94.65); volatile on the first read only (752);
+   flags read twice through volatile (748, 98.60); (x & 1) ? 5 : 4 arm order
+   (744, 99.37); plain first store (740, 97.46).  A 3-minute permuter run reports
+   base=45 best=45 over 1691 iterations: its score is dominated by the branch
+   label renaming that diff_func always shows for this function, so it cannot
+   see a one-register move.
+/*
 void func_80081A44(void) {
     switch (g_BattleMode) {
     case 1:
@@ -749,7 +756,9 @@ void func_80081A44(void) {
         break;
     }
     BattleDrawVibrationOptions();
-}
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
+
 
 void BattleUpdateTextWindow(void) {
     s32 unk[2]; /* unused: retail's frame keeps 8 bytes of locals here */
