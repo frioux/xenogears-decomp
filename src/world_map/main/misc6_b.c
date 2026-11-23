@@ -1,47 +1,53 @@
 #include "common.h"
 
-/* Best: 99.92%, 520 bytes = retail's exact size, objdiff 99.92% (round 400,
-   re-measured live in round 414 and again in round 427). Every instruction is
-   identical to retail's; the ONLY residual is the switch table's PLACEMENT:
-   retail has `lw v0,0(at)` with %lo(jtbl_800701E0), this body `lw v0,288(at)`
-   with %lo(.rodata) - the table at object offset 0x120 (report mode) / 0x458
-   (matching mode) against retail's range offset 0x454 (the 0x18 in the round-400
-   note was stale: other C tables were added to the unit since). Round 427
-   measured the link directly, which settles it: the parked object's .rodata is
-   0x558 bytes = retail's range exactly and `check_bin.sh world_map` prints OK,
-   while with this body live the section is 0x55C (+4, the `.align 3` pad after
-   WorldMapUpdateSlotActor's 5-word table), the linked overlay is 180426 bytes
-   against disc's 180422, and every later byte shifts - so the function CANNOT be
-   converted in this unit, whatever the C says. permute.sh on the live body: PERMUTER_ZERO
-   base=0 best=0 in one iteration, i.e. the instruction stream already equals the
-   original and only the relocation's target/addend differs, so no C spelling can
-   close this - do not unpark it for C work.
-   JTBL_LAYOUT, and round 414 supersedes the old "needs a maspsx rewrite" verdict:
-   the table is convertible via the lever i-rodata-head-carve-moves route, but it
-   needs a UNIT SPLIT, not a yaml-only carve. Arithmetic: misc6's .rodata range
-   0x29C..0x7F4 holds eight tables at range offsets 0, 0x108, 0x168, 0x1D0, 0x230,
-   0x338, 0x440 (all 8-aligned) and this one at 0x454 (4 mod 8), tiling its 0x558
-   bytes with no slack. cc1's .align 3 is section-relative and hardcoded (lever
-   i-jtbl-align-3-hardcoded), so a C table can only land at an 8-aligned OBJECT
-   offset, and the 4 mod 8 comes from the one preceding C table -
-   WorldMapUpdateSlotActor's 5-word jtbl_800701CC (0x14 bytes, not a multiple of
-   8) - which is already matched in this unit and must not move. The table's
-   ABSOLUTE address 0x800701E0 IS 8-aligned, so the fix is: a new main/misc6_b
-   whose .rodata range starts at overlay 0x6F0 (yaml `- [0x29C, .rodata,
-   main/misc6]` becomes `- [0x6F0, .rodata, main/misc6]` plus `- [0x6F0,
-   .rodata, main/misc6_b]`) with the code range split at this function's file
-   offset 0x10880 (`- [0x10880, c, main/misc6_b]`, misc6's `c` range ending
-   there), the tail functions moved to misc6_b.c, and a gears.toml path entry for
-   it because XenoWorldMapDiv is keyed per file. Its table then sits at object
-   offset 0 where `.align 3` is a no-op.
-   Shapes measured on the way: `default: break;` alone (no `case 0:`) makes gcc
-   fold the index to `state - 1` and emit 64 entries with `sltiu ... 64` instead
-   of retail's 65 / `sltiu ... 0x41` (lever i-case-0-label-keeps-table-base) - the
-   `case 0:` label is what keeps the table's slot 0. The state-1 arm, the
-   WorldMapStartSlot/global-set cases and the three
-   SoundPlaySoundEffectOnFreePair calls are all instruction-exact.
-*/
-/*
+typedef struct {
+    /* 0x00 */ undefined32 unk00;
+    /* 0x04 */ s16 command;
+    /* 0x06 */ u16 unk06;
+    /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
+    /* 0x20 */ s16 state;
+    /* 0x22 */ u16 stateTimer;
+    /* 0x24 */ undefined32 unk24;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
+    /* 0x34 */ undefined32 unk34;
+    /* 0x38 */ s32 dirX;
+    /* 0x3C */ s32 dirY;
+    /* 0x40 */ s32 dirZ;
+    /* 0x44 */ undefined32 unk44;
+    /* 0x48 */ undefined32 unk48;
+    /* 0x4C */ undefined32 unk4C;
+    /* 0x50 */ int stateIndex; // into the per-state tables; other map modes reuse these four words
+    /* 0x54 */ u16 *pStateIds;
+    /* 0x58 */ u16 *pStateFrames;
+    /* 0x5C */ s32 scale;
+    /* 0x60 */ s32 unk60[7]; // 0x60..0x7B
+    /* 0x7C */ s32 unk7C;
+} WorldMapActor; // Size: 0x80
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x14];
+    /* 0x14 */ u16 sedId;
+} SoundSedsBank; // Size: unknown, only +0x14 is read
+
+extern WorldMapActor *g_WorldMapSlots;
+extern u16 g_WorldMapScriptStateIds[];
+extern u16 g_WorldMapScriptStateFrames[];
+extern SoundSedsBank *g_MenuSedsFile;
+extern s32 g_WorldMapTpageAbr;
+extern s32 g_WorldMapDrawMode;
+extern s32 g_WorldMapLoopActive;
+extern s32 g_WorldMapAreaMode;
+extern void WorldMapStartSlot(s32, s32);
+extern void SoundPlaySoundEffectOnFreePair(s32);
+
+/* This unit exists to hold this function's 65-word jump table: the table must sit
+   at overlay 0x6F0, and misc6's .rodata starts at 0x29C, so there it would land at
+   object offset 0x454 (4 mod 8), which cc1's hardcoded `.align 3` cannot emit.
+   misc6_b's .rodata starts at 0x6F0 (8-aligned), so the table is at offset 0. The
+   explicit `case 0:` is what keeps the table's slot 0: without it gcc folds the
+   index to `state - 1` and emits 64 entries. */
 int func_80080370(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
@@ -101,9 +107,7 @@ int func_80080370(int index) {
         break;
     }
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6_b", func_80080370);
-
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6_b", func_80080578);
 /* 94.71% (136 bytes = retail's 34 insns), round 311. SOLVED: the
    constant-before-store-group question. Retail's first `li v0,1` sits six
