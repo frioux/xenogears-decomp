@@ -256,8 +256,6 @@ u_long func_80045B00(int x, int y) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
-
 /* best: 98.53% (68 bytes = retail's exact size, identical instruction
    multiset; only the register holding the masked x differs: retail masks it into
    $v0 and lui's 0xE5000000 into $a0, gcc the reverse, which also swaps the two
@@ -283,6 +281,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
    returns with one expression (69.59 / 70.71), DrawMode style const-in-arm
    (69.41), dead test on fld (59.41), dead test on code (63.47), `(u_long)x &
    mask` (98.53), two earlier permuter runs (nothing).
+   Round 419 re-measured the un-parked body at 98.53 (68 bytes, same 17 insns) and
+   confirmed the residual is `andi a0,a0,...` -- gcc reuses the dead parameter x's
+   $a0 and coalesces the or result with the CONSTANT, retail keeps the masked x in
+   $v0 and the constant in $a0. Two new shapes measured: `fld | (code | 0xE5000000)`
+   as one expression, matching retail's or tree exactly, 98.24% (loses the jr slot
+   as well); `return ret | fld;` 97.94%. Broker is the parameter reuse: retail's
+   andi writes a fresh register, so x was still live, which no spelling of
+   `code = x & mask` in an arm reproduces.*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
+
+/* best: 98.53%
 u_long func_80045BCC(int x, int y) {
     u_short code;
     u_long fld;
@@ -395,25 +404,43 @@ int func_80045D5C(u_long *ot, int n) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045E44);
 
+/* best: 98.36% (142 insns / 568 bytes; retail 143 / 572, so ONE instruction and
+   4 bytes short). LoadImage(rect, p): DrawSync, clamp w/h to g_GpuScreenWidth/
+   g_GpuScreenHeight, total = w*h+1, guard total/2 > 0, split into 16-word DMA
+   blocks plus a CPU-sent tail, 0xA0 image-load command. The dead `mode = 0` local
+   is real: retail keeps the `beqz s5` for it. CLOSED this round (86.60 -> 91.29 ->
+   94.79 -> 98.36): (1) `blocks = total / 32` spends two instructions on signed
+   division rounding that retail does not have -- retail's `sra` is plain, so the
+   source shifted: `total >> 5`. (2) The CPU tail must reuse the REST variable as
+   its counter (`while (--rest != -1)`), not a separate `i`: retail decrements in
+   place on rest's $s0, which is what makes rect/p/blocks/mask land on $s1/$s2/
+   $s4/$s3 and the frame 0x50 instead of my earlier rotation (rect=$s0, counter in
+   $a0, frame 0x58). (3) The image command is a conditional expression at the store
+   (`*g_GpuGp0Port = mode ? 0xB0000000 : 0xA0000000;`), not a `cmd` local assigned
+   in an if: that is what puts the `beqz s5` AFTER the port reload with a `nop`
+   delay slot and 0xA0000000 in the loop latch's delay slot.
+   REST (3 residuals, all in the total/blocks block): retail's division round-up is
+   IN PLACE on total's $v1 (`addu v1,v1,v0`) where mine writes a fresh $v0, retail's
+   `total >> 5` writes a FRESH $s0 that rest then overwrites (`subu s0,a0,v0`) and it
+   keeps a copy for the multiply (`move v1,s0`) and for blocks (`move s4,v1`) while
+   mine shifts in place on total and reuses blocks' $s4 -- i.e. retail's RTL order
+   is shift-then-divide (total dies at the round-up) and mine is divide-then-shift.
+   Also the while-loop's two branch senses are mirrored (retail `bnez` to the exit,
+   `beqz` back to the jal; mine the reverse), which is the same block-order choice.
+   Measured this round, all worse: shift before the guard (`blocks = total >> 5;`
+   above the guard) 94.65 / 96.22 -- blocks then takes $s4 directly and the `sll`
+   lands in the bgtz delay slot; one variable for total+rest+counter (`rest = rect->w
+   * rect->h + 1; ... rest = rest / 2 - (rest >> 5) * 16;`) 94.65; a named `n = total
+   >> 5` temp 98.36 (identical). Older round: guard before/after the /32 (86.60 vs
+   83.77).*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800460A0);
 
-/* best: 86.60% (145 insns; retail 143, 572 bytes vs my 580). Structure is right:
-   LoadImage(rect, p) -- clamp w/h to g_GpuScreenWidth/g_GpuScreenHeight, total = w*h+1, guard
-   total/2 > 0, split into 16-word DMA blocks plus a CPU-sent tail, 0xA0 image-load
-   command (the dead `mode = 0` local really is in retail: gcc 2.7.2 keeps the
-   beqz s5 branch even though mode is a constant zero). What is left is callee-saved
-   allocation: retail has rect=s1, p=s2, i=s0, blocks=s4, 0x04000000=s3 and a 0x50
-   frame; mine gets rect=s0, p=s1, i stays in a0, 0x04000000=s2 and a 0x58 frame.
-   Also retail's `while (!(*g_GpuGp1Port & 0x04000000))` loop is not rotated and
-   reloads the mask register inside the loop, mine hoists it and rotates the test.
-   Tried: guard before/after the /32 (86.60 vs 83.77).
+/* best: 98.36%
 int func_800460A0(RECT *rect, u_long *p) {
-    u_long cmd;
     int total;
     int blocks;
     int rest;
     int mode;
-    int i;
 
     func_80046EFC();
     mode = 0;
@@ -422,21 +449,18 @@ int func_800460A0(RECT *rect, u_long *p) {
     total = rect->w * rect->h + 1;
     if (total / 2 <= 0)
         return -1;
-    blocks = total / 32;
-    rest = total / 2 - blocks * 16;
+    rest = total / 2 - (total >> 5) * 16;
+    blocks = total >> 5;
     while (*g_GpuGp1Port & 0x04000000) {
         if (func_80046F30())
             return -1;
     }
     *g_GpuGp1Port = 0x04000000;
     *g_GpuGp0Port = 0x01000000;
-    cmd = 0xA0000000;
-    if (mode)
-        cmd = 0xB0000000;
-    *g_GpuGp0Port = cmd;
+    *g_GpuGp0Port = mode ? 0xB0000000 : 0xA0000000;
     *g_GpuGp0Port = *(u_long *)&rect->x;
     *g_GpuGp0Port = *(u_long *)&rect->w;
-    for (i = rest - 1; i != -1; i--)
+    while (--rest != -1)
         *g_GpuGp0Port = *p++;
     if (blocks != 0) {
         *g_GpuGp1Port = 0x04000002;
