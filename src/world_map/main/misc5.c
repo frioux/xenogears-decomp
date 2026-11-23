@@ -912,38 +912,53 @@ int WorldMapInitActorParamsFromTable(int idx) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
-/* 98.13%, 876 bytes = retail's exact size and 219 instructions; the whole body is
-   decoded and only ONE pair of instructions is placed differently, in case 0x10: retail
-   has `ori a1,a2,0xA0` (the call's tile pointer) + `sh zero,0xA2(a2)` BEFORE the two
-   global loads, our compile puts the same adjacent pair AFTER them (before the two sra).
-   Nothing else differs. Shapes tried, all 98.13% / 876 bytes: the three store orders,
-   the two shifts loaded into locals, a u8-pointer and a s16-pointer scratch local, and a
-   `u16 *pTilePos = &pScratchPos[0x50];` local for the call argument (round 396).
-   permute.sh 4 min / 2179 iterations: base=120 best=120.
-   Structural facts that are settled and must be kept:
-   - the switch is over 0..0x40 and MUST have a `case 0: break;`, or gcc range-folds it
-     to `addiu -1 / sltiu` and the table shifts by one word.
-   - state is s16 (lh + sltiu), stateTimer u16 (`(s16)--stateTimer < 0` gives
-     lhu/addiu -1/sh/sll 16/bgez, exactly as WorldMapUpdateActorState case 1); the three
-     loads of unk50 are retail's, not CSE failures.
-   - the scratchpad base is `u16 *pScratchPos = (u16 *)0x1F800000;` at the top of the
-     function with 0x50/0x51/0x52 indexes: that is what puts `lui a2,0x1F800000` in the
-     beqz delay slot, forms the argument as `ori a1,a2,0xA0` and keeps the stores at
-     0xA0/0xA2/0xA4(a2). A local declared inside the case gives lui $at per store.
-   JTBL_LAYOUT, settled in round 396 - this stub cannot be converted, even at 100%.
-   cc1 hardcodes `.align 3` before a C jump table in all three compilers (lever
-   i-jtbl-align-3-hardcoded) and jtbl_8006FC50 sits at unit rodata offset 0x8C, i.e.
-   4 mod 8 (the misc5 rodata range is 0x8006FBC4 + 0x1C8 bytes; its seven tables tile it
-   at 0x0/0x30/0x50/0x68/0x8C/0x194/0x1AC). Converting the whole switch family in address
-   order gives C offsets 0x0/0x30/0x50/0x68 then 0x8C padded to 0x90, and the next table
-   (retail 0x194) padded on to 0x198, so the range ends at 0x1CC instead of 0x1C8: the
-   overlay grows 4 bytes and TEXT_START moves. Converting this stub alone is worse: the C
-   table lands at 0x30 of the object's .rodata, after WorldMapUpdateActorState's 0x30-byte
-   table, so the diff shows `lw v0,48(at)` against retail's `lw v0,0(at)`. Lever
-   i-jtbl-midchain-4mod8 has the arithmetic.
-*/
-/*s32 func_8007C3B8(s32 idx) {
+// PARKED 99.95% (876 bytes / 219 insns = retail's exact size, every instruction
+// identical): the ONLY residual is the jump table's POSITION, not the C. Measured with
+// check_bin.sh world_map: build/out/world_map.bin is 180422 bytes = disc's exact size
+// and exactly 15 words differ - the table's 14 distinct words (retail's jtbl_8006FC50
+// occupies file 0x160..0x263 with its zero pad at 0x264, ours has the pad at 0x160 and
+// the table at 0x164..0x267) and the single `lw v0,%lo` addend at file 0xC904
+// (0x8006FC54 against retail's 0x8006FC50). Nothing after 0x268 moves.
+// WHY: misc5's object .rodata already holds WorldMapUpdateActorState's 12-word table at
+// +0 (0x30 bytes) and func_8007BBEC's 9-word table at +0x68 (0x24 bytes), so the next C
+// table starts at range offset 0x8C = 4 mod 8 and cc1's `.align 3` (lever
+// i-jtbl-align-3-hardcoded) pads it to 0x90. The range's layout is [0x00 UAS 0x30 C]
+// [0x30 ADD4 0x20 asm] [0x50 ADD4 0x18 asm] [0x68 BBEC 0x24 C] [0x8C this table 0x104]
+// [0x190 four zero bytes] [0x194 C7D8 0x18 asm] [0x1AC C7D8 0x1C asm = range end], i.e.
+// retail has exactly ONE pad, AFTER this table, right before the two tables at 0x194 and
+// 0x1AC whose absolute addresses (0x8006FD58 / 0x8006FD70) are 8-aligned. So a table at
+// range offset 0x8C was reachable in the 1998 build and is not reachable from one object
+// today. FIX = orchestrator work, not a C spelling: func_8007C3B8 must be emitted by an
+// object whose .rodata STARTS at 0x160, i.e. a main/misc5_b unit split with rodata
+// 0x160..0x264 (exactly this table) and a plain `rodata` carve for 0x264..0x29C (the pad
+// plus func_8007C7D8's two asm tables, which must NOT travel with the stub: emitted after
+// this table they would land 4 bytes early); misc5_b also takes code from 0xC8C8
+// (func_8007C3B8, func_8007C724, the func_8007C7D8 stub and everything after), needs
+// `world_map/main/misc5_b.` added to XenoWorldMapDiv's paths in gears.toml (the presets
+// are keyed per file), and its WorldMapPlayer/SVECTOR dependence means the prototypes and
+// types its functions use move with it. Reverting WorldMapUpdateActorState and
+// func_8007BBEC to stubs would also unblock this table and is the wrong trade: two
+// matches lost for one.
+// THE BODY IS FINISHED, do not re-hunt it. Its last residual was case 0x10's
+// `ori a1,a2,0xA0` + `sh zero,0xA2(a2)` pair, which sched2 sinks below the two
+// g_WorldMapCameraTarget loads. Making the FIRST scratchpad store volatile pins it - and
+// the call argument's address with it - exactly where retail has them: 98.13 -> 99.95 at
+// the same 876 bytes (lever h-volatile-store-pins-the-arg-pair). The three plain store
+// orders, the two shifts in locals, u8/s16/u16 scratch pointer locals and a 4-minute
+// permuter run (2179 iterations, base=120 best=120) all measured 98.13 before that; a
+// u16 *pTilePos = &pScratchPos[0x50] used for all three stores and the argument also
+// measured 98.13.
+// Structural facts that are settled and must be kept: the switch is over 0..0x40 and MUST
+// keep `case 0: break;`, or gcc range-folds it to addiu -1 / sltiu and the table shifts
+// one word; state is s16 and stateTimer u16 ((s16)--stateTimer < 0 gives
+// lhu/addiu -1/sh/sll 16/bgez, exactly as WorldMapUpdateActorState case 1); the three
+// loads of unk50 are retail's, not CSE failures; and the scratchpad base is the
+// u16 *pScratchPos local at the top of the function with 0x50/0x51/0x52 indexes - that is
+// what puts `lui a2,0x1F800000` in the beqz delay slot, forms the argument as
+// `ori a1,a2,0xA0` and keeps the stores at 0xA0/0xA2/0xA4(a2). A scratch local declared
+// inside the case gives a fresh lui $at per store.
+/*
+s32 func_8007C3B8(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     u16 *pScratchPos = (u16 *)0x1F800000;
 
@@ -965,7 +980,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0xF);
         break;
     case 0x10:
-        pScratchPos[0x51] = 0;
+        *(volatile u16 *)&pScratchPos[0x51] = 0;
         pScratchPos[0x50] = g_WorldMapCameraTarget >> 12;
         pScratchPos[0x52] = g_WorldMapCameraTargetZ >> 12;
         WorldMapInitSpriteGroupSprites(0x14, (void *)&pScratchPos[0x50], 0);
@@ -1022,6 +1037,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
     return 1;
 }
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
+
 // The volatile casts, the pRot pointer local and the empty do-while are all
 // load-bearing, not debris: without them gcc's -O2 scheduler hoists the three
 // position loads above the unk7C store and sinks the six target stores below
