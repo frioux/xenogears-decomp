@@ -42,6 +42,15 @@ extern u8 D_800C34AE;
 
 extern u16 g_BattleActionParam;
 extern u16 g_BattleCommandCellFlags;
+extern s32 g_BattleCurveTargets[];
+extern u8 g_BattleCurveTargetModes[];
+
+// The per-slot byte at +0x56 of the same 0x170-byte slot family (BattleTableEntry.characterId),
+// which func_80098D2C rebuilds from this base rather than reading through the entry it holds.
+extern u8 D_800CCD3E[];
+// The byte just before g_BattleCommandCellUses, set to 0x30 with that word's 0x8000 bit.
+extern u8 D_800D2CAF;
+extern void BattleSetSlotEntryFieldsTo2000(u8, u8);
 
 // The 0x170-byte per-slot condition table. Its flag word sits at +0x8A
 // (BattleTableEntry::accessoryEffectFlags4) and its timer bytes at +0x15C, which the original
@@ -1238,6 +1247,212 @@ void BattleInitActiveSlotActions(u8 sel) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
+/* func_80098D2C 91.59%, 1896 bytes / 474 insns (retail 475 insns / 1900 bytes, 0x76c - ONE
+   instruction short). Structure is retail's: every arm, call site, load width, the 6-entry
+   jump table on power-10, the effect-word grid zero, the statWeights loop and the s4
+   (BattleSlotState) base all line up, and outside the first 96 lines the instruction count is
+   EXACT - the whole residual is three things, all in the prologue and the first two arms.
+   1. ALLOCATOR TIE: retail keeps the slot entry in $s1 and the action entry in $s0, this body
+      mirrors them ($s0 slot / $s1 action), which is where most of the ~370 diff lines come
+      from; both are SI pseudos with similar ref counts, so per tools/rounds/levers.md
+      (a-global-allocno-priority-is / a-lreg-dump-gives-the) it is a near tie, not a 10x gap -
+      take a -da dump before trying spellings. Swapping the two declarations was measured and
+      changes nothing.
+   2. BOTH MULTIPLIES: retail's `power * 50` (slotAmounts) and `10 * power` (curve target) are
+      `ori reg,const` + `mult` + `mflo`; this body gets gcc's synthesized shift/add chains
+      (5 and 4 insns). gcc only synthesizes when the constant is a literal in the tree, so
+      retail's scale was a value in a register at expand time. That is worth +5 instructions
+      against 475. 2.7.2-psx scores 91.51 and 2.7.2-cdk 82.22 on this body, so the preset
+      (XenoBattle260) is right and this is not a compiler-version split.
+   3. FRAME: retail's frame is 0x40 with saves at 0x28..0x3C, this body's is 0x30 with saves at
+      0x18..0x2C. Nothing in retail reads sp+0x00..0x27, so retail's source held 0x10 bytes of
+      stack locals that were optimised away after allocation - the action entry is exactly
+      0x10 bytes, so a struct copy of it is the likely origin. Retail also materialises
+      `&slot->state` ($s4) in the PROLOGUE while this body sinks its addiu into the first
+      branch's delay slot: the source took that address in a statement before the first test.
+   Tried: flags/conditionFlags as s16 (that fix is in - retail loads them `lh` in the 0x8000
+   test, the `== 1` test and the 0xF000 test and `lhu` where only low bits matter), swapping
+   the pSlot/pAction declarations, an explicit pState local. Not tried: a -da allocno dump for
+   the $s0/$s1 tie; a realistic spelling that keeps 10/50 in a variable for the multiplies.
+
+// The body below is the 91.59% attempt, kept verbatim (see the note above for what is left).
+// One 0x10-byte entry of the per-row action table the battle block keeps at +0x5518,
+// indexed by the row BattleBeginAction runs: `power` scales every amount the row deals,
+// `flags` says which effects it applies and `conditionFlags` is the effect bit word each
+// of those effects hands to its condition timer.
+typedef struct {
+    // 0x0 u8 unk0[0x8];
+    // 0x8 u8 power;
+    // 0x9 u8 conditionCount;
+    // 0xA s16 flags;
+    // 0xC s16 conditionFlags;
+    // 0xE u8 unkE[0x2];
+} BattleActionEntry; // Size: 0x10
+
+// One slot's half of BattleInitActiveSlotActions: applies the row the action runs to
+// `slot` - the amount and curve target a damage row sets, the effect words each of its
+// flag bits adds, and the slot's own curve mode. A row that set a curve target needs
+// nothing more from this function, so the rest runs only for the rows that did not.
+void func_80098D2C(u8 slot, u8 row) {
+    BattleWorkBlock *pBase = (BattleWorkBlock *)g_BattleWorkBlock;
+    BattleActionEntry *pAction = (BattleActionEntry *)((u8 *)g_BattleWorkBlock + 0x5518) + row;
+    BattleTableEntry *pSlot = &pBase->slots[slot];
+    BattleSlotState *pState = &pSlot->state;
+    u8 curveCount = 0;
+    u8 i;
+
+    if (pAction->flags & 0x8000) {
+        g_BattleCurveTargetModes[slot] = 2;
+        pBase->slotAmounts[slot] = pAction->power * 50;
+        if (pSlot->accessoryEffectFlags3 & 0x80) {
+            g_BattleCurWorkBlock->slotAmounts[slot] *= 2;
+        }
+        curveCount = 1;
+        if (pSlot->blockFlags & 0x8000) {
+            g_BattleCurveTargetModes[slot] = 0;
+        }
+    }
+    if (pAction->flags & 0x4000) {
+        curveCount++;
+        g_BattleCurveTargetModes[slot] = 3;
+        g_BattleCurveTargets[slot] = pAction->power * 10;
+    }
+    if (curveCount != 0) {
+        return;
+    }
+    if ((g_BattleSlotConditions[slot][0] & 0x80) && pAction->flags != 1) {
+        D_800D2CAF = 0x30;
+        g_BattleCommandCellFlags |= 0x8000;
+        return;
+    }
+    if (pAction->flags & 0x2000) {
+        pSlot->activeEffectFlags1 &= 0x8000;
+    }
+    if (pAction->flags & 0x1000) {
+        pSlot->activeEffectFlags2 = 0;
+        pSlot->conditionFlags &= ~0x20;
+    }
+    if (pAction->flags & 0x100) {
+        if (D_800CCD3E[slot * 0x170] == 2) {
+            BattleSetSlotEntryFieldsTo2000(slot, 0);
+        }
+        pSlot->activeEffectFlags1 = 0;
+        pSlot->activeEffectFlags2 = 0;
+        pSlot->activeEffectFlags3 = 0;
+        pSlot->activeEffectFlags4 = 0;
+        pSlot->activeEffectFlags7 = 0;
+        pSlot->hp = pSlot->maxHp * pAction->power / 10;
+        ((u16 *)&g_BattleCurWorkBlock->unk5FB2)[2] |= 1 << slot;
+    }
+    if (pAction->flags & 0x800) {
+        pSlot->activeEffectFlags3 |= pAction->conditionFlags;
+        BattleSetSlotConditionTimer(slot, 5, pAction->conditionFlags, 5);
+        BattleSetCommandCodeForSlotKindFlag(5, pAction->conditionFlags);
+    }
+    if (pAction->flags & 0x400) {
+        pSlot->activeEffectFlags4 |= pAction->conditionFlags;
+        BattleSetSlotConditionTimer(slot, 7, pAction->conditionFlags, 5);
+        BattleSetCommandCodeForSlotKindFlag(7, pAction->conditionFlags);
+    }
+    if (pAction->flags & 0x200) {
+        pSlot->activeEffectFlags7 |= pAction->conditionFlags;
+        if (pAction->conditionFlags & 0xF000) {
+            if ((pSlot->accessoryEffectFlags7 & 0xF000) == 0) {
+                pSlot->activeEffectFlags7 &= 0xFFF;
+                pSlot->activeEffectFlags7 |= pAction->conditionFlags;
+                BattleSetSlotConditionTimer(slot, 9, pAction->conditionFlags, 5);
+                BattleSetCommandCodeForSlotKindFlag(9, pAction->conditionFlags);
+            }
+        }
+        if (pAction->conditionFlags & 0xF00) {
+            if ((pSlot->accessoryEffectFlags7 & 0xF00) == 0) {
+                pSlot->activeEffectFlags7 &= 0xF0FF;
+                pSlot->activeEffectFlags7 |= pAction->conditionFlags;
+                BattleSetSlotConditionTimer(slot, 9, pAction->conditionFlags, 5);
+                BattleSetCommandCodeForSlotKindFlag(9, pAction->conditionFlags);
+            }
+        }
+    }
+    if (pAction->flags & 0x20) {
+        pSlot->accessoryEffectFlags1 |= 0x3F7C;
+    }
+    if (pAction->flags & 0x10) {
+        pSlot->accessoryEffectFlags1 |= 0xFFFE;
+    }
+    if (pAction->flags & 0x8) {
+        ((u16 *)&pSlot->activeEffectFlags3)[pAction->power] = 0;
+        switch (pAction->power) {
+        case 0:
+            g_BattleCurWorkBlock->commandCode = 0x35;
+            break;
+        case 2:
+            g_BattleCurWorkBlock->commandCode = 0x36;
+            break;
+        case 4:
+            g_BattleCurWorkBlock->commandCode = 0x37;
+            break;
+        }
+    }
+    if (pAction->flags & 0x80) {
+        if (pAction->conditionFlags & 0x2) {
+            if (slot >= 3) {
+                g_BattleCurWorkBlock->commandCode = 0x33;
+                return;
+            }
+            if (pAction->conditionCount == 0) {
+                if (BattleTestActorSlotFlagsC002ByMode() != 0) {
+                    pSlot->activeEffectFlags1 |= pAction->conditionFlags;
+                    g_BattleCurWorkBlock->commandCode = 0x31;
+                    pSlot->conditionFlags = 0xFFEF;
+                } else {
+                    g_BattleCurWorkBlock->commandCode = 0x32;
+                }
+            } else {
+                pSlot->activeEffectFlags1 &= ~pAction->conditionFlags;
+                pSlot->conditionFlags = g_BattleSavedSlotUnk7A[slot];
+            }
+        }
+    }
+    if (pAction->flags != 1) {
+        return;
+    }
+    switch (pAction->power) {
+    case 10:
+        pSlot->element = 0;
+        pSlot->element = pAction->conditionFlags;
+        break;
+    case 11:
+        if (pSlot->accessoryEffectFlags1 & pAction->conditionFlags) {
+            break;
+        }
+        pSlot->activeEffectFlags1 |= pAction->conditionFlags;
+        BattleSetSlotConditionTimer(slot, 0, pAction->conditionFlags, pAction->conditionCount);
+        BattleSetCommandCodeForSlotKindFlag(0, pAction->conditionFlags);
+        break;
+    case 12:
+        if (pSlot->accessoryEffectFlags2 & pAction->conditionFlags) {
+            break;
+        }
+        pSlot->activeEffectFlags2 |= pAction->conditionFlags;
+        BattleSetSlotConditionTimer(slot, 2, pAction->conditionFlags, pAction->conditionCount);
+        BattleSetCommandCodeForSlotKindFlag(2, pAction->conditionFlags);
+        break;
+    case 13:
+        pState->penaltyPercent += pAction->conditionFlags;
+        g_BattleCurWorkBlock->commandCode = 0x28;
+        break;
+    case 14:
+        g_GameState.characters[pSlot->characterId].unk44 = 1;
+        g_GameState.characters[pSlot->characterId].unk48 = 1;
+        break;
+    case 15:
+        for (i = 0; i < 7; i++) {
+            pSlot->statWeights[i] += 10;
+        }
+        break;
+    }
+}
+*/
 u8 BattleTestActorSlotFlagsC002ByMode(void) {
     u8 i;
     u8 n;
