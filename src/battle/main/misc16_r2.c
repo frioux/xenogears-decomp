@@ -415,41 +415,12 @@ void func_80090310(u8 arg0, u8 arg1) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
 
-// PARKED 91.97% (624 bytes / 156 insns against retail's 0x26C = 620 / 155, so it cannot
-// link yet) under the unit's gcc-2.6.0. ROUND 413 redo, 79.85 -> 91.97; battle/main/misc17
-// func_8009187C is the same function (different tables and icon coordinates, parked 98.22)
-// and its note has the palette-block bit.
-// LOAD-BEARING: the palette blocks assign pRec from the INLINE pool load,
-// `pRec = g_BattleGraphicsWork->pPacketPrims + *pMode * 0x28;`. That is what reproduces
-// retail's order there (lw *pMode, sll/addu/sll by 0x28, lui+lw g_BattleGraphicsWork,
-// lw pBase at 0xA230, lbu D_800D2F69, beqz, addu in the delay slot). Measured:
-// a separate `pBase = ...` statement then `pRec = pBase + mult` is 79.85, and inlining
-// the store (`*(u16 *)(pool + (*pMode * 0x28 + 0x32E)) = pal;`) is 78.32. The two call
-// halves keep the separate pBase statement (that is what retail loads there).
-// WHOLE REMAINING GAP, three measured causes:
-// 1. ONE INSTRUCTION (the reason this cannot link): retail's switch join block STARTS
-//    with the two call constants (li a1,0xA8 / li a2,0x33) BEFORE the lui/addiu of pMode,
-//    so reorg copies li a1 into the two beqz delay slots and the first beq slot takes the
-//    slti. Here the la comes first, those three slots stay nops and the body is 4 bytes
-//    long. Tried and identical or worse: pMode assigned before or after pBase, the mult
-//    first (`*pMode * 0x28 + pBase`, gcc canonicalises the add: same 91.97), s16 x/y
-//    locals holding 0xA8/0x33 assigned just before the la (cse folds them back: 91.97).
-// 2. register tie in both palette blocks: pRec takes v0 and the palette value v1 here,
-//    retail has pRec in v1 and the palette in v0 (addu v0,v0,v1 / sh v1,814(v0) against
-//    retail's addu v1,v1,v0 / sh v0,814(v1)). misc17's park hit the same tie.
-// 3. the call argument: addu a0,t0,a0 here against retail's addu a0,a0,t0, in both halves.
-// Cases 0/1/2 with no default is right (a flags value over 2 leaves col uninitialised,
-// which is why retail test-and-branches instead of using a jump table); the case bodies
-// are in retail's memory order 0xC / 0xD / 0x15.
-/*
 void func_800904A0(u8 arg0, u8 arg1) {
-    u8 *pBase;
     u8 *pRec;
     u16 flags;
     u16 pal;
     s32 row;
     u8 col;
-    s32 *pMode;
 
     flags = g_BattleCommandEntries[g_BattleCommandGridIds[arg1 * 2 + arg0]].flags;
     if (flags & 0x4000) {
@@ -470,30 +441,29 @@ void func_800904A0(u8 arg0, u8 arg1) {
         col = 0x15;
         break;
     }
-    pMode = &g_BattlePrimStartIndex;
-    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x320)), 0xA8, 0x33,
-        D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
-    pRec = g_BattleGraphicsWork->pPacketPrims + *pMode * 0x28;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                        (g_BattlePrimStartIndex[0] * 0x28 + 0x320)),
+                            0xA8, 0x33, D_800D2F6A[row * 4], D_800D2F6B[row * 4],
+                            g_BattleActionRowIconSprites[row * 4]);
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(g_BattlePrimStartIndex[0] * 0x28));
     if (D_800D2F69[row * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x32E) = pal;
-    pMode = &g_BattlePrimStartIndex;
-    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x370)), 0xD0, 0x33,
-        D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
-    pRec = g_BattleGraphicsWork->pPacketPrims + *pMode * 0x28;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                        (g_BattlePrimStartIndex[0] * 0x28 + 0x370)),
+                            0xD0, 0x33, D_800D2F6A[col * 4], D_800D2F6B[col * 4],
+                            g_BattleActionRowIconSprites[col * 4]);
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(g_BattlePrimStartIndex[0] * 0x28));
     if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x37E) = pal;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_800904A0);
+}
 
 
 void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
