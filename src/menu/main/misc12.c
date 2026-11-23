@@ -714,24 +714,22 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    is still materialised after that statement, so the +4 form anchors either way.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-/* Best: 99.85% at 688 bytes / 172 insns, which IS retail's size. Round 402
-   re-measured the old 99.79% body (3 instructions differed: the two la halves plus
-   the derived addiu) and then found that a pure PRESSURE gate on pText in the first
-   MenuRenderFrame loop - "if (pText) { MenuRenderFrame(); } else { MenuRenderFrame(); }",
-   both arms the same single call, so it is NOT realistic source - flips the la
-   anchor: the pair becomes "lui/addiu s4 = symbol+4" + "addiu s5,s4,-4" in retail's
-   exact two slots and the loops' addu operands follow, 99.85%. What is left is only
-   which of the two values owns s4: retail keeps the BASE in s4 and base+4 in s5,
-   this body keeps base+4 in s4 (the la) and the base in s5 (the derived addiu).
-   The gate works by raising pText's allocno priority, which is why round 113's
-   two-local wall survives it: two dependent address locals plus the same gate is
-   still 88.09%, the la pair emitted inside the save region. So the register tie is
-   pri-based and the next lever is a spelling that makes the BASE the pri winner
-   without a second address local - every second-local form displaces the la pair
-   out of the lw 852 load-delay slot. Permuter (3 min, round 402): PERMUTER_BETTER
-   base=35 best=25, and its only edit was exactly this gate plus an unused temp copy,
-   so the permuter has nothing left here (three runs now: rounds 104, 285, 402).
-
+/* Best: 99.79% (688 bytes = retail's size, one local). Round 415 (twin lane):
+   the twin ShopMenuInitializeSubmenu - same source shape, matched 100% - proves the
+   shape is right, and its own .s has retail's exact prologue (andi s3 = masked arg,
+   la s4 = table, addiu s5,s4,4 hoisted into the two lw v0,0x354 delay slots). Porting
+   the twin body verbatim (single symbol, `idx + 1` inline, `+=` accumulate, allValid
+   after the three stores) measures 91.84% / 692 bytes / 173 insns here: gcc does NOT
+   hoist the (table+4) address out of the OUTER loop in this unit and re-materialises a
+   second full lui/addiu in loop 2's preheader, with the masked arg taking s4 and the
+   base s5. Two address locals (pIds = g_MenuSubMenuChoiceIds; pText = pIds + 1;) give
+   retail's exact pair - la s4 = table then addiu s5,s4,4 - but at 88.09% because gcc
+   emits them at the head of the entry block, before the remaining saves, instead of in
+   the two load-delay slots. So the residual is a hoisting/allocno-ORDER difference,
+   not a source-shape one: the twin's TU differs only by two extra entry-block stores
+   (isDisabled/isDisabledRendered) that my stub's retail body does not have, and that is
+   enough to rotate masked/base/base+4 from (s3,s4,s5) here into (s4,s5,s3). One-local
+   body (below): anchor direction wrong (la on table+4, base derived as -4), 99.79%.
 void func_801E86C8(u_char selected) {
     s32 i;
     s32 n;
@@ -760,11 +758,7 @@ void func_801E86C8(u_char selected) {
         g_Menu->pSubmenuPrims->polys0RenderCtx = g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
-                if (pText) {
-                    MenuRenderFrame();
-                } else {
-                    MenuRenderFrame();
-                }
+                MenuRenderFrame();
             }
         }
         g_Menu->pSubmenuPrims->polys500PrimCount = 0;
