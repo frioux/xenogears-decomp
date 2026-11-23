@@ -95,19 +95,22 @@ void WorkListUpdate(void) {
     }
 }
 
-/* Best: 89.34% (152 bytes, 38 insns, identical instruction multiset and frame).
-   Only the order of the four hoisted loads differs - original: counter, g_WorkList,
-   0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList, counter - and the register
-   assignment follows it (original: unk10 word in v1, unk14 word in a2, counter in a3,
-   old head in t1), so it is a sched2 ready-list order. 12 statement orderings measured
-   (unk10 first 73.34, id local 86.03, count before unk10 79.76, flags first 38.74,
-   callbacks early 73.39, head local 89.34, unk0 last 82.47, unk14 first 43.42, the
-   original store order 69.37). Not the preset: 2.6.0 89.87, 2.7.2-cdk 84.03, cdk with
-   --dont-expand-li 84.03. A 4-minute permuter run from this body found only 89.74 (it
-   holds the NULL for the onTriggerCallback store in a local and stores it after the
-   counter increment). The bitfield writes are right: unk10 gets the counter and keeps
-   its top 3 bits, unk14 gets pData->unk10 and clears bits 29-31 one and at a time,
-   exactly retail. */
+/* Best: 89.34% (152 bytes, 38 insns, identical instruction multiset and frame; retail
+   .s is 38 insns too). Only the order of the four hoisted loads differs - original:
+   counter, g_WorkList, 0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList,
+   counter - and the register assignment follows it (original: unk10 word in v1, unk14
+   word in a2, counter in a3, old head in t1), so it is a sched2 ready-list order (the
+   MIPS -O2 spec turns sched2 on, which is why statement order alone cannot place the
+   loads). 12 statement orderings measured (unk10 first 73.34, id local 86.03, count
+   before unk10 79.76, flags first 38.74, callbacks early 73.39, head local 89.34,
+   unk0 last 82.47, unk14 first 43.42, the original store order 69.37; this round added
+   the sibling TimerWorkListAddTask field order (unk14 group, unk10, callbacks, link)
+   49.71 and the two-statement counter form (unk10 = counter; counter = counter + 1)
+   73.37). Not the preset: 2.6.0 89.87, 2.7.2-cdk 84.03, cdk with --dont-expand-li
+   84.03. A 4-minute permuter run from this body found only 89.74 (it holds the NULL for
+   the onTriggerCallback store in a local and stores it after the counter increment).
+   The bitfield writes are right: unk10 gets the counter and keeps its top 3 bits,
+   unk14 gets pData->unk10 and clears bits 29-31 one and at a time, exactly retail. */
 /*
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
@@ -189,8 +192,9 @@ void WorkListDeleteTask(WorkListEntry* pTask) {
    0x14 stores, 58.70); group after unk0 + inline post-increment 84.20; same + id local
    first statement 80.62 (counter load late anyway); group after callbacks 60.73 (the
    pData->unk10 read must sit right after unk0, worth +23%); unk10 statement moved next to
-   the if 84.20 (tie). Presets: 2.6.0 79.7, 2.7.2-cdk 83.72 - both worse, preset ruled out. */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
+   the if 84.20 (tie). Presets: 2.6.0 79.7, 2.7.2-cdk 83.72 - both worse, preset ruled out. Under gcc-2.7.2-cdk-psx + maspsx
+   --dont-expand-li (the preset this unit wants, see func_8001D2B0's note) this same
+   body is 89.55, its best so far: re-measure it after any preset switch. */
 /*
 void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
@@ -210,8 +214,8 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
         pEntry->unk14_3 = 0;
     }
     g_NumTimerWorkListEntries++;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
 
 WorkListEntry* TimerWorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
@@ -430,19 +434,26 @@ extern SpriteAnimPackage g_SpriteAnimPackageDirs6;
 extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 
 // Change Sprite Animation Frame maybe?
-/* Best: 97.53% under the unit flags (328 bytes, retail 324). PRESET: this body is
-   INSTRUCTION-IDENTICAL to retail under gcc-2.7.2-cdk-psx + maspsx --dont-expand-li
-   (100.00, verified by objdump side-by-side). Retail has two things plain 2.7.2 cannot
-   emit: (a) the address pair is lui $v0,%hi in the beqz delay slot then addiu a1,v0,%lo,
-   i.e. the high and low halves are SEPARATE RTL insns with different registers, which
-   only cdk produces (plain 2.7.2 ties %hi to its destination and leaves a nop, one
-   instruction long); (b) retail assembles li 1 as addiu $v1,$zero,1 where maspsx
-   expand_li gives ori. Under the unit flags the best measured residual is 97.53; the
-   body itself is right. field_0x40 is tested with srl+andi, curSpriteFrame is read as
-   u16. Tried and measured worse: plain while, guard+do/while, head read twice, 2.6.0
-   (94.44), 2.7.2 + --dont-expand-li (98.27, one instruction short). The duplicated
-   if (animFrame) advance is a permuter find that put the list cursor in v1; its arms
-   are identical on purpose. */
+/* Best: 97.53% under the unit flags (328 bytes vs retail 324, 81 vs 82 insns).
+   PRESET: this body is 100.00 under gcc-2.7.2-cdk-psx + maspsx --dont-expand-li
+   --use-comm-section --run-assembler, and so is EVERY other function of the unit
+   (tools/scripts/try_flags.sh slus_006.64/system/work_list --all --gcc
+   gcc-2.7.2-cdk-psx --maspsx '--dont-expand-li --use-comm-section --run-assembler'),
+   27 of 27 at 100.00. So the unit is a clean switch to a new preset of that shape;
+   the body needs no change. Under cdk alone (unit maspsx flags) the same body is
+   99.26 - the last 0.74 is maspsx expanding the li 1 as ori where retail has
+   addiu r,zero,1, i.e. the XenoRendering/XenoPauseText class.
+   Why plain 2.7.2 cannot do it: retail forms each of the two package addresses as
+   lui v0,hi in the beqz delay slot then addiu a1,v0,lo - two SEPARATE RTL insns
+   with different registers, which only cdk emits; plain 2.7.2 ties hi to its
+   destination, so the pair is one insn, reorg leaves a nop in the delay slot and
+   the function is one instruction long. The register pair also lands swapped
+   (mine Dirs6 in a0, retail Dirs6 in a1) for the same reason.
+   Tried and measured worse: plain while, guard+do/while, head read twice, 2.6.0
+   (94.44), 2.7.2 + --dont-expand-li (98.27, one instruction short). field_0x40 is
+   tested with srl+andi, curSpriteFrame is read as u16. The duplicated
+   if (animFrame) advance is a permuter find that put the list cursor in v1; its
+   arms are identical on purpose. */
 /*
 void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     SpriteData* pOldHead;
@@ -486,8 +497,9 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     g_SpriteAnimFrameListHead = pSpriteData;
     pSpriteData->field_0x40 |= 0x20000;
     pSpriteData->pBase->pNextSpriteData = pOldHead;
-} */
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
+
 
 
 // Unlink SpriteData entry from list
