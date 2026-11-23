@@ -5058,6 +5058,15 @@ andi to widen it back for the shift and the compare, 96.36% / 608 bytes / 152 in
 -G0 measures the same 98.51 and gcc-2.6.0 -O3 refuses the file. Note retail's t0=base / t1=counter
 contradicts the -dg priority formula (base 4 refs, counter 5) rather than just losing a tie, so the
 mirror came from a body this C cannot spell: do not re-enter without a new allocator axis.
+Round 433 read the dumps instead of guessing (cc1 -dl -dg on build/src/slus_006.64/system/sound.c.i):
+both values are GLOBAL allocnos, so global-alloc's refs/live quotient decides them, not -dl's insn
+counts - 'Register dispositions: 71 in 3 72 in 9 73 in 5 74 in 11 75 in 7 81 in 8 ...' gives pVoice
+= 72 -> t1 and the counter = 81 -> t0, and the allocation order is '73 80 203 75 71 81 72 79 74 78 77
+76'. Their numbers: pVoice 8 refs over 96 insns (0.083), counter 13 over 95 (0.137). Both counts are
+PINNED by the instruction stream, which is already retail's: pVoice appears only in the preheader
+def, the a2 giv, the single 'sh 0(t0)' and its own 'addiu' increment, the counter in the three
+sllv, its addiu and the slti. Flipping the pair needs pVoice at 14 refs or the counter at 8, i.e.
+two instructions retail does not have, so this is a proof and not a tie - do not re-enter it.
 *//*
 void func_8003E900(void) {
     SpuUnion* pSpu;
