@@ -555,6 +555,23 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
    land before the addu.  Also tried: else-branch assignment to valid (96%), the
    || form valid = character != 0xFF || ... (worse), a u32 offset local hoisted
    above each AddPrim (95.10%), and offset + pData operand order (96.78%).
+   98.89% (608 vs 612 bytes, 153 vs 154 insns) under 2.6.0 at -O2 and -O3 both:
+   retail duplicates the merge block's u8 conversion into BOTH predecessors (andi v0,v1,0xff
+   in the second bne delay slot for the const edge, and again after move v1,v0 at the end of
+   the 0xFF arm) and keeps only beqz at the merge; this build emits ONE andi AT the merge and
+   puts li v1,0x1 in the second slot. Same source, one dead mask short, so never linkable.
+   Tried this round: the arm carrying its own 'if (!valid) continue;' plus the outer one
+   (costing the arm its own andi+beqz, the two compare tails do NOT cross-jump because they
+   differ by the reorg nop: 96.94 / 624 B / 156 insns); explicit if/else with both arms
+   assigning valid (const edge then keeps li v0,1 + andi v0,v0,0xff, i.e. the constant
+   conversion does survive when the blocks are split, but the body reloads g_Menu and gains a
+   j: 95.64 / 628 B). Nothing here adds back exactly one andi. Already tried in earlier rounds:
+   (u8) casts at assignment and test (identical), || form (95.51), ternary (95.64), else-branch
+   assignment (96%), u32 offset local above AddPrim (95.10), offset+pData operand order
+   (96.78), permute.sh 3 min base=314 best=314. -O1 75.79, 2.7.2-cdk compile-fails.
+   Notes kept from before: g_MenuCardSlotOrder needs only an extern; the three colour bytes
+   read g_Menu+0x4D4 through a u8* cast (retail lbu); AddPrim offsets must be &pData[ctx*N+K]
+   so the addiu lands before the addu.
 void func_801CF37C(void) {
     s32 i;
     u8 character;
@@ -593,6 +610,8 @@ void func_801CF37C(void) {
     }
 }
 */
+
+
 // Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
 // (allocated in misc11's MenuCreateCellPrimBlocks): the glyph quad every render context
 // gets, the two line prims, and the source vertices the quad is rendered from.
@@ -649,34 +668,34 @@ void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
-/* 91.32% (612 vs 620 bytes, 153 vs 156 insns).  Everything is instruction-shape
-// identical except that retail has ONE more callee-saved value and the register
-// block is therefore shifted by one: retail keeps y in $fp, scale $s7, x1 $s6,
-// count $s5, x0 $s4, base $s3, a COPY of base $s2 (move s2,s3 in the j preheader,
-// used only inside the j loop), i $s1, j $s0; ours has no copy so base sits in $s2
-// and everything else drops a slot.  That copy is the 3 missing insns (move + the
-// s8/fp save/restore).  The two blocks that made this reachable: (1) the index
-// ternary around func_8002675C must be TWO FULL CALLS in an if/else, not `? :` -
-// gcc 2.6.0 cross-jumps them, which is where retail's single jal, its duplicated
-// `lui/lw g_Menu` + `lw a2,0x32C` in both arms and the `li a1,0x115` in the
-// beqz delay slot all come from (79.94 -> 91.32); (2) glyph prim j of context c is
-// FLAT (`glyphs[2 * j + c]`, offset 0x50 added after the *40 scale) - a nested
-// glyphs[j][c] makes gcc strength-reduce j by 80 into a register instead.
-// Also open: the rendered[2] zeroing is `sb zero,0x21(sp)` before `sb zero,0x20(sp)`
-// in retail, i.e. reversed; `u8 rendered[2] = { 0, 0 };` gives a .sdata copy
-// instead (gcc 2.6.0 copies the zero literal), and the statement form stores
-// forward.  Tried and measured: pPrims held in a local (78.87), rendered[i] read
-// through a pointer local (79.94), flat expression instead of the struct
-// (79.94), {0,0} initializer (.sdata copy).  Not tried: a -dg dump of the allocno
-// order to see whether the base copy can be created by any spelling.
-// Cursor and glyph prim block of one memory card slot, in MenuUnk2's anonymous
-// blob at 0x4D94 (one 0xF0-byte block per slot): a cursor prim per render
-// context, then the slot number's glyphs, each also a context pair.
-typedef struct {
-    // 0x00 POLY_FT4 cursors[2];
-    // 0x50 POLY_FT4 glyphs[4]; // Glyph j's prim for context c at 2 * j + c
-} MenuCardSlotPrims; // Size: 0xF0
-
+/*
+98.65% (624 vs 620 bytes, 156 vs 156 insns, XenoMenu260) - two lines left, one cause:
+retail has `blez s5,after` / `move s0,zero` (in the blez DELAY SLOT) / `move s2,s3`, this
+build emits `move s0,zero` BEFORE the blez and reorg then fills the slot with `move s2,s3`.
+So the j-loop's `j = 0` has to be emitted after the count guard, which a `for` whose init is
+outside cannot do. The guard-first spellings measured: `if (count > 0) { j = 0; slotOffset =
+base; do {...} while (++j < count); }` puts the moves in retail's order but the blez slot
+becomes a nop and the frame shrinks 0x58 -> 0x50 (158 vs 156 insns, 98.46);
+`if (count > 0) { slotOffset = base; for (j = 0; ...) }` emits TWO blez guards (158 insns,
+98.46) because 2.6.0 does not eliminate the for's entry test against the source's own guard.
+Everything else is exact: frame 0x58, rendered[2] at 0x20, the five prologue `li`s in
+retail's order (y, scale, base, x1, x0, after the beqz delay-slot `move s1,zero`), the
+s8/fp save, and the register block (j s0, i s1, copy s2, base s3, x0 s4, count s5, x1 s6,
+scale s7, y fp).
+What got here from 91.32: the missing callee-saved value is a COPY of the slot offset -
+`s32 slotOffset; slotOffset = base;` as a statement before the j loop, used in the loop -
+which is what gives retail's `move s2,s3` preheader copy and pushes every other value up one
+register. Verified by measurement, not by the allocator: without it 91.32 (153 insns, no
+s8), with it 91.83 (156 insns, right registers, wrong const placement) -> 97.18 (consts
+moved inside the if) -> 98.65 (const order + sb 0x21-before-0x20 + x1 increment before x0).
+Also measured this round: 2.7.2 87.79, cdk compile-fails, -O3 91.32 on the 91.32 body, so the
+preset is right.
+Not tried: a -dg dump to see whether the j=0 move can be pushed below the guard by any
+declaration/statement spelling that keeps the frame; an `if (count > 0)` version of the
+do/while with a dummy 8-byte local to restore the frame.
+The typedef above stays live (it is only a type). The cursor AddPrim after the loop uses
+`base`, the glyph loop uses `slotOffset` - that split is what keeps both live across the
+call and is load-bearing.
 void func_801CF8D8(void) {
     MenuUnk2* pData;
     u_char useAlt;
@@ -687,18 +706,20 @@ void func_801CF8D8(void) {
     s32 scale;
     s32 base;
     s32 count;
+    s32 slotOffset;
     s32 i;
     s32 j;
 
-    rendered[0] = 0;
     rendered[1] = 0;
-    x0 = 0x1E;
-    x1 = 0x1B;
-    y = 0x36;
-    scale = 0x1000;
-    base = 0x4D94;
+    rendered[0] = 0;
     if (g_Menu->cardSlotState) {
-        for (i = 0; i < 2; i++) {
+        i = 0;
+        y = 0x36;
+        scale = 0x1000;
+        base = 0x4D94;
+        x1 = 0x1B;
+        x0 = 0x1E;
+        for (; i < 2; i++) {
             pData = g_Menu->menuUnk2;
             if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {
                 useAlt = 1;
@@ -719,20 +740,22 @@ void func_801CF8D8(void) {
             }
             // rendered[i] is set only by the branch above, which is what defines count.
             if (rendered[i]) {
+                slotOffset = base;
                 for (j = 0; j < count; j++) {
                     AddPrim(&g_Menu->pGfxEnv->ot[4],
-                            &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->glyphs[2 * j + g_Menu->renderContext]);
+                            &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + slotOffset))->glyphs[2 * j + g_Menu->renderContext]);
                 }
                 AddPrim(&g_Menu->pGfxEnv->ot[4],
                         &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors[g_Menu->renderContext]);
             }
             base += 0xF0;
-            x0 += 0x90;
             x1 += 0x90;
+            x0 += 0x90;
         }
     }
 }
 */
+
 // Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
 // (allocated in misc11's MenuCreateCellPrimBlocks): the two line prims, one per render
 // context each, and the source vertices the lines are built from.
