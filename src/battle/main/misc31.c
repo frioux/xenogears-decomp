@@ -188,7 +188,6 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 // 98.10% at the original's exact 496 bytes: all 124 instructions are present and in
 // retail's order, and only the closing group differs - the flags_0xA8 word ends in $v0
 // where retail keeps it in $a0, and its store lands after the 0xAC block's `andi`
@@ -209,6 +208,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 // way round, and the sunk store follows from it ($v0 is needed again by the 0xAC
 // block's srl). Also measured: the shift in a local computed above the pVramData
 // store (96.49, and the mask's ori moves).
+// R419 re-measured 98.10 at 496 bytes and measured three more spellings, all no better:
+// a `u32 slotBits = slot << 30;` statement above the flags store (96.49) and the same
+// with the flags word also in a local (96.49) - the shift's pseudo is created before the
+// load's in both, yet the load still takes $v0 and the shift $a0, so creation order is
+// not what local-alloc is sorting on here; `(slot << 30) | (flags & 0x3FFFFFFF)` 97.78.
+// The mirror is what the fourth spelling below cannot reach: retail's order is
+// shift->$v0, mask->$v1, load->$a0, ours load->$v0, mask->$v1, shift->$a0.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 /*
 void func_800BB350(u32 slot) {
     u8 *pBase;
@@ -216,7 +223,6 @@ void func_800BB350(u32 slot) {
     SpriteData *pSprite;
     u8 saved;
     s32 scale;
-
     pBase = g_BattleStateWork;
     if (*(SpriteData **)(pBase + slot * 4 + 0x8C8C) != NULL) {
         return;
@@ -259,8 +265,7 @@ void func_800BB350(u32 slot) {
     // of flags_0xA8, its high two in the low bits of flags_0xAC
     pSprite->flags_0xA8 = (pSprite->flags_0xA8 & 0x3FFFFFFF) | (slot << 30);
     pSprite->flags_0xAC.flags = (pSprite->flags_0xAC.flags & ~3) | ((slot >> 2) & 3);
-}
-*/
+}*/
 void BattleSpawnActorSlot(BattleAnimWorkTask *pTask) {
     s32 i;
     u16 slotBit;
@@ -354,7 +359,6 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
     pMatrix->t[2] = -vTmp.vz;
     PopMatrix();
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 // best 84.11% at retail's exact 228 bytes: the tail block's argument setup is the same
 // instruction multiset in retail's order, but the two loads (depth 0xC54 into $a3,
 // primIndex 0xC84 into $v1) sit between the three stack stores in retail and are hoisted
@@ -374,11 +378,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 // 32768 takes $v1, so local-alloc hands primIndex the dead base register; retail has the
 // constant in $v0 and the base in $v1 instead, which only the inline-load form reaches
 // (and there gcc's right-to-left argument expansion loads 0xC84 before 0xC54, 83.44).
-// primIndex as a local with depth inline in the call: also 83.44.
+// R419: re-measured 84.11 at retail's exact 228 bytes with pWork as a u8* (the
+// mem_addr form above scores the same). The whole residual is a two-register mirror:
+// retail holds the work base in v1 and the 0x8000 constant in v0, this body the other
+// way round, so primIndex takes v1 in both. The const pseudo has to be allocated FIRST
+// for that, which an addsi3 constant split cannot do: `offset = 0x8000; pWork += offset`
+// folds back to the immediate, and `0x8000 + base` folds the whole add into the symbol's
+// addend (220 bytes).
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 /*
 void func_800BB9D4(void) {
     s32 *pViewTrans;
-    mem_addr pWork;
+    u8 *pWork;
     s32 depth;
     s32 primIndex;
 
@@ -389,7 +400,7 @@ void func_800BB9D4(void) {
     pViewTrans[0xE] += g_BattleDrawScaleX.vy;
     pViewTrans[0xF] += g_BattleDrawScaleX.vz;
     if (g_BattleSlotDrawSuppressed == 0) {
-        pWork = (mem_addr)g_BattleStateWork;
+        pWork = g_BattleStateWork;
         pWork += 0x8000;
         depth = *(s32 *)(pWork + 0xC54);
         primIndex = *(s32 *)(pWork + 0xC84);
