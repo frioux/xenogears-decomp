@@ -8,6 +8,9 @@ extern u8 *g_BattleColorSourceA;
 extern u8 *g_BattleColorSourceB;
 extern u8 *g_BattleSpriteRenderData;
 extern u8 *g_BattlePartPrimBuffers; /* [2] in misc22; only element 0 is used here */
+/* Volatile alias of the same symbol: retail reloads the pointer for loop 1's first
+   prim store instead of reusing the guard's load, and a volatile read cannot be cse'd. */
+extern u8 * volatile g_BattlePartPrimBuffersVolatile __asm__("g_BattlePartPrimBuffers");
 extern u8 g_BattleSpritePool[];
 extern u8 g_BattleBlockPool[];
 extern u16 g_BattleCurrentActorSlot;
@@ -298,50 +301,6 @@ extern s16 D_800D2D30;
 extern s16 D_800D2D34;
 extern s16 D_800C3EA8;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
-/* 99.16% (1412 bytes / 353 insns; retail 1424 / 356) - NOT comparable with the
-   previous 99.58 park in this slot: that body was retail's exact size but had all 15
-   g_BattlePartPrimBuffers operand orders mirrored (30 differing lines, judged
-   unreachable); this one has EVERY instruction, displacement, branch, frame and
-   operand order right and is 3 instructions SHORT, with one named residual:
-   RETAIL RELOADS THE PRIM POINTER FOR LOOP 1'S FIRST STORE. Retail's
-   .L800A61A4 is lui/lw (guard) + beqz + addiu a1,a1,0x24, then lui/lw AGAIN + addu
-   v0,v0,a2; cc1 2.6.0 cse's the store's load into the guard's register and drops
-   the second lui/lw/nop (353). Loop 2's first store DOES reuse the guard's value
-   (retail's addu sits in the beqz delay slot), so only loop 1 reloads, and a single
-   declaration cannot be volatile for one site only: `extern u8 * volatile g_...`
-   makes loop 2 reload too (359), and `pSlot = *(u8 * volatile *)&g` reloads but
-   emits lui/addiu/lw (3 insns) because volatile forces an indirect address
-   (357, 1428 bytes, 99.71 - the reg-based address costs the extra addiu).
-   HOW THE 15 OPERAND ORDERS WERE CLOSED (new lever, also in levers.md): the
-   g_BattlePartPrimBuffers sites failed the in-place trick with the array extern
-   (`extern u8 *g_BattlePartPrimBuffers[2]`) because cc1 hoists `la t0,gArr` out of
-   both loops and reloads through it (1368 bytes, 92.95%). This TU's declaration is
-   now the SCALAR `extern u8 *g_BattlePartPrimBuffers` (misc22 owns the pair; only
-   element 0 is used here) - for a scalar extern cc1 emits the DIRECT symbolic
-   `lw v0,sym` per site, and the two-statement in-place form
-   (pSlot = g; pSlot += i * 0x18; pDst[0] = pSlot[0x284];) then gives retail's
-   base-first `addu v0,v0,a2` with retail's per-site lui/lw. So "MEM base at a
-   constant address" was never the obstacle; ARRAY-ness was.
-   Tried for the reload, all measured: the plain subscript for the first store
-   (reloads but index-first, 99.4x), an embedded assignment inside the address,
-   `if ((mem_addr)g != 0)` as the guard (no effect - pointers and ints are both
-   SImode on MIPS, so no mode difference to block cse), the volatile cast (above),
-   and a double-negated offset for all 15 sites (cc1 turns it into a negative biv:
-   subu + addiu a1,a1,-36, 90.19%). No permuter run on this body - the residual is
-   a MISSING instruction, which the permuter cannot add.
-   Everything else the old note said still holds: the first clear loop is a byte
-   OFFSET loop (for (offset = 0x12; offset >= 0; offset -= 6)) needing its own local,
-   the func_800A3640 call takes 19 parameters (a0 &g_BattleImage, a1 0, a2 1,
-   a3 0x601, stack words 0x10..0x48 = 0, D_800D2D30, D_800D2D34, 0, 0, 0, 0,
-   D_800D2D30, D_800D2D34, D_800D2D2C, D_800C3EA8, 0, 0, 0, 0), D_800D360C = 0 goes
-   between that call and the first HeapAlloc, and the two 0x88 allocations fill
-   g_BattleColorTintBase then g_BattleColorTintWork. The sprite sites (0x1740..0x175A
-   with i*0x24, 0x16E0 with i*0x18) already use the same in-place form.
-   The parked func_800A64E4 below needs the same in-place form over a scalar extern
-   to close its own prim sites - its 18 sites are this shape too, and its body still
-   reads g_BattlePartPrimBuffers[0], which no longer matches the declaration above. */
-/*
 void func_800A5EB4(void) {
     u8 *pEntry;
     u8 *pDst;
@@ -420,7 +379,7 @@ void func_800A5EB4(void) {
             pDst += 0x14;
         }
         if (g_BattlePartPrimBuffers != NULL) {
-            pSlot = g_BattlePartPrimBuffers;
+            pSlot = g_BattlePartPrimBuffersVolatile;
             pSlot += i * 0x18;
             pDst[0] = pSlot[0x284];
             pSlot = g_BattlePartPrimBuffers;
@@ -487,7 +446,6 @@ void func_800A5EB4(void) {
     pDst[1] = g_BattleColorSourceB[1];
     pDst[2] = g_BattleColorSourceB[2];
 }
-*/
 void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
     if (arg0 < 4) {
         if (arg1 >= 0) {
