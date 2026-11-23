@@ -908,14 +908,15 @@ void func_8008A684(u8 arg0) {
         }
         offset += 8;
         pSlot++;
-    } while ((s32)pSlot < (s32)(D_800D32F8 + 3));
+    } while ((int)pSlot < (int)(D_800D32F8 + 3));
     if (active == 0) {
         func_801DF270();
         func_801DF4C0();
     } else {
         D_800D32F8[0]->unk15F9 = 0;
     }
-}void BattleUpdateEffectByScreenMode(u8 arg0) {
+}
+void BattleUpdateEffectByScreenMode(u8 arg0) {
     switch (g_BattleDisplayMode) {
     case 0:
         func_8008A684(arg0);
