@@ -652,6 +652,27 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
 // (retail branches on `andi 0x800` and stores a `li 1`), and reading dialogFlags
 // straight from the field (gcc narrows `>> 16` into `lhu 0x86`; a local word
 // read is required and is in the body).
+// Re-measured last: 73.38% / 1684 bytes is confirmed, and the compiler question
+// is closed - gcc-2.6.0 71.13, -O1 55.25, gcc-2.7.2-cdk fails to compile, so
+// Default (-O2 -G8) is this function's preset. twin_for.py has no twin.
+// The 120-byte gap is one mechanism, now named: retail NEVER holds a box base
+// in a register. Every box access is `lui $at,%hi(g_FieldTextBoxes+K)`, `addu
+// $at,$at,<textBoxIndex * 0x498>`, then the load/store at `%lo(...)($at)`, and
+// that scaled index itself is recomputed (seven shifts) in six places in fresh
+// registers ($s0, $a0, $a1, $v0) - so the original's CSE shared neither the
+// base nor the multiply. Any C that MATERIALISES the base as a value - i.e.
+// every cast-based spelling of the string at box+0x18, including a typed view
+// struct `((FieldTextBoxStringView*)g_FieldTextBoxes)[i].string` (measured
+// 73.29% / 1688 bytes) and the `_pad` cast this body uses - makes gcc CSE
+// `sym + scaled` into one callee-saved register and switch all eight accesses
+// to the base+displacement form, which is 1 instruction per store instead of
+// retail's 3 and is where the 120 bytes and the score go. That is also the
+// shared blocker of this unit's other box parks (FieldTextBoxDraw 68.38,
+// FieldTextBoxInitializePrimitives, FieldTextBoxInitialize 82.32).
+// Confirmed correct in the body, do NOT "fix" it: D_800ADF54 is indexed by
+// textBoxIndex, not by the allocation slot - retail loads $s5 with a copy of
+// the box index (`addu $s5,$s1,zero`) right after the allocation loop, so the
+// loop's slot dies there. All 9 calls, every branch and every store match.
 /*
 s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s32 height,
                   s32 curActorIndex, s32 actorIndex, s32 mode, u32 flags, u32 faceFlags) {
