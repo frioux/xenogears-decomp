@@ -563,6 +563,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
    Notes kept from before: g_MenuCardSlotOrder needs only an extern; the three colour bytes
    read g_Menu+0x4D4 through a u8* cast (retail lbu); AddPrim offsets must be &pData[ctx*N+K]
    so the addiu lands before the addu.
+   Round 432 re-measured this body at 98.89 / 153 insns (608 B) and re-confirmed both if/else
+   arm orders: `if (character != 0xFF) valid = 1; else ...` 96.03 (620 B, 155 insns - it keeps
+   the constant edge's mask but moves it into the arm, drops the `move v1,v0` and mirrors the
+   g_Menu loads to $v0/$v1) and the 0xFF-first order 95.64 (628 B, 157 insns, `j` + reloads).
+   `if (valid == 0)` compiles byte-identically to `if (!valid)`.
 void func_801CF37C(void) {
     s32 i;
     u8 character;
@@ -658,35 +663,49 @@ void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
     }
 }
 
+// Cursor and glyph prim block of one memory card slot, in MenuUnk2's anonymous blob at
+// 0x4D94 (one 0xF0-byte block per slot): a cursor prim per render context, then the slot
+// number's glyph prims, each glyph also a context pair.
+typedef struct {
+    /* 0x00 */ POLY_FT4 cursors[2]; // Cursor prim, one per render context
+    /* 0x50 */ POLY_FT4 glyphs[4]; // Glyph j's prim for context c at 2 * j + c
+    /* 0xA0 */ u8 unkA0[0x50];
+} MenuCardSlotPrims; // Size: 0xF0
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
+/* 99.86% (624 bytes = retail's size, 156 insns, XenoMenu260, round 432). Everything in the
+   body is retail's except the FRAME: retail 0x58 with its ten saves at 0x30..0x54, this body
+   0x50 with them at 0x28..0x4C, so every prologue/epilogue line differs and nothing else does.
+   Retail has an unused 8-byte hole in its local area between the rendered[2] pair at 0x20 and
+   the save block. Measured: giving the body an 8-byte local (`u8 probePad[8]; probePad[0] = 0;`)
+   restores retail's 0x58 and every sp offset exactly, but the store survives as one extra
+   instruction (157 insns, 628 bytes, 99.33%), so the hole came from a slot whose references
+   expand created and every later pass deleted - not from a local this source can name.
+   THE 98.65 PARK THAT USED TO SIT HERE NEVER COMPILED: its MenuCardSlotPrims typedef had been
+   deleted by the commit that recorded the number, so that percentage came from an older body.
+   The typedef is live again above the stub, and its layout matters: POLY_FT4 is 0x28, so
+   cursors[2] ends at 0x50 and glyphs belongs there - the old commented-out fields implied an
+   8-byte gap, which emits addiu a2,a2,88 where retail has 80.
+   WHAT CLOSED 98.65 -> 99.86 is the loop shape, and the win is the PREHEADER: write the
+   slotOffset copy inside the count guard and j = 0 before it,
+       j = 0;
+       if (count > 0) { slotOffset = base; do { AddPrim(...); } while (++j < count); }
+   so j = 0 is the last insn of the preheader, reorg steals it into the blez delay slot and the
+   copy stays after the branch - retail's exact blez/move s0/move s2. Measured this round on this
+   same body: slotOffset before the guard with j = 0 inside 99.73 (624 B, 156 insns, the two
+   preheader moves swapped); j = 0 then slotOffset both inside the guard 99.22 (628 B, 157, blez
+   slot a nop); slotOffset then j = 0 inside the guard 99.09 (628 B, 157, nop slot); and the
+   previous park's `slotOffset = base; for (j = 0; j < count; j++)` 98.65 (624 B, 156 insns, but
+   j = 0 emitted BEFORE the blez - that shape is the only one measured so far that also gives
+   retail's 0x58 frame, so a body with both the guard order and the frame hole is still open).
+   Load-bearing and keep it: the callee-saved set only reaches retail's ten saves because a COPY
+   of the slot offset exists - `s32 slotOffset; slotOffset = base;` used by the glyph loop while
+   the cursor AddPrim after the loop still uses `base`; without it the body is 91.32 (153 insns,
+   no s8). The five prologue `li`s must be assigned inside the if (state) block or they come out
+   before the branch, in source order (y, scale, base, x1, x0), and the rendered[] zeroing is
+   stored reversed (`rendered[1] = 0;` first). Also already measured and dead: 2.7.2 87.79,
+   cdk compile-fails, -O3 91.32 on the 91.32 body, the pData/menuUnk2 spellings, and the
+   two-call if/else around func_8002675C. */
 /*
-98.65% (624 vs 620 bytes, 156 vs 156 insns, XenoMenu260) - two lines left, one cause:
-retail has `blez s5,after` / `move s0,zero` (in the blez DELAY SLOT) / `move s2,s3`, this
-build emits `move s0,zero` BEFORE the blez and reorg then fills the slot with `move s2,s3`.
-So the j-loop's `j = 0` has to be emitted after the count guard, which a `for` whose init is
-outside cannot do. The guard-first spellings measured: `if (count > 0) { j = 0; slotOffset =
-base; do {...} while (++j < count); }` puts the moves in retail's order but the blez slot
-becomes a nop and the frame shrinks 0x58 -> 0x50 (158 vs 156 insns, 98.46);
-`if (count > 0) { slotOffset = base; for (j = 0; ...) }` emits TWO blez guards (158 insns,
-98.46) because 2.6.0 does not eliminate the for's entry test against the source's own guard.
-Everything else is exact: frame 0x58, rendered[2] at 0x20, the five prologue `li`s in
-retail's order (y, scale, base, x1, x0, after the beqz delay-slot `move s1,zero`), the
-s8/fp save, and the register block (j s0, i s1, copy s2, base s3, x0 s4, count s5, x1 s6,
-scale s7, y fp).
-What got here from 91.32: the missing callee-saved value is a COPY of the slot offset -
-`s32 slotOffset; slotOffset = base;` as a statement before the j loop, used in the loop -
-which is what gives retail's `move s2,s3` preheader copy and pushes every other value up one
-register. Verified by measurement, not by the allocator: without it 91.32 (153 insns, no
-s8), with it 91.83 (156 insns, right registers, wrong const placement) -> 97.18 (consts
-moved inside the if) -> 98.65 (const order + sb 0x21-before-0x20 + x1 increment before x0).
-Also measured this round: 2.7.2 87.79, cdk compile-fails, -O3 91.32 on the 91.32 body, so the
-preset is right.
-Not tried: a -dg dump to see whether the j=0 move can be pushed below the guard by any
-declaration/statement spelling that keeps the frame; an `if (count > 0)` version of the
-do/while with a dummy 8-byte local to restore the frame.
-The typedef above stays live (it is only a type). The cursor AddPrim after the loop uses
-`base`, the glyph loop uses `slotOffset` - that split is what keeps both live across the
-call and is load-bearing.
 void func_801CF8D8(void) {
     MenuUnk2* pData;
     u_char useAlt;
@@ -731,10 +750,13 @@ void func_801CF8D8(void) {
             }
             // rendered[i] is set only by the branch above, which is what defines count.
             if (rendered[i]) {
-                slotOffset = base;
-                for (j = 0; j < count; j++) {
-                    AddPrim(&g_Menu->pGfxEnv->ot[4],
-                            &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + slotOffset))->glyphs[2 * j + g_Menu->renderContext]);
+                j = 0;
+                if (count > 0) {
+                    slotOffset = base;
+                    do {
+                        AddPrim(&g_Menu->pGfxEnv->ot[4],
+                                &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + slotOffset))->glyphs[2 * j + g_Menu->renderContext]);
+                    } while (++j < count);
                 }
                 AddPrim(&g_Menu->pGfxEnv->ot[4],
                         &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors[g_Menu->renderContext]);
