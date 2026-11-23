@@ -1599,7 +1599,7 @@ void BattleApplyImageTaskTint(WorkListEntry *pEntry) {
 }
 
 
-// Switches the stack into its HeapAlloc block around func_800A5EB4 (sw $sp,0($t0),
+// Switches the stack into its HeapAlloc block around BattleInitColorTintTable (sw $sp,0($t0),
 // then sp = the block; the old sp read back with lw $sp,0($sp)); no C statement
 // emits it.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3CD4);

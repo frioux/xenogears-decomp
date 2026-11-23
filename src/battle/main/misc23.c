@@ -301,7 +301,7 @@ extern s16 D_800D2D30;
 extern s16 D_800D2D34;
 extern s16 D_800C3EA8;
 
-void func_800A5EB4(void) {
+void BattleInitColorTintTable(void) {
     u8 *pEntry;
     u8 *pDst;
     u8 *pSlot;
@@ -506,7 +506,7 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
    collapses the loads into one.
    ROUND 420: the parked body no longer compiles against this file. line 10 declares
    g_BattlePartPrimBuffers as the SCALAR 'extern u8 *g_BattlePartPrimBuffers' (needed
-   by the func_800A5EB4 park above) where the body needs the ARRAY extern, and line
+   by the BattleInitColorTintTable park above) where the body needs the ARRAY extern, and line
    707 declares g_BattleSpriteRenderData as void * where the body needs u8 *. Measured
    with casts at every site instead - ((u8 *)g_BattleSpriteRenderData)[K] and
    ((u8 *)g_BattlePartPrimBuffers[0])[K] - the body is 82.50 at 253 insns / 1012 bytes,
@@ -518,7 +518,7 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
    g_BattlePartPrimBuffers[0] sites cannot, so the ceiling here is about 99.58 and this
    is not a hand job.
    ROUND 431 RAISES THAT CEILING: the scalar declaration at line 10 now exists and
-   func_800A5EB4 above is matched at 100.00 with the two-statement in-place form on
+   BattleInitColorTintTable above is matched at 100.00 with the two-statement in-place form on
    BOTH globals, so this body's 15 g_BattlePartPrimBuffers sites should take
    'pSlot = g_BattlePartPrimBuffers; pSlot += i * 0x18; pDst[0] = pSlot[0x284];' and
    close the operand orders the array extern forced mirrored - i.e. re-spell the 30

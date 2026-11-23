@@ -340,7 +340,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
    declared u16 * here rather than u8 *.
 
 // Sets a texture animation record up from the script arguments that func_800AE2A4 and
-// func_800A5EB4 pass: the region rectangle, the pixel buffers the effects bitfield asks for
+// BattleInitColorTintTable pass: the region rectangle, the pixel buffers the effects bitfield asks for
 // and the two areas the region starts from. Modes 0/1 round the width up to an even number
 // and load the region from VRAM (or lay a flat colour down), modes 4/5 take it from the row
 // image (or dither it out of the three colours the caller passes).
