@@ -4092,32 +4092,40 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
     }
 }
 
-// 98.61%, 2024 bytes (retail 2032), frame and every stack slot identical to retail. Ported from
-// the 100% twin gear_shop_menu/main/render.c GearShopMenuSellMenu (same gcc 2.6.0 preset).
-// Two findings that got it from 95.12 to 98.61:
+// 99.73%, 2032 bytes = retail's exact size, with the frame, every stack slot and every variable
+// home identical to retail. Ported from the 100% twin gear_shop_menu/main/render.c
+// GearShopMenuSellMenu (same gcc 2.6.0 preset).
+// Three findings, 95.12 -> 98.61 -> 99.73:
 // 1. The key-item test is NOT an inline OR expression: retail emits andi/sltiu/addu v1,v0/andi
 //    0xff, which only comes from a u_char local assigned TRUE, then overwritten in an if/else (the
 //    OR spelling compiles to srl/xori/andi, 97.79%).
-// 2. The coalesce-loop counter must be a separate counter copied into itemCount after the loop
-//    (the twin's itemType shape), because making itemCount itself the counter moves the frame.
-// THE RESIDUAL, exact: retail's counter lives at 0x90(fp) and is synced every iteration -
-// "addiu t4,t4,1 / sw t4,0x90(fp) / lbu v0,0(a2) / lw t4,0x90(fp)" at 0xC05C - while the three
-// output stores still run through the pointer induction variables t0/t1/t2. The park keeps the
-// counter in $a3 and stores it once in the jal delay slot: 2 instructions / 8 bytes short, with i
-// and the counter swapped ($t4/$a3) against retail. Retail has NO store of 0 to 0x90 (its init is
-// "addu t4,zero,zero"), so the variable is written by the loop but its pre-loop value needs no
-// store: it is neither an ordinary MEM/aggregate pseudo (an int[1] spelling loses the pointer ivs
-// and reloads the counter per store, 90.79) nor a plain register pseudo.
-// Measured and worse this round, do not re-try: itemCount as the counter 95.95 (2040 bytes, frame
-// +8: itemCount takes $s7 and pItemSellQtys is spilled, every later slot shifts by 8), the same
-// with int itemCount[1] 90.79, with a declaration initialiser 94.65, as u_int 95.84, with
-// "itemCount += 1" 95.95, with a volatile store to itemCount 91.27, volatile int itemCount 90.49,
-// itemType as the only counter with itemCount deleted and the two while-loop reads using itemType
-// 95.16 (2044), and two counters (itemType++ and itemCount++, loop.c merges the givs) 95.95.
+// 2. The coalesce loop's counter IS itemCount, not the twin's reused itemType: retail stores the
+//    counter to 0x90(fp) once per iteration ("addiu t4,t4,1 / sw t4,0x90(fp)" at 0xC05C) while the
+//    three output stores still run through the t0/t1/t2 pointer induction variables. Writing that
+//    as "itemCount = ++itemType;" inside the sellable block (itemType staying the counter, as in
+//    the twin) is what closed 98.61 -> 99.73 and reproduced retail's 2032 bytes.
+// 3. The pre-loop "itemType = 0" and the twin's "itemCount = itemType" after the loop must both
+//    go: the assignment has to be in the block, or the frame moves.
+// THE RESIDUAL, exact and final: a register rotation inside the coalesce loop only. Retail keeps
+// the counter in $t4 and i in $a3, with pItemIds/pItemQtys/pItemIsOwned/pItemTypes in
+// $t0/$t1/$t2/$t3; this body keeps the counter in $a3 (it is the itemType pseudo, which lives from
+// the first loop where retail has it in $a3 as well) and rotates the rest by one, i landing in
+// $t0. Retail's counter is therefore not the reused itemType pseudo but a fresh one, and the only
+// fresh-pseudo spelling available - itemCount as the index with "itemCount++" - measures
+// 95.95 / 2040 bytes because gcc hands itemCount $s7 there and spills pItemSellQtys,
+// while retail spills itemCount and keeps pItemSellQtys in $s7: that is an allocno-priority
+// contest arguing the other way, and it also costs one extra stack slot and swaps the s6/s7 save
+// order, so it is not one spelling away. One clean permuter run on this body (3 min, 1153
+// iterations) is base=125 best=125 with no lead, which is the allocator-priority verdict.
+// Measured and worse, do not re-try: itemCount as the counter 95.95 (2040 bytes, frame +8),
+// int itemCount[1] 90.79, declaration initialiser 94.65, u_int itemCount 95.84,
+// "itemCount += 1" 95.95, volatile store to itemCount 91.27, volatile int itemCount 90.49,
+// itemType as the only counter with itemCount deleted 95.16 (2044), two counters (itemType++ and
+// itemCount++) 95.95, and two earlier permuter runs (4 and 8 min, base 701 -> 666) that found only
+// a declaration-order no-op and a semantics-changing write to continueProcessing.
 // Preset ruled out with try_flags.sh on this body: 2.7.2 -O2 -G8 = 97.01, 2.7.2-cdk = 72.55, so
-// the unit's 2.6.0 is right. Earlier notes also record two permuter runs (4 and 8 minutes from
-// this body, base 701 -> 666) that found only a declaration-order no-op and a semantics-changing
-// write to continueProcessing, so this needs a lever, not more shapes.
+// the unit's 2.6.0 is right.
+/*
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
     u8 redrawWindows = TRUE;
@@ -4312,7 +4320,9 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
                 break;
         }
     }
-}
+}*/
+INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
+
 int ShopMenuSellEquipmentMenu(void) {
     u_char itemIDs[8];
     u_char itemQuantities[8];
