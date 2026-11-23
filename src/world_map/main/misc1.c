@@ -93,7 +93,11 @@ extern s32 g_WorldMapPlayerPositionZ;
 extern s32 D_8009D3C4;
 extern s32 g_WorldMapSedsBankFileIndex;
 extern StreamDataQueueEntry g_WorldMapStreamQueue;
-extern StreamDataQueueEntry g_WorldMapStreamQueueEntries[];
+// The queue seen as the array it is: func_80071EF0 reaches entry 0 through the base (retail
+// stores it with a register, `sh v1,0(a0)`), and only the array type stops cse folding the
+// base back into a bare %hi/%lo symbol store. The asm label keeps the reloc name the
+// neighbours and the original object use for the same address.
+extern StreamDataQueueEntry g_WorldMapStreamQueueEntries[] __asm__("g_WorldMapStreamQueue");
 extern void* D_8009D3FC;
 extern StreamDataQueueEntry D_8009D400;
 extern StreamDataQueueEntry D_8009D408;
