@@ -179,7 +179,7 @@ extern s32 g_WorldMapMode4EntryTriggered;
 extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapInitGfxEnv(void);
-extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern void WorldMapDrawFadeFrames(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern s32 ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void WorldMapAllocSlotPool(void);
@@ -828,7 +828,7 @@ void WorldMapInitializeModeWithGroupActors(void) {
     rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
-    func_80072DB4(0x40, 0, 4, 2);
+    WorldMapDrawFadeFrames(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();

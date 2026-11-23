@@ -287,7 +287,7 @@ extern s32 g_WorldMapMode4EntryTriggered;
 extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapInitGfxEnv(void);
-extern void func_80072DB4(int, int, int, int);
+extern void WorldMapDrawFadeFrames(int, int, int, int);
 extern int ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void WorldMapAllocSlotPool(void);

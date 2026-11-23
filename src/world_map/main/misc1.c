@@ -749,7 +749,7 @@ void func_80072238(void) {
     rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
-    func_80072DB4(0x40, 0, 4, 2);
+    WorldMapDrawFadeFrames(0x40, 0, 4, 2);
     ArchiveCdDataSync(0);
     WorldMapQueueThreeFileLoads();
     while (ArchiveDataSync() >= 3) {
@@ -1052,7 +1052,7 @@ void WorldMapInitGfxEnv(void) {
 
 extern void SetSemiTrans(void* p, s32 abe);
 
-void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
+void WorldMapDrawFadeFrames(s32 count, s32 color, s32 colorStep, s32 abr) {
     POLY_FT4* pFt4s;
     POLY_FT4* pFt4;
     POLY_G4* pG4s;

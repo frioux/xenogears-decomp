@@ -102,7 +102,7 @@ extern u8 D_800C4928;
 extern void BattleClearCommandSlots(void);
 extern void BattleNoOpCallback(s32 arg0, s32 arg1);
 extern s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2);
-extern s32 func_80081B58(u8 arg0);
+extern s32 BattleAdvanceSlotMenuStateEventCommand(u8 arg0);
 extern u32 func_80083948(u8 arg0);
 extern void BattleAdvanceSlotMenuStateEventDisplay(u8 arg0);
 extern void BattleAdvanceSlotMenuStateEventActivate(u8 arg0);
@@ -520,7 +520,7 @@ void func_80080160(u8 arg0) {
                     g_BattleCommandQueue[0x2E2] = 0xFF;
                     // fallthrough
                 case 0x5:
-                    func_80081B58(arg0);
+                    BattleAdvanceSlotMenuStateEventCommand(arg0);
                     break;
                 case 0x7:
                     BattleAdvanceSlotMenuStateEventQueue(arg0);

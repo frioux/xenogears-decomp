@@ -400,7 +400,7 @@ extern s32 g_WorldMapMode4EntryTriggered;
 extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapInitGfxEnv(void);
-extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern void WorldMapDrawFadeFrames(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern s32 ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void WorldMapDecompressMapTables(void);
@@ -455,7 +455,7 @@ void WorldMapInitializeMode(void) {
     rect.h = 0xD8;
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
-    func_80072DB4(0x40, 0, 4, 2);
+    WorldMapDrawFadeFrames(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapTables();
@@ -697,7 +697,7 @@ void WorldMapInitializeModeWithSound(void) {
     rect.h = 0xD8;
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
-    func_80072DB4(0x40, 0, 4, 1);
+    WorldMapDrawFadeFrames(0x40, 0, 4, 1);
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();

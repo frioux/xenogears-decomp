@@ -215,7 +215,7 @@ typedef struct {
 extern WorldMapAreaSfxIds g_WorldMapAreaSfxIds[];
 extern void WorldMapInitGfxEnv(void);
 extern void WorldMapDeactivateSpriteGroup(s32);
-extern void func_80072DB4(int, int, int, int);
+extern void WorldMapDrawFadeFrames(int, int, int, int);
 extern int ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void WorldMapAllocSlotPool(void);
@@ -474,7 +474,7 @@ void func_8007D918(void) {
     rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
-    func_80072DB4(0x40, 0, 4, 2);
+    WorldMapDrawFadeFrames(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();
@@ -1759,7 +1759,7 @@ void WorldMapInitializeModeWithActors(void) {
     rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
-    func_80072DB4(0x40, 0, 4, 2);
+    WorldMapDrawFadeFrames(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();

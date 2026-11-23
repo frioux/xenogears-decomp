@@ -146,7 +146,7 @@ typedef struct {
 // `.align 3` before every jump table, so their tables have to come from a TU
 // whose .rodata starts 8-aligned (abs 0x80070010); main/misc11 keeps
 // func_80080160, whose 101-word table is the 4-mod-8 first table of the old range.
-s32 func_80081B58(u32 arg0) {
+s32 BattleAdvanceSlotMenuStateEventCommand(u32 arg0) {
     u8 who;
     u8 slot;
     s32 remain;

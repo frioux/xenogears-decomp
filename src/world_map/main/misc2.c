@@ -70,7 +70,7 @@ typedef struct {
 } Vector16; // Size: 0x8
 
 extern void WorldMapInitGfxEnv(void);
-extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern void WorldMapDrawFadeFrames(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern void WorldMapLoadTextureClut(void);
 extern void func_800978FC(void);
 extern void WorldMapInitPrimTemplateBuffers(void);
@@ -470,7 +470,7 @@ void WorldMapEnterMenuMode(void) {
     rect.h = 0xD8;
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
-    func_80072DB4(0x10, 0, 8, 2);
+    WorldMapDrawFadeFrames(0x10, 0, 8, 2);
     do {
     } while (ArchiveDataSync() >= 2);
     LZSSDecompress(g_WorldMapCompressedMapData, g_WorldMapDecompressBuffer);
@@ -500,7 +500,7 @@ void WorldMapExitMenuMode(void) {
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapReloadFileIndex), 1);
     g_WorldMapLoadedFileData = pBuffer;
     ArchiveReadFileToBuffer(g_WorldMapReloadFileIndex, pBuffer, 0, 0);
-    func_80072DB4(0x10, 0x80, -8, 2);
+    WorldMapDrawFadeFrames(0x10, 0x80, -8, 2);
     rect.x = 0x2C0;
     rect.y = w;
     rect.w = h;
