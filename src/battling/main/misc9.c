@@ -239,63 +239,56 @@ void BattleCopyPlaneNormal(SVECTOR* p) {
 
 extern void MathTriangleNormal(SVECTOR* pVertex1, SVECTOR* pVertex2, SVECTOR* pVertex3, SVECTOR* pNormal);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
-/* PARK 99.00%, re-measured (1016 bytes = retail's exact size, 252 vs 252
-   instructions, 6 differing instructions). All six are PROLOGUE REGISTER NAMES:
-   retail holds the 0xFFFFFF00 mask in a0 (li a0,-256, right after move s1,a0),
-   pPos->vx in t2 and pPos->vz in t1, and the mz AND overwrites the mask register
-   (and a0,t1,a0) with col/row reusing the x/z registers in place (sra t2,t2 /
-   sra t1,t1); this body gets the mask in a3, x in v0, z in a0, mz in a0, and
-   gcc sinks the mz AND below the pCell addu. Everything else - the frame (0x70),
-   the saved set, the whole switch chain, the lwl/swl copies and the tail - is
-   instruction-identical.
-   Today's measurements, all identical at 99.00% / 1016 bytes / 252 insns:
-   (1) the original statement order (mx,mz,col,row); (2) and/sra interleaved
-   (mx,col,mz,row); (3) sra-first (col,row,mx,mz); (4) all six as initialised
-   declarations. gcc emits the same RTL for all four, so this is an allocator
-   priority tie between the mask constant pseudo and the z load (both n_refs=2),
-   not a spelling. gcc-2.7.2-cdk scores 89.19 on this body (try_flags.sh), so the
-   preset is not the answer. A fresh 3-minute permuter run (1172 iterations,
-   base=255 best=190) only produced 'mz = z;' - it drops the mask, i.e. WRONG
-   CODE - plus moving the pCell declaration after x; rejected unported.
-   Earlier round's notes, still valid: dropping the mask local and five other
-   shapes measured identically, and a 1532-iteration permuter run found a 99.64
-   spelling ('row = pPos->vz; mz = row & 0xFFFFFF00;') that also unmasks mz and
-   swaps which of x/z loads first - 7 differing instructions, wrong code.
-   Round 408, all 99.00% / 1016 bytes / 252 insns, byte-for-byte the same
-   prologue as the park: (a) direct field uses with the and/sra pairs
-   interleaved exactly as retail emits them (mx,col,mz,row, no x/z locals);
-   (b) a real 's32 mask = 0xFFFFFF00;' local (gcc folds it back to the same
-   constant pseudo); (c) the constant written first ('mx = 0xFFFFFF00 & x');
-   (d) the unit's own s32* coordinate idiom ('pCoord[0] >> 8', as
-   BattleGetGridCellAtPosition writes it). gcc-2.6.0 scores 97.70 on this body
-   (gcc-2.7.2-cdk 89.19), so no preset reaches it. A third permuter run
-   (4 min, -j2, 1857 iterations) again only found 'mz = pPos->vz' = the dropped
-   mask, wrong code. Note retail leaves BOTH a1 and a3 idle and still puts the
-   two loads in t2/t1, which no spelling of these six lines reproduces here.
-   The other residual: g_BattlePlaneNormal.vy/.vz - retail's object names
-   D_8009276A / D_8009276C (0x80092768 + 2 and + 4) where the typed field spelling
-   relocates g_BattlePlaneNormal with addend 2/4. Linked bytes are identical (the
-   brief's second exception), so diff_func.sh can never print MATCH here; prove a
-   fixed body with check_bin.sh battling.
-   The addu that forms the cell pointer is index-first in retail
-   (addu t0,scaledIdx,base); the array form and 'idx + g_BattleGridCells' are both
-   base-first, and only the explicit
-   (s32 *)((u32)((row << 7) + col) * 4 + (u32)g_BattleGridCells) spelling
-   reproduces retail.
+/* PARK 99.00%, re-measured this round (1016 bytes = retail exact size, 252 vs 252
+   instructions, 6 differing instructions; 26 differing diff lines, half of them
+   the D_8009276A / D_8009276C reloc spelling noted at the end).
+   The residual is PROLOGUE REGISTER NAMES only - the whole switch chain, the
+   cell loads, the lwl/swl triangle copies and the tail are instruction-identical:
+   retail  mask->a0, x->t2, z->t1, mx->a2, col->t2 in place on x, row->t1 in place
+   on z, mz->a0 in place on the dead mask;
+   body    mask->a3, x->v0, z->a0, mx->a2, col->t2, row->t1, mz->a0 in place on
+   the dead z.
+   NEW this round: cc1 -dl/-dg on this body names the contest instead of guessing
+   it. -dg lists 23 global allocnos (76/77 = mx/mz, 72 = the cell pointer, 75 =
+   &g_BattlePlaneNormal), so the prologue values are all block-local; -dl gives
+   pseudo 83 (the forced -256 constant) 3 refs / 28 insns, 80 (x) 3/5, 81 (z)
+   3/12, 78 (mx) 4/23, 79 (mz) 4/12. The mask therefore has the smallest
+   refs/live_length quotient of the five and cannot take $2 ahead of x, which is
+   what retail mask->$4 needs.
+   Also measured: the same body compiled with -fno-schedule-insns/-insns2 (a
+   DIAGNOSTIC only; the unit preset is fixed) moves the mz AND back up beside mx
+   and hands the mask $4, col $10 and row $9 - retail registers for three of the
+   five - but it breaks the prologue save order and the AND interleaving. That
+   proves the residual is decided by the scheduler plus local-alloc: the li
+   a0,-0x100 sitting between move s1,a0 and sw ra in retail is the scheduler
+   reordering the body into the prologue, not a source shape, so no statement
+   order reaches it. Consistent with the previous rounds: six order/type/idiom
+   permutations of these six assignments measured byte-identical at 99.00, and
+   this round permuter run (1393 iterations, base 255 best 190) offers only
+   mz = z, which drops the mask and is WRONG CODE (rejected, unported).
+   Presets on this body: gcc-2.6.0 97.70, gcc-2.7.2-cdk 89.19, so the unit preset
+   is not the answer either.
+   Reloc exception (not a source difference): retail object names D_8009276A /
+   D_8009276C (g_BattlePlaneNormal + 2 / + 4) where this typed spelling relocates
+   g_BattlePlaneNormal with addend 2 / 4. The linked bytes are identical, so
+   diff_func.sh cannot print MATCH here; prove any fixed body with check_bin.sh
+   battling. The typed field form is kept on purpose: it changes no instruction.
+   The addu forming the cell pointer is index-first in retail, so it has to be
+   written as (s32 *)((u32)((row << 7) + col) * 4 + (u32)g_BattleGridCells);
+   the array form and idx + g_BattleGridCells are both base-first.
    The floor of a grid cell is two triangles cut by the diagonal from the near
-   corner to the far one; this returns the height of that plane under pPos. Four
-   stack tricks reproduce the frame: the cell corners are four SVECTORs at 0x18,
-   the triangle is a second SVECTOR[3] at 0x40, and the pad arrays are
-   addressable-but-unused locals the original has (0x10 and 0x58 are never
-   written) - gcc 2.7.2 only allocates space for an unused aggregate, not for an
-   unused scalar. The 12-byte VECTOR view of the long dot product is taken at &v3,
-   the dead fourth corner, which is where the original stores it too.
-   The height patch is a two-case switch with fall-through: retail's arms are
-   'h += 0xC0' falling into 'h += 0x40' (an if/else-if is cross-jumped and folds
-   the two adds into one +0x100, which shrinks the body), and each check re-forms
-   g_BattleGridCells[idx] from scratch, so they are written as full array accesses
-   rather than through the pCell pointer.
+   corner to the far one, and this returns the height of that plane under pPos.
+   Four stack details reproduce the 0x70 frame: the cell corners are four
+   SVECTORs at 0x18, the triangle is a SVECTOR[3] at 0x40, and the pad arrays are
+   addressable-but-unused aggregates the original has (0x10 and 0x58 are never
+   written) because gcc 2.7.2 allocates space for an unused aggregate but not for
+   an unused scalar. The 12-byte VECTOR view of the long dot product sits at &v3,
+   the dead fourth corner, where the original stores it too.
+   The height patch is a two-case switch with fall-through: retail arms are
+   h += 0xC0 falling into h += 0x40 (an if/else-if is cross-jumped and folds the
+   two adds into one +0x100, which shrinks the body), and each check re-forms
+   g_BattleGridCells[idx] from scratch, so they are written as full array
+   accesses rather than through the pCell pointer.
 */
 /*
 s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
@@ -392,8 +385,8 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
                        (pPos->vx * g_BattlePlaneNormal.vx + pPos->vy * g_BattlePlaneNormal.vy +
                         pPos->vz * g_BattlePlaneNormal.vz)) /
                           g_BattlePlaneNormal.vy;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
 
 // A battle-grid position in half-word form, as the cell lookups read it: the
 // high byte of each component is the cell index (BattleGetGridCellAtPosition
