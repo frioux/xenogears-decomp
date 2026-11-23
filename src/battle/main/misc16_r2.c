@@ -201,7 +201,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FC1C);
 void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
+
 /* 95.58% at retail's EXACT size (1060 bytes = 0x424). Every call, rectangle, store and
    ROUND 371: re-measured, and confirmed to COMPILE; 96.18 under gcc-2.6.0 (try_flags), so
    the preset this unit wants does not close it either.
@@ -247,6 +247,22 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
    construct I can justify allocates an untouched 8-byte slot.
    Third, one insn: retail `addu s0,v1,v0` (index-first) against our `addu s0,v0,v1` at the
    bufs[i] store - the `bufs + i` spelling is untried.
+   ROUND 432: the hoist is NOT a unit quirk - a 20-line cc1_probe (probe_loop.c, the
+   `for (i<32) { tens = pu[i]/10; if (tens) load(r, g_Digi[tens]); else load(r, g_Ws); }`
+   shape) reproduces `la $20,g_Digi` in the preheader plus `addu $2,$2,$20 / lw $5,0($2)`
+   on 2.6.0 -O2 -G8, with a `u8` or an `s32` index and with the array declared `[10]` or
+   `[]`, while a straight-line `load(r, g_Digi[i])` emits retail's `lw $5,g_Digi($2)`
+   (the %lo+reg form maspsx expands to `lui $at / addu $at,$at,$v0 / lw %lo($at)`).
+   So it is loop.c reducing the symbolic base of the address giv, and the same unit's
+   FIRST loop (`lbu %lo(g_BattleCommandGridIds)(at)` after `addu at,at,s1`) does not get
+   it - i.e. it is decided per loop by loop.c, and the only knob measured that removes it
+   is register pressure (the a-g-strength-reduce-table-base lever), of which retail's loop
+   has none to spare: retail spends exactly s0..s4 (bufs, i, 0xcccd, 0xd, 6) and this
+   build spends s0..s5, the 6th being the hoisted base. Adding a live value to chase that
+   would only make this body 7 saves against retail's 6.
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
+/*
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
@@ -392,7 +408,7 @@ next:
    arm is no change at all. The round-406 dead ends (ofs local for the prim product, POLY_FT4
    pointer + subscript, a do-while tie mover, statement and declaration order, volatile) stand.
 */
-PARKED 98.70% (400 bytes / 100 insns = retail's exact size), unit gcc-2.6.0 -O2 -G8.
+/* PARKED 98.70% (400 bytes / 100 insns = retail's exact size), unit gcc-2.6.0 -O2 -G8.
    Residual is ONE mirrored pair: retail loads prim into v0 and its prim*5 into v1 and then reuses v0
    for the pool base; this build mirrors them (prim v1, product v0, base v1), so 30 diff lines are
    register names only. ROUND 432 -dl on the live body: the two qtys are 'Register 89 used 2 times
@@ -405,6 +421,7 @@ PARKED 98.70% (400 bytes / 100 insns = retail's exact size), unit gcc-2.6.0 -O2 
    'ofs = g_BattlePrimStartIndex[0] * 0x28' local (91.35%, 104 insns). Earlier dead ends stand: an ofs
    local over the whole expression (65.93), POLY_FT4 pointer + subscript, s32 prim = ...[0] initialisers,
    statement/declaration order, volatile; 2.7.2-cdk compile-fails this body.
+*/
 /*
 void func_80090310(u8 arg0, u8 arg1) {
     s32 index;
