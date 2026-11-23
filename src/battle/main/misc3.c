@@ -690,28 +690,16 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
     pInfo->enabled = 0;
 }
 
-/* 98.39% (372 bytes = retail size, 93 insns = retail count, addresses verified correct):
-   the body is instruction-identical to retail EXCEPT that the two induction-varying
-   byte offsets trade registers. Retail keeps offset A = 0x60 + 0xC0k (init li s3,0x60)
-   in s3 and uses it for both pointer stores (lui at,%hi(D_800D36C0); addu at,at,s3;
-   sw %lo(at), and the same off g_BattleTextSlotBuffers) AND for the RECT copy
-   destination (addu v0,s3,s5); offset B = 0xC0k (init move s0,zero, one use) only
-   serves the func_800780A8 prim base. cc1 2.7.2 does the mirror: B in s3, A in s0, and
-   it re-folds each store address to symbol+0x60 + B (store 1 becomes %lo(D_800D3720)
-   with addend 0, store 2 g_BattleTextSlotBuffers with addend 96), i.e. cse
-   canonicalises the decomposed form and only the copy destination keeps A. Tried:
-   i*0x60+0x60 written as (i+1)*0x60 and as an explicit off local assigned in the loop
-   (identical output); off = 0x60 assigned before the loop and += 0xC0 at the bottom
-   (this one DOES give retail shape for both stores but costs a 7th saved register,
-   384 bytes, 90.80); a second loop variable n = i + 1 (103 insns, 412 bytes). The park
-   below is the (i+1)*0x60 form. A cse/regalloc tie, not source-driven.
-   Parked body (98.39): */
-/*
+// Clears the two halves of the slot display, then fills the eight text slots: each
+// gets a 0x39-byte render buffer in both buffer tables, a 0x3C x 13 VRAM rect that is
+// also copied onto its pair slot, and the two 0x28-byte prim blocks func_800780A8
+// builds.
 void func_8007819C(void) {
     RECT *pRect;
     u8 *pBuf;
     s32 i;
     s32 off;
+    s32 offPrev;
 
     BattleInitSlotGraphics(5, 8, 0x2A, 0x70, 0x12, 0, 0);
     ((u8 *)g_BattleDisplayState)[0xB5] = 0;
@@ -719,22 +707,20 @@ void func_8007819C(void) {
     ((u8 *)g_BattleDisplayState)[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
         pBuf = BattleAllocTextBuffer(0x39);
-        off = (i + 1) * 0x60;
+        offPrev = i * sizeof(BattleScreenSlot);
+        off = (i + 1) * sizeof(BattleScreenSlot);
         *(u8 **)(D_800D36C0 + off) = pBuf;
         *(u8 **)(g_BattleTextSlotBuffers + off) = pBuf;
-        pRect = (RECT *)((u8 *)g_BattleTextSlotRects + i * 0x60);
+        pRect = (RECT *)((u8 *)g_BattleTextSlotRects + offPrev);
         pRect->x = 0x3C0;
-        pRect->y = (i / 2) * 13;
+        pRect->y = (i / 2) * BATTLE_TEXT_ROW_HEIGHT;
         pRect->w = 0x3C;
-        pRect->h = 0xD;
+        pRect->h = BATTLE_TEXT_ROW_HEIGHT;
         *(RECT *)((u8 *)g_BattleTextSlotRects + off) = *pRect;
-        func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + i * 0x60, i);
-        func_800780A8((u8 *)g_BattleTextSlotRects + i * 0x60 + 0x10, i + 1);
+        func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + offPrev, i);
+        func_800780A8((u8 *)g_BattleTextSlotRects + offPrev + 0x10, i + 1);
     }
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
-/* 60.00% (356 bytes / 89 insns against retail's 504 / 126): the body is one gcc
+}/* 60.00% (356 bytes / 89 insns against retail's 504 / 126): the body is one gcc
    strength-reduction tie, not a source difference. Retail keeps SIX address givs for
    the ResourceHelperGetTexCoords out-pointers (s4..s7, fp and one spilled to
    sp+0x98), builds them in the preheader with ori 4/8/0xC/0x10/0x14, increments them
