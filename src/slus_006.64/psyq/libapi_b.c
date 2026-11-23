@@ -1,6 +1,6 @@
 #include "common.h"
 
-extern void (*D_800593B8)();
+extern void (*g_PadSendHook)();
 extern long D_80062640;
 extern long D_80062644;
 
@@ -31,7 +31,7 @@ extern void _SendPAD();
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", _SendPAD);
 /*
 void _SendPAD(void) {
-    (*D_800593B8)();
+    (*g_PadSendHook)();
 }*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", func_80040BA4);

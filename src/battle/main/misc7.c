@@ -49,7 +49,7 @@ typedef struct {
 
 extern BattleSlotRecord g_BattleSlotRecords[];
 
-// One slot of the per-slot operator argument block at D_800CCDE8 (stride
+// One slot of the per-slot operator argument block at g_BattleSlotFileCount (stride
 // 0x170): g_BattleWorkBlock + 0x100, i.e. the BattleTableEntry rows seen from
 // BattleSlotState +0x5C. +0x04 and +0x08 are the state's scaled hp and maxHp,
 // which BattleDwordRegSetFromSlotArgs reads and BattleSlotArgsStoreDwordFromReg
@@ -71,7 +71,7 @@ typedef struct {
     /* 0x58 */ u8 unk58[0x118];
 } BattleSlotArgs; // Size: 0x170
 
-extern BattleSlotArgs D_800CCDE8[];
+extern BattleSlotArgs g_BattleSlotFileCount[];
 
 // One 8-byte row of the 0x100-byte battle command argument grid at
 // g_BattleCommandArgs, which battle/main/misc4 names BattleCommandArg and walks
@@ -153,7 +153,7 @@ void BattleDwordRegSetFromSlotArgs(BattleCommand **p, u8 index) {
     case BATTLE_SLOT_ARG_SOURCE_HP: {
         u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)->operand3]);
 
-        g_BattleSlotRegs[index].dwordRegs[(*p)->operand1] = D_800CCDE8[value].hp;
+        g_BattleSlotRegs[index].dwordRegs[(*p)->operand1] = g_BattleSlotFileCount[value].hp;
         break;
     }
     case BATTLE_SLOT_ARG_SOURCE_GOLD:
@@ -169,9 +169,9 @@ u8 BattleSlotArgsStoreDwordFromReg(BattleCommand **p, u8 index, u8 arg2) {
         g_BattleCommandArgs[0].opcode = 0x20;
         ret = arg2 + 1;
     } else if ((*p)->operand2 == 0) {
-        D_800CCDE8[value].maxHp = g_BattleSlotRegs[index].dwordRegs[(*p)->operand1];
+        g_BattleSlotFileCount[value].maxHp = g_BattleSlotRegs[index].dwordRegs[(*p)->operand1];
     } else {
-        D_800CCDE8[value].hp = g_BattleSlotRegs[index].dwordRegs[(*p)->operand1];
+        g_BattleSlotFileCount[value].hp = g_BattleSlotRegs[index].dwordRegs[(*p)->operand1];
     }
     return ret;
 }
@@ -243,27 +243,27 @@ void BattleSlotStoreWord0(BattleCommand **p, u8 index) {
     s32 slot = index + 3;
     s32 hi = (*p)->operand2 << 8;
 
-    D_800CCDE8[slot].unk4C = (*p)->operand1 | hi;
+    g_BattleSlotFileCount[slot].unk4C = (*p)->operand1 | hi;
 }
 void BattleSlotStoreWord7A(BattleCommand **p, u8 index) {
     u32 value = (*p)->operand1 | ((*p)->operand2 << 8);
     s32 slot = index + 3;
 
-    D_800CCDE8[slot].unk56 = value;
+    g_BattleSlotFileCount[slot].unk56 = value;
 }
 void BattleSlotStoreWordHighBytes(BattleCommand **p, u8 index) {
     s32 slot = index + 3;
 
-    D_800CCDE8[slot].unk55 = (*p)->operand1;
-    D_800CCDE8[slot].unk53 = (*p)->operand2;
-    D_800CCDE8[slot].unk51 = (*p)->operand3;
+    g_BattleSlotFileCount[slot].unk55 = (*p)->operand1;
+    g_BattleSlotFileCount[slot].unk53 = (*p)->operand2;
+    g_BattleSlotFileCount[slot].unk51 = (*p)->operand3;
 }
 void BattleSlotStoreWordLowBytes(BattleCommand **p, u8 index) {
     s32 slot = index + 3;
 
-    D_800CCDE8[slot].unk54 = (*p)->operand1;
-    D_800CCDE8[slot].unk52 = (*p)->operand2;
-    D_800CCDE8[slot].unk50 = (*p)->operand3;
+    g_BattleSlotFileCount[slot].unk54 = (*p)->operand1;
+    g_BattleSlotFileCount[slot].unk52 = (*p)->operand2;
+    g_BattleSlotFileCount[slot].unk50 = (*p)->operand3;
 }
 void BattleStoreCommandBytes(BattleCommand **p, BattleCommandArg *pArgs, u8 count) {
     ((u8 *)pArgs)[count * sizeof(BattleCommandArg) + (*p)->operand1] = (*p)->operand2;

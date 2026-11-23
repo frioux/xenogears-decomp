@@ -713,10 +713,10 @@ extern s32 g_SystemStreamedFileBuffer;
 extern s32 D_80059520;
 extern s32 g_SystemStreamedFileData;
 
-extern s32 func_800379D8(s32, s32, s32*, s32*, s32*);
+extern s32 ArchiveStartStreamedFilePair(s32, s32, s32*, s32*, s32*);
 
 void ArchiveLoadStreamedFilePair(void) {
-    func_800379D8(g_SystemStreamedFileIndex, 0, &g_SystemStreamedFileBuffer, &D_80059520, &g_SystemStreamedFileData);
+    ArchiveStartStreamedFilePair(g_SystemStreamedFileIndex, 0, &g_SystemStreamedFileBuffer, &D_80059520, &g_SystemStreamedFileData);
 }
 
 // .bss

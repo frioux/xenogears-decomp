@@ -1138,3 +1138,4 @@ g_BattleSlotStringTable = 0x800D367C;
 g_BattleEntry3StringTable = 0x800C3DE8;
 g_BattleActorSlotMask = 0x800D3634;
 g_BattleSlotAmountPercent = 0x800CCE2A;
+g_BattleSlotFileCount = 0x800CCDE8;

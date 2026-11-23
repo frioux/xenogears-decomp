@@ -93,12 +93,12 @@ extern s32 g_WorldMapPlayerPositionZ;
 extern s32 D_8009D3C4;
 extern s32 g_WorldMapSedsBankFileIndex;
 extern StreamDataQueueEntry g_WorldMapStreamQueue;
-// The queue seen as the array it is: func_80071EF0 reaches entry 0 through the base (retail
+// The queue seen as the array it is: WorldMapQueueThreeFileLoads reaches entry 0 through the base (retail
 // stores it with a register, `sh v1,0(a0)`), and only the array type stops cse folding the
 // base back into a bare %hi/%lo symbol store. The asm label keeps the reloc name the
 // neighbours and the original object use for the same address.
 extern StreamDataQueueEntry g_WorldMapStreamQueueEntries[] __asm__("g_WorldMapStreamQueue");
-extern void* D_8009D3FC;
+extern void* g_WorldMapStreamQueueEntryData;
 extern StreamDataQueueEntry D_8009D400;
 extern StreamDataQueueEntry D_8009D408;
 extern StreamDataQueueEntry D_8009D410;
@@ -454,21 +454,21 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 /* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
    byte-identical; only loop 2's register shape differs. Retail keeps TWO
    running pointers advanced by 8 (a2 = index ptr = &g_WorldMapStreamQueue, a1 = pData ptr =
-   &D_8009D3FC with a2 = a1-4, both incremented right after their own store),
+   &g_WorldMapStreamQueueEntryData with a2 = a1-4, both incremented right after their own store),
    nCount in $s1 and the loop index in $a0; gcc keeps ONE queue pointer (v1,
    +8) with a `sw v0,4(v1)` displacement, nCount in $a2 and the index in $s1.
    Retail also has no `andi 0xff` after the partyMembers lbu (gcc 2.7.2 masks it
    because the u8 feeds a short store). Tried with no change: s32 locals for the
    ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
    `pQueue[nCount++].pData`, terminator stores through the absolute symbols
-   g_WorldMapStreamQueue/D_8009D3FC (grows the frame to 0x38).
+   g_WorldMapStreamQueue/g_WorldMapStreamQueueEntryData (grows the frame to 0x38).
    Round 289: the two-cursor shape is NOT gcc splitting the givs of one entry
    pointer. Writing loop 2 as `pEntry->archiveIndex` / `pEntry->pData` with
    `pEntry++` (the pointer form the induction-base rule recommends) measures
    84.53%, 512 bytes: the compile still keeps ONE base register with a
    `sw v0,4(a0)` displacement, and the loop then also carries an `andi 0xff`
-   retail does not have. Retail's `la a1,D_8009D3FC` + `addiu a2,a1,-4` says the
-   source named D_8009D3FC itself, so the two cursors are two source pointers
+   retail does not have. Retail's `la a1,g_WorldMapStreamQueueEntryData` + `addiu a2,a1,-4` says the
+   source named g_WorldMapStreamQueueEntryData itself, so the two cursors are two source pointers
    (one per field), not one pointer plus displacements.
 */
 /*
@@ -522,7 +522,7 @@ void func_80071CDC(void) {
 }
 */
 
-void func_80071EF0(void) {
+void WorldMapQueueThreeFileLoads(void) {
     void* pBuffer;
     StreamDataQueueEntry* pQueue;
 
@@ -532,7 +532,7 @@ void func_80071EF0(void) {
     pQueue = g_WorldMapStreamQueueEntries;
     g_WorldMapDecompressedMapData = pBuffer;
     D_8009D410.archiveIndex = 0;
-    D_8009D3FC = pBuffer;
+    g_WorldMapStreamQueueEntryData = pBuffer;
     D_8009D410.pData = 0;
     pQueue->archiveIndex = D_8009D3C4;
     D_8009D400.archiveIndex = D_8009C17C;
@@ -549,7 +549,7 @@ void WorldMapQueueTwoFileLoads(void) {
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX), 1);
     g_WorldMapStreamQueue.archiveIndex = WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX;
     g_WorldMapCompressedMapData = pBuffer;
-    D_8009D3FC = pBuffer;
+    g_WorldMapStreamQueueEntryData = pBuffer;
     D_8009D400.archiveIndex = WORLD_MAP_MENU_RESOURCES_ARCHIVE_INDEX;
     D_8009D408.archiveIndex = 0;
     D_8009D408.pData = 0;
@@ -574,7 +574,7 @@ void WorldMapQueueFileLoads(void) {
     g_WorldMapStreamQueue.archiveIndex = g_WorldMapWdsFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapWdsFileIndex), 1);
     g_WorldMapWdsFileBuffer = pBuffer;
-    D_8009D3FC = pBuffer;
+    g_WorldMapStreamQueueEntryData = pBuffer;
     D_8009D400.archiveIndex = g_WorldMapSoundBankFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapSoundBankFileIndex), 0);
     g_WorldMapSoundBankBuffer = pBuffer;
@@ -635,7 +635,7 @@ typedef struct {
 extern WorldMapSlotInitEntry g_WorldMapSlotInitEntries[];
 extern WorldMapSlotInitEntry* g_WorldMapLevelSlotInitEntries[];
 
-extern void func_80071EF0(void);
+extern void WorldMapQueueThreeFileLoads(void);
 extern s32 ArchiveDataSync(void);
 extern void ArchiveCdDataSync(s32);
 extern s32 Vsync(s32);
@@ -751,7 +751,7 @@ void func_80072238(void) {
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
     ArchiveCdDataSync(0);
-    func_80071EF0();
+    WorldMapQueueThreeFileLoads();
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapTables();

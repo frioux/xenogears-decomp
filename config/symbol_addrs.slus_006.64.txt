@@ -1028,7 +1028,7 @@ func_80037878 = 0x80037878;
 func_800379B4 = 0x800379B4;
 func_800379C8 = 0x800379C8;
 ArchiveNoOp = 0x800379D0;
-func_800379D8 = 0x800379D8;
+ArchiveStartStreamedFilePair = 0x800379D8;
 
 // system/controller_b
 ControllerUpdatePlayTime = 0x80035E44;
@@ -1751,3 +1751,5 @@ g_GpuQueueIntrMask = 0x800569DC;
 g_SystemFontDummyGlyph = 0x800501D0;
 g_IntrTimeoutCount = 0x8005893C;
 SoundTickTempoAndElementRamps = 0x8003C4C4;
+g_PadSendHook = 0x800593B8;
+g_ArchiveStreamHeader = 0x8005A1E8;

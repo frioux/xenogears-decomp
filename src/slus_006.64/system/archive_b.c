@@ -119,7 +119,7 @@ void ArchiveNoOp(void) {
 extern StreamDataQueueEntry D_8005A1DC[];
 extern void* D_8005A1E0;
 extern u16 D_8005A1E4;
-extern u8* D_8005A1E8;
+extern u8* g_ArchiveStreamHeader;
 extern u16 D_8005A1EC;
 extern void* D_8005A1F0;
 extern void* g_BattleStageData;
@@ -128,7 +128,7 @@ extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 channel, s
 
 /* The bare block below is load-bearing: written as `do { ... } while (0)` gcc
    swaps $s1/$s2 between nSecondSize and pSecond (99.68%, same instruction stream). */
-int func_800379D8(int nIndex, int nBaseIndex, void** pOut1, void** pOut2, void** pOut3) {
+int ArchiveStartStreamedFilePair(int nIndex, int nBaseIndex, void** pOut1, void** pOut2, void** pOut3) {
     StreamDataQueueEntry* pQueue;
     unsigned int nFirstSize;
     unsigned int nSecondSize;
@@ -164,14 +164,14 @@ int func_800379D8(int nIndex, int nBaseIndex, void** pOut1, void** pOut2, void**
         pQueue->archiveIndex = nSecondSize;
         D_8005A1E0 = pSecond;
         D_8005A1E4 = nQueueIndex + 7 + nBaseIndex;
-        D_8005A1E8 = pFirst;
+        g_ArchiveStreamHeader = pFirst;
         D_8005A1EC = 0;
         D_8005A1F0 = NULL;
         ArchiveStartStreamQueue(pQueue, 0, 0);
         *pOut1 = pSecond;
         *pOut2 = NULL;
-        *pOut3 = D_8005A1E8 + 4;
-        g_BattleStageData = D_8005A1E8 + 4;
+        *pOut3 = g_ArchiveStreamHeader + 4;
+        g_BattleStageData = g_ArchiveStreamHeader + 4;
     }
     ArchiveSetIndex(nSectionIndex, nEntryIndex);
     return nResult;

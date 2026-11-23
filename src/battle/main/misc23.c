@@ -1429,7 +1429,7 @@ extern Misc23ArchiveEntry *g_BattleArchiveEntry;
 extern int ArchiveDecodeAlignedSize(unsigned int);
 extern void ArchiveStartStreamQueue(Misc23ArchiveEntry *, s32, s32);
 extern u8 g_BattleSlotTextIndex[];
-extern u8 D_800CCDE8[];
+extern u8 g_BattleSlotFileCount[];
 extern u8 D_800C3509[];
 
 /* 94.73% at retail's exact 372 bytes / 93 instructions (unit preset gcc 2.6.0).
@@ -1481,7 +1481,7 @@ void func_800A9540(s32 arg0) {
     ArchiveSetIndex(0x28, 1);
     HeapChangeCurrentUser(4, NULL);
     slotTextIndex = g_BattleSlotTextIndex[arg0 * 0x170];
-    count = D_800CCDE8[arg0 * 0x170];
+    count = g_BattleSlotFileCount[arg0 * 0x170];
     index = slotTextIndex << 1;
     pTable = D_800C3509;
     if (D_800C3509[index] < count) {
