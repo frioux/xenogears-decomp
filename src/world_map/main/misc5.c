@@ -948,6 +948,12 @@ int WorldMapInitActorParamsFromTable(int idx) {
 // types its functions use move with it. Reverting WorldMapUpdateActorState and
 // func_8007BBEC to stubs would also unblock this table and is the wrong trade: two
 // matches lost for one.
+// RE-MEASURED round 432 on this lane: un-parked, diff_func.sh prints 99.95% / 876
+// bytes (retail's exact size), then re-parked. The pad is unconditional, not a
+// function of our file order: the report-mode object's .rodata is 0x15C = UAS 0x30
+// + BBEC 0x24 + a 4-byte .align 3 pad + this table 0x104, and BBEC's own 9-word
+// table already shows the same pad in that object (next table 0x54 -> 0x58). So no
+// spelling of this body can move the table; only the misc5_b split below can.
 // THE BODY IS FINISHED, do not re-hunt it. Its last residual was case 0x10's
 // `ori a1,a2,0xA0` + `sh zero,0xA2(a2)` pair, which sched2 sinks below the two
 // g_WorldMapCameraTarget loads. Making the FIRST scratchpad store volatile pins it - and
