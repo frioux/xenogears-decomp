@@ -7,6 +7,9 @@
 #include "system/memory.h"
 #include "system/controller.h"
 #include "field/effects.h"
+#include "field/particles.h"
+#include "field/script_vm.h"
+#include "main/game.h"
 
 extern int g_FrameDeltaTime;
 
@@ -408,4 +411,397 @@ s32 func_80077E10(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077E10);
 
+// FieldMain's field-state globals; none of them have a home header yet.
+extern s32 g_DebugTable;
+extern s32 g_FieldWdsFileEntry;
+extern s32 g_SoundWdsEntryFile3;
+extern s32 g_GameWdsEntrySlot3;
+extern s32 D_80062524;
+extern s32 g_GamePartySkinsInitialized;
+extern s32 g_GamePartyMemberSkins[3];
+extern s32 g_FieldStagedFileSyncHold;
+extern s32 g_FieldMapChangeRequestGate;
+extern s32 g_FieldMapChangeGate;
+extern s32 g_FieldGameStateChangeRequest;
+extern s32 g_GameWdsBankHeaderReadPending;
+extern s32 g_GameWdsStreamInProgress;
+extern s32 g_FieldScratchpadOffset;
+extern s32 g_FieldScriptDataStreamActive;
+extern s32 g_FieldScreenImageStored;
+extern s32 g_FieldStreamReadyFlag;
+extern s32 D_800ADC04;
+extern u16 g_NextMapId;
+extern u16 g_NextMapFlags;
+extern u16 g_NextMapRotationY;
+extern u16 D_8006F956;
+extern s32 g_GameSceneMapNum;
+extern s8 g_GameDiscChangeRequest;
+extern s32 g_GameRequestedWdsBankIndex;
+extern s32 g_GamePartyUsesGearSkins;
+extern s32 g_FieldInitialWdsBankIndex;
+extern u8 g_SoundEffectBankIndex;
+extern u8 g_FieldWdsSoundEffectBankIndex;
+extern s32 g_GameLoadedWdsBankIndex;
+extern s32 g_GameReusePendingAudioManager;
+extern s32 g_GameWdsBankLoadState;
+extern s16 D_800B2290;
+extern s32 g_FieldMapNumChanged;
+extern s32 g_FieldPartyModelLoadState;
+extern s32 g_FieldSpecialAnimLoadPending;
+extern s32 g_FieldDisableCompassRender;
+extern s32 g_FieldP2RenderToggle;
+extern s32 g_FieldDisableGearRender;
+extern u16 g_FieldButtonsPressedOnce;
+extern u16 g_FieldP1ButtonsPressed;
+extern u16 g_FieldP2ButtonsPressedOnce;
+extern u8 g_FieldPauseDisabled;
+extern s32 g_FieldRequestCode;
+extern u8 g_FieldRandomEncounterFlag;
+extern u16 g_FieldScriptShopIndex;
+extern s8 g_ShopIndex;
+extern s32 g_GameStagedFileTag;
+extern HeapBlock* g_GameStagedFileBuffer;
+extern s32 g_GameStagedFileSyncCount;
+extern s32 g_FieldStreamSceneActive;
+extern s32 g_FieldScreenSetupDone;
+extern s32 g_SoundAudioManager;
+extern s32 g_GamePartyQueuedSkinKind;
+extern u8 g_FieldPlayerWalkmeshMaterial;
+extern u8 D_800ADB04;
+extern s32 D_800ADB68;
+extern s32 D_800ADBD4;
+
+extern void FieldUpdateDeltaTime(void);
+extern void FieldRenderSyncAndFlush(void);
+extern void FieldLoadSedsFile(s32 flags);
+extern void FieldInitializeDefaultParticleBanks(s32 actorIndex);
+extern void FieldLoadSceneAndRun(void);
+extern void FieldRunScriptFadeEffect(void);
+extern void FieldUnloadSceneAndFade(void);
+extern void FieldFreeSedsFile(void);
+extern void FieldScriptSyncMemoryWithGameState(void);
+extern void FieldTextBoxFreeAll(void);
+extern void FieldParticlesFreeAll(void);
+extern void FieldResetActorSoundSlots(void);
+extern void FieldUpdatePlayerWalkmeshMaterial(void);
+extern void FieldRestoreScreenImage(void);
+extern void FieldScriptUpdateMemoryEachFrame(void);
+extern void FieldTickSkipCounter(void);
+extern void FieldRunStreamedSequence(void);
+extern void FieldAdvanceGameState(s32 state);
+extern void FieldFree(void);
+extern s32 FieldScriptMemoryWriteU16(s32 index, u16 value);
+extern void FieldStartWdsBankLoad(s16 bankIndex, s32 arg1);
+extern s32 func_80078BC8(void);
+extern void func_802811EC(void);
+extern void func_8007554C(void);
+extern void func_800A3F4C(void);
+extern void func_800799D4(void);
+extern void func_800ABA98(void);
+extern void func_800ACE90(void);
+extern void ControllerResetState(void);
+extern void GameCheckAndHandleSoftReset(void);
+extern void SoundMuteAllSpuChannels(void);
+extern void SoundEnableAllSpuChannels(void);
+extern void GraphicsDrawPauseLetters(s16 x, s16 y);
+extern void SoundSetAudioManagerVolumeWithFade(s32 audioManager, s32 volume, s32 frames);
+// Called with two arguments in one place and with none in another, so the
+// original compiled against a declaration with no prototype.
+extern void SoundFreeLoadedWdsAndAudioManager();
+extern s32 ArchiveDataSync(void);
+extern s32 ControllerGetType(s32 port);
+extern void FieldPollControllers(void);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldMain);
+// PARKED 99.46% (3284 bytes / 821 insns; retail 0xCD4 = 3284 / 821 - SAME sizes).
+// Only THREE lines differ, and two of them are the frame:
+//   addiu sp,sp,-56 (retail) vs -48, and every save slot 8 bytes higher in retail.
+//   The saved set is identical (ra,s0-s5) and there are no other ($sp) references in
+//   the original, so retail's 8 extra bytes are outgoing-arg/local area, not a spill.
+//   Third: the WDS bank-index temp - retail `li v0,0xFF` / `lui v0` / `lhu v0` into the
+//   bnez delay slot then `sw v0,%lo(g_GameRequestedWdsBankIndex)($at)`; this body picks
+//   $a1 for the same three instructions. Nothing else in 821 instructions differs.
+// RESIDUAL, NAMED: FRAME_ARG_AREA (8 bytes) + one caller-saved tie ($v0 vs $a1).
+// STRUCTURE THAT IS RIGHT (keep - it cost two of the four diff runs):
+//  1. the ctx==1/map-change swap block does NOT break out of the loop in its
+//     D_800ADBD0==1 arm: retail's `j .L80078494` continues into the map-transition
+//     block. Only the else arm sets advanceState=0 and breaks to the teardown. Writing
+//     `break` after both arms is 99.46 -> wrong shape, one extra instruction.
+//  2. the pause blocks' saved SPU mask and advanceState (the argument to
+//     FieldAdvanceGameState) are ONE local in retail: $s0 holds both (the
+//     D_800ADBD0==1 path breaks... reads s0 without ever assigning it, which is only
+//     possible when the pause temp and the advance state are the same pseudo).
+//  3. `asm("break 0x400")` at the g_FieldSystemMode==0 arm: retail has a literal
+//     `break 1` there (0x80078128) and no C emits it; the unit's matched
+//     FieldClearAndSwapOTagInternal uses this exact spelling.
+// TRIED: a separate channelMask local (identical 99.46 / 3284), a u16 bank index
+// (identical), `break` in both arms (99.46 but 822 insns). lever.py over
+// "register v0 a1 scratch tie frame stack" matched no lever exactly; the closest
+// (a-one-arm-local-spanning-a-call, a-dead-store-to-an-unused-local) both predict a
+// frame change from a pseudo, which this frame already matches in every other respect.
+// NEXT IDEA: the 8 bytes look like a 24-byte outgoing-arg area in retail (16 here),
+// i.e. one callee in retail's TU was prototyped with 5+ parameters; find it and the
+// frame, the save offsets and (probably) the $v0 tie all fall out together.
+/*
+void FieldMain(void) {
+    s32 bankIndex;
+    s32 voiceBankLoaded;
+    s32 walkmeshUpdateStarted;
+    s32 advanceState;
+
+    if (g_DebugTable != -1) {
+        g_FieldSystemMode = SYSTEM_MODE_PC_HDD;
+    } else {
+        g_FieldSystemMode = SYSTEM_MODE_CD_ROM;
+    }
+    FieldRenderSyncAndFlush();
+    if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+        DrawSyncCallback(FieldUpdateDeltaTime);
+    }
+    g_FieldWdsFileEntry = g_SoundWdsEntryFile3;
+    D_80062524 = g_GameWdsEntrySlot3;
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+    if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD && g_FieldSuppressStateChange == 0) {
+        ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+        ArchiveReadFileToBuffer(0xAD, (void*)0x80280000, 0, 0x80);
+        ArchiveCdDataSync(0);
+        FieldRenderSyncAndFlush();
+    }
+    if (g_GamePartySkinsInitialized == 0) {
+        g_GamePartyMemberSkins[2] = CHARACTER_ID_NONE;
+        g_GamePartyMemberSkins[1] = CHARACTER_ID_NONE;
+        g_GamePartyMemberSkins[0] = CHARACTER_ID_NONE;
+    }
+    FieldLoadSedsFile(0);
+    walkmeshUpdateStarted = 0;
+    FieldPartyAllocateSkinDataBuffers();
+    g_FieldStagedFileSyncHold = -1;
+    g_FieldEntryStateGate = -1;
+    g_FieldMapChangeRequestGate = -1;
+    g_FieldMapChangeGate = -1;
+    g_FieldGameStateChangeRequest = -1;
+    g_GameWdsBankHeaderReadPending = 0;
+    g_GameWdsStreamInProgress = 0;
+    g_FieldScratchpadOffset = 0;
+    g_FieldScriptDataStreamActive = 0;
+    g_FieldScreenImageStored = 0;
+    g_FieldStreamReadyFlag = 0;
+    D_800ADC04 = 2;
+    if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+        func_802811EC();
+    }
+    FieldInitializeControllers();
+    g_pGameState = &g_GameState;
+    g_GameSceneMapNum = g_NextMapId;
+    g_GameState.fieldScriptMemory[1] = g_NextMapFlags;
+    g_GameState.fieldScriptMemory[4] = g_NextMapRotationY >> 9;
+    bankIndex = 0xFF;
+    if (g_FieldScreenSetupDone == 0) {
+        g_GameDiscChangeRequest = 0;
+    } else {
+        bankIndex = D_8006F956;
+    }
+    g_GameRequestedWdsBankIndex = bankIndex;
+    if (g_FieldSystemMode == SYSTEM_MODE_CD_ROM) {
+        g_pGameState->fieldScriptMemory[0x28] = 1;
+        FieldScriptMemoryWriteU16(0x50, 1);
+    }
+    FieldLoadUITextures();
+    g_GamePartyUsesGearSkins = 0;
+    GamePartySyncSkinData();
+    GamePartySyncStreamedData();
+    g_FieldStreamDataSize = HeapAlloc(4, 1);
+    if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+        asm("break 0x400");
+        FieldInitializeDefaultParticleBanks(g_PlayerActorIndex);
+        g_FieldDefaultParticleBanks[0].unk0 = 1;
+        g_FieldDefaultParticleBanks[0].max = 0x10;
+    }
+    voiceBankLoaded = 0;
+    FieldLoadSceneAndRun();
+    D_800ADB04 = 1;
+    for (;;) {
+        if (ControllerGetType(0) == 0) {
+            advanceState = g_SpuChannelMask;
+            SoundMuteAllSpuChannels();
+            GraphicsDrawPauseLetters(0x88, (((g_FieldCurRenderContextIndex + 1) & 1) << 8) | 0x64);
+            do {
+                DrawSync(0);
+                Vsync(2);
+                FieldPollControllers();
+                GameCheckAndHandleSoftReset();
+            } while (ControllerGetType(0) == 0);
+            SoundEnableAllSpuChannels();
+            g_SpuChannelMask = advanceState;
+        }
+        if ((g_FieldButtonsPressedOnce & 0x800) && !(g_FieldP1ButtonsPressed & 0x40) &&
+            g_FieldPauseDisabled == 0) {
+            advanceState = g_SpuChannelMask;
+            SoundMuteAllSpuChannels();
+            GraphicsDrawPauseLetters(0x88, (((g_FieldCurRenderContextIndex + 1) & 1) << 8) | 0x64);
+            do {
+                DrawSync(0);
+                Vsync(2);
+                FieldPollControllers();
+                GameCheckAndHandleSoftReset();
+            } while (!(g_FieldButtonsPressedOnce & 0x800));
+            SoundEnableAllSpuChannels();
+            g_SpuChannelMask = advanceState;
+        }
+        if (g_FieldSystemMode == SYSTEM_MODE_CD_ROM) {
+            FieldScriptMemoryWriteU16(0x50, 1);
+        }
+        GameCheckAndHandleSoftReset();
+        FieldUpdateFrame();
+        func_8007554C();
+        FieldRunScriptFadeEffect();
+        if (g_FieldCurRenderContextIndex == 1 && g_FieldMapChangeGate == 0 && func_80078BC8() == 0 &&
+            func_80077E10() == 0) {
+            if (g_GameStagedFileTag != -1) {
+                HeapUnpinBlock(g_GameStagedFileBuffer);
+                HeapFree(g_GameStagedFileBuffer);
+            }
+            if (!voiceBankLoaded) {
+                voiceBankLoaded = 1;
+                g_FieldInitialWdsBankIndex = g_GameRequestedWdsBankIndex;
+            }
+            FieldTextBoxFreeAll();
+            if (D_800ADBD0 == 1) {
+                g_SoundEffectBankIndex = g_FieldWdsSoundEffectBankIndex;
+                g_FieldInitialWdsBankIndex = g_GameRequestedWdsBankIndex;
+                if (g_GameLoadedWdsBankIndex != D_800B2290) {
+                    if (g_GameLoadedWdsBankIndex != -1) {
+                        g_GameReusePendingAudioManager = 1;
+                    }
+                    SoundFreeLoadedWdsAndAudioManager(D_800B2290, g_GameLoadedWdsBankIndex);
+                    g_GameWdsBankLoadState = -1;
+                    g_GameRequestedWdsBankIndex = D_800B2290;
+                    FieldStartWdsBankLoad(D_800B2290, 1);
+                }
+                D_800ADBD0 = 0;
+                D_800ADBD4 = 1;
+            } else {
+                if (g_FieldMapNumChanged == 0) {
+                    g_GamePartySkinsInitialized += 1;
+                    func_800A3F4C();
+                }
+                advanceState = 0;
+                if (D_800ADBD4 == 1) {
+                    SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0x7F, 0);
+                }
+                D_800ADBD4 = 0;
+                break;
+            }
+        }
+        if (g_FieldMapTransitionGate == 0 && g_GameWdsBankLoadState == 0 &&
+            g_FieldPartyModelLoadState == 0xFF && g_FieldSpecialAnimLoadPending == 0 &&
+            ArchiveLoadStagedFileIfChanged((g_GameSceneMapNum & 0xFFF) * 2, 0) == 0 &&
+            ArchiveDataSync() == 0 && g_FieldEffects.fades[0].duration == 0) {
+            D_800ADB04 = 0;
+            FieldScriptSyncMemoryWithGameState();
+            ArchiveCdDataSync(0);
+            FieldUnloadSceneAndFade();
+            ControllerResetState();
+            D_800ADB04 = 1;
+        }
+        if (g_FieldCurRenderContextIndex == 1 && g_FieldEntryStateGate == 0 && func_80078BC8() == 0) {
+            ArchiveCdDataSync(0);
+            advanceState = 1;
+            if (g_GameStagedFileTag != -1) {
+                HeapUnpinBlock(g_GameStagedFileBuffer);
+                HeapFree(g_GameStagedFileBuffer);
+            }
+            break;
+        }
+        if (g_FieldCurRenderContextIndex == 1 && g_FieldStagedFileSyncHold == 0 && func_80078BC8() == 0) {
+            ArchiveCdDataSync(0);
+            if (g_GameStagedFileTag != -1) {
+                HeapUnpinBlock(g_GameStagedFileBuffer);
+                HeapFree(g_GameStagedFileBuffer);
+            }
+            g_GameStagedFileSyncCount += 1;
+            advanceState = 2;
+            func_800A3F4C();
+            break;
+        }
+        if (g_FieldCurRenderContextIndex == 1 && g_FieldGameStateChangeRequest == 0 &&
+            func_80078BC8() == 0) {
+            ArchiveCdDataSync(0);
+            if (g_GameStagedFileTag != -1) {
+                HeapUnpinBlock(g_GameStagedFileBuffer);
+                HeapFree(g_GameStagedFileBuffer);
+            }
+            advanceState = 3;
+            SoundFreeLoadedWdsAndAudioManager();
+            break;
+        }
+        if (g_FieldSystemMode == SYSTEM_MODE_PC_HDD) {
+            if (g_FieldP2ButtonsPressedOnce & 0x40) {
+                g_FieldDisableCompassRender = (g_FieldDisableCompassRender + 1) & 1;
+            }
+            if (g_FieldP2ButtonsPressedOnce & 0x10) {
+                g_FieldP2RenderToggle = (g_FieldP2RenderToggle + 1) & 1;
+            }
+            if (g_FieldP2ButtonsPressedOnce & 0x80) {
+                g_FieldDisableGearRender = (g_FieldDisableGearRender + 1) & 1;
+            }
+            if ((g_FieldP1ButtonsPressed & 0x40) && (g_FieldButtonsPressedOnce & 0x100) &&
+                g_FieldMapTransitionGate == -1 && g_GameWdsBankLoadState == 0 &&
+                g_FieldScreenImageStored == 0) {
+                g_GameSceneMapNum = 0;
+                g_FieldMapTransitionGate = 0;
+                FieldScriptMemoryWriteU16(2, 0);
+            }
+        }
+        if (g_FieldGameStateChangeRequest == -1 && g_FieldMapChangeGate == -1 &&
+            g_FieldEntryStateGate == -1 && func_80078BC8() == 0 && g_FieldMapTransitionGate == -1) {
+            if (!(g_FieldP1ButtonsPressed & 3)) {
+                walkmeshUpdateStarted = 0;
+            }
+            if ((g_FieldP1ButtonsPressed & 1) && D_800ADB68 == 1 && (g_FieldP1ButtonsPressed & 2) &&
+                walkmeshUpdateStarted == 0) {
+                walkmeshUpdateStarted = 1;
+                FieldUpdatePlayerWalkmeshMaterial();
+                if (g_FieldRequestCode == 0xFF &&
+                    !(FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x1800) &&
+                    g_FieldPlayerWalkmeshMaterial == 0) {
+                    func_800ACE90();
+                }
+            }
+            if ((g_FieldButtonsPressedOnce & 0x100) && g_FieldMapTransitionGate == -1 && D_800ADB68 == 1) {
+                func_800ABA98();
+            }
+            if (g_FieldStreamSceneActive != 0 && g_FieldCurRenderContextIndex == 1) {
+                FieldRunStreamedSequence();
+                g_FieldStreamSceneActive = 0;
+            }
+            if (g_FieldRequestCode != 0xFF && g_FieldCurRenderContextIndex == 0 &&
+                !(FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x1800)) {
+                FieldTextBoxFreeAll();
+                func_800799D4();
+                g_FieldRequestCode = 0xFF;
+            }
+            if ((g_FieldButtonsPressedOnce & 0x10) && g_FieldRandomEncounterFlag == 0 &&
+                g_FieldRequestCode == 0xFF && D_800ADB68 == 1) {
+                g_FieldRequestCode = 0x80;
+                g_ShopIndex = g_FieldScriptShopIndex;
+            }
+        }
+        FieldTickSkipCounter();
+    }
+    FieldUpdatePlayerWalkmeshMaterial();
+    FieldRestoreScreenImage();
+    FieldScriptUpdateMemoryEachFrame();
+    FieldParticlesFreeAll();
+    FieldResetActorSoundSlots();
+    FieldTextBoxFreeAll();
+    DrawSync(0);
+    Vsync(0);
+    FieldFree();
+    FieldPartyFreeSkinDataBuffers();
+    FieldFreeSedsFile();
+    g_GamePartyQueuedSkinKind = 0;
+    HeapFree((void*)g_FieldStreamDataSize);
+    FieldAdvanceGameState(advanceState);
+}
+*/
