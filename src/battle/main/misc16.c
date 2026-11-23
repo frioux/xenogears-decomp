@@ -510,76 +510,63 @@ void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
-/* 80.93% at retail's exact 1580 bytes (395 instructions; the 27 load-delay nops
-   match). The tile-row builders (this and func_8008E430/EA70/F0A8) each write one
-   row of BattleSlotGraphics' tilePrims[4][4]: quad 0 at [row][g_BattlePrimStartIndex]
-   and quad 1 two prims later, i.e. a constant +0x50 displacement. That is why quad 1
-   is spelled `(p->tilePrims[0] + 2)`: `p->tilePrims[0][idx + 2]` emits an addiu +2
-   and loses the displacement. The index-first sum
-   `(g_BattlePrimStartIndex + p->tilePrims[...])->field` is what makes gcc emit
-   retail's `addu v0,v0,s1`; battle/misc3's BattleInitSlotPrims comments the same
-   idiom. Every store being a volatile lvalue is the lever that took this body from
-   65.30 to 80.93: with plain stores cc1 2.6.0 moves the next statement's volatile
-   g_BattlePrimStartIndex load above the current store, which costs the whole
-   interleaving and 14 load-delay nops (1528 against retail's 1580 bytes).
-   Left: a pure three-register rotation - retail keeps left in a1, top in a0, mid in
-   t0 and we get left a0, top t0, mid a1 - and retail's x1/x3 sum is
-   (arg1 + 8) + half in one addu where ours reassociates to (half + 8) + arg1.
-   Measured worse: an s16 `left` local (80.24), s16 locals for all five values
-   (70.25 pre-volatile), the x1 store listed first (72.56), and the permuter from
-   both bases (base 8640, nothing better in 4 minutes).
-   ROUND 384: four more bodies, all worse - s32 locals for left/bottom/top/half/mid
-   (75.99; cse2 hoists all five definitions above the first volatile store),
-   `left = arg1 + 8` as a statement BEFORE the slot-graphics load (78.23 / 1576,
-   and it does put left in retail's $a1 in the prologue), `left` early plus
-   `arg2 + 0xFFF8` inline (80.01 / 1576 - the li/addu shape retail has, but bottom
-   lands in $t0 and mid in $a0, the mirror of retail). None beats the body below,
-   which stays the closest at 620-ish 1580 bytes; the residual is the STORE_HOIST
-   class these four rows of row builders share (see func_8008E430's note).
-*/
-/*
+// Fills tile row 0's two greyscale quads at the slot's current prim index: both
+// quads' corners, then both quads' texcoords, then the blend mode. Every store is a
+// volatile lvalue (otherwise cc1 2.6.0 lifts the next store's g_BattlePrimStartIndex
+// load above this one and the load-delay nops disappear), quad 1 is
+// `(p->tilePrims[0] + 2)` so its +0x50 offset stays a displacement, and
+// `(g_BattlePrimStartIndex + p->tilePrims[0])` is index-first for retail's addu
+// operand order. The embedded assignments are load-bearing: a plain `arg2 - 8` folds
+// to `addiu`, `(bottom = arg2 + 0xFFF8)` gives retail's `li 0xfff8 / addu`, and the
+// named half/mid/right locals stop gcc reassociating left+half into arg1+(half+8).
 void func_8008DE04(u8 arg0, s32 arg1, s32 arg2, u16 arg3) {
     BattleSlotGraphics *p;
+    s32 left;
+    s32 bottom;
+    s32 top;
+    s32 half;
+    s32 mid;
+    s32 right;
     s32 i;
 
     p = g_BattleSlotGraphics[arg0];
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x0 = arg1 + 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y0 = arg2 - 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x1 = (arg1 + 8) + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y1 = arg2 - 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x2 = arg1 + 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y2 = arg2 + 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x3 = (arg1 + 8) + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y3 = arg2 + 8;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u0 = (g_BattleGraphicsWork[0xA25C] & 0x3F) << 1;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v0 = g_BattleGraphicsWork[0xA260];
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u1 = ((g_BattleGraphicsWork[0xA25C] & 0x3F) << 1) + 7;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v1 = g_BattleGraphicsWork[0xA260];
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u2 = (g_BattleGraphicsWork[0xA25C] & 0x3F) << 1;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v2 = g_BattleGraphicsWork[0xA260] + 16;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u3 = ((g_BattleGraphicsWork[0xA25C] & 0x3F) << 1) + 7;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v3 = g_BattleGraphicsWork[0xA260] + 16;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x0 = (arg1 + 8) + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y0 = arg2 - 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x1 = (arg1 + 8) + (arg3 - 16) / 2 + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y1 = arg2 - 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x2 = (arg1 + 8) + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y2 = arg2 + 8;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x3 = (arg1 + 8) + (arg3 - 16) / 2 + (arg3 - 16) / 2;
-    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y3 = arg2 + 8;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u0 = (g_BattleGraphicsWork[0xA25C] & 0x3F) << 1;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v0 = g_BattleGraphicsWork[0xA260];
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u1 = ((g_BattleGraphicsWork[0xA25C] & 0x3F) << 1) + 7;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v1 = g_BattleGraphicsWork[0xA260];
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u2 = (g_BattleGraphicsWork[0xA25C] & 0x3F) << 1;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v2 = g_BattleGraphicsWork[0xA260] + 16;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u3 = ((g_BattleGraphicsWork[0xA25C] & 0x3F) << 1) + 7;
-    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v3 = g_BattleGraphicsWork[0xA260] + 16;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x0 = (left = arg1 + 8);
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y0 = (bottom = arg2 + 0xFFF8);
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x1 = (mid = left + (half = (arg3 - 16) / 2));
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y1 = bottom;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x2 = left;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y2 = (top = arg2 + 8);
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->x3 = mid;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->y3 = top;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x0 = mid;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y0 = bottom;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x1 = (right = mid + half);
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y1 = bottom;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x2 = mid;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y2 = top;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->x3 = right;
+    *(volatile s16 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->y3 = top;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u0 = (g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v0 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V];
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u1 = ((g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1) + 7;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v1 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V];
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u2 = (g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v2 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V] + 16;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->u3 = ((g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1) + 7;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + p->tilePrims[0])->v3 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V] + 16;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u0 = (g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v0 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V];
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u1 = ((g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1) + 7;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v1 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V];
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u2 = (g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v2 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V] + 16;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->u3 = ((g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE] & 0x3F) << 1) + 7;
+    *(volatile u8 *)&(g_BattlePrimStartIndex + (p->tilePrims[0] + 2))->v3 = g_BattleGraphicsWork[BATTLE_TILE_SOURCE_BASE + BATTLE_TILE_SOURCE_V] + 16;
     for (i = 0; i < BATTLE_TILE_QUAD_COUNT; i++) {
         BattleSetPrimGrey80BlendModeFromGlobal(&p->tilePrims[0][g_BattlePrimStartIndex + i * 2]);
     }
-*/
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
 /* 98.39% at retail's exact 1600 bytes (98.20 with retail's own store order, x0 then
    y0). The only difference is where gcc puts each store's VALUE: retail computes it
