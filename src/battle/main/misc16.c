@@ -12,6 +12,11 @@
 // corner of the quad, each drawn with its own code.
 #define BATTLE_SPRITE_PACKAGE_COUNT 4
 
+// The POLY_FT4 prims one sprite package holds (BattleSpritePackage.prims): a package's
+// index times this is its first prim in the draw block, a package count times this the
+// prims those packages filled.
+#define BATTLE_SPRITE_PACKAGE_PRIM_COUNT 2
+
 // The tile prims one tile-row builder fills in a slot's draw block: the two quads at
 // tilePrims[row][g_BattlePrimStartIndex] and [g_BattlePrimStartIndex + 2].
 #define BATTLE_TILE_QUAD_COUNT 2
@@ -42,6 +47,10 @@
 // The first of the four action rows this unit reads (rows 0x25..0x28 of the actor's
 // 42-row block).
 #define BATTLE_ACTION_ROW_FIRST 0x25
+// The commands a slot can be given, one per status condition BattleTryUseSlotCommand
+// gates on it: statusMasks, codes and damage hold one entry each, the menu's cursor
+// walks all of them, and a slot's text index maps to the first of its command codes.
+#define BATTLE_SLOT_COMMAND_COUNT 4
 extern u8 g_BattleActionRows[];
 extern u8 D_800CEF34[];
 
@@ -49,7 +58,7 @@ extern u8 D_800CEF34[];
 // BattleDrawSpritePackage writes, i.e. the 0x50-byte stride the block's package
 // counter advances by.
 typedef struct {
-    /* 0x00 */ POLY_FT4 prims[2];
+    /* 0x00 */ POLY_FT4 prims[BATTLE_SPRITE_PACKAGE_PRIM_COUNT];
 } BattleSpritePackage; // Size: 0x50
 
 // One slot's rect record (g_BattleSlotRects[slot]): the coordinates the draw block
@@ -153,7 +162,7 @@ extern void func_800930AC(u8, u8 *, u16 *);
 extern void BattleInitPulseTrianglePrims(void);
 
 u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
-    u16 statusMasks[4];
+    u16 statusMasks[BATTLE_SLOT_COMMAND_COUNT];
     u8 flag;
     u8 ret;
     s32 idx;
@@ -167,7 +176,7 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     statusMasks[3] = D_800C323A;
     ret = 0;
     flag = 1;
-    idx = (arg1 + 0x25) * sizeof(BattleRow) + arg0 * BATTLE_ACTION_ROW_STRIDE;
+    idx = (arg1 + BATTLE_ACTION_ROW_FIRST) * sizeof(BattleRow) + arg0 * BATTLE_ACTION_ROW_STRIDE;
     trigger = *(u16 *)(g_BattleActionRows + idx + 0x24); // row's commandPointCost
     cur = D_800CCDC4[arg0].flags;
     dmg = *(u16 *)(g_BattleActionRows + idx); // row's flags
@@ -198,9 +207,9 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
 // the step call is a plain statement, not a do/while(0), which is what puts `cursor`
 // in $s3 and the codes walk in $s2.
 u8 BattleRunSlotCommandMenu(u8 arg0) {
-    u8 codes[4];
-    u16 damage[4];
-    u16 statusMasks[4];
+    u8 codes[BATTLE_SLOT_COMMAND_COUNT];
+    u16 damage[BATTLE_SLOT_COMMAND_COUNT];
+    u16 statusMasks[BATTLE_SLOT_COMMAND_COUNT];
     s32 cursorFrame;
     u8 cursorTimer;
     s32 lastCursor;
@@ -219,14 +228,14 @@ u8 BattleRunSlotCommandMenu(u8 arg0) {
     statusMasks[3] = D_800C323A;
     cursorFrame = 4;
     cursorTimer = 0;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < BATTLE_SLOT_COMMAND_COUNT; i++) {
         codes[i] = 0xFF;
         damage[i] = 0;
     }
-    for (i = 0; i < (limit = 4); i++) {
+    for (i = 0; i < (limit = BATTLE_SLOT_COMMAND_COUNT); i++) {
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].statusFlags, i) != 0 &&
             (g_BattleSlotStatusRows[arg0].flags & statusMasks[i]) == 0) {
-            codes[i] = g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i;
+            codes[i] = g_BattleSlotTextIndex[arg0 * 0x170] * BATTLE_SLOT_COMMAND_COUNT + i;
             firstRow = BATTLE_ACTION_ROW_FIRST;
             damage[i] = *(u16 *)((u8 *)D_800CEF34 + (firstRow + i) * sizeof(BattleRow) + arg0 * BATTLE_ACTION_ROW_STRIDE);
         }
@@ -257,7 +266,7 @@ u8 BattleRunSlotCommandMenu(u8 arg0) {
         case 1:
             cursor++;
             if (cursor >= limit) {
-                cursor = 3;
+                cursor = BATTLE_SLOT_COMMAND_COUNT - 1;
             }
             break;
         case 3:
@@ -296,7 +305,7 @@ void BattleFadeTilePrimRow(void) {
     found = 0;
     for (j = 0; j < BATTLE_TILE_PRIM_LIST_COUNT; j++) {
         if (g_BattleDisplayState->packageCounts[j] != 0) {
-            for (i = 0; i < g_BattleDisplayState->packageCounts[j] * 2; i += 2) {
+            for (i = 0; i < g_BattleDisplayState->packageCounts[j] * BATTLE_SPRITE_PACKAGE_PRIM_COUNT; i += BATTLE_SPRITE_PACKAGE_PRIM_COUNT) {
                 u8 c;
 
                 SetSemiTrans(&((BattleTilePrimList *)(g_BattleGraphicsWork + BATTLE_TILE_PRIM_LIST_BASE +
@@ -502,7 +511,7 @@ void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     p->packageCount = BattleDrawSpritePackage(codes[3], (u8 *)&pPackage[p->packageCount], dx, dy) + p->packageCount;
     for (i = 0; i < BATTLE_SPRITE_PACKAGE_COUNT; i++) {
         pPrims = (POLY_FT4 *)p->primBuffer;
-        BattleSetPrimGrey80BlendModeFromGlobal(&pPrims[i * 2 + g_BattlePrimStartIndex]);
+        BattleSetPrimGrey80BlendModeFromGlobal(&pPrims[i * BATTLE_SPRITE_PACKAGE_PRIM_COUNT + g_BattlePrimStartIndex]);
     }
 }
 
