@@ -295,7 +295,27 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    xori-in-the-bnez-delay-slot, but pTex and the variant then swap s3/s4); a
    `do { } while (0)` around the ten 0xC0..0xE4 stores (1016 / 79.67). The tail is the
    other divergence: retail keeps the variant in s4 (col's dead register) and the mask
-   base in s5 (pClip's), where this body hands both a caller-saved temp (v1 / a1). */
+   base in s5 (pClip's), where this body hands both a caller-saved temp (v1 / a1).
+
+   ROUND 382 re-measure: 88.71 / 1040 reproduced exactly under the unit's own flags (260 insns
+   against retail's 259, frame 0x68 against 0x70). The extra instruction is the whole size gap:
+   retail pools the scratchpad BASE in 0x30(sp) once (`lui t6,0x1f80; sw t6,0x30(sp)` in the
+   prologue) and builds the 0xB8 corner from it with `ori`, where this body forms 0xB8 with
+   lui+ori and pools the base for 0xC0 instead - 7 instructions against retail's 6.
+   NEW LEVER MEASURED: retail computes the four INNER point pointers in the ROW LOOP
+   (`addiu t6,s2,%lo(D_1F8000C0); sw t6,0x38(sp)` / 0xC8 to 0x40(sp) / 0xE0 to s6 / 0xD0 to fp,
+   four addius in the row-loop head), which is how it reaches ELEVEN live values and spills two.
+   Written that way (pC0/pC8/pD0/pE0 assigned at the top of the row loop) gcc HOISTS all four into
+   the prologue - they are loop-invariant - and the hoist costs three saved registers: base drops
+   s2 -> s1, pTex s3 -> s2, pClip s5 -> s7. It DOES reach 1036 bytes / 259 insns, retail's exact
+   size, and 83.24%. So size and allocation remain mutually exclusive from any source shape tried;
+   a body that links needs the 0xC8 spill (see below), not another pointer spelling.
+   REMAINING BLOCKER, unchanged and now explained: 0xC8 is spelled `(Point*)D_1F8000C8` (a
+   symbol_ref) so reload rematerialises it at both call sites (2 insns each) instead of spilling it
+   into retail's 0x40(sp) slot (1 store + 2 loads). 0xC0, spelled `pScratch + 0xC0`, IS spilled.
+   Forcing the spill would need a value gcc cannot rematerialise, and every honest spelling of
+   0xC8 is a constant address, so this is not reachable from C; retail's two spills come from its
+   own pseudo ordering, not from a spelling. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 /*
 void func_800983A0(WorldMapMisc16Struct* p) {
