@@ -1,6 +1,10 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
+/* Bit 25 of a TMD primitive id word is ignored when the primitive type is
+   classified: a lit ("L") primitive and its unlit form share a body. */
+#define GPU_PRIM_ID_MASK 0xFDFFFFFF
+
 extern u_long *g_GpuCurTIMHandle;
 
 extern volatile long g_GpuTimeoutDeadline;
@@ -51,6 +55,25 @@ extern char g_StrTmdObjectFormat[]; // "\tid=%08X, flags=%d, nobj=%d, objid=%d\n
 extern char g_StrTmdVertFormat[]; // "\tvert=%08X, nvert=%d\n"
 extern char g_StrTmdNormFormat[]; // "\tnorm=%08X, nnorm=%d\n"
 extern char g_StrTmdPrimFormat[]; // "\tprim=%08X, nprim=%d\n"
+/* The primitive type names the mapped-primitive switch prints when the graph
+   debug level is 2 ("L" = per-vertex normal index). */
+extern char D_80019338[]; // "F3L "
+extern char D_80019340[]; // "G3L "
+extern char D_80019348[]; // "FT3L "
+extern char D_80019350[]; // "GT3L "
+extern char D_80019358[]; // "F3 "
+extern char D_8001935C[]; // "G3 "
+extern char D_80019360[]; // "FT3 "
+extern char D_80019368[]; // "GT3 "
+extern char D_80019370[]; // "F4L "
+extern char D_80019378[]; // "G4L "
+extern char D_80019380[]; // "FT4L "
+extern char D_80019388[]; // "GT4L "
+extern char D_80019390[]; // "F4 "
+extern char D_80019394[]; // "G4 "
+extern char D_80019398[]; // "FT4 "
+extern char D_800193A0[]; // "GT4 "
+extern char D_800193A8[]; // "unsupported type (%08x)\n"
 
 extern int Vsync(int mode);
 
@@ -389,11 +412,23 @@ typedef struct {
     /* 0x6 */ u_short pad6;
 } TmdVector; // Size: 0x8
 
-/* A mapped TMD primitive object (0x78 bytes): func_800477D0 builds the
-   header in 0x0-0x1F, and the vertices/normals named by vertIndex/normIndex
-   are copied out of the data block into verts/norms here. */
+/* One RGB triplet of the primitive header, padded to a word. */
 typedef struct {
-    /* 0x00 */ u8 unk00[0x20];
+    /* 0x0 */ u8 r;
+    /* 0x1 */ u8 g;
+    /* 0x2 */ u8 b;
+    /* 0x3 */ u8 pad3;
+} TmdColor; // Size: 0x4
+
+/* A mapped TMD primitive object (0x78 bytes): func_800477D0 fills the header
+   in 0x0-0x1F from the primitive packet, and the vertices/normals named by
+   vertIndex/normIndex are copied out of the data block into verts/norms here. */
+typedef struct {
+    /* 0x00 */ u_long tag;
+    /* 0x04 */ TmdColor colors[4];
+    /* 0x14 */ u_short unk14;
+    /* 0x16 */ u_short unk16;
+    /* 0x18 */ u8 unk18[8];
     /* 0x20 */ TmdVector verts[4];
     /* 0x40 */ TmdVector norms[4];
     /* 0x60 */ u_long vertBase;
@@ -402,14 +437,23 @@ typedef struct {
     /* 0x70 */ u_short normIndex[4];
 } TmdPrimObject; // Size: 0x78
 
-extern int func_800477D0(u_long *pPrim, TmdPrimObject *pObj);
+/* A TMD primitive packet. The parameters after the id word depend on the
+   primitive type - a colour, a colour per vertex, a texel u/v pair or an
+   index pair - so the parameter block is read as bytes or as halfwords. */
+typedef union {
+    /* 0x00 */ u_long tag;
+    /* 0x00 */ u_char bytes[0x2C];
+    /* 0x00 */ u_short shorts[0x16];
+} TmdPrimPacket;
+
+extern int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj);
 
 TmdPrimObject *func_8004726C(TmdPrimObject *pObj) {
     TmdVector *pVert;
     TmdVector *pNorm;
     int size;
 
-    if ((size = func_800477D0(g_TmdPrimBase, pObj)) < 0)
+    if ((size = func_800477D0((TmdPrimPacket *)g_TmdPrimBase, pObj)) < 0)
         return 0;
 
     pVert = (TmdVector *)g_TmdVertBase;
@@ -515,7 +559,385 @@ u_long func_80047638(u_long *tmd, int obj_no, u_long *pPrim, u_long *pVert, u_lo
     return pObj[obj_no].primn;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_800477D0);
+/* Map one TMD primitive packet into pObj: the packet id word names the
+   primitive type, each arm copies that type's parameters into the object
+   header and returns the packet's size in bytes. */
+int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
+    u_long type;
+
+    memset(pObj, 0, sizeof(*pObj));
+
+    type = pPrim->tag;
+    pObj->tag = type;
+
+    switch (type & GPU_PRIM_ID_MASK) {
+    case 0x20000304:
+    case 0x20020304:
+        if (GetGraphDebug() == 2)
+            printf(D_80019338); // "F3L "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x4];
+        pObj->colors[1].g = pPrim->bytes[0x5];
+        pObj->colors[1].b = pPrim->bytes[0x6];
+        pObj->colors[2].r = pPrim->bytes[0x4];
+        pObj->colors[2].g = pPrim->bytes[0x5];
+        pObj->colors[2].b = pPrim->bytes[0x6];
+        pObj->vertIndex[0] = pPrim->shorts[0x5];
+        pObj->vertIndex[1] = pPrim->shorts[0x6];
+        pObj->vertIndex[2] = pPrim->shorts[0x7];
+        pObj->normIndex[0] = pPrim->shorts[0x4];
+        pObj->normIndex[1] = pPrim->shorts[0x4];
+        pObj->normIndex[2] = pPrim->shorts[0x4];
+        return 16;
+    case 0x30000406:
+    case 0x30020406:
+        if (GetGraphDebug() == 2)
+            printf(D_80019340); // "G3L "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x4];
+        pObj->colors[1].g = pPrim->bytes[0x5];
+        pObj->colors[1].b = pPrim->bytes[0x6];
+        pObj->colors[2].r = pPrim->bytes[0x4];
+        pObj->colors[2].g = pPrim->bytes[0x5];
+        pObj->colors[2].b = pPrim->bytes[0x6];
+        pObj->vertIndex[0] = pPrim->shorts[0x5];
+        pObj->vertIndex[1] = pPrim->shorts[0x7];
+        pObj->vertIndex[2] = pPrim->shorts[0x9];
+        pObj->normIndex[0] = pPrim->shorts[0x4];
+        pObj->normIndex[1] = pPrim->shorts[0x6];
+        pObj->normIndex[2] = pPrim->shorts[0x8];
+        return 20;
+    case 0x24000507:
+    case 0x24020507:
+        if (GetGraphDebug() == 2)
+            printf(D_80019348); // "FT3L "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->vertIndex[0] = pPrim->shorts[0x9];
+        pObj->vertIndex[1] = pPrim->shorts[0xA];
+        pObj->vertIndex[2] = pPrim->shorts[0xB];
+        pObj->normIndex[0] = pPrim->shorts[0x8];
+        pObj->normIndex[1] = pPrim->shorts[0x8];
+        pObj->normIndex[2] = pPrim->shorts[0x8];
+        return 24;
+    case 0x34000609:
+    case 0x34020609:
+        if (GetGraphDebug() == 2)
+            printf(D_80019350); // "GT3L "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->vertIndex[0] = pPrim->shorts[0x9];
+        pObj->vertIndex[1] = pPrim->shorts[0xB];
+        pObj->vertIndex[2] = pPrim->shorts[0xD];
+        pObj->normIndex[0] = pPrim->shorts[0x8];
+        pObj->normIndex[1] = pPrim->shorts[0xA];
+        pObj->normIndex[2] = pPrim->shorts[0xC];
+        return 28;
+    case 0x21010304:
+    case 0x21030304:
+        if (GetGraphDebug() == 2)
+            printf(D_80019358); // "F3 "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x4];
+        pObj->colors[1].g = pPrim->bytes[0x5];
+        pObj->colors[1].b = pPrim->bytes[0x6];
+        pObj->colors[2].r = pPrim->bytes[0x4];
+        pObj->colors[2].g = pPrim->bytes[0x5];
+        pObj->colors[2].b = pPrim->bytes[0x6];
+        pObj->vertIndex[0] = pPrim->shorts[0x4];
+        pObj->vertIndex[1] = pPrim->shorts[0x5];
+        pObj->vertIndex[2] = pPrim->shorts[0x6];
+        return 16;
+    case 0x31010506:
+    case 0x31030506:
+        if (GetGraphDebug() == 2)
+            printf(D_8001935C); // "G3 "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x8];
+        pObj->colors[1].g = pPrim->bytes[0x9];
+        pObj->colors[1].b = pPrim->bytes[0xA];
+        pObj->colors[2].r = pPrim->bytes[0xC];
+        pObj->colors[2].g = pPrim->bytes[0xD];
+        pObj->colors[2].b = pPrim->bytes[0xE];
+        pObj->vertIndex[0] = pPrim->shorts[0x8];
+        pObj->vertIndex[1] = pPrim->shorts[0x9];
+        pObj->vertIndex[2] = pPrim->shorts[0xA];
+        return 24;
+    case 0x25010607:
+    case 0x25030607:
+        if (GetGraphDebug() == 2)
+            printf(D_80019360); // "FT3 "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->colors[0].r = pPrim->bytes[0x10];
+        pObj->colors[0].g = pPrim->bytes[0x11];
+        pObj->colors[0].b = pPrim->bytes[0x12];
+        pObj->colors[1].r = pPrim->bytes[0x10];
+        pObj->colors[1].g = pPrim->bytes[0x11];
+        pObj->colors[1].b = pPrim->bytes[0x12];
+        pObj->colors[2].r = pPrim->bytes[0x10];
+        pObj->colors[2].g = pPrim->bytes[0x11];
+        pObj->colors[2].b = pPrim->bytes[0x12];
+        pObj->vertIndex[0] = pPrim->shorts[0xA];
+        pObj->vertIndex[1] = pPrim->shorts[0xB];
+        pObj->vertIndex[2] = pPrim->shorts[0xC];
+        return 28;
+    case 0x35010809:
+    case 0x35030809:
+        if (GetGraphDebug() == 2)
+            printf(D_80019368); // "GT3 "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->vertIndex[0] = pPrim->shorts[0xE];
+        pObj->vertIndex[1] = pPrim->shorts[0xF];
+        pObj->vertIndex[2] = pPrim->shorts[0x10];
+        pObj->colors[0].r = pPrim->bytes[0x10];
+        pObj->colors[0].g = pPrim->bytes[0x11];
+        pObj->colors[0].b = pPrim->bytes[0x12];
+        pObj->colors[1].r = pPrim->bytes[0x14];
+        pObj->colors[1].g = pPrim->bytes[0x15];
+        pObj->colors[1].b = pPrim->bytes[0x16];
+        pObj->colors[2].r = pPrim->bytes[0x18];
+        pObj->colors[2].g = pPrim->bytes[0x19];
+        pObj->colors[2].b = pPrim->bytes[0x1A];
+        return 36;
+    case 0x28000405:
+    case 0x28020405:
+        if (GetGraphDebug() == 2)
+            printf(D_80019370); // "F4L "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x4];
+        pObj->colors[1].g = pPrim->bytes[0x5];
+        pObj->colors[1].b = pPrim->bytes[0x6];
+        pObj->colors[2].r = pPrim->bytes[0x4];
+        pObj->colors[2].g = pPrim->bytes[0x5];
+        pObj->colors[2].b = pPrim->bytes[0x6];
+        pObj->colors[3].r = pPrim->bytes[0x4];
+        pObj->colors[3].g = pPrim->bytes[0x5];
+        pObj->colors[3].b = pPrim->bytes[0x6];
+        pObj->vertIndex[0] = pPrim->shorts[0x5];
+        pObj->vertIndex[1] = pPrim->shorts[0x6];
+        pObj->vertIndex[2] = pPrim->shorts[0x7];
+        pObj->vertIndex[3] = pPrim->shorts[0x8];
+        pObj->normIndex[0] = pPrim->shorts[0x4];
+        pObj->normIndex[1] = pPrim->shorts[0x4];
+        pObj->normIndex[2] = pPrim->shorts[0x4];
+        pObj->normIndex[3] = pPrim->shorts[0x4];
+        return 20;
+    case 0x38000508:
+    case 0x38020508:
+        if (GetGraphDebug() == 2)
+            printf(D_80019378); // "G4L "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x4];
+        pObj->colors[1].g = pPrim->bytes[0x5];
+        pObj->colors[1].b = pPrim->bytes[0x6];
+        pObj->colors[2].r = pPrim->bytes[0x4];
+        pObj->colors[2].g = pPrim->bytes[0x5];
+        pObj->colors[2].b = pPrim->bytes[0x6];
+        pObj->colors[3].r = pPrim->bytes[0x4];
+        pObj->colors[3].g = pPrim->bytes[0x5];
+        pObj->colors[3].b = pPrim->bytes[0x6];
+        pObj->vertIndex[0] = pPrim->shorts[0x5];
+        pObj->vertIndex[1] = pPrim->shorts[0x7];
+        pObj->vertIndex[2] = pPrim->shorts[0x9];
+        pObj->vertIndex[3] = pPrim->shorts[0xB];
+        pObj->normIndex[0] = pPrim->shorts[0x4];
+        pObj->normIndex[1] = pPrim->shorts[0x6];
+        pObj->normIndex[2] = pPrim->shorts[0x8];
+        pObj->normIndex[3] = pPrim->shorts[0xA];
+        return 24;
+    case 0x2C000709:
+    case 0x2C020709:
+        if (GetGraphDebug() == 2)
+            printf(D_80019380); // "FT4L "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->unk18[6] = pPrim->bytes[0x10];
+        pObj->unk18[7] = pPrim->bytes[0x11];
+        pObj->vertIndex[0] = pPrim->shorts[0xB];
+        pObj->vertIndex[1] = pPrim->shorts[0xC];
+        pObj->vertIndex[2] = pPrim->shorts[0xD];
+        pObj->vertIndex[3] = pPrim->shorts[0xE];
+        pObj->normIndex[0] = pPrim->shorts[0xA];
+        pObj->normIndex[1] = pPrim->shorts[0xA];
+        pObj->normIndex[2] = pPrim->shorts[0xA];
+        pObj->normIndex[3] = pPrim->shorts[0xA];
+        return 32;
+    case 0x3C00080C:
+    case 0x3C02080C:
+        if (GetGraphDebug() == 2)
+            printf(D_80019388); // "GT4L "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->unk18[6] = pPrim->bytes[0x10];
+        pObj->unk18[7] = pPrim->bytes[0x11];
+        pObj->vertIndex[0] = pPrim->shorts[0xB];
+        pObj->vertIndex[1] = pPrim->shorts[0xD];
+        pObj->vertIndex[2] = pPrim->shorts[0xF];
+        pObj->vertIndex[3] = pPrim->shorts[0x11];
+        pObj->normIndex[0] = pPrim->shorts[0xA];
+        pObj->normIndex[1] = pPrim->shorts[0xC];
+        pObj->normIndex[2] = pPrim->shorts[0xE];
+        pObj->normIndex[3] = pPrim->shorts[0x10];
+        return 36;
+    case 0x29010305:
+    case 0x29030305:
+        if (GetGraphDebug() == 2)
+            printf(D_80019390); // "F4 "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x4];
+        pObj->colors[1].g = pPrim->bytes[0x5];
+        pObj->colors[1].b = pPrim->bytes[0x6];
+        pObj->colors[2].r = pPrim->bytes[0x4];
+        pObj->colors[2].g = pPrim->bytes[0x5];
+        pObj->colors[2].b = pPrim->bytes[0x6];
+        pObj->colors[3].r = pPrim->bytes[0x4];
+        pObj->colors[3].g = pPrim->bytes[0x5];
+        pObj->colors[3].b = pPrim->bytes[0x6];
+        pObj->vertIndex[0] = pPrim->shorts[0x4];
+        pObj->vertIndex[1] = pPrim->shorts[0x5];
+        pObj->vertIndex[2] = pPrim->shorts[0x6];
+        pObj->vertIndex[3] = pPrim->shorts[0x7];
+        return 16;
+    case 0x39010608:
+    case 0x39030608:
+        if (GetGraphDebug() == 2)
+            printf(D_80019394); // "G4 "
+        pObj->colors[0].r = pPrim->bytes[0x4];
+        pObj->colors[0].g = pPrim->bytes[0x5];
+        pObj->colors[0].b = pPrim->bytes[0x6];
+        pObj->colors[1].r = pPrim->bytes[0x8];
+        pObj->colors[1].g = pPrim->bytes[0x9];
+        pObj->colors[1].b = pPrim->bytes[0xA];
+        pObj->colors[2].r = pPrim->bytes[0xC];
+        pObj->colors[2].g = pPrim->bytes[0xD];
+        pObj->colors[2].b = pPrim->bytes[0xE];
+        pObj->colors[3].r = pPrim->bytes[0x10];
+        pObj->colors[3].g = pPrim->bytes[0x11];
+        pObj->colors[3].b = pPrim->bytes[0x12];
+        pObj->vertIndex[0] = pPrim->shorts[0xA];
+        pObj->vertIndex[1] = pPrim->shorts[0xB];
+        pObj->vertIndex[2] = pPrim->shorts[0xC];
+        pObj->vertIndex[3] = pPrim->shorts[0xD];
+        return 28;
+    case 0x2D010709:
+    case 0x2D030709:
+        if (GetGraphDebug() == 2)
+            printf(D_80019398); // "FT4 "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->unk18[6] = pPrim->bytes[0x10];
+        pObj->unk18[7] = pPrim->bytes[0x11];
+        pObj->colors[0].r = pPrim->bytes[0x14];
+        pObj->colors[0].g = pPrim->bytes[0x15];
+        pObj->colors[0].b = pPrim->bytes[0x16];
+        pObj->colors[1].r = pPrim->bytes[0x14];
+        pObj->colors[1].g = pPrim->bytes[0x15];
+        pObj->colors[1].b = pPrim->bytes[0x16];
+        pObj->colors[2].r = pPrim->bytes[0x14];
+        pObj->colors[2].g = pPrim->bytes[0x15];
+        pObj->colors[2].b = pPrim->bytes[0x16];
+        pObj->colors[3].r = pPrim->bytes[0x14];
+        pObj->colors[3].g = pPrim->bytes[0x15];
+        pObj->colors[3].b = pPrim->bytes[0x16];
+        pObj->vertIndex[0] = pPrim->shorts[0xC];
+        pObj->vertIndex[1] = pPrim->shorts[0xD];
+        pObj->vertIndex[2] = pPrim->shorts[0xE];
+        pObj->vertIndex[3] = pPrim->shorts[0xF];
+        return 32;
+    case 0x3D010A0C:
+    case 0x3D030A0C:
+        if (GetGraphDebug() == 2)
+            printf(D_800193A0); // "GT4 "
+        pObj->unk14 = pPrim->shorts[0x5];
+        pObj->unk16 = pPrim->shorts[0x3];
+        pObj->unk18[0] = pPrim->bytes[0x4];
+        pObj->unk18[1] = pPrim->bytes[0x5];
+        pObj->unk18[2] = pPrim->bytes[0x8];
+        pObj->unk18[3] = pPrim->bytes[0x9];
+        pObj->unk18[4] = pPrim->bytes[0xC];
+        pObj->unk18[5] = pPrim->bytes[0xD];
+        pObj->unk18[6] = pPrim->bytes[0x10];
+        pObj->unk18[7] = pPrim->bytes[0x11];
+        pObj->vertIndex[0] = pPrim->shorts[0x12];
+        pObj->vertIndex[1] = pPrim->shorts[0x13];
+        pObj->vertIndex[2] = pPrim->shorts[0x14];
+        pObj->vertIndex[3] = pPrim->shorts[0x15];
+        pObj->colors[0].r = pPrim->bytes[0x14];
+        pObj->colors[0].g = pPrim->bytes[0x15];
+        pObj->colors[0].b = pPrim->bytes[0x16];
+        pObj->colors[1].r = pPrim->bytes[0x18];
+        pObj->colors[1].g = pPrim->bytes[0x19];
+        pObj->colors[1].b = pPrim->bytes[0x1A];
+        pObj->colors[2].r = pPrim->bytes[0x1C];
+        pObj->colors[2].g = pPrim->bytes[0x1D];
+        pObj->colors[2].b = pPrim->bytes[0x1E];
+        pObj->colors[3].r = pPrim->bytes[0x20];
+        pObj->colors[3].g = pPrim->bytes[0x21];
+        pObj->colors[3].b = pPrim->bytes[0x22];
+        return 44;
+    default:
+        printf(D_800193A8, pObj->tag & GPU_PRIM_ID_MASK);
+        return -1;
+    }
+}
 
 void SetFogNearFar(long a, long b, long h) {
     long d;
