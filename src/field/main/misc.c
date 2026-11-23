@@ -3109,38 +3109,35 @@ extern s32 g_FieldStreamSceneActive;
 extern s32 g_FieldMode;
 extern s32 g_FieldStreamFlags;
 
-// 74.57% (114 insns / 456 bytes against retail's 118 / 472 - FOUR short: one
-// `lui/lw` load-delay `nop` missing at each of the four continuation reads, so
-// it cannot link). Round 411. The STRUCTURE is the matched twin
-// FieldScriptSetGameState17FC30's - same five-argument idiom: the first byte
-// read uses SCRIPT_READ_U8_REL(0xB), each later one
-// SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB) with a fresh
-// `pActor = g_FieldScriptVMCurActor;` placed BEFORE the store of the previous
-// result, which reproduces retail's per-call `lw v1,actor`.
-// THE RESIDUAL IS LOAD ORDER AT EACH CONTINUATION READ. Retail emits
-//   [lui/lw v1 actor][sh store][lhu v0,0xCC(v1)][lui/lw v1 scriptData][nop][addu v0,v0,v1][lbu]
-// with the ip sum in $v0; here gcc loads scriptData BEFORE the ip lhu and fills
-// that lw's delay slot with the `sh` store, so the stream is
-//   [lw actor][lui/lw a0 scriptData][lhu v1][sh store][addu v1,v1,a0][lbu]
-// One instruction shorter per site. Retail's target row is exactly what the
-// matched twin emits, so it is reachable: the twin's store is a struct field of
-// g_pGameState, and loading its base is what keeps the store in place.
-// TRIED, all 114 insns / 74.57 unless noted: a direct store of each call result
-// with no `value` local (identical), `int value`, and a barrier block
-// `do { pActor = g_FieldScriptVMCurActor; <read + call> } while (0)` around each
-// continuation read, with the store of the previous result left outside it.
-// THAT LAST ONE IS WORTH KNOWING: it reproduces retail's exact size, 118 insns /
-// 472 bytes, and every site gains its missing base-load nop, but each site's row
-// comes out [sh store][lw actor][lw base][lhu][nop][addu][lbu] (the store before
-// the actor load where retail has the actor load first) and it scrambles the
-// tail, scoring 65.84 - so it is only a base once the site and tail order are
-// understood too. Lever c-a-per-site-do-while-restores-the-load-delay.
-// TAIL here: retail is [li 0x140 sh D_800C3A32][li 0x40 sw g_FieldStreamFlags]
-// [li 1 sh g_FieldStreamRgb24][lhu D_800C3A30][lw actor][li 0x100 sh D_800C3A34]
-// [sh ImageX2][sh ImageY1][sh ImageX1][sh ImageY2][sh LoopPlayback][andi/sh
-// D_800C3A30][lhu ip][li 1][sw g_FieldMode][sw SceneActive][sw StopFlag]
-// [addiu/sh ip]; in this body the D_800C3A30 pair and the ip increment drift
-// down to the end of the block.
+// 83.85% (118 insns / 472 bytes - retail's EXACT size, so the head is solved;
+// what is left is instruction ORDER inside the tail's single basic block, which
+// cannot link). Round 425.
+// THE HEAD IS A DO-WHILE PER CONTINUATION READ: retail's post-call block is
+// [lw actor][sh store][lhu ip][lw scriptData][nop][addu][lbu], and with the
+// store and the read in ONE basic block sched2 always hoists the scriptData
+// base load above the store (it can: its destination is a free register),
+// costing one instruction per site (456 bytes, 74.57). Wrapping the read in
+// `do { ... } while (0)` splits the block and pins retail's order at all four
+// continuation reads and in the first one, which is the whole 16-byte gap.
+//   Dead on the same body, all 472 bytes: the plain macro form
+//   `g_FieldStreamFileIndex = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));`
+//   (74.57, identical to the pActor form), and the round-411 do-while that
+//   wrapped the actor load as well (65.84).
+// THE RESIDUAL, in the tail block only, is one register: retail keeps the
+// 0x100 constant in $v1 and the D_800C3A30 load in $v0, which lets the load sit
+// early (after the Rgb24 store, before the actor load) and the andi+store late
+// (after the LoopPlayback store); here the 0x100 takes $v0, so the load can only
+// follow it, and the SceneActive/StopFlag `li v0,1` pair is hoisted above it.
+// That single swap drags three instruction positions with it (58 differing
+// lines, all in the tail). Source position inside the block is NOT the lever:
+// measured byte-identical with `D_800C3A30 &= 0xF` first, last, and in the
+// middle of the image-rect store group; with a separate early `u16 streamType =
+// D_800C3A30;` read and a late store; and with the ip increment moved above the
+// three trailing stores (sched2 sinks/hoists them back). Permuter from this
+// body: two runs, base 2165 -> 1175 -> 985; the 1175 edit (Rgb24 store moved
+// after the X2 store) measures 82.92% / 40 differing lines and the 985 one
+// (whole tail segment wrapped in another do-while) 74.41% / 40 - the permuter
+// metric is not objdiff's here, and neither scores better than this body.
 /*
 void func_8008EA58(void) {
     ActorData* pActor;
@@ -3153,16 +3150,24 @@ void func_8008EA58(void) {
         value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
         pActor = g_FieldScriptVMCurActor;
         g_FieldStreamFileIndex = value;
-        value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        do {
+            value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        } while (0);
         pActor = g_FieldScriptVMCurActor;
         D_800C3A2A = value;
-        value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        do {
+            value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        } while (0);
         pActor = g_FieldScriptVMCurActor;
         g_FieldStreamFrameBase = value;
-        value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        do {
+            value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        } while (0);
         pActor = g_FieldScriptVMCurActor;
         g_FieldStreamTotalFrames = value;
-        value = FieldScriptArgument5(9, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        do {
+            value = FieldScriptArgument5(9, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+        } while (0);
         g_FieldStreamId = value;
         D_800C3A32 = 0x140;
         g_FieldStreamFlags = 0x40;
@@ -3174,12 +3179,13 @@ void func_8008EA58(void) {
         g_FieldStreamImageX1 = 0;
         g_FieldStreamImageY2 = 0x100;
         g_FieldStreamLoopPlayback = 0;
-        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
         g_FieldMode = 0;
         g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 
 // 94.74% (480 bytes against retail's 484 - ONE instruction short, so it cannot
