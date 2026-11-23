@@ -287,39 +287,39 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
     v0.vx = mx;
     v0.vy = pCell[0].height;
     v0.vz = mz;
-    v1.vx = mx + 0x100;
+    v1.vx = mx + BATTLE_GRID_SPACING;
     v1.vy = pCell[0x81].height;
-    v1.vz = mz + 0x100;
-    v2.vx = mx + 0x100;
+    v1.vz = mz + BATTLE_GRID_SPACING;
+    v2.vx = mx + BATTLE_GRID_SPACING;
     v2.vy = pCell[1].height;
     v2.vz = mz;
     v3.vx = mx;
     v3.vy = pCell[0x80].height;
-    v3.vz = mz + 0x100;
+    v3.vz = mz + BATTLE_GRID_SPACING;
 
     if (fixHeights) {
-        switch (g_BattleGridCells[(z << 7) + x] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x] & BATTLE_GRID_STATE_MASK) {
         case 0x1000000:
             v0.vy = v0.vy + 0xC0;
         case 0x3000000:
             v0.vy = v0.vy + 0x40;
             break;
         }
-        switch (g_BattleGridCells[(z << 7) + x + 0x81] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x + 0x81] & BATTLE_GRID_STATE_MASK) {
         case 0x1000000:
             v1.vy = v1.vy + 0xC0;
         case 0x3000000:
             v1.vy = v1.vy + 0x40;
             break;
         }
-        switch (g_BattleGridCells[(z << 7) + x + 1] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x + 1] & BATTLE_GRID_STATE_MASK) {
         case 0x1000000:
             v2.vy = v2.vy + 0xC0;
         case 0x3000000:
             v2.vy = v2.vy + 0x40;
             break;
         }
-        switch (g_BattleGridCells[(z << 7) + x + 0x80] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x + 0x80] & BATTLE_GRID_STATE_MASK) {
         case 0x1000000:
             v3.vy = v3.vy + 0xC0;
         case 0x3000000:
