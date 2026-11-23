@@ -30,6 +30,7 @@ typedef struct {
 extern s32 g_BattlePendingAnimState;
 extern s16 D_800C3740;
 extern u8 g_BattleAnimCommandsSuppressed;
+extern u8 D_800C3688;
 
 extern void BattleSetAnimState(s32);
 extern void HeapFree(void *pMem);
@@ -695,44 +696,52 @@ void BattleSetAnimTaskShort(s16 value) {
     D_800C3740 = value;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
-// FIRST BODY, 78.88% at 1592 bytes against retail's 1604 (398 vs 401 instructions); no
-// twin and no earlier park. The frame is 264 where retail's is 288: retail's local region
-// is the 232 bytes 0x10..0xF7 and this body declares 204, so 28 are unaccounted - a
-// never-referenced 16-byte VECTOR at 0xD8, plus the two 4-byte spill slots at 0x6C (in the
-// loop body, between sxy at 0x68 and the SVECTOR at 0x70) and 0xF4. Everything else in
-// retail's frame is here in declaration order: VECTOR total 0x10, the group SVECTORs at
-// 0x20/0x28, MATRIX 0x30, VECTOR 0x50, the loop's vertex 0x60, sxy 0x68, SVECTOR 0x70,
-// the two RotTransPers out-params 0x78/0x7C, then 0x80/0xA0/0xB0/0xB8/0xE8 for the two
-// ReadGeomScreen branches.
-// Facts measured while writing it, for whoever takes this back:
-// - The 0x10 block is memset of 16 bytes, then s32 sums at +0/+4/+8 (a VECTOR shape, and
-//   the 4th word is never touched). The averages are written there with sw AND read at the
-//   tail with lhu at +0/+4/+8, i.e. a 16-bit view of the same words, which is why the tail
-//   of this body spells them (u16) - that is the one construct still ROUGH here.
-// - Three identical loops: `for (i = 0, bit = actorMask; i != 11; i++, bit >>= 1)` with an
-//   independent 0x1C-byte row pointer AND a 4-byte pointer for the slot sprite table
-//   (`*(SpriteData **)(pSlotWork + 0x8C8C)`), the shape misc32's
-//   BattleApplySlotMaskToEffects uses; the bit is u16 (retail's andi 0xFFFF then srl).
-// - Loop 2's seeds are `sum / spriteCount * 2` computed in retail's order x, z, y, and its
-//   body pairs `slt t3,x / slt x,v1` per axis in the order x, z, y (max in the first
-//   register, min in the second).
-// - The tail writes six words of g_BattleAnimGroupStates: [0..2] = average -x/+y/-z of the
-//   projected offset, then through `g_BattleAnimGroupStates + 4` the plain average - the
-//   same pointer-walk idiom BattleSetAnimState in this file already matches with.
-// - `distance < 120` branch: TWO ReadGeomScreen() calls, each doubled (one a sh into the
-//   SVECTOR's vz, one the 32-bit store into D_800C3CDC). Else branch:
-//   scale = distance * 0x4000 / 120, then scale = scale * 2 * ReadGeomScreen() / 0x4000
-//   (the 0x88888889 / sra 6 sequence is division by 120, not by a magic constant).
-// - D_800C3CDC is a 32-bit global here (sw) but BattleBeginAnimTask reads it with lhu, so
-//   the file's `extern u16` suits that matched function and this body stores through a
-//   (s32 *) cast. 0x800C3688 is an unnamed u8 gate (a "skip the height pass" flag);
-//   adding it to config/symbol_addrs.battle.txt BREAKS the battle split - splat fails
-//   right after "Splitting battle" - so the body has to reach it another way.
-//   BattleSlotWorkRow in this file gained unk7/unk8 for the two per-slot gates.
-// - The if-branch's ApplyMatrix out VECTOR sits at 0x60, the slot of the loop's vertex
-//   SVECTOR and sxy: retail's vertex/sxy/out-params are block-scoped in the loop so the
-//   later sibling branch reuses the slot. This body declares them at function scope, which
-//   is part of the frame difference above.
+// PARK 78.90% at 1592 bytes against retail's 1604 (398 vs 401 instructions, frame 264 vs
+// retail's 288). No twin (twin_for.py) and no m2c structure beyond this body.
+// STILL MISSING 24 BYTES OF LOCALS. Retail's local region is 0x10..0xF7 (232 bytes,
+// vars=232); this body declares 208. Every object this unit can name is accounted for and
+// in retail's order - total VECTOR 0x10, groupA/groupB SVECTOR 0x20/0x28, frameMatrix
+// MATRIX 0x30, projected VECTOR 0x50, vertex SVECTOR 0x60, sxy at 0x68 (8 bytes, see
+// below), zeroVec SVECTOR 0x70, p 0x78, flag 0x7C, nearMatrix 0x80, nearScreen 0xA0,
+// nearVec 0xB0, farMatrix 0xB8, farVec 0xE8 - so the 24 unaccounted bytes are three slots
+// retail never reads: 4 bytes at 0x6C, 16 bytes at 0xD8 (between farMatrix and farVec) and
+// 4 bytes at 0xF4 (tail padding before the save area at 0xF8). A local whose address is
+// taken but whose uses were all optimised away still gets a slot; nothing in this unit
+// shows what those three were, and inventing them is not an option. Until they are found
+// every stack offset past 0x70 in this body is off by 8 and the frame is 24 short, which
+// is most of the residual line count.
+// MEASURED, do not re-derive:
+// - 0x68 is an 8-BYTE SVECTOR, not a long sxy (m2c also splits 0x68/0x6A). Retail writes
+//   sh 0x68 (dx), sh 0x6A (dy), then sh 0x68 (dx*4) and sh 0x6A (dy*4): two assignments to
+//   s16 fields, the second pair scaled by 4, and the radius multiplies use (s16)(dx*4)
+//   (sll 18 / sra 16 truncates dx*4 to s16, not dx to s16). Rewriting it that way -
+//   SVECTOR sxyVec, RotTransPers(&vertex, (long *)&sxyVec, ...), then sxyVec.vx -= 160;
+//   sxyVec.vy -= 164; sxyVec.vx *= 4; sxyVec.vy *= 4;
+//   radius = sxyVec.vx * sxyVec.vx + sxyVec.vy * sxyVec.vy - measures 78.73% at 1664
+//   bytes, vars=216, frame=272, and it puts vertex 0x60, sxyVec 0x68 and zeroVec 0x70
+//   exactly on retail's offsets (this body has zeroVec at 0x68). It is 15 instructions too
+//   long because the addressable SVECTOR makes gcc keep memory in sync; that is the
+//   version to resume from once the 24 bytes are explained.
+// - The three loops are identical: for (i = 0, bit = actorMask; i != 11; i++, bit >>= 1)
+//   with an independent 0x1C-byte row pointer plus a 4-byte pointer for the slot sprite
+//   table, the shape misc32's BattleApplySlotMaskToEffects uses; bit is u16 (retail's
+//   andi 0xFFFF then srl).
+// - Retail reaches the sprite table as addu v0,a1,t0 with li t0,0x8C8C hoisted, then
+//   lw 0(v0); this body gets li a3,0x8000 and lw 3212(v0) - gcc splitting 0x8C8C into
+//   0x8000+0xC8C because that is a one-instruction li. Same address, one instruction
+//   cheaper, and not something the source spelling steers: the expression is
+//   *(SpriteData **)(pSlotWork + 0x8C8C) either way.
+// - The if-branch's ApplyMatrix output is its OWN 16-byte VECTOR at 0x60 (retail reads
+//   lhu 0x60/0x64/0x68 there); this body passes projected (0x50).
+// - The else branch reuses nearScreen (0xA0) as its output; retail's scale is
+//   distance * 0x4000 / 120 then * 2 * ReadGeomScreen() / 0x4000 (0x88888889 / sra 6 is
+//   division by 120).
+// - D_800C3CDC is an s32 store here but BattleBeginAnimTask in this file reads it with
+//   lhu, so the file keeps extern u16 and this body stores through a (s32 *) cast.
+//   D_800C3688 is the u8 gate for the height pass (extern declared at the top of this
+//   file; misc29.c owns it). BattleSlotWorkRow in this file gained unk7/unk8 for the two
+//   per-slot gates.
+// - Preset is right: 2.6.0 scores 74.63, -O3 scores 57.54, -G8 does not compile.
 /*
 void func_800BC460(u32 actorMask) {
     VECTOR total;
@@ -869,7 +878,7 @@ void func_800BC460(u32 actorMask) {
                 if (distance < radius) {
                     distance = radius;
                 }
-                if (pRow->unk8 != 0 && g_BattleAnimHeightPassSuppressed == 0) {
+                if (pRow->unk8 != 0 && D_800C3688 == 0) {
                     vertex.vy = pActorSprite->position.yWhole - pActorSprite->height;
                     RotTransPers(&vertex, &sxy, &p, &flag);
                     radius = ((s16)sxy - 0xA0) * ((s16)sxy - 0xA0) +
@@ -921,8 +930,8 @@ void func_800BC460(u32 actorMask) {
     pGroupStates[1] = groupB.vy;
     pGroupStates[2] = groupB.vz;
 }
-*/
 
+*/
 void BattleSetAnimState4(void) {
     if (g_BattleAnimCommandsSuppressed == 0) {
         BattleSetAnimState(4);
