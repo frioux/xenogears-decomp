@@ -215,6 +215,15 @@ extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 // 98.80); an empty `do { } while (0)` around the two HeapAlloc statements moves
 // the D_800AF87C store out of its slot (98.53); and a third permuter run on this
 // body is PERMUTER_NONE base=25 best=25 over 718 iterations.
+// Round 428: re-measured 99.59% / 532 bytes, 133 insns, 8 differing lines (both
+// moves, the sll, the two rect stores). The `size` local was measured again as a
+// separate `s32 size = h << 9;` with both HeapAllocs taking it: still 99.59 and
+// still the mirror, because h keeps TWO references either way (the sll and the
+// rect.h store), so the refs term of the priority quotient cannot be moved from
+// source - y has one reference and therefore a priority of 0 (floor_log2(1)), so
+// the pair can only flip if h's term is 0 too, which needs h referenced once,
+// which the rect.h store forbids. That is the levers.md quotient verdict
+// (a-global-allocno-priority-is) applied to this body: stop permuting it.
 /*
 void func_800871B0(void) {
     u8 command = SCRIPT_READ_U8_REL(1);
