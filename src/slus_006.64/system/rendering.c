@@ -34,70 +34,52 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
 
-/* Best attempt: 79.36% (1424 bytes, the original is 1452). NOT a wall and not a
-   permuter job about register order: the remaining deficit is pure register
-   PRESSURE, and it is one callee-saved register too many for gcc to fit.
-   Facts a future attempt needs, all confirmed against the .s:
-   - This is the FRAME-BUILDING twin of SpriteApplyDirTransforms (matched, above):
-     the dir/0x80/0x40 bytecode walk is byte-identical to that function's once the
-     source is written the same way. Keep the walk shaped like that one.
-   - The frame loop is a do/while, not a for: retail's `bne s7,t0,head` with
-     `addiu s2,s2,3` (pEntry += 3) in its DELAY slot only comes out of a do/while
-     whose body ends `pFrameData++; i++; pEntry += 3;`.
-   - field_0x40's mask is ~0xFC (retail `li v1,-253`), it keeps bits 0 and 1.
-   - retail's spriteFlags is a SIGNED 32-bit local: `s32 spriteFlags` gives the
-     sra at each of the four shift sites and no re-sign-extension after
-     `spriteFlags |= *pSprite << 8`; s16 emits sll16/sra16 around every shift.
-   - the g_SpriteVramSlotPair entry is indexed as a BYTE offset: retail is
-     `sll 1 / andi 0x1C / addu`, so write `(SVEC2*)((mem_addr)g_SpriteVramSlotPair +
-     ((spriteFlags << 1) & 0x1C))`; the tidy `g_SpriteVramSlotPair[(spriteFlags >> 1) & 7]`
-     gives sra/andi/sll (3 insns) or the sll16/sra17 extract form.
-   - the inline tpage packing in the last two arms is GetTPage/GetClut written out
-     by hand (the first arm really does CALL them), so keep the five ORs.
-   What is still wrong, measured: retail holds nine values in s0-s7+fp - sprite
-   data, anim package, pFrameData, pEntry, pSprite, entryFlags/spriteFlags (they
-   SHARE one register), texX, dir and i. This C needs TEN (entryFlags and
-   spriteFlags both live across the frame build), so gcc spills pFrameData to the
-   stack (and re-bases the register copy to pFrameData+2, which is why the tileX
-   store reloads the pointer) and keeps i in memory (extra lw/addiu/sw per
-   iteration at the loop end). Tried and measured, none better: an indexed
-   `pFrameData[i]` loop (the usual induction-base fix, worse), `*pEntry` instead
-   of the entryFlags local at the tail (78.02% - it does free a register but gcc
-   spends it on entryFlags anyway), the `== 1 &&` short-circuit form for the
-   flags_0xA8/pClutPair test, `(s16)(x & 0x100) >> 4` for retail's
-   andi/sll16/sra20 shape (folds to srl/andi), do/while - the current 78.37%.
-   A 4-minute permuter run found nothing portable: the three best candidates
-   either clobber the loop counter (`if ((i = spriteFlags) & 1)`, `i = 7`) - i.e.
-   wrong code - or only re-spell `count` as `flags & 0x3F` (7247 -> 7173).
-   The next lever is the one that removes a live value from the frame path: the
-   frame code only needs `spriteFlags` for bits 1-3, bit 4 and the >>1/>>9 fields,
-   so a version that re-reads `*pSprite` per use (or types the sprite header as a
-   union of bytes and a u16) may fit in nine.
-   Round 415 (measured):
-   - The clut-pair table reached through field_0x7C + 0x18 is INDEXED exactly like
-     g_SpriteVramSlotPair: retail is `sll 1 / andi 0x1C / addu` on that base too
-     and reads y at +2 then x at +0. The old body read pClutPair[0]/pClutPair[1]
-     un-indexed - wrong code. With the index added (byte offset on a u16*) the body
-     is 79.36% / 1424 bytes (was 78.37% / 1416).
-   - Frame anatomy of retail, from the .s: frame 0x68 = saves 0x28 + home area 0x10
-     + vars 0x30, slots 0x10 pFrames, 0x14 pOffsets, 0x18 texY (sh), 0x20
-     defaultMode (sh), 0x28 color, 0x2C count, 0x30 unkFlag (sb), 0x38 pSpriteData.
-     The three small ones sit 8 apart while the SImode ones pack 4 apart, so those
-     three are 8-byte reload spill slots, not declared locals.
-   - A cc1_probe.sh probe with this unit's flags proves the compiler gives
-     ADDRESSABLE locals their natural alignment (u16 at 0x18 then 0x1A then 0x1C),
-     so retail's 8-byte spacing cannot come from a local's type or order.
-   - This body compiles to frame 0x78, vars= 64, with its eight slots at
-     0x10,0x18,0x20,...,0x48 - every one 8 bytes apart - and it saves $fp without
-     ever using it: $fp appears only in the prologue/epilogue, so gcc gave it to a
-     pseudo that then died. That is the missing register: the body holds eight
-     values in s0-s7 while retail holds nine (retail's fp is pAnimPackage, mine is
-     s7). Losing it is what puts `i` in a stack slot and count in a register.
-   - Retail's `li v1,1 / andi v0,0x1 / bne v0,v1` for the flags_0xA8 test does not
-     come from `(x & 1) == 1`; this body's identical source folds to `andi / beqz`.
-   - The two signed `/ 0x1000` divisions in the prologue differ only downstream:
-     retail puts the optimistic `sra` in the bgez delay slot and keeps both halves
-     in v1/v0; this body has `nop` then re-shifts, i.e. the same allocator cascade.
+/* PARKED 80.76% (1436 bytes; retail 1452, 359 vs 363 insns, frame 0x80 vs retail
+   0x68). Round 430 measured the residual to ONE construct; everything else in the
+   body below is instruction-for-instruction retail's shape.
+   THE RESIDUAL: gcc derives a SECOND induction base for pFrameData at +2
+   ('addu $18,$fp,2' in the preheader, then BOTH $fp and $18 are bumped by 24 at the
+   loop end). That costs $fp, so `i` - retail's $s7 - is in a stack slot instead
+   (lw/addu/sw of 0x10(sp) at the loop end) and every sp-relative operand differs.
+   Retail has ONE base: $s0 = pFrameData, displacements 0x0 (tileX), 0x2 (tileY),
+   0x4..0x7, 0x8, 0x9, 0xA, 0xC, 0x10, 0x14.
+   Register census, both bodies 10 saved (ra, fp, s0-s7) + 16 home:
+     retail = pFrameData s0, entryFlags/spriteFlags s1, pEntry s2, pSprite s3,
+              texX s4, pSpriteData s5, dir s6, i s7, pAnimPackage fp;
+              stack: pFrames 0x10, pOffsets 0x14, texY 0x18, defaultMode 0x20,
+              color 0x28, count 0x2C, unkFlag 0x30, a spilled pSpriteData 0x38.
+     this body = same minus i (memory) plus the +2 base in s2; its spilled
+              pSpriteData (pOwner below) sits at 0x50. So the SOURCE pseudo set is
+              now retail's - only the base split differs.
+   MEASURED THIS ROUND (each was a scored run; keep them, do not redo):
+   - retail really does hold TWO source pseudos of pSpriteData: $s5 is used for
+     pBase->pDirTransforms in the walk and field_0x40 at the end, while the clut arm
+     reads flags_0xA8 and field_0x7C through a RELOAD of 0x38(sp). Adding pOwner
+     (used only in the clut arm) is what moved 79.36 -> 80.76% and 1424 -> 1436
+     bytes; retail's 0x38 slot is that pseudo, not a spill of the parameter.
+   - The base split is chosen by REFERENCE COUNT, never by the loop's own pointer:
+     moving the tile stores onto pOwner (semantic probe) drops the +2 base but gcc
+     then picks +0x14 ('lw 0($18)', 'sb -11($18)', 'sb -12($18)') - 356 insns /
+     1424 bytes / 80.04%, i still in memory. So freeing $fp alone does not buy `i`:
+     gcc simply keeps `i` in memory (biv elimination never runs here) and retail's
+     `lw count-from-0x2C(sp)` per iteration is the eliminated-biv shape.
+   - `u16* pTile = (u16*)pFrameData; pTile[0]/pTile[1]` is CSE'd back into
+     pFrameData: 80.76% / 1436, identical to the field form. Not a lever.
+   - Flipping the tile block to else-first (semantics-preserving) = 77.00% (1432).
+   - do/while with i++ in the body vs for(...; i++) ties exactly (80.76% / 1436);
+     do/while kept because retail's 'bne s7,t0' carries 'addiu s2,s2,3' in its slot.
+   - The permuter is NOT the next lever (a 4-minute run in round 415 found only
+     counter-clobbering candidates); the prize is 'i' in $s2, which is a source-shape
+     question: something must stop loop.c creating the (reg+2) giv while keeping the
+     pointer's own value live. Ideas not yet tried: (a) split the tile stores into a
+     separate 'SpriteFrameData* pFr = pFrameData;' declared INSIDE the loop so the
+     two bases have different giv origins; (b) type the frame's leading pair
+     (tileX/tileY) as a 2-element s16 array member so the second store is
+     pFrameData->tiles[1] (index form, maybe not giv-ised); (c) make count
+     'volatile'-free but read through a u8 pointer so the comparison is on memory.
+   Anatomy and the rest (frame slots, arm shapes, the five hand-packed ORs, the
+   s32 spriteFlags, the byte-offset on g_SpriteVramSlotPair, the signed
+   /0x1000 divisions) is unchanged from earlier rounds and still correct.
 */
 /*
 extern SVEC2 g_SpriteVramSlotPair[];
@@ -127,6 +109,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     u16 texPage;
     u32 color;
     s16 rotZ;
+    SpriteData* pOwner;
 
     pFrames = pAnimPackage->pFrames;
     pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
@@ -138,6 +121,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     pOffsets = (u16*)(pBlock + 4);
     pEntry = pBlock + (count * 2 + 4);
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    pOwner = pSpriteData;
     texY = pAnimPackage->tex.y;
     defaultMode = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
     color = *(u32*)&pSpriteData->red;
@@ -212,8 +196,8 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
                 pFrameData->texPage = GetTPage(spriteFlags & 1, (s16)tpageMode, pTexEntry->x, pTexEntry->y);
                 pFrameData->clutID = GetClut((spriteFlags >> 1) & 0xF0, ((spriteFlags >> 9) & 0xF) + 0x1CC);
             } else {
-                if (((pSpriteData->flags_0xA8 & 1) == 1) &&
-                    (pClutPair = *(u16**)((u8*)pSpriteData->field_0x7C + 0x18)) != 0) {
+                if (((pOwner->flags_0xA8 & 1) == 1) &&
+                    (pClutPair = *(u16**)((u8*)pOwner->field_0x7C + 0x18)) != 0) {
                     pClutPair = (u16*)((mem_addr)pClutPair + ((spriteFlags << 1) & 0x1C));
                     texX = (pClutPair[0] & 0x3F) >> 2;
                     texY = pClutPair[1] & 0xFF;
