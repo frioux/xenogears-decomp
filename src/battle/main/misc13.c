@@ -1216,7 +1216,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
      retail's source had a real s32 offset local, i.e. the o variable this body
      has. The lead for a later round is a spelling that keeps an s32 offset local
      AND makes gcc give that offset a2 (perhaps via a BIV whose base stays a
-     symbol constant).  *//*
+     symbol constant).  */
+// PARKED 60.72%, 448 bytes (112 insns; retail 456 = 114). Round 429 re-do: the loop1 counter/offset register pair is the whole residual (retail i in a3, byte offset o in a2). Tried, all measured from this body: loop1 as an o-accumulator in the body (for (i=0;i<9;i++){ stores; o += 6; }) 60.72 / 448; loop1 as a do-while with i++ in the body 60.24 / 448 - gcc still hoists addiu a2,a2,1 into the preheader because the counter is dead in that body, so retail's a3 must be LIVE there; loop1 spelled D_800C48EC[i * 6] (dropping o) 57.82 / 448 - gcc makes a POINTER BIV per symbol (lui/addiu base, sh 0(base), base += 6) and the format is lost. Loop2 is already retail's shape (li a2,6 offset, li a3,1 counter, i++ then slti then o+=6 in the delay slot). Next untried lead: make the counter live in loop1's body (it is dead in retail's too, so the retail body probably reads it through a scaled expression that gcc folds into the same offset BIV, e.g. o = i * 6 assigned in the body before the two stores, tested only by 57.82's cousin the i*6 form) - or accept the allocator tie.
+/*
 s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 o;
     s32 i;
@@ -1227,19 +1229,21 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 res;
 
     res = 0;
-    for (o = 0, i = 0; i < 9; i++, o += 6) {
+    o = 0;
+    for (i = 0; i < 9; i++) {
         *(u16 *)(D_800C48EC + o) = 0xFFFF;
         *(u16 *)(D_800C48EE + o) = 0xFFFF;
+        o += 6;
     }
     a = arg0;
-    ofsA = a * 0x1C;
     b = arg1;
+    ofsA = a * 0x1C;
     ofsB = b * 0x1C;
     *(u16 *)(D_800C48EC + 0) = *(u16 *)(D_800C3EBE + ofsA);
     *(u16 *)(D_800C48EE + 0) = *(u16 *)(D_800C3EC0 + ofsA);
     D_800C48F0[0] = 0;
     o = 6;
-    for (i = 1; i < 8; i++, o += 6) {
+    for (i = 1; i < 8; i++) {
         if (*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) == 0xFF) {
             break;
         }
@@ -1248,6 +1252,7 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
         *(u16 *)(D_800C48EE + o) =
             *(u16 *)(g_BattleSlotParamTable + ((*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
         D_800C48F0[o] = *(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 0x80;
+        o += 6;
     }
     if (g_BattleActorCharIds[a] == 4) {
         res = 1;
@@ -1255,6 +1260,8 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     return res;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
+
+
 void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
     s32 i;
 
