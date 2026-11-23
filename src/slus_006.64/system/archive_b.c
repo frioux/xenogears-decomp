@@ -119,46 +119,16 @@ void ArchiveNoOp(void) {
 extern StreamDataQueueEntry D_8005A1DC[];
 extern void* D_8005A1E0;
 extern u16 D_8005A1E4;
-extern void* D_8005A1E8;
+extern u8* D_8005A1E8;
 extern u16 D_8005A1EC;
 extern void* D_8005A1F0;
 extern void* g_BattleStageData;
 /* archive.c declares two parameters; retail's callers pass a third (always 0). */
 extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 channel, s32 arg2);
 
-/* 99.68%, 432 bytes = retail's EXACT size and instruction count (108 insns). ONE
-   residual: the second-size local and pSecond hold SWAPPED callee-saved registers.
-   Retail: first size dies in the call in $a0, second size = $s2, pFirst = $s3,
-   pSecond = $s1. Here: first size still $a0 and pFirst still $s3, but the second
-   size takes $s1 and pSecond $s2 (7 instructions name the wrong register, positions
-   all correct). That is the whole difference - no instruction is displaced.
-   WHAT IS SETTLED: the first size must be its OWN local (sharing one nSize local
-   makes gcc keep both values in $s2 and only scores 99.91 through an uninitialised
-   read - see the warning below); the unsigned type matters (ArchiveDecodeAlignedSize
-   takes an unsigned int); do-while(0) around the two alloc pairs is load-bearing.
-   THE OLD 99.91 NOTE WAS UB: it wrapped the -1 arm in `if (pFirst)` with two
-   identical arms, reading pFirst before it is assigned. The honest if (nIndex >=
-   nCount / 2) form of that same shared-nSize body measures 99.63 (432 bytes), so
-   99.91 was never reachable from shippable C. Do not port that spelling back.
-   MEASURED, one line each: shared nSize local, honest arm = 99.63; separate locals
-   with the second size assigned BEFORE the first HeapAlloc (this body) = 99.68, and
-   the same with nSize/shared = 98.05 because gcc then emits that addiu at the top of
-   the block; this body with the second size moved down to just before its own
-   HeapAlloc = 99.68 as well but only with the duplicated UB arm, so it is not a
-   comparable data point; first size inlined as
-   ArchiveDecodeAlignedSize(nBaseIndex + 7 + nQueueIndex) = 93.88 and 420 bytes
-   (the frame changes); nQueueIndex hoisted above the if = 95.22.
-   Permuter: 9 min / 4934 iterations from the 98.05 body, RESULT PERMUTER_BETTER
-   base=215 best=35, and the find was only the unsigned-copy spelling of the first
-   size, i.e. this body. An older run (1000+1567 iterations) from the 99.91 and
-   99.68 bodies returned NONE, so this is an allocator tie on priority between
-   nSecondSize and pSecond, not a structural difference. Levers tried for it: the
-   signedness-copy lever (int vs unsigned int on each size local - no move), and
-   declaration order (no move). Next idea: make pSecond lose one reference or give
-   nSecondSize one more honest use.
-   g_BattleStageData and *pOut3 are assigned the SAME value (D_8005A1E8 + 4) and
-   retail reloads D_8005A1E8 for the second one, so both stores stay written out. *//*
-int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3) {
+/* The bare block below is load-bearing: written as `do { ... } while (0)` gcc
+   swaps $s1/$s2 between nSecondSize and pSecond (99.68%, same instruction stream). */
+int func_800379D8(int nIndex, int nBaseIndex, void** pOut1, void** pOut2, void** pOut3) {
     StreamDataQueueEntry* pQueue;
     unsigned int nFirstSize;
     unsigned int nSecondSize;
@@ -177,18 +147,18 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     nCount = ArchiveDecodeSizeAbsolute(5);
     if (nIndex >= nCount / 2) {
         nResult = -1;
-        *pOut1 = 0;
-        *pOut2 = 0;
-        *pOut3 = 0;
+        *pOut1 = NULL;
+        *pOut2 = NULL;
+        *pOut3 = NULL;
     } else {
         nQueueIndex = nIndex * 2;
-        do {
+        {
             nFirstSize = nBaseIndex + 7;
-            nSecondSize = nQueueIndex + 6;
             pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + nFirstSize), 1);
             HeapPinBlock(pFirst);
+            nSecondSize = nQueueIndex + 6;
             pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nSecondSize), 1);
-        } while (0);
+        }
         HeapPinBlock(pSecond);
         pQueue = D_8005A1DC;
         pQueue->archiveIndex = nSecondSize;
@@ -199,11 +169,10 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
         D_8005A1F0 = NULL;
         ArchiveStartStreamQueue(pQueue, 0, 0);
         *pOut1 = pSecond;
-        *pOut2 = 0;
-        *pOut3 = (int)D_8005A1E8 + 4;
-        g_BattleStageData = (int)D_8005A1E8 + 4;
+        *pOut2 = NULL;
+        *pOut3 = D_8005A1E8 + 4;
+        g_BattleStageData = D_8005A1E8 + 4;
     }
     ArchiveSetIndex(nSectionIndex, nEntryIndex);
     return nResult;
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
+}
