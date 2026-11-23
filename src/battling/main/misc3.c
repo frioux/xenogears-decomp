@@ -78,10 +78,7 @@ typedef struct {
     /* 0x31 */ u8 scale;
     /* 0x32 */ u8 drawKind;
     /* 0x33 */ u8 mode;
-    // The extent the slot is tested against: func_80075B50 skips a slot whose
-    // world height does not reach the actor's body and whose extent is under the
-    // actor's hit radius.
-    /* 0x34 */ s32 extent;
+    /* 0x34 */ s32 unk34;
     /* 0x38 */ s32 key;
     /* 0x3C */ s16 percent;
     /* 0x3E */ s16 dirWeight;
@@ -517,10 +514,39 @@ extern void BattleCommitSlotStates(BattleActor* p);
 extern s32 g_BattleEffectEntryCount;
 extern Vec4 g_BattleEffectPosX;
 
-/* Starts the move the actor takes this frame: it tests the target's eight effect
-   slots and sixteen slot records against the actor's body, and the record that
-   gets closest turns into the step's goal (moveGoalPosition) with the delay
-   charged to stateTimer and the light flare on the hit. */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
+
+/* 96.42% (2124 bytes = retail's exact size, 528 vs 528 instructions). The body
+   is transposed: every call, both loops (8 effect slots, then 16 slot records),
+   both interpolation divides, the ratan2 behind/facing test, the sound pairs,
+   the four-word position copies and the tail all sit at retail's own positions.
+   The residual is REGISTER ALLOCATION of three call-crossing pseudos, nothing
+   else: retail keeps the slot pointer in $s2, the slot-offset induction
+   variable in $s4 and the percent/amount pseudo in $s0, this body gets
+   slot=$s0, offset=$s2, amount=$s4 (retail s1/s3/s5/s6/s7/s8 match: p, i,
+   bestAmount, hitCount, magic, actionId). Everything downstream (the
+   `lbu 0x30(s2)` / `lw 0x4(s2)` operands, the mflo/mult pairs of both
+   interpolations, both slt chains) differs only through those three names.
+   Two smaller residuals ride along: retail loads $t0 as the hit flag where
+   this body uses $a3, and the two addiu/sh pairs that charge stateTimer and
+   moveReentryTimer are ordered stateTimer-first in loop 1 and
+   moveReentryTimer-first in loop 2 (retail has both), which this body cannot
+   flip from source order - it emits moveReentryTimer-first in both.
+   Tried: the behind test as `if (inRange) {...} else if (flags & 4) {...} else
+   {...}` (one extra instruction, the arms lay out the other way round) vs the
+   current `if (!inRange) { if (flags & 4) ... else ... } else ...`, which is
+   retail's layout and retail's exact 2124 bytes; hitCount/center/base then
+   bestAmount/actionId initialised after the copies (that is what puts
+   `move s5,zero`/`move s8,zero` after the stack copies in retail's prologue);
+   stateTimer/moveReentryTimer order swapped in loop 1 (kept, it fixed the loop-1
+   store order); `step` folded back into two `amount * 2 / 3` expressions (96.27,
+   worse); velocity.vy vs velocity.vz for the second ratan2 argument (0x24 is
+   retail's, so vz).
+   Permuter (4 min, 1490 iters): base=1890 best=1690, and the candidate is WRONG
+   CODE - it deletes `bestAmount = amount` and stores `amount` into gaugeDrain
+   (retail has the `addu s5,s0` copy and stores s5), so the gain is a register
+   shuffle, not a find. Its only other edit, wrapping one call in `(0, ...)`,
+   changes nothing on its own (96.42 measured alone).
 s32 func_80075B50(BattleActor* p) {
     BattleEffectSlot* pSlot;
     BattleActorSlot* pRecord;
@@ -560,7 +586,7 @@ s32 func_80075B50(BattleActor* p) {
             point.y = (((base.y - center.y) * t) >> 12) + center.y;
             point.z = (((base.z - center.z) * t) >> 12) + center.z;
             hit = func_80075888(pSlot->prevPos.vx, pSlot->prevPos.vz, pSlot->pos.vx, pSlot->pos.vz, point.x, point.z, ((u8*)p->pScript)[0x13]);
-        } else if (pSlot->extent < ((u8*)p->pScript)[0x13]) {
+        } else if (pSlot->unk34 < ((u8*)p->pScript)[0x13]) {
             dBase = __builtin_abs(base.y - pSlot->prevPos.vy);
             dCenter = __builtin_abs(center.y - pSlot->prevPos.vy);
             dPos = __builtin_abs(pSlot->pos.vy - pSlot->prevPos.vy);
@@ -684,6 +710,7 @@ s32 func_80075B50(BattleActor* p) {
     }
     return 0;
 }
+*/
 
 void BattleQueueMessage(BattleActor* p, u8 value) {
     u8 idx;
