@@ -24,11 +24,15 @@ extern void _SendPAD();
    Consistent with the region: func_80040BA4 and _remove_ChgclrPAD on either
    side of it are hand-patched asm (sw $ra to a global, BIOS vector via $t2 with
    li $t1,0x57), and $t1 as the jump register is that style, not gcc's.
-   Body for whoever retries:/*
+   Re-measured (round 420): 97.80% / 40 bytes / 10 insns, same two lines. Extra
+   probe: every address-taken 4-byte local (dead `long t` + (void)&t, `char t[4]`,
+   and `t = 0` before the call, which also stores to 0x10(sp)) costs vars= 8
+   (frame 0x20, ra at 0x18), so vars= 4 has no source spelling here. */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", _SendPAD);
+/*
 void _SendPAD(void) {
     (*D_800593B8)();
 }*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", _SendPAD);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", func_80040BA4);
 
