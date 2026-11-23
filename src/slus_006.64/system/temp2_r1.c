@@ -391,9 +391,35 @@ s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
 //    pair IS libgs' AddPrim macro, so arg5 is a u_long* OT slot (reloaded from
 //    the stack around GetTPage because it is call-clobbered).
 
-// PARKED 73.58% (1060 bytes against retail's 1096, 265 instructions against
-// 274). Measured this round under the unit's own preset (XenoGraphicsLibrary,
-// gcc 2.6.0); the body below is the best of four scored variants.
+// PARKED 73.66% (1060 bytes against retail's 1096, 265 instructions against
+// 274). Un-parked and re-measured this round under the unit's own preset
+// (XenoGraphicsLibrary, gcc 2.6.0): the body below still compiles and still
+// scores 73.66, so this note is not stale.
+// The residual, named: allocator copies, not missing constructs. Retail's loop
+// is 148 instructions, this body's 142; the six are move a0,v0 (width),
+// move a3,v1 (u), move a2,v0 (height kept live across the col division),
+// mfhi v1 plus move s3,v1 (the new col parked in a saved register before the
+// stores) and a second move t0,zero. Retail spills rows/top/pOT to
+// 0x18/0x1C/0x20 around GetTPage exactly as this body does, so the call, the
+// frame and the saved set already agree.
+// Tried this round, all equal or worse:
+//  - gcc-2.7.2-cdk 71.91; plain gcc-2.7.2 will not compile this body. 2.6.0 is
+//    the right compiler for the unit, so this is not a preset question.
+//  - an if/else assigning rows and rowStart in BOTH arms (retail has two
+//    addu t0,zero,zero and a j to the merge): 66.25, 268 insns. gcc lays the
+//    arms out mirrored, so the missing j is not a source-shape question.
+//  - rowEnd = rowStart + height moved after the col update so height stays
+//    live across the division: 72.57 (confirms the earlier 72.49).
+//  - s32 temporaries for the unk334%64 shift amount and for (s16)col: 73.66,
+//    kept, +0.08 and the readable spelling. The sll/sra pair that widens the
+//    modulo result before the sllv is still there.
+//  - pPrim++ moved from the for-update to the end of the body (retail bumps s0
+//    before s7): no score change, kept.
+// gcc 2.6 moves statements inside the block here (this body's col division
+// lands after the first ten vertex stores, retail's before them) even though
+// the unit's flags have no -fschedule-insns, so a source-order spelling does
+// not steer it. Next step is the permuter or a register-pressure experiment,
+// not another hand shape.
 // What now matches exactly: the prologue and the 0x50 frame with the same
 // saved set, the four divisions with their divide-by-zero/INT_MIN traps, the
 // loop preheader (i = 0, span + 0x100 in s6, the 0xFFFFFF mask in s5, top in
@@ -449,6 +475,8 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     s32 texColumn;
     s32 i;
     s32 yTop;
+    s32 col16;
+    s32 offsetBits;
     u16 uOffset;
 
     quotient = (pBlock->unk328 << 8) / (span + 0x100);
@@ -468,12 +496,14 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
         return;
     }
     yTop = top;
-    uOffset = (pBlock->unk334 % 64) << (2 - pBlock->unk338);
-    for (i = 0; i < 8; i++, pPrim++) {
-        texColumn = (u16)pBlock->unk334 + ((s16)col >> (2 - pBlock->unk338));
+    offsetBits = pBlock->unk334 % 64;
+    uOffset = offsetBits << (2 - pBlock->unk338);
+    for (i = 0; i < 8; i++) {
+        col16 = (s16)col;
+        texColumn = (u16)pBlock->unk334 + (col16 >> (2 - pBlock->unk338));
         u = (col + uOffset) & ((0x100 >> pBlock->unk338) - 1);
         width = 0x100 - u;
-        if (pBlock->unk328 < (s16)col + (s16)width) {
+        if (pBlock->unk328 < col16 + (s16)width) {
             width = (u16)pBlock->unk328 - col;
         }
         height = ((s16)width << 8) / (span + 0x100);
@@ -507,6 +537,7 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
             break;
         }
         rowStart = rowEnd;
+        pPrim++;
     }
 }
 */
