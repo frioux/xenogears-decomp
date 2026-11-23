@@ -1308,36 +1308,48 @@ s32 func_800827EC(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
-// Best: 71.22%, 1668 bytes against retail's 1672 (417 instructions against 418: one
-// short). Both switches, the state machine, the func_80096F18 call and the shake tail decode
-// to retail's instructions, and the two jump tables land at retail's rodata offsets (this
+// Best: 75.62% (round 430), 1664 bytes / 416 instructions against retail's 1672 / 418.
+// One barrier fewer scores 76.40 but leaves 461 differing instructions instead of 427, so
+// this body is the closer one: objdiff's fuzzy number is not monotone, the row count is.
+// Both switches, the state machine, the func_80096F18 call and the shake tail decode to
+// retail's instructions, and the two jump tables land at retail's rodata offsets (this
 // compile's .rodata operands are +0x138 and +0x168; retail's jtbl_8007041C/jtbl_8007044C
-// are 0x92C/0x95C, i.e. +0x138/+0x168 from the 0x7F4 range start), so no table shift is
-// owed. Residues, all allocation/scheduling:
-// 1. Register rotation. Retail: $s1 = pSlot, $s2 = pScratch, $s0 = &g_WorldMapScrollTargetX
-//    held across the two approach calls of case 11. This body gets $s0 = pSlot, $s1 =
-//    pScratch and rematerialises &g_WorldMapScrollTargetX as lui/addiu at the
-//    WorldMapWrapPosition call, so its prologue saves three words where retail saves four
-//    and the body is one instruction short. local_alloc will not keep the address in a third
-//    saved register: tried a `s32 *pScrollTargetX` local assigned in case 11 (kept), and
-//    moving that declaration in front of pSlot/pScratch (identical, 1668 bytes).
-// 2. Per-case scheduling: this gcc hoists the `lh g_WorldMapViewRotationY/Z` reloads and
-//    sinks the command/state/unk5C stores of the five big cases; retail keeps the source
-//    order and fills the rotY load delay with a nop.
-// Load-bearing spellings, do not simplify:
-// - the rotY/rotZ refills must be volatile stores, else gcc folds the later `<< 12` reload
-//   to the immediate 0xD70000/0 and the body drops to 383 instructions (1608 bytes).
-// - the `do { } while (0);` after `pSlot->unk3C = ...` stops gcc cross-jumping the two
-//   rotation quadruples of all five big cases into one shared block: without it 402
-//   instructions, 77.38% - objdiff prefers the shorter body, the byte count does not.
-// - `s32 shake`, not s16: an s16 local adds a `move v1,a1` subreg copy before the store.
-// - `s16 request = pSlot->command - 1; switch (request)` is the lhu/addiu/sll/sra shape,
-//   the same idiom as the matched WorldMapFillFadeTable in this unit.
-// Permuter: 4 min, -j2, base=16042 best=11332; the only find was a redundant
-// `new_var = 0x06D8A000` in case 9. Ported and measured 73.45% but 1692 bytes / 423
-// instructions (five over retail), so it was not kept: the permuter scores instruction
-// match, not size.
-// Preset screen: unit flags 71.22, gcc-2.7.2-cdk 69.68, gcc-2.6.0 77.61 - but 2.6.0 breaks
+// are 0x92C/0x95C, i.e. +0x138/+0x168 from the 0x7F4 range start), so no table shift is owed.
+// Finds this round:
+// 1. The old park never compiled - D_8009BD42 is an ARRAY here - so its 71.22 was a
+//    stale-object score. With the tail spelled D_8009BD42[0] it is 72.19 / 1668 bytes and
+//    gcc then wants only two saved registers.
+// 2. Forming `pScrollTargetX` ONCE in the block between the func_80096F18 call and the
+//    state switch gives retail's three saved registers and its exact prologue/epilogue
+//    (sw ra/s2/s1/s0 at 0x1C/0x18/0x14/0x10, targetX = $s1 here). Forming it inside case 11
+//    instead makes gcc rematerialise the address (lui+lw, then the $at store form, then a
+//    fresh lui/addiu for the call) - 417 instructions and no third saved register; a
+//    do/while around the case-11 uses does not stop it (73.04) and neither does a
+//    top-of-function initialiser (74.10, targetX then dies last and takes $s2).
+// 3. `do { } while (0)` after the unk5C store in each of the five big arms (1, 5, 7, 9, 10)
+//    stops gcc sinking the command/state/unk5C stores below the cameraRot/ViewRotationY
+//    stores: 74.00 -> 76.40. A second barrier after the ViewRotationZ volatile store also
+//    keeps the ViewRotationY `lh` from being hoisted into its own store's slot (427 rows).
+// Residues:
+// (a) pSlot is $s0 and the scroll-target pointer $s1; retail has pSlot $s1 and the pointer
+//     $s0 (the scratch pointer is $s2 in both). global.c assigns call-saved registers by
+//     refs/live-length, so the pointer only outranks pSlot when its live range is the 24
+//     instructions of case 11 - which is exactly the single-block shape gcc rematerialises.
+//     Declaration order of the pointer is immaterial.
+// (b) Around each of the two `lh` reloads the schedule still rotates the constant
+//     materialisations: retail hoists `lui v0,0xFFFE0000` above the ViewRotationZ store and
+//     fills the load-delay slot with a nop, this body puts a constant in the slot, which is
+//     where the two missing instructions are.
+// (c) In cases 5/7/9/10 the CameraHeight store and the ViewRotationZ `lh` sit 2-4 slots off.
+// Load-bearing spellings, do not simplify: the rotY/rotZ refills must be volatile stores
+// (else gcc folds the later `<< 12` reload to the immediate and the body drops to 383
+// instructions); the `do { } while (0);` after pSlot->unk3C stops gcc cross-jumping the two
+// rotation quadruples of all five big arms into one shared block; `s32 shake`, not s16; and
+// `s16 request = pSlot->command - 1; switch (request)` is this unit's lhu/addiu/sll/sra idiom.
+// Permuter: 4 min -j2 on the old body, base 16042 best 11332; its only find (a redundant
+// `new_var = 0x06D8A000` in case 9) scored 73.45 at 1692 bytes / 423 instructions, so it was
+// not kept.
+// Preset screen: unit flags 75.62, gcc-2.7.2-cdk 69.68, gcc-2.6.0 77.61 - but 2.6.0 breaks
 // three functions already matched in this unit (WorldMapInitSlotAtScrollPosition 95.00,
 // WorldMapBeginSlotAnimFrame 95.26, WorldMapUpdateSlotColorFade 96.81), so the unit is not
 // a 2.6.0 unit and the preset is not the answer.
@@ -1362,9 +1374,11 @@ s32 func_800828DC(s32 index) {
         pSlot->command = 0;
         pSlot->state = 0;
         pSlot->unk5C = 0x3E0000;
+        do { } while (0);
         g_WorldMapCameraRot = -0x20;
         *(volatile s16 *)&g_WorldMapViewRotationY = 0xD70;
         *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        do { } while (0);
         pSlot->unk50 = 0xFFFE0000;
         pSlot->unk38 = 0xFFFE0000;
         pSlot->unk54 = g_WorldMapViewRotationY << 12;
@@ -1394,9 +1408,11 @@ s32 func_800828DC(s32 index) {
         pSlot->shakeAmount = 0x1000;
         pSlot->command = 0;
         pSlot->unk5C = 0x320000;
+        do { } while (0);
         g_WorldMapCameraRot = 0x40;
         *(volatile s16 *)&g_WorldMapViewRotationY = 0xD40;
         *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        do { } while (0);
         pSlot->unk50 = 0x40000;
         pSlot->unk38 = 0x40000;
         pSlot->unk54 = g_WorldMapViewRotationY << 12;
@@ -1420,9 +1436,11 @@ s32 func_800828DC(s32 index) {
         pSlot->state = 7;
         pSlot->command = 0;
         pSlot->unk5C = 0x100000;
+        do { } while (0);
         g_WorldMapCameraRot = -0x90;
         *(volatile s16 *)&g_WorldMapViewRotationY = -0x510;
         *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        do { } while (0);
         pSlot->unk50 = 0xFFF70000;
         pSlot->unk38 = 0xFFF70000;
         pSlot->unk54 = g_WorldMapViewRotationY << 12;
@@ -1446,9 +1464,11 @@ s32 func_800828DC(s32 index) {
         pSlot->state = 9;
         pSlot->command = 0;
         pSlot->unk5C = 0x320000;
+        do { } while (0);
         g_WorldMapCameraRot = -0x160;
         *(volatile s16 *)&g_WorldMapViewRotationY = 0xDE0;
         *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        do { } while (0);
         pSlot->unk50 = 0xFFEA0000;
         pSlot->unk38 = 0xFFEA0000;
         pSlot->unk54 = g_WorldMapViewRotationY << 12;
@@ -1468,9 +1488,11 @@ s32 func_800828DC(s32 index) {
         pSlot->state = 10;
         pSlot->command = 0;
         pSlot->unk5C = 0x290000;
+        do { } while (0);
         g_WorldMapCameraRot = -0x1A0;
         *(volatile s16 *)&g_WorldMapViewRotationY = 0x160;
         *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
+        do { } while (0);
         pSlot->unk50 = 0xFFE60000;
         pSlot->unk38 = 0xFFE60000;
         pSlot->unk54 = g_WorldMapViewRotationY << 12;
@@ -1495,6 +1517,7 @@ s32 func_800828DC(s32 index) {
         func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       (u16 *)&g_WorldMapCameraRot);
     }
+    pScrollTargetX = &g_WorldMapScrollTargetX;
     switch (pSlot->state) {
     case 1:
         pSlot->unk50 = WorldMapApproachValue(pSlot->unk50, 0xFFFE0000, 0x5D17);
@@ -1528,7 +1551,6 @@ s32 func_800828DC(s32 index) {
         pSlot->unk50 = WorldMapApproachValue(pSlot->unk50, 0xFFF80000, 0x2400);
         pSlot->unk54 = WorldMapApproachValue(pSlot->unk54, 0x2C0000, 0x2C00);
         pSlot->unk5C = WorldMapApproachValue(pSlot->unk5C, 0x100000, -0x3200);
-        pScrollTargetX = &g_WorldMapScrollTargetX;
         *pScrollTargetX = WorldMapApproachValue(*pScrollTargetX, 0x04CD9000, 0x2600);
         g_WorldMapScrollTargetY = WorldMapApproachValue(g_WorldMapScrollTargetY, 0xFFEA4000, 0x2580);
         g_WorldMapScrollTargetZ = WorldMapApproachValue(g_WorldMapScrollTargetZ, 0x01C8A000, -0x2A00);
@@ -1543,8 +1565,8 @@ s32 func_800828DC(s32 index) {
     func_80076FA8(pSlot, (s32 *)pScratch);
     shake = rand() % (pSlot->shakeAmount >> 12) - (pSlot->shakeAmount >> 13);
     *(s16 *)(pScratch + 0xA2) = shake;
-    D_8009BD42 = D_8009BD42 + shake;
-    D_8009BD4A = D_8009BD4A + *(s16 *)(pScratch + 0xA2);
+    D_8009BD42[0] = D_8009BD42[0] + shake;
+    D_8009BD4A = D_8009BD4A + *(volatile u16 *)(pScratch + 0xA2);
     return 1;
 }
 */
