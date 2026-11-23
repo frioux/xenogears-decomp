@@ -86,7 +86,7 @@ extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 //     gcc emits the flags store first whatever the statement order (tried both).
 //   - retail cross-jumps the head's count == 0 tail's `or; sw` with 0x81's
 //     `| 0x10000000` store (:L80024DBC); ours emits its own pair.
-//   - 0x8E: retail's `j` puts the pSpriteBytecode = NULL store in its delay slot, ours
+//   - 0x8E: retail's `j` puts the pSpriteBytecode = NULL store in its frames slot, ours
 //     does not.
 //   - 0xE2: retail computes SCRIPT_JUMP_AT(pArgs) before the PushU24 call and re-signs
 //     it after; with an `offset` local we get that, but the arm then also needs the
@@ -94,7 +94,6 @@ extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 //   - 0xBE: retail loads flags_0xAC then the 0x3C word; gcc loads them the other way up.
 // Not tried: the permuter (the body is below its 85% bar). This is the same wall the
 // misc35 twin parked on (67.82 there) - one extra callee-saved register.
-/*
 void func_800248D4(SpriteData* pSpriteData) {
     u8* pArgs;
     u8 code;
@@ -157,11 +156,11 @@ dispatch:
             return;
         }
         switch (code) {
-        case 0xBE:
+        case 0xBE: {
             count = pArgs[0] | ((s8)pArgs[1] << 8);
             frames = ((count >> 11) & 0xF) + 1;
             frames = frames * (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
-                     ANIM_SCRIPT_SPEED_SCALE;
+                    ANIM_SCRIPT_SPEED_SCALE;
             if (frames == 0) {
                 frames = 1;
             }
@@ -189,6 +188,7 @@ dispatch:
             pSpriteData->animScriptWaitTimer += frames;
             pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + 3;
             return;
+        }
         case 0x8E:
             pSpriteData->pSpriteBytecode = NULL;
             return;
@@ -226,6 +226,7 @@ dispatch:
             }
             break;
         case 0x80:
+        animScriptDefaultMode:
             mask = ANIM_SCRIPT_MODE_MASK;
             pSpriteData->flags_0xA8 &= mask;
             if (pSpriteData->field_0x68 != NULL) {
@@ -261,17 +262,7 @@ dispatch:
             return;
         case 0x81:
             if ((s8)pSpriteData->flags_0xAC.bytes[3] == ANIM_SCRIPT_ANIM_ID_DEFAULT) {
-                mask = ANIM_SCRIPT_MODE_MASK;
-                pSpriteData->flags_0xA8 &= mask;
-                if (pSpriteData->field_0x68 != NULL) {
-                    ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
-                    return;
-                }
-                if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
-                    SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
-                }
-                pSpriteData->flags_0xA8 &= mask;
-                return;
+                goto animScriptDefaultMode;
             }
             pSpriteData->animScriptWaitTimer = 0;
             if (pSpriteData->field_0x68 != NULL) {
@@ -315,8 +306,7 @@ dispatch:
         }
         pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
     }
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
+}
 
 
 // Work list and image-list setup; g_GfxWorkListCapacity is the work list entry budget.
@@ -634,7 +624,7 @@ stays, and cdk is still the closest of the three.
 Best 89.57% (464 bytes against 460). cdk is the right compiler here: the same C
 scores 87.24% under gcc-2.7.2-psx, so this one is source-level. Two gaps: gcc
 sinks the `lhu` of pPrim->x0 - and the `lhu` of xOffset, which the original
-issues before the g_GfxCurWorkBuffer load - so the original fills a load-delay
+issues before the g_GfxCurWorkBuffer load - so the original fills a load-frames
 slot that gcc leaves as a nop, and xOffset/prim end up in s3/s1 instead of
 s1/s3. Ruled out (all produced byte-identical output, so neither statement
 order nor copies are the lever): assigning prim before xOffset, a pNext local
@@ -972,10 +962,10 @@ saved registers (s0 = redBias, s1 = the mode-3 average) and keeps greenBias<<5
 in t9 / blueBias<<10 in t8; this body needs THREE (s0 = greenBias, s1 =
 redBias, s2 = average), hence 0x20. Swapping the two bias shift statements
 (blueBias<<=10 first) changes nothing - 87.89 again - so retail's
-`j` delay slot holding the green shift while ours holds the blue one is
+`j` frames slot holding the green shift while ours holds the blue one is
 allocator freedom, not statement order. Retail also builds the output word as
 (red-part | 0x8000) then green then blue with an `ori 0x8000`, where gcc 2.6.0
-hoists `li v1,-32768` into the beqz delay slot and ORs it at the end; that is
+hoists `li v1,-32768` into the beqz frames slot and ORs it at the end; that is
 a reassociation tie, not a source shape.
 void func_80025D4C(s32 count, u16* pSrc, u16* pSrc2, u16* pDst,
                        s32 redBias, s32 greenBias, s32 blueBias, s32 mode,
@@ -1078,7 +1068,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025FA8);
 //    one slot lower (s4/s5/s6) with %hi in s7. A cyclic rotation, i.e. an
 //    allocator tie, not a source shape.
 //  - retail's `i = 0` lands BEFORE the loop's entry branch and its angle store
-//    fills that branch's delay slot; here the store fills the count load's delay
+//    fills that branch's frames slot; here the store fills the count load's frames
 //    slot and `i = 0` fills the branch slot.
 // Measured and no move: `i = 0` as an explicit statement before the for, the
 // for-init moved in/out of the init clause, the angle store before/inside/after
@@ -1392,7 +1382,7 @@ scheduler, not the compiler.
 Best 92.96% (696 bytes, same size as the original). Remaining gaps are
 allocator/scheduler only: gcc hoists the lhu of scale to just after the dirent
 count load (the original loads it after the pDirent store), so it fills the
-beqz delay slot with the localY store where the original has a nop, and the
+beqz frames slot with the localY store where the original has a nop, and the
 first quotient lands in a0/v1 instead of v1/a0.
 The 91.30% attempt's srl-vs-sra puzzle is solved: assigning the y and height
 quotients to u16 locals is what makes cdk gcc truncate and emit srl after the
@@ -1746,13 +1736,13 @@ for (;;) { if (--count == -1) break; } 72.54, for (i = count - 1; i != -1; i--)
 What is left is register allocation of the nine body values only: retail keeps
 color in t6 and ir1/ir2/ir3 in t5/t4/t3, this shape gets v0/t0/v1/a1, so the
 final `rgb |= 1` comes out `ori t5,t5,1` there and `li v1,1; or` here, the two
-`or`s differ in operand order, and the clamp prologue fills the beqz delay slot
+`or`s differ in operand order, and the clamp prologue fills the beqz frames slot
 with the level<<7 shift where retail has a nop and shifts after. A separate
 `s32 dqp; dqp = level << 7; gte_lddp(dqp);` local changed nothing.
 Round 61: shifting in place (`level <<= 7; gte_lddp(level);`) DOES reproduce
 retail's in-place `sll a1,a1,0x7` instead of a copy into v0 (74.63 -> 74.88);
 the `level >= 0x20` clamp shape is already right. What is left is reorg: retail
-leaves a nop in the clamp's bne delay slot where we have the sll, and fills the
+leaves a nop in the clamp's bne frames slot where we have the sll, and fills the
 loop's `beq a0,t2` slot with the `lhu` where we emit a nop; plus the nine body
 values land in t0/v1/a1 instead of t5/t4/t3.
 void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc) {
