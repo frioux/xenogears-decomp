@@ -819,6 +819,23 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // because pre-reload sched-insns will not move an independent store across a jal, so
 // "retail typed the reset last" is ruled out. (2) preset screen: gcc-2.6.0-psx 76.76,
 // gcc-2.7.2-psx under the unit flags compile-failed - not a preset question.
+// ROUND 437 re-measured the park (91.60%, 100 bytes = retail's) and found the
+// mechanism, which no earlier round named: local-alloc gives the store ADDRESS
+// pseudo $a0 because $a0 is where the argument copy lands, so one `move a0,s0`
+// serves both the two stores and the call; when the call's argument is instead a
+// value the compiler must compute, $a0 does not hold pTask at local-alloc time and
+// the store addresses FOLD back into the $s0 offset form retail has. Measured it
+// with the argument read back out of the task's own entry
+// (`pEffect->timerEntry.unk4`, equal to pTask here because BattleInitNumberSpriteTask
+// stores pTask there): both stores on $s0 and 97.60% at retail's 100 bytes - but
+// retail has `move a0,s0` there, not `lw a0,4(s0)`, so that body is not the
+// original and was rejected. Other round-437 measurements, all 91.60% / 100 bytes
+// and byte-identical to the parked body: the flags store through a
+// `u8 *pFlags = (u8 *)pTask + 0x83;` (the address folds into the $s0 offset for the
+// lbu and into the $a0 base for the sb), passing the `pEffect` alias itself as the
+// call's first argument, and a `do { pTask->timer = nextTimer; } while (0)` around
+// the timer store with the flags store before it (that one is 49.16: the barrier
+// drags the constant into the load-delay slot and moves the whole arm).
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
