@@ -25,10 +25,21 @@ extern void func_80089580(void);
 #define WORLD_MAP_PRIM_TEMPLATE_COUNT 0x100
 #define WORLD_MAP_PRIM_TEMPLATE_POOL_SIZE (WORLD_MAP_PRIM_TEMPLATE_COUNT * sizeof(POLY_FT4))
 
+#define WORLD_MAP_PRIM_TAG_LEN 9 // a POLY_FT4's packet length in words past its tag
+
 #define WORLD_MAP_SPRITE_COUNT 512
 #define WORLD_MAP_SPRITES_PER_GROUP 8
 #define WORLD_MAP_TRAIL_ENTRY_COUNT 256
-#define WORLD_MAP_SPRITE_FLAG_ACTIVE 0x80
+
+// Bits of WorldMapSprite.flags, tested by WorldMapEmitSpriteTrailEntries.
+#define WORLD_MAP_SPRITE_FLAG_ACTIVE 0x80 // the slot is in use; cleared once the life timer runs out
+#define WORLD_MAP_SPRITE_FLAG_LIFE_TIMER 0x10 // the lifeTimer pair counts down and clears ACTIVE at zero
+#define WORLD_MAP_SPRITE_FLAG_TRAIL_START_FLAT 0x20 // trailStartSpread gets no vertical component
+#define WORLD_MAP_SPRITE_FLAG_TRAIL_END_FLAT 0x40 // trailEndSpread gets no vertical component
+#define WORLD_MAP_SPRITE_FLAG_TRAIL_START_SPREAD_UNRANDOMIZED 0x4 // trailStartSpread is used as-is, not rand() % it
+#define WORLD_MAP_SPRITE_FLAG_TRAIL_END_SPREAD_UNRANDOMIZED 0x8 // the same for trailEndSpread
+// The two flag bits the trail prim's ABR field is filled from.
+#define WORLD_MAP_SPRITE_ABR_MASK 0x3
 
 typedef struct {
     /* 0x0 */ s32 w[4];
@@ -132,8 +143,8 @@ typedef struct {
     /* 0x3A */ s16 accelY;
     /* 0x3C */ s16 accelZ;
     /* 0x3E */ undefined16 unk3E;
-    /* 0x40 */ u16 trailStartSpread; // random spread of trailStart; flags & 0x4 uses it unrandomized
-    /* 0x42 */ u16 trailEndSpread; // random spread of trailEnd; flags & 0x8 uses it unrandomized
+    /* 0x40 */ u16 trailStartSpread; // random spread of trailStart; WORLD_MAP_SPRITE_FLAG_TRAIL_START_SPREAD_UNRANDOMIZED uses it unrandomized
+    /* 0x42 */ u16 trailEndSpread; // random spread of trailEnd; WORLD_MAP_SPRITE_FLAG_TRAIL_END_SPREAD_UNRANDOMIZED uses it unrandomized
     /* 0x44 */ u32 scale;
     /* 0x48 */ u32 scaleStep;
     /* 0x4C */ u8 color[0x3];
@@ -405,7 +416,7 @@ void WorldMapInitPrimTemplateBuffers(void) {
     pPrim = g_WorldMapPrimTemplateBuffer[0];
     for (i = WORLD_MAP_PRIM_TEMPLATE_COUNT - 1; i != -1; i--) {
         // the GPU takes the packet's word count from the tag's high byte; a POLY_FT4 is 9 words past its tag
-        ((u8*)&pPrim->tag)[3] = 9;
+        ((u8*)&pPrim->tag)[3] = WORLD_MAP_PRIM_TAG_LEN;
         pPrim->code = 0x2C; // POLY_FT4
         pPrim->tpage = GetTPage(1, 1, 0x340, 0x100);
         pPrim->clut = GetClut(0x100, 0x1FF);
@@ -727,14 +738,14 @@ void WorldMapEmitSpriteTrailEntries(void) {
 
     pScratch = (u8*)0x1F800000;
     pSprite = g_WorldMapSpriteGroups->sprites;
-    for (i = 0; i < 0x200; i++, pSprite++) {
+    for (i = 0; i < WORLD_MAP_SPRITE_COUNT; i++, pSprite++) {
         flags = pSprite->flags;
-        if (!(flags & 0x80)) {
+        if (!(flags & WORLD_MAP_SPRITE_FLAG_ACTIVE)) {
             continue;
         }
-        // low/high live across iterations: the original only reloads them under flags & 0x10
+        // low/high live across iterations: the original only reloads them under WORLD_MAP_SPRITE_FLAG_LIFE_TIMER
         // and stores them back at the tail of every active sprite.
-        if (flags & 0x10) {
+        if (flags & WORLD_MAP_SPRITE_FLAG_LIFE_TIMER) {
             low = pSprite->lifeTimer;
             high = low >> 16;
             low = (s16)low;
@@ -755,13 +766,13 @@ void WorldMapEmitSpriteTrailEntries(void) {
         pSprite->timer = pSprite->interval;
         if ((pSprite->trailActive != 0) & (pSprite->maxCount > 0) & (pSprite->count < pSprite->maxCount)) {
         pEntry = g_WorldMapTrailEntries;
-        for (spread = 0xFF; spread != -1; spread--) {
+        for (spread = WORLD_MAP_TRAIL_ENTRY_COUNT - 1; spread != -1; spread--) {
             if (pEntry->trailFlags.status.active == 0) {
                 pEntry->spriteIndex = i;
                 pEntry->trailFlags.flags = *(u32*)&pSprite->trailCount;
                 RotMatrixYXZ((SVECTOR*)&pSprite->rotX, (MATRIX*)(pScratch + 0xF0));
                 ApplyMatrix((MATRIX*)(pScratch + 0xF0), (SVECTOR*)&pSprite->trailStart, (VECTOR*)(pScratch + 0x20));
-                if (!(flags & 0x20)) {
+                if (!(flags & WORLD_MAP_SPRITE_FLAG_TRAIL_START_FLAT)) {
                     *(s32*)(pScratch + 0x014) = (rand() & 0xFFF) - 0x800;
                 } else {
                     *(s32*)(pScratch + 0x014) = 0;
@@ -769,7 +780,7 @@ void WorldMapEmitSpriteTrailEntries(void) {
                 *(s32*)(pScratch + 0x010) = (rand() & 0xFFF) - 0x800;
                 *(s32*)(pScratch + 0x018) = (rand() & 0xFFF) - 0x800;
                 VectorNormal((VECTOR*)(pScratch + 0x10), (VECTOR*)(pScratch + 0x00));
-                if (flags & 0x4) {
+                if (flags & WORLD_MAP_SPRITE_FLAG_TRAIL_START_SPREAD_UNRANDOMIZED) {
                     spread = pSprite->trailStartSpread;
                 } else {
                     spread = rand() % pSprite->trailStartSpread;
@@ -778,7 +789,7 @@ void WorldMapEmitSpriteTrailEntries(void) {
                 pEntry->y = (*(s32*)(pScratch + 0x024) << 12) + *(s32*)(pScratch + 0x004) * spread + (pSprite->y << 12);
                 pEntry->z = (*(s32*)(pScratch + 0x028) << 12) + *(s32*)(pScratch + 0x008) * spread + (pSprite->z << 12);
                 ApplyMatrix((MATRIX*)(pScratch + 0xF0), (SVECTOR*)&pSprite->trailEnd, (VECTOR*)(pScratch + 0x20));
-                if (!(flags & 0x40)) {
+                if (!(flags & WORLD_MAP_SPRITE_FLAG_TRAIL_END_FLAT)) {
                     *(s32*)(pScratch + 0x014) = (rand() & 0xFFF) - 0x800;
                 } else {
                     *(s32*)(pScratch + 0x014) = 0;
@@ -786,7 +797,7 @@ void WorldMapEmitSpriteTrailEntries(void) {
                 *(s32*)(pScratch + 0x010) = (rand() & 0xFFF) - 0x800;
                 *(s32*)(pScratch + 0x018) = (rand() & 0xFFF) - 0x800;
                 VectorNormal((VECTOR*)(pScratch + 0x10), (VECTOR*)(pScratch + 0x00));
-                if (flags & 0x8) {
+                if (flags & WORLD_MAP_SPRITE_FLAG_TRAIL_END_SPREAD_UNRANDOMIZED) {
                     spread = pSprite->trailEndSpread;
                 } else {
                     spread = rand() % pSprite->trailEndSpread;
@@ -802,7 +813,7 @@ void WorldMapEmitSpriteTrailEntries(void) {
                 pEntry->velY = (*(s32*)(pScratch + 0x014) * pSprite->speed) >> 12;
                 pEntry->velZ = (*(s32*)(pScratch + 0x018) * pSprite->speed) >> 12;
                 pEntry->angle = ratan2(*(s32*)(pScratch + 0x014), *(s32*)(pScratch + 0x010));
-                flags &= 3;
+                flags &= WORLD_MAP_SPRITE_ABR_MASK;
                 pEntry->accelX = pSprite->accelX;
                 pEntry->accelY = pSprite->accelY;
                 pEntry->accelZ = pSprite->accelZ;
@@ -819,7 +830,7 @@ void WorldMapEmitSpriteTrailEntries(void) {
         }
         goto storeLifeTimer;
     clearSpriteFlags:
-        pSprite->flags ^= 0x80;
+        pSprite->flags ^= WORLD_MAP_SPRITE_FLAG_ACTIVE;
     storeLifeTimer:
         pSprite->lifeTimer = (high << 16) | low;
     }
