@@ -278,7 +278,14 @@ paths = [
     # `(u16)acc >> 1` into `andi v0,s0,0xfffe`). The tail was split into its own TU
     # at 0xE844 because func_8007E740's product (mult a0,v0 / mflo v0) is retail's
     # instruction stream only under 2.6.0.
-    "battle/main/misc9_260."
+    "battle/main/misc9_260.",
+    # battle/main/misc3 (round 426): all 18 matched functions stay 100.00 under 2.6.0
+    # (the three at 99.09/99.39/99.23 score the same under both compilers - reloc form
+    # only), and the unit's park func_80078310 comes out INSTRUCTION-IDENTICAL to retail
+    # from its `lhu` read-backs to the return: 2.6.0 emits `lhu` where 2.7.2 emits `lw`
+    # at the RECT/unpack read-backs, so the unit is a 2.6.0 TU. 81.38 -> 86.57, the rest
+    # being one giv retail keeps for i-1.
+    "battle/main/misc3."
 ]
 
 # battle/main/misc21 is a gcc-2.6.0 unit AND a div-expansion unit, proven the way
