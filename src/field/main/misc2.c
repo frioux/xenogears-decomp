@@ -570,6 +570,22 @@ extern int rand(void);
 // (`*(s32*)&g_CameraEye` both sides), and a volatile store. Offsets +4 and +8 of the same vector
 // already match, so only the 0-offset site is left, and it is not a preset question: cdk scores
 // 69.05 on this body. Permuter from this body: 1130 iterations, RESULT PERMUTER_NONE, best 285 = base 285.
+// round 431: re-measured 99.06% / 1212 bytes = retail's exact size (303 insns). The residual is
+// NAMED now, by cc1_probe (field/main/misc2, both 2.7.2 and 2.6.0), not by another spelling hunt:
+// retail's eye-vx pair is a BARE symbolic load (lui a1,%hi / lw a1,%lo(a1)) AND a bare symbolic
+// store (lui at / sw %lo(at)), and this cc1 emits that pair only for a SCALAR-typed global.
+// Every aggregate spelling - gEye.vx, *(s32*)&gEye, ((s32*)&gEye)[0], a single-use pointer
+// local, a pointer local for the store, the compound assignment, a volatile load or store -
+// makes cse materialise the address (la $t1,sym + lw 0(t1) + sw 0(t1), i.e. one extra
+// instruction the assembler cannot fold), and the freed/taken register is the whole 34-line
+// residual (mult temps shift t1 -> t2). Proved: with the two accesses spelled through a scalar
+// symbol at g_CameraEye's address the instruction stream becomes IDENTICAL (1212 bytes, only the
+// reloc name differs, objdiff 99.93). It cannot ship from this TU because a scalar extern
+// clashes with the file's own 'extern VECTOR g_CameraEye' (cc1 exit 33; a block-scope shadow
+// errors too), and an aliased scalar symbol would be an invented name for the vector's first
+// word - the orchestrator's call, see this round's report.
+// Screened again this round: 2.6.0 98.18, -O3 99.06, -O1 76.14, -O0 9.36, cdk -O2 compile-fail,
+// cdk -O3 69.05 - not a preset question. Third permuter run from this body: NONE, base = best = 285.
 /*
 void func_80072D74(void) {
     s32 atStepSq;
@@ -648,6 +664,7 @@ void func_80072D74(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
+
 
 extern s16 g_FieldCameraMode;
 extern u16 g_CamMovementFlags;
