@@ -1734,7 +1734,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
    so the tail's inline/pointer split is genuinely retail's); that twin body
    under -G8 (98.90); this split body under -G8 (99.90); -O3 (82.98); gcc
    2.7.2 (99.63); gcc 2.7.2-cdk (92.67); a 1745-iteration permuter run
-   (base=20 best=20, PERMUTER_NONE). */
+   (base=20 best=20, PERMUTER_NONE).
+   Re-measured in round 417: 99.90 again, 204/204 insns, 816 bytes (so this note
+   is not stale); the bare truthiness test - if ((*ppSlot)->pSprites) - with no
+   != NULL is byte-identical at 99.90. New evidence on the tie itself: retail
+   DOES reuse a dying $v0 for a dead load elsewhere in this same function
+   (0x800AA1BC: lw v0,0(s0); lbu v0,0x10E(v0); beqz v0), so the two pSprites
+   sites are not a general allocator rule but a function-wide preference that
+   handed those two qtys $a1; and no local can hold that value because retail
+   saves exactly $s0-$s5 (a pseudo live across the two calls would add one). */
 /*
 void func_800A9FF0(s32 arg0) {
     BattleActor **ppActors;
