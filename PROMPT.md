@@ -211,7 +211,11 @@ and you decide.
 - Switch a unit only when every already-matched function stays 100.00 under the variant
   AND `make check` is green; a 99.x screen folds relocations and is not enough. If
   matched functions break, it is a split (`tools/scripts/split_unit.py`), and a split
-  that adds more than three files is operator-only.
+  that adds more than three files is operator-only. `split_unit.py` still needs hand-holding
+  on a unit whose stubs sit after C definitions and whose typedefs are mid-file: round 425 it
+  copied every C function into every run (its header ended at the first `INCLUDE_ASM`; fixed)
+  and then emitted a run's typedefs twice (`conflicting types`). Gate every split with
+  `make check`, and read `wc -l` on the new files before trusting them.
 - After any preset edit: two consecutive `make objdiff-config` runs must give the same
   per-unit flags, and every park in the unit must be re-measured.
 - A `mfhi`/`mflo` residual on a 2.7.2 unit means the unit wants 2.6.0, not another body.

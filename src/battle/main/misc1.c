@@ -497,7 +497,7 @@ s32 BattleUpdateFrame(void) {
     return 0;
 }
 
-void func_8007171C(void) {
+void BattleTickSlotCountdowns(void) {
     u16 v;
     s32 dec;
     s32 i;

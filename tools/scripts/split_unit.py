@@ -138,7 +138,12 @@ def main():
 
     src_path = ROOT / f"src/{binary}/{unit}.c"
     src = src_path.read_text()
-    header_end = INCLUDE.search(src).start() if INCLUDE.search(src) else 0
+    # The header ends at the FIRST function of any kind. Using the first INCLUDE_ASM
+    # alone put every C definition before the first stub into the header, so each run
+    # got a copy of them and the head file failed with "redefinition of ..." (round 425,
+    # battle/main/misc11_b, whose first INCLUDE_ASM sits after five C functions).
+    starts = [m.start() for m in INCLUDE.finditer(src)] + [m.start() for m in DEF_HEAD.finditer(src)]
+    header_end = min(starts) if starts else 0
     header = src[:header_end]
 
     addr = addresses(a.unit)

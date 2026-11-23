@@ -157,7 +157,7 @@ extern u8 D_800D2C35;
 extern u8 g_BattleCursorScrollState;
 extern s32 g_BattleCursorScrollY;
 extern u16 D_800D2C2A;
-extern void func_8007171C(void);
+extern void BattleTickSlotCountdowns(void);
 extern void BattlePollMenuEvent(s32 arg0);
 extern void BattleParseNumberToDigits(s32 arg0);
 extern void BattleSetPrimGrey80BlendSub(u8 *p);
@@ -690,7 +690,7 @@ void BattleUploadImageFrame(void) {
 }
 void BattleUpdateImageUpload(u8 arg0) {
     if (D_800CCC58 != 0) {
-        func_8007171C();
+        BattleTickSlotCountdowns();
     }
     if (arg0 == 0) {
         BattlePollMenuEvent(0);
