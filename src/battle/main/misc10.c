@@ -655,14 +655,35 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
     return row & 0xFF;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
-
-/* Best: 99.80%, 688 bytes / 172 insns - retail's EXACT size, so only the register choices below stand in the way.
-   Residual (one cause, 3 rows, all in the loop tail): retail's tail is 'andi v0,s0,0xff' (beqz delay slot) / 'lw v0,0(s1)' / 'or v1,s3,s0' / 'lbu v0,0(v0)' / ... / 'beqz v0,top' + 'move s3,v1' / 'move s0,s3' / 'andi v0,s0,0xff'. This body gives 'or v1,v1,s3' / 'move s0,v1' and the delay-slot andi lands in v1, because the OR's second operand is the ZERO-EXTENDED COPY of the char 'ret' rather than ret's own register s0 - gcc CSEs that extension with the return mask, so one instruction has to serve both uses.
-   What produced the two loop-bottom copies at all (round 419): the temp must be LIVE AT A MERGE, i.e. a 'goto out' label shared by the cont==0 exit and the loop exit, with the exit copy reading the temp ('ret = next' before the label). Without the goto gcc folds the temp away.
-   'char ret' (or u8) + the split copy 'next = ret; next = acc | next;' is what makes cc1 keep the temp; it is also what buys retail's schedule (the OR stays after the 'lw' and reorg fills the beqz slot from the exit block) - a plain 's32 ret' body with the same goto merge keeps the temp but reorg steals the OR into the beqz delay slot and the exit copy reads the temp (99.30 at 684 bytes, 4 short, unlinkable).
-   Measured, all with the goto merge: s32 ret 99.30/684 (OR folded, one copy lost); s16/s8/short ret 98.84/692 (exit-block andi lost); u16 99.73/688 (andi 0xffff); exit reading acc instead of next 94.04/688 ('or s3,v1,s3'); 'acc |= ret' 94.07/688; declaration reorder 99.67-99.80; OR operand swapped 99.80. Permuter (5 rounds total, this round three: base 266 -> 31 -> 21) found only 'char ret' and the split copy, both ported above; the remaining 3 rows are a register tie it could not close.
-   The switch (28 cases, jtbl_8006FE0C owned by this unit), every call site and both returns match. BattleSetTextScale etc. are declared with a u8 second parameter, which is what produces 'andi a1,s2,0xff'. */
+/* PARKED 99.80%, 688 bytes / 172 insns = retail's EXACT size. Residual is ONE cause, 3 rows in the
+   loop tail: retail has andi v0,s0,0xff (exit block, copied into the beqz delay slot) / lw v0,0(s1) /
+   or v1,s3,s0 / ... / beqz + addu s3,v1,zero / addu s0,s3,zero / andi v0,s0,0xff. This body (char ret +
+   the goto merge) gives or v1,v1,s3 / move s0,v1 with the andi landing in v1, because gcc CSEs the
+   zero-extension of the char with the return mask.
+   Round 431 measured the TWO-RETURN structure (if (!cont) return ret & 0xFF; ... } while(); return ret & 0xFF)
+   which does put retail's andi in the beqz delay slot: char ret 99.16/684, s32 ret 99.30/684 (then or v1,s3,s0
+   is raw, retail-faithful, but gcc folds acc and ret together: or s0,s3,s0 + move s3,s0, one insn short);
+   s32 ret with next = acc|ret, acc = next, ret = next 96.95/684 (reorg takes the OR into the delay slot and
+   drops the early andi); ret = acc 99.30/684 again. Retail's or v1 + TWO copies needs the OR's output allocated
+   to a fresh register, which this allocator will not do while both acc and ret die at the same place.
+   Permuter from this body: base 21 best 21, 1773 iterations, 3 minutes, nothing (5 rounds have now run on this
+   function across rounds). Every call site, all 28 switch cases, both returns and the table match. */
+/* PARKED 99.80%, 688 bytes / 172 insns = retail's EXACT size. ONE residual, 3 rows in the loop tail:
+   retail has andi v0,s0,0xff (the exit block's first instruction, duplicated into the cont beqz delay slot) /
+   lw v0,0(s1) / or v1,s3,s0 / lbu / sltiu / beqz + addu s3,v1,zero / addu s0,s3,zero / andi v0,s0,0xff.
+   This body (char ret + the goto merge) already gets retail's target-fill and the lw-then-or order; it gives
+   or v1,v1,s3 and move s0,v1 because gcc CSEs the zero-extension of the char with the return mask, so ONE
+   instruction (the andi in v1) serves both the return value and the OR operand.
+   Round 431 measured the TWO-RETURN structure (if (!cont) return ret & 0xFF; ... } while(); return ret & 0xFF),
+   which puts retail's andi in the delay slot: char ret 99.16/684; s32 ret 99.30/684 (the OR is then raw,
+   or v1,s3,s0 as retail, but gcc folds acc and ret together - or s0,s3,s0 + move s3,s0, one insn short);
+   next = acc|ret / acc = next / ret = next 96.95/684 (reorg takes the OR into the delay slot and sinks the
+   early andi to the shared exit); ret = acc 99.30/684. Also measured dead: an empty do { } while (0); after
+   case 0x99's cont = 1 (identical 96.95 - the c-an-empty-do-while-in-a-case barrier does not shift reorg here).
+   Retail's or v1 plus TWO copies needs the OR's output in a fresh register while both acc and ret die at the
+   same point, which this allocator will not do. Permuter from this body: base 21 best 21, 1773 iterations,
+   3 minutes, nothing (six rounds have now run on this function). All 28 cases, every call site, both return
+   paths and the table in jtbl_8006FE0C match. */
 /*
 s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
     char ret = 0;
@@ -678,6 +699,8 @@ s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
             break;
         case 0x99:
             cont = 1;
+            do {
+            } while (0);
             break;
         case 0x81:
             ret = BattleSetTextScale(pCursor, arg1);
@@ -767,8 +790,10 @@ s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
     ret = next;
 out:
     return ret & 0xFF;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
+
+
 
 void BattleReleaseEffectSlotIfChar4(u8 arg0) {
     if (g_BattleActorCharIds[arg0] == 4 && g_BattleDisplayState[0x8E] != 0) {
