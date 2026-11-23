@@ -617,87 +617,102 @@ s32 func_8008390C(s32 arg0) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083A00);
-/* Best: 63.80% (352 insns against retail's 395; 1408 bytes against retail's 0x1d4 = 468
-   of .text). The whole body is DECODED below and the switch shapes are right; the
-   residual is one construct, repeated in all six cases.
-
-   THE RESIDUAL: retail STORES a view rotation and then re-reads it with `lh` from the
-   same symbol - `sh $v0,%lo(g_WorldMapViewRotationY)` then, four instructions later,
-   `lui $v0,%hi(g_WorldMapViewRotationY)` / `lh $v0,%lo(...)` / `sll $v0,12`. cc1 2.7.2
-   forwards that store into the load and folds `0x400 << 12` to a constant (attempt 1:
-   `lui $v0,0x40`, every case 3 insns short, 66.92%, 336 insns). Reading the two view
-   rotations through the neighbouring symbol instead - `((s16 *)&g_WorldMapCameraRot)[1]`
-   and `[2]`, the spelling that closed the sibling func_8008390C to 96.15% - stops the
-   fold, but then cc1 treats the two symbol_refs as distinct objects and HOISTS the
-   `lh` above the `sh` that writes it (`lh $3,g_WorldMapCameraRot+2` lands before
-   `sh $2,g_WorldMapCameraRot`), which is what this 63.80% body does. A
-   `*(volatile s16 *)&g_WorldMapViewRotationY` read keeps the load after the store but
-   makes every other store in the case block float around it (59.73%, 370 insns, and
-   the load comes out `lhu` + `sll 16` because the extern is u16). Those are the three
-   measured spellings; nothing else was tried on this construct.
-   - the six cases are one state table: command 1..6 sets state 1..6, command 0, a
-     redStep that is ALSO the g_WorldMapCameraHeight value (one register in retail, so
-     one local is the likely source), the three camera angles and the pose, then reads
-     the two view angles back to fill green/dirY and blue/dirZ.
-   - the first switch is `switch ((s16)(pActor->command - 1))`: retail's `lhu` of 0x4
-     plus `addiu -1` plus `sll 16`/`sra 16` says the field is read unsigned there and
-     narrowed to s16 before the switch, while the same field is `lh` in
-     WorldMapUpdateSpriteSetPrims (this unit's struct has it as s16 command). The
-     best body reproduces the load-and-narrow sequence exactly - do not "fix" the type.
-   - the second switch (on state) has SEVEN table entries indexed from 0, so the source
-     has a case 0 (or the table spans 0); cases 1 and 6 are the only bodies.
-   - tail: `rand() % (pActor->unk7C >> 12) - (pActor->unk7C >> 13)` stored to the
-     scratchpad halfword at 0x1F8000A2, then added to D_8009BD42 and, via a RELOAD of
-     that halfword, to D_8009BD4A - the first add uses the register, the second a fresh
-     `lhu`, so the source re-reads the scratch slot for the second one only.
-   - both switch tables (0x9A0/0x9B8) belong to this unit, so diff_func can never print
-     MATCH here (operand is `.rodata` vs `jtbl_`); judge any future attempt with
-     check_bin.sh world_map.
+// Best: 67.51 percent, 1380 bytes and 345 instructions against retail's 0x5E4
+// (1508 bytes, 395). An arrangement of this same body differing only in where the
+// ViewZ refill sits measured 69.79 (347 instructions); objdiff's score is not
+// monotone across that edit, so treat both as one wall.
+//
+// THE RESIDUAL, NAMED: retail's six case blocks keep SOURCE order and are never
+// merged; cc1 2.7.2 instead (a) cross-jumps the six identical rotation quadruples
+// when the cases are written as plain blocks, and (b) hoists the
+// lh g_WorldMapViewRotationY refill above the red/dirX int stores (type-based
+// alias sets: short load vs int store through pActor do not conflict) and sinks
+// command/redStep below the volatile view-angle stores when an empty do-while
+// separates the quadruple from the case head. No spelling tried reaches both
+// retail's order and retail's block count.
+//
+// MEASURED SPELLINGS (each is a scored diff run):
+// - plain case blocks: tail merge, 60.45, 351 insns, 1404 bytes.
+// - one do-while(0) after the dirY store (misc7's anti-cross-jump lever): best.
+// - do-while removed and the per-case tails made non-identical by moving the
+//   CameraHeight store into the ViewZ refill: 58.78, 360 insns.
+// - volatile stores for command and redStep plus an nStep local shared with
+//   g_WorldMapCameraHeight: 67.08, 366 insns.
+// - the same with only command pinned: 66.74.
+//
+// KEEP THESE - each was proven by the diff, do not re-derive:
+// - the view rotation refill must be a VOLATILE STORE with a plain read
+//   (*(volatile s16 *)&g_WorldMapViewRotationY = K, then ... << 12); only that
+//   stops cc1 folding K << 12 into an immediate. A volatile READ is worse still.
+// - the read must be spelled ((s16)g_WorldMapViewRotationY) << 12: this unit's
+//   extern is u16 because the matched WorldMapShutdownScene needs lhu, while
+//   retail's refill here is lh.
+// - the head is exact: switch ((s16)(pActor->command - 1)) reproduces retail's
+//   lhu/addiu/sll/sra/sltiu 6 (the lhu comes from the u16 extern narrowed by the
+//   cast, so do not change the struct field or the extern).
+// - the second switch is on state with case 1 (three WorldMapApproachValue
+//   calls) and case 5 (one), NOT case 6: word 5 of jtbl_800704A8 is .L80083F18
+//   and the other six words are the loop exit .L80083F2C.
+// - the tail (rand modulo unk7C >> 12 minus unk7C >> 13 into the 0x1A8000A2
+//   scratch halfword, then D_8009BD42 and D_8009BD4A) is misc6_b's tail, which
+//   sits at 99.69 there; here it differs only by the same a1/a2/a3 rotation.
+// - g_WorldMapViewRotationZ = 0 then blue = g_WorldMapViewRotationZ << 12 folds
+//   to sw zero in cc1. That fold is legal (the value is zero) and it is what the
+//   best-measured body has; making that store volatile pays 2 insns and loses
+//   more (66.74).
+// - case 2's scroll update is spelled
+//   g_WorldMapScrollX = g_WorldMapScrollX + 0x1700000 - g_WorldMapPlayerPosition[0]
+//   (retail adds then subtracts). It still came out as
+//   ScrollX - (playerX - 0x1700000), and retail keeps the address of
+//   g_WorldMapScrollX in a register for both the lw and the sw while this body
+//   rematerialises it - the same rematerialisation residue as misc7's
+//   func_800827EC. Untried: a local s32 *pScrollX.
+//
+// Preset screened and not the answer: gcc-2.7.2-cdk 67.03, gcc-2.6.0 does not
+// compile this body. Both switch tables live in this unit's rodata range
+// (0x98C..0x9D8, main/misc8), so diff_func can never print MATCH here; judge any
+// future attempt with tools/scripts/check_bin.sh world_map.
+// measure: tools/scripts/diff_func.sh world_map/main/misc8 func_80083A00
 /*
 s32 func_80083A00(s32 arg0) {
-    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
-    s16 phase;
-    s32 jitter;
-    s32 viewY;
-    s32 viewZ;
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
+    s16 request;
+    s32 shake;
 
-    phase = pActor->command - 1;
-    switch (phase) {
+    request = pActor->command - 1;
+    switch (request) {
     case 0:
         pActor->state = 1;
         pActor->command = 0;
         pActor->redStep = 0x960000;
         g_WorldMapCameraRot = -0x20;
-        g_WorldMapViewRotationY = 0x400;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0x400;
         g_WorldMapViewRotationZ = 0;
         pActor->red = -0x20000;
         pActor->dirX = -0x20000;
-        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
-        pActor->green = viewY;
-        pActor->dirY = viewY;
-        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
-        pActor->blue = viewZ;
-        pActor->dirZ = viewZ;
+        pActor->green = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->dirY = ((s16)g_WorldMapViewRotationY) << 12;
+        do { } while (0);
         g_WorldMapCameraHeight = 0x960000;
+        pActor->blue = g_WorldMapViewRotationZ << 12;
+        pActor->dirZ = g_WorldMapViewRotationZ << 12;
         break;
     case 1:
         pActor->state = 2;
         pActor->command = 0;
         pActor->redStep = 0x180000;
         g_WorldMapCameraRot = 0x40;
-        g_WorldMapViewRotationY = 0x1A0;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0x1A0;
         g_WorldMapViewRotationZ = 0;
         pActor->red = 0x40000;
         pActor->dirX = 0x40000;
-        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
-        pActor->green = viewY;
-        pActor->dirY = viewY;
-        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
-        pActor->blue = viewZ;
-        pActor->dirZ = viewZ;
+        pActor->green = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->dirY = ((s16)g_WorldMapViewRotationY) << 12;
+        do { } while (0);
         g_WorldMapCameraHeight = 0x180000;
+        pActor->blue = g_WorldMapViewRotationZ << 12;
+        pActor->dirZ = g_WorldMapViewRotationZ << 12;
         g_WorldMapCameraTargetY = -0xA0000;
         g_WorldMapScrollTargetY = -0xA0000;
         pActor->y = -0xA0000;
@@ -707,38 +722,36 @@ s32 func_80083A00(s32 arg0) {
         pActor->command = 0;
         pActor->redStep = 0x120000;
         g_WorldMapCameraRot = -0x2A0;
-        g_WorldMapViewRotationY = 0x6A0;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0x6A0;
         g_WorldMapViewRotationZ = 0;
         pActor->red = -0x2A0000;
         pActor->dirX = -0x2A0000;
-        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
-        pActor->green = viewY;
-        pActor->dirY = viewY;
-        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
-        pActor->blue = viewZ;
-        pActor->dirZ = viewZ;
+        pActor->green = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->dirY = ((s16)g_WorldMapViewRotationY) << 12;
+        do { } while (0);
         g_WorldMapCameraHeight = 0x120000;
+        pActor->blue = g_WorldMapViewRotationZ << 12;
+        pActor->dirZ = g_WorldMapViewRotationZ << 12;
         g_WorldMapCameraTarget = 0x1700000;
         g_WorldMapScrollTargetX = 0x1700000;
         pActor->x = 0x1700000;
-        g_WorldMapScrollX += 0x1700000 - g_WorldMapPlayerPosition[0];
+        g_WorldMapScrollX = g_WorldMapScrollX + 0x1700000 - g_WorldMapPlayerPosition[0];
         break;
     case 3:
         pActor->state = 4;
         pActor->command = 0;
         pActor->redStep = 0x180000;
         g_WorldMapCameraRot = -0x10;
-        g_WorldMapViewRotationY = 0xA50;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0xA50;
         g_WorldMapViewRotationZ = 0;
         pActor->red = -0x10000;
         pActor->dirX = -0x10000;
-        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
-        pActor->green = viewY;
-        pActor->dirY = viewY;
-        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
-        pActor->blue = viewZ;
-        pActor->dirZ = viewZ;
+        pActor->green = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->dirY = ((s16)g_WorldMapViewRotationY) << 12;
+        do { } while (0);
         g_WorldMapCameraHeight = 0x180000;
+        pActor->blue = g_WorldMapViewRotationZ << 12;
+        pActor->dirZ = g_WorldMapViewRotationZ << 12;
         g_WorldMapCameraTarget = 0x1800000;
         g_WorldMapScrollTargetX = 0x1800000;
         pActor->x = 0x1800000;
@@ -756,16 +769,14 @@ s32 func_80083A00(s32 arg0) {
         pActor->command = 0;
         pActor->redStep = 0x260000;
         g_WorldMapCameraRot = -0x100;
-        g_WorldMapViewRotationY = 0x670;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0x670;
         g_WorldMapViewRotationZ = 0;
         pActor->red = -0x100000;
         pActor->dirX = -0x100000;
-        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
-        pActor->green = viewY;
-        pActor->dirY = viewY;
-        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
-        pActor->blue = viewZ;
-        pActor->dirZ = viewZ;
+        pActor->green = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->dirY = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->blue = g_WorldMapViewRotationZ << 12;
+        pActor->dirZ = g_WorldMapViewRotationZ << 12;
         g_WorldMapCameraTargetY = -0x110000;
         g_WorldMapScrollTargetY = -0x110000;
         pActor->y = -0x110000;
@@ -780,16 +791,14 @@ s32 func_80083A00(s32 arg0) {
         pActor->command = 0;
         pActor->redStep = 0x620000;
         g_WorldMapCameraRot = -0x80;
-        g_WorldMapViewRotationY = 0xA70;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0xA70;
         g_WorldMapViewRotationZ = 0;
         pActor->red = -0x80000;
         pActor->dirX = -0x80000;
-        viewY = ((s16 *)&g_WorldMapCameraRot)[1] << 12;
-        pActor->green = viewY;
-        pActor->dirY = viewY;
-        viewZ = ((s16 *)&g_WorldMapCameraRot)[2] << 12;
-        pActor->blue = viewZ;
-        pActor->dirZ = viewZ;
+        pActor->green = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->dirY = ((s16)g_WorldMapViewRotationY) << 12;
+        pActor->blue = g_WorldMapViewRotationZ << 12;
+        pActor->dirZ = g_WorldMapViewRotationZ << 12;
         g_WorldMapCameraTargetY = -0x120000;
         g_WorldMapScrollTargetY = -0x120000;
         pActor->y = -0x120000;
@@ -810,20 +819,22 @@ s32 func_80083A00(s32 arg0) {
         pActor->green = WorldMapApproachValue(pActor->green, 0, -0x8000);
         pActor->redStep = WorldMapApproachValue(pActor->redStep, 0x380000, 0xFFFF3000);
         break;
-    case 6:
+    case 5:
         pActor->red = WorldMapApproachValue(pActor->red, 0x200000, 0x2000);
         break;
     }
     WorldMapApproachViewRotation(pActor, pScratch);
     WorldMapApproachHeight(pActor, pScratch);
     func_80076FA8(pActor, pScratch);
-    jitter = rand() % (pActor->unk7C >> 12) - (pActor->unk7C >> 13);
-    *(s16 *)(pScratch + 0xA2) = jitter;
-    D_8009BD42 += jitter;
+    shake = rand() % (pActor->unk7C >> 12);
+    shake -= pActor->unk7C >> 13;
+    *(s16 *)(pScratch + 0xA2) = shake;
+    D_8009BD42 += shake;
     D_8009BD4A += *(u16 *)(pScratch + 0xA2);
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083A00);
+
 
 s32 WorldMapSetActorPosition(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
