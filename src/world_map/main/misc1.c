@@ -1717,16 +1717,48 @@ extern u8 D_8009C5E5;
 extern DR_TPAGE D_8009C5A0;
 extern TILE D_8009C898[0x40];
 
-/* best: 97.23%. The store order and every per-field symbol are right; only the
-   constant register allocation differs. Retail keeps 0x80 in $v0 for the whole
-   first block and therefore parks 0xD0 in $t0 and 0x137 in $v1 (then reuses $t0
-   for 0x7F and $v1 for 0xFF), while gcc reuses $v0 for 0xD0/0x137 since their
-   live ranges do not overlap retail's. Six source orders tried (address order,
-   retail store order, colours first, columns first); retail store order is the
-   best. The last mismatch is the TILE loop's base: retail forms
-   lui/addiu %hi(D_8009C8A6) (the array seen through tile->h) and stores at
-   -0xB..0, ours forms D_8009C898+0xE, which links identically but shows as an
-   addend difference.
+// A projected map triangle, in GPU packet order: colour, screen pair, colour, pair, colour,
+// pair. 0x1C bytes each, four per buffer half.
+typedef struct {
+    /* 0x00 */ u32 tag;
+    /* 0x04 */ u8 r0;
+    /* 0x05 */ u8 g0;
+    /* 0x06 */ u8 b0;
+    /* 0x07 */ u8 code;
+    /* 0x08 */ s16 x0;
+    /* 0x0A */ s16 y0;
+    /* 0x0C */ u8 r1;
+    /* 0x0D */ u8 g1;
+    /* 0x0E */ u8 b1;
+    /* 0x0F */ u8 pad1;
+    /* 0x10 */ s16 x1;
+    /* 0x12 */ s16 y1;
+    /* 0x14 */ u8 r2;
+    /* 0x15 */ u8 g2;
+    /* 0x16 */ u8 b2;
+    /* 0x17 */ u8 pad2;
+    /* 0x18 */ s16 x2;
+    /* 0x1A */ s16 y2;
+} WorldMapTriPrim; // Size: 0x1C
+
+extern WorldMapTriPrim D_8009C664[8];
+
+/* best: 97.23% (648 bytes, 162 insns = retail exactly). The store order and every per-field
+   symbol are right; the residual is WHERE the constant loads land, not a register tie.
+   Retail: `li t0,0xD0` right after `li v0,0x2C` and `li v1,0x137` after `li v0,0x78`, i.e. the
+   two-repeat constants are loaded ~8 instructions before their first store, so three
+   registers are live at once (v0=0x78/0xD7/0x80, t0=0xD0 then 0x7F, v1=0x137 then 0xFF).
+   Ours loads each constant at its first store and reuses $v0 for 0x78/0xD7/0xD0/0x137, then
+   v0=0x80, t0=0x7F, v1=0xFF - the same multiset in different registers. That is sched2
+   load placement (see levers c-two-loads-hoist-the / round 407: -fno-schedule-insns2 keeps a
+   constant at the block top, -fno-schedule-insns at the load), not statement order: six
+   source orders were measured in an earlier round, retail store order (below) is the best,
+   and the callee-save saves already sit mid-block exactly as retail has them, so the unit
+   flags are right. Not worth a permuter round (scheduler, per the lever).
+   The one cosmetic diff is the TILE loop base: retail forms %hi(D_8009C8A6) (the array seen
+   through tile->h) and stores at -0xB..0, ours forms D_8009C898+0xE; links identically.
+*/
+/*
 void func_80073E30(void) {
     POLY_FT4* pPrim;
     POLY_G3* pPoly;
@@ -1783,9 +1815,9 @@ void func_80073E30(void) {
         pTile->w = 2;
         pTile->h = 2;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073E30);
+
 // The world map's scratchpad block. RotMatrix writes the rotation vector at 0xB8 and the
 // three translation words of the GTE matrix the map is projected through sit at 0x104; the
 // 3x3 part of that matrix (0xF0) is addressed separately because it is a raw GTE block.
@@ -1798,29 +1830,6 @@ typedef struct {
     /* 0x10C */ s32 matrixTransZ;
 } WorldMapScratch; // Size: 0x110
 
-// A projected map triangle, in GPU packet order: colour, screen pair, colour, pair, colour,
-// pair. 0x1C bytes each, four per buffer half.
-typedef struct {
-    /* 0x00 */ u32 tag;
-    /* 0x04 */ u8 r0;
-    /* 0x05 */ u8 g0;
-    /* 0x06 */ u8 b0;
-    /* 0x07 */ u8 code;
-    /* 0x08 */ s16 x0;
-    /* 0x0A */ s16 y0;
-    /* 0x0C */ u8 r1;
-    /* 0x0D */ u8 g1;
-    /* 0x0E */ u8 b1;
-    /* 0x0F */ u8 pad1;
-    /* 0x10 */ s16 x1;
-    /* 0x12 */ s16 y1;
-    /* 0x14 */ u8 r2;
-    /* 0x15 */ u8 g2;
-    /* 0x16 */ u8 b2;
-    /* 0x17 */ u8 pad2;
-    /* 0x18 */ s16 x2;
-    /* 0x1A */ s16 y2;
-} WorldMapTriPrim; // Size: 0x1C
 
 // The map-space position of one tile of the current grid.
 typedef struct {
@@ -1829,7 +1838,6 @@ typedef struct {
 } WorldMapTilePos; // Size: 0x4
 
 extern SVECTOR D_8009A340[];
-extern WorldMapTriPrim D_8009C664[8];
 extern WorldMapTilePos D_8009B6F4[0x20];
 extern s32 g_WorldMapFadeLevel;
 
@@ -1949,8 +1957,7 @@ void func_800740B8(void) {
         pPos++;
     }
     addPrim(g_WorldMapRenderContext->pOt[0], &D_8009C5C0[g_WorldMapPrimPacketIndex]);
-}
-*/
+}*/
 
 extern void* g_WorldMapSlotPositions;
 extern void* g_WorldMapSlotPrims;
