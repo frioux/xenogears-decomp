@@ -989,7 +989,8 @@ extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
 // one memcpy per block, then the actors' animation state and the script memory.
 // func_800A3C8C pulls it back.
 // PARKED 99.94% at retail's exact 2044 bytes (511 insns both sides, 8 differing lines).
-// The cursor advances must be spelled as a COMPOUND ASSIGNMENT ON THE GLOBAL:
+// The cursor advances must be spelled as a COMPOUND ASSIGNMENT ON THE GLOBAL, with the
+// global as the memcpy argument:
 //     g_WorldMapSaveCursor += N;
 //     memcpy(g_WorldMapSaveCursor, src, N);
 // at the four state-chunk sites AND the actor loop's +0x30 site, and the head as
@@ -998,23 +999,33 @@ extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
 //     g_WorldMapSaveCursor += 4;
 //     memcpy(g_WorldMapSaveCursor, g_FieldScreenEffectData, 0x38);
 // That is what makes the sum reuse the loaded pointer's $2 (retail's addiu v0,v0,N);
-// the older `pDst = g_WorldMapSaveCursor + N; g_WorldMapSaveCursor = pDst;` copy
-// spelling always takes a fresh $3 and parks at 99.26 (this is the case the
-// a-memcpy-dst-sum-tie lever calls unreachable - the += form wins it). 99.26 -> 99.94%.
+// the `pDst = g_WorldMapSaveCursor + N; g_WorldMapSaveCursor = pDst;` copy spelling
+// always takes a fresh $3 and parks at 99.26 (the a-memcpy-dst-sum-tie lever calls that
+// unreachable - the += is a different RTL and wins it). 99.26 -> 99.94%.
 // Left, two ties only:
 //  1. the script-memory copy at the tail prints `or v0,a2,a3` where retail has
 //     `or v0,a3,a2` - same registers and same roles (a3 = cursor/dst, a2 = src), only
-//     the commutative IOR operand order, i.e. a combine pseudo-number decision.
+//     the commutative IOR operand order.
 //  2. the tail's `&g_WorldMapSaveBlock` lands in $v1; retail keeps it in $s1
-//     (lui s1 / addiu s1 / subu a1,a1,s1 - 3 insns).
-// Measured and rejected on this body: nSaveSize passed to the SAVESIZE printf twice
-// (2048 bytes), `&g_FieldScriptMemory` inlined at the copy (2060), pScriptMemory moved
+//     (lui s1 / addiu s1 / subu a1,a1,s1). Round 421 measured why this is a CLASS
+//     difference rather than a spelling: $s1 is callee-saved, and local_alloc hands out
+//     REG_ALLOC_ORDER's caller-saved registers first to a value that lives in one block,
+//     so retail's address was a global allocno live across a call. The one spelling that
+//     makes it one - pSaveBlock assigned at the head and used again at the tail -
+//     measures 99.04% / 2044 bytes with the frame at 0x34: it buys $s2 and an extra
+//     save/restore instead of reusing the $s1 the actor and gear index already saves,
+//     i.e. the free reuse retail shows is not reachable by sharing one variable.
+// Round 421 re-measured this body: 99.94% / 2044 bytes / 511 insns, unchanged, and the
+// permuter from it is again base=30 best=30 (1375 iterations, 3 min). Also rejected this
+// round: a pSaveBlock local for the tail subtraction alone (2044, identical code), and
+// do { } while (0) around the tail (2044, identical code).
+// Measured and rejected earlier: nSaveSize passed to the SAVESIZE printf twice
+// (2048 bytes), &g_FieldScriptMemory inlined at the copy (2060), pScriptMemory moved
 // down to its use (2060), u8* pScriptMemory (no change), pActorData hoisted above the
-// 0x30 cursor update (2052). Permuter 3 min from this body: base=30 best=30, 1286
-// iterations, no lead; six earlier runs (3-12 min) from the 99.26 body also empty.
-// Earlier rejected (kept so they are not retried): pDst defined before the base store
-// (2040), embedded cursor store (2040), pSave local for the head, cursor store moved
-// after the memcpy (2024), gcc-2.6.0 (98.88), gcc-2.7.2-cdk (compile fails).
+// 0x30 cursor update (2052), pDst defined before the base store (2040), embedded cursor
+// store (2040), a pSave local for the head only, cursor store moved after the memcpy
+// (2024), gcc-2.6.0 (98.88), gcc-2.7.2-cdk (compile fails). Seven earlier permuter runs
+// (3-12 min) empty, six of them from the 99.26 body.
 /*
 void func_800A3F4C(void) {
     ActorData* pActorData;
@@ -1084,7 +1095,8 @@ void func_800A3F4C(void) {
     if (nSystemMode == 0) {
         func_800379C8(D_8006FD9C, g_WorldMapSaveCursor - g_WorldMapSaveBlock, g_WorldMapSaveCursor - g_WorldMapSaveBlock);
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3F4C);
 
 void FieldCopyScreenToFadeTexture(void) {
