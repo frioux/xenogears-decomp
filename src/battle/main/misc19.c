@@ -656,6 +656,14 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
 // division (val = p[0x4E]; val = val / 20;) measured no change. The unit is mixed under
 // 2.6.0 (round 393 screen: BattleClearSlotFlag15A1 95.71, BattleFillPartySlotWeaponRecord
 // 96.15), so like func_8009A9D0 this is a one-function XenoLibrary carve-out candidate.
+// Round 426 re-confirmed both numbers with try_flags, and screened the whole unit under
+// gcc-2.6.0-psx (`--all`): 9 of the 13 already-matched functions drop below 100.0
+// (BattleFillPartySlotWeaponRecord 96.15, BattleClearSlotFlag15A1 95.71,
+// BattleInitItemInventoryAndConditionMasks 99.38, BattleSetSlotFlag15A1 99.57,
+// BattleResetSlotEffectWords 99.64, BattleSetSlotEntryFieldsTo1 99.71,
+// BattleSetSlotEntryFieldsTo2000 99.77, BattleDecrementGearPartUse 99.79,
+// BattleSetCommandCodeForSlotKindFlag 99.96), so the unit cannot carry 2.6.0 and this
+// needs a per-function split, not a source change. Park is final under 2.7.2.
 /*
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
     u8* p = arg0 * 0x170 + (u32)g_BattleCurWorkBlock;
@@ -905,6 +913,12 @@ void BattleInitItemInventoryAndConditionMasks(void) {
 // round-373-proven 2.7.2 md wall (mfhi t1 / sra a0,t1,5 vs retail's in-place pair), and
 // the loop's v1/a1 maxHp/hp mirror is the same allocator contest. Three independent
 // residuals, no preset closes the function, unit is mixed under 2.6.0: park is final.
+// Round 426: the count/index/pointer rotation is also an allocator-ORDER difference, not a
+// spelling one - retail assigns count=$a0, the i*0x170 temp=$a1, p=$a2 (allocno order),
+// while 2.7.2's priority sort hands the temp $a0, p $a1 and count $a2. Two more declaration
+// orders measured dead (i before count: identical 108 differing lines; max/cur hoisted to
+// function scope: identical), so the whole a-register rotation plus the s0/s2 mirror is the
+// 2.6.0-allocator family and the three mflo read-backs are the md wall. Park stays final.
 /*
 void func_8009B46C(u16* arg0) {
     u8 count = 0;
