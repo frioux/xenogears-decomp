@@ -102,7 +102,9 @@ One worker = one clone = **one `.c` file**. A round is one long rolling launch.
   alike), so `workers.length` is the concurrency and `queue` is the backlog. Six lanes;
   **four when the round contains `big` lanes** (`next_round.py --kind big --lanes 4`),
   because `check_bin.sh` runs a full build and three at once drove the 6-core VM to
-  load 25 (round 307).
+  load 25 (round 307). A `park`-dominated round needs the same cap: round 418 briefed 16
+  park lanes, load hit 25 again and two `check_bin.sh` calls ran past 240 s, so brief
+  park-heavy rounds at 4-5 lanes.
 - The first two `workers` run on the foreground model; the planner orders them.
 - Size the queue so the launch lasts 45-75 minutes. If the last round drained its queue
   in under 30 minutes, double `--queue`; if it hit `timeoutMs` with entries unstarted,
