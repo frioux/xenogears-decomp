@@ -14,11 +14,13 @@ typedef struct {
     /* 0x24 */ s32 actorIndex; // index of the acting slot's sprite in the 0x8C8C table
     /* 0x28 */ u8 pad28[0xC];
     /* 0x34 */ u32 timer; // counted down once a frame by the state loop
-    /* 0x38 */ u8 pad38[0x10];
+    /* 0x38 */ u8 pad38[0xC];
+    /* 0x44 */ s32 targetDistance; // measured by the state loop; a step acts only while it grows
     /* 0x48 */ u8 pendingAction; // 0x905C request: the frame loop runs it once when this is set
     /* 0x49 */ u8 pendingStep; // step the state loop dispatches once, then clears
     /* 0x4A */ u8 commandUnhandled; // set by the command switch's default arm; the next dispatch clears it
     /* 0x4B */ u8 pad4B;
+    /* 0x4C */ struct BattleActorSprite* pTargetSprite; // the actor the moving steps drive
 } BattleState;
 
 extern BattleState* g_BattleState;
@@ -92,7 +94,9 @@ typedef struct BattleActorSprite {
     /* 0x32 */ s16 direction;
     /* 0x34 */ u8 unk34[0x8];
     /* 0x3C */ u32 flags; // 0x4: transform matrix dirty
-    /* 0x40 */ u8 unk40[0x10];
+    /* 0x40 */ u8 unk40[0x8];
+    /* 0x48 */ s32 unk48; // only tested against 0, to advance to step 7 when a command starts
+    /* 0x4C */ u8 unk4C[0x4];
     /* 0x50 */ u32 pSedsFile; // the SEDS bank BattleLoadSoundSeds hands this sprite
     /* 0x54 */ u8 unk54[0x10];
     /* 0x64 */ void* pSpriteBytecode;
@@ -698,7 +702,190 @@ void func_800B9C78(void) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 
+extern s32 D_800C3660;
+extern s32 g_BattlePendingCommand;
+extern BattleActorSprite* g_BattleActorList;
+extern u8 g_BattleActorSlotMode;
+extern u8 g_BattleAnimScriptHalted;
+extern s32 BattleStartStageActorAnimation(void);
+extern s32 BattleComputeVectorDistance2D(DVECTOR vec0, DVECTOR vec1);
+extern void BattleStepActorAlongPath(BattleActorSprite* pActor, BattleActorSprite* pTarget);
+extern s32 BattleIsTimerTaskActive(void);
+extern void BattleTearDownState(void);
+extern void BattleReleaseAllActorSlots(void);
+extern void BattleActorSetFacingFromSideFlag(s32 index);
+extern void func_800BE790(void);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
+/* 94.02%, 1368 bytes / 342 instructions against retail's 1384 / 346, with the
+   head, the two dispatches and both distance arms otherwise exact.  The 4
+   missing instructions are the frame: ours is 0x40 where retail's is 0x48, and
+   the arm-6 distance measure keeps its second vector at 0x18(sp) (reusing arm
+   2's dead slot) where retail uses 0x20(sp), so two more s32 locals were live
+   in the original arm 6.  Also left, all measured:
+   1. the pending-command key: retail ends `or v0,v0,v1` (the 0xAC word's
+      register as destination) and `slti v0,v0,3`; ours parks the key in $a1
+      (`or a1,v0,v1 / slti v0,a1,3`).  Same for the same key in the 4 and 5
+      arms.  The signed `slti` needs the key in an s32 local, and the load
+      order (0xA8 before 0xAC) needs the A8-left spelling -- both measured.
+   2. `D_800C3623 = 0;` after SpritePlayAnimation re-forms `lui` in retail but
+      is CSE'd into $s0 across the call in ours.
+   3. the animation id choice: retail is `beqz`/`j` with `li 0x13` in the jump's
+      delay slot and a separate `li 0x12` block (3 insns), ours fills the branch
+      delay slot with `li 0x12` and drops the jump (2 insns).
+   Case body order is retail's .text order, not ascending, and getting it right
+   was worth 30 points: pendingStep 4,6,2,5 and stateStep 7,10,9,8,2,6,4.  The
+   stateStep switch reads the step as a word while BattleApplyStateStep in this
+   unit reads the same address as a byte, so it is spelled through a cast here.
+   Tried: AC-left key (worse: swaps the two loads), ternary instead of the
+   if/else `anim` local (same 2-insn shape), separate arm locals.
+*/
+/*
+void func_800B9F78(BattleState* pState) {
+    BattleActorSprite* pSprite;
+    BattleActorSprite* pTarget;
+    BattleActorSprite* pActor;
+    DVECTOR vec0;
+    DVECTOR vec1;
+    s32 distance;
+    s32 x;
+    s32 z;
+    s32 targetX;
+    s32 targetZ;
+    s32 key;
+    s32 anim;
+
+    if (D_800C3660 != 0) {
+        return;
+    }
+    D_800C3660 = 1;
+    pSprite = (BattleActorSprite*)pState->pCurSprite;
+    g_BattleState = pState;
+    pTarget = pState->pTargetSprite;
+    if (g_BattlePendingCommand != 0) {
+        g_BattlePendingCommand = 0;
+        if ((BattleStartStageActorAnimation() & 0xFF) != 0) {
+            SpriteSetCallback(pSprite, BattleApplyStateStep);
+        } else {
+            key = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+            if (key < 3) {
+                if (D_800C3623 != 0) {
+                    anim = 0x13;
+                } else {
+                    anim = 0x12;
+                }
+                SpritePlayAnimation(pSprite, anim);
+                D_800C3623 = 0;
+            }
+            if (pSprite->unk48 != 0) {
+                BattleSetStateStep(7);
+            }
+        }
+    }
+    if (g_BattleState->timer != 0) {
+        func_800B9C78();
+        --g_BattleState->timer;
+    }
+    if (g_BattleState->pendingStep != 0) {
+        switch (g_BattleState->pendingStep) {
+            case 4:
+                pActor = g_BattleActorList;
+                key = (pActor->flags_0xA8 >> 30) | ((pActor->flags_0xAC.flags & 3) << 2);
+                if (key < 3 && ((BattleActorSlot*)g_BattleStateWork)[key].inUse == 0 &&
+                    g_BattleStateWork[(g_BattleCommandRowIndex - 1) * 0x48 + 0x150 + key] == 7) {
+                    BattleSetSpriteTemplate(pActor);
+                    SpritePlayAnimation(pActor, 0x1B);
+                    while (pActor->flags_0xAC.bytes.animId == 0x1B) {
+                        func_800BE790();
+                    }
+                }
+                break;
+            case 6:
+                BattleStepActorAlongPath(pSprite, pSprite->pTargetEntitySprite);
+                break;
+            case 2:
+                BattleActorSnapToTargetAndFace(pSprite, pSprite->pTargetEntitySprite);
+                break;
+            case 5:
+                key = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+                if (((BattleActorSlot*)g_BattleStateWork)[key].flags == 0) {
+                    SpritePlayAnimation(pSprite, pSprite->animId);
+                }
+                BattleActorSetFacingFromSideFlag(g_BattleState->actorIndex);
+                BattleSetStateStep(0xA);
+                break;
+        }
+        g_BattleState->pendingStep = 0;
+    }
+    switch (*(s32*)&g_BattleState->stateStep) {
+        case 7:
+            if (g_NumFlaggedTimerWorkListEntries == BattleIsTimerTaskActive()) {
+                BattleSetStateStep(4);
+                g_BattleState->pendingAction = 1;
+                BattleLoadArchiveEntryFile();
+            }
+            break;
+        case 10:
+            if (g_NumFlaggedTimerWorkListEntries == BattleIsTimerTaskActive()) {
+                BattleTearDownState();
+            }
+            break;
+        case 9:
+            func_800B9C78();
+            break;
+        case 8:
+            if (g_BattleActorSlotMode != 0 &&
+                g_NumFlaggedTimerWorkListEntries == BattleIsTimerTaskActive()) {
+                if (g_BattleAnimScriptHalted == 0) {
+                    break;
+                }
+                if (g_BattleActorSlotMode == 1) {
+                    ++g_BattleState->timer;
+                }
+                BattleReleaseAllActorSlots();
+            }
+            break;
+        case 2:
+            x = pSprite->position.parts.xWhole;
+            vec0.vx = x;
+            z = pSprite->position.parts.zWhole;
+            vec0.vy = z;
+            targetX = pSprite->targetPosition.x;
+            vec1.vx = targetX;
+            targetZ = pSprite->targetPosition.z;
+            vec1.vy = targetZ;
+            distance = BattleComputeVectorDistance2D(vec0, vec1);
+            if (g_BattleState->targetDistance < distance) {
+                BattleActorSnapToTargetAndFace(pSprite, pTarget);
+            } else {
+                g_BattleState->targetDistance = distance;
+            }
+            break;
+        case 6:
+            x = pSprite->position.parts.xWhole;
+            vec0.vx = x;
+            z = pSprite->position.parts.zWhole;
+            vec0.vy = z;
+            targetX = pSprite->targetPosition.x;
+            vec1.vx = targetX;
+            targetZ = pSprite->targetPosition.z;
+            vec1.vy = targetZ;
+            distance = BattleComputeVectorDistance2D(vec0, vec1);
+            if (g_BattleState->targetDistance < distance) {
+                BattleStepActorAlongPath(pSprite, pTarget);
+            } else {
+                g_BattleState->targetDistance = distance;
+            }
+            break;
+        case 4:
+            if (g_BattleState->pendingAction != 0) {
+                func_800B905C();
+            }
+            break;
+    }
+    D_800C3660 = 0;
+}
+*/
 void BattleLoadActorSlotAnimation(s32 index) {
     SpriteData* pSprite;
     u8* pBase;
