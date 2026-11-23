@@ -63,37 +63,37 @@ extern s32 AnimScriptStackPopU24(SpriteData* pSpriteData);
 extern u_char AnimScriptStackPopU8(SpriteData* pSpriteData);
 extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 
-Best 71.83% (1628 bytes against retail's 1612, 407 vs 437 instruction lines): the
-whole arm set is transcribed and instruction-for-instruction right, the residual is
-register naming plus 16 bytes. Ported from the func_800C11CC park in
-src/battle/main/misc35.c (the battle twin of this interpreter, same arm order) with
-the field SpriteData spelling of src/slus_006.64/system/temp1.c / animation_scripts.c.
-Measured levers, in the order they paid:
-  - the dispatch MUST be a goto loop (label + `goto dispatch`), not while/for:
-    a switch inside a loop construct gives loop.c the outer LOOP notes and it hoists
-    both `li 1` and the &g_AnimScriptCommandLengths lui/addiu into the function
-    preheader as s5/s6 -> 61.25% and a 0x30 frame. goto: 67.82%, frame 0x28 = retail's.
-  - 0x82's `step.y` needs its OWN local (stepY): as part of `count` it is the one
-    live range that spans calls, so `count` got a callee-saved register and every
-    other register shifted one up (67.82 -> 69.15). With it, pSpriteData=s1, code=s2
-    (u8), frames=s3, pArgs=s0 exactly as retail.
-  - the script-index tail wants the masked flags in a local FIRST (mask = flags &
-    0xF03FFFFF, then mask |= count << 22) and the count == 0 arm re-derives from that
-    local, not from the stored field: 71.78. The signed `(count >> 6) & 8` and
-    `(flags >> 3 & 1) ^ (flags >> 2 & 1)` coped 71.83.
-WHAT IS LEFT (16 bytes over, 2 instructions in the head, the rest in 0x8E/0xE2):
-  - head tail: retail emits `addu v1,v1,s3; sh v1,158(s1)` BEFORE `sw a1,168(s1)`;
-    gcc emits the flags store first whatever the statement order (tried both).
-  - retail cross-jumps the head's count == 0 tail's `or; sw` with 0x81's
-    `| 0x10000000` store (:L80024DBC); ours emits its own pair.
-  - 0x8E: retail's `j` puts the pSpriteBytecode = NULL store in its delay slot, ours
-    does not.
-  - 0xE2: retail computes SCRIPT_JUMP_AT(pArgs) before the PushU24 call and re-signs
-    it after; with an `offset` local we get that, but the arm then also needs the
-    post-call add re-formed (ours cross-jumps into 0xE1's tail instead).
-  - 0xBE: retail loads flags_0xAC then the 0x3C word; gcc loads them the other way up.
-Not tried: the permuter (the body is below its 85% bar). This is the same wall the
-misc35 twin parked on (67.82 there) - one extra callee-saved register.
+// Best 71.83% (1628 bytes against retail's 1612, 407 vs 437 instruction lines): the
+// whole arm set is transcribed and instruction-for-instruction right, the residual is
+// register naming plus 16 bytes. Ported from the func_800C11CC park in
+// src/battle/main/misc35.c (the battle twin of this interpreter, same arm order) with
+// the field SpriteData spelling of src/slus_006.64/system/temp1.c / animation_scripts.c.
+// Measured levers, in the order they paid:
+//   - the dispatch MUST be a goto loop (label + `goto dispatch`), not while/for:
+//     a switch inside a loop construct gives loop.c the outer LOOP notes and it hoists
+//     both `li 1` and the &g_AnimScriptCommandLengths lui/addiu into the function
+//     preheader as s5/s6 -> 61.25% and a 0x30 frame. goto: 67.82%, frame 0x28 = retail's.
+//   - 0x82's `step.y` needs its OWN local (stepY): as part of `count` it is the one
+//     live range that spans calls, so `count` got a callee-saved register and every
+//     other register shifted one up (67.82 -> 69.15). With it, pSpriteData=s1, code=s2
+//     (u8), frames=s3, pArgs=s0 exactly as retail.
+//   - the script-index tail wants the masked flags in a local FIRST (mask = flags &
+//     0xF03FFFFF, then mask |= count << 22) and the count == 0 arm re-derives from that
+//     local, not from the stored field: 71.78. The signed `(count >> 6) & 8` and
+//     `(flags >> 3 & 1) ^ (flags >> 2 & 1)` coped 71.83.
+// WHAT IS LEFT (16 bytes over, 2 instructions in the head, the rest in 0x8E/0xE2):
+//   - head tail: retail emits `addu v1,v1,s3; sh v1,158(s1)` BEFORE `sw a1,168(s1)`;
+//     gcc emits the flags store first whatever the statement order (tried both).
+//   - retail cross-jumps the head's count == 0 tail's `or; sw` with 0x81's
+//     `| 0x10000000` store (:L80024DBC); ours emits its own pair.
+//   - 0x8E: retail's `j` puts the pSpriteBytecode = NULL store in its delay slot, ours
+//     does not.
+//   - 0xE2: retail computes SCRIPT_JUMP_AT(pArgs) before the PushU24 call and re-signs
+//     it after; with an `offset` local we get that, but the arm then also needs the
+//     post-call add re-formed (ours cross-jumps into 0xE1's tail instead).
+//   - 0xBE: retail loads flags_0xAC then the 0x3C word; gcc loads them the other way up.
+// Not tried: the permuter (the body is below its 85% bar). This is the same wall the
+// misc35 twin parked on (67.82 there) - one extra callee-saved register.
 /*
 void func_800248D4(SpriteData* pSpriteData) {
     u8* pArgs;
