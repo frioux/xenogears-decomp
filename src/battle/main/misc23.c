@@ -545,7 +545,20 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
    two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers set by
    BattleSetColorSources. Every store reloads its base global, so the destination
    expression has to be written out in full at each store - a pointer local
-   collapses the loads into one. *//*
+   collapses the loads into one.
+   ROUND 420: the parked body no longer compiles against this file. line 10 declares
+   g_BattlePartPrimBuffers as the SCALAR 'extern u8 *g_BattlePartPrimBuffers' (needed
+   by the func_800A5EB4 park above) where the body needs the ARRAY extern, and line
+   707 declares g_BattleSpriteRenderData as void * where the body needs u8 *. Measured
+   with casts at every site instead - ((u8 *)g_BattleSpriteRenderData)[K] and
+   ((u8 *)g_BattlePartPrimBuffers[0])[K] - the body is 82.50 at 253 insns / 1012 bytes,
+   i.e. the cast spelling costs 21 instructions and the 98.71 figure only reproduces
+   with the array extern. The residual it was measured on is the one below (30 addu
+   operand orders), and per levers a-addu-index-first-is-the-legitimiser and
+   b-inplace-flips-pointer-base-but-hoists-mem-base the 15 g_BattleSpriteRenderData
+   sites reach retail's order with the in-place '+= i * 0x24' form while the 15
+   g_BattlePartPrimBuffers[0] sites cannot, so the ceiling here is about 99.58 and this
+   is not a hand job. *//*
 void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
@@ -1440,6 +1453,18 @@ extern u8 D_800C3509[];
    retail's sll does), 'pTail->fileIndex1' for the if-arm's two stores (worse: it
    folds the cursor add into an in-place addiu and needs a second copy of pEntry,
    93.66 at 376).
+   ROUND 420 MARGIN, and it settles both mirrors (lever a-a-near-miss-allocno-quotient):
+   from -dl, pEntry is 6 refs across 32 insns and pTail 10 across 25, a 3.2x gap, and
+   the gap is the compiler's: local-alloc coalesces the 'pTail = pEntry' copy, so the
+   pEntry->fileIndex2/pBuffer2 stores are emitted on the pTail pseudo where retail
+   keeps them on pEntry's own. index 3 refs across 12 against pTable 8 across 15 is a
+   6x gap. Each contest would need the loser's ref count to double or triple, which no
+   spelling of this body does - do not re-brief either pair.
+   Also measured this round: swapping the two pointer declarations changes nothing
+   (94.73); dropping the early copy (first two stores through pEntry, pTail first
+   defined at the +0x10 cursor) puts pEntry in retail's $s2 but drops pTail to $v1,
+   count to $s3 and the frame by 8 bytes - 96.15 at 364 bytes / 91 insns, so retail's
+   early 'move s3,s2' is load-bearing and that is not a lead either.
    -dg dump: tools/gcc-2.6.0-psx/cc1 -O2 -G0 <unit cc_flags> -dg build/src/battle/main/misc23.c.i *//*
 void func_800A9540(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
