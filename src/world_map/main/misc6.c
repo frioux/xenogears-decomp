@@ -198,7 +198,7 @@ extern u8 *g_WorldMapWorkBuffer2;
 extern u8 *g_WorldMapTilePrimBuffer;
 extern u8 *g_WorldMapTilePrimBufferCopy;
 extern u8 *g_WorldMapDecompressedMapData;
-extern s16 g_WorldMapViewRotationY;
+extern s16 g_WorldMapViewRotationY[];
 extern u16 g_NextMapId;
 extern u16 g_NextMapRotationY;
 extern u16 g_NextMapFlags;
@@ -570,7 +570,7 @@ void WorldMapExitToMap1A1(void) {
     g_NextMapId = 0x1A1;
     unkValue = g_WorldMapAreaExitModes[nIndex];
     g_WorldMapExitFlag = 1;
-    g_NextMapRotationY = (u16)g_WorldMapViewRotationY;
+    g_NextMapRotationY = (u16)g_WorldMapViewRotationY[0];
     g_NextMapFlags = unkValue;
 }
 
@@ -830,41 +830,48 @@ int func_8007E450(int index) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
-/* 86.92% (1716 bytes against retail's 1752) - CONFIRMED in round 185, and the
-   body compiles as it stands. It can never link: this stub's .s owns
-   jtbl_8006FE94 and jtbl_8006FEF4 (grep dlabel), so converting it drops 36
-   bytes of jump tables and the overlay shifts. Leave it INCLUDE_ASM.
-   Re-measured in round 163: the body
-   compiles now that the extern says `int func_8007E4E4(int)` - it returns 1,
-   and the old `extern void` made the park a hard error, which is why the sweep
-   scored it ERROR instead of 86.92%. BLOCKED (owns jtbl_8006FE94/FEF4), so do
-   not convert it. Two switches on
-   pActor->command - 1 (24 cases) and pActor->state (26 cases), then the rand
-   jitter tail. Structure, case order (retail emits the bodies in source order)
-   and both dispatch chains agree; the levers that got it here:
-   - switch 2 needs an explicit `case 0: break;` - without it gcc subtracts the
-     minimum case (1) and emits sltiu 25, retail tests the raw lh against 26.
-   - g_WorldMapCameraTarget/BBB4 as `extern s32 X[]` with X[0] RMW: retail materialises the
-     address into a register (lw/sw off $a3/$a0) where the scalar form emits a
-     lui/$at macro store. Same trick for g_WorldMapViewRotationY (already switched to the
-     array form for this attempt).
-   - unk5C/unk7C must be s32 (retail sra/slti, not srl/sltiu).
-   - case 16 stores 0x8000 to unk7C (0x7C), case 24 stores 0x10000 to
-     unk5C[1] (0x60) - easy to confuse, they share the else block.
-   Remaining deltas, all one family: (1) cases 0,1,2,3,5,16 each keep a
-   `sh zero,0x4(s0)` (command = 0) BEFORE their own BD38 store; ours emits that
-   store after the BD38 store, so cross-jumping folds it into the shared
-   BD3A/BD3C tail. Moving `pActor->command = 0;` earlier/later in the case body
-   is the lever to try - the `do { } while (0);` grouping that closed the
-   scheduled-stores family in this file is the obvious next try. (2) In case 1's
-   clamp branch retail stores g_WorldMapCameraTargetZ before `sh v0,0x20(s0)`, ours the other
-   way round. (3) case 3's second test is `bnez` to the else with
-   `lui a1,0xFFFB3C00` in the delay slot, ours is `beqz` with the lui before the
-   branch. (4) case 4 and case 25 order the unk5C[0]/unk60 load against the lhu
-   of g_WorldMapViewRotationY differently.
-   The note on WorldMapUpdateCameraSlot (same shape; 80.11% in round 312) still applies for
-   the tail: the u16 reload of 0xA2 is real, keep `*(u16 *)(pScratch + 0xA2)`.
-/* s32 func_8007E4E4(int index) {
+/* 91.44% (1720 bytes against retail's 1752), round 431. The old "BLOCKED, it can
+   never link" note is obsolete: main/misc6 owns its rodata range now
+   (config/world_map.yaml: [0x29C, .rodata, main/misc6]) and C switch tables are
+   emitted in file order, so this body's two tables come out at .rodata+0x108 and
+   +0x168 - exactly retail's jtbl_8006FE94 and jtbl_8006FEF4 (the first 0x108
+   bytes are WorldMapUpdateSlotStateMachine's table). The residual is code, not
+   layout, so this is worth another round.
+   Both dispatch chains (24 and 26 entries, including the explicit `case 0: break;`
+   the second switch needs so gcc tests the raw lh against 26) and every case body
+   already agree. The 32 missing bytes are one cross-jump merge and two reorg
+   sinks, all with the source already in retail's order:
+   (1) cases 1 and 16 reach the same corner (X=0x1F9E000, Z=0x5998000), so gcc
+       merges their tails - `sw Z` and the `j`/`sw v0,0x7C(s0)` - into one block
+       (ours at +0x270). Retail keeps two copies, which is 4 of the 8 missing
+       insns, and the merge is why our state store `sh v0,0x20(s0)` ends up ABOVE
+       the Z store instead of below it. `volatile` on that Z store changes nothing
+       (measured), so the two blocks still compare equal.
+   (2) state 3's block: retail loads X and stores it before the Y and Z loads
+       (`lw v1,0(t0) / addu / slt / sw v1,0(t0) / lui Y / lw / lui Z / lw / add /
+       add / sw Y / sw Z`); ours hoists the Z load and its add above the slt, so
+       the two stores land in another order. Statement order in the body is
+       already X, Y, Z.
+   (3) state 3's tail: ViewRotationY wants the address in a register, CameraRot
+       does not; ours also keeps CameraRot's address in a register there (4 insns
+       either way, registers differ).
+   Levers measured THIS round, from the 86.92% park:
+   - `extern s16 g_WorldMapViewRotationY[]` + `[0]` RMW: retail's read/write of it
+     is `lui a0,%hi / addiu a0,%lo / lhu v0,0(a0)` ... `sh v0,0(a0)`, not the
+     lui/$at macro pair. 85.25 -> 90.97. The two other users in this file
+     (WorldMapExitToMap84, WorldMapExitToMap1A1) stay 100.00% with the array form.
+   - g_WorldMapCameraRot must STAY an array extern: the scalar form measures
+     88.21 (cases 1/16/24 want its address in a register for `+= scale >> 12`).
+   - state 3 (not 1/16/24) has the corner test `Z <= 0x4AF1FFF`: retail emits
+     `slt v0,0x4AF1FFF,Z; bnez -> scroll`, the old park's `>` emitted `beqz`.
+     90.97 -> 91.31.
+   - state 3's corner X store needs the file's volatile idiom
+     (`*(volatile s32 *)&g_WorldMapCameraTarget[0]`, as in WorldMapInitGroup1Actor)
+     or reorg sinks it below the Z store: 91.31 -> 91.44.
+   Still unsolved: (1) above, and the reason it cannot be spelled away is that the
+   merged instructions are identical, not similar.
+
+s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s16 nState;
@@ -875,43 +882,43 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
     case 0:
         g_WorldMapCameraHeight = 0x500000;
         pActor->command = 0;
-        g_WorldMapCameraRot = 0x150;
-        g_WorldMapViewRotationY = 0xF50;
+        g_WorldMapCameraRot[0] = 0x150;
+        g_WorldMapViewRotationY[0] = 0xF50;
         g_WorldMapViewRotationZ = 0;
         break;
     case 1:
         g_WorldMapCameraHeight = 0x4D0000;
         pActor->command = 0;
-        g_WorldMapCameraRot = 0xC60;
-        g_WorldMapViewRotationY = 0x380;
+        g_WorldMapCameraRot[0] = 0xC60;
+        g_WorldMapViewRotationY[0] = 0x380;
         g_WorldMapViewRotationZ = 0;
         break;
     case 2:
         g_WorldMapCameraHeight = 0x400000;
         pActor->command = 0;
-        g_WorldMapCameraRot = 0x30;
-        g_WorldMapViewRotationY = 0x160;
+        g_WorldMapCameraRot[0] = 0x30;
+        g_WorldMapViewRotationY[0] = 0x160;
         g_WorldMapViewRotationZ = 0;
         break;
     case 3:
         g_WorldMapCameraHeight = 0x400000;
         pActor->command = 0;
-        g_WorldMapCameraRot = 0x30;
-        g_WorldMapViewRotationY = 0x960;
+        g_WorldMapCameraRot[0] = 0x30;
+        g_WorldMapViewRotationY[0] = 0x960;
         g_WorldMapViewRotationZ = 0;
         break;
     case 4:
         pActor->state = 1;
         pActor->command = 0;
-        pActor->unk5C[0] = -0x8000;
+        pActor->scale = -0x8000;
         break;
     case 5:
         pActor->state = 3;
         pActor->unk7C = 0x1000;
         g_WorldMapCameraHeight = 0x200000;
         pActor->command = 0;
-        g_WorldMapCameraRot = -0x58;
-        g_WorldMapViewRotationY = 0xE58;
+        g_WorldMapCameraRot[0] = -0x58;
+        g_WorldMapViewRotationY[0] = 0xE58;
         g_WorldMapViewRotationZ = 0;
         break;
     case 6:
@@ -922,26 +929,26 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
     case 15:
         pActor->state = 0x10;
         pActor->command = 0;
-        pActor->unk5C[0] = -0x8000;
+        pActor->scale = -0x8000;
         break;
     case 16:
         pActor->state = 0x10;
         pActor->unk7C = 0x1000;
         g_WorldMapCameraHeight = 0x400000;
         pActor->command = 0;
-        g_WorldMapCameraRot = 0xE0;
-        g_WorldMapViewRotationY = 0x798;
+        g_WorldMapCameraRot[0] = 0xE0;
+        g_WorldMapViewRotationY[0] = 0x798;
         g_WorldMapViewRotationZ = 0;
         break;
     case 23:
         pActor->state = 0x18;
         pActor->command = 0;
-        pActor->unk5C[0] = -0x8000;
+        pActor->scale = -0x8000;
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        func_80096F18(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        func_80096F18(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot[0]);
     }
     switch (pActor->state) {
     case 0:
@@ -959,12 +966,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        g_WorldMapViewRotationY -= 8;
-        g_WorldMapCameraRot += pActor->unk5C[0] >> 12;
-        pActor->unk5C[0] += 0x300;
+        g_WorldMapViewRotationY[0] -= 8;
+        g_WorldMapCameraRot[0] += pActor->scale >> 12;
+        pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
-        if (g_WorldMapCameraRot >= 0x81) {
-            g_WorldMapCameraRot = 0x80;
+        if (g_WorldMapCameraRot[0] >= 0x81) {
+            g_WorldMapCameraRot[0] = 0x80;
         }
         break;
     case 2:
@@ -977,25 +984,25 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         g_WorldMapCameraTarget[0] += 0xFFFB3C00;
         g_WorldMapCameraTargetY += 0xFF80;
         g_WorldMapCameraTargetZ += 0xFFF9AA80;
-        if (g_WorldMapCameraTarget[0] <= 0x1497FFF && g_WorldMapCameraTargetZ > 0x4AF1FFF) {
-            g_WorldMapCameraTarget[0] = 0x1498000;
+        if (g_WorldMapCameraTarget[0] <= 0x1497FFF && g_WorldMapCameraTargetZ <= 0x4AF1FFF) {
+            *(volatile s32 *)&g_WorldMapCameraTarget[0] = 0x1498000;
             g_WorldMapCameraTargetZ = 0x4AF2000;
             pActor->state = 4;
-            pActor->unk5C[0] = 0x20000;
+            pActor->scale = 0x20000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFB3C00;
             g_WorldMapScrollZ += 0xFFF9AA80;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapCameraHeight += 0x20000;
-        g_WorldMapViewRotationY += 0x20;
-        g_WorldMapCameraRot -= 4;
+        g_WorldMapViewRotationY[0] += 0x20;
+        g_WorldMapCameraRot[0] -= 4;
         break;
     case 4:
-        g_WorldMapViewRotationY += pActor->unk5C[0] >> 12;
-        pActor->unk5C[0] -= 0x800;
-        if (pActor->unk5C[0] < 0) {
-            pActor->unk5C[0] = 0;
+        g_WorldMapViewRotationY[0] += pActor->scale >> 12;
+        pActor->scale -= 0x800;
+        if (pActor->scale < 0) {
+            pActor->scale = 0;
             pActor->state = 0;
         }
         break;
@@ -1019,12 +1026,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        g_WorldMapViewRotationY -= 8;
-        g_WorldMapCameraRot += pActor->unk5C[0] >> 12;
-        pActor->unk5C[0] += 0x300;
+        g_WorldMapViewRotationY[0] -= 8;
+        g_WorldMapCameraRot[0] += pActor->scale >> 12;
+        pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
-        if (g_WorldMapCameraRot >= 0x81) {
-            g_WorldMapCameraRot = 0x80;
+        if (g_WorldMapCameraRot[0] >= 0x81) {
+            g_WorldMapCameraRot[0] = 0x80;
         }
         break;
     case 17:
@@ -1040,31 +1047,31 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             g_WorldMapCameraTarget[0] = 0x2152000;
             g_WorldMapCameraTargetZ = 0x5AA3000;
             pActor->state = 0x19;
-            pActor->unk5C[1] = 0x10000;
+            pActor->unk60[0] = 0x10000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        g_WorldMapViewRotationY -= 8;
-        g_WorldMapCameraRot += pActor->unk5C[0] >> 12;
-        pActor->unk5C[0] += 0x300;
+        g_WorldMapViewRotationY[0] -= 8;
+        g_WorldMapCameraRot[0] += pActor->scale >> 12;
+        pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
-        if (g_WorldMapCameraRot >= 0x81) {
-            g_WorldMapCameraRot = 0x80;
+        if (g_WorldMapCameraRot[0] >= 0x81) {
+            g_WorldMapCameraRot[0] = 0x80;
         }
         break;
     case 25:
-        g_WorldMapViewRotationY -= pActor->unk5C[1] >> 12;
-        pActor->unk5C[1] -= 0x200;
-        if (pActor->unk5C[1] < 0) {
-            pActor->unk5C[1] = 0;
+        g_WorldMapViewRotationY[0] -= pActor->unk60[0] >> 12;
+        pActor->unk60[0] -= 0x200;
+        if (pActor->unk60[0] < 0) {
+            pActor->unk60[0] = 0;
         }
         break;
     }
     nRandom = rand() % (pActor->unk7C >> 12) - (pActor->unk7C >> 13);
     *(u16 *)(pScratch + 0xA2) = nRandom;
-    D_8009BD42 += nRandom;
+    D_8009BD42[0] += nRandom;
     D_8009BD4A += *(u16 *)(0xA2 + pScratch);
     return 1;
 }
@@ -1463,7 +1470,7 @@ void WorldMapExitToMap84(void) {
     HeapFree(g_WorldMapTilePrimBufferCopy);
     HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
-    unkValue = (u16)g_WorldMapViewRotationY;
+    unkValue = (u16)g_WorldMapViewRotationY[0];
     g_NextMapId = 0x84;
     g_NextMapFlags = 2;
     g_WorldMapExitFlag = 1;
