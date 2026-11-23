@@ -5,6 +5,9 @@
 // Played when the pressed menu event has no command bound to it.
 #define BATTLE_SOUND_MENU_DENIED 0x4F
 
+// A slot's targetSlot when the command being built has no target yet.
+#define BATTLE_SLOT_NONE 0xFF
+
 // Candidate scan order for target selection.
 typedef struct {
     /* 0x0 */ u8 cursor;     // next entry of order[] to consider
@@ -150,7 +153,7 @@ void func_8008115C(u8 arg0) {
     case 4:
     case 6:
     case 7:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].targetSlot == 0xFF) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].targetSlot == BATTLE_SLOT_NONE) {
             BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             break;
         }
@@ -601,7 +604,7 @@ void func_800820A4(u8 arg0) {
     case 4:
     case 6:
     case 7:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].targetSlot == 0xFF) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].targetSlot == BATTLE_SLOT_NONE) {
             BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             break;
         }
