@@ -1109,31 +1109,34 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
     }
 }
-/* 79.19% (1496 bytes against retail's 1588). Structure recovered from the asm and
-   compiles: the char-4/primState guard, places[] = {100, 10}, the character-vs-gear
-   weapon-id pick (characters[].extraWeaponIds[0]/[3] + the 0x2286 quantities, or
-   gears[characters[].gearId].extraWeaponIds[] + the 0x22B6 ones), the per-slot text
-   buffer + tile/name/strip uploads, the two hundreds/tens digit passes dividing
-   counts[] by places[] and subtracting, the tensRect ones digit from % 10, the free
-   loop, and the two BattleSetPolyFT4Rect calls + BattleInitSlotGraphics tail.
-   What is left, all measured:
-   - retail's frame is 0xB0 with bufs[] at 0x50; there is an unreferenced 8-byte local
-     at 0x48 (between stripRect at 0x40 and bufs) that this body does not declare, so
-     every frame displacement here is 8 low.
-   - retail keeps &bufs[i] in s0 and &g_BattlePrimStartIndex in s0 in the tail
-     (`lui %hi / addiu %lo` once, then `lw 0x0(s0)` twice); this body spills
-     `&bufs[0]` to a stack slot and loads it back, and re-forms the prim-start address
-     per use. Both are the address-in-a-register family; the array-extern spelling was
-     already used for both and did not change it.
-   - retail spills textY to 0x70 with a 32-bit `sw` and reads it back with `lhu`
-     (so the slot is shared by two modes), and has a second offset copy (0x78) of the
-     counts[] byte offset that this body does not reproduce.
-   Declaring a spare 8-byte local plus the second offset copy is the next thing to try;
-   a permuter run from this body is the other. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
+/* 92.05% (1552 bytes against retail's 1588, 388 insns against 397). Everything
+   structural is right and measured: the char-4/unkB7 guard, places[] = {100, 10},
+   the character-vs-gear weapon-id pick (characters[].extraWeaponIds[0]/[3] with the
+   0x2286 quantities, gears[characters[].gearId] with the 0x22B6 ones), the two
+   text-buffer passes, both BattleLoadImageAndSync uploads per row, the / and % 10
+   digit passes with the `drawn` latch, the free loop, and the tail written with the
+   house pool idiom (`g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28`,
+   spelled inline at every use so retail's per-use reload comes out - writing it
+   through pPrims/primStart locals cost 22 instructions and 79.19%).
+   Residual: retail's frame is 0xB0 and spills THREE more 8-byte slots than this
+   body (textY at 0x70 as a 32-bit sw read back with lhu inside the digit loop, and
+   two 4-byte count-offset slots at 0x78/0x80 where this body keeps countOfs in a
+   register), so every one of the 9 missing instructions is spill/reload traffic and
+   the size is 36 bytes short. All 9 callee-saved registers are live in retail
+   (s7 = textY, fp = rowY, s0 = digit across the call); this body has one spare.
+   Tried and measured, all unchanged or worse: a `s32 ofs = countOfs` copy for the
+   digit loop (copy-propagated away, 92.05% identical), declaring a spare 8-byte
+   local between stripRect and bufs (it does get a slot and shifts bufs/places/
+   weaponIds/counts onto retail's exact offsets, but the frame then overflows by 8
+   and the score drops to 87.54%), and a permuter run (RESULT PERMUTER_BETTER,
+   4267 -> 2659) that only produced the declaration swap below, worth 87.56 -> 92.05.
+   The 87.56% variant that keeps the exact 1588-byte size is a git commit
+   (d92ed557) if the next worker wants to attack the frame from the other side. */
 /*
 void func_80093B08(u8 arg0) {
-    RECT nameRect;
     RECT tensRect;
+    RECT nameRect;
     RECT digitRect;
     RECT tileRect;
     RECT stripRect;
@@ -1141,116 +1144,107 @@ void func_80093B08(u8 arg0) {
     u16 places[2];
     u8 weaponIds[2];
     u16 counts[2];
-    u16 textY;
+    s32 textY;
+    s32 rowY;
     s32 countOfs;
     s32 i;
     s32 j;
     s32 digit;
     s32 digitX;
     u8 drawn;
-    void *pBuf;
-    u8 *pStr;
-    u8 *pPrims;
-    s32 primStart;
-    s32 rowY;
 
-    if (g_BattleActorCharIds[arg0] != 4) {
-        return;
-    }
-    if (g_BattleDisplayState->unkB7 != 0) {
-        return;
-    }
-    places[0] = 100;
-    places[1] = 10;
-    if (g_BattleSlotFlags[arg0 * 8] == 0) {
-        weaponIds[0] = g_GameState.characters[g_BattleActorCharIds[arg0]].extraWeaponIds[0];
-        weaponIds[1] = g_GameState.characters[g_BattleActorCharIds[arg0]].extraWeaponIds[3];
-        counts[0] = ((u8 *)&g_GameState)[0x2286 + weaponIds[0]];
-        counts[1] = ((u8 *)&g_GameState)[0x2286 + weaponIds[1]];
-    } else {
-        weaponIds[0] = g_GameState.gears[g_GameState.characters[g_BattleActorCharIds[arg0]].gearId]
-                           .extraWeaponIds[0];
-        weaponIds[1] = g_GameState.gears[g_GameState.characters[g_BattleActorCharIds[arg0]].gearId]
-                           .extraWeaponIds[3];
-        counts[0] = ((u8 *)&g_GameState)[0x22B6 + weaponIds[0]];
-        counts[1] = ((u8 *)&g_GameState)[0x22B6 + weaponIds[1]];
-    }
-    BattleAllocPacketPrimitives();
-    i = 0;
-    BattleLoadActionRowGraphics();
-    g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
-    bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
-    textY = 0x102;
-    rowY = 0x100;
-    countOfs = 0;
-    for (i = 0; i < 2; i++) {
-        pBuf = BattleAllocTextBuffer(0x1B);
-        bufs[i] = pBuf;
-        bzero(pBuf, 0x30C);
-        tileRect.x = 0x380;
-        tileRect.y = rowY;
-        tileRect.w = 0x1B;
-        tileRect.h = 0x10;
-        BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
-        drawn = 0;
-        if (weaponIds[i] != 0) {
-            pStr = GetWeaponName(weaponIds[i]);
-            SystemRenderStringEntry(pStr, bufs[i], 0x1B, 0);
-            nameRect.x = 0x380;
-            nameRect.y = textY;
-            nameRect.w = 0x1E;
-            nameRect.h = 0xD;
-            BattleLoadImageAndSync(&nameRect, bufs[i]);
+    if (g_BattleActorCharIds[arg0] == 4 && g_BattleDisplayState->unkB7 == 0) {
+        places[0] = 100;
+        places[1] = 10;
+        if (g_BattleSlotFlags[arg0 * 8] == 0) {
+            weaponIds[0] = g_GameState.characters[g_BattleActorCharIds[arg0]].extraWeaponIds[0];
+            weaponIds[1] = g_GameState.characters[g_BattleActorCharIds[arg0]].extraWeaponIds[3];
+            counts[0] = ((u8 *)&g_GameState)[0x2286 + weaponIds[0]];
+            counts[1] = ((u8 *)&g_GameState)[0x2286 + weaponIds[1]];
+        } else {
+            weaponIds[0] = g_GameState.gears[g_GameState.characters[g_BattleActorCharIds[arg0]].gearId]
+                               .extraWeaponIds[0];
+            weaponIds[1] = g_GameState.gears[g_GameState.characters[g_BattleActorCharIds[arg0]].gearId]
+                               .extraWeaponIds[3];
+            counts[0] = ((u8 *)&g_GameState.unk22B6)[weaponIds[0]];
+            counts[1] = ((u8 *)&g_GameState.unk22B6)[weaponIds[1]];
         }
-        digitX = 0x3C0;
-        stripRect.x = 0x3C0;
-        stripRect.y = rowY;
-        stripRect.w = 0x1B;
-        stripRect.h = 0x10;
-        BattleLoadImageAndSync(&stripRect, g_BattleTextWorkspace);
-        for (j = 0; j < 2; j++) {
-            digitRect.x = digitX;
-            digitRect.y = textY;
-            digitRect.w = 6;
-            digitRect.h = 0xD;
-            digit = *(u16 *)((u8 *)counts + countOfs) / places[j];
-            if ((u8)digit != 0 || drawn != 0) {
-                BattleLoadImageAndSync(&digitRect, g_BattleDigitImageBuffers[(u8)digit]);
-                *(u16 *)((u8 *)counts + countOfs) -= (u8)digit * places[j];
-                drawn = 1;
-            } else {
-                BattleLoadImageAndSync(&digitRect, g_BattleTextWorkspace);
+        BattleAllocPacketPrimitives();
+        BattleLoadActionRowGraphics();
+        g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
+        bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
+        textY = 0x102;
+        rowY = 0x100;
+        countOfs = 0;
+        for (i = 0; i < 2; i++) {
+            bufs[i] = BattleAllocTextBuffer(0x1B);
+            bzero(bufs[i], 0x30C);
+            tileRect.x = 0x380;
+            tileRect.y = rowY;
+            tileRect.w = 0x1B;
+            tileRect.h = 0x10;
+            BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
+            drawn = 0;
+            if (weaponIds[i] != 0) {
+                SystemRenderStringEntry(GetWeaponName(weaponIds[i]), bufs[i], 0x1B, 0);
+                nameRect.x = 0x380;
+                nameRect.y = textY;
+                nameRect.w = 0x1E;
+                nameRect.h = 0xD;
+                BattleLoadImageAndSync(&nameRect, bufs[i]);
             }
-            digitX += 2;
+            digitX = 0x3C0;
+            stripRect.x = 0x3C0;
+            stripRect.y = rowY;
+            stripRect.w = 0x1B;
+            stripRect.h = 0x10;
+            BattleLoadImageAndSync(&stripRect, g_BattleTextWorkspace);
+            for (j = 0; j < 2; j++) {
+                digitRect.x = digitX;
+                digitRect.y = textY;
+                digitRect.w = 6;
+                digitRect.h = 0xD;
+                digit = *(u16 *)((u8 *)counts + countOfs) / places[j];
+                if ((u8)digit != 0 || drawn != 0) {
+                    BattleLoadImageAndSync(&digitRect, g_BattleDigitImageBuffers[(u8)digit]);
+                    *(u16 *)((u8 *)counts + countOfs) -= (u8)digit * places[j];
+                    drawn = 1;
+                } else {
+                    BattleLoadImageAndSync(&digitRect, g_BattleTextWorkspace);
+                }
+                digitX += 2;
+            }
+            tensRect.x = 0x3C4;
+            tensRect.y = textY;
+            tensRect.w = 6;
+            tensRect.h = 0xD;
+            BattleLoadImageAndSync(&tensRect, weaponIds[i] != 0
+                                                    ? g_BattleDigitImageBuffers[*(u16 *)((u8 *)counts + countOfs) % 10]
+                                                    : g_BattleTextWorkspace);
+            textY += 0x10;
+            rowY += 0x10;
+            countOfs += 2;
         }
-        tensRect.x = 0x3C4;
-        tensRect.y = textY;
-        tensRect.w = 6;
-        tensRect.h = 0xD;
-        BattleLoadImageAndSync(&tensRect, weaponIds[i] != 0
-                                                ? g_BattleDigitImageBuffers[*(u16 *)((u8 *)counts + countOfs) % 10]
-                                                : g_BattleTextWorkspace);
-        textY += 0x10;
-        rowY += 0x10;
-        countOfs += 2;
+        for (i = 0; i < 2; i++) {
+            HeapFree(bufs[i]);
+        }
+        HeapFree(g_BattleTextWorkspace);
+        ((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28)))->clut =
+            g_SystemPalette1;
+        BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                         ((s32 *)g_BattlePrimStartIndex)[0] * 0x28),
+                             0xA0, 0xAC, 0, 0, 0x60, 0x20);
+        BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                         (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0xA0)),
+                             0x104, 0xAC, 0, 0, 0x18, 0x20);
+        g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
+        g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
+        BattleInitSlotGraphics(0, 0x98, 0xA8, 0x8C, 0x28, 0, 1);
+        g_BattleDisplayState->unkB7 = 5;
+        ((u8 *)g_BattleDisplayState)[0x8E] = 1;
     }
-    for (i = 0; i < 2; i++) {
-        HeapFree(bufs[i]);
-    }
-    HeapFree(g_BattleTextWorkspace);
-    pPrims = g_BattleGraphicsWork->pPacketPrims;
-    primStart = ((s32 *)g_BattlePrimStartIndex)[0];
-    *(u16 *)(pPrims + primStart * 0x28 + 0xE) = g_SystemPalette1;
-    BattleSetPolyFT4Rect((POLY_FT4 *)(pPrims + primStart * 0x28), 0xA0, 0xAC, 0, 0, 0x60, 0x20);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(pPrims + primStart * 0x28 + 0xA0), 0x104, 0xAC, 0, 0, 0x18, 0x20);
-    pPrims[0x668] = g_BattlePrimStartIndex[0];
-    pPrims[0x669] = 1;
-    BattleInitSlotGraphics(0, 0x98, 0xA8, 0x8C, 0x28, 0, 1);
-    g_BattleDisplayState->unkB7 = 5;
-    ((u8 *)g_BattleDisplayState)[0x8E] = 1;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
 void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     if (g_BattleActorCharIds[arg0] == 4) {
         g_BattleDisplayState->unkB7 = 0;
