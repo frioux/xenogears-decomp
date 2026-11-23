@@ -72,49 +72,13 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
 void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDirentCount, s32* pTexPageId, s32* pClutX, s32* pClutY, s32* pTexPageX, s32* pTexPageY);
 
-/* PARKED 97.08% under gcc-2.6.0-psx (596 bytes, retail's exact size and its
-   150-instruction count) and 87.48% under the unit's Default 2.7.2 (604 bytes,
-   151 insns).
-   PRESET_260 menu/main/misc8 func_801D7CFC 97.08 87.48 - every already-matched C
-   function of the unit is also 100.00 under 2.6.0 (MenuDrawStatTable,
-   MenuMaxStatValue, MenuOpenCardEvents, MenuSetStatBarQuadColors,
-   MenuSetStatBarTileColors), so a unit switch makes this body a candidate.
-   What the body is: the gear window's two window quads and the selected prim
-   pair. The 0x2AED store is UNCONDITIONAL in retail - it sits in the beqz delay
-   slot, so it runs when arg1 is 0 too - then arg1 guards the rest.
-   Four things closed the gap from the old 78.55 park:
-   1. the 0x2AED store moved above the `if (arg1 != 0)` (retail's pGearWindowPrims
-      load and that store precede the beqz): 78.55 -> 85.60 under 2.7.2, and
-      87.95 -> 92.78 under 2.6.0.
-   2. the MenuSetPolySemiTransGrey address needs the 0x1E00 the old park omitted;
-      retail has the `addiu a0,a0,0x1E00` for it.
-   3. the loop's prim address needs pBase = (u8*)g_Menu->pGearWindowPrims and then
-      pEntry = pBase + off (lever b-pointer-local-holding-base), which is what
-      gives retail's base-first `addu v1,v1,v0`; the single-expression spelling
-      stays index-first.
-   4. `u_char selected`, not s32: with u_char gcc masks arg2 first and emits
-      retail's `sltiu a2,a2,1` + `move s4,a2`: 93.65 -> 97.08 under 2.6.0.
-   Residual under 2.6.0: ONE construct, the position of the
-   g_Menu->pGearWindowPrims load in the two tail prim-color statements. Retail
-   loads it at insn 99, i.e. BEFORE the *0x28 shift chain of the `tpage |= 0x20`
-   read-modify-write, and forms `addu a0,a0,v1` base-first; the compile loads it
-   one slot later (between the addu and the last sll) and keeps `addu v1,v1,v0`
-   index-first. The following byte store is the mirror image: retail loads the
-   base after the last sll, the compile one slot earlier. Everything else - frame
-   0x38, saves, the whole loop, the call, the two trailing stores - is identical,
-   and both are 150 instructions, so this is an instruction-order residual, not a
-   size one.
-   Tried under 2.6.0 and rejected: an embedded-assignment temp for the base in
-   either store (96.78 with one shared temp name - it also perturbs the loop's
-   allocation - and 97.08 with a fresh one), a POLY_FT4 typed tpage field
-   (identical), the POLY_FT4 array subscript form [0xC0 + ctx + sel*2] for the
-   three byte stores (identical code), s32 selected (93.65), dropping pBase
-   (92.78), an off local alone (92.78).
-   Under the unit's 2.7.2 the loop's D_801E977C[i] is strength-reduced into a
-   walking pointer (a 6th saved register, frame 0x40), which is why that preset
-   cannot reach this body - see lever o-272-vs-260-operand-order.
-*/
-/*
+/* The two address shapes the gear window block needs, both measured:
+   the `tpage |= 0x20` read-modify-write only takes retail's base-first `addu`
+   with the double-negated offset (lever c-a-double-negated-offset-flips), and the
+   loop's four vertex reads only with a base pointer kept apart from the scaled
+   offset (lever b-pointer-local-holding-base). Spelling the block as a typed
+   POLY_FT4 struct measures 64.37% (592 bytes) - the pointer becomes a hoisted
+   loop-invariant - so the byte offsets stay casts here. */
 void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
     u_char selected = (arg2 == 0);
     u8* pEntry;
@@ -137,15 +101,14 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
                           *(u16*)(pEntry + 0x1E22) - *(u16*)(pEntry + 0x1E0A));
         }
         MenuSetPolySemiTransGrey((P_TAG*)((u8*)g_Menu->pGearWindowPrims + 0x1E00 + (g_Menu->renderContext + selected * 2) * 0x28));
-        *(u16*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E16) |= 0x20;
+        *(u16*)((u8*)g_Menu->pGearWindowPrims - -((g_Menu->renderContext + selected * 2) * sizeof(POLY_FT4)) + 0x1E16) |= 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E04) = 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E05) = 0x20;
         *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E06) = 0x20;
         ((u8*)g_Menu->pGearWindowPrims)[0x2AEE] = *(u8*)&g_Menu->renderContext;
         ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 2;
     }
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
+}
 
 void func_801D7F50(s32 x, s32 y, u_char statGroup) {
     s32 texCoords[6]; // Filled and ignored
@@ -466,11 +429,19 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
    0x30) and therefore places the return block differently. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
 
-/* 84.26%. Frame and instruction multiset identical (260 bytes both). gcc lays
-   the `arg2` test out the other way round in both cases: it makes the 0x60
-   (unk60) block the fall-through and branches with `beqz a2` to the 0x30
-   (currentCharacterIDs) block, where the original branches `bnez a2` to the
-   0x60 block and falls through into the 0x30 one. Tried: if/else-if in both
+/* 84.26% re-measured under the unit's XenoMenu260 preset (260 bytes / 65
+   insns, retail's exact size and count). Two residuals, both block order:
+   (a) the `arg2` if/else: retail is `bnez a2 -> gear block` with the
+   currentCharacterIDs arm as the fall-through, gcc always emits the gear arm as
+   the fall-through and `beqz a2` to the characterIDs arm; (b) the case-0
+   prologue order (`addiu a0,a0,1` before the `andi a2,a2,0xff`/`lui g_Menu`
+   group where retail has it last).
+   Round 430: an else-less then-arm ending in an explicit `continue` (which is
+   the shape retail's duplicated `addiu a0,a0,1` in both back-edge delay slots
+   suggests), the same with the arms swapped, and an `if (!arg2)` spelling all
+   compile to output byte-identical to the if/else-if body below - gcc
+   canonicalises the two arms, so arm order cannot reach (a).
+   Tried: if/else-if in both
    orders, `for (arg0++; 1; arg0++)` vs `while (1)` + trailing arg0++, a
    pManager local (66.43%, makes gcc drop the second block's reload), goto
    labels (right order, but the loop stops being recognised so g_Menu and the
