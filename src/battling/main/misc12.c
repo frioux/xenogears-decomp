@@ -447,6 +447,29 @@ extern void BattleCaptureTimerCount(void);
      fifth saved register (88.17%).
    A 4-minute permuter run from the 91.13% body found only that embedded assignment. */
 
+/* ROUND 420 re-measure: 96.84% at 812 bytes / 203 insns against retail's 816 / 204,
+   47 differing lines. Tried the three spellings of the prevMask read that the note
+   above left unquantified, on this exact body:
+   - prevMask = g_SpuChannelMask (plain): 96.94% at 800 / 200 - cse MERGES it with
+     the divu's read, so the loop loses both of retail's loads and gains a
+     move in the beqz delay slot.
+   - prevMask = *(u32 *)&g_SpuChannelMask (non-volatile pointer cast): same 800 /
+     200. A standalone cc1_probe keeps TWO loads for this spelling (the pointer
+     access sets MEM_IN_STRUCT_P, so cse cannot merge them), but inside this loop
+     cc1 merges them anyway, so it is not a route to retail's two direct-form
+     loads here.
+   - prevMask = *(volatile s32 *)&g_SpuChannelMask (parked): 812 / 203, the only
+     spelling that keeps both loads, but a volatile MEM makes cc1 put the address
+     in a register (lui a1 / addiu a1,a1,0 / lw s2,0(a1)) where retail has the
+     direct lui s3 / lw s3,%lo(s3) form. Retail's two unmerged loads in one
+     basic block therefore came from a MEM-flag difference (a struct/array access
+     of the mask) that this unit has no declaration for.
+   The other two residuals are unchanged and independent: pWork/prevMask hold
+   retail's two callee-saved registers swapped, and ours hoists the
+   g_BattleDrawBuffers base into $a2 at the loop top where retail re-forms it into
+   $v1 between the two address computations. Three independent allocation
+   coincidences plus a compiler artifact (retail's dead preheader lw of
+   g_SpuChannelMask) - not reachable from source, so the stub stays. */
 /*
 void func_80088E90(void) {
     DISPENV disp;
@@ -509,8 +532,7 @@ void func_80088E90(void) {
         PutDispEnv(pBuf = &disp);
         DrawOTagEnv(g_BattleRootOrderingTable, &g_BattleDrawSlot->drawEnv);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
 void* BattleLoadArchiveEntry(s32 entryIndex) {
