@@ -801,52 +801,40 @@ void BattleUploadAndFreeImageResources(void) {
     HeapFree(g_BattleColorTintBase);
     HeapFree(g_BattleColorTintWork);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
-// 75.69% (2172 bytes against retail's 2276; 543 of 569 instructions) under this
-// unit's preset, gcc 2.6.0 -G0 --expand-div, with retail's saved set ($s0-$s8 and
-// $ra) and a 0x138 frame against retail's 0x130.
+// 75.91% (2172 bytes against retail's 2276; 543 of 569 instructions) under this
+// unit's preset, gcc 2.6.0 -G0 --expand-div; frame 0x138 against retail's 0x130.
 // func_801E1A14 in lib_gear/main/main is THIS FUNCTION instruction for
-// instruction - 569 insns, same frame, same 20-argument signature, verified by
-// diffing the two .s files with the addresses and labels normalised away - so
-// that unit's 72.58% park is the same task and either one closes both.
-// Everything structural is recovered and in retail's order: the five HeapAllocs
-// (numVectors*8, numVectors*4, numPoints*0x18, numSegments*0x58,
-// numSections*0x10), the four failure paths with their exact frees (path 1 only
-// stores pVectors = NULL; path 2 then HeapFree(NULL); path 3 HeapFree(NULL) then
-// pVectors = NULL then HeapFree(pPoints); path 4 the same plus
-// HeapFree(pPointData)), the three loops, both 0x58-byte segments per step with
-// their two GT3s and the byte-wide u/v stores that POLY_GT3's u_char fields
-// force, and the tail colours plus the eight zero stores of each section record.
-// MEASURED LEVER (round 403): the part-stream counts are re-read from MEMORY at
-// every use in retail - lhu 0(t1) at 0x1584/0x1614/0x16F0/0x1704/0x17D0 and in
-// the point loop's inner bound - because the stores through pSeg may alias them.
-// Writing the reads inline (for (j = 0; j < *pCount; j++), pSeg->unk2 = nRow +
-// *pCount + 1, uRow += pCount[0] + 1) instead of a u16 nCount local reproduced
-// all of them and took 75.49 -> 75.65; the nSegs pick is retail's sltu shape,
-// nSegs = pCount[1] then "if (pCount[0] < nSegs) nSegs = pCount[0]".
-// RESIDUAL, allocator and sched2 rather than source as far as this lane got:
-// retail runs the whole segment loop with uRow (0x80), tpage (0x88), rowStep
-// (0x90, re-read after every SetPolyGT3), uStep (0xA0) and uStart (0xE0)
-// MEMORY-resident and keeps pCur in $t1 with a1-a3/t0-t4 spilled around each of
-// the four SetPolyGT3 calls (eight words at 0xE8-0x104). This compile keeps
-// rowStep/uStart/uEnd in registers and pCur in a callee-saved $s2, so the spill
-// dance and 26 instructions disappear. The same cause shows in the poly stores
-// (retail writes u0,v0,clut,v1,u2,u1,v2, exactly the source order this body
-// uses; this compile puts clut after u2) and in the vector loop, where retail
-// walks pVectors with two cursors (a3 = &vx, a2 = &vz, stores at 0(a3), -2(v1),
-// 0(v1)) and this body gets one base with +0/+2/+4. Not tried: permuter - the
-// lane ran out with the score still rising, and a 100-byte gap of spill code
-// wants the allocation fixed, not a 4-minute random walk.
-// One open question for whoever un-parks: numSections (the 7th argument) is
-// copied as a WORD (lw 0x14C -> sw 0x18) in retail and then narrowed with
-// sll 16/sra 16, while the six s16 arguments after it are copied with lhu/sh;
-// s16 against s32 for that one parameter would decide it and was not run down.
+// instruction - 569 insns, same frame, same 20-argument signature - so that
+// unit's park is the same task and either one closes both.
+// MEASURED THIS LANE, on the parameter types: the eighth argument (numSections)
+// is 32-BIT - retail reads the incoming word (lw 0x14C) and narrows it with
+// sll 16 / sra 16 at the tail - and declaring it s32 takes 75.69 to 75.91. The
+// six 16-bit-shaped arguments (tileX, tileY, uSpan, vSpan, clutX, clutY) measure
+// best as s16 (543 insns, 340 verbatim lines); as u16 they are 528 insns and 308
+// lines, and texX/texY/texZ as s32 with three s16 locals - which does reproduce
+// retail's three hoisted sll 16 / sra 16 before the vector loop - is 548 insns
+// and 325 lines with a 0x120 frame. Every variant shifts the frame, so objdiff's
+// fuzzy number is not comparable across them (the s32 spellings read 15.87 and
+// 16.59); compare the count of verbatim side-by-side lines instead.
+// The argument map, read off the entry copies: 0x14C numSections (word),
+// 0x150 tileX, 0x154 tileY, 0x158 uSpan, 0x15C vSpan, 0x160 clutX, 0x164 clutY,
+// 0x168..0x17C the six colour bytes, then 0x140/0x144/0x148 are the three
+// 32-bit position offsets narrowed once to s16 before the vector loop.
+// RESIDUAL: register allocation, not source. Retail runs the segment loop's
+// inner body entirely in call-clobbered registers - a1, a2, a3 and t0-t4 are all
+// live across each of the four SetPolyGT3 calls, spilled as eight words at
+// 0xE8-0x104 and mostly reloaded lazily - and keeps uRow (0x80), tpage (0x88),
+// rowStep (0x90, re-read after every SetPolyGT3), uStep (0xA0) and uStart (0xE0)
+// memory-resident. This build keeps rowStep/uStart/uEnd in $s registers and pCur
+// in a callee-saved $s2, so the spill dance and 26 instructions disappear.
+// Everything else agrees with retail: the five HeapAllocs and their sizes, the
+// four failure paths with their exact frees, the part-stream count re-reads from
+// memory, the SetPolyGT3 store order (tpage, u0, v0, clut, v1, u2, u1, v2), the
+// s16 narrowing of the tpage/clut arguments (lhu then sll 16 / sra 16), the
+// sltu form of the nSegs pick, and the tail's section clears.
 /*
-// Builds one model-list entry's trail from the entry's part stream: the SVECTOR
-// array the points are placed along, one run of points per vector, then the
-// textured segments between them. numSections records are cleared for it too.
 void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 texX, s16 texY, s16 texZ,
-                   s16 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0,
+                   s32 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0,
                    u8 green0, u8 blue0, u8 red1, u8 green1, u8 blue1) {
     SVECTOR *pVectors;
     Misc23TrailPoint **pPoints;
@@ -876,7 +864,6 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 t
     s32 i;
     s32 j;
     s32 k;
-
     pEntry->numVectors = *pCur++;
     pEntry->numSegments = *pCur++ << 1;
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
@@ -1039,6 +1026,7 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 t
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
@@ -1134,7 +1122,7 @@ extern u8 D_800C3EB7[];
 extern void ResolveArchiveEntryPointers(u32 *);
 extern void func_80030988(s16, s16, s32, s32);
 extern void func_8002DDE4(void *, s16, s16, s16, s16, s16, s16);
-extern void func_800A7064(Misc23Block *, u16 *, s32, s32, s16, s16, s16, s16, s16, s16, s16, s16, s16, s16, u8,
+extern void func_800A7064(Misc23Block *, u16 *, s32, s32, s16, s16, s16, s32, s16, s16, s16, s16, s16, s16, u8,
                           u8, u8, u8, u8, u8);
 extern void func_800AA898(BattleActor *, u8 *, void *, void *);
 extern BattleModelPartList *BattleInitializeMesh(u8 *, BattleModelPartList *);
