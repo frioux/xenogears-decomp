@@ -7,27 +7,23 @@ extern long D_80062644;
 extern int DMACallback(int id, void (*pCallbackFn)());
 extern void _SendPAD();
 
-/* Best 97.80% (40 bytes = retail 40, 10 insns both, exactly 2 lines differ, and
-   neither is a source fact:
-   - retail keeps the call target in $t1 (lui $t1 / lw $t1 / jalr $t1); every
-     spelling tried puts it in $v0. Measured with cc1_probe (psx 2.7.2 -O3 -G0):
-     direct (*hook)(), local VoidFn, register-free cast from u_long, array
-     element, struct member, hook reached through a pointer-to-pointer, volatile
-     hook, int-returning hook, and nothing changes; -O1/-O2, gcc-2.6.0 and
-     2.7.2-cdk are identical (the load is hoisted above the prologue in all of
-     them, so that part already agrees).
-   - retail saves ra at 0x14 of a 0x18 frame, i.e. its .frame line reads vars= 4:
-     one 4-byte stack slot that no instruction writes - a pseudo spilled across
-     the call whose every use was rematerialised. Every spelling above measures
-     vars= 0 (ra at 0x10); the only bodies that grow the var area are ones with
-     an address-taken local, and one of those measures vars= 8, not 4.
-   Consistent with the region: func_80040BA4 and _remove_ChgclrPAD on either
-   side of it are hand-patched asm (sw $ra to a global, BIOS vector via $t2 with
-   li $t1,0x57), and $t1 as the jump register is that style, not gcc's.
-   Re-measured (round 420): 97.80% / 40 bytes / 10 insns, same two lines. Extra
-   probe: every address-taken 4-byte local (dead `long t` + (void)&t, `char t[4]`,
-   and `t = 0` before the call, which also stores to 0x10(sp)) costs vars= 8
-   (frame 0x20, ra at 0x18), so vars= 4 has no source spelling here. */
+/* Best 97.80% (40 bytes = retail 40, 10 insns both; exactly 2 residuals, both
+   hand-asm facts, re-measured and re-probed this round):
+   - the call target sits in $t1 where cc1 uses $v0.  Retail's lui/lw name $t1 as
+     the base register explicitly; a bare `lw $2,sym` is expanded by gas/maspsx
+     through its own destination, so no C spelling can pick $t1.  11 spellings
+     measured (direct call, hook local, cast from u_long, array element, struct
+     member, pointer-to-pointer, volatile, int-returning, -O1, -O2, gcc 2.6.0,
+     2.7.2-cdk) all give $v0; permuter 4872 iterations base=20 best=20.
+   - ra at 0x14 of a 0x18 frame, so 20 bytes sit below it.  args is 16 for any
+     unprototyped pointer call, and every addressable local rounds up to a
+     multiple of 8 (cc1_probe on this unit's flags: u_long t[1] and dead scalars
+     give vars 0, u_long t[2] / u_short t[2] / char t[3] / a 4-byte struct give
+     vars 8, u_long t[3] and u_short t[6] give vars 16), so vars= 4 has no source
+     spelling, and args= 20 would need a 5-word prototype whose argument setup
+     adds instructions.  Retail's 4 bytes are prologue slack.
+   Both neighbours (func_80040BA4, _remove_ChgclrPAD) are hand-patched asm, and an
+   explicit `lui $t1` base is that style: treat this stub as asm-origin. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", _SendPAD);
 /*
 void _SendPAD(void) {
