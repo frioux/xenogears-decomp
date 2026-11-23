@@ -1408,6 +1408,10 @@ extern u8 D_8009D198;
 // at 65.09, WorldMapFreeAreaResources 95.10, WorldMapDecompressMapTables 97.53, func_800737EC
 // 82.37). Layout decoded: 8 entries of 0x24 at 0x8009D194, colours at +4/+0xC/+0x14/+0x1C and
 // bytes 8/0x38 at +3 and +7 - note +7 overlaps the +4 word, and retail stores the word first.
+// ROUND 426: the last untried spelling for defeating the fold - an INTEGER base local
+// ('u32 nBase = (u32)&D_8009D198;' then '*(u32*)(nBase + 0x74)') - folds exactly like the
+// pointer form: 26.13%, 106 insns, and the forty stores still go out absolute. ccp sees
+// through the int cast, so no source spelling keeps a base register under 2.7.2.
 /*
 void func_800736DC(void) {
     u8* p;
@@ -1461,7 +1465,8 @@ void func_800736DC(void) {
     p[0xDB] = 0x38;
     p[0xFB] = 8;
     p[0xFF] = 0x38;
-}*/
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
 
 
@@ -1638,6 +1643,14 @@ extern u16 D_8009C750[];
 // -G0 79.63. UNTRIED LEAD for the next lane: retail one-load-per-pair plus its two `move` copies
 // fits a CHAINED assignment, uv = .. written as *(u16 *)(pOff + idx * 0x28) = value, where one
 // statement holds both addresses and cse folds the single index read into both.
+// ROUND 426: the +0-store-FIRST variant (each pair written low-address first) gets retail's
+// ADDRESSING shape - la of the BARE symbol plus one `addiu reg,base,CONST; addu reg,scaled,reg`
+// per store, where the retail-order body gives la of D_8009C750+80 and addu reg,base,-80 - but it
+// scores the same 79.63% (186 insns, 744 bytes): the first store in the pair then goes out as
+// `lui at; addu at,at,scaled; sh`, and the index is still loaded ONCE. So load-hoisting is not a
+// consequence of the fold shape; the four reloads need cc1 to believe the stores may alias
+// g_WorldMapPrimPacketIndex, which no source spelling reaches in 2.7.2. Preset screen this round:
+// 2.6.0 -O2 = 73.71 (cdk 53.20, -O3 79.63, -G0 79.63 as before).
 /*
 void func_80073B04(void) {
     WorldMapProjectionScratch* pScratch;
@@ -1688,7 +1701,8 @@ void func_80073B04(void) {
         addPrim(pOt, (P_TAG*)&g_WorldMapTilePrims[g_WorldMapPrimPacketIndex + 2]);
         addPrim(pOt, (P_TAG*)&g_WorldMapTileDrawModes[0]);
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 
 // The two POLY_FT4 primitives at D_8009C5C0; retail names every field store
