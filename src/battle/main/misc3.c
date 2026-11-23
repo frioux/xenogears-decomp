@@ -709,36 +709,34 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
    (i + 1) * sizeof(BattleScreenSlot) is slot i+1, used by both buffer stores and
    by the RECT copy destination. Measured on the way: the typed struct-array index
    form is 90.23% / 101 insns and two explicit incremented offsets are 90.00%.
-   Parked body (100.00, do not un-park alone):
-   void func_8007819C(void) {
-       RECT *pRect;
-       u8 *pBuf;
-       s32 i;
-       s32 off;
-       s32 offPrev;
-
-       BattleInitSlotGraphics(5, 8, 0x2A, 0x70, 0x12, 0, 0);
-       ((u8 *)g_BattleDisplayState)[0xB5] = 0;
-       BattleInitSlotGraphics(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
-       ((u8 *)g_BattleDisplayState)[0xB4] = 0;
-       for (i = 0; i < 8; i += 2) {
-           pBuf = BattleAllocTextBuffer(0x39);
-           offPrev = i * sizeof(BattleScreenSlot);
-           off = (i + 1) * sizeof(BattleScreenSlot);
-           *(u8 **)(D_800D36C0 + off) = pBuf;
-           *(u8 **)(g_BattleTextSlotBuffers + off) = pBuf;
-           pRect = (RECT *)((u8 *)g_BattleTextSlotRects + offPrev);
-           pRect->x = 0x3C0;
-           pRect->y = (i / 2) * BATTLE_TEXT_ROW_HEIGHT;
-           pRect->w = 0x3C;
-           pRect->h = BATTLE_TEXT_ROW_HEIGHT;
-           *(RECT *)((u8 *)g_BattleTextSlotRects + off) = *pRect;
-           func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + offPrev, i);
-           func_800780A8((u8 *)g_BattleTextSlotRects + offPrev + 0x10, i + 1);
-       }
-   }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
+void func_8007819C(void) {
+    RECT *pRect;
+    u8 *pBuf;
+    s32 i;
+    s32 off;
+    s32 offPrev;
+
+    BattleInitSlotGraphics(5, 8, 0x2A, 0x70, 0x12, 0, 0);
+    ((u8 *)g_BattleDisplayState)[0xB5] = 0;
+    BattleInitSlotGraphics(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
+    ((u8 *)g_BattleDisplayState)[0xB4] = 0;
+    for (i = 0; i < 8; i += 2) {
+        pBuf = BattleAllocTextBuffer(0x39);
+        offPrev = i * sizeof(BattleScreenSlot);
+        off = (i + 1) * sizeof(BattleScreenSlot);
+        *(u8 **)(D_800D36C0 + off) = pBuf;
+        *(u8 **)(g_BattleTextSlotBuffers + off) = pBuf;
+        pRect = (RECT *)((u8 *)g_BattleTextSlotRects + offPrev);
+        pRect->x = 0x3C0;
+        pRect->y = (i / 2) * BATTLE_TEXT_ROW_HEIGHT;
+        pRect->w = 0x3C;
+        pRect->h = BATTLE_TEXT_ROW_HEIGHT;
+        *(RECT *)((u8 *)g_BattleTextSlotRects + off) = *pRect;
+        func_800780A8((u8 *)g_BattleTextSlotRects - 0x50 + offPrev, i);
+        func_800780A8((u8 *)g_BattleTextSlotRects + offPrev + 0x10, i + 1);
+    }
+}
 /* 81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
    and the residual is ONE register. Under this unit's preset gcc 2.7.2 forms the
    address of g_BattleActorCharIds[i] from the loop counter (addu at,at,i) and
