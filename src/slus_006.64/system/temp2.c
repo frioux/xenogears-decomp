@@ -63,12 +63,10 @@ extern s32 AnimScriptStackPopU24(SpriteData* pSpriteData);
 extern u_char AnimScriptStackPopU8(SpriteData* pSpriteData);
 extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 
-// Best 71.83% (1628 bytes against retail's 1612, 407 vs 437 instruction lines): the
-// whole arm set is transcribed and instruction-for-instruction right, the residual is
-// register naming plus 16 bytes. Ported from the func_800C11CC park in
-// src/battle/main/misc35.c (the battle twin of this interpreter, same arm order) with
-// the field SpriteData spelling of src/slus_006.64/system/temp1.c / animation_scripts.c.
-// Measured levers, in the order they paid:
+// Ported from the func_800C11CC park in src/battle/main/misc35.c (the battle twin of
+// this interpreter, same arm order) with the field SpriteData spelling of
+// src/slus_006.64/system/temp1.c / animation_scripts.c.
+// Measured levers of the older 71.83% body, still true:
 //   - the dispatch MUST be a goto loop (label + `goto dispatch`), not while/for:
 //     a switch inside a loop construct gives loop.c the outer LOOP notes and it hoists
 //     both `li 1` and the &g_AnimScriptCommandLengths lui/addiu into the function
@@ -92,8 +90,43 @@ extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 //     it after; with an `offset` local we get that, but the arm then also needs the
 //     post-call add re-formed (ours cross-jumps into 0xE1's tail instead).
 //   - 0xBE: retail loads flags_0xAC then the 0x3C word; gcc loads them the other way up.
-// Not tried: the permuter (the body is below its 85% bar). This is the same wall the
-// misc35 twin parked on (67.82 there) - one extra callee-saved register.
+// Best 90.37% (1596 bytes against retail's 1612, 399 vs 403 insns): the whole arm set is
+// instruction-for-instruction right; what is left is register naming ($a0/$a2 and
+// $s0/$s3 swapped all through the head and the 0xBE arm) and 4 instructions.
+// MEASURED, in the order it paid:
+//   - case 0x81's anim-id == DEFAULT path is a plain `goto` to a label on case 0x80's
+//     body, not a second copy of it: retail's 0x81 is five instructions and its equal
+//     path branches into 0x80's body at the `ori` after the `lui`. Duplicating the
+//     body (what the previous park did) is 71.83%; sharing it is 90.37% and -8 insns.
+//     This is the single find for this function: the interpreter's default-mode tail is
+//     one piece of source, and gcc's own cross-jumping is what made it look inlined.
+//   - the rest of the previous note still holds (goto dispatch loop, separate stepY
+//     local, masked-script-index local first).
+// WHAT IS STILL WRONG (register allocation, not structure):
+//   - head: retail keeps the 0xF03FFFFF mask in $a2 and the flags word in $v0; gcc here
+//     picks $a0 for the mask and $a2 for the word. The head's two stores are also
+//     emitted in the other order (retail: addu, sh waitTimer, bnez, sw flags in the delay
+//     slot; ours: sw flags, addu, bnez, sh).
+//   - 0xBE arm: retail $a2 = script word, $s0 = delay, $a3 = offset, $a1 = ~8,
+//     $a0/$v1 = the two flag words; ours $a1/$s3/$s2/$a0/$a2/$s0. Because of that
+//     shift gcc also emits one extra `sra s3,v0,8` (delay slot) in the /256 round.
+//   - 0xE2: retail computes pArgs[0] + ((s8)pArgs[1] << 8) with `addu` before the
+//     PushU24 call and re-signs it as s16 after (`sll 16; sra 16`); ours does the `or`
+//     form of SCRIPT_JUMP_AT and no re-sign.
+// TRIED AND REJECTED (all measured, all worse than 90.37):
+//   - 0xBE arm with its own block locals (count/delay/offset/flags/mask): 68.61 then
+//     89.57 after the 0x81 find - the shared locals allocate better here.
+//   - `offset = count & 0x1FF` moved before the frame-count multiply: 68.80, and it
+//     pushes the script word into $t0.
+//   - storing the 0x3C word twice (flags = mask; then .fields.flipY = (count >> 10) & 1,
+//     which is what retail's unconditional `sw a1,0x3C` plus branch store really are):
+//     68.17 alone, 71.58 with the stepY move - correct-looking, but it costs the
+//     allocation 2% here.
+//   - loading step.y after the callback in 0x82: 71.58, +1 insn.
+// Not tried: the permuter (bar is 85% and this is at 90.37 -> one run is allowed by the
+// STOP RULE exception only if the residual is named by a lever; it is regalloc, see
+// lever.py 'regalloc callee-saved swapped tie').
+/*
 void func_800248D4(SpriteData* pSpriteData) {
     u8* pArgs;
     u8 code;
@@ -306,7 +339,9 @@ dispatch:
         }
         pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
     }
-}
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
+
 
 
 // Work list and image-list setup; g_GfxWorkListCapacity is the work list entry budget.
