@@ -14,7 +14,10 @@ typedef struct {
     /* 0x000 */ u16 flags; // 0xC000 = the slot's action is nullified, 0x8000 selects which half
     /* 0x002 */ u16 unk02;
     /* 0x004 */ u16 unk04; // 0x1000: the slot has a pending slot-action
-    /* 0x006 */ u8 unk06[0x82];
+    /* 0x006 */ u8 unk06[2];
+    /* 0x008 */ u16 unk08; // the 0x8000 bit of this pair with unk0A doubles the countdown step
+    /* 0x00A */ u16 unk0A;
+    /* 0x00C */ u8 unk0C[0x7C];
     /* 0x088 */ u32 effectFlags4Pair; // activeEffectFlags4 and accessoryEffectFlags4 as one word
     /* 0x08C */ u8 unk8C[0x18];
     /* 0x0A4 */ u16 stateFlags; // the first word of the row's BattleSlotState, 0xC000 as above
@@ -23,7 +26,9 @@ typedef struct {
     // misc8.c's BattleSlotEntry.
     /* 0x0B8 */ s32 scaledHp;
     /* 0x0BC */ s32 scaledMaxHp;
-    /* 0x0C0 */ u8 unkC0[0xB0];
+    /* 0x0C0 */ u8 unkC0[0x20];
+    /* 0x0E0 */ u8 unkE0; // counted down while flags has 0x2000; the flag clears when it reaches 0
+    /* 0x0E1 */ u8 unkE1[0x8F];
 } BattleSlotRow; // Size: 0x170
 
 // Digit sprite ids are indices into the glyph set that starts at this id.
@@ -492,42 +497,15 @@ s32 BattleUpdateFrame(void) {
     return 0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
-/* 78.73% under 2.6.0 (400 bytes against retail's 416, 100 vs 104 insns). THIS BODY
-   COMPILES - the old "77.62% never compiled" park (it read an undeclared
-   D_800CCD68) is gone. Control flow, the 1/2 decrement, the 0x1000 bit toggle on
-   D_800D2E1C, the 0x2000 action timer, the 0x80/0x1000 guards and the 0xB wrap are
-   all retail's; the 4 missing instructions are the address forming.
-   THE BLOCKER is the assembler, not the C: retail re-forms every row address at
-   every site as `lui $at,%hi(SYM); addu $at,$at,off; lhu %lo(SYM)($at)`, which is
-   gas/ASPSX's expansion of ONE insn whose operand is `SYM($off)` (symbol plus
-   register). $at is the assembler's own scratch register, so no C can produce that
-   sequence: this cc1 instead
-   - inline form `*(u16 *)((u8 *)SYM + off)` with `off` a for-clause biv: 70.61%,
-     it CSEs the address and makes a pointer biv per symbol (lhu 0(a1), a1 += 0x170)
-     even for the 2-use i*2 sites;
-   - pointer local re-assigned per site (`pWord = (u16 *)((u8 *)SYM + off)`): 78.73%
-     (this body) - no biv, but the symbol's lui/addiu is hoisted into the preheader
-     once and each site is a single `addu a0,a1,t2`.
-   Presets screened on this body: -G0 78.73 (identical), 2.7.2 80.27 (same shape),
-   2.7.2-cdk compile-failed. So PRESET_G0 not indicated.
-   Left over even if the addressing were solved: retail keeps `off` in a0 and the
-   countdown-state base t0 as its only hoisted pointer; the `li a1,1` for dec sits in
-   the bnez delay slot (ours is nop + li). Row offsets used, all stride 0x170 from
-   g_BattleSlotEntries: +0 flags (0x1000/0x2000/0x80), +4 D_800CCD68 (0x1000), +8/+0xA
-   D_800CCD6C/D_800CCD6E (0x8000 pair), +0xE0 D_800CCE44 (byte counter).
 void func_8007171C(void) {
     u16 v;
-    u16 *pWord;
-    u8 *pByte;
     s32 dec;
     s32 i;
-    s32 off;
 
     if (D_800D3298 == 0) {
         return;
     }
-    for (i = 0, off = 0; i < 0xB; i++, off += 0x170) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (g_BattleSlotEnabledFlags[i] == 0) {
             continue;
         }
@@ -535,48 +513,38 @@ void func_8007171C(void) {
             continue;
         }
         dec = 1;
-        if ((*(u16 *)((u8 *)D_800CCD6C + off) | *(u16 *)((u8 *)D_800CCD6E + off)) & 0x8000) {
+        if ((g_BattleSlotEntries[i].unk08 | g_BattleSlotEntries[i].unk0A) & 0x8000) {
             dec = 2;
         }
-        pWord = (u16 *)((u8 *)g_BattleSlotEntries + off);
-        if (*pWord & 0x1000) {
-            pWord = (u16 *)((u8 *)D_800D2E1C + i * 2);
-            v = *pWord ^ 1;
-            *pWord = v;
+        if (g_BattleSlotEntries[i].flags & 0x1000) {
+            v = D_800D2E1C[i] ^ 1;
+            D_800D2E1C[i] = v;
             if (v != 0) {
                 continue;
             }
         }
-        pWord = (u16 *)((u8 *)g_BattleSlotEntries + off);
-        v = *pWord;
-        if (v & 0x2000) {
-            pByte = (u8 *)((u8 *)D_800CCE44 + off);
-            *pByte -= dec;
-            if (*pByte != 0) {
+        if (g_BattleSlotEntries[i].flags & 0x2000) {
+            if ((g_BattleSlotEntries[i].unkE0 -= dec) != 0) {
                 continue;
             }
-            *pByte = 0;
-            pWord = (u16 *)((u8 *)g_BattleSlotEntries + off);
-            *pWord &= 0xDFFF;
+            g_BattleSlotEntries[i].unkE0 = 0;
+            g_BattleSlotEntries[i].flags &= 0xDFFF;
             continue;
         }
-        if (v & 0x80) {
+        if (g_BattleSlotEntries[i].flags & 0x80) {
             continue;
         }
-        if (*(u16 *)((u8 *)D_800CCD68 + off) & 0x1000) {
+        if (g_BattleSlotEntries[i].unk04 & 0x1000) {
             continue;
         }
-        pWord = (u16 *)((u8 *)g_BattleSlotCountdownTimers + i * 2);
-        v = *pWord - dec;
-        *pWord = v;
-        if ((s16)v > 0) {
+        g_BattleSlotCountdownTimers[i] -= dec;
+        if ((s16)g_BattleSlotCountdownTimers[i] > 0) {
             continue;
         }
         g_BattleActorCountdownState[i] = 1;
-        *pWord = 0;
+        g_BattleSlotCountdownTimers[i] = 0;
     }
 }
-*/
 
 void BattleResetActorCountdown(void) {
     u8 index;
@@ -724,33 +692,35 @@ void BattleResetActorCommandSlots(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
-/* 77.55% under 2.6.0 (352 bytes vs retail's 332, 88 vs 83 insns). ROUND 411
-   re-measured this exact body: 77.55%, 352 bytes, 88 insns - it does compile, so
-   the numbers are current. Structure now
-   matches retail's block graph: mask test as bnez-forward to a reset-call block
-   laid out last, E1's func_80071B94(0) cross-jumped into the shared call block
-   (j .L80072504), the 0x18 frame, and the *pCurrent = i + 1 tail with the
-   0xB wrap. Two residuals:
-   1. THE ROTATED ENTRY (the real blocker): retail evaluates the loop condition
-      once in the preheader and `j`s straight to the single bottom test
-      (j .L800724CC), keeping t0=1 in a register from the beqz delay slot and
-      a3=0xB in the j's delay slot. gcc 2.6.0/2.7.2/2.7.2-cdk all emit an extra
-      inline `beq state,1` at the entry for while/for/do-while/goto shapes
-      (probed with cc1_probe.sh: while+return-exit, while+break, for, plain
-      do-while, guarded do-while, goto-check - ALL keep the inline entry branch,
-      none thread it into the bottom test). Cost: 4 instructions + t0/a3 hoisting.
-      A compiler with real loop rotation (gcc 2.8+? not in tools/) is the likely
-      answer; worth a try_flags screen if one is ever added.
-   2. The found-handler reloads D_800D2DD8[i] (3 insns) where retail reuses the
-      loop's slot register (v1); tied to the same register allocation as (1).
-   Tried: while + circle-exit func_80071B94(0)+return (77.55), same with the
-   final call shared after the inner if/else (75.11 - the shared call merged
-   E1's call site; keep this), for-loop (68.84, old park), else-if nesting.
-   Semantics note: the circle path (scan wrapped all 11 entries without a
-   ready slot) must call func_80071B94(0) WITHOUT the actorIndex/cursor stores
-   - retail's beq at the loop head jumps directly to the call.
+/* 81.43% under 2.6.0 (356 bytes against retail's 332, 89 vs 83 insns; round 425
+   re-measured it). Structure, both call sites, the charIndex arm and every
+   load/store are retail's; the residual is the loop ENTRY, and everything else
+   follows from it:
+   1. Retail inverts the loop with an entry jump: at the preheader it loads the
+      state byte, then `j .L800724CC` with `ori a3,zero,0xB` in the delay slot, so
+      the ONE compare (bne v0,t0) at the bottom is shared by the entry and the back
+      edge. gcc 2.6.0 duplicates the exit test inline instead (`li v0,1` +
+      `beq v0,t0 -> found`), which (a) costs the extra constant, (b) makes the
+      found handler a branch target and so costs it a fresh `li v0,0xB` and a
+      `nop` in the wrap-branch delay slot where retail reuses a3 and the loop's
+      `addiu a1,a1,1`. That is the whole 6-insn gap.
+   2. Retail's wrap test is a BACKWARD branch into the loop body (bne v0,a3 with
+      delay addiu a1,a1,1), i.e. the source continues the loop; the path is
+      equivalent to the forward branch (a1 == *pCurrent on arrival, so it goes
+      straight to the call), so our `if ((*pCurrent = i + 1) == 0xB)` is the same
+      code and scores the best of the shapes tried.
+   Folded since the round-411 park (77.55 -> 81.43): a `u8 targetSlot` local for
+   the actor id in the condition removes the found handler's D_800D2DD8[i]
+   reload, and the embedded assignment `(*pCurrent = i + 1)` removes its
+   *pCurrent reload (`andi v1,v1,0xff` reuses the stored value, as retail does).
+   Also tried here: `i++; if (i == 0xB) i = 0; *pCurrent = i;` for the tail
+   (79.51, 352 bytes), and the old post-loop fixup form (77.55). Presets: round
+   411 measured -G0, 2.7.2 and cdk. The compiler that inverted the loop is the
+   answer; none in tools/ does it for this shape (cc1_probe.sh kept the inline
+   entry test for while/for/do-while/goto).
 void func_800723E0(void) {
     u8 *pCurrent;
+    u8 targetSlot;
     s32 i;
 
     if (g_BattlePendingSlotMask == 0) {
@@ -763,7 +733,7 @@ void func_800723E0(void) {
             g_BattleCommandQueue->actorIndex = 0;
             pCurrent = g_BattleTargetScan;
             i = *pCurrent;
-            while (g_BattleActorCountdownState[D_800D2DD8[i]] != 1) {
+            while (g_BattleActorCountdownState[targetSlot = D_800D2DD8[i]] != 1) {
                 i++;
                 if (i == 0xB) {
                     i = 0;
@@ -773,9 +743,8 @@ void func_800723E0(void) {
                     return;
                 }
             }
-            g_BattleCommandQueue->actorIndex = D_800D2DD8[i] + 1;
-            *pCurrent = i + 1;
-            if (*pCurrent == 0xB) {
+            g_BattleCommandQueue->actorIndex = targetSlot + 1;
+            if ((*pCurrent = i + 1) == 0xB) {
                 *pCurrent = 0;
             }
         }
