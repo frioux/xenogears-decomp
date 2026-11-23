@@ -1563,7 +1563,6 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     u8* pWorkspace;
     u8* pIds;
     u8* pQuantities;
-    u8* pPanel;
     u8* pName;
     u8 digitCodes[8];
     u8 text[8];
@@ -1583,25 +1582,24 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     digitCodes[1] = 0;
     digitCodes[3] = 0;
     count = 0;
-    pPanel = g_Menu->pEquipmentPanel;
     if (arg3 != 0) {
         page = arg2 + 1;
         limit = MAX_INVENTORY_WEAPONS;
         if (arg4 == 0) {
-            pSlotWeapon = &g_Menu->pDressingRoom->pWeaponsData[pPanel[MENU_PANEL_WEAPON_ID + arg2]];
+            pSlotWeapon = &g_Menu->pDressingRoom->pWeaponsData[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID + arg2]];
         } else {
-            pSlotGearWeapon = &g_Menu->pDressingRoom->pGearWeapons[pPanel[MENU_PANEL_WEAPON_ID + arg2]];
+            pSlotGearWeapon = &g_Menu->pDressingRoom->pGearWeapons[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID + arg2]];
         }
     } else if (arg4 == 0) {
         if (arg2 != 0) {
             page = 5;
             limit = MAX_INVENTORY_ACCESSORIES;
             pDressingRoom = g_Menu->pDressingRoom;
-            pAccessory = &pDressingRoom->pAccessoriesData[pPanel[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
+            pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
             slotGroup = pAccessory->equipGroup;
             groupMask = 0;
             for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
-                pAccessory = &pDressingRoom->pAccessoriesData[pPanel[MENU_PANEL_ACCESSORY_IDS + j]];
+                pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS + j]];
                 groupMask |= pAccessory->equipGroup;
             }
         } else {
@@ -1613,11 +1611,11 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
             page = 5;
             limit = MAX_INVENTORY_ITEMS;
             pDressingRoom = g_Menu->pDressingRoom;
-            pGearAccessory = &pDressingRoom->pGearAccessories[pPanel[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
+            pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
             slotGroup = pGearAccessory->equipGroup;
             groupMask = 0;
             for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
-                pGearAccessory = &pDressingRoom->pGearAccessories[pPanel[MENU_PANEL_ACCESSORY_IDS + j]];
+                pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS + j]];
                 groupMask |= pGearAccessory->equipGroup;
             }
         } else {
