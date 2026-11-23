@@ -720,64 +720,79 @@ void BattleBuildTileRow3Prims(u8 arg0, s32 arg1, s32 arg2, s32 arg3, BattleRowSi
 // Fills both greyscale quads' corners at the slot's current prim index, draws the
 // slot's four sprite packages and records the prim index they were built at. The
 // callees take wider-than-u16 coordinates, so each argument is truncated once here.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
-/* 65.12% at 544 bytes against retail's 528 (136 instructions against 132).
-   BLOCKED BY THE NEIGHBOUR'S SIGNATURE, not by this body. BattleBuildTileRow3Prims
-   (matched 100.00%, just above) takes its fifth argument as a four-byte BattleRowSize
-   aggregate, and that is byte-proven: a bare u16 parameter makes gcc 2.6.0 hoist the
-   `lhu` of the incoming stack slot into the function prologue where retail reads it at
-   the use (u16: 80.42%, 2-byte aggregate: 80.42%, 4-byte aggregate: 100.00%). Retail's
-   call site HERE cannot pass a four-byte aggregate: it stores ONE word, `sw s4,16(sp)`
-   in the jal delay slot, i.e. its source passes a scalar. A four-byte BLKmode aggregate
-   always costs gcc a block copy - measured lwl/lwr/swl/swr from a local, from a cast of
-   the parameter, and from a global, and sh+sh from a compound literal - while making the
-   aggregate a single s32 field changes the callee's read to lw instead of retail's lhu.
-   So the two sources are incompatible in one translation unit; the callee's 100.00% is
-   worth more than this function, hence the park. Do not convert this stub while
-   BattleBuildTileRow3Prims keeps the aggregate.
-   The best aggregate spelling, used below, is the compound literal
-   `(BattleRowSize){arg4, 0}` (sh + sh against retail's single sw). On top of that the
-   residual is the one the u16-era note named: each coordinate is masked into a FRESH
-   register in the prologue (`move t3,t1; andi s5,t3,0xffff`) where retail masks its raw
-   callee-saved copy in place (`move s1,t0; ... andi s1,s1,0xffff`) and interleaves the
-   four masks with the stores, so ours needs one extra register ($s6, i.e. a save/restore
-   pair) and loses retail's assignment (p=s2 index=s3 x=s1 y=s0 w=s5 h=s4). From the
-   -da/-dl dumps the allocno priorities are close (p 1.45, index 1.13, h 1.60, y 0.59,
-   x 0.57, w 0.53), so the copy, not a tie, is the gap.
-   Measured and no better: u16 x/y/w/h locals feeding only the call arguments
-   (byte-identical); the index-first `(g_BattlePrimStartIndex + p->prims)` sum idiom
-   (identical); sums as right/bottom locals (516); s32 params (508); p loaded after the
-   0xB0 store (61.88%); u32/u8 index; a 4-minute permuter run in the u16 era (540 bytes,
-   73.98%). The pre-aggregate body scored 69.38% and is not reachable now.
-   To resume: only worth it if BattleBuildTileRow3Prims's fifth parameter can become a
-   scalar - that costs that function 19.6 points (100.00 -> 80.42), so it is not a trade
-   this unit wants.
+/* 68.50% at 540 bytes against retail's 528 (135 instructions against 132), up from
+   the previous park's 65.12%. Two measured wins over that body:
+   (1) retail forms the quads' right/bottom edges ONCE, early - `addu t0,t0,s5` sits
+   in the prologue and `addu t1,t1,s4` just before the third store - so `right` and
+   `bottom` are u16 locals assigned from the params first; sums inline in the stores
+   cost 65.12 -> 68.42.
+   (2) the store address is spelled index-first, `(g_BattlePrimStartIndex + p->prims)`,
+   which makes the final `addu` retail's `addu v0,v0,s2` (index term + base) instead of
+   `addu v0,s1,v0`; 68.42 -> 68.50. Same spelling as the four BattleBuildTileRow*Prims.
+   THE REMAINING GAP, named: retail masks each coordinate IN PLACE on its callee-saved
+   copy (`andi s5,s5,0xffff` then `move a3,s5`), interleaved among the eight stores in
+   the order w,h,y,x, so it needs six callee-saved registers (s0=y s1=x s2=p s3=index
+   s4=h s5=w) and no copy. gcc here moves the whole first call's argument setup to the
+   TOP of the function (four masks in x,y,w,h order plus `move a0/a1/a2/a3`), which
+   keeps the raw params live, so every narrowed value becomes a second pseudo: seven
+   callee-saved registers (s6 for the masked x), one extra save/restore pair, and the
+   third extra instruction is the `sh zero,18(sp)` half of the BattleRowSize copy. That
+   hoist is the one thing no spelling tried changes.
+   Measured and no better: u16 x/y/w/h locals fed from the params (byte-identical);
+   s32 right/bottom; all four coordinates left inline in the stores; a 4-minute
+   permuter run (2479 iterations) whose best edit wraps the last four stores and the
+   five calls in a do/while(0) - +0.18% only, not ported.
+   BattleRowSize as a UNION {u32 word; u16 height;} (so the caller can pass one `sw`
+   like retail's `sw s4,0x10(sp)`) gives exactly 132 instructions and 528 bytes, but
+   with a frame of 64 against retail's 56, because constructing the aggregate
+   materialises a temp in the frame - and it drops BattleBuildTileRow3Prims to 99.20%,
+   the union being SImode, whose `lhu a0,0x10(sp)` at the use becomes `lw` at entry
+   plus `andi`. Only a 4-byte, align-2 parameter keeps that callee at 100.00%, and it
+   always costs two `sh` here, so the two shapes are incompatible (the previous park
+   note found the same wall from the other side).
+   To resume: find why gcc 2.6.0 hoists this first call's register-argument setup to
+   the entry block when retail keeps it at the call site; the rest of the diff is that
+   hoist and the register assignment it forces.
 */
+
 /*
 void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     BattleSlotGraphics *p;
+    u16 x;
+    u16 y;
+    u16 w;
+    u16 h;
+    u16 right;
+    u16 bottom;
     u8 index;
 
+    x = arg1;
+    y = arg2;
+    w = arg3;
+    h = arg4;
+    right = x + w;
+    bottom = y + h;
     index = arg0;
     p = g_BattleSlotGraphics[index];
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 0;
-    p->prims[g_BattlePrimStartIndex].x0 = arg1;
-    p->prims[g_BattlePrimStartIndex].y0 = arg2;
-    p->prims[g_BattlePrimStartIndex].x1 = arg1 + arg3;
-    p->prims[g_BattlePrimStartIndex].y1 = arg2;
-    p->prims[g_BattlePrimStartIndex].x2 = arg1;
-    p->prims[g_BattlePrimStartIndex].y2 = arg2 + arg4;
-    p->prims[g_BattlePrimStartIndex].x3 = arg1 + arg3;
-    p->prims[g_BattlePrimStartIndex].y3 = arg2 + arg4;
-    BattleDrawSpriteQuad(index, arg1, arg2, arg3, arg4);
-    BattleBuildTileRow0Prims(index, arg1, arg2, arg3);
-    BattleBuildTileRow1Prims(index, arg1, arg2, arg3, arg4);
-    BattleBuildTileRow2Prims(index, arg1, arg2, arg4);
-    BattleBuildTileRow3Prims(index, arg1, arg2, arg3, (BattleRowSize){arg4, 0});
+    (g_BattlePrimStartIndex + p->prims)->x0 = x;
+    (g_BattlePrimStartIndex + p->prims)->y0 = y;
+    (g_BattlePrimStartIndex + p->prims)->x1 = right;
+    (g_BattlePrimStartIndex + p->prims)->y1 = y;
+    (g_BattlePrimStartIndex + p->prims)->x2 = x;
+    (g_BattlePrimStartIndex + p->prims)->y2 = bottom;
+    (g_BattlePrimStartIndex + p->prims)->x3 = right;
+    (g_BattlePrimStartIndex + p->prims)->y3 = bottom;
+    BattleDrawSpriteQuad(index, x, y, w, h);
+    BattleBuildTileRow0Prims(index, x, y, w);
+    BattleBuildTileRow1Prims(index, x, y, w, h);
+    BattleBuildTileRow2Prims(index, x, y, h);
+    BattleBuildTileRow3Prims(index, x, y, w, (BattleRowSize){h, 0});
     p->packagePrimStart = *(u8 *)&g_BattlePrimStartIndex;
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
+
 
 // Allocates a slot's draw block and rect list on first use, then either fills the
 // rect list from the four coordinates and marks the slot dirty (arg5) or hands
