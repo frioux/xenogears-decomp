@@ -19,7 +19,7 @@ void MenuFreeWindow(u_char a0);
 void MenuSetGoldDigits(u_char a0, u_char a1);
 void MenuSetPlayTimeDigitPrims(u_char a0, u_char a1);
 void MenuSetGearWindowContents(u_char a0, u_char a1);
-void func_801D7CFC(u_char a0, u_char a1, u_char a2);
+void MenuSetGearWindowQuads(u_char a0, u_char a1, u_char a2);
 void MenuDrawStatTable(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
@@ -413,7 +413,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
 
 void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);
-    func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
+    MenuSetGearWindowQuads(a0, a1, g_GameState.gearRide[a0]);
     MenuRenderFrame();
     MenuDrawStatTable(a0, 0, 0, a1);
     MenuRenderFrame();

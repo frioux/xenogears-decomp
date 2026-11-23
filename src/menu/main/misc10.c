@@ -64,7 +64,7 @@ void MenuStartOpenAnimation(void);
 void MenuResetSelectionCursorFlags(void);
 void MenuMovePointerCursor(s32, u8);
 void MenuUpdateDressingRoomTotals(u_char);
-void func_801D7CFC(s32, u8, u8);
+void MenuSetGearWindowQuads(s32, u8, u8);
 void MenuDrawStatTable(u8, u8, u8, u8);
 void MenuDrawGearScreen(u_char, u_char);
 void MenuSetSubMenuChoicePrims(u8);
@@ -702,7 +702,7 @@ u8 func_801E23CC(void) {
                         stringSet = 6;
                         g_GameState.gearRide[slot] = 1;
                     }
-                    func_801D7CFC(slot, 1, g_GameState.gearRide[slot]);
+                    MenuSetGearWindowQuads(slot, 1, g_GameState.gearRide[slot]);
                 } else {
                     MenuPlaySoundEffect(4);
                 }

@@ -79,7 +79,7 @@ void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDi
    offset (lever b-pointer-local-holding-base). Spelling the block as a typed
    POLY_FT4 struct measures 64.37% (592 bytes) - the pointer becomes a hoisted
    loop-invariant - so the byte offsets stay casts here. */
-void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
+void MenuSetGearWindowQuads(s32 arg0, u_char arg1, u_char arg2) {
     u_char selected = (arg2 == 0);
     u8* pEntry;
     u8* pBase;

@@ -137,11 +137,11 @@ extern WorldMapTilePos D_8009AF38[];
 extern int rand(void);
 
 // The eight waypoint tiles of the current world map zone, in 1/4096 tile units
-extern u16 D_8009AF80[8];
-extern u16 D_8009AF90[8];
+extern u16 g_WorldMapWaypointTileX[8];
+extern u16 g_WorldMapWaypointTileZ[8];
 
 // 0x20 entries of the path direction the actor walks along, ring-indexed by unk54
-extern WorldMapPathEntry D_8009CD68[];
+extern WorldMapPathEntry g_WorldMapPlayerTrail[];
 
 // 12.4 fixed point world map position
 typedef struct {
@@ -583,7 +583,7 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
     TransposeMatrix(pMat, pMat);
 }
 // Best: 97.30% (756 bytes = retail's exact size; the ONLY remaining delta is a
-// register assignment: gcc gives pPos $s3 and the D_8009AF90 base $s2 where retail
+// register assignment: gcc gives pPos $s3 and the g_WorldMapWaypointTileZ base $s2 where retail
 // has pPos $s2 and the AF90 base $s3 - same instruction multiset, same operands;
 // permuter 365 iterations from this body (base=200 best=200) and every declaration
 // order tried do not move it).
@@ -594,13 +594,13 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
 //  (b) the stolen load-delay nop after the unk2C store needs the `do { } while (0)`
 //      below to include the func_80094154 CALL as well as the two scratchpad stores.
 // Measured alternatives at 756 bytes: do/while over the two stores only = 92.72
-// (hoists the D_8009AF80/D_8009AF90 base-register formations above the call, which
+// (hoists the g_WorldMapWaypointTileX/g_WorldMapWaypointTileZ base-register formations above the call, which
 // pushes pPos out of s2); do/while starting at the unk2C store = 89.16 (760 bytes);
 // do/while over the post-call pPos->x/tileZ/pPos->z group = 88.62.
 // Round 405: re-measured 97.30 (756 bytes, identical instruction multiset). The mirror is two
-// pseudos: retail wants pPos (0x1F800000) in s2 and the D_8009AF90 base in s3. The -da
+// pseudos: retail wants pPos (0x1F800000) in s2 and the g_WorldMapWaypointTileZ base in s3. The -da
 // global-alloc dump proves it is an allocno ORDER question and nothing else: the callee-saved
-// hand-out is 73 in 16 s0, 139 in 17 s1 (D_8009AF80 base), 147 in 18 s2 (D_8009AF90 base),
+// hand-out is 73 in 16 s0, 139 in 17 s1 (g_WorldMapWaypointTileX base), 147 in 18 s2 (g_WorldMapWaypointTileZ base),
 // 75 in 19 s3 (pPos), i.e. pPos is processed LAST of the four although it has the most refs,
 // because its live range spans the whole else branch. A retry would have to shorten pPos's
 // range without moving its lui s3,0x1f80 (retail has that instruction in the same slot),
@@ -645,8 +645,8 @@ s32 func_80087C6C(s32 index) {
         if (*pCount == 0) {
             (*pCount)++;
             pSlot->unk50 = 0;
-            pSlot->x = D_8009AF80[pSlot->unk50] << 12;
-            z = D_8009AF90[pSlot->unk50];
+            pSlot->x = g_WorldMapWaypointTileX[pSlot->unk50] << 12;
+            z = g_WorldMapWaypointTileZ[pSlot->unk50];
         } else {
             pSlot->unk50 = g_GameState.playerTileIndex;
             pSlot->x = g_GameState.playerMapPosX << 12;
@@ -655,8 +655,8 @@ s32 func_80087C6C(s32 index) {
         pSlot->z = z << 12;
         pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
         do {
-            pPos->x = D_8009AF80[pSlot->unk50] << 12;
-            pPos->z = D_8009AF90[pSlot->unk50] << 12;
+            pPos->x = g_WorldMapWaypointTileX[pSlot->unk50] << 12;
+            pPos->z = g_WorldMapWaypointTileZ[pSlot->unk50] << 12;
             dist = func_80094154(&pSlot->x, pPos);
         } while (0);
         if (dist < 0) {
@@ -665,20 +665,20 @@ s32 func_80087C6C(s32 index) {
         if (dist < 8) {
             pSlot->unk50 = (pSlot->unk50 + 1) & 7;
         }
-        pPos->x = D_8009AF80[pSlot->unk50] - (pSlot->x >> 12);
-        tileZ = D_8009AF90[pSlot->unk50];
+        pPos->x = g_WorldMapWaypointTileX[pSlot->unk50] - (pSlot->x >> 12);
+        tileZ = g_WorldMapWaypointTileZ[pSlot->unk50];
         pPos->z = tileZ - (pSlot->z >> 12);
         pPos->y = 0;
         WorldMapWrapDeltaScaled(pPos);
         VectorNormal((VECTOR*)pPos, (VECTOR*)pPos);
         for (i = 0; i < 0x100; i += 8) {
-            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->x = pPos->x;
-            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->z = pPos->z;
+            ((WorldMapPathEntry*)((u8*)g_WorldMapPlayerTrail + i))->x = pPos->x;
+            ((WorldMapPathEntry*)((u8*)g_WorldMapPlayerTrail + i))->z = pPos->z;
         }
         pSlot->unk58 = 1;
         pSlot->unk54 = 0;
-        pSlot->dirX = D_8009CD68[1].x;
-        pSlot->dirZ = D_8009CD68[pSlot->unk58].z;
+        pSlot->dirX = g_WorldMapPlayerTrail[1].x;
+        pSlot->dirZ = g_WorldMapPlayerTrail[pSlot->unk58].z;
         pSlot->dirY = 0;
     }
     return 1;
@@ -708,7 +708,7 @@ void WorldMapQueueZoneEntry(s32 arg0, s32* pVec, s32 arg2, s32 arg3);
 // and the g_WorldMapSlots load sit in the prologue, and it is what leaves v0 live for the
 // branch-delay `addu s2`), and the sprite-group call passes its scratchpad address as
 // `(u32)pPos | 0xA0` because retail encodes `ori a1,s4,0xA0` there.
-s32 func_80087FD0(s32 index) {
+s32 WorldMapUpdatePlayerSlot(s32 index) {
     WorldMapPlayer* pSlot;
     WorldMapSceneLayer* pLayer;
     WorldMapPos* pPos;
@@ -729,8 +729,8 @@ s32 func_80087FD0(s32 index) {
         pLayer->z = pSlot->z >> 12;
     } else {
         pSlotPos = (WorldMapPos*)&pSlot->x;
-        pPos->x = D_8009AF80[pSlot->unk50] << 12;
-        pPos->z = D_8009AF90[pSlot->unk50] << 12;
+        pPos->x = g_WorldMapWaypointTileX[pSlot->unk50] << 12;
+        pPos->z = g_WorldMapWaypointTileZ[pSlot->unk50] << 12;
         tileDist = func_80094154(pSlotPos, pPos);
         if (tileDist < 0) {
             tileDist = -tileDist;
@@ -738,24 +738,24 @@ s32 func_80087FD0(s32 index) {
         if (tileDist < 8) {
             pSlot->unk50 = (pSlot->unk50 + 1) & 7;
         }
-        pPos->x = D_8009AF80[pSlot->unk50] - (pSlot->x >> 12);
-        pPos->z = D_8009AF90[pSlot->unk50] - (pSlot->z >> 12);
+        pPos->x = g_WorldMapWaypointTileX[pSlot->unk50] - (pSlot->x >> 12);
+        pPos->z = g_WorldMapWaypointTileZ[pSlot->unk50] - (pSlot->z >> 12);
         pPos->y = 0;
         WorldMapWrapDeltaScaled(pPos);
         VectorNormal((VECTOR*)pPos, (VECTOR*)pPos);
         pSlot->dirX = ((pPos->x + pSlot->dirX * 63) << 6) >> 12;
         pSlot->dirZ = ((pPos->z + pSlot->dirZ * 63) << 6) >> 12;
         VectorNormal((VECTOR*)&pSlot->dirX, (VECTOR*)&pSlot->dirX);
-        D_8009CD68[pSlot->unk54].x = pSlot->dirX;
-        D_8009CD68[pSlot->unk54].z = pSlot->dirZ;
+        g_WorldMapPlayerTrail[pSlot->unk54].x = pSlot->dirX;
+        g_WorldMapPlayerTrail[pSlot->unk54].z = pSlot->dirZ;
         pSlot->unk54 = (pSlot->unk54 + 1) & 0x1F;
         pPos->x = pSlot->dirX;
         pPos->y = pSlot->dirY;
         pPos->z = -pSlot->dirZ;
         WorldMapBuildBasisMatrix((VECTOR*)pPos, (VECTOR*)0x1F800010, (MATRIX*)0x1F8000F0);
         pLayer->mat = *(MATRIX*)0x1F8000F0;
-        pSlot->x += D_8009CD68[pSlot->unk58].x * ((s16)pSlot->moveSpeed >> 12);
-        pSlot->z += D_8009CD68[pSlot->unk58].z * ((s16)pSlot->moveSpeed >> 12);
+        pSlot->x += g_WorldMapPlayerTrail[pSlot->unk58].x * ((s16)pSlot->moveSpeed >> 12);
+        pSlot->z += g_WorldMapPlayerTrail[pSlot->unk58].z * ((s16)pSlot->moveSpeed >> 12);
         pSlot->unk58 = (pSlot->unk58 + 1) & 0x1F;
         WorldMapWrapPosition(pSlotPos);
         pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
