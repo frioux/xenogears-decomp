@@ -980,6 +980,16 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
    So the residual is a jump.c redirect decision, not a source shape: any spelling
    with the mask inverts, any spelling with retail's tail has no mask. Parked at
    99.75 (the SI body) because that is the highest measured and the simplest source.
+   ROUND 418: screened as a compiler question and closed as far as a preset can reach.
+   - try_flags one function: gcc-2.7.2 -O2 -G8 91.96, gcc-2.7.2-cdk -O2 -G8 91.3,
+     gcc-2.6.0 -O3 -G8 99.75, gcc-2.6.0 -O2 -G0 99.75 - so 2.6.0 with this unit's
+     flags is the compiler and no flag variant of it moves the number.
+   - the block redirect is NOT flag_thread_jumps: cc1 2.6.0 -fno-thread-jumps
+     produces a .s identical to the -O2 one (diff of the two pre-maspsx files shows
+     only the option comment), so no preset can turn it off.
+   - a third 3-minute permuter run from this SI body: RESULT PERMUTER_NONE,
+     base=205 best=205, 797 iterations.
+   Do not reopen without a different compiler version.
 */
 /*
 u16 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
