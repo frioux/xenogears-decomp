@@ -206,6 +206,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
 //    LOAD-BEARING: delete it and its declaration and the body measures 93.19%,
 //    568 bytes (a callee-saved s1 appears). It is not dead code to be cleaned.
 //  - preset screen: gcc-2.7.2-cdk 94.48, gcc-2.6.0 99.50, Default 99.78.
+//  - round 406: -dg/-da on this body lists the loop's 17 allocnos in the order
+//    `77 78 79 158 74 76 84 73 125 75 115 85 72 127 83 82 81` and hands out
+//    77 (the OR result) -> $v0, 78 (masked) -> $v1, 79 (the loaded link) -> $a0.
+//    Retail has NO pseudo for the OR result, i.e. its C updated the loaded word
+//    in place (the 93.51 / 98.63 family above), and a `=d` 3-operand `ior` can
+//    never tie to its input, so 77 always takes a fresh caller-saved register.
+//  - round 406 2.6.0 unit screen: this function is 99.50 under 2.6.0 but the
+//    unit cannot switch preset - BattleQueueLineQuad 91.82, BattleDrawLineQuads
+//    97.64, BattleGetTextWidth 88.28, BattleDrawTextLeft 95.69, BattleDrawTextRight
+//    96.62, BattleDrawTextRightOffset 96.21, BattleByteRegTestReg 96.79,
+//    BattleLoadTextTimImages 98.82, BattleGetFontGlyph 99.76. 2.6.0's residual on
+//    THIS body is gp-relative global loads and swapped addu operands, not the OR.
 //  - permuter, third run from this body: 1352 iterations, base 30 best 30,
 //    PERMUTER_NONE (earlier runs: 4335 and 1990 iterations, both base 30
 //    best 30). Do not spend another run on it.
