@@ -614,7 +614,7 @@ void WorldMapClearGroupEntryFlag(s32 groupIndex) {
    only found a hoisted g_WorldMapSpriteGroups local (4844 -> 4649, not ported).
    Presets not yet tried on this body (it is new): try 2.6.0 / cdk0 if sched2 work
    stalls. NOTE for the next agent: the two parked neighbours that touch this entry,
-   func_80089748 and func_80089C78, still spell colorStep as a struct
+   WorldMapEmitSpriteTrailEntries and func_80089C78, still spell colorStep as a struct
    (*(u32*)&pEntry->colorStep, pEntry->colorStep.a); they need the s32 form when
    they are unparked.
 */
@@ -697,7 +697,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
    lifeTimer load sits inside the flags-0x10 block and the pack store at the loop tail
    is shared, so those registers really are stale; zeroing them costs two instructions.
 */
-void func_80089748(void) {
+void WorldMapEmitSpriteTrailEntries(void) {
     WorldMapSprite* pSprite;
     WorldMapTrailEntry* pEntry;
     u8* pScratch;

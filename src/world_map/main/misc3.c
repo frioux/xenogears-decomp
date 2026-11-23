@@ -68,7 +68,7 @@ extern void func_8009932C(u_long* pOt0, u_long* pOt1, s32* pState);
 
 extern void WorldMapBuildRotationMatrix(s32* p);
 extern void func_80097244(s32* p);
-extern void func_80089748(void);
+extern void WorldMapEmitSpriteTrailEntries(void);
 extern void func_80089C78(void);
 extern void func_8008615C(void);
 extern void func_800848F4(void);
@@ -176,7 +176,7 @@ s32 WorldMapUpdateFrame(void) {
     } else {
         func_80097244(&g_WorldMapPathFrame);
     }
-    func_80089748();
+    WorldMapEmitSpriteTrailEntries();
     func_80089C78();
     func_8008615C();
     func_800848F4();

@@ -57,7 +57,7 @@ extern char g_StrTmdNormFormat[]; // "\tnorm=%08X, nnorm=%d\n"
 extern char g_StrTmdPrimFormat[]; // "\tprim=%08X, nprim=%d\n"
 /* The primitive type names the mapped-primitive switch prints when the graph
    debug level is 2 ("L" = per-vertex normal index). */
-extern char D_80019338[]; // "F3L "
+extern char g_StrPrimF3L[]; // "F3L "
 extern char D_80019340[]; // "G3L "
 extern char D_80019348[]; // "FT3L "
 extern char D_80019350[]; // "GT3L "
@@ -73,7 +73,7 @@ extern char D_80019390[]; // "F4 "
 extern char D_80019394[]; // "G4 "
 extern char D_80019398[]; // "FT4 "
 extern char D_800193A0[]; // "GT4 "
-extern char D_800193A8[]; // "unsupported type (%08x)\n"
+extern char g_StrPrimUnsupportedFmt[]; // "unsupported type (%08x)\n"
 
 extern int Vsync(int mode);
 
@@ -574,7 +574,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
     case 0x20000304:
     case 0x20020304:
         if (GetGraphDebug() == 2)
-            printf(D_80019338); // "F3L "
+            printf(g_StrPrimF3L); // "F3L "
         pObj->colors[0].r = pPrim->bytes[0x4];
         pObj->colors[0].g = pPrim->bytes[0x5];
         pObj->colors[0].b = pPrim->bytes[0x6];
@@ -934,7 +934,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->colors[3].b = pPrim->bytes[0x22];
         return 44;
     default:
-        printf(D_800193A8, pObj->tag & GPU_PRIM_ID_MASK);
+        printf(g_StrPrimUnsupportedFmt, pObj->tag & GPU_PRIM_ID_MASK);
         return -1;
     }
 }

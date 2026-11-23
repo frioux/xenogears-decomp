@@ -1114,3 +1114,5 @@ FieldTextBoxOpen = 0x8009C5A8;
 g_FieldPortraitSlots = 0x800B06A4;
 g_FieldPortraitSlotCursor = 0x800ADB0C;
 FieldProbeWalkmeshSlideAlongWall = 0x8007BAC0;
+g_FieldPendingWdsBankIndex = 0x800B2290;
+g_GameAudioManagerVolumeRestorePending = 0x800ADBD4;

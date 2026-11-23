@@ -433,7 +433,7 @@ extern s32 D_800ADC04;
 extern u16 g_NextMapId;
 extern u16 g_NextMapFlags;
 extern u16 g_NextMapRotationY;
-extern u16 D_8006F956;
+extern u16 g_GamePendingWdsBankIndex;
 extern s32 g_GameSceneMapNum;
 extern s8 g_GameDiscChangeRequest;
 extern s32 g_GameRequestedWdsBankIndex;
@@ -444,7 +444,7 @@ extern u8 g_FieldWdsSoundEffectBankIndex;
 extern s32 g_GameLoadedWdsBankIndex;
 extern s32 g_GameReusePendingAudioManager;
 extern s32 g_GameWdsBankLoadState;
-extern s16 D_800B2290;
+extern s16 g_FieldPendingWdsBankIndex;
 extern s32 g_FieldMapNumChanged;
 extern s32 g_FieldPartyModelLoadState;
 extern s32 g_FieldSpecialAnimLoadPending;
@@ -469,7 +469,7 @@ extern s32 g_GamePartyQueuedSkinKind;
 extern u8 g_FieldPlayerWalkmeshMaterial;
 extern u8 D_800ADB04;
 extern s32 D_800ADB68;
-extern s32 D_800ADBD4;
+extern s32 g_GameAudioManagerVolumeRestorePending;
 
 extern void FieldUpdateDeltaTime(void);
 extern void FieldRenderSyncAndFlush(void);
@@ -599,7 +599,7 @@ void FieldMain(void) {
     if (g_FieldScreenSetupDone == 0) {
         g_GameDiscChangeRequest = 0;
     } else {
-        bankIndex = D_8006F956;
+        bankIndex = g_GamePendingWdsBankIndex;
     }
     g_GameRequestedWdsBankIndex = bankIndex;
     if (g_FieldSystemMode == SYSTEM_MODE_CD_ROM) {
@@ -669,27 +669,27 @@ void FieldMain(void) {
             if (D_800ADBD0 == 1) {
                 g_SoundEffectBankIndex = g_FieldWdsSoundEffectBankIndex;
                 g_FieldInitialWdsBankIndex = g_GameRequestedWdsBankIndex;
-                if (g_GameLoadedWdsBankIndex != D_800B2290) {
+                if (g_GameLoadedWdsBankIndex != g_FieldPendingWdsBankIndex) {
                     if (g_GameLoadedWdsBankIndex != -1) {
                         g_GameReusePendingAudioManager = 1;
                     }
-                    SoundFreeLoadedWdsAndAudioManager(D_800B2290, g_GameLoadedWdsBankIndex);
+                    SoundFreeLoadedWdsAndAudioManager(g_FieldPendingWdsBankIndex, g_GameLoadedWdsBankIndex);
                     g_GameWdsBankLoadState = -1;
-                    g_GameRequestedWdsBankIndex = D_800B2290;
-                    FieldStartWdsBankLoad(D_800B2290, 1);
+                    g_GameRequestedWdsBankIndex = g_FieldPendingWdsBankIndex;
+                    FieldStartWdsBankLoad(g_FieldPendingWdsBankIndex, 1);
                 }
                 D_800ADBD0 = 0;
-                D_800ADBD4 = 1;
+                g_GameAudioManagerVolumeRestorePending = 1;
             } else {
                 if (g_FieldMapNumChanged == 0) {
                     g_GamePartySkinsInitialized += 1;
                     func_800A3F4C();
                 }
                 advanceState = 0;
-                if (D_800ADBD4 == 1) {
+                if (g_GameAudioManagerVolumeRestorePending == 1) {
                     SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0x7F, 0);
                 }
-                D_800ADBD4 = 0;
+                g_GameAudioManagerVolumeRestorePending = 0;
                 break;
             }
         }

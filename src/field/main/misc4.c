@@ -393,7 +393,7 @@ typedef struct {
 extern FieldSkinTable D_800B2298;
 extern s32 g_FieldRandomSkinSlots; // frames left before the table is regenerated
 extern u16 D_800B2270[];    // per-skin value handed to the field system
-extern s16 D_800B2290;
+extern s16 g_FieldPendingWdsBankIndex;
 extern u_char D_80065ADC[]; // per-skin selection weight
 extern u_char D_800ADB04;
 extern s32 D_800ADBD0;
@@ -529,7 +529,7 @@ foundSlot:
             }
             g_GameSelectedSkinIndex = i;
             g_GameSelectedSkinLoadPending = 0;
-            D_800B2290 = D_800B2270[i];
+            g_FieldPendingWdsBankIndex = D_800B2270[i];
             if (g_FieldSuppressStateChange == 0) {
                 LoadGameStateOverlay(2);
             }

@@ -157,7 +157,7 @@ extern s32 g_WorldMapGridAngle;
 extern WorldMapPos4 g_WorldMapPlayerPosition;
 extern void WorldMapBuildRotationMatrix(void *p);
 extern void func_80097244(void *p);
-extern void func_80089748(void);
+extern void WorldMapEmitSpriteTrailEntries(void);
 extern void func_80089C78(void);
 extern void func_800848F4(void);
 extern void WorldMapUpdateSlotGridOrigin(s32 *p);
@@ -565,7 +565,7 @@ s32 WorldMapUpdateFrameWithParticles(void) {
     } else {
         func_80097244(&g_WorldMapPathFrame);
     }
-    func_80089748();
+    WorldMapEmitSpriteTrailEntries();
     func_80089C78();
     func_800848F4();
     WorldMapUpdateSlotGridOrigin(&g_WorldMapScrollX);
