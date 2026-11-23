@@ -579,9 +579,23 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    initialised-declaration sum - emits lh $2 / addu $3 / slt $2 in all five,
    i.e. load $v0, sum $v1, compare $v0, and none hands the sum the parameter's
    $a1. Retail's hand-out needs an allocno preferenced to $a1 that our cc1 has
-   no source shape for: park it, do not re-dial. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
-/* s32 func_80073DE4(Actor *p0, s32 arg1) {
+   no source shape for: park it, do not re-dial.
+   Round 438 (REDO, un-parked and re-measured): the parked body is honest at
+   98.61% / 72 bytes / 18 insns (retail's size), confirmed twice. Two new
+   spellings, both 97.78% / 72 bytes / 10 differing lines, that pin the
+   allocator behaviour rather than guess at it: (a) `t = arg1; t += (s16)
+   p0->gaugePoints;` emits lh $v0 / addu $v1,a1,v0 / slti $v0 - so with the sum
+   as a pseudo DISTINCT from the load the allocator still hands the sum $v1 and
+   demotes $a1 to a source, never a destination; (b) `arg1 += (s16)
+   p0->gaugePoints;` (the parameter modified in place, i.e. the one spelling
+   that would give the sum $a1 for free) emits the identical 10 differences,
+   which is source-level proof of the local_alloc rule in the note above: cc1
+   2.7.2 abandons a parameter's incoming register once the parameter is set in
+   this block. Do not re-dial; the only lever left is a compiler whose
+   local_alloc keeps arguments' home registers, and no preset in the repo does
+   (2.6.0 98.06, -O3 98.61, 2.8.1 breaks six matched functions). */
+/*
+s32 func_80073DE4(Actor *p0, s32 arg1) {
     s32 t;
 
     t = (s16)p0->gaugePoints;
@@ -590,7 +604,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
         return ((t - 0xFF1) / BATTLE_GAUGE_POINTS_PER_LEVEL) < p0->gaugeValue;
     }
     return 1;
-} */
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
+
+
 
 extern s32 g_BattleMode;
 extern void BattlePlaySoundEffectById(s32);
