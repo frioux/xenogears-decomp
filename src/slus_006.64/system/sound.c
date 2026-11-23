@@ -5031,6 +5031,13 @@ derived adsr pointer (`u16* pAdsr = (u16*)pVoice + 4; ... pAdsr += 8;`) makes th
 and scores 93.75% / 620 bytes (155 insns, worse); gcc-2.7.2 is 98.51 and gcc-2.7.2-cdk 98.31, so the
 preset is not the answer. This is a local-alloc qty tie: the counter has 5 refs against the base's
 4 over the same live range, and no spelling moves either count without changing an instruction.
+Re-measured (round 420): the live body still reads 98.51% at retail's 604 bytes / 151 insns, 72
+differing lines, that one mirror and nothing else. New spellings tried this round: a u_char counter
+(QI's allocno size of 1 cuts its priority 4x, the one term that WOULD flip the pair) - gcc pays an
+andi to widen it back for the shift and the compare, 96.36% / 608 bytes / 152 insns, rejected;
+-G0 measures the same 98.51 and gcc-2.6.0 -O3 refuses the file. Note retail's t0=base / t1=counter
+contradicts the -dg priority formula (base 4 refs, counter 5) rather than just losing a tie, so the
+mirror came from a body this C cannot spell: do not re-enter without a new allocator axis.
 *//*
 void func_8003E900(void) {
     SpuUnion* pSpu;
