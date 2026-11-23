@@ -961,10 +961,18 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
    insns, same GIV collapse). So the panel base must stay a `g_Menu->unk430` load at
    every use; that is what keeps retail's 106 insns.
    The one shape that ever bought anything is the `do { } while (0)` around loop 2's
-   call (99.58 -> 99.72, kept below). permute.sh -j 2: two runs in round 392 and a
-   third in round 405 (1386 iters, base=30 best=30) all end at this body. No jump
-   table and no dlabel data in this stub's .s, so it converts the moment the operand
-   order closes.
+   call (99.58 -> 99.72, kept below). permute.sh -j 2: a fourth run in round 406
+   (1189 iters, base=30 best=30) ends at this body, like the three before it (round
+   392 twice, round 405). Round 406 also measured the misc7 fix for exactly this
+   residual, the double negated offset (`(u8*)g_Menu->unk430 - -(i *
+   sizeof(MenuString)) + 0xF7D`): it does put the base first, but as `subu v0,v1,s3`
+   off a NEW accumulator with a negative step (`addiu s3,s3,-128`), which costs an
+   instruction and rotates the registers - 92.78% at retail's 424 bytes. cc1_probe
+   on a standalone copy of loop 2 (base-first cast, offset written first, a base
+   local, an embedded assignment temp, an index-first struct view, a u16 index)
+   emits `addu $2,$2,$3` for every spelling, so the offset-first operand is the
+   legitimiser's choice and not the source's. No jump table and no dlabel data in
+   this stub's .s, so it converts the moment the operand order closes.
 */
 
 /*
