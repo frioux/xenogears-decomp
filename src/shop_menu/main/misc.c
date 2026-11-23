@@ -3326,22 +3326,9 @@ void ShopMenuSetQuantityHeldGraphics(u_char itemType, u_char itemID) {
     HeapFree(pWorkspace);
 }
 
-// Re-measured round 403: still 99.92% / 1892 bytes / 473 insns, 16 differing lines, all one
-// fact: retail keeps the column giv in $s6 and the polys27B0 giv in $s5, this body the reverse
-// (with the preheader `li` pair, two `move s1/s3` pairs, one `addu a1` and two latch `addiu`s
-// following). -dg/-dl on this body: all four loop registers are 9-ref SImode allocnos and their
-// live lengths are 177 (col) / 179 (27B0) / 181 (3020) / 364 (0x1000), i.e. exactly their
-// preheader init positions, so the register names are a CONSEQUENCE of loop.c's init order, not a
-// separate tie: the inits are emitted in reverse giv-recording order (0x1000 is a hoisted readable
-// constant, emitted first) and $s5..$fp are handed out in that same order. What is needed is the
-// recording order 27B0 -> col -> 3020, but every shape where x keeps the add_val-73 giv records the
-// column at the top of the body (-> col -> 27B0 -> 3020) and the only body position that records it
-// later than the polys27B0 use is inside digit loop 1, where its first use is the loop init itself.
-// Also measured this round: `x = 0x49 + j * 0x1A;` moved to just after the two primCounts stores
-// (still unconditional in the body) is 98.82% / 1904 bytes - it loses the 0x1000 hoist, three
-// inline `li t2,0x1000`, and does not flip the s5/s6 pair. try_flags: 2.7.2 -O2 -G8 98.97,
-// 2.7.2-cdk 98.42, so 2.6.0 (this unit's preset) is right. Permuter, third run, 3 minutes /
-// 1099 iterations: base=55 best=55, no change.
+// Draws the buy menu's description of the item under the cursor (the description image, the 'E'
+// marker on the portraits that already have the item equipped, and each portrait's stat-change
+// digits) and returns the item's price. The third argument is passed by the caller but unused.
 
 s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
     RECT rect;
