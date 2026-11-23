@@ -35,14 +35,10 @@ void FieldScriptAddInventoryItem(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc10", func_8009635C);
 
-/* Best attempt (96.70%, 176 bytes vs the original's 172): the original has a
-   single `sb` at the end of both branches (path 1 jumps into the tail of the
-   else body), sharing one `pQuantities + nIndex` address. Here gcc emits one
-   store per branch plus an extra `nop` in the beqz delay slot.
-   Tried and rejected: inverting to `if (nIndex == -1) {...} else if (*p < 0x63)`
-   makes gcc cross-jump and hits the original's exact 172 bytes, but it then keeps
-   the shared `sb` in the else-if block, so the quantity path lands last and the
-   branch polarity flips (56%): the layout is wrong, not the code.
+/* Attempt A, 96.70%, 176 bytes / 44 insns (the original is 176 bytes / 44
+   insns too). Two store statements, one per arm: gcc does not cross-jump them
+   and instead fills the `j` delay slot with path 1's `sb`, so the shared tail
+   store the original has is lost.
 void func_8009635C(int nItemId) {
     int nIndex;
     u_char* pQuantities;
@@ -62,6 +58,47 @@ void func_8009635C(int nItemId) {
             pQuantities[nIndex] = 1;
         }
     }
+}
+*/
+
+/* Attempt B, 90.41%, 176 bytes / 44 insns: ONE store statement at the end, so
+   the block layout and instruction count are the original's exactly (path 1
+   jumps to the shared `sb`, path 2 falls into it). The whole residual is
+   register allocation: the original keeps nItemId in $s1 and nIndex in $s0,
+   the loaded byte in $a0, the stored value in $v0 and the `pQuantities +
+   nIndex` address in $v1 reused across the branch; this body mirrors $s0/$s1,
+   keeps byte and value in $v1 with an in-place `addiu` and re-forms the
+   address in the `j` delay slot. Measured and rejected on top of it: int and
+   u_int parameter (identical code), u_int nIndex (identical), u_char and int
+   nQuantity (identical), `nQuantity = pQuantities[nIndex]` then
+   `if (nQuantity < 99) nQuantity++` (gives slti not sltiu, 89.16%), and a
+   4-minute permuter run (2729 iterations, base 580 best 280) whose only winner
+   dropped `nQuantity = 1` and stored a literal 1 in the shared block, i.e.
+   wrong code.
+void func_8009635C(u_int nItemId) {
+    u_int nIndex;
+    int nQuantity;
+    u_char* pQuantities;
+    u_char* pIds;
+
+    nIndex = FieldInventoryFindSlotById(nItemId);
+    pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
+    pIds = (u_char*)FieldInventoryGetIdsArray(nItemId);
+    if (nIndex != -1) {
+        if (pQuantities[nIndex] < 99) {
+            nQuantity = pQuantities[nIndex] + 1;
+        } else {
+            return;
+        }
+    } else {
+        nIndex = FieldInventoryFindEmptySlotById(nItemId);
+        if (nIndex == -1) {
+            return;
+        }
+        pIds[nIndex] = nItemId;
+        nQuantity = 1;
+    }
+    pQuantities[nIndex] = nQuantity;
 }
 */
 
