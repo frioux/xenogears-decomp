@@ -68,6 +68,10 @@ typedef struct {
 // Slots from the terminator that ends the digits back to the sign slot
 #define SYSTEM_NUMBER_GLYPH_SLOT_COUNT (SYSTEM_NUMBER_GLYPH_DIGIT_COUNT + 1)
 
+// Place value of the most significant digit SystemFormatNumberGlyphs takes
+// first: the divisor its digit loop starts at
+#define SYSTEM_NUMBER_GLYPH_FIRST_DIVISOR 1000000000
+
 // Palette in g_SystemPaletteData: this many colors in one row, in two CLUTs
 #define SYSTEM_PALETTE_COLOR_COUNT 32
 #define SYSTEM_PALETTE_CLUT_COLOR_COUNT 16
@@ -569,7 +573,7 @@ int SystemStringGetUnk6B(SystemString* pString) {
 }
 
 void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
-    u32 divisor = 1000000000;
+    u32 divisor = SYSTEM_NUMBER_GLYPH_FIRST_DIVISOR;
     u16* pDigit = g_SystemNumberGlyphBuffer;
     u16* pEnd;
     u16* pScan;
