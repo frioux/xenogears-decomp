@@ -3326,64 +3326,10 @@ void ShopMenuSetQuantityHeldGraphics(u_char itemType, u_char itemID) {
     HeapFree(pWorkspace);
 }
 
-// Re-measured round 403: still 99.92% / 1892 bytes / 473 insns, 16 differing lines, all one
-// fact: retail keeps the column giv in $s6 and the polys27B0 giv in $s5, this body the reverse
-// (with the preheader `li` pair, two `move s1/s3` pairs, one `addu a1` and two latch `addiu`s
-// following). -dg/-dl on this body: all four loop registers are 9-ref SImode allocnos and their
-// live lengths are 177 (col) / 179 (27B0) / 181 (3020) / 364 (0x1000), i.e. exactly their
-// preheader init positions, so the register names are a CONSEQUENCE of loop.c's init order, not a
-// separate tie: the inits are emitted in reverse giv-recording order (0x1000 is a hoisted readable
-// constant, emitted first) and $s5..$fp are handed out in that same order. What is needed is the
-// recording order 27B0 -> col -> 3020, but every shape where x keeps the add_val-73 giv records the
-// column at the top of the body (-> col -> 27B0 -> 3020) and the only body position that records it
-// later than the polys27B0 use is inside digit loop 1, where its first use is the loop init itself.
-// Also measured this round: `x = 0x49 + j * 0x1A;` moved to just after the two primCounts stores
-// (still unconditional in the body) is 98.82% / 1904 bytes - it loses the 0x1000 hoist, three
-// inline `li t2,0x1000`, and does not flip the s5/s6 pair. try_flags: 2.7.2 -O2 -G8 98.97,
-// 2.7.2-cdk 98.42, so 2.6.0 (this unit's preset) is right. Permuter, third run, 3 minutes /
-// 1099 iterations: base=55 best=55, no change.
+// Draws the buy menu's description of the item under the cursor (the description image, the 'E'
+// marker on the portraits that already have the item equipped, and each portrait's stat-change
+// digits) and returns the item's price. The third argument is passed by the caller but unused.
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CEB3C);
-// 99.92%, retail's exact byte count (1892) and frame: buy-menu item description update --
-// returns the item's price and draws the description string into strItemDesc, the 'E' marker
-// on the portraits that already have it, and each portrait's two stat-change digits.
-//
-// The residual is the PREHEADER ORDER of the three strength-reduced accumulators. gcc makes
-// all three from the scaled index j (`j*0xF0` twice, `j*0x1A` once) and each gets `li <base>`
-// in the loop preheader plus `addiu reg,reg,<stride>` in the latch:
-//   retail : li s8,0x1000 / li s7,0x3020 / lui lw g_Menu / li s6,0x49 / lw pShop / li s5,0x27B0
-//   this   : li s8,0x1000 / li s7,0x3020 / lui lw g_Menu / li s6,0x27B0 / lw pShop / li s5,0x49
-// i.e. the 0x49 (column) and 0x27B0 givs are swapped, and everything else in the body follows
-// that swap (two `move s1,sN` pairs, one `addu a1,sN,a1`, two latch addius). Six instructions.
-// gcc emits the three inits in REVERSE giv-recording order (measured: reverse source order of
-// the two scaled-index uses), so retail recorded 0x27B0 -> 0x49 -> 0x3020 while this body
-// records 0x49 -> 0x27B0 -> 0x3020: the column giv must be recorded AFTER the first digit
-// loop's polys27B0 address use, which no source shape that also uses it in that loop can do.
-// What was measured and did NOT move it: the 0x49 as a source accumulator
-// (`for (i = 0, j = 0, x = 0x49; ...)` + `x += 0x1A` at the end of the body, 99.89% - then the
-// init is a source insn and lands in the first preheader slot, before the hoisted 0x1000; a
-// statement before the loop instead of the init clause is worse);
-// the 0x49 expression inline in BOTH digit-loop inits (99.26%: CSE splits off `j*0x1A` and the
-// giv's addend disappears - `move s6,zero` + two `addiu s1,s6,73`); putting the one
-// `x = 0x49 + j*0x1A` assignment at the top of the loop body (this body, 99.92%), just before
-// `if (delta[0])` or just after ShopMenuComputeStatChange (both 98.90%, 1900 bytes: a
-// conditional assignment also loses the 0x1000 hoist); declaration order; and two permuter
-// runs from the 99.89 and 99.92 bodies (base 70 best 70 and base 55 best 55, ~1700-3000
-// iterations each).
-//
-// Load-bearing details found on the way: the digit-column start must be a single expression
-// gcc can strength-reduce (retail's `li 0x49` + `addiu 26` in the preheader/latch ARE a
-// compiler giv, add_val 73 mult 26 - it is NOT a source accumulator); the two 3-digit loops are
-// `for (k = 0, col = x; k < 3; )` with the read and bump in one expression
-// (`digit = g_Menu->digits[6 + k++]`) and `col += 8` at the end of the body; delta[] must be
-// zeroed per character before ShopMenuComputeStatChange; and the scalars' DECLARATION ORDER
-// fixes the stack frame (price 0x38, equippedFlags 0x40, equipFlags 0x48, itemId 0x50,
-// itemType 0x58).
-
-/*
-// Draws the buy menu's description of the item under the cursor (description text, the 'E'
-// marker on the portraits that have it equipped, and each portrait's stat change digits)
-// and returns the item's price. The third argument is passed by the caller but unused.
 s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
     RECT rect;
     s32 delta[2];
@@ -3398,7 +3344,6 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
     int i;
     int j;
     int k;
-    int col;
     int x;
 
     equipFlags = 0;
@@ -3431,7 +3376,7 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
     }
 
     equippedFlags = ShopMenuGetCharacterEquippedItemFlags(itemId, itemType);
-    setRECT(&rect, 0x140, 0x4E, 0x3C, 0xD);
+    setRECT(&rect, 0x140, 0x4E, 0x3C, FONT_LETTER_HEIGHT);
     LoadImage(&rect, pWorkspace);
     DrawSync(0);
 
@@ -3440,13 +3385,13 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
         &g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext],
         0x2C, 0x12, 0, 0x4E,
         g_Menu->pShop->strItemDesc.width,
-        0xD
+        FONT_LETTER_HEIGHT
     );
     ShopMenuSetVertices(
         g_Menu->pShop->strItemDesc.vertices,
         0x2C, 0x12,
         g_Menu->pShop->strItemDesc.width,
-        0xD
+        FONT_LETTER_HEIGHT
     );
     g_Menu->pShop->strItemDesc.renderContext = g_Menu->renderContext;
     HeapFree(pWorkspace);
@@ -3459,8 +3404,8 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
 
     g_Menu->pShop->equipMarkPrimCount = 0;
 
+    x = 0x49;
     for (i = 0, j = 0; i < 0x10; i++) {
-        x = 0x49 + j * 0x1A;
         if (!g_Menu->availableCharacters[i]) {
             continue;
         }
@@ -3492,18 +3437,17 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
 
             if (delta[0]) {
                 ShopMenuParseNumberToString(delta[0]);
-                for (k = 0, col = x; k < 3; ) {
-                    digit = g_Menu->digits[6 + k++];
-                    if (digit != 0xFF) {
+                for (k = 0; k < 3; k++) {
+                    digit = g_Menu->digits[6 + k];
+                    if (digit != MENU_DIGIT_NONE) {
                         g_Menu->pShop->polys27B0PrimCounts[j] += func_8002675C(
                             g_Menu->resources, digit,
                             &g_Menu->pShop->polys27B0[j][g_Menu->pShop->polys27B0PrimCounts[j] * 2],
                             g_Menu->renderContext,
-                            col, 0xBE,
+                            (j * FONT_LETTER_HEIGHT * 2) + x + (k * MENU_DIGIT_SPACING), 0xBE,
                             0x1000
                         );
                     }
-                    col += 8;
                 }
                 ShopMenuSetStatChangeColor(
                     g_Menu->pShop->polys27B0PrimCounts[j], g_Menu->pShop->polys27B0[j], isImprovement[0]);
@@ -3512,18 +3456,17 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
 
             if (delta[1]) {
                 ShopMenuParseNumberToString(delta[1]);
-                for (k = 0, col = x; k < 3; ) {
-                    digit = g_Menu->digits[6 + k++];
-                    if (digit != 0xFF) {
+                for (k = 0; k < 3; k++) {
+                    digit = g_Menu->digits[6 + k];
+                    if (digit != MENU_DIGIT_NONE) {
                         g_Menu->pShop->polys3020PrimCounts[j] += func_8002675C(
                             g_Menu->resources, digit,
                             &g_Menu->pShop->polys3020[j][g_Menu->pShop->polys3020PrimCounts[j] * 2],
                             g_Menu->renderContext,
-                            col, 0xC6,
+                            (j * FONT_LETTER_HEIGHT * 2) + x + (k * MENU_DIGIT_SPACING), 0xC6,
                             0x1000
                         );
                     }
-                    col += 8;
                 }
                 ShopMenuSetStatChangeColor(
                     g_Menu->pShop->polys3020PrimCounts[j], g_Menu->pShop->polys3020[j], isImprovement[1]);
@@ -3539,7 +3482,6 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
 
     return price;
 }
-*/
 
 void ShopMenuHandleBoughtItems(u_int newGoldnewWeaponAmount) {
     int i;
