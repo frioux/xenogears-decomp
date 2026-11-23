@@ -472,7 +472,50 @@ int func_800460A0(RECT *rect, u_long *p) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800462DC);
+/* StoreImage: the mirror of func_800460A0 (LoadImage) -- same clamp, same split
+   into 16-word DMA blocks plus a CPU-sent tail, but the tail reads GPUREAD and
+   the DMA runs GPUREAD -> CPU, so it waits on bit 0x08000000 after the 0xC0
+   command and there is no bg/mode argument (hence no $s5, frame 0x48). */
+int func_800462DC(RECT *rect, u_long *p) {
+    int total;
+    int size;
+    int blocks;
+    int rest;
+
+    func_80046EFC();
+    rect->w = rect->w < 0 ? 0 : (rect->w > g_GpuScreenWidth ? g_GpuScreenWidth : rect->w);
+    rect->h = rect->h < 0 ? 0 : (rect->h > g_GpuScreenHeight ? g_GpuScreenHeight : rect->h);
+    total = rect->w * rect->h + 1;
+    size = total / 2;
+    if (size <= 0)
+        return -1;
+    /* load-bearing: rest doubles as the block count so cc1 keeps the copy */
+    rest = size >> 4;
+    rest = size - rest * 16;
+    blocks = size >> 4;
+    while (!(*g_GpuGp1Port & 0x04000000)) {
+        if (func_80046F30())
+            return -1;
+    }
+    *g_GpuGp1Port = 0x04000000;
+    *g_GpuGp0Port = 0x01000000;
+    *g_GpuGp0Port = 0xC0000000;
+    *g_GpuGp0Port = *(u_long *)&rect->x;
+    *g_GpuGp0Port = *(u_long *)&rect->w;
+    while (!(*g_GpuGp1Port & 0x08000000)) {
+        if (func_80046F30())
+            return -1;
+    }
+    while (--rest != -1)
+        *p++ = *g_GpuGp0Port;
+    if (blocks != 0) {
+        *g_GpuGp1Port = 0x04000003;
+        *g_GpuDma2Madr = (u_long)p;
+        *g_GpuDma2Bcr = (blocks << 16) | 0x10;
+        *g_GpuDma2Chcr = 0x01000200;
+    }
+    return 0;
+}
 
 void func_80046560(u_long value) {
     *g_GpuGp1Port = value;
