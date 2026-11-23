@@ -1042,6 +1042,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
    emits `addu $2,$2,$3` for every spelling, so the offset-first operand is the
    legitimiser's choice and not the source's. No jump table and no dlabel data in
    this stub's .s, so it converts the moment the operand order closes.
+   ROUND 431: the two-level pointer local is the spelling that does flip BOTH of those
+   `lbu renderContext` addresses to retail's base-first order - `pRows = (MenuString*)
+   g_Menu->unk430; pRow = &pRows[i];` then `rc = pRow[0xE].renderContext` at the shifted
+   site and `pRow[0x1E].renderContext` in loop 2 (a lone `&(...)[i]` or `(base + i)` does
+   not; a subscript of a pointer local does) - 424 bytes / 106 insns, instruction for
+   instruction the retail multiset. That body measures 99.48 and the byte-test address
+   then loses retail's destination tie (`addu v0,a0,v0` / `lbu v1,4(v0)` against retail's
+   `addu a0,a0,v0` / `lbu v1,4(a0)`, and loop 2's `addu v1,v1,v0` against `addu v0,v0,v1`),
+   so all three remaining sites want the BASE pseudo as the sum's destination. With the
+   two-level pointer only on the shifted site the same three sites are wrong (99.25).
+   permute.sh on the 98.92 body: PERMUTER_BETTER base=95 best=55 in 1351 iters, and its
+   whole edit is inert (`rc` inlined as `pRow->renderContext`, `(*g_Menu).unk430`) except
+   the do-while in loop 2, which is already below. Flipping the destination tie is the
+   only thing left, and it is the same legitimiser that decides the operand order.
 */
 
 /*
