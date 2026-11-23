@@ -411,6 +411,28 @@ void SpritePlayAnimation(int, int);
    Since R432 the five debug strings are NOT needed in C: the unit's rodata is
    linked as an anonymous blob (config/field.yaml [0x11C, rodata]), so defining
    them here would duplicate the blob's symbols - keep them extern. */
+// PARKED R432 98.13% (315 insns / 1260 bytes vs retail 313 / 1252) - unchanged after
+// unpark and re-measure; the R419 analysis below stands, plus one new mechanism:
+// site A's nop is MASPSX LOAD-DELAY FILLING, not a scheduler slot. cc1 emits
+// lw $2,g_FieldActors / #nop / addu $2,$19,$2 / lw $4,4($2) / lh $5,234($16) / jal
+// (build/src/field/main/misc8.c.s, at the SpritePlayAnimation call), i.e. the second
+// argument is emitted LAST because expand_call loads a0 before a1; retail has
+// lw v0,0(v0) / lh a1,0xEA(s0) / addu v0,s3,v0 / lw a0,4(v0) / jal, so its toolchain
+// moved an independent instruction up into the load-delay slot and maspsx inserted a
+// nop instead. No source order produces retail's: a pre-call local for the second
+// argument puts the lh BEFORE the lui %hi(g_FieldActors) that opens the call, and
+// pSprite = g_FieldActors[i].pSpriteData; SpritePlayAnimation(pSprite, ...) is folded
+// back to the same 98.13 / 315 (both measured this round).
+// Site 2's move s1,a1 is the other two-pseudo CSE: retail's status test and the body
+// pointer are different pseudos (cse1 copies one into the other), while every spelling
+// of the address gives one pseudo allocated to $s1.
+// R432 preset screen (whole unit, try_flags --all): Default = every other C function
+// 100.00 and this one 98.13; gcc-2.6.0 = this 93.29 AND seven matched functions drop
+// (FieldSetGearModelAnimationForActor 95.51, FieldGetDistanceScaledValue 98.33,
+// FieldUpdateMotionSlotSteps 97.58, FieldUpdateMotionSlots 95.43,
+// FieldScriptConfigureDefaultParticleBank 96.29, FieldScriptSoftReset 77.50), so the
+// unit stays Default - no preset lead. This function alone: -O3 90.1, -G0 98.13 (no
+// change), 2.7.2-cdk 93.99, 2.6.0 93.29. Do not reopen without a new lever.
 /*
 void func_8008110C(void) {
     FieldActor* pFieldActor;
@@ -528,6 +550,7 @@ void func_8008110C(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
+
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
@@ -1540,6 +1563,13 @@ void func_80081F80(SpriteData*, s16, FieldActor*);
    directions, mask read off the field directly (90.92), assignment in the
    condition, unused int local, cdk (89.27), 2.6.0 (92.51), -O1 (91.46), -O3 and
    -G0 (97.03), four permuter runs (base 113 = best 113). Not a hand job. */
+/* PARKED R432 97.03% (144 bytes / 36 insns vs retail 148 / 37). Unchanged from R419:
+   the only residual is retail's HImode copy of the lh result (lh v0,0x106 / move v1,v0 /
+   andi v0,v0,0x8000); gcc loads into v1 and masks v0 from it. R432 re-measured after
+   unpark: identical diff, and lever.py (move/copy/HImode/load/promoted plus the
+   'value both arms compute' and 'combine folds mask' headings) names no mechanism for a
+   HImode load promoted to SImode, so this stays a compiler-shape wall (4 permuter runs,
+   base 113 = best 113). Do not reopen without a new lever. */
 /*
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
@@ -1565,6 +1595,7 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+
 
 
 void FieldGetTrianglePlaneHeight(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pOut, VECTOR* pNormal);
