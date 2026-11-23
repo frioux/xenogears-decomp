@@ -1263,26 +1263,6 @@ extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern s32 BattleAccumulateGaugePoints(BattleActor* p, s32 points, s32 mode);
 extern u8 g_BattleCameraLerpFrames;
 
-/* 99.49%: retail's exact 1720 bytes / 430 insns, every instruction identical except ONE
-   displaced `li s2,1` (plus the jtbl_ vs .rodata operand, expected here).
-   Round 421 replaced round 397's two duplicated case-1/2 arms with a real
-   shared block: each arm does `pEntry = BattleActorSelectActionEntry(p, N); goto
-   actionEntry;` and an `actionEntry:` label sits between case 2 and case 0. That
-   reproduces retail's block order and its merged `jal
-   BattleActorSelectActionEntry` tail (retail's case 1 jumps to the shared jal
-   with `li a1,1` in the jump delay slot, case 2 falls in with `move a1,zero`) and
-   fixed all three round-397 residuals except the last: 97.90 -> 99.49 at the same
-   byte count. Inside the shared block the body-first polarity
-   (`if (pEntry[0] != 0) body else reset`) is REQUIRED: it puts the reset block
-   after the body so it falls into case 0's BattleResetMessageQueue as retail
-   does, and the `== 0` spelling costs a `j` (1724 bytes, 98.19).
-   Residual: case 3's `flag = 1;` emits `li s2,1` second in the block (after sb
-   modelIndex) where retail has it 6th, after the sw of flags |= 0x1000. Source
-   order does not control it: identical output with flag = 1 as the arm's last
-   statement; the modelIndex if/else as a ternary is worse (98.85, wrong polarity).
-   Preset re-screened on this body: Default 99.49, cdk compile-failed, 2.6.0 breaks
-   the unit's matched functions.
-*//*
 void func_80077A9C(BattleActor* p) {
     u8* pEntry;
     u32 flags;
@@ -1355,6 +1335,9 @@ void func_80077A9C(BattleActor* p) {
                 }
                 p->prevPartIndex = 0xFF;
                 p->flags |= 0x1000;
+                // empty loop is a scheduling boundary: without it gcc hoists the
+                // constant above the flags read-modify-write (levers.md, round 433)
+                do { } while (0);
                 flag = 1;
                 p->actionPhase = 2;
                 p->flags |= 1;
@@ -1470,8 +1453,6 @@ void func_80077A9C(BattleActor* p) {
         p->flags &= ~0x8000;
     }
 }
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
 
 void BattleActorApplyCenterPosition(BattleActor* p) {
     p->position = p->centerPosition;
