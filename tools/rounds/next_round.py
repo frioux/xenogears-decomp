@@ -49,6 +49,12 @@ ABBREV = {"battle": "b", "battling": "bt", "field": "f", "menu": "m", "world_map
           "slus_006.64": "s", "gear_shop_menu": "gs", "shop_menu": "sh", "member_change_menu": "mc",
           "movie": "mv"}
 CLASS_ORDER = ["park100", "twin", "cluster", "park", "fresh", "big", "redo"]
+# `park` has had 297 eligible entries for many rounds and, standing fourth in
+# CLASS_ORDER, it took every lane of rounds 417-420: 44 lanes, 7 matches (0.16 a
+# lane) while `fresh`, `big` and `redo` got no seat at all. In `auto` a single
+# class may therefore hold at most this share of the round's lanes, so the later
+# classes always get lanes; an explicit --kind is not capped.
+CLASS_SHARE = {"park": 0.6}
 INSN = re.compile(r"^\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{8}\s*\*/")
 
 
@@ -412,8 +418,9 @@ def plan(args, elig, round_no):
     want = args.lanes + args.queue
     taken, used, tags, out = set(), set(), set(), []
     for cls in kinds:
+        cap = want if args.kind != "auto" or cls not in CLASS_SHARE else max(1, int(want * CLASS_SHARE[cls]))
         for _, unit, funcs in candidate_lanes(cls, elig):
-            if len(out) >= want:
+            if len(out) >= want or sum(1 for o in out if o[2] == cls) >= cap:
                 break
             if unit in taken:
                 continue
