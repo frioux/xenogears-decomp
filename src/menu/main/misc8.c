@@ -224,10 +224,10 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
     D_801EA708 = MENU_STAT_BAR_WIDTH_MAX * (100 * arg0 / arg2) / 10000;
     if (diff >= 0) {
         D_801EA710 = 2;
-        D_801EA714 = 0xE3;
+        D_801EA714 = MENU_TEX_PLUS;
     } else {
         D_801EA710 = 3;
-        D_801EA714 = 0xE5;
+        D_801EA714 = MENU_TEX_MINUS;
         D_801EA704 = arg0 - arg1;
     }
     D_801EA70C = MENU_STAT_BAR_WIDTH_MAX * (100 * D_801EA704 / arg2) / 10000;
@@ -238,13 +238,13 @@ s32 MenuMaxStatValue(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
     u16 max = 0;
     s32 i;
 
-    for (i = 0; i < 7; p0++) {
+    for (i = 0; i < MENU_STAT_LABEL_ROW_COUNT; p0++) {
         i++;
         if (max < *p0) {
             max = *p0;
         }
     }
-    for (i = 0; i < 7; p1++) {
+    for (i = 0; i < MENU_STAT_LABEL_ROW_COUNT; p1++) {
         i++;
         if (max < *p1) {
             max = *p1;
@@ -587,10 +587,10 @@ void MenuOpenCardEvents(void) {
     DrawSync(0);
     Vsync(0);
     EnterCriticalSection();
-    g_Menu->menuUnk2->cardEvents[0] = OpenEvent(0xF4000001, 4, 0x2000, 0);
-    g_Menu->menuUnk2->cardEvents[1] = OpenEvent(0xF4000001, 0x8000, 0x2000, 0);
-    g_Menu->menuUnk2->cardEvents[2] = OpenEvent(0xF4000001, 0x100, 0x2000, 0);
-    g_Menu->menuUnk2->cardEvents[3] = OpenEvent(0xF4000001, 0x2000, 0x2000, 0);
+    g_Menu->menuUnk2->cardEvents[0] = OpenEvent(SwCARD, EvSpIOE, EvMdNOINTR, NULL);
+    g_Menu->menuUnk2->cardEvents[1] = OpenEvent(SwCARD, EvSpERROR, EvMdNOINTR, NULL);
+    g_Menu->menuUnk2->cardEvents[2] = OpenEvent(SwCARD, EvSpTIMOUT, EvMdNOINTR, NULL);
+    g_Menu->menuUnk2->cardEvents[3] = OpenEvent(SwCARD, EvSpNEW, EvMdNOINTR, NULL);
     EnableEvent(g_Menu->menuUnk2->cardEvents[0]);
     EnableEvent(g_Menu->menuUnk2->cardEvents[1]);
     EnableEvent(g_Menu->menuUnk2->cardEvents[2]);
