@@ -61,7 +61,14 @@ paths = [
     # cc_sweep measured both of these whole units: every already-matched function stays
     # 100.00 under 2.6.0 and a park closes (battle/misc2 func_80073FB8 99.9 -> 100.00,
     # menu/misc3 func_801CA8C0 -> 100.00).
-    "battle/main/misc2."
+    "battle/main/misc2.",
+    # battle/main/misc11_b is mixed by exactly one function: func_80081B58 is
+    # byte-identical only under 2.6.0 (99.32 under 2.7.2, where the gaugeSpent
+    # constant's `li` sinks past the countdown-timer store), while its neighbour
+    # BattleAppendCommandRecord is 100.00 under 2.7.2 and 99.91 under 2.6.0. The
+    # eight slot-menu switches are jtbl-operand-only under both. config/battle.yaml
+    # splits that one function out as main/misc11_b_r1.
+    "battle/main/misc11_b_r1.",
 ]
 
 [[build_preset]]

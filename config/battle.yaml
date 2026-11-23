@@ -68,6 +68,11 @@ segments:
       # 0x80070010, 8-aligned) makes every one of its tables 8-aligned, so they
       # convert. See main/misc11_b.
       - [0x520, .rodata, main/misc11_b]
+      # misc11_b's 7 tables are one 0x20-byte table per switch: the head's four
+      # (Display, Activate, Exit, FourSlot) at +0x0, the tail's three (Queue,
+      # SubMode, Random) at +0x80. The tail is its own TU (main/misc11_b_r2), so its
+      # tables have to travel with it or the whole block shifts.
+      - [0x5A0, .rodata, main/misc11_b_r2]
       - [0x600, .rodata, main/misc12]
       - [0x760, .rodata, main/misc13]
       - [0x824, .rodata, main/misc15]
@@ -119,6 +124,8 @@ segments:
       # Split at func_8008115C (the first of the table-owning tail functions); the
       # split point is the yaml rodata split above, 0x520.
       - [0x1166C, c, main/misc11_b]
+      - [0x12068, c, main/misc11_b_r1]
+      - [0x125B4, c, main/misc11_b_r2]
       - [0x12D30, c, main/misc12]
       - [0x15B28, c, main/misc13]
       - [0x18EA0, c, main/misc14]
