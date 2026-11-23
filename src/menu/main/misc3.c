@@ -8,7 +8,7 @@
 // MenuLoadWindow2Text's second text id when there is no second text to load.
 // MenuFindFreeChunkIndex's index argument when the caller has none and wants a free one.
 #define MENU_CHUNK_INDEX_NONE 0xFF
-// The frame budget func_801CAA38 spends waiting for a memory card status byte to change.
+// The frame budget MenuWaitWindowInputOrCardChange spends waiting for a memory card status byte to change.
 #define MENU_CARD_CHANGE_WAIT_FRAMES 180
 
 extern u8 g_MenuCardChunkInUse[][0x10];
@@ -22,7 +22,7 @@ extern u16 D_8006F958[0x10];
 extern int g_SpuChannelMask;
 extern int MenuSaveSlotReadGameState(u32*, void*);
 extern int MenuCreateWindow2Strings(u_char);
-extern u_char func_801CAA38(u_char);
+extern u_char MenuWaitWindowInputOrCardChange(u_char);
 extern int MenuFreeWindow2Strings(void);
 extern void func_801CB184(void);
 extern int func_801C8D78(u_char);
@@ -140,7 +140,7 @@ int MenuReadFileChunk(u8* pPath, u8* pBuffer) {
 
 extern void MenuWaitCardOperationFrames(u_char index);
 extern u32 D_801C50E0[];
-extern u8 D_801E9778;
+extern u8 g_MenuCardSaveListStale;
 extern u8 g_MenuCardChangeDetectionEnabled;
 extern u8 g_MenuWindowTextBackPressed;
 
@@ -675,7 +675,7 @@ void func_801CA8C0(u_char a0) {
 }
 // Waits up to MENU_CARD_CHANGE_WAIT_FRAMES frames for the two card status bytes to
 // change, rendering a frame each pass, and returns the confirm/back result.
-u_char func_801CAA38(u_char a0) {
+u_char MenuWaitWindowInputOrCardChange(u_char a0) {
     u_char cardStatus[2];
     u_char result;
     u_char looping;
@@ -707,12 +707,12 @@ u_char func_801CAA38(u_char a0) {
             if (cardStatus[0] != g_Menu->menuUnk2->cardStatus[0]) {
                 g_Menu->menuUnk2->cardEnumerated[0] = 0;
                 g_Menu->input = MENU_INPUT_BACK;
-                D_801E9778 = 1;
+                g_MenuCardSaveListStale = 1;
             }
             if (cardStatus[1] != g_Menu->menuUnk2->cardStatus[1]) {
                 g_Menu->menuUnk2->cardEnumerated[1] = 0;
                 g_Menu->input = MENU_INPUT_BACK;
-                D_801E9778 = 1;
+                g_MenuCardSaveListStale = 1;
             }
         }
         switch (g_Menu->input) {
@@ -751,12 +751,12 @@ u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
 
     MenuCreateWindow2Strings(a0);
     g_Menu->pCursors->shouldRender[3] = 1;
-    result = func_801CAA38(a2);
+    result = MenuWaitWindowInputOrCardChange(a2);
     MenuFreeWindow2Strings();
     if (a1 != MENU_WINDOW_TEXT_NONE && result != 0) {
         MenuCreateWindow2Strings(a1);
         g_Menu->pCursors->shouldRender[3] = 1;
-        result = func_801CAA38(a2);
+        result = MenuWaitWindowInputOrCardChange(a2);
         MenuFreeWindow2Strings();
     }
     return result;
@@ -1931,7 +1931,7 @@ u_char func_801CC6D8(void) {
                 }
                 g_Menu->menuUnk2->cardEnumerated[0] = 0;
                 g_Menu->menuUnk2->cardEnumerated[1] = 0;
-                D_801E9778 = 1;
+                g_MenuCardSaveListStale = 1;
             }
         updateCursor:
             g_Menu->pCursors->shouldUpdatePosition[0] = 1;

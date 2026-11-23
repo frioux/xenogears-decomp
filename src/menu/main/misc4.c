@@ -22,7 +22,7 @@ extern void MenuFreeWindow2Strings(void);
 extern void MenuPlaySoundEffect(u_char soundEffectId);
 extern void MenuRenderFrame(void);
 extern s32 g_MenuCardSlotOrder[];
-extern u8 D_801E9778;
+extern u8 g_MenuCardSaveListStale;
 
 // The memory card directory prefix a slot's filename is appended to: g_MenuCardPathPrefix0
 // reads "bu00:", g_MenuCardPathPrefix1 "bu10:".
@@ -110,7 +110,7 @@ u_char MenuEraseCardSaveFile(void) {
                     g_Menu->menuUnk2->cardEnumerated[1] = 0;
                     g_Menu->menuUnk2->previousCardSlotCounts[0] = MENU_SLOT_NONE;
                     g_Menu->menuUnk2->previousCardSlotCounts[1] = MENU_SLOT_NONE;
-                    D_801E9778 = 1;
+                    g_MenuCardSaveListStale = 1;
                 }
                 g_Menu->pCursors->shouldUpdatePosition[0] = 1;
                 // Falls through: the cursor update above is the last thing the card
