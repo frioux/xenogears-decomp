@@ -24,8 +24,8 @@ extern u_char* g_WorldMapSemiTransPrims[];
 extern u_char* g_WorldMapSemiTransPrimCopy;
 // Interleaved {parent id, child id} pairs of the sprite-set parent table; the
 // pairs are offsets from the level's group base and a parent of -1 ends the list
-extern s16 D_8009AFA0[];
-extern u16 D_8009B688[];
+extern s16 g_WorldMapSpriteSetParentPairs[];
+extern u16 g_WorldMapLevelSpriteSetBase[];
 extern u16 g_WorldMapTileGroupIds[];
 extern u16 D_8009B64E[];
 extern u16 g_WorldMapSlotRotationGroupIds[];
@@ -809,7 +809,7 @@ s32 WorldMapInitializePlayerSlot(s32 index) {
     s32 posZ;
     s32 posX;
 
-    func_8008868C();
+    WorldMapSetLevelSpriteSetParents();
     pSlot = &g_WorldMapSlots[index];
     pSlot->unk54 = 4;
     pSlot->state = 0;
@@ -852,12 +852,12 @@ s32 WorldMapInitializePlayerSlot(s32 index) {
     return 1;
 }
 
-s32 func_8008868C(void) {
-    s32 base = D_8009B688[g_WorldMapLevelIndex];
+s32 WorldMapSetLevelSpriteSetParents(void) {
+    s32 base = g_WorldMapLevelSpriteSetBase[g_WorldMapLevelIndex];
     s32 i = 0;
 
-    while (D_8009AFA0[i * 2] != -1) {
-        WorldMapSetSpriteSetParent(base + D_8009AFA0[i * 2], base + D_8009AFA0[i * 2 + 1]);
+    while (g_WorldMapSpriteSetParentPairs[i * 2] != -1) {
+        WorldMapSetSpriteSetParent(base + g_WorldMapSpriteSetParentPairs[i * 2], base + g_WorldMapSpriteSetParentPairs[i * 2 + 1]);
         i++;
     }
     return 1;
@@ -916,7 +916,7 @@ s32 func_80088720(s32 index) {
     s32 dist;
 
     pSlot = &g_WorldMapSlots[index];
-    tileIndex = D_8009B688[g_WorldMapLevelIndex];
+    tileIndex = g_WorldMapLevelSpriteSetBase[g_WorldMapLevelIndex];
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
     pSlot->unk58 = (pSlot->unk58 + pSlot->unk5C) & 0xFFF;
     *(s16*)0x1F8000A4 = 0;

@@ -156,6 +156,13 @@ def stub_reason(path, binary, unit):
     if ("jtbl" in text or "jlabel" in text) and not owns_tables(binary, unit.split("/", 1)[1]):
         return "jtbl-not-owned"
     insns = [ln for ln in body if INSN.match(ln)]
+    # A bare `j <callee>` (+ nop) is a hand-written sibling-call thunk: no compiler in
+    # tools/ emits MIPS sibcalls (round 424 measured the mips.md define_expands in 2.6.0,
+    # 2.7.2 and 2.8.1), so such a stub can never be C.
+    if 0 < len(insns) <= 3:
+        ops = [re.sub(r"^\s+/\*[^*]*\*/\s*", "", ln).split()[0] for ln in insns]
+        if ops[0] in ("j", "jal") and all(o in ("nop", "jr", "ra") for o in ops[1:]):
+            return "sibling-call"
     if 0 < len(insns) < 15:
         m = re.match(r"\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+([0-9A-Fa-f]{8})", insns[0])
         word = int(m.group(1), 16)

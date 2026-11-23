@@ -812,6 +812,13 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // middle of the block (pre-reload sched-insns hoisted it there), so $s0 still had
 // uses after it and combine_regs did not fire; every spelling here puts the copy
 // last, s0 dies there and the stores are rewritten to $a0.
+// REDO LANE, two new measurements (both 100 bytes = retail's): (1) moving the timer
+// reset AFTER the call in source does keep every store base on $s0 and lands the flag
+// `sb` in the jal delay slot, but scores 81.60 - so the residual is the store BASE
+// ($a0 vs $s0) and not the order; and the timer store then stays after the call,
+// because pre-reload sched-insns will not move an independent store across a jal, so
+// "retail typed the reset last" is ruled out. (2) preset screen: gcc-2.6.0-psx 76.76,
+// gcc-2.7.2-psx under the unit flags compile-failed - not a preset question.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
@@ -823,7 +830,8 @@ void func_800BDC14(Misc32Task *pTask) {
         pTask->color.channels.flags = (pTask->color.channels.flags | 2) & 0xFE;
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 
 extern void func_800BDC14(Misc32Task *pTask);

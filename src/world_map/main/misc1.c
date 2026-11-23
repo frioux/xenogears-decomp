@@ -693,7 +693,7 @@ extern s32 WorldMapModeInitSpriteSets2And3();
 extern s32 WorldMapInitAreaNameString();
 extern s32 func_80092DF8();
 extern s32 WorldMapSetSceneSpriteSetParents();
-extern s32 func_8008868C();
+extern s32 WorldMapSetLevelSpriteSetParents();
 extern s32 WorldMapSetSceneLayerTPages();
 extern s32 WorldMapHideSpriteSetGroups();
 
@@ -873,11 +873,11 @@ void func_80072238(void) {
         switch (g_WorldMapLevelIndex - 3) {
         case 0:
             WorldMapSetSlotEnterHandler(WorldMapSetSceneSpriteSetParents, 0xF);
-            WorldMapSetSlotEnterHandler(func_8008868C, 0x10);
+            WorldMapSetSlotEnterHandler(WorldMapSetLevelSpriteSetParents, 0x10);
             break;
         case 1:
             WorldMapSetSlotEnterHandler(WorldMapSetSceneSpriteSetParents, 0xF);
-            WorldMapSetSlotEnterHandler(func_8008868C, 0x10);
+            WorldMapSetSlotEnterHandler(WorldMapSetLevelSpriteSetParents, 0x10);
             WorldMapSetSlotEnterHandler(WorldMapSetSceneLayerTPages, 0x11);
             WorldMapSetSlotEnterHandler(WorldMapHideSpriteSetGroups, 0x13);
             break;
@@ -885,7 +885,7 @@ void func_80072238(void) {
         case 3:
         case 4:
             WorldMapSetSlotEnterHandler(WorldMapSetSceneSpriteSetParents, 0xF);
-            WorldMapSetSlotEnterHandler(func_8008868C, 0x10);
+            WorldMapSetSlotEnterHandler(WorldMapSetLevelSpriteSetParents, 0x10);
             // fallthrough
         case 5:
             WorldMapSetSlotEnterHandler(WorldMapSetSceneLayerTPages, 0x11);
