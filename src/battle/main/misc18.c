@@ -49,6 +49,9 @@ extern u16 g_BattleCommandCellFlags;
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleSlotConditions[][0x170];
 extern u8 D_800CCE44[][0x170];
+// The per-slot byte at +0x02 of the same 0x170-byte slot family: func_80096FBC scales a
+// character 8 slot's action amount by it / 4.
+extern u8 D_800CCE2A[][0x170];
 
 // Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
 // bytes apart. Only the word at +0 is read here.
@@ -66,6 +69,7 @@ extern void func_80098D2C(u8, u8);
 extern void BattleRestoreSlotConditionFlags(void);
 extern u8 BattleTestActorSlotFlagsC002ByMode(void);
 extern void BattleSetCommandCodeForSlotKindFlag(u8, u16);
+extern void func_8009B46C(u16 *);
 
 void BattleApplyScriptConditionTimer(void) {
     s8 ret = BattleTryApplySlotCondition(g_BattleCurrentRow->chance, g_BattleCurrentRow->conditionKind,
@@ -582,7 +586,131 @@ s32 BattleRollHitResult(void) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
+s16 func_80096FBC(void) {
+    u8 weaponAttacks[5];
+    u16 amount;
+    u16 total;
+    u16 attack;
+    u16 ether;
+    u16 pair;
+    u8 factor;
+    u8 i;
+
+    if (g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
+        for (i = 0; i < 3; i++) {
+            weaponAttacks[i] = g_BattleTargetSlotState->weaponData[i].attack;
+        }
+        attack = g_BattleTargetSlotState->engineOutput * g_BattleTargetSlotState->unk3F;
+        if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 0x1000) {
+            attack = attack + g_BattleTargetSlotState->engineOutput * 2;
+        }
+    } else {
+        for (i = 0; i < 4; i++) {
+            weaponAttacks[i] = ((GameCharacter *)g_BattleActingSlot)->slots[i].attack;
+        }
+        attack = g_BattleActingSlot->attack;
+    }
+
+    ether = g_BattleActingSlot->ether;
+    total = 0;
+    if (g_BattleCurrentRow->weaponSlotFlags & 0x80) {
+        total += weaponAttacks[0];
+    }
+    if (g_BattleCurrentRow->weaponSlotFlags & 0x40) {
+        total += weaponAttacks[1];
+    }
+    if (g_BattleCurrentRow->weaponSlotFlags & 0x20) {
+        total += weaponAttacks[2];
+    }
+    if (g_BattleCurrentRow->weaponSlotFlags & 0x10) {
+        total += weaponAttacks[3];
+    }
+    if (g_BattleCurrentRow->weaponSlotFlags & 0x08) {
+        total += weaponAttacks[4];
+    }
+    if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 1) {
+        total += (u16)total >> 1;
+    }
+
+    if (g_BattleCurrentRow->actionFlags & 0x100) {
+        factor = 4;
+        if ((g_BattleActingSlot->activeEffectFlags4 | g_BattleActingSlot->accessoryEffectFlags4) & 0x8000) {
+            factor = 5;
+        }
+        if (g_BattleActingSlot->activeEffectFlags2 & 0x400) {
+            factor--;
+        }
+        ether = (u16)ether * factor / 4;
+        if ((g_BattleActingSlot->activeEffectFlags4 | g_BattleActingSlot->accessoryEffectFlags4) & 0x2000) {
+            ether = (u16)ether * 2;
+        }
+    } else if ((g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) == 0) {
+        pair = g_BattleActingSlot->activeEffectFlags3 | g_BattleActingSlot->accessoryEffectFlags3;
+        factor = 4;
+        if (pair & 0x2000) {
+            factor = 5;
+        }
+        if (g_BattleActingSlot->activeEffectFlags1 & 0x200) {
+            factor--;
+        }
+        if (pair & 0x400) {
+            factor = factor + 10;
+            factor = factor - g_BattleActingSlot->hp / (g_BattleActingSlot->maxHp / 10);
+        }
+        attack = attack * factor / 4;
+    }
+
+    if (g_BattleCurrentRow->actionFlags & 0x20) {
+        attack = 0;
+    }
+
+    switch (g_BattleCurrentRow->amountSource) {
+    case 0:
+        amount = total + attack;
+        break;
+    case 1:
+        amount = ether;
+        break;
+    case 2:
+        if (g_BattleActingSlot->characterId == 4) {
+            total = (u16)total * 6 / 10;
+        }
+        if (g_BattleCurrentRow->actionFlags & 0x100) {
+            amount = ether * g_BattleCurrentRow->power / 20;
+        } else {
+            amount = (total + attack) * g_BattleCurrentRow->power / 20;
+        }
+        break;
+    }
+
+    if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS) {
+        if (g_BattleActingSlot->characterId == 7) {
+            func_8009B46C(&amount);
+        }
+        if (g_BattleActingSlot->characterId == 4 || (g_BattleCurrentRow->element & 0x20)) {
+            if (g_BattleTargetSlotEntry->element & 0x20) {
+                amount += (u16)amount >> 2;
+            }
+            if ((*(u32 *)&g_BattleTargetSlotEntry->element & 0x60) == 0x60) {
+                amount += (u16)amount >> 2;
+            }
+        }
+        if (g_BattleActingSlot->characterId == 8 && (g_BattleSlotConditions[g_BattleTargetSlotIndex][0] & 0x80) == 0 &&
+            (g_BattleCurrentRow->actionFlags & 0x100)) {
+            amount = amount * D_800CCE2A[g_BattleTargetSlotIndex][0] / 4;
+        }
+        if (g_BattleActingSlot->characterId == 10) {
+            amount += amount / 5;
+        }
+        if ((g_BattleCurrentRow->element & 0x10) && (g_BattleTargetSlotEntry->element & 0x10)) {
+            amount += (u16)amount >> 2;
+            if (g_BattleTargetSlotEntry->element & 0x10) {
+                amount += (u16)amount >> 2;
+            }
+        }
+    }
+    return (s16)amount;
+}
 s16 BattleComputeSlotActionAmount(void) {
     u16 value;
     u16 amount;
