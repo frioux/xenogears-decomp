@@ -583,7 +583,7 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 
-// PARKED 94.97%, 2508 bytes / 627 insns (retail 2488 / 622). Whole body decoded: the 3-buffer
+// PARKED 95.22%, 2504 bytes / 626 insns (retail 2488 / 622). Whole body decoded: the 3-buffer
 //   D_800C3A70 alloc/free loops, both queue writes, the 13-row key walk, the per-command
 //   sprite loop, the 13-arm status ladder with the case-12 body, the queue[0x2E4]
 //   BattleUpdateFrame path, the 6-arm + case-8 ladder, the last 3-arm ladder (case 0/1/3),
@@ -601,7 +601,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 //   spriteId $s1, j $s2, i $s3, matched $s4 - a pure rotation plus the spill.
 //   RESIDUAL 2: that rotation (names only, no instruction differs).
 //   Tried and measured, do not redo: removing the BattleDrawSpritePackage return temp
-//   (94.97 / 2508, unchanged - gcc coalesces it); permuter 4 min from this body
+//   (94.97 / 2508, unchanged - gcc coalesces it); dropping the `pQueue` local and
+//   spelling the inner key byte read off the global (95.22 / 2504, one instruction
+//   better, the spill survives); permuter 4 min from this body
 //   (base 4135 -> best 1200, but the find is '(j = i)' at the block-B call, which
 //   clobbers the ladder counter that the very next '0x13 - j' status index reads - wrong
 //   code, rejected); try_flags gcc-2.6.0 95.22, gcc-2.7.2-cdk 78.03, so Default is right.
@@ -636,7 +638,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
     for (i = 0; i < BATTLE_COMMAND_SLOT_COUNT; i++) {
         pRow = g_BattleCommandSlotRows[i];
         for (j = 0; j < BATTLE_COMMAND_KEY_LENGTH; j++) {
-            pKey = pQueue + j;
+            pKey = g_BattleCommandQueue + j;
             if (pKey[0x2CC] != pRow[j]) {
                 matched = 0;
                 break;
