@@ -674,8 +674,339 @@ void FieldRenderSyncAndFlush(void) {
     ExitCriticalSection();
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_800799D4);
+// A request code of 0x80 is a random encounter; the low seven bits of the code
+// name the field state the map is being loaded for
+#define FIELD_REQUEST_RANDOM_ENCOUNTER 0x80
+#define FIELD_REQUEST_CODE_MASK 0x7F
 
+// Archive entry holding the gear overlay, which is only loaded when the map has
+// actor model slots
+#define FIELD_GEAR_OVERLAY_ARCHIVE_INDEX 0x6B9
+
+// The strip table below covers the frame buffer in six 0x40 x 0x20 blocks
+#define FIELD_FRAMEBUFFER_STRIP_COUNT 6
+
+// Source and VRAM corner of one strip of the frame buffer
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+} ScreenStripCorner; // Size: 0x4
+
+extern s32 g_FieldRequestCode;
+extern u_char g_FieldRandomEncounterFlag;
+extern void* g_FieldArchiveQueueBuffer;
+extern s32 g_FieldStreamDataSize;
+extern void* g_MenuResourcesFile;
+extern u_char g_MenuDebugEnabled;
+extern u_char g_MenuOverlayIndex;
+extern s32 g_GfxOTDepthShift;
+extern s32 g_GameSceneMapNum;
+extern u_char g_FieldScriptMemoryUpdateLocked;
+extern s32 g_FieldScriptSuppressScreenEffect;
+extern s32 g_FieldScreenEffectSuppressed;
+extern s32 g_FieldPendingRequestCount;
+extern s32 g_GamePartyMemberSkins[MAX_PARTY_MEMBERS];
+extern s32 g_GamePartyUsesGearSkins;
+extern s32 g_GamePartyQueuedSkinKind;
+extern void* g_PartyDataBuffers[MAX_PARTY_MEMBERS];
+extern u_char g_FieldDisableActorRender;
+extern u_long* g_MenuGfxEnvOtBuffer0[2];
+extern u16 D_8006BE2C[MAX_PARTY_MEMBERS];
+extern ScreenStripCorner D_800ADCB0[FIELD_FRAMEBUFFER_STRIP_COUNT];
+extern ScreenStripCorner D_800ADCC8[FIELD_FRAMEBUFFER_STRIP_COUNT];
+extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 arg1, s32 arg2);
+extern int ArchiveDecodeAlignedSize(u32 entryIndex);
+extern void ArchiveReadFileToBuffer(s32 fileIndex, void* pBuffer, u32 arg2, u32 flags);
+extern void LZSSDecompress(void* pSrc, void* pDst);
+extern void MenuMain(void);
+extern void FieldScriptMemoryWriteU16(int index, int value);
+extern void FieldFreeScriptDataStream(void);
+extern void FieldPartyFreeSkinDataBuffers(void);
+extern void FieldPartyAllocateSkinDataBuffers(void);
+extern void FieldScriptRunFirstActorRoutine3(void);
+extern void GamePartySyncSkinData(void);
+extern void GamePartySyncStreamedData(void);
+
+// Loads everything a field map needs: the palette and stream data, the frame
+// buffer it was entered from, the render contexts and the party skin data
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_800799D4);
+// PARKED 88.93% (2644 bytes / 661 insns; retail 2680 / 670) - measured, compiles.
+// Frame 0x78 with s0-s8 + ra, the prologue/epilogue, every call, argument and
+// branch is retail's; the residual is almost entirely how an absolute address is
+// reached, so the remaining byte budget is small and spread out.
+// NAMED RESIDUALS:
+//  1. g_FieldColorFillRect: retail materialises `la` into $s0 once per block and
+//     stores x through `sh v0,0($s0)`, keeping the other three stores absolute
+//     (D_800AFE4E/50/52) and reusing $s0 for the MoveImage argument; this body
+//     stores all four absolute and re-forms the la at each call (+~8 insns).
+//  2. the two strip loops: retail strength-reduces each table reference into its
+//     own walker (s0/s1 for D_800ADCB0, s3/s4 for D_800ADCC8, +4 per iteration,
+//     fields at 0 and 2); gcc gives one pointer per table with 0/2 offsets here.
+//     Same instruction count, different registers.
+//  3. `g_FieldColorFillTiles[1] = g_FieldColorFillTiles[0]` relocates against
+//     g_FieldColorFillTiles+0x10 where retail names D_800AFE64: link-identical
+//     (objdiff only).
+//  4. `g_MenuGfxEnvOtBuffer0[1] = ...` relocates against +4 where retail names
+//     D_8005A4B0: also link-identical (objdiff only).
+//  5. nStreamSize takes stack slot 0x40 where retail uses 0x48 - retail allocated
+//     something 8 bytes long before it. Tried a third s32 local (that bought the
+//     0x78 frame, kept); the remaining 8-byte hole is not expressible from the code.
+// TRIED, one line each:
+//  - indexed `T[i].x` vs explicit `pSrc++` walkers: 84.84 -> 88.90 (walkers better).
+//  - rect/queue declaration order: that swap is what put locals at retail's 0x18/0x20.
+//  - `void* pQueueBackup = NULL` (prologue `move s8,zero`): part of the 88.90 jump.
+//  - nRequestCode local before the last request-code test: frame 0x70 -> 0x78.
+/*
+void func_800799D4(void) {
+    RECT rect;
+    StreamDataQueueEntry queue[4];
+    s32 nSize;
+    s32 nRequestCode;
+    s32 nStreamSize;
+    void* pQueueBackup = NULL;
+    void* pStreamBuffer;
+    void* pPalette;
+    void* pImageA;
+    void* pImageB;
+    void* pSkinData;
+    ScreenStripCorner* pSrcCorner;
+    ScreenStripCorner* pDstCorner;
+    int i;
+
+    if (g_FieldRequestCode == FIELD_REQUEST_RANDOM_ENCOUNTER && g_FieldRandomEncounterFlag != 0) {
+        return;
+    }
+
+    setTile(&g_FieldColorFillTiles[0]);
+    SetSemiTrans(&g_FieldColorFillTiles[0], 1);
+    setRGB(g_FieldColorFillTiles[0], 0);
+    g_FieldColorFillTiles[0].y0 = 0;
+    g_FieldColorFillTiles[0].x0 = 0;
+    g_FieldColorFillTiles[0].w = SCREEN_WIDTH;
+    g_FieldColorFillTiles[0].h = SCREEN_HEIGHT;
+    g_FieldColorFillTiles[1] = g_FieldColorFillTiles[0];
+    SetDrawMode(&g_FieldColorFillDrawModes[0], 0, 0, GetTPage(0, 2, 0, 0), NULL);
+    SetDrawMode(&g_FieldColorFillDrawModes[1], 0, 0, GetTPage(0, 2, 0, 0), NULL);
+
+    FieldPartyFreeSkinDataBuffers();
+    if (g_FieldActorModelSlotCount != 0) {
+        ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+        pQueueBackup = HeapAlloc(ArchiveDecodeAlignedSize(FIELD_GEAR_OVERLAY_ARCHIVE_INDEX), 0);
+        memcpy(pQueueBackup, g_FieldArchiveQueueBuffer, ArchiveDecodeAlignedSize(FIELD_GEAR_OVERLAY_ARCHIVE_INDEX));
+        HeapFree(g_FieldArchiveQueueBuffer);
+    }
+
+    nStreamSize = g_FieldStreamDataSize;
+    ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0);
+    if (g_FieldSuppressStateChange == 1) {
+        nSize = ArchiveDecodeAlignedSize((g_FieldRequestCode + 5) & FIELD_REQUEST_CODE_MASK);
+    } else {
+        nSize = (g_FieldStreamDataSize & 0xFFFFFF) + 0xFFE3AFF8;
+    }
+    pStreamBuffer = HeapAlloc(nSize, 1);
+
+    pPalette = HeapAlloc(ArchiveDecodeAlignedSize(1), 1);
+    g_MenuResourcesFile = pPalette;
+    queue[0].archiveIndex = 1;
+    queue[0].pData = pPalette;
+    queue[1].archiveIndex = (g_FieldRequestCode & FIELD_REQUEST_CODE_MASK) + 5;
+    queue[1].pData = pStreamBuffer;
+    queue[2].archiveIndex = 0;
+    queue[2].pData = NULL;
+    queue[3].archiveIndex = 0;
+    queue[3].pData = NULL;
+    if ((g_FieldRequestCode & FIELD_REQUEST_CODE_MASK) == 5 && g_FieldSuppressStateChange == 0) {
+        queue[2].archiveIndex = 0xC;
+        queue[2].pData = (void*)0x1DC000;
+    }
+    ArchiveCdDataSync(0);
+    ArchiveStartStreamQueue(queue, 0, 0);
+
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+    rect.w = 0x40;
+    rect.h = 0x20;
+    for (i = 0, pSrcCorner = D_800ADCB0, pDstCorner = D_800ADCC8; i < FIELD_FRAMEBUFFER_STRIP_COUNT; i++, pSrcCorner++, pDstCorner++) {
+        rect.x = pSrcCorner->x;
+        rect.y = pSrcCorner->y;
+        MoveImage(&rect, pDstCorner->x, pDstCorner->y);
+        DrawSync(0);
+    }
+    FieldMoveImageAndSync(0x40, 0x100, 0x3C0, 0x100, 0x300, 0);
+    FieldMoveImageAndSync(0x40, 0x100, 0x2C0, 0x100, 0x280, 0);
+
+    g_FieldColorFillRect.x = 0x2C0;
+    g_FieldColorFillRect.y = 0x100;
+    g_FieldColorFillRect.w = SCREEN_WIDTH;
+    g_FieldColorFillRect.h = SCREEN_HEIGHT;
+    FieldCopyScreenToFadeTexture();
+    MoveImage(&g_FieldColorFillRect, 0, 0x100);
+    DrawSync(0);
+    for (i = 0; i < 0x20; i++) {
+        FieldRenderColorFill(i);
+    }
+    FieldRenderSync();
+    g_FieldColorFillRect.x = 0;
+    g_FieldColorFillRect.y = 0;
+    FieldSwapRenderContext();
+    FontFree();
+    MoveImage(&g_FieldColorFillRect, 0, 0xE0);
+    FieldRenderSync();
+
+    ArchiveCdDataSync(0);
+    g_GameDiscChangeRequest = 0;
+    g_MenuDebugEnabled = 0;
+    g_MenuOverlayIndex = g_FieldRequestCode & FIELD_REQUEST_CODE_MASK;
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        D_8006BE2C[i] = g_pGameState->gearRide[i];
+    }
+    FieldUpdatePlayerWalkmeshMaterial();
+    g_MenuGfxEnvOtBuffer0[0] = g_FieldRenderContexts[0].ot1;
+    g_MenuGfxEnvOtBuffer0[1] = g_FieldRenderContexts[1].ot1;
+    FieldRenderSyncAndFlush();
+    MenuMain();
+    FieldRenderSyncAndFlush();
+
+    g_GfxOTDepthShift = 2;
+    if (g_GameDiscChangeRequest == 0) {
+        if ((g_FieldRequestCode & FIELD_REQUEST_CODE_MASK) == 2) {
+            g_FieldScriptMemoryUpdateLocked = 1;
+            FieldScriptMemoryWriteU16(0x46, 0);
+            FieldScriptMemoryWriteU16(4, 4);
+            g_GameSceneMapNum = 4;
+            g_pGameState->unk2320 = 0;
+            g_pGameState->fieldScriptMemory[1] = 0;
+            g_pGameState->mapNum = 4;
+        }
+    }
+    if (g_GameDiscChangeRequest == 2) {
+        g_FieldScriptMemoryUpdateLocked = 1;
+        FieldScriptMemoryWriteU16(0x46, 2);
+        FieldScriptMemoryWriteU16(4, g_pGameState->mapNum & 0x3FFF);
+        if ((g_pGameState->mapNum & 0x3FFF) < 0x400) {
+            g_pGameState->unk2320 = g_pGameState->fieldScriptMemory[0x2A];
+        }
+    }
+
+    FieldRenderSync();
+    g_FieldColorFillRect.x = 0;
+    g_FieldColorFillRect.y = 0xE0;
+    g_FieldColorFillRect.w = SCREEN_WIDTH;
+    g_FieldColorFillRect.h = SCREEN_HEIGHT;
+    MoveImage(&g_FieldColorFillRect, 0x140, 0);
+    FieldRenderSync();
+    g_FieldColorFillRect.x = 0x140;
+    g_FieldColorFillRect.y = 0;
+    MoveImage(&g_FieldColorFillRect, 0, 0);
+    MoveImage(&g_FieldColorFillRect, 0, 0x100);
+    FieldRenderSync();
+    PutDispEnv(&g_FieldCurRenderContext->dispEnv);
+    PutDrawEnv(g_FieldCurRenderContext);
+    g_FieldColorFillRect.x = 0x2C0;
+    g_FieldColorFillRect.y = 0x100;
+    FieldRenderColorFill(0x1F);
+    FieldRenderColorFill(0x1F);
+
+    rect.x = 0x300;
+    rect.y = 0;
+    rect.w = 0x40;
+    rect.h = 0x100;
+    pImageA = HeapAlloc(0x8000, 1);
+    StoreImage(&rect, pImageA);
+    DrawSync(0);
+    rect.x = 0x280;
+    rect.y = 0;
+    rect.w = 0x40;
+    rect.h = 0x100;
+    pImageB = HeapAlloc(0x8000, 1);
+    StoreImage(&rect, pImageB);
+    DrawSync(0);
+
+    for (i = 0, pSrcCorner = D_800ADCB0, pDstCorner = D_800ADCC8; i < FIELD_FRAMEBUFFER_STRIP_COUNT; i++, pSrcCorner++, pDstCorner++) {
+        rect.w = 0x40;
+        rect.h = 0x20;
+        rect.x = pSrcCorner->x;
+        rect.y = pSrcCorner->y;
+        MoveImage(&rect, pDstCorner->x, pDstCorner->y);
+        DrawSync(0);
+    }
+
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+    HeapChangeCurrentUser(8, NULL);
+    g_FieldScriptDataStreamActive = 0;
+    FieldStartScriptDataStream();
+    if (g_FieldScriptSuppressScreenEffect != 0) {
+        for (i = 0x20; i < 0x3F; i++) {
+            FieldRenderColorFill(i);
+        }
+        g_FieldScreenEffectSuppressed = 1;
+    } else {
+        for (i = 0x1F; i >= 0; i--) {
+            FieldRenderColorFill(i);
+        }
+        FieldRenderColorFill(0);
+        g_FieldScreenEffectSuppressed = 0;
+    }
+    FieldFreeScriptDataStream();
+    FieldRenderSync();
+
+    rect.x = 0x2C0;
+    rect.y = 0x100;
+    rect.w = 0x40;
+    rect.h = 0x100;
+    LoadImage(&rect, pImageB);
+    DrawSync(0);
+    rect.x = 0x3C0;
+    LoadImage(&rect, pImageA);
+    DrawSync(0);
+    HeapFree(pImageB);
+    HeapFree(pImageA);
+    HeapFree(pStreamBuffer);
+
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+    if (g_FieldActorModelSlotCount != 0) {
+        if (g_FieldSuppressStateChange != 0) {
+            g_FieldArchiveQueueBuffer = HeapAlloc(ArchiveDecodeAlignedSize(FIELD_GEAR_OVERLAY_ARCHIVE_INDEX), 1);
+        } else {
+            g_FieldArchiveQueueBuffer = HeapAlloc((nStreamSize & 0xFFFFFF) + 0xFFE23FF8, 1);
+        }
+        memcpy(g_FieldArchiveQueueBuffer, pQueueBackup, ArchiveDecodeAlignedSize(FIELD_GEAR_OVERLAY_ARCHIVE_INDEX));
+        HeapFree(pQueueBackup);
+    }
+
+    SetGeomOffset(0xA0, 0x70);
+    SetGeomScreen(g_Scene.sceneScrZ);
+    FieldPartyAllocateSkinDataBuffers();
+    nRequestCode = g_FieldRequestCode;
+    if (nRequestCode == 1) {
+        g_GamePartyMemberSkins[2] = 0xFF;
+        g_GamePartyMemberSkins[1] = 0xFF;
+        g_GamePartyMemberSkins[0] = 0xFF;
+        g_GamePartyUsesGearSkins = 0;
+        g_GamePartyQueuedSkinKind = 0;
+        GamePartySyncSkinData();
+        GamePartySyncStreamedData();
+        FieldRenderSync();
+        g_FieldMapTransitionGate = 0;
+        g_FieldDisableActorRender = 1;
+    } else {
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+            if (g_GamePartyMemberSkins[i] == 0xFF) {
+                continue;
+            }
+            pSkinData = HeapAlloc(ArchiveDecodeAlignedSize(g_GamePartyMemberSkins[i] + 5), 1);
+            ArchiveReadFileToBuffer(g_GamePartyMemberSkins[i] + 5, pSkinData, 0, 0x80);
+            ArchiveCdDataSync(0);
+            LZSSDecompress(pSkinData, g_PartyDataBuffers[i]);
+            HeapFree(pSkinData);
+        }
+        FieldScriptRunFirstActorRoutine3();
+        FieldRenderSync();
+    }
+    g_FieldRequestCode = 0xFF;
+    FieldLoadFont();
+    g_FieldPendingRequestCount = 0;
+}
+*/
 
 // Quad rendering
 // --------------------
