@@ -431,7 +431,8 @@ void BattleAppendCommandRecord(u8 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80081B58);
-// 99.32%, retail's exact 1356 bytes / 339 insns; one cluster left (see REMAINING).
+// 99.32% under this unit's preset, but 100.00 UNDER gcc-2.6.0 - this function needs the
+// XenoLibrary compiler and the unit needs a SPLIT (see the end of this note).
 // Load-bearing, each measured:
 //  (a) THE TWO TRAILING IFs BELONG INSIDE case 6, not after the switch. Retail's case-5
 //      `beq` and the dispatch default jump to the EPILOGUE (0x534), i.e. they skip both
@@ -454,14 +455,28 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_80081B58);
 //      targets the block after that call while the switch's default targets the call;
 //      and that call's first argument is cast, func_800877E0((u8)arg0, ...), because its
 //      parameter is u8, so the call site masks (andi a0,s1,0xff).
-// REMAINING, one cluster: retail materialises the gaugeSpent constant (li v0,1) BETWEEN
-// the division's `sra` and the timer store's `lui at`, so $v0 is taken and the quotient
-// lands in $v1 (mfhi v1, addu v1,v1,v0, sra v1, li v0,1, lui at, addu at, sh v1, j, sb v0
-// in the j slot). Ours materialises the constant just before the `sb` - a reload scratch,
-// see levers.md's a-li-constant-is-a-reload-scratch - so the quotient takes $v0 and mfhi
-// takes $a3. Same instruction count, five instructions differ. A 4-minute permuter run on
-// THIS body found nothing (base 90 = best 90, 1854 iterations); moving `gaugeSpent = 1;`
-// above the timer store re-loads the queue and moves the store's block: 97.32% / 1368.
+// THE RESIDUAL IS A PRESET, NOT A SPELLING. This body compiles to retail's exact 1356
+// bytes under gcc 2.6.0, every instruction equal:
+//   tools/scripts/try_flags.sh battle/main/misc11_b func_80081B58 --gcc gcc-2.6.0-psx
+//   -> gcc-2.6.0 -O2 -G8 -mcpu=3000   100.0
+// and to 99.32 / 1356 under the unit's 2.7.2, where the only difference is the gaugeSpent
+// constant's live range: retail is sra v1,v1,5 / li v0,1 / lui at,%hi(timer) / addu
+// at,at,s0 / sh v1 / j / sb v0,0x2E3(a1), ours is sra v0 / lui at / addu at / sh v0 /
+// li v0,1 / j / sb v0. cc1 2.7.2's own dumps say why: pre-reload the constant is a real
+// pseudo (lreg insn 753 `(set (reg:QI 283) (const_int 1))`) but it is placed AFTER the
+// store insn 748 and greg then hands 283 and the quotient pseudo the same $v0 because
+// their live ranges do not overlap; retail's 283 is live across 748, which needs a
+// statement between the division and the timer store whose store comes after it - and
+// cse1 folds every such spelling back in: a `u8 spent` local assigned between them is
+// (i) below, and `q->gaugeSpent = 1;` before the store is 97.32 / 1368 (the sb leaves the
+// j delay slot and the queue pointer is reloaded). A 4-minute permuter run in an earlier
+// round and a fresh 3-minute one both scored base=90 best=90 (1426 iterations).
+// WHAT TO DO: do NOT switch the unit. try_flags --all --gcc gcc-2.6.0-psx scores
+// BattleInitTargetSlotFlags 100.00 but BattleAppendCommandRecord 99.91 (it is 100.00
+// under 2.7.2), so the unit is mixed; give this function its own TU (one c range in
+// config/battle.yaml, its own INCLUDE_ASM path, a per-file gears.toml key on gcc-2.6.0)
+// and un-park this body there. The eight slot-menu functions stay at 99.90-99.93 under
+// both compilers (jtbl operand only), so they do not constrain the split.
 /*
 s32 func_80081B58(u32 arg0) {
     u8 who;
