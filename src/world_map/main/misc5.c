@@ -1085,39 +1085,33 @@ int func_8007C724(int idx) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
-// PARKED 74.06% (1180 bytes / 295 insns; retail 1172 / 293) - ALREADY PARKED
-// BEFORE THE FIRST ATTEMPT: this unit's rodata range (0x8006FBC4 + 0x1C8) cannot
-// hold the switch family's tables once they come from C. This stub's two tables
-// (jtbl_8006FD58 at range+0x194, jtbl_8006FD70 at +0x1AC) are 4 mod 8, and cc1
-// hardcodes `.align 3` before a C jump table (lever i-jtbl-align-3-hardcoded), so
-// even converting the whole family in address order ends the range at 0x1CC
-// (JTBL_LAYOUT, same conclusion as func_8007C3B8 above); converting this stub
-// alone puts its tables at .rodata+0x30 and +0x48 and shifts every asm-owned table
-// by 0x38, i.e. world_map_TEXT_START moves. Report only - do not convert without
-// moving the unit's data to C as one address-ordered job.
-// Structure is settled and mirrors retail block for block: the first switch is
-// command-1 over 6 cases (case 4 empty, so the table keeps 6 entries) with gcc
-// cross-jumping `command = 0` + `unk60 = 1|8` and the two `command = 0` +
-// `state = 3|4` pairs; func_80096F18 is called ONCE, after the switch, guarded by
-// !g_WorldMapRotationMatrixValid; the second switch (state 0..6) has cases 2 -> 1
-// -> 0 falling through, cases 3/4/5 jumping to case 0's head and case 6 sharing
-// the interpolate tail with a different table base. Retail's `lhu;addiu -1;sll;sra`
-// on command means the source narrowed an unsigned read to s16: keep the
-// `(u16)pPlayer->command - 1` spelling.
-// RESIDUAL (2 insns / 8 bytes over retail): the 16.16 x read is right (`lh 0x2`),
-// the two `D_8009BD4C/48` halves are right, so what is left is (a) retail holds
-// &g_WorldMapScrollTargetZ/&g_WorldMapCameraTargetZ in $s0/$s1 across the
-// WorldMapWrapDelta call in cases 0 and 6, ours rematerialises each address, so our
-// pPlayer lands in $s1 and the scratch base in $s2 where retail has $s2/$s3 (one
-// fewer callee-saved slot, frame 40 vs 48) - pointer locals for the two targets
-// measured the same 73.45 and made no difference, gcc rematerialises SYMBOL_REF
-// regardless; (b) case 4: retail has `move a2,zero` + `sh zero,0xA2` before the two
-// global loads, ours puts them after (same shape as func_8007C3B8's park note).
-// Do not re-run the permuter on this: it cannot fix a register map.
+// PARKED 74.45% (1176 bytes / 294 insns; retail 1172 / 293) - JTBL_LAYOUT blocks
+// conversion: do not convert this stub without moving the unit data to C as one job.
+// Proof from the table offsets: the unit rodata range starts at 0x8006FBC4 (4 mod 8)
+// and its five convertible tables sit at +0x30, +0x50, +0x8C, +0x194, +0x1AC, so the
+// last three are 4 mod 8 while cc1 hardcodes .align 3 before every C jump table
+// (lever i-jtbl-align-3-hardcoded); no C spelling can place a table at a 4 mod 8
+// offset of that section. Same verdict as func_8007C3B8 (99.95%) and func_8007ADD4
+// in this unit.
+// BODY STATE: structure mirrors retail block for block - first switch over command-1
+// (6 cases, case 4 empty), func_80096F18 called once after it under
+// !g_WorldMapRotationMatrixValid, second switch over state 0..6 with cases 2 -> 1 -> 0
+// falling through and 3/4/5 jumping to case 0 head. state >= 7 skips straight to the
+// rand epilogue, spelled `default: goto skipPath;`: the earlier park left pPoint
+// uninitialised on that path and objdiff cannot see UB (honest body measures 74.45,
+// the UB body 74.06 at 1180 bytes).
+// RESIDUAL (1 insn / 4 bytes over retail; frame 40 against retail 48): retail holds
+// &g_WorldMapScrollTargetZ in $s0 and &g_WorldMapCameraTargetZ in $s1 across the
+// WorldMapWrapDelta calls and re-reads/stores through them afterwards, while ours
+// re-forms both addresses, so pPlayer lands in $s1 and the scratch base in $s2 where
+// retail has $s2/$s3, and case 0 loses the sra v0,a0,12 delay slot to a nop.
+// Measured and rejected: pointer locals assigned inside each case are folded away
+// (identical 1176/294); pointer locals initialised at the top pin them but hoist both
+// forms into the prologue and add $s4 (exact 1172/293 at 73.16%, wrong form sites);
+// -G0 74.45, 2.7.2-cdk -G0 73.67, 2.6.0 74.00 - the preset is settled.
+// If someone revisits: retail loads both Z globals BEFORE the two scratchpad zero
+// stores and computes the subtraction after them.
 /*
-// unk50 is the walk position in 12.12 fixed point, unk58 the speed and unk60 the
-// acceleration; unk5C is the position the current state ends at.
 s32 func_8007C7D8(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapTrackPoint *pPoint;
@@ -1224,6 +1218,8 @@ s32 func_8007C7D8(s32 idx) {
         }
         pPoint = &g_WorldMapCameraPathPoints[47 + (pPlayer->unk50 >> 12)];
         break;
+    default:
+        goto skipPath;
     }
     if (pPoint[2].unk6 != -1) {
         WorldMapInterpolateQuadraticVector(pPlayer->unk50 & 0xFFF, (s16 *)pPoint,
@@ -1240,13 +1236,15 @@ s32 func_8007C7D8(s32 idx) {
     }
     func_80097244((s32 *)g_WorldMapPathFrame);
     WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, (SVECTOR *)&g_WorldMapCameraRot);
+skipPath:
     jitter = rand() % (pPlayer->unk7C >> 12) - (pPlayer->unk7C >> 13);
     ((u16 *)pScratch)[0x51] = jitter;
     D_8009BD42 += jitter;
     D_8009BD4A += ((u16 *)pScratch)[0x51];
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C7D8);
+
 int WorldMapInitGroup4Actor(int idx) {
     WorldMapSceneLayer *pLayer;
     WorldMapPlayer *pPlayer;
