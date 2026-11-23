@@ -950,7 +950,202 @@ void BattleSteerActorTowardCircles(void *pArg) {
         BattlePushActorOutOfCircle(pArg, a, b, BattleGetActorRadius(pArg) + c);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
+typedef struct {
+    /* 0x0 */ u_short x;
+    /* 0x2 */ u_short y;
+} BattleMisc22ScreenPos; // Size: 0x4
+
+// A 12-byte primitive this function only ever chains into the ordering table; the
+// caller fills its two code words in.
+typedef struct {
+    /* 0x0 */ u_long tag;
+    /* 0x4 */ u_long code[2];
+} BattleMisc22OtPrim; // Size: 0xC
+
+// What func_800A4DB8 raises over a part: the scrolling texture grid it projects the
+// vertices of, and the primitives that frame it. The quads come in pairs per bank and
+// the flat/gradient ones carry their y coordinates from the projected corners, so the
+// caller only has to fill in the x's.
+typedef struct {
+    /* 0x000 */ u16 scrollX; // advanced by scrollStepX every frame; the texture grid slides with it
+    /* 0x002 */ u16 scrollY;
+    /* 0x004 */ u16 scrollStepX;
+    /* 0x006 */ u16 scrollStepY;
+    /* 0x008 */ u16 texPeriod; // the texture is one tile of texPeriod square texels, tiled
+    /* 0x00A */ s16 heightOffset; // subtracted from the eye's y before the grid is placed
+    /* 0x00C */ s16 farScale; // 8-bit scale of the corner that faces away
+    /* 0x00E */ s16 nearScale; // 8-bit scale of the corner that faces the camera
+    /* 0x010 */ s16 geomScreen;
+    /* 0x012 */ s16 pitchScale;
+    /* 0x014 */ s16 unk14;
+    /* 0x016 */ s16 topY;
+    /* 0x018 */ s16 faceScale; // 12-bit scale of the normal offset that gives the corners
+    /* 0x01A */ u8 pad1A[0xA];
+    /* 0x024 */ BattleMisc22OtPrim otPrims[4];
+    /* 0x054 */ SVECTOR verts[9][9]; // the grid; one row and one column more than the quad count
+    /* 0x2DC */ POLY_GT4 quads[2][64];
+    /* 0x16DC */ POLY_F4 flatQuads[4];
+    /* 0x173C */ POLY_G4 gradQuads[4];
+} BattleMisc22RenderData; // Size: 0x17CC
+
+void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, MATRIX *pMatrix,
+                   u_long *pOt, s32 index) {
+    VECTOR vec;
+    SVECTOR normal;
+    SVECTOR corner;
+    SVECTOR rot;
+    MATRIX rotFlat;
+    MATRIX rotGrid;
+    BattleMisc22ScreenPos cornerSxy;
+    BattleMisc22ScreenPos faceSxy;
+    SVECTOR *pVert;
+    POLY_GT4 *pQuad;
+    s32 nclip;
+    s32 angle;
+    s32 zoom;
+    s32 row;
+    s32 col;
+    s32 halfPeriod;
+    s32 uBase;
+    s32 vBase;
+    s32 uStart;
+    s32 uEnd;
+    s32 vStart;
+    s32 vEnd;
+    u16 texMask;
+
+    if (pArg == 0) {
+        return;
+    }
+
+    addPrim(pOt, &pArg->otPrims[index + 2]);
+
+    vec.vx = pTo->vx - pFrom->vx;
+    vec.vy = 0;
+    vec.vz = pTo->vz - pFrom->vz;
+    VectorNormalS(&vec, &normal);
+
+    corner.vx = pTo->vx + normal.vx * pArg->faceScale / 0x1000;
+    corner.vy = pArg->topY;
+    corner.vz = pTo->vz + normal.vz * pArg->faceScale / 0x1000;
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+    gte_ldv0(&corner);
+    gte_rtps();
+    gte_stsxy(&cornerSxy);
+    cornerSxy.x = cornerSxy.y;
+    if ((s16)cornerSxy.y >= 0xF1) {
+        cornerSxy.y = 0xF0;
+    }
+
+    corner.vx = pTo->vx + (normal.vx * pArg->faceScale / 0x1000) * pArg->nearScale / 256;
+    corner.vy = pArg->topY * pArg->nearScale / 256;
+    corner.vz = pTo->vz + (normal.vz * pArg->faceScale / 0x1000) * pArg->nearScale / 256;
+    gte_ldv0(&corner);
+    gte_rtps();
+    gte_stsxy(&faceSxy);
+    if ((s16)faceSxy.y >= 0) {
+        if ((s16)cornerSxy.y < 0xF0) {
+            pArg->gradQuads[index + 2].y0 = cornerSxy.y;
+            pArg->gradQuads[index + 2].y1 = cornerSxy.y;
+            pArg->gradQuads[index + 2].y2 = faceSxy.y;
+            pArg->gradQuads[index + 2].y3 = faceSxy.y;
+            addPrim(pOt, &pArg->gradQuads[index + 2]);
+        }
+    } else {
+        faceSxy.y = 0;
+    }
+    if ((s16)faceSxy.y < 0xF0) {
+        pArg->flatQuads[index + 2].y0 = faceSxy.y;
+        pArg->flatQuads[index + 2].y1 = faceSxy.y;
+        addPrim(pOt, &pArg->flatQuads[index + 2]);
+    }
+
+    corner.vx = pTo->vx + (normal.vx * pArg->faceScale / 0x1000) * pArg->farScale / 256;
+    corner.vy = pArg->topY * pArg->farScale / 256;
+    corner.vz = pTo->vz + (normal.vz * pArg->faceScale / 0x1000) * pArg->farScale / 256;
+    gte_ldv0(&corner);
+    gte_rtps();
+    gte_stsxy(&faceSxy);
+    faceSxy.y = cornerSxy.y * 2 - faceSxy.y - 8;
+    if (cornerSxy.x < 0x1E0U && (s16)faceSxy.y < 0xF0) {
+        pArg->gradQuads[index].y0 = cornerSxy.x;
+        pArg->gradQuads[index].y1 = cornerSxy.x;
+        pArg->gradQuads[index].y2 = faceSxy.y;
+        pArg->gradQuads[index].y3 = faceSxy.y;
+        addPrim(pOt, &pArg->gradQuads[index]);
+    }
+
+    vec.vx = pTo->vx - pFrom->vx;
+    vec.vy = 0;
+    vec.vz = pTo->vz - pFrom->vz;
+    angle = ratan2(pTo->vy - pFrom->vy, SquareRoot0(vec.vx * vec.vx + vec.vz * vec.vz));
+    // the grid is seen edge on as the part turns away, so the projection shortens with the pitch
+    zoom = (angle - 0x100) * pArg->pitchScale / 0x200;
+    zoom = zoom * (0x400 - (angle < 0 ? -angle : angle)) / 0x400;
+    SetGeomScreen(pArg->geomScreen);
+    rot.vx = 0;
+    rot.vy = -ratan2(vec.vx, vec.vz);
+    rot.vz = 0;
+    RotMatrix(&rot, &rotFlat);
+    rotFlat.t[0] = rotFlat.t[1] = rotFlat.t[2] = 0;
+    rot.vx = zoom;
+    rot.vy = -rot.vy;
+    RotMatrixYXZ(&rot, &rotGrid);
+    VectorNormalS(&vec, &rot);
+    rotGrid.t[0] = vec.vx = pFrom->vx + rot.vx * 2;
+    rotGrid.t[1] = vec.vy = pFrom->vy / 4 - pArg->heightOffset;
+    rotGrid.t[2] = vec.vz = pFrom->vz + rot.vz * 2;
+    CompMatrix(&rotGrid, &rotFlat, &rotGrid);
+    CompMatrix(pMatrix, &rotGrid, &rotGrid);
+    SetRotMatrix(&rotGrid);
+    SetTransMatrix(&rotGrid);
+
+    pArg->scrollX += pArg->scrollStepX;
+    pArg->scrollY += pArg->scrollStepY;
+    texMask = pArg->texPeriod - 1;
+    halfPeriod = (s16)pArg->texPeriod / 2;
+    uBase = ((s16)pArg->scrollX / 16 + vec.vx / 12) & texMask;
+    vBase = ((s16)pArg->scrollY / 16 + vec.vz / 12) & texMask;
+
+    pQuad = &pArg->quads[index][0];
+    pVert = &pArg->verts[0][0];
+    for (row = 0; row < 8; row++) {
+        vStart = (row & 1) * halfPeriod + vBase;
+        vEnd = vStart + halfPeriod - 1;
+        for (col = 0; col < 8; col++) {
+            gte_ldv3(pVert, pVert + 1, pVert + 9);
+            gte_rtpt();
+            gte_nclip();
+            gte_stopz(&nclip);
+            if (nclip >= 0) {
+                gte_stsxy3(&pQuad->x0, &pQuad->x1, &pQuad->x2);
+                gte_ldv0(pVert + 10);
+                gte_rtps();
+                gte_stsxy(&pQuad->x3);
+                uStart = (col & 1) * halfPeriod + uBase;
+                uEnd = uStart + halfPeriod - 1;
+                pQuad->v0 = pQuad->v1 = vStart;
+                pQuad->v2 = pQuad->v3 = vEnd;
+                pQuad->u0 = pQuad->u2 = uStart;
+                pQuad->u1 = pQuad->u3 = uEnd;
+                addPrim(pOt, pQuad);
+            }
+            pQuad++;
+            pVert++;
+        }
+        pVert++;
+    }
+
+    SetGeomScreen(0x200);
+    if ((s16)cornerSxy.y >= 0) {
+        pArg->flatQuads[index].y2 = cornerSxy.y;
+        pArg->flatQuads[index].y3 = cornerSxy.y;
+        addPrim(pOt, &pArg->flatQuads[index]);
+    }
+    addPrim(pOt, &pArg->otPrims[index]);
+}
+
 s32 BattleGetTriangleVertexTable(void) {
     return (s32)g_BattleTriangleVertices;
 }
