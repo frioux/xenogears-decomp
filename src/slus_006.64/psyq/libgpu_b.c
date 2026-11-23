@@ -404,40 +404,12 @@ int func_80045D5C(u_long *ot, int n) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045E44);
 
-/* best: 98.36% (142 insns / 568 bytes; retail 143 / 572, so ONE instruction and
-   4 bytes short). LoadImage(rect, p): DrawSync, clamp w/h to g_GpuScreenWidth/
-   g_GpuScreenHeight, total = w*h+1, guard total/2 > 0, split into 16-word DMA
-   blocks plus a CPU-sent tail, 0xA0 image-load command. The dead `mode = 0` local
-   is real: retail keeps the `beqz s5` for it. CLOSED this round (86.60 -> 91.29 ->
-   94.79 -> 98.36): (1) `blocks = total / 32` spends two instructions on signed
-   division rounding that retail does not have -- retail's `sra` is plain, so the
-   source shifted: `total >> 5`. (2) The CPU tail must reuse the REST variable as
-   its counter (`while (--rest != -1)`), not a separate `i`: retail decrements in
-   place on rest's $s0, which is what makes rect/p/blocks/mask land on $s1/$s2/
-   $s4/$s3 and the frame 0x50 instead of my earlier rotation (rect=$s0, counter in
-   $a0, frame 0x58). (3) The image command is a conditional expression at the store
-   (`*g_GpuGp0Port = mode ? 0xB0000000 : 0xA0000000;`), not a `cmd` local assigned
-   in an if: that is what puts the `beqz s5` AFTER the port reload with a `nop`
-   delay slot and 0xA0000000 in the loop latch's delay slot.
-   REST (3 residuals, all in the total/blocks block): retail's division round-up is
-   IN PLACE on total's $v1 (`addu v1,v1,v0`) where mine writes a fresh $v0, retail's
-   `total >> 5` writes a FRESH $s0 that rest then overwrites (`subu s0,a0,v0`) and it
-   keeps a copy for the multiply (`move v1,s0`) and for blocks (`move s4,v1`) while
-   mine shifts in place on total and reuses blocks' $s4 -- i.e. retail's RTL order
-   is shift-then-divide (total dies at the round-up) and mine is divide-then-shift.
-   Also the while-loop's two branch senses are mirrored (retail `bnez` to the exit,
-   `beqz` back to the jal; mine the reverse), which is the same block-order choice.
-   Measured this round, all worse: shift before the guard (`blocks = total >> 5;`
-   above the guard) 94.65 / 96.22 -- blocks then takes $s4 directly and the `sll`
-   lands in the bgtz delay slot; one variable for total+rest+counter (`rest = rect->w
-   * rect->h + 1; ... rest = rest / 2 - (rest >> 5) * 16;`) 94.65; a named `n = total
-   >> 5` temp 98.36 (identical). Older round: guard before/after the /32 (86.60 vs
-   83.77).*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_800460A0);
-
-/* best: 98.36%
+/* LoadImage: the `mode = 0` local is real -- retail keeps the `beqz $s5` for it and
+   picks the 0xA0/0xB0 command at the store. Both waits run `while (!(status & bit))`:
+   the GPU asserts DMA request/ready, so the loop exits when the bit is SET. */
 int func_800460A0(RECT *rect, u_long *p) {
     int total;
+    int size;
     int blocks;
     int rest;
     int mode;
@@ -447,11 +419,13 @@ int func_800460A0(RECT *rect, u_long *p) {
     rect->w = rect->w < 0 ? 0 : (rect->w > g_GpuScreenWidth ? g_GpuScreenWidth : rect->w);
     rect->h = rect->h < 0 ? 0 : (rect->h > g_GpuScreenHeight ? g_GpuScreenHeight : rect->h);
     total = rect->w * rect->h + 1;
-    if (total / 2 <= 0)
+    size = total / 2;
+    if (size <= 0)
         return -1;
-    rest = total / 2 - (total >> 5) * 16;
-    blocks = total >> 5;
-    while (*g_GpuGp1Port & 0x04000000) {
+    rest = size >> 4;
+    rest = size - rest * 16;
+    blocks = size >> 4;
+    while (!(*g_GpuGp1Port & 0x04000000)) {
         if (func_80046F30())
             return -1;
     }
@@ -470,12 +444,11 @@ int func_800460A0(RECT *rect, u_long *p) {
     }
     return 0;
 }
-*/
 
-/* StoreImage: the mirror of func_800460A0 (LoadImage) -- same clamp, same split
-   into 16-word DMA blocks plus a CPU-sent tail, but the tail reads GPUREAD and
-   the DMA runs GPUREAD -> CPU, so it waits on bit 0x08000000 after the 0xC0
-   command and there is no bg/mode argument (hence no $s5, frame 0x48). */
+/* StoreImage: the mirror of LoadImage -- same clamp, same split into 16-word DMA
+   blocks plus a CPU-sent tail, but the tail reads GPUREAD and the DMA runs
+   GPUREAD -> CPU, so it waits on bit 0x08000000 after the 0xC0 command and there
+   is no bg/mode argument (hence no $s5 and a 0x48 frame). */
 int func_800462DC(RECT *rect, u_long *p) {
     int total;
     int size;
