@@ -528,6 +528,12 @@ void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
 // Tried and dead: `s32 *pPrim = g_BattlePrimStartIndex` + `*pPrim` at every site (532
 // bytes, 68.22, and no lui/addiu form, unlike BattleDrawCommandCellIcons), `vofs = 0` hoisted above the
 // if (identical 544), gcc-2.7.2 (56.88), gcc-2.7.2-cdk (compile-failed).
+// ROUND 427 RE-MEASURE: still 68.62% (544 bytes / 136 insns; retail 0x254 = 596 / 149) with
+// the body below unchanged, so the note above stands. Measured and dead this round: the
+// single store after the if with 'vofs = 0' hoisted to the top (56.14%, 132 insns - it
+// loses retail's duplicated arm), gcc-2.6.0 -O1 (43.08%) and -O3 (68.62%, identical to
+// -O2). The 13-instruction hole is retail's duplicated palette store, which this cc1
+// always cross-jumps into the join.
 /*
 void func_8009093C(s32 arg0) {
     s32 index;
@@ -551,9 +557,10 @@ void func_8009093C(s32 arg0) {
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0xA0), 0x98, 0x60, vofs, index, 0x10, 0x68);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28 + 0xF0), 0x11C, 0x60, vofs | 0x40, index, 0x10, 0x68);
     g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009093C);
+
+
 void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     if (++*pCount >= BATTLE_CURSOR_STEP_FRAMES) {
         if (--*pIndex < 0) {
@@ -591,6 +598,15 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
 // block-2..4 address chains (`lw t0,-24016(at)`/`addu a0,a0,t0` where retail orders the
 // pool load after the `sll` chain and adds through v0/v1). A cc1_probe of the four blocks
 // alone reproduces the same extra mask, so it is cc1's, not the surrounding body's.
+// ROUND 427 RE-MEASURE, new best 78.83% (580 bytes / 145 insns; retail 0x238 = 568 / 142),
+// up from the 77.70 park. GAINED: the round-412 lever applied to blocks 3 and 4 ONLY -
+// '(u16)(d * 8 + 0x78) & 0xF8' at the 0x11C and 0x124 sites - removes the surplus
+// 'li s0,-8' + 'and' pair there (the other two sites already had a single andi).
+// Residual, 3 instructions = 3.0%: gcc keeps a second copy of 'eo' in s4
+// ('move s4,s0' in block 1's beqz delay slot) and block 4 reads D_800CCD3A(s4) while
+// blocks 1-3 read (s0); with it come sw/lw s4 at 0x28/0x40. Retail keeps eo in s0 alone.
+// Tried this round and dead: block 1's single store after the if with 'vofs = 0' hoisted
+// (56.14 on the sibling, not retried here), -O1 (43.08 on the sibling).
 /*
 void func_80090C44(u8 arg0) {
     u8 *pBase;
@@ -617,13 +633,13 @@ void func_80090C44(u8 arg0) {
     if (d != 0) {
         pBase = g_BattleGraphicsWork->pPacketPrims;
         ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x500;
-        BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x11C, 0xC6, (d * 8 + 0x78) & 0xF8, 0, 8);
+        BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x11C, 0xC6, (u16)(d * 8 + 0x78) & 0xF8, 0, 8);
     }
     v = *(u16 *)(D_800CCD3A + eo);
     d = v % 10;
     pBase = g_BattleGraphicsWork->pPacketPrims;
     ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x550;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x124, 0xC6, (d * 8 + 0x78) & 0xF8, 0, 8);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x124, 0xC6, (u16)(d * 8 + 0x78) & 0xF8, 0, 8);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
 
