@@ -555,6 +555,23 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
    land before the addu.  Also tried: else-branch assignment to valid (96%), the
    || form valid = character != 0xFF || ... (worse), a u32 offset local hoisted
    above each AddPrim (95.10%), and offset + pData operand order (96.78%).
+   98.89% (608 vs 612 bytes, 153 vs 154 insns) under 2.6.0 at -O2 and -O3 both:
+   retail duplicates the merge block's u8 conversion into BOTH predecessors (andi v0,v1,0xff
+   in the second bne delay slot for the const edge, and again after move v1,v0 at the end of
+   the 0xFF arm) and keeps only beqz at the merge; this build emits ONE andi AT the merge and
+   puts li v1,0x1 in the second slot. Same source, one dead mask short, so never linkable.
+   Tried this round: the arm carrying its own 'if (!valid) continue;' plus the outer one
+   (costing the arm its own andi+beqz, the two compare tails do NOT cross-jump because they
+   differ by the reorg nop: 96.94 / 624 B / 156 insns); explicit if/else with both arms
+   assigning valid (const edge then keeps li v0,1 + andi v0,v0,0xff, i.e. the constant
+   conversion does survive when the blocks are split, but the body reloads g_Menu and gains a
+   j: 95.64 / 628 B). Nothing here adds back exactly one andi. Already tried in earlier rounds:
+   (u8) casts at assignment and test (identical), || form (95.51), ternary (95.64), else-branch
+   assignment (96%), u32 offset local above AddPrim (95.10), offset+pData operand order
+   (96.78), permute.sh 3 min base=314 best=314. -O1 75.79, 2.7.2-cdk compile-fails.
+   Notes kept from before: g_MenuCardSlotOrder needs only an extern; the three colour bytes
+   read g_Menu+0x4D4 through a u8* cast (retail lbu); AddPrim offsets must be &pData[ctx*N+K]
+   so the addiu lands before the addu.
 void func_801CF37C(void) {
     s32 i;
     u8 character;
@@ -593,6 +610,8 @@ void func_801CF37C(void) {
     }
 }
 */
+
+
 // Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
 // (allocated in misc11's MenuCreateCellPrimBlocks): the glyph quad every render context
 // gets, the two line prims, and the source vertices the quad is rendered from.
