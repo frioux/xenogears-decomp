@@ -470,6 +470,19 @@ extern void BattleCaptureTimerCount(void);
    $v1 between the two address computations. Three independent allocation
    coincidences plus a compiler artifact (retail's dead preheader lw of
    g_SpuChannelMask) - not reachable from source, so the stub stays. */
+// ROUND 434 re-measure: unchanged at 96.84% / 812 bytes / 203 insns against retail's
+// 816 / 204, 47 differing lines. Two more measured negatives on retail's TWO unmerged
+// reads of g_SpuChannelMask in one basic block, both with cc1_probe.sh on this unit's
+// flags:
+// - an AGGREGATE read of the same symbol does NOT block cse: g_Sym[0] with the symbol
+//   declared as an array, and a struct member at offset 0, both merge to ONE load, so
+//   "the unit has no aggregate declaration for the mask" is not the missing piece.
+// - declaring the symbol itself volatile does keep both loads but emits the maspsx macro
+//   form "lw rd,g_Sym" inside #.set volatile (maspsx expands it through $at), not
+//   retail's -G0 split form "lui rd,%hi / lw rd,%lo(rd)".
+// The instruction count cannot be reconciled either: the parked body is one short, and
+// retail's dead preheader load (lui v0 / lw v0) plus a volatile read costing
+// lui+addiu+lw lands one OVER; every measured combination is 203 or 205, never 204.
 /*
 void func_80088E90(void) {
     DISPENV disp;
@@ -535,6 +548,7 @@ void func_80088E90(void) {
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
+
 void* BattleLoadArchiveEntry(s32 entryIndex) {
     void* pBuffer;
 
@@ -578,6 +592,28 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
    not retail: it needs two more scratch registers and measures 94.77% at 524.
    Conclusion unchanged: retail's copies came from a TU-level construct this unit
    does not have, so 97.91% is the source ceiling and the stub stays. */
+// ROUND 434: THE TWO MISSING MOVES ARE A COMPILER VERSION, NOT A SOURCE CEILING - under
+// gcc 2.6.0 this body is instruction-for-instruction retail. Re-measured on the unit's
+// own flags: 97.91% at 508 bytes / 127 insns against retail's 516 / 129, residual still
+// retail's "move v0,s2" before "sh v0,0x1CC" and "move v0,s1" before "sh v0,0x1CE":
+// 2.6.0 materialises the truncated halfword in a fresh register where 2.7.2 coalesces
+// the subreg.
+// Round-434 measurement: try_flags.sh scores this body 99.53% under gcc-2.6.0-psx -O2
+// -G0, and an objdump diff of that object against expected/asm/battling/main/misc12.s.o
+// (hand-built: cpp, cc1 2.6.0, maspsx --run-assembler) shows the instruction stream,
+// registers, frame and branch targets IDENTICAL. The 0.47% is only that the tile stores
+// name D_8009A1C0 with addends 3/4/8/A/C/E where retail's object relocs the individual
+// field symbols D_8009A1C3/1C4/1C8/1CA/1CC/1CE; both resolve to the same addresses, so
+// the linked bytes are identical. 2.7.2-cdk does not compile this unit. 2.6.0 at -G4 or
+// -G8 scores the same 99.53 here but drops BattleSetFlag10000 to 44.86, so -G0 stays.
+// The unit cannot switch wholesale: under 2.6.0 -G0 BattleSetMatrixFromPoints falls
+// 100.00 -> 91.63 (real: its loads come out lhu where retail has lw) and
+// BattleBuildScaledMatrixFromVectors 100.00 -> 94.71, so misc12 is a MIXED unit and this
+// function needs a preset split: range [0x19840, 0x19A44) as its own 2.6.0 file, with
+// the 0x18E50 head and the 0x19A44 tail left on XenoBattlingNoGp.
+// Also measured round 434: the untyped spelling (separate D_8009A1C3/1C4/1C8/1CA/1CC/1CE
+// externs instead of the BattleTilePacket) is 81.40% under 2.6.0 and fails to compile
+// under the unit flags, so the typed tile stores plus the D_8009A2B8 copy are the body.
 /*
 void func_80089330(s32 w, s32 h) {
     DISPENV* pDisp;
@@ -623,6 +659,7 @@ void func_80089330(s32 w, s32 h) {
     D_8009A2B8 = D_8009A1C0;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
+
 
 void BattleInitDrawEnvs(s32 w, s32 h) {
     u8* pDtd;
