@@ -57,7 +57,11 @@ CLASS_ORDER = ["park100", "twin", "cluster", "park", "fresh", "big", "redo"]
 # Round 420 measured the mix: with park capped at 0.6 the fresh lanes that got seats
 # matched 3 of 7 while park's 43 lanes of rounds 418-420 matched 5 (0.12 a lane). Park
 # therefore now takes at most 0.4 of an auto round.
-CLASS_SHARE = {"park": 0.4}
+CLASS_SHARE = {"park": 0.2}
+# The park class is at its floor as PROMPT.md defines it: rounds 418-421 briefed 50 park
+# lanes for 4 matches (0.08 a lane) while big went 3 lanes/1 match and fresh 9/4. So park
+# keeps one or two seats a round and `big` - 15 eligible never-written functions of 350+
+# instructions, the largest untouched pool - takes the rest.
 INSN = re.compile(r"^\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{8}\s*\*/")
 
 
