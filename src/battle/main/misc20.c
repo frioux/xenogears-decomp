@@ -337,8 +337,8 @@ void func_8009CBC4(void) {
     case 2:
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 5;
         reduction = g_BattleCurSlotState->unk9A[2];
-        if (reduction >= 10) {
-            reduction = 9;
+        if (reduction >= BATTLE_ACTION_POWER_FULL / 2) {
+            reduction = BATTLE_ACTION_POWER_FULL / 2 - 1;
         }
         if (amount != 0) {
             amount = amount * (BATTLE_ACTION_POWER_FULL / 2 - reduction) / BATTLE_ACTION_POWER_FULL;
