@@ -26,10 +26,19 @@ extern void func_80089580(void);
 #define WORLD_MAP_PRIM_TEMPLATE_POOL_SIZE (WORLD_MAP_PRIM_TEMPLATE_COUNT * sizeof(POLY_FT4))
 
 #define WORLD_MAP_PRIM_TAG_LEN 9 // a POLY_FT4's packet length in words past its tag
+// Bit 1 of a primitive code byte: the primitive is drawn semi-transparent (same define
+// as misc7.c and misc9.c).
+#define WORLD_MAP_PRIM_CODE_SEMI_TRANS 0x2
+// The tpage word of the sheet the trail prims are textured from, as GetTPage(1, 0, 0x340,
+// 0x100) packs it; the sprite's two ABR bits are added as flags << 5.
+#define WORLD_MAP_TRAIL_TPAGE 0x9D
 
 #define WORLD_MAP_SPRITE_COUNT 512
 #define WORLD_MAP_SPRITES_PER_GROUP 8
 #define WORLD_MAP_TRAIL_ENTRY_COUNT 256
+// g_WorldMapSpriteSetIds is a list of sprite set ids closed by this value, so the first
+// id is tested against it before the walk.
+#define WORLD_MAP_SPRITE_SET_ID_END (-1)
 
 // Bits of WorldMapSprite.flags, tested by WorldMapEmitSpriteTrailEntries.
 #define WORLD_MAP_SPRITE_FLAG_ACTIVE 0x80 // the slot is in use; cleared once the life timer runs out
@@ -278,12 +287,12 @@ s32 WorldMapHideSpriteSetGroups(void) {
     g_WorldMapGroups[0x45].hidden = 1;
     // The guard and the loop test read the array separately, so the body loads
     // the id again; one `while ((id = *pIds) != -1)` merges them (lhu + sra, 16-byte frame).
-    if (g_WorldMapSpriteSetIds[0] != -1) {
+    if (g_WorldMapSpriteSetIds[0] != WORLD_MAP_SPRITE_SET_ID_END) {
         pIds = g_WorldMapSpriteSetIds;
         do {
             id = *pIds++;
             g_WorldMapGroups[id].hidden = 1;
-        } while (*pIds != -1);
+        } while (*pIds != WORLD_MAP_SPRITE_SET_ID_END);
     }
     return 3;
 }
@@ -420,7 +429,7 @@ void WorldMapInitPrimTemplateBuffers(void) {
         pPrim->code = 0x2C; // POLY_FT4
         pPrim->tpage = GetTPage(1, 1, 0x340, 0x100);
         pPrim->clut = GetClut(0x100, 0x1FF);
-        pPrim->code |= 2; // semi-transparent
+        pPrim->code |= WORLD_MAP_PRIM_CODE_SEMI_TRANS;
         pPrim++;
     }
     pSrc = g_WorldMapPrimTemplateBuffer[0];
@@ -588,7 +597,7 @@ void WorldMapClearGroupEntryFlag(s32 groupIndex) {
     pEntry = g_WorldMapTrailEntries;
     for (i = WORLD_MAP_TRAIL_ENTRY_COUNT - 1; i != -1; i--) {
         for (j = 0; j < WORLD_MAP_SPRITES_PER_GROUP; j++) {
-            if (pEntry->spriteIndex == (groupIndex << 3) + j && pEntry->trailFlags.status.active != 0) {
+            if (pEntry->spriteIndex == groupIndex * WORLD_MAP_SPRITES_PER_GROUP + j && pEntry->trailFlags.status.active != 0) {
                 pEntry->trailFlags.status.count = 0;
                 break;
             }
@@ -736,7 +745,7 @@ void WorldMapEmitSpriteTrailEntries(void) {
     s32 high;
     s32 spread;
 
-    pScratch = (u8*)0x1F800000;
+    pScratch = (u8*)PSX_SCRATCH;
     pSprite = g_WorldMapSpriteGroups->sprites;
     for (i = 0; i < WORLD_MAP_SPRITE_COUNT; i++, pSprite++) {
         flags = pSprite->flags;
@@ -821,7 +830,7 @@ void WorldMapEmitSpriteTrailEntries(void) {
                 pEntry->colorStep = pSprite->colorStep;
                 *(u32*)&pEntry->scaleX = pSprite->scale;
                 *(u32*)&pEntry->scaleStepX = pSprite->scaleStep;
-                pEntry->tpage = (flags << 5) | 0x9D;
+                pEntry->tpage = (flags << 5) | WORLD_MAP_TRAIL_TPAGE;
                 pSprite->count++;
                 break;
             }
