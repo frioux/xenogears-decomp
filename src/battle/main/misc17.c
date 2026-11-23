@@ -955,53 +955,19 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     g_BattleDisplayState->unkB7 = 4;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
-/* 97.83% at objdiff's 692 bytes / 173 insns -- retail's EXACT size, and every
-   instruction is retail's: the only difference left is which register four
-   values land in (retail keeps the row pick in $s0, the register the dying
-   `index = arg1 + 0x25` had, where this body's pick takes $a0; retail's
-   `g_BattlePrimStartIndex` address is in $s1 and this body's in $s0, which
-   follows from the pick's register; and the second pRec is formed with
-   `addu v1,v1,v0` in place in retail where this body needs a fresh $t1).
-   Structure that took it from 83.74:
-   (1) the flags word wants a named index local -- `index = arg1 + 0x25;` then
-   `row = index * 0x28;` before the load, otherwise gcc folds 0x25 * 0x28 into
-   the lhu's reloc addend (+0x5C8) where retail emits `addiu s0,s0,37` first;
-   (2) the row pick is 9 for flags & 0x4000, then 7 when 0x1000 is SET and 8 when
-   it is clear;
-   (3) the switch needs `case 0`, `case 1`, `case 2` then `default: col = 0xC`,
-   listed in that order (case 0 present is what makes gcc emit the
-   `slti v0,v1,2` range test), and this compile reproduces retail's switch
-   instruction for instruction;
-   (4) `pRec = g_BattleGraphicsWork->pPacketPrims;` before the 0x320 call.
-   Measured this round on the two pRec addresses: `prims + idx * 0x28` 97.72;
-   the `prims - (-(idx * 0x28))` double negation the matched neighbours in this
-   file use 97.83 (this park -- it puts both pRec sums in place, but keeps the
-   fresh-register operand order); two statements `pRec = prims; pRec += idx *
-   0x28;` 83.52 at 696 bytes (it hoists the pool load); an `ofs` local for the
-   flags byte offset 97.83 with more differing lines. Earlier rounds measured
-   six declaration orders (no change), u16/s32/u32 row/index/ofs, an ofs local
-   for the table lookups (costs 4 bytes), a separate `rowIdx` (97.60), one
-   shared variable for the offset and the pick (97.30 -- it does put the pick in
-   an $s register but then swaps the two parameters' $s0/$s1), and four
-   permuter runs (base 926 -> 655 -> 600 -> 375, the last find a double negation,
-   not shippable). Preset screen: gcc-2.7.2 96.21, gcc-2.7.2-cdk 57.83, so 2.6.0
-   is right. Only the allocator tie for the row pick is left. */
-/*
 void func_80093578(u8 arg0, u8 arg1) {
     u8 *pRec;
-    s32 index;
     u16 flags;
     u16 pal;
     s32 row;
     s32 col;
+    u32 off;
 
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                      (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x140)),
                          0x7C, 0xA4, 0, (u8)(arg1 * 0x10), 0x60, 0x10);
-    index = arg1 + 0x25;
-    row = index * 0x28;
-    flags = *(u16 *)(g_BattleActionRows + row + arg0 * 0x690);
+    off = (arg1 + 0x25) * 0x28 + arg0 * 0x690;
+    flags = *(u16 *)(g_BattleActionRows + off);
     if (flags & 0x4000) {
         row = 9;
     } else if (flags & 0x1000) {
@@ -1023,18 +989,16 @@ void func_80093578(u8 arg0, u8 arg1) {
         col = 0xC;
         break;
     }
-    pRec = g_BattleGraphicsWork->pPacketPrims;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(pRec + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
                             0x24, 0xA6, D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
     pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
-    if (D_800D2F69[col * 4] != 0) {
+    if (D_800D2F69[row * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x32E) = pal;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
-                                         (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
                             0x48, 0xA6, D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
     pRec = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[0] * 0x28));
     if (D_800D2F69[col * 4] != 0) {
@@ -1044,7 +1008,6 @@ void func_80093578(u8 arg0, u8 arg1) {
     }
     *(u16 *)(pRec + 0x37E) = pal;
 }
-*/
 void BattleDrawSlotStatusTextEntry3(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
