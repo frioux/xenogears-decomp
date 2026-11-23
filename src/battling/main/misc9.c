@@ -7,6 +7,8 @@
 #define BATTLE_CAMERA_LERP_FRAMES 100 // frames the camera lerp restarts with
 #define BATTLE_CLUT_ENTRY_COUNT 0x100 // palette entries the backdrop TIM's CLUT holds
 #define BATTLE_SPRITE_PAIR_COUNT 0x40 // quads in the backdrop sprite pool
+#define BATTLE_GRID_STATE_MASK 0x3000000 // the two-bit corner-state field of a grid vertex word
+#define BATTLE_GRID_SPACING 0x100 // one grid vertex to the next, in position units
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
@@ -239,58 +241,24 @@ void BattleCopyPlaneNormal(SVECTOR* p) {
 
 extern void MathTriangleNormal(SVECTOR* pVertex1, SVECTOR* pVertex2, SVECTOR* pVertex3, SVECTOR* pNormal);
 
-/* PARK 99.00%, re-measured this round (1016 bytes = retail exact size, 252 vs 252
-   instructions, 6 differing instructions; 26 differing diff lines, half of them
-   the D_8009276A / D_8009276C reloc spelling noted at the end).
-   The residual is PROLOGUE REGISTER NAMES only - the whole switch chain, the
-   cell loads, the lwl/swl triangle copies and the tail are instruction-identical:
-   retail  mask->a0, x->t2, z->t1, mx->a2, col->t2 in place on x, row->t1 in place
-   on z, mz->a0 in place on the dead mask;
-   body    mask->a3, x->v0, z->a0, mx->a2, col->t2, row->t1, mz->a0 in place on
-   the dead z.
-   NEW this round: cc1 -dl/-dg on this body names the contest instead of guessing
-   it. -dg lists 23 global allocnos (76/77 = mx/mz, 72 = the cell pointer, 75 =
-   &g_BattlePlaneNormal), so the prologue values are all block-local; -dl gives
-   pseudo 83 (the forced -256 constant) 3 refs / 28 insns, 80 (x) 3/5, 81 (z)
-   3/12, 78 (mx) 4/23, 79 (mz) 4/12. The mask therefore has the smallest
-   refs/live_length quotient of the five and cannot take $2 ahead of x, which is
-   what retail mask->$4 needs.
-   Also measured: the same body compiled with -fno-schedule-insns/-insns2 (a
-   DIAGNOSTIC only; the unit preset is fixed) moves the mz AND back up beside mx
-   and hands the mask $4, col $10 and row $9 - retail registers for three of the
-   five - but it breaks the prologue save order and the AND interleaving. That
-   proves the residual is decided by the scheduler plus local-alloc: the li
-   a0,-0x100 sitting between move s1,a0 and sw ra in retail is the scheduler
-   reordering the body into the prologue, not a source shape, so no statement
-   order reaches it. Consistent with the previous rounds: six order/type/idiom
-   permutations of these six assignments measured byte-identical at 99.00, and
-   this round permuter run (1393 iterations, base 255 best 190) offers only
-   mz = z, which drops the mask and is WRONG CODE (rejected, unported).
-   Presets on this body: gcc-2.6.0 97.70, gcc-2.7.2-cdk 89.19, so the unit preset
-   is not the answer either.
-   Reloc exception (not a source difference): retail object names D_8009276A /
-   D_8009276C (g_BattlePlaneNormal + 2 / + 4) where this typed spelling relocates
-   g_BattlePlaneNormal with addend 2 / 4. The linked bytes are identical, so
-   diff_func.sh cannot print MATCH here; prove any fixed body with check_bin.sh
-   battling. The typed field form is kept on purpose: it changes no instruction.
-   The addu forming the cell pointer is index-first in retail, so it has to be
-   written as (s32 *)((u32)((row << 7) + col) * 4 + (u32)g_BattleGridCells);
-   the array form and idx + g_BattleGridCells are both base-first.
-   The floor of a grid cell is two triangles cut by the diagonal from the near
-   corner to the far one, and this returns the height of that plane under pPos.
-   Four stack details reproduce the 0x70 frame: the cell corners are four
-   SVECTORs at 0x18, the triangle is a SVECTOR[3] at 0x40, and the pad arrays are
-   addressable-but-unused aggregates the original has (0x10 and 0x58 are never
-   written) because gcc 2.7.2 allocates space for an unused aggregate but not for
-   an unused scalar. The 12-byte VECTOR view of the long dot product sits at &v3,
-   the dead fourth corner, where the original stores it too.
-   The height patch is a two-case switch with fall-through: retail arms are
-   h += 0xC0 falling into h += 0x40 (an if/else-if is cross-jumped and folds the
-   two adds into one +0x100, which shrinks the body), and each check re-forms
-   g_BattleGridCells[idx] from scratch, so they are written as full array
-   accesses rather than through the pCell pointer.
-*/
-/*
+// A vertex of the battle floor grid: the floor height in the low halfword, and
+// the corner-state field the height patch tests in the high one.
+typedef union {
+    /* 0x0 */ s32 word;
+    /* 0x0 */ u16 height;
+} BattleGridVertex;
+
+// The floor height under pPos: the height of the battle grid cell's plane at
+// that point, taking whichever of the cell's two triangles contains it. The
+// corners are the four grid vertices around pPos, each pulled in by its
+// corner-state field first.
+// diff_func.sh cannot print MATCH for this body: retail's object names
+// g_BattlePlaneNormal + 2 / + 4 as D_8009276A / D_8009276C, this spelling
+// relocates g_BattlePlaneNormal with addend 2 / 4. The linked bytes and the
+// 1016-byte size are identical, so judge it with tools/scripts/check_bin.sh.
+// The cast view of the dot-product terms at &v3 and the three unused SVECTOR
+// locals are load-bearing for the 0x70 frame: a VECTOR local there makes it
+// 0x80 and dropping the unused ones shrinks it to 0x58.
 s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
     SVECTOR padTop[1];
     SVECTOR v0;
@@ -301,9 +269,7 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
     SVECTOR tri[3];
     SVECTOR padBottom[1];
     VECTOR* pRef;
-    s32* pCell;
-    s32 row;
-    s32 col;
+    BattleGridVertex* pCell;
     s32 mx;
     s32 mz;
     s32 x;
@@ -314,46 +280,46 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
     z = pPos->vz;
     mx = x & 0xFFFFFF00;
     mz = z & 0xFFFFFF00;
-    col = x >> 8;
-    row = z >> 8;
-    pCell = (s32 *)((u32)((row << 7) + col) * 4 + (u32)g_BattleGridCells);
+    x = x >> 8;
+    z = z >> 8;
+    pCell = (BattleGridVertex*)((u32)((z << 7) + x) * 4 + (u32)g_BattleGridCells);
 
     v0.vx = mx;
-    v0.vy = *(u16*)&pCell[0];
+    v0.vy = pCell[0].height;
     v0.vz = mz;
     v1.vx = mx + 0x100;
-    v1.vy = *(u16*)&pCell[0x81];
+    v1.vy = pCell[0x81].height;
     v1.vz = mz + 0x100;
     v2.vx = mx + 0x100;
-    v2.vy = *(u16*)&pCell[1];
+    v2.vy = pCell[1].height;
     v2.vz = mz;
     v3.vx = mx;
-    v3.vy = *(u16*)&pCell[0x80];
+    v3.vy = pCell[0x80].height;
     v3.vz = mz + 0x100;
 
     if (fixHeights) {
-        switch (g_BattleGridCells[(row << 7) + col] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x] & 0x3000000) {
         case 0x1000000:
             v0.vy = v0.vy + 0xC0;
         case 0x3000000:
             v0.vy = v0.vy + 0x40;
             break;
         }
-        switch (g_BattleGridCells[(row << 7) + col + 0x81] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x + 0x81] & 0x3000000) {
         case 0x1000000:
             v1.vy = v1.vy + 0xC0;
         case 0x3000000:
             v1.vy = v1.vy + 0x40;
             break;
         }
-        switch (g_BattleGridCells[(row << 7) + col + 1] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x + 1] & 0x3000000) {
         case 0x1000000:
             v2.vy = v2.vy + 0xC0;
         case 0x3000000:
             v2.vy = v2.vy + 0x40;
             break;
         }
-        switch (g_BattleGridCells[(row << 7) + col + 0x80] & 0x3000000) {
+        switch (g_BattleGridCells[(z << 7) + x + 0x80] & 0x3000000) {
         case 0x1000000:
             v3.vy = v3.vy + 0xC0;
         case 0x3000000:
@@ -385,8 +351,7 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
                        (pPos->vx * g_BattlePlaneNormal.vx + pPos->vy * g_BattlePlaneNormal.vy +
                         pPos->vz * g_BattlePlaneNormal.vz)) /
                           g_BattlePlaneNormal.vy;
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
+}
 
 // A battle-grid position in half-word form, as the cell lookups read it: the
 // high byte of each component is the cell index (BattleGetGridCellAtPosition
