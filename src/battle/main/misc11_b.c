@@ -142,93 +142,61 @@ typedef struct {
 // `.align 3` before every jump table, so their tables have to come from a TU
 // whose .rodata starts 8-aligned (abs 0x80070010); main/misc11 keeps
 // func_80080160, whose 101-word table is the 4-mod-8 first table of the old range.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_8008115C);
-/* 88.35%: every case body is instruction-identical to retail except two
-   block-placement differences. (a) gcc cross-jumps all four plain
-   `g_BattleCommandQueue[0x2DD] = N;` case tails into one shared store block at the end of
-   the function; retail keeps each store inline and only shares the
-   BattlePlaySoundIfEnabled call. (b) that shared call block: retail is
-   `jal; nop` with `li a0,0x4F` sitting in each predecessor's branch delay slot,
-   ours is `jal; li a0,0x4F` (reorg always steals the constant into the jal slot
-   when it is the last insn before the call). Same two shapes, unresolved, in
-   BattleAdvanceSlotMenuStateEventFourSlot (99.90%, JTBL-only there). Tried: literal vs. local argument,
-   both if/else orders, p/off locals vs. inline g_BattleCommandQueue indexing. */
-/*
 void func_8008115C(u8 arg0) {
     u8 a;
-    u8 *p;
-    s32 off;
 
     a = arg0;
     switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (p[off + 0x3C] == 0xFF) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
-            g_BattleSoundEnabled = 0;
-            BattleSetupActorSlotDisplay(a);
-            BattleEnsureTargetSlotInCandidateList(a);
-            BattleInitPulseTrianglePrims();
-            g_BattleCommandQueue[0x2DD] = 5;
-        }
-        break;
-    case 1:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x32) != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
-            g_BattleCommandQueue[0x2DD] = 2;
-        }
-        break;
-    case 2:
-        g_BattleCommandQueue[0x2DD] = 3;
-        break;
-    case 3:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x30) == 0) {
-            g_BattleCommandQueue[0x2DD] = 4;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].targetSlot == 0xFF) {
+            BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             break;
         }
-        if (p[0x2F6] != 0 && g_BattleLastMenuEvent == 3) {
-            if (*(u16 *)(p + off + 0x2A) != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
-            } else {
-                g_BattleCommandQueue[0x2DD] = 0xA;
-            }
-            g_BattleCommandQueue[0x2F6] = 0;
-        } else {
-            g_BattleCommandQueue[0x2F6] = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+        g_BattleSoundEnabled = 0;
+        BattleSetupActorSlotDisplay(a);
+        BattleEnsureTargetSlotInCandidateList(a);
+        BattleInitPulseTrianglePrims();
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 5;
+        break;
+    case 1:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
+            break;
         }
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
+        break;
+    case 2:
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
+        break;
+    case 3:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[10] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
+            break;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0
+            && g_BattleLastMenuEvent == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] != 0) {
+                BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
+            } else {
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
+            }
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
+        }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 0:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x26) != 0) {
-            BattlePlaySoundIfEnabled(0x4F);
-        } else {
-            g_BattleCommandQueue[0x2DD] = 7;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
+            break;
         }
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     }
-   Re-measured round 389 with the typed-struct spelling the main/misc12 twins
-   use ("((BattleActorSlots *)g_BattleCommandQueue)->menuState = N;" and
-   "->slot[a].commandFlags[N]"): 87.59% with the store arms written as early
-   exits, 85.11% with plain if/else, against this body's 88.35 - the raw
-   g_BattleCommandQueue[0x2DD] spelling is the best measured, keep it.
-   NOT a preset: gcc-2.6.0 gives the identical 87.59 (and the unit cannot
-   switch anyway: BattleSetActorFlag34 is 97.00 under 2.6.0).
-   JTBL_LAYOUT no longer applies: the split into main/misc11_b puts this table
-   at .rodata+0x0 of a range that starts 8-aligned (see the header comment), so
-   only the two block-placement differences above remain. Re-measured after the
-   split 88.35% at 440 bytes against retail's 444; the typed-struct twin port the
-   main/misc12 neighbours use measures 87.59, so this raw spelling stays. */
+}
 
 void BattleAdvanceSlotMenuStateEventActivate(u8 arg0) {
     u8 a;
@@ -625,111 +593,73 @@ s32 func_80081B58(u32 arg0) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b", func_800820A4);
-/* 96.88% (552 bytes, retail 544) - parked on an 8-byte code difference, NOT on
-   layout: the JTBL_LAYOUT paragraph this park used to carry is stale. The unit's
-   .rodata range starts 8-aligned at 0x80070010, and cc1 emits each switch table
-   at its function's position in the file, so converting an in-family stub in
-   address order keeps retail's table offsets - BattleAdvanceSlotMenuStateEventActivate/80081504/800816F8
-   converted this way and check_bin.sh battle prints OK. The real residue is the
-   cross-jumped `menuState = 3; repeatPending = 0;` tail (case 2 reaches it with
-   `j` + delay slot where retail branches to it conditionally) plus the queue
-   base landing in $5 where retail uses v1/a0/a1, i.e. 8 extra bytes.
-   Shape ported from the strict-0.807 twin BattleAdvanceSlotMenuStateSubMode
-   (main/misc12.c:511); the per-arm constants are this function's own. Note for
-   whoever converts it: retail masks func_8008C4A8's return to a byte
-   (`andi v0,v0,0xff` before the test), so the caller-side prototype is
-   `u8 func_8008C4A8(u8)` even though misc15.c's park declares it s32.
-   Remaining code differences: case 2 reaches the cross-jumped
-   `menuState = 3; repeatPending = 0;` tail with `j` + delay slot where retail
-   branches conditionally straight to it (that pair is most of the 8 extra
-   bytes), and the queue base lands in $5 in every case where retail uses v1
-   (cases 1 and 0), a0 (case 2) and a1 (case 3's inner test).
-   Tried and measured worse: the `||` guard-clause spelling of cases 2 and 3
-   (`if (p[0x2F6] == 0 || g_BattleLastMenuEvent != 2) { ...; break; }`) 88.85% /
-   496 bytes; routing the state stores through the local base pointer
-   (`p[0x2DD]`, `p[0x2F6]`) 84.77% / 504 bytes. Also fixed along the way: case 2
-   stores 3 to menuState, not 2 (retail's `li v0,3` sits in the beq's delay
-   slot), and the s32 return type on func_8008C4A8 cost the `andi`. */
-/*
 void func_800820A4(u8 arg0) {
     u8 a;
-    u8 *p;
-    s32 off;
 
     a = arg0;
     switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (p[off + 0x3C] == 0xFF) {
-            BattlePlaySoundIfEnabled(0x4F);
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].targetSlot == 0xFF) {
+            BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             break;
         }
         if (func_8008C4A8(a) != 0) {
-            g_BattleCommandQueue[0x2E1] = 1;
-        } else {
-            g_BattleCommandQueue[0x2DD] = 7;
-            g_BattleCommandQueue[0x2E2] = 0xFF;
+            ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
+        ((BattleActorSlots *)g_BattleCommandQueue)->lastMenuState = 0xFF;
         break;
     case 1:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x32) == 0) {
-            p[0x2DD] = 8;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 8;
             break;
         }
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 2:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x2C) == 0) {
-            p[0x2DD] = 9;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[8] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 9;
             break;
         }
-        if (p[0x2F6] != 0 && g_BattleLastMenuEvent == 2) {
-            g_BattleCommandQueue[0x2DD] = 3;
-            g_BattleCommandQueue[0x2F6] = 0;
-        } else {
-            g_BattleCommandQueue[0x2F6] = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0
+            && g_BattleLastMenuEvent == 2) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 3:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x2A) == 0) {
-            p[0x2DD] = 0xA;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             break;
         }
-        if (p[0x2F6] != 0 && g_BattleLastMenuEvent == 3) {
-            if (*(u16 *)(p + off + 0x30) != 0) {
-                BattlePlaySoundIfEnabled(0x4F);
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0
+            && g_BattleLastMenuEvent == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[10] != 0) {
+                BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
-                g_BattleCommandQueue[0x2DD] = 4;
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
             }
-            g_BattleCommandQueue[0x2F6] = 0;
-        } else {
-            g_BattleCommandQueue[0x2F6] = 1;
-            BattlePlaySoundIfEnabled(0x4F);
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
+            break;
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     case 0:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x2E) == 0) {
-            p[0x2DD] = 1;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[9] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
             break;
         }
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
         break;
     }
 }
-*/
 
 /* 99.93% JTBL: every instruction is retail's (576 bytes, retail's 0x240), the
    only difference is the switch's table operand (retail names jtbl_800700B0,
