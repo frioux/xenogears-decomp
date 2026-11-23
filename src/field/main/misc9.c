@@ -758,7 +758,14 @@ extern s32 g_FieldTextRenderPrimBlocks;
    source-reachable: park, do not permute. Round 420 un-parked and re-measured
    this body on today's externs: it compiles and scores the same 97.89 / 1520
    bytes / 380 insns, with the displaced `li $v1,0x280` the ONLY non-relocation
-   row - do not brief it again.
+   row - do not brief it again. Round 434 re-un-parked and re-measured it a
+   third time: still 97.89 / 1520 / 380, and the `sh $v1,+20` first use is 12
+   insns after our def (the note's 18 counts from the `li $2,0x18`). Lever
+   c-displaced-li-inside is this function and says park, do not permute. Also
+   measured dead this round: the round-433 per-group `do { } while (0)` store
+   barrier (one empty barrier after each constant group) collapses the group to
+   71.92 / 1332 bytes / 333 insns - cc1 merges the stores across the barriers -
+   so the barrier family is closed for this body, not just the whole-group form.
 /*
 void func_800AC3AC(void) {
     FieldTextRowPrims* pRow;
