@@ -1,5 +1,7 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "main/game.h"
+#include "system/controller.h"
 #include "system/memory.h"
 #include "system/archive.h"
 #include "system/font.h"
@@ -9,6 +11,13 @@
 #define SYSTEM_STRING_FLAG_STOPPED 0x8       // rendering stopped, stopCode says why
 #define SYSTEM_STRING_FLAG_DATA_OVERRIDE 0x80 // pCur is an override of pPrev
 #define SYSTEM_STRING_FLAG_WAITING 0x200     // a wait opcode is running
+#define SYSTEM_STRING_FLAG_BUFFER_POP 0x4    // a buffer pop has happened; skip the next
+#define SYSTEM_STRING_FLAG_UPLOAD_HOLD 0x40  // do not upload the rows to VRAM yet
+// The row count passed maxChars, so the oldest row of the window moves up
+#define SYSTEM_STRING_FLAG_ROW_OVERFLOW 0x1
+
+// The string index a game state string id maps to when it names no string
+#define SYSTEM_STRING_INDEX_NONE 0xFF
 
 // Distance, in VRAM units, between two rendered rows of a string
 #define SYSTEM_STRING_LINE_HEIGHT 14
@@ -624,7 +633,257 @@ void SystemStringSetCurrentData(SystemString* pString, void* pData) {
     pString->flags |= SYSTEM_STRING_FLAG_DATA_OVERRIDE;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033DF0);
+// Interpret a string's script until the glyph budget (unk69, in glyph slots) runs
+// out or the script stops. The bytes past the opcode are its arguments; pCur is
+// untyped in the struct, so the script is read through a u8 pointer.
+void func_80033DF0(SystemString* pString) {
+    s32 count;
+    s32 index;
+    s32 firstByte;
+    s32 secondByte;
+    s32 advance;
+    u16 width;
+    u16 opcode;
+    s32 row;
+
+    count = pString->unk69;
+
+    // The line is full: move to the next row of the window
+    if (pString->lineWidth > pString->maxWidth) {
+        pString->lineWidth = 0;
+        pString->charIndex++;
+        pString->rowCount++;
+
+        if (pString->charIndex >= pString->maxChars) {
+            pString->charIndex = 0;
+            pString->flags |= SYSTEM_STRING_FLAG_ROW_OVERFLOW;
+        }
+
+        if (pString->flags & SYSTEM_STRING_FLAG_ROW_OVERFLOW) {
+            pString->pChars[pString->scrollRow].rowWidth = 0;
+            pString->scrollRow++;
+
+            if (pString->scrollRow >= pString->maxChars) {
+                pString->scrollRow = 0;
+            }
+        }
+
+        row = pString->rowCount % (pString->maxChars + 1);
+        pString->pChars[pString->charIndex].textureV =
+            row / 2 * SYSTEM_GLYPH_STRIP_HEIGHT + pString->textureY;
+        pString->pChars[pString->charIndex].clut = (row & 1) ? g_SystemPalette2 : g_SystemPalette1;
+        pString->pChars[pString->charIndex].paletteIndex = row & 1;
+        pString->pChars[pString->charIndex].unk5B = row;
+        pString->pChars[pString->charIndex].imageRect.y = pString->textureY + row / 2 * SYSTEM_GLYPH_STRIP_HEIGHT;
+    }
+
+    if (pString->waiting != 0) {
+        pString->waiting = 0;
+        pString->flags &= ~SYSTEM_STRING_FLAG_BUFFER_POP;
+        return;
+    }
+
+    while (--count != -1) {
+        opcode = ((u8*)pString->pCur)[0];
+
+        if (opcode == 0x0) {
+            // end of the entry: wait, then resume after these three bytes
+            pString->waitFrames = ((u8*)pString->pCur)[2];
+            pString->pCur = (u8*)pString->pCur + 3;
+            return;
+        } else if (opcode == 0x3) {
+            // end of the entry
+            pString->stopCode = 3;
+            pString->flags |= SYSTEM_STRING_FLAG_STOPPED;
+            pString->pCur = (u8*)pString->pCur + 1;
+            return;
+        } else if (opcode == 0xF) {
+            switch (((u8*)pString->pCur)[1]) {
+            case 0x0: // end of the entry: wait, then resume after these three bytes
+                pString->waitFrames = ((u8*)pString->pCur)[2];
+                pString->pCur = (u8*)pString->pCur + 3;
+                return;
+            case 0x1: // set the delay one glyph is drawn with
+                index = ((u8*)pString->pCur)[2];
+
+                if (index != 0) {
+                    count += index;
+                    pString->unk6A = pString->unk68;
+                    pString->unk68 = index;
+                    pString->unk69 = index;
+                } else {
+                    pString->unk68 = pString->unk6A;
+                    pString->unk69 = pString->unk6A;
+                    pString->unk6A = 0;
+                }
+
+                pString->pCur = (u8*)pString->pCur + 3;
+                break;
+            case 0x2: // end of the entry: wait, then resume after these three bytes
+                pString->waitFrames = ((u8*)pString->pCur)[2];
+                pString->pCur = (u8*)pString->pCur + 3;
+                pString->waiting = 1;
+                return;
+            case 0x3: // render a string of the bank the next byte names
+                index = ((u8*)pString->pCur)[2];
+                secondByte = ((u8*)pString->pCur)[3];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 3;
+                SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[index], secondByte));
+                break;
+            case 0x4: // render the string stringRef names
+                index = pString->stringRef;
+                pString->pCur = (u8*)pString->pCur + 1;
+
+                switch (index & 0xFF00) {
+                case 0x000:
+                    SystemStringSetCurrentData(
+                        pString, GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_ITEM], index & 0xFF));
+                    break;
+                case 0x100:
+                    SystemStringSetCurrentData(
+                        pString, GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_WEAPON], index & 0xFF));
+                    break;
+                case 0x200:
+                    SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_ACCESSORY],
+                                                                      index & 0xFF));
+                    break;
+                case 0x300:
+                    SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GEAR_WEAPON],
+                                                                      index & 0xFF));
+                    break;
+                case 0x400:
+                    SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GEAR_ACCESSORY],
+                                                                      index & 0xFF));
+                    break;
+                }
+                break;
+            case 0x5: // render one of the game state's strings
+                index = ((u8*)pString->pCur)[2];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+
+                if (index < 0x80) {
+                    SystemStringSetCurrentData(pString, &g_GameState.strings[index]);
+                } else if (((u8*)&g_GameState.fieldScriptMemory[0x1C2])[index] == SYSTEM_STRING_INDEX_NONE) {
+                    SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[0x1A], 0));
+                } else {
+                    SystemStringSetCurrentData(
+                        pString, &g_GameState.strings[((u8*)&g_GameState.fieldScriptMemory[0x1C2])[index]]);
+                }
+                break;
+            case 0x6: // render a string of the weapon bank
+                index = ((u8*)pString->pCur)[2];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+                SystemStringSetCurrentData(pString,
+                                           GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_WEAPON], index));
+                break;
+            case 0x7: // render a string of bank 0x18
+                index = ((u8*)pString->pCur)[2];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+                SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[0x18], index));
+                break;
+            case 0x8: // render a string of bank 0x19
+                index = ((u8*)pString->pCur)[2];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+                SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[0x19], index));
+                break;
+            case 0x9: // draw one of the string's numbers
+                index = ((u8*)pString->pCur)[2];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+                SystemFormatNumberGlyphs(pString->args[index], 0, 0);
+                SystemStringSetCurrentData(pString, g_SystemGlyphDecodeBuffer);
+                break;
+            case 0xA: // draw one of the string's numbers, with a sign
+                index = ((u8*)pString->pCur)[2];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+                SystemFormatNumberGlyphs(pString->args[index], 1, 0);
+                SystemStringSetCurrentData(pString, g_SystemGlyphDecodeBuffer);
+                break;
+            case 0xB: // set the offset a row is drawn at
+                index = ((u8*)pString->pCur)[2];
+                pString->pCur = (u8*)pString->pCur + 2;
+                pString->unk6D = index;
+                break;
+            case 0xC: // draw one of the string's numbers, with a plus sign
+                index = ((u8*)pString->pCur)[2];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+                SystemFormatNumberGlyphs(pString->args[index], 1, 1);
+                SystemStringSetCurrentData(pString, g_SystemGlyphDecodeBuffer);
+                break;
+            case 0xD: // end of the entry: wait on the upload before going on
+                pString->waitFrames = ((u8*)pString->pCur)[2];
+                pString->pCur = (u8*)pString->pCur + 3;
+                pString->waiting = 1;
+                pString->flags |= SYSTEM_STRING_FLAG_WAITING;
+                return;
+            case 0xE: // set the delay between two glyphs
+                index = ((u8*)pString->pCur)[2];
+                pString->unk6A = pString->unk68;
+                pString->unk68 = 1;
+                pString->unk69 = 1;
+                pString->pCur = (u8*)pString->pCur + 3;
+                pString->charDelayReload = index;
+                pString->charDelay = index;
+                return;
+            case 0xF: // render the string a button's name comes from
+                index = g_ControllerButtonMappings[((u8*)pString->pCur)[2]];
+                count++;
+                pString->pCur = (u8*)pString->pCur + 2;
+                SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[0x31], index));
+                break;
+            }
+        } else if (opcode == 0x2) {
+            // stop, and let the caller decide what to do with the string
+            pString->stopCode = 2;
+            pString->flags |= SYSTEM_STRING_FLAG_STOPPED | SYSTEM_STRING_FLAG_UPLOAD_HOLD;
+            pString->pCur = (u8*)pString->pCur + 1;
+
+            if (((u8*)pString->pCur)[0] == 1) {
+                pString->pCur = (u8*)pString->pCur + 1;
+            }
+
+            return;
+        } else if (opcode == 0x1) {
+            // the line is full whatever is left of it: wrap on the next call
+            pString->lineWidth = 100;
+            pString->pCur = (u8*)pString->pCur + 1;
+            return;
+        } else {
+            // any other byte is a glyph code
+            advance = 1;
+
+            if (opcode < g_SystemFontLeadByte) {
+                firstByte = 0;
+                secondByte = opcode;
+            } else {
+                firstByte = opcode;
+                secondByte = ((u8*)pString->pCur)[1];
+                advance = 2;
+            }
+
+            width = SystemGetGlyphWidth(firstByte, secondByte);
+
+            // The glyph does not fit on this line: the wrap happens on the next call
+            if (pString->maxWidth < pString->lineWidth + width) {
+                pString->lineWidth += width;
+                return;
+            }
+
+            func_80034FFC(firstByte, secondByte, (u16*)pString->pCharBuffer + pString->lineWidth, pString->imageWidth,
+                          pString->pChars[pString->charIndex].paletteIndex);
+            pString->pCur = advance + (u8*)pString->pCur;
+            pString->lineWidth += width;
+            pString->pChars[pString->charIndex].rowWidth = pString->lineWidth;
+        }
+    }
+}
 
 void SystemStringClearStateFlags(SystemString* pString) {
     pString->flags &= ~SYSTEM_STRING_FLAG_STOPPED;
@@ -749,9 +1008,7 @@ void SystemStringClearLineOffset(SystemString* pString) {
 #define SYSTEM_STRING_PAGE_SPLIT_WIDTH 0x40
 
 // A rendered string's flag bits that this unit only sets and clears
-#define SYSTEM_STRING_FLAG_BUFFER_POP 0x4   // a buffer pop has happened; skip the next
 #define SYSTEM_STRING_FLAG_WRAPPED 0x20     // the row wrapped: relayout from the top
-#define SYSTEM_STRING_FLAG_UPLOAD_HOLD 0x40 // do not upload the rows to VRAM yet
 #define SYSTEM_STRING_FLAG_PALETTE_DOUBLE 0x100 // the palette holds two codes per glyph
 #define SYSTEM_STRING_FLAG_UPLOAD_WAIT 0x10 // an upload is in flight a frame longer
 
