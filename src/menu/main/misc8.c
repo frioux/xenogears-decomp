@@ -4,6 +4,10 @@
 #include "system/menu.h"
 #include "psyq/libcd.h"
 
+#define MENU_STAT_BAR_WIDTH_MAX 6400 // width a stat value is scaled into, see the stat bar quads
+#define MENU_STAT_LABEL_ROW_COUNT 7 // stat rows in one stat group, and the ids each group of labels owns
+#define MENU_STAT_LABEL_SHADE 0x40 // grey the labels of every other stat row are shaded with
+
 extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
@@ -132,38 +136,41 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 
-/* 99.11% under the unit's Default preset, 100.00 under gcc-2.6.0-psx (203 insns,
-   812 bytes = retail's exact size, verified instruction by instruction). The unit is a
-   gcc 2.6.0 unit: every already-matched C body in it is 100.00 under 2.6.0 and this body
-   goes 99.11 -> 100.00 there. Report:
-   PRESET_260 menu/main/misc8 func_801D7F50 100.00 99.11.
-   What the body is: the stat table's row labels. Reset the prim count at unk35C+0x32F3,
-   draw 7 - statGroup rows of label prims with func_8002675C (7 texture ids per stat group
-   in g_MenuStatRowLabelTexIds, x/y from g_MenuStatRowLabelOffsetX/Y), shade the prims of
-   every other row 0x40, then set the four quad vertices of each prim from its own
-   x0/y0/x1/y3. Called by MenuDrawStatTable.
-   The `primOffset` local is what the 2.6.0 match turns on: it makes gcc emit retail's
-   base-first `addu v1,a0,v1` for the prim address instead of the index-first
-   `addu v1,v1,a0` every inline spelling gives (lever b-pointer-local-holding-base).
-   Under 2.7.2 it also makes the last loop's pointer live in v0 instead of v1 (36 lines
-   differ, 99.11). Without the local - the same expression inlined in all six operand
-   positions - the body is 99.75 under 2.7.2 and 99.95 under 2.6.0, whose one residual is
-   exactly that addu order. So prefer this body if the preset is switched to 2.6.0,
-   otherwise the inlined one scores better (99.75).
-   The residual is unreachable under 2.7.2: lever o-272-vs-260-operand-order (round 391,
-   this function) - 2.7.2 canonicalises a commutative PLUS to the LOWER-REGISTER-NUMBER
-   operand first and 2.6.0 keeps the source order, so the ten swapped `addu` lines are a
-   compiler property, not a spelling. Round 404 permuter run on the 99.75 inlined body:
-   PERMUTER_NONE base=50 best=50 (1218 iterations); two earlier runs also found nothing
-   (PERMUTER_BETTER 490->426 on the non-volatile body, which adds a second copy of
-   g_Menu->unk35C).
-   Needed for the six lhu (retail reads x0 and y0 TWICE): the width/height operands go
+/* PARKED 100.00% under gcc-2.6.0-psx, 99.11% under the unit's Default 2.7.2 (812 bytes,
+   203 insns = retail's exact size in both). Un-comment the body below when
+   menu/main/misc8 joins XenoMenu260 - no C change is needed.
+   PRESET_260 menu/main/misc8 func_801D7F50 100.00 99.11. Round 418 re-measured it with the
+   body live and screened the whole unit: `try_flags.sh menu/main/misc8 --all --gcc
+   gcc-2.6.0-psx` scores every C body of the unit 100.00 (MenuSetStatBarQuadColors,
+   MenuSetStatBarTileColors, MenuMaxStatValue, MenuDrawStatTable, MenuOpenCardEvents,
+   func_801D7F50, func_801D84B4), so this is a preset switch, not a split.
+   Round 418 also PROVED the switch end to end: with `menu/main/misc8.` added to
+   XenoMenu260 and BOTH bodies below converted to C, `tools/scripts/check_bin.sh menu`
+   printed `build/out/menu.bin: OK` in matching mode - the preset change plus these two
+   un-comments (and nothing else) is byte-identical whole-binary, not just objdiff-100.
+   The gears.toml edit was reverted afterwards because this lane does not own presets; apply
+   it in one line and un-park both bodies, then gate with check_bin.
+   What the body is: the stat table's row labels - reset the prim count at unk35C+0x32F3,
+   draw MENU_STAT_LABEL_ROW_COUNT - statGroup label prims with func_8002675C (their texture
+   ids in g_MenuStatRowLabelTexIds, x/y from g_MenuStatRowLabelOffsetX/Y), shade the prims
+   of every other row MENU_STAT_LABEL_SHADE, then set the four quad vertices of each prim
+   from its own x0/y0/x1/y3. Called by MenuDrawStatTable.
+   NAMED RESIDUAL under 2.7.2: ten commuted `addu` operands and nothing else (36 differing
+   lines because each swap cascades one register). Lever o-272-vs-260-operand-order (round
+   391, this function): 2.7.2 canonicalises a commutative PLUS to the lower-register-number
+   operand first, 2.6.0 keeps source order.
+   The primOffset local is what the 2.6.0 match turns on: it gives retail's base-first
+   `addu v1,a0,v1` for the prim address (lever b-pointer-local-holding-base). Under 2.7.2
+   the INLINED spelling of the same expression scores better - 99.75, 36 lines differ and
+   the last loop's pointer falls in v1 - so port that one only if the preset stays 2.7.2.
+   Needed for the six lhu (retail reads x0 and y0 twice): the width/height operands go
    through a `volatile POLY_FT4*` cast, otherwise gcc CSEs each pair into one load and adds
    two moves (98.33%).
-   Tried under 2.7.2 and rejected: a pPrim pointer local (97.28), a volatile pPrim local
-   (98.56), (off + (u32)base) for either address (95.66 for the vertex, no change for the
-   prim), a u8* base local used in the loop condition (94.15 - gcc strength-reduces it into
-   a walker), a base local inside the loop (99.75 / 2.6.0 99.95).
+   Tried under 2.7.2: a pPrim pointer local 97.28, a volatile pPrim local 98.56,
+   (off + (u32)base) 95.66 on the vertex and no change on the prim, a u8* base local in the
+   loop condition 94.15 (strength-reduced into a walker), a base local inside the loop
+   99.75 / 2.6.0 99.95. Round 404 permuter on the 99.75 body: PERMUTER_NONE base=50 best=50
+   (1218 iterations); two earlier runs found nothing.
 */
 /*
 void func_801D7F50(s32 x, s32 y, u_char statGroup) {
@@ -175,15 +182,15 @@ void func_801D7F50(s32 x, s32 y, u_char statGroup) {
 
     ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_STRING_DEFENSE, &texCoords[0], &texCoords[1], &texCoords[2], &texCoords[3], &texCoords[4], &texCoords[5]);
     ((u8*)g_Menu->unk35C)[0x32F3] = 0;
-    for (i = 0; i < 7 - statGroup; i++) {
+    for (i = 0; i < MENU_STAT_LABEL_ROW_COUNT - statGroup; i++) {
         start = ((u8*)g_Menu->unk35C)[0x32F3];
-        ((u8*)g_Menu->unk35C)[0x32F3] += func_8002675C(g_Menu->resources, g_MenuStatRowLabelTexIds[statGroup * 7 + i], (POLY_FT4*)((u8*)g_Menu->unk35C + start * 0x50), g_Menu->renderContext, x + g_MenuStatRowLabelOffsetX[i], y + g_MenuStatRowLabelOffsetY[i], 0x1000);
+        ((u8*)g_Menu->unk35C)[0x32F3] += func_8002675C(g_Menu->resources, g_MenuStatRowLabelTexIds[statGroup * MENU_STAT_LABEL_ROW_COUNT + i], (POLY_FT4*)((u8*)g_Menu->unk35C + start * 0x50), g_Menu->renderContext, x + g_MenuStatRowLabelOffsetX[i], y + g_MenuStatRowLabelOffsetY[i], 0x1000);
         if (i & 1) {
             for (j = start; j < ((u8*)g_Menu->unk35C)[0x32F3]; j++) {
                 SetShadeTex((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28), 0);
-                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->r0 = 0x40;
-                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->g0 = 0x40;
-                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->b0 = 0x40;
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->r0 = MENU_STAT_LABEL_SHADE;
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->g0 = MENU_STAT_LABEL_SHADE;
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->b0 = MENU_STAT_LABEL_SHADE;
             }
         }
     }
@@ -271,20 +278,25 @@ void MenuSetStatBarTileColors(POLY_FT4* pPolys, u_char mode, u_char count, u_cha
         pPoly->b0 = rgb[2];
     }
 }
-/* 99.73% under the unit's Default preset (296 bytes, 74 insns = retail's exact size).
-   The only residual, in BOTH divisions, is the HI destination of the /10000: retail
-   `mfhi v0; sra v0,v0,12`, gcc 2.7.2 `mfhi t0; sra v0,t0,12`. NOT a source question:
-   lever o-272-vs-260-operand-order and round 373 (seven cc1_probe spellings of x/K and
-   x%K) prove 2.7.2 always puts the magic-division high half in a fresh temp while 2.6.0
-   coalesces it into the destination. This body is 100.00 under gcc-2.6.0-psx
-   (try_flags.sh) and so is EVERY other C body in the unit (MenuSetStatBarQuadColors,
-   MenuSetStatBarTileColors, MenuMaxStatValue, MenuDrawStatTable, MenuOpenCardEvents,
-   func_801D7F50 - all 100.00 under 2.6.0), so menu/main/misc8 wants the XenoMenu260
-   preset, not a respelling. Report: PRESET_260 menu/main/misc8 func_801D84B4 100.00 99.73.
-   Also measured 99.73 under -O3 and under -G0, 57.57 under -O1, so no flag but the
-   compiler version moves it.
-   Tried earlier under 2.7.2: a scale local with *= (90.47), a temp for the whole product
-   (99.59), a pct local (96.42).
+/* PARKED 100.00% under gcc-2.6.0-psx, 99.73% under the unit's Default 2.7.2 (296 bytes,
+   74 insns = retail's exact size in both). Un-comment the body below when menu/main/misc8
+   joins XenoMenu260 - no C change is needed.
+   PRESET_260 menu/main/misc8 func_801D84B4 100.00 99.73 (screened with the body live, round
+   418; the unit's screen is in the note above func_801D7F50).
+   What the body is: the stat comparison behind the stat bar. It stores the two compared
+   stat values (arg0 and arg1, both u16), their signed difference made absolute (D_801EA704,
+   which the bar skips when it is 0), the value and the delta each scaled into the bar's
+   MENU_STAT_BAR_WIDTH_MAX pixels, and the bar's colour mode (2 = red, 3 = blue) plus the
+   delta arrow's texture id (0xE3 up, 0xE5 down). Called by func_801D8644, which reads
+   D_801EA708 as a quad width and D_801EA6FC through MenuParseNumberToDigits.
+   NAMED RESIDUAL: the mfhi destination of the /10000 magic division, in BOTH divisions -
+   retail `mfhi v0` + `sra v0,v0,12`, 2.7.2 `mfhi t0` + `sra v0,t0,12`. Lever
+   f-mfhi-mflo-destination-is-the-preset: 2.7.2's divmod md always names a fresh pseudo the
+   allocator does not coalesce with the consumer, and round 373 proved it with seven
+   cc1_probe spellings of x / K and x % K. Not a source question.
+   Tried: -O3 99.73, -G0 99.73, -O1 57.57 (no flag moves it); a scale local with *= 90.47;
+   a temp for the whole product 99.59; a pct local 96.42; round 418 permuter, 3 min, 859
+   iterations, PERMUTER_NONE base=20 best=20.
 */
 /*
 void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
@@ -294,7 +306,7 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
     D_801EA700 = arg1;
     diff = arg1 - arg0;
     D_801EA704 = diff;
-    D_801EA708 = 6400 * (100 * arg0 / arg2) / 10000;
+    D_801EA708 = MENU_STAT_BAR_WIDTH_MAX * (100 * arg0 / arg2) / 10000;
     if (diff >= 0) {
         D_801EA710 = 2;
         D_801EA714 = 0xE3;
@@ -303,7 +315,7 @@ void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
         D_801EA714 = 0xE5;
         D_801EA704 = arg0 - arg1;
     }
-    D_801EA70C = 6400 * (100 * D_801EA704 / arg2) / 10000;
+    D_801EA70C = MENU_STAT_BAR_WIDTH_MAX * (100 * D_801EA704 / arg2) / 10000;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D84B4);
 
