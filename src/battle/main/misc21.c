@@ -871,25 +871,44 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
    words). Convert it as C with real switch statements and judge with
    check_bin.sh battle, not diff_func. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
-// objdiff 82.92%, 5100 bytes against retail's 4888 (53 instructions over; the whole
-// body is present and both owned jump tables render). This is the SAME function as
-// lib_gear/main/main's func_801DDBF8 - twin_for.py ratio 1.000 and the two .s files
-// are mnemonic-for-mnemonic identical (1222 each) - so the body below is that unit's
-// park, ported with the pool released through BattleFreeBlock.
-// Improvements measured over the ported 79.62% / 4892 bytes (1 instruction over):
-//  - the SET and ADD arms drive pObject->value.step.pCursor per channel instead of
-//    through a local, which is what retail does (0x30DCC lw a0,0x8(s0); lhu 0(a0);
-//    sh; lw v0,0x8(s0); addiu v0,v0,2; sw) - alone: 80.68% / 5104 bytes;
-//  - the RELATIVE arms read `*(s8*)pObject->value.step.pCursor++` and consume three
-//    bytes on the -0x80 literal (retail stores the cursor +1, +2, +3 once each; the
-//    port stored it four times) - alone: 82.52% / 5056 bytes. Both together 82.92%.
-// Residual of this body: the prologue frame is 0xA8 against retail's 0xB8 (gcc .frame
-// vars=112 against 128), so every local above 0x54 shifts and the register set
-// differs throughout - retail spills a0..a3, result and count at 0x28,0x30,0x38,
-// 0x40,0x48,0x50 and keeps the joint walker at 0x30, biased +4 in s1, incrementing
-// the spilled home too. 16 bytes of locals are missing, most likely a second
-// VECTOR-shaped temporary. Retail also hoists `lw a0,0x8(s0)` above each channel's
-// NO_X test where this body loads it inside the arm.
+// Parked body: 82.84% / 5092 bytes / 1273 instructions against retail's 4888 / 1249.
+// The whole body is present, both owned jump tables render, and the prologue, the
+// loop tail and the ApplyMatrix site now carry retail's instructions apart from
+// register names. This is the SAME function as lib_gear/main/main's func_801DDBF8
+// (twin_for.py ratio 1.000, 1222 insns; that unit parks it at 79.62%), so what is
+// learned here ports there and back. Measurements on the way here: the twin's body
+// 79.62% / 4892 bytes (one instruction over), per-channel pObject->value.step.pCursor
+// stores 80.68%, `*(s8*)...pCursor++` in the RELATIVE arms 82.52%, both together
+// 82.92%, and the single-walker form below 83.57% / 5096 bytes (the highest objdiff
+// score measured; same body, `u16 numChildren`).
+// Findings from this pass, each measured alone:
+//  - `for (i = 0; i < numChildren; i++, pJoint++)` with no second walker pointer
+//    (82.92% -> 83.57%). gcc makes retail's shape from it: the register copy biased
+//    +4 (retail `addiu s1,a1,4`, hence its 0x6C/0x48/0x58(s1) field offsets) plus the
+//    +0x7C step on the spilled home as well. A `pJoint = pMesh;` body walks the same
+//    but allocates worse.
+//  - `u32 numChildren`, because retail stores it with `sw` and tests it at the entry
+//    with a bare `beqz count`; u16 gives `sh` plus an `sltu`/`beqz` pair. This body
+//    keeps the u32 form (1273 insns) although objdiff scores it 0.7 lower than the
+//    u16 one (1274 insns): two known instruction differences are worth more than the
+//    fuzzy number, which is not monotone for a register delta.
+//  - declaring `u32 i;` BEFORE `u32 numChildren;` puts the slots at retail's offsets:
+//    i at 0x48 (`sw zero,72(sp)` at the entry) and count at 0x50.
+//  - pJoint's home shares the pSkeleton parameter slot in both compiles (mine 0x40,
+//    retail 0x30); the offset differs only because this body spills a2/a3 before a1
+//    where retail spills a0..a3 in argument order.
+//  - the translation ADD arm's ApplyMatrix site is retail's: $sp+0x10 for vec, the
+//    VECTOR out at $sp+0x18, pJoint+0x2C for globalTransform, and the `sh` of vec.vz
+//    in the jal slot (mine emits addu where retail emits addiu).
+// Residual: `.frame vars` is 112 against retail's 128 - 0x10 of extra spilled
+// temporaries in retail, dead stack in both bodies (retail's 0x54..0x8F is unused
+// too) - and with it the whole s0..s7 assignment: retail keeps `result` in s5 and `i`
+// in memory, this body keeps `result` in s7 and `i` in memory. 24 instructions over,
+// spread over the arms: retail hoists `lw a0,0x8(s0)` above each channel's NO_X test
+// where this body reloads the cursor inside the arm. Declaration order of
+// result/frame/dx/dy/dz/dist/angle/maxStep was tried and changes nothing; u16 vs u32
+// numChildren and the single walker are the only knobs that moved the score at all.
+// Permuter not run: the residual is 24 instructions of arm shape, not a register tie.
 // The LIBGEAR_* constants and the JointObject view below duplicate
 // lib_gear/main/main.c's file-local spellings; they belong in include/libgear/main.h.
 // Temp3::opcode & this mask is the command the queued-object update dispatches on,
@@ -948,14 +967,12 @@ typedef struct {
 
 /*
 s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType, s32 scale) {
+    s32 result;
     JointObject* pObject;
     ModelJoint* pJoint;
-    ModelJoint* pMesh;
-    u16 numChildren;
     u32 i;
-    s32 result;
+    u32 numChildren;
     s16 frame;
-    u16* pWord;
     u8* pCursor;
     u8 opcode;
     s8 delta;
@@ -970,10 +987,9 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
 
     result = 0;
     numChildren = pSkeleton->numChildren;
-    pMesh = pSkeleton;
+    pJoint = pSkeleton;
 
-    for (i = 0; i < numChildren; i++) {
-        pJoint = pMesh;
+    for (i = 0; i < numChildren; i++, pJoint++) {
 
         // Rotation channel
         pObject = (JointObject*)pJoint->pRotationObject;
@@ -1393,8 +1409,6 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
             pJoint->doRotate = TRUE;
             pJoint->doTransform = TRUE;
         }
-
-        pMesh++;
     }
 
     return result;
