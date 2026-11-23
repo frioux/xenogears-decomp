@@ -3,6 +3,8 @@
 #include "field/main.h"
 #include "field/actor.h"
 #include "field/camera.h"
+#include "field/effects.h"
+#include "main/game.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "system/model.h"
@@ -367,7 +369,381 @@ void FieldMatrixSetIdentity(MATRIX* dest) {
     dest->t[0] = 0;
 }
 
+// Puts the whole field system back into its power-on state: every field global
+// gets its default, the clip rectangle and the pad are reset, and the camera
+// matrices are rebuilt. FieldLoad calls it once while it builds a scene.
+// The 3-entry motion-slot actor id table sits 0x74 bytes below
+// g_FieldScriptSoundEffectBank (g_FieldMotionSlotActorIds); the 16-entry table
+// 0xBA bytes into g_FieldScriptRenderContextIndex and the 32-entry one ending at
+// D_800B22DE have no symbol of their own, so they are reached from those bases.
+extern u_short g_FieldButtonPollMask;
+extern s16 g_FieldP1ButtonsPressed;
+extern s16 g_FieldP2ButtonsPressed;
+extern s16 g_FieldP1ButtonsReleased;
+extern s16 g_FieldP2ButtonsReleased;
+extern s16 g_FieldButtonsPressedOnce;
+extern s16 g_FieldP2ButtonsPressedOnce;
+extern u8 g_FieldScriptSoundEffectBank;
+extern s16 g_FieldCurrentModelAnimationId;
+extern s16 g_FieldGearObjectCapacity;
+extern s16 g_FieldPlayerWalkmeshMaterialOverride;
+extern s16 g_FieldStreamId;
+extern s32 g_FieldScreenScrollY;
+extern s32 g_FieldScreenScrollX;
+extern s32 D_800B21BC;
+extern s32 D_800B21C0;
+extern s32 D_800B21C4;
+extern s32 g_FieldSoundSlotId;
+extern u8 g_FieldCompassDisabled;
+extern u8 g_FieldRandomEncounterFlag;
+extern s32 g_FieldSceneReloadFlags;
+extern u8 g_FieldPartyMoveStepRan;
+extern s16 D_800B21B0;
+extern s16 D_800B21B2;
+extern SVECTOR D_800B21AE;
+extern s16 D_800B21A2;
+extern s16 D_800B21A4;
+extern s16 D_800B21A6;
+extern s16 D_800B21A8;
+extern s16 D_800B21AA;
+extern s16 D_800B2186;
+extern s16 D_800B2188;
+extern u8 g_FieldCameraAtFollowTargetY;
+extern u8 g_FieldPartySlotMask;
+extern u8 g_FieldClearColorB;
+extern u8 g_FieldClearColorG;
+extern u8 g_FieldClearColorR;
+extern u8 g_FieldPartyMoveInProgress;
+extern u8 D_800B21CF;
+extern u8 g_FieldScreenShakeMode;
+extern s32 g_FieldMode;
+extern s32 g_FieldSpecialAnimLoadPending;
+extern s32 D_800ADB24;
+extern s32 D_800ADB98;
+extern s32 D_800ADB94;
+extern s32 g_FieldStreamSceneActive;
+extern s32 g_FieldArchiveStreamActive;
+extern s32 D_800ADB68;
+extern s32 g_FieldTransitionBusyFlag;
+extern s32 g_FieldCameraAtYLatched;
+extern s32 g_FieldNextGameState;
+extern s32 g_FieldMapNumChanged;
+extern s32 g_FieldScreenEffectSuppressed;
+extern s32 g_FieldScriptSuppressScreenEffect;
+extern s32 g_FieldActive;
+extern u8 g_FieldScriptMemoryUpdateLocked;
+extern s32 g_GameAudioManagerVolumeRestorePending;
+extern s32 D_800ADBD0;
+extern s16 g_FieldSoundProximitySource;
+extern s16 g_FieldSoundElementMask;
+extern s32 D_800B14A4;
+extern s16 g_FieldScriptShopIndex;
+extern s32 g_FieldScriptFadeMode;
+extern s32 g_FieldScriptFadeDuration;
+extern s32 g_FieldFadeDuration;
+extern s32 g_FieldFadeMode;
+extern s16 g_FieldSoundMaxDistance;
+extern s32 g_FieldSkipCounter;
+extern s32 g_FieldParticleCurActor;
+extern s16 g_FieldTalkIdleFrames;
+extern s16 g_Unknown_800B2344;
+extern s16 D_800B2342;
+extern s16 g_FieldWalkAbortCount;
+extern s16 g_FieldPlayerActorPartySlot;
+extern u8 g_FieldWdsSoundEffectBankIndex;
+extern u8 D_800ADB04;
+extern u8 g_FieldDisableActorRender;
+extern u8 g_FieldFogDisabled;
+extern u8 g_FieldAlternatePadAngles;
+extern s32 D_800ADBB4;
+extern s32 g_FieldSavedPlayerScriptFlags;
+extern s16 g_FieldScreenStripSpritesEnabled;
+extern u8 g_FieldPauseDisabled;
+extern s32 g_FieldScriptCounter;
+extern s32 g_FieldStreamReadyFlag;
+extern s32 g_FieldScriptRoutineRunning;
+extern s32 g_FieldRequestCode;
+extern s16 D_800AF93A;
+extern s16 g_FieldScriptRenderContextIndex;
+extern s16 g_FieldActorUpdateAngle;
+extern s16 g_FieldPolarVectorScale;
+extern s32 g_FieldPartyModelLoadState;
+extern s32 g_FieldStreamPlayerInitialized;
+extern s16 g_FieldPendingWdsBankIndex;
+extern s32 g_FieldMapTransitionGate;
+extern s32 g_FieldCameraSnapFrames;
+extern u8 g_FieldFogNearB;
+extern u8 g_FieldFogNearG;
+extern u8 g_FieldFogNearR;
+extern u8 g_FieldFogFarB;
+extern u8 g_FieldFogFarG;
+extern u8 g_FieldFogFarR;
+extern s16 g_FieldFogNearDistance;
+extern s16 g_FieldFogFarDistance;
+extern s32 D_800ADC0C;
+extern s32 g_PlayerActorIndex;
+extern s16 g_FieldTextBoxInUseMask;
+extern s32 g_FieldActorAllocCount;
+extern s32 g_FieldFrameDelay;
+extern s16 g_FieldFogEnabled;
+extern s16 g_FieldTextScaleDivisor;
+extern s32 g_GamePartySkinsInitialized;
+extern s32 g_FieldPartyActorSlots[];
+extern s32 g_FieldPartyActorIndices[];
+extern s16 D_800B22DE[];
+extern s32 D_800B2298;
+extern s32 D_800B229C;
+extern s32 g_GfxOTDepthShift;
+extern MATRIX D_800AF85C;
+extern MATRIX g_FieldModelScreenMatrix;
+extern SVECTOR g_FieldRotationVector;
+extern void func_8028125C(void);
+extern void func_8007254C(void);
+extern void FieldClearActorSoundSlots(void);
+extern void FieldInitializeParticles(void);
+extern void FieldSetClipDimensions(short x, short y, short w, short h);
+extern void ControllerResetState(void);
+extern s16 g_FieldFadeIsWhite;
+extern u_short g_FieldPlayerActorIndex16;
+
+// The paired rotation op writes two 0x6-byte vectors, vx/vz/vy order (see
+// FieldScriptSetRotationVectorPair in misc.c).
+typedef struct {
+    /* 0x0 */ s16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ s16 vz;
+} FieldRotationVector; // Size: 0x6
+
+typedef struct {
+    /* 0x0 */ FieldRotationVector first;
+    /* 0x6 */ FieldRotationVector second;
+} FieldRotationVectorPair; // Size: 0xC
+
+extern FieldRotationVectorPair g_FieldRotationVectorPair;
+extern void FieldResetPortraitSlots(void);
+extern void FieldInitScreenStripSprites(void);
+
+// 426 insns, huge straight-line global-reset block. Best measured 89.55% (1708 bytes, 427 vs 426 insns) with the raw flat-symbol spelling; 84.78% (1692) after reworking the four table bases onto shared pointer locals. Residual (named): (1) retail's stack frame is 0x38 with the SVECTOR at sp+0x20 and 0x20 bytes of unused local space below it - our frame is 0x28/SVECTOR at 0x10, so gcc allocated a 0x20-byte local we have not found; no callee takes it (all 15 calls' args are registers) so the source local is unknown. (2) the store block's schedule: retail keeps $v0 live across the six pad-zero stores (li 5 ... sb 0(s0)) while our sched2 hoists each constant store next to its li. (3) loop register assignment: retail a0=pGameState walk, v1=pDest, a2=+0x400, a1=counter; ours picks a1/a0/v1. (4) li 0xffff vs li -1 for g_FieldControl.controllerBtnMask (header field is short; retail's is unsigned). The 89.55 body is this one with the four table bases spelled as raw
+// offsets instead of pointer locals: pSlot = (s16*)((u8*)&g_FieldScriptSoundEffectBank - 0x70),
+// pSlot = &g_FieldScriptRenderContextIndex + 0x5D, ((u_short*)&g_FieldScriptMemory)[i] and
+// [0x200 + i], and the 32-entry loop based on D_800B22DE; that spelling keeps the 16-loop and
+// copy-loop base addresses in one register (retail: la v1 + sh 0(v1) + addiu a2,v1,0xBA) which
+// the pointer-local form folded into a fresh la of sym+0xBA and lost three instructions.
+/*
+void func_800705DC(void) {
+    SVECTOR rotation;
+    u8* pBank;
+    s16* pIndex;
+    u_short* pMemory;
+    s16* pSlot;
+    int i;
+
+    if (g_FieldSystemMode == 0) {
+        func_8028125C();
+    }
+
+    FieldSetClipDimensions(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    ControllerResetState();
+
+    g_FieldButtonPollMask = 0xFFFF;
+    g_FieldP1ButtonsPressed = 0;
+    g_FieldP2ButtonsPressed = 0;
+    g_FieldP1ButtonsReleased = 0;
+    g_FieldP2ButtonsReleased = 0;
+    g_FieldButtonsPressedOnce = 0;
+    g_FieldP2ButtonsPressedOnce = 0;
+    pBank = &g_FieldScriptSoundEffectBank;
+    *pBank = 5;
+    g_FieldCurrentModelAnimationId = 3;
+    g_FieldGearObjectCapacity = 0x40;
+    g_FieldPlayerWalkmeshMaterialOverride = 0xFF;
+    g_FieldStreamId = 0xFF;
+    g_FieldScreenScrollY = 0;
+    g_FieldScreenScrollX = 0;
+    D_800B21BC = 0;
+    D_800B21C0 = 0;
+    D_800B21C4 = 0;
+    g_FieldActorModelSlotCount[0] = 0;
+    g_FieldSoundSlotId = 0;
+    g_FieldCompassDisabled = 0;
+    g_FieldRandomEncounterFlag = 0;
+    g_FieldEffects.distortion.v6 = 0;
+    g_FieldEffects.distortion.v5 = 0;
+    g_FieldEffects.distortion.v4 = 0;
+    g_FieldEffects.distortion.v3 = 0;
+    g_FieldEffects.distortion.v2 = 0;
+    g_FieldEffects.distortion.v1 = 0;
+    g_FieldEffects.distortion.unk3C = 0;
+    g_FieldEffects.distortion.unk38 = 0;
+    g_FieldSceneReloadFlags = 0;
+    g_FieldPartyMoveStepRan = 0;
+    D_800B21B0 = 0;
+    D_800B21B2 = 0;
+    D_800B21AE.vx = 0;
+    g_FieldEffects.distortion.isActive = 0;
+    g_FieldCameraAtFollowTargetY = 0;
+    g_FieldPartySlotMask = 0;
+    g_FieldClearColorB = 0;
+    g_FieldClearColorG = 0;
+    g_FieldClearColorR = 0;
+    g_FieldPartyMoveInProgress = 0;
+    D_800B21CF = 0;
+    g_FieldScreenShakeMode = 0;
+    g_FieldMode = 0;
+    g_FieldRenderContextUseOT2 = 0;
+    g_FieldSpecialAnimLoadPending = 0;
+    D_800ADB24 = 0;
+    D_800ADB98 = 0;
+    D_800ADB94 = 0;
+    g_FieldStreamSceneActive = 0;
+    g_FieldArchiveStreamActive = 0;
+    D_800ADB68 = 0;
+    g_FieldTransitionBusyFlag = 0;
+    g_FieldCameraAtYLatched = 0;
+    g_FieldNextGameState = 0;
+    g_FieldMapNumChanged = 0;
+    g_FieldScreenEffectSuppressed = 0;
+    g_FieldScriptSuppressScreenEffect = 0;
+    g_FieldActive = 0;
+    g_FieldScriptMemoryUpdateLocked = 0;
+    g_GameAudioManagerVolumeRestorePending = 0;
+    D_800ADBD0 = 0;
+    g_FieldSoundProximitySource = 0;
+    g_FieldSoundElementMask = 0;
+    D_800B14A4 = 0;
+    g_FieldScriptShopIndex = 0;
+    g_FieldScriptFadeMode = 0;
+    g_FieldScriptFadeDuration = 0;
+    g_FieldFadeDuration = 0x20;
+    g_FieldFadeMode = 2;
+    g_FieldSoundMaxDistance = 0x3FF;
+    g_FieldSkipCounter = 4;
+    g_FieldParticleCurActor = 0;
+    g_FieldTalkIdleFrames = 0;
+    g_FieldPlayerActorIndex16 = 0;
+    g_Unknown_800B2344 = 0;
+    D_800B2342 = 0;
+    g_FieldWalkAbortCount = 0;
+    g_FieldPlayerActorPartySlot = 0;
+    g_FieldWdsSoundEffectBankIndex = 0;
+    D_800ADB04 = 0;
+    g_FieldDisableActorRender = 0;
+    g_FieldFogDisabled = 0;
+    g_FieldAlternatePadAngles = 0;
+    D_800ADBB4 = 0;
+    g_FieldSavedPlayerScriptFlags = 0;
+    g_FieldScreenStripSpritesEnabled = 0;
+    g_FieldPauseDisabled = 0;
+    g_FieldScriptCounter = 0;
+    g_FieldStreamReadyFlag = 0;
+    g_FieldScriptRoutineRunning = 0;
+    g_FieldRequestCode = 0xFF;
+
+    rotation.vx = 0;
+    rotation.vy = 0;
+    rotation.vz = 0;
+    RotMatrix(&rotation, &g_FieldModelScreenMatrix);
+
+    pSlot = (s16*)(pBank - 0x70);
+    for (i = 2; i >= 0; i--) {
+        *pSlot-- = -1;
+    }
+
+    g_FieldFadeIsWhite = 1;
+    D_800AF93A = 0x1000;
+    pIndex = &g_FieldScriptRenderContextIndex;
+    *pIndex = 0x720;
+
+    pSlot = pIndex + 0x5D;
+    for (i = 0xF; i >= 0; i--) {
+        *pSlot-- = 0x1D;
+    }
+
+    D_800B21A4 = 0x100;
+    D_800B21A2 = 0x100;
+    g_FieldRotationVectorPair.first.vx = 0x100;
+    D_800B21AA = 0x200;
+    D_800B21A8 = 0x200;
+    D_800B21A6 = 0x200;
+    g_FieldActorUpdateAngle = 0x80;
+    g_FieldPartyModelLoadState = 0xFF;
+    g_FieldPolarVectorScale = 0x1000;
+    g_FieldRotationVector.vx = 0;
+    D_800B2186 = 0;
+    D_800B2188 = 0;
+    g_FieldStreamPlayerInitialized = -1;
+
+    g_FieldPendingWdsBankIndex = 0x1D;
+    g_FieldMapTransitionGate = -1;
+    g_FieldCameraSnapFrames = 2;
+    g_FieldControl.controllerBtnMask = 0xFFFF;
+    g_FieldFogNearB = 0x80;
+    g_FieldFogNearG = 0x80;
+    g_FieldFogNearR = 0x80;
+    g_FieldFogFarB = 0xFF;
+    g_FieldFogFarG = 0xFF;
+    g_FieldFogFarR = 0xFF;
+    g_FieldFogNearDistance = 0x15E0;
+    g_FieldFogFarDistance = 0x300C;
+    g_FieldCurRenderContextIndex = 0;
+    D_800ADC0C = 0;
+    g_FieldLineScrolls.numLineScrolls = 0;
+    g_PlayerActorIndex = 0;
+    g_FieldControl.angle = 0;
+    g_FieldTextBoxInUseMask = 0;
+    g_FieldControl.isRandomEncountersEnabled = 0;
+    g_FieldActorAllocCount = 0;
+    g_FieldFrameDelay = 0;
+    g_FieldFogEnabled = 0;
+    g_FieldTextScaleDivisor = 8;
+
+    if (g_GamePartySkinsInitialized == 0) {
+        for (i = 0; i < 3; i++) {
+            g_FieldPartyActorSlots[i] = 0xFF;
+            g_FieldPartyActorIndices[i] = 0xFF;
+        }
+    }
+
+    pSlot = D_800B22DE;
+    for (i = 0x1F; i >= 0; i--) {
+        *pSlot-- = 0xFFFF;
+    }
+
+    D_800B229C = 0;
+    D_800B2298 = 0;
+    g_GfxOTDepthShift = 2;
+
+    pMemory = (u_short*)&g_FieldScriptMemory;
+    for (i = 0; i < 0x200; i++) {
+        pMemory[i] = g_pGameState->fieldScriptMemory[i];
+        pMemory[0x200 + i] = 0;
+    }
+
+    SetGeomScreen(0x200);
+
+    FieldMatrixSetIdentity(&g_Scene.viewMatrix);
+    FieldMatrixSetIdentity(&D_800AF85C);
+    FieldMatrixSetIdentity(&g_Scene.worldToScreenMatrix);
+    FieldMatrixSetIdentity(&g_Scene.worldRotationMatrix);
+
+    g_Scene.worldRotation.vx = 0;
+    g_Scene.worldRotation.vy = 0;
+    g_Scene.worldRotation.vz = 0;
+    g_Scene.worldTranslation.vx = 0;
+    g_Scene.worldTranslation.vy = 0;
+    g_Scene.worldTranslation.vz = 0;
+    g_WorldScale = 0x3000;
+    RotMatrix(&g_Scene.worldRotation, &g_Scene.worldToScreenMatrix);
+    g_FieldCurRenderContext = g_FieldRenderContexts;
+
+    func_8007254C();
+    FieldResetPortraitSlots();
+    FieldClearActorSoundSlots();
+    FieldInitializeParticles();
+    FieldInitScreenStripSprites();
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_800705DC);
+
 
 extern s16 g_FieldPortraitSlots[3][3];
 extern s16 D_800B06A6[3][3];
