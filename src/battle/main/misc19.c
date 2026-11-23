@@ -215,6 +215,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // the residual that caps all of them is the md: retail `mflo v0` / `mfhi v0 / srl v0,v0,3`,
 // this compiler `mflo $tN / srl v0,$tN,3` (same family as func_8009A9D0).
 
+// Round 427 NEW measurement, worth keeping: the SECOND pointer is what costs the extra
+// instruction, and dropping it completely (`new_var2` removed, every tail read through
+// pCondition) gives retail's EXACT size - 313 insns / 1252 bytes - under gcc-2.6.0 at
+// 99.74% (under the unit's 2.7.2 it is 96.59% / 1248, the old 312-insn figure). Its three
+// remaining 2.6.0 statics are ENCODING-ONLY commutative operand swaps with retail's
+// registers already correct, so no C spelling reaches them:
+//   retail `mult v0,v1`   -> 2.6.0 `mult v1,v0`      (loads lbu v0,87(s0) / lhu v1,0(a1) match)
+//   retail `addu a0,v0,v1`-> 2.6.0 `addu a0,v1,v0`   (attack += weaponData[0].attack)
+//   retail `addu v0,v0,a0`-> 2.6.0 `addu v1,v0,a0`   (attack += weaponData[2].attack)
+// Measured this round with no effect on any of them: swapping the source operands of the
+// `statBonuses[7] * rowCosts[0]` product (cluster AND mult unchanged), swapping
+// `attack + weaponData[0].attack` to weapon-first (output byte-identical), and storing the
+// second sum straight with `pWork->attackAmount = attack + weaponData[2].attack;` (that one
+// fixes the destination but flips the earlier product's load cluster: 21 differing lines).
+// So a 2.6.0 carve-out of this run (0x2A7E4..0x2ACC8) buys 99.74, not a match; the extra
+// `move a2,s2` of the second-pointer body costs exactly one instruction but that body is
+// the one that is 99.19% under the unit's preset, so it is the one parked below.
+
 /*
 void func_8009A2D4(u8 arg0) {
     BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
@@ -498,6 +516,13 @@ void BattleFillPartySlotWeaponRecord(u8 arg0, u8 arg1) {
 // Needs a one-function carve-out onto XenoLibrary: config/battle.yaml has
 // [0x2A5EC, c, main/misc19] up to [0x2BFD4, c, main/misc19_r1] and this function is
 // at 0x2AEE0, so the split is 0x2A5EC..0x2AEE0 / 0x2AEE0..0x2AF58 / 0x2AF58..0x2BFD4.
+// Round 427 re-measured: 99.66% (116 bytes, 29/29 insns), still ONLY the md difference
+// `mfhi a1 / sra a0,a1,5` against retail's `mfhi a0 / sra a0,a0,5`. lever.py has no
+// source-side lever for it (f-mult-operand-order is a different residual). The cc1_probe
+// cross-compiler snippet in the note above already proved it is a smulsi3_highpart
+// difference that gcc-2.6.0 does not have, so no permuter run this round (five prior
+// runs, all PERMUTER_NONE). Needs the one-function carve-out onto XenoLibrary: this
+// function is at 0x2AEE0 and the run is 0x2AEE0..0x2AF58 of config/battle.yaml.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A9D0);
 /*
 s32 func_8009A9D0(void) {
