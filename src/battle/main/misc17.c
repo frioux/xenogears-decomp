@@ -1109,9 +1109,34 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
     }
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
+/* 92.05% (1552 bytes against retail's 1588, 388 insns against 397). Everything
+   structural is right and measured: the char-4/unkB7 guard, places[] = {100, 10},
+   the character-vs-gear weapon-id pick (characters[].extraWeaponIds[0]/[3] with the
+   0x2286 quantities, gears[characters[].gearId] with the 0x22B6 ones), the two
+   text-buffer passes, both BattleLoadImageAndSync uploads per row, the / and % 10
+   digit passes with the `drawn` latch, the free loop, and the tail written with the
+   house pool idiom (`g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28`,
+   spelled inline at every use so retail's per-use reload comes out - writing it
+   through pPrims/primStart locals cost 22 instructions and 79.19%).
+   Residual: retail's frame is 0xB0 and spills THREE more 8-byte slots than this
+   body (textY at 0x70 as a 32-bit sw read back with lhu inside the digit loop, and
+   two 4-byte count-offset slots at 0x78/0x80 where this body keeps countOfs in a
+   register), so every one of the 9 missing instructions is spill/reload traffic and
+   the size is 36 bytes short. All 9 callee-saved registers are live in retail
+   (s7 = textY, fp = rowY, s0 = digit across the call); this body has one spare.
+   Tried and measured, all unchanged or worse: a `s32 ofs = countOfs` copy for the
+   digit loop (copy-propagated away, 92.05% identical), declaring a spare 8-byte
+   local between stripRect and bufs (it does get a slot and shifts bufs/places/
+   weaponIds/counts onto retail's exact offsets, but the frame then overflows by 8
+   and the score drops to 87.54%), and a permuter run (RESULT PERMUTER_BETTER,
+   4267 -> 2659) that only produced the declaration swap below, worth 87.56 -> 92.05.
+   The 87.56% variant that keeps the exact 1588-byte size is a git commit
+   (d92ed557) if the next worker wants to attack the frame from the other side. */
+/*
 void func_80093B08(u8 arg0) {
-    RECT nameRect;
     RECT tensRect;
+    RECT nameRect;
     RECT digitRect;
     RECT tileRect;
     RECT stripRect;
@@ -1219,6 +1244,7 @@ void func_80093B08(u8 arg0) {
         ((u8 *)g_BattleDisplayState)[0x8E] = 1;
     }
 }
+*/
 void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     if (g_BattleActorCharIds[arg0] == 4) {
         g_BattleDisplayState->unkB7 = 0;
