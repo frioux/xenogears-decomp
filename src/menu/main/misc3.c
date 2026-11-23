@@ -260,9 +260,179 @@ void MenuMarkSlotsWithGameSave(int a0) {
 }
 */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
+extern void MenuOpenCardEvents(void);
+extern void func_801E78C8(s32 index);
+extern void Vsync(s32 count);
+extern u8 D_801C50B8[];
+extern u8 D_801EA6F8;
+extern u8 g_MenuCardCheckInterval;
+extern u16 g_MenuCellPrimXs[];
+extern u16 g_MenuCellPrimYs[];
 extern s32 g_MenuCardSlotOrder[];
 
+/* Best attempt: 95.40% (2084 bytes, retail's 521 instructions exactly). The
+   residual is register allocation and block placement, not structure: retail
+   keeps a 7th callee-saved register for a snapshot of the `waited` flag
+   (`move s6,s4` in the delay slot of the first card-status test) that the honest
+   `if (waited)` spelling comes out of s4 without, and the scan's failure block
+   (`li s3,2 / li s2,2 / move s4,zero`) is out of line here but sits inline after
+   retail's `bnez cardEnumerated,<loop tail>`, so ~30 forward branch offsets move.
+   Learned, worth 4% and the exact byte count: the two 0xFF byte pairs
+   (previousCardSlotCounts[1]/[0] and previousCardStatus[1]/[0]) each come from
+   ONE `MenuUnk2* pMenu = g_Menu->menuUnk2;` load -- spelling them as two
+   `g_Menu->menuUnk2->...` assignments costs 9 instructions, because a `sb` kills
+   the reload of the g_Menu pointer. The saved card status must be a local ARRAY
+   (u8 savedCardStatus[2]), not two u_char locals, or gcc keeps it in registers
+   instead of retail's two bytes at sp+0x50/0x51. The 8 cursor prim stores reload
+   every operand, so they have to be written as 8 full expressions with the
+   index-first `(ctx * sizeof(POLY_FT4) + (mem_addr)pCursors)` address (the
+   MenuLoadCardChunk idiom); a pPrim local or a base-first subscript loses 1.8%.
+   Tried: base-first subscript for the cursor prims (93.24%), pPrim/cell locals
+   (fewer reloads than retail), `continue` vs `if (enumerated == 0) break` for the
+   scan failure (gcc inverts both to the same beqz), `rebuildWindow = waited`
+   (gcc folds the whole block away), status initialised to 0 (costs a
+   `move s3,zero` retail does not emit: retail reads `status` uninitialised on the
+   card-wait path, a latent bug in the original).
+   Not tried: a permuter run -- the residuals are block placement and a saved
+   register, which it cannot move. */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
+/*u_char func_801C93A8(void) {
+    char path[0x40];
+    u8 savedCardStatus[MENU_CARD_COUNT];
+    u_char waited = 0;
+    u_char status;
+    MenuUnk2* pMenu;
+    s32 card;
+    s32 i;
+    s32 recordIndex;
+
+    D_801EA6F8 = 0;
+    g_Menu->menuUnk2->cardPollMode = 2;
+    MenuRenderFrame();
+    if (*(u16*)g_Menu->menuUnk2->cardStatus == 0) {
+        MenuFreeWindow2Strings();
+        g_Menu->pManager->window2StringsActive = 0;
+        g_Menu->pManager->characterWindowBuilt = 0;
+        MenuRenderFrame();
+        MenuCreateWindow2Strings(0x23);
+        g_Menu->cardSlotState = 1;
+        g_Menu->pManager->shouldRenderCursors = 0;
+        g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+        g_Menu->menuUnk2->selectedSlot = 0;
+        pMenu = g_Menu->menuUnk2;
+        if (*(u16*)pMenu->cardStatus == 0) {
+            pMenu->previousCardSlotCounts[1] = MENU_SLOT_NONE;
+            pMenu->previousCardSlotCounts[0] = MENU_SLOT_NONE;
+            MenuRenderFrame();
+            for (i = 0x3B; i != 0; i--) {
+                Vsync(0);
+            }
+            waited = 1;
+        }
+        if (waited == 0) {
+            MenuOpenCardEvents();
+            pMenu = g_Menu->menuUnk2;
+            pMenu->previousCardStatus[1] = MENU_SLOT_NONE;
+            pMenu->previousCardStatus[0] = MENU_SLOT_NONE;
+            g_Menu->menuUnk2->cardEnumerated[0] = 0;
+            g_Menu->menuUnk2->cardEnumerated[1] = 0;
+            g_Menu->cardCheckTimer = 0x3C;
+            MenuRenderFrame();
+            D_801EA6F8 = 1;
+        }
+        MenuFreeWindow2Strings();
+    }
+    g_MenuCardCheckInterval = 1;
+    savedCardStatus[0] = g_Menu->menuUnk2->cardStatus[0];
+    savedCardStatus[1] = g_Menu->menuUnk2->cardStatus[1];
+    if (waited == 0) {
+        g_Menu->soundEffectsEnabled = 0;
+        for (card = 0; card < MENU_CARD_COUNT; card++) {
+            status = 0;
+            if (g_Menu->menuUnk2->cardSlotCounts[card] != g_Menu->menuUnk2->previousCardSlotCounts[card] &&
+                g_Menu->menuUnk2->cardSlotCounts[card] != 0) {
+                MenuOpenCardEvents();
+                for (i = 0; i < MENU_CARD_RECORD_COUNT; i++) {
+                    g_Menu->menuUnk2->slotRecordIndexes[card * MENU_CARD_RECORD_COUNT + i] = MENU_SLOT_NONE;
+                }
+                if (card == 0) {
+                    memcpy(path, &g_MenuCardPathPrefix0, 6);
+                } else {
+                    memcpy(path, &g_MenuCardPathPrefix1, 6);
+                }
+                strcat(path, (char*)D_801C50B8);
+                erase(path);
+                g_Menu->menuUnk2->slotWriteCursor = 0;
+                g_MenuCardSlotTotals[card] = 0;
+                for (i = 0; i < g_Menu->menuUnk2->cardSlotCounts[card]; i++) {
+                    if (g_Menu->menuUnk2->cardStatus[card] == 0 ||
+                        savedCardStatus[0] != g_Menu->menuUnk2->cardStatus[0] ||
+                        savedCardStatus[1] != g_Menu->menuUnk2->cardStatus[1]) {
+                        status = 2;
+                        card = MENU_CARD_COUNT;
+                        waited = 0;
+                        break;
+                    }
+                    MenuLoadCardChunk(card, i);
+                    recordIndex = card * MENU_CARD_RECORD_COUNT + i;
+                    func_801E78C8(recordIndex);
+                    g_Menu->menuUnk2->records[recordIndex].unk58 = 1;
+                    MenuRenderFrame();
+                    if (g_Menu->menuUnk2->cardEnumerated[card] != 0) {
+                        continue;
+                    }
+                    status = card + 1;
+                    card = MENU_CARD_COUNT;
+                    waited = 0;
+                    break;
+                }
+                if (status == 0) {
+                    for (; i < MENU_CARD_RECORD_COUNT; i++) {
+                        g_Menu->menuUnk2->records[card * MENU_CARD_RECORD_COUNT + i].unk58 = 0;
+                    }
+                    g_Menu->menuUnk2->previousCardSlotCounts[card] = g_Menu->menuUnk2->cardSlotCounts[card];
+                }
+            }
+            if (status == 0 && g_Menu->menuUnk2->cardSlotCounts[card] == 0) {
+                for (i = 0; i < MENU_CARD_RECORD_COUNT; i++) {
+                    g_Menu->menuUnk2->records[card * MENU_CARD_RECORD_COUNT + i].unk58 = 0;
+                }
+                g_Menu->menuUnk2->previousCardSlotCounts[card] = MENU_SLOT_NONE;
+            }
+        }
+        if (status == 0) {
+            MenuMarkSlotsWithGameSave(0);
+            MenuMarkSlotsWithGameSave(1);
+        }
+    }
+    if (status == 0) {
+        if (waited != 0) {
+            g_Menu->pManager->characterWindowBuilt = 1;
+        }
+        if (g_Menu->pManager->shouldRenderCursors != 0 && g_Menu->pCursors->shouldUpdatePosition[0] != 0) {
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->x0 =
+                g_MenuCellPrimXs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 8;
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->y0 =
+                g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] - 6;
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->x1 =
+                g_MenuCellPrimXs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 0x18;
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->y1 =
+                g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] - 6;
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->x2 =
+                g_MenuCellPrimXs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 8;
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->y2 =
+                g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 0xA;
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->x3 =
+                g_MenuCellPrimXs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 0x18;
+            ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->y3 =
+                g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 0xA;
+        }
+    }
+    g_Menu->soundEffectsEnabled = 1;
+    g_MenuCardCheckInterval = 0x1E;
+    return waited;
+}
+*/
 u_char MenuIsSlotUsable(s32 a0) {
     MenuUnk2* pMenu = g_Menu->menuUnk2;
     s32 result = 1;
