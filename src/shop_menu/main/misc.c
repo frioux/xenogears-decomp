@@ -2995,43 +2995,9 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
 // Old-style declaration on purpose, as in ShopMenuRenderSellItemRows: retail's call site for
 // ShopMenuSetVertices saw no prototype, so its u_short y argument is passed unmasked.
 extern void ShopMenuSetVertices();
-// Best attempt: 97.80%, 476 insns / 1904 bytes (retail 475 / 1900); frame 0xc8 and the prologue
-// match. This supersedes the previous note's 97.85% (478 / 1912) - the percentage dipped only
-// because the register cascade below touches half the rows; the body is 4 bytes from retail
-// instead of 12.
-// FIXED (the previous note's wall (1) was wrong): the two `andi a2,<y>,0xffff` masks and the
-// extra `addiu a2,<13i>,0x32` on the second ShopMenuSetVertices call are prototype visibility and
-// they CAN be removed in this TU - declare ShopMenuSetVertices old-style immediately above (the
-// matched twin does exactly that for its own calls) and spell both y args `0x32 +
-// FONT_LETTER_HEIGHT * i`, which is what retail does (one stack slot feeds both calls, loaded
-// straight into a2 with no mask and no addiu). That is 478 -> 476 insns, 1912 -> 1904 bytes, and
-// it also removes the `new_var = 0xD` hack the previous body needed.
-// REMAINING, in this order of size:
-// (1) 1 instruction / 4 bytes: retail keeps the cse constant 0x28 in s2 - one `ori s2,0x28` per
-//     iteration feeding two `sh s2,36(sp)` - and re-uses s2 later in the SAME iteration for the
-//     0x1000 poly colour, i.e. both constants are cse pseudos sharing the one callee-saved
-//     register retail has spare. Here `u32 polyColor` is a real pseudo, takes the 9th
-//     callee-saved register, global-alloc then finds none for 0x28 and rematerialises it at both
-//     uses (+1 insn, 1904 vs 1900 bytes, so it cannot link) and i/itemPrice/i*0x80/scrollOffset
-//     each sit one register lower than retail (s2..s5 here vs s3..s6).
-//     Measured negatives for freeing that register:
-//      - the literal 0x1000 at the three func_8002675C calls (the twin's spelling, polyColor
-//        demoted to a cse constant): 473 insns / 1892 bytes / 94.91, frame 0xc0 - the freed
-//        register goes to a loop BIV (`li s8,0x1db0`) and to the 0xcccccccd magic instead.
-//      - `u16 polyColor`: identical 473 / 1892 / 94.91.
-//      - `s16 rectWidth; rectWidth = 0x28;` before the first setRECT: folded, no change.
-//      - `u8 blankDigit = 0xC3` for the digit-loop else arm DOES reproduce retail's preheader
-//        `li t0,0xc3`, but it also hoists the %10 magic (lui 0xcccc / ori 0xcccd) into s8:
-//        474 insns / 1896 bytes / 95.77.
-//      - preset: gcc 2.7.2 96.98, 2.7.2-cdk 92.31, 2.6.0 -O3 does not compile; the unit's
-//        2.6.0 -O2 is right.
-// (2) itemPrice and &rect occupy opposite stack slots (retail 0x68/0x70, here 0x70/0x68); slots
-//     follow pseudo creation order and moving `pRect = &rect;` to just before the digit loop
-//     costs the rest (94.51 at 479 insns).
-// (3) The 0xC3 placeholder is materialised inside the digit loop here and in retail's preheader;
-//     same instruction count, only its position differs.
-
-/*
+// The digit codes are written through the rect struct's own expression (`&rect` + the
+// post-loop `k`), as in ShopMenuRenderSellItemRows: a RECT* local for the units digit and the
+// two LoadImage calls costs the `li s2,0x28` hoist and moves i from $s3 to $s2.
 void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
     RECT rect;
     u8 digitGlyphs[0xE];
@@ -3040,7 +3006,6 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
     u32 polyColor;
     s32 quotient;
     u8 didRounding;
-    RECT* pRect;
     s32 j;
     s32 k;
     u8 tensDigit;
@@ -3059,7 +3024,6 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
     pWorkspace = HeapAlloc(0x3F6, 0);
 
     for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
-        pRect = &rect;
         pItemAffordable[i] = FALSE;
         bzero(digitGlyphs, 0xE);
         g_Menu->pShop->inventoryPrimCounts[i] = 0;
@@ -3105,17 +3069,17 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
                     ((u8*)&rect)[8 + k * 2] = 0xC3;
                 }
             }
-            ((u8*)pRect)[16] = (price % 10) + 0x10;
+            ((u8*)&rect)[8 + k * 2] = (price % 10) + 0x10;
             SystemDecodeGlyphCodesN((u16*)((u8*)&rect + 8), decodedGlyphs, 5);
             g_Menu->pShop->strItemQuantities[i].width = SystemRenderStringEntry(decodedGlyphs, pWorkspace, 0x24, 1);
 
             setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
-            LoadImage(pRect, pWorkspace);
+            LoadImage(&rect, pWorkspace);
             ShopMenuSetStringPrimitives(&g_Menu->pShop->strItemNames[i], i, 0x80, pItemAffordable[i] + 1);
             ShopMenuSetVertices(g_Menu->pShop->strItemNames[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i,
                 g_Menu->pShop->strItemNames[i].width, FONT_LETTER_HEIGHT);
             setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
-            LoadImage(pRect, pWorkspace);
+            LoadImage(&rect, pWorkspace);
             DrawSync(0);
             ShopMenuSetStringPrimitives(&g_Menu->pShop->strItemQuantities[i], i, 0x80, pItemAffordable[i] + 2);
             ShopMenuSetVertices(g_Menu->pShop->strItemQuantities[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i,
@@ -3152,8 +3116,7 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
     }
 
     HeapFree(pWorkspace);
-}*/
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CDD14);
+}
 
 // The zero-store order, the chained defense assignment, the u16 characterIndex (Billy
 // is character 4) and the slotDefense copy are load-bearing: other spellings change the
