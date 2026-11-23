@@ -2219,6 +2219,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
    the MenuCopyEquipmentToPanel call and `cursorVisible = 0;`, and between
    `cursorVisible = 0;` and the shouldRender store - in both, cse merges the two QI
    1s (lever c-moved-constant-merges-then-sinks).
+   ROUND 432: un-parked and re-measured, the note's number is current (98.88%,
+   2468 bytes, 617 insns under gcc-2.6.0). One new spelling measured: closeList
+   = 1 FIRST, then MenuBuildArrowCursorPrim, then the shouldRender store (i.e.
+   the store moved below the call so cse cannot merge the two QI 1s) - 617
+   insns / 2468 bytes / 98.00, so no merge and both `li 1`s survive, but cc1 then
+   sinks the store below the call (`jal / lw g_Menu / #nop / lw 0x33C / li s0 /
+   sb s0,0x140`) and the arm loses retail's shape without gaining the nop. Worth
+   knowing for the next attempt: the BACK arm of this same function ALREADY has
+   retail's shape - on the current body cc1 hoists its `li s0,1` above the
+   cursor-prim argument setup AND keeps both `li 1`s (emission: `jal
+   MenuCopyEquipmentFromPanel / li s0,1 / move a0,0 / move a1,row / lw g_Menu /
+   li a2,3 / sb $0,col / lw pCursors / move a3,0 / li t0,1 / jal`) - so the
+   hoist is reachable in this unit and the residual is only why cse merges the
+   pair in the CONFIRM arm; every order that puts closeList first merges it.
    PROLOGUE: the init block must assign prevRow = 0xFF and row = 0 AFTER
    listOpen = 0, not before needsPanel - that is worth 98.56 to 98.88. The two
    prologue rows still differing are the `sb t0,0x38` (active) and `sb t0,0x40`
