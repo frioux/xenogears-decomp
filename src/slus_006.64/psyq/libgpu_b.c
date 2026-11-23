@@ -43,7 +43,7 @@ extern void func_8004668C(u_long *p, int x, int y, int w);
 extern void func_80046EFC(void);
 extern int func_80046F30(void);
 extern u_long func_80045A34(int x, int y);
-extern u_long func_80045B00(int x, int y);
+extern u_long func_80045B00(s16 x, s16 y);
 extern u_long DrawMode(int dfe, int dtd, u_short tpage);
 extern u_long func_80045BCC(int x, int y);
 extern u_long func_80045C10(RECT *tw);
@@ -220,43 +220,51 @@ u_long func_80045A34(int x, int y) {
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 
-/* best: 79.80% (192 bytes / 48 insns; retail is 204 / 51). Same body as the
-   func_80045A34 park -- the two stubs are instruction-identical except the opcode
-   word, so whatever closes one closes both.
-   CLOSED the 0x10 phantom frame: retail's `.frame $sp,16` with no store anywhere is
-   an unused local array; `u_long t[4]` gives vars=16 and puts `subu $sp,$sp,16` in
-   the bltz delay slot exactly as retail has it. With it 70.27 -> 79.80 (ternary +
-   t[4]); the if/else-if clamp without it was 60.10.
-   NAMED RESIDUAL, 3 instructions, all in the x clamp: retail keeps THREE pseudos
-   there -- x in $a3 (`move a3,a0`), the (s16) truncation done IN PLACE on $a0, and
-   the clamp result in $v0 copied back to $a3 (`move a3,v0`) -- plus a second copy of
-   the width (`move a2,v0`) so the clamp arm re-forms W-1 (`addiu v0,a2,-1`) instead
-   of reusing the compare's. gcc cse1 merges the two W-1 into one register, so the
-   duplicate is unreachable from any spelling that names W-1 twice.
-   PROBED this round with cc1_probe.sh (11 spellings, none reproduces it): ternary
-   on the parameter, ternary on the clamped local, if/else-if with and without an
-   `else xc = x` keep arm, s16 mirror locals for the cast, s16 parameters, u_short
-   and s16 local copies of the limit, and a CLIP16 macro with the limit textually
-   duplicated. All of them coalesce xc into the parameter's register (no `move a3,a0`)
-   and truncate into a fresh register.
-u_long func_80045B00(int x, int y) {
-    u_long t[4]; // load-bearing: retail allocates a 0x10 frame and stores nothing in it
+/* best: 99.51% (204 bytes / 51 insns = retail's exact size; every instruction is
+   retail's except TWO: retail masks the clamped x into $v0 and holds 0xE4000000 in
+   $a0, we hold them the other way round, which also makes the closing or
+   `or v0,a0,v0` where retail has `or v0,v0,a0` - the same value, the operands
+   swapped).
+   ROOT CAUSE FOUND (round 425): the PARAMETERS ARE `s16`, not `int`. Retail's
+   entry `addu a3,a0,zero / sll a0,a0,16 / sra a0,a0,16` is the sign extension of
+   a narrow parameter done in place (the raw value saved in $a3 for the
+   `: x` arm), and the doubled `g_GpuScreenWidth - 1` (`addiu v0,v0,-1` for the
+   compare, `addiu v0,a2,-1` in the clamp arm) is the limitRange macro's textually
+   repeated limit. With `int` parameters every spelling needed a `(s16)` cast,
+   which gcc evaluates into a FRESH register and which lets cse merge the two
+   `W - 1` computations - the whole 79.80% wall. `s16 x, s16 y` + the plain
+   ternary (= limitRange) scored 93.53 at retail's exact size on the first try.
+   Two more measured steps: `u_long code` instead of `u_short code`
+   (98.14 -> 99.51, the masked x's allocno then outranks the constant's), and a
+   dead duplicate arm `else if (fld || x) { same body }` (93.53 -> 98.14) as a
+   reorg filler for the bnez delay slot. Also load-bearing: the frame. With s16
+   parameters NO unused local array is needed for the 0x10 frame - it falls out of
+   the conversions; keeping the old `u_long t[4]` doubles it to 0x20.
+   Residual is an allocno tie: measured 99.51 on `0xE4000000 | code` too, and two
+   permuter runs (from 93.53: base 330 -> 95, which is the dead-arm edit; from
+   99.51: base 25 best 25, 1593 iterations) find nothing.
+   The sibling func_80045A34 is instruction-identical except its opcode word
+   (0xE3000000), so this body should score the same there. */
+/*
+u_long func_80045B00(s16 x, s16 y) {
+    u_long ret;
     u_long code;
     u_long fld;
-    u_long ret;
-    int xc;
-    int yc;
 
-    xc = ((s16)x < 0) ? 0 : (((s16)x > g_GpuScreenWidth - 1) ? g_GpuScreenWidth - 1 : x);
-    yc = ((s16)y < 0) ? 0 : (((s16)y > g_GpuScreenHeight - 1) ? g_GpuScreenHeight - 1 : y);
+    limitRange(x, 0, g_GpuScreenWidth - 1);
+    limitRange(y, 0, g_GpuScreenHeight - 1);
     if (g_GraphType != 1 && g_GraphType != 2) {
-        fld = yc & 0x3FF;
+        fld = y & 0x3FF;
         fld = fld << 10;
-        code = xc & 0x3FF;
-    } else {
-        fld = yc & 0xFFF;
+        code = x & 0x3FF;
+    } else if (fld || x) {
+        fld = y & 0xFFF;
         fld = fld << 12;
-        code = xc & 0xFFF;
+        code = x & 0xFFF;
+    } else {
+        fld = y & 0xFFF;
+        fld = fld << 12;
+        code = x & 0xFFF;
     }
     ret = code | 0xE4000000;
     return fld | ret;
