@@ -728,6 +728,21 @@ extern Quad D_800B0FEC[];
 // One 4-minute permuter run reached 81.72 by taking &pQuad in the last vertex
 // store, which puts pQuad in memory: gcc then stops strength-reducing it and
 // derives &polys[0] from the reload instead, so it is not retail either.
+//
+// Round 426 (redo): the m2c draft and the retail asm agree that retail stores
+// vy = 0 FIRST in each vertex group (this body stores it second); that order
+// measures 73.31 / 572 bytes / 143 insns. New mechanism fact: gcc re-bases EVERY
+// quad-relative store in the loop onto the LAST address it assigns, not onto the
+// quad - deleting the copy loop alone makes the base "quad+0x2E", i.e. the
+// pPoly->clut store, with all 12 vertex stores as negative displacements off it,
+// so the limit giv is not the cause, it is the latest link in one combine_givs
+// chain. Retail keeps add_val 0 (the quad) plus a second chain at +0x20, which is
+// what this C cannot express: pPoly is folded into "quad + 0x20" and every
+// address in the loop then shares one base. Least-bad variant measured: replacing
+// the eight inline uv arguments with "u_char* pUV = &D_800ADE70[i * 8];" and
+// pUV[0..7] gives 78.04 / frame 0x48 (one saved register fewer, D_800ADE70
+// rematerialised per iteration) but loses retail's second ADE70 pointer, so the
+// body below (retail-shaped everywhere but the one giv) is the one parked.
 /*
 void func_8007A5C4(void) {
     int i;
