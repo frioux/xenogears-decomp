@@ -478,6 +478,17 @@ void WorldMapUpdateL2R2PressEdge(void) {
 /* best: 99.92% (objdiff), 484 bytes = retail's exact size, every instruction identical; the
    only residual is the table operand (jtbl_80070B54 against .rodata) and the .L relocs, which
    the linker resolves to the same address.
+   RE-MEASURED round 430 from this body: 99.92% / 484 bytes, and permute.sh returns
+   PERMUTER_ZERO base=0 on its first iteration - the residual is the table's RELOCATION, so no
+   C edit reaches it (lever i-permuter-zero-on-a-switch). Two things measured this round:
+   a FUNCTION-scope `static const void *const pCases[]` of label addresses hoists to the top of
+   the object's .rodata exactly like the file-scope one (cc1_probe with this unit's cc1 prints
+   `.rdata / .align 2 / t.2:` ahead of both test functions' bodies), so the const-table route
+   cannot buy order from inside the function either; and a 4-mod-8 ABSOLUTE table is
+   unproducible by any cc1 shape, carve included, because cc1's `.align 3` both pads the table
+   to an 8-aligned offset inside its section AND raises that section's sh_addralign to 8, so ld
+   places the section 8-aligned too - the table is 8-aligned absolutely whatever the yaml says.
+   0x80070B54 is 4 mod 8, so this one and its four neighbours stay asm.
    THE WALL IS RODATA ORDER AS WELL AS ALIGNMENT - both were measured this round, do not redo.
    This unit's .rodata (0x800709F8, 0x258 bytes) is nine jump tables and nothing else: E190's two
    at +0x00/+0x18, E4F4's at +0x38, E76C's 0x104-byte one at +0x58, then five at +0x15C/+0x18C/
