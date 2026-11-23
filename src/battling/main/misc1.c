@@ -83,7 +83,7 @@ void BattleMoveCameraPosTowardVector(VECTOR* pVec, s32 step) {
 // the frame flags the effect cells below are switched on through. Its position is
 // a VECTOR: three sites copy 16 bytes out of it, and the two actors are the
 // VECTORs the camera is aimed between.
-typedef struct {
+typedef struct BattleStateTag {
     /* 0x000 */ VECTOR position;
     /* 0x010 */ u8 unk10[0x38];
     // Reset by BattleSetValueAndClearFlags, and set to 0xFF when
@@ -94,15 +94,27 @@ typedef struct {
     /* 0x04F */ u8 animSpeed;
     /* 0x050 */ u8 unk50[0x2];
     /* 0x052 */ u8 animSpeedBonus;
-    /* 0x053 */ u8 unk53[0x5D];
+    /* 0x053 */ u8 unk53[0x5];
+    // The facing BattleSetFacingAngleFromVector rebuilds, and the idle turn the
+    // battle script's wait opcodes start.
+    /* 0x058 */ s32 targetAngle;
+    /* 0x05C */ u8 unk5C[0x54];
     // The height func_80082488 reports for the actor's position, refreshed every
     // frame by the grid walk below and by BattleActorUpdateGroundMovement.
     /* 0x0B0 */ s32 floorY;
     /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 gaugePoints;
-    /* 0x0B8 */ u8 unkB8[0x18];
+    /* 0x0B8 */ u8 unkB8[0x4];
+    /* 0x0BC */ u16 unkBC;
+    /* 0x0BE */ u8 unkBE[0x10];
+    // Offset added to every facing this actor computes; cleared when a script
+    // turn opcode takes the facing over.
+    /* 0x0CE */ s16 facingOffset;
     /* 0x0D0 */ u32 flags;
-    /* 0x0D4 */ u8 unkD4[0x14];
+    /* 0x0D4 */ u8 unkD4[0x4];
+    // The record the script's two gauge opcodes mirror into.
+    /* 0x0D8 */ struct BattleStateTag* unkD8;
+    /* 0x0DC */ u8 unkDC[0xC];
     /* 0x0E8 */ s32 unkE8;
 } BattleState; // Size: 0xEC
 
@@ -316,7 +328,7 @@ typedef struct {
     /* 0x8FC */ BattleScriptBlock* pScript;
 } BattleActorView; // Size: unknown
 
-s32 BattleSetFacingAngleFromVector(BattleActorView* p) {
+s32 BattleSetFacingAngleFromVector(BattleState* p) {
     VECTOR vec;
     s32 angle;
 
@@ -334,7 +346,343 @@ s32 BattleSetFacingAngleFromVector(BattleActorView* p) {
     return 0;
 }
 
+// The battle message window the tutorial text is drawn into: the box rectangle
+// SystemStringInit fills in, the line count at +0xC and the redraw flag at +0x68.
+// The record is a SystemString (src/slus_006.64/system/system.c owns it, and the
+// global is 0x90 bytes up to g_BattleCameraPos), so +0x0/+0x2/+0x8 are that
+// struct's lineWidth/charIndex/spriteWidth.
+typedef struct {
+    /* 0x00 */ s16 lineWidth;
+    /* 0x02 */ s16 charIndex;
+    /* 0x04 */ s16 x;
+    /* 0x06 */ s16 y;
+    /* 0x08 */ s16 spriteWidth;
+    /* 0x0A */ s16 flags;
+    /* 0x0C */ s16 lineCount;
+    /* 0x0E */ u8 unkE[0x5A];
+    /* 0x68 */ u8 redraw;
+} BattleMessageWindow; // Size: 0x69
+
+extern BattleMessageWindow g_BattleMessageWindow;
+extern BattleState* D_80092894;
+extern s16 D_80092600;
+extern s32 g_BattleActorDistance2D;
+extern s32 g_BattleEffectPlaceMode;
+extern s32 g_BattleStateStep;
+extern u16 g_C1ButtonStateReleased;
+extern s32 g_BattleMessageIndex;
+extern s32 g_BattleWindowTargetX;
+extern s32 g_BattleWindowPosX;
+extern s32 g_BattleWindowTargetY;
+extern s32 g_BattleWindowPosY;
+extern u8 g_BattleWindowPrimsEnabled;
+extern void BattleResetMessageQueue(BattleState* pActor);
+extern void BattleQueueMessage(BattleState* pActor, s32 index);
+extern s32 BattleCheckPositionPastMapCenter(VECTOR* pPos);
+extern s32 SystemStringGetUnk6B(void* pString);
+extern void SystemStringClearStateFlags(void* pString);
+extern void BattleRecenterViewPositions(s32 mode);
+extern void func_80071F8C(s32 mode);
+
+// The battle script g_BattleScriptCursor walks: an opcode byte, then up to two
+// operand bytes. The two stop distances a turn opcode waits for, and the distance
+// a started turn sets on the actor.
+#define BATTLE_SCRIPT_OPCODE 0
+#define BATTLE_SCRIPT_OPERAND0 1
+#define BATTLE_SCRIPT_OPERAND1 2
+#define BATTLE_TURN_DISTANCE 0xF0
+#define BATTLE_TURN_NEAR_DISTANCE 0x100
+#define BATTLE_TURN_MID_DISTANCE 0x400
+#define BATTLE_TURN_FAR_DISTANCE 0x800
+#define BATTLE_TURN_RADIUS 0x400
+
+/* 89.47% (1684 bytes against retail's 1704, 421 insns against 426): the whole
+   interpreter is right - all 34 opcode arms, the two shared cursor tails, the
+   arm-the-wait block and the turn block gcc merged out of cases 12/13/14/15 - and
+   what is left is block placement inside four arms plus one lost insn per shared
+   tail. Spelling facts that are load-bearing and were measured:
+   - the arms must be written in retail's PHYSICAL order (1,2,3,4,5,6,8,7,10,9,11,
+     12,13,15,14,20,18,19,27,21,22,23,24,25,26,28,29,30,31,32,33,34): gcc emits the
+     case bodies in source order, so the natural 1..34 order puts every arm 4-8
+     bytes off and objdiff collapses to 76.16% with the same instruction stream;
+   - `case 0: return;` is real: retail's guard is `sltiu v1,0x23` with table entry 0
+     pointing at the return, so opcode 0 ends the script and is not the default;
+   - the table lands at .rodata+0x18, retail's jtbl_8006FB0C offset;
+   - cases 12/13/14/15 share one `turn` label (goto) and 1/14/15/20 one `armWait`
+     label; gcc does merge those tails, so they must be labels, not copies.
+   Residuals, each 4-8 insns of the diff: (a) cases 11, 12 and 13 each end with
+   their own copy of `li v0,<angle>` + turn tail where retail enters ONE turn block
+   with the angle already in v0 (`j .L800712F8` with `li v0,0x800` in the branch
+   delay) - the store `sw s1,72(s0)` sits at each site, only the tail is shared;
+   (b) case 2/3 form `&g_BattleActor1` straight into s0 where retail forms it in v1
+   and does `move s0,v1`; (c) the dispatch's `beqz` delay slot is `sll` here and
+   `nop` in retail (1 insn, and it is why this is 5 insns short); (d) case 21
+   schedules the second `lbu` after the `sb`, retail loads both operands first;
+   (e) case 18's two cursor stores come out with one load here, retail stores +1
+   and then +2 from one loaded cursor (a `s32 value = g_BattleScriptCursor;`
+   local reproduces the two stores but not the single load).
+   D_80092894 is the pointer the script engine drives; the DA_/gauge fields added
+   to BattleState above are the +0x58/+0xBC/+0xCE/+0xD8 slots this interpreter
+   touches. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
+
+/* 89.47% attempt:
+   Runs the battle script of the actor the script engine points at (D_80092894,
+   which the script's two actor-select opcodes reassign): one opcode per step, up
+   to the opcode that asks for a frame boundary. g_BattleScriptCursor is an s32,
+   so the script bytes are read through the address rather than a typed cursor.
+void func_8007107C(void) {
+    BattleState* pActor;
+    s32 angle;
+    s32 value;
+
+    pActor = D_80092894;
+    pActor->distance = 0;
+    if (D_80092600 != 0) {
+        if (D_80092600 < pActor->gaugePoints) {
+            D_80092600 = pActor->gaugePoints;
+        }
+        pActor->gaugePoints = D_80092600;
+    }
+    for (;;) {
+        switch (((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPCODE]) {
+        case 0:
+            return;
+        case 1:
+            if (g_BattleScriptWait == 0) {
+                goto armWait;
+            }
+            if (--g_BattleScriptWait != 0) {
+                return;
+            }
+            g_BattleScriptCursor += 2;
+            break;
+        case 2:
+            pActor = &g_BattleActor1;
+            D_80092894 = pActor;
+            g_BattleScriptCursor++;
+            break;
+        case 3:
+            pActor = &g_BattleActor0;
+            D_80092894 = pActor;
+            g_BattleScriptCursor++;
+            break;
+        case 4:
+            BattleResetMessageQueue(pActor);
+            g_BattleScriptCursor++;
+            break;
+        case 5:
+            BattleQueueMessage(pActor, 1);
+            g_BattleScriptCursor++;
+            break;
+        case 6:
+            BattleQueueMessage(pActor, 2);
+            g_BattleScriptCursor++;
+            break;
+        case 8:
+            BattleQueueMessage(pActor, 3);
+            g_BattleScriptCursor++;
+            break;
+        case 7:
+            BattleQueueMessage(pActor, 4);
+            g_BattleScriptCursor++;
+            break;
+        case 10:
+            BattleQueueMessage(pActor, 5);
+            g_BattleScriptCursor++;
+            break;
+        case 9:
+            BattleQueueMessage(pActor, 5);
+            g_BattleScriptCursor++;
+            break;
+        case 11:
+            if (g_BattleActorDistance2D >= BATTLE_TURN_NEAR_DISTANCE) {
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = 0;
+                pActor->facingOffset = 0;
+                return;
+            }
+            g_BattleScriptCursor++;
+            break;
+        case 12:
+            if (g_BattleActorDistance2D < BATTLE_TURN_MID_DISTANCE + 1) {
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                angle = BATTLE_TURN_FAR_DISTANCE;
+                goto turn;
+            }
+            g_BattleScriptCursor++;
+            break;
+        case 13:
+            if (BattleCheckPositionPastMapCenter(&pActor->position) != 0) {
+                BattleSetFacingAngleFromVector(pActor);
+                return;
+            }
+            if (g_BattleActorDistance2D < BATTLE_TURN_FAR_DISTANCE + 1) {
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                angle = BATTLE_TURN_FAR_DISTANCE;
+                goto turn;
+            }
+            g_BattleScriptCursor++;
+            break;
+        case 15:
+            if (g_BattleScriptWait == 0) {
+                goto armWait;
+            }
+            if (--g_BattleScriptWait != 0) {
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                angle = BATTLE_TURN_RADIUS;
+                goto turn;
+            }
+            g_BattleScriptCursor += 2;
+            break;
+        case 14:
+            if (g_BattleScriptWait == 0) {
+                goto armWait;
+            }
+            if (--g_BattleScriptWait != 0) {
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                angle = -BATTLE_TURN_RADIUS;
+                goto turn;
+            }
+            g_BattleScriptCursor += 2;
+            break;
+        case 20:
+            if (g_BattleScriptWait == 0) {
+                goto armWait;
+            }
+            if (--g_BattleScriptWait != 0) {
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = -BATTLE_TURN_RADIUS;
+                pActor->facingOffset = 0;
+                pActor->flags |= 0x8000;
+                return;
+            }
+            g_BattleScriptCursor += 2;
+            break;
+        case 18:
+            value = g_BattleScriptCursor;
+            g_BattleScriptCursor = value + 1;
+            g_BattleMessageIndex = ((u8*)value)[BATTLE_SCRIPT_OPERAND0];
+            g_BattleScriptCursor = value + 2;
+            break;
+        case 19:
+            SystemStringClearStateFlags(&g_BattleMessageWindow);
+            g_BattleScriptCursor++;
+            break;
+        case 27:
+            g_BattleWindowTargetX = 0xA0;
+            g_BattleWindowPosX = 0xA0;
+            g_BattleWindowPrimsEnabled = 0;
+            g_BattleWindowTargetY = 0x6D;
+            g_BattleWindowPosY = 0x6D;
+            g_BattleScriptCursor++;
+            break;
+        case 21:
+            g_BattleWindowTargetX = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] << 1;
+            g_BattleWindowPrimsEnabled = 1;
+            g_BattleWindowTargetY = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND1];
+            g_BattleScriptCursor += 3;
+            break;
+        case 22:
+            func_80071F8C(((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0]);
+            g_BattleScriptCursor += 2;
+            break;
+        case 23:
+            g_BattleEffectPlaceMode = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0];
+            g_BattleScriptCursor += 2;
+            break;
+        case 24:
+            g_BattleStateStep = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0];
+            g_BattleScriptCursor += 2;
+            break;
+        case 25:
+            if (SystemStringGetUnk6B(&g_BattleMessageWindow) == 0) {
+                return;
+            }
+            if ((g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) == 0) {
+                return;
+            }
+            if (SystemStringGetUnk6B(&g_BattleMessageWindow) == 1) {
+                g_BattleScriptCursor++;
+            }
+            SystemStringClearStateFlags(&g_BattleMessageWindow);
+            break;
+        case 26:
+            if (SystemStringGetUnk6B(&g_BattleMessageWindow) == 0) {
+                return;
+            }
+            if ((g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) == 0) {
+                return;
+            }
+            value = SystemStringGetUnk6B(&g_BattleMessageWindow);
+            if (value >= 4) {
+                return;
+            }
+            if (value < 2) {
+                return;
+            }
+            SystemStringClearStateFlags(&g_BattleMessageWindow);
+            g_BattleScriptCursor++;
+            return;
+        case 28:
+            if (((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] != 0) {
+                pActor->unkD8->gaugeValue = pActor->unkD8->unkBC;
+            } else {
+                pActor->gaugeValue = pActor->unkBC;
+            }
+            g_BattleScriptCursor += 2;
+            break;
+        case 29:
+            if (((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] != 0) {
+                pActor->unkD8->gaugeValue = 1;
+            } else {
+                pActor->gaugeValue = 0;
+            }
+            g_BattleScriptCursor += 2;
+            break;
+        case 30:
+            BattleFreeMessageString();
+            g_BattleScriptCursor++;
+            break;
+        case 31:
+            pActor->gaugePoints = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] << 4;
+            g_BattleScriptCursor += 2;
+            break;
+        case 32:
+            D_80092600 = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] << 4;
+            g_BattleScriptCursor += 2;
+            break;
+        case 33:
+            BattleRecenterViewPositions(((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0]);
+            g_BattleScriptCursor += 2;
+            break;
+        case 34:
+            if (((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] != 0) {
+                pActor->flags |= 2;
+            } else {
+                pActor->flags &= ~2;
+                pActor->flags &= ~0x38;
+            }
+            g_BattleScriptCursor += 2;
+            break;
+        case 16:
+        case 17:
+            break;
+        default:
+            return;
+        }
+        continue;
+    armWait:
+        g_BattleScriptWait = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0];
+        return;
+    turn:
+        pActor->targetAngle = angle;
+        pActor->facingOffset = 0;
+        return;
+    }
+}
+*/
+
 
 extern s32 g_BattleWindowPosX;
 extern s32 g_BattleWindowPosY;
@@ -435,24 +783,6 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
 extern s32 g_BattleMessageIndex;
 extern s32 g_BattleMessageShownIndex;
 
-// The battle message window the tutorial text is drawn into: the box rectangle
-// SystemStringInit fills in, the line count at +0xC and the redraw flag at +0x68.
-// The record is a SystemString (src/slus_006.64/system/system.c owns it, and the
-// global is 0x90 bytes up to g_BattleCameraPos), so +0x0/+0x2/+0x8 are that
-// struct's lineWidth/charIndex/spriteWidth.
-typedef struct {
-    /* 0x00 */ s16 lineWidth;
-    /* 0x02 */ s16 charIndex;
-    /* 0x04 */ s16 x;
-    /* 0x06 */ s16 y;
-    /* 0x08 */ s16 spriteWidth;
-    /* 0x0A */ s16 flags;
-    /* 0x0C */ s16 lineCount;
-    /* 0x0E */ u8 unkE[0x5A];
-    /* 0x68 */ u8 redraw;
-} BattleMessageWindow; // Size: 0x69
-
-extern BattleMessageWindow g_BattleMessageWindow;
 extern s32 SystemStringInit(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 
 void BattleInitMessageWindow(void) {
