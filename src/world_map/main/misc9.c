@@ -699,9 +699,15 @@ void WorldMapExtractRotationFromMatrix(MATRIX* pMtx, SVECTOR* pRot);
 void WorldMapInitSpriteGroupSprites(s32 arg0, void* pSrc, void* pRot);
 void WorldMapDeactivateSpriteGroup(s32 arg0);
 void WorldMapQueueZoneEntry(s32 arg0, s32* pVec, s32 arg2, s32 arg3);
-extern MATRIX D_1F800150;
-extern SVECTOR D_1F8000A8;
 
+// 99.92% and byte-identical (check_bin OK): the two differing rows are splat's
+// symbol names for the scratchpad addends (expected/ holds `addiu s0,s4,%lo(D_1F800150)`
+// where this body folds the same 0x150 into the immediate), and naming the symbols in C
+// costs a `lui`+`addiu` each. Two spellings here are load-bearing: the pPos assignment
+// comes first (that alone took the body from 96.81 to 99.75 by letting retail's `lui s4`
+// and the g_WorldMapSlots load sit in the prologue, and it is what leaves v0 live for the
+// branch-delay `addu s2`), and the sprite-group call passes its scratchpad address as
+// `(u32)pPos | 0xA0` because retail encodes `ori a1,s4,0xA0` there.
 s32 func_80087FD0(s32 index) {
     WorldMapPlayer* pSlot;
     WorldMapSceneLayer* pLayer;
