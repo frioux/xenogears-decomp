@@ -3492,7 +3492,27 @@ void SoundTickTempoAndElementRamps(AudioManager* pManager, AudioElement* pElemen
 // HEADER EVIDENCE, not applied (shared header): retail reads durationBias (0x60) with `lbu` then
 // `sll 24 / sra 24`, i.e. a sign-extended UNSIGNED byte; the header declares it s8 and we emit a
 // bare `lb`. Whatever the field is, the source must sign-extend an unsigned byte.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
+// ROUND 429 (un-parked, re-measured): still 75.84% / 1440 bytes against retail's 1436, so the
+// note above is not stale. Two new facts, both measured, both saving the next worker the work:
+// (j) THE UNIT'S PRESET IS NOT THE ANSWER, do not re-screen it. gcc-2.7.2 scores this body 74.47%
+//     and also breaks neighbours that already match under 2.6.0 (SoundEnableAllSpuChannels 92.73,
+//     SoundSetReverbModeWithAllocation 99.04, SoundSetCdVolumeWithFade 98.46), and gcc-2.7.2-cdk
+//     rejects the unit (cc1 exit 33, mixed declarations). XenoLibrary/2.6.0 is right.
+// (k) THE 4-BYTE SIZE ERROR IS TWO COMPENSATING ONES, so (a)'s "one extra instruction" is really
+//     -1 +2: the HANDLER INDEX IS ONE INSTRUCTION SHORT. Retail sign-extends it
+//     (`addiu v0,a2,-0x80 / sll v0,v0,0x10 / sra v0,v0,0xe`, i.e. cmd is HImode and the *4 needs
+//     sign_extendhisi2); ours emits `addiu v0,a2,-0x80 / sll v0,v0,0x2`. Round 429 spelled the
+//     index as a `s16 handlerIndex = cmd - 0x80;` local inside the else arm: identical output,
+//     75.84% / 1440 (gcc folds the HImode local back). `s16 cmd` for the whole function is the
+//     only spelling that does sign-extend here and it costs 74.51 (note (1)). So retail's `cmd`
+//     is a signed narrow type AND the note-path/scan-loop code depends on it being SImode: no
+//     single declaration satisfies both halves.
+// (l) m2c re-drafted the whole body in round 429 and produced this same block structure with raw
+//     types (worse); the only thing it shows is that retail's $s0 is pElement+2, which is gcc's
+//     base selection, not source. twins: none (tools/scripts/twin_for.py prints "no twin").
+// (m) lever.py "fold the register names out of the two listings" (m-fold-registers-out-of) is this
+//     function and reaches the same verdict: block order, park it, do not brief another lane of
+//     per-instruction guesses.
 /*
 void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
     u8* pScript;
@@ -3685,8 +3705,8 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
         next = count - 1;
         count = next;
     } while ((s16)next != 0);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 
 
 void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
