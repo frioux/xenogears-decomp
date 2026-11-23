@@ -1456,6 +1456,274 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
+/* Best: 79.90%, 2580 bytes (retail 2824), 645 vs 706 insns - written from scratch
+   this lane, one measured pass, PARKED on the clock. The whole structure is
+   retail's: the page select (page = arg2 + 1 for arg3 != 0, 5 for the accessory
+   page, 0 for the primary weapon, with limit 100/200/150), the 200-entry clear,
+   the inventory scan with the two page switches, the accept path's four id and
+   quantity pairs, the eight-name render loop and the tail.
+   MEASURED RESIDUALS, biggest first:
+   1. The frame is 0xC0 where retail's is 0xD0 and retail saves fp: retail keeps
+      &pGearAccessories[gearPartsIds[i]] live across the loop body; this body
+      rematerialises it every use, and the extra 16 bytes of frame plus the
+      fp save/restore is most of the 244-byte gap.
+   2. Cases 1..4 of both switches: retail emits a DEAD id check there
+      (lbu / sltiu 0x32 / bnez plus j / ori = 5 insns that accept either way,
+      i.e. the source set flag = 1 on both arms and gcc 2.6.0 kept the compare).
+      Writing the plain "&& weaponId < 0x32" conjunction is what this body does;
+      the dead arm is worth about 10 insns of the gap.
+   3. The kind (arg4) test in the scan loop: retail tests a 32-bit stack copy
+      (sw t0, 0x98(sp) once, lw / bnez per use), this body tests arg4 directly.
+   4. Spill offsets differ (retail page 0x50, limit 0x58, pWeapon 0x60, this
+      body 0x70, 0x90, 0x40): declaration order was not sorted yet.
+   Tried: nothing else, this is the first body. Not permuted (structure is not
+   right yet, see 1-3).
+   D_801EA7F8 is the quantity array beside g_DressingRoomItemIds: one u8 per id,
+   MAX_INVENTORY_ACCESSORIES (200) of each, cleared together at the top. */
+/*
+extern u8* GetWeaponName(s32 itemId);
+extern u8* GetAccessoryName(s32 itemId);
+extern u8* GetGearWeaponName(s32 itemId);
+extern u8* GetGearAccessoryName(s32 itemId);
+extern u32 MenuAndBitMaskLsbFirst32(u32 mask, u8 index);
+extern u8 D_801EA7F8[]; // one quantity per g_DressingRoomItemIds entry
+
+// Fills the equipment panel's item list (g_DressingRoomItemIds and its quantity
+// array) with every item of the page that the character can equip, renders up to
+// eight of their names, and returns how many items overflowed the eight slots.
+// arg3 is the page: 0 the primary weapon, arg2 + 1 an extra weapon slot, 5 the
+// accessories; arg1 is the index the list starts at and arg4 picks the gear.
+s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
+    MenuDressingRoom* pDressingRoom;
+    MenuShopWeapon* pWeapon;
+    MenuShopAccessory* pAccessory;
+    MenuShopWeapon* pSlotWeapon;
+    GearWeapon* pGearWeapon;
+    GearWeapon* pSlotGearWeapon;
+    GearAccessory* pGearAccessory;
+    MenuCharacterSpriteRecords* pSpriteRecords;
+    u8* pWorkspace;
+    u8* pIds;
+    u8* pQuantities;
+    u8* pPanel;
+    u8* pName;
+    u8 digitCodes[8];
+    u8 text[8];
+    RECT rect;
+    u8 page;
+    u8 flag;
+    u8 itemId;
+    u16 slotGroup;
+    u16 groupMask;
+    u32 quantity;
+    u32 tens;
+    s32 count;
+    s32 limit;
+    s32 i;
+    s32 j;
+
+    digitCodes[1] = 0;
+    digitCodes[3] = 0;
+    count = 0;
+    pPanel = g_Menu->pEquipmentPanel;
+    if (arg3 != 0) {
+        page = arg2 + 1;
+        limit = MAX_INVENTORY_WEAPONS;
+        if (arg4 == 0) {
+            pSlotWeapon = &g_Menu->pDressingRoom->pWeaponsData[pPanel[MENU_PANEL_WEAPON_ID + arg2]];
+        } else {
+            pSlotGearWeapon = &g_Menu->pDressingRoom->pGearWeapons[pPanel[MENU_PANEL_WEAPON_ID + arg2]];
+        }
+    } else if (arg4 == 0) {
+        if (arg2 != 0) {
+            page = 5;
+            limit = MAX_INVENTORY_ACCESSORIES;
+            pDressingRoom = g_Menu->pDressingRoom;
+            pAccessory = &pDressingRoom->pAccessoriesData[pPanel[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
+            slotGroup = pAccessory->equipGroup;
+            groupMask = 0;
+            for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
+                pAccessory = &pDressingRoom->pAccessoriesData[pPanel[MENU_PANEL_ACCESSORY_IDS + j]];
+                groupMask |= pAccessory->equipGroup;
+            }
+        } else {
+            page = 0;
+            limit = MAX_INVENTORY_WEAPONS;
+        }
+    } else {
+        if (arg2 != 0) {
+            page = 5;
+            limit = MAX_INVENTORY_ITEMS;
+            pDressingRoom = g_Menu->pDressingRoom;
+            pGearAccessory = &pDressingRoom->pGearAccessories[pPanel[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
+            slotGroup = pGearAccessory->equipGroup;
+            groupMask = 0;
+            for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
+                pGearAccessory = &pDressingRoom->pGearAccessories[pPanel[MENU_PANEL_ACCESSORY_IDS + j]];
+                groupMask |= pGearAccessory->equipGroup;
+            }
+        } else {
+            page = 0;
+            limit = MAX_INVENTORY_WEAPONS;
+        }
+    }
+
+    for (i = 0; i < MAX_INVENTORY_ACCESSORIES; i++) {
+        g_DressingRoomItemIds[i] = 0;
+        D_801EA7F8[i] = 0;
+    }
+
+    i = 0;
+    count = page == 5;
+    if (limit != 0) {
+        pIds = &g_DressingRoomItemIds[count];
+        pQuantities = &D_801EA7F8[count];
+        for (i = 0; i < limit; i++) {
+            if (arg4 == 0) {
+                pAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.accessoryIDs[i]];
+                pWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.weaponIDs[i]];
+            } else {
+                pGearWeapon = &g_Menu->pDressingRoom->pGearWeapons[g_GameState.gearWeaponsIds[i]];
+                pGearAccessory = &g_Menu->pDressingRoom->pGearAccessories[g_GameState.gearPartsIds[i]];
+            }
+            flag = 0;
+            if (arg4 == 0) {
+                switch (page) {
+                case 0:
+                    if (MenuAndBitMaskLsbFirst(pWeapon->equipFlags, g_Menu->pManager->currentCharacterIDs[arg0]) != 0
+                        && pWeapon->equipGroup < 5 && g_GameState.weaponIDs[i] < 0x32) {
+                        flag = 1;
+                    }
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    if (MenuAndBitMaskLsbFirst(pWeapon->equipFlags, g_Menu->pManager->currentCharacterIDs[arg0]) != 0
+                        && pWeapon->equipGroup == pSlotWeapon->equipGroup && g_GameState.weaponIDs[i] < 0x32) {
+                        flag = 1;
+                    }
+                    break;
+                case 5:
+                    if (MenuAndBitMaskLsbFirst(pAccessory->equipFlags, g_Menu->pManager->currentCharacterIDs[arg0]) != 0) {
+                        if (pAccessory->equipGroup == 0) {
+                            flag = 1;
+                        } else if ((slotGroup & pAccessory->equipGroup) != 0) {
+                            flag = 1;
+                        } else if ((groupMask & pAccessory->equipGroup) != 0) {
+                            flag = 0;
+                        } else {
+                            flag = 1;
+                        }
+                    }
+                    break;
+                }
+            } else {
+                switch (page) {
+                case 0:
+                    if (MenuAndBitMaskLsbFirst32(pGearWeapon->equipFlags, g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId) != 0
+                        && pGearWeapon->equipGroup < 5 && g_GameState.gearWeaponsIds[i] < 0x32) {
+                        flag = 1;
+                    }
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    if (MenuAndBitMaskLsbFirst32(pGearWeapon->equipFlags, g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId) != 0
+                        && pGearWeapon->equipGroup == pSlotGearWeapon->equipGroup && g_GameState.gearWeaponsIds[i] < 0x32) {
+                        flag = 1;
+                    }
+                    break;
+                case 5:
+                    if (MenuAndBitMaskLsbFirst32(pGearAccessory->equipFlags, g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId) != 0) {
+                        if (pGearAccessory->equipGroup == 0) {
+                            flag = 1;
+                        } else if ((slotGroup & pGearAccessory->equipGroup) != 0) {
+                            flag = 1;
+                        } else if ((groupMask & pGearAccessory->equipGroup) != 0) {
+                            flag = 0;
+                        } else {
+                            flag = 1;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (flag != 0) {
+                if (arg4 == 0) {
+                    if (page != 5) {
+                        *pIds = g_GameState.weaponIDs[i];
+                        *pQuantities = g_GameState.weaponQuantities[i];
+                    } else {
+                        *pIds = g_GameState.accessoryIDs[i];
+                        *pQuantities = g_GameState.accessoryQuantities[i];
+                    }
+                } else if (page != 5) {
+                    *pIds = g_GameState.gearWeaponsIds[i];
+                    *pQuantities = g_GameState.gearWeaponsQty[i];
+                } else {
+                    *pIds = g_GameState.gearPartsIds[i];
+                    *pQuantities = g_GameState.gearPartsQty[i];
+                }
+                pQuantities++;
+                pIds++;
+                count++;
+            }
+        }
+    }
+
+    pWorkspace = HeapAlloc(0x3F6, 0);
+    for (i = 0; i < 8; i++) {
+        pSpriteRecords = g_Menu->pCharacterSpriteRecords;
+        itemId = g_DressingRoomItemIds[arg1 + i];
+        if (itemId != 0) {
+            if (arg4 == 0) {
+                if (page != 5) {
+                    pName = GetWeaponName(itemId);
+                } else {
+                    pName = GetAccessoryName(itemId);
+                }
+            } else if (page != 5) {
+                pName = GetGearWeaponName(itemId);
+            } else {
+                pName = GetGearAccessoryName(itemId);
+            }
+            pSpriteRecords->unk0[i].width = SystemRenderStringEntry(pName, pWorkspace, 0x24, 0);
+            quantity = D_801EA7F8[arg1 + i];
+            tens = quantity / 10;
+            digitCodes[0] = (tens != 0) ? tens + 0x10 : 0xC3;
+            digitCodes[2] = quantity % 10 + 0x10;
+            SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
+            pSpriteRecords->unk400[i].width = SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
+            rect.x = 0x180 + (i & 1) * 0x18;
+            rect.y = 0x80 + (i / 2) * FONT_LETTER_HEIGHT;
+            rect.w = 0x28;
+            rect.h = FONT_LETTER_HEIGHT;
+            LoadImage(&rect, pWorkspace);
+            DrawSync(0);
+            MenuSetStringPrimitives(&pSpriteRecords->unk0[i], i, 0x80, 0x81);
+            MenuSetStringPrimitives(&pSpriteRecords->unk400[i], i, 0x80, 0x82);
+            MenuSetQuadVertices(pSpriteRecords->unk0[i].vertices, 0xA8, 0x12 + i * FONT_LETTER_HEIGHT, pSpriteRecords->unk0[i].width, FONT_LETTER_HEIGHT);
+            MenuSetQuadVertices(pSpriteRecords->unk400[i].vertices, 0x10C, 0x12 + i * FONT_LETTER_HEIGHT, pSpriteRecords->unk400[i].width, FONT_LETTER_HEIGHT);
+            pSpriteRecords->unk0[i].renderContext = g_Menu->renderContext;
+            pSpriteRecords->unk400[i].renderContext = g_Menu->renderContext;
+            pSpriteRecords->shouldRenderRows[i] = 1;
+        } else {
+            pSpriteRecords->shouldRenderRows[i] = 0;
+        }
+    }
+    HeapFree(pWorkspace);
+    MenuSetStringTexturePrims(&g_Menu->pCharacterSpriteRecords->unk800, arg0, arg4, 0);
+    count -= 8;
+    g_Menu->pManager->shouldRenderPanel[2] = 1;
+    if (count < 0) {
+        count = 0;
+    }
+    return count;
+}
+*/
 // Moves the item the equipment panel has selected into (or out of) the
 // inventory. arg2 selects a weapon slot group (the extra weapon slots) and arg1
 // the slot; with arg2 == 0, arg1 == 0 is the primary weapon and arg1 != 0
