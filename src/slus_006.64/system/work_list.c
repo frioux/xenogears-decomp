@@ -95,19 +95,22 @@ void WorkListUpdate(void) {
     }
 }
 
-/* Best: 89.34% (152 bytes, 38 insns, identical instruction multiset and frame).
-   Only the order of the four hoisted loads differs - original: counter, g_WorkList,
-   0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList, counter - and the register
-   assignment follows it (original: unk10 word in v1, unk14 word in a2, counter in a3,
-   old head in t1), so it is a sched2 ready-list order. 12 statement orderings measured
-   (unk10 first 73.34, id local 86.03, count before unk10 79.76, flags first 38.74,
-   callbacks early 73.39, head local 89.34, unk0 last 82.47, unk14 first 43.42, the
-   original store order 69.37). Not the preset: 2.6.0 89.87, 2.7.2-cdk 84.03, cdk with
-   --dont-expand-li 84.03. A 4-minute permuter run from this body found only 89.74 (it
-   holds the NULL for the onTriggerCallback store in a local and stores it after the
-   counter increment). The bitfield writes are right: unk10 gets the counter and keeps
-   its top 3 bits, unk14 gets pData->unk10 and clears bits 29-31 one and at a time,
-   exactly retail. */
+/* Best: 89.34% (152 bytes, 38 insns, identical instruction multiset and frame; retail
+   .s is 38 insns too). Only the order of the four hoisted loads differs - original:
+   counter, g_WorkList, 0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList,
+   counter - and the register assignment follows it (original: unk10 word in v1, unk14
+   word in a2, counter in a3, old head in t1), so it is a sched2 ready-list order (the
+   MIPS -O2 spec turns sched2 on, which is why statement order alone cannot place the
+   loads). 12 statement orderings measured (unk10 first 73.34, id local 86.03, count
+   before unk10 79.76, flags first 38.74, callbacks early 73.39, head local 89.34,
+   unk0 last 82.47, unk14 first 43.42, the original store order 69.37; this round added
+   the sibling TimerWorkListAddTask field order (unk14 group, unk10, callbacks, link)
+   49.71 and the two-statement counter form (unk10 = counter; counter = counter + 1)
+   73.37). Not the preset: 2.6.0 89.87, 2.7.2-cdk 84.03, cdk with --dont-expand-li
+   84.03. A 4-minute permuter run from this body found only 89.74 (it holds the NULL for
+   the onTriggerCallback store in a local and stores it after the counter increment).
+   The bitfield writes are right: unk10 gets the counter and keeps its top 3 bits,
+   unk14 gets pData->unk10 and clears bits 29-31 one and at a time, exactly retail. */
 /*
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
