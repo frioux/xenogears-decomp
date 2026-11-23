@@ -1040,7 +1040,7 @@ u_char func_801CB304(void) {
                 fd = open(path, 1);
                 if (fd == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(card);
+                    MenuWaitCardOperationFrames(ownCard);
                 }
                 fileFd = fd;
                 if (fd != 0) {
@@ -1064,7 +1064,7 @@ u_char func_801CB304(void) {
                     while (1) {
                         if (read(fd, pData, 0x100) != 0x100) {
                             fd = 0;
-                            MenuWaitCardOperationFrames(card);
+                            MenuWaitCardOperationFrames(ownCard);
                         }
                         if (fd != 0) {
                             break;
@@ -1330,6 +1330,7 @@ u_char func_801CBD90(u_char a0) {
     u_char textId;
     s32 slot;
     s32 recordIndex;
+    s32 slot;
     s32 fd;
     u8* pBuffer;
     u8* pData;
@@ -1438,7 +1439,7 @@ u_char func_801CBD90(u_char a0) {
                 fd = open(path, (g_Menu->menuUnk2->saveBlockCount << 16) | 0x200);
                 if (fd == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(card);
+                    MenuWaitCardOperationFrames(ownCard);
                 } else {
                     fileFd = fd;
                 }
@@ -1459,7 +1460,7 @@ u_char func_801CBD90(u_char a0) {
                 fd = open(path, 2);
                 if (fd == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(card);
+                    MenuWaitCardOperationFrames(ownCard);
                 }
                 if (fd != 0) {
                     break;
@@ -1479,7 +1480,7 @@ u_char func_801CBD90(u_char a0) {
             while (1) {
                 if (write(fd, g_Menu->menuUnk2->saveFileMagic, 0x100) == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(card);
+                    MenuWaitCardOperationFrames(ownCard);
                 }
                 if (fd != 0) {
                     break;
@@ -1510,7 +1511,7 @@ u_char func_801CBD90(u_char a0) {
                 while (1) {
                     if (write(fd, pData, 0x100) != 0x100) {
                         fd = 0;
-                        MenuWaitCardOperationFrames(card);
+                        MenuWaitCardOperationFrames(ownCard);
                     }
                     if (fd != 0) {
                         break;
@@ -1534,7 +1535,7 @@ u_char func_801CBD90(u_char a0) {
             while (1) {
                 if (rename(path, newPath) != 0) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(card);
+                    MenuWaitCardOperationFrames(ownCard);
                 }
                 if (fd != 0) {
                     break;
@@ -1583,4 +1584,382 @@ u_char func_801CBD90(u_char a0) {
     return result;
 }
 */
+/* Best attempt: 81.86% (2860 bytes vs retail's 2960, 715 insns vs retail's 757).
+   The save-COPY routine of the card submenu: it moves the record of the selected
+   slot (records[slotRecordIndexes[g_MenuCardSlotOrder[selectedSlot]]]) from the
+   card the slot lives on to the OTHER card -- read its file a 0x200 block at a
+   time and write the blocks to that card's D_801C50B8 temp name, then rename it
+   to prefix+ids. Everything below the first MenuHandleCardSlotInput arm therefore
+   keys off the DESTINATION card: retail's index is `sltiu` of
+   selectedSlot / MENU_CARD_SLOT_COUNT, i.e. otherCard = (ownCard == 0), and that
+   same value indexes cardStatus/cardErrorCodes/g_MenuCardSlotTotals/
+   cardSlotCounts and is the MenuWaitForCardStatusChange argument, while the
+   source-file retries wait on ownCard (retail's sp+0x4E0 slot). Getting this
+   backwards costs ~2.4% (78.05 -> 80.48).
+   Named residuals:
+   (1) 42 MISSING INSTRUCTIONS: retail is 757 insns, this body 715, and the call
+       sequence matches except that this body emits THREE copies of the
+       close(fileFd)/close(destFd)/erase(tempPath) failure exit where retail has
+       two distinct ones (one rebuilds tempPath with strcpy+strcat before erasing,
+       the other erases it as is), so most of the gap is elsewhere -- start by
+       finding the block retail has that this body lacks, before touching registers.
+   (2) MENU_CARD_PREFIX COPY IS A STRUCT ASSIGNMENT in retail (lw + lh, `sh` for
+       the 2-byte tail) where `memcpy(&x, &g_MenuCardPathPrefix0, 6)` (the idiom
+       MenuLoadCardChunk uses) emits a different shape; this body's
+       `ownPrefix = g_MenuCardPathPrefix0;` gives lw + lw + sw + sw (it reads the
+       struct as 8 bytes), so neither spelling has been proven here yet.
+   (3) MenuIsSlotUsable(0) needs no `andi 0xff` in retail (`bnez v0` straight off
+       the jal) but the u_char return type of this file's own definition forces
+       one; the prototype is the thing to test, not the call.
+   (4) The 0x530 frame and every stack offset still differ (this body's tail
+       scalars are 8 apart in retail: 0x4E0 ownCard, 0x4E8 ready, 0x4F0 result,
+       0x4F8 chunkMissing).
+   Tried: card as the destination index and as the own-card index (2.4% worse),
+   the read/write arms of the block loop in both orders (retail's read is the
+   fall-through: +1.4%), a `slot` local for MenuFindFirstValidSlot instead of
+   re-reading menuUnk2->selectedSlot, and the own/other prefix swap folded out of
+   the arm. Not tried: the permuter (structure is still moving), and a search for
+   the missing block. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CC6D8);
+/*
+extern void MenuPlaySoundEffect(u8 arg0);
+extern void Vsync(s32 count);
+extern u8 D_801C50B8[];
+
+u_char func_801CC6D8(void) {
+    char otherPath[0x40];
+    MenuCardPrefix otherPrefix;
+    char ownPath[0x40];
+    char tempPath[0x40];
+    MenuCardPrefix ownPrefix;
+    u8 headerBlock[0x200];
+    u8 block[0x200];
+    s32 ownCard;
+    s32 otherCard;
+    u_char ready;
+    u_char result;
+    u_char chunkMissing;
+    u_char ok;
+    u_char retry;
+    u_char textId;
+    u_char createTextId;
+    u_char dupTextId;
+    s32 repeat;
+    s32 recordIndex;
+    s32 slot;
+    s32 fd;
+    s32 fileFd;
+    s32 destFd;
+    s32 offset;
+    s32 i;
+
+    chunkMissing = 0;
+    ready = 1;
+    result = 0;
+    MenuResetSlotSelection();
+    repeat = 1;
+    while (repeat) {
+        if (func_801C93A8() & 0xFF) {
+            result = 1;
+            break;
+        }
+        if (ready) {
+            if (g_Menu->pManager->window2StringsActive) {
+                MenuFreeWindow2Strings();
+            }
+            ready = 0;
+            g_Menu->pCursors->shouldRender[0] = 1;
+        }
+        if (!MenuIsSlotUsable(0)) {
+            slot = MenuFindFirstValidSlot(0);
+            g_Menu->menuUnk2->selectedSlot = slot;
+            if (slot == MENU_SLOT_NONE) {
+                g_Menu->pCursors->shouldRender[0] = 0;
+                g_Menu->pManager->characterWindowBuilt = 0;
+                MenuLoadWindow2Text(0x62, MENU_WINDOW_TEXT_NONE, 0);
+                break;
+            }
+        }
+        g_Menu->pManager->shouldRenderCursors = 1;
+        switch (MenuHandleCardSlotInput(0)) {
+        case 1:
+            g_Menu->pCursors->shouldUpdatePosition[0] = 0;
+            g_Menu->menuUnk2->cardPollMode = 0;
+            ownCard = g_Menu->menuUnk2->selectedSlot / MENU_CARD_SLOT_COUNT;
+            otherCard = ownCard == 0;
+            ok = 1;
+            if (otherCard == 0) {
+                textId = 0x47;
+                createTextId = 0x4A;
+                dupTextId = 0x4D;
+            } else {
+                textId = 0xBB;
+                createTextId = 0xBE;
+                dupTextId = 0xC1;
+            }
+            if (MenuLoadWindow2Text(textId, MENU_WINDOW_TEXT_NONE, 1) == 0) {
+                ok = 0;
+                g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+            }
+            if (ok) {
+                if (g_Menu->menuUnk2->cardStatus[otherCard] == 0) {
+                    MenuCreateWindow2Strings(createTextId);
+                    if (g_Menu->menuUnk2->cardStatus[otherCard] == 0) {
+                        for (i = 0xB3; i != 0; i--) {
+                            Vsync(0);
+                        }
+                        ok = 0;
+                        repeat = 0;
+                    }
+                    MenuFreeWindow2Strings();
+                }
+                if (ok) {
+                    if (g_MenuCardSlotTotals[otherCard] >= MENU_CARD_SLOT_COUNT) {
+                        g_MenuCardSlotTotals[otherCard] = 0;
+                        ok = 0;
+                        repeat = 0;
+                        g_Menu->pManager->shouldRenderCursors = 0;
+                        MenuLoadWindow2Text(0xAC, MENU_WINDOW_TEXT_NONE, 0);
+                    }
+                }
+            }
+            if (ok) {
+                if (otherCard == 0) {
+                    ownPrefix = g_MenuCardPathPrefix0;
+                    otherPrefix = g_MenuCardPathPrefix1;
+                } else {
+                    ownPrefix = g_MenuCardPathPrefix1;
+                    otherPrefix = g_MenuCardPathPrefix0;
+                }
+                if (g_Menu->menuUnk2->cardErrorCodes[otherCard] == -2) {
+                    if (MenuWaitForCardStatusChange(otherCard) == 0) {
+                        g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+                        break;
+                    }
+                    MenuCreateWindow2Strings(0x26);
+                    if (format((char*)&otherPrefix) != 0) {
+                        MenuFreeWindow2Strings();
+                        MenuLoadWindow2Text(0x5C, MENU_WINDOW_TEXT_NONE, 0);
+                    } else {
+                        MenuFreeWindow2Strings();
+                        ok = 0;
+                    }
+                }
+                if (ok) {
+                    i = 0;
+                    if (g_Menu->menuUnk2->cardSlotCounts[otherCard] > 0) {
+                        do {
+                            if (strcmp(g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]].ids,
+                                    g_Menu->menuUnk2->records[otherCard * MENU_CARD_RECORD_COUNT + i].ids) == 0) {
+                                i = MENU_SLOT_NONE;
+                                break;
+                            }
+                            i++;
+                        } while (i < g_Menu->menuUnk2->cardSlotCounts[otherCard]);
+                    }
+                    if (i == MENU_SLOT_NONE) {
+                        MenuLoadWindow2Text(dupTextId, MENU_WINDOW_TEXT_NONE, 0);
+                        ok = 0;
+                    }
+                }
+                if (ok) {
+                    MenuCreateWindow2Strings(0x41);
+                    g_Menu->soundEffectsEnabled = 0;
+                    g_Menu->pManager->shouldRenderCursors = 0;
+                    g_Menu->pManager->characterWindowBuilt = 0;
+                    g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+                    g_Menu->menuUnk2->previousCardSlotCounts[0] = MENU_SLOT_NONE;
+                    g_Menu->menuUnk2->previousCardSlotCounts[1] = MENU_SLOT_NONE;
+                    strcpy(ownPath, (char*)&ownPrefix);
+                    strcpy(otherPath, (char*)&otherPrefix);
+                    strcpy(tempPath, (char*)&otherPrefix);
+                    recordIndex = g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot];
+                    recordIndex = g_Menu->menuUnk2->slotRecordIndexes[recordIndex];
+                    strcat(ownPath, g_Menu->menuUnk2->records[recordIndex].ids);
+                    retry = 3;
+                    strcat(otherPath, g_Menu->menuUnk2->records[recordIndex].ids);
+                    strcat(tempPath, D_801C50B8);
+                    while (1) {
+                        fd = open(ownPath, 1);
+                        if (fd == -1) {
+                            fd = 0;
+                            MenuWaitCardOperationFrames(ownCard);
+                        }
+                        if (fd != 0) {
+                            break;
+                        }
+                        retry--;
+                        if (retry == 0) {
+                            break;
+                        }
+                    }
+                    if (fd != 0) {
+                        fileFd = fd;
+                        retry = 3;
+                        while (1) {
+                            if (read(fileFd, headerBlock, 0x200) == -1) {
+                                fd = 0;
+                                MenuWaitCardOperationFrames(ownCard);
+                            }
+                            if (fd != 0) {
+                                break;
+                            }
+                            retry--;
+                            if (retry == 0) {
+                                close(fileFd);
+                                goto copyDone;
+                            }
+                        }
+                        erase(tempPath);
+                        retry = 1;
+                        while (1) {
+                            destFd = open(tempPath, (headerBlock[3] << 16) | 0x200);
+                            if (destFd == -1) {
+                                fd = 0;
+                                chunkMissing = 1;
+                            }
+                            if (fd != 0) {
+                                break;
+                            }
+                            retry--;
+                            if (retry == 0) {
+                                close(fileFd);
+                                break;
+                            }
+                        }
+                        close(destFd);
+                        if (fd != 0) {
+                            retry = 3;
+                            while (1) {
+                                destFd = open(tempPath, 2);
+                                if (destFd == -1) {
+                                    fd = 0;
+                                    MenuWaitCardOperationFrames(ownCard);
+                                }
+                                if (fd != 0) {
+                                    break;
+                                }
+                                retry--;
+                                if (retry == 0) {
+                                    close(fileFd);
+                                    erase(tempPath);
+                                    goto copyDone;
+                                }
+                            }
+                            retry = 3;
+                            offset = 0x200;
+                            while (1) {
+                                if (write(destFd, headerBlock, 0x200) == -1) {
+                                    fd = 0;
+                                    MenuWaitCardOperationFrames(ownCard);
+                                }
+                                if (fd != 0) {
+                                    break;
+                                }
+                                retry--;
+                                if (retry == 0) {
+                                    close(fileFd);
+                                    close(destFd);
+                                    erase(tempPath);
+                                    goto copyDone;
+                                }
+                            }
+                            MenuSetCellGridPanelState(1);
+                            i = 0;
+                            while (1) {
+                                MenuRenderFrame();
+                                if (!i) {
+                                    retry = 3;
+                                    while (1) {
+                                        if (read(fileFd, block, 0x200) != 0x200) {
+                                            fd = 0;
+                                            MenuWaitCardOperationFrames(ownCard);
+                                        }
+                                        if (fd != 0) {
+                                            break;
+                                        }
+                                        retry--;
+                                        if (retry == 0) {
+                                            close(fileFd);
+                                            close(destFd);
+                                            erase(tempPath);
+                                            goto copyDone;
+                                        }
+                                    }
+                                    i = 1;
+                                } else {
+                                    retry = 3;
+                                    while (1) {
+                                        if (write(destFd, block, 0x200) != 0x200) {
+                                            fd = 0;
+                                            MenuWaitCardOperationFrames(ownCard);
+                                        }
+                                        if (fd != 0) {
+                                            break;
+                                        }
+                                        retry--;
+                                        if (retry == 0) {
+                                            close(fileFd);
+                                            close(destFd);
+                                            erase(tempPath);
+                                            goto copyDone;
+                                        }
+                                    }
+                                    offset += 0x200;
+                                    if (offset >= (headerBlock[3] << 13)) {
+                                        break;
+                                    }
+                                    i = 0;
+                                }
+                            }
+                            close(destFd);
+                            close(fileFd);
+                            strcpy(tempPath, (char*)&otherPrefix);
+                            strcat(tempPath, D_801C50B8);
+                            rename(tempPath, otherPath);
+                        }
+                    }
+                }
+            }
+        copyDone:
+            if (ok) {
+                MenuSetCellGridPanelState(2);
+                MenuFreeWindow2Strings();
+                if (fd != 0) {
+                    g_Menu->soundEffectsEnabled = 1;
+                    MenuPlaySoundEffect(0x34);
+                    g_Menu->soundEffectsEnabled = 0;
+                    textId = 0x5C;
+                } else if (chunkMissing) {
+                    textId = 0xAC;
+                } else {
+                    textId = 0x44;
+                }
+                MenuLoadWindow2Text(textId, MENU_WINDOW_TEXT_NONE, 0);
+                MenuSetCellGridPanelState(0);
+                g_Menu->menuUnk2->cardPollMode = 2;
+                while (g_Menu->cardCheckTimer != 1) {
+                    MenuRenderFrame();
+                }
+                for (i = 0; i < MENU_CARD_RECORD_COUNT * MENU_CARD_COUNT; i++) {
+                    g_Menu->menuUnk2->slotRecordIndexes[i] = MENU_SLOT_NONE;
+                    g_Menu->menuUnk2->slotHasGameSave[i] = 0;
+                    g_Menu->menuUnk2->records[i].unk58 = 0;
+                }
+                g_Menu->menuUnk2->cardEnumerated[0] = 0;
+                g_Menu->menuUnk2->cardEnumerated[1] = 0;
+                D_801E9778 = 1;
+            }
+        updateCursor:
+            g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+            g_Menu->soundEffectsEnabled = 1;
+        case 2:
+            repeat = 0;
+            break;
+        }
+    }
+    g_Menu->menuUnk2->cardPollMode = 1;
+    g_Menu->unk334 = 1;
+    return result;
+}
+*/
