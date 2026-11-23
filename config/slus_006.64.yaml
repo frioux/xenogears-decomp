@@ -80,7 +80,7 @@ segments:
       - [0x9358, rodata]
       - [0x93DC, .rodata, system/sound]
       - [0x93F0, rodata]
-      - [0x9418, .rodata, psyq/libc]
+      - [0x9418, .rodata, psyq/libc_sprintf] # the 45-word jtbl is Sprintf's
       - [0x94CC, rodata]
       - [0x969C, .rodata, psyq/libcd/bios]
       - [0x96B0, rodata]
@@ -130,6 +130,7 @@ segments:
       - [0x28388, c, system/sound]
       - [0x2FF38, c, psyq/libgte_c]
       - [0x300E8, c, psyq/libc]
+      - [0x303F8, c, psyq/libc_sprintf] # Sprintf alone: memmove/strlen/memchr sit above it and get inlined in the shared TU
       - [0x30C54, hasm, psyq/libapi/FlushCache]
       - [0x30C64, hasm, psyq/libapi/_bu_init]
       - [0x30C74, hasm, psyq/libapi/OpenEvent]
