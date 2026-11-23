@@ -23,7 +23,7 @@ typedef struct {
     /* 0x0D */ u8 enabled;
     /* 0x0E */ u8 textWidth; // what SystemRenderStringEntry returns for the slot's string
     /* 0x0F */ u8 padF;
-    /* 0x10 */ POLY_FT4 polys[2]; // the slot's text quads, both set from the pointer misc3.c's func_800780A8 walks
+    /* 0x10 */ POLY_FT4 polys[2]; // the slot's text quads, both set from the pointer misc3.c's BattleInitTextSlotPrims walks
 } BattleScreenSlot; // Size: 0x60
 
 // One 0x170-byte entry of the slot table at g_BattleSlotEntries: the flag words the

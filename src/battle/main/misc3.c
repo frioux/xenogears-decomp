@@ -10,7 +10,7 @@
 #define BATTLE_PULSE_TRIANGLE_POOL_SIZE 0xEC
 
 // Height of one text-slot row in VRAM: the slot rects are 13 px tall
-// (func_8007819C sets h = 0xD) and the row's y offset is (slot / 2) * 13.
+// (BattleInitTextSlotGraphics sets h = 0xD) and the row's y offset is (slot / 2) * 13.
 #define BATTLE_TEXT_ROW_HEIGHT 13
 
 // Bytes of one slot's text buffer: the size BattleAllocTextBuffer is asked for and
@@ -646,7 +646,7 @@ void BattleClearFlagC6(void) {
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
-/* Prior findings for func_800780A8 (now MATCHED at 100.00%): retail walks two
+/* Prior findings for BattleInitTextSlotPrims (now MATCHED at 100.00%): retail walks two
    0x28-byte packets from pInfo to pInfo+0x50 and finishes with pInfo[0x5D] = 0.
    Retail facts that the matched body below reproduces:
    1. loop compare is `slt` (signed) vs a bound re-formed inside the loop
@@ -657,7 +657,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
    3. retail keeps the (slot/2)*13 multiply chain INSIDE the loop: the in-loop
       `slot = arg;` copy is the invariant gcc hoists instead of the multiply. */
 /* Two POLY_FT4 packets plus the head of the next g_BattleTextSlotRects row:
-   what func_800780A8 walks. Callers hand it a row's polys at +0x10 (0x50 back
+   what BattleInitTextSlotPrims walks. Callers hand it a row's polys at +0x10 (0x50 back
    into the row above), so its palette/enabled land on the NEXT row's +0xC/+0xD
    bytes (misc5.c's BattleScreenSlot view names them). palette is volatile
    because the function stores it and re-reads it. */
@@ -668,7 +668,7 @@ typedef struct {
     /* 0x5D */ u8 enabled;
 } BattleSlotPrimBlock; // Size: 0x5E
 
-void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
+void BattleInitTextSlotPrims(BattleSlotPrimBlock *pInfo, s32 arg) {
     POLY_FT4 *p;
     u16 clut;
     s32 i;
@@ -710,14 +710,14 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
    register tie: retail keeps one base register plus an offset giv where the
    typed access folds the destination into a small immediate, 82.41% / 84 insns;
    the pure struct-array index form is 73.85% / 78 insns. Round 419's warning
-   that un-parking this grew func_800780A8 from 0xF4 to 0x114 does not reproduce
+   that un-parking this grew BattleInitTextSlotPrims from 0xF4 to 0x114 does not reproduce
    under this unit's 2.6.0 preset (it stays 0xF4, objdiff 100.00).
    What the addresses say: the slot table is 0x60-byte rows of
    {RECT, pBuf, palette, enabled, textWidth, pad, POLY_FT4 polys[2]} (misc5.c's
    view), this loop runs over the even slots: it gives even slot i the rect and
    copies it to slot i + 1, puts the new buffer in slot i + 1, and hands
-   func_800780A8 slot i's quads at 0x50 before row i and slot i + 1's at row i. */
-void func_8007819C(void) {
+   BattleInitTextSlotPrims slot i's quads at 0x50 before row i and slot i + 1's at row i. */
+void BattleInitTextSlotGraphics(void) {
     RECT *pRect;
     u8 *pBuf;
     s32 i;
@@ -741,8 +741,8 @@ void func_8007819C(void) {
         pRect->h = BATTLE_TEXT_ROW_HEIGHT;
         *(RECT *)((u8 *)g_BattleTextSlotRects + off) = *pRect;
         // slot i's quads sit 0x50 before its row, slot i + 1's at the row's +0x10
-        func_800780A8((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev - 0x50), i);
-        func_800780A8((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev + 0x10), i + 1);
+        BattleInitTextSlotPrims((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev - 0x50), i);
+        BattleInitTextSlotPrims((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev + 0x10), i + 1);
     }
 }
 /* 81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right

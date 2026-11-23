@@ -253,7 +253,7 @@ extern void BattleStartScreenFade(s32, u8, u8, u8, u8);
 extern s32 *SoundCreateAndPlayAudioManager(u8 *, s32, s32);
 extern void func_80077990(void);
 extern void BattleBeginAnimTask(u16);
-extern void func_8007819C(void);
+extern void BattleInitTextSlotGraphics(void);
 extern void SoundStopElementsForSoundFile(s32 *);
 extern void SoundRemoveSedsEntry(s32 *);
 extern void BattleResetSlotConditionCounters(void);
@@ -411,7 +411,7 @@ void func_80070F40(void) {
     D_800D3298 = 1;
     BattleBeginAnimTask(animFlags);
     BattleUpdateFrame();
-    func_8007819C();
+    BattleInitTextSlotGraphics();
     while (D_800CCC58 == 0) {
         BattleUpdateFrame();
     }

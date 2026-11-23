@@ -76,7 +76,7 @@ void BattleParseNumberToDigits(u32);
 void BattleSetPolyFT4RectH13(POLY_FT4 *, u16, s16, u8, u8, s16);
 void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 s32 func_8009A258(u8, s32);
-void func_8009187C(u8, u8, u8);
+void BattleDrawSlotStatusCellIcons(u8, u8, u8);
 void BattleDrawSlotStatusText(u8, u8, u8);
 void BattleDrawActionRowIcons(u8, u8);
 void BattleDrawSlotStatusTextEntry3(u8, u8);
@@ -340,7 +340,7 @@ void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
         }
     }
 }
-void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
+void BattleDrawSlotStatusCellIcons(u8 arg0, u8 arg1, u8 arg2) {
     u16 flags;
     u16 pal;
     u8 *pRec;
@@ -441,7 +441,7 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, u8 arg1, u8 arg2) {
     }
     if (ret != 0) {
         BattleDrawSlotStatusDigits(arg1, arg2, arg0);
-        func_8009187C(arg0, arg1, arg2);
+        BattleDrawSlotStatusCellIcons(arg0, arg1, arg2);
         BattleDrawSlotStatusText(arg0, arg1, arg2);
         g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex[0];
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
