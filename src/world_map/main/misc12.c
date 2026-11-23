@@ -636,15 +636,28 @@ s32 func_80090C68(WorldMapPlayer *pPlayer) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
-/* best: 99.90% (objdiff), 416 bytes = retail's exact size, instruction diff limited to the
-   switch table operand (jtbl_80070BB4 against .rodata) and the .L label relocs. Re-measured
-   this round by un-parking it alongside func_80090C68.
-   PARKED FOR THE SAME WALL as func_80090C68: its table sits at .rodata +0x1BC, which is
-   4 mod 8, and a C table is always 8-aligned, so it cannot be placed there. The note above
-   carries the proof and the check_bin measurement (180426 against disc's 180422).
-   Its tail differs from func_80090C68's: a released 0x20 returns 1 only when
-   g_WorldMapAreaId != -1, a released 0x40 returns 4, and it does not call
-   WorldMapUpdateL2R2PressEdge.
+/* best: 99.90% (objdiff), 416 bytes = retail's exact size (104 insns), and permute.sh reports
+   PERMUTER_ZERO base=0 in one iteration: the body below is instruction-identical to retail,
+   the only residual being the switch table operand (jtbl_80070BB4 against .rodata) and the .L
+   relocs the linker resolves. NOT convertible as C: the table's ABSOLUTE address is
+   0x80070BB4, which is 4 mod 8, cc1 hardcodes .align 3 in front of a C switch table, and
+   misc12's .rodata starts 8-aligned at 0x800709F8, so the table can only land at
+   .rodata+0x1C0 and the unit's rodata grows 4 bytes. Measured this round with the body live:
+   check_bin.sh world_map gives build/out/world_map.bin 180426 against disc's 180422 with
+   147397 differing bytes, the first at 0x4 (disc 0x80072878 against build 0x8007287C) because
+   text start moved 4 and every rodata code pointer was rewritten. The arithmetic test in
+   levers i-rodata-head-carve-moves and i-jtbl-align-3-hardcoded is "a table converts iff its
+   absolute address is 8-aligned": misc12's eight jtbl dlables sit at 0x800709F8/0x80070A10/
+   0x80070A50 (owned by stubs) and 0x80070B54/0x80070B84/0x80070BB4/0x80070BE4/0x80070C0C,
+   i.e. the five tables from +0x15C are 4 mod 8 and are not convertible under any C spelling,
+   so nothing more comes out of this unit's switch family. The const-label-table alternative (lever
+   i-const-label-table-is-4-aligned-but-hoisted, round 417) is all-or-nothing: it needs every
+   table of the unit converted, so it waits on func_8008E190, func_8008E76C and func_800914D0.
+   Body notes: it is func_80090C68's switch with a different tail - a released 0x20 returns 1
+   only when g_WorldMapAreaId is not WORLD_MAP_AREA_NONE, a released 0x40 returns 4, and it
+   does not call WorldMapUpdateL2R2PressEdge. angle is s16 at 0x48 (rcos/rsin read it with lh)
+   and g_WorldMapViewRotationY must be indexed through the u16 array extern at the top of the
+   file.
 s32 func_80090E14(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
@@ -677,7 +690,7 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
         pPlayer->dirZ = -rsin(pPlayer->angle);
     }
     if (g_WorldMapPad1Released & 0x20) {
-        if (g_WorldMapAreaId != -1) {
+        if (g_WorldMapAreaId != WORLD_MAP_AREA_NONE) {
             return 1;
         }
     }
@@ -685,7 +698,7 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
         return 4;
     }
     if (g_WorldMapPad1Released & 0x10) {
-        if ((g_WorldMapMode4AreaId == -1) && (g_WorldMapAreaId == g_WorldMapMode4AreaId)) {
+        if ((g_WorldMapMode4AreaId == WORLD_MAP_AREA_NONE) && (g_WorldMapAreaId == g_WorldMapMode4AreaId)) {
             g_WorldMapMode4EntryTriggered = 1;
         }
     }
