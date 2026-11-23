@@ -926,7 +926,8 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     }
     BattleApplySlotCurveAndStep(count);
     return done;
-}INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
 /* 82.72%, 692 bytes (retail 684). The sel ladder is now retail's
    (`sel = 0; if (arg1 < 3) sel = (arg0 >= 3) * 8;`), the mask needs
    `(u16)BattleMaskHasSlotBit(...)` (without the cast the `andi v0,v0,0xFFFF` after
