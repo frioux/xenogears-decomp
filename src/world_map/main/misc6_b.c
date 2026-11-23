@@ -203,7 +203,7 @@ int func_80080578(int index) {
    that sat at 99.69% through three rounds and two permuter runs, while a
    fresh local makes the tail allocnos come out in retail's order ($a1
    value, $a3 D_8009BD42 base, $a2 scratch reload). */
-int func_80080600(int index) {
+int WorldMapUpdateCameraSlot(int index) {
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s16 *pAngle;
     WorldMapActor *pActor = &g_WorldMapSlots[index];

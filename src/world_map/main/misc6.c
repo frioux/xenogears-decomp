@@ -297,7 +297,7 @@ extern int WorldMapUpdateSlotActorScriptState(int);
 extern void WorldMapStartSlot(s32, s32);
 extern void SoundPlaySoundEffectOnFreePair(s32);
 extern int func_80080578(int);
-extern int func_80080600(int);
+extern int WorldMapUpdateCameraSlot(int);
 extern int WorldMapInitActorScript(int);
 extern s16 g_WorldMapCameraRot[];
 extern u16 g_WorldMapViewRotationZ;
@@ -862,7 +862,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
    `lui a1,0xFFFB3C00` in the delay slot, ours is `beqz` with the lui before the
    branch. (4) case 4 and case 25 order the unk5C[0]/unk60 load against the lhu
    of g_WorldMapViewRotationY differently.
-   The note on func_80080600 (same shape; 80.11% in round 312) still applies for
+   The note on WorldMapUpdateCameraSlot (same shape; 80.11% in round 312) still applies for
    the tail: the u16 reload of 0xA2 is real, keep `*(u16 *)(pScratch + 0xA2)`.
 /* s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1432,7 +1432,7 @@ void WorldMapInitializeModeWithActors(void) {
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapInitActorScript, WorldMapUpdateSlotActorScriptState);
-    WorldMapAddSlot(func_80080578, func_80080600);
+    WorldMapAddSlot(func_80080578, WorldMapUpdateCameraSlot);
     WorldMapAddSlot(WorldMapInitSlotAtScrollPosition, func_80080944);
     WorldMapAddSlot(func_80080A28, WorldMapUpdateFadeGroups);
     WorldMapAddSlot(WorldMapInitNop, WorldMapUpdateFrame);
