@@ -123,6 +123,8 @@ extern u16 g_WorldMapPlayerAngle;
 extern s16 g_WorldMapTrailCursor;
 
 extern s32 func_80090A84(WorldMapActor *);
+extern s32 func_80090C68(WorldMapActor *);
+extern s16 WorldMapGetTileKindValue(s16, s16);
 extern s32 func_80095414(s32 *, s32 *, s32 *, s32, s32);
 extern s32 WorldMapSelectAreaAtPosition(WorldMapPos *, s32);
 extern void WorldMapUpdateRandomTimers(void);
@@ -1145,6 +1147,339 @@ int WorldMapInitPartyActorSprite0(int index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C844);
+// 91.19% (2988 bytes / 747 insns against retail's 3148 / 787; 479 differing lines).
+// Round 435, first real body: the twin is func_8008A72C (parked at 93.51% ten lines up) -
+// same 65-entry state machine for a different slot (sprite group 0x2C vs 0x2F, zone test
+// 0x18/0x30 vs 0x10/0x20, func_80090C68 vs func_80090A84, SelectArea arg 1 vs 0). Every
+// case body, both trail fills and the tail are present and in retail's order.
+// RESIDUALS, measured:
+//  (1) 40 INSTRUCTIONS MISSING (160 bytes). Not located yet; the differences visible in
+//      the head are branch layout, not missing work, so the deficit is inside one of the
+//      later arms - find it before touching the dispatch shapes.
+//  (2) the func_80090C68 return dispatch: retail tests `beq v1,3` first, then `slti 4`,
+//      then `beq v1,$s0` - i.e. it compares the return against the LOCAL that holds
+//      g_GameState.gearRide[0], not against a literal 1, and lays the four arms out as a
+//      switch tree. This body's if-chain emits `bne v1,3 / li 8 / j / sh` instead.
+//      Writing `ret == gear` (done here via the `gear` local) is what puts $s0 in the
+//      compare, but the tree order is still the if-chain's.
+//  (3) the 0x18 arm's else path stages x/y/z >> 12 as three `sh` at 0xA0/0xA2/0xA4 and
+//      passes that address - spelled with ((s16*)pScratch)[0x50..0x52]; retail reaches
+//      them off $s4 too, so this is probably right and untested.
+//  (4) `case 64: break;` was added because retail's table has 65 entries (sltiu v1,0x41)
+//      and entry 64 points at the switch exit; that fixed the bound but is a guess at the
+//      source's shape.
+// NEXT: locate the 40 missing instructions first (diff the tail arms one at a time), then
+// the dispatch tree in (2). No permuter run.
+/*
+int func_8008C844(int index) {
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
+    s32 *pScratch = (s32 *)0x1F800000;
+    WorldMapTrail *pTrail;
+    s32 *pOut;
+    s16 zone;
+    s16 i;
+    s32 gear;
+    s32 moved;
+    s32 ret;
+    s32 result = 1;
+
+    switch (pActor->command) {
+    case 4:
+        pActor->state = 0x10;
+        pActor->command = 0;
+        pActor->trailDelay = 1;
+        g_GameState.gearRide[0] = 1;
+        break;
+    case 3:
+        pActor->command = 0;
+        pActor->state = 0x30;
+        break;
+    case 7:
+        pActor->command = 0;
+        pActor->trailDelay++;
+        if (D_8009C170 == pActor->trailDelay) {
+            pActor->state = 1;
+            g_WorldMapMode = 2;
+            D_8009BD04 = 0;
+        }
+        break;
+    case 8:
+        pActor->command = 0;
+        pActor->state = 0x18;
+        break;
+    }
+
+    switch (pActor->state) {
+    case 0:
+    case 1:
+        gear = g_GameState.gearRide[0];
+        if (gear == 1) {
+            ret = func_80090C68(pActor);
+            if (ret == 3) {
+                pActor->state = 8;
+            } else if (ret == gear) {
+                g_WorldMapLoopActive = 0;
+                g_WorldMapAreaMode = 0;
+            } else if (ret == 4) {
+                if ((WorldMapGetTileKindValue(1, WorldMapGetTileHalfIndex(&pActor->x)) << 16) != 0) {
+                    pActor->state = 0x20;
+                }
+            } else {
+                if ((pActor->dirX == 0) & (pActor->dirY == 0) & (pActor->dirZ == 0)) {
+                    if (pActor->pSprite->animId != 0) {
+                        SpritePlayAnimation(pActor->pSprite, 0);
+                        WorldMapDeactivateSpriteGroup(0x2C);
+                    }
+                } else {
+                    if (pActor->pSprite->animId != 1) {
+                        SpritePlayAnimation(pActor->pSprite, 1);
+                    }
+                    WorldMapUpdateSpriteGroupFromActor(0x2C, pActor, (WorldMapScreenPos *)pScratch);
+                }
+                pOut = &pScratch[0x24];
+                moved = func_80095414(&pActor->x, &pActor->dirX, pOut, pActor->moveSpeed << 12, g_WorldMapMode);
+                if (moved == 0) {
+                    *(WorldMapVec *)&pActor->dirX = *(WorldMapVec *)pOut;
+                    moved = func_80095414(&pActor->x, &pActor->dirX, pOut, pActor->moveSpeed << 12, g_WorldMapMode);
+                    if (moved == 0) {
+                        pActor->dirZ = 0;
+                        pActor->dirX = 0;
+                    }
+                }
+                if (moved == 1) {
+                    WorldMapFindZoneAtPosition((WorldMapPos *)pOut, 0x18, 0x30, &g_WorldMapZoneProximity,
+                                               &g_WorldMapZoneId);
+                    if (g_WorldMapZoneId == 7) {
+                        zone = g_WorldMapZoneProximity + 3;
+                    } else {
+                        zone = g_WorldMapZoneProximity;
+                    }
+                    if (D_8009B180[zone] != 0) {
+                        pActor->x = pOut[0];
+                        pActor->y = pOut[1];
+                        pActor->z = pOut[2];
+                        pActor->unk34 = pOut[3];
+                        if ((pActor->dirX | pActor->dirZ) != 0) {
+                            i = (g_WorldMapTrailCursor + 1) & 0x1F;
+                            pTrail = &g_WorldMapTrail[i];
+                            g_WorldMapTrailCursor = i;
+                            pTrail->vec = *(WorldMapVec *)&pActor->x;
+                            pTrail->angle = pActor->angle;
+                            WorldMapUpdateRandomTimers();
+                        }
+                    }
+                } else {
+                    WorldMapFindZoneAtPosition((WorldMapPos *)&pActor->x, 0x18, 0x30, &g_WorldMapZoneProximity,
+                                               &g_WorldMapZoneId);
+                }
+                WorldMapSelectAreaAtPosition((WorldMapPos *)&pActor->x, 1);
+                pActor->dirZ = 0;
+                pActor->dirY = 0;
+                pActor->dirX = 0;
+                g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->x;
+                g_WorldMapPlayerAngle = pActor->angle;
+            }
+            D_8009BD04 = 0;
+        } else {
+            if (pActor->pSprite->animId != 3) {
+                SpritePlayAnimation(pActor->pSprite, 3);
+                WorldMapDeactivateSpriteGroup(0x2C);
+            }
+        }
+        break;
+    case 2:
+        pActor->x = g_WorldMapSlots[7].x;
+        pActor->z = g_WorldMapSlots[7].z;
+        pActor->angle = g_WorldMapSlots[7].angle;
+        break;
+    case 8:
+        if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
+            if (g_GameState.gearRide[1] == 1) {
+                if (WorldMapStartSlot(5, 1) != 0) {
+                    g_WorldMapSlots[index + 1].targetSlot = g_WorldMapZoneId;
+                    pActor->state++;
+                }
+            } else {
+                WorldMapStartSlot(2, 1);
+                g_WorldMapSlots[2].targetSlot = g_WorldMapZoneId;
+                WorldMapStartSlot(5, 8);
+                pActor->state++;
+            }
+        } else {
+            pActor->state++;
+        }
+        break;
+    case 9:
+        if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
+            if (g_GameState.gearRide[2] == 1) {
+                if (WorldMapStartSlot(6, 1) != 0) {
+                    g_WorldMapSlots[index + 2].targetSlot = g_WorldMapZoneId;
+                    pActor->state++;
+                }
+            } else {
+                WorldMapStartSlot(3, 1);
+                g_WorldMapSlots[3].targetSlot = g_WorldMapZoneId;
+                WorldMapStartSlot(6, 8);
+                pActor->state++;
+            }
+        } else {
+            pActor->state++;
+        }
+        break;
+    case 10:
+        WorldMapBuildDirectionFromPositions(&pActor->x, &g_WorldMapSlots[g_WorldMapZoneId].x, &pActor->dirX,
+                                            &pActor->angle);
+        pActor->targetX = g_WorldMapSlots[g_WorldMapZoneId].x >> 12;
+        pActor->targetZ = g_WorldMapSlots[g_WorldMapZoneId].z >> 12;
+        SpritePlayAnimation(pActor->pSprite, 1);
+        pActor->state++;
+        // falls through
+    case 11:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            pActor->state++;
+        }
+        g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->x;
+        g_WorldMapPlayerAngle = pActor->angle;
+        WorldMapUpdateSpriteGroupFromActor(0x2C, pActor, (WorldMapScreenPos *)pScratch);
+        break;
+    case 12:
+        if (WorldMapStartSlot(g_WorldMapZoneId, 4) != 0) {
+            pActor->unk24 = 1;
+            pActor->state = 2;
+            WorldMapDeactivateSpriteGroup(0x2C);
+        }
+        break;
+    case 16:
+        switch (D_8009C170) {
+        case 1:
+            pActor->state = 1;
+            break;
+        case 2:
+            if (g_GameState.gearRide[1] != 0) {
+                pActor->state++;
+            }
+            break;
+        case 3:
+            if (g_GameState.gearRide[1] & g_GameState.gearRide[2]) {
+                pActor->state++;
+            }
+            break;
+        }
+        break;
+    case 17:
+        if (g_GameState.partyMembers[1] == CHARACTER_ID_NONE) {
+            pActor->state++;
+        } else if (WorldMapStartSlot(5, 5) != 0) {
+            pActor->state++;
+        }
+        break;
+    case 18:
+        if ((g_GameState.partyMembers[2] == CHARACTER_ID_NONE) || (WorldMapStartSlot(6, 5) == 0)) {
+            pActor->state = 0x40;
+        }
+        break;
+    case 24:
+        if (((u8 *)&g_GameState.characterFlags)[index] == 7) {
+            pActor->unk22 = 1;
+            pActor->state = 0x1A;
+        } else {
+            ((s16 *)pScratch)[0x50] = pActor->x >> 12;
+            ((s16 *)pScratch)[0x51] = pActor->y >> 12;
+            ((s16 *)pScratch)[0x52] = pActor->z >> 12;
+            WorldMapInitSpriteGroupSprites(5, &((s16 *)pScratch)[0x50], NULL);
+            pActor->unk22 = 8;
+            pActor->state++;
+        }
+        break;
+    case 25:
+        pActor->unk22--;
+        if ((s16)pActor->unk22 <= 0) {
+            pActor->unk24 = 1;
+            pActor->unk22 = 0x10;
+            pActor->state++;
+        }
+        break;
+    case 26:
+        pActor->unk22--;
+        if ((s16)pActor->unk22 <= 0) {
+            SpritePlayAnimation(pActor->pSprite, 3);
+            pActor->unk24 = 1;
+            pActor->state = 2;
+        }
+        break;
+    case 32:
+        SpritePlayAnimation(pActor->pSprite, 0);
+        if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
+            WorldMapStartSlot(5, 2);
+        }
+        if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
+            WorldMapStartSlot(6, 2);
+        }
+        pActor->dirZ = 0;
+        pActor->dirY = 0;
+        pActor->dirX = 0;
+        pActor->state++;
+        // falls through
+    case 33:
+        if (WorldMapStartSlot(1, 2) != 0) {
+            g_WorldMapSlots[1].targetSlot = index;
+            pActor->state++;
+        }
+        break;
+    case 34:
+        pActor->state = 0;
+        break;
+    case 48:
+        WorldMapGetGameStatePosition(&pActor->x);
+        pActor->unk24 = 0;
+        pActor->angle = (s16)g_WorldMapSlots[7].unk60[6];
+        pScratch[0] = pActor->x + rcos((s16)g_WorldMapSlots[7].unk60[6]) * 0x60;
+        pScratch[2] = pActor->z - rsin(pActor->angle) * 0x60;
+        WorldMapBuildDirectionFromPositions(&pActor->x, (WorldMapPos *)pScratch, &pActor->dirX, &pActor->angle);
+        pActor->targetX = pScratch[0] >> 12;
+        pActor->targetZ = pScratch[2] >> 12;
+        SpritePlayAnimation(pActor->pSprite, 1);
+        pActor->state++;
+        // falls through
+    case 49:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            SpritePlayAnimation(pActor->pSprite, 0);
+            pActor->dirZ = 0;
+            pActor->dirY = 0;
+            pActor->dirX = 0;
+            pActor->state++;
+        }
+        g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->x;
+        g_WorldMapPlayerAngle = pActor->angle;
+        break;
+    case 64:
+        break;
+    case 50:
+        pTrail = g_WorldMapTrail;
+        g_WorldMapTrailCursor = 0;
+        *(WorldMapVec *)&pScratch[0xC] = *(WorldMapVec *)&pActor->x;
+        pScratch[0xF] = pActor->unk34;
+        *(u16 *)&pScratch[0x28] = pActor->angle;
+        for (i = 0x1F; i != -1; i--) {
+            pTrail->vec = *(WorldMapVec *)&pScratch[0xC];
+            pTrail->angle = *(u16 *)&pScratch[0x28];
+            pTrail++;
+        }
+        pActor->state = 1;
+        g_WorldMapMode = 2;
+        break;
+    }
+
+    if ((pActor->state != 2) && ((g_WorldMapMode == 2) || (g_GameState.partyMembers[0] != 7))) {
+        WorldMapAddSlotPosition(1, &pActor->x);
+    }
+    g_GameState.fieldScriptMemory[0x16] = pActor->x >> 12;
+    g_GameState.fieldScriptMemory[0x17] = pActor->z >> 12;
+    *(u16 *)&g_GameState.unk1826[0] = pActor->angle;
+    return result;
+}
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
 // 81.33% (304 bytes, retail 300). Round 186: re-parked with the current field names
 // (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state) - it
 // builds now and re-measures at 81.33. Two differences, both in the head:
@@ -1191,7 +1526,6 @@ int func_8008D3F0(int index) {
     *(u16 *)&g_GameState.unk1826[2] = pActor->angle;
     return result;
 }*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
 
 
 
