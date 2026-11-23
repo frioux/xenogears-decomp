@@ -470,41 +470,31 @@ void BattleCreateSlotAnimationTask(SpriteData *pActor, s32 arg1) {
     g_FlagTimerWorkListAdds = saved;
     pNew->flags_0xB0.flags = flags | 0x100;
 }
-// 74.18% (311 insns / 1244 bytes against retail 307 / 1228) under the unit preset
-// XenoBattleTailCdk0, re-measured from a live body this round (the old park said 73.59
-// at 305 insns / 1220 bytes, i.e. two instructions SHORT - that body could never link).
-// Five phases, all of retail licensing the same call order and the same three jump
-// tables: (1) per slot, a sprite whose (s8)flags_0xAC.bytes[3] is 5/7/14/15/21 and
-// differs from g_BattleConditionAnimIds[cond] is put back on animation 0x10 and its
-// bit dropped from g_BattleSlotBitMask; (2) func_800C0564, then every idle slot whose
-// sprite is more than 8 away in x or z gets flags 0x40 and animation 3;
-// (3) func_800C0564, then every sprite loses flag 0x40; (4) func_800C0564, then the
-// per-slot animation pass (facing from the side flag, func_800C0314, condition-code
-// animation, the done-mask test, the anim==1 fall-back to flags_0xB0.bytes[0], then the
-// two bit walks of the animation override word at ((SpriteDataI3 *)field_0x7C)->field_0xC
-// with bits 13/14/15 driving animation ids 9/10/11).
-// LOAD-BEARING (do not "simplify"): BATTLE_ABS_DIFF, the duplicated-subtraction
-// ternary - the named-difference form `dx = a - b; if (dx < 0) dx = -dx;` emits
-// `negu` where retail has a reversed `subu v0,v1,a0`, and the macro with the
-// subtraction inside both arms reproduces retail`s subu/bgez/slti(9)/subu/slti(9)
-// for the x test exactly (see the abs lever in tools/rounds/levers.md). The two abs
-// tests must stay ORed inside ONE condition: gcc lays the second one out inverted
-// (`bltz` + an extra `j`) otherwise, which is 6 of the 16 excess bytes.
-// RESIDUALS: (a) i and the byte base take $s3/$s4 swapped against retail`s $s4/$s3,
-// and retail carries a NINTH callee-saved register ($s8) through phase 4 that this
-// body does not use, so the whole prologue and every site`s register differs;
-// (b) the 0x8C8C sprite-table offset: retail adds the WHOLE constant
-// (`ori $v0,$zero,0x8c8c; addu; lw 0(v0)`) and this body splits it
-// (`li 0x8000; addu; lw 0xC8C(v0)`); phase 4 shows the way out - retail reaches the
-// table as `(u8 *)base + i * 4 + 0x8C8C` with base in a register held by a local, so
-// the addend is not folded onto the symbol - but rewriting phase 4 that way needs its
-// two `continue`s turned into nesting (a `continue` skips the slot pointer increment)
-// and that brace restructure was not finished;
-// (c) phase 2`s slot pointer: gcc derives it as sprite-base+0x10 and reads
-// lbu -8/lhu -2/lhu 0 where retail reads lbu 8/lhu 14/lhu 16 off its own pointer.
-// Tried this round: the negu two-local abs (73.59, 2 insns short), the abs macro
-// inline vs through a pPosition local (the local keeps pSprite in s1 and retail`s
-// lh 10(s1)), clearedBits/addedBits in retail`s order, and the phase-4 pointer form.
+// Clears the slot bit mask of every idle actor whose animation is one of the
+// condition animations, re-seats the ones standing away from their slot, and then
+// per live slot plays the condition's animation and starts/stops the extra
+// animations the animation-override word's bits 13-15 select.
+// 85.96% (1248 bytes vs retail 1228; 312 insns vs 307) under the unit preset
+// XenoBattleTailCdk0. REDO-LANE rewrite from the assembly: structure is right (four slot loops with
+// the same three jump tables and the same call order) and the old body's phase-4 continues that
+// skipped the bit loops are gone - the animation-override bit loops now run for every live slot as
+// retail does, which is what took it from 74.18 to 85.96. LOAD-BEARING spellings: the phase-1 switch
+// index must be (s8) - a bare u8 index drops the sll 24/sra 24 pair retail has (measured with
+// cc1_probe); BATTLE_ABS_DIFF (the duplicated subtraction) is what produces retail's reversed subu in
+// the phase-2 distance test; the done-mask test must be ORed into the anim != 0x15 test, and the
+// bit-13/14/15 switches need case labels 5..12 (8 empty arms) or gcc emits a beq tree instead of the
+// 11-word tables retail has (both measured with cc1_probe).
+// RESIDUALS: (a) in all three sprite-table walks gcc folds 0x8C8C into 0x8000 + lw 0xC8C(v0) where
+// retail materialises the whole constant (ori 0x8C8C; addu; lw 0(v0)) - tried the base as a u8*
+// local, as (u8*)g_BattleStateWork, and a s32 offset local (the last was worse), none forces it;
+// (b) phase 2: gcc picks the 4-byte sprite pointer as the base and reads the slot as base+16 with
+// lbu -8 / lhu -2 / lhu 0, where retail reads lbu 8 / lhu 14 / lhu 16 off its own slot pointer - tried
+// initialising the sprite pointer from the slot pointer and from the symbol, both the same; the
+// pPosition local that keeps pSprite in s1 also costs the extra move a1 and one j;
+// (c) phase 4: gcc rematerialises g_BattleStateWork inside the loop instead of keeping it in fp like
+// retail, and derives the slot pointer as base+7; (d) prologue/register rotation: pSlot and the
+// sprite pointer take s3/s2 swapped against retail's s2/s3.
+// A 4-minute permuter run on the 74.18% body found nothing; not re-run on this body.
 /*
 void func_800BFE48(void) {
     BattleActorSlot *pSlot;
@@ -512,6 +502,7 @@ void func_800BFE48(void) {
     SpriteData *pSprite;
     SpriteDataI3 *pAnimState;
     u8 *pSpriteSlots;
+    u8 *pSlotBytes;
     s32 anim;
     s32 i;
     s32 bit;
@@ -523,21 +514,22 @@ void func_800BFE48(void) {
     pSlot = g_BattleStateWork;
     pSpriteSlots = (u8 *)g_BattleStateWork;
     for (i = 0; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
-        pSprite = *(SpriteData **)(pSpriteSlots + 0x8C8C);
-        if (pSlot->inUse == 0 && pSprite != NULL &&
-            BattleGetActorConditionCode(i) != 8) {
-            switch ((s8)pSprite->flags_0xAC.bytes[3]) {
-            case 5:
-            case 7:
-            case 14:
-            case 15:
-            case 21:
-                if ((s8)pSprite->flags_0xAC.bytes[3] !=
-                    g_BattleConditionAnimIds[BattleGetActorConditionCode(i)]) {
-                    SpritePlayAnimation(pSprite, 0x10);
-                    g_BattleSlotBitMask &= ~(1 << BATTLE_SLOT_INDEX(pSprite));
+        if (pSlot->inUse == 0) {
+            pSprite = *(SpriteData **)(pSpriteSlots + 0x8C8C);
+            if (pSprite != NULL && BattleGetActorConditionCode(i) != 8) {
+                switch ((s8)pSprite->flags_0xAC.bytes[3]) {
+                case 5:
+                case 7:
+                case 14:
+                case 15:
+                case 21:
+                    anim = (s8)pSprite->flags_0xAC.bytes[3];
+                    if (anim != g_BattleConditionAnimIds[BattleGetActorConditionCode(i)]) {
+                        SpritePlayAnimation(pSprite, 0x10);
+                        g_BattleSlotBitMask &= ~(1 << BATTLE_SLOT_INDEX(pSprite));
+                    }
+                    break;
                 }
-                break;
             }
         }
         pSlot++;
@@ -566,83 +558,100 @@ void func_800BFE48(void) {
         pSpriteSlots += 4;
     }
     func_800C0564();
+    pSpriteSlots = (u8 *)g_BattleStateWork;
     for (i = 0; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
-        pSprite = *(SpriteData **)((u8 *)g_BattleStateWork + i * 4 + 0x8C8C);
+        pSprite = *(SpriteData **)(pSpriteSlots + 0x8C8C);
         if (pSprite != NULL) {
             pSprite->flags_0xAC.flags &= ~0x40;
         }
+        pSpriteSlots += 4;
     }
+    pSlotBytes = (u8 *)g_BattleStateWork;
+    pSlot = g_BattleStateWork;
     for (i = 0; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
-        pSlot = &g_BattleStateWork[i];
-        if (pSlot->inUse != 0) {
-            continue;
-        }
-        pSprite = *(SpriteData **)((u8 *)g_BattleStateWork + i * 4 + 0x8C8C);
-        if (pSprite == NULL) {
-            continue;
-        }
-        if ((s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
-            BattleActorSetFacingFromSideFlag(i);
-        }
-        func_800C0314();
-        if (BattleGetActorConditionCode(i) == 8) {
-            continue;
-        }
-        anim = g_BattleConditionAnimIds[BattleGetActorConditionCode(i)];
-        if (pSlot->inUse != 0) {
-            continue;
-        }
-        if (anim == 0x15 &&
-            ((g_BattleActorSlotDoneMask >> BATTLE_SLOT_INDEX(pSprite)) & 1) != 0) {
-            continue;
-        }
-        if (anim == 1) {
-            anim = (s8)pSprite->flags_0xB0.bytes[0];
-        }
-        if (pSlot->flags == 0 && (s8)pSprite->flags_0xAC.bytes[3] != anim) {
-            SpritePlayAnimation(pSprite, anim);
-        }
-        newBits = FieldScriptClearAnimationOverrideIfFlag16(i);
-        pAnimState = (SpriteDataI3 *)pSprite->field_0x7C;
-        oldBits = pAnimState->field_0xC;
-        pAnimState->field_0xC = newBits;
-        clearedBits = oldBits & ~newBits;
-        addedBits = newBits & ~oldBits;
-        for (bit = 0; bit != 16; bit++) {
-            if (addedBits & 1) {
-                switch (bit) {
-                case 13:
-                    BattleCreateSlotAnimationTask(pSprite, 9);
-                    break;
-                case 14:
-                    BattleCreateSlotAnimationTask(pSprite, 10);
-                    break;
-                case 15:
-                    BattleCreateSlotAnimationTask(pSprite, 11);
-                    break;
+        if (pSlot->inUse == 0) {
+            pSprite = *(SpriteData **)(pSlotBytes + i * 4 + 0x8C8C);
+            if (pSprite != NULL) {
+                if ((s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+                    BattleActorSetFacingFromSideFlag(i);
+                }
+                func_800C0314();
+                if (BattleGetActorConditionCode(i) != 8) {
+                    anim = g_BattleConditionAnimIds[BattleGetActorConditionCode(i)];
+                    if (pSlot->inUse == 0 &&
+                        (anim != 0x15 ||
+                         ((g_BattleActorSlotDoneMask >> BATTLE_SLOT_INDEX(pSprite)) & 1) != 0)) {
+                        if (anim == 1) {
+                            anim = (s8)pSprite->flags_0xB0.bytes[0];
+                        }
+                        if (pSlot->flags == 0 && (s8)pSprite->flags_0xAC.bytes[3] != anim) {
+                            SpritePlayAnimation(pSprite, anim);
+                        }
+                    }
+                }
+                newBits = FieldScriptClearAnimationOverrideIfFlag16(i);
+                pAnimState = (SpriteDataI3 *)pSprite->field_0x7C;
+                oldBits = pAnimState->field_0xC;
+                pAnimState->field_0xC = newBits;
+                clearedBits = oldBits & ~newBits;
+                addedBits = newBits & ~oldBits;
+                for (bit = 0; bit != 16; bit++) {
+                    if (addedBits & 1) {
+                        switch (bit) {
+                        case 5:
+                        case 6:
+                        case 7:
+                        case 8:
+                        case 9:
+                        case 10:
+                        case 11:
+                        case 12:
+                            break;
+                        case 13:
+                            BattleCreateSlotAnimationTask(pSprite, 9);
+                            break;
+                        case 14:
+                            BattleCreateSlotAnimationTask(pSprite, 10);
+                            break;
+                        case 15:
+                            BattleCreateSlotAnimationTask(pSprite, 11);
+                            break;
+                        }
+                    }
+                    addedBits >>= 1;
+                }
+                for (bit = 0; bit != 16; bit++) {
+                    if (clearedBits & 1) {
+                        switch (bit) {
+                        case 5:
+                        case 6:
+                        case 7:
+                        case 8:
+                        case 9:
+                        case 10:
+                        case 11:
+                        case 12:
+                            break;
+                        case 13:
+                            BattleInvokeSpriteCallbackForActor(pSprite, 9);
+                            break;
+                        case 14:
+                            BattleInvokeSpriteCallbackForActor(pSprite, 10);
+                            break;
+                        case 15:
+                            BattleInvokeSpriteCallbackForActor(pSprite, 11);
+                            break;
+                        }
+                    }
+                    clearedBits >>= 1;
                 }
             }
-            addedBits >>= 1;
         }
-        for (bit = 0; bit != 16; bit++) {
-            if (clearedBits & 1) {
-                switch (bit) {
-                case 13:
-                    BattleInvokeSpriteCallbackForActor(pSprite, 9);
-                    break;
-                case 14:
-                    BattleInvokeSpriteCallbackForActor(pSprite, 10);
-                    break;
-                case 15:
-                    BattleInvokeSpriteCallbackForActor(pSprite, 11);
-                    break;
-                }
-            }
-            clearedBits >>= 1;
-        }
+        pSlot++;
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
+
 
 // The battle state work block as the slot pass reads it: the actor slot rows at the
 // start and the 0x8000 flag word the pass clears its bit from.
