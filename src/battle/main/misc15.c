@@ -729,7 +729,28 @@ extern void func_8009093C(s32 arg0);
    subtract stops CSEing: `addiu a1,s4,-1` + `addiu s5,s4,-1`, 98.77/1156).
    The state arms are stores-before-increments: `g_BattleCursorScrollY = (j + 1) * 13;`
    then `j++` is what reproduces retail per-arm `andi v1,(u8)j; addiu v1,v1,1`
-   plus the -1 shared by states 2 and 4. *//*
+   plus the -1 shared by states 2 and 4.
+   ROUND 434 re-measured both ends of this and they are the ONLY two bodies:
+   the one below is still 99.42% / 1156 bytes, and moving ONLY `pagePending = 1;`
+   out of the init block to just after the second BattleInitSlotGraphics call
+   (before BattleInitPulseTrianglePrims) gives retail's EXACT 1160 bytes - both
+   calls' 7th arg then come from s0 with the `sw s0,72(sp)` / `li s0,1` pair and
+   the (u8)result scratch in s0 exactly as retail has them - and its SOLE
+   residual is the two-insn pair `sw s4,88(sp); li s4,1` landing after
+   `li a3,0x118`, immediately before the loop-invariant `sw s7,100; li s7,2`
+   pair, instead of after `li s6,2`: sched2 hoists it from its post-call RTL
+   position and drops it 5 slots late. Placing the statement back in the init
+   block tracks its source position exactly (permuter find this round: before
+   `prevJ = 0xFF` lands 4 slots early, before `prevI = 0xFF` 2 early, right
+   after `result = 2` is exact) but cse then substitutes s4 for every later SI
+   constant 1, which is the 1156 body. So what is left is ONE scheduler slot,
+   not the C: any spelling that keeps the assignment in the init block while
+   stopping cse from recording `s4 == 1` closes it. Measured this round and all
+   still 1156: `(u8)1` and `(u16)1` on pagePending, and a `u8 seekSlot = 1`
+   copy passed as the 7th argument (both the cast and the QI copy fold back to
+   SI const 1, and after the calls the same copy makes pagePending reuse it).
+   A 4-minute permuter run from the 1160 body (base 415 best 223) found only the
+   statement move above, i.e. the 1156 family again. *//*
 u8 func_8008BED8(u8 arg0) {
     u8 i;
     u8 j;
