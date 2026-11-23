@@ -692,33 +692,35 @@ void BattleResetActorCommandSlots(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
-/* 77.55% under 2.6.0 (352 bytes vs retail's 332, 88 vs 83 insns). ROUND 411
-   re-measured this exact body: 77.55%, 352 bytes, 88 insns - it does compile, so
-   the numbers are current. Structure now
-   matches retail's block graph: mask test as bnez-forward to a reset-call block
-   laid out last, E1's func_80071B94(0) cross-jumped into the shared call block
-   (j .L80072504), the 0x18 frame, and the *pCurrent = i + 1 tail with the
-   0xB wrap. Two residuals:
-   1. THE ROTATED ENTRY (the real blocker): retail evaluates the loop condition
-      once in the preheader and `j`s straight to the single bottom test
-      (j .L800724CC), keeping t0=1 in a register from the beqz delay slot and
-      a3=0xB in the j's delay slot. gcc 2.6.0/2.7.2/2.7.2-cdk all emit an extra
-      inline `beq state,1` at the entry for while/for/do-while/goto shapes
-      (probed with cc1_probe.sh: while+return-exit, while+break, for, plain
-      do-while, guarded do-while, goto-check - ALL keep the inline entry branch,
-      none thread it into the bottom test). Cost: 4 instructions + t0/a3 hoisting.
-      A compiler with real loop rotation (gcc 2.8+? not in tools/) is the likely
-      answer; worth a try_flags screen if one is ever added.
-   2. The found-handler reloads D_800D2DD8[i] (3 insns) where retail reuses the
-      loop's slot register (v1); tied to the same register allocation as (1).
-   Tried: while + circle-exit func_80071B94(0)+return (77.55), same with the
-   final call shared after the inner if/else (75.11 - the shared call merged
-   E1's call site; keep this), for-loop (68.84, old park), else-if nesting.
-   Semantics note: the circle path (scan wrapped all 11 entries without a
-   ready slot) must call func_80071B94(0) WITHOUT the actorIndex/cursor stores
-   - retail's beq at the loop head jumps directly to the call.
+/* 81.43% under 2.6.0 (356 bytes against retail's 332, 89 vs 83 insns; round 425
+   re-measured it). Structure, both call sites, the charIndex arm and every
+   load/store are retail's; the residual is the loop ENTRY, and everything else
+   follows from it:
+   1. Retail inverts the loop with an entry jump: at the preheader it loads the
+      state byte, then `j .L800724CC` with `ori a3,zero,0xB` in the delay slot, so
+      the ONE compare (bne v0,t0) at the bottom is shared by the entry and the back
+      edge. gcc 2.6.0 duplicates the exit test inline instead (`li v0,1` +
+      `beq v0,t0 -> found`), which (a) costs the extra constant, (b) makes the
+      found handler a branch target and so costs it a fresh `li v0,0xB` and a
+      `nop` in the wrap-branch delay slot where retail reuses a3 and the loop's
+      `addiu a1,a1,1`. That is the whole 6-insn gap.
+   2. Retail's wrap test is a BACKWARD branch into the loop body (bne v0,a3 with
+      delay addiu a1,a1,1), i.e. the source continues the loop; the path is
+      equivalent to the forward branch (a1 == *pCurrent on arrival, so it goes
+      straight to the call), so our `if ((*pCurrent = i + 1) == 0xB)` is the same
+      code and scores the best of the shapes tried.
+   Folded since the round-411 park (77.55 -> 81.43): a `u8 targetSlot` local for
+   the actor id in the condition removes the found handler's D_800D2DD8[i]
+   reload, and the embedded assignment `(*pCurrent = i + 1)` removes its
+   *pCurrent reload (`andi v1,v1,0xff` reuses the stored value, as retail does).
+   Also tried here: `i++; if (i == 0xB) i = 0; *pCurrent = i;` for the tail
+   (79.51, 352 bytes), and the old post-loop fixup form (77.55). Presets: round
+   411 measured -G0, 2.7.2 and cdk. The compiler that inverted the loop is the
+   answer; none in tools/ does it for this shape (cc1_probe.sh kept the inline
+   entry test for while/for/do-while/goto).
 void func_800723E0(void) {
     u8 *pCurrent;
+    u8 targetSlot;
     s32 i;
 
     if (g_BattlePendingSlotMask == 0) {
@@ -731,7 +733,7 @@ void func_800723E0(void) {
             g_BattleCommandQueue->actorIndex = 0;
             pCurrent = g_BattleTargetScan;
             i = *pCurrent;
-            while (g_BattleActorCountdownState[D_800D2DD8[i]] != 1) {
+            while (g_BattleActorCountdownState[targetSlot = D_800D2DD8[i]] != 1) {
                 i++;
                 if (i == 0xB) {
                     i = 0;
@@ -741,9 +743,8 @@ void func_800723E0(void) {
                     return;
                 }
             }
-            g_BattleCommandQueue->actorIndex = D_800D2DD8[i] + 1;
-            *pCurrent = i + 1;
-            if (*pCurrent == 0xB) {
+            g_BattleCommandQueue->actorIndex = targetSlot + 1;
+            if ((*pCurrent = i + 1) == 0xB) {
                 *pCurrent = 0;
             }
         }
