@@ -185,7 +185,11 @@ it guesses at story purpose; a wrong name is worse than a placeholder.
 - Files to pick: for names, most `func_` definitions (`tools/scripts/unnamed_c.py`); for
   globals, most distinct `D_` in comment-stripped live C; a file whose `D_` are interior
   addresses of already-typed tables wants a typed-member REWRITE, not a naming lane.
-  For raw lines `tools/scripts/raw_lines.py`.
+  For raw lines `tools/scripts/raw_lines.py`. Both name picks are near their floor (rounds
+  417-418: 18 non-psyq `func_` defs left, and the D_-densest files return only
+  `DATA_INTERIOR` because their `D_` sit in parked bodies), so before briefing a file count
+  its `D_` occurrences in comment-stripped C (the strip `raw_lines.py` uses) and skip the
+  file when that count is under ~5.
 - Hoisting a constant reported from two files into the header that owns the struct is
   yours, with no clones out; do not add an include to a file that does not have it.
 - Names are applied only while no clones are out, with the three commands in "The
