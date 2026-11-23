@@ -4098,6 +4098,17 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 // Not a rodata blocker: the C switch's table lands at +0x28 of the unit's .rodata, the same offset
 // as jtbl_801C5028, so once the rotation is fixed the conversion needs no table work - prove it
 // with check_bin.sh shop_menu, not diff_func.sh.
+// Round 436 re-measured the same 99.73% / 2032 bytes (retail's exact size) and pinned the rotation:
+// retail keeps i in $a3, the counter in $t4, the three pointer ivs in $t0/$t1/$t2 and pItemTypes in
+// $t3; this body keeps the counter in $a3, i in $t0, the ivs in $t1/$t2/$t3 and pItemTypes in $t4 -
+// i.e. the same eight registers {a1,a2,a3,t0..t4} handed out one position off, with a1/a2 fixed by
+// the parameters' home-register preference. The counter statement's POSITION in the block is free
+// (gcc reorders it to retail's place either way) and measures: statement first 98.20, as written
+// 99.73, "itemType++; itemCount = itemType;" 99.73, "itemCount = itemType + 1; itemType =
+// itemCount;" 99.73; pointer stores reordered 98.97 (owned first) / 99.71 (qtys first); an extra
+// { } barrier around the sellable block 99.73. A second 3-minute permuter run (1045 iterations) is
+// base=125 best=125, the same verdict as the first: the hand-out is a priority tie broken by allocno
+// number, and every spelling that emits these 2032 bytes ranks the eight the same way.
 /*
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
