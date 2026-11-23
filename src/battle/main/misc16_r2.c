@@ -233,6 +233,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
    address pseudo a single use so loop.c has nothing shared to hoist; also untried for
    this body: separate ofs-style temporaries per digit site, a pointer local per arm,
    and the permuter.
+   ROUND 419 re-measure: 96.18 under the unit's 2.6.0 at retail's exact 265 instructions /
+   1060 bytes; 95.58 under gcc-2.7.2 and gcc-2.7.2-cdk FAILS TO COMPILE this body, so the
+   preset is not the lever (the 92.77 above is stale). The hoist is the
+   a-g-strength-reduce-table-base lever's case - it ends when the loop leaves no free
+   callee-saved register - but inside the loop the two builds are instruction-identical
+   (same loads, multu/mfhi chains, calls and stores), so there is NO folded-away live value
+   to port back, and the four index spellings all emit the same la.
+   Second, ADDITIVE residual measured this round: retail's locals are 8 bytes bigger -
+   cellUses at 0xD0 and cellIds at 0x100 against our 0xC8 / 0xF8 - and retail never reads or
+   writes 0xC8..0xCF (every stack offset in the stub enumerated). That dead slot is also what
+   makes the frame 0x148 with six saves at 0x130..0x144 instead of our 0x128..0x140. No
+   construct I can justify allocates an untouched 8-byte slot.
+   Third, one insn: retail `addu s0,v1,v0` (index-first) against our `addu s0,v0,v1` at the
+   bufs[i] store - the `bufs + i` spelling is untried.
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
@@ -366,30 +380,18 @@ next:
    masks on the u arguments (retail's `andi a3,a3,0xf8` / `andi a3,s1,0xd0`; a plain u8
    parameter gives `andi 0xff`).
 */
-/* PARKED 98.70% at retail's exact size (400 bytes, 100 instructions) under the unit's
-   gcc-2.6.0. ROUND 406 redo from a 81.85% park that was 2 instructions LONG; the body below
-   is 100/100 and the only residual is one v0/v1 mirror in the palette block.
-   Measured levers, all new this round:
-   - the two calls' addresses are `(POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230))
-     + (g_BattlePrimStartIndex[0] + 8)` / `+ (10)` with the base load INLINE at both sites:
-     the pointer-arithmetic index lets cc1 distribute the constant onto the product, so the
-     chain lands in a0 and reads `sll a0,v1,2 / addu a0,a0,v1 / sll a0,a0,3 / addiu a0,a0,0x140`
-     with `addu a0,a0,t0` in the jal slot - retail's exact shape (81.85 -> 98.70). The permuter
-     found the first-site half (base=150 best=140); writing both sides inline gave the rest.
-     Byte-offset spellings (`prim * 0x28 + 0x140 + (s32)pBase`), the same sum in an `ofs` local
-     (measured on the function AND in a cc1_probe: the local alone reproduces retail's chain,
-     but in the function cc1 defers the pool load past the multiply and the chain goes to v0)
-     and `pPrims + prim + 8` all give `addiu v0,t0,320 / addu a0,a0,v0` or a mirrored addu.
-   - the palette store must be the SAME byte-arithmetic expression duplicated in both arms
-     (that is what reproduces retail's duplicate prim*5 / palette-load / multiply-join block).
-   Residual (alone): retail loads prim into v0 and the `prim * 5` product into v1, this build
-   mirrors it (prim v1, product v0) and then reuses that register for the pool base, so the
-   join reads `sll v0,v0,3` where retail has `sll v1,v1,3`. A local-alloc tie between two
-   pseudos of the same block: tried and dead - POLY_FT4 pointer + subscript, the ofs local,
-   `do { } while (0)` around each arm's store (the documented no-cost tie mover, no change),
-   and statement/declaration order. Next lever to try: a different spelling of the store's
-   base (`(u8 *)g_BattleGraphicsWork->pPacketPrims` typed vs the cast used here) or a
-   permuter run from THIS body.
+/* PARKED 98.70% at retail's exact size (400 bytes / 100 insns) under the unit's gcc-2.6.0.
+   Structure, size, instruction multiset, the u8 masks, the duplicated palette store in both
+   arms and the two inline `(POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) +
+   (g_BattlePrimStartIndex[0] + 8 / + 10)` call addresses are all retail's (round 406).
+   Residual, ONE cause: a local-alloc tie inside the palette block. Retail loads prim into $v0
+   and its prim*5 product into $v1, then reuses $v0 for the pool base, so the join reads
+   `sll v1,v1,3`; this build mirrors the pair (prim $v1, product $v0, base $v1). ROUND 419:
+   a 3-minute permuter run from THIS body found nothing (1618 iterations, base=130 best=130),
+   and an initialised `s32 prim = g_BattlePrimStartIndex[0];` declaration at the top of each
+   arm is no change at all. The round-406 dead ends (ofs local for the prim product, POLY_FT4
+   pointer + subscript, a do-while tie mover, statement and declaration order, volatile) stand.
+*/
 /*
 void func_80090310(u8 arg0, u8 arg1) {
     s32 index;
@@ -410,8 +412,7 @@ void func_80090310(u8 arg0, u8 arg1) {
     u = index % 2 * 0x78;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) + (g_BattlePrimStartIndex[0] + 8), 0x18, 0x33, u & 0xF8, v & 0xFF, 0x60);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) + (g_BattlePrimStartIndex[0] + 10), 0x84, 0x33, (index % 2 << 6 | vofs) & 0xD0, v & 0xFF, 0x10);
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
 
 // PARKED 91.97% (624 bytes / 156 insns against retail's 0x26C = 620 / 155, so it cannot
