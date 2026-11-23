@@ -4012,7 +4012,7 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
     places[3] = 1000;
     places[4] = 10000;
 
-    pWorkspace = HeapAlloc(0x3F6, 0);
+    pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
 
     for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
         bzero(digitBuffer, 0xE);
