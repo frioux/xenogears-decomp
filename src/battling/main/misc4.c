@@ -464,6 +464,14 @@ extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges
 // addiu a0,s4,16 in ITS delay slot, while our RTL emits the next call's argument
 // setup before the angle copy (insn 406 before insn 401 in the lreg dump) and
 // reorg then moves the copy into the BattleVectorLength2D slot instead.
+// ROUND 419: the two edge-address pseudos are NOT global-alloc's problem. The
+// -da lreg dump gives them as 'used 3 times ... in block 9; crosses 1 call;
+// pointer' (live spans 36 and 28 insns), i.e. BLOCK-LOCAL quantities handed out
+// by local-alloc's find_free_reg, whose scan starts where the previous block-9
+// allocation stopped - so which one gets $s6 is one rotation step, and block 9's
+// instruction sequence is already retail's exactly, so no spelling shifts it.
+// Also measured this round: naming the two addresses (Vec4* pE1 = &edge1; ...)
+// compiles byte-identically to this body (gcc coalesces them), 98.11% / 28 lines.
 /*
 s32 func_80078920(Actor* p, Actor* q) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot

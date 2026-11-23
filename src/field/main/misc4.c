@@ -1304,7 +1304,7 @@ int FieldProbeWalkmeshAtAngle(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints,
     pActor->curYPos = (pActor->position.vy + pVec->vy) >> 16;
     return 0;
 }
-int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) {
+int FieldProbeWalkmeshSlideAlongWall(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) {
     VECTOR v;
     VECTOR savedV;
     SVECTOR out;

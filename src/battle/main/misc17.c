@@ -78,7 +78,7 @@ void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 s32 func_8009A258(u8, s32);
 void func_8009187C(u8, u8, u8);
 void BattleDrawSlotStatusText(u8, u8, u8);
-void func_80093578(u8, u8);
+void BattleDrawActionRowIcons(u8, u8);
 void BattleDrawSlotStatusTextEntry3(u8, u8);
 s32 BattleDrawSpritePackage(s32, u8 *, s32, s16);
 s32 BattleMaskHasStatusBit(s32, u8);
@@ -955,7 +955,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     g_BattleDisplayState->unkB7 = 4;
 }
 */
-void func_80093578(u8 arg0, u8 arg1) {
+void BattleDrawActionRowIcons(u8 arg0, u8 arg1) {
     u8 *pRec;
     u16 flags;
     u16 pal;
@@ -1045,7 +1045,7 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].statusFlags,
                            arg1)) {
         if ((g_BattleWorkBlock[arg0].conditionFlags & tbl[arg1]) == 0) {
-            func_80093578(arg0, arg1);
+            BattleDrawActionRowIcons(arg0, arg1);
             BattleDrawSlotStatusTextEntry3(arg0, arg1);
             g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex[0];
             g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;

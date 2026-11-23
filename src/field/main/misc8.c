@@ -1119,7 +1119,7 @@ extern s32 g_FieldPartyActorSlots[];
 extern u16 g_FieldP1ButtonsPressed;
 int func_8008492C(ActorData* pActor);
 int FieldProbeWalkmeshAtAngle(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
-int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
+int FieldProbeWalkmeshSlideAlongWall(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
 
 /* 85.15% (1456 bytes against retail's 1472 - four instructions short, and the
    frame is retail's exactly: 0x58 = vars 40 + 8 saved (s0-s6+ra) + 16 arg save
@@ -1133,9 +1133,9 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
       `if (result == -1)` comes out as `beq -> reset; lui v0,0x10000 (delay);
       j -> join; addiu v0,-0x1001 (delay)` (4 insns); here the reset is the
       fall-through of the test, so it is `bne -> join; li v0,-0x1001 (delay)` (2).
-   3. Same for the probe/BAC0 ternary: retail keeps func_8007BAC0 inline and the
+   3. Same for the probe/BAC0 ternary: retail keeps FieldProbeWalkmeshSlideAlongWall inline and the
       cross-jumped FieldProbeWalkmeshAtAngle arm out of line (`bnez v0` with an
-      `addiu a0,sp,0x10` delay); this body inverts to `beqz v0 -> func_8007BAC0`.
+      `addiu a0,sp,0x10` delay); this body inverts to `beqz v0 -> FieldProbeWalkmeshSlideAlongWall`.
    4. The 0x1800 chain needs the two-case `switch` spelling below: as an
       if/else-if chain gcc inverts it into `bne` tests and loses the trailing
       `j`+`nop` (82.82 -> 84.61).
@@ -1237,7 +1237,7 @@ void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
         if ((pActor->scriptFlags.flags & 0x41800) || pActor->canInteract != ACTOR_ID_INVALID || D_800ADB98 != 0) {
             result = FieldProbeWalkmeshAtAngle(&pos, pActor, points, angle);
         } else {
-            result = func_8007BAC0(&pos, pActor, points, angle);
+            result = FieldProbeWalkmeshSlideAlongWall(&pos, pActor, points, angle);
         }
         pActor->scriptFlags.flags = (pActor->scriptFlags.flags & ~0x600) | (savedFlags & 0x600);
     }
