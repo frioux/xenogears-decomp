@@ -992,6 +992,7 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
     SpritePlayAnimation(pSpriteData, 0);
     return pSpriteData;
+}
 
    ROUND 408: re-measured from this body - 99.19% / 456 bytes / 114 insns, identical to the note above,
    with the same TWO residuals: (a) the ~3 constant and the 0x3C word swapped across v0/v1, which drags
@@ -1007,7 +1008,6 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
    gcc-2.7.2-cdk 99.19 (2.6.0 compile-fails on this unit), and the unit cannot move to 2.7.2 (matched
    neighbours AnimScriptTick 94.75, AnimTaskAlloc 79.92, AnimTaskCreate 88.14, func_80023468 86.41).
    Verdict: GIV_TIE, same decision as func_80023804 above.
-}
 */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
 
