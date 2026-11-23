@@ -80,89 +80,42 @@ u_int FieldPopActorScriptWorkWord(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
-/* 77.88% (1200 bytes against retail's 1232; frame 0xA0 and the saved set
-   s0-s6+ra are retail's exactly, so the body is the right function and what is
-   left is register allocation plus store scheduling).
-   WHAT IS SETTLED:
-   - arg0 is the actor index; pActor = g_FieldActors[actorIndex].pActorData
-     (FieldActor +0x4C) is loaded once and every store in the body goes through
-     it. Retail's 0xA0 frame and the sp+0x18 / sp+0x58 slots come free from
-     `VECTOR normals[4]; SVECTOR points[4];` (points ends at 0x78, the saved
-     registers start at 0x80) - no spare local is needed.
-   - the 0x12C word is cleared through the header's anonymous bitfields
-     (flags12C_0x5, _0, _0x10, _0x12, _0x6, direction, _0xD, _0x2) and each one
-     reproduces retail's single lw/and/sw pair; flags130 has no bitfields in the
-     header, and THREE consecutive `flags130 &= ~0xFF80000; &= ~0x1FF;
-     &= ~0x7FE00;` statements reproduce retail's three ANDs with its masks
-     (0xF007FFFF, 0xFFFFFE00, 0xFFF801FF) in its own order - gcc does not fold
-     them, and it stores once.
-   - the 8-slot script reset loop (actorData+0x8C) is byte-identical: currentIP
-     0xFFFF, waitTimer 0, scriptId 0xFF, flags_0 0xFFFF, state/isInUse/
-     flags_0x17 cleared, flags_0x12 = 0xF.
-   - the triangle loop's range test is `tri != -1 && (u32)tri >= D_800AFB44[i]`
-     with the cast on the LEFT operand only; casting both sides emits the same
-     sltu but scores 1.7 lower (it re-schedules the loop).
-   - g_FieldActors must be read ONCE per iteration (one lui/lw serving both the
-     `(s16)transformMatrix.t[0]` and `.t[2]` loads), which needs the
-     `pFieldActor = &g_FieldActors[actorIndex];` local inside the loop.
-   RESIDUE (all measured, none source-controllable by hand so far):
-   (a) the loop: retail keeps TWO walking pointers (s1 stride 0x10 for normals,
-       s2 = sp+0x18 stride 8 with points at 0x40(s2)) plus addiu s2,/s1, in the
-       tail. That is what ONE aggregate `struct { VECTOR normals[4]; SVECTOR
-       points[4]; }` produces (measured: it removes all four per-iteration
-       address recomputations) - but the same body then over-allocates s7 (the
-       aggregate base) and s8 (the 8i walker for &points[i]), grows the frame to
-       0xA8 and drops to 75.14%. The two-array form keeps retail's frame and
-       saved set and pays 2 instructions (`sll`+`addu` twice per iteration).
-       Typing the argument as pPoint/pNormal pointer locals: 75.32%.
-   (b) the four tail reads (position.vx/vy/vz, curYPos) must stay four separate
-       volatile g_FieldActors reads. Hoisting `transformMatrix.t` into a `long*`
-       scores 78.88% but deletes 12 of retail's instructions (1180 bytes), so it
-       is a false lead: retail's chains are lui/lw/nop/addu/lw/nop/sll/sw with
-       the load-delay nops present, and ours interleave two chains so the nops
-       disappear (that is ~8 of the missing 32 bytes).
-   (c) the 32-bit mask constants land in swapped registers (retail a2 = 0xFFFCFFFF
-       before a1 = 0xF007FFFF) which re-orders the whole independent store run
-       that follows; retail also re-reads flags12C (lw a0,0x12C after storing it)
-       for flags12C_0x12 where gcc forwards the register from flags12C_0.
-   (d) the curTriNormal triple re-derives `lh 0x10(s0)` (walkmeshId) three times
-       in retail; ours does too, but retail's `addu v0,v0,a0` is index-first
-       where ours is `addu a0,a0,v0` (base-first) for the third site.
-   Permuter: three 4-minute runs, ~5000 iterations. It found the
-   `(u32)tri >=` cast (76.21 -> 77.88) and two statement moves that measured
-   worse in objdiff (dialogFlags between rotation.vx/vy: 77.31).
-   Round 294 re-measured the whole body from this note (it compiles, 77.88%).
-   The 8 missing instructions are ALL in the segment after the walkmesh loop:
-   retail emits each of the four transformMatrix tail reads as a strictly
-   serial chain through v0 (lui/lw/nop/addu/lw/nop/sll/sw, 8 insns each = 32),
-   while gcc always prefetches the NEXT statement's volatile lw g_FieldActors
-   into the field load's delay slot (6 insns each = 24). Measured dead: making
-   the four field reads volatile (1204 bytes, 77.32), handing each read to one
-   reused s32 local via a comma expression (1204, 77.40). The rest of the diff
-   is register naming plus the flags12C store/reload pair (retail stores after
-   the 0xFFFCFFFF AND, reloads, ANDs 0xF003FFFF and stores again; gcc forwards
-   the register), and the mask constants landing in swapped registers.
-   ROUND 411 re-measured the body exactly (un-parked: 77.88%, 1200 bytes, 300
-   against retail's 308) and pinned the residual: the whole 8-instruction
-   deficit is the two load-delay nops per tail read. Retail is
-   lui/lw/nop/addu/lw/nop/sll/sw; ours is
-   lw(base of the PREVIOUS statement)/lui/lw/addu/sll/sw, which has no load
-   delay to fill, so the two nops can never appear. cc1's options header has
-   neither -fschedule-insns nor -fschedule-insns2, so that interleave is not a
-   scheduler: it is cse/gcse hoisting the next statement's
-   `idx*0x5C + g_FieldActors[0]` base into the previous statement's window.
-   Wrapping the four reads in do { } while (0) changed nothing (1200 bytes, same
-   instruction count). Any spelling that keeps that base out of gcse's window is
-   the remaining lead. m2c's whole-function draft is structurally identical to
-   this body (it spells the tri-normal triple `(&normals)[walkmeshId].vx` and the
-   transform write `points[walkmeshId].vy`), so the structure is settled.
-*/
-/*
+
 extern s16 g_FieldWalkmeshTriCount;
 extern s32 D_800AFB44[];
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
 extern int rand(void);
 
+/* 82.88% (1228 bytes against retail's 1232, 307 insns against 308; frame 0xA0
+   and the saved set s0-s6+ra are retail's exactly). Round 428 raised this from
+   77.88 by ONE edit: the four tail reads of g_FieldActors[actorIndex].transformMatrix
+   (position.vx / .vy / .vz / curYPos) each get their own `do { <read> = ...; } while (0)`
+   block. Before that gcc pipelined each statement's base load into the previous
+   statement's load-delay slot, so every chain lost its two `nop`s and the body was
+   8 insns short; inside a block cc1 cannot hoist the next base, and all four chains
+   come out retail's serial lui/lw/nop/addu/lw/nop/sll/sw with the byte count right.
+   THE SAME RECIPE DID NOT TRANSFER: wrapping the curTriNormal triple instead costs
+   2 insns (1240 bytes, 82.80 - it frees a0 for the stride but re-reads walkmeshId
+   one extra time), and wrapping the flags12C/flags130 block drops to 70.81
+   (the hoisted mask constants lose their registers). Measured at 77.88 and still
+   dead here: per-site `pFieldActor = &g_FieldActors[actorIndex];` pointer locals
+   (76.89, same 1200), a reused s32 local via a comma expression (77.40).
+   RESIDUE at 82.88 (all measured, none source-controllable by hand so far):
+   (a) one instruction / 4 bytes short. (b) The two hoisted flag masks land swapped:
+   retail a2 = 0xFFFCFFFF and a1 = 0xF007FFFF, ours a1/a2 (same for t6/t7 =
+   0x3C0000 / 0xFF); the same source order produces both, so it is the allocator's
+   numbering, not the statement order. (c) retail's flags12C clear / reload / second
+   clear block (`lw a0,0x12C / and a0,a0,a2 / and v1,a1 / and v1,v0 / sw a0 /
+   lw a0,0x12C / and v1,a3 / sw v1,0x130 / and a0,t0 / sw a0,0x12C`) against ours,
+   which re-stores the same register once. (d) the zero group
+   pActor->positionOffset stores 0x64, 0x60, 0x62 in retail (reordering the source
+   to vz,vx,vy measures 82.89 - noise, so it is reorg stealing, not source order).
+   (e) the walkmesh loop keeps retail's two walking pointers only at 75.14 (aggregate
+   struct) as recorded before this round.
+   Permuter: four runs total including this round's 4-minute run from the 82.88 body
+   (base 3818 -> 3413, PERMUTER_BETTER); its find moved dialogPixelHeight's store up
+   with an embedded assignment and scored 82.29 in objdiff, so it was not ported.
+*//*
 void func_80080A74(int actorIndex) {
     ActorData* pActor;
     FieldActor* pFieldActor;
@@ -290,12 +243,21 @@ void func_80080A74(int actorIndex) {
     if (!(pFieldActor->status & 0x80)) {
         pFieldActor->transformMatrix.t[1] = points[pActor->walkmeshId].vy;
     }
-    pActor->position.vx = g_FieldActors[actorIndex].transformMatrix.t[0] << 16;
-    pActor->position.vy = g_FieldActors[actorIndex].transformMatrix.t[1] << 16;
-    pActor->position.vz = g_FieldActors[actorIndex].transformMatrix.t[2] << 16;
-    pActor->curYPos = g_FieldActors[actorIndex].transformMatrix.t[1];
-}
-*/
+    do {
+        pActor->position.vx = g_FieldActors[actorIndex].transformMatrix.t[0] << 16;
+    } while (0);
+    do {
+        pActor->position.vy = g_FieldActors[actorIndex].transformMatrix.t[1] << 16;
+    } while (0);
+    do {
+        pActor->position.vz = g_FieldActors[actorIndex].transformMatrix.t[2] << 16;
+    } while (0);
+    do {
+        pActor->curYPos = g_FieldActors[actorIndex].transformMatrix.t[1];
+    } while (0);
+}*/
+
+
 
 /* 90.26% (468 bytes vs retail 456: three instructions too many). The levers
    that got it from 71.39% here: g_FieldActorAllocCount is indexed as g_FieldActorAllocCount[0]++
