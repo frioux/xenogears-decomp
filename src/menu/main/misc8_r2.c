@@ -65,6 +65,15 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 void MenuSetRowQuadVertices(s32 count, void* pStrings, void* pStringIds, void* pXOffsets, void* pShouldRender,
                             u8 arg5, u8 arg6, u8 arg7);
+void MenuAllocatePrimBuffer(void);
+void MenuCreateCellPrimBlocks(void);
+void MenuStartOpenAnimation(void);
+void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening);
+s32 MenuBeginCardOperation(void);
+void MenuResetSelectionCursorFlags(void);
+s32 MenuUpdateSubMenuChoice(u_char arg0);
+extern u8 g_MenuCardSaveListStale;
+extern u8 g_MenuSoftResetEnabled;
 void* GetStringEntry(void* pStringData, u32 index);
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
 void MenuSetStringPrimitives(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
@@ -105,7 +114,170 @@ void MenuLoadUnkDE0Strings(void) {
     }
 }
 
+/* 95.67% under this unit's XenoMenu260 (gcc 2.6.0): 1288 vs retail 1296 bytes, 322 vs
+   324 insns. Written from the .s this round; there was no earlier park. gcc-2.7.2 scores
+   94.37 on this body, so the unit preset is right (2.6.0 wins).
+   Body shape is settled and every call, constant and store matches: the whole loop shell
+   (MenuTweenCharacterWindows / func_801E86C8 / MenuBeginCardOperation / the subMenuChoice
+   block / the four-case switch on g_Menu->input / the tail) is retail's, from the proven
+   neighbour MenuRunCharacterDressingRoomLoop in misc10.c and the misc9/misc1 loops.
+   GETTING HERE, each measured: `(MenuBeginCardOperation() & 0xFF) != 0` (the mask is what
+   retail has; the bare call is one insn short), the `choice = 7; if (overlay != 2) choice
+   = 0;` argument instead of a ternary (the ternary folds branchless into
+   xori/sltiu/negu/andi, +4 insns), `switch` on g_MenuOverlayIndex rather than if/else
+   (322 vs 319 insns; the if/else form tests 2 first like retail but drops retail's range
+   test), and g_Menu->subMenuChoice/subMenuPrevChoice/input named from menu.h.
+   RESIDUAL 1, the only instruction-count difference: retail holds the constant 2 in $s5
+   (`ori s5,zero,0x2` in the loop preheader, used three times inside the loop: the
+   g_MenuOverlayIndex switch test, the MenuSetSubMenuChoicePrims argument and the case-4
+   test), and that is exactly its 8th callee-saved save/restore pair and its 0x48 frame.
+   This body rematerialises `li v0,0x2` at each of the three sites and so has a 0x40 frame.
+   RESIDUAL 2, the switch tree: retail's tree for case values {0,2} is
+   `beq x,s5 -> case2; slti v0,x,3; beqz -> end; bnez x -> end; [case 0]` (the 2 is the
+   ROOT, the 0 sits in a range-checked subtree). This body gets the mirror image with the
+   0 as the root and no range test: `beqz x -> case0; li v0,2; beq x,v0 -> case2; j end`.
+   Same instruction count (4 vs 4), different tree. Measured and NO help: source case
+   order (0-first and 2-first both give the 0 root), an explicit `default: break;`, and an
+   explicit empty `case 1: break;` (which makes gcc 328 insns at 95.02). gcc 2.6 sorts the
+   case list, so the root is not source-order controlled; the neighbour switch on
+   g_Menu->input (cases 1,3,4,5) DOES get retail's slti tree in this body, so the tree
+   method is reachable, just not for two cases. If RESIDUAL 2 is solved, RESIDUAL 1
+   (the $s5 constant) is likely to follow, since the constant is CSEd across the loop once
+   the tree uses a register compare.
+   RESIDUAL 3: ~140 register-name-only lines (the whole s0..s7 assignment shifts by one
+   because of the missing $s5), including result in $s4 here vs $s1 in retail. Moving the
+   `s32 result;` declaration to the top of the local list does not change it (95.67 either
+   way), so it is the allocator's priority sort, not declaration order.
+   MISC: the `lhu 0x4FE4` in the tail means retail reads menuUnk2->cardStatus[] as one
+   halfword; this body's two separate u8 compares emit the same lhu, so the cardStatus
+   test is fine as written.
+   CODE SHAPE / meaning, for the naming pass: this is the menu's sub-menu (item row)
+   screen loop: it resets the soft-reset flag and the sub-menu choice on entry, builds the
+   prim buffer and cell prim blocks once (firstRun), starts the card read with
+   MenuBeginCardOperation, then per frame rebuilds the row quad vertices when the choice
+   changed, dispatches g_Menu->input (1 up, 3 down, 4 confirm, 5 cancel) and tears the
+   panel down on exit. Returns whether the screen completed normally.
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801D9F98);
+/*
+s32 func_801D9F98(s32 arg0, s32 arg1) {
+    s32 result;
+    u8 active;
+    u8 firstRun;
+    s32 stringSet;
+    s32 choice;
+
+    active = 1;
+    firstRun = 1;
+    result = 1;
+    stringSet = 0;
+    g_MenuSoftResetEnabled = 0;
+    g_Menu->subMenuChoice = 2;
+    if (g_MenuOverlayIndex == 0 && g_ShopIndex == 0) {
+        g_Menu->subMenuChoice = 1;
+    }
+    g_Menu->subMenuPrevChoice = 0xFF;
+    MenuLoadUnkDE0Strings();
+    MenuRenderFrame();
+    while (active != 0) {
+        g_Menu->pManager->characterWindowBuilt = 0;
+        g_Menu->cardSlotState = 1;
+        if (firstRun != 0) {
+            MenuAllocatePrimBuffer();
+            MenuCreateCellPrimBlocks();
+            g_Menu->menuUnk2->cardStatus[0] = 1;
+            g_Menu->menuUnk2->cardStatus[1] = 1;
+            MenuStartOpenAnimation();
+            switch (g_MenuOverlayIndex) {
+            case 0:
+                MenuTweenCharacterWindows(0, 0);
+                if (g_ShopIndex == 0) {
+                    stringSet = 9;
+                }
+                break;
+            case 2:
+                stringSet = 7;
+                break;
+            }
+            func_801E86C8(stringSet);
+            g_Menu->pManager->playTimeDigitsActive = 0;
+            firstRun = 0;
+            g_Menu->pManager->shouldRenderWindow[1] = 0;
+            if ((MenuBeginCardOperation() & 0xFF) != 0) {
+                if (g_MenuOverlayIndex != 0) {
+                    result = 0;
+                }
+                break;
+            }
+            g_Menu->pManager->isPanelActive[5] = 1;
+        }
+        if (g_MenuCardSaveListStale != 0) {
+            MenuCreateWindow2Strings(0x20);
+        }
+        if (func_801C93A8() != 0) {
+            active = 0;
+        }
+        if (g_MenuCardSaveListStale != 0) {
+            MenuFreeWindow2Strings();
+            g_MenuCardSaveListStale = 0;
+        }
+        if (active == 0) {
+            break;
+        }
+        if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
+            MenuSetRowQuadVertices(6, g_Menu->unkDE0, D_801EA542, g_MenuPanelRowXOffsets,
+                                   g_Menu->pManager->shouldRenderStringsDE0, g_Menu->subMenuChoice, 7, 0);
+            choice = 7;
+            if (g_MenuOverlayIndex != 2) {
+                choice = 0;
+            }
+            MenuSetSubMenuChoicePrims(choice);
+            g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
+        }
+        switch (g_Menu->input) {
+        case 4:
+            MenuResetSelectionCursorFlags();
+            MenuClearBytes(6, g_Menu->pManager->shouldRenderStringsDE0);
+            active = MenuUpdateSubMenuChoice(arg1);
+            g_Menu->subMenuPrevChoice = 0xFF;
+            MenuLoadUnkDE0Strings();
+            if (g_MenuOverlayIndex == 2) {
+                break;
+            }
+            // fall-through
+        case 5:
+            active = 0;
+            if ((arg0 & 0xFF) != 0) {
+                result = 0;
+            }
+            break;
+        case 1:
+            if (g_Menu->subMenuChoice != 0) {
+                g_Menu->subMenuChoice--;
+            } else {
+                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices + 0xFF;
+            }
+            break;
+        case 3:
+            if (++g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
+                g_Menu->subMenuChoice = 0;
+            }
+            break;
+        }
+    }
+    if (g_Menu->menuUnk2->cardStatus[0] == 0 && g_Menu->menuUnk2->cardStatus[1] == 0 && g_MenuOverlayIndex != 0) {
+        result = 0;
+    }
+    g_Menu->pManager->isPanelActive[5] = 0;
+    g_Menu->pManager->characterWindowBuilt = 0;
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
+    g_Menu->pManager->unk3 = 0;
+    MenuClearBytes(6, g_Menu->pManager->shouldRenderStringsDE0);
+    MenuCloseCardEvents();
+    return result;
+}
+*/
+
 
 void MenuInitializeUnk42CPanel(void) {
     MenuUnk9* pMenu;
