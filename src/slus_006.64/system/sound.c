@@ -3363,7 +3363,6 @@ void SoundTickInterpolator(AudioInterpolator* interpolator) {
 // gcc-2.7.2-cdk-psx scores 95.76, so this is not a preset question.
 // The header's AudioManager tempoFrames/tempoTarget and AudioElement volumeStep/volumeFrames are u16
 // (the original loads them with lhu, not lh).
-/*
 void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
     u16 activeFlags;
     s16 count = elementCount;
@@ -3373,6 +3372,7 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
     s32 restTicks;
     u16 statusFlags;
     u16 elementFlags;
+    u16* pFlags;
 
     if (tickCounter != 0) {
         tickCounter--;
@@ -3386,12 +3386,13 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
     }
 
     do {
+        pFlags = &pElement->status_flags;
         activeFlags = pElement->active_flag;
         if (activeFlags != 0) {
             fermataTimer = *(u32*)&pElement->fermataDuration;
             fermataTicks = fermataTimer & 0xFFFF;
             restTicks = fermataTimer >> 16;
-            statusFlags = pElement->status_flags;
+            statusFlags = *pFlags;
 
             if (fermataTicks != 0) {
                 elementFlags = pElement->rampFlags;
@@ -3430,7 +3431,7 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
                     }
                     statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
                 }
-                *(volatile u16*)(&pElement->status_flags + 1) = elementFlags;
+                *(volatile u16*)(pFlags + 1) = elementFlags;
                 if (--fermataTicks == 1) {
                     if (activeFlags & 0x1000) {
                         pElement->voice_data.releaseRate = 6;
@@ -3443,13 +3444,11 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
                 }
                 *(u32*)&pElement->fermataDuration = fermataTicks + (restTicks << 16);
             }
-            pElement->status_flags = statusFlags;
+            *pFlags = statusFlags;
         }
         pElement++;
     } while (--count != 0);
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
-
+}
 // 75.84%, retail's 1436 bytes against this body's 1440 (ONE instruction long). The element loop,
 // the note path, the gate/duration arithmetic and the envelope reset are instruction for
 // instruction right, and the frame is now retail's exactly: 0x48, s0-s8+ra saved (retail's $fp is
