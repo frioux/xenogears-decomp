@@ -416,33 +416,40 @@ void SpritePlayAnimation(int, int);
    curAnimationId != animationOverride test, which retail does not do (its beq
    jumps past the jal) - rejected as wrong code.
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
-/* R396: re-measured 98.13% (315 insns / 1260 bytes vs retail 313 / 1252) and
-   pinned WHERE the two extra instructions are - both are nops that retail fills
-   with a real instruction it placed earlier:
-   (a) arm 2: retail's `lh a1,234(s0)` (the SpritePlayAnimation 2nd argument,
-       pActor->animationOverride) sits in the load-delay slot of the
-       `lw v0,0(v0)` that reloads g_FieldActors, four instructions before its
-       `jal`; ours loads it last, after `addu v0,s3,v0` / `lw a0,4(v0)`, so that
-       slot gets a nop. `s16 animOverride = pActor->animationOverride;` on its
-       own statement before the call does NOT move the load (measured, 98.13
-       unchanged).
-   (b) third loop: retail forms the walker in a TEMP (`addu a1,s3,v0`,
-       index-first), does the status load through the temp (`lhu v1,88(a1)`), and
-       copies `move s1,a1` into the beqz delay slot; ours forms the walker
-       directly (`addu s1,v0,s3`, base-first) and its slot is a `nop`. Splitting
-       the status read back onto `g_FieldActors[i]` to make that pair is 96.04 /
-       322 insns (worse), so the temp/walker pair is not reachable that way.
-   Because both excess sites are +4 bytes, every branch offset in the object
-   carries the +8; that is why 40 of the 50 diff hunks are offsets. The real C
-   residuals left are then only: loop 1's register set (retail count a1 / biv a0
-   / actor v1 vs ours a0 / v1 / s0), arm 3's `addu a2,s3,a2` vs our
-   `addu a2,a2,s3`, and (a)+(b). Also tried this round: `while (i < count) {
-   ...; i++; }` for the first loop to put the counter increment in the body
-   block (retail has `addiu s2,s2,1` in the `lw`'s delay slot there) - 96.22 /
-   319 insns, so loop inversion changes more than that slot.
-   This body also needs the five `extern const char D_8006FC1x[]` declarations
-   that now sit above it, and converting it needs those strings defined in C. */
+/* PARKED R419 98.13% (315 insns / 1260 bytes vs retail 313 / 1252: two nops that
+   retail fills with an instruction it placed earlier). Both excess sites are +4
+   bytes, so every branch offset carries the +8 - that is why 40 of the 50 diff
+   hunks are offsets, not code. The real residuals, in diff order:
+   (1) loop 1 registers: retail count a1 / biv a0 / actor-data v1, ours a0 / v1 / s0
+       (same instruction shapes, pure allocation tie; the count local and the
+       for-init count were both measured).
+   (2) arm 2: retail's `lh a1,234(s0)` sits in the load-delay slot of the
+       `lw v0,0(v0)` that reloads g_FieldActors; ours loads it after
+       `addu v0,s3,v0` / `lw a0,4(v0)`, so that slot is a nop.
+   (3) arm 3: `addu a2,s3,a2` (retail, offset-first) vs ours `addu a2,a2,s3`; the
+       a0/a1 pair of the store is mirrored too.
+   (4) third loop: retail forms the walker in a temp (`addu a1,s3,v0`,
+       offset-first), reads status through it and copies `move s1,a1` into the
+       beqz slot; ours forms it in place (`addu s1,v0,s3`, base-first) and its
+       slot is a nop.
+   (5) func_8008399C: its two g_FieldActors loads come out in the other order.
+   R419 measured: (3) written as plain subexpressions (`g_FieldActors[i].pSpriteData,
+       g_FieldActors[i].pActorData->animationOverride, &g_FieldActors[i]`) is
+       96.35 / 319 - cc1 re-forms the table address per argument instead of CSEing
+       it, so the offset-first `addu` is not reachable that way; (4) written as the
+       assignment embedded in the condition
+       (`if (!((pFieldActor = &g_FieldActors[i])->status & 0xF00))`) is unchanged
+       98.13 / 315 - cc1 still coalesces the temp into the walker. Prior rounds:
+       splitting the status read onto `g_FieldActors[i]` (96.04 / 322), `while`
+       for the first loop (96.22 / 319), three pointer locals, the plain three
+       statements, one do-while around all three, permuter (best 591 but it moved
+       SpritePlayAnimation out of the curAnimationId test - wrong code).
+   Both excess instructions are scheduler slots (a load-delay nop retail fills
+   with an independent load), so this is not a source-shape job.
+   Converting it needs the five debug strings below defined in C in the same
+   commit; they are at the head of the unit rodata range, so plain `const char`
+   definitions in this file keep retail layout, but it is moot until the body is
+   exact. */
 /*
 void func_8008110C(void) {
     FieldActor* pFieldActor;
@@ -558,8 +565,10 @@ void func_8008110C(void) {
     if (g_FieldSystemMode == 0) {
         func_80281B00(D_8006FC3C);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
+
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
 typedef struct {
@@ -1353,6 +1362,19 @@ void func_80081F80(SpriteData*, s16, FieldActor*);
    91.46, -O3 97.03, cdk -O3 93.78, -G0 97.03. The missing instruction is
    retail's copy of the lh result into the arithmetic register; gcc merges the
    two because the load has one live range. */
+/* PARKED R419 97.03% (144 bytes / 36 insns vs retail 148 / 37). The only residual
+   is retail's HImode copy: retail loads into v0, copies to v1 for the ternary
+   arithmetic and masks the test in v0 (`lh v0,0x106 / move v1,v0 / andi
+   v0,v0,0x8000`); gcc loads straight into v1 (`lh v1 / andi v0,v1,0x8000`).
+   gcc copy-propagates every two-variable spelling, so the copy is an SImode
+   subreg the allocator never materialises. The 0x20 frame with 8 bytes of
+   unused stack vars is reproduced exactly by the `u32 spare2[2];` declaration.
+   Levers checked R419 (move/copy/missing/extra): clamp-copy-shape, sltiu-copy
+   and live-value-costs-nothing all describe a boolean/narrow copy, none of them
+   a HImode load promoted to SImode. Prior rounds: s16/s32/u16 variables both
+   directions, mask read off the field directly (90.92), assignment in the
+   condition, unused int local, cdk (89.27), 2.6.0 (92.51), -O1 (91.46), -O3 and
+   -G0 (97.03), four permuter runs (base 113 = best 113). Not a hand job. */
 /*
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
