@@ -73,15 +73,19 @@ extern int g_RenderContextIndex;
    CALLEE-SAVED PERMUTATION, nothing else: every differing word is the same instruction with the same
    operands, only retail i=$s4 / j=$s3 / pPrim+8=$s2 comes out here as i=$s3 / j=$s2 / pPrim+8=$s4 (the
    save slots 52/56 swap with them). Frame, callee-saved set, spill slots (gridOffset 0x20, rowOffset
-   0x18, pOt 0x10) and count-in-$fp identical. lever.py regalloc callee-saved swapped tie says this is
-   gcc allocno_compare (floor_log2(refs)*refs/(live_length*size)) and to stop after one look: the
-   instruction stream is already byte-identical, so refs/live_length/size of the three allocnos cannot be
-   changed without breaking it. Already measured and dead: two permuter runs (base 580 -> 375, then
+   0x18, pOt 0x10) and count-in-$fp identical. PROVEN UNREACHABLE by the -da/-dl dump (round 433), which
+   the note asked for: cc1 -O2 -G8 -da/-dl on this body gives `21 regs to allocate: 150 115 73 74 161 80
+   230 79 ...` with 73 (j) 29 refs/52 insns, 74 (i) 33 refs/79, 79 (pPrim+8) 28 refs/95, so the
+   allocno_compare quotients are j ~8.9, i ~8.4, pPrim+8 ~4.7 and the hand-out is j=s2, i=s3, prim+8=s4.
+   Retail is the REVERSE (prim+8=s2, j=s3, i=s4), i.e. it needs a pseudo with half the quotient and twice
+   the live range to be processed first - lever a-global-allocno-priority-is' 2x/10x case, not the
+   near-tie case. Size is pinned (all three SI), the live length is the loop, and refs are a function of
+   the emitted code, so no spelling of this instruction stream reaches it. Already measured and dead: two
+   permuter runs (base 580 -> 375, then
    nothing; closed 97.70 -> 98.51 on the `one = 1` y hint), refs-driven allocation, declaration order,
    explicit i-minus-one/i-plus-one locals, a mask temp, and (this round) splitting the y update into
    `y -= one; y += rand() % 3;` to make retail's `addiu a1,s4,-1` precede the rand call = 97.75%,
-   1016 bytes, frame 88 - worse, because the store to `y` needs a stack slot. Do not re-brief this
-   without a -dg dump that shows the three pseudos' sorted order.
+   1016 bytes, frame 88 - worse, because the store to `y` needs a stack slot.
 */
 /*
 void func_8001A6E8(u_long* pOt) {
@@ -162,6 +166,7 @@ void func_8001A6E8(u_long* pOt) {
     SystemIncrementCellNeighborCount(x + 1, y + 1);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001A6E8);
+
 
 
 
@@ -628,7 +633,8 @@ void SystemSetDrawEnvBackgroundColor(DRAWENV* pDrawEnv) {
 
 extern u8 g_MenuSavedMainMenuChoice;
 
-/* Best: 86.53%, 404 bytes, 101 insns (retail 424 bytes / 103 insns). Measured three times this round; up from the
+/* Best: 86.53%, 404 bytes, 101 insns (retail 424 bytes / 103 insns). Measured four times this round (baseline
+   re-measured twice, plus variants (d) below); up from the
    old 85.15. THE FRAME, THE SAVE SET AND THE ROW-COPY LOOP ARE NOW RETAIL EXACT: 0x58 with ra,s3,s2,s1,s0,
    the whole prologue/call tail, and the copy loop as a do-while (`do *pDst++ = *pOut++; while (pDst < pSrc
    + i + 0x14)`) which reproduces retail's `move v1,s1 / addiu a0,sp,40 / addiu a1,s1,20 / lbu / sb /
@@ -646,7 +652,17 @@ extern u8 g_MenuSavedMainMenuChoice;
    bytes, 80.80%. (b) both accesses spelled against the raw symbol — gets retail's %lo(g_GameState) and
    %lo(g_GameState+1) relocs and 104 insns, but $s4 again, frame 0x60: 78.08%. (c) inner loop as a
    source-level do-while (j = 0; do { ... } while (j < 0x14)) — gcc peels the first iteration: 121 insns, 484
-   bytes, 63.40%.
+   bytes, 63.40%. (d) round 433: (a)'s pRow induction for the even read and the row copy, but the odd read
+   through its OWN pointer local `pOdd = (u8*)&g_GameState + 1` indexed `pOdd[i + j]` (so the +1 is not a
+   literal in the inner loop) — 84.11%, 420 bytes, 105 insns, frame 88 with SIX saves: it reproduces the
+   whole inner loop shape (a0 induction from pRow, `addu v0,i+j` / `addu v1,s4,v0`, `slt` on the row-copy
+   compare, retail's prologue) but gcc still hoists pOdd's VALUE into $s4 and 0xF into $s3, which is the
+   extra save. Hoisting pIn/pInOdd before the outer loop instead of per row changed nothing (84.11,
+   identical code - the stores are dead). So the residual is not the ADDRESS FORM at all: it is WHICH four
+   loop invariants gcc keeps. Retail keeps i/pRow/inBuf/inBuf+1 in $s0-$s3 and rematerialises the odd base
+   (lui/addiu into $t2) and 0xF (li $t1) per row; every body here keeps i/pSrc|pRow/outBuf/0xF instead, so
+   inBuf's address is recomputed per row into $a1/$a2. Getting the flip needs outBuf's address and the 0xF
+   to stop looking worth a register, which no spelling tried does.
    TAIL: the two retail stores are `sb %gp_rel(g_MenuSavedMainMenuChoice)($gp)` and
    `sb %gp_rel(g_GameResumeScene)($gp)`, i.e. retail's temp3.o DEFINES both as small data, while
    GameSetUpDisplayAndChangeState in the same object reaches g_GameResumeScene absolutely (lui %hi/lbu). With
@@ -706,6 +722,7 @@ void func_8001B970(void) {
     g_GameResumeScene = 0;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
+
 
 
 extern u8 g_SystemStreamedFileIndex;
