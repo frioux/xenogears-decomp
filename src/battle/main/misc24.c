@@ -207,6 +207,19 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
 // survives cse but emits no instruction, which no source spelling found produces.
 // 0x3C is unsigned (ori 0xFFFF) while 0x98/0x3A/0x1E are signed -1 (addiu), so
 // those two constants must stay spelled differently.
+// Round 428 re-measured the honest body (the three -1 stores in their logical
+// places, no duplicate): 156 bytes = retail's exact size, 39 insns, and the ONLY
+// difference is the hoisted `li v1,-1` at slot 5 (between `li v0,0x6B` and its
+// `sb`) where retail has it at slot 0 - the 74.36 is objdiff's score for that one
+// displaced instruction, not a structural distance. Four more no-instruction uses
+// of -1 probed with cc1_probe.sh on this unit's flags (all leave the home at slot
+// 5): `arg1 = -1;` on the unused parameter, a dead `if (n != -1)` branch that fold
+// deletes, `s16 n = -1;` used by all three stores, and `*(s32 *)(arg0+0x4) = n == -1;`.
+// The one new probe fact: DROP the leading constant triplet (0x3C/0x5C/0x39) and
+// the same body hoists both homes to slots 0 and 1 (`li v1,-1 / li v0,1 / sw a2,8
+// ...`), so the triplet is what displaces the -1 home by five slots - and retail
+// has the identical triplet with the home at 0, so its -1 home was created ahead
+// of the triplet by something no source spelling emits.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 /*
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
