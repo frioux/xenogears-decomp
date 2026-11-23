@@ -1093,6 +1093,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * scores 97.66 but 740 bytes / 185 insns, i.e. still not retail's shape. Land the
  * `sizeof` substitution first, then re-run: this is a permuter job, not a hand one.
  *
+ * ROUND 431: this function is instruction-identical to func_8002B5D0; the ROUND 431
+ * note in that stub's park re-measures the shared body and the body it carries is
+ * the closest shape found (double negation on the destination sum: retail's `sll`
+ * register, no maspsx load-delay nop, identical multiset, residual a pure reorder).
+ * Port that line here before trying anything else on this stub.
+ *
  * void func_8002B2F0(u_char status) {
  *     int entryIndex;
  *     ArchiveStreamFileSectionHeader* pCurrent;
@@ -1391,7 +1397,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  *             pCurrent->state = 1;
  *             pCurrent->id = *(volatile u16*)&g_ArchiveStreamNextSectionId;
  *             g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;
- *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)*(s8* volatile*)&g_ArchiveStreamWritePointer), CD_SECTOR_SIZE / 4);
+ *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE - (-(mem_addr)*(s8* volatile*)&g_ArchiveStreamWritePointer)), CD_SECTOR_SIZE / 4);
  *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
  *             g_ArchiveCurFileSector += 1;
  *             if (g_ArchiveCurFileSize > 0)
@@ -1457,6 +1463,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  * Verdict unchanged: row 1 needs the index to be a live-in in $s2 (unreachable:
  * the entry parameter lands in $s1), and row 2 is the c-a-call-argument-constant
  * reorg ceiling. Park.
+ *
+ * ROUND 431 re-measured the body above (all with the sizeof spelling, live, in
+ * this unit):
+ *  - the DOUBLE NEGATION on the destination sum is the best spelling found so
+ *    far and is what the body above now carries: `entryIndex * CD_SECTOR_SIZE -
+ *    (-(mem_addr)*(s8* volatile*)&g_ArchiveStreamWritePointer)` (levers.md
+ *    c-double-negation-works-on-a-mem-field-base) lands the shift in $a0 exactly
+ *    as retail does and removes the maspsx load-delay nop, so the residual is
+ *    now a PURE REORDER: identical instruction multiset, identical registers,
+ *    184 insns / 736 bytes, 8 differing lines in 4 moved positions. Retail's
+ *    block order is [slot li v0,1][li a1,0x200][lhu a2][sll a0][sh v0,0(s1)]
+ *    [lhu v0][lw v1][addiu][sh a2,2(s1)][sw v0][jal][addu a0,a0,v1]; ours is
+ *    [slot li a1,0x200][lhu a2][li v0,1][sh v0,0(s1)][lhu v0][lw v1][sll a0]
+ *    [addiu][sh a2,2(s1)][sw v0][jal][addu a0,a0,v1]. Only the positions of
+ *    li v0,1 and sll a0 differ; the score is still 97.47.
+ *  - both id reads plain (no volatile cast) CSE to ONE lhu: 96.40 / 732 bytes /
+ *    183 insns, so the volatile read is load-bearing.
+ *  - hoisting the first id read into a `u16 nSectionId` local and moving the
+ *    state store after it compiles BYTE-IDENTICALLY to the body above: the four
+ *    found-block statements can be permuted in source with no effect, i.e. these
+ *    rows are the scheduler's and not the C's.
+ *  - gcc-2.7.2-cdk -O2 -G8: 95.67 (worse, as in round 403).
+ * Verdict: park. The two remaining rows are one sched2 ordering decision and one
+ * reorg priority decision; nothing in the C reaches them.
  */
 
 
