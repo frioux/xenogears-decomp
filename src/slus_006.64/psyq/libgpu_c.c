@@ -1,6 +1,10 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
+/* Bit 25 of a TMD primitive id word is ignored when the primitive type is
+   classified: a lit ("L") primitive and its unlit form share a body. */
+#define GPU_PRIM_ID_MASK 0xFDFFFFFF
+
 extern u_long *g_GpuCurTIMHandle;
 
 extern volatile long g_GpuTimeoutDeadline;
@@ -566,7 +570,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
     type = pPrim->tag;
     pObj->tag = type;
 
-    switch (type & 0xFDFFFFFF) {
+    switch (type & GPU_PRIM_ID_MASK) {
     case 0x20000304:
     case 0x20020304:
         if (GetGraphDebug() == 2)
@@ -586,7 +590,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[0] = pPrim->shorts[0x4];
         pObj->normIndex[1] = pPrim->shorts[0x4];
         pObj->normIndex[2] = pPrim->shorts[0x4];
-        return 0x10;
+        return 16;
     case 0x30000406:
     case 0x30020406:
         if (GetGraphDebug() == 2)
@@ -606,7 +610,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[0] = pPrim->shorts[0x4];
         pObj->normIndex[1] = pPrim->shorts[0x6];
         pObj->normIndex[2] = pPrim->shorts[0x8];
-        return 0x14;
+        return 20;
     case 0x24000507:
     case 0x24020507:
         if (GetGraphDebug() == 2)
@@ -625,7 +629,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[0] = pPrim->shorts[0x8];
         pObj->normIndex[1] = pPrim->shorts[0x8];
         pObj->normIndex[2] = pPrim->shorts[0x8];
-        return 0x18;
+        return 24;
     case 0x34000609:
     case 0x34020609:
         if (GetGraphDebug() == 2)
@@ -644,7 +648,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[0] = pPrim->shorts[0x8];
         pObj->normIndex[1] = pPrim->shorts[0xA];
         pObj->normIndex[2] = pPrim->shorts[0xC];
-        return 0x1C;
+        return 28;
     case 0x21010304:
     case 0x21030304:
         if (GetGraphDebug() == 2)
@@ -661,7 +665,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->vertIndex[0] = pPrim->shorts[0x4];
         pObj->vertIndex[1] = pPrim->shorts[0x5];
         pObj->vertIndex[2] = pPrim->shorts[0x6];
-        return 0x10;
+        return 16;
     case 0x31010506:
     case 0x31030506:
         if (GetGraphDebug() == 2)
@@ -678,7 +682,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->vertIndex[0] = pPrim->shorts[0x8];
         pObj->vertIndex[1] = pPrim->shorts[0x9];
         pObj->vertIndex[2] = pPrim->shorts[0xA];
-        return 0x18;
+        return 24;
     case 0x25010607:
     case 0x25030607:
         if (GetGraphDebug() == 2)
@@ -703,7 +707,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->vertIndex[0] = pPrim->shorts[0xA];
         pObj->vertIndex[1] = pPrim->shorts[0xB];
         pObj->vertIndex[2] = pPrim->shorts[0xC];
-        return 0x1C;
+        return 28;
     case 0x35010809:
     case 0x35030809:
         if (GetGraphDebug() == 2)
@@ -728,7 +732,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->colors[2].r = pPrim->bytes[0x18];
         pObj->colors[2].g = pPrim->bytes[0x19];
         pObj->colors[2].b = pPrim->bytes[0x1A];
-        return 0x24;
+        return 36;
     case 0x28000405:
     case 0x28020405:
         if (GetGraphDebug() == 2)
@@ -753,7 +757,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[1] = pPrim->shorts[0x4];
         pObj->normIndex[2] = pPrim->shorts[0x4];
         pObj->normIndex[3] = pPrim->shorts[0x4];
-        return 0x14;
+        return 20;
     case 0x38000508:
     case 0x38020508:
         if (GetGraphDebug() == 2)
@@ -778,7 +782,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[1] = pPrim->shorts[0x6];
         pObj->normIndex[2] = pPrim->shorts[0x8];
         pObj->normIndex[3] = pPrim->shorts[0xA];
-        return 0x18;
+        return 24;
     case 0x2C000709:
     case 0x2C020709:
         if (GetGraphDebug() == 2)
@@ -801,7 +805,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[1] = pPrim->shorts[0xA];
         pObj->normIndex[2] = pPrim->shorts[0xA];
         pObj->normIndex[3] = pPrim->shorts[0xA];
-        return 0x20;
+        return 32;
     case 0x3C00080C:
     case 0x3C02080C:
         if (GetGraphDebug() == 2)
@@ -824,7 +828,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->normIndex[1] = pPrim->shorts[0xC];
         pObj->normIndex[2] = pPrim->shorts[0xE];
         pObj->normIndex[3] = pPrim->shorts[0x10];
-        return 0x24;
+        return 36;
     case 0x29010305:
     case 0x29030305:
         if (GetGraphDebug() == 2)
@@ -845,7 +849,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->vertIndex[1] = pPrim->shorts[0x5];
         pObj->vertIndex[2] = pPrim->shorts[0x6];
         pObj->vertIndex[3] = pPrim->shorts[0x7];
-        return 0x10;
+        return 16;
     case 0x39010608:
     case 0x39030608:
         if (GetGraphDebug() == 2)
@@ -866,7 +870,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->vertIndex[1] = pPrim->shorts[0xB];
         pObj->vertIndex[2] = pPrim->shorts[0xC];
         pObj->vertIndex[3] = pPrim->shorts[0xD];
-        return 0x1C;
+        return 28;
     case 0x2D010709:
     case 0x2D030709:
         if (GetGraphDebug() == 2)
@@ -897,7 +901,7 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->vertIndex[1] = pPrim->shorts[0xD];
         pObj->vertIndex[2] = pPrim->shorts[0xE];
         pObj->vertIndex[3] = pPrim->shorts[0xF];
-        return 0x20;
+        return 32;
     case 0x3D010A0C:
     case 0x3D030A0C:
         if (GetGraphDebug() == 2)
@@ -928,9 +932,9 @@ int func_800477D0(TmdPrimPacket *pPrim, TmdPrimObject *pObj) {
         pObj->colors[3].r = pPrim->bytes[0x20];
         pObj->colors[3].g = pPrim->bytes[0x21];
         pObj->colors[3].b = pPrim->bytes[0x22];
-        return 0x2C;
+        return 44;
     default:
-        printf(D_800193A8, pObj->tag & 0xFDFFFFFF);
+        printf(D_800193A8, pObj->tag & GPU_PRIM_ID_MASK);
         return -1;
     }
 }
