@@ -592,6 +592,32 @@ extern s32 D_8009D7DC;
 extern void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
 extern void func_8009980C(u32* pSrc, u8* p1, u8* p2);
 
+/* 95.05%, 988 bytes = retail's exact size (247 insns, .frame 0x38, saves
+   s0,s1,s2,s3,s4,s5,s6,s7,s8,ra - the SAME ten this body uses, no spills). Only two
+   kinds of difference remain:
+   (1) two addiu operands carry a reloc in retail that a raw constant cannot: the two
+       copy loops' pointer increment (retail names D_1F800002) and the CompMatrix
+       matrix pointer (retail names D_1F800370). Same linked bytes.
+   (2) a pure register rotation in the cell body: retail a0=x0(x0=808) v1=x2(808+0x400)
+       v0=y2(812-0x400) and an index chain accumulating in v0; this body a2=x0 a0=x1
+       v1=y1 and the chain accumulates in v1. All 247 instructions, all 4 volatile
+       scratchpad loads in retail's order (812, 808, 808, 812) and all six rect
+       stores in retail's order (330, 340, 334, 338, 33C, 344).
+   WHAT GOT THIS FROM 63.53 (the old park never compiled - it used D_8009D654 as a
+   second symbol and WorldMapMisc16Tex.unk2): everything scratchpad goes through ONE
+   u8* pScratch = (u8*)0x1F800000, so gcc keeps the base in s2 and uses 16-bit
+   displacements - with absolute literals it instead CSEs a separate lui+ori address
+   per site, puts 0x1F800328/0x1F80032C in saved registers and the body grows 37
+   instructions (64.71). The four rect targets must be plain stores: written volatile,
+   a chained A = B = expr reads B back and costs 2 loads (250 insns).
+   The scratchpad loads stay volatile - that is what makes retail reload 0x320 right
+   after storing it and read 0x328/0x32C twice per cell.
+   MEASURED DEAD this round: reading x1 before the index expression and x0 after the
+   image-pointer lookup (80 differing lines); the chained-store form without x1/y1
+   locals (reverses the 0x330/0x340 store order, same 95.04); a 4-minute permuter run
+   whose best candidate (626 vs 906) INSERTS a 0x32C = -0x320 store inside the cell
+   loop, which is wrong code - rejected, do not port. */
+/*
 void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
     u8* pScratch;
     s32 i;
@@ -661,7 +687,9 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
         }
         *(volatile u16*)(pScratch + 0x32C) -= 0x800;
     }
-}
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
 /* 94.82%, 260 bytes = retail 65 insns, correct code, ONE temp rotation left.
    The instruction stream (other than registers) is retail: s0=pSrc s1=prod t9=pTbl a0=x
