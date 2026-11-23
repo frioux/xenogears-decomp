@@ -196,7 +196,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 // Measured this round, all worse than 90.25 / 560, do not repeat:
 //  - presets (try_flags): gcc-2.6.0 86.18, gcc-2.7.2-cdk compile-failed.
 //  - `if (g_FieldSuppressStateChange != 0) nSize = ArchiveDecodeAlignedSize(0x6B9);
-//    else nSize = (g_FieldStreamDataSize & 0xFFFFFF) + 0xFFE23FF8;` 87.59 / 568.
+//    else nSize = (g_FieldStreamDataSize & 0xFFFFFF) + 0xFFE23FF8;` 87.59 / 568 (its
+//    own branch polarity and `j` already come out right, the two extra instructions are
+//    the const arm landing in $v0 instead of HeapAlloc's $a0). The older note's "same
+//    size, reorders the block" is not what this spelling measures.
 //  - `[0]`-spelled guard, everything else unchanged: 86.18 / 564.
 // Retail's per-loop preheader (`lui v1,%hi(count); addiu v1,v1,%lo(count);
 // lw v0,0(v1)` then `addiu s4,v1,-136`) is the same fold_rtx wall as RESIDUAL 1:
