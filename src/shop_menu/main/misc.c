@@ -3091,11 +3091,11 @@ void func_801CDD14(s32 scrollOffset, s32 newGoldAmount, u8* pItemAffordable) {
             for (j = 4, k = 0; j > 0; k++, j--) {
                 quotient = price / places[j];
                 if (quotient || didRounding) {
-                    ((u8*)pRect)[8 + k * 2] = quotient + 0x10;
+                    ((u8*)&rect)[8 + k * 2] = quotient + 0x10;
                     didRounding = TRUE;
                     price -= (quotient * places[j]);
                 } else {
-                    ((u8*)pRect)[8 + k * 2] = 0xC3;
+                    ((u8*)&rect)[8 + k * 2] = 0xC3;
                 }
             }
             new_var = 0xD;
@@ -3985,31 +3985,10 @@ s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
     return sellPrice;
 }
 
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D05BC);
-// Best attempt: 99.97%, 1628 bytes (retail 1628), 407 insns (retail 407) - retail's exact size and
-// instruction count. TWO residual lines remain, both equal-address addressing ties, i.e. the same
-// VALUE in a different ENCODING, so the linked bytes differ and this cannot be shipped as a match:
-//   1. SystemDecodeGlyphCodesN source: retail `addiu a0,sp,0x28` (the digitBuffer at sp+0x28), ours
-//      `addiu a0,s8,8` (&rect+8 == sp+0x28) - same address, $sp vs $s8.
-//   2. Last digit store: retail `sb v0,0x10(s8)` (&rect+0x10), ours `sb v0,0x30(sp)` - same
-//      address again; the two ties are exact mirror images of each other.
-// `extern void ShopMenuSetVertices();` above the body is what takes it from 93.72 to 99.97: retail
-// passes the y argument in $a2 with NO mask, which no declared parameter type produces (u_short
-// gives andi 0xFFFF, s32/s16 give andi or sll/sra). The callee's own u_short params are PROVEN:
-// giving ShopMenuSetVertices `s32 y` drops the callee ITSELF to 90.45% (84 vs 88 bytes), so retail's
-// TU saw an old-style declaration at this call site (its source order was not address order). No
-// call to ShopMenuSetVertices appears after this function in the file, so nothing else inherits it.
-// Levers IN this body, keep them: `new_var = SHOP_MAX_ITEMS_IN_VIEW;` before `places[4] = 10000`
-// AND its use as the DecodeGlyphCodesN offset - that is what pins &rect in $s8 and the frame at
-// retail's 192; address the RECT directly as `rect` (a pRect local keeps a second pseudo, 1652 B).
-// Measured and rejected this round: decode source `&rect + 8` as a literal 95.94%, 1616 bytes, the
-// frame collapses to 176 without new_var there; decode source `(u16*)digitBuffer` 95.94%, 1616
-// bytes, the same collapse, so retail's sp-based decode cannot be spelled from digitBuffer while
-// keeping &rect live; permuter 4 min / 1264 iterations base=5 best=5 found nothing (two earlier
-// 5-minute runs, from the honest and the extern body, found only new_var).
-/*
-extern void ShopMenuSetVertices();   // retail's call site for it saw no prototype
-
+// Old-style declaration on purpose: retail's call site for ShopMenuSetVertices saw no prototype, so
+// its u_short y argument is passed unmasked. The header's prototype makes cc1 emit `andi a2,a2,0xFFFF`
+// and takes this function from 1628 to 1632 bytes.
+extern void ShopMenuSetVertices();
 
 void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT rect;
@@ -4026,18 +4005,16 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
     s32 qty;
     void* pWorkspace;
     int i;
-    int new_var;
 
     places[0] = 1;
     places[1] = 10;
     places[2] = 100;
     places[3] = 1000;
-    new_var = SHOP_MAX_ITEMS_IN_VIEW;
     places[4] = 10000;
 
     pWorkspace = HeapAlloc(0x3F6, 0);
 
-    for (i = 0; i < new_var; i++) {
+    for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
         bzero(digitBuffer, 0xE);
         g_Menu->pShop->inventoryPrimCounts[i] = 0;
         if (pItemIds[scrollOffset + i]) {
@@ -4071,8 +4048,8 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                     ((u8*)&rect)[8 + k * 2] = 0xC3;
                 }
             }
-            ((u8*)&rect)[16] = (qty % 10) + 0x10;
-            SystemDecodeGlyphCodesN((u16*)((u8*)&rect + new_var), stringBuffer, 5);
+            ((u8*)&rect)[8 + k * 2] = (qty % 10) + 0x10;
+            SystemDecodeGlyphCodesN((u16*)digitBuffer, stringBuffer, 5);
             g_Menu->pShop->strItemQuantities[i].width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x24, 1);
             setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage(&rect, pWorkspace);
@@ -4114,8 +4091,6 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     HeapFree(pWorkspace);
 }
-*/
-
 
 void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pItemSellQtys, int listLength,
     u_char* pInventoryItemIds, u_char* pInventoryQtys, u_char* pItemTypes, u_char isBulkSale, u_char characterIndex) {
