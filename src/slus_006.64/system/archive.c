@@ -343,151 +343,163 @@ int ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 channel) {
 
 
 /*
- * PARKED 93.07% (960 bytes, 240 instructions) against retail's 944 / 236.
+ * PARKED 94.47% (948 bytes, 237 instructions) against retail's 944 / 236.
  *
- * THE 93.58% / 940-byte BODY THIS REPLACES WAS UNDEFINED BEHAVIOUR, DO NOT RE-PARK IT.
- * It ended `if (nClose != (nClose = 0)) return -6;`, which reads a variable the same
- * expression assigns (no sequence point), and gcc 2.7.2 performs the store first: the
- * compare folds to `0 != 0`, and retail's `bnez $v1` + `li $v0,-6` pair disappears
- * entirely, so that body returns 0 where retail returns -6 on retry exhaustion. The
- * higher percentage came from the missing branch, not from a closer match. The honest
- * body below is `if (nClose != 0) return -6;`.
+ * RESIDUAL, named: which three of the six u16 stack args get callee-saved
+ * registers. Retail keeps arg4/arg5/arg6 in $s6/$s7/$s8 and spills arg7/arg8/arg9
+ * to 0x10/0x18/0x20; cc1 keeps arg4/arg5/arg8 and spills arg6/arg7/arg9, and
+ * everything else in the body follows from that: retail's nSections=$s3,
+ * index=$s2, channel=$s4, the constant 1 in $s5 and the position of the
+ * D_80059F34 store all cascade from it. Dropping the `s32 nIndex` copy flips the
+ * choice back to retail's arg4/arg5/arg6 but also keeps a FOURTH arg in a
+ * register, so the frame drops to 0x48 and the body to 234 insns / 936 bytes
+ * (94.02: two short, one saved-register pair plus the copy). Neither is 944/236,
+ * so the arg assignment is not reachable by adding or removing that copy.
  *
- * RESIDUAL, named and measured: the counter's HImode narrowing. Retail narrows the
- * incremented `s16 nClose` ONCE into $v1 and reuses that one register for both
- * `slti $v0,$v1,4` and the trailing `bnez $v1`; cc1 keeps the int value in $v1 and
- * narrows twice, which costs exactly the 4-instruction deficit: `move $v1,$s0` in the
- * bnez delay slot, `move $v1,$v0` after the addiu, `sll $v0,$v1,0x10` before the
- * trailing bnez, and the `sra $v0,$v0,0x10` it needs in place of retail's `sra $v1`.
- * `s16 nClose` with `nClose = nClose + 1;` and with `++nClose` in the if both measure
- * 93.07 / 960 identically, so the two-statement vs pre-increment spelling is not it
- * (tools/rounds/levers.md g-s16-counter-pre-decrement).
+ * CLOSED IN ROUND 420 - the previous note's main residual, the tail's HImode
+ * narrowing, was worth exactly 3 instructions and is now retail's byte for byte.
+ * The loop is a do/while whose counter is pre-incremented in the condition:
+ *     do {
+ *         nClose = PCclose(g_ArchiveStreamFileHandle);
+ *         if (nClose == 0) break;
+ *         GfxDrawArchiveReadRetry(nClose, 0, 0, 0xFF);
+ *     } while (++nClose < RETRY_COUNT);
+ *     if (nClose != 0) return -6;
+ * That narrows ONCE, into $v1, and reuses that register for both the
+ * `slti $v0,$v1,4` and the trailing `bnez $v1`; the parked spelling
+ * `while ((nClose = PCclose(h))) { GfxDrawArchiveReadRetry(nClose,0,0,0xFF);
+ * nClose = nClose + 1; if (nClose >= RETRY_COUNT) break; }` keeps the value in
+ * $s0, narrows twice and needs the two `move $v1` copies plus a `sll` (960 bytes,
+ * 240 insns, 93.07%). See tools/rounds/levers.md g-s16-counter-pre-decrement.
  *
- * Two other allocation deltas in the same body, both allocator order only:
- *  - which three u16 stack args keep registers: retail keeps arg4/arg5/arg6 in
- *    $s6/$s7/$fp and spills arg7/arg8/arg9 to 0x10/0x18/0x20; cc1 keeps
- *    arg4/arg5/arg8 and spills arg6/arg7/arg9.
- *  - the constant 1: retail burns a callee-saved register on it (`ori $s5,$zero,0x1`,
- *    used by g_ArchivePendingReadCount and g_ArchiveCdDriveState); cc1 CSEs it into
- *    $s0, which it also wants for the PCclose result.
- * With both of those right, the three spill slots would be arg7/arg8/arg9 and the
- * missing `move` would fit inside the frame.
+ * MEASURED VARIANTS on this body: declaration order of the locals (nSections
+ * moved last) - identical 94.47%; a `s32 nOne` local holding the constant 1,
+ * assigned after ArchiveDecodeAlignedSize and used for both
+ * g_ArchivePendingReadCount and g_ArchiveCdDriveState - 94.22, so the constant's
+ * live range is not the mover; without the `s32 nIndex` copy - 94.02 / 936 / 234.
+ * Permuter on this body: base 1005 -> best 785 in 1795 iterations, and its find
+ * is `nIndex = 0x1;` before the do-block with `g_ArchiveCdDriveState = nIndex;`
+ * - semantics-preserving (nIndex is dead after the AlignedSize call) but not a
+ * body anyone typed, and it only reorganises the same allocnos, so the residual
+ * is the allocno order, not a missing local.
  *
- * MEASURED VARIANTS: without the `s32 nIndex` second copy of the parameter the frame
- * drops to 0x48 and the body is 237 instructions / 948 bytes / 92.62% (closest in
- * size, wrong frame); with it, 240 / 960 / 93.07% (kept). The store group still needs
- * the `do { ... } while (0)` wrapper to emit D_80059F34 after g_ArchiveStreamSections.
- * Permuter on the earlier body: 3 runs, 2587 -> 1370 -> 1249 -> 1214, still falling.
- * The six u16 stack args are the image chunk descriptors
- * ArchiveImageStreamProcessSector consumes (D_80059F24..D_80059F38).
+ * Retail's store order, for whoever picks this up: g_ArchiveStreamWritePointer,
+ * D_80059F30=arg7, g_ArchiveStreamSections, D_80059F34=arg8,
+ * g_ArchivePendingReadCount=1, g_ArchiveCdChannel, g_ArchiveStreamQueueIndex,
+ * g_ArchiveStreamSectionCount, g_ArchiveStreamNextSectionId,
+ * g_ArchiveStreamCurSectionId, g_ArchiveStreamQueue, g_ArchiveStreamStopFlag,
+ * g_ArchiveReadRetryCount, D_80059F24=arg4, F28=arg5, F2C=arg6,
+ * g_ArchiveImageBlocksLeft, the rect x/y/w, g_ArchiveImageChunkHeights,
+ * g_ArchiveImageChunksLeft, D_80059F38=arg9, ArchiveClearStreamFileSections.
  *
+ * BEST BODY (94.47%, 948 bytes, 237 insns):
  * int func_80029EB0(int index, u32* pStreamFile, int channel, int unused, u16 arg4, u16 arg5, u16 arg6, u16 arg7, u16 arg8, u16 arg9) {
- *      s16 i;
- *      s16 nClose;
- *      char* pFilePath;
- *      u32 nSections;
- *      s32 nIndex;
- *      CdlLOC* pLoc;
+ *     s16 i;
+ *     s16 nClose;
+ *     char* pFilePath;
+ *     u32 nSections;
+ *     s32 nIndex;
+ *     CdlLOC* pLoc;
  *
- *      if (pStreamFile == NULL) {
- *          return -4;
- *      }
+ *     if (pStreamFile == NULL) {
+ *         return -4;
+ *     }
  *
- *      nSections = pStreamFile[0];
+ *     nSections = pStreamFile[0];
  *
- *      if (nSections < 2) {
- *          return -4;
- *      }
+ *     if (nSections < 2) {
+ *         return -4;
+ *     }
  *
- *      if (index <= 0) {
- *          return -3;
- *      }
+ *     if (index <= 0) {
+ *         return -3;
+ *     }
  *
- *      if (ArchiveDecodeSize(index) <= 0) {
- *          return -3;
- *      }
+ *     if (ArchiveDecodeSize(index) <= 0) {
+ *         return -3;
+ *     }
  *
- *      ArchiveCdDataSync(0);
- *      g_ArchiveHeaderOffsetBase = g_CurArchiveOffset;
- *      nIndex = index;
- *      for (i = 0; i < 3; i++) {
- *          ((s32*)&g_ArchiveSectorLocation)[i] = 0;
- *      }
+ *     ArchiveCdDataSync(0);
+ *     g_ArchiveHeaderOffsetBase = g_CurArchiveOffset;
+ *     nIndex = index;
+ *     for (i = 0; i < 3; i++) {
+ *         ((s32*)&g_ArchiveSectorLocation)[i] = 0;
+ *     }
  *
- *      ArchiveChangeStreamingFile(pStreamFile);
- *      g_ArchiveCurEntryIndex = index;
- *      g_ArchiveCurFileSector = ArchiveDecodeSector(nIndex);
- *      g_ArchiveCurFileSize = ArchiveDecodeAlignedSize(index);
+ *     ArchiveChangeStreamingFile(pStreamFile);
+ *     g_ArchiveCurEntryIndex = index;
+ *     g_ArchiveCurFileSector = ArchiveDecodeSector(nIndex);
+ *     g_ArchiveCurFileSize = ArchiveDecodeAlignedSize(index);
  *
- *      g_ArchiveStreamWritePointer = (s8*)((u8*)pStreamFile + (nSections * sizeof(ArchiveStreamFileSectionHeader)) + STREAM_FILE_HEADER_SIZE);
- *      D_80059F30 = arg7;
- *      do {
- *      g_ArchiveStreamSections = (ArchiveStreamFileSectionHeader*)(pStreamFile + 1);
- *      D_80059F34 = arg8;
- *      g_ArchivePendingReadCount = 1;
- *      g_ArchiveCdChannel = channel & 0xFFFF;
- *      g_ArchiveStreamQueueIndex = 0;
- *      g_ArchiveStreamSectionCount = nSections;
- *      g_ArchiveStreamNextSectionId = 0;
- *      g_ArchiveStreamCurSectionId = 0;
- *      g_ArchiveStreamQueue = NULL;
- *      g_ArchiveStreamStopFlag = 0;
- *      g_ArchiveReadRetryCount = 0;
- *      D_80059F24 = arg4;
- *      D_80059F28 = arg5;
- *      D_80059F2C = arg6;
- *      g_ArchiveImageBlocksLeft = 0;
- *      g_ArchiveImageRectX = 0;
- *      g_ArchiveImageRectY = 0;
- *      g_ArchiveImageRectW = 0;
- *      g_ArchiveImageChunkHeights = NULL;
- *      g_ArchiveImageChunksLeft = 0;
- *      D_80059F38 = arg9;
- *      ArchiveClearStreamFileSections();
- *      } while (0);
+ *     g_ArchiveStreamWritePointer = (s8*)((u8*)pStreamFile + (nSections * sizeof(ArchiveStreamFileSectionHeader)) + STREAM_FILE_HEADER_SIZE);
+ *     D_80059F30 = arg7;
+ *     do {
+ *     g_ArchiveStreamSections = (ArchiveStreamFileSectionHeader*)(pStreamFile + 1);
+ *     D_80059F34 = arg8;
+ *     g_ArchivePendingReadCount = 1;
+ *     g_ArchiveCdChannel = channel & 0xFFFF;
+ *     g_ArchiveStreamQueueIndex = 0;
+ *     g_ArchiveStreamSectionCount = nSections;
+ *     g_ArchiveStreamNextSectionId = 0;
+ *     g_ArchiveStreamCurSectionId = 0;
+ *     g_ArchiveStreamQueue = NULL;
+ *     g_ArchiveStreamStopFlag = 0;
+ *     g_ArchiveReadRetryCount = 0;
+ *     D_80059F24 = arg4;
+ *     D_80059F28 = arg5;
+ *     D_80059F2C = arg6;
+ *     g_ArchiveImageBlocksLeft = 0;
+ *     g_ArchiveImageRectX = 0;
+ *     g_ArchiveImageRectY = 0;
+ *     g_ArchiveImageRectW = 0;
+ *     g_ArchiveImageChunkHeights = NULL;
+ *     g_ArchiveImageChunksLeft = 0;
+ *     D_80059F38 = arg9;
+ *     ArchiveClearStreamFileSections();
+ *     } while (0);
  *
- *      pLoc = &g_ArchiveCdCurLocation;
- *      CdIntToPos(g_ArchiveCurFileSector, pLoc);
+ *     pLoc = &g_ArchiveCdCurLocation;
+ *     CdIntToPos(g_ArchiveCurFileSector, pLoc);
  *
- *      if (g_ArchiveDebugTable) {
- *          pFilePath = ArchiveGetFilePath(index);
+ *     if (g_ArchiveDebugTable) {
+ *         pFilePath = ArchiveGetFilePath(index);
  *
- *          for (i = 0; i < RETRY_COUNT; i++) {
- *              g_ArchiveStreamFileHandle = PCopen(pFilePath, 0, 0);
- *              if (g_ArchiveStreamFileHandle == -1)
- *                  GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
- *              else
- *                  break;
- *          }
+ *         for (i = 0; i < RETRY_COUNT; i++) {
+ *             g_ArchiveStreamFileHandle = PCopen(pFilePath, 0, 0);
+ *             if (g_ArchiveStreamFileHandle == -1)
+ *                 GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
+ *             else
+ *                 break;
+ *         }
  *
- *          do {
- *              ArchiveStreamLoadSection(0, 0);
- *              ArchiveImageStreamProcessSector(0, 0);
- *          } while (g_ArchivePendingReadCount > 0);
+ *         do {
+ *             ArchiveStreamLoadSection(0, 0);
+ *             ArchiveImageStreamProcessSector(0, 0);
+ *         } while (g_ArchivePendingReadCount > 0);
  *
- *          while (nClose = PCclose(g_ArchiveStreamFileHandle)) {
- *              GfxDrawArchiveReadRetry(nClose, 0, 0, 0xFF);
- *              nClose = nClose + 1;
- *              if (nClose >= RETRY_COUNT)
- *                  break;
- *          }
+ *         do {
+ *             nClose = PCclose(g_ArchiveStreamFileHandle);
+ *             if (nClose == 0)
+ *                 break;
+ *             GfxDrawArchiveReadRetry(nClose, 0, 0, 0xFF);
+ *         } while (++nClose < RETRY_COUNT);
  *
- *          if (nClose != 0) {
- *              return -6;
- *          }
+ *         if (nClose != 0) {
+ *             return -6;
+ *         }
  *
- *          g_ArchivePendingReadCount = 0;
- *          g_ArchiveCurFileSize = 0;
- *          return 0;
- *      }
+ *         g_ArchivePendingReadCount = 0;
+ *         g_ArchiveCurFileSize = 0;
+ *         return 0;
+ *     }
  *
- *      g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
- *      CdDataCallback(&ArchiveImageStreamSectorCallback);
- *      CdSyncCallback(&ArchiveCdDriveCommandHandler);
- *      CdReadyCallback(&func_8002B5D0);
- *      g_ArchiveCdReadStartCount += 1;
- *      CdControlF(CdlSetloc, (void*)pLoc);
- *      return 0;
+ *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
+ *     CdDataCallback(&ArchiveImageStreamSectorCallback);
+ *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
+ *     CdReadyCallback(&func_8002B5D0);
+ *     g_ArchiveCdReadStartCount += 1;
+ *     CdControlF(CdlSetloc, (void*)pLoc);
+ *     return 0;
  * }
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
