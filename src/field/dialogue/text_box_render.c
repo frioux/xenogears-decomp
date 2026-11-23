@@ -361,8 +361,6 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitializePrimitives);
-/*
 extern u8 g_SystemBackdropColor;
 extern u8 D_800594D5;
 extern u8 D_800594D6;
@@ -370,116 +368,119 @@ extern RECT D_800ADE9C[];
 extern RECT D_800ADEDC;
 extern RECT D_800ADF04;
 
+// PARKED 63.05%: 1784 bytes against retail 1952, 446 instructions against 488.
+// The body is a faithful longhand transcription of the original: every
+// g_FieldTextBoxes[index] access written out, retail statement order kept
+// (background draw modes, SetTile, the tiles[1] = tiles[0] copy, the arrow and
+// cursor sprite blocks with their wh/u/v/clut store order, the 8-iteration
+// borders loop, the portrait poly). Two residuals, both allocation:
+//  1. retail anchors every g_FieldTextBoxes address at sym plus 0xAC and adds
+//     index times 0x498 in a register (lui at,%hi(sym+0xAC); addu at,at,s0);
+//     this body anchors at plus 0xC4 (the first field it touches) and keeps the
+//     whole &g_FieldTextBoxes[index] pointer in a callee-saved register, so all
+//     ~40 address computations differ in form.
+//  2. retail keeps index in s6 and spills five walking offsets to stack words
+//     at 0x20/0x28/0x30/0x38/0x40 (0x140+i*0x14, i*0x14, 0xC8+i*0xC,
+//     0x50+i*0xC, D_800ADE9C+i*8); this body spills index itself and keeps
+//     those addresses in registers, i.e. it emits fewer address computations.
+// Measured: pointer locals per sub-struct (the first draft) 56.13%; longhand
+// body 63.05% (best, this one); longhand with pRect/pHeight walking pointers in
+// the borders loop 61.89%. The 0xAC anchor is the thread to pull: it is
+// g_FieldTextBoxes[index] plus 0xAC, the box RECT at _pad[0x4A], an address
+// this body never forms.
+/*
 void FieldTextBoxInitializePrimitives(int index) {
     int i;
     RECT rect;
-    POLY_FT4* pPoly;
-    POLY_FT4* pPoly2;
-    TILE* pBackgroundTile;
-    TILE* pBackgroundTile2;
-    SPRT* pBorderSprite1;
-    SPRT* pBorderSprite2;
-    SPRT* pArrowSprite;
-    SPRT* pArrowSprite2;
-    SPRT* pCursorSprite2;
-    u16* pWidth;
-    u16* pHeight;
-
-    FieldTextBoxBackground* pBackground;
-    FieldTextBoxCursor* pCursor;
-    FieldTextBoxContinueArrow* pArrow;
-    FieldTextBoxBorders* pBorders;
-    FieldTextBoxPortrait* pPortrait;
 
     // Background
-    pBackground = &g_FieldTextBoxes[index].background;
-    SetDrawMode(&pBackground->drawModes[0], NULL, 0, GetTPage(0, 2, 0x280, 0x1F0), NULL);
-    SetDrawMode(&pBackground->drawModes[1], NULL, 0, GetTPage(0, 2, 0x280, 0x1F0), NULL);
-    pBackgroundTile = &pBackground->tiles[0];
-    SetTile(pBackgroundTile);
-    setRGB0(pBackgroundTile, g_SystemBackdropColor, D_800594D5, D_800594D6);
-    SetSemiTrans(pBackgroundTile, 1);
-    pBackgroundTile2 =  &pBackground->tiles[1];
-    *pBackgroundTile2 = *pBackgroundTile;
+    SetDrawMode(&g_FieldTextBoxes[index].background.drawModes[0], NULL, 0,
+                GetTPage(0, 2, 0x280, 0x1F0), NULL);
+    SetDrawMode(&g_FieldTextBoxes[index].background.drawModes[1], NULL, 0,
+                GetTPage(0, 2, 0x280, 0x1F0), NULL);
+    SetTile(&g_FieldTextBoxes[index].background.tiles[0]);
+    setRGB0(&g_FieldTextBoxes[index].background.tiles[0], g_SystemBackdropColor, D_800594D5,
+            D_800594D6);
+    SetSemiTrans(&g_FieldTextBoxes[index].background.tiles[0], 1);
+    g_FieldTextBoxes[index].background.tiles[1] = g_FieldTextBoxes[index].background.tiles[0];
 
-    // Arrow
-    pArrow = &g_FieldTextBoxes[index].continueArrow;
+    // Continue arrow
     rect.x = D_800ADF04.x;
     rect.y = D_800ADF04.y;
     rect.w = D_800ADF04.w;
     rect.h = D_800ADF04.h;
-    SetDrawMode(&pArrow->drawModes[0], NULL, 0, GetTPage(0, 0, 0x298, 0x1C0), &rect);
-    SetDrawMode(&pArrow->drawModes[1], NULL, 0, GetTPage(0, 0, 0x298, 0x1C0), &rect);
-    SetSprt(&pArrow->sprites[0]);
-    pArrowSprite = &pArrow->sprites[0];
-    setRGB0(pArrowSprite, 0x80, 0x80, 0x80);
-    setWH0(pArrowSprite, 0xC, 0x8);
-    pArrowSprite->clut = GetClut(0x100, 0xF6);
-    pArrowSprite2 = &pArrow->sprites[1];
-    setUV0(pArrowSprite, 0x80, 0xC0);
-    setXY0(pArrowSprite, 0x0, 0x0);
-    *pArrowSprite2 = *pArrowSprite;
+    SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[0], NULL, 0,
+                GetTPage(0, 0, 0x298, 0x1C0), &rect);
+    SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[1], NULL, 0,
+                GetTPage(0, 0, 0x298, 0x1C0), &rect);
+    SetSprt(&g_FieldTextBoxes[index].continueArrow.sprites[0]);
+    setRGB0(&g_FieldTextBoxes[index].continueArrow.sprites[0], 0x80, 0x80, 0x80);
+    g_FieldTextBoxes[index].continueArrow.sprites[0].w = 0xC;
+    g_FieldTextBoxes[index].continueArrow.sprites[0].clut = GetClut(0x100, 0xF6);
+    setUV0(&g_FieldTextBoxes[index].continueArrow.sprites[0], 0x80, 0xC0);
+    g_FieldTextBoxes[index].continueArrow.sprites[0].h = 0x8;
+    setXY0(&g_FieldTextBoxes[index].continueArrow.sprites[0], 0x0, 0x0);
+    g_FieldTextBoxes[index].continueArrow.sprites[1] =
+        g_FieldTextBoxes[index].continueArrow.sprites[0];
 
     // Cursor
-    pCursor = &g_FieldTextBoxes[index].cursor;
     rect.x = D_800ADEDC.x;
     rect.y = D_800ADEDC.y;
     rect.w = D_800ADEDC.w;
     rect.h = D_800ADEDC.h;
-    SetDrawMode(&pCursor->drawModes[0], NULL, 0, GetTPage(0, 0, 0x288, 0x1C0), &rect);
-    SetDrawMode(&pCursor->drawModes[1], NULL, 0, GetTPage(0, 0, 0x288, 0x1C0), &rect);
-    SetSprt(&pCursor->sprites[0]);
-    setRGB0(&pCursor->sprites[0], 0x80, 0x80, 0x80);
-    pCursor->sprites[0].clut = GetClut(0x100, 0xF6);
-    pCursorSprite2 = &pCursor->sprites[1];
-    setWH0(&pCursor->sprites[0], 0x8, 0xC);
-    setUV0(&pCursor->sprites[0], 0x80, 0xC0);
-    setXY0(&pCursor->sprites[0], 0x0, 0x0);
-    *pCursorSprite2 = pCursor->sprites[0];
+    SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[0], NULL, 0,
+                GetTPage(0, 0, 0x288, 0x1C0), &rect);
+    SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[1], NULL, 0,
+                GetTPage(0, 0, 0x288, 0x1C0), &rect);
+    SetSprt(&g_FieldTextBoxes[index].cursor.sprites[0]);
+    setRGB0(&g_FieldTextBoxes[index].cursor.sprites[0], 0x80, 0x80, 0x80);
+    g_FieldTextBoxes[index].cursor.sprites[0].h = 0xC;
+    g_FieldTextBoxes[index].cursor.sprites[0].clut = GetClut(0x100, 0xF6);
+    setUV0(&g_FieldTextBoxes[index].cursor.sprites[0], 0x80, 0xC0);
+    g_FieldTextBoxes[index].cursor.sprites[0].w = 0x8;
+    setXY0(&g_FieldTextBoxes[index].cursor.sprites[0], 0x0, 0x0);
+    g_FieldTextBoxes[index].cursor.sprites[1] = g_FieldTextBoxes[index].cursor.sprites[0];
     g_FieldTextBoxes[index].continueArrowTimer = 2;
 
     // Borders
-    pBorders = &g_FieldTextBoxes[index].borders;
     for (i = 0; i < 8; i++) {
-        pWidth = &D_800ADE9C[i].w;
-        pHeight = &D_800ADE9C[i].h;
-        
         rect.x = D_800ADE9C[i].x;
         rect.y = D_800ADE9C[i].y;
-        rect.w = *pWidth;
-        rect.h = *pHeight;
-        
-        SetDrawMode(&pBorders->drawModes1[i], NULL, 0, GetTPage(0, 2, 0x280, 0x1F0), &rect);
-        SetDrawMode(&pBorders->drawModes2[i], NULL, 0, GetTPage(0, 2, 0x280, 0x1F0), &rect);
-        pBorderSprite1 = &pBorders->sprites1[i];
-        SetSprt(pBorderSprite1);
-        setRGB0(pBorderSprite1, 0x80, 0x80, 0x80);
-        pBorderSprite1->clut = GetClut(0x100, 0xF4);
-        SetSemiTrans(pBorderSprite1, 1);
-        setUV0(pBorderSprite1, 0x80, 0xC0);
-        setWH0(pBorderSprite1, *pWidth, *pHeight);
-        setXY0(pBorderSprite1, 0x0, 0x0);
-        pBorderSprite2 =  &pBorders->sprites2[i];
-        *pBorderSprite2 = *pBorderSprite1;
+        rect.w = D_800ADE9C[i].w;
+        rect.h = D_800ADE9C[i].h;
+        SetDrawMode(&g_FieldTextBoxes[index].borders.drawModes1[i], NULL, 0,
+                    GetTPage(0, 2, 0x280, 0x1F0), &rect);
+        SetDrawMode(&g_FieldTextBoxes[index].borders.drawModes2[i], NULL, 0,
+                    GetTPage(0, 2, 0x280, 0x1F0), &rect);
+        SetSprt(&g_FieldTextBoxes[index].borders.sprites1[i]);
+        setRGB0(&g_FieldTextBoxes[index].borders.sprites1[i], 0x80, 0x80, 0x80);
+        g_FieldTextBoxes[index].borders.sprites1[i].clut = GetClut(0x100, 0xF4);
+        SetSemiTrans(&g_FieldTextBoxes[index].borders.sprites1[i], 1);
+        setUV0(&g_FieldTextBoxes[index].borders.sprites1[i], 0x80, 0xC0);
+        g_FieldTextBoxes[index].borders.sprites1[i].w = D_800ADE9C[i].w;
+        setXY0(&g_FieldTextBoxes[index].borders.sprites1[i], 0x0, 0x0);
+        g_FieldTextBoxes[index].borders.sprites1[i].h = D_800ADE9C[i].h;
+        g_FieldTextBoxes[index].borders.sprites2[i] =
+            g_FieldTextBoxes[index].borders.sprites1[i];
     }
 
     // Portrait
-    pPortrait = &g_FieldTextBoxes[index].portrait;
     rect.y = 0;
     rect.x = 0;
     rect.h = 0xFF;
     rect.w = 0xFF;
-    SetDrawMode(&pPortrait->drawModes[0], NULL, 0, GetTPage(1, 0, 0x2C0, 0x100), &rect);
-    SetDrawMode(&pPortrait->drawModes[1], NULL, 0, GetTPage(1, 0, 0x2C0, 0x100), &rect);
-    pPoly = &pPortrait->polys[0];
-    SetPolyFT4(pPoly);
-    setRGB0(pPoly, 0x80, 0x80, 0x80);
-    pPoly->clut = GetClut(0, 0xE0);
-    pPoly2 = &pPortrait->polys[1];
-    pPoly->tpage = GetTPage(1, 0, 0x2C0, 0x100);
-    *pPoly2 = *pPoly;
-}
-*/
+    SetDrawMode(&g_FieldTextBoxes[index].portrait.drawModes[0], NULL, 0,
+                GetTPage(1, 0, 0x2C0, 0x100), &rect);
+    SetDrawMode(&g_FieldTextBoxes[index].portrait.drawModes[1], NULL, 0,
+                GetTPage(1, 0, 0x2C0, 0x100), &rect);
+    SetPolyFT4(&g_FieldTextBoxes[index].portrait.polys[0]);
+    setRGB0(&g_FieldTextBoxes[index].portrait.polys[0], 0x80, 0x80, 0x80);
+    g_FieldTextBoxes[index].portrait.polys[0].clut = GetClut(0, 0xE0);
+    g_FieldTextBoxes[index].portrait.polys[0].tpage = GetTPage(1, 0, 0x2C0, 0x100);
+    g_FieldTextBoxes[index].portrait.polys[1] = g_FieldTextBoxes[index].portrait.polys[0];
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitializePrimitives);
+
 
 // Each portrait is a 0x40 x 0x40 tile of the portrait texture; g_FieldTextBoxPortraitUVs holds
 // the top left U and V of each of the four portraits.
