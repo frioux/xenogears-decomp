@@ -13,6 +13,13 @@
 // (func_8007819C sets h = 0xD) and the row's y offset is (slot / 2) * 13.
 #define BATTLE_TEXT_ROW_HEIGHT 13
 
+// Bytes of one slot's text buffer: the size BattleAllocTextBuffer is asked for and
+// the capacity SystemRenderStringEntry renders the slot's string into.
+#define BATTLE_TEXT_SLOT_BUFFER_SIZE 0x39
+
+// VRAM x of the text texture page the slot textures are loaded into and drawn from.
+#define BATTLE_TEXT_TEX_PAGE_X 0x3C0
+
 // tpage's semi-transparency rate field, the `abr` arg of GetTPage (bits 5-6): the
 // add and subtract modes the BlendAdd and BlendSub setters below turn on in it.
 #define BATTLE_PRIM_TPAGE_BLEND_ADD 0x20
@@ -686,7 +693,7 @@ void func_800780A8(BattleSlotPrimBlock *pInfo, s32 arg) {
             clut = g_SystemPalette1;
         }
         p->clut = clut;
-        p->tpage = GetTPage(0, 0, 0x3C0, (slot / 2) * BATTLE_TEXT_ROW_HEIGHT);
+        p->tpage = GetTPage(0, 0, BATTLE_TEXT_TEX_PAGE_X, (slot / 2) * BATTLE_TEXT_ROW_HEIGHT);
         i++;
     } while ((s32)&pInfo->prims[i] <
              (s32)&pInfo->prims[2]);
@@ -722,13 +729,13 @@ void func_8007819C(void) {
     BattleInitSlotGraphics(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
     ((u8 *)g_BattleDisplayState)[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
-        pBuf = BattleAllocTextBuffer(0x39);
+        pBuf = BattleAllocTextBuffer(BATTLE_TEXT_SLOT_BUFFER_SIZE);
         offPrev = i * sizeof(BattleScreenSlot);
         off = (i + 1) * sizeof(BattleScreenSlot);
         *(u8 **)(D_800D36C0 + off) = pBuf;
         *(u8 **)(g_BattleTextSlotBuffers + off) = pBuf;
         pRect = (RECT *)((u8 *)g_BattleTextSlotRects + offPrev);
-        pRect->x = 0x3C0;
+        pRect->x = BATTLE_TEXT_TEX_PAGE_X;
         pRect->y = (i / 2) * BATTLE_TEXT_ROW_HEIGHT;
         pRect->w = 0x3C;
         pRect->h = BATTLE_TEXT_ROW_HEIGHT;
@@ -874,7 +881,8 @@ void BattleQueueCommandFA(u8 index, u8 color) {
     if (g_BattleTextSlotCount < BATTLE_TEXT_SLOT_MAX) {
         g_BattleTextSlotRects[g_BattleTextSlotCount].textWidth =
             SystemRenderStringEntry(GetStringEntry(g_BattleTextStringBank, g_BattleTextActorStringIds[index * 8]),
-                                    g_BattleTextSlotRects[g_BattleTextSlotCount].pBuf, 0x39,
+                                    g_BattleTextSlotRects[g_BattleTextSlotCount].pBuf,
+                                    BATTLE_TEXT_SLOT_BUFFER_SIZE,
                                     g_BattleTextSlotCount & 1);
         BattleLoadImageAndSync(&g_BattleTextSlotRects[g_BattleTextSlotCount].rect,
                                g_BattleTextSlotRects[g_BattleTextSlotCount].pBuf);
