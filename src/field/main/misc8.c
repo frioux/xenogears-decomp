@@ -39,7 +39,7 @@ void FieldFreeActorData(int actorIndex) {
 typedef struct {
     /* 0x0 */ undefined8 unk0[0xC];
     /* 0xC */ u8 material;
-    /* 0xD */ undefined8 padD;
+    /* 0xD */ s8 stepHeight;
 } FieldWalkmeshTriangle; // Size: 0xE
 
 extern FieldWalkmeshTriangle* g_FieldWalkmeshTriangles[];
@@ -946,7 +946,7 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
                 a = angle & 0xFFF;
                 pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
                 pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
-                pSprite->moveSpeed = 0x4000000 / pActor->pActorData->moveSpeed;
+                pSprite->step.y = 0x4000000 / pActor->pActorData->moveSpeed;
             }
         } else if (!(pActor->pActorData->flags & 0x20000)) {
             scale = (0x80000 / pActor->pActorData->moveSpeed >> 8) << 5;
@@ -1446,11 +1446,11 @@ stopped:
     if (pActor->scriptFlags.flags & 0x800) {
         if (g_Unknown_800B2344 == 0) {
             if (((s16*)&pSprite->position)[3] == pSprite->field_0x84) {
-                pSprite->moveSpeed = 0;
+                pSprite->step.y = 0;
             } else if (animationId == 2) {
-                pSprite->moveSpeed = pSprite->field_0x82 * 0x60;
+                pSprite->step.y = pSprite->field_0x82 * 0x60;
             } else {
-                pSprite->moveSpeed = pSprite->field_0x82 * 0x30;
+                pSprite->step.y = pSprite->field_0x82 * 0x30;
             }
         }
         animationId = g_FieldCurrentModelAnimationId[0];
@@ -1888,7 +1888,303 @@ int func_8008492C(ActorData* pActor) {
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 
+extern s32 D_800ADB98;
+extern u8 D_800B21CF;
+extern u16 g_FieldButtonPollMask;
+extern void func_800379C8(char* pFormat, ...);
+extern s32 func_8008492C(ActorData* pActor);
+extern s32 func_8007D3D4(ActorData* pActor, s32 nSetIndex, s32* pY, VECTOR* pNormal, s16* pTriIndex,
+                         s32* pYMax);
+extern void func_80081C54(int actorIndex);
+extern const char D_8006FC60[]; // "ERROR ID1 ACT=%d\n"
+extern const char D_8006FC74[]; // "ERROR ID0 ACT=%d\n"
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
+
+/* Best attempt: 84.61%, 2596 bytes against retail's 2700 (649 insns against 676, so
+   ~27 instructions are still missing). Body below is the fourth measured version;
+   every block and every call is present and in retail's order.
+   THE FACTS THIS FUNCTION ESTABLISHED (they are the expensive part):
+   - signature is s32 (returns 0 on the walk, -1 when it bails), not the void the
+     unit's extern says. Callers pass (actorIndex, y, pFieldActor, pActor, arg4);
+     arg4 is the 5th argument, read at 0x110(sp) inside a 0x100 frame.
+   - SpriteData+0x10 is step.y (NOT moveSpeed) and +0x1C is gravity; the code
+     accumulates step.y += gravity and stores it into ActorData::fallSpeed.
+   - the frame is 0x100 with locals at 0x18 heights[4] (s32), 0x28 ranges[4],
+     0x38 tris[4], 0x48 indices[4] (s16), 0x50 normals[4] (VECTOR), 0x90/0x94/0x98
+     saved position x/y/z, 0xA0 savedTriIds[4] (s16); 0xA8..0xBF is dead, i.e. the
+     original source held more locals than the code reads - the same 24-byte dead
+     tail as func_8007D3D4 and func_8007BEF4 in main/misc4.
+   - func_8007D3D4's real prototype is in main/misc4.c's parked body:
+     s32 func_8007D3D4(ActorData*, s32 nSetIndex, s32* pY, VECTOR* pNormal,
+                       s16* pTriIndex, s32* pYMax).
+   - the sort is a 2x2 bubble over the three parallel arrays (heights, ranges,
+     tris) - indices are NOT swapped - and nStep is read out of heights[walkmeshId]
+     BEFORE the sort.
+   - `flags &= ~0x401000` is the 0xFFBFEFFF mask (NOT ~0x40001000, which is 0xBFFF).
+     gcc emits srl where retail has sra once `material` is u_int, and retail's
+     `sll/sra` pair on the saved walkmesh id means the local is a u16 compared
+     against the s16 field: `pActor->walkmeshId != (s16)savedWalkmeshId`.
+   WHAT IS STILL WRONG: (1) the array bases land in the wrong slots whichever order
+   I declare them in (gcc 2.7.2 gives normals 0x20 / indices 0x60 / heights 0x88
+   here; three declaration orders were measured - 78.63 / 82.97 / 84.61 - and the
+   offsets never came out ascending as retail's do), (2) actorIndex/y/pActor/pSprite
+   are s5/s6/s1/s4 here against retail's s6/s7/s1/s5, and that tie drives every
+   later operand. Fixing (1) by hand is the next thing to try; then the ~27 missing
+   instructions (compare the retail tail at 0x85248/0x85398 with the body's). */
+/*
+// Places the actor on the walkmesh under its next step: probes every triangle set
+// (func_8007D3D4), keeps the three lowest plane heights in sorted order, moves the
+// actor onto the set it belongs to and either commits the new position or puts the
+// saved one back. y is the height the caller wants, arg4 the number of matched sets.
+s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, s32 arg4) {
+    SpriteData* pSprite;
+    s16 savedTriIds[4];
+    s32 savedZ;
+    s32 savedY;
+    s32 savedX;
+    VECTOR normals[4];
+    s16 setIndices[4];
+    s32 setTris[4];
+    s32 setRanges[4];
+    s32 setHeights[4];
+    u16 savedWalkmeshId;
+    s32 nStep;
+    u_int material;
+    s32 tmp;
+    s32 i;
+    s32 j;
+    s32 k;
+
+    pSprite = g_FieldActors[actorIndex].pSpriteData;
+    if (actorIndex == g_PlayerActorIndex) {
+        g_FieldButtonPollMask = 0xFFFF;
+    }
+    if (pActor->scriptFlags.flags & 0x1000000) {
+        return -1;
+    }
+    if (pActor->flags & 0x200000) {
+        return -1;
+    }
+    if (!(pActor->scriptFlags.flags & 0x10000)) {
+        if (!(actorIndex == g_PlayerActorIndex && D_800B21CF == 1) && pSprite->step.y == 0 &&
+            func_8008492C(pActor) == 0 && pSprite->field_0x84 == ((s16*)&pActor->position)[3]) {
+            return -1;
+        }
+    }
+    savedX = pActor->position.vx;
+    savedY = pActor->position.vy;
+    savedZ = pActor->position.vz;
+    savedWalkmeshId = pActor->walkmeshId;
+    for (i = 0; i < 4; i++) {
+        savedTriIds[i] = pActor->walkmeshTriIds[i];
+    }
+    for (i = 0; i < 4; i++) {
+        setTris[i] = i;
+        setHeights[i] = 0x7FFFFFFF;
+        setRanges[i] = 0x7FFFFFFF;
+    }
+    for (i = 0; i < g_FieldWalkmeshTriCount - 1; i++) {
+        if (func_8007D3D4(pActor, i, &setHeights[i], &normals[i], &setIndices[i], &setRanges[i]) != 0) {
+            break;
+        }
+    }
+    if (pActor->flags & 1) {
+        setHeights[0] = 0x7FFFFFFF;
+        setRanges[0] = 0x7FFFFFFF;
+    }
+    if (pActor->flags & 2) {
+        setHeights[1] = 0x7FFFFFFF;
+        setRanges[1] = 0x7FFFFFFF;
+    }
+    if (pActor->flags & 4) {
+        setHeights[2] = 0x7FFFFFFF;
+        setRanges[2] = 0x7FFFFFFF;
+    }
+    nStep = setHeights[pActor->walkmeshId];
+    for (j = 0; j < 2; j++) {
+        for (k = 0; k < 2; k++) {
+            if (setHeights[k + 1] < setHeights[k]) {
+                tmp = setHeights[k];
+                setHeights[k] = setHeights[k + 1];
+                setHeights[k + 1] = tmp;
+                tmp = setRanges[k];
+                setRanges[k] = setRanges[k + 1];
+                setRanges[k + 1] = tmp;
+                tmp = setTris[k];
+                setTris[k] = setTris[k + 1];
+                setTris[k + 1] = tmp;
+            }
+        }
+    }
+    if (i == g_FieldWalkmeshTriCount - 1) {
+        if (i > 0) {
+            for (k = 0; k < g_FieldWalkmeshTriCount - 1; k++) {
+                pActor->walkmeshTriIds[k] = setIndices[k];
+            }
+        }
+        if ((((s16*)&pActor->position)[3] < nStep) || (pActor->scriptFlags.flags & 0x1800)) {
+            for (k = 0; k < g_FieldWalkmeshTriCount - 1; k++) {
+                if (!(setHeights[k] < ((s16*)&pActor->position)[3])) {
+                    pActor->walkmeshId = setTris[k];
+                    break;
+                }
+            }
+        } else {
+            for (k = 0; k < g_FieldWalkmeshTriCount - 1; k++) {
+                if (pActor->walkmeshId == setTris[k]) {
+                    break;
+                }
+            }
+        }
+        if ((FieldActorGetWalkmeshTriMaterial(pActor) & 4) && k != 0 &&
+            pActor->walkmeshId <= g_FieldWalkmeshTriCount - 1) {
+            pActor->walkmeshId = setTris[k - 1];
+        }
+        material = FieldActorGetWalkmeshTriMaterial(pActor);
+        if (((pActor->scriptFlags.flags >> 8) & 7) & (material >> 5)) {
+            if (g_FieldSystemMode == 0) {
+                func_800379C8(D_8006FC60, actorIndex);
+            }
+            goto finishWalk;
+        }
+        if (material & 0x800000) {
+            if (g_FieldSystemMode == 0) {
+                func_800379C8(D_8006FC74, actorIndex);
+            }
+            goto finishWalk;
+        }
+        pActor->position.vx += pActor->moveModified.vx;
+        pActor->position.vz += pActor->moveModified.vz;
+        for (k = 0; k < g_FieldWalkmeshTriCount - 1; k++) {
+            if (pActor->walkmeshId == setTris[k]) {
+                pSprite->field_0x84 = setHeights[k];
+                break;
+            }
+        }
+        VectorNormal(&normals[pActor->walkmeshId], &pActor->curTriNormal);
+    } else {
+        pActor->fallSpeed = 0;
+    }
+    if (D_800ADB98 != 0) {
+        if ((u32)arg4 < 2) {
+            pSprite->field_0x84 = y;
+        }
+    } else if (arg4 != 0) {
+        if (pSprite->field_0x84 < y + 0xA) {
+            pActor->canInteract = 0xFF;
+        }
+        pSprite->field_0x84 = y;
+        pActor->position.vy = y << 16;
+    }
+    if (pActor->scriptFlags.flags & 0x40000) {
+        pActor->position.vy = pActor->scriptYPos << 16;
+        pSprite->step.y = 0;
+    }
+    pActor->position.vy += pSprite->step.y;
+    material = FieldActorGetWalkmeshTriMaterial(pActor);
+    if (pActor->walkmeshId != (s16)savedWalkmeshId) {
+        pActor->scriptFlags.flags &= ~0x4000000;
+    }
+    if (!(pActor->scriptFlags.flags & 0x4000000) &&
+        pSprite->field_0x84 > ((s16*)&pActor->position)[3]) {
+        if (pSprite->field_0x84 != ((s16*)&pActor->position)[3]) {
+            pSprite->step.y += pSprite->gravity;
+        }
+        pActor->scriptFlags.flags |= 0x1000;
+        pActor->fallSpeed = pSprite->step.y;
+    } else {
+        if (!(material & 0x420000)) {
+            pActor->fallSpeed = 0;
+        }
+        if (pSprite->step.y > 0) {
+            pSprite->step.y = 0;
+        }
+        pActor->scriptFlags.flags &= ~0x401000;
+        pActor->position.vy = pSprite->field_0x84 << 16;
+    }
+    pActor->scriptFlags.flags &= ~0x4000000;
+    for (k = 0; k < g_FieldWalkmeshTriCount - 1; k++) {
+        if ((setHeights[k] < ((s16*)&pActor->position)[3]) &&
+            ((((s16*)&pActor->position)[3] - pActor->height) < setRanges[k])) {
+            if (setHeights[k] != setRanges[k]) {
+                break;
+            }
+        }
+    }
+    nStep = 0;
+    if (k == g_FieldWalkmeshTriCount - 1) {
+        nStep = g_FieldWalkmeshTriangles[pActor->walkmeshId]
+                    [pActor->walkmeshTriIds[pActor->walkmeshId]]
+                        .stepHeight *
+                4;
+        if ((nStep < 0) &&
+            !((((s16*)&pActor->position)[3] - pActor->height) < (pSprite->field_0x84 + nStep))) {
+            goto restorePosition;
+        }
+        pSprite->position.x = pActor->position.vx;
+        pSprite->position.y = pActor->position.vy;
+        pSprite->position.z = pActor->position.vz;
+        g_FieldActors[actorIndex].transformMatrix.t[0] = ((s16*)&pActor->position)[1];
+        g_FieldActors[actorIndex].transformMatrix.t[1] = ((s16*)&pActor->position)[3];
+        g_FieldActors[actorIndex].transformMatrix.t[2] = ((s16*)&pActor->position)[5];
+        pActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(pActor);
+        func_80081C54(actorIndex);
+        return 0;
+    }
+restorePosition:
+    pActor->position.vx = savedX;
+    pActor->position.vz = savedZ;
+    pActor->walkmeshId = savedWalkmeshId;
+    pActor->fallSpeed = 0;
+    for (k = 0; k < 4; k++) {
+        pActor->walkmeshTriIds[k] = savedTriIds[k];
+    }
+    if (pSprite->field_0x84 != ((s16*)&pActor->position)[3]) {
+        pSprite->step.y += pSprite->gravity;
+    }
+    if (pSprite->step.y < 0) {
+        pSprite->step.y = 0;
+        pActor->position.vy = savedY;
+    }
+    pSprite->position.x = pActor->position.vx;
+    pSprite->position.y = pActor->position.vy;
+    pSprite->position.z = pActor->position.vz;
+    g_FieldActors[actorIndex].transformMatrix.t[1] = ((s16*)&pActor->position)[3];
+    func_80081C54(actorIndex);
+    return 0;
+
+finishWalk:
+    if (actorIndex == g_PlayerActorIndex) {
+        g_FieldButtonPollMask = 0xFFF;
+    }
+    pActor->position.vy += pSprite->moveSpeed;
+    pActor->position.vx = savedX;
+    pActor->position.vz = savedZ;
+    pActor->walkmeshId = savedWalkmeshId;
+    pActor->fallSpeed = 0;
+    for (k = 0; k < 4; k++) {
+        pActor->walkmeshTriIds[k] = savedTriIds[k];
+    }
+    if (((s16*)&pActor->position)[3] < pSprite->field_0x84) {
+        if (pSprite->field_0x84 != ((s16*)&pActor->position)[3]) {
+            pSprite->moveSpeed += pSprite->gravity;
+        }
+    } else {
+        if (pSprite->moveSpeed > 0) {
+            pSprite->moveSpeed = 0;
+        }
+        pActor->scriptFlags.flags &= ~0x40001000;
+        pActor->position.vy = pSprite->field_0x84 << 16;
+    }
+    pSprite->position.x = pActor->position.vx;
+    pSprite->position.y = pActor->position.vy;
+    pSprite->position.z = pActor->position.vz;
+    g_FieldActors[actorIndex].transformMatrix.t[1] = ((s16*)&pActor->position)[3];
+    func_80081C54(actorIndex);
+    return 0;
+}
+*/
 
 extern s32 g_FieldArchiveStreamStatus;
 extern s32 g_FieldArchiveStreamActive;
