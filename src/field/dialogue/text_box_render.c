@@ -136,7 +136,230 @@ void FieldTextBoxSetPortraitQuad(POLY_FT4* pPoly, int x, int y, int width, int h
     pPoly->y3 = y + height;
 }
 
+// The whole body is in place and every call, branch, reloc and store of this
+// draw pass is present; what is left is allocation. Retail re-forms
+// `index * 0x498` at every access (the body indexes g_FieldTextBoxes[index]
+// nine times) and spills x/y/w/h to four stack slots at 0x28/0x30/0x38/0x40
+// that it reloads around every section, while the compile keeps them in
+// callee-saved registers and works from one s6 = index * 0x498. Two other
+// measured differences: the frame's eight sprite stores are grouped per sprite
+// here but interleaved in retail (x0/y0 of four sprites, then the repeated
+// y+h-9 / x+w-8 / h-0x12 values), and retail reads the box rect's w and h with
+// an lhu + sll/sra pair where this body's `_pad[0x4C]` read is a plain lh, so
+// the original typed those two fields unsigned.
+// The frame sprites and their draw modes are two render contexts laid out one
+// after the other in FieldTextBoxBorders, so a piece is sprites1[ctx * 10 + n].
+
+// 68.38%, 3228 bytes against retail's 3148 (807 instructions against 787):
+// the whole draw pass is in place -- the open animation with its two divisions
+// and two floors, the continue arrow with its timer, the eight frame sprites,
+// the portrait quad, the cursor and the background tile, seven calls and eleven
+// addPrim pairs in retail's order (no jal differs). What is left is allocation.
+// Retail keeps x/y/w/h in four stack words at 0x28/0x30/0x38/0x40 and reloads
+// them around every section, and re-forms `index * 0x498` at each of the nine
+// box accesses, so its frame is 0xA8 against this body's 0x78. Measured and
+// rejected: s16 locals for x/y/w/h (61.04%, 3264 bytes -- the s16 slots are
+// re-narrowed with lhu + sll/sra at every use), which also settles that the
+// original typed them s32.
+// Two more facts about the original: it reads the box rect in the order
+// x, w, y, h and narrows w and h with an lhu + sll/sra pair, so those two
+// fields are u_short in the source struct while x and y are short; and it
+// clamps h - 0x12 right before the two edge sprites take it, not where this
+// body computes pieceHeight.
+// The frame sprites and draw modes are two render contexts laid out one after
+// the other in FieldTextBoxBorders, so piece n of a context is
+// sprites1[ctx * 10 + n] / drawModes1[ctx * 10 + n].
+// D_800ADEDC (cursor frame rects), D_800ADF04 (continue arrow frame rects) and
+// D_800ADE94 (the shared frame counter) live inside g_FieldTableQuadTexParams;
+// none of the three has a symbol_addrs entry yet, so un-parking this body needs
+// `D_800ADEDC = 0x800ADEDC;` and `D_800ADF04 = 0x800ADF04;` added there.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
+/*
+
+extern s16 g_FieldTextScaleDivisor;
+extern s32 D_800ADE94;
+extern RECT D_800ADEDC[5];
+extern RECT D_800ADF04[5];
+extern int SystemStringGetColumnOffset(void* pString);
+extern int SystemStringGetRowOffset(void* pString);
+
+void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
+    s32 x;
+    s32 y;
+    s32 w;
+    s32 h;
+    s32 scale;
+    s32 shrink;
+    s32 pieceHeight;
+    s32 pieceWidth;
+    s32 portraitX;
+    s32 portraitWidth;
+    s32 portraitHeight;
+    s32 cursorX;
+    s32 colOffset;
+    s32 rowOffset;
+    RECT rect;
+    int i;
+
+    if (g_FieldTextBoxes[index].visibility != 0) {
+        return;
+    }
+
+    x = g_FieldTextBoxes[index]._pad[0x4A];
+    y = g_FieldTextBoxes[index]._pad[0x4B];
+    w = g_FieldTextBoxes[index]._pad[0x4C];
+    h = g_FieldTextBoxes[index]._pad[0x4D];
+
+    // While the window opens it grows out of the middle of its rect and the two
+    // position offsets slide it the rest of the way.
+    if (g_FieldTextBoxes[index].windowOpenTimer != 0) {
+        scale = g_FieldTextScaleDivisor;
+        shrink = (((s16)w << 16) / (scale * 2)) * (scale - g_FieldTextBoxes[index].windowOpenTimer);
+        x = x + w / 2 - (shrink >> 16);
+        w = (shrink * 2) >> 16;
+        shrink = (((s16)h << 16) / (scale * 2)) * (scale - g_FieldTextBoxes[index].windowOpenTimer);
+        y = y + h / 2 - (shrink >> 16);
+        h = (shrink * 2) >> 16;
+        if (w < 16) {
+            x -= (16 - w) / 2;
+            w = 16;
+        }
+        if (h < 16) {
+            y -= (16 - h) / 2;
+            h = 16;
+        }
+        g_FieldTextBoxes[index].positionOffsetX += g_FieldTextBoxes[index].positionOffsetDeltaX;
+        g_FieldTextBoxes[index].positionOffsetY += g_FieldTextBoxes[index].positionOffsetDeltaY;
+        x += g_FieldTextBoxes[index].positionOffsetX >> 16;
+        y += g_FieldTextBoxes[index].positionOffsetY >> 16;
+    }
+
+    // The continue arrow is drawn only in a fully open top window that is not
+    // waiting on the cursor; the timer is the frame delay before it appears.
+    if (g_FieldTextBoxes[index].continueArrow.visibility == 0 &&
+        g_FieldTextBoxes[index].order == 0 &&
+        g_FieldTextBoxes[index].windowOpenTimer == 0 &&
+        !(g_FieldTextBoxes[index].flags & 0x40) &&
+        g_FieldTextBoxes[index].cursor.visibility != 0) {
+        if (g_FieldTextBoxes[index].continueArrowTimer != 0) {
+            g_FieldTextBoxes[index].continueArrowTimer--;
+        } else {
+            colOffset = SystemStringGetColumnOffset(&g_FieldTextBoxes[index]._pad[0]);
+            rowOffset = SystemStringGetRowOffset(&g_FieldTextBoxes[index]._pad[0]);
+            rect.x = D_800ADF04[D_800ADE94].x;
+            rect.y = D_800ADF04[D_800ADE94].y;
+            rect.w = D_800ADF04[D_800ADE94].w;
+            rect.h = D_800ADF04[D_800ADE94].h;
+            SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[ctx], NULL, 0,
+                        GetTPage(0, 0, 0x298, 0x1C0), &rect);
+            g_FieldTextBoxes[index].continueArrow.sprites[ctx].x0 = colOffset;
+            g_FieldTextBoxes[index].continueArrow.sprites[ctx].y0 = rowOffset + 4;
+            addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].continueArrow.sprites[ctx]);
+            addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].continueArrow.drawModes[ctx]);
+        }
+    } else {
+        g_FieldTextBoxes[index].continueArrowTimer = 2;
+    }
+
+    // The window frame is eight sprites: four corners and the four edges
+    // stretched between them.
+    pieceHeight = h - 0x12;
+    if (pieceHeight < 0) {
+        pieceHeight = 0;
+    }
+    pieceWidth = w - 0x10;
+
+    // top left
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 0].x0 = x - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 0].y0 = y - 7;
+    // right
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].x0 = x + w - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].y0 = y + 9;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].h = pieceHeight;
+    // top right
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 2].x0 = x + w - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 2].y0 = y - 7;
+    // left
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].x0 = x - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].y0 = y + 9;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].h = pieceHeight;
+    // bottom left
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 4].x0 = x - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 4].y0 = y + h - 9;
+    // top
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].x0 = x + 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].y0 = y - 7;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].w = pieceWidth;
+    // bottom right
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 6].x0 = x + w - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 6].y0 = y + h - 9;
+    // bottom
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 7].x0 = x + 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 7].y0 = y + h - 9;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 7].w = pieceWidth;
+
+    if (!(g_FieldTextBoxes[index].flags & 0x40)) {
+        for (i = 0; i < 8; i++) {
+            addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + i]);
+            addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].borders.drawModes1[ctx * 10 + i]);
+        }
+    }
+
+    portraitWidth = 0x40;
+    if (w - 4 < 0x40) {
+        portraitWidth = w - 8;
+    }
+    portraitHeight = 0x40;
+    if (h - 4 < 0x40) {
+        portraitHeight = h - 8;
+    }
+    portraitX = x + 4;
+    if (g_FieldTextBoxes[index].flags & 0x20) {
+        portraitX = x + w - portraitWidth - 4;
+    }
+    FieldTextBoxSetPortraitQuad(&g_FieldTextBoxes[index].portrait.polys[ctx], portraitX, y + 4,
+                               portraitWidth, portraitHeight,
+                               g_FieldTextBoxes[index].flags & 0x20);
+    if (g_FieldTextBoxes[index].portrait.shouldRenderPortrait == 1) {
+        addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].portrait.polys[ctx]);
+        addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].portrait.drawModes[ctx]);
+    }
+
+    // The cursor sits inset from the window's left edge, or further in when a
+    // portrait takes that side, and follows the current line down the box.
+    if (g_FieldTextBoxes[index].cursor.visibility == 0 &&
+        g_FieldTextBoxes[index].order == 0 &&
+        g_FieldTextBoxes[index].windowOpenTimer == 0) {
+        if (g_FieldTextBoxes[index].portrait.shouldRenderPortrait == 1 &&
+            !(g_FieldTextBoxes[index].flags & 0x20)) {
+            cursorX = x + 0x5A;
+        } else {
+            cursorX = x + 0x16;
+        }
+        g_FieldTextBoxes[index].cursor.sprites[ctx].x0 = cursorX;
+        g_FieldTextBoxes[index].cursor.sprites[ctx].y0 =
+            (g_FieldTextBoxes[index].cursor.curPosition +
+             g_FieldTextBoxes[index].cursor.startPosition) * 14 + y + 8;
+        rect.x = D_800ADEDC[D_800ADE94].x;
+        rect.y = D_800ADEDC[D_800ADE94].y;
+        rect.w = D_800ADEDC[D_800ADE94].w;
+        rect.h = D_800ADEDC[D_800ADE94].h;
+        SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[ctx], NULL, 0,
+                    GetTPage(0, 0, 0x288, 0x1C0), &rect);
+        addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].cursor.sprites[ctx]);
+        addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].cursor.drawModes[ctx]);
+    }
+
+    g_FieldTextBoxes[index].background.tiles[ctx].x0 = x;
+    g_FieldTextBoxes[index].background.tiles[ctx].y0 = y + 1;
+    g_FieldTextBoxes[index].background.tiles[ctx].w = w;
+    g_FieldTextBoxes[index].background.tiles[ctx].h = h - 2;
+    if (!(g_FieldTextBoxes[index].flags & 0x40)) {
+        addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.tiles[ctx]);
+        addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.drawModes[ctx]);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitializePrimitives);
 /*
