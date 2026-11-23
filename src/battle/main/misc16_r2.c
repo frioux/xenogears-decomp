@@ -392,6 +392,19 @@ next:
    arm is no change at all. The round-406 dead ends (ofs local for the prim product, POLY_FT4
    pointer + subscript, a do-while tie mover, statement and declaration order, volatile) stand.
 */
+PARKED 98.70% (400 bytes / 100 insns = retail's exact size), unit gcc-2.6.0 -O2 -G8.
+   Residual is ONE mirrored pair: retail loads prim into v0 and its prim*5 into v1 and then reuses v0
+   for the pool base; this build mirrors them (prim v1, product v0, base v1), so 30 diff lines are
+   register names only. ROUND 432 -dl on the live body: the two qtys are 'Register 89 used 2 times
+   across 3 insns in block 1' and 'Register 90 used 2 times across 3 insns in block 1' (and 99/100 in
+   block 2), i.e. IDENTICAL priority (floor_log2(2)*2/3 both), so local-alloc's hand-out is a genuine
+   tie broken by qty-scan order - neither qty can be given a distinguishing ref/live count without
+   changing retail's instruction stream, which is why the 1618-iteration permuter run (round 419,
+   base=130 best=130) found nothing. Also dead this round: a u16 pal local assigned before the store in
+   each arm (85.09%, 94 insns - the arms stop being cross-jump-mergeable), and a per-arm
+   'ofs = g_BattlePrimStartIndex[0] * 0x28' local (91.35%, 104 insns). Earlier dead ends stand: an ofs
+   local over the whole expression (65.93), POLY_FT4 pointer + subscript, s32 prim = ...[0] initialisers,
+   statement/declaration order, volatile; 2.7.2-cdk compile-fails this body.
 /*
 void func_80090310(u8 arg0, u8 arg1) {
     s32 index;
@@ -414,6 +427,7 @@ void func_80090310(u8 arg0, u8 arg1) {
     BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) + (g_BattlePrimStartIndex[0] + 10), 0x84, 0x33, (index % 2 << 6 | vofs) & 0xD0, v & 0xFF, 0x10);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
+
 
 void BattleDrawCommandCellIcons(u8 arg0, u8 arg1) {
     u8 *pRec;
