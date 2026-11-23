@@ -42,7 +42,8 @@ typedef struct {
     /* 0x2D4 */ u8 unk2D4[6];
     /* 0x2DA */ u8 count; // queued commands
     /* 0x2DB */ u8 commandFinished; // 0 while a queued command runs
-    /* 0x2DC */ u8 unk2DC[0xF];
+    /* 0x2DC */ u8 unk2DC[0xE];
+    /* 0x2EA */ u8 unk2EA; // while set, func_80071B94 counts the battle clock up when it starts the slot's actor
     /* 0x2EB */ u8 charRedrawFlags[3]; // per party slot: copied into BattleWork.slotMarks
 } BattleCommandQueueState; // Size: 0x2F8
 
@@ -83,7 +84,7 @@ extern u16 g_BattleSlotFlag8000Mask;
 extern u8 *D_800D39F0;
 extern s32 D_800D39C0[];
 extern u8 D_800D39C6;
-extern u8 *GetStringEntry(u8 *);
+extern u8 *GetStringEntry(u8 *, s32);
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleActorCountdownState[];
 extern u8 g_BattlePendingCharIndex;
@@ -106,11 +107,44 @@ extern u8 g_BattleCommandSlotIds[];
 extern u8 g_BattleCommandArgs;
 extern u8 g_BattleCommandTiles;
 extern void BattleResetActorStatDisplay(u8);
-extern void func_80071B94(s32);
+extern void func_80071B94(u8);
 extern u16 BattleSelectActionRow(s32, s32);
 extern void BattleSetSlotFlagB4(s32);
 extern void BattleClearSlotFlagB4(s32);
-extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
+extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
+extern void BattleLoadImageAndSync(RECT *, u_long *);
+extern void BattleClearSlotCurveState(void);
+extern void BattleDecrementSlotConditionTimers(u8);
+extern void BattleScriptResetActorState(u16);
+extern void BattleApplySlotMaskToEffects(u16);
+extern void BattleRunActiveSlotScripts(void);
+extern void BattleResetActorCountdown(void);
+extern void func_80079778(void);
+extern void func_80071964(void);
+extern void func_80072270(void);
+extern void func_80080160(u8);
+extern void func_80080C94(u8);
+extern void func_800BFE48(void);
+extern u8 BattleBuildTargetCandidateListByRow(u8);
+extern s32 BattleActorPosXGreaterThan(u8, u8);
+extern u16 BattleFindMinValueOtherSlot(u8);
+extern void BattleLoadActorSlotAnimation(u16);
+extern void BattleBeginActorStatAnimation(u8);
+extern u8 g_BattleTextSlotCount;
+extern u8 g_BattleSpriteColorTaskSlot;
+extern u8 g_BattleTextSlotFlags; // row 0's text width, +0xE of g_BattleTextSlotRects
+// The screen slot table at g_BattleTextSlotRects as misc3.c sees it: the
+// buffer at +0x8 (its rect is the 0x18 bytes ahead of the pointer) and the
+// width that came out of the render at +0xE.
+extern u8 g_BattleTextSlotBuffers[];
+extern u8 *g_BattleTextStringBank;
+extern BattleTableEntry D_800CCD1C[];
+extern u8 D_800C3E3D[];
+extern u8 D_800C3D1A[];
+extern u8 D_800C3EBA[];
+extern u8 D_800D2CA4[];
+extern u16 D_8005941C;
+extern u8 D_800D36C0;
 extern s32 g_BattlePrimStartIndex;
 extern u8 g_BattleStatDigitSpriteIds[];
 extern u8 g_BattleSlotDigitSpriteIds[];
@@ -638,6 +672,156 @@ void BattleWaitWhileStateIs8(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
+/* 77.41% under 2.6.0 (1564 bytes / 391 insns against retail's 1756 / 439). The
+   control flow, all 35 calls, both branch arms and the tail loop are retail's
+   shape; the 48-insn gap is ONE residual: the action row's quad block. Retail
+   RELOADS g_BattlePrimStartIndex for each of the 8 vertex stores (a fresh `lw`
+   before every `sh`), so the base `gfxWork + index * 0x18` is re-formed 8 times,
+   while our non-volatile global is cse'd into one register (our stores read
+   `sh 4(a2)` where retail has `sh 0x63D4(v0)`). MEASURED: `extern volatile s32
+   g_BattlePrimStartIndex;` gives 79.70% (417 insns) but it BREAKS
+   BattleRenderActorValueDigits, which reads the same global once and drops
+   100.00 -> 99.45, so the declaration must stay non-volatile. UNTRIED CURE: the
+   cast-away `*(volatile s32 *)&g_BattlePrimStartIndex` at just the 8 index sites
+   here, which should leave the neighbour's single load alone.
+   Also outstanding: the `if (unk04 & 0x2000)` arm now branches to
+   func_80080C94 with func_80080160 falling through, as retail does; the
+   D_800CCD68 reads are spelled g_BattleSlotEntries[i].unk04 (relocation addend,
+   the MATCH-with-99.x% class); and `for (i = 4; i >= 0; i--) D_800D2CA4[i] = 0;`
+   is the last small diff - retail keeps &D_800D2CAF in s0 for its `sb zero` and
+   then uses `addiu v1,s0,-7` as the biv, we re-form `lui $at; addu at,at,i`.
+   Tried and worse: inline POLY_F4 casts with no pQuad local, the quad via
+   `((u8*)gfxWork)[0x63D0 + idx*24]` byte offsets, pQuad as a POLY_F4 array. */
+/*
+// The eight vertex words of the action row's quad at +0x63D0 of the battle draw
+// work block, per prim start index (the block's prim rows are 0x18 bytes apart).
+typedef struct {
+    u16 x0; // 0x00
+    u16 y0; // 0x02
+    u16 x1; // 0x04
+    u16 y1; // 0x06
+    u16 x2; // 0x08
+    u16 y2; // 0x0A
+    u16 x3; // 0x0C
+    u16 y3; // 0x0E
+} BattleScrollRowQuad; // Size: 0x10
+
+// Starts the command the queue was built for: the acting slot is taken off the
+// queue and the turn's state reset, then either the slot's action script is
+// resumed (slots 3 and up) or its action row is built and its name string
+// rendered (slots 0-2).
+void func_80071B94(u8 arg0) {
+    BattleScrollRowQuad *pQuad;
+    s32 i;
+
+    g_BattleTextSlotCount = 1;
+    D_800D2CAF = 0;
+    if (g_BattleCommandQueue->actorIndex == 0) {
+        return;
+    }
+    BattleClearSlotCurveState();
+    BattleClearCharRedrawFlags();
+    D_800D3298 = 0;
+    g_BattleCommandQueue->actorIndex--;
+    g_BattleSpriteColorTaskSlot = g_BattleCommandQueue->actorIndex;
+    g_BattleCommandQueue->count = 0;
+    g_BattleCommandQueue->commandFinished = 0;
+    for (i = 4; i >= 0; i--) {
+        D_800D2CA4[i] = 0;
+    }
+    g_BattleActionSlotMask = 0;
+    BattleDecrementSlotConditionTimers(g_BattleCommandQueue->actorIndex);
+    if (g_BattleCommandQueue->actorIndex >= 3) {
+        if (arg0 == 0) {
+            BattleScriptResetActorState(g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].unk04 & 0x2000);
+            if ((D_800C3EB7[g_BattleCommandQueue->actorIndex][0] & 0x80) == 0 &&
+                (D_800CCD1C[g_BattleCommandQueue->actorIndex].flags & 0x400) == 0) {
+                g_BattleDisplayState->textSlotStringDrawn = 1;
+                g_BattleTextSlotFlags = SystemRenderStringEntry(
+                    GetStringEntry(g_BattleTextStringBank, D_800C3E3D[g_BattleCommandQueue->actorIndex]),
+                    *(u8 **)g_BattleTextSlotBuffers, 0x39, 0);
+                BattleLoadImageAndSync((RECT *)(g_BattleTextSlotBuffers - 8), *(u_long **)g_BattleTextSlotBuffers);
+                g_BattleTextSlotVisible[0] = 1;
+            }
+        }
+        if ((g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].flags & 0x2080) == 0 &&
+            (g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].unk04 & 0x1000) == 0) {
+            func_80079778();
+            BattleClearAllSlotFlagB4();
+            func_80071964();
+            BattleWaitWhileStateIs8();
+        }
+        BattleClearAllSlotFlagB4();
+        BattleSetOverlayArg(0);
+    } else {
+        for (i = 0x1C; i >= 0; i -= 4) {
+            D_800C3D1A[i] = 0;
+        }
+        pQuad = (BattleScrollRowQuad *)(((u8 *)g_BattleGraphicsWork) + 0x63D0);
+        pQuad[g_BattlePrimStartIndex].x0 =
+            g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
+            g_BattleCommandQueue->actorIndex * 0x60 + 0x10;
+        pQuad[g_BattlePrimStartIndex].y0 = 8;
+        pQuad[g_BattlePrimStartIndex].x1 =
+            g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
+            g_BattleCommandQueue->actorIndex * 0x60 + 0x28;
+        pQuad[g_BattlePrimStartIndex].y1 = 8;
+        pQuad[g_BattlePrimStartIndex].x2 =
+            g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
+            g_BattleCommandQueue->actorIndex * 0x60 + 0x10;
+        pQuad[g_BattlePrimStartIndex].y2 = 0x20;
+        pQuad[g_BattlePrimStartIndex].x3 =
+            g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
+            g_BattleCommandQueue->actorIndex * 0x60 + 0x28;
+        pQuad[g_BattlePrimStartIndex].y3 = 0x20;
+        g_BattleGraphicsWork[0x6414] = g_BattlePrimStartIndex;
+        g_BattleGraphicsWork[0x6415] = 1;
+        if ((g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].flags & 0x2080) == 0 &&
+            (g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].unk04 & 0x1000) == 0) {
+            if ((g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].unk04 & 0x2000) == 0) {
+                func_80080160(g_BattleCommandQueue->actorIndex);
+            } else {
+                func_80080C94(g_BattleCommandQueue->actorIndex);
+            }
+            if (g_BattleCommandQueue->unk2EA != 0) {
+                D_8005941C++;
+            }
+            D_800D36C0 = g_BattleCommandQueue->actorIndex;
+            g_BattleDisplayState->primRowCount = 0;
+            BattleApplySlotMaskToEffects(0);
+        }
+        func_80071964();
+        BattleWaitWhileStateIs8();
+        BattleClearAllSlotFlagB4();
+        BattleSetOverlayArg(0);
+        for (i = 0; i < 8; i++) {
+            if (BattleMaskHasSlotBit(g_BattleActionSlotMask, (u8)(i + 3)) != 0) {
+                D_800C3D1A[i * 4] = 1;
+            }
+        }
+        BattleRunActiveSlotScripts();
+    }
+    BattleApplyCharRedrawFlags();
+    func_80072270();
+    g_BattleGraphicsWork[0x6415] = 0;
+    for (i = 0; i < 0xB; i++) {
+        ((u8 *)g_BattleCommandQueue)[i * 0x40 + 0x3C] = BattleBuildTargetCandidateListByRow(i);
+        D_800C3EBA[i * 0x1C] =
+            BattleActorPosXGreaterThan(i, ((u8 *)g_BattleCommandQueue)[i * 0x40 + 0x3C]);
+    }
+    BattleLoadActorSlotAnimation(BattleFindMinValueOtherSlot(g_BattleCommandQueue->actorIndex));
+    BattleClearCharRedrawFlags();
+    func_8007252C();
+    if (D_800C48EA == 0) {
+        BattleBeginActorStatAnimation(g_BattleCommandQueue->actorIndex);
+    }
+    func_8007252C();
+    BattleApplyCharRedrawFlags();
+    func_800BFE48();
+    BattleResetActorCountdown();
+    D_800D3298 = 1;
+}
+*/
 /* 72.24% - body is exact except the flag store: gcc hoists `li s3,1` out of the
    loop (loop.c invariant) and then schedules the g_BattleDisplayState store before the sh,
    costing a callee-saved reg and a 40-byte frame vs the original 32; the original
