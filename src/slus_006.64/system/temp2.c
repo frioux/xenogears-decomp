@@ -1591,7 +1591,9 @@ void ResourceHelperNoOp(void) {
 // record+0x04/+0x06/+0x08 with lh (lhu for +0x16/+0x18), which this TU's
 // MenuResourceTextureMetadata (u16 width/height/x) cannot spell without a second
 // struct for the record, and the loop's spill set (0x50 frame, five slots) wants
-// the offset form.
+// the offset form. A probe subtype with s16 u/v/width/height/x and u16
+// texPageX/texPageY (the lh/lhu set retail emits) scores 65.53%, so the
+// signedness alone is not the gap either - do not retry it on its own.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80026BA4);
 /*
 void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* ot) {
