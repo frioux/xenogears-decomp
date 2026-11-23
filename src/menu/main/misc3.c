@@ -721,6 +721,8 @@ u_char func_801CAA38(u_char a0) {
             break;
         case MENU_INPUT_BACK:
             result = 0;
+            // Load-bearing order: with looping assigned last, gcc merges this arm's
+            // tail into MENU_INPUT_CONFIRM's and the function comes out 4 bytes short.
             looping = 0;
             g_MenuWindowTextBackPressed = 1;
             break;
