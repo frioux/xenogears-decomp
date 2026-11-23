@@ -1856,6 +1856,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
    body is the best measured for the function in either binary.
    The two 4-byte stores at +4/+8 both hold pTable + index for this opcode, which
    is why they are written as one u32 through the s16 startX/startZ fields. */
+/* Round 427 (redo): re-measured the 75.10% body, then tried (a) the chained
+   startX/startZ store replaced by a pValue temp with two statements, which does
+   give retail's sw 4 / sw 8 order, (b) opcode-before-tag source order, (c) the
+   `if (pBlock == NULL) {alloc; if (NULL) goto}` shape, which makes gcc invert the
+   null test (bnez) and lose retail's delay-slot copy. (b)+(c) measured 74.68,
+   (a) alone 75.12% / 720 bytes = retail's, which is the body below. u8 tag on
+   this structure: 75.28% but 724 bytes / 181 insns (the frame grows to 0x50), so
+   it cannot link - the narrow RELOAD of the stack argument stays unreachable and
+   the rest is the {s6,s7,fp} rotation. */
+
 /*
 s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                   u32 tag) {
@@ -1869,6 +1879,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     u8* pTable;
     u8* pBytes;
     u32 flagA;
+    mem_addr pValue;
     s32 i;
 
     if (pData->unk06 != 0) {
@@ -1912,7 +1923,9 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pBlock->opcode = pBytes[0];
                 pBlock->curFrame = 0;
                 pBlock->endFrame = endFrame;
-                *(u32*)&pBlock->startX = *(u32*)&pBlock->startZ = (u32)(pTable + pFrame[0]);
+                pValue = (mem_addr)(pTable + pFrame[0]);
+                *(u32*)&pBlock->startX = pValue;
+                *(u32*)&pBlock->startZ = pValue;
                 pSprites->p70 = pBlock;
             }
         } else {
@@ -1938,7 +1951,9 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pBlock->opcode = pBytes[1];
                 pBlock->curFrame = 0;
                 pBlock->endFrame = endFrame;
-                *(u32*)&pBlock->startX = *(u32*)&pBlock->startZ = (u32)(pTable + pFrame[0]);
+                pValue = (mem_addr)(pTable + pFrame[0]);
+                *(u32*)&pBlock->startX = pValue;
+                *(u32*)&pBlock->startZ = pValue;
                 pSprites->p74 = pBlock;
             }
         } else {
@@ -1955,6 +1970,7 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     return 0;
 }
 */
+
 
 /* The frame record is 6 bytes per sprite (u16 indexA, u16 indexB, u8 byteA,
    u8 byteB); indexA drives pSprites->p70 (rot at 0x54, loaded lhu, plus
@@ -1989,11 +2005,33 @@ s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
    bytes); the local is kept for readability. */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
+/* Round 427 (redo): re-measured 77.19% / 1036 bytes / 259 insns against
+   retail's 968 / 242, then found the surplus was a SPILL CASCADE, not the
+   allocno permutation the old note blamed:
+   - making the sprite walker the pSprites parameter itself (`pSprites++`, no
+     pSprite local) removed the second sprite register and took it to
+     80.86% / 996 bytes / 249 insns (the body below). pSprites was dead after
+     the preheader but gcc kept a copy in $s7 only to hand it to the cursor in
+     $s1 later; with one value the cursor coalesces, as retail's `addiu
+     s1,s1,116` then `-4(s1)`/`0(s1)` shows.
+   - assigning `flagA = flags & 1` AFTER the limit block (retail's own order)
+     was worth 77.19 -> 79.84 / 1012 / 253 by itself.
+   What is left is 7 instructions and one register short: retail spends its 9
+   callee-saved registers on pValues/sprite-cursor/pFrame/i/numB/numA/animFlags/
+   pTable/flagA, keeps endFrame in $fp and the hoisted constant 1 in a
+   caller-saved $a1 with a `sw/lw 0x48(sp)` pair around each BattleAllocBlock
+   call. Ours spends $s7 on the 1, so flagA is spilled to 0x38(sp) and reloaded
+   for its own test and for both `sb`s, and endFrame lives at 0x30(sp). Every
+   use of the 1 is a literal (inUse/doTransform/doRotate), so there is nothing
+   source-visible to demote it with.
+   Tried and measured on top of the body below: `s32 flagA` (same 79.84 at the
+   time), `u8 flagA` (80.44 / 1000 / 250), and the old `pSprite` local
+   (79.84). `u8 tag` is still the frame-grower (74.76) and the tag reload stays
+   `lw 0x88(sp)` where retail has `lbu`. */
 /*
 s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                   u32 tag) {
     BattleBlock* pBlock;
-    BattleSprite* pSprite;
     u16 countA;
     u16 numA;
     u16 countB;
@@ -2014,7 +2052,6 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
         func_800A1B50(pSprites, pData);
         return 1;
     }
-    flagA = flags & 1;
     countA = pData->countA;
     numA = 0;
     limit = pSprites->count;
@@ -2023,6 +2060,7 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     }
     countB = pData->countB;
     numB = 0;
+    flagA = flags & 1;
     endFrame = *(u16*)((u8*)pData + 2);
     if (flagA == 0) {
         endFrame--;
@@ -2037,11 +2075,10 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
     if (!(animFlags & 2)) {
         pTable += countB * 6;
     }
-    pSprite = pSprites;
-    for (i = 0; i < limit; i++) {
+        for (i = 0; i < limit; i++) {
         pBytes = (u8*)pFrame + 4;
         if (pFrame[0] != 0xFFFF) {
-            pBlock = pSprite->p70;
+            pBlock = pSprites->p70;
             if (pBlock != NULL) {
                 if (pBlock->tag == 0xFF) {
                     goto skipRot;
@@ -2050,12 +2087,12 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pBlock = BattleAllocBlock(pPool);
             }
             if (!(animFlags & 1) && i != 0 && numA < countA) {
-                pSprite->rot[0] = *pValues++;
-                pSprite->rot[1] = *pValues++;
-                pSprite->rot[2] = *pValues++;
+                pSprites->rot[0] = *pValues++;
+                pSprites->rot[1] = *pValues++;
+                pSprites->rot[2] = *pValues++;
                 numA++;
-                pSprite->doTransform = 1;
-                pSprite->doRotate = 1;
+                pSprites->doTransform = 1;
+                pSprites->doRotate = 1;
             }
             if (pBlock != NULL) {
                 pBlock->inUse = 1;
@@ -2067,7 +2104,7 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pValue = (mem_addr)(pTable + pFrame[0]);
                 *(u32*)&pBlock->startX = pValue;
                 *(u32*)&pBlock->startZ = pValue;
-                pSprite->p70 = pBlock;
+                pSprites->p70 = pBlock;
             }
         } else {
         skipRot:
@@ -2078,7 +2115,7 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
         }
         pFrame++;
         if (pFrame[0] != 0xFFFF) {
-            pBlock = pSprite->p74;
+            pBlock = pSprites->p74;
             if (pBlock != NULL) {
                 if (pBlock->tag == 0xFF) {
                     goto skipTrans;
@@ -2087,11 +2124,11 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pBlock = BattleAllocBlock(pPool);
             }
             if (!(animFlags & 2) && i != 0 && numB < countB) {
-                pSprite->pos[0] = *(s16*)pValues++;
-                pSprite->pos[1] = *(s16*)pValues++;
-                pSprite->pos[2] = *(s16*)pValues++;
+                pSprites->pos[0] = *(s16*)pValues++;
+                pSprites->pos[1] = *(s16*)pValues++;
+                pSprites->pos[2] = *(s16*)pValues++;
                 numB++;
-                pSprite->doTransform = 1;
+                pSprites->doTransform = 1;
             }
             if (pBlock != NULL) {
                 pBlock->inUse = 1;
@@ -2103,7 +2140,7 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 pValue = (mem_addr)(pTable + pFrame[0]);
                 *(u32*)&pBlock->startX = pValue;
                 *(u32*)&pBlock->startZ = pValue;
-                pSprite->p74 = pBlock;
+                pSprites->p74 = pBlock;
             }
         } else {
         skipTrans:
@@ -2113,7 +2150,7 @@ s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
             }
         }
         pFrame += 2;
-        pSprite++;
+        pSprites++;
     }
     return 0;
 }
