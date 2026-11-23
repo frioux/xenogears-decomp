@@ -503,7 +503,6 @@ void BattleDrawSlotStatusPanel(void) {
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->unkB7 = 3;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 /* 96.97% at objdiff's 1260 bytes -- retail's EXACT size, and every instruction of
    the two quad-initialisation loops (the two Gouraud quads and the two flat quads)
    is retail's, including the per-store reload of g_BattleGraphicsWork->pPacketPrims
@@ -548,7 +547,22 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
    `s16 height` local for the fourth argument, and a flat `s16 *pColumns`. The
    table-base-hoist levers (g-strength-reduce-table-base,
    k-array-base-pointer-local) point the wrong way here: this needs the multiply
-   UNREDUCED while the base stays in the %hi/%lo relocation. */
+   UNREDUCED while the base stays in the %hi/%lo relocation. // Re-measured round 430 by unparking and diffing: 96.97% at 1260 bytes / 315 insns,
+// retail's exact size. The whole residual is still the third loop's one strength-reduced
+// multiply: cc1 turns `i * 4` into a mult giv (`move s0,zero` in the preheader,
+// `addiu s0,s0,4` in the latch) and reads D_800C3404 through `addu at,at,s0`, where
+// retail recomputes `sll v0,s0,2` per iteration. Three more spellings measured this
+// round, the giv in every one: `*(s16 *)((u8 *)D_800C3404 + (i << 2))` compiles exactly
+// like `D_800C3404[i][0]` (the front end canonicalises the shift back into the multiply),
+// 96.97 at 315/1260, so the keep-the-multiply family is closed for shift spellings too;
+// a `s16 (*pColumns)[2]` local plus `column`/`height` locals does reproduce retail's
+// pointer for D_800C33C4 and its `addiu s2,s2,4` but the giv then takes $s0, pushing
+// `i` to $s1 and the cursor to $s3, 96.97 at 315/1260; a flat `s16 *pColumns` with
+// `pColumns[i * 2]` is 96.03 at 316/1264. Retail has TWO givs - a base-combined pointer
+// for D_800C33C4 and the unreduced multiply for D_800C3404 - and cse shares the single
+// mult(i,4) tree between both addresses whatever the spelling, so loop.c only ever sees
+// one candidate. Tried and measured before this: QImode counter (blocks the giv, costs
+// andi+sltiu, 95.47), flat `s16 D_800C3404[]` + `[i * 2]` (base hoisted, 96.28).
 /*
 void func_80092298(u8 arg0, u8 *arg1) {
     s32 i;
@@ -607,6 +621,8 @@ void func_80092298(u8 arg0, u8 *arg1) {
     g_BattleDisplayState->menuColumnPending = 1;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
+
 // 70.43% (1012 bytes / 253 insns against retail's 1028) under this unit's gcc 2.6.0,
 // re-measured this round by un-parking and diffing. THE OLD NOTE'S 70.57% AT 1028 WAS
 // STALE: that park carried three `divisors[...] = ...` lines left over from
