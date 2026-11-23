@@ -27,8 +27,8 @@ extern s16 g_GpuScreenWidth;
 extern s16 g_GpuScreenHeight;
 extern u_char g_GraphReverse;
 
-extern volatile u_long *g_GpuGp0Port; // GPU status register
-extern volatile u_long *g_GpuGp1Port; // GPU data register (GP0)
+extern volatile u_long *g_GpuGp0Port; // GP0: commands written here, GPUREAD read here
+extern volatile u_long *g_GpuGp1Port; // GP1: status read here, GP1 commands written here
 extern u_long *g_GpuDma2Madr;
 extern u_long *g_GpuDma2Bcr;
 extern volatile u_long *g_GpuDma2Chcr;
