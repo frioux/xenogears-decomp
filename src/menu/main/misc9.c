@@ -1583,11 +1583,13 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     digitCodes[3] = 0;
     count = 0;
     if (arg3 != 0) {
-        page = arg2 + 1;
-        limit = MAX_INVENTORY_WEAPONS;
         if (arg4 == 0) {
+            page = arg2 + 1;
+            limit = MAX_INVENTORY_WEAPONS;
             pSlotWeapon = &g_Menu->pDressingRoom->pWeaponsData[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID + arg2]];
         } else {
+            page = arg2 + 1;
+            limit = MAX_INVENTORY_WEAPONS;
             pSlotGearWeapon = &g_Menu->pDressingRoom->pGearWeapons[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID + arg2]];
         }
     } else if (arg4 == 0) {
