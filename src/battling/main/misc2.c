@@ -922,59 +922,6 @@ void BattleActorApplyAnimationCommand(Actor *p0) {
     }
 }
 
-/* 99.74% (1212 bytes, the original's size), 303 instructions. Two residues:
-   (1) CLOSED this round (99.08 -> 99.74): the `sll` and `sra` of `old` now straddle
-   the `sh frameAccum` store exactly as retail's do - `oldFrames = old << 16;` before
-   the store and `- (oldFrames >> 20)` at the use (tools/rounds/levers.md
-   h-named-half-of-a-split-shift). `-fschedule-insns` on this cc1 emits a byte-identical
-   .s, so the split expression was the only way to retail's order.
-   (2) LEFT: in two of the four mode-case blocks the -0x801 mask constant and the
-   reloaded flags word take each other's registers - retail `li v1,-2049; lw a0,0xD0(s0);
-   and a0,a0,v1; or a0,a0,v0; sw a0,0xD0(s0)`, ours `li a0,-2049; lw v1,0xD0(s0)`
-   and the same three insns on v1. Same instruction count and size, so it is a
-   per-block local-alloc tie; the two arms that lose it this round are the one with the
-   0x400 test and the last one.
-   Tried this round: a named `animBit = (ret & 1) << 11;` local in all four arms
-   (93.94%, 1196 bytes), a `do { ... } while (0)` around the call/unk9/unkA/RMW group
-   of the two losing arms (99.60%, 48 differing lines), and a 4-minute permuter run
-   from this exact body (1489 iterations, base=best=80, none).
-   Preset screen this round: 2.6.0 96.73, 2.7.2-cdk 76.04, -O3 76.04, Default 99.74 -
-   the preset is not the lever.
-   Levers that DID work and must be kept: `part = p0->partIndex;` plus
-   `(u8)part != p0->prevPartIndex` reproduces the original's redundant `andi a0,a1,0xff`
-   and, with `&D_80091130[part]` as the first statement of the if-body, its second
-   `sll/addu s4`; `old + (p0->animSpeed + p0->animSpeedBonus)` gives the original's
-   operand order; the read-modify-writes must be written on the FIELD so gcc tests the
-   stored register and stores before the branch; `p0->animFrame = pAnim->frame;` before
-   `p0->frameDelta = delta;`; `i = 0;` as its own statement plus `while (i < delta)`;
-   unkA declared before unk9 for the two zero-inits. */
-/* 99.74% (1212 bytes, the original's size), 303 instructions. Two residues:
-   (1) CLOSED this round (99.08 -> 99.74): the `sll` and `sra` of `old` now straddle
-   the `sh frameAccum` store exactly as retail's do - `oldFrames = old << 16;` before
-   the store and `- (oldFrames >> 20)` at the use (tools/rounds/levers.md
-   h-named-half-of-a-split-shift). `-fschedule-insns` on this cc1 emits a byte-identical
-   .s, so the split expression was the only way to retail's order.
-   (2) LEFT: in two of the four mode-case blocks the -0x801 mask constant and the
-   reloaded flags word take each other's registers - retail `li v1,-2049; lw a0,0xD0(s0);
-   and a0,a0,v1; or a0,a0,v0; sw a0,0xD0(s0)`, ours `li a0,-2049; lw v1,0xD0(s0)`
-   and the same three insns on v1. Same instruction count and size, so it is a
-   per-block local-alloc tie; the two arms that lose it this round are the one with the
-   0x400 test and the last one.
-   Tried this round: a named `animBit = (ret & 1) << 11;` local in all four arms
-   (93.94%, 1196 bytes), a `do { ... } while (0)` around the call/unk9/unkA/RMW group
-   of the two losing arms (99.60%, 48 differing lines), and a 4-minute permuter run
-   from this exact body (1489 iterations, base=best=80, none).
-   Preset screen this round: 2.6.0 96.73, 2.7.2-cdk 76.04, -O3 76.04, Default 99.74 -
-   the preset is not the lever.
-   Levers that DID work and must be kept: `part = p0->partIndex;` plus
-   `(u8)part != p0->prevPartIndex` reproduces the original's redundant `andi a0,a1,0xff`
-   and, with `&D_80091130[part]` as the first statement of the if-body, its second
-   `sll/addu s4`; `old + (p0->animSpeed + p0->animSpeedBonus)` gives the original's
-   operand order; the read-modify-writes must be written on the FIELD so gcc tests the
-   stored register and stores before the branch; `p0->animFrame = pAnim->frame;` before
-   `p0->frameDelta = delta;`; `i = 0;` as its own statement plus `while (i < delta)`;
-   unkA declared before unk9 for the two zero-inits. */
-/*
 void func_80074BA4(Actor *p0) {
     BattleActorState *pState = p0->pState;
     BattlePartMode *pMode;
@@ -985,6 +932,7 @@ void func_80074BA4(Actor *p0) {
     s32 delta;
     s32 oldFrames;
     u8 part;
+    s32 flags;
     s32 unkA = 0;
     s32 unk9 = 0;
 
@@ -1044,7 +992,10 @@ void func_80074BA4(Actor *p0) {
             ret = func_8008B730(pAnim, delta, p0->frameLimit);
             unk9 = delta;
             unkA = p0->frameLimit;
-            p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
+            flags = p0->flags;
+            flags &= ~0x800;
+            flags |= (ret & 1) << 11;
+            p0->flags = flags;
             if (p0->flags & 0x800) {
                 if (pMode->next == -1) {
                     p0->flags &= ~0x1000;
@@ -1059,7 +1010,10 @@ void func_80074BA4(Actor *p0) {
         ret = func_8008B730(pAnim, delta, p0->frameLimit);
         unk9 = delta;
         unkA = p0->frameLimit;
-        p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
+        flags = p0->flags;
+        flags &= ~0x800;
+        flags |= (ret & 1) << 11;
+        p0->flags = flags;
         if (p0->flags & 0x800) {
             p0->flags |= 0x10000000;
             if (pMode->next != -1) {
@@ -1073,7 +1027,10 @@ void func_80074BA4(Actor *p0) {
             ret = func_8008B730(pAnim, delta, p0->frameLimit);
             unk9 = delta;
             unkA = p0->frameLimit;
-            p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
+            flags = p0->flags;
+            flags &= ~0x800;
+            flags |= (ret & 1) << 11;
+            p0->flags = flags;
         }
         if (p0->flags & 0x400) {
             if (pMode->next == -1) {
@@ -1089,16 +1046,16 @@ void func_80074BA4(Actor *p0) {
             ret = func_8008B730(pAnim, delta, p0->frameLimit);
             unk9 = delta;
             unkA = p0->frameLimit;
-            p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
+            flags = p0->flags;
+            flags &= ~0x800;
+            flags |= (ret & 1) << 11;
+            p0->flags = flags;
         }
         break;
     }
     pState->frameDelta = unk9;
     pState->frameLimit = unkA;
 }
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
-
 extern Actor g_BattleActor1;
 extern s32 D_80099D8C;
 extern s32 D_80099D88;
