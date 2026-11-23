@@ -1552,6 +1552,40 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     MenuCreateWindow(4, 0x10, 0xC, 0x80, label, 0, 1, 4, 0);
 }
 
+// Best: 92.30%, 2768 bytes (retail 2824), 692 vs 706 insns. Written from scratch last round
+// (79.90); this round four measured steps, each kept:
+//   1. 79.90 -> 86.81: the eight-name render loop writes g_Menu->pCharacterSpriteRecords
+//      inline at every use instead of into a local. Retail reloads g_Menu + 0x434 after
+//      every call (lui/lw/nop/lw, 7 sites); a local made gcc keep the address in a
+//      callee-saved reg and cost ~30 insns.
+//   2. 86.81 -> 89.49: the page select writes ((u8*)g_Menu->pEquipmentPanel)[...] inline
+//      instead of into pPanel: retail reloads g_Menu in each of the four arms.
+//   3. 89.49 -> 91.64: page and limit are assigned inside EACH of the two arg3 != 0 arms
+//      (retail: sb t0,0x50 / li 0x64 / sw t0,0x58 twice, and it tests arg4 first).
+//   4. 91.64 -> 92.30: the page-5 equipGroup test is one OR chain
+//      (eq == 0 || (slotGroup & eq) != 0 || (groupMask & eq) == 0) -> flag = 1;
+//      the if/else-if form made gcc emit sltiu/move.
+// REMAINING, 14 insns:
+//   a. The frame is 0xC0 where retail is 0xD0 and retail saves fp. Retail spills
+//      groupMask at 0x90, slotGroup 0x88, the five pointers 0x60-0x80, page 0x50,
+//      limit 0x58, count 0x48, and a 32-BIT copy of arg4 at 0x98 (sw t0,0x98(sp) once,
+//      lw/bnez per use) which is where the extra 16 bytes come from; ours tests the
+//      u_char at 0x40 directly and spills page/limit/count at 0x70/0x90/0x88.
+//      Declaration order was not solved.
+//   b. The inventory scan loop keeps its entry test (slt/beqz, +3) where retail is a
+//      do-while under the `if (limit != 0)` guard. Not found: what makes gcc invert
+//      retail and not ours.
+//   c. Cases 0 and 1..4 of BOTH page switches: retail duplicates the id check
+//      (lbu / nop / sltiu / beqz / andi / j / li s0,1 = 7 insns per case, ~12 total);
+//      ours cross-jumps the shared sltiu+beqz (-2 per case).
+//   d. fp: retail keeps &pGearAccessories[gearPartsIds[i]] in fp across the loop body
+//      (page-5 gear arm); ours allocates it to s8.
+// Nothing was permuted: the residuals are structure (spill set, cross-jump), not
+// registers. The unit keeps its tables/JTBL shape: this stub owns no jtbl.
+// D_801EA7F8 is the quantity array beside g_DressingRoomItemIds (one u8 per id,
+// MAX_INVENTORY_ACCESSORIES of each, cleared together at the top); it is splat data
+// (asm/menu/data/246A4.data.s), declared extern in the .c, never defined here.
+/*
 s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     MenuDressingRoom* pDressingRoom;
     MenuShopWeapon* pWeapon;
@@ -1771,7 +1805,9 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
         count = 0;
     }
     return count;
-}
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
+
 
 // Moves the item the equipment panel has selected into (or out of) the
 // inventory. arg2 selects a weapon slot group (the extra weapon slots) and arg1
