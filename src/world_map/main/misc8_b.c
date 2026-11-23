@@ -26,6 +26,16 @@
 #define WORLD_MAP_TINT_GREEN_MIN 0x80
 #define WORLD_MAP_TINT_CHANNEL_MAX 0xFF
 
+// the actor slot pool g_WorldMapSlots points at: one WorldMapActor, and one
+// projected depth, per slot
+#define WORLD_MAP_ACTOR_SLOT_COUNT 64
+
+// a sprite whose projected depth reaches this is not drawn
+#define WORLD_MAP_SPRITE_SZ_MAX 0xB00
+
+// CLUT ids WorldMapLoadTextureClut builds, one GetClut per row it fills
+#define WORLD_MAP_CLUT_ID_COUNT 16
+
 typedef struct {
     /* 0x00 */ u32 unk0;
     /* 0x04 */ s16 command;
@@ -170,7 +180,7 @@ typedef struct {
     /* 0x00 */ SVECTOR vec;
     /* 0x08 */ WorldMapPos delta; // x and z only
     /* 0x14 */ s32 pad14;
-    /* 0x18 */ s32 depth[0x40];
+    /* 0x18 */ s32 depth[WORLD_MAP_ACTOR_SLOT_COUNT];
 } WorldMapSpriteProjection; // Size: 0x118
 
 // One sprite set definition inside the block g_WorldMapSpriteSetTable points at.
@@ -437,7 +447,7 @@ void WorldMapLoadTextureClut(void) {
     rect.h = 1;
     StoreImage(&rect, (u_long *)pData);
     DrawSync(0);
-    func_800931D8(pData, pDst, 0x10, (u8 *)&factors);
+    func_800931D8(pData, pDst, WORLD_MAP_CLUT_ID_COUNT, (u8 *)&factors);
     rect.x = 0;
     rect.y = 0x1F0;
     rect.w = 0x100;
@@ -446,7 +456,7 @@ void WorldMapLoadTextureClut(void) {
     DrawSync(0);
     i = 0;
     pClut = D_8009BCE0;
-    for (; i < 0x10; i++, pClut++) {
+    for (; i < WORLD_MAP_CLUT_ID_COUNT; i++, pClut++) {
         *pClut = GetClut(rect.x, rect.y);
         rect.y++;
     }
@@ -1064,7 +1074,7 @@ void func_80085CDC(void) {
     i = 0;
     pCam = (WorldMapPos *)&g_WorldMapCameraTarget;
     pActor = g_WorldMapSlots;
-    for (; i < 0x40; i++, pActor++) {
+    for (; i < WORLD_MAP_ACTOR_SLOT_COUNT; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
             pProj->delta.x = pActor->x - pCam->x;
             pProj->delta.z = pActor->z - pCam->z;
@@ -1078,7 +1088,7 @@ void func_80085CDC(void) {
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
     pActor = g_WorldMapSlots;
-    for (i = 0; i < 0x40; i++, pActor++) {
+    for (i = 0; i < WORLD_MAP_ACTOR_SLOT_COUNT; i++, pActor++) {
         if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->x;
             pProj->vec.vx = v;
@@ -1094,8 +1104,8 @@ void func_80085CDC(void) {
     GfxSetBaseMatrix(&g_WorldMapViewMatrix);
     i = 0;
     pActor = g_WorldMapSlots;
-    for (; i < 0x40; i++, pActor++) {
-        if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pProj->depth[i] < 0xB00)) {
+    for (; i < WORLD_MAP_ACTOR_SLOT_COUNT; i++, pActor++) {
+        if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pProj->depth[i] < WORLD_MAP_SPRITE_SZ_MAX)) {
             SpriteDrawFrame(pActor->pSprite, g_WorldMapRenderContext->pOt[0] + (pProj->depth[i] >> 4));
             d = pActor->angle - pActor->redStep;
             if (d < 0) {
