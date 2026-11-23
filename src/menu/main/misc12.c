@@ -904,6 +904,25 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
    conversion; each loop head is a join, which is why retail keeps those six
    andis. Defeating it needs a second predecessor for the last call, i.e. a branch
    retail does not have, so this stays parked as a gcc 2.6.0 cse wall.
+   Round 427 corrected the mechanism with a 15-variant cc1_probe (the snippet is
+   one 2-trip loop plus a trailing call, which folds exactly like this body). It
+   is NOT cse and NOT the predecessor count: the fold is combine's constant-value
+   record on the mode pseudo. (1) "mode = g_ProbeK;" - same code shape, value
+   unknown - keeps the andi at EVERY site, so the trigger is the known 2/3.
+   (2) Every spelling that keeps "li s1,2"/"li s1,3" folds the trailing call:
+   u_char mode, if/else instead of the ternary, an (u_char) cast, "mode & 0xFF",
+   a u_char or an s32 copy ("shade = mode;") right before the trailing call, a
+   QI-then-SI double copy, and "for (;;) { call; break; }" (which gcc dissolves
+   to straight-line). (3) A block with TWO predecessors does not help either:
+   identical trailing calls in both arms of an `if` survive cross-jumping as one
+   join (label reached by fall-through and by `j`), and that call still folds as
+   `move a1,s1` (V16). (4) The mask survives only INSIDE a loop body: a
+   1-iteration "for (i = 0; i < 1; i++)" rotates into a "blez" loop and keeps the
+   andi (V10), but that costs the loop's branch, which retail does not have.
+   So retail's trailing call keeps a mask that no straight-line or joined
+   spelling of "li s1,2"/"li s1,3" can keep - the mask needs a loop in the RTL
+   and retail's trailing block has none. Fourth permuter run skipped on purpose
+   (three previous runs from this same live body: base=200 best=200).
 void func_801E8F60(u8 arg0, u8 arg1) {
     s32 mode;
     s32 i;
