@@ -374,23 +374,36 @@ void BattleAddPrimPair280(void) {
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x2D0 + (s32)p)));
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
-/* Parked at 99.87%, retail's exact 1228 bytes (0x4CC) / 307 insns: every
-   instruction is identical except one register. The switch table operand
-   (jtbl_8006FAF4 vs .rodata) is expected, this unit owns its table. The
-   residual is the menu-cell list call in case 1: retail loads pPacketPrims
-   into $a0 and emits `addiu a0,a0,0x190`, we load it into $v0/$v1 and emit
-   `addiu a0,v0,0x190`, i.e. gcc 2.6 does not tie the add to the dying input
-   here. Tried and measured identical 99.87% / 1228 bytes: inline
-   `(u8 *)p + 0x190` ($v1), a separate `u8 *pPrims = (u8 *)p` copy ($v1), and
-   an in-place `pPrims += 0x190` with the two bytes pre-loaded through
-   `pPrims` ($v0) - the in-place C update still gets a fresh output pseudo.
-   The permuter cannot run on this body: its parser rejects the (u8 *)
-   argument casts ("conversion to non-scalar type requested").
+/* Parked at 99.90%, retail's exact 1228 bytes (0x4CC) / 307 insns. The switch
+   table operand (.rodata vs jtbl_8006FAF4) is expected, this unit owns its
+   table, and the .L labels differ; one REGISTER is the whole residual: case 1's
+   BattleAddPrimListToOT call. Retail loads pPacketPrims into $a0 and emits
+   `lbu a1,0x66E(a0) / lbu a2,0x66A(a0) / jal / addiu a0,a0,0x190`; we load into
+   $v1 and emit `addiu a0,v1,0x190` - same insn count, same bytes.
+   Measured identical 99.90% / 1228 bytes at that site: a `u8 *pDest` local, a
+   named digitCount/primIndex pair, a second `BattlePacketPrims *q` local,
+   `(u8 *)&p->prims[10]` (0x190 = 10 * 0x28), reading the two bytes first and
+   then `p = (BattlePacketPrims *)((u8 *)p + 0x190)` with `(u8 *)p` passed, and
+   the three-copies-of-the-field-expression form that cse merges into one lw.
+   try_flags.sh --all: this body scores 99.90 under both 2.6.0 (unit) and 2.7.2
+   and 90.63 under 2.7.2-cdk, so it is not a preset question - the same single
+   register survives two compilers. The permuter still cannot run: its
+   randomizer rewrites the twelve (u8 *) argument casts into a cast to a
+   non-scalar type and gcc then rejects base.c (the un-randomized base.c
+   compiles), log in permuter/func_800745EC/.
+   Gain this round: case 2's labelDrawn test. Written as `p = ...pPacketPrims;`
+   then `if (p->labelDrawn != 0)` the pool load came out in $v1 where retail has
+   `lw v0,-0x5DD0(at) / lbu v0,0x66D(v0)`; one expression straight off
+   g_BattleGraphicsWork (`((BattlePacketPrims *)((BattleGraphicsWork *)
+   g_BattleGraphicsWork)->pPacketPrims)->labelDrawn`) reproduces retail and
+   measures 99.87 -> 99.90. So this function's arms read the pool through a
+   one-shot expression, and the remaining suspect is the same shape at the
+   BattleAddPrimListToOT call, where the pool has to be read three times.
    Two more measured facts: sizeof(POLY_FT4) strides reproduce retail's
-   (idx * 0x28) for every block, and cases 1 and 4 share retail's tail
-   (`BattleAddPrimPair280(); BattleAddPrimPair320();`) as plain code, so no
-   goto is needed. Case 3 of case 2's cell pair uses 36/24-byte strides.
+   (idx * 0x28) in every block, and cases 1 and 4 both end with
+   BattleAddPrimPair280(); BattleAddPrimPair320(); as plain code (case 2's tail
+   is 320 then 280), so no goto is needed.
+/*
 void func_800745EC(void) {
     BattlePacketPrims *p;
 
@@ -432,8 +445,7 @@ void func_800745EC(void) {
             p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
             AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x190 + (s32)p)));
         }
-        p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
-        if (p->labelDrawn != 0) {
+        if (((BattlePacketPrims *)((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims)->labelDrawn != 0) {
             BattleAddPrimPair320();
             BattleAddPrimPair280();
         }
@@ -465,7 +477,9 @@ void func_800745EC(void) {
         break;
     }
 }
- */
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
+
 void BattleAddSpriteColumnPrimLists(void) {
     u16 counter;
 
