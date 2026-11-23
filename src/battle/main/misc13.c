@@ -167,6 +167,12 @@ extern void func_80087EDC(u8, u8);
 extern void func_800881B8(u8, u8);
 extern void BattleSetSlotRegistersFromActor(u8, u8);
 extern s32 BattleScriptScanForOpcode62(u8);
+extern u8 D_800C3A70[];
+extern u8 g_BattleSlotConditions[];
+extern void *BattleAllocTextBuffer(s32);
+extern s32 func_80086C88(u8, s32, s32, u8, u_long **);
+extern void HeapFree(void *);
+extern s32 BattleUpdateFrame(void);
 
 /* PARKNOTE 60.72%, 1172 bytes (retail 1196 = 299 insns, 6 short): every arm's shape,
    load widths, call sites and the two queue-store groupings below are retail's; the
@@ -732,7 +738,197 @@ s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
     return arg1 + 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
-/* PARKED 59.15%, 440 bytes (110 insns; retail 456 = 114). Structure, call set and
+/* PARKED 91.38%, 2128 bytes / 532 insns (retail 2120 / 530). The whole body is
+   decoded and written: call set and order, both D_800C3A70 alloc/free loops, the
+   queue append, the sprite loop and the three status-icon blocks are retail's, and
+   every user local landed in retail's register (s0 = byte offset, s3 = row,
+   s4 = arg0, s5 = result, s6 = mask index the 3-per-command row, s8 = arg1).
+   What is left, all measured this round:
+   1. The block layout of the second return-1 path (that is the whole 2-instruction
+      surplus and the +12-byte shift of every later block). Retail keeps
+      `g_BattleCommandQueue[0x2DC] = arg0; return 1;` AFTER the whole body - its
+      `beqz v0,<end>` jumps over everything - so its source is an if whose THEN
+      block is the body and whose else is that store+return. Written as
+      `if (A) { if (queue[0x2E7] == 0) { store; return 1; } }` gcc inlines the small
+      block instead. That if-restructure is the next thing to try.
+   2. arg0 must need NO zero-extension at the two sites retail adds it to something:
+      `addu s6,s4,v0` for idx = arg0 + (queue[0x2CC] + 1) * 3 and `addiu s6,s4,12`.
+      Ours masks it into a0 first. Retail DOES mask arg0 for
+      `g_BattleCommandStatusMasks[arg0]` and for the `charIndex - 1 < arg0`
+      comparison, so the parameter is u8 and the two adds must be spelled with a
+      value gcc already knows is a byte.
+   3. The y argument: inside the sprite loop retail hoists (0xD0 - row * 0x10) << 16
+      into s7 in the preheader and emits only `sra a3,s7,0x10` per call; the three
+      later call sites recompute it. Ours recomputes inside the loop too.
+   4. Retail's 5th argument to func_80086C88 is `(row / 2) * 4 + D_800C3A70` at the
+      three later sites but `((row + queue[0x2E4]) >> 1) * 4 + D_800C3A70` on the
+      queue[0x2E4] != 0 path, which is why retail has `srl v0,s3,0x1f` on one path
+      and not the other; both spellings are in this body already.
+   5. Branch polarity is inverted (ours) at the `charIndex == 4` ternary and at the
+      three `queue[arg1 * 0x40 + 0x1C/0x1E/0x20] == 0` tests; instruction counts
+      match there, only the taken direction and the block order differ.
+   Applied and load-bearing: the negated offset
+   `(g_BattleCommandQueue - -(arg1 * 0x40))[0x3C]`, and the same spelling at the
+   +0x1C/+0x1E/+0x20 reads, for retail's base-first `addu` (218 -> 152 differing
+   lines, 90.98 -> 91.38); `u8 maskIdx` so each use gets its own `andi 0xFF`;
+   the s32 byte-offset local `o` for the D_800C3A70 loops, which is what makes
+   `lui at,%hi / addu at,at,o / sw %lo(at)`; a separate `u8 spriteId` for the
+   loop's sprite ids (before that split the loop index and the mask index were
+   mirrored s1/s2, and the mirrors did not move when the i/maskIdx declaration
+   order was swapped). Verified while decoding: the switch tests 0xFF first, then
+   1, then <2, then 0, then 2, so it is a plain switch with `case 0xFF: continue;`
+   and a default that falls through to the draw with the stale id.
+
+   Intended name: BattleDrawActorCommandColumn (allocates the three text buffers at
+   D_800C3A70, appends the actor's slot to the queue, draws a sprite per queued
+   command, then draws the three status icons its condition words allow and frees
+   the buffers; returns 1 when nothing was drawn).
+
+   s32 func_80086F98(u8 arg0, u8 arg1) {
+    s32 i;
+    u8 maskIdx;
+    u8 spriteId;
+    s32 o;
+    s32 row;
+    s32 result;
+    s32 idx;
+    s32 off;
+    s32 v;
+
+    idx = (arg0 + 1) * 3;
+    row = 0;
+    result = 0;
+    off = (g_BattleCommandQueue - -(arg1 * 0x40))[0x3C] * 0x170;
+    if ((*(u8 *)(off + (u32)g_BattleSlotConditions) & 0x80) == 0 && g_BattleCommandCharIndex[0] != 4) {
+        g_BattleCommandQueue[0x2DC] = g_BattleCommandStatusMasks[arg0];
+        return 1;
+    }
+    if (g_BattleCommandCharIndex[0] == 0 || g_BattleCommandCharIndex[0] - 1 < arg0) {
+        if (g_BattleCommandQueue[0x2E7] == 0) {
+            g_BattleCommandQueue[0x2DC] = arg0;
+            return 1;
+        }
+    }
+    for (o = 0; o < 12; o += 4) {
+        *(void **)(D_800C3A70 + o) = BattleAllocTextBuffer(0x1E);
+    }
+    g_BattleCommandQueue[0x2CC + g_BattleCommandQueue[0x2D6]] = arg0;
+    g_BattleCommandQueue[0x2D6] = g_BattleCommandQueue[0x2D6] + 1;
+    if (g_BattleCommandQueue[0x2E4] != 0) {
+        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = BATTLE_COMMAND_NONE;
+        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = arg0;
+        idx = arg0 + (g_BattleCommandQueue[0x2CC] + 1) * 3;
+    }
+    g_BattleSpriteColumnWork[0x5D81] = 0;
+    g_BattleSpriteColumnWork[0x5D80] = 0;
+    g_BattleSpriteColumnWork[0x5D82] = 0;
+    for (i = 0; i < g_BattleCommandQueue[0x2D6]; i++) {
+        switch (g_BattleCommandQueue[0x2CC + i]) {
+        case BATTLE_COMMAND_NONE:
+            continue;
+        case 0:
+            spriteId = 0x5E;
+            break;
+        case 1:
+            spriteId = 0x5F;
+            break;
+        case 2:
+            spriteId = 0x5D;
+            break;
+        }
+        v = BattleDrawSpritePackage(spriteId,
+                                    (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                    i * 0x10 + 0x80, 0xD0 - row * 0x10);
+        g_BattleSpriteColumnWork[0x5D81] += v;
+    }
+    if (g_BattleCommandCharIndex[0] == 4) {
+        if ((arg0 & 0xFF) == BATTLE_COMMAND_NONE) {
+            idx = 0xC;
+        } else {
+            idx = arg0 + 0xC;
+        }
+    }
+    maskIdx = idx;
+    if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
+                                    g_BattleCommandStatusMasks[maskIdx]) != 0) {
+        if (g_BattleCommandQueue[0x2E4] == 0) {
+            result = 1;
+            if (*(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x1C) == 0) {
+                v = BattleDrawSpritePackage(8,
+                                            (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                                  (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                            i * 0x10 + 0x80, 0xD0 - row * 0x10);
+                g_BattleSpriteColumnWork[0x5D81] += v;
+                row = func_80086C88(arg1, row, i - 1, maskIdx,
+                                    (u_long **)(D_800C3A70 + (row / 2) * 4));
+            }
+        } else {
+            result = 1;
+            row = func_80086C88(arg1, row, i - 1, maskIdx,
+                                (u_long **)(D_800C3A70 + ((row + g_BattleCommandQueue[0x2E4]) >> 1) * 4));
+        }
+    }
+    if (g_BattleCommandQueue[0x2E4] != 0 && result != 0) {
+        result = 0;
+        if (g_BattleCommandQueue[0x2CC] == BATTLE_COMMAND_NONE) {
+            idx = arg0 + 0xC;
+        }
+        g_BattleSpriteColumnWork[0x5D90] = g_BattlePrimStartIndex[0];
+        g_BattleCommandQueue[0x2DC] = g_BattleCommandStatusMasks[idx & 0xFF];
+        g_BattleSpriteColumnWork[0x5D8F] = g_BattlePrimStartIndex[0];
+        g_BattleSpriteColumnWork[0x5D91] = g_BattlePrimStartIndex[0];
+        g_BattleDisplayState[0xA8] = 1;
+        BattleUpdateFrame();
+        for (o = 0; o < 12; o += 4) {
+            HeapFree(*(void **)(D_800C3A70 + o));
+        }
+        return result;
+    }
+    g_BattleCommandQueue[0x2DC] = arg0;
+    if (g_BattleCommandCharIndex[0] == 4) {
+        maskIdx = 0xD;
+    } else {
+        maskIdx = (arg0 + 1) * 3 + 1;
+    }
+    if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
+                                    g_BattleCommandStatusMasks[maskIdx]) != 0 &&
+        *(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x1E) == 0) {
+        result = 1;
+        v = BattleDrawSpritePackage(9,
+                                    (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                    i * 0x10 + 0x84, 0xD0 - row * 0x10);
+        g_BattleSpriteColumnWork[0x5D81] += v;
+        row = func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
+    }
+    if (g_BattleCommandCharIndex[0] == 4) {
+        maskIdx = 0xE;
+    } else {
+        maskIdx = (arg0 + 1) * 3 + 2;
+    }
+    if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
+                                    g_BattleCommandStatusMasks[maskIdx]) != 0 &&
+        *(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x20) == 0) {
+        result = 1;
+        v = BattleDrawSpritePackage(7,
+                                    (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                    i * 0x10 + 0x88, 0xD0 - row * 0x10);
+        g_BattleSpriteColumnWork[0x5D81] += v;
+        func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
+    }
+    g_BattleSpriteColumnWork[0x5D90] = g_BattlePrimStartIndex[0];
+    g_BattleSpriteColumnWork[0x5D8F] = g_BattlePrimStartIndex[0];
+    g_BattleSpriteColumnWork[0x5D91] = g_BattlePrimStartIndex[0];
+    g_BattleDisplayState[0xA8] = 1;
+    BattleUpdateFrame();
+    for (o = 0; o < 12; o += 4) {
+        HeapFree(*(void **)(D_800C3A70 + o));
+    }
+    return result;
+}
+*//* PARKED 59.15%, 440 bytes (110 insns; retail 456 = 114). Structure, call set and
    both loops are retail's; the score is low because the temporaries are mapped
    differently (retail holds i in a3 and o in a2, this body the reverse; ofsA in
    t2, ofsB in t1, the param pointer in t0) and because retail RECOMPUTES the whole
