@@ -675,49 +675,34 @@ void func_80089580(void) {
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089580);
 
-/* 96.95% (1324 bytes against retail 1328; 331 vs 332 insns). Re-measured from a
-   clean un-park, so the old round-398 note is dead: it claimed a byte-identical head,
-   but the honest body was 0.00 and wrong on five things. What this body now has exactly
-   right, all measured: the 0x200-sprite loop and its two induction pointers, the whole
-   packed lifeTimer pair (high in fp, low via sll/sra, packed again as high<<16|low), the
-   timer countdown with retail is move-then-addiu copy, the trailActive/maxCount/count
-   AND chain with one beqz and the 0xFF scan init in its delay slot, the free-entry scan,
-   RotMatrixYXZ + two ApplyMatrix against 0x1F800000 scratch offsets, the three rand
-   direction vectors with the flags 0x20/0x40 zero arms branching to the zero store and
-   the 0x4/0x8 arms to the field, both spread pairs, the six position blocks, the delta
-   shift, the second VectorNormal, the three vel stores, ratan2, and every tail word copy
-   plus tpage = (flags & 3) << 5 | 0x9D and the count increment.
-   TYPES these needed, all in the WorldMapSprite struct of this file: timer s16 (retail
-   loads it with lh but the decrement truncates so lhu appears at the store), x/y/z s16,
-   accelX/Y/Z s16, count s16, trailActive s16 read as != 0 so gcc emits sltu.
-   RESIDUAL, three constructs, all allocator / block layout:
-   (1) retail keeps the sprite base in s6 and low in s5, this body mirrors it (sprite s5,
-   low s6): the save order follows it, so the whole prologue and eight body lines differ.
-   Retail allocates low FIRST, which for two pseudos of the same live length needs low to
-   outrank a 15-ref pointer, so a -da allocno dump is the next step, not more spellings.
-   (2) retail own lifeTimer store block has TWO entry points (a sll at the fall-through
-   label and a duplicated sll in the one j delay slot), which is retail extra instruction
-   and 4 bytes; this body enters it once. Same shape as the classic dbr duplicate.
-   (3) the flags ^= 0x80 arm: retail branches beqz to an out-of-line sb that falls into the
-   store, this body emits bnez + xori + j with the sb in the j slot (one instruction more,
-   which is why the totals differ by one rather than two). Tried both orderings of the
-   test, if/else-if/else, and the flat goto form, all identical.
-   PERMUTER: 3 minutes, 1122 iterations, base 1585 best 1015. Its one real find is
-   load-bearing and is in this body: store pEntry->scaleStep BEFORE pEntry->tpage. That
-   alone moved the pEntry strength-reduction base from 0x3C to retail 0x48 and took the
-   function from 93.4 to 96.95. Run the permuter again from this body before more hand work.
-   The uninitialised low/high read on the not-flags-0x10 path is RETAIL OWN: the lifeTimer
-   load sits inside the flags-0x10 block and the pack store at the loop tail is shared, so
-   those registers really are stale; zeroing them costs two instructions and cannot match.
-*//*
+/* 99.89% (1328 bytes / 332 insns = retail, all instructions identical). The only
+   residual is the scratchpad address form: retail's expected object spells the four
+   `addiu reg,s3,%lo(D_1F8000xx)` (0xF0, 0x20, 0x10) with a relocation because splat
+   named them, this body folds the same offsets into the immediate (+240/+32/+16) over
+   s3 = 0x1F800000, which links to the same bytes. Declaring the symbols instead is
+   wrong: misc14/misc7 measured that a named D_1F8000xx makes gcc form a fresh
+   lui+addiu. Verified with check_bin.sh world_map.
+   Three constructs are load-bearing and were found by measurement:
+   (1) `low = pSprite->lifeTimer; high = low >> 16; low = (s16)low;` - ONE variable for
+   the packed pair, which is why retail loads it straight into s5 and keeps the sprite
+   base in s6.
+   (2) the flags clear is reached by `goto clearSpriteFlags` to a label AFTER the scan
+   loop (its block is placed just before the store, so retail's scan exit has to `j`
+   over it and reorg duplicates the store's `sll` into that jump's delay slot). Writing
+   `pSprite->flags ^= 0x80; goto storeLifeTimer;` in the arm instead is 4 bytes short
+   (331 insns) at 97.08%.
+   (3) store pEntry->scaleStep BEFORE pEntry->tpage (permuter find from an earlier
+   round): it puts the strength-reduction base at retail's 0x48.
+   The uninitialised low/high read on the not-flags-0x10 path is RETAIL OWN: the
+   lifeTimer load sits inside the flags-0x10 block and the pack store at the loop tail
+   is shared, so those registers really are stale; zeroing them costs two instructions.
+*/
 void func_80089748(void) {
     WorldMapSprite* pSprite;
     WorldMapTrailEntry* pEntry;
     u8* pScratch;
     s32 i;
-    s32 j;
     s32 flags;
-    s32 lifeTimer;
     s32 low;
     s32 high;
     s32 spread;
@@ -732,9 +717,9 @@ void func_80089748(void) {
         // low/high live across iterations: the original only reloads them under flags & 0x10
         // and stores them back at the tail of every active sprite.
         if (flags & 0x10) {
-            lifeTimer = pSprite->lifeTimer;
-            high = lifeTimer >> 16;
-            low = (s16)lifeTimer;
+            low = pSprite->lifeTimer;
+            high = low >> 16;
+            low = (s16)low;
             if (low != 0) {
                 low--;
                 goto storeLifeTimer;
@@ -742,8 +727,7 @@ void func_80089748(void) {
             if (high != 0) {
                 high--;
             } else {
-                pSprite->flags ^= 0x80;
-                goto storeLifeTimer;
+                goto clearSpriteFlags;
             }
         }
         if (pSprite->timer != 0) {
@@ -753,7 +737,7 @@ void func_80089748(void) {
         pSprite->timer = pSprite->interval;
         if ((pSprite->trailActive != 0) & (pSprite->maxCount > 0) & (pSprite->count < pSprite->maxCount)) {
         pEntry = g_WorldMapTrailEntries;
-        for (j = 0xFF; j != -1; j--) {
+        for (spread = 0xFF; spread != -1; spread--) {
             if (pEntry->trailFlags.status.active == 0) {
                 pEntry->spriteIndex = i;
                 pEntry->trailFlags.flags = *(u32*)&pSprite->trailCount;
@@ -815,12 +799,14 @@ void func_80089748(void) {
             pEntry++;
         }
         }
+        goto storeLifeTimer;
+    clearSpriteFlags:
+        pSprite->flags ^= 0x80;
     storeLifeTimer:
         pSprite->lifeTimer = (high << 16) | low;
     }
     func_80089580();
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
+}
 
 
 // 0x1F800000 scratchpad view this routine projects through. The three matrices and the
