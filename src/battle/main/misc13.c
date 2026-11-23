@@ -119,6 +119,7 @@ extern s32 BattleFindMinValueOtherSlot(s32);
 extern void BattleInitActorSlotAnimation(s32, s32, s32, s32);
 extern u8 BattleSlotBitMaskInverted(u8);
 extern s32 func_8009ADA0(u8, s32 *);
+extern s32 func_80086028(u8, s32, s32, u8, u32 **, u8);
 extern void BattleClearSlotCurveEntry(void);
 extern void BattleAttachActorAnimScripts(u8, s32, s32, s32);
 extern u8 g_BattleActorCommandIds[];
@@ -582,7 +583,222 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 
+// PARKED 94.97%, 2508 bytes / 627 insns (retail 2488 / 622). Whole body decoded: the 3-buffer
+//   D_800C3A70 alloc/free loops, both queue writes, the 13-row key walk, the per-command
+//   sprite loop, the 13-arm status ladder with the case-12 body, the queue[0x2E4]
+//   BattleUpdateFrame path, the 6-arm + case-8 ladder, the last 3-arm ladder (case 0/1/3),
+//   and all four BattleDrawSpritePackage / three func_80086028 blocks are retail's; the
+//   twelve 'addiu' ladder arms, both 'sltiu' guards, both jtbl operands and the two
+//   distinct free-loop tail shapes match. Twin: this is func_80086F98's sibling (its park
+//   above names it BattleDrawActorCommandColumn) - same skeleton, func_80086028 instead of
+//   func_80086C88 and the icon status index derived from the matched row instead of
+//   (arg0+1)*3.
+//   RESIDUAL 1, the whole 20-byte surplus: the u8 parameter arg1 is SPILLED
+//   ('sb a1,24(sp)' at entry + four 'lbu x,24(sp)' reloads) and the frame is 96 where
+//   retail has 88; retail keeps it in $s8. So this body has ONE MORE value live across a
+//   call than retail's nine (s0 = o$, s1 = j, s2 = i, s3 = matched, s4 = spriteId,
+//   s5 = row, s6 = arg0, s7 = drawn, s8 = arg1); ours lands arg0 $s5, row $s6,
+//   spriteId $s1, j $s2, i $s3, matched $s4 - a pure rotation plus the spill.
+//   RESIDUAL 2: that rotation (names only, no instruction differs).
+//   Tried and measured, do not redo: removing the BattleDrawSpritePackage return temp
+//   (94.97 / 2508, unchanged - gcc coalesces it); permuter 4 min from this body
+//   (base 4135 -> best 1200, but the find is '(j = i)' at the block-B call, which
+//   clobbers the ladder counter that the very next '0x13 - j' status index reads - wrong
+//   code, rejected); try_flags gcc-2.6.0 95.22, gcc-2.7.2-cdk 78.03, so Default is right.
+//   Next lever: the 10-second -da/-dg allocno dump on this body to see which pseudo
+//   outranks arg1 and how wide the margin is (levers.md a-global-allocno-priority-is /
+//   a-near-miss-allocno-quotient); a 4% margin is two instructions of live range, a 10x
+//   gap is a wall.
+/*
+void func_800861D0(u8 arg0, u8 arg1) {
+    s32 i;
+    s32 j;
+    s32 matched;
+    s32 o;
+    s32 row;
+    s32 drawn;
+    u8 spriteId;
+    u8 *pQueue;
+    u8 *pRow;
+    u8 *pKey;
+
+    row = 0;
+    drawn = 0;
+    for (o = 0; o < 12; o += 4) {
+        *(void **)(D_800C3A70 + o) = BattleAllocTextBuffer(0x1E);
+    }
+    g_BattleCommandQueue[0x2CC + g_BattleCommandQueue[0x2D6]] = arg0 + 0xFC;
+    g_BattleCommandQueue[0x2D6] = g_BattleCommandQueue[0x2D6] + 1;
+    if (g_BattleCommandQueue[0x2E4] != 0) {
+        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = BATTLE_COMMAND_NONE;
+    }
+    pQueue = g_BattleCommandQueue;
+    for (i = 0; i < BATTLE_COMMAND_SLOT_COUNT; i++) {
+        pRow = g_BattleCommandSlotRows[i];
+        for (j = 0; j < BATTLE_COMMAND_KEY_LENGTH; j++) {
+            pKey = pQueue + j;
+            if (pKey[0x2CC] != pRow[j]) {
+                matched = 0;
+                break;
+            }
+            matched = 1;
+        }
+        if (matched) {
+            break;
+        }
+    }
+    matched = i;
+    if (g_BattleCommandQueue[0x2E4] != 0) {
+        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = arg0 + 0xFC;
+    }
+    g_BattleSpriteColumnWork[0x5D81] = 0;
+    g_BattleSpriteColumnWork[0x5D80] = 0;
+    for (i = 0; i < g_BattleCommandQueue[0x2D6]; i++) {
+        switch (g_BattleCommandQueue[0x2CC + i]) {
+        case 0:
+            spriteId = 0x5D;
+            break;
+        case 2:
+            spriteId = 0x5E;
+            break;
+        case 3:
+            spriteId = 0x5F;
+            break;
+        }
+        g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(spriteId,
+                                    (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                    i * 0x10 + 0x50, 0xD0 - row * 0x10);
+    }
+    j = 0;
+    switch (matched) {
+    case 0:
+        j++;
+    case 1:
+        j++;
+    case 2:
+        j++;
+    case 3:
+        j++;
+    case 4:
+        j++;
+    case 5:
+        j++;
+    case 6:
+        j++;
+    case 7:
+        j++;
+    case 8:
+        j++;
+    case 9:
+        j++;
+    case 10:
+        j++;
+    case 11:
+        j++;
+    case 12:
+        if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
+                                        g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j]) != 0) {
+            if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x20) == 0) {
+                if (g_BattleCommandQueue[0x2E4] == 0) {
+                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
+                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                                i * 0x10 + 0x50, 0xD0 - row * 0x10);
+                } else {
+                    i -= 1;
+                }
+                drawn = 1;
+                row = func_80086028(arg1, row, i,
+                                    g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j],
+                                    (u_long **)(D_800C3A70 + (row / 2) * 4), 0);
+            }
+        }
+        break;
+    }
+    if (g_BattleCommandQueue[0x2E4] != 0 && drawn != 0) {
+        g_BattleSpriteColumnWork[0x5D90] = g_BattlePrimStartIndex[0];
+        g_BattleCommandQueue[0x2DC] = g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j] + 8;
+        g_BattleSpriteColumnWork[0x5D8F] = g_BattlePrimStartIndex[0];
+        g_BattleDisplayState[0xA8] = 1;
+        BattleUpdateFrame();
+        for (o = 0; o < 12; o += 4) {
+            HeapFree(*(void **)(D_800C3A70 + o));
+        }
+        return;
+    }
+    j = 0;
+    switch (matched) {
+    case 0:
+        j++;
+    case 1:
+        j++;
+    case 2:
+        j++;
+    case 3:
+        j++;
+    case 4:
+        j++;
+    case 5:
+        j++;
+    case 8:
+        if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
+                                        g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x13 - j]) != 0) {
+            if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x1C) == 0) {
+                if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x20) == 0) {
+                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(8,
+                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                                i * 0x10 + 0x54, 0xD0 - row * 0x10);
+                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
+                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                                i * 0x10 + 0x64, 0xD0 - row * 0x10);
+                    row = func_80086028(arg1, row, i,
+                                        g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x13 - j],
+                                        (u_long **)(D_800C3A70 + (row / 2) * 4), 1);
+                }
+            }
+        }
+        break;
+    }
+    j = 0;
+    switch (matched) {
+    case 0:
+        j++;
+    case 1:
+        j++;
+    case 3:
+        if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
+                                        g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x16 - j]) != 0) {
+            if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x1E) == 0) {
+                if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x20) == 0) {
+                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(9,
+                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                                i * 0x10 + 0x58, 0xD0 - row * 0x10);
+                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
+                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
+                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                                i * 0x10 + 0x68, 0xD0 - row * 0x10);
+                    func_80086028(arg1, row, i,
+                                  g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x16 - j],
+                                  (u_long **)(D_800C3A70 + (row / 2) * 4), 1);
+                }
+            }
+        }
+        break;
+    }
+    g_BattleSpriteColumnWork[0x5D90] = g_BattlePrimStartIndex[0];
+    g_BattleSpriteColumnWork[0x5D8F] = g_BattlePrimStartIndex[0];
+    g_BattleDisplayState[0xA8] = 1;
+    BattleUpdateFrame();
+    for (o = 0; o < 12; o += 4) {
+        HeapFree(*(void **)(D_800C3A70 + o));
+    }
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
+
 u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
     s32 ok = 1;
     s32 idx;
