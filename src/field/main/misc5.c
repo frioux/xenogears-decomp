@@ -858,6 +858,40 @@ void FieldAddParticlePrims(void) {
 // (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10, tpage =
 // GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
 // *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
+// PARKED 99.56%, re-measured (round 421): retail's exact 500 bytes / 125 insns,
+// instruction-identical except ONE register pair. Retail keeps j*16 (truncated in
+// place by the andi) in v0 and the mask+0x10 value (v1 = v0 + 0x10) in v1; ours
+// mirrors them (mask in v1, mask+0x10 in v0), 18 differing lines and nothing else.
+//
+// WHY THE PAIR CANNOT FLIP: fresh -dl on this body gives pseudo 78 = the mask (12
+// refs across 7 insns), 79 = the mask+0x10 (9 refs across 6 insns) and 122 = the
+// j*16 temp (12 / 22, coalesced into 78). local-alloc orders qtys by deaths/refs,
+// then by live_length; both die once, so the mask's 12 refs (0.083) lose to 79's 9
+// (0.111), 79 takes the first free register ($v0) and the mask follows into $v1.
+// Refs are 3 per referencing insn, so the mask touches 4 insns (andi, addiu, the
+// two sb) and 79 touches 3 (addiu, the two sb): the mask can only be processed
+// first at <= 8 refs (2 insns) or with 79 at >= 11 (4 insns), and retail's own
+// stream pins both counts. So this is not a tie to spell.
+//
+// Measured on this body, in addition to the list below: grouping the u0/u2 stores
+// above u1/u3 DOES hand the mask $v0 but re-orders the sb stream with it (96.53),
+// a u_char store-view of the mask (u_char nUS = nU) costs one instruction and 4
+// bytes (98.96), the local-alloc dumps above, and a 5th permuter run base=55
+// best=55 over 1550 iterations.
+//
+// Preset screen on this body: 2.7.2-cdk 99.52, 2.6.0 99.56, -O3 does not compile.
+//
+// Tried before that (all 99.56, byte-identical unless noted): the mask before or
+// after the x stores, mask and +0x10 adjacent at retail's own position, a named
+// temp at its first use, a 0x10 + nU operand swap, nU1 before nU, declaration
+// order, nX reused for the mask or for the +0x10 value, both inline forms, a second
+// 0x10 local, an x1/x3 stepping counter in the for increment clause (97.60, moves
+// the s4/s5 roles), nX written back as nX &= 0x3F (95.54 / 488 - folds three
+// insns), a block-scope declaration with initialiser, u_char mask (94.91), one or
+// both of nU/nU1 u_short (94.9), nIndex reused (94.2); five permuter runs, base=55
+// every time (1314, 1971, 2018, 222, 1550 iterations).
+//
+// Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
 /*
 void func_800A6E70(void) {
     FieldParticlePrimitiveSet* pPrims;
@@ -921,6 +955,7 @@ void func_800A6E70(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+
 
 
 void func_800A7064(void) {
