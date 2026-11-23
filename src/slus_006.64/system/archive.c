@@ -383,6 +383,32 @@ int ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 channel) {
  * body anyone typed, and it only reorganises the same allocnos, so the residual
  * is the allocno order, not a missing local.
  *
+ * ROUND 433: the C's store order cannot reach it. Six measurements, all on this
+ * body, moving the six D_80059Fxx stores around (source order -> the three args
+ * in callee-saved regs, bytes / insns / pct):
+ *   retail order, do/while(0) (the body below)  a4,a5,a8   948/237/94.47
+ *   retail order, no do/while(0)                a4,a7,a8   948/237/93.74
+ *   a4..a9 contiguous at the top, no wrapper    a4,a5,a6,a7 944/236/87.92
+ *   a4,a5,a6 top, a7,a8,a9 at the end           a4,a5,a6,a7 936/234/89.68
+ *   all six at the end of the block             a4,a5,a6,a7 936/234/92.54
+ *   reversed a9..a4, no wrapper                 a4,a5,a6,a7 936/234/92.50
+ * Two facts come out of that. gcc hands callee-saved registers to the stack
+ * args in PARAM order (a4,a5,a6,a7) whatever the source order, so the set is
+ * not something the C can steer, and the do/while(0) is worth keeping only
+ * because it pins retail's store order (without it cc1 reorders the six stores
+ * to a5,a6,a7,a8,a4,a9, which is why 94.47 is the best). And retail's set is
+ * a4,a5,a6 because retail's NINTH callee-saved allocno is the constant 1
+ * (`li s5,1`, 3 refs, live from the AlignedSize call to the CdDriveState
+ * store), which outranks a7 (2 refs, entry to the D_80059F30 store) only there.
+ * The size is not the blocker: the a4..a9-contiguous body is retail's exact
+ * 944 bytes / 236 insns while promoting one arg too many and spilling channel
+ * to 0x10, so the residual is that one allocno at the margin, const-1 vs a7.
+ * Preset re-screened on this body: Default 94.47, gcc-2.7.2-cdk 87.91,
+ * gcc-2.6.0 95.06 - but 2.6.0's prologue promotes the same three args
+ * (a4,a5 in $s7/$s8 and a8 in $s5), so its extra point is s-reg numbering, not
+ * the allocno, and the unit cannot switch anyway: ArchiveReadFile drops to 99.93
+ * and ArchiveCdDriveCommandHandler to 99.94 under 2.6.0.
+ *
  * Retail's store order, for whoever picks this up: g_ArchiveStreamWritePointer,
  * D_80059F30=arg7, g_ArchiveStreamSections, D_80059F34=arg8,
  * g_ArchivePendingReadCount=1, g_ArchiveCdChannel, g_ArchiveStreamQueueIndex,
