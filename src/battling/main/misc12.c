@@ -533,41 +533,29 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
     g_BattleScaleMatrix.m[1][1] = scaleH;
 }
 
-/* Best attempt: objdiff 97.91%, but 508 bytes against retail's 512, so it cannot
-   link yet. The tile packet is a BattleTilePacket at D_8009A1C0 (tag/len at +0/+3,
-   code at +4, x/y at +8/+0xA, w/h at +0xC/+0xE) and the 16-byte copy is
-   D_8009A2B8 = D_8009A1C0. Typing both under that ONE symbol is what makes the
-   body work at all: with the tile fields declared as separate D_8009A1C3/1C4/1C8/
-   1CA/1CC/1CE externs (the same body, same store order) gcc treats the copy's loads
-   as independent of those stores and sched2 hoists the copy above them (79.77%, the
-   old park); through the shared D_8009A1C0 base the loads and stores alias, the copy
-   stays last, and the two truncating copies retail has for w/h come back too.
-   Still missing: retail copies the w and h parameters into $v0 before each sh
-   (addu v0,s2,zero / addu v0,s1,zero), which is the whole 4-byte gap. No spelling
-   found that makes cc1 2.7.2 emit that copy - probed u16/s16 locals, an explicit
-   (u16) cast, w & 0xFFFF, a u16* view, a shared s32 temp, bitfields for w/h, a
-   volatile field, a struct-pointer field store, and (round 292) `u16 tileW = w;
-   u16 tileH = h;` assigned just before the six stores: gcc folds the narrow local
-   into the sh and the body is byte-identical to the version with no locals at all.
-   The shape retail shows is a HI-mode pseudo that cannot be copied partially, so
-   the source stored a genuine narrow *variable* that was live across something -
-   but every u16 source spelling so far is folded away.
-   ROUND 397: re-measured the same 97.91% and broke the copy question down with
-   cc1_probe (a self-contained function storing the same tile from two s32
-   parameters). Every store spelling folds to `sh $sN`: u16 and s16 struct field, a
-   :16 bitfield, a bare u16 global, a u16 local assigned from the parameter (which
-   coalesces - local-alloc CAN coalesce a HI pseudo with a HI subreg of the
-   parameter), a u16 local shared by both stores, and the same under gcc-2.6.0 and
-   2.7.2-cdk, so this is neither a preset nor a plain allocator tie. The ONE
-   construct that makes cse build a fresh HImode pseudo is reading the value back
-   out of the s16 global (D_8009A1C0.w = g_BattleScreenWidth after
-   g_BattleScreenWidth = w), and that is not retail: it needs two more scratch
-   registers for x/y, duplicates a store, and measures 94.77% at 524 bytes. A
-   static inline helper taking u16 parameters folds as well. Conclusion: retail's
-   two copies came from a TU-level construct this unit does not have (an inlined
-   helper, or the original's own tile macro), so 97.91% is the source ceiling here
-   and the stub stays. */
 
+/* Best attempt: objdiff 97.91% at 508 bytes / 127 insns against retail's
+   516 / 129, so it cannot link (the note below used to say 512; re-measured round
+   420). The tile packet is a BattleTilePacket at D_8009A1C0 and the 16-byte copy is
+   D_8009A2B8 = D_8009A1C0; typing both under that ONE symbol is what makes the body
+   work at all - with the tile fields as separate D_8009A1C3/1C4/1C8/1CA/1CC/1CE
+   externs the copy's loads look independent of those stores, sched2 hoists the
+   copy above them and the body is 79.77%.
+   The whole residual is TWO copies: retail does "move v0,s2 / sh v0,0x1CC" and
+   "move v0,s1 / ... / sh v0,0x1CE" where ours stores sh s2 / sh s1 in place. A
+   sweep of rd/th truncation spellings with cc1_probe.sh on this unit's own flags
+   (a snippet carrying the two SetDefDispEnv calls, the g_BattleScreenWidth store,
+   the BattleSetScaleMatrix call and the whole tile tail) folds ALL of them to
+   sh $sN: plain, u16 locals assigned just before the stores, u16 locals assigned
+   at entry and live across the calls, u16 locals assigned at the store site, a
+   u16* field pointer, w & 0xFFFF, and u16 locals declared one per store. Earlier
+   rounds added a u16/s16 cast, a shared s32 temp, bitfields, a volatile field and
+   2.6.0 / 2.7.2-cdk to that list. The ONE construct that makes cse build a fresh
+   HImode pseudo is reading the value back out of an s16 global
+   (D_8009A1C0.w = g_BattleScreenWidth after g_BattleScreenWidth = w), and that is
+   not retail: it needs two more scratch registers and measures 94.77% at 524.
+   Conclusion unchanged: retail's copies came from a TU-level construct this unit
+   does not have, so 97.91% is the source ceiling and the stub stays. */
 /*
 void func_80089330(s32 w, s32 h) {
     DISPENV* pDisp;
@@ -611,8 +599,7 @@ void func_80089330(s32 w, s32 h) {
     D_8009A1C0.y = 0;
     D_8009A1C0.h = h;
     D_8009A2B8 = D_8009A1C0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
 
 void BattleInitDrawEnvs(s32 w, s32 h) {
