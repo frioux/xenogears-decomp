@@ -607,32 +607,42 @@ void func_80092298(u8 arg0, u8 *arg1) {
     g_BattleDisplayState->menuColumnPending = 1;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
-// 70.57% under this unit's gcc 2.6.0, at objdiff's 1028 bytes -- the same count
-// as the original, so the body is the right LENGTH and every difference is a
-// frame offset. The
-// whole body reproduces retail instruction for instruction -- the 0x618 text
-// buffer, the eight 0x1B x 0x10 tiles, the glyph blit shared by the i == 7 and
-// the arg1[i] arms, the even-tile load, the tens/ones digit blits with the
-// g_BattleDigitImageBuffers digit-buffer table -- and the only residual is the FRAME: retail is
-// 0x90 with 88 bytes of vars, this body is 0x98 because loop.c hoists the
-// address of the tens rect (the one address used from two arms, since retail has
-// a separate jal for the tens blit in each) and reload spills it (8 bytes at
-// 0x68) instead of rematerialising it. Retail has no address in a register at
-// all: every blit re-forms `addiu a0,sp,N` inline, which it can do because it
-// holds exactly nine values (i, (i/2)*16, (i%2)*0x1E+0x380, arg1, arg2, 0xD,
-// arg0, 6 and &pBufs[i]) in the nine saved registers. Handing the glyph and ones
-// rects ONE use each (rect stores in the arms, a `goto nextTile` past the glyph
-// blit, and a pData local feeding the ones blit both arms share) removes three of
-// the four hoisted addresses and leaves only the tens one, but that spelling is
-// 70.43% at 1012 bytes (4 bytes SHORT, so it cannot link); the body below keeps
-// the blit duplicated in both arms, 70.57% at 1028.
-// Tried: six vs one-at-a-time declaration orders (which DO decide the slots --
-// retail's are glyph 0x10, tens 0x18, ones 0x20, tile 0x28, second 0x30, source
-// rect 0x38, pBufs 0x40, i.e. that declaration order), block-scoped duplicate
-// RECTs (gcc does not share stack slots), a RECT* local per site (worse), the
-// free loop as a pointer walk (no change), which shows the extra biv is the
-// first loop's `pBufs[i]` byte offset ($20 = i*4, live across both loops).
+// 70.43% (1012 bytes / 253 insns against retail's 1028) under this unit's gcc 2.6.0,
+// re-measured this round by un-parking and diffing. THE OLD NOTE'S 70.57% AT 1028 WAS
+// STALE: that park carried three `divisors[...] = ...` lines left over from
+// func_800930AC and an undeclared `divisors` local, so it never compiled and the
+// percentage came from a previous object.
+//
+// The body below is RETAIL'S STRUCTURE, verified against the .s: the 0x618 text
+// buffer, the source rect at 0x3C0/0/0x3C/0xD, the eight 0x1Bx0x10 tiles, the glyph
+// arm shared by `i == 7` (GetStringEntryFromBank12(0xA)) and `arg1[i] != 0xFF`
+// (GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg1[i])), the even-tile
+// secondRect, and the tens/ones digit blits whose source is ONE shared call fed by a
+// `pData` local (retail: `j .L80092AE0` with a1 already set per arm, one jal) with
+// the two arms' onesRect stores keeping retail's constant-folded 0x3D2/0x132 under
+// i == 7. The six RECTs sit at retail's own slots (glyph 0x10, tens 0x18, ones 0x20,
+// tile 0x28, second 0x30, source 0x38, pBufs 0x40) in this declaration order.
+//
+// Residual, measured:
+// 1. THE FRAME AND THE WHOLE ALLOCATION TURN ON ONE EXTRA CALLEE-SAVED VALUE. Retail
+//    is 0x90 with 9 saved registers holding i, (i/2)*16, (i%2)*0x1E+0x380, arg1,
+//    arg2, 0xD, arg0, 6 and &pBufs[i]; this body is 0x98 because it also keeps the
+//    pBufs element offset as a strength-reduced giv (`move s?,zero` in the preheader,
+//    `addiu s?,s?,4` in the latch) where retail recomputes `sll v1,s1,2` +
+//    `addu s0,v0,v1` every iteration, and the freed register is what retail uses to
+//    HOIST 6 into s8 (this body rematerialises `li t0,0x6` at each rect). With 10
+//    live values for 9 registers gcc spills &tensRect to a var slot (the 8 bytes)
+//    instead of re-forming `addiu a0,sp,0x18` at each of the two tens blits.
+//    lever.py g-invariant-addend-keeps-mul is the closest lever (an invariant ADDEND
+//    in the index is what stops loop.c folding a base into a pointer iv) but pBufs
+//    sits at a fixed frame address, so its index has no invariant term to add.
+// 2. Retail's i==7 test comes out `beq s1,v0,.L80092900` (the i==7 arm OUT of line,
+//    the arg1[i] test inline); this body gets `bne` with the i==7 arm inline.
+// Tried, all measured: the pBuf local for the allocation (identical 1012 bytes), the
+// `goto nextTile` glyph skip (identical), duplicating the ones blit in both arms
+// instead of the pData local (69.20%, 1024 bytes, frame 0xA0 -- it spills BOTH
+// tensRect and onesRect addresses), no pData with the tens source in a local, and
+// try_flags gcc-2.7.2-cdk (68.71%) so the preset is not the answer.
 /*
 void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     RECT glyphRect;
@@ -642,14 +652,12 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     RECT secondRect;
     RECT rect;
     u_long *pBufs[8];
+    u_long *pBuf;
     u_long *pData;
     u8 tensDigit;
     u8 onesDigit;
     s32 i;
 
-    divisors[0] = 1000;
-    divisors[1] = 100;
-    divisors[2] = 10;
     BattleAllocPacketPrimitives();
     BattleLoadActionRowGraphics();
     g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
@@ -660,8 +668,9 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, g_BattleTextWorkspace);
     for (i = 0; i < 8; i++) {
-        pBufs[i] = BattleAllocTextBuffer(0x1B);
-        bzero(pBufs[i], 0x30C);
+        pBuf = BattleAllocTextBuffer(0x1B);
+        pBufs[i] = pBuf;
+        bzero(pBuf, 0x30C);
         tileRect.x = (i % 2) * 0x1E + 0x380;
         tileRect.y = (i / 2) * 16 + 0x100;
         tileRect.w = 0x1B;
@@ -720,8 +729,8 @@ nextTile:
     }
     HeapFree(g_BattleTextWorkspace);
     BattleDrawSlotStatusPanel();
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 /* REPARKED 87.17% (1252 bytes against retail's 1336, 313 insns vs 334), frame 0x30 and the five
