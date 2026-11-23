@@ -764,31 +764,33 @@ void BattleFreeSoundSeds(void) {
         g_BattleSedsLoaded = 0;
     }
 }
-/* PARKED 85.91 percent at retail's exact 264 bytes / 66 instructions with every
-   register right (pLast in s0, pState in a1, the reload in a0).  The residual is
-   sched1's interleaving of the five instructions around the reload: retail orders
-   both 0x74 stores, the reload, the two flag loads, then store 0x4C(a1) and store
-   0x28(a1), while this body sinks the 0x74(s0) store to the end and swaps the two
-   pState stores.  This unit compiles with -fschedule-insns, so statement order
-   cannot fix that (the same five statements inside a do..while(0) block measure
-   85.82 at the same 66 insns with a third interleave).  Two 4-minute permuter runs
-   from this body: base 970 best 810 and base 1020 best 815, both only reorderings.
-   THE RELOAD: retail names g_BattleActorList a second time for one plain lw and
-   cc1 2.7.2-cdk FORWARDS that second read across both 0x74 struct stores.  Measured
-   this round, all 63 insns / 252 bytes / 85.27: the plain read, a local holding
-   &g_BattleActorList dereferenced, *ppList first with the named read last, and the
-   non-volatile pointer cast *(BattleActorSprite **)&g_BattleActorList (with that one
-   pState gets a0 and the two pState stores swap).  The volatile cast is the only
-   spelling measured that emits the load at all; keeping it between the two 0x74
-   stores in source is what puts pState in a1 and the reload in a0 (85.17).
-   MEASURED, 66 insns / 264 bytes unless noted: reload after both stores and partKey
-   82.89; store 0x74(s1), reload, partKey, store 0x74(s0) last 85.91 (this body);
-   partKey before the reload with the 0x74(s0) store last 85.17; volatile stores
-   instead of the volatile load 84.65 / 268 bytes (the reload then owns an
-   unfillable nop, the round-411 note).
+/*
+PARKED 85.91 percent at retail's exact 264 bytes / 66 instructions, the best of four
+   spellings measured this round and every register right (pLast in s0, pState in a1,
+   the reload in a0). Residual is three sched1/allocator interleaves, not source order:
+   retail hoists the %hi(g_BattleStateWork) lui above the %hi(g_BattleCommandRowIndex)
+   one and keeps 0x14E in the load's DISPLACEMENT (addiu v1,v1,%lo only), while this
+   body folds the offset into the addiu (addiu v1,v1,334 + lhu 0(v0)) and orders the
+   mask store before the second load; retail gives the jal delay slot to that sh and
+   puts move a2,s1 up with the saves; and this body hands pState a0 instead of a1 and
+   stores 0x74(a0) above the two flag loads. This unit runs -fschedule-insns, so
+   statement order does not move those (a do-while grouping measured 85.82, and two
+   4-minute permuter runs from this body found only reorderings, base 970 best 810 and
+   base 1020 best 815).
+   MEASURED (round 437, all 264 bytes / 66 insns unless noted): a pointer local for the
+   row, pWork = g_BattleStateWork + g_BattleCommandRowIndex * 0x48 then
+   *(u16 *)(pWork + 0x14E), DOES reproduce retail's displacement form (addiu v1,v1,%lo
+   with lhu 334(v0)) but it moves the index multiply into v1 off v0, gives pState a0
+   and hoists the reload: 76.32. The same pointer local with the plain global read
+   g_BattleState->pTargetSprite = g_BattleActorList drops the second g_BattleActorList
+   load entirely (63 insns / 252 bytes, 71.50) and puts the table address in s0, so the
+   volatile lvalue at the read is load-bearing. The volatile cast is the only spelling
+   that emits the reload (rounds 411 and 424 agree).
    The mask is g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E, i.e.
    D_800C3FB8 + 0x46; D_800C3FB8 is not in config/symbol_addrs.battle.txt, so keep the
-   base spelling and keep the offset inside the expression. *//*
+   base spelling and keep the offset inside the expression.
+*/
+/*
 void func_800BF3E8(BattleActorSprite *p) {
     BattleActorSprite *pLast;
     BattleMisc33State *pState;
