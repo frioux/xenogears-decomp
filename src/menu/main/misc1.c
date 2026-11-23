@@ -371,7 +371,10 @@ void MenuOverlayMain(void) {
 }
 /* Best: 98.62% (500 bytes = retail's exact size, 125 insns), instruction-identical except
    the three saved-register NAMES: retail pBuffer=s0, i=s1, lineCount=s2 against gcc's
-   i=s0, lineCount=s1, pBuffer=s2.
+   i=s0, lineCount=s1, pBuffer=s2. Re-measured round 419 (unparked, whole diff read):
+   same 98.62% / 500 bytes. That round also closed the declaration-order axis - ALL SIX
+   permutations of the three candidates among their declaration slots measure 98.62%, so
+   pseudo numbering is not what hands out s0/s1/s2 here. Nothing else left to spell.
    REACHABILITY, MEASURED (round 396) - read this before trying another spelling. `-da` on
    build/src/menu/main/misc1.c.i gives the pre-global-alloc lreg/flow dump, whose per-pseudo
    "Register N used X times across Y insns; ... Z bytes" lines are exactly the terms of gcc
