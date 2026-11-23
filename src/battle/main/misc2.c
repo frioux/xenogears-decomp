@@ -403,7 +403,6 @@ void BattleAddPrimPair280(void) {
    (idx * 0x28) in every block, and cases 1 and 4 both end with
    BattleAddPrimPair280(); BattleAddPrimPair320(); as plain code (case 2's tail
    is 320 then 280), so no goto is needed.
-/*
 void func_800745EC(void) {
     BattlePacketPrims *p;
 
