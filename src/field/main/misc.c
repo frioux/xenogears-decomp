@@ -1852,6 +1852,17 @@ extern void func_80077268(void);
 // most plausibly a pseudo that alter_reg gave a slot and reload then
 // rematerialised (an address constant). gcc-2.6.0-psx scores this body 97.84,
 // so the preset is not the answer either.
+// Round 428, re-measured on this body: 99.92% / 776 bytes, 194 insns, and the
+// compiled .frame reads vars=32 - FOUR 8-byte stack slots: the dummy at 0x10 and
+// the three spills at 0x18/0x20/0x28. Retail's hole is the TOP slot (0x28) and its
+// three spills are the low three. Moving the dummy from the last declaration to
+// the first changes nothing (still 99.92), so an expand-time aggregate always
+// takes the LOWEST var slot and the hole cannot be moved from source that way; it
+// must be a fourth SPILL-era pseudo declared after prevIP whose accesses reload
+// dropped. No local in this body spills into it, so the frame and the three slot
+// offsets stay locked together. Also re-measured: assigning pFieldActor before
+// pActor gives retail's base-first addu but swaps the actor-data load and both
+// stores ($v0/$v1) - 99.84, so the subexpression form below stands.
 /*
 void func_8008B978(int characterId) {
     FieldActor* pPrevFieldActor;
