@@ -1093,6 +1093,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * scores 97.66 but 740 bytes / 185 insns, i.e. still not retail's shape. Land the
  * `sizeof` substitution first, then re-run: this is a permuter job, not a hand one.
  *
+ * ROUND 431: this function is instruction-identical to func_8002B5D0; the ROUND 431
+ * note in that stub's park re-measures the shared body and the body it carries is
+ * the closest shape found (double negation on the destination sum: retail's `sll`
+ * register, no maspsx load-delay nop, identical multiset, residual a pure reorder).
+ * Port that line here before trying anything else on this stub.
+ *
  * void func_8002B2F0(u_char status) {
  *     int entryIndex;
  *     ArchiveStreamFileSectionHeader* pCurrent;
