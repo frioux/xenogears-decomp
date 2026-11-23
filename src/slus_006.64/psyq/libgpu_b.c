@@ -245,6 +245,24 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
    99.51: base 25 best 25, 1593 iterations) find nothing.
    The sibling func_80045A34 is instruction-identical except its opcode word
    (0xE3000000), so this body should score the same there. */
+// re-parked round 435 at 99.51 (204 bytes = retail's exact size, 8 differing
+//    lines: retail masks the clamped x into $v0 and lui's 0xE4000000 into $a0, we
+//    hold the pair the other way round, which also swaps the closing or operands).
+//    Three new measurements this round, all on THIS body:
+//    - `code |= 0xE4000000; return fld | code;` 99.31, and it identifies retail's OR
+//      as an IN-PLACE update of the masked value (`or a0,a0,v0`, dst tying to the
+//      masked x), not `ret = code | const` with a fresh result;
+//    - hoisting the constant into a local (`u_long cmd = 0xE4000000;` assigned at the
+//      top, `ret = code | cmd;`) DOES hand the masked x $v0 - `andi v0,a3,0x3ff` and
+//      `andi v0,a3,0xfff` are retail's - but the long live range makes gcc compute the
+//      lui in the entry block into $t0 (`or v0,v0,t0`) and the j target moves 4 bytes:
+//      91.76. So the allocno tie IS live_length-reachable; retail needs the constant
+//      both SHORT (its lui sits one instruction before the or) and ranked below the
+//      masked x, and no spelling of the two produced both;
+//    - the putDispEnv single-expression spelling (`ret = ((y & 0x3FF) << 10) |
+//      (x & 0x3FF) | 0xE4000000;` in each arm, no locals) folds the or tree to
+//      50 insns / 200 bytes: 88.82.
+//    Third permuter run from this body: base=25 best=25, 1953 iterations, nothing.
 /*
 u_long func_80045B00(s16 x, s16 y) {
     u_long ret;
@@ -268,10 +286,9 @@ u_long func_80045B00(s16 x, s16 y) {
     }
     ret = code | 0xE4000000;
     return fld | ret;
-}
-*/
-
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
+
 
 /* best: 98.53% (68 bytes = retail's exact size, identical instruction
    multiset; only the register holding the masked x differs: retail masks it into
