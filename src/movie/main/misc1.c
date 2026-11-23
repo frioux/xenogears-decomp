@@ -144,120 +144,24 @@ extern s32 g_MoviePrevPadButtons;
 extern s32 g_MovieCursorIndex;
 extern s32 g_MovieHeapDebugEnabled;
 
-// Best attempt (99.02%): retail's EXACT size (2276 bytes), exact register set
-// (ra, s0-s4) and exact FRAME (0x70, mode copied at 0x30, &action at 0x50), so
-// its instruction multiset is identical to retail's. Three allocator/scheduling
-// ties are left, each one instruction: `li s3,1` sits at the END of the preheader
-// where retail has it at the top; the D_8006FC40 format-string `la a0` of the
-// stream-status FontPrintf lands just before the jal where retail has it before
-// the a1..a3 loads; and the /3600 magic division's `mfhi` goes to t1 instead of
-// straight into a2. A 4-minute permuter run (1229 iterations) on this body found
-// nothing.
-// Load-bearing, each measured:
-// - The two UNUSED locals are what reproduce retail's locals area: `SVECTOR sv`
-//   (8 bytes, unused, declared first) puts `mode` at 0x30 instead of 0x28, and
-//   `u32 spare2[6]` (24 bytes, unused) after `mode` puts `action` at 0x50 instead
-//   of 0x30. Anything else of 28 bytes or more (u32[7]) rounds the slot up to 32
-//   and the frame becomes 0x78. No instruction references either slot in retail
-//   either, so they are dead locals in the original source, not missing code.
-// - The loop head uses its OWN variable (pNext). Writing `pWork = &g_MovieDebugDrawBuffers[0]`
-//   there lets gcc CSE it with the preheader's base in s1, and the loop then
-//   clobbers s1 (lui s1 / addiu s1 / bne v0,s1 ...) where retail re-forms the
-//   address into v1: 6 instructions differ. A separate variable gives retail's
-//   exact `lui v1` form.
-// - `pCounters` is assigned BEFORE `pBase` (retail's s4 copy precedes its s2
-//   copy); the reverse source order swaps those two instructions.
-// - The teardown's RECT stores go through absolute g_MovieDebugDrawBuffers[n] indices (a
-//   pointer local makes them base-relative), the SetDef*Env calls go through
-//   pBase (a second variable holding the same address re-materialises it), `i = 0;`
-//   comes BEFORE the MovieStreamCommand test with the first 7-iteration loop
-//   written `for (; i < 7; i++)` (that keeps the move in the branch delay slot,
-//   -4 bytes and the whole function's size), and the teardown passes `i = 0xF0` /
-//   `i` (that stops gcc hoisting a sixth loop-invariant copy of 0xF0 into a
-//   callee-saved register, +3 instructions when written as plain 0xF0 literals;
-//   the value is dead there, the teardown breaks out of the loop).
-// Earlier measurements: plain 0xF0 literals 98.33 (2292 bytes), a screenHeight
-// local shared by both groups 98.36 (2288), teardown-only screenHeight 98.33;
-// gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75. The division tie of
-// the earlier bodies was a preset question and closed when try_flags scored this
-// body 99.04 under gcc 2.6.0 with all eight already-matched functions of the unit
-// still 100.00, which is how the unit moved to XenoBattle260Div.
-
-// RE-MEASURED under the unit's gcc 2.6.0 preset: 99.04%, retail's exact 2276 bytes.
-// The /3600 magic division now lands in a2 as retail has it, and the only rows
-// objdump shows are two relocation spellings that link to the same address
-// (g_MovieStreamReadCount+0x3C vs retail's D_80076F78, and g_MovieDebugDrawBuffers+0x18 vs
-// retail's g_MovieStreamSlots). BUT tools/scripts/check_bin.sh still reports the
-// overlay MISMATCH: the stream-status FontPrintf below loads its D_8006FC40 format
-// string into a0 LAST, where retail loads it BEFORE the g_MovieStreamBlock /
-// WritePtr / BytesLeft arguments. That is a real byte difference, not a reloc
-// spelling, so the body stays parked. First lever to try: give the format string
-// a local ('char* pFormat = D_8006FC40;') so gcc hoists the address before the
-// other three loads.
-// MEASURED (round 236, un-parked unchanged): 99.04%, 2276 bytes, and the diff is
-// exactly two placement rows, no instruction multiset change. (1) The D_8006FC40
-// `la a0`: gcc emits it AFTER the a1..a3 global loads (its normal arg-setup order
-// for every other FontPrintf in this function); retail emits it FIRST in the
-// .L800708B4 block. Writing it as `char* pFormat = D_8006FC40;` as the block's first
-// statement compiles to the IDENTICAL object - gcc folds the single-use constant
-// address straight back into the argument, so the local never exists as a def.
-// (2) The hoisted constant `li s3,1` (used by `1 - g_MovieDebugBufferParity`, the
-// switch's case 1 and the two `isbg = 1` teardown stores) sits AFTER
-// `pCounters = g_MovieStreamReadCount; pBase = pWork;` in the preheader where retail
-// has it first, i.e. gcc's loop-movable insertion point moved, which no source
-// spelling of those two assignments controls. Preset re-screened under
-// gcc-2.7.2-cdk-psx: 82.76; every already-matched function of the unit is 100.00
-// under the unit preset and 62.96-97.24 under cdk, so 2.6.0 stands.
-// RE-MEASURED (round 393, un-parked unchanged, 2.6.0): 99.04%, 2276 bytes, 569/569
-// instructions, the same two placement rows and nothing else. New negatives, each
-// measured: an empty `do { } while (0);` between ArchiveSetIndex and the two
-// preheader assignments does not move the `li s3,1` (99.04, identical rows); writing
-// the counters loop's base inline (`pCounter = (u32*)g_MovieStreamReadCount`) loses
-// the s4 copy (97.69, 2264 bytes, 566 insns); assigning `pBase = pWork;` at the top
-// of the teardown instead of before the loop loses it too, 99.05% at 2272 bytes
-// (568 insns) - so the preheader copy really is a source statement, and both rows
-// are gcc's own placement of a formation near its use. try_flags under the same
-// 2.6.0 with -O3 and with -G0 both measure 99.04, so it is not a flag question. A
-// 4-minute permuter run (1067 iterations) is useless here: base 460 = best 460,
-// because the reloc-name rows above dominate its score.
-// RE-MEASURED (round 408, un-parked unchanged, 2.6.0): 99.04%, 2276 bytes, 569/569
-// instructions, and the same two placement rows and nothing else. Two more negatives:
-// moving `pCounters = g_MovieStreamReadCount; pBase = pWork;` INTO the loop as its
-// first two statements is hoisted straight back to the identical preheader position
-// (cc1 emits `la s4 / move s2 / li s3`, in that order, either way), and declaring
-// pCounters/pBase first changes nothing (99.04, identical rows).
-// MECHANISM (read off this unit's cc1 output, build/src/.../misc1.c.s): for a REGISTER-passed
-// CONSTANT argument cc1 emits the `la` in load_register_parameters, i.e. AFTER the
-// memory arguments' loads - that is why the D_8006FC40 address lands last, and it is
-// also why the other eighteen FontPrintf calls in this function are right. Retail
-// emits it at expand time, which cc1 only does for a non-constant arg; a single-use
-// pointer local is folded back into the constant (measured, round 236), so no
-// surviving spelling of `FontPrintf(D_8006FC40, ...)` reaches retail's order.
-// PROBED (round 423, cc1_probe.sh under both gcc-2.6.0-psx and gcc-2.7.2-psx, six
-// spellings of that call inside a while(1)/if block of this exact shape: the bare
-// symbol, `char* pFormat = D_8006FC40;` as the block's first statement, a (char*)
-// cast, &D_8006FC40[0], D_8006FC40 + 0, and the pointer assigned before the if):
-// every in-block spelling emits `lw a1 / lw a2 / lw a3 / lw v0 / la a0` under both
-// compilers, i.e. cc1 always stores the constant-address argument after the memory
-// arguments, so retail's la-first order at .L800708B4 is not reachable from the
-// call's C. The only spelling that hoists the `la` is the pointer assigned ABOVE the
-// branch, and that emits it before the slt/beqz instead of inside the block. try_flags
-// scores this body 99.02 under gcc-2.7.2-psx with the same two rows and cdk 82.76, so
-// the preset is not the answer either; the two rows are the whole residual.
-// ROUND 423 BEST: 99.28% / retail's exact 2276 bytes / 569 insns, from an `s32 isbg`
-// local (`isbg = 1;` right after ArchiveSetIndex, read as `isbg - g_MovieDebugBufferParity`
-// and by the two teardown `drawEnv.isbg = isbg` stores). That ONE front-end statement
-// puts the shared constant 1 in retail's preheader slot - `li s3,1` before `la s4` /
-// `move s2`, which no arrangement of the loop.c-hoisted invariant reaches, because cc1
-// emits front-end materialisation before anything loop.c inserts (probed with
-// cc1_probe on a standalone copy of the same shape). What it costs: the switch's
-// `case 1` test stops sharing that register - `li v0,1 / beq v1,v0` where retail has
-// `beq v1,s3` + a nop - because the constant's register equivalence is flushed at the
-// loop-start label. Spell the parity `1 - g_MovieDebugBufferParity` instead (constant
-// created inside the loop, so the compare is retail's again) and the `li` goes back to
-// the END of the preheader at 2288 bytes / 572 insns / 98.69 (measured this round).
-// So the last two rows in the switch are one TRADE, not two residuals.
-/*
+// Matching this body leans on a handful of measured spellings:
+// - `SVECTOR sv` and `u32 spare2[6]` are dead locals: `sv` (declared first) moves
+//   `mode` to 0x30 and `spare2` moves `action` to 0x50, which is retail's frame.
+// - The loop head uses its own variable (pNext); reusing pWork there makes gcc CSE
+//   it with the preheader base and clobber s1.
+// - The three loop-invariant statements below (isbg, pCounters, pBase) are written
+//   INSIDE the loop, in that order: loop.c hoists them into retail's preheader as
+//   `li s3,1 / la s4 / move s2`, and the hoisted `1` is what the switch's case 1
+//   test compares against. Written before the loop, the `li` keeps its source slot
+//   and the switch materialises its own constant instead.
+// - `i = 0;` belongs inside the MovieStreamCommand block, after the status
+//   FontPrintf: with it before the test, cc1 emits that call's format `la a0`
+//   after the argument loads instead of before them.
+// - The teardown's RECT stores go through absolute g_MovieDebugDrawBuffers[n]
+//   indices (a pointer local makes them base-relative), its SetDef*Env calls go
+//   through pBase, and it passes `i = 0xF0` / `i` so gcc does not hoist a sixth
+//   loop-invariant 0xF0 into a callee-saved register. The value is dead: the
+//   teardown breaks out of the loop.
 void func_800704E8(void) {
     SVECTOR sv;
     MovieDebugMode mode;
@@ -295,10 +199,10 @@ void func_800704E8(void) {
     pWork[1].drawEnv.isbg = 1;
     ArchiveSetIndex(0xC, 3);
 
-    isbg = 1;
-    pCounters = g_MovieStreamReadCount;
-    pBase = pWork;
     while (1) {
+        isbg = 1;
+        pCounters = g_MovieStreamReadCount;
+        pBase = pWork;
         pNext = &g_MovieDebugDrawBuffers[0];
         if (g_MovieDebugDrawBuffer == pNext) {
             pNext = &g_MovieDebugDrawBuffers[1];
@@ -340,10 +244,10 @@ void func_800704E8(void) {
         FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
         FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);
 
-        i = 0;
         if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
             FontPrintf(D_8006FC40, g_MovieDebugCounters, g_MovieStreamBlock, g_MovieStreamWritePtr,
                        g_MovieStreamBytesLeft);
+            i = 0;
             for (; i < 7; i++) {
                 FontPrintf(D_8006FC64, g_MovieDebugCounters[i]);
             }
@@ -432,8 +336,7 @@ void func_800704E8(void) {
         }
         g_MovieCursorIndex = cursor;
     }
-}*/
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
+}
 
 extern s32 g_MovieStreamCommand;
 extern MovieStreamEntry* g_MovieStreamSections;
