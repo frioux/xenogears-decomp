@@ -500,22 +500,35 @@ void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
     }
     pRow[p->operand1] = v;
 } */
-/* 99.09% - 88 bytes, retail 88. NAMED RESIDUAL: the mult operand order. Retail is `mult v1,v0`
-   (row value in v1, p->operand2 in v0); the body below is instruction-, register- and load-cluster
-   exact everywhere else but emits `mult v0,v1`, i.e. its source order (operand2 first) is locked to
-   the load order that reproduces retail's five loads. mult is commutative, so the hardware result is
-   identical - this is one ENCODING apart and it can never link.
-   Measured round 411: the row-first spelling (`pRow[p->operand1] * p->operand2`) gives retail's mult
-   ORDER but swaps the registers (row in v0, operand2 in v1) and sinks operand2's lbu below the row
-   load: 71.05. An `s32 mul = p->operand2;` local keeps operand2 in v1 and the same 71.09.
-   2.6.0 / 2.7.2-cdk emit retail's load order from the row-first body but `slt` for the clamp where
-   retail has `slti` (2.6.0: 99.55). Two 3-minute permuter runs (1733 and 2259 iterations): base=20
-   best=20, nothing found. The body below is the 99.09 spelling.
-   Round 424 re-measured from the lever f-mult-operand-order-follows: one more spelling (a
-   `u8 imm = p->operand2;` statement before a row-first multiply) is 71.05 and mirrors the whole
-   allocation exactly like the earlier row-first bodies, so the load cluster and the mult order are
-   one expand order. Parked, not a spelling job. */
-/*
+/* 99.09% under the unit's Default preset (88 bytes = retail's 88), 100.00 under gcc 2.6.0:
+   this function is in a 2.6.0 TU, like battle/misc9_260's BattleByteRegLeImm. Measured round 437:
+   the body marked "2.6.0" below compiles BYTE-IDENTICALLY to retail under gcc-2.6.0-psx (objdump
+   -dr of the whole function, relocations and addends included, cmp-clean), and `try_flags.sh
+   battle/main/misc5 --all --gcc gcc-2.6.0-psx` scores every OTHER function of this unit exactly
+   as under Default (the six matched ones stay 100.00), so a unit switch buys this function for
+   free - see the PRESET_260 report. Default cannot do it: 2.7.2 expands a multiply's operands in
+   source order, so retail's `mult v1,v0` (row value in v1, p->operand2 in v0) needs the row first
+   in the source, and that spelling loads p->operand2 AFTER the row (71.05%, 79.85 row-first with
+   a u8 local). The "Default 99.09" body below keeps retail's five-load cluster and both registers
+   and differs only in that one ENCODING (mult is commutative, so objdiff can never close it).
+   Tried and measured: row-first s16 71.05, row-first s32 61.95 (80 bytes, loses the sll/sra 16),
+   `u8 imm = p->operand2;` statement 71.05, s32 mul local 71.09, 2.7.2-cdk 71.05, 2.6.0 99.55 with
+   the typed g_BattleSlotRegs[arg1].byteRegs spelling (the +0x30 reloc addend is all that is left
+   there - the g_BattleSlotByteRegs[arg1] spelling below closes even that). Three permuter runs
+   (2259, 1733 iterations, base=20 best=20) found nothing.
+   // 100.00 under gcc-2.6.0-psx, un-park this one (plus the extern it needs) after the switch:
+extern u8 g_BattleSlotByteRegs[][0x40];
+void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
+    u8 *pRow = g_BattleSlotByteRegs[arg1];
+    s16 v = pRow[p->operand1] * p->operand2;
+
+    if (v > 0xFF) {
+        v = 0xFF;
+    }
+    pRow[p->operand1] = v;
+}
+   // 99.09 under Default, the best of the entirely different 2.7.2 allocation:
 void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
@@ -526,7 +539,9 @@ void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
         res = 0xFF;
     }
     pRow[p->operand1] = res;
-}*/
+}
+
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
 
 void BattleByteRegDivImm(BattleCommand **pCommand, u8 arg1) {
