@@ -1076,6 +1076,26 @@ extern void func_8007920C(Actor*);
 // halves are reachable separately (above) and the two together need the frame-rate
 // pseudo pinned early, which every spelling that pins it does by making the chain
 // reuse that same pseudo.  Parked as a tie, not a spelling.
+//
+// Round 417, all 1068 bytes / 267 insns unless noted:
+//  - the residual is NOT the chain.  Per-combatant chain locals (flags1 = p1->flags;
+//    flags1 &= ~0x40; flags1 |= ...; and flags2 for p2) give retail's chain EXACTLY for
+//    both words (lw v1,0xD0 / and v1,v1,a1 / or v1,v1,v0 / sw v1, the ~0x40 in a1), but
+//    with the chain off `value` the frame-rate local has one reference, its lbu is
+//    deferred to the countdown store, lands in v0 (which the slot-address math also
+//    wants) and the state-slot block re-allocates: 96.31%, 268 insns.  96.31/268 also
+//    with the countdown store moved after the chains, with `u8 value`, and with a
+//    `(u8)` cast at the store, so the sink does not depend on statement order.
+//  - it is the frame-rate pseudo's register: retail has it in a2 with the lbu at the
+//    top, which only happens when `value` has a second reference, and the only second
+//    reference this body offers is the chain - which drags the chain back to a2.
+//  - third 3-minute permuter run from the 99.96 body: PERMUTER_NONE, base 10 best 10,
+//    776 iterations.
+//  - sched1 IS ACTIVE here (Default -O2, gcc-2.7.2-psx; it is a MIPS cc1 default, not
+//    a preset flag): compiling this unit's .i with and without -fno-schedule-insns
+//    gives different code for this function.  Without it the lbu does stay at the top,
+//    but the slot-index/frame-rate/arg-copy registers all shift down one, so that is
+//    not a match either.  The tie is a pre-register-allocation priority contest.
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
 /*
