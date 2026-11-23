@@ -295,34 +295,50 @@ s32 FieldCheckSpriteSlotFlag(s32 index) {
 
 extern RECT g_FieldSpriteSlotRects[5];
 
+/* PARKED 77.38% (572 bytes, retail 668, 143 vs 164 insns). REDO round r426:
+   fresh body from m2c's walker shape - the source keeps FOUR walking field
+   pointers (pH=&rect[0].h, pW=&rect[0].w, pY=&rect[0].y, pRect=&rect[0]) plus
+   an s32 offset (slot*8) and an s32 slot, all incremented at the outer bottom,
+   with the memcpy source x written as the INDEXED form
+   g_FieldSpriteSlotRects[slot].x/4 (retail loads it as symbol+i*8 too), the
+   inner-loop test and prect->h through the pH walker, and the prect->x/y/w
+   stores through the pRect walker. That shape reproduces retail's prologue
+   exactly (pFile spilled at 0x28, pImage at 0x30, ten saved registers,
+   lui base then the derived walkers) where the old indexed body was off from
+   instruction 1; it is +9.13 points over the old park (68.25) at the same
+   source shape's byte count.
+   Residual: retail's frame is 0x80 vs 0x68 and it spills `slot` (0x38) and the
+   &x walker (0x48), so it holds one more live value than this cc1 keeps: it has
+   BOTH the &h walker (s3, used for the outer blez guard and prect->h) AND a
+   second address s4 = offset + &h (base+6) for the inner-loop test, together
+   with preheader copies s6 = &y and s2 = &w, and it re-loads tim.prect from
+   0x1C before each of the four prect stores instead of caching it. This cc1
+   cse-s the four walkers down (fields reached as -4/-2 displacements off one
+   base, tim.prect cached) which costs one saved register and 21 insns.
+   Tried this round: inner test as the indexed g_FieldSpriteSlotRects[slot].h
+   instead of *pH (75.69, 147 insns); no pH walker at all, h indexed at both
+   uses (77.16, 145); test as offset/8 with a single counter (73.18). Old park
+   tried: fully indexed body (68.25), pointer-walk over pRect++ with all fields
+   through it (68.26, 132 insns), nested if instead of the two continues
+   (byte-identical), while/dowhile variants.
+   Preset ruled out on THIS body too: try_flags.sh --sweep over 2.6.0 / 2.7.2 /
+   2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x -mcpu 3000/r8000: Default (-O2, plain
+   2.7.2) is the maximum at 77.38, cdk -O2 72.66, 2.6.0 -O2 72.46.
+   Only one caller (func_800ABA98 @800ABC24) and no twin in the repo.
+*/
 /*
-PARKED 68.25% (592 bytes, retail 668, 148 vs 164 insns). The source shape is
-settled: this body is step for step retail's except for gcc's giv selection.
-Retail holds FOUR outer field walkers (s3 = &h, s7 = &y, fp = &w and &x in stack
-slot 0x48), each addiu +8 at the outer bottom, plus inner recomputations (s4 =
-i*8 + &h, s6 = a copy of &y, s2 = a copy of &w), so it spills i, &x, pFile and
-pImage and runs a 0x80 frame. This cc1 makes only three field givs (h, x, y)
-plus i*8 in s2 and re-forms w as lui at / addu at,at,s2 / lh 4(at), which costs
-one callee-saved register fewer, so pFile/pImage stay in s8/s7 and the frame is
-0x58. Everything else matches: the two continue guards, the do-while outer loop
-(bottom-only slti 5), pDst's (w/4)*4 advance, the four prect stores with
-tim.prect re-loaded each time, LoadImage/DrawSync and both HeapFrees.
-Tried this round: rect pointer walk "for (i = 0; i < 5; i++, pRect++)" over
-pRect->h/y/x/w (68.26%, 528 bytes, 132 insns - ONE walker with displacements and
-no field givs at all, so the index form is the right base); the pointer taken per
-iteration for the prect stores only, inner loop left indexed (63.69%, 576 bytes,
-144 insns); a nested "if (flag == -1 && paddr)" body instead of the two continues
-(byte-identical to this body, 68.25%).
-Preset ruled out for good: try_flags.sh --sweep over 2.6.0 / 2.7.2 / 2.7.2-cdk x
--O1/-O2/-O3 x -G4/-G8 x -mcpu 3000/r8000, plus cdk -G0 and 2.6.0 -G0, all score
-at or below this body; -O2 under Default is the maximum and -G0 == -G8.
 void func_800AB808(void) {
     TIM_IMAGE tim;
     u_long* pFile;
     u_long* pImage;
-    s32 i;
-    s32 j;
     u_long* pDst;
+    s16* pH;
+    RECT* pRect;
+    s16* pW;
+    s16* pY;
+    s32 offset;
+    s32 slot;
+    s32 j;
 
     pFile = HeapAlloc(ArchiveDecodeAlignedSize(0x802), 0);
     ArchiveReadFileToBuffer(0x802, pFile, 0, 0x80);
@@ -330,33 +346,39 @@ void func_800AB808(void) {
     pImage = HeapAlloc(0xF20, 0);
     OpenTIM(pFile);
     if (ReadTIM(&tim) != 0) {
-        for (i = 0; i < 5; i++) {
-            if (FieldCheckSpriteSlotFlag(i) != -1) {
-                continue;
+        pH = &g_FieldSpriteSlotRects[0].h;
+        pW = &g_FieldSpriteSlotRects[0].w;
+        pY = &g_FieldSpriteSlotRects[0].y;
+        pRect = &g_FieldSpriteSlotRects[0];
+        offset = 0;
+        slot = 0;
+        do {
+            if (FieldCheckSpriteSlotFlag(slot) == -1 && tim.paddr != NULL) {
+                pDst = pImage;
+                for (j = 0; j < *pH; j++) {
+                    memcpy(pDst, (u_long*)tim.paddr + (j + *pY) * 0x50 + g_FieldSpriteSlotRects[slot].x / 4, *pW);
+                    pDst += *pW / 4;
+                }
+                pRect->x = pRect->x / 2 + 0x300;
+                pRect->y += 0x100;
+                pRect->w /= 2;
+                pRect->h = *pH;
+                LoadImage(tim.prect, pImage);
+                DrawSync(0);
             }
-            if (tim.paddr == NULL) {
-                continue;
-            }
-
-            pDst = pImage;
-            for (j = 0; j < g_FieldSpriteSlotRects[i].h; j++) {
-                memcpy(pDst, (u_long*)tim.paddr + (j + g_FieldSpriteSlotRects[i].y) * 0x50 + g_FieldSpriteSlotRects[i].x / 4,
-                    g_FieldSpriteSlotRects[i].w);
-                pDst += g_FieldSpriteSlotRects[i].w / 4;
-            }
-
-            tim.prect->x = g_FieldSpriteSlotRects[i].x / 2 + 0x300;
-            tim.prect->y = g_FieldSpriteSlotRects[i].y + 0x100;
-            tim.prect->w = g_FieldSpriteSlotRects[i].w / 2;
-            tim.prect->h = g_FieldSpriteSlotRects[i].h;
-            LoadImage(tim.prect, pImage);
-            DrawSync(0);
-        }
+            pW++;
+            pY++;
+            pRect++;
+            pH++;
+            offset += 8;
+            slot++;
+        } while (slot < 5);
     }
 
     HeapFree(pFile);
     HeapFree(pImage);
 }
+
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB808);
 
