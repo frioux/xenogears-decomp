@@ -214,19 +214,22 @@ void BattleSaveScreenImage(void) {
     DrawSync(0);
 }
 
-/* PARK 95.60% (204 bytes vs retail 200).  Retail's shared tail block starts with
-   the BattleSetScreenMode argument setup (`addu a0,zero,zero` lands in the jal's
-   delay slot) and arm A reaches it with `j` + plain nop; ours is a duplicated
-   tail in both arms and gcc's cross-jump can only merge from the jal onward
-   (the setup is scheduled into each arm block: arm A gets `move a0,zero` in its
-   j slot, arm B hoists it above the D_80091762 store), so we carry 2 extra
-   insns.  The duplicated-tail shape still gives retail's block order
-   [test1][A][j tail][test2][B][tail][else].
-   Also tried: tail written once with the else returning first (79.80%, gcc puts
-   the else before the tail); an `s32 mode = 0` / local-variable argument
-   spelling; a 3-minute permuter run on this exact body (base=221 best=221, no
-   improvement - the merge boundary is not reachable by source edits); -O3
-   (0.0). gcc 2.7.2-cdk 85.36%, 2.6.0 compile-failed.
+/* PARK 95.60% (204 bytes vs retail 200: 4 bytes LONG, so it cannot
+   link).  NAMED residual: the first instruction of the shared tail.  Retail's
+   merged tail block begins with the BattleSetScreenMode argument setup
+   (addu a0,zero,zero, which reorg drops into the jal slot) and arm A reaches
+   the tail with j + plain nop; ours carries move a0,zero in arm A's j slot and
+   hoisted the same move above the store in arm B, so cross-jump merges from the
+   jal onward and the setup is emitted twice.  Duplicating the tail in both arms
+   does reproduce retail's block order [test1][A][j tail][test2][B][tail][else]
+   exactly; the tail written once after the chain is 79.80 (2.7.2 emits in
+   source order, so the else lands before the tail).
+   Tried this round, no new best: tail once with the else returning first
+   (79.80); a switch (a0) with the tail after the chain (66.70 - the tail then
+   does begin with the argument setup in the jal slot, but both cases jump to it
+   and the default is placed before it); s32 mode = 0 for the argument; a
+   3-minute permuter run (base=221 best=221).  See lever
+   d-crossjump-tail-merge-stops.
 */
 /*
 void func_80080C48(s32 a0) {
@@ -257,6 +260,7 @@ void func_80080C48(s32 a0) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
+
 
 void BattleResetTextPrimQueue(void) {
     g_BattleTextPrimCount = 0;
@@ -649,7 +653,6 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
    ternaries (91.44), a plain s32* pointer local (cse'd), gcc-2.7.2-cdk
    (83.90), -O3 (identical) and two permuter runs (nothing usable).
 */
-/*
 void func_80081A44(void) {
     switch (g_BattleMode) {
     case 1:
@@ -673,11 +676,11 @@ void func_80081A44(void) {
         s32 flags;
 
         g_BattleSlotConfirmLatched = 1;
-        flags = g_BattleSlotConfirmFlags;
-        g_BattleTextLists[5].nextListIndex = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
-        g_BattleTextLists[6].nextListIndex = (flags & 2) == 0 ? 4 : 5;
-        BattleUpdateTextPadInput(&g_BattleTextLists[5], 0);
-        BattleUpdateTextPadInput(&g_BattleTextLists[6], 1);
+        *(volatile u16 *)&D_800916E2 = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
+        flags = *(volatile s32 *)&g_BattleSlotConfirmFlags;
+        D_8009171E = (flags & 2) == 0 ? 4 : 5;
+        BattleUpdateTextPadInput(g_BattleOptionTextList, 0);
+        BattleUpdateTextPadInput(g_BattleOptionTextList + 1, 1);
         if (g_BattleSlotConfirmFlags == 3) {
             g_BattleStateAdvanceRequested = 1;
         }
@@ -746,8 +749,7 @@ void func_80081A44(void) {
         break;
     }
     BattleDrawVibrationOptions();
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
+}
 
 void BattleUpdateTextWindow(void) {
     s32 unk[2]; /* unused: retail's frame keeps 8 bytes of locals here */
