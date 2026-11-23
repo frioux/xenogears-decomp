@@ -468,6 +468,25 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 //    best 66.43). Permuter runs on the 66.74 and the 67.82 body (796 and 1016
 //    iterations) found only wrong-code candidates: they delete the 0x81 arm's
 //    second flags_0xA8 store, which retail has both of.
+//  - round 435 RE-MEASURED the same body at 67.82% / 3700 bytes and read cc1's own
+//    loop decision (`cc1 -dL`, dump in build/src/.../misc35.c.i.loop). Exactly ONE
+//    movable in the whole function moves: "Insn 935: regno 399 (life 9),
+//    move-insn savings 9 moved to 2336" against "Loop from 10 to 2321: 995 real
+//    insns" - the constant 1, from THREE merged `set reg,const 1` loads (savings 3
+//    each) whose uses are the 0x97 wait-timer store, the 0xA4 shift operand and the
+//    0xBE compare. loop.c's test is threshold * savings * lifetime >= insn_count, so
+//    the hoist clears it by 81 * threshold against 995, i.e. threshold >= 12.3 and
+//    nothing else: no other movable in the function is even close. Two more
+//    source-side negatives measured on this body: giving the 0xA4 shift its own
+//    local (`bit = 1 << mode;` before the call, so its result is consumed
+//    immediately) changes no byte and does not shorten `life`; and spelling the 0xBE
+//    test as `(flags & 3) - 1 != 0`, which removes that const-1 load entirely, also
+//    changes no byte and keeps the hoist. So the group's savings does not fall by
+//    dropping a use. What the arms DO forbid is the other escape route: retail
+//    materialises each of the function's const-1 uses separately (thirteen
+//    `addiu ...,zero,0x1` sites in the stub's .s), so a body that makes one of the
+//    three merged constants a different RTL constant would still leave twelve sites
+//    diverging, and no spelling of a constant changes its mode. PARKED.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
 /*
 void func_800C11CC(SpriteData *pSpriteData) {
