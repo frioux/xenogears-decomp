@@ -516,7 +516,16 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
    b-inplace-flips-pointer-base-but-hoists-mem-base the 15 g_BattleSpriteRenderData
    sites reach retail's order with the in-place '+= i * 0x24' form while the 15
    g_BattlePartPrimBuffers[0] sites cannot, so the ceiling here is about 99.58 and this
-   is not a hand job. *//*
+   is not a hand job.
+   ROUND 431 RAISES THAT CEILING: the scalar declaration at line 10 now exists and
+   func_800A5EB4 above is matched at 100.00 with the two-statement in-place form on
+   BOTH globals, so this body's 15 g_BattlePartPrimBuffers sites should take
+   'pSlot = g_BattlePartPrimBuffers; pSlot += i * 0x18; pDst[0] = pSlot[0x284];' and
+   close the operand orders the array extern forced mirrored - i.e. re-spell the 30
+   sites over the scalar extern, not with casts. If a guard load is then cse'd into
+   the block's first store (retail reloads it there), the round-431 lever is a
+   volatile alias 'extern u8 * volatile gVBuf __asm__("g_BattlePartPrimBuffers");'
+   used at that one store only. *//*
 void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
