@@ -442,42 +442,7 @@ extern s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w);
 extern s32 WorldMapSubmitCdRequests(void);
 extern s32 WorldMapSubmitFileLoads(void);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80098CC0);
-/* 97.03% - 1644 bytes (retail's exact size), 411 insns, every call, branch and loop
-   tail matches. THE WHOLE RESIDUAL IS ONE REGISTER PERMUTATION, nothing structural:
-   - retail puts the nest-outer counter in s4 and the sector/path pointer in s5; ours
-     swaps them (group in s5, pSector/pPath in s4) in all four nest loops;
-   - retail keeps the tile-id index constant in s0 ('li s0,1' / 'li s0,73'), ours in v0;
-   - free pass: retail's inner counter is s4, ours lands in a0 (caller-saved).
-   WHAT EARNED THE 0.07 over the previous 96.96 body: the two nest loops use their OWN
-   counters (group/cell) instead of reusing the free pass's i/j - that alone moved the
-   free-pass outer counter into retail's s2.
-   MEASURED AND REJECTED, do not repeat:
-   - sharing the outer counter (i for the free pass and the nests): 96.90;
-   - sharing the inner counter (j): 96.95;
-   - reordering the locals, moving group/cell to the top: identical code, 97.03;
-   - 'group = 1;' before the ArchiveDecodeSector call: identical code;
-   - 'idx = N;' before the sector call, i.e. idx live across it: body drops to
-     409 insns / 1636 bytes - WRONG SIZE, cannot link;
-   - a separate cornerId variable for the k loop: 414 insns, 92.86;
-   - presets: cdk 85.85, -O3 96.96, -G0 and 2.6.0 do not compile. Unit flags are right.
-   NEXT LEVER: the s4/s5 swap is the whole game - pSector/pPath has to LOSE the
-   allocator tie to the counter, i.e. need a lower live_length/n_refs ratio than a
-   longer-lived or more-referenced counter variable. Every spelling tried here changed
-   the instruction stream instead. A permuter run from THIS body is what is left (the
-   4-minute run on the 96.96 body found only a u8 truncation at a call site, wrong code).
-   Shape facts worth keeping (all measured): tile ids are walked with an INDEX
-   (id = grid[idx]; idx++), never a pId++ pointer; the free pass is a plain count-up
-   for/break loop; the two ArchiveGetDebugTable() calls are BOTH evaluated, so the test
-   is the bitwise ((first == 0) | (second == 0xFFFFFFFF)) form misc15 matches with; the
-   7-cell runs are for (group = 1; group != -1; group--) around
-   for (cell = 6; cell != -1; cell--) with idx reset to 0x49 / 0x11 in the outer
-   back-branch delay slot; loaded's (& 2 / & 1) are read into two locals BEFORE the
-   four-cell g_WorldMapGridCornerTileIndices loop.
-*/
-/*
 void func_80098CC0(void) {
-    s32 group;
     s32 cell;
     u8* pSector;
     u8* pPath;
@@ -513,7 +478,7 @@ void func_80098CC0(void) {
     if ((first == 0) | (second == 0xFFFFFFFF)) {
         pSector = (u8*)ArchiveDecodeSector(g_WorldMapGridImageFileIndex);
         idx = 1;
-        for (group = 1; group != -1; group--) {
+        for (j = 1; j != -1; j--) {
             for (cell = 6; cell != -1; cell--) {
                 id = g_WorldMapGridTileIds.grid[idx];
                 if (g_WorldMapTileCellPointers[id] == NULL) {
@@ -527,7 +492,7 @@ void func_80098CC0(void) {
         }
         pSector = (u8*)ArchiveDecodeSector(g_WorldMapGridColumnImageFileIndex);
         idx = 9;
-        for (group = 1; group != -1; group--) {
+        for (j = 1; j != -1; j--) {
             for (cell = 6; cell != -1; cell--) {
                 id = g_WorldMapGridTileIds.grid[idx];
                 if (g_WorldMapTileCellPointers[id] == NULL) {
@@ -559,7 +524,7 @@ void func_80098CC0(void) {
     } else {
         pPath = ArchiveGetFilePath(g_WorldMapGridImageFileIndex);
         idx = 1;
-        for (group = 1; group != -1; group--) {
+        for (j = 1; j != -1; j--) {
             for (cell = 6; cell != -1; cell--) {
                 id = g_WorldMapGridTileIds.grid[idx];
                 if (g_WorldMapTileCellPointers[id] == NULL) {
@@ -573,7 +538,7 @@ void func_80098CC0(void) {
         }
         pPath = ArchiveGetFilePath(g_WorldMapGridColumnImageFileIndex);
         idx = 9;
-        for (group = 1; group != -1; group--) {
+        for (j = 1; j != -1; j--) {
             for (cell = 6; cell != -1; cell--) {
                 id = g_WorldMapGridTileIds.grid[idx];
                 if (g_WorldMapTileCellPointers[id] == NULL) {
@@ -604,7 +569,6 @@ void func_80098CC0(void) {
         WorldMapSubmitFileLoads();
     }
 }
-*/
 
 extern u16 D_8009CCB4[];
 extern u16 g_WorldMapTpageIds[];
