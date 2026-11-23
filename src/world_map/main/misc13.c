@@ -230,29 +230,37 @@ void WorldMapFreeAreaNameString(void) {
     SystemStringFree(g_WorldMapAreaNameString);
 }
 
-/* best: 98.05% (480 bytes = retail 480, 120 insns both); this body is the 91.17 one.
-   Two measured steps took it 91.17 -> 98.05, and the residual is only where five `li`s
-   sit (each one store-group later than retail: retail li order is 0x2C, 0x98, 0x70,
-   0x128, 0xB4, 0x80, 0xFF, 0x3F while this body emits 0x2C, 0x70, 0x98, 0x128, ...):
-   1. declare the flags global as an ARRAY (`extern u16 g_WorldMapAreaNamePanelFlags[];`)
-      and write `g_WorldMapAreaNamePanelFlags[0]`: that is what makes cc1 2.7.2 put the
-      address in a register (`la a1` + `lhu 0(a1)` + `sh 0(a1)`, retail exactly) instead
-      of two `lui at` macro forms - 96.34. It also buys retail's `sh` in the
-      SystemStringResetIfIdle jal slot and the early `move a0,s0`. CANNOT be committed as
-      it stands: the array type takes the already-matched WorldMapInitAreaNameString from
-      100.00 to 86.14, so un-parking this needs an alias symbol at the same address for
-      this function only (config/symbol_addrs.world_map.txt), which is also a reloc
-      name objdiff will then flag.
-   2. move `D_8009D2C0 = 0x98;` above `D_8009D2CA = 0x70;` - 96.34 -> 98.05 (moving it
-      above D_8009D2C2 instead is 98.02; moving `D_8009D2BB = 9;` down is 96.11). The
-      emitted store order stays retail's either way.
-   Two permuter runs (1466 and 1605 iterations) both returned PERMUTER_BETTER on
-   candidates that move a store in a way objdiff scores WORSE (96.11), so judge its
-   candidates with diff_func.sh here, not with its score.
+/* best: 98.05% (480 bytes = retail 480, 120 insns both) - but that measurement needs a
+   declaration change this unit cannot take, so the body parked here is the 91.17 one
+   (re-measured this round: 480 bytes, 120/120, 28 differing rows).
+   How to reach 98.05, both steps measured in round 396: (1) declare the flags global as
+   an ARRAY (`extern u16 g_WorldMapAreaNamePanelFlags[];`) and write
+   `g_WorldMapAreaNamePanelFlags[0]`: cc1 2.7.2 then materialises the address once
+   (`la a1` + `lhu v0,0(a1)` + `sh v0,0(a1)`, retail exactly) - 96.34. The array type is
+   per DECLARATION, so it takes the already-matched WorldMapInitAreaNameString from
+   100.00 to 86.14 (that function's retail really does re-form the address twice:
+   `lui v0` + `lhu v0,%lo(v0)` then `lui at` + `sh`), so un-parking needs an alias symbol
+   at the same address for this function only. (2) move `D_8009D2C0 = 0x98;` above
+   `D_8009D2CA = 0x70;` - 96.34 -> 98.05. Measured this round: a plain
+   `u16* pFlags = &g_WorldMapAreaNamePanelFlags;` local (scalar declaration, accesses
+   `*pFlags`) is folded straight back to the scalar form by cse and measures the SAME
+   91.17, so the address-in-a-register shape is only reachable through the declaration
+   (tools/rounds/levers.md k-unbounded-array-extern-global).
+   What the 28 rows of the 91.17 body are, re-read this round: exactly two things.
+   (a) the flags read-modify-write: ours is retail's WorldMapInitAreaNameString shape
+   (`lui v0` + `lhu v0,0(v0)`, `lui at` + `sh`, and the jal delay slot then takes
+   `move a0,s0` where retail has the `sh`); (b) ONE `li` position: retail lifts
+   `li t0,0x98` above the `li v0,0x70` pair (li order 9, 0x2C, 0x98, 0x70, 0x128, 0xB4,
+   0x80, 0xFF, 0x3F) while every spelling tried emits each `li` immediately before its
+   first store pair (9, 0x2C, 0x70, 0x128, 0x98, ...). The STORE order itself already
+   matches retail's exactly, so the li position cannot be moved by reordering the pairs.
    Not a preset question: --all under 2.6.0 (91.17, and five matched functions fall to
    99.4-99.9) and under 2.7.2-cdk (91.17, most matched functions 84-100) are both worse;
-   -fschedule-insns was tested on the unit .i directly and leaves the li order unchanged.
-
+   -fschedule-insns on the unit .i leaves the li order unchanged.
+   The tail is a 0x28-byte struct copy (`D_8009D2B8[1] = D_8009D2B8[0];`) and the 21
+   scalar stores really are through the absolute D_8009D2Bx symbols (retail uses
+   `lui at` + store per site, never a base register), so a typed WorldMapPrim field
+   spelling of them would change the code - leave them as symbols.
 s32 func_80092DF8(void) {
     u16 flags;
 
@@ -289,45 +297,8 @@ s32 func_80092DF8(void) {
     D_8009D2B8[1] = D_8009D2B8[0];
     return 1;
 }
-/*
-s32 func_80092DF8(void) {
-    u16 flags;
-
-    g_WorldMapMode4AreaId = WORLD_MAP_AREA_NONE;
-    SystemStringInit(g_WorldMapMode4AreaNameString, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
-    flags = g_WorldMapAreaNamePanelFlags;
-    D_8009BDCC = 8;
-    g_WorldMapAreaNamePanelFlags = flags | 2;
-    SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
-    D_8009D2BB = 9;
-    D_8009D2BF = 0x2C;
-    D_8009D2C2 = 0x70;
-    D_8009D2CA = 0x70;
-    D_8009D2C8 = 0x128;
-    D_8009D2D8 = 0x128;
-    D_8009D2C0 = 0x98;
-    D_8009D2D0 = 0x98;
-    D_8009D2D2 = 0xB4;
-    D_8009D2DA = 0xB4;
-    D_8009D2C4 = 0x80;
-    D_8009D2C5 = 0;
-    D_8009D2CC = 0xFF;
-    D_8009D2CD = 0;
-    D_8009D2D4 = 0x80;
-    D_8009D2D5 = 0x3F;
-    D_8009D2DC = 0xFF;
-    D_8009D2DD = 0x3F;
-    D_8009D2BC = 0x80;
-    D_8009D2BD = 0x80;
-    D_8009D2BE = 0x80;
-    D_8009D2CE = GetTPage(0, 0, 0x380, 0x100);
-    D_8009D2C6 = GetClut(0x130, 0x1E4);
-    SetSemiTrans(D_8009D2B8, 1);
-    D_8009D2B8[1] = D_8009D2B8[0];
-    return 1;
-}*/
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
-
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
 /* best: 99.58% (472 bytes = retail's 472; 118 instructions = retail's 118). The whole
    body is instruction-identical; retail's tail keeps 0xFFFFFF in $a1 and
@@ -820,15 +791,24 @@ s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMa
     return 1;
 }
 /* best: 98.21% (112 bytes, original 112; 28 insns both). Instruction sequence, size,
-   mult/mflo placement and the branches are identical; only register CHOICE differs:
-   retail ties each difference dest to its minuend (subu v0,v0,v1) and takes the two
-   mflo results in a2/v1, this build ties the dest to the subtrahend (subu v0,v1,v0,
-   loads v1,v0) and takes a3/v0 - the same six registers, permuted. Retested this
-   round: single-expression sums (72.86), separate sqx+sqz locals (79.46); earlier six
-   declaration orders of {dx,dz,sum}, a single reused d local and split-statement
-   (d = p0->x; d -= p1->x) forms (98.21 / 98.21 / 91.79). A 4-minute permuter run
-   (2193 iterations, base=50 best=30) found only a semantically identical duplicated
-   negu. Allocator tie - see the regalloc levers; do not hand-iterate it.
+   mult/mflo placement and the branches are identical; 16 differing rows are all one
+   mirror. Retail ties each difference's dest to its MINUEND (`lw v0,0(a0)`, `subu
+   v0,v0,v1`, and for the z pair it reuses dx's dead $v0 for the load so the subu is in
+   place again, mflo a2/v1); this build ties dest to the SUBTRAHEND (`lw v1,0(a0)`, `subu
+   v0,v1,v0`) and gives the z pair a FRESH $v0 with p0->z in the dead $a0 (`subu
+   v0,a0,v1`, mflo a3/v0). Same six registers, permuted.
+   Tried here and earlier, all measured at 112 bytes / 28 insns unless noted:
+   single-expression sums 72.86, separate sqx+sqz locals 79.46, six declaration orders
+   of {dx,dz,sum}, one reused `d` local, split statements (`d = p0->x; d -= p1->x;`)
+   91.79. Preset: gcc-2.7.2-cdk scores the SAME 98.21 (an allocator tie, not a compiler
+   one); gcc-2.6.0 refuses to compile the body. A 4-minute permuter run (2193
+   iterations, base 50 best 30) found only a semantically identical duplicated negu.
+   Measured this round: `u32 sum` (same allocno size, the lever's allocno_size axis) is
+   byte-identical to `s32 sum` at 98.21 - the sum's mode is not part of the contest.
+   This is the local-alloc qty_compare class in tools/rounds/levers.md
+   (a-global-allocno-priority-is / a-lreg-dump-gives-the): there is no callee-saved
+   register in play at all, so the -dl/-da dump has nothing to decide - the contest is
+   between two 1-ref dying quantities inside one block. Do not hand-iterate it.
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     s32 dx;
     s32 dz;
