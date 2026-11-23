@@ -1267,16 +1267,11 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 // the tail keeps the mask in $t1 where retail has $a3 - residual 2), not the loop
 // construct. Source-side spellings of this loop are exhausted; next lead is the tail's
 // register rotation, which shares that state.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
-
-/*
 extern long FieldGetVec2Magnitude(long x, long z);
 extern void FieldRenderQuad(u_long* ot, Quad* pQuad, MATRIX* pMatTransform, int renderContext);
 extern void FieldRenderQuadScreenRect(u_long* ot, Quad* pQuad, MATRIX* pMatTransform, int renderContext);
-extern FieldActor* g_FieldActors;
 extern int g_FieldCurRenderContextIndex;
 extern RenderContext* g_FieldCurRenderContext;
-extern u16 g_FieldPlayerActorIndex16; // Slot the player actor occupies in g_FieldActors
 extern u_char g_FieldCompassDisabled;
 extern s32 g_FieldDisableCompassRender;
 extern s16 D_800ADB48; // Compass angle, interpolated towards D_800ADB4A every frame
@@ -1308,6 +1303,30 @@ typedef struct {
 #define FIELD_PRIM_WORD_MASK 0xFFFFFF
 #define FIELD_PRIM_TOP_BYTE 0xFF000000
 
+// Round 428 (park lane) re-measured the index spelling: 97.44% / 1432 bytes / 358 insns against
+// retail's 357, so it still cannot link. The old note holds. New measurements, do not redo:
+// - Retail's loop 2 DOES use the init+latch second biv (preheader 'addu a1,s5,zero', latch
+//   'addu a1,s1,zero'), which is exactly what this build emits for loop 3 - so the shape is
+//   not wrong by itself. Retail's loops 1 and 3 have the body-top copy instead, and only
+//   loop 3 of ours gets the second biv.
+// - Loop 3 spelled 'pQuad++' in the argument measures 96.28 and STILL gets the init+latch
+//   biv, so it is strictly worse than the index spelling (it also puts 'la s1' before
+//   'li s0,0x15' in the preheader). A FRESH pointer local for loop 3 ('pCurrentQuad') is
+//   byte-identical to that, so the copy's pseudo identity is not the trigger.
+// - The tail's base spelled '&D_800B1E00[i * FIELD_OVERLAY_PRIM_SIZE]' is byte-identical to
+//   'D_800B1E00 + i * FIELD_OVERLAY_PRIM_SIZE': it does NOT move 'la D_800B1E00' ahead of the
+//   index shifts where retail has it, so that spelling is not residual 2's lever either.
+// Named cause of the link blocker: loop 3's argument copy becomes a second biv whose
+// preheader initialiser is the +1 insn; the trigger is loop 3's register state (residual 2),
+// not the loop construct.
+// NOTE to whoever un-parks this body: the declarations below are live on purpose (the parked
+// body needs them in scope to compile) EXCEPT g_FieldActors, which must stay undeclared here:
+// include/field/actor.h has 'extern FieldActor* volatile g_FieldActors', and re-declaring it
+// without the volatile makes the already-matched FieldAnyActorHasFlag8000 100 -> 108 bytes
+// (check_bin.sh field catches it; diff_func cannot).
+// Round 428: 97.44 / 1432 bytes re-measured with the declarations below live and g_FieldActors
+// taken from actor.h (the file's own), so the number is what an un-park sees today.
+/*
 void func_80074108(void) {
     MATRIX matProj; // 0x10: projection matrix, t[2] holds the screen distance
     MATRIX matView; // 0x30
@@ -1436,8 +1455,8 @@ void func_80074108(void) {
 
     SetGeomOffset(0xA0, 0x70);
     SetGeomScreen(g_Scene.sceneScrZ);
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
 // Returns 1 if an actor wants its position reported to the script VM
 int FieldAnyActorHasFlag8000(void) {
