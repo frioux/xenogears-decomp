@@ -891,24 +891,24 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
    commuted-PLUS difference either. The D_800CCD1C site's other diff row is the
    typed `.param` store, which relocs g_BattleCommandRecords+0x24 where retail names
    g_BattleCommandSlotMasks; the linked bytes are identical. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
-/*
 s32 func_80087AF0(u8 arg0, u8 arg1) {
     u8 *pQueueRow;
     u8 slot;
     u8 count;
     s32 commandNo;
     s32 stepNo;
+    s32 step;
+    u8 rawStep;
     s32 done;
 
     done = 0;
     if (g_BattleSlotDisplayInitialized == 0) {
         if (g_BattleSlotFlags[(u8)arg0 * 8] == 0) {
             if (g_BattleActorCharIds[(u8)arg0] != 4) {
-                func_80087EDC((u8)arg0, g_BattleCommandQueue[(u8)arg0 * 0x40 + 0x3C]);
+                func_80087EDC((u8)arg0, (g_BattleCommandQueue - -((u8)arg0 * 0x40))[0x3C]);
             }
         } else {
-            func_800881B8((u8)arg0, g_BattleCommandQueue[(u8)arg0 * 0x40 + 0x3C]);
+            func_800881B8((u8)arg0, (g_BattleCommandQueue - -((u8)arg0 * 0x40))[0x3C]);
         }
         g_BattleSlotDisplayInitialized = 1;
     }
@@ -918,10 +918,11 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
             commandNo = arg1 & 0xFF;
             g_BattleCommandQueue[0x2DC] = D_800C34B3[g_BattleCommandQueue[0x2DC]][commandNo];
         } else {
-            stepNo = *(volatile u8 *)&g_BattleCommandQueue[0x2DC] - 8;
+            rawStep = *(volatile u8 *)&g_BattleCommandQueue[0x2DC];
+            step = rawStep - 8;
             if ((u16)BattleMaskHasStatusBit(
                            *(u16 *)((u8 *)&g_GameState + 0x16C0 + g_BattleActorCharIds[(u8)arg0] * 0x20),
-                           stepNo) != 0) {
+                           step) != 0) {
                 done = 1;
             } else {
                 g_BattleCommandQueue[0x2DC] = 7;
@@ -931,7 +932,7 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
         g_BattleCommandQueue[0x2DC] = g_BattleCommandQueue[0x2DC] + 1;
     }
     slot = (u8)arg0;
-    if (D_800CCD1C[g_BattleCommandQueue[slot * 0x40 + 0x3C]].flags & 0x800) {
+    if (D_800CCD1C[(g_BattleCommandQueue - -(slot * 0x40))[0x3C]].flags & 0x800) {
         g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
         g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF3;
         g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].param =
@@ -954,8 +955,7 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     }
     BattleApplySlotCurveAndStep(count);
     return done;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+}INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
 /* 82.72%, 692 bytes (retail 684). The sel ladder is now retail's
    (`sel = 0; if (arg1 < 3) sel = (arg0 >= 3) * 8;`), the mask needs
    `(u16)BattleMaskHasSlotBit(...)` (without the cast the `andi v0,v0,0xFFFF` after
