@@ -7,6 +7,13 @@
 #define MENU_STAT_BAR_WIDTH_MAX 6400 // width a stat value is scaled into, see the stat bar quads
 #define MENU_STAT_LABEL_ROW_COUNT 7 // stat rows in one stat group, and the ids each group of labels owns
 #define MENU_STAT_LABEL_SHADE 0x40 // grey the labels of every other stat row are shaded with
+#define MENU_STAT_BAR_QUAD_HEIGHT 6 // height of one stat bar quad
+// Digits MenuParseNumberToDigits leaves in the tail of g_Menu->digits that the
+// stat bar value and the delta beside it are drawn from.
+#define MENU_STAT_VALUE_DIGIT_COUNT 4
+#define MENU_STAT_DELTA_DIGIT_COUNT 3
+#define MENU_STAT_VALUE_DIGIT_START (MENU_MAX_DIGITS - MENU_STAT_VALUE_DIGIT_COUNT)
+#define MENU_STAT_DELTA_DIGIT_START (MENU_MAX_DIGITS - MENU_STAT_DELTA_DIGIT_COUNT)
 
 extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 extern u16 D_801EA53C[]; // String IDs of the menu strings
@@ -21,6 +28,10 @@ extern s32 D_801EA708;
 extern s32 D_801EA70C;
 extern u8 D_801EA710;
 extern u8 D_801EA714;
+extern u16 D_801E9D78; // X offset of the stat bar value quads
+extern u16 D_801E9D7C; // Y offset of the stat bar value quad rows
+extern s32 D_801E9D80; // X offset of the stat bar value digits
+extern s32 D_801E9D84; // Y offset of the stat bar value digits
 extern CdlCB g_MenuSavedCdSyncCallback;
 extern CdlCB g_MenuSavedCdReadyCallback;
 extern CdlCB g_MenuSavedCdReadCallback;
@@ -280,7 +291,160 @@ s32 MenuMaxStatValue(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
     return max;
 }
 
+/* PARKED 88.01% under XenoMenu260 (gcc 2.6.0): 1964 bytes / 491 insns against retail 1952 / 488, frame 0xA0 against retail's 0xA8.
+ Residual is the stack picture, not the code: retail spills pStat/pSaved and four
+ accumulators (slots 0x38/0x40 and 0x60/0x68/0x70/0x78) where this body keeps more
+ in registers, so the frame is 8 bytes short, every later instruction carries a
+ different slot number, and the two quad loops load their four u16 prim fields in a
+ different order (retail a1=0xEB8, a2=0xEBA, a3=0xEC0, v0=0xEB8, v1=0xEBA, v0=0xED2).
+ What is right: the whole shape - the arg3 if/else picking pEquipmentPanel+0x280
+ against pDressingRoom->statValues, MenuMaxStatValue, the 7-arg4 row loop, one
+ MenuSetStatBarQuadColors + MenuSetQuadVertices + MenuParseNumberToDigits + 4-digit
+ loop per row, the digit-count quad loop reading the 0xEB8 prims into the 0x2A00
+ SVECTORs, the every-other-row MenuSetStatBarTileColors, the arg3-gated delta block
+ (0x2228 quad, 0x31E0 quad, 0x1770 prims, 3 delta digits, 0x2D80 SVECTORs) and the
+ seven accumulators with their 0x140/0x80/0x48/0x80/8 steps.
+ What moved it: 85.02 first body; 85.69 after spelling every per-row byte access as
+ ((u8*)g_Menu->unk35C + i)[0x32C0] - the (p + i)[K] form is the only one that emits
+ retail's base-first addu, probed with cc1_probe.sh, where p[K + i] emits index-first;
+ 88.01 after declaring pStat/pSaved u16* volatile, which is what puts them in retail's
+ 0x38/0x40 stack slots instead of a register pair.
+ Also tried: an if around the loop instead of the early return (two blez, retail has
+ one), a do-while (83.76 - it moves the accumulator updates out of retail's order),
+ quadX split from digitX (kept, 85.09 -> 85.32), g_MenuStatRowLabelOffsetY[7..10] in
+ place of D_801E9D78..84 (reverted - it renames retail's R_MIPS_LO16 reloc).
+void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
+    u16* volatile pStat;
+    u16* volatile pSaved;
+    s32 max;
+    s32 rowOfs;
+    s32 valuePrimOfs;
+    s32 deltaPrimOfs;
+    s32 colorOfs;
+    s32 valueVertOfs;
+    s32 deltaVertOfs;
+    s32 yOfs;
+    s32 digitX;
+    s32 quadX;
+    s32 primOfs;
+    s32 i;
+    s32 j;
+
+    if (arg3 == 0) {
+        pSaved = g_Menu->pDressingRoom->statValues;
+        pStat = pSaved;
+    } else {
+        pStat = (u16*)((u8*)g_Menu->pEquipmentPanel + 0x280);
+        pSaved = g_Menu->pDressingRoom->statValues;
+    }
+    max = MenuMaxStatValue(0, pStat, pSaved);
+    rowOfs = 0;
+    valuePrimOfs = 0xEB0;
+    deltaPrimOfs = 0x1770;
+    colorOfs = 0;
+    valueVertOfs = 0x2A00;
+    deltaVertOfs = 0x2D80;
+    if (MENU_STAT_LABEL_ROW_COUNT - arg4 <= 0) {
+        return;
+    }
+    yOfs = 0;
+    for (i = 0; i < MENU_STAT_LABEL_ROW_COUNT - arg4; i++) {
+        ((u8*)g_Menu->unk35C + i)[0x32C0] = 0;
+        ((u8*)g_Menu->unk35C + i)[0x32CE] = 0;
+        func_801D84B4(pStat[i], pSaved[i], max);
+        MenuSetStatBarQuadColors((POLY_G4*)(colorOfs + 0x2030 + (u32)g_Menu->unk35C), 0);
+        MenuSetQuadVertices((SVECTOR*)(i * 0x20 + 0x3100 + (u32)g_Menu->unk35C),
+                            D_801E9D78 + arg1,
+                            arg2 + D_801E9D7C + yOfs,
+                            D_801EA708, MENU_STAT_BAR_QUAD_HEIGHT);
+        ((u8*)g_Menu->unk35C + i)[0x32DC] = g_Menu->renderContext;
+        MenuParseNumberToDigits(D_801EA6FC);
+        for (j = 0; j < MENU_STAT_VALUE_DIGIT_COUNT; j++) {
+            if (g_Menu->digits[MENU_STAT_VALUE_DIGIT_START + j] != MENU_DIGIT_NONE) {
+                ((u8*)g_Menu->unk35C + i)[0x32C0] +=
+                    func_8002675C(g_Menu->resources, g_Menu->digits[MENU_STAT_VALUE_DIGIT_START + j],
+                                  (POLY_FT4*)(valuePrimOfs + (u32)g_Menu->unk35C +
+                                              ((u8*)g_Menu->unk35C + i)[0x32C0] * 0x50),
+                                  g_Menu->renderContext,
+                                  arg1 + D_801E9D80 + j * MENU_DIGIT_SPACING,
+                                  arg2 + D_801E9D84 + yOfs, 0x1000);
+            }
+        }
+        for (j = 0; j < ((u8*)g_Menu->unk35C + i)[0x32C0]; j++) {
+            primOfs = rowOfs + (g_Menu->renderContext + j * 2) * sizeof(POLY_FT4);
+            MenuSetQuadVertices((SVECTOR*)(valueVertOfs + (u32)g_Menu->unk35C + j * 0x20),
+                                *(u16*)((u8*)g_Menu->unk35C + primOfs + 0xEB8),
+                                *(u16*)((u8*)g_Menu->unk35C + primOfs + 0xEBA),
+                                *(u16*)((u8*)g_Menu->unk35C + primOfs + 0xEC0) -
+                                    *(volatile u16*)((u8*)g_Menu->unk35C + primOfs + 0xEB8),
+                                *(u16*)((u8*)g_Menu->unk35C + primOfs + 0xED2) -
+                                    *(volatile u16*)((u8*)g_Menu->unk35C + primOfs + 0xEBA));
+        }
+        if (i & 1) {
+            MenuSetStatBarTileColors((POLY_FT4*)(valuePrimOfs + (u32)g_Menu->unk35C), 2,
+                                     ((u8*)g_Menu->unk35C + i)[0x32C0], g_Menu->renderContext);
+        }
+        ((u8*)g_Menu->unk35C + i)[0x32C7] = g_Menu->renderContext;
+        if (arg3 != 0) {
+            MenuSetStatBarQuadColors((POLY_G4*)(colorOfs + 0x2228 + (u32)g_Menu->unk35C), D_801EA710);
+            if (D_801EA710 == 2) {
+                quadX = D_801E9D78 + arg1 + D_801EA708;
+            } else {
+                quadX = D_801E9D78 + arg1 + D_801EA708 - D_801EA70C;
+            }
+            MenuSetQuadVertices((SVECTOR*)(i * 0x20 + 0x31E0 + (u32)g_Menu->unk35C), quadX,
+                                arg2 + D_801E9D7C + yOfs,
+                                D_801EA70C, MENU_STAT_BAR_QUAD_HEIGHT);
+            ((u8*)g_Menu->unk35C + i)[0x32E3] = g_Menu->renderContext;
+            if (arg3 != 0 && D_801EA704 != 0) {
+                ((u8*)g_Menu->unk35C + i)[0x32CE] +=
+                    func_8002675C(g_Menu->resources, D_801EA714,
+                                  (POLY_FT4*)(deltaPrimOfs + (u32)g_Menu->unk35C),
+                                  g_Menu->renderContext, arg1 + D_801E9D80 + 0x20,
+                                  arg2 + D_801E9D84 + yOfs, 0x1000);
+                MenuParseNumberToDigits(D_801EA704);
+                digitX = 0x28;
+                for (j = 0; j < MENU_STAT_DELTA_DIGIT_COUNT; j++) {
+                    if (g_Menu->digits[MENU_STAT_DELTA_DIGIT_START + j] == MENU_DIGIT_NONE) {
+                        continue;
+                    }
+                    ((u8*)g_Menu->unk35C + i)[0x32CE] +=
+                        func_8002675C(g_Menu->resources, g_Menu->digits[MENU_STAT_DELTA_DIGIT_START + j],
+                                      (POLY_FT4*)(deltaPrimOfs + (u32)g_Menu->unk35C +
+                                                  ((u8*)g_Menu->unk35C + i)[0x32CE] * 0x50),
+                                      g_Menu->renderContext, arg1 + D_801E9D80 + digitX,
+                                      arg2 + D_801E9D84 + yOfs, 0x1000);
+                    digitX += MENU_DIGIT_SPACING;
+                }
+                for (j = 0; j < ((u8*)g_Menu->unk35C + i)[0x32CE]; j++) {
+                    primOfs = rowOfs + (g_Menu->renderContext + j * 2) * sizeof(POLY_FT4);
+                    MenuSetQuadVertices((SVECTOR*)(deltaVertOfs + (u32)g_Menu->unk35C + j * 0x20),
+                                        *(u16*)((u8*)g_Menu->unk35C + primOfs + 0x1778),
+                                        *(u16*)((u8*)g_Menu->unk35C + primOfs + 0x177A),
+                                        *(u16*)((u8*)g_Menu->unk35C + primOfs + 0x1780) -
+                                            *(volatile u16*)((u8*)g_Menu->unk35C + primOfs + 0x1778),
+                                        *(u16*)((u8*)g_Menu->unk35C + primOfs + 0x1792) -
+                                            *(volatile u16*)((u8*)g_Menu->unk35C + primOfs + 0x177A));
+                }
+                MenuSetStatBarTileColors((POLY_FT4*)(deltaPrimOfs + (u32)g_Menu->unk35C),
+                                         D_801EA710 - 2, ((u8*)g_Menu->unk35C + i)[0x32CE],
+                                         g_Menu->renderContext);
+                ((u8*)g_Menu->unk35C + i)[0x32D5] = g_Menu->renderContext;
+                ((u8*)g_Menu->unk35C)[0x32F2] = 1;
+            }
+        }
+        ((u8*)g_Menu->unk35C + i)[0x32EA] = 1;
+        rowOfs += 0x140;
+        valuePrimOfs += 0x140;
+        deltaPrimOfs += 0x140;
+        colorOfs += 0x48;
+        valueVertOfs += 0x80;
+        deltaVertOfs += 0x80;
+        yOfs += MENU_DIGIT_SPACING;
+    }
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8644);
+
 void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
     s32 width = 0x98;
     s32 height = 0x26;
