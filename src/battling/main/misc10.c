@@ -818,19 +818,30 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
    block (0x855EC, in BattleFreeNodeTree's delay slot) where this body emits
    `ori s0,zero,2` (state = 2) and keeps the 1 until two calls later; the two `li`
    positions are tied to the same pair.
-   Why it is not a source shape: both are long-lived global allocnos with the same
-   ref and live-range counts as retail's (pScene 8 refs / 642 insns, the 1 4 refs /
-   88 insns), and gcc 2.7.2's allocno_compare ranks the constant ABOVE pScene
-   (n_refs / live_length), which is exactly what this body does. The pairing is a
-   sort artefact that is sensitive to the total allocno set - the pAudioBlock split
-   above moved a different pair - so only a perturbation of the whole set flips it.
-   MEASURED, all at 2928 bytes unless noted. On the 99.19 body (one pBuf):
+   WHY NO SPELLING REACHES IT (round 434: -da/-dg dump of THIS body, cc1 2.7.2-psx
+   with the unit's flags). The mirror is not decided by the two allocnos' own
+   priorities - the contest is won by a THIRD, short-lived one. Pseudo 72 = pScene,
+   15 refs / 463 insns (quotient 0.39); pseudo 122 = the const_int 1 that feeds the
+   `g_BattleTransitionFlag == 1` bne, 4 refs / 58 insns (0.55); pseudo 75 =
+   pMatchCount, 7 refs / 240 insns (0.23). The dump's processing order is "18 regs to
+   allocate: 81 230 240 73 76 143 121 78 79 122 132 208 207 72 155 77 75 80" and its
+   dispositions read "122 in 18 ... 72 in 19 ... 75 in 18", i.e. 122 takes $s2 before
+   72's turn and pushes pScene to $s3, and 75 then takes the $s2 that 122 released -
+   retail's pair exactly, mirrored. Nothing in the source moves 122's quotient: its
+   four refs are the def, the bne, the g_BattleTransitionFlag = 1 store and the
+   REG_EQUAL. So only a different allocno set flips it (the pAudioBlock split above
+   did move a pair, which is the one handle that has worked here).
+   MEASURED, all at 2928 bytes unless noted. Round 434 on this body: state = 2 before
+   g_BattleScreenMode = -1 99.24; state = 2 after the facing/stage stores 99.24; the
+   facing/stage stores swapped 99.21; a u8 `transition` local feeding both
+   g_BattleTransitionFlag tests 99.24 (identical code). On the 99.19 body (one pBuf):
    pMatchCount inlined as &g_BattleMatchCount 98.87 (2932); typed Misc10Actor*
    pScene 99.19; pScene declared last 99.19; state = 2 moved after the facing/stage
    stores 99.19; pMatchCount born early 98.70 (2932); `& 0xFFFE` instead of `& ~1`
    98.36 (2916); a temp for BattleCreateOrderingTablePair's result - same code. Two
    permuter runs (10 min: 3929 -> 665; 7 min: 665 -> 580) found nothing usable, so
-   do not spend another one.
+   do not spend another one; round 434 ran a third on this body (3 min, base 620
+   best 535) and its best candidate merged `state` into `idleTimer`, i.e. wrong code.
    On THIS body: pRes folded into D_800917C0[i] 99.24 (neutral, so pRes is the
    original's variable), the second LZSS result as its own variable 99.13, the
    first LZSS result as its own variable 99.13 (so both are pBuf), the second
