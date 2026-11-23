@@ -2045,6 +2045,7 @@ typedef struct {
 // confirmed this is lever a-li-constant-is-a-reload-scratch: the 0x14000 gets
 // $v0 (dead at the bne) so reorg fills the delay slot; retail has `li 0x14000`
 // in $t0 and a nop. No new spelling attempted - the lever records ten.
+// Round 435: re-measured 97.81% (580 bytes, retail 584 - one instruction short, so it cannot link). Two more spellings dead: pEnd formed from the global load BEFORE pSrc (pEnd = (u8*)g_FieldSavedFramebuffers[i] + 0x14000) shifts the whole set - pSrc takes $v0, the index $a2, the constant $v1 - and reaches retail's 146 insns / 584 bytes at 96.58%, i.e. the size is reachable and the colour is not; and pEnd between the two global loads is byte-identical to this park. Same wall as recorded: the 0x14000 constant's register is reload/allocator-chosen.
 /*
 void func_8008BF38(int partyIndex) {
     int characterId;
@@ -3250,6 +3251,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 // is unreachable: 2.7.2 folds copy+AND whenever the copy has one use; (c) -O3 by
 // try_flags -> 94.74. The 3-line `lhu 0xCC`/`li 1` hoist at the tail is probably
 // downstream of the same missing copy.
+// Round 435: re-measured 94.74% (480 bytes, retail 484 - still one instruction short). One more spelling dead: s32 value with the type mask written BEFORE the raw store (retail's own instruction order) measures 476 bytes, 31 differing lines - gcc folds the copy and puts the store back under the flags mask. cc1_probe.sh on the isolated sequence (call, raw sh, flags mask/sw, type andi, switch chain) gives our $2/$3 shape under three statement orders, so the missing move v1,v0 needs the call-result pseudo to be allocated away from $v0, which no statement order in this block does.
 /*
 void func_8008EC30(void) {
     u16 value;
