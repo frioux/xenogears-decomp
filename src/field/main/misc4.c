@@ -1841,8 +1841,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
       0x18,0x1A,0x1C,0x20,0x28,0x30,0x38,0x40,0x48,0x90,0x94 and no other sp
       offset), i.e. the original source held one more in-memory local than the
       code uses - the sibling func_8007BEF4/func_8007C694 parks carry the same
-      8-byte gap. A dead `nSavedTri = nTri;` leftover allocates no slot (gcc
-      keeps it in a register and drops the copy), so this needs the real name.
+      8-byte gap. A dead SCALAR leftover (`nSavedTri = nTri;`) allocates no slot
+      (gcc keeps it in a register and drops the copy), but levers.md
+      j-an-unused-local-array-is says an ARRAY local takes its slot at expand
+      time: a dead 8-byte array (or a second SVECTOR) is the next thing to try.
    2. `(pActor->position.vx >> 16) << 16` comes out as `lh 0x22(a0); sll 16`
       (combine narrows it) where retail keeps the full word loaded for the x sum
       and does `sra 16; sll 16`. Identical residual to func_8007BEF4's note.
