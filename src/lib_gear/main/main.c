@@ -3691,7 +3691,12 @@ void LibGearPlayAnimationScript(Model* pModel, Temp7* pEntry, s32 arg2) {
 // residual above is measured on; duplicating the tail into each arm as well
 // measures the same 71.67. A `switch` on type is 19.74 (case bodies emitted in
 // source order with break jumps). Screened identical (71.67) under
-// gcc-2.7.2-cdk, so the tail split is not a compiler choice.
+// gcc-2.7.2-cdk, so the tail split is not a compiler choice. A probe sweep tried
+// to make arm 1's tail rtx-different before jump.c runs - `& 0xFFFF` on the
+// field, `* 0x10000`, `(x << 8) << 8`, a `u32` id local, a `u16*` alias, and a
+// `goto` label placed inside arm 2's then-body that arm 0 jumps to - and every
+// one compiles to the same 20 insns with the survivor at arm 1's copy, so cse
+// and combine fold them all ahead of the merge.
 /*
 s32 func_801E5CD8(Model* pModel, s32 type) {
     Temp8* pTexture;
