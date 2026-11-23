@@ -1070,6 +1070,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * bytes, one insn short (the `addu s2,v0,zero` copy is what the single statement
  * buys); `(mem_addr)` dropped from the write-pointer sum measures the same 97.47.
  *
+ * The permuter DOES run on this body once the pycparser `sizeof` mangle is avoided
+ * (levers.md o-permuter-pycparser-mangles-sizeof): spelling
+ * `entryIndex * 8 + (mem_addr)g_ArchiveStreamSections` instead of
+ * `entryIndex * sizeof(ArchiveStreamFileSectionHeader) + ...` scores the same 97.47
+ * and every earlier "the permuter cannot parse this body" note here is wrong about
+ * the cause - the write-pointer casts are fine. A 3-minute run (base=8) found one
+ * edit worth taking seriously: a copy of the section pointer taken after
+ * `CdGetSector(pLoc, 3)` and used in the found-block and the duplicated tail, which
+ * scores 97.66 but 740 bytes / 185 insns, i.e. still not retail's shape. Land the
+ * `sizeof` substitution first, then re-run: this is a permuter job, not a hand one.
+ *
  * void func_8002B2F0(u_char status) {
  *     int entryIndex;
  *     ArchiveStreamFileSectionHeader* pCurrent;
