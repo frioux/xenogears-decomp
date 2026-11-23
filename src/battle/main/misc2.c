@@ -76,6 +76,12 @@ typedef struct {
     /* 0x5DA2 */ u16 columnCounter;     // frames the 0x4CE0 list has been drawn for
 } BattleSpriteColumnWork; // Size: 0x5DA4
 
+// the slot's display value, one 8-byte record per slot
+typedef struct {
+    /* 0x0 */ u8 value;
+    /* 0x1 */ u8 unk1[7];
+} BattleSlotDisplayValue; // Size: 0x8
+
 extern u8 g_DebugPageIndex;
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattleDisplayMode;
@@ -96,11 +102,6 @@ extern u8 g_BattleActorCharIds[];
 extern BattleSpriteColumnWork *g_BattleSpriteColumnWork;
 extern u8 g_BattleSlotActorIds[];
 extern u8 g_BattleSlotFlags[];
-// the slot's display value, one 8-byte record per slot
-typedef struct {
-    /* 0x0 */ u8 value;
-    /* 0x1 */ u8 unk1[7];
-} BattleSlotDisplayValue; // Size: 0x8
 extern BattleSlotDisplayValue g_BattleSlotDisplayValue[];
 // the per-slot table family (stride 0x170) seen from the slot's value pair:
 // D_800CCDC4 is the slot's current value, D_800CCDC6 the value it is filled to
