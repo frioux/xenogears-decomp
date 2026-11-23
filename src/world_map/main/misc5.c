@@ -330,33 +330,41 @@ int WorldMapInitActorScrollScale(int idx) {
     *(volatile s32 *)&pPlayer->unk50 = 0x1000;
     return 1;
 }
-// PARKED 78.98% (1084 bytes / 271 insns; retail 1068 / 267) - fresh body this round.
-// STRUCTURE IS SETTLED, and it corrects the older note below: func_80096F18 is
-// called from EACH of the cases 0,1,2,3,5 and NOT once after the switch. gcc
-// cross-jumps the five copies into one block and case 4 then jumps over it, which
-// is retail's 'j <tail>' exactly. Same body with the call after the switch reads
-// 80.83% and lets case 4 fall into the call, i.e. wrong code. Evidence for the
-// per-case shape: misc4's func_80078EA4 (the same slot family) calls it per case.
-// g_WorldMapPathFrame is declared SVECTOR[] (unbounded) so the four jitter RMWs
-// give retail's held base in a general register; no neighbour uses that symbol.
-// RESIDUAL, 4 insns over retail, all in typed-data spelling, not structure:
-//   case 4: g_WorldMapCameraTargetZ += 0x3A000 buys the address through $at
-//     (lui at + sw), so the beqz delay slot takes a nop; retail holds the address
-//     in $a2 (lui + addiu) and puts the sw in the delay slot. 1 insn.
-//   case 5: g_WorldMapViewRotationY += 4 likewise rebuys it; retail holds $a3.
-//     1 insn, plus one nop where retail stores scratch[0xA0] in the second
-//     rand() call's delay slot. The remaining diff is sched2 store permutation
-//     in cases 2/3/4/5 (same instruction multiset).
-// MEASURED ALTERNATIVE: 'extern SVECTOR g_WorldMapCameraRot[]' plus
-// 'extern WorldMapPos g_WorldMapCameraTarget[]' take this same body to 82.66% /
-// 1076 bytes / 269 insns, but func_8007C724 loses its macro store (pRot =
-// &g_WorldMapCameraRot[0].vx no longer folds; 100.00 -> 78.56, same size,
-// different registers) and WorldMapInitActorScrollScale goes to 99.00. Re-spell
-// func_8007C724 in the same change before taking that.
+// PARKED 82.67% (1076 bytes / 269 insns; retail 1068 / 267) - fresh body this round,
+// measured with the unit's own flags (XenoWorldMapDiv, -G8). Structure is settled and
+// matches retail block for block: the first switch is command-1 over 7 cases with
+// gcc cross-jumping case 0/4/6 into one "command = 0; state = N" block, the second
+// switch is state over 6 cases in which func_80096F18 is called per case (0,1,2,3,5)
+// and case 4 has its own tail that jumps past it, and the jitter epilogue reads the
+// two scratchpad halfwords twice each (0xA0, 0xA0, 0xA2, 0xA2).
+// RESIDUAL, 2 insns over retail, and it is a COMPILER question, not a source one:
+// retail reaches g_WorldMapCameraTargetZ through an address it keeps in $a2
+// (lui+addiu, then lw 0(a2) twice and sw 0(a2) in the beqz delay slot) and
+// g_WorldMapViewRotationY through $a3 the same way; -G8 folds a pointer local back to
+// the bare symbol, so the store becomes the assembler's lui $at / sw %lo($at) pair and
+// the beqz loses its delay slot fill: +1 insn for the store, +1 for the rematerialised
+// lw. THE SAME BODY SCORES 86.32% UNDER -G0, where cc1 keeps the pointer in a register
+// and both spots come out exactly as retail has them (verify with
+// "try_flags.sh world_map/main/misc5 func_8007ADD4 --gp -G0"); see the report for why
+// the unit cannot simply switch. Remaining -G0 residual is sched2 statement order:
+// case 2/3 put retail's command=0/state=0 pair two slots earlier, case 5 emits the
+// RotationMatrixValid store between the positionZ load and the unk5C store (ours hoists
+// it to the top of the case), and the epilogue's 0xA2 store is sunk below the two vx
+// updates in retail and not in ours.
+// Tried and rejected: volatile on the two scratchpad stores (pins them, but a volatile
+// store may not fill a jal delay slot, which is where retail keeps the 0xA0 store);
+// volatile on the case-5 rotation store; extern SVECTOR g_WorldMapPathFrame[] plus
+// WorldMapPos g_WorldMapCameraTarget[] (same score, broke func_8007C724); pointer
+// locals for CameraTargetZ and ViewRotationY under -G8 (folded away, no change);
+// 2.7.2-cdk (70.26) and 2.7.2-cdk -G0 (70.26). The unit's other matched functions do
+// NOT survive -G0 - func_8007C724 drops to 27.96, WorldMapUpdateActorState 99.95,
+// func_8007BBEC 99.82, WorldMapUpdateGroup4Actor 99.94 - so -G0 here needs a unit split.
 /*
 int func_8007ADD4(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
-    u8 *pJitter = (u8 *)PSX_SCRATCH;
+    u16 *pScratchPos = (u16 *)PSX_SCRATCH;
+    s32 *pTargetZ;
+    s16 *pViewRotationY;
     s16 nState;
     s16 nAngle;
 
@@ -367,14 +375,14 @@ int func_8007ADD4(s32 idx) {
         pPlayer->state = 1;
         break;
     case 1:
-        pPlayer->state = 2;
         pPlayer->command = 0;
+        pPlayer->state = 2;
         pPlayer->unk50 = 0x40000;
         break;
     case 2:
-        g_WorldMapCameraHeight = 0x640000;
         pPlayer->command = 0;
         pPlayer->state = 0;
+        g_WorldMapCameraHeight = 0x640000;
         g_WorldMapCameraRot = -0x1E0;
         g_WorldMapViewRotationY = 0x480;
         g_WorldMapViewRotationZ = 0;
@@ -438,40 +446,41 @@ int func_8007ADD4(s32 idx) {
                       &g_WorldMapCameraRot);
         break;
     case 4:
-        g_WorldMapCameraTargetZ += 0x3A000;
-        if (g_WorldMapCameraTargetZ > 0x77FFFFF) {
+        pTargetZ = &g_WorldMapCameraTargetZ;
+        *pTargetZ += 0x3A000;
+        if (*pTargetZ > 0x77FFFFF) {
             pPlayer->state = 0;
         }
         g_WorldMapPathFrame[0].vx = (pPlayer->unk58 - g_WorldMapCameraTarget) >> 12;
-        g_WorldMapPathFrame[1].vz = 0;
-        g_WorldMapPathFrame[1].vx = 0;
+        D_8009BD4C = 0;
+        D_8009BD48 = 0;
         nAngle = g_WorldMapCameraTargetY >> 12;
-        g_WorldMapPathFrame[1].vy = nAngle;
-        g_WorldMapPathFrame[0].vy = nAngle - 0x40;
-        g_WorldMapPathFrame[0].vz = (g_WorldMapCameraTargetZ - pPlayer->unk5C) >> 12;
+        D_8009BD4A = nAngle;
+        D_8009BD42 = nAngle - 0x40;
+        D_8009BD44 = (*pTargetZ - pPlayer->unk5C) >> 12;
         func_80097244((s32 *)&g_WorldMapPathFrame[0]);
         WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, (SVECTOR *)&g_WorldMapCameraRot);
         break;
     case 5:
-        g_WorldMapViewRotationY += 4;
-        nAngle = g_WorldMapViewRotationY;
-        if (nAngle > 0x600) {
+        pViewRotationY = &g_WorldMapViewRotationY;
+        *pViewRotationY += 4;
+        if (*pViewRotationY > 0x600) {
             pPlayer->state = 0;
         }
         func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
         break;
     }
-    *(volatile u16 *)(pJitter + 0xA0) = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
-    *(volatile u16 *)(pJitter + 0xA2) = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
-    g_WorldMapPathFrame[0].vx += *(volatile u16 *)(pJitter + 0xA0);
-    g_WorldMapPathFrame[1].vx += *(volatile u16 *)(pJitter + 0xA0);
-    g_WorldMapPathFrame[0].vy += *(volatile u16 *)(pJitter + 0xA2);
-    g_WorldMapPathFrame[1].vy += *(volatile u16 *)(pJitter + 0xA2);
+    pScratchPos[0x50] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+    pScratchPos[0x51] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
+    g_WorldMapPathFrame[0].vx += pScratchPos[0x50];
+    D_8009BD48 += pScratchPos[0x50];
+    D_8009BD42 += pScratchPos[0x51];
+    D_8009BD4A += pScratchPos[0x51];
     return 1;
-}*/
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
-
 
 int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
