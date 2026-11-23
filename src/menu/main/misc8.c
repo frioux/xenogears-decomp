@@ -72,48 +72,13 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
 void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDirentCount, s32* pTexPageId, s32* pClutX, s32* pClutY, s32* pTexPageX, s32* pTexPageY);
 
-/* PARKED 97.08% under gcc-2.6.0-psx (596 bytes, retail's exact size and its
-   150-instruction count) and 87.48% under the unit's Default 2.7.2 (604 bytes,
-   151 insns).
-   PRESET_260 menu/main/misc8 func_801D7CFC 97.08 87.48 - every already-matched C
-   function of the unit is also 100.00 under 2.6.0 (MenuDrawStatTable,
-   MenuMaxStatValue, MenuOpenCardEvents, MenuSetStatBarQuadColors,
-   MenuSetStatBarTileColors), so a unit switch makes this body a candidate.
-   What the body is: the gear window's two window quads and the selected prim
-   pair. The 0x2AED store is UNCONDITIONAL in retail - it sits in the beqz delay
-   slot, so it runs when arg1 is 0 too - then arg1 guards the rest.
-   Four things closed the gap from the old 78.55 park:
-   1. the 0x2AED store moved above the `if (arg1 != 0)` (retail's pGearWindowPrims
-      load and that store precede the beqz): 78.55 -> 85.60 under 2.7.2, and
-      87.95 -> 92.78 under 2.6.0.
-   2. the MenuSetPolySemiTransGrey address needs the 0x1E00 the old park omitted;
-      retail has the `addiu a0,a0,0x1E00` for it.
-   3. the loop's prim address needs pBase = (u8*)g_Menu->pGearWindowPrims and then
-      pEntry = pBase + off (lever b-pointer-local-holding-base), which is what
-      gives retail's base-first `addu v1,v1,v0`; the single-expression spelling
-      stays index-first.
-   4. `u_char selected`, not s32: with u_char gcc masks arg2 first and emits
-      retail's `sltiu a2,a2,1` + `move s4,a2`: 93.65 -> 97.08 under 2.6.0.
-   Residual under 2.6.0: ONE construct, the position of the
-   g_Menu->pGearWindowPrims load in the two tail prim-color statements. Retail
-   loads it at insn 99, i.e. BEFORE the *0x28 shift chain of the `tpage |= 0x20`
-   read-modify-write, and forms `addu a0,a0,v1` base-first; the compile loads it
-   one slot later (between the addu and the last sll) and keeps `addu v1,v1,v0`
-   index-first. The following byte store is the mirror image: retail loads the
-   base after the last sll, the compile one slot earlier. Everything else - frame
-   0x38, saves, the whole loop, the call, the two trailing stores - is identical,
-   and both are 150 instructions, so this is an instruction-order residual, not a
-   size one.
-   Tried under 2.6.0 and rejected: an embedded-assignment temp for the base in
-   either store (96.78 with one shared temp name - it also perturbs the loop's
-   allocation - and 97.08 with a fresh one), a POLY_FT4 typed tpage field
-   (identical), the POLY_FT4 array subscript form [0xC0 + ctx + sel*2] for the
-   three byte stores (identical code), s32 selected (93.65), dropping pBase
-   (92.78), an off local alone (92.78).
-   Under the unit's 2.7.2 the loop's D_801E977C[i] is strength-reduced into a
-   walking pointer (a 6th saved register, frame 0x40), which is why that preset
-   cannot reach this body - see lever o-272-vs-260-operand-order.
-*/
+/* The two address shapes the gear window block needs, both measured:
+   the `tpage |= 0x20` read-modify-write only takes retail's base-first `addu`
+   with the double-negated offset (lever c-a-double-negated-offset-flips), and the
+   loop's four vertex reads only with a base pointer kept apart from the scaled
+   offset (lever b-pointer-local-holding-base). Spelling the block as a typed
+   POLY_FT4 struct measures 64.37% (592 bytes) - the pointer becomes a hoisted
+   loop-invariant - so the byte offsets stay casts here. */
 void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
     u_char selected = (arg2 == 0);
     u8* pEntry;
