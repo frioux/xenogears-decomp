@@ -633,6 +633,39 @@ void SystemStringSetCurrentData(SystemString* pString, void* pData) {
     pString->flags |= SYSTEM_STRING_FLAG_DATA_OVERRIDE;
 }
 
+/*
+Parked at 77.74% (521 instructions against retail's 540: NINETEEN short, and the
+frame is 64 bytes against retail's 72). Measured, not guessed:
+- THE WHOLE DRAW PATH (the default arm, 0x344CC..0x345A0) is instruction-identical;
+  the one residual there is addu operand order in `pCur = advance + pCur` (retail
+  has `addu v0,s5,v0`, advance first).
+- THE OUTER DISPATCH IS AN IF/ELSE CHAIN, NOT A switch: as a switch gcc emitted a
+  16-entry jump table (65.28%); as if (op==0) / else if (op==3) / else if (op==0xF) /
+  else if (op==2) / else if (op==1) / else draw it produces retail's exact compare
+  chain (0, 3, 0xF, 2, 1). That one change was 65.28 -> 71.60.
+- THE 0xF SUB-SWITCH IS A switch: 16 cases 0x0..0xF written in ASCENDING source
+  order (retail emits their bodies at ascending addresses), default falling through
+  to the same break as the draw arm.
+- Reading the entry index and advancing pCur BEFORE the call (`index = pCur[2];
+  count++; pCur += 2; SystemFormatNumberGlyphs(pString->args[index], a, b);`) is what
+  lets gcc cross-jump cases 9/A/C and 6/7/8 onto one shared tail: 71.60 -> 77.74.
+- `row` must be s32, not s16 (s16 costs an sll/sra pair at every use), and the two
+  sums have OPPOSITE addu operand order: retail has `row / 2 * 13 + textureY` for
+  textureV but `textureY + row / 2 * 13` for imageRect.y.
+- THE RESIDUAL (19 instructions + the 8-byte frame) is a merging/stack difference,
+  not a wrong statement: retail sets the two SystemFormatNumberGlyphs flag args
+  BEFORE it reads pCur (a1 = 0/1, a2 = 0/1 first, then lbu pCur[2]), so its merged
+  tail starts after them, while this body can only merge from the index read on.
+  Something evaluates those constants into registers earlier - two locals assigned
+  at the top of each of the three cases is the shape to try next.
+- The frame: retail is 0x48 with the same 8 saved registers, this body 0x40. The 8
+  bytes are two spill slots gcc allocated in retail and never touched, i.e. retail's
+  source had two more pseudos. Nothing in this body needs them.
+- `((u8*)pString->pCur)[n]` throughout: pCur is void* in SystemString (this file's
+  own struct) and retyping it is not safe for the matched neighbours.
+- 540 vs 521 instructions and about 6 scored runs spent; not a compiler/preset
+  question (try_flags was not run - the shapes differ, not the scheduling).
+
 // Interpret a string's script until the glyph budget (unk69, in glyph slots) runs
 // out or the script stops. The bytes past the opcode are its arguments; pCur is
 // untyped in the struct, so the script is read through a u8 pointer.
@@ -884,6 +917,8 @@ void func_80033DF0(SystemString* pString) {
         }
     }
 }
+*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033DF0);
 
 void SystemStringClearStateFlags(SystemString* pString) {
     pString->flags &= ~SYSTEM_STRING_FLAG_STOPPED;
