@@ -390,7 +390,7 @@ void BattleAddPrimPair280(void) {
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x2D0 + (s32)p)));
 }
 
-void func_800745EC(void) {
+void BattleAddDisplayStatePrims(void) {
     BattlePacketPrims *p;
 
     switch (g_BattleDisplayState->primState) {
@@ -858,7 +858,7 @@ void BattleDrawFrameScreenMode1(void) {
         BattleAddThreeFlaggedPrimLists();
         func_8007500C();
         BattleAddThreePrimLists();
-        func_800745EC();
+        BattleAddDisplayStatePrims();
         BattleUpdateRotationBuffer();
         BattleAddPanelAndSlotPrimLists();
         func_80088B80();

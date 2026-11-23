@@ -75,7 +75,7 @@ typedef struct {
     /* 0x0AF */ u8 unkAF;
     /* 0x0B0 */ u8 primFlags[4]; // per slot: prim flags the *PrimFlags*Slots pairs below raise
     /* 0x0B4 */ u8 unkB4[3];
-    /* 0x0B7 */ u8 primState; // which prim set is up; func_800745EC switches five ways on it, 0 for none
+    /* 0x0B7 */ u8 primState; // which prim set is up; BattleAddDisplayStatePrims switches five ways on it, 0 for none
     /* 0x0B8 */ u8 rectExpandActive[7]; // per slot: while set, the slot's rect grows toward its target size
     /* 0x0BF */ u8 rectExpandDone[7]; // per slot: set once w and h reached the target size
     /* 0x0C6 */ u8 pulseTriangleActive;

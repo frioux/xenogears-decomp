@@ -162,7 +162,7 @@ extern s32 g_MovieHeapDebugEnabled;
 //   through pBase, and it passes `i = 0xF0` / `i` so gcc does not hoist a sixth
 //   loop-invariant 0xF0 into a callee-saved register. The value is dead: the
 //   teardown breaks out of the loop.
-void func_800704E8(void) {
+void MovieRunDebugScreen(void) {
     SVECTOR sv;
     MovieDebugMode mode;
     u32 spare2[6];

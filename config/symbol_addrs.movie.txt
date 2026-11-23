@@ -1,4 +1,4 @@
-func_800704E8 = 0x800704E8;
+MovieRunDebugScreen = 0x800704E8;
 MovieUpdateStream = 0x80070DCC;
 func_800712C4 = 0x800712C4;
 MovieStartStreamRead = 0x80071BA0;
