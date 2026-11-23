@@ -305,10 +305,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
    as one expression, matching retail's or tree exactly, 98.24% (loses the jr slot
    as well); `return ret | fld;` 97.94%. Broker is the parameter reuse: retail's
    andi writes a fresh register, so x was still live, which no spelling of
-   `code = x & mask` in an arm reproduces.*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
-
-/* best: 98.53%
+   `code = x & mask` in an arm reproduces.
+   Round 432: the allocno quotient settles it -- `code` is HImode (size 2), 3
+   refs over ~7 insns = 0.86, the 0xE5000000 constant SImode, 2 refs over 2 = 4.0,
+   a 4.6x margin that needs 6 refs or a 3-insn live range, i.e. instructions
+   retail does not have. Parked as unreachable.*/
+/*
 u_long func_80045BCC(int x, int y) {
     u_short code;
     u_long fld;
@@ -330,8 +332,9 @@ u_long func_80045BCC(int x, int y) {
         ret = code | 0xE5000000;
         return fld | ret;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
+
 
 u_long func_80045C10(RECT *tw) {
     u_long t[4]; /* load-bearing: the four dead stack stores of retail's frame */
@@ -363,42 +366,77 @@ u_long func_80045C10(RECT *tw) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
-
-/* best: 92.73% (184 bytes; retail is 176). The dispatch is a switch: retail is
-   beq/beq/j with the default (return p->x) block last, and the three "return p->x"
-   paths already merge into retail's single lh v0,0(a0) block here. What is left is
-   the shared - 0x400 - v - p->x - tail: retail keeps it inline in case 1 and case
-   2's reverse arm jumps INTO it at +0x40 with li v0,1024 in the delay slot, i.e.
-   gcc merged case 2's whole tail into case 1's. Every spelling tried makes gcc
-   merge only the last subu, into a third block that costs one instruction.
-   Measured: plain return 0x400 - p->w - p->x in both arms 88.02 (gcc reassociates
-   to (0x400 - p->x) - p->w, which swaps the two loads and kills the merge);
-   92.68 with the w = p->w / 2 local in case 2; 87.16 with the v = 0x400 - p->w
-   form in both arms (the v/w locals are what force the natural operand order);
-   92.73 with both. A 4-minute permuter run (base=457 best=317) found only the
-   un-parenthesised case-2 arm, which scores 88.07.
+/* best: 93.30% (172 bytes, 4 SHORT of retail's 176 - unlinkable; the 91.36 variant
+   below is retail's exact size and has the better tail). The dispatch is a switch:
+   retail is beq/beq/j with the default (return p->x) block last, and the three
+   "return p->x" paths already merge into retail's single lh v0,0(a0) block here.
+   Earlier state (92.73 / 184 bytes): every spelling made gcc merge only the last
+   subu, into a third block that costs one instruction. Measured then: plain
+   return 0x400 - p->w - p->x in both arms 88.02 (gcc reassociates to
+   (0x400 - p->x) - p->w, which swaps the two loads and kills the merge); 92.68
+   with the w = p->w / 2 local in case 2; 87.16 with the v = 0x400 - p->w form in
+   both arms; 92.73 with both; a 4-minute permuter run (base=457 best=317) found
+   only the un-parenthesised case-2 arm, 88.07.
+   ROUND 432: THE SHARED TAIL IS SOURCE-LEVEL, NOT A MERGE. Retail's block layout
+   is [dispatch][case 1][tail .L80045CD4][case 2][case2 non-reverse][default][jr],
+   and gcc 2.7.2 emits blocks in source order, so the tail has to sit at a LABEL
+   between the two case bodies (levers.md i-a-cross-jumped-block-keeps /
+   d-crossjump-survivor-is-the-last): each arm sets `v` and `x` and jumps to a
+   `tw:` label holding the whole tail. Tail written once after the switch lands
+   after the default (72.48); duplicated in both arms cross-jump merges it at the
+   SECOND arm's position and case 1 pays a `j`+nop (85.91).
+   Two spellings measured from there:
+   - `tw: t = 0x400 - v; return t - x;` (v, x, t locals; NO constant in the arms)
+     = 91.36% / 176 bytes = retail's EXACT size, and the tail block is
+     INSTRUCTION-IDENTICAL to retail's `li v0,1024 / subu v0,v0,v1 / j /
+     subu v0,v0,a0`. Residual: the `li` is at the tail head, so reorg fills case
+     1's `beqz` slot with `lh $v1,4($a0)` and case 2's `j` slot with the `sra`
+     (retail hoisted the `li` into BOTH slots, which needs a single-predecessor
+     block), plus case2's non-reverse division keeps its two pseudos mirrored
+     ($v0/$v1) over 4 insns. 8 displaced instructions of 44.
+   - the parked body (93.30 / 172 bytes): each arm gets its own `t = 0x400` so
+     case 1's `beqz` slot does get retail's `li`; cse then merges the two constant
+     loads, `t` lands in $a1 instead of $v0 and the closing subu becomes
+     `subu v0,a1,a0` where retail has `subu v0,v0,a0`, and case 2's `li` is
+     hoisted to the head of its block. Higher objdiff number, worse body:
+     un-park the 91.36 spelling first if you reopen this.
+   `t` must be a separate local: `v = 0x400 - v; return v - x;` gives retail's
+   operand order but reuses v's register ($v1) for the result. `int x` shared by
+   both arms is load-bearing (retail loads `lh $a0,0($a0)` inside each arm).
+   Listing case 2 first in the switch, hoping the survivor lands at case 1, gives
+   47.16 - the dispatch follows the case order.*/
+/*
 u_long func_80045C94(RECT *p) {
     int v;
-    int w;
+    int x;
+    int t;
 
     switch (g_GraphType) {
     case 1:
         if (g_GraphReverse) {
-            v = 0x400 - p->w;
-            return v - p->x;
+            v = p->w;
+            x = p->x;
+            goto tw400;
         }
         break;
+    tw400:
+        t = 0x400;
+    tw:
+        t = t - v;
+        return t - x;
     case 2:
         if (g_GraphReverse) {
-            w = p->w / 2;
-            return 0x400 - w - p->x;
+            v = p->w / 2;
+            x = p->x;
+            t = 0x400;
+            goto tw;
         }
         return p->x / 2;
     }
     return p->x;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
+
 
 
 u_long func_80045D44(void) {
