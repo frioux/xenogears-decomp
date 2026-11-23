@@ -710,10 +710,23 @@ extern void func_8009093C(s32 arg0);
    `pagePending - 1` into a preheader local and reads it in the loop - WRONG
    CODE: pagePending becomes 2 in the command arm, so that value is not loop
    invariant. Rejected; the earlier run (439 iterations, base=178) found nothing.
+   ROUND 421 moved ONLY `pagePending = 1;` (not `page = 0;`) to just after
+   BattleInitPulseTrianglePrims: 1160 bytes = retail's EXACT size (98.52 by
+   objdiff, whose score drops on a displacement) and the ONLY residual left is
+   4 lines - the pair `sw s4,88(sp); li s4,1` sitting after `li a3,0x118`
+   instead of after `li s6,2`. Everything else, both `sw s0,24(sp)` stores, the
+   `sw ra`/`sw s1` order and the `(u8)result` scratch in s0, is identical. So
+   the byte count is reachable and the whole question is that pair's prologue
+   slot: with the assignment at the top the slot is right and the CSE fires
+   (1156), with it after the calls the CSE is broken and the slot is 4 late
+   (1160). Prologue order follows statement order here, so what is needed is a
+   const-1 that cse2 will not share with s4 while the statement stays after
+   `result = 2`.
    Dead spellings measured earlier and not to be retried: moving the
    pagePending/page initialisation after BattleInitPulseTrianglePrims (gives the
    fresh li but moves the s4/s5 save pair out of the frame top, 97.17%), an s32
-   local for the 7th argument, `u8 sel` vs s32 sel.
+   local for the 7th argument, `u8 sel` vs s32 sel, `u32 pagePending` (the
+   subtract stops CSEing: `addiu a1,s4,-1` + `addiu s5,s4,-1`, 98.77/1156).
    The state arms are stores-before-increments: `g_BattleCursorScrollY = (j + 1) * 13;`
    then `j++` is what reproduces retail per-arm `andi v1,(u8)j; addiu v1,v1,1`
    plus the -1 shared by states 2 and 4. *//*
