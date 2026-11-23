@@ -35,6 +35,10 @@
    pRow pointer (97.15%), and a permuter run (503 iterations, base=1 best=1).
    The inner loop IS a selection sort: pCompare picks the extreme element in
    [i,nCount) and three memcpys rotate it into slot i through a HeapAlloc'd temp.
+   RE-MEASURED (round 405), from the live body: 99.94 / 316 bytes / 79 insns and
+   the same single differing line (bnez +0x74 vs +0x78); the old note is not
+   stale. Permuter re-run 841 iterations base=1 best=1, nothing. Unreachable
+   from C: the loop label can only land where maspsx replays it.
    Leave as INCLUDE_ASM.
  */
 /*
