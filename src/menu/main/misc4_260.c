@@ -91,37 +91,26 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
     pCharacter->polys5F0PrimCount = 0;
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
-/* 99.17% (1120 bytes = retail's exact size, 280 insns; re-measured round 407). TWO
-   residuals, and both are cc1's SCHEDULERS placing one insn, not the C:
-   1. ELSE arm constant placement. Retail is
-      `andi/sll chain, lbu gearId, li count=5, sll chain, lw hp, li base=4`: each
-      constant sits in the load-delay slot of the load above it and nothing is at the
-      block top. This build hoists `li base,4` to the block top and puts `li count,5`
-      in the lbu's slot. Six source orders measured (levers.md c-two-loads-hoist-the):
-        (value, base, count) 99.17 [this body]   (value, count, base) 99.15
-        (u8 gearId decl, count, value, base) 99.15   do-while(0) around the arm 98.75
-      New this round, by compiling this same .i with the schedulers toggled:
-      -fno-schedule-insns2 keeps `li base` at the block top; -fno-schedule-insns moves
-      it to just before the lbu; with BOTH off the block ends `lw hp, li base, li count`,
-      i.e. retail's stream order, and reorg then fills the two load slots. So the
-      displacement is the PRE reload scheduler's (sched-insns), the second scheduler
-      moves it back to the lbu, and no statement order reaches retail's pair placement.
-      permute.sh 3 min this round: base=90 best=90, 1383 iterations.
-   2. PROLOGUE: retail emits `sw s5,84(sp) / move s5,a3` BEFORE `sw s8,96(sp) /
-      move s8,a1`; the two parameter copies are therefore NOT in parm order (a3 first).
-      This build emits them in parm order (a1 then a3) under every flag set measured
-      (-fno-schedule-insns gives a1-then-a3 too; with both schedulers off the prologue
-      is the plain descending save sequence, which retail is not). Same sched2 wall, so
-      the a3/a1 pair order is not source-reachable either.
-   Structure worth keeping: `value` is assigned in each arm and parsed once (retail has
-   one jal MenuParseNumberToDigits per block); each block re-reads `g_Menu->digits[...]`
-   in its loop test; blocks 2 and 4 carry a separate placed-glyph counter for the x
-   argument while blocks 1 and 3 use the digit index; blocks 3 and 4 only run for the
-   character arm (arg5 == 0). Putting block 3's x back onto the digit index is what took
-   this from 97.79 to 99.15. */
-/* void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
-    s32* pX = (s32*)arg3;
+/* 99.29% (1120 bytes = retail's exact size, 280 insns; round 423). ONE residual left, and
+   it is cc1's PRE-RELOAD scheduler, not the C: the else arm's `li s6,4` (glyphBase)
+   is hoisted to the block top where retail emits it right after the value `lw`
+   (levers.md c-two-loads-hoist-the, which names this park).
+   ROUND 423 CLOSED THE OTHER RESIDUAL: the prologue parameter copies used to come
+   out in parm order (a1 then a3) where retail has a3 then a1; DROPPING the
+   `s32* pX = (s32*)arg3;` local and spelling the x arguments `((s32*)arg3)[12]` in
+   place fixed it (99.17 -> 99.29, 2 differing lines). So the a3/a1 pair order WAS
+   source-reachable after all, through the pseudo structure rather than statement
+   order. Measured on the remaining `li`: (value,base,count) 99.29 [this body],
+   (value,count,base) 99.26, (count,base,value) 99.26, (count,value,base) 99.26,
+   and a `u_char gearId` local first 99.29 (2 lines, same residual); permute.sh
+   4 min from this body: base=60 best=60, 1715 iterations.
+   Structure worth keeping: `value` is assigned in each arm and parsed once (retail
+   has one jal MenuParseNumberToDigits per block); each block re-reads
+   `g_Menu->digits[...]` in its loop test; blocks 2 and 4 carry a separate
+   placed-glyph counter for the x argument while blocks 1 and 3 use the digit
+   index; blocks 3 and 4 only run for the character arm (arg5 == 0). */
+/*
+void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
     s32* pY = (s32*)arg4;
     u32 value;
     s32 glyphCount;
@@ -146,7 +135,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
         if (digit != MENU_DIGIT_NONE) {
             pCharacter->hpStringLength += func_8002675C(g_Menu->resources, digit,
                 &pCharacter->polysHpString[pCharacter->hpStringLength * 2], g_Menu->renderContext,
-                i * MENU_DIGIT_SPACING + pX[12], localIndex * 0x38 + pY[12], 0x1000);
+                i * MENU_DIGIT_SPACING + ((s32*)arg3)[12], localIndex * 0x38 + pY[12], 0x1000);
         }
     }
     if (arg5 == 0) {
@@ -161,7 +150,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
         if (digit != MENU_DIGIT_NONE) {
             pCharacter->maxHpStringLength += func_8002675C(g_Menu->resources, digit,
                 &pCharacter->polysMaxHpString[pCharacter->maxHpStringLength * 2], g_Menu->renderContext,
-                j * MENU_DIGIT_SPACING + pX[13], localIndex * 0x38 + pY[13], 0x1000);
+                j * MENU_DIGIT_SPACING + ((s32*)arg3)[13], localIndex * 0x38 + pY[13], 0x1000);
             j++;
         }
     }
@@ -173,7 +162,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
             if (digit != MENU_DIGIT_NONE) {
                 pCharacter->mpStringLength += func_8002675C(g_Menu->resources, digit,
                     &pCharacter->polysMpString[pCharacter->mpStringLength * 2], g_Menu->renderContext,
-                    i * MENU_DIGIT_SPACING + pX[14], localIndex * 0x38 + pY[14], 0x1000);
+                    i * MENU_DIGIT_SPACING + ((s32*)arg3)[14], localIndex * 0x38 + pY[14], 0x1000);
             }
         }
         MenuParseNumberToDigits(g_GameState.characters[characterIndex].maxMp);
@@ -183,13 +172,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
             if (digit != MENU_DIGIT_NONE) {
                 pCharacter->maxMpStringLength += func_8002675C(g_Menu->resources, digit,
                     &pCharacter->polysMaxMpString[pCharacter->maxMpStringLength * 2], g_Menu->renderContext,
-                    j * MENU_DIGIT_SPACING + pX[15], localIndex * 0x38 + pY[15], 0x1000);
+                    j * MENU_DIGIT_SPACING + ((s32*)arg3)[15], localIndex * 0x38 + pY[15], 0x1000);
                 j++;
             }
         }
     }
 }
 */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
+
 void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
     MenuBuildCharacterLabelsAndPortrait(pCharacter, arg1, arg2, arg3, arg4, arg5);
     MenuBuildCharacterLevelDigits(pCharacter, arg1, arg2, arg3, arg4);
