@@ -1177,19 +1177,18 @@ void func_80072DB4(s32 count, s32 color, s32 colorStep, s32 abr) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
-/* best: 93.68%, 144 bytes vs retail's 152. The table is not the blocker (retail's
-   is 5 entries at .rodata+0x18 with one pad word before the next object), and the
-   else path is settled: `nMode = 2; if (!(gearRide[0] | gearRide[1] | gearRide[2])) nMode = 1;`
-   gives retail's `bnez` with `li v0,2` in the slot; the ternary and
-   `if / else if / else` forms give a `beqz` with `li v0,1` instead.
-   Two residuals: (1) the missing 8 bytes are retail's TWO separate `nMode = 7`
-   arms (cases 3 and 4); gcc merges the two identical blocks at every spelling
-   tried - separate arms, `case 3: case 4:`, a temp copy, a double assignment,
-   reordered case labels, `default` between them. Cross-jumping runs after cse, so
-   any source difference that cse folds away is merged again.
-   (2) the value pseudo is $a1 here and $v0 in retail.
-*/
+// best: 93.68%, 144 bytes vs retail's 152. Round 435: the merge is in jump optimisation, not
+//    in the C - the compiled .s labels the shared block '$L83: $L84:' while the jump table keeps
+//    both words, so retail's two DISTINCT 3-insn arms (j .L80073388 + addiu v0,7, twice) need two
+//    different pseudos that regalloc later coalesced to v0; assigning one constant 7 to one local
+//    in both arms is one CONST_INT and one reg, so every spelling merges. Measured this round:
+//    if/else-if chain (hoping gcc's convert_to_switch builds the table): 66.53, no table emitted and
+//    the two 7 bodies still merged to one conditional target; try_flags --gcc gcc-2.6.0-psx: 93.68,
+//    same merge, so not a compiler-version question. Already measured in earlier rounds: separate
+//    arms, 'case 3: case 4:', temp copy, double assignment, reordered labels, default between them.
+//    Second residual, same cause: the value pseudo is a1 here, v0 in retail. The table itself is not
+//    the blocker - this stub's table is the middle object of the unit's own rodata range at +0x18
+//    (5 words + the 4-byte align pad), and a 5-word C table lands there exactly (range 0x4..0x50).
 /*
 void func_80073300(void) {
     s32 nMode;
@@ -1220,8 +1219,10 @@ void func_80073300(void) {
         }
     }
     g_WorldMapMode = nMode;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
+
+
 
 void WorldMapSetPositionFromState(void) {
     s32 nMode;
@@ -1705,33 +1706,8 @@ void func_80073B04(void) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 
-// The two POLY_FT4 primitives at D_8009C5C0; retail names every field store
-// by its own address (D_8009C5C3 = tag.len, D_8009C5C7 = tag.code, ...), so the
-// fields are declared individually and only the base is typed.
+// The world map's two full-screen textured quads; the second is a copy of the first.
 extern POLY_FT4 D_8009C5C0[2];
-extern u8 D_8009C5C3;
-extern u8 D_8009C5C4;
-extern u8 D_8009C5C5;
-extern u8 D_8009C5C6;
-extern u8 D_8009C5C7;
-extern s16 D_8009C5C8;
-extern s16 D_8009C5CA;
-extern u8 D_8009C5CC;
-extern u8 D_8009C5CD;
-extern u16 D_8009C5CE;
-extern s16 D_8009C5D0;
-extern s16 D_8009C5D2;
-extern u8 D_8009C5D4;
-extern u8 D_8009C5D5;
-extern u16 D_8009C5D6;
-extern s16 D_8009C5D8;
-extern s16 D_8009C5DA;
-extern u8 D_8009C5DC;
-extern u8 D_8009C5DD;
-extern s16 D_8009C5E0;
-extern s16 D_8009C5E2;
-extern u8 D_8009C5E4;
-extern u8 D_8009C5E5;
 extern DR_TPAGE D_8009C5A0;
 extern TILE D_8009C898[0x40];
 
@@ -1776,7 +1752,6 @@ extern WorldMapTriPrim D_8009C664[8];
    The one cosmetic diff is the TILE loop base: retail forms %hi(D_8009C8A6) (the array seen
    through tile->h) and stores at -0xB..0, ours forms D_8009C898+0xE; links identically.
 */
-/*
 void func_80073E30(void) {
     POLY_FT4* pPrim;
     POLY_G3* pPoly;
@@ -1784,29 +1759,28 @@ void func_80073E30(void) {
     s32 i;
 
     pPrim = D_8009C5C0;
-    D_8009C5C3 = 9;
-    D_8009C5C7 = 0x2C;
-    D_8009C5CA = 0x78;
-    D_8009C5D2 = 0x78;
-    D_8009C5DA = 0xD7;
-    D_8009C5E2 = 0xD7;
-    D_8009C5C8 = 0xD0;
-    D_8009C5D8 = 0xD0;
-    D_8009C5D0 = 0x137;
-    D_8009C5E0 = 0x137;
-    D_8009C5CC = 0;
-    D_8009C5CD = 0x80;
-    D_8009C5D4 = 0x7F;
-    D_8009C5D5 = 0x80;
-    D_8009C5DC = 0;
-    D_8009C5DD = 0xFF;
-    D_8009C5E4 = 0x7F;
-    D_8009C5E5 = 0xFF;
-    D_8009C5C4 = 0x80;
-    D_8009C5C5 = 0x80;
-    D_8009C5C6 = 0x80;
-    D_8009C5D6 = GetTPage(0, 0, 0x380, 0x100);
-    D_8009C5CE = GetClut(0x100, 0x1FE);
+    setPolyFT4(pPrim);
+    pPrim->x0 = 208;
+    pPrim->y0 = 120;
+    pPrim->x1 = 311;
+    pPrim->y1 = 120;
+    pPrim->x2 = 208;
+    pPrim->y2 = 215;
+    pPrim->x3 = 311;
+    pPrim->y3 = 215;
+    pPrim->u0 = 0;
+    pPrim->v0 = 0x80;
+    pPrim->u1 = 0x7F;
+    pPrim->v1 = 0x80;
+    pPrim->u2 = 0;
+    pPrim->v2 = 0xFF;
+    pPrim->u3 = 0x7F;
+    pPrim->v3 = 0xFF;
+    pPrim->r0 = 0x80;
+    pPrim->g0 = 0x80;
+    pPrim->b0 = 0x80;
+    pPrim->tpage = GetTPage(0, 0, 0x380, 0x100);
+    pPrim->clut = GetClut(0x100, 0x1FE);
     SetSemiTrans(pPrim, 1);
     pPrim[1] = pPrim[0];
     SetDrawTPage(&D_8009C5A0, 1, 0, GetTPage(0, 1, 0x380, 0x100));
@@ -1825,7 +1799,7 @@ void func_80073E30(void) {
         SetSemiTrans(pPoly, 1);
     }
     pTile = D_8009C898;
-    for (i = 0; i < 0x40; i++, pTile++) {
+    for (i = 0; i < 64; i++, pTile++) {
         setTile(pTile);
         pTile->r0 = 0x80;
         pTile->g0 = 0x80;
@@ -1833,8 +1807,7 @@ void func_80073E30(void) {
         pTile->w = 2;
         pTile->h = 2;
     }
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073E30);
+}
 
 // The world map's scratchpad block. RotMatrix writes the rotation vector at 0xB8 and the
 // three translation words of the GTE matrix the map is projected through sit at 0x104; the
