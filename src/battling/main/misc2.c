@@ -666,15 +666,20 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
    our local_alloc takes the lowest free register `$v1` while $a2, $a0, $a1 are
    free - an allocator tie no source shape has moved, so this park is a
    compiler-version residual, not an unwritten body. */
+/* Round 417: un-parked and re-measured 99.91% / 432 bytes / 108 insns; the single
+   differing line is still `lbu a2,1(s1)` (retail) against `lbu v1,1(s1)` (ours),
+   with the same `ori v0,0x10` and the same `bne`. A fourth 3-minute permuter run
+   from this exact body (1109 iterations, base=best=10) found nothing. New evidence
+   this round, so the next round does not repeat it: `cc1 ... -O2 -G8 -dl` on
+   build/src/battling/main/misc2.c.i (the unit's real flags) shows the test value is
+   a 2-reference, block-local pseudo living 3 insns in block 1, GR_REGS with NO copy
+   suggestion and no call crossed, so its register is nothing but the first free one
+   in REG_ALLOC_ORDER - an allocno contest retail's cc1 resolved to $a2 only through
+   a copy suggestion this dying single-use temp cannot create. The block-1 pseudos
+   are 98 and 99 (2 refs each over 3 and 4 insns) and both are block-local, so this
+   is a local-alloc hand-out, not a global priority quotient: no C spelling of the
+   test moves it. Park stands. */
 /*
-extern s32 BattleEffectPackKey(s32, u8, s16, s32);
-extern s32 BattleEffectIsTwoVertexType(u8);
-extern void func_8007CD44(s32, void *, void *, s32);
-extern void BattleEffectQueueLineByType(void *, void *);
-extern void BattleEffectSetColor(u8 *);
-extern void func_8007C880(s32, void *, s32, s32);
-extern void BattleEffectAddSlotFromVector(void *, s32);
-
 void func_80073F34(Actor *p0, u8 *p1) {
     VECTOR vecA;
     VECTOR vecB;
