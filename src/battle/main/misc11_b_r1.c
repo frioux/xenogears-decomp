@@ -176,19 +176,19 @@ s32 func_80081B58(u32 arg0) {
     case 4:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[slot].commandFlags[2] != 0) {
             g_BattleMenuEvent = 5;
-            BattlePlaySoundWithBaseId(0x4F);
+            BattlePlaySoundWithBaseId(BATTLE_SOUND_MENU_DENIED);
         }
         break;
     case 7:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[slot].commandFlags[1] != 0) {
             g_BattleMenuEvent = 5;
-            BattlePlaySoundWithBaseId(0x4F);
+            BattlePlaySoundWithBaseId(BATTLE_SOUND_MENU_DENIED);
         }
         break;
     case 6:
         if (((BattleActorSlots *)g_BattleCommandQueue)->slot[slot].commandFlags[0] != 0) {
             g_BattleMenuEvent = 5;
-            BattlePlaySoundWithBaseId(0x4F);
+            BattlePlaySoundWithBaseId(BATTLE_SOUND_MENU_DENIED);
         }
     }
     if (((BattleActorSlots *)g_BattleCommandQueue)->commandAppended == 0) {
@@ -265,7 +265,7 @@ s32 func_80081B58(u32 arg0) {
                             [((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue] * 100) / 56;
             ((BattleActorSlots *)g_BattleCommandQueue)->gaugeSpent = 1;
         } else {
-            BattlePlaySoundWithBaseId(0x4F);
+            BattlePlaySoundWithBaseId(BATTLE_SOUND_MENU_DENIED);
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue == 0) {
             BattleQueueCommandFE((u8)arg0);
