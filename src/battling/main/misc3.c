@@ -663,31 +663,35 @@ extern u8 ControllerStickToAnalogY(s32 buttonState);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
-/* 99.43% (1972 vs retail's 1972 bytes - exactly retail's size, 491 instructions,
-   22 differing lines). Nothing structural is left; two register/order artefacts.
-   (1) most of the gap, the flags read-modify-write near the top: retail loads
-   0xD0 into $a0 and puts the ~0x20000 mask in $v1, and its `lw $v1,0xFC`
-   (angleOffset) lands BEFORE `sw $a0,0xD0`; this body has the pair the other way
-   round ($a0 mask, $v1 flags) and because $v1 is then freed by the store the
-   0xFC load sinks below it. One change would fix both if the flags value got
-   $a0. Not reachable by spelling: an explicit spinBit local (98.86, 30 lines),
-   the two `+= BATTLE_ANGLE_HALF_TURN` reordered above the flags assignment
-   (store ends up last), declaration order.
-   (2) `diff = (direction & 0xFFF) - ((ratan2(...) + 0x400) & 0xFFF)` emits
-   `subu $v0,$v1,$v0` where retail is in-place on the FIRST operand
-   (`subu $v1,$v1,$v0`); naming the pad angle as a local first is 98.99, and a
-   declaration-with-initialiser for diff emits the same body as the plain local.
-   A 3-minute permuter run (1276 iterations, base 145) found nothing on either.
-
-   Two spellings closed the previous 97.34 park and are in the body below, so do
-   not undo them: (a) `limit = __builtin_abs(x)` instead of a ternary - inside
-   the `x < 0` arm gcc folds `x < 0 ? -x : x` to a bare negu and loses retail's
-   move+negu pair, one instruction; (b) `p->distance = distance;` hoisted OUT of
-   its if, because retail stores distance unconditionally, filling the beqz delay
-   slot.
-
-   Preset is Default (-O2, gcc 2.7.2, -G8); the remaining order difference is a
-   post-reload scheduling artefact, not a preset question. */
+/* 99.43% (1972 bytes = retail's exact size, 491 vs 491 instructions, 22 differing
+   lines). Both residuals are register-name ties; nothing structural is left.
+   (1) 17 lines, the flags read-modify-write of 0xD0: retail has the mask in $v1
+   and the flags word in $a0 and its `lw` of 0x648/0xFC land before
+   `sw $a0,0xD0`; this body has the pair the other way round ($a0 mask, $v1
+   flags), so its store sinks below those loads. That it is a regno question is
+   PROVEN by the -dl dump (cc1 -dl on build/src/battling/main/misc3.c.i): the
+   `and`'s constant operand is pseudo 117, created AFTER the flags load's pseudo
+   115, because expand forces the constant only once the mem is expanded, and
+   local-alloc allocates in regno order - so the load takes the first free
+   register ($3) and the mask $4. Retail's mirror needs the mask to carry the
+   LOWER regno, which the expander cannot produce for `flags & const`.
+   Measured, all identical to this body or worse: a single-use `u32 newFlags =
+   p->flags;` and a single-use `u32 clearSpin = ~0x20000;` local (both folded
+   back into the constant by copy propagation); the constant written first as
+   `(~0x20000 & p->flags)` (gcc canonicalises commutative operands); the same
+   `flags` variable reassigned before the RMW (one pseudo for the whole
+   function, so BOTH live ranges land in $4: 99.41, 30 lines); an explicit
+   spinBit local (98.86); the two `+= BATTLE_ANGLE_HALF_TURN` moved above the
+   RMW (the schedule collapses, worse).
+   (2) 5 lines: `subu` ties its output to the SECOND operand ($v0) where retail
+   works in place on the first ($v1). A pad-angle local is 98.99, and
+   `diff = direction & 0xFFF; diff -= ...` makes diff callee-saved (98.81,
+   36 differing lines).
+   Permuter from this body: 784 iterations, base 145 best 145.
+   Keep these two spellings, they closed the previous 97.34 park: `limit =
+   __builtin_abs(x)` inside the x < 0 arms (a ternary folds to a bare negu and
+   loses retail's move+negu pair) and `p->distance = distance;` hoisted out of
+   its if (retail stores distance unconditionally, in the beqz delay slot). */
 /* The controller the actor reads: player 2's actor takes controller 1. A digital
    pad's sticks come straight from the axis globals, an analog one's from the
    button state. The four input ramps charge one direction at a time and decay
@@ -929,8 +933,8 @@ s32 func_80076884(BattleActor* p) {
         }
     }
 }
-
 */
+
 extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleFacingAngle;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
