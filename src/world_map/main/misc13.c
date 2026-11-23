@@ -230,53 +230,54 @@ void WorldMapFreeAreaNameString(void) {
     SystemStringFree(g_WorldMapAreaNameString);
 }
 
-/* best: 98.05% (480 bytes = retail 480, 120 insns both) - but that measurement needs a
-   declaration change this unit cannot take, so the body parked here is the 91.17 one
-   (re-measured this round: 480 bytes, 120/120, 28 differing rows).
-   How to reach 98.05, both steps measured in round 396: (1) declare the flags global as
-   an ARRAY (`extern u16 g_WorldMapAreaNamePanelFlags[];`) and write
-   `g_WorldMapAreaNamePanelFlags[0]`: cc1 2.7.2 then materialises the address once
-   (`la a1` + `lhu v0,0(a1)` + `sh v0,0(a1)`, retail exactly) - 96.34. The array type is
-   per DECLARATION, so it takes the already-matched WorldMapInitAreaNameString from
-   100.00 to 86.14 (that function's retail really does re-form the address twice:
-   `lui v0` + `lhu v0,%lo(v0)` then `lui at` + `sh`), so un-parking needs an alias symbol
-   at the same address for this function only. (2) move `D_8009D2C0 = 0x98;` above
-   `D_8009D2CA = 0x70;` - 96.34 -> 98.05. Measured this round: a plain
-   `u16* pFlags = &g_WorldMapAreaNamePanelFlags;` local (scalar declaration, accesses
-   `*pFlags`) is folded straight back to the scalar form by cse and measures the SAME
-   91.17, so the address-in-a-register shape is only reachable through the declaration
-   (tools/rounds/levers.md k-unbounded-array-extern-global).
-   What the 28 rows of the 91.17 body are, re-read this round: exactly two things.
-   (a) the flags read-modify-write: ours is retail's WorldMapInitAreaNameString shape
-   (`lui v0` + `lhu v0,0(v0)`, `lui at` + `sh`, and the jal delay slot then takes
-   `move a0,s0` where retail has the `sh`); (b) ONE `li` position: retail lifts
-   `li t0,0x98` above the `li v0,0x70` pair (li order 9, 0x2C, 0x98, 0x70, 0x128, 0xB4,
-   0x80, 0xFF, 0x3F) while every spelling tried emits each `li` immediately before its
-   first store pair (9, 0x2C, 0x70, 0x128, 0x98, ...). The STORE order itself already
-   matches retail's exactly, so the li position cannot be moved by reordering the pairs.
-   Not a preset question: --all under 2.6.0 (91.17, and five matched functions fall to
-   99.4-99.9) and under 2.7.2-cdk (91.17, most matched functions 84-100) are both worse;
-   -fschedule-insns on the unit .i leaves the li order unchanged.
-   The tail is a 0x28-byte struct copy (`D_8009D2B8[1] = D_8009D2B8[0];`) and the 21
-   scalar stores really are through the absolute D_8009D2Bx symbols (retail uses
-   `lui at` + store per site, never a base register), so a typed WorldMapPrim field
-   spelling of them would change the code - leave them as symbols.
+// best 97.97% (480 bytes = retail 480, 120 insns both), and only reachable with the alias below.
+// The body reads and writes the panel flags through an ARRAY-typed alias (block-scope
+// 'extern u16 g_WorldMapMode4AreaNamePanelFlags[];' plus [0] accesses): register
+// g_WorldMapMode4AreaNamePanelFlags = 0x8009D4A8 in config/symbol_addrs.world_map.txt
+// before un-parking, and note the relocation name then differs from retail's, so objdiff
+// can never read 100.00 here (2 of the 20 differing rows ARE that name). An array type is
+// per DECLARATION, so flipping this unit's own 'extern u16 g_WorldMapAreaNamePanelFlags;'
+// (line 145) instead takes the already-matched WorldMapInitAreaNameString from 100.00 to
+// 86.14 - that one's retail really does re-form the address twice (lui v0 + lhu
+// v0,%lo(v0), then lui at + sh), which is why 92DF8 needs its own name for the address.
+// Residual with the alias body is two SCHEDULER slots, not a spelling: retail's li
+// t0,0x98 sits five insns above its first store and our li v1,0x98 two, retail's li
+// v0,0xB4 sits above the 0x128 pair and ours below it, and retail's three constants take
+// v0/v1/t0 while ours reuses v0. The store order is retail's in both.
+// Statement orders measured this round (the 0x98 store hoisted above the 0x70 pair's
+// second store is what makes cc1 reorder the stores at all, as retail's stream needs):
+// C2,C0,CA,C8,D8,D0 = 97.97 (the body below); C0,C2,CA,C8,D8,D0 = 97.93;
+// C2,CA,C0,C8,D8,D0 = 96.26; C2,C0,D0,CA,C8,D8 = 97.58; 0xB4 pair moved up beside C0 =
+// 97.64; the whole 0x98 pair before the 0x70 pair (exactly retail's li ORDER) = 95.76,
+// because cc1 then emits the stores in source order without reordering.
+// With the scalar declaration (the body as parked before round 433) the same statements
+// measure 91.17, same 480 bytes. A plain 'u16* pFlags = &g_WorldMapAreaNamePanelFlags;'
+// local is folded straight back to the scalar form (91.17), so the base-register shape is
+// only reachable through the declaration (levers.md k-unbounded-array-extern-global).
+// Presets: 2.6.0 91.17 (and five matched functions drop to 99.4-99.9), 2.7.2-cdk 91.17
+// (most matched functions 84-100), -fschedule-insns on the unit .i leaves the li order
+// unchanged. The tail is a 0x28-byte struct copy (D_8009D2B8[1] = D_8009D2B8[0];) and the
+// 21 scalar stores really are through the absolute D_8009D2Bx symbols (retail uses lui at
+// + store per site, never a base register), so a typed WorldMapPrim field spelling of them
+// would change the code - leave them as symbols.
+/*
 s32 func_80092DF8(void) {
+    extern u16 g_WorldMapMode4AreaNamePanelFlags[];
     u16 flags;
 
     g_WorldMapMode4AreaId = WORLD_MAP_AREA_NONE;
     SystemStringInit(g_WorldMapMode4AreaNameString, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
-    flags = g_WorldMapAreaNamePanelFlags;
+    flags = g_WorldMapMode4AreaNamePanelFlags[0];
     D_8009BDCC = 8;
-    g_WorldMapAreaNamePanelFlags = flags | 2;
+    g_WorldMapMode4AreaNamePanelFlags[0] = flags | 2;
     SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
     D_8009D2BB = 9;
     D_8009D2BF = 0x2C;
     D_8009D2C2 = 0x70;
+    D_8009D2C0 = 0x98;
     D_8009D2CA = 0x70;
     D_8009D2C8 = 0x128;
     D_8009D2D8 = 0x128;
-    D_8009D2C0 = 0x98;
     D_8009D2D0 = 0x98;
     D_8009D2D2 = 0xB4;
     D_8009D2DA = 0xB4;
@@ -296,9 +297,9 @@ s32 func_80092DF8(void) {
     SetSemiTrans(D_8009D2B8, 1);
     D_8009D2B8[1] = D_8009D2B8[0];
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
 /* best: 99.58% (472 bytes = retail's 472; 118 instructions = retail's 118). The whole
    body is instruction-identical; retail's tail keeps 0xFFFFFF in $a1 and
@@ -817,6 +818,16 @@ s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMa
    (a-global-allocno-priority-is / a-lreg-dump-gives-the): there is no callee-saved
    register in play at all, so the -dl/-da dump has nothing to decide - the contest is
    between two 1-ref dying quantities inside one block. Do not hand-iterate it.
+   Round 433 measured the split/in-place family (all 112 bytes / 28 insns unless
+   noted): `dx = p0->x; dx -= p1->x;` alone is 91.79 (cc1 hoists one sra into the
+   bgez delay slot and duplicates it); the same split plus `dx >>= 12; sum = dx*dx;`
+   is 95.00 - it DOES give retail's subu tie (dest = the minuend's register) and
+   retail's bgez/nop/negu/sra/mult chain exactly, but the load/dest pair moves to
+   $v1 (retail $v0) and the z half to $a0/$v0, so the mirror only relocates; and
+   writing the difference as `p1->x - p0->x` (identical under the abs) costs a
+   `move a2,a0` parameter copy, 116 bytes / 29 insns, 94.29. So the constant form's
+   mirrored tie and the in-place form's mirrored register pair are exclusive and the
+   98.21 constant form above stays the best.
 s32 func_80094154(WorldMapPos* p0, WorldMapPos* p1) {
     s32 dx;
     s32 dz;
