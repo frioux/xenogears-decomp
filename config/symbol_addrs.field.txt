@@ -1117,3 +1117,6 @@ g_FieldPortraitSlotCursor = 0x800ADB0C;
 FieldProbeWalkmeshSlideAlongWall = 0x8007BAC0;
 g_FieldPendingWdsBankIndex = 0x800B2290;
 g_GameAudioManagerVolumeRestorePending = 0x800ADBD4;
+g_FieldTextBoxFrameIndex = 0x800ADE94; // type:s32
+g_FieldCursorFrameRects = 0x800ADEDC; // type:RECT
+g_FieldContinueArrowFrameRects = 0x800ADF04; // type:RECT

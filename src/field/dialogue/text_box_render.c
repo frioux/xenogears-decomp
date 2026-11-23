@@ -10,6 +10,15 @@
 #include "psyq/libcd.h"
 #include "system/controller.h"
 
+// Frame counter shared by every text box: it cycles 0..4 and picks the frame
+// rect the cursor and the continue arrow are drawn with.
+extern s32 g_FieldTextBoxFrameIndex;
+extern RECT g_FieldCursorFrameRects[5];
+extern RECT g_FieldContinueArrowFrameRects[5];
+extern s16 g_FieldTextScaleDivisor;
+extern int SystemStringGetColumnOffset(void* pString);
+extern int SystemStringGetRowOffset(void* pString);
+
 // Same SystemString helpers as the group further down; the text box keeps its
 // string at _pad[0].
 extern void SystemStringSetLineOffset(void* pString, int value);
@@ -136,53 +145,47 @@ void FieldTextBoxSetPortraitQuad(POLY_FT4* pPoly, int x, int y, int width, int h
     pPoly->y3 = y + height;
 }
 
-// The whole body is in place and every call, branch, reloc and store of this
-// draw pass is present; what is left is allocation. Retail re-forms
-// `index * 0x498` at every access (the body indexes g_FieldTextBoxes[index]
-// nine times) and spills x/y/w/h to four stack slots at 0x28/0x30/0x38/0x40
-// that it reloads around every section, while the compile keeps them in
-// callee-saved registers and works from one s6 = index * 0x498. Two other
-// measured differences: the frame's eight sprite stores are grouped per sprite
-// here but interleaved in retail (x0/y0 of four sprites, then the repeated
-// y+h-9 / x+w-8 / h-0x12 values), and retail reads the box rect's w and h with
-// an lhu + sll/sra pair where this body's `_pad[0x4C]` read is a plain lh, so
-// the original typed those two fields unsigned.
+// PARKED 68.33%: 3228 bytes against retail's 3148, 807 instructions against
+// 787. Round 436 un-parked the previous body unchanged and re-measured it
+// after adding the three symbols the old note asked for (see NAMES below), so
+// every number here is from that exact body.
+// The old note's diagnosis was WRONG and is not repeated: this body does NOT
+// keep x/y/w/h in callee-saved registers. It spills them to exactly retail's
+// slots -- x at 0x28, y at 0x30, w at 0x38, h at 0x40, `rect` at 0x18, the ctx
+// argument at 0x20 -- and saves the same 10 registers at 0x80..0xA4. 731 of
+// the 1042 aligned diff rows are instruction-identical: every call, branch,
+// store and reloc, and the whole open animation (both divisions, both mults,
+// both /2 roundings, both clamps) and the whole frame/portrait/cursor/tile
+// pass. The remainder is two things:
+//  1. The scaled box offset `index * 0x498` is recomputed into `$t0` here and
+//     into `$a2` in retail at each of its sites (69 `addu` rows plus the
+//     cascade through the value temps: `$t7`/`$t8` here where retail has
+//     `$t8`/`$t9`). cc1 -dl on this body shows why the hand-out differs: both
+//     bodies copy the argument first (`move $s7,$a2`), so retail's `$a2` is
+//     the dead incoming index register taking the product, while here the
+//     product is a call-crossing allocno ("used N times across M insns;
+//     crosses 7 calls") and cannot take a caller-saved register.
+//  2. The frame is 0x78 against retail's 0xA8. Both have args=24 and the same
+//     40-byte saved set, so retail's vars region is 104 bytes against this
+//     body's 56, and retail references NOTHING in it above 0x43 (0x44 empty,
+//     0x48..0x7F empty): retail paid 60 bytes plus four 4-byte holes at
+//     0x2C/0x34/0x3C/0x44 for memory-resident locals this body does not have.
+//     That is the one lead left. A `{ s16 left; s16 top; }` aggregate was
+//     measured at 67.48% earlier and does not produce those bytes.
+// Preset sweep on this body: 2.7.2 -O2 -G8 68.33 (best), gcc-2.6.0 -O2 67.42,
+// 2.7.2 -O3 63.21, 2.7.2 -O1 35.67, gcc-2.7.2-cdk -O2 54.42 -- the unit's
+// Default preset is right, this is not a compiler question. Also measured and
+// rejected earlier: s16 locals for x/y/w/h (61.04%, 3264 bytes -- re-narrowed
+// with lhu + sll/sra at every use, which also settles that they are s32), and
+// the note's original claims about interleaved sprite stores do not survive:
+// those stores match.
 // The frame sprites and their draw modes are two render contexts laid out one
-// after the other in FieldTextBoxBorders, so a piece is sprites1[ctx * 10 + n].
-
-// 68.38%, 3228 bytes against retail's 3148 (807 instructions against 787):
-// the whole draw pass is in place -- the open animation with its two divisions
-// and two floors, the continue arrow with its timer, the eight frame sprites,
-// the portrait quad, the cursor and the background tile, seven calls and eleven
-// addPrim pairs in retail's order (no jal differs). What is left is allocation.
-// Retail keeps x/y/w/h in four stack words at 0x28/0x30/0x38/0x40 and reloads
-// them around every section, and re-forms `index * 0x498` at each of the nine
-// box accesses, so its frame is 0xA8 against this body's 0x78. Measured and
-// rejected: s16 locals for x/y/w/h (61.04%, 3264 bytes -- the s16 slots are
-// re-narrowed with lhu + sll/sra at every use), which also settles that the
-// original typed them s32.
-// Two more facts about the original: it reads the box rect in the order
-// x, w, y, h and narrows w and h with an lhu + sll/sra pair, so those two
-// fields are u_short in the source struct while x and y are short; and it
-// clamps h - 0x12 right before the two edge sprites take it, not where this
-// body computes pieceHeight.
-// The frame sprites and draw modes are two render contexts laid out one after
-// the other in FieldTextBoxBorders, so piece n of a context is
+// after the other in FieldTextBoxBorders, so piece n of a context is
 // sprites1[ctx * 10 + n] / drawModes1[ctx * 10 + n].
-// D_800ADEDC (cursor frame rects), D_800ADF04 (continue arrow frame rects) and
-// D_800ADE94 (the shared frame counter) live inside g_FieldTableQuadTexParams;
-// none of the three has a symbol_addrs entry yet, so un-parking this body needs
-// `D_800ADEDC = 0x800ADEDC;` and `D_800ADF04 = 0x800ADF04;` added there.
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
+// g_FieldCursorFrameRects, g_FieldContinueArrowFrameRects and
+// g_FieldTextBoxFrameIndex live inside g_FieldTableQuadTexParams and are
+// declared as externs at the top of this file.
 /*
-
-extern s16 g_FieldTextScaleDivisor;
-extern s32 D_800ADE94;
-extern RECT D_800ADEDC[5];
-extern RECT D_800ADF04[5];
-extern int SystemStringGetColumnOffset(void* pString);
-extern int SystemStringGetRowOffset(void* pString);
-
 void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
     s32 x;
     s32 y;
@@ -246,10 +249,10 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
         } else {
             colOffset = SystemStringGetColumnOffset(&g_FieldTextBoxes[index]._pad[0]);
             rowOffset = SystemStringGetRowOffset(&g_FieldTextBoxes[index]._pad[0]);
-            rect.x = D_800ADF04[D_800ADE94].x;
-            rect.y = D_800ADF04[D_800ADE94].y;
-            rect.w = D_800ADF04[D_800ADE94].w;
-            rect.h = D_800ADF04[D_800ADE94].h;
+            rect.x = g_FieldContinueArrowFrameRects[g_FieldTextBoxFrameIndex].x;
+            rect.y = g_FieldContinueArrowFrameRects[g_FieldTextBoxFrameIndex].y;
+            rect.w = g_FieldContinueArrowFrameRects[g_FieldTextBoxFrameIndex].w;
+            rect.h = g_FieldContinueArrowFrameRects[g_FieldTextBoxFrameIndex].h;
             SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[ctx], NULL, 0,
                         GetTPage(0, 0, 0x298, 0x1C0), &rect);
             g_FieldTextBoxes[index].continueArrow.sprites[ctx].x0 = colOffset;
@@ -340,10 +343,10 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
         g_FieldTextBoxes[index].cursor.sprites[ctx].y0 =
             (g_FieldTextBoxes[index].cursor.curPosition +
              g_FieldTextBoxes[index].cursor.startPosition) * 14 + y + 8;
-        rect.x = D_800ADEDC[D_800ADE94].x;
-        rect.y = D_800ADEDC[D_800ADE94].y;
-        rect.w = D_800ADEDC[D_800ADE94].w;
-        rect.h = D_800ADEDC[D_800ADE94].h;
+        rect.x = g_FieldCursorFrameRects[g_FieldTextBoxFrameIndex].x;
+        rect.y = g_FieldCursorFrameRects[g_FieldTextBoxFrameIndex].y;
+        rect.w = g_FieldCursorFrameRects[g_FieldTextBoxFrameIndex].w;
+        rect.h = g_FieldCursorFrameRects[g_FieldTextBoxFrameIndex].h;
         SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[ctx], NULL, 0,
                     GetTPage(0, 0, 0x288, 0x1C0), &rect);
         addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].cursor.sprites[ctx]);
@@ -358,15 +361,17 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
         addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.tiles[ctx]);
         addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.drawModes[ctx]);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
+
+
 
 extern u8 g_SystemBackdropColor;
 extern u8 D_800594D5;
 extern u8 D_800594D6;
 extern RECT D_800ADE9C[];
-extern RECT D_800ADEDC;
-extern RECT D_800ADF04;
+extern RECT g_FieldCursorFrameRects[5];
+extern RECT g_FieldContinueArrowFrameRects[5];
 
 // PARKED 63.05%: 1784 bytes against retail 1952, 446 instructions against 488.
 // The body is a faithful longhand transcription of the original: every
@@ -405,10 +410,10 @@ void FieldTextBoxInitializePrimitives(int index) {
     g_FieldTextBoxes[index].background.tiles[1] = g_FieldTextBoxes[index].background.tiles[0];
 
     // Continue arrow
-    rect.x = D_800ADF04.x;
-    rect.y = D_800ADF04.y;
-    rect.w = D_800ADF04.w;
-    rect.h = D_800ADF04.h;
+    rect.x = g_FieldContinueArrowFrameRects.x;
+    rect.y = g_FieldContinueArrowFrameRects.y;
+    rect.w = g_FieldContinueArrowFrameRects.w;
+    rect.h = g_FieldContinueArrowFrameRects.h;
     SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[0], NULL, 0,
                 GetTPage(0, 0, 0x298, 0x1C0), &rect);
     SetDrawMode(&g_FieldTextBoxes[index].continueArrow.drawModes[1], NULL, 0,
@@ -424,10 +429,10 @@ void FieldTextBoxInitializePrimitives(int index) {
         g_FieldTextBoxes[index].continueArrow.sprites[0];
 
     // Cursor
-    rect.x = D_800ADEDC.x;
-    rect.y = D_800ADEDC.y;
-    rect.w = D_800ADEDC.w;
-    rect.h = D_800ADEDC.h;
+    rect.x = g_FieldCursorFrameRects.x;
+    rect.y = g_FieldCursorFrameRects.y;
+    rect.w = g_FieldCursorFrameRects.w;
+    rect.h = g_FieldCursorFrameRects.h;
     SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[0], NULL, 0,
                 GetTPage(0, 0, 0x288, 0x1C0), &rect);
     SetDrawMode(&g_FieldTextBoxes[index].cursor.drawModes[1], NULL, 0,
@@ -811,8 +816,8 @@ extern void func_80034888(FieldTextBoxString* pString, u_long* pOt, int ctx);
 extern void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr);
 
 // Text animation frame, advanced every fourth frame and wraps after five.
-extern s32 D_800ADE94;
-// Frames counted by this function; the low two bits clock D_800ADE94.
+extern s32 g_FieldTextBoxFrameIndex;
+// Frames counted by this function; the low two bits clock g_FieldTextBoxFrameIndex.
 extern s32 D_800ADE98;
 // Field's own pad button state, filled by FieldPollControllers.
 extern u_short g_FieldP1ButtonsReleased;
@@ -850,10 +855,10 @@ void func_8008004C(u_long* pOt, int ctx) {
 
     D_800ADE98++;
     if ((D_800ADE98 & 3) == 0) {
-        D_800ADE94++;
+        g_FieldTextBoxFrameIndex++;
     }
-    if (D_800ADE94 >= 5) {
-        D_800ADE94 = 0;
+    if (g_FieldTextBoxFrameIndex >= 5) {
+        g_FieldTextBoxFrameIndex = 0;
     }
 
     activeIndex = 0xFF;
