@@ -93,6 +93,8 @@ extern s32 g_WorldMapPlayerPositionZ;
 extern s32 D_8009D3C4;
 extern s32 g_WorldMapSedsBankFileIndex;
 extern StreamDataQueueEntry g_WorldMapStreamQueue;
+extern StreamDataQueueEntry g_WorldMapStreamQueueEntries[];
+extern void* D_8009D3FC;
 extern StreamDataQueueEntry D_8009D400;
 extern StreamDataQueueEntry D_8009D408;
 extern StreamDataQueueEntry D_8009D410;
@@ -516,37 +518,6 @@ void func_80071CDC(void) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
-// ROUND 374: re-measured 97.37% (256 vs retail's 252). THE ARRAY SPELLING CLOSES IT:
-// `extern StreamDataQueueEntry g_WorldMapStreamQueue[];` + `pQueue = g_WorldMapStreamQueue;`
-// gives retail's exact 252 bytes and 99.21-99.37%, with `sh $v1,0($a0)` as retail has it and
-// only the pData store left as g_WorldMapStreamQueue+4 against retail's D_8009D3FC (same
-// address, links identical - round-359/374 RELOC case). It is not applied because the same
-// declaration makes the matched neighbours WorldMapQueueTwoFileLoads (160 bytes, 91.95%) and
-// WorldMapQueueFileLoads (344, 87.81%) materialise the queue base in a register where retail
-// stores the symbol through $at. Closing this needs a SECOND NAME for 0x8009D3F8 (e.g.
-// g_WorldMapStreamQueueEntries) so only this function sees the array type. Round-374
-// cc1_probe: every scalar spelling of &g_WorldMapStreamQueue (plain, (void*), (u32), +0,
-// &((Q*)&g_Q)[0], (u8*)) folds to the same %at macro; only array decay escapes the fold.
-/* best: 98.00% (256 bytes vs 252). Only the g_WorldMapStreamQueue store differs: the
-   original reuses the $a0 that already holds the address for the ArchiveStartStreamQueue
-   call and emits a bare "sh $v1,0($a0)"; gcc re-forms the symbol address and
-   needs one extra lui $at. A local StreamDataQueueEntry* does not stop that
-   folding, and neither does routing the address through an s32 local or a
-   volatile pointer: cse replaces the store's (mem (symbol_ref)) with %hi/%lo
-   regardless, because the address pseudo is created after the store. Dead end
-   unless the address comes from a runtime base.
-   Round 51: permuter 434 iterations, base=125 best=125 - no lever in the body.
-   Round 287: a volatile store (`*(volatile u16 *)&g_WorldMapStreamQueue = D_8009D3C4;`)
-   is worse, not better: 89.00%, 256 bytes - gcc then keeps the address in a callee-saved
-   $s0 across the store group and STILL emits `lui $at / sh %lo($at)` through %lo, so the
-   store itself never picks up the register.
-   Round 359: the `g_WorldMapStreamQueue[n]` spelling does not close it either - un-parked with an
-   `extern StreamDataQueueEntry g_WorldMapStreamQueue[]` it reaches retail's 252 bytes but measures
-   93.63%, because the array base is then materialised in a general register
-   (`addiu $v1,$v1,24` / `addiu $a0,$v1,-24`) and a sixth callee-saved temporary (t2) appears.
-   The body below re-measures 97.37% at 256 bytes against retail's 252.
-
 void func_80071EF0(void) {
     void* pBuffer;
     StreamDataQueueEntry* pQueue;
@@ -554,10 +525,10 @@ void func_80071EF0(void) {
     g_WorldMapTexturePackData = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C17C), 1);
     g_WorldMapLoadedFileData = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapReloadFileIndex), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
-    pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
+    pQueue = g_WorldMapStreamQueueEntries;
     g_WorldMapDecompressedMapData = pBuffer;
     D_8009D410.archiveIndex = 0;
-    g_WorldMapStreamQueue.pData = pBuffer;
+    D_8009D3FC = pBuffer;
     D_8009D410.pData = 0;
     pQueue->archiveIndex = D_8009D3C4;
     D_8009D400.archiveIndex = D_8009C17C;
@@ -566,7 +537,6 @@ void func_80071EF0(void) {
     D_8009D408.pData = g_WorldMapLoadedFileData;
     ArchiveStartStreamQueue(pQueue, 0, 0);
 }
-*/
 
 void WorldMapQueueTwoFileLoads(void) {
     void* pBuffer;
@@ -575,7 +545,7 @@ void WorldMapQueueTwoFileLoads(void) {
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX), 1);
     g_WorldMapStreamQueue.archiveIndex = WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX;
     g_WorldMapCompressedMapData = pBuffer;
-    g_WorldMapStreamQueue.pData = pBuffer;
+    D_8009D3FC = pBuffer;
     D_8009D400.archiveIndex = WORLD_MAP_MENU_RESOURCES_ARCHIVE_INDEX;
     D_8009D408.archiveIndex = 0;
     D_8009D408.pData = 0;
@@ -600,7 +570,7 @@ void WorldMapQueueFileLoads(void) {
     g_WorldMapStreamQueue.archiveIndex = g_WorldMapWdsFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapWdsFileIndex), 1);
     g_WorldMapWdsFileBuffer = pBuffer;
-    g_WorldMapStreamQueue.pData = pBuffer;
+    D_8009D3FC = pBuffer;
     D_8009D400.archiveIndex = g_WorldMapSoundBankFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapSoundBankFileIndex), 0);
     g_WorldMapSoundBankBuffer = pBuffer;

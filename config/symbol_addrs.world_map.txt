@@ -612,3 +612,5 @@ g_WorldMapCharacter2AnimFiles = 0x8009CD3C;
 g_WorldMapDrawMovePrims = 0x8009D164;
 g_WorldMapAreaSpawnPositions = 0x8009A674;
 g_WorldMapAreaSfxIds = 0x8009A5A0;
+g_WorldMapStreamQueueEntries = 0x8009D3F8;
+D_8009D3FC = 0x8009D3FC;
