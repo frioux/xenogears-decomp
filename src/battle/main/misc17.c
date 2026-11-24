@@ -603,42 +603,41 @@ void func_80092298(u8 arg0, u8 *arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 
-// 70.43% (1012 bytes / 253 insns against retail's 1028) under this unit's gcc 2.6.0,
-// re-measured this round by un-parking and diffing. THE OLD NOTE'S 70.57% AT 1028 WAS
-// STALE: that park carried three `divisors[...] = ...` lines left over from
-// func_800930AC and an undeclared `divisors` local, so it never compiled and the
-// percentage came from a previous object.
+// 86.30% (988 bytes / 247 insns against retail's 1008 / 252), measured this round by
+// un-parking and diffing. 70.43 -> 86.30 came from three changes, each measured:
+// 1. THE TWO i==7 TESTS ARE WRITTEN `if (i != 7) {arg1 path} else {i==7 path}`: retail's
+//    `beq s1,v0` and its block order (then-block inline, else out of line) only appear in
+//    that orientation. 70.43 -> 84.62.
+// 2. pBufs[i] IS STORED THROUGH A SOURCE POINTER, `*(pSlot = pBufs + i) = pBuf;` --
+//    battle/main/misc3's BattleLoadActionRowGraphics, the same array-of-0x1B-buffers
+//    idiom. That is what removes the 4*i BIV (`addu s3,s4,(sp+16)` plus `addiu s4,s4,4`
+//    in the latch) and gives retail's fresh `sll v1,s1,2` / `addiu v0,sp,0x40` /
+//    `addu s3,v1,v0`, base-first.
+// 3. THE ONES DIGIT: retail tests arg1[i] BEFORE computing arg2[i] % 10, i.e. the modulus
+//    lives inside the if, not in a preceding statement.
 //
-// The body below is RETAIL'S STRUCTURE, verified against the .s: the 0x618 text
-// buffer, the source rect at 0x3C0/0/0x3C/0xD, the eight 0x1Bx0x10 tiles, the glyph
-// arm shared by `i == 7` (GetStringEntryFromBank12(0xA)) and `arg1[i] != 0xFF`
-// (GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg1[i])), the even-tile
-// secondRect, and the tens/ones digit blits whose source is ONE shared call fed by a
-// `pData` local (retail: `j .L80092AE0` with a1 already set per arm, one jal) with
-// the two arms' onesRect stores keeping retail's constant-folded 0x3D2/0x132 under
-// i == 7. The six RECTs sit at retail's own slots (glyph 0x10, tens 0x18, ones 0x20,
-// tile 0x28, second 0x30, source 0x38, pBufs 0x40) in this declaration order.
+// RESIDUAL 1, THE FRAME (0x98 against retail's 0x90): retail rematerialises
+// `addiu a0,sp,0x18` (the tens rect's address) in both tens blits; this body has loop.c
+// HOIST it (`addiu t0,sp,0x18` into the preheader) and reload spills it to 0x68(sp), so
+// with 10 live values for 9 registers `6` is rematerialised as three `li t0,6` and every
+// s-register is shifted. MEASURED CAUSE, the cleanest experiment of the round: write the
+// tens blit ONCE after the if/else with the source in a local (so the address has ONE
+// use) and the hoist disappears -- frame comes out 0x90 with retail's slots and a
+// rematerialised `addiu a0,sp,0x18` -- but the body collapses to 243 insns / 972 bytes,
+// one jal where retail has two. So retail has two tens blits AND no hoist, and 2.6.0's
+// loop.c move_movables hoists a 2-use invariant address. A pointer local for the second
+// use (`pRect = &tensRect;` then passing pRect) is copy-propagated away: identical 988.
 //
-// Residual, measured:
-// 1. THE FRAME AND THE WHOLE ALLOCATION TURN ON ONE EXTRA CALLEE-SAVED VALUE. Retail
-//    is 0x90 with 9 saved registers holding i, (i/2)*16, (i%2)*0x1E+0x380, arg1,
-//    arg2, 0xD, arg0, 6 and &pBufs[i]; this body is 0x98 because it also keeps the
-//    pBufs element offset as a strength-reduced giv (`move s?,zero` in the preheader,
-//    `addiu s?,s?,4` in the latch) where retail recomputes `sll v1,s1,2` +
-//    `addu s0,v0,v1` every iteration, and the freed register is what retail uses to
-//    HOIST 6 into s8 (this body rematerialises `li t0,0x6` at each rect). With 10
-//    live values for 9 registers gcc spills &tensRect to a var slot (the 8 bytes)
-//    instead of re-forming `addiu a0,sp,0x18` at each of the two tens blits.
-//    lever.py g-invariant-addend-keeps-mul is the closest lever (an invariant ADDEND
-//    in the index is what stops loop.c folding a base into a pointer iv) but pBufs
-//    sits at a fixed frame address, so its index has no invariant term to add.
-// 2. Retail's i==7 test comes out `beq s1,v0,.L80092900` (the i==7 arm OUT of line,
-//    the arg1[i] test inline); this body gets `bne` with the i==7 arm inline.
-// Tried, all measured: the pBuf local for the allocation (identical 1012 bytes), the
-// `goto nextTile` glyph skip (identical), duplicating the ones blit in both arms
-// instead of the pData local (69.20%, 1024 bytes, frame 0xA0 -- it spills BOTH
-// tensRect and onesRect addresses), no pData with the tens source in a local, and
-// try_flags gcc-2.7.2-cdk (68.71%) so the preset is not the answer.
+// RESIDUAL 2, THE GLYPH TAIL: retail keeps all four glyphRect stores in BOTH arms (8
+// stores) and shares only the jal; this body cross-jumps the y/w/h stores plus the jal
+// into one tail, which is where 3 of the 5 missing instructions went, and it also makes
+// the i==7 arm fall into that shared tail instead of retail's own 4 stores + jal.
+// Breaking the merge by reordering the 7-arm's stores deviates from retail's address
+// order (x,y,w,h in both arms), so it was not taken.
+//
+// Tried and measured dead: pBufs[7] spelled literally in the i==7 arm (byte-identical;
+// gcc already folds pBufs[i] to 0x5C there), gcc-2.7.2 (82.35) and gcc-2.7.2-cdk
+// (74.51) on this body, so the preset is not the answer.
 /*
 void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     RECT glyphRect;
@@ -649,6 +648,7 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     RECT rect;
     u_long *pBufs[8];
     u_long *pBuf;
+    u_long **pSlot;
     u_long *pData;
     u8 tensDigit;
     u8 onesDigit;
@@ -665,29 +665,30 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     BattleLoadImageAndSync(&rect, g_BattleTextWorkspace);
     for (i = 0; i < 8; i++) {
         pBuf = BattleAllocTextBuffer(0x1B);
-        pBufs[i] = pBuf;
+        *(pSlot = pBufs + i) = pBuf;
         bzero(pBuf, 0x30C);
         tileRect.x = (i % 2) * 0x1E + 0x380;
         tileRect.y = (i / 2) * 16 + 0x100;
         tileRect.w = 0x1B;
         tileRect.h = 0x10;
         BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
-        if (i == 7) {
-            SystemRenderStringEntry(GetStringEntryFromBank12(0xA), pBufs[i], 0x1B, 0);
-            glyphRect.x = (i % 2) * 0x1E + 0x380;
-            glyphRect.y = (i / 2) * 16 + 0x102;
-            glyphRect.w = 0x1E;
-            glyphRect.h = 0xD;
-        } else if (arg1[i] != 0xFF) {
-            SystemRenderStringEntry(GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg1[i]), pBufs[i], 0x1B, 0);
+        if (i != 7) {
+            if (arg1[i] == 0xFF) {
+                goto nextTile;
+            }
+            SystemRenderStringEntry(GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg1[i]), *pSlot, 0x1B, 0);
             glyphRect.x = (i % 2) * 0x1E + 0x380;
             glyphRect.y = (i / 2) * 16 + 0x102;
             glyphRect.w = 0x1E;
             glyphRect.h = 0xD;
         } else {
-            goto nextTile;
+            SystemRenderStringEntry(GetStringEntryFromBank12(0xA), pBufs[i], 0x1B, 0);
+            glyphRect.x = (i % 2) * 0x1E + 0x380;
+            glyphRect.y = (i / 2) * 16 + 0x102;
+            glyphRect.w = 0x1E;
+            glyphRect.h = 0xD;
         }
-        BattleLoadImageAndSync(&glyphRect, pBufs[i]);
+        BattleLoadImageAndSync(&glyphRect, *pSlot);
 nextTile:
         if ((i & 1) == 0) {
             secondRect.x = 0x3C0;
@@ -700,14 +701,7 @@ nextTile:
         tensRect.y = (i / 2) * 16 + 0x102;
         tensRect.w = 6;
         tensRect.h = 0xD;
-        if (i == 7) {
-            BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
-            onesRect.x = (i % 2) * 16 + 0x3C2;
-            onesRect.y = (i / 2) * 16 + 0x102;
-            onesRect.w = 6;
-            onesRect.h = 0xD;
-            pData = g_BattleTextWorkspace;
-        } else {
+        if (i != 7) {
             tensDigit = arg2[i] / 10;
             BattleLoadImageAndSync(&tensRect, tensDigit != 0 ? g_BattleDigitImageBuffers[tensDigit] : g_BattleTextWorkspace);
             onesRect.x = (i % 2) * 16 + 0x3C2;
@@ -715,7 +709,17 @@ nextTile:
             onesRect.w = 6;
             onesRect.h = 0xD;
             onesDigit = arg2[i] % 10;
-            pData = arg1[i] != 0xFF ? g_BattleDigitImageBuffers[onesDigit] : g_BattleTextWorkspace;
+            pData = g_BattleTextWorkspace;
+            if (arg1[i] != 0xFF) {
+                pData = g_BattleDigitImageBuffers[onesDigit];
+            }
+        } else {
+            BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
+            onesRect.x = (i % 2) * 16 + 0x3C2;
+            onesRect.y = (i / 2) * 16 + 0x102;
+            onesRect.w = 6;
+            onesRect.h = 0xD;
+            pData = g_BattleTextWorkspace;
         }
         BattleLoadImageAndSync(&onesRect, pData);
     }
