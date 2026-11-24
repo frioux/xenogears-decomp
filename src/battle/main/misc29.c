@@ -139,6 +139,25 @@ extern s32 D_800C35C4[3]; // the offset ApplyMatrixLV rotates, its z jittered pe
 // Retail's slot map for a future round: 0x10 vec, 0x20 angles, 0x28 matrix, 0x48
 // radius, 0x4C row, 0x50 pass, 0x54 rowCoord, 0x58/0x5C the row z snapshots, 0x60
 // colCoord, 0x64 rowBytes, 0x68/0x6C the two z accumulators, 0x70 blockOffset.
+// Round 441 re-measure of this exact body: 71.49% / 1104 bytes / 276 insns, and the
+// GIV CLAIM ABOVE IS STALE FOR THIS BODY - it recomputes `col * 0x7C` per iteration
+// exactly as retail does (`sll $2,$23,0x5 / subu / sll 2`, no `addiu ...,124` in the
+// column latch), so loop.c is not the residual here. The residual is ONE allocation
+// decision: the compile keeps `radius` in $fp and stores it nowhere, retail keeps it in
+// stack slot 0x48 and reloads it twice, so all eleven state slots shift 4 bytes down
+// (row 0x48, rowCoord 0x50, zRow0 0x54, zRow1 0x58, rowBytes 0x5C, zAcc1 0x60, zAcc0
+// 0x64, blockOffset 0x68, ...) and every register in the body is renamed - hence 267 of
+// 275 lines differ while the instruction list is retail's. Retail's pressure is 10 long
+// lived inner-loop values against 10 callee-saved registers (radius is the 11th and it
+// is the one with the lowest allocno priority: 3 refs), so the compiler only spills it
+// when the inner loop also wants a register for rowCoord+0x10 (retail's s4).
+// Measured on this body, all dead ends: three permutations of the 16 s32 declarations
+// (71.49 twice, one did not differ at all); an explicit `s32 rowNext = rowCoord + 0x10`
+// local used for v2 and v1 (72.39% / 1096 / 274 - frame drops to 0x9C, four bytes short,
+// radius still in $fp); `volatile s32 radius` (70.63% / 1088 / 272 - radius does land in
+// a slot but the body loses 12 bytes elsewhere). So the next round needs a source shape
+// that raises the inner loop's register demand by one WITHOUT adding a stack slot, not
+// another spelling of the address.
 /*
 BattleWorkBuffer *func_800B7424(BattleWorkBuffer *pWork) {
     VECTOR vec;
