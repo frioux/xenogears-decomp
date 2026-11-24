@@ -630,6 +630,47 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 //   - outer case body source order is 0, 1, 2, 4, 3, 5, 6 (retail's body address
 //     order: .L800958C4, the state-4 arm, sits below .L80095908, the state-3
 //     arm). Cases 2 and 3 of the outer switch share the walk.
+// best: 71.12% (2152 bytes / 538 lines vs retail's 2240 / 576).
+// Round 446: 64.84 -> 71.12 from ONE semantic fix plus the structure it implies.
+//   The SEARCH case's two "give up and go to the terrain" exits are ONE block in
+//   retail (.L8009570C, reached from both 'beqz s4' at 0x25B14 and 'beq s2,s4' at
+//   0x25B60) and that block does more than call: it also stores -1 into BOTH
+//   D_8009C16C and D_8009C840 before returning. The old body wrote 'return
+//   WorldMapResolveStepAgainstTerrain(...)' at each of the two exits, i.e. it was
+//   missing those two stores. Spelling the case as 'found=0; if (count != 0) {check
+//   loop} if (count != found) { walk loop; returns } then ret = Resolve(...);
+//   D_8009C16C = -1; D_8009C840 = -1; return ret;' gives gcc ONE shared fallback
+//   block, retail's shape, and the search half of the function then matches
+//   instruction for instruction.
+// WHAT IS LEFT (measured by aligning both instruction streams on the call sites):
+//   1. THE ONE BIG RESIDUAL IS A REGISTER MIRROR: retail keeps the walk's -1 in $s7
+//      and pDelta in $s6, this body keeps -1 in $s6 and pDelta in $s7; downstream
+//      that turns retail's '$s3 = pOut, $s4 = again' into '$s4 = pOut'. The prologue,
+//      the whole search case and the walk's per-arm shapes are otherwise identical
+//      instruction for instruction (the first 37 insns differ only in that swap), so
+//      -dg/-da on this body is the next step, not more spellings. The search case's
+//      own allocation (s4=count, s2=found, s1=i, s5=-1, s0=&D_8009D718) is retail's
+//      EXACTLY, so the mirror starts in the walk.
+//   2. FRAME: retail 0xB8, this body 0xB0. All four slots agree (0x10 outgoing arg,
+//      0x18 setIndex, 0x20 pBase, 0x28 scale) and the saved set is retail's 10, so
+//      retail really does have one more 8-byte anonymous slot; nothing in the body
+//      reaches 0x30..0x8C.
+//   3. The three WorldMapResolveStepAgainstTerrain call sites narrow the 5th argument
+//      (sll/sra on kind, from the visible 's16 kind' prototype in this TU) where
+//      retail copies the raw word ('lw t1,0xC8(sp); sw t1,0x10(sp)'). The
+//      func_80095CD4 K&R trick cannot be applied here: the callee is DEFINED earlier
+//      in this file, so its prototype is in scope.
+//   4. Retail's walk shares one AlignDirectionToReference CALL per scratch vector
+//      (fp+0x30/0x40/0x50) and this body does the same, but retail's EDGE01/02
+//      kindMask==1|3 arms end in 'lhu s0,0x6(...)' - a RELOAD of next[0] as u16, not
+//      a copy of the s16 register - so the 'triIndex = pTri[(s16)triIndex].next[0]'
+//      spelling in the body is right and must not be replaced by 'triIndex = next'.
+// CARRIED OVER, still true: retail's expected .s forms the probe address as
+// 'addiu a0,fp,%lo(g_WorldMapStepProbePos)' (base+offset plus a symbol reloc) in five
+// places, which no C spelling reproduces ('&g_WorldMapStepProbePos' gives the
+// two-instruction la, 'pStep->probe' gives addiu a0,s8,0x60 with no reloc); the linked
+// bytes are identical, so a perfect body caps at about 99.9% in objdiff and is proven
+// with check_bin.sh instead. See func_80095CD4's note for the same residual.
 /*
 s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     WorldMapStepMesh* pMesh;
@@ -676,47 +717,49 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
         return ret;
     case WORLD_MAP_STEP_SEARCH:
         count = WorldMapFindSpriteSet((void*)0x1F800060, &setIndex);
-        if (count == 0) {
-            return WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
-        }
         found = 0;
-        for (i = 0; i < count; i += 2) {
-            if (WorldMapCheckTriangleEdgeSide(&pStep->probe, 0x70, (u16)setIndex,
-                                             (u16)D_8009D718[i]) == 0) {
-                D_8009D718[i] = WORLD_MAP_STEP_NONE;
-                found += 2;
+        if (count != 0) {
+            for (i = 0; i < count; i += 2) {
+                if (WorldMapCheckTriangleEdgeSide(&pStep->probe, 0x70, (u16)setIndex,
+                                                 (u16)D_8009D718[i]) == 0) {
+                    D_8009D718[i] = WORLD_MAP_STEP_NONE;
+                    found += 2;
+                }
             }
         }
-        if (found == count) {
-            return WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
-        }
-        ret = 0;
-        for (i = 0; i < count; i += 2) {
-            next = D_8009D718[i];
-            if (next == WORLD_MAP_STEP_NONE) {
-                continue;
+        if (count != found) {
+            ret = 0;
+            for (i = 0; i < count; i += 2) {
+                next = D_8009D718[i];
+                if (next == WORLD_MAP_STEP_NONE) {
+                    continue;
+                }
+                if (D_8009D718[i + 1] == 1) {
+                    continue;
+                }
+                WorldMapProjectTriangleNormal(&pStep->probe, &pStep->normalA, &pStep->normalB, (u16)setIndex,
+                                              (u16)next);
+                heightDelta = pStep->normalA.y - (pBase->y >> 12);
+                if (heightDelta < 0) {
+                    heightDelta = -heightDelta;
+                }
+                if (heightDelta < WORLD_MAP_STEP_HEIGHT_TOLERANCE) {
+                    pOut->y = pStep->normalA.y << 12;
+                    D_8009C840 = setIndex;
+                    D_8009C16C = next;
+                    ret = 1;
+                    break;
+                }
             }
-            if (D_8009D718[i + 1] == 1) {
-                continue;
+            if (ret != 0) {
+                return ret;
             }
-            WorldMapProjectTriangleNormal(&pStep->probe, &pStep->normalA, &pStep->normalB, (u16)setIndex,
-                                          (u16)next);
-            heightDelta = pStep->normalA.y - (pBase->y >> 12);
-            if (heightDelta < 0) {
-                heightDelta = -heightDelta;
-            }
-            if (heightDelta < WORLD_MAP_STEP_HEIGHT_TOLERANCE) {
-                pOut->y = pStep->normalA.y << 12;
-                D_8009C840 = setIndex;
-                D_8009C16C = next;
-                ret = 1;
-                break;
-            }
-        }
-        if (ret != 0) {
+            WorldMapAlignPerpendicularToReference(&pStep->normalB, pDelta, pOut);
             return ret;
         }
-        WorldMapAlignPerpendicularToReference(&pStep->normalB, pDelta, pOut);
+        ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+        D_8009C16C = WORLD_MAP_STEP_NONE;
+        D_8009C840 = WORLD_MAP_STEP_NONE;
         return ret;
     case WORLD_MAP_STEP_WALK_EDGE:
     case WORLD_MAP_STEP_WALK:
@@ -947,6 +990,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     return ret;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
+
 
 
 extern void WorldMapProjectTriangleNormal(SVec* pPos, SVec* pOut, SVec* pNormal, u16 setIndex,
