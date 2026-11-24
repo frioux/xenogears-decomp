@@ -392,16 +392,33 @@ s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
 //    the stack around GetTPage because it is call-clobbered).
 
 // PARKED 75.62% (1068 bytes against retail's 1096, 267 instructions against
-// 274). Re-measured this round under the unit's own preset (XenoGraphicsLibrary,
-// gcc 2.6.0 -O2 -G8, maspsx --expand-div); the percentage is live, not stale.
-// The named residual is COPY COALESCING in the loop's first block: retail keeps
-// u in $a3 and width in $a0 through two explicit copies (retail `and v1,v1,a0 /
-// subu v0,v0,v1 / move a0,v0 / move a3,v1`) where this body gives
-// `and a2,v1,v0 / subu a3,a0,a2` with no copies, and retail's rows assignment
-// goes `mflo v0 / nop / move t2,v0 / move t0,zero` where this body coalesces to
-// `mflo t2`. That, plus the callee-saved pair being mirrored (retail col $s3,
-// pPrim $s4; this body the reverse), is the remaining 7 instructions / 28 bytes.
-// What this round established, kept in the body:
+// 274). Re-measured LIVE this round, straight after un-parking, under the unit's
+// own preset (XenoGraphicsLibrary, gcc 2.6.0 -O2 -G8, maspsx --expand-div): an
+// independent re-derivation from the 274-instruction .s came out statement for
+// statement identical to this body, so there is no cheap structural win left in
+// it - the fills, the three quotient/remainder idioms, the eight-iteration bound
+// and the call set are all right and the residual is allocation and scheduling.
+// Two facts the older notes below get wrong or leave out:
+//  - the 0x28 record IS a POLY_FT4. psyq's layout puts clut at 0xE, tpage at
+//    0x16, pad1 at 0x1E and pad2 at 0x26, which is exactly the store set
+//    (0x8/0xA/0xC/0xD, 0x10/0x12/0x14/0x15, 0x16, 0x18/0x1A/0x1C/0x1D,
+//    0x20/0x22/0x24/0x25), so `POLY_FT4* pPrim` is the right type and the fields
+//    name themselves.
+//  - retail's clamp-path tail is `mult / mflo / bgez / addiu 0xFF / SRL 8` where
+//    this body emits a second `sra`. srl and sra agree in the low 16 bits, so
+//    retail's source NARROWED that intermediate to 16 bits before the shift; a
+//    `(s16)` around the `(s16)height * (span + 0x100) / 256` division is the one
+//    spelling not measured yet (every other instruction in that arm matches).
+// The named residual is COPY COALESCING plus two block orders: retail keeps five
+// explicit copies this body folds away - `move t2,v0` + `move t0,zero` (rows),
+// `move a0,v0` + `move a3,v1` (width and u, held across the div), `move a2,v0`
+// (height) and `move s3,a1` (the new col) - and it emits texColumn BEFORE u/width
+// where cc1 emits u/width first. That is the whole 7-instruction / 28-byte gap
+// (plus the srl above), and the callee-saved pair is mirrored with it (retail col
+// $s3 / pPrim $s4, this body the reverse).
+// Measured dead this round, do not repeat: `s16 uOffset` with the yTop local
+// dropped 70.86 (289 differing lines against this body's 205).
+// What earlier rounds established, kept in the body:
 //  - THE ROWS DIAMOND MUST BE AN IF/ELSE WITH BOTH ARMS ASSIGNING
 //    (`if (top < 0 || top > unk32C+0xF0) { rows = 0; rowStart = 0; } else
 //    { rows = ...; rowStart = 0; }`). That is what produces retail's `j` over
@@ -504,6 +521,7 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     }
 }
 */
+
 
 
 
