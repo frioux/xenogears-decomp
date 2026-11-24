@@ -3105,12 +3105,12 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 // objdiff 76.11% (2172 bytes against retail's 2276; 543 of 569 instructions) under
 // gcc 2.6.0 -G8 --expand-div. NOT a preset question: try_flags gives 16.24 for
 // gcc-2.7.2-cdk and 17.83 for plain 2.7.2, and -O1/-O3 do not build this unit.
-// battle/main/misc23's func_800A7064 is this function instruction for instruction
-// and its park says the same things; this body is that park plus the six fixes
-// below, all measured (72.58 -> 76.11):
+// Re-measured from scratch (unparked, first diff read in full): the number above is
+// exact, the park was not stale. battle/main/misc23's func_800A7064 is this function
+// instruction for instruction (twin_for 1.000) and is parked at 75.91% for the same
+// reason. This body is that park plus the six fixes below (72.58 -> 76.11):
 //  - numSections (arg 7) is a 32-bit parameter: retail copies it with lw 0x14C /
-//    sw 0x18, and the tail re-reads that slot and narrows it with sll 16 / sra 16,
-//    which is `if (pEntry->numSections > 0)` on the just-stored s16 field.
+//    sw 0x18, and the tail re-reads that slot and narrows it with sll 16 / sra 16.
 //  - rowBase and scale are 32-bit parameters too: retail uses a2/a3 directly with
 //    no sll 16 / sra 16, i.e. in s6/s5.
 //  - failure path 1 (pVectors == NULL) only stores pVectors = NULL; there is no
@@ -3118,20 +3118,40 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 //  - failure path 2 (pPoints == NULL) stores pVectors = NULL and frees ONCE; it
 //    does not free pEntry->pPoints.
 //  - the part-stream counts are re-read from memory at every use (they alias the
-//    stores through pSeg): `for (j = 0; j < *pCount; j++)`, `nRow + *pCount + 1`,
-//    `uRow += pCount[0] + 1`.
+//    stores through pSeg): for (j = 0; j < *pCount; j++), nRow + *pCount + 1,
+//    uRow += pCount[0] + 1.
 //  - the per-vector segment count is retail's unsigned pick: nSegs = pCount[1];
 //    if (pCount[0] < nSegs) nSegs = pCount[0];  (sltu, not a signed compare).
-// The frame is now retail's 0x130 and the head, vector loop, point loop, the two
-// failure tails and the section tail all line up instruction for instruction up to
-// registers; what is left (26 insns, 104 bytes) is allocation, all of it inside the
-// segment loop: retail keeps uRow/tpage/rowStep/uStep/uStart in the frame and spills
-// eight words around each SetPolyGT3 (ours spills six and homes two of the six s16
-// arguments in registers, e.g. tileY in $fp where retail keeps texX+uStart there),
-// and retail forms a second base register 4 bytes into each walk of a 0x8-byte
-// SVECTOR and of a 0x28-byte POLY_GT3 (lhu 0(a3) / lhu -2(a2) / lhu 0(a2)) where
-// this compile uses one base with displacements 0/2/4. Not tried: permuter, which
-// cannot move this (a 100-byte gap of spill code, not a statement or operand shape).
+// Frame is retail's 0x130 and the head, vector loop, point loop, both failure tails
+// and the section tail line up instruction for instruction up to registers. The 26
+// missing instructions are two places, both measured statically against the .s:
+//  - pre-loop, GetClut -> segment loop head: retail 35 insns, this body 27. Retail
+//    keeps texX*4 (t2), texY (a2), uEnd (t3) and clut (t4) in CALL-CLOBBERED
+//    registers for the whole loop nest and copies uStep into t3 (sw 0xA0 / lw 0xA0);
+//    this compile homes texX*4 in a byte slot (lbu 0xB8 per j), texY/uStep in stack
+//    slots and clut in a slot reloaded per k.
+//  - the outer segment loop 0x5F34-0x617C: retail 147 insns, this body 133. Retail
+//    spills EIGHT words around each SetPolyGT3 (0xE8..0x104), this body six, because
+//    retail recomputes texY + rowStep * (j + 1) AFTER each jal (gcc cannot CSE across
+//    a call, so the source wrote the expression in the store statements, giving two
+//    extra mult static), forms a second induction pointer s1 = pSeg + k * 0x28 for
+//    the poly field stores (disp 0x14..0x2D) where this body uses one base at
+//    pSeg + 8 + k * 0x28 (disp 0xC..0x25), and copies rowStep into a1 before each
+//    mult (addu a1,t6,zero).
+// Both k-loop bodies were decoded store by store and are SEMANTICALLY retail's:
+// loop 1 u0 = u2 = texX + uStart, u1 = texX + uEnd, v0 = v1 = nV0, v2 = nV1;
+// loop 2 u0 = u1 = texX + uEnd, u2 = texX + uStart, v0 = nV0, v1 = v2 = nV1. So no
+// constant or field is wrong here; the residual is allocation and hoisting only.
+// Tried this session and rejected (both measured):
+//  - pSeg->polys[k].field instead of the pPoly local, in both loops: 75.25%, 2176
+//    bytes, 544 insns (one MORE than the park) - the local is not what anchors the
+//    +8 in the base.
+//  - texY + rowStep * (j + 1) written inline in the store statements (nV1 local
+//    dropped): 16.57%, 2268 bytes, 567 insns, but the frame grows to 0x140 - the
+//    inlining raises pressure instead of lowering it, so retail's "no hoist" shape
+//    is real yet not reachable from this spelling.
+// Permuter not run: the gap is spill/address-forming code, not a statement or
+// operand shape (a 4-minute run was tried by the previous round with no gain).
 /*
 void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s16 texY, s16 texZ,
     s32 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0, u8 green0,
@@ -3327,6 +3347,8 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s
         pEntry->pSections = NULL;
     }
 }*/
+
+
 
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E22F8);
