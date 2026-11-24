@@ -771,17 +771,25 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
     pMatrix->t[2] = pSpriteData->pBase->transformMatrix.t[2];
     SetMulMatrix(pMatrix, &pSpriteData->pBase->transformMatrix);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
-// 95.27% at retail's exact 220 bytes: the instruction multiset, the frame and both
-// induction bases match, and the ONLY differing instruction is the y/z pointer's
-// def - retail copies the parameter in place of the first `bne` delay slot's nop
-// (`move t0,a1`) and adds 4 to $a1 itself, while this body (pX = pYz - 2) makes
-// pYz keep $a1 and derives pX with `addiu t0,a1,-4`. Swapping which pointer gets
-// $a1 needs the allocator to beat the copy-coalescing of pX with the parameter: a
-// plain `pX = (s16*)pOut` (either order, before or after the guards, as s16* or
-// SVECTOR*, via mem_addr or &pOut->vx, or with `pYz = pOut; pX = pYz; pYz += 2`)
-// is always 94.64% with pX coalesced into $a1, and the permuter cannot compile
-// this body ("conversion to non-scalar type requested"). One instruction from 100.
+// 95.27% at retail's exact 220 bytes / 55 insns: everything matches except the two
+// induction pointers' REGISTER HAND-OUT. Retail is `move t0,a1` (x base = copy of
+// pOut) in the first guard's delay slot and `addiu a1,a1,4` in the preheader (y/z
+// base = pOut + 4), i.e. the +4 lands on the parameter's register; every spelling
+// here gets the mirror (x base = $a1 coalesced, y/z base = `addiu t0,a1,4`), which
+// cc1 prefers because it costs one instruction less. Measured, all 220 bytes:
+//  - pYz = (s16*)pOut; pX = pYz - 2;            (this body) 95.27 - addiu on the copy
+//  - pX = (s16*)pOut; pYz = (s16*)pOut + 2;                 94.64
+//  - pYz = (s16*)pOut + 2; pX = (s16*)pOut;                 94.64
+//  - pYz = (s16*)pOut + 2; pX = pYz - 2;                    94.64
+//  - SVECTOR* pDst = pOut; s16* pYz = (s16*)pOut + 2;       94.64
+//  - pYz assigned BEFORE the guards, pX after them           96.45 but 216 bytes
+//    (54 insns - the add is folded into the guard's delay slot and a1 is never
+//    copied, so it cannot link)
+//  - pOut[i].vx / .vy / .vz struct form                     84.84 / 216 bytes (one
+//    base with offsets -8/+2/+4, and the i++ sinks below the stores)
+// A likely reading of retail is two pointer locals 4 bytes apart (`move t0,a1` then
+// the add into the dying $a1), which combine_regs merges for us. Below 99%, so no
+// permuter run is allowed on it.
 /*
 void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
     s16* pX;
@@ -820,8 +828,10 @@ void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
         pYz += 4;
         pX += 4;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
+
+
 // The far screen edge of the last trail quad, which is the near edge of the next one:
 // two screen pairs, one per corner of that edge.
 extern u16 D_800C3CA4[2];
@@ -965,34 +975,47 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     D_800D2FCC.count++;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
-// 90.01% (348 bytes): the four global stores and the loop match; retail's position
-// reads are unsigned at some sites (lhu) and signed at others (lh), which suggests the
-// original curPos/targetPos view is u16 and the delta is read through an s16 view - not
-// reproduced here. Two other measured findings:
-//  - The four globals must be extern ARRAYS (`D_800C3E9C[0] = ...`): as plain scalars
-//    they go through `lui $at` where retail uses `lui $v0,%hi` + the store off $v0
-//    (the atfree signature; with the array spelling that part matches exactly).
-//  - retail keeps only $s0 (0x18 frame); holding pWork across the tail call costs an
-//    $s1, so the onFree callback must be reached through pTask, not pWork.
-//  - The tail mode test is UNMERGED in retail (`beqz v1` / `li v0,1` / `bne v1,v0`)
-//    where gcc 2.7.2 merges `mode != 0 && mode != 1` into `sltiu v0,v1,2`; that is
-//    the 2.6.0/preset branch-shape class.
+// 95.60% (356 bytes / 89 insns against retail's 348 / 87). Two source fixes landed and
+// every other part of the body, the loop and the whole tail are instruction-exact:
+//  - the first global is a POINTER store: `D_800D2FD8 = pTask->pArgs;` (the old
+//    `D_800D2FD8[0] = (u32)pTask->pArgs;` was a byte store through the pointer, which
+//    is what put the head 20 bytes out).
+//  - the mode test must be NESTED ifs (`if (mode != 0) { if (mode != 1) return; }`),
+//    not `mode != 0 && mode != 1`: the && form makes gcc 2.7.2-cdk fold it into
+//    `andi/sltiu/beqz` where retail is `andi/beqz/li v0,1/bne` (3 instructions).
+//  - the sprite frame is read UNSIGNED, `*(u16*)&pSpriteData->curSpriteFrame` into a
+//    local (retail `lhu a2,0x34`), and that local's source position matters: between
+//    the D_800C3E9C and D_800C3D4C stores scores 95.60, one statement later 94.86
+//    (a 3-minute permuter run, 1413 iterations, found only this).
+// RESIDUAL (the head, one cause - sched1 does not hoist the two pSpriteData halfword
+// loads the way retail's build did): retail is `lhu a0,0x2E` / `lhu a2,0x34` right
+// after the radius load, both above the D_800C3E9C store, so the D_800D3334 store
+// ends up in the frame compare's delay slot; here they stay next to their stores and
+// reorg puts the loop's `li a3,1` in that slot. Measured on the same body:
+//  - `u16 frame` (this body): 95.60 / 356 / 89 insns, plus one `andi a0,a0,0xffff`
+//    (the u16->u32 conversion of the compare operand).
+//  - `s32` or `u32 frame`: no andi, 352 bytes / 88 insns, 94.28, but pSpriteData
+//    then takes $a0 and retail's `move a0,a1` before the jal is lost.
+//  - the D_800D3334 store written before the semiTrans store: 94.46 / 352.
+//  - the frame read inline (no local, `*(u16*)` twice): 93.71 / 352.
+// No preset question: the tail's branch shape is right under cdk now.
 /*
 void func_800B5588(WorkListEntry* pWork) {
     BattleDirectionTask* pTask;
     SpriteData* pSpriteData;
+    u16 frame;
     s32 mode;
     s32 i;
 
     pTask = pWork->pTask;
     pSpriteData = pTask->pSpriteData;
-    D_800D2FD8[0] = (u32)pTask->pArgs;
+    D_800D2FD8 = pTask->pArgs;
     D_800C3E9C[0] = pTask->radius;
+    frame = *(u16*)&pSpriteData->curSpriteFrame;
     D_800C3D4C[0] = pTask->semiTrans;
     D_800D3334[0] = pSpriteData->field_0x2e;
-    if (pSpriteData->curSpriteFrame != pTask->curSpriteFrame) {
-        pTask->curSpriteFrame = pSpriteData->curSpriteFrame;
+    if (frame != pTask->curSpriteFrame) {
+        pTask->curSpriteFrame = frame;
         func_800B50D4(pSpriteData, pTask->targetPos);
     }
     for (i = 1; i != 5; i++) {
@@ -1005,13 +1028,17 @@ void func_800B5588(WorkListEntry* pWork) {
     pTask->curPos[0].vz = pTask->targetPos[0].vz;
     if (pTask->animId == (s8)pTask->pSpriteData->flags_0xAC.bytes[3]) {
         mode = ((u32)pTask->pSpriteData->flags_0xA8 >> 28) & 3;
-        if (mode != 0 && mode != 1) {
-            return;
+        if (mode != 0) {
+            if (mode != 1) {
+                return;
+            }
         }
     }
     pTask->timerTask.onFreeCallback(pTask);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
+
+
 void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
     BattleDirectionTask* pTask;
 
