@@ -104,20 +104,21 @@ void FieldScriptVMHandlerEmpty(void) {
 
 // g_FieldImageDrawIndex wraps within this many queued image rects
 extern RECT g_FieldImageRects[FIELD_IMAGE_SLOT_COUNT];
-extern s16 D_800AF5EA[]; // Part of g_FieldImageRects[]: the y of each RECT
-extern s16 D_800AF5EC[]; // Part of g_FieldImageRects[]: the w of each RECT
-extern s16 D_800AF5EE[]; // Part of g_FieldImageRects[]: the h of each RECT
 extern s16 g_FieldImageDestX[FIELD_IMAGE_SLOT_COUNT];
 extern s16 g_FieldImageDestY[FIELD_IMAGE_SLOT_COUNT];
 extern u_short g_FieldImageDrawIndex;
+
+// objdiff reads 99.46% because splat's expected asm names the interior addresses
+// (D_800AF5EA/EC/EE): the .y/.w/.h element offsets become displacements off
+// g_FieldImageRects, which resolve to those same addresses. check_bin: OK.
 
 void FieldMoveOrClearImageRect(int x, int y, int w, int h, int texX, int texY, int clear) {
     int index = g_FieldImageDrawIndex & (FIELD_IMAGE_SLOT_COUNT - 1);
 
     g_FieldImageRects[index].x = x;
-    D_800AF5EA[index * 4] = y;
-    D_800AF5EC[index * 4] = w;
-    D_800AF5EE[index * 4] = h;
+    g_FieldImageRects[index].y = y;
+    g_FieldImageRects[index].w = w;
+    g_FieldImageRects[index].h = h;
     g_FieldImageDestX[index] = texX;
     g_FieldImageDestY[index] = texY;
     if (!clear) {
@@ -220,10 +221,8 @@ void FieldUpdateLineScrolls(void) {
     }
 }
 
-// D_800AFFAC holds a byte length per line scroll; the 0x20 data pointers it
-// describes start 0x80 bytes earlier, so index them off the same symbol.
-extern s16 D_800AFFAC[];
-
+// objdiff reads 99.50% for the same reason as FieldMoveOrClearImageRect: splat names the
+// interior address D_800AFFAC, this indexes g_FieldLineScrolls.lengths/.pDatas; check_bin: OK.
 void FieldScriptVMHandlerWriteLineScrollByte(void) {
     int index;
     int offset;
@@ -233,8 +232,8 @@ void FieldScriptVMHandlerWriteLineScrollByte(void) {
     offset = FieldScriptVMGetArgument(3);
     value = FieldScriptVMGetInstructionArgument(5) & 0xFFFF;
 
-    if (offset < D_800AFFAC[index]) {
-        ((u_char**)D_800AFFAC)[index - FIELD_LINE_SCROLL_MAX][offset] = value;
+    if (offset < g_FieldLineScrolls.lengths[index]) {
+        g_FieldLineScrolls.pDatas[index][offset] = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
@@ -798,7 +797,7 @@ void FieldScriptVMHandlerRequestFieldState1WithValue(void) {
     g_FieldScriptVMStopFlag = 1;
     pActor = g_FieldScriptVMCurActor;
     *(s16*)&g_pGameState->unk1928[0xA] = value;
-    *(s16*)((u8*)g_pGameState + 0x2320) = value;
+    g_pGameState->unk2320 = value;
     D_800C3A6A = value;
     g_FieldPendingRequestCount++;
     pActor->scriptInstructionPointer += 3;
