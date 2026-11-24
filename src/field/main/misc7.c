@@ -617,6 +617,20 @@ extern long FieldGetVec2Magnitude(long, long);
 // and a separate triIndex copy of the loop index (all 97.99 / 1896 / 474). One 3-minute
 // permuter run (973 iterations) found only the +1 test above. Presets: gcc-2.7.2-cdk 93.77,
 // gcc-2.6.0 92.89, -O3 does not compile.
+// ROUND 469 RE-MEASURED all three poles on this body (Default preset):
+//   walkmesh < count - 1                  -> 97.99%, 1896 bytes / 474 insns, frame 0xC0 = retail's
+//                                            (vars 136 exact), 141 diff lines: the a2 copy sits at the
+//                                            loop HEAD so reorg fills the bnez slot with the triIds sh.
+//   walkmesh + 1 <= count - 1             -> 98.89%, 1904 / 476, frame 0xB8. Hoist reproduced, +1 addu.
+//   walkmesh + 1 < g_FieldWalkmeshTriCount -> 98.50%, retail's EXACT 1900 / 475, frame 0xB8 (vars 128
+//                                            vs retail's 136), 148 diff lines. This form drops the
+//                                            '-1' so the size is right, but the preheader guard becomes
+//                                            li t1,1 / lh / slt t1,count / beq and steals $v0, so the
+//                                            switch root's li v0,1 moves to $t1 and cascades.
+// So the giv that buys retail's a2 hoist always costs the $v0/$t1 constant: the hoist and retail's
+// 'addiu v0,count,-1 / slt v0,s1,v0' test remain mutually exclusive under 2.7.2. A 3-minute permuter run
+// this round (644 iters, base=1098 best=657) found only those same two edits (the +1 test and an empty
+// if(1){} nudge) plus a VECTOR point/normal declaration swap - nothing new.
 /*
 void func_80099214(void) {
     VECTOR normals[4];
@@ -746,6 +760,7 @@ walk:
     g_FieldScriptVMStopFlag = 1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
+
 
 
 
