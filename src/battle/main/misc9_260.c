@@ -38,9 +38,16 @@ typedef struct {
     /* 0x20 */ u8 byteRegs[0x10];
     /* 0x30 */ u8 pad30[0x10];
 } BattleSlotRow; // Size: 0x40
+// One of the 8-byte per-slot "can be picked" records at g_BattleSlotFlags (see
+// misc7.c and misc8.c, which declare the same view).
+typedef struct {
+    /* 0x0 */ u8 inUse;
+    /* 0x1 */ u8 unk1[7];
+} BattleSlotFlag; // Size: 0x8
+
 extern BattleSlotRow g_BattleSlotRows[];
 extern u16 g_BattleSlotWordRegs[][BATTLE_SLOT_REG_ROW_HALFWORDS];
-extern u8 D_800D32F1[];
+extern BattleSlotFlag g_BattleSlotFlags[];
 extern u8 g_BattleSlotByteRegs[][BATTLE_SLOT_REG_ROW_BYTES];
 extern BattleTableEntry g_BattleSlotStatusRows[];
 extern u8 D_800CD1B2[];
@@ -53,28 +60,23 @@ extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 
-/* best: 95.31%. Same family as BattleStoreCharSlotFlagMask (walk the slot table downwards,
-   `(i - 0xA) * 8` keeps D_800D32F1 as the base symbol). Only difference: the
-   original doubles the accumulator into a temp and copies it back (sll a1,s0,1
-   / move s0,a1) and reuses a1 for the final shift, gcc does it in place
-   (sll s0,s0,1). Tried: acc*=2, acc=acc*2, acc=2*acc, acc=acc+acc,
-   next=acc*2;acc=next, doubling in the for-increment clause (91.06%).
-void func_8007E334(u8 **arg0, u8 arg1) {
+void func_8007E334(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
+    s32 next;
     s32 i;
     u16 *pRow;
 
-    // the slot table is walked downwards from D_800D32F1
+    // the operator slots are walked downwards
     for (i = 0xA; i >= 3; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
-            switch ((*arg0)[2]) {
+            switch ((*ppCmd)->operand2) {
             case 1:
-                if (D_800D32F1[(i - 0xA) * 8] != 0) {
+                if (g_BattleSlotFlags[i].inUse != 0) {
                     acc |= 1;
                 }
                 break;
             case 2:
-                if (D_800D32F1[(i - 0xA) * 8] == 0) {
+                if (g_BattleSlotFlags[i].inUse == 0) {
                     acc |= 1;
                 }
                 break;
@@ -83,12 +85,14 @@ void func_8007E334(u8 **arg0, u8 arg1) {
                 break;
             }
         }
-        acc *= 2;
+        // the doubling goes through a temp: retail keeps the shifted value in a
+        // caller-saved register and copies it back at the join
+        next = acc * 2;
+        acc = next;
     }
-    pRow = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
-    pRow[(*arg0)[1]] = acc << 2;
-} */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9_260", func_8007E334);
+    pRow = g_BattleSlotWordRegs[arg1];
+    pRow[(*ppCmd)->operand1] = next << 2;
+}
 /* best: 80.63%. The record table takes an explicit byte offset
    (g_BattleSlotRecords[offset], offset from 0x38 stepping -0x1C): that is the only form
    that reproduces the original's two `lui at / addu at / lbu %lo(at)` loads and
