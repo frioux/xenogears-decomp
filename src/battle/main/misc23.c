@@ -561,7 +561,24 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
    the pointer) and is not reachable from C. Do not re-spell it; a typed struct does
    not help either. Spelling it over the scalar extern ('g_BattlePartPrimBuffers[K]')
    costs 2 instructions / 8 bytes (234 insns, 936 bytes, 95.65%) because the guard
-   then tests a byte - the array alias above is what keeps 928. */
+   then tests a byte - the array alias above is what keeps 928.
+   ROUND 459: re-measured this park at 98.71 / 928 bytes / 232 insns (60 differing
+   lines, every one 'addu v0,v0,a2' vs 'addu v0,a2,v0') and closed four more
+   spellings. The double-negated offset 'g - -(i * 0x24)' (the
+   c-a-double-negated-offset-flips lever) folds the negation into the giv and emits
+   'subu v0,v0,t1' plus an extra 'move t1,zero' in the entry block. The base-first
+   tree '*(g + 0x1740 + i * 0x24)' is byte-identical to the subscript, so loop.c
+   canonicalises the giv in front whatever the C order is. The two-statement
+   in-place form at all 15 g_BattleSpriteRenderData sites DOES give retail's
+   'addu v0,v0,a2' order, but the block then mirrors the registers (pointer $v1,
+   byte $v0: 96.85 / 176 differing lines), and splitting it over five per-group
+   pointer locals (one per 3-byte record, so no pseudo has many defs) measures the
+   SAME 96.85, so the mirror is not a many-defs qcost artifact. A SINGLE site
+   converted on its own ('pDst = g; pDst += i * 0x24; pDst[0x1740] = ..') is
+   instruction-perfect (98.75, 58 lines), i.e. retail's shape is reachable only
+   while that pointer pseudo has one def, which no 15-site body has. Preset leg
+   re-closed for this function: try_flags.sh --gcc gcc-2.7.2-cdk-psx scores 79.78.
+   Park stands at 98.71. */
 /* void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
