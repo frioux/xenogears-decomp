@@ -50,7 +50,83 @@ extern u8 g_GameDiscChangeRequest;
 extern u8 g_MenuSavedMainMenuChoice;
 void MenuTweenCharacterWindows(s32 arg0, s32 arg1);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
+void MenuStartCloseAnimation(void);
+void MenuFreeSubMenuPanels(u8 arg0);
+void MenuFreeShoulderButtonUi(void);
+s32 MenuRunUnk430Panel(u_char arg0, u_char arg1);
+int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1);
+u8 MenuRunCharacterDressingRoomLoop(void);
+s32 func_801D9F98(s32 arg0, s32 arg1);
+s32 func_801D9808(void);
+u8 func_801E23CC(void);
+s32 func_801DBE54(void);
+void func_8001B970(void);
+
+u_char func_801C531C(u_char arg0) {
+    u_char result;
+    u_char shouldContinue;
+
+    g_MenuCardChangeDetectionEnabled = 1;
+    shouldContinue = 1;
+    result = 1;
+    switch (g_Menu->mainMenuChoice + arg0) {
+        case 7:
+            result = func_801D9808();
+            break;
+        case 8:
+            if ((u_char)func_801D9F98(1, 0) != 0) {
+                g_GameDiscChangeRequest = 2;
+                shouldContinue = 0;
+            }
+            break;
+        case 1:
+            result = func_801D9F98(0, D_801E96A4);
+            break;
+        case 2:
+            result = func_801E23CC();
+            break;
+        case 3:
+            result = MenuRunUnk430Panel(g_Menu->characterSlot, 1);
+            break;
+        case 4:
+            result = func_801DBE54();
+            break;
+        case 5:
+            result = MenuInitializeUnk35CPanel(g_Menu->characterSlot, 1);
+            break;
+        case 6:
+            result = MenuRunCharacterDressingRoomLoop();
+            break;
+        case 9:
+            func_8001B970();
+            // fall through
+        case 0:
+            result = 0;
+            shouldContinue = 0;
+            break;
+    }
+    g_Menu->menuUnk2->cardPollMode = 0;
+    if (result != 0) {
+        MenuStartCloseAnimation();
+        if (g_MenuOverlayIndex == 0) {
+            MenuTweenCharacterWindows(1, 0);
+        } else if (g_MenuOverlayIndex == 2) {
+            MenuLoadStringsFromIds(8, g_Menu->optionStrings, g_MenuLoadGameRowStringIds,
+                g_Menu->pManager->shouldRenderStrings);
+            g_Menu->pCursorPrims->shadeWidth = 0x4C;
+        }
+    }
+    MenuFreeSubMenuPanels(arg0);
+    MenuFreeShoulderButtonUi();
+    g_Menu->pSelectionMenu->isDisabled = 0;
+    g_Menu->pSelectionMenu->isDisabledRendered = 1;
+    g_Menu->pManager->shouldRenderPointerCursor = 1;
+    g_Menu->pManager->unk3 = 1;
+    g_Menu->mainMenuPrevChoice = 0xFF;
+    g_Menu->pManager->shouldRenderSubmenuStrings = 0;
+    g_MenuSoftResetEnabled = 1;
+    return shouldContinue;
+}
 
 void MenuNormalMenuMain(void) {
     u_char shouldContinue;
