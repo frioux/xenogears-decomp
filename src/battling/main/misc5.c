@@ -192,7 +192,7 @@ extern u8 D_800911E8[];
 extern u8 D_800911F8[];
 extern u8 D_80091208[];
 extern u8 D_80091218[];
-extern u8 D_800947E8[];
+extern u8 g_BattleEffectFrameU[];
 extern u8 D_800947F4[];
 extern u16 D_80094800[];
 extern u16 D_80092678;
@@ -257,7 +257,7 @@ void BattleEffectUploadClut(u8 *p0, u8 *p1) {
 // loses the biased base register gcc forms over the packet's byte fields and the
 // body comes out two instructions short. stpBit is s16 because retail materialises
 // the mask with li/or rather than ori, which only a signed 16-bit value produces.
-void func_8007B388(BattleEffectTimArchive *pTim) {
+void BattleEffectInitTextures(BattleEffectTimArchive *pTim) {
     TIM_IMAGE tim;
     RECT rect; // unused: retail's frame has 8 bytes of slack under the TIM image
     BattleAction *pAction;
@@ -275,7 +275,7 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     for (i = 0; i < 12; i++) {
         OpenTIM(pTim->frameTims[i]);
         ReadTIM(&tim);
-        D_800947E8[i] = *(u8 *)&tim.prect->x << 2;
+        g_BattleEffectFrameU[i] = *(u8 *)&tim.prect->x << 2;
         D_800947F4[i] = *(u16 *)&tim.prect->y;
         D_80094800[i] = GetClut(tim.crect->x, tim.crect->y);
         LoadImage(tim.crect, tim.caddr);
@@ -283,7 +283,7 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     }
 
     pAction = &g_BattleEffectActions[0];
-    pAction->pFrameU = D_800947E8;
+    pAction->pFrameU = g_BattleEffectFrameU;
     pAction->pFrameV = D_800947F4;
     pAction->uSize = 0x26;
     pAction->vSize = 0x26;

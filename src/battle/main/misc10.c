@@ -286,9 +286,9 @@ extern void func_8007DB78(u8 **ppCommand, u8 slot);
 extern void func_8007DCF8(u8 **ppCommand, u8 slot);
 extern void func_8007DE78(u8 **ppCommand, u8 slot);
 extern void func_8007DFD4(u8 **ppCommand, u8 slot);
-extern void func_8007E334(u8 **ppCommand, u8 slot);
+extern void BattleStoreActorSlotFlagMask(u8 **ppCommand, u8 slot);
 extern void func_8007E438(u8 **ppCommand, u8 slot);
-extern void func_8007E554(u8 **ppCommand, u8 slot);
+extern void BattleStoreActorSlotMatchedTagMask(u8 **ppCommand, u8 slot);
 extern void BattleDwordRegAdd(u8 **ppCommand, u8 slot);
 extern void BattleDwordRegSub(u8 **ppCommand, u8 slot);
 extern void BattleDwordRegMulImm(u8 **ppCommand, u8 slot);
@@ -608,13 +608,13 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleStoreCharSlotFlagMask(ppCommand, slot);
         break;
     case 0x66:
-        func_8007E334(ppCommand, slot);
+        BattleStoreActorSlotFlagMask(ppCommand, slot);
         break;
     case 0x67:
         func_8007E438(ppCommand, slot);
         break;
     case 0x68:
-        func_8007E554(ppCommand, slot);
+        BattleStoreActorSlotMatchedTagMask(ppCommand, slot);
         break;
     case 0x69:
         BattleClearSlotDwordAndSetStat4(slot);

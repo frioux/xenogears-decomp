@@ -67,7 +67,7 @@ extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 
-void func_8007E334(BattleCommand **ppCmd, u8 arg1) {
+void BattleStoreActorSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
     s32 next;
     s32 i;
@@ -116,7 +116,7 @@ void func_8007E334(BattleCommand **ppCmd, u8 arg1) {
    R458: the doubling is solved on the two functions below this one - write it
    through a temp that the tail reads (`next = acc * 2; acc = next;` then
    `pRow[...] = next << 2`), which reproduces retail's `sll a1,s0,1 / move s0,a1`
-   (func_8007E334 95.31 -> 100, func_8007E554 89.08 -> 100). The row base is
+   (BattleStoreActorSlotFlagMask 95.31 -> 100, BattleStoreActorSlotMatchedTagMask 89.08 -> 100). The row base is
    `g_BattleSlotWordRegs[arg1]` (0x40-byte rows), not `g_BattleSlotWordRegs + arg1 * 0x40`,
    and g_BattleSlotRecords is now the typed 0x1C record view (`[i].tag`).
  */
@@ -129,10 +129,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9_260", func_8007E438);
    them, which is what grows the frame to 0x38. (2) gcc keeps
    &g_BattleSlotRecords in a saved register across the loop for the first of
    the two record loads where retail re-forms it with `lui $at / addu $at`.
-   (3) the accumulator doubling, same miss as func_8007E334/E554: retail
+   (3) the accumulator doubling, same miss as BattleStoreActorSlotFlagMask/E554: retail
    computes it into a temp and copies it back (`sll a1,s1,1 / move s1,a1`),
    gcc doubles in place - `acc = acc * 2` measured identical to `acc <<= 1`
-   in func_8007E554, so the shape is not the operator.
+   in BattleStoreActorSlotMatchedTagMask, so the shape is not the operator.
 void func_8007E438(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 offset = 0x38;
@@ -154,7 +154,7 @@ void func_8007E438(u8 **arg0, u8 arg1) {
     pRow[(*arg0)[1]] = (u16)acc >> 1;
 }
  */
-void func_8007E554(BattleCommand **ppCmd, u8 arg1) {
+void BattleStoreActorSlotMatchedTagMask(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
     s32 next;
     s32 i = 0xA;
