@@ -372,7 +372,8 @@ void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, SpriteAnimPackage* pA
             return;
         }
         pBlock = (u8*)((mem_addr)((u16*)pFrames)[animFrame] + (mem_addr)pFrames);
-        tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+        pPackage = pSpriteData->pVramData;
+    tex = pPackage->tex;
         if (((pSpriteData->field_0x40 >> 13) & 0xF) == 0xE) {
             SpriteNextVramSlot(&tex, pBlock[4]);
         }
@@ -1894,7 +1895,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
    shift-result temp is FED by the allocator, not by the spelling: it disappears
    only in the body where the whole 4-cycle is already retail's.
 */
-/*
+/* Best attempt: 97.38% / 160 bytes (retail 160). Instruction stream is retail's, 40 vs 40; the whole residual is one allocator permutation of the same three values: retail param t1 / i t0 / pFrameData a0, ours param t0 / i a0 / pFrameData v1 (and hence the sll temp v1 vs a2). Round 455 re-measured the park unchanged and tried three more shapes, all byte-identical at 97.38: (a) a per-iteration copy 'SpriteFrameData* pFr = pFrameData;' - coalesced away; (b) a named 'SpriteAnimPackage* pPackage = pSpriteData->pVramData;' before the tex read - coalesced away; (c) see the note below for the srl/andi split (95.50). The tie is the local-alloc hand-out of a0/t0/v1 only: retail's pFrameData takes a0 (freed when flags dies) while ours takes v1 (freed by pBase at the very load, 'lw v1,48(v1)'). Two permuter runs from score 115 found no gain, cdk scores 97.12, so this is parked as an allocator wall rather than a spelling question.
+   Load-bearing permuter edits below, keep both: 'color = flags;' then
+   'texPageBits = (color >> 5) & 7;' (96.50 -> 97.38) and
+   'do { texPageBits--; } while (0);' (97.12 before the first).
+
 void func_8001F6B0(SpriteData* pSpriteData) {
     SpriteFrameData* pFrameData;
     u32 flags;
@@ -1903,6 +1908,7 @@ void func_8001F6B0(SpriteData* pSpriteData) {
     u16 texPage;
     s32 i;
     SVEC2 tex;
+    SpriteAnimPackage* pPackage;
 
     flags = *(u32*)((u8*)pSpriteData + 0x3C);
     if ((flags & 3) != 1) {
@@ -1914,7 +1920,8 @@ void func_8001F6B0(SpriteData* pSpriteData) {
     if (texPageBits != 0) {
         do { texPageBits--; } while (0);
     }
-    tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+    pPackage = pSpriteData->pVramData;
+    tex = pPackage->tex;
     color = *(u32*)&pSpriteData->red;
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
     for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++) {
@@ -1922,9 +1929,9 @@ void func_8001F6B0(SpriteData* pSpriteData) {
         pFrameData[i].colorAndCode = color;
         pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
+
 
 void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u16* pFrameOffsets;
