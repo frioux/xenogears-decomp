@@ -514,21 +514,33 @@ extern void func_800732AC(void* pDst, void* pSrc, s32 n);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
 
 /* best 94.35% (0x218 bytes against the original's 0x214; 134 insns vs 133).
-   Exact: the CLUT loop (mask as an s32 local assigned in the for's comma-init is
-   what gives retail's `li a0,-32768` + `or`, with i=0 before it), the two
-   HeapAlloc calls with g_BattleDrawPrimPools[0] stored in the second jal's slot,
-   the four setPolyFT4 tag bytes at the loop top, and every store offset of the
-   quad body - gcc biases the base to p+0x25 exactly as retail does.
-   Left: (a) the quad pointer lands in $v1 where retail has $a1, which shifts the
-   scratch and constant registers one place (retail t0/t1/t2/a3, this body
-   t1/t2/t3/t0); (b) the second quad's clut/tpage stores land in a different
-   position, leaving a nop where retail has the u3 store - the 4 excess bytes.
-   Load-bearing finds: D_800927A8 must stay a plain u16; a union or a cast
-   pointer makes gcc hoist its address into a callee-saved register and the frame
-   grows to 0x38. The byte reads then fall out of the u8 target fields (lbu) and
-   the u16 stores give lhu. clut/tpage need locals re-read at the top of each quad
-   or the two lhu come out next to their stores. 68.73 -> 94.35 over five hand
-   shapes and a 3-minute permuter run (base=935 best=905).
+   The body is instruction-identical to retail in every other respect - same frame,
+   same four setPolyFT4 tag bytes, same store order in both quads, same CLUT loop,
+   same two HeapAlloc calls with g_BattleDrawPrimPools[0] stored in the second
+   jal's slot, same maspsx expansions. The ONE difference is the register the
+   biased quad pointer lands in: retail holds p+0x25 in $a1 and maspsx then
+   expands the two `lhu` macros into $v1/$a0; this body holds it in $v1, so the
+   assembler picks $a1/$a0 instead. That single flip is all 63 differing lines,
+   and it also costs the 4 excess bytes: retail fills the `lbu D_800927A8` delay
+   slot with the u3 store, this body hoisted u3 one slot earlier and left a nop.
+   (Objdiff's exact alignment is not monotone here: the p[0]/p[1] form below is
+   93.62% at retail's exact 0x214/133 while this one is 94.35% at 0x218/134.)
+   Retail's load of g_BattleDrawPrimPools[0] keeps a separate pseudo for
+   `addiu a1,v1,0x25` instead of the in-place `addu v1,v1,37` this body gets, i.e.
+   its pointer pseudo did not coalesce with the load - an allocator outcome that
+   no source spelling tried reached.
+   Measured this round, all at the same 94.35% unless noted: both quads written in
+   one shared statement order (retail's emitted order), the pointer assigned in
+   the for-init comma expression, the pointer declared last among the locals,
+   `p[0]`/`p[1]` with `p += 2` (93.62%, exact 0x214/133 but the base bias moves to
+   p+0x4D, so the `p`/`p++` form is the right source), and 2.7.2's own -O3
+   (94.35). Preset screen this round: cdk 71.26, 2.6.0 85.30 - the unit's
+   2.7.2 -O2 -G0 is right, so this is not a compiler-version question.
+   Load-bearing finds (older rounds): D_800927A8 must stay a plain u16; a union or
+   a cast pointer makes gcc hoist its address into a callee-saved register and the
+   frame grows to 0x38. clut/tpage need locals re-read at the top of each quad or
+   the two lhu come out next to their stores. 68.73 -> 94.35 over five hand shapes
+   and a 3-minute permuter run (base=935 best=905).
    When this body is un-parked, D_800927A0, D_800927A4, D_800927A8 and
    D_8009278C need symbol_addrs entries (0x800927A0, 0x800927A4, 0x800927A8,
    0x8009278C). */
