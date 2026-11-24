@@ -165,16 +165,8 @@ void BattleExpandSlotRects(void) {
     }
 }
 
-/* 86.50%: instruction-for-instruction identical to retail except one callee-saved
-   register too many (s0-s6 here against retail's s0-s5), which shifts every register in
-   the body by one. gcc cse keeps `arg0 << 16` alive in s3 across both calls for the two
-   `(s16)arg0` conversions, where retail re-extends at each site
-   (`sll a2,s3,0x10; sra a2,a2,0x10` inside the loop, `sll s0,s3,0x10` after it), and it
-   then cannot reuse s1 for `&g_BattlePrimStartIndex` the way retail does after the loop.
-   The array-extern `g_BattlePrimStartIndex[]` (with `[0]` for the word, `((u8 *)...)[0]`
-   for the byte) and the `(u8 *)g_BattleGraphicsWork + (count * 0x50 + 0x1E68)` base both
-   reproduce retail's shapes; the earlier note's `g_BattleGraphicsWork + 0x1E68` scaled by
-   sizeof(BattleGraphicsWork) and never compiled.
+// ROUND 446 RE-MEASURE: 89.25% at retail's EXACT 452 bytes / 113 insns under the unit's gcc-2.6.0 (the 86.50 this note used to carry was measured under 2.7.2; 2.7.2 re-measures 86.50 now, -O3 89.25, -G0 and 2.7.2-cdk do not compile). The callee-saved SET is already retail's (s0-s5 + ra, frame 0x50) and every instruction of the body and epilogue is retail's; the whole residual is the ENTRY BLOCK's ORDER, 21 diff lines. Retail: lui/lw g_BattleDisplayState BEFORE 'addiu sp,sp,-0x50', then sw s1/move s1,zero (i=0), sw s3/move s3,a0, sw s4/move s4,a1, sw ra, sw s5, sw s2, sw s0, sw zero,0xFC(v0), lbu s2,0x60(sp)+nop (the load-delay slot), beqz s2 with 'move s5,a2' in its delay slot, and 'move s0,a3' AFTER the branch in the fall-through preheader. Ours: 'addiu sp' first, lbu s2 at the very top, then the lui/lw, then the a0/a1/a2/a3 copies, i=0 last, and 'sw zero,0xFC(v0)' pushed into the beqz delay slot. So retail's incoming-stack-arg load is NOT the BB_HEAD insertion that global-alloc makes (that is why it keeps a load-delay nop and sits after the store) - it looks like a reload at its use, and our body makes 2.6.0 hoist it every time. PROBED, not guessed: a cc1_probe of this exact body shape (probe_fc1c.c: one global store, then the same 4-arg loop with a s32 arg3 offset) reproduces OUR entry order under 2.6.0 AND under 2.7.2 AND under 2.7.2-cdk (all three emit 'subu sp; lbu; lw g_State; sw/move pairs'), so no compiler in the repo turns this body into retail's entry. Measured dead this round: 's32 i = 0;'/statement order for i, a 'u8 count; count = arg4;' local (88.84, 456 bytes - adds 'move s2,v1'), 'arg3 += 8' in the for-increment instead of the offset local (89.25 identical).
+/*
 void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     s32 i;
     s32 offset;
@@ -195,9 +187,9 @@ void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     g_BattleDisplayState->menuColumnPackageCount = size + g_BattleDisplayState->menuColumnPackageCount;
     g_BattleDisplayState->menuColumnPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
     g_BattleDisplayState->menuColumnPending = 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FC1C);
+
 void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
