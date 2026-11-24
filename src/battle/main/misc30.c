@@ -313,12 +313,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
    that.
    Round 465 re-measured 97.48 / 508 bytes / 127 insns and closed one more
    spelling: the target key hoisted into its own `s32 targetKey` local (retail's
-   emission order, one expression left inline) measures 92.71%, so the fully
-   inline nesting this body uses is the right shape.  `cc1 -dl` on the live body
-   keeps both clusters in block 0 as block-local quantities with equal refs and
-   deaths (the sprite-key chain 3 refs / 4 insns, the x and slot-x pair 2 refs /
-   2 insns), so the a2-vs-a1/a0 mirror of x and `less` is a local-alloc hand-out
-   with no term a spelling moves - park on it.
+   emission order, the sprite side left inline) measures 92.71%, so the fully
+   inline nesting this body uses is the right shape.  A `-dl` dump of the live
+   body shows the mask and x/slot-x temporaries are all block-local quantities of
+   2 refs / 2 insns with one death each (`Register 95..98, 101, 105`), i.e. the
+   mirrored pairs have no term of the priority quotient to separate them, so the
+   a2-versus-a1/a0 hand-out of x and `less` is not a spelling - park on it.
 /*
 void func_800B905C(void) {
     BattleActorSprite* pSprite;
@@ -427,15 +427,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
    the same +0x172 word as `lbu` in the 0xFA/0xF8 arms and as `lhu` in
    0xF7/0xF5/0xF4/0xF3, so the source went through a byte pointer (a u16 row
    field would make every one of those reads lhu).
-   Round 465 re-measured 96.61 / 644 bytes / 161 insns and confirmed the
-   mechanism from the `-dl` dump on block 3 (0xFA): the base's `%hi` pseudo is
-   `used 2 times across 8 insns` and the row index `used 3 times across 4`, so
-   the INDEX is the first-processed quantity under local-alloc's n_deaths/n_refs
-   (0.50 against 0.33) and under floor_log2(refs)*refs/live (0.75 against 0.25)
-   alike - retail's base-in-$v1 needs the base to outrank it, which no spelling of
-   these eight instructions does.  That one hand-out is the whole residual in all
-   seven address-building arms; the 0xF3 arm's extra early `lui` is
-   -fschedule-insns.
+   Round 465 re-measured 96.61 / 644 bytes / 161 insns and read the block-local
+   `-dl` lines for an address-building arm: the base's `%hi` pseudo is `used 2
+   times across 8 insns` and the row index `used 3 times across 4`, i.e. 1 death /
+   2 refs against 1 death / 3 refs.  local-alloc's n_deaths/n_refs ranks the BASE
+   first there while floor_log2(refs)*refs/live_length ranks the INDEX first, so
+   the two readings of the priority disagree and neither makes the retail pairing
+   provable from the source - the rank these eight instructions actually get is
+   the one that measures the mirror, and that is the whole residual in all seven
+   address-building arms (the 0xF3 arm's extra early `lui` is
+   -fschedule-insns).
 */
 /*
 void func_800B9284(SpriteData* pSprite, s32 code) {
