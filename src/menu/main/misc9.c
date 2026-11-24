@@ -27,6 +27,7 @@
 // Row sprite records at the start of the 0x430 panel; 0xE..0x1B is the shaded copy
 // of the same rows that func_801DD5E8 walks alongside them.
 #define MENU_PANEL_ROW_STRING_COUNT 0xC
+#define MENU_PANEL_SHADED_ROW_STRING 0xE
 // The one character with two weapon slots: its equipment panel carries a second
 // weapon slot group, which the left/right input and the weapon move below both
 // switch between.
@@ -71,6 +72,16 @@ typedef struct {
     /* 0x1092 */ u8 shouldRenderColumnHeadings;
     /* 0x1093 */ u8 pad1093;
 } MenuUnk430Panel; // Size: 0x1094
+
+// The same panel's sprite records from MENU_PANEL_SHADED_ROW_STRING on, seen as their
+// own arrays: the shaded copy of the rows and the two heading strings, with the
+// column string records between them.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x700];
+    /* 0x0700 */ MenuString shadedRowStrings[MENU_PANEL_SHADED_ROW_STRING];
+    /* 0x0E00 */ MenuString columnStrings[2];
+    /* 0x0F00 */ MenuString headingStrings[2];
+} MenuUnk430RowStrings; // Size: 0x1000
 
 // One 0x28-byte equipment slot record of pDressingRoom->pCharacterSlots[] (and of
 // pGearBlocks[], which uses the same layout), as far as this unit reaches it: the
@@ -1026,56 +1037,6 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 
-/* PARKED 99.72% (round 405 re-measure; unchanged since round 392) at retail's exact
-   424 bytes / 106 insns. TWO `addu` operands are the only residual, and they are the
-   same tie twice: the address of the two `lbu renderContext` loads of the 0x430
-   panel's shifted sprite groups (displacements 0x77D and 0xF7D) is `base + i * 0x80`;
-   retail writes it base-first (`addu v0,v1,s0`, `addu v0,v0,v1`) and cc1 2.6.0
-   offset-first (`addu v0,s0,v1`, `addu v1,v1,v0`) - same operands, same value, same
-   size, same instruction multiset. This is the address LEGITIMISER, not the source
-   order: every site in this function that only feeds a call argument is retail's,
-   and only these two MEMORY operands are swapped.
-   Spellings measured, all leaving the order alone unless noted: the base-first cast
-   `(u8*)g_Menu->unk430 + i * 0x80 + 0x77D`, the same with sizeof(MenuString), an
-   index-first cast, a whole-entry local (`pAhead`, 94.40%, 412 bytes), a panel-base
-   local assigned inside the `if` (99.48%), a `MenuString* pHeading` local in loop 2
-   (96.64%, 416 bytes). Round 405, from a fully typed spelling: the panel as a
-   `MenuString*` local with subscripts throughout (86.25%, 384 bytes - cc1 puts
-   `panel + i * 0x80` in a callee-saved register as a GIV and drops the per-iteration
-   reload), the same with `pPanel[i + 0xE]` at the second call site (89.75%, 404
-   bytes, frame 0x30), and `pString[0xE]` off the loop's live entry pointer (96
-   insns, same GIV collapse). So the panel base must stay a `g_Menu->unk430` load at
-   every use; that is what keeps retail's 106 insns.
-   The one shape that ever bought anything is the `do { } while (0)` around loop 2's
-   call (99.58 -> 99.72, kept below). permute.sh -j 2: a fourth run in round 406
-   (1189 iters, base=30 best=30) ends at this body, like the three before it (round
-   392 twice, round 405). Round 406 also measured the misc7 fix for exactly this
-   residual, the double negated offset (`(u8*)g_Menu->unk430 - -(i *
-   sizeof(MenuString)) + 0xF7D`): it does put the base first, but as `subu v0,v1,s3`
-   off a NEW accumulator with a negative step (`addiu s3,s3,-128`), which costs an
-   instruction and rotates the registers - 92.78% at retail's 424 bytes. cc1_probe
-   on a standalone copy of loop 2 (base-first cast, offset written first, a base
-   local, an embedded assignment temp, an index-first struct view, a u16 index)
-   emits `addu $2,$2,$3` for every spelling, so the offset-first operand is the
-   legitimiser's choice and not the source's. No jump table and no dlabel data in
-   this stub's .s, so it converts the moment the operand order closes.
-   ROUND 431: the two-level pointer local is the spelling that does flip BOTH of those
-   `lbu renderContext` addresses to retail's base-first order - `pRows = (MenuString*)
-   g_Menu->unk430; pRow = &pRows[i];` then `rc = pRow[0xE].renderContext` at the shifted
-   site and `pRow[0x1E].renderContext` in loop 2 (a lone `&(...)[i]` or `(base + i)` does
-   not; a subscript of a pointer local does) - 424 bytes / 106 insns, instruction for
-   instruction the retail multiset. That body measures 99.48 and the byte-test address
-   then loses retail's destination tie (`addu v0,a0,v0` / `lbu v1,4(v0)` against retail's
-   `addu a0,a0,v0` / `lbu v1,4(a0)`, and loop 2's `addu v1,v1,v0` against `addu v0,v0,v1`),
-   so all three remaining sites want the BASE pseudo as the sum's destination. With the
-   two-level pointer only on the shifted site the same three sites are wrong (99.25).
-   permute.sh on the 98.92 body: PERMUTER_BETTER base=95 best=55 in 1351 iters, and its
-   whole edit is inert (`rc` inlined as `pRow->renderContext`, `(*g_Menu).unk430`) except
-   the do-while in loop 2, which is already below. Flipping the destination tie is the
-   only thing left, and it is the same legitimiser that decides the operand order.
-*/
-
-/*
 void func_801DD5E8(u_char arg0) {
     MenuString* pString;
     POLY_FT4* pPoly;
@@ -1091,7 +1052,7 @@ void func_801DD5E8(u_char arg0) {
         rc = pString->renderContext;
         if (*(u8*)((u8*)g_Menu->unk430 + (i * 0x80 + rc * 0x28) + 4) != 0x20) {
             MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[i].polys[rc], arg0);
-            pPoly = &((MenuString*)g_Menu->unk430)[i + 0xE].polys[((MenuString*)g_Menu->unk430)[i + 0xE].renderContext];
+            pPoly = &((MenuString*)g_Menu->unk430)[MENU_PANEL_SHADED_ROW_STRING + i].polys[((MenuUnk430RowStrings*)g_Menu->unk430)->shadedRowStrings[i].renderContext];
             MenuSetPrimShadingMode(pPoly, arg0);
         }
     }
@@ -1099,12 +1060,10 @@ void func_801DD5E8(u_char arg0) {
     MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_COLUMN_STRING].polys[((MenuString*)g_Menu->unk430)[MENU_PANEL_COLUMN_STRING].renderContext], arg0);
     for (i = 0; i < 2; i++) {
         do {
-            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].polys[((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].renderContext], arg0);
+            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].polys[((MenuUnk430RowStrings*)g_Menu->unk430)->headingStrings[i].renderContext], arg0);
         } while (0);
     }
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
 
 /* PARKED 95.96% (round 385 re-measure; the old 95.71 note is superseded). Retail
    EXACT 1940 bytes and a byte-for-byte identical instruction MULTISET; the only
