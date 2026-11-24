@@ -112,6 +112,13 @@ void func_8007E334(BattleCommand **ppCmd, u8 arg1) {
    R163: builds only through a (u8 *) byte view of the record/flag table
    (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
    percentage above stands.
+
+   R458: the doubling is solved on the two functions below this one - write it
+   through a temp that the tail reads (`next = acc * 2; acc = next;` then
+   `pRow[...] = next << 2`), which reproduces retail's `sll a1,s0,1 / move s0,a1`
+   (func_8007E334 95.31 -> 100, func_8007E554 89.08 -> 100). The row base is
+   `g_BattleSlotWordRegs[arg1]` (0x40-byte rows), not `g_BattleSlotWordRegs + arg1 * 0x40`,
+   and g_BattleSlotRecords is now the typed 0x1C record view (`[i].tag`).
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9_260", func_8007E438);
 /* R165 second pass: 80.63% (308 bytes) confirmed as recorded; unchanged, no
@@ -146,25 +153,6 @@ void func_8007E438(u8 **arg0, u8 arg1) {
     pRow = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
     pRow[(*arg0)[1]] = (u16)acc >> 1;
 }
- */
-/* best: 89.08%. Structure: for (i = 0xA; i >= 3; i--) over the operator slots,
-   comparing g_BattleSlotRecords[(u8)BattleFindFirstFlagTableMatch(pField[p[2]]) * 0x1C] against
-   g_BattleSlotRecords[offset] with offset = 0x118 stepping -0x1C, then storing
-   `acc << 2` into the row. The row base MUST be a local pointer computed before
-   the loop (inline gives 74.68%: gcc hoists &g_BattleSlotWordRegs and the <<6 separately
-   and does the addu inside the loop, growing the frame to 0x38).
-   Remaining: (1) gcc hoists &g_BattleSlotRecords into a register for the first of the two
-   record loads only (retail uses the `lui at / addu at / lbu %lo(at)` form for
-   both, so its 6th saved reg is absent); spelling the index through a separate
-   `s32 slot` local is the next thing to try. (2) the accumulator doubling: retail
-   emits `a1 = s1 << 1` on both paths and copies back at the join (sll a1,s1,1 /
-   move s1,a1, and the final store shifts a1), gcc doubles in place
-   (sll s1,s1,1) - same miss as func_8007E334, so `acc = acc * 2` vs
-   `acc <<= 1` should be re-screened here.
-
-   R163: builds only through a (u8 *) byte view of the record/flag table
-   (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
-   percentage above stands.
  */
 void func_8007E554(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
