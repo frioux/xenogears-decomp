@@ -771,17 +771,25 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
     pMatrix->t[2] = pSpriteData->pBase->transformMatrix.t[2];
     SetMulMatrix(pMatrix, &pSpriteData->pBase->transformMatrix);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
-// 95.27% at retail's exact 220 bytes: the instruction multiset, the frame and both
-// induction bases match, and the ONLY differing instruction is the y/z pointer's
-// def - retail copies the parameter in place of the first `bne` delay slot's nop
-// (`move t0,a1`) and adds 4 to $a1 itself, while this body (pX = pYz - 2) makes
-// pYz keep $a1 and derives pX with `addiu t0,a1,-4`. Swapping which pointer gets
-// $a1 needs the allocator to beat the copy-coalescing of pX with the parameter: a
-// plain `pX = (s16*)pOut` (either order, before or after the guards, as s16* or
-// SVECTOR*, via mem_addr or &pOut->vx, or with `pYz = pOut; pX = pYz; pYz += 2`)
-// is always 94.64% with pX coalesced into $a1, and the permuter cannot compile
-// this body ("conversion to non-scalar type requested"). One instruction from 100.
+// 95.27% at retail's exact 220 bytes / 55 insns: everything matches except the two
+// induction pointers' REGISTER HAND-OUT. Retail is `move t0,a1` (x base = copy of
+// pOut) in the first guard's delay slot and `addiu a1,a1,4` in the preheader (y/z
+// base = pOut + 4), i.e. the +4 lands on the parameter's register; every spelling
+// here gets the mirror (x base = $a1 coalesced, y/z base = `addiu t0,a1,4`), which
+// cc1 prefers because it costs one instruction less. Measured, all 220 bytes:
+//  - pYz = (s16*)pOut; pX = pYz - 2;            (this body) 95.27 - addiu on the copy
+//  - pX = (s16*)pOut; pYz = (s16*)pOut + 2;                 94.64
+//  - pYz = (s16*)pOut + 2; pX = (s16*)pOut;                 94.64
+//  - pYz = (s16*)pOut + 2; pX = pYz - 2;                    94.64
+//  - SVECTOR* pDst = pOut; s16* pYz = (s16*)pOut + 2;       94.64
+//  - pYz assigned BEFORE the guards, pX after them           96.45 but 216 bytes
+//    (54 insns - the add is folded into the guard's delay slot and a1 is never
+//    copied, so it cannot link)
+//  - pOut[i].vx / .vy / .vz struct form                     84.84 / 216 bytes (one
+//    base with offsets -8/+2/+4, and the i++ sinks below the stores)
+// A likely reading of retail is two pointer locals 4 bytes apart (`move t0,a1` then
+// the add into the dying $a1), which combine_regs merges for us. Below 99%, so no
+// permuter run is allowed on it.
 /*
 void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
     s16* pX;
@@ -820,8 +828,10 @@ void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
         pYz += 4;
         pX += 4;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
+
+
 // The far screen edge of the last trail quad, which is the near edge of the next one:
 // two screen pairs, one per corner of that edge.
 extern u16 D_800C3CA4[2];
