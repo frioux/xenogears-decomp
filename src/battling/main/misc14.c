@@ -804,42 +804,25 @@ s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B730);
-
-/* Best attempt: objdiff 92.55%, 756 bytes = the original's exact size, so this
-   is register/scheduling placement only, not structure. Load-bearing pieces:
-   - `pAnim->position += arg1;` must RELOAD the field (retail: lh a1,0x12 /
-     addu / move a0,a1 in the beqz slot / addu v0,a0,s5). The local-only
-     `position = pos + arg1` duplicates the addu (2 extra bytes) and picks the
-     wrong registers - the permuter found this, 92.26 -> 92.47.
-   - the closing test is `if (position != length) return 0;` then
-     `return arg2 == 1;`, NOT `return A && B`: the && spelling costs a
-     `move v0,a0` (760 bytes, 91.66).
-   - `s32 pad[2]` fixes the frame: 0x38 bytes of locals is 8 too many (frame
-     0x68), and an array is the only unused local cc1 keeps (unused scalars are
-     dropped, u16/s32 arrays round their slot up to 16 bytes).
-   Residual, all equal-count placements:
-   1. the three loop tails emit `lw count; lh count; addiu i,1` where retail has
-      `lw count; addiu i,1; lh count`. `for`, `while`, `++i`, `i++` and moving
-      the increment into the body all measure this same shape.
-   2. the script decoder loads the command straight into the char's register
-      (retail takes `lb v0` then `move v1,v0`, and keeps pScript in a1 where we
-      use a0).
-   3. the final compare picks v1/v0 for position/length where retail uses
-      a0/v1.
-   A 5-minute permuter run from the 92.26 body found the `+=` above and nothing
-   else; the remaining three are placement, so run the permuter again from THIS
-   body rather than hand-iterating. */
+// Best attempt: objdiff 93.45%, 764 bytes / 191 insns = the original's EXACT size, 24 differing lines in 4 residual groups. Round 469 raised this from the old 92.55 / 756 (which was one instruction SHORT, not retail's size as the old note claimed) with three measured spellings, keep them:
+//    - the opcode local must be a byte: 's8 c;' assigned 'c = *(s8 *)pScript;' (92.55 -> 93.04). That is what produces retail's 'move v1,v0': a QImode pseudo promoted to int, so the 0x3F/0x40/seven-bit paths read the copy and only the 0x80 test reads the load. It also costs 8 bytes of frame, so the unused-local array must shrink from 's32 pad[2]' to 's32 pad[1]' to keep retail's 0x60 frame (pad[2] with the s8 gives 0x68).
+//    - the 0x40 arm must OR IN PLACE, 'bits |= ...; pTrack->step = bits;' and not 'pTrack->step = bits | ...;' (93.13 -> 94.16). With a fresh result register gcc's cross-jumping merges the arm's 'sh step' with the else arm's 'sh step' into one shared block and the function loses an instruction; in place, the store's source is the bits pseudo and retail's 'or a0,a0,v0 / j / sh a0,2(s0)' plus its separate 'j / sh a0,-2(s0)' fall out exactly, and the mask lands in a0 as retail has it.
+//    - the shifted second byte wants the cast AROUND the shift, 'bits |= (s8)(pScript[1] << 6);' - that spelling keeps retail's 'lbu' load and reaches retail's 191 instructions / 764 bytes. 'bits |= (s8)pScript[1] << 6;' folds the sign extension into a signed 'lb' + 'sll 6' (190 insns, 760 bytes, 94.16%), and routing the byte through a u8 local does the same fold.
+//    Residual groups, all still open:
+//    1. (2 differing lines) our shifts are 'sll 0x1e / sra 0x18' where retail has 'sll 0x18 / sra 0x12': gcc extends the ALREADY SHIFTED value, retail extends the byte first and then shifts. 's8 next = pScript[1];' and 'bits |= (s8)pScript[1] << 6;' both fold to 'lb / sll 6', so the extend-then-shift order is not reachable from these three spellings.
+//    2. (all three loop tails, 9 differing lines) retail emits the counter increment BEFORE the count reload ('lw pConfig / addiu i,1 / lh count / nop / slt') where we always get 'lw pConfig / nop / lh count / addiu i,1 / slt'; loop 2 additionally has the pointer increment between them in retail. Measured identical this round: the for form, the while form with 'i++' as the last body statement, and an explicit 'if (count > 0) do {... i++;} while (i < count)' wrapper (that one does reproduce the tail order but drops the frame to 0x50 and breaks the prologue). So the increment-before-reload order is not reachable from the loop construct.
+//    3. (2 differing lines) the closing compare picks $v1 for position and $v0 for length where retail uses $a0/$v1.
+//    Bodies tried and dead (round 469): bits as a fresh temp (94.16 but one instruction short), the u8 'next' local, the three loop forms above. Two of the three residuals are allocator ties with everything else byte-exact, so this is a permuter-from-this-body job rather than a hand job.
 /*
 s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
     Misc14AnimEntry *pEntry;
     Misc14AnimTrack *pTrack;
     u8 *pScript;
-    s32 c;
+    s8 c;
     s32 i;
     s32 j;
     s32 pos;
-    s32 pad[2];
+    s32 pad[1];
 
     if (pAnim->pConfig == NULL) {
         return 1;
@@ -886,7 +869,8 @@ s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
 
                         if (c & 0x40) {
                             pTrack->pScript = pScript + 2;
-                            pTrack->step = bits | ((s8)pScript[1] << 6);
+                            bits |= (s8)(pScript[1] << 6);
+                            pTrack->step = bits;
                         } else {
                             pTrack->wait = bits;
                         }
@@ -914,8 +898,10 @@ s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
         }
         return arg2 == 1;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B730);
+
+
 // A swapped-out execution context: the register file func_8008BB3C restores
 // (word 0x1C $gp, 0x1D $sp, 0x1E $fp, 0x1F $ra) and the stack it runs on.
 typedef struct {
@@ -984,14 +970,7 @@ void func_8008BB00(Misc14Entry *pDst) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
-
-/* Best attempt: objdiff 97.50% - identical except that the original keeps the
-   one reused temporary in $t0, gcc in $v0. Reusing a single temp is what
-   reproduces the interleaved load/store order; two separate statements make gcc
-   hoist the second load (73.12%). Tried: s32 instead of u32 temp, volatile
-   stores, an 8-byte struct copy, a pointer local (all 97.5 or worse), -O1/-O3
-   (97.5) and a 4-minute permuter run (no improvement). */
+// Best attempt: objdiff 97.50%, 32 bytes = the original's exact size and instruction sequence; ONLY the one reused load temp differs ($t0 in retail, $v0 in ours). Re-measured round 469: 97.50 / 32 bytes / 8 insns, unchanged, and the lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait (written from this function and its sibling func_8008BB00) closes the axis: a leaf, call-free, one-block body never reaches global_alloc, so local-alloc's scan hands the QTY the first free register and every cc1 in tools/ starts at $2. An 8-byte struct copy (70.71), a struct pointer, a 2-minute permuter run, -G0 (94.29 on the sibling) and the cc1_probe spelling sweep are all recorded there. twin_for.py reports no twin. This is the retail compiler's REG_ALLOC_ORDER, not a spelling - do not spend another lane on it.
 /*
 void func_8008BB1C(Misc14Entry *pSrc) {
     u32 value;
@@ -1000,7 +979,9 @@ void func_8008BB1C(Misc14Entry *pSrc) {
     D_80096D88 = value;
     value = pSrc->color;
     D_80096D8C = value;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
+
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB3C);
