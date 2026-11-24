@@ -278,36 +278,47 @@ extern u16 g_MenuCellPrimXs[];
 extern u16 g_MenuCellPrimYs[];
 extern s32 g_MenuCardSlotOrder[];
 
-/* Best attempt: 95.40% (2084 bytes, retail's 521 instructions exactly). The
-   residual is register allocation and block placement, not structure: retail
-   keeps a 7th callee-saved register for a snapshot of the `waited` flag
-   (`move s6,s4` in the delay slot of the first card-status test) that the honest
-   `if (waited)` spelling comes out of s4 without, and the scan's failure block
-   (`li s3,2 / li s2,2 / move s4,zero`) is out of line here but sits inline after
-   retail's `bnez cardEnumerated,<loop tail>`, so ~30 forward branch offsets move.
-   Learned, worth 4% and the exact byte count: the two 0xFF byte pairs
-   (previousCardSlotCounts[1]/[0] and previousCardStatus[1]/[0]) each come from
-   ONE `MenuUnk2* pMenu = g_Menu->menuUnk2;` load -- spelling them as two
-   `g_Menu->menuUnk2->...` assignments costs 9 instructions, because a `sb` kills
-   the reload of the g_Menu pointer. The saved card status must be a local ARRAY
-   (u8 savedCardStatus[2]), not two u_char locals, or gcc keeps it in registers
-   instead of retail's two bytes at sp+0x50/0x51. The 8 cursor prim stores reload
-   every operand, so they have to be written as 8 full expressions with the
-   index-first `(ctx * sizeof(POLY_FT4) + (mem_addr)pCursors)` address (the
-   MenuLoadCardChunk idiom); a pPrim local or a base-first subscript loses 1.8%.
-   Tried: base-first subscript for the cursor prims (93.24%), pPrim/cell locals
-   (fewer reloads than retail), `continue` vs `if (enumerated == 0) break` for the
-   scan failure (gcc inverts both to the same beqz), `rebuildWindow = waited`
-   (gcc folds the whole block away), status initialised to 0 (costs a
-   `move s3,zero` retail does not emit: retail reads `status` uninitialised on the
-   card-wait path, a latent bug in the original).
-   Not tried: a permuter run -- the residuals are block placement and a saved
-   register, which it cannot move. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
-/*u_char func_801C93A8(void) {
+// Best attempt: 95.74% (2092 bytes / 523 insns against retail's 2084 / 521). The +8
+// bytes is one `j` and its delay slot: gcc orders the record scan's two break blocks
+// INSIDE the loop body (which also inverts the third card-status test to `beq`) where
+// retail puts the shared status/card/waited block after the loop tail at 0x4788 and
+// has all three tests branch forward to it.
+// REACHED THIS ROUND (worth the 0.34 and the 7th callee-saved register): retail's
+// `move s6,s4` in the delay slot of the first card-status test is a SECOND SOURCE
+// LOCAL assigned from `waited` AT THE JOIN of the first if-block - `rebuildWindow =
+// waited;` written between `MenuFreeWindow2Strings();` and `g_MenuCardCheckInterval =
+// 1;`, read only by `if (rebuildWindow) characterWindowBuilt = 1;`. Reorg steals it
+// into the entry branch's delay slot, which is why it looks like an entry copy. The
+// same assignment in the ENTRY block is folded to 0 and the whole store block is
+// deleted (94.27%, 514 insns, 2056 bytes), and reading `waited` there directly loses
+// the copy (95.40%, 2084 bytes, retail's exact size). Semantics: the copy is taken
+// before the scan's `waited = 0` arms, so the store stays dead - retail's behaviour.
+// Remaining residuals: (a) the loop-body block order above; (b) the two `- 6` prim-Y
+// adds are CSEd into `li a2,0xfffa` + `addu v0,v0,a2` where retail re-materialises
+// `addiu v0,v0,-6` twice (`- 0xA + 4` folds identically, measured, no change); (c)
+// g_Menu lands in a3, not retail's a2, and the 2nd prim store's operand loads come out
+// reordered. Preset screens on this body: gcc-2.7.2 96.70, 2.7.2-cdk 89.02, unit
+// preset 2.6.0 95.74 (no 100 anywhere, so no switch). Retail names `D_801C50AC` /
+// `D_801C50B4` where the typed `g_MenuCardPathPrefix0` + 4 gives the same address: a
+// relocation-only difference.
+// Learned earlier, still true: the two 0xFF byte pairs (previousCardSlotCounts[1]/[0]
+// and previousCardStatus[1]/[0]) each come from ONE `MenuUnk2* pMenu = g_Menu->menuUnk2;`
+// load - two `g_Menu->menuUnk2->...` assignments cost 9 instructions because a `sb`
+// kills the reload of the g_Menu pointer; the saved card status must be a local ARRAY
+// (u8 savedCardStatus[2]) or gcc keeps it in registers instead of retail's sp+0x50/0x51
+// bytes; the 8 cursor prim stores need 8 full expressions with the index-first
+// `(ctx * sizeof(POLY_FT4) + (mem_addr)pCursors)` address (a pPrim local or a
+// base-first subscript loses 1.8%). Tried and rejected: `continue` vs `if (enumerated
+// == 0) break` (same beqz), `status = 0` initialised (costs retail's missing `move
+// s3,zero`; retail reads `status` uninitialised on the card-wait path, a latent bug in
+// the original), and no permuter run - the residual is block placement plus one CSE
+// constant, which it cannot move.
+/*
+u_char func_801C93A8(void) {
     char path[0x40];
     u8 savedCardStatus[MENU_CARD_COUNT];
     u_char waited = 0;
+    u_char rebuildWindow;
     u_char status;
     MenuUnk2* pMenu;
     s32 card;
@@ -350,6 +361,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
         }
         MenuFreeWindow2Strings();
     }
+    rebuildWindow = waited;
     g_MenuCardCheckInterval = 1;
     savedCardStatus[0] = g_Menu->menuUnk2->cardStatus[0];
     savedCardStatus[1] = g_Menu->menuUnk2->cardStatus[1];
@@ -414,7 +426,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
         }
     }
     if (status == 0) {
-        if (waited != 0) {
+        if (rebuildWindow != 0) {
             g_Menu->pManager->characterWindowBuilt = 1;
         }
         if (g_Menu->pManager->shouldRenderCursors != 0 && g_Menu->pCursors->shouldUpdatePosition[0] != 0) {
@@ -439,8 +451,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
     g_Menu->soundEffectsEnabled = 1;
     g_MenuCardCheckInterval = 0x1E;
     return waited;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
+
+
 u_char MenuIsSlotUsable(s32 a0) {
     MenuUnk2* pMenu = g_Menu->menuUnk2;
     s32 result = 1;
