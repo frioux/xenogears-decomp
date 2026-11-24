@@ -885,61 +885,25 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
         break;
     }
 }
-/* Best: 99.61% (612 bytes = retail's size), ONE instruction left: the last call
-   passes mode as "move a1,s1" where retail has "andi a1,s1,0xFF" (same value;
-   mode is only 2 or 3). Everything else - every register, delay slot and save -
-   is retail's. The call sites are the MenuWindow poly arrays
-   (polysWindowBorderCorners[8] at 0x0, polysWindowBorderTop/Bottom/Left/Right[4]
-   at 0x140/0x1E0/0x280/0x320, polysScrollBarEnds[4] at 0x410,
-   polysScrollBarEmpty[2] at 0x3C0) indexed [i * 2 + renderContext], written
-   inline as "&g_Menu->windows[arg0]->polyX[i * 2 + g_Menu->windows[arg0]->renderContext]".
-   Rounds 111/121/123/285/318 tried ~20 spellings (u_char mode, "u8 shade =
-   mode;", "s32 shade = mode;", an explicit (u_char) cast, "mode & 0xFF", a
-   do/while around the call, "mode = mode;") and two permuter runs: all stay at
-   99.61% with "move a1,s1". cc1_probe (r318, six variants) shows why: the last
-   block is reached only from loop 6's exit branch, so cse carries s1's known
-   value (2 or 3) into it and folds the u_char conversion, while the loop heads
-   (two predecessors) keep their "andi". A 4-minute permuter run (r318) found
-   that "i = arg1 ? 3 : 2; mode = i;" DOES restore the andi (base 200 -> 126)
-   but only by keeping the constant in a second register and copying it
-   ("move s1,s0", +4 bytes, 616 bytes), so it cannot be the original source -
-   retail assigns the constant straight into s1 ("li s1,0x2"/"li s1,0x3").
-   Round 399 re-measured the un-parked body: same 99.61%/612 bytes, and the
-   gates closed every remaining door: lever.py (d-combine-folds-mask-eq-zero,
-   d-loop-bottom-accumulator-copy - neither covers a cse value-fold on a call
-   argument), a fresh 3-minute permuter run from the live body (1038 iterations,
-   RESULT PERMUTER_NONE, base=200 best=200), and try_flags gcc-2.7.2-psx and
-   gcc-2.7.2-cdk-psx (both 99.15 - worse, so the 2.6.0 preset is right and the
-   fold is not a compiler-version question). Every no-extra-instruction spelling
-   that breaks cse's value knowledge is exhausted; this is a gcc 2.6.0 cse wall.
-   Round 414 (this lane): re-measured the body above at 99.61%/612 bytes, then
-   tried "mode = 2; if (arg1) mode = 3;" and "u_char mode;" - both 99.61% with the
-   same single "move a1,s1" - and a third 3-minute permuter run (970 iterations,
-   RESULT PERMUTER_NONE base=200 best=200). Mechanism, from the .s: the last call
-   is the only site reached through a SINGLE-predecessor block (loop 6's bnez
-   fall-through), so cse still holds the masked QImode value there and folds the
-   conversion; each loop head is a join, which is why retail keeps those six
-   andis. Defeating it needs a second predecessor for the last call, i.e. a branch
-   retail does not have, so this stays parked as a gcc 2.6.0 cse wall.
-   Round 427 corrected the mechanism with a 15-variant cc1_probe (the snippet is
-   one 2-trip loop plus a trailing call, which folds exactly like this body). It
-   is NOT cse and NOT the predecessor count: the fold is combine's constant-value
-   record on the mode pseudo. (1) "mode = g_ProbeK;" - same code shape, value
-   unknown - keeps the andi at EVERY site, so the trigger is the known 2/3.
-   (2) Every spelling that keeps "li s1,2"/"li s1,3" folds the trailing call:
-   u_char mode, if/else instead of the ternary, an (u_char) cast, "mode & 0xFF",
-   a u_char or an s32 copy ("shade = mode;") right before the trailing call, a
-   QI-then-SI double copy, and "for (;;) { call; break; }" (which gcc dissolves
-   to straight-line). (3) A block with TWO predecessors does not help either:
-   identical trailing calls in both arms of an `if` survive cross-jumping as one
-   join (label reached by fall-through and by `j`), and that call still folds as
-   `move a1,s1` (V16). (4) The mask survives only INSIDE a loop body: a
-   1-iteration "for (i = 0; i < 1; i++)" rotates into a "blez" loop and keeps the
-   andi (V10), but that costs the loop's branch, which retail does not have.
-   So retail's trailing call keeps a mask that no straight-line or joined
-   spelling of "li s1,2"/"li s1,3" can keep - the mask needs a loop in the RTL
-   and retail's trailing block has none. Fourth permuter run skipped on purpose
-   (three previous runs from this same live body: base=200 best=200).
+// Best: 99.61% (612 bytes = retail's exact size, 153 insns), ONE instruction left:
+// the trailing call passes mode as "move a1,s1" where retail has
+// "andi a1,s1,0xFF". Everything else - registers, delay slots, saves, frame - is
+// retail's. Mechanism (proved by a 15-variant cc1_probe; lever
+// e-narrow-conversion-folds-in-a-single-pred-block in tools/rounds/levers.md): the
+// mask survives at all six loop-head calls and is folded at the trailing call
+// because combine holds the local's constant value (2 or 3) there. Every
+// straight-line spelling folds it (u_char local, if/else instead of the ternary,
+// an (u_char) cast, "mode & 0xFF", a u_char or s32 copy right before the call,
+// for (;;) with one call); only a real loop body keeps the andi, and that costs a
+// branch retail does not have. Four permuter runs from this exact body (r318,
+// r399, r414, this lane) are all PERMUTER_NONE base=200 best=200; gcc-2.7.2 and
+// 2.7.2-cdk score 99.15. The one spelling that restored the andi
+// (i = arg1 ? 3 : 2; mode = i;) needs a second register and a copy, 616 bytes, and
+// retail has no spare saved register (s0=i, s1=mode, s2=arg0, s3=arg0*4).
+// Call sites are the MenuWindow poly arrays at 0x0 (BorderCorners),
+// 0x140/0x1E0/0x280/0x320 (BorderTop/Bottom/Left/Right), 0x3C0 (ScrollBarEmpty),
+// 0x410 (ScrollBarEnds), indexed [i * 2 + renderContext].
+/*
 void func_801E8F60(u8 arg0, u8 arg1) {
     s32 mode;
     s32 i;
