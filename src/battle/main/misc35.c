@@ -487,6 +487,20 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 //    `addiu ...,zero,0x1` sites in the stub's .s), so a body that makes one of the
 //    three merged constants a different RTL constant would still leave twelve sites
 //    diverging, and no spelling of a constant changes its mode. PARKED.
+//  - round 461 un-parked and re-measured the same body: 67.82% / 3700 bytes / 925
+//    insns against retail's 3708 / 927, and counted the constant-1 sites on both
+//    sides to price the whole residual: retail materialises 13
+//    ("addiu $x,$zero,0x1"), the compile 10 plus the one hoisted "li $s7,1" whose
+//    only three uses are 0x97's wait-timer store (sh s7,0x9E($s2)), 0xA4's
+//    "1 << ..." (sllv a1,s7,a1) and 0xBE's "(flags & 3) != 1" (beq v0,s7). So the
+//    hoist IS the 2-instruction / 8-byte deficit and the 9th saved register at
+//    once: breaking it pays the size, the saved set and (with retuned locals) the
+//    frame. Nothing else in the diff is independent - it is the register cascade
+//    the extra s7 causes. No new spelling was tried: the const-1 group was already
+//    measured (one use written as 2, one use dropped, "bit = 1 << mode",
+//    "(flags & 3) - 1"), and cc1 -dL names this as the only movable in the loop.
+//    Ghidra agrees on the shape (size 0xe7c, frame 0x88, no return value, one
+//    argument), so the prototype is not what costs the 8 bytes.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
 /*
 void func_800C11CC(SpriteData *pSpriteData) {
