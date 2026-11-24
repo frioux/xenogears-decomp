@@ -170,6 +170,7 @@ paths = [
     "world_map/main/misc9.",
     "world_map/main/misc11.",
     "world_map/main/misc11_b.",
+    "world_map/main/misc11_c.",
     "world_map/main/misc12.",
     "world_map/main/misc15."
 ]

@@ -65,6 +65,10 @@ segments:
       - [0x9EC, rodata]
       - [0x9F0, .rodata, main/misc10]
       - [0xA28, .rodata, main/misc11]
+      # Round 451: the four stub tables of the misc11 tail tile [0xCBC, 0xDE0); that
+      # range's start parity (4 mod 8) is what puts jtbl_800707AC at internal +0.
+      - [0xCBC, .rodata, main/misc11_c]
+      - [0xDE0, rodata]
       - [0xDE4, .rodata, main/misc11_b]
       - [0xF08, .rodata, main/misc12]
       - [0x1160, .rodata, main/misc14]
@@ -83,6 +87,7 @@ segments:
       - [0x16468, c, main/misc9]
       - [0x19050, c, main/misc10]
       - [0x1AC3C, c, main/misc11]
+      - [0x1C874, c, main/misc11_c]
       - [0x1DB88, c, main/misc11_b]
       - [0x1E504, c, main/misc12]
       - [0x230F4, c, main/misc13]
