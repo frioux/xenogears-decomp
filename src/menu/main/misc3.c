@@ -1358,7 +1358,17 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    everything matches except that retail has the text walker in $s0 and the loop
    index in $s1 and this build mirrors them, which also puts the g_GameState
    address formation one statement earlier in the preheader).
-   Re-measured this round: still 96.29% / 836 bytes / 209 insns.
+   Re-measured this round: still 96.29% / 836 bytes / 209 insns, and the whole diff
+   is the $s0/$s1 mirror plus the 4-instruction preheader order difference that
+   follows from it: retail forms the walker's address (lui/addiu g_GameState) in
+   the FIFTH preheader slot, this build in the FIRST, so the walker's live_length
+   here is 36 where retail's position gives 32 - and 32 is inside the <= 34 window
+   that would flip the pair. Measured this round, that window is NOT reachable from
+   source order: moving `pText = (u8*)g_GameState.strings;` from after the three
+   header stores to before them measures the same 96.29 with a byte-identical
+   emission, because sched2 hoists the address (no dependencies) to the head of the
+   block in both spellings. So the order is a consequence of the allocation, not a
+   lever on it - do not spend a lane re-ordering the preheader.
    The mirror is DECIDED ARITHMETICALLY, not by spelling: gcc-2.6.0's global.c
    allocno_compare processes the callee-saved candidates in descending
    floor_log2(refs) * refs * 10000 / (live_length * size), and this body's two
@@ -1443,6 +1453,7 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     func_801CB184();
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
+
 
 // Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594), re-measured in a
 // redo lane. The parked body did NOT compile (undeclared `ownCard`, a duplicated `slot`
