@@ -140,6 +140,10 @@ extern u8 g_BattleTargetSlot;
 extern u8 g_BattleCellActionRows[];
 extern u8 D_800CCD38[];
 extern u8 D_800CCD36[];
+// The count byte at offset 0x13 of each action row, which retail reaches through its own label
+// (the first row's, D_800CDD40 + 0x13 and D_800CEF10 + 0x13).
+extern u8 D_800CDD53[];
+extern u8 D_800CEF23[];
 extern u8 D_800CCD1C[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_BattleActionRows[];
@@ -339,45 +343,6 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
     BattleBeginAnimTask(value);
     BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
-/* Best: 96.54% at retail's exact 596 bytes -- every block has retail's
-   instruction count and the multiset matches; what is left is register
-   assignment and statement order in the two g_BattleSlotFlags arms.
-   What took this from 89.19 to here:
-   1. the D_800CCD38 sites. gcc merges a repeated (symbol + reg) address into one
-      register (`lui/addiu` + `addu`, 3 instructions short of retail), so each of
-      the three accesses needs its OWN symbol spelling to stay in retail's
-      `lui at,%hi; addu at,at,reg; lhu/sh %lo(at)` form: the compare reads
-      D_800CCD38, and the `-=` is a load from D_800CCD1C + 0x1C and a store to
-      D_800CCD36 + 2 (all three spell the same address, so the linked bytes are
-      identical -- check_bin.sh proves it).
-   2. the second arm needs the bit index in a local assigned BEFORE its
-      BattleMaskHasStatusBit call; without it gcc keeps a copy of the raw arg1
-      (`move t0,a1` at entry) and does the sum at the call, which is retail's
-      first-arm shape only.
-   Left: the first arm wants that early sum (`addu a1,a1,v0` destroying the
-   incoming a1) while the second wants retail's masked recomputation, and giving
-   BOTH arms the local makes gcc CSE the masked form away (584 bytes). So the two
-   arms need opposite spellings of the same source line. Two 3-minute permuter
-   runs (from this body and from the 89.19 one) only returned variants that read
-   the local before assigning it. Measured dead: inline `D_800CCD38 + arg0*0x170`
-   at all three sites, an s32/u32 off local, one-symbol two-statement `-=`
-   (596 bytes but a formed base register).
-   Round 297 re-measured: the bit local in BOTH arms makes cse merge the two sums
-   into one (584 bytes), and hoisting the mask call to the first statement of an
-   arm re-orders the loads and costs a saved register. The two retail sums differ
-   only in operand order, so the open question is which sum gcc emits first.
-   Round 396 re-measured, 596 bytes / 96.54 confirmed: arm 1 does emit both sums
-   but places the raw one after the entry/count loads (so raw arg1 has to survive
-   in t0, hence the prologue `move t0,a1` and a delay slot reading t0); arm 2 CSEs
-   the two sums into one, which is the single instruction this body is short.
-   Also measured dead: no bit local at all in arm 2 (600 bytes, 95.94), the bit
-   local as the FIRST statement of arm 1 (588, 92.09), the bit local after the
-   loads in arm 1 (588, 95.38). The two count loads also want a symbol at
-   g_BattleCellActionRows+0x13 / g_BattleActionRows+0x13 (retail names
-   D_800CDD53 / D_800CEF23) where the typed spelling folds the 0x13 into the LO16
-   addend -- same linked bytes, but objdiff cannot fold it. */
-/*
 u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     u8 result;
     u8 canAct;
@@ -385,21 +350,22 @@ u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     u16 entry;
     u8 count;
     s32 off;
-    s32 bit;
+    u8 bit;
 
     result = 0;
     canAct = 1;
     inParty = 0;
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
+        bit = arg1 + arg2 * 2;
         off = (arg2 * 2 + arg1 + 0x16) * 40 + arg0 * 1520;
         entry = *(u16 *)(g_BattleCellActionRows + off);
-        count = *(u8 *)(g_BattleCellActionRows + off + 0x13);
-        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask, arg1 + arg2 * 2) != 0;
+        count = D_800CDD53[off];
+        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask, bit) != 0;
     } else {
+        bit = arg1 + arg2 * 2;
         off = (arg2 * 2 + arg1 + 0x15) * 40 + arg0 * 1680;
         entry = *(u16 *)(g_BattleActionRows + off);
-        count = *(u8 *)(g_BattleActionRows + off + 0x13);
-        bit = arg1 + arg2 * 2;
+        count = D_800CEF23[off];
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].gearConditionMask, bit) != 0) {
             inParty = 1;
         }
@@ -422,7 +388,7 @@ u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     }
     return result;
 }
-*/
+
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleCursorScrollState;
 extern s32 g_BattleCursorScrollY;
