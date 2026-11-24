@@ -1819,9 +1819,30 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 extern ParticleShape D_800AF27C[];
 
 
-// Round 440 addendum: un-parked and re-measured, 96.58% / 512 bytes vs retail 520 / 130 insns,
-// same four-vs-six sll residual, nothing new. Preset ruled out this round: gcc-2.7.2-cdk 71.36,
-// gcc-2.6.0 96.58 (identical to Default). Nothing below 99% gets a permuter run, so this stays parked.
+// PARKED 96.58% - 512 bytes / 128 insns against retail's 520 / 130 (0x800A8EAC - 0x800A90B4).
+// Round 453: re-measured live, unchanged, and the four-vs-six sll residual is now CLOSED as a
+// cc1 cse gap rather than a source shape. Retail's eight vertex stores need four values (vx0 =
+// x1s-x0s, vy0 = y1s-y0s, vx1 = x0s+x1s, vy1 = y0s+y1s, where xs = x<<4) and retail computes SIX
+// sll for them: `sll a3,a3,4` (x1s) and `sll a1,a1,4` (y1s) are shared between the difference and
+// the sum, but `sll a0,a1,4`/`sll v0,a2,4` (x0s, y0s) are recomputed later as `sll a1,a1,4`/
+// `sll a2,a2,4` - in each `subu a0,a3,a0` the result takes the register of the SECOND operand, so
+// that cse entry dies and the sum re-forms it. Every source spelling gives 4 sll instead, because
+// our allocator puts the subu result in a third register and keeps x0s/y0s alive for the sum.
+// Ten spellings measured with cc1_probe.sh (one run each, this unit's real cc1): the four int
+// locals with the eight stores below, `u_short` locals, the four vx values then the four vy
+// values, the shifted extremes in their own locals (sx0 = x0 << 4, ...), a `SVECTOR*` vertex
+// pointer local, a `ParticleShape* pShape` local with inline field reads, no locals at all with the
+// table read inline at all 16 sites, `x0 * 16 + x1 * 16` for the sums, and `(x0 << 4) - -(x1 << 4)`
+// for the sums - all 4 sll, except the pointer-local form (sll after the subu) and the inline-read
+// forms (16 lhu, the stores invalidate the load entries). A second tell that retail had one more
+// live pseudo at the loads: its four lhu start at a1 with a0 left free, every spelling here starts
+// at a0. -O1 73.08, -O3 also 4 sll, gcc-2.7.2-cdk 71.36, gcc-2.6.0 96.58 (identical to Default),
+// so no preset recovers it either. Precedent: the companion fact of lever
+// c-a-minus-chain-reassociates-the-subtract - an "extra instructions retail has" gap of one
+// recompute per axis is a cse difference to park. Below 99% there is no permuter run.
+// Frame: retail's 0x98 is 0x24 of o32 stack args plus ~0x5C of local storage nobody has explained;
+// the `_pad[0x58]` below reproduces it, so the prologue and every stack offset match. No dlabel
+// data in the stub (convertible.py: linkable), and nothing in this body depends on the pad.
 /*
 void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, int nTextureMode) {
     POLY_FT4* pPoly;
@@ -1870,7 +1891,6 @@ void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, 
     *pPolyNext = *pPoly;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
-
 
 
 extern int g_FieldScreenImageStored;
