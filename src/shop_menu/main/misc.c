@@ -4061,55 +4061,9 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
     }
 }
 
-// 99.73%, 2032 bytes = retail's exact size, with the frame, every stack slot and every variable
-// home identical to retail. Ported from the 100% twin gear_shop_menu/main/render.c
-// GearShopMenuSellMenu (same gcc 2.6.0 preset).
-// Three findings, 95.12 -> 98.61 -> 99.73:
-// 1. The key-item test is NOT an inline OR expression: retail emits andi/sltiu/addu v1,v0/andi
-//    0xff, which only comes from a u_char local assigned TRUE, then overwritten in an if/else (the
-//    OR spelling compiles to srl/xori/andi, 97.79%).
-// 2. The coalesce loop's counter stays the twin's reused itemType, but itemCount is copied from it
-//    INSIDE the block: retail's per-iteration "addiu t4,t4,1 / sw t4,0x90(fp)" at 0xC05C is that
-//    copy (the three output stores still run through the t0/t1/t2 pointer induction variables).
-//    Moving the twin's after-loop "itemCount = itemType;" into the block as
-//    "itemCount = ++itemType;" is what closed 98.61 -> 99.73 and reproduced retail's 2032 bytes.
-// 3. The twin's "itemCount = itemType;" after the loop must GO: the copy belongs in the sellable
-//    block, as item 2 spells it, or the counter is never stored and the function is 8 bytes short.
-//    The pre-loop "itemType = 0;" stays - it initialises the counter.
-// THE RESIDUAL, exact and final: a register rotation inside the coalesce loop only. Retail keeps
-// the counter in $t4 and i in $a3, with pItemIds/pItemQtys/pItemIsOwned/pItemTypes in
-// $t0/$t1/$t2/$t3; this body keeps the counter in $a3 (it is the itemType pseudo, which lives from
-// the first loop where retail has it in $a3 as well) and rotates the rest by one, i landing in
-// $t0. Retail's counter is therefore not the reused itemType pseudo but a fresh one, and the only
-// fresh-pseudo spelling available - itemCount as the index with "itemCount++" - measures
-// 95.95 / 2040 bytes because gcc hands itemCount $s7 there and spills pItemSellQtys,
-// while retail spills itemCount and keeps pItemSellQtys in $s7: that is an allocno-priority
-// contest arguing the other way, and it also costs one extra stack slot and swaps the s6/s7 save
-// order, so it is not one spelling away. One clean permuter run on this body (3 min, 1153
-// iterations) is base=125 best=125 with no lead, which is the allocator-priority verdict.
-// Measured and worse, do not re-try: itemCount as the counter 95.95 (2040 bytes, frame +8),
-// int itemCount[1] 90.79, declaration initialiser 94.65, u_int itemCount 95.84,
-// "itemCount += 1" 95.95, volatile store to itemCount 91.27, volatile int itemCount 90.49,
-// itemType as the only counter with itemCount deleted 95.16 (2044), two counters (itemType++ and
-// itemCount++) 95.95, and two earlier permuter runs (4 and 8 min, base 701 -> 666) that found only
-// a declaration-order no-op and a semantics-changing write to continueProcessing.
-// Preset ruled out with try_flags.sh on this body: 2.7.2 -O2 -G8 = 97.01, 2.7.2-cdk = 72.55, so
-// the unit's 2.6.0 is right.
-// Not a rodata blocker: the C switch's table lands at +0x28 of the unit's .rodata, the same offset
-// as jtbl_801C5028, so once the rotation is fixed the conversion needs no table work - prove it
-// with check_bin.sh shop_menu, not diff_func.sh.
-// Round 436 re-measured the same 99.73% / 2032 bytes (retail's exact size) and pinned the rotation:
-// retail keeps i in $a3, the counter in $t4, the three pointer ivs in $t0/$t1/$t2 and pItemTypes in
-// $t3; this body keeps the counter in $a3, i in $t0, the ivs in $t1/$t2/$t3 and pItemTypes in $t4 -
-// i.e. the same eight registers {a1,a2,a3,t0..t4} handed out one position off, with a1/a2 fixed by
-// the parameters' home-register preference. The counter statement's POSITION in the block is free
-// (gcc reorders it to retail's place either way) and measures: statement first 98.20, as written
-// 99.73, "itemType++; itemCount = itemType;" 99.73, "itemCount = itemType + 1; itemType =
-// itemCount;" 99.73; pointer stores reordered 98.97 (owned first) / 99.71 (qtys first); an extra
-// { } barrier around the sellable block 99.73. A second 3-minute permuter run (1045 iterations) is
-// base=125 best=125, the same verdict as the first: the hand-out is a priority tie broken by allocno
-// number, and every spelling that emits these 2032 bytes ranks the eight the same way.
-/*
+// The coalesced-item counter is a variable of its own, not a reuse of itemType: it dies before
+// the first call, so gcc keeps it in a temp register, and itemCount (live across the whole menu
+// loop) stays in its stack slot. Folding the two measures 95.95% and a frame 8 bytes larger.
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
     u8 redrawWindows = TRUE;
@@ -4131,6 +4085,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
     int itemPrice; // sp88
     int cartTotal = 0; // s3
     int itemCount; // sp90
+    int coalescedCount;
     int i;
 
     currentGold = g_GameState.gold;
@@ -4150,7 +4105,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
     }
 
     // coalesce the item quantities, dropping the empty slots
-    itemType = 0;
+    coalescedCount = 0;
     for (i = 0; i < listLength; i++) {
         if (pInventoryItemIds[i]) {
             if (pInventoryQtys[i]) {
@@ -4163,10 +4118,10 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
                     }
                 }
                 if (isSellable) {
-                    pItemIds[itemType] = pInventoryItemIds[i];
-                    pItemQtys[itemType] = pInventoryQtys[i];
-                    pItemIsOwned[itemType] = 1;
-                    itemCount = ++itemType;
+                    pItemIds[coalescedCount] = pInventoryItemIds[i];
+                    pItemQtys[coalescedCount] = pInventoryQtys[i];
+                    pItemIsOwned[coalescedCount] = 1;
+                    itemCount = ++coalescedCount;
                 }
             }
         }
@@ -4304,8 +4259,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
                 break;
         }
     }
-}*/
-INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
+}
 
 int ShopMenuSellEquipmentMenu(void) {
     u_char itemIDs[8];
