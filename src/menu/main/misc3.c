@@ -46,26 +46,10 @@ typedef struct {
 extern MenuCardPrefix g_MenuCardPathPrefix0;
 extern MenuCardPrefix g_MenuCardPathPrefix1;
 
-/* Best attempt: 97.10% at retail's EXACT 368 bytes / 92 insns (the note this replaces said
-   90.05% / 380 bytes and was stale). Every instruction matches except that retail keeps the
-   u_char parameter in $s2 and the card * 0x10 value in $s1 while this build mirrors them, plus
-   one typed-access reloc (retail names D_801C50AC where we reach g_MenuCardPathPrefix0 + 4 -
-   the same linked bytes).
-   The mirror is unreachable by spelling, measured with -da/-dl on this body: 8 allocnos are
-   processed 75 141 87 73 74 71 115 92 and the dispositions are 73 in 16 (count), 71 in 17
-   (parameter), 115 in 18 (card * 0x10). Quotients floor_log2(refs) * refs * 10000 / (live *
-   size): count 3*9*10000/(58*1) = 4655 -> $s0, parameter 2*5*10000/(55*1) = 1818 -> $s1,
-   card * 0x10 1*3*10000/(19*4) = 394 -> $s2. Retail's arrangement needs card * 0x10 to clear
-   1818 from 394 (4.6x), and both terms are pinned by retail's OWN instruction stream: the
-   parameter stays QI (size 1, which is why retail re-does its andi at four sites) and
-   card * 0x10 spans the strcpy loop (live 19). Re-ordering declarations does not enter the
-   quota - do not chase this pair with statement or declaration order.
-   Learned (keep): `dir` must be declared BEFORE `prefix` (dir at sp+0x10, prefix at sp+0x38;
-   the other order costs a 0x58 frame with a spare $s3 save). firstfile/nextfile are the PSY-Q
-   libapi calls and the compares are against &dir, not 0. The store at 0x4F8A is
-   cardSlotCounts[a0] (a byte, not the s32 cursor at slotWriteCursor that MenuLoadCardChunk
-   uses). Tried and dead besides the above: both operand orders of the compares, returning
-   u_char vs int (int, matching the file's extern). */
+// Best attempt: 99.27% at retail's exact 368 bytes / 92 insns (up from 97.10 — see the reorder below). Residual: ONLY the $s1/$s2 mirror (retail keeps the u_char parameter in $s2 and a0 * 0x10 in $s1; we mirror them) plus the typed-access reloc (retail names D_801C50AC, we reach g_MenuCardPathPrefix0 + 4 — same bytes).
+//    THE REORDER THAT WAS WORTH 2.2 POINTS (this park note previously said statement order could not enter the allocator's quota — that was wrong for the top-of-function store): writing g_MenuCardSlotTotals[a0] = 0; BEFORE retry = 5; restores retail's ori a3,zero,0x5 in the prologue and the following lui/addu %lo sequence, exactly the lever a-global-store-before-the-two-locals-pins-the-missing-li-and-the-s0-s1-roles. A permuter run found it (base 125 -> best 65); its other edit, spelling a0 * 0x10 as 4 * (4 * a0), is inert (measured identical).
+//    The mirror is the lever a-qiparam-size-one-pins-the-saved-pair: -dl gives the parameter '1 bytes' (QI) at 2*5*10000/(55*1) = 1818 against a0 * 0x10's 1*3*10000/(19*4) = 394, so retail's arrangement needs 394 to clear 1818 and every term is pinned by retail's own instruction stream (the parameter stays QI, which is why retail re-does its andi 0xff at four sites; a0 * 0x10 spans the strcpy loop, live 19). Measured dead besides: retry declared u_char (98.13%, 372 bytes), 4 * (4 * a0) for a0 * 0x10 (99.27, identical).
+//    Learned (keep): dir must be declared BEFORE prefix (dir at sp+0x10, prefix at sp+0x38; the other order costs a 0x58 frame with a spare $s3 save). firstfile/nextfile are the PSY-Q libapi calls and the compares are against &dir, not 0. The store at 0x4F8A is cardSlotCounts[a0] (a byte, not the s32 cursor at slotWriteCursor that MenuLoadCardChunk uses).
 /*
 int func_801C8D78(u_char a0) {
     struct DIRENTRY dir;
@@ -74,8 +58,8 @@ int func_801C8D78(u_char a0) {
     s32 retry;
     s32 i;
 
-    retry = 5;
     g_MenuCardSlotTotals[a0] = 0;
+    retry = 5;
     for (i = 0; i < 0x10; i++) {
         g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + i] = 0xFF;
         g_MenuCardChunkInUse[a0][i] = 0;
@@ -98,6 +82,7 @@ int func_801C8D78(u_char a0) {
     return count;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
+
 
 
 
@@ -1051,6 +1036,9 @@ void MenuSetCellGridPanelState(u_char mode) {
    and parks at 86.53% on the SAME fifth save - see the lever
    g-which-four-invariants-are-hoisted, whose .s also shows retail rematerialising
    `lui/addu %lo(g_GameState + 0x1)` per row. Whoever closes one closes both. */
+// Best attempt: 87.02% (268 bytes, 67 insns) under XenoMenu260 (gcc-2.6.0) against retail's 264 bytes / 66 insns; 86.42% under Default (2.7.2), 87.02 -O3. Re-measured this round: the note that read 89.15% was measured on a body whose odd base was not folded, and it is not reproducible - this is the honest number for the body below.
+//    The residual is ONE hoisted invariant and the fifth save it costs. Retail rematerialises the odd byte's base as lui %hi(g_GameState + 0x1) / addiu %lo(...) into the call-clobbered $t0 at the TOP OF EVERY ROW BODY; the compile folds symbol+1 onto $s0 (which holds &g_GameState in the prologue) into 'addiu $s2,s0,1', hoists it out of the loop, and that pseudo takes a fifth callee-saved register: retail's invariant set is $s0 = pRow, $s1 = offset, $s2 = inBuf + 1, $s3 = inBuf (4 saves, 0x58 frame, ra at 0x50), ours is those plus $s4 = inBuf and $s2 = base + 1 (5 saves, ra at 0x54). Everything else in the body is retail's instruction for instruction, including both induction variables, the j/2 svr/sra pair, the inner loop's double lbu of each byte and the copy-back walk.
+//    Measured dead this round: odd index as j + offset + 1 (86.86), odd read via &g_GameState.strings (byte-identical), u8 *pOdd = (u8*)&g_GameState + 1 assigned as the FIRST statement of the row body and read as pOdd[offset + j] (86.94, still folded, so cse2 after loop.c is folding it and not the source spelling - same verdict as the lever g-which-four-invariants-are-hoisted reached on the twin temp3_b func_8001B970). A 3-minute permuter run (1271 iterations, base 801 best 555) won only by moving 'pEntry = g_GameState.strings;' into the break arm, where it is DEAD and leaves pEntry uninitialised in the loop: wrong code, rejected, do not port it. The twin (slus_006.64/system/temp3_b func_8001B970) parks on the same seam at 89.50, so whoever closes one closes both.
 /*
 void func_801CB184(void) {
     u8 inBuf[0x14];
@@ -1079,40 +1067,6 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB184);
 
 
 
-/* Best attempt: 86.36%. The even-byte read wants an advancing pointer
-   (s0 = &g_GameState + i, a1 = s0) and the odd-byte read wants the constant
-   base %hi(g_GameState + 0x1) rematerialised inside the outer loop, which only
-   happens when no register holds &g_GameState. Any source that inits the row
-   pointer before the loop lets gcc CSE &g_GameState into a callee-saved
-   register, which then folds the +1 into it (85.29%); assigning the pointer
-   inside the loop instead makes gcc keep `i` in one register and materialise
-   the base per iteration but lose the strength reduction (86.36%, this one).
-   Tried: pEntry in the for-increment / in the body / indexed form for both
-   reads (78.41%) / int declarations first. */
-/*
-void func_801CB184(void) {
-    u8 inBuf[0x14];
-    u8 outBuf[0x14];
-    u8* pEntry;
-    int i;
-    int j;
-
-    for (i = 0; i < 0x26C; i += 0x14) {
-        pEntry = (u8*)&g_GameState + i;
-        for (j = 0; j < 0x14; j += 2) {
-            inBuf[j] = pEntry[j];
-            inBuf[j + 1] = ((u8*)&g_GameState)[i + j + 1];
-            if (pEntry[j] == 0 && ((u8*)&g_GameState)[i + j + 1] == 0) {
-                break;
-            }
-        }
-        SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
-        for (j = 0; j < 0x14; j++) {
-            pEntry[j] = outBuf[j];
-        }
-    }
-}
-*/
 
 void MenuApplySaveSlot(u32* pSrc) {
     int i;
