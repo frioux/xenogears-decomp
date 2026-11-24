@@ -1483,6 +1483,19 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    the remainder is the allocno tie + the dead andi alone - not a width question.
    Third permuter run deliberately skipped: two runs (555/555 and 360/360 base==best)
    already plateaued on this exact body.
+   Round 446 (-da/-dl allocno dump, gcc-2.6.0 cc1 on the .i with -O2 -G8): the swap is
+   a global-alloc hand-out, not a local tie. The contested pair is pFrame (pseudo 73,
+   POINTER, 39 refs / 78 insns -> 10.0) against the third rot temp (pseudo 87, 2 bytes,
+   15 refs / 35 insns -> 2.57); the processing order is `75 150 73 87 86 85 148 84 74 77
+   71 80 76 81 126 78 125 129 103 79`, so pFrame is handled THIRD and $v0/$a0 are
+   already taken by pseudos 75 (the (countA+1)*3 address offset) and 150, which hands it
+   $v1 - the register retail gives the third rot temp. Retail's $a1 is the parameter
+   register coalesced in place (`addiu a1,a1,24`), and $a1 carries pData (pseudo 72, 6
+   refs / 7 insns, block 0) whose local-allocno penalty in global-alloc's find_reg is what
+   pushes pFrame off it. New spellings measured this round, all exactly 97.90% / 420 bytes
+   and instruction-identical to the old body: `pData = (BattleAnimData*)((s16*)pData + 12);
+   pFrame = (s16*)pData;` (gcc folds the copy+add straight back into `addiu v1,a1,24`), and
+   try_flags screens 2.7.2-cdk 95.38 / -O3 97.9 / -G0 97.9 - no compiler harvests it.
 
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
