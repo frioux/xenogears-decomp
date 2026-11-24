@@ -227,7 +227,44 @@ extern s32 BattleUpdateFrame(void);
       0x138 (stepped by 0x170), with the record at 8(s4) stepped by 0x1C; this body uses a
       second `la g_BattleSlotRecords+4` pointer and %hi/%lo for the far stores.
    Everything else in the arms (queue-store split, case 1/9 and case 3 not storing, the
-   two ori 0x8000 chains in retail order, both BattleReleaseCharSlot paths) is retail. *//*
+   two ori 0x8000 chains in retail order, both BattleReleaseCharSlot paths) is retail. */
+/* PARKED 65.63%, 1140 bytes / 285 insns (retail 1196 / 299; 14 insns short).
+//    Round 441 redo: un-parked and re-measured the 64.20% body, then took it to 65.63 in two
+//    measured steps, both now in the body below.
+//    1. 64.20 -> 65.51: the row base and the command-id read as byte arithmetic off the
+//       symbol - `s32 ofs = arg0 * 0x48; pRows = (u16 *)((u8 *)g_BattleCommandRows + ofs);`
+//       and `switch (*(u8 *)((u8 *)g_BattleActorCommandIds + ofs + i))`. That is retail's own
+//       shape: fp/s8 holds arg0*0x48, s3 = ofs + rows, and the id read re-forms
+//       lui/addiu of the symbol every iteration and then emits `addu v0,fp,v0; addu v0,v0,s2`
+//       (tree sym+ofs then +i). A plain `arr[ofs + i]` emits the two addus the other way
+//       round and through $at.
+//    2. 65.51 -> 65.63: the two flag-word updates in the arm 0/5/7/8 sub-branches written as
+//       `*(u16 *)((u8 *)g_BattleCommandRows + 0x900) |= BattleSlotBitMask(i)`. That IS retail:
+//       the object has `lhu v1,0x900(s7); or; sh v1,0x900(s7)` there with NO relocation, while
+//       the 0x8000 test above it reads the same word through a proper %hi/%lo reloc of
+//       g_BattleSlotFlag8000Mask. One word, two spellings in one function.
+//    NEW EVIDENCE, read off the OBJECT this round (objdump -dr expected/asm/battle/main/misc13.s.o,
+//    not the .s): retail's four far stores carry NO relocation either, so no symbol spelling
+//    can reproduce them - `lui at,0x1; addu at,s4,at; sh/sw -0x717C/-0x7178/-0x70EC/-0x70C4(at)`
+//    are the hp/unk4/unk90/unkB8 stores at +0x8E84/+0x8E88/+0x8F14/+0x8F3C off s4, and
+//    0x10000-0x70C4 is gcc's %hi/%lo split of a CONSTANT, i.e. the 1998 source added
+//    compile-time offsets to a pointer it had derived from g_BattleCommandRows. s4 itself is
+//    g_BattleCommandRows - 0x138 and s5 is - 0x130, i.e. -0x9C and -0x98 in u16 units: three
+//    negative-index/offset spellings off that one anchor. 12 instructions are unreachable
+//    with any symbol spelling and the frame/saved set follows from the rest.
+//    Still unexplained, and the only path to 100: retail keeps the rows base in s7 across the
+//    whole loop (frame 0x58, 10 saved registers) and forms every per-slot address from it,
+//    where this body saves 8 (frame 0x48 today, 0x40 before step 2) and forms the flag word's
+//    address once in the prologue (`addiu s6,v1,0x900`) instead of as a 0x900 displacement.
+//    A spelling that keeps s7 live as the base (rather than a constant pointer) is what would
+//    re-rank the allocator; nothing shippable found for it this round.
+//    Also re-decoded, unchanged: the widths (hp/unk4 read `lh` in arms 0/5/7/8 and 1/9 and
+//    `lhu` in 2/3/10/11 - the same words, so the original had two typed aliases), the
+//    per-slot fields as separate %hi(sym)+s0 accesses with s0 = i*0x170 walked, and
+//    `((u8 *)g_BattleSlotRecords + 4)[i * 0x1C]` scoring identical (1136 bytes, 65.51) to
+//    `g_BattleSlotRecords[i * 0x1C + 4]`, which is kept because gcc already walks that
+//    pointer by 0x1C. */
+/*
 void func_80085618(u8 arg0) {
     s32 i;
     u16 v;
@@ -236,10 +273,10 @@ void func_80085618(u8 arg0) {
     s16 a;
     s16 d;
     u16 *pRows;
-    u8 *pCmd;
+    s32 ofs;
 
-    pRows = &g_BattleCommandRows[arg0 * 0x24];
-    pCmd = &g_BattleActorCommandIds[arg0 * 0x48];
+    ofs = arg0 * 0x48;
+    pRows = (u16 *)((u8 *)g_BattleCommandRows + ofs);
     for (i = 0; i < BATTLE_ACTIVE_SLOT_COUNT; i++) {
         if (g_BattleSlotEnabledFlags[i] == 0) {
             continue;
@@ -248,7 +285,7 @@ void func_80085618(u8 arg0) {
             g_BattleSlotFlag8000Mask |= BattleSlotBitMask(i);
             continue;
         }
-        switch (pCmd[i]) {
+        switch (*(u8 *)((u8 *)g_BattleActorCommandIds + ofs + i)) {
         case 0:
         case 5:
         case 7:
@@ -260,7 +297,7 @@ void func_80085618(u8 arg0) {
                     *(s16 *)&g_BattleSlotEntriesBase[i].hp = a - d;
                 } else {
                     *(s16 *)&g_BattleSlotEntriesBase[i].hp = 0;
-                    g_BattleSlotFlag8000Mask |= BattleSlotBitMask(i);
+                    *(u16 *)((u8 *)g_BattleCommandRows + 0x900) |= BattleSlotBitMask(i);
                     g_BattleSlotEntriesBase[i].activeEffects[0].active |= 0x8000;
                     if (i >= BATTLE_CHAR_SLOT_COUNT) {
                         BattleReleaseCharSlot(i);
@@ -272,7 +309,7 @@ void func_80085618(u8 arg0) {
                     g_BattleSlotEntriesBase[i].unkB8 = c;
                 } else {
                     g_BattleSlotEntriesBase[i].unkB8 = 0;
-                    g_BattleSlotFlag8000Mask |= BattleSlotBitMask(i);
+                    *(u16 *)((u8 *)g_BattleCommandRows + 0x900) |= BattleSlotBitMask(i);
                     g_BattleSlotEntriesBase[i].unkD4 |= 0x8000;
                     g_BattleSlotEntriesBase[i].activeEffects[0].active |= 0x8000;
                     if (i >= BATTLE_CHAR_SLOT_COUNT) {
@@ -337,6 +374,8 @@ void func_80085618(u8 arg0) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
+
+
 
 void BattleResetActorStatDisplay(s32 arg0) {
     s32 i = 2;
