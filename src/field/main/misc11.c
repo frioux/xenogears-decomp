@@ -1676,16 +1676,14 @@ void FieldScriptCheckActorOnScreen(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-// best 96.19% (172 bytes, retail 168 / 42 insns, mine 43): documented blocker, levers.md [c-a-call-argument-constant-folds-early-when-the-compare-load-sinks]. Instruction multiset is otherwise EXACT - the whole body, registers and branch layout match. Only residual: cc1 emits the second call's argument constant `li $4,2` NINE insns early (right after the second FieldScriptVMGetActorIndex call, before the sll chain), so reorg cannot steal it into the jal slot and the slot gets a nop = the one extra instruction. Retail has it adjacent to the jal, so its slot holds `ori a0,2`. Measured: (1) plain `arg = GetArgument(2); if (arg == pActor->walkmeshId)` -> 96.19; (2) hoisted `int walkmeshId = pActor->walkmeshId;` local -> compiles BYTE-IDENTICALLY (copy-propagated), 96.19 - so statement order of the load does not decide the li site; (3) `FieldActor* pFieldActor = &g_FieldActors[...]` pointer local -> addu operand order flips (95.71); (4) negated test with arms swapped -> byte-identical to (1), 96.19. gcc-2.7.2-cdk -O2 -G8 also 96.19 (try_flags). The matched neighbour FieldScriptCheckActorWalkmeshMaterial has THIS exact `jal; ori a0,2` slot, so the shape is reachable in this unit - the difference there is that the compared value (lbu through the triangle table) sits before the call rather than after it. Not permuted: below the 99% permuter gate.
+// best 96.19% (172 bytes, retail 168 / 42 insns, mine 43); re-measured round 470: the same 96.19 twice more, with the call written inline in the compare (no `arg` local) as well: documented blocker, levers.md [c-a-call-argument-constant-folds-early-when-the-compare-load-sinks]. Instruction multiset is otherwise EXACT - the whole body, registers and branch layout match. Only residual: cc1 emits the second call's argument constant `li $4,2` NINE insns early (right after the second FieldScriptVMGetActorIndex call, before the sll chain), so reorg cannot steal it into the jal slot and the slot gets a nop = the one extra instruction. Retail has it adjacent to the jal, so its slot holds `ori a0,2`. Measured: (1) plain `arg = GetArgument(2); if (arg == pActor->walkmeshId)` -> 96.19; (2) hoisted `int walkmeshId = pActor->walkmeshId;` local -> compiles BYTE-IDENTICALLY (copy-propagated), 96.19 - so statement order of the load does not decide the li site; (3) `FieldActor* pFieldActor = &g_FieldActors[...]` pointer local -> addu operand order flips (95.71); (4) negated test with arms swapped -> byte-identical to (1), 96.19. gcc-2.7.2-cdk -O2 -G8 also 96.19 (try_flags). The matched neighbour FieldScriptCheckActorWalkmeshMaterial has THIS exact `jal; ori a0,2` slot, so the shape is reachable in this unit - the difference there is that the compared value (lbu through the triangle table) sits before the call rather than after it. Not permuted: below the 99% permuter gate.
 /*
 void func_80095CC4(void) {
     ActorData* pActor;
-    int arg;
 
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
         pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
-        arg = FieldScriptVMGetArgument(2);
-        if (arg != pActor->walkmeshId) {
+        if (FieldScriptVMGetArgument(2) != pActor->walkmeshId) {
             g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(4);
         } else {
             g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
