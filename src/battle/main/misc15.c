@@ -343,6 +343,11 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
     BattleBeginAnimTask(value);
     BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
+// Charges actor slot arg0's action budget (a u16 per slot) for the cell at (arg1, arg2): the row
+// comes from the party action table or, for a slot whose flags are set, the gear one, and it
+// yields both the argument BattleRunTargetSlotSelection picks the target with and the cost. The
+// cost is charged only when the character carries the row's status bit and the target selection
+// ran; otherwise the menu-denied sound plays. Returns 1 when the cost was paid.
 u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     u8 result;
     u8 canAct;
@@ -350,32 +355,34 @@ u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     u16 entry;
     u8 count;
     s32 off;
-    u8 bit;
+    u8 bitIndex;
 
     result = 0;
     canAct = 1;
     inParty = 0;
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
-        bit = arg1 + arg2 * 2;
-        off = (arg2 * 2 + arg1 + 0x16) * 40 + arg0 * 1520;
-        entry = *(u16 *)(g_BattleCellActionRows + off);
+        bitIndex = arg1 + arg2 * 2;
+        off = (arg2 * 2 + arg1 + 0x16) * sizeof(BattleActionRow) + arg0 * BATTLE_CELL_ACTION_BLOCK_SIZE;
+        entry = ((BattleActionRow *)(g_BattleCellActionRows + off))->flags;
         count = D_800CDD53[off];
-        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask, bit) != 0;
+        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask, bitIndex) != 0;
     } else {
-        bit = arg1 + arg2 * 2;
-        off = (arg2 * 2 + arg1 + 0x15) * 40 + arg0 * 1680;
-        entry = *(u16 *)(g_BattleActionRows + off);
+        bitIndex = arg1 + arg2 * 2;
+        off = (arg2 * 2 + arg1 + 0x15) * sizeof(BattleActionRow) + arg0 * BATTLE_ACTION_BLOCK_SIZE;
+        entry = ((BattleActionRow *)(g_BattleActionRows + off))->flags;
         count = D_800CEF23[off];
-        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].gearConditionMask, bit) != 0) {
+        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].gearConditionMask, bitIndex) != 0) {
             inParty = 1;
         }
     }
-    if (*(u16 *)(D_800CCD38 + arg0 * 0x170) >= count && inParty != 0) {
+    // The three accesses to this row's flags word spell the same address through different labels
+    // (gcc merges a repeated symbol + index address into one register and drops three instructions).
+    if (*(u16 *)(D_800CCD38 + arg0 * sizeof(BattleCommandRow)) >= count && inParty != 0) {
         BattleClearPrimFlagsFourSlots(1);
         g_BattleDisplayState->pulseTriangleActive = 1;
         if (BattleRunTargetSlotSelection(entry, arg0, 0) != 0) {
-            *(u16 *)(D_800CCD36 + arg0 * 0x170 + 2) =
-                *(u16 *)(D_800CCD1C + arg0 * 0x170 + 0x1C) - count;
+            *(u16 *)(D_800CCD36 + arg0 * sizeof(BattleCommandRow) + 2) =
+                *(u16 *)(D_800CCD1C + arg0 * sizeof(BattleCommandRow) + 0x1C) - count;
             result = 1;
         } else {
             g_BattleDisplayState->pulseTriangleActive = 0;
@@ -884,36 +891,27 @@ void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
     BattleBeginAnimTask(value);
     BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
-/* Best: 88.52% (932 bytes vs the original's 884). Same calls, same branch tree,
-   same instruction multiset in every block except two shapes:
-   1. loop-invariant base hoisting. Retail re-forms each of the three command
-      table bases inside the loop (`lui at,%hi(g_BattleCommandSlotIds); addu at,at,v1;
-      sb %lo(g_BattleCommandSlotIds)(at)`); gcc 2.6 hoists all three symbols into s3/s4/s5 in
-      the loop preheader (L8008C66C) and reaches them with `addu v0,v0,sN`,
-      which also grows the frame from 0x28 to 0x38. The same expression outside
-      the loop compiles to retail's at-form, so the source spelling is right and
-      it is the `loop` pass doing it. Tried: a `do { } while (0);` block around
-      the three stores (no change), three separate index locals (loads of
-      g_BattleCommandQueue->count drop from three to one), `int slotStride = 0x40;`
-      (fixes the addu operand order of item 2 but makes the tail index a real
-      `mult` and costs 4 more registers), pointer locals.
-   2. addu operand order at three sites: retail `addu v0,v0,s0` (base first),
-      gcc `addu v0,s0,v0`. `(g_BattleCommandQueue + arg0 * slotStride)[0x3C]` with a
-      variable stride gives retail's order but breaks item 1 further (see above);
-      with the 0x40 literal the order is wrong at exactly the three sites where
-      the pointer lands in $v0 rather than $a0. Both `g_BattleCommandQueue[arg0 * 0x40 +
-      0x3C]` and `(g_BattleCommandQueue + arg0 * 0x40)[0x3C]` measured identical.
-   Everything else matches, including the shared epilogue, `g_BattleDisplayState->primListsPending =
-   result` / `D_800C4928 = result` both storing $s3 (the source has to store the
-   `result` local there, not the literal 1), the `sb` in BattleFreeSlotPrims's
-   jal delay slot, the `addiu v0,v0,0xFF` (255, not -1) form of `x - 1`, and the
-   `slti/bnez` for-loop tail. `make check` was NOT run on the parked body.
-   Round 124: g_BattleCommandQueue and g_BattleDisplayState are typed now (BattleCommandQueue /
-   BattleDisplayState at the top of this file), so the body below compiles as
-   written; the typed slot spelling `g_BattleCommandQueue->slots[arg0].targetSlot` is proven
-   byte-exact by the four *PrimFlags*Slots setters that use it.
-   NEXT: permute this body. */
+/* Best: 93.72% (908 bytes / 227 insns against the original 884 / 221).
+   The ONE residual left is gcc 2.6.0 loop.c hoisting the three command-table base
+   addresses out of the for (i = 0; i < 7; i++) loop: the preheader gets lui+addiu
+   pairs for g_BattleCommandSlotIds / g_BattleCommandCodes / g_BattleCommandRecords
+   into $s6/$s5/$s4 (+8 frame bytes, 6 extra insns) and the stores read
+   addu v0,v0,sN / sb v1,0(v0), where retail re-forms each base inside the loop
+   (lui at,%hi(sym); addu at,at,v1; sb %lo(sym)(at)). The SAME expressions compile
+   to retail's at-form outside the loop (the flags & 0x800 block just above matches
+   exactly), so the source spelling is right and only the invariant motion differs;
+   the v0/v1 mirror at those two stores follows from it.
+   Measured dead: do-while-around-each-store (93.58), the
+   count * sizeof(...) + (mem_addr)sym index-first cast (identical 93.72), a
+   pSlot = base; pSlot[idx] = x; local (hoists the same way). Also gcc-2.7.2 85.50
+   and gcc-2.7.2-cdk 79.36 on this body, so the preset (2.6.0) is right.
+   What got this from 87.36 to here: the old parked body wrote the command-record
+   store as *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72),
+   which on a BattleCommandRecord * adds count*72*0x48 (5184 bytes); retail's
+   stride is 72, so the typed g_BattleCommandRecords[count].slotMask spelling is
+   both correct and the closer match (6 insns back). The three stores are 72-byte
+   (0x48) record strides, hence sizeof(BattleCommandRecord) on the u8 tables and 36
+   on the u16 g_BattleCommandSlotMasks. */
 /*
 s32 func_8008C4A8(u8 arg0) {
     s32 result;
@@ -948,7 +946,7 @@ s32 func_8008C4A8(u8 arg0) {
                 BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
                 g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = g_BattleCommandQueue->unk2DC - 1;
                 g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
-                *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
+                g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleActionSlotMask;
                 g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
             }
         }
@@ -959,8 +957,10 @@ s32 func_8008C4A8(u8 arg0) {
         }
     }
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
+
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 /* Best: 80.20% (1204 bytes against the original's 1200, 301 against 300 instructions).
    The whole shape is transcribed and every block is present in retail's order (5, 4, 0, 1,
