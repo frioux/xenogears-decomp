@@ -226,6 +226,16 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
 // priority 1.0 and the earlier-created pseudo (the load, here) takes $v0, so retail's
 // mirror needs the shift's pseudo created before the load's, which no spelling that
 // keeps the load first reaches.
+// R447 re-measured 98.10 at 496 bytes and added two more: the in-place chain on a NAMED
+// local (flags = pSprite->flags_0xA8; flags &= 0x3FFFFFFF; flags |= slot << 30; store) is
+// BYTE-IDENTICAL to the one-expression body, so a-in-place-chain-on-a-named-local does
+// not reach this one either; a do { } while (0) around only the flags_0xA8 store splits
+// the block and costs an instruction (87.65, 500 bytes). Retail's `sll v0,s5,0x1e` sits
+// in the $v0 whose address temp (s7+0x8CB8) dies two instructions earlier, so both bodies
+// hand that one dying register to one of the two pseudos and the RTL creation order
+// (load, then mask, then shift) decides which - retail's needs shift, mask, word, i.e.
+// the mask forced into a register BEFORE the word load, which expand_binop's andsi3 can
+// never do (its operand is the memory ref), so park here.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 /*
 void func_800BB350(u32 slot) {
