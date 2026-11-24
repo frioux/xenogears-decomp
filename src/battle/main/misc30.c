@@ -651,18 +651,26 @@ void BattleActorSnapToTargetAndFace(BattleActorSprite* pSprite, BattleActorSprit
     BattleFaceActorsTowardEachOther(pSprite, pTarget);
 }
 /* 98.93%, 768 bytes / 192 instructions -- retail's exact size, and the head,
-   the 13-entry dispatch table and every arm's instruction order match.  Three
-   ties are left:
+   all thirteen dispatch arms and the frame match.  Three ties are left:
    1. s-register rotation: retail has pSprite=$s1, index=$s2, code=$s3, ours
-      gives code=$s1, pSprite=$s2, index=$s3.  The head's instruction ORDER
-      (index load, table load, code lbu last) pins the statement order, and
-      every order that creates `code` first also flips the head order (88.33%).
+      gives pSprite=$s1, code=$s2, index=$s3.  Declaration order is not it
+      (declaring code before index measures the identical 98.93), so the pair is
+      local-alloc's ordering.  Every statement order that creates `code` first
+      also flips the head's load order (88.33%), which the note's author measured.
    2. gcc folds the row base into the symbol in the arms
-      (%hi(g_BattleStateWork+0x14e) with lhu 0x0) where retail materialises the
-      plain symbol and reads lhu 0x14e; keeping the base in a pointer local
-      stops the fold but puts the addu destination on the base register where
-      retail's is on the index sum, and costs 2.6% (96.35%).
-   3. the default arm's caller-saved names (a3/v1/t0 against retail's a3/v1/a1).
+      (%hi(g_BattleStateWork + 0x14E) with lhu 0x0) where retail materialises the
+      plain symbol and reads lhu 0x14E; only a statement split stops the fold and
+      both splits measure worse: a `u8 *pRow` local in the 0xFE arm alone 96.35
+      (that arm's load schedule rotates, and the base then CSEs to $s4), the same
+      local at all five sites 74.36 at 816 bytes (pRow becomes callee-saved).
+   3. the default arm's caller-saved names (t0/a3 against retail's a3/v1) -- a
+      consequence of the `g_BattleCommandRowIndex++` spelling retail needs for
+      its store delay slot.
+   The superseded body was missing `case 0xF8`: retail's jtbl_80070A80 entry 5 is
+   .L800B9E24 (the func_800B9284 arm) and entry 6 is the default.  With that added
+   the C emits 13 words against retail's 14-word `.size`; the trailing word looks
+   like the `.align 3` pad of func_800B9F78's table, which starts 8-aligned at
+   +0x90 -- not verified with check_bin.
    Kept, each measured: the one-expression row reads (retail's addu shape, +16%
    over the old pBase/pRow spelling); `rowIndex = g_BattleCommandRowIndex;
    g_BattleCommandRowIndex = rowIndex + 1;` in the 0xF4 arm (retail stores the
@@ -727,6 +735,7 @@ void func_800B9C78(void) {
         case 0xF5:
         case 0xF6:
         case 0xF7:
+        case 0xF8:
         case 0xFA:
             func_800B9284((SpriteData*)pSprite, code);
             BattleSetStateStep(9);
