@@ -523,7 +523,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
    inline is 93.84 / 576; a third base local assigned between the HeapAlloc and
    the pAnim->pEntries store is still 92.54 (the register set shifts: pAnim
    moves to $s2). So the third copy retail has between them is not reachable by
-   declaring the base a second time. */
+   declaring the base a second time.
+   Round 442: re-measured the park body at 97.42 / 588 bytes (the note's number is
+   current) and measured the one shape the note's 92.54 line left open - the
+   chained form `u8 *pBase = pScript; Misc14AnimCfg *pCfg = (Misc14AnimCfg *)
+   pBase; ... pBase = (u8 *)pCfg;` after the HeapAlloc, sums written off pBase.
+   gcc 2.7.2's copy propagation deletes the intermediate (`move s0,a0` only, no
+   `move t1,a0` and no `move s1,s0`) and, because pScript's pseudo then dies at
+   entry, the whole callee-saved set rotates: pAnim $s3 -> $s2, pNodes $s2 ->
+   $s1, frame 0x38 -> 0x30, 92.54 / 580 bytes. So the three-copy chain retail
+   shows is a front-end artifact of the original source, not a spelling: two
+   pseudos for the base cannot both survive copy propagation here. twin_for.py
+   reports no twin for this function. */
 /*
 void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode) {
     Misc14AnimCfg *pCfg = (Misc14AnimCfg *)pScript;
@@ -948,7 +959,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
    QTYs the first free registers, and every compiler in tools/ starts that scan
    at $2; retail's lands at $8. So this looks like a compiler-build trait
    (REG_ALLOC_ORDER / scan start), not a spelling - it needs a different cc1,
-   not a different body. */
+   not a different body.
+   Round 442: un-parked, re-measured 94.29 / 28 bytes / 7 insns (note current),
+   re-parked; twin_for.py reports no twin. */
 /*
 void func_8008BB00(Misc14Entry *pDst) {
     pDst->unk0 = D_80096D88;
