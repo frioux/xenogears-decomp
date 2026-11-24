@@ -1590,7 +1590,36 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 // idiom, but three item cases and no shared gear tail, so it does not carry the answer.
 // The stub is convertible (`convertible.py` OK; the unit owns jtbl_801C5068), so a future
 // fix has to be proved with check_bin.sh gear_shop_menu, not diff_func.sh alone.
-INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
+// ROUND 469: 98.91%, 2528 bytes / 632 insns against retail's 2532 / 633. Improvement this
+// round: LoadImage now takes the pRect pointer variable at BOTH call sites (retail reloads
+// it: 'lw a0,0x78(sp)' before each jal; with '&rect' cc1 folds an 'addiu a0,sp,0x20'
+// instead), 97.64 -> 98.91 and 109 -> 101 differing lines. NOT setRECT: retail writes the
+// four RECT halves straight to the stack ('sh s1,0x20(sp)'), which is the '&rect' form, and
+// the matched neighbour GearShopMenuRenderSellItemRows (this file, 100.00) is spelled exactly
+// this way - setRECT(&sp20) + LoadImage(pRect). Also measured this round, all dead:
+// pRect for every rect use at once (98.56% but the extra pseudo grows the frame to 0xE0 /
+// 635 insns), one GearShopItemRowWork struct over rect+digitCodes+decodedCodes+places with
+// the member form for setRECT/DecodeGlyph and the pointer form for the digit stores,
+// LoadImage and places (97.50 / 2544 / 636), and two permuter runs (881 iters base 921 best
+// 775 = the LoadImage edit above; 1199 iters base 401 best 357 = a no-op if/else around the
+// 0x80 store, not shippable).
+// THE THREE RESIDUALS LEFT, in order of how much they cost:
+// (a) THE SIX SWITCH ARMS mirror one register. Retail puts the gear-table element address in
+// a THIRD register that coalesces with neither dying operand ('addu a0,v0,v1' at the armor
+// and frame sellPrice sites, 'addu v1,v0,v1' at the engine one - base in the destination,
+// index first) and then keeps the price in v1 and pShop in v0; ours lands the element in the
+// index register ('addu v0,v0,v1') and mirrors the pair ('lhu v0,4(v0)' / 'lw v1,0x450(a2)').
+// Only a global-alloc outcome; the source shape (pointer local used for price then
+// equipFlags) is confirmed by retail's one addu plus two loads at each of the three sites.
+// (b) ONE INSTRUCTION, and it is the same rebasing the matched neighbour shows: retail's
+// places base is 'lw t1,0x78(sp)' + 'addiu a1,t1,0x10', i.e. 'places[j]' reached off the
+// spilled pRect with the 0x10 being the giv's 4*j at j=4 and 0x28 the displacement -
+// GearShopMenuRenderSellItemRows has exactly that ('addiu a1,fp,0x10' / 'lw v0,0x28(a1)')
+// with pRect held in a callee-saved register instead of spilled. Ours folds the base to 'addiu a1,sp,0x30' because
+// pRect is not yet reloaded at that point, which is one instruction cheaper and unfixable
+// from the source ('((s32*)((u8*)pRect + 0x28))[j]' materialises the 0x28 per use, 2544).
+// (c) 'move s4,zero' sits one slot later than retail's inside the preheader init group
+// (scheduler noise, same instruction count).
 /*
 s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     RECT rect;
@@ -1688,11 +1717,11 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
             SystemDecodeGlyphCodesN((u16*)((u8*)&rect + 8), sp38, 5);
             g_Menu->pShop->strItemQuantities[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24, 1);
             setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
-            LoadImage(&rect, pWorkspace);
+            LoadImage(pRect, pWorkspace);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->strItemNames[i], i, 0x80, pItemAffordable[i] + 1);
             GearShopMenuSetVertices(g_Menu->pShop->strItemNames[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->strItemNames[i].width, FONT_LETTER_HEIGHT);
             setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
-            LoadImage(&rect, pWorkspace);
+            LoadImage(pRect, pWorkspace);
             DrawSync(0);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->strItemQuantities[i], i, 0x80, pItemAffordable[i] + 2);
             GearShopMenuSetVertices(g_Menu->pShop->strItemQuantities[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->strItemQuantities[i].width, FONT_LETTER_HEIGHT);
@@ -1716,8 +1745,10 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
 
     HeapFree(pWorkspace);
     return sellPrice;
-}
-*/
+}*/
+INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
+
+
 
 
 void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
