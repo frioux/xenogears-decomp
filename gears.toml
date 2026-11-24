@@ -247,7 +247,7 @@ build_variables = {
     gcc = "gcc-2.7.2-cdk-psx",
     maspsx_flags = "--aspsx-version=2.67 --expand-div --use-comm-section --run-assembler"
 }
-paths = [ "slus_006.64/system/temp2." ]
+paths = [ "slus_006.64/system/temp2.", "slus_006.64/system/temp2_b." ]
 
 # battle/main/misc20 is a gcc-2.6.0 unit, proven the way section 5 asks for:
 # func_8009E410 is 100.0% under gcc-2.6.0 -O2 -G8 and 99.68% under Default, and the
