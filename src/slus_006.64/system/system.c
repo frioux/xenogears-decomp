@@ -1155,6 +1155,7 @@ extern void func_80031798(void* pOt, void* pPrim);
 // 97.26%, 1564 bytes (2 instructions short). Repro: unpark and diff.
 void func_80034888(SystemString* pString, u_long* pOt, int context) {
     SystemStringNode* pNode;
+    u_long* pTileWord;
     int i;
     int row;
 
@@ -1285,7 +1286,9 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
                    pString->y - SYSTEM_STRING_CLEAR_MARGIN_Y);
         setWHFast(&pString->clearTile[context], (pString->maxWidth | 1) * 4 + SYSTEM_STRING_CLEAR_PAD_WIDTH,
                   pString->maxChars * pString->lineHeight + SYSTEM_STRING_CLEAR_PAD_HEIGHT);
-        SystemLinkPrim(pOt, &pString->clearTile[context]);
+        pTileWord = (u_long*)&pString->clearTile[context];
+        *(u_long*)&pString->clearTile[context] = (*pTileWord & 0xFF000000) | (*(u_long*)pOt & 0xFFFFFF);
+        *(u_long*)pOt = (*(u_long*)pOt & 0xFF000000) | ((u_long)&pString->clearTile[context] & 0xFFFFFF);
     }
 
     pString->flags &= ~SYSTEM_STRING_FLAG_PALETTE_DOUBLE;
