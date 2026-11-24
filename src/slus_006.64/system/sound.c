@@ -2795,6 +2795,14 @@ void func_8003B424(AudioManager* pManager) {
 }
 */
 
+// Round 463 re-measure: 96.74%, retail's exact 748 bytes / 187 insns, the same 4 clusters and the
+// same single cause (srl v0,s8,0xf against srl v0,v0,0x16). No new spelling attempted: lever
+// d-combine-folds-through-any-intervening-statement measures that the fold survives copies,
+// reorders and declaration changes, and its two named doors are both shut here - a different basic
+// block would need a branch retail does not have (any branch between the two shifts changes bytes,
+// so it is unspellable by construction, not by measurement), and an untracked value would need the
+// volume to come from memory, i.e. a stack slot retail does not have. Clusters 2-4 stay downstream
+// as round 450 proved.
 // Round 450 re-measure: 96.74%, retail's exact 748 bytes / 187 insns, 8 differing
 // lines in 4 clusters - unchanged, and the body is real (not a stale object).
 // Cluster 1 is the wall (lever d-combine-folds-through-any-intervening-statement):
@@ -2912,9 +2920,9 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pManager->flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
+
 
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
     AudioManager* pEntry = pManager->pBackup;
