@@ -2015,12 +2015,24 @@ extern void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, 
 //    whole 5-instruction index chain, re-formed after the call (441 -> 432 insns).
 // 2. The tail re-assigns the actor pointer per matrix component (`pActor =
 //    &g_FieldActors[actorIndex]`), which is why retail reloads the volatile there.
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
+// 76.88% (1700 bytes against retail's 1776; 425 instructions against 444; frame 0x58 and the
+// saved set s0..s7+fp+ra are retail's exactly). Retail holds actorIndex * sizeof(FieldActor) in
+// a callee-saved register ($s2) for the whole first region and re-does only the one `addu` per
+// statement; gcc keeps the same value in a caller-saved scratch (a3, copied to s6 before the
+// calls) and re-forms the 5-instruction index chain after every call, and it fills retail's
+// load-delay nops with the re-formed address - that is the whole 19-instruction gap. The
+// source-level offset local is what makes gcc spend the 9th callee-saved register and $fp for
+// the 7th parameter (see the round notes above); without it the saved set is 9 words and the
+// score is 73.82%. Tried this round: per-statement `pActor = ...` locals (76.83), the inline
+// cast spelling (76.88), gcc-2.6.0 (75.05), gcc-2.7.2-cdk (68.11). No twin exists.
 /*
 void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind, s32 clutIndex, s32 spriteVariant,
                    s32 skipAnimTick) {
     FieldActor* pActor;
     ActorData* pActorData;
     SpriteData* pSpriteData;
+    s32 actorOffset;
     u16 texX;
     u16 texY;
     s32 frameWidth;
@@ -2029,37 +2041,47 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
 
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 
-    g_FieldActors[actorIndex].pActorData->spriteId = spriteId;
-    g_FieldActors[actorIndex].pActorData->spriteSource = spriteVariant;
+    actorOffset = actorIndex * (s32)sizeof(FieldActor);
 
-    pActorData = g_FieldActors[actorIndex].pActorData;
+    ((FieldActor*)((u8*)g_FieldActors + actorOffset))->pActorData->spriteId = spriteId;
+
+    ((FieldActor*)((u8*)g_FieldActors + actorOffset))->pActorData->spriteSource = spriteVariant;
+
+    pActor = (FieldActor*)((u8*)g_FieldActors + actorOffset);
+    pActorData = pActor->pActorData;
     pActorData->flags134 = (pActorData->flags134 & ~0xF) | (clutIndex & 0xF);
 
-    pActorData = g_FieldActors[actorIndex].pActorData;
+    pActor = (FieldActor*)((u8*)g_FieldActors + actorOffset);
+    pActorData = pActor->pActorData;
     pActorData->flags130 = (pActorData->flags130 & 0xCFFFFFFF) | ((modelKind & 3) << 28);
 
-    pActorData = g_FieldActors[actorIndex].pActorData;
+    pActor = (FieldActor*)((u8*)g_FieldActors + actorOffset);
+    pActorData = pActor->pActorData;
     pActorData->flags134 = (pActorData->flags134 & ~0x10) | ((skipAnimTick & 1) << 4);
 
     if (modelKind == 0) {
         texY = g_FieldSpritePlacements[spriteId].texY;
         texX = g_FieldSpritePlacements[spriteId].texX;
         if (clutIndex == 0) {
-            if (g_FieldActors[actorIndex].spriteFlags & 1) {
-                SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
+            pActor = (FieldActor*)((u8*)g_FieldActors + actorOffset);
+            if (pActor->spriteFlags & 1) {
+                SpriteDestroy(pActor->pSpriteData);
             }
             pSpriteData = SpriteAllocFromAnimFile(pAnimFile, 0x100, (s16)(spriteId + 0x1E0), texX, texY, 0x40);
         } else {
-            if (g_FieldActors[actorIndex].spriteFlags & 1) {
-                SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
+            pActor = (FieldActor*)((u8*)g_FieldActors + actorOffset);
+            if (pActor->spriteFlags & 1) {
+                SpriteDestroy(pActor->pSpriteData);
             }
             pSpriteData = SpriteAllocFromAnimFileWithClut(pAnimFile, clutIndex * 0x10 + 0x100, (s16)(spriteId + 0x1E0),
                                                           texX, texY, 0x40, clutIndex);
         }
-        g_FieldActors[actorIndex].pSpriteData = pSpriteData;
+        pActor = (FieldActor*)((u8*)g_FieldActors + actorOffset);
+        pActor->pSpriteData = pSpriteData;
     } else {
-        if (g_FieldActors[actorIndex].spriteFlags & 1) {
-            SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
+        pActor = (FieldActor*)((u8*)g_FieldActors + actorOffset);
+        if (pActor->spriteFlags & 1) {
+            SpriteDestroy(pActor->pSpriteData);
         }
         if (modelKind == 1) {
             pSpriteData = SpriteAllocFromAnimFile(pAnimFile, 0x100, (s16)(spriteId + 0xE0), 0x280,
@@ -2137,8 +2159,8 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
     pSpriteData->position.z = g_FieldActors[actorIndex].pActorData->position.vz;
 
     g_FieldScriptSpritesBuilt++;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
+}
+*/
 
 
 
