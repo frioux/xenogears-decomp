@@ -913,12 +913,23 @@ void BattleClearAllSlotStates(void) {
         g_BattleCurWorkBlock->slotAmounts[i] = 0;
     }
 }
-// PARKED 99.51% (round 435), retail's exact 3024 bytes / 752 instructions, every branch offset
-// matching. The 43 differing lines are now TWO allocation mirrors plus one operand order:
-// (a) the four row loops and the maxHp/maxMp pair keep the base in $v0 where retail has $v1
-//     (retail lui/lw v1 + addu v1,v1,v0 + lbu v0; ours lui/lw v0 + addu v0,v0,v1 + lbu v1);
-// (b) the characterId == 4 arms mirror $a0/$a2 the same way, and their sum is still index-first
-//     (ours addu a0,a1,a0, retail addu v1,v1,a1).
+// PARKED 99.56% (round 448), retail's exact 3024 bytes / 752 instructions, every branch offset
+// matching, 76 differing lines left in THREE allocation mirrors:
+// (a) the characterId == 4 arms load g_BattleActingSlot into $a2 where retail has $a0, so the
+//     workblock pseudo takes $a0 (retail $v1) and its sum is index-first (addu a0,a0,a1) where
+//     retail has addu v1,v1,a1;
+// (b) the two doubling loops (0x106B / 0x223B) keep the base in $v0 and the index sum in $v1,
+//     retail the other way round (same instruction, lui/lw v0 vs lui/lw v1);
+// (c) the two halving loops mirror the index through $v1/$v0 and carry their trailing
+//     andi v1,a0,0xff across the backedge where retail carries andi v0,a0,0xff.
+// ROUND 448 WINS, keep them (permuter-found, both are the DROP-INTERMEDIATE-POINTER shape):
+//   99.51 -> 99.52  pDst = (u8*)(pWorkBlock = g_BattleCurWorkBlock) + i * 8 in the characterId
+//                   != 4 arm - the embedded temp on THIS arm only (the == 4 arm must stay plain)
+//   99.52 -> 99.56  delete `pDst = (u8*)g_BattleCurWorkBlock;` and write the four stores at
+//                   0x3F4/0x3F5/0x800/0x801 straight off ((u8*)g_BattleCurWorkBlock + (snapOffset
+//                   = i * K)); pDst then only feeds the two arms. 86 -> 76 differing lines.
+//   Round 448 permuter: run 1 (906 it, base 370 -> 365, found the pWorkBlock temp), run 2 (1049
+//   it, 365 -> 330, found the pDst drop), run 3 (1021 it, base 330 best 330 = PARKED HERE).
 // THIS ROUND'S WINS, keep them: the EMBEDDED-ASSIGNMENT temp (an assignment written inside the
 // address, lever b-embedded-assignment-temp-for-addu-order) closed 15 of the 59 differing lines
 // and is the only spelling that ever moved this function off 98.83:
@@ -928,7 +939,7 @@ void BattleClearAllSlotStates(void) {
 //   99.49 -> 99.51  the same temp on the u32/u16 pair at 0x3F4/0x800
 //   each edit is one site and the temp must sit INSIDE the address; assigning it in its own
 //   statement hoists the base load instead. The temp is s32 snapOffset / gearRowOffset.
-// MEASURED THIS ROUND, do not redo (all worse than 99.51):
+// MEASURED (earlier rounds, do not redo; all worse than 99.51):
 // - double negation on the six byte stores, (u8*)base - -(i * 8): 98.23, cc1 commoned the
 //   negated index into one `negu` and printed `subu`, where retail has addu (+1 instruction).
 // - a typed BattleRow view of the row tables, [i * 38 + j].unk12[1]: 96.85; the same cast but
@@ -945,7 +956,11 @@ void BattleClearAllSlotStates(void) {
 // pDst += i * 8; pDst[k]) gives base-first for ONE site (98.64) but drops to 98.43 across all
 // six; the 2-statement pointer local for those six is 98.39; the shared-pDst variant loses three
 // instructions (96.04); the in-place pointer inside a row loop moves the hoisted i*0x5F0 from a1
-// to a2 (98.43). Five permuter runs total, the last (878 iterations) finding the embedded temp.
+// to a2 (98.43). Eight permuter runs total on this body, 878 iterations the largest before
+// round 448's (see above); the residual left is THREE local-alloc mirror pairs of the class
+// tools/rounds/levers.md calls unreachable-by-spelling (a-global-allocno-priority-is,
+// a-lreg-dump-gives-the): same instructions, registers exchanged. No -dl dump has been taken
+// on THIS body yet - that is the cheapest next probe, not another spelling.
 // Source facts, do not re-derive: the four growth statements divide by 20 (retail 0x66666667
 // >> 3), not 10; the two row tables are 0x26 and 0x2A rows of 0x28 bytes at +0x1058 and +0x2228
 // with the flag byte at row +0x13 and must be indexed FLAT or gcc re-forms the base; the gates
@@ -963,6 +978,7 @@ void func_80097D5C(void) {
     u8 *pSlotBytes;
     u8 *pStats;
     u8 *pDst;
+    BattleWorkBlock *pWorkBlock;
     s32 gearRowOffset;
     s32 snapOffset;
 
@@ -985,7 +1001,7 @@ void func_80097D5C(void) {
             pDst = (u8 *)g_BattleCurWorkBlock + i * 8;
             pDst[0x1028] = g_BattleActingSlot->unk04[0] + g_BattleActingSlot->unk04[0x18];
         } else {
-            pDst = (u8 *)g_BattleCurWorkBlock + i * 8;
+            pDst = (u8 *)(pWorkBlock = g_BattleCurWorkBlock) + i * 8;
             pDst[0x1028] = g_BattleActingSlot->attack + g_BattleActingSlot->unk04[0];
         }
         ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x1029] = g_BattleActingSlot->evade;
@@ -994,13 +1010,12 @@ void func_80097D5C(void) {
         ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102C] = g_BattleActingSlot->ether;
         ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102D] = g_BattleActingSlot->etherDefense;
         ((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8))[0x102E] = g_BattleActingSlot->agility;
-        pDst = (u8 *)g_BattleCurWorkBlock;
-        ((u32 *)(pDst + (snapOffset = i * 8)))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3C[0])[0];
-        ((u32 *)(pDst + (snapOffset = i * 8)))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3C[4])[0];
-        ((u16 *)(pDst + (snapOffset = i * 4)))[0x800] = g_BattleActingSlot->maxHp;
+        ((u32 *)((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8)))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3C[0])[0];
+        ((u32 *)((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 8)))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3C[4])[0];
+        ((u16 *)((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 4)))[0x800] = g_BattleActingSlot->maxHp;
         pSlot = g_BattleActingSlot;
         effectFlags = 0;
-        ((u16 *)(pDst + (snapOffset = i * 4)))[0x801] = g_BattleActingSlot->maxMp;
+        ((u16 *)((u8 *)g_BattleCurWorkBlock + (snapOffset = i * 4)))[0x801] = g_BattleActingSlot->maxMp;
         g_BattleActingSlot->attack += g_BattleActingSlot->attackFromEquipment;
         pSlot->blockFlags = 0;
         g_BattleActingSlot->defense += g_BattleActingSlot->defenseFromEquipment;
@@ -1129,8 +1144,7 @@ void func_80097D5C(void) {
         g_BattleCurWorkBlock->characterAmounts[i] = 0;
         g_BattleCurWorkBlock->gearAmounts[i] = 0;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 
 void BattleResetSlotConditionCounters(void) {
