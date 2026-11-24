@@ -1563,6 +1563,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
         }
     }
 }
+// Round 459: re-measured, still 97.90 percent / 420 bytes = retail's 420 / 105 insns. Residual is exactly two things: (a) the pFrame-vs-countA+1-temp register swap - retail addiu a1,a1,24 in the bnez delay slot (pFrame coalesced onto the pData parameter register) with the skip temp in v1; ours puts pFrame in v1 and the temp in a1, an exact swap of the same two registers, all other insns equal; (b) retail's dead duplicated 'andi v0,t3,0xffff' in the loop-head bnez delay slot where we emit nop. Rounds 63-446 already ruled out every statement order, pointer spelling, width (s16/u16/s32 sweep), pData++ forms and two permuter runs (555/555, 360/360); the round-446 allocno dump shows pFrame handled third after pseudos 75/150 and handed v1. Nothing hand-editable is left; this needs a different allocator, not a spelling.
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
 /* 86.05% (1136 bytes vs retail's 1144; the structure below is CONFIRMED - every call,
