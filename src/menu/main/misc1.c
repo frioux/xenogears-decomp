@@ -712,4 +712,3 @@ void MenuInitializeCursorPrims(void) {
         SetDrawMode(&g_Menu->pCursorPrims->drawModeDimEffect[i], 0, 0, GetTPage(0, 2, 0x180, 0), &rect);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C72BC);

@@ -371,7 +371,7 @@ build_variables = {
 # (x & 0x1800) == 0x1800 test - a compiler difference, not a source one. The unit's
 # only already-matched function (MenuApplyGearWeapons) stays 100.0 under 2.6.0.
 paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main/misc10.", "menu/main/misc12.", "menu/main/misc2.",
-    "menu/main/misc11_r1.", "menu/main/misc1.", "menu/main/misc11.",
+    "menu/main/misc11_r1.", "menu/main/misc1.", "menu/main/misc1_a.", "menu/main/misc11.",
     # The func_801E56E8 .. func_801E68AC run of menu/main/misc11_r2, split out of
     # that unit by config/menu.yaml: its C is byte-identical under 2.6.0 and cannot
     # match on 2.7.2 (loop.c hoists the POLY_F4 colour 0x80 out of the loop
