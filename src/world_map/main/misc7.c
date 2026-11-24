@@ -375,7 +375,12 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // between the unk54 `li v1,-2048` and its sw (4 slots later). cc1's own .s and RTL put the
 // copy at that point, so it is the placement of that copy, not a post-pass reorder.
 // Round 377 re-measured after unpark: 94.87, compiles, 156 bytes.
-// Best: 94.87%, 156 bytes / 39 insns = retail's exact size; re-measured this round.\n// ONE residue: the first call's `move a0,s0` sits 3 slots late (after `li v1,-2048`\n// instead of just before the pos.y store). sched2 placement: the copy has no\n// dependences, so no source statement moves it (rounds 377 and this round re-measured\n// round 377's five pArg/0xFFF80000-local shapes: identical body). Presets ruled out.\n
+// Best: 94.87%, 156 bytes / 39 insns = retail's exact size; re-measured this round.
+// ONE residue: the first call's `move a0,s0` sits 3 slots late (after `li v1,-2048`
+// instead of just before the pos.y store). sched2 placement: the copy has no
+// dependences, so no source statement moves it (rounds 377 and this round re-measured
+// round 377's five pArg/0xFFF80000-local shapes: identical body). Presets ruled out.
+
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
@@ -1264,7 +1269,22 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
 // do-block (87.57), both `<< 12` stores ahead of the angleZ load (92.58), two declaration
 // orders and a separate rotation local (identical), permuter 4 min -j2 (2056 iterations,
 // base 95 best 95, NONE).
-// Best: 96.25% (this round, up from 96.08), 240 bytes / 60 instructions = retail's exact.\n// The find: the two view-angle reads (retail lh g_WorldMapViewRotationY / -Z) go through a\n// 2-element array alias, extern s16 g_WorldMapViewRotation[] __asm__(g_WorldMapViewRotationY)\n// declared beside the g_WorldMapCameraRotTable alias. Reading [0]/[1] is a zero/no-addend\n// relocation on retail's own symbol instead of the ((s16 *)&g_WorldMapCameraRot)[1] addend\n// form, and it keeps retail's whole register set (slot pointer $v1, angle in $a0). The\n// label alias is what stops store-to-load folding, so the lui/lh/sll survives; spellings\n// that block it another way lose the allocation: volatile s16 *pViewY store+read 87.98\n// (cc1 emits lhu + sll 16/sra 4), volatile store + plain read 93.33, plain store + array\n// read with the load written after both <<12 stores 93.17, u32 angleZ + v=angleZ 92.75.\n// Residues: (a) the 0x500000 constant lands in $a0 here and in $a1 in retail (its lui and\n// both its sw) - the allocator tie misc8's func_8008390C parks on too; (b) the Z lh is one\n// slot early (between the two <<12 stores where retail has it after both).\n// Kept: cameraHeight is declared with the 0x500000 initialiser (identical body, tidier),\n// the state/command/unk5C do-block is load-bearing, permuter 4 min -j2 finds nothing.\n
+// Best: 96.25% (this round, up from 96.08), 240 bytes / 60 instructions = retail's exact.
+// The find: the two view-angle reads (retail lh g_WorldMapViewRotationY / -Z) go through a
+// 2-element array alias, extern s16 g_WorldMapViewRotation[] __asm__(g_WorldMapViewRotationY)
+// declared beside the g_WorldMapCameraRotTable alias. Reading [0]/[1] is a zero/no-addend
+// relocation on retail's own symbol instead of the ((s16 *)&g_WorldMapCameraRot)[1] addend
+// form, and it keeps retail's whole register set (slot pointer $v1, angle in $a0). The
+// label alias is what stops store-to-load folding, so the lui/lh/sll survives; spellings
+// that block it another way lose the allocation: volatile s16 *pViewY store+read 87.98
+// (cc1 emits lhu + sll 16/sra 4), volatile store + plain read 93.33, plain store + array
+// read with the load written after both <<12 stores 93.17, u32 angleZ + v=angleZ 92.75.
+// Residues: (a) the 0x500000 constant lands in $a0 here and in $a1 in retail (its lui and
+// both its sw) - the allocator tie misc8's func_8008390C parks on too; (b) the Z lh is one
+// slot early (between the two <<12 stores where retail has it after both).
+// Kept: cameraHeight is declared with the 0x500000 initialiser (identical body, tidier),
+// the state/command/unk5C do-block is load-bearing, permuter 4 min -j2 finds nothing.
+
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
