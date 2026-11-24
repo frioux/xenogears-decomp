@@ -527,6 +527,29 @@ int ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 channel) {
  *     CdControlF(CdlSetloc, (void*)pLoc);
  *     return 0;
  * }
+ *
+ * ROUND 446: re-measured the body above (unchanged, still 94.47 / 948 / 237)
+ * and closed the one lead left open, "make the const 1 a source variable so it
+ * stops being rematerialisable". It does not work:
+ *   - the body above minus the `s32 nIndex` copy (use `index` in all three
+ *     DecodeX calls) reproduces retail's frame and arg assignment EXACTLY - 9
+ *     callee-saved, a4/a5/a6 in $s6/$s7/$s8, a7/a8/a9 copied to 0x10/0x18/0x20
+ *     - but only 234 insns / 936 bytes (94.02): cc1 rematerialises the 1 with a
+ *     `li` at each of its two uses where retail hoisted one `li $s5,1`, so
+ *     retail spends the last register on const-1 and not on a7.
+ *   - `s32 nOne = 1;` used for both g_ArchivePendingReadCount and
+ *     g_ArchiveCdDriveState, assigned right after the ArchiveDecodeAlignedSize
+ *     call (retail's `li $s5,1` position), is constant-propagated away like the
+ *     literal: still 234 / 936, and the perturbed store order costs 92.58. gcc
+ *     2.7.2 offers no source-visible way to keep a straight-line constant in a
+ *     register.
+ * The two bodies are therefore one allocno apart in opposite directions: with
+ * the copy 9 registers / 3 args (a4,a5,a8), without it 9 / 4 args (a4..a7);
+ * retail is 9 / 3 args plus const-1. Not tried: hoisting
+ * `pLoc = &g_ArchiveCdCurLocation` to the top of the function so a pointer live
+ * across the debug branch displaces a7 - it moves retail's lui/addiu pair out
+ * of the slot before CdIntToPos, so it is only worth doing together with a way
+ * to keep that pair in place.
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
 
