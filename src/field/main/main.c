@@ -198,6 +198,24 @@ extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, int arg1, int 
 // If the preheader is ever closed, the same change is owed to func_80077AB4's park below,
 // which is BETTER on the array extern too (its note's 75.93 vs 68.07) and is now parked on
 // the same declaration this file has.
+// Round 463 re-measured and closed four more spellings of the preheader (all against this body):
+//  - loop bound 'pCount[0]' (the count read through the count SYMBOL): the count address then
+//    needs its own callee-saved register across the calls, so the frame grows to 0x40 with an
+//    extra 'sw s5' and the body is 141 insns / 564 bytes (95.21 with the pSoundList statement
+//    dropped and the base taken from the symbol; 96.62 with it kept, see next line).
+//  - 'pCount[0]' bound + the pSoundList assignment moved INSIDE the body: THIS IS RETAIL'S
+//    PREHEADER ORDER (count load first, then the base), 96.62%, but 139 insns / 556 bytes -
+//    with the count anchored at &count, gcc gives the entries base $s4 and derives the cursor
+//    with one 'addiu s2,s4,-136', so retail's second instruction ('move s2,s4') never exists.
+//    It cannot link, so it is not the park.
+//  - a struct-typed extern at the entries base ('FieldSoundList g_FieldActorModelSlotArchiveBase'
+//    + 'pSoundList->count' as the bound): 96.26 / 560 / 30 differing lines - the count load is
+//    re-formed from the symbol with a register of its own ('lui v0' + 'lw v0,136(v0)') instead
+//    of being reached at 0x88 of the entries base.
+// So the two halves of retail's preheader are exclusive from source: the count must be anchored
+// at the entries base (0x88(s4), which the parked body reproduces exactly), and the base then
+// has to be born BEFORE the test - which is the one instruction order left. Do not re-run these;
+// the next idea has to make one instruction serve both roles.
 /*
 void func_80077884(void) {
     int i;
@@ -249,6 +267,8 @@ void func_80077884(void) {
     ArchiveStartStreamQueue(D_800B2394, 0, 0);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
+
+
 
 
 extern s32* D_801E8644;
@@ -472,6 +492,7 @@ void FieldUpdateFrame(void) {
 // shape family is exhausted, the next idea has to materialise the 0 before the
 // first compare without constant-folding it away.
 // Round 450 re-measure: un-parked the body above, still 96.67% / 120 bytes (retail's size). 's32 result = 0; ... return result;' on the guard path is 96.33% (worse: the zero return lands in $v0 but the compute rematerialises), so the new_var body stays the best.
+// Round 463 re-measured the if/else form (it IS retail's block shape: 'if (a != 1 || b != 0) result = 0; else result = ...; return result;' puts the 0 in the first bne delay slot exactly as retail does) but the guard's registers come out swapped: retail has the D_800ADBD0 load in $a0 and the constant 1 in $v1, this shape has the load in $v1 and the 1 in $v0 (96.33%, 120 bytes, 16 differing lines). 's32 mode = D_800ADBD0;' as a statement above the test is byte-identical to it, and the 'result = 0; if (a == 1 && b == 0) return -(...); return result;' two-return form costs an extra j (91.50 / 128 bytes). So the guard's allocation is the whole residual, not the exit-block shape.
 /*
 s32 func_80077E10(void) {
     int new_var;
@@ -482,6 +503,8 @@ s32 func_80077E10(void) {
     return -((FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x800) != 0);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077E10);
+
+
 
 
 // FieldMain's field-state globals; none of them have a home header yet.
