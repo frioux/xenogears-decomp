@@ -547,6 +547,40 @@ extern Vec4 g_BattleEffectPosX;
 // into two amount * 2 / 3; velocity.vz for the second ratan2 argument; the
 // stateTimer/moveReentryTimer swap kept in loop 1; and a 4-minute permuter run
 // (base 1890, best 1690) whose candidate deleted bestAmount = amount - wrong code.
+// 98.38% (2124 bytes = retail's EXACT size, 528 vs 528 instructions, 20 differing
+// lines, all of them the two "step added to two globals" sites).
+// THE HANDLE THAT BROKE THE PARK WIDE OPEN (round 460): share ONE scratch variable
+// for every value that flows into the effect slots' vertical logic - the loop-1
+// interpolation `t`, the abs'd dBase, the percent/angle and its in-place halving and
+// doubling, the loop-2 interpolation `t`, the loop-2 average `y` - instead of giving
+// each a local. That single change moved the callee-saved hand-out from the slot
+// POINTER to the amount family ($s0 in retail), and with it 144 of the 164 differing
+// lines: 96.42 -> 96.95 at once, then 97.50 / 97.56 / 97.61 from the spelling fixes
+// below, then 98.37 and 98.38 from two statement orders. Retail's s0 really does hold
+// six different values in disjoint ranges (mflo s0 at the loop-1 divide, move s0,v0 /
+// negu s0,s0 for the abs, the in-place sra/sll of the amount, the loop-2 divides, and
+// addiu s0,sp,64 for &point later on), which is what a shared variable looks like and
+// what the old "pinned allocno" note misread as an unreachable rotation.
+// Spelling fixes measured on the way, all byte-neutral except the score:
+//  - the three point interpolations are `amount * (base.X - center.X)`, not the other
+//    way round: retail's `mult s0,v0` takes the amount first (9 lines);
+//  - `hit = 1;` comes BEFORE `point = base;` / `point = center;` (retail's `li t0,0x1`
+//    fills the delay slot of the two point-selection arms, 2 lines);
+//  - `bestAmount = amount;` comes AFTER `p->moveEndTimer = amount / 3 + 12;`, which is
+//    what keeps the `/3` multiply on $s0 in the `beqz amount` delay slot (24 -> 20);
+//  - loop 2 updates stateTimer BEFORE moveReentryTimer while loop 1 does the reverse
+//    (retail is genuinely inconsistent between the two, 2 differing lines).
+// WHAT IS LEFT, and it is scheduling only: retail groups BOTH loads and then BOTH
+// stores at each site (`lw v1,232(s1) / lhu a0,2326(s1) / mfhi / subu / addu / addu /
+// sw / sh`) while this body lets the second load slide past the mfhi+subu and stores
+// in between (`lw / mfhi / subu / lhu / addu / sw / addu / sh`); in loop 2 retail also
+// hoists `lhu v1,2326(s1)` six instructions above the moveEndTimer store. Both sites
+// are the same construct, both bodies are retail's exact size, and swapping the two
+// statements, splitting step per loop, and a 4-minute permuter run (base 865 best 692)
+// do not move it - the permuter's winner overwrote stateTimer instead of adding to it,
+// i.e. wrong code. Next lever: an explicit local for the two loads, or the permuter.
+// Screened before the shared-variable find (so re-screen if it stalls): 2.6.0 95.19,
+// 2.7.2-cdk 94.09, -O3 83.99, -G0 96.42 at the old body; Default is right.
 /*
 s32 func_80075B50(BattleActor* p) {
     BattleEffectSlot* pSlot;
@@ -561,12 +595,8 @@ s32 func_80075B50(BattleActor* p) {
     s32 actionId;
     s32 hitCount;
     s32 bestAmount;
-    s32 t;
-    s32 dBase;
     s32 dCenter;
     s32 dPos;
-    s32 y;
-    s32 angle;
     s32 diff;
     s32 step;
 
@@ -582,23 +612,23 @@ s32 func_80075B50(BattleActor* p) {
         }
         hit = 0;
         if (base.y < pSlot->pos.vy && pSlot->pos.vy < center.y) {
-            t = ((pSlot->pos.vy - center.y) << 12) / (base.y - center.y);
-            point.x = (((base.x - center.x) * t) >> 12) + center.x;
-            point.y = (((base.y - center.y) * t) >> 12) + center.y;
-            point.z = (((base.z - center.z) * t) >> 12) + center.z;
+            amount = ((pSlot->pos.vy - center.y) << 12) / (base.y - center.y);
+            point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
+            point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
+            point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
             hit = func_80075888(pSlot->prevPos.vx, pSlot->prevPos.vz, pSlot->pos.vx, pSlot->pos.vz, point.x, point.z, ((u8*)p->pScript)[0x13]);
         } else if (pSlot->unk34 < ((u8*)p->pScript)[0x13]) {
-            dBase = __builtin_abs(base.y - pSlot->prevPos.vy);
+            amount = __builtin_abs(base.y - pSlot->prevPos.vy);
             dCenter = __builtin_abs(center.y - pSlot->prevPos.vy);
             dPos = __builtin_abs(pSlot->pos.vy - pSlot->prevPos.vy);
-            if (dBase < dCenter) {
-                if (dBase < dPos) {
-                    point = base;
+            if (amount < dCenter) {
+                if (amount < dPos) {
                     hit = 1;
+                    point = base;
                 }
             } else if (dCenter < dPos) {
-                point = center;
                 hit = 1;
+                point = center;
             }
         }
         if (!hit) {
@@ -606,18 +636,18 @@ s32 func_80075B50(BattleActor* p) {
         }
         p->lightAlpha = 0xFF;
         p->stateFlags |= 0x20;
-        angle = pSlot->percent;
+        amount = pSlot->percent;
         diff = (ratan2(pSlot->velocity.vx, pSlot->velocity.vz) - p->angle) & 0xFFF;
         if ((u32)(diff - 0x601) >= 0x3FF) {
             if (p->flags & 4) {
                 BattlePlayActorSoundPair((u8*)p, 0xF, &point, 1);
-                amount = angle / 2;
+                amount = amount / 2;
                 p->lightAlpha = 0x80;
             } else {
                 BattlePlayActorSoundPair((u8*)p, 0xC, &point, 1);
             }
         } else {
-            amount = angle * 2;
+            amount = amount * 2;
             actionId = 3;
             BattlePlayActorSoundPair((u8*)p, 0xC, &point, 1);
         }
@@ -629,9 +659,9 @@ s32 func_80075B50(BattleActor* p) {
             hitCount++;
         }
         g_BattleEffectPosX = point;
-        bestAmount = amount;
         g_BattleEffectEntryCount = 0x10;
         p->moveEndTimer = amount / 3 + 12;
+        bestAmount = amount;
         goal = point;
         pSlot->active = 0;
         break;
@@ -647,19 +677,19 @@ s32 func_80075B50(BattleActor* p) {
         hit = 0;
         if (pRecord->slotFlags.flags & 2) {
             if (base.y < pRecord->pos.y && pRecord->pos.y < center.y) {
-                t = ((pRecord->pos.y - center.y) << 12) / (base.y - center.y);
-                point.x = (((base.x - center.x) * t) >> 12) + center.x;
-                point.y = (((base.y - center.y) * t) >> 12) + center.y;
-                point.z = (((base.z - center.z) * t) >> 12) + center.z;
+                amount = ((pRecord->pos.y - center.y) << 12) / (base.y - center.y);
+                point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
+                point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
+                point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
                 hit = func_80075888(pRecord->prevPos.x, pRecord->prevPos.z, pRecord->pos.x, pRecord->pos.z, point.x, point.z, ((u8*)p->pScript)[0x13]);
             }
         } else {
-            y = (pRecord->pos.y + pRecord->prevPos.y + pRecord->endPos.y + pRecord->prevEndPos.y) / 4;
-            if (base.y < y && y < center.y) {
-                t = ((y - center.y) << 12) / (base.y - center.y);
-                point.x = (((base.x - center.x) * t) >> 12) + center.x;
-                point.y = (((base.y - center.y) * t) >> 12) + center.y;
-                point.z = (((base.z - center.z) * t) >> 12) + center.z;
+            amount = (pRecord->pos.y + pRecord->prevPos.y + pRecord->endPos.y + pRecord->prevEndPos.y) / 4;
+            if (base.y < amount && amount < center.y) {
+                amount = ((amount - center.y) << 12) / (base.y - center.y);
+                point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
+                point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
+                point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
                 hit = BattleActorHitTestCircle((BattleActor*)pRecord, point.x, point.z, ((u8*)p->pScript)[0x13]);
             }
         }
@@ -687,8 +717,8 @@ s32 func_80075B50(BattleActor* p) {
         }
         p->moveEndTimer = amount;
         step = amount * 6 / 5;
-        p->moveReentryTimer += step;
         p->stateTimer += step;
+        p->moveReentryTimer += step;
         p->effectPosition = point;
         if (amount) {
             hitCount++;
@@ -712,6 +742,7 @@ s32 func_80075B50(BattleActor* p) {
     return 0;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
+
 
 
 
