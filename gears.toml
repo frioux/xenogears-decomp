@@ -420,9 +420,10 @@ build_variables = {
 # battle/main/misc28 and misc34 are uniformly cdk as well (screened with
 # tools/scripts/screen_unit.sh: every C function in both units is 100.0 under
 # 2.7.2-cdk, and their parked bodies are 100.0 there against 63-99% under 2.7.2).
-paths = [
-    "battle/main/misc27."
-]
+# battle/main/misc27 moved to XenoBattleTailCdk0 in round 456: the whole unit screens
+# 100.00 under cdk -G0 (try_flags --all), and its three `atfree` stubs (func_800B3F04
+# 1014 insns, func_800B51B0, func_800B5588) are only reachable from a -G0 unit.
+paths = []
 
 # The park sweep's -G0 units: a parked body that is 100.0 only with -G0, while every
 # function already matched in the unit stays 100.0 that way (the unit holds a global's
@@ -434,7 +435,7 @@ build_variables = {
     gp_flag = "-G0",
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
-paths = [ "battle/main/misc32.", "battle/main/misc28.", "battle/main/misc30.", "battle/main/misc33.", "battle/main/misc34.", "battle/main/misc26.", "battle/main/misc31.", "battle/main/misc29.", "battle/main/misc35.", "battle/main/misc27_b." ]
+paths = [ "battle/main/misc32.", "battle/main/misc28.", "battle/main/misc30.", "battle/main/misc33.", "battle/main/misc34.", "battle/main/misc26.", "battle/main/misc31.", "battle/main/misc29.", "battle/main/misc35.", "battle/main/misc27_b.", "battle/main/misc27." ]
 
 [[build_preset]]
 name = "XenoFieldNoGp"
