@@ -111,7 +111,7 @@ extern void BattleDrawTextSprites(u8 *p);
 extern void BattleLayoutTextWindowList(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
 extern s32 BattleUpdateTextPadInput(BattleTextList *p, s32 a1);
-extern void func_80081A44(void);
+extern void BattleUpdateOptionTextInput(void);
 extern void BattleDrawVibrationOptions(void);
 extern s32 BattleGetTextWidth(u32 a0);
 extern void BattleSetTextColor(s32 a0);
@@ -592,7 +592,7 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
     }
 }
 
-void func_80081A44(void) {
+void BattleUpdateOptionTextInput(void) {
     switch (g_BattleMode) {
     case 1:
         switch (g_BattleSlotConfirmFlags) {
@@ -704,7 +704,7 @@ void BattleUpdateTextWindow(void) {
     ControllerMergeStates();
     p = g_BattleCurrentTextList;
     if (p == g_BattleOptionTextList) {
-        func_80081A44();
+        BattleUpdateOptionTextInput();
     } else {
         if (p != 0) {
             if (g_C1ButtonStateReleased & 1) {

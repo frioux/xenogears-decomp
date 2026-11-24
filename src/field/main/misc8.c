@@ -680,7 +680,7 @@ void func_800815F0(void) {
                 continue;
             }
             pUpdateIndex = &g_FieldSpriteUpdateIndex[partyId];
-            func_80081F80(pSpriteData, D_800B14F0[pUpdateIndex[0]].rotation, pFieldActor);
+            FieldSetSpriteStepFromAngle(pSpriteData, D_800B14F0[pUpdateIndex[0]].rotation, pFieldActor);
             ringFlags = D_800B14F0[pUpdateIndex[0]].scriptFlags;
             if (g_FieldPartyMoveInProgress == 1) {
                 g_FieldSpriteUpdateIndex[0] = (g_FieldSpriteUpdateIndex[0] + 1) & 0x1F;
@@ -794,7 +794,7 @@ extern s32 D_800C3910;
 extern u_char g_FieldPartyMoveInProgress;
 extern s32 g_PlayerActorIndex;
 int FieldCharacterIdToPartyId(int characterId);
-void func_80081F80(SpriteData*, s16, FieldActor*);
+void FieldSetSpriteStepFromAngle(SpriteData*, s16, FieldActor*);
 
 // This unit only tests the party slot against zero, and the original loads it signed.
 typedef struct {
@@ -903,7 +903,7 @@ extern void* g_FieldActorModelPointers[];
 // then-block of the angle test it lands first and the model arm falls into the
 // mask tail instead of jumping over it. The 0x40000 arm writes pSprite->moveSpeed
 // (0x18), not step.y.
-void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
+void FieldSetSpriteStepFromAngle(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
     s16 a;
     int scale;
 
@@ -1388,7 +1388,7 @@ void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
         pos.vz = pActor->move.vz;
         angle = pActor->rotation.vy & FIELD_ANGLE_MASK;
     } else {
-        func_80081F80(pSprite, angle, pFieldActor);
+        FieldSetSpriteStepFromAngle(pSprite, angle, pFieldActor);
         pos.vx = pSprite->step.x;
         pos.vy = pSprite->step.y;
         pos.vz = pSprite->step.z;
@@ -1509,7 +1509,7 @@ void FieldConvertIVec3ToSVector(SVECTOR* pDst, IVEC3* pSrc) {
 
 void SpriteSetDirection(SpriteData*, s16);
 
-void func_80081F80(SpriteData*, s16, FieldActor*);
+void FieldSetSpriteStepFromAngle(SpriteData*, s16, FieldActor*);
 
 /* 96.86% (144 vs retail 148 bytes): the frame is 0x18 instead of 0x20 and the
    one missing instruction is retail's copy of rotation.vy out of the load
@@ -1581,7 +1581,7 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
                 pActorData->rotation.vx = angle;
             } while (0);
             pActorData->rotation.vy = angleCopy;
-            func_80081F80(pSprite, pActorData->rotation.vx, pActor);
+            FieldSetSpriteStepFromAngle(pSprite, pActorData->rotation.vx, pActor);
             angle = pActorData->rotation.vy | 0x8000;
             pActorData->rotation.vx = angle;
             pActorData->rotation.vy = angle;

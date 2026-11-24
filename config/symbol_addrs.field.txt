@@ -1121,3 +1121,4 @@ g_FieldTextBoxFrameIndex = 0x800ADE94; // type:s32
 g_FieldCursorFrameRects = 0x800ADEDC; // type:RECT
 g_FieldContinueArrowFrameRects = 0x800ADF04; // type:RECT
 FieldSnapPartyToPlayer = 0x80077268;
+FieldSetSpriteStepFromAngle = 0x80081F80;

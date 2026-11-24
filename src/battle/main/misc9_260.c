@@ -100,7 +100,7 @@ void BattleStoreActorSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     pRow = g_BattleSlotWordRegs[arg1];
     pRow[(*ppCmd)->operand1] = next << 2;
 }
-void func_8007E438(BattleCommand **ppCmd, u8 arg1) {
+void BattleStoreCharSlotMatchedTagMask(BattleCommand **ppCmd, u8 arg1) {
     u16 acc = 0;
     s32 i = 2;
     u16 *pField;

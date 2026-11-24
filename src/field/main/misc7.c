@@ -574,7 +574,7 @@ void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
         g_FieldScriptVMCurActor->curAnimationId = animationId;
         FieldSetGearModelAnimationForActor(pSprite, animationId, g_FieldScriptVMCurFieldActor, g_FieldScriptVMCurActor);
     }
-    func_80081F80(pSprite, g_FieldScriptVMCurActor->rotation.vx, g_FieldScriptVMCurFieldActor);
+    FieldSetSpriteStepFromAngle(pSprite, g_FieldScriptVMCurActor->rotation.vx, g_FieldScriptVMCurFieldActor);
 }
 
 extern s16 g_FieldWalkmeshTriCount;

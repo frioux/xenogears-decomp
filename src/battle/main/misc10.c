@@ -287,7 +287,7 @@ extern void func_8007DCF8(u8 **ppCommand, u8 slot);
 extern void func_8007DE78(u8 **ppCommand, u8 slot);
 extern void func_8007DFD4(u8 **ppCommand, u8 slot);
 extern void BattleStoreActorSlotFlagMask(u8 **ppCommand, u8 slot);
-extern void func_8007E438(u8 **ppCommand, u8 slot);
+extern void BattleStoreCharSlotMatchedTagMask(u8 **ppCommand, u8 slot);
 extern void BattleStoreActorSlotMatchedTagMask(u8 **ppCommand, u8 slot);
 extern void BattleDwordRegAdd(u8 **ppCommand, u8 slot);
 extern void BattleDwordRegSub(u8 **ppCommand, u8 slot);
@@ -611,7 +611,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleStoreActorSlotFlagMask(ppCommand, slot);
         break;
     case 0x67:
-        func_8007E438(ppCommand, slot);
+        BattleStoreCharSlotMatchedTagMask(ppCommand, slot);
         break;
     case 0x68:
         BattleStoreActorSlotMatchedTagMask(ppCommand, slot);
