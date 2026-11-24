@@ -139,6 +139,13 @@ segments:
       - [0x21574, c, main/misc17]
       - [0x25F88, c, main/misc18]
       - [0x2A5EC, c, main/misc19]
+      # func_8009A9D0 (0x2AEE0..0x2AF54) is the other 2.6.0-only function of misc19:
+      # under Default its signed `/100` comes out `mfhi a1 / sra a0,a1,5` where retail
+      # has `mfhi a0 / sra a0,a0,5` (99.66, 116 bytes at retail's 29 insns), and
+      # gcc-2.6.0 reproduces it. So it is its own one-function TU on XenoLibrary, and
+      # the four slot-flag functions after it stay on Default as main/misc19_c.
+      - [0x2AEE0, c, main/misc19_r3]
+      - [0x2AF54, c, main/misc19_c]
       # func_8009ADA0 (0x2B2B0..0x2B40C) is 100.00 only under gcc 2.6.0 - 2.7.2's own
       # expand_divmod gets all four `/20`,`/50` divisions wrong (88.68, 356 bytes vs
       # retail's 348) - so that one function is its own TU on the XenoLibrary preset
