@@ -622,34 +622,41 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 
-// PARKED 95.22%, 2504 bytes / 626 insns (retail 2488 / 622). Whole body decoded: the 3-buffer
-//   D_800C3A70 alloc/free loops, both queue writes, the 13-row key walk, the per-command
-//   sprite loop, the 13-arm status ladder with the case-12 body, the queue[0x2E4]
-//   BattleUpdateFrame path, the 6-arm + case-8 ladder, the last 3-arm ladder (case 0/1/3),
-//   and all four BattleDrawSpritePackage / three func_80086028 blocks are retail's; the
-//   twelve 'addiu' ladder arms, both 'sltiu' guards, both jtbl operands and the two
-//   distinct free-loop tail shapes match. Twin: this is func_80086F98's sibling (its park
-//   above names it BattleDrawActorCommandColumn) - same skeleton, func_80086028 instead of
-//   func_80086C88 and the icon status index derived from the matched row instead of
-//   (arg0+1)*3.
-//   RESIDUAL 1, the whole 20-byte surplus: the u8 parameter arg1 is SPILLED
-//   ('sb a1,24(sp)' at entry + four 'lbu x,24(sp)' reloads) and the frame is 96 where
-//   retail has 88; retail keeps it in $s8. So this body has ONE MORE value live across a
-//   call than retail's nine (s0 = o$, s1 = j, s2 = i, s3 = matched, s4 = spriteId,
-//   s5 = row, s6 = arg0, s7 = drawn, s8 = arg1); ours lands arg0 $s5, row $s6,
-//   spriteId $s1, j $s2, i $s3, matched $s4 - a pure rotation plus the spill.
-//   RESIDUAL 2: that rotation (names only, no instruction differs).
-//   Tried and measured, do not redo: removing the BattleDrawSpritePackage return temp
-//   (94.97 / 2508, unchanged - gcc coalesces it); dropping the `pQueue` local and
-//   spelling the inner key byte read off the global (95.22 / 2504, one instruction
-//   better, the spill survives); permuter 4 min from this body
-//   (base 4135 -> best 1200, but the find is '(j = i)' at the block-B call, which
-//   clobbers the ladder counter that the very next '0x13 - j' status index reads - wrong
-//   code, rejected); try_flags gcc-2.6.0 95.22, gcc-2.7.2-cdk 78.03, so Default is right.
-//   Next lever: the 10-second -da/-dg allocno dump on this body to see which pseudo
-//   outranks arg1 and how wide the margin is (levers.md a-global-allocno-priority-is /
-//   a-near-miss-allocno-quotient); a 4% margin is two instructions of live range, a 10x
-//   gap is a wall.
+// PARKED 98.56%, 2496 bytes / 624 insns (retail 2488 / 622). The whole 20-byte
+//    arg1 SPILL is gone: retail's frame 88, saved set s0-s7+fp and 'fp = arg1'
+//    are now exact, and every 'andi X,fp,0xff' reload is retail's.
+//    WHAT CLOSED IT (new, round 460): in the case-8 and case-3 arms the two draw
+//    calls' x arguments shared 'i * 0x10', so gcc CSEd that multiply across the
+//    first BattleDrawSpritePackage call; the CSEd pseudo took one of the ten
+//    callee-saved registers and the raw arg1 lost its home. Retail re-forms the
+//    multiply from i after each call ('sll a2,s2,0x4' in the jal delay slot).
+//    Writing the second icon's x as '(i + 1) * 0x10 + 0x54' (same value as
+//    'i * 0x10 + 0x64', a different tree) breaks the CSE: 95.22 -> 98.56, and it
+//    is also the more readable spelling ("the column after the first icon").
+//    Note the naive attempts do NOT work because gcc canonicalises RTL:
+//    '(i << 4) + 0x64' is the same insn as 'i * 0x10 + 0x64' (measured, 95.22,
+//    unchanged).
+//    REMAINING 8 bytes, all measured, none source-shaped:
+//    1. Two instructions of delay-slot/reorg placement: retail leaves
+//       'move s0,zero' (o = 0 for the next free loop) in the 'beqz s7' delay slot
+//       and puts the 'g_BattleDisplayState[0xA8] = 1' store in the 'jal
+//       BattleUpdateFrame' delay slot; this build takes the beqz slot for
+//       'sltiu s3,9' and the jal slot for 'move s0,zero', which also leaves one
+//       real 'nop' (lbu-use hazard) before 'sb ...,0x5D8F'.
+//    2. The register rotation is now one slot: the arg1*0x170 temporary lands in
+//       $s6 here and $s7 in retail (and retail's $s7 'drawn' is dead by then).
+//    3. 'lbu 86(at)' vs retail's 'lbu 0(at)' is the typed g_BattleWorkBlock[arg1]
+//       access (same linked bytes, objdiff cannot fold it).
+//    Tried and measured this round, all worse or equal: '(i << 4) + 0x64' /
+//    '(i << 4) + 0x68' (95.22, identical object - RTL canonicalisation). Earlier
+//    rounds, do not redo: removing the BattleDrawSpritePackage return temp
+//    (94.97), dropping the pQueue local (95.22/2504), permuter 4 min (best edit
+//    clobbered the ladder counter - wrong code), try_flags 2.6.0 95.22 and
+//    cdk 78.03, and declaration reordering (no instruction changes, only names).
+//    Next lever if anyone picks this up: the two delay-slot placements, i.e. what
+//    makes reorg prefer the loop init over the pending store. Both switch tables
+//    (jtbl_800702B8, jtbl_800702F0) still diff as .rodata with byte counts that
+//    match retail's layout (13 words + 4 pad, 9 words), so the switch C is right.
 /*
 void func_800861D0(u8 arg0, u8 arg1) {
     s32 i;
@@ -794,7 +801,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
                     g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
                                                 (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                                       (0x5640 + (s32)g_BattleSpriteColumnWork)),
-                                                i * 0x10 + 0x64, 0xD0 - row * 0x10);
+                                                (i + 1) * 0x10 + 0x54, 0xD0 - row * 0x10);
                     row = func_80086028(arg1, row, i,
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x13 - j],
                                         (u_long **)(D_800C3A70 + (row / 2) * 4), 1);
@@ -821,7 +828,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
                     g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
                                                 (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                                       (0x5640 + (s32)g_BattleSpriteColumnWork)),
-                                                i * 0x10 + 0x68, 0xD0 - row * 0x10);
+                                                (i + 1) * 0x10 + 0x58, 0xD0 - row * 0x10);
                     func_80086028(arg1, row, i,
                                   g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x16 - j],
                                   (u_long **)(D_800C3A70 + (row / 2) * 4), 1);
@@ -839,6 +846,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
+
 
 u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
     s32 ok = 1;
