@@ -342,56 +342,7 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     }
     MenuRenderFrame();
 }
-/* PARKED 99.74% (392 bytes, retail's exact size, 98 insns, instruction multiset identical).
-   The ONE difference is the register the loaded gearId takes up: retail loads it into
-   a0 and keeps it there (lbu a0,780 / beq a0,s2 / addiu a0,a0,0xB in the branch delay
-   slot / andi a0,a0,0xff in place), ours loads into v0 and folds the u_char truncation
-   into the copy to the argument register (andi a0,v0,0xff). The frame is retail's
-   exactly (0x20, ra/s2/s1/s0 only), which proves gearId is NOT live across the first
-   MenuLoadCharacterNameTexture call: every one of the three uses is in place on the
-   loaded value, i.e. retail has ONE quantity here where our spelling has a ternary
-   result plus a separate narrowing, and local-alloc hands that block's quantities
-   $5/$2/$3 and never $4, so a0 is not one of the registers it gives out here.
-   Measured, all 99.74 or worse: the same ternary inlined as the call's first argument
-   with the array expression written twice (99.74, byte-identical, gcc CSEs the load);
-   ALL 120 declaration orders of the five locals; u_char/u32/s32 gearId; the ternary
-   assigned back to the u_char local (97.65, the 0xFF arm's li is then dropped);
-   an if/else writing the same local (97.76); an intermediate u_char textureId (97.65);
-   an intermediate s32 + separate (u_char) cast at the call (96.73 / 388 / 97 insns,
-   the ternary result still lands in v0); the cast on the arm vs on the whole ternary
-   vs none; reusing the dead menuCharacterId local.
-   Not a preset question: 99.74 under gcc-2.7.2 too, and the matched neighbours drop
-   (MenuMovePointerCursor 94.70, MenuSetupPointerCursors 80.21), so 2.6.0 is right;
-   -O1 and -O3 are far off. A cc1_probe replica of the same expression with simpler
-   operands puts the value in a2, so the register is decided by the surrounding
-   allocation; a -dl/-da dump of this body (round 421) puts block 6's eleven quantities
-   in $2/$3/$5 only, with v0 free at the gearId load.
-   Two counters are load-bearing: writing `j * 2` for the first call's second argument
-   (the natural spelling) is 93.87 / 404 bytes and grows a third callee-saved counter,
-   because characterIndex's u_char width is what yields sll a1,s0,1 / andi a1,a1,0xFE;
-   and writing the second call's 6 + (characterIndex * 2) stops the strength
-   reduction (94.28 / 400).
-   A u_char intermediate with the arm cast explicit measures the same 97.65 / 388 /
-   97 insns as the uncast one (the shape turns beq+j into bne and loses a word).
-   Three permuter runs on this body found nothing (1650 iterations best==base, 991
-   best==base, round 421 1217 iterations base 25 best 25).
-   Round 439 re-measured (99.74 again) and closed the remaining spellings, all 99.74:
-   the inverted ternary ((gearId != NONE) ? (u_char)(gearId + 0xB) : NONE), the mask
-   form (cond ? NONE : gearId + 0xB) & 0xFF, both arms cast to u_char, and gearId
-   declared inside the if block; a fourth permuter run (1360 iterations, 181 s) came
-   back base=25 best=25. What those runs also show is why the register cannot be
-   reached: the if/else store-back bodies (97.76 / 388 / 97 insns) DO put the load,
-   the addiu and the andi all in a0 (lbu a0,780 / addiu a0,a0,0xB / andi a0,a0,0xff),
-   but gcc sinks the single truncation past the branch there and the whole thing
-   becomes a select (bne + li + one shared andi, no j), i.e. 97 insns - the a0 chain
-   and retail's j-with-arm-truncation are mutually exclusive in this compiler, and
-   every 98-insn spelling (the correct shape) allocates the ternary result to v0.
-   Round 453 re-measured this body (99.74 again, 392 / 98 insns) with GEAR_ID_NONE in
-   place of CHARACTER_ID_NONE and closed nothing new: the residual is still the single
-   local-alloc hand-out of the ternary result ($2 where retail has $4).
-   Parked body below:
-*/
-/*
+
 void func_801D2D38(void) {
     s32 i;
     s32 j;
@@ -416,14 +367,17 @@ void func_801D2D38(void) {
             characterIndex = j;
             MenuLoadCharacterNameTexture(menuCharacterId, characterIndex * 2);
             gearId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
-            MenuLoadCharacterNameTexture((u_char)((gearId == GEAR_ID_NONE) ? GEAR_ID_NONE : gearId + 0xB), 6 + (j << 1));
+            if (gearId != GEAR_ID_NONE) {
+                MenuLoadCharacterNameTexture(gearId + 0xB, 6 + (j << 1));
+            } else {
+                MenuLoadCharacterNameTexture(GEAR_ID_NONE, 6 + (j << 1));
+            }
         }
     }
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
     MenuTweenCharacterWindows(1, 0);
     MenuCreatePlayTimeWindow();
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
+}
 
 void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);
