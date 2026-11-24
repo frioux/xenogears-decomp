@@ -22,6 +22,13 @@
 // Distance, in VRAM units, between two rendered rows of a string
 #define SYSTEM_STRING_LINE_HEIGHT 14
 
+// Bytes one width unit of a row occupies in the glyph buffer: one u16 on each of
+// the lineHeight VRAM rows the glyph spread touches
+#define SYSTEM_STRING_CHAR_BUFFER_UNIT_BYTES (SYSTEM_STRING_LINE_HEIGHT * 2)
+
+// A row's image rect is this many width units wider than the row it holds
+#define SYSTEM_STRING_IMAGE_PAD_WIDTH 3
+
 // The clear tile a string is erased with overhangs its text box: this far left
 // and up, and this much wider and taller
 #define SYSTEM_STRING_CLEAR_MARGIN_X 7
@@ -218,12 +225,12 @@ void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y,
     pString->maxChars = maxChars;
     pString->maxWidth |= 1;
     pString->spriteWidth = pString->maxWidth << 2;
-    pString->imageWidth = pString->maxWidth + 3;
+    pString->imageWidth = pString->maxWidth + SYSTEM_STRING_IMAGE_PAD_WIDTH;
 
     HeapSetCurrentContentType(HEAP_CONTENT_MES_WORK);
     pString->pChars = HeapAlloc(pString->maxChars * sizeof(SystemStringChar), HEAP_ALLOC_BEST_FIT);
     HeapSetCurrentContentType(HEAP_CONTENT_MES_IMAGE);
-    pString->pCharBuffer = HeapAlloc(pString->imageWidth * 0x1C, HEAP_ALLOC_BEST_FIT);
+    pString->pCharBuffer = HeapAlloc(pString->imageWidth * SYSTEM_STRING_CHAR_BUFFER_UNIT_BYTES, HEAP_ALLOC_BEST_FIT);
 
     setlen(&pString->clearTile[0], 3);
     pString->clearTile[0].colorCode = SYSTEM_STRING_TILE_CODE << 24; // r,g,b = 0, code in the top byte
@@ -1294,7 +1301,7 @@ int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
     g_SystemString.spriteWidth = (s16)(mode | 1) * 4;
     primitiveCode = SYSTEM_STRING_RECT_CODE;
     g_SystemString.pCur = pCur;
-    g_SystemString.imageWidth = (mode | 1) + 3;
+    g_SystemString.imageWidth = (mode | 1) + SYSTEM_STRING_IMAGE_PAD_WIDTH;
     g_SystemString.unk68 = 1;
     do {
         g_SystemString.waitFrames = 0;
