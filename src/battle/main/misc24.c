@@ -177,8 +177,10 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
     }
     return BattleOffsetBySin;
 }
-// PARKED, best 74.36% / 156 bytes = retail's exact size, 39 vs 39 insns (round 441
-// re-measured the honest typed body). The only difference is where the -1 constant
+// History for the OTHER spelling of this body (the 0x98 store in retail's source
+// slot), which re-measures 74.36: the -1 constant home lands at slot 5, between
+// `li v0,0x6B` and its `sb` - see the note below for why the body parked here
+// instead. The only difference is where the -1 constant
 // home lands: retail's `addiu v1,zero,-1` is insn 1, ahead of the 0x3C/0x5C/0x39
 // constant triplet, while gcc 2.6.0 puts it at slot 5 (between `li v0,0x6B` and its
 // `sb`). Every other instruction is in retail's order, so this is one displaced
@@ -209,9 +211,18 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
 // statement can explain retail's early home) and retail's own store order only fits
 // the honest body, so this is the body to keep parked. Not chased further: same
 // wall in two binaries, 2 permuter runs, 4 presets screened.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
+// PARKED, best 94.87% / 156 bytes = retail's exact size, 39 vs 39 insns (round 467, re-measured from scratch: the round-441 body re-reads 74.36).
+// The only delta is the -1 constant's slot: retail loads li v1,-1 at insn 0 and its first user sh v1,0x98 (sh v1,152) sits at insn 14; every other instruction is identical.
+// This body (declaration initialisers, the 0x98 store written first) gets the load to insn 0 but the store sinks to 8, one displaced insn.
+// With the 0x98 store in retail's source slot the store lands at 14 and the load hoists only to 5 (74.36, the round-441 body). Retail's (load 0, store 14) needs a 13-insn hoist of the load across four sw's; 2.6.0 hoists 9.
+// Round 467 sweep of the 0x98 statement's source position 0..10 with the declarations kept: 94.87, 89.74, 79.49, 72.77, 69.18 x5, 74.36, 74.05 - the front is the maximum. s32 instead of s16 on both locals: byte-identical, 94.87.
+// twin_for: no twin. Sibling func_801E3534 (lib_gear/main/main) is this exact function, byte-for-byte the same 39 insns, and sits on the same wall at 94.87 with 2 permuter runs and 4 presets already screened there.
 /*
 void func_800AA898(BattleActor *pActor, s32 arg1, s32 arg2, s32 arg3) {
+    s16 negOne = -1;
+    s16 one = 1;
+
+    pActor->stepIndex = negOne;
     pActor->blockTag = 0xFFFF;
     pActor->parentActorSlot = 0xFF;
     pActor->depthShade = 0x6B;
@@ -221,12 +232,11 @@ void func_800AA898(BattleActor *pActor, s32 arg1, s32 arg2, s32 arg3) {
     pActor->pActionTableLow = arg3;
     pActor->pActionTableHigh = 0;
     pActor->commandCount = 0;
-    pActor->stepIndex = -1;
     pActor->followTargetId = 0;
     pActor->unk35 = 0;
     pActor->useScaledMatrices = 0;
     pActor->isBusy = 0;
-    pActor->savedActorMask = -1;
+    pActor->savedActorMask = negOne;
     pActor->rotOffset[0] = 0;
     pActor->rotOffset[1] = 0;
     pActor->rotOffset[2] = 0;
@@ -242,11 +252,11 @@ void func_800AA898(BattleActor *pActor, s32 arg1, s32 arg2, s32 arg3) {
     pActor->posX = 0;
     pActor->posY = 0;
     pActor->posZ = 0;
-    pActor->moveDistance = 1;
+    pActor->moveDistance = one;
     pActor->skipGroundSnap = 0;
-    pActor->groundTriangleIndex = -1;
-}
-*/
+    pActor->groundTriangleIndex = negOne;
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 
 // Appends one command byte to the actor's pending command queue, or, when the
 // queue is empty, seeds the actor's current command from the source actor's
