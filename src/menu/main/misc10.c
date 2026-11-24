@@ -564,10 +564,11 @@ void MenuFreeGearScreenBuffers(void) {
     MenuLoadResourceSet(0x13);
 }
 /* PARKED 99.66% - 1812 bytes, retail's exact size; 453 instructions, the same
-   instruction multiset. Re-measured this round (round 431): the ONLY residual
-   is the callee-saved mirror - retail keeps `s32 slot` in $s2 and `u8 lastSlot`
-   in $s1 (andi $s2,$v0,0xFF after MenuInitializeGearScreenBuffers; ori
-   $s1,$zero,0xF3 for lastSlot's init) and this body gets the exact mirror
+   instruction multiset. Re-measured round 457: still 99.66% / 1812 bytes. The
+   ONLY residual is the callee-saved mirror - retail keeps `s32 slot` in $s2 and
+   `u8 lastSlot` in $s1 (andi $s2,$v0,0xFF after
+   MenuInitializeGearScreenBuffers; ori $s1,$zero,0xF3 for lastSlot's init) and
+   this body gets the exact mirror
    (slot $s1, lastSlot $s2). Every one of slot's and lastSlot's uses swaps; case
    order, the jump table, the delay slots, frame 0x48 and the whole save set
    agree. jtbl_801C518C vs .rodata is this unit's own rodata and is expected in
@@ -584,6 +585,17 @@ void MenuFreeGearScreenBuffers(void) {
    own andis, and the live length is the loop in both cases, so no C spelling of
    these 453 instructions can reverse the pair - and a spelling that changes the
    instructions cannot link.
+
+   Round 457 read the quotients out of `-dl` instead of trusting the estimate
+   above: slot is pseudo 75, "used 40 times across 290 insns" SI ->
+   5*40*10000*4/290 = 2.76; lastSlot is pseudo 72, "used 15 times across 224
+   insns; 1 bytes" -> 3*15*10000*1/224 = 0.20, a 13.7x gap. lastSlot would have
+   to be live for at most 16 insns (it is live across the render call and the
+   whole switch) and slot for 3982 (it is 290), so no spelling of these 453
+   instructions reverses them - the same verdict as `a-global-allocno-priority-is`
+   and `a-lreg-dump-gives-the`, now with the numbers in the note. That is why
+   round 457 spent no fourth permuter run (three already returned base=145
+   best=145 over 1304-2400 iterations each).
 
    The function takes NO parameters: its only caller (misc1 801C53D0) does jal
    with a nop delay slot and no $a0 setup, so slot is a LOCAL and retail reads it
@@ -741,9 +753,9 @@ u8 func_801E23CC(void) {
     g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
+
 void MenuInitializeCharacterScreenBuffers(void) {
     MenuLoadSubMenuChoiceStrings(1);
     g_Menu->pGearWindowPrims = HeapAlloc(0x2AF0, 0);
