@@ -18,6 +18,16 @@
 #define BATTLE_EFFECT_SLOT_COUNT 3
 // Digit sprite ids are indices into the value glyph set that starts at this id.
 #define BATTLE_VALUE_DIGIT_SPRITE_BASE 0x92
+// Status icon sprite ids are indices into the icon set that starts at this id.
+#define BATTLE_STATUS_ICON_SPRITE_BASE 0xC4
+// The sounds the pause menu plays for a cursor move, a confirmed key and a cancelled one.
+#define BATTLE_SOUND_MENU_MOVE 0x4C
+#define BATTLE_SOUND_MENU_DECIDE 0x4D
+#define BATTLE_SOUND_MENU_CANCEL 0x4E
+// The g_BattleMenuEvent id that says the menu is gone, not a key that was pressed.
+#define BATTLE_MENU_EVENT_EXIT 0xFF
+// The source word offset BattleUploadImageFrame wraps at: the end of the sub-image source.
+#define BATTLE_UPLOAD_SOURCE_WORD_LIMIT 199
 
 // Partial view of the per-frame battle work block (g_BattleDisplayState). The shared
 // include/battle/battle_work.h owns the type other units read; this view names
@@ -282,7 +292,7 @@ void BattleBuildFlaggedSlotSpriteColumn(void) {
     for (i = 0; i < BATTLE_STATUS_ICON_COUNT; i++) {
         if ((u16)BattleMaskHasStatusBit(g_BattleStatusFlags, i) != 0) {
             off = g_BattleSpriteColumnWork[0x5DA1] * 0x50 + 0x4CE0;
-            g_BattleSpriteColumnWork[0x5DA1] += BattleDrawSpritePackage(i + 0xC4, (s32)(off + (s32)g_BattleSpriteColumnWork), 0xE0, pitch >> 16);
+            g_BattleSpriteColumnWork[0x5DA1] += BattleDrawSpritePackage(i + BATTLE_STATUS_ICON_SPRITE_BASE, (s32)(off + (s32)g_BattleSpriteColumnWork), 0xE0, pitch >> 16);
             pitch += 0xA0000;
         }
     }
@@ -564,7 +574,7 @@ void BattlePollMenuEvent(s32 arg0) {
         } else {
             while (ControllerPopState() != 0) {
                 if (*pMenuExit != 0 || g_BattleCommandQueue->commandFinished != 0) {
-                    event = 0xFF;
+                    event = BATTLE_MENU_EVENT_EXIT;
                     break;
                 }
                 if (g_BattlePauseActive != 0) {
@@ -580,28 +590,28 @@ void BattlePollMenuEvent(s32 arg0) {
                         }
                     }
                 } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_RIGHT) != 0) {
-                    BattlePlaySoundIfEnabled(0x4C);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_MOVE);
                     prevEvent = pEvent->last;
                     event = 0;
                     pEvent->last = event;
                     pEvent->previous = prevEvent;
                     break;
                 } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) != 0) {
-                    BattlePlaySoundIfEnabled(0x4C);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_MOVE);
                     prevEvent = pEvent->last;
                     event = 1;
                     pEvent->last = event;
                     pEvent->previous = prevEvent;
                     break;
                 } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_LEFT) != 0) {
-                    BattlePlaySoundIfEnabled(0x4C);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_MOVE);
                     prevEvent = pEvent->last;
                     event = 2;
                     pEvent->last = event;
                     pEvent->previous = prevEvent;
                     break;
                 } else if ((g_C1ButtonStatePressedOnce & CTRL_BTN_UP) != 0) {
-                    BattlePlaySoundIfEnabled(0x4C);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_MOVE);
                     prevEvent = pEvent->last;
                     event = 3;
                     pEvent->last = event;
@@ -609,19 +619,19 @@ void BattlePollMenuEvent(s32 arg0) {
                     break;
                 } else if ((g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) != 0) {
                     event = 4;
-                    BattlePlaySoundIfEnabled(0x4D);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DECIDE);
                     break;
                 } else if ((g_C1ButtonStateReleased & CTRL_BTN_CROSS) != 0) {
                     event = 5;
-                    BattlePlaySoundIfEnabled(0x4E);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_CANCEL);
                     break;
                 } else if ((g_C1ButtonStateReleased & CTRL_BTN_SQUARE) != 0) {
                     event = 6;
-                    BattlePlaySoundIfEnabled(0x4D);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DECIDE);
                     break;
                 } else if ((g_C1ButtonStateReleased & CTRL_BTN_TRIANGLE) != 0) {
                     event = 7;
-                    BattlePlaySoundIfEnabled(0x4D);
+                    BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DECIDE);
                     break;
                 } else if ((g_C1ButtonStateReleased & CTRL_BTN_L2) != 0) {
                     event = 0xC;
@@ -700,7 +710,7 @@ void BattleUploadImageFrame(void) {
     vramOffset3 = 0x9C00;
     LoadImage(&g_BattleGraphicsWork->uploadRect[3], (u_long*)(g_BattleDisplayState->sourceWordOffset * 4 + vramOffset3 + (s32)g_BattleGraphicsWork));
     g_BattleDisplayState->sourceWordOffset += 4;
-    if (g_BattleDisplayState->sourceWordOffset >= 0xC7) {
+    if (g_BattleDisplayState->sourceWordOffset >= BATTLE_UPLOAD_SOURCE_WORD_LIMIT) {
         g_BattleDisplayState->sourceWordOffset = 0;
     }
 }
@@ -781,7 +791,7 @@ void BattleUpdatePauseMenu(u8 arg0) {
     muted = 1;
     do {
         if (g_BattleDisplayState->unkCF == 0) {
-            g_BattleMenuEvent = 0xFF;
+            g_BattleMenuEvent = BATTLE_MENU_EVENT_EXIT;
         }
         if (ControllerIsStateStackFull() != 0) {
             ControllerResetState();
@@ -859,7 +869,7 @@ void BattleUpdatePauseAndEffectTimers(u8 arg0) {
     } while (waiting != 0);
 
     if (g_BattleDisplayState->unkCF == 0) {
-        g_BattleMenuEvent = 0xFF;
+        g_BattleMenuEvent = BATTLE_MENU_EVENT_EXIT;
     }
     do {
         if (ControllerIsStateStackFull() != 0) {
