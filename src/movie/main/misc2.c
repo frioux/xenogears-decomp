@@ -698,6 +698,20 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // in this loop, while the outside-init body derives `s1 = j + 1`. So the one lever
 // left is suppressing combine_givs' j+1 derivation for init-outside; every loop shape
 // listed above assumed that derivation was unavoidable.
+//
+// Round 443 re-parked the HONEST body (init before the loop, so the back edge does not
+// re-run it) after re-measuring it from this file: 96.43% / 1248 bytes / 312 insns
+// against retail's 308 / 1232, and the whole residual is that one derived induction
+// variable - `addiu s1,s0,1` TWICE at the loop head (the second copy in the 0x4 test's
+// `beqz` delay slot), `move a0,s1` at the three j+1 call sites where retail recomputes
+// `addiu a0,s0,1`, `addiu s1,s1,1` before the latch's `addiu s0,s0,1`, frame 0x50 with
+// s0-s7 saved against retail's 0x48 with s0-s6. Re-measured dead this round: the
+// for-loop form `for (j = entry; j < entry + 0x14; j++)` 95.49% / 1260 / 315, and the
+// honest body under gcc-2.7.2 95.11, so the unit's 2.6.0 -G0 preset stands. The in-body
+// body the older note above measures at 99.66% / 1236 is NOT a usable base: it re-inits
+// `j` at the loop header (an infinite loop) and is 4 bytes over retail, so it can never
+// link. loop.c derives the j+1 giv (and the extra `move s0,s1` duplicate) exactly when
+// the biv init sits outside the loop, so this body is the one to iterate on.
 /*
 void func_80075D8C(void) {
     s32 alignedIndex;
@@ -759,8 +773,8 @@ void func_80075D8C(void) {
         if ((g_MoviePrevPadButtons & 0x4) == 0 && (g_MoviePadButtons & 0x4) != 0) {
             showName = 1 - showName;
         }
+        j = entry;
         do {
-            j = entry;
             if (WorldMapSyncGearRideActors(j) == 0) {
                 if (hexMode) {
                     FontPrintf(D_80070474, j);
