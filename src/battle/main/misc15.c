@@ -723,7 +723,18 @@ extern void func_8009093C(s32 arg0);
    copy passed as the 7th argument (both the cast and the QI copy fold back to
    SI const 1, and after the calls the same copy makes pagePending reuse it).
    A 4-minute permuter run from the 1160 body (base 415 best 223) found only the
-   statement move above, i.e. the 1156 family again. *//*
+   statement move above, i.e. the 1156 family again.
+   ROUND 447 re-measured from an unpark: the init-block body below is still
+   99.42% / 1156 bytes (one li s? short) and the pagePending-after-the-calls
+   body is 1160 bytes with the single displaced `sw s4,88(sp); li s4,1` pair.
+   NEW placement tried: `pagePending = 1;` between the two BattleInitSlotGraphics
+   calls compiles to the SAME 1160 body as after both (the pair still sits after
+   `li a3,0x118`, not after `li s6,2`), so every post-call position gives one
+   body. lever.py on the residual returns the round-407 finding (c-two-loads-hoist:
+   the pair's slot is the pre-reload scheduler's, unreachable from statement
+   order), and a 3-minute permuter run from this init-block body went
+   base=178 best=178 over 1472 iterations, i.e. it is a local optimum. */
+/*
 u8 func_8008BED8(u8 arg0) {
     u8 i;
     u8 j;
