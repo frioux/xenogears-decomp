@@ -1389,6 +1389,27 @@ typedef struct {
 // keeps init+latch, loop 3 keeps only a body copy), and the one source difference between them is
 // the `i - 0x15` additive offset in loop 3's subscript. That subtract is where the unmeasured
 // cause is; nothing about the loop's spelling moves it.
+// Round 454 (redo lane): un-parked, re-measured 97.44% / 1432 bytes / 358 insns against retail's
+// 357 at index spelling. The residual is ONE instruction: retail's loop 3 copies its argument in
+// the BODY (single 'addu a1,s1,zero' right after the loop label), ours has the same copy hoisted
+// out - 'move a1,s1' in the preheader plus a re-copy in the bne delay slot after 'addiu s1,s1,0x70'
+// - i.e. loop.c replaced the body movable with the init+latch pair. Only loop 3 does this; loops 1
+// and 2 in this same body match retail (loop 1 body copy, loop 2 init+latch, exactly as retail).
+// New measurements this round, do not redo:
+// - TRIP COUNT IS NOT THE TRIGGER. Loop 1 has the SAME body and the SAME 'pQuad++' argument
+//   spelling as loop 3 and keeps its body copy when its bound is changed to 0x16 (2 iterations,
+//   358 insns) and to 0x18 (4 iterations, the same count as loop 3, 358 insns). So the movable's
+//   savings/iteration-count analysis is ruled out; the decision depends on the loop's surrounding
+//   RTL, not on the loop body, its bound or its position as a spelled loop.
+// - A DIFFERENT COUNTER PSEUDO for loop 3 ('k' instead of the function-wide 'i', same index
+//   spelling) still hoists: 96.42% / 1432 bytes (worse tail registers), so the shared counter
+//   variable is ruled out too.
+// permute.sh CANNOT run on this body: its parser rejects the preprocessed base
+// ('/tmp/permuter_xxx.c:2041: conversion to non-scalar type requested'), so this park has had no
+// permuter pass; a future lane would have to simplify the body before it can.
+// Untried and unmeasured: nothing in the loop-3 spelling; the remaining question is what in the
+// surrounding RTL (register pressure and the addresses live across loops 2 and 3) flips loop.c's
+// move_movables for an otherwise identical loop.
 /*
 void func_80074108(void) {
     MATRIX matProj; // 0x10: projection matrix, t[2] holds the screen distance
@@ -1520,6 +1541,7 @@ void func_80074108(void) {
     SetGeomScreen(g_Scene.sceneScrZ);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
+
 
 // Returns 1 if an actor wants its position reported to the script VM
 int FieldAnyActorHasFlag8000(void) {
