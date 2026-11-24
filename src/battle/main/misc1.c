@@ -57,6 +57,9 @@ typedef struct {
 
 extern u8 g_BattleOverlayEnabled;
 extern u8 D_800C48EA;
+// The same byte again as an array: its decay is a real address value, so cc1 keeps
+// one `la` for the mode test and the write-back instead of a symbol access each.
+extern u8 D_800C48EA_bytes[] __asm__("D_800C48EA");
 extern s32 *g_BattleAudioManager;
 extern BattleCommandQueueState *g_BattleCommandQueue;
 extern BattleWork *g_BattleDisplayState;
@@ -289,30 +292,6 @@ void BattleFadeOutAudioIfOverlayIdle(void) {
     }
 }
 
-/* 97.52% under 2.6.0 (1952 bytes against retail's 1944, 488 insns vs 486).
-//    Matched since the old 96.03 note: the per-slot limit copy, by reading the
-//    header's OWN named fields (`g_GameState.conditionRows[id].commandMask` /
-//    `.characterCommandMask`) instead of a cast of the member; retail's two loads
-//    carry different %lo addends (0x16C0/0x16C2) so they never CSE, and the cast
-//    struct BattleCharLimitRecord (deleted) made gcc hoist the base instead. And
-//    the two skin-load heap blocks want their OWN locals (skinBlock1/skinBlock2,
-//    declared before block1/block2): retail keeps them in s0/s1 while the later
-//    pair (D_800D2D3C/D_800D2F60) never leaves v0/v0.
-//    Two residuals left, 2 insns total:
-//    1. the pFlags chain. Retail forms &D_800C48EA into a0 (lui+addiu), reads
-//       through it (`lbu v1,0(a0)`) and the 0x80 arm's `*pFlags = 1` reuses a0
-//       (`sb v0,0(a0)`); ours reads the bare symbol (lui+lbu) and re-forms the
-//       address for the store (`lui at; sb`). Same total insns, so it is a
-//       register choice: gcc folds the first access to the symbol.
-//    2. the 0x3B4 prim-pool write. Retail keeps `sh v0,0x3B4(a1)` with a1 the
-//       u16 biv (`addiu a1,a1,2` in the bnez slot); gcc folds the constant into a
-//       second biv (`addiu a0,v0,948` then `sh v0,0(a0)`), which is the +1 insn.
-//       Tried: u8* pointer + 0x3B4 offset, u16* with p[0x1DA], both fold.
-//       Also in that arm gcc hoists `offset = 0` into the D_800C3D44 branch's
-//       delay slot where retail has the 0x394 store, so the 916 store moves up.
-//    The two `mode` assignments and `g_GameDiscChangeRequest = mode` (not `= 3`)
-//    are load-bearing. */
-/*
 void func_80070F40(void) {
     s32 skinBlock1;
     s32 skinBlock2;
@@ -322,8 +301,11 @@ void func_80070F40(void) {
     s32 *pAudioManager;
     s32 display;
     u16 animFlags;
-    u16 value;
+    s32 value;
     u8 *pFlags;
+    u8 *pMenuEvent;
+    u16 *pPrimPool;
+    u8 overlayFlags;
     u16 *pPoolFlags;
     u8 mode;
     u8 savedFlags;
@@ -429,7 +411,7 @@ void func_80070F40(void) {
         BattleUpdateFrame();
     }
 
-    pFlags = &D_800C48EA;
+    pFlags = D_800C48EA_bytes;
     if ((*pFlags & 0xC0) == 0) {
         mode = 0;
     } else if ((*pFlags & 0x40) != 0) {
@@ -449,21 +431,29 @@ void func_80070F40(void) {
         // fall through
     case 3:
         if (g_BattleOverlayEnabled != 0) {
-            *(u16 *)((u8 *)g_BattlePrimPool + 0x394) = 0xFF;
-            if (D_800C3D44 != 0 || D_800D2FC4 == 0) {
-                *(u8 *)((u8 *)g_BattlePrimPool + 0x800) = 0;
+            pPrimPool = (u16 *)g_BattlePrimPool;
+            overlayFlags = D_800C3D44;
+            *(u16 *)((u8 *)pPrimPool + 0x394) = 0xFF;
+            if (overlayFlags != 0 || D_800D2FC4 == 0) {
+                i = 0;
+                *(u8 *)((u8 *)pPrimPool + 0x800) = 0;
                 pPoolFlags = (u16 *)g_BattlePrimPool;
-                savedFlags = D_800C48EA;
+                pMenuEvent = D_800C48EA_bytes;
+                savedFlags = *pMenuEvent;
                 offset = 0;
-                D_800C48EA = 0;
-                for (i = 0; i < 3; i++) {
-                    value = *(u16 *)((u8 *)g_BattleSlotEntries + offset) & 0x8000;
-                    pPoolFlags[0x1DA] = value;
+                *pMenuEvent = 0;
+                do {
+                    value = *(u16 *)((u8 *)g_BattleSlotEntries + offset);
+                    value &= 0x8000;
+                    // volatile: keeps cc1 from folding the 0x3B4 displacement into a
+                    // second induction register, which is one instruction too many.
+                    *(volatile u16 *)(pPoolFlags + 0x1DA) = value;
                     value |= *(u16 *)((u8 *)D_800CCE08 + offset) & 0x8000;
-                    pPoolFlags[0x1DA] = value;
+                    *(volatile u16 *)(pPoolFlags + 0x1DA) = value;
                     pPoolFlags++;
                     offset += 0x170;
-                }
+                    i++;
+                } while (i < 3);
                 BattleFreeWdsEntry();
                 BattleSetOverlayArg(1);
                 D_800C48EA = savedFlags;
@@ -503,8 +493,7 @@ void func_80070F40(void) {
     func_801E252C();
     HeapFree((void *)D_800D2D3C);
     HeapFree((void *)D_800D2F60);
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
+}
 
 
 
