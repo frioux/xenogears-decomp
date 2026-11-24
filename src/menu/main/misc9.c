@@ -182,7 +182,18 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
    RUNTIME base keeps 150 as an immediate (probe: a u8 *parameter gives 'addiu $2,$17,$18' then
    'sb $0,150($2)'), and this base is a static symbol, so retail's la+addiu+addu+sb cannot be
    spelled. Presets do not help: 2.6.0 -O2 -G8 97.10 (unit), 2.7.2 93.64, 2.7.2-cdk 90.70,
-   2.6.0 -G0 97.10, -O3 97.10. PARKED at 97.10 / 1072 / 4 OVER; do not re-park it lower.
+   2.6.0 -G0 97.10, -O3 97.10.
+   ROUND 442: a permuter run (1548 iters, base 784 best 550) found ONE type change that closes
+   the SIZE: `s16 idOffset` -> `unsigned int idOffset` gives 1068 bytes / 267 insns, retail's
+   exact size, 97.47. The residual is now only the ORDER of the two adds: retail forms
+   la(g_GameState+0x1F90) / addiu v0,t0,150 / addu v0,fp,v0 (the constant on the BASE, then the
+   index), this body forms addiu v0,fp,150 / la / addu v0,v0,t0 (the constant on the INDEX).
+   Tried this round, no change: index-first `idx + (quantities + idOffset)` and a (s32) cast on
+   the base - cc1 reassociates both back to index-side; an embedded-assignment pointer local
+   breaks the pQuantity preheader (90.83 / 1056). The register rotation (retail
+   refresh=s1/result=s3/pItemId=s2/active=s5, ours refresh=s5/result=s2/pItemId=s1/active=s3)
+   rides along and is a knock-on of the same pseudo ordering. PARKED at 97.47 / 1068 / 267,
+   i.e. retail's byte count: what is left is an operand-order question, not a size one.
 */
 
 /*
@@ -201,7 +212,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     u8 active;
     u8* pItemId;
     u8 quantity;
-    s16 idOffset;
+    unsigned int idOffset;
 
     slot = g_Menu->characterSlot;
     D_801E9785 = 0;
