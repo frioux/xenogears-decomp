@@ -407,6 +407,27 @@ void MenuFreeUnk42CPanel(void) {
 //    canonicalises a commutative PLUS by register NUMBER, so its residual (8 mirrored
 //    addu operands) is allocation; a 1447-iteration permuter run on that body found
 //    nothing (round 406).
+// PARK 94.84% (996 vs retail 1004 bytes, 249 vs 251 insns), round 461, re-measured from this live body under XenoMenu260.
+//    The body is unchanged from round 442 (typed row accesses). THIS round compared the compile
+//    instruction by instruction against retail and there is NO spelling residual left: with the
+//    current typed body everything except the index allocation already IS retail - the /10 magic
+//    (lui a0,0xcccc in the lw delay slot, mfhi v0 / srl v1,v0), all four &rows[i] call-argument
+//    addus (index-first, addu a0,s3,a0 / addu a0,s4,a0), the andi a1,0xfff8 position and the x/y
+//    evaluation order all come out as retail has them.
+//    THE WHOLE residual is lever o-260-reduces-a-param-based-index-biv: 2.6.0 strength-reduces
+//    "arg0 * 2 + i" to a biv (sll s4,s0,0x1 in the preheader, addiu s4,s4,0x1 in the latch), which
+//    costs the two per-use sll instructions retail spends at 0x15620 and 0x156C8 (the 2 insns /
+//    8 bytes this body is short) and renames the whole saved set (arg0 s0 vs retail s6, pWorkspace
+//    s6 vs s5, 0x800 s5 vs s4) and reorders the prologue saves.
+//    The 2.7.2 path was re-measured this round by hand-compiling the SAME body with Default flags
+//    (no split): 97.37%, 1008 vs 1004 bytes. Its structure is retail (two sll in the loop,
+//    s3/s4 row-offset bivs, s6 = arg0), and the residual is exactly three things: a nop after
+//    lw v1,1068(v1) where retail puts lui a0,0xcccc in that slot and coalesces the HI into v0
+//    (this nop is also the 4 extra bytes), four mirrored addu a0,a0,s3 against retail addu a0,s3,a0,
+//    and andi a1,a1,0xfff8 one instruction early. Round 406 permuted that 2.7.2 body (1447
+//    iterations, base 715 unchanged), so the split path is not a register shuffle either and a
+//    per-file preset split would buy 2.5 points and still not a match.
+//    Presets measured dead earlier: 2.7.2-cdk 92.96, -O1 59.62, -O3 94.65, -G0 identical.
 /*
 void func_801DA5BC(s32 arg0) {
     u8 digitCodes[4];
@@ -473,6 +494,7 @@ void func_801DA5BC(s32 arg0) {
     g_Menu->pManager->shouldRenderUnk42C = 1;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
+
 
 
 
