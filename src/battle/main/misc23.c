@@ -1444,40 +1444,37 @@ extern u8 g_BattleSlotTextIndex[];
 extern u8 g_BattleSlotFileCount[];
 extern u8 D_800C3509[];
 
-/* 94.73% at retail's exact 372 bytes / 93 instructions (unit preset gcc 2.6.0).
-   Every call, the frame (0x38, locals 0x10/0x14 -> Misc23ArchivePos), all six save
-   slots, both HeapAlloc flags, the 0x20 HeapAlloc size and the if-arm's store
-   offsets are retail's. Three residuals remain, all allocator-level:
-   1. mirrored callee-saved pairs: retail has index in $s1 and pTable in $s0, ours
-      the reverse; retail has pEntry in $s2 and pTail in $s3, ours the reverse.
-      The -dg priority order is nameLen, pTail, pEntry, count, index, pTable, i.e.
-      pTail is processed before pEntry and index before pTable - exactly the two
-      pairs that mirror - so find_reg hands them out in the wrong order and only a
-      different ref/live-length contest could flip it (lever a-global-allocno-priority-is).
-   2. retail puts 'sw v0,12(s2)' (pEntry->pBuffer2) in the beqz delay slot with
-      'addiu s3,s2,16' before the branch; we put the pTail addiu in the slot.
-   LEVERS MEASURED HERE (round 394): 'index = slotTextIndex * 2;' makes expand_binop
-   emit a TEMP plus a copy ('sll v1,v1,1; move s0,v1', 2 insns, 376 bytes, 94.49-93.66)
-   while 'index = slotTextIndex << 1;' emits the shift straight into index's allocno
-   and reaches retail's 372 bytes. Use '<< 1' for any *2 that lands in a callee-saved
-   register. Also measured dead: index as s32 vs u32 (no change), a separate
-   s32 slotTextIndex local (needed only so the shift sits after the count load, as
-   retail's sll does), 'pTail->fileIndex1' for the if-arm's two stores (worse: it
-   folds the cursor add into an in-place addiu and needs a second copy of pEntry,
-   93.66 at 376).
-   ROUND 420 MARGIN, and it settles both mirrors (lever a-a-near-miss-allocno-quotient):
-   from -dl, pEntry is 6 refs across 32 insns and pTail 10 across 25, a 3.2x gap, and
-   the gap is the compiler's: local-alloc coalesces the 'pTail = pEntry' copy, so the
-   pEntry->fileIndex2/pBuffer2 stores are emitted on the pTail pseudo where retail
-   keeps them on pEntry's own. index 3 refs across 12 against pTable 8 across 15 is a
-   6x gap. Each contest would need the loser's ref count to double or triple, which no
-   spelling of this body does - do not re-brief either pair.
-   Also measured this round: swapping the two pointer declarations changes nothing
-   (94.73); dropping the early copy (first two stores through pEntry, pTail first
-   defined at the +0x10 cursor) puts pEntry in retail's $s2 but drops pTail to $v1,
-   count to $s3 and the frame by 8 bytes - 96.15 at 364 bytes / 91 insns, so retail's
-   early 'move s3,s2' is load-bearing and that is not a lead either.
-   -dg dump: tools/gcc-2.6.0-psx/cc1 -O2 -G0 <unit cc_flags> -dg build/src/battle/main/misc23.c.i *//*
+// 98.98% at retail's exact 372 bytes / 93 instructions (unit preset gcc 2.6.0).
+// Every call, the frame (0x38, locals 0x10/0x14 -> Misc23ArchivePos), all six save
+// slots, both HeapAlloc flags, the 0x20 HeapAlloc size, the if-arm's store offsets
+// AND the beqz delay slot are retail's. Round 462: the delay slot was a source-order
+// problem, not reorg. With 'pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(
+// nameLen), 0); pTail = &pEntry->fileIndex3;' the RTL is [call, a1=0, sw v0,12(s2),
+// addiu pTail, beqz] and reorg puts the pTail addiu in the slot; storing the call's
+// result through a temp and advancing pTail before the store
+// ('pBuffer2 = HeapAlloc(...); pTail = &pEntry->fileIndex3; pEntry->pBuffer2 = pBuffer2;')
+// gives [call, a1=0, addiu pTail, sw v0,12(s2), beqz] and reorg then puts the sw in
+// the slot, which is retail's. 94.73 -> 98.98 with that one edit.
+// Only residual left: TWO mirrored callee-saved pairs, retail index $s1 / pTable $s0
+// and pEntry $s2 / pTail $s3, ours both reversed (the whole instruction stream is
+// otherwise identical). -dg for this body: '6 regs to allocate: 78 73 72 75 76 77'
+// = pTable(78) pTail(73) pEntry(72) count(75) index(76) nameLen(77), dispositions
+// '71 in 16 (s0) 72 in 19 73 in 18 75 in 20 76 in 16 77 in 17 78 in 17' and -dl
+// pTable 8 refs/15 insns (quotient 6.4), pTail 9/25 (4.3), pEntry 7/32 (1.75),
+// count 5/34 (1.2), index 3/12 (1.0). pTable is processed FIRST and still cannot take
+// $s0: its -dg conflict list names hard reg 16, i.e. the arg0/base chain (pseudo 71)
+// still occupies $s0 across pTable's range, so it lands in $s1 and index later takes
+// $s0 - that is the $s0/$s1 mirror, and it is a conflict, not a quotient gap. pEntry
+// cannot outrank pTail because local-alloc coalesces the 'pTail = pEntry' copy and the
+// stores land on pTail's pseudo (3.2x).
+// Also measured: 'nameLen = pTable[index - 1] + 1' inline twice instead of a 'base'
+// local (no CSE across the first HeapAlloc: 2 lbu, 380 bytes, 94.46); the pBuffer1
+// store written through pEntry instead of pTail (byte-identical, 98.98); earlier
+// rounds' dead levers: index '<< 1' beats '* 2' (376 bytes otherwise), index s32 vs
+// u32 no change, declaration order no change, pTail->fileIndex1 for the if-arm's two
+// stores 93.66/376, dropping the early 'move s3,s2' 96.15/364. A permuter run is not
+// warranted below 99%.
+/*
 void func_800A9540(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     Misc23ArchiveEntry *pTail;
@@ -1487,6 +1484,7 @@ void func_800A9540(s32 arg0) {
     s32 index;
     u8 *pTable;
     s32 nameLen;
+    void *pBuffer2;
     u8 base;
 
     ArchiveGetArchiveOffsetIndices(&pos.alignedIndex, &pos.remainder);
@@ -1508,8 +1506,9 @@ void func_800A9540(s32 arg0) {
     pTail->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
     nameLen = base + 2;
     pEntry->fileIndex2 = nameLen;
-    pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
+    pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
     pTail = (Misc23ArchiveEntry *)&pEntry->fileIndex3;
+    pEntry->pBuffer2 = pBuffer2;
     if (count != 0) {
         nameLen += count;
         pEntry->fileIndex3 = nameLen;
@@ -1522,6 +1521,7 @@ void func_800A9540(s32 arg0) {
     ArchiveSetIndex(pos.alignedIndex, pos.remainder);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+
 
 void BattleAllocateArchiveFilePair(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
