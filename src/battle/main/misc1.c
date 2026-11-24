@@ -1080,6 +1080,21 @@ void BattleAddPrimListToOT(POLY_FT4 *pPrim, s32 count, s32 primStart) {
    this file for retail's `lw` (it is read as a byte only by func_80071B94 and
    func_80073538, both still stubs).
 */
+// ROUND 442 re-measure: 95.62% / 348 bytes (retail 352), unchanged from the note
+//    below - the park compiled clean and the body is still the best known. One
+//    instruction SHORT, so it can never link.
+//    NEW ATTEMPTS THIS ROUND (all measured, all kept or worse):
+//    - volatile b0 store (`*(volatile u8 *)&pPrim[...].b0 = 0;`): 352 bytes, retail's
+//      exact size and retail's bnez delay-slot nop, but the sb lands AFTER the slt and
+//      the increment is still hoisted into the lw load-delay slot -> 95.17%. So the
+//      volatile blocks reorg from sinking the store into the branch slot but does not
+//      stop it hoisting `addiu s2,s2,1`.
+//    - b0 store indexed with `i * 2` instead of `prim` (keeps i live to the store):
+//      89.10% / 344 - as the lever predicts, cc1 strength-reduces i to a doubled biv.
+//    CONCLUSION: the residual is *only* reorg moving the loop increment into the
+//    `lw g_BattlePrimStartIndex` load-delay slot (cc1's own .s shows the addiu there,
+//    before the assembler). Retail keeps both delay slots as nop and the increment
+//    after the b0 store. Needs an idiom that stops that one hoist - not found.
 /*
 void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
     s32 i;
@@ -1099,6 +1114,7 @@ void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072938);
+
 
 void BattleRenderActorSplitDigitPanel(s32 slot, u8 arg1) {
     s32 first;
