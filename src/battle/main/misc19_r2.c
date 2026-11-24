@@ -8,7 +8,7 @@ extern BattleWorkBlock* g_BattleCurWorkBlock;
 // (the XenoLibrary preset in gears.toml): under 2.7.2 its own expand_divmod shapes all
 // four of the `/20` and `/50` divisions differently and the body comes out 8 bytes too
 // long. The rest of misc19 is Default, so it cannot carry the older compiler.
-s32 func_8009ADA0(u8 arg0, u32* arg1) {
+s32 BattleFillSlotEffectAmounts(u8 arg0, u32* arg1) {
     BattleTableEntry* p = &g_BattleCurWorkBlock->slots[arg0];
     u16 f = p->activeEffectFlags1;
     u16 val;
