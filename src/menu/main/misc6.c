@@ -386,6 +386,9 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
    becomes a select (bne + li + one shared andi, no j), i.e. 97 insns - the a0 chain
    and retail's j-with-arm-truncation are mutually exclusive in this compiler, and
    every 98-insn spelling (the correct shape) allocates the ternary result to v0.
+   Round 453 re-measured this body (99.74 again, 392 / 98 insns) with GEAR_ID_NONE in
+   place of CHARACTER_ID_NONE and closed nothing new: the residual is still the single
+   local-alloc hand-out of the ternary result ($2 where retail has $4).
    Parked body below:
 */
 /*
@@ -413,7 +416,7 @@ void func_801D2D38(void) {
             characterIndex = j;
             MenuLoadCharacterNameTexture(menuCharacterId, characterIndex * 2);
             gearId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
-            MenuLoadCharacterNameTexture((u_char)((gearId == CHARACTER_ID_NONE) ? CHARACTER_ID_NONE : gearId + 0xB), 6 + (j << 1));
+            MenuLoadCharacterNameTexture((u_char)((gearId == GEAR_ID_NONE) ? GEAR_ID_NONE : gearId + 0xB), 6 + (j << 1));
         }
     }
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
