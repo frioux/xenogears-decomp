@@ -659,6 +659,7 @@ extern void func_8009980C(u32* pSrc, u8* p1, u8* p2);
    locals (reverses the 0x330/0x340 store order, same 95.04); a 4-minute permuter run
    whose best candidate (626 vs 906) INSERTS a 0x32C = -0x320 store inside the cell
    loop, which is wrong code - rejected, do not port. */
+// 95.05% re-measured (988 bytes = retail's exact size, 247 insns, .frame 0x38, same ten saves, no spills). Correct code. NAMED RESIDUAL, three parts: (1) RELOC: retail's four copy-loop/matrix args name symbols (addiu v1,v1,%lo(D_1F800002), addiu s0,s2,%lo(D_1F800370), the four addiu a3,s2,%lo(D_1F800328/330/338/340)) where this body has the folded constant - same linked bytes. (2) the four volatile coord reads: the multiset and the STORE order are retail's (0x330,0x340,0x334,0x338,0x33C,0x344) but sched1 HOISTS the second 0x328 read up next to the first pair, so this body's loads are 812,808,808,[chain],812 where retail has 812,808,[chain...tileId],808,[pointer],812. (3) a rotation in that region: retail y0=a1 x0=a0 x1=v1 y1=v0 with the id chain in v1->v0; this body y0=a1 x0=a2 x1=a0 y1=v1 with the chain in v0->v1. MEASURED DEAD this round (both byte-identical to the 95.05 body, 247/247/76 lines): writing the x1/y1 reads ABOVE the pImg statement instead of below it, and reversing the declaration order of the four coords (pseudo numbering follows first use, not the declaration list). Together with the note below (chained stores, one-pScratch base) that closes every cheap axis on the two remaining differences; the hoist is sched1's, and levers a-refs-are-three-times / a-global-allocno-priority-is say a body that emits these 247 instructions ranks the qtys the same way.
 /*
 void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
     u8* pScratch;
@@ -731,6 +732,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
     }
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
+
 
 // 97.74% (was 94.82), 260 bytes = retail's 65 insns, correct code. Residual: (1) the xCur increment sits TWO slots late - retail emits it first of the four increments (xCur++, pPkt++, p++, ii--, idx++ in the bne slot), this body emits pPkt++, p++, xCur++, ii--, idx++; (2) a four-temp register rotation: retail pPkt=t0 idx=t1 ii=t2 xCur=a3, ours ii=t0 xCur=t1 pPkt=t2 idx=a3. NEW MEASURED: the statement order of the four increments is what fixes their EMIT order - 'pPkt++; p++; xCur += 0x80; idx += 0x200;' (as below) is 97.74 and emits in source order, while putting xCur += 0x80 FIRST (either before pPkt++ or between the vxy and vz stores) makes sched1 hoist the addiu above the or/sw/sh for 94.82. So the position that retail has (xCur++ first, after both stores) is the one shape sched1 will not let stand.
 /*
