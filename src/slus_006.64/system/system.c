@@ -1153,7 +1153,6 @@ extern void func_80031798(void* pOt, void* pPrim);
 //   0x78 was wrong.
 // - Loop 2's width clamp must stay an if/else (the ternary costs 0.99%).
 // 97.26%, 1564 bytes (2 instructions short). Repro: unpark and diff.
-/*
 void func_80034888(SystemString* pString, u_long* pOt, int context) {
     SystemStringNode* pNode;
     int i;
@@ -1182,6 +1181,8 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
     }
 
     pString->unk69 = (pString->flags & SYSTEM_STRING_FLAG_PALETTE_DOUBLE) ? pString->unk68 * 3 : pString->unk68;
+    do {
+    } while (0);
 
     if (pString->flags & SYSTEM_STRING_FLAG_UPLOAD_HOLD) {
         if (!(pString->flags & SYSTEM_STRING_FLAG_STOPPED)) {
@@ -1211,9 +1212,9 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
         }
 
         if (pString->lineOffset != i) {
-            pString->pChars[row].sprt[context][1].code |= 1;
+            ((SystemStringChar *)(context * sizeof(pString->pChars[0].sprt[0]) + (u32)&pString->pChars[row]))->sprt[0][1].code |= 1;
         } else {
-            pString->pChars[row].sprt[context][1].code &= ~1;
+            ((SystemStringChar *)(context * sizeof(pString->pChars[0].sprt[0]) + (u32)&pString->pChars[row]))->sprt[0][1].code &= ~1;
         }
 
         // The second half of the row is only drawn when the row is wider than
@@ -1238,9 +1239,9 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
         }
 
         if (pString->lineOffset != i) {
-            pString->pChars[row].sprt[context][0].code |= 1;
+            ((SystemStringChar *)(context * sizeof(pString->pChars[0].sprt[0]) + (u32)&pString->pChars[row]))->sprt[0][0].code |= 1;
         } else {
-            pString->pChars[row].sprt[context][0].code &= ~1;
+            ((SystemStringChar *)(context * sizeof(pString->pChars[0].sprt[0]) + (u32)&pString->pChars[row]))->sprt[0][0].code &= ~1;
         }
 
         // The first half of a row is a whole texture page wide as soon as the
@@ -1289,8 +1290,7 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
 
     pString->flags &= ~SYSTEM_STRING_FLAG_PALETTE_DOUBLE;
     AddPrim(pOt, &pString->drawMode[0]);
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
+}
 
 
 
