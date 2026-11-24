@@ -1241,12 +1241,43 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
    hoisted-out-of-loop form has been measured), and keeping `a` alive by one extra
    use after loop2 so gcc cannot remask arg0. */
 
-/*
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
+/* PARKED 63.01%, 448 bytes / 112 insns (retail 456 = 114). Round 465 redo.
+   PROVEN DIAGNOSIS, new and measured: with the final `g_BattleActorCharIds[a]`
+   use REMOVED the same body compiles to retail's allocation exactly - pTable in
+   $a1, the volatile entry pointer in $a0 (both loads off it), ofsA $t0, ofsB $t1,
+   o $a2, i $a3, the base-first addu at every element site - 440 bytes, 65.52%
+   (with that use deleted the code is wrong; it is a diagnostic, not a candidate).
+   Adding the use back costs ONE register: gcc rematerialises `(u8)arg0`
+   (`andi v0,a0,0xff`, which it puts in the beqz delay slot) and keeps arg0 live
+   in $a0, so every other allocno sits one register higher (elem $a1, pTable $a2,
+   o $t0, ofsA $t1, ofsB $t2) while retail copies the masked value to $t2
+   (`andi v0,a0,0xff; addu t2,v0,zero`) and frees $a0. So the residual is NOT
+   "which pseudo wins $a1/$a2" (round 452 note) but "the masked arg0 has no
+   home"; the two instructions of the size gap are retail's `nop` in the beqz
+   delay slot plus that copy.
+   Round 465 measurements (all 448 bytes unless noted):
+   - a NAMED `u8 *pEntry` local for the first chain's two volatile reads: 63.01,
+     the best body, and the realistic spelling (retail reads $a0 twice); kept.
+   - `s32 a; a = arg0 & 0xFF;`: masks IN PLACE in $a0 (`andi a0,a0,0xff`), so $a0
+     stays blocked and the same cascade remains - dead.
+   - `o` dropped, stores spelled `D_800C48EC + i * 6`: retail's offset register
+     becomes a strength-reduced POINTER (`la` + `sh 0(v0)`), not the $at form -
+     dead, a named `o` is required.
+   - inline `(u8)arg1 * 0x1C` with no `b` local: part of the 63.01 body.
+   Do not redo (round 452): typed 0x140 + [recA][8][8] table 59.85, hoisted
+   `u8 *pParam` 43.58, non-volatile entry read 59.15, accumulator `o += 6` 60.72,
+   gcc-2.6.0 screen of the unit (it cannot switch), permuter 4 min (no find).
+   NEXT: the whole residual is one rematerialisation. Anything that stops gcc
+   recomputing arg0 & 0xFF - or an `-dl` allocator dump showing global_alloc
+   never allocates it - is the only thing left; the register order, the operand
+   orders and the byte shape all follow from it.
+
 s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 o;
     s32 i;
     u8 a;
-    u8 b;
+    u8 *pEntry;
     s32 ofsA;
     s32 ofsB;
     s32 res;
@@ -1258,19 +1289,19 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
         *(u16 *)(D_800C48EE + o) = 0xFFFF;
     }
     a = arg0;
-    b = arg1;
     ofsA = a * 0x1C;
-    ofsB = b * 0x1C;
+    ofsB = (u8)arg1 * 0x1C;
     *(u16 *)(D_800C48EC + 0) = *(u16 *)(D_800C3EBE + ofsA);
     *(u16 *)(D_800C48EE + 0) = *(u16 *)(D_800C3EC0 + ofsA);
     D_800C48F0[0] = 0;
     for (i = 1; i < 8; i++) {
         o = i * 6;
-        if (*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) == 0xFF) {
+        pEntry = g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i;
+        if (*(volatile u8 *)pEntry == 0xFF) {
             break;
         }
         *(u16 *)(D_800C48EC + o) =
-            *(u16 *)(g_BattleSlotParamTable + ((*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5));
+            *(u16 *)(g_BattleSlotParamTable + ((*(volatile u8 *)pEntry & 7) << 5));
         *(u16 *)(D_800C48EE + o) =
             *(u16 *)(g_BattleSlotParamTable + ((*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
         D_800C48F0[o] = *(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 0x80;
@@ -1279,8 +1310,8 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
         res = 1;
     }
     return res;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
+}
+*/
 
 
 
