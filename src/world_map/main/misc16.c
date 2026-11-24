@@ -466,35 +466,36 @@ extern s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w);
 extern s32 WorldMapSubmitCdRequests(void);
 extern s32 WorldMapSubmitFileLoads(void);
 
-/* 97.46% - 1644 bytes (retail's exact size), 411 insns, 138 differing lines (192 at
-   the 97.03 body). The free pass and BOTH nest-loop bodies now match instruction for
-   instruction, including the group/cell/pSector hand-out.
-   WHAT EARNED THE 0.43: the free-pass inner counter and the nest outer counter are ONE
-   variable (j), not two. Retail keeps the search counter in $s4 although that loop has
-   no call, and its nest outer counter is $s4 as well; only a single pseudo whose other
-   live ranges span the nest's HeapAlloc/WorldMapAddCdRequest calls is forced out of the
-   caller-saved set, so the source reused the search counter as the nest counter.
-   RESIDUAL, one allocator chain, no structural difference left:
-   (1) idx (the tile-id walk index) is $s0 in retail, $v0 in ours, in all eight places
-       ('li s0,1' / 'li s0,73' / 'li s0,9' / 'li s0,17' and the 'sll' that forms
-       &grid[idx]); every other instruction in the four nests is identical;
-   (2) the two 4-iteration corner loops are a whole s0/s1/s3/s4 rotation, and ours hoists
-       the g_WorldMapGridTileIds base into a register where retail re-forms it through
-       $at - register pressure, not source, since both are the index form.
-   MEASURED AND REJECTED, do not repeat:
-   - 'grid[idx++]' in the subscript (to give idx a range across the nest calls): 413
-     insns / 1652 bytes, wrong size, 95.92;
-   - 'u32 idx': identical code; a separate columnIdx for the stride-9 nests: identical
-     code too (both 97.46);
-   - the older measurements still stand: sharing i for the free pass and the nests 96.90,
-     'idx = N' before the sector call 409 insns (wrong size), a separate id variable for
-     the corner loop 414 insns 92.86, presets cdk 85.85 / -O3 96.96, -G0 and 2.6.0 do not
-     compile. Unit flags are right.
-   NEXT LEVER: the idx register. Retail's idx must be live across a call somewhere, so
-   try source spellings that keep it live over the HeapAlloc/WorldMapAddCdRequest calls
-   without adding an instruction (a pointer that carries it, or a form whose value flows
-   out of the inner loop); a -da/-dl dump of the idx pseudo settles whether its
-   calls-crossed count is 0 in our body and 1 in retail's.
+/* 97.46% re-measured this round - 1644 bytes (retail's exact size), 411 insns, 138
+//    differing lines. Un-parked, diffed and re-parked unchanged: the body below IS the
+//    97.46 one, and everything it earns still holds (free pass and all four nest bodies
+//    match instruction for instruction; the prologue, its save order and the epilogue
+//    match too, so the saved set is retail's ten).
+//    NAMED RESIDUAL, two allocator hand-outs, no structural difference left:
+//    (1) the tile-id walk index. -da/-dl on this body names it pseudo 78: 20 refs across
+//        24 insns, dies in 4 places, NO call crossed, and global.c gives it a preference
+//        for $v0, so it lands in $v0 in all eight places (li/sll pairs). Retail keeps the
+//        same value in $s0 even though its live range is three instructions and it is dead
+//        before the first loop call, which only a call-crossing or block-spanning allocno
+//        reaches - and every spelling that makes it span one changes the instruction count
+//        (assigning it above the ArchiveDecodeSector call: 409 insns / 1636 bytes, round
+//        405). -dg this round: 40 allocnos, hard regs 2-8 and 16-23 + 30, one spill of $t0,
+//        so the register file is retail's exactly.
+//    (2) the two 4-iteration corner loops are a 4-cycle of the same four saved registers:
+//        retail (s0,s1,s3,s4) = (cellPointers+id pointer, cornerIndices base, hasSector,
+//        id), ours (id, pointer, cornerIndices base, hasSector); ours also hoists the
+//        tileIds base into s6 (where our 'loaded' just died) where retail re-forms it
+//        through $at each iteration. Same instructions, permuted registers.
+//    MEASURED AND REJECTED, do not repeat: 'grid[idx++]' 413 insns / 1652 bytes 95.92;
+//    u32 idx and a separate stride-9 index variable both byte-identical; sharing i
+//    between the free pass and the nests 96.90; a separate id variable in a corner loop
+//    414 insns 92.86; declaration order of the loop locals changes nothing; presets cdk
+//    85.85, -O3 96.96, -G0 and 2.6.0 do not compile. Unit flags are right.
+//    NEXT LEVER if anyone retries: the $v0 *preference* on pseudo 78, not the allocator
+//    order - identify what gives it that preference (it is the only preferred allocno in
+//    the second half) and remove the source shape that creates it; a permuter run is
+//    pointless while the instruction stream is exact.
+// */
 /*
 void func_80098CC0(void) {
     s32 cell;
@@ -624,6 +625,7 @@ void func_80098CC0(void) {
     }
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80098CC0);
+
 
 
 extern u16 D_8009CCB4[];
