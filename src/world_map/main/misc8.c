@@ -539,38 +539,40 @@ s32 WorldMapSetActorParams(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
-// Best: 96.15% at retail's exact size (244 bytes). The only difference left is
-// one register: the 0x960000 both stores share sits in $a0 here and in $a1 in
-// retail (`lui a1,0x96` just after the third position load). Everything else,
-// retail's two `lh` reloads of the angle globals included, is byte for byte.
-// What got it here, in case it helps invert that tie:
-// - The two `lh` are STORE-TO-LOAD FOLDING, not a volatile problem. The fold
-//   only fires when the read names the symbol the store wrote, so reading the
-//   angles through the neighbouring symbol `g_WorldMapCameraRot` (base
-//   0x8009BD38; +2 and +4 are the two view rotations) as s16 defeats it and
-//   brings back retail's lui/lh/sll. That relocation is base+addend where retail
-//   names the field, so diff_func never says MATCH for this body even when it is
-//   right: judge it with check_bin.sh.
-// - `v = -0x20;` before the block and `g_WorldMapCameraRot = v;` is what puts
-//   -0x20 in $v0 as retail does; the literal is materialised later.
-// - The Z angle needs its own variable (angleZ), loaded between the two 0x3C
-//   stores; otherwise gcc coalesces it into the Y value's register and the whole
-//   tail differs.
-// - 0x960000 has to be a variable assigned just after the third position load.
-//   As a literal it is materialised at its second use and the body shifts.
-// Tried on the last tie: three permuter runs (565 -> 360 -> 155 -> 95, then
-// NONE), u32/int/s32 for the constant, four declaration orders, and dropping the
-// variable altogether (that one loses retail's single `lui`, 240 bytes).
-// Re-measured, plus these: `-dg` says the constant is the ONLY pseudo in the body
-// that needs a register (`1 regs to allocate: 78`, `78 preferences: 2`), and it
-// conflicts with $v1/$a0, so $a0 comes from local-alloc's free-register scan -
-// the mirror of retail's `$a1` with no reachable source lever found. Storing the
-// 0x960000 as a literal and reading the field back for the global
-// (`g_WorldMapCameraHeight = *(s32 *)(p + 0x5C)`) does not forward: 82.93%,
-// 248 bytes, and it moves the position temp to $a0 too. The whole family is this
-// shape - misc7's func_800827EC (parked there, 65.30) has retail's identical
-// `lui a1,0x500000` / `sw a1,92(v1)` / `sw a1,(g_WorldMapCameraHeight)` tail, so
-// the register is a property of the original's build, not of this body.
+
+// Best: 96.48%, 61 insns, 244 bytes = retail's exact size; 8 differing lines.
+// Residual 1: the 0x960000 both stores share sits in $a0 here and in $a1 in
+// retail. Residual 2: retail emits sw v0,84 then sw v0,60 then lui a0 for the
+// angleZ load; here the lui/lh land between the two stores.
+// What gained the 0.33 over the old 96.15 body: the two view-angle reads now
+// name their OWN symbols (g_WorldMapViewRotationY, g_WorldMapViewRotationZ)
+// instead of ((s16 *)&g_WorldMapCameraRot)[1] and [2], and the store-to-load
+// fold that used to eat retail's lui/lh/sll is defeated by making the two
+// stores VOLATILE (the read stays a plain load, so the tail keeps its lh).
+// That removes the 8 base+addend relocation diff lines the old body carried.
+// Keep: the do-while(0) wrapper (plain statements 89.90) and the raw u8 *p
+// offset stores (typed pActor fields measure 77.97 - the cast spelling is
+// load-bearing, the same lever misc7's func_800827EC records).
+// The $a0/$a1 tie is LOCAL alloc, not global: -dg reports ONE basic block and
+// "1 regs to allocate: 78", with dispositions in pseudo order 75 in 4, 76 in 3,
+// 77 in 4, 79 in 4, 80 in 3, 81 in 2, 84 in 2, 86 in 2, 90 in 2, 94 in 2,
+// 95 in 4. Pseudo 77 is the 0x960000 (4 uses across 28 insns), 78 the position
+// temp, 80 the actor pointer; local-alloc hands out the first register free
+// along REG_ALLOC_ORDER once $v1 and $v0 are live, so it lands in $a0.
+// Retail's $a1 needs a THIRD conflicting register at that def, and retail's own
+// stream has none ($a0's two uses are the index, dead at insn 5, and the angleZ
+// load, which starts after the constant's last use), so no spelling of this
+// body reaches it - the same wall misc7's func_800827EC is parked on.
+// Measured, do not repeat:
+// - moving the 0x960000 assignment to the top of the function: identical code
+//   (96.48, same 8 lines) - loop.c hoists that def to just before LOOP_BEG.
+// - angleZ load after BOTH shifts instead of between them: 93.03; the whole
+//   body rotates and the position temp moves from $v0 to $a1.
+// - that plus the g_WorldMapCameraHeight store moved after the angleZ load:
+//   86.97, the constant then lands in $v1.
+// - u32/int for the constant, dropping the do-block (89.90), typed struct
+//   fields for the four shifted stores (77.97).
+// measure: tools/scripts/diff_func.sh world_map/main/misc8 func_8008390C
 /*
 s32 func_8008390C(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
@@ -600,15 +602,15 @@ s32 func_8008390C(s32 arg0) {
         *(s32 *)(p + 0x5C) = cameraHeight;
     } while (0);
     g_WorldMapCameraRot = v;
-    g_WorldMapViewRotationY = 0x400;
-    g_WorldMapViewRotationZ = 0;
+    *(volatile u16 *)&g_WorldMapViewRotationY = 0x400;
+    *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
     *(s32 *)(p + 0x50) = -0x20000;
     *(s32 *)(p + 0x38) = -0x20000;
-    v = ((s16 *)&g_WorldMapCameraRot)[1];
+    v = (s16)g_WorldMapViewRotationY;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapCameraHeight = cameraHeight;
     *(s32 *)(p + 0x54) = v << 12;
-    angleZ = ((s16 *)&g_WorldMapCameraRot)[2];
+    angleZ = g_WorldMapViewRotationZ;
     *(s32 *)(p + 0x3C) = v << 12;
     v = angleZ;
     g_WorldMapFadeLevel = 0x78;
@@ -617,6 +619,8 @@ s32 func_8008390C(s32 arg0) {
     return 1;
 }
 */
+
+
 // Best: 67.51 percent, 1380 bytes and 345 instructions against retail's 0x5E4
 // (1508 bytes, 395). An arrangement of this same body differing only in where the
 // ViewZ refill sits measured 69.79 (347 instructions); objdiff's score is not
