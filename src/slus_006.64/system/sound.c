@@ -2795,6 +2795,14 @@ void func_8003B424(AudioManager* pManager) {
 }
 */
 
+// Round 463 re-measure: 96.74%, retail's exact 748 bytes / 187 insns, the same 4 clusters and the
+// same single cause (srl v0,s8,0xf against srl v0,v0,0x16). No new spelling attempted: lever
+// d-combine-folds-through-any-intervening-statement measures that the fold survives copies,
+// reorders and declaration changes, and its two named doors are both shut here - a different basic
+// block would need a branch retail does not have (any branch between the two shifts changes bytes,
+// so it is unspellable by construction, not by measurement), and an untracked value would need the
+// volume to come from memory, i.e. a stack slot retail does not have. Clusters 2-4 stay downstream
+// as round 450 proved.
 // Round 450 re-measure: 96.74%, retail's exact 748 bytes / 187 insns, 8 differing
 // lines in 4 clusters - unchanged, and the body is real (not a stale object).
 // Cluster 1 is the wall (lever d-combine-folds-through-any-intervening-statement):
@@ -2912,9 +2920,9 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pManager->flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
+
 
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
     AudioManager* pEntry = pManager->pBackup;
@@ -4726,7 +4734,12 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
    Round 437 already measured dead: pScript++/return pScript (bare and in a
    do-while), return ++pScript, pScript += 1; return pScript, return pScript += 1,
    and index = *pScript++ (33 insns, rotates the s-block).  Two permuter runs
-   found nothing; the source shape is not reachable with 2.6.0 here. */
+   found nothing; the source shape is not reachable with 2.6.0 here.
+   Round 463 new axes, all dead: a distinct local returned at the end
+   (pReturn = pScript + 1; ... return pReturn;) is 93.38% / 31 insns - gcc folds the
+   local into v0 as well - and presets are ruled out too (2.7.2 94.84, cdk 94.84,
+   2.6.0 -O3 rejects the file).  Cause named: with one use of the incremented
+   pointer, 2.6.0's allocator always coalesces the add into $v0. */
 /*
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = *pScript;
@@ -4741,6 +4754,7 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
+
 
 void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
