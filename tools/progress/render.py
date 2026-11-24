@@ -5,6 +5,7 @@ import datetime
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -26,13 +27,54 @@ def overall(m):
     }
 
 
-def compact_unit(u):
+INCLUDE_ASM_RE = re.compile(r'^INCLUDE_ASM\("[^"]*",\s*(\w+)\)')
+CALL_RE = re.compile(r'\b(\w+)\s*\(')
+
+
+def function_lines(path):
+    """Map each function name in a C file to the 1-based line of its INCLUDE_ASM or definition.
+
+    A definition is a column-0 line naming the function before '(' whose body
+    ('{') follows; failing that (K&R parameter lists), the last such line,
+    since prototypes precede definitions.
+    """
+    lines, fallback = {}, {}
+    try:
+        with open(path) as fh:
+            text = fh.read().splitlines()
+    except OSError:
+        return lines
+    for i, line in enumerate(text, 1):
+        m = INCLUDE_ASM_RE.match(line)
+        if m:
+            lines.setdefault(m.group(1), i)
+            continue
+        if not line or line[0] in "#/* \t{}":
+            continue
+        rest = "\n".join(text[i - 1:i + 8])
+        brace, semi = rest.find("{"), rest.find(";")
+        body = brace >= 0 and (semi < 0 or brace < semi)
+        for name in CALL_RE.findall(line.split("=")[0]):
+            fallback[name] = i
+            if body:
+                lines.setdefault(name, i)
+    for name, i in fallback.items():
+        lines.setdefault(name, i)
+    return lines
+
+
+def compact_unit(u, src_dir):
     cats = u.get("metadata", {}).get("progress_categories", [])
+    src = os.path.join(src_dir, u["name"] + ".c")
+    lines = function_lines(src)
     funcs = []
     for f in u.get("functions", []):
-        funcs.append([f["name"], int(f.get("size", 0) or 0), round(float(f.get("fuzzy_match_percent", 0) or 0), 1)])
+        funcs.append([f["name"], int(f.get("size", 0) or 0), round(float(f.get("fuzzy_match_percent", 0) or 0), 1), lines.get(f["name"], 0)])
     funcs.sort(key=lambda f: (f[2] >= 100, f[2], -f[1]))
-    return {"name": u["name"], "cat": cats[0] if cats else "", "m": overall(u.get("measures", {})), "f": funcs}
+    out = {"name": u["name"], "cat": cats[0] if cats else "", "m": overall(u.get("measures", {})), "f": funcs}
+    if os.path.exists(src):
+        out["src"] = "src/" + u["name"] + ".c"
+    return out
 
 
 def short_sha(commit):
@@ -95,6 +137,7 @@ def main():
     ap.add_argument("--history")
     ap.add_argument("--commit")
     ap.add_argument("--date")
+    ap.add_argument("--src", default="src", help="C source root, for per-function GitHub links")
     args = ap.parse_args()
 
     with open(args.report) as fh:
@@ -121,7 +164,7 @@ def main():
         "repo": REPO_URL,
         "total": total,
         "categories": [{"id": c["id"], "name": c["name"], "m": overall(c["measures"])} for c in report.get("categories", [])],
-        "units": [compact_unit(u) for u in report["units"]],
+        "units": [compact_unit(u, args.src) for u in report["units"]],
         "history": history,
     }
     blob = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
@@ -157,7 +200,10 @@ h1{font-size:1.4rem;margin:0 0 4px}h2{font-size:1.05rem;margin:32px 0 12px;color
 .track{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:4px}
 .fill{height:100%;background:var(--good)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
-svg.chart{width:100%;height:auto;display:block}
+svg.chart{width:100%;height:auto;display:block;touch-action:pan-y}
+#hist{position:relative}
+.tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:.82rem;line-height:1.4;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.4);font-variant-numeric:tabular-nums}
+.tip .d{color:var(--dim)}.tip .up{color:var(--good)}.tip .dn{color:var(--bad)}
 .controls{margin-bottom:10px}
 input{width:100%;padding:8px 10px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;font:inherit}
 .scroll{overflow-x:auto}
@@ -171,7 +217,7 @@ tr.u td:first-child{white-space:normal;word-break:break-all}
 .p0{background:rgba(248,81,73,.12)}.p1{background:rgba(210,153,34,.12)}.p2{background:rgba(63,185,80,.10)}.p3{background:rgba(63,185,80,.22)}
 tr.fl td{padding:0 10px 10px;white-space:normal;text-align:left}
 .fn{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1px 16px;font:.78rem/1.5 ui-monospace,Menlo,Consolas,monospace}
-.fn div{display:flex;justify-content:space-between;gap:8px}.fn span:first-child{overflow:hidden;text-overflow:ellipsis}
+.fn div{display:flex;justify-content:space-between;gap:8px}.fn div>:first-child{overflow:hidden;text-overflow:ellipsis;color:inherit}
 .fn .m{color:var(--good)}.fn .pa{color:var(--mid)}.fn .z{color:var(--bad)}
 .note{color:var(--dim);padding:12px}
 @media(max-width:600px){.big{font-size:2.6rem}.hide-m{display:none}}
@@ -239,15 +285,44 @@ D.categories.forEach(c => {
     svg.append(mk('text', { x: X(tt), y: H - 8, fill: '#8b949e', 'font-size': 11, 'text-anchor': i == 0 ? 'start' : i == 3 ? 'end' : 'middle' }, ld(tt, { month: 'short', day: 'numeric', year: '2-digit' })));
   });
   svg.append(mk('polyline', { points: h.map((p, i) => X(t[i]) + ',' + Y(v[i])).join(' '), fill: 'none', stroke: '#3fb950', 'stroke-width': 2 }));
-  h.forEach((p, i) => {
-    const g = mk('g', {});
-    g.append(mk('circle', { cx: X(t[i]), cy: Y(v[i]), r: 9, fill: 'transparent' }));
-    g.append(mk('circle', { cx: X(t[i]), cy: Y(v[i]), r: 3.5, fill: '#3fb950' }));
-    const d = dv[i] == null ? 'first snapshot' : (dv[i] >= 0 ? '+' : '') + dv[i].toFixed(2) + '%';
-    g.append(mk('title', {}, ld(p.date) + ' · ' + p.commit.slice(0, 7) + '\n' + pc(p.pct) + ' (' + d + ')'));
-    svg.append(g);
+  h.forEach((p, i) => svg.append(mk('circle', { cx: X(t[i]), cy: Y(v[i]), r: 3.5, fill: '#3fb950' })));
+  const guide = mk('line', { y1: T, y2: H - B, stroke: '#8b949e', 'stroke-dasharray': '3 3', visibility: 'hidden' });
+  const ring = mk('circle', { r: 6, fill: 'none', stroke: '#e6edf3', 'stroke-width': 2, visibility: 'hidden' });
+  svg.append(guide, ring);
+  const tip = el('div', 'tip'); tip.hidden = true;
+  let cur = -1;
+  const hide = () => { cur = -1; tip.hidden = true; guide.setAttribute('visibility', 'hidden'); ring.setAttribute('visibility', 'hidden'); svg.style.cursor = ''; };
+  const show = i => {
+    cur = i;
+    const x = X(t[i]), y = Y(v[i]), p = h[i];
+    guide.setAttribute('x1', x); guide.setAttribute('x2', x); guide.setAttribute('visibility', 'visible');
+    ring.setAttribute('cx', x); ring.setAttribute('cy', y); ring.setAttribute('visibility', 'visible');
+    tip.textContent = '';
+    tip.append(el('div', null, ld(p.date)));
+    const r = el('div', null, pc(p.pct) + ' ');
+    if (dv[i] == null) r.append(el('span', 'd', '(first snapshot)'));
+    else r.append(el('span', dv[i] > 0 ? 'up' : dv[i] < 0 ? 'dn' : 'd', (dv[i] >= 0 ? '+' : '\u2212') + Math.abs(dv[i]).toFixed(2) + ' pts'));
+    tip.append(r, el('div', 'd', 'commit ' + p.commit.slice(0, 7)));
+    tip.hidden = false;
+    // place beside the point, flipping left near the right edge
+    const sr = svg.getBoundingClientRect(), br = box.getBoundingClientRect();
+    const sc = sr.width / W, ox = sr.left - br.left, oy = sr.top - br.top;
+    const px = ox + x * sc, py = oy + y * sc;
+    const left = px + 12 + tip.offsetWidth > box.clientWidth ? px - 12 - tip.offsetWidth : px + 12;
+    tip.style.left = Math.max(0, left) + 'px';
+    tip.style.top = Math.max(0, py - tip.offsetHeight / 2) + 'px';
+    svg.style.cursor = 'pointer';
+  };
+  svg.addEventListener('pointermove', e => {
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+    if (pt.x < L - 10 || pt.x > W - R + 10) { hide(); return; }
+    let best = 0;
+    t.forEach((tt, i) => { if (Math.abs(X(tt) - pt.x) < Math.abs(X(t[best]) - pt.x)) best = i; });
+    if (best !== cur) show(best);
   });
-  box.append(svg);
+  svg.addEventListener('pointerleave', hide);
+  svg.addEventListener('click', () => { if (cur >= 0) window.open(D.repo + '/commit/' + h[cur].commit, '_blank', 'noopener'); });
+  box.append(svg, tip);
 })();
 
 // units table
@@ -268,7 +343,15 @@ function fnList(u) {
   const g = el('div', 'fn');
   u.f.forEach(f => {
     const cls = f[2] >= 100 ? 'm' : f[2] > 0 ? 'pa' : 'z';
-    const d = el('div', cls); d.append(el('span', null, f[0]), el('span', null, f[1] + 'B ' + (f[2] >= 100 ? '100' : f[2].toFixed(1)) + '%'));
+    const d = el('div', cls);
+    let name = el('span', null, f[0]);
+    if (u.src) {
+      name = el('a', null, f[0]);
+      name.href = D.repo + '/blob/' + D.commit + '/' + u.src + (f[3] ? '#L' + f[3] : '');
+      name.target = '_blank'; name.rel = 'noopener';
+      if (!f[3]) name.title = 'definition not found; links to the file';
+    }
+    d.append(name, el('span', null, f[1] + 'B ' + (f[2] >= 100 ? '100' : f[2].toFixed(1)) + '%'));
     g.append(d);
   });
   return g;
