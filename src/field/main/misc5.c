@@ -242,8 +242,8 @@ extern void FieldUpdateFrame(void);
 extern void func_8007554C(void);
 extern void FieldTickSkipCounter(void);
 extern void FieldLoadFont(void);
-extern void func_800A6E70(void);
-extern void func_800A7064(void);
+extern void FieldInitializeParticlePrimitives(void);
+extern void FieldFreeParticlePrimitives(void);
 extern void FieldStoreScreenImage(void);
 extern void FieldRestoreScreenImage(void);
 extern void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR);
@@ -273,7 +273,7 @@ dispatch:
     switch (g_FieldScriptFadeMode) {
     case 4:
         ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
-        func_800A6E70();
+        FieldInitializeParticlePrimitives();
         g_FieldFadeIsWhite = 1;
         FieldFadeToBlack(g_FieldScriptFadeDuration);
         g_FieldParticleFadeDistance = 0;
@@ -285,7 +285,7 @@ dispatch:
             g_FieldParticleFadeDistance += FIELD_PARTICLE_FADE_DISTANCE_STEP;
         }
         DrawSync(0);
-        func_800A7064();
+        FieldFreeParticlePrimitives();
         goto end;
     case 1:
     case 2:
@@ -828,7 +828,7 @@ void FieldAddParticlePrims(void) {
 // tpage result one pseudo, which leaves the loop's block for global-alloc, so the
 // block-local pass keeps the u mask in $v0 as retail has it (stored straight into
 // pPoly both are block-local qties and mirror, 99.56%).
-void func_800A6E70(void) {
+void FieldInitializeParticlePrimitives(void) {
     FieldParticlePrimitiveSet* pPrims;
     POLY_GT4* pPoly;
     POLY_GT4* pPolyNext;
@@ -894,7 +894,7 @@ void func_800A6E70(void) {
 
 
 
-void func_800A7064(void) {
+void FieldFreeParticlePrimitives(void) {
     HeapFree(g_FieldParticlePrimitives);
 }
 
