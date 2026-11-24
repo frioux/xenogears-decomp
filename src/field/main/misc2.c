@@ -1358,6 +1358,24 @@ typedef struct {
 // (check_bin.sh field catches it; diff_func cannot).
 // Round 428: 97.44 / 1432 bytes re-measured with the declarations below live and g_FieldActors
 // taken from actor.h (the file's own), so the number is what an un-park sees today.
+// Round 441 (park lane): re-measured 97.44 / 1432 bytes / 358 insns against retail's 357, and the
+// extra instruction is loop.c's derived biv for the loop-3 call argument in BOTH directions -
+// cc1's own output (build/src/field/main/misc2.c.s) has `move $5,$17` before the loop label AND
+// in the bne delay slot, while retail's loop 3 has ONE copy inside the body and the tail's
+// `lui a3,0xff` in the slot. Three more loop-3 shapes measured, all 358 insns:
+// - `i = 0x15; pQuad = D_800B0FEC; do { call(...pQuad...); pQuad++; i++; } while (i < 0x19);`
+//   96.31 (also swaps $s0/$s1 roles).
+// - `pQuad = D_800B0FEC; for (i = 0x15; i < 0x19; i++) { call(...pQuad...); pQuad++; }` 96.34.
+// - `pCurrentQuad = &D_800B0FEC[i - 0x15];` as the loop body's FIRST statement: byte-identical to
+//   the index form (copy-propagated away), 97.44.
+// The preheader copy and the latch copy come as a pair in every spelling, so the pointer pseudos'
+// identity and the loop construct are both ruled out - this is loop.c's decision alone.
+// Preset leg closed on this body: gcc-2.7.2-cdk 78.20, gcc-2.6.0 97.44 (same shape), 2.7.2 -O3
+// compile-fails, so the derived biv is not a compiler-version fact.
+// Open question for the next lane: retail's loops 2 and 3 differ under the SAME compiler (loop 2
+// keeps init+latch, loop 3 keeps only a body copy), and the one source difference between them is
+// the `i - 0x15` additive offset in loop 3's subscript. That subtract is where the unmeasured
+// cause is; nothing about the loop's spelling moves it.
 /*
 void func_80074108(void) {
     MATRIX matProj; // 0x10: projection matrix, t[2] holds the screen distance
