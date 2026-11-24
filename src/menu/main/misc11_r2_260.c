@@ -274,6 +274,13 @@ void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_c
      [hoisted g_MenuSlotResourceIds base][giv j*0x50][giv j*4][giv primOffset 0xA98]
      [biv offset 0]
    and we emit it FIRST, ahead of the hoisted base.
+   ROUND 439 re-unparked this body and read the whole diff: 97.58 / 672 / 168, the
+   single displaced pair and nothing else, so the note is not stale. The giv route
+   was also re-measured from this tree to close the fork from both ends: it is
+   97.17 / 672 / 168 with its preheader group [hoisted base][giv j*0x50][giv j*4]
+   [biv offset][giv primOffset 0xA98], i.e. s2 and s4 swapped AND all seven sums
+   index-first, so no spelling of the loop reaches retail's group with retail's
+   addu order. Do not spend another lane on this body without a new lever.
    THE MECHANISM (round 397; lever b-strength-reduce-giv-is-always-first). A
    front-end accumulator's initialiser is always emitted before anything loop.c
    inserts, so retail's biv init must itself have come from strength_reduce. The
