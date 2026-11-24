@@ -260,8 +260,16 @@ void BattleInitMenuColumnPrims(void) {
    has none to spare: retail spends exactly s0..s4 (bufs, i, 0xcccd, 0xd, 6) and this
    build spends s0..s5, the 6th being the hoisted base. Adding a live value to chase that
    would only make this body 7 saves against retail's 6.
+   ROUND 445 RE-MEASURE (redo lane): 96.18% again at retail's exact 1060 bytes / 265 insns
+   under the unit's gcc-2.6.0, and the body compiles on the first run. Two spellings the note
+   above listed as untried, both measured and dead (identical 96.18 / 1060 / 265): the
+   index-first `*(bufs + i) = pBuf` for the `addu s0,v0,v1` row, and the volatile-ELEMENT
+   form `extern u_long * volatile g_BattleDigitImageBuffers[]` (the pointer-volatile reading of
+   the earlier note's "volatile on the declaration"). The four sites still save 3 insns each
+   (hoisted `addu v0,v0,s4` + `lw 0(v0)` against retail's `lui at / addu at,at,v0 / lw`),
+   the `la` in the preheader costs 2 and the extra save/restore 2, which is why the totals are
+   equal at 265 and only the register set differs. Park on the round-432 probe.
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
 /*
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
@@ -354,8 +362,10 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     BattleUpdateFrame();
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->primState = 2;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
+
+
 void BattleDrawColumnSpriteCells(s32 arg0) {
     s32 i;
     s32 offset;
