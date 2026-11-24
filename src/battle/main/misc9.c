@@ -169,6 +169,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
    inits (retail after them), and the tail beqz s2 slot holds move a0,zero where
    retail has addiu a1,s2,-1. Not a preset question (cdk 76.66% on sibling DB78).
  */
+// R455 remeasured 95.38% (352 bytes, 88 insns vs retail 87) - the parked body is still the best. New measurements on top of it, all stopping one instruction short: the 'ok' shape (result in an s32 local, i++ between the call and the test, idx = i at the body bottom) puts the increment in retail's beqz slot and the copy in retail's latch slot but folds the pre-loop copy into a prologue move s3,3 (91.46% / 86 insns; with 'idx = i' as a statement 92.51%; with count declared first 90.75%). Loop copy at the bottom only (idx = i as the last body statement) 89.03%. So: retail's preheader move s3,s1 comes only from idx = i++ and retail's beqz-slot increment only from the ok shape; no spelling gives both, and the two reorg duplicates of slti follow from which one is used.
 /*
 void func_8007DA1C(u8 **arg0, s32 arg1) {
     u8 buf[8];
@@ -195,9 +196,9 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
 
         pOut[(*arg0)[2]] = value;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
+
 /* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
    func_8007DE78 is the same loop without the g_BattleSlotFlags gate. Shape confirmed:
@@ -376,18 +377,24 @@ void func_8007DCF8(u8 **arg0, s32 arg1) {
    BattleSlotFlagsC002ClearRecordIdle call; with idx = i++ the whole loop body is byte-exact
    otherwise, and that shape is required (idx must stay a separate register;
    idx = i inside the body makes gcc propagate it and lose s3).
+ */
+// R455: the R398 two-pointer recipe transfers to DE78 - pField = pRow after the head store, index-first base with the (s32) cast on the symbol, u16 value local: 89.33 -> 93.64% (344 bytes, 86 insns; retail 87). That is the parked body. The one missing instruction is reorg's duplicate of slti in the beqz v1 delay slot (mine threads addiu v0,sp,16 there instead) plus the inc's position; the preheader row-base copy (addu s5,v1,zero) IS reproduced by this body.
+// Also measured R455: the 'ok' shape (u8 result in an s32 local, i++ between the call and the test, idx = i at the body bottom so the copy lands in the latch slot) puts the increment in retail's beqz slot and the copy in retail's latch slot, but gcc then constant-folds the pre-loop copy into a prologue move (move s3,zero) and drops the s3 save order: 91.33% / 86 insns. Same on DA1C (90.75-92.51). Not the answer, but it localises the wall: retail's preheader 'move s3,s1' only appears with idx = i++ (95.38 on DA1C), and retail's beqz-slot increment only appears with the ok shape - no spelling measured gives both.
+/*
 void func_8007DE78(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s32 count = 0;
     s32 idx;
-    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
+    u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    u16 *pField;
 
     pRow[(*arg0)[2]] = 0;
+    pField = pRow;
     do {
         idx = i++;
         if (BattleSlotFlagsC002ClearRecordIdle(idx, 1) != 0) {
-            if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
+            if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
             }
@@ -399,8 +406,9 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
 
         pOut[(*arg0)[2]] = value;
     }
-} */
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
+
 /* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
    func_8007DE78 is the same loop without the g_BattleSlotFlags gate. Shape confirmed:
