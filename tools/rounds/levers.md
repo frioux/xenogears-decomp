@@ -676,6 +676,10 @@ try: div mfhi mflo mult
 
 ## loop shape and invariant hoisting
 
+- id: g-the-rebuild-loop-counter-is-the-shared-index-variable | keywords: loop, counter, callee-saved, swapped, shared, variable, index, live-range
+  **WHEN A FUNCTION HAS A REBUILD LOOP AND A LATER/OTHER ARM THAT USES AN INDEX VARIABLE, RETAIL'S CALLEE-SAVED HAND-OUT USES THE SAME REGISTER FOR BOTH - so the loop counter IS that variable, and a fresh `int i` mirrors the pair** (round 443, field/main/misc7 func_80099214, Default preset, 97.91 -> 97.99 with the 12 register-diff lines on the loop gone). `for (walkmesh = 0; walkmesh < g_FieldWalkmeshTriCount - 1; walkmesh++)` with `walkmesh` also used as the walkmesh id in the tail gives retail's `$s1` counter / `$s0` normals-base pair, because one pseudo with disjoint live ranges ranks in global.c as the tail's variable does; a separate `int i` gives `i` `$s0` and the base `$s1`, the mirror. Declaring the counter in the `for()` or as a `while` with `walkmesh++` at the bottom compiles byte-identically, so the lever is the VARIABLE, not the loop syntax. Its residue here is that reorg then has only the result store to fill the `bnez` slot with (loop.c would have had to hoist the `a2 = i` argument copy to leave retail's `addu a2,s1,zero` in the slot), which is worth one instruction and is not reachable from source.
+
+
 symptoms: loop rotated or not, constant hoisted or reloaded
 try: loop hoist invariant rotated
 - id: g-which-four-invariants-are-hoisted | keywords: loop, hoist, invariant, callee-saved, frame, rematerialise, saved-set, local
@@ -805,6 +809,10 @@ Round 441 correction: the giv half of this entry is STALE for that 71.49% body -
 ## store ordering and volatile
 - id: h-a-bitfield-clear-run-goes-where-the-loop-source-says | keywords: store, order, bitfield, loop, read-modify-write, schedule, mask
   **A `u_int` BITFIELD RUN IN A LOOP BODY FOLLOWS SOURCE ORDER, NOT REORG: the plain field write (`scripts[i].flags_0 = 0xFFFF;`) written BEFORE the `state`/`isInUse`/`flags_0x17`/`flags_0x12` clears splits the read-modify-write of the same word and emits the halfword store FIRST, while writing it LAST emits retail's `lw word / and,and,and / or / sw word / sh word` order** (round 441, field/main/misc8 func_80080A74: 82.88 -> 83.17, 1228 bytes / 307 insns, the only edit of four that moved the score). So on a loop whose word RMW and its sibling wide/narrow stores differ only in order, re-order the SOURCE statements of the same word before assuming the scheduler did it.
+
+- id: h-a-three-group-tail-rotates-under-source-order | keywords: store, order, three, group, gt, ptr, tail, rotate
+  **IN gcc-2.7.2 A STRAIGHT-LINE TAIL OF THREE INDEPENDENT STATEMENT GROUPS COMES OUT AS `(source 1, source 3, source 2)` - THE MIDDLE STATEMENT'S GROUP IS EMITTED LAST - so when retail's order is `(a, b, c)` the source that emits it is `(a, c, b)`** (round 443, field/main/misc7 func_80099214, Default preset; the park went 96.45 -> 97.91 on this single edit). The tail is the walk-to-position rebuild exit: two flag-word read-modify-writes (`scriptFlags.flags &= ~0x10000;`, `flags &= ~0x200000;`) and the `scriptInstructionPointer += 0xD` halfword bump; retail emits `lw 0/sw 0/lhu 204/addiu/sh 204/lw 4/and/sw 4`, i.e. flags0, ptr, flags4. Written ptr-first (the natural reading order: advance then clear) the compile rotated to ptr, flags4, flags0 (96.45); written flags0, ptr, flags4 it rotated to flags0, flags4, ptr (96.26); written flags0, flags4, ptr it emits retail's exact three groups (97.91, 153 -> 141 differing lines). So on a tail whose groups are all instruction-identical and only rotated, try all three source permutations - the pair of measured rotations is enough to solve for the third, and sched2 was not involved.
+
 
 symptoms: stores in another order, reload of a global, volatile
 try: store volatile reload order

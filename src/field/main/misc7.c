@@ -584,31 +584,33 @@ extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pN
 extern int FieldGetVec2Angle(IVEC3* pVec);
 extern long FieldGetVec2Magnitude(long, long);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
-/* Best attempt: 96.45%, 1896 bytes against retail's 1900 (one instruction short,
-   `scriptInstructionPointer += 0xB` in the walk tail: retail emits the
-   walkmeshTriIds[i] store before the trip-count load and puts `move a2,i` in the
-   bnez delay slot, gcc sinks the store into that slot). Everything else is
-   instruction-identical apart from the register pair: retail keeps frameCount in
-   $s2 and arg3 in $s3, gcc 2.7.2 gives this body the opposite pair and every
-   knock-on follows. Six declaration-order permutations, gcc-2.6.0 (92.89%) and
-   two decomp-permuter runs (1578 iterations) left both untouched.
-   What settled the rest:
-   - the dispatch is switch (SCRIPT_READ_U8_REL(1) & 3); case 0 takes the frame
-     count straight from FieldScriptArgument4, case 1 divides the distance by it,
-     case 2 is the jump (step.y from SquareRoot0 of the height field at
-     SpriteData+0x1E) and case 3 either rebuilds the walkmesh triangle list
-     (byte1 == 0xF), advances along the step, or restarts the instruction.
-   - the shared walk tail hangs off case 0 and cases 1/2 goto it, which is what
-     puts it between case 0 and case 1 in the object.
-   - SpriteData+0x10 is step.y and +0x1C gravity; +0x1E is read as a signed
-     halfword, hence the ((s16*)&gravity)[1] view.
-   - moveFrameTotal (0xE0) must be a signed short: retail reads it with lh in the
-     frameCounter < moveFrameTotal test and lhu only for its own increment.
-   - VECTOR normal/point are never referenced; they only reproduce retail's
-     0xC0 frame.
-   - the two pass-through calls whose result is discarded (FieldScriptArgument1
-     and 2 at the top of case 2, SquareRoot0(value)) are what retail does. */
+/* Best attempt: 97.99%, 1896 bytes against retail's 1900 (one instruction short).
+      141 differing lines, whole body otherwise instruction-identical apart from one
+      mirrored callee-saved pair: retail keeps frameCount in $s2 and arg3 in $s3,
+      gcc 2.7.2 gives this body arg3=$s2 / frameCount=$s3 and the case-1 xDelta/zDelta
+      knock-on follows (retail $s5/$s4, ours $s2/$s0). Two levers found this round:
+      - THE PTR-BUMP STORE ORDER IN THE REBUILD-EXIT TAIL IS SPELLABLE (96.45 -> 97.91).
+        Retail emits scriptFlags.flags &= ~0x10000; flags &= ~0x200000; then
+        scriptInstructionPointer += 0xD LAST, and gcc 2.7.2 emits the last-written
+        statement's group last: writing the two clears before the bump reproduces
+        retail's lw 0/sw 0/lhu 204/sh 204/lw 4/sw 4 order (any other order rotates the
+        three groups). The earlier note's `+= 0xD`-then-clears order measured 96.45.
+      - THE CASE-0xF WALKMESH LOOP COUNTER IS THE walkmesh VARIABLE, not a fresh i
+        (97.91 -> 97.99): retail reuses $s1 for the loop index and for the tail's
+        walkmesh id, i.e. one pseudo with disjoint live ranges. A separate `int i`
+        gives i=$s0 / points base=$s1 (mirrored pair, 153 differing lines); sharing
+        walkmesh gives retail's $s1/$s0. Declaring it in the for() or as a while with
+        walkmesh++ at the bottom is byte-identical (97.99).
+      THE REMAINING INSTRUCTION IS loop.c NOT HOISTING A CALL-ARG COPY. Retail has
+      `addu a2,s1,zero` twice - once in the preheader, once in the bnez delay slot -
+      so the `a2 = walkmesh` copy (3rd argument of func_8007B1C4) was moved out of the
+      loop and re-emitted at the end; this body keeps one copy at the loop head, so
+      reorg has only the walkmeshTriIds store to fill the bnez slot with (it sinks the
+      `sh` there) and the function is one instruction short. Measured with no change:
+      an empty do{ }while(0) after the flag clears in that arm, an empty do{ }while(0)
+      around the store, splitting the call result into a local before the store, and
+      naming a separate triIndex copy of the loop index (all 97.99 / 1896 / 474).
+      Presets: gcc-2.7.2-cdk 93.77, gcc-2.6.0 92.89, -O3 does not compile. */
 /*
 void func_80099214(void) {
     VECTOR normals[4];
@@ -683,11 +685,11 @@ walk:
         goto walk;
     case 3:
         if (SCRIPT_READ_U8_REL(1) == 0xF) {
-            for (i = 0; i < g_FieldWalkmeshTriCount - 1; i++) {
-                g_FieldScriptVMCurActor->walkmeshTriIds[i] = func_8007B1C4(
+            for (walkmesh = 0; walkmesh < g_FieldWalkmeshTriCount - 1; walkmesh++) {
+                g_FieldScriptVMCurActor->walkmeshTriIds[walkmesh] = func_8007B1C4(
                     ((s16*)&g_FieldScriptVMCurActor->position)[1],
                     ((s16*)&g_FieldScriptVMCurActor->position)[5],
-                    i, &points[i], &normals[i]);
+                    walkmesh, &points[walkmesh], &normals[walkmesh]);
             }
             g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x10000;
             g_FieldScriptVMCurActor->flags &= ~0x200000;
@@ -722,9 +724,9 @@ walk:
             g_FieldScriptVMCurActor->position.vx = arg1 << 16;
             g_FieldScriptVMCurActor->position.vy = arg3 << 16;
             g_FieldScriptVMCurActor->position.vz = arg2 << 16;
-            g_FieldScriptVMCurActor->scriptInstructionPointer += 0xD;
             g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x10000;
             g_FieldScriptVMCurActor->flags &= ~0x200000;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 0xD;
         }
         g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[0] = ((s16*)&g_FieldScriptVMCurActor->position)[1];
         g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[1] = ((s16*)&g_FieldScriptVMCurActor->position)[3];
@@ -736,8 +738,10 @@ walk:
         break;
     }
     g_FieldScriptVMStopFlag = 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
+
+
 
 
 void FieldScriptVMHandlerWalkToPositionUnbounded(void) {
