@@ -627,79 +627,43 @@ extern void SystemStringInit(void* pString, s32 vramX, s32 vramY, s32 x, s32 y, 
 // Extra left inset the text takes when a portrait is drawn beside it.
 #define FIELD_TEXT_BOX_PORTRAIT_INDENT 0x44
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
-
-// 73.38%, 1684 bytes / 421 insns against retail's 1804 bytes / 451 insns: the whole body is in place (the
-// allocation loop, the four script variable reads, the three mode arms, the
-// portrait, the rect and string seeding, both position offsets with their two
-// division arms, and the flags tail) and every call, branch and reloc matches.
-// What is left is allocation and one address-form family.
-//  1. Retail re-forms `%hi(g_FieldTextBoxes + K)` at EVERY box access, including
-//     the eight string stores at 0x28/0x80/0x88..0x98/0xA8 (relocs read
-//     `g_FieldTextBoxes + 0x88` with `addu $at,$at,$s0`). A typed pointer
-//     (`TEXT_BOX_STRING(i)->args[n]`, what text_box.c does) makes gcc CSE the
-//     string base into a callee-saved register instead, which also costs the
-//     frame: measured 1684 bytes / vars=24. Spelling those eight accesses as raw
-//     byte offsets (`*(s32 *)((u_char *)&g_FieldTextBoxes[i] + 0x88)`) scores
-//     75.16% and brings the frame to 104 (retail 112) with x finally spilled to
-//     the stack like retail's, but emits `la $sN,g_FieldTextBoxes+K` + an extra
-//     addu per store and ends at 1744 bytes. The header's `short _pad[0x56]`
-//     covers 0x18-0xC4, so the string cannot be reached as a member chain
-//     without re-splitting that shared field.
-//  2. Retail spills x (0x28) and top (0x30) to s16 stack slots and reloads them
-//     with lhu+sll/sra at each of the five uses; this build keeps one or both in
-//     callee-saved registers, and the slots at 0x2C/0x34/0x3C suggest retail's
-//     frame also carries two unreferenced 4-byte locals (a `{ s16 left; s16
-//     top; }` struct forced to memory measures 67.48% / 1664 bytes, so the shape
-//     is not just "make them aggregates").
-//  3. Retail addresses g_FieldTextScaleDivisor through a pointer (`lui`/`addiu`
-//     into $a0 then `lh $v1,0($a0)` twice, one per division) where this build
-//     emits two direct `lui`/`lh` pairs.
-// Measured and rejected: dialogIndex as u16 (retail spills it with `sw`, so s32
-// is right), the branchless `(faceFlags & 0x800) ? 1 : 0` for box->unk412
-// (retail branches on `andi 0x800` and stores a `li 1`), and reading dialogFlags
-// straight from the field (gcc narrows `>> 16` into `lhu 0x86`; a local word
+// 73.38%, 1684 bytes / 421 insns against retail's 1804 bytes / 451 insns. The body is
+// structurally complete (the allocation loop, the four script variable reads, the three
+// mode arms, the portrait, the rect and string seeding, both position offsets with their
+// two division arms, and the flags tail) and every call, branch and reloc matches. The 30
+// missing instructions are two mechanisms, both confirmed:
+//  1. Retail NEVER holds a box base in a register: every box access is
+//     lui $at,%hi(g_FieldTextBoxes+K) / addu $at,$at,<textBoxIndex*0x498> /
+//     op %lo(g_FieldTextBoxes+K)($at), i.e. gas expanding the flat sym+addend($reg)
+//     macro, which only a typed MEMBER (g_Box[i].string.args[0]) produces. The string
+//     sits at box+0x18, which the header declares only as the opaque short _pad[0x56],
+//     so every spelling here starts from a cast. PROBED (cc1_probe.sh with this unit's
+//     cc1, round 457): the flat form IS emitted for the FIRST store of a block
+//     (sw $2,g_FieldTextBoxes+136($3)) and from the second one on cse keeps sym+136 in a
+//     register and derives the rest (la $17,g_FieldTextBoxes+136 / addu $3,$17,4 /
+//     addu $3,$16,$3), so no cast spelling reproduces retail's 3-insn-per-store form;
+//     the cast forms also make gcc CSE sym+scaled into a callee-saved register instead.
+//  2. The frame and the register set carry the larger part: even a local re-split of the
+//     header (round 444) measures 79.67% / 1724 bytes / 431 insns, so the typing is a
+//     prerequisite and not the answer. Retail spills x to a sh slot at 0x28 and top at
+//     0x30, reloads them with lhu+sll/sra at five uses, keeps dialogIndex at 0x38 and
+//     leaves 0x2C/0x34/0x3C empty (its source declared more locals than survive); this
+//     body keeps x/top in $s6/$s7 and needs only a 0x58 frame.
+// Also measured and rejected: raw byte-offset stores 75.16 (1744 bytes), typed view
+// struct 73.29 (1688), s16-pair aggregate for x/top 67.48 (1664), dialogIndex as u16
+// (retail sws it, so s32 is right), branchless (faceFlags & 0x800) ? 1 : 0, and reading
+// dialogFlags straight from the field (gcc narrows >> 16 into lhu 0x86, so a local word
 // read is required and is in the body).
-// Re-measured last: 73.38% / 1684 bytes is confirmed, and the compiler question
-// is closed - gcc-2.6.0 71.13, -O1 55.25, gcc-2.7.2-cdk fails to compile, so
-// Default (-O2 -G8) is this function's preset. twin_for.py has no twin.
-// The 120-byte gap is one mechanism, now named: retail NEVER holds a box base
-// in a register. Every box access is `lui $at,%hi(g_FieldTextBoxes+K)`, `addu
-// $at,$at,<textBoxIndex * 0x498>`, then the load/store at `%lo(...)($at)`, and
-// that scaled index itself is recomputed (seven shifts) in six places in fresh
-// registers ($s0, $a0, $a1, $v0) - so the original's CSE shared neither the
-// base nor the multiply. Any C that MATERIALISES the base as a value - i.e.
-// every cast-based spelling of the string at box+0x18, including a typed view
-// struct `((FieldTextBoxStringView*)g_FieldTextBoxes)[i].string` (measured
-// 73.29% / 1688 bytes) and the `_pad` cast this body uses - makes gcc CSE
-// `sym + scaled` into one callee-saved register and switch all eight accesses
-// to the base+displacement form, which is 1 instruction per store instead of
-// retail's 3 and is where the 120 bytes and the score go. That is also the
-// shared blocker of this unit's other box parks (FieldTextBoxDraw 68.38,
-// FieldTextBoxInitializePrimitives, FieldTextBoxInitialize 82.32).
-// Confirmed correct in the body, do NOT "fix" it: D_800ADF54 is indexed by
-// textBoxIndex, not by the allocation slot - retail loads $s5 with a copy of
-// the box index (`addu $s5,$s1,zero`) right after the allocation loop, so the
-// loop's slot dies there. All 9 calls, every branch and every store match.
-// PROVEN (round 444, cc1_probe.sh with this unit's cc1): the mechanism above is
-// a *typing* fact, not a spelling one. A typed MEMBER (`g_Box[i].string.args[0]`)
-// emits `sw $2,g_Boxes+136($16)` for every access - gas expands that to retail's
-// `lui $at,%hi(+136)/addu $at,$at,$16/sw %lo($at)` - while every cast spelling
-// (`TEXT_BOX_STRING`, `&box._pad[0x38]`, `(u_char*)&g_FieldTextBoxes[i] + K`)
-// takes an ADDRESS_OF first, so gcc keeps `sym + scaled` as a value and anchors
-// the later members to it with `la`/`addu`. Measured with the header's
-// `short _pad[0x56]` temporarily re-split into the string's real fields (reverted,
-// see below): 79.67% / 1724 bytes, 431 insns against retail's 451 - so the split
-// closes only 10 of the 30 missing instructions and is a PREREQUISITE, not the
-// answer; the rest is the frame and the register set. Shipping it needs a header
-// decision, not a C one: cc1 2.7.2 rejects an anonymous union ("structure has no
-// member named"), so `_pad` cannot be kept beside a typed string member in the
-// same slot, and re-splitting it breaks text_box.c's TEXT_BOX_STRING macro.
-// Frame evidence for the next attempt: retail's 0x70 frame holds anchor at
-// 0x20/0x24, x at 0x28 and top at 0x30 (both `sh` + `lhu` reloads), dialogIndex
-// at 0x38, and leaves 0x2C/0x34/0x3C empty - slots of locals that were optimised
-// away, i.e. the source declared more locals than survive; this body keeps top in
-// $s7 and needs only 0x58.
+// Confirmed correct, do NOT "fix" it: D_800ADF54 is indexed by textBoxIndex, not by the
+// allocation slot - retail copies the box index into $s5 right after the allocation loop,
+// so the loop's slot dies there. All 9 calls, every branch and every store match. The same
+// base-in-a-register blocker is shared by this unit's other box parks (FieldTextBoxDraw
+// 68.38, FieldTextBoxInitializePrimitives, FieldTextBoxInitialize 82.32).
+// Preset question closed: gcc-2.6.0 71.13, -O1 55.25, gcc-2.7.2-cdk fails to compile, so
+// Default (-O2 -G8) stands. twin_for.py has no twin.
+// Shipping mechanism 1 needs a header decision, not a C one: 2.7.2 rejects an anonymous
+// union, so _pad cannot sit beside a typed string member in the same slot, and
+// re-splitting it breaks text_box.c's TEXT_BOX_STRING macro.
 /*
 s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s32 height,
                   s32 curActorIndex, s32 actorIndex, s32 mode, u32 flags, u32 faceFlags) {
@@ -817,9 +781,8 @@ s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s3
         return -1;
     }
     return 0;
-}
-*/
-
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
 
 void FieldTextBoxFreeAll(void) {
     int i;
