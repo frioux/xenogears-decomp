@@ -392,7 +392,7 @@ void func_800826CC(u8 arg0) {
     } while (0);
     D_800C3EB8[arg0][0] = 1;
     ((BattleActorSlots *)g_BattleCommandQueue)->charRedrawFlags[arg0] = 1;
-    for (; i < 3; i++) {
+    for (; i < MAX_PARTY_MEMBERS; i++) {
         if (g_GameState.partyMembers[i] == g_BattleActorCharIds[arg0] && g_FieldPlayerWalkmeshMaterial == 0) {
             g_GameState.gearRide[i] = 1;
         }
