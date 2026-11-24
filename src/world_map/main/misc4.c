@@ -14,6 +14,12 @@
 // the archive directory this overlay's files are read through
 #define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
 
+// the grid angle advances by this step every rendered frame (same define as misc1.c)
+#define WORLD_MAP_GRID_ANGLE_STEP 64
+
+// a POLY_FT4's packet length in words past its tag (same define as misc10.c)
+#define WORLD_MAP_PRIM_TAG_LEN 9
+
 // the scale animation an actor runs: the angle advances by a fixed step each frame,
 // wrapping at WORLD_MAP_SCALE_ANGLE_LIMIT, and each wrap advances the scale until it
 // reaches the maximum that ends the animation.
@@ -577,7 +583,7 @@ s32 WorldMapUpdateFrameWithParticles(void) {
     pState = &g_WorldMapCameraTarget;
     func_800983A0(pState);
     func_8009932C(g_WorldMapRenderContext->pOt[0], g_WorldMapRenderContext->pOt[1], pState);
-    g_WorldMapGridAngle = g_WorldMapGridAngle + 0x40;
+    g_WorldMapGridAngle = g_WorldMapGridAngle + WORLD_MAP_GRID_ANGLE_STEP;
     func_80073B04();
     func_800737EC();
     func_80086798();
@@ -988,7 +994,7 @@ s32 func_80079778(s32 index) {
         WorldMapInitSpriteGroupSprites(12, pVec, 0);
         p->stateTimer = p->stateTimer - 1;
         if ((s16)p->stateTimer <= 0) {
-            WorldMapDeactivateSpriteGroup(0xC);
+            WorldMapDeactivateSpriteGroup(12);
         }
         pEntries[0].rot.vx += 4;
         pEntries[0].rot.vz += 2;
@@ -1022,7 +1028,7 @@ s32 func_80079778(s32 index) {
         }
         p->stateTimer = 8;
         p->state = p->state + 1;
-        WorldMapDeactivateSpriteGroup(0xC);
+        WorldMapDeactivateSpriteGroup(12);
         WorldMapStartSlot(1, 1);
         break;
     }
@@ -1058,7 +1064,7 @@ s32 func_80079778(s32 index) {
         pEntries[2].hidden = 1;
         pEntries[1].hidden = 1;
         pEntries[0].hidden = 1;
-        WorldMapDeactivateSpriteGroup(0xB);
+        WorldMapDeactivateSpriteGroup(11);
         break;
     }
     WorldMapWrapPosition(&p->x);
@@ -1124,7 +1130,7 @@ void WorldMapSetupPrimTemplates(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 coun
     s32 i;
 
     for (i = 0; i < count; i++) {
-        setlen(pPrim, 9);
+        setlen(pPrim, WORLD_MAP_PRIM_TAG_LEN);
         pPrim->code = 0x2C;
         pPrim->tpage = GetTPage(1, 3, 0x340, 0x100);
         pPrim->clut = GetClut(0x100, 0x1FF);
@@ -1266,7 +1272,7 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     pScratch->vx = s->x;
     pScratch->vy = s->y;
     pScratch->vz = s->z;
-    WorldMapInitSpriteGroupSprites(0xA, pScratch, 0);
+    WorldMapInitSpriteGroupSprites(10, pScratch, 0);
     return 3;
 }
 
