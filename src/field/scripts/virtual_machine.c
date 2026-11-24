@@ -934,42 +934,37 @@ extern u8 g_FieldScreenEffectData[];
 extern char D_8006FD9C[]; // "SAVESIZE=%d %x\n"
 extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
 
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
-
-// Pulls the field state that func_800A3F4C pushed into the save block back out, one memcpy
-// per block, then each actor's ActorData and the script memory.
+// Pulls the field state that func_800A3F4C pushed into the save block back out, one memcpy per block,
+// then each actor's rotation/status/ActorData and the script memory.
 //
-// PARKED 99.08% at retail's exact 518 instructions / 2072 bytes (20 differing lines, all of
-// them scheduling or commuted-operand artifacts):
-//  1. the rotation copy's destination prints `addu v0,s0,v0` where retail has `addu v0,v0,s0`
-//     (same register pair, commuted PLUS); it is the only one of the four actor sites that
-//     differs, and `&(g_FieldActors + i)->rotation` measures exactly the same.
-//  2. the status store's `lui/lw g_FieldActors` is hoisted above the `cursor += 8` store,
-//     where retail schedules it after the 4-byte status copy. A `do { } while (0)` around the
-//     status store makes the whole body worse (97.90).
-//  3. the `pScriptWorkWords` store's `sw t1,280` lands after the next statement's address
-//     computation; retail has it adjacent (`lw v0,76(v0)` / `nop` / `sw t1,280(v0)`). A
-//     do-while there costs two instructions (98.84, 520 insns).
-// What IS load-bearing, and the reason this body is 99.08 and not 95:
-//  - the cursor advances are compound assignments on the global and the copy source is the
-//    global itself (`memcpy(dst, g_WorldMapSaveCursor, N)`), which is what makes the sum reuse
-//    the loaded $v0 and the copy read the reloaded cursor;
-//  - the two `do { } while (0)` blocks around the two HeapAlloc stores are what stops sched2
-//    from hoisting the following statement's `lui/lw g_FieldActors` above the store: each is
-//    worth exactly that store's load-delay `nop` (98.84 without the first, 98.44 without the
-//    second). Found by permute.sh, base=1294 best=958.
-//  - `pActorData = g_FieldActors[i].pActorData;` feeds BOTH the pScriptWorkWords read and the
-//    ActorData copy's destination (one evaluation, retail's single `lw 0x4C`); the store that
-//    restores pScriptWorkWords and both HeapAlloc sites re-evaluate the expression instead,
-//    which is what retail's extra `lw 0x4C` per site shows.
+// PARKED 99.41% (2068 bytes against retail 2072; 517 instructions against 518; 19 differing lines).
+// One instruction and one scheduler move from a match.
+// THE FIND (round 444, 99.08 -> 99.41): `pFieldActor = &g_FieldActors[i];` at the top of the actor
+// loop with `memcpy(&pFieldActor->rotation, ...)` fixed TWO residuals that no spelling of the memcpy
+// destination could: the rotation copy now prints retail's base-first `addu v0,v0,s0` (the bare
+// `&g_FieldActors[i].rotation` gives index-first, and so do the parenthesised base+offset sum and the
+// `(u8*)` cast forms), and sched2 no longer hoists a dead `lw g_FieldActors` into the cursor store's
+// load-delay slot.
+// WHAT IS LEFT, all in one place: retail emits `lw v0,76(v0)` (pActorData for the pScriptWorkWords
+// restore) / `nop` / `sw t1,280(v0)` adjacent and only then starts the next statement's
+// `lw g_FieldActors`; this body's sched2 hoists that chain into the load-delay slot, so the store
+// lands after it and the nop never exists - hence -4 bytes.
+// Measured dead this round: a `do {} while (0)` around the restore store (519 insns, 99.17); the same
+// barrier with both HeapAlloc barriers removed (515, 98.12); re-evaluating `pActorData` in its own
+// statement before the store (97.58, 49 differing lines); moving the restore store after the
+// `g_WorldMapSaveCursor += 0x138` (no change - sched2 does not care); `pFieldActor` used for the store
+// itself (loses retail's reload); the double-negated `- -(i * sizeof(FieldActor))` memcpy
+// destination (breaks the loop giv, 521 insns, 98.45). Two permute.sh runs on this body (1307 and 1438
+// iterations) are both PERMUTER_NONE.
+// Still load-bearing: the two `do {} while (0)` blocks around the HeapAlloc stores (without them the
+// body is 515 insns / 98.12%) and the compound-assignment cursor advances.
 /*
-// Pulls the field state back out of the save block, one memcpy per block, then each
-// actor's ActorData and the script memory. func_800A3F4C pushes it.
 void func_800A3474(void) {
     int i;
     void* pScriptWorkWords;
     ActorData* pActorData;
     void** pScriptMemory;
+    FieldActor* pFieldActor;
     int nStatus;
 
     g_WorldMapSaveCursor = g_WorldMapSaveBlock;
@@ -992,7 +987,8 @@ void func_800A3474(void) {
     g_WorldMapSaveCursor += 0x1C8;
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
-        memcpy(&g_FieldActors[i].rotation, g_WorldMapSaveCursor, 8);
+        pFieldActor = &g_FieldActors[i];
+        memcpy(&pFieldActor->rotation, g_WorldMapSaveCursor, 8);
         g_WorldMapSaveCursor += 8;
         memcpy(&nStatus, g_WorldMapSaveCursor, 4);
         g_FieldActors[i].status = nStatus;
@@ -1002,8 +998,8 @@ void func_800A3474(void) {
         g_WorldMapSaveCursor += 0x34;
         memcpy(pActorData, g_WorldMapSaveCursor, sizeof(ActorData));
         g_FieldActors[i].pActorData->pScriptWorkWords = pScriptWorkWords;
-
         g_WorldMapSaveCursor += 0x138;
+
         if (g_FieldActors[i].pActorData->flags134 & 0x80) {
             do {
                 g_FieldActors[i].pActorData->pTargetTrack = HeapAlloc(0xC, 0);
@@ -1023,8 +1019,10 @@ void func_800A3474(void) {
     pScriptMemory = &g_FieldScriptMemory;
     memcpy(pScriptMemory, g_WorldMapSaveCursor, 0x800);
     g_WorldMapSaveCursor += 0x800;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
+
+
 
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 // Best attempt: 86.75% (692 bytes vs 696). Everything structural already matches: the 0x74-byte
