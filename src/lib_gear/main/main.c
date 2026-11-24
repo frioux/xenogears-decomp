@@ -1700,6 +1700,17 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 // Also tried and rejected: s16 x/y/z locals (74.79%), blockType == 0 inline
 // instead of skipFirst (94.95), gcc 2.7.2 (94.95), 2.7.2-cdk (92.43), cdk +
 // aspsx 2.67 (89.90).
+// R462 closed residual (1) as a class rather than a spelling, on this function
+// and on func_801DF0B4 together (levers.md
+// a-parameter-home-register-is-abandoned-when-its-block-sets-it):
+// - 'pBlock++; pKeyframe = (s16*)pBlock;' - sets on the parameter - is
+//   byte-identical to this body: gcc gives the incremented value a fresh pseudo
+//   and leaves a1 live at the add, so retail's in-place add on the parameter's
+//   own register is not reachable from source.
+// - the two residuals are mutually exclusive: loading flags before type (all
+//   four field loads then read the same offsets) puts addiu a1,a1,24 in the
+//   bnez delay slot exactly as retail has it, but flags takes a3 and y stays
+//   mirrored - 95.93%, 48 differing lines against this body's 50.
 /*
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     u16 rotFrame;
@@ -1788,6 +1799,16 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 // - try_flags gcc-2.7.2-psx: 95.19, so the unit's preset is not the question.
 // - the (s8*) casts on the two LibGearFreeJointObject calls are gone (it takes
 //   Temp3*); byte-identical.
+// - R462: the entry 'move s1,a2' + in-place 'addiu s1,s1,0x18' is ONE pseudo in
+//   retail - the four header loads read through it (lhu t0,12(s1) ...
+//   lhu t0,4(s1)) and then it is incremented in place. gcc 2.6.0 cannot produce
+//   it: it propagates the parameter copy into those loads and gives the add a
+//   fresh pseudo, so the header stays on a2 and the cursor takes s2. Measured
+//   byte-identical to the body below (95.40%, 168 differing lines):
+//   'pKeyframe = (s16*)pBlock; pKeyframe += 12;', 'pBlock++; pKeyframe =
+//   (s16*)pBlock;', and 'pHeader = pBlock;' with all four header loads through
+//   pHeader then 'pHeader++; pKeyframe = (s16*)pHeader;'. See levers.md
+//   a-parameter-home-register-is-abandoned-when-its-block-sets-it.
 // objdiff 95.40%, 1144 bytes (retail's exact size, 286 instructions), every
 // branch target and every slot at the same offset as the original. Both
 // channels reproduce retail's own structure: the whole-word read of the
