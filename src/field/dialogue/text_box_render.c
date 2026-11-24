@@ -366,35 +366,50 @@ extern u8 D_800594D5;
 extern u8 D_800594D6;
 extern RECT D_800ADE9C[];
 
-// PARKED 63.05%: 1784 bytes against retail 1952, 446 instructions against 488.
-// The body is a faithful longhand transcription of the original: every
-// g_FieldTextBoxes[index] access written out, retail statement order kept
-// (background draw modes, SetTile, the tiles[1] = tiles[0] copy, the arrow and
-// cursor sprite blocks with their wh/u/v/clut store order, the 8-iteration
-// borders loop, the portrait poly). Two residuals, both allocation:
-//  1. retail anchors every g_FieldTextBoxes address at sym plus 0xAC and adds
-//     index times 0x498 in a register (lui at,%hi(sym+0xAC); addu at,at,s0);
-//     this body anchors at plus 0xC4 (the first field it touches) and keeps the
-//     whole &g_FieldTextBoxes[index] pointer in a callee-saved register, so all
-//     ~40 address computations differ in form.
-//  2. retail keeps index in s6 and spills five walking offsets to stack words
-//     at 0x20/0x28/0x30/0x38/0x40 (0x140+i*0x14, i*0x14, 0xC8+i*0xC,
-//     0x50+i*0xC, D_800ADE9C+i*8); this body spills index itself and keeps
-//     those addresses in registers, i.e. it emits fewer address computations.
-// Measured: pointer locals per sub-struct (the first draft) 56.13%; longhand
-// body 63.05% (best, this one); longhand with pRect/pHeight walking pointers in
-// the borders loop 61.89%; round 445: walking pointers for all four border
-// arrays plus a RECT pointer (`SetSprt(pSprites1); *pSprites2 = *pSprites1;`,
-// +0x14/+0xC per iteration, built to reproduce retail's five stack-spilled
-// pointers) 61.54% / 1628 bytes / 407 insns -- the extra live values are bought
-// with 128 bytes, so live-value pressure alone is not the mechanism.
-// The 0xAC anchor is NOT a source address: m2c reads the same reloc as
-// `&g_FieldTextBoxes->_pad[0x4A]`, and every register-form site in the .s has a
-// constant of 0xAC + K with K >= 0x18 (0xAC and 0x1EC are the only two split
-// points in the whole function: 0xAC x10, 0x1EC x4, everything else is a bare
-// %lo field access through $at). So it is gcc's choice of split constant, and
-// the previous note's "the box RECT, an address this body never forms" is a
-// dead end.
+// PARKED 63.05% (re-measured round 458): 1784 bytes against retail 1952, 446
+// instructions against 488. The structure is not missing a block:
+// tools/scripts/m2c_draft.sh produces the same statement order, and m2c reads the
+// same anchor (g_FieldTextBoxes->_pad[0x4A], i.e. symbol plus 0xAC), so what is
+// left is allocation.
+// Round 458 census, instruction count per call-delimited region (original vs this
+// body): 17/17, 19/20, 6/6, 7/7, 4/4, tiles+arrow 45/40, arrow draw modes 13/10,
+// arrow sprite 81/55, cursor draw modes 13/9, 6/6, 7/7, 3/3, cursor sprite 85/75,
+// borders loop head 20/8, 6/6, 8/8, 6/3, 15/13, 9/9, loop sprite 78/57, portrait
+// 14/20, 6/6, 7/7, 9/3, 8/9, 11/11, tail 42/38.
+// The three big deficits are exactly the blocks where retail rebuilds the element
+// base: retail keeps index in s6 (never spilled) and index times 0x498 in s0 for
+// the whole function, then for every scalar field store emits lui at,%hi of
+// g_FieldTextBoxes, addu at,at,s0 and the store with the RAW field offset as its
+// immediate (sh t2,0x3F0(at) and friends: eight of those in the arrow sprite
+// block alone, most of its 26-instruction lead). This body CSEs one
+// g_FieldTextBoxes[index].<sub> pointer into a callee-saved register and writes
+// +offset relative to it, which is two instructions cheaper per store; that is
+// where the 42 missing instructions are, and the 63% fuzzy score is those address
+// forms. Retail setRGB0 too goes through that pointer (sb s2,4(s1)), so retail
+// mixes both forms inside one block.
+// The borders loop recomputes the whole 7-instruction index times 0x498 chain
+// every iteration (into s4) and spills five walking offsets to stack words
+// 0x20/0x28/0x30/0x38/0x40: 0x140 plus i times 0x14, i times 0x14, 0xC8 plus i
+// times 0xC, 0x50 plus i times 0xC and D_800ADE9C plus i times 8. The first four
+// share ONE combined base, symbol plus 0xAC (0xAC+0x50 is borders.drawModes1,
+// +0xC8 drawModes2, +0x140 borders.sprites1); the two sprite copies use a second
+// anchor at symbol plus 0x1EC (sprites1 itself) plus i times 0x14. So retail runs
+// two symbolic address families, not one box pointer.
+// Frame: retail 0x70 saves s0 to s8; this body 0x80 and spills the index
+// parameter at 0x20, i.e. retail has one more register of pressure than this body.
+// Preset screen round 458 on this body: 2.7.2 -O2 -G8 63.05, 2.7.2 -G0 63.05,
+// 2.6.0 66.33; 2.7.2-cdk and -O3 fail to compile this unit (cc1 exit 33 on
+// another function in the file), so the preset is right.
+// Measured and dead earlier: pointer locals per sub-struct 56.13; longhand 63.05
+// (this one); longhand with pRect and a pHeight walking pointer in the borders
+// loop 61.89; round 445 walking pointers for all four border arrays plus a RECT
+// pointer (SetSprt(pSprites1); then pSprites2[p] = pSprites1[p]) 61.54, 1628
+// bytes, 407 instructions, so adding live values does not buy retail address forms.
+// Next idea for a round with budget: stop the scalar field stores from sharing the
+// CSE that the call arguments create, e.g. pass a sprite pointer local to
+// SetSprt/setRGB0 but write w/clut/u/v/h/x/y through the full
+// g_FieldTextBoxes[index].continueArrow.sprites[0].field expression, and see
+// whether each store then rebuilds at instead of using pointer plus offset.
 /*
 void FieldTextBoxInitializePrimitives(int index) {
     int i;
@@ -487,6 +502,7 @@ void FieldTextBoxInitializePrimitives(int index) {
     g_FieldTextBoxes[index].portrait.polys[1] = g_FieldTextBoxes[index].portrait.polys[0];
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitializePrimitives);
+
 
 
 // Each portrait is a 0x40 x 0x40 tile of the portrait texture; g_FieldTextBoxPortraitUVs holds
