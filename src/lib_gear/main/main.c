@@ -3446,11 +3446,19 @@ s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
 // (the barrier does not move the li - it is emitted at RTL 6, so sched2 is not what
 // places it). Store order = source order in every shape, so the (li@0, store@14)
 // split still needs a decision this cc1 will not make.
+// objdiff 94.87% (best), 39 insns / 156 bytes, retail-length exact.
+// Round 451: the -1 constant and its first store are rigidly coupled at a FIXED 8-slot
+// gap, which is why (li@0, store@14) cannot be reached: with `frame = negOne` FIRST the
+// li lands at 0 and the sh 0x98 at 8; as the 10th statement the sh is at retail's 14 and
+// the li at 6. Everything else (instruction multiset, store order, 156 bytes) is exact.
+// Prior rounds: 3 compilers screened, permuter 783 iterations NONE.
+// The statement order below is the better-scoring (94.87) of the two measured shapes.
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
     s16 one = 1;
 
+    pModel->frame = negOne;
     pModel->objectType = 0xFFFF;
     pModel->parentModelSlot = 0xFF;
     pModel->unk39 = 0x6B;
@@ -3460,7 +3468,6 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->pEntryTableLow = (Temp7**)arg3;
     pModel->pEntryTableHigh = NULL;
     pModel->commandCount = 0;
-    pModel->frame = negOne;
     pModel->sourceModelSlot = 0;
     pModel->unk35 = 0;
     pModel->useScaledMatrices = 0;
@@ -3486,7 +3493,6 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk1E = negOne;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
-
 
 void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
@@ -3807,18 +3813,36 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
 //   function, lhu in func_801DEF10 - the local's type differs, the global is u16);
 //   flag is u16 (permuter: PERMUTER_BETTER base 2199 -> 1659, and it changes no
 //   semantics, flag is only ever compared against 0).
-// WHAT IS LEFT, one allocator domino: retail keeps pModel in s1, this build puts it
-// in s2, and every case-8 register follows (+1: model base s2/s3, modelBit s3/s4,
-// savedIndex s4/s5, pCmd copy s6/absent, i s0/s1). Because our i takes s1, pCmd never
-// needs retail's `move s6,s0` copy for the animation loop, which is the missing
-// instruction and the missing 4 bytes. Tried and measured, all identical to this
-// body: i declared at function scope vs inside case 8, modelBit inside case 8,
-// savedIndex s16 vs u16, flag s16 vs u16 (worse: 1516 bytes), pCmd->unk5 > 0 vs
-// != 0 (gcc folds both to beqz; retail's blez needs the count in a signed local).
-// The four-minute permuter run from this body found only the flag type.
+// Round 451, 95.92 -> 97.61: the missing 4 bytes were retail's `move s6,s0`, the copy
+// of pCmd the animation loop reads through. It only appears when case 8 has a SECOND
+// live command pointer, so the loop reads a function-scope `pCommand` assigned from
+// pCmd at case-8 entry (gcc coalesces a case-2 alias, but case 8's crosses the calls
+// and gets the copy). Three more exact-size facts found with it:
+// - `count = pCommand->unk5` as an s32 local: retail's `lbu a3,0x5(s6)` + `blez` needs
+//   a signed local (the direct u8 test folds to beqz) and the calls pass the same
+//   register (`addu a2,a3,zero`).
+// - flag is s16 (retail sign-extends t7 with sll/sra; u16 gives a bare lhu).
+// - `volatile u16 unkFlag[4]`, not [8]: it is the uninitialised slot retail reads at
+//   0x50(sp) (lhu t7,80(sp)), and 8 bytes is the frame difference: with [4] the frame
+//   is retail's 0x88 and the prologue matches exactly. 378 insns / 1512 bytes = retail.
+// WHAT IS LEFT (~156 differing lines, no size error): (a) case 2 reads through
+// `move a1,s0`, a live-range SPLIT gcc makes on its own - writing `pCommand = pCmd`
+// there is coalesced away, so the case-2 pointer cannot be forced; (b) two
+// D_801E8644 stores where retail commutes the addu (v1,a0,v1 / a0,a0,v0) and this
+// build emits v1,v1,a0 - retail differs between two identical expressions, so it is
+// a CSE artifact, not a source shape; (c) the case-8 header: retail loads flag first
+// and gets savedIndex/flag in s4/s5, this build s5/s4, and hoists `li v0,1` above the
+// index load. Tried this round, no change: declaration order of flag/savedIndex/
+// currentModelIndex/modelBit, currentModelIndex+modelBitMask moved from function scope
+// into case 8, i declared first among the case-8 locals, u16/s16 i (worse: 94.33/93.62).
+// Earlier: permuter from the 95.92 body found only the flag type; i at function scope
+// and unk5 > 0 vs != 0 measured identical.
+// Best measurement: objdiff 97.61%, 378 insns and 1512 bytes = retail exactly, frame
+// 0x88 = retail. The note above lists what closed the size gap and what is left.
 /*
 void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
     ModelScriptCommand* pCmd;
+    ModelScriptCommand* pCommand;
     Temp8* pSource;
     s16* pColorMatrix;
     s16 (*pInterpolate)(s16, s16, s16);
@@ -3827,9 +3851,7 @@ void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
     s16 z;
     s16 w;
     s16 colour1;
-    volatile u16 unkFlag[8]; // retail reads the first word of this slot inside case 8 before writing it
-    s16 currentModelIndex;
-    u16 modelBitMask;
+    volatile u16 unkFlag[4]; // retail reads the first word of this slot inside case 8 before writing it
 
     if (pModel->frame < 0) {
         return;
@@ -3888,22 +3910,27 @@ void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
                 pModel->pScriptCursor += 6;
                 break;
             case 8: {
-                u16 flag;
-                u16 savedIndex;
-                u16 modelBit;
                 s32 i;
+                s32 count;
+                s16 currentModelIndex;
+                u16 modelBitMask;
+                u16 savedIndex;
+                s16 flag;
+                u16 modelBit;
 
                 flag = unkFlag[0];
                 currentModelIndex = g_LibGearCurrentModelIndex;
                 modelBitMask = g_LibGearModelBitMask;
                 savedIndex = currentModelIndex;
                 modelBit = 1 << currentModelIndex;
+                pCommand = pCmd;
                 for (i = 0; i < 8; i++) {
-                    if (((pModel->modelBitMask >> i) & 1) && g_LibGearModels[i] != NULL && pCmd->unk5 > 0) {
+                    count = pCommand->unk5;
+                    if (((pModel->modelBitMask >> i) & 1) && g_LibGearModels[i] != NULL && count > 0) {
                         if (flag != 0) {
-                            LibGearSetModelAnimationFrom(pModel, (u16)i, (u16)modelBit, pCmd->unk5);
+                            LibGearSetModelAnimationFrom(pModel, (u16)i, (u16)modelBit, count);
                         } else {
-                            LibGearSetModelAnimation((u16)i, (u16)modelBit, pCmd->unk5);
+                            LibGearSetModelAnimation((u16)i, (u16)modelBit, count);
                         }
                     }
                 }
@@ -3969,6 +3996,7 @@ void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
     pModel->pScriptCursor = pModel->pScriptStart;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
+
 
 
 // Best measurement for the parked body above: 95.92%, 1508 bytes of retail's 1512.
