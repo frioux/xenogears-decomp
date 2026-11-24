@@ -509,14 +509,7 @@ int StoreImage(RECT *rect, u_long *p) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
 
-/* best: 95.69% -- identical instruction multiset, one load one slot out. Retail
-   reads the vtable argument "lw a0,0x18(v1)" after the D_80056988 size store,
-   gcc emits it right after "sw a0,0(a1)". Holding the vtable in a pSys local
-   assigned after the source store puts the g_GpuSysFuncs load exactly where retail
-   has it (this body); taking &pSys->unk18 into a local instead moves the argument
-   load right but pushes the g_GpuSysFuncs load three slots down (91.84). Tried all
-   three packet store orders, src/size words in locals, a param word local, and a
-   4-minute permuter run (best candidate = the &unk18 local, 91.84 here).
+/* best: 95.69% (196 bytes, 49 insns = retail) -- one instruction displaced: retail issues the vtable argument load "lw a0,0x18(v1)" AFTER the D_80056988 size store; cc1 sched1 hoists it to just below "sw a0,0(a1)". PROVEN a scheduler artefact, not a spelling: the unit cc1 on this body's own .i with -fno-schedule-insns -fno-schedule-insns2 emits the two vtable loads last, in RTL order (lw 8(v1) then lw 24(v1)), i.e. neither retail-owned order, and also reorders the prologue saves -- so no flag and no preset reaches retail here. Store order IS sched-chosen: reversing the source order (D_80056984 first, *pPacket second) keeps the same hoist and drops to 87.33. Already measured on this body: a pSys local assigned before the source store (91.84), &pSys->unk18 in a local (91.84), all three packet store orders, src/size/packet words in locals, a 4-minute permuter run (best candidate = the 91.84 shape).
 int MoveImage(RECT *rect, int x, int y) {
     u_long *pPacket;
     GpuSysFuncs *pSys;
