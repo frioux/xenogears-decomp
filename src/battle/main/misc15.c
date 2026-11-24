@@ -348,7 +348,7 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
 // yields both the argument BattleRunTargetSlotSelection picks the target with and the cost. The
 // cost is charged only when the character carries the row's status bit and the target selection
 // ran; otherwise the menu-denied sound plays. Returns 1 when the cost was paid.
-u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
+u8 BattleTrySpendSlotActionBudget(u8 arg0, u8 arg1, u8 arg2) {
     u8 result;
     u8 canAct;
     u8 inParty;
@@ -399,7 +399,7 @@ u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleCursorScrollState;
 extern s32 g_BattleCursorScrollY;
-extern u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2);
+extern u8 BattleTrySpendSlotActionBudget(u8 arg0, u8 arg1, u8 arg2);
 extern void BattleInitSlotGraphics(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void func_80091064(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
@@ -455,7 +455,7 @@ u8 BattleRunFourSlotCommandMenu(u8 arg0) {
             result = 0;
             break;
         case 4:
-            if (func_8008B224(arg0, i, j) != 0) {
+            if (BattleTrySpendSlotActionBudget(arg0, i, j) != 0) {
                 result = 1;
                 g_BattleCommandQueue->commandId = i + j * 2;
             }

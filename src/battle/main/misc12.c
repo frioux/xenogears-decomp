@@ -579,7 +579,7 @@ void BattleAdvanceSlotMenuStateSubMode(u8 arg0) {
     }
 }
 extern u8 D_800C48EA;
-extern s32 func_8009A9D0(u8);
+extern s32 BattleResetRowIndexAndMaybeRefreshStats(u8);
 void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
     u8 a;
 
@@ -588,7 +588,7 @@ void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
     case 4:
     case 6:
     case 7:
-        if (func_8009A9D0(((BattleActorSlots *)g_BattleCommandQueue)->actorIndex) != 0) {
+        if (BattleResetRowIndexAndMaybeRefreshStats(((BattleActorSlots *)g_BattleCommandQueue)->actorIndex) != 0) {
             D_800C48EA = 0x40;
         }
         ((BattleActorSlots *)g_BattleCommandQueue)->eventHandled = 1;

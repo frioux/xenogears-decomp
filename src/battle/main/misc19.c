@@ -107,7 +107,7 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // commuted sums, u8 byte locals (98.39), volatile p read (98.39), volatile q read (99.19, addu
 // a1,v0,a1), s16-via-s32-temp (98.39). Every plain HImode spelling lands on the identical 99.68
 // pair. Presets are not the way out: this body 99.68 / 95.97 (2.6.0 / cdk), the s32 body 99.03 /
-// 95.97, and the unit is mixed under 2.6.0 (see the func_8009A9D0 note). Fifth and sixth permuter
+// 95.97, and the unit is mixed under 2.6.0 (see the BattleResetRowIndexAndMaybeRefreshStats note). Fifth and sixth permuter
 // runs: PERMUTER_NONE base=10 best=10 (1587 and 1429 iterations).
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
@@ -175,7 +175,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 //    one combination this body does not reach.
 // Remaining, and capping: the three mfhi/mflo destinations - retail `mult / mflo v0` and
 // `mfhi v0 / srl v0,v0,3`, this compiler `mflo $tN / srl v0,$tN,3` - the same 2.7.2
-// division-expansion difference that caps func_8009A9D0/BD94/B46C; try_flags tops out at 99.74
+// division-expansion difference that caps BattleResetRowIndexAndMaybeRefreshStats/BD94/B46C; try_flags tops out at 99.74
 // under gcc 2.6.0. Plus four register-role swaps around those mflo pairs, and the maxHp==hp
 // `amount++` block being stolen into the `beq` delay slot.
 // The three g_BattleWorkBlock+0x162/+0x32 condition-timer sites print as g_BattleWorkBlock+354
@@ -192,7 +192,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // 93 differing lines of register roles downstream); dropping the second pointer entirely is
 // 96.59% / 312 insns / 1248 bytes. So the three sizes bracket retail's and none of them is it;
 // the residual that caps all of them is the md: retail `mflo v0` / `mfhi v0 / srl v0,v0,3`,
-// this compiler `mflo $tN / srl v0,$tN,3` (same family as func_8009A9D0).
+// this compiler `mflo $tN / srl v0,$tN,3` (same family as BattleResetRowIndexAndMaybeRefreshStats).
 
 // Round 427 NEW measurement, worth keeping: the SECOND pointer is what costs the extra
 // instruction, and dropping it completely (`new_var2` removed, every tail read through

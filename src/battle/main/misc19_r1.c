@@ -118,7 +118,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19_r1", func_8009BE0C);
 // Remaining, all register-order ties this body cannot reach:
 //  1. both divisions: retail `multu v0,v1 ; mfhi v0 ; srl v0,v0,4` (and /10 the
 //     same with srl 3), this compiler `mfhi $tN ; srl v0,$tN,4` - the same cc1
-//     division-expansion difference that caps func_8009A9D0 (99.66) and
+//     division-expansion difference that caps BattleResetRowIndexAndMaybeRefreshStats (99.66) and
 //     BattleSetSlotActionStateAndAmount (98.33) in this unit. try_flags on this body: 98.26 under
 //     gcc-2.6.0, so this is not a preset win either.
 //  2. both `if (a > b) a = b;` clamps: retail loads the LEFT operand first

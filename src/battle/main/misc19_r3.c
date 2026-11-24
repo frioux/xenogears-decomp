@@ -11,7 +11,7 @@ extern void func_8009BE0C(void);
 // out `mfhi a1 / sra a0,a1,5` where retail has `mfhi a0 / sra a0,a0,5`, the only
 // residual at 99.66% (116 bytes, 29/29 insns). The rest of misc19 is Default, so it
 // cannot carry the older compiler.
-s32 func_8009A9D0(void) {
+s32 BattleResetRowIndexAndMaybeRefreshStats(void) {
     g_BattleCurWorkBlock->rowIndex = 0;
     if (rand() % 100 < 50) {
         func_8009BE0C();

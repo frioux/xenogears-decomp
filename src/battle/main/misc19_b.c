@@ -209,7 +209,7 @@ void BattleInitItemInventoryAndConditionMasks(void) {
 // body the other way round, in both arms), retail's arg0 pointer is $s2 and limit $s0
 // (here $s0 and $s2), and retail's rand() % 100 reads mfhi $a0 and shifts in place
 // where 2.7.2 emits mfhi $t1 / sra $a0,$t1,5 -- the same md difference that keeps
-// func_8009A9D0 and BattleSetSlotActionStateAndAmount off 100. Try_flags on this body: 97.81 under
+// BattleResetRowIndexAndMaybeRefreshStats and BattleSetSlotActionStateAndAmount off 100. Try_flags on this body: 97.81 under
 // gcc-2.6.0, 94.63 under 2.7.2-cdk. Measured this round: limit/flags/drop declaration
 // order (no change), max/cur assigned cur-first (worse - $a1 becomes an address base).
 // Round 397 re-measured live: 97.59% (536 bytes, 134 insns = retail's size), 97.81 under
