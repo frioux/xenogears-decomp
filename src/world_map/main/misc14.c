@@ -558,8 +558,8 @@ typedef struct {
 #define WORLD_MAP_CLIP_EDGE12 6
 
 extern WorldMapStepSpriteSet* g_WorldMapGroups;
-extern s32 D_8009C840;   // sprite set the step is being resolved in, -1 when none
-extern s32 D_8009C16C;   // current triangle of that set
+extern s32 g_WorldMapStepSpriteSet;   // sprite set the step is being resolved in, -1 when none
+extern s32 g_WorldMapStepTriangleIndex;   // current triangle of that set
 extern s16 D_8009D718[]; // candidate triangles: a triangle index and its kind per pair
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 WorldMapFindSpriteSet(void* pPos, s16* pSet);
@@ -605,8 +605,8 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 // setIndex, 0x20 pBase, 0x28 scale) so retail has one more 8-byte phantom slot
 // than this body reaches; the saved-register set is retail's.
 // Facts carried over, still true:
-//   - D_8009C840 is the sprite set the step is resolved in (-1 = none) and
-//     D_8009C16C its current triangle; both are s32 globals (lw/sw) holding
+//   - g_WorldMapStepSpriteSet is the sprite set the step is resolved in (-1 = none) and
+//     g_WorldMapStepTriangleIndex its current triangle; both are s32 globals (lw/sw) holding
 //     16-bit values, read lhu for the triangle index and sign extended by the
 //     stores. WORLD_MAP_STEP_NONE names the -1 of both.
 //   - ONE s16 local is both the address-taken output of WorldMapFindSpriteSet and
@@ -623,7 +623,7 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 //     body reproduces the table width.
 //   - the walk is "do { ... } while (again)" with again = 1 before it, and the
 //     "give up and resolve against the terrain" block (ret =
-//     WorldMapResolveStepAgainstTerrain(...); D_8009C16C = -1; D_8009C840 = -1;
+//     WorldMapResolveStepAgainstTerrain(...); g_WorldMapStepTriangleIndex = -1; g_WorldMapStepSpriteSet = -1;
 //     again = 0;) is reached from the -1 arms of cases 1/2/4 and the mask == 0
 //     arms of 3/5/6 and is ONE shared block in retail, which a goto behind a
 //     continue reproduces.
@@ -635,11 +635,11 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 //   The SEARCH case's two "give up and go to the terrain" exits are ONE block in
 //   retail (.L8009570C, reached from both 'beqz s4' at 0x25B14 and 'beq s2,s4' at
 //   0x25B60) and that block does more than call: it also stores -1 into BOTH
-//   D_8009C16C and D_8009C840 before returning. The old body wrote 'return
+//   g_WorldMapStepTriangleIndex and g_WorldMapStepSpriteSet before returning. The old body wrote 'return
 //   WorldMapResolveStepAgainstTerrain(...)' at each of the two exits, i.e. it was
 //   missing those two stores. Spelling the case as 'found=0; if (count != 0) {check
 //   loop} if (count != found) { walk loop; returns } then ret = Resolve(...);
-//   D_8009C16C = -1; D_8009C840 = -1; return ret;' gives gcc ONE shared fallback
+//   g_WorldMapStepTriangleIndex = -1; g_WorldMapStepSpriteSet = -1; return ret;' gives gcc ONE shared fallback
 //   block, retail's shape, and the search half of the function then matches
 //   instruction for instruction.
 // WHAT IS LEFT (measured by aligning both instruction streams on the call sites):
@@ -704,7 +704,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     pOut->y = WorldMapGetTilePlaneHeight(pOut->x, pOut->z) - 0x4000;
 
     ret = 0;
-    if (D_8009C840 == WORLD_MAP_STEP_NONE) {
+    if (g_WorldMapStepSpriteSet == WORLD_MAP_STEP_NONE) {
         mode = WORLD_MAP_STEP_SEARCH;
     } else {
         mode = WORLD_MAP_STEP_WALK;
@@ -712,8 +712,8 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     switch (mode) {
     case WORLD_MAP_STEP_TERRAIN:
         ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
-        D_8009C16C = WORLD_MAP_STEP_NONE;
-        D_8009C840 = WORLD_MAP_STEP_NONE;
+        g_WorldMapStepTriangleIndex = WORLD_MAP_STEP_NONE;
+        g_WorldMapStepSpriteSet = WORLD_MAP_STEP_NONE;
         return ret;
     case WORLD_MAP_STEP_SEARCH:
         count = WorldMapFindSpriteSet((void*)0x1F800060, &setIndex);
@@ -745,8 +745,8 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                 }
                 if (heightDelta < WORLD_MAP_STEP_HEIGHT_TOLERANCE) {
                     pOut->y = pStep->normalA.y << 12;
-                    D_8009C840 = setIndex;
-                    D_8009C16C = next;
+                    g_WorldMapStepSpriteSet = setIndex;
+                    g_WorldMapStepTriangleIndex = next;
                     ret = 1;
                     break;
                 }
@@ -758,13 +758,13 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
             return ret;
         }
         ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
-        D_8009C16C = WORLD_MAP_STEP_NONE;
-        D_8009C840 = WORLD_MAP_STEP_NONE;
+        g_WorldMapStepTriangleIndex = WORLD_MAP_STEP_NONE;
+        g_WorldMapStepSpriteSet = WORLD_MAP_STEP_NONE;
         return ret;
     case WORLD_MAP_STEP_WALK_EDGE:
     case WORLD_MAP_STEP_WALK:
-        setIndex = D_8009C840;
-        triIndex = D_8009C16C;
+        setIndex = g_WorldMapStepSpriteSet;
+        triIndex = g_WorldMapStepTriangleIndex;
         pMesh = g_WorldMapGroups[setIndex].pMesh;
         pTri = pMesh->tris;
         again = 1;
@@ -776,9 +776,9 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                 again = 0;
                 WorldMapProjectTriangleNormal(&pStep->probe, &pStep->normalA, &pStep->normalB, (u16)setIndex,
                                               triIndex);
-                D_8009C16C = (s16)triIndex;
+                g_WorldMapStepTriangleIndex = (s16)triIndex;
                 pOut->y = pStep->normalA.y << 12;
-                D_8009C840 = setIndex;
+                g_WorldMapStepSpriteSet = setIndex;
                 break;
             case 1:
                 next = pTri[(s16)triIndex].next[0];
@@ -981,8 +981,8 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
             continue;
         resolve:
             ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
-            D_8009C16C = WORLD_MAP_STEP_NONE;
-            D_8009C840 = WORLD_MAP_STEP_NONE;
+            g_WorldMapStepTriangleIndex = WORLD_MAP_STEP_NONE;
+            g_WorldMapStepSpriteSet = WORLD_MAP_STEP_NONE;
             again = 0;
         } while (again);
         break;

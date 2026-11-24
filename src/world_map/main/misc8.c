@@ -122,7 +122,7 @@ typedef struct WorldMapEntry {
 
 extern WorldMapActor *g_WorldMapSlots; // actors, 0x80 apart
 extern WorldMapEntry *g_WorldMapGroups; // sprite sets, 0x54 apart
-extern s16 D_8009D7E0; // g_WorldMapGroups entry count
+extern s16 g_WorldMapSpriteSetCount; // g_WorldMapGroups entry count
 extern s32 g_WorldMapPrimPacketIndex;
 extern s16 D_8009AABC[];
 extern s16 D_8009AB48[];
@@ -183,12 +183,12 @@ extern s32 g_WorldMapPlayerPosition[]; // x then the two words below it; the y/z
 extern ModelFileHeader *g_WorldMapModelData;
 extern WorldMapSpriteSetTable *g_WorldMapSpriteSetTable;
 extern s32 *g_WorldMapModelRelocs;
-extern s16 D_8009BD28;
+extern s16 g_WorldMapModelPointerCount;
 extern MATRIX D_8009A140;
-extern MATRIX D_8009A160;
+extern MATRIX g_WorldMapLightMatrix;
 extern s32 g_GfxOTDepthShift;
-extern s32 D_8009C16C;
-extern s32 D_8009C840;
+extern s32 g_WorldMapStepTriangleIndex;
+extern s32 g_WorldMapStepSpriteSet;
 
 extern void ModelPartFreeLightData(void *pModelPart);
 extern int Vsync(int mode);
@@ -237,8 +237,8 @@ extern void WorldMapFreeSpriteSets(void);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 extern void *g_WorldMapLoadedFileData;
-extern u16 D_8009BCE0[];
-extern FadeParams D_800704DC;
+extern u16 g_WorldMapTextureClutIds[];
+extern FadeParams g_WorldMapClutFadeFactors;
 
 extern MATRIX g_WorldMapIdentityMatrix;
 extern MATRIX g_WorldMapModeMatrix;
@@ -293,7 +293,7 @@ extern void WorldMapDeactivateSpriteGroup(s32 arg0);
 extern s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2);
 extern void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR *pPos, s16 *pRot);
 extern s32 WorldMapSetActorPosition(s32);
-extern s32 func_80084068(s32);
+extern s32 WorldMapUpdateSlotSpriteGroups(s32);
 extern u8 *g_WorldMapRenderContext;
 extern MATRIX g_WorldMapViewMatrix;
 extern void WorldMapWrapDelta(void *pDelta);
@@ -499,7 +499,7 @@ void WorldMapInitializeScene(void) {
     WorldMapAddSlot((void *)WorldMapModeInitFadeRect, (void *)func_800925A0);
     WorldMapAddSlot((void *)WorldMapSetActorParams, (void *)WorldMapRunSlotScript);
     WorldMapAddSlot((void *)func_8008390C, (void *)func_80083A00);
-    WorldMapAddSlot((void *)WorldMapSetActorPosition, (void *)func_80084068);
+    WorldMapAddSlot((void *)WorldMapSetActorPosition, (void *)WorldMapUpdateSlotSpriteGroups);
     WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
     WorldMapInitPrimTemplateBuffers();

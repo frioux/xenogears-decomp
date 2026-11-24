@@ -344,7 +344,7 @@ extern void WorldMapBuildRotationMatrix(s32* p);
 extern void func_80097244(s32* p);
 extern void WorldMapEmitSpriteTrailEntries(void);
 extern void func_80089C78(void);
-extern void func_80085CDC(void);
+extern void WorldMapDrawSlotSprites(void);
 extern void WorldMapDrawGridTiles(void);
 extern void func_800747DC(void);
 extern void func_800848F4(void);
@@ -370,7 +370,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     }
     WorldMapEmitSpriteTrailEntries();
     func_80089C78();
-    func_80085CDC();
+    WorldMapDrawSlotSprites();
     WorldMapDrawGridTiles();
     func_800747DC();
     func_800848F4();

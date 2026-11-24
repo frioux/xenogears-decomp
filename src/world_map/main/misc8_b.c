@@ -46,7 +46,7 @@
 
 // an angle is a 4096-step turn counter
 #define WORLD_MAP_ANGLE_FULL_TURN 0x1000
-// the quarter turn func_80085CDC takes off the sprite's facing angle. Owned by
+// the quarter turn WorldMapDrawSlotSprites takes off the sprite's facing angle. Owned by
 // misc13.c (identical value); this unit does not include it.
 #define WORLD_MAP_ANGLE_QUARTER_TURN 0x400
 // sums of angles are wrapped back into the turn counter. Owned by
@@ -151,7 +151,7 @@ typedef struct WorldMapEntry {
 
 extern WorldMapActor *g_WorldMapSlots; // actors, 0x80 apart
 extern WorldMapEntry *g_WorldMapGroups; // sprite sets, 0x54 apart
-extern s16 D_8009D7E0; // g_WorldMapGroups entry count
+extern s16 g_WorldMapSpriteSetCount; // g_WorldMapGroups entry count
 extern s32 g_WorldMapPrimPacketIndex;
 extern s16 D_8009AABC[];
 extern s16 D_8009AB48[];
@@ -222,12 +222,12 @@ extern s32 g_WorldMapPlayerPosition[]; // x then the two words below it; the y/z
 extern ModelFileHeader *g_WorldMapModelData;
 extern WorldMapSpriteSetTable *g_WorldMapSpriteSetTable;
 extern s32 *g_WorldMapModelRelocs;
-extern s16 D_8009BD28;
+extern s16 g_WorldMapModelPointerCount;
 extern MATRIX D_8009A140;
-extern MATRIX D_8009A160;
+extern MATRIX g_WorldMapLightMatrix;
 extern s32 g_GfxOTDepthShift;
-extern s32 D_8009C16C;
-extern s32 D_8009C840;
+extern s32 g_WorldMapStepTriangleIndex;
+extern s32 g_WorldMapStepSpriteSet;
 
 extern void ModelPartFreeLightData(void *pModelPart);
 extern int Vsync(int mode);
@@ -276,8 +276,8 @@ extern void WorldMapFreeSpriteSets(void);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 extern void *g_WorldMapLoadedFileData;
-extern u16 D_8009BCE0[];
-extern FadeParams D_800704DC;
+extern u16 g_WorldMapTextureClutIds[];
+extern FadeParams g_WorldMapClutFadeFactors;
 
 extern MATRIX g_WorldMapIdentityMatrix;
 extern MATRIX g_WorldMapModeMatrix;
@@ -323,7 +323,7 @@ extern void WorldMapDeactivateSpriteGroup(s32 arg0);
 extern s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2);
 extern void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR *pPos, s16 *pRot);
 extern s32 WorldMapSetActorPosition(s32);
-extern s32 func_80084068(s32);
+extern s32 WorldMapUpdateSlotSpriteGroups(s32);
 // Partial view of the render environment g_WorldMapRenderContext points at: the
 // sprite pass only reaches the first ordering table.
 typedef struct {
@@ -347,7 +347,7 @@ extern void SpriteDrawFrame(void *p, u32 *pTbl);
 extern void GfxSetBaseMatrix(MATRIX *p);
 extern void AnimScriptTick(void *p);
 
-s32 func_80084068(s32 arg0) {
+s32 WorldMapUpdateSlotSpriteGroups(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
     WorldMapEntry *pEntry = &g_WorldMapGroups[7];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
@@ -447,7 +447,7 @@ s32 func_80084068(s32 arg0) {
 }
 void WorldMapLoadTextureClut(void) {
     RECT rect;
-    FadeParams factors = D_800704DC;
+    FadeParams factors = g_WorldMapClutFadeFactors;
     u8 *pData;
     u8 *pDst;
     u16 *pClut;
@@ -474,7 +474,7 @@ void WorldMapLoadTextureClut(void) {
     LoadImage(&rect, (u_long *)pDst);
     DrawSync(0);
     i = 0;
-    pClut = D_8009BCE0;
+    pClut = g_WorldMapTextureClutIds;
     for (; i < WORLD_MAP_CLUT_ID_COUNT; i++, pClut++) {
         *pClut = GetClut(rect.x, rect.y);
         rect.y++;
@@ -493,7 +493,7 @@ void WorldMapInitSpriteSets(void) {
     s32 i;
 
     count = ModelResolvePointers(g_WorldMapModelData);
-    D_8009BD28 = count;
+    g_WorldMapModelPointerCount = count;
     pRelocs = g_WorldMapModelRelocs;
     pCur = pRelocs + 1;
     g_WorldMapModelRelocs = pCur;
@@ -501,13 +501,13 @@ void WorldMapInitSpriteSets(void) {
         *pCur++ = (s32)pRelocs + *pCur;
     }
     count = g_WorldMapSpriteSetTable->count;
-    D_8009D7E0 = count;
+    g_WorldMapSpriteSetCount = count;
     g_WorldMapGroups = HeapAlloc(count * sizeof(WorldMapEntry), 0);
     pSetTable = g_WorldMapSpriteSetTable;
     SetColorMatrix(&D_8009A140);
-    SetLightMatrix(&D_8009A160);
+    SetLightMatrix(&g_WorldMapLightMatrix);
     pDef = pSetTable->defs;
-    for (i = 0; i < D_8009D7E0; i++, pDef++) {
+    for (i = 0; i < g_WorldMapSpriteSetCount; i++, pDef++) {
         g_WorldMapGroups[i].hidden = 0;
         g_WorldMapGroups[i].partIndex = pDef->partIndex;
         g_WorldMapGroups[i].flags = pDef->flags;
@@ -530,15 +530,15 @@ void WorldMapInitSpriteSets(void) {
         g_WorldMapGroups[i].pParent = 0;
     }
     g_GfxOTDepthShift = 2;
-    D_8009C16C = -1;
-    D_8009C840 = -1;
+    g_WorldMapStepTriangleIndex = -1;
+    g_WorldMapStepSpriteSet = -1;
     g_WorldMapGroups[4].hidden = 1;
 }
 
 void WorldMapFreeSpriteSets(void) {
     s32 i;
 
-    for (i = 0; i < D_8009D7E0; i++) {
+    for (i = 0; i < g_WorldMapSpriteSetCount; i++) {
         HeapFree(g_WorldMapGroups[i].pPackets[0]);
         ModelPartFreeLightData(g_WorldMapGroups[i].pModel);
     }
@@ -589,7 +589,7 @@ void func_800848F4(void) {
     pRot->vx = 0;
     camX = g_WorldMapCameraTarget >> 12;
     camZ = g_WorldMapCameraTargetZ >> 12;
-    for (i = 0; i < D_8009D7E0; i++) {
+    for (i = 0; i < g_WorldMapSpriteSetCount; i++) {
         if (g_WorldMapGroups[i].hidden != 0) {
             continue;
         }
@@ -679,7 +679,7 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
     s16 result;
     s16 i;
 
-    for (i = 0; i < D_8009D7E0; i++) {
+    for (i = 0; i < g_WorldMapSpriteSetCount; i++) {
         if ((pEntry->flags & 1) && (result = func_80084DB8(pArg, i)) != 0) {
             *pOut = i;
             return result;
@@ -1080,7 +1080,7 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
 // Retail names the scratchpad addresses (D_1F800008 / D_1F800004) where the typed
 // spelling folds to 8 / 4: both symbols are absolute, the linked bytes are equal,
 // so judge this function with `tools/scripts/check_bin.sh world_map`.
-void func_80085CDC(void) {
+void WorldMapDrawSlotSprites(void) {
     WorldMapActor *pActor;
     WorldMapSpriteProjection *pProj;
     MATRIX *pMat;
