@@ -263,36 +263,36 @@ extern void func_800B9284(SpriteData* pSprite, s32 code);
 extern u16 D_800D39E4;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
-/* 94.47%, 508 bytes = retail's exact size, and BOTH bodies are 127 instructions:
-   the older note's "one instruction short" was wrong -- retail's duplicated
-   `slt` in the beq delay slot is replaced by our `nop`, and the slt itself is
-   emitted once, below the z compare.  Everything the earlier 86.54% park was
-   missing is exact and driven by the source: the mask loads the 0xA8 word
-   before the 0xAC one because each index is written
-   `(A8 >> 30) | ((AC & 3) << 2)` (the AC-left spelling flips the `or`
-   destination to the AC word and swaps the loads -- re-measured this round at
-   89.73%); the x/0x50 block is laid out retail's way (bne to the non-equal
-   body, beq to the equal one) only when written as
-   `if (x != pSlot->x || z != pSlot->z) { non-equal } else { equal }` --
-   the `==`/`&&` form puts the equal body first with inverted branches; and the
-   z store needs an s32 local (an s16 store value makes gcc use lhu, retail lh).
-   Left over, all three allocator ties, instruction for instruction:
-   1. in each of the three key blocks retail's `or` DESTINATION is the 0xAC word
-      register (`or v1,v1,v0` / `or v0,v0,v1`) where ours is the 0xA8 word
-      register -- i.e. retail's in-place-or shape over an AC-left expression, but
-      that spelling puts the AC load first, which costs more than it buys (see
-      the 89.73 measurement);
-   2. retail keeps x in $a2 for the +-0x50 arithmetic and a COPY in $a1 for the
-      compares (`move a1,a2`) and so re-issues `slt v0,a1,a3` in BOTH branch
-      delay slots;
-   3. the six u16 copies at the end carry the source base in $v0 and the
-      destination in $v1 where ours are swapped.
-   Tried: s16 vs s32 for x and z, `&&` vs `||`, nested if vs else-if, AC-left vs
-   A8-left mask (all three sites), one expression vs index locals (locals defer
-   both `sllv` past the second index), the mask through two key locals in
-   retail's emission order (91.32%, it re-loads pTarget and keeps the keys in
-   $a0/$a1), and a 4-minute permuter run (base=1388, best=1188) whose only
-   usable find was the z hoist kept below.
+/* 97.48%, 508 bytes = retail's exact size, 127 instructions both sides.  Two
+   finds this round, both driven by the source:
+   1. the six u16 copies at the end are a POINTER WALK from element 4, the same
+      idiom misc31's matched code uses (`pStates = g_BattleAnimGroupStates + 4;`
+      then `pStates[0..2]`): that is retail's `addiu v0,v0,0x8` before the 0/2/4
+      loads.  Spelling the three destinations as
+      `g_BattleAnimGroupStates[4]/[5]/[6]` costs that instruction (96.61%, 512
+      bytes, one too long).
+   2. `less = x < pSlot->x;` hoisted ABOVE the `if (x != pSlot->x || z !=
+      pSlot->z)` and used as the arm's test puts retail's `slt` in the `bne`
+      delay slot and lands retail's exact 508 bytes.
+   Left over, register names only, instruction for instruction:
+   - retail keeps x in $a2 for the +-0x50 arithmetic and a COPY in $a1 for the
+     compares (`move a1,a2`), and the slt result in $v0, so the slot-z load
+     clobbers it and retail REFILLS the beq delay slot with a second `slt`; ours
+     keeps the result in $a2 and emits a nop there;
+   - in each of the three key blocks retail's `or` DESTINATION is the 0xAC word
+     register (`or v1,v1,v0` / `or v0,v0,v1`) where ours is the 0xA8 word one,
+     i.e. an in-place or over an AC-left expression -- that spelling puts the AC
+     load first and measures 89.73%;
+   - the x/0x50 block still has retail's layout (bne to the non-equal body, beq
+     to the equal one) and the z store needs an s32 local (an s16 store value
+     makes gcc use lhu, retail lh).
+   Tried this round: reading the field twice (`less = ...xWhole < pSlot->x;` then
+   `x = ...xWhole;`) to force retail's copy -- 94.28% / 516 bytes; AC-left keys at
+   all three sites 89.73%; the mask through two key locals in retail's emission
+   order 91.32%.  Earlier: s16 vs s32 for x and z, `&&` vs `||`, nested if vs
+   else-if, one expression vs index locals, and a 4-minute permuter run
+   (base=1388, best=1188) whose only usable find was the z hoist kept below.
+/*
 void func_800B905C(void) {
     BattleActorSprite* pSprite;
     BattleActorSprite* pTarget;
@@ -302,6 +302,8 @@ void func_800B905C(void) {
     s32 mask;
     s32 x;
     s32 z;
+    u16* pStates;
+    s32 less;
 
     pBase = g_BattleStateWork;
     BattleSetCurrentActorSprite(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
@@ -319,8 +321,9 @@ void func_800B905C(void) {
         index = (pTarget->flags_0xA8 >> 30) | ((pTarget->flags_0xAC.flags & 3) << 2);
         pSlot = &((BattleActorSlot*)pBase)[index];
         x = pTarget->position.parts.xWhole;
+        less = x < pSlot->x;
         if (x != pSlot->x || pTarget->position.parts.zWhole != pSlot->z) {
-            if (x < pSlot->x) {
+            if (less) {
                 pSprite->targetPosition.x = x - 0x50;
             } else {
                 pSprite->targetPosition.x = x + 0x50;
@@ -337,15 +340,17 @@ void func_800B905C(void) {
         g_BattleSlotVectors[0] = g_BattleAnimGroupStates[0];
         g_BattleSlotVectors[1] = g_BattleAnimGroupStates[1];
         g_BattleSlotVectors[2] = g_BattleAnimGroupStates[2];
-        g_BattleSlotVectorsB[0] = g_BattleAnimGroupStates[4];
-        g_BattleSlotVectorsB[1] = g_BattleAnimGroupStates[5];
-        g_BattleSlotVectorsB[2] = g_BattleAnimGroupStates[6];
+        pStates = g_BattleAnimGroupStates + 4;
+        g_BattleSlotVectorsB[0] = pStates[0];
+        g_BattleSlotVectorsB[1] = pStates[1];
+        g_BattleSlotVectorsB[2] = pStates[2];
         BattleFaceActorsTowardEachOther(pSprite, pTarget);
     }
     BattleLoadArchiveEntryFile();
     func_800B9508(pSprite);
 }
 */
+
 
 void BattleIncrementStateTimer(void) {
     BattleState* pState = g_BattleState;
