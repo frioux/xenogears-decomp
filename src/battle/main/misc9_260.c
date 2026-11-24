@@ -24,7 +24,6 @@ typedef struct {
 
 // The tail half of this unit is gcc 2.6.0 code: BattleDwordRegMulImm's product is
 // byte-identical under it and not under 2.7.2 (see the note on that function).
-extern u8 g_BattleSlotRecords[];
 extern u32 D_800D2C60[];
 extern u8 g_BattleRowStatValues[];
 extern u8 g_BattlePendingCharIndex;
@@ -45,6 +44,14 @@ typedef struct {
     /* 0x1 */ u8 unk1[7];
 } BattleSlotFlag; // Size: 0x8
 
+// One of the 0x1C-byte per-slot tag records at g_BattleSlotRecords; only the tag
+// byte is read here (misc8.c names the rest of the record).
+typedef struct {
+    /* 0x0 */ u8 tag;
+    /* 0x1 */ u8 unk1[0x1B];
+} BattleSlotRecord; // Size: 0x1C
+
+extern BattleSlotRecord g_BattleSlotRecords[];
 extern BattleSlotRow g_BattleSlotRows[];
 extern u16 g_BattleSlotWordRegs[][BATTLE_SLOT_REG_ROW_HALFWORDS];
 extern BattleSlotFlag g_BattleSlotFlags[];
@@ -159,37 +166,28 @@ void func_8007E438(u8 **arg0, u8 arg1) {
    (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
    percentage above stands.
  */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9_260", func_8007E554);
-/* R165 second pass: 89.08% (300 bytes) confirmed. `acc = acc * 2` measures the
-   same as `acc <<= 1` (both 89.08), so the doubling delta is not the operator:
-   retail emits `sll a1,s1,1` in the bne delay slot and copies back at the join
-   (`move s1,a1`), gcc doubles in place into s1. The other delta is
-   &g_BattleSlotRecords: gcc hoists it into a saved register across the loop
-   for the FIRST of the two record loads (`addu v1,v1,s6 / lbu v1,0(v1)`) where
-   retail re-forms it with `lui $at / addu $at / lbu %lo(at)` for BOTH, which
-   is also why mine saves one more register than retail (6 against 5) in the
-   same 0x30 frame.
-void func_8007E554(u8 **arg0, u8 arg1) {
+void func_8007E554(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
-    s32 offset = 0x118;
-    s32 i;
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
+    s32 next;
+    s32 i = 0xA;
+    u16 *pField;
     u16 *pRow;
 
-    for (i = 0xA; i >= 3; i--) {
+    pField = g_BattleSlotWordRegs[arg1];
+    for (; i >= 3; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
-            if (((u8 *)g_BattleSlotRecords)[(u8)BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]) * 0x1C] ==
-                ((u8 *)g_BattleSlotRecords)[offset]) {
+            if (g_BattleSlotRecords[(u8)BattleFindFirstFlagTableMatch(pField[(*ppCmd)->operand2])].tag
+                == g_BattleSlotRecords[i].tag) {
                 acc |= 1;
             }
         }
-        acc <<= 1;
-        offset -= 0x1C;
+        next = acc * 2;
+        acc = next;
     }
-    pRow = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
-    pRow[(*arg0)[1]] = acc << 2;
+    pRow = g_BattleSlotWordRegs[arg1];
+    pRow[(*ppCmd)->operand1] = next << 2;
 }
- */
+
 void BattleClearSlotDwordAndSetStat4(u8 arg0) {
     D_800D2C60[arg0] = 0;
     g_BattleRowStatValues[arg0] = 4;
