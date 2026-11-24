@@ -143,8 +143,11 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
    every table in place - only that function's own instructions and its table
-   words change (proved with check_bin.sh for WorldMapUpdateActorSlot). The unit's two
-   last tables (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
+   words change (proved with check_bin.sh for WorldMapUpdateActorSlot, whose table is
+   8-aligned in the range). Check the parity first: func_8008C364's table is at
+   range+0x294, i.e. 4 mod 8, and converting it pads 4 bytes and shifts the whole
+   overlay (measured round 451, see its park note). The unit's two last tables
+   (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
    cc1 tables from this range: that function and the tail after it are
    src/world_map/main/misc11_b.c, whose .rodata range starts at 0xDE4. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
@@ -971,8 +974,34 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
     SpriteSetScale(pActor->pSprite, 0x2000);
     pActor->pSprite->flags &= ~4;
 }
-// 95.87% (460 bytes = retail's 115 insns; instruction multiset IDENTICAL except one branch).
-//    Round 399. Reads the per-party-member init kind from three sources as a 3-bit
+// 99.87% (460 bytes / 115 insns = retail's exact size; every instruction, the block
+//    order and the 8 table words are retail's - the only objdiff delta is
+//    'jtbl_800707AC' vs '.rodata', which the linker resolves identically). IT CANNOT BE
+//    COMMITTED: the unit's rodata range starts at 0x80070518 (yaml [0xA28, .rodata,
+//    main/misc11]) and this table is retail's 0x800707AC, i.e. range+0x294 = 4 mod 8, so
+//    cc1's '.align 3' pads 4 bytes before it: the object's .rodata is 0x3C0 against the
+//    range's 0x3BC and 'check_bin.sh world_map' comes out 180426 bytes against retail's
+//    180422 with 147513 differing bytes over 447 symbols (the whole-overlay shift).
+//    Measured this round by converting it and running the gate, then reverting - the
+//    park below is the body that produced that measurement. Needs a yaml split whose
+//    new .rodata range starts at a parity-4 offset (lever g-parity-4-split-is-the-route
+//    / SPLIT_JTBL_PARITY4), which is a worker+orchestrator job: for reference the
+//    function's file offset is 0x1C874 and its table's is 0xCBC.
+//    THE BODY (round 451): the shape that closed all of the above is the goto pair -
+//    'case 0/2/4/6/default: setResultThree: result = 3; goto setZero;' and case 1
+//    'if (gearId == GEAR_ID_NONE) goto setResultThree;' with 'setZero:' above the
+//    four-store tail. Cross-jumping a duplicated 'result = 3' block puts the survivor
+//    at the SECOND copy's position (inside case 1, 95.87%); the two labels pin
+//    retail's layout [dispatch][result = 3][case 1][shared 4-store tail][case 3]
+//    [case 5]. Case 5 and case 7 share a body (retail's table sends 7 to
+//    .L8008C4BC, not to case 3's .L8008C464) - grouping 3/7 instead measures 95.87
+//    with the same 460 bytes.
+//    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
+//    without them sched2 raises both global loads above 'unk24 = 0' and stores x after
+//    the Z load (93.26 / 456 bytes); with them every remaining insn matches.
+//    Round 399 note, kept for the record: 95.87% (460 bytes = retail's 115 insns;
+//    instruction multiset identical except one branch).
+//    Reads the per-party-member init kind from three sources as a 3-bit
 //    switch value (bit0 partyMembers[index] != CHARACTER_ID_NONE, bit1 the per-actor
 //    script angle fieldScriptMemory[0x15+index*3] & 0x3FFF >= 0x400, bit2
 //    gearRide[index] == 1). The switch needs the even case values listed explicitly
@@ -990,6 +1019,7 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
 //    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
 //    without them sched2 raises both global loads above 'unk24 = 0' and stores x
 //    after the Z load (93.26 / 456 bytes); with them every remaining insn matches.
+/*
 s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     s32 kind = g_GameState.partyMembers[index] != CHARACTER_ID_NONE;
     s32 result = 1;
@@ -1040,7 +1070,9 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
         break;
     }
     return result;
-}
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
+
 
 // 89.86% (436 bytes / 109 insns, retail 444 / 111, so exactly the 8 bytes of a
 // 'j + nop'). Round 451, re-measured from the round-399 body with the mode chain
