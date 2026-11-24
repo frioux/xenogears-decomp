@@ -659,6 +659,7 @@ extern void func_8009980C(u32* pSrc, u8* p1, u8* p2);
    locals (reverses the 0x330/0x340 store order, same 95.04); a 4-minute permuter run
    whose best candidate (626 vs 906) INSERTS a 0x32C = -0x320 store inside the cell
    loop, which is wrong code - rejected, do not port. */
+// 95.05% re-measured (988 bytes = retail's exact size, 247 insns, .frame 0x38, same ten saves, no spills). Correct code. NAMED RESIDUAL, three parts: (1) RELOC: retail's four copy-loop/matrix args name symbols (addiu v1,v1,%lo(D_1F800002), addiu s0,s2,%lo(D_1F800370), the four addiu a3,s2,%lo(D_1F800328/330/338/340)) where this body has the folded constant - same linked bytes. (2) the four volatile coord reads: the multiset and the STORE order are retail's (0x330,0x340,0x334,0x338,0x33C,0x344) but sched1 HOISTS the second 0x328 read up next to the first pair, so this body's loads are 812,808,808,[chain],812 where retail has 812,808,[chain...tileId],808,[pointer],812. (3) a rotation in that region: retail y0=a1 x0=a0 x1=v1 y1=v0 with the id chain in v1->v0; this body y0=a1 x0=a2 x1=a0 y1=v1 with the chain in v0->v1. MEASURED DEAD this round (both byte-identical to the 95.05 body, 247/247/76 lines): writing the x1/y1 reads ABOVE the pImg statement instead of below it, and reversing the declaration order of the four coords (pseudo numbering follows first use, not the declaration list). Together with the note below (chained stores, one-pScratch base) that closes every cheap axis on the two remaining differences; the hoist is sched1's, and levers a-refs-are-three-times / a-global-allocno-priority-is say a body that emits these 247 instructions ranks the qtys the same way.
 /*
 void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
     u8* pScratch;
@@ -732,32 +733,8 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
-/* 94.82%, 260 bytes = retail 65 insns, correct code, ONE temp rotation left.
-   The instruction stream (other than registers) is retail: s0=pSrc s1=prod t9=pTbl a0=x
-   t4=y t5=iCol t6=col t7=oi t8=-1 and the frame 0x20 with s0,s1,ra are all retail.
-   WHAT CLOSED 78.20 -> 94.82 (keep every one):
-   - the tail call is THREE args, func_8009980C(pSrc, p1, p2): a1/a2 are forwarded to the
-     handwritten callee, and declaring it (or calling it with only pSrc) frees a1/a2 for
-     the body, which costs the p1 save and a second callee-saved (69 insns at best).
-   - the shade/angle table MUST be a hoisted pointer local (pTbl = D_800523F0). Written as
-     the global directly, gcc re-forms the address through $at at BOTH lookups.
-   - sinVal/prod as separate locals, and the if-arm split into TWO statements
-     (`c = (s8)v << 3; c = ((prod >> 20) + c) << 16;`) - the permuter found this, it is what
-     puts sll/sra of v between mult and mflo. One statement measures 81.95.
-   - `oi = 8;` as its own statement above the loop with `for (; oi != -1; oi--)` instead of
-     `for (oi = 8; ...)`: that is what puts retail's li t7,8 before the pTbl lui (91.34 ->
-     94.82). Both loop counters count 8 down to -1.
-   LEFTOVER: a four-register rotation among the temps. Retail keeps xCur in a3 (the argument
-   register the dead pRect frees) and idx in t1; this body has idx in a3 and xCur in t1, so
-   ii moves to t0 and pPkt to t2. Plus retail sign-extends v in place (sll v1 / sra v1) where
-   this body uses v0 as the shift intermediate. Tried and measured identical or worse:
-   xCur hoisted to the preheader with a re-set at the loop end, a separate vx local for the
-   vxy expression, `c = (s8)v; c = c << 3;`, and three permuter runs (best 130 vs base 325
-   on its own metric, its finds were the two-statement split kept above plus a do-while(0)
-   that is transparent to gcc). Holds a3 against idx because idx's live range is shorter;
-   next lever would be a spelling that lengthens idx's live range, e.g. reloading it from
-   the global at the bottom of the outer body. */
+
+// 97.74% (was 94.82), 260 bytes = retail's 65 insns, correct code. Residual: (1) the xCur increment sits TWO slots late - retail emits it first of the four increments (xCur++, pPkt++, p++, ii--, idx++ in the bne slot), this body emits pPkt++, p++, xCur++, ii--, idx++; (2) a four-temp register rotation: retail pPkt=t0 idx=t1 ii=t2 xCur=a3, ours ii=t0 xCur=t1 pPkt=t2 idx=a3. NEW MEASURED: the statement order of the four increments is what fixes their EMIT order - 'pPkt++; p++; xCur += 0x80; idx += 0x200;' (as below) is 97.74 and emits in source order, while putting xCur += 0x80 FIRST (either before pPkt++ or between the vxy and vz stores) makes sched1 hoist the addiu above the or/sw/sh for 94.82. So the position that retail has (xCur++ first, after both stores) is the one shape sched1 will not let stand.
 /*
 void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect) {
     WorldMapMisc16Pkt* pPkt;
@@ -799,16 +776,18 @@ void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect) {
             }
             pPkt->vxy = c | (xCur & 0xFFFF);
             pPkt->vz = y;
-            xCur += 0x80;
             pPkt++;
             p++;
+            xCur += 0x80;
             idx += 0x200;
         }
         y -= 0x80;
         col += 0x200;
     }
     func_8009980C(pSrc, p1, p2);
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
+
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009980C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099BFC);
