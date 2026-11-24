@@ -671,6 +671,41 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 // two-instruction la, 'pStep->probe' gives addiu a0,s8,0x60 with no reloc); the linked
 // bytes are identical, so a perfect body caps at about 99.9% in objdiff and is proven
 // with check_bin.sh instead. See func_80095CD4's note for the same residual.
+// ROUND 457: 71.12 -> 71.73% (2156 bytes / 539 insns vs retail 2240 / 576) from ONE source find.
+//   THE pDelta REGISTER MIRROR IS FIXED IN THE SOURCE, not the allocator: the
+//   search case's acceptance store must RELOAD the array -
+//   g_WorldMapStepTriangleIndex = D_8009D718[i]; - and not reuse the 'next' local.
+//   Retail reloads it after the WorldMapProjectTriangleNormal call ('lh v1,0x0(s0)'
+//   at 0x25AE0) rather than trusting the value it passed; keeping 'next' live across
+//   the call put it in a callee-saved register and that is what pushed pDelta down
+//   to $s7 (retail keeps pDelta in $s6 and the walk's -1 in $s7). With the reload
+//   the prologue is retail's exactly ('sw s6,0xA8(sp)' then 'addu s6,a1,zero').
+//   See the ROUND 446 block above for how the search case's two give-up exits were
+//   already unified.
+// WHAT IS LEFT, all four measured as allocator TIES this round (no source response):
+//   a. 0x1F800000 scratch base and the walk's -1 swap $s7/$s8 (retail base=$s8/fp,
+//      -1=$s7; this body base=$s7, -1=$s8). Both are rematerialisable constants,
+//      i.e. the two lowest-priority callee-saved slots, decided by allocno number.
+//   b. pOut and {count,again} swap $s3/$s4 (retail pOut=$s3, count/again=$s4;
+//      this body pOut=$s4, count/again=$s3).
+//   c. 'state' (func_80085760's return) sits in $v1 here, retail keeps it in $s1
+//      ('addu s1,v0,zero') and this body's $s1 holds pTri; retail's pTri is $s2.
+//   d. FRAME 176 vs retail's 184: the four named slots agree and the saved set is
+//      retail's ten, so retail reaches one more 8-byte anonymous slot than this body.
+//   e. BLOCK ORDER, the biggest visible residual: retail emits the walk's shared
+//      resolve block (.L80095B2C) BETWEEN the dir[0] tail (.L80095A14, shared by
+//      state 1 and state 3 kindMask 1) and the dir[1] tail (.L80095B84); this body
+//      emits all three AlignDirection calls first and the resolve block last, which
+//      is why the mid-arm region reads 7 instructions MORE than retail while the
+//      function totals 37 short. That order comes out of gcc's switch expansion plus
+//      jump optimisation and cannot be steered from the source.
+//   f. This body hoists the constant 1 into $s3 ('bne v0,s3' per arm) where retail
+//      re-materialises 'li t1,1' in each arm; it is the register 'again' holds.
+// MEASURED AND REJECTED this round: `again = 1;` moved to the top of the walk case
+// (retail sets it in the 'j .L80095748' delay slot at 0x25590) - identical 71.73%,
+// reverted. gcc-2.7.2-cdk 69.74% (try_flags), so the preset is right.
+// The probe-address reloc cap from the CARRIED OVER block above still applies: a
+// perfect instruction stream would read about 99.9% in objdiff and needs check_bin.
 /*
 s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     WorldMapStepMesh* pMesh;
@@ -746,7 +781,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                 if (heightDelta < WORLD_MAP_STEP_HEIGHT_TOLERANCE) {
                     pOut->y = pStep->normalA.y << 12;
                     g_WorldMapStepSpriteSet = setIndex;
-                    g_WorldMapStepTriangleIndex = next;
+                    g_WorldMapStepTriangleIndex = D_8009D718[i];
                     ret = 1;
                     break;
                 }
@@ -990,6 +1025,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     return ret;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
+
 
 
 
