@@ -1118,45 +1118,32 @@ typedef struct {
     /* 0xA */ u_short unkA;
 } FieldActorTargetTrack; // Size: 0xC
 
-/* 95.34% (1448 bytes vs retail's 1424, 362 vs 358 insns; the old "356" here was
-   wrong). Everything structural
-   is settled; what is left is register allocation.
-   Settled:
-   - arg1 is FieldActor* and arg2 is the actor's ActorData* (the caller
-     func_8008110C passes &g_FieldActors[i] and its 0x4C field). arg1 is used
-     for exactly one load, pSpriteData.
-   - The 0x74 field is re-read from memory at every one of its six uses, and the
-     three delta blocks each re-read it and pActor->pTargetTrack; only the
-     g_FieldActors pointer is loaded once for those three, so the source read
-     that global into a local (pTracked) for the deltas and spelled it out again
-     for the target positions, which is what retail does (a1 kept across the
-     three deltas, a fresh lui/lw before the target position loads).
-   - g_FieldMaterialAngles is u_short[8] and g_FieldControl.angle is read unsigned (lhu
-     in retail), hence the (u_short) cast and the u_short extern.
-   - The height clamp must be written condition-inverted (limit <= unkF0 >> 16
-     storing limit << 16 first, gravity add in the else): 94.74% -> retail's
-     exact delay-slot shape, where the or-else value is what reorg steals into
-     the beqz slot.
-   - The move updates must NOT be written as (targetPos - pos) + step; retail
-     re-forms the subtraction at each site, so the term order is
-     targetPos + step - pos.
-   Diffs left (round 448 re-measured this body and re-read the .s: items (2) and
-   (3) of the previous note are GONE, the triMaterial/0x400000 store order and the
-   duplicated andi now match):
-   (1) One extra callee-saved word: this body keeps the s16 rotation delta in s7
-       and pushes actorIndex to s8 (10 saved words vs retail's 9), and every s7/s8
-       operand in the body follows from that. It is an allocno-priority tie, not
-       pressure: the values live across the FieldGetActorDistance2D call number
-       seven here and seven in retail, inside a pool of eight s-registers - retail
-       gives the s16 dyAngle $s0 (dead stepX) and keeps actorIndex in $s7. Tried
-       s32/s16 deltas, a separate truncated local assigned right after the
-       subtraction, and dropping the intermediate entirely - always 95.34%.
-   (2) Retail truncates dyAngle BEFORE the calls (`sll a0,a0,16` at 0x12F04, then
-       `sra s0,a0,16` in the bnez delay slot); this body keeps the 32-bit subtrahend
-       in s7 and truncates it after ratan2, which is the one extra instruction.
-   (3) Retail reads rotation.vx (0x104) late, lh into v1, right after the
-       g_FieldActors index chain; this body hoists lhu into a0 ahead of the
-       position loads, so the andi/bnez run on a0 instead of v1. */
+/* 96.26% (1436 bytes vs retail's 1424, 359 vs 358 insns: ONE instruction over,
+   so it cannot link). Round 461 re-measured this body LIVE and found the lever
+   that the old 95.34% note was missing: do NOT keep a dyAngle local -
+   write `delta.vy = <rotation.y - track->rotationY>;` and use `delta.vy` in the
+   angle expression. That reloads the halfword (`lh v0,0x52(sp)`) but frees the
+   callee-saved register the local held, which drops retail's 9th saved word
+   (the old body pushed $s8 for actorIndex and was 362 insns / 1448 bytes).
+   Measured, all 358-362 insns: `s16 dyAngle` local 95.34 / 1448 / 362 (+$s8),
+   the same with `s32 dyAngle = (s16)(...)` 95.19 / 1448 / 362, the chained
+   `delta.vy = dyAngle = ...` 95.34 / 1448 / 362, `delta.vy` alone 96.26 / 1436 /
+   359 - the park. So the two are mutually exclusive from source: retail truncates
+   the delta into a register EARLY (`sll a0,a0,16` right after the delta stores,
+   `sra s0,a0,16` in the `bnez` delay slot before FieldGetActorDistance2D) and
+   reuses $s0, which is dead stepX in that arm; every C body here either keeps the
+   value in a saved register of its own or reloads it from the stack.
+   Settled (from the round-448 note, still true): arg1 is FieldActor* used only for
+   pSpriteData; 0x74 is re-read at each of its six uses; g_FieldMaterialAngles is
+   u_short[8]; the height clamp must be written condition-inverted; the move
+   updates must re-form `targetPos + step - pos`, not `(targetPos - pos) + step`.
+   Diffs left on this body: the `lh` reload above; an allocator permutation in the
+   two zeroed stepX/stepZ registers and in `pActor->flags` (this body keeps flags
+   in $s1 and gets dead `andi v0,s1,0x8000` fillers in two delay slots where retail
+   has `sll v0,v1,0x1` / `nop`); and two store orders (the 0x400000 arm reads
+   move.vz before the rotation.vx `lhu`, where retail does the `lhu`/`ori`/`sh`
+   between the two `sw`s). */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
 /*
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     IVEC3 moveVec;
@@ -1175,7 +1162,6 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     s32 posZ;
     s32 targetPosX;
     s32 targetPosZ;
-    s16 dyAngle;
     FieldActor* pTracked;
     ActorData* pTarget;
 
@@ -1259,9 +1245,8 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pTracked = g_FieldActors;
             delta.vx = pTracked[pActor->canInteract].rotation.x -
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationX;
-            dyAngle = pTracked[pActor->canInteract].rotation.y -
+            delta.vy = pTracked[pActor->canInteract].rotation.y -
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY;
-            delta.vy = dyAngle;
             delta.vz = pTracked[pActor->canInteract].rotation.z -
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationZ;
             ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY =
@@ -1276,7 +1261,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
                     FieldGetActorDistance2D(actorIndex, pActor->canInteract);
             }
             distance = ((FieldActorTargetTrack*)pActor->pTargetTrack)->distance;
-            angle = (s16)ratan2(targetPosZ - posZ, targetPosX - posX) - dyAngle - 0x800;
+            angle = (s16)ratan2(targetPosZ - posZ, targetPosX - posX) - delta.vy - 0x800;
             pActor->move.vx += targetPosX + ((rsin(angle) * distance) << 4) - posX;
             pActor->move.vz += targetPosZ + ((rcos(angle) * distance) << 4) - posZ;
         }
@@ -1289,8 +1274,8 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pActor->moveSpeed << 8;
         g_FieldActorModelPointerIndex++;
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+}
+*/
 
 
 
@@ -2055,38 +2040,29 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
 
 extern s32 D_800ADC0C;
 
-/* 96.01% (276 bytes; retail is 276 too - the old note said 280, that was wrong).
-   Every check matches. `new_var = pActor;` before the flags&2 test is the lever
-   (it forces the copy into $a1 and takes the body 91.16 -> 96.01); moving the
-   same assignment to the top of the function is 87.25/284, and dropping it is
-   91.16. Residual, three spots: retail puts nop in the `beqz flags&2` delay slot
-   where reorg steals our `move a1,a0`; retail keeps its `addiu v0,zero,-1` as a
-   separate block (.L80084A34, reached by the `beq v1,v0` whose delay slot is a
-   nop) where we thread `li v0,-1` into that delay slot; and retail threads
-   `move v0,zero` into the `beqz flags&4` delay slot where we keep a zero block.
-   The else-return-0 form and a nested if for the flags&2 test measure the same.
-   Permuter run from 91.16 found the new_var copy (base 461 -> 407). */
-/* 96.01% (276 bytes / 69 insns = retail's exactly; the old "280" in this note was wrong).
-   Every check matches. `new_var = pActor;` before the flags&2 test is the lever (the
-   permuter found it): it forces the copy into $a1 and takes the body 91.16 -> 96.01.
-   Moving the same assignment to the top of the function is 87.25/284; dropping it is
-   91.16. Residual, three spots: retail has a `nop` in the `beqz flags&2` delay slot
-   where reorg steals our `move a1,a0`; retail keeps its `addiu v0,zero,-1`
-   (.L80084A34, reached by the `beq v1,v0` whose delay slot is a nop) as a separate
-   block while every compile here steals the -1 into the branch delay and retargets to
-   the epilogue; and retail threads `move v0,zero` into the `beqz flags&4` delay slot
-   where this body keeps a zero block.
-   Round 448 measurements on the tail (all with the new_var copy removed, so the beqz
-   flags&2 slot is retail's nop): `if (flags & 4) { return -(...); } return 0;` 91.16 /
-   276 / 69; the inverted `if (!(flags & 4)) return 0; return -(...);` 90.07 / 268 / 67
-   - that one HAS retail's `move v0,zero` delay slot and no zero block, and differs
-   only by the missing out-of-line -1 block and the `j` it creates; nested-if vs `&&`
-   for the flags&2 test compiles identically (90.07). Spelling the tail over a
-   `s32 result = 0;` before the flags&4 test is the only form that puts the second
-   flags load in retail's $v1, but it allocates result to $a1 (86.74 / 280 / 70).
-   So the two levers left are the -1 block's out-of-line placement (reorg's eager
-   steal of a branch target that is the branch's only reference) and the zero
-   register - combine the inverted-return-0 tail with whatever keeps -1 in a block. */
+/* 96.01% (276 bytes / 69 insns = retail's exactly). Re-measured LIVE in round 461,
+   so the number is not a stale object. Every check matches; the residual is three
+   spots in the tail:
+   1. retail has a `nop` in the `beqz flags&2` delay slot where reorg steals this
+      body's `move a1,a0` (the `new_var = pActor;` copy - that copy is the lever:
+      91.16 -> 96.01; the same assignment at the top of the function 87.25/284,
+      dropped 91.16).
+   2. retail keeps `addiu v0,zero,-1` as a separate block (.L80084A34, reached by
+      the `beq v1,v0` whose delay slot is a `nop`) where every body here threads
+      `li v0,-1` into that delay slot.
+   3. retail threads `move v0,zero` into the `beqz flags&4` delay slot where this
+      body keeps a zero block.
+   Round 461 re-measured the inverted tail with the new_var copy in place
+   (`if (!(pActor->flags & 4)) return 0; return -(pActor->walkmeshId == 2);`):
+   90.07 / 268 / 67 - it HAS retail's `move v0,zero` slot and no zero block, and is
+   one instruction short (no out-of-line -1 block), so it cannot link.
+   Round 448: else-return-0 91.16/276/69, a nested `if` for the flags&2 test
+   compiles byte-identically to `&&`, and `s32 result = 0;` before the flags&4 test
+   puts the second flags load in retail's $v1 but allocates result to $a1
+   (86.74/280/70). Lever c-there-source-ordering-lever applies: there is no source
+   ordering lever for delay-slot fill, so the -1 block (a reorg fill decision) is
+   not reachable from source. Permuter run from 91.16 found the new_var copy
+   (base 461 -> 407). */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 /*
 int func_8008492C(ActorData* pActor) {
@@ -2130,7 +2106,9 @@ int func_8008492C(ActorData* pActor) {
     } else {
         return 0;
     }
-}*/
+}
+*/
+
 
 extern s32 D_800ADB98;
 extern u8 D_800B21CF;
