@@ -148,28 +148,36 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
 }
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
-/* best: 95.38% (352 bytes; retail 0x8007DA1C..0x8007DD1C = 87 insns / 348
-   bytes, this body 88). R398: the func_8007D8C0 R370 two-pointer recipe DOES
-   transfer to this stub - pField = pRow after the head store, the index-first
-   base with an (s32) cast on the symbol and a u16 value local at the tail - and
-   the loop has to be a while on i from 3 to 0xB: 75.77 -> 95.38 in one step.
-   The ONE remaining instruction is the loop increment. Retail has
+/* best: 95.38% (352 bytes / 88 insns; retail 0x8007DA1C..0x8007DD1C = 87 insns /
+   348 bytes). The func_8007D8C0 R370/R398 two-pointer recipe carries this stub:
+   `pField = pRow;` after the head store, the index-first base with an (s32) cast
+   on the symbol, a u16 value local at the tail, and the loop written as a
+   `while (i < 0xB)` from 3 - that is 75.77 -> 95.38 in one step.
+   NAMED residual: THE LOOP INCREMENT'S POSITION. Retail has
    [jal ClearRecordIdle][andi v0,v0,0xFF][beqz v0][addiu s1,s1,1], i.e. i is
    incremented unconditionally between the call and the test on its result, so
-   reorg fills that delay slot with the increment and duplicates slti only into
-   the beqz v1 slot and the latch (two copies). With idx = i++ gcc increments at
-   the loop head, so that slot gets a COPY of the target slti instead and the
-   body carries three copies - one instruction too many to link. Measured, all
-   on top of this body: increment between call and test via an s32 idle local
-   88.25% (336 bytes; the allocator swaps count and idx, the frame shrinks);
-   increment at the body end after the if 88.67% (332 bytes; the idx copy in s3
-   disappears); the same loop written do-while 93.77% (344 bytes, one SHORT -
-   slti is not duplicated at all); idx = i; i++; is identical to idx = i++.
+   reorg puts the increment in that beqz slot and the body needs only TWO slti
+   (DAF0 plus the beqz v1 slot). With `idx = i++` cc1 emits the increment at the
+   loop head, so the same slot takes a third COPY of slti - one instruction too
+   many to link (88 vs 87). The increment's position is source-controllable only
+   at the cost of the preheader copy, and the two are exclusive (measured on this
+   body): the 'ok' shape (u8 idle result local, i++ between the call and the
+   test, `idx = i` as the last body statement) DOES put the increment in retail's
+   beqz v0 slot, but then the preheader copy folds to `li s3,3` and reorg does
+   not duplicate slti into the beqz v1 slot at all -> 86 insns, one SHORT, 92.51%
+   (344 bytes; identical with the two branches merged into one amp-amp test).
+   Also measured: s32 idle local 88.25% (336), increment at the body end after
+   the if 88.67% (332, the s3 copy disappears), copy-at-bottom only 89.03%,
+   do-while 93.77% (344, short), `idx = i; i++;` identical to `idx = i++`, count
+   declared first 90.75%. So this is a genuine two-way wall, not a spelling left
+   to find (tools/rounds/levers.md,
+   increment-in-a-branch-slot-versus-the-preheader-copy-are-exclusive).
    Cosmetic only: the prologue emits the s6 = arg1 copy before the count and i
    inits (retail after them), and the tail beqz s2 slot holds move a0,zero where
-   retail has addiu a1,s2,-1. Not a preset question (cdk 76.66% on sibling DB78).
+   retail has addiu a1,s2,-1.
+   Preset screened: -O3 95.38, -G0 95.38, gcc-2.6.0 95.78, cdk 76.66% on sibling
+   DB78 - Default (2.7.2, -O2 -G8) is right.
  */
-// R455 remeasured 95.38% (352 bytes, 88 insns vs retail 87) - the parked body is still the best. New measurements on top of it, all stopping one instruction short: the 'ok' shape (result in an s32 local, i++ between the call and the test, idx = i at the body bottom) puts the increment in retail's beqz slot and the copy in retail's latch slot but folds the pre-loop copy into a prologue move s3,3 (91.46% / 86 insns; with 'idx = i' as a statement 92.51%; with count declared first 90.75%). Loop copy at the bottom only (idx = i as the last body statement) 89.03%. So: retail's preheader move s3,s1 comes only from idx = i++ and retail's beqz-slot increment only from the ok shape; no spelling gives both, and the two reorg duplicates of slti follow from which one is used.
 /*
 void func_8007DA1C(u8 **arg0, s32 arg1) {
     u8 buf[8];
@@ -198,6 +206,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
+
 
 /* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
@@ -352,34 +361,28 @@ void func_8007DCF8(u8 **arg0, s32 arg1) {
     }
 }
  */
-/* best: 89.33% (336 bytes; mine 340). This is the func_8007D8C0/DA1C
-   family and the family's documented blocker (the tail store re-forming the row
-   base) IS SOLVED here: write the tail as a u16 value local, then a pointer
-   local whose base is built in INT arithmetic, then the store:
-
-       u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-       u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
-       pOut[(*arg0)[2]] = value;
-
-   That reproduces retail's andi/sll/lw p/lui a1/addiu a1/lbu p[2]/addu a0,a0,a1/
-   sll/addu/sh exactly (the (s32) cast stops gcc folding the symbol into the
-   store as %lo(sym)(reg), and the separate `value` statement keeps the address
-   computation after the two jal's instead of hoisting it). Remaining, 3 insns:
-   (1) retail keeps a temp copy of the row base (addu v1,v1,v0 then move s5,v1,
-   and the la lands in v0 before the remaining saves) where gcc computes
-   addu s5,v1,a0 with the la in a0 after them - tried the plain pointer form,
-   (arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs, and an s32 base local converted to
-   u16* (all 89.33%, gcc coalesces the copy away).
-   (2) sw s6/move s6,a1 is emitted before the i/count zero-inits here, after
-   them in retail (declaration order i then count already matches retail's
-   s1-then-s2 zeroing).
-   (3) retail steals addiu s1,s1,1 into the beqz delay slot after the
-   BattleSlotFlagsC002ClearRecordIdle call; with idx = i++ the whole loop body is byte-exact
-   otherwise, and that shape is required (idx must stay a separate register;
-   idx = i inside the body makes gcc propagate it and lose s3).
+/* best: 95.25% (352 bytes / 88 insns; retail 0x8007DE78..0x8007E080 = 87 insns /
+   348 bytes). Byte-for-byte the func_8007DA1C stream with only ClearRecordIdle's
+   second argument (1) and the loop bounds (0..3 instead of 3..0xB) changed, and
+   DA1C's recipe transfers unchanged: `pField = pRow;` after the head store, the
+   index-first base with an (s32) cast on the symbol, a u16 value local at the
+   tail, and the loop as `while (i < 3)`. R469: the WHILE form is worth 1.6
+   points over the do-while this stub used to park with (93.64% / 344 bytes, 86
+   insns, one SHORT); the while form is 88 insns, one OVER, the same way DA1C is.
+   NAMED residual: the loop increment's position - retail increments i
+   unconditionally between the ClearRecordIdle call and the test on its result
+   ([jal][andi v0,v0,0xFF][beqz v0][addiu s1,s1,1]), so reorg fills that beqz
+   slot with the increment and the body carries only TWO slti. `idx = i++` puts
+   the increment at the loop head and that slot takes a third COPY of slti (one
+   instruction too many); the 'ok' shape that moves it into retail's slot loses
+   reorg's duplicate of slti in the beqz v1 slot instead (86 insns, one SHORT,
+   91.33%). The two are exclusive - see DA1C's park note above and
+   tools/rounds/levers.md,
+   increment-in-a-branch-slot-versus-the-preheader-copy-are-exclusive.
+   Cosmetic only: the prologue emits the s6 = arg1 copy before the i/count
+   inits (retail after them), and the tail beqz s2 slot holds move a0,zero where
+   retail has addiu a1,s2,-1.
  */
-// R455: the R398 two-pointer recipe transfers to DE78 - pField = pRow after the head store, index-first base with the (s32) cast on the symbol, u16 value local: 89.33 -> 93.64% (344 bytes, 86 insns; retail 87). That is the parked body. The one missing instruction is reorg's duplicate of slti in the beqz v1 delay slot (mine threads addiu v0,sp,16 there instead) plus the inc's position; the preheader row-base copy (addu s5,v1,zero) IS reproduced by this body.
-// Also measured R455: the 'ok' shape (u8 result in an s32 local, i++ between the call and the test, idx = i at the body bottom so the copy lands in the latch slot) puts the increment in retail's beqz slot and the copy in retail's latch slot, but gcc then constant-folds the pre-loop copy into a prologue move (move s3,zero) and drops the s3 save order: 91.33% / 86 insns. Same on DA1C (90.75-92.51). Not the answer, but it localises the wall: retail's preheader 'move s3,s1' only appears with idx = i++ (95.38 on DA1C), and retail's beqz-slot increment only appears with the ok shape - no spelling measured gives both.
 /*
 void func_8007DE78(u8 **arg0, s32 arg1) {
     u8 buf[8];
@@ -391,7 +394,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
 
     pRow[(*arg0)[2]] = 0;
     pField = pRow;
-    do {
+    while (i < 3) {
         idx = i++;
         if (BattleSlotFlagsC002ClearRecordIdle(idx, 1) != 0) {
             if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
@@ -399,7 +402,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
                 count++;
             }
         }
-    } while (i < 3);
+    }
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
         u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
@@ -408,6 +411,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
+
 
 /* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
