@@ -3391,93 +3391,53 @@ void SoundTickTempoAndElementRamps(AudioManager* pManager, AudioElement* pElemen
         pElement++;
     } while (--count != 0);
 }
-// 75.84%, retail's 1436 bytes against this body's 1440 (ONE instruction long). The element loop,
-// the note path, the gate/duration arithmetic and the envelope reset are instruction for
-// instruction right, and the frame is now retail's exactly: 0x48, s0-s8+ra saved (retail's $fp is
-// $s8, holding the scan loop's 0x90) and 32 bytes of locals.
-// WHAT ROUND 350 CHANGED (all measured):
-// (1) `cmd` is s32, not s16: 72.67 -> 74.51. retail's `cmd < 0x80` test is `slti` (SIGNED), and a
-//     s16 cmd makes gcc reuse the HImode value for the two table indices (`sll v0,a2,0x2`, one
-//     instruction) where retail has `addiu v0,a2,-0x80 / sll v0,v0,16 / sra v0,v0,14`. Writing the
-//     indices `(s16)(cmd - 0x80)` on the s32 value emits retail's three-instruction pair: 74.51 ->
-//     75.78. A cc1_probe over seven spellings shows `(s16)(cmd - 0x80)` on a table index is the ONLY
-//     one that emits sign_extendhisi2, which is where both of retail's index pairs come from.
-// (2) the dead `u32 spare[2]` is what makes the frame 0x48 with 32 bytes of locals (round-331
-//     lever); without it the frame is 0x40 with 24. It only lands with cmd s32.
-// STILL DIFFERENT, and what each measurement says:
-// (a) THE ONE EXTRA INSTRUCTION IS THE PEELED SCAN-LOOP BOTTOM. Our `do {} while ((cmd = *pScript)
-//     >= 0x80)` makes gcc inline a copy of `lbu a2,0(s1) / slti / bnez` after the 0x90 arm; retail
-//     does `bnez s1,.L8003CA48` into ONE shared bottom. Rewriting the scan loop as
-//     `while (1) { if (cmd < 0x80) break; ...; cmd = *pScript; }` removes the duplication and keeps
-//     the exact frame, but gcc then reorders the blocks: the 0x80/0x81 tails land after the chain
-//     instead of right after the mask-clear block and all of 0x80/0x81/0x90 become function-level
-//     constant hoists, and the score falls to 48.89% (1396 bytes). So the LAYOUT lives in the
-//     do-while body (75.84) and the SHAPE in the while(1) body; nothing tried merges them. The
-//     explicit `continue` in the 0x90 arm compiles identically to the fall-through.
-// (b) retail's scan-loop comparisons run on an explicit s16 (`sll v1,a2,16` in the loop-back's
-//     branch delay slot, `sra v1,v1,16` at the loop top) and ours compare the SImode cmd directly.
-//     Every spelling of that conversion folds to a bare `move`: `s16 op = cmd`, `(s16)cmd` at each
-//     comparison, `s16 cmd` (and it costs the two index instructions above), `*(s16 *)&cmd` (66.x).
-//     `u8 cmd` turns the `< 0x80` test into `sltu`, and `u16 cmd` does the same, so cmd is signed.
-// (c) retail loads active_flag TWICE (`lhu v0,0(s2)` for the `!= 0` test, then `lhu s3,0(s2)`);
-//     ours cse's them into one load plus `move s3,v1`. `*(volatile u16 *)&pElement->active_flag` at
-//     the second read does give the reload but costs one instruction elsewhere (75.67 / 1444).
-// (d) `if (pElement->active_flag != 0)` after the pScriptIP store: retail emits `bnez` + `j` +
-//     `addiu s0,s0,0x158` (2 more than ours, which inverts to `beqz` to the epilogue).
-// (e) the note path: retail keeps `addu a0,a1,zero` (the selector copy feeding two table reads) and
-//     its `addiu s1,s1,1` before the `bnez`; ours lets s1 advance in the delay slot.
-// (f) retail's octave read is `lbu 0x64(s0)` - the field at 0x66 is a BYTE in the original source,
-//     the header declares it u16, so ours is `lhu`.
-// (g) prologue save order: retail defines s4 (pManager), s6 (count), s2 (pElement); ours s4, s2, s6.
-// (h) the mask-clear block: retail hoists the `1` into $s7 (`sllv v0,s7,v0`) and ours materialises
-//     it in $s8 for that use while 0x90 takes $s7 - that is the constant-hoisting order, not source.
-// SEMANTIC FIX in this body (read off the .s): the 0x80 / 0x81 / 0xB0-0xB1 arms set and clear 0x200
-// on ACTIVE_FLAG (0(s2)) - SOUND_CHANNEL_NTOE - not on status_flags; and the script loop's continue
-// test is `active_flag & 0x500`, the `cmd < 0x80` mark at the end sets/clears 0x1000 on active_flag.
-// gateRatio is tested 0xF first and 0x10 second, and the envelope loop reads flags once into a local.
-// ROUND 415 (re-measured, unchanged): 75.84% / 1440 bytes, retail 1436. The note above
-// stands; these are the spellings round 415 scored, all worse, all reverted:
-//   (i)  `u8 note` (retail's `lbu 0x64(s0)` + `sb 0x63(s0)` suggests the sum is QImode): 75.02%
-//        / 1452. It buys the lbu but costs an andi at the percussion call and an andi at the store.
-//   (ii) `selector = *pScript++` moved before the note add (retail's `addiu s1,s1,1` sits between
-//        the two table reads): 75.53% / 1444.
-//   (iii) `if (cmd == 0x80 || (cmd >= 0xB0 && cmd <= 0xB1))`, since retail's 0x80 test and its
-//        0xB0/0xB1 range test are adjacent and share the clear tail: 71.94% / 1440. gcc had
-//        already merged the tails; the merged test only moves the 0x81 test after the range test.
-// WHERE THE REMAINING 24% IS (mnemonic-level diff with registers folded, round 415): 51 of the 82
-// differing lines are pure register renames; the real ones are (a)-(h) above plus the extra
-// instruction, which is the PEELED SCAN-LOOP BOTTOM: retail does `bnez s1,.L8003CA48` (one shared
-// bottom, 5 `slti v0,a2,0x80` in the function), ours inlines a copy of `lbu a2,0(s1)/slti/bnez`
-// after the 0x90 arm (6). Every shape that removes it moves the block order more than it fixes.
-// The dominant residual is BLOCK ORDER, not any single instruction: gcc emits our post-first-loop
-// block (0x800 test, loopIndex, `cmd = *pScript`, scan loop) directly after `sw s1,0x12(s0)` and
-// inlines the 0x80/0x81 tails inside the scan loop, where retail puts those tails out of line
-// (before .L8003C950) and hoists 0x80/0x81 into a3/a1 instead of re-materialising them per use
-// (`li v0,0x80`, `li v0,0x9a` twice in ours). No source shape tried reproduces retail's layout.
-// HEADER EVIDENCE, not applied (shared header): retail reads durationBias (0x60) with `lbu` then
-// `sll 24 / sra 24`, i.e. a sign-extended UNSIGNED byte; the header declares it s8 and we emit a
-// bare `lb`. Whatever the field is, the source must sign-extend an unsigned byte.
-// ROUND 429 (un-parked, re-measured): still 75.84% / 1440 bytes against retail's 1436, so the
-// note above is not stale. Two new facts, both measured, both saving the next worker the work:
-// (j) THE UNIT'S PRESET IS NOT THE ANSWER, do not re-screen it. gcc-2.7.2 scores this body 74.47%
-//     and also breaks neighbours that already match under 2.6.0 (SoundEnableAllSpuChannels 92.73,
-//     SoundSetReverbModeWithAllocation 99.04, SoundSetCdVolumeWithFade 98.46), and gcc-2.7.2-cdk
-//     rejects the unit (cc1 exit 33, mixed declarations). XenoLibrary/2.6.0 is right.
-// (k) THE 4-BYTE SIZE ERROR IS TWO COMPENSATING ONES, so (a)'s "one extra instruction" is really
-//     -1 +2: the HANDLER INDEX IS ONE INSTRUCTION SHORT. Retail sign-extends it
-//     (`addiu v0,a2,-0x80 / sll v0,v0,0x10 / sra v0,v0,0xe`, i.e. cmd is HImode and the *4 needs
-//     sign_extendhisi2); ours emits `addiu v0,a2,-0x80 / sll v0,v0,0x2`. Round 429 spelled the
-//     index as a `s16 handlerIndex = cmd - 0x80;` local inside the else arm: identical output,
-//     75.84% / 1440 (gcc folds the HImode local back). `s16 cmd` for the whole function is the
-//     only spelling that does sign-extend here and it costs 74.51 (note (1)). So retail's `cmd`
-//     is a signed narrow type AND the note-path/scan-loop code depends on it being SImode: no
-//     single declaration satisfies both halves.
-// (l) m2c re-drafted the whole body in round 429 and produced this same block structure with raw
-//     types (worse); the only thing it shows is that retail's $s0 is pElement+2, which is gcc's
-//     base selection, not source. twins: none (tools/scripts/twin_for.py prints "no twin").
-// (m) lever.py "fold the register names out of the two listings" (m-fold-registers-out-of) is this
-//     function and reaches the same verdict: block order, park it, do not brief another lane of
-//     per-instruction guesses.
+// 75.84% / 1440 bytes against retail's 1436 (ONE instruction long). Round 442 un-parked and
+// re-measured this body unchanged, so the number is live, and cc1_probe was used to settle the
+// two type questions below instead of guessing at them.
+// WHAT IS RIGHT: the element loop, the note path, the gate/duration arithmetic, the envelope reset
+// and the frame (0x48, s0-s8+ra, 32 bytes of locals) are instruction for instruction right.
+// (1) THE SCAN LOOP'S COMMAND VALUE IS TWO DIFFERENT TYPES IN RETAIL, and no one declaration of
+//     `cmd` gives both. Retail sign-extends once per iteration (`sll v1,a2,0x10` in the preheader
+//     .L8003C98C and the latch .L8003CA58 delay slots, `sra v1,v1,0x10` at the loop top) and runs
+//     the 0x90/0x80/0x81/0x99 equality chain on v1, while the `< 0x80` tests (`slti v0,a2,0x80`,
+//     SIGNED, on the bare lbu register) and the length-table index (`addiu v0,a2,-0x80 / sll v0,0x10
+//     / sra v0,0xe`) both work off that raw register. cc1_probe, four spellings, round 442:
+//       u8 cmd + `(s16)(cmd-0x80)` index: retail's 3-instruction index, but `< 0x80` becomes
+//         `andi 0xff` + `sltu` (retail has no andi and a signed compare); 75.02% in place.
+//       s16 cmd: signed compare plus the HImode value, but the index collapses to `addu / sll 2`;
+//         74.51% in place.
+//       int cmd, and int cmd with `(s16)cmd` in the chain: gcc folds the cast and compares the raw
+//         byte, so the `sll 16/sra 16` pair CANNOT come from a cast on a byte-range-known value -
+//         retail's dispatch value had an unknown range, i.e. it is probably not the lbu at all.
+// (2) THE +1 INSTRUCTION IS THE INLINED SCAN-LOOP BOTTOM, in the 0x90 arm: retail ends it
+//     `bnez s1,.L8003CA48` (one jump to the SHARED latch); ours inverts the test and inlines
+//     `lbu a2,0(s1) / slti / bnez` plus a copy of the 0x80 test behind it. `while (1) { if (cmd <
+//     0x80) break; ... }` removes the duplication but reorders every block (48.89%, 1396 bytes);
+//     the do-while keeps the layout. An explicit `continue` in the 0x90 arm compiles identically.
+// (3) BLOCK ORDER is the dominant residual (51 of the 82 differing mnemonic lines are pure register
+//     renames). Retail puts the handler block (.L8003C8A0), the clear-channel-bit block
+//     (.L8003C90C) and the 0x81/0x80 arms (.L8003C928/C93C) OUT OF LINE between the note path and
+//     .L8003C950, and points nothing at the epilogue at `sw s1,0x12(s0)` (it emits bnez + j +
+//     `addiu s0,s0,0x158` in the delay slot); ours inlines the arms into the scan loop and cse's
+//     the second active_flag load (`move s3,v1` where retail re-loads). No source shape tried
+//     reproduces retail's layout.
+// OTHER MEASURED-AND-REVERTED SPELLINGS (do not repeat): `u8 note` 75.02; selector advance moved
+// before the note add 75.53; `cmd == 0x80 || (cmd >= 0xB0 && cmd <= 0xB1)` merged 71.94 (gcc had
+// already merged the tails); `*(volatile u16 *)&pElement->active_flag` at the second read 75.67 /
+// 1444; `s16 handlerIndex = cmd - 0x80` local inside the else arm is identical to the cast.
+// NOT THE PRESET: gcc-2.7.2 scores 74.47 and breaks neighbours that already match under 2.6.0
+// (SoundEnableAllSpuChannels 92.73, SoundSetReverbModeWithAllocation 99.04, SoundSetCdVolumeWithFade
+// 98.46); gcc-2.7.2-cdk rejects the unit (cc1 exit 33). XenoLibrary/2.6.0 is right.
+// HEADER EVIDENCE, shared header so not applied: retail reads durationBias (0x60) with `lbu` then
+// `sll 24 / sra 24`, i.e. the source sign-extends an UNSIGNED byte; the header declares it s8 and we
+// emit a bare `lb`. Same shape at octave (0x66): retail `lbu 0x64(s0)`, header u16, ours `lhu`.
+// SEMANTIC NOTES on the body, read off the .s: the 0x80 / 0x81 / 0xB0-0xB1 arms set and clear 0x200
+// on ACTIVE_FLAG (0(s2), SOUND_CHANNEL_NTOE), not on status_flags; the script loop's continue test
+// is `active_flag & 0x500`; the `cmd < 0x80` mark at the end sets/clears 0x1000 on active_flag;
+// gateRatio is tested 0xF first and 0x10 second; the envelope loop reads flags once into a local.
+// twins: none (twin_for.py). m2c re-drafts the same block structure with raw types (round 429).
+// lever.py "fold the register names out of the two listings" reaches the same verdict: this is a
+// block-order wall, not a per-instruction one - the permuter cannot fix it either (75.84%).
 /*
 void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
     u8* pScript;
@@ -3670,8 +3630,10 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
         next = count - 1;
         count = next;
     } while ((s16)next != 0);
-}*/
+
+*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
+
 
 
 void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
