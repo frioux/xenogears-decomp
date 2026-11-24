@@ -1518,36 +1518,12 @@ void BattleReleaseCharSlot(u8 arg0) {
    reads the same unset register), so this is the one body shape that matches - a
    well-defined `rec = i; break;` spelling has no second assignment for cse to
    merge and puts the loop straight after the test. */
-/* PARKED 86.50%, 316 bytes (retail 300). Two measured levers took this from 66.00
-   to 86.50, both about ADDRESS SHAPE, and both worth knowing unit-wide:
-   1. Write the scaling as `<< 2`, never `* 4`: with `(rec + 0x10) * 4` gcc's
-      combine distributes the shift and folds the +0x10 into the %lo displacement
-      (lbu v0,64(at)); `(rec + 0x10) << 2` gives retail's `addiu v0,v1,0x10;
-      sll v0,v0,2` + `lbu %lo(sym)(at)` (66.00 -> 75.25). Proved in cc1_probe on
-      a 6-line replica. The matched neighbour BattleIsCharSlot18InUse uses the
-      same spelling.
-   2. The tail needs an `s32 ofs` LOCAL: spelling `(u8)arg0 * 0x1C` inline at each
-      site makes gcc materialise `la $v1,g_BattleSlotRecords` + one base register
-      reused by all five accesses; with the local every access keeps retail's
-      `lui at,%hi / addu at,at,ofs / op %lo(at)` form (75.25 -> 86.50, also proved
-      in cc1_probe).
-   Residual, all allocator/CSE ties at 316 bytes: ofs lands in a0 where retail has
-   v1 (so the const 1 is a1 vs retail's a0); gcc batches the two
-   g_BattleSlotRecords[ofs] reloads above the D_800C3EB5 store and swaps the
-   D_800D301D / g_BattleCharSlotUsage stores (retail emits them one chain at a
-   time); g_BattleSlotParamTable is reloaded for the second D_800C3EC0 chain where
-   retail keeps it in a0. Punctuation tried with no effect at all: the
-   `*(u8 *)(D_800D301D + ((... ) << 2)) = 1` cast spelling.
-   Permuter 4 min from this body (base 790 -> 521): its only find is a
-   `volatile int` copy of ofs that forces the reload into the next register - it
-   scores 93.50% but spills 8 bytes to the frame (336 bytes), so it cannot link
-   and is not source. `s32 rec` for `u8 rec` changed nothing. */
-/*
 void func_80088490(u8 arg0) {
     u8 rec;
     u8 sel;
     s32 i;
     s32 ofs;
+    s32 stride;
 
     rec = g_BattleSlotRecords[(u8)arg0 * 0x1C];
     if (g_BattleCharSlotUsage[(rec + 0x10) << 2] == 0) {
@@ -1564,11 +1540,16 @@ void func_80088490(u8 arg0) {
     g_BattleSlotRecords[ofs] = sel;
     D_800C3EB5[ofs] = 0;
     D_800D301D[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
+    // retail runs the two usage chains one at a time; the empty loop notes keep
+    // gcc's scheduler from hoisting the next record reload above the previous store
+    do {
+    } while (0);
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
-    *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x100);
-    *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x102);
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
+    // the param table holds one 8-byte row per character slot
+    stride = 8;
+    *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * stride + 0x100);
+    *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * stride + 0x102);
+}
 
 
 u8 BattleIsCharSlot18InUse(u8 arg0) {
