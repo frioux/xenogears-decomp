@@ -86,6 +86,20 @@ extern volatile u32 D_80050618[3];
    the same thing: this tail of the module was not produced by our cc1.
    Already measured and dead: 2.6.0 96.00 (same la $2), cdk -G0 77.80, 2.8.1 77.80,
    -O3/-G0 on 2.7.2 no change, permuter 5643 iterations base=20 best=20.
+   ROUND 461: un-parked and re-measured live, still 96.00 / 20 bytes / 5 insns,
+   same single line (lui-addiu t0 vs v0). Six more spellings probed through
+   tools/scripts/cc1_probe.sh: a cast-volatile store through a NON-volatile u32[3],
+   a volatile s32[3] with an int parameter, "volatile u32* const p = A; *p = v",
+   "volatile u32* p; p = A; *p = v" - all four emit la $2; a volatile SCALAR
+   extern and any struct/offset form fold to the bare symbol macro ($at, 77.80,
+   16 bytes). So the la-into-$2 shape is not a spelling choice at all. The target
+   is a SINGLE word: g_FontClutData is 0x80 bytes (0x80050598..0x80050617), the
+   store lands at 0x80050618 and the next symbols are g_BattleTransitionFlag
+   0x8005061C and g_BattleRequestedMode 0x8005061D - so D_80050618 is a lone
+   word next to the battle-transition flags, which is why Ghidra renders it as
+   g_FontClutData+0x80. Both callers (MainSystemInit, FieldScriptSetTransitionParams)
+   pass 0. Leave as INCLUDE_ASM: this tail (func_800379B4 .. func_800379C8) is not
+   this cc1's output.
  */
 /*
 void func_800379B4(u32 value) {
