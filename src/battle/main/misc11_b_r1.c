@@ -46,7 +46,7 @@ extern void func_80093B08(u8 arg0);
 extern u16 BattleSlotBitMask(u8 arg0);
 extern void BattleBeginAnimTask(u16 arg0);
 extern void BattleApplySlotMaskToEffects(u16 arg0);
-extern void func_80088490(u8 arg0);
+extern void BattleAllocCharSlot(u8 arg0);
 extern void BattleResetSlotEffectWords(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
 extern void BattleReleaseCharSlot(u8 arg0);

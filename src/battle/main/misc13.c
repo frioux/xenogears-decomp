@@ -1518,7 +1518,7 @@ void BattleReleaseCharSlot(u8 arg0) {
    reads the same unset register), so this is the one body shape that matches - a
    well-defined `rec = i; break;` spelling has no second assignment for cse to
    merge and puts the loop straight after the test. */
-void func_80088490(u8 arg0) {
+void BattleAllocCharSlot(u8 arg0) {
     u8 rec;
     u8 sel;
     s32 i;
