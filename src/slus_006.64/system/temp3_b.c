@@ -62,12 +62,28 @@ u8 g_MenuSavedMainMenuChoice;
    loop, wrong code - so the useful signal is that ONE FEWER integer pseudo moves the hand-out towards retail's,
    and both retail variables are provably live (`j / 2`'s sign fixup in a2 and the `slti $s0,0x26C` counter).
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3_b", func_8001B970);
+// ROUND 459 REWRITE: best 89.50%, 404 bytes, 101 insns (retail 412 / 103). Body below is the runner-up B1 shape
+//    (pRow advances 0x14, even read pRow[j], odd read ((u8*)&g_GameState)[rowOffset + j + 1] with rowOffset = i copied at the
+//    top of the row body, row copy via outBuf[k++] into pRow) PLUS the row copy indexed by k, which frees outBuf's address and
+//    removes the fifth save B1 paid (B1 alone: 84.02 / 416 / 104). Retail's row preheader is 8 insns, ours 7: retail keeps
+//    $s0 = i, $s1 = pRow, $s2/$s3 = inBuf+1 / inBuf and rematerialises BOTH the odd base (lui/addiu %hi/%lo(g_GameState+1)
+//    into caller-saved $t2) and 0xF (li $t1 per row); this body keeps i, pRow, 0xF ($s2) and s1+1 ($s3) instead and
+//    rematerialises the inBuf pair (addiu a2,sp,16 / addiu a1,sp,17 per row where retail has move a2,s2 / move a1,s3).
+//    Measured dead this round, each one edit from that body: odd index written with i instead of rowOffset (drops retail's
+//    move t0,s0, 88.60 / 400 / 100); outer loop as do{}while(i < 0x26C) (byte-identical 89.50); the fully typed form
+//    pSrc = (u8*)g_GameState.strings + pRow advancing, bounds as sizeof(g_GameState.strings) / sizeof(StringEntry) (the
+//    size_t bound turns retail's slti into sltiu, cse folds pSrc onto pRow so the odd becomes 1(v1), buys $s4 = outBuf:
+//    86.44 / 416 / 104). Consistent with the round-433/456 lever (g-which-four-invariants-are-hoisted): the fold of
+//    symbol+1 onto the even read's LSR pointer is cse/combine's, and the arbitration between {0xF, odd base, outBuf} and
+//    {inBuf, inBuf+1} for the four callee-saved slots has not been reachable from source in ~12 spellings over three
+//    rounds. Residual counted: 1 insn in the row preheader (lui/addiu vs addiu s3,s1,1), the s3 save/restore pair (2),
+//    retail's bne delay slot addiu a0,a0,2 where ours has nop, and sltu vs slt on the row-copy compare. Tail (frame,
+//    call tail, volume loop, sb %gp_rel) is retail exact.
 /*
 void func_8001B970(void) {
     u8 inBuf[0x14];
     u8 outBuf[0x14];
-    u8* pSrc;
+    u8* pRow;
     u8* pIn;
     u8* pInOdd;
     u8* pOut;
@@ -75,6 +91,8 @@ void func_8001B970(void) {
     void* pBuffer;
     int i;
     int j;
+    int k;
+    int rowOffset;
 
     ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0);
     HeapChangeCurrentUser(HEAP_USER_HIG, 0);
@@ -84,25 +102,27 @@ void func_8001B970(void) {
     memmove(&g_GameState, pBuffer, 0x2358);
     HeapFree(pBuffer);
 
-    pSrc = (u8*)&g_GameState;
+    pRow = (u8*)&g_GameState;
     for (i = 0; i < 0x26C; i += 0x14) {
+        rowOffset = i;
         pIn = inBuf;
         pInOdd = inBuf + 1;
         for (j = 0; j < 0x14; j += 2) {
-            *pIn = pSrc[i + j];
-            *pInOdd = pSrc[i + j + 1];
-            if (pSrc[i + j] == 0xF && pSrc[i + j + 1] == 0) {
+            *pIn = pRow[j];
+            *pInOdd = ((u8*)&g_GameState)[rowOffset + j + 1];
+            if (pRow[j] == 0xF && ((u8*)&g_GameState)[rowOffset + j + 1] == 0) {
                 break;
             }
             pIn += 2;
             pInOdd += 2;
         }
         SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
-        pOut = outBuf;
-        pDst = pSrc + i;
+        k = 0;
+        pDst = pRow;
         do {
-            *pDst++ = *pOut++;
-        } while (pDst < pSrc + i + 0x14);
+            *pDst++ = outBuf[k++];
+        } while (pDst < pRow + 0x14);
+        pRow += 0x14;
     }
 
     for (j = 19; j >= 0; j--) {
@@ -111,6 +131,9 @@ void func_8001B970(void) {
     g_MenuSavedMainMenuChoice = 6;
     g_GameResumeScene = 0;
 }*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3_b", func_8001B970);
+
+
 
 
 
