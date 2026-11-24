@@ -275,6 +275,30 @@ extern VECTOR g_CameraEye;
 // func_8007254C is called with no argument from field/main/misc3 func_..., so a
 // one-parameter definition would also make this unit's signature disagree with misc3's
 // extern; not worth it for nothing.
+// round 465 re-measure: 91.81 percent / 408 bytes / 102 vs retail 103 insns - unchanged.
+// ROUND 465 (redo lane) - five more spellings, all measured on this tree:
+// (1) the array-alias lever from rounds 397/463 (extern u_char g_CamInterpolationTable[]
+//     __asm__("g_CamInterpolation") then pCam = that) scores 62.01 / 520 bytes, i.e.
+//     identical to the plain pointer: it does NOT fire here, the same context as the
+//     round-411 negative - the address has to be live again after the call.
+// (2) a bare literal address also folds: pCam = (u_char*)0x800AF984 gives lui $at,0x800b
+//     plus disp($at) stores and no register base at all, so the residual is not
+//     symbol-vs-const_int - 2.7.2 will not hold ANY constant address in a register for
+//     a store.
+// (3) preset screens on the parked body: -O1 -G0 58.09, -O3 -G0 91.81, -mcpu=r8000
+//     -O2 -G0 91.81; the full sweep (G4/G8 x O1/O2/O3 x 2.6.0 / cdk / 2.7.2) tops out
+//     at 64.72. Not a flags question.
+// (4) THE PRECEDENT THAT DOES PRODUCE THE SHAPE, in this unit and already matched:
+//     FieldCameraUpdateFromTarget holds pSceneDIP = &g_Scene.sceneDIP in $s0 across
+//     THREE calls (rsin, rcos, FieldRotateEyeAboutAt) with the same negative disp
+//     stores (-0x14C, -0x13C) off it. What makes it stick there is that the pointer's
+//     VALUE is used, twice, for the derived pEye/pAt addius that are then passed as
+//     arguments; a pointer whose only uses are memory operands is constant-propagated
+//     into disp($at) per store. func_8007254C has exactly one value use of its base
+//     (the pre-call jal argument addiu a0,s0,0x2C) and gcc materialises that in a
+//     caller-saved register, so no callee-saved base ever forms. Retail's bytes contain
+//     no second addiu off $s0, so the extra value use cannot be source-visible: this
+//     reads as a frontend constant-folding blocker, not a spelling to find.
 /*
 void func_8007254C(void) {
     u_char* pCam = (u_char*)&g_CamInterpolation;
@@ -342,6 +366,7 @@ void func_8007254C(void) {
     *(s16*)(pCam - 0x24) = 0;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
+
 
 
 
