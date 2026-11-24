@@ -326,6 +326,15 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    rematerialise a live-%hi symbol address in ONE addiu - correctly prefers not to. A body
    that both pools and matches the allocation has not been found; the named-symbol spelling
    plus a non-rematerialisable value is the direction.
+   ROUND 469 (redo lane) re-measure: 88.71% / 1040 bytes / 260 insns reproduced exactly; the
+   prologue (all seven matrix moves, the three corner pools at 0x18/0x20/0x28, the absolute
+   0x40/0x48/0xA4 stores, the nine descending vy zeros) is instruction-identical to retail.
+   ONE new reading of retail's 4th corner: retail's is `ori $t6,$t6,0xB8` off the base already
+   in $t6 and re-pools the result in $t6's own slot 0x30(sp) - i.e. retail's source spells it as
+   a plain constant 0x1F8000B8 (the same shape that folds to `ori` for 0xC0 in THIS body), and
+   the 2 extra instructions it costs this body come only from the base not being live there.
+   So the whole residual is still "pool the base and keep it live across the vy-zero group",
+   which is the same unreachable allocation as above: park.
  */
 // 88.71%, 1040 bytes against retail's 1036 (259 insns). CORRECT code, one instruction over.
 /*
@@ -439,6 +448,7 @@ void func_800983A0(WorldMapMisc16Struct* p) {
     }
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
+
 
 
 
