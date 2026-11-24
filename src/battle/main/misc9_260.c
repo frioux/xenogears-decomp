@@ -100,60 +100,25 @@ void BattleStoreActorSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     pRow = g_BattleSlotWordRegs[arg1];
     pRow[(*ppCmd)->operand1] = next << 2;
 }
-/* best: 80.63%. The record table takes an explicit byte offset
-   (g_BattleSlotRecords[offset], offset from 0x38 stepping -0x1C): that is the only form
-   that reproduces the original's two `lui at / addu at / lbu %lo(at)` loads and
-   the `li s2,0x38` prologue. Remaining: gcc splits the row base into
-   `(arg1 & 0xFF) << 6` plus a hoisted `&g_BattleSlotWordRegs` (the original keeps the
-   whole sum in s4) and hoists a third symbol base, so the frame grows to 0x38.
-   Tried: row base as a pRow local (77.49%, gcc CSEs it with the store's), row
-   base inline + pRow local for the store (80.63%).
-
-   R163: builds only through a (u8 *) byte view of the record/flag table
-   (the bare g_X[byteOffset] spellings are invalid C); remeasured, the
-   percentage above stands.
-
-   R458: the doubling is solved on the two functions below this one - write it
-   through a temp that the tail reads (`next = acc * 2; acc = next;` then
-   `pRow[...] = next << 2`), which reproduces retail's `sll a1,s0,1 / move s0,a1`
-   (BattleStoreActorSlotFlagMask 95.31 -> 100, BattleStoreActorSlotMatchedTagMask 89.08 -> 100). The row base is
-   `g_BattleSlotWordRegs[arg1]` (0x40-byte rows), not `g_BattleSlotWordRegs + arg1 * 0x40`,
-   and g_BattleSlotRecords is now the typed 0x1C record view (`[i].tag`).
- */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9_260", func_8007E438);
-/* R165 second pass: 80.63% (308 bytes) confirmed as recorded; unchanged, no
-   lever found. Deltas. (1) The first record load is
-   `g_BattleSlotRecords[BattleFindFirstFlagTableMatch(field) * 0x1C]` reached
-   inline: retail builds the row base g_BattleSlotWordRegs + arg1 * 0x40 + p[2] * 2 with
-   a single register sum, gcc splits off `&g_BattleSlotWordRegs` and the <<6 and hoists
-   them, which is what grows the frame to 0x38. (2) gcc keeps
-   &g_BattleSlotRecords in a saved register across the loop for the first of
-   the two record loads where retail re-forms it with `lui $at / addu $at`.
-   (3) the accumulator doubling, same miss as BattleStoreActorSlotFlagMask/E554: retail
-   computes it into a temp and copies it back (`sll a1,s1,1 / move s1,a1`),
-   gcc doubles in place - `acc = acc * 2` measured identical to `acc <<= 1`
-   in BattleStoreActorSlotMatchedTagMask, so the shape is not the operator.
-void func_8007E438(u8 **arg0, u8 arg1) {
-    s32 acc = 0;
-    s32 offset = 0x38;
-    s32 i;
+void func_8007E438(BattleCommand **ppCmd, u8 arg1) {
+    u16 acc = 0;
+    s32 i = 2;
+    u16 *pField;
     u16 *pRow;
 
-    for (i = 2; i >= 0; i--) {
+    pField = g_BattleSlotWordRegs[arg1];
+    for (; i >= 0; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
-            if (((u8 *)g_BattleSlotRecords)[(u8)BattleFindFirstFlagTableMatch(
-                    *(u16 *)(g_BattleSlotWordRegs + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
-                ((u8 *)g_BattleSlotRecords)[offset]) {
+            if (g_BattleSlotRecords[(u8)BattleFindFirstFlagTableMatch(pField[(*ppCmd)->operand2])].tag
+                == g_BattleSlotRecords[i].tag) {
                 acc |= 1;
             }
         }
         acc <<= 1;
-        offset -= 0x1C;
     }
-    pRow = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
-    pRow[(*arg0)[1]] = (u16)acc >> 1;
+    pRow = g_BattleSlotWordRegs[arg1];
+    pRow[(*ppCmd)->operand1] = acc >> 1;
 }
- */
 void BattleStoreActorSlotMatchedTagMask(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
     s32 next;
