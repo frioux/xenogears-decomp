@@ -46,20 +46,26 @@ typedef struct {
 extern MenuCardPrefix g_MenuCardPathPrefix0;
 extern MenuCardPrefix g_MenuCardPathPrefix1;
 
-/* Best attempt: 90.05% (380 bytes vs retail's 368). Every construct is right -- the
-   DIRENTRY do/while over firstfile/nextfile, the 6-byte prefix copy, the retry
-   counter -- but gcc hoists `&dir` into a callee-saved register across the loop
-   (an extra s-pair) where retail rematerialises `addiu v1,sp,0x10` at each of the
-   three uses, which also moves the parameter from s2 to s1.
-   Learned: `dir` must be declared BEFORE `prefix` (gcc 2.7.2 gives the earlier
-   declaration the lower stack slot: dir at sp+0x10, prefix at sp+0x38; the other
-   order costs a 0x58 frame with an extra s3 save). firstfile/nextfile are the
-   PSY-Q libapi calls and the compare is against &dir, not 0 -- `bne v0,v1` with
-   v1 = sp+0x10. The store at 0x4F8A is `cardSlotCounts[a0]` (a byte, not the s32
-   cursor at slotWriteCursor that MenuLoadCardChunk uses).
-   Tried: prefix declared first (frame 0x58, an extra s3), both == operand orders,
-   returning u_char vs int (int, matching the file's extern). */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
+/* Best attempt: 97.10% at retail's EXACT 368 bytes / 92 insns (the note this replaces said
+   90.05% / 380 bytes and was stale). Every instruction matches except that retail keeps the
+   u_char parameter in $s2 and the card * 0x10 value in $s1 while this build mirrors them, plus
+   one typed-access reloc (retail names D_801C50AC where we reach g_MenuCardPathPrefix0 + 4 -
+   the same linked bytes).
+   The mirror is unreachable by spelling, measured with -da/-dl on this body: 8 allocnos are
+   processed 75 141 87 73 74 71 115 92 and the dispositions are 73 in 16 (count), 71 in 17
+   (parameter), 115 in 18 (card * 0x10). Quotients floor_log2(refs) * refs * 10000 / (live *
+   size): count 3*9*10000/(58*1) = 4655 -> $s0, parameter 2*5*10000/(55*1) = 1818 -> $s1,
+   card * 0x10 1*3*10000/(19*4) = 394 -> $s2. Retail's arrangement needs card * 0x10 to clear
+   1818 from 394 (4.6x), and both terms are pinned by retail's OWN instruction stream: the
+   parameter stays QI (size 1, which is why retail re-does its andi at four sites) and
+   card * 0x10 spans the strcpy loop (live 19). Re-ordering declarations does not enter the
+   quota - do not chase this pair with statement or declaration order.
+   Learned (keep): `dir` must be declared BEFORE `prefix` (dir at sp+0x10, prefix at sp+0x38;
+   the other order costs a 0x58 frame with a spare $s3 save). firstfile/nextfile are the PSY-Q
+   libapi calls and the compares are against &dir, not 0. The store at 0x4F8A is
+   cardSlotCounts[a0] (a byte, not the s32 cursor at slotWriteCursor that MenuLoadCardChunk
+   uses). Tried and dead besides the above: both operand orders of the compares, returning
+   u_char vs int (int, matching the file's extern). */
 /*
 int func_801C8D78(u_char a0) {
     struct DIRENTRY dir;
@@ -90,8 +96,10 @@ int func_801C8D78(u_char a0) {
         g_Menu->menuUnk2->cardSlotCounts[a0] = count;
     }
     return count;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
+
+
 
 
 void MenuRunCardSlotOperations(void) {
