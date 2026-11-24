@@ -1047,48 +1047,35 @@ void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001EE88);
 
 
-/* Best attempt: 77.38% (896 bytes, the original is 892). The whole function is a
-   verified transcription and the frame is the original 0x60; what is left is
-   register allocation plus one folded base pointer (last paragraph).
-   Facts a future attempt needs, all confirmed against the .s:
-   - `setlen(pPrim, 9)` IS where the 9 goes: byte 3 of the tag (P_TAG.len, bits
-     24-31), NOT pPrim->code (byte 7). The parked func_8001EE88 attempt above
-     writes `pPrim->code = 9`, which lands in byte 7 - that one mistake may be
-     why that function never got past 0%.
-   - `extern void* g_GfxCurWorkBuffer;` and `extern void* g_GfxCurWorkBufferEnd;`
-     must be declared in this unit: including system/animation.h turns the loads
-     into `lw $v0,0($gp)`, the original uses lui/lw (%hi/%lo).
-   - POLY_FT4 and setlen need #include "psyq/libgpu.h" (RotAverage4/SVECTOR come
-     from psyq/libgte.h via field/actor.h). g_BattleSpriteQuadCorners is
-     `extern SVECTOR g_BattleSpriteQuadCorners[4]`; it is already in the sdata asm, do not
-     define it here.
-   - element 0 of g_BattleSpriteQuadCorners is stored through the SYMBOL (%lo(g_BattleSpriteQuadCorners)($t1))
-     and elements 1-3 through the pointer local `pVerts = g_BattleSpriteQuadCorners`; that is
-     what keeps the hi half live and spills it to 0x30($sp) across the call.
-   - width must be re-loaded from pFrameData->width AFTER the RotAverage4 call
-     (the original reloads lbu 0x6(s3) there); keeping one local across the call
-     grows the frame to 0x70.
-   - the clip arithmetic here is the mirror of func_8001EE88: yMin/yMax from the
-     sign of height, `if (z > yMax) continue;`, `clip = (z > yMin) ? z - yMin : 0`,
-     and `tileY += clip` is duplicated inside BOTH arms of the height test.
-   Still wrong at 77.38%: gcc folds the u8 frame fields onto a second base
-   (`addu $s3,$s6,6`, then accesses 0/1/2/3 and 10/-4) where the original uses
-   $s3 = pFrameData with offsets 0,2,4..9. That costs one callee-saved register,
-   so pOt gets $t1 instead of $fp and is spilled to 0x30($sp) every iteration.
-
-   Round 166: the body below now COMPILES against today's headers and scores the
-   same 77.38% (896 bytes against retail's 892). What had to be fixed for that:
-   `func_8001F1D4`'s extern is really (SpriteData*, u_long* pOt, s32 depth) -
-   the old (void*, void*) declaration conflicted with the body - POLY_FT4 needs
-   psyq/libgpu.h, and g_BattleSpriteQuadCorners / g_GfxCurWorkBuffer / g_GfxCurWorkBufferEnd
-   stay declared at file scope (outside this comment).
-
- extern SVECTOR g_BattleSpriteQuadCorners[4];
-extern void* g_GfxCurWorkBuffer;
-extern void* g_GfxCurWorkBufferEnd;
-
+// Best attempt: 91.22% (864 bytes; retail is 860 = 215 instructions, ONE over).
+//    Round 457, measured under XenoRenderingAtfree (cdk -G0).
+//    The body is a verified transcription; the loop shape, both flip arms, the clip
+//    block, the RotAverage4 argument order and the uv store order are retail's, and
+//    everything left is a register hand-out. Load-bearing facts:
+//    - DO/WHILE with `++i != flags_0x40.bytes[0] >> 2`: retail enters the loop with
+//      no top test and its latch is lbu/srl/bne with the frame advance in the delay
+//      slot. The for form costs a duplicated exit test.
+//    - INDEXED pFrameData[i], never pFrameData++ / pFrameData->.
+//    - NO pVerts local: write all four corners as g_BattleSpriteQuadCorners[k].
+//      That is what stops loop.c from hoisting addPrim's 0xFFFFFF mask into a
+//      callee-saved register, which in turn costs pOt its register.
+//    - width is re-loaded from pFrameData[i].width after the RotAverage4 call, and
+//      texHeight = pFrameData[i].height - clip once after the if/else that sets
+//      texY (retail re-reads the height byte in each arm).
+//    - The clip arithmetic is the mirror of func_8001EE88: yMin/yMax from the sign
+//      of height, `if (z > yMax) continue;`, clip = (z > yMin) ? z - yMin : 0, and
+//      `tileY += clip;` duplicated inside BOTH arms of the height test.
+//    - uv store order is u1, u3, v0, v1, u0, u2, v2, v3.
+//    What is left: retail's saved set is s6=pSpriteData, s7=i, s5=z, s2=pPrim,
+//    s0=height; this body has s5=pSpriteData, s6=i, s7=z, s0=pPrim, s2=height (two
+//    swaps), and the flags load's delay slot holds a nop where retail puts the
+//    tileY shift (this body puts that shift in the beqz slot and the second
+//    `srl 1,4` at the join instead of in the delay slot).
+//    Measured dead: assigning pFrameData AFTER the work-buffer early-out is
+//    86.40% / 868 bytes (three instructions worse).
+//    
+/*
 void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
-    SVECTOR* pVerts;
     SpriteFrameData* pFrameData;
     POLY_FT4* pPrim;
     s32 n;
@@ -1108,6 +1095,8 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     u32 spriteFlags;
     s32 yMin;
     s32 yMax;
+    s32 edgeX;
+    s32 edgeY;
 
     n = (pSpriteData->field_0x40 >> 8) & 0x1F;
     z = depth << n;
@@ -1119,45 +1108,43 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     if (count == 0) {
         return;
     }
-
-    pVerts = g_BattleSpriteQuadCorners;
-    for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++, pFrameData++) {
+    i = 0;
+    do {
         pPrim = g_GfxCurWorkBuffer;
         g_GfxCurWorkBuffer = pPrim + 1;
         setlen(pPrim, 9);
-        *(u32*)&pPrim->r0 = pFrameData->colorAndCode;
-        pPrim->tpage = pFrameData->texPage;
-        pPrim->clut = pFrameData->clutID;
-        tileX = pFrameData->tileX;
-        width = pFrameData->width;
-        width += (s8)pFrameData->deltaWidth;
-        tileY = pFrameData->tileY;
-        height = pFrameData->height;
-        height += (s8)pFrameData->deltaHeight;
+        *(u32*)&pPrim->r0 = pFrameData[i].colorAndCode;
+        pPrim->tpage = pFrameData[i].texPage;
+        pPrim->clut = pFrameData[i].clutID;
+        tileX = pFrameData[i].tileX;
+        width = pFrameData[i].width + (s8)pFrameData[i].deltaWidth;
+        tileY = pFrameData[i].tileY;
+        height = pFrameData[i].height + (s8)pFrameData[i].deltaHeight;
         n = (pSpriteData->field_0x40 >> 8) & 0x1F;
         width <<= n;
         height <<= n;
         tileX <<= n;
-        spriteFlags = *(u32*)((u8*)pSpriteData + 0x3C);
+        spriteFlags = SpriteFlags0x3C(pSpriteData);
         tileY <<= n;
-        if (spriteFlags & 8) {
+        if ((spriteFlags >> 3) & 1) {
             width = -width;
             tileX = -tileX;
         }
-        if (spriteFlags & 0x10) {
+        if ((spriteFlags >> 4) & 1) {
             height = -height;
             tileY = -tileY;
         }
-        if (!(pFrameData->flags & 0x10)) {
+        edgeX = tileX + width;
+        if (!((u32)pFrameData[i].flags >> 4 & 1)) {
             g_BattleSpriteQuadCorners[0].vx = tileX;
-            pVerts[1].vx = tileX + width;
-            pVerts[2].vx = tileX + width;
-            pVerts[3].vx = tileX;
+            g_BattleSpriteQuadCorners[1].vx = edgeX;
+            g_BattleSpriteQuadCorners[2].vx = edgeX;
+            g_BattleSpriteQuadCorners[3].vx = tileX;
         } else {
-            g_BattleSpriteQuadCorners[0].vx = tileX + width;
-            pVerts[1].vx = tileX;
-            pVerts[2].vx = tileX;
-            pVerts[3].vx = tileX + width;
+            g_BattleSpriteQuadCorners[0].vx = edgeX;
+            g_BattleSpriteQuadCorners[1].vx = tileX;
+            g_BattleSpriteQuadCorners[2].vx = tileX;
+            g_BattleSpriteQuadCorners[3].vx = edgeX;
         }
 
         if (height > 0) {
@@ -1170,7 +1157,11 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
         if (z > yMax) {
             continue;
         }
-        clip = (z > yMin) ? z - yMin : 0;
+        if (z > yMin) {
+            clip = z - yMin;
+        } else {
+            clip = 0;
+        }
         if (height > 0) {
             tileY += clip;
             height -= clip;
@@ -1179,32 +1170,33 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
             height += clip;
         }
 
-        if (!(pFrameData->flags & 0x20)) {
-            pVerts[0].vy = tileY;
-            pVerts[1].vy = tileY;
-            pVerts[2].vy = tileY + height;
-            pVerts[3].vy = tileY + height;
+        edgeY = tileY + height;
+        if (!((u32)pFrameData[i].flags >> 5 & 1)) {
+            g_BattleSpriteQuadCorners[0].vy = tileY;
+            g_BattleSpriteQuadCorners[1].vy = tileY;
+            g_BattleSpriteQuadCorners[2].vy = edgeY;
+            g_BattleSpriteQuadCorners[3].vy = edgeY;
         } else {
-            pVerts[0].vy = tileY + height;
-            pVerts[1].vy = tileY + height;
-            pVerts[2].vy = tileY;
-            pVerts[3].vy = tileY;
+            g_BattleSpriteQuadCorners[0].vy = edgeY;
+            g_BattleSpriteQuadCorners[1].vy = edgeY;
+            g_BattleSpriteQuadCorners[2].vy = tileY;
+            g_BattleSpriteQuadCorners[3].vy = tileY;
         }
 
-        RotAverage4(pVerts, &pVerts[1], &pVerts[2], &pVerts[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
-            (long*)&pPrim->x3, (long*)&pPrim->x2, &zDepth, &flag);
+        RotAverage4(&g_BattleSpriteQuadCorners[0], &g_BattleSpriteQuadCorners[1], &g_BattleSpriteQuadCorners[2],
+            &g_BattleSpriteQuadCorners[3], (long*)&pPrim->x0, (long*)&pPrim->x1, (long*)&pPrim->x3,
+            (long*)&pPrim->x2, &zDepth, &flag);
 
         n = (pSpriteData->field_0x40 >> 8) & 0x1F;
         clip >>= n;
         if (height > 0) {
-            texY = pFrameData->texY + clip;
-            texHeight = pFrameData->height - clip;
+            texY = pFrameData[i].texY + clip;
         } else {
-            texY = pFrameData->texY - clip;
-            texHeight = pFrameData->height - clip;
+            texY = pFrameData[i].texY - clip;
         }
-        texX = pFrameData->texX;
-        width = pFrameData->width;
+        texHeight = pFrameData[i].height - clip;
+        texX = pFrameData[i].texX;
+        width = pFrameData[i].width;
         if (pPrim->x3 < pPrim->x0) {
             if (--texX < 0) {
                 texX = 0;
@@ -1220,9 +1212,9 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
         pPrim->v2 = texY + texHeight;
         pPrim->v3 = texY + texHeight;
 
-        pPrim->tag = (pPrim->tag & 0xFF000000) | (*pOt & 0xFFFFFF);
-        *pOt = (*pOt & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
-    }
+        addPrim(pOt, pPrim);
+    } while (++i != (((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2));
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001F1D4);
+
 
