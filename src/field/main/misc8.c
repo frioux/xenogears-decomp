@@ -1849,31 +1849,260 @@ void FieldNoOp(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008399C);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
-/* R432: converted nothing yet - the body was not attempted, so there is no
-   percentage. What IS settled: the unit's rodata is now an anonymous blob
-   (config/field.yaml), so this function carries no data and needs only the two
-   externs above (D_8006FC48 "POLYCHECK %d\n", D_8006FC58 "HITOFF\n").
-   Signature and frame, from the .s: (int actorIndex, FieldActor* pFieldActor,
-   ActorData* pActor); frame 0xC8, saves ra/fp/s7..s0, s1 = pActor, fp =
-   actorIndex, a1 only travels on to func_80084A40's 3rd argument. 501 insns.
-   Structure: IVEC3 targetPos = pActor->position + pActor->moveModified, then
-   FieldConvertIVec3ToSVector(&svec, &targetPos); playerHeadY = (s16)
-   (pActor->position.vy >> 16) - pActor->height (retail reads the halfword at
-   +0x26, so that spelling costs one `lh` per read); loop i <
-   g_FieldActiveActorCount skipping i == actorIndex and scriptFlags.flags & 1,
-   pOther = g_FieldActors[i].pActorData, pOther->flags &= ~0xC100 first; then
-   three arms: flags & 0x80 -> func_80083288(i, ((FieldActorModelData*)
-   g_FieldActors[i].pModelData)->pBounds, targetX, targetZ, &bottomY, &normal)
-   with the 0x4000 / curTriNormal copy on a hit, scriptFlags & 0x2000 ->
-   FieldCheckPointInExtentZone, else -> Square0 on the scratchpad block. Tails:
-   nearest tracked from D_800ADB94 when D_800ADB98; pTargetTrack =
-   HeapAlloc(0xC, 0) + FieldActorTargetTrack writes; func_80084A40(actorIndex,
-   nearest, pFieldActor, pActor, hitCount); then
-   g_FieldActors[actorIndex].pSpriteData->field_0x7C->unkC == 1 ->
-   ControllerResetState() and clear scriptFlags 0x800; FieldFreeScratchpad(0x20). */
-
+int FieldAllocScratchpad(int size);
+void FieldFreeScratchpad(int size);
+extern void func_800379C8(char* pFormat, ...);
+extern const char D_8006FC48[]; // "POLYCHECK %d\n"
+extern const char D_8006FC58[]; // "HITOFF\n"
+extern s32 D_800ADB94;
 extern s32 D_800ADB98;
+extern void ControllerResetState(void);
+s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, int refX, int refZ, s32* pHeight,
+                  VECTOR* pNormal);
+
+// The 0x20 bytes this function asks FieldAllocScratchpad for: the vector GTE
+// Square0 measures, then the squared vector it writes back.
+typedef struct {
+    /* 0x00 */ VECTOR position;
+    /* 0x10 */ VECTOR squared;
+} FieldSquareScratch; // Size: 0x20
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
+/* R445 park: 90.12%, 503 insns / 2012 bytes against retail's 501 / 2004, 216
+   differing lines. STRUCTURE IS SETTLED - every arm, call, store and flag mask
+   below is retail's, and the frame now matches exactly (0xC8, vars=0x88,
+   saves fp,s0-s7,ra). What is left is one register permutation plus one block
+   layout, both allocator/layout choices:
+   (1) REGISTERS: retail keeps i in s2, pScratch in s3 and the other actor's
+       scriptFlags in s4 (s5 = the 0x5C bias, s6 = my Y from lh 0x26(s1), s7 =
+       nearest, fp/s8 = actorIndex, and the 0xFF3FFFFF mask SPILLED at 0x88).
+       This body gets s2 = otherFlags, s3 = i, s4 = pScratch, fp = actorIndex.
+       The saved set and every slot offset otherwise agree (0x40 groundY,
+       0x48 pFieldActor, 0x50 refX, 0x58 refZ, 0x60 floorY, 0x68 scriptFlags,
+       0x70 contact, 0x78 hitCount, 0x80 savedCanInteract, 0x88/0x90 the two
+       masks). Tried: reading pOther->scriptFlags.flags inline three times
+       (that body is 89.83% / 502 insns and puts the mask in fp), adding
+       otherFlags (89.83 -> 90.08 -> 90.12 with the declaration order below),
+       moving otherFlags after i (no change).
+   (2) BLOCK LAYOUT / +2 insns: retail lays the blocks out touch-B6, hitTimer,
+       lower-B7 (B7 at 0x504/0x508) and takes `bnez` to B7 from both of its
+       tests; this body lays B7 out inline after B4 (so the second test comes
+       out `beqz` and B7 is emitted twice: +2 insns, +8 bytes). Writing the
+       two B7 tests as separate `if (...) goto lower;` with lower placed last
+       measured 87.85% / 499 insns, so the `||` form below is the better one.
+       The gotos are load-bearing: if/else duplicates the 20-insn B6 block,
+       which retail has once (a single `pActor->canInteract == i &&
+       !(scriptFlags & 0x40800)` entry and two `goto touch` entries).
+   (3) THE moveModified RELOAD in the push block is retail's, not a mistake: it
+       stores zero to moveModified.vx/.vy/.vz and then LOADS them back for the
+       /4 into move.vx/.vz, a sequence gcc folds away here (that is part of the
+       byte gap, its two divisions are the 2 insns that survive). If a later
+       run finds the spelling that keeps the reload, that is the remaining win.
+   Next lever to try: permuter from this body (structure is exact, so only
+   allocation is left), or a 2.6.0/cdk screen if the allocator turns out to be
+   the other compiler's. Settled facts kept from R432: the frame/signature, the
+   `lh 0x26(s1)` = (s16)(pActor->position.vy >> 16) spelling (gcc folds the
+   lw+sra into lh, it does NOT cost an instruction), and that
+   FieldCheckPointInExtentZone's 3rd argument is the ActorData* cast to
+   FieldExtentZone* (retail passes s0 = pOther unchanged). */
+/*
+void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
+    FieldSquareScratch* pScratch;
+    FieldActorModelData* pModelData;
+    SpriteData* pSprite;
+    ActorData* pOther;
+    IVEC3 targetPos;
+    SVECTOR ref;
+    VECTOR normal;
+    s32 refX;
+    s32 refZ;
+    s32 myY;
+    s32 floorY;
+    u_int scriptFlags;
+    s32 contact;
+    s32 hitCount;
+    s32 savedCanInteract;
+    s32 nearest;
+    s32 groundY;
+    s32 otherY;
+    int i;
+    u_int otherFlags;
+
+    pScratch = (FieldSquareScratch*)FieldAllocScratchpad(sizeof(FieldSquareScratch));
+    targetPos.x = pActor->position.vx;
+    targetPos.y = pActor->position.vy;
+    targetPos.z = pActor->position.vz;
+    targetPos.x += pActor->moveModified.vx;
+    targetPos.y += pActor->moveModified.vy;
+    targetPos.z += pActor->moveModified.vz;
+    FieldConvertIVec3ToSVector(&ref, &targetPos);
+    refX = ref.vx;
+    refZ = ref.vz;
+    myY = (s16)(pActor->position.vy >> 16);
+    floorY = myY - pActor->height;
+    scriptFlags = pActor->scriptFlags.flags;
+    savedCanInteract = pActor->canInteract;
+    nearest = FIELD_POLY_HEIGHT_NONE;
+    hitCount = 0;
+    contact = 0;
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        if (i == actorIndex) {
+            continue;
+        }
+        pOther = g_FieldActors[i].pActorData;
+        otherFlags = pOther->scriptFlags.flags;
+        if (otherFlags & 1) {
+            continue;
+        }
+        pOther->flags &= ~0xC100;
+        if (pOther->flags & 0x80) {
+            pModelData = g_FieldActors[i].pModelData;
+            if (func_80083288(i, pModelData->pBounds, refX, refZ, &groundY, &normal) != 0) {
+                pOther->flags &= ~0xC00000;
+                continue;
+            }
+            if (g_FieldSystemMode == 0) {
+                func_800379C8(D_8006FC48, i);
+            }
+            pOther->flags |= 0x100;
+            otherY = groundY + pOther->height;
+            if (pActor->canInteract == i) {
+                pActor->curTriNormal.vx = normal.vx;
+                pActor->curTriNormal.vy = normal.vy;
+                pActor->curTriNormal.vz = normal.vz;
+                pOther->flags |= 0x4000;
+            }
+        } else {
+            if (otherFlags & 0x2000) {
+                if (FieldCheckPointInExtentZone(refX, refZ, (FieldExtentZone*)pOther, 0) != 0) {
+                    pOther->flags &= ~0xC00000;
+                    continue;
+                }
+            } else {
+                pScratch->position.vx =
+                    CONV_TO_GTE(pOther->position.vx + pOther->moveModified.vx) - refX;
+                pScratch->position.vz =
+                    CONV_TO_GTE(pOther->position.vz + pOther->moveModified.vz) - refZ;
+                pScratch->position.vy = pActor->solidRange + pOther->solidRange;
+                Square0(&pScratch->position, &pScratch->squared);
+                if (pScratch->squared.vx + pScratch->squared.vz >= pScratch->squared.vy) {
+                    pOther->flags &= ~0xC00000;
+                    continue;
+                }
+            }
+            if (pActor->curWalkmeshTriMaterial & 0x400000) {
+                if (g_FieldSystemMode == 0) {
+                    func_800379C8(D_8006FC58);
+                }
+                continue;
+            }
+            if ((otherFlags | scriptFlags) & 0x80) {
+                continue;
+            }
+            if (g_FieldPartyMoveInProgress) {
+                continue;
+            }
+            otherY = (s16)(pOther->position.vy >> 16);
+            groundY = otherY - pOther->height;
+        }
+        if (pActor->canInteract == i && !(scriptFlags & 0x40800)) {
+            goto touch;
+        }
+        if (otherY < floorY || myY < groundY) {
+            pOther->flags &= ~0x100;
+            if (myY < groundY) {
+                pOther->flags |= 0x800000;
+                if (groundY < nearest) {
+                    nearest = groundY;
+                }
+            } else {
+                pOther->flags &= ~0x800000;
+            }
+            goto next;
+        }
+        if (myY < groundY + 0x10 || (pOther->flags & 0x800000)) {
+            goto touch;
+        }
+        if ((scriptFlags & 0x10) == 0) {
+            if (pOther->hitTimer < 0x30) {
+                pOther->hitTimer += 2;
+            }
+            if (pOther->hitTimer >= 0x21) {
+                pOther->move.vx += pActor->moveModified.vx / 4;
+                pOther->move.vz += pActor->moveModified.vz / 4;
+                pActor->moveModified.vx = 0;
+                pActor->moveModified.vy = 0;
+                pActor->moveModified.vz = 0;
+                pActor->move.vx = pActor->moveModified.vx / 4;
+                pActor->move.vy = 0;
+                pActor->move.vz = pActor->moveModified.vz / 4;
+                goto next;
+            }
+        }
+        pOther->move.vx = 0;
+        pOther->move.vy = 0;
+        pOther->move.vz = 0;
+        pOther->moveModified.vx = 0;
+        pOther->moveModified.vy = 0;
+        pOther->moveModified.vz = 0;
+        pActor->moveModified.vx = 0;
+        pActor->moveModified.vy = 0;
+        pActor->moveModified.vz = 0;
+        pActor->move.vx = 0;
+        pActor->move.vy = 0;
+        pActor->move.vz = 0;
+        goto next;
+    touch:
+        nearest = groundY;
+        pOther->flags |= 0x800000;
+        pActor->move.vx = pOther->moveModified.vx;
+        pActor->move.vy = pOther->moveModified.vy;
+        pActor->move.vz = pOther->moveModified.vz;
+        hitCount = 2;
+        if (!(scriptFlags & 0x40800)) {
+            pActor->canInteract = i;
+            contact = 1;
+        }
+    next:
+        pOther->flags |= 0x400000;
+    }
+
+    if (D_800ADB98 != 0) {
+        nearest = D_800ADB94;
+        contact = 0;
+        hitCount++;
+    }
+    if (contact == 0) {
+        pActor->canInteract = ACTOR_ID_INVALID;
+    } else {
+        g_FieldActors[pActor->canInteract].pActorData->flags |= 0x8000;
+        if (savedCanInteract == ACTOR_ID_INVALID) {
+            if (!(pActor->flags134 & 0x80)) {
+                pActor->pTargetTrack = HeapAlloc(0xC, 0);
+                pActor->flags134 |= 0x80;
+            }
+            ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationX =
+                g_FieldActors[pActor->canInteract].rotation.x;
+            ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY =
+                g_FieldActors[pActor->canInteract].rotation.y;
+            ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationZ =
+                g_FieldActors[pActor->canInteract].rotation.z;
+            ((FieldActorTargetTrack*)pActor->pTargetTrack)->distance =
+                FieldGetActorDistance2D(actorIndex, pActor->canInteract);
+        }
+    }
+    if (!(pActor->scriptFlags.flags & 0x10000) && !(pActor->flags & 0x200000)) {
+        func_80084A40(actorIndex, nearest, pFieldActor, pActor, hitCount);
+    }
+    pSprite = g_FieldActors[actorIndex].pSpriteData;
+    if (((SpriteDataI3*)pSprite->field_0x7C)->field_0xC == 1) {
+        ControllerResetState();
+        pActor->scriptFlags.flags &= ~0x800;
+    }
+    FieldFreeScratchpad(sizeof(FieldSquareScratch));
+}
+*/
+
 extern s32 D_800ADC0C;
 
 /* 96.01% (276 bytes; retail is 276 too - the old note said 280, that was wrong).
