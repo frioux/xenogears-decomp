@@ -937,27 +937,11 @@ extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
 // Pulls the field state that func_800A3F4C pushed into the save block back out, one memcpy per block,
 // then each actor's rotation/status/ActorData and the script memory.
 //
-// PARKED 99.41% (2068 bytes against retail 2072; 517 instructions against 518; 19 differing lines).
-// One instruction and one scheduler move from a match.
-// THE FIND (round 444, 99.08 -> 99.41): `pFieldActor = &g_FieldActors[i];` at the top of the actor
-// loop with `memcpy(&pFieldActor->rotation, ...)` fixed TWO residuals that no spelling of the memcpy
-// destination could: the rotation copy now prints retail's base-first `addu v0,v0,s0` (the bare
-// `&g_FieldActors[i].rotation` gives index-first, and so do the parenthesised base+offset sum and the
-// `(u8*)` cast forms), and sched2 no longer hoists a dead `lw g_FieldActors` into the cursor store's
-// load-delay slot.
-// WHAT IS LEFT, all in one place: retail emits `lw v0,76(v0)` (pActorData for the pScriptWorkWords
-// restore) / `nop` / `sw t1,280(v0)` adjacent and only then starts the next statement's
-// `lw g_FieldActors`; this body's sched2 hoists that chain into the load-delay slot, so the store
-// lands after it and the nop never exists - hence -4 bytes.
-// Measured dead this round: a `do {} while (0)` around the restore store (519 insns, 99.17); the same
-// barrier with both HeapAlloc barriers removed (515, 98.12); re-evaluating `pActorData` in its own
-// statement before the store (97.58, 49 differing lines); moving the restore store after the
-// `g_WorldMapSaveCursor += 0x138` (no change - sched2 does not care); `pFieldActor` used for the store
-// itself (loses retail's reload); the double-negated `- -(i * sizeof(FieldActor))` memcpy
-// destination (breaks the loop giv, 521 insns, 98.45). Two permute.sh runs on this body (1307 and 1438
-// iterations) are both PERMUTER_NONE.
-// Still load-bearing: the two `do {} while (0)` blocks around the HeapAlloc stores (without them the
-// body is 515 insns / 98.12%) and the compound-assignment cursor advances.
+// Three scheduler artifacts are load-bearing and cannot be read as intent: the pScriptWorkWords
+// restore is a volatile store (without it sched2 hoists the next statement's volatile
+// `lw g_FieldActors` above it, which costs the function one instruction and the link), the two
+// HeapAlloc results keep their `do {} while (0)` blocks, and taking `pFieldActor` once per iteration
+// is what makes the rotation copy's destination address base-first, as retail has it.
 void func_800A3474(void) {
     int i;
     void* pScriptWorkWords;
