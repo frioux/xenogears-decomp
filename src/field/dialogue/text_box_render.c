@@ -145,46 +145,41 @@ void FieldTextBoxSetPortraitQuad(POLY_FT4* pPoly, int x, int y, int width, int h
     pPoly->y3 = y + height;
 }
 
-// PARKED 68.33%: 3228 bytes against retail's 3148, 807 instructions against
-// 787. Round 436 un-parked the previous body unchanged and re-measured it
-// after adding the three symbols the old note asked for (see NAMES below), so
-// every number here is from that exact body.
-// The old note's diagnosis was WRONG and is not repeated: this body does NOT
-// keep x/y/w/h in callee-saved registers. It spills them to exactly retail's
-// slots -- x at 0x28, y at 0x30, w at 0x38, h at 0x40, `rect` at 0x18, the ctx
-// argument at 0x20 -- and saves the same 10 registers at 0x80..0xA4. 731 of
-// the 1042 aligned diff rows are instruction-identical: every call, branch,
-// store and reloc, and the whole open animation (both divisions, both mults,
-// both /2 roundings, both clamps) and the whole frame/portrait/cursor/tile
-// pass. The remainder is two things:
-//  1. The scaled box offset `index * 0x498` is recomputed into `$t0` here and
-//     into `$a2` in retail at each of its sites (69 `addu` rows plus the
-//     cascade through the value temps: `$t7`/`$t8` here where retail has
-//     `$t8`/`$t9`). cc1 -dl on this body shows why the hand-out differs: both
-//     bodies copy the argument first (`move $s7,$a2`), so retail's `$a2` is
-//     the dead incoming index register taking the product, while here the
-//     product is a call-crossing allocno ("used N times across M insns;
-//     crosses 7 calls") and cannot take a caller-saved register.
-//  2. The frame is 0x78 against retail's 0xA8. Both have args=24 and the same
-//     40-byte saved set, so retail's vars region is 104 bytes against this
-//     body's 56, and retail references NOTHING in it above 0x43 (0x44 empty,
-//     0x48..0x7F empty): retail paid 60 bytes plus four 4-byte holes at
-//     0x2C/0x34/0x3C/0x44 for memory-resident locals this body does not have.
-//     That is the one lead left. A `{ s16 left; s16 top; }` aggregate was
-//     measured at 67.48% earlier and does not produce those bytes.
-// Preset sweep on this body: 2.7.2 -O2 -G8 68.33 (best), gcc-2.6.0 -O2 67.42,
-// 2.7.2 -O3 63.21, 2.7.2 -O1 35.67, gcc-2.7.2-cdk -O2 54.42 -- the unit's
-// Default preset is right, this is not a compiler question. Also measured and
-// rejected earlier: s16 locals for x/y/w/h (61.04%, 3264 bytes -- re-narrowed
-// with lhu + sll/sra at every use, which also settles that they are s32), and
-// the note's original claims about interleaved sprite stores do not survive:
-// those stores match.
+// PARKED 68.38% (re-measured): 3228 bytes against retail's 3148, 807
+// instructions against 787. The structural pass is right -- every call,
+// branch, store and reloc, and the whole open animation, frame, portrait,
+// cursor and tile pass come out instruction-identical; the diff is a register
+// cascade. Two residuals, both measured:
+//  1. The box stride `index * 0x498` is computed into $t0 here and into $a2 in
+//     retail at the same site (instruction 11, retail's dead incoming index
+//     register), and retail rematerialises it at the top of every region: 15
+//     chain sites against this body's 14. Same local-alloc contest for a dead
+//     caller-saved register.
+//  2. The frame is 0x78 against retail's 0xA8. Every used local already sits at
+//     retail's offsets (rect 0x18, ctx 0x20, x 0x28, y 0x30, w 0x38, h 0x40);
+//     retail's extra 56 bytes are DEAD slots at 0x48..0x7F, i.e. ABOVE the used
+//     locals, and the stub has no `$sp` reference above 0x43 at all. They are
+//     reload spill slots -- an expand-time slot moves them all up by its size,
+//     which is what the dead-local experiments below show -- so they come from
+//     pseudos retail spilled and then rematerialised, consistent with residual
+//     1. Not reachable from source; see tools/rounds/levers.md
+//     [j-an-expand-time-slot-is-always-the-lowest].
+// Measured and dead: a dead `u_long scratch[12]` declared first gives retail's
+// exact 0xA8 frame and save offsets but pushes ctx to 0x50 and every used local
+// up by 0x30 (68.34%, 750 differing rows); declared last it lays out the same
+// way; `scratch[14]` first overshoots to 0xB0. The frame is worth 2 rows, the
+// register cascade is the rest of the diff.
+// From earlier rounds, still valid: the preset is right (2.7.2 -O2 -G8 68.3,
+// 2.6.0 67.4, -O3 63.2, -O1 35.7, cdk 54.4); s16 locals for x/y/w/h are worse
+// (61.04%, re-narrowed with lhu + sll/sra at every use, which also settles that
+// they are s32); the sprite stores match, so no store order is left to fix.
 // The frame sprites and their draw modes are two render contexts laid out one
 // after the other in FieldTextBoxBorders, so piece n of a context is
 // sprites1[ctx * 10 + n] / drawModes1[ctx * 10 + n].
 // g_FieldCursorFrameRects, g_FieldContinueArrowFrameRects and
 // g_FieldTextBoxFrameIndex live inside g_FieldTableQuadTexParams and are
 // declared as externs at the top of this file.
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
 /*
 void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
     s32 x;
@@ -361,8 +356,8 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
         addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.tiles[ctx]);
         addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.drawModes[ctx]);
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
+}
+*/
 
 
 
