@@ -98,9 +98,10 @@ segments:
       - [0xA16C, c, main/main_loop]
       - [0xA9E4, c, system/kernel_menu]
       - [0xADCC, c, system/temp3]
-      # The original temp3 object ends here: func_8001BB50 onwards wants its globals
-      # gp-relative while GameSetUpDisplayAndChangeState wants them absolute.
-      - [0xC350, c, system/temp3_b]
+      # The original temp3 object ends here (round 447 measured it): func_8001B970 wants
+      # g_GameResumeScene/g_MenuSavedMainMenuChoice gp-relative while
+      # GameSetUpDisplayAndChangeState wants them absolute.
+      - [0xC170, c, system/temp3_b]
       - [0xC5DC, c, system/menu]
       - [0xD0DC, c, system/work_list]
       - [0xDCE8, c, system/rendering]
