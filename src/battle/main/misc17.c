@@ -543,6 +543,22 @@ void BattleDrawSlotStatusPanel(void) {
 // mult(i,4) tree between both addresses whatever the spelling, so loop.c only ever sees
 // one candidate. Tried and measured before this: QImode counter (blocks the giv, costs
 // andi+sltiu, 95.47), flat `s16 D_800C3404[]` + `[i * 2]` (base hoisted, 96.28).
+// Round 443 addendum (third round on this body, re-measured from the unparked park):
+// 96.97% / 1260 bytes / 315 insns, retail's exact size, 50 differing lines, all of them
+// the third loop. The `.s` shows the difference is the ADDRESS FORM of the columns table:
+// this body sends BOTH tables through the strength-reduced byte giv (`lui at,%hi(D_800C33C4)`
+// / `addu at,at,s0` / `lh a2,0(at)` per iteration, `addiu s0,s0,4` in the latch) while
+// retail hoists a pointer for the columns (`lui/addiu` in the preheader, `lh a2,0(s2)`,
+// `addiu s2,s2,4` in the latch) and keeps `sll v0,s0,2` for the heights. The register
+// evidence is that retail's giv is allocated LAST in the loop (i->$s0, cursor->$s1,
+// derived pointer->$s2), so this is not a pressure tie: retail's loop.c made no mult giv
+// at all. Re-confirmed this round that a MULT giv of a SINGLE use is still reduced (the
+// `s16 (*pColumns)[2]` + `pColumns++` body leaves `$s2` as retail's pointer but puts the
+// giv in `$s0`, i in `$s1` and the cursor in `$s3`, 96.09% at 316 insns / 1264 bytes), so
+// the "one use is unprofitable" theory is dead and the sll has to come from a multiply
+// loop.c never recorded as a giv - which no spelling tested across three rounds reaches.
+// The lane's permuter rule does not apply (below 99%). See the two lever entries this
+// body wrote: g-qimode-index-blocks-the-mult-giv, and g-scaled-record-index-is-a-giv.
 /*
 void func_80092298(u8 arg0, u8 *arg1) {
     s32 i;
