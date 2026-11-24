@@ -56,8 +56,22 @@ extern const char D_80018C04[]; // .rodata, "0123456789abcdef"
 // order nor a flag): fmt.u.flags copied to a u32 local after the fetch; the same
 // local read BEFORE the fetch; va_arg split into pArg = ap; ap = pArg + 4;
 // value = *(s32*)pArg; a (u32) cast around va_arg; declaring `value` before
-// c/count/len. cc1's own .s has the flags load first in all of them, and cc1 has
-// no -fschedule-insns, so the position comes from expand/local_alloc, not reorg.
+// c/count/len.
+// THE MOVER IS sched1 (-fschedule-insns), NOT expand/local_alloc/reorg. -da
+// dumps: f.i.rtl/cse/cse2/loop/flow/combine all hold retail's order (value load
+// 503 before flags load 506); f.i.sched (schedule_insns, which toplev.c runs
+// BEFORE local_alloc) holds the swap, and it survives lreg/greg/sched2/dbr.
+// sched.c rank_for_schedule: INSN_PRIORITY first, then dependence class, then
+// LUID. priority = max over in-block successors of (prio + insn_cost - 1), and
+// with the mips 2-cycle load latency the flags load scores 2 (it feeds and->
+// branch, both in this block) while the value load scores 1 (its only consumer,
+// the sll that does the (s16) cast, sits in the beqz delay slot, i.e. the next
+// block). Retail therefore needs an RTL in which the value load has an in-block
+// successor, which none of the five spellings produce.
+// NOTE -fno-schedule-insns CANNOT be used to test this: toplev.c sets
+// flag_schedule_insns = 1 in its `if (optimize >= 2)` block AFTER option
+// processing, so -O3 overrides it. Every 'scheduler off' measurement in earlier
+// notes of this park was therefore taken with sched1 still running.
 // permute.sh --minutes 4: PERMUTER_BETTER base=674 best=522, and the candidate is
 // wrong-shaped code (it wraps the fetch in a redundant if (fmt.u.flags) and
 // duplicates it), so it was not ported.
@@ -80,6 +94,7 @@ extern const char D_80018C04[]; // .rodata, "0123456789abcdef"
 // gcc 2.6.0 -O3 (95.62), gcc 2.7.2-cdk (compile-failed), -O2 (90.12, measured on
 // the 90.12 body), u32 local for flags, va_arg split into statements, (u32) cast
 // around va_arg, value declared first. twin_for.py: no twin.
+// parked
 /*
 int Sprintf(char* pDst, char* pFormat, ...) {
     char work[SPRINTF_WORK_SIZE];
@@ -351,4 +366,5 @@ done:
     return count;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc_sprintf", Sprintf);
+
 
