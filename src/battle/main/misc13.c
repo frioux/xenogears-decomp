@@ -1193,78 +1193,46 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
 }
 */
 
-/* PARKED 59.15%, 440 bytes (110 insns; retail 456 = 114). Structure, call set and
-   both loops are retail's; the score is low because the temporaries are mapped
-   differently (retail holds i in a3 and o in a2, this body the reverse; ofsA in
-   t2, ofsB in t1, the param pointer in t0) and because retail RECOMPUTES the whole
-   param-table index three times per iteration while this body reuses one sum.
-   Retail's chain, per store, is: two lbu of g_BattleSlotRecords (ofsA first, then
-   ofsB), one lw of g_BattleSlotParamTable, recA*0x40 (sll 6), `addu v1,a1,v1`
-   (param FIRST), recB*8 (sll 3), `addu v0,v0,v1` (recB term first), then
-   `addiu v0,v0,0x140` and `addu a0,v0,i` - so 0x140 is a separate addiu and i is
-   added last, and the element byte is re-read (`lbu v1,0(a0)` for the compare,
-   `lbu v0,0(a0)` for the value). Spelling `... + 0x140 + i` inline makes gcc fold
-   0x140 into the lbu displacement and put i first instead.
-   Measured this round: the index spelled inline at every site (no ofsA/ofsB
-   locals) is 59.90%, 416 bytes (104 insns) - a hair higher on the fuzzy score but
-   10 insns short of retail, so the ofs-local body below is parked instead.
-   Unit-wide levers found this round in func_80088490, both proved in cc1_probe:
-   scale with `<< 2` not `* 4` (gcc's combine otherwise distributes the shift and
-   folds the +N into the %lo displacement), and keep the byte offset in an s32
-   LOCAL (the inline spelling makes gcc materialise an `la` base pointer where
-   retail has `lui at,%hi / addu at,at,off / op %lo(at)`). */
-/* PARKED 60.24%, 448 bytes (112 insns; retail 456 = 114). Structure, call set,
-   both loops, their bounds and the store order are retail's; what is left is the
-   ALLOCATOR: retail keeps i in a3 and o in a2 this body the reverse (i in a2), so
-   nearly every loop instruction differs by register alone, ofsA/ofsB land in
-   t1/t2 where retail has t0/t1, the param pointer in t0 where retail has a1, and
-   retail forms `addiu v0,v0,320; addu a0,v0,a3; lbu 0(a0)` for the first element
-   where this body folds 0x140 into the lbu (`lbu 0x140(a1)`). Same tree, same
-   operand order at every addu.
-   What is PROVED here (keep it):
-   - the three param-table index chains must be written out in full at each of the
-     four sites, not shared: the stores to D_800C48EC/EE/F0 kill the loads of
-     g_BattleSlotRecords and g_BattleSlotParamTable, which is exactly the recompute
-     retail shows (no pointer local may be hoisted - `u8 *pParam` scores 43.58%,
-     436 bytes, because gcc then hoists the whole chain out of the loop).
-   - the element byte must be a VOLATILE load: retail loads it twice in the first
-     store (`lbu v1,0(a0)` for the compare, `lbu v0,0(a0)` for the &7) with the
-     address computed once, and only volatile stops gcc CSE-ing the two loads.
-     That cast is worth +1.09% and 2 insns over the plain u8 form (59.15 -> 60.24).
-   Tried and measured, all worse or equal: plain u8 in place of the volatile cast
-   59.15% / 440 bytes; index spelled inline with no ofsA/ofsB locals 59.90% /
-   416 bytes; `u8 *pParam` hoisted 43.58% / 436 bytes; i/o declaration order swapped
-   (identical 59.15%, so gcc's allocation order is not the source order); the same
-   body under gcc-2.6.0 60.24% (identical, so the compiler version is not the
-   question) and under gcc-2.7.2-cdk 44.97%. The retail $at chains say this is not
-   a cdk/-G0 unit. A permuter pass is the next tool here, not more shapes. */
-/* PARKED 60.28%, 448 bytes (112 insns; retail 456 = 114). Structure, call set,
-   both loops, their bounds, the store order and every addu operand order are
-   retail's; the residual is the ALLOCATOR. Retail gives o -> a2 and i -> a3, this
-   body the reverse (i in a2), so every loop instruction differs by register name;
-   retail also keeps the masked arg0 in t2 across the loop (this body remasks
-   arg0 at the exit), and retail's first element address is materialised once as
-   addiu 0x140 + addu i + two lbu 0(a0) where this body folds 0x140 into the lbu.
-   ROUND 426 measurements, all new:
-   - declaring the park's o BEFORE i (for (o = 0, i = 0; ...)) is 60.28% and
-     identical otherwise - declaration order is NOT the a2/a3 lever (60.24 with
-     i first, 60.28 with o first).
-   - a u8 *pElem local inside the loop holding base + 0x140, used as pElem[i] at
-     all four sites, is 58.04% / 376 bytes: gcc CSEs the whole recA/recB chain and
-     the g_BattleSlotParamTable load out of the loop, which retail never does.
-     Re-confirms that no pointer local may name any part of the chain.
-   - spelling the offset as i * 6 (dropping the o variable: *(u16 *)(D_800C48EC
-     + i * 6)) is 64.31% / 476 bytes - the best score so far and the second loop's
-     BIV really does land in a2 with addiu a2,a2,6 in the delay slot, exactly
-     retail - BUT gcc then strength-reduces each store to a POINTER BIV
-     (lui/addiu %hi/%lo of D_800C48EC and D_800C48EE, sh 0(base), base += 6) where
-     retail has ONE offset added as lui at,%hi / addu at,at,o / sh %lo(at), and
-     it reloads g_BattleSlotParamTable at two of the three sites (119 insns). So
-     retail's source had a real s32 offset local, i.e. the o variable this body
-     has. The lead for a later round is a spelling that keeps an s32 offset local
-     AND makes gcc give that offset a2 (perhaps via a BIV whose base stays a
-     symbol constant).  */
-// PARKED 60.72%, 448 bytes (112 insns; retail 456 = 114). Round 429 re-do: the loop1 counter/offset register pair is the whole residual (retail i in a3, byte offset o in a2). Tried, all measured from this body: loop1 as an o-accumulator in the body (for (i=0;i<9;i++){ stores; o += 6; }) 60.72 / 448; loop1 as a do-while with i++ in the body 60.24 / 448 - gcc still hoists addiu a2,a2,1 into the preheader because the counter is dead in that body, so retail's a3 must be LIVE there; loop1 spelled D_800C48EC[i * 6] (dropping o) 57.82 / 448 - gcc makes a POINTER BIV per symbol (lui/addiu base, sh 0(base), base += 6) and the format is lost. Loop2 is already retail's shape (li a2,6 offset, li a3,1 counter, i++ then slti then o+=6 in the delay slot). Next untried lead: make the counter live in loop1's body (it is dead in retail's too, so the retail body probably reads it through a scaled expression that gcc folds into the same offset BIV, e.g. o = i * 6 assigned in the body before the two stores, tested only by 57.82's cousin the i*6 form) - or accept the allocator tie.
+/* PARKED 62.91%, 448 bytes / 112 insns (retail 456 = 114). Structure, both loops,
+   their bounds, the store order, the addu operand orders and the $at-form stores
+   are retail's. Round 452 find, kept: each loop body assigns `o = i * 6` instead
+   of accumulating `o += 6`. With a NAMED s32 offset the store keeps retail's
+   `lui at,%hi / addu at,at,o / sh %lo(at)` form AND the offset lands in a2 with
+   the counter in a3, in BOTH loops; the accumulator form gives the reverse
+   (i in a2) and 60.72. 448 bytes means the only missing pair is the loop-2 setup:
+   this body loads g_BattleSlotParamTable into a2, so the offset o falls to t0 and
+   ofsA/ofsB to t1/t2 and res to t5, where retail has pTable a1, o a2, ofsA t0,
+   ofsB t1, res t3. Everything else in the diff is downstream of that one register,
+   plus: retail keeps the masked arg0 in t2 across the loop (this body remasks it
+   in the exit branch's delay slot, retail has nop there) and retail materialises
+   the first element address whole (addiu 0x140 then addu i, then two lbu 0(a0))
+   where this body folds 0x140 into the load displacement.
+   ROUND 452 measurements, all new:
+   - loop2 spelled `o = 6` before the loop plus `o += 6` in the body: 62.91, the
+     SAME object as the `o = i * 6` form, so loop2's spelling is free.
+   - the typed table: `BattleSlotParamEntry entries[10]` (0x20 each, so 0x140 is
+     exactly the ten of them) followed by `u8 rows[16][8][8]`, read as
+     rows[recA][recB][i] - 59.85% / 452 bytes / 113 insns. The typed chain changes
+     the emission, so the raw offset arithmetic is kept. The 0x40/8/i strides do
+     say the blob is a 0x140-byte header plus a [recA][8][8] byte cube.
+   - gcc-2.6.0 screen of the whole unit: this function unchanged at 62.91 while
+     BattleResetActorStatDisplay 99.19, BattleClearCommandSlots 99.33,
+     BattleCheckCommandKeyStatusBit 99.78, BattleInitSlotRowsForActor 99.44,
+     BattleAdvanceCommandStep 99.80 and BattleReleaseCharSlot 92.28 all drop, so
+     the unit is not a 2.6.0 unit and no preset change is owed.
+   - permute.sh 4 min -j 2 from this body: PERMUTER_NONE, best 3118 against a base
+     near 5677, and the best candidate only aliased ofsA into a new local - no
+     structural lead.
+   Invariants already proved (do not re-derive): the four index chains must be
+   written out in full at every site because the stores kill the loads (a hoisted
+   `u8 *pParam` scores 43.58%), and the element byte must be a volatile load
+   because retail reads the same byte twice at site 1 (59.15% without it).
+   Lead for the next round: the residual is which pseudo wins a1/a2, i.e. where the
+   loaded g_BattleSlotParamTable pointer is born. Untried: a per-site local
+   `u8 *pTable = g_BattleSlotParamTable;` at each of the four sites (only the
+   hoisted-out-of-loop form has been measured), and keeping `a` alive by one extra
+   use after loop2 so gcc cannot remask arg0. */
+
 /*
 s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 o;
@@ -1276,11 +1244,10 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     s32 res;
 
     res = 0;
-    o = 0;
     for (i = 0; i < 9; i++) {
+        o = i * 6;
         *(u16 *)(D_800C48EC + o) = 0xFFFF;
         *(u16 *)(D_800C48EE + o) = 0xFFFF;
-        o += 6;
     }
     a = arg0;
     b = arg1;
@@ -1289,8 +1256,8 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     *(u16 *)(D_800C48EC + 0) = *(u16 *)(D_800C3EBE + ofsA);
     *(u16 *)(D_800C48EE + 0) = *(u16 *)(D_800C3EC0 + ofsA);
     D_800C48F0[0] = 0;
-    o = 6;
     for (i = 1; i < 8; i++) {
+        o = i * 6;
         if (*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) == 0xFF) {
             break;
         }
@@ -1299,7 +1266,6 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
         *(u16 *)(D_800C48EE + o) =
             *(u16 *)(g_BattleSlotParamTable + ((*(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
         D_800C48F0[o] = *(volatile u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 0x80;
-        o += 6;
     }
     if (g_BattleActorCharIds[a] == 4) {
         res = 1;
@@ -1307,6 +1273,7 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     return res;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
+
 
 
 void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
