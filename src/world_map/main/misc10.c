@@ -1038,6 +1038,12 @@ void func_80089C78(void) {
 //    the g_WorldMapPlayerPositionZ load, giving retail's lw/nop/sw order.
 //    The head reads g_GameState.fieldScriptMemory[0]/[1] (0x1930/0x1932), not
 //    worldMapPosX/PosZ, while the tail writes 0x1820/0x1822.
+//    Round 468 re-measured 95.46% / 612 bytes / 153 insns: the jtbl/.L label
+//    spellings plus the same 12-line head, nothing else. Compiling this unit's own
+//    .i with the unit's cc1 plus -fschedule-insns (a diagnostic, not a preset flag)
+//    gives the identical 95.46 and the same `sll $3` / base `$2` in cc1's own
+//    output, so sched1 is not what decides the head's registers; register
+//    assignment runs before sched2, so the store placement is a consequence.
 // */
 /*
 s32 func_8008A2C8(s32 index) {
@@ -1187,16 +1193,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
 //    compiles to retail's own shape in misc11_b WorldMapInitPartyActorSprite2 (matched,
 //    `sll v1` at insn 3, base straight into s0, addu in the slot) and in this unit's
 //    func_8008A52C retail, so a2 is a per-function allocator outcome.
+//    Round 468 re-measured 92.63% / 372 bytes / 93 insns / 12 differing lines and
+//    closed two more spellings, both identical at 92.63: plain
+//    `pActor = &g_WorldMapSlots[arg0];` (no offset local) and the anim file in a
+//    named `void* pAnimFile` local before the pointer (pseudo numbering does not
+//    move the contest). The park keeps the &g_WorldMapSlots[arg0] form.
 // */
 /*
 s32 func_8008A5B8(s32 arg0) {
     WorldMapPlayer* pActor;
     WorldMapTrail* pTrail;
-    s32 slotOffset;
     s32 i;
 
-    slotOffset = arg0 * sizeof(WorldMapPlayer);
-    pActor = (WorldMapPlayer*)((u8*)g_WorldMapSlots + slotOffset);
+    pActor = &g_WorldMapSlots[arg0];
     pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
