@@ -557,38 +557,34 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
-/* 95.81% (2120 bytes = retail's exact size; the previous park's 97.17% was 2124, one
-   instruction long). Two things changed in round 405 and both are keepers:
-   1. the y of the first actor/table block goes through an s32 `dy` local that both
-      arms assign, with `y = dy;` after the if/else - cc1 then emits retail's ONE
-      shared copy at the join (move s2,v1 at 0xF8) instead of one copy per arm,
-      which is exactly the 4 extra bytes the old park carried. The arms still
-      subtract per-arm, as retail does (subu in the jal delay slot / late in the
-      table path). Both operands are (u16) casts: retail loads targetY with lhu.
-   2. g_BattleSlotVectors / g_BattleSlotVectorsB are declared SVECTOR (they are the
-      3-short slot position vectors misc31/misc35 also declare that way), so the
-      slot 7/8 case publishes .vx/.vy/.vz instead of five separate D_ symbols.
-   THE ONE NAMED RESIDUAL is the callee-saved rotation, and -dg says it is a wall:
-   pseudo 95 (pBlock) has 75 refs over 276 insns (quotient ~6.5) against x/y/z at
-   48/160, 39/135, 48/180 (~2.7-3.0), so global.c hands pBlock $s1 and pushes
-   x,y,z,orbitY down one (retail has x=$s1 y=$s2 z=$s3 orbitY=$s4 pBlock=$s5
-   pTween=$s6 outX=$s7 orbitR=$s0; ours pBlock=$s1 x=$s2 y=$s3 z=$s4 orbitY=$s5).
-   pBlock cannot lose that contest by spelling - only by a source that touches the
-   block pointer far fewer times, which retail's s5/s6 split does not show. Dump:
-   cc1 ... -da on build/src/battle/main/misc25.c.i, then the "46 regs to allocate"
-   line of m.i.greg and the "Register NN used" lines of m.i.lreg.
-   Already measured dead in the older park: y through a u16 local, z += vs z = z +,
-   pTween second block pointer (that one is REQUIRED, +4%), outX/Y/Z as separate
-   results, declaration order, and five permuter runs (none reached 0).
-   Also measured this round: writing kind before pTween instead of after changes
-   nothing; the parked func_800B0B14 below still spells the slot vectors as an
-   array of u16, respell it as g_BattleSlotVectors.vx/.vy/.vz when unparking.
-   Runs every queued movement command for arg1 frames. A block interpolates its
-   sprite position from its start to its target, then publishes the result: slots
-   0..6 into their own word, 7 and 8 into the two slot vectors. A block whose tag
-   is D_800C3B84 reports to D_800C3B88 - bit 1 while it still runs, bit 2 once it
-   has finished and been freed.
+// PARKED 96.08% (2120 bytes = retail's exact size, 192 differing lines against the
+// previous park's 236). The one residual is the callee-saved permutation: retail hands
+// out $s1=x $s2=y $s3=z $s4=orbitY $s5=pBlock $s6=pTween $s7=outX $s0=orbitR, ours gives
+// pBlock $s3, z $s4, orbitY $s5 (x, y, pTween, outX and orbitR already match). That
+// permutation is also why retail's prologue has two block-pointer moves where ours has
+// `move s6,sX` plus a `nop`, and why the two midpoint blocks re-schedule their
+// sll/sra/lhu order.
+// KEPT THIS ROUND: the tween pointer also carries the midpoint reads - `pTween->targetZ`
+// for the ">= 0" test and `pTween->targetY` in both midpoint arms - which is exactly
+// retail's $s6 access set (lh 0xE(s6) and lh 0xC(s6) twice, plus the startX/Y/Z group)
+// and measured 95.81 -> 96.08% at the same 2120 bytes.
+// MEASURED DEAD THIS ROUND, in one line each: cc1 -da/-dl on this body says pBlock 66
+// refs/276 insns, pTween 48/241, x 48/160, y 39/135, z 48/180, and pBlock is still
+// processed before z and orbitY, so it keeps taking an earlier register (the allocation
+// order is not a monotone function of that quotient, so the dump can say where pBlock
+// sits but not how to move it); moving the curFrame/endFrame group (8 sites) to pTween
+// 95.55% at 2120; s32 x/y/z 95.53% at 2108 (also 12 bytes small, so retail's x/y/z are
+// the 2-byte locals the lhu loads already say); `kind = pTween->opcode` with the
+// assignment reordered is byte-identical because copy propagation folds it back.
+// Preset screen this round: 2.6.0 -O2 -G8 95.81 (the unit preset, best), 2.7.2-psx
+// 94.12, 2.7.2-cdk 82.19, -O3 95.80, so there is no preset lead.
+// Older parks measured dead: y through a u16 local, z += vs z = z +, outX/Y/Z as
+// separate results, declaration order, and five permuter runs (none reached 0).
+// Runs every queued movement command for arg1 frames. A block interpolates its sprite
+// position from its start to its target and publishes the result: slots 0..6 into their
+// own word, 7 and 8 into the two slot vectors. A block whose tag is D_800C3B84 reports
+// to D_800C3B88 - bit 1 while it still runs, bit 2 once it has finished and been freed.
+/*
 void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     u16 vec[3];
     s32 i;
@@ -640,17 +636,17 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                     z = D_800C3EBE[pBlock->targetX].z;
                 }
                 y = dy;
-                if (pBlock->targetZ >= 0) {
-                    pActor = g_BattleActors[pBlock->targetZ];
+                if (pTween->targetZ >= 0) {
+                    pActor = g_BattleActors[pTween->targetZ];
                     if (pActor != NULL) {
                         pSprite = pActor->pSprites;
                         x = ((s16)x + pSprite->pos[0]) / 2;
-                        y = ((s16)y + pSprite->pos[1] - pBlock->targetY) / 2;
+                        y = ((s16)y + pSprite->pos[1] - pTween->targetY) / 2;
                         z = ((s16)z + pSprite->pos[2]) / 2;
                     } else {
-                        x = ((s16)x + D_800C3EBE[pBlock->targetZ].x) / 2;
-                        y = ((s16)y + D_800C3EBE[pBlock->targetZ].y - pBlock->targetY) / 2;
-                        z = ((s16)z + D_800C3EBE[pBlock->targetZ].z) / 2;
+                        x = ((s16)x + D_800C3EBE[pTween->targetZ].x) / 2;
+                        y = ((s16)y + D_800C3EBE[pTween->targetZ].y - pTween->targetY) / 2;
+                        z = ((s16)z + D_800C3EBE[pTween->targetZ].z) / 2;
                     }
                 }
             } else {
@@ -768,8 +764,10 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
         }
     }
     D_800C3B8C = 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
+
+
 u16 BattleIsPointWithinBounds(s16 *pPos) {
     BattleStreamData *pData = g_BattleStageData;
 
