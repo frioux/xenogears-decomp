@@ -1545,6 +1545,25 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 // global-alloc state in a 633-insn function, i.e. not addressable from this block's C. Do
 // not re-derive: what would move it is any source change that shifts allocation for the
 // whole function, and three permuter runs over this body found nothing.
+// Round 443 re-measured (96.75%, 2508 bytes, retail 2532 / 633 insns) and closed the last
+// plausible non-allocator story. The round-421/432 lever (a tail shared by two switch arms
+// is SOURCE-level: write it once at a `goto` label between the arms) does NOT apply here,
+// measured: with the armor/frame tail written once after the FRAME arm (`pFrame =
+// (GearFrame*)pArmor; goto equipGearPart;` / `equipGearPart: equipFlags =
+// pFrame->equipFlags; price = value;`) the body is still 2508 bytes, because post-reload
+// the labeled block is register-identical to the ENGINE arm's copy (`lw $2,0($2); move
+// $fp,$19; j; sw $2,0x68(sp)`) and cross_jump merges it into the last copy, as before.
+// Also measured: our merge set is one block LARGER than retail's - the FRAME and ENGINE
+// arms share their value load too (`addu $2,$2,$3; lhu $19,0xA($2)`; both prices sit at
+// 0xA), so the 6 missing insns are 4 (one tail copy: lw/move/j/sw) + 2 (that shared value
+// load). Retail keeps frame's `lhu` inline because its element address lands in $a0 there
+// and in $v1 at the engine site, while ours lands in $v0 at both - the same tie.
+// Spelling the engine arm through the frame view (`pFrame =
+// (GearFrame*)&g_Menu->pDressingRoom->pGearEngines[id];` - legal, both structs have
+// equipFlags at 0 and price at 0xA) is also 2508, and presets are unaffected: -O3 96.75,
+// -G0 96.75 on top of the 2.7.2 (96.4) and cdk (83.59) screens above.
+// The stub is convertible (`convertible.py` OK; the unit owns jtbl_801C5068), so a future
+// fix has to be proved with check_bin.sh gear_shop_menu, not diff_func.sh alone.
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
 /*
 s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
