@@ -12,21 +12,21 @@ extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 g_MenuItemRowStringIds[]; // String IDs of the menu strings
 extern s32 g_MenuCardSlotTotals;
 extern s32 D_801EA904;
-extern s32 D_801EA6FC;
-extern s32 D_801EA700;
-extern s32 D_801EA704;
-extern s32 D_801EA708;
-extern s32 D_801EA70C;
+extern s32 g_MenuStatBarValue;
+extern s32 g_MenuStatBarSavedValue;
+extern s32 g_MenuStatBarDelta;
+extern s32 g_MenuStatBarValueWidth;
+extern s32 g_MenuStatBarDeltaWidth;
 extern u8 D_801E9785; // Set once the three MenuCharacter records have been allocated
-extern u8 D_801EA710;
-extern u8 D_801EA714;
+extern u8 g_MenuStatBarDeltaColorMode;
+extern u8 g_MenuStatBarDeltaSignTexId;
 extern CdlCB g_MenuSavedCdSyncCallback;
 extern CdlCB g_MenuSavedCdReadyCallback;
 extern CdlCB g_MenuSavedCdReadCallback;
 extern u8 D_801EA574[];
 extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
-extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
+extern s32 g_MenuShoulderButtonIconTexIds[]; // String IDs of the menu scroll bar textures
 extern u8 g_MenuColumnRowStringIds[];
 extern u8 g_MenuPanelRowXOffsets[];
 extern s32 D_801EA054[]; // X positions of the character panel label glyphs, first row of the layout
@@ -39,8 +39,8 @@ void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char characterId, u_ch
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
 void MenuFreeWindow(s32 arg0);
-void func_801C72BC(s32 arg0);
-void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
+void MenuLoadResourceSet(s32 arg0);
+void MenuSetStatRowLabelQuads(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pFlags);
 void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
@@ -307,7 +307,7 @@ void MenuInitializeUnk42CPanel(void) {
     pMenu = HeapAlloc(sizeof(MenuUnk9), 0);
     g_Menu->pItemRows = pMenu;
     bzero(pMenu, sizeof(MenuUnk9));
-    func_801C72BC(0);
+    MenuLoadResourceSet(0);
 }
 
 void MenuFreeUnk42CPanel(void) {
@@ -315,7 +315,7 @@ void MenuFreeUnk42CPanel(void) {
     MenuFreeWindow(3);
     MenuFreeWindow(4);
     g_Menu->pManager->shouldRenderUnk42C = 0;
-    func_801C72BC(MENU_PANEL_FREE_OFFSET);
+    MenuLoadResourceSet(MENU_PANEL_FREE_OFFSET);
     HeapFree(g_Menu->pItemRows->pVramBuffer);
     HeapFree(g_Menu->pItemRows);
     HeapFree(g_Menu->pDressingRoom->pItemsData);

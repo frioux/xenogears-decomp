@@ -66,7 +66,7 @@ extern void MenuSetGearHpScaled(MenuDressingRoom* pDressingRoom, u8 gearId);
 // LZSSHeapDecompress call), so it is written as an expression and not a local.
 #define MenuGetSlotGearId(slot) g_GameState.characters[g_Menu->pManager->currentCharacterIDs[slot]].gearId
 
-void func_801C72BC(u8 index) {
+void MenuLoadResourceSet(u8 index) {
     MenuResourceTable* pTable;
     s32 i;
 

@@ -22,13 +22,13 @@ extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 g_MenuItemRowStringIds[]; // String IDs of the menu strings
 extern s32 g_MenuCardSlotTotals;
 extern s32 D_801EA904;
-extern s32 D_801EA6FC;
-extern s32 D_801EA700;
-extern s32 D_801EA704;
-extern s32 D_801EA708;
-extern s32 D_801EA70C;
-extern u8 D_801EA710;
-extern u8 D_801EA714;
+extern s32 g_MenuStatBarValue;
+extern s32 g_MenuStatBarSavedValue;
+extern s32 g_MenuStatBarDelta;
+extern s32 g_MenuStatBarValueWidth;
+extern s32 g_MenuStatBarDeltaWidth;
+extern u8 g_MenuStatBarDeltaColorMode;
+extern u8 g_MenuStatBarDeltaSignTexId;
 extern u16 D_801E9D78; // X offset of the stat bar value quads
 extern u16 D_801E9D7C; // Y offset of the stat bar value quad rows
 extern s32 D_801E9D80; // X offset of the stat bar value digits
@@ -41,7 +41,7 @@ extern u8 g_MenuGlyphSjisTable[]; // Glyph id of each character's name strip
 extern u16 D_801E9D88[][2]; // Y offset of each equipment row of the equipment panel
 extern s32 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
-extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
+extern s32 g_MenuShoulderButtonIconTexIds[]; // String IDs of the menu scroll bar textures
 extern s32 g_MenuStatRowLabelOffsetX[]; // X offset of each stat row of the stat table
 extern s32 g_MenuStatRowLabelOffsetY[]; // Y offset of each stat row of the stat table
 extern s32 g_MenuStatRowLabelTexIds[]; // Texture id of each stat row's label, 7 rows per stat group
@@ -72,8 +72,8 @@ typedef struct {
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
 void MenuFreeWindow(s32 arg0);
-void func_801C72BC(s32 arg0);
-void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
+void MenuLoadResourceSet(s32 arg0);
+void MenuSetStatRowLabelQuads(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pFlags);
 void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
@@ -115,7 +115,7 @@ void MenuSetGearWindowQuads(s32 arg0, u_char arg1, u_char arg2) {
     ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 0;
     if (arg1 != 0) {
         for (i = 0; i < 2; i++) {
-            func_8002675C(g_Menu->resources, D_801E977C[i],
+            func_8002675C(g_Menu->resources, g_MenuShoulderButtonIconTexIds[i],
                           (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + 0x1E00 + i * 0x50),
                           g_Menu->renderContext, 0x78 + i * 0x20, 0x5A, 0x1000);
             off = (g_Menu->renderContext + i * 2) * 0x28;
@@ -136,7 +136,7 @@ void MenuSetGearWindowQuads(s32 arg0, u_char arg1, u_char arg2) {
     }
 }
 
-void func_801D7F50(s32 x, s32 y, u_char statGroup) {
+void MenuSetStatRowLabelQuads(s32 x, s32 y, u_char statGroup) {
     s32 texCoords[6]; // Filled and ignored
     s32 primOffset;
     s32 start;
@@ -240,23 +240,23 @@ void MenuSetStatBarTileColors(POLY_FT4* pPolys, u_char mode, u_char count, u_cha
         pPoly->b0 = rgb[2];
     }
 }
-void func_801D84B4(u_short arg0, u_short arg1, s32 arg2) {
+void MenuSetStatBarValues(u_short arg0, u_short arg1, s32 arg2) {
     s32 diff;
 
-    D_801EA6FC = arg0;
-    D_801EA700 = arg1;
+    g_MenuStatBarValue = arg0;
+    g_MenuStatBarSavedValue = arg1;
     diff = arg1 - arg0;
-    D_801EA704 = diff;
-    D_801EA708 = MENU_STAT_BAR_WIDTH_MAX * (100 * arg0 / arg2) / 10000;
+    g_MenuStatBarDelta = diff;
+    g_MenuStatBarValueWidth = MENU_STAT_BAR_WIDTH_MAX * (100 * arg0 / arg2) / 10000;
     if (diff >= 0) {
-        D_801EA710 = 2;
-        D_801EA714 = MENU_TEX_PLUS;
+        g_MenuStatBarDeltaColorMode = 2;
+        g_MenuStatBarDeltaSignTexId = MENU_TEX_PLUS;
     } else {
-        D_801EA710 = 3;
-        D_801EA714 = MENU_TEX_MINUS;
-        D_801EA704 = arg0 - arg1;
+        g_MenuStatBarDeltaColorMode = 3;
+        g_MenuStatBarDeltaSignTexId = MENU_TEX_MINUS;
+        g_MenuStatBarDelta = arg0 - arg1;
     }
-    D_801EA70C = MENU_STAT_BAR_WIDTH_MAX * (100 * D_801EA704 / arg2) / 10000;
+    g_MenuStatBarDeltaWidth = MENU_STAT_BAR_WIDTH_MAX * (100 * g_MenuStatBarDelta / arg2) / 10000;
 }
 
 s32 MenuMaxStatValue(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
@@ -340,14 +340,14 @@ void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     for (i = 0; i < MENU_STAT_LABEL_ROW_COUNT - arg4; i++) {
         ((u8*)g_Menu->unk35C + i)[0x32C0] = 0;
         ((u8*)g_Menu->unk35C + i)[0x32CE] = 0;
-        func_801D84B4(pStat[i], pSaved[i], max);
+        MenuSetStatBarValues(pStat[i], pSaved[i], max);
         MenuSetStatBarQuadColors((POLY_G4*)(colorOfs + 0x2030 + (u32)g_Menu->unk35C), 0);
         MenuSetQuadVertices((SVECTOR*)(i * 0x20 + 0x3100 + (u32)g_Menu->unk35C),
                             D_801E9D78 + arg1,
                             arg2 + D_801E9D7C + yOfs,
-                            D_801EA708, MENU_STAT_BAR_QUAD_HEIGHT);
+                            g_MenuStatBarValueWidth, MENU_STAT_BAR_QUAD_HEIGHT);
         ((u8*)g_Menu->unk35C + i)[0x32DC] = g_Menu->renderContext;
-        MenuParseNumberToDigits(D_801EA6FC);
+        MenuParseNumberToDigits(g_MenuStatBarValue);
         for (j = 0; j < MENU_STAT_VALUE_DIGIT_COUNT; j++) {
             if (g_Menu->digits[MENU_STAT_VALUE_DIGIT_START + j] != MENU_DIGIT_NONE) {
                 ((u8*)g_Menu->unk35C + i)[0x32C0] +=
@@ -375,23 +375,23 @@ void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
         }
         ((u8*)g_Menu->unk35C + i)[0x32C7] = g_Menu->renderContext;
         if (arg3 != 0) {
-            MenuSetStatBarQuadColors((POLY_G4*)(colorOfs + 0x2228 + (u32)g_Menu->unk35C), D_801EA710);
-            if (D_801EA710 == 2) {
-                quadX = D_801E9D78 + arg1 + D_801EA708;
+            MenuSetStatBarQuadColors((POLY_G4*)(colorOfs + 0x2228 + (u32)g_Menu->unk35C), g_MenuStatBarDeltaColorMode);
+            if (g_MenuStatBarDeltaColorMode == 2) {
+                quadX = D_801E9D78 + arg1 + g_MenuStatBarValueWidth;
             } else {
-                quadX = D_801E9D78 + arg1 + D_801EA708 - D_801EA70C;
+                quadX = D_801E9D78 + arg1 + g_MenuStatBarValueWidth - g_MenuStatBarDeltaWidth;
             }
             MenuSetQuadVertices((SVECTOR*)(i * 0x20 + 0x31E0 + (u32)g_Menu->unk35C), quadX,
                                 arg2 + D_801E9D7C + yOfs,
-                                D_801EA70C, MENU_STAT_BAR_QUAD_HEIGHT);
+                                g_MenuStatBarDeltaWidth, MENU_STAT_BAR_QUAD_HEIGHT);
             ((u8*)g_Menu->unk35C + i)[0x32E3] = g_Menu->renderContext;
-            if (arg3 != 0 && D_801EA704 != 0) {
+            if (arg3 != 0 && g_MenuStatBarDelta != 0) {
                 ((u8*)g_Menu->unk35C + i)[0x32CE] +=
-                    func_8002675C(g_Menu->resources, D_801EA714,
+                    func_8002675C(g_Menu->resources, g_MenuStatBarDeltaSignTexId,
                                   (POLY_FT4*)(deltaPrimOfs + (u32)g_Menu->unk35C),
                                   g_Menu->renderContext, arg1 + D_801E9D80 + 0x20,
                                   arg2 + D_801E9D84 + yOfs, 0x1000);
-                MenuParseNumberToDigits(D_801EA704);
+                MenuParseNumberToDigits(g_MenuStatBarDelta);
                 digitX = 0x28;
                 for (j = 0; j < MENU_STAT_DELTA_DIGIT_COUNT; j++) {
                     if (g_Menu->digits[MENU_STAT_DELTA_DIGIT_START + j] == MENU_DIGIT_NONE) {
@@ -416,7 +416,7 @@ void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                                             *(volatile u16*)((u8*)g_Menu->unk35C + primOfs + 0x177A));
                 }
                 MenuSetStatBarTileColors((POLY_FT4*)(deltaPrimOfs + (u32)g_Menu->unk35C),
-                                         D_801EA710 - 2, ((u8*)g_Menu->unk35C + i)[0x32CE],
+                                         g_MenuStatBarDeltaColorMode - 2, ((u8*)g_Menu->unk35C + i)[0x32CE],
                                          g_Menu->renderContext);
                 ((u8*)g_Menu->unk35C + i)[0x32D5] = g_Menu->renderContext;
                 ((u8*)g_Menu->unk35C)[0x32F2] = 1;
@@ -444,7 +444,7 @@ void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
         height = 0x90;
     }
     value = arg3;
-    func_801D7F50(width, height, value);
+    MenuSetStatRowLabelQuads(width, height, value);
     func_801D8644(arg0, width, height, arg2, value);
     g_Menu->pManager->shouldRenderUnk35C = 1;
     g_Menu->unk35C->renderContext = *(u_char*)&g_Menu->renderContext;

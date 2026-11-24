@@ -109,7 +109,7 @@ u_char func_801DB920(s32 arg0, s32 arg1);
 void MenuRenderFrame(void);
 void MenuHidePointerCursors(void);
 void MenuFreeWindow(s32 arg0);
-void func_801C72BC(s32 arg0);
+void MenuLoadResourceSet(s32 arg0);
 void MenuFreeScrollHandle(void);
 void MenuClearBytes(s32 arg0, void* pArg1);
 void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
@@ -616,7 +616,7 @@ void MenuCreateUnk430Panel(u_char arg0) {
         break;
     }
     MenuLoadStringsFromIds(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuItemRowStringIds[index], g_Menu->pManager->shouldRenderStrings10E0);
-    func_801C72BC((u8)kind);
+    MenuLoadResourceSet((u8)kind);
     MenuSetupPointerCursors(2);
     MenuCreateShoulderButtonUi(2, arg0);
 }
@@ -642,7 +642,7 @@ void MenuFreeUnk430Panel(u_char arg0) {
         kind = 6;
         break;
     }
-    func_801C72BC((kind | MENU_PANEL_FREE_OFFSET) & 0xFF);
+    MenuLoadResourceSet((kind | MENU_PANEL_FREE_OFFSET) & 0xFF);
     HeapFree(g_Menu->unk430);
     g_Menu->pManager->playTimeDigitsActive = 1;
     g_Menu->pManager->shouldRenderWindow[1] = 1;
@@ -1506,7 +1506,7 @@ void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     bzero(g_Menu->pCharacterSpriteRecords, sizeof(MenuCharacterSpriteRecords));
     pManager = g_Menu->pManager;
     MenuLoadStringsFromIds(MENU_CHARACTER_ROW_STRING_COUNT, g_Menu->characterRowStrings, g_MenuCharacterRowStringIds[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
-    func_801C72BC(7);
+    MenuLoadResourceSet(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
     MenuCreateShoulderButtonUi(1, arg0 & 0xFF);
@@ -1520,7 +1520,7 @@ void MenuFreeCharacterSpriteRecords(void) {
     MenuFreeWindow(5);
     MenuRenderFrame();
     MenuClearBytes(MENU_CHARACTER_ROW_STRING_COUNT, &g_Menu->pManager->shouldRenderStrings10E0[8]);
-    func_801C72BC(7 | MENU_PANEL_FREE_OFFSET);
+    MenuLoadResourceSet(7 | MENU_PANEL_FREE_OFFSET);
     HeapFree(g_Menu->pCharacterSpriteRecords);
     MenuFreeScrollHandle();
 }

@@ -10,7 +10,7 @@ extern u_char g_MenuMainTitleStringIds[]; // String IDs of the menu strings
 
 void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
-u_char func_801C531C(u_char arg0);
+u_char MenuRunSelectedChoice(u_char arg0);
 void MenuRenderFrame(void);
 void MenuPlaySoundEffect(u_char soundEffectId);
 void MenuResetSelectionCursorFlags(void);
@@ -62,7 +62,7 @@ u8 func_801E23CC(void);
 s32 func_801DBE54(void);
 void func_8001B970(void);
 
-u_char func_801C531C(u_char arg0) {
+u_char MenuRunSelectedChoice(u_char arg0) {
     u_char result;
     u_char shouldContinue;
 
@@ -146,7 +146,7 @@ void MenuNormalMenuMain(void) {
                     g_Menu->pSelectionMenu->isDisabled = 1;
                     MenuResetSelectionCursorFlags();
                     MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
-                    shouldContinue = func_801C531C(0);
+                    shouldContinue = MenuRunSelectedChoice(0);
                 }
                 break;
             case MENU_INPUT_BACK:
@@ -193,7 +193,7 @@ void MenuCdChangeMain(void) {
     if (shouldReset) {
         g_MenuSaveSlotForceDiscOne = 1;
         D_801E96A4 = 1;
-        func_801C531C(0);
+        MenuRunSelectedChoice(0);
         D_801E96A4 = 0;
         g_MenuSaveSlotForceDiscOne = 0;
     }
@@ -217,7 +217,7 @@ void MenuLoadGameMain(void) {
                 MenuResetSelectionCursorFlags();
                 MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
                 g_Menu->pCursorPrims->shadeWidth = MENU_CURSOR_SHADE_WIDTH;
-                shouldContinue = func_801C531C(7);
+                shouldContinue = MenuRunSelectedChoice(7);
                 g_MenuSoftResetEnabled = 0;
                 g_Menu->idleFrameCount = 0;
                 break;

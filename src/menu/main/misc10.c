@@ -29,7 +29,7 @@ void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
 void MenuApplyGearAccessories(MenuDressingRoom*, u8);
 void MenuApplyGearWeapons(MenuDressingRoom*, u8);
-void func_801C72BC(u8);
+void MenuLoadResourceSet(u8);
 void MenuFreeShoulderButtonUi(void);
 void MenuFreeWindow(u8);
 void MenuRenderFrame(void);
@@ -74,9 +74,9 @@ int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1) {
     bzero(g_Menu->unk35C, 0x32F4);
     g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
     bzero(g_Menu->pEquipmentPanel, 0x2AC);
-    func_801C72BC(3);
+    MenuLoadResourceSet(3);
     func_801E05D0(arg0, arg1, 0);
-    func_801C72BC(0x13);
+    MenuLoadResourceSet(0x13);
     return 1;
 }
 void MenuInitializeUnk438Panel(void) {
@@ -89,7 +89,7 @@ void MenuInitializeUnk438Panel(void) {
 
     g_Menu->unk438 = HeapAlloc(0x25C0, 0);
     bzero(g_Menu->unk438, 0x25C0);
-    func_801C72BC(4);
+    MenuLoadResourceSet(4);
     MenuLoadStringsFromIds(2, g_Menu->unk17E0, g_MenuUnk17E0StringIds, g_Menu->pManager->shouldRenderStrings17E0);
     MenuSetRowQuadVertices(2, g_Menu->unk17E0, g_MenuUnk17E0StringIds, g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings17E0, 0, 0, 4);
     MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
@@ -137,7 +137,7 @@ void MenuFreeUnk438Panel(void) {
     MenuFreeWindow(2);
     MenuRenderFrame();
     MenuClearBytes(2, &g_Menu->pManager->shouldRenderPanel[4]);
-    func_801C72BC(0x14);
+    MenuLoadResourceSet(0x14);
     HeapFree(g_Menu->unk438);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
@@ -543,7 +543,7 @@ u8 MenuInitializeGearScreenBuffers(void) {
     bzero(g_Menu->unk35C, 0x32F4);
     g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
     bzero(g_Menu->pEquipmentPanel, 0x2AC);
-    func_801C72BC(3);
+    MenuLoadResourceSet(3);
     i = 0;
     while (1) {
         if (g_Menu->pManager->isGearScreenActive[i] != 0) {
@@ -561,7 +561,7 @@ void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->pGearWindowPrims);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->pEquipmentPanel);
-    func_801C72BC(0x13);
+    MenuLoadResourceSet(0x13);
 }
 /* PARKED 99.66% - 1812 bytes, retail's exact size; 453 instructions, the same
    instruction multiset. Re-measured this round (round 431): the ONLY residual
@@ -752,14 +752,14 @@ void MenuInitializeCharacterScreenBuffers(void) {
     bzero(g_Menu->unk35C, 0x32F4);
     g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
     bzero(g_Menu->pEquipmentPanel, 0x2AC);
-    func_801C72BC(3);
+    MenuLoadResourceSet(3);
     MenuCreateShoulderButtonUi(0, 0);
 }
 void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->pGearWindowPrims);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->pEquipmentPanel);
-    func_801C72BC(0x13);
+    MenuLoadResourceSet(0x13);
 }
 u8 MenuRunCharacterDressingRoomLoop(void) {
     u8 active;

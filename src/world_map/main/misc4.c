@@ -209,7 +209,7 @@ extern void WorldMapUpdateActorState(void);
 extern void func_8007ADD4(void);
 extern void WorldMapUpdateGroup4And5Scale(void);
 extern void WorldMapUpdateGroup6And7Scale(void);
-extern void func_8007BBEC(void);
+extern void WorldMapUpdateGroup0Actor(void);
 extern s32 WorldMapInitActorScrollScale(s32);
 extern s32 WorldMapSetupGroup4And5ScaledPrims(s32);
 extern s32 WorldMapSetupGroup6And7ScaledPrims(s32);
@@ -1380,7 +1380,7 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     WorldMapAddSlot(WorldMapSetupGroup4And5ScaledPrims, WorldMapUpdateGroup4And5Scale);
     WorldMapAddSlot(WorldMapSetupGroup6And7ScaledPrims, WorldMapUpdateGroup6And7Scale);
     WorldMapAddSlot(WorldMapInitReturnThree, WorldMapActivateSpriteGroup9Timed);
-    WorldMapAddSlot(WorldMapInitGroup0Actor, func_8007BBEC);
+    WorldMapAddSlot(WorldMapInitGroup0Actor, WorldMapUpdateGroup0Actor);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
     WorldMapInitPrimTemplateBuffers();

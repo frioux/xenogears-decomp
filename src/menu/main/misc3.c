@@ -1101,7 +1101,7 @@ void MenuApplySaveSlot(u32* pSrc) {
    Every call, global and constant is right; what is left is block layout and one
    register too many:
    - retail hoists the three cold blocks (close(fileFd) at 0x5A4, the
-     func_801C72BC/MenuApplySaveSlot arm at 0x5B4) ABOVE the case-1 body, and the
+     MenuLoadResourceSet/MenuApplySaveSlot arm at 0x5B4) ABOVE the case-1 body, and the
      early exit jumps to a SHARED shouldUpdatePosition[0] = 1 tail (0x814) - this
      body reaches the same shape with `goto updateCursor` + a `goto freeBuffer`
      label but keeps the arm inline, so the byte count is over.
@@ -1127,7 +1127,7 @@ void MenuApplySaveSlot(u32* pSrc) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
 /*extern u_char func_801C93A8(void);
 extern s32 MenuHandleCardSlotInput(s32 arg0);
-extern void func_801C72BC(u8 arg0);
+extern void MenuLoadResourceSet(u8 arg0);
 extern void MenuPlaySoundEffect(u8 arg0);
 
 // Reads the save file of the slot MenuResetSlotSelection/MenuFindFirstValidSlot picked
@@ -1246,9 +1246,9 @@ u_char func_801CB304(void) {
                     sum += *pData++;
                 } while (--count >= 0);
                 if ((u8)sum == *pData) {
-                    func_801C72BC(1);
+                    MenuLoadResourceSet(1);
                     MenuApplySaveSlot((u32*)(pBuffer + 0x100));
-                    func_801C72BC(0x11);
+                    MenuLoadResourceSet(0x11);
                 } else {
                     fd = 0;
                 }

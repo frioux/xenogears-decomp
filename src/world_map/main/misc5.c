@@ -57,7 +57,7 @@ typedef struct {
     /* 0x14 */ u16 sedId;
 } SoundSedsBank; // Size: unknown, only +0x14 is read
 
-// One control point of the track table at D_8009A490 (stride 8): three halfword
+// One control point of the track table at g_WorldMapGroup0PathPoints (stride 8): three halfword
 // coordinates that WorldMapInterpolateQuadraticVector reads, plus the -1
 // terminator that ends a track.
 typedef struct {
@@ -100,7 +100,7 @@ extern WorldMapPlayer *g_WorldMapSlots;
 extern WorldMapSceneLayer *g_WorldMapGroups;
 extern u16 g_WorldMapSlotStateIds[];
 extern u16 g_WorldMapSlotStateFrames[];
-extern WorldMapTrackPoint D_8009A490[];
+extern WorldMapTrackPoint g_WorldMapGroup0PathPoints[];
 extern u16 g_WorldMapActorParamStateIds[];
 extern u16 g_WorldMapActorParamStateFrames[];
 extern s16 g_WorldMapCameraRot;
@@ -210,7 +210,7 @@ extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
 extern int WorldMapInitActorParamsFromTable(int idx);
 extern int func_8007C3B8(int idx);
-extern int func_8007C724(int idx);
+extern int WorldMapSnapCameraToPlayer(int idx);
 extern int func_8007C7D8(int idx);
 extern int WorldMapInitGroup4Actor(int idx);
 extern int WorldMapUpdateGroup4Actor(int idx);
@@ -354,11 +354,11 @@ int WorldMapInitActorScrollScale(int idx) {
 // Tried and rejected: volatile on the two scratchpad stores (pins them, but a volatile
 // store may not fill a jal delay slot, which is where retail keeps the 0xA0 store);
 // volatile on the case-5 rotation store; extern SVECTOR g_WorldMapPathFrame[] plus
-// WorldMapPos g_WorldMapCameraTarget[] (same score, broke func_8007C724); pointer
+// WorldMapPos g_WorldMapCameraTarget[] (same score, broke WorldMapSnapCameraToPlayer); pointer
 // locals for CameraTargetZ and ViewRotationY under -G8 (folded away, no change);
 // 2.7.2-cdk (70.26) and 2.7.2-cdk -G0 (70.26). The unit's other matched functions do
-// NOT survive -G0 - func_8007C724 drops to 27.96, WorldMapUpdateActorState 99.95,
-// func_8007BBEC 99.82, WorldMapUpdateGroup4Actor 99.94 - so -G0 here needs a unit split.
+// NOT survive -G0 - WorldMapSnapCameraToPlayer drops to 27.96, WorldMapUpdateActorState 99.95,
+// WorldMapUpdateGroup0Actor 99.82, WorldMapUpdateGroup4Actor 99.94 - so -G0 here needs a unit split.
 /*
 int func_8007ADD4(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
@@ -716,7 +716,7 @@ int WorldMapInitGroup0Actor(int idx) {
     return 3;
 }
 
-s32 func_8007BBEC(s32 idx) {
+s32 WorldMapUpdateGroup0Actor(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapSceneLayer *pLayer;
     WorldMapTrackPoint *pPoint;
@@ -760,14 +760,14 @@ s32 func_8007BBEC(s32 idx) {
         result = 3;
         break;
     }
-    pPoint = &D_8009A490[pPlayer->unk50 >> 12];
+    pPoint = &g_WorldMapGroup0PathPoints[pPlayer->unk50 >> 12];
     if (pPoint[2].unk6 != -1) {
         WorldMapInterpolateQuadraticVector(pPlayer->unk50 & 0xFFF, (s16 *)pPoint,
                                            (s16 *)&pPoint[1], (s16 *)&pPoint[2],
                                            (s32 *)pScratch);
     }
     pVec1 = (VECTOR *)&pScratch[4];
-    pPoint = &D_8009A490[(pPlayer->unk50 + 0x80) >> 12];
+    pPoint = &g_WorldMapGroup0PathPoints[(pPlayer->unk50 + 0x80) >> 12];
     WorldMapInterpolateQuadraticVector((pPlayer->unk50 + 0x80) & 0xFFF, (s16 *)pPoint,
                                        (s16 *)&pPoint[1], (s16 *)&pPoint[2], (s32 *)pVec1);
     pLayer = g_WorldMapGroups;
@@ -865,7 +865,7 @@ void WorldMapInitializeModeWithGroupActors(void) {
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot((void *)WorldMapModeInitFadeRect, (void *)func_800925A0);
     WorldMapAddSlot((void *)WorldMapInitActorParamsFromTable, (void *)func_8007C3B8);
-    WorldMapAddSlot((void *)func_8007C724, (void *)func_8007C7D8);
+    WorldMapAddSlot((void *)WorldMapSnapCameraToPlayer, (void *)func_8007C7D8);
     WorldMapAddSlot((void *)WorldMapInitGroup4Actor, (void *)WorldMapUpdateGroup4Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup5Actor, (void *)WorldMapUpdateGroup5Actor);
     WorldMapAddSlot((void *)WorldMapInitGroup9Actor, (void *)WorldMapUpdateGroup9Actor);
@@ -929,7 +929,7 @@ int WorldMapInitActorParamsFromTable(int idx) {
 // the table at 0x164..0x267) and the single `lw v0,%lo` addend at file 0xC904
 // (0x8006FC54 against retail's 0x8006FC50). Nothing after 0x268 moves.
 // WHY: misc5's object .rodata already holds WorldMapUpdateActorState's 12-word table at
-// +0 (0x30 bytes) and func_8007BBEC's 9-word table at +0x68 (0x24 bytes), so the next C
+// +0 (0x30 bytes) and WorldMapUpdateGroup0Actor's 9-word table at +0x68 (0x24 bytes), so the next C
 // table starts at range offset 0x8C = 4 mod 8 and cc1's `.align 3` (lever
 // i-jtbl-align-3-hardcoded) pads it to 0x90. The range's layout is [0x00 UAS 0x30 C]
 // [0x30 ADD4 0x20 asm] [0x50 ADD4 0x18 asm] [0x68 BBEC 0x24 C] [0x8C this table 0x104]
@@ -942,11 +942,11 @@ int WorldMapInitActorParamsFromTable(int idx) {
 // 0x160..0x264 (exactly this table) and a plain `rodata` carve for 0x264..0x29C (the pad
 // plus func_8007C7D8's two asm tables, which must NOT travel with the stub: emitted after
 // this table they would land 4 bytes early); misc5_b also takes code from 0xC8C8
-// (func_8007C3B8, func_8007C724, the func_8007C7D8 stub and everything after), needs
+// (func_8007C3B8, WorldMapSnapCameraToPlayer, the func_8007C7D8 stub and everything after), needs
 // `world_map/main/misc5_b.` added to XenoWorldMapDiv's paths in gears.toml (the presets
 // are keyed per file), and its WorldMapPlayer/SVECTOR dependence means the prototypes and
 // types its functions use move with it. Reverting WorldMapUpdateActorState and
-// func_8007BBEC to stubs would also unblock this table and is the wrong trade: two
+// WorldMapUpdateGroup0Actor to stubs would also unblock this table and is the wrong trade: two
 // matches lost for one.
 // RE-MEASURED round 432 on this lane: un-parked, diff_func.sh prints 99.95% / 876
 // bytes (retail's exact size), then re-parked. The pad is unconditional, not a
@@ -1075,7 +1075,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
 // position loads above the unk7C store and sinks the six target stores below
 // the unk58/unk50 stores (44.62% at the same 180 bytes); the do-while's basic-
 // block boundary is what lets the unk50 store land in the jr delay slot.
-int func_8007C724(int idx) {
+int WorldMapSnapCameraToPlayer(int idx) {
     WorldMapPlayer *pPlayer;
     s32 a;
     s32 b;
@@ -1150,7 +1150,7 @@ int func_8007C724(int idx) {
 // `extern WorldMapPos g_WorldMapCameraTarget;` / `...g_WorldMapScrollTarget;` (both
 // triples are 12 contiguous bytes at 0x8009BE28 and 0x8009D55C) and update the three
 // neighbours that use them: WorldMapInitActorScrollScale (.x/.y/.z at lines 323-328),
-// func_8007C724 (the volatile casts at 1083-1088) and WorldMapUpdateGroup4Actor
+// WorldMapSnapCameraToPlayer (the volatile casts at 1083-1088) and WorldMapUpdateGroup4Actor
 // (g_WorldMapScrollTargetZ = pPlayer->z). Same addresses, so the bytes should not
 // move, but re-diff each of the three. Then form `pScrollZ = &g_WorldMapScrollTarget.z;`
 // and `pCamZ = &g_WorldMapCameraTarget.z;` INSIDE the moveCamera block and again in
