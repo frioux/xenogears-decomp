@@ -33,20 +33,25 @@ s32 g_SpritePendingClut;
 s32 g_AnimTimerTickCount;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
-/* Best attempt: 96.30% (376 bytes; the original is 380). Instruction stream and control flow
-   agree. Two related deltas: (1) reorg steals the `move a0,s0` from the head of the else block
-   (.L80022C68) into the `bnez` delay slot, so this C is one instruction short -- the original
-   emits `lw a1,16(s0)` first in that block and keeps the move second; (2) in the bounce block the
-   original keeps |step.y| in v1 and stores before the `bgez`, this C uses a1 and the store lands
-   in the `bgez` delay slot. Tried: gcc 2.6.0/2.7.2/-O1..-O3/-G4..-G8 (try_flags sweep, best is the
-   current preset at 96.30), and hoisting the unshifted `stepY = pSpriteData->step.y` into a local
-   before the else-branch call (still 96.30, the load is not emitted first). Local `speed` must not
-   be reused for the bounce term below or gcc keeps it in a callee-saved register. The else block's
-   emission order is the whole problem: gcc emits `move a0,s0` BEFORE `lw a1,16(s0)` and reorg then
-   steals the move into the bnez delay slot (a `lw` is not delay-slot eligible, so the original's
-   block starts with the load and reorg stops there). Hoisting the shift into a local
-   (s32 step = step.y >> 4) is folded away and does not change the order.
-
+/* Best attempt: 96.25% (376 bytes / 94 insns; the original is 380 / 96). Instruction stream
+   and control flow agree; two residuals, and both are cc1/reorg emission order, not source:
+   (1) else block (.L80022C68): gcc emits the arg0 copy `addu a0,s0` BEFORE arg1's `lw
+   a1,16(s0)` in the RTL, so the third block starts with the copy and reorg's eager delay-slot
+   fill hoists it into the `bnez` at the top of the function. Retail's block starts with the
+   load (not delay-slot eligible), so retail keeps a `nop` there and re-forms the copy at
+   0x1346C. Measured: hoisting `speed = pSpriteData->step.y;` as the else body's first
+   statement compiles byte-identically (gcc folds it back), and so does declaring the else's
+   load in its own local; the arg expansion order does not change.
+   (2) bounce block (0x133E8): retail's quotient stays in the mflo register (`sra v1,v1,8`,
+   no copy), the `sw v1,16(s0)` is emitted before `bgez v1` and reorg leaves a `nop` in that
+   slot; every spelling here makes gcc copy the quotient into a fresh register
+   (`sra a1,v1,8`) and reorg then moves the store into the `bgez` delay slot (one instruction
+   fewer, no `nop`). A separate `bounce` local instead of reusing `speed` measured 95.99 with
+   the bounce in v0 and gravity in a0 (retail: bounce v1, gravity v0).
+   Tried: the preset is settled (2.6.0 / 2.7.2 / -O1..-O3 / -G4..-G8 sweep, best is the
+   current XenoGraphics preset), plus for (1) both the hoisted-load and the own-local spellings
+   and for (2) a separate local. lever.py: no lever for eager delay-slot fill from a branch
+   target. Not re-briefable as hand work; both need a way to control arg expansion order.
 extern s32 SpriteScaleValue(SpriteData* pSpriteData, s32 value);
 extern void BattleActorUpdateGroundHeightAndTriangle(void);
 
