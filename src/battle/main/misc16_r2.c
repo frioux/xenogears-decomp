@@ -262,6 +262,16 @@ void BattleInitMenuColumnPrims(void) {
    the `la` in the preheader costs 2 and the extra save/restore 2, which is why the totals are
    equal at 265 and only the register set differs. Park on the round-432 probe.
 */
+// ROUND 457 RE-MEASURE, new best 97.22% (1068 bytes / 267 insns; retail 0x424 = 1060 / 265), unit gcc-2.6.0 -O2 -G8.
+// NEW THIS ROUND, and the reason the park is worth keeping: the table base hoist is NOT unconditional. Measured counts in the second loop -
+//   4 array sites                     -> loop.c reduces: la of the base in the preheader plus addu reg,reg,sN / lw 0(reg) at ALL FOUR (96.18, 1060/265)
+//   3 array sites + 1 source pointer  -> still reduced, the array sites fold onto the hoisted base (96.28, 1060/265)
+//   2 array sites + a PRE-LOOP pointer + an in-loop copy of it -> NOT reduced: the two remaining array sites come out in retail's
+//                                       lui at,%hi / addu at,at,reg / lw %lo(at) form (97.22, 1068/267).
+// So retail's build saw at most two shareable givs for that symbol, and one spelling that does is a pre-loop source pointer to the table plus an assignment from it inside the loop. The body below is that spelling, kept as a mechanism hint, not as shippable C.
+// Residual, two causes, both additive: (1) the two pointer-fed sites read through the callee-saved base (2 insns against retail's 3) and the pointer costs the preheader lui/la (2) plus a 6th save/restore (2), so this body is 2 insns over; (2) retail's locals are 8 bytes bigger - cellUses at 0xD0 and cellIds at 0x100 against 0xC8 / 0xF8, an 8-byte slot retail never reads or writes, which is also what lets retail's six saves sit at 0x130..0x144 against our seven at 0x128..0x144.
+// PRESET IS NOT THE ANSWER: 2.7.2 scores 95.58, 2.7.2-cdk compile-fails the body, and -fno-strength-reduce is ruled out for the unit because retail's OWN BattleDrawColumnSpriteCells (misc16_r2, matching asm) carries the biv increments addiu s1,s1,1 / addiu s0,s0,8.
+// Earlier rounds, all still true: a cc1_probe of the loop shape reproduces the hoist under 2.6.0, 2.7.2 and 2.7.2-cdk with a u8 or s32 index and the array declared [10] or [], so it is loop.c's per-loop decision; the four index spellings (array form, pointer cast, (u8 *)T + n*4, index-first) and a volatile element declaration all measure identical; the tens digit wants its u8 local, and site 3's TEST reads the global g_BattleCommandCellUses[i + 16] (retail relocs name D_800D2CC0, same address) while its INDEX reads the local copy.
 /*
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
@@ -274,6 +284,8 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     u8 cellUses[BATTLE_COMMAND_CELL_COUNT];
     u8 cellIds[BATTLE_COMMAND_CELL_COUNT];
     void *pBuf;
+    u_long **pDigitBuffers;
+    u_long **pDigits;
     u8 tens;
     s32 i;
 
@@ -294,8 +306,10 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         cellIds[i] = g_BattleCommandGridIds[i];
         cellUses[i] = g_BattleCommandCellUses[i];
     }
+    pDigits = g_BattleDigitImageBuffers;
     for (i = 0; i < BATTLE_COMMAND_ROW_COUNT; i++) {
         pBuf = BattleAllocTextBuffer(0x1B);
+        pDigitBuffers = pDigits;
         bufs[i] = pBuf;
         bzero(pBuf, 0x30C);
         nameRect.x = 0x380 + (i % 2) * 0x1E;
@@ -327,12 +341,12 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         BattleLoadImageAndSync(&nameRect, bufs[i]);
         tens = cellUses[i] / 10;
         if (tens != 0) {
-            BattleLoadImageAndSync(&tensRect, g_BattleDigitImageBuffers[tens]);
+            BattleLoadImageAndSync(&tensRect, pDigits[tens]);
         } else {
             BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
         }
         if (cellIds[i] != 0) {
-            BattleLoadImageAndSync(&onesRect, g_BattleDigitImageBuffers[cellUses[i] % 10]);
+            BattleLoadImageAndSync(&onesRect, pDigitBuffers[cellUses[i] % 10]);
         } else {
             BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }
@@ -356,6 +370,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     g_BattleDisplayState->primState = 2;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
+
 
 
 void BattleDrawColumnSpriteCells(s32 arg0) {
