@@ -49,7 +49,7 @@ extern u8 g_BattleCurveTargetModes[];
 // which func_80098D2C rebuilds from this base rather than reading through the entry it holds.
 extern u8 D_800CCD3E[];
 // The byte just before g_BattleCommandCellUses, set to 0x30 with that word's 0x8000 bit.
-extern u8 D_800D2CAF;
+extern u8 g_BattleWaitSkipFlag;
 extern void BattleSetSlotEntryFieldsTo2000(u8, u8);
 
 // The 0x170-byte per-slot condition table. Its flag word sits at +0x8A
@@ -1361,7 +1361,7 @@ void func_80098D2C(u8 slot, u8 row) {
         return;
     }
     if ((g_BattleSlotConditions[slot][0] & 0x80) && pAction->flags != 1) {
-        D_800D2CAF = 0x30;
+        g_BattleWaitSkipFlag = 0x30;
         g_BattleCommandCellFlags |= 0x8000;
         return;
     }

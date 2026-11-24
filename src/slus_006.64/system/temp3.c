@@ -548,7 +548,7 @@ extern u16 g_NextMapId;
 extern s16 g_NextMapRotationY;
 extern s16 D_8006F952;
 extern s16 g_NextMapFlags;
-extern void func_80070F40(void);
+extern void BattleRunScene(void) __asm__("func_80070F40"); // overlay entry: the main exe's bss label is the only definition in this link
 extern void ChangeGameState(unsigned int state);
 extern void MainLoop(s32 arg0);
 extern void* FontLoadFont(s32 startX, s32 startY, s32 width, s32 height, s32 maxLetters, u32 flags, s32 texpageX, s32 texpageY, s32 clutX, s32 clutY, void* pCompressedFontFile);
@@ -567,7 +567,7 @@ void GameSetUpDisplayAndChangeState(void) {
     }
 
     SystemInitializeDisplayEnvironments();
-    func_80070F40();
+    BattleRunScene();
 
     if (D_800C48EA == 1 || D_800C48EA == 0x40 || D_800C48EA == 0x21) {
         if (D_800D3338 != 0) {

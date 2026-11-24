@@ -177,7 +177,7 @@ extern void FontSetExternalBuffer(void* pFont);
 extern void* FontLoadFont(s32 startX, s32 startY, s32 width, s32 height, s32 maxLetters, u32 flags, s32 texpageX, s32 texpageY, s32 clutX, s32 clutY, void* pCompressedFontFile);
 extern u8 D_800C3CF8[];
 extern u8 D_800C3CFB[];
-extern u8 D_800CCC58;
+extern u8 g_BattleSceneRunning;
 extern u8 g_BattleCommandCharIndex;
 extern u8 D_800D2C35;
 extern u8 g_BattleCursorScrollState;
@@ -671,7 +671,7 @@ void BattlePollMenuEvent(s32 arg0) {
                     continue;
                 }
                 event = 0xE;
-                if (D_800CCC58 != 0) {
+                if (g_BattleSceneRunning != 0) {
                     if (g_BattlePauseActive == 0) {
                         GraphicsDrawPauseLetters(0x88, 0x64);
                         GraphicsDrawPauseLetters(0x88, 0x144);
@@ -715,7 +715,7 @@ void BattleUploadImageFrame(void) {
     }
 }
 void BattleUpdateImageUpload(u8 arg0) {
-    if (D_800CCC58 != 0) {
+    if (g_BattleSceneRunning != 0) {
         BattleTickSlotCountdowns();
     }
     if (arg0 == 0) {
@@ -816,7 +816,7 @@ void BattleUpdatePauseMenu(u8 arg0) {
                 if ((g_C1ButtonStateReleased & CTRL_BTN_START) == 0) {
                     continue;
                 }
-                if (D_800CCC58 == 0) {
+                if (g_BattleSceneRunning == 0) {
                     break;
                 }
                 if (g_BattlePauseActive == 0) {

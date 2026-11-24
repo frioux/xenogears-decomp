@@ -35,7 +35,7 @@ typedef struct {
 #define BATTLE_DIGIT_SPRITE_BASE 0x67
 
 // The command queue block g_BattleCommandQueue points at (the 0x2F8 bytes
-// func_80070F40 allocates for it), as in misc4.c's view of the same block.
+// BattleRunScene allocates for it), as in misc4.c's view of the same block.
 typedef struct {
     /* 0x000 */ u8 unk000[0x2D3];
     /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
@@ -81,7 +81,7 @@ extern void func_8028022C(void);
 extern void func_800BE790(void);
 extern void SoundSetAudioManagerVolumeWithFade(s32 *, s32, s32);
 extern void ArchiveReadFileToBuffer(s32, void *, u32, u32);
-extern u8 D_800D2CAF;
+extern u8 g_BattleWaitSkipFlag;
 extern u16 g_BattleActionSlotMask;
 extern u16 g_BattleSlotFlag8000Mask;
 extern u8 *D_800D39F0;
@@ -124,7 +124,7 @@ extern void BattleRunActiveSlotScripts(void);
 extern void BattleResetActorCountdown(void);
 extern void func_80079778(void);
 extern void func_80071964(void);
-extern void func_80072270(void);
+extern void BattleApplyCommandCellFlags(void);
 extern void func_80080160(u8);
 extern void func_80080C94(u8);
 extern void func_800BFE48(void);
@@ -165,10 +165,10 @@ extern void *g_BattleSpriteArchive;
 extern u8 g_BattleSlotFlags[];
 extern u8 g_BattleSlotActorIds[];
 extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 y, u16 u, u16 v, u16 w);
-extern void func_800765C4(s32);
+extern void BattleInitPanelMove(s32);
 extern void func_80076710(s32);
 extern void func_80072938(POLY_FT4 *, s32, s32, s32);
-extern u8 D_800D3298;
+extern u8 g_BattleCountdownsEnabled;
 extern u8 g_BattleSlotEnabledFlags[];
 extern BattleSlotRow g_BattleSlotEntries[];
 extern BattleSlotRow g_BattleSlotEntriesBase[];
@@ -184,7 +184,7 @@ extern u16 D_800CCD6C[];
 extern u16 D_800CCD6E[];
 extern u8 D_800CCE44[];
 extern u16 D_800CCD68[];
-extern u16 D_800D2E1C[];
+extern u16 g_BattleSlotCountdownToggles[];
 extern u8 g_BattleValueDigitSpriteIds[];
 extern u8 g_BattleSlotDisplayValue[];
 extern BattleTableEntry D_800CCDC4[]; // per-slot table family, stride 0x170
@@ -211,18 +211,18 @@ extern u8 g_BattleSoundEnabled;
 extern u8 g_BattleDisplayMode;
 extern s32 *g_BattleSlotParamTable;
 extern s32 *g_BattleStateWork;
-extern u8 D_80059180;
+extern u8 g_BattleResumeAudioFadePending;
 extern u8 g_DebugPageIndex;
 extern u8 D_800C3D44;
-extern u8 D_800C3D5C;
-extern s32 D_800C3DEC;
+extern u8 g_BattleDiscChangePending;
+extern s32 g_BattleStageDisplayId;
 extern u8 g_BattleMenuEventHistory;
-extern u8 D_800CCC58;
-extern s32 D_800D2D3C;
+extern u8 g_BattleSceneRunning;
+extern s32 g_BattleNextModeHeapBlock1;
 extern u8 D_800D2D50;
-extern s32 D_800D2F60;
+extern s32 g_BattleNextModeHeapBlock2;
 extern u8 D_800D2FC4;
-extern u8 D_8006F9DC[];
+extern u8 g_BattleSelectedSkinRecord[];
 extern u8 D_8006F9DD;
 extern u8 D_800658DC[];
 
@@ -233,7 +233,7 @@ typedef struct {
     /* 0x2 */ u16 unk2;
 } BattleSlotLimits; // Size: 0x4
 
-extern BattleSlotLimits D_800C3E0C[3];
+extern BattleSlotLimits g_BattlePartyConditionMasks[3];
 
 extern void *bzero(u8 *, s32);
 extern void *memmove(u8 *, u8 *, s32);
@@ -292,7 +292,7 @@ void BattleFadeOutAudioIfOverlayIdle(void) {
     }
 }
 
-void func_80070F40(void) {
+void BattleRunScene(void) {
     s32 skinBlock1;
     s32 skinBlock2;
     s32 block1;
@@ -329,8 +329,8 @@ void func_80070F40(void) {
 
     if (g_GameResumeScene != 0) {
         g_GameSelectedSkinIndex = g_GameResumeScene - 1;
-        if (D_80059180 != 0) {
-            D_80059180 = 0;
+        if (g_BattleResumeAudioFadePending != 0) {
+            g_BattleResumeAudioFadePending = 0;
             SoundSetAudioManagerVolumeWithFade(pAudioManager, 0x7F, 0x3C);
         }
         if (g_GameSelectedSkinLoadPending == 0) {
@@ -358,10 +358,10 @@ void func_80070F40(void) {
         ArchiveReadFileToBuffer(6, (void *)0x80280000, 0, 0x80);
         ArchiveCdDataSync(0);
     }
-    memmove(D_8006F9DC, D_800658DC + g_GameSelectedSkinIndex * 0x20, 0x20);
+    memmove(g_BattleSelectedSkinRecord, D_800658DC + g_GameSelectedSkinIndex * 0x20, 0x20);
     BattleLoadStage(g_SoundEffectBankIndex);
     func_8007252C();
-    display = D_800C3DEC;
+    display = g_BattleStageDisplayId;
     g_BattleDisplayMode = 2;
     BattleInitStageDisplay(display);
     BattleStartScreenFade(0, 2, 0xFF, 0xFF, 0xFF);
@@ -375,11 +375,11 @@ void func_80070F40(void) {
     g_BattleStateWork = g_SystemStreamedFileData;
     func_80077990();
     animFlags = g_BattleStateFlags;
-    D_800D3298 = 1;
+    g_BattleCountdownsEnabled = 1;
     BattleBeginAnimTask(animFlags);
     BattleUpdateFrame();
     BattleInitTextSlotGraphics();
-    while (D_800CCC58 == 0) {
+    while (g_BattleSceneRunning == 0) {
         BattleUpdateFrame();
     }
 
@@ -399,13 +399,13 @@ void func_80070F40(void) {
 
     for (i = 0; i < 3; i++) {
         if (g_BattleActorCharIds[i] != 0x7F) {
-            D_800C3E0C[i].unk0 = g_GameState.conditionRows[g_BattleActorCharIds[i]].commandMask;
-            D_800C3E0C[i].unk2 = g_GameState.conditionRows[g_BattleActorCharIds[i]].characterConditionMask;
+            g_BattlePartyConditionMasks[i].unk0 = g_GameState.conditionRows[g_BattleActorCharIds[i]].commandMask;
+            g_BattlePartyConditionMasks[i].unk2 = g_GameState.conditionRows[g_BattleActorCharIds[i]].characterConditionMask;
         }
     }
 
     while (D_800C48EA == 0 && D_800D2FC4 == 0) {
-        if (D_800CCC58 != 0) {
+        if (g_BattleSceneRunning != 0) {
             func_800723E0();
         }
         BattleUpdateFrame();
@@ -418,7 +418,7 @@ void func_80070F40(void) {
         mode = 1;
     } else if (g_BattleOverlayEnabled == 0) {
         mode = 2;
-    } else if (D_800C3D5C != 0) {
+    } else if (g_BattleDiscChangePending != 0) {
         mode = 3;
         g_GameDiscChangeRequest = mode;
         *pFlags = 1;
@@ -476,12 +476,12 @@ void func_80070F40(void) {
     }
     ArchiveSetIndex(0x10, 0);
     block1 = BattleAllocHeapBlock(4, 1);
-    D_800D2D3C = block1;
+    g_BattleNextModeHeapBlock1 = block1;
     block2 = BattleAllocHeapBlock(block1 + 0x7FE22000, 1);
-    D_800D2F60 = block2;
+    g_BattleNextModeHeapBlock2 = block2;
     ArchiveReadFileToBuffer(4, (void *)0x801DE000, 0, 0x80);
     func_800B853C(nextMode);
-    while (D_800CCC58 != 0) {
+    while (g_BattleSceneRunning != 0) {
         BattleUpdateFrame();
     }
     if (g_BattleOverlayEnabled == 0) {
@@ -491,8 +491,8 @@ void func_80070F40(void) {
     }
     BattleFadeOutAudioIfOverlayIdle();
     func_801E252C();
-    HeapFree((void *)D_800D2D3C);
-    HeapFree((void *)D_800D2F60);
+    HeapFree((void *)g_BattleNextModeHeapBlock1);
+    HeapFree((void *)g_BattleNextModeHeapBlock2);
 }
 
 
@@ -510,7 +510,7 @@ void BattleTickSlotCountdowns(void) {
     s32 dec;
     s32 i;
 
-    if (D_800D3298 == 0) {
+    if (g_BattleCountdownsEnabled == 0) {
         return;
     }
     for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
@@ -525,8 +525,8 @@ void BattleTickSlotCountdowns(void) {
             dec = 2;
         }
         if (g_BattleSlotEntries[i].flags & 0x1000) {
-            v = D_800D2E1C[i] ^ 1;
-            D_800D2E1C[i] = v;
+            v = g_BattleSlotCountdownToggles[i] ^ 1;
+            g_BattleSlotCountdownToggles[i] = v;
             if (v != 0) {
                 continue;
             }
@@ -568,7 +568,7 @@ void BattleResetActorCountdown(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
 /* 99.51% under 2.6.0 (also 99.51 -G0, 98.78 2.7.2, 94.59 cdk): 41 of 41
    insns and 164 bytes = retail's, and the ONLY residual is the entry flag
-   load, retail 'lbu a1,D_800D2CAF' against our 'lbu v0'. Round 418 closed the
+   load, retail 'lbu a1,g_BattleWaitSkipFlag' against our 'lbu v0'. Round 418 closed the
    last door on it with a repo-wide scan of the matched objects: of the 171
    functions whose first two insns are 'lui r,%hi(sym)' plus a load into the
    same r that feeds the entry branch, 155 take $v0 and EVERY non-$v0 case is
@@ -590,7 +590,7 @@ void func_80071964(void) {
     u8 *pEntry;
     s32 i;
 
-    if (D_800D2CAF != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
+    if (g_BattleWaitSkipFlag != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
         pEntry = GetStringEntry(D_800D39F0);
         D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], 0x39, 1);
         LoadImage((RECT *)&D_800D39C0[-2], (u_long *)D_800D39C0[0]);
@@ -631,7 +631,7 @@ void BattleClearAllSlotFlagB4(void) {
 void BattleWaitWhileStateIs8(void) {
     s32 i;
 
-    if (D_800D2CAF != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
+    if (g_BattleWaitSkipFlag != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
         BattleSetSlotFlagB4(7);
         g_BattleCommandQueue->commandFinished = 0;
         for (i = 0x3B; i != 0; i--) {
@@ -655,13 +655,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
 // 3. The skip flag store and the countdown clear go through one BattleScriptFlagBlock view of D_800D2CA4, which is 81.13 vs 81.05 for the plain D_800D2CA4[0xB] spelling.
 // 
 // REMAINING, in the order they cost:
-// A. The flag address is not the register retail keeps. Retail holds &D_800D2CAF in s0 across the calls, stores sb zero,0(s0) and derives the clear loop biv as addiu v1,s0,-7. Any spelling whose base is D_800D2CA4+0 gives la s0,D_800D2CA4, the +0xB store through $at and a biv s0+4 (431 insns, the current body). That means the original code expressed BOTH accesses off the D_800D2CAF symbol with a negative index. UNTRIED: u8 *p = &D_800D2CA4[0xB]; *p = 0; then for (i = 4; i >= 0; i--) p[i - 0xB] = 0; - mechanical, but it is the shape retail has.
+// A. The flag address is not the register retail keeps. Retail holds &g_BattleWaitSkipFlag in s0 across the calls, stores sb zero,0(s0) and derives the clear loop biv as addiu v1,s0,-7. Any spelling whose base is D_800D2CA4+0 gives la s0,D_800D2CA4, the +0xB store through $at and a biv s0+4 (431 insns, the current body). That means the original code expressed BOTH accesses off the g_BattleWaitSkipFlag symbol with a negative index. UNTRIED: u8 *p = &D_800D2CA4[0xB]; *p = 0; then for (i = 4; i >= 0; i--) p[i - 0xB] = 0; - mechanical, but it is the shape retail has.
 // B. Per-store ORDER in the quad block: retail does [lw prim idx][sll/addu/sll][addu a0,a0,a3 base LAST][screen-origin load][sh], the body does the value first and emits addu base first (addu $5,$7,$5) because pDraw is a pointer local. UNTRIED: drop pDraw and write ((BattleDrawWorkBlock *)g_BattleGraphicsWork)->rows[idx].xN inline (lever a-addu-index-first-is-the-legitimiser: plain spellings give index-first).
 // C. Both tail loops (D_800C3D1A[i * 4] and D_800C3EBA[i * 0x1C]) - retail keeps the SCALED INDEX in the register and re-forms the absolute base with lui/$at every iteration; cc1 2.6.0 strength-reduces the body into a pointer accumulator (lui/addiu + addiu s0,s0,4). The known-unsolved class in AGENTS 3.4.
 // D. addu operand order in the command-queue tail: retail addu v1,v1,a1 for ((u8 *)g_BattleCommandQueue)[i * 0x40 + 0x3C], the body emits addu v1,a1,v1. UNTRIED: the two-statement pSlot = base; pSlot += i * 0x40; form (lever b-inplace-flips-pointer-base-but-hoists-mem-base).
 // E. BattleFindMinValueOtherSlot result: retail move a0,v0, the body andi a0,v0,0xffff - a u16 local for the return value before the call is the UNTRIED spelling.
 // 
-// Also tried and worse: plain D_800D2CAF = 0 with a separate D_800D2CA4[] clear loop (81.05); volatile DECLARATION of g_BattlePrimStartIndex (79.70, breaks a neighbour); -O1 77.11, -O3 compile-fails, gcc 2.7.2 80.54, cdk 73.77, -G0 compile-fails - the preset XenoBattle260 is right.
+// Also tried and worse: plain g_BattleWaitSkipFlag = 0 with a separate D_800D2CA4[] clear loop (81.05); volatile DECLARATION of g_BattlePrimStartIndex (79.70, breaks a neighbour); -O1 77.11, -O3 compile-fails, gcc 2.7.2 80.54, cdk 73.77, -G0 compile-fails - the preset XenoBattle260 is right.
 /*
 // The eight vertex words of the action row's quad at +0x63D0 of the battle draw
 // work block, per prim start index (the block's prim rows are 0x18 bytes apart).
@@ -685,7 +685,7 @@ typedef struct {
 } BattleDrawWorkBlock; // Size: 0x6418
 
 // The 0xC-byte script flag block at D_800D2CA4: the five countdown bytes, then
-// the skip flag D_800D2CAF.
+// the skip flag g_BattleWaitSkipFlag.
 typedef struct {
     u8 countdown[5]; // 0x0
 
@@ -707,7 +707,7 @@ void func_80071B94(u8 arg0) {
     }
     BattleClearSlotCurveState();
     BattleClearCharRedrawFlags();
-    D_800D3298 = 0;
+    g_BattleCountdownsEnabled = 0;
     g_BattleCommandQueue->actorIndex--;
     g_BattleSpriteColorTaskSlot = g_BattleCommandQueue->actorIndex;
     g_BattleCommandQueue->count = 0;
@@ -788,7 +788,7 @@ void func_80071B94(u8 arg0) {
         BattleRunActiveSlotScripts();
     }
     BattleApplyCharRedrawFlags();
-    func_80072270();
+    BattleApplyCommandCellFlags();
     g_BattleGraphicsWork[0x6415] = 0;
     for (i = 0; i < 0xB; i++) {
         ((u8 *)g_BattleCommandQueue)[i * 0x40 + 0x3C] = BattleBuildTargetCandidateListByRow(i);
@@ -805,7 +805,7 @@ void func_80071B94(u8 arg0) {
     BattleApplyCharRedrawFlags();
     func_800BFE48();
     BattleResetActorCountdown();
-    D_800D3298 = 1;
+    g_BattleCountdownsEnabled = 1;
 }*/
 
 /* 72.24% - body is exact except the flag store: gcc hoists `li s3,1` out of the
@@ -821,7 +821,7 @@ void func_80071B94(u8 arg0) {
    gcc's loop.c hoists `li s3,1` for the flag store into a callee-saved register,
    so the frame is 0x28 instead of 0x20 and the g_BattleDisplayState load lands after
    the sh instead of before the lhu. */
-void func_80072270(void) {
+void BattleApplyCommandCellFlags(void) {
     s32 i;
 
     if (g_BattleCommandCellFlags & 7) {
@@ -1480,7 +1480,7 @@ void func_80073538(void) {
                 } else {
                     g_BattleDisplayState->panelPending[i] = 0;
                 }
-                func_800765C4(i);
+                BattleInitPanelMove(i);
                 // fall through
             case 2:
                 func_80076710(i);

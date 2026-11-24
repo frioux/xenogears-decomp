@@ -899,7 +899,7 @@ void BattleDrawFrameByScreenMode(void) {
     }
 }
 
-void func_800765C4(s32 slot) {
+void BattleInitPanelMove(s32 slot) {
     BattleWork *pWork;
     u16 *pOrigin;
     mem_addr origins;

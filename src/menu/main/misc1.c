@@ -34,7 +34,7 @@ extern u8 g_MenuLoadGameRowStringIds[];
 extern u8 g_MenuLoadGameRowXOffsets[];
 extern u8 g_MenuSoftResetEnabled;
 void MenuHidePointerCursors(void);
-void func_801D2D38(void);
+void MenuCreateMainMenu(void);
 void MenuSetupScreen(void);
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveCdDataSync(int mode);
@@ -421,7 +421,7 @@ void MenuOverlayMain(void) {
     g_Menu->soundEffectsEnabled = TRUE;
     switch (g_MenuOverlayIndex) {
         case 0:
-            func_801D2D38();
+            MenuCreateMainMenu();
             MenuNormalMenuMain();
             break;
         case 2:

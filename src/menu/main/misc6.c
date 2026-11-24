@@ -343,7 +343,7 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     MenuRenderFrame();
 }
 
-void func_801D2D38(void) {
+void MenuCreateMainMenu(void) {
     s32 i;
     s32 j;
     u_char menuCharacterId;
