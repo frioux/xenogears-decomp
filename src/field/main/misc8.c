@@ -1097,7 +1097,6 @@ extern u_short g_FieldMaterialAngles[];
 extern s16 D_800ADFC4[];
 extern s32 g_FieldActorModelPointerIndex;
 extern u_char g_FieldPartyMoveInProgress;
-extern void* g_FieldActorModelPointers[];
 
 // This unit writes one word at SpriteData+0x10, which include/field/actor.h
 // splits into two 16-bit texture coordinates.
