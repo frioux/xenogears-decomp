@@ -58,6 +58,9 @@ extern char D_801C52F4[];
 extern char D_801C5308[];
 
 extern u_char g_MenuCdStatus;
+/* The CD status byte read through a pointer stays a real value this way; as a
+   scalar its address is a rematerialisable constant and never a saved register. */
+extern u_char g_MenuCdStatusTable[] __asm__("g_MenuCdStatus");
 extern int Vsync(int mode);
 extern void ArchiveCdDataSync(int mode);
 extern u_char ArchiveCdSetMode(u_char mode);
@@ -1019,6 +1022,26 @@ void MenuReadPcFile(char* pName, char* pBuffer, int len) {
 // calls. Preset screen: gcc-2.7.2-psx measures the same 98.39; 2.6.0 -O3 is 75.57; -G0 and
 // 2.7.2-cdk fail to compile. MATCH needs BOTH residuals (193 insns), so fixing one cannot
 // close it.
+// Best: 98.39% (768 bytes, 192 insns; retail 772 / 193). RESIDUAL (1) IS SOLVED -
+// the only remaining real difference is the success block's missing "result = 0" store.
+// (1, solved round 463) The 0x15 query now reproduces retail exactly: lui s0 / addiu s0 /
+// move a2,s0 in the jal slot / lbu v1,0(s0). The lever is a-an-asm-label-array-extern:
+// "extern u_char g_MenuCdStatusTable[] __asm__("g_MenuCdStatus");" (declared by the
+// extern block at the top of this file) plus "pStat = g_MenuCdStatusTable;" at BOTH sites.
+// As a scalar the address is a rematerialisable constant, so every pointer spelling folds
+// back to the symbol (lui a2 for the arg, then a fresh lui v1 + lbu v1 for the status read);
+// as an unbounded array it is a real value and lands in s0 across the jal, retail's shape.
+// Kept: only the second assignment is needed, the first three loops match either way.
+// (2, open) The success block still folds "result = 0": retail has BOTH "move a3,zero"
+// (the 4th argument) and "move s0,zero" before the jal, this body only the a3 copy, which
+// also puts a3 after the a1 load where retail has it before. Measured this round, all dead:
+// cc1_probe replicas of the shape fold "r = 0; calls; return r" to move v0,0 in one EBB, so
+// the store can only survive if a LABEL splits the block - retail has no branch in it, so no
+// source spelling of these four calls produces one; assigning result=0 after the two
+// ArchiveCdDataSync calls is byte-identical (768/192), and the two-return shape of this body
+// already matches retail's duplicate "addu v0,s0" pair. Earlier rounds (318/373/437/450)
+// cover the register-plan dead ends; round 463 re-measured gcc-2.7.2-psx at 98.39 on the
+// OLD body, not this one.
 /*
 s32 func_801E93A0(s32 disc) {
     MenuSectorHeader header;
@@ -1043,7 +1066,7 @@ s32 func_801E93A0(s32 disc) {
         return result;
     }
     CdIntToPos(0, &pos);
-    pStat = &g_MenuCdStatus;
+    pStat = g_MenuCdStatusTable;
     do {
         Vsync(3);
         CdControlB(1, 0, pStat);
@@ -1064,6 +1087,7 @@ s32 func_801E93A0(s32 disc) {
         do {
             Vsync(3);
         } while (CdControlB(2, (u_char*)&pos, &g_MenuCdStatus) == 0);
+        pStat = g_MenuCdStatusTable;
         ret = CdControlB(0x15, 0, pStat);
         if ((*pStat & 1) && (D_801EA8F5 & 0x40) && (ret == 0)) {
             return 2;
@@ -1093,4 +1117,5 @@ s32 func_801E93A0(s32 disc) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E93A0);
+
 
