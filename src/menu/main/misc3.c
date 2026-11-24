@@ -1481,30 +1481,47 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 
 
-// Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594), re-measured
-// honestly in this redo lane: the body compiles and this is its real score. The structure is
-// retail's - the 62 jal calls match as a MULTISET and differ only in two block placements (we
-// emit both MenuFreeWindow2Strings before the four MenuLoadWindow2Text calls where retail
-// interleaves them, and we put the write loop's close/strcpy/strcat failure block after the
-// rename loop where retail has it before HeapAlloc), so no block is missing and the 15 missing
-// instructions are spill stores/reloads.
-// The whole 453-line diff is ONE rotation of the last three callee-saved registers:
-//   retail: s0 ok/retry, s1 fd, s2 pData, s3 offset, s4 pBuffer, s5 card, s6 chunkIndex (after
-//   MenuFindFreeChunkIndex), s7 &path, fp the loop-hoisted 0xFF constant; it SPILLS arg0 at 0xA8,
-//   repeat at 0xB0, fileFd at 0xB8, ready at 0xC0, result at 0xC8 and the chunk index from before
-//   the call at 0xD0 - vars=200, frame 0x100.
-//   ours: prefix 0x90/0x94 and chunkDigit 0x98/0x99 land on retail's exact offsets, but s4 is
-//   &path, s7 is the 0xFF constant coalesced with chunkIndex, fp is repeat, and only FOUR
-//   variables spill: arg0 0xA0, fileFd 0xA8, ready 0xB0, result 0xB8 - vars=176, frame 0xE8.
-// Both maps rank the constant above repeat, so the residual is not a priority the source can
-// flip: 9 callee-saved registers hold 9 values here and 8 there (retail's repeat is in memory),
-// i.e. retail's original body had one more register-hungry value alive than this one expresses.
-// Tried in this lane: a second variable for the chunk index (recordChunk loaded from
-// chunks[recordIndex].index, chunkIndex only the MenuFindFreeChunkIndex result, which is what
-// retail's s6 plus its 0xD0 spill imply) - 78.05%, 578 insns: it does split the allocno but costs
-// a spill, so this body is the better one.
-// Carried over, still measured: MENU_SLOT_NONE held in a source local is byte-identical at
-// 78.17; presets gcc-2.7.2 78.09 and 2.7.2-cdk does not compile, so the unit's 2.6.0 is right.
+// Register map (still current, re-verified with the 85.37 body): retail s0 ok/retry, s1 fd, s2 pData,
+// s3 offset, s4 pBuffer, s5 card, s6 chunkIndex, s7 &path, fp the 0xFF constant; spilled arg0 0xA8,
+// repeat 0xB0, fileFd 0xB8, ready 0xC0, result 0xC8, chunkIndex-before-the-call 0xD0, vars=200,
+// frame 0x100. Ours: s4 &path, s7 chunkIndex, fp repeat, and only FOUR spills - arg0 0xA0, ready
+// 0xB0, result 0xB8, fileFd; vars=176, frame 0xE8. prefix 0x90/0x94 and chunkDigit 0x98/0x99 land on
+// retail's exact offsets.
+// Best attempt: 85.37% (2312 bytes vs retail's 2376, 578 insns vs 594) - re-measured fresh in this
+// redo lane; the 78.17 body it replaced was structurally wrong in two places. Both fixes are proven:
+// (1) The `format(&prefix)` test is written with the NON-ZERO arm FIRST: `if (format(&prefix) != 0)
+//     { MenuFreeWindow2Strings(); MenuLoadWindow2Text(0x5C,...); } else { ok = 0; free; repeat = 0; }`.
+//     Retail lays the != 0 arm out as the fall-through (0x6FC8 free, 0x6FD8 load, then the == 0 arm
+//     out of line at 0x6FE8), which an `== 0` test does not: 78.17 -> 79.20.
+// (2) The recordIndex chain is NESTED with negated tests, not an else-if chain:
+//       if (rec != MENU_SLOT_NONE) {
+//           if (slotHasGameSave[rec] != 0) {
+//               if (MenuLoadWindow2Text(0x38,..,1)) happy else { ok = 0; prev = NONE; }
+//           } else { MenuLoadWindow2Text(0xC4,..,0); updateCursor = 1; break; }
+//       } else if (MenuLoadWindow2Text(0x5F,..,1) == 0) { ok = 0; prev = NONE; }
+//     An else-if chain puts the 0xC4/0x5F arms before the happy path; retail has them after it, in
+//     reverse order (0xC4 at 0x7128, 0x5F at 0x7154, the shared ok=0 arm at 0x716C): 79.20 -> 85.37.
+//     With (1) and (2) the 62 jal calls are retail's SEQUENCE, not just its multiset, except for the
+//     one block in (a).
+// NAMED RESIDUALS:
+// (a) The copy-loop failure arm (close(fileFd), strcpy(path,prefix), strcat(path,D_801C50B8), erase)
+//     is at 0x73C0 in retail - between the header-write retry loop and HeapAlloc - because retail
+//     reaches it from the copy loop with a jump BACK; this body emits it in place, after the copy
+//     loop. Same calls, only the position differs (~10 instructions misaligned).
+// (b) 16 instructions of spill traffic. Frame 232 (vars 176) here vs retail 256 (vars 200), and the
+//     callee-saved map rotates by one. Retail spills SIX scalars, 8 bytes apart - arg0 0xA8, repeat
+//     0xB0, fileFd 0xB8, ready 0xC0, result 0xC8, chunkIndex 0xD0 - keeps MENU_SLOT_NONE (0xFF) in
+//     $fp, live from 0x6DE0 to 0x71FC, and &path in $s7; chunkIndex therefore needs its own $s6.
+//     This body spills FOUR (arg0 0xA0, ready 0xB0, result 0xB8, fileFd), keeps repeat in $fp, &path
+//     in $s4, and chunkIndex in $s7 - because the 0xFF pseudo dies before chunkIndex is born, so the
+//     two share $s7 (retail's fp use in the MenuFindFreeChunkIndex delay slot at 0x71FC proves they
+//     were distinct values there).
+// Tried and MEASURED in this lane: a source-level `u_char none = MENU_SLOT_NONE` used at all seven
+// NONE sites (2316 bytes, code identical - cse constant-propagates it, so the fp-in-0xFF shape is
+// still unexplained); inlining the recordIndex expression at each use (identical bytes); presets
+// 2.6.0 -O1 70.63, -O3 51.91, -G0 does not compile, 2.7.2 -O2 78.09, 2.7.2 -O3 51.84, 2.7.2-cdk
+// 76.13 - so the unit's 2.6.0 -O2 is right. Not tried: the permuter (structure moved twice here, and
+// 85 is below the 99 gate).
 /*
 u_char func_801CBD90(u_char a0) {
     char newPath[0x40];
@@ -1576,33 +1593,35 @@ u_char func_801CBD90(u_char a0) {
                     break;
                 }
                 MenuCreateWindow2Strings(0x26);
-                if (format((char*)&prefix) == 0) {
+                if (format((char*)&prefix) != 0) {
+                    MenuFreeWindow2Strings();
+                    MenuLoadWindow2Text(0x5C, MENU_WINDOW_TEXT_NONE, 0);
+                } else {
                     ok = 0;
                     MenuFreeWindow2Strings();
                     repeat = 0;
-                } else {
-                    MenuFreeWindow2Strings();
-                    MenuLoadWindow2Text(0x5C, MENU_WINDOW_TEXT_NONE, 0);
                 }
             }
             if (ok) {
                 recordIndex = g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot];
-                if (g_Menu->menuUnk2->slotRecordIndexes[recordIndex] == MENU_SLOT_NONE) {
-                    if (MenuLoadWindow2Text(0x5F, MENU_WINDOW_TEXT_NONE, 1) == 0) {
-                        ok = 0;
-                        g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+                if (g_Menu->menuUnk2->slotRecordIndexes[recordIndex] != MENU_SLOT_NONE) {
+                    if (g_Menu->menuUnk2->slotHasGameSave[recordIndex] != 0) {
+                        if (MenuLoadWindow2Text(0x38, MENU_WINDOW_TEXT_NONE, 1)) {
+                            recordIndex = g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]];
+                            strcpy(path, (char*)&prefix);
+                            strcat(path, (char*)g_Menu->menuUnk2->records[recordIndex].ids);
+                            erase(path);
+                            chunkIndex = g_Menu->menuUnk2->chunks[recordIndex].index;
+                        } else {
+                            ok = 0;
+                            g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+                        }
+                    } else {
+                        MenuLoadWindow2Text(0xC4, MENU_WINDOW_TEXT_NONE, 0);
+                        g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+                        break;
                     }
-                } else if (g_Menu->menuUnk2->slotHasGameSave[recordIndex] == 0) {
-                    MenuLoadWindow2Text(0xC4, MENU_WINDOW_TEXT_NONE, 0);
-                    g_Menu->pCursors->shouldUpdatePosition[0] = 1;
-                    break;
-                } else if (MenuLoadWindow2Text(0x38, MENU_WINDOW_TEXT_NONE, 1)) {
-                    recordIndex = g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]];
-                    strcpy(path, (char*)&prefix);
-                    strcat(path, (char*)g_Menu->menuUnk2->records[recordIndex].ids);
-                    erase(path);
-                    chunkIndex = g_Menu->menuUnk2->chunks[recordIndex].index;
-                } else {
+                } else if (MenuLoadWindow2Text(0x5F, MENU_WINDOW_TEXT_NONE, 1) == 0) {
                     ok = 0;
                     g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
                 }
@@ -1776,6 +1795,7 @@ u_char func_801CBD90(u_char a0) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
+
 
 
 
