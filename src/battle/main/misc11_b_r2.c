@@ -1,5 +1,6 @@
 #include "common.h"
 #include "main/game.h"
+#include "battle/actor.h"
 #include "psyq/libgpu.h"
 
 // Played when the pressed menu event has no command bound to it.
@@ -51,7 +52,7 @@ extern void BattleResetSlotEffectWords(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
 extern void BattleReleaseCharSlot(u8 arg0);
 extern u8 g_BattleSlotConditions[];
-extern u8 D_800C3EB8[];
+extern u8 D_800C3EB8[][BATTLE_ACTOR_SLOT_STRIDE];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
 extern u8 g_BattleCommandSlotMasks[];
@@ -356,43 +357,18 @@ void BattleAdvanceSlotMenuStateEventRandom(u8 arg0) {
     }
 }
 
-/* 96.00%, and the instruction stream is identical to retail's EXCEPT one block
-   position (see the end). Size is retail's 340 bytes. Four levers found, all of
-   them load-bearing:
-   (a) THE g_BattleSlotConditions DOUBLE-$at. Retail re-forms the base for each of
-       the two references (`lui at,%hi; addu at,at,v0; lbu/sb %lo(at)`); with one
-       `|=` our gcc cse's the address into a register (`la v1,sym; addu v0,v0,v1`)
-       and is 8 bytes short. Two references only get separate reloads when their
-       RTL differs, and the RMW gives that only if the index is a NAMED LOCAL and
-       the two spellings put the symbol on opposite sides: `*(u8*)(off + (u32)sym)`
-       vs `*(u8*)((u32)sym + off)`. Inline index expressions canonicalise and
-       merge; array-vs-cast forms too; volatile and pointer locals do not help.
-       This also explains misc19.c's 94.23% park of the same access.
-   (b) `i = 0;` must be hoisted before the `if (g_BattleActorCharIds[arg0] != 7)`
-       and the loop written `for (; i < 3; i++)`: that is what puts retail's
-       `move a1,zero` in the ActorCharIds `beq` delay slot.
-   (c) the graphics-work store wants a pointer local (`pWork = g_BattleGraphicsWork
-       + arg0 * 0x1E4; pWork[0x853D] = 2;`) for retail's base-first
-       `addu v1,v1,v0`; the plain cast sum gives index-first.
-   (d) `*(g_BattleCommandQueue + arg0 + 0x2EB) = 1;` (not `[arg0 + 0x2EB]`) for
-       retail's `addu v0,v0,a0` instead of `addu v0,a0,v0`.
-   REMAINING: retail emits the `g_BattleSlotFlags[arg0 * 8] = 2` block BEFORE the
-   g_BattleActorCharIds load; ours sinks it after the lbu, which flips the tail's
-   registers and the beq target offsets. Forcing the order with `do { } while (0)`
-   around or after the store, or a volatile store, gives the right block position
-   but then `li a0,0x2` displaces arg0 from $s0 and an extra `move a0,s0` appears
-   (344 bytes, 98.35%). A 4-minute permuter run (base 505 -> 149) proposed reusing
-   the loop local for the index (`i = arg0 * 8; g_BattleSlotFlags[i] = 2;`), which
-   is the same 344-byte/no-link shape. Re-measured this round, all at 340 bytes
-   except where noted: `*(g_BattleSlotFlags + arg0 * 8) = 2;` (cast form) 96.00,
-   a shared `u8 state = 2` local for both `2` stores 96.00, a pointer local for
-   the flags index 96.00, `i = 0;` before the store 96.00, the load hoisted into
-   a `charId` local 91.65 (344), the store made volatile 91.47 (344), the index
-   taken through an `s64` local 95.41 (352), and `do { } while (0)` 98.35 (344).
-   A second 3-minute permuter run from this body went 470 -> 394 and its only
-   find was the `s64` index local, i.e. nothing portable. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b_r2", func_800826CC);
-/*
+/* Three spellings in here are load-bearing (each was measured):
+   - the g_BattleSlotConditions read-modify-write must be two differently shaped
+     casts off a named index local, or cse materialises the base once and the
+     block comes out 8 bytes short; the natural `|=` is 332 bytes.
+   - the `if` is wrapped in do/while(0) because sched1 otherwise sinks
+     `g_BattleSlotFlags[arg0 * 8] = 2` below the condition's lbu (96.00 at the
+     same 340 bytes); a bare `do { } while (0);` barrier there fixes the position
+     but copies arg0 into $a0 early and costs 4 bytes (98.35).
+   - the graphics-work store goes through a pointer local for retail's
+     base-first `addu`.
+   Cleared this round: D_800C3EB8 now uses misc1.c's [][BATTLE_ACTOR_SLOT_STRIDE]
+   declaration and the queue flag its charRedrawFlags field; both stay 100.00. */
 void func_800826CC(u8 arg0) {
     s32 i;
     s32 cond;
@@ -408,16 +384,18 @@ void func_800826CC(u8 arg0) {
     BattleReleaseCharSlot(arg0);
     g_BattleSlotFlags[arg0 * 8] = 2;
     i = 0;
-    if (g_BattleActorCharIds[arg0] != 7) {
-        pWork = g_BattleGraphicsWork + arg0 * 0x1E4;
-        *(u8 *)(pWork + 0x853D) = 2;
-    }
-    D_800C3EB8[arg0 * 0x1C] = 1;
-    *(g_BattleCommandQueue + arg0 + 0x2EB) = 1;
-    for (; i < 3; i++) {
+    do {
+        if (g_BattleActorCharIds[arg0] != 7) {
+            pWork = g_BattleGraphicsWork + arg0 * 0x1E4;
+            *(u8 *)(pWork + 0x853D) = 2;
+        }
+    } while (0);
+    D_800C3EB8[arg0][0] = 1;
+    ((BattleActorSlots *)g_BattleCommandQueue)->charRedrawFlags[arg0] = 1;
+    for (; i < MAX_PARTY_MEMBERS; i++) {
         if (g_GameState.partyMembers[i] == g_BattleActorCharIds[arg0] && g_FieldPlayerWalkmeshMaterial == 0) {
             g_GameState.gearRide[i] = 1;
         }
     }
 }
-*/
+
