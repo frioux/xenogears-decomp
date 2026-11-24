@@ -295,48 +295,42 @@ s32 FieldCheckSpriteSlotFlag(s32 index) {
 
 extern RECT g_FieldSpriteSlotRects[5];
 
-/* PARKED 77.38% (572 bytes, retail 668, 143 vs 164 insns). REDO round r426:
-   fresh body from m2c's walker shape - the source keeps FOUR walking field
-   pointers (pH=&rect[0].h, pW=&rect[0].w, pY=&rect[0].y, pRect=&rect[0]) plus
-   an s32 offset (slot*8) and an s32 slot, all incremented at the outer bottom,
-   with the memcpy source x written as the INDEXED form
-   g_FieldSpriteSlotRects[slot].x/4 (retail loads it as symbol+i*8 too), the
-   inner-loop test and prect->h through the pH walker, and the prect->x/y/w
-   stores through the pRect walker. That shape reproduces retail's prologue
-   exactly (pFile spilled at 0x28, pImage at 0x30, ten saved registers,
-   lui base then the derived walkers) where the old indexed body was off from
-   instruction 1; it is +9.13 points over the old park (68.25) at the same
-   source shape's byte count.
-   Residual: retail's frame is 0x80 vs 0x68 and it spills `slot` (0x38) and the
-   &x walker (0x48), so it holds one more live value than this cc1 keeps: it has
-   BOTH the &h walker (s3, used for the outer blez guard and prect->h) AND a
-   second address s4 = offset + &h (base+6) for the inner-loop test, together
-   with preheader copies s6 = &y and s2 = &w, and it re-loads tim.prect from
-   0x1C before each of the four prect stores instead of caching it. This cc1
-   cse-s the four walkers down (fields reached as -4/-2 displacements off one
-   base, tim.prect cached) which costs one saved register and 21 insns.
-   Tried this round: inner test as the indexed g_FieldSpriteSlotRects[slot].h
-   instead of *pH (75.69, 147 insns); no pH walker at all, h indexed at both
-   uses (77.16, 145); test as offset/8 with a single counter (73.18). Old park
-   tried: fully indexed body (68.25), pointer-walk over pRect++ with all fields
-   through it (68.26, 132 insns), nested if instead of the two continues
-   (byte-identical), while/dowhile variants.
-   Preset ruled out on THIS body too: try_flags.sh --sweep over 2.6.0 / 2.7.2 /
-   2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x -mcpu 3000/r8000: Default (-O2, plain
-   2.7.2) is the maximum at 77.38, cdk -O2 72.66, 2.6.0 -O2 72.46.
-   Only one caller (func_800ABA98 @800ABC24) and no twin in the repo.
-*/
+// PARKED 77.35% this round (580 bytes, retail 668, 145 vs 164 insns; the
+//    77.38 body of r426 wrote pRect->x on the ARRAY walker, which is wrong code -
+//    the stores go to tim.prect, retail re-loads it from 0x1C before each of the
+//    four, so 77.35 is the honest spelling of the same shape).
+//    Shape now: four walking readers (pRect=&rects[0], pH=&rects[0].h,
+//    pW=&rects[0].w, pY=&rects[0].y) incremented at the outer bottom, slot as the
+//    index, the memcpy x as the INDEXED form g_FieldSpriteSlotRects[slot].x/4
+//    (retail re-forms its base inside the inner loop), prect stores into
+//    tim.prect. Prologue, the archive read, ReadTIM guard and the two HeapFrees
+//    all match.
+//    Residual: retail runs 19 insns longer because it keeps five addresses live
+//    at once (s3=&h, s4=(slot*8)+base+6 hoisted for the inner bound, s6=&y,
+//    s7=&y for the store, s2=&w) plus slot spilled at 0x38 and the &x walker
+//    spilled at 0x48, and it re-loads tim.prect each store; this cc1 cse-s the
+//    walkers into one base + displacements, which needs two callee-saved
+//    registers fewer (frame 0x68 vs retail 0x80).
+//    Tried this round: fully indexed body with stores to tim.prect (68.25, 148
+//    insns - that is r426's 68.25 result again), walkers+tim.prect (77.35, best),
+//    walkers writing pRect on the array (77.38, wrong code).
+//    Already ruled out by r426 and not retried: r426's variants (75.69 / 77.16 /
+//    73.18), try_flags --sweep over 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1-3 x -G4/G8 x
+//    -mcpu 3000/r8000 (Default is the max), and there is no twin in the repo.
+//    Next idea for a later round: the 19-insn gap is register pressure, so force
+//    retail's extra live values - e.g. keep BOTH an s32 byte offset (slot*8,
+//    incremented by 8) and slot, and give the inner-loop x its own hoisted
+//    pointer read.
 /*
 void func_800AB808(void) {
     TIM_IMAGE tim;
     u_long* pFile;
     u_long* pImage;
     u_long* pDst;
-    s16* pH;
     RECT* pRect;
+    s16* pH;
     s16* pW;
     s16* pY;
-    s32 offset;
     s32 slot;
     s32 j;
 
@@ -346,11 +340,10 @@ void func_800AB808(void) {
     pImage = HeapAlloc(0xF20, 0);
     OpenTIM(pFile);
     if (ReadTIM(&tim) != 0) {
+        pRect = &g_FieldSpriteSlotRects[0];
         pH = &g_FieldSpriteSlotRects[0].h;
         pW = &g_FieldSpriteSlotRects[0].w;
         pY = &g_FieldSpriteSlotRects[0].y;
-        pRect = &g_FieldSpriteSlotRects[0];
-        offset = 0;
         slot = 0;
         do {
             if (FieldCheckSpriteSlotFlag(slot) == -1 && tim.paddr != NULL) {
@@ -359,28 +352,26 @@ void func_800AB808(void) {
                     memcpy(pDst, (u_long*)tim.paddr + (j + *pY) * 0x50 + g_FieldSpriteSlotRects[slot].x / 4, *pW);
                     pDst += *pW / 4;
                 }
-                pRect->x = pRect->x / 2 + 0x300;
-                pRect->y += 0x100;
-                pRect->w /= 2;
-                pRect->h = *pH;
+                tim.prect->x = pRect->x / 2 + 0x300;
+                tim.prect->y = *pY + 0x100;
+                tim.prect->w = *pW / 2;
+                tim.prect->h = *pH;
                 LoadImage(tim.prect, pImage);
                 DrawSync(0);
             }
-            pW++;
-            pY++;
             pRect++;
             pH++;
-            offset += 8;
+            pW++;
+            pY++;
             slot++;
         } while (slot < 5);
     }
 
     HeapFree(pFile);
     HeapFree(pImage);
-}
-
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AB808);
+
 
 typedef struct {
     s32 mapNum;
