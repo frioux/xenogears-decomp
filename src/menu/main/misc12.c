@@ -166,6 +166,14 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
    temps 82.70 / 612, the double-negated offset 80.13 / 624, a slot variable 70.93-76.25) was
    measured and loses the register plan, and the residual is still the four mirrored counter
    addresses plus the prim-base pair hoisted into the beq delay slot.
+   Round 463 (this tree): re-measured 88.75 / 608 / 152 on this body. Two levers from
+   levers.md checked, neither transfers: c-pointer-from-memory-paren-sum-is-base-first - this
+   body already writes the paren form ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[K]
+   that gives base-first in menu/misc8, but there the offset is a plain loop variable while here
+   it is the strength-reduced product index * 0x87C held in s1, and a hoisted invariant goes
+   first (the rule b-strength-reduce-giv-is-always-first measured); and the asm-label array alias
+   that closed func_801E93A0's address residual - the base here is a FIELD of the global pointer
+   g_Menu, not a symbol, so no alias applies. Treat this park as closed.
 void func_801E6CFC(u8 index, u8* pEntry) {
     u8* pPrims;
     s32 primOffset;
