@@ -705,6 +705,23 @@ s32 func_8008390C(s32 arg0) {
 // blue/dirZ store pair and are cross-jumped into one shared tail block, which
 // retail never does. Whether that reordering is sched2 or reorg was not probed.
 // measure: tools/scripts/diff_func.sh world_map/main/misc8 func_80083A00
+// 
+// Round 455 re-measure: 67.51 percent, 1380 bytes, 345 insns (retail 1504 bytes / 376 insns).
+// THE RESIDUAL IS sched2, NOT THE SOURCE ORDER. tools/scripts/cc1_probe.sh on a snippet holding
+// this unit's declarations plus the first switch reproduces retail's arm EXACTLY (source order,
+// both quads, arms unmerged) when -O2 is combined with -fno-schedule-insns2, so the arm reorder and
+// the arm-0/arm-1 shared tail come from dbr_schedule. The whole function under that flag scores
+// only 62.11 because delay-slot filling goes with it, so the flag alone is not a fix: the preset
+// would have to keep delay filling and drop the hoisting. Not applied here.
+// PRESET_NOSCHED world_map/main/misc8 func_80083A00 62.11 67.51
+// - making the Z store volatile puts retail's lh Z / sll 12 / sw 58 / sw 40 quadruple back and
+//   recovers 18 insns (1380 -> 1464 bytes) but measures 66.74; the fold to sw zero the plain store
+//   allows is what the 67.51 body has, so the two are a trade, not a gain.
+// - reading back through a local (angleY = ((s16)*(volatile s16 *)&g_WorldMapViewRotationY) << 12)
+//   makes combine emit lhu plus sll 16 plus sra 4, never retail's lh plus sll 12; only the direct
+//   double read ((s16)g_WorldMapViewRotationY) << 12 in both stores gives lh, sll 12, sw, sw.
+// - the do { } while (0) after the dirY store in arms 0-3 is worth 0.99: 66.52 without, 67.51 with.
+// Both switch tables live in this unit's rodata range, so judge any attempt with check_bin.sh.
 /*
 s32 func_80083A00(s32 arg0) {
     u8 *pScratch = (u8 *)PSX_SCRATCH;
@@ -866,6 +883,7 @@ s32 func_80083A00(s32 arg0) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083A00);
+
 
 
 s32 WorldMapSetActorPosition(s32 arg0) {
