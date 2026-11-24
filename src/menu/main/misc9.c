@@ -1151,6 +1151,19 @@ void MenuSetUnk430PanelShading(u_char arg0) {
 // MEASURED THIS ROUND, the only shape that moved anything: s8 group (signed) 94.41 / 1956
 // bytes / 489 insns - the sign bit costs an andi at each u_char call site, so group is QI and
 // must stay u8. No permuter run: the park lane reserves that for >=99%.
+// ROUND 465: re-measured the body below at 95.96 / 1940 bytes / 485 insns against retail's
+// 485 - the instruction multiset is still identical, only the callee-saved hand-out differs
+// (retail refresh s1 / arg2+found s2 / group s3 / mask s4 / slot s5; ours group+arg2 s1 /
+// mask s2 / refresh s3 / slot s4 / found s5). One new axis CLOSED by measurement: `s32
+// refresh` (SI, 4x allocno size) gives 482 insns / 1928 bytes / 95.63, because retail's
+// refresh truth test is `andi v0,s1,0xff` - refresh is QI-pinned, and so are mask (`andi
+// v0,s4,0xff` before each of its tests) and group (its `== 2` / `== 0` tests reuse the
+// preheader's `andi s3,s2,0xff`). allocno_size is therefore fixed at 1 for all five
+// loop-live quantities and the only lever that could lift refresh's 2880 over group's 3636
+// is gone: group needs <= 16 refs (it has 21, all of them pinned by retail's own call and
+// test sites) or a 292-insn live range (it spans the loop), and refresh needs 24 refs on
+// the same instructions. Same verdict as rounds 385/451 by arithmetic, not by taste.
+//
 /*
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
     MenuPointerCursors* pCursors;
