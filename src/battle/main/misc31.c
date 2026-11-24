@@ -236,6 +236,20 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
 // (load, then mask, then shift) decides which - retail's needs shift, mask, word, i.e.
 // the mask forced into a register BEFORE the word load, which expand_binop's andsi3 can
 // never do (its operand is the memory ref), so park here.
+// R460 re-measured 98.10 at 496 bytes and added three results. (1) The in-place-chain
+// lever's precondition (the load as its OWN statement, placed where retail's `lw a0,0xA8`
+// sits, right after the 0x8CB8 store) is byte-identical to the one-expression body, so
+// pinning the word's register first does not help here. (2) Creating the shift before the
+// load (`slotBits = slot << 30;` above the two NULL stores, then `flags = slotBits |
+// (flags_0xA8 & 0x3FFFFFFF)`) reaches 97.78 with a THREE-way rotation: mask $a0, word $v0,
+// shift $v1 - the mask follows whatever the other two pick, so only the word-versus-shift
+// pair decides and the mask can never be pinned independently. (3) Cross-check:
+// system/temp1 func_80023B84 is a MATCHED function with the same one-expression statement
+// and the same cdk compiler, and retail there holds the mask in $v0, the word in $a1 and
+// the shift in $a0 - i.e. the mask keeps the low register only when its live range is long
+// (created well above the load). So the residual is which of word/shift local-alloc sees
+// first after sched1, not the source order, and every spelling that gets the pair right
+// moves the mask. Park.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 /*
 void func_800BB350(u32 slot) {
