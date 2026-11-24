@@ -584,33 +584,39 @@ extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pN
 extern int FieldGetVec2Angle(IVEC3* pVec);
 extern long FieldGetVec2Magnitude(long, long);
 
-/* Best attempt: 97.99%, 1896 bytes against retail's 1900 (one instruction short).
-      141 differing lines, whole body otherwise instruction-identical apart from one
-      mirrored callee-saved pair: retail keeps frameCount in $s2 and arg3 in $s3,
-      gcc 2.7.2 gives this body arg3=$s2 / frameCount=$s3 and the case-1 xDelta/zDelta
-      knock-on follows (retail $s5/$s4, ours $s2/$s0). Two levers found this round:
-      - THE PTR-BUMP STORE ORDER IN THE REBUILD-EXIT TAIL IS SPELLABLE (96.45 -> 97.91).
-        Retail emits scriptFlags.flags &= ~0x10000; flags &= ~0x200000; then
-        scriptInstructionPointer += 0xD LAST, and gcc 2.7.2 emits the last-written
-        statement's group last: writing the two clears before the bump reproduces
-        retail's lw 0/sw 0/lhu 204/sh 204/lw 4/sw 4 order (any other order rotates the
-        three groups). The earlier note's `+= 0xD`-then-clears order measured 96.45.
-      - THE CASE-0xF WALKMESH LOOP COUNTER IS THE walkmesh VARIABLE, not a fresh i
-        (97.91 -> 97.99): retail reuses $s1 for the loop index and for the tail's
-        walkmesh id, i.e. one pseudo with disjoint live ranges. A separate `int i`
-        gives i=$s0 / points base=$s1 (mirrored pair, 153 differing lines); sharing
-        walkmesh gives retail's $s1/$s0. Declaring it in the for() or as a while with
-        walkmesh++ at the bottom is byte-identical (97.99).
-      THE REMAINING INSTRUCTION IS loop.c NOT HOISTING A CALL-ARG COPY. Retail has
-      `addu a2,s1,zero` twice - once in the preheader, once in the bnez delay slot -
-      so the `a2 = walkmesh` copy (3rd argument of func_8007B1C4) was moved out of the
-      loop and re-emitted at the end; this body keeps one copy at the loop head, so
-      reorg has only the walkmeshTriIds store to fill the bnez slot with (it sinks the
-      `sh` there) and the function is one instruction short. Measured with no change:
-      an empty do{ }while(0) after the flag clears in that arm, an empty do{ }while(0)
-      around the store, splitting the call result into a local before the store, and
-      naming a separate triIndex copy of the loop index (all 97.99 / 1896 / 474).
-      Presets: gcc-2.7.2-cdk 93.77, gcc-2.6.0 92.89, -O3 does not compile. */
+// Best attempt: 97.99%, 1896 bytes against retail's 1900 (one instruction short), 474 insns,
+// frame 0xC0 and the saved set exact, 141 differing lines: the body is instruction-identical
+// apart from one mirrored callee-saved pair (retail keeps frameCount in $s2 and arg3 in $s3;
+// gcc 2.7.2 gives arg3=$s2 / frameCount=$s3, and the case-1 xDelta/zDelta pair follows:
+// retail $s5/$s4, ours $s2/$s0).
+// TWO LEVERS ALREADY BOUGHT (do not re-derive):
+// - THE REBUILD-EXIT TAIL STORE ORDER IS SPELLABLE (96.45 -> 97.91): write
+//   scriptFlags.flags &= ~0x10000; flags &= ~0x200000; and scriptInstructionPointer += 0xD
+//   LAST - gcc emits the last-written statement's group last, which reproduces retail's
+//   lw 0/sw 0/lhu 204/sh 204/lw 4/sw 4 order. Any other order rotates the three groups.
+// - THE CASE-0xF WALKMESH LOOP COUNTER IS THE walkmesh VARIABLE, not a fresh int i
+//   (97.91 -> 97.99): retail reuses $s1 for the loop index and for the tail's walkmesh id,
+//   one pseudo with disjoint live ranges. The for(), the while with walkmesh++ at the bottom
+//   and the ++ in the header all compile byte-identically.
+// THE REMAINING INSTRUCTION IS loop.c NOT HOISTING THE a2 CALL-ARG COPY. Retail has
+// addu a2,s1,zero twice - once in the preheader (after addiu s0,sp,0x58) and once in the
+// back-edge branch's delay slot - i.e. the 'a2 = walkmesh' copy was moved out of the loop
+// head and re-emitted after the biv increment, leaving reorg the walkmeshTriIds store for
+// the slot. Form a (this body) keeps one copy at the loop head, so reorg sinks the sh into
+// the slot and the function is 4 bytes short. Rounds 455 MEASURED THE HOIST ITSELF: spelling
+// the test 'walkmesh + 1 <= g_FieldWalkmeshTriCount - 1' (or 'walkmesh + 1 < count') makes
+// loop.c hoist the copy exactly as retail has it (preheader + back-edge slot, sh back in the
+// block) but the extra +1 costs a second addu off the incremented counter and one callee-saved
+// register: 98.89%, 1904 bytes / 476 insns, frame 0xB8 instead of retail's 0xC0. The
+// '< count' bound variant is retail's exact 1900 bytes at 98.50% but its guard degenerates to
+// slt $t1,count / beq instead of addiu -1 / blez and it needs $t1. So the hoist and the
+// 3-insn 'slt s1,n-1' test are mutually exclusive under 2.7.2: the +1 is what creates the giv
+// loop.c keys on, and with the +1 the test can never be retail's. Also measured dead on this
+// body: test 'walkmesh <= count - 2' (97.71 / 1896, no hoist), an empty do-while after the
+// flag clears, an empty do-while around the store, splitting the call result into a local,
+// and a separate triIndex copy of the loop index (all 97.99 / 1896 / 474). One 3-minute
+// permuter run (973 iterations) found only the +1 test above. Presets: gcc-2.7.2-cdk 93.77,
+// gcc-2.6.0 92.89, -O3 does not compile.
 /*
 void func_80099214(void) {
     VECTOR normals[4];
@@ -740,6 +746,7 @@ walk:
     g_FieldScriptVMStopFlag = 1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
+
 
 
 
