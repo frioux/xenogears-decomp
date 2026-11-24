@@ -263,6 +263,18 @@ extern VECTOR g_CameraEye;
 // unit cannot supply without new data - do not re-spend a lane on local pointer
 // shapes, and note that gcc-2.6.0 -O2 -G0 gives 93.88 but breaks six matched
 // neighbours (see above).
+// ROUND 452 re-measured on this tree: 91.81% / 408 bytes (retail's exact size, 102 vs
+// retail's 103 insns) - the note above is current, nothing to add on the pointer shapes.
+// TWO NEW SPELLINGS MEASURED DEAD (the 'dead parameter carries the constant address'
+// lever from world_map/misc5 does NOT transfer to a SYMBOL base): (1) declaring this
+// function as 'void f(u_char* pCam)' and assigning 'pCam = (u_char*)&g_CamInterpolation;'
+// and (2) the same with 'mem_addr' + a u_char* local - both fold the parameter back to a
+// constant pseudo exactly like the plain local and score 62.01% / 520 bytes / 130 insns,
+// i.e. the parameter pseudo is constant-propagated when the assigned value is a
+// symbol_ref (that lever's win there was a literal const_int address, 0x1F8000A0).
+// func_8007254C is called with no argument from field/main/misc3 func_..., so a
+// one-parameter definition would also make this unit's signature disagree with misc3's
+// extern; not worth it for nothing.
 /*
 void func_8007254C(void) {
     u_char* pCam = (u_char*)&g_CamInterpolation;
@@ -330,6 +342,7 @@ void func_8007254C(void) {
     *(s16*)(pCam - 0x24) = 0;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
+
 
 
 
