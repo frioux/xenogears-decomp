@@ -793,10 +793,10 @@ extern void* g_FieldParticlePrimitives;
 // attribute arrays indexed in parallel.
 typedef struct {
     /* 0x0000 */ POLY_GT4 polygons[560];
-    /* 0x71C0 */ u_short unk71C0[280];
-    /* 0x73F0 */ u_short unk73F0[280];
-    /* 0x7620 */ u_short unk7620[280];
-    /* 0x7850 */ u_short unk7850[280];
+    /* 0x71C0 */ u_short cornerColor0[280];
+    /* 0x73F0 */ u_short cornerColor1[280];
+    /* 0x7620 */ u_short cornerColor2[280];
+    /* 0x7850 */ u_short cornerColor3[280];
 } FieldParticlePrimitiveSet; // Size: 0x7A80
 
 extern u_char D_800B1E24[];
@@ -809,10 +809,10 @@ void FieldAddParticlePrims(void) {
     for (i = 0; i < FIELD_PARTICLE_GRID_ROWS; i++) {
         for (j = 0; j < FIELD_PARTICLE_GRID_COLUMNS; j++) {
             pPoly = (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * FIELD_PARTICLE_POLY_COPY_SIZE) + (i * FIELD_PARTICLE_GRID_COLUMNS + j);
-            FieldFadeParticleCornerColor(pPoly, 0, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk71C0 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
-            FieldFadeParticleCornerColor(pPoly, 1, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk73F0 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
-            FieldFadeParticleCornerColor(pPoly, 2, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7620 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
-            FieldFadeParticleCornerColor(pPoly, 3, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7850 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+            FieldFadeParticleCornerColor(pPoly, 0, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->cornerColor0 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+            FieldFadeParticleCornerColor(pPoly, 1, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->cornerColor1 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+            FieldFadeParticleCornerColor(pPoly, 2, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->cornerColor2 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+            FieldFadeParticleCornerColor(pPoly, 3, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->cornerColor3 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
             addPrim(&g_FieldCurRenderContext->ot3[0],
                 (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * FIELD_PARTICLE_POLY_COPY_SIZE) + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
         }
@@ -846,10 +846,10 @@ void func_800A6E70(void) {
             nIndex = i * FIELD_PARTICLE_GRID_COLUMNS + j;
             pPoly = pPrims->polygons + nIndex;
             pPolyNext = pPrims->polygons + FIELD_PARTICLE_GRID_ROWS * FIELD_PARTICLE_GRID_COLUMNS + nIndex;
-            pPrims->unk71C0[nIndex] = 0x80;
-            pPrims->unk73F0[nIndex] = 0x80;
-            pPrims->unk7620[nIndex] = 0x80;
-            pPrims->unk7850[nIndex] = 0x80;
+            pPrims->cornerColor0[nIndex] = 0x80;
+            pPrims->cornerColor1[nIndex] = 0x80;
+            pPrims->cornerColor2[nIndex] = 0x80;
+            pPrims->cornerColor3[nIndex] = 0x80;
             SetPolyGT4(pPoly);
 
             nX = j * 0x10;
