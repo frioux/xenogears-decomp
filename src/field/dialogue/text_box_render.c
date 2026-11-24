@@ -179,7 +179,29 @@ void FieldTextBoxSetPortraitQuad(POLY_FT4* pPoly, int x, int y, int width, int h
 // g_FieldCursorFrameRects, g_FieldContinueArrowFrameRects and
 // g_FieldTextBoxFrameIndex live inside g_FieldTableQuadTexParams and are
 // declared as externs at the top of this file.
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
+// PARKED 81.03% (round 462): 3236 bytes against retail 3148, 809 instructions against 787.
+// Two source-order fixes bought +12.6 points from the round-458 park (68.38) with no
+// structural change, both found by reading the ORIGINAL's store/branch order, not the
+// disassembler's:
+//  1. The eight frame sprites are stored VALUE-GROUPED, not piece-grouped. The original
+//     writes x-8 to pieces 0,4,3, then x+w-8 to 2,6,1 (with 3.x0 = x-8 in between), then
+//     y+h-9 to 4,6, y+9 to 3,1, then pieceHeight to 3,1, then y-7/x+8 to 5,7 and finally
+//     w-0x10 to 5,7. pieceHeight is computed at the TOP of the block and clamped just
+//     before its two h stores; pieceWidth is not a local at all (w-0x10 is written twice
+//     and cse folds it). 68.38 -> 79.49.
+//  2. The continue-arrow timer test is written as if (timer == 0) { draw } else { timer--; }
+//     (the original's bnez jumps to an out-of-line decrement and the draw falls through).
+//     Same semantics, 79.49 -> 81.03.
+// Residual, unchanged and measured again today: the box stride index*0x498 is computed
+// into $t0 here and $a2 in the original at the same site, and every temp below shifts by
+// one register because of it (ours t7/t8/t1 where retail has t8/t9/t0); the frame is 0x78
+// against retail's 0xA8 with retail's 56 bytes at 0x48..0x7F untouched by any instruction
+// (no sp reference above 0x43), while every used local is already at retail's offset
+// (rect 0x18, ctx 0x20, x 0x28, y 0x30, w 0x38, h 0x40) - so the hole is above the spills
+// and no dead local reaches it (levers.md j-an-expand-time-slot-is-always-the-lowest and
+// j-the-frame-and-the-slot-offsets both record this function).
+// Also ruled out today: m2c_draft.sh emits the same statement order as this body (so no
+// block is missing), and deleting the now-unused pieceWidth local changes nothing.
 /*
 void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
     s32 x;
@@ -189,7 +211,6 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
     s32 scale;
     s32 shrink;
     s32 pieceHeight;
-    s32 pieceWidth;
     s32 portraitX;
     s32 portraitWidth;
     s32 portraitHeight;
@@ -239,9 +260,7 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
         g_FieldTextBoxes[index].windowOpenTimer == 0 &&
         !(g_FieldTextBoxes[index].flags & 0x40) &&
         g_FieldTextBoxes[index].cursor.visibility != 0) {
-        if (g_FieldTextBoxes[index].continueArrowTimer != 0) {
-            g_FieldTextBoxes[index].continueArrowTimer--;
-        } else {
+        if (g_FieldTextBoxes[index].continueArrowTimer == 0) {
             colOffset = SystemStringGetColumnOffset(&g_FieldTextBoxes[index]._pad[0]);
             rowOffset = SystemStringGetRowOffset(&g_FieldTextBoxes[index]._pad[0]);
             rect.x = g_FieldContinueArrowFrameRects[g_FieldTextBoxFrameIndex].x;
@@ -254,6 +273,8 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
             g_FieldTextBoxes[index].continueArrow.sprites[ctx].y0 = rowOffset + 4;
             addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].continueArrow.sprites[ctx]);
             addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].continueArrow.drawModes[ctx]);
+        } else {
+            g_FieldTextBoxes[index].continueArrowTimer--;
         }
     } else {
         g_FieldTextBoxes[index].continueArrowTimer = 2;
@@ -262,39 +283,32 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
     // The window frame is eight sprites: four corners and the four edges
     // stretched between them.
     pieceHeight = h - 0x12;
+
+    // Stores are grouped by value, not by piece: the original computes each
+    // edge coordinate once and writes every piece that shares it.
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 0].x0 = x - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 0].y0 = y - 7;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 2].y0 = y - 7;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 4].x0 = x - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 2].x0 = x + w - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 6].x0 = x + w - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].x0 = x - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].x0 = x + w - 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 4].y0 = y + h - 9;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 6].y0 = y + h - 9;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].y0 = y + 9;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].y0 = y + 9;
     if (pieceHeight < 0) {
         pieceHeight = 0;
     }
-    pieceWidth = w - 0x10;
-
-    // top left
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 0].x0 = x - 8;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 0].y0 = y - 7;
-    // right
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].x0 = x + w - 8;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].y0 = y + 9;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].h = pieceHeight;
-    // top right
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 2].x0 = x + w - 8;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 2].y0 = y - 7;
-    // left
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].x0 = x - 8;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].y0 = y + 9;
     g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 3].h = pieceHeight;
-    // bottom left
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 4].x0 = x - 8;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 4].y0 = y + h - 9;
-    // top
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].x0 = x + 8;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 1].h = pieceHeight;
     g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].y0 = y - 7;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].w = pieceWidth;
-    // bottom right
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 6].x0 = x + w - 8;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 6].y0 = y + h - 9;
-    // bottom
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].x0 = x + 8;
     g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 7].x0 = x + 8;
     g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 7].y0 = y + h - 9;
-    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 7].w = pieceWidth;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 5].w = w - 0x10;
+    g_FieldTextBoxes[index].borders.sprites1[ctx * 10 + 7].w = w - 0x10;
 
     if (!(g_FieldTextBoxes[index].flags & 0x40)) {
         for (i = 0; i < 8; i++) {
@@ -356,8 +370,10 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
         addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.tiles[ctx]);
         addPrim(pOt, (u_long*)&g_FieldTextBoxes[index].background.drawModes[ctx]);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
+
+
 
 
 
