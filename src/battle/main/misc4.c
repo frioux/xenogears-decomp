@@ -148,42 +148,41 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
         BattleQueueCommandF8(arg1);
     }
 }
-/* Best: 95.44%, 400 bytes vs retail's 412 (103 insns). The whole gap is the loop PREHEADER:
-   retail has "move t0,s1" (mask base), "move a2,v1" (queue pointer) and a separate "move a0,zero"
-   after a nop in the beq delay slot; ours cse-merges both pointers into the register that already
-   holds them and reorg steals i = 0 into the beq slot, so we are exactly 3 instructions short.
-   Both copies only appear when the value is NOT cse-equal to the pre-existing register: writing the
-   loop's mask as g_BattleActionSlotMask[0] does emit a copy (c6, 412 bytes) but it also needs a
-   second callee-saved register (frame 0x30, saves s3) - retail saves s0/s1/s2 only. Writing the loop
-   test against g_BattleCommandQueue instead of a local reloads the pointer every iteration (t1,
-   412 bytes, 91.63%). Tried and measured no better than 95.44: pMask/pValue assignment in every
-   position (93.91), for-loops with one or two induction variables (88.64/95.44), do/while wrapper
-   (95.44), n*0x48 strength-reduction forms (84.32), non-void return type (unchanged), array element
-   at each of the three mask sites (8 combinations, 86.7-95.4). Permuter: 1936 iterations, no
-   improvement from base=474. */
+// Best: 96.31%, 404 bytes vs retail 412 (103 insns) - exactly 2 instructions short, so it can never link.
+// The mask base copy DOES come from source: spell the mask g_BattleActionSlotMask[0] at all three sites (the
+// store before the call, the comparison, and the loop store). loop.c hoists the address out of the loop as a
+// pure computation and cse2 folds it onto the register that already holds the symbol, leaving retail move v1,s1.
+// Residual (one cause, two instructions): retail ALSO carries the queue pointer in two registers - the guard
+// reads count through the fresh lui+lw load (v1) and the loop bottom reads it through a copy (move a2,v1) - and
+// its beq delay slot is a nop, while our compile loads the pointer once into a2 and uses it for both reads and
+// reorg steals the byte-offset zero into the beq slot. Measured today and dead: loop test written against
+// g_BattleCommandQueue (no hoist, lui+lw reloaded every iteration, 93.20 / 416), two pointers plus an explicit
+// count guard and a do-while (74.05 / 440, mirrors every register), declaration order of i and n (identical),
+// while with separate n = 0 / i = 0 inits instead of the for-init (identical 96.31). Older measured dead ends
+// from the 95.44 park: pMask/pValue assignment in every position (93.91), for-loops with one or two induction
+// variables (88.64/95.44), do/while wrapper (95.44), n*0x48 strength-reduction forms (84.32), non-void return
+// (unchanged), raw pMask forms at the three mask sites (8 combinations, 86.7-95.4), permuter 1936 iterations
+// from base=474 with no improvement.
 /*
 void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
     BattleCommandQueue *pQueue;
-    u16 *pValue;
-    u16 *pMask;
-    s32 i;
     s32 n;
+    s32 i;
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     g_BattleCommandQueue->unk2DC = g_BattleCommandArgs[arg1].unk1 + 1;
     BattleBeginActorAction(arg0, g_BattleCommandArgs[arg1].slotMask, g_BattleCommandArgs[arg1].unk2);
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
     g_BattleCommandSlotIds[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk2;
-    pValue = g_BattleActionSlotMask;
-    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = *(pMask = pValue);
+    g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleActionSlotMask[0];
     BattleQueueCommandSlotAndTile(arg0, arg1);
-    if (g_BattleCommandArgs[arg1].slotMask != *pValue) {
+    if (g_BattleCommandArgs[arg1].slotMask != g_BattleActionSlotMask[0]) {
         pQueue = g_BattleCommandQueue;
-        i = 0;
         n = 0;
+        i = 0;
         while (n < pQueue->count) {
             if (g_BattleCommandSlotIds[i] == 0xFD) {
-                *(u16 *)((u8 *)g_BattleCommandRecords + i) = *pMask;
+                *(u16 *)((u8 *)g_BattleCommandRecords + i) = g_BattleActionSlotMask[0];
                 break;
             }
             n++;
@@ -191,11 +190,8 @@ void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
         }
     }
 }
- */
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
-
-
-
 
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xFD;
