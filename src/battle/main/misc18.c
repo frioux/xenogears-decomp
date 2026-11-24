@@ -609,7 +609,7 @@ s16 BattleComputeActionAttackValue(void) {
         for (i = 0; i < 3; i++) {
             weaponAttacks[i] = g_BattleTargetSlotState->weaponData[i].attack;
         }
-        attack = g_BattleTargetSlotState->engineOutput * g_BattleTargetSlotState->unk3F;
+        attack = g_BattleTargetSlotState->engineOutput * g_BattleTargetSlotState->attack;
         if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 0x1000) {
             attack = attack + g_BattleTargetSlotState->engineOutput * 2;
         }
@@ -1070,7 +1070,7 @@ void BattleClearAllSlotStates(void) {
         g_BattleTargetSlotState->valueBonus += g_BattleTargetSlotState->etherDefenseFromEquipment;
         g_BattleTargetSlotState->weight += g_BattleTargetSlotState->weightFromEquipment
                                           + g_BattleTargetSlotState->unk46;
-        g_BattleTargetSlotState->unk9A[2] += g_BattleTargetSlotState->unk4C;
+        g_BattleTargetSlotState->damageReduction += g_BattleTargetSlotState->unk4C;
         g_BattleTargetSlotState->responsiveness += g_BattleTargetSlotState->responsivenessFromEquipment;
         g_BattleTargetSlotState->agility += g_BattleTargetSlotState->agilityFromEquipment - g_BattleTargetSlotState->weightPenalty;
         g_BattleTargetSlotState->amountMultiplier += g_BattleTargetSlotState->statBonuses[4];
@@ -1092,9 +1092,9 @@ void BattleClearAllSlotStates(void) {
         if (g_GameState.conditionRows[g_BattleActingSlot->characterId].gearCommandMask & 0x70) {
             pFlags[1] = 3;
         }
-        g_BattleTargetSlotState->unk3F = g_BattleTargetSlotState->attackPower;
+        g_BattleTargetSlotState->attack = g_BattleTargetSlotState->attackPower;
         g_BattleTargetSlotState->unk3E = g_BattleTargetSlotState->attackPower;
-        g_BattleTargetSlotState->unk3F += g_BattleTargetSlotState->statBonuses[6];
+        g_BattleTargetSlotState->attack += g_BattleTargetSlotState->statBonuses[6];
         g_BattleTargetSlotState->unk3E += g_BattleTargetSlotState->statBonuses[6];
         if (g_BattleActingSlot->accessoryEffectFlags4 & BATTLE_GEAR_EFFECT_FLAG) {
             for (j = 0; j < 0x26; j++) {

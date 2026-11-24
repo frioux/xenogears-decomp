@@ -203,7 +203,9 @@ typedef struct {
     /* 0x060 */ s16 groundY; // height of the ground point BattleSnapActorToGround projected onto
     /* 0x062 */ u8 hasSedsEntry1; // a SEDS entry is open for pSoundBank1; func_800A9FF0 removes it
     /* 0x063 */ u8 hasSedsEntry2; // and one for pSoundBank2; func_800AAD54 opens it and BattleFreeActorBuffer removes it
-    /* 0x064 */ u8 unk64[0x6];
+    /* 0x064 */ u16 localX; // the parent-relative position the parent matrix rotates into posX/posY/posZ, as in libgear's Model
+    /* 0x066 */ u16 localY;
+    /* 0x068 */ u16 localZ;
     /* 0x06A */ u16 attachOffsetX;
     /* 0x06C */ u16 attachOffsetY;
     /* 0x06E */ u16 attachOffsetZ;
@@ -215,8 +217,8 @@ typedef struct {
     /* 0x08A */ s16 posY;
     /* 0x08C */ s16 posZ;
     /* 0x08E */ u16 moveDistance; // the distance a move command stops at: the distance commands scale its operand by the actor's size, and command 0x2E copies it into arrivalDistance
-    /* 0x090 */ s16 unk90; // an offset a queued command adds to the vector it tweens; negative = none, as in libgear's Model
-    /* 0x092 */ u16 unk92;
+    /* 0x090 */ s16 textureOffsetX; // added to the material records' texture x, as in libgear's Model; negative = no offset
+    /* 0x092 */ u16 textureOffsetY;
     /* 0x094 */ u16 blendOffsetX; // added to the command's x, as in libgear's Model (func_800AE2A4)
     /* 0x096 */ u16 blendOffsetY; // and to its y
     /* 0x098 */ s16 stepIndex; // the move command's current step; -1 = none installed
@@ -261,10 +263,10 @@ typedef struct {
     // and func_8009A2D4 reads fuel < maxFuel >> 3 as the low-hp condition.
     /* 0x38 */ u16 fuel;
     /* 0x3A */ u16 maxFuel;
-    /* 0x3C */ u8 engineOutput; // with unk3F it forms the gear's attack (misc19's func_8009A2D4)
+    /* 0x3C */ u8 engineOutput; // multiplied by attack to give the gear's attack (misc19's func_8009A2D4)
     /* 0x3D */ u8 pad3D;
-    /* 0x3E */ u8 unk3E; // attackPower plus the accessory bonus, as unk3F
-    /* 0x3F */ u8 unk3F;
+    /* 0x3E */ u8 unk3E; // attackPower plus the accessory bonus, as attack
+    /* 0x3F */ u8 attack; // the multiplier engineOutput turns into the gear's attack (BattleComputeActionAttackValue)
     /* 0x40 */ u16 defenseFromEquipment;
     /* 0x42 */ u16 etherDefenseFromEquipment;
     /* 0x44 */ u16 weightFromEquipment;
@@ -284,7 +286,7 @@ typedef struct {
     /* 0x6A */ u8 pad6A[0x6];
     /* 0x70 */ u16 baseDefense; // defenseFromEquipment is added to it
     /* 0x72 */ u16 valueBonus; // added to the action's value, scaled by (100 - penaltyPercent) / 100
-    /* 0x74 */ u8 attackPower; // copied into unk3E and unk3F
+    /* 0x74 */ u8 attackPower; // copied into unk3E and attack
     /* 0x75 */ u8 pad75[0x7];
     // The active/accessory effect word grid, at the same offsets as in GameCharacter
     // and GameGear (include/main/game.h). Battle code reads these three pairs where
@@ -301,7 +303,9 @@ typedef struct {
 #define BATTLE_STATUS_PENALTY_PERCENT_MAX 20
     /* 0x98 */ u8 agility; // copied from the slot entry's agility and clamped the same way: BattleResetSlotConditionCounters keeps it at most 0x10
     /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
-    /* 0x9A */ u8 unk9A[0x4];
+    /* 0x9A */ u8 unk9A[0x2];
+    /* 0x9C */ u8 damageReduction; // scales an action's amount by (BATTLE_ACTION_POWER_FULL / 2 - it) / BATTLE_ACTION_POWER_FULL, capped one below half
+    /* 0x9D */ u8 unk9D;
     /* 0x9E */ u8 amountMultiplier; // quarter units the action's value is multiplied by, 4 = unchanged; BattleScaleValueByMultiplierByte uses 4 in place of a clear byte or an armed activeEffectFlags1 bit 0x100
     /* 0x9F */ s8 responsiveness; // the attacker adds half of it to its hit, the defender all of it to its evade
     /* 0xA0 */ u8 unkA0[0x4];
