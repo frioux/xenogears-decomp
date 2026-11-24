@@ -187,7 +187,6 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 //    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
 //    without them sched2 raises both global loads above 'unk24 = 0' and stores x
 //    after the Z load (93.26 / 456 bytes); with them every remaining insn matches.
-/*
 s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     s32 kind = g_GameState.partyMembers[index] != CHARACTER_ID_NONE;
     s32 result = 1;
@@ -203,7 +202,6 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     case 2:
     case 4:
     case 6:
-    default:
     setResultThree:
         result = 3;
         goto setZero;
@@ -238,8 +236,7 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
         break;
     }
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11_c", func_8008C364);
+}
 
 
 // 89.86% (436 bytes / 109 insns, retail 444 / 111, so exactly the 8 bytes of a
