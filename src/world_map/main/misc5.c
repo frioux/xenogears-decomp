@@ -1117,6 +1117,38 @@ int func_8007C724(int idx) {
 // -G0 74.45, 2.7.2-cdk -G0 73.67, 2.6.0 74.00 - the preset is settled.
 // If someone revisits: retail loads both Z globals BEFORE the two scratchpad zero
 // stores and computes the subtraction after them.
+// ROUND 442 (redo lane): the -G0 line above is STALE. try_flags.sh now measures
+// 74.45 under -G0, 74.45 under -O3 and compile-failed under 2.6.0, i.e. the same
+// object - these globals are all far from $gp, so -G8 and -G0 agree here and no
+// alternative preset reaches retail's shape.
+// THE $s0/$s1 ADDRESS PAIRS ARE REACHABLE, but only from a struct-typed declaration.
+// cc1_probe on this unit measured which spellings survive gcc's `*&x` fold:
+//   extern s32 g;  s32 *p = &g;              -> folded, bare `lw $2,g`
+//   extern s32 g;  s32 *p = (s32 *)&g + 2;    -> FOLDED, bare `sw $4,g+8` (so the
+//                                               `+2` spelling is NOT the answer)
+//   extern P g;    int *p = &g.z;             -> survives: `la $18,g+8` then
+//                                               `lw 0($18)` / `sw $4,0($18)`, which is
+//                                               exactly retail's $s0/$s1 pair
+//   extern int g;  int *p = &((P *)&g)->z;    -> folded (a cast does not help)
+// So the next lane should retype the six camera/scroll target symbols in this file as
+// `extern WorldMapPos g_WorldMapCameraTarget;` / `...g_WorldMapScrollTarget;` (both
+// triples are 12 contiguous bytes at 0x8009BE28 and 0x8009D55C) and update the three
+// neighbours that use them: WorldMapInitActorScrollScale (.x/.y/.z at lines 323-328),
+// func_8007C724 (the volatile casts at 1083-1088) and WorldMapUpdateGroup4Actor
+// (g_WorldMapScrollTargetZ = pPlayer->z). Same addresses, so the bytes should not
+// move, but re-diff each of the three. Then form `pScrollZ = &g_WorldMapScrollTarget.z;`
+// and `pCamZ = &g_WorldMapCameraTarget.z;` INSIDE the moveCamera block and again in
+// case 6 (retail forms both pairs twice, at .L8007C950 and .L8007CA58).
+// THE SPLIT THAT CLOSES THIS AND func_8007C3B8 TOGETHER (better than the 0x160/0x264
+// recipe below): one main/misc5_b taking rodata [0x160, 0x29C) and code [0xC8C8, end).
+// C3B8's 65-word table then sits at rel 0 and this function's two at rel 0x108/0x120,
+// all three 8-aligned in absolute terms (0x8006FC50 / 0x8006FD58 / 0x8006FD70), so no
+// `.align 3` pad appears and the range still tiles to 0x29C. Add
+// "world_map/main/misc5_b." to XenoWorldMapDiv's paths in gears.toml.
+// ONE BODY BUG still in the parked text below: retail sets the path frame's vx from
+// `lh a0,2(s3)` (`((s16 *)pScratch)[1]`), not `pScratch[0] >> 16`. The honest form
+// measured worse in round 442 (69.91% / 1188 bytes with the rest also rewritten), so
+// the parked body is kept as it measured; fix it when the register shape is solved.
 /*
 s32 func_8007C7D8(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
