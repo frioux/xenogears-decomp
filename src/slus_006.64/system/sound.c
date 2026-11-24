@@ -4726,7 +4726,12 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
    Round 437 already measured dead: pScript++/return pScript (bare and in a
    do-while), return ++pScript, pScript += 1; return pScript, return pScript += 1,
    and index = *pScript++ (33 insns, rotates the s-block).  Two permuter runs
-   found nothing; the source shape is not reachable with 2.6.0 here. */
+   found nothing; the source shape is not reachable with 2.6.0 here.
+   Round 463 new axes, all dead: a distinct local returned at the end
+   (pReturn = pScript + 1; ... return pReturn;) is 93.38% / 31 insns - gcc folds the
+   local into v0 as well - and presets are ruled out too (2.7.2 94.84, cdk 94.84,
+   2.6.0 -O3 rejects the file).  Cause named: with one use of the incremented
+   pointer, 2.6.0's allocator always coalesces the add into $v0. */
 /*
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = *pScript;
@@ -4741,6 +4746,7 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
+
 
 void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
