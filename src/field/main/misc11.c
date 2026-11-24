@@ -108,6 +108,10 @@ extern s16 g_FieldImageDestX[FIELD_IMAGE_SLOT_COUNT];
 extern s16 g_FieldImageDestY[FIELD_IMAGE_SLOT_COUNT];
 extern u_short g_FieldImageDrawIndex;
 
+// objdiff reads 99.46% because splat's expected asm names the interior addresses
+// (D_800AF5EA/EC/EE): the .y/.w/.h element offsets become displacements off
+// g_FieldImageRects, which resolve to those same addresses. check_bin: OK.
+
 void FieldMoveOrClearImageRect(int x, int y, int w, int h, int texX, int texY, int clear) {
     int index = g_FieldImageDrawIndex & (FIELD_IMAGE_SLOT_COUNT - 1);
 
@@ -217,6 +221,8 @@ void FieldUpdateLineScrolls(void) {
     }
 }
 
+// objdiff reads 99.50% for the same reason as FieldMoveOrClearImageRect: splat names the
+// interior address D_800AFFAC, this indexes g_FieldLineScrolls.lengths/.pDatas; check_bin: OK.
 void FieldScriptVMHandlerWriteLineScrollByte(void) {
     int index;
     int offset;
@@ -791,7 +797,7 @@ void FieldScriptVMHandlerRequestFieldState1WithValue(void) {
     g_FieldScriptVMStopFlag = 1;
     pActor = g_FieldScriptVMCurActor;
     *(s16*)&g_pGameState->unk1928[0xA] = value;
-    *(s16*)((u8*)g_pGameState + 0x2320) = value;
+    g_pGameState->unk2320 = value;
     D_800C3A6A = value;
     g_FieldPendingRequestCount++;
     pActor->scriptInstructionPointer += 3;
