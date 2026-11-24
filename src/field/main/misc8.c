@@ -1118,45 +1118,32 @@ typedef struct {
     /* 0xA */ u_short unkA;
 } FieldActorTargetTrack; // Size: 0xC
 
-/* 95.34% (1448 bytes vs retail's 1424, 362 vs 358 insns; the old "356" here was
-   wrong). Everything structural
-   is settled; what is left is register allocation.
-   Settled:
-   - arg1 is FieldActor* and arg2 is the actor's ActorData* (the caller
-     func_8008110C passes &g_FieldActors[i] and its 0x4C field). arg1 is used
-     for exactly one load, pSpriteData.
-   - The 0x74 field is re-read from memory at every one of its six uses, and the
-     three delta blocks each re-read it and pActor->pTargetTrack; only the
-     g_FieldActors pointer is loaded once for those three, so the source read
-     that global into a local (pTracked) for the deltas and spelled it out again
-     for the target positions, which is what retail does (a1 kept across the
-     three deltas, a fresh lui/lw before the target position loads).
-   - g_FieldMaterialAngles is u_short[8] and g_FieldControl.angle is read unsigned (lhu
-     in retail), hence the (u_short) cast and the u_short extern.
-   - The height clamp must be written condition-inverted (limit <= unkF0 >> 16
-     storing limit << 16 first, gravity add in the else): 94.74% -> retail's
-     exact delay-slot shape, where the or-else value is what reorg steals into
-     the beqz slot.
-   - The move updates must NOT be written as (targetPos - pos) + step; retail
-     re-forms the subtraction at each site, so the term order is
-     targetPos + step - pos.
-   Diffs left (round 448 re-measured this body and re-read the .s: items (2) and
-   (3) of the previous note are GONE, the triMaterial/0x400000 store order and the
-   duplicated andi now match):
-   (1) One extra callee-saved word: this body keeps the s16 rotation delta in s7
-       and pushes actorIndex to s8 (10 saved words vs retail's 9), and every s7/s8
-       operand in the body follows from that. It is an allocno-priority tie, not
-       pressure: the values live across the FieldGetActorDistance2D call number
-       seven here and seven in retail, inside a pool of eight s-registers - retail
-       gives the s16 dyAngle $s0 (dead stepX) and keeps actorIndex in $s7. Tried
-       s32/s16 deltas, a separate truncated local assigned right after the
-       subtraction, and dropping the intermediate entirely - always 95.34%.
-   (2) Retail truncates dyAngle BEFORE the calls (`sll a0,a0,16` at 0x12F04, then
-       `sra s0,a0,16` in the bnez delay slot); this body keeps the 32-bit subtrahend
-       in s7 and truncates it after ratan2, which is the one extra instruction.
-   (3) Retail reads rotation.vx (0x104) late, lh into v1, right after the
-       g_FieldActors index chain; this body hoists lhu into a0 ahead of the
-       position loads, so the andi/bnez run on a0 instead of v1. */
+/* 96.26% (1436 bytes vs retail's 1424, 359 vs 358 insns: ONE instruction over,
+   so it cannot link). Round 461 re-measured this body LIVE and found the lever
+   that the old 95.34% note was missing: do NOT keep a dyAngle local -
+   write `delta.vy = <rotation.y - track->rotationY>;` and use `delta.vy` in the
+   angle expression. That reloads the halfword (`lh v0,0x52(sp)`) but frees the
+   callee-saved register the local held, which drops retail's 9th saved word
+   (the old body pushed $s8 for actorIndex and was 362 insns / 1448 bytes).
+   Measured, all 358-362 insns: `s16 dyAngle` local 95.34 / 1448 / 362 (+$s8),
+   the same with `s32 dyAngle = (s16)(...)` 95.19 / 1448 / 362, the chained
+   `delta.vy = dyAngle = ...` 95.34 / 1448 / 362, `delta.vy` alone 96.26 / 1436 /
+   359 - the park. So the two are mutually exclusive from source: retail truncates
+   the delta into a register EARLY (`sll a0,a0,16` right after the delta stores,
+   `sra s0,a0,16` in the `bnez` delay slot before FieldGetActorDistance2D) and
+   reuses $s0, which is dead stepX in that arm; every C body here either keeps the
+   value in a saved register of its own or reloads it from the stack.
+   Settled (from the round-448 note, still true): arg1 is FieldActor* used only for
+   pSpriteData; 0x74 is re-read at each of its six uses; g_FieldMaterialAngles is
+   u_short[8]; the height clamp must be written condition-inverted; the move
+   updates must re-form `targetPos + step - pos`, not `(targetPos - pos) + step`.
+   Diffs left on this body: the `lh` reload above; an allocator permutation in the
+   two zeroed stepX/stepZ registers and in `pActor->flags` (this body keeps flags
+   in $s1 and gets dead `andi v0,s1,0x8000` fillers in two delay slots where retail
+   has `sll v0,v1,0x1` / `nop`); and two store orders (the 0x400000 arm reads
+   move.vz before the rotation.vx `lhu`, where retail does the `lhu`/`ori`/`sh`
+   between the two `sw`s). */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
 /*
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     IVEC3 moveVec;
@@ -1175,7 +1162,6 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     s32 posZ;
     s32 targetPosX;
     s32 targetPosZ;
-    s16 dyAngle;
     FieldActor* pTracked;
     ActorData* pTarget;
 
@@ -1259,9 +1245,8 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pTracked = g_FieldActors;
             delta.vx = pTracked[pActor->canInteract].rotation.x -
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationX;
-            dyAngle = pTracked[pActor->canInteract].rotation.y -
+            delta.vy = pTracked[pActor->canInteract].rotation.y -
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY;
-            delta.vy = dyAngle;
             delta.vz = pTracked[pActor->canInteract].rotation.z -
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationZ;
             ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY =
@@ -1276,7 +1261,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
                     FieldGetActorDistance2D(actorIndex, pActor->canInteract);
             }
             distance = ((FieldActorTargetTrack*)pActor->pTargetTrack)->distance;
-            angle = (s16)ratan2(targetPosZ - posZ, targetPosX - posX) - dyAngle - 0x800;
+            angle = (s16)ratan2(targetPosZ - posZ, targetPosX - posX) - delta.vy - 0x800;
             pActor->move.vx += targetPosX + ((rsin(angle) * distance) << 4) - posX;
             pActor->move.vz += targetPosZ + ((rcos(angle) * distance) << 4) - posZ;
         }
@@ -1289,8 +1274,8 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pActor->moveSpeed << 8;
         g_FieldActorModelPointerIndex++;
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+}
+*/
 
 
 
