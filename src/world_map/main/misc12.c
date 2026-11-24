@@ -402,6 +402,8 @@ extern void WorldMapUpdateRandomTimers(void);
 extern s32 g_WorldMapTpageAbr;
 extern s32 g_WorldMapDrawMode;
 
+// best 65.57% (8304 bytes / 2076 insns against retail's 8312 / 2067; objdiff 65.57). Full body written from m2c_draft (tools/scripts/m2c_draft.sh world_map/main/misc12 func_8008E76C) and retyped: all 27 case bodies of the state switch, the command==4 entry block, and the shared post-switch tail are present, and the jump table is right - sltiu 65 and 65 entries, so case 0x40 must stay (it is the label that sizes the table; states 0x3A-0x40 all land on the shared tail .L80090620). Residual classes, in size order: (1) the whole function's callee-saved set is a permutation - retail s5=idx s6=1(ret) s4=command s3=0x1F800000 s2=pPlayer s1=&pPlayer->x s0=state, the compile s6=idx s7=1 s5=command s2=scratch s4=pPlayer - so most rows are the same instruction with a renamed register; drop a local (7 callee-saved, not 8) and declare them so pPlayer takes s2 first. (2) entry-block statement order: retail copies the 4 words of x/y/z/w into g_WorldMapScrollTargetX straight after WorldMapStartSlot(8,9) and only then reads g_GameState.worldMapState, gcc hoists the lhu above the copy; the 0xA0/0xA4/0xA2/0xA8/AA/AC stores are likewise reordered (mine did 0xA8 first). (3) +9 instructions net, so something is duplicated or missing once the registers are settled - the byte count is 8 short, so the first thing to check is a two-instruction pair, not a body. (4) the switch operand names .rodata where the original names jtbl_80070A50 - expected, linker-resolved, and this unit owns its rodata range, so the table converts. Two spellings I could not express faithfully and left duplicated or goto-shaped: D_8009BD04=0 ends each of the entry switch's three arms (retail has ONE copy reached by three jumps, i.e. a shared tail the source must have had - try a labelled goto or a fallthrough if the arms are restructured), and the case bodies use labels (storeScroll, idleMode, turnToTarget, moveAndRise, move, case31Tail) instead of the loops the original plausibly had. Scratchpad: s32 word base 0x1F800000 in pScratch (0x90/94/98/9C are pScratch[0x24..0x27], 0x00/04/08 are pScratch[0..2]), the 0xA0/0xA8 SVECTORs are absolute sh next to a lui at, which is what retail emits.
+/*
 s32 func_8008E76C(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 *pScratch;
@@ -1246,7 +1248,9 @@ s32 func_8008E76C(s32 idx) {
         WorldMapAddSlotPosition(2, &pPlayer->x);
     }
     return nRet;
-}
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
+
 
 s32 WorldMapModeInitActorRotation(s32 idx) {
     WorldMapPlayer *pPlayer;
