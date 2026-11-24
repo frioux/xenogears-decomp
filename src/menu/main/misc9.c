@@ -126,7 +126,7 @@ u16 MenuAndBitMaskLsbFirst(u32 mask, u8 index);
 void MenuPlaySoundEffect(u_char soundEffectId);
 s32 func_801D9704(s32 slot, u_char direction, u_char arg2);
 void func_801DA5BC(s32 arg0);
-void func_801DA9A8(s32 arg0, s32 arg1);
+void MenuBuildItemPrims(s32 arg0, s32 arg1);
 void func_801DB39C(s32 arg0);
 void MenuBuildPartyCharacterPrims(s32 arg0);
 s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
@@ -251,7 +251,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
         if (refresh) {
             refresh = 0;
             func_801DA5BC(arg0);
-            func_801DA9A8(arg1, arg0);
+            MenuBuildItemPrims(arg1, arg0);
             func_801DB39C(1);
             MenuBuildPartyCharacterPrims(0);
         }
@@ -488,7 +488,7 @@ s32 func_801DBE54(void) {
         }
         MenuBuildArrowCursorPrim(col, row, 0, 0);
         if (col != prevCol) {
-            func_801DA9A8(col, row);
+            MenuBuildItemPrims(col, row);
             prevCol = col;
         }
         if (needsOpen) {

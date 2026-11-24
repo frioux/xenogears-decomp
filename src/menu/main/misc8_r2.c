@@ -476,7 +476,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
 
 
 
-void func_801DA9A8(s32 arg0, s32 arg1) {
+void MenuBuildItemPrims(s32 arg0, s32 arg1) {
     MenuShopItem* pItem;
     RECT rect;
     void* pImage;
