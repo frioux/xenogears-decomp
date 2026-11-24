@@ -207,6 +207,30 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
    i.e. retail's byte count: what is left is an operand-order question, not a size one.
 */
 
+// BEST 98.45% / 1068 bytes / 267 insns (retail's exact size). Round 456 improves the old
+//    97.47 park with two SOURCE changes, both verified by diff: (1) moving result = 0 INTO the
+//    if (refresh) body - it is the first statement of that block, retail puts it in the beqz
+//    delay slot (97.47 -> 97.70); (2) writing the case-4 mask loop as 'i = 0;' then
+//    'pItemId = &g_GameState.itemIDs[idx];' then 'for (; i < 3; i++)', so the loop preheader
+//    reads refresh=0, i=0, la, addu exactly as retail does instead of forming the address
+//    first (97.70 -> 98.45, 36 -> 34 differing lines).
+//    THREE residuals left, all 34 differing lines are these:
+//    (a) retail refresh=$s1 / pItemId=$s2, this body refresh=$s2 / pItemId=$s1 - a pure
+//        2-cycle swap in the three saving slots that follow result=$s3. Tried and worse:
+//        init order result/active/refresh (97.44, 66 lines) and result/active/flags/refresh
+//        (97.44, 66 lines); declaration order of pItemId/refresh/active has no effect at all
+//        (allocnos are numbered by first use), so the order must come from ref counts this
+//        body cannot change without changing the code.
+//    (b) the itemIDs clear in the quantity==0 arm: retail la(g_GameState+0x1F90) then
+//        addiu v0,t0,150 then addu v0,s8,v0 (the constant on the BASE); this body puts the
+//        150 on the index side. Symbol+150 folds to 0x2026, so the split form needs the base
+//        already in a register, which only a runtime base gives - rounds 429 and 446 measured
+//        17 spellings and cc1_probe on this and closed it; re-tried this round: the itemIDs
+//        address inlined into the loop (90.84 / 263, loses 4 insns), reusing pItemId for the
+//        quantities base (96.43 / 268), a separate u8 *pQuantityBase local (96.45 / 268) and
+//        the (u8*) cast form (no change, same 34 lines).
+//    (c) this body's result=0 and refresh=0 stores inside the if land one delay slot later than
+//        retail's (beqz slot vs first call slot) - reorg, rides on (a).
 /*
 u8 func_801DB920(s32 arg0, s32 arg1) {
     MenuShopItem* pItem;
@@ -221,9 +245,9 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     u8 flags;
     s32 slot;
     u8 active;
-    u8* pItemId;
     u8 quantity;
     unsigned int idOffset;
+    u8* pItemId;
 
     slot = g_Menu->characterSlot;
     D_801E9785 = 0;
@@ -247,8 +271,8 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
         idx = arg0 * 2 + arg1;
         pQuantity = &g_GameState.itemQuantities[idx];
         MenuRenderFrame();
-        result = 0;
         if (refresh) {
+            result = 0;
             refresh = 0;
             func_801DA5BC(arg0);
             MenuBuildItemPrims(arg1, arg0);
@@ -286,8 +310,9 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
         switch (g_Menu->input) {
         case 4:
             refresh = 0;
+            i = 0;
             pItemId = &g_GameState.itemIDs[idx];
-            for (i = 0; i < 3; i++) {
+            for (; i < 3; i++) {
                 mask = MenuAndBitMaskLsbFirst(result, i);
                 if (mask != 0) {
                     if (func_801E31C0(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[i],
@@ -335,6 +360,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
+
 
 
 void MenuSwapInventoryItems(s32 index0, s32 index1) {
