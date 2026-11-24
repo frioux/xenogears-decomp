@@ -8,6 +8,10 @@ extern u8 *g_BattleColorSourceA;
 extern u8 *g_BattleColorSourceB;
 extern u8 *g_BattleSpriteRenderData;
 extern u8 *g_BattlePartPrimBuffers; /* [2] in misc22; only element 0 is used here */
+/* Array view of the same symbol, for the func_800A64E4 park: its guard has to be a
+   pointer test, and over the scalar extern 'g_BattlePartPrimBuffers[0] != NULL' tests
+   a BYTE (2 instructions and 8 bytes too many). */
+extern u8 *g_BattlePartPrimBuffersArray[2] __asm__("g_BattlePartPrimBuffers");
 /* Volatile alias of the same symbol: retail reloads the pointer for loop 1's first
    prim store instead of reusing the guard's load, and a volatile read cannot be cse'd. */
 extern u8 * volatile g_BattlePartPrimBuffersVolatile __asm__("g_BattlePartPrimBuffers");
@@ -539,8 +543,26 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
    (byte-identical, 93.73) and a 3-minute two-job permuter run (no change to the
    pointer/byte pair). cc1_probe.sh on a standalone 3-store loop reproduces the same
    mirror (addu $3,$3,$5 / lbu $2), so the $v0 for the pointer is the compiler's
-   local-alloc scan, not the unit's surround - probe before re-spelling this again. *//*
-void func_800A64E4(void) {
+   local-alloc scan, not the unit's surround - probe before re-spelling this again.
+   ROUND 446: reproduced 98.71% at retail's exact 928 bytes / 232 instructions with
+   the body below, and objdiff lists the 30 address addus and NOTHING else (60
+   differing lines, every one 'addu v0,v0,a2' vs 'addu v0,a2,v0'; $v0 holds the
+   reloaded pointer and $v1 the byte on both sides). The one lead this note left is
+   dead: cc1_probe.sh against this unit's real cc1 emits 'addu $2,$5,$2' (index
+   first) for every spelling tried -
+     g[i * 0x24 + K]
+     ((ProbeSlot *)(g + 0x1740))[i].c0[k]          (0x24-byte struct, colour arrays)
+     ((u8 (*)[0x24])(g + 0x1740))[i][k]            (row-array type)
+     g[off + K] with off a LOCAL the loop increments (off += 0x24)
+     g[(off = i * 0x24) + K]                       (the embedded assignment)
+     ((u8 *)(p = g + i * 0x24))[K]                 (embedded pointer assignment)
+   all six are byte-identical, so the operand order is cc1 2.6.0's own
+   canonicalisation of the address (loop.c swaps the strength-reduced biv in front of
+   the pointer) and is not reachable from C. Do not re-spell it; a typed struct does
+   not help either. Spelling it over the scalar extern ('g_BattlePartPrimBuffers[K]')
+   costs 2 instructions / 8 bytes (234 insns, 936 bytes, 95.65%) because the guard
+   then tests a byte - the array alias above is what keeps 928. */
+/* void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
 
@@ -570,30 +592,30 @@ void func_800A64E4(void) {
         } else {
             pSrc += 0x14;
         }
-        if (g_BattlePartPrimBuffers[0] != NULL) {
-            g_BattlePartPrimBuffers[0][i * 0x18 + 0x284] = pSrc[0];
-            g_BattlePartPrimBuffers[0][i * 0x18 + 0x285] = pSrc[1];
-            g_BattlePartPrimBuffers[0][i * 0x18 + 0x286] = pSrc[2];
+        if (g_BattlePartPrimBuffersArray[0] != NULL) {
+            g_BattlePartPrimBuffersArray[0][i * 0x18 + 0x284] = pSrc[0];
+            g_BattlePartPrimBuffersArray[0][i * 0x18 + 0x285] = pSrc[1];
+            g_BattlePartPrimBuffersArray[0][i * 0x18 + 0x286] = pSrc[2];
         }
         pSrc += 4;
     }
     for (i = 0; i < 2; i++) {
-        if (g_BattlePartPrimBuffers[0] != NULL) {
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E4] = pSrc[0];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E5] = pSrc[1];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E6] = pSrc[2];
+        if (g_BattlePartPrimBuffersArray[0] != NULL) {
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2E4] = pSrc[0];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2E5] = pSrc[1];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2E6] = pSrc[2];
             pSrc += 4;
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EC] = pSrc[0];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2ED] = pSrc[1];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EE] = pSrc[2];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2EC] = pSrc[0];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2ED] = pSrc[1];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2EE] = pSrc[2];
             pSrc += 4;
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F4] = pSrc[0];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F5] = pSrc[1];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F6] = pSrc[2];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2F4] = pSrc[0];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2F5] = pSrc[1];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2F6] = pSrc[2];
             pSrc += 4;
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FC] = pSrc[0];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FD] = pSrc[1];
-            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FE] = pSrc[2];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2FC] = pSrc[0];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2FD] = pSrc[1];
+            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2FE] = pSrc[2];
             pSrc += 4;
         } else {
             pSrc += 0x10;
