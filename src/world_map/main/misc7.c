@@ -380,7 +380,17 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // instead of just before the pos.y store). sched2 placement: the copy has no
 // dependences, so no source statement moves it (rounds 377 and this round re-measured
 // round 377's five pArg/0xFFF80000-local shapes: identical body). Presets ruled out.
+// Round 458 measured the empty-statement barrier as the only knob that MOVES the copy,
+// and both of its positions miss retail by one: dropping the do/while entirely is
+// 92.64 / 12 differing lines (the copy lands right after the Z load and `sll a1,a0,7`
+// takes $a1); moving the barrier ABOVE the pos.y store instead of below it is 89.74 /
+// 4 differing lines with the copy at its region's head, i.e. one slot LATE (after the
+// Z load) and the Z load hoisted above the pos.y store; barrier on both sides is
+// identical to the one below (94.87 / 2 lines). So sched2 ranks the copy below the Z
+// load wherever the region starts, and retail's position - between the 0xFFF80000 lui
+// and its store - is not a region head in any of the three shapes.
 
+// Best: 94.87%, 156 bytes / 39 insns = retail's exact size, compiles. ONE residue: the first call's move a0,s0 is 3 slots late (after li v1,-2048, retail has it between the 0xFFF80000 lui and its pos.y store). Round 458 measured the empty-statement barrier as the only knob that moves it: no barrier 92.64 / 12 lines (copy right after the Z load, sll takes $a1), barrier above the pos.y store 89.74 / 4 lines (copy one slot late at the region head, Z load hoisted above the pos.y store), barrier on both sides identical to the one below (94.87 / 2 lines). sched2 ranks the copy below the Z load wherever the region starts; plus round 377's five pArg/0xFFF80000-local shapes (identical body), a 1887-iteration permuter run (NONE) and the preset screen (cdk 87.51, 2.6.0 87.15).
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
@@ -401,6 +411,7 @@ s32 func_80080A28(s32 index) {
     return 3;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
+
 
 // The two GTE scale vectors the fade groups are scaled by, in the scratchpad. The
 // address is a literal on purpose: naming a symbol here makes gcc materialise %hi/%lo
@@ -1284,7 +1295,16 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
 // slot early (between the two <<12 stores where retail has it after both).
 // Kept: cameraHeight is declared with the 0x500000 initialiser (identical body, tidier),
 // the state/command/unk5C do-block is load-bearing, permuter 4 min -j2 finds nothing.
+// Round 458: 96.25 re-measured (240 bytes / 60 insns = retail's). Both residues are one
+// allocation fact: the Z `lh` placed BEFORE the 0x3C store keeps $a0 for itself and the
+// 0x500000 constant lands in $a0 too; moving the load after both <<12 stores is 93.17
+// (Y and Z then share $v0) and reading Z early (right after the ViewZ store, so $a0 is
+// live across the constant) puts the constant in $a1 exactly as retail but leaves the
+// load where it was written - 89.90, 10 differing lines. So the constant's register is
+// decided by whether $a0 is live at that point, and the only way to have both is a load
+// the scheduler sinks, which sched2 does not do for this one. Park at 96.25.
 
+// Best: 96.25%, 240 bytes / 60 insns = retail's exact size. Two linked residues: the 0x500000 constant is in $a0 here and $a1 in retail, and the ViewRotationZ lh sits one slot early (before the 0x3C store). Round 458 measured the trade: load moved after both <<12 stores = 93.17 (Y/Z share $v0); Z read early (after the ViewZ store) = 89.90 with the constant in $a1 as retail but the load unmoved. Both residues are decided by one fact - whether $a0 is live when the constant is formed - and sched2 will not sink the load.
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -1329,6 +1349,7 @@ s32 func_800827EC(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
+
 
 // Best: 75.62% (round 430), 1664 bytes / 416 instructions against retail's 1672 / 418.
 // One barrier fewer scores 76.40 but leaves 461 differing instructions instead of 427, so
