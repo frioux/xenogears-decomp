@@ -990,7 +990,7 @@ extern void BattleUpdateActorStatus(Actor*);
 extern void BattleUpdateActorState(Actor*);
 extern void func_80078194(Actor*);
 extern void func_80074BA4(Actor* p);
-extern void func_80080C48(s32);
+extern void BattleStartTextScreen(s32);
 extern void FontSetPositionsByOffsetClamped(s32, s32);
 extern void BattleSetSpriteTimer(s32);
 extern void BattleRunActorStateHandler(Actor*);
@@ -1128,9 +1128,9 @@ void func_80079DF0(Actor* p1, Actor* p2) {
                     }
                     if (g_BattleFacingUpdateEnabled == 0) {
                         if (g_BattleMode == 4) {
-                            func_80080C48(2);
+                            BattleStartTextScreen(2);
                         } else {
-                            func_80080C48(1);
+                            BattleStartTextScreen(1);
                         }
                     }
 skipFacing:

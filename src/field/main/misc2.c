@@ -2152,7 +2152,7 @@ extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* 
 extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_80081C54(int actorIndex);
 
-void func_80077268(void) {
+void FieldSnapPartyToPlayer(void) {
     ActorData* pData;
     int i;
     SpriteData* pSpriteData;

@@ -115,7 +115,7 @@ extern void func_80081A44(void);
 extern void BattleDrawVibrationOptions(void);
 extern s32 BattleGetTextWidth(u32 a0);
 extern void BattleSetTextColor(s32 a0);
-extern void func_80080F04(void);
+extern void BattleInitCenteredTextSprites(void);
 extern void *GetStringEntry(void *pStringData, u32 entry);
 extern s32 SystemRenderStringEntry(void *pCur, void *pCharBuffer, s32 mode, s32 flag);
 extern s32 BattleLoadArchiveEntry(s32 a0);
@@ -214,7 +214,7 @@ void BattleSaveScreenImage(void) {
     DrawSync(0);
 }
 
-void func_80080C48(s32 a0) {
+void BattleStartTextScreen(s32 a0) {
     SoundStopAllElements();
     BattlePlaySoundEffectById(0x1F);
     if (a0 == 1) {
@@ -296,7 +296,7 @@ typedef struct {
 extern Misc8Text g_BattleCenteredTextSprites[2];
 extern DR_TPAGE g_BattleTextSpriteTpagePrims[];
 
-void func_80080F04(void) {
+void BattleInitCenteredTextSprites(void) {
     u_long *pData;
     Misc8Text *pText;
 
@@ -429,7 +429,7 @@ void BattleInitTextLists(void) {
     g_BattleCurrentTextList = 0;
     g_BattleCursorIndex0 = 0;
     g_BattleCursorIndex1 = 1;
-    func_80080F04();
+    BattleInitCenteredTextSprites();
 }
 
 void BattleDrawTextList(BattleTextList *p) {

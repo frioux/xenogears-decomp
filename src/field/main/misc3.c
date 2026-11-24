@@ -786,7 +786,7 @@ extern void func_800705DC(void);
 extern void func_8007A5C4(void);
 extern void func_8006FDEC(s16* pData);
 extern void func_80080F44(int actorIndex);
-extern void func_80077268(void);
+extern void FieldSnapPartyToPlayer(void);
 extern void func_800A28D4(void);
 extern void func_802812A4(void);
 extern void FieldLoadTIM(u_long* pTimData);
@@ -1215,7 +1215,7 @@ void FieldLoad(void) {
     g_GameStagedFileTag = -1;
     g_GameStagedFileIndex = -1;
     FieldUpdateActorRenderModes();
-    func_80077268();
+    FieldSnapPartyToPlayer();
     g_FieldRenderContextUseOT2 = g_FieldScreenEffectEnabled ? 1 : FieldAnyActorHasFlag8000();
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {

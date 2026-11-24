@@ -1781,7 +1781,7 @@ extern s32 g_FieldPartyActorIndices[MAX_PARTY_MEMBERS];
 extern s32 g_FieldScriptVMScriptEndFlag;
 extern s32 FieldScriptGetBytecodeOffset(int scriptIndex, int routineIndex);
 extern void FieldScriptVMRun(int maxInstructionCount);
-extern void func_80077268(void);
+extern void FieldSnapPartyToPlayer(void);
 
 // Bytecode opcode a party member's actor runs once its model file has loaded; its
 // argument is the character id that was just loaded.
@@ -1919,7 +1919,7 @@ void func_8008B978(int characterId) {
                     offset = FieldScriptGetBytecodeOffset(i, 0);
                     FieldActorCopyPlacement(i, g_PlayerActorIndex);
                     FieldScriptVMRun(0xFFFF);
-                    func_80077268();
+                    FieldSnapPartyToPlayer();
                     g_pGameState->characterFlags |= 1 << g_FieldPartyModelLoadCharacter;
                     if ((g_GameSceneMapNum & FIELD_MAP_GEAR_SKINS_MASK) != 0) {
                         pFieldActor = &(*ppFieldActors)[g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex]];

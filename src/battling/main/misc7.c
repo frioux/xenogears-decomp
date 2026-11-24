@@ -126,7 +126,7 @@ extern u8 g_StrVibrationOff[];
 
 void BattleSetTextColor(s32 arg);
 void BattleClearTextSpriteEntries(void);
-void func_80080C48(s32 arg);
+void BattleStartTextScreen(s32 arg);
 void BattleSetScreenMode(s32 mode);
 void BattleSetTextCursor(s32 a, s32 b);
 void BattleDrawTextRight(u8* pText);
@@ -214,7 +214,7 @@ void BattleExitOptionsScreen(void) {
     s32 mode;
     s32 current;
 
-    func_80080C48(0);
+    BattleStartTextScreen(0);
     if (g_BattleMatchCount[0] != 0) {
         mode = 3;
     } else {
