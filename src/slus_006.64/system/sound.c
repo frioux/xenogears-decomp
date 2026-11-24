@@ -1367,6 +1367,7 @@ void SoundSpuMemoryInitialize(void) {
 // unchanged (loop head only: the hoisted base and the s0/s1 swap). No new spelling attempted;
 // the nine measured in round 316 plus three permuter runs stand.
 // Round 446 re-measured the un-parked body: 94.58% / retail's exact 256 bytes / 64 insns, 40 differing lines, all one cause. One more dead spelling measured: pointer arithmetic on the struct type (`g_SoundSpuMemoryBlocks + pPrevBlock->nextBlockIndex`, no u8 cast) is byte-identical to the cast form, 94.58 / 256 / 64 - the 15th spelling. NEW READ of the two objects (this is why the spellings cannot move it): retail has NO register holding &Arr inside the loop, because its `la s1` IS pPrevBlock and pPrevBlock is overwritten by `move s1,a0`, so the loop head materialises the base with two insns (lui+addiu, in the lh load-delay slot); our body keeps &Arr in s0 at the loop head and loop.c snapshots it there with `move a2,s0` + a nop filler, i.e. one insn SHORTER per iteration than retail - and because that register is then reused for pPrevBlock the two callee-saved pointers swap (address s1 / pPrevBlock s0 vs retail's s0/s1) and every later s0/s1 reference mirrors with them. So the residual is move_movables' choice of the invariant's rtx class (symbol constant vs the REG_EQUAL register the preheader `la` left behind), not an address spelling; that also explains why the loop is 1 insn long per iteration and still 0 bytes off. Do not re-enter without a way to stop the preheader la from being the invariant.
+// Round 459: re-measured the un-parked body: 94.58% / retail's exact 256 bytes / 64 insns, 40 differing lines - the same one cause as round 446 (the invariant &g_SoundSpuMemoryBlocks is hoisted into a2 with a per-iteration 'move a2,s0' plus a nop in the lh's load-delay slot where retail re-forms it with lui+addiu, and because that copy references s0 the address/pPrevBlock pair mirrors: ours address s1 / pPrevBlock s0, retail s0/s1). One new spelling measured, byte-identical: reading the address back through pPrevBlock after the pointer update ('address = pPrevBlock->spuAddress + pPrevBlock->size;') is 94.58 / 256 / 64, the 16th. Do not re-enter without a way to stop the preheader la from becoming the loop's invariant: with the invariant hoisted, s0/s1 cannot mirror retail, so this is not a callee-saved quotient contest.
 /*
 int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
     SoundSpuMemoryBlock* pPrevBlock;
@@ -1407,6 +1408,7 @@ allocate:
     return address;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlock);
+
 
 
 
@@ -5007,6 +5009,7 @@ sllv, its addiu and the slti. Flipping the pair needs pVoice at 14 refs or the c
 two instructions retail does not have, so this is a proof and not a tie - do not re-enter it.
 */
 // Round 446 re-measured the un-parked body: 98.51% at retail's exact 604 bytes / 151 insns, 72 differing lines, unchanged. Nothing new attempted: round 433's -dg/-dl dumps prove the t0/t1 mirror is not a local-alloc tie but a global-alloc refs/live quotient with both counts pinned by the instruction stream (pVoice 8 refs/96 insns, counter 13/95; flipping needs 14 or 8, i.e. two instructions retail does not have). Do not re-enter without a new allocator axis.
+// Round 459: re-measured 98.51% / retail's exact 604 bytes / 151 insns (72 differing lines, unchanged). Two NEW axes measured, both worse: (1) the counter declared u16 instead of s32 does NOT shrink its allocno mode size, because i is only ever used in promoted SI contexts, so the pseudo stays SI and pays an extra extension insn: 96.36% / 608 bytes / 152 insns, same t0/t1 mirror - this is the exception to a-qiparam-size-one-pins-the-saved-pair, a promoted local cannot be given a smaller allocno_size. (2) sharing one pSpu variable pre- and post-loop (pSpu = g_pSoundSpuRegisters; pVoice = pSpu->_rxx.voice; ... pSpu = g_pSoundSpuRegisters;) costs the coalesce: 97.85% / 608 bytes / 152 insns. So round 446's arithmetic stands: pVoice needs 14 refs (or the counter <= 7) with both pinned by the instruction stream.
 /*
 void func_8003E900(void) {
     SpuUnion* pSpu;
