@@ -391,7 +391,7 @@ u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
         canAct = 0;
     }
     if (canAct != 0) {
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
     }
     return result;
 }
