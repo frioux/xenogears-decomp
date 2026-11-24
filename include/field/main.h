@@ -67,7 +67,7 @@ typedef struct {
     /* 0xC4  */ SVECTOR worldRotation;
     /* 0xCC  */ SVECTOR worldTranslation;
     /* 0xD4  */ MATRIX worldToScreenMatrix;
-    /* 0xF4  */ MATRIX unkF4;
+    /* 0xF4  */ MATRIX worldScaleMatrix; // ScaleMatrix of g_WorldScale; actor matrices are composed with it
     /* 0x114 */ MATRIX worldRotationMatrix;
 } FieldScene; // Size: 0x134
 
