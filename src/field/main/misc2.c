@@ -248,6 +248,21 @@ extern VECTOR g_CameraEye;
 // already-matched functions drop (FieldActorApplyRotationAndScale 99.12, FieldMathIntersectLines
 // 98.11, FieldCameraUpdateFromTarget 99.81, FieldMatrixLookAt 95.50, FieldUpdateActorRenderModes
 // 99.86), so there is no clean 93.88 -> 100 to chase here.
+// ROUND 439, the diagnosis made mechanical (both forms re-measured on this tree):
+// the parked body's residual is "MEM pseudo vs REG pseudo", visible as the prologue
+// alone. Ours: frame 0x20, `lui a0/addiu a0` then `sw a0,16(sp)`, and after the jal
+// `lw v0,16(sp)` - i.e. the base is the address-taken LOCAL, a stack slot, reloaded
+// into a caller-saved register. Retail: frame 0x18, `sw s0,16(sp)` then `lui
+// s0/addiu s0`, and every post-call store is `disp(s0)` - a REG pseudo global-alloc
+// put in a callee-saved register. The plain pointer (62.01%) has retail's FRAME
+// (0x18, no s0 slot) but re-forms `lui $at / sw %lo(g_CamInterpolation+K)($at)` for
+// all 47 post-call stores (130 insns vs retail's 103), so 2.7.2's cse substitutes
+// the constant address instead of keeping it in a register. Every launder tried so
+// far moves the base from one bad place to the other; the untried class is a base
+// whose VALUE the compiler cannot know (a pointer loaded from memory), which this
+// unit cannot supply without new data - do not re-spend a lane on local pointer
+// shapes, and note that gcc-2.6.0 -O2 -G0 gives 93.88 but breaks six matched
+// neighbours (see above).
 /*
 void func_8007254C(void) {
     u_char* pCam = (u_char*)&g_CamInterpolation;
@@ -2107,13 +2122,23 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 // the third of the three loads that sit BEFORE the `addiu sp` prologue and keeps
 // its `sll v1,v1,2` (pActorData index * 4) AFTER the second base load; ours emits
 // the arg3 base next to the pData base load and the `sll` before both. Same
-// instruction multiset, the four volatile loads keep retail's relative order, so
-// it is a sched2/prologue-interaction residual, not a source shape.
-// WHAT GOT IT HERE (the two levers, both measured this round):
+// instruction multiset, so it is a sched2/prologue-interaction residual.
+// READ THE VOLATILE-LOAD ORDER FIRST: both `lw g_FieldActors` are volatile reads
+// (include/field/actor.h has `extern FieldActor* volatile g_FieldActors`), so the
+// emitted order IS the source order and sched2 cannot swap them. Retail's order is
+// [idx,idx,base_arg2,base_pData] with the arg2 chain built from the FIRST idx read
+// ($a0) and the pData chain from the second ($v0); our parked order is
+// [idx,idx,base_pData,base_arg2]. So retail's SOURCE reads g_FieldActors for arg2
+// before the pActorData expression, and reaches arg2 through the actorIndex local.
+// Round 439 measured that source (`pPlayer = &g_FieldActors[g_PlayerActorIndex];`
+// before `pPlayerData = g_FieldActors[actorIndex].pActorData;`): the load order IS
+// retail's and the sizes match, but both base loads hoist above the prologue and
+// the two chains SWAP registers, 95.08% / 184 insns (+4 bytes) - so the order fix
+// and retail's register pair are not simultaneously reachable from that shape.
+// WHAT GOT IT HERE (the two levers, both measured in an earlier round):
 // 1. `g_PlayerActorIndex` must be declared volatile in this unit: retail re-reads
 //    it AND re-forms the whole index*0x5C chain for each of the TWELVE copy
-//    statements (68.46 -> 80.73, 135 -> 174 insns). A plain `extern s32` lets cse
-//    keep one index chain in a register for the whole block.
+//    statements (68.46 -> 80.73, 135 -> 174 insns).
 // 2. The six destination stores must go through a volatile lvalue
 //    (`*(volatile int*)&pSpriteData->position.x = ...`): with plain stores sched2
 //    sinks the next statement's volatile `lw g_PlayerActorIndex` between this
@@ -2122,12 +2147,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 // 3. pCurActor must be RE-FORMED after the FieldCharacterIdToPartyId call as
 //    `(FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors)` - that is what
 //    gives retail's `addu v0,s4,v0` operand order (offset-first) and the second
-//    `lw v0,76(v0)` that arg2's y is read through (a plain `&g_FieldActors[i]`
-//    gives `addu v0,v0,s4` and reads y out of the saved pData: 97.43).
+//    `lw v0,76(v0)` that arg2's y is read through (97.43 for the plain form).
 // Tried and dead: pActor as its own local before / after pPlayerData (94.32 /
-// 96.86 - the arg3 base then loads early, as retail wants, but the second index
-// load moves to $a1 and the loop's $s1/$s2 pair swaps back); the offset form for
-// arg3 inline in the call (97.43); three declaration orders.
+// 96.86); the offset form for arg3 inline in the call (97.43); three declaration
+// orders; the arg2-base-first source above (95.08).
 // Permuter cannot run on this body: its base compile dies with "conversion to
 // non-scalar type requested" in the re-emitted temp file.
 // preset re-screened on THIS body: 2.7.2 -G0 (unit) 97.49, 2.6.0 97.38,
@@ -2135,9 +2158,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 // cc1's own output (build/src/field/main/misc2.c.s) shows the split: cc1 emits
 // `sll $3,$3,2` (index*4) BEFORE the two `lw g_FieldActors` volatile loads, and
 // retail has it AFTER the chain's base load, i.e. in that load's delay slot.
-// Re-measured: 97.49 (30 s), pActor local again 94.32, the two head statements
-// swapped 97.43 - so the residual is the pre-reload sched/load-delay placement
-// inside one address expression, not a statement order.
 /*
 void func_80077268(void) {
     ActorData* pData;
