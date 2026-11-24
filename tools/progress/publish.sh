@@ -33,6 +33,6 @@ if git -C "$tmp" diff --cached --quiet; then
     exit 0
 fi
 git -C "$tmp" commit --quiet -m "progress: $short $pct"
-git -C "$tmp" push origin gh-pages
+git -C "$tmp" push --quiet origin gh-pages
 
 echo "Published: https://frioux.github.io/xenogears-decomp/"

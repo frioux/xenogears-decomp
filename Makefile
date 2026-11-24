@@ -122,8 +122,22 @@ progress: report
 # Render and push the progress site (with history) to the gh-pages branch.
 # Also refreshes reports/progress.json, which CI publishes on every push (CI
 # cannot build: the game binaries are not in the repo).
-progress-publish: report snapshot
-	tools/progress/publish.sh $(BUILD_DIR)/progress.json
+# The rebuild behind the report prints ~1600 lines of splat/ninja/compiler noise,
+# so it goes to a temp log that is shown (tail) only when it fails.
+progress-publish:
+	@log="$$(mktemp -t progress-publish.XXXXXX)"; \
+	echo "progress-publish: rebuilding for the objdiff report (~1 min)"; \
+	if $(MAKE) --no-print-directory report > "$$log" 2>&1; then \
+		rm -f "$$log"; \
+	else \
+		grep -m5 -A6 '^FAILED:' "$$log" || tail -n 40 "$$log"; \
+		echo "progress-publish: report failed; full log: $$log"; \
+		exit 1; \
+	fi
+	@mkdir -p reports
+	@cp $(BUILD_DIR)/progress.json reports/progress.json
+	@echo "report snapshot: reports/progress.json"
+	@tools/progress/publish.sh $(BUILD_DIR)/progress.json
 
 # Committed copy of the report, the input to the CI publisher.
 snapshot: report
