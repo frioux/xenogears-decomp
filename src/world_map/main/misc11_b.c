@@ -24,7 +24,7 @@ typedef struct {
     /* 0x06 */ s16 targetSlot;
     /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
     /* 0x20 */ s16 state;
-    /* 0x22 */ u16 unk22;
+    /* 0x22 */ u16 stateTimer;
     /* 0x24 */ s16 unk24;
     /* 0x26 */ undefined16 pad26;
     /* 0x28 */ s32 x;
@@ -105,7 +105,7 @@ extern s32 WorldMapMoveActorTowardTarget(WorldMapActor *);
 // Ported from the matched twin WorldMapUpdateActorSlot: same command/state machine family.
 // Measured constraints: the state switch is 65 entries only because case 64 (state 0x40) is a
 // live case whose body is the exit; the 0x30 arm (case 48) does NOT fall through into 49
-// (retail jumps to the shared state store); the countdowns are (s16)--pActor->unk22 <= 0 (u16
+// (retail jumps to the shared state store); the countdowns are (s16)--pActor->stateTimer <= 0 (u16
 // field read with lhu, so the test is signed); slot = index - 4 must stay an s32 local
 // (folding it into the constant costs the addiu and adds an sll/sra pair). The scratchpad is
 // the one argument area: +0x0 is the WorldMapPos and WorldMapScreenPos the calls read, +0xA0
@@ -224,7 +224,7 @@ int func_8008D678(int index) {
         break;
     case 24:
         if (g_GameState.partyMembers[index - 4] == 7) {
-            pActor->unk22 = 1;
+            pActor->stateTimer = 1;
             pActor->state = 0x1A;
         } else {
             SVECTOR *pSpritePos = (SVECTOR *)&pScratch[0x28];
@@ -233,19 +233,19 @@ int func_8008D678(int index) {
             pSpritePos->vy = pActor->y >> 12;
             pSpritePos->vz = pActor->z >> 12;
             WorldMapInitSpriteGroupSprites(index + 1, pSpritePos, 0);
-            pActor->unk22 = 8;
+            pActor->stateTimer = 8;
             pActor->state++;
         }
         break;
     case 25:
-        if ((s16)--pActor->unk22 <= 0) {
+        if ((s16)--pActor->stateTimer <= 0) {
             pActor->unk24 = 1;
-            pActor->unk22 = 0x10;
+            pActor->stateTimer = 0x10;
             pActor->state++;
         }
         break;
     case 26:
-        if ((s16)--pActor->unk22 <= 0) {
+        if ((s16)--pActor->stateTimer <= 0) {
             SpritePlayAnimation(pActor->pSprite, 3);
             pActor->unk24 = 1;
             pActor->state = 2;
