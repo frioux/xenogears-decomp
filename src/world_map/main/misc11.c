@@ -138,12 +138,15 @@ extern void WorldMapFindZoneAtPosition(WorldMapPos *, s32, s32, u8 *, u8 *);
 extern void WorldMapUpdateSpriteGroupFromActor(s32, WorldMapActor *, WorldMapScreenPos *);
 extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 
-/* func_8008A72C, WorldMapModeInitActorSlot, WorldMapModeInitActorSlot2, func_8008C364, func_8008C844 and
-   func_8008D678 each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
+/* func_8008A72C, WorldMapModeInitActorSlot, WorldMapModeInitActorSlot2, func_8008C364 and func_8008C844
+   each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
    every table in place - only that function's own instructions and its table
-   words change (proved with check_bin.sh for WorldMapUpdateActorSlot). */
+   words change (proved with check_bin.sh for WorldMapUpdateActorSlot). The unit's two
+   last tables (func_8008D678's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
+   cc1 tables from this range: that function and the tail after it are
+   src/world_map/main/misc11_b.c, whose .rodata range starts at 0xDE4. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 // 93.51% (752 insns / 3008 bytes against retail's 740 / 2960; 643 differing lines).
 // Round 423, first body: full transcription of the command switch, the 65-entry state

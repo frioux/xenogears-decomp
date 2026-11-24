@@ -1,11 +1,14 @@
 #include "common.h"
 #include "main/game.h"
+#include "psyq/libgte.h"
 
 // Tail of world_map/main/misc11, split into its own unit (config/world_map.yaml) because this
 // object's .rodata range starts at file 0xDE4 (4 mod 8) while misc11's starts at 0xA28 (0 mod 8):
 // cc1 hardcodes .align 3 before a switch table, so func_8008D678's two tables only land on retail's
 // 0xDE4/0xE04 at internal +0/+0x20, i.e. from a range of that parity.
 
+// World map view of the sprite object SpriteAllocFromAnimFile returns (SpriteData in
+// include/field/actor.h). Only the two fields this unit touches are named: it clears
 // bit 2 of the 0x3C flag word as a whole word, which that header's bitfields cannot
 // express, and compares the current animation id, byte 3 of the header's 0xAC word.
 typedef struct {
@@ -55,17 +58,6 @@ typedef struct {
 } WorldMapScreenPos; // Size: 0xB0
 
 typedef struct {
-    /* 0x00 */ s16 id;
-    /* 0x02 */ undefined16 pad02;
-    /* 0x04 */ s32 x;
-    /* 0x08 */ s32 y;
-    /* 0x0C */ s32 z;
-    /* 0x10 */ s32 height;
-    /* 0x14 */ s16 radius;
-    /* 0x16 */ undefined16 pad16;
-} WorldMapEntry; // Size: 0x18
-
-typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
     /* 0x8 */ s32 z;
@@ -102,40 +94,24 @@ extern s32 WorldMapGetTilePlaneHeight(s32, s32);
 extern WorldMapSprite *SpriteAllocFromAnimFile(void *, s16, s16, s16, s16, s16);
 extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetScale(void *, s16);
-extern s32 rcos(s32);
-extern s32 ratan2(s32, s32);
-extern s32 rsin(s32);
 extern void WorldMapBuildDirectionFromPositions(WorldMapPos *, WorldMapPos *, s32 *, s16 *);
 extern void WorldMapAddSlotPosition(s16, s32 *);
 extern s32 WorldMapStartSlot(s32, s32);
 extern void WorldMapUpdateSpriteGroupFromActor(s32, WorldMapActor *, WorldMapScreenPos *);
 extern s32 WorldMapMoveActorTowardTarget(WorldMapActor *);
 
-// 99.96% (445 insns / 1780 bytes = retail's exact size; the ONLY differing rows are the two
-// lw v0,<jtbl> operands, i.e. the owned-table form this unit always shows). PORTED from the
-// matched twin WorldMapUpdateActorSlot (same command/state family): every instruction is retail's.
-// CHECK_BIN MEASURED (round 444): build/out/world_map.bin 180426 vs disc 180422 (+4) and the
-// FIRST differing byte is file 0xDE4 - four zero pad bytes where jtbl_800708D4 should start -
-// after which every .text pointer in the file reads +4 (misc1's rodata words at file 0x4 included,
-// because rodata is this overlay's first section). So the C is not the problem: the table position is.
-// WHY IT CANNOT LINK FROM THIS FILE: misc11's rodata range starts at file 0xA28 (0 mod 8) and these
-// are its last two tables, at range+0x3BC and +0x3DC (both 4 mod 8), while .align 3 before a C
-// switch table is hardcoded in every cc1 (lever i-jtbl-align-3-hardcoded). A table converts only
-// when (table - object rodata start) % 8 == 0, so a run of converted tables cannot absorb this one.
-// THE ROUTE IS A UNIT SPLIT, not C work: give the tail its own rodata range of parity 4 -
-// [0xDE4, .rodata, main/misc11_b] in config/world_map.yaml plus [0x1DB88, c, main/misc11_b],
-// moving func_8008D678 and the stubs after it into src/world_map/main/misc11_b.c (misc11 keeps
-// 0xA28..0xDE4). The new object's rodata then starts at file 0xDE4, so both C tables sit at internal
-// 0 and 0x20 with no pad and land on retail's 0xDE4/0xE04 - the same split that closed
-// world_map/misc12's tail tables. Needs an orchestrator (new .c file, yaml + gears.toml path key).
-// Facts worth keeping: command arm 4 is the gearRide[index-4] write; the state switch is 65 entries
-// only because of case 64 (state 0x40 is a live case whose body is the exit); the 0x30 arm (case 48)
-// does NOT fall through into 49 (retail jumps to the shared state store); the countdowns are
-// (s16)--pActor->unk22 <= 0 (u16 field read with lhu, signed test -> lhu/sll 16/bgtz); the tail's
-// slot = index - 4 must stay an s32 local (folding it into the constant costs the addiu and adds an
-// sll/sra pair). A 4-minute permuter run found nothing (base=312 best=312).
+// 100% (445 insns / 1780 bytes = retail's exact size; the only differing rows are the two
+// jtbl_/.rodata table operands, which is this overlay's owned-table form - check_bin OK).
+// Ported from the matched twin WorldMapUpdateActorSlot: same command/state machine family.
+// Measured constraints: the state switch is 65 entries only because case 64 (state 0x40) is a
+// live case whose body is the exit; the 0x30 arm (case 48) does NOT fall through into 49
+// (retail jumps to the shared state store); the countdowns are (s16)--pActor->unk22 <= 0 (u16
+// field read with lhu, so the test is signed); slot = index - 4 must stay an s32 local
+// (folding it into the constant costs the addiu and adds an sll/sra pair). The scratchpad is
+// the one argument area: +0x0 is the WorldMapPos and WorldMapScreenPos the calls read, +0xA0
+// is the SVECTOR WorldMapInitSpriteGroupSprites takes.
 int func_8008D678(int index) {
-    s32 *pScratch = (s32 *)0x1F800000;
+    s32 *pScratch = (s32 *)PSX_SCRATCH;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapActor *pTarget;
     WorldMapTrail *pTrail;
@@ -251,10 +227,12 @@ int func_8008D678(int index) {
             pActor->unk22 = 1;
             pActor->state = 0x1A;
         } else {
-            ((s16 *)pScratch)[0x50] = pActor->x >> 12;
-            ((s16 *)pScratch)[0x51] = pActor->y >> 12;
-            ((s16 *)pScratch)[0x52] = pActor->z >> 12;
-            WorldMapInitSpriteGroupSprites(index + 1, &pScratch[0x28], 0);
+            SVECTOR *pSpritePos = (SVECTOR *)&pScratch[0x28];
+
+            pSpritePos->vx = pActor->x >> 12;
+            pSpritePos->vy = pActor->y >> 12;
+            pSpritePos->vz = pActor->z >> 12;
+            WorldMapInitSpriteGroupSprites(index + 1, pSpritePos, 0);
             pActor->unk22 = 8;
             pActor->state++;
         }
