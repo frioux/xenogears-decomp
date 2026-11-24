@@ -671,18 +671,18 @@ void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
     }
 }
 
-// Cursor and glyph prim block of one memory card slot, in MenuUnk2's anonymous blob at
-// 0x4D94 (one 0xF0-byte block per slot): a cursor prim per render context, then the slot
-// number's glyph prims, each glyph also a context pair.
+// Cursor and glyph prim block of one memory card, in MenuUnk2's anonymous blob at 0x4D94
+// (one block per card): a cursor prim per render context, then the card's slot number's
+// glyph prims, each glyph also a context pair.
 typedef struct {
     /* 0x00 */ POLY_FT4 cursors[2]; // Cursor prim, one per render context
     /* 0x50 */ POLY_FT4 glyphs[4]; // Glyph j's prim for context c at 2 * j + c
-    /* 0xA0 */ u8 unkA0[0x50];
-} MenuCardSlotPrims; // Size: 0xF0
+} MenuCardPrimBlock; // Size: 0xF0
+
 void func_801CF8D8(void) {
     MenuUnk2* pData;
     u_char useAlt;
-    u8 rendered[2];
+    u8 rendered[MENU_CARD_COUNT];
     // retail's frame is 0x58 with its save block at 0x30: 8 bytes of its local area at
     // 0x22..0x2F are never touched, which only an unused local reproduces.
     u8 unusedFrame[8];
@@ -705,7 +705,7 @@ void func_801CF8D8(void) {
         base = 0x4D94;
         x1 = 0x1B;
         x0 = 0x1E;
-        for (; i < 2; i++) {
+        for (; i < MENU_CARD_COUNT; i++) {
             pData = g_Menu->menuUnk2;
             if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {
                 useAlt = 1;
@@ -713,14 +713,14 @@ void func_801CF8D8(void) {
                     useAlt = 0;
                 }
                 if (useAlt) {
-                    func_8002675C(g_Menu->resources, 0x115, ((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors,
+                    func_8002675C(g_Menu->resources, 0x115, ((MenuCardPrimBlock*)((u8*)g_Menu->menuUnk2 + base))->cursors,
                                   g_Menu->renderContext, x0, y, scale);
                 } else {
-                    func_8002675C(g_Menu->resources, 0x122, ((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors,
+                    func_8002675C(g_Menu->resources, 0x122, ((MenuCardPrimBlock*)((u8*)g_Menu->menuUnk2 + base))->cursors,
                                   g_Menu->renderContext, x0, y, scale);
                 }
                 count = func_8002675C(g_Menu->resources, i + 0x162,
-                                      ((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->glyphs,
+                                      ((MenuCardPrimBlock*)((u8*)g_Menu->menuUnk2 + base))->glyphs,
                                       g_Menu->renderContext, x1, y, scale);
                 rendered[i] = 1;
             }
@@ -731,13 +731,13 @@ void func_801CF8D8(void) {
                     slotOffset = base;
                     do {
                         AddPrim(&g_Menu->pGfxEnv->ot[4],
-                                &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + slotOffset))->glyphs[2 * j + g_Menu->renderContext]);
+                                &((MenuCardPrimBlock*)((u8*)g_Menu->menuUnk2 + slotOffset))->glyphs[2 * j + g_Menu->renderContext]);
                     } while (++j < count);
                 }
                 AddPrim(&g_Menu->pGfxEnv->ot[4],
-                        &((MenuCardSlotPrims*)((u8*)g_Menu->menuUnk2 + base))->cursors[g_Menu->renderContext]);
+                        &((MenuCardPrimBlock*)((u8*)g_Menu->menuUnk2 + base))->cursors[g_Menu->renderContext]);
             }
-            base += 0xF0;
+            base += sizeof(MenuCardPrimBlock);
             x1 += 0x90;
             x0 += 0x90;
         }
