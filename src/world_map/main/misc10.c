@@ -26,6 +26,8 @@ extern void func_80089580(void);
 #define WORLD_MAP_PRIM_TEMPLATE_POOL_SIZE (WORLD_MAP_PRIM_TEMPLATE_COUNT * sizeof(POLY_FT4))
 
 #define WORLD_MAP_PRIM_TAG_LEN 9 // a POLY_FT4's packet length in words past its tag
+// A POLY_FT4's primitive code byte.
+#define WORLD_MAP_PRIM_CODE_POLY_FT4 0x2C
 // Bit 1 of a primitive code byte: the primitive is drawn semi-transparent (same define
 // as misc7.c and misc9.c).
 #define WORLD_MAP_PRIM_CODE_SEMI_TRANS 0x2
@@ -39,6 +41,9 @@ extern void func_80089580(void);
 // g_WorldMapSpriteSetIds is a list of sprite set ids closed by this value, so the first
 // id is tested against it before the walk.
 #define WORLD_MAP_SPRITE_SET_ID_END (-1)
+// How far above the scene layer's position the "with height offset" placement puts the
+// slot: 64 world units, in 12.12 fixed point.
+#define WORLD_MAP_ACTOR_POS_HEIGHT_OFFSET 0x40000
 
 // Bits of WorldMapSprite.flags, tested by WorldMapEmitSpriteTrailEntries.
 #define WORLD_MAP_SPRITE_FLAG_ACTIVE 0x80 // the slot is in use; cleared once the life timer runs out
@@ -330,7 +335,7 @@ s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 slotIndex) {
     pPlayer = g_WorldMapSlots + slotIndex;
     pLayer = &g_WorldMapGroups[g_WorldMapLevelSpriteSetIdsHeightOffset[g_WorldMapLevelIndex]];
     pPlayer->x = pLayer->pos.x << 12;
-    pPlayer->y = (pLayer->pos.y << 12) + 0x40000;
+    pPlayer->y = (pLayer->pos.y << 12) + WORLD_MAP_ACTOR_POS_HEIGHT_OFFSET;
     pPlayer->z = pLayer->pos.z << 12;
     return 1;
 }
@@ -426,7 +431,7 @@ void WorldMapInitPrimTemplateBuffers(void) {
     for (i = WORLD_MAP_PRIM_TEMPLATE_COUNT - 1; i != -1; i--) {
         // the GPU takes the packet's word count from the tag's high byte; a POLY_FT4 is 9 words past its tag
         ((u8*)&pPrim->tag)[3] = WORLD_MAP_PRIM_TAG_LEN;
-        pPrim->code = 0x2C; // POLY_FT4
+        pPrim->code = WORLD_MAP_PRIM_CODE_POLY_FT4;
         pPrim->tpage = GetTPage(1, 1, 0x340, 0x100);
         pPrim->clut = GetClut(0x100, 0x1FF);
         pPrim->code |= WORLD_MAP_PRIM_CODE_SEMI_TRANS;
