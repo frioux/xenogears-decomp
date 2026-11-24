@@ -105,6 +105,13 @@ segments:
       - [0xC5DC, c, system/menu]
       - [0xD0DC, c, system/work_list]
       - [0xDCE8, c, system/rendering]
+      # The four contiguous atfree stubs (func_8001E3D8 .. func_8001F1D4, file
+      # 0xEBD8..0xFD30): their original object ends a `jal free` with a cdk -G0
+      # addiu in the delay slot, which no other preset in this family produces, so
+      # that run gets its own cdk -G0 TU. The tail after it is another TU again so
+      # the head's name stays on the head.
+      - [0xEBD8, c, system/rendering_atfree]
+      - [0xFD30, c, system/rendering_b]
       # GraphicsDrawPauseLetters and func_8001FB30: the original object was built
       # with the cdk compiler, so this range needs its own TU and preset.
       - [0x102B4, c, system/rendering_pause_text]
