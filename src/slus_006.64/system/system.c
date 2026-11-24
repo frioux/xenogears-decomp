@@ -1080,8 +1080,16 @@ void SystemStringClearLineOffset(SystemString* pString) {
 extern void func_80031798(void* pOt, void* pPrim);
 
 
-// Parked at 96.83% (1564 bytes against retail's 1572: TWO instructions short).
+// Parked at 97.26% (1564 bytes against retail's 1572: TWO instructions short).
 // Everything below is measured, not guessed.
+// - THE ROW-RESET LOOP COUNTS WITH `row`, NOT A LOCAL: `for (row = 0; row <
+//   pString->maxChars; row++) pString->pChars[row].rowWidth = 0;` (with
+//   `row = pString->scrollRow;` after it) is what makes row's pseudo live across
+//   the sprite loops' calls, so global-alloc gives row s3 and i s4 - retail's map
+//   - and the reset loop's own counter comes out in s3 with the byte offset in
+//   v1, exactly as retail has it (96.83 -> 97.26, and both sprite loops' giv
+//   chains, the mult operands and the row-reset loop become instruction
+//   identical).
 // - THE SOURCE HAS NO pChar / pSprite LOCALS. Retail re-reads pString->pChars
 //   (lw v1,40(s0)) for every single store and re-forms the sprite address each
 //   time; a pointer local CSEs all of that and comes out ~180 bytes short at 68%.
@@ -1102,15 +1110,17 @@ extern void func_80031798(void* pOt, void* pPrim);
 //   sched2 raise the flags load ABOVE the sb (lbu / lhu / sb / andi), which drops
 //   both the load-delay nop after lbu and the one after the lhu. Measured
 //   non-fixes: a volatile u16 read of flags in the if (96.04%, 1576 bytes, breaks
-//   ordering elsewhere), a volatile u8 store of unk69 (no change).
-// - THE REGISTER MAP IS ONE SWAP FROM RETAIL'S: s1 = row*0x60 (the derived giv)
-//   and s2 = context*0x28 match, but retail has s3 = row, s4 = i where this body
-//   has s3 = i, s4 = row (before it: s2 = i, s3 = context*0x28, s4 = row).
-//   Declaration order of i/row does NOT move it (both orders byte-identical) and
-//   neither does scoping each sprite loop's row/i in its own block. The row-reset
-//   loop's own counter (local j) DOES move: sharing i across all three loops
-//   gives 96.72 with that counter in s2, giving it its own j gives 96.83 with it
-//   in v1/a0 (retail has s3).
+//   ordering elsewhere), a volatile u8 store of unk69 (no change), and reading
+//   flags once into a `flags = *(volatile u16*)&pString->flags;` local used by the
+//   whole hold test (97.26%, 1564 bytes - byte-identical, sched2 still steals the
+//   load into the lbu's delay slot, so a volatile lvalue is not a scheduling
+//   barrier here). Retail's merge block is [sb, lhu, andi...] with the lhu owning
+//   an unfillable nop slot; ours schedules the load first and reorg fills the
+//   preceding block's lbu slot with it, which is the whole 2-instruction gap.
+// - THE REGISTER MAP MATCHES RETAIL'S NOW: s1 = row*0x60 (the derived giv), s2 =
+//   context*0x28, s3 = row, s4 = i. See the reset-counter bullet: it was the
+//   local `j` counter that forced s3 = i. (Declaration order of i/row and scoping
+//   each loop's locals in their own block are both no-ops, byte-identical.)
 // - THE ~9 `addu v1,s2,v1` SITES (context sum base-first) come out
 //   `addu v1,v1,s3` here. Retail has BOTH orders in the same function (0x252A0
 //   base-first, 0x2532C index-first), so this is per-site, not one spelling.
@@ -1123,8 +1133,7 @@ extern void func_80031798(void* pOt, void* pPrim);
 // - The frame matches retail exactly (0x80, vars=80): the older note claiming
 //   0x78 was wrong.
 // - Loop 2's width clamp must stay an if/else (the ternary costs 0.99%).
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
-
+// 97.26%, 1564 bytes (2 instructions short). Repro: unpark and diff.
 /*
 void func_80034888(SystemString* pString, u_long* pOt, int context) {
     SystemStringNode* pNode;
@@ -1162,8 +1171,6 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
     }
 
     if (pString->flags & SYSTEM_STRING_FLAG_WRAPPED) {
-        int j;
-
         pString->scrollRow = 0;
         pString->rowCount = 0;
         pString->charIndex = 0;
@@ -1172,8 +1179,8 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
         pString->pChars[0].clut = g_SystemPalette1;
         pString->pChars[0].paletteIndex = 0;
         pString->pChars[0].imageRect.y = pString->textureY;
-        for (j = 0; j < pString->maxChars; j++) {
-            pString->pChars[j].rowWidth = 0;
+        for (row = 0; row < pString->maxChars; row++) {
+            pString->pChars[row].rowWidth = 0;
         }
         pString->flags &= ~(SYSTEM_STRING_FLAG_WRAPPED | 0x1);
     }
@@ -1201,7 +1208,6 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
             func_80031798(pOt, &pString->pChars[row].sprt[context][1]);
         }
         row++;
-    }
     }
 
     AddPrim(pOt, &pString->drawMode[1]);
@@ -1264,8 +1270,10 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
 
     pString->flags &= ~SYSTEM_STRING_FLAG_PALETTE_DOUBLE;
     AddPrim(pOt, &pString->drawMode[0]);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
+
+
 
 // Primitive code of the free-size textured rects a rendered row's sprites are
 #define SYSTEM_STRING_RECT_CODE 0x64
