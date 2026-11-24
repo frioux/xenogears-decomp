@@ -170,6 +170,19 @@ typedef struct {
 
 #define BATTLE_COMMAND_ROW(i) (&((BattleWorkRows*)g_BattleStateWork)->rows[i])
 
+// A command row reached from its own base inside g_BattleStateWork. The 0x14E pad
+// is what keeps the row's fields in the load displacement (`lhu 0x172(base + i * 0x48)`
+// after `addiu base,base,0`): a written-out `g_BattleStateWork + i * 0x48 + 0x14E`
+// (or an address-of this member) makes cc1 fold the offset into the symbol's %lo
+// (`addiu base,base,334` / `lhu 0`), and only a member lvalue holds the address
+// shape every arm has.
+typedef struct {
+    /* 0x000 */ u8 unk000[0x14E];
+    /* 0x14E */ BattleCommandRow row;
+} BattleCommandRowBase;
+
+#define BATTLE_COMMAND_ROW_AT(i) (((BattleCommandRowBase*)(g_BattleStateWork + (i) * 0x48))->row)
+
 // The texture coordinate pair a sprite animation state carries at +0xE; retail
 // copies both halves with one unaligned word move.
 typedef struct {
@@ -695,10 +708,43 @@ void BattleActorSnapToTargetAndFace(BattleActorSprite* pSprite, BattleActorSprit
    neighbours break under 2.7.2-psx -G0.  Before this round the park read 76.54%
    with pBase/pRow arm spellings; that body is superseded.
 */
+/* 99.51%, 768 bytes / 192 instructions -- retail's exact size, the frame and all
+   thirteen dispatch arms instruction-identical.  One residual: the default arm's
+   `g_BattleCommandRowIndex++` chain, where retail keeps the global's address in
+   $a3, the loaded index in $v1 and the work base in $a1 (a1 doing double duty as
+   the lhu destination once the base dies) and this body hands out $t0 / $a3 /
+   $v1 for the same three quantities -- same instruction order, same ref counts,
+   so it is local-alloc's block hand-out, not a shape error.
+   What closed the old 98.93 body (all measured this round):
+   1. the row reads.  Written as `g_BattleStateWork + row * 0x48 + FIELD` every
+      arm folded the field into the symbol's %lo (`addiu base,base,334` /
+      `lhu 0`) where retail keeps it in the load displacement
+      (`addiu base,base,0` / `lhu 334(base)`).  BATTLE_COMMAND_ROW_AT -- a
+      pad-then-row struct reached as a MEMBER LVALUE of a cast pointer -- keeps
+      the displacement; the address-of spelling (&(...)->row) folds again, and
+      BATTLE_COMMAND_ROW (the rows array of BattleWorkRows) folds because its
+      0x14E is a sibling of the symbol.  Both probed with cc1_probe.sh.
+   2. `index` also receives the head's 0x15B byte before being reassigned from
+      g_BattleState->actorIndex, and `pCurSprite` names the 0xC field; that pair
+      is a permuter find worth +0.47 (98.93 -> 99.40) -- it is what flips
+      pSprite/index/code from $s1/$s3/$s2 to retail's $s1/$s2/$s3.
+   3. the 0xFB arm materialises its own work-base local (`pWork`), +0.11.
+   Tried on the residual, each identical or worse: a `u16 *` subscript for the
+   same row word (identical), a per-arm base local in the default arm in place of
+   pWork (identical), the row word hoisted into `id` with the increment as its
+   own statement (87.63, 816 bytes -- the sw leaves the jal delay slot), and
+   three 3-minute permuter runs (150 -> 105 -> 85 -> 85, no further finds).
+   Preset is not the question: the unit is cdk -G0 and its matched neighbours
+   break under 2.7.2-psx.  The switch's .rodata operand against retail's
+   jtbl_80070A80 is expected in an owning unit.
+*/
 /*
 void func_800B9C78(void) {
     BattleActorSprite* pSprite;
     u8* pBase;
+    u8* pWork;
+    u8* pRow;
+    SpriteData* pCurSprite;
     s32 index;
     u8 code;
     s32 offset;
@@ -712,8 +758,10 @@ void func_800B9C78(void) {
     }
     BattleLoadArchiveEntryFile();
     pBase = g_BattleStateWork;
-    BattleSetCurrentActorSprite(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
-    func_800BF3E8((BattleActorSprite*)g_BattleState->pCurSprite);
+    index = pBase[g_BattleCommandRowIndex * 0x48 + 0x15B];
+    BattleSetCurrentActorSprite(index);
+    pCurSprite = g_BattleState->pCurSprite;
+    func_800BF3E8((BattleActorSprite*)pCurSprite);
     index = g_BattleState->actorIndex;
     offset = 0x8C8C;
     pSprite = *(BattleActorSprite**)(pBase + index * 4 + offset);
@@ -730,18 +778,18 @@ void func_800B9C78(void) {
         case 0xFE:
             BattleWaitArchiveSync();
             func_800BEE2C(g_BattleState->initialActorIndex,
-                          *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E), 4);
+                          BATTLE_COMMAND_ROW_AT(g_BattleCommandRowIndex).unk0, 4);
             BattleSetStateStep(0xA);
             break;
         case 0xFC:
             BattleSetActorPrimaryCommand(index,
-                                        *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x172));
+                                        BATTLE_COMMAND_ROW_AT(g_BattleCommandRowIndex).param);
             BattleSetStateStep(9);
             g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
         case 0xFD:
             func_800BEE2C(index,
-                          *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex++ * 0x48 + 0x14E), 2);
+                          BATTLE_COMMAND_ROW_AT(g_BattleCommandRowIndex++).unk0, 2);
             break;
         case 0xF3:
         case 0xF5:
@@ -756,26 +804,29 @@ void func_800B9C78(void) {
         case 0xFB:
             BattleSetStateStep(9);
             slot = pSprite->flags_0xA8 >> 30;
+            pWork = g_BattleStateWork;
             BattleSwapActorSlots(((pSprite->flags_0xAC.flags & 3) << 2) | slot,
-                                 *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x172));
+                                 ((BattleCommandRowBase*)(pWork + g_BattleCommandRowIndex * 0x48))->row.param);
             g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             break;
         case 0xF4:
             BattleSetStateStep(9);
             rowIndex = g_BattleCommandRowIndex;
             g_BattleCommandRowIndex = rowIndex + 1;
-            id = *(u16 *)(g_BattleStateWork + rowIndex * 0x48 + 0x172);
+            id = BATTLE_COMMAND_ROW_AT(rowIndex).param;
             g_BattleActorAnimationIndex = (id >> 9) & 0x3F;
             D_800D39E4 = id & 0x1FF;
             break;
         default:
             g_BattleState->commandUnhandled = 1;
             BattleSetSpriteTemplate(pSprite);
+            pRow = g_BattleStateWork;
             func_800BEE2C(index,
-                          *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex++ * 0x48 + 0x14E), code);
+                          ((BattleCommandRowBase*)(pRow + g_BattleCommandRowIndex++ * 0x48))->row.unk0, code);
             break;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 
 extern s32 D_800C3660;
