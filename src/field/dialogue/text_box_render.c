@@ -625,7 +625,7 @@ extern void SystemStringInit(void* pString, s32 vramX, s32 vramY, s32 x, s32 y, 
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
 
-// 73.38%, 1684 bytes against retail's 1628: the whole body is in place (the
+// 73.38%, 1684 bytes / 421 insns against retail's 1804 bytes / 451 insns: the whole body is in place (the
 // allocation loop, the four script variable reads, the three mode arms, the
 // portrait, the rect and string seeding, both position offsets with their two
 // division arms, and the flags tail) and every call, branch and reloc matches.
@@ -677,6 +677,25 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007F8DC);
 // textBoxIndex, not by the allocation slot - retail loads $s5 with a copy of
 // the box index (`addu $s5,$s1,zero`) right after the allocation loop, so the
 // loop's slot dies there. All 9 calls, every branch and every store match.
+// PROVEN (round 444, cc1_probe.sh with this unit's cc1): the mechanism above is
+// a *typing* fact, not a spelling one. A typed MEMBER (`g_Box[i].string.args[0]`)
+// emits `sw $2,g_Boxes+136($16)` for every access - gas expands that to retail's
+// `lui $at,%hi(+136)/addu $at,$at,$16/sw %lo($at)` - while every cast spelling
+// (`TEXT_BOX_STRING`, `&box._pad[0x38]`, `(u_char*)&g_FieldTextBoxes[i] + K`)
+// takes an ADDRESS_OF first, so gcc keeps `sym + scaled` as a value and anchors
+// the later members to it with `la`/`addu`. Measured with the header's
+// `short _pad[0x56]` temporarily re-split into the string's real fields (reverted,
+// see below): 79.67% / 1724 bytes, 431 insns against retail's 451 - so the split
+// closes only 10 of the 30 missing instructions and is a PREREQUISITE, not the
+// answer; the rest is the frame and the register set. Shipping it needs a header
+// decision, not a C one: cc1 2.7.2 rejects an anonymous union ("structure has no
+// member named"), so `_pad` cannot be kept beside a typed string member in the
+// same slot, and re-splitting it breaks text_box.c's TEXT_BOX_STRING macro.
+// Frame evidence for the next attempt: retail's 0x70 frame holds anchor at
+// 0x20/0x24, x at 0x28 and top at 0x30 (both `sh` + `lhu` reloads), dialogIndex
+// at 0x38, and leaves 0x2C/0x34/0x3C empty - slots of locals that were optimised
+// away, i.e. the source declared more locals than survive; this body keeps top in
+// $s7 and needs only 0x58.
 /*
 s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s32 height,
                   s32 curActorIndex, s32 actorIndex, s32 mode, u32 flags, u32 faceFlags) {
