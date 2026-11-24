@@ -143,8 +143,11 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
    every table in place - only that function's own instructions and its table
-   words change (proved with check_bin.sh for WorldMapUpdateActorSlot). The unit's two
-   last tables (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
+   words change (proved with check_bin.sh for WorldMapUpdateActorSlot, whose table is
+   8-aligned in the range). Check the parity first: func_8008C364's table is at
+   range+0x294, i.e. 4 mod 8, and converting it pads 4 bytes and shifts the whole
+   overlay (measured round 451, see its park note). The unit's two last tables
+   (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
    cc1 tables from this range: that function and the tail after it are
    src/world_map/main/misc11_b.c, whose .rodata range starts at 0xDE4. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
@@ -971,8 +974,34 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
     SpriteSetScale(pActor->pSprite, 0x2000);
     pActor->pSprite->flags &= ~4;
 }
-// 95.87% (460 bytes = retail's 115 insns; instruction multiset IDENTICAL except one branch).
-//    Round 399. Reads the per-party-member init kind from three sources as a 3-bit
+// 99.87% (460 bytes / 115 insns = retail's exact size; every instruction, the block
+//    order and the 8 table words are retail's - the only objdiff delta is
+//    'jtbl_800707AC' vs '.rodata', which the linker resolves identically). IT CANNOT BE
+//    COMMITTED: the unit's rodata range starts at 0x80070518 (yaml [0xA28, .rodata,
+//    main/misc11]) and this table is retail's 0x800707AC, i.e. range+0x294 = 4 mod 8, so
+//    cc1's '.align 3' pads 4 bytes before it: the object's .rodata is 0x3C0 against the
+//    range's 0x3BC and 'check_bin.sh world_map' comes out 180426 bytes against retail's
+//    180422 with 147513 differing bytes over 447 symbols (the whole-overlay shift).
+//    Measured this round by converting it and running the gate, then reverting - the
+//    park below is the body that produced that measurement. Needs a yaml split whose
+//    new .rodata range starts at a parity-4 offset (lever g-parity-4-split-is-the-route
+//    / SPLIT_JTBL_PARITY4), which is a worker+orchestrator job: for reference the
+//    function's file offset is 0x1C874 and its table's is 0xCBC.
+//    THE BODY (round 451): the shape that closed all of the above is the goto pair -
+//    'case 0/2/4/6/default: setResultThree: result = 3; goto setZero;' and case 1
+//    'if (gearId == GEAR_ID_NONE) goto setResultThree;' with 'setZero:' above the
+//    four-store tail. Cross-jumping a duplicated 'result = 3' block puts the survivor
+//    at the SECOND copy's position (inside case 1, 95.87%); the two labels pin
+//    retail's layout [dispatch][result = 3][case 1][shared 4-store tail][case 3]
+//    [case 5]. Case 5 and case 7 share a body (retail's table sends 7 to
+//    .L8008C4BC, not to case 3's .L8008C464) - grouping 3/7 instead measures 95.87
+//    with the same 460 bytes.
+//    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
+//    without them sched2 raises both global loads above 'unk24 = 0' and stores x after
+//    the Z load (93.26 / 456 bytes); with them every remaining insn matches.
+//    Round 399 note, kept for the record: 95.87% (460 bytes = retail's 115 insns;
+//    instruction multiset identical except one branch).
+//    Reads the per-party-member init kind from three sources as a 3-bit
 //    switch value (bit0 partyMembers[index] != CHARACTER_ID_NONE, bit1 the per-actor
 //    script angle fieldScriptMemory[0x15+index*3] & 0x3FFF >= 0x400, bit2
 //    gearRide[index] == 1). The switch needs the even case values listed explicitly
@@ -1007,25 +1036,21 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     case 4:
     case 6:
     default:
+    setResultThree:
         result = 3;
-        pActor->unk24 = 1;
-        pActor->y = 0;
-        pActor->z = 0;
-        pActor->x = 0;
-        break;
+        goto setZero;
     case 1:
         if (g_GameState.characters[g_GameState.partyMembers[index]].gearId == GEAR_ID_NONE) {
-            result = 3;
-        } else {
-            WorldMapInitActorSpriteBySlot(pActor, index);
+            goto setResultThree;
         }
+        WorldMapInitActorSpriteBySlot(pActor, index);
+    setZero:
         pActor->unk24 = 1;
         pActor->y = 0;
         pActor->z = 0;
         pActor->x = 0;
         break;
     case 3:
-    case 7:
         WorldMapInitActorSpriteBySlot(pActor, index);
         pActor->unk24 = 0;
         pActor->x = g_GameState.fieldScriptMemory[0x16 + index * 3] << 12;
@@ -1033,6 +1058,7 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
         pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
         break;
     case 5:
+    case 7:
         WorldMapInitActorSpriteBySlot(pActor, index);
         // volatile: keeps the two global loads below it, as retail has them
         *(volatile s16 *)&pActor->unk24 = 0;
@@ -1047,27 +1073,31 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 
-// 89.86% (436 bytes / 109 insns, retail 444 / 111). Round 399, rebuilt from the
-// assembly with the natural mode chain - if (mode > 0) { if (mode < 4) { gearRide[0] == 1
-// -> the trail setup } else if (mode < 8) { state = 2; unk24 = 1; } } - which scores
-// 86.43 before the volatile pins below; the round-186 inverted chain scores 78.83.
-// The four volatile pins are the file's own idiom (see WorldMapModeInitActorSlot) and
-// each was measured: the three dirX/dirY/dirZ zero stores (sched2 sank them below the
-// angle and mode loads) and 'state = 1' (sank below the position loads, 86.43 -> 89.86).
-// With those, the head, the angle/drawAngle lh pair, the position block, the
-// scroll-target 16-byte copy, the 0x20-iteration trail loop and the tail are ALL
-// byte-identical to retail.
-// TWO residuals left, both are compiler block choices, not spellings:
-// (1) the mode<8 arm: retail keeps 'slti v0,v1,8 / beqz v0,tail / li v0,2' at the
-//     dispatch and reaches the out-of-line 'sh state / li 1 / sh unk24' block with
-//     'j + nop' (that nop plus the j are 8 of the 8 missing bytes); cc1 folds test and
-//     body into one block emitted after the trail loop, so it needs no jump. Measured
-//     identical (89.86) with 'else if (mode < 8)' and with a nested 'else { if }'.
-// (2) the loop preheader: retail emits 'move a3,zero' (i = 0) before 'sw y / sh angle'
-//     and forms &g_WorldMapTrail after them; cc1 swaps exactly those two (same count).
-// NEXT for whoever picks this up: try the same body under gcc-2.7.2-cdk (-O2 -G8 scores
-// 70.17 on the sibling func_8008C364, so the unit preset is right) or permute; the
-// remaining 8 bytes are one jump plus the dispatch test, which no spelling has moved.
+
+// 89.86% (436 bytes / 109 insns, retail 444 / 111, so exactly the 8 bytes of a
+// 'j + nop'). Round 451, re-measured from the round-399 body with the mode chain
+// 'if (mode > 0) { if (mode < 4) { gearRide[0] == 1 -> the trail setup } else if
+// (mode < 8) { state = 2; unk24 = 1; } }'. The four volatile pins are this file's own
+// idiom and are load-bearing (round 399 measured 86.43 -> 89.86 for them); with them
+// the head, the angle/drawAngle lh pair, the position block, the scroll-target
+// 16-byte copy, the 0x20-iteration trail loop and the tail are byte-identical.
+// RESIDUAL (1), the 8 missing bytes: retail's dispatch carries BOTH tests -
+// 'slti v0,v1,4 / bnez v0,<gear>' then 'slti v0,v1,8 / beqz v0,<tail> / li v0,2' -
+// and reaches the out-of-line 'sh state / li 1 / sh unk24' block with 'j + nop'.
+// cc1 2.7.2 emits that arm's test next to its body, after the gear block
+// ('beq v0,$0,<arm>'), which saves the jump and the second dispatch test. Measured
+// this round: the natural else-if and the nested 'else { if }' both 89.86; writing
+// the arm first as 'if (mode >= 4 && mode < 8)' 85.08 / 436 (block inlined before the
+// tests). So the block POSITION is what is missing, not the body.
+// NEXT: the sibling func_8008C364 in this file closed for exactly this reason by
+// scooting a shared block to a label ('goto setResultThree' / 'goto setZero'), which
+// pins a block at the label's source position instead of letting cc1 move it - try
+// that here: keep 'else if (mode < 8) goto <label>' and put the label (holding
+// 'state = 2; unk24 = 1;') after the gear block, with the gear arm ending in a goto
+// to the tail. That jump already exists in retail as the trail loop's exit.
+// RESIDUAL (2): the loop preheader - retail emits 'move a3,zero' (i = 0) before
+// 'sw y / sh angle' and forms &g_WorldMapTrail after them, cc1 swaps both pairs
+// (same instruction count, so worth 0 bytes).
 /*
 s32 func_8008C530(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1114,6 +1144,7 @@ s32 func_8008C530(int index) {
     return result;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
+
 
 int WorldMapModeInitPartyActor0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
