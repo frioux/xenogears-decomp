@@ -2793,7 +2793,22 @@ void func_8003B424(AudioManager* pManager) {
 }
 */
 
-// Round 437 re-measure: 96.74% at retail's exact 748 bytes / 187 insns, so this body would link - it is 4 residual clusters, not the ONE the old note claimed (that note was written before the last two edits, or measured on a stale object). Cluster 1, the documented wall: retail srl v0,s8,0xf then andi v0,v0,1 (the clamp test reads the volume VARIABLE) where the compile folds to srl v0,v0,0x16 off the mult result. Clusters 2-4 are scheduler placements that follow from statement order: retail has lhu t0,24(sp) + addiu a0,s1,96 emitted late (right after sw v0,81(s0)) where the compile emits addiu a0,s1,96 early after sh v0,0(s1) and lhu t0,24(sp) late, and retail has lbu v0,22(s2) before sw s7,5(s0) where the compile has them swapped. Everything from the old note that got it to 96.74 still holds and must not regress: the ONE-assignment scaling volume = (u32)((s16)volume * tablebyte) >> 7 (two statements rotate volume to s6), level being s32, u32 volume = level, the LEFT-ASSOCIATIVE - (-off) tone-table sum, the if (pWds == NULL) fallback NOT in a do-while, and elementFlags = element >> 8 sitting just before pScriptOffset. Measured dead this round: a u32 clampTest = volume; copy between the scaling and the test (flow deletes the copy, still folds); moving elementFlags = element >> 8 up between the scaling and the clamp (the srl t0,s0,8 is then HOISTED above the mult, 16 differing lines, 95.03, and the fold survives - so combine is NOT adjacency-limited and no intervening statement can block it). Preset ruled out this round: 2.7.2-cdk 94.57, 2.7.2 94.72 against 2.6.0's 96.74. Also already dead per the old note: value = volume >> 15 as its own statement (96.66), s32 vs u32 count, declaration order, if (volume & 0x8000) (loses the srl, one instruction short) and two 3-minute permuter runs (base 190, best 190). Next idea, not tried: get the test into a different basic block so combine cannot know volume's value - a label between them with no extra instruction is not spellable from this C.
+// Round 450 re-measure: 96.74%, retail's exact 748 bytes / 187 insns, 8 differing
+// lines in 4 clusters - unchanged, and the body is real (not a stale object).
+// Cluster 1 is the wall (lever d-combine-folds-through-any-intervening-statement):
+// retail srl v0,s8,0xf then andi v0,v0,1 reads the volume VARIABLE, every spelling
+// here folds to srl v0,v0,0x16 off the mflo result.
+// NEW this round, and the reason clusters 2-4 are not worth reordering: the fold is
+// not register-neutral. Retail's first srl reads v0 and kills it; the folded form
+// drags v0 (the mflo result) four bytes further, and that is exactly the live range
+// competing for the later lhu t0,24(sp) (pan) / addiu a0,s1,96
+// (&pElement->voice_data) placements and for the lbu v0,22(s2) slot near the loop
+// latch. So clusters 2-4 are DOWNSTREAM of cluster 1, not independent statement-order
+// differences: no reorder can close them while the fold stands.
+// Also measured this round: -O1 67.76, -O3 compile-fails (cc1 rejects), so the unit's
+// -O2 is the only level. Preset already ruled out in round 437 (cdk 94.57, 2.7.2
+// 94.72 vs 2.6.0's 96.74) and two permuter runs are PERMUTER_NONE (base 190 best 190).
+// Do not reopen without a new compiler.
 /*
 void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
@@ -2895,7 +2910,8 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pManager->flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
-}*/
+}
+*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
@@ -4699,6 +4715,16 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
 }
 
 // Round 437 re-measure: 95.31% (124 bytes = the original's size, but MINE IS 31 INSN AND RETAIL 32 - one short, so this body cannot link yet). Everything in the old note still holds: prologue, s-register block (pScript s1, pAudioElements s2, envelope s0, index s3) and statement order are retail's. The residual is exactly retail's addiu s1,s1,1 (in place, scheduled in the 0x1E load-delay slot) followed by addu v0,s1,zero against mine's single addiu v0,s1,1; the flags temp roles (retail v0, mine v1) are downstream of that missing copy. Measured dead this round, all 95.31% / 31 insns, i.e. flow copy-propagates every one of them: bare pScript++; return pScript; (in and out of the do-while wrapper), return ++pScript;, pScript += 1; return pScript;, return pScript += 1;. The one spelling that DOES keep two instructions is moving the increment up so its OLD value is needed - index = *pScript++;, the trick SoundScriptSetVolume in this file uses for the same tail - but here it then lives across the SoundResetEnvelope call and costs 33 insns / 132 bytes / 84.16%, rotating the whole s-block (envelope s3, elements s2). So the open question is a use of pScript's pre-increment value that costs nothing; retail's 32 instructions contain none. Structurally stuck: two permuter runs already found nothing (best 150), do not re-permute.
+/* Round 450: 95.31%, 31 insns vs retail 32 (124 bytes, so it cannot link).
+   Residual is one shape only: retail keeps the increment in place (addiu s1,s1,1,
+   reorg'd into the lhu delay slot) and copies it out at the end (move v0,s1);
+   every spelling here gives a single addiu v0,s1,1 and the flags temp moves to
+   v1.  New this round: the increment statement placed between the flags write and
+   the mask (pScript += 1; mask = ...; return pScript;) is 31 insns, same 95.31.
+   Round 437 already measured dead: pScript++/return pScript (bare and in a
+   do-while), return ++pScript, pScript += 1; return pScript, return pScript += 1,
+   and index = *pScript++ (33 insns, rotates the s-block).  Two permuter runs
+   found nothing; the source shape is not reachable with 2.6.0 here. */
 /*
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = *pScript;
@@ -4707,9 +4733,10 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     SoundResetEnvelope(pEnvelope);
     pEnvelope->flags |= 0x1;
+    pScript += 1;
     mask = 1 << index;
     pAudioElements->activeEnvelopeMask |= mask;
-    return pScript += 1;
+    return pScript;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
 
