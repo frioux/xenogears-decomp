@@ -34,32 +34,13 @@ void FieldScriptAddInventoryItem(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc10", func_8009635C);
-
-/* PARKED 96.70%, 176 bytes / 44 insns (retail is 176 / 44 too). This body has
-   every register retail has: nItemId $s1, nIndex $s0, pIds $s2, the constant
-   -1 $s3, pQuantities $s4, the loaded byte $a0, the address $v1 and the value
-   $v0. The `pQuantity` pointer local is what fixes the $s0/$s1 mirror the older
-   attempts had - without it the same statements score 96.70 with $s0/$s1
-   swapped (176 bytes, same tail residual).
-   The whole residual is the tail store's placement. Retail has ONE store:
-   `beqz` (>= 99 -> epilogue) with a nop in its slot, then `j` to the `sb` that
-   ends the else arm, with `addiu v0,a0,1` in the `j` slot; ours emits the `sb`
-   itself in the `j` delay slot and jumps past the shared block (three `sb`
-   against retail's two, paid for by retail's nop), and the else arm's two
-   address `addu`s come out in the opposite order. It is jump.c failing to
-   cross-jump arm 1's store onto the else arm's: arm 1's block ends with a jump
-   to the epilogue while the else arm falls into it, so the two threads are not
-   identical.
-   Shapes measured and rejected: both arms storing `pQuantity[0]` with a shared
-   `nQuantity` (86.70, value and address roles flip, no merge); the same with
-   `return;` at the end of both arms (byte-identical to 86.70, cc1
-   canonicalises it); both arms storing `pQuantity[0]` of an expression (96.59,
-   pIds/pQuantities mirror); the pointer assigned before vs after the ids store
-   in the else arm (byte-identical); one store statement after the join
-   (90.41 -> 92.16 with the pointer local, same tail residual); two
-   `pQuantities[nIndex]` stores (96.70, same residual). Presets on this body:
-   gcc-2.6.0 96.93, 2.7.2-cdk 96.70 (identical), -O3 does not compile.
+// PARKED 96.70%, 176 bytes / 44 insns (retail is 176 / 44 too). Registers are retail exactly: nItemId $s1, nIndex $s0, pIds $s2, pQuantities $s4, the constant -1 $s3, pointer $v1, loaded byte $a0, value $v0. The pQuantity pointer local is what holds the $s0/$s1 assignment; without it the same statements score 96.70 with $s0/$s1 mirrored.
+// Residual (2 things, both in the tail): (a) retail has ONE quantity store in a block reached by arm 1 j and by the else arm fall-through, with addiu v0,a0,1 in the j slot and a nop in the beqz slot; ours duplicates the sb into arm 1 and jumps PAST the shared block to the epilogue. (b) the else arm computes the ids address before the quantities address, retail the reverse.
+// This body is the per-arm spelling, which lever h-a-join-store-of-arms-that-store-different-values says is structurally WRONG: retail stores different values in the two arms, so the join store means the original had a value temp and ONE store below the if/else.
+// Measured this round on the honest shape (u_char nQuantity set in each arm, one pQuantities[nIndex] = nQuantity below the chain, else return): 90.41 with the allocator mirroring $s0/$s1; adding the pQuantity pointer local to arm 1 (and pQuantity in the else arm) restores retail registers exactly and gives 92.16 with the same duplicated tail; computing pQuantity before the ids store in the else arm gives 95.91 but the allocator keeps the quantity address in $a0.
+// Also measured earlier: both arms storing pQuantity[0] with a shared nQuantity (86.70); both arms pQuantity[0] of an expression (96.59); two pQuantities[nIndex] stores (96.70); pointer before/after the ids store (byte-identical). Presets: gcc-2.6.0 96.93, 2.7.2-cdk 96.70, -O3 does not compile.
+// UNTRIED LEAD: a label spelling. Retail j target has two predecessors (j plus fall-through), which is a goto-label tail rather than a cross-jump merge; lever c-a-switch-shared-tail-sits-at-a-label says that shape is source-level. Spell it as nQuantity = *pQuantity + 1; goto store; ... store: *pQuantities = nQuantity; - one diff run, not yet measured.
+/*
 void func_8009635C(u_int nItemId) {
     u_int nIndex;
     u_char* pQuantities;
@@ -81,8 +62,10 @@ void func_8009635C(u_int nItemId) {
             pQuantities[nIndex] = 1;
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc10", func_8009635C);
+
+
 
 
 void FieldScriptRemoveInventoryItem(void) {
