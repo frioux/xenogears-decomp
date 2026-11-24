@@ -1562,25 +1562,30 @@ int WorldMapInitPartyActorSprite1(int index) {
     pActor->moveSpeed = 0xC;
     pActor->angle = *(u16 *)&g_GameState.unk1826[2];
     return 1;
-}INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
-// 99.96% (445 insns / 1780 bytes = retail's exact size; the ONLY differing rows are the
-// two `lw v0,<jtbl>` operands, i.e. the owned-table form this unit always shows). PORTED
-// from the matched twin WorldMapUpdateActorSlot (this file, same command/state family):
-// the whole body is retail's instruction-for-instruction.
-// CHECK_BIN FAILS BY 4 BYTES, and it is JTBL_LAYOUT, not the C: this function owns the
-// LAST two tables of this unit's .rodata range (jtbl_800708D4, jtbl_800708F4), which sit
-// at 0x3BC and 0x3DC from the range start - both 4 mod 8 - and cc1 emits `.align 3` before
-// a switch table, so the assembler pads 4 bytes there and the table, plus every later byte
-// of the overlay, lands +4 (build/out/world_map.bin 180426 vs disc 180422). No C spelling
-// moves a table's section-relative alignment, so this cannot link from C.
-// Facts worth keeping: command arm 4 is the gearRide[index-4] write; the state switch is
-// 65 entries only because of `case 64: break;` (state 0x40 is a live case whose body is
-// the exit); the 0x30 arm (case 48) does NOT fall through into 49 (retail jumps to the
-// shared `state` store - worth exactly the 4 bytes above); the countdowns are
-// `(s16)--pActor->unk22 <= 0` (u16 field read with lhu, signed test -> lhu/sll 16/bgtz);
-// the tail's `slot = index - 4` must stay an s32 local (folding it into the constant
-// costs the addiu and adds an sll/sra pair). A 4-minute permuter run found nothing
-// (base=312 best=312).
+}
+// 99.96% (445 insns / 1780 bytes = retail's exact size; the ONLY differing rows are the two
+// lw v0,<jtbl> operands, i.e. the owned-table form this unit always shows). PORTED from the
+// matched twin WorldMapUpdateActorSlot (same command/state family): every instruction is retail's.
+// CHECK_BIN MEASURED (round 444): build/out/world_map.bin 180426 vs disc 180422 (+4) and the
+// FIRST differing byte is file 0xDE4 - four zero pad bytes where jtbl_800708D4 should start -
+// after which every .text pointer in the file reads +4 (misc1's rodata words at file 0x4 included,
+// because rodata is this overlay's first section). So the C is not the problem: the table position is.
+// WHY IT CANNOT LINK FROM THIS FILE: misc11's rodata range starts at file 0xA28 (0 mod 8) and these
+// are its last two tables, at range+0x3BC and +0x3DC (both 4 mod 8), while .align 3 before a C
+// switch table is hardcoded in every cc1 (lever i-jtbl-align-3-hardcoded). A table converts only
+// when (table - object rodata start) % 8 == 0, so a run of converted tables cannot absorb this one.
+// THE ROUTE IS A UNIT SPLIT, not C work: give the tail its own rodata range of parity 4 -
+// [0xDE4, .rodata, main/misc11_b] in config/world_map.yaml plus [0x1DB88, c, main/misc11_b],
+// moving func_8008D678 and the stubs after it into src/world_map/main/misc11_b.c (misc11 keeps
+// 0xA28..0xDE4). The new object's rodata then starts at file 0xDE4, so both C tables sit at internal
+// 0 and 0x20 with no pad and land on retail's 0xDE4/0xE04 - the same split that closed
+// world_map/misc12's tail tables. Needs an orchestrator (new .c file, yaml + gears.toml path key).
+// Facts worth keeping: command arm 4 is the gearRide[index-4] write; the state switch is 65 entries
+// only because of case 64 (state 0x40 is a live case whose body is the exit); the 0x30 arm (case 48)
+// does NOT fall through into 49 (retail jumps to the shared state store); the countdowns are
+// (s16)--pActor->unk22 <= 0 (u16 field read with lhu, signed test -> lhu/sll 16/bgtz); the tail's
+// slot = index - 4 must stay an s32 local (folding it into the constant costs the addiu and adds an
+// sll/sra pair). A 4-minute permuter run found nothing (base=312 best=312).
 /*
 int func_8008D678(int index) {
     s32 *pScratch = (s32 *)0x1F800000;
@@ -1774,8 +1779,10 @@ int func_8008D678(int index) {
     g_GameState.fieldScriptMemory[0x17 + slot * 3] = pActor->z >> 12;
     ((u16 *)&g_GameState.unk1826)[index - 4] = pActor->angle;
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
+
+
 // 81.33% (304 bytes, retail 300). Round 186: re-parked with the current field names
 // (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state) - it
 // builds now and re-measures at 81.33. The same two head differences as func_8008D3F0:
