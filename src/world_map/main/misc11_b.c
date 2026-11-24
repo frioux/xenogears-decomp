@@ -4,7 +4,7 @@
 
 // Tail of world_map/main/misc11, split into its own unit (config/world_map.yaml) because this
 // object's .rodata range starts at file 0xDE4 (4 mod 8) while misc11's starts at 0xA28 (0 mod 8):
-// cc1 hardcodes .align 3 before a switch table, so func_8008D678's two tables only land on retail's
+// cc1 hardcodes .align 3 before a switch table, so WorldMapUpdateGearActorSlot's two tables only land on retail's
 // 0xDE4/0xE04 at internal +0/+0x20, i.e. from a range of that parity.
 
 // World map view of the sprite object SpriteAllocFromAnimFile returns (SpriteData in
@@ -110,7 +110,7 @@ extern s32 WorldMapMoveActorTowardTarget(WorldMapActor *);
 // (folding it into the constant costs the addiu and adds an sll/sra pair). The scratchpad is
 // the one argument area: +0x0 is the WorldMapPos and WorldMapScreenPos the calls read, +0xA0
 // is the SVECTOR WorldMapInitSpriteGroupSprites takes.
-int func_8008D678(int index) {
+int WorldMapUpdateGearActorSlot(int index) {
     s32 *pScratch = (s32 *)PSX_SCRATCH;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapActor *pTarget;

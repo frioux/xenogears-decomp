@@ -679,7 +679,7 @@ typedef struct {
     /* 0x50 */ POLY_FT4 glyphs[4]; // Glyph j's prim for context c at 2 * j + c
 } MenuCardPrimBlock; // Size: 0xF0
 
-void func_801CF8D8(void) {
+void MenuRenderCardSlotPrims(void) {
     MenuUnk2* pData;
     u_char useAlt;
     u8 rendered[MENU_CARD_COUNT];
@@ -861,7 +861,7 @@ void MenuAddCellGridPrims(void) {
     MenuBuildCellGlyphQuads(0, 0, 0x10);
     MenuBuildCellGlyphQuads(0x10, 0x10, 0x20);
     MenuDrawCardSlotCellLines();
-    func_801CF8D8();
+    MenuRenderCardSlotPrims();
     MenuScrollCellGridRow();
     if (++g_Menu->characterCellTimer == MENU_CHARACTER_CELL_TIMER_FRAMES) {
         g_Menu->characterCellTimer = 0;

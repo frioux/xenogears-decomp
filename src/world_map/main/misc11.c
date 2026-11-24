@@ -144,7 +144,7 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
    function's table where the function is in the file, so converting a stub keeps
    every table in place - only that function's own instructions and its table
    words change (proved with check_bin.sh for WorldMapUpdateActorSlot). The unit's two
-   last tables (func_8008D678's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
+   last tables (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
    cc1 tables from this range: that function and the tail after it are
    src/world_map/main/misc11_b.c, whose .rodata range starts at 0xDE4. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
