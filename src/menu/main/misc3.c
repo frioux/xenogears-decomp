@@ -1455,30 +1455,30 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 
 
-// Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594), re-measured in a
-// redo lane. The parked body did NOT compile (undeclared `ownCard`, a duplicated `slot`
-// declaration), so the old 78.17% came from a stale object; with `card` for `ownCard` (retail
-// passes $s5, the destination card, to MenuWaitCardOperationFrames) it compiles and scores
-// 78.17% honestly.
-// The card save-write routine: pick a slot, delete the record's old file, write the 0x1F00-byte
-// save to the D_801C50B8 temp name a block at a time, then rename it to serial plus chunk digit.
-// The retry loops, the checksum, the prefix/record filename build and the shared success/failure
-// tail all come out as retail's instructions.
-// Residuals, and both come from ONE allocation difference:
-// (3) FRAME 0x100 vs 0xE8 is NOT six unnamed locals (the old note's guess - wrong). Retail's
-//     .frame is vars=200 and its six slots at 0xA8..0xD0 are 8 bytes apart, i.e. SPILL slots:
-//     retail spilled arg0, repeat, fileFd, ready, result and chunkIndex. This body is vars=176
-//     with four spills (0xA0, 0xA8, 0xB0, 0xB8) because gcc kept chunkIndex's 0xFF in $s7 and 1
-//     in $fp, where retail keeps &path in $s7 and MENU_SLOT_NONE (0xFF) in $fp. Every stack
-//     offset and every s-register name in the diff follows from that one hoist tie-break.
-// (4) The 15 missing instructions (579 vs 594) are those spill stores/reloads, not a missing
-//     block: the 62 jal calls match as a multiset and differ only in block order (gcc places the
-//     MenuFreeWindow2Strings/0x5C pair and the close/erase failure exit differently).
-// Tried and dead: MENU_SLOT_NONE held in a source local (u_char slotNone at all seven sentinel
-// sites, the load-the-constant-once idiom) - byte-identical 78.17%, because gcc hoists one
-// constant per loop and chunkIndex's 0xFF already won the tie. Presets screened on this body:
-// gcc-2.7.2 78.09, 2.7.2-cdk does not compile, so the unit preset (gcc-2.6.0) is not the issue.
-// Not tried: the permuter (an allocation/hoist tie in a 594-insn body, not a scheduling one).
+// Best attempt: 78.17% (2316 bytes vs retail's 2376, 579 insns vs retail's 594), re-measured
+// honestly in this redo lane: the body compiles and this is its real score. The structure is
+// retail's - the 62 jal calls match as a MULTISET and differ only in two block placements (we
+// emit both MenuFreeWindow2Strings before the four MenuLoadWindow2Text calls where retail
+// interleaves them, and we put the write loop's close/strcpy/strcat failure block after the
+// rename loop where retail has it before HeapAlloc), so no block is missing and the 15 missing
+// instructions are spill stores/reloads.
+// The whole 453-line diff is ONE rotation of the last three callee-saved registers:
+//   retail: s0 ok/retry, s1 fd, s2 pData, s3 offset, s4 pBuffer, s5 card, s6 chunkIndex (after
+//   MenuFindFreeChunkIndex), s7 &path, fp the loop-hoisted 0xFF constant; it SPILLS arg0 at 0xA8,
+//   repeat at 0xB0, fileFd at 0xB8, ready at 0xC0, result at 0xC8 and the chunk index from before
+//   the call at 0xD0 - vars=200, frame 0x100.
+//   ours: prefix 0x90/0x94 and chunkDigit 0x98/0x99 land on retail's exact offsets, but s4 is
+//   &path, s7 is the 0xFF constant coalesced with chunkIndex, fp is repeat, and only FOUR
+//   variables spill: arg0 0xA0, fileFd 0xA8, ready 0xB0, result 0xB8 - vars=176, frame 0xE8.
+// Both maps rank the constant above repeat, so the residual is not a priority the source can
+// flip: 9 callee-saved registers hold 9 values here and 8 there (retail's repeat is in memory),
+// i.e. retail's original body had one more register-hungry value alive than this one expresses.
+// Tried in this lane: a second variable for the chunk index (recordChunk loaded from
+// chunks[recordIndex].index, chunkIndex only the MenuFindFreeChunkIndex result, which is what
+// retail's s6 plus its 0xD0 spill imply) - 78.05%, 578 insns: it does split the allocno but costs
+// a spill, so this body is the better one.
+// Carried over, still measured: MENU_SLOT_NONE held in a source local is byte-identical at
+// 78.17; presets gcc-2.7.2 78.09 and 2.7.2-cdk does not compile, so the unit's 2.6.0 is right.
 /*
 u_char func_801CBD90(u_char a0) {
     char newPath[0x40];
@@ -1750,6 +1750,8 @@ u_char func_801CBD90(u_char a0) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
+
+
 
 
 /* Best attempt: 81.86% (2860 bytes vs retail's 2960, 715 insns vs retail's 757).
