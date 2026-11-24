@@ -999,28 +999,42 @@ void func_80089C78(void) {
         }
     }
 }*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
-/* 95.46% (612 bytes, retail 612): every instruction matches except the
-   prologue, which is reordered and one register off. Retail emits
-   `sll a2,a0,7` early and `addu s0,v1,a2` right before the jal, so reorg can
-   put `li a2,0x1E0` in the jal delay slot; gcc emits the shift into v1, the
-   g_WorldMapSlots load into v0 (retail: v1), the 0x1E0 constant early and the
-   addu in the delay slot. Everything from `move a0,v0` on is byte-identical
-   (the switch and its cross-jumped case 4-6 / case 7 body, the 32-entry trail
-   copy, the 0x1820 tail).
-   Tried, all byte-identical at 95.46%: `&g_WorldMapSlots[index]`,
-   `(u8*)g_WorldMapSlots + index * 0x80`, a named s32 offset local, pActor
-   declared first or last, the alloc call as the store's rhs, a void* pSprite
-   temp. cdk -O2: 71.79. gcc 2.7.2 -O3: 95.46. A 4-minute permuter run found
-   nothing (base 535, best 535).
-   Two VOLATILE casts below are load-bearing, not debris:
-   (1) the s16 store of `angle` is what makes gcc re-read it with `lh` for
-   drawAngle (retail does sh 0x48, lh 0x48, sw 0x5C); without it gcc folds the
-   re-read into sll/sra and the function comes out 4 bytes long.
-   (2) the s32 store of x in the case 1-3 body stops gcc sinking that store
-   below the g_WorldMapPlayerPositionZ load, giving retail's lw/nop/sw order.
-   The head reads g_GameState.fieldScriptMemory[0]/[1] (0x1930/0x1932), not
-   worldMapPosX/PosZ, while the tail writes 0x1820/0x1822.
+/* 95.46% (612 bytes, retail 612): every instruction and every branch matches - the
+//    switch, its cross-jumped case 4-6 / case 7 body, the 32-entry trail copy and the
+//    0x1820 tail - and the ONLY differing lines outside the prologue are the label
+//    spellings (retail names jtbl_800704E0, this unit owns its table, so diff_func
+//    prints .rodata; the .L branch targets are named in retail and function+offset
+//    here). So a prologue fix converts this function outright.
+//    RESIDUAL - the shared head of this unit's three slot init functions
+//    (func_8008A5B8, func_8008A52C, this one): retail emits
+//    `addiu a1,0x100 / sll a2,a0,0x7 / li v0,0x100 / sw v0,0x10(sp) / li v0,0x40 /
+//    lui a0(anim) / lui v1(g_WorldMapSlots) / li a3,0x140 / sw ra / sw s0 /
+//    sw v0,0x14(sp) / addu s0,v1,a2 / jal / addiu a2,zero,0x1E0`, i.e. the index
+//    shift sits in the THIRD-ARGUMENT register at insn 3 and the base in a temp v1,
+//    which pushes `li a2,0x1E0` into the jal delay slot. Our cc1 shifts into v1
+//    (insn 6), loads the base into v0 and leaves the addu in the slot. Causality runs
+//    from the register choice: sll and li a2 are both a2 in retail, so the constant
+//    cannot be scheduled before the addu. Everything from `move a0,v0` on is
+//    byte-identical.
+//    The shift position is source-independent: misc11_b WorldMapInitPartyActorSprite2
+//    (matched, same 6-line head, XenoWorldMap) compiles to `sll v1` at insn 3 with
+//    the base loaded straight into s0 and the addu in the slot, and this unit's
+//    func_8008A52C retail is the same shape - so retail's a2 here is a per-function
+//    allocator outcome, not a different spelling.
+//    Measured identical at 95.46 this round (round 452 line): the park's
+//    (u8*)g_WorldMapSlots + index * 0x80, "(WorldMapActor*)g_WorldMapSlots + index",
+//    a separate s32 offset local, and &g_WorldMapSlots[index]. Older measurements:
+//    cdk -O2 71.79, gcc 2.7.2 -O3 95.46, a 4-minute permuter run base 535 best 535.
+//    Two VOLATILE casts below are load-bearing, not debris:
+//    (1) the s16 store of `angle` is what makes gcc re-read it with `lh` for
+//    drawAngle (retail: sh 0x48, lh 0x48, sw 0x5C); without it gcc folds the re-read
+//    into sll/sra and the function comes out 4 bytes short.
+//    (2) the s32 store of x in the case 1-3 body stops gcc sinking that store below
+//    the g_WorldMapPlayerPositionZ load, giving retail's lw/nop/sw order.
+//    The head reads g_GameState.fieldScriptMemory[0]/[1] (0x1930/0x1932), not
+//    worldMapPosX/PosZ, while the tail writes 0x1820/0x1822.
+// */
+/*
 s32 func_8008A2C8(s32 index) {
     WorldMapActor* pActor;
     WorldMapTrail* pTrail;
@@ -1028,7 +1042,7 @@ s32 func_8008A2C8(s32 index) {
     s32 mode;
     s32 angle;
 
-    pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + index * 0x80);
+    pActor = (WorldMapActor*)g_WorldMapSlots + index;
     pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
@@ -1094,8 +1108,10 @@ s32 func_8008A2C8(s32 index) {
     g_GameState.worldMapPosZ = pActor->z >> 12;
     g_GameState.worldMapPlayerRotation = pActor->angle;
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
+
+
 /* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns,
    and the tail from the first jal delay slot on is byte-identical. The residual is
    lever h-stack-arg-store-sink-is-a-war-tie (round 402): retail gives the index
@@ -1124,23 +1140,59 @@ s32 func_8008A52C(s32 arg0) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
 
 
-/* 90.48% (372 bytes, retail 372): re-measured round 398, still 93 vs 93 insns
-   with 14 differing lines - the whole body is right and only the prologue
-   rotates. Retail shifts arg0 into a2 (sll a2,a0,0x7), does the (slots + shift)
-   addu BEFORE the jal and leaves addiu a2,0x1E0 for the delay slot; gcc shifts
-   into v0 and lets reorg steal the addu. A 573-iteration permuter run found
-   nothing (base 595, best 595). Same wall as func_8008A52C and
-   func_8008B54C/func_8008BDD0 in misc11.
+/* 92.63% (372 bytes, retail 372): 93 vs 93 insns and, after the loop-preheader
+//    fix, the WHOLE body matches - the only differing lines are the prologue.
+//    FIX FOUND THIS ROUND: the trail loop init has to be ONE comma statement
+//    (`for (i = 0, pTrail = g_WorldMapTrail; ...)`), not `pTrail = g_WorldMapTrail;`
+//    followed by the for: retail emits `move a3,zero` (i = 0) BEFORE the lui/addiu of
+//    g_WorldMapTrail, and the two-statement form put them the other way round
+//    (90.48 -> 92.63). Also un-parked a `void* pSprite` temp (retail stores the call
+//    result straight into 0x4C) and the initialiser/pointer-cast/offset-local forms of
+//    the slot address, all measured identical at 92.63.
+//    RESIDUAL: retail puts the index shift in the THIRD-ARGUMENT register
+//    (`sll a2,a0,0x7` at insn 3), loads the base into a temp `v1` and does
+//    `addu s0,v1,a2` before the jal, so `addiu a2,zero,0x1E0` can fill the delay
+//    slot; our cc1 shifts into `v1` at insn 6, loads the base into `v0` and leaves the
+//    addu in the slot. Causality runs from the register choice: the sll and the li a2
+//    are both a2 in retail, so li a2 cannot be scheduled before the addu. The same head
+//    compiles to retail's own shape in misc11_b WorldMapInitPartyActorSprite2
+//    (matched: `sll v1` at insn 3, base into s0, addu in the slot) and in
+//    func_8008A52C next door (retail `sll v1`), so this is a per-function allocator
+//    contest, not a spelling: index shift address-formation, a separate `s32`
+//    offset local, an initialiser, and the loop merge were all measured.
+// */
+/* 92.63% (372 bytes, retail 372): 93 vs 93 insns. The body is exact - the ONLY
+//    differing lines are the prologue.
+//    THIS ROUND (measured together, 90.48 -> 92.63): (a) the trail loop init is ONE
+//    comma statement, `for (i = 0, pTrail = g_WorldMapTrail; i < 0x20; i++, pTrail++)`,
+//    where the park had `pTrail = g_WorldMapTrail;` followed by the `for`: retail emits
+//    `move a3,zero` (i = 0) BEFORE the lui/addiu of g_WorldMapTrail and the
+//    two-statement form put them the other way round (that hunk of the diff is gone);
+//    (b) the park's `void* pSprite` temp is dropped - retail stores the call result
+//    straight into 0x4C.
+//    RESIDUAL (see func_8008A2C8 below for the full note - same head): retail puts the
+//    index shift in the THIRD-ARGUMENT register (`sll a2,a0,0x7` at insn 3), loads the
+//    base into a temp `v1` and does `addu s0,v1,a2` before the jal so that
+//    `addiu a2,zero,0x1E0` fills the delay slot; our cc1 shifts into `v1` at insn 6,
+//    loads the base into `v0` and leaves the addu in the slot. The sll and the li a2 are
+//    both a2 in retail, so the constant cannot be scheduled before the addu - the
+//    register choice is the cause, not a consequence. Measured identical at 92.63: an
+//    initialiser form of the slot pointer, "(WorldMapPlayer*)((u8*)g_WorldMapSlots +
+//    slotOffset)" with a named offset local, and &g_WorldMapSlots[arg0]. The same head
+//    compiles to retail's own shape in misc11_b WorldMapInitPartyActorSprite2 (matched,
+//    `sll v1` at insn 3, base straight into s0, addu in the slot) and in this unit's
+//    func_8008A52C retail, so a2 is a per-function allocator outcome.
+// */
 /*
 s32 func_8008A5B8(s32 arg0) {
-    WorldMapActor* pActor;
+    WorldMapPlayer* pActor;
     WorldMapTrail* pTrail;
-    void* pSprite;
+    s32 slotOffset;
     s32 i;
 
-    pActor = &g_WorldMapSlots[arg0];
-    pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
-    pActor->pSprite = pSprite;
+    slotOffset = arg0 * sizeof(WorldMapPlayer);
+    pActor = (WorldMapPlayer*)((u8*)g_WorldMapSlots + slotOffset);
+    pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
     *(u32*)((u8*)pActor->pSprite + 0x3C) &= ~4;
@@ -1159,8 +1211,7 @@ s32 func_8008A5B8(s32 arg0) {
         g_WorldMapTrailCursor = 0;
         pActor->angle = nAngle;
     }
-    pTrail = g_WorldMapTrail;
-    for (i = 0; i < 0x20; i++, pTrail++) {
+    for (i = 0, pTrail = g_WorldMapTrail; i < 0x20; i++, pTrail++) {
         pTrail->vec = *(WorldMapVec*)&pActor->x;
         pTrail->angle = pActor->angle;
     }
@@ -1169,3 +1220,5 @@ s32 func_8008A5B8(s32 arg0) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
+
+
