@@ -730,78 +730,41 @@ void BattleSetAnimTaskShort(s16 value) {
     D_800C3740 = value;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
-// PARK 78.90% at 1592 bytes against retail's 1604 (398 vs 401 instructions, frame 264 vs
-// retail's 288). No twin (twin_for.py) and no m2c structure beyond this body.
-// STILL MISSING 24 BYTES OF LOCALS. Retail's local region is 0x10..0xF7 (232 bytes,
-// vars=232); this body declares 208. Every object this unit can name is accounted for and
-// in retail's order - total VECTOR 0x10, groupA/groupB SVECTOR 0x20/0x28, frameMatrix
-// MATRIX 0x30, projected VECTOR 0x50, vertex SVECTOR 0x60, sxy at 0x68 (8 bytes, see
-// below), zeroVec SVECTOR 0x70, p 0x78, flag 0x7C, nearMatrix 0x80, nearScreen 0xA0,
-// nearVec 0xB0, farMatrix 0xB8, farVec 0xE8 - so the 24 unaccounted bytes are three slots
-// retail never reads: 4 bytes at 0x6C, 16 bytes at 0xD8 (between farMatrix and farVec) and
-// 4 bytes at 0xF4 (tail padding before the save area at 0xF8). A local whose address is
-// taken but whose uses were all optimised away still gets a slot; nothing in this unit
-// shows what those three were, and inventing them is not an option. Until they are found
-// every stack offset past 0x70 in this body is off by 8 and the frame is 24 short, which
-// is most of the residual line count.
-// MEASURED, do not re-derive:
-// - 0x68 is an 8-BYTE SVECTOR, not a long sxy (m2c also splits 0x68/0x6A). Retail writes
-//   sh 0x68 (dx), sh 0x6A (dy), then sh 0x68 (dx*4) and sh 0x6A (dy*4): two assignments to
-//   s16 fields, the second pair scaled by 4, and the radius multiplies use (s16)(dx*4)
-//   (sll 18 / sra 16 truncates dx*4 to s16, not dx to s16). Rewriting it that way -
-//   SVECTOR sxyVec, RotTransPers(&vertex, (long *)&sxyVec, ...), then sxyVec.vx -= 160;
-//   sxyVec.vy -= 164; sxyVec.vx *= 4; sxyVec.vy *= 4;
-//   radius = sxyVec.vx * sxyVec.vx + sxyVec.vy * sxyVec.vy - measures 78.73% at 1664
-//   bytes, vars=216, frame=272, and it puts vertex 0x60, sxyVec 0x68 and zeroVec 0x70
-//   exactly on retail's offsets (this body has zeroVec at 0x68). It is 15 instructions too
-//   long because the addressable SVECTOR makes gcc keep memory in sync; that is the
-//   version to resume from once the 24 bytes are explained.
-// - The three loops are identical: for (i = 0, bit = actorMask; i != 11; i++, bit >>= 1)
-//   with an independent 0x1C-byte row pointer plus a 4-byte pointer for the slot sprite
-//   table, the shape misc32's BattleApplySlotMaskToEffects uses; bit is u16 (retail's
-//   andi 0xFFFF then srl).
-// - Retail reaches the sprite table as addu v0,a1,t0 with li t0,0x8C8C hoisted, then
-//   lw 0(v0); this body gets li a3,0x8000 and lw 3212(v0) - gcc splitting 0x8C8C into
-//   0x8000+0xC8C because that is a one-instruction li. Same address, one instruction
-//   cheaper, and not something the source spelling steers: the expression is
-//   *(SpriteData **)(pSlotWork + 0x8C8C) either way.
-// - The if-branch's ApplyMatrix output is its OWN 16-byte VECTOR at 0x60 (retail reads
-//   lhu 0x60/0x64/0x68 there); this body passes projected (0x50).
-// - The else branch reuses nearScreen (0xA0) as its output; retail's scale is
-//   distance * 0x4000 / 120 then * 2 * ReadGeomScreen() / 0x4000 (0x88888889 / sra 6 is
-//   division by 120).
-// - D_800C3CDC is an s32 store here but BattleBeginAnimTask in this file reads it with
-//   lhu, so the file keeps extern u16 and this body stores through a (s32 *) cast.
-//   D_800C3688 is the u8 gate for the height pass (extern declared at the top of this
-//   file; misc29.c owns it). BattleSlotWorkRow in this file gained unk7/unk8 for the two
-//   per-slot gates.
-// - Preset is right: 2.6.0 scores 74.63, -O3 scores 57.54, -G8 does not compile.
-// ROUND 442, measured with cc1_probe (tools/scripts/cc1_probe.sh), do not re-derive:
-// - gcc 2.7.2-cdk NEVER reuses a stack slot: two addressable locals whose live ranges
-//   do not overlap (one in a block, one function-scope, the block one declared after the
-//   other is dead) still get DIFFERENT slots. So retail's 0x60 overlap (near-branch
-//   ApplyMatrix writes longs at 0x60/0x64/0x68 on top of vertex 0x60/0x62/0x64 and sxy
-//   0x68/0x6A) is not slot sharing: the source really does write the near-branch output
-//   through the SVECTORs' memory, i.e. ApplyMatrix(&nearMatrix, &nearVec, (VECTOR
-//   *)&vertex) and (u16)((VECTOR *)&vertex)->vx. Written that way the pre-loop region
-//   comes out exactly on retail: vertex 0x60, sxy 0x68 (8-byte SVECTOR), zeroVec 0x70.
-// - A scalar/pointer local's slot is allocated at its first ADDRESS-OF use, i.e. after
-//   every aggregate local's slot, no matter where it is declared; `long p[1]` behaves the
-//   same. That is why this body puts &sxy/&p/&flag at 0xD8/0xDC/0xE0 while retail has
-//   them at 0x68/0x78/0x7C - in the middle, between zeroVec and nearMatrix. Nothing in
-//   this unit explains how retail got them allocated eagerly there.
-// - With sxy as an 8-byte SVECTOR plus the (VECTOR *)&vertex near-branch output the body
-//   measures 78.73% at 1664 bytes, 416 insns, vars=216, frame=272; slot order then is
-//   total 0x10, groupA/groupB 0x20/0x28, frameMatrix 0x30, projected 0x50, vertex 0x60,
-//   sxy 0x68, zeroVec 0x70, nearMatrix 0x78, nearScreen 0x98, nearVec 0xA8, farMatrix
-//   0xB0, farVec 0xD0 - every aggregate 8 low because p/flag are not in the middle, and
-//   retail's 16 dead bytes at 0xD8 are on top of that. 15 instructions long: the
-//   addressable SVECTOR keeps gcc re-syncing memory around each sxy.vx/vy update.
-// - Retail's 16 dead bytes at 0xD8..0xE7 (between farMatrix and farVec, never addressed
-//   by any instruction) are a declared aggregate whose uses were optimized away; C cannot
-//   reproduce them without inventing a dead local, so farVec (0xE8 vs 0xD8) and the whole
-//   save area (frame 0x120 vs 0x110) cannot be aligned. Together with p/flag that is the
-//   remaining 24 bytes of frame and the reason this is parked.
+// PARK 78.89% at 1664 bytes against retail's 1604 (416 vs 401 insns). FRAME AND EVERY SLOT
+// NOW MATCH RETAIL EXACTLY: vars=232, args=16, regs=10/0, 0x120. Two residuals left, both
+// named below; the old 78.90 note's "24 bytes of unaccounted locals" is SOLVED.
+// THE SLOT RULE, measured with cc1_probe in this unit's compiler (do not re-derive):
+// gcc 2.7.2-cdk allocates an AGGREGATE local's slot at its DECLARATION, in declaration
+// order, but an address-taken SCALAR's slot lazily, at its first address-of, i.e. after
+// every aggregate slot handed out so far. An array or struct is an aggregate even at 4 or
+// 8 bytes: `long x[2]` declared between two aggregates lands mid-frame, `long x` lands at
+// the end. So retail's 0x78/0x7C are NOT two scalars: they are one 8-byte aggregate holding
+// RotTransPers's p and flag, declared between zeroVec and nearMatrix. With `long gteOut[2]`
+// in that spot and sxy as an 8-byte SVECTOR (it must be 8: with 4 the whole run below it
+// moves down by 4) the layout comes out on retail's offsets: total 0x10, groupA 0x20,
+// groupB 0x28, frameMatrix 0x30, projected 0x50, vertex 0x60, sxy 0x68, zeroVec 0x70,
+// gteOut 0x78/0x7C, nearMatrix 0x80, nearScreen 0xA0, nearVec 0xB0, farMatrix 0xB8,
+// farScreen 0xD8, farVec 0xE8, then the two reload spill slots (0xF0 holds &vertex) at
+// 0xF0/0xF4 and the save area at 0xF8. Do not go back to `long sxy` + `long p, flag`.
+// RESIDUAL 1, 15 instructions: each RotTransPers arm is 4 insns long. This body emits
+// `lhu 0x68; addiu -160; sll 16; sra 16` then `sll 18; sra 16; mult`, i.e. it sign-extends
+// the s16 field after the -= 160 and then truncates the *4 product; retail has only the
+// second conversion (`lhu; addiu; sll 18; sra 16; mult`). So retail's source never
+// materialises the s16 intermediate: the low 16 bits of `x - 160` are all either use needs.
+// Resume with the two assignments fused/ordered differently, e.g. keep the subtracted value
+// in an s32 local and write the SVECTOR fields from it, or `sxy.vx = (sxy.vx - 160) * 4`
+// spelled so both stores stay. Retail stores dx then dx*4 to 0x68, so both statements exist.
+// RESIDUAL 2, the far branch's output slot: retail writes and reads that ApplyMatrix result
+// at 0xA0 (the nearScreen slot) and leaves the 0xD8 slot farScreen dead; this body uses
+// farScreen for it. Using nearScreen instead measured 78.83 / 420 differing lines versus
+// 78.89 / 370 here, so re-test both once residual 1 is gone - it is one line each.
+// MEASURED, do not re-derive: the three RotMatrixZYX calls take (SVECTOR *)&D_800C3740 -
+// retail's relocation names D_800C3740, not g_BattleAnimSweepAngle (0x800C373C).
+// D_800C3CDC needs the (s32 *) store cast (the file's extern is u16 for BattleBeginAnimTask).
+// The 0x8C8C sprite-table reach: retail `ori t0,0,0x8C8C; addu v0,a1,t0; lw 0(v0)`, this
+// body `li $7,0x8000; addu; lw 0xC8C(v0)` - same address, one insn cheaper, not steerable
+// from the source (it is *(SpriteData **)(pSlotWork + 0x8C8C) either way).
+// Preset is right: 2.6.0 scores 74.63, -O3 57.54, -G8 does not compile.
 /*
 void func_800BC460(u32 actorMask) {
     VECTOR total;
@@ -810,14 +773,14 @@ void func_800BC460(u32 actorMask) {
     MATRIX frameMatrix;
     VECTOR projected;
     SVECTOR vertex;
-    long sxy;
+    SVECTOR sxy;
     SVECTOR zeroVec;
-    long p;
-    long flag;
+    long gteOut[2];
     MATRIX nearMatrix;
     VECTOR nearScreen;
     SVECTOR nearVec;
     MATRIX farMatrix;
+    VECTOR farScreen;
     SVECTOR farVec;
     u8 *pWork;
     u8 *pSlotWork;
@@ -905,7 +868,7 @@ void func_800BC460(u32 actorMask) {
     total.vx = (minX + maxX) >> 17;
     total.vy = (minY + maxY) >> 17;
     total.vz = (minZ + maxZ) >> 17;
-    RotMatrixZYX((SVECTOR *)&g_BattleAnimSweepAngle, &frameMatrix);
+    RotMatrixZYX((SVECTOR *)&D_800C3740, &frameMatrix);
     zeroVec.vx = 0;
     zeroVec.vy = 0;
     zeroVec.vz = ReadGeomScreen() * 8;
@@ -931,20 +894,23 @@ void func_800BC460(u32 actorMask) {
                 vertex.vx = pActorSprite->position.xWhole;
                 vertex.vy = pActorSprite->position.yWhole;
                 vertex.vz = pActorSprite->position.zWhole;
-                RotTransPers(&vertex, &sxy, &p, &flag);
-                radius = ((s16)sxy - 0xA0) * ((s16)sxy - 0xA0) +
-                         ((s16)(sxy >> 16) - 0xA4) * ((s16)(sxy >> 16) - 0xA4);
-                sxy = (((s16)(sxy >> 16) - 0xA4) * 4 << 16) | (((s16)sxy - 0xA0) * 4 & 0xFFFF);
+                RotTransPers(&vertex, (long *)&sxy, &gteOut[0], &gteOut[1]);
+                sxy.vx -= 160;
+                sxy.vy -= 164;
+                sxy.vx *= 4;
+                sxy.vy *= 4;
+                radius = sxy.vx * sxy.vx + sxy.vy * sxy.vy;
                 if (distance < radius) {
                     distance = radius;
                 }
                 if (pRow->unk8 != 0 && D_800C3688 == 0) {
                     vertex.vy = pActorSprite->position.yWhole - pActorSprite->height;
-                    RotTransPers(&vertex, &sxy, &p, &flag);
-                    radius = ((s16)sxy - 0xA0) * ((s16)sxy - 0xA0) +
-                             ((s16)(sxy >> 16) - 0xA4) * ((s16)(sxy >> 16) - 0xA4);
-                    sxy = (((s16)(sxy >> 16) - 0xA4) * 4 << 16) |
-                          (((s16)sxy - 0xA0) * 4 & 0xFFFF);
+                    RotTransPers(&vertex, (long *)&sxy, &gteOut[0], &gteOut[1]);
+                    sxy.vx -= 160;
+                    sxy.vy -= 164;
+                    sxy.vx *= 4;
+                    sxy.vy *= 4;
+                    radius = sxy.vx * sxy.vx + sxy.vy * sxy.vy;
                     if (distance < radius) {
                         distance = radius;
                     }
@@ -956,27 +922,27 @@ void func_800BC460(u32 actorMask) {
     }
     distance = SquareRoot0(distance);
     if (distance < BATTLE_ANIM_RADIUS_MAX) {
-        RotMatrixZYX((SVECTOR *)&g_BattleAnimSweepAngle, &nearMatrix);
+        RotMatrixZYX((SVECTOR *)&D_800C3740, &nearMatrix);
         nearVec.vx = 0;
         nearVec.vy = 0;
         nearVec.vz = ReadGeomScreen() * 2;
         *(s32 *)&D_800C3CDC = ReadGeomScreen() * 2;
-        ApplyMatrix(&nearMatrix, &nearVec, &projected);
-        groupA.vx = (u16)total.vx - (u16)projected.vx;
-        groupA.vy = (u16)total.vy + (u16)projected.vy;
-        groupA.vz = (u16)total.vz - (u16)projected.vz;
+        ApplyMatrix(&nearMatrix, &nearVec, (VECTOR *)&vertex);
+        groupA.vx = (u16)total.vx - (u16)((VECTOR *)&vertex)->vx;
+        groupA.vy = (u16)total.vy + (u16)((VECTOR *)&vertex)->vy;
+        groupA.vz = (u16)total.vz - (u16)((VECTOR *)&vertex)->vz;
     } else {
         scale = distance * 0x4000 / BATTLE_ANIM_RADIUS_MAX;
         scale = scale * 2 * ReadGeomScreen() / 0x4000;
         *(s32 *)&D_800C3CDC = scale;
-        RotMatrixZYX((SVECTOR *)&g_BattleAnimSweepAngle, &farMatrix);
+        RotMatrixZYX((SVECTOR *)&D_800C3740, &farMatrix);
         farVec.vx = 0;
         farVec.vy = 0;
         farVec.vz = scale;
-        ApplyMatrix(&farMatrix, &farVec, &nearScreen);
-        groupA.vx = (u16)total.vx - (u16)nearScreen.vx;
-        groupA.vy = (u16)total.vy + (u16)nearScreen.vy;
-        groupA.vz = (u16)total.vz - (u16)nearScreen.vz;
+        ApplyMatrix(&farMatrix, &farVec, &farScreen);
+        groupA.vx = (u16)total.vx - (u16)farScreen.vx;
+        groupA.vy = (u16)total.vy + (u16)farScreen.vy;
+        groupA.vz = (u16)total.vz - (u16)farScreen.vz;
     }
     groupB.vx = (u16)total.vx;
     groupB.vy = (u16)total.vy;
