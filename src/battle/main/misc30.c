@@ -693,67 +693,39 @@ void BattleActorSnapToTargetAndFace(BattleActorSprite* pSprite, BattleActorSprit
     SpritePlayAnimation(pSprite, pSprite->animId);
     BattleFaceActorsTowardEachOther(pSprite, pTarget);
 }
-/* 98.93%, 768 bytes / 192 instructions -- retail's exact size, and the head,
-   all thirteen dispatch arms and the frame match.  Three ties are left:
-   1. s-register rotation: retail has pSprite=$s1, index=$s2, code=$s3, ours
-      gives pSprite=$s1, code=$s2, index=$s3.  Declaration order is not it
-      (declaring code before index measures the identical 98.93), so the pair is
-      local-alloc's ordering.  Every statement order that creates `code` first
-      also flips the head's load order (88.33%), which the note's author measured.
-   2. gcc folds the row base into the symbol in the arms
-      (%hi(g_BattleStateWork + 0x14E) with lhu 0x0) where retail materialises the
-      plain symbol and reads lhu 0x14E; only a statement split stops the fold and
-      both splits measure worse: a `u8 *pRow` local in the 0xFE arm alone 96.35
-      (that arm's load schedule rotates, and the base then CSEs to $s4), the same
-      local at all five sites 74.36 at 816 bytes (pRow becomes callee-saved).
-   3. the default arm's caller-saved names (t0/a3 against retail's a3/v1) -- a
-      consequence of the `g_BattleCommandRowIndex++` spelling retail needs for
-      its store delay slot.
-   The superseded body was missing `case 0xF8`: retail's jtbl_80070A80 entry 5 is
-   .L800B9E24 (the func_800B9284 arm) and entry 6 is the default.  With that added
-   the C emits 13 words against retail's 14-word `.size`; the trailing word looks
-   like the `.align 3` pad of func_800B9F78's table, which starts 8-aligned at
-   +0x90 -- not verified with check_bin.
-   Kept, each measured: the one-expression row reads (retail's addu shape, +16%
-   over the old pBase/pRow spelling); `rowIndex = g_BattleCommandRowIndex;
-   g_BattleCommandRowIndex = rowIndex + 1;` in the 0xF4 arm (retail stores the
-   increment before the row read and this is its exact 4-instruction chain,
-   which the obvious `g_BattleCommandRowIndex++` in the expression does not
-   give); and the 0xFB arm's `slot = pSprite->flags_0xA8 >> 30;` local, which a
-   permuter run found (base 655 -> 403) and which fixed that arm's or-operand
-   registers.
-   Preset is not the answer here: the unit is already cdk -G0 and the matched
-   neighbours break under 2.7.2-psx -G0.  Before this round the park read 76.54%
-   with pBase/pRow arm spellings; that body is superseded.
-*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 /* 99.51%, 768 bytes / 192 instructions -- retail's exact size, the frame and all
-   thirteen dispatch arms instruction-identical.  One residual: the default arm's
-   `g_BattleCommandRowIndex++` chain, where retail keeps the global's address in
-   $a3, the loaded index in $v1 and the work base in $a1 (a1 doing double duty as
-   the lhu destination once the base dies) and this body hands out $t0 / $a3 /
-   $v1 for the same three quantities -- same instruction order, same ref counts,
-   so it is local-alloc's block hand-out, not a shape error.
-   What closed the old 98.93 body (all measured this round):
+   thirteen dispatch arms instruction-identical.  One residual, unmoved this
+   round: the default arm's three caller-saved pseudos.  Retail hands out
+   $a3 (address of g_BattleCommandRowIndex), $v1 (the loaded index) and $a1 (the
+   g_BattleStateWork base), and the lhu destination then REUSES $a1 as the base
+   dies in it; this body hands out $t0 / $a3 / $v1 for those three and gives the
+   lhu a separate $a1.  Same instruction order and same ref counts, and retail's
+   set is exactly this one shifted down a register -- as if its block carried a
+   fourth qty in $t0, but no $t0 appears anywhere in retail's arm, so this is
+   local-alloc's block hand-out, not a shape error.
+   What closed the old 98.93 body (earlier rounds):
    1. the row reads.  Written as `g_BattleStateWork + row * 0x48 + FIELD` every
       arm folded the field into the symbol's %lo (`addiu base,base,334` /
       `lhu 0`) where retail keeps it in the load displacement
-      (`addiu base,base,0` / `lhu 334(base)`).  BATTLE_COMMAND_ROW_AT -- a
-      pad-then-row struct reached as a MEMBER LVALUE of a cast pointer -- keeps
-      the displacement; the address-of spelling (&(...)->row) folds again, and
-      BATTLE_COMMAND_ROW (the rows array of BattleWorkRows) folds because its
-      0x14E is a sibling of the symbol.  Both probed with cc1_probe.sh.
+      (`addiu base,base,0` / `lhu 334(base)`).  BATTLE_COMMAND_ROW_AT keeps the
+      displacement; BATTLE_COMMAND_ROW folds because its 0x14E is a sibling of
+      the symbol.  Both probed with cc1_probe.sh.
    2. `index` also receives the head's 0x15B byte before being reassigned from
       g_BattleState->actorIndex, and `pCurSprite` names the 0xC field; that pair
-      is a permuter find worth +0.47 (98.93 -> 99.40) -- it is what flips
-      pSprite/index/code from $s1/$s3/$s2 to retail's $s1/$s2/$s3.
+      is a permuter find worth +0.47 (98.93 -> 99.40).
    3. the 0xFB arm materialises its own work-base local (`pWork`), +0.11.
-   Tried on the residual, each identical or worse: a `u16 *` subscript for the
-   same row word (identical), a per-arm base local in the default arm in place of
-   pWork (identical), the row word hoisted into `id` with the increment as its
-   own statement (87.63, 816 bytes -- the sw leaves the jal delay slot), and
-   three 3-minute permuter runs (150 -> 105 -> 85 -> 85, no further finds).
+   Tried on the residual this round: the default arm as plain
+   `BATTLE_COMMAND_ROW_AT(g_BattleCommandRowIndex++).unk0` (identical 99.51, and
+   it drops the pRow local, so that is the spelling kept below); the same arm's
+   base through `pWork` (86.07, 816 bytes -- the store leaves the jal delay
+   slot); a 3-minute permuter run on the body below (883 iterations, base=85
+   best=85).  Tried earlier, each identical or worse: a `u16 *` subscript for the
+   same row word, a per-arm base local in the default arm, the row word hoisted
+   into `id` with the increment as its own statement (87.63, 816 bytes), and two
+   more 3-minute permuter runs.
    Preset is not the question: the unit is cdk -G0 and its matched neighbours
-   break under 2.7.2-psx.  The switch's .rodata operand against retail's
+   break under 2.7.2-psx -G0.  The switch's .rodata operand against retail's
    jtbl_80070A80 is expected in an owning unit.
 */
 /*
@@ -761,7 +733,6 @@ void func_800B9C78(void) {
     BattleActorSprite* pSprite;
     u8* pBase;
     u8* pWork;
-    u8* pRow;
     SpriteData* pCurSprite;
     s32 index;
     u8 code;
@@ -838,14 +809,11 @@ void func_800B9C78(void) {
         default:
             g_BattleState->commandUnhandled = 1;
             BattleSetSpriteTemplate(pSprite);
-            pRow = g_BattleStateWork;
-            func_800BEE2C(index,
-                          ((BattleCommandRowBase*)(pRow + g_BattleCommandRowIndex++ * 0x48))->row.unk0, code);
+            func_800BEE2C(index, BATTLE_COMMAND_ROW_AT(g_BattleCommandRowIndex++).unk0, code);
             break;
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
 
 extern s32 D_800C3660;
 extern s32 g_BattlePendingCommand;
