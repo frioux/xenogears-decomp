@@ -38,21 +38,34 @@ extern SprintfFormat g_SprintfFormatDefault;
 extern const char D_80018BF0[]; // .rodata, "0123456789ABCDEF"
 extern const char D_80018C04[]; // .rodata, "0123456789abcdef"
 
-// BEST ATTEMPT Sprintf -- 98.46% (531 insns compiled vs 561 retail, 2124 vs 2244 bytes).
+// BEST ATTEMPT Sprintf -- 98.87% (531 insns compiled vs 535 retail, 2124 vs 2140
+// bytes; the diff prints 561 because the retail side counts reloc and label lines).
 // Structure is retail's: PSY-Q 2.7.2 -O3, frame 0x248, s0-s6+ra in retail's slots
-// (s3=pDst, s2=count, s1=p, s4=' ', s5='-', s6='+'), fmt at 0x210, ap at 0x220, va
-// area at 0x250, prologue and every switch arm instruction-identical modulo branch
-// targets. Remaining deltas, measured:
-//  1. 30 instructions short overall, most of them LOAD-DELAY NOPS retail has and
-//     this compile does not: retail's va_arg is "lw v1,0x220(sp); nop; addiu
-//     v0,v1,4; sw v0,0x220(sp); lw a0,0(v1)" (5) and mine drops the nop (4), the
-//     same in the digit and pad loops. Not reachable from C, it is the scheduler.
-//  2. p = &work[0x200] is formed one block earlier in retail (addiu s1,sp,0x210 in
-//     the LEFT-flag block, before its beqz) than in this compile.
-//  3. the '*' width arm reloads pFormat from its home slot where retail reuses the
-//     register it already holds (addiu v0,a0,2 then lbu a1,2(a0)).
-// WHAT MADE THE JUMPS, in order (each measured): 75.75 -> 87.64 came from the TU
-// split already in config/slus_006.64.yaml (memmove/strlen/memchr no longer
+// (s3=pDst, s2=count, s1=p, s4=' ', s5='-', s6='+'), fmt at 0x210, width 0x214,
+// prec 0x218, ap at 0x220, va area at 0x250, pFormat's home 0x24C. Every
+// instruction of the body, both digit loops, all three pad loops and the copyOut
+// tail are identical modulo branch targets; exactly FOUR instructions are missing.
+// THE RESIDUAL, named: in the four arms whose vararg lands in `value` ('d'/'i',
+// 'u', 'o', and the 'X'/'x' hex arm) retail emits the va_arg fetch BEFORE the
+// flags load and therefore pays a load-delay nop, where this compile loads flags
+// first and fills that slot. Retail .L8003FF04: lw v1,544(sp) / addiu v0,v1,4 /
+// sw v0,544(sp) / lw a0,0(v1) / lw v1,528(sp) / nop / andi v0,v1,0x20; this
+// compile: ... sw v1,544(sp) / lw v1,528(sp) / lw a0,0(v0) / andi v0,v1,0x20.
+// The 'n' and 's' arms load flags first in BOTH builds, so it is not a rule.
+// MEASURED DEAD (five scored runs, all byte-identical, so this is neither source
+// order nor a flag): fmt.u.flags copied to a u32 local after the fetch; the same
+// local read BEFORE the fetch; va_arg split into pArg = ap; ap = pArg + 4;
+// value = *(s32*)pArg; a (u32) cast around va_arg; declaring `value` before
+// c/count/len. cc1's own .s has the flags load first in all of them, and cc1 has
+// no -fschedule-insns, so the position comes from expand/local_alloc, not reorg.
+// permute.sh --minutes 4: PERMUTER_BETTER base=674 best=522, and the candidate is
+// wrong-shaped code (it wraps the fetch in a redundant if (fmt.u.flags) and
+// duplicates it), so it was not ported.
+// FIXED THIS ROUND: p = &work[0x200] moved ABOVE the LEFT-flag clear (98.46 ->
+// 98.87). Retail forms addiu s1,sp,0x210 in the beqz delay slot of that if, which
+// only happens when the statement precedes it.
+// WHAT MADE THE EARLIER JUMPS, in order (each measured): 75.75 -> 87.64 came from
+// the TU split already in config/slus_006.64.yaml (memmove/strlen/memchr no longer
 // inlined, the three jals appear); 87.64 -> 90.12 from s32 c instead of char c
 // (kills the andi 0xff on every format-character compare); 90.12 -> 96.60 from
 // reading varargs through an ADDRESS-TAKEN va_list -- va_arg(*((va_list*)&ap), T)
@@ -65,8 +78,8 @@ extern const char D_80018C04[]; // .rodata, "0123456789abcdef"
 // in retail (memchr taken instead gave the mirrored layout).
 // TRIED AND REJECTED: char c (87.64), volatile va_list (88.86, too many insns),
 // gcc 2.6.0 -O3 (95.62), gcc 2.7.2-cdk (compile-failed), -O2 (90.12, measured on
-// the 90.12 body). twin_for.py: no twin. No permuter run: the residual is not a
-// register or statement-order one.
+// the 90.12 body), u32 local for flags, va_arg split into statements, (u32) cast
+// around va_arg, value declared first. twin_for.py: no twin.
 /*
 int Sprintf(char* pDst, char* pFormat, ...) {
     char work[SPRINTF_WORK_SIZE];
@@ -139,9 +152,9 @@ int Sprintf(char* pDst, char* pFormat, ...) {
             if (fmt.prec >= 0)
                 fmt.u.flags |= SPRINTF_FLAG_PRECSET;
         }
+        p = &work[SPRINTF_WORK_SIZE];
         if (fmt.u.flags & SPRINTF_FLAG_LEFT)
             fmt.u.flags &= ~SPRINTF_FLAG_ZERO;
-        p = &work[SPRINTF_WORK_SIZE];
 
     again:
         switch (c) {
@@ -338,3 +351,4 @@ done:
     return count;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc_sprintf", Sprintf);
+
