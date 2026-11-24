@@ -592,51 +592,6 @@ s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
     }
 }
 
-// PARK 99.70% (744 bytes = retail exact, 186 insns = retail count). Retail is
-//    744 bytes (objdiff symbol size and the .s agree: 0x11F54..0x1223C).
-//    The body is instruction-identical except THREE BYTES in case 2: retail puts the
-//    first ternary result in $v0 (li v0,5 / li v0,4 / sh v0,D_800916E2), ours in
-//    $a0. culprit.sh reports exactly "func_80081A44 3 bytes 0x80081AEA-0x80081AF6",
-//    so the function cannot link.
-//    MECHANISM, measured from the allocator dumps rather than guessed: the HI pseudo
-//    holding the ternary value cannot take $v0 - m.i.greg says "84 conflicts: 84 2 3
-//    29" and "84 in 4" ($a0). The conflict with $v0 comes from sched1, not from the
-//    C: at combine time block 13 is [94 li v1,1][96 sw latched][101 lw flags][102
-//    andi][502 li 5][104 bnez], but in m.i.sched the ready list shows 502 with
-//    scheduler priority 1 (no intra-block user - its only reader is the sh in the
-//    next block), so the backward pass drops it into the FIRST slot: post-sched1
-//    order is [502][101][94][96][102][104] and the HI pseudo is live across the lw,
-//    which is what bars $v0. Retail sched1 left 502 in the delay slot. Reproduce:
-//    tools/gcc-2.7.2-psx/cc1 -O2 -G8 -da on build/src/battling/main/misc8.c.i in the
-//    build container (writes m.i.greg / m.i.lreg next to the input).
-//    What DID work in an earlier round (all needed for the 744 bytes):
-//    - the second nextListIndex read must be a STATEMENT through a volatile cast,
-//      flags = *(volatile s32 &g_BattleSlotConfirmFlags); a plain read is CSE d
-//      across the store to the other global and never reloaded (2 insns short);
-//    - the FIRST store must be volatile too, or sched2 sinks it below the reload
-//      (740 bytes, 97.46-97.74);
-//    - the second call is BattleUpdateTextPadInput(g_BattleOptionTextList + 1, 1)
-//      for retail single addiu a0,s0,0x3C (the typed list costs one more insn);
-//    - the two nextListIndex stores must be the D_ globals D_800916E2/D_8009171E
-//      (g_BattleTextLists[5].nextListIndex makes cc1 materialise the address).
-//    Measured, all worse or equal: no flags local (736, 91.37); volatile inline in
-//    the second ternary (748, 94.65); volatile on the first read only (752); flags
-//    read twice through volatile (748, 98.60); (x & 1) ? 5 : 4 arm order (744,
-//    99.37); plain first store (740, 97.46); the latched store moved after the
-//    ternary (744, 96.91); a (u16) cast on the ternary (744, 99.70, unchanged);
-//    one s32 flags local reused as the ternary result (flags = (flags & 1) ? 5 : 4,
-//    then store flags) to force the load and the arms into ONE pseudo: 748, 98.90,
-//    and the andi then reads v1 - the pseudo sharing costs an insn and does not
-//    clear the conflict.
-//    Preset screens: gcc-2.7.2-cdk 99.70, -O3 99.70, -O1 81.79, -Os compile-failed,
-//    gcc-2.6.0 rejects the body - the preset is not the way out.
-//    Permuter: base=45 best=45 over 1320 iterations this round (its score is
-//    dominated by the branch-label renaming every diff shows, so it cannot see a
-//    one-register move); an earlier 3-minute run reported the same base and best.
-//    Next idea if anyone retries: raise insn 502 scheduler priority (a reader in the
-//    same block) or make the HI pseudo share the load pseudo without adding an insn;
-//    no spelling tried so far moves 502 out of the block head.
-/*
 void func_80081A44(void) {
     switch (g_BattleMode) {
     case 1:
@@ -658,11 +613,13 @@ void func_80081A44(void) {
         break;
     case 2: {
         s32 flags;
+        s32 flags2;
 
         g_BattleSlotConfirmLatched = 1;
-        *(volatile u16 *)&D_800916E2 = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
         flags = *(volatile s32 *)&g_BattleSlotConfirmFlags;
-        D_8009171E = (flags & 2) == 0 ? 4 : 5;
+        D_800916E2 = (flags & 1) == 0 ? 4 : 5;
+        flags2 = *(volatile s32 *)&g_BattleSlotConfirmFlags;
+        D_8009171E = (flags2 & 2) == 0 ? 4 : 5;
         BattleUpdateTextPadInput(g_BattleOptionTextList, 0);
         BattleUpdateTextPadInput(g_BattleOptionTextList + 1, 1);
         if (g_BattleSlotConfirmFlags == 3) {
@@ -733,8 +690,7 @@ void func_80081A44(void) {
         break;
     }
     BattleDrawVibrationOptions();
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
+}
 
 
 void BattleUpdateTextWindow(void) {
