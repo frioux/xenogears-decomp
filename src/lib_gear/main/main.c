@@ -1678,39 +1678,59 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 
 
 
-// objdiff 95.98%. Loop body and register anchors match the original
-// instruction for instruction (a0 is the skeleton+4 cursor, a0 += 0x7C per
-// joint, rotation compared with lh, translation with lw). Two prologue
-// differences remain, both allocation: the original loads pBlock->type first
-// into t0 and keeps pKeyframe in a1 (the in-place `addiu a1,a1,0x18` reorg
-// pulls into the bnez delay slot), where gcc 2.6 loads type last (v0) and
-// copies pBlock to a2 for pKeyframe; and the back edge loses the original's
-// dead `andi v0,count` delay slot insn. Load order 0x6,0xC,0xE,0x4 (fixed by
-// declaring numTransFrames before flags) still allocates flags to a1 and
-// pKeyframe to a2. Also tried: s16 x/y/z locals (74.79%), gcc 2.7.2 (94.95%).
-// Screened: no compiler harvests it - 94.95 best (2.6.0 and 2.7.2 -O2 alike), 92.43 under 2.7.2-cdk,
-// 89.90 cdk + maspsx aspsx 2.67. The delta is the one un-reproducible register pair noted above.
+// objdiff 96.81%, 420 bytes / 105 insns = retail's exact size; the loop body,
+// both arm guards and the cursor (a0 = &joint->doTransform, a0 += 0x7C) are
+// instruction-identical. Up from 95.98 by twin-porting battle/main/misc21
+// func_800A1B50's parked body (same 105-insn function in the battle binary,
+// 97.90% there): the loads in source order type,numRot,numTrans,flags, a s32
+// skipFirst = blockType == 0 local deciding the if, and rotFrame/transFrame
+// assigned as statements instead of initialisers (that alone fixed the type
+// load's position: 94.95 -> 96.81).
+// Residual, both in the prologue/epilogue, and both allocation:
+// 1) retail holds flags in a2 and pKeyframe in a1 with the add in-place
+//    (addiu a1,a1,0x18, reorg then pulls it into the bnez delay slot). Here
+//    gcc 2.6 emits addiu a2,a1,24 BEFORE the lhu a1,4(a1) flags load, so pBlock
+//    is still live when pKeyframe is allocated and takes a2. Spellings measured
+//    identical (all fold back to one add of a fresh pseudo): (s16*)pBlock + 12,
+//    'pKeyframe = (s16*)pBlock; pKeyframe += 12;', and the parameter advance
+//    'pBlock = (KeyframeBlock*)((s16*)pBlock + 12); pKeyframe = (s16*)pBlock;'
+//    which was the diagnostic for whether an in-place update is reachable.
+// 2) the back edge's bnez delay slot: retail duplicates andi v0,count there,
+//    ours has nop. Blocked on (1) changing which insns reorg can move.
+// Also tried and rejected: s16 x/y/z locals (74.79%), blockType == 0 inline
+// instead of skipFirst (94.95), gcc 2.7.2 (94.95), 2.7.2-cdk (92.43), cdk +
+// aspsx 2.67 (89.90).
 /*
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
-    u16 rotFrame = 0;
-    u16 transFrame = 0;
-    s16 blockType = pBlock->type;
-    u16 numRotFrames = pBlock->numRotFrames;
-    u16 numTransFrames = pBlock->numTransFrames;
-    u16 flags = pBlock->flags;
-    s16* pKeyframe = (s16*)(pBlock + 1);
+    u16 rotFrame;
+    u16 transFrame;
+    s16 blockType;
+    s32 skipFirst;
+    u16 numRotFrames;
+    u16 numTransFrames;
+    u16 flags;
+    s16* pKeyframe;
     u16 count;
     int i;
     int x;
     int y;
     int z;
-    ModelJoint* pJoint = pSkeleton;
+    ModelJoint* pJoint;
 
-    if (blockType == 0) {
+    rotFrame = 0;
+    transFrame = 0;
+    blockType = pBlock->type;
+    skipFirst = blockType == 0;
+    numRotFrames = pBlock->numRotFrames;
+    numTransFrames = pBlock->numTransFrames;
+    flags = pBlock->flags;
+    pKeyframe = (s16*)(pBlock + 1);
+    if (skipFirst) {
         pKeyframe += (numRotFrames + 1) * 3;
     }
 
     count = pSkeleton->numChildren - 1;
+    pJoint = pSkeleton;
     for (i = 0; i < count; i++) {
         pJoint++;
 
@@ -1745,12 +1765,29 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
             }
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
 
+// R449 additions to the note below, all measured this round:
+// - The keyframe-pointer tie is the SAME mechanism that blocks func_801DEF10 in
+//   this unit: retail coalesces the cursor onto the pBlock parameter register
+//   (in-place 'addiu s1,s1,0x18'), the compile always allocates a fresh
+//   register (here s2) because the add's input is still live at its def. Four
+//   spellings on func_801DEF10 measured byte-identical (a fresh a2 there):
+//   '(s16*)pBlock + 12', 'p = (s16*)pBlock; p += 12;' (copy-prop folds the two
+//   back into one add of a new pseudo), 'pBlock = (KeyframeBlock*)((s16*)pBlock
+//   + 12); pKeyframe = pBlock;', and pBlock->keyframes. So gcc 2.6 does not
+//   produce the in-place add from any of them; a future round should attack it
+//   once for BOTH functions (see levers.md n-a-symbol-plus-a-big-immediate /
+//   the two-address addsi3 note in world_map/misc6_b for the tie's mechanism).
+// - u16 'frame' instead of s32: 95.57% but 1148 bytes / 287 insns (one over
+//   retail's 1144), so the local is s32 with a 16-bit read retail gets from a
+//   HImode load of its stack slot ('lhu t0,16(sp)' against our 'lw'): that is
+//   the one non-register delta left in the body.
+// - try_flags gcc-2.7.2-psx: 95.19, so the unit's preset is not the question.
+// - the (s8*) casts on the two LibGearFreeJointObject calls are gone (it takes
+//   Temp3*); byte-identical.
 // objdiff 95.40%, 1144 bytes (retail's exact size, 286 instructions), every
 // branch target and every slot at the same offset as the original. Both
 // channels reproduce retail's own structure: the whole-word read of the
@@ -1775,12 +1812,6 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
 // which s32 cannot reproduce (it emits `lw`), while u8 grows the frame to 0x80
 // for `type` alone and 0x88 for both by spilling them into new slots.
 /*
-// Queues an interpolating Temp3 for the rotation and translation channel of each
-// joint below pSkeleton, reading the two keyframe runs of pBlock over numFrames
-// frames. A joint whose keyframe equals its current value releases the queued
-// object instead. `absolute` makes the interpolation end at the keyframe itself
-// rather than at the difference to the joint's current value.
-// Returns the number of joints visited.
 s32 func_801DF0B4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 numFrames,
                   s32 absolute, s32 unk6, s32 type) {
     Temp3* pObject;
@@ -1885,7 +1916,7 @@ s32 func_801DF0B4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 
         pObject = pJoint->pRotationObject;
         if (pObject != NULL && pObject->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pObject);
+            LibGearFreeJointObject(pList, pObject);
             pJoint->pRotationObject = NULL;
         }
 
@@ -1937,7 +1968,7 @@ s32 func_801DF0B4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
 
         pObject = pJoint->pTranslationObject;
         if (pObject != NULL && pObject->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pObject);
+            LibGearFreeJointObject(pList, pObject);
             pJoint->pTranslationObject = NULL;
         }
 
@@ -1945,8 +1976,10 @@ s32 func_801DF0B4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     }
 
     return count;
-}
-*/
+}*/
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
+
+
 
 void LibGearReleaseJointObjects(Temp4* pList, ModelJoint* pSkeleton, s32 index, s32 flags) {
     if (index < pSkeleton->numChildren) {
