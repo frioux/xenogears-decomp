@@ -42,6 +42,15 @@ extern s32 g_WorldMapAreaMode;
 extern void WorldMapStartSlot(s32, s32);
 extern void SoundPlaySoundEffectOnFreePair(s32);
 extern u32 g_WorldMapRotationMatrixValid;
+extern s32 g_WorldMapPlayerPosition;
+extern u32 g_WorldMapPlayerPositionY;
+extern u32 g_WorldMapPlayerPositionZ;
+extern u32 g_WorldMapFadeLevel;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
+extern u32 g_WorldMapScrollTargetX;
+extern u32 g_WorldMapScrollTargetY;
+extern u32 g_WorldMapScrollTargetZ;
 extern s16 g_WorldMapCameraRot[];
 extern s16 g_WorldMapViewRotationY;
 extern u16 g_WorldMapViewRotationZ;
@@ -169,6 +178,28 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6_b", func_80080578);
    steals a different instruction into the delay slot. The twin gets retail's
    tail for free because its `pStateFrames = 0x40` store forces a v0 reload
    between the command store and the return.
+   ROUND 4xx (this lane): the register rotation IS reachable, and it is a
+   block-boundary effect, not an allocator coin flip. If pActor's whole life
+   sits in ONE basic block - `pActor = &g_WorldMapSlots[index];` assigned
+   INSIDE the do-block, or no do-block at all - local-alloc gives retail's
+   exact set ($v1 pActor, $a0/$a1/$a2 for x/y/z). With pActor assigned before
+   the do-block it crosses into global-alloc, which runs after the local pass,
+   and lands in $a2 (this body). Measured with cc1_probe.sh on a faithful
+   replica of the function.
+   BUT every one of those forms loses the instruction ORDER this body has
+   (retail's `li v0,1` hoisted six slots above its `sh v0,4`, the RMV store at
+   slot 4), and objdiff scores a displaced insn block WORSE than a pure
+   register rotation: pActor assigned inside the do-block = 84.71 (the RMV
+   store then hoists to slot 1, and no do-block form reorders the command
+   store), and no-block + volatile stores = 88.24 (only 4 differing lines -
+   retail's `sh v0,4` / `li v0,1` sit at slots 14/15 in ours and 19/20 in
+   retail, everything else exact, including retail's $v1/$a0/$a1/$a2 and its
+   jr delay slot). So 94.71 stays the best score.
+   What remains is one body with BOTH, and the two requirements conflict:
+   retail's order needs pActor to cross a block boundary, retail's registers
+   need it not to. The RMV store position is the coupling - it belongs inside
+   the block for retail's order and hoists to slot 1 whenever pActor is
+   assigned inside the block.
 */
 /*
 int func_80080578(int index) {
