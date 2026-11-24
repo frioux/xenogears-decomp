@@ -1099,60 +1099,41 @@ void SystemStringClearLineOffset(SystemString* pString) {
 extern void func_80031798(void* pOt, void* pPrim);
 
 
-// Parked at 97.26% (1564 bytes against retail's 1572: TWO instructions short).
-// Everything below is measured, not guessed.
-// - THE ROW-RESET LOOP COUNTS WITH `row`, NOT A LOCAL: `for (row = 0; row <
-//   pString->maxChars; row++) pString->pChars[row].rowWidth = 0;` (with
-//   `row = pString->scrollRow;` after it) is what makes row's pseudo live across
-//   the sprite loops' calls, so global-alloc gives row s3 and i s4 - retail's map
-//   - and the reset loop's own counter comes out in s3 with the byte offset in
-//   v1, exactly as retail has it (96.83 -> 97.26, and both sprite loops' giv
-//   chains, the mult operands and the row-reset loop become instruction
-//   identical).
-// - THE SOURCE HAS NO pChar / pSprite LOCALS. Retail re-reads pString->pChars
-//   (lw v1,40(s0)) for every single store and re-forms the sprite address each
-//   time; a pointer local CSEs all of that and comes out ~180 bytes short at 68%.
-//   Everything stays spelled inline (pString->pChars[row].sprt[context][1].v0 = ...).
-// - THE BUFFER POP NEEDS pNode's ASSIGNMENT FIRST: pNode = pString->pBufferStack;
-//   pString->pCur = pNode->pData; pString->pBufferStack =
-//   pString->pBufferStack->pNext; HeapFree(pNode); is what puts the a0 load (the
-//   HeapFree argument and pData's base) before the v1 load (pNext) AND restores
-//   retail's nop in the `beqz bufferCount` delay slot (both observed).
-// - THE unk6A BLOCK NEEDS A SECOND STORE: the branch body must also write
-//   pString->unk69 = pString->unk6A before unk6A = 0. Retail stores 0x69 twice
-//   (once in the branch, once after the join) and reloads unk6A for the first
-//   one; without that statement gcc reuses the test's load.
-//   Those two shapes took the park 1556 -> 1564 bytes and make both blocks
-//   instruction-identical to retail's.
-// - THE REMAINING TWO INSTRUCTIONS ARE IN THE unk69/upload-hold SEAM. Retail:
-//   lbu 0x68 / nop / sb 0x69 / lhu 0x10(flags) / nop / andi 0x40. This body lets
-//   sched2 raise the flags load ABOVE the sb (lbu / lhu / sb / andi), which drops
-//   both the load-delay nop after lbu and the one after the lhu. Measured
-//   non-fixes: a volatile u16 read of flags in the if (96.04%, 1576 bytes, breaks
-//   ordering elsewhere), a volatile u8 store of unk69 (no change), and reading
-//   flags once into a `flags = *(volatile u16*)&pString->flags;` local used by the
-//   whole hold test (97.26%, 1564 bytes - byte-identical, sched2 still steals the
-//   load into the lbu's delay slot, so a volatile lvalue is not a scheduling
-//   barrier here). Retail's merge block is [sb, lhu, andi...] with the lhu owning
-//   an unfillable nop slot; ours schedules the load first and reorg fills the
-//   preceding block's lbu slot with it, which is the whole 2-instruction gap.
-// - THE REGISTER MAP MATCHES RETAIL'S NOW: s1 = row*0x60 (the derived giv), s2 =
-//   context*0x28, s3 = row, s4 = i. See the reset-counter bullet: it was the
-//   local `j` counter that forced s3 = i. (Declaration order of i/row and scoping
-//   each loop's locals in their own block are both no-ops, byte-identical.)
-// - THE ~9 `addu v1,s2,v1` SITES (context sum base-first) come out
-//   `addu v1,v1,s3` here. Retail has BOTH orders in the same function (0x252A0
-//   base-first, 0x2532C index-first), so this is per-site, not one spelling.
-// - THE CLEAR-TILE TAIL (retail 0x34DCC..0x34E68) is the same 26 instructions in
-//   a different order: retail materialises 0xFFFFFF in a2 and 0xFF000000 in v1
-//   AFTER the mflo, this body hoists 0xFF000000 into a1 before the mult and does
-//   the `addu s0,ctx*0x10` sum one statement later. Retail's shape is
-//   addiu a1,a1,0x48 / addu a1,s0,a1 as two statements; this body's `&clearTile
-//   [context]` + `(maxWidth|1)` group re-derives it after the tag load.
-// - The frame matches retail exactly (0x80, vars=80): the older note claiming
-//   0x78 was wrong.
-// - Loop 2's width clamp must stay an if/else (the ternary costs 0.99%).
-// 97.26%, 1564 bytes (2 instructions short). Repro: unpark and diff.
+// 98.99%, 1572 bytes / 393 instructions - retail's EXACT size and instruction count.
+// The residual is ONE four-instruction scheduling swap in the clear-tile tail, same
+// instruction multiset: retail hoists the tile-word load (`lw a0,72(a3)`) into the
+// `mult` latency window and materialises 0xFF000000 after the or chain (`lui
+// v1,0xff00`, just before `sw v0,84(a3)`); this body schedules the `lui a1,0xff00`
+// into the window and loads the word (`lw v1,0(a0)`) after the or chain. Two
+// permuter runs (525 -> 485 on its own metric, no objdiff gain) found no better
+// schedule; the second find measured 98.75 here and was rejected.
+// - THE 2-INSTRUCTION GAP THAT HELD THIS AT 97.26 IS CLOSED BY AN EMPTY
+//   `do { } while (0);` BETWEEN THE unk69 STORE AND THE `if (flags & 0x40)` TEST: the
+//   loop note is a basic-block boundary, so sched2 can no longer steal the flags
+//   `lhu 0x10(s0)` into the preceding block's `lbu` delay slot. 97.26 -> 97.93 and
+//   retail's 393 instructions. A volatile lvalue does NOT work (measured,
+//   byte-identical at 97.26) - the empty loop is the barrier.
+// - THE FOUR `addu v1,s2,v1` SITES (the `code |= 1` / `&= ~1` flag writes) WANT THE
+//   CONTEXT TERM FIRST IN THE SOURCE SUM: addressing the row through a
+//   SystemStringChar view whose address is `context * sizeof(sprt row) +
+//   (u32)&pChars[row]` emits retail's operand order where the plain
+//   `pChars[row].sprt[context][1].code` subscript canonicalises index-first
+//   (97.93 -> 98.03). Retail has BOTH orders in this function - the sprite stores at
+//   0x34B2C are index-first, these flag writes at 0x34AA0 are not - so it is per
+//   site, and only the flags needed the flip.
+// - THE TAIL'S TILE-WORD POINTER LOCAL IS THE PERMUTER'S FIND (base 905 -> 525):
+//   assigning `pTileWord = (u_long*)&pString->clearTile[context]` and reading the tag
+//   through it moves the load to the position retail has; 98.03 -> 98.99.
+// - THE REGISTER MAP IS RETAIL'S: s1 = row*0x60 (the derived giv), s2 =
+//   context*0x28, s3 = row, s4 = i - that follows from the reset loop counting with
+//   `row` (a local `j` there mirrors s3/s4).
+// - STILL VALID FROM THE EARLIER NOTE: no pChar/pSprite locals (retail re-reads
+//   pChars for every store and re-forms the sprite address each time); the row-reset
+//   loop counts with `row` itself (that is what puts row in s3 and i in s4); the
+//   buffer pop needs `pNode = pString->pBufferStack;` first; the unk6A block needs
+//   the second `unk69` store; the frame is 0x80; loop 2's width clamp must stay an
+//   if/else (a ternary costs 0.99%).
+/*
 void func_80034888(SystemString* pString, u_long* pOt, int context) {
     SystemStringNode* pNode;
     u_long* pTileWord;
@@ -1293,7 +1274,9 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
 
     pString->flags &= ~SYSTEM_STRING_FLAG_PALETTE_DOUBLE;
     AddPrim(pOt, &pString->drawMode[0]);
-}
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
+
 
 
 
