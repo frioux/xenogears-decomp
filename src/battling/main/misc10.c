@@ -776,6 +776,7 @@ s32 BattleCheckModeOver(void) {
 }
 
 
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
 
 /* 99.24% objdiff, retail's exact 2928 bytes. This is the battle scene's init and
@@ -851,6 +852,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
    a second pScene alias for the draw arms 98.80 (2936). Nothing tried moves the
    pScene/constant pair; the one thing that did move a pair was the pAudioBlock
    split above.
+
    s32 func_800852C4(void) {
        void* pScene;
        Misc10ArchiveHeader* pArchive;
@@ -1180,6 +1182,27 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        }
 
    }
+   ROUND 447 (redo lane, no change to the body): re-measured 99.24% / 2928 bytes
+   with the body live, and CLOSED THE PRESET AXIS, which the old note never did:
+   try_flags.sh gives gcc-2.6.0 99.24 (identical allocation), gcc-2.7.2-cdk 91.22,
+   plain -G0 99.24, and -O3 / cdk with -G0 do not compile. So the mirrored pair is
+   not a compiler-version question and no preset switch fixes it; every already
+   matched function in the unit is Default 100.00, so there is nothing to report.
+   THE MARGIN IS NOW ARITHMETIC rather than a guess: the -da numbers fit
+   floor_log2(refs) * refs * size / live_length exactly (pScene 3*15*4/463 = 0.389,
+   the const_int 1 2*4*4/58 = 0.552, pMatchCount 2*7*4/240 = 0.233), so pScene
+   overtakes 122 only at refs >= 16 (floor_log2 jumps to 4, giving 0.553) or at
+   live_length <= 326 insns, and 122 falls behind only past a live range of 82
+   insns. pScene is created at the top of the function and last used in the case 5
+   arm, and every term on 122 is a def, a branch, a store and a REG_EQUAL, so all
+   three are pinned by retail's own instruction stream: one more reference to
+   pScene would be one instruction more than retail's 2928 bytes. This is a
+   reachability proof, not a spelling gap - do not permute this function again.
+   ONE HONEST CAVEAT, found this round: idleCount is read UNINITIALISED (idleCount++
+   with no prior store on the runLoop path) and retail does the same thing - $s4 is
+   saved in the frame and never defined anywhere before the addiu s4,s4,1 at
+   0x85884 - so the UB read is what the original has; initialising the counter costs
+   the extra instruction and 2932 bytes.
 */
 
 void BattleCopyVertexOffsetAdd(u16* pSrc, u16* pDst) {
