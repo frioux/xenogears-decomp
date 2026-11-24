@@ -195,11 +195,12 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const n = x => x.toLocaleString('en-US');
 const pc = x => x.toFixed(1) + '%';
 const catName = {}; D.categories.forEach(c => catName[c.id] = c.name);
+const ld = (d, o) => new Date(d).toLocaleString(undefined, o || { dateStyle: 'medium', timeStyle: 'short' });
 
 // header
 const meta = $('meta');
 meta.append('commit ');
-const a = el('a', null, D.short); a.href = D.repo + '/commit/' + D.commit; meta.append(a, ' · ' + D.date.replace('T', ' ').replace('Z', ' UTC'));
+const a = el('a', null, D.short); a.href = D.repo + '/commit/' + D.commit; meta.append(a, ' · ' + ld(D.date));
 $('pct').textContent = pc(D.total.pct);
 $('stats').innerHTML = '<div>matched code</div>';
 const s = $('stats');
@@ -222,7 +223,7 @@ D.categories.forEach(c => {
   const h = D.history, box = $('hist');
   if (h.length < 2) { box.append(el('div', 'note', 'Not enough history yet (need at least 2 snapshots).')); return; }
   const W = 800, H = 280, L = 44, R = 16, T = 16, B = 30, NS = 'http://www.w3.org/2000/svg';
-  const t = h.map(p => Date.parse(p.date)), v = h.map(p => p.pct);
+  const t = h.map(p => Date.parse(p.date)), v = h.map(p => p.pct), dv = h.map((p, i) => i ? p.pct - h[i - 1].pct : null);
   const t0 = Math.min(...t), t1 = Math.max(...t), span = (t1 - t0) || 1;
   const lo = Math.max(0, Math.floor(Math.min(...v) / 5) * 5 - 5), hi = Math.min(100, Math.ceil(Math.max(...v) / 5) * 5 + 5);
   const X = x => L + (x - t0) / span * (W - L - R), Y = y => H - B - (y - lo) / ((hi - lo) || 1) * (H - T - B);
@@ -235,13 +236,16 @@ D.categories.forEach(c => {
   }
   [0, 1, 2, 3].forEach(i => {
     const tt = t0 + span * i / 3;
-    svg.append(mk('text', { x: X(tt), y: H - 8, fill: '#8b949e', 'font-size': 11, 'text-anchor': i == 0 ? 'start' : i == 3 ? 'end' : 'middle' }, new Date(tt).toISOString().slice(0, 10)));
+    svg.append(mk('text', { x: X(tt), y: H - 8, fill: '#8b949e', 'font-size': 11, 'text-anchor': i == 0 ? 'start' : i == 3 ? 'end' : 'middle' }, ld(tt, { month: 'short', day: 'numeric', year: '2-digit' })));
   });
   svg.append(mk('polyline', { points: h.map((p, i) => X(t[i]) + ',' + Y(v[i])).join(' '), fill: 'none', stroke: '#3fb950', 'stroke-width': 2 }));
   h.forEach((p, i) => {
-    const c = mk('circle', { cx: X(t[i]), cy: Y(v[i]), r: 3.5, fill: '#3fb950' });
-    c.append(mk('title', {}, p.date.slice(0, 10) + ' ' + p.commit.slice(0, 7) + ': ' + pc(p.pct)));
-    svg.append(c);
+    const g = mk('g', {});
+    g.append(mk('circle', { cx: X(t[i]), cy: Y(v[i]), r: 9, fill: 'transparent' }));
+    g.append(mk('circle', { cx: X(t[i]), cy: Y(v[i]), r: 3.5, fill: '#3fb950' }));
+    const d = dv[i] == null ? 'first snapshot' : (dv[i] >= 0 ? '+' : '') + dv[i].toFixed(2) + '%';
+    g.append(mk('title', {}, ld(p.date) + ' · ' + p.commit.slice(0, 7) + '\n' + pc(p.pct) + ' (' + d + ')'));
+    svg.append(g);
   });
   box.append(svg);
 })();
