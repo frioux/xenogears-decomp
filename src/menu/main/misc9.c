@@ -1424,6 +1424,27 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    the identical `li s8,1` + `li s7,4` + flagged spill (`lbu v0,0x38(sp)`) and the
    same 0x70 frame - so there is no preset lead here (cdk 86.95, -O3 67.90). */
 
+// ROUND 459: re-measured 94.46%, and the size claim in the round-433 note was WRONG - ours
+//   is 884 bytes / 221 insns against retail's 888 / 222 (the symbol size in
+//   expected/asm/menu/main/misc9.s.o), so this body is ONE INSTRUCTION SHORT, not at
+//   retail's size. The accounting is exact: retail spends four `ori t0,0x1` inside the
+//   `if (needsOpen)` block (one per MenuCreateWindow a6 argument) and keeps the flag in
+//   $s5; this body hoists that constant into $s8 (+1 `li`), spills the flag (+3: `sb
+//   t0,0x38(sp)` in the prologue, `lbu v0,0x38(sp)` in the loop and the nop that load
+//   forces), and 3 - 4 lands it one instruction short. So flipping the tie to retail's
+//   shape is worth exactly +4 bytes and 100.00%, and the residual is the recorded lever
+//   a-shared-const-argument-outranks-a-three-ref-byte-flag (round 433 spelling sweep;
+//   round 446 `-da -dg`: gcc hoists the REG_EQUIV (const_int 1) into $fp and gives the
+//   3-ref u8 flag no disposition at all). Nothing new to port - park on the tie.
+//   JTBL CORRECTION: the round-293 line below is wrong, this stub DOES own
+//   jtbl_801C512C (its .s has the dlabel at 0x801C512C - 11 cases plus a trailing 0
+//   word - and the dispatch lui/addu/lw references it), and the unit owns its rodata
+//   ([0xFC, .rodata, main/misc9]), so converting this switch moves its table to +0x00 of
+//   the range where retail has it at +0x30. func_801DBE54 owns +0x00 (its switch body is
+//   parked) and func_801E05D0 owns +0x60 (asm): a C table is 0x2C bytes and cc1 aligns
+//   the next one to 0x30, so un-parking func_801DBE54 and this one TOGETHER lands them at
+//   +0x00/+0x30 and the asm .align 3 puts func_801E05D0's table at +0x60 - do the pair
+//   once the register tie is solved, never this one alone, and prove with check_bin.
 /*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
@@ -1518,6 +1539,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     MenuFreeArrowCursor(0);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
+
 
 
 s32 MenuRunUnk430Panel(u_char arg0, u_char arg1) {
