@@ -1326,49 +1326,109 @@ int SystemGetGlyphWidth(u16 first, u16 second) {
 // Dummy glyph bitmap the renderer draws for the dummy code (0x16 bytes)
 extern u16 g_SystemFontDummyGlyph[];
 
+/*
+Parked at 66.79% (391 instructions / 1564 bytes against retail's 424 / 1696). The
+structure and every mask expression are measured right; the whole residual is how
+much common-subexpression elimination gcc does inside the two row loops.
+
+- The two plane bodies are one macro taking SHIFT = 0 / 2 and the other plane's
+  clear mask. Retail's two copies differ exactly that way, and this spelling
+  reproduces the previous park's 66.79% to the byte.
+- MEASURED OP HISTOGRAM, retail's plane-0 loop (156 insns) against this body's
+  (126): andi 37 against 24, ori 26 against 22, or 12 against 9, sltu+negu 4
+  against 2, branches 27 against 27, lhu 13 against 13, sh 12 against 12. Retail
+  recomputes every `word & bit` test (its v0 is clobbered by the next test) and
+  re-derives the `(word & 0x80) ? C : 0` bool; this body keeps `word & 0x10` in a
+  register across two columns. Same branches, same loads and stores, so nothing
+  is missing from the source - gcc is deduplicating here and did not in retail.
+- RETAIL'S LOOP BACKBONE is four increments per iteration (addu t3,t3,t4 /
+  addu t1,t1,t4 / addu t2,t2,t4 / addu a2,a2,t4, with t4 = rowStride*2 invariant),
+  t3 = pRow + 4 bytes, no callee-saved register and no frame. Only ONE derived
+  pointer per base exists (the current row's), and the prev/next row accesses
+  stay 0x2 / 0x4 immediates off t1 / t2.
+- THREE SPELLINGS MEASURED, identical mask code in all three:
+  * `(pDest + rowStride)[k]` / `(pDest - rowStride)[k]`, pDest the for-update
+    pointer: 66.79%, 391 insns / 1564 bytes, NO frame. Best; this is the body.
+  * pAbove / pBelow assigned at the top of the loop body from pDest: 64.92%,
+    397 / 1588, no frame; gcc keeps them in two registers but makes neither a giv.
+  * pAbove / pBelow / pDest all incremented in the for-update: 60.46%, 413 / 1652,
+    an 8-byte frame with $16 saved, because gcc then mints FIVE givs - one derived
+    pointer per base (pAbove+4, pBelow+4, pDest+4). Retail has exactly one.
+- rowStride IS SIGN-EXTENDED ONCE AND DOUBLED TWICE in retail (sll v1,a3,16 /
+  sra v1,v1,16 / sll v0,v1,1 for pNext, then a second sll v1,v1,1 for pPrev), so
+  retail's source scaled it in two places; this body folds both into one sra 15.
+  Two separate scales are the shape loop.c's giv addends have.
+- PRESET IS RIGHT: gcc 2.6.0 scores 64.95 on this body and 2.7.2-cdk does not
+  compile the older pointer-local body at all.
+- The dummy-glyph test is the byte 0xFF against firstByte and secondByte, not the
+  end-of-text code 0xFFFF.
+- NEXT THING TO TRY: make loop.c turn the prev/next row pointers into givs of
+  pDest without minting a +4 giv per base. The two leads are (a) a stride local
+  kept in bytes so both scalings survive, and (b) a source pointer two elements
+  past the current row, since retail has exactly one such giv (t3).
+// One glyph set's copy of the row loop: SHIFT is the set's bit offset inside a
+// 4bpp pixel of the destination row and CLEAR_PIXELS the other set's pair, which
+// every word the glyph is drawn into is cleared with first.
+#define SYSTEM_FONT_DRAW_GLYPH_SET(SHIFT, CLEAR_PIXELS)                              \
+    pDest[0] &= CLEAR_PIXELS;                                                        \
+    pDest[1] &= CLEAR_PIXELS;                                                        \
+    pDest[2] &= CLEAR_PIXELS;                                                        \
+    pDest += rowStride;                                                              \
+    pDest[0] &= CLEAR_PIXELS;                                                        \
+    pDest[1] &= CLEAR_PIXELS;                                                        \
+    pDest[2] &= CLEAR_PIXELS;                                                        \
+    for (i = 0; i < SYSTEM_FONT_GLYPH_ROW_COUNT; i++, pDest += rowStride) {           \
+        (pDest + rowStride)[0] &= CLEAR_PIXELS;                                      \
+        (pDest + rowStride)[1] &= CLEAR_PIXELS;                                      \
+        (pDest + rowStride)[2] &= CLEAR_PIXELS;                                      \
+        word = *pGlyph++;                                                            \
+        mask = (word & 0x80) ? (0x222 << SHIFT) : 0;                                 \
+        if (word & 0x40) mask |= (0x2220 << SHIFT);                                  \
+        if (word & 0x20) mask |= (0x2200 << SHIFT);                                  \
+        if (word & 0x10) mask |= (0x2000 << SHIFT);                                  \
+        (pDest - rowStride)[0] |= mask;                                              \
+        (pDest + rowStride)[0] |= mask;                                              \
+        mask = (word & 0x80) ? (0x212 << SHIFT) : 0;                                 \
+        if (word & 0x40) mask |= (0x2120 << SHIFT);                                  \
+        if (word & 0x20) mask |= (0x1200 << SHIFT);                                  \
+        if (word & 0x10) mask |= (0x2000 << SHIFT);                                  \
+        pDest[0] |= mask;                                                            \
+        mask = (word & 0x08) ? (0x222 << SHIFT)                                      \
+                             : ((word & 0x10) ? (0x22 << SHIFT)                      \
+                                              : ((word >> (4 - SHIFT)) & (2 << SHIFT))); \
+        if (word & 0x04) mask |= (0x2220 << SHIFT);                                  \
+        if (word & 0x02) mask |= (0x2200 << SHIFT);                                  \
+        if (word & 0x01) mask |= (0x2000 << SHIFT);                                  \
+        (pDest - rowStride)[1] |= mask;                                              \
+        (pDest + rowStride)[1] |= mask;                                              \
+        mask = (word >> (4 - SHIFT)) & (2 << SHIFT);                                 \
+        if (word & 0x10) mask |= (0x21 << SHIFT);                                    \
+        if (word & 0x08) mask |= (0x212 << SHIFT);                                   \
+        if (word & 0x04) mask |= (0x2120 << SHIFT);                                  \
+        if (word & 0x02) mask |= (0x1200 << SHIFT);                                  \
+        if (word & 0x01) mask |= (0x2000 << SHIFT);                                  \
+        pDest[1] |= mask;                                                            \
+        mask = (word & 0x8000) ? (0x222 << SHIFT)                                    \
+                               : ((word & 0x01) ? (0x22 << SHIFT)                    \
+                                                : ((word << SHIFT) & (2 << SHIFT))); \
+        if (word & 0x4000) mask |= (0x2220 << SHIFT);                                \
+        if (word & 0x2000) mask |= (0x2200 << SHIFT);                                \
+        if (word & 0x1000) mask |= (0x2000 << SHIFT);                                \
+        (pDest - rowStride)[2] |= mask;                                              \
+        (pDest + rowStride)[2] |= mask;                                              \
+        mask = (word << SHIFT) & (2 << SHIFT);                                       \
+        if (word & 0x01) mask |= (0x21 << SHIFT);                                    \
+        if (word & 0x8000) mask |= (0x212 << SHIFT);                                 \
+        if (word & 0x4000) mask |= (0x2120 << SHIFT);                                \
+        if (word & 0x2000) mask |= (0x1200 << SHIFT);                                \
+        if (word & 0x1000) mask |= (0x2000 << SHIFT);                                \
+        pDest[2] |= mask;                                                            \
+    }
+
 // Draw one glyph bitmap into a rendered row's pixel buffer, spreading each
 // bitmap row over the row above and the row below it. pDest points one row into
 // the buffer, rowStride is the buffer's row width in pixels and plane picks
 // which of the two glyph sets of the page the pixels belong to.
-//
-// Parked at 66.79% (391 instructions against retail's 424, 1564 bytes against
-// 1696). Every mask expression and both plane bodies are measured right; the
-// whole residual is gcc's induction-variable set.
-// - PRESET IS RIGHT: on this body 2.6.0 scores 64.95 and 2.7.2-cdk does not
-//   compile it (0.35 was measured earlier on the pointer-local body).
-// - RETAIL'S LOOP BACKBONE is four increments per iteration (addu t3,t3,t4 /
-//   addu t1,t1,t4 / addu t2,t2,t4 / addu a2,a2,t4): pAhead, pBehind and one
-//   derived pointer t3 = pDest + 4 bytes are all loop-carried, the word
-//   accesses stay 0/2/4 immediates off t1 and t2 with no giv of their own,
-//   t4 = rowStride*2 bytes is loop-invariant, and there is NO callee-saved
-//   register and no frame, so the loop fits in twelve caller-saved registers.
-// - WITH THREE POINTER LOCALS INCREMENTED PER ITERATION gcc mints one derived
-//   giv per base (pAhead, pAhead+4, pBehind, pBehind+4, pDest+4), which forces
-//   a frame plus two callee-saved registers: 60.59%, 413 instructions, 1652
-//   bytes. Spelling the rows as (pDest + rowStride)[k] and
-//   (pDest - rowStride)[k] lets gcc derive them from the pDest biv and drops the
-//   frame entirely (this body, 66.79%), but it then picks the pDest+4 giv as the
-//   loop variable and re-derives pDest and pBehind from it (move a2,a0 and a
-//   subu per use), which retail does not do. Recomputing the two row pointers as
-//   statements at the top of the body instead scores 63.23%.
-// - mask MUST BE int, NOT u16: as u16 gcc truncates the ternary results
-//   (andi ...,0xffff) and pushes one more value into the callee-saved set
-//   (58.11% u16 against 60.59% int on the pointer-local body).
-// - THE 0xFF TEST IS A BYTE: retail compares firstByte with 0xFF, not with the
-//   end-of-text code 0xFFFF.
-// - rowStride IS SIGN-EXTENDED ONCE AND DOUBLED TWICE in retail
-//   (sll v1,a3,16 / sra v1,v1,16 / sll v0,v1,1, then a second sll v1,v1,1 for
-//   pBehind), so the source scales it in two places separately; this body folds
-//   both into one sra 15.
-// - THE TWO PLANE BODIES ARE COPIES: everything in the second is the first with
-//   its masks shifted two bits (0x222 -> 0x888, 0x212 -> 0x848, 0x21 -> 0x84,
-//   (word >> 4) & 2 -> (word >> 2) & 8, word & 2 -> (word << 2) & 8), which is
-//   what a macro taking the shift would fold to.
-// - NEXT THING TO TRY: stop gcc deriving a giv per base. The loop needs exactly
-//   pDest, one derived pDest+4, pAhead, pBehind, the invariant stride, the glyph
-//   pointer and the counter - seven values, all caller-saved. A spelling that
-//   reaches that set has a frame-free prologue like retail's.
-/*
 void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int plane) {
     u16* pGlyph;
     u16 word;
@@ -1387,130 +1447,10 @@ void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int
     }
 
     if (plane == 0) {
-        pDest[0] &= SYSTEM_FONT_PLANE0_CLEAR;
-        pDest[1] &= SYSTEM_FONT_PLANE0_CLEAR;
-        pDest[2] &= SYSTEM_FONT_PLANE0_CLEAR;
-
-        pDest += rowStride;
-
-        pDest[0] &= SYSTEM_FONT_PLANE0_CLEAR;
-        pDest[1] &= SYSTEM_FONT_PLANE0_CLEAR;
-        pDest[2] &= SYSTEM_FONT_PLANE0_CLEAR;
-
-        for (i = 0; i < SYSTEM_FONT_GLYPH_ROW_COUNT; i++, pDest += rowStride) {
-            (pDest + rowStride)[0] &= SYSTEM_FONT_PLANE0_CLEAR;
-            (pDest + rowStride)[1] &= SYSTEM_FONT_PLANE0_CLEAR;
-            (pDest + rowStride)[2] &= SYSTEM_FONT_PLANE0_CLEAR;
-
-            word = *pGlyph++;
-
-            mask = (word & 0x80) ? 0x222 : 0;
-            if (word & 0x40) mask |= 0x2220;
-            if (word & 0x20) mask |= 0x2200;
-            if (word & 0x10) mask |= 0x2000;
-            (pDest - rowStride)[0] |= mask;
-            (pDest + rowStride)[0] |= mask;
-
-            mask = (word & 0x80) ? 0x212 : 0;
-            if (word & 0x40) mask |= 0x2120;
-            if (word & 0x20) mask |= 0x1200;
-            if (word & 0x10) mask |= 0x2000;
-            pDest[0] |= mask;
-
-            mask = (word & 0x08) ? 0x222 : ((word & 0x10) ? 0x22 : ((word >> 4) & 2));
-            if (word & 0x04) mask |= 0x2220;
-            if (word & 0x02) mask |= 0x2200;
-            if (word & 0x01) mask |= 0x2000;
-            (pDest - rowStride)[1] |= mask;
-            (pDest + rowStride)[1] |= mask;
-
-            mask = (word >> 4) & 2;
-            if (word & 0x10) mask |= 0x21;
-            if (word & 0x08) mask |= 0x212;
-            if (word & 0x04) mask |= 0x2120;
-            if (word & 0x02) mask |= 0x1200;
-            if (word & 0x01) mask |= 0x2000;
-            pDest[1] |= mask;
-
-            mask = (word & 0x8000) ? 0x222 : ((word & 0x01) ? 0x22 : (word & 0x02));
-            if (word & 0x4000) mask |= 0x2220;
-            if (word & 0x2000) mask |= 0x2200;
-            if (word & 0x1000) mask |= 0x2000;
-            (pDest - rowStride)[2] |= mask;
-            (pDest + rowStride)[2] |= mask;
-
-            mask = word & 0x02;
-            if (word & 0x01) mask |= 0x21;
-            if (word & 0x8000) mask |= 0x212;
-            if (word & 0x4000) mask |= 0x2120;
-            if (word & 0x2000) mask |= 0x1200;
-            if (word & 0x1000) mask |= 0x2000;
-            pDest[2] |= mask;
-        }
+        SYSTEM_FONT_DRAW_GLYPH_SET(0, SYSTEM_FONT_PLANE0_CLEAR)
     } else {
-        // The second glyph set of the page: the same rows, two bits higher
-        pDest[0] &= SYSTEM_FONT_PLANE1_CLEAR;
-        pDest[1] &= SYSTEM_FONT_PLANE1_CLEAR;
-        pDest[2] &= SYSTEM_FONT_PLANE1_CLEAR;
-
-        pDest += rowStride;
-
-        pDest[0] &= SYSTEM_FONT_PLANE1_CLEAR;
-        pDest[1] &= SYSTEM_FONT_PLANE1_CLEAR;
-        pDest[2] &= SYSTEM_FONT_PLANE1_CLEAR;
-
-        for (i = 0; i < SYSTEM_FONT_GLYPH_ROW_COUNT; i++, pDest += rowStride) {
-            (pDest + rowStride)[0] &= SYSTEM_FONT_PLANE1_CLEAR;
-            (pDest + rowStride)[1] &= SYSTEM_FONT_PLANE1_CLEAR;
-            (pDest + rowStride)[2] &= SYSTEM_FONT_PLANE1_CLEAR;
-
-            word = *pGlyph++;
-
-            mask = (word & 0x80) ? 0x888 : 0;
-            if (word & 0x40) mask |= 0x8880;
-            if (word & 0x20) mask |= 0x8800;
-            if (word & 0x10) mask |= 0x8000;
-            (pDest - rowStride)[0] |= mask;
-            (pDest + rowStride)[0] |= mask;
-
-            mask = (word & 0x80) ? 0x848 : 0;
-            if (word & 0x40) mask |= 0x8480;
-            if (word & 0x20) mask |= 0x4800;
-            if (word & 0x10) mask |= 0x8000;
-            pDest[0] |= mask;
-
-            mask = (word & 0x08) ? 0x888 : ((word & 0x10) ? 0x88 : ((word >> 2) & 8));
-            if (word & 0x04) mask |= 0x8880;
-            if (word & 0x02) mask |= 0x8800;
-            if (word & 0x01) mask |= 0x8000;
-            (pDest - rowStride)[1] |= mask;
-            (pDest + rowStride)[1] |= mask;
-
-            mask = (word >> 2) & 8;
-            if (word & 0x10) mask |= 0x84;
-            if (word & 0x08) mask |= 0x848;
-            if (word & 0x04) mask |= 0x8480;
-            if (word & 0x02) mask |= 0x4800;
-            if (word & 0x01) mask |= 0x8000;
-            pDest[1] |= mask;
-
-            mask = (word & 0x8000) ? 0x888 : ((word & 0x01) ? 0x88 : ((word << 2) & 8));
-            if (word & 0x4000) mask |= 0x8880;
-            if (word & 0x2000) mask |= 0x8800;
-            if (word & 0x1000) mask |= 0x8000;
-            (pDest - rowStride)[2] |= mask;
-            (pDest + rowStride)[2] |= mask;
-
-            mask = (word << 2) & 8;
-            if (word & 0x01) mask |= 0x84;
-            if (word & 0x8000) mask |= 0x848;
-            if (word & 0x4000) mask |= 0x8480;
-            if (word & 0x2000) mask |= 0x4800;
-            if (word & 0x1000) mask |= 0x8000;
-            pDest[2] |= mask;
-        }
+        SYSTEM_FONT_DRAW_GLYPH_SET(2, SYSTEM_FONT_PLANE1_CLEAR)
     }
 }
 */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
-
