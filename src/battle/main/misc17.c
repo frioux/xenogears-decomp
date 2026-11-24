@@ -7,6 +7,11 @@
 // Owned by include/system/menu.h, which this unit does not include.
 #define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
 
+// Bytes of one slot's text buffer: the size BattleAllocTextBuffer is asked for and the
+// capacity SystemRenderStringEntry renders the string into. battle/main/misc3 names the
+// same size for the same buffers.
+#define BATTLE_TEXT_SLOT_BUFFER_SIZE 0x39
+
 // The digit positions of the number BattleDrawSlotStatusDigits draws: it draws one glyph
 // per entry of D_800C3CFA, and an entry that is blank is skipped.
 #define BATTLE_STATUS_DIGIT_COUNT 3
@@ -15,12 +20,20 @@
 // would take the counter past it, the increment is undone.
 #define BATTLE_ACTION_COUNT_MAX 65000
 
+// The row conditionKind BattleClearStatusWordsOnAction6E acts on: it zeroes the six effect
+// words whose flag bits the row's conditionFlags carry.
+#define BATTLE_CONDITION_KIND_CLEAR_STATUS 0x6E
+
 // The percent chance BattleResolveSlotActionState halves an action's amount instead of
 // adding half of it, when the target's accessoryEffectFlags5 has 0x80; a target whose
 // characterId is 0 is rolled against the higher one. battle/main/misc20 names the same
 // pair for the same roll.
 #define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT 60
 #define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT_CHARACTER_0 80
+
+// The percent chance BattleResolveSlotActionState clears BATTLE_GEAR_EFFECT_FLAG off the
+// target instead of keeping it.
+#define BATTLE_GEAR_EFFECT_CLEAR_CHANCE_PERCENT 70
 
 // Sprite work buffer (g_BattleDisplayState). battle_work.h's BattleWork names the same
 // block but stops at 0xA8, so the 0xB0/0xB7 flag bytes are declared here.
@@ -434,12 +447,12 @@ void BattleDrawSlotStatusText(u8 arg0, u8 arg1, u8 arg2) {
         index = g_GameState.characters[g_BattleActorCharIds[arg0]].gearId * 0x20 + (arg2 * 2 + arg1) * 2;
     }
     altEntry = 1;
-    pBuf = (u8 *)BattleAllocTextBuffer(0x39);
+    pBuf = (u8 *)BattleAllocTextBuffer(BATTLE_TEXT_SLOT_BUFFER_SIZE);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
-    len1 = SystemRenderStringEntry(GetStringEntry(g_BattleSlotStringTable, index), pBuf, 0x39, 0);
+    len1 = SystemRenderStringEntry(GetStringEntry(g_BattleSlotStringTable, index), pBuf, BATTLE_TEXT_SLOT_BUFFER_SIZE, 0);
     // load-bearing s32: cc1 keeps the HImode index's zero-extension only when the
     // OR's right operand is a register, not the constant 1.
-    len2 = SystemRenderStringEntry(GetStringEntry(g_BattleSlotStringTable, index | altEntry), pBuf, 0x39, 1);
+    len2 = SystemRenderStringEntry(GetStringEntry(g_BattleSlotStringTable, index | altEntry), pBuf, BATTLE_TEXT_SLOT_BUFFER_SIZE, 1);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -1064,12 +1077,12 @@ void BattleDrawSlotStatusTextEntry3(u8 arg0, u8 arg1) {
 
     index = (g_BattleSlotTextIndex[arg0 * 0x170] * BATTLE_SLOT_COMMAND_COUNT + arg1) * 2;
     altEntry = 1;
-    pBuf = (u8 *)BattleAllocTextBuffer(0x39);
+    pBuf = (u8 *)BattleAllocTextBuffer(BATTLE_TEXT_SLOT_BUFFER_SIZE);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
-    len1 = SystemRenderStringEntry(GetStringEntry(g_BattleEntry3StringTable, index), pBuf, 0x39, 0);
+    len1 = SystemRenderStringEntry(GetStringEntry(g_BattleEntry3StringTable, index), pBuf, BATTLE_TEXT_SLOT_BUFFER_SIZE, 0);
     // load-bearing s32, as in BattleDrawSlotStatusText: cc1 keeps the HImode index's
     // zero-extension only when the OR's right operand is a register.
-    len2 = SystemRenderStringEntry(GetStringEntry(g_BattleEntry3StringTable, index | altEntry), pBuf, 0x39, 1);
+    len2 = SystemRenderStringEntry(GetStringEntry(g_BattleEntry3StringTable, index | altEntry), pBuf, BATTLE_TEXT_SLOT_BUFFER_SIZE, 1);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -1385,8 +1398,8 @@ void BattleResolveSlotActionState(void) {
         flags = g_BattleTargetSlotEntry->activeEffectFlags2;
         g_BattleTargetSlotEntry->activeEffectFlags2 = flags & 0xEFFF;
         if (flags & BATTLE_GEAR_EFFECT_FLAG) {
-            if (rand() % BATTLE_PERCENT_ROLL_RANGE < 70) {
-                g_BattleTargetSlotEntry->activeEffectFlags2 &= 0xDFFF;
+            if (rand() % BATTLE_PERCENT_ROLL_RANGE < BATTLE_GEAR_EFFECT_CLEAR_CHANCE_PERCENT) {
+                g_BattleTargetSlotEntry->activeEffectFlags2 &= ~BATTLE_GEAR_EFFECT_FLAG;
             }
         }
         if (g_BattleCurrentRow->actionFlags & 0x100) {
@@ -1713,7 +1726,7 @@ void BattleClearStatusWordsOnAction6E(void) {
     if (rand() % BATTLE_PERCENT_ROLL_RANGE > g_BattleCurrentRow->chance) {
         return;
     }
-    if (g_BattleCurrentRow->conditionKind != 0x6E) {
+    if (g_BattleCurrentRow->conditionKind != BATTLE_CONDITION_KIND_CLEAR_STATUS) {
         return;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x8000) {
