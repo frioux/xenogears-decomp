@@ -315,8 +315,30 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    into retail's 0x40(sp) slot (1 store + 2 loads). 0xC0, spelled `pScratch + 0xC0`, IS spilled.
    Forcing the spill would need a value gcc cannot rematerialise, and every honest spelling of
    0xC8 is a constant address, so this is not reachable from C; retail's two spills come from its
-   own pseudo ordering, not from a spelling. */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
+   own pseudo ordering, not from a spelling.
+   ROUND 383 (redo lane) re-measure and NEW SOURCE FACT: 88.71 / 1040 / 260 reproduced.
+   The +1 instruction is now accounted for instruction by instruction: retail needs 7
+   instructions to materialise the 4th corner, 0xC0 and the base (lui+sw base to 0x30(sp);
+   lw+ori+sw for 0xB8 off the RELOADED base; addiu+sw for 0xC0 off $s2), this body needs 8
+   (lui+ori+sw for 0xB8 as a constant; lui+sw for a base copy; lw+ori+sw for 0xC0).
+   NEW FACT: retail's five INNER point addresses are NAMED SYMBOLS in the 1998 source, not
+   `pScratch + K`: the original object carries LO16 relocations against D_1F8000C0, C8, D0,
+   D8, E0 (`grep '%lo(D_1F8000' asm/world_map/nonmatchings/main/misc16/func_800983A0.s`
+   shows exactly five, all `addiu $tN,$s2,%lo(D_1F8000K)`), while the four corner addresses
+   0xA0..0xB8 are literal constants with no reloc. Declaring the five as
+   `extern WorldMapMisc16Point D_1F8000Cx;` and passing `&D_1F8000Cx` reproduces retail's
+   EXACT SIZE, 1036 bytes / 259 insns - the note above said that size was unreachable from
+   any shape, and it is reachable, just not with the right allocation: gcc rematerialises
+   each `la` at its call site (10 `la`s, no preheader pool) for 74.88. Pooling them into
+   pC0/pC8/pD0/pD8/pE0 locals assigned at the row-loop head keeps 259 / 1036 and gives
+   78.47. Both are correct code and both are worse than this body's 88.71, so the park keeps
+   the constant-pointer body. NEXT LANE: the residual is retail POOLING those five (0xC0 and
+   0xC8 spilled to 0x38/0x40(sp), 0xE0/0xD0/0xD8 in s6/fp/s0) while gcc 2.7.2 - which can
+   rematerialise a live-%hi symbol address in ONE addiu - correctly prefers not to. A body
+   that both pools and matches the allocation has not been found; the named-symbol spelling
+   plus a non-rematerialisable value is the direction.
+ */
+// 88.71%, 1040 bytes against retail's 1036 (259 insns). CORRECT code, one instruction over.
 /*
 void func_800983A0(WorldMapMisc16Struct* p) {
     u8* pScratch;
@@ -426,8 +448,10 @@ void func_800983A0(WorldMapMisc16Struct* p) {
         pTex++;
         pMaskEntry++;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
+
+
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
 extern s32 g_WorldMapGridImageFileIndex;
