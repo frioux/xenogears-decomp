@@ -1722,51 +1722,46 @@ void FieldUpdateSpriteSheetPrims(void) {
     g_FieldSpriteAnimFrame++;
 }
 
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
-
-/* Best attempt, 85.57% / 800 bytes (retail is 772: 0x800A8EA8 - 0x800A8BA4, 193
-   insns). The body is settled and every call, store order and switch arm is
-   right; the whole 28-byte surplus is TWO compiler shapes, both measured:
-   1. STRENGTH REDUCTION OF THE QUAD TABLE (the big one, +4 insns). Retail
-      re-forms `sll $v0,$s2,3; addu $v0,$v0,$s7` for every D_800AEF16 access,
-      with TWO stride-1 counters (s2 = the quad index used by the sll, s3 = the
-      loop test, both `addu $x,$zero,$zero` in the preheader), and its
-      invariant bases s7 = 0x800AEF10 and s8 = 0x800AEF16 in callee-saved regs.
-      This build turns the same accesses into THREE loop-carried pointers
-      (s1/s4/s2, `addiu $x,$x,8` in the latch) and keeps ONE stride-1 counter.
-      Measured with cc1_probe.sh and in the unit: `D_800AEF16[i*4]`,
-      `D_800AEF16[i*4-3..]`, a struct array `QuadDef[i].x/.y/.rect/.flags`, an
-      `i*8` byte-offset cast - every one of them is reduced. A second hand-kept
-      counter (`nQuad++;` beside `i++`, quad accesses on nQuad) does NOT stop
-      the reduction either but scores higher (85.57 vs 84.88 at the same 800
-      bytes), so the difference is not "which variable". -O1 62.25, -O3 failed.
-   2. THE RECT TABLE BASE SPLITS (+4 insns). Retail hoists ONE base s5 =
-      0x800AEB6C and reaches 0x800AEB6A with a second lui/addiu INSIDE the loop
-      (call-clobbered), giving `addu a2,v0,s5 / lhu t1,0(a2)`,
-      `addu a3,s5,v0 / lhu t2,2(a3)`, `addu t0,s5,v0 / lhu a3,-4(t0)`,
-      `addu v0,v0,t3 / lhu t0,0(v0)`. Writing `D_800AEB6C[nRect]`,
-      `[nRect+1]`, `[nRect-2]`, `D_800AEB6A[nRect]` makes gcc fold the -4 into a
-      SECOND symbol (0x800AEB68) and materialise a second lui/addiu for it, and
-      the D_800AEB6A access comes out through $at (its %lo folded into the lhu).
-      Untried: a `u_short* pRect` pointer local for the rect group.
-   Settled facts: 0x6D POLY_FT4 (HeapAlloc(FIELD_SPRITE_POLY_COUNT *
-   sizeof(POLY_FT4)) = 0x1108 x2); the quad/rect tables are 8-byte records -
-   quad record base 0x800AEF10 = x,y,rectIndex,flags(x>>4&0xF = ABR,
-   x&0xF = UV orientation) and rect record base 0x800AEB68 = x,y,w,h, indexed by
-   rectIndex*4 in u_short units; nABR survives the loop in a callee-saved
-   register (a switch on the ABR nibble, case 0 -> 1, case 1 -> 2, no default);
-   `*pPolyNext = *pPoly` is the last statement of the loop body.
 extern u_short D_800AEF16[];
-extern u_short D_800AEB6A[];
-extern u_short D_800AEB6C[];
-extern s32 g_FieldSpritePaletteRow;
 
-// Builds the sprite sheet prims: one POLY_FT4 per entry of the sheet's quad
-// table, with the rectangle, UVs and blending mode that entry names.
+// PARKED 85.21% - 784 bytes / 196 insns against retail's 772 / 194 (0x800A8EA8 - 0x800A8BA4).
+// Round 440: the pRect pointer local WAS the untried lead and it is a win - 800 -> 784 bytes.
+// With 'u_short *pRect = D_800AEB6C;' and nW = pRect[nRect], nH = pRect[nRect + 1],
+// nSrcX = pRect[nRect - 2], nSrcY = D_800AEB6A[nRect], gcc keeps ONE rect base and folds the -4
+// as a load displacement, which is retail's s5 = 0x800AEB6C with 'lhu a3,-4(t0)'; the old
+// D_800AEB6C[nRect - 2] spelling made gcc fold -4 into a SECOND symbol (0x800AEB68) and pay its
+// own lui/addiu. Keep this spelling.
+// Residual 1 (biggest): loop.c reduces the nQuad * 4 mult giv into three 'addiu $ptr,$ptr,8'
+// pointer counters, which eat the callee-saved registers the pRect base and the second quad base
+// need (so pRect is re-formed inside the loop instead of hoisted). Retail keeps the raw index and
+// recomputes 'sll $a1,$s2,3' on each side of the calls, adding each base at use time
+// (addu v1,a1,s7 / addu v0,s7,a1 / addu a0,s7,a1 / addu a1,a1,s8). Every spelling in the old note
+// reduced; lever g-qimode-index-blocks-the-mult-giv measured that an unreduced mult giv with no
+// andi on the index and no sltiu test is not source-reachable, and retail's counter is a plain
+// s32 (addiu s2,s2,1, slti s3,0x6D), so treat it as a declared wall.
+// Residual 2: gcc sinks 3 of the 5 stack-argument stores of FieldClampPolyFT4UVs into each case
+// body (retail's case tails are just the arg computations plus 'j' with the last addu in the slot,
+// all five stores living in the cross-jumped block). The CALL argument list itself is already
+// retail's: pPoly, nSrcX, nSrcY, nSrcX + nW, nSrcY, nSrcX, nSrcY + nH, nSrcX + nW, nSrcY + nH,
+// per-case +/-1 variants verified instruction by instruction against the .s. Declaration order of
+// the locals changes nothing (measured).
+// Presets ruled out this round: gcc-2.6.0 85.46, gcc-2.7.2-cdk 83.45 (2.6.0 also equals Default's
+// 96.58 on FieldInitializeParticlePrimitive next door, so this unit is not a 2.6.0 unit either).
+// Permuter round 440: base=2995 best=2575 over 1302 iterations, and the only find is WRONG CODE -
+// it sets 'nQuad = nW' inside case 2 and uses nQuad for case 3's corner sums, destroying the quad
+// counter that the next iteration indexes with. Rejected, do not port it.
+// Settled facts (from the earlier rounds): 0x6D POLY_FT4 prims (HeapAlloc(FIELD_SPRITE_POLY_COUNT *
+// sizeof(POLY_FT4)) = 0x1108 twice); the quad table is a u_short array whose 8-byte records are
+// x, y, rectIndex at D_800AEF16-6, -4, -2 and flags at D_800AEF16 (+0), flags >> 4 and 0xF = ABR,
+// flags and 0xF = UV orientation (case 0 -> 1, case 1 -> 2, no default, nABR stays live across the
+// loop in a callee-saved register); the rect table is a u_short array at 0x800AEB68 (x, y, w, h)
+// indexed by rectIndex * 4 in u_short units; '*pPolyNext = *pPoly' is the last statement of the body
+// and compiles to the 2x unrolled 0x28-byte copy loop both sides already have.
+/*
 void func_800A8BA4(void) {
     POLY_FT4* pPoly;
     POLY_FT4* pPolyNext;
+    u_short* pRect;
     int i;
     int nQuad;
     int nRect;
@@ -1786,6 +1781,7 @@ void func_800A8BA4(void) {
     g_FieldSpritePolysCopy = HeapAlloc(FIELD_SPRITE_POLY_COUNT * sizeof(POLY_FT4), 0);
 
     nQuad = 0;
+    pRect = D_800AEB6C;
     for (i = 0; i < FIELD_SPRITE_POLY_COUNT; i++) {
         pPoly = &g_FieldSpritePolys[0][i];
         pPolyNext = (POLY_FT4*)g_FieldSpritePolysCopy + i;
@@ -1810,9 +1806,9 @@ void func_800A8BA4(void) {
         nX = D_800AEF16[nQuad * 4 - 3];
         nY = D_800AEF16[nQuad * 4 - 2];
         nRect = D_800AEF16[nQuad * 4 - 1] * 4;
-        nW = D_800AEB6C[nRect];
-        nH = D_800AEB6C[nRect + 1];
-        nSrcX = D_800AEB6C[nRect - 2];
+        nW = pRect[nRect];
+        nH = pRect[nRect + 1];
+        nSrcX = pRect[nRect - 2];
         nSrcY = D_800AEB6A[nRect];
 
         pPoly->x0 = nX;
@@ -1846,47 +1842,18 @@ void func_800A8BA4(void) {
         nQuad++;
     }
     g_FieldSpritePrimsAllocated = 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
+
+
 
 // One rectangle (x0,y0,x1,y1) plus one texture rectangle (u0..v3) per shape.
 extern ParticleShape D_800AF27C[];
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
-/* PARKED 96.58% - 512 bytes / 128 insns against retail's 520 / 130: every
-   instruction matches except that retail shifts 6 times where any C gives 4.
-   Re-measured from the assembly this round (same 96.58, same 8-byte shortfall).
-   Map: a1=x0, a2=y0, a3=x1, t0=y1 (four lhu off D_800AF27C, 0x18-byte entries);
-   retail is sll a3(x1) / sll a0,a1(x0) / subu a0,a3,a0 / sll t0(y1) /
-   sll v0,a2(y0) / subu v0,t0,v0 / sll a1,a1,4 AGAIN / addu a1,a1,a3 /
-   sll a2,a2,4 AGAIN / addu a2,a2,t0, i.e. the two products the differences
-   consumed (x0<<4, y0<<4) are RECOMPUTED for the sums, while x1<<4 and y1<<4
-   are shared. C can only do that if cse sees two DIFFERENT ashift RTL
-   expressions: both operands are the same loaded pseudo in the same basic
-   block, so (x1<<4)-(x0<<4) / (x0<<4)+(x1<<4) merges to four shifts whatever
-   the spelling - that is the wall, and it is expand/cse, not the allocator.
-   Measured at 512, all identical: direct stores; four int locals then stores;
-   those four as s16; four or eight u_short product locals; a product local used
-   at one site only (cse still maps the expression to it); sums written
-   (x1<<4)+(x0<<4); * 16 everywhere and * 16 mixed with << 4 at either site.
-   Three permuter runs (rounds 315, 337, 369: base=336 best=336, 222 iterations
-   the last); the best candidate was WRONG code, shifting an already-shifted
-   product.
-   NOTE: an older note here claimed 97.42% for twelve separate
-   `extern u_short D_800AF27E[]`-style arrays; those were never declared, so that
-   body never compiled and the figure came from a stale object. The typed table
-   `extern ParticleShape D_800AF27C[]` is the spelling that compiles.
-   Settled facts: 12 ParticleShape entries (0x18 each) at 0x800AF27C indexed by
-   nShape; vertices[0..3].vz = 0; setRGB0 0x80; the four vx/vy pairs are
-   (x1-x0)*16, (y1-y0)*16, (x0+x1)*16, (y0+y1)*16, stored vertex by vertex as
-   vx,vy for vertices 0..3; then FieldClampPolyFT4UVs with u0, v0+0x40, u1-1,
-   v1+0x40, u2, v2+0x3F, u3-1, v3+0x3F; SetSemiTrans(pPoly,1); tpage =
-   GetTPage(0, nTextureMode, 0x3C0, 0x140); clut = GetClut(0x100,0xF7); then
-   *pPolyNext = *pPoly (0x28 bytes: a 2x lw/sw unrolled loop plus one word).
-   The 0x98 frame needs the unused _pad below.
-*/
-
+// Round 440 addendum: un-parked and re-measured, 96.58% / 512 bytes vs retail 520 / 130 insns,
+// same four-vs-six sll residual, nothing new. Preset ruled out this round: gcc-2.7.2-cdk 71.36,
+// gcc-2.6.0 96.58 (identical to Default). Nothing below 99% gets a permuter run, so this stays parked.
 /*
 void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, int nTextureMode) {
     POLY_FT4* pPoly;
@@ -1933,8 +1900,10 @@ void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, 
     pPoly->clut = GetClut(0x100, 0xF7);
 
     *pPolyNext = *pPoly;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
+
+
 
 extern int g_FieldScreenImageStored;
 extern u_long* g_FieldStoredImageBuffer;
