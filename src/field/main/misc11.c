@@ -104,9 +104,6 @@ void FieldScriptVMHandlerEmpty(void) {
 
 // g_FieldImageDrawIndex wraps within this many queued image rects
 extern RECT g_FieldImageRects[FIELD_IMAGE_SLOT_COUNT];
-extern s16 D_800AF5EA[]; // Part of g_FieldImageRects[]: the y of each RECT
-extern s16 D_800AF5EC[]; // Part of g_FieldImageRects[]: the w of each RECT
-extern s16 D_800AF5EE[]; // Part of g_FieldImageRects[]: the h of each RECT
 extern s16 g_FieldImageDestX[FIELD_IMAGE_SLOT_COUNT];
 extern s16 g_FieldImageDestY[FIELD_IMAGE_SLOT_COUNT];
 extern u_short g_FieldImageDrawIndex;
@@ -115,9 +112,9 @@ void FieldMoveOrClearImageRect(int x, int y, int w, int h, int texX, int texY, i
     int index = g_FieldImageDrawIndex & (FIELD_IMAGE_SLOT_COUNT - 1);
 
     g_FieldImageRects[index].x = x;
-    D_800AF5EA[index * 4] = y;
-    D_800AF5EC[index * 4] = w;
-    D_800AF5EE[index * 4] = h;
+    g_FieldImageRects[index].y = y;
+    g_FieldImageRects[index].w = w;
+    g_FieldImageRects[index].h = h;
     g_FieldImageDestX[index] = texX;
     g_FieldImageDestY[index] = texY;
     if (!clear) {
@@ -220,10 +217,6 @@ void FieldUpdateLineScrolls(void) {
     }
 }
 
-// D_800AFFAC holds a byte length per line scroll; the 0x20 data pointers it
-// describes start 0x80 bytes earlier, so index them off the same symbol.
-extern s16 D_800AFFAC[];
-
 void FieldScriptVMHandlerWriteLineScrollByte(void) {
     int index;
     int offset;
@@ -233,8 +226,8 @@ void FieldScriptVMHandlerWriteLineScrollByte(void) {
     offset = FieldScriptVMGetArgument(3);
     value = FieldScriptVMGetInstructionArgument(5) & 0xFFFF;
 
-    if (offset < D_800AFFAC[index]) {
-        ((u_char**)D_800AFFAC)[index - FIELD_LINE_SCROLL_MAX][offset] = value;
+    if (offset < g_FieldLineScrolls.lengths[index]) {
+        g_FieldLineScrolls.pDatas[index][offset] = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
