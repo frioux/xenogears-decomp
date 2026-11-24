@@ -1934,47 +1934,52 @@ extern void SpriteReallocFramesData(SpriteData* pSpriteData, s32 size);
 extern void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ);
 
 // 73.82% (1764 bytes against retail's 1776; 441 instructions against 444; frame 0x58
-// both). The whole body is transcribed in retail's statement order, and this round
-// proved two of those orders from the assembly (both are in the body below):
-//  1. In the modelKind != 0 path the store `pActorData->pSpriteData = pSpriteData`
-//     comes BEFORE SpriteReallocFramesData: retail's `sw s0,4(v0)` sits in the jal
-//     delay slot, so the store executes first. Writing it after the call costs the
-//     whole 5-instruction index chain, which then has to be re-formed after the call
-//     (432 -> 441 instructions, 1728 -> 1764 bytes; that one move closed 9 of the 12
-//     missing instructions).
-//  2. The tail re-assigns the actor pointer per matrix component (`pActor =
-//     &g_FieldActors[actorIndex]`), which is why retail reloads the volatile there.
-// WHAT IS LEFT, and it is one cause:
-//  Retail hoists the `actorIndex * 0x5C` byte offset into a CALLEE-SAVED register
-//  ($s2) and keeps it live across SpriteDestroy/SpriteAllocFromAnimFile; gcc keeps
-//  ours in $a1 and rematerialises the `sll/addu/sll/subu/sll` chain after every call.
-//  That is the whole difference in the saved set: retail saves s0..s7+fp (10 slots),
-//  ours s0..s7 (9), so every operand from the second parameter on is one register
-//  lower and 420+ diff lines are pure renames. The free register then also lets
-//  retail keep the tested base through the `if (pActor->spriteFlags & 1)` then-block
-//  (`lw a0,4(v1)` off the address the test used) where ours must re-form it, and
-//  lets it hoist the `spriteId * 0x40 + 0x100` fifth argument of both
-//  SpriteAllocFromAnimFile calls into $s0 before the bne where ours sinks it into the
-//  else arm. Same wall as this unit's other parks (see FieldActorApplyRotationAndScale
-//  above: gcc rematerialises instead of saving). Not a preset question: screened
-//  Default 73.94, gcc-2.7.2-cdk 66.64, gcc-2.6.0 73.61.
-//  Remaining tail residual (3 instructions): retail loads pActorData and the s16
-//  position half ONCE per component and stores that register into both
-//  transformMatrix.t[i] (0x20/0x24/0x28) and childMatrix.t[i] (0x40/0x44/0x48)
-//  (`lw v1,76(v0); lh v1,34(v1); sw v1,32(v0); sw v1,64(v0)`); ours re-loads the
-//  0x4C pointer and redoes the `lh` for the second store, because the 32-bit store
-//  through pActor in between is alias-ambiguous with the pointer load. Retail's
-//  source therefore held the half in a value local (or chained the two
-//  assignments) once per component; a plain local per component is not what a
-//  programmer would type, which is why it was not adopted blindly.
+// both). The body below is realistic per-statement `g_FieldActors[actorIndex]`, which
+// is what the reload pattern in the .s shows (retail reloads the volatile base and
+// pActorData for every statement, because every `sb`/`sw` kills those loads).
+// WHAT IS LEFT, and it is one register: retail keeps the `actorIndex * 0x5C` byte
+// offset in a CALLEE-SAVED register ($s2) and re-adds it to the freshly loaded base
+// per statement; gcc keeps ours in $a1 and re-forms the sll/addu/sll/subu/sll chain
+// per block. That is the whole of the 423-line diff: retail saves s0..s7+fp (10 words),
+// ours s0..s7 (9), so every value above $s0 is one register low. Screened dead:
+// gcc-2.7.2-cdk 66.64, gcc-2.6.0 73.61, -O3/-G0 no change.
+// MEASURED THIS ROUND (do not re-derive, all on this same body):
+//  - a source-level `s32 actorOffset = actorIndex * sizeof(FieldActor)` used by the
+//    whole body (raw `*(FieldActor*)((u8*)g_FieldActors + actorOffset)`): 75.06%,
+//    1692 bytes / 423 insns, and gcc then DOES use the 9th callee-saved register
+//    ($s1) plus $fp for the 7th parameter: the saved count and the frame become
+//    retail's exactly. So the wall is breakable; the spelling is not the answer.
+//  - the same offset local only from the top through SpriteReallocFramesData (the
+//    tail left per-statement): 76.98%, 1736 bytes / 434 insns, saved set and frame
+//    still retail's. What is left there is (a) a two-register swap - retail has
+//    spriteId=$s1 / offset=$s2, we get the mirror (global.c's refs/live-length
+//    quotient, see levers) - and (b) retail's reuse of the tested base in the two
+//    `if (spriteFlags & 1)` then-blocks (`lw a0,4(v1)`) where a volatile read must
+//    load again, worth 5 instructions per arm.
+//  - `g_FieldActors` declared non-volatile (include/field/actor.h) on the plain body:
+//    72.15%, 1468 bytes / 367 insns - gcc then CSEs the base across the statements and
+//    the reload pattern retail has disappears. The header's `volatile` is load-bearing
+//    (it IS slightly wrong: retail does reuse one load inside a block, `lw a0,4(v1)`
+//    off the base the `spriteFlags & 1` test just used, which no volatile body can
+//    emit - but the non-volatile body loses 77 instructions, so leave the header).
+//  Remaining tail residual (3 instructions, same in both spellings): retail loads
+//  pActorData and the s16 position half ONCE per component and stores that register
+//  into both transformMatrix.t[i] (0x20/0x24/0x28) and childMatrix.t[i]
+//  (0x40/0x44/0x48); ours re-loads the 0x4C pointer and redoes the `lh` for the second
+//  store, because the 32-bit store through pActor in between is alias-ambiguous with
+//  the pointer load.
 // NOTES ON THE DATA, checked one by one against the assembly: FieldActor+0x20..0x28
 // and +0x40..0x48 are transformMatrix.t[0..2] and childMatrix.t[0..2] (MATRIX::t is
 // at 0x14 of a MATRIX at 0xC / 0x2C, so NOT a `move` vector); ActorData::position
 // (0x20, VECTOR of longs) is read in 16.16 through `((s16*)&position)[1]/[3]/[5]`;
 // g_FieldScriptSpritesBuilt is its own global; the double `step.y = 0` store at
-// 0x10 IS in the original (0x10, 0xC, 0x10, 0x14), duplicated here on purpose;
-// g_FieldActors is `FieldActor* volatile` (include/field/actor.h), which is what
-// makes retail reload the pointer for every access.
+// 0x10 IS in the original (0x10, 0xC, 0x10, 0x14), duplicated here on purpose.
+// 1. The `pActorData->pSpriteData = pSpriteData` store in the modelKind != 0 path
+//    comes BEFORE SpriteReallocFramesData: retail's `sw s0,4(v0)` sits in the jal
+//    delay slot, so the store executes first. Writing it after the call costs the
+//    whole 5-instruction index chain, re-formed after the call (441 -> 432 insns).
+// 2. The tail re-assigns the actor pointer per matrix component (`pActor =
+//    &g_FieldActors[actorIndex]`), which is why retail reloads the volatile there.
 /*
 void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind, s32 clutIndex, s32 spriteVariant,
                    s32 skipAnimTick) {
@@ -2099,6 +2104,8 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
     g_FieldScriptSpritesBuilt++;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
+
+
 
 
 void FieldSetHalfwordFlag8000(u_int* pPrim, int size) {
