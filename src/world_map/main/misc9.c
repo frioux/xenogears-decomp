@@ -12,6 +12,12 @@
 #define WORLD_MAP_TILE_VERTEX_COUNT 80
 // Bit 1 of a primitive code byte: the primitive is drawn semi-transparent
 #define WORLD_MAP_PRIM_CODE_SEMI_TRANS 0x2
+// The 5x5 window of grid tiles this frame's tile pass fills, and the row stride of the
+// level's tile-id table
+#define WORLD_MAP_GRID_WINDOW 5
+#define WORLD_MAP_GRID_WIDTH 9
+// Halfword offset from the scratchpad base at 0x1F800000 to its clut id table
+#define WORLD_MAP_SPAD_CLUT_ID_OFFSET 0x34
 
 extern s32 g_WorldMapLevelIndex;
 extern u16 g_WorldMapLevelGroupIds[];
@@ -31,13 +37,6 @@ extern u16 D_8009B64E[];
 extern u16 g_WorldMapSlotRotationGroupIds[];
 extern u16 D_8009B626[];
 
-typedef struct {
-    /* 0x0 */ s16 col;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 row;
-    /* 0x6 */ s16 unk6;
-} WorldMapGridOrigin; // Size: 0x8
-
 extern MATRIX g_WorldMapViewMatrix;
 extern MATRIX g_WorldMapIdentityMatrix;
 extern s16 g_WorldMapViewRotationZ;
@@ -46,7 +45,8 @@ extern u32* g_WorldMapRenderContext;
 extern u_char* g_WorldMapTileVertexSteps;
 extern s16 D_8009D618[];
 extern s16 g_WorldMapGridTileIds[];
-extern WorldMapGridOrigin g_WorldMapGridOrigin;
+extern s16 g_WorldMapGridOrigin;
+extern s16 g_WorldMapGridTileRowOrigin[];
 extern s32 g_WorldMapPrimPacketIndex;
 
 
@@ -217,55 +217,24 @@ void WorldMapFreeSpritePrimBuffers(void) {
     HeapFree(g_WorldMapSpritePrimCopy);
     HeapFree(g_WorldMapSpritePrims[0]);
 }
-// Best: 95.40% (660 bytes vs retail's 640). The quad setup in the scratchpad, both
-// matrix copies (g_WorldMapViewMatrix and g_WorldMapIdentityMatrix into 0x1F800028/0x1F800048), RotMatrixZ
-// and the 0x10-halfword copy of g_WorldMapClutIds are instruction-for-instruction exact, and
-// the 5x5 tile loop matches too. The remaining 20 bytes are one register:
-// retail hoists g_WorldMapPrimBlocks (s3) and &g_WorldMapGridTileRowOrigin (s4) but re-forms D_8009D618's
-// address with `lui $at / addu $at,$at,v0` at each use; gcc here hoists that address
-// into a sixth callee-saved register (s5), which is the extra save/restore pair and
-// the 0x30 frame instead of 0x28. gcc also fills retail's `beq` delay slot (a nop)
-// with the row-origin load. Second delta, cosmetic only: retail's origin base is
-// &g_WorldMapGridTileRowOrigin with displacements 0 and -4, a struct at g_WorldMapGridOrigin gives 4 and 0 -
-// the same linked bytes, so check_bin cannot see it.
-// What got the score here (in order): two separate s16 externs 88.99, then ONE loop
-// counter shared by the copy loop and the inner column loop - that is what puts
-// retail's counter in s0 and forces `sw s0` before the save block - then the
-// struct-pointer origin, 95.40.
-// Round 286: re-measured after the array-extern lever landed above - unchanged, and the
-// residual is now named precisely. Ours materialises the symbol address of D_8009D618
-// (and, once the index is hoisted, of g_WorldMapGridTileIds) into a callee-saved register
-// and adds the scaled index to it, i.e. gcc's SPLIT address form; retail keeps the
-// non-split form (`lui $at,%hi(sym); addu $at,$at,v0; lh %lo(sym)(at)`), which costs no
-// register - hence retail's 0x28 frame and our 0x30. The same split/non-split difference
-// explains the clut copy: retail keeps 0x1F800000 in v1 and stores at displacement 0x68
-// (`addiu v1,v1,%lo(D_1F800002)`), we `li 0x1F800068` (lui+ori) and store at 0, +4 bytes.
-// Tried, all unchanged or worse: D_8009D618 sized [25], an explicit `slot = row * 5` biv
-// (which additionally hoisted the tile-id base, 0x30 frame), -G0 (95.40), gcc-2.7.2-cdk
-// (62.29, so not a preset). `-mno-split-addresses` is not an option in these cc1s.
-// Round 405: cc1_probe reproduces both halves of the residual, so it is not a spelling of this
-// body. A snippet with just `if (D_8009D618[i] == -1)` emits retail's bare macro load
-// (`lh $3,D_8009D618($2)`, which maspsx expands into the lui-at / addu-at / lh pair), but the same
-// access inside the 5x5 nest that contains the func_80099BFC call always comes out as
-// `la $20,D_8009D618` plus `addu $2,$2,$20` - the same under -G0, so the split is a
-// per-access reload decision, not a flag. A `s16 state = D_8009D618[...]` local changes nothing.
-// Round 429 (re-measured 95.40 / 660): gcc-2.6.0 DOES emit retail's macro loads for this body
-// (`lh $3,D_8009D618($2)` and `lh $2,g_WorldMapGridTileIds($2)`, one `la` for neither) and scores
-// 97.81, but 2.6.0 breaks eleven matched functions of the unit (WorldMapRelocateMapEntryOffsets
-// 93.68, WorldMapWrapTileVertexPositions 90.53, WorldMapInitSlotAngleStep8 55.00,
-// WorldMapBuildBasisMatrix 90.69, WorldMapInitializePlayerSlot 90.07, ...), so this function's
-// shape is a 2.7.2-only artefact of the unit's own preset, not a preset miss. 2.7.2 with
-// -fno-rerun-cse-after-loop keeps every matched function at 100.00 and leaves this one at 95.40,
-// so the post-loop CSE is not the pass that splits the address either. Other spellings measured
-// this round: `*(s16*)((u8*)D_8009D618 + (row * 5 + i) * 2)` 95.40 / 660 (identical code), a
-// `slot` biv (`for (row = 0, slot = 0; row < 5; row++, slot += 5)` with `D_8009D618[slot + i]`)
-// 90.80 / 672 - it splits the tile-id base as well, i.e. s5 AND s6.
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
-/*
+// objdiff reads 99.97% / 644 bytes (retail's exact size, 161 insns) and the whole residual is
+// splat's hi/lo inference on the clut copy's loop-back `addiu $v1,$v1,2`: it paired that
+// addiu with the `lui $v1,0x1F80` above it and printed `%lo(D_1F800002)`, so the expected
+// object holds imm 0 plus an R_MIPS_LO16 to the absolute scratchpad symbol and ours holds the
+// literal 2 with no relocation. The linked word is 0x24030002 either way (tools/scripts/check_bin.sh
+// world_map: OK). What the body needed, after every round up to 442 blamed a compiler split:
+// the loop-invariant g_WorldMapRenderContext[0x1C] read hoisted into its own local (that is
+// what kept D_8009D618's address out of a sixth callee-saved register and brought the frame
+// back to 0x28), `pDst[0x34 + i]` off the scratchpad base instead of `pDst = 0x1F800068`
+// (retail stores at 0x68 off 0x1F800000), the origin pair read as an s16 pointer based at
+// g_WorldMapGridTileRowOrigin (displacements 0 and -4, i.e. the column is the s16 below the
+// row), `pEntry = pTable - (-id)` for retail's in-place `addu v0,v0,s3`, and `row = 0;` before
+// the two pointer statements so the preheader emits `move s1,zero` first.
 void func_8008615C(void) {
     WorldMapTableEntry* pEntry;
-    WorldMapGridOrigin* pOrigin;
-    u8* pTable;
+    WorldMapTableEntry* pTable;
+    s16* pRowOrigin;
+    u32 otHead;
     u16* pSrc;
     u16* pDst;
     s32 row;
@@ -288,28 +257,31 @@ void func_8008615C(void) {
     *(MATRIX*)0x1F800048 = g_WorldMapIdentityMatrix;
     RotMatrixZ(-g_WorldMapViewRotationZ, (MATRIX*)0x1F800048);
     pSrc = g_WorldMapClutIds;
-    pDst = (u16*)0x1F800068;
-    for (i = 0; i < 0x10; i++) {
-        *pDst++ = *pSrc++;
+    pDst = (u16*)0x1F800000;
+    for (i = 0; i < WORLD_MAP_CLUT_ID_COUNT; i++) {
+        pDst[WORLD_MAP_SPAD_CLUT_ID_OFFSET + i] = *pSrc++;
     }
     D_8009BE04 = 0;
-    pTable = g_WorldMapPrimBlocks;
-    pOrigin = &g_WorldMapGridOrigin;
-    for (row = 0; row < 5; row++) {
-        for (i = 0; i < 5; i++) {
-            if (D_8009D618[row * 5 + i] == -1) {
+    row = 0;
+    pRowOrigin = g_WorldMapGridTileRowOrigin;
+    pTable = (WorldMapTableEntry*)g_WorldMapPrimBlocks;
+    for (; row < WORLD_MAP_GRID_WINDOW; row++) {
+        for (i = 0; i < WORLD_MAP_GRID_WINDOW; i++) {
+            if (D_8009D618[row * WORLD_MAP_GRID_WINDOW + i] == -1) {
                 continue;
             }
-            id = g_WorldMapGridTileIds[(row + pOrigin->row) * 9 + i + pOrigin->col];
-            pEntry = (WorldMapTableEntry*)(pTable + id * 8);
+            // the origin pair is addressed from the row; the column is the s16 below it
+            id = g_WorldMapGridTileIds[(row + pRowOrigin[0]) * WORLD_MAP_GRID_WIDTH + i + pRowOrigin[-2]];
+            pEntry = pTable - (-id);
             if (pEntry->count != 0) {
-                func_80099BFC((u8*)pEntry->offset, pEntry->count, g_WorldMapRenderContext[0x1C],
+                otHead = g_WorldMapRenderContext[0x1C];
+                func_80099BFC((u8*)pEntry->offset, pEntry->count, otHead,
                               g_WorldMapSpritePrims[g_WorldMapPrimPacketIndex] + D_8009BE04 * 0x28);
             }
         }
     }
 }
-*/
+
 
 // Best: 93.98% (392 bytes = retail's exact size; the instruction multiset is identical, so
 // the whole residual is the s2/s3 mirror: retail keeps pVertex in s3 and x in s2, this body the
