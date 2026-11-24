@@ -637,51 +637,62 @@ void SystemStringSetCurrentData(SystemString* pString, void* pData) {
     pString->flags |= SYSTEM_STRING_FLAG_DATA_OVERRIDE;
 }
 
+// Parking note, round 445 - all of it measured, not guessed.
+// SIZES: retail is 508 instructions (2032 bytes), frame 0x48, cc1 vars=16. This
+// body is 512 instructions (2048 bytes), frame 0x40, vars=8 -> 87.71%. The OLD
+// note's "521 against retail's 540, NINETEEN short" was wrong: those are objdump
+// line counts (label rows + relocations + the 16 jtbl words). Retail is 508 and the
+// old body was 521, so it was THIRTEEN TOO LONG. The old note's other point, the
+// 8-byte frame, is real: retail's source had two more spilled pseudos.
+// FIXED THIS ROUND, in order of what they bought:
+// 1. The row block recomputed the char offset once per store (77.74 -> 82.99). A
+//    local `index = pString->charIndex` and pChars[index].x five times is retail's
+//    shape: it keeps charIndex in t0 across all five stores and reloads only the
+//    pChars base, because the sb/sh stores alias the struct. Reading
+//    pString->charIndex each time makes gcc reload it after every store.
+// 2. The opcode 0 arm was SEMANTICALLY WRONG in the old park (82.99 -> 87.47). It is
+//    not `waitFrames = pCur[2]; pCur += 3`. Retail 0x34044: if (flags &
+//    DATA_OVERRIDE) { flags &= ~DATA_OVERRIDE; pCur = pPrev + 1; continue; } else
+//    { flags |= STOPPED; stopCode = 1; waiting = 1; return; }.
+// 3. Case 0x5: retail has ONE SystemStringSetCurrentData per arm (0x342D8) fed by a
+//    pData local, and the bridge's GetStringEntry (entries[0x1A], 0) is its own call
+//    site (0x34298). Writing it that way is 87.16 / 512; three separate calls is
+//    87.47 / 516 and gcc merges two of them into the shared tail. Kept the smaller
+//    one: neither links, and 512 is two instructions closer to 508.
+// 4. `u16 index`, not s32: retail tests `index < 0x80` with sltiu and s32 gave slti
+//    (87.16 -> 87.71, same bytes).
+// STILL OPEN: 4 extra instructions. (a) Retail has an `andi 0xFFFF` after the u8 load
+// in three places (the opcode test, case 0x1, case 0x5's index) that gcc emits for
+// no spelling tried here - it looks like a u8 -> u16 conversion of an int-punned
+// load, and the opcode test has an `andi 0xFF` in front of it as well. (b) The
+// frame/vars gap above. (c) Register allocation: retail holds pCur in a1 across the
+// loop head (lbu a0,0(a1), lbu v1,1(a1)) where this body uses v1, and the case index
+// is a3 there vs a1 here. (d) Case 0x9/0xA/0xC: retail sets the two
+// SystemFormatNumberGlyphs flag args in the case bodies before the shared tail
+// starts, so its tail begins at the index read; assigning them to locals first does
+// not reproduce it (gcc folds the constants back - measured, no change).
+// TRIED AND REJECTED: count++ placed after the SetCurrentData call (87.73 but 517
+// instructions); preset is right (this body 87.71, gcc-2.6.0 87.55, gcc-2.7.2-cdk
+// 80.76 - do not re-screen it).
+// STILL VALID FROM THE OLD NOTE: the outer dispatch is an if/else chain in the order
+// 0, 3, 0xF, 2, 1, draw (as a switch gcc emits a second jump table, 65.28%); the 0xF
+// sub-switch is a real 16-case switch in ascending order whose table lands at +0 of
+// this unit's .rodata range; `row` must be s32; textureV sums as `row / 2 * 13 +
+// textureY` but imageRect.y as `textureY + row / 2 * 13` (opposite addu operand
+// order, still open).
+// pCur is void* in SystemString (this file's own struct) so the script is read
+// through a u8 pointer; retyping pCur would not be safe for the matched neighbours.
 /*
-Parked at 77.74% (521 instructions against retail's 540: NINETEEN short, and the
-frame is 64 bytes against retail's 72). Measured, not guessed:
-- THE WHOLE DRAW PATH (the default arm, 0x344CC..0x345A0) is instruction-identical;
-  the one residual there is addu operand order in `pCur = advance + pCur` (retail
-  has `addu v0,s5,v0`, advance first).
-- THE OUTER DISPATCH IS AN IF/ELSE CHAIN, NOT A switch: as a switch gcc emitted a
-  16-entry jump table (65.28%); as if (op==0) / else if (op==3) / else if (op==0xF) /
-  else if (op==2) / else if (op==1) / else draw it produces retail's exact compare
-  chain (0, 3, 0xF, 2, 1). That one change was 65.28 -> 71.60.
-- THE 0xF SUB-SWITCH IS A switch: 16 cases 0x0..0xF written in ASCENDING source
-  order (retail emits their bodies at ascending addresses), default falling through
-  to the same break as the draw arm.
-- Reading the entry index and advancing pCur BEFORE the call (`index = pCur[2];
-  count++; pCur += 2; SystemFormatNumberGlyphs(pString->args[index], a, b);`) is what
-  lets gcc cross-jump cases 9/A/C and 6/7/8 onto one shared tail: 71.60 -> 77.74.
-- `row` must be s32, not s16 (s16 costs an sll/sra pair at every use), and the two
-  sums have OPPOSITE addu operand order: retail has `row / 2 * 13 + textureY` for
-  textureV but `textureY + row / 2 * 13` for imageRect.y.
-- THE RESIDUAL (19 instructions + the 8-byte frame) is a merging/stack difference,
-  not a wrong statement: retail sets the two SystemFormatNumberGlyphs flag args
-  BEFORE it reads pCur (a1 = 0/1, a2 = 0/1 first, then lbu pCur[2]), so its merged
-  tail starts after them, while this body can only merge from the index read on.
-  Something evaluates those constants into registers earlier - two locals assigned
-  at the top of each of the three cases is the shape to try next.
-- The frame: retail is 0x48 with the same 8 saved registers, this body 0x40. The 8
-  bytes are two spill slots gcc allocated in retail and never touched, i.e. retail's
-  source had two more pseudos. Nothing in this body needs them.
-- `((u8*)pString->pCur)[n]` throughout: pCur is void* in SystemString (this file's
-  own struct) and retyping it is not safe for the matched neighbours.
-- 540 vs 521 instructions and about 6 scored runs spent; not a compiler/preset
-  question (try_flags was not run - the shapes differ, not the scheduling).
-
-// Interpret a string's script until the glyph budget (unk69, in glyph slots) runs
-// out or the script stops. The bytes past the opcode are its arguments; pCur is
-// untyped in the struct, so the script is read through a u8 pointer.
 void func_80033DF0(SystemString* pString) {
     s32 count;
-    s32 index;
+    u16 index;
     s32 firstByte;
     s32 secondByte;
     s32 advance;
     u16 width;
     u16 opcode;
     s32 row;
+    void* pData;
 
     count = pString->unk69;
 
@@ -706,12 +717,12 @@ void func_80033DF0(SystemString* pString) {
         }
 
         row = pString->rowCount % (pString->maxChars + 1);
-        pString->pChars[pString->charIndex].textureV =
-            row / 2 * SYSTEM_GLYPH_STRIP_HEIGHT + pString->textureY;
-        pString->pChars[pString->charIndex].clut = (row & 1) ? g_SystemPalette2 : g_SystemPalette1;
-        pString->pChars[pString->charIndex].paletteIndex = row & 1;
-        pString->pChars[pString->charIndex].unk5B = row;
-        pString->pChars[pString->charIndex].imageRect.y = pString->textureY + row / 2 * SYSTEM_GLYPH_STRIP_HEIGHT;
+        index = pString->charIndex;
+        pString->pChars[index].textureV = row / 2 * SYSTEM_GLYPH_STRIP_HEIGHT + pString->textureY;
+        pString->pChars[index].clut = (row & 1) ? g_SystemPalette2 : g_SystemPalette1;
+        pString->pChars[index].paletteIndex = row & 1;
+        pString->pChars[index].unk5B = row;
+        pString->pChars[index].imageRect.y = pString->textureY + row / 2 * SYSTEM_GLYPH_STRIP_HEIGHT;
     }
 
     if (pString->waiting != 0) {
@@ -724,9 +735,16 @@ void func_80033DF0(SystemString* pString) {
         opcode = ((u8*)pString->pCur)[0];
 
         if (opcode == 0x0) {
-            // end of the entry: wait, then resume after these three bytes
-            pString->waitFrames = ((u8*)pString->pCur)[2];
-            pString->pCur = (u8*)pString->pCur + 3;
+            // end of the entry: go back to the data the override replaced, or stop
+            if (pString->flags & SYSTEM_STRING_FLAG_DATA_OVERRIDE) {
+                pString->flags &= ~SYSTEM_STRING_FLAG_DATA_OVERRIDE;
+                pString->pCur = (u8*)pString->pPrev + 1;
+                continue;
+            }
+
+            pString->flags |= SYSTEM_STRING_FLAG_STOPPED;
+            pString->stopCode = 1;
+            pString->waiting = 1;
             return;
         } else if (opcode == 0x3) {
             // end of the entry
@@ -801,13 +819,14 @@ void func_80033DF0(SystemString* pString) {
                 pString->pCur = (u8*)pString->pCur + 2;
 
                 if (index < 0x80) {
-                    SystemStringSetCurrentData(pString, &g_GameState.strings[index]);
+                    pData = &g_GameState.strings[index];
                 } else if (((u8*)&g_GameState.fieldScriptMemory[0x1C2])[index] == SYSTEM_STRING_INDEX_NONE) {
-                    SystemStringSetCurrentData(pString, GetStringEntry(g_SystemDataEntries->entries[0x1A], 0));
+                    pData = GetStringEntry(g_SystemDataEntries->entries[0x1A], 0);
                 } else {
-                    SystemStringSetCurrentData(
-                        pString, &g_GameState.strings[((u8*)&g_GameState.fieldScriptMemory[0x1C2])[index]]);
+                    pData = &g_GameState.strings[((u8*)&g_GameState.fieldScriptMemory[0x1C2])[index]];
                 }
+
+                SystemStringSetCurrentData(pString, pData);
                 break;
             case 0x6: // render a string of the weapon bank
                 index = ((u8*)pString->pCur)[2];
@@ -920,9 +939,9 @@ void func_80033DF0(SystemString* pString) {
             pString->pChars[pString->charIndex].rowWidth = pString->lineWidth;
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033DF0);
+
 
 void SystemStringClearStateFlags(SystemString* pString) {
     pString->flags &= ~SYSTEM_STRING_FLAG_STOPPED;
