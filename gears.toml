@@ -25,7 +25,9 @@ build_variables = {
 }
 # Per-file keys may sit on Default as well: a unit whose middle run needs 2.7.2 while
 # the rest of the file wants 2.6.0 keeps only that run's key here (round 314, menu/misc7).
-paths = [ "menu/main/misc7_r1." ]
+# battle/main/misc19_b is the Default tail of misc19 (its head is Default too, and the
+# function between them, func_8009ADA0, is carved out as main/misc19_r2 on XenoLibrary).
+paths = [ "menu/main/misc7_r1.", "battle/main/misc19_b." ]
 
 [[build_preset]]
 name = "PSY-Q"
@@ -58,6 +60,10 @@ paths = [
     # byte-identical only under 2.6.0 while eleven head functions drop as low as 95.71
     # under it, so config/battle.yaml splits that run out as main/misc19_r1.
     "battle/main/misc19_r1.",
+    # func_8009ADA0 of the same unit is byte-identical only under 2.6.0 (88.68 under 2.7.2,
+    # whose expand_divmod shapes all four `/20`,`/50` divisions wrong), so the one function
+    # is carved out as main/misc19_r2 and everything after it stays on Default.
+    "battle/main/misc19_r2.",
     # cc_sweep measured both of these whole units: every already-matched function stays
     # 100.00 under 2.6.0 and a park closes (battle/misc2 func_80073FB8 99.9 -> 100.00,
     # menu/misc3 func_801CA8C0 -> 100.00).
