@@ -115,7 +115,36 @@ extern int rand(void);
    Permuter: four runs total including this round's 4-minute run from the 82.88 body
    (base 3818 -> 3413, PERMUTER_BETTER); its find moved dialogPixelHeight's store up
    with an embedded assignment and scored 82.29 in objdiff, so it was not ported.
-*//*
+
+ROUND 441 re-measure of the parked body above (REDO lane): reproduces 82.88 /
+1228 / 307 exactly, so the note is not stale. Four scored runs this round:
+- The script-slot loop's store order WAS source order after all: moving
+  `scripts[i].flags_0 = 0xFFFF;` from fourth to LAST in the loop body (after
+  state/isInUse/flags_0x17/flags_0x12) makes cc1 emit retail's
+  lw 0x90 / sb 0x8E / sh 0x8C / sb 0x8F / and,and,and,or / sw 0x90 / sh 0x90
+  order instead of sh 0x90 first. Only edit that helped: 82.88 -> 83.17
+  (1228 bytes, 307 insns). KEPT in this body.
+- The curTriNormal triple spelled as a cast over an offset-first sum,
+  ((VECTOR*)(pActor->walkmeshId * sizeof(VECTOR) + (u32)normals))->vx, gives
+  retail's 'addu v1,v1,a0' (offset in the destination) where the plain
+  'normals[pActor->walkmeshId].vx' subscript gives 'addu v1,a0,v1':
+  83.17 -> 83.39 but 1224 bytes / 306 insns, i.e. 8 bytes FURTHER from retail.
+  KEPT in this body (highest score measured); the 83.17 shape is the fallback
+  if the size is what matters.
+- Per-store do-while blocks around the six walkmesh-loop zero stores (the
+  round-428 recipe that closed the tail): 79.21 / 1216 / 304. Dead.
+- Broken-records measure of the same body under other presets: gcc 2.7.2-cdk
+  69.55, gcc 2.6.0 70.98, Default at -O3 75.58 - Default -O2 is the right
+  compiler, so the residual is not a preset question.
+RESIDUE (unchanged in kind, from the 83.39 body): still 2 instructions short
+and the flag-mask constants land swapped (retail a2 = 0xFFFCFFFF + a1 =
+0xF007FFFF + t7 = 0x3C0000 + t6 = 0xFF, ours a1/a2 and t6/t7), the same source
+order producing both, so it is allocator numbering; retail's flags12C clear /
+reload / second clear block keeps its lw in a0 where ours re-uses v1; and the
+tail recomputes actorIndex * 0x1C into a2 where retail uses a0.
+*/
+
+/*
 void func_80080A74(int actorIndex) {
     ActorData* pActor;
     FieldActor* pFieldActor;
@@ -174,11 +203,11 @@ void func_80080A74(int actorIndex) {
         pActor->scripts[i].currentIP = 0xFFFF;
         pActor->scripts[i].waitTimer = 0;
         pActor->scripts[i].scriptId = 0xFF;
-        pActor->scripts[i].flags_0 = 0xFFFF;
         pActor->scripts[i].state = 0;
         pActor->scripts[i].isInUse = 0;
         pActor->scripts[i].flags_0x17 = 0;
         pActor->scripts[i].flags_0x12 = 0xF;
+        pActor->scripts[i].flags_0 = 0xFFFF;
     }
 
     pActor->pSpecialAnimFile = NULL;
@@ -236,9 +265,9 @@ void func_80080A74(int actorIndex) {
     }
 
     pActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(pActor);
-    pActor->curTriNormal.vx = normals[pActor->walkmeshId].vx;
-    pActor->curTriNormal.vy = normals[pActor->walkmeshId].vy;
-    pActor->curTriNormal.vz = normals[pActor->walkmeshId].vz;
+    pActor->curTriNormal.vx = ((VECTOR*)(pActor->walkmeshId * sizeof(VECTOR) + (u32)normals))->vx;
+    pActor->curTriNormal.vy = ((VECTOR*)(pActor->walkmeshId * sizeof(VECTOR) + (u32)normals))->vy;
+    pActor->curTriNormal.vz = ((VECTOR*)(pActor->walkmeshId * sizeof(VECTOR) + (u32)normals))->vz;
     pFieldActor = &g_FieldActors[actorIndex];
     if (!(pFieldActor->status & 0x80)) {
         pFieldActor->transformMatrix.t[1] = points[pActor->walkmeshId].vy;
@@ -255,7 +284,8 @@ void func_80080A74(int actorIndex) {
     do {
         pActor->curYPos = g_FieldActors[actorIndex].transformMatrix.t[1];
     } while (0);
-}*/
+}
+*/
 
 
 
