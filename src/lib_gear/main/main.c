@@ -3793,51 +3793,41 @@ typedef struct {
 Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, s16 x0, s16 y0,
                      s16 colour0, s16 x1, s16 y1, s16 colour1, s16 x, s16 y, u32 width, u32 height,
                      s16 angleStep, s16 divisor, s16 offset, s16 (*pInterpolate)(u_short, s16, s16));
-// objdiff 95.92%, body complete and 377 instructions against retail's 378
-// (1508 bytes vs 1512). Everything below was proved by instruction diff, not guessed:
-// - ModelScriptCommand's payload was WRONG before this round and that alone cost
-//   ~3%: a union member with u16 fields aligns to 2, so the old
-//   "u8 unk7, u8 unk8, u8 unk9, u16 unkA, ..." inner struct put unkA at 0xC and not
-//   at retail's 0xA (gcc pads after three bytes). Retail reads 0x7/0x8/0x9 as bytes
-//   (id 2) and 0x8/0xA/0xC/0xE/0x10 as u16 (id 9), so unk7 is a plain u8 and the
-//   union holds only the overlapping 0x8..0x9 (u16 x over the two bytes unk8/unk9).
-// - func_801E0A00's coordinate and tail parameters are S16, not u16: retail
-//   sign-extends with sll/sra pairs where u16 gives andi, and reads unk16/unk18/unk1A
-//   with lh rather than lhu. That is 5 instructions of the size gap.
-// - case 2 selects the model index with TWO stores (retail computes index * 0x14
-//   twice and jumps to a shared sh), not with a local and one store.
-// - id 9 reads unk10 into its own local before the 0x80 flags test (retail loads
-//   lhu t5,0x10(cmd) there), and the source local for it is s16.
-// - currentModelIndex is s16 (retail: lh of g_LibGearCurrentModelIndex in this
-//   function, lhu in func_801DEF10 - the local's type differs, the global is u16);
-//   flag is u16 (permuter: PERMUTER_BETTER base 2199 -> 1659, and it changes no
-//   semantics, flag is only ever compared against 0).
-// Round 451, 95.92 -> 97.61: the missing 4 bytes were retail's `move s6,s0`, the copy
-// of pCmd the animation loop reads through. It only appears when case 8 has a SECOND
-// live command pointer, so the loop reads a function-scope `pCommand` assigned from
-// pCmd at case-8 entry (gcc coalesces a case-2 alias, but case 8's crosses the calls
-// and gets the copy). Three more exact-size facts found with it:
-// - `count = pCommand->unk5` as an s32 local: retail's `lbu a3,0x5(s6)` + `blez` needs
-//   a signed local (the direct u8 test folds to beqz) and the calls pass the same
-//   register (`addu a2,a3,zero`).
-// - flag is s16 (retail sign-extends t7 with sll/sra; u16 gives a bare lhu).
-// - `volatile u16 unkFlag[4]`, not [8]: it is the uninitialised slot retail reads at
-//   0x50(sp) (lhu t7,80(sp)), and 8 bytes is the frame difference: with [4] the frame
-//   is retail's 0x88 and the prologue matches exactly. 378 insns / 1512 bytes = retail.
-// WHAT IS LEFT (~156 differing lines, no size error): (a) case 2 reads through
-// `move a1,s0`, a live-range SPLIT gcc makes on its own - writing `pCommand = pCmd`
-// there is coalesced away, so the case-2 pointer cannot be forced; (b) two
-// D_801E8644 stores where retail commutes the addu (v1,a0,v1 / a0,a0,v0) and this
-// build emits v1,v1,a0 - retail differs between two identical expressions, so it is
-// a CSE artifact, not a source shape; (c) the case-8 header: retail loads flag first
-// and gets savedIndex/flag in s4/s5, this build s5/s4, and hoists `li v0,1` above the
-// index load. Tried this round, no change: declaration order of flag/savedIndex/
-// currentModelIndex/modelBit, currentModelIndex+modelBitMask moved from function scope
-// into case 8, i declared first among the case-8 locals, u16/s16 i (worse: 94.33/93.62).
-// Earlier: permuter from the 95.92 body found only the flag type; i at function scope
-// and unk5 > 0 vs != 0 measured identical.
-// Best measurement: objdiff 97.61%, 378 insns and 1512 bytes = retail exactly, frame
-// 0x88 = retail. The note above lists what closed the size gap and what is left.
+// objdiff 97.61%, 378 instructions and 1512 bytes = retail exactly, frame 0x88 =
+// retail. The body's shape is settled and nothing below changes an instruction count;
+// three named residuals are left:
+// (a) case 2 reads every field of the arm through `a1`, which retail reaches with
+//     `move a1,s0` in the delay slot of the `unk5 != 0` test: a second pseudo this
+//     compiler keeps and cannot be talked into. Writing `pCommand = pCmd` at the top of
+//     the arm is coalesced back to s0, and reloading `pModel->pScriptCursor` would emit
+//     a `lw` where retail reuses s0. 16 lines of the diff sit here.
+// (b) the 2nd and 3rd of the three D_801E8644 stores: retail has `addu v1,a0,v1` and
+//     `addu a0,a0,v0` (base first) where this build has both index-first, and the 1st
+//     store matches in both, so retail's own two spellings of one expression differ.
+// (c) the case-8 header. Retail reads the 0x50(sp) flag FIRST, sign-extends it right
+//     after the mask load and puts `li v0,1` last; this build hoists `li v1,1` to the
+//     top and sinks the flag load past both global loads. And retail's `lbu a3,5(s6)`
+//     (count) sits between `lw g_LibGearModels[i]` and its `beqz`, where this build
+//     loads it at the top of the loop body.
+// Measured this round, every variant re-parked here at 97.61% / 1512 bytes / 378 insns:
+// - preset leg closed: gcc-2.7.2-cdk -O2 -G8 84.88, gcc-2.7.2 -O2 -G8 95.49, -O3
+//   compile-failed. 2.6.0 -O2 -G8 is the best of the four, so (c) is not a compiler
+//   version.
+// - the flag slot must stay `volatile`: as a plain `u16 unkFlag[4]` gcc deletes the load
+//   and its sign-extend (376 insns, 1504 bytes, 97.33). With volatile its POSITION is
+//   not source-controlled - moving `flag = unkFlag[0]` from the arm's first statement
+//   to its last measures byte-identical - so retail's flag-first header is out of reach.
+// - `count = pCommand->unk5` moved out of the loop preheader into the then-block as
+//   nested ifs: 380 insns, 1520 bytes, 96.87.
+// - `modelBit = 1 << savedIndex` instead of currentModelIndex: 377 insns, 1508 bytes,
+//   97.10, one instruction short.
+// - case-8 declaration order with `flag` declared first: byte-identical.
+// - `volatile u16 unkFlag[4]` (not 8) is the right size: retail reads that slot at
+//   0x50(sp) before writing it and the frame is 0x88 with this one.
+// A future round with budget could try the levers file's double-negated base spelling on
+// the two stores of (b) - `(u8 *)D_801E8644 - -(index * 2) + K` is the measured way to
+// put the base in the addu destination, one edit per site. It is worth about 0.2% here
+// and is ROUGH as source, so it was not taken.
 /*
 void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
     ModelScriptCommand* pCmd;
@@ -3850,7 +3840,7 @@ void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
     s16 z;
     s16 w;
     s16 colour1;
-    volatile u16 unkFlag[4]; // retail reads the first word of this slot inside case 8 before writing it
+    volatile u16 unkFlag[4]; // retail reads this slot inside case 8 before ever writing it
 
     if (pModel->frame < 0) {
         return;
@@ -3996,14 +3986,6 @@ void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
-
-
-// Best measurement for the parked body above: 95.92%, 1508 bytes of retail's 1512.
-// One fact the earlier note got right and the body still depends on: the 0x88 frame
-// and the `lhu 0x50(sp)` retail reads before ever writing it both come from ONE
-// 16-byte uninitialised local (unkFlag[8]); shorten it and the frame drops to 0x80
-// and nothing matches. Everything else that note claimed about the payload layout is
-// stale - the union as declared there puts unkA at 0xC, not retail's 0xA.
 void LibGearStopAnimationScript(Model* pModel) {
     pModel->frame = LIBGEAR_SCRIPT_FRAME_STOPPED;
 }
