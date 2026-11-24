@@ -972,6 +972,22 @@ int WorldMapInitActorParamsFromTable(int idx) {
 // what puts `lui a2,0x1F800000` in the beqz delay slot, forms the argument as
 // `ori a1,a2,0xA0` and keeps the stores at 0xA0/0xA2/0xA4(a2). A scratch local declared
 // inside the case gives a fresh lui $at per store.
+// RE-MEASURED round 445 lane wm5: un-parked, diff_func.sh prints 99.95% / 876 bytes
+// (retail's exact size); the only differing lines are .L label names, branch-target
+// relocs and the table operand plus our lw v0,88(at) against retail's lw v0,0(at).
+// permute.sh --minutes 3 printed RESULT PERMUTER_ZERO base=0 best=0 on its first score,
+// i.e. the permuter scores this body as identical: no C spelling is left to find.
+// check_bin.sh world_map with the body live: build/out/world_map.bin is 180422 bytes =
+// disc's exact size and exactly 15 words differ, all inside the table range - 0x160..0x16C,
+// 0x1A0..0x1BC, 0x260..0x264 (our 4-byte .align 3 pad at 0x160 against retail's leading
+// entry, and retail's trailing zero word at 0x264 against our last entry, i.e. the table
+// sits one word late with every other word identical) - plus the single lw addend at file
+// 0xC904 (0x8006FC54 against retail's 0x8006FC50). No word outside the table moves, so
+// the overlay does not shift and the unit split above remains the only fix.
+// Also measured this round: maspsx does not emit the table pad - its only .align 3 is for
+// .sbss entries, tools/maspsx/maspsx/__init__.py:560 - so the directive is cc1's and no
+// assembler flag of this preset can move it.
+// PARKED AGAIN, body unchanged and un-touched: do not re-hunt it.
 /*
 s32 func_8007C3B8(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
@@ -1050,9 +1066,9 @@ s32 func_8007C3B8(s32 idx) {
         break;
     }
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
+
 
 // The volatile casts, the pRot pointer local and the empty do-while are all
 // load-bearing, not debris: without them gcc's -O2 scheduler hoists the three
