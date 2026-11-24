@@ -476,120 +476,86 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
 
 
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA9A8);
-/* PARK 98.08% (1664 vs retail 1668 bytes, 416 vs 417 insns), round 435, gcc 2.6.0 (XenoMenu260).
-   Whole body written from the .s plus the misc9 func_801DCE60 park. The instruction stream is
-   retail's EXCEPT for the one missing instruction in (a), and (a) is the whole residual: every
-   other differing line is a register name downstream of it.
-   (a) The row computation. Retail: andi v0,v1,0x1000 / sltiu v0,v0,1 / move s1,v0 - the boolean
-       is materialised in a temp and then copied into the row variable. This body: andi
-       s3,a2,0x1000 / sltiu s3,s3,1 - computed straight into row's register, 1 insn / 4 bytes
-       short.
-   (b) The remaining lines follow (a): retail keeps row in $s1, 0x80 in $s2 and the trailing
-       constant 1 in $s3, this body keeps row in $s3 and 0x80 in $s1; and retail still emits
-       andi s1,s1,0xff for the u_char argument (its row pseudo has no known range, a consequence
-       of the copy) where this body knows row in 0..2 and emits andi v0,s3,0x3.
-   (c) prologue: sll a1,a1,0x1 / addu a1,a1,s1 lands before vs after the lui/addiu of
-       g_GameState+0x2026, 2 lines.
-   Measured in round 435, all on this body:
-   - the note this replaces re-measured exactly: 98.08, 1664 bytes, 416 insns.
-   - row = flags & 0x1000; then row = !row; -> byte-identical code, 98.08 (so == 0 vs ! is free).
-   - a block-scoped s32 rowFlags = flags & 0x1000; row = rowFlags == 0; -> 97.52, 1660 bytes,
-     415 insns (cc1 then drops BOTH andi copies and swaps s3/s4) - a named temp is the wrong way.
-   - row = (flags & 0x4000) ? 2 : (flags & 0x1000) == 0; -> 96.78, 416 insns: inside a ternary
-     arm cc1 computes the boolean in QImode (srl v0,v1,0xc / xori / andi), which is the QImode
-     shape the older note attributed to "one statement". The SImode andi/sltiu needs the if/else.
-   - try_flags.sh on this body: 2.7.2-psx 97.47, 2.7.2-cdk does not compile, 2.6.0 98.08, so the
-     preset is right and this is not a compiler question.
-   - -dg/-da on this body (13 allocnos, dumped from build/src/menu/main/misc8_r2.c.i): the
-     callee-saved hand-out is 77(rowAlt)->$s0, 71(arg0)->$s1, 74->$s2, 73(row)->$s3, i.e. row is
-     processed last of the four because it has fewer refs; and every variant that touches the row
-     statement also flips a CALLER-saved allocation (lui v0 vs lui a1 for g_Menu), so the row
-     statement decides the whole assignment.
-   NEXT: the lane rule wants 99%+ before a permuter run (two rounds of permuter on this body
-   already came back base=1408 best=803 and 803 -> nothing), so the shape to try by hand is one
-   that makes cc1 route the merged row value through a temp of its own while keeping andi/sltiu
-   in SImode - e.g. a second def of row on the if path that survives to the join, or a comma
-   expression. Everything else in the function is retail's. */
-/*
-    void func_801DA9A8(s32 arg0, s32 arg1) {
-        MenuShopItem* pItem;
-        RECT rect;
-        void* pImage;
-        u8* pItemId;
-        u16 flags;
-        u8 rowAlt;
-        s32 quantityXOffset;
-        s32 row;
-    
-        pItemId = &g_GameState.itemIDs[arg1 * 2 + arg0];
-        if (*pItemId != 0) {
-            pImage = HeapAlloc(MENU_ITEM_DESC_IMAGE_BUFFER_SIZE, 0);
-            bzero(pImage, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
-            g_Menu->pItemRows->primGroupStrings[2].width =
-                SystemRenderStringEntry(GetStringEntry(g_Menu->pItemRows->pVramBuffer, *pItemId), pImage, 0x39, 0);
-            rect.x = 0x140;
-            rect.y = 0x4E;
-            rect.w = 0x3C;
-            rect.h = FONT_LETTER_HEIGHT;
-            LoadImage(&rect, pImage);
-            DrawSync(0);
-            MenuSetStringPrimitives(&g_Menu->pItemRows->primGroupStrings[2], 0, 0, 0);
-            MenuSetFt4QuadVertices(&g_Menu->pItemRows->primGroupStrings[2].polys[g_Menu->renderContext], 0x1C, 0xA1, 0, 0x4E,
-                                   g_Menu->pItemRows->primGroupStrings[2].width, FONT_LETTER_HEIGHT);
-            MenuSetQuadVertices(g_Menu->pItemRows->primGroupStrings[2].vertices, 0x1C, 0xA1,
-                                g_Menu->pItemRows->primGroupStrings[2].width, FONT_LETTER_HEIGHT);
-            HeapFree(pImage);
-            quantityXOffset = (g_Menu->pItemRows->itemQuantityStrings[arg0].width == 0x10) * 4;
-            memmove(&g_Menu->pItemRows->primGroupStrings[0], &g_Menu->pItemRows->itemNameStrings[arg0], sizeof(MenuString));
-            memmove(&g_Menu->pItemRows->primGroupStrings[1], &g_Menu->pItemRows->itemQuantityStrings[arg0],
-                    sizeof(MenuString));
-            MenuSetQuadVertices(g_Menu->pItemRows->primGroupStrings[0].vertices, 0x10, 0x93,
-                                g_Menu->pItemRows->itemNameStrings[arg0].width, FONT_LETTER_HEIGHT);
-            MenuSetQuadVertices(g_Menu->pItemRows->primGroupStrings[1].vertices, quantityXOffset | 0x78, 0x93,
-                                g_Menu->pItemRows->itemQuantityStrings[arg0].width, FONT_LETTER_HEIGHT);
-            ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext])->r0 = 0x80;
-            ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext])->g0 = 0x80;
-            ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext])->b0 = 0x80;
-            SetSemiTrans(&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext], 0);
-            ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext])->r0 = 0x80;
-            ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext])->g0 = 0x80;
-            ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext])->b0 = 0x80;
-            SetSemiTrans(&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext], 0);
-            MenuClearBytes(MENU_ITEM_ROW_STRING_COUNT, g_Menu->pManager->shouldRenderStrings10E0);
-            pItem = &g_Menu->pDressingRoom->pItemsData[*pItemId];
-            if (pItem->displayFlags & 0xC0) {
-                flags = pItem->flags;
-                if (flags & 0x4000) {
-                    row = 2;
-                } else {
-                    row = flags & 0x1000;
-                    row = row == 0;
-                }
-                MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds,
-                                       g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings10E0, row, 0, 1);
-                rowAlt = (pItem->flags & 3) + 3;
-                MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds,
-                                       g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings10E0, rowAlt, 0, 1);
-                ((P_TAG*)&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext])->r0 = 0x80;
-                ((P_TAG*)&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext])->g0 = 0x80;
-                ((P_TAG*)&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext])->b0 = 0x80;
-                SetSemiTrans(&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext], 0);
-                ((P_TAG*)&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext])->r0 = 0x80;
-                ((P_TAG*)&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext])->g0 = 0x80;
-                ((P_TAG*)&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext])->b0 = 0x80;
-                SetSemiTrans(&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext], 0);
+void func_801DA9A8(s32 arg0, s32 arg1) {
+    MenuShopItem* pItem;
+    RECT rect;
+    void* pImage;
+    u8* pItemId;
+    u8* pItemIds;
+    u16 flags;
+    u8 rowAlt;
+    s32 quantityXOffset;
+    s32 rowFlags;
+    u8 row;
+
+    pItemIds = g_GameState.itemIDs;
+    pItemId = &pItemIds[arg1 * 2 + arg0];
+    if (*pItemId != 0) {
+        pImage = HeapAlloc(MENU_ITEM_DESC_IMAGE_BUFFER_SIZE, 0);
+        bzero(pImage, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
+        g_Menu->pItemRows->primGroupStrings[2].width =
+            SystemRenderStringEntry(GetStringEntry(g_Menu->pItemRows->pVramBuffer, *pItemId), pImage, 0x39, 0);
+        rect.x = 0x140;
+        rect.y = 0x4E;
+        rect.w = 0x3C;
+        rect.h = FONT_LETTER_HEIGHT;
+        LoadImage(&rect, pImage);
+        DrawSync(0);
+        MenuSetStringPrimitives(&g_Menu->pItemRows->primGroupStrings[2], 0, 0, 0);
+        MenuSetFt4QuadVertices(&g_Menu->pItemRows->primGroupStrings[2].polys[g_Menu->renderContext], 0x1C, 0xA1, 0, 0x4E,
+                               g_Menu->pItemRows->primGroupStrings[2].width, FONT_LETTER_HEIGHT);
+        MenuSetQuadVertices(g_Menu->pItemRows->primGroupStrings[2].vertices, 0x1C, 0xA1,
+                            g_Menu->pItemRows->primGroupStrings[2].width, FONT_LETTER_HEIGHT);
+        HeapFree(pImage);
+        quantityXOffset = (g_Menu->pItemRows->itemQuantityStrings[arg0].width == 0x10) * 4;
+        memmove(&g_Menu->pItemRows->primGroupStrings[0], &g_Menu->pItemRows->itemNameStrings[arg0], sizeof(MenuString));
+        memmove(&g_Menu->pItemRows->primGroupStrings[1], &g_Menu->pItemRows->itemQuantityStrings[arg0],
+                sizeof(MenuString));
+        MenuSetQuadVertices(g_Menu->pItemRows->primGroupStrings[0].vertices, 0x10, 0x93,
+                            g_Menu->pItemRows->itemNameStrings[arg0].width, FONT_LETTER_HEIGHT);
+        MenuSetQuadVertices(g_Menu->pItemRows->primGroupStrings[1].vertices, quantityXOffset | 0x78, 0x93,
+                            g_Menu->pItemRows->itemQuantityStrings[arg0].width, FONT_LETTER_HEIGHT);
+        ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext])->r0 = 0x80;
+        ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext])->g0 = 0x80;
+        ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext])->b0 = 0x80;
+        SetSemiTrans(&g_Menu->pItemRows->primGroupStrings[0].polys[g_Menu->renderContext], 0);
+        ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext])->r0 = 0x80;
+        ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext])->g0 = 0x80;
+        ((P_TAG*)&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext])->b0 = 0x80;
+        SetSemiTrans(&g_Menu->pItemRows->primGroupStrings[1].polys[g_Menu->renderContext], 0);
+        MenuClearBytes(MENU_ITEM_ROW_STRING_COUNT, g_Menu->pManager->shouldRenderStrings10E0);
+        pItem = &g_Menu->pDressingRoom->pItemsData[*pItemId];
+        if (pItem->displayFlags & 0xC0) {
+            flags = pItem->flags;
+            if (flags & 0x4000) {
+                row = 2;
+            } else {
+                rowFlags = flags & 0x1000;
+                row = rowFlags == 0;
             }
-            g_Menu->pItemRows->primGroupStrings[0].renderContext = g_Menu->renderContext;
-            g_Menu->pItemRows->primGroupStrings[1].renderContext = g_Menu->renderContext;
-            g_Menu->pItemRows->primGroupStrings[2].renderContext = g_Menu->renderContext;
-            g_Menu->pItemRows->shouldRenderPrimGroup = 1;
-        } else {
-            MenuClearBytes(MENU_ITEM_ROW_STRING_COUNT, g_Menu->pManager->shouldRenderStrings10E0);
-            g_Menu->pItemRows->shouldRenderPrimGroup = 0;
+            MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds,
+                                   g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings10E0, row, 0, 1);
+            rowAlt = (pItem->flags & 3) + 3;
+            MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds,
+                                   g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings10E0, rowAlt, 0, 1);
+            ((P_TAG*)&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext])->r0 = 0x80;
+            ((P_TAG*)&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext])->g0 = 0x80;
+            ((P_TAG*)&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext])->b0 = 0x80;
+            SetSemiTrans(&g_Menu->itemRowStrings[row].polys[g_Menu->renderContext], 0);
+            ((P_TAG*)&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext])->r0 = 0x80;
+            ((P_TAG*)&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext])->g0 = 0x80;
+            ((P_TAG*)&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext])->b0 = 0x80;
+            SetSemiTrans(&g_Menu->itemRowStrings[rowAlt].polys[g_Menu->renderContext], 0);
         }
+        g_Menu->pItemRows->primGroupStrings[0].renderContext = g_Menu->renderContext;
+        g_Menu->pItemRows->primGroupStrings[1].renderContext = g_Menu->renderContext;
+        g_Menu->pItemRows->primGroupStrings[2].renderContext = g_Menu->renderContext;
+        g_Menu->pItemRows->shouldRenderPrimGroup = 1;
+    } else {
+        MenuClearBytes(MENU_ITEM_ROW_STRING_COUNT, g_Menu->pManager->shouldRenderStrings10E0);
+        g_Menu->pItemRows->shouldRenderPrimGroup = 0;
     }
-    */
+}
 
 void MenuInitializeArrowCursor(u_char index) {
     g_Menu->arrowCursors[index] = HeapAlloc(sizeof(MenuArrowCursor), 0);
