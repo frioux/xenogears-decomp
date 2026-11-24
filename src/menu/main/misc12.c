@@ -157,6 +157,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
    and the full twin shape (that plus continue, plus a pCounter variable) is
    82.57% / 612. So in THIS unit the plain inline spelling in the park below is
    still the best body, and the ten mirrored addu operands stay the residual.
+   Round 450 (this tree): re-measured 88.75 / 608 / 152 (retail's exact size). Preset screen:
+   gcc-2.7.2-psx 85.20, gcc-2.7.2-cdk will not compile this unit, so XenoMenu260 is right and the
+   unit needs no split. Nothing else re-tried: every spelling in this note (embedded-assignment
+   temps 82.70 / 612, the double-negated offset 80.13 / 624, a slot variable 70.93-76.25) was
+   measured and loses the register plan, and the residual is still the four mirrored counter
+   addresses plus the prim-base pair hoisted into the beq delay slot.
 void func_801E6CFC(u8 index, u8* pEntry) {
     u8* pPrims;
     s32 primOffset;
@@ -1002,6 +1008,17 @@ void MenuReadPcFile(char* pName, char* pBuffer, int len) {
 // "move s0,zero" and writes "move v0,zero" (this body, +8 bytes). A return per path (three
 // "return result;" statements) makes gcc const-propagate all three into li v0 (96.70% / 760).
 // Nothing tried keeps the s0 = 0 assignment AND the duplicate copy.
+// Round 450 (this tree): re-measured 98.39 / 760 / 190. (1) spelled as the literal
+// &g_MenuCdStatus at both 0x15 uses measures 98.23 / 768 / 192: gcc rematerialises the address
+// into a2 for the argument AND re-derives it into v1 for the following lbu instead of keeping one
+// pseudo in s0, so a fresh pointer variable cannot reach retail either. (2) moving
+// "result = 0;" to after the two ArchiveCdDataSync calls is byte-identical (760 / 190), so its
+// position is not the lever. Why retail keeps that copy while this build folds it: retail's other
+// two returns ("addu v0,s0") sit at merge labels, where cse's register-value table is reset,
+// while the success block is straight-line - the fold is decided inside the block, not by the
+// calls. Preset screen: gcc-2.7.2-psx measures the same 98.39; 2.6.0 -O3 is 75.57; -G0 and
+// 2.7.2-cdk fail to compile. MATCH needs BOTH residuals (193 insns), so fixing one cannot
+// close it.
 /*
 s32 func_801E93A0(s32 disc) {
     MenuSectorHeader header;
