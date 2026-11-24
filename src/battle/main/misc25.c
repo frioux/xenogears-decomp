@@ -557,33 +557,47 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
         }
     }
 }
-// PARKED 96.08% (2120 bytes = retail's exact size, 192 differing lines against the
-// previous park's 236). The one residual is the callee-saved permutation: retail hands
-// out $s1=x $s2=y $s3=z $s4=orbitY $s5=pBlock $s6=pTween $s7=outX $s0=orbitR, ours gives
-// pBlock $s3, z $s4, orbitY $s5 (x, y, pTween, outX and orbitR already match). That
-// permutation is also why retail's prologue has two block-pointer moves where ours has
-// `move s6,sX` plus a `nop`, and why the two midpoint blocks re-schedule their
-// sll/sra/lhu order.
-// KEPT THIS ROUND: the tween pointer also carries the midpoint reads - `pTween->targetZ`
-// for the ">= 0" test and `pTween->targetY` in both midpoint arms - which is exactly
-// retail's $s6 access set (lh 0xE(s6) and lh 0xC(s6) twice, plus the startX/Y/Z group)
-// and measured 95.81 -> 96.08% at the same 2120 bytes.
-// MEASURED DEAD THIS ROUND, in one line each: cc1 -da/-dl on this body says pBlock 66
-// refs/276 insns, pTween 48/241, x 48/160, y 39/135, z 48/180, and pBlock is still
-// processed before z and orbitY, so it keeps taking an earlier register (the allocation
-// order is not a monotone function of that quotient, so the dump can say where pBlock
-// sits but not how to move it); moving the curFrame/endFrame group (8 sites) to pTween
-// 95.55% at 2120; s32 x/y/z 95.53% at 2108 (also 12 bytes small, so retail's x/y/z are
-// the 2-byte locals the lhu loads already say); `kind = pTween->opcode` with the
-// assignment reordered is byte-identical because copy propagation folds it back.
-// Preset screen this round: 2.6.0 -O2 -G8 95.81 (the unit preset, best), 2.7.2-psx
-// 94.12, 2.7.2-cdk 82.19, -O3 95.80, so there is no preset lead.
-// Older parks measured dead: y through a u16 local, z += vs z = z +, outX/Y/Z as
-// separate results, declaration order, and five permuter runs (none reached 0).
 // Runs every queued movement command for arg1 frames. A block interpolates its sprite
 // position from its start to its target and publishes the result: slots 0..6 into their
 // own word, 7 and 8 into the two slot vectors. A block whose tag is D_800C3B84 reports
 // to D_800C3B88 - bit 1 while it still runs, bit 2 once it has finished and been freed.
+// PARKED 96.08% (2120 bytes = retail's exact size, 190 differing lines). The residual is
+// one callee-saved cycle: retail has z=$s3 orbitY=$s4 pBlock=$s5, ours pBlock=$s3 z=$s4
+// orbitY=$s5 - orbitR $s0, x $s1, y $s2, pTween $s6, outX $s7 and slot $s8 all match, so
+// only these three rotate. Everything else in the diff is instruction scheduling inside
+// the two midpoint blocks, which follows from the rotation.
+// MEASURED THIS ROUND with -da/-dl/-dg on this body (gcc-2.6.0-psx, -O2 -G8): the global
+// allocnos that took a callee-saved register are
+//   93 orbitR 9 refs/15 insns/4b -> $s0, 76 x 48/160/2 -> $s1, 77 y 39/135/2 -> $s2,
+//   95 pBlock 66/276/4 -> $s3, 78 z 48/180/2 -> $s4, 96 pTween 48/241/4 -> $s6,
+//   79 outX 42/282/2 -> $s7, 92 orbitY 6/20/4 -> $s5, 83 slot 35/318/4 -> $s8,
+// and the processing order is "... 76 77 95 78 ... 96 79 92 83". Two things follow.
+// (1) The hand-out is not "processing order x ascending register": pTween took $s6 and
+// outX $s7 while $s5 was still free, and $s5 went to orbitY at its LATER turn, so $s5 is
+// handed out after $s6/$s7 in this function (both retrievals are global allocnos, so
+// local-alloc is not the explanation). (2) Retail's arrangement would need z, orbitY,
+// pBlock in that processing order, i.e. a 66-ref/276-insn pseudo ranked below a
+// 6-ref/20-insn one. The floor_log2(refs)*refs*size/live quotient cannot do that here
+// (5.74 against 2.4): pBlock only falls under 2.4 at 31 refs or a 590-insn range, and its
+// refs are one per instruction of a stream that is already retail's. The quotient orders
+// the head of that list exactly (orbitR 7.2, x 3.0, y 2.89, z 2.67 = $s0..$s3) and then
+// stops being monotone (pTween 3.98 processed after z 2.67), so a second term takes part
+// and the arrangement is not reachable from the source. Park on this arithmetic rather
+// than a sixth permuter run.
+// KEPT THIS ROUND: the in-place negation of orbitR. Retail has `sra s0,s0,0xC / negu
+// s0,s0` (the division and the negation are ONE pseudo in $s0); with the negation inside
+// the expression the body needs two (`sra v0,v0,0xC / negu s0,v0`). Spelling it as
+// `orbitR = (...) / 4096; orbitR = -orbitR;` gives retail's in-place form and took the
+// differing lines from 192 to 190 at the same 2120 bytes.
+// KEPT FROM EARLIER ROUNDS (still the best body): the tween pointer also carries the
+// midpoint reads (pTween->targetZ for the ">= 0" test and pTween->targetY in both arms),
+// which is exactly retail's $s6 access set - 96.08 against 95.81 for the pBlock spelling.
+// MEASURED DEAD earlier, one line each: moving the curFrame/endFrame group (8 sites) to
+// pTween 95.55 at 2120; s32 x/y/z 95.53 at 2108 (12 bytes small, so retail's x/y/z are
+// the 2-byte locals its lhu/sh already say); kind as pTween->opcode byte-identical;
+// y through a u16 local, z += vs z = z +, outX/Y/Z as separate results, declaration
+// order, all byte-identical or worse. Preset screen: 2.6.0 -O2 -G8 (this unit's preset)
+// best, 2.7.2-psx 94.12, 2.7.2-cdk 82.19, -O3 95.80. Five permuter runs, none reached 0.
 /*
 void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     u16 vec[3];
@@ -661,7 +675,8 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
             }
             if (slot == 8) {
                 orbitY = (D_800C3B98 * rcos(D_800C3B94)) / 4096;
-                orbitR = -((D_800C3B98 * rsin(D_800C3B94)) / 4096);
+                orbitR = (D_800C3B98 * rsin(D_800C3B94)) / 4096;
+                orbitR = -orbitR;
                 x += (orbitR * rcos(D_800C3B90)) / 4096;
                 y += -orbitY - D_800C3B9C;
                 z = z + ((orbitR * rsin(D_800C3B90)) / 4096);
@@ -766,6 +781,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     D_800C3B8C = 0;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
+
 
 
 u16 BattleIsPointWithinBounds(s16 *pPos) {
