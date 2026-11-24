@@ -15,78 +15,50 @@ extern void* g_GfxCurWorkBufferEnd;
 
 // Queues one semi-transparent textured quad per record of the dirent.
 //
-// BLOCKED on a TU boundary, not on the body. Best 68.00% (130 insns against
-// retail's 138). Screen this round: unit flags 68.00, cdk -G0 67.17, 2.6.0
-// 67.64, 2.7.2 67.82, index-loop variants 66.43 / 67.51.
-//
-// The original object reaches g_GfxCurWorkBuffer and g_GfxCurWorkBufferEnd with
-// the assembler's ABSOLUTE expansion (lui %hi then lw %lo in the same register,
-// and lui $at for the store), so neither symbol was in that TU's small data.
-// include/system/animation.h declares both as tentative definitions, so this TU
-// emits ".comm g_GfxCurWorkBuffer,4" and maspsx (sdata limit 8, plus
-// --use-comm-section) rewrites EVERY reference to %gp_rel: see
-// tools/maspsx/maspsx/__init__.py, the "%gp_rel" branches, which fire on
-// "symbol in self.sbss_entries". The decision is per symbol per TU, and the
-// matched neighbours GfxQueueSpriteTileData, GfxQueueImageTransfer,
-// GfxSetRenderContext and SpriteDrawTile need %gp_rel, so one TU cannot produce
-// both shapes. Verified reachable: with -G0 the absolute lui/lw form does come
-// out of this same unit, so the fix is a config/slus_006.64.yaml split at this
-// function's file offset 0x173A4 into its own unit that only declares the two
-// externs (no new preset needed).
-//
-// Once split, what is left of the body: retail walks the records as
-// pDirent plus a byte offset (pDirent spilled at 0x10(sp), the offset at
-// 0x1C(sp) starting at 4 and incremented by 0x1C, the loop counter at 0x14(sp)),
-// where this body keeps a pData pointer induction. Retail loads record+0 twice,
-// the second time as lh, and loads record+0x04, +0x06 and +0x08 with lh too,
-// while include/system/menu.h declares u, width, height and x as u16 (this body
-// emits lhu for all four, and the header cannot change: ResourceHelperGetSpriteList
-// is matched on the u16 reads). Retail also keeps the record's u in a stack slot
-// at 0x20(sp) and reloads it for the prim's u0/u2 stores.
-//
-// Re-measured (redo lane): 68.00% again for the parked body (130 insns, 520
-// bytes); a pDirent+offset loop with `offset += sizeof(*pData)` in the for
-// increment is 67.44% (132 insns, 528 bytes) and a variant whose locals are
-// assigned after the two calls is 51.31% (122 insns) because it drops the s-reg
-// save set, so the pointer-induction body above stays. -G0 does NOT recover the
-// score (66.36% / 67.17%), so the split alone will not close this: retail reads
-// record+0x04/+0x06/+0x08 with lh (lhu for +0x16/+0x18), which this TU's
-// MenuResourceTextureMetadata (u16 width/height/x) cannot spell without a second
-// struct for the record, and the loop's spill set (0x50 frame, five slots) wants
-// the offset form. A probe subtype with s16 u/v/width/height/x and u16
-// texPageX/texPageY (the lh/lhu set retail emits) scores 65.53%, so the
-// signedness alone is not the gap either - do not retry it on its own.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_b", func_80026BA4);
+// The pre-carve park sat at 68.00% and blamed the TU boundary: the old body kept
+// g_GfxCurWorkBuffer in a %gp_rel form the neighbours need, and system/temp2 is
+// still one unit with the matched GfxQueueSpriteTileData/GfxSetRenderContext. That
+// is what the split fixed - the absolute lui/lw form comes out of this TU now.
+// Best 91.88% (552 bytes / 138 insns = retail's exact size). The guard, the frame, the spill set and the whole load block are retail's instruction for instruction: pDirent at 0x10, the byte offset at 0x1C (starts 4, += 0x1C), i at 0x14, count at 0x18, u spilled at 0x20. What closed it from 68%:
+//   - the guard indexes the global directly, ((POLY_FT4*)g_GfxCurWorkBuffer + count): with 'pPrim = g_GfxCurWorkBuffer;' first, cc1 gives the guard's buffer a callee-saved register and moves the frame/prologue.
+//   - a texPageId local assigned BEFORE GetClut, so pData dies at the call (otherwise the record base needs a callee-saved register and pPrim gets spilled instead).
+//   - the prim stores add x/y AT the store ('pPrim->x0 = x0 + x;' with x0 = pData->x), which is what makes cc1 read the x/y home slots (0x58/0x5C) AFTER the two calls, as retail does.
+//   - (s16) casts on the u16 fields width/height/x/u: that is retail's lh set. Unexplained but measured: without the casts cc1 emits lhu and the body sits 3 points lower.
+//   - the permuter's two edits at the top of the load block (u reused as the texPageX raw temp, rawX for pData->x) flipped the spilled value from h to u: 81.26 -> 91.88.
+// Residual, 40 differing lines: $s3/$s4 are swapped between v and x0 (retail s3=x0, s4=v), and the prim store order (retail x0, v0, v1, x1, x2, x3, v2, v3, y0..y3, u0..u3; this body emits the whole v group first because the x stores wait on the home-slot reload).
+// Tried and dead: pre-carve preset screens (cdk -G0 67.17, 2.6.0 67.64, 2.7.2 67.82); a pData induction pointer (69.50); pDirent+offset with sizeof in the for-increment; s16 locals for w/h/x0/u/v (142 insns, the adds then need sign extensions); count/i declaration swap and moving u to the end of the declaration list (both byte-identical); a 4-minute permuter run from 76% (its find added a store to v2 - rejected as wrong code).
 /*
 void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* ot) {
     MenuResourceDirentTextureMetadata* pDirent;
     MenuResourceTextureMetadata* pData;
     POLY_FT4* pPrim;
-    s32 count;
     s32 i;
+    u16 rawX;
+    s32 count;
+    s32 offset;
     s32 x0;
     s32 y0;
     s32 w;
     s32 h;
-    s32 u;
     s32 v;
     s32 u_shifted;
     s32 texPageX_lsb;
     s32 texPageX;
     s32 texPageY;
+    s32 texPageId;
+    s32 u;
 
     pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
     count = pDirent->count;
-    pPrim = g_GfxCurWorkBuffer;
-    if ((u8*)(pPrim + count) >= (u8*)g_GfxCurWorkBufferEnd) {
+    if ((u8*)((POLY_FT4*)g_GfxCurWorkBuffer + count) >= (u8*)g_GfxCurWorkBufferEnd) {
         return;
     }
     if (count == 0) {
         return;
     }
 
-    pData = &pDirent->data[0];
-    for (i = 0; i != count; i++, pData++) {
+    for (i = 0, offset = 4; i != count; offset += 0x1C, i++) {
+        pData = (MenuResourceTextureMetadata*)((u8*)pDirent + offset);
         pPrim = g_GfxCurWorkBuffer;
         g_GfxCurWorkBuffer = pPrim + 1;
 
@@ -99,40 +71,45 @@ void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* 
         } else {
             texPageX_lsb = u_shifted >> 0x14;
         }
-        texPageX = (s16)(pData->texPageX & 0xFFC0) + texPageX_lsb;
+        u = pData->texPageX;
+        texPageX = (s16)(u & 0xFFC0) + texPageX_lsb;
         texPageY = (s16)(pData->texPageY & 0xFF00) + pData->v;
 
-        x0 = pData->x + x;
-        y0 = pData->y + y;
-        w = pData->width;
-        h = pData->height;
-        u = pData->u;
+        texPageId = pData->texPageId;
+        w = (s16)pData->width;
+        h = (s16)pData->height;
+        rawX = pData->x;
+        x0 = (s16)rawX;
+        y0 = pData->y;
+        u = (s16)pData->u;
         v = pData->v;
 
         pPrim->clut = GetClut(pData->clutX, pData->clutY);
-        pPrim->tpage = GetTPage(pData->texPageId, 0, texPageX, texPageY);
+        pPrim->tpage = GetTPage(texPageId, 0, texPageX, texPageY);
 
-        pPrim->x0 = x0;
-        pPrim->x1 = x0 + w;
-        pPrim->x2 = x0;
-        pPrim->x3 = x0 + w;
-        pPrim->y0 = y0;
-        pPrim->y1 = y0;
-        pPrim->y2 = y0 + h;
-        pPrim->y3 = y0 + h;
+        pPrim->x0 = x0 + x;
+        pPrim->v0 = v;
+        pPrim->v1 = v;
+        pPrim->x1 = x0 + x + w;
+        pPrim->x2 = x0 + x;
+        pPrim->x3 = x0 + x + w;
+        pPrim->v2 = v + h;
+        pPrim->v3 = v + h;
+        pPrim->y0 = y0 + y;
+        pPrim->y1 = y0 + y;
+        pPrim->y2 = y0 + y + h;
+        pPrim->y3 = y0 + y + h;
         pPrim->u0 = u;
         pPrim->u1 = u + w;
         pPrim->u2 = u;
         pPrim->u3 = u + w;
-        pPrim->v0 = v;
-        pPrim->v1 = v;
-        pPrim->v2 = v + h;
-        pPrim->v3 = v + h;
 
         AddPrim(ot, pPrim);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_b", func_80026BA4);
+
+
 
 // One sprite of a menu resource dirent, converted to screen space with its
 // tpage/clut resolved. x/y stay unsigned: they are added to a screen offset.
