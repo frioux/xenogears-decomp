@@ -950,26 +950,40 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     SoundPlaySoundEffectOnFreePair((q[0xA] << 16) | 0x36);
     return 1;
 }
-// 99.31%, 2292 bytes = retail's exact size. Instruction stream is retail's
-// except FIVE store/arg positions in the post-switch block (retail 303-315:
-// A2=unk50, lw unk58, pF0, sh AA, lw unk60, move a1, sh BA, sh B8, sh B2, lw unk60,
-// ori a0, jal, sh BC; ours hoists the two constant-zero halfword stores above the
-// 0xAA store and sinks the 0xA0 arg into the arm, so they land three slots early).
-// objdiff 99.31% with every other instruction, the frame and the whole callee-saved
-// assignment exact ($s0 = the 0xA0/0xF0 scratch pointer, $s1 = p, $s2 = g_WorldMapGroups,
-// $s3 = the scratch base, retail's own mapping).
-// Two levers that did all the work, keep both:
+// 99.74%, 2292 bytes = retail's exact size, 573 insns. Structure, frame and the whole
+// callee-saved hand-out are retail's; the residual is THREE instructions rotated among
+// the post-switch block's three load-delay slots (read build/src/.../misc4.c.s):
+//   retail: lw unk50 / sh A2, lw unk58 / addiu s0=0xF0 / sh AA, lw unk60 / move a1 /
+//           sh BA / sh B8 / sh B2, lw unk60 / ori a0=0xA0 / jal (sh BC in the delay slot)
+//   ours:   the three value setups fill slots 1-3 in the order ori a0, addiu s0, move a1
+//           (retail's is addiu s0, move a1, ori a0) - same instructions, rotated.
+// WHAT CLOSED 99.31 -> 99.74, keep both:
+//   1. the two constant-zero stores must be written AFTER the 0xB2 store in the source
+//      (A2, AA, B2, BA, B8, BC). cc1 floats a constant store up to just after the
+//      nearest preceding load, so that order is what emits retail's BA, B8, B2; the old
+//      note's order (A2, AA, BA, B2, B8, BC) is a real source difference and is 99.31.
+//   2. the 0xF0 matrix pointer is assigned to the switch's own g_WorldMapGroups pointer
+//      (pEntries = scratch + 0xF0), which gives that pseudo a long live range so it
+//      materialises in retail's slot; the clean spelling materialises it one slot later.
+// Also measured (all with the fixed store order): clean spelling at BOTH the first and
+// the last RotMatrixYXZ = 99.66 (pointer in $s0 as retail, but materialised in slot 2);
+// a MATRIX* function-level local with the same two uses is byte-identical to the clean
+// spelling (gcc copy-propagates it) = 99.66; volatile on the two zero stores = 99.04
+// (they hoist above the 0xAA store); source order A2, AA, BA, B8, B2, BC = 99.04;
+// A2, AA, B2, BA, BC, B8 = 98.56. Presets: cdk 90.32, 2.6.0 98.16 - XenoWorldMap is
+// right. permute.sh from the 99.31 body: PERMUTER_BETTER base=325 best=280, and that
+// single edit (the pEntries assignment) is what took it to 99.74; from the 99.74 body
+// PERMUTER_NONE base=280 best=280 over 1151 iterations. So the rest is sched2's slot
+// rotation, and the cost of lever 2 is $s2 where retail has $s0 for the same pointer.
+// Two older levers that did the scaffolding, keep both:
 //   1. pVec MUST be block-scoped in each of the three arms that use it
-//      (case 0: { SVECTOR *pVec = ...; ... }) - as one function-level variable the three
+//      (case 0: { SVECTOR *pVec = ... }) - as one function-level variable the three
 //      assignments merge and the callee-saved hand-out rotates (94.77%).
-//   2. every pMat group must be its OWN block with its own block-local pointer
-//      ({ WorldMapEntry *pMat = (WorldMapEntry *)g_WorldMapGroups; ... }); with a
+//   2. every pMat group must be its OWN block with its own block-local pointer; with a
 //      reassigned function-level pMat the 4-word matrix copies take $a2 as their base
 //      and shift all their temporaries (95.80% -> 99.31%).
-// Also measured: dropping the do/while(0) round the six scratch clears and writing the
-// tail stores in retail's order = 99.26% (the zeros still float up); a block-local
-// SVECTOR pZero for the 0xB8/0xBA pair = 98.68%; permute.sh 3 min base=150 best=150.
-// So the residual is cc1 hoisting constant stores, not a missing construct.
+// Dropping the do/while(0) round the six scratch clears is 99.26; a block-local SVECTOR
+// pZero for the 0xB8/0xBA pair is 98.68.
 /*
 s32 func_80079778(s32 index) {
     WorldMapActor *p;
@@ -1103,11 +1117,12 @@ s32 func_80079778(s32 index) {
     } while (0);
     *(s16 *)(pScratch + 0x0A2) = p->unk50;
     *(s16 *)(pScratch + 0x0AA) = p->unk58;
-    *(s16 *)(pScratch + 0x0BA) = 0;
     *(s16 *)(pScratch + 0x0B2) = p->unk60;
+    *(s16 *)(pScratch + 0x0BA) = 0;
     *(s16 *)(pScratch + 0x0B8) = 0;
     *(s16 *)(pScratch + 0x0BC) = p->unk60;
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0x0A0), (MATRIX *)(pScratch + 0x0F0));
+    pEntries = (MATRIX *)(pScratch + 0x0F0);
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0x0A0), (MATRIX *)pEntries);
     RotMatrixYXZ((SVECTOR *)(pScratch + 0x0A8), (MATRIX *)(pScratch + 0x110));
     RotMatrixYXZ((SVECTOR *)(pScratch + 0x0B0), (MATRIX *)(pScratch + 0x130));
     RotMatrixYXZ((SVECTOR *)(pScratch + 0x0B8), (MATRIX *)(pScratch + 0x150));
@@ -1141,6 +1156,7 @@ s32 func_80079778(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
+
 
 void WorldMapSetupPrimTemplates(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count) {
     s32 i;
