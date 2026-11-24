@@ -20,6 +20,15 @@
 // VRAM x of the text texture page the slot textures are loaded into and drawn from.
 #define BATTLE_TEXT_TEX_PAGE_X 0x3C0
 
+// The action-row graphics BattleLoadActionRowGraphics builds: one text buffer per
+// row, each rendered with room for this many characters.
+#define BATTLE_ACTION_ROW_COUNT 11
+#define BATTLE_ACTION_ROW_TEXT_CAPACITY 27
+
+// The digit glyphs g_BattleDigitImageBuffers holds, 0 through 9: the one row of
+// six-pixel digits BattleLoadActionRowGraphics uploads beside the action rows.
+#define BATTLE_DIGIT_IMAGE_COUNT 10
+
 // tpage's semi-transparency rate field, the `abr` arg of GetTPage (bits 5-6): the
 // add and subtract modes the BlendAdd and BlendSub setters below turn on in it.
 #define BATTLE_PRIM_TPAGE_BLEND_ADD 0x20
@@ -209,8 +218,8 @@ void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
     p->y0 = y;
     p->y1 = y;
     p->x2 = x;
-    p->y2 = y + 13;
-    p->y3 = y + 13;
+    p->y2 = y + BATTLE_TEXT_ROW_HEIGHT;
+    p->y3 = y + BATTLE_TEXT_ROW_HEIGHT;
     p->u0 = u;
     p->u2 = u;
     p->x1 = x + dx;
@@ -218,9 +227,9 @@ void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
     p->v0 = v;
     p->u1 = u + dx;
     p->v1 = v;
-    p->v2 = v + 13;
+    p->v2 = v + BATTLE_TEXT_ROW_HEIGHT;
     p->u3 = u + dx;
-    p->v3 = v + 13;
+    p->v3 = v + BATTLE_TEXT_ROW_HEIGHT;
 }
 void BattleSetPolyFT4Rect(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy) {
     p->x0 = x;
@@ -291,7 +300,7 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
 void BattleLoadActionRowGraphics(void) {
-    u8 *pBuf[11];
+    u8 *pBuf[BATTLE_ACTION_ROW_COUNT];
     RECT rect;
     u8 **p;
     u8 *pEntry;
@@ -305,15 +314,15 @@ void BattleLoadActionRowGraphics(void) {
 
     i = 0;
     y = 0x10D;
-    h = 0xD;
+    h = BATTLE_TEXT_ROW_HEIGHT;
     off = 0x2C;
-    for (; i < 11; i++) {
+    for (; i < BATTLE_ACTION_ROW_COUNT; i++) {
         // the assignment inside the store's address expression is what makes gcc
         // form the slot address after the call and base-first, as retail does
-        *(pSlot = pBuf + i) = BattleAllocTextBuffer(0x1B);
+        *(pSlot = pBuf + i) = BattleAllocTextBuffer(BATTLE_ACTION_ROW_TEXT_CAPACITY);
         bzero(*pSlot, 0x30C);
-        D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), *pSlot, 0x1B, 0);
-        result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), *pSlot, 0x1B, 1);
+        D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), *pSlot, BATTLE_ACTION_ROW_TEXT_CAPACITY, 0);
+        result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), *pSlot, BATTLE_ACTION_ROW_TEXT_CAPACITY, 1);
         g_BattleActionRowIconSprites[off] = result;
         pEntry = (u8 *)(g_BattleActionRowIconSprites + off);
         D_800D2F3E[off] = pEntry[2] = 0x78;
@@ -323,21 +332,21 @@ void BattleLoadActionRowGraphics(void) {
         rect.x = 0x3DE;
         rect.y = y;
         rect.w = 0x1E;
-        rect.h = 0xD;
+        rect.h = BATTLE_TEXT_ROW_HEIGHT;
         BattleLoadImageAndSync(&rect, *pSlot);
-        y += 0xD;
-        h += 0xD;
+        y += BATTLE_TEXT_ROW_HEIGHT;
+        h += BATTLE_TEXT_ROW_HEIGHT;
         off += 4;
     }
     p = pBuf;
-    for (i = 0; i < 11; i++) {
+    for (i = 0; i < BATTLE_ACTION_ROW_COUNT; i++) {
         HeapFree(*p++);
     }
-    for (i = 0; i < 0xA; i++) {
+    for (i = 0; i < BATTLE_DIGIT_IMAGE_COUNT; i++) {
         rect.x = 0x3DE + i * 2;
         rect.y = 0x100;
         rect.w = 6;
-        rect.h = 0xD;
+        rect.h = BATTLE_TEXT_ROW_HEIGHT;
         off2 = i * sizeof(u8 *);
         BattleLoadImageAndSync(&rect, *(u8 **)((u8 *)g_BattleDigitImageBuffers + off2));
     }
