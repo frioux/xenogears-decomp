@@ -840,67 +840,44 @@ void BattleUploadAndFreeImageResources(void) {
     HeapFree(g_BattleColorTintBase);
     HeapFree(g_BattleColorTintWork);
 }
-// 75.91% (2172 bytes against retail's 2276; 543 of 569 instructions) under this
-// unit's preset, gcc 2.6.0 -G0 --expand-div; frame 0x138 against retail's 0x130.
-// func_801E1A14 in lib_gear/main/main is THIS FUNCTION instruction for
-// instruction - 569 insns, same frame, same 20-argument signature - so that
-// unit's park is the same task and either one closes both.
-// MEASURED THIS LANE, on the parameter types: the eighth argument (numSections)
-// is 32-BIT - retail reads the incoming word (lw 0x14C) and narrows it with
-// sll 16 / sra 16 at the tail - and declaring it s32 takes 75.69 to 75.91. The
-// six 16-bit-shaped arguments (tileX, tileY, uSpan, vSpan, clutX, clutY) measure
-// best as s16 (543 insns, 340 verbatim lines); as u16 they are 528 insns and 308
-// lines, and texX/texY/texZ as s32 with three s16 locals - which does reproduce
-// retail's three hoisted sll 16 / sra 16 before the vector loop - is 548 insns
-// and 325 lines with a 0x120 frame. Every variant shifts the frame, so objdiff's
-// fuzzy number is not comparable across them (the s32 spellings read 15.87 and
-// 16.59); compare the count of verbatim side-by-side lines instead.
-// The argument map, read off the entry copies: 0x14C numSections (word),
-// 0x150 tileX, 0x154 tileY, 0x158 uSpan, 0x15C vSpan, 0x160 clutX, 0x164 clutY,
-// 0x168..0x17C the six colour bytes, then 0x140/0x144/0x148 are the three
-// 32-bit position offsets narrowed once to s16 before the vector loop.
-// RESIDUAL: register allocation, not source. Retail runs the segment loop's
-// inner body entirely in call-clobbered registers - a1, a2, a3 and t0-t4 are all
-// live across each of the four SetPolyGT3 calls, spilled as eight words at
-// 0xE8-0x104 and mostly reloaded lazily - and keeps uRow (0x80), tpage (0x88),
-// rowStep (0x90, re-read after every SetPolyGT3), uStep (0xA0) and uStart (0xE0)
-// memory-resident. This build keeps rowStep/uStart/uEnd in $s registers and pCur
-// in a callee-saved $s2, so the spill dance and 26 instructions disappear.
-// Everything else agrees with retail: the five HeapAllocs and their sizes, the
-// four failure paths with their exact frees, the part-stream count re-reads from
-// memory, the SetPolyGT3 store order (tpage, u0, v0, clut, v1, u2, u1, v2), the
-// s16 narrowing of the tpage/clut arguments (lhu then sll 16 / sra 16), the
-// sltu form of the nSegs pick, and the tail's section clears.
-// PARKED: 562 of retail's 569 instructions, 2248 bytes against 2276, and the frame
-// is now retail's 0x130 (the previous park here was 543 insns with a 0x138 frame),
-// 301 differing side-by-side lines against 758 for the older body. objdiff's fuzzy
-// number reads 13.46% for this body and read 75.91% for the older one, which
-// contradicts both the instruction count and the text diff; treat 13.46 as an
-// alignment artifact and compare insn count, frame size and diff lines instead.
-// The older body is in git history (commit 3603103d: s16 texX/texY/texZ, hoisted
-// nV0/nV1 locals, nRow = uRow + j) if a later round wants it back.
-// Read off the assembly this round; all three of these are wrong in the older park:
-// - args 5-7 (texX/texY/texZ) are 32-BIT: retail lw 0x140/0x144/0x148 and narrows
-//   each once with sll 16 / sra 16 before the vector loop. Declaring them s32, with
-//   the (s16) narrowing written in the vector loop, is what takes the frame from
-//   0x138 to retail's 0x130.
-// - texY, clut and pCount live in CALL-CLOBBERED registers across SetPolyGT3 (a2,
-//   t4, t1), spilled and lazily reloaded per k, so the texture expressions are
-//   written INLINE in the eight store statements and gcc's CSE plus loop-invariant
-//   motion rebuilds retail's shape: loop 1 computes texY + rowStep * j once into s3
-//   and texY + rowStep * (j + 1) per k; loop 2 recomputes both per k. Hoisted nV0 /
-//   nV1 locals (the older park) collapse those six mults per j to two.
-// - the segment row index is its own accumulator: nRow = uRow before the j loop and
-//   nRow++ at the end of the j body (retail's addiu s6,s6,1 sits in the j-loop
-//   branch delay slot), while uRow is only advanced by pCount[0] + 1 per i and read
-//   back from its stack home each i. nRow = uRow + j is numerically the same but
-//   emits an addu per j iteration and keeps j live.
-// RESIDUAL, 7 instructions, allocation only: retail keeps texX/texY/texZ in
-// s0/s2/s3 and rowBase in s6; this build re-reads texX/texY from their incoming
-// 0x140/0x144 slots and spills rowBase to 0x18, so the difference is spent on
-// reloads. Everything else agrees: the 8-word spill block at 0xE8-0x104, the four
-// k-loops' store order, both div expansions, the sltu form of the nSegs pick, the
-// five HeapAllocs with their failure paths, and the section tail.
+// Parked: 565 of retail's 569 instructions, 2260 bytes against 2276, objdiff 71.13%
+// under this unit's preset (gcc 2.6.0 -G0 --expand-div); frame 0x138 against retail's
+// 0x130. objdiff's fuzzy number is an alignment artifact on this body (it read 13.46%
+// for a 562-insn version); judge by instruction count, byte count and frame size.
+// THE BODY IS lib_gear/main/main func_801E1A14's (twin_for 1.000: the two objects are
+// the same 569 instructions, the other unit's park is the same task), ported with that
+// unit's one fix: nSegs declared u16 (16-bit unsigned) instead of s32 is worth +3
+// instructions and +12 bytes here (562 / 2248 -> 565 / 2260), because retail's nSegs
+// pick is `sltu $v0,$v1,$a3` (0x800A7590) and an s32 declaration compiles it to slt.
+// REMAINING 4 instructions / 16 bytes + the 8-byte frame, allocation only:
+// - the rowStep division. Retail runs the FULLY CHECKED signed form at 0x800A75B0:
+//   `div $zero,$v0,$a3` with both break 7 (divide by zero) and the `addiu at,-1 /
+//   bne / lui 0x8000 / bne / break 6` INT_MIN/-1 guard, and its divisor $a3 is the
+//   raw zero-extended `lhu` value with no mask. This compile emits only maspsx's
+//   break 7 plus an `andi 0xffff` on the divisor: the u16 declaration buys the sltu
+//   pick but then lets gcc fold the signed division into an unsigned one.
+// - measured: `rowStep = vSpan / (s16)nSegs;` restores 2 of those 4 instructions
+//   (567 insns, 2268 bytes) but needs a cast no 1998 programmer would write, so it is
+//   not the parked body; it is recorded here in case a later round wants the size.
+// - the frame: both sides spill exactly ONE parameter, but not the same one. Ours homes
+//   rowBase at 0x18 and re-reads texX/texY from their incoming 0x140/0x144 slots;
+//   retail homes numSections at 0x18 (one word copy in the prologue, `lw 0x14C` then
+//   `sw 0x18`, read back twice at the tail - lhu for the pEntry->numSections store, lw
+//   for the count test and the *0x10 allocation) and keeps rowBase in s6 with
+//   texX/texY/texZ in s0/s2/s3. Both sides save the same ten registers
+//   (ra,fp,s0-s7), so this is a permutation of which value spills, not a missing local;
+//   declaring a second local for numSections only moves the extra read, it does not
+//   free the slot.
+// Everything else agrees with retail: the five HeapAllocs and their sizes, the four
+// failure paths with their exact frees, the point loop's per-i SVECTOR re-reads, the
+// four SetPolyGT3 store orders, the uStep division's checks, the sltu nSegs pick and
+// the eight section clears.
+// Dead ends already measured on this body (do not redo): s32/unsigned parameter widths
+// for texX/texY/texZ (s32 with the (s16) narrowing inline is required; the s16 version
+// is 543 insns and a 0x138 frame), hoisted nV0/nV1 texture-row locals (collapses six
+// mults per j to two), `nRow = uRow + j` instead of a separate accumulator, and reading
+// pEntry->pVectors[i] per j. Permuter not run: 71% is below the STOP RULE exception and
+// the gap is spill and address-forming code, not a statement or operand shape.
 /*
 void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s32 texX, s32 texY, s32 texZ,
                    s32 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0,
@@ -922,14 +899,12 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s32 t
     u16 clut;
     u16 rowStep;
     s16 uStep;
-    s32 nSegs;
+    u16 nSegs;
     s32 nRaw;
     s32 uStart;
     s32 uEnd;
     s32 uRow;
     s32 nRow;
-    s32 nV0;
-    s32 nV1;
     s32 i;
     s32 j;
     s32 k;
@@ -1093,6 +1068,7 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s32 t
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
+
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
