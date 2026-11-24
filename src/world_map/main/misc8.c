@@ -681,6 +681,25 @@ s32 func_8008390C(s32 arg0) {
 // compile this body. Both switch tables live in this unit's rodata range
 // (0x98C..0x9D8, main/misc8), so diff_func can never print MATCH here; judge any
 // future attempt with tools/scripts/check_bin.sh world_map.
+//
+// Re-measured (round 442), four more spellings, no new best - do not repeat:
+// - the body above re-measured: 67.51, 1380 bytes, 345 insns (retail 395).
+// - both view angles read through ((s16 *)&g_WorldMapCameraRot)[1]/[2] (the
+//   store-to-load-fold escape that got func_8008390C to 96.15): 60.43, 1624
+//   bytes, 406 insns. It does defeat both folds, but cc1 then emits a second
+//   lh+sll for the second use of each angle, so it is 2 insns WORSE per arm.
+// - the same plus an angleY/angleZ local shared by the two stores: 64.64, 1420
+//   bytes, 355 insns. Single lh+sll per angle as retail has, but the relocated
+//   operand (CameraRot+2/+4 instead of the named angle) scores as a mismatch.
+// - direct-symbol reads in a shared local (no cast): 67.31, 1392 bytes, 348.
+// The residual is what the compiler does with the arm body, not the fold. The
+// emitted arm is NOT in source order (the sh command / sw redStep pair lands
+// after the lh in every spelling, at positions 2-3 in retail), and the 0x960000
+// the arm stores twice is the pseudo that moves with it: retail keeps it in $v1,
+// cc1 2.7.2 picks $a0 - the SAME tie func_8008390C above documents for its $a1.
+// Because the pair is pushed late, arms 0/1 and 5/6 end in an identical
+// blue/dirZ store pair and are cross-jumped into one shared tail block, which
+// retail never does. Whether that reordering is sched2 or reorg was not probed.
 // measure: tools/scripts/diff_func.sh world_map/main/misc8 func_80083A00
 /*
 s32 func_80083A00(s32 arg0) {
