@@ -1327,17 +1327,52 @@ typedef struct {
 // The vertex offsets the packets above are filled from: eight halfword pairs.
 extern u16 D_800917F4[];
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085EC8);
-
-/* 95.39%, retail's exact 1516 bytes, 6 shapes. Everything in the body is
-   instruction-for-instruction retail except register naming: the D_800917F4
-   offset bases get s1/s2/s3 where retail has s3/s1/s2 (+0xC is the first
-   defined and retail gives it s3), the meter[2]/meter[3] constant block is
-   hoisted in retail's order but into different registers, and the gauge loop
-   hoists the src.x0 load above src.y0/y1 where retail leaves it third. The
-   loop shape that got the exact size was gauge[3] + gaugeMirror[3] (one biv,
-   offsets 576/636 off pEnv); gauge[6] with gauge[i+3] makes a second giv
-   (+4 bytes) and a walking pointer re-bases onto pEnv+0x284 (+0 bytes).
+// PARKED 96.16%, retail EXACT 1516 bytes, 379 vs 379 instructions. Everything is
+// instruction-for-instruction retail except the last ~50 instructions, which carry
+// the same instruction MULTISET in a different order / register hand-out.
+// 
+// FIXED THIS ROUND - A REAL BUG THAT objdiff COULD NOT SEE. The old park fed
+// &D_800917F4[6] to barPrim[0].x1; retail passes index 0xE (in the .s, 0x800860D4
+// `addiu s2,s0,0x1C` immediately precedes the addu/call whose dst is fp+0x8C =
+// barPrim[0].x1). Because both spellings are a `move a0,sX` at that point, objdiff
+// read the buggy body as a 95.39% register rotation: the whole "D_800917F4 offset
+// bases get s1/s2/s3 where retail has s3/s1/s2" residual in the previous note was
+// this bug plus its scheduling fallout. With [0xE] at that site all forty
+// BattleCopyVertexOffsetAdd/Flip calls are now register-for-register retail
+// ([0]=s0, [2]=s6, [4]=s7, [6]=s3, [8]=s4, [0xA]=s5, [0xC]=s1, [0xE]=s2), the body
+// went 95.39 -> 96.16, and the previous note/six measured shapes for that rotation
+// are obsolete. LESSON for the next agent: on a call-argument pointer like this,
+// map BOTH sides (original `addiu sX,s0,K` -> array index; C -> D_800917F4[k]) and
+// compare; objdiff scores the register name, not the value, and the byte count and
+// cursor positions stay identical either way.
+// 
+// REMAINING, three clusters, all same-instruction-set differences:
+//  1. gauge-loop preheader: our `li t6,0x140` (the loop-invariant mirror base 0x140)
+//     is emitted first, retail emits it last, after the `lui/ori t5,0x2000FF00`.
+//  2. gauge loop body: ours issues the four gauge[i] loads in statement order
+//     (x0,y0,y1,y2) then the subu; retail interleaves (y0,y1,x0 then subu, then
+//     y2,x1,x2). The STORE order is retail's exactly (x0,y0,len,rgbc,len,rgbc,
+//     y1,y2,x1,x2), so the statement order below is right and this is sched2.
+//  3. the meter[2]/meter[3] constant block: the nine constants are materialised in
+//     retail's order but take other registers, and the `sb 0x2FB` and the two
+//     gaugeMirror[1] read-modify-write load positions follow. Root is cluster 3a:
+//     retail holds 0x1E in v1 because v0 is already carrying the hoisted
+//     `lhu 0x292` (gaugeMirror[1].y0); we materialise 0x1E first and it takes v0,
+//     which frees v1 for the first meter constant and rotates all nine (this is
+//     the block-local `find_free_reg` scan-start class, levers.md
+//     a-block-local-address-pair-is-one-rotation-step).
+// 
+// MEASURED THIS ROUND, all 1516 bytes unless noted:
+//  - permuter 4 min on this body: base 1575 -> best 1290, ONE edit (move
+//    `pEnv->meter[1].y0 = 0x13;` to after `pEnv->meter[1].y3 = 0x1E;`). Ported by
+//    hand it measures 95.21% - objdiff disagrees with the permuter score, so it was
+//    reverted. A second run from the 96.16 body is not obviously worth it.
+//  - preset screen on THIS body (try_flags.sh): gcc-2.6.0 95.58, gcc-2.7.2-cdk
+//    96.07, Default 96.16 -> the unit preset is right, no PRESET_ report.
+//  - the loop shape that gives the exact size: gauge[3] + gaugeMirror[3] (one biv,
+//    offsets 576/636 off pEnv); gauge[6] with gauge[i+3] makes a second giv (+4
+//    bytes) and a walking pointer re-bases onto pEnv+0x284 (+0 bytes).
+/*
 void func_80085EC8(Misc10GaugeEnv* pEnv) {
     s32 i;
 
@@ -1394,7 +1429,7 @@ void func_80085EC8(Misc10GaugeEnv* pEnv) {
     Misc10SetRGBC(&pEnv->barPrim[5], 0xFF, 0, 0, 0x28);
 
     BattleCopyVertexOffsetAdd(&D_800917F4[0], &pEnv->barPrim[0].x0);
-    BattleCopyVertexOffsetAdd(&D_800917F4[6], &pEnv->barPrim[0].x1);
+    BattleCopyVertexOffsetAdd(&D_800917F4[0xE], &pEnv->barPrim[0].x1);
     BattleCopyVertexOffsetAdd(&D_800917F4[0xA], &pEnv->barPrim[0].x2);
     BattleCopyVertexOffsetAdd(&D_800917F4[8], &pEnv->barPrim[0].x3);
     BattleCopyVertexOffsetAdd(&D_800917F4[0xE], &pEnv->barPrim[1].x0);
@@ -1492,6 +1527,9 @@ void func_80085EC8(Misc10GaugeEnv* pEnv) {
     Misc10SetXY3(&pEnv->meter[3], 0x136, 0x48);
 }
 */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085EC8);
+
+
 
 void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
     s32 scale;
