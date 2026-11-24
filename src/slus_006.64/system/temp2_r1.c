@@ -391,39 +391,33 @@ s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
 //    pair IS libgs' AddPrim macro, so arg5 is a u_long* OT slot (reloaded from
 //    the stack around GetTPage because it is call-clobbered).
 
-// PARKED 74.87% (1060 bytes against retail's 1096, 265 instructions against
+// PARKED 75.62% (1068 bytes against retail's 1096, 267 instructions against
 // 274). Re-measured this round under the unit's own preset (XenoGraphicsLibrary,
-// gcc 2.6.0 -O2 -G8); the percentage is live, not stale.
-// Retail's loop is 148 instructions, this body's 129: the whole 19-instruction
-// gap is inside the quad loop, and it is retail's EXTRA copies, not a missing
-// construct - move s3,v1 (col after the modulo), move a2,v0 (height kept live
-// across the width division), move a0,v0 twice (width, once for the s16 extend
-// and once for the clip), move a3,v1 (u), move a0,v1 (unk338 into the GetTPage
-// argument), plus a j with move t0,zero for the rows==0 path and a nop after the
-// rows mflo. Every value retail copies is one this body simply reuses, i.e. its
-// allocator kept more pseudo-registers alive across the two divisions.
-// Structure that matches: the prologue and the 0x50 frame with the same saved
-// set, all four divisions with their divide-by-zero/INT_MIN traps, the loop
-// preheader (i = 0, span+0x100 in s6, the 0xFFFFFF mask in s5, top in fp,
-// s0 = &pPrim->tpage), the GetTPage arguments, the AddPrim macro, the 8-quad
-// bound and the break at rowEnd.
-// Tried this round (unit preset), all worse than 74.87:
-//  - gcc-2.7.2-cdk 69.97; -O1 69.11; -O3 and plain gcc-2.7.2 do not compile
-//    this body. The preset is not the answer.
-//  - a separate `remainder` for the first modulo tested with (s16)remainder,
-//    which is what retail's sll/bgez/move s3,v1 wants: kept, and with rowEnd
-//    moved after the modulo and u3 stored before v2 it is worth +0.85. gcc
-//    still coalesces col into the mfhi, so the move stays missing.
-//  - a separate s32 `shift` for ((unk334 % 64) << (2 - unk338)) assigned to the
-//    u16 local afterwards: kept, it removes the sll/sra narrowing pair gcc puts
-//    in front of the sllv (+0.36).
-// Do not re-try by hand: gcc 2.6 -O2 schedules, so statement order does not
-// steer this block - retail's modulo lands before the vertex stores and this
-// body's after them, and retail stores y0/y1 last while this body hoists them.
-// Those, and the copies above, are schedule/allocator outcomes: this function
-// wants the permuter on a body whose live-range set is right, not another shape.
-// The clip path's /256 is srl in retail and sra here; edge case only, and the
-// instruction count is identical.
+// gcc 2.6.0 -O2 -G8, maspsx --expand-div); the percentage is live, not stale.
+// The named residual is COPY COALESCING in the loop's first block: retail keeps
+// u in $a3 and width in $a0 through two explicit copies (retail `and v1,v1,a0 /
+// subu v0,v0,v1 / move a0,v0 / move a3,v1`) where this body gives
+// `and a2,v1,v0 / subu a3,a0,a2` with no copies, and retail's rows assignment
+// goes `mflo v0 / nop / move t2,v0 / move t0,zero` where this body coalesces to
+// `mflo t2`. That, plus the callee-saved pair being mirrored (retail col $s3,
+// pPrim $s4; this body the reverse), is the remaining 7 instructions / 28 bytes.
+// What this round established, kept in the body:
+//  - THE ROWS DIAMOND MUST BE AN IF/ELSE WITH BOTH ARMS ASSIGNING
+//    (`if (top < 0 || top > unk32C+0xF0) { rows = 0; rowStart = 0; } else
+//    { rows = ...; rowStart = 0; }`). That is what produces retail's `j` over
+//    the taken arm with `move t0,zero` in its delay slot, and it took the body
+//    from 74.87 to 75.62 (265 -> 267 insns). This is the same lever that closed
+//    the neighbour func_800273C4 (levers.md d-select-two-assignments-if-else).
+//  - the col fixup must stay the single-assignment form
+//    (`col = remainder; if ((s16)remainder < 0) col = ...;`): writing it as an
+//    if/else too mirrors the col/pPrim saved pair and measures 74.36.
+//  - the uOffset hoist is one expression assigned to a u16 local; gcc still
+//    puts an sll/sra (s16) narrowing pair in front of the sllv. `(u16)` on the
+//    modulo drops one of the two (266 insns) but measures 74.31, so the pair is
+//    a row-level win and a percentage-level loss.
+// Measured dead ends, do not repeat: gcc-2.7.2 66.10, gcc-2.7.2-cdk 69.97, -O1
+// 69.11, -O3 74.87 (identical to the unit preset). The preset is not the answer.
+// Not permuted: the redo lane reserves the permuter for 99%+ bodies.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_r1", func_800278F8);
 /*
 void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
@@ -443,8 +437,6 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     s32 i;
     s32 yTop;
     s32 col16;
-    s32 offsetBits;
-    s32 shift;
     u16 uOffset;
 
     quotient = (pBlock->unk328 << 8) / (span + 0x100);
@@ -455,19 +447,19 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     if ((s16)remainder < 0) {
         col = (u16)pBlock->unk328 + remainder;
     }
-    rows = 0;
-    rowStart = 0;
-    if (top >= 0 && top <= pBlock->unk32C + 0xF0) {
+    if (top < 0 || top > pBlock->unk32C + 0xF0) {
+        rows = 0;
+        rowStart = 0;
+    } else {
         rows = (pBlock->unk32C << 8) / (span + 0x100);
+        rowStart = 0;
     }
     pPrim = (POLY_FT4*)((u8*)pBlock + (bank & 1) * 0x140);
     if ((s16)rows <= 0) {
         return;
     }
     yTop = top;
-    offsetBits = pBlock->unk334 % 64;
-    shift = offsetBits << (2 - pBlock->unk338);
-    uOffset = shift;
+    uOffset = (pBlock->unk334 % 64) << (2 - pBlock->unk338);
     for (i = 0; i < 8; i++) {
         col16 = (s16)col;
         texColumn = (u16)pBlock->unk334 + (col16 >> (2 - pBlock->unk338));
@@ -481,7 +473,8 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
             height = 0x140 - rowStart;
             width = ((s16)height * (span + 0x100)) / 256;
         }
-        col = (s16)(col + width) % pBlock->unk328;
+        remainder = (s16)(col + width) % pBlock->unk328;
+        col = remainder;
         rowEnd = rowStart + height;
         pPrim->x0 = rowStart;
         pPrim->x1 = rowEnd;
@@ -509,7 +502,9 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
         rowStart = rowEnd;
         pPrim++;
     }
-}*/
+}
+*/
+
 
 
 
