@@ -514,39 +514,40 @@ extern void BattleCommitSlotStates(BattleActor* p);
 extern s32 g_BattleEffectEntryCount;
 extern Vec4 g_BattleEffectPosX;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
-
-/* 96.42% (2124 bytes = retail's exact size, 528 vs 528 instructions). The body
-   is transposed: every call, both loops (8 effect slots, then 16 slot records),
-   both interpolation divides, the ratan2 behind/facing test, the sound pairs,
-   the four-word position copies and the tail all sit at retail's own positions.
-   The residual is REGISTER ALLOCATION of three call-crossing pseudos, nothing
-   else: retail keeps the slot pointer in $s2, the slot-offset induction
-   variable in $s4 and the percent/amount pseudo in $s0, this body gets
-   slot=$s0, offset=$s2, amount=$s4 (retail s1/s3/s5/s6/s7/s8 match: p, i,
-   bestAmount, hitCount, magic, actionId). Everything downstream (the
-   `lbu 0x30(s2)` / `lw 0x4(s2)` operands, the mflo/mult pairs of both
-   interpolations, both slt chains) differs only through those three names.
-   Two smaller residuals ride along: retail loads $t0 as the hit flag where
-   this body uses $a3, and the two addiu/sh pairs that charge stateTimer and
-   moveReentryTimer are ordered stateTimer-first in loop 1 and
-   moveReentryTimer-first in loop 2 (retail has both), which this body cannot
-   flip from source order - it emits moveReentryTimer-first in both.
-   Tried: the behind test as `if (inRange) {...} else if (flags & 4) {...} else
-   {...}` (one extra instruction, the arms lay out the other way round) vs the
-   current `if (!inRange) { if (flags & 4) ... else ... } else ...`, which is
-   retail's layout and retail's exact 2124 bytes; hitCount/center/base then
-   bestAmount/actionId initialised after the copies (that is what puts
-   `move s5,zero`/`move s8,zero` after the stack copies in retail's prologue);
-   stateTimer/moveReentryTimer order swapped in loop 1 (kept, it fixed the loop-1
-   store order); `step` folded back into two `amount * 2 / 3` expressions (96.27,
-   worse); velocity.vy vs velocity.vz for the second ratan2 argument (0x24 is
-   retail's, so vz).
-   Permuter (4 min, 1490 iters): base=1890 best=1690, and the candidate is WRONG
-   CODE - it deletes `bestAmount = amount` and stores `amount` into gaugeDrain
-   (retail has the `addu s5,s0` copy and stores s5), so the gain is a register
-   shuffle, not a find. Its only other edit, wrapping one call in `(0, ...)`,
-   changes nothing on its own (96.42 measured alone).
+// 96.42% (2124 bytes = retail's exact size, 528 vs 528 instructions, 164 differing
+// lines). Everything but the callee-saved hand-out is retail's: both loops (8
+// effect slots, then 16 slot records), the calls, both interpolation divides, the
+// ratan2 behind/facing test, the sound pairs, the four-word position copies and the
+// tail. Retail holds the effect-slot pointer in $s2, the slot byte-offset giv in
+// $s4 and the percent/amount family in $s0; this body has pointer $s0, offset $s2,
+// amount $s4. p $s1, i $s3, bestAmount $s5, hitCount $s6, magic $s7, actionId $fp
+// and the 0x88 frame all match retail.
+// PROVEN a pinned hand-out rather than a missing spelling (round 447): cc1 -da/-dl
+// on build/src/battling/main/misc3.c.i gives 42 allocnos, processing order
+// 278 85 231 81 88 103 193 352 84 226 83 72 106 234 281 82 207 230 279 76 120 248
+// 102 74 134 262 294 127 255 308 301 73 86 168 77 75 379 376 80 79 194 78, and
+// dispositions 72 in s1, 74 in s2, 73 in s0, 86 in s2, 77 in s4. The offset (74, 36
+// refs / 170 insns) is processed before the pointer (73, 28 / 141) yet cannot take
+// $s0 - it lists 16, the register 73 ends up in, in its conflict set - so the
+// pointer falls into the lower-numbered $s0 and amount (77, 26 / 165 = 1575) is
+// pushed to $s4 under both (1985 and 2647). All three terms are pinned by retail's
+// own instruction stream: the ref counts are its instructions, the live range is the
+// loop in both bodies, and the mode is SI.
+// Screened this round: gcc-2.6.0 95.19, 2.7.2-cdk 94.09, -O3 83.99, -G0 96.42 - the
+// Default preset is right and no preset moves it. Also measured this round: amount
+// and angle as ONE variable with in-place amount /= 2 and amount *= 2 (the shape
+// retail's in-place sra/sll suggested) = 95.41 / 2112 bytes / 525 insns, so retail's
+// two are separate pseudos that share $s0; loop 2's amount split into its own
+// slotAmount = byte-identical at 96.42, so a per-loop split is not a handle here.
+// Rides along regardless: hit is $t0 in retail and $a3 here, retail keeps a li 1 in
+// EACH of the two point-selection arms where this body sinks one to the join, and
+// three lhu/store order pairs differ.
+// Earlier attempts: the arms as if/else-if rather than the current if (!inRange)
+// nest; hitCount/center/base copied before bestAmount/actionId; step folded back
+// into two amount * 2 / 3; velocity.vz for the second ratan2 argument; the
+// stateTimer/moveReentryTimer swap kept in loop 1; and a 4-minute permuter run
+// (base 1890, best 1690) whose candidate deleted bestAmount = amount - wrong code.
+/*
 s32 func_80075B50(BattleActor* p) {
     BattleEffectSlot* pSlot;
     BattleActorSlot* pRecord;
@@ -709,8 +710,10 @@ s32 func_80075B50(BattleActor* p) {
         p->movePhase = 0;
     }
     return 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
+
+
 
 void BattleQueueMessage(BattleActor* p, u8 value) {
     u8 idx;
