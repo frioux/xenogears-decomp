@@ -958,7 +958,6 @@ extern void SpriteSaveAnimState(SpriteData* pSpriteData, void* pState);
 // iterations) are both PERMUTER_NONE.
 // Still load-bearing: the two `do {} while (0)` blocks around the HeapAlloc stores (without them the
 // body is 515 insns / 98.12%) and the compound-assignment cursor advances.
-/*
 void func_800A3474(void) {
     int i;
     void* pScriptWorkWords;
@@ -997,7 +996,7 @@ void func_800A3474(void) {
         pScriptWorkWords = pActorData->pScriptWorkWords;
         g_WorldMapSaveCursor += 0x34;
         memcpy(pActorData, g_WorldMapSaveCursor, sizeof(ActorData));
-        g_FieldActors[i].pActorData->pScriptWorkWords = pScriptWorkWords;
+        ((ActorData volatile*)g_FieldActors[i].pActorData)->pScriptWorkWords = pScriptWorkWords;
         g_WorldMapSaveCursor += 0x138;
 
         if (g_FieldActors[i].pActorData->flags134 & 0x80) {
@@ -1019,8 +1018,7 @@ void func_800A3474(void) {
     pScriptMemory = &g_FieldScriptMemory;
     memcpy(pScriptMemory, g_WorldMapSaveCursor, 0x800);
     g_WorldMapSaveCursor += 0x800;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
+}
 
 
 
