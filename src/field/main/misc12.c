@@ -69,7 +69,17 @@ extern s32 g_FieldPartyActorSlots[];
    `sll`. And making the cur-actor read volatile
    through a cast pointer does NOT pin that load ahead of `lw s0` - it is still
    sunk into the load-delay slot - so the placement belongs to the scheduler and
-   is not reachable from source order. */
+   is not reachable from source order.
+   REDO LANE re-measure: 97.96% / 1076 bytes stands, and the two spellings this round
+   re-tried change nothing structural. Operands reversed to
+   `pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange` gives 97.72: its
+   lhu pair and `addu a0` operands then DO match retail's, but the cur-pointer load
+   still sinks below `lw s0,0x4C(v1)` and fills that load-delay slot, so the arm is
+   still one instruction short. A pointer local for the cur actor assigned before the
+   sum (`pCurActorData = g_FieldScriptVMCurActor;`) compiles byte-identically to the
+   cur-first body (97.96): gcc CSEs the global and schedules it to its single use.
+   The whole 4-byte gap is retail's nop after `lw s0`, which exists only because
+   retail's cur-pointer load sits above the `addu`; no C statement order emits it. */
 /*
 int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
