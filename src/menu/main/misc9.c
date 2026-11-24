@@ -1436,6 +1436,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 //   a-shared-const-argument-outranks-a-three-ref-byte-flag (round 433 spelling sweep;
 //   round 446 `-da -dg`: gcc hoists the REG_EQUIV (const_int 1) into $fp and gives the
 //   3-ref u8 flag no disposition at all). Nothing new to port - park on the tie.
+//   One more shape measured this round and NOT kept: `s32 needsOpen` with the loop test
+//   written `if ((u8)needsOpen)` scores 94.59% at 888 bytes = retail's exact size, but it
+//   gets there from the other side - the flag still spills, now as a WORD (`sw t0,0x38(sp)`
+//   / `lw v0,0x38(sp)`), and it LOSES retail's `andi v0,s5,0xff` because a word test needs
+//   no mask. Retail masks the flag at the test and clears it with `move s5,zero`, so the
+//   original flag is a byte; the s32 body is a size coincidence, not the source shape.
 //   JTBL CORRECTION: the round-293 line below is wrong, this stub DOES own
 //   jtbl_801C512C (its .s has the dlabel at 0x801C512C - 11 cases plus a trailing 0
 //   word - and the dispatch lui/addu/lw references it), and the unit owns its rodata
