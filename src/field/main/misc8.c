@@ -893,83 +893,23 @@ int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     return -((actorType & (pActor->curWalkmeshTriMaterial >> 3)) != 0);
 }
 
-/* 58.17% (ours 644 bytes; retail 640). Structure is right - status & 0x40
-   selects the two halves, the scale is (N / pActorData->moveSpeed >> 8) << 5
-   with N = 0x40000 (status bit clear, and the 0x20000-set path stores
-   moveSpeed = 0x4000000 / moveSpeed) or 0x80000 (flags & 0x2000, 0x20000
-   clear), and the shared step.x/step.z computation is duplicated in the
-   original: one copy inline after the 0x40000 case, one at 0x800820FC that the
-   0x40000-free paths jump into. arg0 is SpriteData* (step at 0xC/0x14,
-   moveSpeed at 0x18), arg2 is FieldActor*, and scaleX/scaleZ must be read
-   signed (lh, so cast the header's u_short to s16).
-   Round 166 PARK REPAIR: this body now COMPILES against today's header (it was
-   written when the 0x12C word was read through a now-gone ActorFlags12CView
-   typedef; bits 13-15 are ActorData::flags12C_0xE, and g_FieldActorModelPointers
-   is declared here because only field/main/main.c has it) and the real score is
-   the 58.17% below, so the old number was not fiction.
-   Residue: gcc lays the flags & 0x2000 then-block out as fall-through where the
-   original jumps forward over the 0x80000 block, uses at to form
-   g_FieldActorModelPointers + (flags12C_0xE * 4) where the original keeps it in
-   v1 via lui/addiu, and spills one extra register (frame 0x38 vs 0x28).
-   else if (!(flags & 0x2000)) first gives 55.87%.
-*/
-/* R400 redo: fresh body from the .s, re-measured 58.17% (644 vs retail 628
-   bytes = 0x274, 161 vs 157 insns). The three rsin/rcos copies and the two
-   0x40000 scale sites are right - gcc emits the same two merged copies retail
-   has. Residuals, in the order they cascade:
-   (1) the else-branch's angle test: retail materialises (s16)angle into a2
-       (sll v0,a1,16 / sra a2,v0,16) and ANDs a2 with 0x8000, then keeps a3 free
-       for the mult results; we fold it to `bgez` on the sll result and then need
-       a3 for the extension, which pushes every `mflo a3` to `mflo t0`.
-       Tried this round: the bare test, `(s32)angle & 0x8000`, `(angle & 0x8000)
-       != 0` - all three fold to bgez. The park below is the bare form.
-   (2) the two zero-blocks: retail funnels BOTH angle tests into one out-of-line
-       block at 0x800821B0 (sw zero,0xC / sw zero,0x14 / fall through to
-       addiu v0,-0x1000); ours keeps the then-branch's copy inline and ends it
-       with a `j` over, so cross-jumping cannot merge them.
-   (3) the 0x2000 body: retail lays it out-of-line (bnez over the 0x80000 test
-       and SpriteSetDirection); ours falls through into it.
-   (4) model-pointer block: retail CSEs base+index into v1 before the first
-       store and reads the pointer twice through it; ours recomputes the index
-       after the store (pActor->pActorData / 0x12C reloads) through $at.
-   (5) frame 0x38 vs retail 0x28. */
-/* 93.81% (616 bytes against retail's 640, 154 vs 157 insns). Frame 0x30 vs
-   retail's 0x28 (vars=8, from a local kept across the two jal sites).
-   STRUCTURE SETTLED (block order is retail's, gcc 2.7.2 does not reorder blocks):
-   `if (!(status & 0x40))` is the inline then-block and the 0x40-set half follows
-   out of line, which is why retail's test is `bnez` to the model half; the
-   0x80000 test inside the 0x2000-clear half needs the CALL as the then-block
-   (`if (!(flags & 0x80000)) SpriteSetDirection(...) else compute`) and the
-   0x20000 test needs the 0x80000-scale compute first and the model arm as the
-   else, or gcc inlines the wrong side. Read angle as s16 at the call site
-   (`s16 a = angle`) so the SET half truncates with sll/sra into a2; a 2.7.2
-   param of int changes nothing (see residual 1).
-   RESIDUALS, in cascade order:
-   (1) SET-half angle test: retail materialises (s16)angle in a2 and ANDs it with
-       0x8000 (sll/sra/andi/bnez/nop = 5 insns); gcc folds (s16)x & 0x8000 to
-       `bgez` on the sll result (3 insns), so we are 2 insns short there. Tried:
-       bare test, (s32)(s16)angle & 0x8000, `!= 0`, an int parameter with an s16
-       local, -O1/-O3/cdk/-G0 screens - the fold always fires.
-   (2) model arm: retail reloads the table ENTRY through the CSE'd address
-       (`lw v0,0(v1)` twice, v1 = &g_FieldActorModelPointers[idx]) because the
-       step.x store sits between the two reads; the pointer-local spelling
-       (`s32* pModel = g_Field...) collapses it to one load (-3) and the
-       `&table[idx]` spelling this body uses leaves one load and orders the srl
-       before the lui base pair where retail has it after (plus retail's load nop).
-   (3) tail: retail's model arm ends in `j` over the shared two-store zero block;
-       here the zero block sits in the SET half's fall-through, so the arm falls
-       into the -0x1000 tail directly (1 insn). Cross-jumping does not move it.
-   Tried in all: local vs repeated subscript (648/616/608 bytes), pModel local,
-   int vs s16 parameter, the two inner tests in both polarities. */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
-/*
+// The pointer array of model records this unit's step blocks index; only
+// field/main/main.c had it declared in a header-less place, so declare it here.
+extern void* g_FieldActorModelPointers[];
+
+// Retail merges this function's two "step = 0" copies into one out-of-line block
+// placed after the model arm, so the zero case has to be written as the outer
+// else of the flag chain for the merged copy to land there; written as the
+// then-block of the angle test it lands first and the model arm falls into the
+// mask tail instead of jumping over it. The 0x40000 arm writes pSprite->moveSpeed
+// (0x18), not step.y.
 void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
     s16 a;
     int scale;
 
     if (!(pActor->status & 0x40)) {
         scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
-        a = angle & 0xFFF;
+        a = angle & FIELD_ANGLE_MASK;
         if (!(angle & 0x8000)) {
             pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
             pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
@@ -979,35 +919,36 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
         }
     } else {
         a = angle;
-        if (a & 0x8000) {
-            pSprite->step.x = 0;
-            pSprite->step.z = 0;
-        } else if (!(pActor->pActorData->flags & 0x2000)) {
-            if (!(pActor->pActorData->flags & 0x80000)) {
-                SpriteSetDirection(pSprite, a);
-            } else {
-                scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
-                a = angle & 0xFFF;
+        if (!(a & 0x8000)) {
+            if (!(pActor->pActorData->flags & 0x2000)) {
+                if (!(pActor->pActorData->flags & 0x80000)) {
+                    SpriteSetDirection(pSprite, a);
+                } else {
+                    scale = (0x40000 / pActor->pActorData->moveSpeed >> 8) << 5;
+                    a = angle & FIELD_ANGLE_MASK;
+                    pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
+                    pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
+                    pSprite->moveSpeed = 0x4000000 / pActor->pActorData->moveSpeed;
+                }
+            } else if (!(pActor->pActorData->flags & 0x20000)) {
+                scale = (0x80000 / pActor->pActorData->moveSpeed >> 8) << 5;
+                a = angle & FIELD_ANGLE_MASK;
                 pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
                 pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
-                pSprite->step.y = 0x4000000 / pActor->pActorData->moveSpeed;
-            }
-        } else if (!(pActor->pActorData->flags & 0x20000)) {
-            scale = (0x80000 / pActor->pActorData->moveSpeed >> 8) << 5;
-            a = angle & 0xFFF;
-            pSprite->step.x = (rsin(a) * scale >> 12) * (s16)pActor->pActorData->scaleX;
-            pSprite->step.z = (-(rcos(a) * scale) >> 12) * (s16)pActor->pActorData->scaleZ;
-        } else {
-            s32** ppModel = (s32**)&g_FieldActorModelPointers[pActor->pActorData->flags12C_0xE];
+            } else {
+                u_int modelSlot = pActor->pActorData->flags12C_0xE;
 
-            pSprite->step.x = -(*ppModel)[0x128 / 4] << 16;
-            pSprite->step.z = -(*ppModel)[0x130 / 4] << 16;
+                pSprite->step.x = -((s32*)g_FieldActorModelPointers[modelSlot])[0x128 / 4] << 16;
+                pSprite->step.z = -((s32*)g_FieldActorModelPointers[modelSlot])[0x130 / 4] << 16;
+            }
+        } else {
+            pSprite->step.x = 0;
+            pSprite->step.z = 0;
         }
     }
     pSprite->step.x &= -0x1000;
     pSprite->step.z &= -0x1000;
 }
-*/
 
 extern s16 g_Unknown_800B2344;
 extern s16 g_FieldCurrentModelAnimationId[];
@@ -1156,7 +1097,6 @@ extern u_short g_FieldMaterialAngles[];
 extern s16 D_800ADFC4[];
 extern s32 g_FieldActorModelPointerIndex;
 extern u_char g_FieldPartyMoveInProgress;
-extern void* g_FieldActorModelPointers[];
 
 // This unit writes one word at SpriteData+0x10, which include/field/actor.h
 // splits into two 16-bit texture coordinates.
@@ -2963,40 +2903,19 @@ void FieldUpdateActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", FieldActorWorldToScreenPosition);
-/* 95.25%: everything matches but the base address (204 bytes, same size).
-   The original materialises `&g_FieldActors` into v1 (`lui v1,%hi;
-   addiu v1,v1,%lo`, offset 0, after the FieldScriptVMGetActorIndex call),
-   takes the matrix from it with `addiu a0,v1,-0xAC` and loads the actor
-   pointer with `lw a1,0(v1)`; gcc folds -0xAC into one %lo and emits a
-   separate lui/lw for the pointer. The -0xAC is exact and identifies the
-   original layout: &g_FieldActors (0x800AFB10) - 0xAC ==
-   g_Scene.worldToScreenMatrix (0x800AF990 + 0xD4), so the matrix and the
-   actor pointer were members of one struct in the original source. The anchor
-   must stay the g_FieldActors symbol, so the fix is a parent struct that the
-   symbol file can express without overlapping g_Scene. Holding the base in a
-   local pointer, in a `u_int` local, or writing `&g_FieldActors - 0xAC`
-   directly all give 95.25%: gcc const-propagates and never reuses the base
-   register for both addresses.
-   Re-tried: taking the matrix straight from g_Scene.worldToScreenMatrix (the
-   address -0xAC resolves to) is also 95.25% and the same 204 bytes - ours then
-   emits `lui a0,%hi(g_Scene); addiu a0,a0,0xD4` plus a separate
-   `lui a1,%hi(g_FieldActors); lw a1,0(a1)` where retail has `lui v1,%hi
-   (g_FieldActors); addiu v1,%lo; addiu a0,v1,-0xAC; lw a1,0(v1)`. So the
-   instruction count is identical and only the base register differs: retail
-   anchors BOTH accesses on &g_FieldActors, which needs the matrix at a NEGATIVE
-   offset from that symbol (one parent struct with the matrix at 0x0 and the
-   actor-pointer array at 0xAC). Any parent struct declared here would make gcc
-   base on the parent symbol with `+0xAC`, i.e. the mirrored shape.
 void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreenY) {
     SVECTOR vertex;
     MATRIX transformMatrix;
     long sxy;
     long p;
     long flag;
+    FieldActor* volatile* pActorList;
 
     FieldScriptVMGetActorIndex(1);
-    CompMatrix(&g_Scene.worldToScreenMatrix, &g_FieldActors[actorIndex].transformMatrix, &transformMatrix);
+    // The actor list pointer sits 0xAC bytes after g_Scene.worldToScreenMatrix
+    // (0x800AFB10 = the g_FieldActors symbol); retail anchors both on that one base.
+    pActorList = (FieldActor* volatile*)((u8*)&g_Scene.worldToScreenMatrix + 0xAC);
+    CompMatrix((MATRIX*)((u8*)pActorList - 0xAC), &(*pActorList)[actorIndex].transformMatrix, &transformMatrix);
     vertex.vx = 0;
     vertex.vy = 0;
     vertex.vz = 0;
@@ -3006,7 +2925,6 @@ void FieldActorWorldToScreenPosition(int actorIndex, int* pScreenX, int* pScreen
     *pScreenY = ((short*)&sxy)[1];
     *pScreenX = ((short*)&sxy)[0];
 }
-*/
 
 void FieldAssignActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actorIndex) {
     short value;
