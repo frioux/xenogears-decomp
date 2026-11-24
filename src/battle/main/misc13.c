@@ -165,7 +165,7 @@ extern u8 g_BattleCommandStepTable[][3];
 extern BattleCommandRow D_800CCD1C[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern void func_80087EDC(u8, u8);
-extern void func_800881B8(u8, u8);
+extern void func_800881B8(s32, s32);
 extern void BattleSetSlotRegistersFromActor(u8, u8);
 extern s32 BattleScriptScanForOpcode62(u8);
 extern u8 D_800C3A70[];
@@ -588,7 +588,11 @@ done:
    switch to 2.6.0 (BattleBeginActorStatAnimation 93.18, BattleReleaseCharSlot 92.28,
    four more at 99.1-99.8), so this body would need a unit split to benefit.
    The register pair reads like a local_alloc tie: one basic block, the two values are
-   the same in both compiles, only their order in the callee-saved pool differs. */
+   the same in both compiles, only their order in the callee-saved pool differs.
+   Round 471: three more spellings, all 95.45 / 424 with exactly the same 32 differing
+   lines - the three masks into s32 locals (gcc folds them straight back into the call
+   args), "r = arg1 % 2" written before "q = arg1 / 2", and arg1 % 2 inlined at both
+   call sites with no r local. The mirror does not move. */
 /*
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     s32 y;
@@ -1485,51 +1489,62 @@ void func_80087EDC(s32 arg0, s32 arg1) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800881B8);
-/* 79.99%, 488 bytes (retail 500). NOTE the old 81.95% park note decoded `sel`
-   WRONG: retail is `sel = (arg1 < 3 && arg0 < 3) ? 0x18 : 0x10` (the
-   `ori $a2,0x18` in the second beqz's delay slot is skipped only when arg0 < 3),
-   not `arg1 >= 3 && arg0 < 3`. With the right condition the shape is right and the
-   residual is: retail keeps ofsB in the saved $s2 (reused after the
-   BattleReleaseCharSlot call) and re-forms ofsA into $a1 after the call, while gcc
-   wants both offsets live (472 bytes, 2 saved regs) or neither (508 bytes with an
-   `la` base pointer for g_BattleSlotRecords, which is what spelling `arg0 * 0x1C`
-   inline twice costs). Retail also re-loads g_BattleSlotRecords[ofsA] four times
-   where gcc forwards the value it just stored.
-   Spelling measured: both offsets as locals from the top (472, 81.02%), ofsB local +
-   arg0 inline at the compare (488, this body), arg0 inline everywhere (508, 77.47%).
+/* 79.52%, 472 bytes / 118 insns (retail 500 / 125; frame 40 vs 32, four saved
+   regs vs retail's three s0/s1/s2). THE OLD NOTE'S CONDITION WAS WRONG and its
+   79.99% was a body with a different meaning - do not restore it. Retail's ladder
+   is `sltiu v0,arg1u,3 / beqz A / sltiu v1,arg0u,3 / beqz B / ori a2,0x18 /
+   A: ori a2,0x10 / B:` and the delay slot always executes, so sel = 0x18 only on
+   the arg0u >= 3 path that branches over the 0x10 - i.e.
+   `sel = (arg1 < 3 && arg0 >= 3) ? 0x18 : 0x10`, the same (arg1<3 && arg0>=3)
+   condition its sibling func_80087EDC uses for `sel = 8`. This body is the honest
+   one; gcc reproduces retail's ladder except that it puts the 0x10 first.
+   Blockers, both named: (1) retail re-forms BOTH offsets - ofsA at the top for the
+   compare and again into $a1 after BattleReleaseCharSlot (so it is NOT live across
+   the call), and ofsB at the top into $v0 and again into $s2 after the sel join; a
+   top-of-function local for each keeps them in callee-saved regs and costs the
+   extra save, which is this 472 body. (2) That second ofsB computation is the
+   ~4 missing insns: it exists because gcc's cse table resets at the join
+   .L80088224 (two predecessors), so `arg1 * 0x1C` spelled inline after the join
+   is re-formed - but any body that spells ofsB as a local keeps one pseudo.
+   Measured this round: ofsB local + arg0 inline at the compare + ofsA assigned
+   after the call (488, 78.50, retail's 32-byte frame and three saved regs, three
+   insns short); the same with u8 params (488, 78.50); sel as a ternary (identical
+   code to the if form); both offsets inline everywhere (464, 63.31, cse merges the
+   whole tail). Round 470's note also tried a typed BattleCharSlotRow view (564).
+   NOTE the extern for this function is (s32, s32) because that body needs it. */
 /*
-void func_800881B8(u8 arg0, u8 arg1) {
+void func_800881B8(s32 arg0, s32 arg1) {
     s32 ofsA;
     s32 ofsB;
     u8 sel;
 
-    ofsB = arg1 * 0x1C;
-    if (g_BattleSlotRecords[arg0 * 0x1C] == g_BattleSlotRecords[ofsB]) {
+    ofsA = (u8)arg0 * 0x1C;
+    ofsB = (u8)arg1 * 0x1C;
+    if (g_BattleSlotRecords[ofsA] == g_BattleSlotRecords[ofsB]) {
         return;
     }
     sel = 0x10;
-    if (arg1 < 3 && arg0 < 3) {
+    if ((u8)arg1 < 3 && (u8)arg0 >= 3) {
         sel = 0x18;
     }
     if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2] != 0) {
         return;
     }
-    BattleReleaseCharSlot(arg0);
-    ofsA = arg0 * 0x1C;
+    BattleReleaseCharSlot((u8)arg0);
     D_800C3EB5[ofsA] = 0;
     g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
     D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
-    if (arg0 < 3) {
+    if ((u8)arg0 < 3) {
         *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x100);
         *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x102);
     } else {
         *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x104);
         *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x106);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800881B8);
+
 void BattleReleaseCharSlot(u8 arg0) {
     s32 ofs;
     u8 sel;
