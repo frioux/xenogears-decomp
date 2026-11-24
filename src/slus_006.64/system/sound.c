@@ -4699,6 +4699,16 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
 }
 
 // Round 437 re-measure: 95.31% (124 bytes = the original's size, but MINE IS 31 INSN AND RETAIL 32 - one short, so this body cannot link yet). Everything in the old note still holds: prologue, s-register block (pScript s1, pAudioElements s2, envelope s0, index s3) and statement order are retail's. The residual is exactly retail's addiu s1,s1,1 (in place, scheduled in the 0x1E load-delay slot) followed by addu v0,s1,zero against mine's single addiu v0,s1,1; the flags temp roles (retail v0, mine v1) are downstream of that missing copy. Measured dead this round, all 95.31% / 31 insns, i.e. flow copy-propagates every one of them: bare pScript++; return pScript; (in and out of the do-while wrapper), return ++pScript;, pScript += 1; return pScript;, return pScript += 1;. The one spelling that DOES keep two instructions is moving the increment up so its OLD value is needed - index = *pScript++;, the trick SoundScriptSetVolume in this file uses for the same tail - but here it then lives across the SoundResetEnvelope call and costs 33 insns / 132 bytes / 84.16%, rotating the whole s-block (envelope s3, elements s2). So the open question is a use of pScript's pre-increment value that costs nothing; retail's 32 instructions contain none. Structurally stuck: two permuter runs already found nothing (best 150), do not re-permute.
+/* Round 450: 95.31%, 31 insns vs retail 32 (124 bytes, so it cannot link).
+   Residual is one shape only: retail keeps the increment in place (addiu s1,s1,1,
+   reorg'd into the lhu delay slot) and copies it out at the end (move v0,s1);
+   every spelling here gives a single addiu v0,s1,1 and the flags temp moves to
+   v1.  New this round: the increment statement placed between the flags write and
+   the mask (pScript += 1; mask = ...; return pScript;) is 31 insns, same 95.31.
+   Round 437 already measured dead: pScript++/return pScript (bare and in a
+   do-while), return ++pScript, pScript += 1; return pScript, return pScript += 1,
+   and index = *pScript++ (33 insns, rotates the s-block).  Two permuter runs
+   found nothing; the source shape is not reachable with 2.6.0 here. */
 /*
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = *pScript;
@@ -4707,9 +4717,10 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     SoundResetEnvelope(pEnvelope);
     pEnvelope->flags |= 0x1;
+    pScript += 1;
     mask = 1 << index;
     pAudioElements->activeEnvelopeMask |= mask;
-    return pScript += 1;
+    return pScript;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
 
