@@ -202,6 +202,7 @@ extern s16 g_WorldMapPathFrame;
 // rematerialisable constant, so cc1 re-forms lui/addiu at each use or folds the store
 // into the $at macro; the array form keeps the address in a register.
 extern s16 g_WorldMapCameraRotTable[] __asm__("g_WorldMapCameraRot");
+extern s16 g_WorldMapViewRotation[] __asm__("g_WorldMapViewRotationY");
 extern u16 D_8009BD42[];
 extern u16 D_8009BD4A;
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
@@ -374,6 +375,7 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // between the unk54 `li v1,-2048` and its sw (4 slots later). cc1's own .s and RTL put the
 // copy at that point, so it is the placement of that copy, not a post-pass reorder.
 // Round 377 re-measured after unpark: 94.87, compiles, 156 bytes.
+// Best: 94.87%, 156 bytes / 39 insns = retail's exact size; re-measured this round.\n// ONE residue: the first call's `move a0,s0` sits 3 slots late (after `li v1,-2048`\n// instead of just before the pos.y store). sched2 placement: the copy has no\n// dependences, so no source statement moves it (rounds 377 and this round re-measured\n// round 377's five pArg/0xFFF80000-local shapes: identical body). Presets ruled out.\n
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
@@ -394,6 +396,7 @@ s32 func_80080A28(s32 index) {
     return 3;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
+
 // The two GTE scale vectors the fade groups are scaled by, in the scratchpad. The
 // address is a literal on purpose: naming a symbol here makes gcc materialise %hi/%lo
 // through a saved register where the original stores through a bare lui $at.
@@ -1261,11 +1264,12 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
 // do-block (87.57), both `<< 12` stores ahead of the angleZ load (92.58), two declaration
 // orders and a separate rotation local (identical), permuter 4 min -j2 (2056 iterations,
 // base 95 best 95, NONE).
+// Best: 96.25% (this round, up from 96.08), 240 bytes / 60 instructions = retail's exact.\n// The find: the two view-angle reads (retail lh g_WorldMapViewRotationY / -Z) go through a\n// 2-element array alias, extern s16 g_WorldMapViewRotation[] __asm__(g_WorldMapViewRotationY)\n// declared beside the g_WorldMapCameraRotTable alias. Reading [0]/[1] is a zero/no-addend\n// relocation on retail's own symbol instead of the ((s16 *)&g_WorldMapCameraRot)[1] addend\n// form, and it keeps retail's whole register set (slot pointer $v1, angle in $a0). The\n// label alias is what stops store-to-load folding, so the lui/lh/sll survives; spellings\n// that block it another way lose the allocation: volatile s16 *pViewY store+read 87.98\n// (cc1 emits lhu + sll 16/sra 4), volatile store + plain read 93.33, plain store + array\n// read with the load written after both <<12 stores 93.17, u32 angleZ + v=angleZ 92.75.\n// Residues: (a) the 0x500000 constant lands in $a0 here and in $a1 in retail (its lui and\n// both its sw) - the allocator tie misc8's func_8008390C parks on too; (b) the Z lh is one\n// slot early (between the two <<12 stores where retail has it after both).\n// Kept: cameraHeight is declared with the 0x500000 initialiser (identical body, tidier),\n// the state/command/unk5C do-block is load-bearing, permuter 4 min -j2 finds nothing.\n
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    s32 cameraHeight = 0x500000;
     s32 v;
-    s32 cameraHeight;
     u32 angleZ;
     u8 *p = (u8 *)pSlot;
 
@@ -1279,7 +1283,6 @@ s32 func_800827EC(s32 index) {
     g_WorldMapScrollTargetY = v;
     pSlot->pos.y = v;
     v = g_WorldMapPlayerPositionZ;
-    cameraHeight = 0x500000;
     g_WorldMapCameraTargetZ = v;
     g_WorldMapScrollTargetZ = v;
     pSlot->pos.z = v;
@@ -1294,20 +1297,19 @@ s32 func_800827EC(s32 index) {
     g_WorldMapViewRotationZ = 0;
     *(s32 *)(p + 0x50) = -0x220000;
     *(s32 *)(p + 0x38) = -0x220000;
-    v = ((s16 *)&g_WorldMapCameraRot)[1];
+    v = g_WorldMapViewRotation[0];
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapCameraHeight = cameraHeight;
     *(s32 *)(p + 0x54) = v << 12;
-    angleZ = ((s16 *)&g_WorldMapCameraRot)[2];
+    angleZ = g_WorldMapViewRotation[1];
     *(s32 *)(p + 0x3C) = v << 12;
-    v = angleZ;
     g_WorldMapFadeLevel = 0x78;
-    *(s32 *)(p + 0x58) = v << 12;
-    *(s32 *)(p + 0x40) = v << 12;
+    *(s32 *)(p + 0x58) = angleZ << 12;
+    *(s32 *)(p + 0x40) = angleZ << 12;
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
+
 // Best: 75.62% (round 430), 1664 bytes / 416 instructions against retail's 1672 / 418.
 // One barrier fewer scores 76.40 but leaves 461 differing instructions instead of 427, so
 // this body is the closer one: objdiff's fuzzy number is not monotone, the row count is.
