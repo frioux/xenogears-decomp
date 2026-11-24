@@ -199,6 +199,16 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
 // (ori 0xFFFF) while 0x98/0x3A/0x1E are signed -1 (addiu), so the two constants
 // must stay spelled differently. The typed body scores the same 74.36 as the raw
 // pointer one, so the realistic spelling costs nothing and is what is parked.
+// Round 454 re-measure of the honest typed body: still 74.36%, 39 insns and 156
+// bytes (retail's exact size), one displaced `li v1,-1` and nothing else. The
+// coupled alternative is re-confirmed in THIS binary as well: `s16 negOne = -1;
+// s16 one = 1;` with the 0x98 store moved to the front puts the li at retail's slot
+// 0 but the store at slot 8 instead of 15, and reads 94.87 - still exactly one
+// displaced insn, so that number is objdiff's fuzzy wobble, not a smaller distance.
+// Source order == store order here (gcc 2.6 keeps redundant stores, so no DCE'd
+// statement can explain retail's early home) and retail's own store order only fits
+// the honest body, so this is the body to keep parked. Not chased further: same
+// wall in two binaries, 2 permuter runs, 4 presets screened.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 /*
 void func_800AA898(BattleActor *pActor, s32 arg1, s32 arg2, s32 arg3) {
