@@ -1169,28 +1169,34 @@ int WorldMapInitGroup1Actor(int index) {
     return 1;
 }
 
-// 98.17% objdiff (2692 bytes vs retail 2704, 673 vs 676 insns), round 435.
-// Full body reconstructed from the .s; all three jump tables, both call families
-// (WorldMapStartSlot 4..8, WorldMapInitSpriteGroupSprites 0x20..0x27/0x22) and every
-// constant are in place. The residual is 13 instruction placements, and three of the
-// 16 differing hunks are the jtbl_/\.rodata table operand (link-identical, expected
-// in this unit). Remaining, per the instruction diff:
-//  - case 3/23: gcc hoists the `lui/lw g_WorldMapPlayerPosition` into case 3s block
-//    ahead of the shared tail; retail keeps it inside the tail after the two sh.
-//  - state 0: `lw v0,0x54(s3)` moved one slot earlier than retail.
-//  - state 2 and 16: `addiu s0,s4,0xA0` lands in the branch delay slot; retail
-//    materialises it later, right before `move a1,s0`.
-//  - state 16: retail splits `li 0x1F9DFFF` around the load so `ori` fills the load
-//    delay slot; ours emits lui/ori adjacent and a nop.
-//  - case 2/3 arm: retail puts `sw v0,0x14(s4)` (pVec1->vy = 0x1000) in the
-//    OuterProduct12 jal delay slot; ours stores it before the call.
-// What moved the number this round: `*(volatile s16/s32 *)&...` on the command,
-// state and x stores of the first switch arms (the file's WorldMapInitGroup1Actor
-// idiom) - it pins the store order and stops the global loads being hoisted, taking
-// the body 91.50 -> 96.96 -> 98.17 in three steps; and writing the third switch's
-// cases in the order 0/1/16/25, 4/17/65, 2/3, which is the block order retail has.
-// The z store must stay non-volatile: retail schedules it into the tail / j delay
-// slot. Preset ruled out: cdk gives 83.56 on this body.
+// 98.42% objdiff (2684 bytes vs retail 2680, 671 vs 670 insns), round 436.
+// Retail func_8007EE34 is 0xa78 = 2680 bytes / 670 instructions; the round-435 note's
+// "2704 bytes / 676 insns" was wrong, so this body is ONE instruction OVER, not short.
+// Structure is complete: all three jump tables, both call families (WorldMapStartSlot
+// 4..8, WorldMapInitSpriteGroupSprites 0x20..0x27/0x22) and every constant are in place.
+// Residual, per the instruction diff (the three jtbl_ vs .rodata table operands are
+// expected in this unit and link identically):
+//  - case 3/23 shared tail: retail's case-3 block is only `lw v1,0x38(s3); j; addiu v0,1`
+//    and the merged tail owns the g_WorldMapPlayerPosition load as `lui + lw` (2 insns).
+//    Ours merges one block further and the volatile lvalue makes that load
+//    `lui + addiu + lw` (3 insns); that addiu is the one-instruction excess.
+//  - state 0: retail loads z (0x30) before pStateIds (0x54); ours loads them the other way.
+//  - state 2 and state 16: `addiu s0,s4,0xA0` lands in the first bnez delay slot; retail
+//    materialises it after the second test.
+//  - state 16: retail splits li 0x1F9DFFF so `ori` fills the load delay slot
+//    (lui/lw/ori/slt); ours emits lui/ori/lw/nop/slt. State 1 has the same test and DOES
+//    match, so this is an ordering artifact of the block's tail, not of the test.
+//  - third switch case 2/3 arm: retail stores pVec1->vy (0x14) last, in the
+//    OuterProduct12 jal delay slot (sw 0x18, sw 0x10, jal, sw 0x14); ours stores vy
+//    second and puts sw zero,0x18 in the slot.
+// What moved the number: making the absolute-address load of g_WorldMapPlayerPosition a
+// volatile lvalue pinned it inside the merged case-3/23 tail instead of copying it into
+// both case blocks: 98.17 (2692 bytes) -> 98.42 (2684).
+// The z store must stay non-volatile: retail schedules it into the tail / j delay slot.
+// Tried, no effect: case 3's x store volatile vs plain (same score both ways); reading
+// the position and dirX into named locals before the two stores in case 23; a
+// `s32 nX = pActor->x;` local in state 16 (its nop survives); `*(volatile s32 *)&pActor->x`
+// in the state-16 test. Preset ruled out earlier: cdk gives 83.56 on this body.
 /*
 int func_8007EE34(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1237,7 +1243,9 @@ int func_8007EE34(int index) {
     case 3:
         pActor->command = 0;
         pActor->state = 1;
-        *(volatile s32 *)&pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+        // volatile: pins this load inside the shared case 3/23 tail instead of letting
+        // it be copied into both case blocks (98.17 -> 98.42, see the park note)
+        pActor->x = *(volatile u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
                     + pActor->dirX * 0x3300;
         pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
                     + pActor->dirZ * 0x3300;
@@ -1260,7 +1268,7 @@ int func_8007EE34(int index) {
     case 23:
         pActor->command = 0;
         pActor->state = 0x18;
-        pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+        pActor->x = *(volatile u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
                     + pActor->dirX * 0x3300;
         pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
                     + pActor->dirZ * 0x3300;
