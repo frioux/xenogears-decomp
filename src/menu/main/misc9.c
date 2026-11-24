@@ -1102,6 +1102,29 @@ void MenuSetUnk430PanelShading(u_char arg0) {
    'void func_801DCE60(u_char, u_char, u_char)' must stay: retail masks the second
    argument at this call site. Switch case order is 5, 4, 1, 3 (retail's body order).
 */
+// ROUND 451: re-unparked and re-measured 95.96 / 1940 bytes / 485 insns vs retail 485 - the
+// multiset equality in the note below still holds. Preset screen (try_flags --sweep) says the
+// preset is right: 2.6.0 -O2/-O3 x -G4/-G8 x 3000/r8000 all 95.96, gcc-2.7.2 95.33, 2.7.2-cdk 84.55,
+// -O1 71-81. So the residual is the allocator, not the compiler.
+// WHY THE ROTATION IS NOT REACHABLE BY SPELLING (new evidence, -da/-dl/-dg on this body, cc1
+// 2.6.0 -O2 -G8): the five loop-live quantities carry these priority terms
+// (floor_log2(refs)*refs*10000/(live_insns*size)):
+//   group   21 refs / 231 insns / 1 byte   = 3636
+//   mask    23 refs / 296 insns / 1 byte   = 3108
+//   refresh 18 refs / 250 insns / 1 byte   = 2880
+//   slot    16 refs / 232 insns / 1 byte   = 2758
+//   found    7 refs /  74 insns / 1 byte   = 1891
+//   arg2     3 refs /  84 insns / 1 byte   =  357   (-dl prints the literal "1 bytes")
+// which is exactly our hand-out (group s1, mask s2, refresh s3, slot s4, found s5). Retail
+// hands out refresh s1, arg2 s2, group s3, mask s4, slot s5, i.e. it needs arg2 (357) to
+// outrank refresh (2880) - an 8x gap on a QI parameter, the case lever
+// a-qiparam-size-one-pins-the-saved-pair calls terminal - and it needs refresh to outrank
+// both group and mask, which no body that emits these same 485 instructions can do. Retail
+// also lets the dead arg2 register be reused by found; ours cannot, since group IS arg2s
+// allocno (182 and 74 both land in s1 non-conflictingly), which is the whole cascade.
+// MEASURED THIS ROUND, the only shape that moved anything: s8 group (signed) 94.41 / 1956
+// bytes / 489 insns - the sign bit costs an andi at each u_char call site, so group is QI and
+// must stay u8. No permuter run: the park lane reserves that for >=99%.
 /*
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
     MenuPointerCursors* pCursors;
@@ -1250,6 +1273,7 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
     MenuFreeWindow(2);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
+
 
 
 /* Best: 94.46%, 884 bytes - retail's exact size, 221 insns each. The whole body is
