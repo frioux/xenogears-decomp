@@ -139,54 +139,16 @@ extern void WorldMapUpdateSpriteGroupFromActor(s32, WorldMapActor *, WorldMapScr
 extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 
 
-// Tail of world_map/main/misc11, split at file 0x1C874 (config/world_map.yaml): the four
-// stub jump tables of this run tile the .rodata range [0xCBC, 0xDE0), whose start parity
-// (4 mod 8) is what puts jtbl_800707AC at internal +0, as retail has it.
-// 99.87% (460 bytes / 115 insns = retail's exact size; every instruction, the block
-//    order and the 8 table words are retail's - the only objdiff delta is
-//    'jtbl_800707AC' vs '.rodata', which the linker resolves identically). IT CANNOT BE
-//    COMMITTED: the unit's rodata range starts at 0x80070518 (yaml [0xA28, .rodata,
-//    main/misc11]) and this table is retail's 0x800707AC, i.e. range+0x294 = 4 mod 8, so
-//    cc1's '.align 3' pads 4 bytes before it: the object's .rodata is 0x3C0 against the
-//    range's 0x3BC and 'check_bin.sh world_map' comes out 180426 bytes against retail's
-//    180422 with 147513 differing bytes over 447 symbols (the whole-overlay shift).
-//    Measured this round by converting it and running the gate, then reverting - the
-//    park below is the body that produced that measurement. Needs a yaml split whose
-//    new .rodata range starts at a parity-4 offset (lever g-parity-4-split-is-the-route
-//    / SPLIT_JTBL_PARITY4), which is a worker+orchestrator job: for reference the
-//    function's file offset is 0x1C874 and its table's is 0xCBC.
-//    THE BODY (round 451): the shape that closed all of the above is the goto pair -
-//    'case 0/2/4/6/default: setResultThree: result = 3; goto setZero;' and case 1
-//    'if (gearId == GEAR_ID_NONE) goto setResultThree;' with 'setZero:' above the
-//    four-store tail. Cross-jumping a duplicated 'result = 3' block puts the survivor
-//    at the SECOND copy's position (inside case 1, 95.87%); the two labels pin
-//    retail's layout [dispatch][result = 3][case 1][shared 4-store tail][case 3]
-//    [case 5]. Case 5 and case 7 share a body (retail's table sends 7 to
-//    .L8008C4BC, not to case 3's .L8008C464) - grouping 3/7 instead measures 95.87
-//    with the same 460 bytes.
-//    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
-//    without them sched2 raises both global loads above 'unk24 = 0' and stores x after
-//    the Z load (93.26 / 456 bytes); with them every remaining insn matches.
-//    Round 399 note, kept for the record: 95.87% (460 bytes = retail's 115 insns;
-//    instruction multiset identical except one branch).
-//    Reads the per-party-member init kind from three sources as a 3-bit
-//    switch value (bit0 partyMembers[index] != CHARACTER_ID_NONE, bit1 the per-actor
-//    script angle fieldScriptMemory[0x15+index*3] & 0x3FFF >= 0x400, bit2
-//    gearRide[index] == 1). The switch needs the even case values listed explicitly
-//    (case 0/2/4/6 share the default body, density 8/8) - with only 1/3/5/7 + default
-//    cc1 2.7.2 emits a comparison chain and objdiff reads 60.90.
-//    THE ONLY RESIDUALS: (1) retail branches to the shared 'result = 3' block with
-//    'beq v1,v0,.L8008C400' and falls through to the jal; cc1 emits the mirror
-//    'bne v1,v0' and puts that same 2-insn block (j + li s2,3 delay) between case 1's
-//    test and its jal. So retail's merged block sits BEFORE case 1's test and ours
-//    sits inside it: block placement, not a spelling (measured: even-cases block
-//    first in the source 91.52 at 456, tail written once after the switch 82.74, tail
-//    duplicated in both arms 91.52/456 - see lever d-crossjump-tail-merge-stops).
-//    (2) the switch table operand: retail names jtbl_800707AC, ours .rodata+0x178
-//    (the unit owns its rodata; expected in diff_func.sh, resolved by the linker).
-//    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
-//    without them sched2 raises both global loads above 'unk24 = 0' and stores x
-//    after the Z load (93.26 / 456 bytes); with them every remaining insn matches.
+// Tail of world_map/main/misc11, split at file 0x1C874 (config/world_map.yaml) so that
+// this run owns the .rodata range [0xCBC, 0xDE0) and its jump tables keep retail's
+// offsets.
+//
+// The two gotos pin retail's block order [dispatch][result = 3][case 1][shared 4-store
+// tail]; writing 'result = 3' inside case 1 instead lets cc1 cross-jump the tail and
+// keep the survivor there (95.87%). Case 7 shares case 5's body: retail's table sends 7
+// to the case-5 block, not to case 3's.
+// The two volatile stores in case 7 are load-order pins - without them cc1's scheduler
+// hoists both global loads above 'unk24 = 0' and stores x after the Z load.
 s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     s32 kind = g_GameState.partyMembers[index] != CHARACTER_ID_NONE;
     s32 result = 1;
