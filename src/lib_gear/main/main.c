@@ -3413,45 +3413,22 @@ s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
     }
 }
 
-// objdiff 94.87%: 39 insns, exact instruction multiset, one store slot apart.
-// Both `li v0,1` (for unk70[15], insn 7) and the whole body match, so the locals
-// negOne = -1 and one = 1 are confirmed. The only delta is scheduling: the
-// original keeps `li v1,-1` at insn 0 and its first user `sh v1,0x98` at insn 14.
-// With `pModel->frame = negOne;` first the li sits at 0 but the store is deferred
-// to 8; with the store in its logical place (after unk2B) the store lands at 14
-// but the li is hoisted to 6 (74.36%). Declaration order of the two locals, a
-// mid-block `s32 one = 1;` and bare/s16/u32 -1 forms all stay at 74.36%.
-// Round 14: the two remaining deltas are the -1 constant's slot and the 0x98
-// store's slot, and they are coupled by sched2: with `frame = negOne` as the
-// first statement the addiu lands at slot 0 (correct) but the store at 8 (target
-// 14); with it as the 10th statement the store lands at 14 (correct) but the
-// addiu at 5; 6th statement gives (5, 9). Store order = source order in every
-// shape, so the (0, 14) split needs a scheduling decision this gcc will not make.
-// Screened: 94.87 identical under 2.6.0 and 2.7.2-cdk - not a compiler problem.
-// Later: three bare `-1` literals (no negOne local) also give 74.36 - cse still
-// merges them into one register and sched2 parks that li 9 insns early (slot 5),
-// so the constant is not a source-shape question either.
-// Round 62: permuter, 783 iterations from this body (base 60), found nothing
-// better - the (li slot 0, store slot 14) split is confirmed out of reach here.
-// Round 370: retail's STORE ORDER puts `frame` (0x98) after `commandCount` (0x2B) and
-// before `sourceModelSlot` (0x58), so this body stores in retail's exact order and the
-// 39 insns / 156 bytes are exact. The ONE remaining delta is the `li v1,-1` slot:
-// retail has it at insn 0, this body at 6 (just after `li v0,0x6B`). The old form with
-// `pModel->frame = negOne;` FIRST reads 94.87 (objdiff's fuzzy score is not monotone -
-// both bodies have exactly one displaced insn); that form puts the store at 8 instead.
-// Tried this round, all no better: `negOne = -1;` as a statement instead of a
-// declaration initialiser, `one = 1;` after the 0x39 store (retail's own position),
-// and a volatile store on `objectType` / `parentModelSlot` as a scheduler barrier
-// (the barrier does not move the li - it is emitted at RTL 6, so sched2 is not what
-// places it). Store order = source order in every shape, so the (li@0, store@14)
-// split still needs a decision this cc1 will not make.
-// objdiff 94.87% (best), 39 insns / 156 bytes, retail-length exact.
-// Round 451: the -1 constant and its first store are rigidly coupled at a FIXED 8-slot
-// gap, which is why (li@0, store@14) cannot be reached: with `frame = negOne` FIRST the
-// li lands at 0 and the sh 0x98 at 8; as the 10th statement the sh is at retail's 14 and
-// the li at 6. Everything else (instruction multiset, store order, 156 bytes) is exact.
-// Prior rounds: 3 compilers screened, permuter 783 iterations NONE.
-// The statement order below is the better-scoring (94.87) of the two measured shapes.
+// objdiff 94.87% (best), 39 insns / 156 bytes - retail length, instruction multiset and
+// store order all exact. The ONE delta is the -1 constant's slot: retail has
+// li v1,-1 at insn 0 and its first user sh v1,0x98 at insn 14. Store order
+// equals source order in every measured shape, so with frame = negOne first the
+// li is at 0 and the store sinks to 8 (this body, 94.87); with the store in
+// retail's place (10th statement) the store is at 14 but the li is hoisted only
+// to 6 (74.36). sched2 couples the constant load with the store's sink, so
+// (li@0, store@14) is out of reach. Screened: 2.6.0 and 2.7.2-cdk identical -
+// not a compiler question. Permuter: 783 iterations, NONE (round 62).
+// Rounds 370/451: negOne = -1 as a statement, one = 1 moved to the 0x39 store
+// position, three bare -1 literals, volatile barriers on objectType /
+// parentModelSlot, 6th-statement position (5, 9) - all no better.
+// Round 466: un-parked and re-measured. Retail's store order with the
+// DECLARATION INITIALISER form re-measures at 74.36 (li@6): gcc folds the local
+// into its first use, so the load is never emitted at the declaration.
+// register s16 on both locals: byte-identical output. 94.87 stands as the best.
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
@@ -3492,6 +3469,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk1E = negOne;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
+
 
 void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
