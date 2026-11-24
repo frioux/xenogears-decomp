@@ -169,6 +169,7 @@ extern u8 D_800D3298;
 extern u8 g_BattleSlotEnabledFlags[];
 extern BattleSlotRow g_BattleSlotEntries[];
 extern BattleSlotRow g_BattleSlotEntriesBase[];
+extern BattleSlotRow D_800CCE08[];
 extern u16 D_800D2D38; // hp display value, split into digits by func_80072F38
 extern u16 D_800D2E58; // the same hp, kept for the gauge
 extern u16 D_800D2FE0; // max hp display value, split into digits by func_80072F38
@@ -229,16 +230,6 @@ typedef struct {
     /* 0x2 */ u16 unk2;
 } BattleSlotLimits; // Size: 0x4
 
-// Unsigned view of one UnkGearState record (0x20 bytes, the per-character table
-// at g_GameState+0x16BC): the reset copies the unk4/unk6 word pair out with lhu,
-// where the header types them s16 for the command-mask tests.
-typedef struct {
-    /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ u16 unk4;
-    /* 0x06 */ u16 unk6;
-    /* 0x08 */ u8 unk8[0x18];
-} BattleCharLimitRecord; // Size: 0x20
-
 extern BattleSlotLimits D_800C3E0C[3];
 
 extern void *bzero(u8 *, s32);
@@ -298,38 +289,33 @@ void BattleFadeOutAudioIfOverlayIdle(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
-/* 96.03% under 2.6.0 (1952 bytes against retail's 1944). Everything up to and
-   including the mode selection is instruction-identical, including the frame
-   (s0-s3), the s3/s2 assignment, the if/else-if chain that leaves mode unset on
-   the overlay-enabled/D_800C3D5C==0 path (retail really does that; adding a
-   `mode = 2` default moves the li and breaks the chain) and the switch tree with
-   its unmerged case bodies. Three remaining shapes:
-   1. the per-slot limit copy hoists `&g_GameState+0x16C0` into a register
-      (`lui a1; addiu a1,5824` + `addiu a3,a1,2` before the loop, then
-      `addu v0,v0,a1; lhu v0,4(v0)`) where retail re-forms
-      `lui $at,%hi(g_GameState); addu at,at,v0; lhu v0,5824(at)` per access.
-      gcc's cse shares the invariant address between the two loads; retail's two
-      loads carry different %lo addends (0x16C0/0x16C2) so they never CSE.
-      Tried: the direct s16 member access (gives lh, retail has lhu), a view
-      struct, `*(u16 *)&...unk4`, the char-pointer arithmetic form, an explicit
-      u16* record local, and an unbounded vs [3] declaration of
-      g_BattleActorCharIds (the [3] one costs the `addiu a2,v1,3` loop bound, so
-      the empty [] stays).
-   2. the 0x80 arm's `*pFlags = 1` re-forms `lui at,%hi(D_800C48EA)` where retail
-      reuses the a0 that holds &D_800C48EA (pFlags is already the one local used
-      for the chain reads and for the case-body read/clear).
-   3. the 0x3B4 loop folds 0x3B4 into the prim-pool biv (`addiu a0,v0,948`, then
-      `sh v0,0(a0)`) where retail keeps `sh v0,948(a1)` on a biv that only
-      advances by 2. The two slot-table reads do come out right (symbol base,
-      `lui $at; addu at,at,offset`, and the byte offset advancing by 0x170)
-      because the offset is a running variable and not `i * 0x170`.
-   The two `mode` assignments and `g_GameDiscChangeRequest = mode` (not `= 3`)
-   are load-bearing.
-// Battle teardown / scene-exit driver: releases the battle work blocks and the
-// sound banks, then switches on the request flags in D_800C48EA to pick which
-// scene the game returns to (g_GameDiscChangeRequest / g_BattleDisplayMode).
+/* 97.52% under 2.6.0 (1952 bytes against retail's 1944, 488 insns vs 486).
+//    Matched since the old 96.03 note: the per-slot limit copy, by reading the
+//    header's OWN named fields (`g_GameState.conditionRows[id].commandMask` /
+//    `.characterCommandMask`) instead of a cast of the member; retail's two loads
+//    carry different %lo addends (0x16C0/0x16C2) so they never CSE, and the cast
+//    struct BattleCharLimitRecord (deleted) made gcc hoist the base instead. And
+//    the two skin-load heap blocks want their OWN locals (skinBlock1/skinBlock2,
+//    declared before block1/block2): retail keeps them in s0/s1 while the later
+//    pair (D_800D2D3C/D_800D2F60) never leaves v0/v0.
+//    Two residuals left, 2 insns total:
+//    1. the pFlags chain. Retail forms &D_800C48EA into a0 (lui+addiu), reads
+//       through it (`lbu v1,0(a0)`) and the 0x80 arm's `*pFlags = 1` reuses a0
+//       (`sb v0,0(a0)`); ours reads the bare symbol (lui+lbu) and re-forms the
+//       address for the store (`lui at; sb`). Same total insns, so it is a
+//       register choice: gcc folds the first access to the symbol.
+//    2. the 0x3B4 prim-pool write. Retail keeps `sh v0,0x3B4(a1)` with a1 the
+//       u16 biv (`addiu a1,a1,2` in the bnez slot); gcc folds the constant into a
+//       second biv (`addiu a0,v0,948` then `sh v0,0(a0)`), which is the +1 insn.
+//       Tried: u8* pointer + 0x3B4 offset, u16* with p[0x1DA], both fold.
+//       Also in that arm gcc hoists `offset = 0` into the D_800C3D44 branch's
+//       delay slot where retail has the 0x394 store, so the 916 store moves up.
+//    The two `mode` assignments and `g_GameDiscChangeRequest = mode` (not `= 3`)
+//    are load-bearing. */
+/*
 void func_80070F40(void) {
+    s32 skinBlock1;
+    s32 skinBlock2;
     s32 block1;
     s32 block2;
     s32 nextMode;
@@ -338,12 +324,11 @@ void func_80070F40(void) {
     u16 animFlags;
     u16 value;
     u8 *pFlags;
-    u8 *pSlotFlags;
+    u16 *pPoolFlags;
     u8 mode;
     u8 savedFlags;
     s32 offset;
     s32 i;
-    u8 blank;
 
     nextMode = 1;
     g_BattleGraphicsWork = (u8 *)BattleAllocHeapBlock(0xA2B4, 0);
@@ -372,12 +357,12 @@ void func_80070F40(void) {
     }
     if (g_GameSelectedSkinLoadPending != 0) {
         ArchiveSetIndex(0x10, 2);
-        block1 = BattleAllocHeapBlock(4, 1);
-        block2 = BattleAllocHeapBlock(block1 + 0x7FE20000, 1);
+        skinBlock1 = BattleAllocHeapBlock(4, 1);
+        skinBlock2 = BattleAllocHeapBlock(skinBlock1 + 0x7FE20000, 1);
         ArchiveReadFileToBuffer(1, (void *)0x801E0000, 0, 0x80);
         ArchiveCdDataSync(0);
-        HeapFree((void *)block1);
-        HeapFree((void *)block2);
+        HeapFree((void *)skinBlock1);
+        HeapFree((void *)skinBlock2);
         if (g_GameResumeScene == 0) {
             func_801E0A34();
         } else {
@@ -432,10 +417,8 @@ void func_80070F40(void) {
 
     for (i = 0; i < 3; i++) {
         if (g_BattleActorCharIds[i] != 0x7F) {
-            // unk4/unk6 are read unsigned here (retail's lhu); the header types
-            // the pair s16 for the command-mask tests that read them as signed.
-            D_800C3E0C[i].unk0 = ((BattleCharLimitRecord *)g_GameState.conditionRows)[g_BattleActorCharIds[i]].unk4;
-            D_800C3E0C[i].unk2 = ((BattleCharLimitRecord *)g_GameState.conditionRows)[g_BattleActorCharIds[i]].unk6;
+            D_800C3E0C[i].unk0 = g_GameState.conditionRows[g_BattleActorCharIds[i]].commandMask;
+            D_800C3E0C[i].unk2 = g_GameState.conditionRows[g_BattleActorCharIds[i]].characterConditionMask;
         }
     }
 
@@ -469,16 +452,16 @@ void func_80070F40(void) {
             *(u16 *)((u8 *)g_BattlePrimPool + 0x394) = 0xFF;
             if (D_800C3D44 != 0 || D_800D2FC4 == 0) {
                 *(u8 *)((u8 *)g_BattlePrimPool + 0x800) = 0;
-                pSlotFlags = g_BattlePrimPool;
-                savedFlags = *pFlags;
+                pPoolFlags = (u16 *)g_BattlePrimPool;
+                savedFlags = D_800C48EA;
                 offset = 0;
-                *pFlags = 0;
+                D_800C48EA = 0;
                 for (i = 0; i < 3; i++) {
                     value = *(u16 *)((u8 *)g_BattleSlotEntries + offset) & 0x8000;
-                    *(u16 *)(pSlotFlags + 0x3B4) = value;
+                    pPoolFlags[0x1DA] = value;
                     value |= *(u16 *)((u8 *)D_800CCE08 + offset) & 0x8000;
-                    *(u16 *)(pSlotFlags + 0x3B4) = value;
-                    pSlotFlags += 2;
+                    pPoolFlags[0x1DA] = value;
+                    pPoolFlags++;
                     offset += 0x170;
                 }
                 BattleFreeWdsEntry();
@@ -520,8 +503,10 @@ void func_80070F40(void) {
     func_801E252C();
     HeapFree((void *)D_800D2D3C);
     HeapFree((void *)D_800D2F60);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
+
+
 
 s32 BattleUpdateFrame(void) {
     if (g_DebuggerState[0] != -1) {
@@ -1406,7 +1391,7 @@ void func_80073538(void) {
     s32 i;
     s32 off;
     s32 off2;
-    u8 *pSlotFlags;
+    u16 *pPoolFlags;
     u16 *pOrigins;
     s16 scale;
 
