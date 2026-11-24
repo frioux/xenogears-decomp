@@ -635,7 +635,8 @@ extern u8 g_MenuSavedMainMenuChoice;
 
 /* Best: 86.53%, 404 bytes, 101 insns (retail 424 bytes / 103 insns). Measured four times this round (baseline
    re-measured twice, plus variants (d) below); up from the
-   old 85.15. THE FRAME, THE SAVE SET AND THE ROW-COPY LOOP ARE NOW RETAIL EXACT: 0x58 with ra,s3,s2,s1,s0,
+   old 85.15. Round 445 re-measured the baseline at 86.53 and tried variants (e)/(f); the TAIL is now SETTLED and
+   it is the blocker (see TAIL below). THE FRAME, THE SAVE SET AND THE ROW-COPY LOOP ARE NOW RETAIL EXACT: 0x58 with ra,s3,s2,s1,s0,
    the whole prologue/call tail, and the copy loop as a do-while (`do *pDst++ = *pOut++; while (pDst < pSrc
    + i + 0x14)`) which reproduces retail's `move v1,s1 / addiu a0,sp,40 / addiu a1,s1,20 / lbu / sb /
    addiu v1,v1,1 / slt / bnez / addiu a0,a0,1`.
@@ -663,15 +664,32 @@ extern u8 g_MenuSavedMainMenuChoice;
    (lui/addiu into $t2) and 0xF (li $t1) per row; every body here keeps i/pSrc|pRow/outBuf/0xF instead, so
    inBuf's address is recomputed per row into $a1/$a2. Getting the flip needs outBuf's address and the 0xF
    to stop looking worth a register, which no spelling tried does.
-   TAIL: the two retail stores are `sb %gp_rel(g_MenuSavedMainMenuChoice)($gp)` and
-   `sb %gp_rel(g_GameResumeScene)($gp)`, i.e. retail's temp3.o DEFINES both as small data, while
-   GameSetUpDisplayAndChangeState in the same object reaches g_GameResumeScene absolutely (lui %hi/lbu). With
-   plain extern declarations here gcc gives `lui at,0x0` + `sb 0(at)` (2 insns each). The previous note
-   measured defining them at 84.08% on its body; they are splat-owned .bss
-   (asm/slus_006.64/data/49AC0.bss.s), so defining them here also risks the link — not retried on this body.
-   Also differing: retail's row-copy compare is `slt` (signed) where gcc emits `sltu` for a pointer compare,
-   and the s16 volume-zeroing loop counter lands in $s0 instead of retail's $a3. Needs a -dg/-dr allocator
-   dump (why the odd base loses its temp) and a way to stop the pRow+1 fold; do not re-brief without one.
+   (e) round 445: variant (d)'s pRow induction for the even read AND the row copy, but the odd base assigned
+   PER ROW inside the outer loop (`pOdd = (u8*)&g_GameState + i + 1;` then `pOdd[j]`) instead of before it —
+   85.53%, 408 bytes, 102 insns. This one gets retail's OUTER loop and row copy exactly (`slti $v0,$s0,620 /
+   bnez` with `addiu $s1,$s1,0x14` in the delay slot, `move $v1,$s1 / addiu $a1,$s1,0x14`), but gcc folds i
+   into the odd base per row (`lui $v0,%hi(g_GameState+1)` then `addu $a0,$s0,$v0`), so the odd read becomes
+   `lbu 0($a0)` off its own induction and the inner loop loses retail's second addu.  (f) the same with the
+   odd written inline as `((u8*)&g_GameState + 1)[i + j]` to stop that per-row fold — 82.93%, 412 bytes, 103
+   insns: gcc re-folds it to `pRow + 1` in $s4 (frame stays 0x58 but `sw $ra,0x54` / `sw $s4,0x50` appear),
+   exactly (a)'s fold. So the per-row-temp shape and the inline-constant shape bracket retail's and neither
+   yields retail's `lui/addiu $t2,%hi/%lo(g_GameState+1)` per row plus `addu $v0,$t0,$a3 / addu $v1,$v0,$t2`
+   per iteration. Also differing in every variant: retail's row-copy compare is `slt` (signed) where gcc emits
+   `sltu` for a pointer compare, and the s16 volume-zeroing loop counter lands in $s0 not retail's $a3.
+   TAIL (settled, round 445 — THIS is the real blocker, not the loop): the two retail stores are
+   `sb %gp_rel(g_MenuSavedMainMenuChoice)($gp)` and `sb %gp_rel(g_GameResumeScene)($gp)`, i.e. the object that
+   owns this function DEFINES both as small data, so with plain externs here gcc gives `lui at,0x0` + `sb
+   0(at)` (2 insns each) and the function can never reach 103 instructions or 424 bytes. Tentative definitions
+   work: `u8 g_GameResumeScene; u8 g_MenuSavedMainMenuChoice;` in this file (the unit already does exactly that
+   for g_DebugPageIndex at the end, which links and stores gp_rel) gives the retail-exact gp_rel tail and
+   takes THIS body to 88.67%, 396 bytes, 99 insns. But GameSetUpDisplayAndChangeState, in the same file,
+   drops 100.00% -> 97.71% (376 bytes) because its two reads of g_GameResumeScene become `lbu 0($gp)` while
+   retail's are `lui %hi/lbu`. One TU cannot have both, so the original temp3 object boundary is this
+   function's start (file 0xC170, not the 0xC350 the yaml uses) and the two globals are commons in the object
+   that owns func_8001B970 (0xC170..0xC350). Matching it needs a UNIT SPLIT (config/slus_006.64.yaml range +
+   new TU + gears.toml preset entry) with the two globals defined there; until then the tail is a hard -2
+   instructions and this stub is unreachable in system/temp3. Handling that split is what to do next — the
+   loop residual above is worth ~4 instructions on top of it.
 */
 /*
 void func_8001B970(void) {
@@ -722,6 +740,7 @@ void func_8001B970(void) {
     g_GameResumeScene = 0;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
+
 
 
 
