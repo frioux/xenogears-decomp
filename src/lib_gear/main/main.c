@@ -3133,60 +3133,39 @@ typedef struct {
     /* 0x8 */ POLY_GT3 polys[2];
 } LibGearTrailSegment; // Size: 0x58
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
-
-// objdiff 76.11% (2172 bytes against retail's 2276; 543 of 569 instructions) under
-// gcc 2.6.0 -G8 --expand-div. NOT a preset question: try_flags gives 16.24 for
-// gcc-2.7.2-cdk and 17.83 for plain 2.7.2, and -O1/-O3 do not build this unit.
-// Re-measured from scratch (unparked, first diff read in full): the number above is
-// exact, the park was not stale. battle/main/misc23's func_800A7064 is this function
-// instruction for instruction (twin_for 1.000) and is parked at 75.91% for the same
-// reason. This body is that park plus the six fixes below (72.58 -> 76.11):
-//  - numSections (arg 7) is a 32-bit parameter: retail copies it with lw 0x14C /
-//    sw 0x18, and the tail re-reads that slot and narrows it with sll 16 / sra 16.
-//  - rowBase and scale are 32-bit parameters too: retail uses a2/a3 directly with
-//    no sll 16 / sra 16, i.e. in s6/s5.
-//  - failure path 1 (pVectors == NULL) only stores pVectors = NULL; there is no
-//    HeapFree NULL call in it.
-//  - failure path 2 (pPoints == NULL) stores pVectors = NULL and frees ONCE; it
-//    does not free pEntry->pPoints.
-//  - the part-stream counts are re-read from memory at every use (they alias the
-//    stores through pSeg): for (j = 0; j < *pCount; j++), nRow + *pCount + 1,
-//    uRow += pCount[0] + 1.
-//  - the per-vector segment count is retail's unsigned pick: nSegs = pCount[1];
-//    if (pCount[0] < nSegs) nSegs = pCount[0];  (sltu, not a signed compare).
-// Frame is retail's 0x130 and the head, vector loop, point loop, both failure tails
-// and the section tail line up instruction for instruction up to registers. The 26
-// missing instructions are two places, both measured statically against the .s:
-//  - pre-loop, GetClut -> segment loop head: retail 35 insns, this body 27. Retail
-//    keeps texX*4 (t2), texY (a2), uEnd (t3) and clut (t4) in CALL-CLOBBERED
-//    registers for the whole loop nest and copies uStep into t3 (sw 0xA0 / lw 0xA0);
-//    this compile homes texX*4 in a byte slot (lbu 0xB8 per j), texY/uStep in stack
-//    slots and clut in a slot reloaded per k.
-//  - the outer segment loop 0x5F34-0x617C: retail 147 insns, this body 133. Retail
-//    spills EIGHT words around each SetPolyGT3 (0xE8..0x104), this body six, because
-//    retail recomputes texY + rowStep * (j + 1) AFTER each jal (gcc cannot CSE across
-//    a call, so the source wrote the expression in the store statements, giving two
-//    extra mult static), forms a second induction pointer s1 = pSeg + k * 0x28 for
-//    the poly field stores (disp 0x14..0x2D) where this body uses one base at
-//    pSeg + 8 + k * 0x28 (disp 0xC..0x25), and copies rowStep into a1 before each
-//    mult (addu a1,t6,zero).
-// Both k-loop bodies were decoded store by store and are SEMANTICALLY retail's:
-// loop 1 u0 = u2 = texX + uStart, u1 = texX + uEnd, v0 = v1 = nV0, v2 = nV1;
-// loop 2 u0 = u1 = texX + uEnd, u2 = texX + uStart, v0 = nV0, v1 = v2 = nV1. So no
-// constant or field is wrong here; the residual is allocation and hoisting only.
-// Tried this session and rejected (both measured):
-//  - pSeg->polys[k].field instead of the pPoly local, in both loops: 75.25%, 2176
-//    bytes, 544 insns (one MORE than the park) - the local is not what anchors the
-//    +8 in the base.
-//  - texY + rowStep * (j + 1) written inline in the store statements (nV1 local
-//    dropped): 16.57%, 2268 bytes, 567 insns, but the frame grows to 0x140 - the
-//    inlining raises pressure instead of lowering it, so retail's "no hoist" shape
-//    is real yet not reachable from this spelling.
-// Permuter not run: the gap is spill/address-forming code, not a statement or
-// operand shape (a 4-minute run was tried by the previous round with no gain).
+// objdiff 71.13% (2260 bytes against retail's 2276; 565 of 569 instructions; frame 0x130
+// == retail's). This body is battle/main/misc23's func_800A7064 park ported 1:1
+// (twin_for 1.000; per that park this function is the same body: texX/texY/texZ are
+// 32-BIT parameters narrowed once with sll/sra in the vector loop, and the eight texture
+// expressions written inline in the store statements), plus one fix found this round.
+// THE FIX: nSegs is a 16-bit UNSIGNED local (u16), not s32. That is what produces
+// retail's nSegs pick `sltu v0,v1,a3` (0x1F40) while rowStep stays a signed `div
+// zero,v0,a3` (0x1F60): with s32 nSegs the pick compiles to `slt`, and the body loses
+// four instructions (561 of 569). Measured chain this round, worst to best:
+//   543 insns / 2172 bytes - the previous park here (objdiff 76.11%)
+//   562 / 2248 - sibling body ported (objdiff 14.61%)
+//   549 / 2196 - point loop read pEntry->pVectors[i]: gcc reloads the field per j
+//   561 / 2244 - per-i SVECTOR* pVector = &pVectors[i] local in the point loop
+//   565 / 2260 - this body (s32 nSegs -> u16), objdiff 71.13%
+//   565 / 2260 - pVector = &pEntry->pVectors[i] per i, objdiff 70.91%
+// objdiff's fuzzy percentage is NOT a guide here (the sibling park reads 13.46% at a
+// better instruction count than the 76.11% one): judge by insn count, byte count, frame.
+// REMAINING 4 instructions / 16 bytes, allocation only, each read off the .s:
+// - retail keeps rowBase in s6 and texX/texY/texZ in s0/s2/s3 from the narrowing at
+//   0x5B38 to the end of the segment loops; this compile homes rowBase at 0x18 and
+//   re-reads texX/texY from their incoming 0x140/0x144 slots for the narrowing.
+// - retail re-reads pEntry->pVectors (lw a3,0x14(t5), 0x5CCC) once per i in the point
+//   loop and walks it with addiu a3,a3,8; both spellings tried give the same size.
+// - retail keeps the pCount cursor in a call-clobbered t1 with sw t1,0xF8(sp) / lw
+//   t1,0xF8(sp) around each HeapAlloc/HeapFree; this compile promotes it to s8.
+// Everything else agrees instruction for instruction: the five HeapAllocs and their
+// sizes, the four failure tails with their exact frees, the part-stream count re-reads,
+// the four k-loop store orders (u0 u1 u2 per the two loops), both div expansions, the
+// sltu pick, and the tail's eight section clears.
+// Permuter not run: 71% is below the STOP RULE exception and the gap is spill and
+// address-forming code, not a statement or operand shape.
 /*
-void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s16 texY, s16 texZ,
+void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s32 texX, s32 texY, s32 texZ,
     s32 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0, u8 green0,
     u8 blue0, u8 red1, u8 green1, u8 blue1) {
     SVECTOR* pVectors;
@@ -3205,14 +3184,12 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s
     u16 clut;
     u16 rowStep;
     s16 uStep;
-    s32 nSegs;
+    u16 nSegs;
     s32 nRaw;
     s32 uStart;
     s32 uEnd;
     s32 uRow;
     s32 nRow;
-    s32 nV0;
-    s32 nV1;
     s32 i;
     s32 j;
     s32 k;
@@ -3230,9 +3207,9 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s
     pEntry->pVectors = pVectors;
 
     for (i = 0; i < pEntry->numVectors; i++) {
-        pVectors[i].vx = (*pCur++ + texX) * scale / 4096;
-        pVectors[i].vy = (*pCur++ + texY) * scale / 4096;
-        pVectors[i].vz = (*pCur++ + texZ) * scale / 4096;
+        pVectors[i].vx = (*pCur++ + (s16)texX) * scale / 4096;
+        pVectors[i].vy = (*pCur++ + (s16)texY) * scale / 4096;
+        pVectors[i].vz = (*pCur++ + (s16)texZ) * scale / 4096;
     }
 
     nRaw = pCur[pEntry->numVectors];
@@ -3306,25 +3283,22 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s
             nSegs = pCount[0];
         }
         rowStep = vSpan / nSegs;
+        nRow = uRow;
         for (j = 0; j < nSegs; j++) {
-            nRow = uRow + j;
-
             pSeg->unk0 = nRow;
             pSeg->unk4 = nRow + 1;
             pSeg->unk2 = nRow + *pCount + 1;
-            nV0 = texY + rowStep * j;
-            nV1 = texY + rowStep * (j + 1);
             for (k = 0; k < 2; k++) {
                 pPoly = &pSeg->polys[k];
                 SetPolyGT3(pPoly);
                 pPoly->tpage = tpage;
                 pPoly->u0 = texX + uStart;
-                pPoly->v0 = nV0;
+                pPoly->v0 = texY + rowStep * j;
                 pPoly->clut = clut;
-                pPoly->v1 = nV0;
+                pPoly->v1 = texY + rowStep * j;
                 pPoly->u2 = texX + uStart;
                 pPoly->u1 = texX + uEnd;
-                pPoly->v2 = nV1;
+                pPoly->v2 = texY + rowStep * (j + 1);
             }
             pSeg++;
             pSeg->unk0 = nRow + *pCount + 1;
@@ -3338,11 +3312,12 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s
                 pPoly->u1 = texX + uEnd;
                 pPoly->clut = clut;
                 pPoly->u2 = texX + uStart;
-                pPoly->v0 = nV0;
-                pPoly->v1 = nV1;
-                pPoly->v2 = nV1;
+                pPoly->v0 = texY + rowStep * j;
+                pPoly->v1 = texY + rowStep * (j + 1);
+                pPoly->v2 = texY + rowStep * (j + 1);
             }
             pSeg++;
+            nRow++;
         }
         uStart += uStep;
         uEnd += uStep;
@@ -3380,6 +3355,9 @@ void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s16 texX, s
         pEntry->pSections = NULL;
     }
 }*/
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
+
+
 
 
 
@@ -4676,7 +4654,7 @@ typedef struct {
 void LibGearAllocateColorEntries(Model* pModel);
 void func_8002DDE4(void* pMeshSource, s16 a1, s16 a2, s16 a3, s16 a4, s16 a5, s16 a6);
 void func_80030988(s16 a0, s16 a1, s32 a2, s32 a3);
-void func_801E1A14(Temp9* pEntry, void* pWad, s16 a2, s16 a3, s16 a4, s16 a5, s16 a6, s16 a7, s16 a8, s16 a9, s16 a10, s16 a11, s16 a12, s16 a13, u8 a14, u8 a15, u8 a16, u8 a17, u8 a18, u8 a19);
+void func_801E1A14(Temp9* pEntry, u16* pCur, s32 rowBase, s32 scale, s32 texX, s32 texY, s32 texZ, s32 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0, u8 green0, u8 blue0, u8 red1, u8 green1, u8 blue1);
 void ResolveArchiveEntryPointers(void* pTable);
 s32 SoundFindSedsEntry(void* pEntry, s16 bank);
 void SoundAddSedsEntry(void* pEntry);
