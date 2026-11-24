@@ -1427,6 +1427,7 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    calling SystemEncodeGlyphCodes and copying the buffer back; the "id == 0xFF"
    arm is out of line at the end of the body (beq to it). Fixed-width copy of
    0x10 halfwords from D_8005A3A0 to D_8006F958 at the top. */
+// Re-measured again (round 457 redo lane): un-parked, compiled, scored 96.29% / 836 bytes / 209 insns - unchanged, the body in the note above is the best one. Do not un-park again without a NEW idea for the walker's allocno quotient: the ~4% margin (2393 vs 2291) needs the walker's live_length <= 34 or 12 refs, and its def is a dependency-free la that loop.c hoists to the head of the preheader (both source positions measured identical), so statement order cannot move it.
 /*
 void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     u8 inBuf[0x14];
