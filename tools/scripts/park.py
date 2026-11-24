@@ -18,6 +18,7 @@ removes only the block it uses, so run it once per duplicate only if the second 
 is still there - `repark` then re-creates a single one.
 """
 import argparse
+import os
 import re
 import sys
 
@@ -95,15 +96,26 @@ def existing_asm_line(text, name):
     return m.group(0) if m else None
 
 
-def asm_line_for(text, name, unit_dir):
+def asm_line_for(text, name, unit_dir, source=None):
     """The stub line to write, taking the asm directory from the file itself: any
     sibling stub in the same unit names it, so the unit argument (`misc16_r2` is
-    not `misc16`) cannot invent a build-breaking path."""
+    not `misc16`) cannot invent a build-breaking path. With no sibling stub to copy,
+    the path is derived from the source path (src/<bin>/<rest>.c ->
+    asm/<bin>/nonmatchings/<rest>), because `asm/` + the unit slug omits both the
+    binary and `nonmatchings/` and breaks the build."""
     line = existing_asm_line(text, name)
     if line:
         return line
     m = re.search(r'INCLUDE_ASM\("([^"]*/[^/"]*)",', text)
-    return 'INCLUDE_ASM("%s", %s);' % (m.group(1) if m else "asm/" + unit_dir, name)
+    if m:
+        return 'INCLUDE_ASM("%s", %s);' % (m.group(1), name)
+    rel = (source or "").replace(os.sep, "/")
+    if rel.startswith("src/") and rel.endswith(".c"):
+        rest = rel[len("src/"):-len(".c")]
+        binary, _, tail = rest.partition("/")
+        if tail:
+            return 'INCLUDE_ASM("asm/%s/nonmatchings/%s", %s);' % (binary, tail, name)
+    return 'INCLUDE_ASM("%s", %s);' % ("asm/" + unit_dir, name)
 
 
 def repark(text, name, asm_line, note=""):
@@ -123,13 +135,13 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("action", choices=["unpark", "repark"])
     ap.add_argument("source", help="src/<bin>/<unit>.c")
-    ap.add_argument("asm_dir", help="the unit directory under asm/<bin>/nonmatchings/main/")
+    ap.add_argument("asm_dir", help="unused when the file already names an asm directory; otherwise the unit slug")
     ap.add_argument("function")
     ap.add_argument("--note", default="", help="comment lines to put above the re-parked body")
     a = ap.parse_args()
 
     text = open(a.source).read()
-    asm_line = asm_line_for(text, a.function, a.asm_dir)
+    asm_line = asm_line_for(text, a.function, a.asm_dir, a.source)
     if a.action == "unpark":
         out = unpark(text, a.function, asm_line)
     else:
