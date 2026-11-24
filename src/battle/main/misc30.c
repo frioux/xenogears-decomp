@@ -292,6 +292,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
    order 91.32%.  Earlier: s16 vs s32 for x and z, `&&` vs `||`, nested if vs
    else-if, one expression vs index locals, and a 4-minute permuter run
    (base=1388, best=1188) whose only usable find was the z hoist kept below.
+   Round 452 re-measured 97.48 / 508 and closed three more axes: gcc-2.6.0 is
+   76.91, so the preset question is shut for this function too; a `s32 slotX =
+   pSlot->x` local used by both compares folds back byte-identically; and a
+   second mirror local for x, narrow or wide, is deleted by copy propagation, so
+   retail's `move a1,a2` needs the value in two pseudos and one load cannot give
+   that.
 /*
 void func_800B905C(void) {
     BattleActorSprite* pSprite;
@@ -394,6 +400,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
    INDEX is processed first and takes $v1 in every body that emits these
    instructions -- retail's base-in-$v1 needs the base to outrank it, which needs
    either a 4th index use or a 2-ref base, and both change the instruction count.
+   Round 452 re-measured 96.61 / 644 and closed two more axes: a `u16 id` local
+   (the load is a lhu) is 95.99, so the s32 id stays; and the BATTLE_COMMAND_ROW
+   form the neighbouring stubs use cannot say what this body says - retail reads
+   the same +0x172 word as `lbu` in the 0xFA/0xF8 arms and as `lhu` in
+   0xF7/0xF5/0xF4/0xF3, so the source went through a byte pointer (a u16 row
+   field would make every one of those reads lhu).
 */
 /*
 void func_800B9284(SpriteData* pSprite, s32 code) {
