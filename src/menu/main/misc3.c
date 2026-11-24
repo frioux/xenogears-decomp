@@ -279,29 +279,31 @@ extern u16 g_MenuCellPrimXs[];
 extern u16 g_MenuCellPrimYs[];
 extern s32 g_MenuCardSlotOrder[];
 
-// Best attempt: 95.74% (2092 bytes / 523 insns against retail's 2084 / 521). The +8
-// bytes is one `j` and its delay slot: gcc orders the record scan's two break blocks
-// INSIDE the loop body (which also inverts the third card-status test to `beq`) where
-// retail puts the shared status/card/waited block after the loop tail at 0x4788 and
-// has all three tests branch forward to it.
-// REACHED THIS ROUND (worth the 0.34 and the 7th callee-saved register): retail's
-// `move s6,s4` in the delay slot of the first card-status test is a SECOND SOURCE
-// LOCAL assigned from `waited` AT THE JOIN of the first if-block - `rebuildWindow =
-// waited;` written between `MenuFreeWindow2Strings();` and `g_MenuCardCheckInterval =
-// 1;`, read only by `if (rebuildWindow) characterWindowBuilt = 1;`. Reorg steals it
-// into the entry branch's delay slot, which is why it looks like an entry copy. The
-// same assignment in the ENTRY block is folded to 0 and the whole store block is
-// deleted (94.27%, 514 insns, 2056 bytes), and reading `waited` there directly loses
-// the copy (95.40%, 2084 bytes, retail's exact size). Semantics: the copy is taken
-// before the scan's `waited = 0` arms, so the store stays dead - retail's behaviour.
-// Remaining residuals: (a) the loop-body block order above; (b) the two `- 6` prim-Y
-// adds are CSEd into `li a2,0xfffa` + `addu v0,v0,a2` where retail re-materialises
-// `addiu v0,v0,-6` twice (`- 0xA + 4` folds identically, measured, no change); (c)
-// g_Menu lands in a3, not retail's a2, and the 2nd prim store's operand loads come out
-// reordered. Preset screens on this body: gcc-2.7.2 96.70, 2.7.2-cdk 89.02, unit
-// preset 2.6.0 95.74 (no 100 anywhere, so no switch). Retail names `D_801C50AC` /
-// `D_801C50B4` where the typed `g_MenuCardPathPrefix0` + 4 gives the same address: a
-// relocation-only difference.
+// Best attempt: 95.78% (2092 bytes / 523 insns against retail's 2084 / 521). This note
+// supersedes the 95.74 one: its "one j and its delay slot" is wrong, see THE +8 below.
+// REACHED IN ROUND 467 (95.74 -> 95.78, 118 -> 112 differing lines, same 2092 bytes): the
+// Vsync countdown is its OWN local (`frames`), not `i`. Retail's `li s0,0x3B` /
+// `addiu s0,s0,-1` / `bnez s0` runs in $s0 while `i` (the record index) is $s1; reusing `i`
+// put the countdown in $s1 and made three rows differ.
+// THE +8 BYTES: the instruction COUNT is level - retail's six-instruction
+// break2/break1/shared-tail block exists on both sides (this body splits it into the break2
+// pair and the break1+tail quad, a block-order difference that only relabels branch
+// targets). The +2 instructions are two `nop`s in the FIRST of the eight cursor-prim store
+// groups: retail's group is lw a1 / lw v0 / lbu a0 / lw v0 / sll / addu (6), this body's is
+// lw a1 / nop / lbu v0 / lw a0 / sll / addu / lw v0 / nop (8). That group is the one the
+// shared HImode -6 constant disturbs: the body materialises `ori a2,zero,0xfffa` in the
+// `beqz` delay slot that retail fills with the return copy `addu v0,s4,zero`, then loads
+// menuUnk2 late and needs both nops. So residual (b) and the size are ONE cause.
+// REMAINING: (a) g_Menu lands in $a3 for the eight store groups where retail has $a2 (which
+// is why the -6 constant gets $a2 at all); (b) that -6 CSE; (c) the entry
+// `move s4,zero` / `move s6,s4` swap, plus `move s6,s4` in the joined block's delay slot
+// where retail has `andi v0,s3,0xff` (round-454 lever: the join copy in the entry slot is
+// not source-reachable - the entry spelling folds to 0 and deletes the store block, 94.27%;
+// reading `waited` directly there is 95.40% at retail's exact 2084 bytes); (d) the two
+// path-prefix rows are RELOCATION-ONLY: retail names D_801C50AC / D_801C50B4, we reach
+// g_MenuCardPathPrefix0/1 + 4, same linked bytes.
+// Preset screens on the old body: gcc-2.7.2 96.70, 2.7.2-cdk 89.02, unit preset 2.6.0
+// 95.74 (no 100 anywhere, so no switch).
 // Learned earlier, still true: the two 0xFF byte pairs (previousCardSlotCounts[1]/[0]
 // and previousCardStatus[1]/[0]) each come from ONE `MenuUnk2* pMenu = g_Menu->menuUnk2;`
 // load - two `g_Menu->menuUnk2->...` assignments cost 9 instructions because a `sb`
@@ -312,7 +314,7 @@ extern s32 g_MenuCardSlotOrder[];
 // base-first subscript loses 1.8%). Tried and rejected: `continue` vs `if (enumerated
 // == 0) break` (same beqz), `status = 0` initialised (costs retail's missing `move
 // s3,zero`; retail reads `status` uninitialised on the card-wait path, a latent bug in
-// the original), and no permuter run - the residual is block placement plus one CSE
+// the original), and no permuter run - the residual is a register hand-out plus one CSE
 // constant, which it cannot move.
 /*
 u_char func_801C93A8(void) {
@@ -324,6 +326,7 @@ u_char func_801C93A8(void) {
     MenuUnk2* pMenu;
     s32 card;
     s32 i;
+    s32 frames;
     s32 recordIndex;
 
     D_801EA6F8 = 0;
@@ -344,7 +347,7 @@ u_char func_801C93A8(void) {
             pMenu->previousCardSlotCounts[1] = MENU_SLOT_NONE;
             pMenu->previousCardSlotCounts[0] = MENU_SLOT_NONE;
             MenuRenderFrame();
-            for (i = 0x3B; i != 0; i--) {
+            for (frames = 0x3B; frames != 0; frames--) {
                 Vsync(0);
             }
             waited = 1;
