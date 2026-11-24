@@ -717,6 +717,25 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // lever.py now carries this shape as a CLOSED lever (g-derived-giv-only-when-the-biv-init-is-
 // outside), so no lane time was spent re-trying spellings; below 99% the lane rules give no
 // permuter run, and the two earlier runs (in-body base 112, outside base 1481) were PERMUTER_NONE.
+// func_80075D8C: parked at 96.43%, 1248 bytes / 312 insns (retail 1232 / 308).
+// Round 469 re-measured the honest body (init before the loop) a third time after un-parking:
+// 96.43%, 1248 bytes, 312 insns, whole residual the derived s1 = j + 1 (two addiu s1,s0,1 at
+// the loop head, one in the 0x4 test's beqz slot, move a0,s1 at the three j+1 call sites,
+// addiu s1,s1,1 before the latch, frame 0x50 with s0-s7 against retail's 0x48 with s0-s6).
+// Measured dead this round: a while(1) body with an explicit 'if (j >= entry + 0x14) break;'
+// is byte-identical to the do-while test (312 insns, 96.43).
+// NEW EVIDENCE, cc1_probe.sh on this unit's real cc1 (2.6.0 -O2 -G0): a replica of this inner
+// loop costs the biv+1 giv with TWO uses of j + 1 (in the two format branches, even when dbr
+// cross-jumps the calls) and NO giv with ONE use, where the add stays inline as addu a0,j,1.
+// So the giv is forced by the COUNT of biv+const uses, and retail's three separate inline
+// addiu a0,s0,1 sites need three source occurrences of j + 1, which forces the giv: the two
+// requirements are contradictory, so this loop has no C spelling under 2.6.0. The giv also
+// eats exactly the register that would otherwise hoist entry + 0x14 (the probe hoists it to
+// the preheader and uses slt against a register, retail and this body both recompute
+// addiu v0,s1,0x14 in the latch), so the shape is consistent with retail everywhere except
+// the giv, and the giv cannot be removed without deleting one of the three j + 1 uses (or
+// making it a single-use body, which is not retail). Below 99%, so no permuter run; the two
+// earlier runs (base 112, base 1481) were PERMUTER_NONE.
 /*
 void func_80075D8C(void) {
     s32 alignedIndex;
@@ -836,8 +855,7 @@ void func_80075D8C(void) {
         DrawOTag(&g_MovieDebugDrawBuffer->ot[0x1F]);
     } while (action != 2);
     ArchiveSetIndex(alignedIndex, remainder);
-}
-*/
+}*/
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075D8C);
 
 void MovieResetPlaybackAndClearScreen(void) {
