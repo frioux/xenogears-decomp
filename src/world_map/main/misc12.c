@@ -396,77 +396,84 @@ extern s16 D_8009B1B0[];
 extern s16 D_8009B1D4[];
 extern s16 D_8009B1D8[];
 
-/* best: 0.00% - phase 1: prologue, the command-4 entry block and states 0/1 only,
-   every other state body is still an empty break. The body is a 65-entry jump table over
-   pPlayer->state; retail's order is states 0,1 (shared), 2, 3, 4, 8, C, 10, 14, 20, 21,
-   22, 24, 25, 26, 28, 29, 2A, 30, 31, 32, 34, 35, 36, 37, 38, 39; 5-7, 9-B, D-F, 11-13,
-   15-1F, 23, 27, 2B-2F, 33 and 3A-40 all fall to the shared tail at .L80090620. */
-// best 12.33% (1196 bytes / 299 insns against retail's 8312 / 2078): phase 1 only - prologue, the command==4 entry block (scratchpad state 1/2/3 arms) and the state 0/1 body are written; every other state body is an empty break, so the jump table and 24 of the 26 case bodies are still missing. Structure: switch (pPlayer->state), 65-entry table jtbl_80070A50, states 0,1 share .L8008EB30; 2 .L8008EB64; 3 .L8008EE78; 4 .L8008F274; 8 .L8008F690; C .L8008F6EC; 10 .L8008F72C; 14 .L8008F8D0; 20 .L8008F9D8; 21 .L8008FA74; 22 .L8008FAA4; 24 .L8008FAC4; 25 .L8008FBC8; 26 .L8008FC5C; 28 .L8008FC8C (falls through into 29 .L8008FD7C); 2A .L8008FEE0; 30 .L8008FF44 (falls through into 31 .L80090038); 32 .L800901B8; 34 .L8009021C (falls through into 35 .L800902BC); 36 .L80090300; 37 .L80090424; 38 .L80090510; 39 .L80090568; all other values use the shared tail .L80090620. The 0x1F800090/94/98/9C words are s32 lw/sw, the 0x1F8000A0 vector is u16 sh (pScratch[0x50..0x56]). Next step: write one case body at a time in address order and re-diff - the text diff walks the bodies linearly, so a body is right when the diff moves past it.\n
+extern s32 func_80090E14(WorldMapPlayer *pPlayer);
+extern s32 func_80090FB4(WorldMapPlayer *pPlayer);
+extern void WorldMapUpdateRandomTimers(void);
+extern s32 g_WorldMapTpageAbr;
+extern s32 g_WorldMapDrawMode;
+
+// best 65.57% (8304 bytes / 2076 insns against retail's 8312 / 2067; objdiff 65.57). Full body written from m2c_draft (tools/scripts/m2c_draft.sh world_map/main/misc12 func_8008E76C) and retyped: all 27 case bodies of the state switch, the command==4 entry block, and the shared post-switch tail are present, and the jump table is right - sltiu 65 and 65 entries, so case 0x40 must stay (it is the label that sizes the table; states 0x3A-0x40 all land on the shared tail .L80090620). Residual classes, in size order: (1) the whole function's callee-saved set is a permutation - retail s5=idx s6=1(ret) s4=command s3=0x1F800000 s2=pPlayer s1=&pPlayer->x s0=state, the compile s6=idx s7=1 s5=command s2=scratch s4=pPlayer - so most rows are the same instruction with a renamed register; drop a local (7 callee-saved, not 8) and declare them so pPlayer takes s2 first. (2) entry-block statement order: retail copies the 4 words of x/y/z/w into g_WorldMapScrollTargetX straight after WorldMapStartSlot(8,9) and only then reads g_GameState.worldMapState, gcc hoists the lhu above the copy; the 0xA0/0xA4/0xA2/0xA8/AA/AC stores are likewise reordered (mine did 0xA8 first). (3) +9 instructions net, so something is duplicated or missing once the registers are settled - the byte count is 8 short, so the first thing to check is a two-instruction pair, not a body. (4) the switch operand names .rodata where the original names jtbl_80070A50 - expected, linker-resolved, and this unit owns its rodata range, so the table converts. Two spellings I could not express faithfully and left duplicated or goto-shaped: D_8009BD04=0 ends each of the entry switch's three arms (retail has ONE copy reached by three jumps, i.e. a shared tail the source must have had - try a labelled goto or a fallthrough if the arms are restructured), and the case bodies use labels (storeScroll, idleMode, turnToTarget, moveAndRise, move, case31Tail) instead of the loops the original plausibly had. Scratchpad: s32 word base 0x1F800000 in pScratch (0x90/94/98/9C are pScratch[0x24..0x27], 0x00/04/08 are pScratch[0..2]), the 0xA0/0xA8 SVECTORs are absolute sh next to a lui at, which is what retail emits.
 /*
 s32 func_8008E76C(s32 idx) {
     WorldMapPlayer *pPlayer;
-    u16 *pScratch;
-    s32 nScratchState;
+    s32 *pScratch;
     s32 nState;
     s32 nRet;
+    s32 nTmp;
+    s32 nStep;
+    s16 nCommand;
+    s16 *pHeight;
 
     nRet = 1;
+    pScratch = (s32 *)0x1F800000;
     pPlayer = g_WorldMapSlots + idx;
-    if (pPlayer->command == 4) {
+    nCommand = pPlayer->command;
+    if (nCommand == 4) {
         pPlayer->command = 0;
         pPlayer->unk74++;
         if (D_8009C170 == pPlayer->unk74) {
             WorldMapStartSlot(8, 9);
             *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
-            nScratchState = g_GameState.worldMapState | 0x4000;
-            nState = nScratchState & 0x1FFF;
-            g_GameState.worldMapState = nScratchState;
+            nTmp = g_GameState.worldMapState | 0x4000;
+            nState = nTmp & 0x1FFF;
+            g_GameState.worldMapState = nTmp;
             g_WorldMapPlayerAngle = pPlayer->angle;
-            pScratch = (u16 *)0x1F800000;
-            if (nState == 1) {
+            switch (nState) {
+            case 1:
                 pPlayer->state = 0xC;
-                g_WorldMapMode = 4;
+                g_WorldMapMode = nCommand;
                 pPlayer->pCameraPathHeights = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0x18000;
-                pScratch[0x50] = -(pPlayer->unk70 >> 12);
-                pScratch[0x52] = g_WorldMapViewRotationZ[0];
-                pScratch[0x51] = pPlayer->angle;
-                pScratch[0x54] = pPlayer->x >> 12;
-                pScratch[0x55] = pPlayer->y >> 12;
-                pScratch[0x56] = pPlayer->z >> 12;
-                WorldMapInitSpriteGroupSprites(2, &pScratch[0x54], &pScratch[0x50]);
+                *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+                *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+                *(u16 *)0x1F8000A2 = pPlayer->angle;
+                *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+                *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+                *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+                WorldMapInitSpriteGroupSprites(2, (void *)0x1F8000A8, (void *)0x1F8000A0);
                 D_8009BD04 = 0;
-            }
-            if (nState == 2) {
+                break;
+            case 2:
                 pPlayer->state = 0xC;
                 g_WorldMapMode = 5;
                 pPlayer->pCameraPathHeights = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0x18000;
-                pScratch[0x50] = -(pPlayer->unk70 >> 12);
-                pScratch[0x52] = g_WorldMapViewRotationZ[0];
-                pScratch[0x51] = pPlayer->angle;
-                pScratch[0x54] = pPlayer->x >> 12;
-                pScratch[0x55] = pPlayer->y >> 12;
-                pScratch[0x56] = pPlayer->z >> 12;
-                WorldMapInitSpriteGroupSprites(2, &pScratch[0x54], &pScratch[0x50]);
+                *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+                *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+                *(u16 *)0x1F8000A2 = pPlayer->angle;
+                *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+                *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+                *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+                WorldMapInitSpriteGroupSprites(2, (void *)0x1F8000A8, (void *)0x1F8000A0);
                 D_8009BD04 = 0;
-            }
-            if (nState == 3) {
+                break;
+            case 3:
                 SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
-                pScratch[0x50] = pPlayer->x >> 12;
-                pScratch[0x51] = pPlayer->y >> 12;
-                pScratch[0x52] = pPlayer->z >> 12;
-                nState = 0x3D;
-                if (WorldMapGetTileHalfIndex(&pPlayer->x) == nScratchState) {
-                    nState = 0x3E;
+                *(s16 *)0x1F8000A0 = pPlayer->x >> 0xC;
+                *(u16 *)0x1F8000A2 = pPlayer->y >> 0xC;
+                *(u16 *)0x1F8000A4 = pPlayer->z >> 0xC;
+                nTmp = 0x3D;
+                if (WorldMapGetTileHalfIndex(&pPlayer->x) == nState) {
+                    nTmp = 0x3E;
                 }
-                WorldMapInitSpriteGroupSprites(nState, &pScratch[0x50], NULL);
+                WorldMapInitSpriteGroupSprites(nTmp, (void *)0x1F8000A0, NULL);
                 WorldMapStartSlot(9, 9);
                 WorldMapStartSlot(0xA, 9);
                 WorldMapStartSlot(0xB, 9);
                 nRet = 2;
                 pPlayer->state = 8;
-                *(s16 *)&pPlayer->unk0[0x2] = 0x3C;
+                *(s16 *)&pPlayer->unk0[2] = 0x3C;
                 g_WorldMapMode = 7;
                 D_8009BD04 = 0;
+                break;
             }
             g_GameState.gearRide[0] = 1;
             if (g_GameState.partyMembers[1] != 0xFF) {
@@ -488,38 +495,752 @@ s32 func_8008E76C(s32 idx) {
         WorldMapQueueZoneEntry(idx, &pPlayer->x, 0x40, 0x400);
         break;
     case 2:
+        nTmp = func_80090FB4(pPlayer);
+        if (nTmp != 1) {
+            if (nTmp == 4) {
+                if ((WorldMapGetTileKindValue(2, WorldMapGetTileHalfIndex(&pPlayer->x)) << 0x10) != 0) {
+                    nStep = WorldMapFindStepDirection(&pPlayer->x, (s32 *)&pPlayer->dirX, 0x68000);
+                    if (nStep != -1) {
+                        pPlayer->state = 0x10;
+                        pPlayer->targetAngle = nStep;
+                        pPlayer->pCameraPathHeights = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z);
+                        WorldMapStartSlot(0xB, 0xA);
+                        SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
+                        pPlayer->pathIndex = 1;
+                        WorldMapDeactivateSpriteGroup(0x3C);
+                        WorldMapDeactivateSpriteGroup(0x3F);
+                        g_WorldMapAreaRect = (void *)-1;
+                        g_WorldMapAreaId = -1;
+                        g_WorldMapMode4AreaId = -1;
+                        g_WorldMapZoneId = 0;
+                        g_WorldMapZoneProximity = 0;
+                        goto clearSpriteFlag;
+                    }
+                }
+            } else {
+                nTmp = func_80095CD4(&pPlayer->x, &pPlayer->dirX, pScratch + 0x24, pPlayer->unk60, g_WorldMapMode);
+                if (nTmp == 0) {
+                    pPlayer->unk60 = 0;
+                    pPlayer->dirZ = 0;
+                    pPlayer->dirX = 0;
+                }
+                if (nTmp == 1) {
+                    WorldMapFindZoneAtPosition(pScratch + 0x24, 0x40, 0x20, &g_WorldMapZoneProximity, &g_WorldMapZoneId);
+                    if (g_WorldMapZoneProximity != 2) {
+                        pPlayer->x = pScratch[0x24];
+                        pPlayer->y = pScratch[0x25];
+                        pPlayer->z = pScratch[0x26];
+                        pPlayer->w = pScratch[0x27];
+                    } else {
+                        pPlayer->unk60 = 0;
+                    }
+                }
+                *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+                g_WorldMapPlayerAngle = pPlayer->angle;
+                WorldMapSelectAreaAtPosition(&pPlayer->x, 2);
+                WorldMapSelectAreaRectByState();
+                *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+                *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+                *(u16 *)0x1F8000A2 = pPlayer->angle;
+                RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
+                RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
+                nStep = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) - pPlayer->y;
+                if (nStep < 0) {
+                    nStep = -nStep;
+                }
+                if ((nStep <= 0x5FFFF) && (pPlayer->unk60 != 0)) {
+                    *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+                    *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+                    *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+                    nTmp = WorldMapGetTileHalfIndex(&pPlayer->x);
+                    if (nTmp == 2) {
+                        WorldMapInitSpriteGroupSprites(0x3F, (void *)0x1F8000A8, (void *)0x1F8000A0);
+                        nStep = 0x3C;
+                    } else if (nTmp == 3) {
+                        WorldMapInitSpriteGroupSprites(0x3C, (void *)0x1F8000A8, (void *)0x1F8000A0);
+                        nStep = 0x3F;
+                    } else {
+                        goto deactivateGroups;
+                    }
+                } else {
+                deactivateGroups:
+                    WorldMapDeactivateSpriteGroup(0x3C);
+                    nStep = 0x3F;
+                }
+                WorldMapDeactivateSpriteGroup(nStep);
+                pPlayer->dirZ = 0;
+                pPlayer->dirY = 0;
+                pPlayer->dirX = 0;
+            clearSpriteFlag:
+                D_8009BD04 = 0;
+            }
+        } else {
+        idleMode:
+            g_WorldMapLoopActive = 0;
+            g_WorldMapAreaMode = 0;
+        }
+        break;
     case 3:
+        nTmp = func_80090E14(pPlayer);
+        switch (nTmp) {
+        case 1:
+            if (((s16 *)g_WorldMapAreaRect)[7] != 2) {
+                goto idleMode;
+            }
+        enterState32:
+            pPlayer->state = 0x20;
+            pPlayer->pCameraPathHeights = (s16 *)0x30000;
+            *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+            *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+            *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+            WorldMapInitSpriteGroupSprites(2, (void *)0x1F8000A8, (void *)0x1F8000A0);
+            break;
+        case 4:
+            nTmp = WorldMapFindStepDirection(&pPlayer->x, (s32 *)&pPlayer->dirX, 0x68000);
+            if (nTmp != -1) {
+                pPlayer->state = 0x14;
+                pPlayer->targetAngle = nTmp;
+                pPlayer->pCameraPathHeights = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z);
+                *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+                *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+                *(u16 *)0x1F8000A2 = pPlayer->angle;
+                *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+                *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+                *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+                WorldMapInitSpriteGroupSprites(2, (void *)0x1F8000A8, (void *)0x1F8000A0);
+                WorldMapDeactivateSpriteGroup(1);
+                g_WorldMapAreaRect = (void *)-1;
+                g_WorldMapAreaId = -1;
+                g_WorldMapMode4AreaId = -1;
+            }
+            break;
+        default:
+            nStep = pPlayer->angle - g_GameState.scriptAngle;
+            nTmp = nStep;
+            if (nStep < 0) {
+                nTmp = -nTmp;
+            }
+            if (nTmp >= 0x801) {
+                if (nStep < 0) {
+                    nStep += 0x1000;
+                } else {
+                    nStep -= 0x1000;
+                }
+            }
+            nTmp = nStep;
+            if (nStep < 0) {
+                nTmp = -nTmp;
+            }
+            if (nTmp >= 0x81) {
+                if (nStep < 0) {
+                    nTmp = g_GameState.scriptAngle - 0x80;
+                } else {
+                    nTmp = g_GameState.scriptAngle + 0x80;
+                }
+                pPlayer->angle = nTmp;
+            }
+            pPlayer->angle &= 0xFFF;
+            nStep = func_80095414(&pPlayer->x, (s32 *)&pPlayer->dirX, pScratch + 0x24, pPlayer->moveSpeed << 0xC, g_WorldMapMode);
+            if (nStep == 0) {
+                pPlayer->dirX = pScratch[0x24];
+                pPlayer->dirY = pScratch[0x25];
+                pPlayer->dirZ = pScratch[0x26];
+                pPlayer->unk44 = pScratch[0x27];
+                nStep = func_80095414(&pPlayer->x, (s32 *)&pPlayer->dirX, pScratch + 0x24, pPlayer->moveSpeed << 0xC, g_WorldMapMode);
+                if (nStep == 0) {
+                    pPlayer->dirZ = 0;
+                    pPlayer->dirX = 0;
+                }
+            }
+            if (nStep == 1) {
+                pScratch[0x25] = WorldMapGetTilePlaneHeight(pScratch[0x24], pScratch[0x26]) + 0x18000;
+                WorldMapFindZoneAtPosition(pScratch + 0x24, 0x40, 0x20, &g_WorldMapZoneProximity, &g_WorldMapZoneId);
+                if (g_WorldMapZoneProximity != 2) {
+                    pPlayer->x = pScratch[0x24];
+                    pPlayer->y = pScratch[0x25];
+                    pPlayer->z = pScratch[0x26];
+                    pPlayer->w = pScratch[0x27];
+                } else {
+                    pPlayer->unk60 = 0;
+                }
+            }
+            *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+            g_WorldMapPlayerAngle = pPlayer->angle;
+            WorldMapSelectAreaAtPosition(&pPlayer->x, 2);
+            *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+            *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+            *(u16 *)0x1F8000A2 = pPlayer->angle;
+            RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
+            RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
+            if ((pPlayer->dirX | pPlayer->dirZ) != 0) {
+                *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+                *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+                *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+                WorldMapInitSpriteGroupSprites(1, (void *)0x1F8000A8, (void *)0x1F8000A0);
+            } else {
+                WorldMapDeactivateSpriteGroup(1);
+            }
+            pPlayer->dirZ = 0;
+            pPlayer->dirY = 0;
+            pPlayer->dirX = 0;
+            if (WorldMapGetTileHalfIndex(&pPlayer->x) != 3) {
+                WorldMapDeactivateSpriteGroup(1);
+                WorldMapInitSpriteGroupSprites(3, (void *)0x1F8000A8, (void *)0x1F8000A0);
+                pPlayer->state = 4;
+                pPlayer->stateTimer = 0x28;
+            }
+            break;
+        }
+        break;
     case 4:
+        if (func_80090E14(pPlayer) == 1) {
+            if (((s16 *)g_WorldMapAreaRect)[7] == 2) {
+                goto enterState32;
+            }
+            goto idleMode;
+        }
+        nStep = pPlayer->angle - g_GameState.scriptAngle;
+        nTmp = nStep;
+        if (nStep < 0) {
+            nTmp = -nTmp;
+        }
+        if (nTmp >= 0x801) {
+            if (nStep < 0) {
+                nStep += 0x1000;
+            } else {
+                nStep -= 0x1000;
+            }
+        }
+        nTmp = nStep;
+        if (nStep < 0) {
+            nTmp = -nTmp;
+        }
+        if (nTmp >= 0x81) {
+            if (nStep < 0) {
+                nTmp = g_GameState.scriptAngle - 0x80;
+            } else {
+                nTmp = g_GameState.scriptAngle + 0x80;
+            }
+            pPlayer->angle = nTmp;
+        }
+        pPlayer->angle &= 0xFFF;
+        nStep = func_80095414(&pPlayer->x, (s32 *)&pPlayer->dirX, pScratch + 0x24, pPlayer->moveSpeed << 0xC, g_WorldMapMode);
+        if (nStep == 0) {
+            pPlayer->dirX = pScratch[0x24];
+            pPlayer->dirY = pScratch[0x25];
+            pPlayer->dirZ = pScratch[0x26];
+            pPlayer->unk44 = pScratch[0x27];
+            nStep = func_80095414(&pPlayer->x, (s32 *)&pPlayer->dirX, pScratch + 0x24, pPlayer->moveSpeed << 0xC, g_WorldMapMode);
+            if (nStep == 0) {
+                pPlayer->dirZ = 0;
+                pPlayer->dirX = 0;
+            }
+        }
+        if (nStep == 1) {
+            pScratch[0x25] = func_80093A5C(pScratch[0x24], pScratch[0x26]) + 0x18000;
+            WorldMapFindZoneAtPosition(pScratch + 0x24, 0x40, 0x20, &g_WorldMapZoneProximity, &g_WorldMapZoneId);
+            if (g_WorldMapZoneProximity != 2) {
+                pPlayer->x = pScratch[0x24];
+                pPlayer->y = pScratch[0x25];
+                pPlayer->z = pScratch[0x26];
+                pPlayer->w = pScratch[0x27];
+                if ((pPlayer->dirX | pPlayer->dirZ) != 0) {
+                    WorldMapUpdateRandomTimers();
+                }
+            } else {
+                pPlayer->y = func_80093A5C(pPlayer->x, pPlayer->z) + 0x18000;
+                pPlayer->unk60 = 0;
+            }
+        } else {
+            pPlayer->y = func_80093A5C(pPlayer->x, pPlayer->z) + 0x18000;
+        }
+        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+        g_WorldMapPlayerAngle = pPlayer->angle;
+        WorldMapSelectAreaAtPosition(&pPlayer->x, 2);
+        WorldMapSelectAreaRectByState();
+        *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+        *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+        *(u16 *)0x1F8000A2 = pPlayer->angle;
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if ((nTmp << 0x10) > 0) {
+            *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+            *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+            *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+            WorldMapInitSpriteGroupSprites(3, (void *)0x1F8000A8, (void *)0x1F8000A0);
+        } else {
+            pPlayer->stateTimer = 0;
+            WorldMapDeactivateSpriteGroup(3);
+        }
+        if ((pPlayer->dirX | pPlayer->dirZ) != 0) {
+            *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+            *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+            *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+            WorldMapInitSpriteGroupSprites(4, (void *)0x1F8000A8, (void *)0x1F8000A0);
+        } else {
+            WorldMapDeactivateSpriteGroup(4);
+            pPlayer->stateTimer = 0;
+        }
+        pPlayer->dirZ = 0;
+        pPlayer->dirY = 0;
+        pPlayer->dirX = 0;
+        if (WorldMapGetTileHalfIndex(pScratch + 0x24) == 3) {
+            WorldMapDeactivateSpriteGroup(3);
+            WorldMapDeactivateSpriteGroup(4);
+            pPlayer->state = 3;
+        }
+        D_8009BD04 = 0;
+        break;
     case 8:
+        nTmp = pPlayer->y - 0x8000;
+        pPlayer->y = nTmp;
+        if (nTmp <= 0xFFE20000) {
+            pPlayer->y = -0x1E0000;
+            if (pPlayer->command == 0xB) {
+                pPlayer->unk64 = 0;
+                pPlayer->state = 2;
+                pPlayer->command = 0;
+                WorldMapPlayBgmFromBuffer(g_WorldMapMode7SoundBankBuffer, g_WorldMapMode7SoundBankFileIndex);
+            }
+        }
+    storeScroll:
+        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+        g_WorldMapPlayerAngle = pPlayer->angle;
+        break;
     case 0xC:
+        pHeight = pPlayer->pCameraPathHeights;
+        nTmp = pPlayer->y + 0x800;
+        pPlayer->y = nTmp;
+        if (nTmp >= (s32)pHeight) {
+            pPlayer->y = (s32)pHeight;
+            pPlayer->state = 3;
+            g_WorldMapGroups->entry[3].hidden = 1;
+            g_WorldMapGroups->entry[2].hidden = 1;
+            g_WorldMapGroups->entry[1].hidden = 1;
+        }
+        goto storeScroll;
     case 0x10:
+        pHeight = pPlayer->pCameraPathHeights;
+        nTmp = pPlayer->y + 0x8000;
+        pPlayer->y = nTmp;
+        if (nTmp >= (s32)pHeight) {
+            pPlayer->y = (s32)pHeight;
+            pPlayer->state = 1;
+            WorldMapPlayBgmFromBuffer(g_WorldMapSoundBankBuffer, g_WorldMapSoundBankFileIndex);
+            WorldMapStartSlot(8, 0xA);
+            WorldMapStartSlot(9, 0xA);
+            WorldMapStartSlot(0xA, 0xA);
+            WorldMapStartSlot(4, 3);
+            WorldMapStartSlot(1, 3);
+            g_GameState.gearRide[0] = 1;
+            if (g_GameState.partyMembers[1] != 0xFF) {
+                WorldMapStartSlot(5, 3);
+                WorldMapStartSlot(2, 3);
+                g_GameState.gearRide[1] = 1;
+            }
+            if (g_GameState.partyMembers[2] != 0xFF) {
+                WorldMapStartSlot(6, 3);
+                WorldMapStartSlot(3, 3);
+                g_GameState.gearRide[2] = 1;
+            }
+            pPlayer->dirZ = 0;
+            pPlayer->dirY = 0;
+            pPlayer->dirX = 0;
+            pPlayer->unk74 = 0;
+            g_GameState.worldMapState &= 0x3FFF;
+            WorldMapDeactivateSpriteGroup(0);
+            WorldMapDeactivateSpriteGroup(1);
+        initRandomTimers:
+            WorldMapInitRandomTimers();
+        } else if ((nTmp > 0xFFE00000) && (pPlayer->pathIndex != 0)) {
+            pPlayer->pathIndex = 0;
+            *(s16 *)0x1F8000A0 = pPlayer->x >> 0xC;
+            *(u16 *)0x1F8000A2 = (s32)pPlayer->pCameraPathHeights >> 0xC;
+            *(u16 *)0x1F8000A4 = pPlayer->z >> 0xC;
+            nTmp = 0x3D;
+            if (WorldMapGetTileHalfIndex(&pPlayer->x) == 3) {
+                nTmp = 0x3E;
+            }
+            WorldMapInitSpriteGroupSprites(nTmp, (void *)0x1F8000A0, NULL);
+        }
+    storeScrollY:
+        g_WorldMapScrollTargetY = pPlayer->y;
+        break;
     case 0x14:
+        pHeight = pPlayer->pCameraPathHeights;
+        nTmp = pPlayer->y - 0x800;
+        pPlayer->y = nTmp;
+        if ((s32)pHeight >= nTmp) {
+            pPlayer->y = (s32)pHeight;
+            pPlayer->state = 1;
+            WorldMapStartSlot(8, 0xA);
+            WorldMapStartSlot(1, 3);
+            WorldMapStartSlot(4, 3);
+            g_GameState.gearRide[0] = 1;
+            if (g_GameState.partyMembers[1] != 0xFF) {
+                WorldMapStartSlot(2, 3);
+                WorldMapStartSlot(5, 3);
+                g_GameState.gearRide[1] = 1;
+            }
+            if (g_GameState.partyMembers[2] != 0xFF) {
+                WorldMapStartSlot(3, 3);
+                WorldMapStartSlot(6, 3);
+                g_GameState.gearRide[2] = 1;
+            }
+            pPlayer->dirZ = 0;
+            pPlayer->dirY = 0;
+            pPlayer->dirX = 0;
+            pPlayer->unk74 = 0;
+            g_GameState.worldMapState &= 0x3FFF;
+            g_WorldMapGroups->entry[3].hidden = 0;
+            g_WorldMapGroups->entry[2].hidden = 0;
+            g_WorldMapGroups->entry[1].hidden = 0;
+            goto initRandomTimers;
+        }
+        goto storeScrollY;
     case 0x20:
+        pHeight = pPlayer->pCameraPathHeights;
+        nTmp = pPlayer->y + 0x2000;
+        pPlayer->y = nTmp;
+        if (nTmp >= (s32)pHeight) {
+            pPlayer->y = (s32)pHeight;
+            WorldMapDeactivateSpriteGroup(2);
+            g_WorldMapGroups->entry[3].hidden = 1;
+            g_WorldMapGroups->entry[2].hidden = 1;
+            g_WorldMapGroups->entry[1].hidden = 1;
+            g_WorldMapGroups->entry[0].hidden = 1;
+            pPlayer->state++;
+            pScratch[0] = 0x04B40000;
+            pScratch[2] = 0x01C00000;
+            pScratch[1] = (s32)pPlayer->pCameraPathHeights;
+            WorldMapBuildDirectionFromPositions(&pPlayer->x, pScratch, &pPlayer->dirX, &pPlayer->angle);
+            pPlayer->unk50 = pScratch[0] >> 0xC;
+            pPlayer->unk54 = pScratch[2] >> 0xC;
+        }
+        goto storeScroll;
     case 0x21:
+        if (WorldMapMoveActorTowardTarget(pPlayer) == 3) {
+            pPlayer->state++;
+        }
+        pPlayer->y = (s32)pPlayer->pCameraPathHeights;
+        goto storeScroll;
     case 0x22:
+        pPlayer->state = 0x40;
+        goto idleMode;
     case 0x24:
+        pPlayer->y = 0x30000;
+        pPlayer->state++;
+        pScratch[0] = 0x04937000;
+        pScratch[2] = 0x021E2000;
+        pScratch[1] = 0x30000;
+        WorldMapBuildDirectionFromPositions(&pPlayer->x, pScratch, &pPlayer->dirX, &pPlayer->angle);
+        pPlayer->unk50 = pScratch[0] >> 0xC;
+        pPlayer->unk54 = pScratch[2] >> 0xC;
+        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+        g_WorldMapGroups->entry[3].hidden = 1;
+        g_WorldMapGroups->entry[2].hidden = 1;
+        g_WorldMapGroups->entry[1].hidden = 1;
+        g_WorldMapGroups->entry[0].hidden = 1;
+        *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+        g_WorldMapPlayerAngle = pPlayer->angle;
+        *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+        *(u16 *)0x1F8000A2 = pPlayer->angle;
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
+        break;
     case 0x25:
+        if (WorldMapMoveActorTowardTarget(pPlayer) == 3) {
+            pPlayer->y = 0x30000;
+            pPlayer->state++;
+            pPlayer->pCameraPathHeights = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0x18000;
+            *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+            *(s16 *)0x1F8000AA = (s32)pPlayer->pCameraPathHeights >> 0xC;
+            *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+            WorldMapInitSpriteGroupSprites(2, (void *)0x1F8000A8, (void *)0x1F8000A0);
+            g_WorldMapGroups->entry[0].hidden = 0;
+        }
+        pPlayer->y = 0x30000;
+        goto storeScroll;
     case 0x26:
+        pHeight = pPlayer->pCameraPathHeights;
+        nTmp = pPlayer->y - 0x2000;
+        pPlayer->y = nTmp;
+        if ((s32)pHeight >= nTmp) {
+            pPlayer->y = (s32)pHeight;
+            WorldMapDeactivateSpriteGroup(2);
+            pPlayer->state = 3;
+        }
+        goto storeScroll;
     case 0x28:
+        pPlayer->state++;
+        pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0x18000;
+        pScratch[0] = D_8009B1AC[pPlayer->pathIndex * 4] << 0xC;
+        pScratch[2] = D_8009B1B0[pPlayer->pathIndex * 4] << 0xC;
+        WorldMapBuildDirectionFromPositions(&pPlayer->x, pScratch, &pPlayer->dirX, &pPlayer->angle);
+        pPlayer->unk50 = pScratch[0] >> 0xC;
+        pPlayer->targetAngle = pPlayer->angle;
+        nStep = pPlayer->pathIndex + 1;
+        pPlayer->pathIndex = nStep;
+        pPlayer->unk54 = pScratch[2] >> 0xC;
+        if (nStep == 2) {
+            WorldMapStartSlot(9, 0xF);
+        }
+        nStep = pPlayer->pathIndex;
+        if (nStep == 4) {
+            pPlayer->stateTimer = 0x40;
+            pPlayer->state++;
+            WorldMapStartSlot(0, 0xD);
+            g_WorldMapTpageAbr = 2;
+            g_WorldMapDrawMode = nStep;
+        }
+        // fallthrough
     case 0x29:
+        if (WorldMapMoveActorTowardTarget(pPlayer) == 3) {
+            pPlayer->state--;
+        }
+    turnToTarget:
+        nStep = pPlayer->targetAngle - g_GameState.scriptAngle;
+        nTmp = nStep;
+        if (nStep < 0) {
+            nTmp = -nTmp;
+        }
+        if (nTmp >= 0x801) {
+            if (nStep < 0) {
+                nStep += 0x1000;
+            } else {
+                nStep -= 0x1000;
+            }
+        }
+        nTmp = nStep;
+        if (nStep < 0) {
+            nTmp = -nTmp;
+        }
+        if (nTmp >= 0x11) {
+            if (nStep < 0) {
+                nTmp = g_GameState.scriptAngle - 0x10;
+            } else {
+                nTmp = g_GameState.scriptAngle + 0x10;
+            }
+            pPlayer->angle = nTmp;
+        }
+        pPlayer->angle &= 0xFFF;
+        *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+        *(u16 *)0x1F8000A2 = pPlayer->angle;
+        *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+        *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+        *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+        *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+        WorldMapInitSpriteGroupSprites(1, (void *)0x1F8000A8, (void *)0x1F8000A0);
+        *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+        *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+        *(u16 *)0x1F8000A2 = pPlayer->angle;
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
+        goto storeScroll;
     case 0x2A:
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if (nTmp & 0x8000) {
+            g_NextMapId = 0x50;
+            g_NextMapFlags = 1;
+            g_WorldMapLoopActive = 0;
+            g_WorldMapAreaMode = 0;
+            g_WorldMapExitFlag = 1;
+            g_NextMapRotationY = g_WorldMapViewRotationY[0];
+        }
+        goto turnToTarget;
     case 0x30:
+        pPlayer->state++;
+        pPlayer->y = func_80093A5C(pPlayer->x, pPlayer->z) + 0x18000;
+        pScratch[0] = D_8009B1D4[pPlayer->pathIndex * 4] << 0xC;
+        pScratch[2] = D_8009B1D8[pPlayer->pathIndex * 4] << 0xC;
+        WorldMapBuildDirectionFromPositions(&pPlayer->x, pScratch, &pPlayer->dirX, &pPlayer->angle);
+        pPlayer->unk50 = pScratch[0] >> 0xC;
+        pPlayer->targetAngle = pPlayer->angle;
+        nStep = pPlayer->pathIndex + 1;
+        pPlayer->pathIndex = nStep;
+        pPlayer->unk54 = pScratch[2] >> 0xC;
+        if (nStep == 2) {
+            WorldMapStartSlot(9, 0x10);
+        }
+        if (pPlayer->pathIndex == 7) {
+            pPlayer->stateTimer = 0x40;
+            pPlayer->state++;
+            WorldMapStartSlot(0, 0xD);
+            g_WorldMapTpageAbr = 2;
+            g_WorldMapDrawMode = 4;
+        }
+        // fallthrough
     case 0x31:
+    case31Tail:
+        if (WorldMapMoveActorTowardTarget(pPlayer) == 3) {
+            pPlayer->state--;
+        }
+        nStep = pPlayer->targetAngle - g_GameState.scriptAngle;
+        nTmp = nStep;
+        if (nStep < 0) {
+            nTmp = -nTmp;
+        }
+        if (nTmp >= 0x801) {
+            if (nStep < 0) {
+                nStep += 0x1000;
+            } else {
+                nStep -= 0x1000;
+            }
+        }
+        nTmp = nStep;
+        if (nStep < 0) {
+            nTmp = -nTmp;
+        }
+        if (nTmp >= 0x11) {
+            if (nStep < 0) {
+                nTmp = g_GameState.scriptAngle - 0x10;
+            } else {
+                nTmp = g_GameState.scriptAngle + 0x10;
+            }
+            pPlayer->angle = nTmp;
+        }
+        pPlayer->angle &= 0xFFF;
+        pPlayer->y = func_80093A5C(pPlayer->x, pPlayer->z) + 0x18000;
+        *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+        *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+        *(u16 *)0x1F8000A2 = pPlayer->angle;
+        *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+        *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+        *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+        WorldMapInitSpriteGroupSprites(4, (void *)0x1F8000A8, (void *)0x1F8000A0);
+        *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+        *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+        *(u16 *)0x1F8000A2 = pPlayer->angle;
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
+        goto storeScroll;
     case 0x32:
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if (nTmp & 0x8000) {
+            g_NextMapId = 0x120;
+            g_NextMapFlags = 6;
+            g_WorldMapLoopActive = 0;
+            g_WorldMapAreaMode = 0;
+            g_WorldMapExitFlag = 1;
+            g_NextMapRotationY = g_WorldMapViewRotationY[0];
+        }
+        goto case31Tail;
     case 0x34:
+        pPlayer->state++;
+        WorldMapStartSlot(0xA, 0x11);
+        pPlayer->y = -0x100000;
+        pPlayer->angle = 0x200;
+        pPlayer->dirX = rcos(0x200);
+        pPlayer->dirZ = -rsin(pPlayer->angle);
+        pPlayer->stateTimer = 0x5A;
+        pPlayer->targetAngle = 0;
+        *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+        *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+        *(u16 *)0x1F8000A2 = pPlayer->angle;
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
+        RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
+        // fallthrough
     case 0x35:
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if (nTmp & 0x8000) {
+            pPlayer->stateTimer = 0xB4;
+            pPlayer->state++;
+            WorldMapStartSlot(9, 0x11);
+        }
+    moveAndRise:
+        pPlayer->x += pPlayer->dirX * 0xC;
+        pPlayer->z += pPlayer->dirZ * 0xC;
+        WorldMapWrapPosition(&pPlayer->x);
+        nTmp = pPlayer->y + 0x1000;
+        pPlayer->y = nTmp;
+        if (nTmp >= -1 && nTmp <= 0x1FFFD) {
+            *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+            *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+            *(u16 *)0x1F8000A2 = pPlayer->angle;
+            *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+            *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
+            *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+            WorldMapInitSpriteGroupSprites(0x3F, (void *)0x1F8000A8, (void *)0x1F8000A0);
+        } else {
+            WorldMapDeactivateSpriteGroup(0x3F);
+        }
+        goto storeScroll;
     case 0x36:
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if (nTmp & 0x8000) {
+            pPlayer->stateTimer = 0x78;
+            pPlayer->state++;
+            SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 0x10) | 0x38);
+        }
+        goto moveAndRise;
     case 0x37:
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if (nTmp & 0x8000) {
+            pPlayer->stateTimer = 0x5A;
+            pPlayer->state++;
+            WorldMapDeactivateSpriteGroup(0x2B);
+        }
+        pPlayer->x += pPlayer->dirX * 8;
+        pPlayer->z += pPlayer->dirZ * 8;
+        WorldMapWrapPosition(&pPlayer->x);
+        pPlayer->y += 0x1000;
+        if (pPlayer->state == 0x38) {
+            WorldMapDeactivateSpriteGroup(0x2B);
+        } else {
+            *(s16 *)0x1F8000A0 = -(pPlayer->unk70 >> 0xC);
+            *(u16 *)0x1F8000A4 = g_WorldMapViewRotationZ[0];
+            *(u16 *)0x1F8000A2 = pPlayer->angle;
+            *(s16 *)0x1F8000AA = 0;
+            *(s16 *)0x1F8000A8 = pPlayer->x >> 0xC;
+            *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
+            WorldMapInitSpriteGroupSprites(0x2B, (void *)0x1F8000A8, (void *)0x1F8000A0);
+        }
+        goto storeScroll;
     case 0x38:
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if (nTmp & 0x8000) {
+            pPlayer->stateTimer = 0x80;
+            pPlayer->state++;
+            WorldMapStartSlot(0, 0xD);
+            g_WorldMapTpageAbr = 2;
+            g_WorldMapDrawMode = 4;
+        }
+    move:
+        pPlayer->x += pPlayer->dirX * 8;
+        pPlayer->z += pPlayer->dirZ * 8;
+        goto storeScroll;
     case 0x39:
+        nTmp = pPlayer->stateTimer - 1;
+        pPlayer->stateTimer = nTmp;
+        if (nTmp & 0x8000) {
+            g_NextMapId = 0x1F0;
+            g_WorldMapLoopActive = 0;
+            g_WorldMapAreaMode = 0;
+            g_NextMapFlags = 0;
+            g_WorldMapExitFlag = 1;
+            g_NextMapRotationY = g_WorldMapViewRotationY[0];
+        }
+        goto move;
+    case 0x40:
         break;
     }
-    g_WorldMapGroups->entry[1].pos[0] = pPlayer->x >> 12;
-    g_WorldMapGroups->entry[0].pos[0] = pPlayer->x >> 12;
-    g_WorldMapGroups->entry[1].pos[1] = pPlayer->y >> 12;
-    g_WorldMapGroups->entry[0].pos[1] = pPlayer->y >> 12;
-    g_WorldMapGroups->entry[1].pos[2] = pPlayer->z >> 12;
-    g_WorldMapGroups->entry[0].pos[2] = pPlayer->z >> 12;
+    nTmp = pPlayer->x >> 0xC;
+    g_WorldMapGroups->entry[1].pos[0] = nTmp;
+    g_WorldMapGroups->entry[0].pos[0] = nTmp;
+    nTmp = pPlayer->y >> 0xC;
+    g_WorldMapGroups->entry[1].pos[1] = nTmp;
+    g_WorldMapGroups->entry[0].pos[1] = nTmp;
+    nTmp = pPlayer->z >> 0xC;
+    g_WorldMapGroups->entry[1].pos[2] = nTmp;
+    g_WorldMapGroups->entry[0].pos[2] = nTmp;
     WorldMapSetGameStatePosition(&pPlayer->x);
     g_GameState.scriptAngle = pPlayer->angle;
     nState = pPlayer->state;
@@ -529,6 +1250,7 @@ s32 func_8008E76C(s32 idx) {
     return nRet;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
+
 
 s32 WorldMapModeInitActorRotation(s32 idx) {
     WorldMapPlayer *pPlayer;
