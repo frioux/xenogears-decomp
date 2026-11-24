@@ -13,8 +13,8 @@
 typedef struct {
     /* 0x00 */ void* unk0;
     /* 0x04 */ void* pItemData; // → pDressingRoom->pItemsData
-    /* 0x08 */ void* pWeaponData; // → pDressingRoom->pWeaponsData
-    /* 0x0C */ void* pAccessoryData; // → pDressingRoom->pAccessoriesData
+    /* 0x08 */ void* pWeaponsData; // → pDressingRoom->pWeaponsData
+    /* 0x0C */ void* pAccessoriesData; // → pDressingRoom->pAccessoriesData
     /* 0x10 */ void* pCharacterSlots[MAX_GAME_CHARACTERS]; // [character id] → pDressingRoom->pCharacterSlots[]
     /* 0x3C */ void* pItemRowsVramBuffer; // → pItemRows->pVramBuffer
     /* 0x40 */ void* pColumnPanelStrings; // → the 0x430 panel's pStringData
@@ -27,7 +27,7 @@ typedef struct {
     /* 0x54 */ void* pGearColumnStrings;
     /* 0x58 */ void* pGearColumnStrings2;
     /* 0x5C */ void* pGearBlocks[MAX_GAME_GEARS]; // [gear id] → pDressingRoom->pGearBlocks[]
-    /* 0xAC */ void* pGearWeaponData; // → pDressingRoom->pGearWeapons
+    /* 0xAC */ void* pGearWeapons; // → pDressingRoom->pGearWeapons
     /* 0xB0 */ void* pStatTable; // → the 0x438 row block's pStatTable
     /* 0xB4 */ void* unkB4[8];
     /* 0xD4 */ void* pSpriteStringLists[4]; // → pCharacterSpriteRecords->pStringLists[]
@@ -46,6 +46,14 @@ typedef struct {
     /* 0x2578 */ void* pStatTable; // Stat values per character and row, see func_801E1418
 } MenuRowBlockStatTable; // Size: 0x257C
 
+// The menus archive directory's resource table entry: the file of pointers the
+// switch below decompresses one panel at a time.
+#define MENU_RESOURCE_TABLE_ENTRY 2
+// Resource set ids split in two: an id below this loads a menu panel's files into
+// its buffers, the id MENU_RESOURCE_SET_FREE_BASE above it hands the same fields
+// back to HeapFree.
+#define MENU_RESOURCE_SET_FREE_BASE 0x10
+
 extern int ArchiveDecodeAlignedSize(int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void ArchiveCdDataSync(int arg0);
@@ -62,10 +70,10 @@ void func_801C72BC(u8 index) {
     MenuResourceTable* pTable;
     s32 i;
 
-    if (index < 0x10) {
+    if (index < MENU_RESOURCE_SET_FREE_BASE) {
         ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0);
-        pTable = HeapAlloc(ArchiveDecodeAlignedSize(2), 1);
-        ArchiveReadFileToBuffer(2, pTable, 0, 0x80);
+        pTable = HeapAlloc(ArchiveDecodeAlignedSize(MENU_RESOURCE_TABLE_ENTRY), 1);
+        ArchiveReadFileToBuffer(MENU_RESOURCE_TABLE_ENTRY, pTable, 0, 0x80);
         ArchiveCdDataSync(0);
         ResolveArchiveEntryPointers((u32*)pTable);
     }
@@ -91,9 +99,9 @@ void func_801C72BC(u8 index) {
                 LZSSHeapDecompress(pTable->pColumnPanelStrings, 0);
             break;
         case 3:
-            g_Menu->pDressingRoom->pWeaponsData = LZSSHeapDecompress(pTable->pWeaponData, 0);
-            g_Menu->pDressingRoom->pAccessoriesData = LZSSHeapDecompress(pTable->pAccessoryData, 0);
-            g_Menu->pDressingRoom->pGearWeapons = LZSSHeapDecompress(pTable->pGearWeaponData, 0);
+            g_Menu->pDressingRoom->pWeaponsData = LZSSHeapDecompress(pTable->pWeaponsData, 0);
+            g_Menu->pDressingRoom->pAccessoriesData = LZSSHeapDecompress(pTable->pAccessoriesData, 0);
+            g_Menu->pDressingRoom->pGearWeapons = LZSSHeapDecompress(pTable->pGearWeapons, 0);
             g_Menu->pDressingRoom->pGearAccessories = LZSSHeapDecompress(pTable->pGearAccessories, 0);
             break;
         case 4:
@@ -186,7 +194,7 @@ void func_801C72BC(u8 index) {
         default:
             break;
     }
-    if (index < 0x10) {
+    if (index < MENU_RESOURCE_SET_FREE_BASE) {
         HeapFree(pTable);
     }
 }
