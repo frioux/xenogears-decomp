@@ -230,7 +230,7 @@ void WorldMapFreeSpritePrimBuffers(void) {
 // g_WorldMapGridTileRowOrigin (displacements 0 and -4, i.e. the column is the s16 below the
 // row), `pEntry = pTable - (-id)` for retail's in-place `addu v0,v0,s3`, and `row = 0;` before
 // the two pointer statements so the preheader emits `move s1,zero` first.
-void func_8008615C(void) {
+void WorldMapDrawGridTiles(void) {
     WorldMapTableEntry* pEntry;
     WorldMapTableEntry* pTable;
     s16* pRowOrigin;

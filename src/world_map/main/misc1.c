@@ -345,7 +345,7 @@ extern void func_80097244(s32* p);
 extern void WorldMapEmitSpriteTrailEntries(void);
 extern void func_80089C78(void);
 extern void func_80085CDC(void);
-extern void func_8008615C(void);
+extern void WorldMapDrawGridTiles(void);
 extern void func_800747DC(void);
 extern void func_800848F4(void);
 extern void WorldMapUpdateSlotGridOrigin(s32* p);
@@ -371,7 +371,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     WorldMapEmitSpriteTrailEntries();
     func_80089C78();
     func_80085CDC();
-    func_8008615C();
+    WorldMapDrawGridTiles();
     func_800747DC();
     func_800848F4();
     WorldMapUpdateSlotGridOrigin(&g_WorldMapScrollX);

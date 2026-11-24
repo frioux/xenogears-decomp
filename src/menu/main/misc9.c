@@ -25,7 +25,7 @@
 #define MENU_PANEL_COLUMN_STRING 0x1C
 #define MENU_PANEL_HEADING_STRING 0x1E
 // Row sprite records at the start of the 0x430 panel; 0xE..0x1B is the shaded copy
-// of the same rows that func_801DD5E8 walks alongside them.
+// of the same rows that MenuSetUnk430PanelShading walks alongside them.
 #define MENU_PANEL_ROW_STRING_COUNT 0xC
 #define MENU_PANEL_SHADED_ROW_STRING 0xE
 // The one character with two weapon slots: its equipment panel carries a second
@@ -1037,7 +1037,7 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 
-void func_801DD5E8(u_char arg0) {
+void MenuSetUnk430PanelShading(u_char arg0) {
     MenuString* pString;
     POLY_FT4* pPoly;
     void* pPanel;
@@ -1148,7 +1148,7 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
         if (refresh) {
             MenuBuildUnk430PanelColumns(slot, group);
             func_801DCE60(slot, arg1, group);
-            func_801DD5E8(1);
+            MenuSetUnk430PanelShading(1);
             MenuBuildPartyCharacterPrims(group);
             refresh = 0;
         }
@@ -1238,7 +1238,7 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
     pCursors->shouldRender[2] = 0;
     pCursors->shouldRender[1] = 0;
     pCursors->shouldRender[0] = 0;
-    func_801DD5E8(0);
+    MenuSetUnk430PanelShading(0);
     g_Menu->pManager->shouldRenderCharacters = 0;
     MenuRenderFrame();
     if (D_801E9785) {

@@ -70,7 +70,7 @@ extern void WorldMapBuildRotationMatrix(s32* p);
 extern void func_80097244(s32* p);
 extern void WorldMapEmitSpriteTrailEntries(void);
 extern void func_80089C78(void);
-extern void func_8008615C(void);
+extern void WorldMapDrawGridTiles(void);
 extern void func_800848F4(void);
 extern void WorldMapUpdateSlotGridOrigin(s32* p);
 extern void func_800981C8(s32* p);
@@ -178,7 +178,7 @@ s32 WorldMapUpdateFrame(void) {
     }
     WorldMapEmitSpriteTrailEntries();
     func_80089C78();
-    func_8008615C();
+    WorldMapDrawGridTiles();
     func_800848F4();
     WorldMapUpdateSlotGridOrigin(&g_WorldMapScrollX);
     if (g_WorldMapSlotUpdateFlags != 0) {
@@ -669,7 +669,7 @@ s32 WorldMapUpdateFrameWithoutEffects(void) {
     } else {
         func_80097244(&g_WorldMapPathFrame);
     }
-    func_8008615C();
+    WorldMapDrawGridTiles();
     func_800848F4();
     WorldMapUpdateSlotGridOrigin(&g_WorldMapScrollX);
     if (g_WorldMapSlotUpdateFlags != 0) {
