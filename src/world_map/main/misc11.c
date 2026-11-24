@@ -1042,27 +1042,30 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     return result;
 }
 
-// 89.86% (436 bytes / 109 insns, retail 444 / 111). Round 399, rebuilt from the
-// assembly with the natural mode chain - if (mode > 0) { if (mode < 4) { gearRide[0] == 1
-// -> the trail setup } else if (mode < 8) { state = 2; unk24 = 1; } } - which scores
-// 86.43 before the volatile pins below; the round-186 inverted chain scores 78.83.
-// The four volatile pins are the file's own idiom (see WorldMapModeInitActorSlot) and
-// each was measured: the three dirX/dirY/dirZ zero stores (sched2 sank them below the
-// angle and mode loads) and 'state = 1' (sank below the position loads, 86.43 -> 89.86).
-// With those, the head, the angle/drawAngle lh pair, the position block, the
-// scroll-target 16-byte copy, the 0x20-iteration trail loop and the tail are ALL
-// byte-identical to retail.
-// TWO residuals left, both are compiler block choices, not spellings:
-// (1) the mode<8 arm: retail keeps 'slti v0,v1,8 / beqz v0,tail / li v0,2' at the
-//     dispatch and reaches the out-of-line 'sh state / li 1 / sh unk24' block with
-//     'j + nop' (that nop plus the j are 8 of the 8 missing bytes); cc1 folds test and
-//     body into one block emitted after the trail loop, so it needs no jump. Measured
-//     identical (89.86) with 'else if (mode < 8)' and with a nested 'else { if }'.
-// (2) the loop preheader: retail emits 'move a3,zero' (i = 0) before 'sw y / sh angle'
-//     and forms &g_WorldMapTrail after them; cc1 swaps exactly those two (same count).
-// NEXT for whoever picks this up: try the same body under gcc-2.7.2-cdk (-O2 -G8 scores
-// 70.17 on the sibling func_8008C364, so the unit preset is right) or permute; the
-// remaining 8 bytes are one jump plus the dispatch test, which no spelling has moved.
+// 89.86% (436 bytes / 109 insns, retail 444 / 111, so exactly the 8 bytes of a
+// 'j + nop'). Round 451, re-measured from the round-399 body with the mode chain
+// 'if (mode > 0) { if (mode < 4) { gearRide[0] == 1 -> the trail setup } else if
+// (mode < 8) { state = 2; unk24 = 1; } }'. The four volatile pins are this file's own
+// idiom and are load-bearing (round 399 measured 86.43 -> 89.86 for them); with them
+// the head, the angle/drawAngle lh pair, the position block, the scroll-target
+// 16-byte copy, the 0x20-iteration trail loop and the tail are byte-identical.
+// RESIDUAL (1), the 8 missing bytes: retail's dispatch carries BOTH tests -
+// 'slti v0,v1,4 / bnez v0,<gear>' then 'slti v0,v1,8 / beqz v0,<tail> / li v0,2' -
+// and reaches the out-of-line 'sh state / li 1 / sh unk24' block with 'j + nop'.
+// cc1 2.7.2 emits that arm's test next to its body, after the gear block
+// ('beq v0,$0,<arm>'), which saves the jump and the second dispatch test. Measured
+// this round: the natural else-if and the nested 'else { if }' both 89.86; writing
+// the arm first as 'if (mode >= 4 && mode < 8)' 85.08 / 436 (block inlined before the
+// tests). So the block POSITION is what is missing, not the body.
+// NEXT: the sibling func_8008C364 in this file closed for exactly this reason by
+// scooting a shared block to a label ('goto setResultThree' / 'goto setZero'), which
+// pins a block at the label's source position instead of letting cc1 move it - try
+// that here: keep 'else if (mode < 8) goto <label>' and put the label (holding
+// 'state = 2; unk24 = 1;') after the gear block, with the gear arm ending in a goto
+// to the tail. That jump already exists in retail as the trail loop's exit.
+// RESIDUAL (2): the loop preheader - retail emits 'move a3,zero' (i = 0) before
+// 'sw y / sh angle' and forms &g_WorldMapTrail after them, cc1 swaps both pairs
+// (same instruction count, so worth 0 bytes).
 /*
 s32 func_8008C530(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1109,6 +1112,7 @@ s32 func_8008C530(int index) {
     return result;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
+
 
 int WorldMapModeInitPartyActor0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
