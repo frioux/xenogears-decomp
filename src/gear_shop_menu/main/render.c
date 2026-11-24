@@ -1499,7 +1499,8 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
     HeapFree(pWorkspace);
 }
 // https://decomp.me/scratch/5HauM
-// PARKED: 96.75%, 2508 bytes. Retail is 2532 = 633 insns; 110 of 112 instruction
+// PARKED: 96.75%, 2508 bytes (the ROUND 456 body at the end of this note is better:
+// 97.64%, 2528 bytes - read that first). Retail is 2532 = 633 insns; 110 of 112 instruction
 // segments are exact. The two that differ are ONE root cause: retail emits the per-case
 // `equipFlags` load / `price = value` copy / spill suffix TWICE (once shared by the ARMOR
 // and FRAME cases -- armor ends `j` into the frame block, delay slot `nop` -- and once
@@ -1562,6 +1563,31 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 // (GearFrame*)&g_Menu->pDressingRoom->pGearEngines[id];` - legal, both structs have
 // equipFlags at 0 and price at 0xA) is also 2508, and presets are unaffected: -O3 96.75,
 // -G0 96.75 on top of the 2.7.2 (96.4) and cdk (83.59) screens above.
+// ROUND 456: 97.64%, 2528 bytes / 632 insns against retail's 2532 / 633. The ENGINE
+// arm CAN be unmerged from the armor/frame tail - one edit, and it is the double
+// negation from the round-405/427 lever: `pEngine = (GearEngine*)((u8*)g_Menu->
+// pDressingRoom->pGearEngines - -(g_Menu->shopItemIDs[scrollOffset + i] *
+// sizeof(GearEngine)));` makes the element address BASE-FIRST with the base in the
+// addu destination (`addu v1,v1,v0`), where the subscript and `pGearEngines + id`
+// both coalesce into the index (`addu v0,v0,v1`) and cross_jump then keeps ONE copy
+// of all three tails (that is the 2508 body below this one). Two residuals remain,
+// both encoding-level: (a) retail's engine sites are INDEX-first with the base as
+// destination (`addu v1,v0,v1`) and its armor/frame sites want a THIRD register
+// (`addu a0,v0,v1`, at the sellPrice element and at the shared tail) - a destination
+// that coalesces with neither dying operand, which is the round-171 allocator tie
+// this note calls closed, now with the engine arm proved movable; (b) retail's
+// `places[]` base is rebased onto the spilled pRect (`lw t1,0x78(sp); addiu a1,t1,
+// 0x10`) where ours is `addiu a1,sp,48` - one instruction, and exactly the last 4
+// bytes. Measured dead ends this round: pRect for setRECT/LoadImage/DecodeGlyph (the
+// shape retail's `lw a0,0x78(sp)` shows) 88.86% / 2516 / 629, whole-function
+// allocation churn; `goto equipGearPart` after the frame arm plus engine double
+// subscripting 95.77% / 2496 / 624 (merges MORE, not fewer); one
+// GearShopItemRowWork struct (rect + digits + decoded + places) 88.24% / 2524 / 631;
+// the divisor written through pRect (`((s32*)((u8*)pRect + 0x28))[j]`) 96.22% /
+// 2544 / 636, the +0x28 is materialised per use; `pGearEngines + id` 96.75% / 2508,
+// identical to the subscript. Twin: ShopMenuRenderBuyItemRows
+// (src/shop_menu/main/misc.c, loose 0.812) - same digit loop and rect-through-pointer
+// idiom, but three item cases and no shared gear tail, so it does not carry the answer.
 // The stub is convertible (`convertible.py` OK; the unit owns jtbl_801C5068), so a future
 // fix has to be proved with check_bin.sh gear_shop_menu, not diff_func.sh alone.
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
@@ -1624,7 +1650,7 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
                 case ITEM_TYPE_GEAR_ENGINE:
                     sellPrice = g_Menu->pDressingRoom->pGearEngines[g_GameState.gears[g_gearShopCurrentGearId].engineId].price >> 1;
                     g_Menu->pShop->strItemNames[i].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pShop->pGearEngineNames, g_Menu->shopItemIDs[scrollOffset + i]), pWorkspace, 0x24, 0);
-                    pEngine = &g_Menu->pDressingRoom->pGearEngines[g_Menu->shopItemIDs[scrollOffset + i]];
+                    pEngine = (GearEngine*)((u8*)g_Menu->pDressingRoom->pGearEngines - -(g_Menu->shopItemIDs[scrollOffset + i] * sizeof(GearEngine)));
                     value = pEngine->price;
                     price = value;
                     equipFlags = pEngine->equipFlags;
@@ -1692,6 +1718,7 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     return sellPrice;
 }
 */
+
 
 void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemId, u8 itemType, u8 characterId) {
     s16 oldValue[2];
