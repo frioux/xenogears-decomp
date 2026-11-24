@@ -1380,6 +1380,13 @@ void BattleRenderActorValueDigits(s32 slot) {
    (`pSlotFlags += 8`) and g_BattleSlotActorIds needs its own for-clause IV
    (`actorOff += 0x1C`), else gcc derives 28i as 4*(8i-i) and shifts the frame.
 */
+// ROUND 442: re-measured 96.74% / 1316 bytes (retail 1312) - still one instruction
+//    long, so it can never link. Measured this round and dead: the 9th argument
+//    declared `s32 angle` instead of `s16` (identical). The other residuals the note
+//    lists (prologue save order, case 1's argument-load order, case 3's arm layout)
+//    are orderings, not size. This is the same wall as lever
+//    j-a-constant-assigned-inside-the: the constant is inside the guard block and
+//    still rematerialises, because both uses are separated by the first call.
 /*
 void func_80073538(void) {
     s32 actorOff;
