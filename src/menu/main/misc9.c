@@ -231,6 +231,12 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
 //        the (u8*) cast form (no change, same 34 lines).
 //    (c) this body's result=0 and refresh=0 stores inside the if land one delay slot later than
 //        retail's (beqz slot vs first call slot) - reorg, rides on (a).
+// ROUND 468: re-measured 98.45% / 1068 bytes / 267 insns (retail's exact size) from the body below; four scored runs this round, no new best.
+// NEW MEASURED, and it explains residuals (a) and (c) as ONE decision: the two '= 1' inits are a near TIE in global alloc, and the tie breaks on their allocno numbers, i.e. on their statement order.
+//   - 'result = 0; refresh = 1; active = 1;' (the body below): refresh's 'li' is hoisted into the prologue right after the s3 save and active's 'li' lands in the 'andi 0x80 / beqz' delay slot; registers active=$s5 and const-1=$s6 (both retail's) but refresh=$s2 and pItemId=$s1 (mirrored). 98.45 / 1068 / 267, 34 differing lines.
+//   - 'result = 0; active = 1; refresh = 1;' (the flags load before or after refresh measures identically): retail's EXACT hoist/slot pattern - active's 'li' hoisted, refresh's in the delay slot - but then active=$s6 and const-1=$s5, and refresh is still $s2. 98.19 / 1068 / 267, 64 differing lines.
+//   So the (active, const-1) pair IS a tie that a reorder flips, while the (refresh, pItemId) pair does not move in either order: retail has refresh=$s1 (6 QI refs live ~210 insns) ahead of pItemId=$s2 (2 SI refs live ~20 insns), a quotient gap the lever a-global-allocno-priority-is calls unreachable by spelling, and every spelling moves the two together. The one handle left is a variable split that changes the allocno SET, and its only candidate - hoisting pItemId's definition out of case 4 into the loop body to lengthen its live range - moves the 'addu $s2,$s8,$v0' that retail keeps in the arm's preheader (which is what round 456 bought). Do not re-park this on declaration order: six of them measure byte-identical.
+// Residual (b), the itemIDs clear, is unchanged and stays closed: retail la(g_GameState+0x1F90) / addiu v0,t0,150 / addu v0,s8,v0 needs the 150 added to the BASE register, and every folding of it lands on the index side (see rounds 429/442/446/456 above).
 /*
 u8 func_801DB920(s32 arg0, s32 arg1) {
     MenuShopItem* pItem;
@@ -360,6 +366,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
+
 
 
 
