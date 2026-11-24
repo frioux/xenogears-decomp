@@ -682,6 +682,25 @@ void SystemStringSetCurrentData(SystemString* pString, void* pData) {
 // order, still open).
 // pCur is void* in SystemString (this file's own struct) so the script is read
 // through a u8 pointer; retyping pCur would not be safe for the matched neighbours.
+//
+// ROUND 458, re-measured from the un-parked body: 512 insns / 2048 bytes, 87.71%
+// (retail 508 / 2032). Two findings, both measured, one of them a dead end proven:
+// A. The `andi 0xFF` + `andi 0xFFFF` pair at the opcode test (0x34034) CANNOT be
+//    reached by any cast. cc1_probe.sh over this unit's cc1 (2.7.2): `u8 b = p[0];
+//    u16 opcode = b;`, `opcode = p[0] & 0xFF`, `opcode = (u16)(u8)p[0]`, and the
+//    same three inside a `for(;;)` loop over `u8*`/`u8**` all fold the range of the
+//    lbu and emit NEITHER mask. Retail's pair therefore means the byte's range was
+//    UNKNOWN to retail's cc1 - it did not come straight from that lbu - so no
+//    spelling of `opcode` alone will produce it. Stop looking there.
+// B. A `u8* pScript = pString->pCur;` local at the loop head, used for every read
+//    and every `pCur + N` store (lever a-second-pointer-alias-carries-the-reads-
+//    retail-names), collapses the body to 483 insns / 1932 bytes = 78.24%: retail
+//    demonstrably RE-READS pString->pCur after each struct store (`lw v0,0x1C(s0);
+//    addiu v0,v0,3; sw v0,0x1C(s0)` in every arm), so the local is wrong for the
+//    increment sites. Only the loop head (pCur held in a1 across the dispatch,
+//    `lbu v1,0x1(a1)` for the 0xF sub-opcode) and case 0x2's offset-1 read want one,
+//    so a pointer local is not the shape; the residual register tie in (c) above
+//    stays open.
 /*
 void func_80033DF0(SystemString* pString) {
     s32 count;
