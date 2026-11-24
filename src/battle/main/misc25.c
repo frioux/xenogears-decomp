@@ -782,31 +782,21 @@ u16 BattleIsPointWithinBounds(s16 *pPos) {
 extern s16 D_800C3542;
 extern u16 D_800C3544;
 extern s16 D_800C3546;
+// Unsigned-x / signed-y view of the current slot position vector, so the two
+// halfword reads keep the widths the original loads use.
+typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ u16 vz;
+} BattleSlotVectorWords; // Size: 0x8
+extern BattleSlotVectorWords g_BattleSlotVectorWords[] __asm__("g_BattleSlotVectors");
+extern u16 D_800D3358;
+extern u16 D_800D335C;
+extern s16 D_800D335E;
+extern u16 D_800D3360;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
-/* 96.54% (612 bytes vs retail's 588). Round 305 closed most of the old 7.4-point
-   gap and changed four things; the residual is ONE class only - cse still folds the
-   base into two of the four g_BattleSlotVectors loads (retail reads 0(s5)/2(s5)
-   four times) which costs the 2 extra instructions - worth 2 insns, do not re-derive
-   the rest:
-   1. `extern u16 g_BattleSlotVectors[]` (array extern, not a scalar) plus
-      `pVectors = g_BattleSlotVectors;` materialises the base once in a register
-      (92.60 -> 95.79). Tried and dead: scalar extern, plain/s16* pointer local,
-      inlining g_BattleSlotVectors[0..1], mem_addr assignment.
-   2. the three scaled deltas go into separate s32 locals (sx/sy/sz) and are stored
-      in vec[0],vec[1],vec[2] source order - cc1 then emits retail's store order
-      32/36/34 with vec[1]'s sh in the BattleIsPointWithinBounds jal delay slot
-      (95.79 -> 96.13). Writing the vec[] assignments in 0,2,1 order gives 34 before
-      36 and is worse.
-   3. BattleIsPointWithinBounds now returns u16 (was s32; its own 96-byte body is
-      still 100.00% and this file is its only caller). Retail's call site has
-      `sll v0,v0,0x10` before the beqz, which only a 16-bit return produces
-      (96.13 -> 96.27 at the time of the change).
-   Still retail's and already right: s16 dx/dz, dy as the signed /4, the result>=0
-   tail and the D_800C3542/3544/3546 warm-start bookkeeping.
-   Two permuter runs (round <305 and 305) only "win" by dropping the pointer's
-   initialisation, i.e. by reading an uninitialised variable - not portable.
-   This body is 79.21% under gcc-2.7.2-cdk -G0, so it is NOT a cdk stub.
+// 96.47% (612 bytes vs retail's 604, 153 insns vs 151). The whole residual is ONE construct, twice: cc1 2.6.0 folds a base+2 halfword ref off a live symbol-base pointer into a bare %lo(sym+2) access (2 insns) where retail has lh 2(s5) / lhu 2(s5) off the base, so the two A.vy sites are the entire 2-instruction gap. Proved with cc1_probe.sh (an extern u16 g_A[] with an asm label, p[0] + p[1] with a call between): 2.6.0 and 2.7.2 emit lhu 0($17) / lhu g_A+2 while cdk emits lhu 2($18) / lhu %lo(g_A)($17), so displacement-off-base is cdk-only. cdk scores 97.36 on this body but the unit cannot switch: under cdk the unit's matched functions drop (BattleComputeScaledSine 88.95, BattleModelQueueTransformCommand 89.43, BattleGetActorActionEntry 96.08, BattleSetBlockSlotCommand 92.73, BattleIsPointWithinBounds 79.38, BattleFindNearestActorForPoint 84.91), so this TU's compiler is not the unit's. What the body has and must not be lost: (1) the asm-label array alias extern BattleSlotVectorWords g_BattleSlotVectorWords[] __asm__("g_BattleSlotVectors") plus pVectors = g_BattleSlotVectorWords is what puts the address in a callee-saved register at all - scalar &g_BattleSlotVectors, a plain pointer local, a u16 pointer cast and a mem_addr assignment all fold it away and score 93.07-93.27; (2) the B-vector and A.vz reads are spelled D_800D335C/335E/3360/3358, which is what the expected object relocates to (g_BattleSlotVectorsB.vx and friends score lower). Measured and dead: struct field vs u16 pointer plus cast (identical code), a volatile pointer (probe: still folds), inlining the vector, and chopping dx/dy/dz types. Left over with no size effect: BattleIsPointWithinBounds returns u16 so its test emits andi 0xffff where retail has sll 16 - an s16 return would give that, not tried because the size gap is elsewhere.
+/*
 s16 func_800B0B14(s32 index) {
     u8 work[0x10];
     s16 vec[3];
@@ -817,19 +807,19 @@ s16 func_800B0B14(s32 index) {
     s32 sx;
     s32 sy;
     s32 sz;
-    u16 *pVectors;
+    BattleSlotVectorWords *pVectors;
     s32 len;
 
-    pVectors = g_BattleSlotVectors;
-    dx = g_BattleSlotVectorsB - pVectors[0];
-    dy = ((s16)D_800D335E - (s16)pVectors[1]) / 4;
+    pVectors = g_BattleSlotVectorWords;
+    dx = D_800D335C - pVectors->vx;
+    dy = (D_800D335E - pVectors->vy) / 4;
     dz = D_800D3360 - D_800D3358;
     len = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
     sx = (dx << 9) / len;
     sy = (dy << 9) / len;
     sz = (dz << 9) / len;
-    vec[0] = pVectors[0] + sx;
-    vec[1] = pVectors[1] + sy;
+    vec[0] = pVectors->vx + sx;
+    vec[1] = pVectors->vy + sy;
     vec[2] = D_800D3358 + sz;
     result = -1;
     if (BattleIsPointWithinBounds(vec) != 0 && index != D_800C3546) {
@@ -849,8 +839,10 @@ s16 func_800B0B14(s32 index) {
         vec[1] = D_800C3544;
     }
     return vec[1];
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
+
+
 
 extern s32 BattleGetActorHeight(s32 index);
 extern s32 BattleGetActorRadius(s32 index);
