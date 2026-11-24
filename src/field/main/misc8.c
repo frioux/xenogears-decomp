@@ -2055,38 +2055,29 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
 
 extern s32 D_800ADC0C;
 
-/* 96.01% (276 bytes; retail is 276 too - the old note said 280, that was wrong).
-   Every check matches. `new_var = pActor;` before the flags&2 test is the lever
-   (it forces the copy into $a1 and takes the body 91.16 -> 96.01); moving the
-   same assignment to the top of the function is 87.25/284, and dropping it is
-   91.16. Residual, three spots: retail puts nop in the `beqz flags&2` delay slot
-   where reorg steals our `move a1,a0`; retail keeps its `addiu v0,zero,-1` as a
-   separate block (.L80084A34, reached by the `beq v1,v0` whose delay slot is a
-   nop) where we thread `li v0,-1` into that delay slot; and retail threads
-   `move v0,zero` into the `beqz flags&4` delay slot where we keep a zero block.
-   The else-return-0 form and a nested if for the flags&2 test measure the same.
-   Permuter run from 91.16 found the new_var copy (base 461 -> 407). */
-/* 96.01% (276 bytes / 69 insns = retail's exactly; the old "280" in this note was wrong).
-   Every check matches. `new_var = pActor;` before the flags&2 test is the lever (the
-   permuter found it): it forces the copy into $a1 and takes the body 91.16 -> 96.01.
-   Moving the same assignment to the top of the function is 87.25/284; dropping it is
-   91.16. Residual, three spots: retail has a `nop` in the `beqz flags&2` delay slot
-   where reorg steals our `move a1,a0`; retail keeps its `addiu v0,zero,-1`
-   (.L80084A34, reached by the `beq v1,v0` whose delay slot is a nop) as a separate
-   block while every compile here steals the -1 into the branch delay and retargets to
-   the epilogue; and retail threads `move v0,zero` into the `beqz flags&4` delay slot
-   where this body keeps a zero block.
-   Round 448 measurements on the tail (all with the new_var copy removed, so the beqz
-   flags&2 slot is retail's nop): `if (flags & 4) { return -(...); } return 0;` 91.16 /
-   276 / 69; the inverted `if (!(flags & 4)) return 0; return -(...);` 90.07 / 268 / 67
-   - that one HAS retail's `move v0,zero` delay slot and no zero block, and differs
-   only by the missing out-of-line -1 block and the `j` it creates; nested-if vs `&&`
-   for the flags&2 test compiles identically (90.07). Spelling the tail over a
-   `s32 result = 0;` before the flags&4 test is the only form that puts the second
-   flags load in retail's $v1, but it allocates result to $a1 (86.74 / 280 / 70).
-   So the two levers left are the -1 block's out-of-line placement (reorg's eager
-   steal of a branch target that is the branch's only reference) and the zero
-   register - combine the inverted-return-0 tail with whatever keeps -1 in a block. */
+/* 96.01% (276 bytes / 69 insns = retail's exactly). Re-measured LIVE in round 461,
+   so the number is not a stale object. Every check matches; the residual is three
+   spots in the tail:
+   1. retail has a `nop` in the `beqz flags&2` delay slot where reorg steals this
+      body's `move a1,a0` (the `new_var = pActor;` copy - that copy is the lever:
+      91.16 -> 96.01; the same assignment at the top of the function 87.25/284,
+      dropped 91.16).
+   2. retail keeps `addiu v0,zero,-1` as a separate block (.L80084A34, reached by
+      the `beq v1,v0` whose delay slot is a `nop`) where every body here threads
+      `li v0,-1` into that delay slot.
+   3. retail threads `move v0,zero` into the `beqz flags&4` delay slot where this
+      body keeps a zero block.
+   Round 461 re-measured the inverted tail with the new_var copy in place
+   (`if (!(pActor->flags & 4)) return 0; return -(pActor->walkmeshId == 2);`):
+   90.07 / 268 / 67 - it HAS retail's `move v0,zero` slot and no zero block, and is
+   one instruction short (no out-of-line -1 block), so it cannot link.
+   Round 448: else-return-0 91.16/276/69, a nested `if` for the flags&2 test
+   compiles byte-identically to `&&`, and `s32 result = 0;` before the flags&4 test
+   puts the second flags load in retail's $v1 but allocates result to $a1
+   (86.74/280/70). Lever c-there-source-ordering-lever applies: there is no source
+   ordering lever for delay-slot fill, so the -1 block (a reorg fill decision) is
+   not reachable from source. Permuter run from 91.16 found the new_var copy
+   (base 461 -> 407). */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 /*
 int func_8008492C(ActorData* pActor) {
@@ -2130,7 +2121,9 @@ int func_8008492C(ActorData* pActor) {
     } else {
         return 0;
     }
-}*/
+}
+*/
+
 
 extern s32 D_800ADB98;
 extern u8 D_800B21CF;
