@@ -822,60 +822,12 @@ void FieldAddParticlePrims(void) {
 }
 
 
-// PARKED 99.56% at retail's exact 500 bytes / 125 insns: the body is
-// instruction-identical except for ONE caller-saved pair. Retail keeps j*16
-// (truncated in place by the andi) in $v0 and the mask + 0x10 in $v1; ours mirrors
-// them (mask in $v1, mask + 0x10 in $v0), 18 differing lines and nothing else.
-//
-// Round 452: an empty `do { } while (0);` between `nU = nX & 0x3F;` and
-// `nU1 = nU + 0x10;` FLIPS the pair into retail's arrangement - 98.40%, 500 bytes,
-// 125 insns, two differing lines - so the mirror is not an unreachable local-alloc
-// quotient wall: it is what happens when the mask and the + 0x10 value share one
-// basic block. Split off after the andi, the mask alone takes $v0 in the first
-// block and the + 0x10 value falls to $v1 in the second, exactly as retail has it.
-// The price is the other differing line: `move a2,s2`, the GetTPage division's
-// dividend copy that sched2 hoists to the block head (right after SetPolyGT4's
-// delay slot) in both retail and the unbarriered body, is then hoisted only into
-// the second block, landing after the addiu. Measured placements: barrier before
-// the andi keeps the pair mirrored and puts the copy after the andi (97.96%),
-// barrier at the loop-body head alone changes nothing, and a second barrier at that
-// head on top of the good one changes nothing either - the copy follows the LAST
-// barrier. So the two differing lines trade against each other and no legitimate
-// source statement puts a block boundary between the mask's definition and the
-// + 0x10's; both are pinned by retail's own 125-instruction stream.
-//
-// local-alloc's own numbers for this body (-dl/-dg): the mask is 12 refs across 7
-// insns, the mask + 0x10 is 9 across 6, and j*16 is coalesced into the mask; the
-// sort key is deaths/refs, so 1/9 beats 1/12 and the + 0x10 value is processed
-// first. The mask would have to fall to 8 refs (2 insns) or the + 0x10 value rise
-// to 11 (4 insns), and retail's stream pins both counts at 3 insns each.
-//
-// Presets: 2.7.2-cdk 99.52, 2.6.0 99.56, -O1 75.83, -O3 does not compile, and a
-// try_flags --sweep over 2.7.2 / 2.6.0 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x
-// -mcpu 3000/r8000 finds nothing better, so this is not a compiler-version pair.
-// Seven permuter runs on this body, base=55 every time (1314, 1971, 2018, 222,
-// 1550, 1423, and round 452's third run below), i.e. no local edit reaches it.
-//
-// Spelling dead ends measured (99.56 and byte-identical unless noted): the mask
-// before or after the x stores, mask and + 0x10 adjacent at retail's own position,
-// a named temp at its first use, a 0x10 + nU operand swap, nU1 before nU,
-// declaration order, nX reused for the mask or for the + 0x10 value, both inline
-// forms, a second 0x10 local, an x1/x3 stepping counter in the for increment clause
-// (97.60, moves the s4/s5 roles), nX written back as nX &= 0x3F (95.54 / 488 -
-// folds three insns), a block-scope declaration with initialiser, u_char mask
-// (94.91), one or both of nU/nU1 u_short (94.9), nIndex reused (94.2), grouping the
-// u0/u2 stores above u1/u3 (96.53 - hands the mask $v0 but re-orders the sb
-// stream), an u_int block-scope copy of nU1 (copy-propagated away, identical).
-//
-// Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
-// nIndex = i*20 + j, polygons is 560 POLY_GT4 (two 280 copies, the second at
-// +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/0x7850 set
-// to 0x80, y0/y1 = i*16 (s5), y2/y3 = i*16 + 0x10 (s3 counter), x1/x3 = j*16 + 0x10
-// (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10, tpage =
-// GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
-// *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
-// best 99.56% (500 bytes = retail's) - see the note above the stub
-/*
+// Fills the 14 x 20 particle grid with 16x16 POLY_GT4 tiles in two copies (the
+// second at +0x38E0, the next frame's) and sets the four u_short attribute arrays.
+// The tpage store below has to go through nU1: that gives the u coordinate and the
+// tpage result one pseudo, which leaves the loop's block for global-alloc, so the
+// block-local pass keeps the u mask in $v0 as retail has it (stored straight into
+// pPoly both are block-local qties and mirror, 99.56%).
 void func_800A6E70(void) {
     FieldParticlePrimitiveSet* pPrims;
     POLY_GT4* pPoly;
@@ -931,13 +883,13 @@ void func_800A6E70(void) {
             pPoly->v2 = i * 0x10 + 0x10;
             pPoly->u3 = nU1;
             pPoly->v3 = i * 0x10 + 0x10;
-            pPoly->tpage = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
+            nU1 = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
+            pPoly->tpage = nU1;
             SetSemiTrans(pPoly, 0x1);
             *pPolyNext = *pPoly;
         }
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+}
 
 
 
