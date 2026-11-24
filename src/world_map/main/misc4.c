@@ -235,12 +235,13 @@ extern void WorldMapStartSlot(s32, s32);
 extern void SoundFadeElementVolumeById(s32, s32, s32);
 extern void SoundSetElementVolumeById(s32, s32);
 extern s32 func_80094154(s32 *, s32 *);
-// The four camera jitter halfwords the path-frame update accumulates: retail sums them
-// as unsigned halfwords (lhu), so they are u16 here.
-extern u16 D_8009BD42;
+// The camera jitter halfwords the path-frame update accumulates. func_80077E68 reads all
+// six of them with lh, so they are s16; the parked func_80078EA4 body wants u16 for its
+// own match and will have to reconcile this when it is converted.
+extern s16 D_8009BD42;
 extern s16 D_8009BD44;
-extern u16 D_8009BD48;
-extern u16 D_8009BD4A;
+extern s16 D_8009BD48;
+extern s16 D_8009BD4A;
 extern s16 D_8009BD4C;
 extern s32 D_8009BD50;
 extern s32 D_8009BD54;
@@ -310,24 +311,29 @@ s32 WorldMapResetActorSlotWithSound(s32 index) {
     p->stateTimer = 0x18;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
-/* 94.17%, 1060 bytes = retail's exact size. Structure is fully decoded and every
-   relocation matches; what is left is scheduler/allocator order in three places:
-   (1) the entry puts the table base in $v1 and stores p->unk54 before the sll, retail
-   keeps the base in $a0 and stores it between the sll and the addu; (2) case 0 keeps
-   the p->state increment after the g_WorldMapCameraTarget load where retail has it
-   before, and the 0x1F8000A2 store lands after the shift, retail puts it between the
-   two global loads; (3) the tail pairs the two sll/sw of each position quad, ours
-   interleaves load/sll/sw per field. Three permuter runs from this body: PERMUTER_BETTER
-   1950->1395->1319->920, and only two edits survived objdiff (the 'mode' copy before the
-   switch and routing the third position quad's store through a temp, which measured
-   worse here: 93.74). The copy block's 6+3 store order is retail's as written (x and z
-   of each control point first, then the three y halfwords); the natural x,y,z order is
-   91.53%. Note g_WorldMapPathFrame/D_8009BD42/D_8009BD44 are the SVECTOR at 0x8009BD40
-   and D_8009BD48/4A/4C the one at 0x8009BD48; D_8009BD50/54/58 are the three words of
-   the vector at 0x8009BD50. WorldMapInterpolateQuadraticVector takes the s32* out as
-   its last (stack) argument, as misc5's caller does.
-*/
+// 92.97%, 1060 bytes = retail's exact size. Structure is decoded; the residual is three
+//    scheduler/allocator ties: (1) entry - retail keeps the path-table base in $a0 and
+//    stores p->unk54 AFTER the addu, this body keeps the base in $v1 and stores before the
+//    sll; (2) case 0 - retail emits the p->state increment (addiu/sh) before the
+//    g_WorldMapCameraTarget load and its sra, this body hoists the load above the store;
+//    (3) tail - retail pairs each quad's two sll before its two sw, this body interleaves
+//    sll,sw,sll,sw. Two things the body NEEDS: the switch must be 'switch ((s16)p->state)'
+//    (a u16 switch expression makes gcc emit lhu + andi 0xffff + sltiu where retail has
+//    lh + sltiu, i.e. one extra instruction; that u16 form measures 93.97 with the extra
+//    andi, the signed form 92.97 without it), and D_8009BD42/48/4A must be s16 because
+//    retail loads all six tail values with lh. The parked func_80078EA4 body below wants
+//    those three globals as u16 for its own match - reconcile when that one is taken.
+//    Measured from this body and NOT the answer: hoisting the six tail values into s32
+//    locals to force retail's sll,sll,sw,sw pairing changes nothing (gcc folds them back
+//    to the same RTL); a do/while around the six stores is 90.71%. Older permuter history
+//    on a previous body: three runs, PERMUTER_BETTER 1950->920, only the 'mode' copy edit
+//    survived and it has now been replaced by the signed switch. The copy block's 6+3
+//    store order is retail's as written (x and z of each control point first, then the
+//    three y halfwords); the natural x,y,z order is 91.53%.
+// g_WorldMapPathFrame/D_8009BD42/D_8009BD44 are the SVECTOR at 0x8009BD40 and
+// D_8009BD48/4A/4C the one at 0x8009BD48; D_8009BD50/54/58 are the three words of the
+// vector at 0x8009BD50. WorldMapInterpolateQuadraticVector takes the s32* out as its
+// last (stack) argument, as misc5's caller does.
 /*
 s32 func_80077E68(s32 index) {
     WorldMapActor *p;
@@ -335,7 +341,6 @@ s32 func_80077E68(s32 index) {
     SVECTOR *pVec;
     s32 *pScratch;
     s32 grid;
-    u16 mode;
     s32 dist;
 
     p = g_WorldMapSlots + index;
@@ -369,8 +374,7 @@ s32 func_80077E68(s32 index) {
     }
     func_80097244(&g_WorldMapPathFrame);
     WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, &g_WorldMapCameraRot);
-    mode = p->state;
-    switch (p->state) {
+    switch ((s16)p->state) {
     case 0:
         p->unk58 = p->unk58 + 5;
         p->stateTimer = p->stateTimer - 1;
@@ -378,7 +382,7 @@ s32 func_80077E68(s32 index) {
             break;
         }
         p->unk58 = 0x80;
-        p->state = mode + 1;
+        p->state = p->state + 1;
         pVec = (SVECTOR *)((u8 *)pScratch + 0xA0);
         pVec->vy = -0x20D;
         pVec->vx = (g_WorldMapCameraTarget >> 12) + 0x32;
@@ -386,13 +390,11 @@ s32 func_80077E68(s32 index) {
         WorldMapInitSpriteGroupSprites(8, pVec, 0);
         break;
     case 1:
-        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         if (p->unk50 >= 0x6000) {
             p->state = p->state + 1;
         }
         break;
     case 2:
-        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         p->unk58 = p->unk58 - 2;
         if (p->unk58 >= 0x19) {
             break;
@@ -401,13 +403,11 @@ s32 func_80077E68(s32 index) {
         p->state = p->state + 1;
         break;
     case 3:
-        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         if (p->unk50 > 0x7FFF) {
             p->state = p->state + 1;
         }
         break;
     case 4:
-        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         p->unk58 = p->unk58 - 1;
         if (p->unk58 >= 5) {
             break;
@@ -448,8 +448,10 @@ s32 func_80077E68(s32 index) {
         SoundSetElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0xA4, 0x87 - dist);
     }
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
+
+
 s32 WorldMapInitActorAtScrollPosition(s32 index) {
     WorldMapActor *p;
     s32 *pSlot;
@@ -1210,19 +1212,19 @@ s32 WorldMapSetActorTimer60(s32 index) {
     return 3;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A430);
-/* 83.41% (retail 296 bytes, ours 300): structure right - same branch, same call,
-   p in $a2 and the 0x20000 constant in $a1 as retail. The absolute scratch
-   stores must be the literal `*(s16 *)((u8 *)PSX_SCRATCH + 0xA0)` form (a
-   `s16 *pDst` local instead builds the address early into $a1, 77.29%), and
-   wrapping the `p->z += 0x20000` in a do/while is what keeps p in $a2 -
-   without it p moves to $a3 (74.40%). Remaining delta: retail splits the
-   call's address constant (`lui $a1,0x1F80` early, `ori` after the 0xA0
-   store), reloads p->z after the 0xA2 store, and has `li $a0,9` in the
-   blez delay slot where ours has the 0x20000 lui. permute.sh from this body:
-   PERMUTER_BETTER base=730 best=616, but that candidate (a pointer-to-member
-   local feeding the 0xA4 store) measured 83.06% in objdiff, i.e. the
-   permuter's metric and objdiff disagree here - porting it was a regression.
+// 83.41%, 312 bytes = retail's exact size (78 vs 78 insns, instruction multiset identical).
+//    The residual is a pure reorg/allocator tie in the stateTimer>0 arm: retail hoists
+//    'li a0,9' into the blez delay slot and keeps 0x20000 in $a1 (reusing $a1 later for
+//    the 0x1F8000A0 argument), while this body emits 'li a0,9' after 'lw v0,40(a2)' and
+//    puts the 0x20000 in $v1; retail's two loads (p->z then p->x) are adjacent where this
+//    body interleaves load/sra/sh strictly. Measured from this body: without the do/while
+//    around the z add = 74.40%, 308 bytes, 77 insns, p in $a3; with the do/while around
+//    the three scratch stores = 67.68%, 316 bytes, 79 insns; gcc-2.7.2-cdk -O2 -G8 =
+//    81.42%; a s16 *pDst local = 77.29%. So the do/while around the z add is load-bearing
+//    (it pins p to $a2 and buys the 78th instruction), and the absolute
+//    '*(s16 *)((u8 *)PSX_SCRATCH + 0xA0)' spelling is required because retail reaches
+//    0x1F8000A0 through $at. Parked after three shapes.
+/*
 s32 func_8007A430(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
@@ -1253,8 +1255,10 @@ s32 func_8007A430(s32 index) {
         result = 3;
     }
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A430);
+
+
 
 s32 WorldMapReturnThree(void) {
     return 3;
