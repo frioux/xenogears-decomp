@@ -1605,18 +1605,26 @@ void FieldScriptCheckTriggerZone(void) {
     g_FieldScriptMaxInstructionCount += 1;
 }
 
-// best 95.06% (192 bytes / 48 insns, retail 192 / 48 - SIZE IS EXACT; the previous note's 'three instructions longer' was the `&g_Scene.worldToScreenMatrix` spelling, 5 instructions of address setup vs retail's 4). Residual, all 8 differing lines are the first CompMatrix argument only: retail materialises &g_FieldActors into a1 (lui %hi / addiu %lo, offset 0), derives the matrix with `addiu a0,a1,-0xAC` and then loads the actor pointer through the SAME register (`lw a1,0(a1)`); every spelling measured emits either the folder form (`lui a0,%hi / addiu a0,a0,-172` for the matrix plus a separate `lui a1,%hi / lw a1,0(a1)`) or two independent %hi/%lo pairs. Measured on this body: (1) `&g_Scene.worldToScreenMatrix` -> 4 setups, 5 insns, 95.06-ish with a different row set; (2) `FieldActor* volatile* ppActorList = &g_FieldActors; CompMatrix((MATRIX*)((u8*)ppActorList - 0xAC), &(*ppActorList)[...].childMatrix, ...)` -> exact 192/48 but the folder form above, 95.06. The -0xAC is exact and identifies the layout: &g_FieldActors (0x800AFB10) - 0xAC == g_Scene.worldToScreenMatrix (0x800AFA64, ghidra_info confirms g_Scene+0xD4 is addr-taken and g_FieldActors is a 4-byte read here). Sector sibling: misc8's FieldActorWorldToScreenPosition is the same blocker at 95.25 - a parent struct anchored at g_FieldActors with the matrix at a NEGATIVE offset is not expressible in C, and a parent symbol at 0x800AFA64 gives the MIRRORED base-first shape (matrix at +0, `addiu a1,reg,0xAC` for the pointer) which is a different instruction stream. Needs a symbol-table + shared-header decision, not a C spelling; below the 99% permuter gate so not permuted.
-/*
+// MATCH (192 bytes / 48 insns, retail's exact size; check_bin OK). objdiff reads 99.79 because
+// the one %hi/%lo pair is `g_Scene + 0x180` here and `g_FieldActors` in splat's expected asm:
+// both name 0x800AFB10, so the linked bytes are identical. The base has to survive copy
+// propagation for retail's shape (`la base` / `addiu a0,base,-0xAC` / `lw a1,0(base)`): a bare
+// symbol base (`&g_FieldActors`) always folds the -0xAC into one %lo, and a struct-typed
+// pointer variable folds into two independent pairs - only a struct-member address reached
+// through a (u8*) cast stays in a register. misc8's FieldActorWorldToScreenPosition (parked
+// 95.25) is the same function and should take this same spelling; untested there.
 void FieldProjectActorOriginToScreen(int* pScreenX, int* pScreenY) {
     SVECTOR origin;
     MATRIX transformMatrix;
     long sxy;
     long p;
     long flag;
-    FieldActor* volatile* ppActorList;
+    FieldActor* volatile* pActorList;
 
-    ppActorList = &g_FieldActors;
-    CompMatrix((MATRIX*)((u8*)ppActorList - 0xAC), &(*ppActorList)[FieldScriptVMGetActorIndexOrDefault(1)].childMatrix, &transformMatrix);
+    // The actor list pointer sits 0xAC bytes after g_Scene.worldToScreenMatrix
+    // (0x800AFB10 = the g_FieldActors symbol); retail anchors both on that one base.
+    pActorList = (FieldActor* volatile*)((u8*)&g_Scene.worldToScreenMatrix + 0xAC);
+    CompMatrix((MATRIX*)((u8*)pActorList - 0xAC), &(*pActorList)[FieldScriptVMGetActorIndexOrDefault(1)].childMatrix, &transformMatrix);
     origin.vx = 0;
     origin.vy = 0;
     origin.vz = 0;
@@ -1625,8 +1633,7 @@ void FieldProjectActorOriginToScreen(int* pScreenX, int* pScreenY) {
     RotTransPers(&origin, &sxy, &p, &flag);
     *pScreenY = ((short*)&sxy)[1];
     *pScreenX = ((short*)&sxy)[0];
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", FieldProjectActorOriginToScreen);
+}
 
 
 
@@ -1670,7 +1677,7 @@ void FieldScriptCheckActorOnScreen(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-// best 96.19% (172 bytes, retail 168 / 42 insns, mine 43): instruction multiset is otherwise EXACT - the whole body, registers and branch layout match. Only residual: cc1 emits the second call's argument constant `li $4,2` NINE insns early (right after the second FieldScriptVMGetActorIndex call, before the sll chain), so reorg cannot steal it into the jal slot and the slot gets a nop = the one extra instruction. Retail has it adjacent to the jal, so its slot holds `ori a0,2`. Measured: (1) plain `arg = GetArgument(2); if (arg == pActor->walkmeshId)` -> 96.19; (2) hoisted `int walkmeshId = pActor->walkmeshId;` local -> compiles BYTE-IDENTICALLY (copy-propagated), 96.19 - so statement order of the load does not decide the li site; (3) `FieldActor* pFieldActor = &g_FieldActors[...]` pointer local -> addu operand order flips (95.71); (4) negated test with arms swapped -> byte-identical to (1), 96.19. gcc-2.7.2-cdk -O2 -G8 also 96.19 (try_flags). The matched neighbour FieldScriptCheckActorWalkmeshMaterial has THIS exact `jal; ori a0,2` slot, so the shape is reachable in this unit - the difference there is that the compared value (lbu through the triangle table) sits before the call rather than after it. Not permuted: below the 99% permuter gate.
+// best 96.19% (172 bytes, retail 168 / 42 insns, mine 43): documented blocker, levers.md [c-a-call-argument-constant-folds-early-when-the-compare-load-sinks]. Instruction multiset is otherwise EXACT - the whole body, registers and branch layout match. Only residual: cc1 emits the second call's argument constant `li $4,2` NINE insns early (right after the second FieldScriptVMGetActorIndex call, before the sll chain), so reorg cannot steal it into the jal slot and the slot gets a nop = the one extra instruction. Retail has it adjacent to the jal, so its slot holds `ori a0,2`. Measured: (1) plain `arg = GetArgument(2); if (arg == pActor->walkmeshId)` -> 96.19; (2) hoisted `int walkmeshId = pActor->walkmeshId;` local -> compiles BYTE-IDENTICALLY (copy-propagated), 96.19 - so statement order of the load does not decide the li site; (3) `FieldActor* pFieldActor = &g_FieldActors[...]` pointer local -> addu operand order flips (95.71); (4) negated test with arms swapped -> byte-identical to (1), 96.19. gcc-2.7.2-cdk -O2 -G8 also 96.19 (try_flags). The matched neighbour FieldScriptCheckActorWalkmeshMaterial has THIS exact `jal; ori a0,2` slot, so the shape is reachable in this unit - the difference there is that the compared value (lbu through the triangle table) sits before the call rather than after it. Not permuted: below the 99% permuter gate.
 /*
 void func_80095CC4(void) {
     ActorData* pActor;
@@ -1689,6 +1696,7 @@ void func_80095CC4(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095CC4);
+
 
 
 
