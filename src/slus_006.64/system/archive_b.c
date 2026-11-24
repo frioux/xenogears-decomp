@@ -70,18 +70,22 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
 
 extern volatile u32 D_80050618[3];
 
-/* RE-MEASURED 96.00%, 20 bytes = retail EXACT size and instruction stream; the
-   one residual is the address register: retail lui/addiu $t0 then sw $a0,0($t0),
-   ours the same three with $v0. The brief said 99.94 (stale). cc1 emits
-   la $2,D_80050618 for EVERY spelling of a lone store - probed with cc1_probe
-   this round: *A, A[i], struct field A.x, (u32*)u8-array cast, pointer local,
-   *((u32*)A+0), &A[0]; all la $2 - so no source shape can reach $8 (seven live
-   values would have to precede it and this body has one). Non-volatile drops to
-   the bare sw-through-$at 2-instruction form (77.80, 16 bytes); 2.6.0 also 96.00;
-   cdk -G0 77.80 (lui $2 + sw %lo); 2.8.1 77.80. Permuter 5643 iters base=20
-   best=20. So $t0 came from something outside gcc 2.7.2 source shapes (a
-   hand-written/hand-assembled store or a different libc-era compiler). Leave as
-   INCLUDE_ASM.
+/* PARKED 96.00 (re-measured round 448, live body, not stale): 20 bytes = retail's
+   exact size and instruction stream; the ONE residual is the register that holds
+   the address - retail lui/addiu $t0 then sw $a0,0($t0), ours the same three with
+   $v0. cc1 2.7.2 emits la $2,D_80050618 for every source shape, probed again this
+   round with cc1_probe on six more spellings (plain *A, value copied through a
+   local, a struct-typed alias read through a pointer local, a pointer local over
+   the volatile array, a u32 element through a local, a mem_addr cast): f1/f2/f3/f5
+   all la $2, f4/f6 fold to the bare symbol macro (the 77.80 / 16-byte form).
+   Screened against lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait:
+   this stub is the ONLY lui $t0 in asm/slus_006.64/{non,matchings}/system/archive_b
+   and it is a leaf one-block body with a single value, so the $t0 comes from the
+   retail compiler's register-allocation order, not from a spelling. That the very
+   next glabel in this unit (func_800379C8) is a hand-written 8-byte `j` thunk says
+   the same thing: this tail of the module was not produced by our cc1.
+   Already measured and dead: 2.6.0 96.00 (same la $2), cdk -G0 77.80, 2.8.1 77.80,
+   -O3/-G0 on 2.7.2 no change, permuter 5643 iterations base=20 best=20.
  */
 /*
 void func_800379B4(u32 value) {
