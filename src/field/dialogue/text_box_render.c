@@ -388,9 +388,18 @@ extern RECT D_800ADE9C[];
 //     those addresses in registers, i.e. it emits fewer address computations.
 // Measured: pointer locals per sub-struct (the first draft) 56.13%; longhand
 // body 63.05% (best, this one); longhand with pRect/pHeight walking pointers in
-// the borders loop 61.89%. The 0xAC anchor is the thread to pull: it is
-// g_FieldTextBoxes[index] plus 0xAC, the box RECT at _pad[0x4A], an address
-// this body never forms.
+// the borders loop 61.89%; round 445: walking pointers for all four border
+// arrays plus a RECT pointer (`SetSprt(pSprites1); *pSprites2 = *pSprites1;`,
+// +0x14/+0xC per iteration, built to reproduce retail's five stack-spilled
+// pointers) 61.54% / 1628 bytes / 407 insns -- the extra live values are bought
+// with 128 bytes, so live-value pressure alone is not the mechanism.
+// The 0xAC anchor is NOT a source address: m2c reads the same reloc as
+// `&g_FieldTextBoxes->_pad[0x4A]`, and every register-form site in the .s has a
+// constant of 0xAC + K with K >= 0x18 (0xAC and 0x1EC are the only two split
+// points in the whole function: 0xAC x10, 0x1EC x4, everything else is a bare
+// %lo field access through $at). So it is gcc's choice of split constant, and
+// the previous note's "the box RECT, an address this body never forms" is a
+// dead end.
 /*
 void FieldTextBoxInitializePrimitives(int index) {
     int i;
