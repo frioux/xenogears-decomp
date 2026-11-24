@@ -679,45 +679,13 @@ typedef struct {
     /* 0x50 */ POLY_FT4 glyphs[4]; // Glyph j's prim for context c at 2 * j + c
     /* 0xA0 */ u8 unkA0[0x50];
 } MenuCardSlotPrims; // Size: 0xF0
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
-/* 99.86% (624 bytes = retail's size, 156 insns, XenoMenu260, round 432). Everything in the
-   body is retail's except the FRAME: retail 0x58 with its ten saves at 0x30..0x54, this body
-   0x50 with them at 0x28..0x4C, so every prologue/epilogue line differs and nothing else does.
-   Retail has an unused 8-byte hole in its local area between the rendered[2] pair at 0x20 and
-   the save block. Measured: giving the body an 8-byte local (`u8 probePad[8]; probePad[0] = 0;`)
-   restores retail's 0x58 and every sp offset exactly, but the store survives as one extra
-   instruction (157 insns, 628 bytes, 99.33%), so the hole came from a slot whose references
-   expand created and every later pass deleted - not from a local this source can name.
-   THE 98.65 PARK THAT USED TO SIT HERE NEVER COMPILED: its MenuCardSlotPrims typedef had been
-   deleted by the commit that recorded the number, so that percentage came from an older body.
-   The typedef is live again above the stub, and its layout matters: POLY_FT4 is 0x28, so
-   cursors[2] ends at 0x50 and glyphs belongs there - the old commented-out fields implied an
-   8-byte gap, which emits addiu a2,a2,88 where retail has 80.
-   WHAT CLOSED 98.65 -> 99.86 is the loop shape, and the win is the PREHEADER: write the
-   slotOffset copy inside the count guard and j = 0 before it,
-       j = 0;
-       if (count > 0) { slotOffset = base; do { AddPrim(...); } while (++j < count); }
-   so j = 0 is the last insn of the preheader, reorg steals it into the blez delay slot and the
-   copy stays after the branch - retail's exact blez/move s0/move s2. Measured this round on this
-   same body: slotOffset before the guard with j = 0 inside 99.73 (624 B, 156 insns, the two
-   preheader moves swapped); j = 0 then slotOffset both inside the guard 99.22 (628 B, 157, blez
-   slot a nop); slotOffset then j = 0 inside the guard 99.09 (628 B, 157, nop slot); and the
-   previous park's `slotOffset = base; for (j = 0; j < count; j++)` 98.65 (624 B, 156 insns, but
-   j = 0 emitted BEFORE the blez - that shape is the only one measured so far that also gives
-   retail's 0x58 frame, so a body with both the guard order and the frame hole is still open).
-   Load-bearing and keep it: the callee-saved set only reaches retail's ten saves because a COPY
-   of the slot offset exists - `s32 slotOffset; slotOffset = base;` used by the glyph loop while
-   the cursor AddPrim after the loop still uses `base`; without it the body is 91.32 (153 insns,
-   no s8). The five prologue `li`s must be assigned inside the if (state) block or they come out
-   before the branch, in source order (y, scale, base, x1, x0), and the rendered[] zeroing is
-   stored reversed (`rendered[1] = 0;` first). Also already measured and dead: 2.7.2 87.79,
-   cdk compile-fails, -O3 91.32 on the 91.32 body, the pData/menuUnk2 spellings, and the
-   two-call if/else around func_8002675C. */
-/*
 void func_801CF8D8(void) {
     MenuUnk2* pData;
     u_char useAlt;
     u8 rendered[2];
+    // retail's frame is 0x58 with its save block at 0x30: 8 bytes of its local area at
+    // 0x22..0x2F are never touched, which only an unused local reproduces.
+    u8 unusedFrame[8];
     s32 x0;
     s32 x1;
     s32 y;
@@ -775,7 +743,7 @@ void func_801CF8D8(void) {
         }
     }
 }
-*/
+
 
 // Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
 // (allocated in misc11's MenuCreateCellPrimBlocks): the two line prims, one per render
