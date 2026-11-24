@@ -71,23 +71,15 @@ void BattleAllocWorkBuffer(void) {
     pWork->workEntry.unk4 = pWork;
     func_800B7424(pWork);
 }
-// 73.66% (1092 bytes vs retail's 1100). The frame (a 0xA0 with all ten saved
-// registers), the pWork spill, the three loops and every rand()/GTE call are
-// retail's. The residual is the address arithmetic: retail keeps blockOffset,
-// rowBytes and the two row coordinates in STACK slots and reloads them per sprite
-// (`lw t1,0x70(sp); addu v1,t0,t1; lw t0,0x64(sp); addu v1,v1,t0`), where this body
-// folds blockOffset+rowBytes into one pseudo, so every record address and then
-// every store through it differs. Next lever: build the record base in two
-// statements (round-291 &g_Array[i] note), and check the poly uv order (retail
-// writes u1,u2,v0,v2 shared and only u0/v1 per pass, the pass-0 arm repeating its
-// `lbu 0x54(sp)` load). NOTE: this body does NOT build as un-parked by park.py - the
-// BattleEffectSprite typedef and the D_800C35C4 extern live inside the same park
-// block and are deleted with it, so a fresh attempt has to declare them again first.
-// Re-measured from the un-parked body: 73.66% / 1092 bytes against retail's 275
-// instructions / 1100 (two short). Retail's inner loop keeps blockOffset (0x70),
-// rowBytes (0x64), the two row offsets (0x68/0x6C), col<<4 (0x54) and the two
-// pass z values (0x58/0x5C) in stack slots and reloads them per sprite, so the
-// record base is `pWork + lw 0x70(sp) + lw 0x64(sp) + ((col<<5)-col)<<2`.
+// Parked body history, kept because two later notes misread it: the 73.66% and
+// 71.49% bodies that sat here before round 454 were WRONG CODE - two rand() calls
+// where retail makes one (`D_800C35C4[2] = 0xFE0C0000;` then one `-=` whose store
+// gcc puts in the jal delay slot), the two pass constants swapped (retail's
+// `addiu v0,s7,-0x9B` is the pass == 0 path, `-0x95` the pass != 0 one), the two
+// row z snapshots swapped, and void where retail's tail is `lw v0,0xA0(sp)` - and
+// their percentages are not comparable with this body's. Also: park.py unpark
+// leaves the BattleEffectSprite typedef and the D_800C35C4 extern below intact,
+// they are outside the block.
 
 // One spawned effect sprite of the block func_800B7424 fills: the two textures it
 // draws (POLY_FT3s of the same tile), the 16.16 position the matrix pass measures,
@@ -114,50 +106,34 @@ typedef struct {
 
 extern s32 D_800C35C4[3]; // the offset ApplyMatrixLV rotates, its z jittered per sprite
 
-// 71.49% (1104 bytes / 276 insns) against retail's 1100 / 275. Frame (0xA0), the
-// ten-save prologue, the pWork home slot at 0xA0 and both loop latches are retail's;
-// every call in the right order. THE OLD 73.66% BODY IN THIS SLOT WAS WRONG CODE and
-// its number is not comparable: it called rand() twice where retail calls it once
-// (`D_800C35C4[2] = 0xFE0C0000; rand(); D_800C35C4[2] -= (rand() % 1000) << 16;` - the
-// source is the assignment plus ONE `-=`, whose store gcc puts in the jal delay slot),
-// it swapped the two pass constants (retail's `addiu v0,s7,-0x9B` is the pass == 0
-// path and `-0x95` the pass != 0 one), it assigned the two row z snapshots the wrong
-// way round, and it returned void where retail's tail is `lw v0,0xA0(sp)` (pWork).
-// Residual, named: lever g-scaled-record-index-is-a-giv. cc1 makes `col * 0x7C` a mult
-// giv (`addiu sN,sN,124` in the column latch) and spills the column counter to pay for
-// it, which keeps `radius` in $s8/register where retail reloads it from 0x48(sp); retail
-// recomputes `sll v0,fp,0x5 / subu v0,v0,fp / sll v0,v0,0x2` per iteration instead, so
-// every record address and every store through it differs. Tried and measured dead on
-// this body: dropping the rowCoord local and writing `row << 4` at its three uses
-// (1076 bytes / 269 insns / 78.03% - fuzzy rose, 24 bytes SHORT, so the local is
-// load-bearing); earlier rounds: per-row rowOffset/passOffset locals 1080 / 270 / 68.79,
-// typed `&((BattleEffectSprite *)base)[col]` index 1096 / 274 / 70.57. Preset screened on
-// this body, whole unit: gcc 2.6.0 gives 63.64 here and breaks 20 of the 22 matched
-// functions, -O3 gives the same 71.66 here and breaks 7 of them - the preset is right.
-// So the park is at retail's instruction list with the whole allocation displaced; it
-// needs a mechanism that stops loop.c recording the mult giv, not another spelling.
-// Retail's slot map for a future round: 0x10 vec, 0x20 angles, 0x28 matrix, 0x48
-// radius, 0x4C row, 0x50 pass, 0x54 rowCoord, 0x58/0x5C the row z snapshots, 0x60
-// colCoord, 0x64 rowBytes, 0x68/0x6C the two z accumulators, 0x70 blockOffset.
-// Round 441 re-measure of this exact body: 71.49% / 1104 bytes / 276 insns, and the
-// GIV CLAIM ABOVE IS STALE FOR THIS BODY - it recomputes `col * 0x7C` per iteration
-// exactly as retail does (`sll $2,$23,0x5 / subu / sll 2`, no `addiu ...,124` in the
-// column latch), so loop.c is not the residual here. The residual is ONE allocation
-// decision: the compile keeps `radius` in $fp and stores it nowhere, retail keeps it in
-// stack slot 0x48 and reloads it twice, so all eleven state slots shift 4 bytes down
-// (row 0x48, rowCoord 0x50, zRow0 0x54, zRow1 0x58, rowBytes 0x5C, zAcc1 0x60, zAcc0
-// 0x64, blockOffset 0x68, ...) and every register in the body is renamed - hence 267 of
-// 275 lines differ while the instruction list is retail's. Retail's pressure is 10 long
-// lived inner-loop values against 10 callee-saved registers (radius is the 11th and it
-// is the one with the lowest allocno priority: 3 refs), so the compiler only spills it
-// when the inner loop also wants a register for rowCoord+0x10 (retail's s4).
-// Measured on this body, all dead ends: three permutations of the 16 s32 declarations
-// (71.49 twice, one did not differ at all); an explicit `s32 rowNext = rowCoord + 0x10`
-// local used for v2 and v1 (72.39% / 1096 / 274 - frame drops to 0x9C, four bytes short,
-// radius still in $fp); `volatile s32 radius` (70.63% / 1088 / 272 - radius does land in
-// a slot but the body loses 12 bytes elsewhere). So the next round needs a source shape
-// that raises the inner loop's register demand by one WITHOUT adding a stack slot, not
-// another spelling of the address.
+// ROUND 454 re-measure, this body with a `s32 rowNext = rowCoord + 0x10` local
+// used for v2 and for v1 in the pass != 0 arm: 72.39% / 1096 bytes / 274 insns
+// against retail's 275 / 1100 - the best body parked here, and the one below.
+// RESIDUAL, NAMED: one register-allocation choice. Retail's innermost loop has
+// exactly ten live scalars (col, colCoord, i, pSprite, the poly byte offset,
+// pPoly, colCoord&0x3F, its +0x10, rowCoord+0x10, radius) for nine callee-saved
+// registers, and retail spills `radius` to 0x48(sp) - plus one dead
+// `sw $s7,0x60(sp)` colCoord spill, which is the single instruction that makes
+// retail 275 against this body's 274. This body keeps radius in $s8/fp instead
+// and spills `i` and the 0x10 constant to 0x6C/0x70, so every register and every
+// slot is renamed (327 differing lines) while the instruction list is retail's:
+// the residual is the allocator's preference between radius and i, not a
+// spelling of the address. Retail's slot map: 0x10 vec, 0x20 angles, 0x28
+// matrix, 0x48 radius, 0x4C row, 0x50 pass, 0x54 rowCoord, 0x58/0x5C
+// zRow0/zRow1, 0x60 colCoord, 0x64 rowBytes, 0x68/0x6C the two z accumulators,
+// 0x70 blockOffset; pWork lives in the arg slot at 0xA0. Retail writes
+// rowCoord+0x10 inline at both uses and cc1 hoists it into $s4 per col
+// iteration; the rowNext local forces that hoist, and dropping it costs the two
+// 0x10 slots and 8 bytes (71.49% / 1104 / 276).
+// Measured dead on this body: `volatile s32 radius` + rowNext 73.97% / 1080 / 270
+// but frame 0x98, 20 bytes short (radius does land in a slot, the body loses
+// elsewhere); rowNext also used for v1 in the pass == 0 arm 1076 / 269 / 78.03;
+// moving the register-only locals (`i` first) changes nothing at all; three
+// declaration permutations of the sixteen s32s 71.49 (one body identical).
+// Preset screened over the whole unit on this body: gcc 2.6.0 gives 63.64 here
+// and breaks 20 of the 22 matched functions, -O3 gives 71.66 and breaks 7 - the
+// preset is right. Next lever: a source shape that makes gcc's allocator keep
+// `i` over `radius` (both have three refs in the inner loop).
 /*
 BattleWorkBuffer *func_800B7424(BattleWorkBuffer *pWork) {
     VECTOR vec;
@@ -169,6 +145,7 @@ BattleWorkBuffer *func_800B7424(BattleWorkBuffer *pWork) {
     s32 row;
     s32 pass;
     s32 rowCoord;
+    s32 rowNext;
     s32 zRow0;
     s32 zRow1;
     s32 colCoord;
@@ -193,6 +170,7 @@ BattleWorkBuffer *func_800B7424(BattleWorkBuffer *pWork) {
         zAcc0 = -0xD60;
         while (row != 0xE) {
             rowCoord = row << 4;
+            rowNext = rowCoord + 0x10;
             colCoord = 0;
             zRow0 = zAcc0;
             zRow1 = zAcc1;
@@ -240,13 +218,13 @@ BattleWorkBuffer *func_800B7424(BattleWorkBuffer *pWork) {
                     pPoly->u1 = (colCoord & 0x3F) + 0x10;
                     pPoly->u2 = colCoord & 0x3F;
                     pPoly->v0 = rowCoord;
-                    pPoly->v2 = rowCoord + 0x10;
+                    pPoly->v2 = rowNext;
                     if (pass == 0) {
                         pPoly->u0 = colCoord & 0x3F;
                         pPoly->v1 = rowCoord;
                     } else {
                         pPoly->u0 = (colCoord & 0x3F) + 0x10;
-                        pPoly->v1 = rowCoord + 0x10;
+                        pPoly->v1 = rowNext;
                     }
                 }
                 colCoord += 0x10;
@@ -263,6 +241,7 @@ BattleWorkBuffer *func_800B7424(BattleWorkBuffer *pWork) {
     return pWork;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
 void BattleClearFlagD2FDC(void) {
