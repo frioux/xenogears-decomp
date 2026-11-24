@@ -1435,6 +1435,21 @@ typedef struct {
 // Untried and unmeasured: nothing in the loop-3 spelling; the remaining question is what in the
 // surrounding RTL (register pressure and the addresses live across loops 2 and 3) flips loop.c's
 // move_movables for an otherwise identical loop.
+// Round 467 (park lane): un-parked, re-measured 97.44% / 1432 bytes / 358 insns against retail's
+// 357, and the +1 is exactly the round-454 residual: our loop 3 is [move a1,s1 in the preheader]
+// [addiu a2,sp,0x10][addiu s1,s1,0x70][addiu s0,s0,1] with the copy repeated in the back-edge
+// delay slot, retail is [addu a1,s1,zero at the loop label][addiu a2][bump][bump] with the tail's
+// lui a3,0xFF0000 taken for that slot. New measurement, do not redo: the ONE-ARRAY spelling
+// &D_800B06BC[i] for the third loop (D_800B0FEC IS D_800B06BC[0x15], i.e. 0x800B0FEC + Quad
+// stride arithmetic, so this is the realistic form and its preheader only needs the same folded
+// 0x800B0FEC immediate) measures 97.41% / 1432 / 358 - the same latch copy plus one reloc-name
+// row, so the index ADDEND is not what flips loop.c either. That closes the last untried item and
+// matches tools/rounds/levers.md (g-movable-copy-hoist-is-context-not-spelling and
+// g-a-plus-one-in-the-loop-test-is-what-hoists-the-argument-copy): with a bare test, no addend and
+// every pointer form hoisting, the decision is loop.c's and no source spelling reaches the
+// body-copy form. NOTE for the next lane: residual 2 (the tail's $a3/$t1 mask rotation) CANNOT be
+// the cause of residual 1 - loop optimization runs before register allocation, so the two are
+// independent, and BOTH would have to be closed to reach 100.
 /*
 void func_80074108(void) {
     MATRIX matProj; // 0x10: projection matrix, t[2] holds the screen distance
@@ -1566,6 +1581,7 @@ void func_80074108(void) {
     SetGeomScreen(g_Scene.sceneScrZ);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
+
 
 
 // Returns 1 if an actor wants its position reported to the script VM
