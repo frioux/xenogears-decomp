@@ -968,8 +968,23 @@ void BattleClearAllSlotStates(void) {
 // (halve); the g_GameState tail (0x1930 u16, 0x89A, 0x834, and g_BattleOptionFlags + 9 ==
 // g_GameState + 0x2355) must be reached through g_GameState itself, one base and four
 // displacements.
-/*
-void func_80097D5C(void) {
+// ROUND 461: the -dl DUMP IS TAKEN, and it says the three mirrors are LOCAL-ALLOC hand-outs, so the
+// -dg allocno-quotient levers do not apply: every mirrored value is a BLOCK-LOCAL qty ("in block N").
+// Recipe: copy build/src/battle/main/misc18.c.i to a scratch dir and run the unit's own cc1 with this
+// unit's cc_flags plus -O2 -G8 -da -dl -dg; .lreg/.rtl land next to the input (one container run).
+// The 0x106B halving loop is basic block 32; its -dl lines are
+//   base load (g_BattleCurWorkBlock)   6 times across 6 insns
+//   j * 0x28 chain                     6 times across 3 insns
+//   j * 0x28 + i * 0x5F0               6 times across 2 insns
+//   j & 0xff                           9 times across 3 insns
+//   address + 0x106B                   9 times across 5 insns
+// local-alloc sorts by n_deaths/n_refs then live_length, so the base - the only 6-ref qty that lives
+// 6 insns - is processed ahead of the andi's 9-ref qty and takes the first free caller register:
+// that is THIS body's arrangement (base $v0, chain $v1). Retail's mirror needs the base on the other
+// side of the andi's rank, and both counts are pinned by retail's own eleven instructions there, so
+// the pair is not a spelling away. A 4th permuter run on this body agrees: PERMUTER_NONE, 928
+// iterations, base=330 best=330. Parked on these numbers instead of a 5th run.
+/*void func_80097D5C(void) {
     BattleTableEntry *pSlot;
     u8 i;
     u8 j;
