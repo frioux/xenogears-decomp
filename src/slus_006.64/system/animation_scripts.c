@@ -615,20 +615,50 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 // so the flip bit this VM mirrors the animation flags into sits inside its 20-bit
 // field_0x3C_0 (the same view system/temp1.c declares for the word).
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
+// ROUND 469 (redo), 95.81% / 788 bytes = retail's exact size, 197 insns, retail's saved set
+// (s0-s5 + ra, frame 0x30). The parked prelude below had been EATEN by a park.py round-trip (the
+// union had no `flags` member and the view no `unk0` array), so the parked text never compiled and
+// the earlier numbers in this note were measured against a stale object - all re-measured this round.
+// Two finds on the body, each measured on its own:
+//  - THE 0xE2 ARM READS ITS OPERAND THROUGH pArg TWICE: `offset = *pArg + (s16)(pArg[1] << 8);`
+//    (was `pBytecode[2] << 8`). Retail reads the second byte through the pArg register
+//    (`lbu v0,1(a1)`) and the first through pBytecode (`lbu s0,1(a3)`), and only a second use of
+//    pArg keeps it out of a3. 94.23 -> 95.33, and it also fixed the entry block: pArg is now the
+//    register the store `sw ,100(s1)` uses (retail `addiu a1,a3,1` / `sw a1,100(s1)`; with a single
+//    use gcc folded it into a0 and those 2 lines differed).
+//  - THE TAIL'S OR MUST BE AN IN-PLACE UPDATE, `newFlags = flags & MASK; newFlags |= transformFlags;`
+//    (was one `(... & MASK) | transformFlags` expression): a 3-operand or never ties to its input,
+//    so the one-expression form needed a FIFTH caller-saved register (`or s0,a0,a1`) and the whole
+//    tail block then differed. In place it is `and a0,a2,a3` + `or a0,a0,a1`, retail's shape
+//    (`and a1,v0,a2` + `or a1,a1,a0`). 95.33 -> 95.81. A DEDICATED u32 local costs nothing here;
+//    the older "a new local costs a frame slot" was measured on `value`, which is the 0xBE arm's
+//    live word and must not be shared.
+// The residual is now ONE thing, in two blocks: retail's `and` (of the MASK) sits 3rd in the tail
+// block, ours 10th, so retail's `flags` dies at the srl and its tail fits in a0/a1/a2/v0/v1 while
+// ours keeps it alive to the `and` and needs a sixth register (a3 holding the mask). Moving that AND
+// earlier IS the mask-hoist lever: with `newFlags = flags & MASK;` as the tail's first statement,
+// loop.c hoists 0xF03FFFFF into a sixth saved register and the body is 796 bytes / 199 insns
+// (92.61 and 93.42 measured on two bodies this round, 89.30 in the round-331 note) - which can
+// never link. So the two shapes are exclusive: late-AND / 788 bytes, or early-AND / 796. Do not
+// retry it. `(flags >> 3) & 1` for the flip XOR measures 95.05 (46 differing lines) against the
+// `((flags >> 2) >> 1) & 1` form's 95.81, so the round-331 permuter find stands. A 3-minute
+// permuter run on this 95.81 body: base 655 best 655 over 1350 iterations, no lead.
+// Also measured: spelling the 0xB3 arm's 0x3F as the mask constant inline instead of through a
+// local costs 2 lines and stops matching (95.51), so `counterMask` stays a real local.
 /*
 typedef union {
-    // 0x0  u32 flags;
-    // 0x0  u8 bytes[4];
+    // 0x0 u32 flags;
+    // 0x0 u8 bytes[4];
     struct {
-        // 0x0  u32 unk0: 3;
-        // 0x3  u32 flipX: 1;
-        // 0x4  u32 unk4: 28;
+        // 0x0 u32 unk0: 3;
+        // 0x3 u32 flipX: 1;
+        // 0x4 u32 unk4: 28;
     } fields;
 } SpriteTransformFlags;
 
 typedef struct {
-    // 0x00  u8 unk0[0x3C];
-    // 0x3C  SpriteTransformFlags flags_0x3C;
+    // 0x00 u8 unk0[0x3C];
+    // 0x3C SpriteTransformFlags flags_0x3C;
 } SpriteTransformFlagsView;
 
 // flags_0xA8's frame counter (bits 11..16) and script index (bits 22..27) are read and
@@ -654,7 +684,8 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
     s32 count;
     s32 offset;
     u32 flags;
-    int new_var;
+    s32 counterMask;
+    u32 newFlags;
     u32 transformFlags;
     s32 value;
 
@@ -667,7 +698,7 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
         code = *pBytecode;
         pArg = &pBytecode[1];
         if (code < 0x80) {
-            pSpriteData->pSpriteBytecode = pBytecode + 1;
+            pSpriteData->pSpriteBytecode = pArg;
             if (code < 0x10) {
                 SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
                 ticks = (code & 0xF) + 1;
@@ -692,8 +723,9 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
             pSpriteData->animScriptWaitTimer += ticks;
             transformFlags = count;
             transformFlags = transformFlags << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT;
-            value = (flags & ANIM_SCRIPT_SCRIPT_INDEX_MASK) | transformFlags;
-            pSpriteData->flags_0xA8 = value;
+            newFlags = flags & ANIM_SCRIPT_SCRIPT_INDEX_MASK;
+            newFlags |= transformFlags;
+            pSpriteData->flags_0xA8 = newFlags;
             if (count == 0) {
                 pSpriteData->flags_0xA8 =
                     (pSpriteData->flags_0xA8 & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
@@ -710,10 +742,11 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
             case 0x82:
                 return;
             case 0xBE:
-                value = pBytecode[1] | (pBytecode[2] << 8);
                 flags = pSpriteData->flags_0xAC.flags;
+                value = pBytecode[1] | (pBytecode[2] << 8);
                 transformFlags = ((SpriteTransformFlagsView*)pSpriteData)->flags_0x3C.flags;
-                flags = (flags & ~ANIM_SCRIPT_FLIP_BIT) | (((u32)value >> 6) & ANIM_SCRIPT_FLIP_BIT);
+                flags &= ~ANIM_SCRIPT_FLIP_BIT;
+                flags |= ((u32)value >> 6) & ANIM_SCRIPT_FLIP_BIT;
                 pSpriteData->flags_0xAC.flags = flags;
                 transformFlags = (transformFlags & ~ANIM_SCRIPT_FLIP_BIT) |
                                  (((((flags >> 2) >> 1) & 1) ^ ((flags >> 2) & 1)) << 3);
@@ -725,14 +758,14 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
                 break;
             case 0xE2:
                 // subroutine call: push the return address, jump by the signed 16-bit offset
-                offset = *pArg + (s16)(pBytecode[2] << 8);
+                offset = *pArg + (s16)(pArg[1] << 8);
                 AnimScriptStackPushU24(pSpriteData, (mem_addr)(pBytecode + 3));
                 pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + (s16)offset;
                 continue;
             case 0xB3:
-                new_var = 0x3F;
+                counterMask = ANIM_SCRIPT_COUNTER_MASK;
                 pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_COUNTER_MASK) |
-                                          ((((s8)pBytecode[1]) & new_var)
+                                          ((((s8)pBytecode[1]) & counterMask)
                                            << ANIM_SCRIPT_FRAME_COUNTER_SHIFT);
                 break;
             case 0x86:
@@ -758,6 +791,8 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
     }
 }
 */
+
+
 
 // Recompute animation speed
 void SpriteUpdateMoveStep(SpriteData* pSpriteData) {
