@@ -432,6 +432,7 @@ next:
    local over the whole expression (65.93), POLY_FT4 pointer + subscript, s32 prim = ...[0] initialisers,
    statement/declaration order, volatile; 2.7.2-cdk compile-fails this body.
 */
+// ROUND 446 re-measured 98.70% (400 bytes / 100 insns = retail's exact size, unit gcc-2.6.0). Residual unchanged: ONE mirrored caller-saved pair in the palette block (retail prim=$v0, prim*5=$v1, pool base reuses $v0 and the join reads 'sll v1,v1,3'; this build prim=$v1, product=$v0, base $v1). NEW this round, and KEPT because it is the realistic spelling and measures identically: the store is the prim's clut - '((POLY_FT4 *)g_BattleGraphicsWork->pPacketPrims)[g_BattlePrimStartIndex[0] + 8].clut' (the 0x140 folds into the 0x14E displacement exactly as retail's 'sh a0,334(v0)' shows), and both call bases are 'g_BattleGraphicsWork->pPacketPrims' instead of the '(u8 *)g_BattleGraphicsWork + 0xA230' cast. -dl/-da on this body: the palette block's three qtys are 72 (4 refs/6 insns, ->$v0), 80 (4/4, ->$v1), 86 (4/3, ->$v0), so the contested pair is the prim load (80) against the product; local-alloc hands v0 to the product, retail to the prim. Nothing in the C moves it: 3 prior rounds + a 1618-iteration permuter (base=130 best=130) are on the earlier note, and the store's u8*-plus-0x14E spelling (the pre-round-446 body) measures the same 98.70.
 /*
 void func_80090310(u8 arg0, u8 arg1) {
     s32 index;
@@ -444,16 +445,17 @@ void func_80090310(u8 arg0, u8 arg1) {
     if (index >= 0x11) {
         index -= 0x10;
         vofs = 0x10;
-        *(u16 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex[0] * 0x28 + 0x14E) = g_SystemPalette2;
+        ((POLY_FT4 *)g_BattleGraphicsWork->pPacketPrims)[g_BattlePrimStartIndex[0] + 8].clut = g_SystemPalette2;
     } else {
-        *(u16 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex[0] * 0x28 + 0x14E) = g_SystemPalette1;
+        ((POLY_FT4 *)g_BattleGraphicsWork->pPacketPrims)[g_BattlePrimStartIndex[0] + 8].clut = g_SystemPalette1;
     }
     v = index / 2 * 13;
     u = index % 2 * 0x78;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) + (g_BattlePrimStartIndex[0] + 8), 0x18, 0x33, u & 0xF8, v & 0xFF, 0x60);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)) + (g_BattlePrimStartIndex[0] + 10), 0x84, 0x33, (index % 2 << 6 | vofs) & 0xD0, v & 0xFF, 0x10);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)g_BattleGraphicsWork->pPacketPrims + (g_BattlePrimStartIndex[0] + 8), 0x18, 0x33, u & 0xF8, v & 0xFF, 0x60);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)g_BattleGraphicsWork->pPacketPrims + (g_BattlePrimStartIndex[0] + 10), 0x84, 0x33, (index % 2 << 6 | vofs) & 0xD0, v & 0xFF, 0x10);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
+
 
 
 void BattleDrawCommandCellIcons(u8 arg0, u8 arg1) {
