@@ -1092,6 +1092,25 @@ void BattleAddPrimListToOT(POLY_FT4 *pPrim, s32 count, s32 primStart) {
 //    `lw g_BattlePrimStartIndex` load-delay slot (cc1's own .s shows the addiu there,
 //    before the assembler). Retail keeps both delay slots as nop and the increment
 //    after the b0 store. Needs an idiom that stops that one hoist - not found.
+// ROUND 455: re-measured on the freshest cc1 .s: 95.62% / 348 bytes / 87 insns
+//    against retail's 352 / 88 - ONE instruction short, so it can never link.
+//    cc1's own .s (not maspsx) has the latch hoist:
+//      lw $2,g_BattlePrimStartIndex / addu $18,$18,1 / addu $2,$16,$2 / ...
+//    i.e. reorg inserts the loop increment into the load-delay slot of the last
+//    chain's global load, and sinks the b0 sb into the bnez slot.
+//    MEASURED DEAD THIS ROUND (each in cc1_probe.sh on this unit's real compiler,
+//    then the promising ones in the unit):
+//    - `while (i < last) { ...; volatile b0 store; i++; }`: retail's SIZE (352)
+//      and retail's bnez-slot nop, but the increment is still in the load slot and
+//      the store lands after the slt - the same body the old note measured at
+//      95.17, so the volatile buys the branch slot and nothing else.
+//    - reading the last chain's global as *(volatile s32 *)&g_BattlePrimStartIndex
+//      with a volatile b0 store: byte-identical to the volatile body above (a
+//      volatile load still fills its delay slot).
+//    - pPrim[g + (i << 1)] for the last store, and the function-scope (i + i):
+//      both let loop.c derive the doubled biv (frame 0x28, 6 saved regs) = 89.10.
+//    Conclusion: the load-delay-slot hoist is a wall in every spelling whose
+//    increment cannot be emitted after the test, so this stays parked.
 /*
 void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
     s32 i;
@@ -1109,8 +1128,10 @@ void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
         }
         pPrim[g_BattlePrimStartIndex + prim].b0 = 0;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072938);
+
 
 
 void BattleRenderActorSplitDigitPanel(s32 slot, u8 arg1) {
@@ -1384,6 +1405,32 @@ void BattleRenderActorValueDigits(s32 slot) {
 //    are orderings, not size. This is the same wall as lever
 //    j-a-constant-assigned-inside-the: the constant is inside the guard block and
 //    still rematerialises, because both uses are separated by the first call.
+// ROUND 455: this body was NOT COMPILING - the declaration said "u16 *pPoolFlags"
+//    while the body walked pSlotFlags, so the 96.74% in the notes came from a stale
+//    object. With the name fixed the pointer is also a "u8 *", not "u16 *" (retail
+//    reads it with lbu and walks it 8 bytes per iteration): that alone fixed 10 of
+//    the 85 differing lines. Re-measured, still 96.74% at 1316 bytes / 329 insns
+//    against retail's 1312 / 328, i.e. ONE instruction long, so it can never link.
+//    THE SIZE RESIDUAL, and it is the only one: retail emits "li s0,0xc00" ONCE
+//    inside case 1 and stores that same callee-saved register to both calls' 9th
+//    argument slot (sw s0,32(sp) twice); this cc1 rematerialises "li t1,0xc00" per
+//    call. NEW THIS ROUND: putting angle = 0xC00 among the source's pre-loop
+//    invariants (next to scale = 0x1000) is BYTE-IDENTICAL to the block-scope
+//    "s16 angle = 0xC00;" - the direct proof that loop.c has already hoisted the
+//    constant into the loop preheader (as the -dg note below says) and that reload
+//    rematerialises it from there; "u32 angle" is identical too. So this is lever
+//    a-shared-const-argument-outranks-a-three-ref-byte-flag seen from the wanted
+//    side (retail keeps the CONST_INT in s0), and a-li-constant-is-a-reload-scratch
+//    says that class is BLOCKED: s0-s8 are all held by the seven loop invariants
+//    plus the two case-local cursors in BOTH builds, and no spelling moves the
+//    constant's allocno.
+//    The other 3 residuals are orderings, not size, each measured: (a) the prologue
+//    emits the sw s6 / move s6,zero pair before the sw s7 / li s7,0x1000 pair where
+//    retail has the reverse; (b) case 1 pushes the 5th/6th argument stores before
+//    the three base-register loads where retail interleaves them; (c) case 3's
+//    first if emits the TRUE arm first (bne to the else store) where retail emits
+//    the else arm first (beq to the shared TRUE store) - same instruction count,
+//    opposite arm layout.
 /*
 void func_80073538(void) {
     s32 actorOff;
@@ -1391,7 +1438,7 @@ void func_80073538(void) {
     s32 i;
     s32 off;
     s32 off2;
-    u16 *pPoolFlags;
+    u8 *pSlotFlags;
     u16 *pOrigins;
     s16 scale;
 
@@ -1456,8 +1503,10 @@ void func_80073538(void) {
         }
         pSlotFlags += 8;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
+
 
 // While the sub-image scroll is running (BattleGraphicsWork.scrollActive), the row the
 // scroll index selects gets its three colour bytes written and the two prims it holds
