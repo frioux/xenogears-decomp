@@ -28,6 +28,7 @@ typedef struct {
 // system/rendering (config/slus_006.64.yaml) because their original object was built
 // with cdk -G0: only that emits the addiu in the delay slot of the `jal free` they end
 // with. SpriteAnimPackageTestFlag8000/GetFrameCount ride along - they sit inside the run.
+extern MATRIX g_GfxBaseMatrix;
 extern SVECTOR g_SpriteQuadCorners[4];
 extern SVECTOR g_BattleSpriteQuadCorners[4];
 extern u16 g_SpritePlaneMasks[16];
@@ -489,13 +490,37 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
      make the second one signed.
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001E9BC);
-
+// Redo-lane result: 86.39% (1200 bytes; retail 1196 = 299 insns, so this body is
+// ONE instruction over). Round 458, measured under XenoRenderingAtfree (cdk -G0).
+// Bodies measured this round, each from a full run:
+//  - the committed park as it stood: 84.41% / 1196 bytes (EXACT retail size), with a
+//    `for` loop and lastPlane = -1 below the two early returns.
+//  - do/while + lastPlane = -1 above the early returns (it fills retail first beqz
+//    delay slot with li s5,-1): 85.62% / 1192 (298 insns, TWO short).
+//  - that body with the y-arm reading pFrameData[i].flags INLINE instead of the
+//    frameFlags local: retail reloads lw 0x14(s1) for the y bit-5 test after using
+//    the loop-top copy for the x bit-4 test, and the inline read is what makes gcc
+//    reload: 86.39% / 1200 (300 insns, ONE over). THIS is the body below.
+// What is left:
+//  - the four unconditional copies (move t0,t1 / move t3,t2 / move a0,a2 /
+//    move a1,a3) and negating the COPY: gcc coalesces them here and negates in
+//    place, the same liveness finding as the func_8001E3D8 note (tileX and tileY
+//    die at their negation, so no honest source keeps the copies).
+//  - retail stores corner element 0 through the SYMBOL (%hi held in s7 across the
+//    RotAverage4 call, sh %lo(sym)($s7)) and elements 1-3 through s2 = full base.
+//    g_SpriteQuadCorners[0].vx does not reproduce that here because this body has no
+//    free callee-saved register: loop.c hoists the addPrim 0x00FFFFFF mask into s4
+//    (lui/ori in the preheader) where retail forms it inline in the loop. That hoist
+//    is the whole saved-set difference: retail s4=i s5=lastPlane s6=visible s7=%hi,
+//    this body s5=i s6=lastPlane s7=visible s4=mask.
+//  - uv right/bottom edges: retail is (texX + 0xFF) + width, this body is
+//    (texX + width) - 1 (same count; texX + 0xFF + width is what emits retail).
+//  - preheader order: this body loads count, lui %hi(g_GfxCurWorkBuffer), lw, then
+//    pBase/pCurRenderFramesData before the sltu; retail loads pBase after the End
+//    compare and pCurRenderFramesData in its branch shadow.
+//  - the vec/matrix prologue, the prim build, the y averaging, the uv block and
+//    addPrim match instruction for instruction.
 /*
-// Draws the sprite's frames as one rotated textured quad each: the base matrix
-// scaled by the sprite's scale, offset by its projected position, then the four
-// corners of a frame rotated through it. Frames are skipped when the mask for
-// their layer is set in the sprite's plane byte.
 void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     MATRIX mat;
     SVECTOR vec;
@@ -541,6 +566,7 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
 
     count = ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2;
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    lastPlane = -1;
     if ((u8*)g_GfxCurWorkBuffer + count * sizeof(POLY_FT4) >= (u8*)g_GfxCurWorkBufferEnd) {
         return;
     }
@@ -548,9 +574,9 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         return;
     }
 
+    i = 0;
     pVerts = g_SpriteQuadCorners;
-    lastPlane = -1;
-    for (i = 0; i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2; i++) {
+    do {
         frameFlags = pFrameData[i].flags;
         if (lastPlane != (frameFlags & 7)) {
             lastPlane = frameFlags & 7;
@@ -592,7 +618,7 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         }
 
         edgeY = tileY + height;
-        if (!((frameFlags >> 5) & 1)) {
+        if (!((u32)pFrameData[i].flags >> 5 & 1)) {
             pVerts[2].vz = edgeY;
             pVerts[3].vz = edgeY;
             pVerts[0].vz = tileY;
@@ -626,9 +652,11 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         pPrim->v3 = pFrameData[i].texY + pFrameData[i].height - 1;
 
         addPrim(pOt, pPrim);
-    }
-}
-*/
+    } while (++i != (((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2));
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001E9BC);
+
+
 
 s32 SpriteAnimPackageTestFlag8000(u8* pFlags) {
     return pFlags[1] >> 7;
