@@ -689,6 +689,14 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
 // BattleSetSlotEntryFieldsTo2000 99.77, BattleDecrementGearPartUse 99.79,
 // BattleSetCommandCodeForSlotKindFlag 99.96), so the unit cannot carry 2.6.0 and this
 // needs a per-function split, not a source change. Park is final under 2.7.2.
+// Round 439 re-measured live: 88.68% (356 bytes, 89 insns vs retail 87). Swept the whole
+// preset matrix (try_flags --sweep: 2.7.2 and 2.7.2-cdk at -O1/-O2/-O3 x -G4/-G8 x
+// -mcpu 3000/r8000, best 88.68) and 2.7.2 + maspsx --expand-div (88.68, no change: 2.7.2
+// does the magic multiply itself, so expand-div never sees a div). gcc-2.6.0 is the only
+// compiler at 100.0 (every -O/-G/-mcpu row). So this is a one-function 2.6.0 carve-out,
+// i.e. a config/battle.yaml split with a new src/battle/main/misc19_r2.c - not a source
+// change; the 2.7.2 body is 8 bytes too long and its div expansion is in gcc's own
+// expand_divmod. Re-measured, park refreshed, no C change.
 /*
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
     u8* p = arg0 * 0x170 + (u32)g_BattleCurWorkBlock;
@@ -728,8 +736,7 @@ s32 func_8009ADA0(u8 arg0, u32* arg1) {
         ret = 1;
     }
     return ret;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 // Retail's own symbol for the flag word this clears is D_800CCD68, which is
 // g_BattleWorkBlock + 0x80, i.e. the table's activeEffectFlags2; only the addend of
@@ -944,13 +951,20 @@ void BattleInitItemInventoryAndConditionMasks(void) {
 // orders measured dead (i before count: identical 108 differing lines; max/cur hoisted to
 // function scope: identical), so the whole a-register rotation plus the s0/s2 mirror is the
 // 2.6.0-allocator family and the three mflo read-backs are the md wall. Park stays final.
+// Round 439 re-measured live: 97.55% with the body's slot pointer written as the realistic
+// &g_BattleCurWorkBlock->slots[i] (97.59% with the old (BattleTableEntry*)(i * 0x170 +
+// (u32)g_BattleCurWorkBlock) cast); both 536 bytes / 134 insns = retail's exact size, 108
+// differing lines, and the two spellings differ only in fuzzy noise. Swept the preset
+// matrix (try_flags --sweep: best 97.81 at gcc-2.6.0, 2.7.2 97.59, cdk 94.6), so no preset
+// closes it; lever a-whole-caller-saved-rotation-in-a-counting-loop already records this
+// exact function. Park refreshed, no C change.
 /*
 void func_8009B46C(u16* arg0) {
     u8 count = 0;
     u8 i;
 
     for (i = 0; i < 3; i++) {
-        BattleTableEntry* p = (BattleTableEntry*)(i * sizeof(BattleTableEntry) + (u32)g_BattleCurWorkBlock);
+        BattleTableEntry* p = &g_BattleCurWorkBlock->slots[i];
         BattleSlotState* pState = &p->state;
         u32 max;
         u32 cur;
@@ -1003,8 +1017,7 @@ void func_8009B46C(u16* arg0) {
             *arg0 = (drop * *arg0) >> 1;
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
 
 void BattleSetCommandCodeForSlotKindFlag(u8 arg0, u16 arg1) {
