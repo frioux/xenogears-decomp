@@ -1354,7 +1354,25 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    MenuRenderEquipmentSlotStrings 96.83, MenuReturnWeaponToInventory 98.11, all
    100.00 under 2.6.0). The u_char declaration is also what func_801DD790's park
    wants; func_801DCE60's own parked body measured 482 insns / 1928 bytes with
-   s32 arg1, so reconcile the two when that one is un-parked. */
+   s32 arg1, so reconcile the two when that one is un-parked.
+   ROUND 446: un-parked and re-measured, still 94.46% / 884 bytes / 221 insns,
+   retail's exact size, so the note stands and the tie is now PROVEN by the
+   allocator dump rather than inferred. `cc1 -da -dg` on this body prints
+   `;; 16 regs to allocate: 149 147 159 84 78 80 75 79 97 81 103 102 95 77 76 73`
+   and dispositions `75 in 19 78 in 17 79 in 20 80 in 18 81 in 22 83 in 16
+   84 in 16 85 in 2 94 in 2 97 in 21 102 in 30 103 in 23 ...`: allocno 103 is the
+   a7 `4` and takes $s7 ($23), allocno 102 is the a6 `1` and takes $fp ($30) -
+   its own RTL is `(set (reg:SI 30 $fp) (const_int 1))` with `REG_EQUIV
+   (const_int 1)`, i.e. gcc knows the value is rematerialisable and still spends
+   a callee-saved register on it because loop.c hoisted it out of the do-while -
+   while the needsOpen allocno (u8, 3 refs) gets NO register at all. So this is
+   levers.md `a-shared-const-argument-outranks-a-three-ref-byte-flag`: the flag
+   would have to reach ~8 refs (instructions retail does not contain) to win the
+   quotient, which makes it a park and not a spelling hunt.
+   Preset re-screen, and it closes the last cheap axis: gcc-2.7.2's 94.81 is the
+   SAME residual, not a different one - that compiler's object for this body has
+   the identical `li s8,1` + `li s7,4` + flagged spill (`lbu v0,0x38(sp)`) and the
+   same 0x70 frame - so there is no preset lead here (cdk 86.95, -O3 67.90). */
 
 /*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
@@ -1450,6 +1468,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     MenuFreeArrowCursor(0);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
+
 
 s32 MenuRunUnk430Panel(u_char arg0, u_char arg1) {
     func_801DDF24(arg0, arg1, 0);
