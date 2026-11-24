@@ -1375,6 +1375,24 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
 // three functions already matched in this unit (WorldMapInitSlotAtScrollPosition 95.00,
 // WorldMapBeginSlotAnimFrame 95.26, WorldMapUpdateSlotColorFade 96.81), so the unit is not
 // a 2.6.0 unit and the preset is not the answer.
+// Round 445 re-measure (un-parked, this body compiles): 75.62% / 1664 bytes / 416 insns
+// against retail's 1672 / 418, so 2 instructions are still missing (the case-1 load-delay nop and
+// one slot in a merged arm tail). Row-level alignment (objdiff JSON, LCS) is the useful part:
+// EVERY instruction from the second switch dispatch (retail 0x80082CDC) to the epilogue is
+// identical - 180 instructions, only the scroll-pointer formation slot differs. The whole
+// residual is the first switch's five big arms (1,5,7,9,10), and each has the same two scheduler
+// moves: this body hoists lh g_WorldMapViewRotationY above the two unk50/unk38 stores (retail
+// stores first, loads after) and puts the sw g_WorldMapCameraHeight one slot before the
+// lh g_WorldMapViewRotationZ (retail puts it between the lh and its sll). Retail's arms are in
+// exactly the source statement order this body writes, so sched2 - not the C - is the mover.
+// Measured worse this round: volatile ViewY/ViewZ reloads in all five arms 72.31 / 1848 bytes (a
+// volatile load cannot be CSE'd, so gcc emits one lhu + sll16/sra4 per use); volatile reloads in
+// case 1 only 74.57 / 1712; case 1 with its three do-while barriers dropped 75.01 (the barriers are
+// load-bearing, as noted above); pScrollTargetX formed inside case 11 72.21 / 1668 / 417 insns
+// (confirms the note above). The s0/s1 role swap (retail pSlot=$s1, pointer=$s0; this body the
+// reverse) poisons every diff row, and its only lever is where the pointer is formed - all three
+// known positions are measured. Next idea for this function: a cc1 -da dump on this body to see
+// which pass decides the s0/s1 order, not more source shapes.
 /*
 s32 func_800828DC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -1590,6 +1608,6 @@ s32 func_800828DC(s32 index) {
     D_8009BD42[0] = D_8009BD42[0] + shake;
     D_8009BD4A = D_8009BD4A + *(volatile u16 *)(pScratch + 0xA2);
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800828DC);
+
