@@ -100,12 +100,24 @@ def tracker_round():
 
 
 def cdk0_units():
+    """Units compiled cdk -G0, i.e. the only ones whose `jal free` tail can be emitted.
+
+    A path key may carry the `{binary}` placeholder (the per-binary preset tables in
+    gears.toml use it), so both spellings go in: the literal key and the placeholder
+    form that in_cdk0() rebuilds for each unit."""
     out = set()
     text = open(os.path.join(ROOT, "gears.toml")).read()
     for blk in text.split("[[build_preset]]"):
         if "gcc-2.7.2-cdk-psx" in blk and re.search(r'gp_flag\s*=\s*"-G0"', blk):
-            out.update(x.rstrip(".") for x in re.findall(r'"([\w./]+?\.)"', blk))
+            out.update(x.rstrip(".") for x in re.findall(r'"([\w./{}]+?\.)"', blk))
     return out
+
+
+def in_cdk0(unit, cdk0):
+    if unit in cdk0:
+        return True
+    stripped = unit.split("/", 1)[1] if "/" in unit else unit
+    return "{binary}/" + stripped in cdk0
 
 
 def preset_text(unit, table):
@@ -195,7 +207,7 @@ def census(history_rounds=None):
                 continue
             pk = parks.get((unit, name))
             reason = "finished" if is_finished(unit, name) else stub_reason(spath, binary, unit)
-            if reason is None and unit not in cdk0 and atfree.unmatchable(spath):
+            if reason is None and not in_cdk0(unit, cdk0) and atfree.unmatchable(spath):
                 reason = "atfree"
             noted = False
             if pk is None:  # a percentage near the stub with no parked body is still an attempt
