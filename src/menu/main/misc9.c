@@ -27,6 +27,7 @@
 // Row sprite records at the start of the 0x430 panel; 0xE..0x1B is the shaded copy
 // of the same rows that func_801DD5E8 walks alongside them.
 #define MENU_PANEL_ROW_STRING_COUNT 0xC
+#define MENU_PANEL_SHADED_ROW_STRING 0xE
 // The one character with two weapon slots: its equipment panel carries a second
 // weapon slot group, which the left/right input and the weapon move below both
 // switch between.
@@ -71,6 +72,16 @@ typedef struct {
     /* 0x1092 */ u8 shouldRenderColumnHeadings;
     /* 0x1093 */ u8 pad1093;
 } MenuUnk430Panel; // Size: 0x1094
+
+// The same panel's sprite records from MENU_PANEL_SHADED_ROW_STRING on, seen as their
+// own arrays: the shaded copy of the rows and the two heading strings, with the
+// column string records between them.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x700];
+    /* 0x0700 */ MenuString shadedRowStrings[MENU_PANEL_SHADED_ROW_STRING];
+    /* 0x0E00 */ MenuString columnStrings[2];
+    /* 0x0F00 */ MenuString headingStrings[2];
+} MenuUnk430RowStrings; // Size: 0x1000
 
 // One 0x28-byte equipment slot record of pDressingRoom->pCharacterSlots[] (and of
 // pGearBlocks[], which uses the same layout), as far as this unit reaches it: the
@@ -1075,7 +1086,6 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
    only thing left, and it is the same legitimiser that decides the operand order.
 */
 
-/*
 void func_801DD5E8(u_char arg0) {
     MenuString* pString;
     POLY_FT4* pPoly;
@@ -1091,7 +1101,7 @@ void func_801DD5E8(u_char arg0) {
         rc = pString->renderContext;
         if (*(u8*)((u8*)g_Menu->unk430 + (i * 0x80 + rc * 0x28) + 4) != 0x20) {
             MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[i].polys[rc], arg0);
-            pPoly = &((MenuString*)g_Menu->unk430)[i + 0xE].polys[((MenuString*)g_Menu->unk430)[i + 0xE].renderContext];
+            pPoly = &((MenuString*)g_Menu->unk430)[MENU_PANEL_SHADED_ROW_STRING + i].polys[((MenuUnk430RowStrings*)g_Menu->unk430)->shadedRowStrings[i].renderContext];
             MenuSetPrimShadingMode(pPoly, arg0);
         }
     }
@@ -1099,12 +1109,10 @@ void func_801DD5E8(u_char arg0) {
     MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_COLUMN_STRING].polys[((MenuString*)g_Menu->unk430)[MENU_PANEL_COLUMN_STRING].renderContext], arg0);
     for (i = 0; i < 2; i++) {
         do {
-            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].polys[((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].renderContext], arg0);
+            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[MENU_PANEL_HEADING_STRING + i].polys[((MenuUnk430RowStrings*)g_Menu->unk430)->headingStrings[i].renderContext], arg0);
         } while (0);
     }
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
 
 /* PARKED 95.96% (round 385 re-measure; the old 95.71 note is superseded). Retail
    EXACT 1940 bytes and a byte-for-byte identical instruction MULTISET; the only
