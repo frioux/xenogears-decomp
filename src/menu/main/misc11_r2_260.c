@@ -311,6 +311,21 @@ void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_c
    offset increment moved out of the for-latch, an explicit j4 biv for the
    texture-Y index (688). Two permuter runs (2060 and 1706 iterations) found
    nothing. Parked at the best body with retail's exact size.
+   ROUND 452 re-unparked this body and re-measured 97.58 / 672 / 168 (same single
+   displaced pair), then took the one half of the giv route round 439 had not:
+   `offset` as a body-assigned giv with the test rewritten as
+   `j * MENU_SLOT_PRIM_STRIDE < 0x1974` (loop.c turns it back into the giv test
+   `slti s2,6516`, so the shape is retail's). It measures 93.90 / 668 / 167, and
+   the missing instruction is not the allocator: with offset a giv, loop.c's
+   related-giv use rewrites the func_8002675C argument
+   (offset + sizeof(MenuSlotQuads)) + pPrimBuffer onto the primOffset accumulator,
+   so retail's `addiu v0,s2,0xA98` plus `addu v0,v0,t1` collapse into one `addu`.
+   That is the mechanism behind round 439's verdict from the other end: the addiu
+   survives only while `offset + 0xA98` is a biv-plus-constant add, retail's
+   preheader order needs offset to be a giv, and the two are exclusive. Moving the
+   primOffset assignment below the inner loop (it is only read after it) is
+   byte-identical at 93.90 / 668, so the giv emission order is not controlled by
+   source position. The 97.58 body below is left as the park.
 */
 /*
 void func_801E61B0(void) {
