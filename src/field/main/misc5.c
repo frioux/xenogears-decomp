@@ -1725,6 +1725,22 @@ extern u_short D_800AEF16[];
 // loop in a callee-saved register); the rect table is a u_short array at 0x800AEB68 (x, y, w, h)
 // indexed by rectIndex * 4 in u_short units; '*pPolyNext = *pPoly' is the last statement of the body
 // and compiles to the 2x unrolled 0x28-byte copy loop both sides already have.
+// Round 454: re-measured from a live un-park, same 85.21% / 784 / 196, and this body is still the
+// best known. The quad table below is the SAME table the matched FieldSetSpriteUVs next door reads
+// as g_FieldSpriteSheetQuads (config/symbol_addrs.field.txt: 0x800AEF14); D_800AEF16 is its +2, so
+// the records are g_FieldSpriteSheetQuads[nQuad * 4 - 2 .. + 1] = x, y, rectIndex, flags and this
+// body's base could be spelled with that name instead. Not measured: the rect-table round 440 note
+// shows a negative index folds into a SECOND symbol and pays its own lui/addiu, and retail's s7 =
+// fp - 6 says the original kept the offset, so re-measure before changing the spelling.
+// Residual 1 is the whole diff: loop.c turns nQuad * 8 into THREE pointer givs ($17
+// flags base, $18 base offset, $20 base-6, each 'addiu +8' in the latch) where retail recomputes
+// 'sll v0,s2,3' at each use. Retail's nine callee-saved registers are ALL already live (s0 pPoly,
+// s1 i * 0x28, s2 nQuad, s3 i, s4 nABR, s5 rect base, s6 pPolyNext, s7 quad base-6, fp quad base),
+// so the original had no register to give a giv; the compile is pushed past nine and the whole
+// allocation then moves. Residual 2 is an artefact of residual 1, not a second wall: retail's five
+// FieldClampPolyFT4UVs stack stores live in ONE tail shared by four call sites (each case leaves its
+// args in a1/a2/a3/v0 before the j, which is what jump.c merges), and the compile keeps three of
+// them in case 0's own body. Do not attack residual 2 before residual 1.
 /*
 void func_800A8BA4(void) {
     POLY_FT4* pPoly;
@@ -1812,6 +1828,7 @@ void func_800A8BA4(void) {
     g_FieldSpritePrimsAllocated = 1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
+
 
 
 
