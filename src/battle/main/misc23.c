@@ -854,8 +854,38 @@ void BattleUploadAndFreeImageResources(void) {
 // memory, the SetPolyGT3 store order (tpage, u0, v0, clut, v1, u2, u1, v2), the
 // s16 narrowing of the tpage/clut arguments (lhu then sll 16 / sra 16), the
 // sltu form of the nSegs pick, and the tail's section clears.
+// PARKED: 562 of retail's 569 instructions, 2248 bytes against 2276, and the frame
+// is now retail's 0x130 (the previous park here was 543 insns with a 0x138 frame),
+// 301 differing side-by-side lines against 758 for the older body. objdiff's fuzzy
+// number reads 13.46% for this body and read 75.91% for the older one, which
+// contradicts both the instruction count and the text diff; treat 13.46 as an
+// alignment artifact and compare insn count, frame size and diff lines instead.
+// The older body is in git history (commit 3603103d: s16 texX/texY/texZ, hoisted
+// nV0/nV1 locals, nRow = uRow + j) if a later round wants it back.
+// Read off the assembly this round; all three of these are wrong in the older park:
+// - args 5-7 (texX/texY/texZ) are 32-BIT: retail lw 0x140/0x144/0x148 and narrows
+//   each once with sll 16 / sra 16 before the vector loop. Declaring them s32, with
+//   the (s16) narrowing written in the vector loop, is what takes the frame from
+//   0x138 to retail's 0x130.
+// - texY, clut and pCount live in CALL-CLOBBERED registers across SetPolyGT3 (a2,
+//   t4, t1), spilled and lazily reloaded per k, so the texture expressions are
+//   written INLINE in the eight store statements and gcc's CSE plus loop-invariant
+//   motion rebuilds retail's shape: loop 1 computes texY + rowStep * j once into s3
+//   and texY + rowStep * (j + 1) per k; loop 2 recomputes both per k. Hoisted nV0 /
+//   nV1 locals (the older park) collapse those six mults per j to two.
+// - the segment row index is its own accumulator: nRow = uRow before the j loop and
+//   nRow++ at the end of the j body (retail's addiu s6,s6,1 sits in the j-loop
+//   branch delay slot), while uRow is only advanced by pCount[0] + 1 per i and read
+//   back from its stack home each i. nRow = uRow + j is numerically the same but
+//   emits an addu per j iteration and keeps j live.
+// RESIDUAL, 7 instructions, allocation only: retail keeps texX/texY/texZ in
+// s0/s2/s3 and rowBase in s6; this build re-reads texX/texY from their incoming
+// 0x140/0x144 slots and spills rowBase to 0x18, so the difference is spent on
+// reloads. Everything else agrees: the 8-word spill block at 0xE8-0x104, the four
+// k-loops' store order, both div expansions, the sltu form of the nSegs pick, the
+// five HeapAllocs with their failure paths, and the section tail.
 /*
-void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 texX, s16 texY, s16 texZ,
+void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s32 texX, s32 texY, s32 texZ,
                    s32 numSections, s16 tileX, s16 tileY, s16 uSpan, s16 vSpan, s16 clutX, s16 clutY, u8 red0,
                    u8 green0, u8 blue0, u8 red1, u8 green1, u8 blue1) {
     SVECTOR *pVectors;
@@ -898,9 +928,9 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 t
     pEntry->pVectors = pVectors;
 
     for (i = 0; i < pEntry->numVectors; i++) {
-        pVectors[i].vx = (*pCur++ + texX) * scale / 4096;
-        pVectors[i].vy = (*pCur++ + texY) * scale / 4096;
-        pVectors[i].vz = (*pCur++ + texZ) * scale / 4096;
+        pVectors[i].vx = (*pCur++ + (s16)texX) * scale / 4096;
+        pVectors[i].vy = (*pCur++ + (s16)texY) * scale / 4096;
+        pVectors[i].vz = (*pCur++ + (s16)texZ) * scale / 4096;
     }
 
     nRaw = pCur[pEntry->numVectors];
@@ -974,25 +1004,22 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 t
             nSegs = pCount[0];
         }
         rowStep = vSpan / nSegs;
+        nRow = uRow;
         for (j = 0; j < nSegs; j++) {
-            nRow = uRow + j;
-
             pSeg->unk0 = nRow;
             pSeg->unk4 = nRow + 1;
             pSeg->unk2 = nRow + *pCount + 1;
-            nV0 = texY + rowStep * j;
-            nV1 = texY + rowStep * (j + 1);
             for (k = 0; k < 2; k++) {
                 pPoly = &pSeg->polys[k];
                 SetPolyGT3(pPoly);
                 pPoly->tpage = tpage;
                 pPoly->u0 = texX + uStart;
-                pPoly->v0 = nV0;
+                pPoly->v0 = texY + rowStep * j;
                 pPoly->clut = clut;
-                pPoly->v1 = nV0;
+                pPoly->v1 = texY + rowStep * j;
                 pPoly->u2 = texX + uStart;
                 pPoly->u1 = texX + uEnd;
-                pPoly->v2 = nV1;
+                pPoly->v2 = texY + rowStep * (j + 1);
             }
             pSeg++;
             pSeg->unk0 = nRow + *pCount + 1;
@@ -1006,11 +1033,12 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 t
                 pPoly->u1 = texX + uEnd;
                 pPoly->clut = clut;
                 pPoly->u2 = texX + uStart;
-                pPoly->v0 = nV0;
-                pPoly->v1 = nV1;
-                pPoly->v2 = nV1;
+                pPoly->v0 = texY + rowStep * j;
+                pPoly->v1 = texY + rowStep * (j + 1);
+                pPoly->v2 = texY + rowStep * (j + 1);
             }
             pSeg++;
+            nRow++;
         }
         uStart += uStep;
         uEnd += uStep;
@@ -1046,9 +1074,9 @@ void func_800A7064(Misc23Block *pEntry, u16 *pCur, s32 rowBase, s32 scale, s16 t
     } else {
         pEntry->pSections = NULL;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
@@ -1144,7 +1172,7 @@ extern u8 D_800C3EB7[];
 extern void ResolveArchiveEntryPointers(u32 *);
 extern void func_80030988(s16, s16, s32, s32);
 extern void func_8002DDE4(void *, s16, s16, s16, s16, s16, s16);
-extern void func_800A7064(Misc23Block *, u16 *, s32, s32, s16, s16, s16, s32, s16, s16, s16, s16, s16, s16, u8,
+extern void func_800A7064(Misc23Block *, u16 *, s32, s32, s32, s32, s32, s32, s16, s16, s16, s16, s16, s16, u8,
                           u8, u8, u8, u8, u8);
 extern void func_800AA898(BattleActor *, u8 *, void *, void *);
 extern BattleModelPartList *BattleInitializeMesh(u8 *, BattleModelPartList *);
