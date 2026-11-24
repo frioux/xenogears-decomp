@@ -102,6 +102,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
 
 
 
+
 void MenuRunCardSlotOperations(void) {
     switch (g_Menu->menuUnk2->cardPollMode) {
     case 1:
@@ -1025,33 +1026,42 @@ void MenuSetCellGridPanelState(u_char mode) {
     }
 }
 
-/* Best attempt: 86.42% (272 bytes vs retail's 280). `pOdd = (u8*)&g_GameState + 1`
-   read as pOdd[offset + j] reproduces retail's two-add shape (offset+j in v0,
-   then the gs+1 constant) and its `lui %hi(g_GameState+1)` symbol, but gcc keeps
-   the constant in a SAVED register (s2, from the prologue) where retail reloads
-   it into the call-clobbered t0 in the inner preheader -- that fifth saved
-   value is the whole difference (5 saves vs retail's 4; it also pushes the
-   even-dest buffer pointer into s4). The form `((u8*)&g_GameState)[i + j + 1]`
-   is the same 86.36%. Tried: pEntry/pAll pointer locals, indexed both reads
-   (78-79%), StringEntry* advancing pointer, gcc-2.6.0 (89.15%), cdk (rejects).
-   Both loops and the decode/copy-back are otherwise exact. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB184);
+/* Best attempt: 89.15% (268 bytes, 66 insns) under XenoMenu260 (gcc-2.6.0); 86.42% under
+   Default (2.7.2). Every instruction of both loops, the decode call and the copy-back is
+   retail's except the odd-byte base &g_GameState + 1: retail's `lui %hi(g_GameState+1)` /
+   `addiu %lo(...)` pair sits at the TOP OF THE OUTER LOOP BODY and lands in the
+   call-clobbered $t0 (4 saves, 280 bytes), while this build folds it to `addiu $s2,$s0,1`
+   in the PROLOGUE off the strength-reduced row pointer $s0 and keeps it across the
+   SystemDecodeGlyphCodesN call (5 saves, the fifth being $s4; 268 bytes, and the odd
+   address becomes `addu v1,v0,s2` where retail has `addu v1,v0,t0`).
+   Mechanism, i.e. why this is not a missing spelling: loop.c refuses to hoist a `high`
+   insn, so retail's lui/addiu pair could never leave the loop; the pair turns into a
+   hoistable plain addiu only when a register already holds &g_GameState, and the even
+   read's LSR pointer ($s0 = &gs + offset, which retail's own `move a1,s0` /
+   `addiu a1,a1,2` walk proves existed) always provides one - a later cse/combine pass then
+   folds symbol+1 into s0+1. Measured on this body: `pOdd = (u8*)&g_GameState + 1` read as
+   pOdd[offset + j] and the indexed `((u8*)&g_GameState)[offset + j + 1]` are byte-identical
+   (both fold to s2 = s0 + 1); pointer locals for the row / both reads, -O3 (87.02), cdk (cc1
+   rejects this body), 2.7.2 (86.42).
+   TWIN: slus_006.64/system/temp3_b func_8001B970 is the same loop skeleton (that unit
+   loads the string bank first, then runs this loop with 0xF as the terminator instead of 0)
+   and parks at 86.53% on the SAME fifth save - see the lever
+   g-which-four-invariants-are-hoisted, whose .s also shows retail rematerialising
+   `lui/addu %lo(g_GameState + 0x1)` per row. Whoever closes one closes both. */
 /*
 void func_801CB184(void) {
     u8 inBuf[0x14];
     u8 outBuf[0x14];
     StringEntry* pEntry;
-    u8* pOdd;
     s32 offset;
     s32 j;
 
     pEntry = g_GameState.strings;
-    pOdd = (u8*)&g_GameState + 1;
     for (offset = 0; offset < 0x26C; offset += 0x14) {
         for (j = 0; j < 0x14; j += 2) {
             inBuf[j] = ((u8*)pEntry)[j];
-            inBuf[j + 1] = pOdd[offset + j];
-            if (((u8*)pEntry)[j] == 0 && pOdd[offset + j] == 0) {
+            inBuf[j + 1] = ((u8*)&g_GameState)[offset + j + 1];
+            if (((u8*)pEntry)[j] == 0 && ((u8*)&g_GameState)[offset + j + 1] == 0) {
                 break;
             }
         }
@@ -1061,9 +1071,10 @@ void func_801CB184(void) {
         }
         pEntry++;
     }
-}
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB184);
 
-*/
+
 
 /* Best attempt: 86.36%. The even-byte read wants an advancing pointer
    (s0 = &g_GameState + i, a1 = s0) and the odd-byte read wants the constant
