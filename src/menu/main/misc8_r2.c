@@ -368,7 +368,26 @@ void MenuFreeUnk42CPanel(void) {
    its range out of config/menu.yaml like menu/main/misc11_r2_260 would buy 2.5 points
    but not a match, so it is not worth a unit split on its own.
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
+// PARK 94.84% (996 vs retail 1004 bytes, 249 vs 251 insns), round 442, re-measured from the live body.
+//    Retyped this round: the row accesses are now the harmless typed form
+//    (g_Menu->pItemRows->itemNameStrings[i] / ->itemQuantityStrings[i] /
+//    ->shouldRenderRows[i]) instead of the ((MenuString*)g_Menu->pItemRows)[i] casts the
+//    earlier rounds carried - realistic C, and 94.65 -> 94.84 (116 -> 106 differing
+//    lines). The same body under gcc 2.7.2 is 97.37 (the cast body was 97.17).
+//    THE ONE RESIDUAL IS STRUCTURAL: gcc 2.6.0 strength-reduces the item index
+//    'arg0 * 2 + i' into a reduced biv (sll s4,s0,0x1 in the preheader, addiu s4,s4,0x1
+//    in the latch) and reuses that one register where retail RECOMPUTES the index twice
+//    per iteration (sll v0,s6,1 / addu v1,v0,s2 at 0x15620, sll s1,s6,1 / addu s1,s1,s2
+//    at 0x156C8). 2.7.2 does not reduce it, so this is a compiler difference and not a
+//    spelling: the body is 2 insns / 8 bytes short and every other differing line is a
+//    register name (or the prologue save order) downstream of it.
+//    Measured this round: unit flags 94.84, gcc-2.7.2 97.37, gcc-2.7.2-cdk 92.96
+//    (try_flags.sh); -G0 measured identical to unit flags earlier this round, -G4 does
+//    not compile the unit.
+//    NO SPLIT: 2.7.2 is still 97.37, and lever o-272-vs-260-operand-order shows 2.7.2
+//    canonicalises a commutative PLUS by register NUMBER, so its residual (8 mirrored
+//    addu operands) is allocation; a 1447-iteration permuter run on that body found
+//    nothing (round 406).
 /*
 void func_801DA5BC(s32 arg0) {
     u8 digitCodes[4];
@@ -390,13 +409,13 @@ void func_801DA5BC(s32 arg0) {
                     if (g_GameState.itemQuantities[arg0 * 2 + i] >= 0x64) {
                         g_GameState.itemQuantities[arg0 * 2 + i] = 0x63;
                     }
-                    ((MenuString*)g_Menu->pItemRows)[i].width =
+                    g_Menu->pItemRows->itemNameStrings[i].width =
                         SystemRenderStringEntry(GetItemName(g_GameState.itemIDs[arg0 * 2 + i]), pWorkspace, 0x24, 0);
                     tens = g_GameState.itemQuantities[arg0 * 2 + i] / 10;
                     digitCodes[0] = tens != 0 ? tens + 0x10 : 0xC3;
                     digitCodes[2] = g_GameState.itemQuantities[arg0 * 2 + i] % 10 + 0x10;
                     SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
-                    ((MenuString*)g_Menu->pItemRows)[i + 0x10].width =
+                    g_Menu->pItemRows->itemQuantityStrings[i].width =
                         SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
                     rect.x = 0x180 + (i & 1) * 0x18;
                     rect.y = 0x80 + (i / 2) * FONT_LETTER_HEIGHT;
@@ -410,17 +429,17 @@ void func_801DA5BC(s32 arg0) {
                     } else {
                         itemShade = displayFlags & 0x80;
                     }
-                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemShade | 1);
-                    MenuSetStringPrimitives(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemShade | 2);
+                    MenuSetStringPrimitives(&g_Menu->pItemRows->itemNameStrings[i], i, 0x80, itemShade | 1);
+                    MenuSetStringPrimitives(&g_Menu->pItemRows->itemQuantityStrings[i], i, 0x80, itemShade | 2);
                     x = (i % 2) * 0x88;
-                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i].vertices, (u16)(x + 0x28) & 0xFFF8,
-                                        (i / 2) * 0x10 | 0xE, ((MenuString*)g_Menu->pItemRows)[i].width,
+                    MenuSetQuadVertices(g_Menu->pItemRows->itemNameStrings[i].vertices, (u16)(x + 0x28) & 0xFFF8,
+                                        (i / 2) * 0x10 | 0xE, g_Menu->pItemRows->itemNameStrings[i].width,
                                         FONT_LETTER_HEIGHT);
-                    MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i + 0x10].vertices, (u16)(x + 0x90) & 0xFFF8,
-                                        (i / 2) * 0x10 | 0xE, ((MenuString*)g_Menu->pItemRows)[i + 0x10].width,
+                    MenuSetQuadVertices(g_Menu->pItemRows->itemQuantityStrings[i].vertices, (u16)(x + 0x90) & 0xFFF8,
+                                        (i / 2) * 0x10 | 0xE, g_Menu->pItemRows->itemQuantityStrings[i].width,
                                         FONT_LETTER_HEIGHT);
-                    ((MenuString*)g_Menu->pItemRows)[i].renderContext = *(u8*)&g_Menu->renderContext;
-                    ((MenuString*)g_Menu->pItemRows)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
+                    g_Menu->pItemRows->itemNameStrings[i].renderContext = *(u8*)&g_Menu->renderContext;
+                    g_Menu->pItemRows->itemQuantityStrings[i].renderContext = *(u8*)&g_Menu->renderContext;
                 g_Menu->pItemRows->shouldRenderRows[i] = 1;
             } else {
                 g_GameState.itemIDs[arg0 * 2 + i] = 0;
@@ -433,8 +452,10 @@ void func_801DA5BC(s32 arg0) {
     }
     HeapFree(pWorkspace);
     g_Menu->pManager->shouldRenderUnk42C = 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA5BC);
+
+
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DA9A8);
 /* PARK 98.08% (1664 vs retail 1668 bytes, 416 vs 417 insns), round 435, gcc 2.6.0 (XenoMenu260).
