@@ -391,8 +391,6 @@ void BattleAdvanceSlotMenuStateEventRandom(u8 arg0) {
    taken through an `s64` local 95.41 (352), and `do { } while (0)` 98.35 (344).
    A second 3-minute permuter run from this body went 470 -> 394 and its only
    find was the `s64` index local, i.e. nothing portable. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11_b_r2", func_800826CC);
-/*
 void func_800826CC(u8 arg0) {
     s32 i;
     s32 cond;
@@ -408,10 +406,12 @@ void func_800826CC(u8 arg0) {
     BattleReleaseCharSlot(arg0);
     g_BattleSlotFlags[arg0 * 8] = 2;
     i = 0;
-    if (g_BattleActorCharIds[arg0] != 7) {
-        pWork = g_BattleGraphicsWork + arg0 * 0x1E4;
-        *(u8 *)(pWork + 0x853D) = 2;
-    }
+    do {
+        if (g_BattleActorCharIds[arg0] != 7) {
+            pWork = g_BattleGraphicsWork + arg0 * 0x1E4;
+            *(u8 *)(pWork + 0x853D) = 2;
+        }
+    } while (0);
     D_800C3EB8[arg0 * 0x1C] = 1;
     *(g_BattleCommandQueue + arg0 + 0x2EB) = 1;
     for (; i < 3; i++) {
@@ -420,4 +420,4 @@ void func_800826CC(u8 arg0) {
         }
     }
 }
-*/
+
