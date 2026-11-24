@@ -1818,6 +1818,21 @@ SVEC2* SpriteNextVramSlot(SVEC2* pDest, s32 amount) {
      register, so the index-first spelling stays).
    Residual after the 4 bytes: pSpriteData t0 (retail a1), pFrame a1 (retail reuses
    a0 = pFrames), pFrames a0 (retail coalesces it away), scale read through t0 vs a1.
+   Round 455 re-measured the park at 95.33 / 240 bytes and tried three more shapes,
+   all 240 bytes / 60 insns with the stack-arg load still filling the load-delay nop
+   and landing in the free caller-saved t1 (so the allocator keeps it live to the
+   merge and dbr's slot fill costs the nop):
+   - a local copy `pZ = pOutZ; *pZ = ...;` at the store: coalesced, identical stream;
+   - the second division's value through a named local (`v = pFrame[1] * scale /
+     0x1000; *pZ = v;`): identical stream;
+   - the pOutZ store moved FIRST in source order (Z,Y,X): 95.21 and still one load in
+     the early nop slot, so the hoist is NOT tied to the store's position in the body.
+     That kills the "source order decides the load's slot" idea for good.
+   Mechanism to attack next: dbr fills the load-delay nop with the stack load because
+   the pointer's pseudo gets a FREE caller-saved register (t1) that nothing clobbers
+   between the slot and the merge; retail's load lands in v0 at the merge, i.e. its
+   pseudo could not be hoisted. Nobody has found a spelling that denies it a free
+   register without adding an instruction.
 */
 /*
 void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ) {
