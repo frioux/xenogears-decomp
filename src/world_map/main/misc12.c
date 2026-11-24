@@ -995,7 +995,7 @@ s32 func_8008E76C(s32 idx) {
             g_WorldMapTpageAbr = 2;
             g_WorldMapDrawMode = nStep;
         }
-        /* fallthrough */
+        // fallthrough
     case 0x29:
         if (WorldMapMoveActorTowardTarget(pPlayer) == 3) {
             pPlayer->state--;
@@ -1072,7 +1072,7 @@ s32 func_8008E76C(s32 idx) {
             g_WorldMapTpageAbr = 2;
             g_WorldMapDrawMode = 4;
         }
-        /* fallthrough */
+        // fallthrough
     case 0x31:
     case31Tail:
         if (WorldMapMoveActorTowardTarget(pPlayer) == 3) {
@@ -1143,7 +1143,7 @@ s32 func_8008E76C(s32 idx) {
         *(u16 *)0x1F8000A2 = pPlayer->angle;
         RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[0].matrix);
         RotMatrixYXZ((SVECTOR *)0x1F8000A0, &g_WorldMapGroups->entry[1].matrix);
-        /* fallthrough */
+        // fallthrough
     case 0x35:
         nTmp = pPlayer->stateTimer - 1;
         pPlayer->stateTimer = nTmp;
