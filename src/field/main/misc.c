@@ -1655,6 +1655,16 @@ void FieldScriptSetCameraRotation(void) {
 }
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
 
+// Round 462: 98.06% (708 bytes, retail's size) - the FIRST residual is closed:
+// the `sll $v0,16` / `sra $s4,16` pair around each
+// FieldScriptVMGetInstructionArgumentS16 result is the HImode->SImode conversion of the
+// call result, so `du`/`dv` are `s32` locals, not `s16` (s16 = 93.62: the
+// callee's own `short` return needs no truncation). What is left is ONE
+// instruction plus a 3-way callee-saved rotation: retail pData=$s1 pPrev=$s2
+// pCur=$s3, here pPrev=$s1 pCur=$s2 pData=$s3, and cc1 hoists `li a0,1` (the
+// first call's argument) to the top of the function, leaving a `nop` in that
+// jal's delay slot (177 insns vs 176) where retail has the li in the slot.
+// Measured identical: moving `pData = pBounds->pCommands;` above ctx/pCur/pPrev.
 // Round 371 re-measure: 93.62%, 708 bytes (retail's size). Two residuals, both
 // from the same cause the note did not name: retail does `sll $v0,16` /
 // `sra $s4,16` on each FieldScriptVMGetInstructionArgumentS16 result and keeps
@@ -1677,8 +1687,8 @@ void func_8008B5D4(void) {
     POLY_FT4* pPoly4;
     POLY_FT4* pPrevPoly4;
     s32 ctx;
-    s16 du;
-    s16 dv;
+    s32 du;
+    s32 dv;
     s32 n;
     s32 i;
     s32 j;
@@ -1751,8 +1761,7 @@ void func_8008B5D4(void) {
         }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
-}
-*/
+}*/
 extern void* g_PartyDataBuffers[];
 extern void* g_FieldPartyModelLoadBuffer;
 extern s32 g_FieldPartyModelLoadState;
@@ -3251,6 +3260,17 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 // is unreachable: 2.7.2 folds copy+AND whenever the copy has one use; (c) -O3 by
 // try_flags -> 94.74. The 3-line `lhu 0xCC`/`li 1` hoist at the tail is probably
 // downstream of the same missing copy.
+// Round 462: re-measured 94.74% (480 bytes, retail 484). Two more spellings dead:
+// (a) `switch (value & 0xF)` inline with no `type` local and the masked store as
+// `D_800C3A30 = value & 0xF;` -> identical 480 (gcc CSEs it into the same body);
+// (b) `int value` -> 476/90.16 and it names the second residual's cause: the
+// `andi v1,v0,0xffff` for the switch operand IS the HImode->SImode promotion of
+// `value & 0xF` (with an int `value` it disappears), so retail's `move v1,v0`
+// there means retail's switch operand was SImode while the raw store still forced
+// an in-place `andi v0,v0,0xf`. Net: our build either masks the type late from v0
+// (u16: 480, raw store needs no copy) or masks it into a fresh register (int: 476,
+// no copies at all); retail's "destructive mask BEFORE the raw store" ordering is
+// what no statement order produces. cdk 89.74, 2.6.0 86.97 (preset is right).
 // Round 435: re-measured 94.74% (480 bytes, retail 484 - still one instruction short). One more spelling dead: s32 value with the type mask written BEFORE the raw store (retail's own instruction order) measures 476 bytes, 31 differing lines - gcc folds the copy and puts the store back under the flags mask. cc1_probe.sh on the isolated sequence (call, raw sh, flags mask/sw, type andi, switch chain) gives our $2/$3 shape under three statement orders, so the missing move v1,v0 needs the call-result pseudo to be allocated away from $v0, which no statement order in this block does.
 /*
 void func_8008EC30(void) {
@@ -3304,9 +3324,9 @@ void func_8008EC30(void) {
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
+
 
 
 // 89.63% (84 insns / 336 bytes against retail's 82 / 328 - TWO short, cannot
