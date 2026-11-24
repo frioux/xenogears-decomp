@@ -52,8 +52,15 @@
 // sums of angles are wrapped back into the turn counter. Owned by
 // include/main/game.h (identical value); this unit does not include it.
 #define WORLD_MAP_ANGLE_MASK 0xFFF
+// just past half a turn: the bound an angle difference is tested below to tell the
+// half where the actor turns forward from the half where it turns back
+#define WORLD_MAP_ANGLE_HALF_TURN_BOUND 0x801
 // how far an actor slot's facing turns each frame toward its target
 #define WORLD_MAP_ACTOR_TURN_STEP 0x100
+
+// -1 in either step global means no sprite set / triangle is being resolved. Owned by
+// misc14.c (identical value); this unit does not include it.
+#define WORLD_MAP_STEP_NONE (-1)
 
 typedef struct {
     /* 0x00 */ u32 unk0;
@@ -530,8 +537,8 @@ void WorldMapInitSpriteSets(void) {
         g_WorldMapGroups[i].pParent = 0;
     }
     g_GfxOTDepthShift = 2;
-    g_WorldMapStepTriangleIndex = -1;
-    g_WorldMapStepSpriteSet = -1;
+    g_WorldMapStepTriangleIndex = WORLD_MAP_STEP_NONE;
+    g_WorldMapStepSpriteSet = WORLD_MAP_STEP_NONE;
     g_WorldMapGroups[4].hidden = 1;
 }
 
@@ -1130,7 +1137,7 @@ void WorldMapDrawSlotSprites(void) {
             if (d < 0) {
                 d += WORLD_MAP_ANGLE_FULL_TURN;
             }
-            if (d < 0x801) {
+            if (d < WORLD_MAP_ANGLE_HALF_TURN_BOUND) {
                 if (d >= WORLD_MAP_ACTOR_TURN_STEP) {
                     d = pActor->redStep + WORLD_MAP_ACTOR_TURN_STEP;
                     pActor->redStep = d;
