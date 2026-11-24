@@ -766,6 +766,32 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
 //   file; misc29.c owns it). BattleSlotWorkRow in this file gained unk7/unk8 for the two
 //   per-slot gates.
 // - Preset is right: 2.6.0 scores 74.63, -O3 scores 57.54, -G8 does not compile.
+// ROUND 442, measured with cc1_probe (tools/scripts/cc1_probe.sh), do not re-derive:
+// - gcc 2.7.2-cdk NEVER reuses a stack slot: two addressable locals whose live ranges
+//   do not overlap (one in a block, one function-scope, the block one declared after the
+//   other is dead) still get DIFFERENT slots. So retail's 0x60 overlap (near-branch
+//   ApplyMatrix writes longs at 0x60/0x64/0x68 on top of vertex 0x60/0x62/0x64 and sxy
+//   0x68/0x6A) is not slot sharing: the source really does write the near-branch output
+//   through the SVECTORs' memory, i.e. ApplyMatrix(&nearMatrix, &nearVec, (VECTOR
+//   *)&vertex) and (u16)((VECTOR *)&vertex)->vx. Written that way the pre-loop region
+//   comes out exactly on retail: vertex 0x60, sxy 0x68 (8-byte SVECTOR), zeroVec 0x70.
+// - A scalar/pointer local's slot is allocated at its first ADDRESS-OF use, i.e. after
+//   every aggregate local's slot, no matter where it is declared; `long p[1]` behaves the
+//   same. That is why this body puts &sxy/&p/&flag at 0xD8/0xDC/0xE0 while retail has
+//   them at 0x68/0x78/0x7C - in the middle, between zeroVec and nearMatrix. Nothing in
+//   this unit explains how retail got them allocated eagerly there.
+// - With sxy as an 8-byte SVECTOR plus the (VECTOR *)&vertex near-branch output the body
+//   measures 78.73% at 1664 bytes, 416 insns, vars=216, frame=272; slot order then is
+//   total 0x10, groupA/groupB 0x20/0x28, frameMatrix 0x30, projected 0x50, vertex 0x60,
+//   sxy 0x68, zeroVec 0x70, nearMatrix 0x78, nearScreen 0x98, nearVec 0xA8, farMatrix
+//   0xB0, farVec 0xD0 - every aggregate 8 low because p/flag are not in the middle, and
+//   retail's 16 dead bytes at 0xD8 are on top of that. 15 instructions long: the
+//   addressable SVECTOR keeps gcc re-syncing memory around each sxy.vx/vy update.
+// - Retail's 16 dead bytes at 0xD8..0xE7 (between farMatrix and farVec, never addressed
+//   by any instruction) are a declared aggregate whose uses were optimized away; C cannot
+//   reproduce them without inventing a dead local, so farVec (0xE8 vs 0xD8) and the whole
+//   save area (frame 0x120 vs 0x110) cannot be aligned. Together with p/flag that is the
+//   remaining 24 bytes of frame and the reason this is parked.
 /*
 void func_800BC460(u32 actorMask) {
     VECTOR total;
