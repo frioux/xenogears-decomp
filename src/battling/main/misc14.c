@@ -534,7 +534,19 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
    $s1, frame 0x38 -> 0x30, 92.54 / 580 bytes. So the three-copy chain retail
    shows is a front-end artifact of the original source, not a spelling: two
    pseudos for the base cannot both survive copy propagation here. twin_for.py
-   reports no twin for this function. */
+   reports no twin for this function.
+   Round 455 (three more scored runs, all 97.42 / 588, no new best): placed the
+   `pBase = (u8 *)pCfg;` copy BETWEEN HeapAlloc and `pAnim->pEntries = pEntry`
+   (retail's exact emission slot) - combine_regs still merged it and moved the
+   surviving cast copy to entry, output byte-identical to the park; wrote the two
+   loop-2 sums value-first (`pSpec->value + pBase`) - gcc still emits
+   `addu v1,s1,v1`, so retail's `addu v1,v1,s1` is not reachable from operand
+   order; and wrote them as `&pScript[pSpec->value]` - byte-identical again. The
+   mechanism is now clear: a cast copy survives only when its source is the
+   CALL-CLOBBERED hard register a0 (that is the `move s1,a0` we have, and the
+   `move s0,s1` after it), while retail's third copy is between two callee-saved
+   pseudos and combine_regs always merges that one. Re-run the permuter only if a
+   body without the `(Misc14AnimCfg *)` cast can be found. */
 /*
 void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode) {
     Misc14AnimCfg *pCfg = (Misc14AnimCfg *)pScript;
@@ -961,7 +973,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
    (REG_ALLOC_ORDER / scan start), not a spelling - it needs a different cc1,
    not a different body.
    Round 442: un-parked, re-measured 94.29 / 28 bytes / 7 insns (note current),
-   re-parked; twin_for.py reports no twin. */
+   re-parked; twin_for.py reports no twin.
+   Round 455: un-parked and re-measured once more, 94.29 / 28 bytes / 7 insns,
+   diff unchanged (only $t0/$t1 against $v0/$v1, both relocations identical), so
+   the note is current and the wall is the cc1 register-scan start. */
 /*
 void func_8008BB00(Misc14Entry *pDst) {
     pDst->unk0 = D_80096D88;
