@@ -52,7 +52,7 @@ typedef struct {
     /* 0x0B */ u8 sizeIndex; // 0..2: which of three pre-rotated corner sizes the quad uses
     /* 0x0C */ s16 clut;
     /* 0x0E */ u16 tpage;
-    /* 0x10 */ u16 yAccel; // added to the type-0 slot's vy every frame, then to its y
+    /* 0x10 */ s16 yAccel; // added to the type-0 slot's vy every frame, then to its y
     /* 0x12 */ u16 unk12;
 } BattleAction; // Size: 0x14
 
@@ -253,33 +253,10 @@ void BattleEffectUploadClut(u8 *p0, u8 *p1) {
     D_800926AE = 0x1111;
     g_BattleEffectClutId = LoadClut2((u_long *)g_BattleEffectClutPalette, *(s16 *)g_BattleEffectClutX, *(s16 *)g_BattleEffectClutY);
 }
-/* PARK 95.35%, 1852 bytes against retail's 1860 (frame 0x48 now exact: the dead
-   RECT below is what produces the 8 bytes of slack retail has under the TIM
-   image - without it the frame is 0x40). Structure is retail's: the 12-TIM frame
-   loop, the five BattleAction fills, the light-beam action copied from action 1
-   with its tpage ABR bits set, the 0x3C-slot packet prefill (packet[1] is a copy
-   of packet[0], whose colour word is the single store 0x2C808080 and whose tag
-   length byte is 9), then the two texture blocks and the three buffer init calls.
-   THE BIG FIND: D_80092A78..D_80092AD4 are NOT separate globals - they are
-   g_BattleEffectActions[0..4] (base 0x80092A74, stride 0x14), so the typed
-   spelling used below (g_BattleEffectActions[n].field) is the real source shape.
-   Two residuals, both visible only through diff_func's inability to fold a NAMED
-   symbol into a D_ address: every field store shows as 'sb v0,8(at) /
-   R_MIPS_LO16 g_BattleEffectActions' here against retail's 'sb v0,0(at) /
-   R_MIPS_LO16 D_80092A7C' there, which links to the same bytes (overlay absolute
-   symbols), and the body is 8 bytes / 2 instructions short of retail. Because
-   diff_func only folds D_<addr> addends, the 160 diff rows are mostly that RELOC
-   noise; the real residual has to be read off a length-2 instruction deficit.
-   Not tried: spelling the five actions through their D_ addresses (would match
-   diff_func's fold but is the untyped form), the permuter (its parser rejects
-   this body's implicit declarations). Proven in the writing of it: the ten
-   palette entries are cleared then OR'd 0x8000 in a 1..0x10 loop, the palette
-   shift loops are conditional on D_800911E8[0] == 0, and every '*(u8 *)&
-   tim.prect->y' is the byte retail loads with 'lbu 2(prect)' (misc1.c uses the
-   same ((u16 *)tim.prect)[n] idiom for the same struct). */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
-
-/*
+// The slot walk must be a pointer walk: the indexed form (&g_BattleEffectSlots[i])
+// loses the biased base register gcc forms over the packet's byte fields and the
+// body comes out two instructions short. stpBit is s16 because retail materialises
+// the mask with li/or rather than ori, which only a signed 16-bit value produces.
 void func_8007B388(BattleEffectTimArchive *pTim) {
     TIM_IMAGE tim;
     RECT rect; // unused: retail's frame has 8 bytes of slack under the TIM image
@@ -287,6 +264,9 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     BattleSlot *pSlot;
     SlotMotion *pPacket;
     u16 *pPal;
+    u16 u;
+    u16 v;
+    s16 stpBit;
     u8 shift;
     s32 i;
 
@@ -317,8 +297,9 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     ReadTIM(&tim);
     pPal = (u16 *)tim.caddr;
     *pPal = 0;
+    stpBit = 0x8000;
     for (i = 1; i < 0x10; i++) {
-        pPal[i] |= 0x8000;
+        pPal[i] |= stpBit;
     }
     if (shift) {
         for (i = 0; i < 0x10; i++) {
@@ -342,8 +323,9 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     ReadTIM(&tim);
     pPal = (u16 *)tim.caddr;
     *pPal = 0;
+    stpBit = 0x8000;
     for (i = 1; i < 0x10; i++) {
-        pPal[i] |= 0x8000;
+        pPal[i] |= stpBit;
     }
     if (shift) {
         for (i = 0; i < 0xC; i++) {
@@ -360,8 +342,8 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     pAction->clut = GetClut(tim.crect->x, tim.crect->y);
     pAction->tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
     pAction->frameCount = 0xC;
-    pAction->sizeIndex = 1;
     pAction->yAccel = 0;
+    pAction->sizeIndex = 1;
 
     // The light-beam action is the second one drawn on transparent texels.
     g_BattleEffectActions[3] = g_BattleEffectActions[1];
@@ -384,14 +366,14 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     pAction->clut = GetClut(tim.crect->x, tim.crect->y);
     pAction->tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
     pAction->frameCount = 0x10;
-    pAction->sizeIndex = 2;
     pAction->yAccel = 0;
+    pAction->sizeIndex = 2;
 
-    for (i = 0; i < 0x3C; i++) {
-        pSlot = &g_BattleEffectSlots[i];
+    pSlot = g_BattleEffectSlots;
+    for (i = 0; i < 0x3C; i++, pSlot++) {
         pPacket = &pSlot->packets[0];
-        *(u32 *)&pPacket->r = 0x2C808080;
         ((u8 *)&pPacket->tag)[3] = 9;
+        *(u32 *)&pPacket->r = 0x2C808080;
         pPacket->code |= 2;
         pSlot->packets[1] = *pPacket;
         pSlot->active = 0;
@@ -402,8 +384,10 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     ReadTIM(&tim);
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
-    D_80092678 = *(u16 *)&tim.prect->x;
-    D_8009267C = *(u16 *)&tim.prect->y;
+    u = ((u16 *)tim.prect)[0];
+    v = ((u16 *)tim.prect)[1];
+    D_80092678 = u;
+    D_8009267C = v;
     D_80092680 = GetClut(tim.crect->x, tim.crect->y);
     D_80092684 = GetTPage(0, 2, tim.prect->x, tim.prect->y);
 
@@ -411,12 +395,13 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     ReadTIM(&tim);
     pPal = (u16 *)tim.caddr;
     *pPal = 0;
+    stpBit = 0x8000;
     for (i = 1; i < 0x10; i++) {
-        pPal[i] |= 0x8000;
+        pPal[i] |= stpBit;
     }
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
-    D_80092688 = (u8)(*(u16 *)&tim.prect->x << 2);
+    D_80092688 = ((u16 *)tim.prect)[0] << 2 & 0xFF;
     D_8009268C = *(u8 *)&tim.prect->y;
     D_80092690 = GetClut(tim.crect->x, tim.crect->y);
     D_80092694 = GetTPage(0, 1, tim.prect->x, tim.prect->y);
@@ -428,7 +413,7 @@ void func_8007B388(BattleEffectTimArchive *pTim) {
     BattleInitSpriteBuffers();
     BattleResetLineQuadQueue();
 }
-*/
+
 
 
 
