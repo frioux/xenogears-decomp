@@ -151,6 +151,24 @@ void MenuLoadUnkDE0Strings(void) {
    MISC: the `lhu 0x4FE4` in the tail means retail reads menuUnk2->cardStatus[] as one
    halfword; this body's two separate u8 compares emit the same lhu, so the cardStatus
    test is fine as written.
+   ROUND 429 RE-MEASURE (redo lane): unparked, recompiled and re-scored 95.67% / 322 vs
+   324 insns, so this park is not stale and the body does compile.
+   THE ROUND-406 HYPOTHESIS ABOVE IS BACKWARDS: the switch tree is not what unblocks the
+   $s5 constant, the constant is what unblocks the tree, and the choice site blocks it.
+   Retail's three in-loop uses of 2 are ALL register compares (switch root `beq v1,s5`,
+   `beq v0,s5` at the choice site, `beq v0,s5` at the case-4 test); this body can only
+   produce two, because the choice site folds to arithmetic. Measured this round, all
+   four giving the SAME code and 95.67: the live `choice = 7; if (overlay != 2) choice =
+   0;`, `if (overlay == 2) choice = 7; else choice = 0;`, the ternary passed straight to
+   the call (`MenuSetSubMenuChoicePrims(overlay == 2 ? 7 : 0)`), and a `u_char choice`
+   (that one also adds a surplus `andi a0,a0,0x7`). cc1 2.6.0 always emits
+   `xori a0,a0,0x2; sltiu a0,a0,1; negu a0,a0; andi a0,a0,0x7` (= 7 & -(x == 2)), so
+   the constant 2 survives into one insn and loop.c sees only two `li 2` in the loop;
+   retail had three, which is exactly the break-even for hoisting a constant into a
+   callee-saved register (preheader ori + save + restore). That missing hoist is the
+   missing save/restore pair (0x48 vs 0x40 frame) and the ~140-line register shift.
+   PRESET RE-SCREENED on this body: -O3 82.35, 2.7.2-cdk -G0 78.56, 2.7.2-cdk -G8
+   compile-failed, so XenoMenu260 stays. Lever recorded in levers.md.
    CODE SHAPE / meaning, for the naming pass: this is the menu's sub-menu (item row)
    screen loop: it resets the soft-reset flag and the sub-menu choice on entry, builds the
    prim buffer and cell prim blocks once (firstRun), starts the card read with
@@ -158,7 +176,6 @@ void MenuLoadUnkDE0Strings(void) {
    changed, dispatches g_Menu->input (1 up, 3 down, 4 confirm, 5 cancel) and tears the
    panel down on exit. Returns whether the screen completed normally.
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801D9F98);
 /*
 s32 func_801D9F98(s32 arg0, s32 arg1) {
     s32 result;
@@ -275,8 +292,10 @@ s32 func_801D9F98(s32 arg0, s32 arg1) {
     MenuClearBytes(6, g_Menu->pManager->shouldRenderStringsDE0);
     MenuCloseCardEvents();
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801D9F98);
+
+
 
 
 void MenuInitializeUnk42CPanel(void) {
