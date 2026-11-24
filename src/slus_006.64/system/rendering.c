@@ -372,7 +372,8 @@ void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, SpriteAnimPackage* pA
             return;
         }
         pBlock = (u8*)((mem_addr)((u16*)pFrames)[animFrame] + (mem_addr)pFrames);
-        tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+        pPackage = pSpriteData->pVramData;
+    tex = pPackage->tex;
         if (((pSpriteData->field_0x40 >> 13) & 0xF) == 0xE) {
             SpriteNextVramSlot(&tex, pBlock[4]);
         }
@@ -1795,36 +1796,53 @@ SVEC2* SpriteNextVramSlot(SVEC2* pDest, s32 amount) {
     return pDest;
 }
 
-/* Best attempt: 95.33%. Round 442: BEST IS 240 BYTES AND RETAIL'S .size IS 0xf4 = 244,
-   so this body is ONE INSTRUCTION SHORT and can never link - the older "240 bytes =
-   retail's size" reading in the note below was wrong. The missing instruction is
-   retail's LAZY load of the 5th (stack) argument: retail has
-   `mflo v1 / bgez / nop / addiu v1,v1,0xFFF / .L: lw v0,0x10(sp) / sra v1,v1,12 /
-   sw v1,0(v0)`, i.e. pOutZ is loaded at the merge point of the second division's
-   sign fixup; cc1 hoists it instead into the load-delay nop after `lhu v1,4(v0)`
-   (`lw t1,0x10(sp)` there) and keeps it in t1 for the rest of the body, which is
-   also why the second division's mflo lands in v0 here and v1 there. That is the
-   word-stack-argument hoist levers.md records as a wall (h-stack-arg-u16-load-hoist
-   and j-a-narrow-stack-argument-is round 403: a 4-byte aggregate moves a NARROW
-   load only, a word read stays hoisted).
-   Measured this round on this body (all 240 bytes, all 95.33 except the last):
-   - 5th parameter as a 4-byte aggregate (`typedef struct { s32* pOutZ; }`): the load
-     does not move at all - 95.33, identical stream. Not the lever here.
-   - embedded assignment `*(pOutZLocal = pOutZ) = pFrame[1] * ...` (levers.md
-     j-a-narrow-stack-argument-is's trick for a narrow arg): 95.33, load still hoisted.
-   - base-first form of the frame sum, `(u8*)pFrames + ((u16*)((u8*)pFrames + 2))[index]`:
-     95.16 (retail's `addu a0,v0,a0` is the index-FIRST sum coalesced into pFrames'
-     register, so the index-first spelling stays).
-   Residual after the 4 bytes: pSpriteData t0 (retail a1), pFrame a1 (retail reuses
-   a0 = pFrames), pFrames a0 (retail coalesces it away), scale read through t0 vs a1.
-*/
-/*
+/* Best attempt: 97.95% / 244 bytes - retail's EXACT .size (round 455). The body was
+   stuck one instruction SHORT at 240 bytes / 60 insns for three rounds; the missing
+   instruction is retail's LAZY load of the 5th (stack) argument, which cc1/dbr was
+   filling into the load-delay nop after `lhu v1,4(v0)` and keeping in a free
+   caller-saved register to the merge. TWO SPELLINGS TOGETHER FIXED IT, both
+   load-bearing, do not tidy them away:
+     1. ESCAPE THE STACK ARGUMENT: `ppOutZ = &pOutZ; **ppOutZ = value;` (levers.md
+        a-store-hoist-park-closes-when-the-escaped: taking the address of a 4-byte
+        stack parameter costs no frame slot and stops the hoist), 240 -> 244 bytes
+        and 94.67 at that point - the load now lands at retail's merge point with
+        `lw v1,0x10(sp)`.
+     2. NAME THE SECOND DIVISION'S RESULT: `value = pFrame[1] * scale / 0x1000;
+        **ppOutZ = value;` - with the store written inline the load goes back into
+        the mflo delay slot (`mflo / lw v1,0x10(sp) / bgez`); named, the stream is
+        retail's and the score is 97.95.
+   RESIDUAL, both pure allocator rotations on an otherwise instruction-identical
+   61-insn / 244-byte body: (a) pSpriteData t0 (retail a1), pFrame a1 (retail a0),
+   pFrames a0 in both but retail's final `addu a0,v0,a0` coalesces IN PLACE into
+   pFrames' register while ours allocates a1; the scale reads follow pSpriteData
+   (t0 vs a1). (b) the second division's product/pointer pair is mirrored (retail
+   product v1 + pointer v0, ours product v0 + pointer v1); divisions 1 and 3 match.
+   Measured this round and NOT better: `pZ = pOutZ; *pZ = ...` and
+   `**ppOutZ = value` with a `s32* pZ = *ppOutZ` local (both coalesce, 97.95
+   identical stream); the second division's value through a local WITHOUT the escape
+   (95.33, 240); the pOutZ store moved first in source order Z,Y,X (95.21, still one
+   early load - the hoist is not tied to the store's position); `u8* pFrame` declared
+   first among the locals (97.95, identical); a 3-minute permuter run (1550
+   iterations, base 125 best 70) offered only two pure copies
+   (`void* new_var = pPackage->pAnimations;` and a pFrame copy for the last store)
+   which compile to the identical stream, so its "better" was scoring noise - do not
+   re-port them.
+   Earlier rounds on the pre-escape body (all 240 bytes, all 95.33): 5th parameter as
+   a 4-byte aggregate; embedded assignment `*(pOutZLocal = pOutZ) = ...`; base-first
+   frame sum (95.16). Preset is not the answer: gcc-2.7.2-cdk 97.12 and cdk is ruled
+   out for the whole unit (SpriteDrawFrameKeepTop/Bottom drop to 88.57 under it).
+   NEXT LEVER: the two rotations above are one hand-out chain - retail's pFrame is
+   pFrames' own register, so getting the final sum to coalesce in place (a0) is
+   probably what also un-mirrors v0/v1. `mem_addr`-sum spellings of that statement
+   have all been measured (index-first is the right one).
 void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ) {
+    u8* pFrame;
     s32 index;
     SpriteAnimPackage* pPackage;
     u8* pAnimations;
     u16* pFrames;
-    u8* pFrame;
+    s32** ppOutZ;
+    s32 value;
 
     pPackage = pSpriteData->pVramData;
     pFrames = pPackage->pFrames;
@@ -1842,11 +1860,13 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
     pFrame = (u8*)(((u16*)((u8*)pFrames + 2))[index] + (mem_addr)pFrames);
 
     *pOutY = pFrame[3] * pSpriteData->scale / 0x1000;
-    *pOutZ = pFrame[1] * pSpriteData->scale / 0x1000;
+    ppOutZ = &pOutZ;
+    value = pFrame[1] * pSpriteData->scale / 0x1000;
+    **ppOutZ = value;
     *pOutX = pFrame[2] * pSpriteData->scale / 0x1000;
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
+
 
 /* Best attempt: 96.50%. UPDATE: this C scores 97.12% under gcc-2.7.2-cdk-psx,
    so the preset is not the answer; the miss is the allocator. Round r12: cdk is
@@ -1894,7 +1914,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
    shift-result temp is FED by the allocator, not by the spelling: it disappears
    only in the body where the whole 4-cycle is already retail's.
 */
-/*
+/* Best attempt: 97.38% / 160 bytes (retail 160). Instruction stream is retail's, 40 vs 40; the whole residual is one allocator permutation of the same three values: retail param t1 / i t0 / pFrameData a0, ours param t0 / i a0 / pFrameData v1 (and hence the sll temp v1 vs a2). Round 455 re-measured the park unchanged and tried three more shapes, all byte-identical at 97.38: (a) a per-iteration copy 'SpriteFrameData* pFr = pFrameData;' - coalesced away; (b) a named 'SpriteAnimPackage* pPackage = pSpriteData->pVramData;' before the tex read - coalesced away; (c) see the note below for the srl/andi split (95.50). The tie is the local-alloc hand-out of a0/t0/v1 only: retail's pFrameData takes a0 (freed when flags dies) while ours takes v1 (freed by pBase at the very load, 'lw v1,48(v1)'). Two permuter runs from score 115 found no gain, cdk scores 97.12, so this is parked as an allocator wall rather than a spelling question.
+   Load-bearing permuter edits below, keep both: 'color = flags;' then
+   'texPageBits = (color >> 5) & 7;' (96.50 -> 97.38) and
+   'do { texPageBits--; } while (0);' (97.12 before the first).
+
 void func_8001F6B0(SpriteData* pSpriteData) {
     SpriteFrameData* pFrameData;
     u32 flags;
@@ -1903,6 +1927,7 @@ void func_8001F6B0(SpriteData* pSpriteData) {
     u16 texPage;
     s32 i;
     SVEC2 tex;
+    SpriteAnimPackage* pPackage;
 
     flags = *(u32*)((u8*)pSpriteData + 0x3C);
     if ((flags & 3) != 1) {
@@ -1914,7 +1939,8 @@ void func_8001F6B0(SpriteData* pSpriteData) {
     if (texPageBits != 0) {
         do { texPageBits--; } while (0);
     }
-    tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
+    pPackage = pSpriteData->pVramData;
+    tex = pPackage->tex;
     color = *(u32*)&pSpriteData->red;
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
     for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++) {
@@ -1922,9 +1948,9 @@ void func_8001F6B0(SpriteData* pSpriteData) {
         pFrameData[i].colorAndCode = color;
         pFrameData[i].texPage = (texPage & 0xFF9F) | (texPageBits << 5);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
+
 
 void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u16* pFrameOffsets;
