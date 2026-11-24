@@ -692,13 +692,14 @@ s32 func_8008390C(s32 arg0) {
 //   bytes, 355 insns. Single lh+sll per angle as retail has, but the relocated
 //   operand (CameraRot+2/+4 instead of the named angle) scores as a mismatch.
 // - direct-symbol reads in a shared local (no cast): 67.31, 1392 bytes, 348.
-// The residual is what the compiler does with the arm body, not the fold: cc1
-// 2.7.2 schedules here (sched2 runs at -O2, and it is why retail's sh command /
-// sw redStep sit at positions 2-3 while every spelling of this body emits them
-// after the lh), and the 0x960000 that the arm stores twice is the pseudo that
-// drives it - retail keeps it in $v1, cc1 picks $a0, the SAME tie func_8008390C
-// above documents for its $a1. With the pair pushed late, arms 0/1 and 5/6 end in
-// an identical blue/dirZ store pair and get cross-jumped into one tail block.
+// The residual is what the compiler does with the arm body, not the fold. The
+// emitted arm is NOT in source order (the sh command / sw redStep pair lands
+// after the lh in every spelling, at positions 2-3 in retail), and the 0x960000
+// the arm stores twice is the pseudo that moves with it: retail keeps it in $v1,
+// cc1 2.7.2 picks $a0 - the SAME tie func_8008390C above documents for its $a1.
+// Because the pair is pushed late, arms 0/1 and 5/6 end in an identical
+// blue/dirZ store pair and are cross-jumped into one shared tail block, which
+// retail never does. Whether that reordering is sched2 or reorg was not probed.
 // measure: tools/scripts/diff_func.sh world_map/main/misc8 func_80083A00
 /*
 s32 func_80083A00(s32 arg0) {
