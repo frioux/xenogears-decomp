@@ -50,6 +50,25 @@ SVEC2* SpriteNextVramSlot(SVEC2* pDest, s32 amount) {
     return pDest;
 }
 
+// Round 468 (re-measured 97.95% / 244 bytes, retail 244, 61 vs 61 insns; body unchanged, it
+//    is still the best). The whole 38-line residual hangs off ONE coalesce in block 1: retail
+//    5th insn is "addu v1,v1,v0" (the PLUS result takes the register of the freshly loaded u16
+//    OFFSET pseudo), ours is "addu v0,v0,v1" (it takes the BASE register), so pAnimations ends
+//    up in v0 instead of v1 and every later hand-out follows - the second chain needs a fresh
+//    register (addu a1,... instead of retail in-place addu v0,v0,v1), pFrame lands in a1
+//    instead of a0 (retail overwrites pFrames a0 in place), the parameter keeps t0 instead of
+//    copying to a1, and the second division mirrors v0/v1. Fix that one coalesce and the rest
+//    should fall in.
+//    Measured this round, none better: mem_addr cast on BOTH chains - 97.79, same 61 insns,
+//    base still wins; the in-place "pAnimations += *(u16*)(pAnimations + 2);" form (the lever
+//    for pointer-variable bases) - 97.79, same stream; a NAMED u32 offset temp - 94.75 / 240
+//    bytes, one insn short, so a named temp is the wrong direction; a chain through a separate
+//    "u8* pAnimation" local, the lever b-pointer-local-holding-base spelling - 97.54, same
+//    coalesce.
+//    Already measured by earlier rounds and not to be retried: pZ pointer local, escaped 5th
+//    argument (load-bearing, 240 -> 244), inline vs named second-division store (load-bearing),
+//    source-order store shuffle, u8* pFrame declared first, cdk preset (97.12), and three
+//    permuter runs (the last two found only pure copies).
 /* Best attempt: 97.95% / 244 bytes - retail's EXACT .size (round 455). The body was
    stuck one instruction SHORT at 240 bytes / 60 insns for three rounds; the missing
    instruction is retail's LAZY load of the 5th (stack) argument, which cc1/dbr was
@@ -168,6 +187,22 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_b", func_8001F5BC);
    shift-result temp is FED by the allocator, not by the spelling: it disappears
    only in the body where the whole 4-cycle is already retail's.
 */
+// Round 468 re-measured: still 97.38% / 160 bytes (retail 160), 40 vs 40 insns, so the body
+//    below is still the best. TWO residuals, and the first one sits on the same hand-out as the
+//    second: (1) srl dest - retail "srl a3,a0,0x5 / andi a3,a3,7" (the shift result lands in
+//    texPageBits own register), ours "srl v0,a0,0x5 / andi a3,v0,7"; the two-statement form
+//    fixes exactly this but measures 95.50 / 164 (round 442), not a win on its own. (2) the loop
+//    rotation follows from ONE coalesce: ours lands the pCurRenderFramesData load dest in the
+//    DEAD ADDRESS register ("lw v1,48(v1)" after "lw v1,32(t1)"), so pFrameData is v1, i takes
+//    the freed a0 and the shift temp a2; retail keeps that load dest in a0 (the register the
+//    flags word freed) and i in t0, with v1 the shift temp. Break that load-dest coalesce and
+//    all of (2) falls in.
+//    Measured this round, NOT better: a named
+//    "SpriteDataI1* pBase = pSpriteData->pBase; pFrameData = pBase->pCurRenderFramesData;" pair
+//    (byte-identical 97.38 / 160, coalesced away) and moving the pFrameData assignment above
+//    the color load (97.12 / 160: color then takes a0 and i takes t1). Round 455 had already
+//    measured three per-iteration/coalesced copies dead at the same 97.38. Preset ruled out
+//    (cdk 97.12, and cdk breaks this units matched functions).
 /* Best attempt: 97.38% / 160 bytes (retail 160). Instruction stream is retail's, 40 vs 40; the whole residual is one allocator permutation of the same three values: retail param t1 / i t0 / pFrameData a0, ours param t0 / i a0 / pFrameData v1 (and hence the sll temp v1 vs a2). Round 455 re-measured the park unchanged and tried three more shapes, all byte-identical at 97.38: (a) a per-iteration copy 'SpriteFrameData* pFr = pFrameData;' - coalesced away; (b) a named 'SpriteAnimPackage* pPackage = pSpriteData->pVramData;' before the tex read - coalesced away; (c) see the note below for the srl/andi split (95.50). The tie is the local-alloc hand-out of a0/t0/v1 only: retail's pFrameData takes a0 (freed when flags dies) while ours takes v1 (freed by pBase at the very load, 'lw v1,48(v1)'). Two permuter runs from score 115 found no gain, cdk scores 97.12, so this is parked as an allocator wall rather than a spelling question.
    Load-bearing permuter edits below, keep both: 'color = flags;' then
    'texPageBits = (color >> 5) & 7;' (96.50 -> 97.38) and
