@@ -572,6 +572,25 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 //   86.97, the constant then lands in $v1.
 // - u32/int for the constant, dropping the do-block (89.90), typed struct
 //   fields for the four shifted stores (77.97).
+// Round 458 re-measured the same 96.48 and closed the remaining axes:
+// - retail's residual 2 IS the natural source order (both Y stores, then the
+//   angleZ load); written that way the tail comes out exactly retail's but the
+//   WHOLE body reallocates into the $a1 family (positions $v0 -> $a1, angleY
+//   $v0 -> $a1, so sw v0,124/... all move) and the sll loses $a0: 93.03, 61
+//   insns, 244 bytes. Keeping the u32 angleZ local and the extra `v = angleZ`
+//   copy does not change it (identical code), and dropping the do-while(0)
+//   with it measures 76.05. So the load's source position is a whole-body
+//   allocation switch here; residual 1 and residual 2 cannot be had together.
+// - forcing the constant and the angleZ chain to CONFLICT (angleZ loaded before
+//   the g_WorldMapCameraHeight store, so their ranges overlap) does NOT move
+//   the constant off $a0: 89.43, still 61 insns / 244 bytes, and cc1 puts the
+//   lh back after the store anyway. The $a1 assignment is therefore not a
+//   contest this source can enter - it is fixed for this instruction stream.
+// - preset screen on THIS function (not func_80083A00, which the note below
+//   covers): gcc-2.7.2-cdk 96.48 (identical allocation) but the unit's matched
+//   neighbours break under it (WorldMapBuildActorModelMatrix 99.43,
+//   WorldMapBuildSpritePrims 97.46, WorldMapInitializeScene 85.56), -O3 96.48,
+//   -G0 86.46, gcc-2.6.0 does not compile. The unit preset is right.
 // measure: tools/scripts/diff_func.sh world_map/main/misc8 func_8008390C
 /*
 s32 func_8008390C(s32 arg0) {
