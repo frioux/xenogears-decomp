@@ -733,7 +733,16 @@ extern void func_8009093C(s32 arg0);
    body. lever.py on the residual returns the round-407 finding (c-two-loads-hoist:
    the pair's slot is the pre-reload scheduler's, unreachable from statement
    order), and a 3-minute permuter run from this init-block body went
-   base=178 best=178 over 1472 iterations, i.e. it is a local optimum. */
+   base=178 best=178 over 1472 iterations, i.e. it is a local optimum.
+   ROUND 460 re-measured both ends from fresh unpark: the init-block body below
+   is 99.42% / 1156 bytes (the missing `li s0,1` puts every later branch off by
+   one), and the pagePending-after-BattleInitPulseTrianglePrims body is
+   98.52% / 1160 bytes with the ONLY difference a 5-slot displacement of the
+   `sw s4,88(sp); li s4,1` pair past the `li a3,0x118` of the first call's
+   argument setup (every other line identical, jtbl operands aside). Nothing
+   else measured: levers.md c-two-loads-hoist-the already records this exact
+   residual from round 447 ("statement order is exhausted", do not re-permute),
+   so this is the pre-reload scheduler's slot, not the C. */
 /*
 u8 func_8008BED8(u8 arg0) {
     u8 i;
