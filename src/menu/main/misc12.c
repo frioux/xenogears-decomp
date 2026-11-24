@@ -102,8 +102,61 @@ extern s32 D_801EA040;
 extern s32 D_801EA044;
 extern s32 D_801EA048;
 
-// Round 450 (this tree): re-measured 88.75% / 608 bytes / 152 insns, which IS retail's size. Preset screen: gcc-2.7.2-psx 85.20, gcc-2.7.2-cdk will not compile this unit, so XenoMenu260 (2.6.0) is right and the unit needs no split. Residual unchanged and still the same ten mirrored operands: (a) all four counter addresses emit "addu a0,s1,a0" where retail has "addu a0,a0,s1"; (b) the prim base pair "addiu a2,s1,2712 / addu ..." is hoisted into the beq delay slot where retail forms it after the two stack-argument stores; (c) the base/slot sum takes a0 where retail has a2, so ours needs an extra t1. Nothing new tried this round beyond the preset screen: the lever list's remaining candidates (embedded-assignment temps 82.70/612, the double-negated offset 80.13/624, a slot variable 70.93-76.25) are all in this note already and all lose the register plan.
-/*
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
+/* Best: 88.75% at 608 bytes, which IS retail's size (0x21CFC..0x21F5C; the
+   "484 bytes" an older note here quoted was wrong). Three measured levers got it
+   from 69% to here, keep them:
+   - the fifth/sixth/seventh parameters of func_8002675C must be declared s32 in
+     this TU (the callee in system/temp2 really takes u16, but a u16 declaration
+     here makes gcc compute x in u16: lhu of D_801EA02C and an andi at the store).
+     Every already-matched function in this file stays 100.00 with the s32
+     declaration. 72.93% with u16.
+   - do NOT keep the slot byte offset in a local: inlining
+     (u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE at every use is what
+     makes retail recompute it per half and stops gcc hoisting it into a saved
+     register (found by the permuter, base 4694 -> 2023, 72.93 -> 88.59%).
+   - the second loop is the read-and-bump form (g_Menu->digits[6 + i++]) so i++
+     lands in the beq delay slot as retail has it.
+   What is left, all inside the loop bodies:
+   - retail forms the slot base as "addu a0,a2,s1" (pPrimBuffer first) where the
+     inline spelling gives "addu a0,s1,a0"; the embedded-assignment lever (a
+     pointer local assigned from the sum) does give base-first but then moves the
+     addiu for primOffset (index*0x87C + 0xA98) up into the beq delay slot, which
+     retail has later in the body, and costs an extra move (608 -> 616 bytes).
+   - retail stores x and the 0x1000 scale before it loads D_801EA030 for y;
+     ours stores them after.
+   Two runs of the permuter on this body found only new_var temporaries (1150 ->
+   1135), so this is a hand-shape problem, not a random-edit one.
+   Round 318 (measured, all in this unit under 2.6.0): the "addu a0,a2,s1" base-first
+   order needs the slot offset to be a source VARIABLE, not an inline `index * 0x87C`
+   - a cc1_probe replica shows `s32 slot = idx * 0x87C; (u8*)base + slot` emitting
+   `addu $3,$3,$2` (base first) where the inline product emits `addu $2,$2,$3`, and
+   the twin's embedded-assignment idiom does NOT help here (82.33%, 604, still
+   mirrored). But every body that introduces the variable loses retail's register
+   plan: i and slot swap out of s0/s1 (the multiply chain lands the offset in s0 and
+   i's `move zero` defers into the jal delay slot), giving 70.93/584, 71.04/576 and
+   76.25/584 for the slot-local spellings with primOffset kept versus inlined. So the
+   missing piece is a source shape that makes i's zero-init stay in the prologue
+   while slot is a variable - nothing tried here does both.
+   Round 373 re-measured: 88.75% at 608 bytes. TEN instructions differ, five per
+   half, and they are the same five in each: (a) "addu v1,s1,v1" where retail has
+   "addu v1,v1,s1" (mirrored, same registers); (b) the base load takes a0 where
+   retail has a2, so the prim address becomes "addu t1,a2,a0" + a later
+   "addu a2,t1,a2" instead of retail's "addu a0,a2,s1" / "addu a2,v0,a2";
+   (c) the counter store address is "addu a0,s1,a0" against retail's
+   "addu a0,a0,s1". Same instruction count, same bytes - a pure operand/destination
+   tie in the allocator, exactly as this note says.
+   Round 437 (this tree) measured three more spellings of the loop body, each
+   reverted: the double-negated offset from lever c-a-double-negated-offset-flips
+   ((u8*)g_Menu->pPrimBuffer - -(index * MENU_SLOT_PRIM_STRIDE)) turns the address
+   into subu a0,a0,s2 off a negative accumulator, 80.13% / 624 bytes / 156 insns;
+   the embedded-assignment temps (pSlot/pCount inside the += address and the
+   counter read, which is what the matched twin MenuDrawSlotResourceSprites in
+   menu/main/misc11_r2_b uses) give 82.70% / 612, with the addiu for
+   index*stride+0xA98 hoisted into the beq delay slot and the prim base in t1;
+   and the full twin shape (that plus continue, plus a pCounter variable) is
+   82.57% / 612. So in THIS unit the plain inline spelling in the park below is
+   still the best body, and the ten mirrored addu operands stay the residual.
 void func_801E6CFC(u8 index, u8* pEntry) {
     u8* pPrims;
     s32 primOffset;
@@ -139,10 +192,8 @@ void func_801E6CFC(u8 index, u8* pEntry) {
             n++;
         }
     }
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
-
-
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
 /* Best: 88.60% at 600 bytes, which IS retail's size (0x21F5C..0x221B4).
    The same body as func_801E6CFC above, with the MP half's own constants:
@@ -951,7 +1002,6 @@ void MenuReadPcFile(char* pName, char* pBuffer, int len) {
 // "move s0,zero" and writes "move v0,zero" (this body, +8 bytes). A return per path (three
 // "return result;" statements) makes gcc const-propagate all three into li v0 (96.70% / 760).
 // Nothing tried keeps the s0 = 0 assignment AND the duplicate copy.
-// Round 450 (this tree): re-measured 98.39% / 760 bytes / 190 insns (retail 772 / 193). The two residuals measured separately: (a) writing the 0x15 query's status pointer as the literal &g_MenuCdStatus gives 98.23% / 768 / 192: gcc rematerialises the address into a2 for the argument AND into v1 for the following lbu instead of keeping one pseudo in s0, and a fresh "u_char* pStatus = &g_MenuCdStatus;" measures identically, so with both uses fresh the remat is unavoidable. (b) the success path's "result = 0; ... return result;" is const-folded to "move v0,zero" and the "addu s0,zero,zero" store disappears (one instruction short); moving the assignment after the two calls is byte-identical (760/190), so its position is not the lever. Why retail keeps that copy: retail's OTHER two returns ("addu v0,s0") sit at merge labels, where cse's register-value table is reset, while the success block is straight-line - the fold is decided inside the block, not by the calls. Preset screen: gcc-2.7.2-psx measures the same 98.39, 2.6.0 -O3 is 75.57, and -G0 / 2.7.2-cdk do not compile, so XenoMenu260 is right. MATCH needs BOTH residuals (193 insns), so repairing one cannot close it.
 /*
 s32 func_801E93A0(s32 disc) {
     MenuSectorHeader header;
@@ -1026,5 +1076,4 @@ s32 func_801E93A0(s32 disc) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E93A0);
-
 
