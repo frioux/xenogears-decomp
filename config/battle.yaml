@@ -81,7 +81,10 @@ segments:
       # plus 0); it belongs to asm so the switch in func_80094EE4 can be converted.
       - [0x894, rodata]
       - [0x898, .rodata, main/misc18]
-      - [0x938, .rodata, main/misc19]
+      # misc19's two tables both belong to functions of main/misc19_b: jtbl_80070428
+      # at +0x0 (BattleDecrementGearPartUse) and jtbl_80070478 at +0x50
+      # (BattleSetCommandCodeForSlotKindFlag), so the range travels with that TU.
+      - [0x938, .rodata, main/misc19_b]
       # jtbl_800704A0 belongs to func_8009BAC4, which sits in main/misc19_r1 (its run
       # of the unit is gcc 2.6.0; see gears.toml XenoLibrary), so the table's bytes
       # have to travel with that TU or the whole rodata block shifts.
@@ -136,6 +139,12 @@ segments:
       - [0x21574, c, main/misc17]
       - [0x25F88, c, main/misc18]
       - [0x2A5EC, c, main/misc19]
+      # func_8009ADA0 (0x2B2B0..0x2B40C) is 100.00 only under gcc 2.6.0 - 2.7.2's own
+      # expand_divmod gets all four `/20`,`/50` divisions wrong (88.68, 356 bytes vs
+      # retail's 348) - so that one function is its own TU on the XenoLibrary preset
+      # and the run after it stays on Default as main/misc19_b.
+      - [0x2B2B0, c, main/misc19_r2]
+      - [0x2B40C, c, main/misc19_b]
       # func_8009BAC4 on is byte-identical only under gcc 2.6.0 (try_flags.sh: every
       # already-matched function of the head stays 100 under Default, and eleven of
       # them drop under 2.6.0, so the unit is mixed and the tail is its own TU).
