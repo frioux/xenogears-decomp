@@ -822,34 +822,50 @@ void FieldAddParticlePrims(void) {
 }
 
 
-// PARKED 99.56%, re-measured (round 412): retail's exact 500 bytes / 125 insns,
-// instruction-identical except ONE register pair. Retail keeps j*16 (nX, truncated
-// in place to the mask) in v0 and the mask+0x10 value (nU1) in v1; ours is mirrored
-// (nX/mask in v1, nU1 in v0). 18 differing lines, nothing else.
+// PARKED 99.56% at retail's exact 500 bytes / 125 insns: the body is
+// instruction-identical except for ONE caller-saved pair. Retail keeps j*16
+// (truncated in place by the andi) in $v0 and the mask + 0x10 in $v1; ours mirrors
+// them (mask in $v1, mask + 0x10 in $v0), 18 differing lines and nothing else.
 //
-// Fresh -dl on this body (cc1 with the unit flags + -dl): pseudo 77 = j (12 refs /
-// 5 insns, pri 3*12*4/5 = 28.8), 78 = the mask (12 / 7 -> 20.6), 79 = nU1
-// (9 / 6 -> 18.0), 122 = nX (12 / 22 -> 6.5). Dispositions: 77 in 3, 78 in 3,
-// 79 in 2, 122 in 3, i.e. the mask (20.6, highest after j) is processed first,
-// takes 3, drags nX into 3 by copy suggestion, and nU1 falls to 2. Retail needs
-// nU1 above the mask: mask live_length >= 9 (16.0) or nU1 refs >= 11 (22.0).
-// Both of the mask's endpoints are pinned by retail's own stream - the andi sits
-// right after the two sh stores and its last use is the u2 store - so its live
-// length cannot move, and a fourth instruction mentioning nU1 would cost bytes
-// (retail has exactly three). A 12% quotient gap with no free term, so this is not
-// a tie to spell and the permuter has already had it.
+// Round 452: an empty `do { } while (0);` between `nU = nX & 0x3F;` and
+// `nU1 = nU + 0x10;` FLIPS the pair into retail's arrangement - 98.40%, 500 bytes,
+// 125 insns, two differing lines - so the mirror is not an unreachable local-alloc
+// quotient wall: it is what happens when the mask and the + 0x10 value share one
+// basic block. Split off after the andi, the mask alone takes $v0 in the first
+// block and the + 0x10 value falls to $v1 in the second, exactly as retail has it.
+// The price is the other differing line: `move a2,s2`, the GetTPage division's
+// dividend copy that sched2 hoists to the block head (right after SetPolyGT4's
+// delay slot) in both retail and the unbarriered body, is then hoisted only into
+// the second block, landing after the addiu. Measured placements: barrier before
+// the andi keeps the pair mirrored and puts the copy after the andi (97.96%),
+// barrier at the loop-body head alone changes nothing, and a second barrier at that
+// head on top of the good one changes nothing either - the copy follows the LAST
+// barrier. So the two differing lines trade against each other and no legitimate
+// source statement puts a block boundary between the mask's definition and the
+// + 0x10's; both are pinned by retail's own 125-instruction stream.
 //
-// Preset screen on this body: 2.7.2-cdk 99.52, 2.6.0 99.56, -O3 does not compile.
+// local-alloc's own numbers for this body (-dl/-dg): the mask is 12 refs across 7
+// insns, the mask + 0x10 is 9 across 6, and j*16 is coalesced into the mask; the
+// sort key is deaths/refs, so 1/9 beats 1/12 and the + 0x10 value is processed
+// first. The mask would have to fall to 8 refs (2 insns) or the + 0x10 value rise
+// to 11 (4 insns), and retail's stream pins both counts at 3 insns each.
 //
-// Tried before that dump (all 99.56, byte-identical unless noted): the mask before
-// or after the x stores, mask and +0x10 adjacent at retail's own position, a named
-// temp at its first use, a 0x10 + nU operand swap, nU1 before nU, declaration
-// order, nX reused for the mask or for the +0x10 value, both inline forms, a second
-// 0x10 local, an x1/x3 stepping counter in the for increment clause (97.60, moves
-// the s4/s5 roles), nX written back as nX &= 0x3F (95.54 / 488 - folds three
-// insns), a block-scope declaration with initialiser, u_char mask (94.91), one or
-// both of nU/nU1 u_short (94.9), nIndex reused (94.2); four permuter runs, base=55
-// every time (1314, 1971, 2018, 222 iterations).
+// Presets: 2.7.2-cdk 99.52, 2.6.0 99.56, -O1 75.83, -O3 does not compile, and a
+// try_flags --sweep over 2.7.2 / 2.6.0 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x
+// -mcpu 3000/r8000 finds nothing better, so this is not a compiler-version pair.
+// Seven permuter runs on this body, base=55 every time (1314, 1971, 2018, 222,
+// 1550, 1423, and round 452's third run below), i.e. no local edit reaches it.
+//
+// Spelling dead ends measured (99.56 and byte-identical unless noted): the mask
+// before or after the x stores, mask and + 0x10 adjacent at retail's own position,
+// a named temp at its first use, a 0x10 + nU operand swap, nU1 before nU,
+// declaration order, nX reused for the mask or for the + 0x10 value, both inline
+// forms, a second 0x10 local, an x1/x3 stepping counter in the for increment clause
+// (97.60, moves the s4/s5 roles), nX written back as nX &= 0x3F (95.54 / 488 -
+// folds three insns), a block-scope declaration with initialiser, u_char mask
+// (94.91), one or both of nU/nU1 u_short (94.9), nIndex reused (94.2), grouping the
+// u0/u2 stores above u1/u3 (96.53 - hands the mask $v0 but re-orders the sb
+// stream), an u_int block-scope copy of nU1 (copy-propagated away, identical).
 //
 // Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
 // nIndex = i*20 + j, polygons is 560 POLY_GT4 (two 280 copies, the second at
@@ -858,56 +874,7 @@ void FieldAddParticlePrims(void) {
 // (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10, tpage =
 // GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
 // *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
-// PARKED 99.56%, re-measured (round 421): retail's exact 500 bytes / 125 insns,
-// instruction-identical except ONE register pair. Retail keeps j*16 (truncated in
-// place by the andi) in v0 and the mask+0x10 value (v1 = v0 + 0x10) in v1; ours
-// mirrors them (mask in v1, mask+0x10 in v0), 18 differing lines and nothing else.
-//
-// WHY THE PAIR CANNOT FLIP: fresh -dl on this body gives pseudo 78 = the mask (12
-// refs across 7 insns), 79 = the mask+0x10 (9 refs across 6 insns) and 122 = the
-// j*16 temp (12 / 22, coalesced into 78). local-alloc orders qtys by deaths/refs,
-// then by live_length; both die once, so the mask's 12 refs (0.083) lose to 79's 9
-// (0.111), 79 takes the first free register ($v0) and the mask follows into $v1.
-// Refs are 3 per referencing insn, so the mask touches 4 insns (andi, addiu, the
-// two sb) and 79 touches 3 (addiu, the two sb): the mask can only be processed
-// first at <= 8 refs (2 insns) or with 79 at >= 11 (4 insns), and retail's own
-// stream pins both counts. So this is not a tie to spell.
-//
-// Measured on this body, in addition to the list below: grouping the u0/u2 stores
-// above u1/u3 DOES hand the mask $v0 but re-orders the sb stream with it (96.53),
-// a u_char store-view of the mask (u_char nUS = nU) costs one instruction and 4
-// bytes (98.96), the local-alloc dumps above, and a 5th permuter run base=55
-// best=55 over 1550 iterations.
-//
-// Preset screen on this body: 2.7.2-cdk 99.52, 2.6.0 99.56, -O3 does not compile.
-//
-// Tried before that (all 99.56, byte-identical unless noted): the mask before or
-// after the x stores, mask and +0x10 adjacent at retail's own position, a named
-// temp at its first use, a 0x10 + nU operand swap, nU1 before nU, declaration
-// order, nX reused for the mask or for the +0x10 value, both inline forms, a second
-// 0x10 local, an x1/x3 stepping counter in the for increment clause (97.60, moves
-// the s4/s5 roles), nX written back as nX &= 0x3F (95.54 / 488 - folds three
-// insns), a block-scope declaration with initialiser, u_char mask (94.91), one or
-// both of nU/nU1 u_short (94.9), nIndex reused (94.2); five permuter runs, base=55
-// every time (1314, 1971, 2018, 222, 1550 iterations).
-//
-// Re-measured this round: 99.56 percent, 500 bytes = retail's exact size, 125 insns,
-// the same 18 v0/v1 lines and nothing else. Fresh -dg/-dl on this body: dispositions
-// 78 in 3 (mask, 12 refs across 7 insns), 122 in 3 (j*16 - retail's own in-place andi
-// ties the mask to it) and 123 in 2 (mask+0x10, 9 refs across 6 insns). mask+0x10
-// holds the first-handed $v0, so it was processed BEFORE the mask, which pins the
-// sort key as deaths/refs (1/9 beats 1/12); the round-412 note's refs/live_length
-// reading (1.71 vs 1.50) predicts the opposite and is wrong. The flip therefore
-// needs nU1 at 13 refs (5 insns), the mask at 2 deaths, the mask at live_length 5 or
-// nU1 at live_length 8 - and every one of those endpoints is pinned by retail's own
-// stream (one andi, one addiu off it, two stores each). New dead ends measured today:
-// an u_int block-scope copy of nU1 (copy-propagated away, identical), and try_flags
-// --sweep over 2.7.2 / 2.6.0 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x -mcpu
-// 3000/r8000 (best 99.56 under 2.7.2 -O2 and 2.6.0 -O2, cdk 99.52, -O1 75.83, -O3
-// does not compile), so no preset produces retail's pair. A sixth 3-minute permuter
-// run on this exact body this round: base=55 best=55, 1423 iterations - six runs,
-// base=55 every time, so no local edit reaches the pair.
-// Settled facts: 14 x 20 grid of 16x16 POLY_GT4 tiles, i outer / j inner,
+// best 99.56% (500 bytes = retail's) - see the note above the stub
 /*
 void func_800A6E70(void) {
     FieldParticlePrimitiveSet* pPrims;
@@ -971,6 +938,7 @@ void func_800A6E70(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
+
 
 
 
