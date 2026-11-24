@@ -1795,19 +1795,30 @@ SVEC2* SpriteNextVramSlot(SVEC2* pDest, s32 amount) {
     return pDest;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
-/* Best attempt: 95.33% (240 bytes = retail's size; was 95.16). Round 378: writing the two
-   pointer sums INDEX-FIRST (`pAnimations = *(u16*)(pAnimations + 2) + pAnimations;` and
-   `pFrame = *(u16*)(pAnimations + 4) + pAnimations;`, plus
-   `pFrame = (u8*)(((u16*)((u8*)pFrames + 2))[index] + (mem_addr)pFrames);`) reproduces
-   retail's `addu v1,v1,v0` / `addu v0,v0,v1` / `addu a0,v0,a0` operand order and is worth
-   95.16 -> 95.33. Measured no-ops: a `s32 z` temp for the pOutZ store (95.33).
-   Remaining delta (5 instructions, 240 bytes both sides): retail keeps the sprite data
-   in $a1 (`addu a1,a0,zero`) and loads the 5th argument LAZILY (`lw v0,16(sp)` between
-   `sra` and `sw` in the second division), this C puts the sprite in $t0 and hoists pOutZ
-   into $t1, which is also why the second division's mflo lands in v0 here and v1 there.
-   Preset ruled out earlier: gcc-2.7.2-cdk is 98.52 but breaks matched functions in this
-   unit. Body as measured below:
+/* Best attempt: 95.33%. Round 442: BEST IS 240 BYTES AND RETAIL'S .size IS 0xf4 = 244,
+   so this body is ONE INSTRUCTION SHORT and can never link - the older "240 bytes =
+   retail's size" reading in the note below was wrong. The missing instruction is
+   retail's LAZY load of the 5th (stack) argument: retail has
+   `mflo v1 / bgez / nop / addiu v1,v1,0xFFF / .L: lw v0,0x10(sp) / sra v1,v1,12 /
+   sw v1,0(v0)`, i.e. pOutZ is loaded at the merge point of the second division's
+   sign fixup; cc1 hoists it instead into the load-delay nop after `lhu v1,4(v0)`
+   (`lw t1,0x10(sp)` there) and keeps it in t1 for the rest of the body, which is
+   also why the second division's mflo lands in v0 here and v1 there. That is the
+   word-stack-argument hoist levers.md records as a wall (h-stack-arg-u16-load-hoist
+   and j-a-narrow-stack-argument-is round 403: a 4-byte aggregate moves a NARROW
+   load only, a word read stays hoisted).
+   Measured this round on this body (all 240 bytes, all 95.33 except the last):
+   - 5th parameter as a 4-byte aggregate (`typedef struct { s32* pOutZ; }`): the load
+     does not move at all - 95.33, identical stream. Not the lever here.
+   - embedded assignment `*(pOutZLocal = pOutZ) = pFrame[1] * ...` (levers.md
+     j-a-narrow-stack-argument-is's trick for a narrow arg): 95.33, load still hoisted.
+   - base-first form of the frame sum, `(u8*)pFrames + ((u16*)((u8*)pFrames + 2))[index]`:
+     95.16 (retail's `addu a0,v0,a0` is the index-FIRST sum coalesced into pFrames'
+     register, so the index-first spelling stays).
+   Residual after the 4 bytes: pSpriteData t0 (retail a1), pFrame a1 (retail reuses
+   a0 = pFrames), pFrames a0 (retail coalesces it away), scale read through t0 vs a1.
+*/
+/*
 void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ) {
     s32 index;
     SpriteAnimPackage* pPackage;
@@ -1833,8 +1844,9 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
     *pOutY = pFrame[3] * pSpriteData->scale / 0x1000;
     *pOutZ = pFrame[1] * pSpriteData->scale / 0x1000;
     *pOutX = pFrame[2] * pSpriteData->scale / 0x1000;
-}*/
-
+}
+*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F5BC);
 
 /* Best attempt: 96.50%. UPDATE: this C scores 97.12% under gcc-2.7.2-cdk-psx,
    so the preset is not the answer; the miss is the allocator. Round r12: cdk is
@@ -1871,6 +1883,16 @@ void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pO
    pFrameData (97.38), pFrameData pointer local in the loop (97.38), loop guard
    read once and ++i in the body (97.38), `i < bound` (91.95), pFrameData
    assigned before tex (85.20). gcc-2.7.2-cdk scores 97.12, so not the preset.
+   Round 442 re-measured the park at 97.38 / 160 bytes (both sides) and tried the
+   one axis the note above had not: the shift/mask. `texPageBits = color >> 5;
+   texPageBits &= 7;` as TWO statements reproduces retail's in-place
+   `srl a3,a0,5 / andi a3,a3,7` (the single-expression form always leaves the srl
+   in a temp: `srl v0,a0,5 / andi a3,v0,7`), but it hands the shifted value a3 and
+   then gcc emits a `move a0,v1` copy of pFrameData and the loop counter moves to
+   a1: 95.50% / 164 bytes, one instruction too long. Declaring texPage inside the
+   loop is byte-identical to declaring it at the top (97.38 / 160). So the
+   shift-result temp is FED by the allocator, not by the spelling: it disappears
+   only in the body where the whole 4-cycle is already retail's.
 */
 /*
 void func_8001F6B0(SpriteData* pSpriteData) {
