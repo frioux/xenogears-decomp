@@ -2139,51 +2139,6 @@ extern void func_80084A40(int actorIndex, int y, FieldActor* pActor, ActorData* 
 extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_80081C54(int actorIndex);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
-
-// 97.49% (732 bytes = retail's exact 0x2dc / 183 instructions; objdiff lists 10
-// differing lines). The whole body is instruction-identical except TWO placements
-// in the head: retail loads the arg3 base (`lui a2,%hi(g_FieldActors); lw a2`) as
-// the third of the three loads that sit BEFORE the `addiu sp` prologue and keeps
-// its `sll v1,v1,2` (pActorData index * 4) AFTER the second base load; ours emits
-// the arg3 base next to the pData base load and the `sll` before both. Same
-// instruction multiset, so it is a sched2/prologue-interaction residual.
-// READ THE VOLATILE-LOAD ORDER FIRST: both `lw g_FieldActors` are volatile reads
-// (include/field/actor.h has `extern FieldActor* volatile g_FieldActors`), so the
-// emitted order IS the source order and sched2 cannot swap them. Retail's order is
-// [idx,idx,base_arg2,base_pData] with the arg2 chain built from the FIRST idx read
-// ($a0) and the pData chain from the second ($v0); our parked order is
-// [idx,idx,base_pData,base_arg2]. So retail's SOURCE reads g_FieldActors for arg2
-// before the pActorData expression, and reaches arg2 through the actorIndex local.
-// Round 439 measured that source (`pPlayer = &g_FieldActors[g_PlayerActorIndex];`
-// before `pPlayerData = g_FieldActors[actorIndex].pActorData;`): the load order IS
-// retail's and the sizes match, but both base loads hoist above the prologue and
-// the two chains SWAP registers, 95.08% / 184 insns (+4 bytes) - so the order fix
-// and retail's register pair are not simultaneously reachable from that shape.
-// WHAT GOT IT HERE (the two levers, both measured in an earlier round):
-// 1. `g_PlayerActorIndex` must be declared volatile in this unit: retail re-reads
-//    it AND re-forms the whole index*0x5C chain for each of the TWELVE copy
-//    statements (68.46 -> 80.73, 135 -> 174 insns).
-// 2. The six destination stores must go through a volatile lvalue
-//    (`*(volatile int*)&pSpriteData->position.x = ...`): with plain stores sched2
-//    sinks the next statement's volatile `lw g_PlayerActorIndex` between this
-//    statement's value load and its store and burns the load-delay nops retail
-//    has (86.28 -> 97.43, 183 instructions in retail's order). 10 instructions.
-// 3. pCurActor must be RE-FORMED after the FieldCharacterIdToPartyId call as
-//    `(FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors)` - that is what
-//    gives retail's `addu v0,s4,v0` operand order (offset-first) and the second
-//    `lw v0,76(v0)` that arg2's y is read through (97.43 for the plain form).
-// Tried and dead: pActor as its own local before / after pPlayerData (94.32 /
-// 96.86); the offset form for arg3 inline in the call (97.43); three declaration
-// orders; the arg2-base-first source above (95.08).
-// Permuter cannot run on this body: its base compile dies with "conversion to
-// non-scalar type requested" in the re-emitted temp file.
-// preset re-screened on THIS body: 2.7.2 -G0 (unit) 97.49, 2.6.0 97.38,
-// 2.7.2-cdk 82.78 - not a preset question.
-// cc1's own output (build/src/field/main/misc2.c.s) shows the split: cc1 emits
-// `sll $3,$3,2` (index*4) BEFORE the two `lw g_FieldActors` volatile loads, and
-// retail has it AFTER the chain's base load, i.e. in that load's delay slot.
-/*
 void func_80077268(void) {
     ActorData* pData;
     int i;
@@ -2192,11 +2147,15 @@ void func_80077268(void) {
     FieldActor* pCurActor;
     int partyId;
     ActorData* pPlayerData;
+    FieldActor* pFieldActors;
     int actorIndex;
+    int playerIndex;
 
     actorIndex = g_PlayerActorIndex;
-    pPlayerData = g_FieldActors[g_PlayerActorIndex].pActorData;
-    func_80084A40(actorIndex, ((s16*)&pPlayerData->position.vy)[1], &g_FieldActors[actorIndex],
+    playerIndex = g_PlayerActorIndex;
+    pFieldActors = g_FieldActors;
+    pPlayerData = g_FieldActors[playerIndex].pActorData;
+    func_80084A40(actorIndex, ((s16*)&pPlayerData->position.vy)[1], &pFieldActors[actorIndex],
         pPlayerData);
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
@@ -2230,8 +2189,6 @@ void func_80077268(void) {
         func_80081C54(g_PlayerActorIndex);
     }
 }
-*/
-
 
 void FieldLoadFont(void) {
     if (g_FieldSystemMode == 0) {
