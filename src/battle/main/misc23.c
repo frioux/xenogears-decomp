@@ -1561,21 +1561,35 @@ extern void ResolveArchiveEntryPointers(u32 *);
 extern void func_8002DDE4(void *, s16, s16, s16, s16, s16, s16);
 extern void func_800A8BF0(s32, u16, Misc23PartBuffer *, Misc23ModelBuffer *, s16, s16, s16, s16, s16 *);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
-/* 85.47% (gcc 2.6.0, the unit preset, -G0 --expand-div). Shape is right -
-   every call, every store and the loop are in retail order; what is left is
-   allocator: retail keeps arg0 in $s7 / arg2 in $s6 / arg3 in $s2 (reused as
-   the loop counter) / pData in $s4 / count in $s3 and holds the raw 5th
-   argument in $s8, gcc picks arg0 $s8 / arg2 $s7 / arg3 $s3 / pData $s2 /
-   count $s4, which spills pData into a 0x38 slot (frame 0x70 vs retail 0x68)
-   and re-sign-extends the 5th argument from its halfword spill instead of
-   $s8. Also gcc folds the loop index constant into the table displacement
-   ("addiu v0,v0,52" off %hi(g_BattleActors) vs retail's "sll/addu" of 0xD at
-   runtime). Tried: if/else both senses (the count == 0 sense costs 12 points
-   and an extra slot: 73.72 vs 85.47), repeating the index expression inline
-   at all seven uses instead of a local (that is what gained 85.47 - a "slot"
-   local made gcc hoist arg0 << 1 and spill it), declaration order reordered
-   to retail's register order (85.47 unchanged).
+// 82.05% at 716 bytes / 179 insns against retail's 692 / 173 (unit preset gcc 2.6.0).
+// THE OLD 85.47% NOTE WAS STALE: the parked body did not compile at all (it wrote
+// 'g_BattleActors[arg0][0x38] = 1', a struct assignment - cc1 exit 33 at four lines),
+// so that number came from a stale object of some earlier body. It was also WRONG
+// CODE: the four '*(u16 *)(g_BattleActors[idx] + 0x5E)' stores scale the offset by
+// sizeof(BattleActor) = 0x1A0 (0x5E*0x1A0 = 0x98C0), which is why the compile emitted
+// 'lui at,0x1 / addu at' and a 0x98C0 displacement. Fixed with the header fields:
+// parentJointIndex, parentActorSlot, isAttached, skipGroundSnap (0x36, which the old
+// body never stored), attachOffsetX/Y/Z. 81.03 -> 82.05 just from that.
+// Shape is now retail's: the call, both HeapAllocs/memcpy, the count==0 else arm, the
+// frame's 0x10..0x20 stack args, the 'sh' halfword spills at 0x28/0x30 of arg2/arg3,
+// the seven per-field pointer reloads in the loop tail (each store through
+// g_BattleActors[idx]-> reloads the pointer because the store may alias the array) and
+// the loop's five pushes are all in retail order. Residual, in order of size:
+// 1. the whole callee-saved map is rotated by one (retail arg0 s7/arg2 s6/arg3 s2/
+//    arg4-raw fp, ours s8/s7/s3/t1-then-spilled) and our frame is 0x70 against
+//    0x68 because pData (retail s4) is spilled to 0x38 and reloaded inside the loop.
+// 2. because that register is free, loop.c hoists the g_BattleActors base into s6
+//    across the loop with the +13 folded in ('addiu s6,t2,52'), where retail re-forms
+//    'lui/addiu g_BattleActors' after each call and scales the runtime index
+//    ('sll s0,s0,2'). The index value is the same one passed as func_800A8BF0's first
+//    argument in retail, so retail has one pseudo where we have two.
+// 3. 'move a1,zero' (2nd argument of the first call) sits at the top of retail's entry
+//    block; ours puts it in the jal delay slot.
+// Tried this round: a 's32 slot = (arg0 << 1) + (i + 0xD)' local used at the call and
+// at the seven stores - 78.72% / 724 bytes (181 insns), worse, and measured BEFORE the
+// 0x5E bug was fixed so it is worth one retry on this body. Earlier rounds' levers
+// (if/else sense, index inline vs local, declaration order) were all measured on the
+// broken body, so treat them as unmeasured.
 /*
 void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     u8 *pSrc;
@@ -1587,8 +1601,8 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     s32 flags;
 
     func_800A8BF0(arg0, 0, g_BattleArchiveEntry->pBuffer2, g_BattleArchiveEntry->pBuffer1, arg1, arg2, arg3, arg4, 0);
-    g_BattleActors[arg0][0x38] = 1;
-    g_BattleActors[arg0][0x22] = 1;
+    g_BattleActors[arg0]->isBusy = 1;
+    g_BattleActors[arg0]->unk22 = 1;
     if (g_BattleArchiveEntry->pBuffer3 != 0) {
         pData = (Misc23ArchiveData *)g_BattleArchiveEntry->pBuffer3;
         ResolveArchiveEntryPointers((u32 *)pData);
@@ -1605,15 +1619,16 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
                     flags -= 2;
                 }
                 func_800A8BF0((arg0 << 1) + (i + 0xD), flags, pBuf, pData->pBlockEnd, arg1, arg2, arg3, arg4, 0);
-                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x5E) = *(u16 *)pSrc;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)][0x5C] = arg0;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)][0x5D] = 2;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)]->parentJointIndex = *(u16 *)pSrc;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)]->parentActorSlot = arg0;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)]->isAttached = 2;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)]->skipGroundSnap = 1;
                 pSrc += 2;
-                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x6A) = *(u16 *)pSrc;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)]->attachOffsetX = *(u16 *)pSrc;
                 pSrc += 2;
-                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x6C) = *(u16 *)pSrc;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)]->attachOffsetY = *(u16 *)pSrc;
                 pSrc += 2;
-                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x6E) = *(u16 *)pSrc;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)]->attachOffsetZ = *(u16 *)pSrc;
                 pSrc += 2;
             }
         } else {
@@ -1624,8 +1639,10 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     HeapFree(g_BattleArchiveEntry);
     DrawSync(0);
     HeapFree(g_BattleArchiveEntry->pBuffer1);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
+
+
 extern s32 g_BattleActorStepIncrement;
 extern u16 g_BattleActorMask;
 extern s16 g_BattleTweenVectorScale;
