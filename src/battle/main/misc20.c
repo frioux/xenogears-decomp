@@ -335,7 +335,7 @@ void BattleComputeActionAmountFromSlotStates(void) {
         break;
     case 2:
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 5;
-        reduction = g_BattleCurSlotState->unk9A[2];
+        reduction = g_BattleCurSlotState->damageReduction;
         if (reduction >= BATTLE_ACTION_POWER_FULL / 2) {
             reduction = BATTLE_ACTION_POWER_FULL / 2 - 1;
         }

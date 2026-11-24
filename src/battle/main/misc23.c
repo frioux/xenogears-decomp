@@ -1303,12 +1303,12 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
         pActor->pSprites->pos[2] = pSpawnPos[2];
     }
     if ((flags & 0x1) == 0) {
-        pActor->unk90 = arg4;
-        pActor->unk92 = arg5;
+        pActor->textureOffsetX = arg4;
+        pActor->textureOffsetY = arg5;
         pActor->blendOffsetX = arg6;
         pActor->blendOffsetY = arg7;
     } else {
-        pActor->unk90 = -1;
+        pActor->textureOffsetX = -1;
     }
     if (flags & 0x4) {
         pActor->pModelSource = NULL;

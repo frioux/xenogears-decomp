@@ -158,7 +158,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // pGearRow/pWork), the 15-row cost copy loop, the state-code switch (a `switch` reproduces
 // retail's test chain where an if/else-if chain does not), and the tails. Load-bearing shapes:
 // `u8 amount` (a u32 makes gcc coalesce the division result and lose retail's `move s1,v1`),
-// the split `attack = pState->engineOutput; attack = attack * pState->unk3F;`, a `u16` local
+// the split `attack = pState->engineOutput; attack = attack * pState->attack;`, a `u16` local
 // for the activeEffectFlags2 test, and a SECOND pCondition pointer (`new_var2`) for the tail
 // blocks, which is what fixed retail's sp.N regs (94 -> 98.85).
 // Round 372 found the missing load and the extra one:
@@ -247,7 +247,7 @@ void func_8009A2D4(u8 arg0) {
         break;
     }
     attack = pState->engineOutput;
-    attack = attack * pState->unk3F;
+    attack = attack * pState->attack;
     pWork->attackAmount = attack;
     attack = attack + pState->weaponData[0].attack;
     pWork->attackAmount = attack;
