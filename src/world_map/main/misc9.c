@@ -311,22 +311,18 @@ void func_8008615C(void) {
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
-// Best: 93.98% (392 bytes = retail's exact size; instruction multiset identical
-// apart from one systematic register tie: retail keeps pVertex in s3 and the x
-// counter in s2, this body takes the reverse, which is also what moves the
-// `addiu s1,pVertex,4` giv past `move s0,zero`). Both Rand loops, the 0x54/0x50
-// bounds, the (D_8009AF30[i]/D_8009AF38[i]) strength-reduced strides and the
-// double HeapAlloc prologue are exact.
-// What the permuter found (run 1, base=926 -> 721, two runs, no ZERO):
-//   yoff = y << 11 had to move INSIDE the x loop, after xoff - that alone put
-//   the entry-block `x = 0` before the y-loop preheader, where retail has it
-//   (a redundant `x = 0;` statement is deleted by gcc, so this is the only way).
-//   Run 2 printed the same 721; run 3 (score-only) confirmed no further gain.
-// Round 285 additions, all still 93.98 at 392 bytes: pVertex's declaration moved
-// to the head of the list, x's declaration moved to the head, dropping the
-// standalone `x = 0;`, and moving it above the pVertex assignment. The tie is
-// real allocation priority, not source order.
+// Best: 93.98% (392 bytes = retail's exact size; the instruction multiset is identical, so
+// the whole residual is the s2/s3 mirror: retail keeps pVertex in s3 and x in s2, this body the
+// reverse, which is also what moves addiu s1,pVertex+4 past move s0,zero and the pVertex
+// increment up behind the x store. Both Rand loops, the 0x54/0x50 bounds, the
+// (D_8009AF30[i]/D_8009AF38[i]) strength-reduced strides and the double HeapAlloc prologue are
+// exact. Round 442 measured the cause with the -da/-dl dumps and it is NOT a spelling question:
+// the allocnos are processed 133 138 79 75 130 72 76 73 77 74, i.e. by
+// floor_log2(refs)*refs/live, and 79 = pVertex (16 refs / 34 insns = 1.88) sits ahead of 75 = x
+// (14 refs / 28 insns = 1.50), so pVertex takes s2 and x is pushed to s3. The mirror needs x at
+// 16 refs (one floor_log2 step) or 8 fewer live insns; no spelling of this body changes either.
+// Measured on the way: 2.6.0 93.78, cdk 81.80, loop 1's value written inline (retail negates in
+// place in v0) 91.28, and the earlier permuter runs 926->721 with no ZERO.
 /*
 void func_800863E0(void) {
     WorldMapPathEntry* pPath;
@@ -365,6 +361,8 @@ void func_800863E0(void) {
     }
 }
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
+
 void WorldMapFreeTileVertexBuffers(void) {
     HeapFree(g_WorldMapTileVertexSteps);
     HeapFree(g_WorldMapTileVertexBuffer);
@@ -616,6 +614,20 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
 // and replacing the `pCount` local with direct g_GameState accesses both measure 97.30 / 756 with
 // the identical 34-line swap, which is the lever a-lreg-dump prediction: the hand-out is not
 // sensitive to pseudo numbering here.
+// Best: 97.30% (756 bytes = retail's exact size, 189/189 insns, identical multiset). The only
+// residual is the s2/s3 mirror: retail keeps pPos (0x1F800000) in s2 and the
+// g_WorldMapWaypointTileZ base in s3, this body the reverse (plus the two prologue lines that
+// swap with it: retail emits addiu sp/sw s0 before the first lui). Earlier rounds closed the
+// other axes: gcc-2.6.0 94.81, -O3 97.30, cdk compile-fails, a bare {} block for the
+// do/while(0) 96.77/752, pPos assigned inside the else 92.09/772, every local reorder 97.30.
+// Round 442 quantified the -da dump it is an allocno ORDER question: the four callee-saved
+// candidates are processed 73 (34 refs / 114 insns = 5.96) -> s0, 139 = X base (5 / 13 = 3.08)
+// -> s1, 147 = Z base (5 / 20 = 2.00) -> s2, 75 = pPos (17 / 182 = 1.49) -> s3, i.e. by
+// floor_log2(refs)*refs/live*size. pPos's live range is the whole function (its lui is in the
+// entry block, where retail has it too), so overtaking the Z base needs live <= 136 or the Z
+// base live >= 27 - neither is a spelling: every one of these 189 instructions is already
+// retail's. Dump recipe: cc1 -O2 -G8 -da -dg on build/src/world_map/main/misc9.c.i, then
+// m.i.cse2 for the pseudo ids (139/147 are the two symbol_refs, 75 is the scratchpad).
 /*
 s32 func_80087C6C(s32 index) {
     WorldMapPlayer* pSlot;
