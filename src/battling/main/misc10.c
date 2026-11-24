@@ -578,16 +578,45 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     pDraw->rotZ = BATTLE_ANGLE_QUARTER_TURN;
 }
 
-// 97.37% objdiff, retail's exact 840 bytes / 210 insns (round 441 re-measured from the live body: unchanged, so the note is not stale). The whole body is instruction-identical except ONE register pair and the three things downstream of it:
-//    1. pActor is in $s1 and pNode in $s0 where retail has pActor $s0 / pNode $s1. Consequence: every $s0 store in the body differs in the diff, the loop's action-row temp is $a1 where retail has $a0, the 0x100 rect width reuses the node register, and the prologue save order moves (retail sw s0,24(sp) first, this body sw s1,28(sp) first then sw s0,24(sp) after sw ra).
-//    2. One addu operand order: retail addu v0,v0,v1 (offset + pHeader, destination = the offset) where this body emits addu v0,v1,v0 (pHeader + offset, destination = the offset).
-//    Not a jtbl park: the table (jtbl_800701C0) comes out at the unit rodata start with retail's exact 40 entries and targets, so only the .rodata-vs-jtbl operand differs.
-//    RESIDUAL 2 IS MEASURED LOCKED (round 441): six spellings of that one statement were probed with cc1_probe.sh on a snippet that reproduces the real six-statement context (pScript / pPartTimings / pModelScriptOffsets / pActions stores around it), and ALL SIX emit the identical base-first addu: the plain sum, offset written first, an (s32) cast, the subscript form &((u8*)pHeader)[off], and a named s32 offset declared both before and after pHeader. gcc 2.7.2 canonicalises the commutative PLUS to the base-first order by PSEUDO NUMBER, not source order (pHeader's pseudo is created before the load temp's), so no C reaches retail's operand order here. The old note's hedge ("only the unnatural offset + pointer spelling would flip it") is FALSE - do not respend it.
-//    That same lever says gcc 2.6.0 keeps source order, so the offset-first spelling was scored under 2.6.0 as well: 96.13, identical to the plain spelling, so the addu leg does not buy the 2.6.0 switch anything.
-//    RESIDUAL 1 (the pair) was already proven unreachable from C by a -dl/-dg dump: pNode is register 77, "used 3 times across 10 insns in block 3; crosses 2 calls", disposition "77 in 16" - it is the ONLY quantity in block 3 that needs a callee-saved register, and local-alloc hands it the first free one ($16) before global-alloc runs. pActor is register 72, "used 41 times across 107 insns; dies in 0 places; crosses 9 calls", 4th in the dump's allocno order "12 regs to allocate: 85 83 82 72 86 84 81 109 80 73 76 74", so it gets $17 because $16 is already taken. No declaration order, statement order or allocno priority moves pActor into $s0; retail's pNode must have been preceded at local-alloc time by another block-3 quantity that took $16, and the object code has none (every other block-3 qty is caller-saved: 79 crosses 1 call but dies at it, 96/98/99/100/108/110 local). The one shape that would add such a quantity - pObj live across the append call - costs the store position: 95.10% / 852 bytes.
-//    Round 441 re-measured the allocation-barrier axis (lever n-a-do-while-0-is-a-barrier, which flipped a mirrored pair in archive_b with no byte change): wrapping the whole body in do { } while (0) measures 96.42% at the same 840 bytes, so the barrier moves this pair the wrong way - it is not the fix.
-//    Preset screens: gcc-2.7.2-cdk 94.04, gcc-2.6.0 96.13, Default 97.37, so the unit's preset is right.
-//    MEASURED, same size 840 with the earlier bodies: 88.91 = |=1/|=2 duplicated, |=3 fused, pVisiblePartIndices re-read from pActor->pScript; 94.57 = the |=1 arm falling through into case 38 (one shared |=2 body); 95.02 = the old store order (pModelLink stored after the switch, 12 insns later) - that DOES give pActor $s0 / pNode $s1 but costs the store position; 95.78 = pModelLink store moved to its retail position (before typeFlags = 0); 97.37 = pActions read into a local before the pModelScriptOffsets store (permuter find, the other 539-iteration candidates were all this same hoist), which makes the pPartTimings load/store adjacent as retail has it.
+// 97.37% objdiff, retail's exact 840 bytes / 210 insns. The body is
+// instruction-identical except one callee-saved pair, one addu operand order and
+// one caller-saved rotation in the copy loop:
+//   1. pActor is in $s1 and pNode in $s0 where retail has pActor $s0 / pNode $s1;
+//      every $s0/$s1 store then differs, the loop's action-row temp is $a1 where
+//      retail has $a0, the 0x100 rect width reuses the node register and the
+//      prologue save order moves. The swap is LOCAL-ALLOC's, not global-alloc's: the
+//      -dl dump has pNode (register 77, "used 3 times across 10 insns, crosses 2
+//      calls") take $16 in block 3 before global-alloc reaches pActor (register 72,
+//      41 refs, processed 4th), so only a competing block-3 quantity that crosses a
+//      call could move it, and neither body has one. The one shape that adds it
+//      (pObj live across the append) measures 95.10% / 852 bytes because it moves
+//      the pObject store out of the jal delay slot. An empty do-while around the
+//      whole body: 96.42%. Preset screen cdk 94.04, 2.6.0 96.13, Default 97.37.
+//   2. One addu operand order: retail addu v0,v0,v1 (destination = the
+//      visiblePartIndicesOffset temp) where this body emits addu v0,v1,v0
+//      (pHeader + offset). SEVEN spellings now measure identical under 2.7.2: the
+//      plain sum, the offset written first, an s32 cast, the subscript form
+//      &((u8*)pHeader)[off], a named s32 offset declared before and after pHeader,
+//      and the double-negated offset pHeader - -(offset). gcc 2.7.2 canonicalises a
+//      commutative PLUS by PSEUDO NUMBER (pHeader's is the older one), so no C
+//      reaches retail's order here.
+//   3. In the 0x16 x 0x16 byte-flip loop retail keeps dst $a2 / read $v1 / col $a0
+//      and this body keeps dst $a1 / read $a0 / col $v1 (a 3-cycle of caller-saved
+//      temps; pSrc $s0 and pBuf $s1 are retail's already). Not attacked yet.
+// CASE VALUES FIXED THIS PASS - the old body had "case 35: case 36:" for the |=1
+// arm, so the emitted 40-word table sent idx32 to the |=1 arm and idx34 to the
+// default where retail (jtbl_800701C0) has typeId 35 in the |=4 group and 36/37 in
+// |=1. objdiff diffs only the function's text, so it scored 97.37 either way while
+// check_bin would have failed on .rodata. Correct groups: |=1 = 36, 37 (falling
+// through to |=2); |=2 = 38; |=4 = 3, 14, 27, 34, 35, 39, 41, 42; rotated part = 13.
+// MEASURED, same size 840 with the earlier bodies: 88.91 = |=1/|=2 duplicated, |=3
+// fused, pVisiblePartIndices re-read from pActor->pScript; 94.57 = the |=1 arm
+// falling through into case 38 (one shared |=2 body); 95.02 = the old store order
+// (pModelLink stored after the switch, 12 insns later) - that DOES give pActor $s0 /
+// pNode $s1 but costs the store position; 95.78 = pModelLink store moved to its
+// retail position (before typeFlags = 0); 97.37 = pActions read into a local before
+// the pModelScriptOffsets store (permuter find), which makes the pPartTimings
+// load/store adjacent as retail has it.
 /*
 void func_80084C88(Misc10Actor* pActor, Misc10Block* pData, s32 arg2) {
     RECT rect;
@@ -621,8 +650,8 @@ void func_80084C88(Misc10Actor* pActor, Misc10Block* pData, s32 arg2) {
     pActor->pActionRow = &D_80092874[pActor->typeId];
     pActor->typeFlags = 0;
     switch (pActor->typeId) {
-    case 35:
     case 36:
+    case 37:
         pActor->typeFlags |= 1;
     case 38:
         pActor->typeFlags |= 2;
@@ -631,6 +660,7 @@ void func_80084C88(Misc10Actor* pActor, Misc10Block* pData, s32 arg2) {
     case 14:
     case 27:
     case 34:
+    case 35:
     case 39:
     case 41:
     case 42:
