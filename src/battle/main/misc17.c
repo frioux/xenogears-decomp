@@ -7,6 +7,21 @@
 // Owned by include/system/menu.h, which this unit does not include.
 #define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
 
+// The digit positions of the number BattleDrawSlotStatusDigits draws: it draws one glyph
+// per entry of D_800C3CFA, and an entry that is blank is skipped.
+#define BATTLE_STATUS_DIGIT_COUNT 3
+
+// The cap BattleResolveSlotActionState holds a slot's actionCount at: when the next action
+// would take the counter past it, the increment is undone.
+#define BATTLE_ACTION_COUNT_MAX 65000
+
+// The percent chance BattleResolveSlotActionState halves an action's amount instead of
+// adding half of it, when the target's accessoryEffectFlags5 has 0x80; a target whose
+// characterId is 0 is rolled against the higher one. battle/main/misc20 names the same
+// pair for the same roll.
+#define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT 60
+#define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT_CHARACTER_0 80
+
 // Sprite work buffer (g_BattleDisplayState). battle_work.h's BattleWork names the same
 // block but stops at 0xA8, so the 0xB0/0xB7 flag bytes are declared here.
 typedef struct {
@@ -142,6 +157,13 @@ extern u8 D_800CEF23[];
 
 // The sprite packages BattleBuildSpriteColumn8 draws down one column, each 8 pixels below the last.
 #define BATTLE_SPRITE_COLUMN_PACKAGE_COUNT 8
+
+// The pixels between those packages: each is drawn this far below the one before it.
+#define BATTLE_SPRITE_COLUMN_ROW_STEP 8
+
+// The bytes one drawn package occupies in the display state's package block: the block's
+// package counter times this is where the next package is drawn.
+#define BATTLE_SPRITE_PACKAGE_SIZE 80
 
 // The row's power is in twentieths: `power * amount / this` leaves the action's amount unchanged,
 // and BattleComputeActionAmount forces exactly that rate on a row whose actionFlags has 0x400.
@@ -299,9 +321,9 @@ void BattleBuildSpriteColumn8(s32 arg0) {
 
     g_BattleDisplayState->spriteColumnPackageCount = 0;
     for (i = 0; i < BATTLE_SPRITE_COLUMN_PACKAGE_COUNT; i++) {
-        offset = i * 8 + 0x38;
+        offset = i * BATTLE_SPRITE_COLUMN_ROW_STEP + 0x38;
         g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(0x66,
-            (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 80, 0x20,
+            (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * BATTLE_SPRITE_PACKAGE_SIZE, 0x20,
             (s16)(offset + arg0));
     }
     g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex[0];
@@ -326,9 +348,9 @@ void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
     g_BattleGraphicsWork->pPacketPrims[0x66E] = 0;
     if (g_BattleActorCharIds[(u8)arg2] == 1) {
         BattleParseNumberToDigits(func_8009A258((u8)arg2, s + 0x16));
-        for (i = 0, k = 0x8C; i < 3; k += 8) {
+        for (i = 0, k = 0x8C; i < BATTLE_STATUS_DIGIT_COUNT; k += 8) {
             c = D_800C3CFA[i++];
-            if (c == 0xFF) {
+            if (c == BATTLE_VALUE_DIGIT_NONE) {
                 continue;
             }
             BattleSetPolyFT4RectH13(
@@ -1355,7 +1377,7 @@ void BattleResolveSlotActionState(void) {
             if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS) {
                 value = g_BattleActingSlot->actionCount + 1;
                 g_BattleActingSlot->actionCount = value;
-                if (value > 0xFDE8) {
+                if (value > BATTLE_ACTION_COUNT_MAX) {
                     g_BattleActingSlot->actionCount = value - 1;
                 }
             }
@@ -1378,9 +1400,9 @@ void BattleResolveSlotActionState(void) {
             }
         }
         if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x80) {
-            limit = 0x3C;
+            limit = BATTLE_AMOUNT_HALVE_CHANCE_PERCENT;
             if (g_BattleTargetSlotEntry->characterId == 0) {
-                limit = 0x50;
+                limit = BATTLE_AMOUNT_HALVE_CHANCE_PERCENT_CHARACTER_0;
             }
             if (rand() % BATTLE_PERCENT_ROLL_RANGE < limit) {
                 g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
