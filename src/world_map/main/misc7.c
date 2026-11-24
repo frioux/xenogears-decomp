@@ -661,6 +661,14 @@ s32 WorldMapUpdateSlotState(s32 index) {
 // picks the register); (2) the reorg tail - retail emits sh v0,4 / li v0,1 / jr ra /
 // sh zero,0x20, this body sh v0,4 / sh zero,0x20 / jr ra / li v0,1. Two permuter runs on
 // the twin (identical body) found nothing. Preset screen: cdk 34.09 on the plain body.
+// Round 462 re-measured this body live at 94.71 / 136 bytes (34 insns) and tried the
+// one remaining cheap axis: writing the six targets as direct reads of the three position
+// globals (no posX/posY/posZ locals, which is the shape that fixes the load order in the
+// twin) rotates the rotation the OTHER way (x v1, y a0, z a1) and rates 83.06 - do not
+// retry. The two deltas above stand: the pSlot/posZ pair is one local-alloc tie (posZ wins
+// the lower register because its live range is short), and the tail needs retail RTL order
+// li-then-sh, which no source order produces (a store can only follow the return constant
+// if it is emitted after the return value).
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -686,9 +694,9 @@ s32 func_800813E8(s32 index) {
     } while (0);
     pSlot->state = 0;
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
+
 // Best: 89.94%, 620 bytes = retail's exact size, 155 instructions = retail's own.
 // The command switch, the clamp-and-ease chain, the func_80096F18 call and the rand tail
 // decode to retail's instructions. Four finds this round, all in the body below:
@@ -714,12 +722,37 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 // read of ViewRotationY (folds, 616 bytes, 154 insns). Permuter 4 min -j2: base 1430 best
 // 814, and its find reuses pRot for ViewRotationY so unk58/unk54 would read the wrong
 // global - wrong code, rejected. Preset screen: cdk 80.46, gcc-2.6.0 compile-failed.
+// Best: 91.65%, 616 bytes against retail 620 / 155 insns - ONE INSTRUCTION SHORT (the
+// load-delay nop after the case-1 camRot reload), so it cannot link yet. Round 462
+// improved the note's 89.94 by fixing the ViewRotationY read and the register pair:
+// (1) the ViewRotationY reload must be a PLAIN symbol read of the s16, not a volatile
+// pointer read: a volatile HImode load is expanded as lhu + sll 16 + sra 4, three insns
+// where retail has lh + sll 12. The store itself stays volatile (a volatile cast on the
+// global) so it is not forwarded away and the reload survives. (2) `pSlot->unk50 = 0x980000;`
+// must be the arm's FIRST assignment (before the two view-angle stores): that makes the
+// 0x980000 constant live where v0 holds -0x200, so it takes retail's $v1 and the camRot
+// address falls to retail's $a0, and both 0x980000 stores share $v1 as retail does. With
+// the ang/late order the same body takes $v0/$v1 the wrong way round (89.94). (3) the
+// viewY read split as `viewY = g_WorldMapViewRotationY; ... viewY <<= 12;` keeps the lh
+// and moves the CameraHeight store next to it, 91.65.
+// Residual: sched2, not the C. Retail's arm is almost pure source order
+// (sw 0x50 / lh rot / nop / sll / sw 0x58 / sw 0x54 / lh ViewY / sw CameraHeight / sll /
+// sw 0x60 / sw 0x5C); this body hoists the ViewY load above the rot group and sinks the
+// rot lh below the CameraHeight store, which costs the load-delay nop (616 vs 620). Also
+// still ours: `sw s1,20(sp)` is the 5th prologue insn where retail has it 2nd.
+// Tried this round, all measured, no better: direct global stores instead of the position
+// locals in func_800813E8 (83.06); g_WorldMapViewRotation[0] (the 2-element asm-label
+// alias) for the ViewY read, which gives lh but lets sched2 hoist the load above the
+// volatile store (the store moves below its own load); a shared `s32 nHeight` for the two
+// 0x980000 stores (copy-propagated away, identical code); the CameraHeight store above
+// the viewY read; the two viewY stores as separate `g_WorldMapViewRotationY << 12`
+// expressions (cse merges them, 90.68). Preset screens stand from the earlier note: cdk
+// 80.46, gcc-2.6.0 does not compile.
 /*
 s32 func_80081470(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)0x1F800000;
     s16 *pRot;
-    volatile s16 *pViewY;
     s32 viewY;
     s32 diff;
     s16 command;
@@ -732,14 +765,14 @@ s32 func_80081470(s32 index) {
         pSlot->command = 0;
         pRot = g_WorldMapCameraRotTable;
         *(volatile s16 *)pRot = -0x80;
-        pViewY = &g_WorldMapViewRotationY;
-        *pViewY = -0x200;
-        g_WorldMapViewRotationZ = 0;
         pSlot->unk50 = 0x980000;
+        *(volatile s16 *)&g_WorldMapViewRotationY = -0x200;
+        g_WorldMapViewRotationZ = 0;
         pSlot->unk58 = pRot[0] << 12;
         pSlot->unk54 = pRot[0] << 12;
+        viewY = g_WorldMapViewRotationY;
         g_WorldMapCameraHeight = 0x980000;
-        viewY = *pViewY << 12;
+        viewY <<= 12;
         pSlot->unk60 = viewY;
         pSlot->unk5C = viewY;
         break;
@@ -787,7 +820,6 @@ s32 func_80081470(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
-
 
 void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr) {
     s32 i;
