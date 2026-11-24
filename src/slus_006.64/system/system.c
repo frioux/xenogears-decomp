@@ -1353,46 +1353,6 @@ int SystemGetGlyphWidth(u16 first, u16 second) {
 // Dummy glyph bitmap the renderer draws for the dummy code (0x16 bytes)
 extern u16 g_SystemFontDummyGlyph[];
 
-/*
-Parked at 66.79% (391 instructions / 1564 bytes against retail's 424 / 1696). The
-structure and every mask expression are measured right; the whole residual is how
-much common-subexpression elimination gcc does inside the two row loops.
-
-- The two plane bodies are one macro taking SHIFT = 0 / 2 and the other plane's
-  clear mask. Retail's two copies differ exactly that way, and this spelling
-  reproduces the previous park's 66.79% to the byte.
-- MEASURED OP HISTOGRAM, retail's plane-0 loop (156 insns) against this body's
-  (126): andi 37 against 24, ori 26 against 22, or 12 against 9, sltu+negu 4
-  against 2, branches 27 against 27, lhu 13 against 13, sh 12 against 12. Retail
-  recomputes every `word & bit` test (its v0 is clobbered by the next test) and
-  re-derives the `(word & 0x80) ? C : 0` bool; this body keeps `word & 0x10` in a
-  register across two columns. Same branches, same loads and stores, so nothing
-  is missing from the source - gcc is deduplicating here and did not in retail.
-- RETAIL'S LOOP BACKBONE is four increments per iteration (addu t3,t3,t4 /
-  addu t1,t1,t4 / addu t2,t2,t4 / addu a2,a2,t4, with t4 = rowStride*2 invariant),
-  t3 = pRow + 4 bytes, no callee-saved register and no frame. Only ONE derived
-  pointer per base exists (the current row's), and the prev/next row accesses
-  stay 0x2 / 0x4 immediates off t1 / t2.
-- THREE SPELLINGS MEASURED, identical mask code in all three:
-  * `(pDest + rowStride)[k]` / `(pDest - rowStride)[k]`, pDest the for-update
-    pointer: 66.79%, 391 insns / 1564 bytes, NO frame. Best; this is the body.
-  * pAbove / pBelow assigned at the top of the loop body from pDest: 64.92%,
-    397 / 1588, no frame; gcc keeps them in two registers but makes neither a giv.
-  * pAbove / pBelow / pDest all incremented in the for-update: 60.46%, 413 / 1652,
-    an 8-byte frame with $16 saved, because gcc then mints FIVE givs - one derived
-    pointer per base (pAbove+4, pBelow+4, pDest+4). Retail has exactly one.
-- rowStride IS SIGN-EXTENDED ONCE AND DOUBLED TWICE in retail (sll v1,a3,16 /
-  sra v1,v1,16 / sll v0,v1,1 for pNext, then a second sll v1,v1,1 for pPrev), so
-  retail's source scaled it in two places; this body folds both into one sra 15.
-  Two separate scales are the shape loop.c's giv addends have.
-- PRESET IS RIGHT: gcc 2.6.0 scores 64.95 on this body and 2.7.2-cdk does not
-  compile the older pointer-local body at all.
-- The dummy-glyph test is the byte 0xFF against firstByte and secondByte, not the
-  end-of-text code 0xFFFF.
-- NEXT THING TO TRY: make loop.c turn the prev/next row pointers into givs of
-  pDest without minting a +4 giv per base. The two leads are (a) a stride local
-  kept in bytes so both scalings survive, and (b) a source pointer two elements
-  past the current row, since retail has exactly one such giv (t3).
 // One glyph set's copy of the row loop: SHIFT is the set's bit offset inside a
 // 4bpp pixel of the destination row and CLEAR_PIXELS the other set's pair, which
 // every word the glyph is drawn into is cleared with first.
@@ -1405,6 +1365,7 @@ much common-subexpression elimination gcc does inside the two row loops.
     pDest[1] &= CLEAR_PIXELS;                                                        \
     pDest[2] &= CLEAR_PIXELS;                                                        \
     for (i = 0; i < SYSTEM_FONT_GLYPH_ROW_COUNT; i++, pDest += rowStride) {           \
+        pRow2 = pDest + 2;                                                           \
         (pDest + rowStride)[0] &= CLEAR_PIXELS;                                      \
         (pDest + rowStride)[1] &= CLEAR_PIXELS;                                      \
         (pDest + rowStride)[2] &= CLEAR_PIXELS;                                      \
@@ -1434,7 +1395,7 @@ much common-subexpression elimination gcc does inside the two row loops.
         if (word & 0x04) mask |= (0x2120 << SHIFT);                                  \
         if (word & 0x02) mask |= (0x1200 << SHIFT);                                  \
         if (word & 0x01) mask |= (0x2000 << SHIFT);                                  \
-        pDest[1] |= mask;                                                            \
+        pRow2[-1] |= mask;                                                            \
         mask = (word & 0x8000) ? (0x222 << SHIFT)                                    \
                                : ((word & 0x01) ? (0x22 << SHIFT)                    \
                                                 : ((word << SHIFT) & (2 << SHIFT))); \
@@ -1449,15 +1410,62 @@ much common-subexpression elimination gcc does inside the two row loops.
         if (word & 0x4000) mask |= (0x2120 << SHIFT);                                \
         if (word & 0x2000) mask |= (0x1200 << SHIFT);                                \
         if (word & 0x1000) mask |= (0x2000 << SHIFT);                                \
-        pDest[2] |= mask;                                                            \
+        pRow2[0] |= mask;                                                            \
     }
 
 // Draw one glyph bitmap into a rendered row's pixel buffer, spreading each
 // bitmap row over the row above and the row below it. pDest points one row into
 // the buffer, rowStride is the buffer's row width in pixels and plane picks
 // which of the two glyph sets of the page the pixels belong to.
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
+/*
+Parked at 66.80% (392 instructions / 1568 bytes against retail's 424 / 1696). Every
+branch, load, store and mask constant is measured right; the whole residual is how
+much redundant bit-testing gcc keeps.
+
+- THE RESIDUAL IS CSE OF THE BIT TESTS. Retail recomputes `word & bit` at every use
+  (its $v0/$v1 churn): 28 andi per iteration, and the sltu+negu bool twice per plane,
+  once for the 0x222 column and again for the 0x212 one. This body keeps
+  `word & 0x40`, `word & 0x20`, `word & 0x10` and the 0x80 bool in registers across
+  all six columns. Whole-function op diff (objdump, retail first): andi 91/67 (-24),
+  ori 53/44 (-9), or 24/18 (-6), sltu+negu 4/2 (-2), bnez 18/12 (-6), j 12/7 (-5),
+  nop 16/0 (-16) - and the compiler's side has 6 more beqz, 6 addiu, 6 move, 9 li.
+  The 16 missing nops and 5 missing j are the `bnez / ori C / j / or` select shape
+  gcc uses when it folds the last `mask |= C` of a column into both arms of the
+  branch; this body ORs in place instead.
+- SHOULD FALL OUT OF THE GIV SHAPE. Retail carries FOUR pointers round the loop
+  (a2 = pDest, t1 = pDest + rowStride, t2 = pDest - rowStride, t3 = pDest + 2) each
+  with `addu p,p,t4` (t4 = 2*rowStride, invariant), keeps no callee-saved register
+  and has no frame; t3 covers both pDest[1] (-0x2) and pDest[2] (0x0), so it is the
+  one derived giv retail has. Fewer live values in this body is exactly why gcc had
+  room to hoist the tests.
+- MEASURED THIS SESSION (all with the macro below, only the pointer spelling changed):
+  * pDest as the loop-carried pointer, (pDest +/- rowStride)[k] inline, plus
+    `pRow2 = pDest + 2` for the pDest[1]/pDest[2] stores where retail's t3 is:
+    66.80%, 392 / 1568, no frame. Best; this is the body.
+    (the same body without pRow2 is 66.79%, 391 / 1564, so the lead was worth +4 bytes)
+  * pAbove / pRow / pBelow all loop-carried (`i++, pAbove += rowStride, ...` over
+    pAbove = pDest, pRow = pDest + rowStride, pBelow = pRow + rowStride): 59.33%,
+    411 / 1644 with an 8-byte frame and $16 saved. It DOES recompute more of the
+    tests (391 -> 411 instructions) - the pressure theory holds - but gcc mints a
+    +4 derived giv per base (three, where retail has one), needs a register for it
+    and loses more than it gains.
+  * (earlier round) pAbove/pBelow assigned from pDest at the top of the body:
+    64.92%, 397 / 1588. Both pointers incremented in a second for-update: 60.46%,
+    413 / 1652.
+- PRESET IS RIGHT: 2.6.0 scores 64.95 and 2.7.2-cdk 62.19 on this body; Default
+  (2.7.2 -O2 -G8) is the compile above.
+- WHAT TO BREAK: cross-block CSE of `and:SI(reg,const)`. -O2's cse follows the
+  ladder's conditional jumps, and nothing tried so far stops it: the tests are the
+  same tokens in each column, and copies of `word` (a second local, a different
+  constant spelling) either propagate away or change the instruction. Either make
+  each column's tests non-identical RTL, or raise live values to retail's twelve
+  without minting givs or a frame.
+// The dummy-glyph test is the byte 0xFF against firstByte and secondByte, not the
+// end-of-text code 0xFFFF (retail compares 0xFF).
 void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int plane) {
     u16* pGlyph;
+    u16* pRow2;
     u16 word;
     int mask;
     int i;
@@ -1480,4 +1488,3 @@ void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int
     }
 }
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
