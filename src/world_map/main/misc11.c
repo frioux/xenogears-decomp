@@ -990,7 +990,6 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
 //    The two 'volatile' stores in case 5 are load-order pins measured to be needed:
 //    without them sched2 raises both global loads above 'unk24 = 0' and stores x
 //    after the Z load (93.26 / 456 bytes); with them every remaining insn matches.
-/*
 s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     s32 kind = g_GameState.partyMembers[index] != CHARACTER_ID_NONE;
     s32 result = 1;
@@ -1007,25 +1006,21 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
     case 4:
     case 6:
     default:
+    setResultThree:
         result = 3;
-        pActor->unk24 = 1;
-        pActor->y = 0;
-        pActor->z = 0;
-        pActor->x = 0;
-        break;
+        goto setZero;
     case 1:
         if (g_GameState.characters[g_GameState.partyMembers[index]].gearId == GEAR_ID_NONE) {
-            result = 3;
-        } else {
-            WorldMapInitActorSpriteBySlot(pActor, index);
+            goto setResultThree;
         }
+        WorldMapInitActorSpriteBySlot(pActor, index);
+    setZero:
         pActor->unk24 = 1;
         pActor->y = 0;
         pActor->z = 0;
         pActor->x = 0;
         break;
     case 3:
-    case 7:
         WorldMapInitActorSpriteBySlot(pActor, index);
         pActor->unk24 = 0;
         pActor->x = g_GameState.fieldScriptMemory[0x16 + index * 3] << 12;
@@ -1033,6 +1028,7 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
         pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
         break;
     case 5:
+    case 7:
         WorldMapInitActorSpriteBySlot(pActor, index);
         // volatile: keeps the two global loads below it, as retail has them
         *(volatile s16 *)&pActor->unk24 = 0;
@@ -1044,8 +1040,7 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
         break;
     }
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
+}
 
 // 89.86% (436 bytes / 109 insns, retail 444 / 111). Round 399, rebuilt from the
 // assembly with the natural mode chain - if (mode > 0) { if (mode < 4) { gearRide[0] == 1
