@@ -2793,7 +2793,22 @@ void func_8003B424(AudioManager* pManager) {
 }
 */
 
-// Round 437 re-measure: 96.74% at retail's exact 748 bytes / 187 insns, so this body would link - it is 4 residual clusters, not the ONE the old note claimed (that note was written before the last two edits, or measured on a stale object). Cluster 1, the documented wall: retail srl v0,s8,0xf then andi v0,v0,1 (the clamp test reads the volume VARIABLE) where the compile folds to srl v0,v0,0x16 off the mult result. Clusters 2-4 are scheduler placements that follow from statement order: retail has lhu t0,24(sp) + addiu a0,s1,96 emitted late (right after sw v0,81(s0)) where the compile emits addiu a0,s1,96 early after sh v0,0(s1) and lhu t0,24(sp) late, and retail has lbu v0,22(s2) before sw s7,5(s0) where the compile has them swapped. Everything from the old note that got it to 96.74 still holds and must not regress: the ONE-assignment scaling volume = (u32)((s16)volume * tablebyte) >> 7 (two statements rotate volume to s6), level being s32, u32 volume = level, the LEFT-ASSOCIATIVE - (-off) tone-table sum, the if (pWds == NULL) fallback NOT in a do-while, and elementFlags = element >> 8 sitting just before pScriptOffset. Measured dead this round: a u32 clampTest = volume; copy between the scaling and the test (flow deletes the copy, still folds); moving elementFlags = element >> 8 up between the scaling and the clamp (the srl t0,s0,8 is then HOISTED above the mult, 16 differing lines, 95.03, and the fold survives - so combine is NOT adjacency-limited and no intervening statement can block it). Preset ruled out this round: 2.7.2-cdk 94.57, 2.7.2 94.72 against 2.6.0's 96.74. Also already dead per the old note: value = volume >> 15 as its own statement (96.66), s32 vs u32 count, declaration order, if (volume & 0x8000) (loses the srl, one instruction short) and two 3-minute permuter runs (base 190, best 190). Next idea, not tried: get the test into a different basic block so combine cannot know volume's value - a label between them with no extra instruction is not spellable from this C.
+// Round 450 re-measure: 96.74%, retail's exact 748 bytes / 187 insns, 8 differing
+// lines in 4 clusters - unchanged, and the body is real (not a stale object).
+// Cluster 1 is the wall (lever d-combine-folds-through-any-intervening-statement):
+// retail srl v0,s8,0xf then andi v0,v0,1 reads the volume VARIABLE, every spelling
+// here folds to srl v0,v0,0x16 off the mflo result.
+// NEW this round, and the reason clusters 2-4 are not worth reordering: the fold is
+// not register-neutral. Retail's first srl reads v0 and kills it; the folded form
+// drags v0 (the mflo result) four bytes further, and that is exactly the live range
+// competing for the later lhu t0,24(sp) (pan) / addiu a0,s1,96
+// (&pElement->voice_data) placements and for the lbu v0,22(s2) slot near the loop
+// latch. So clusters 2-4 are DOWNSTREAM of cluster 1, not independent statement-order
+// differences: no reorder can close them while the fold stands.
+// Also measured this round: -O1 67.76, -O3 compile-fails (cc1 rejects), so the unit's
+// -O2 is the only level. Preset already ruled out in round 437 (cdk 94.57, 2.7.2
+// 94.72 vs 2.6.0's 96.74) and two permuter runs are PERMUTER_NONE (base 190 best 190).
+// Do not reopen without a new compiler.
 /*
 void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
@@ -2895,7 +2910,8 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pManager->flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
-}*/
+}
+*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B644);
 
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
