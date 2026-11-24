@@ -1494,7 +1494,7 @@ void func_80074108(void) {
     MulMatrix2(&matView, &matWork);
     matWork.t[2] = 0x1000;
     CompMatrix(&matProj, &matWork, &matCoord);
-    MulMatrix0(&matProj, &matWork, &g_Scene.unkF4);
+    MulMatrix0(&matProj, &matWork, &g_Scene.worldScaleMatrix);
     SetRotMatrix(&matProj);
     SetTransMatrix(&matProj);
     FieldMatrixSetIdentity(&matWork);
