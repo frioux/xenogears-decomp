@@ -52,6 +52,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
    current XenoGraphics preset), plus for (1) both the hoisted-load and the own-local spellings
    and for (2) a separate local. lever.py: no lever for eager delay-slot fill from a branch
    target. Not re-briefable as hand work; both need a way to control arg expansion order.
+   Re-measured 96.25% / 376 bytes this round; both residuals are reorg's eager delay-slot fill
+   (lever c-eager-fill-steals-the-targets-arg0-copy is this function). New data point: writing
+   the bounce as two statements (`speed = -step.y * mask; speed = speed / 256;`) so the quotient
+   could coalesce in place gives 94.43% / 380 bytes / 95 insns with an explicit `move v1,a1` -
+   the split costs a copy instead of saving one, so the div target and the mult result cannot be
+   made one register from source. This unit is compiled with -fschedule-insns AND
+   -fschedule-insns2 (see the options header in build/src/slus_006.64/system/temp1.c.s), so
+   statement order is not a lever for either residual.
 extern s32 SpriteScaleValue(SpriteData* pSpriteData, s32 value);
 extern void BattleActorUpdateGroundHeightAndTriangle(void);
 
@@ -861,6 +869,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
    func_80023468 is defined K&R above; with a prototype the call costs an extra `move`.
    No permuter (85.83 is far below the 99% gate). Unparking needs `extern SpriteData*
    D_800C3E1C;` (the g_IsBattle / g_GfxWorkListCapacity externs are already live above).
+   Re-measured 85.83% / 704 bytes / 176 insns this round after unpark - unchanged. New facts,
+   both measured here: (a) the INSTRUCTION MULTISET is identical - folding registers and
+   immediates leaves exactly ONE difference, ours has one extra `nop`, at the point where retail's
+   second mask materialisation (`ori a3,a3,(0x7FF80 & 0xFFFF)`) sits in the `lw v0,0x48(t1)`
+   load-delay slot and ours has a nop there with the `ori` three instructions later; every other
+   row is a register rename (our s0<->s1, a3 vs t0 for the pSpriteData pointer, t1 for pVramData
+   where retail reuses the dead s1, and the two 0x3C/0x40 read-modify-write chains emitted in the
+   other order). So the whole residual is callee-saved hand-out plus one slot - nothing is missing
+   from the source. (b) Preset ruled out with numbers on THIS body: cdk -O2 -G0 85.23, cdk -O3 78.83, gcc-2.6.0 compile-fails, so the unit's XenoGraphics cdk -O2 -G8 is best. The unit runs
+   with -fschedule-insns and -fschedule-insns2, so the two chain orders are the scheduler's.
+   Verdict: GIV_TIE, same class as func_80023804 / func_8002435C above.
 
 AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 jointTaskSize) {
     u8* pAnimationOffsets;
