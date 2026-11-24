@@ -1178,9 +1178,9 @@ typedef struct {
     /* 0xA */ u_short unkA;
 } FieldActorTargetTrack; // Size: 0xC
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
-/* 95.34% (1448 bytes vs retail's 1424, 362 vs 356 insns). Everything structural
-   is settled; what is left is register allocation plus two orderings.
+/* 95.34% (1448 bytes vs retail's 1424, 362 vs 358 insns; the old "356" here was
+   wrong). Everything structural
+   is settled; what is left is register allocation.
    Settled:
    - arg1 is FieldActor* and arg2 is the actor's ActorData* (the caller
      func_8008110C passes &g_FieldActors[i] and its 0x4C field). arg1 is used
@@ -1200,16 +1200,24 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
    - The move updates must NOT be written as (targetPos - pos) + step; retail
      re-forms the subtraction at each site, so the term order is
      targetPos + step - pos.
-   Diffs left:
-   (1) One extra callee-saved register: mine keeps the s16 rotation delta in s7
-       and pushes actorIndex to s8 (10 saved words vs retail's 9), while retail
-       puts the s16 delta in s0 (reusing dead stepX) and actorIndex in s7. Tried
+   Diffs left (round 448 re-measured this body and re-read the .s: items (2) and
+   (3) of the previous note are GONE, the triMaterial/0x400000 store order and the
+   duplicated andi now match):
+   (1) One extra callee-saved word: this body keeps the s16 rotation delta in s7
+       and pushes actorIndex to s8 (10 saved words vs retail's 9), and every s7/s8
+       operand in the body follows from that. It is an allocno-priority tie, not
+       pressure: the values live across the FieldGetActorDistance2D call number
+       seven here and seven in retail, inside a pool of eight s-registers - retail
+       gives the s16 dyAngle $s0 (dead stepX) and keeps actorIndex in $s7. Tried
        s32/s16 deltas, a separate truncated local assigned right after the
        subtraction, and dropping the intermediate entirely - always 95.34%.
-   (2) The triMaterial & 0x400000 block: retail emits move.vx += stepX; then
-       rotation.x |= 0x8000; then move.vz += stepZ, mine merges the two move
-       updates and stores rotation.x last (source order is already retail's).
-   (3) One duplicated andi triMaterial,0x8000 lands in a branch delay slot.
+   (2) Retail truncates dyAngle BEFORE the calls (`sll a0,a0,16` at 0x12F04, then
+       `sra s0,a0,16` in the bnez delay slot); this body keeps the 32-bit subtrahend
+       in s7 and truncates it after ratan2, which is the one extra instruction.
+   (3) Retail reads rotation.vx (0x104) late, lh into v1, right after the
+       g_FieldActors index chain; this body hoists lhu into a0 ahead of the
+       position loads, so the andi/bnez run on a0 instead of v1. */
+/*
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     IVEC3 moveVec;
     VECTOR normal;
@@ -1341,8 +1349,10 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pActor->moveSpeed << 8;
         g_FieldActorModelPointerIndex++;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+
+
 
 
 extern s32 g_FieldUpdatingActorIndex;
@@ -2116,6 +2126,28 @@ extern s32 D_800ADC0C;
    `move v0,zero` into the `beqz flags&4` delay slot where we keep a zero block.
    The else-return-0 form and a nested if for the flags&2 test measure the same.
    Permuter run from 91.16 found the new_var copy (base 461 -> 407). */
+/* 96.01% (276 bytes / 69 insns = retail's exactly; the old "280" in this note was wrong).
+   Every check matches. `new_var = pActor;` before the flags&2 test is the lever (the
+   permuter found it): it forces the copy into $a1 and takes the body 91.16 -> 96.01.
+   Moving the same assignment to the top of the function is 87.25/284; dropping it is
+   91.16. Residual, three spots: retail has a `nop` in the `beqz flags&2` delay slot
+   where reorg steals our `move a1,a0`; retail keeps its `addiu v0,zero,-1`
+   (.L80084A34, reached by the `beq v1,v0` whose delay slot is a nop) as a separate
+   block while every compile here steals the -1 into the branch delay and retargets to
+   the epilogue; and retail threads `move v0,zero` into the `beqz flags&4` delay slot
+   where this body keeps a zero block.
+   Round 448 measurements on the tail (all with the new_var copy removed, so the beqz
+   flags&2 slot is retail's nop): `if (flags & 4) { return -(...); } return 0;` 91.16 /
+   276 / 69; the inverted `if (!(flags & 4)) return 0; return -(...);` 90.07 / 268 / 67
+   - that one HAS retail's `move v0,zero` delay slot and no zero block, and differs
+   only by the missing out-of-line -1 block and the `j` it creates; nested-if vs `&&`
+   for the flags&2 test compiles identically (90.07). Spelling the tail over a
+   `s32 result = 0;` before the flags&4 test is the only form that puts the second
+   flags load in retail's $v1, but it allocates result to $a1 (86.74 / 280 / 70).
+   So the two levers left are the -1 block's out-of-line placement (reorg's eager
+   steal of a branch target that is the branch's only reference) and the zero
+   register - combine the inverted-return-0 tail with whatever keeps -1 in a block. */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 /*
 int func_8008492C(ActorData* pActor) {
     ActorData* new_var;
@@ -2159,7 +2191,6 @@ int func_8008492C(ActorData* pActor) {
         return 0;
     }
 }*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
 
 extern s32 D_800ADB98;
 extern u8 D_800B21CF;
