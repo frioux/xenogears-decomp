@@ -177,86 +177,64 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
     }
     return BattleOffsetBySin;
 }
-// PARKED, best 97.44% / 160 bytes vs retail 156 (round 397). Retail is 39 insns,
-// this body is 40: all 39 land in retail's order, and the surplus is the extra
-// `sh v1,0x98` at slot 9. The whole residual is ONE question: retail's
-// `addiu v1,zero,-1` is insn 1, so the -1 constant has a register home at RTL
-// position 1 with NO emitted instruction there. Every spelling measured:
-// - the three -1 stores in their logical places (literals or `s16 m1 = -1;` with
-//   three uses): 39 insns / 156 bytes / 74.36%, and the li lands at slot 7 (this
-//   round re-confirmed for the local form: cse rematerialises a constant home at
-//   its first use, so a local cannot hoist it).
-// - a DUPLICATE early store of -1 to 0x98, 0x3A or 0x1E: 97.44%, li at slot 1 as
-//   retail, surplus store at slot 9. gcc 2.6 does not eliminate the redundant
-//   store.
-// - the single store MOVED to the top: 94.87 (0x98/0x3A), 93.33 (0x1E) - li at
-//   slot 1 but the store at slot 9 instead of 15.
-// New this round: compiler sweep of the duplicate-body (try_flags --sweep) -
-// gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x -mcpu=3000/r8000 all
-// give <= 97.44, i.e. no preset deletes the surplus store, so this is not a
-// PRESET question. Also already measured here: `m1 = -1;`, `arg1 = -1;`, a dead
-// local, volatile on the early store, 0xFFFF spelling of it, `*(s32*)0x98 = -1`
-// (94.74), two adjacent duplicate stores (94.87), a `do {} while (0)` around the
-// whole store group (74.36, li still at slot 7 - so the block-end lever listed as
-// h-constant-store-group-hoist does not move it either), and a fully typed body
-// with the lib_gear/Model field names (74.36). Permuter from this body: 875
-// iterations, base 100 best 100, nothing better.
-// The twin lib_gear/main/main func_801E3534 is the same function (identical 39
-// insns) and is parked at 94.87% with 370 rounds of the same attempts, so this
-// wall is confirmed from both binaries: reaching 100 needs an early -1 use that
-// survives cse but emits no instruction, which no source spelling found produces.
-// 0x3C is unsigned (ori 0xFFFF) while 0x98/0x3A/0x1E are signed -1 (addiu), so
-// those two constants must stay spelled differently.
-// Round 428 re-measured the honest body (the three -1 stores in their logical
-// places, no duplicate): 156 bytes = retail's exact size, 39 insns, and the ONLY
-// difference is the hoisted `li v1,-1` at slot 5 (between `li v0,0x6B` and its
-// `sb`) where retail has it at slot 0 - the 74.36 is objdiff's score for that one
-// displaced instruction, not a structural distance. Four more no-instruction uses
-// of -1 probed with cc1_probe.sh on this unit's flags (all leave the home at slot
-// 5): `arg1 = -1;` on the unused parameter, a dead `if (n != -1)` branch that fold
-// deletes, `s16 n = -1;` used by all three stores, and `*(s32 *)(arg0+0x4) = n == -1;`.
-// The one new probe fact: DROP the leading constant triplet (0x3C/0x5C/0x39) and
-// the same body hoists both homes to slots 0 and 1 (`li v1,-1 / li v0,1 / sw a2,8
-// ...`), so the triplet is what displaces the -1 home by five slots - and retail
-// has the identical triplet with the home at 0, so its -1 home was created ahead
-// of the triplet by something no source spelling emits.
+// PARKED, best 74.36% / 156 bytes = retail's exact size, 39 vs 39 insns (round 441
+// re-measured the honest typed body). The only difference is where the -1 constant
+// home lands: retail's `addiu v1,zero,-1` is insn 1, ahead of the 0x3C/0x5C/0x39
+// constant triplet, while gcc 2.6.0 puts it at slot 5 (between `li v0,0x6B` and its
+// `sb`). Every other instruction is in retail's order, so this is one displaced
+// load, not a structural distance. Measured and rejected: a duplicate early store
+// of -1 to 0x98/0x3A (97.44, li at slot 1 but a surplus store at slot 9 - gcc 2.6
+// keeps the redundant store), one store MOVED to the top (94.87 / 93.33), a
+// `do {} while (0)` around the group, volatile, `0xFFFF` spelling, `*(s32*)0x98`,
+// `arg1 = -1;`, a dead `if (n != -1)`, and locals `s16 n = -1;` / `s32 negOne = -1;`
+// used by all three -1 stores (cse rematerialises a constant home at its first use,
+// so a local cannot hoist it). Permuter from this body: 875 iterations, base 100
+// best 100. `try_flags.sh --sweep` on THIS body: -O1 94.87 and -O2/-O3 74.36 for
+// all of 2.6.0 / 2.7.2 / 2.7.2-cdk x -G4/-G8 x 3000/r8000, so no preset reaches 100.
+// The twin lib_gear/main/main func_801E3534 is this same function (identical 39
+// insns) and is parked at 94.87 after 370 rounds, so the wall is confirmed from both
+// binaries. The one clue: drop the 0x3C/0x5C/0x39 triplet and the same body hoists
+// both homes to slots 0 (-1) and 1 (1), so retail's -1 home was created ahead of
+// the triplet by something no source spelling has produced. 0x3C is unsigned
+// (ori 0xFFFF) while 0x98/0x3A/0x1E are signed -1 (addiu), so the two constants
+// must stay spelled differently. The typed body scores the same 74.36 as the raw
+// pointer one, so the realistic spelling costs nothing and is what is parked.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
 /*
-void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
-    *(s16 *)(arg0 + 0x98) = -1;
-    *(u16 *)(arg0 + 0x3C) = 0xFFFF;
-    *(u8 *)(arg0 + 0x5C) = 0xFF;
-    *(u8 *)(arg0 + 0x39) = 0x6B;
-    *(s32 *)(arg0 + 0x8) = arg2;
-    *(s32 *)(arg0 + 0xC) = 0;
-    *(s32 *)(arg0 + 0x10) = 0;
-    *(s32 *)(arg0 + 0x14) = arg3;
-    *(s32 *)(arg0 + 0x18) = 0;
-    *(u8 *)(arg0 + 0x2B) = 0;
-    *(s16 *)(arg0 + 0x98) = -1;
-    *(u16 *)(arg0 + 0x58) = 0;
-    *(u8 *)(arg0 + 0x35) = 0;
-    *(u8 *)(arg0 + 0x37) = 0;
-    *(u8 *)(arg0 + 0x38) = 0;
-    *(s16 *)(arg0 + 0x3A) = -1;
-    *(u16 *)(arg0 + 0x70) = 0;
-    *(u16 *)(arg0 + 0x72) = 0;
-    *(u16 *)(arg0 + 0x74) = 0;
-    *(u16 *)(arg0 + 0x76) = 0;
-    *(u16 *)(arg0 + 0x78) = 0;
-    *(u16 *)(arg0 + 0x7A) = 0;
-    *(u16 *)(arg0 + 0x7C) = 0;
-    *(u16 *)(arg0 + 0x7E) = 0;
-    *(u16 *)(arg0 + 0x80) = 0;
-    *(u16 *)(arg0 + 0x82) = 0;
-    *(u16 *)(arg0 + 0x84) = 0;
-    *(u16 *)(arg0 + 0x86) = 0;
-    *(u16 *)(arg0 + 0x88) = 0;
-    *(u16 *)(arg0 + 0x8A) = 0;
-    *(u16 *)(arg0 + 0x8C) = 0;
-    *(u16 *)(arg0 + 0x8E) = 1;
-    *(u8 *)(arg0 + 0x36) = 0;
-    *(s16 *)(arg0 + 0x1E) = -1;
+void func_800AA898(BattleActor *pActor, s32 arg1, s32 arg2, s32 arg3) {
+    pActor->blockTag = 0xFFFF;
+    pActor->parentActorSlot = 0xFF;
+    pActor->depthShade = 0x6B;
+    pActor->pActionTable = arg2;
+    pActor->pBuffer = 0;
+    pActor->actionValue = 0;
+    pActor->pActionTableLow = arg3;
+    pActor->pActionTableHigh = 0;
+    pActor->commandCount = 0;
+    pActor->stepIndex = -1;
+    pActor->followTargetId = 0;
+    pActor->unk35 = 0;
+    pActor->useScaledMatrices = 0;
+    pActor->isBusy = 0;
+    pActor->savedActorMask = -1;
+    pActor->rotOffset[0] = 0;
+    pActor->rotOffset[1] = 0;
+    pActor->rotOffset[2] = 0;
+    pActor->rotStep[0] = 0;
+    pActor->rotStep[1] = 0;
+    pActor->rotStep[2] = 0;
+    pActor->posOffset[0] = 0;
+    pActor->posOffset[1] = 0;
+    pActor->posOffset[2] = 0;
+    pActor->posStep[0] = 0;
+    pActor->posStep[1] = 0;
+    pActor->posStep[2] = 0;
+    pActor->posX = 0;
+    pActor->posY = 0;
+    pActor->posZ = 0;
+    pActor->moveDistance = 1;
+    pActor->skipGroundSnap = 0;
+    pActor->groundTriangleIndex = -1;
 }
 */
 
