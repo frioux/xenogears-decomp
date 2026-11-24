@@ -33,74 +33,57 @@ void FieldScriptAddInventoryItem(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc10", func_8009635C);
 
-/* Attempt A, 96.70%, 176 bytes / 44 insns (the original is 176 bytes / 44
-   insns too). Two store statements, one per arm: gcc does not cross-jump them
-   and instead fills the `j` delay slot with path 1's `sb`, so the shared tail
-   store the original has is lost.
-void func_8009635C(int nItemId) {
-    int nIndex;
+/* PARKED 96.70%, 176 bytes / 44 insns (retail is 176 / 44 too). This body has
+   every register retail has: nItemId $s1, nIndex $s0, pIds $s2, the constant
+   -1 $s3, pQuantities $s4, the loaded byte $a0, the address $v1 and the value
+   $v0. The `pQuantity` pointer local is what fixes the $s0/$s1 mirror the older
+   attempts had - without it the same statements score 96.70 with $s0/$s1
+   swapped (176 bytes, same tail residual).
+   The whole residual is the tail store's placement. Retail has ONE store:
+   `beqz` (>= 99 -> epilogue) with a nop in its slot, then `j` to the `sb` that
+   ends the else arm, with `addiu v0,a0,1` in the `j` slot; ours emits the `sb`
+   itself in the `j` delay slot and jumps past the shared block (three `sb`
+   against retail's two, paid for by retail's nop), and the else arm's two
+   address `addu`s come out in the opposite order. It is jump.c failing to
+   cross-jump arm 1's store onto the else arm's: arm 1's block ends with a jump
+   to the epilogue while the else arm falls into it, so the two threads are not
+   identical.
+   Shapes measured and rejected: both arms storing `pQuantity[0]` with a shared
+   `nQuantity` (86.70, value and address roles flip, no merge); the same with
+   `return;` at the end of both arms (byte-identical to 86.70, cc1
+   canonicalises it); both arms storing `pQuantity[0]` of an expression (96.59,
+   pIds/pQuantities mirror); the pointer assigned before vs after the ids store
+   in the else arm (byte-identical); one store statement after the join
+   (90.41 -> 92.16 with the pointer local, same tail residual); two
+   `pQuantities[nIndex]` stores (96.70, same residual). Presets on this body:
+   gcc-2.6.0 96.93, 2.7.2-cdk 96.70 (identical), -O3 does not compile.
+void func_8009635C(u_int nItemId) {
+    u_int nIndex;
     u_char* pQuantities;
-    u_char* pItems;
+    u_char* pIds;
+    u_char* pQuantity;
 
     nIndex = FieldInventoryFindSlotById(nItemId);
     pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
-    pItems = (u_char*)FieldInventoryGetIdsArray(nItemId);
+    pIds = (u_char*)FieldInventoryGetIdsArray(nItemId);
     if (nIndex != -1) {
-        if (pQuantities[nIndex] < 0x63) {
-            pQuantities[nIndex] = pQuantities[nIndex] + 1;
+        pQuantity = &pQuantities[nIndex];
+        if (*pQuantity < 99) {
+            *pQuantity = *pQuantity + 1;
         }
     } else {
         nIndex = FieldInventoryFindEmptySlotById(nItemId);
         if (nIndex != -1) {
-            pItems[nIndex] = nItemId;
+            pIds[nIndex] = nItemId;
             pQuantities[nIndex] = 1;
         }
     }
 }
 */
 
-/* Attempt B, 90.41%, 176 bytes / 44 insns: ONE store statement at the end, so
-   the block layout and instruction count are the original's exactly (path 1
-   jumps to the shared `sb`, path 2 falls into it). The whole residual is
-   register allocation: the original keeps nItemId in $s1 and nIndex in $s0,
-   the loaded byte in $a0, the stored value in $v0 and the `pQuantities +
-   nIndex` address in $v1 reused across the branch; this body mirrors $s0/$s1,
-   keeps byte and value in $v1 with an in-place `addiu` and re-forms the
-   address in the `j` delay slot. Measured and rejected on top of it: int and
-   u_int parameter (identical code), u_int nIndex (identical), u_char and int
-   nQuantity (identical), `nQuantity = pQuantities[nIndex]` then
-   `if (nQuantity < 99) nQuantity++` (gives slti not sltiu, 89.16%), and a
-   4-minute permuter run (2729 iterations, base 580 best 280) whose only winner
-   dropped `nQuantity = 1` and stored a literal 1 in the shared block, i.e.
-   wrong code.
-void func_8009635C(u_int nItemId) {
-    u_int nIndex;
-    int nQuantity;
-    u_char* pQuantities;
-    u_char* pIds;
-
-    nIndex = FieldInventoryFindSlotById(nItemId);
-    pQuantities = (u_char*)FieldInventoryGetQuantitiesArray(nItemId);
-    pIds = (u_char*)FieldInventoryGetIdsArray(nItemId);
-    if (nIndex != -1) {
-        if (pQuantities[nIndex] < 99) {
-            nQuantity = pQuantities[nIndex] + 1;
-        } else {
-            return;
-        }
-    } else {
-        nIndex = FieldInventoryFindEmptySlotById(nItemId);
-        if (nIndex == -1) {
-            return;
-        }
-        pIds[nIndex] = nItemId;
-        nQuantity = 1;
-    }
-    pQuantities[nIndex] = nQuantity;
-}
-*/
 
 void FieldScriptRemoveInventoryItem(void) {
     int nItemId;
