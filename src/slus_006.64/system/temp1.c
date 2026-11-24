@@ -33,20 +33,25 @@ s32 g_SpritePendingClut;
 s32 g_AnimTimerTickCount;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
-/* Best attempt: 96.30% (376 bytes; the original is 380). Instruction stream and control flow
-   agree. Two related deltas: (1) reorg steals the `move a0,s0` from the head of the else block
-   (.L80022C68) into the `bnez` delay slot, so this C is one instruction short -- the original
-   emits `lw a1,16(s0)` first in that block and keeps the move second; (2) in the bounce block the
-   original keeps |step.y| in v1 and stores before the `bgez`, this C uses a1 and the store lands
-   in the `bgez` delay slot. Tried: gcc 2.6.0/2.7.2/-O1..-O3/-G4..-G8 (try_flags sweep, best is the
-   current preset at 96.30), and hoisting the unshifted `stepY = pSpriteData->step.y` into a local
-   before the else-branch call (still 96.30, the load is not emitted first). Local `speed` must not
-   be reused for the bounce term below or gcc keeps it in a callee-saved register. The else block's
-   emission order is the whole problem: gcc emits `move a0,s0` BEFORE `lw a1,16(s0)` and reorg then
-   steals the move into the bnez delay slot (a `lw` is not delay-slot eligible, so the original's
-   block starts with the load and reorg stops there). Hoisting the shift into a local
-   (s32 step = step.y >> 4) is folded away and does not change the order.
-
+/* Best attempt: 96.25% (376 bytes / 94 insns; the original is 380 / 96). Instruction stream
+   and control flow agree; two residuals, and both are cc1/reorg emission order, not source:
+   (1) else block (.L80022C68): gcc emits the arg0 copy `addu a0,s0` BEFORE arg1's `lw
+   a1,16(s0)` in the RTL, so the third block starts with the copy and reorg's eager delay-slot
+   fill hoists it into the `bnez` at the top of the function. Retail's block starts with the
+   load (not delay-slot eligible), so retail keeps a `nop` there and re-forms the copy at
+   0x1346C. Measured: hoisting `speed = pSpriteData->step.y;` as the else body's first
+   statement compiles byte-identically (gcc folds it back), and so does declaring the else's
+   load in its own local; the arg expansion order does not change.
+   (2) bounce block (0x133E8): retail's quotient stays in the mflo register (`sra v1,v1,8`,
+   no copy), the `sw v1,16(s0)` is emitted before `bgez v1` and reorg leaves a `nop` in that
+   slot; every spelling here makes gcc copy the quotient into a fresh register
+   (`sra a1,v1,8`) and reorg then moves the store into the `bgez` delay slot (one instruction
+   fewer, no `nop`). A separate `bounce` local instead of reusing `speed` measured 95.99 with
+   the bounce in v0 and gravity in a0 (retail: bounce v1, gravity v0).
+   Tried: the preset is settled (2.6.0 / 2.7.2 / -O1..-O3 / -G4..-G8 sweep, best is the
+   current XenoGraphics preset), plus for (1) both the hoisted-load and the own-local spellings
+   and for (2) a separate local. lever.py: no lever for eager delay-slot fill from a branch
+   target. Not re-briefable as hand work; both need a way to control arg expansion order.
 extern s32 SpriteScaleValue(SpriteData* pSpriteData, s32 value);
 extern void BattleActorUpdateGroundHeightAndTriangle(void);
 
@@ -421,6 +426,7 @@ extern void SpriteComputeTransformMatrix(SpriteData* pSpriteData);
 extern void SpriteSetScale(SpriteData* pSpriteData, s32 scale);
 extern u32 g_GfxWorkListCapacity;
 extern u8 g_IsBattle;
+extern SpriteData* D_800C3E1C;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
 /* Best attempt: 99.89% (716 bytes, the original's size; every instruction identical except one
@@ -832,21 +838,29 @@ SpriteData* func_80023B84(SpriteData* pSpriteData, u16* pAnimEntry, void* pAnimP
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
-/* Best attempt: 85.83% (704 bytes; the original is 700). The body below is structurally right --
-   every load, store, mask and call is in place and in order; what is left is register allocation.
-   (1) The original gives pAnimFile s1 and jointTaskSize s0, this C the other way round, and that
-   one swap renames s0/s1 in every later instruction. (2) The original keeps pSpriteData in t0 from
-   `addiu t0,s0,0x38` to the end and reuses the dead s1 for pVramData (`lw s1,0x24(t0)`); this C
-   uses a3 for the sprite pointer and t1 for pVramData. (3) The original materialises the 0x7FF80
-   mask (lui a3,0x7 / ori a3,a3,0xff80) in the delay slot of the first beqz, this C loads it inline.
-   Tried: indexed vs pointer table access, `(offset + base)` spelled as an int sum (this is what
-   fixes the addu operand order, worth 77.05 -> 85.83), a `taskSize` local for the 4th argument.
-   The call to func_80023468 passes ONE argument in retail (no `move a1,...` before the jal), which
-   is why func_80023468 is defined K&R above; with a prototype the call costs an extra `move`.
-
-extern u32 g_GfxWorkListCapacity;
-extern void* D_800C3E1C;
-extern u8 g_IsBattle;
+/* Best attempt: 85.83% (704 bytes / 176 insns; the original is 700 / 175). The body is
+   structurally right -- every load, store, mask and call is in place and in order -- and folding
+   the register names out of the two listings leaves 32 differing rows of 208: the residual is
+   register allocation plus the reload interleave it drags in, in three parts.
+   (1) pAnimFile wants s1 and jointTaskSize s0 (this C: the other way round), which renames s0/s1
+   in every later instruction and swaps the first and last prologue save. Both are live across
+   the same two calls and both enter through an arg register, so it is a global-alloc allocno
+   priority tie; a `taskSize` local for the 4th argument does not move it.
+   (2) retail keeps pSpriteData in t0 from `addiu t0,s0,0x38` to the end and reuses the dead s1
+   for pVramData (`lw s1,0x24(t0)`); this C uses a3 for the sprite pointer and t1 for pVramData,
+   and the pVramData load/store pair at 0x24 is the ONE extra instruction (704 vs 700 bytes).
+   (3) the 0x3C/0x40/0xA8/0xAC read-modify-write block: retail materialises 0x7FF80 and 0xFFFF in
+   the delay slot of the first beqz, this C loads them inline, and the two independent loads of
+   each pair are interleaved differently -- a consequence of (1)+(2)'s pressure, not of statement
+   order (the C statement order is already retail's).
+   Also: the 0x3D/0x8D byte copies, `flags` fold (0xA8 bits 30-31 <-> 0xAC bits 0-1) and the two
+   `field_0x7C` stores all match as written.
+   Tried earlier: indexed vs pointer table access, `(offset + base)` spelled as an int sum (this
+   is what fixed the addu operand order, 77.05 -> 85.83) and a `taskSize` local. The call to
+   func_80023468 passes ONE argument in retail (no `move a1,...` before the jal), which is why
+   func_80023468 is defined K&R above; with a prototype the call costs an extra `move`.
+   No permuter (85.83 is far below the 99% gate). Unparking needs `extern SpriteData*
+   D_800C3E1C;` (the g_IsBattle / g_GfxWorkListCapacity externs are already live above).
 
 AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 jointTaskSize) {
     u8* pAnimationOffsets;
