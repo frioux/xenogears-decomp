@@ -712,6 +712,11 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // `j` at the loop header (an infinite loop) and is 4 bytes over retail, so it can never
 // link. loop.c derives the j+1 giv (and the extra `move s0,s1` duplicate) exactly when
 // the biv init sits outside the loop, so this body is the one to iterate on.
+// Round 452 re-measured this HONEST body from the file after un-parking: 96.43% / 1248 bytes /
+// 312 insns (retail 1232 / 308), residual exactly the derived s1 = j + 1 documented above.
+// lever.py now carries this shape as a CLOSED lever (g-derived-giv-only-when-the-biv-init-is-
+// outside), so no lane time was spent re-trying spellings; below 99% the lane rules give no
+// permuter run, and the two earlier runs (in-body base 112, outside base 1481) were PERMUTER_NONE.
 /*
 void func_80075D8C(void) {
     s32 alignedIndex;
