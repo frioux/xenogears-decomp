@@ -311,6 +311,15 @@ void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_c
    offset increment moved out of the for-latch, an explicit j4 biv for the
    texture-Y index (688). Two permuter runs (2060 and 1706 iterations) found
    nothing. Parked at the best body with retail's exact size.
+   ROUND 465 re-measured this body (97.58 / 672 / 168, same pair) and swapped the
+   latch comma order (offset += STRIDE, j++) on it: byte-identical, dead. The giv
+   route was re-measured alongside it, 97.17 / 672 / 168, and its residual is now
+   known exactly: retail's group is [base][j*0x50][j*4][li s4,0xA98][move
+   s2,zero] where the route emits [base][j*0x50][j*4][move s2,zero][li
+   s4,0xA98] - i.e. only the relative order of the two j-derived givs differs -
+   and its seven sums are all index-first (addu v0,s2,v0). The pair order is not
+   source-controlled: primOffset is the body's first statement and still emits
+   after the plain j*STRIDE giv.
    ROUND 452 re-unparked this body and re-measured 97.58 / 672 / 168 (same single
    displaced pair), then took the one half of the giv route round 439 had not:
    `offset` as a body-assigned giv with the test rewritten as
