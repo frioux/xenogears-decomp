@@ -396,6 +396,20 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
 //      different structure, not a closer allocation.
 // Conclusion: the copy and the two case-arm moves are not reachable from source with this
 // compiler; the park is the honest ceiling. Do not re-try (i)-(l).
+// ROUND 439 (redo), re-measured 74.33% (668 bytes, 167 insns; retail 688/172). New measurements this round, each on its own:
+//   (m) entry statement order index-first (retail's move a3,a1 precedes sh a1,0x80), i.e.
+//       index = animId; field_0x80 = animId; parity = ...; prevGroup = ...; if (parity):
+//       74.33 / 668 / 167 - the copy just moves from a2 to a0 and the entry gap is unchanged.
+//   (n) the arm-copy shape m2c prints (a separate arm index local, the arm reading it and the
+//       flags tail reading the surviving index, so both are live at the slti): gcc coalesces the
+//       pair away, 74.33 / 668 / 167, i.e. the same as (g).
+//   (o) retail's tail loads animScriptWaitTimer with lh where every compile here emits lhu (the
+//       field is s16 in include/field/actor.h and the loaded value only feeds the sh back); a
+//       (s16) cast cannot force lh. One instruction, same size, not the gap.
+// A fresh m2c_draft.sh body was read: its only shape not already in the body below is (n), and
+// its flag-word-through-a-temp form is the 60.69 (l). No new best after five scored runs, so the
+// park stands: the five missing instructions are the entry copy into a3 and the two case-arm
+// moves, which need retail's a1-in-place parity chain.
 /*
 void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     s32 prevGroup;
@@ -482,6 +496,7 @@ void func_800223B0(SpriteData* pSpriteData, s32 animId) {
     *(u32*)((u8*)pSpriteData + 0x3C) = field0x3C;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223B0);
+
 
 
 // Run Sprite Animation VM
