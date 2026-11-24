@@ -1203,6 +1203,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
    saved in the frame and never defined anywhere before the addiu s4,s4,1 at
    0x85884 - so the UB read is what the original has; initialising the counter costs
    the extra instruction and 2932 bytes.
+   ROUND 460 (redo lane): re-measured 99.24% / 2928 bytes unparked, and it is still
+   the same mirror. A fourth permuter run (102 iterations in 3 min, base 620) came
+   back best 535 - the same wrong-code merge of `state` into `idleTimer` that round
+   434 rejected - so the permuter is now exhausted on this body too, not just the
+   spellings. tools/scripts/lever.py's a-global-allocno-priority-is and
+   a-a-near-miss-allocno-quotient both read this as the arithmetic class: pScene
+   needs live <= 326 insns or 16 refs (0.553 vs 0.552 is the actual margin, so ONE
+   ref would do it) and both are pinned by retail's 732-instruction stream.
 */
 
 void BattleCopyVertexOffsetAdd(u16* pSrc, u16* pDst) {
