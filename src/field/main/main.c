@@ -157,10 +157,11 @@ typedef struct {
 } FieldSoundList;
 
 extern StreamDataQueueEntry D_800B2394[];
-// Unbounded-array extern on purpose: the slot count's ADDRESS has to live in a
-// callee-saved register across the calls below, which a scalar declaration (a
-// rematerialisable constant) never does.
-extern s32 g_FieldActorModelSlotCount;
+// Unbounded-array extern on purpose: retail materialises the count's ADDRESS once per
+// loop ('lui v1,%hi / addiu v1,v1,%lo') and reaches the count through that register
+// ('lw v0,0(v1)'). The scalar form folds 'base + 0x88' back to the bare symbol and then
+// forms the reopened base as its own 'la count-136' constant - two values, not one.
+extern s32 g_FieldActorModelSlotCount[];
 extern void* g_FieldArchiveQueueBuffer;
 extern s32 g_FieldStreamDataSize;
 extern s32 g_FieldSuppressStateChange;
@@ -168,54 +169,44 @@ extern void FieldWaitForArchiveSync(void);
 extern void FieldMoveStoredImageToHeap(int nHeapType);
 extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
-// 90.25%: structure, frame (0x38, s0-s4 + ra) and size (560 bytes, same as the
-// original) are right; the two remaining gaps are both gcc rematerialising where the
-// original reuses a materialised address:
-//  1. the original builds &g_FieldActorModelSlotCount into $v1 (lui+addiu), loads the count with
-//     `lw 0($v1)` and then `addiu $s4,$v1,-0x88` for the s16 table at g_FieldActorModelSlotArchiveBase,
-//     reloading the count inside the loop as `lw 0x88($s4)`. This source computes the
-//     base as one constant (`lui %hi(g_FieldActorModelSlotCount); addiu -0x88`) and re-forms a second
-//     lui/%lo pair for the count instead; gcc's fold_rtx always folds the +0x88 back to
-//     the bare symbol, so the two accesses are never expressed off one register. Same
-//     wall as FieldRenderGearFrame (misc2) and func_800A0EE8 (misc6), just in the other
-//     direction. Pointer locals (pCount/pTable, and `(s32*)((u8*)pTable + 0x88)`) give
-//     90.56% but 580 bytes.
-//  2. the `g_FieldSuppressStateChange` size select: the original hoists `lw $v1,%lo(g_FieldStreamDataSize)` above
-//     the branch and keeps the constant path as the fall-through with a `j` at the end;
-//     both `if (x == 0) const else call` and a pre-computed `nSize` give the same size
-//     but reorder the block.
-// ROUND 437: THE DECLARATION OF g_FieldActorModelSlotCount IS PART OF THE MATCH.
-// The body below is 90.25% / 560 bytes (retail's exact size) with the SCALAR
-// `extern s32 g_FieldActorModelSlotCount;` at the top of this file, which is what it
-// now is. With the unbounded-array form `extern s32 g_FieldActorModelSlotCount;`
-// the very same body is 87.24% (`g_FieldActorModelSlotCount == 0` then compares the
-// ARRAY ADDRESS, an always-false guard that cc1 turns into `la s0,sym` in the
-// prologue) and 86.18% with the guard spelled `[0]`. So if a later change to
-// func_80077AB4 puts the array form back, this body drops ~3 points before you touch it.
-// Measured this round, all worse than 90.25 / 560, do not repeat:
-//  - presets (try_flags): gcc-2.6.0 86.18, gcc-2.7.2-cdk compile-failed.
-//  - `if (g_FieldSuppressStateChange != 0) nSize = ArchiveDecodeAlignedSize(0x6B9);
-//    else nSize = (g_FieldStreamDataSize & 0xFFFFFF) + 0xFFE23FF8;` 87.59 / 568 (its
-//    own branch polarity and `j` already come out right, the two extra instructions are
-//    the const arm landing in $v0 instead of HeapAlloc's $a0). The older note's "same
-//    size, reorders the block" is not what this spelling measures.
-//  - `[0]`-spelled guard, everything else unchanged: 86.18 / 564.
-// Retail's per-loop preheader (`lui v1,%hi(count); addiu v1,v1,%lo(count);
-// lw v0,0(v1)` then `addiu s4,v1,-136`) is the same fold_rtx wall as RESIDUAL 1:
-// our compile folds `0x88(base)` back to the bare symbol and forms the base as its
-// own `lui/addiu count-136` constant, so the count load and the base are two values
-// instead of one register plus an addiu. Same instruction count, different registers.
-// Note the pData stores below relocate against D_800B2394+4, splat prints them as
-// D_800B2398; that one is link-identical and only costs objdiff points.
+// Round 450 re-measure: 96.38% at retail's exact 560 bytes / 140 insns. Everything matches
+// except BOTH loop preheaders: retail emits 'lui v1,hi(count)' / 'addiu v1,v1,lo(count)' /
+// 'lw v0,0(v1)' / ... / 'addiu s4,v1,-136', ours emits the same four instructions as
+// 'lui v0' / 'addiu v0,v0,0' / 'addiu s4,v0,-136' / 'lw v0,0(v0)' - the base is derived
+// BEFORE the load, so local-alloc is free to reuse the address register for the count.
+// Nothing in the source reorders those two: the pSoundList assignment has to precede the
+// 'for', and gcc emits it first. Everything else in the body is instruction-identical.
+// WHAT TOOK IT 90.25 -> 96.38 (keep all three):
+//  1. the size select must be TWO complete HeapAlloc calls in an if/else, const arm in the
+//     THEN and the ArchiveDecodeAlignedSize arm in the ELSE. gcc then computes the size
+//     straight into HeapAlloc's $a0 in both arms and cross-jumps the 'jal HeapAlloc' block,
+//     which is exactly retail's 'and a0,v1,a0' / 'j' / 'addu a0,a0,v0' / 'addu a0,v0,zero'
+//     and puts retail's 'lui v0,0xFFE2' in the bnez delay slot. A single nSize local
+//     (const-then-if, or the note's old call-first if/else) is 90.25 and lands it in $v0.
+//  2. 'nStreamSize = g_FieldStreamDataSize;' hoisted above the branch is REQUIRED for
+//     retail's 'lw v1,lo(g_FieldStreamDataSize)' above the bnez; read inline it sinks into
+//     the arm.
+//  3. the array extern + 'pCount = g_FieldActorModelSlotCount;' (decay) is what makes
+//     retail's la/lw preheader at all, and the loop bound spelled
+//     '((s32*)((u8*)pSoundList + 0x88))[0]' is what produces retail's in-loop
+//     'lw v0,0x88(s4)' reload ('pSoundList->count' folds the reload to the symbol).
+// Measured worse this round, do not repeat: pSoundList computed inside the loop body with
+// the bound inline (90.44, 80 differing lines - it destroys the s2/s4 walker pair), the
+// same with the bound as pCount[0] (90.44), the bound as pCount[0] with the base hoisted
+// (96.33, 26 differing lines), scalar declaration with a pCount pointer local (94.35), and
+// the array extern on the old single-nSize body (86.54 / 142 insns / 568 bytes).
+// If the preheader is ever closed, the same change is owed to func_80077AB4's park below,
+// which is BETTER on the array extern too (its note's 75.93 vs 68.07) and is now parked on
+// the same declaration this file has.
 /*
 void func_80077884(void) {
     int i;
-    int nSize;
+    int nStreamSize;
     FieldSoundList* pSoundList;
+    s32* pCount;
     void* pBuffer;
 
-    if (g_FieldActorModelSlotCount == 0) {
+    if (g_FieldActorModelSlotCount[0] == 0) {
         return;
     }
 
@@ -223,23 +214,26 @@ void func_80077884(void) {
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     FieldMoveStoredImageToHeap(0);
 
-    nSize = (g_FieldStreamDataSize & 0xFFFFFF) + 0xFFE23FF8;
-    if (g_FieldSuppressStateChange != 0) {
-        nSize = ArchiveDecodeAlignedSize(0x6B9);
+    nStreamSize = g_FieldStreamDataSize;
+    if (g_FieldSuppressStateChange == 0) {
+        g_FieldArchiveQueueBuffer = HeapAlloc((nStreamSize & 0xFFFFFF) + 0xFFE23FF8, 1);
+    } else {
+        g_FieldArchiveQueueBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0x6B9), 1);
     }
-    g_FieldArchiveQueueBuffer = HeapAlloc(nSize, 1);
     FieldMoveStoredImageToHeap(1);
 
-    pSoundList = (FieldSoundList*)((u8*)&g_FieldActorModelSlotCount - 0x88);
-    for (i = 0; i < pSoundList->count; i++) {
+    pCount = g_FieldActorModelSlotCount;
+    pSoundList = (FieldSoundList*)((u8*)pCount - 0x88);
+    for (i = 0; i < ((s32*)((u8*)pSoundList + 0x88))[0]; i++) {
         D_800B2394[i * 2 + 1].archiveIndex = pSoundList->entries[i] + 0x6BB;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BB), 1);
         g_FieldActorModelSlotSpriteBuffers[i] = (s32)pBuffer;
         D_800B2394[i * 2 + 1].pData = pBuffer;
     }
 
-    pSoundList = (FieldSoundList*)((u8*)&g_FieldActorModelSlotCount - 0x88);
-    for (i = 0; i < pSoundList->count; i++) {
+    pCount = g_FieldActorModelSlotCount;
+    pSoundList = (FieldSoundList*)((u8*)pCount - 0x88);
+    for (i = 0; i < ((s32*)((u8*)pSoundList + 0x88))[0]; i++) {
         D_800B2394[i * 2].archiveIndex = pSoundList->entries[i] + 0x6BA;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BA), 0);
         g_FieldActorModelSlotDataBuffers[i] = (s32)pBuffer;
@@ -253,8 +247,10 @@ void func_80077884(void) {
 
     FieldWaitForArchiveSync();
     ArchiveStartStreamQueue(D_800B2394, 0, 0);
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
+
+
 extern s32* D_801E8644;
 extern void* g_FieldActorModelPointers[];
 extern u8 g_FieldBackgroundR;
@@ -288,12 +284,11 @@ typedef struct {
 // (`sh zero,0/2/4(sN)` + `addiu sN,sN,8` in the jal delay slot). The older `pVector++` body
 // split that pointer into two induction registers 8 apart and is strictly worse.
 // THE DECLARATION OF g_FieldActorModelSlotCount CHANGES THE SCORE: this body with
-// `extern s32 g_FieldActorModelSlotCount[];` and `pCount = g_FieldActorModelSlotCount;`
-// (array decay) is 75.93% at the same 424 bytes / 106 insns. It is parked on the SCALAR
-// declaration (`&g_FieldActorModelSlotCount`) because round 437 established the scalar form
-// as the one func_80077884 needs (87.24 array vs 90.25 scalar), and that stub is parked at
-// 90.25. If func_80077884 is settled some other way, flip this file to the array form and
-// this body gains 8 points for free.
+// `pCount = g_FieldActorModelSlotCount;` (array decay) is 75.93% at the same 424 bytes /
+// 106 insns against 68.07 for the `&g_FieldActorModelSlotCount` form below it. The file now
+// declares the symbol as an unbounded ARRAY because round 450 found that is what
+// func_80077884 needs, so this park must be un-parked with the decay form; its body below is
+// still the scalar spelling and will not compile as-is.
 // RESIDUAL, named - TWO loop.c MULT GIVs, which is the whole remaining gap. Retail holds SIX
 // values in its loop (i s3, pVector s2, pData s6, nRow s4, clut s5, pSlots s7) plus two
 // transients (s0 = i*4, reused as the sprite element address; s1 = i*4, then
@@ -378,7 +373,7 @@ void func_80077AB4(void) {
     s32 clut;
     s32 nRow;
 
-    pCount = &g_FieldActorModelSlotCount;
+    pCount = g_FieldActorModelSlotCount;
     if (pCount[0] != 0) {
         FieldWaitForArchiveSync();
         FieldRenderSyncAndFlush();
@@ -476,6 +471,7 @@ void FieldUpdateFrame(void) {
 // Permuter: 3 min / 2076 iterations from this body, base 240 best 240 - the
 // shape family is exhausted, the next idea has to materialise the 0 before the
 // first compare without constant-folding it away.
+// Round 450 re-measure: un-parked the body above, still 96.67% / 120 bytes (retail's size). 's32 result = 0; ... return result;' on the guard path is 96.33% (worse: the zero return lands in $v0 but the compute rematerialises), so the new_var body stays the best.
 /*
 s32 func_80077E10(void) {
     int new_var;
@@ -484,9 +480,9 @@ s32 func_80077E10(void) {
         return 0;
     }
     return -((FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x800) != 0);
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077E10);
+
 
 // FieldMain's field-state globals; none of them have a home header yet.
 extern s32 g_DebugTable;
