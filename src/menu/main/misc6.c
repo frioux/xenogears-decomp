@@ -374,7 +374,18 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
    A u_char intermediate with the arm cast explicit measures the same 97.65 / 388 /
    97 insns as the uncast one (the shape turns beq+j into bne and loses a word).
    Three permuter runs on this body found nothing (1650 iterations best==base, 991
-   best==base, round 421 1217 iterations base 25 best 25), so the park is final.
+   best==base, round 421 1217 iterations base 25 best 25).
+   Round 439 re-measured (99.74 again) and closed the remaining spellings, all 99.74:
+   the inverted ternary ((gearId != NONE) ? (u_char)(gearId + 0xB) : NONE), the mask
+   form (cond ? NONE : gearId + 0xB) & 0xFF, both arms cast to u_char, and gearId
+   declared inside the if block; a fourth permuter run (1360 iterations, 181 s) came
+   back base=25 best=25. What those runs also show is why the register cannot be
+   reached: the if/else store-back bodies (97.76 / 388 / 97 insns) DO put the load,
+   the addiu and the andi all in a0 (lbu a0,780 / addiu a0,a0,0xB / andi a0,a0,0xff),
+   but gcc sinks the single truncation past the branch there and the whole thing
+   becomes a select (bne + li + one shared andi, no j), i.e. 97 insns - the a0 chain
+   and retail's j-with-arm-truncation are mutually exclusive in this compiler, and
+   every 98-insn spelling (the correct shape) allocates the ternary result to v0.
    Parked body below:
 */
 /*
