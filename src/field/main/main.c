@@ -589,49 +589,10 @@ extern s32 ArchiveDataSync(void);
 extern s32 ControllerGetType(s32 port);
 extern void FieldPollControllers(void);
 
-// PARKED 99.50% - 3284 bytes / 821 insns, retail's exact 0xCD4 / 821. Only 8 lines
-// differ, and they are ONE two-instruction scheduling swap:
-//   retail: sw v0,%lo(g_GameRequestedWdsBankIndex)(at)  THEN  lui v1/lw v1 (g_FieldSystemMode)
-//   here:   lui v1/lw v1 (g_FieldSystemMode)             THEN  lui at/sw v0 (the same store)
-// sched2 hoists the g_FieldSystemMode load above the unrelated store; the register,
-// the value, the frame and all 819 other instructions are retail's.
-// FIXED THIS ROUND (both were most of the diff, do not re-derive):
-//  1. THE FRAME. Retail is addiu sp,sp,-56 with the saves at 0x18-0x30 and 8 bytes
-//     below them (0x10-0x17) that NO instruction reads - a large body's frame is
-//     [args 16][vars][saved regs], so `u_long scratch[2]` (never referenced) takes
-//     retail's 0x10-0x17 and the whole frame/save-offset/epilogue diff disappears
-//     (lever j-an-unused-local-array-is; 46 differing lines -> 14, 99.46 -> 99.48).
-//  2. THE BANK-INDEX REGISTER. Assigning 0xFF *inside* the g_FieldScreenSetupDone==0
-//     arm instead of before the if gives retail's $v0 (a join-block copy got $a1 and
-//     let the store sink); 14 -> 8 lines, 99.48 -> 99.50.
-// TRIED on the last 8 lines, all measured:
-//  - bankIndex declared last instead of first: identical.
-//  - u16 bankIndex: identical (and the same in the old shape).
-//  - a `systemMode` local for the compare: identical (the permuter's only "find" was
-//    reusing bankIndex for it, which is wrong code - it drops the bank value).
-//  - presets: gcc-2.7.2-cdk 96.81, gcc-2.6.0 compile-failed -> Default is right.
-//  - permuter 3 min / 949 iterations at 99.48: base=430 best=430; again from this
-//    body (score 270): base=270 best=270. NONE.
-//  - lever.py over "register v0 a1 tie store sunk caller-saved": no lever covers a
-//    two-pseudo caller-saved tie; the closest entries say to park them.
-// NEXT IDEA: stop the hoist itself - the only thing left to reach is sched2, so a
-// source shape that makes the store's address use a register already holding it (a
-// pointer local would add an instruction) or a MEM dependency between the two
-// symbols. Otherwise this is a 2-instruction scheduler tie to leave parked.
-// STRUCTURE THAT IS RIGHT (keep):
-//  1. the ctx==1/map-change block does NOT break out of the loop in its D_800ADBD0==1
-//     arm; only the else arm sets advanceState=0 and breaks to the teardown.
-//  2. the pause blocks' saved SPU mask and advanceState are ONE local in retail
-//     ($s0 serves both).
-//  3. `asm("break 0x400")` in the g_FieldSystemMode==0 arm: retail has a literal
-//     `break 1` there and no C emits it; the unit's matched
-//     FieldClearAndSwapOTagInternal uses the same spelling.
-/*
 void FieldMain(void) {
     // Never touched: retail's frame spends 8 bytes below the saves (0x10-0x17) on
     // a local that the optimiser emptied out, and only an addressable local buys them.
     u_long scratch[2];
-    s32 bankIndex;
     s32 voiceBankLoaded;
     s32 walkmeshUpdateStarted;
     s32 advanceState;
@@ -684,11 +645,10 @@ void FieldMain(void) {
     g_GameState.fieldScriptMemory[4] = g_NextMapRotationY >> 9;
     if (g_FieldScreenSetupDone == 0) {
         g_GameDiscChangeRequest = 0;
-        bankIndex = 0xFF;
+        g_GameRequestedWdsBankIndex = 0xFF;
     } else {
-        bankIndex = g_GamePendingWdsBankIndex;
+        g_GameRequestedWdsBankIndex = g_GamePendingWdsBankIndex;
     }
-    g_GameRequestedWdsBankIndex = bankIndex;
     if (g_FieldSystemMode == SYSTEM_MODE_CD_ROM) {
         g_pGameState->fieldScriptMemory[0x28] = 1;
         FieldScriptMemoryWriteU16(0x50, 1);
@@ -890,38 +850,4 @@ void FieldMain(void) {
     g_GamePartyQueuedSkinKind = 0;
     HeapFree((void*)g_FieldStreamDataSize);
     FieldAdvanceGameState(advanceState);
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldMain);
-
-// PARKED 99.48% - 3284 bytes / 821 insns, retail's exact 0xCD4 / 821. 14 differing
-// lines out of 821, all from ONE residual.
-// FIXED THIS ROUND: the frame. Retail is addiu sp,sp,-56 with the saves at 0x18-0x30
-// and 8 bytes below them (0x10-0x17) that NO instruction reads; that is a dead
-// addressable local (levers: j-an-unused-local-array-is), so `u_long scratch[2]` does
-// nothing but take the slot and the whole frame/save-offset/epilogue diff disappears
-// (46 differing lines -> 14, 99.46 -> 99.48).
-// RESIDUAL, NAMED: the WDS bank-index pseudo gets $a1 instead of retail's $v0. Retail
-// therefore has to store it at the join (`lui at / sw v0,g_GameRequestedWdsBankIndex`
-// immediately after the if/else, because $v0 is reused by the `ori v0,zero,1` four
-// instructions later); with $a1 the store is free to sink past the g_FieldSystemMode
-// load, which is the visible difference. Everything else is identical.
-// TRIED: bankIndex declared last instead of first (identical), a u16 bank index
-// (identical, per the previous note), a separate PAUSE/channel-mask local (identical),
-// `break` in both arms of the ctx==1 block (99.46 but 822 insns - wrong shape), and a
-// lever.py lookup over "register v0 a1 tie store sunk caller-saved" (no lever covers a
-// two-pseudo caller-saved tie; the closest entries say to park them).
-// PERMUTER: 3 min / 949 iterations from this body, base=430 best=430, NONE.
-// STRUCTURE THAT IS RIGHT (keep - do not re-derive):
-//  1. the ctx==1/map-change block does NOT break out of the loop in its D_800ADBD0==1
-//     arm; only the else arm sets advanceState=0 and breaks to the teardown.
-//  2. the pause blocks' saved SPU mask and advanceState are ONE local in retail
-//     ($s0 serves both).
-//  3. `asm("break 0x400")` in the g_FieldSystemMode==0 arm: retail has a literal
-//     `break 1` there and no C emits it; the unit's matched
-//     FieldClearAndSwapOTagInternal uses the same spelling.
-// NEXT IDEA: force the bank-index value into $v0 - e.g. find a source shape where the
-// pseudo's live range ends right at the join and nothing else competes for $v0 (a
-// third consumer of $v0 between the join and the `ori v0,zero,1` would do it), or
-// accept the tie and check the last 14 lines against a matching-mode build.
-
-
+}
