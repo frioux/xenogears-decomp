@@ -995,53 +995,58 @@ s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
     return arg1 + 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
-/* PARKED 91.38%, 2128 bytes / 532 insns (retail 2120 / 530). The whole body is
-   decoded and written: call set and order, both D_800C3A70 alloc/free loops, the
-   queue append, the sprite loop and the three status-icon blocks are retail's, and
-   every user local landed in retail's register (s0 = byte offset, s3 = row,
-   s4 = arg0, s5 = result, s6 = mask index the 3-per-command row, s8 = arg1).
-   What is left, all measured this round:
-   1. The block layout of the second return-1 path (that is the whole 2-instruction
-      surplus and the +12-byte shift of every later block). Retail keeps
-      `g_BattleCommandQueue[0x2DC] = arg0; return 1;` AFTER the whole body - its
-      `beqz v0,<end>` jumps over everything - so its source is an if whose THEN
-      block is the body and whose else is that store+return. Written as
-      `if (A) { if (queue[0x2E7] == 0) { store; return 1; } }` gcc inlines the small
-      block instead. That if-restructure is the next thing to try.
-   2. arg0 must need NO zero-extension at the two sites retail adds it to something:
-      `addu s6,s4,v0` for idx = arg0 + (queue[0x2CC] + 1) * 3 and `addiu s6,s4,12`.
-      Ours masks it into a0 first. Retail DOES mask arg0 for
-      `g_BattleCommandStatusMasks[arg0]` and for the `charIndex - 1 < arg0`
-      comparison, so the parameter is u8 and the two adds must be spelled with a
-      value gcc already knows is a byte.
-   3. The y argument: inside the sprite loop retail hoists (0xD0 - row * 0x10) << 16
-      into s7 in the preheader and emits only `sra a3,s7,0x10` per call; the three
-      later call sites recompute it. Ours recomputes inside the loop too.
-   4. Retail's 5th argument to func_80086C88 is `(row / 2) * 4 + D_800C3A70` at the
-      three later sites but `((row + queue[0x2E4]) >> 1) * 4 + D_800C3A70` on the
-      queue[0x2E4] != 0 path, which is why retail has `srl v0,s3,0x1f` on one path
-      and not the other; both spellings are in this body already.
-   5. Branch polarity is inverted (ours) at the `charIndex == 4` ternary and at the
-      three `queue[arg1 * 0x40 + 0x1C/0x1E/0x20] == 0` tests; instruction counts
-      match there, only the taken direction and the block order differ.
-   Applied and load-bearing: the negated offset
-   `(g_BattleCommandQueue - -(arg1 * 0x40))[0x3C]`, and the same spelling at the
-   +0x1C/+0x1E/+0x20 reads, for retail's base-first `addu` (218 -> 152 differing
-   lines, 90.98 -> 91.38); `u8 maskIdx` so each use gets its own `andi 0xFF`;
-   the s32 byte-offset local `o` for the D_800C3A70 loops, which is what makes
-   `lui at,%hi / addu at,at,o / sw %lo(at)`; a separate `u8 spriteId` for the
-   loop's sprite ids (before that split the loop index and the mask index were
-   mirrored s1/s2, and the mirrors did not move when the i/maskIdx declaration
-   order was swapped). Verified while decoding: the switch tests 0xFF first, then
-   1, then <2, then 0, then 2, so it is a plain switch with `case 0xFF: continue;`
-   and a default that falls through to the draw with the stale id.
-
-   Intended name: BattleDrawActorCommandColumn (allocates the three text buffers at
-   D_800C3A70, appends the actor's slot to the queue, draws a sprite per queued
+/* PARKED 93.71%, 2128 bytes / 532 insns (retail 2120 / 530). Round 445 redo.
+   The switch's `continue` arm was the residual everyone was looking past: with
+   `case BATTLE_COMMAND_NONE: continue;` INSIDE the switch, gcc tests 0xFF LAST
+   and adds two instructions (91.49% / 152 lines); writing that arm as an
+   `if (...) continue;` BEFORE the switch reproduces retail's whole compare chain
+   (0xFF first with `ori v0,1` in its delay slot, then 1, `slti 2`, then 0 and 2)
+   and scores 93.69 at the same 2128 bytes. Only the two instructions are still
+   over: see residual 1.
+   Load-bearing, each measured from this body:
+   - the double-negated offset at the three queue-index sites,
+     `(g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CC]` and `[0x2CB]`
+     (91.38 -> 91.49): retail's base-first `addu` and its v0/v1 pair.
+   - `idx = arg0 + 0xC; if ((arg0 & 0xFF) == BATTLE_COMMAND_NONE) idx = 0xC;`
+     inside the `charIndex == 4` arm (default, then override): retail's shape,
+   - the s32 byte-offset local `o` for the two D_800C3A70 loops (it is what gives
+     retail's `lui at,%hi / addu at,at,o / op %lo(at)`), `u8 maskIdx` (one
+     `andi 0xFF` per use) and a separate `u8 spriteId` for the sprite loop -
+     before that split the loop index and the mask index were mirrored s1/s2.
+     93.71.
+   Measured WORSE this round, do not redo:
+   - the loop read as `(g_BattleCommandQueue - -i)[0x2CC]`: 92.58, 2136 bytes - a
+     negated loop index becomes its own accumulator.
+   - maskIdx blocks 2/3 as "default then override"
+     (`maskIdx = (arg0 + 1) * 3 + 1; if (charIndex == 4) maskIdx = 0xD;`): retail's
+     exact 2120 bytes / 530 insns but 90.29 - gcc hoists the default chain into the
+     delay slots and keeps 0xD in a register instead of retail's `j` convergence.
+   - the `else` arm's 5th argument to func_80086C88 as `(row / 2) * 4`: 93.46 /
+     2132. (The old note here claimed retail had `((row + queue[0x2E4]) >> 1) * 4`
+     on that path; retail's .s is `srl v0,s3,0x1f / addu / sra 1 / sll 2` = row/2,
+     so the old spelling was not just slow but wrong.)
+   - `i = 0;` hoisted above the `queue[0x2E4]` test (retail's init sits in that
+     test's beqz delay slot): 93.01 / 178 lines.
+   - switch spellings: `default: continue;` + cases 0/1/2 89.83 (2092 bytes),
+     `default:` on the 0x5D arm 89.46 (2092), source order NONE/1/0/2 91.48.
+   Residual:
+   1. The second early return (`queue[0x2E7] == 0` -> store arg0, return 1) is
+      emitted at the FRONT here and at the very END in retail (.L800877A0, after
+      the free loop, falling into the epilogue), which is the 2-instruction
+      surplus and the +8 shift of every branch target in the diff. Retail's front
+      is a plain `beqz` to that far block; every source shape tried so far
+      (nested if, if-restructure) keeps it inline.
+   2. Scheduler/allocator, not source: `li s5,0x1` (result = 1) placement in the
+      three icon blocks, the y argument's `sll 0x10` vs `sra 0x10` order, and
+      `sb v0,168(v1)` vs the BattleUpdateFrame delay slot.
+   3. `addiu s6,s4,12` (raw arg0) comes out `addiu s6,a0,12` off the masked
+      pseudo the neighbouring `(arg0 & 0xFF)` compare creates.
+   Intended name: BattleDrawActorCommandColumn (allocates the three text buffers
+   at D_800C3A70, appends the actor's slot to the queue, draws a sprite per queued
    command, then draws the three status icons its condition words allow and frees
    the buffers; returns 1 when nothing was drawn).
-
-   s32 func_80086F98(u8 arg0, u8 arg1) {
+/*
+s32 func_80086F98(u8 arg0, u8 arg1) {
     s32 i;
     u8 maskIdx;
     u8 spriteId;
@@ -1069,20 +1074,21 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
     for (o = 0; o < 12; o += 4) {
         *(void **)(D_800C3A70 + o) = BattleAllocTextBuffer(0x1E);
     }
-    g_BattleCommandQueue[0x2CC + g_BattleCommandQueue[0x2D6]] = arg0;
+    (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CC] = arg0;
     g_BattleCommandQueue[0x2D6] = g_BattleCommandQueue[0x2D6] + 1;
     if (g_BattleCommandQueue[0x2E4] != 0) {
-        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = BATTLE_COMMAND_NONE;
-        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = arg0;
+        (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CB] = BATTLE_COMMAND_NONE;
+        (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CB] = arg0;
         idx = arg0 + (g_BattleCommandQueue[0x2CC] + 1) * 3;
     }
     g_BattleSpriteColumnWork[0x5D81] = 0;
     g_BattleSpriteColumnWork[0x5D80] = 0;
     g_BattleSpriteColumnWork[0x5D82] = 0;
     for (i = 0; i < g_BattleCommandQueue[0x2D6]; i++) {
-        switch (g_BattleCommandQueue[0x2CC + i]) {
-        case BATTLE_COMMAND_NONE:
+        if (g_BattleCommandQueue[0x2CC + i] == BATTLE_COMMAND_NONE) {
             continue;
+        }
+        switch (g_BattleCommandQueue[0x2CC + i]) {
         case 0:
             spriteId = 0x5E;
             break;
@@ -1092,18 +1098,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
         case 2:
             spriteId = 0x5D;
             break;
+            break;
         }
         v = BattleDrawSpritePackage(spriteId,
                                     (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                         (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                     i * 0x10 + 0x80, 0xD0 - row * 0x10);
         g_BattleSpriteColumnWork[0x5D81] += v;
     }
     if (g_BattleCommandCharIndex[0] == 4) {
+        idx = arg0 + 0xC;
         if ((arg0 & 0xFF) == BATTLE_COMMAND_NONE) {
             idx = 0xC;
-        } else {
-            idx = arg0 + 0xC;
         }
     }
     maskIdx = idx;
@@ -1114,7 +1120,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
             if (*(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x1C) == 0) {
                 v = BattleDrawSpritePackage(8,
                                             (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                                  (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                                 (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                             i * 0x10 + 0x80, 0xD0 - row * 0x10);
                 g_BattleSpriteColumnWork[0x5D81] += v;
                 row = func_80086C88(arg1, row, i - 1, maskIdx,
@@ -1154,7 +1160,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
         result = 1;
         v = BattleDrawSpritePackage(9,
                                     (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                         (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                     i * 0x10 + 0x84, 0xD0 - row * 0x10);
         g_BattleSpriteColumnWork[0x5D81] += v;
         row = func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
@@ -1170,7 +1176,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
         result = 1;
         v = BattleDrawSpritePackage(7,
                                     (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                                         (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                     i * 0x10 + 0x88, 0xD0 - row * 0x10);
         g_BattleSpriteColumnWork[0x5D81] += v;
         func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
@@ -1185,7 +1191,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
     }
     return result;
 }
-*//* PARKED 59.15%, 440 bytes (110 insns; retail 456 = 114). Structure, call set and
+*/
+
+/* PARKED 59.15%, 440 bytes (110 insns; retail 456 = 114). Structure, call set and
    both loops are retail's; the score is low because the temporaries are mapped
    differently (retail holds i in a3 and o in a2, this body the reverse; ofsA in
    t2, ofsB in t1, the param pointer in t0) and because retail RECOMPUTES the whole
