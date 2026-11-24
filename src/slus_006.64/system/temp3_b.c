@@ -55,7 +55,14 @@ u8 g_MenuSavedMainMenuChoice;
    102 insns, but gcc folds i into the odd base per row so the odd gets its own induction and the second addu
    disappears); and the odd written inline as `((u8*)&g_GameState + 1)[i + j]` with pRow present (82.93,
    412 bytes, 103 insns, retail's size, gcc re-folds it to pRow + 1 in $s4).
+   ROUND 449 (this round): the row copy as an index loop `for (k = 0; k < 0x14; k++) pRow[k] = outBuf[k];` with
+   `pRow = pSrc + i;` as the first statement of the outer body gives retail's `slt` compare but recomputes
+   `addu $s1,$s2,$s0` per row and buys a fifth save ($s4 = outBuf) -> 87.17%, 408 bytes / 102 insns. A 3-minute
+   permuter run (base=2651) found only bodies that merge `i` and `j` into one int (best=1976) - an infinite outer
+   loop, wrong code - so the useful signal is that ONE FEWER integer pseudo moves the hand-out towards retail's,
+   and both retail variables are provably live (`j / 2`'s sign fixup in a2 and the `slti $s0,0x26C` counter).
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3_b", func_8001B970);
 /*
 void func_8001B970(void) {
     u8 inBuf[0x14];
@@ -104,7 +111,6 @@ void func_8001B970(void) {
     g_MenuSavedMainMenuChoice = 6;
     g_GameResumeScene = 0;
 }*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3_b", func_8001B970);
 
 
 
