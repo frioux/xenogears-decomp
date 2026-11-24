@@ -15,10 +15,13 @@ extern void func_800B51B0();
 extern void func_800B50D4();
 extern void func_800B5588();
 extern u8 D_800C356C[];
-extern u32 D_800D2FD8[];
-extern u16 D_800C3E9C[];
-extern u16 D_800C3D4C[];
-extern u16 D_800D3334[];
+extern u8* D_800D2FD8;
+extern s16 D_800C3E9C[];
+extern s16 D_800C3D4C[];
+extern s16 D_800D3334[];
+extern u8* g_GfxCurWorkBuffer;
+extern u8* g_GfxCurWorkBufferEnd;
+extern u_long* g_GfxCurOT;
 extern void BattleIntegrateSpriteVelocityTask();
 extern void BattleDrawActorLinePrim();
 extern void BattleDrawLinkedActorLinePrim();
@@ -189,7 +192,149 @@ void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
     }
 }
 */
+// The far screen edge of the last trail quad, which is the near edge of the next one:
+// two screen pairs, one per corner of that edge.
+extern u16 D_800C3CA4[2];
+extern u16 D_800C3CA8[2];
+
+// The trail's segment counter: the depth stagger and the texture column the quad
+// samples are both taken from it, the column from its low byte.
+typedef union {
+    /* 0x0 */ s32 count;
+    /* 0x0 */ u8 bytes[4];
+} BattleTrailSegmentCount;
+
+extern BattleTrailSegmentCount D_800D2FCC;
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
+// 84.19% (992 bytes / 248 insns against retail's 984 / 246). Structure, every call, every
+// constant and the whole first half are instruction-identical; what is left is three
+// things, all measured:
+//  - REGISTER HAND-OUT: retail is yEdge=$s2, xEdge=$s3, the 0xF0 constant=$s4, abr=$s5;
+//    this body gets yEdge=$s2, the constant=$s3, abr=$s4, xEdge=$s5, i.e. abr outranks
+//    xEdge where retail ranks xEdge first (the `v0,v0,s3`/`v0,v0,s2` addu sites and the
+//    `move a1,s5` GetTPage argument are the visible half of it). Tried: 0xF0 as a `color`
+//    local (identical), and `abr` off D_800C3D4C spelled as a countdown local (this body).
+//  - TWO EXTRA INSTRUCTIONS. Retail reaches the four edge halfwords with four independent
+//    `lui %hi(D_800C3CA4 + 0x2)`-style address loads; written as `extern u16
+//    D_800C3CA4[2]` gcc's function-cse forms the base once and adds `addiu v0,v0,0` for
+//    the +2 sibling (branch-B loads) - equal count there - and one more per pair in the
+//    tail, which is the 2 instructions. Spelled with four __asm__-aliased scalars
+//    (`D_800C3CA6[] __asm__("D_800C3CA4 + 0x2")`) the tail's relocations all come out
+//    right (4 lui + 4 sh, retail's shape) but the body then measures 249 insns / 78.85%.
+//  - SCHEDULING: retail's ratan2 argument loads are [lh 0xC][lh 0xE][lh 0xA][lh 0x8] with
+//    dy's `subu` before the jal and dx's in the delay slot; this body swaps the x1/y1
+//    loads and puts dx's subu first. -fschedule-insns is on in this preset, so statement
+//    order does not reach it.
+// Found on the way: the guard's buffer pointer and the quad's must be two separate locals
+// (`pLineBuf`/`pQuadBuf`) - one shared `pBuf` makes cc1 hoist the g_GfxCurWorkBuffer load
+// above the six SVECTOR copies, which clobbers $a0 and costs a `move a2,a0` plus a
+// different address register. Also `depth += D_800D3334[0]` must come BEFORE the
+// RotTransPers3 call (retail has the lh before the jal and the addu in its delay slot).
+/*
+// Draws one segment of the sprite's direction trail: the two positions the effect
+// callback hands over are projected as a line, and that line's screen endpoints are
+// widened into a textured quad by the trail radius and the line's screen angle.
+void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
+    LINE_F2* pLine;
+    POLY_FT4* pQuad;
+    SVECTOR from;
+    SVECTOR to;
+    long scratch[2]; // RotTransPers3's third screen pair, its depth and its flags
+    s32 abr;
+    s32 depth;
+    s32 angle;
+    s32 xEdge;
+    s32 yEdge;
+    s32 radius;
+    u8* pLineBuf;
+    u8* pQuadBuf;
+
+    if (pFrom->vx == pTo->vx && pFrom->vy == pTo->vy && pFrom->vz == pTo->vz) {
+        return;
+    }
+    from.vx = (u16)pFrom->vx;
+    from.vy = (u16)pFrom->vy;
+    from.vz = (u16)pFrom->vz;
+    to.vx = (u16)pTo->vx;
+    to.vy = (u16)pTo->vy;
+    to.vz = (u16)pTo->vz;
+    pLineBuf = g_GfxCurWorkBuffer;
+    if (pLineBuf + 0x10 >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    pLine = (LINE_F2*)pLineBuf;
+    g_GfxCurWorkBuffer = pLineBuf + 0x10;
+    SetLineF2(pLine);
+    abr = D_800C3D4C[0];
+    if (abr != 0) {
+        abr--;
+        SetSemiTrans(pLine, 1);
+    } else {
+        SetSemiTrans(pLine, 0);
+    }
+    pLine->r0 = 0xF0;
+    pLine->g0 = 0xF0;
+    pLine->b0 = 0xF0;
+    if (D_800D2FD8[D_800D2FCC.count / 8] != 0) {
+        depth = 2;
+    } else {
+        depth = -2;
+    }
+    depth += D_800D3334[0];
+    RotTransPers3(&from, &to, &from, (long*)&pLine->x0, (long*)&pLine->x1, scratch, scratch,
+                  scratch + 1);
+    if ((u32)(depth - 1) >= 0xFFF) {
+        return;
+    }
+    radius = D_800C3E9C[0];
+    angle = ratan2(pLine->y1 - pLine->y0, pLine->x1 - pLine->x0) + 0x400;
+    xEdge = (rsin(angle) * radius) / 0x2000;
+    yEdge = (rcos(angle) * radius) / 0x2000;
+    pQuadBuf = g_GfxCurWorkBuffer;
+    if (pQuadBuf + 0x28 >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    pQuad = (POLY_FT4*)pQuadBuf;
+    g_GfxCurWorkBuffer = pQuadBuf + 0x28;
+    SetPolyFT4(pQuad);
+    SetShadeTex(pQuad, 1);
+    pQuad->u0 = (D_800D2FCC.bytes[0] & 7) - 0x40;
+    pQuad->v0 = 0xF0;
+    pQuad->u1 = (D_800D2FCC.bytes[0] & 7) - 0x3F;
+    pQuad->v1 = 0xF0;
+    pQuad->u2 = (D_800D2FCC.bytes[0] & 7) - 0x40;
+    pQuad->v2 = 0xF7;
+    pQuad->u3 = (D_800D2FCC.bytes[0] & 7) - 0x3F;
+    pQuad->v3 = 0xF7;
+    pQuad->tpage = GetTPage(0, abr, 0x3F0, 0x1F0);
+    pQuad->clut = GetClut(0x3F0, 0x1EE);
+    pQuad->r0 = 0xF0;
+    pQuad->g0 = 0xF0;
+    pQuad->b0 = 0xF0;
+    if (D_800D2FCC.count == 0) {
+        pQuad->x0 = (u16)pLine->x0 - xEdge;
+        pQuad->y0 = (u16)pLine->y0 - yEdge;
+        pQuad->x1 = (u16)pLine->x0 + xEdge;
+        pQuad->y1 = (u16)pLine->y0 + yEdge;
+    } else {
+        pQuad->x0 = D_800C3CA4[0];
+        pQuad->y0 = D_800C3CA4[1];
+        pQuad->x1 = D_800C3CA8[0];
+        pQuad->y1 = D_800C3CA8[1];
+    }
+    pQuad->x2 = (u16)pLine->x1 - xEdge;
+    D_800C3CA4[0] = pQuad->x2;
+    pQuad->y2 = (u16)pLine->y1 - yEdge;
+    D_800C3CA4[1] = pQuad->y2;
+    pQuad->x3 = (u16)pLine->x1 + xEdge;
+    D_800C3CA8[0] = pQuad->x3;
+    pQuad->y3 = (u16)pLine->y1 + yEdge;
+    D_800C3CA8[1] = pQuad->y3;
+    AddPrim(&g_GfxCurOT[depth], pQuad);
+    D_800D2FCC.count++;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
 // 90.01% (348 bytes): the four global stores and the loop match; retail's position
 // reads are unsigned at some sites (lhu) and signed at others (lh), which suggests the
