@@ -99,7 +99,7 @@ extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 BattleSlotBitMask(u8);
 extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3EB7[][BATTLE_ACTOR_SLOT_STRIDE];
-extern u8 D_800C3EB8[][BATTLE_ACTOR_SLOT_STRIDE];
+extern u8 g_BattleSlotReleasedFlags[][BATTLE_ACTOR_SLOT_STRIDE];
 extern BattleStatusEntry D_800C3D1B[];
 extern u16 g_BattleActorSlotDoneMask;
 extern u16 g_BattlePendingSlotMask;
@@ -995,7 +995,7 @@ void func_8007252C(void) {
         if (g_BattleSlotEnabledFlags[i] == 0) {
             continue;
         }
-        if (D_800C3EB8[i][0] == 0) {
+        if (g_BattleSlotReleasedFlags[i][0] == 0) {
             if ((g_BattleSlotEntries[i].flags & 0xC000) != 0) {
                 if (BattleMaskHasSlotBit(g_BattleActorSlotDoneMask, i) == 0) {
                     g_BattleSlotEntriesBase[i].flags = 0;

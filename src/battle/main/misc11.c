@@ -45,7 +45,7 @@ extern void BattleResetSlotEffectWords(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
 extern void BattleReleaseCharSlot(u8 arg0);
 extern u8 g_BattleSlotConditions[];
-extern u8 D_800C3EB8[];
+extern u8 g_BattleSlotReleasedFlags[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
 extern u8 g_BattleCommandSlotMasks[];
@@ -86,7 +86,7 @@ extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
-extern void func_800826CC(u8 arg0); 
+extern void BattleMarkSlotReleased(u8 arg0); 
 extern u8 func_8008BED8(u8 arg0);
 extern u8 func_8008C4A8(u8 arg0);
 extern void BattleActivateSelectedCommand(u8 arg0);
@@ -744,7 +744,7 @@ void func_80080C94(u8 arg0) {
         }
         break;
     case 4:
-        func_800826CC(arg0);
+        BattleMarkSlotReleased(arg0);
         ret = 0;
         g_BattleCommandQueue[0x2DE] = 1;
         break;

@@ -173,7 +173,7 @@ extern void BattlePlaySoundIfEnabled(u8);
 extern u8 func_8008BED8(u8);
 extern void BattleActivateSelectedCommand(u8);
 extern u8 g_BattleLastMenuEvent;
-extern void func_800826CC(u8);
+extern void BattleMarkSlotReleased(u8);
 void BattleAdvanceSlotMenuState(u8 arg0) {
     u8 a;
 
@@ -182,7 +182,7 @@ void BattleAdvanceSlotMenuState(u8 arg0) {
     case 4:
     case 6:
     case 7:
-        func_800826CC(a);
+        BattleMarkSlotReleased(a);
         ((BattleActorSlots *)g_BattleCommandQueue)->eventHandled = 1;
         break;
     case 0:

@@ -52,7 +52,7 @@ extern void BattleResetSlotEffectWords(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
 extern void BattleReleaseCharSlot(u8 arg0);
 extern u8 g_BattleSlotConditions[];
-extern u8 D_800C3EB8[][BATTLE_ACTOR_SLOT_STRIDE];
+extern u8 g_BattleSlotReleasedFlags[][BATTLE_ACTOR_SLOT_STRIDE];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
 extern u8 g_BattleCommandSlotMasks[];
@@ -94,7 +94,7 @@ extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
-extern void func_800826CC(u8 arg0); 
+extern void BattleMarkSlotReleased(u8 arg0); 
 extern u8 func_8008BED8(u8 arg0);
 extern u8 func_8008C4A8(u8 arg0);
 extern void BattleActivateSelectedCommand(u8 arg0);
@@ -367,9 +367,9 @@ void BattleAdvanceSlotMenuStateEventRandom(u8 arg0) {
      but copies arg0 into $a0 early and costs 4 bytes (98.35).
    - the graphics-work store goes through a pointer local for retail's
      base-first `addu`.
-   Cleared this round: D_800C3EB8 now uses misc1.c's [][BATTLE_ACTOR_SLOT_STRIDE]
+   Cleared this round: g_BattleSlotReleasedFlags now uses misc1.c's [][BATTLE_ACTOR_SLOT_STRIDE]
    declaration and the queue flag its charRedrawFlags field; both stay 100.00. */
-void func_800826CC(u8 arg0) {
+void BattleMarkSlotReleased(u8 arg0) {
     s32 i;
     s32 cond;
     s32 off;
@@ -390,7 +390,7 @@ void func_800826CC(u8 arg0) {
             *(u8 *)(pWork + 0x853D) = 2;
         }
     } while (0);
-    D_800C3EB8[arg0][0] = 1;
+    g_BattleSlotReleasedFlags[arg0][0] = 1;
     ((BattleActorSlots *)g_BattleCommandQueue)->charRedrawFlags[arg0] = 1;
     for (; i < MAX_PARTY_MEMBERS; i++) {
         if (g_GameState.partyMembers[i] == g_BattleActorCharIds[arg0] && g_FieldPlayerWalkmeshMaterial == 0) {
