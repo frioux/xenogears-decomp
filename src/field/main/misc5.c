@@ -1789,6 +1789,12 @@ extern ParticleShape D_800AF27C[];
 
 
 // PARKED 96.58% - 512 bytes / 128 insns against retail's 520 / 130 (0x800A8EAC - 0x800A90B4).
+// Round 466: un-parked and re-measured live, identical (96.58 / 512 / 128, the two missing insns are
+// the x0s and y0s recomputes). lever a-retail-recomputes-a-shift-the-sum-also-needs is this exact
+// function and says not to spend a lane on spellings, so no new spelling was tried. One new reading
+// of the frame, for whoever tries again: the 0x5C of untouched local storage at 0x24..0x80 (the
+// saves start at 0x80) is real - nothing in the body references it, so the pad below is the only
+// honest spelling of the frame and the original's dead local says nothing about the sll shape.
 // Round 453: re-measured live, unchanged, and the four-vs-six sll residual is now CLOSED as a
 // cc1 cse gap rather than a source shape. Retail's eight vertex stores need four values (vx0 =
 // x1s-x0s, vy0 = y1s-y0s, vx1 = x0s+x1s, vy1 = y0s+y1s, where xs = x<<4) and retail computes SIX
