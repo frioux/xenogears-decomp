@@ -2247,3 +2247,13 @@ try: cse join reload, fold addend
 
 - id: a-modified-parameter-gets-retails-prologue-copies-a-local-does-not | keywords: regalloc, prologue, parameter, assign_parms, callee-saved, copy, live-range, tie
   **WHEN RETAIL'S PROLOGUE IS ONE `sw $sN,off($sp)` + `move $sN,$aM` PAIR PER PARAMETER, THE BODY'S COORDINATE LOCALS ARE THE PARAMETERS THEMSELVES (named `x`/`z` and assigned in the branch), NOT LOCALS ASSIGNED AT THE TOP: that spelling reproduces the whole 4-copy prologue, where the local version puts one copy in the prologue and the other at the END of the entry block** (round 483, field/main/misc11 func_80092894, Default = gcc-2.7.2; still parked, 91.82% at 904 bytes / 226 insns against retail's 908 / 227, and the named-parameter body measures 91.42% / 896 / 224). It does NOT fix the register map: the pair then mirrors (`x` takes `$s1`, the incoming `arg3`'s home `$s0`, retail the other way) because the parameter whose only use is in the else arm keeps a SHORT live range and wins the lower register, and merging the if-arm/branch-arm values into retail's caller-saved join register (`$a3`) does not happen for a parameter that already owns a callee-saved home. So use this lever to repro the prologue and then read the residual as the `a-global-allocno-priority-is` contest, not to hunt statement order. Presets screened on the same body: gcc-2.7.2-cdk 91.36, gcc-2.6.0 92.88 - and 2.6.0 cannot be adopted for the unit (it drops 13 already-matched functions in field/main/misc11 below 100).
+
+- round 484 EXTENDS this one with the reachable side: the sll 16 / sra 15 pair IS
+  reachable when ONE `s16` scratch local holds both a call return and the index -
+  `s16 v; v = func(...); if (v == 0) {...} ... v = prox; if (tbl[v])` - because the
+  HImode pseudo then has a definition of unknown sign, and cc1 keeps the widening.
+  Measured on world_map/main/misc11 func_8008A72C (XenoWorldMap, gcc-2.7.2): a
+  separate `s16 moved` for the return and `s16 zone` for the index is 2956 bytes /
+  99.34%, the single shared scratch is retail's exact 2960 / 99.48%. So when retail
+  sign-extends an index that arrives from an lbu, look for the value's OTHER
+  definition in the same function before concluding it is unreachable.
