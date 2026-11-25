@@ -1653,28 +1653,21 @@ void FieldScriptSetCameraRotation(void) {
     g_Scene.camRotation.vy = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
-
-// Round 462: 98.06% (708 bytes, retail's size) - the FIRST residual is closed:
-// the `sll $v0,16` / `sra $s4,16` pair around each
-// FieldScriptVMGetInstructionArgumentS16 result is the HImode->SImode conversion of the
-// call result, so `du`/`dv` are `s32` locals, not `s16` (s16 = 93.62: the
-// callee's own `short` return needs no truncation). What is left is ONE
-// instruction plus a 3-way callee-saved rotation: retail pData=$s1 pPrev=$s2
-// pCur=$s3, here pPrev=$s1 pCur=$s2 pData=$s3, and cc1 hoists `li a0,1` (the
-// first call's argument) to the top of the function, leaving a `nop` in that
-// jal's delay slot (177 insns vs 176) where retail has the li in the slot.
-// Measured identical: moving `pData = pBounds->pCommands;` above ctx/pCur/pPrev.
-// Round 371 re-measure: 93.62%, 708 bytes (retail's size). Two residuals, both
-// from the same cause the note did not name: retail does `sll $v0,16` /
-// `sra $s4,16` on each FieldScriptVMGetInstructionArgumentS16 result and keeps
-// `du` in $s4, where this body's `s16 du = <short-returning callee>` needs no
-// truncation, `du` lands in caller-saved $t0 and every `+= du` becomes
-// `addu v0,v0,t0`. The callee itself (asm/field/matchings/main/misc9) returns a
-// sign-extended halfword and include/field/script_vm.h declares it `short`, so
-// retail's caller TU evidently saw a WIDER return type - that is the lever to
-// try next (a local `int`-return declaration conflicts with the header).
-
+// Round 475: re-measured 98.06%, 177 insns / 708 bytes against retail's 176 /
+// 0x2C0. Round 462's reading stands; the ONE residual is the first call's
+// argument constant. cc1's own output (build/src/field/main/misc.c.s) hoists
+// 'li $4,1' to the head of the entry block and leaves a nop in the jal slot,
+// so this is sched1, not the assembler. PROVEN by a -da dump plus two forced
+// builds of build/src/field/main/misc.c.i with the unit cc1: with
+// -fno-schedule-insns the li lands in retail's jal slot (176 insns) but the
+// pointer map moves to pCur=$s2 pPrev=$s1 pData=$s4, and with
+// -fno-schedule-insns2 the li stays hoisted. So the slot and the $s1/$s2/$s3
+// map (retail pData/pPrev/pCur) are not reachable together from source.
+// sched1/sched2 are both on in this preset, so statement order inside the
+// 31-insn entry block is not a lever. Rotation is retail pData=$s1 pPrev=$s2
+// pCur=$s3 against this body's pPrev=$s1 pCur=$s2 pData=$s3; du/dv ($s4,
+// $a3) already match, so only these three swap. Do not re-hunt: class is
+// 'a call-argument constant folds early'.
 /*
 void func_8008B5D4(void) {
     FieldActorModelData* pModel;
@@ -1762,6 +1755,9 @@ void func_8008B5D4(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
+
+
 extern void* g_PartyDataBuffers[];
 extern void* g_FieldPartyModelLoadBuffer;
 extern s32 g_FieldPartyModelLoadState;
@@ -2111,33 +2107,23 @@ extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern void* g_PartyDataBuffers[];
 extern void func_80080A74(int actorIndex);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
-
-// Round 371 re-measure: 92.49%, 428 bytes, retail 436. The residual is exactly
-// ONE register - retail keeps `lui/addiu` of &g_FieldActors in $s0 and reloads
-// `lw $v1,0($s0)` at both sites (so it also keeps 0xFF in $s7 and a 0x48 frame),
-// while this body rematerialises the two instructions at each site and keeps 0xFF
-// in $s6 (0x40 frame). Instruction counts are identical; only the saved set
-// differs. A `(s32)&g_FieldActors` cast measures the same 428 bytes.
-// 92.49%: prologue, body and epilogue match instruction for instruction, but ours
-// is 428 bytes against the original's 440. Two things are left, both from one
-// cause. The original keeps `&g_FieldActors` (the address of the global
-// pointer, not its value) in $s0 for the two `lw %lo(g_FieldActors)` in this
-// function, so it needs one more callee-saved register ($s7 = 0xFF) and a 0x48
-// frame; ours re-forms the symbol address at each of the two loads (lui+lw, same
-// instruction count), which costs the s7 save and 8 bytes of frame. The 0xFF
-// compares/const is the visible symptom. Also solved here, do not redo: the second
-// half must read g_FieldPartyActorSlots[partyIndex] ONCE into a local before the `sh` that
-// stores FieldActor::status, or gcc reloads it three times (two after the store)
-// and the function comes out 12 bytes short. Tried for the address, all at
-// 92.49%: `&g_FieldActors[i]` twice, a `FieldActor** pFieldActors =
-// (FieldActor**)&g_FieldActors;` local (initialiser and assignment, the misc6
-// idiom), and a `FieldActor* volatile*` one. gcc 2.7.2 rematerialises the
-// address (`lui; lw %lo(sym)`) at both loads because the pseudo is used only
-// twice; misc6's func_800A0524 gets the materialised form with the same idiom
-// because it uses the local eight times.
-// preset screen: 2.7.2 92.49%, cdk 83.59%, 2.6.0 92.30% - no compiler
-// fixes it.
+// Round 475: re-measured 92.49%, 107 insns / 428 bytes against retail's 109 /
+// 436. The body is instruction-for-instruction retail's except for ONE cause:
+// retail materialises '&g_FieldActors' (lui/addiu) into a callee-saved $s0 and
+// does 'lw $v1,0($s0)' at both sites; this TU's cc1 folds the address into
+// each load's memory operand, so no pseudo exists and only 7 of the 8
+// callee-saved registers are used (0x40 frame against 0x48, and every other
+// value rotates down one: retail $s0=\&g_FieldActors $s1=prevActor
+// $s2=prevIndex $s3=prevIp $s4=prevFieldActor $s5=pi*4 $s6=\&slots[pi]
+// $s7=0xFF; ours is the same list without the first). The park's
+// '(FieldActor**)&g_FieldActors' local is what retail typed, but cse deletes the
+// copy at 2 uses (misc6's func_800A0524 keeps it at 8 uses) - do not re-try
+// '&g_FieldActors[i]' twice, the initialiser form, the assignment form or
+// 'FieldActor* volatile*' (all 92.49, round 371). NEW this round:
+// try_flags --gp -G0 gives 99.48 (the address keeps a register there), but the
+// unit cannot switch: FieldScriptSetRandomSkinParams is 100.00 under -G8 and
+// 91.67 under -G0, and 176 vs 177 functions are at 100.00. presets 2.7.2
+// 92.49, cdk 83.59, 2.6.0 92.30 (round 371).
 /*
 void func_8008C180(int partyIndex) {
     FieldActor** pFieldActors;
@@ -2180,8 +2166,10 @@ void func_8008C180(int partyIndex) {
     }
     g_GamePartyMembers[partyIndex] = ACTOR_ID_INVALID;
     g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
+
+
 extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_8008C180(int partyIndex);
 extern void func_8008BF38(int partyIndex);
