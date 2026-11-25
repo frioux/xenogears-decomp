@@ -583,35 +583,33 @@ void BattleApplyColorTint(u8 *pDst, s32 index, u8 *pSrc) {
     pDst[2] = pSrc[2];
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
-/* 84.16% (gcc 2.6.0 -G0 --expand-div): full structure recovered and every call,
-   store and branch shape matches. What is left is loop strength reduction: the
-   original keeps g_BattleColorBlendWeight[i*6] in $s7 and derives $s8 = $s7 - 1 for
-   g_BattleColorBlendMode[i*6] (combine_givs on two separate symbol bivs), while gcc 2.6 here
-   derives every per-unit field from the single i*6 offset biv ($at + %lo), and
-   spends a saved register on a g_BattlePartPrimBuffers base instead, so the frame is 0x48 vs
-   retail 0x50 and the $s5/$s6 numbering shifts.
-   Fixed vs the first attempt (81.99 -> 84.16): the AAD dispatch is a `switch` with
-   case 0..3 and case 4 (that is what emits retail's bltz range check plus the
-   slti/beq tree -- an if/else chain gives sltiu), g_BattleColorTintRed/AB0/AB1 are `s8` (retail
-   loads them with lb), the buffer copy is 0x88 bytes not 0x80 (retail's movstrsi
-   loop of 0x80 plus a two-word tail), pData advances 4 bytes per call, the final
-   LoadImage source is D_800D3608, and &g_BattleColorTintPending lives in a pointer local so the
-   memcpy argument register is reused for the "= 0" store.
-   Tried for the bivs: two pointer locals (pKind/pRec -> both fold back to
-   $at+s6, 83.73%), pRec[0]/pRec[-1] (84.16%, the parked form), plain symbol
-   accesses (82.84%). Also note BattleApplyColorTint is re-declared here as
-   (mem_addr, s32, u8 *) and g_BattleColorBlendMode/AAE are u8 while AAF..AB1 are s8.
-/*
-extern void *g_BattleSpriteRenderData;
-extern void *g_BattlePartPrimBuffers[];
-extern s16 D_800D2D2C;
-extern s16 D_800C3EA8;
 extern void *D_800D3608;
-extern void BattleApplyColorTint(mem_addr, s32, u8 *);
 extern void func_80025D4C(s32, void *, void *, void *, s32, s32, s32, s32, s32);
 extern void func_80026F44(s32, s32, void *, void *);
 
+// 81.43% (gcc 2.6.0 -G0 --expand-div), 1196 bytes / 299 insns against retail's 1200 /
+// 300 instructions, 177 differing lines. Round 475 re-measured the park for real: the
+// old 84.16 note came from a body that did not compile (D_800D3608, func_80025D4C and
+// func_80026F44 were declared INSIDE the comment block, so cc1 exited 33 and the number
+// was a stale object's). The three externs now sit just above the stub, so an unpark
+// compiles as-is; that is the only change this round made to the body.
+// Structure matches retail everywhere it was checked this round: the two early-out
+// guards, the D_800D2D2C * D_800C3EA8 memcpy, the 0x88-byte widget copy with retail's
+// lwl/swl pair plus 8-byte tail, the AAD switch (bltz + slti/beq tree), the pData += 4
+// post-increment argument chain, the 0x14/0x10 skips in the else arms, and the closing
+// LoadImage(&g_BattleImageRect, D_800D3608). What is left is loop strength reduction and
+// the saved-register budget, which is why the byte count is 4 short: retail hoists three
+// loop constants into callee-saved registers before the j loops (s1 = 0x173C, s4 = 0x16DC,
+// s5 = 0x280, each advancing by 0x24/0x18/0x18 in the loop tails), keeps
+// g_BattleColorBlendWeight + i*6 in s7 with fp = s7 - 1 for g_BattleColorBlendMode, and
+// spends s2/s3 on i/j, while this body re-forms the constant+index expression per call
+// through $at and so needs one more saved register and a different frame ($68 vs $70).
+// Do not spend a lane on hand shapes here: the residual is the combine_givs/loop.c
+// induction-variable count, not a spelling. If it is attacked, start from the two pointer
+// locals (pKind -> g_BattleColorBlendMode, pRec -> g_BattleColorBlendWeight) and the three
+// advancing offset locals that retail's s1/s4/s5 demand, and gate with check_bin (this
+// overlay unit owns its rodata).
+/*
 void func_800A6AE8(void) {
     u8 *pFlag;
     u8 *pData;
@@ -679,8 +677,10 @@ void func_800A6AE8(void) {
         BattleApplyColorTint(g_BattleColorSourceB, i, pData);
     }
     LoadImage(&g_BattleImageRect, D_800D3608);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
+
+
 
 void BattleUploadAndFreeImageResources(void) {
     Temp8 *pRecord;
@@ -1339,6 +1339,23 @@ extern u8 D_800C3509[];
 // u32 no change, declaration order no change, pTail->fileIndex1 for the if-arm's two
 // stores 93.66/376, dropping the early 'move s3,s2' 96.15/364. A permuter run is not
 // warranted below 99%.
+// 99.14% at retail's exact 372 bytes / 93 instructions (unit preset gcc 2.6.0 -G0).
+// Round 475: the table/index pair was flipped in - drop the pBuffer2 temp, reuse pTable
+// for the second HeapAlloc result and name the zero in a local (a permuter find,
+// 98.98 -> 99.14). pTable is now $s0 and index $s1, exactly retail.
+// Only residual: pEntry/pTail mirrored (retail pEntry $s2 / pTail $s3, ours reversed),
+// 26 differing lines. Unreachable by spelling: -dl on this body gives pEntry (pseudo 72)
+// 7 refs / 32 insns, quotient 2*7*4/32 = 1.75, and pTail (73) 9 refs / 25 insns,
+// 3*9*4/25 = 4.32, so pTail is processed first and takes the lowest free callee-saved
+// register however the two are declared; pEntry would need 16 refs to overtake it.
+// Both conflict with hard reg $s0 (the arg0 copy at entry), so neither can take $s0.
+// A third 3-minute permuter run from this body: base=80 best=80 (1467 iterations).
+// Also measured this round: swapping the index/pTable source order 98.98; hoisting
+// arg0 * 0x170 into a slotOffset local 98.98; assigning pTable after the if instead of
+// before it 94.02 / 42 lines; '*(pTable + index - 1)' for 'pTable[index - 1]' leaves
+// the addu operands index-first, no change; moving 'pTail = pEntry' before
+// 'nameLen = base + 1' is byte-identical and gives retail's instruction order, so it is
+// kept.
 /*
 void func_800A9540(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
@@ -1349,7 +1366,7 @@ void func_800A9540(s32 arg0) {
     s32 index;
     u8 *pTable;
     s32 nameLen;
-    void *pBuffer2;
+    s32 zero;
     u8 base;
 
     ArchiveGetArchiveOffsetIndices(&pos.alignedIndex, &pos.remainder);
@@ -1357,35 +1374,37 @@ void func_800A9540(s32 arg0) {
     HeapChangeCurrentUser(4, NULL);
     slotTextIndex = g_BattleSlotTextIndex[arg0 * 0x170];
     count = g_BattleSlotFileCount[arg0 * 0x170];
-    index = slotTextIndex << 1;
     pTable = D_800C3509;
+    index = slotTextIndex << 1;
     if (D_800C3509[index] < count) {
         count = 0;
     }
     pEntry = HeapAlloc(0x20, 1);
     g_BattleArchiveEntry = pEntry;
     base = pTable[index - 1];
-    nameLen = base + 1;
     pTail = pEntry;
+    nameLen = base + 1;
     pTail->fileIndex1 = nameLen;
     pTail->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
     nameLen = base + 2;
     pEntry->fileIndex2 = nameLen;
-    pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
+    zero = 0;
+    pTable = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), zero);
     pTail = (Misc23ArchiveEntry *)&pEntry->fileIndex3;
-    pEntry->pBuffer2 = pBuffer2;
-    if (count != 0) {
+    pEntry->pBuffer2 = pTable;
+    if (count != zero) {
         nameLen += count;
         pEntry->fileIndex3 = nameLen;
         pEntry->pBuffer3 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
         pTail = (Misc23ArchiveEntry *)&pEntry->unk18;
     }
-    pTail->fileIndex1 = 0;
+    pTail->fileIndex1 = zero;
     pTail->pBuffer1 = NULL;
-    ArchiveStartStreamQueue(g_BattleArchiveEntry, 0, 0);
+    ArchiveStartStreamQueue(g_BattleArchiveEntry, zero, zero);
     ArchiveSetIndex(pos.alignedIndex, pos.remainder);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+
 
 
 void BattleAllocateArchiveFilePair(s32 arg0) {
