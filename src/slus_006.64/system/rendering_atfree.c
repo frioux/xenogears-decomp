@@ -218,18 +218,37 @@ typedef struct {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001E3D8);
 
-/* Best attempt: 89.06% (1500 bytes, retail 1508 = TWO draw-tile copies short; see the note
-   above). Round 378 re-measured, both on this body: splitting the transform block's
-   shift into `transY = (s8)...; transX = (s8)...; n = ...; transY <<= n; transX <<= n;`
-   is 88.49 (worse, so the one-expression form stays), and declaring
-   `g_SpritePlaneMasks` unbounded (`extern u16 g_SpritePlaneMasks[];`) leaves the plane
-   mask read at the $at form and the score identical at 89.06/1500 - the folded base is
-   not reachable this way either.
-   The two missing instructions are drawTileX = tileX and drawTileY = tileY (retail
-   copies all four shifted values and negates the COPY; ours coalesces the two tile
-   copies because tileX/tileY die at the negation). Nothing in retail reads them after
-   the flip block, so no honest source makes them live.
-   Body as measured below:
+/* Best attempt (round 486): 88.72% (1492 bytes; retail is 1508, 377 vs 373
+   instructions, FOUR short). Read the long note above first: it holds rounds
+   346-378, whose body is the one measured here. Round 486 re-measured it and
+   added two fixes.
+   - The parked 89.06% was a STALE number: the same body measures 88.36/1492 on
+     the current tree. Every figure below is round 486.
+   - FIXED, kept: the y-corner arm order. Retail's arm A stores pVerts[0],[1]
+     (drawTileY) and then [2],[3] (edgeY) - the source order is 0,1,2,3 in BOTH
+     arms. The old 2,3,0,1 order let cc1 hoist the two edgeY stores above the
+     branch; the honest order reproduces retail's store sequence
+     (88.36 -> 88.44).
+   - FIXED, kept: split offsetY's shift into two statements the way offsetX's
+     already was (`offsetY = (s8)pSpriteData->pBase->offsetY;` then
+     `offsetY = offsetY << n;`). The whole prologue then matches retail
+     register for register (88.44 -> 88.72; 308 -> 282 differing lines).
+     Round 348 had split only offsetX.
+   - The four draw copies are ALLOCATOR TIE-BREAKS, not liveness: the
+     "no honest source makes tileX/tileY live" reading above is wrong.
+     Measured, all 373 insns: this body keeps drawWidth+drawHeight; writing the
+     negation as `-(x << n)` from unshifted locals (CSE folds the shift,
+     88.82/1484, the best SCORE but a contrived spelling) keeps NONE;
+     reusing tileX/tileY as the uv-block size temps - the reassigned-later
+     hypothesis - keeps drawWidth+drawTileY at 87.59/1492, which disproves that
+     hypothesis rather than supporting it.
+   - Still wrong, in order of size: the prologue hoists
+     `lui %hi(g_GfxCurWorkBuffer)` above the count*0x28 shift sequence (retail
+     emits it after the three shifts); the uv block's decrement is in place
+     (`addiu a1,a1,-1`) where retail keeps the new value in a temp and copies
+     it back; the addPrim tail holds pArg in t3 where retail uses t4.
+   Body as measured:
+
 void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     SpriteFrameData* pFrameData;
     SpriteDirectionTransform* pTransform;
@@ -266,7 +285,8 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     u8 visible;
 
     flipX = ((u32)pSpriteData->flags_0xAC.flags >> 2) & 1;
-    offsetY = (s8)pSpriteData->pBase->offsetY << ((pSpriteData->field_0x40 >> 8) & 0x1F);
+    offsetY = (s8)pSpriteData->pBase->offsetY;
+    offsetY = offsetY << ((pSpriteData->field_0x40 >> 8) & 0x1F);
     offsetX = (s8)pSpriteData->pBase->offsetX;
     offsetX = offsetX << ((pSpriteData->field_0x40 >> 8) & 0x1F);
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
@@ -362,15 +382,15 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
 
         edgeY = drawTileY + drawHeight;
         if (!((u32)pFrameData[i].flags >> 5 & 1)) {
-            pVerts[2].vy = edgeY;
-            pVerts[3].vy = edgeY;
             pVerts[0].vy = drawTileY;
             pVerts[1].vy = drawTileY;
+            pVerts[2].vy = edgeY;
+            pVerts[3].vy = edgeY;
         } else {
-            pVerts[2].vy = drawTileY;
-            pVerts[3].vy = drawTileY;
             pVerts[0].vy = edgeY;
             pVerts[1].vy = edgeY;
+            pVerts[2].vy = drawTileY;
+            pVerts[3].vy = drawTileY;
         }
 
         pVerts[0].vy -= offsetY;
@@ -412,8 +432,8 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     } while (++i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2);
 }
 
-
 */
+
 
 
 /* Best attempt: 80.03% (1200 bytes, the original is 1196; round 294 took the
