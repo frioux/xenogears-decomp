@@ -894,6 +894,29 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 // lands after the state store where retail has it before (same insn count, sched2).
 // Preset re-ruled-out earlier: 2.6.0 48.62, 2.7.2-cdk 92.03. Below the 99%
 // threshold, so no permuter run this round.
+// best 91.59% / 1736 bytes / 434 insns (retail 1752 / 438), round 490 re-measure.
+// The residual is ONE thing: the shared states 1/16/24 tail. Retail forms all four
+// g_WorldMapCameraRot accesses symbolically (lui+lhu, lui $at+sh, lui+lh, lui $at+sh =
+// 8 insns); the array extern makes cc1 cse the address into one 'la' + base+0 accesses
+// (6 insns), so the body is 2 short there and 1 short in the state-3 tail.
+// Round 490 got the FORM right and proved the order is what blocks it:
+//  (1) a scalar alias for the three moving-camera arms, array kept elsewhere -
+//      'extern s16 g_WorldMapCameraRotScalar __asm__("g_WorldMapCameraRot");' -
+//      gives retail's per-access symbolic forms (1748 bytes / 437 insns, 4 from retail)
+//      but the clamp compare then FORWARDS the just-stored value (+sll/sra) and sched2
+//      hoists the CameraHeight update above the whole CameraRot group: 89.10%.
+//  (2) the same alias declared volatile (no forwarding, volatile barriers pin the
+//      order): 89.88% / 1756 / 439 - the barrier pushes the non-volatile CameraHeight
+//      update ABOVE the CameraRot load instead.
+//  (3) (2) plus '*(volatile s32 *)&g_WorldMapCameraHeight += 0x8000;' in the arms:
+//      90.22% / 1756 / 439.
+// cc1_probe (round 490) shows the mechanism directly: the SAME block with the global
+// as 'extern s16 g[]' -> 'la $5,g' + lhu/sh 0($5); as 'extern s16 g' -> lhu/sh $3,g
+// per site (retail's macro shape). So the array decl buys retail's ORDER and the
+// scalar decl buys retail's FORMS; no single declaration spelling gives both, and the
+// baseline keeps the order (and so the better score). Earlier: -G0 91.59 identical,
+// 2.6.0 48.62, 2.7.2-cdk 92.03, permuter 2 runs PERMUTER_NONE.
+
 /*
 s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
