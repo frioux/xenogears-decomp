@@ -1824,18 +1824,6 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
-/* best: 91.20%, 160-byte body at retail's size and every branch offset identical.
-   Retail keeps &g_WorldMapViewRotationY (s16) in $v1 across the `sh` store and the
-   `lh` re-read that feeds unk58 = angle << 12, and loads g_WorldMapMode only after
-   that block; this gcc rematerialises the address ($at for the store, a fresh
-   lui for the load) because it hoisted the g_WorldMapMode load into the register
-   the address would have used. The `lh` re-read itself needs a volatile store
-   (plain s16 pointer store is forwarded, 89.60); with the volatile store the
-   register tie above is all that is left. Tried: plain global store (89.60),
-   s16 pointer local + volatile cast store (91.20, kept), inline g_WorldMapMode
-   in the two compares (same), gcc-2.7.2-cdk (78.97), permuter 3 min -j2 (only
-   found a broken candidate that used pRotY uninitialised).
 s32 func_80091430(s32 idx) {
     WorldMapPlayer *pPlayer;
     s16 *pRotY;
@@ -1846,7 +1834,7 @@ s32 func_80091430(s32 idx) {
     *(Quad *)&pPlayer->x = *(Quad *)g_WorldMapScrollTargetX;
     nAngle = g_WorldMapPlayerAngle;
     pRotY = g_WorldMapViewRotationY;
-    g_WorldMapViewRotationZ = 0;
+    g_WorldMapViewRotationZ[0] = 0;
     *(volatile s16 *)pRotY = nAngle;
     pPlayer->unk50 = (s16)nAngle;
     pPlayer->unk58 = *pRotY << 12;
@@ -1857,7 +1845,8 @@ s32 func_80091430(s32 idx) {
         }
     }
     return 1;
-}*/
+}
+
 
 // The scroll delta buffer WorldMapWrapDelta takes: the wrapped xyz offset at 0x00 and
 // its 1/8 step at 0x10 (the type src/world_map/main/misc3.c uses for the same callee).
