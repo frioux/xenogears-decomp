@@ -644,29 +644,101 @@ extern Misc14ModelPart *BattleCreateModelPart(void);
 extern void BattleAttachModelPart(Misc14ModelPart *pPart, ModelPart *pModelPart);
 extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
-
-/* Best attempt: objdiff 91.16%, 580 bytes against 592 (three instructions short).
-   Everything matches except which of two long-lived values gets a saved register:
-   retail spills pScripts to 0x18 and keeps the model data in s4, gcc keeps
-   pScripts in a register and spills the model data to 0x10, which costs the
-   `sw`/`lw` pair in the prologue and another reload at the BattleAttachModelPart
-   call. Both use nine s-registers and two stack homes, so the frame (0x58) is
-   right. What made the rest match, keep it:
-   - pDesc[i] instead of pDesc++ (with the pointer form gcc's combine_givs
-     re-bases the induction register onto the last memory reference and every
-     displacement shifts by 0x12); the indexed form gives retail's lh 2(s2) /
-     addiu s2,s2,0x10 exactly;
-   - the argument is a Misc14Reloc (misc10's func_80084C88 passes its pData
-     straight in): pPartList / pModelData / pPointerList are
-     {count, 0x10-byte part descriptors}, the 0x38-byte model part records and
-     {count, script pointers};
-   - the six halfword stores are the node's rotation (0x44) then sourcePos
-     (0x2C) from six u16 descriptor fields;
-   - `pAnim->pConfig = NULL;` for the null script, with `pAnim++` after the
-     if/else (reorg drops it into the j's delay slot).
-   Declaration order of the three block pointers does not change the spill
-   choice (measured), and a 4-minute permuter run from this body found nothing. */
+/* Best attempt: objdiff 91.16%, 580 bytes / 145 insns against retail's 592 / 148.
+// Everything matches except WHICH of two long-lived values gets $s4: retail spills
+// the script table to 0x18(sp) and keeps the model data in $s4, gcc spills the model
+// data to 0x10(sp) and keeps the script table in $s5. The prologue/epilogue (frame
+// 0x58, ten saves at 0x30..0x54), the whole first loop and the second loop's tail
+// are byte-identical, so this is one spill choice; it costs the `lw a3,0x10(sp)`
+// reload at the BattleAttachModelPart base and one more before the first call.
+// Retail also reloads the spilled table twice (`lw a3,0x18(sp)` for the null test,
+// `lw s4,0x18(sp)` in the loop preheader) and reaches the loop with
+// `move s0,a1` (pAnim held in $a1 up to the preheader), so its 3 extra instructions
+// are all consequences of the same spill.
+// Load-bearing spellings, keep them:
+//  - pDesc[i] instead of pDesc++ (with the pointer form gcc's combine_givs
+//    re-bases the induction register and every displacement shifts by 0x12);
+//  - the argument is a Misc14Reloc (misc10's func_80084C88 passes its pData
+//    straight in): pPartList / pModelData / pPointerList are {count, 0x10-byte part
+//    descriptors}, the 0x38-byte model part records and {count, script pointers};
+//  - the six halfword stores are the node's rotation (0x44) then sourcePos (0x2C)
+//    from six u16 descriptor fields;
+//  - `pAnim->pConfig = NULL;` for the null script, with `pAnim++` after the if/else.
+// Round 478 (four scored runs, none better than 91.16):
+//  - the script table declared INSIDE the `if (pBlock->pPointerList != NULL)` block:
+//    85.38 / 584 - gcc then keeps pBlock live to re-read the field and the whole
+//    prologue rotates, so the top-of-function load retail has is not reachable that
+//    way;
+//  - a separate `Misc14Anim *pEntry` cursor for the second loop: 90.01 / 576 -
+//    gcc coalesces it into $s0 with no `move s0,a1`, one instruction FEWER than the
+//    park, so retail's a1-to-s0 chain is not source-reachable by naming the cursor;
+//  - preset screen on this body: gcc-2.7.2-cdk 90.34, gcc-2.6.0 does not compile
+//    it, so the unit stays Default (do not switch on this function's account).
+// A 4-minute permuter run from this body found nothing (earlier round), and
+// twin_for.py reports no twin. To go further the spill has to flip: raise the model
+// data pointer's allocno priority or lower the table's, which no declaration order
+// tried so far does. */
+/*
+// Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
+//     u8 *pModelData = (u8 *)pBlock->pModelData;
+//     Misc14PartSet *pParts = (Misc14PartSet *)pBlock->pPartList;
+//     Misc14ScriptTable *pScripts = (Misc14ScriptTable *)pBlock->pPointerList;
+//     u32 count = pParts->count;
+//     Misc14PartDesc *pDesc = pParts->descs;
+//     Misc14EntryList *pList;
+//     Misc14ModelNode **pNodes;
+//     Misc14ModelNode *pNode;
+//     Misc14ModelNode *pPart;
+//     Misc14ModelPart *pModelPart;
+//     Misc14Anim *pAnim;
+//     u32 i;
+// 
+//     ModelResolvePointers(pModelData);
+//     HeapSetCurrentContentType(0x12);
+//     pNodes = HeapAlloc(count * 4, 0);
+//     pList = BattleCreateEntryList();
+//     pNode = BattleCreateObject();
+//     BattleSetNodeEntryList(pNode, pList);
+//     pList->pNodes = pNodes;
+//     pList->nodeCount = count;
+//     pList->pPartDescs = pDesc;
+//     for (i = 0; i < count; i++) {
+//         pPart = BattleCreateObject();
+//         pNodes[i] = pPart;
+//         if (pDesc[i].modelIndex != -1) {
+//             pModelPart = BattleCreateModelPart();
+//             BattleSetNodeModelPart(pPart, pModelPart);
+//             BattleAttachModelPart(pModelPart, (ModelPart *)(pModelData + (pDesc[i].modelIndex * 0x38 + 0x10)));
+//         }
+//         if (pDesc[i].parent == -1) {
+//             BattleAppendListEntry(pNode, pPart);
+//         } else {
+//             BattleAppendListEntry(pNodes[pDesc[i].parent], pPart);
+//         }
+//         pPart->rotation.vx = pDesc[i].rotation[0];
+//         pPart->rotation.vy = pDesc[i].rotation[1];
+//         pPart->rotation.vz = pDesc[i].rotation[2];
+//         pPart->sourcePos.vx = pDesc[i].position[0];
+//         pPart->sourcePos.vy = pDesc[i].position[1];
+//         pPart->sourcePos.vz = pDesc[i].position[2];
+//     }
+//     if (pScripts != NULL) {
+//         HeapSetCurrentContentType(0x11);
+//         pAnim = HeapAlloc(pScripts->count * sizeof(Misc14Anim), 0);
+//         pList->pEntries = pAnim;
+//         pList->animCount = pScripts->count;
+//         for (i = 0; i < pScripts->count; i++) {
+//             if (pScripts->pScripts[i] != NULL) {
+//                 func_8008B13C(pScripts->pScripts[i], pAnim, pNode);
+//             } else {
+//                 pAnim->pConfig = NULL;
+//             }
+//             pAnim++;
+//         }
+//     }
+//     return pNode;
+// }
+// */
 /*
 Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
     u8 *pModelData = (u8 *)pBlock->pModelData;
@@ -726,9 +798,10 @@ Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
         }
     }
     return pNode;
-}
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
 
-*/
+
 
 extern s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2);
 
