@@ -938,6 +938,27 @@ s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
 //    g_GfxCurWorkBufferEnd).
 //    
 // Round 483 re-measured 93.85% / 848 bytes (211 vs 212 insns) and added three measured no-ops, each a full scored run from the body below, all byte-identical: (1) hoisting the spriteFlags read above all four shifts, (2) putting z first in the declaration block, (3) the merged condition `if (pPrim->x3 < pPrim->x0 && --texX < 0)` instead of the nested if. The residual is still the three-place coincidence described below: the work-buffer store re-forming its address through at instead of reusing the base (retail is one instruction LONGER there), the flags load's delay slot (retail fills it with the tileY shift, we leave a nop because we use the loaded word immediately), and the uv block (retail decrements texX into a temp and copies it in the bgez slot, forming the 0x00FFFFFF mask once; our body decrements in place and rematerialises the mask into both slots).
+// PARK 93.85% (848 bytes; retail 844 = 211 insns, this body 212 = ONE over).
+// Round 496 CLOSED the three-way $s5/$s6/$s7 rotation with `-da -dl -dg` (the
+// recipe in levers.md: cpp with -DSKIP_ASM, then tools/gcc-2.7.2-cdk-psx/cc1 with
+// the unit's cc_flags + -O2 -G0 -da -dl -dg). func_8001EE88's 24 allocnos are
+// processed `85 95 103 102 101 92 93 91 100 84 99 98 94 327 96 201 86 97 83 80 88
+// 87 81 202`, and the three contested pseudos sit at positions 18/19/20:
+// 80 = pSpriteData `used 11 times across 344 insns; pointer` = 3*11*4/344 = 3837,
+// 88 = i `7 times across 153` = 3660, 87 = z `7 times across 169` = 3314.
+// Retail's map is z=$s5, pSpriteData=$s6, i=$s7, i.e. it needs 87 to outrank both;
+// z crosses the next floor_log2 step at 8 references (3*8*4/169 = 5680) and would
+// then win outright, but an 8th reference is one more instruction in a body that is
+// ALREADY one over. The two near-miss margins (80 vs 88 is 4.8%, 88 vs 87 is 10%)
+// are each 5-7 insns of live range, and all three live ranges are pinned by retail's
+// own instruction stream (z is the preheader `sllv`, i the loop counter, pSpriteData
+// the latch's `lbu 0x40`), so no spelling reaches them - park on the arithmetic.
+// Measured this round, each a full scored run, all byte-identical 93.85 / 848 / 144
+// differing lines: (1) declarations reordered to `tileX, width, tileY, height`
+// (retail's assignment order - kept, it is what the .s shows), (2) `tileY <<= n;`
+// moved above the spriteFlags read so all four shifts precede it. So the flags
+// position is confirmed dead in BOTH directions and the flip block's nop is a reorg
+// artifact of the branch-slot steal, not statement order.
 /*
 void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     SpriteFrameData* pFrameData;
@@ -949,8 +970,8 @@ void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     s32 zDepth;
     s32 flag;
     s32 tileX;
-    s32 tileY;
     s32 width;
+    s32 tileY;
     s32 height;
     s32 texX;
     s32 texY;
@@ -1080,6 +1101,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001EE8
 
 
 
+
 // Best attempt: 91.22% (864 bytes; retail is 860 = 215 instructions, ONE over).
 //    Round 457, measured under XenoRenderingAtfree (cdk -G0).
 //    The body is a verified transcription; the loop shape, both flip arms, the clip
@@ -1108,6 +1130,24 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001EE8
 //    86.40% / 868 bytes (three instructions worse).
 //    
 // Round 483: 91.34% at retail's EXACT size (860 bytes / 215 insns, up from the parked 91.22 / 864 / 216). The one instruction this body used to be over was the uv block's load-delay nop in the else arm: retail loads the frame HEIGHT into the texHeight register BEFORE the texY test and subtracts clip after the merge, so both arms hold two back-to-back lbu's and neither needs a nop. Fix measured: `texHeight = pFrameData[i].height;` above the if/else and `texHeight -= clip;` after it, instead of texHeight = height - clip placed after the if/else (91.22 / 864 -> 91.34 / 860, the note above the body has the old one). Two measured no-ops this round, each a full scored run, byte-identical to the body below: hoisting the spriteFlags read above the four shifts, and a one-iteration do-while-0 label between the RotAverage4 call and the uv block (that one is WORSE: 90.60 / 864). What is left is allocation only: retail is s6=pSpriteData s7=i s5=z s0=height s2=pPrim s1=clip, this body is s5=pSpriteData s6=i s7=z s2=height s1=pPrim s0=clip, plus the flip block's nop (retail fills the lw 0x3C delay slot with the tileY shift, this body uses the loaded word immediately and puts that shift in the beqz slot) and the work-buffer store, which retail re-forms through at (one instruction LONGER there) where this body reuses the base register.
+// PARK 91.34% (860 bytes = retail's EXACT 215 insns; 207 differing lines, allocation only).
+// Round 496 CLOSED both rotations with `-da -dl -dg` (recipe in levers.md,
+// `a-three-way-rotation-is-closed-when-the-loser-needs-a-floor-log2-step`), so this
+// body has been unchanged since round 483 and the number above is re-measured, not
+// stale. func_8001F1D4's 24 allocnos are processed `85 95 101 103 92 102 93 100 91 98
+// 84 99 94 96 327 97 201 86 83 80 88 87 81 202`, dispositions `98 in 16` (clip),
+// `84 in 17` (pPrim), `94 in 18` (height), `80 in 21` (pSpriteData), `88 in 22` (i),
+// `87 in 23` (z). Retail is s0=height s1=clip s2=pPrim and z=$s5 pSpriteData=$s6
+// i=$s7, i.e. BOTH trios are the REVERSE of the quota order:
+//   z 7 refs/172 insns = 3255, i 7/156 = 3589, pSpriteData 11/350 = 3771 - retail's
+//   order needs z to cross the next floor_log2 step (8 refs = 5680), which is one
+//   instruction, in a body already at retail's exact size;
+//   height 30/87 = 55172, clip 22/53 = 66415, pPrim 46/144 = 63888 - retail's order
+//   needs height's live range 15 insns shorter and clip's 3 insns longer, both pinned
+//   by retail's own stream (height lives to the uv block's `if (height > 0)`, clip from
+//   the clip block to `clip >>= n`).
+// Preset screened this round, so do not retry it: gcc-2.7.2 88.77, gcc-2.6.0 90.87,
+// cdk -O3 91.34 - this body under cdk -O2 is the best of the four.
 /*
 void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     SpriteFrameData* pFrameData;
@@ -1251,6 +1291,7 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     } while (++i != (((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2));
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001F1D4);
+
 
 
 
