@@ -249,21 +249,8 @@ void BattleSetPolyFT4Rect(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy)
     p->u3 = u + dx;
     p->v3 = v + dy;
 }
-/* 92.31% (344 bytes / 86 insns against retail "s 332 / 83): the do-while, the
-   switch chain and the whole tail are already exact (`addiu s0,s0,0x28;
-   addiu v0,s2,0x50; slt; bnez`, signed compare, no pre-loop guard). The residual
-   is ONE extra induction variable minted by loop.c: retail keeps a single cursor
-   (s0 = p) and reaches every field as a displacement off it (sb 4/5/6, sh 0xE,
-   sh 0x16), while every body below also gets a second giv at p+0xE (s0) for the
-   five field accesses with displacements -0xA/-9/-8/0/8, i.e. +1 addiu, a 6th
-   saved register and frame 0x30 instead of 0x28. Tried and measured: u8 *p with
-   byte offsets (92.31, the park below in its first shape), typed POLY_FT4 *p
-   with -> members (92.31, identical RTL - so the g-index-form lever does NOT
-   transfer here), the cursor in the parameter with a separate start local
-   (84.96, 90 insns), and a 4-minute permuter run (2188 iterations, base 952
-   best 520) whose only lead DELETES the advancing cursor and reads every field
-   through a cast of pInfo (wrong code - rejected).
-   Parked body (92.31): 
+// 92.31% (344 bytes / 86 insns against retail's 332 / 83, unit gcc-2.6.0 XenoBattle260). Residual: strength_reduce creates a giv of the repeated store address (p + 0xE) - retail's frame is 0x28 with 5 saved regs and a per-iteration 'addu v1,s0,zero', this compile hoists 'addiu s0,s1,0xE', keeps a 6th saved reg (s5) and a 0x30 frame. PROOF it is the pass and not the source: the same body compiled with -fno-strength-reduce (tools/gcc-2.6.0-psx/cc1 -O2 -G8 plus that flag) is retail's exact shape, frame 0x28, 5 regs, 'sh $2,14($16)', 'addu $16,$16,40 / addu $2,$18,80 / slt' - identical except that retail also carries the one extra 'addu v1,s0,zero' copy. No source shape reached that: measured also typed POLY_FT4* p->clut 91.65 (pointer compare gives sltu where retail has slt, so the loop really is a signed byte-pointer compare), u16 *pClut = (u16 *)p with pClut[7] 92.31 (identical), and a for(i<2) loop with typed p 91.52 (slti, extra index register). try_flags: 2.7.2 92.31, cdk compile-failed, -O1 82.36, -O3 compile-failed. Body:
+/*
 void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
     u8 *p;
 
@@ -299,6 +286,7 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
+
 void BattleLoadActionRowGraphics(void) {
     u8 *pBuf[BATTLE_ACTION_ROW_COUNT];
     RECT rect;
