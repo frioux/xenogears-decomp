@@ -352,40 +352,23 @@ void MenuAddUnk358Prims(void) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CE860);
-/* 88.90% (804 vs 792 bytes) under the Default preset: every expression and call
-   is right; the only
-   delta is that loop.c strength-reduces `i * 0x20` and `i * 0x80` here, so gcc
-   allocates two extra induction registers ($s4/$s5: +0x20 and +0x80 at the
-   latch) and computes the verts base as addiu(pData,K) + biv instead of
-   retail's `sll; addiu; addu`.  Retail has no mult-giv registers at all - it
-   re-emits `sll $a0,$s0,5` in both blocks - so its givs must have kept a
-   non-zero add_val (0x31E0 vs 0x3100) and each stayed below the benefit
-   threshold.  Tried: the base as a local pointer, `(pData + i)[K]` for the
-   byte indexes (that fixed the addu operand order), a shared `rowOfs = i*0x20`
-   local, and -O1 (55.6, so not a preset problem).  Same 88.90 in all shapes.
-   Re-measured round 394 under the unit's own preset (gcc 2.6.0, XenoMenu260): 88.90,
-   804 bytes, 201 insns against retail's 191, frame 80 vs retail's 72 - the two extra
-   callee-saved giv registers are what push the frame, exactly as diagnosed above.
-   The four mult sites retail re-emits are sll(s0,5)+0x31E0, sll(s0,7)+0x2D80,
-   sll(s0,5)+0x3100, sll(s0,7)+0x2A00, i.e. two constants used twice each; retail also
-   keeps 0x2228/0x2030/i*0x140 as three real accumulators (s1/s2/s3) bumped at the latch,
-   which the body below already does.
+// 90.29% (796 vs 792 bytes, 199 vs 191 insns) under XenoMenu260 (gcc 2.6.0, -O2 -G8). The body is retail's except for one loop-level cause: gcc strength reduction turns i*0x20 and i*0x80 into two extra mult givs (callee-saved s4/s5, +0x20/+0x80 at the latch), which pushes the frame to 0x48 with six saves and re-forms the verts base as addiu(pData,K) plus the giv instead of retail's sll, addiu, addu. DECISIVE: compiling this body with cc1_probe.sh --opt '-O2 -fno-strength-reduce' reproduces retail's frame 0x48, saved set s0-s3+ra, 191 insns and BOTH sll sites (sll a0,s0,5 and sll a1,s0,7); the only residue left there is operand side (retail puts the constant on the index, that build on the base) and pData in a2 vs v1. So the residual is a per-file flag question, not a source one: report PRESET_NO_STRENGTH_REDUCE and do not edit gears.toml. C-level handles measured: s32 i with the realistic body 88.90, 804 B, 201 insns; s16 i 89.59, 800 B, 199 (kills the givs because a HImode biv makes the mult operand a subreg, so general_induction_var refuses, but costs sll 16 and sra 16 per iteration); s32 i plus an s16 row = i copy used only in the four products 90.29, 796 B, 199 (parked below). Measured and worse: all four products inline with no accumulator locals 85.24, 828 B, 207; i shl 5 and i shl 7 for the products 88.90 identical; a rowOfs local for i*0x20 88.90.
+/*
 void func_801CE860(void) {
     s32 i;
+    s16 row;
     s32 offset0 = 0;
     s32 offset1 = 0x2030;
     s32 offset2 = 0x2228;
     long interpolated;
     long flag;
     SVECTOR* pVerts;
-    s32 rowOfs;
 
     for (i = 0; i < 7; i++) {
-        rowOfs = i * 0x20;
+        row = i;
         if ((((u8*)g_Menu->unk35C) + i)[0x32EA]) {
             if (((u8*)g_Menu->unk35C)[0x32F2]) {
-                pVerts = (SVECTOR*)((rowOfs + 0x31E0) + (u32)g_Menu->unk35C);
+                pVerts = (SVECTOR*)((row * 0x20 + 0x31E0) + (u32)g_Menu->unk35C);
                 RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3],
                               (long*)(offset2 + (u32)g_Menu->unk35C +
                                       (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 8),
@@ -400,11 +383,11 @@ void func_801CE860(void) {
                         (void*)(offset2 + (u32)g_Menu->unk35C +
                                 (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36));
                 MenuRenderTransformedQuads((((u8*)g_Menu->unk35C) + i)[0x32CE],
-                              (SVECTOR*)((rowOfs * 4 + 0x2D80) + (u32)g_Menu->unk35C),
+                              (SVECTOR*)((row * 0x80 + 0x2D80) + (u32)g_Menu->unk35C),
                               (POLY_FT4*)((offset0 + 0x1770) + (u32)g_Menu->unk35C),
                               (((u8*)g_Menu->unk35C) + i)[0x32D5]);
             }
-            pVerts = (SVECTOR*)((rowOfs + 0x3100) + (u32)g_Menu->unk35C);
+            pVerts = (SVECTOR*)((row * 0x20 + 0x3100) + (u32)g_Menu->unk35C);
             RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3],
                           (long*)(offset1 + (u32)g_Menu->unk35C +
                                   (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 8),
@@ -419,7 +402,7 @@ void func_801CE860(void) {
                     (void*)(offset1 + (u32)g_Menu->unk35C +
                             (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36));
             MenuRenderTransformedQuads((((u8*)g_Menu->unk35C) + i)[0x32C0],
-                          (SVECTOR*)((rowOfs * 4 + 0x2A00) + (u32)g_Menu->unk35C),
+                          (SVECTOR*)((row * 0x80 + 0x2A00) + (u32)g_Menu->unk35C),
                           (POLY_FT4*)((offset0 + 0xEB0) + (u32)g_Menu->unk35C),
                           (((u8*)g_Menu->unk35C) + i)[0x32C7]);
         }
@@ -427,8 +410,10 @@ void func_801CE860(void) {
         offset1 += 0x48;
         offset2 += 0x48;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CE860);
+
+
 
 void MenuAddUnk35CPrims(void) {
     u8* pData;
