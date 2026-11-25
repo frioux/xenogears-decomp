@@ -573,40 +573,41 @@ void WorldMapSyncGearRideActors(void) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075E7C);
-/* 89.46%: the two calls, the s16 index read and the memcpy at the end all
-   match. Remaining: the first limit test uses base+2 instead of the folded
-   symbol+2, the 0x10-byte sum loop folds the (zone - 1) << 4 into the
-   displacement instead of retail's addiu -1 then sll 4, and the pick loop
-   bases at buf+1 rather than buf (giv re-basing, t0/a1 vs t1/a0). Also
-   tried: u8* instead of s32 addresses (sltu vs retail's slt, 88.02/82.67),
-   while instead of do-while (extra entry guard), indexing the u16 symbol
-   directly instead of a pointer local.
+// 97.59% (540 bytes, 135/135 insns; retail 135): the limit walk, both loops and the memcpy are instruction-identical.
+// 
+// Residual: one basic block, registers only. retail keeps the limit pointer in a0 and zone in v1 then reuses them as pDst=a0 / pSrc=v1 / pEnd=a1; gcc 2.7.2 puts zone in a0 and the pointer in v1 instead, and the sum loop then runs with pDst=a1/pEnd=a0. Attempts measured (all 135 insns, all 97.59): pDst assigned before pSrc; zone=1 before pLimit=D_8009B578 and the reverse; zone declared first vs last; u16* pLimit replaced by indexing D_8009B578[zone] directly; permuter 3 min -> PERMUTER_BETTER only via a dead 'if (arg1 || row) return 0; else return 0;' that buys 99.04% and is not shippable code.
+// 
+// What DID close: (1) 'while (pCell[...])' anywhere in the pick loop is inverted by gcc; the goto scan (scanTile/foundTile) makes it a top test with a 'j' back edge and the 'a0 = a1' copy, and writing it on buf[i] (not a pointer) is what makes gcc strength-reduce i into a1. (2) pSrc = ... + 0x200 must be its own statement with the row offset added afterwards (row = zone << 4; pSrc += row), otherwise gcc folds (zone - 1) * 16 into +496 and drops the addiu -1.
+/*
 s32 func_80075E7C(s32 arg0, s32 arg1) {
     u8 buf[0x10];
+    s32 zone;
     u16* pLimit;
+    u8 cell;
     s32 pSrc;
     s32 pDst;
     s32 pEnd;
     s32 index;
     s32 sum;
     s32 pick;
+    s32 row;
     s32 i;
-    s32 zone;
 
     index = (s16)WorldMapGetTileGroup(arg0);
     if ((s16)WorldMapGetTileHalfIndex(arg0) == 4) {
         index = D_8009A3A0[index];
     }
-    pLimit = D_8009B578;
     zone = 1;
+    pLimit = D_8009B578;
     while (arg1 >= pLimit[zone]) {
         zone++;
     }
     zone--;
     sum = 0;
-    pSrc = (s32)g_WorldMapTileGroupData[index] + 0x200 + (zone << 4);
     pDst = (s32)buf;
+    pSrc = (s32)g_WorldMapTileGroupData[index] + 0x200;
+    row = zone << 4;
+    pSrc += row;
     pEnd = pSrc + 0x10;
     do {
         *(u8*)pDst = *(u8*)pSrc;
@@ -619,20 +620,24 @@ s32 func_80075E7C(s32 arg0, s32 arg1) {
     }
     pick = rand() % sum + 1;
     i = 0;
-    pSrc = (s32)buf;
     do {
         pick--;
-        while (*(u8*)pSrc == 0) {
-            pSrc++;
-            i++;
+    scanTile:
+        if ((cell = buf[i]) != 0) {
+            goto foundTile;
         }
-        (*(u8*)pSrc)--;
+        i++;
+        goto scanTile;
+    foundTile:
+        buf[i] = cell - 1;
     } while (pick > 0);
     memcpy(D_800658DC, g_WorldMapTileGroupData[index], 0x200);
     g_GameSelectedSkinIndex = i;
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075E7C);
+
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076098);
 void WorldMapFlushDrawAndCache(void) {
     DrawSync(0);
