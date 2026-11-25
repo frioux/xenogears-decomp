@@ -153,7 +153,7 @@ extern SVECTOR g_BattleSlotVectorsB;
 extern BattleAnimFramePos g_BattleAnimFrame;
 extern s16 g_BattleActorDelayCounter;
 extern s16 g_BattleDelayCounter;
-extern s16 g_BattleActorSlotMask;
+extern u16 g_BattleActorSlotMask;
 extern s32 g_AnimScriptExtraTicks;
 extern void* D_800C3568;
 
@@ -207,29 +207,20 @@ extern void BattleUpdateSpriteFollowTask();
 extern void BattleSetLinkedSpriteDrawWorkCallback(SpriteData* pSpriteData, u8* pArgs);
 extern void BattleStartSpriteMotionTask(SpriteData* pSpriteData);
 extern void BattleSetSpriteDrawWorkCallback(SpriteData* pSpriteData, u8* pArgs);
-extern void BattleBeginAnimTask(u16 slotMask);
+extern void BattleBeginAnimTask();
 extern void BattleClearRecordTable8(SpriteData* pSpriteData, u8* pArgs);
 
 // The battle animation script interpreter: `mode` selects the opcode, which mostly
 // moves one value in or out of the sprite and its anim script state. 0 is not an
 // opcode; 1..0x6B are.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
-// 89.96% (4020 bytes / 1005 insns against retail's 4056 / 1014). This is the whole
-// 107-case battle animation-script interpreter transcribed in address order from the
-// disassembly; every arm's structure, call and constant was read off the .s, so what is
-// left is 9 instructions and the frame (retail 0x68, this body 0x40 - retail keeps the
-// two Square0 vectors at 0x38..0x50 live across the whole function, this body scopes
-// them into the arm) plus the arm-level residuals below. Nothing has been tried against
-// them yet.
-// Known open residuals, each measured once on this body:
-//  - case 103/80's `pSpriteBytecode - 2` tail and case 52's double store to 0x1C are the
-//    arms that own the missing instructions.
-//  - case 97 reads the target's slot index and its position.xWhole/zWhole, and the
-//    comparisons against the slot's 0xE halfword are the `bnez`+`j`/`negv` shape.
-//  - case 9's `direction += 0x800` and cases 73/74/75's rotation adds read lh where
-//    retail has lhu, i.e. the original viewed those halfwords as unsigned.
-//  - case 15/83's four masked ANDs (two constants, -9/-5/-0x11) are spelled as four
-//    statements; retail keeps one register per word.
+// 94.19% (4048 bytes / 1012 insns against retail's 4056 / 1014). The whole 107-case interpreter, arm by arm from the .s. 30 residual hunks left; the named causes below are MEASURED, not guesses.
+// FRAME: retail 0x68 with vecA/vecB (VECTOR, 0x10 each) at 0x38/0x48 and 0x28 bytes of never-referenced frame below them; this body has the same two VECTORs at 0x10/0x20 and a 0x40 frame. So the 0x28 is dead space retail's compiler reserved and nothing in the body reads; it is NOT extra locals (every sp access in retail is one of 0x38/0x3C/0x40/0x48/0x4C/0x50/0x58/0x5C/0x60). Costs the prologue, the epilogue and the 12 case-103 vector accesses; cause unknown.
+// CASE 52 owns retail's missing store: retail has BOTH 'sw v0,0x1C(s1)' (the multiplicand, before mflo) and 'sw t1,0x1C(s1)' (the product) for one assignment - a gcc 2.7.2 expand_mult artifact no source spelling reaches. None of the 4 spellings tried (two statements, one expression, multiply then shift) emit it.
+// CASE 23 and 97's remainder are allocator ties (one extra 'move' retail does not have: 'move a1,a0' in 23, none left in 97).
+// CASE 18/20's store order now matches retail exactly; the remaining difference there is the sb order for the '= 1' pair only.
+// REGISTER-LEVEL ONLY (same instructions, different registers): case 98 and the sound arms (79/82/77/78/86) load the two slot-index halves in the opposite order, case 40s load field_0x82 before pArgs[0], case 68/69 keep g_DebugTable's address in v0 instead of the load register.
+// CASE 96 reads flags_0xAC with lbu where retail has lw (same result; gcc narrows the load because the store is sb).
+// Already fixed this round: vecA/vecB are VECTOR (was s32[3]), case 100 sets flags_0xB0 bit 0x200 (not field_0x40), case 97 stores position.y (not step.y) and divides by 0x1000 (div, not shift), case 48 re-forms the direction-transform address per access, BattleBeginAnimTask needs no prototype (its 'andi 0xffff' is not in retail), g_BattleActorSlotMask is u16 (retail lhu), the sound-call arguments are 'id | (bank << 16)' order (retail 'or a0,v0,a0').
 /*
 void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
     BattleScriptActorSlot* pSlot;
@@ -238,8 +229,8 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
     WorkListEntry* pWork;
     SpriteDirectionTransform* pTransform;
     BattleSoundBank* pBank;
-    s32 vecA[3];
-    s32 vecB[3];
+    VECTOR vecA;
+    VECTOR vecB;
     s32 scale;
     s32 value;
     s32 i;
@@ -275,7 +266,7 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         D_800C3688 = 1;
         break;
     case 100:
-        pSpriteData->field_0x40 |= 0x200;
+        pSpriteData->flags_0xB0.flags |= 0x200;
     case 99:
         if ((s16)D_80059454 > 0x200) {
             pSpriteData->field_0x3A = D_80059454;
@@ -288,11 +279,10 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         break;
     case 97:
         pAnimSprite = pSpriteData->pTargetEntitySprite;
-        pSpriteData->step.y = (pSpriteData->field_0x84 - 1) << 16;
-        value = (s8)pArgs[0] * pSpriteData->scale;
+        pSpriteData->position.y = (pSpriteData->field_0x84 - 1) << 16;
+        value = (s8)pArgs[0] * pSpriteData->scale / 0x1000;
         pSlot = (BattleScriptActorSlot*)(g_BattleStateWork +
                                          BATTLE_SCRIPT_SLOT_INDEX(pAnimSprite) * sizeof(BattleScriptActorSlot));
-        value >>= 12;
         if (((BattleSpriteState*)pAnimSprite)->position.xWhole == pSlot->x) {
             if (!(((u32)pSpriteData->flags_0xAC.flags >> 2) & 1)) {
                 value = -value;
@@ -339,7 +329,7 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
             }
             if (((D_800C3626 >> BATTLE_SCRIPT_SLOT_INDEX(pSpriteData)) & 1) == 0) {
                 D_800C3626 |= 1 << BATTLE_SCRIPT_SLOT_INDEX(pSpriteData);
-                SoundPlaySoundEffectOnFreePair((g_BattleSoundBankMain->bankId << 16) | (value + 0x52));
+                SoundPlaySoundEffectOnFreePair((value + 0x52) | (g_BattleSoundBankMain->bankId << 16));
             }
         }
         break;
@@ -349,24 +339,24 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
     case 79:
         pBank = (BattleSoundBank*)pSpriteData->field_0x50;
         if (pBank != NULL) {
-            SoundPlaySoundEffectOnLastPair((pBank->bankId << 16) | pArgs[0]);
+            SoundPlaySoundEffectOnLastPair(pArgs[0] | (pBank->bankId << 16));
         }
         break;
     case 82:
         pBank = (BattleSoundBank*)pSpriteData->field_0x50;
         if (pBank != NULL) {
-            SoundPlaySoundEffectOnPair((pBank->bankId << 16) | pArgs[0], pArgs[1]);
+            SoundPlaySoundEffectOnPair(pArgs[0] | (pBank->bankId << 16), pArgs[1]);
         }
         break;
     case 77:
         pBank = (BattleSoundBank*)pSpriteData->field_0x50;
         if (pBank != NULL) {
-            SoundStopElementsById((pBank->bankId << 16) | pArgs[0]);
+            SoundStopElementsById(pArgs[0] | (pBank->bankId << 16));
         }
         break;
     case 78:
         if (g_BattleSoundBankMain != NULL) {
-            SoundStopElementsById((g_BattleSoundBankMain->bankId << 16) | pArgs[0]);
+            SoundStopElementsById(pArgs[0] | (g_BattleSoundBankMain->bankId << 16));
         }
         break;
     case 76:
@@ -377,16 +367,16 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         break;
     case 103:
         pSpriteData->animScriptWaitTimer++;
-        vecA[0] = g_BattleAnimFrame.x - g_BattleSlotVectors.vx;
-        vecA[1] = g_BattleAnimFrame.y - g_BattleSlotVectors.vy;
-        vecA[2] = g_BattleAnimFrame.z - g_BattleSlotVectors.vz;
-        Square0((VECTOR*)vecA, (VECTOR*)vecA);
-        vecB[0] = g_BattleAnimFrame.xB - g_BattleSlotVectorsB.vx;
-        vecB[1] = g_BattleAnimFrame.yB - g_BattleSlotVectorsB.vy;
-        vecB[2] = g_BattleAnimFrame.zB - g_BattleSlotVectorsB.vz;
-        Square0((VECTOR*)vecB, (VECTOR*)vecB);
-        if (SquareRoot0(vecA[0] + vecA[1] + vecA[2]) < 4) {
-            if (SquareRoot0(vecB[0] + vecB[1] + vecB[2]) < 4) {
+        vecA.vx = g_BattleAnimFrame.x - g_BattleSlotVectors.vx;
+        vecA.vy = g_BattleAnimFrame.y - g_BattleSlotVectors.vy;
+        vecA.vz = g_BattleAnimFrame.z - g_BattleSlotVectors.vz;
+        Square0(&vecA, &vecA);
+        vecB.vx = g_BattleAnimFrame.xB - g_BattleSlotVectorsB.vx;
+        vecB.vy = g_BattleAnimFrame.yB - g_BattleSlotVectorsB.vy;
+        vecB.vz = g_BattleAnimFrame.zB - g_BattleSlotVectorsB.vz;
+        Square0(&vecB, &vecB);
+        if (SquareRoot0(vecA.vx + vecA.vy + vecA.vz) < 4) {
+            if (SquareRoot0(vecB.vx + vecB.vy + vecB.vz) < 4) {
                 break;
             }
         }
@@ -442,8 +432,7 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         g_BattleActorArchiveLoadPending = 1;
         break;
     case 52:
-        value = (s8)pArgs[0] * 2 * pSpriteData->field_0x82;
-        value /= 0x1000;
+        value = (s8)pArgs[0] * 2 * pSpriteData->field_0x82 / 0x1000;
         pSpriteData->gravity = (value << 5) * ((g_AnimScriptExtraTicks + 1) * (g_AnimScriptExtraTicks + 1));
         break;
     case 51:
@@ -462,9 +451,10 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         if (pBase != NULL) {
             if ((pSpriteData->field_0x3C_0 & 3) == 1) {
                 if (pBase->pDirTransforms != NULL) {
-                    pTransform = &pBase->pDirTransforms->dirTransforms[pArgs[0]];
-                    pBase->offsetY = pTransform->translationY;
-                    pBase->offsetX = pTransform->translationX;
+                    pBase->offsetY =
+                        ((BattleDirectionTransform*)pSpriteData->pBase->pDirTransforms)[pArgs[0]].translationY;
+                    pBase->offsetX =
+                        ((BattleDirectionTransform*)pSpriteData->pBase->pDirTransforms)[pArgs[0]].translationX;
                 }
             }
         }
@@ -581,13 +571,13 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         D_800C3CB0[0] = g_BattleStateWork[0xB89];
         D_800C3CB0[1] = g_BattleStateWork[0xB8A];
         D_800C3CB0[2] = g_BattleStateWork[0xB8B];
-        g_BattleStateWork[0xB88] = 1;
         g_BattleStateWork[0x4BF8] = 1;
+        g_BattleStateWork[0xB88] = 1;
         g_BattleStateWork[0xB89] = 0;
-        g_BattleStateWork[0xB8A] = 0;
-        g_BattleStateWork[0xB8B] = 0;
         g_BattleStateWork[0x4BF9] = 0;
+        g_BattleStateWork[0xB8A] = 0;
         g_BattleStateWork[0x4BFA] = 0;
+        g_BattleStateWork[0xB8B] = 0;
         g_BattleStateWork[0x4BFB] = 0;
         break;
     case 19:
@@ -595,8 +585,8 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         break;
     case 20:
         g_BattleSlotDrawSuppressed = 0;
-        g_BattleStateWork[0xB88] = D_800C3CAC;
         g_BattleStateWork[0x4BF8] = D_800C3CAC;
+        g_BattleStateWork[0xB88] = D_800C3CAC;
         g_BattleStateWork[0xB89] = D_800C3CB0[0];
         g_BattleStateWork[0x4BF9] = D_800C3CB0[0];
         g_BattleStateWork[0xB8A] = D_800C3CB0[1];
@@ -698,13 +688,15 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         BattleSetSpriteDrawWorkCallback(pSpriteData, pArgs);
         break;
     case 6:
-        BattleBeginAnimTask(1 << BATTLE_SCRIPT_SLOT_INDEX(D_800C3E1C));
+        pAnimSprite = D_800C3E1C;
+        BattleBeginAnimTask(1 << BATTLE_SCRIPT_SLOT_INDEX(pAnimSprite));
         break;
     case 85:
         BattleBeginAnimTask((1 << BATTLE_SCRIPT_SLOT_INDEX(D_800C3E1C)) | g_BattleActorSlotMask);
         break;
     case 7:
-        BattleBeginAnimTask(1 << BATTLE_SCRIPT_SLOT_INDEX((SpriteData*)pSpriteData->pTargetEntitySprite));
+        pAnimSprite = pSpriteData->pTargetEntitySprite;
+        BattleBeginAnimTask(1 << BATTLE_SCRIPT_SLOT_INDEX(pAnimSprite));
         break;
     case 101:
         BattleBeginAnimTask(g_BattleActorSlotMask);
@@ -720,8 +712,10 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
     case 57:
         break;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
+
+
 // Uploads the current frame's texture and CLUT into the sprite's own slots: the
 // 8x8 tile at the frame descriptor's texture-page rectangle goes to (0x3F0,0x1F0)
 // and its CLUT to (0x3F0,0x1EE).
