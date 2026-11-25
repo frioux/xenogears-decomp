@@ -308,7 +308,6 @@ extern int g_FieldActorAllocCount[];
 // (a plain scalar becomes lui $at + sw sym) and the volatile pActorData store, which
 // keeps that store ahead of the reload of g_FieldActors (a plain store costs a0 and the
 // loop counter lands in a2: 90.26%).
-/*
 void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
     int i;
@@ -316,6 +315,8 @@ void func_80080F44(int actorIndex) {
     ActorData* pActor;
     FieldActorModelData* pModelData;
     FieldActor* pFieldActor;
+    FieldActor* pSlot;
+    short actorStatus;
     u8 unused[0x60];
 
     if (actorIndex < g_FieldActiveActorCount) {
@@ -325,12 +326,16 @@ void func_80080F44(int actorIndex) {
         for (i = 0; i < numWords; i++) {
             *pData++ = 0;
         }
-        g_FieldActors[actorIndex].spriteFlags = 0;
+        pFieldActor = (FieldActor*)(actorIndex * sizeof(FieldActor) + (u32)g_FieldActors);
+        pFieldActor->spriteFlags = 0;
         do {
-            pFieldActor = &g_FieldActors[actorIndex];
-            pActor = pFieldActor->pActorData;
-            if (pFieldActor->status & 0x2000) {
-                pModelData = pFieldActor->pModelData;
+        } while (0);
+        pSlot = (FieldActor*)(actorIndex * sizeof(FieldActor) + (u32)g_FieldActors);
+        actorStatus = pSlot->status;
+        pActor = pFieldActor->pActorData;
+        do {
+            if (actorStatus & 0x2000) {
+                pModelData = pSlot->pModelData;
                 pActor->pScriptWorkWords = HeapAlloc(0x80, 0);
                 if (pModelData->pScripts != NULL) {
                     for (i = 0; i < pModelData->pScripts->numScripts; i++) {
@@ -345,8 +350,7 @@ void func_80080F44(int actorIndex) {
         } while (0);
         FieldInitShadowQuad((Quad*)g_FieldActors[actorIndex].pShadow);
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
+}
 
 
 
