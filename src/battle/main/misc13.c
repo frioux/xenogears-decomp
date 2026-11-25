@@ -32,7 +32,7 @@
 extern u8 *g_BattleCommandQueue;
 extern u8 *g_BattleCommandSlotRows[];
 extern u8 *g_BattleCommandStatusBytes[];
-extern volatile u8 *g_BattleDisplayState;
+extern u8 *g_BattleDisplayState;
 extern u8 g_BattleSlotRecords[];
 extern u8 g_BattleCharSlotUsage[];
 extern u16 g_BattleStateFlags;
@@ -456,6 +456,7 @@ void BattleDrawCommandRowSprites(void) {
     u8 *pWork;
     u8 *pWork2;
     u8 *pWork3;
+    volatile u8 *pState;
 
     g_BattleDisplayState[0x7B] = 0;
     v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D4] + 0xF, (s32)((g_BattleDisplayState[0x7B] * 0x50) + (0x9C8 + (s32)(pWork = g_BattleGraphicsWork))), 0x2A, 0xD0);
@@ -464,7 +465,8 @@ void BattleDrawCommandRowSprites(void) {
     g_BattleDisplayState[0x7B] += v;
     v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D5] + 0xF, (s32)((g_BattleDisplayState[0x7B] * 0x50) + (0x9C8 + (s32)(pWork3 = g_BattleGraphicsWork))), 0x3A, 0xD0);
     g_BattleDisplayState[0x7B] += v;
-    g_BattleDisplayState[0xA4] = g_BattlePrimStartIndex[0];
+    pState = g_BattleDisplayState;
+    pState[0xA4] = g_BattlePrimStartIndex[0];
 }
 void BattleClearCommandSlots(void) {
     s32 i;
@@ -629,53 +631,51 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 
-// PARKED 98.56%, 2496 bytes / 624 insns (retail 2488 / 622). The whole 20-byte
-//    arg1 SPILL is gone: retail's frame 88, saved set s0-s7+fp and 'fp = arg1'
-//    are now exact, and every 'andi X,fp,0xff' reload is retail's.
-//    WHAT CLOSED IT (new, round 460): in the case-8 and case-3 arms the two draw
-//    calls' x arguments shared 'i * 0x10', so gcc CSEd that multiply across the
-//    first BattleDrawSpritePackage call; the CSEd pseudo took one of the ten
-//    callee-saved registers and the raw arg1 lost its home. Retail re-forms the
-//    multiply from i after each call ('sll a2,s2,0x4' in the jal delay slot).
-//    Writing the second icon's x as '(i + 1) * 0x10 + 0x54' (same value as
-//    'i * 0x10 + 0x64', a different tree) breaks the CSE: 95.22 -> 98.56, and it
-//    is also the more readable spelling ("the column after the first icon").
-//    Note the naive attempts do NOT work because gcc canonicalises RTL:
-//    '(i << 4) + 0x64' is the same insn as 'i * 0x10 + 0x64' (measured, 95.22,
-//    unchanged).
-//    REMAINING 8 bytes, all measured, none source-shaped:
-//    1. Two instructions of delay-slot/reorg placement: retail leaves
-//       'move s0,zero' (o = 0 for the next free loop) in the 'beqz s7' delay slot
-//       and puts the 'g_BattleDisplayState[0xA8] = 1' store in the 'jal
-//       BattleUpdateFrame' delay slot; this build takes the beqz slot for
-//       'sltiu s3,9' and the jal slot for 'move s0,zero', which also leaves one
-//       real 'nop' (lbu-use hazard) before 'sb ...,0x5D8F'.
-//    2. The register rotation is now one slot: the arg1*0x170 temporary lands in
-//       $s6 here and $s7 in retail (and retail's $s7 'drawn' is dead by then).
-//    3. 'lbu 86(at)' vs retail's 'lbu 0(at)' is the typed g_BattleWorkBlock[arg1]
-//       access (same linked bytes, objdiff cannot fold it).
-//    ROUND 473 re-measure: 98.56% / 2496 bytes / 624 insns - the note is current,
-//    not stale. The residual is NOT a statement-order question: placing `o = 0;`
-//    as the FIRST statement of the if body, and separately between the 0x5D90 and
-//    0x5D8F stores in the tail path (retail's exact slot), each compiles
-//    BYTE-IDENTICALLY - cc1's own .s still reads `jal BattleUpdateFrame / move
-//    $16,$0`, i.e. cc1 always emits the init right after the call and reorg takes
-//    it for the jal slot where retail keeps the `sb v0,0xA8(v1)`.
-//    The other 4 bytes are reorg redirection: cc1 emits
-//    `beq $23,$0,$L153 / sltu $2,$19,9` and the copy in that delay slot is
-//    REQUIRED, because the branch targets the insn AFTER the sltu, where retail's
-//    `beqz s7` targets the sltiu itself (.L80086700). Both are reorg decisions on
-//    the same CFG -> c-a-call-argument-constant-beats class, park, do not permute.
-//    Tried and measured this round, all worse or equal: '(i << 4) + 0x64' /
-//    '(i << 4) + 0x68' (95.22, identical object - RTL canonicalisation). Earlier
-//    rounds, do not redo: removing the BattleDrawSpritePackage return temp
-//    (94.97), dropping the pQueue local (95.22/2504), permuter 4 min (best edit
-//    clobbered the ladder counter - wrong code), try_flags 2.6.0 95.22 and
-//    cdk 78.03, and declaration reordering (no instruction changes, only names).
-//    Next lever if anyone picks this up: the two delay-slot placements, i.e. what
-//    makes reorg prefer the loop init over the pending store. Both switch tables
-//    (jtbl_800702B8, jtbl_800702F0) still diff as .rodata with byte counts that
-//    match retail's layout (13 words + 4 pad, 9 words), so the switch C is right.
+// PARKED 99.41%, 2488 bytes / 622 insns = retail's EXACT size and instruction
+//    count. ONE instruction is displaced and that is all: retail emits `ori
+//    s7,zero,1` (the `drawn = 1;` after the guard) after the `addu a2,s2,zero`
+//    argument copy and before the status-byte argument chain, this build emits it
+//    first in the join block, straight after `addiu s2,s2,-1`. Everything else in
+//    the diff is a fold objdiff cannot do: the two `jtbl_` operands (.rodata +
+//    a table-relative `lw` offset, 13 words + 4 pad and 9 words, so the switch C
+//    is retail's layout) and `lbu 86(at)` for the typed `g_BattleWorkBlock[arg1]`
+//    access.
+//    TWO MEASURED LEVERS CLOSED 0.85 POINTS THIS ROUND, both after the previous
+//    note had called the residual "none source-shaped":
+//    1. 98.56 -> 98.70 at the same 2496 bytes: every `g_BattleCommandQueue +
+//       <byte offset>` sum in this body came out INDEX-first (`addu v0,v0,v1`)
+//       where retail is base-first (`addu v0,v1,v0`) - seven sites: the two
+//       `[0x2CC/0x2CB + g_BattleCommandQueue[0x2D6]]` stores, the first loop's
+//       `switch` subject `[0x2CC + i]`, and the four `arg1 * 0x40 + 0x1C/0x1E/0x20`
+//       guards. The DOUBLE-NEGATED offset spelling fixes all seven and is the
+//       lever this unit already carries
+//       (tools/rounds/levers.md c-double-negation-on-a-slot-stride-from-a-pointer-global,
+//       round 427, func_80087AF0): `(g_BattleCommandQueue - -(i))[0x2CC]`,
+//       `*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20)`. Semantically
+//       inert; keep it.
+//    2. 98.70 -> 99.41, 2496 -> retail's 2488 / 622: the file declared
+//       `extern volatile u8 *g_BattleDisplayState;` and gcc marks the tail's
+//       `sb v0,0xA8(v1)` `.set volatile`, which forbids reorg from taking it for
+//       the `jal BattleUpdateFrame` delay slot. Proved with cc1_probe on a
+//       two-function snippet (volatile pointer -> `sb` before the jal and an
+//       EMPTY slot; plain `u8 *` -> `jal / sb`): with a plain pointer cc1 fills
+//       the jal slot with the store AND, as the note above predicted it would,
+//       the `beqz s7` slot then takes `addu s0,zero,zero` - the 2-insn/8-byte
+//       "reorg class" was the volatile qualifier, not reorg. The file now uses
+//       `extern u8 *g_BattleDisplayState;` like every other battle unit, and
+//       BattleDrawCommandRowSprites keeps its 100.00 with a local
+//       `volatile u8 *pState;` for its last store (without it reorg takes that
+//       store for the `jr $ra` slot: 96.05 / 316).
+//    DEAD ON THE LAST INSTRUCTION: permuter 3 min (1011 iters, PERMUTER_NONE
+//    base=340), gcc-2.7.2-cdk 79.55, gcc-2.6.0 95.22 (2 units of the unit's other
+//    functions break under it), and - from earlier rounds, do not redo - `o = 0;`
+//    as the first statement of the if body or between the 0x5D90/0x5D8F stores
+//    (byte-identical), `(i << 4) + 0x64` / `+ 0x68` for the second icon's x,
+//    dropping the BattleDrawSpritePackage return temp (94.97), dropping the
+//    pQueue local (95.22 / 2504), declaration reordering, a 4-minute permuter
+//    run. If anyone picks this up, the remaining question is the emission
+//    position of a single store to a callee-saved pseudo against the following
+//    call's argument set-up.
 /*
 void func_800861D0(u8 arg0, u8 arg1) {
     s32 i;
@@ -694,10 +694,10 @@ void func_800861D0(u8 arg0, u8 arg1) {
     for (o = 0; o < 12; o += 4) {
         *(void **)(D_800C3A70 + o) = BattleAllocTextBuffer(0x1E);
     }
-    g_BattleCommandQueue[0x2CC + g_BattleCommandQueue[0x2D6]] = arg0 + 0xFC;
+    (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CC] = arg0 + 0xFC;
     g_BattleCommandQueue[0x2D6] = g_BattleCommandQueue[0x2D6] + 1;
     if (g_BattleCommandQueue[0x2E4] != 0) {
-        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = BATTLE_COMMAND_NONE;
+        (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CB] = BATTLE_COMMAND_NONE;
     }
     pQueue = g_BattleCommandQueue;
     for (i = 0; i < BATTLE_COMMAND_SLOT_COUNT; i++) {
@@ -716,12 +716,12 @@ void func_800861D0(u8 arg0, u8 arg1) {
     }
     matched = i;
     if (g_BattleCommandQueue[0x2E4] != 0) {
-        g_BattleCommandQueue[0x2CB + g_BattleCommandQueue[0x2D6]] = arg0 + 0xFC;
+        (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CB] = arg0 + 0xFC;
     }
     g_BattleSpriteColumnWork[0x5D81] = 0;
     g_BattleSpriteColumnWork[0x5D80] = 0;
     for (i = 0; i < g_BattleCommandQueue[0x2D6]; i++) {
-        switch (g_BattleCommandQueue[0x2CC + i]) {
+        switch ((g_BattleCommandQueue - -i)[0x2CC]) {
         case 0:
             spriteId = 0x5D;
             break;
@@ -766,7 +766,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
     case 12:
         if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j]) != 0) {
-            if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x20) == 0) {
+            if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20) == 0) {
                 if (g_BattleCommandQueue[0x2E4] == 0) {
                     g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
                                                 (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
@@ -811,8 +811,8 @@ void func_800861D0(u8 arg0, u8 arg1) {
     case 8:
         if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x13 - j]) != 0) {
-            if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x1C) == 0) {
-                if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x20) == 0) {
+            if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x1C) == 0) {
+                if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20) == 0) {
                     g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(8,
                                                 (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                                       (0x5640 + (s32)g_BattleSpriteColumnWork)),
@@ -838,8 +838,8 @@ void func_800861D0(u8 arg0, u8 arg1) {
     case 3:
         if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].commandMask,
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x16 - j]) != 0) {
-            if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x1E) == 0) {
-                if (*(u16 *)(g_BattleCommandQueue + arg1 * 0x40 + 0x20) == 0) {
+            if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x1E) == 0) {
+                if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20) == 0) {
                     g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(9,
                                                 (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                                       (0x5640 + (s32)g_BattleSpriteColumnWork)),
@@ -865,6 +865,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
+
 
 
 u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
