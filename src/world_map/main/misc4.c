@@ -38,6 +38,10 @@
 // the scratchpad SVECTOR the sprite-group draw calls read
 #define WORLD_MAP_TILE_POS ((SVECTOR *)0x1F8000A0)
 
+// the scratchpad position the groups are built around (written as 3 words, then copied
+// whole into group 0)
+#define WORLD_MAP_WORK_POS ((WorldMapPos4 *)0x1F800000)
+
 // the scale animation an actor runs: the angle advances by a fixed step each frame,
 // wrapping at WORLD_MAP_SCALE_ANGLE_LIMIT, and each wrap advances the scale until it
 // reaches the maximum that ends the animation.
@@ -526,32 +530,27 @@ s32 WorldMapInitActorAtScrollPosition(s32 index) {
     *(WorldMapPos4 *)&g_WorldMapCameraTarget = *(WorldMapPos4 *)&p->x;
     return 1;
 }
-// 93.60%, 1376 bytes = retail exact size, instruction multiset identical. Only the COPY CHAIN register hand-out differs: everything before it (prologue, the 0x1F800000 pos quad, the angle cluster, the four scratchpad rotation vectors) is byte-identical.
-// Retail gives each copy run base=$v0, scratch source=$a2, temps=$v1/$a0/$a1 (run 4, where $v0 holds the return 1, base=$v1 source=$a3 temps=$a0/$a1/$a2); we get base=$a3, source=$a1, temps=$v0/$v1/$a0 for all four, with $a2 untouched.
-// The scratchpad block must be in retail emitted store order (pRot[2].vz, pRot[2].vx, pRot[1].vz, ...): with the p->unk50/58/60 loads interleaved cc1 fills their load-delay slots with the two remaining zero stores, and no do/while barrier is needed. That alone took 91.53 to 93.60. Natural per-vector vx/vy/vz order NOT measured this round.
-// Flat at 93.60 (436 differing lines each): a single reused MATRIX pointer local; four separate pointer locals; the chained pEntries[1] = pEntries[2] = pEntries[3] = src form (compiles identically); a WorldMapState pointer temp for the last two runs (coalesced away); -O3 (93.6); gcc-2.7.2-cdk-psx worse (82.13); gcc-2.6.0 and -G0 do not compile this unit. One pEntries assignment instead of four makes gcc CSE the load into one register and drop three reloads, so the four assignments stay.
-// permute.sh 3 min from this body: PERMUTER_BETTER base=2200 best=1060; the only edit that helps routes two of the four loads through an inline WorldMapState-to-WorldMapEntry conversion helper, i.e. a pseudo-renumbering artifact with no realistic spelling that reproduces it, so it is not ported.
-/*
+// The matrix copies go through one entry pointer per group: gcc merges four assignments to a
+// single variable into one allocno that outlives each copy run, and the run bases then lose $v0.
 s32 func_800783E8(s32 index) {
     WorldMapActor *p;
-    WorldMapEntry *pEntries;
     SVECTOR *pRot;
 
     p = g_WorldMapSlots + index;
     p->z -= 0x4000;
     g_WorldMapScrollZ[0] -= 0x4000;
     WorldMapWrapPosition(&p->x);
-    *(u32 *)0x1F800000 = p->x >> 12;
-    *(u32 *)0x1F800004 = p->y >> 12;
-    *(u32 *)0x1F800008 = p->z >> 12;
-    ((WorldMapEntry *)g_WorldMapGroups)[0].pos = *(WorldMapPos4 *)0x1F800000;
+    WORLD_MAP_WORK_POS->x = p->x >> 12;
+    WORLD_MAP_WORK_POS->y = p->y >> 12;
+    WORLD_MAP_WORK_POS->z = p->z >> 12;
+    ((WorldMapEntry *)g_WorldMapGroups)[0].pos = *WORLD_MAP_WORK_POS;
     *(WorldMapPos4 *)&g_WorldMapCameraTarget = *(WorldMapPos4 *)&p->x;
     p->unk50 = (p->unk50 + p->unk54) & 0xFFF;
     p->unk58 = (p->unk58 + p->unk5C) & 0xFFF;
     p->unk60 = (p->unk60 + p->unk64) & 0xFFF;
     // the four RotMatrixYXZ source vectors, in scratchpad: 0xA0/A8/B0 are Y rotations,
     // 0xB8 a Z rotation
-    pRot = (SVECTOR *)0x1F8000A0;
+    pRot = WORLD_MAP_TILE_POS;
     pRot[2].vz = 0;
     pRot[2].vx = 0;
     pRot[1].vz = 0;
@@ -564,31 +563,37 @@ s32 func_800783E8(s32 index) {
     pRot[3].vy = 0;
     pRot[3].vx = 0;
     pRot[3].vz = p->unk60;
-    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
-    RotMatrixYXZ((SVECTOR *)0x1F8000A8, (MATRIX *)0x1F800110);
-    RotMatrixYXZ((SVECTOR *)0x1F8000B0, (MATRIX *)0x1F800130);
-    RotMatrixYXZ((SVECTOR *)0x1F8000B8, (MATRIX *)0x1F800150);
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[3].matrix = *(MATRIX *)0x1F800150;
-    pEntries[2].matrix = pEntries[3].matrix;
-    pEntries[1].matrix = pEntries[2].matrix;
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[5].matrix = *(MATRIX *)0x1F800130;
-    pEntries[4].matrix = pEntries[5].matrix;
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[12].matrix = *(MATRIX *)0x1F8000F0;
-    pEntries[8].matrix = pEntries[12].matrix;
-    pEntries[10].matrix = pEntries[8].matrix;
-    pEntries[6].matrix = pEntries[10].matrix;
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[13].matrix = *(MATRIX *)0x1F800110;
-    pEntries[9].matrix = pEntries[13].matrix;
-    pEntries[11].matrix = pEntries[9].matrix;
-    pEntries[7].matrix = pEntries[11].matrix;
+    RotMatrixYXZ(pRot, (MATRIX *)0x1F8000F0);
+    RotMatrixYXZ(pRot + 1, (MATRIX *)0x1F800110);
+    RotMatrixYXZ(pRot + 2, (MATRIX *)0x1F800130);
+    RotMatrixYXZ(pRot + 3, (MATRIX *)0x1F800150);
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[3].matrix = *(MATRIX *)0x1F800150;
+        pEntries[2].matrix = pEntries[3].matrix;
+        pEntries[1].matrix = pEntries[2].matrix;
+    }
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[5].matrix = *(MATRIX *)0x1F800130;
+        pEntries[4].matrix = pEntries[5].matrix;
+    }
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[12].matrix = *(MATRIX *)0x1F8000F0;
+        pEntries[8].matrix = pEntries[12].matrix;
+        pEntries[10].matrix = pEntries[8].matrix;
+        pEntries[6].matrix = pEntries[10].matrix;
+    }
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[13].matrix = *(MATRIX *)0x1F800110;
+        pEntries[9].matrix = pEntries[13].matrix;
+        pEntries[11].matrix = pEntries[9].matrix;
+        pEntries[7].matrix = pEntries[11].matrix;
+    }
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
 
 s32 WorldMapEnterNop(void) {
     return 1;
