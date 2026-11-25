@@ -11,6 +11,7 @@ extern void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth);
 extern void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage);
 extern void SpriteClearDirTransforms(SpriteData* pSpriteData);
 extern void GfxQueueImageTransfer(u_long* pAddr, s32 x, s32 y, s32 width, s16 height);
+extern SVEC2 g_SpriteVramSlotPair[];
 
 // Rendering-related stuff
 
@@ -32,58 +33,61 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
-
 /* PARKED 80.76% (1436 bytes; retail 1452, 359 vs 363 insns, frame 0x80 vs retail
-   0x68). Round 430 measured the residual to ONE construct; everything else in the
-   body below is instruction-for-instruction retail's shape.
-   THE RESIDUAL: gcc derives a SECOND induction base for pFrameData at +2
-   ('addu $18,$fp,2' in the preheader, then BOTH $fp and $18 are bumped by 24 at the
-   loop end). That costs $fp, so `i` - retail's $s7 - is in a stack slot instead
-   (lw/addu/sw of 0x10(sp) at the loop end) and every sp-relative operand differs.
-   Retail has ONE base: $s0 = pFrameData, displacements 0x0 (tileX), 0x2 (tileY),
-   0x4..0x7, 0x8, 0x9, 0xA, 0xC, 0x10, 0x14.
-   Register census, both bodies 10 saved (ra, fp, s0-s7) + 16 home:
-     retail = pFrameData s0, entryFlags/spriteFlags s1, pEntry s2, pSprite s3,
-              texX s4, pSpriteData s5, dir s6, i s7, pAnimPackage fp;
-              stack: pFrames 0x10, pOffsets 0x14, texY 0x18, defaultMode 0x20,
-              color 0x28, count 0x2C, unkFlag 0x30, a spilled pSpriteData 0x38.
-     this body = same minus i (memory) plus the +2 base in s2; its spilled
-              pSpriteData (pOwner below) sits at 0x50. So the SOURCE pseudo set is
-              now retail's - only the base split differs.
-   MEASURED THIS ROUND (each was a scored run; keep them, do not redo):
-   - retail really does hold TWO source pseudos of pSpriteData: $s5 is used for
-     pBase->pDirTransforms in the walk and field_0x40 at the end, while the clut arm
-     reads flags_0xA8 and field_0x7C through a RELOAD of 0x38(sp). Adding pOwner
-     (used only in the clut arm) is what moved 79.36 -> 80.76% and 1424 -> 1436
-     bytes; retail's 0x38 slot is that pseudo, not a spill of the parameter.
-   - The base split is chosen by REFERENCE COUNT, never by the loop's own pointer:
-     moving the tile stores onto pOwner (semantic probe) drops the +2 base but gcc
-     then picks +0x14 ('lw 0($18)', 'sb -11($18)', 'sb -12($18)') - 356 insns /
-     1424 bytes / 80.04%, i still in memory. So freeing $fp alone does not buy `i`:
-     gcc simply keeps `i` in memory (biv elimination never runs here) and retail's
-     `lw count-from-0x2C(sp)` per iteration is the eliminated-biv shape.
-   - `u16* pTile = (u16*)pFrameData; pTile[0]/pTile[1]` is CSE'd back into
-     pFrameData: 80.76% / 1436, identical to the field form. Not a lever.
-   - Flipping the tile block to else-first (semantics-preserving) = 77.00% (1432).
-   - do/while with i++ in the body vs for(...; i++) ties exactly (80.76% / 1436);
-     do/while kept because retail's 'bne s7,t0' carries 'addiu s2,s2,3' in its slot.
-   - The permuter is NOT the next lever (a 4-minute run in round 415 found only
-     counter-clobbering candidates); the prize is 'i' in $s2, which is a source-shape
-     question: something must stop loop.c creating the (reg+2) giv while keeping the
-     pointer's own value live. Ideas not yet tried: (a) split the tile stores into a
-     separate 'SpriteFrameData* pFr = pFrameData;' declared INSIDE the loop so the
-     two bases have different giv origins; (b) type the frame's leading pair
-     (tileX/tileY) as a 2-element s16 array member so the second store is
-     pFrameData->tiles[1] (index form, maybe not giv-ised); (c) make count
-     'volatile'-free but read through a u8 pointer so the comparison is on memory.
-   Anatomy and the rest (frame slots, arm shapes, the five hand-packed ORs, the
-   s32 spriteFlags, the byte-offset on g_SpriteVramSlotPair, the signed
-   /0x1000 divisions) is unchanged from earlier rounds and still correct.
-*/
+//    0x68). Round 430 measured the residual to ONE construct; everything else in the
+//    body below is instruction-for-instruction retail's shape.
+//    THE RESIDUAL: gcc derives a SECOND induction base for pFrameData at +2
+//    ('addu $18,$fp,2' in the preheader, then BOTH $fp and $18 are bumped by 24 at the
+//    loop end). That costs $fp, so `i` - retail's $s7 - is in a stack slot instead
+//    (lw/addu/sw of 0x10(sp) at the loop end) and every sp-relative operand differs.
+//    Retail has ONE base: $s0 = pFrameData, displacements 0x0 (tileX), 0x2 (tileY),
+//    0x4..0x7, 0x8, 0x9, 0xA, 0xC, 0x10, 0x14.
+//    Register census, both bodies 10 saved (ra, fp, s0-s7) + 16 home:
+//      retail = pFrameData s0, entryFlags/spriteFlags s1, pEntry s2, pSprite s3,
+//               texX s4, pSpriteData s5, dir s6, i s7, pAnimPackage fp;
+//               stack: pFrames 0x10, pOffsets 0x14, texY 0x18, defaultMode 0x20,
+//               color 0x28, count 0x2C, unkFlag 0x30, a spilled pSpriteData 0x38.
+//      this body = same minus i (memory) plus the +2 base in s2; its spilled
+//               pSpriteData (pOwner below) sits at 0x50. So the SOURCE pseudo set is
+//               now retail's - only the base split differs.
+//    MEASURED THIS ROUND (each was a scored run; keep them, do not redo):
+//    - retail really does hold TWO source pseudos of pSpriteData: $s5 is used for
+//      pBase->pDirTransforms in the walk and field_0x40 at the end, while the clut arm
+//      reads flags_0xA8 and field_0x7C through a RELOAD of 0x38(sp). Adding pOwner
+//      (used only in the clut arm) is what moved 79.36 -> 80.76% and 1424 -> 1436
+//      bytes; retail's 0x38 slot is that pseudo, not a spill of the parameter.
+//    - The base split is chosen by REFERENCE COUNT, never by the loop's own pointer:
+//      moving the tile stores onto pOwner (semantic probe) drops the +2 base but gcc
+//      then picks +0x14 ('lw 0($18)', 'sb -11($18)', 'sb -12($18)') - 356 insns /
+//      1424 bytes / 80.04%, i still in memory. So freeing $fp alone does not buy `i`:
+//      gcc simply keeps `i` in memory (biv elimination never runs here) and retail's
+//      `lw count-from-0x2C(sp)` per iteration is the eliminated-biv shape.
+//    - `u16* pTile = (u16*)pFrameData; pTile[0]/pTile[1]` is CSE'd back into
+//      pFrameData: 80.76% / 1436, identical to the field form. Not a lever.
+//    - Flipping the tile block to else-first (semantics-preserving) = 77.00% (1432).
+//    - do/while with i++ in the body vs for(...; i++) ties exactly (80.76% / 1436);
+//      do/while kept because retail's 'bne s7,t0' carries 'addiu s2,s2,3' in its slot.
+//    - The permuter is NOT the next lever (a 4-minute run in round 415 found only
+//      counter-clobbering candidates); the prize is 'i' in $s2, which is a source-shape
+//      question: something must stop loop.c creating the (reg+2) giv while keeping the
+//      pointer's own value live. Ideas not yet tried: (a) split the tile stores into a
+//      separate 'SpriteFrameData* pFr = pFrameData;' declared INSIDE the loop so the
+//      two bases have different giv origins; (b) type the frame's leading pair
+//      (tileX/tileY) as a 2-element s16 array member so the second store is
+//      pFrameData->tiles[1] (index form, maybe not giv-ised); (c) make count
+//      'volatile'-free but read through a u8 pointer so the comparison is on memory.
+//    Anatomy and the rest (frame slots, arm shapes, the five hand-packed ORs, the
+//    s32 spriteFlags, the byte-offset on g_SpriteVramSlotPair, the signed
+//    /0x1000 divisions) is unchanged from earlier rounds and still correct.
+// */
+//    Round 478 (this round): un-parked and re-measured 80.76% / 1436 bytes / 359
+//    insns, frame 0x80 - the note above is exact. Two of its untried ideas are now
+//    measured, do not repeat them: (a) the tile stores hoisted into tileX/tileY
+//    locals with ONE store each (fewer references to pFrameData+2) = 77.15% / 1412
+//    bytes / 353 insns, and (b) a 'SpriteFrameData* pFr = pFrameData;' declared
+//    inside the loop for the tile stores = 80.76% / 1436, byte-identical to the
+//    field form because cse folds it back. Idea (c) is still untried.
 /*
-extern SVEC2 g_SpriteVramSlotPair[];
-
 void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u32 i;
     SpriteFrameData* pFrameData;
@@ -239,8 +243,10 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
         } while (i != count);
     }
     pSpriteData->field_0x40 = (pSpriteData->field_0x40 & ~0xFC) | ((i & 0x3F) << 2);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
+
+
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
 
