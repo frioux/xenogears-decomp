@@ -1044,6 +1044,17 @@ void func_80089C78(void) {
 //    gives the identical 95.46 and the same `sll $3` / base `$2` in cc1's own
 //    output, so sched1 is not what decides the head's registers; register
 //    assignment runs before sched2, so the store placement is a consequence.
+//    Round 481 re-measured 95.46% / 612 bytes and closed the remaining question
+//    about the head: it is BODY-DEPENDENT, not a fixed per-function tie. Cutting
+//    this body down to the alloc call alone moves the base to `s0` (coalesced into
+//    the sum) and the shift to `v0`, while the full body gives base `v0` / shift
+//    `v1`; retail wants base `v1` / shift `a2`. The mechanism is visible in the
+//    same probe: retail's base is `v1` only because `v0` still holds the `li v0,64`
+//    of the sixth stack argument when the base is loaded (retail stores it at insn
+//    14, we store it at insn 9), and that store's position is a sched2 consequence
+//    of the register set, so cause and effect cannot be separated from source.
+//    The body compiles instruction-for-instruction identical, so there is nothing
+//    in it to move. See func_8008A5B8 below for the spellings measured this round.
 // */
 /*
 s32 func_8008A2C8(s32 index) {
@@ -1123,6 +1134,7 @@ s32 func_8008A2C8(s32 index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
 
 
+
 /* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns,
    and the tail from the first jal delay slot on is byte-identical. The residual is
    lever h-stack-arg-store-sink-is-a-war-tie (round 402): retail gives the index
@@ -1198,6 +1210,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
 //    `pActor = &g_WorldMapSlots[arg0];` (no offset local) and the anim file in a
 //    named `void* pAnimFile` local before the pointer (pseudo numbering does not
 //    move the contest). The park keeps the &g_WorldMapSlots[arg0] form.
+//    Round 481: four more scored runs, all 92.63% / 372 bytes / 93 insns.
+//    The head is BODY-DEPENDENT (probe: truncating this body to the alloc call and
+//    `return 1` gives shift `v0` and base `s0` coalesced into the sum, the full
+//    body gives shift `v1` / base `v0`, retail wants shift `a2` / base `v1`), so it
+//    is not a standalone top-block tie - but this body compiles
+//    instruction-for-instruction identical to retail from `move a0,v0` on, so it
+//    holds no handle. Retail's base is `v1` only because `v0` still holds the sixth
+//    stack argument's `li v0,64` when the base is loaded (retail stores it at insn
+//    14, we at insn 9), and which of the two is cause cannot be told apart from
+//    the source: the store's position is a sched2 consequence of the register set.
+//    Closed this round, all identical at 92.63: `pActor = g_WorldMapSlots + arg0;`
+//    (pointer arithmetic, no subscript) with the anim file inline in the call, the
+//    `void* pAnimFile` local placed AFTER the pointer instead of before, and a named
+//    `s32 size` local holding the sixth argument's 0x40 (copy-propagated back to the
+//    literal, so `li v0,64` still dies at insn 9 and the base still takes `v0`) -
+//    which also kills the theory that retail's base is `v1` because `v0` is busy.
 // */
 /*
 s32 func_8008A5B8(s32 arg0) {
@@ -1234,5 +1262,6 @@ s32 func_8008A5B8(s32 arg0) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
+
 
 
