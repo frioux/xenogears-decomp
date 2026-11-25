@@ -1462,37 +1462,27 @@ int SoundSpuMemoryAllocateBlockFit(int size) {
     return allocAddress;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
+// Round 478: 98.82% (296 bytes = retail's 0x128 span, 74 insns both). The old note's
+// '88.92% at retail's exact 292 bytes' was 4 bytes/1 insn SHORT - retail is 296 bytes, so every earlier
+// attempt was one instruction short and could never link. Two things closed it: (1) writing the two
+// guards as ONE condition, 'if (nSpace < size || address < freeAddress) return 0;' - as two separate
+// if's gcc 2.6 lays the second slt out in the first test's beqz delay slot and drops retail's
+// 'j fail / nop' pair (73 insns); with '||' both tests come out as retail's bnez-fail + beqz-alloc and
+// the nop pair is there; (2) pPrevBlock/nSpace declared with initialisers in that order so the
+// preheader emits 'lui/addiu s0' before 'move a2,zero' like retail. Residual = ONE mirrored
+// callee-saved pair: retail keeps pPrevBlock in s0 and address in s1, this body has them swapped (30
+// diff lines, every one of them that pair). -dl on the compile: address 72 'used 8 times across 43
+// insns', pPrevBlock 74 '8 times across 44' -> quotients 2.233 vs 2.180 under
+// floor_log2(refs)*refs*4/live, so address wins s0 by 2.4% and pPrevBlock is 2 insns of live range
+// away. That margin is body-dependent: with 'int nSpace = 0;' declared FIRST the same body measures
+// 97.30 (only 'move a2,zero' 3 insns early) and THERE pPrevBlock wins s0 (8/41 = 2.34) - so both
+// halves of retail exist, in two bodies that cannot be combined by declaration order. Tried this
+// round, all 296 bytes / 74 insns: park body 88.92, declarations-only+assignments 98.82 (swap),
+// nSpace-first 97.30 (order), separate ifs in every order 87-90.51. Below 99, so no permuter run.
 /*
-ROUND 333: 88.92% at retail's exact 292 bytes with the body below. The loop head, the back
-edge (`slt v0,v1,s1; bnez v0,head; move s0,a0` in the delay slot) and the alloc tail are now
-instruction for instruction identical to retail, and the two `break` arms sit where retail
-puts them: a plain `while (pPrevBlock->spuAddress < address)` (which gcc rotates into the top
-guard plus the bottom test) is what produces that, where the old while(1)+continue and the
-do-while both moved the arms. Residual: only the two top `return 0` blocks. Retail branches
-when the test is true (`slt v0,a2,s2; bnez v0,epilogue; move v0,zero`) and jumps for the
-second (`beqz v0,alloc; move v0,zero; j epilogue; nop`) - both returns cross-jumped into one
-out-of-line v0=0 plus the epilogue; gcc 2.6 lays the first return out as the fall-through
-(`beqz` + `j`) and moves the second test below the two break arms, same instruction count and
-the same 292 bytes. Tried this round: nested ifs with one trailing `return 0` (80.14, it also
-moves the break arms to the end), `goto fail` + one `fail: return 0;` (same), an empty
-do{}while(0) after each return (no change). Next lead is the failure-block layout, not the
-tests. Earlier rounds:
-Attempt (87.00%, 296 bytes against retail's 292). The whole preheader matches retail
-instruction for instruction (base la in s0, size s2, address s1, nSpace a2=0,
-freeAddress a1, endAddress a3) and so does the alloc tail; the residual is the loop:
-retail is a do-while whose bottom test is `slt v0,v1,s1; bnez v0,head; addu s0,a0` (the
-pPrevBlock = pBlock assignment in the back edge's delay slot, so pPrevBlock is s0 and
-address s1), while every spelling here either rotates the loop (do-while: gcc hoists
-the top `nextBlockIndex == 0` test into the preheader and runs the body bottom-tested,
-72-73%) or needs an extra `j` back to the head (while(1)+continue, 87.00%, and the two
-callee-saved pointers come out address s0 / pPrevBlock s1 - the reverse of retail).
-Hand shapes tried: do-while, do-while with an index local, while(1)+continue (87.00),
-the nested if/while of the previous note (87.00); permuter 4 min: 1079 -> 651, best
-edit only wrapped a `return 0` in do{}while(0), so no.
 int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
-    int nSpace = 0;
     SoundSpuMemoryBlock* pPrevBlock = g_SoundSpuMemoryBlocks;
+    int nSpace = 0;
     SoundSpuMemoryBlock* pBlock;
     int freeAddress = pPrevBlock->spuAddress + pPrevBlock->size;
     int endAddress = address + size;
@@ -1512,10 +1502,7 @@ int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
         pPrevBlock = pBlock;
     }
 
-    if (nSpace < size) {
-        return 0;
-    }
-    if (address < freeAddress) {
+    if (nSpace < size || address < freeAddress) {
         return 0;
     }
 
@@ -1533,8 +1520,10 @@ int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
     pPrevBlock->nextBlockIndex = index;
 
     return address;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
+
+
 
 
 int SoundSpuMemoryFreeBlock(int targetAddress) {
@@ -4259,21 +4248,16 @@ u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, Au
     return pScript + 3;
 }
 
-/*
-Round 398: TWIN PORT, 91.13% (268 bytes = retail's size, 67 insns both). This is
-SoundScriptSetTriangleEnvelope0 just above, with the handler index and the flags taken from the
-mode byte instead of the constant 3 - so port that body and swap 3 for mode/index, and keep its
-nested if(note) if(velocity) shape and `s16 velocity` (that is what gives the sll/sra + mult).
-Then `flags = ((mode & 0x10) == 0) * 2;` before the call and `flags + 1` AT THE STORE SITE - that
-split is what puts the late `addiu s0,s0,1` where retail has it (branchless sltiu/sll, no bnez).
-Residual: a pure callee-saved permutation. Retail flags s0 / element s1 / velocity s2 /
-index s3 / pScript s4; this body gives flags s0 / index s1 / element s2 / velocity s3, i.e. the
-index outranks element and velocity in gcc's allocno order. Retail's `andi a2,s3,0xF; move s3,a2`
-shows its index pseudo was local-alloc'd to a2 and copied to s3 by global-alloc, so the s3 copy's
-live range does not cross the call in source terms. Measured this round (all 67 insns / 268 B):
-flags before index 88.40; `mode & 0xF` inlined at the three uses with no index local 81.82
-(mode then lives across the call: 280 B, an extra andi 0xff and s5). Not screened on another
-preset this round.
+// Round 478: re-measured 91.13% (268 bytes = retail's size, 67 insns both) -- twin port of
+// SoundScriptSetTriangleEnvelope0 unchanged; the whole body including every store order and the
+// sll/sra mult chain is retail's. Residual = ONE allocator decision: retail holds element in s1 /
+// velocity s2 / index s3 (its ndi writes a2 and a 'move s3,a2' relocates index), this body gets
+// index s1 / element s2 / velocity s3, which also pushes the arg copy into the jal delay slot
+// (retail's slot holds the sra). -dl/-dg on the compiled unit: pScript 71 used 5/48, element 73
+// 12/46, velocity 74 6/34 (2 bytes), mode 78 3/22 (1 byte), index 79 4/17, flags 97 2/2; local-alloc
+// hands index s1 in this body and s3 in retail's. Tried this round, all 67 insns / 268 bytes:
+// u8 index 87.51 (the andi wanders), flags-before-index 88.40 (confirmed the old measurement).
+// Below 99, so no permuter run.
 /*
 u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s16 velocity = pScript[0];
@@ -4306,9 +4290,9 @@ u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     }
 
     return pScript + 3;
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
+
 
 u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
