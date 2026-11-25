@@ -309,7 +309,7 @@ int WorldMapUpdateGearActorSlot(int index) {
 
 // 81.33% (304 bytes, retail 300). Round 186: re-parked with the current field names
 // (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state) - it
-// builds now and re-measures at 81.33. The same two head differences as func_8008D3F0:
+// builds now and re-measures at 81.33. The same two head differences as WorldMapInitPartyActor1:
 // retail stores the three zeros (0x40/0x3C/0x38) right after the func_8008C364 call and
 // loads g_GameState+0x182A above them (gcc sinks them below the g_WorldMapMode load),
 // and retail re-reads angle with lh for drawAngle where gcc keeps the register and

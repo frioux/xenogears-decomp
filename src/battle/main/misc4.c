@@ -130,7 +130,7 @@ extern u8 D_800D3404[];
 extern u8 D_800D3408[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
-extern void func_80078998(u8 arg0, u8 arg1, u8 arg2);
+extern void BattleBeginActionAndPatchQueueMask(u8 arg0, u8 arg1, u8 arg2);
 extern void BattleQueueCommandFB(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
@@ -158,7 +158,7 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
 // and reloads the pointer every iteration (93.20 / 416), and g_BattleCommandSlotIds[n * 0x48] pairing with
 // a record-index walk makes gcc hoist the table BASE into s0 instead (95.38 / 412, frame 0x28 -> 0x30).
 // A pQueue local collapses the copy away (98.16 / 408, one instruction short, cannot link).
-void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
+void BattleBeginActionAndPatchQueueMask(u8 arg0, u8 arg1, u8 arg2) {
     s32 n;
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
@@ -335,7 +335,7 @@ void BattleDispatchCommandRecords(u8 arg0) {
             again = 0;
             break;
         case 0x1:
-            func_80078998(arg0, i, slot);
+            BattleBeginActionAndPatchQueueMask(arg0, i, slot);
             break;
         case 0x2:
             BattleQueueCommandFD(arg0, i, slot);

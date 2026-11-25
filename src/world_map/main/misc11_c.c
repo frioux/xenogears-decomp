@@ -209,7 +209,7 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
 // than written as an else-if chain, which cc1 lays out arm-first (89.86%, 436 bytes).
 // The four volatile pins are this file's idiom; without them the three clears sink below
 // the mode load and the gear arm's stores sink into the position loads.
-s32 func_8008C530(int index) {
+s32 WorldMapInitPartyActorTrail(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 0);
     WorldMapTrail *pTrail;
@@ -297,7 +297,7 @@ int WorldMapInitPartyActorSprite0(int index) {
     return 1;
 }
 // 99.69% (2988 bytes / 747 insns, retail's exact size; 288 differing lines, 26 of the 29 non-context diff rows are pure register names and 2 are the jtbl operand). Round 478 rewrote the body from retail's own shape, +8.5 points from the 91.19 park:
-//  (1) THE 40 'MISSING INSTRUCTIONS' WERE PHANTOM: the stub's .size says 3148 but its .s is 2988 bytes (the next stub func_8008D3F0 starts at 8008D3F0); objdiff compares 2988 vs 2988. Never read 787/3148 from the header again.
+//  (1) THE 40 'MISSING INSTRUCTIONS' WERE PHANTOM: the stub's .size says 3148 but its .s is 2988 bytes (the next stub WorldMapInitPartyActor1 starts at 8008D3F0); objdiff compares 2988 vs 2988. Never read 787/3148 from the header again.
 //  (2) the func_80090C68 return dispatch is a real 'switch (ret)' with case 1, 3, 4 (retail's tree: beq v1,3 / slti v1,4 / beqz / beq v1,s0), not an if-chain. Also list case 1 BEFORE case 3 in source order: that places the state=8 block after the loopActive/areaMode block, which is retail's layout (+0.9 on its own).
 //  (3) the frame 0x20 larger than the sibling func_8008A72C's is a DEAD local array: 'u_long unusedFrame[8];' never referenced takes vars=32 at expand time, which lands every save slot on retail's exact offsets and the frame on 0x58 (lever j-an-unused-local-array-is).
 //  (4) 's32 result = 1;' and 's32 *pScratch = (s32 *)0x1F800000;' must be initialised BEFORE pActor so their save/lui pairs precede the g_WorldMapSlots load (levers j-local-declared-before-another, j-scratchpad-base-first).
@@ -621,11 +621,11 @@ int func_8008C844(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11_c", func_8008C844);
 
 
-// The four volatile pins are this file's idiom (see func_8008C530). Without the three
+// The four volatile pins are this file's idiom (see WorldMapInitPartyActorTrail). Without the three
 // zero clears' pins cc1 sinks them below the mode load (92.11%); without the state/x
 // pins the gear arm's stores sink into the position loads (85.33%). Both keep retail's
 // 304 bytes, so only the order tells.
-int func_8008D3F0(int index) {
+int WorldMapInitPartyActor1(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 1);
     s32 mode;
