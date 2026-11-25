@@ -675,6 +675,20 @@ s32 WorldMapUpdateSlotState(s32 index) {
 // li-then-sh reorg tail.
 // Round 475: also tried return (pSlot->state = 0, 1) to keep the return constant out of the
 // delay-slot candidate list - identical body, so reorg's choice is not the comma form.
+// Round 488 re-measured live at 94.71 / 136 bytes / 34 insns (same two deltas) and tried the
+// loop-extent axis, which nobody had walked: retail's order would need the six target stores and
+// the command store to be the loop body and everything else outside it. (a) pSlot declared
+// INSIDE the do-block (all statements inside, state store last) = 33.50, 78 lines: with the
+// pointer in the loop, loop.c hoists the fade level's `li v0,120` to the preheader and it lands
+// at slot 1 instead of 13, and the whole schedule scatters. (b) the same body with the do-block
+// starting AFTER the fade-level store (loop = six stores + command) = 65.74, 36 lines: the posY
+// and posZ loads are loop-invariant and loop.c hoists both above the rotation-matrix store, so
+// the loads cannot be inside any loop - retail's schedule is one straight-line block and the
+// command's `li v0,1` at slot 15 is sched2's, not loop hoisting. (c) `g_WorldMapSlots + index`
+// instead of `&g_WorldMapSlots[index]` is byte-identical (94.71); keep the indexed form.
+// The two deltas stand: pSlot lands in $a2 because it is global-alloc'd across the do-block while
+// posZ takes $v1 in the earlier local pass, and retail's tail needs the return's `li` to precede
+// the state store in RTL, which no reachable statement order gives.
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
