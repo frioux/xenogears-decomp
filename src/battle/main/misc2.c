@@ -622,7 +622,8 @@ void BattleAddPrimAndRenderObject(void) {
 // call sites AND a single mask, so the mask count cannot be steered from C.
 // Re-confirmed: the offset-first sum spelling that would give retail's addu operand order makes loop.c build the second
 // address biv (87.01 / 360 / 90), so residual (a) and (b) cannot both be honoured, and nothing measured moves the
-// prologue save order (c).
+// prologue save order (c). The round-470 empty-statement reorg-parity knob (a trailing ';' at the end of either arm)
+// measures byte-identical to this body - 27 lines, 89.74 - so the duplicate is not that parity.
 /*
 void func_8007500C(void) {
     s32 i;
@@ -654,6 +655,7 @@ void func_8007500C(void) {
     } while (i < 8);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
+
 
 
 
