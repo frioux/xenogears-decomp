@@ -843,35 +843,39 @@ typedef union {
 
 extern BattleTrailSegmentCount D_800D2FCC;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
-// 84.19% (992 bytes / 248 insns against retail's 984 / 246). Structure, every call, every
-// constant and the whole first half are instruction-identical; what is left is three
-// things, all measured:
-//  - REGISTER HAND-OUT: retail is yEdge=$s2, xEdge=$s3, the 0xF0 constant=$s4, abr=$s5;
-//    this body gets yEdge=$s2, the constant=$s3, abr=$s4, xEdge=$s5, i.e. abr outranks
-//    xEdge where retail ranks xEdge first (the `v0,v0,s3`/`v0,v0,s2` addu sites and the
-//    `move a1,s5` GetTPage argument are the visible half of it). Tried: 0xF0 as a `color`
-//    local (identical), and `abr` off D_800C3D4C spelled as a countdown local (this body).
-//  - TWO EXTRA INSTRUCTIONS. Retail reaches the four edge halfwords with four independent
-//    `lui %hi(D_800C3CA4 + 0x2)`-style address loads; written as `extern u16
-//    D_800C3CA4[2]` gcc's function-cse forms the base once and adds `addiu v0,v0,0` for
-//    the +2 sibling (branch-B loads) - equal count there - and one more per pair in the
-//    tail, which is the 2 instructions. Spelled with four __asm__-aliased scalars
-//    (`D_800C3CA6[] __asm__("D_800C3CA4 + 0x2")`) the tail's relocations all come out
-//    right (4 lui + 4 sh, retail's shape) but the body then measures 249 insns / 78.85%.
-//  - SCHEDULING: retail's ratan2 argument loads are [lh 0xC][lh 0xE][lh 0xA][lh 0x8] with
-//    dy's `subu` before the jal and dx's in the delay slot; this body swaps the x1/y1
-//    loads and puts dx's subu first. -fschedule-insns is on in this preset, so statement
-//    order does not reach it.
-// Found on the way: the guard's buffer pointer and the quad's must be two separate locals
-// (`pLineBuf`/`pQuadBuf`) - one shared `pBuf` makes cc1 hoist the g_GfxCurWorkBuffer load
-// above the six SVECTOR copies, which clobbers $a0 and costs a `move a2,a0` plus a
-// different address register. Also `depth += D_800D3334[0]` must come BEFORE the
-// RotTransPers3 call (retail has the lh before the jal and the addu in its delay slot).
+// 84.73% (988 bytes / 247 insns against retail's 984 / 246, XenoBattleTailCdk0). The head,
+// every call sequence and the whole first half are instruction-identical. Three measured
+// residuals, none of them reachable from a spelling:
+//  - REGISTER HAND-OUT (the many-row one): retail is yEdge=$s2, xEdge=$s3, the 0xF0
+//    constant=$s4, abr=$s5; this body gets yEdge=$s2, the constant=$s3, abr=$s4,
+//    xEdge=$s5 - the same SET of three registers, cycled, so cc1's callee-saved order
+//    puts the constant+abr above xEdge where retail ranks xEdge third. Tried and
+//    identical (each one diff-run measured): 0xF0 hoisted into a u8 color local, abr as a
+//    countdown local (this body), and swapping the xEdge/yEdge DECLARATION order.
+//  - ONE EXTRA INSTRUCTION: retail fills the count test's load-delay slot with the
+//    'pQuad->clut' store (lw v1 / bnez / sh v0,0xE) while this body stores clut right
+//    after GetClut and leaves a nop there. The uv/rgb store order is otherwise identical.
+//  - TAIL ADDRESSES: retail reaches all four edge halfwords with their own
+//    lui %hi(D_800C3CA4 + 0x2)-style load and a %lo displacement in the sh/lhu (4 lui +
+//    4 access per block); with 'extern u16 D_800C3CA4[2]' gcc's function-cse shares the
+//    base and emits 'addiu v0,v0,0' for the +2 sibling instead (cc1_probe on this unit's
+//    flags: every array/struct spelling of a +2 sibling shares the high half, so the
+//    four-independent-load form is not reachable without __asm__ aliases, which measured
+//    249 insns / 78.85%).
+// FOUND THIS ROUND (worth 84.19 -> 84.73 and one instruction): the ratan2 arguments must
+// be TWO STATEMENTS, and the second argument's subtraction first -
+// 'dx = pLine->x1 - pLine->x0; dy = pLine->y1 - pLine->y0; angle = ratan2(dy, dx) + 0x400;'
+// With the subtractions inline in the call the body loads y1(0xE) before x1(0xC), puts dx's
+// subu in the x0 load's delay slot with a nop and dy's in the jal's slot; retail is
+// 'lh v1,0xC / lh v0,0xE / lh a0,0xA / lh a1,0x8 / subu a0,v0,a0 / jal / subu a1,v1,a1'
+// and the two-statement dx-first form reproduces it instruction for instruction. dy-after-dx
+// and dy-before-dx (both as statements) are byte-identical to each other, so the load order
+// is the scheduler's once the subtractions are out of the call.
+// Found earlier on the way: the guard's buffer pointer and the quad's must be two separate
+// locals (pLineBuf/pQuadBuf) - one shared pBuf makes cc1 hoist the g_GfxCurWorkBuffer load
+// above the six SVECTOR copies, which clobbers $a0 and costs a 'move a2,a0'. Also
+// 'depth += D_800D3334[0]' must come BEFORE the RotTransPers3 call.
 /*
-// Draws one segment of the sprite's direction trail: the two positions the effect
-// callback hands over are projected as a line, and that line's screen endpoints are
-// widened into a textured quad by the trail radius and the line's screen angle.
 void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     LINE_F2* pLine;
     POLY_FT4* pQuad;
@@ -881,8 +885,10 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     s32 abr;
     s32 depth;
     s32 angle;
-    s32 xEdge;
+    s32 dy;
+    s32 dx;
     s32 yEdge;
+    s32 xEdge;
     s32 radius;
     u8* pLineBuf;
     u8* pQuadBuf;
@@ -925,7 +931,9 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
         return;
     }
     radius = D_800C3E9C[0];
-    angle = ratan2(pLine->y1 - pLine->y0, pLine->x1 - pLine->x0) + 0x400;
+    dx = pLine->x1 - pLine->x0;
+    dy = pLine->y1 - pLine->y0;
+    angle = ratan2(dy, dx) + 0x400;
     xEdge = (rsin(angle) * radius) / 0x2000;
     yEdge = (rcos(angle) * radius) / 0x2000;
     pQuadBuf = g_GfxCurWorkBuffer;
@@ -970,8 +978,10 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     D_800C3CA8[1] = pQuad->y3;
     AddPrim(&g_GfxCurOT[depth], pQuad);
     D_800D2FCC.count++;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
+
+
 // The trail renderer's per-frame tick: it publishes the direction-transform task's state
 // through the four globals the trail quads read back, re-fills the cached corners when the
 // sprite's animation frame changed, and lerps the last four corners halfway to the target.
