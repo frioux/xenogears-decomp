@@ -2961,115 +2961,129 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
 // from an older variant. Fixed to pSource->mode, un-parked and re-measured:
 // 88.98%, 1048 bytes against retail's 1028 (retail 0x404, ours 0x418). The
 // deltas above are unchanged, so the note stands; re-parked.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
+// Round 479: best 89.35% / 1036 bytes (retail 1028 = 257 insns; ours 259). Ported the battle twin's SOLVED shape (misc22 func_800A3E98) into this body: u16 prevFrame local, all the work inside 'if (frame != prevFrame)', the two pSource checks returning 'level' early, and 'return prevFrame;' after the block. That buys retail's prevFrame BRANCH SHAPE for free (beq s1,v0,<epilogue>, no move/j) - 1048 -> 1036 bytes, 88.98 -> 89.35. Also measured this round: return type s32 gives the same 1036 bytes but 88.32 (its equal path folds to a move v0,s1), and 'return level;' under an s16 return type is byte-identical to 'return (s16)level;'. WHAT IS LEFT, +2 instructions: (1) the entry - retail keeps the RAW callback result in s2 and the s16 in s1 ('move s2,v0 / sll v0,s2,16 / sra s1,v0,16', so the 0x18 store is a free 'sh s2,0x18'), ours truncates into s2 and copies to s1 and then needs 'move v1,s2' for the store; every spelling of the s32 'level' local coalesces into the truncated value because all its uses (halfword store, s16 returns) truncate. (2) the equal path goes through one truncating exit (+1) - the record_jump_equiv fold the battle note says does not go away. Loop register/interleave deltas (retail t3/t2 vs ours t2/a1) unchanged.
+// Round 479: 'pTexture->prevFrame = frame;' measures IDENTICAL to '= level;' (1036 bytes / 259 insns, 89.35), so the store's source is not where the surplus sits.
 /*
 s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
     Temp8* pSource;
-    s16 frame;
     RECT srcRect;
     RECT dstRect;
+    s32 level;
+    s16 frame;
+    s16 pixelCount;
+    u16 prevFrame;
     int x;
     int y;
-    u16* pDstBase;
-    u16* pSrcBase;
-    u16* pDst;
-    u16* pSrc;
     u32 dstAddr;
     u32 srcAddr;
+    u16* pDstBase;
+    u16* pSrcBase;
+    u16* pSrcRow;
 
     if (pTexture->isLoaded == 0) {
         return -1;
     }
 
     pTexture->unk14 += pTexture->angleStep * (frameStep + 1);
-    frame = pTexture->pInterpolate(pTexture->unk14, pTexture->divisor, pTexture->offset);
+    level = pTexture->pInterpolate(pTexture->unk14, pTexture->divisor, pTexture->offset);
+    frame = level;
     if (frame < 0) {
         LibGearFlushTexture(pTexture);
         return frame;
     }
 
-    if (frame == pTexture->prevFrame) {
-        return frame;
-    }
-    pTexture->prevFrame = frame;
+    prevFrame = pTexture->prevFrame;
+    if (frame != prevFrame) {
+        pTexture->prevFrame = level;
 
-    switch (pTexture->mode) {
-        case 0:
-            func_80026F44(pTexture->pixelCount, frame, pTexture->pUnkC, pTexture->pUnk4);
-            if (pTexture->pSource == NULL) {
-                LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
-            }
-            break;
-        case 1:
-            func_80026FE8(pTexture->pixelCount, frame, pTexture->pUnkC, pTexture->pUnk8, pTexture->pUnk4);
-            if (pTexture->pSource == NULL) {
-                LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
-            }
-            break;
-        case 4:
-            LibGearFadeTexturePixels(pTexture, frame);
-            break;
-        case 5:
-            LibGearBlendTexturePixels(pTexture, frame);
-            break;
-    }
-
-    pSource = pTexture->pSource;
-    if (pSource == NULL || pSource->isLoaded == 0) {
-        return frame;
-    }
-
-    // Clip the copy to the overlap of the two rectangles
-    if (pSource->rect.x < pTexture->rect.x) {
-        dstRect.x = pTexture->rect.x - pSource->rect.x;
-        srcRect.x = 0;
-        dstRect.w = pSource->rect.x + pSource->rect.w - pTexture->rect.x;
-    } else {
-        dstRect.x = 0;
-        srcRect.x = pSource->rect.x - pTexture->rect.x;
-        dstRect.w = pTexture->rect.x + pTexture->rect.w - pSource->rect.x;
-    }
-
-    if (pSource->rect.y < pTexture->rect.y) {
-        dstRect.y = pTexture->rect.y - pSource->rect.y;
-        srcRect.y = 0;
-        dstRect.h = pSource->rect.y + pSource->rect.h - pTexture->rect.y;
-    } else {
-        dstRect.y = 0;
-        srcRect.y = pSource->rect.y - pTexture->rect.y;
-        dstRect.h = pTexture->rect.y + pTexture->rect.h - pSource->rect.y;
-    }
-
-    if (dstRect.w > 0 && dstRect.h > 0) {
-        pSource->unk11 = 1;
-        pDstBase = pSource->pUnk4;
-        pSrcBase = (u16*)pTexture->pUnkC;
-
-        if (pSource->mode < 4) {
-            for (y = 0; y < dstRect.h; y++) {
-                for (x = 0; x < dstRect.w; x++) {
-                    dstAddr = dstRect.x * 2 + (u32)pDstBase;
-                    srcAddr = srcRect.x * 2 + (u32)pSrcBase;
-                    dstAddr = x * 2 + dstAddr;
-                    srcAddr = x * 2 + srcAddr;
-                    *(u16*)((dstRect.y + y) * pSource->rect.w * 2 + dstAddr) =
-                        *(u16*)((srcRect.y + y) * pTexture->rect.w * 2 + srcAddr);
+        switch (pTexture->mode) {
+            case 0:
+                func_80026F44(pTexture->pixelCount, frame, pTexture->pUnkC, pTexture->pUnk4);
+                if (pTexture->pSource == NULL) {
+                    LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
                 }
-            }
+                break;
+            case 1:
+                pixelCount = pTexture->pixelCount;
+                func_80026FE8(pixelCount, frame, pTexture->pUnkC, pTexture->pUnk8, pTexture->pUnk4);
+                if (pTexture->pSource == NULL) {
+                    LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
+                }
+                break;
+            case 4:
+                LibGearFadeTexturePixels(pTexture, frame);
+                break;
+            case 5:
+                LibGearBlendTexturePixels(pTexture, frame);
+                break;
+        }
+
+        pSource = pTexture->pSource;
+        if (pSource == NULL) {
+            return level;
+        }
+        if (pSource->isLoaded == 0) {
+            return level;
+        }
+
+        // Clip the copy to the overlap of the two regions
+        if (pSource->rect.x < pTexture->rect.x) {
+            dstRect.x = pTexture->rect.x - pSource->rect.x;
+            srcRect.x = 0;
+            dstRect.w = pSource->rect.x + pSource->rect.w - pTexture->rect.x;
         } else {
-            for (y = 0; y < dstRect.h; y++) {
-                for (x = 0; x < dstRect.w; x++) {
-                    pDst = pDstBase + dstRect.x + x;
-                    pSrc = (u16*)pTexture->pRows + 3 * (srcRect.y + y) + (srcRect.x + x);
-                    pDst[(dstRect.y + y) * pSource->rect.w] = *pSrc;
+            dstRect.x = 0;
+            srcRect.x = pSource->rect.x - pTexture->rect.x;
+            dstRect.w = pTexture->rect.x + pTexture->rect.w - pSource->rect.x;
+        }
+
+        if (pSource->rect.y < pTexture->rect.y) {
+            dstRect.y = pTexture->rect.y - pSource->rect.y;
+            srcRect.y = 0;
+            dstRect.h = pSource->rect.y + pSource->rect.h - pTexture->rect.y;
+        } else {
+            dstRect.y = 0;
+            srcRect.y = pSource->rect.y - pTexture->rect.y;
+            dstRect.h = pTexture->rect.y + pTexture->rect.h - pSource->rect.y;
+        }
+
+        if (dstRect.w > 0 && dstRect.h > 0) {
+            pSource->unk11 = 1;
+            pDstBase = pSource->pUnk4;
+
+            if (pSource->mode < 4) {
+                pSrcBase = (u16*)pTexture->pUnkC;
+                for (y = 0; y < dstRect.h; y++) {
+                    for (x = 0; x < dstRect.w; x++) {
+                        dstAddr = dstRect.x * 2 + (u32)pDstBase;
+                        srcAddr = srcRect.x * 2 + (u32)pSrcBase;
+                        dstAddr = x * 2 + dstAddr;
+                        srcAddr = x * 2 + srcAddr;
+                        *(u16*)((dstRect.y + y) * pSource->rect.w * 2 + dstAddr) =
+                            *(u16*)((srcRect.y + y) * pTexture->rect.w * 2 + srcAddr);
+                    }
+                }
+            } else {
+                for (y = 0; y < dstRect.h; y++) {
+                    for (x = 0; x < dstRect.w; x++) {
+                        dstAddr = dstRect.x * 2 + (u32)pDstBase;
+                        dstAddr = x * 2 + dstAddr;
+                        *(u16*)((dstRect.y + y) * pSource->rect.w * 2 + dstAddr) =
+                            *(pSrcRow = (u16*)pTexture->pRows + 3 * (srcRect.y + y) + (srcRect.x + x));
+                    }
                 }
             }
         }
+
+        return level;
     }
 
-    return frame;
-}
-*/
+    return prevFrame;
+}*/
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
+
+
+
 
 void LibGearFlushTexture(Temp8* pTexture) {
     if (pTexture->isLoaded != 0) {
@@ -3447,6 +3461,7 @@ s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
 // DECLARATION INITIALISER form re-measures at 74.36 (li@6): gcc folds the local
 // into its first use, so the load is never emitted at the declaration.
 // register s16 on both locals: byte-identical output. 94.87 stands as the best.
+// objdiff 94.87%, confirmed round 479 re-measure: 156 bytes / 39 insns = retail's exact size with ONE displaced instruction (sh v1,152 at slot 8 vs retail 14); li v1,-1 is at slot 0 as retail. Levers h-no-way-to-home-a and h-constant-home-hoist-is-capped-at-nine-insns cover it: the -1 home's hoist is capped at ~9 insns, retail's own store slot gives li@5/74.36, the front slot sinks the store to 8/94.87, a duplicate early store is wrong code and still 97.44. Not a preset (2.6.0/2.7.2/cdk swept), permuter 783 iters NONE (round 62).
 /*
 void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
@@ -3487,6 +3502,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->unk1E = negOne;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E3534);
+
 
 
 void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
