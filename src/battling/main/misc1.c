@@ -382,7 +382,7 @@ extern s32 BattleCheckPositionPastMapCenter(VECTOR* pPos);
 extern s32 SystemStringGetUnk6B(void* pString);
 extern void SystemStringClearStateFlags(void* pString);
 extern void BattleRecenterViewPositions(s32 mode);
-extern void func_80071F8C(s32 mode);
+extern s32 func_80071F8C(s32 mode);
 
 // The battle script g_BattleScriptCursor walks: an opcode byte, then up to two
 // operand bytes. The two stop distances a turn opcode waits for, and the distance
@@ -801,9 +801,9 @@ extern s32 g_BattleWindowTargetY;
 extern s32 g_BattleWindowPosY;
 extern s16 D_80092600;
 extern s16 D_800987E0;
-extern u16 D_800987E8;
+extern s16 D_800987E8;
 extern s16 D_800970C4;
-extern u16 D_800970CC;
+extern s16 D_800970CC;
 extern void BattlePlaySoundEffectById(s32 id);
 
 /* 89.15%: reorg steals the else branch's li v0,0x4 into the bnez delay slot
@@ -1019,19 +1019,12 @@ extern void SoundStopAudioManager(s32 arg);
 extern void SoundStopAllElements(void);
 extern void BattleActorWalkDownGrid(BattleState* p);
 
-/* 91.77%: case 3 is the only difference. retail materialises &g_BattleCameraPosY into
-   $v1 and stores through it twice (lui v1/%hi; addiu v1/%lo; sw v0,0(v1));
-   ours keeps both stores as direct absolute references, which maspsx expands to
-   lui $at/%hi; sw %lo($at), and drops the load for the compare (the value is
-   already in $v0, as in retail). Tried: a pointer local, pTPage-style field
-   access, a s32 value local, and ((s32*)&g_BattleCameraPos)[1] so the address is a
-   symbol plus a constant offset - gcc folds every one of them back into a direct
-   symbol store.
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071F8C);
+#define BATTLE_CAMERA_POS_Y_MIN (-1536)
 
-/* 91.77% attempt:
-void func_80071F8C(s32 mode) {
+// The pointer to &g_BattleCameraPos.vy is load-bearing: it is what makes retail keep
+// the address in a register and store through it twice. The s32 return keeps reorg
+// from stealing the clamp's constant into the beqz delay slot (no value is returned).
+s32 func_80071F8C(s32 mode) {
     switch (mode) {
     case 0:
         SoundStopAudioManager(g_BattlingAudioManager);
@@ -1039,7 +1032,7 @@ void func_80071F8C(s32 mode) {
         break;
     case 1:
         BattleActorWalkDownGrid((u8*)&g_BattleActor1);
-        if (D_800970C4 * 0x100 / D_800970CC < D_800987E0 * 0x100 / D_800987E8) {
+        if (D_800987E0 * 0x100 / D_800987E8 > D_800970C4 * 0x100 / D_800970CC) {
             g_BattleMessageIndex = 0x43;
         } else {
             g_BattleMessageIndex = 0x44;
@@ -1048,15 +1041,19 @@ void func_80071F8C(s32 mode) {
     case 2:
         BattleActorWalkDownGrid((u8*)&g_BattleActor0);
         break;
-    case 3:
-        g_BattleCameraPosY = -g_BattleActorDistance2D;
-        if (g_BattleCameraPosY < -0x600) {
-            g_BattleCameraPosY = -0x600;
+    case 3: {
+        s32 value = -g_BattleActorDistance2D;
+        s32* pCameraY = &g_BattleCameraPos.vy;
+
+        *pCameraY = value;
+        if (value < BATTLE_CAMERA_POS_Y_MIN) {
+            *pCameraY = BATTLE_CAMERA_POS_Y_MIN;
         }
         break;
     }
+    }
 }
-*/
+
 
 
 #define BATTLE_EFFECT_CELL_COUNT 3
