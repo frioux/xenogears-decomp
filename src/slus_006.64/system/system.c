@@ -1443,9 +1443,9 @@ extern u16 g_SystemFontDummyGlyph[];
 // the buffer, rowStride is the buffer's row width in pixels and plane picks
 // which of the two glyph sets of the page the pixels belong to.
 // PARKED 67.44% (389 insns / 1556 bytes; retail 424 / 1696). Every operation is
-// right and the block/arm order is retail's. The 35 missing insns are the
-// `andi $t0,bit` tests this compile CSEs: retail recomputes all 28 of them in
-// each loop body, this body carries ~14 results across arms.
+// right and the block/arm order is retail's. All 35 missing insns are the
+// `andi $t0,bit` tests this compile CSEs - about 17 of retail's 28 per loop
+// body - less the two this body spends re-forming (pDest - rowStride).
 // THE RESIDUAL IS CROSS-BLOCK CSE, AND THE FLAG THAT TURNS IT OFF IS NOT USABLE.
 // Retail tests `word & bit` again in every basic block (the 0x40 and 0x80 tests
 // recur across 4 arms), while this body's compile carries each result in a
