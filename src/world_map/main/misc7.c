@@ -22,6 +22,15 @@
 // (same define as misc9.c)
 #define WORLD_MAP_PRIM_CODE_SEMI_TRANS 0x2
 
+// the short vector the sprite-group init calls take their position from (12-bit fixed,
+// scaled down by the callers), in the scratchpad
+#define WORLD_MAP_TILE_POS ((SVECTOR *)0x1F8000A0)
+
+// the three sprite groups kept on the current slot's position
+#define WORLD_MAP_SPRITE_GROUP40 40
+#define WORLD_MAP_SPRITE_GROUP41 41
+#define WORLD_MAP_SPRITE_GROUP42 42
+
 // the map display buffer copied into VRAM when a mode initialises, and the VRAM
 // position it is copied to
 #define WORLD_MAP_SCREEN_WIDTH 320
@@ -309,30 +318,21 @@ s32 WorldMapInitSlotAtScrollPosition(s32 index) {
     pSlot->pos.z = g_WorldMapPlayerPosition.z;
     return 1;
 }
-// Best: 84.76% (164 bytes / 41 insns against retail's 42 - the missing instruction is retail's load-delay nop after the pos.z load, so this body cannot link).
-//   The branch, every immediate, every relocation and the three WorldMapInitSpriteGroupSprites calls match once the three scratchpad stores use the literal address 0x1F8000A0: retail writes them as lui $at,0x1F80 + sh $v0,0xA0($at) with no relocation, while naming D_1F8000A0 emits %hi/%lo and forces the base into a saved register (76.71%). Residues: gcc sinks the command store below the pos.x/pos.z loads and hoists the pos.z load where retail keeps statement order, and the slot base lands in $a3 instead of $a2.
-//   Round 481 measured on this body: three s32 locals, all three expressions inline, and the (u8 *)PSX_SCRATCH + 0xA0 cast spelling all score 82.19 with the same 41 insns; the positive if (command == 1) form is 84.76 like the early return, so the tie is allocator/scheduler and not the CFG. A do/while barrier after each of the three scratchpad stores (the trick that closed WorldMapInitGroupSlotAtPlayerPosition) is byte-identical here at 84.76 - the hoisted pos.z load crosses it. Earlier: a 36-row try_flags sweep (gcc 2.6.0/2.7.2/cdk x -O1..-O3 x -G0/-G4/-G8 x mcpu 3000/r8000) tops out at 84.76; addressing the slot as g_WorldMapSlots[index] per statement scores 81.95; moving the command store to either end stays 84.76.
-/*
 s32 func_80080944(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
-    s32 v;
 
     if (pSlot->command != 1) {
         return 1;
     }
     pSlot->command = 0;
-    v = pSlot->pos.x >> 12;
-    *(s16 *)0x1F8000A0 = v;
-    v = pSlot->pos.y >> 12;
-    *(s16 *)0x1F8000A2 = v;
-    v = pSlot->pos.z >> 12;
-    *(s16 *)0x1F8000A4 = v;
-    WorldMapInitSpriteGroupSprites(0x28, (s16 *)0x1F8000A0, 0);
-    WorldMapInitSpriteGroupSprites(0x29, (s16 *)0x1F8000A0, 0);
-    WorldMapInitSpriteGroupSprites(0x2A, (s16 *)0x1F8000A0, 0);
+    WORLD_MAP_TILE_POS->vx = pSlot->pos.x >> 12;
+    WORLD_MAP_TILE_POS->vy = pSlot->pos.y >> 12;
+    WORLD_MAP_TILE_POS->vz = pSlot->pos.z >> 12;
+    WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP40, (s16 *)WORLD_MAP_TILE_POS, 0);
+    WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP41, (s16 *)WORLD_MAP_TILE_POS, 0);
+    WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP42, (s16 *)WORLD_MAP_TILE_POS, 0);
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080944);
+}
 
 
 
