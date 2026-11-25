@@ -673,6 +673,15 @@ s32 WorldMapUpdateSlotState(s32 index) {
 // the lower register because its live range is short), and the tail needs retail RTL order
 // li-then-sh, which no source order produces (a store can only follow the return constant
 // if it is emitted after the return value).
+// Round 475 re-measured this body live at 94.71 / 136 bytes (34 insns) and tried four more
+// shapes, none a new best: (a) the slot-state store moved inside the do-block (identical
+// body); (b) posX/posY/posZ declared first and pSlot assigned after them (identical body -
+// the a2/v1 tie is not pseudo order); (c) posX = g_WorldMapPlayerPosition.x directly, no
+// posZ round-trip (x v1, y a0, z a1, 91.x - the round-trip is what makes the three loads
+// land in a0/a1/a2). The two deltas stand: the pSlot/z register tie and retail's
+// li-then-sh reorg tail.
+// Round 475: also tried return (pSlot->state = 0, 1) to keep the return constant out of the
+// delay-slot candidate list - identical body, so reorg's choice is not the comma form.
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -700,6 +709,8 @@ s32 func_800813E8(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
+
+
 
 // Best: 89.94%, 620 bytes = retail's exact size, 155 instructions = retail's own.
 // The command switch, the clamp-and-ease chain, the func_80096F18 call and the rand tail
@@ -752,6 +763,21 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 // the viewY read; the two viewY stores as separate `g_WorldMapViewRotationY << 12`
 // expressions (cse merges them, 90.68). Preset screens stand from the earlier note: cdk
 // 80.46, gcc-2.6.0 does not compile.
+// Round 475 re-measured this body live at 91.65 / 616 bytes (154 insns, retail 155 / 620 - ONE
+// instruction short, so it cannot link). The missing instruction is retail's load-delay nop
+// after its rot reload: retail's case-1 arm is pure source order (sh rot / sh ViewY / sh ViewRotZ /
+// sw 0x50 / lh rot / nop / sll / sw 0x58 / sw 0x54 / lh ViewY / sw CameraHeight / sll / sw 0x60 /
+// sw 0x5C), while this body interleaves the ViewY chain into that slot and needs no nop.
+// NEW, and the trap of the round: reading the angle through the array alias
+// (viewY = g_WorldMapViewRotation[0], a distinct decl from g_WorldMapViewRotationY) scores 93.66
+// and reproduces retail's rot chain (reload right after the sw 0x50, ViewY lh after the rot stores)
+// but it is WRONG CODE - the alias read carries no dependence on the store, so the scheduler sinks
+// the ViewY store BELOW its own load and unk60/unk5C get the pre-store angle. Same with the
+// volatile store plus alias read (identical output). Do not port that shape, and expect the
+// permuter to find it.
+// Also tried this round, all measured, no better: unk50 moved after the ViewRotZ store (retail's
+// own store order) 89.98; the rot pair and the unk60/unk5C pair as chained assignments 91.65
+// (identical body) / 90.68 (all four chained).
 /*
 s32 func_80081470(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -824,6 +850,7 @@ s32 func_80081470(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
+
 
 void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr) {
     s32 i;
