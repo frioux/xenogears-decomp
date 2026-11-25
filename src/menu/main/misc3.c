@@ -301,6 +301,9 @@ extern s32 g_MenuCardSlotOrder[];
 // s3,zero`; retail reads `status` uninitialised on the card-wait path, a latent bug in
 // the original), and no permuter run - the residual is a register hand-out plus one CSE
 // constant, which it cannot move.
+// best 99.70% at retail's EXACT 2084 bytes / 521 insns (up from 95.78). Residual is TWO things only: (1) retail's `addu s6,s4,zero` copy sits in the ENTRY block (right after move s4,zero, before the first bnez) and ours lands in the 0x45A8 bnez delay slot, which pushes retail's `andi v0,s3,0xff` out of that slot (offsets ripple ~4 bytes); (2) the typed-reloc spellings retail names D_801C50AC / D_801C50B4 and we reach g_MenuCardPathPrefix0/1 + 4 (identical linked bytes, SECOND EXCEPTION class).
+//    MEASURED DEAD on (1): `waited = 0; rebuildWindow = waited;` or `rebuildWindow = 0;` at the top DOES move the copy into the entry block but lets cprop prove rebuildWindow==0, so the whole `if (rebuildWindow != 0) pManager->characterWindowBuilt = 1` block is folded away: 514 insns / 2056 bytes, 94.31%. Retail keeps that block ALIVE with s6 set once from the (zero) s4, so its source related the two locals in a way gcc 2.6.0 cannot constant-fold; not found. The late placement is the closest reachable body (it also differs semantically: ours can pass 1).
+//    TWO FIXES THAT WERE WORTH 2 POINTS EACH, keep them: (a) `(s16)g_MenuCellPrimYs[...] - 6` - WITHOUT the cast gcc hoists -6 into a register (li a2,0xfffa) in the shouldUpdatePosition branch's delay slot, which steals a2 so g_Menu moves to a3 and every one of the eight cursor stores reloads through the wrong base (112 -> 50 differing lines at identical size); with it retail's per-site addiu v0,v0,-6 and a2 as the g_Menu base come back. (b) the card-sample loop must be the POSITIVE conjunction `if (cardStatus[card] != 0 && saved0 == cardStatus[0] && saved1 == cardStatus[1]) { load...; if (cardEnumerated[card] != 0) continue; status = card + 1; } else { status = 2; } card = MENU_CARD_COUNT; waited = 0; break;` - the negative form and the two-separate-breaks form both make gcc invert the third test and add a `j` (98.80 and 97.15).
 /*
 u_char func_801C93A8(void) {
     char path[0x40];
@@ -374,23 +377,21 @@ u_char func_801C93A8(void) {
                 g_Menu->menuUnk2->slotWriteCursor = 0;
                 g_MenuCardSlotTotals[card] = 0;
                 for (i = 0; i < g_Menu->menuUnk2->cardSlotCounts[card]; i++) {
-                    if (g_Menu->menuUnk2->cardStatus[card] == 0 ||
-                        savedCardStatus[0] != g_Menu->menuUnk2->cardStatus[0] ||
-                        savedCardStatus[1] != g_Menu->menuUnk2->cardStatus[1]) {
+                    if (g_Menu->menuUnk2->cardStatus[card] != 0 &&
+                        savedCardStatus[0] == g_Menu->menuUnk2->cardStatus[0] &&
+                        savedCardStatus[1] == g_Menu->menuUnk2->cardStatus[1]) {
+                        MenuLoadCardChunk(card, i);
+                        recordIndex = card * MENU_CARD_RECORD_COUNT + i;
+                        func_801E78C8(recordIndex);
+                        g_Menu->menuUnk2->records[recordIndex].unk58 = 1;
+                        MenuRenderFrame();
+                        if (g_Menu->menuUnk2->cardEnumerated[card] != 0) {
+                            continue;
+                        }
+                        status = card + 1;
+                    } else {
                         status = 2;
-                        card = MENU_CARD_COUNT;
-                        waited = 0;
-                        break;
                     }
-                    MenuLoadCardChunk(card, i);
-                    recordIndex = card * MENU_CARD_RECORD_COUNT + i;
-                    func_801E78C8(recordIndex);
-                    g_Menu->menuUnk2->records[recordIndex].unk58 = 1;
-                    MenuRenderFrame();
-                    if (g_Menu->menuUnk2->cardEnumerated[card] != 0) {
-                        continue;
-                    }
-                    status = card + 1;
                     card = MENU_CARD_COUNT;
                     waited = 0;
                     break;
@@ -422,11 +423,11 @@ u_char func_801C93A8(void) {
             ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->x0 =
                 g_MenuCellPrimXs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 8;
             ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->y0 =
-                g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] - 6;
+                (s16)g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] - 6;
             ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->x1 =
                 g_MenuCellPrimXs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 0x18;
             ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->y1 =
-                g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] - 6;
+                (s16)g_MenuCellPrimYs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] - 6;
             ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->x2 =
                 g_MenuCellPrimXs[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot] * 2] + 8;
             ((POLY_FT4*)(g_Menu->pCursors->renderContexts[0] * sizeof(POLY_FT4) + (mem_addr)g_Menu->pCursors))->y2 =
@@ -442,6 +443,7 @@ u_char func_801C93A8(void) {
     return waited;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
+
 
 
 u_char MenuIsSlotUsable(s32 a0) {
