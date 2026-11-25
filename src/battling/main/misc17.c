@@ -540,7 +540,6 @@ void func_8008ED6C(BattleActor* pActor, s32 idx) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
 
 
-
 void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 step;
