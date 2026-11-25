@@ -903,36 +903,40 @@ void func_80092B74(u8 arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
-/* 90.96% (1204 bytes against retail's 1228) under this unit's gcc 2.6.0. The FRAME
-   is retail's exactly (0xB0, vars 0x68, ten saved registers) and the body is the
-   whole function: the 0x618 text buffer, the four-tile row (tile x 0x380, text
-   x 0x380/0x3C0+2j/0x3C6), the three-digit split with divisors {1000,100,10} and
-   the ones digit from the remainder, then the four pBufs frees, the two flat
-   quads at 0x94/0xFC and the 0x668/0x669/0xB7 flags.
-   Load-bearing shapes found by measurement: (1) the divisors array must be filled
-   with three assignments, not an initialiser -- `= {1000,100,10}` makes cc1 copy
-   from .rodata with lwl/lwr (worth 80.83 vs 76.49); (2) the row ys are the INLINE
-   expressions (i * 16 + 0x100 for the tile and second rects, i * 16 + 0x102 for
-   the glyph, the three tens slots and the ones slot) -- naming them y/textY is
-   87.29%, and it is the inline form that puts the 0x80 slot back and the frame at
-   retail's 0xB0; (3) the glyph RECT needs a hoisted `pGlyphRect = &glyphRect`
-   pointer (90.96 vs 86.08 inline): gcc otherwise spills the sp+0x20 base into a
-   var slot and then also re-bases pBufs on sp+0x20, which costs the arg0/pValue
-   slots; (4) the ones-digit arm is written as `if (*pId != 0xFF) {draw} else
-   {blank}` (87.27 -> 87.29 either way, but 85.74 with the arms the other way
-   round); (5) `u8 started`/`u8 digit` are the narrow types retail masks with
-   andi 0xFF at each use, and `u32 value` is what makes the divide/mult divu and
-   multu; (6) `u16 onesDigit` is the local whose use emits retail's `andi 0xFFFF`.
-   Residual (6 instructions, all allocator): retail folds the two table bases into
-   the assembler macro (lui $at,%hi / addu $at,$at,v0 / lbu|lw %lo($at)) where this
-   body materialises them (lui/addiu into a scratch + addu, one instruction more
-   each), and retail's row-y induction variable is HImode (lhu from 0x80) where the
-   inline-expression giv is SImode (lw). Tried: index/offset locals for both tables
-   (82.20 for both, and 80.x for one), `u16 y`/`textY` variables, declaration
-   orders, and two permuter runs (5255 -> 4281 -> 3657; its only real finds are the
-   pGlyphRect pointer and the arm order above). The 0x68 slot in this body holds
-   the spilled pGlyphRect where retail keeps arg0 there, which is the register
-   permutation the rest of the diff shows. */
+/* 93.09% (1220 bytes against retail's 1228, 305 vs 307 instructions) under this
+unit's gcc 2.6.0. Frame 0xB0 and all ten saved registers are retail's.
+THE WIN this round: the first BattleSetPolyFT4Rect site reads
+*(volatile s32 *)g_BattlePrimStartIndex for the prim index. Retail's object
+reloads that word (`lw v0,0(s0)`) and recomputes * 0x28 after the packet-pool
+`sh` store, where a plain read keeps the product in $a0 and saves 4
+instructions; the cast-away volatile is the lever battle/main/misc1 already
+records. Same body without it: 90.96% / 1204 bytes / 301 insns, so this is a
++4-insn, +16-byte, +2.13% single edit.
+Residual is 3 items, all allocator/assembler, none structural:
+(1) pValue is memory-bound in retail and register-bound here (net 4 insns):
+retail reloads it as `lw t1,0x70(sp)` in the ones-digit arm and does
+`pValue++` through the slot (`lw/addiu/sw`), and only caches it in $s4 across
+the j loop; this body keeps it in $s5 and instead spills pId. Every s-register
+is live in both compiles (8 in the j loop: tensbase, j, pBufs[i], i, pValue,
+started, textY, textY') so it is a tie-break, not a count difference.
+(2) the glyph RECT address: retail recomputes `addiu a0,sp,0x20` in the
+BattleLoadImageAndSync delay slot, this body spills &glyphRect into 0x68 and
+reloads it (`sw t1,104(sp)` ... `lw a0,104(sp)` + nop), which costs 2.
+(3) g_BattleSlotTextIndex is a `lui %hi/addiu` + `addu` pair here where
+retail's object has the one-operand `lui $at,%hi / addu $at,$at,v0 /
+lbu %lo($at)` (costs 1); g_BattleDigitImageBuffers in the same loops does
+come out in the $at form, so the difference is register pressure at that site.
+The 0x80 slot is retail's HImode read of the SImode `i*16+0x100` temp
+(`lhu` + nop where this body has `lw`), so the ys are the INLINE expressions,
+not variables.
+Tried and measured on this body: no pGlyphRect hoist (`&glyphRect` inline ->
+86.08%, gcc spends a register on the anchor, frame grows to 0xB8); pGlyphRect
+assigned inside the loop body (88.22%); an `__asm__`-labelled alias for
+g_BattleSlotTextIndex (identical 93.09 - the `la` is not the round-471 hoist,
+the symbol has only one site here). Not retried from the older note: named
+y/textY variables (87.29), divisors initialiser (80.83), declaration-order
+permutations, two permuter runs (5255 -> 4281 -> 3657).
+ */
 /*
 void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     RECT glyphRect;
@@ -1025,7 +1029,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     }
     HeapFree(g_BattleTextWorkspace);
     *(u16 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0xE) = g_SystemPalette1;
-    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28),
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + *(volatile s32 *)g_BattlePrimStartIndex * 0x28),
                          0x94, 0x54, 0, 0, 0x60, 0x40);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                      (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0xA0)),
@@ -1035,6 +1039,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     g_BattleDisplayState->unkB7 = 4;
 }
 */
+
 void BattleDrawActionRowIcons(u8 arg0, u8 arg1) {
     u8 *pRec;
     u16 flags;
