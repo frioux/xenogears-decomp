@@ -1357,6 +1357,16 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
 // Round 471 find: the Z read must name retail's own symbol. A second asm-label alias extern s16 g_WorldMapViewRotationZTable[] __asm__("g_WorldMapViewRotationZ") beside g_WorldMapViewRotation[] gives lh a0,lo(g_WorldMapViewRotationZ)(a0) exactly as retail, where the old g_WorldMapViewRotation[1] spelling emitted ViewRotationY+2 (96.25).
 // Round 471 measurements, all on this body: writing the Z read AFTER both <<12 stores is 93.33 / 48 lines and shows the cause - the whole allocation rotates (slot pointer to $a1, the constant to $v1, the Z angle to $v0), same with a barrier before the read; a barrier between the 0x54 store and the read gives lh a0,2(a1) off a reused ViewRotationY base, 86.17 / 22 lines; s32 vs u32 angleZ is byte-identical (96.42); the typed-struct spelling of all eight p+0x casts is 76.63 / 84 lines, so the u8* cast spelling really is load-bearing here.
 // Residues (a)+(b) are one trade: round 458 measured that reading Z early (so $a0 is live across the constant) puts the constant in $a1 as retail but leaves the load at the read position, 89.90 / 10 lines, and sched2 will not sink it. (b) is stream order - the read's statement has to precede the 0x3C store to keep the 96.42 allocation - so the two cannot be had together. Presets screened (cdk 80.46, gcc-2.6.0 does not compile), permuter 4 min NONE on the earlier body.
+// Round 476 re-measured this body live: 96.42%, 240 bytes / 60 insns = retail's exact, 8 differing
+// lines. Three more spellings of retail's own store order (second angle load AFTER both unk54/unk3C
+// stores), all measured, all 93.33% / 48 lines with the slot pointer rotating from $v1 to $a1:
+// plain stores; a chained assignment (unk3C = unk54 = v << 12); a mirrored store (unk3C = unk54 read
+// back, which cse forwards into two sw v0 exactly as retail). So the store wording is not the handle -
+// the SECOND angle load's pseudo creation slot decides the whole local allocation, and writing it one
+// statement earlier (between the two stores, i.e. not retail's own order) is what buys 96.42.
+// Also measured worse this round: one reused s32 angle local for both angles with the load after both
+// stores, 94.58 / 24 lines - the first lh moves to $a1 and the second chain to $a1/$v0.
+// See tools/rounds/levers.md a-store-order-spelling-cannot-move-the-loads-allocno.
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -1401,6 +1411,7 @@ s32 func_800827EC(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
+
 
 
 
