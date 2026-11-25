@@ -486,31 +486,34 @@ extern u_char g_FieldScreenShakeMode;
 extern void func_800AD898(void);
 extern void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2);
 
-// Read through a call boundary: gcc 2.7.2 otherwise hoists this volatile load above
-// the actor address computation of the next statement (retail loads it in between).
-static inline s32 FieldShakeReadDeltaY(volatile u_char* pShake) {
-    return *(volatile s32*)(pShake - 0x12);
-}
-
-// Round 399 redo: best 85.58% (592 bytes = retail, 148 vs 148 insns, size-exact). Residuals are register and order ties:
-//  - the t[1] delta read must go through the static inline FieldShakeReadDeltaY helper: with a plain
-//    volatile read gcc 2.7.2 hoists it above the next statement's g_FieldActors load and the shake
-//    blocks lose their per-field nops (76.59%). Permuter find 1.
-//  - the else block must spell the Y field as t[new_var] with new_var = 1, and the mode==1 block's Z
-//    update must sit in a do-while(0): permuter find 2, together 83.68 -> 85.58 and size-exact.
-//  - wrapping the mode==0 block's Z update in do-while(0) as well reads 88.06% but 151 insns / 604 bytes:
-//    oversized, rejected - the permuter's internal score (1926 vs 2054) and objdiff disagree there.
-//  - anim loop preheader now exact: pCount = g_FieldActorModelSlotCount (unbounded-array extern, decay
-//    materialises and-count once), pAnimTable = (s16*)pCount - 0x40, bound read as
-//    ((s32*)((u8*)pAnimTable + 0x80))[0]; guard loads 0(reg), reload 128(s2), addiu s2 from the same reg.
-//    Left: the blez delay slot takes addiu s2 instead of retail's andi a0, plus v0/v1 swaps in the count
-//    load and the player block (allocator ties).
-//  - permuter: 3 runs, PERMUTER_BETTER each time (3056->1867, 2606->2054, 2054->1926).
+// PARKED 90.44% (604 bytes against retail's 592, 151 vs 148 insns). Was 85.58 / 592 / size-exact.
+// THE LEVER WAS THE EMPTY do/while BARRIER: every one of the six shake updates must be its own
+// statement boundary, `do { <update> } while (0);`. Without barriers gcc CSEs the element
+// pointer across the three updates and the group shrinks from retail's 3x8=24 insns to 18
+// (76.59%, 143 insns); with one barrier per update 5 of the 6 blocks come out VERBATIM as
+// retail's 8-insn block
+//     lui a0,%hi(g_FieldActors) / lw a0 / lw v1,DELTA(a2) / addu a0,a1,a0 /
+//     lw v0,FIELD(a0) / nop / addu v0,v0,v1 / sw v0,FIELD(a0)
+// (all three delta reads are then plain `*(volatile s32*)(pShake - 0x16/-0x12/-0xE)`: routing
+// t[1] through a static-inline helper, which the old 85.58 body needed, is now WORSE - 88.06).
+// What is left:
+//  1. the t[1] and t[2] blocks (in BOTH groups) sink the delta load one instruction late:
+//     `lw a0,g_FieldActors / nop / addu / lw v0,36(a0) / lw v1,-18(a2) / nop / addu / sw`
+//     = 9 insns, retail 8. The addu is scheduled above the delta load in ours and below it in
+//     retail; that is the whole 604 vs 592. Tried: the helper on t[1] only (88.06), the
+//     barrier written after each update instead of around it (identical code), plain reads
+//     with no barriers (76.59).
+//  2. frame 0x30 vs retail's 0x40: retail carries vars=32 with NO sp reference anywhere, ours
+//     16 - an unreachable 16-byte local in the original, not a spelling we can force.
+//  3. anim loop preheader matches except the blez delay slot: ours takes `addiu s2,v0,-128`,
+//     retail `andi a0,s1,0xFFFF`. Player block: retail keeps canInteract in $s1 and pActorData
+//     in $v1, ours $v1/$a0 (allocator ties, same instruction count).
+// Presets on this body: gcc-2.6.0 76.86, gcc-2.7.2-cdk compile-fails. Earlier rounds: permuter
+// 3 runs on the 85.58 body, PERMUTER_BETTER each (3056->1867, 2606->2054, 2054->1926).
 /*
 void func_800A24C4(void) {
     int i;
     ActorData* pActorData;
-    int new_var;
     s32* pCount;
     s16* pAnimTable;
     volatile u_char* pShake;
@@ -541,21 +544,21 @@ void func_800A24C4(void) {
                 continue;
             }
         } else {
-            new_var = 1;
             if ((pShake[0] & 0x7F) == 0) {
-                g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-                g_FieldActors[i].transformMatrix.t[new_var] += FieldShakeReadDeltaY(pShake);
-                g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+                do { g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16); } while (0);
+                do { g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12); } while (0);
+                do { g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE); } while (0);
             }
         }
 
         if ((pShake[0] & 0x7F) == 1) {
-            g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-            g_FieldActors[i].transformMatrix.t[1] += FieldShakeReadDeltaY(pShake);
+            do { g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16); } while (0);
+            do { g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12); } while (0);
             do { g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE); } while (0);
         }
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
@@ -1015,12 +1018,21 @@ void func_800A3474(void) {
 
 
 // Pulls the field state func_800A3F4C pushed into the save block back out.
-// PARKED 91.47% (688 bytes, 172 insns against retail's 176). Round 480 rebuilt the head
-// from the .s: the 0x74-byte copy takes its source from &g_WorldMapSaveBlock + 0x3C
-// (earlier bodies copied from the block base) and its destination from
-// (u8*)&g_FieldNumActors - 0xB8, which reproduces the two-loop lwl/lwr
-// mips_expand_block_move verbatim. 86.75 -> 88.71 -> 91.47.
-// Load-bearing spellings measured this round:
+// PARKED 97.01% (700 bytes, 175 insns against retail's 176 / 704 bytes).
+// The head's STATEMENT ORDER is what the store elimination needs:
+//     g_WorldMapSaveCursor = pSrc;
+//     g_FieldNumActors     = pSrc[0];   /* or *pNumActors, same code */
+//     g_WorldMapSaveCursor = pSrc + 0x3C;
+//     memcpy((u8*)&g_FieldNumActors - 0xB8, pSrc + 0x3C, 0x74);
+//     g_WorldMapSaveCursor += 0x920;    /* AFTER the memcpy, BEFORE the gear loop */
+// The g_FieldNumActors store between the two cursor stores is an alias barrier, so
+// both cursor stores survive (the old head, where the second store directly followed
+// the first, lost the first one: 91.47%, 688 bytes). The 0x920 cursor update must come
+// after the inlined memcpy for the same reason - its stores kill the known cursor
+// value, so retail's load+addiu+store reappears instead of a fold into pSrc+0x95C -
+// and it must come BEFORE the 3-entry gear loop, which is where retail emits it.
+// 86.75 -> 88.71 -> 91.47 -> 97.01.
+// Load-bearing spellings measured earlier:
 //  - the actor loop must go through an element-pointer local that is re-assigned at the
 //    top of each of its three blocks: retail re-reads the volatile g_FieldActors once per
 //    block and reuses that one element pointer for every field in the block. Spelling
@@ -1030,20 +1042,24 @@ void func_800A3474(void) {
 //  - `g_WorldMapSaveCursor += 0x920;` must sit after a memory store (here *pNumActors).
 //    Placed directly after the `= pSrc + 0x3C;` store, gcc folds the two into one store
 //    of pSrc+0x95C and the second store and its reload both disappear.
-// What is left:
-//  1. retail materialises &g_FieldNumActors into $a0, stores through it (sw v1,0(a0)) and
-//     derives the copy destination with addiu a3,a0,-0xB8. gcc 2.7.2 folds both uses into
-//     a %lo addend (lui a3,%hi; addiu a3,-184) plus the assembler's $at store - those 2
-//     insns are the whole size difference. Tried without change: the pNumActors pointer
-//     local below, the inline (u8*)&g_FieldNumActors - 0xB8 form, and the store placed
-//     before and after the memcpy.
-//  2. moving the *pNumActors store between the two cursor stores keeps retail's two
-//     cursor stores and reads 91.21% / 696 bytes at 174 insns; both shapes are
-//     measurable and the one below scores highest.
-//  3. allocator only: block 1 keeps the element pointer in $v0 and the cursor in $a1
-//     where this compile uses $a1/$a2, and block 2's pActorData lands in $a1 here against
-//     $a0 there - a one-register shift at the same instruction count.
-// Presets measured on this body: gcc-2.7.2-cdk 85.70, cdk -G0 73.59, -O3 compile-fails.
+// What is left (all three are the same shape in the memcpy expansion):
+//  1. retail emits `addiu t0,a1,172` (the block-move end pointer) once per alignment
+//     path, 176 insns total; this body emits it once, shared, in the beqz delay slot,
+//     hence 175 insns / 700 bytes. THE BODY IS ONE INSTRUCTION SHORT AND CANNOT LINK.
+//     Tried without change: nothing in C reaches it; the size, the source expression
+//     and the register holding the base are identical on both sides.
+//  2. retail materialises &g_FieldNumActors into $a0, stores through it (sw v1,0(a0))
+//     and derives the copy destination with addiu a3,a0,-0xB8. gcc 2.7.2 folds both
+//     uses into a %lo addend (lui a3,%hi; addiu a3,-184) plus the assembler's $at store
+//     - 2 insns for the store where retail spends 1 (its store lands in the beqz delay
+//     slot, which is where this body's shared addiu t0 goes). Tried without change: the
+//     pNumActors pointer local, the inline (u8*)&g_FieldNumActors - 0xB8 form, and the
+//     store placed before/after/between the cursor stores.
+//  3. allocator only, same instruction count: block 1 keeps the element pointer in $v0
+//     and the cursor in $a1 where this compile uses $a1/$a2, and block 2's pActorData
+//     lands in $a1 here against $a0 there - a one-register shift.
+// Presets measured on this body: gcc-2.6.0 94.70, gcc-2.7.2-cdk 85.70, cdk -G0 73.59
+// (measured on the 91.47 body), -G0 compile-fails, -O3 compile-fails.
 /*
 void func_800A3C8C(void) {
     int i;
@@ -1057,9 +1073,10 @@ void func_800A3C8C(void) {
     pSrc = g_WorldMapSaveBlock;
     pNumActors = &g_FieldNumActors;
     g_WorldMapSaveCursor = pSrc;
-    g_WorldMapSaveCursor = pSrc + 0x3C;
     *pNumActors = pSrc[0];
+    g_WorldMapSaveCursor = pSrc + 0x3C;
     memcpy((u8*)pNumActors - 0xB8, pSrc + 0x3C, 0x74);
+    g_WorldMapSaveCursor += 0x920;
 
     nDiff = 0;
     for (i = 0; i < 3; i++) {
@@ -1067,7 +1084,6 @@ void func_800A3C8C(void) {
             nDiff++;
         }
     }
-    g_WorldMapSaveCursor += 0x920;
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
@@ -1096,9 +1112,9 @@ void func_800A3C8C(void) {
             g_WorldMapSaveCursor += 0x10;
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
+
 
 
 // Pushes the field state the world map is about to overwrite into the save block,
