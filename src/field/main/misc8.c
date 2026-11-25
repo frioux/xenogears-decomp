@@ -2529,6 +2529,22 @@ void FieldStopSedsPlayback(void) {
    + 1 > 0) { do {...; count++;} while (count < streamIndex + 1); }) - 92.91%,
    same 252 bytes, loop.c still hoists streamIndex+1 - and moving `streamIndex =
    streamId;` above the 0xFF early return (93.00%, no change).
+   R473 arithmetic of the residual (63 insns / 252 bytes vs retail 66 / 264): an
+   hoisted `addiu s0,s1,1` counts as ONE instruction where retail's two
+   rematerialisations are two (+1), retail's redundant `move s1,s0` is (+1) --
+   mine loads the s16 straight into s1 and computes fileIndex into s0, so the
+   copy never exists -- and the third is retail's `nop` in the
+   SoundAddSedsEntry delay slot, which the hoist fills in mine. So the body gcc
+   wants here is strictly shorter than retail's; the gap cannot be closed by
+   making the C better.
+   R473 measured dead ends: gcc copy-propagates the s16/s32 pair in EVERY
+   spelling, so the s32 local is not the copy retail has; making the loop bound
+   use streamId and the file index use streamIndex (and the reverse) is
+   byte-identical to the current body; try_flags gcc-2.6.0 93.00 (== unit
+   flags) and gcc-2.7.2-cdk 92.68, so this is not a preset question. The
+   hoisted bound sits in the register fileIndex frees at SoundAddSedsEntry,
+   which is why loop.c/gcse can hoist it at all; no source spelling found that
+   keeps that register live through the latch.
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 /*
@@ -2542,10 +2558,10 @@ void func_80085788(void) {
     SoundFile* pSoundFile;
 
     streamId = g_FieldStreamId;
-    streamIndex = streamId;
     if (streamId == 0xFF) {
         return;
     }
+    streamIndex = streamId;
     SoundStopAllElements();
     ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
     fileIndex = streamIndex + 0x115;
@@ -2571,6 +2587,7 @@ void func_80085788(void) {
     }
 }
 */
+
 extern void* g_MenuSedsFile;
 extern s32 g_SoundSedsFileStaged;
 extern void* g_SoundSedsFileBuffer;
