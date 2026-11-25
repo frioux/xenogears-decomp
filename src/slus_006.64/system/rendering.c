@@ -533,27 +533,46 @@ extern u8 g_GfxSpritesUseBaseMatrix;
    base 930, best 690) again only found candidates that pass an uninitialised
    pMatrix to ApplyMatrix, i.e. wrong code.
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
-
-/* Best attempt at the C above (90.89%):
+// PARK 91.05% (332 bytes; retail 336, 83 vs 84 insns). Round 478: swapping the
+//    two offset computations (xOffset first) moved 90.89 -> 91.05, so statement order
+//    does steer the allocator. The residual is unchanged: a callee-saved ranking
+//    permutation plus the address formation. retail = spriteData s0, pMat s1,
+//    xOffset s2, yOffset s3; this body = spriteData s1, pMat s3, xOffset s0,
+//    yOffset s2.
+//    pMat (the g_GfxBaseMatrix address) is the structural difference: retail's
+//    lui/addiu pair sits MID-block, right before the position loads, and the pseudo
+//    dies at the last t[] read, while this body births it in the declaration's
+//    initializer (prologue) so it ranks last and takes s3. Measured this round:
+//    assigning pMat after the SpriteUpdateTransformMatrix call (birth in the block
+//    that ends at the flags beqz) = 81.98%, 340 bytes, and the pair still lands in
+//    the prologue. Any birth next to the uses lets cse fold the constant back into
+//    every use (86.02%, Round 170), so retail's same-block pair needs a cse decision
+//    no source shape here has reproduced.
+//    Also 1 instruction short: retail has a nop after the third t[] load, this body
+//    forms pBase+0xC late (addiu s0,a1,12) so it has no hole to fill.
+//    Already measured, do not redo: mid-block pMat 86.02, pMatrix before the call
+//    88.15, pBase local across the call 79.11/344, do-while(0) 81.98, two 4-minute
+//    permuter runs found only wrong-code candidates, 86.76 under cdk so not the
+//    preset.
+/*
 void func_8001E148(SpriteData* pSpriteData) {
     MATRIX* pMat = &g_GfxBaseMatrix;
     SVECTOR position;
     VECTOR vec;
     MATRIX* pMatrix;
     s32 n;
-    s32 yOffset;
     s32 xOffset;
+    s32 yOffset;
 
     if ((g_IsBattle != 0) || (g_GfxSpritesUseBaseMatrix != 0)) {
         SpriteUpdateTransformMatrix(pSpriteData);
     }
 
     n = (pSpriteData->field_0x40 >> 8) & 0x1F;
-    yOffset = (s8)pSpriteData->pBase->offsetY;
-    yOffset <<= n;
     xOffset = (s8)pSpriteData->pBase->offsetX;
     xOffset <<= n;
+    yOffset = (s8)pSpriteData->pBase->offsetY;
+    yOffset <<= n;
 
     if (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) {
         xOffset = -xOffset;
@@ -572,8 +591,10 @@ void func_8001E148(SpriteData* pSpriteData) {
     pMatrix->t[2] = pMat->t[2] + vec.vz;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
+
+
 
 
 
