@@ -2219,6 +2219,50 @@ extern void func_80081C54(int actorIndex);
 extern const char D_8006FC60[]; // "ERROR ID1 ACT=%d\n"
 extern const char D_8006FC74[]; // "ERROR ID0 ACT=%d\n"
 
+/* Best attempt: 85.77%, 2584 bytes against retail's 2700 (646 insns against 676).
+   R497 SOLVED the local-layout problem every earlier round left open, and the
+   frame is now retail's exactly: .frame $sp,256 vars=192 args=24, saves at
+   0xD8-0xFC, arg4 read at 0x110(sp). Two changes did it, both measured:
+   (1) the three saved position words must be one array (s32 savedPos[3]);
+       three separate s32 locals each take an 8-byte slot here (0x98/0xA0/0xA8),
+       which pushed the frame to 0x108 and scored 84.61.
+   (2) the declaration order is retail's bottom-up order, i.e. first declared =
+       LOWEST offset: setHeights[4] 0x18, setRanges[4] 0x28, setTris[4] 0x38,
+       setIndices[4] (s16) 0x48, normals[4] (VECTOR) 0x50-0x8F, savedPos[3]
+       0x90/0x94/0x98, savedTriIds[4] (s16) 0xA0 (reached as 0x88(sp+0x18)).
+       Any other order gives 78-84% and shifts every array base.
+   It also fixed a semantic error an earlier round left in: the finishWalk body
+   uses pSprite->step.y (0x10), NOT moveSpeed (0x18) - retail's three uses at
+   0x853D8/0x853F8/0x85420 are all 0x10(s5).
+   REMAINING, in size order (all measured this round):
+   (1) 22 instructions: retail keeps TWO copies of the tail (pSprite->position
+       x/y/z, transformMatrix.t[1], jal func_80081C54, return 0) - one in the
+       restore path at 0x85344, one in the finishWalk path at 0x85444. Our two
+       copies are textually identical, so cc1 redirects the restore path into the
+       finishWalk copy ('j <+0x990>' straight out of the 'if (step.y < 0)' block)
+       and 22 instructions vanish. Retail's copies differ only in registers
+       (restore: sll v0,s6,1; finishWalk: move a0,s6 hoisted, sll v0,a0,1), so
+       the original source must have spelled the two blocks differently; the
+       difference was not found (tried: order of the step.y block, position
+       writes before/after, savedPos vs pActor fields).
+   (2) the D_800B21CF guard: retail is 'bne v1,v0,skip / nop / j ret / li v0,-1'
+       (branch over an unconditional jump to the -1 return); ours is
+       'beq v1,v0,ret / li v0,-1'. 2 instructions.
+   (3) the two debug-goto paths share one jal (a0 = D_8006FC60 or
+       D_8006FC74), which both compiles do; but retail then runs the
+       g_PlayerActorIndex mask store and 'position.vy += step.y' BEFORE the
+       finishWalk label, while ours runs them inside finishWalk.
+   (4) third loop: retail hoists 'lh a2,0x26(s1)' into the preheader and reads
+       setRanges as 0x10(a0); ours re-reads the field per iteration.
+   (5) allocator tie: retail puts actorIndex/y/pActor/pSprite in s6/s7/s1/s5,
+       ours in s6/s7/s2/s5; that tie drives most of the remaining offset hunks.
+   Preset was screened in R432 (whole unit --all): Default is right (every other
+   C function 100.00, this one 98.13 then); gcc-2.6.0 93.29 and seven matched
+   functions drop, 2.7.2-cdk 93.99, -O3 90.1. No preset lead.
+   NOTE for the next agent: the extern for this function must be 's32', not
+   'void' - a void extern plus an s32 definition is a conflicting-type error and
+   cc1 exits 33 with no score (that is what "not rebuilt" looks like). */
+/*
 s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, s32 arg4) {
     SpriteData* pSprite;
     s32 setHeights[4];
@@ -2438,7 +2482,7 @@ finishWalk:
     if (actorIndex == g_PlayerActorIndex) {
         g_FieldButtonPollMask = 0xFFF;
     }
-    pActor->position.vy += pSprite->moveSpeed;
+    pActor->position.vy += pSprite->step.y;
     pActor->position.vx = savedPos[0];
     pActor->position.vz = savedPos[2];
     pActor->walkmeshId = savedWalkmeshId;
@@ -2448,11 +2492,11 @@ finishWalk:
     }
     if (((s16*)&pActor->position)[3] < pSprite->field_0x84) {
         if (pSprite->field_0x84 != ((s16*)&pActor->position)[3]) {
-            pSprite->moveSpeed += pSprite->gravity;
+            pSprite->step.y += pSprite->gravity;
         }
     } else {
-        if (pSprite->moveSpeed > 0) {
-            pSprite->moveSpeed = 0;
+        if (pSprite->step.y > 0) {
+            pSprite->step.y = 0;
         }
         pActor->scriptFlags.flags &= ~0x40001000;
         pActor->position.vy = pSprite->field_0x84 << 16;
@@ -2463,7 +2507,9 @@ finishWalk:
     g_FieldActors[actorIndex].transformMatrix.t[1] = ((s16*)&pActor->position)[3];
     func_80081C54(actorIndex);
     return 0;
-}
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
+
 
 
 extern s32 g_FieldArchiveStreamStatus;
