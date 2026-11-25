@@ -947,5 +947,5 @@ void BattleUpdateEffectByScreenMode(u8 arg0) {
     }
 }
 void BattlePlaySoundWithBaseId(u8 arg0) {
-    SoundPlaySoundEffectOnLastPair((g_BattleSoundBankMain->unk14 << 16) | arg0);
+    SoundPlaySoundEffectOnLastPair((g_BattleSoundBankMain->angle << 16) | arg0);
 }

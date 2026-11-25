@@ -469,18 +469,18 @@ s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
     Temp8 *pBank;
 
     if (arg1 == 0) {
-        return g_BattleSoundBankMain->unk14 << 16;
+        return g_BattleSoundBankMain->angle << 16;
     }
     if (arg1 == 1) {
-        pBank = ((Temp8 *)pActor->pSoundBank1)->pUnk8;
-        return pBank->unk14 << 16;
+        pBank = ((Temp8 *)pActor->pSoundBank1)->pStartPixels;
+        return pBank->angle << 16;
     }
     if (arg1 == 2) {
-        pBank = ((Temp8 *)pActor->pSoundBank2)->pUnk8;
-        return pBank->unk14 << 16;
+        pBank = ((Temp8 *)pActor->pSoundBank2)->pStartPixels;
+        return pBank->angle << 16;
     }
     if (arg1 == 3) {
-        return g_BattleSoundBankSecondary->unk14 << 16;
+        return g_BattleSoundBankSecondary->angle << 16;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);

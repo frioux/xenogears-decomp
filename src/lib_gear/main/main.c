@@ -860,7 +860,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         if (depthBuf[0] >= 0x2D9) {
             depthBuf[0] = 0x2D8;
         }
-        pModel->unk39 = 0x6B - depthBuf[0] / 8;
+        pModel->depthShade = 0x6B - depthBuf[0] / 8;
     }
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
@@ -1094,7 +1094,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 // +8/+0x10/+0x18/+0x20, read SZ3 with 'mfc2 $19' + 'sra 2' (⇒ the 'gte_stsz3_val'-style
 // read-back) and keep the max in a stack local at 0x48(sp). Then the OT link: 'word = (prim.tag
 // & 0xFF000000) | (otEntry & 0x00FFFFFF)' and the mirror poke on the OT slot, 'if (otz >= 0x2D8)
-// otz = 0x2D8;', and 'pModel->unk39 = 0x6B - (otz / 8)' (0x2D8, 0x6B and the '+7' before 'sra 3'
+// otz = 0x2D8;', and 'pModel->depthShade = 0x6B - (otz / 8)' (0x2D8, 0x6B and the '+7' before 'sra 3'
 // are all visible here — a constant round will want names).
 // PARK_NOTE 6 — phase 2 (0x1314): 'MulMatrix0(pViewMatrix, &pSkeleton->globalTransform,
 // scratch20);' then the joint loop 'for (i = 1; i < pSkeleton->numChildren; i++)' with 'if
@@ -2702,7 +2702,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 // Also allocation-only: retail has width in $s3 / height in $s2, we get the
 // reverse, and the fill colour sits in $a0 in retail, $s1 here.
 // WHAT THE CODE DOES (for the next round): fills a Temp8's three buffers from the
-// flags mask - 0x100 allocates pUnkC, 0x200 pUnk8, 0x400 pUnk4, each
+// flags mask - 0x100 allocates pResultPixels, 0x200 pStartPixels, 0x400 pPixels, each
 // (memoWidth * memoHeight * 2) bytes - then per 4-bit op nibble either uploads the
 // buffer with StoreImage at the triple's (x,y) or fills it (flat 15-bit colour, or
 // a 3-colour stripe picked by `(y + row) % 3`), or copies rows out of pRows.
@@ -2721,7 +2721,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 //   `+` for the first two fields then `|` (all `|` gives or/or, all `+` differs).
 // - `half` must be an int: `half = ((s16)width + 1) / 2;` gives retail's real
 //   signed /2 (srl 31 / addu / sra 1); an `s16 half` gives sll 15 / sra 16.
-// - the copy loop index needs the cast: `pUnk4[row * (s16)width + col]` keeps the
+// - the copy loop index needs the cast: `pPixels[row * (s16)width + col]` keeps the
 //   `sra / mult / mflo` inside the inner loop as retail has it, while
 //   `row * width + col` makes gcc hoist the product into the row preheader.
 // - pRows is read as `pRows[3 * ((s16)y0 + row) + (s16)x0 + col]` (the casts are
@@ -2761,7 +2761,7 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
     pTexture->unk11 = 0;
     pTexture->mode = mode;
     pTexture->pSource = pSource;
-    pTexture->unk14 = 0;
+    pTexture->angle = 0;
     pTexture->prevFrame = 0xFFFF;
     pTexture->angleStep = angleStep;
     pTexture->divisor = divisor;
@@ -2794,13 +2794,13 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
             pTexture->rect.h = height;
             pTexture->pixelCount = width * height;
             if (mask & 0x100) {
-                pTexture->pUnkC = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pResultPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x200) {
-                pTexture->pUnk8 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pStartPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x400) {
-                pTexture->pUnk4 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
             }
 
             switch (mask & 0xF) {
@@ -2809,13 +2809,13 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                     rect.y = y0;
                     rect.w = width;
                     rect.h = height;
-                    StoreImage(&rect, pTexture->pUnk4);
+                    StoreImage(&rect, pTexture->pPixels);
                     DrawSync(0);
                     break;
                 case 2:
                     colour = (((colour0 & 0x3F) << 10) + ((y0 & 0x1F) << 5)) | (x0 & 0x1F);
                     for (i = 0; i < (s16)width * (s16)height; i++) {
-                        pTexture->pUnk4[i] = colour;
+                        pTexture->pPixels[i] = colour;
                     }
                     break;
             }
@@ -2826,13 +2826,13 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                     rect.y = y1;
                     rect.w = width;
                     rect.h = height;
-                    StoreImage(&rect, pTexture->pUnk8);
+                    StoreImage(&rect, pTexture->pStartPixels);
                     DrawSync(0);
                     break;
                 case 2:
                     colour = (((colour1 & 0x3F) << 10) + ((y1 & 0x1F) << 5)) | (x1 & 0x1F);
                     for (i = 0; i < (s16)width * (s16)height; i++) {
-                        ((u16*)pTexture->pUnk8)[i] = colour;
+                        ((u16*)pTexture->pStartPixels)[i] = colour;
                     }
                     break;
             }
@@ -2846,20 +2846,20 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
             pTexture->rect.h = height;
             pTexture->pixelCount = width * height;
             if (mask & 0x100) {
-                pTexture->pUnkC = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pResultPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x200) {
-                pTexture->pUnk8 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pStartPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x400) {
-                pTexture->pUnk4 = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
             }
 
             switch (mask & 0xF) {
                 case 1:
                     for (row = 0; row < (s16)height; row++) {
                         for (col = 0; col < (s16)width; col++) {
-                            pTexture->pUnk4[row * (s16)width + col] = pRows[3 * ((s16)y0 + row) + (s16)x0 + col];
+                            pTexture->pPixels[row * (s16)width + col] = pRows[3 * ((s16)y0 + row) + (s16)x0 + col];
                         }
                     }
                     break;
@@ -2878,7 +2878,7 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                                     colour = colour0;
                                     break;
                             }
-                            pTexture->pUnk4[pixel + col] = colour;
+                            pTexture->pPixels[pixel + col] = colour;
                         }
                         pixel += width;
                     }
@@ -2889,7 +2889,7 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                 case 1:
                     for (row = 0; row < (s16)height; row++) {
                         for (col = 0; col < (s16)width; col++) {
-                            ((u16*)pTexture->pUnk8)[row * (s16)width + col] = pRows[3 * ((s16)y1 + row) + (s16)x1 + col];
+                            ((u16*)pTexture->pStartPixels)[row * (s16)width + col] = pRows[3 * ((s16)y1 + row) + (s16)x1 + col];
                         }
                     }
                     break;
@@ -2908,7 +2908,7 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                                     colour = colour1;
                                     break;
                             }
-                            ((u16*)pTexture->pUnk8)[pixelB + col] = colour;
+                            ((u16*)pTexture->pStartPixels)[pixelB + col] = colour;
                         }
                         pixelB += width;
                     }
@@ -2984,8 +2984,8 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
         return -1;
     }
 
-    pTexture->unk14 += pTexture->angleStep * (frameStep + 1);
-    level = pTexture->pInterpolate(pTexture->unk14, pTexture->divisor, pTexture->offset);
+    pTexture->angle += pTexture->angleStep * (frameStep + 1);
+    level = pTexture->pInterpolate(pTexture->angle, pTexture->divisor, pTexture->offset);
     frame = level;
     if (frame < 0) {
         LibGearFlushTexture(pTexture);
@@ -2998,16 +2998,16 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
 
         switch (pTexture->mode) {
             case 0:
-                func_80026F44(pTexture->pixelCount, frame, pTexture->pUnkC, pTexture->pUnk4);
+                func_80026F44(pTexture->pixelCount, frame, pTexture->pResultPixels, pTexture->pPixels);
                 if (pTexture->pSource == NULL) {
-                    LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
+                    LoadImage(&pTexture->rect, (u_long*)pTexture->pResultPixels);
                 }
                 break;
             case 1:
                 pixelCount = pTexture->pixelCount;
-                func_80026FE8(pixelCount, frame, pTexture->pUnkC, pTexture->pUnk8, pTexture->pUnk4);
+                func_80026FE8(pixelCount, frame, pTexture->pResultPixels, pTexture->pStartPixels, pTexture->pPixels);
                 if (pTexture->pSource == NULL) {
-                    LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
+                    LoadImage(&pTexture->rect, (u_long*)pTexture->pResultPixels);
                 }
                 break;
             case 4:
@@ -3049,10 +3049,10 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
 
         if (dstRect.w > 0 && dstRect.h > 0) {
             pSource->unk11 = 1;
-            pDstBase = pSource->pUnk4;
+            pDstBase = pSource->pPixels;
 
             if (pSource->mode < 4) {
-                pSrcBase = (u16*)pTexture->pUnkC;
+                pSrcBase = (u16*)pTexture->pResultPixels;
                 for (y = 0; y < dstRect.h; y++) {
                     for (x = 0; x < dstRect.w; x++) {
                         dstAddr = dstRect.x * 2 + (u32)pDstBase;
@@ -3087,22 +3087,22 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
 
 void LibGearFlushTexture(Temp8* pTexture) {
     if (pTexture->isLoaded != 0) {
-        if (pTexture->pUnk4 != NULL) {
+        if (pTexture->pPixels != NULL) {
             if (pTexture->mode < 4) {
-                LoadImage(&pTexture->rect, (u_long*)pTexture->pUnk4);
+                LoadImage(&pTexture->rect, (u_long*)pTexture->pPixels);
             }
-            HeapFree(pTexture->pUnk4);
-            pTexture->pUnk4 = NULL;
+            HeapFree(pTexture->pPixels);
+            pTexture->pPixels = NULL;
         }
 
-        if (pTexture->pUnk8 != NULL) {
-            HeapFree(pTexture->pUnk8);
-            pTexture->pUnk8 = NULL;
+        if (pTexture->pStartPixels != NULL) {
+            HeapFree(pTexture->pStartPixels);
+            pTexture->pStartPixels = NULL;
         }
 
-        if (pTexture->pUnkC != NULL) {
-            HeapFree(pTexture->pUnkC);
-            pTexture->pUnkC = NULL;
+        if (pTexture->pResultPixels != NULL) {
+            HeapFree(pTexture->pResultPixels);
+            pTexture->pResultPixels = NULL;
         }
 
         pTexture->isLoaded = 0;
@@ -3110,7 +3110,7 @@ void LibGearFlushTexture(Temp8* pTexture) {
 }
 
 void LibGearFadeTexturePixels(Temp8* pTexture, s16 scale) {
-    u16* pSrc = pTexture->pUnk4;
+    u16* pSrc = pTexture->pPixels;
     s16* pDst;
     int y;
     int x;
@@ -3125,8 +3125,8 @@ void LibGearFadeTexturePixels(Temp8* pTexture, s16 scale) {
 }
 
 void LibGearBlendTexturePixels(Temp8* pTexture, s16 scale) {
-    u16* pSrc = pTexture->pUnk4;
-    u16* pDelta = pTexture->pUnk8;
+    u16* pSrc = pTexture->pPixels;
+    u16* pDelta = pTexture->pStartPixels;
     s16* pDst;
     int y;
     int x;
@@ -3470,7 +3470,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->frame = negOne;
     pModel->objectType = 0xFFFF;
     pModel->parentModelSlot = 0xFF;
-    pModel->unk39 = 0x6B;
+    pModel->depthShade = 0x6B;
     pModel->pAnimTable = (u32*)arg2;
     pModel->unkC = 0;
     pModel->animValue = 0;
@@ -3518,7 +3518,7 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
             if (arg3 < LIBGEAR_ANIM_ID_WAD_BASE) {
                 pModel->animValue = pSource->pAnimTable[arg3];
             } else {
-                pModel->animValue = ((u32*)pSource->unkC->pUnk4)[arg3 - LIBGEAR_ANIM_WAD_INDEX_OFFSET];
+                pModel->animValue = ((u32*)pSource->unkC->pPixels)[arg3 - LIBGEAR_ANIM_WAD_INDEX_OFFSET];
             }
 
             pModel->repeatCount = 0;
@@ -3756,14 +3756,14 @@ s32 func_801E5CD8(Model* pModel, s32 type) {
         pTexture = g_BattleSoundBankMain;
     } else if (type != 1) {
         if (type == 2) {
-            pTexture = ((Temp8*)pModel->pSoundBank2)->pUnk8;
+            pTexture = ((Temp8*)pModel->pSoundBank2)->pStartPixels;
         } else {
             return 2;
         }
     } else {
-        pTexture = ((Temp8*)pModel->pSoundBank1)->pUnk8;
+        pTexture = ((Temp8*)pModel->pSoundBank1)->pStartPixels;
     }
-    return pTexture->unk14 << 16;
+    return pTexture->angle << 16;
 }
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
@@ -4730,9 +4730,9 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
         ResolveArchiveEntryPointers(pAnimTables);
         ResolveArchiveEntryPointers((void*)pAnimTables[1]);
         pSoundBank = pSource->pSoundBank;
-        if (pSoundBank->pUnkC != pSoundBank->pUnk8) {
-            if (SoundFindSedsEntry(pSoundBank->pUnk8, 0) == 0) {
-                SoundAddSedsEntry(pSoundBank->pUnk8);
+        if (pSoundBank->pResultPixels != pSoundBank->pStartPixels) {
+            if (SoundFindSedsEntry(pSoundBank->pStartPixels, 0) == 0) {
+                SoundAddSedsEntry(pSoundBank->pStartPixels);
                 pModel->hasSedsEntry = 1;
             }
         }
@@ -4837,9 +4837,9 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
         pModel->pTextures = HeapAlloc(pModel->numTextures * sizeof(Temp8), 0x0);
         for (i = 0; i < pModel->numTextures; i++) {
             pModel->pTextures[i].isLoaded = 0;
-            pModel->pTextures[i].pUnk4 = NULL;
-            pModel->pTextures[i].pUnk8 = NULL;
-            pModel->pTextures[i].pUnkC = NULL;
+            pModel->pTextures[i].pPixels = NULL;
+            pModel->pTextures[i].pStartPixels = NULL;
+            pModel->pTextures[i].pResultPixels = NULL;
         }
     }
 
@@ -4990,7 +4990,7 @@ void LibGearFreeModel(s32 modelIndex) {
     }
 
     if (g_LibGearModels[modelIndex]->hasSedsEntry != 0) {
-        SoundRemoveSedsEntry(((Temp8*)g_LibGearModels[modelIndex]->pSoundBank1)->pUnk8);
+        SoundRemoveSedsEntry(((Temp8*)g_LibGearModels[modelIndex]->pSoundBank1)->pStartPixels);
     }
 
     if (g_LibGearModels[modelIndex]->pModelSource != NULL) {

@@ -147,17 +147,18 @@ typedef struct {
     /* 0x12 */ s16 jointIndex;
 } Temp6; // Size: 0x14
 
-// Per-model texture upload state, Model::unk118 entries
+// Per-model texture upload state, Model::unk118 entries. A battle sound-bank record
+// is also read through this type, where 0x8 holds its SEDS entry and 0x14 its base id.
 struct _Temp8;
 typedef struct _Temp8 {
     /* 0x0  */ struct _Temp8* pSource;
-    /* 0x4  */ u16* pUnk4;
-    /* 0x8  */ void* pUnk8;
-    /* 0xC  */ void* pUnkC;
+    /* 0x4  */ u16* pPixels; // the region's own pixels: what a fade or blend reads, and what the upload writes back
+    /* 0x8  */ void* pStartPixels; // the colours a blend starts from; the fourth argument of func_80026FE8
+    /* 0xC  */ void* pResultPixels; // where a fade or blend writes: the third argument of func_80026F44/80026FE8, and what LoadImage uploads
     /* 0x10 */ u8 mode; // 0/1 raw copy, 4 fade, 5 blend
     /* 0x11 */ u8 unk11;
     /* 0x12 */ s16 pixelCount; // pixels the upload writes; the GPF helpers loop this many times
-    /* 0x14 */ u16 unk14; // blend input angleStep advances; a sound-bank record read through this type keeps its base id here
+    /* 0x14 */ u16 angle; // advanced by angleStep per frame, first argument of pInterpolate; a sound-bank record read through this type keeps its base id here
     /* 0x16 */ u16 angleStep;
     /* 0x18 */ u16 prevFrame; // the interpolated frame last applied; the same value again skips the upload
     /* 0x1A */ u16 isLoaded; // buffers below are held; cleared by LibGearFlushTexture
@@ -269,7 +270,7 @@ typedef struct {
     /* 0x36  */ u8 skipGroundSnap; // non-zero: LibGearApplyGroundHeight leaves the root joint's y alone
     /* 0x37  */ u8 useScaledMatrices; // non-zero: the step uses LibGearComputeScaledJointMatrices
     /* 0x38  */ u8 unk38;
-    /* 0x39  */ u8 unk39;
+    /* 0x39  */ u8 depthShade; // written every frame from the model's OT depth (0x6B - otz / 8)
     /* 0x3A  */ s16 animationBitMask; // g_LibGearModelBitMask the current animation was started with; -1 = none
     /* 0x3C  */ u16 objectType; // joint objects whose type matches it set a bit of the step result
     /* 0x3E  */ u16 unk3E;
