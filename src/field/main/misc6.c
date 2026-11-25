@@ -826,6 +826,7 @@ int FieldCharacterIdToPartyId(int characterId) {
 //   320 bytes / 80 insns - cc1 inverts it to 'beq ... ; j epilogue; move v0,zero'.
 // - 's32 nResult = 0; if (...) {body} return nResult;': identical to the park (316) -
 //   cc1 folds nResult to the constant, so the move is still not hoisted.
+// Round 492 re-measured 90.86%, 316 bytes / 79 insns against retail's 324 / 81. The whole residual is ONE register tie with two consequences: retail has the return value 0 in $v0 and the CurActor pointer in $a0 ('addu v0,zero,zero' after the rotation join, then 'lui a0,%hi(CurActor); lw a0'), so the trailing three rotation stores are 'move v1,a1; sh v1,260(a0) x3'; this body has CurActor in $v0 and the rotation in $a0, so its 'move v0,zero' lands after the stores. Knock-on, the 0x56/0x7C/0x60 angle group: retail emits 'sll a0,a1,0x10; sra v0,a0,0x10; sh a1,86(at); sw v0,124(at); sw a0,96(at)' (truncate-then-sign-extend shared with the <<16 store) where this body folds it to 'sh v0,86(at); sw v0,124(at); sll v0,v0,0x10; sw v0,96(at)' - the 2 missing insns. So the missing sra and the v0 assignment position are the same cause, and it is the allocator, not the spelling.
 /*
 s32 func_8009FA54(s32 nInstructionOffset) {
     s32 nOffset;
@@ -1558,6 +1559,7 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
 // - extern volatile s32 g_FieldActorModelSlotCount; (scalar): 74.43%, 396 - the
 //   right size and insn count, but gcc sinks the 0x12C RMW below the increment.
 // - try_flags: cdk 88.88, 2.6.0 91.46, -G0 92.02, cdk -G0 73.38 - no preset wins.
+// Round 492 re-measured 92.58%, 396 bytes / 99 insns (retail's exact size); ALL 32 differing lines are the g_FieldActorModelSlotCount address shape. cc1_probe proof: the tail alone (4 count reads, unit flags) forces an address register at the 3rd use ('la $4,count' + 'lw $2,0($4)' twice + 'sw $2,0($4)') where retail re-forms the symbol address four times ('lui v0,%hi; lw v0,%lo(v0)' x4, store via $at). Probed and IDENTICAL under gcc-2.6.0-psx, -G0, extern volatile s32[], an s32 nSlot local for uses 3/4, the 0x12C RMW moved before the sprite-row store, '%8', and 'count = count + 1' - every one still emits the la. -O1 61.07, -O3 41.91 (try_flags). So the residual is a cse.c address-materialisation rule, not a spelling.
 /*
 void func_800A1364(void) {
     int arg;
