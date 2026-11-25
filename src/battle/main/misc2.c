@@ -186,7 +186,6 @@ Tried and measured, do not repeat: the old base-first `g_BattleGraphicsWork + of
 // Re-measured with every remaining raw cast replaced by the typed BattleWork field (panelPackageCounts[i], panelPrimStart[i], panelPending[i], unk78[i], valueSpritePrimStart[i], statDigitPrimStart[i]): identical instruction stream, 89.56% - the typed form is what this park now holds.
 // Root residual, exactly: in loop 3 retail has off3 in $s1 and off in $s2, in loop 6 off2 in $s1, off in $s2 and off3 in $s3; this body gives off $s1 in both, so the increments land in the wrong slots. Retail's loop-6 preheader emits the for-init as off3, off, off2 (this body emits off, off2, off3) - reordering the init to off3/off/off2 was tried and is identical, and so was the old base-first gfx spelling (89.43).
 // A permuter run is the right next step (structure is right, all six loops present, exact size); it is out of scope for a lane that cannot exceed 99%.
-/*
 void func_80073B64(void) {
     s32 i;
     s32 off;
@@ -254,8 +253,7 @@ void func_80073B64(void) {
             }
         }
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
+}
 
 void BattleAddTwoPrimLists(void) {
     s32 i;
@@ -594,38 +592,34 @@ void BattleAddPrimAndRenderObject(void) {
     }
 }
 
-/* 85.91% at retail's exact 344 bytes, frame 0x30 and mask s0-s3+ra exact, and
-   the instruction multiset is now identical - what is left is a register
-   permutation inside the two arms (retail keeps the 13*(i/2) chain in $v1, the
-   flags byte in $v0 and the x argument in $a1, and puts the $a5c delay slot's
-   `srl v0,s1,0x1f` where this body puts a speculative `li a2,0xca`), plus the
-   two `addu a0,s0,a0` / `addu a1,s0,a1` operand orders (the `off + (prod + base)`
-   spelling that would produce them makes loop.c create a second accumulator).
-   Three body shapes had to be right to get here from 57: (1) `off` is an
-   accumulator local, NOT an inline `i * 0x60` - the inline form makes loop.c
-   build an address biv for every use site (four accumulators, 376 bytes, 57.11);
-   (2) the x argument gets its own `s32 x` local assigned per arm, which is what
-   keeps retail's duplicated `subu a1,a1,v0` in each arm instead of one shared
-   copy in the join block; (3) the 13*(i/2) value is carried in a `u8 v` through
-   an embedded assignment at the argument (permuter find, 79.52 -> 85.91).
-   A 5-minute permuter run from this body returned only candidates that reuse
-   `off` for x (wrong code, rejected).
+/* History, still true: the body shapes that took this from 57 to 85.91 were (1) `off` as an
+   accumulator local, NOT an inline `i * 0x60` (the inline form makes loop.c build an address biv
+   per use site: four accumulators, 376 bytes, 57.11); (2) x as its own `s32` local assigned per
+   arm, which is what keeps retail's duplicated `subu a1,a1,v0` in each arm rather than one shared
+   copy at the join; (3) the 13*(i/2) value carried in a `u8 v` through an embedded assignment at
+   the argument (permuter find, 79.52 -> 85.91). A 5-minute permuter run from that body returned
+   only candidates that reuse `off` for x (wrong code, rejected).
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
+// 89.74% (this round; the old park measured 87.75 here, its 85.91 note was stale), 352 bytes / 88 insns against retail's 344 / 87.
+// Measured this round: (1) the 0x30 frame and the s3 slot came back with 'u8 **pOT = g_BattleCurOT' live across the loop (pOT[0] and ((s32*)pOT)[12] = g_BattlePrimStartIndex); (2) the i==0 arm's two flags loads form their address with a bare 'lui v0' ONLY when the guard is written 'if (off == 0)' - with 'if (i == 0)' gcc cannot fold off to 0 and both loads pay an 'addu at,at,s0' (88.07 else).
+// Residual, exactly: (a) the i==0 arm's 'andi a1,a1,0xffff' (the u16 conversion of x, which retail keeps ONCE at the join) is duplicated into that arm's jal delay slot, so its delay slot holds andi where retail holds 'addu a0,a0,s2' - one instruction and a placement; (b) the two 'addu a0,s0,a0' / 'addu a1,s0,a1' (offset first) where this cc1 emits base-first; (c) the prologue save order s1,s2,s3,s0,ra vs s3,s1,s0,s2,ra.
+// Tried and worse, do not repeat: writing the sum offset-first ('off + (idx*40 + base)', the spelling that WOULD give the operand order) makes loop.c build a second address biv for the sum (s4 + its own 'addiu s2,s2,96', 87.01 / 360 / 90); 'off == 0' plus that spelling 87.01; assigning pOT after 'off = 0' instead of before it re-forms the else arm's base as 'addu v1,s0,s2' (84.06). Also measured: inline 'i * 0x60' for the flags index (creates a biv), g_BattleTextSlotFlags[0] literal (gcc hoists the address into s3, 83.48). The double-negation lever does not apply - off is a strength-reduced giv.
 /*
 void func_8007500C(void) {
     s32 i;
     s32 off;
     s32 x;
     u8 v;
+    u8 **pOT;
 
+    pOT = g_BattleCurOT;
     i = 0;
     off = 0;
     do {
         if (g_BattleTextSlotVisible[off] != 0) {
-            if (i == 0) {
+            if (off == 0) {
                 x = 0x40 - (g_BattleTextSlotFlags[off] >> 1);
-                BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex * 40 + (s32)g_BattlePrimBuffer),
+                BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex * 40 + ((s32)g_BattlePrimBuffer + off)),
                                         x, 0x2C, 0, 0, g_BattleTextSlotFlags[off]);
             } else {
                 x = 0x9A - (g_BattleTextSlotFlags[off] >> 1);
@@ -633,13 +627,16 @@ void func_8007500C(void) {
                                         x, 0xCA, 0,
                                         v = (13 * (i / 2)) & 0xFF, g_BattleTextSlotFlags[off]);
             }
-            AddPrim(g_BattleCurOT[0] + 4,
-                    (u8 *)(((s32 *)g_BattleCurOT)[12] * 40 + ((s32)g_BattlePrimBuffer + off)));
+            AddPrim(pOT[0] + 4,
+                    (u8 *)(((s32 *)pOT)[12] * 40 + ((s32)g_BattlePrimBuffer + off)));
         }
         i++;
         off += 0x60;
     } while (i < 8);
 }*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
+
+
 
 void BattleBuildSlotGaugePrims(void) {
     s32 slot;
