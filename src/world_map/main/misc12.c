@@ -2561,6 +2561,24 @@ extern DR_TPAGE g_WorldMapFadeTpageArr[] __asm__("g_WorldMapFadeTpage");
 //    (4) the tail: retail keeps the stateTimer value in $v0 (`lhu v0,34(s0) / nop /
 //        addiu v0,v0,1 / sh v0`) and copies nRet into $v0 after it; we use $v1 and reorg
 //        puts `move v0,s1` in the load delay slot.
+//    ROUND 487: instruction-diffed both objects, and the whole 12-byte deficit is THREE
+//    maspsx load-delay hazard `nop`s, one in each arm plus one in the tail. Each exists in
+//    retail only because retail's loaded value lands in the register the next instruction
+//    writes: the arm nop sits between `lw a0,112(a1)` (the OT node) and `lw v0,0(a0)`, so
+//    the tpage address (retail: $a0, ours: $t0, a register the load is not using) can be
+//    reorg-stolen into that gap on our side and not on retail's; the tail nop sits between
+//    `lhu v0,34(s0)` and `addiu v0,v0,1`, where our load taking $v1 frees $v0 for the
+//    `move v0,s1` return copy to take the gap. So (1) and (3) are ONE tie: the missing
+//    instructions are a consequence of the register hand-out, not a separate residual, and
+//    they cannot be added back by any statement.
+//    Measured byte-identical this round on the same 93.72 / 1592 / 398 body: the
+//    `pTpage = g_WorldMapFadeTpageArr;` statement moved above `pPrim = ...` in both arms,
+//    the pTpage/pPrim declaration order swapped, and `pPlayer->stateTimer =
+//    pPlayer->stateTimer + 1;` for `stateTimer++`. Preset screen: -O3 93.72 (identical),
+//    gcc-2.7.2-cdk 82.71, gcc-2.6.0 compile-fails, so XenoWorldMap is right.
+//    Trap: dropping the `pTpage = g_WorldMapFadeTpageArr;` assignment leaves pTpage
+//    uninitialised (UB) and measures 93.90% at the same 1592 bytes - 0.18 higher than the
+//    honest body. Re-measure after any edit that moves statements in this block.
 //    FRAME: retail saves ra/s0/s1 in a 0xE0 frame and touches none of the 0xC0 below; the
 //    unusedFrame local reproduces it (worth 0.02% and required for check_bin).
 //    Reproduced exactly and load-bearing: the command switch lists 0xD before 0xC (an
