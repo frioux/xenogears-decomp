@@ -424,13 +424,25 @@ extern s32 func_80071F8C(s32 mode);
    D_80092894 is the pointer the script engine drives; the DA_/gauge fields added
    to BattleState above are the +0x58/+0xBC/+0xCE/+0xD8 slots this interpreter
    touches. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
-
-/* 89.47% attempt:
-   Runs the battle script of the actor the script engine points at (D_80092894,
-   which the script's two actor-select opcodes reassign): one opcode per step, up
-   to the opcode that asks for a frame boundary. g_BattleScriptCursor is an s32,
-   so the script bytes are read through the address rather than a typed cursor.
+/* 94.01% (1688 bytes against retail's 1704, 422 insns against 426). Structure and
+   block PLACEMENT are the win here: the armWait and turn label blocks belong INSIDE
+   the switch, physically between the arms gcc emits around them (turn between case 14
+   and case 20, armWait between case 20 and case 18) - that alone took 89.47 -> 94.06.
+   Also measured: case 29 stores the same value in both arms (a `s32 value = 1;` above
+   the if); writing 0 in the else arm was wrong code and retail has 1 in both, but the
+   inline literal form breaks the frame (saves s3, sp 0x30) while the local keeps
+   retail's 0x28 frame.
+   PRESET screen: cdk 88.30, 2.6.0 89.47 (identical), -G0 compile-failed. Not a preset.
+   Remaining residuals, each named: (a) cases 2/3 - retail forms &g_BattleActorN in v1,
+   loads the cursor, then `addu s0,v1,zero`; every spelling tried puts the `la` straight
+   into s0 (8 insns vs retail's 9) and the cursor load lands before it; (b) the dispatch
+   beqz delay slot is `sll v0,v1,2` here and `nop` in retail (1 insn); (c) case 12's
+   turn constant still needs a hop block (j +0x218) where retail puts `ori v0,0x800` in
+   the beqz delay slot, while case 13 keeps a `nop` there; case 15/14 are exact; (d) case
+   21 stores g_BattleWindowPrimsEnabled before the sll/sw of targetX, retail after both
+   operand loads, and uses v1 for the cursor where this uses a0; (e) case 29's two
+   stores pick a0 where retail picks v0. */
+/*
 void func_8007107C(void) {
     BattleState* pActor;
     s32 angle;
@@ -546,6 +558,10 @@ void func_8007107C(void) {
             }
             g_BattleScriptCursor += 2;
             break;
+        turn:
+            pActor->targetAngle = angle;
+            pActor->facingOffset = 0;
+            return;
         case 20:
             if (g_BattleScriptWait == 0) {
                 goto armWait;
@@ -559,6 +575,9 @@ void func_8007107C(void) {
             }
             g_BattleScriptCursor += 2;
             break;
+        armWait:
+            g_BattleScriptWait = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0];
+            return;
         case 18:
             value = g_BattleScriptCursor;
             g_BattleScriptCursor = value + 1;
@@ -633,10 +652,11 @@ void func_8007107C(void) {
             g_BattleScriptCursor += 2;
             break;
         case 29:
+            value = 1;
             if (((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] != 0) {
-                pActor->unkD8->gaugeValue = 1;
+                pActor->unkD8->gaugeValue = value;
             } else {
-                pActor->gaugeValue = 0;
+                pActor->gaugeValue = value;
             }
             g_BattleScriptCursor += 2;
             break;
@@ -672,16 +692,11 @@ void func_8007107C(void) {
             return;
         }
         continue;
-    armWait:
-        g_BattleScriptWait = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0];
-        return;
-    turn:
-        pActor->targetAngle = angle;
-        pActor->facingOffset = 0;
-        return;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
+
+
 
 
 extern s32 g_BattleWindowPosX;
