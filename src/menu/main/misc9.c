@@ -554,6 +554,27 @@ void MenuFitInventoryWindowToItems(void) {
 // The prevCol block is the same story and AGREES with retail (case 10 copy survives, 0x158),
 // so the cross-jump survivor is not simply "the later copy", and neither case-5 spelling
 // flips it.
+// ROUND 496: TWO source changes, both new, take this from the 94.26 / 892 park to 95.69% /
+// 896 bytes / 224 insns = retail's EXACT size, so the body below is the best park:
+//  (1) case 5's arm polarity swapped to `if (selectedSlot == 0xFF) { active = 0; } else
+//      { selectedSlot = 0xFF; }` AND the empty `do { } while (0)` moved OUT of case 2 to the end
+//      of case 5's arm (before its break). The PAIR is load-bearing, not either half: the swap
+//      alone is 93.81 / 888 / 222, the case-5 do-while with case 5's ORIGINAL polarity is
+//      94.89 / 896 / 107 lines (case 2's do-while present or not makes no difference there),
+//      and both together are 95.69 / 896 / 107. With this body the case-4 tail
+//      B {prevCol = 0xFF} is followed by case-5's text and the shared {selectedSlot = 0xFF}
+//      block lands AFTER case 5 at 0x70 - retail's exact layout - so B needs its
+//      `j .L801DC070` and the function reaches retail's 224 insns.
+//  (2) Measured inert and left out: a do-while at the end of case 0's or case 3's arm changes
+//      nothing at all (95.69 / 896 / 107 lines for all three positions).
+// WHAT IS LEFT is 107 differing lines and no size: (a) the (active, needsOpen) pair is still
+// mirrored (retail needsOpen=$s5 / active=$s6, this body the reverse) - rounds 468/481 closed
+// that as an allocno-priority question; (b) the `col = v1` store that case 1 and case 0 share:
+// retail keeps the LAST copy (at 0xF8, after case 0's body, case 1's `bnez` jumping forward to
+// it) while this cc1 keeps the FIRST (inline after case 1, case 0 jumping back to it) - the
+// same first-vs-last cross-jump choice as (1), and one block-numbering toggle cannot flip both
+// (case 5's do-while flipped (1) and left (b) alone). Preset re-screened on THIS body, 2.6.0
+// still the unit's: unit 95.69, gcc-2.7.2 95.45, gcc-2.7.2-cdk 92.59.
 /*
 s32 func_801DBE54(void) {
     u8 active;
@@ -613,11 +634,12 @@ s32 func_801DBE54(void) {
             }
             break;
         case 5:
-            if (selectedSlot != 0xFF) {
-                selectedSlot = 0xFF;
-            } else {
+            if (selectedSlot == 0xFF) {
                 active = 0;
+            } else {
+                selectedSlot = 0xFF;
             }
+            do { } while (0);
             break;
         case 1:
             if (col + 2 < 0x10) {
@@ -666,7 +688,6 @@ s32 func_801DBE54(void) {
                 }
             }
             prevCol = 0xFF;
-            do { } while (0);
             break;
         case 9:
             row += 8;
