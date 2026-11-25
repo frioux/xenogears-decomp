@@ -253,7 +253,7 @@ extern void SoundRemoveSedsEntry(s32 *);
 extern void BattleResetSlotConditionCounters(void);
 extern void BattleFreeWdsEntry(void);
 extern void BattleUnloadActorArchive(void);
-extern void func_800B853C(s32);
+extern void BattleStopSpritesAndReleaseActors(s32);
 extern void func_801E252C(void);
 extern void func_800723E0(void);
 extern void func_8007252C(void);
@@ -480,7 +480,7 @@ void BattleRunScene(void) {
     block2 = BattleAllocHeapBlock(block1 + 0x7FE22000, 1);
     g_BattleNextModeHeapBlock2 = block2;
     ArchiveReadFileToBuffer(4, (void *)0x801DE000, 0, 0x80);
-    func_800B853C(nextMode);
+    BattleStopSpritesAndReleaseActors(nextMode);
     while (g_BattleSceneRunning != 0) {
         BattleUpdateFrame();
     }

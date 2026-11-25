@@ -712,7 +712,7 @@ extern void func_800A9FF0(s32 arg0);
 extern void BattleFindAnimationTask(SpriteData *pSprite, s32 arg1, s32 arg2);
 extern void *D_800D39C8;
 
-void func_800B853C(s32 mode) {
+void BattleStopSpritesAndReleaseActors(s32 mode) {
     BattleRenderState *pWork;
     SpriteData *pFadeSprite;
     SpriteData *pSprite;

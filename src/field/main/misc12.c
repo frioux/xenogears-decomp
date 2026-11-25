@@ -588,7 +588,7 @@ int FieldGetVec2Angle(IVEC3*);
 void func_8009E574(int, int);
 extern s32 g_FieldCurActorIndex;
 
-int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
+int FieldWalkPartyActorToPoint(int actorSlotId, int x, int z, int direction) {
     FieldActor* pFieldActor;
     ActorData* pActor;
     SpriteData* pSpriteData;
@@ -710,11 +710,11 @@ void FieldScriptVMMovePartyToLeader(void) {
     pActor = g_FieldActors[g_FieldPartyActorSlots[0]].pActorData;
     x = CONV_TO_GTE(pActor->position.vx);
     z = CONV_TO_GTE(pActor->position.vz);
-    mask = func_8009AEE0(0, x, z, 0xFF) == 0;
-    if (func_8009AEE0(1, x, z, 0xFF) == 0) {
+    mask = FieldWalkPartyActorToPoint(0, x, z, 0xFF) == 0;
+    if (FieldWalkPartyActorToPoint(1, x, z, 0xFF) == 0) {
         mask |= 2;
     }
-    if (func_8009AEE0(2, x, z, 0xFF) == 0) {
+    if (FieldWalkPartyActorToPoint(2, x, z, 0xFF) == 0) {
         mask |= 4;
     }
     g_FieldScriptVMStopFlag = 1;
@@ -789,13 +789,13 @@ void FieldScriptVMMovePartyToTargets(void) {
             }
         }
     } else {
-        mask = func_8009AEE0(
+        mask = FieldWalkPartyActorToPoint(
                    0,
                    FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xD)),
                    FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xD)),
                    FieldScriptVMGetArgument(0xE)
                ) == 0;
-        if (func_8009AEE0(
+        if (FieldWalkPartyActorToPoint(
                 1,
                 FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xD)),
                 FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xD)),
@@ -803,7 +803,7 @@ void FieldScriptVMMovePartyToTargets(void) {
             ) == 0) {
             mask |= 2;
         }
-        if (func_8009AEE0(
+        if (FieldWalkPartyActorToPoint(
                 2,
                 FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xD)),
                 FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0xD)),
