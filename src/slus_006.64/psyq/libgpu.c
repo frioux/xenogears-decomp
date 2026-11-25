@@ -507,13 +507,25 @@ int StoreImage(RECT *rect, u_long *p) {
     return g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk1C, rect, 8, (u_long)p);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
-
-/* best: 95.69% (196 bytes, 49 insns = retail) -- one instruction displaced: retail issues the vtable argument load "lw a0,0x18(v1)" AFTER the D_80056988 size store; cc1 sched1 hoists it to just below "sw a0,0(a1)".
-   PROVEN a scheduler artefact, not a spelling: the unit cc1 on this body's own .i with -fno-schedule-insns -fno-schedule-insns2 emits the two vtable loads last, in RTL order (lw 8(v1) then lw 24(v1)), i.e. neither retail-owned order, and also reorders the prologue saves -- so no flag and no preset reaches retail here. Store order IS sched-chosen: reversing the source order (D_80056984 first, *pPacket second) keeps the same hoist and drops to 87.33.
-   Compiler axis closed (round 466, try_flags): -O2 95.69, gcc 2.6.0 95.69 (same shape), 2.7.2-cdk -G0 60.86 -- the tie is compiler-invariant.
-   Round 466 also measured and rejected: LoadImage's spelling g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk18, ...) with no pSys local (identical 95.69, so the CSE of the global costs nothing); an empty do { } while (0) after the size store (pins the a0 load down into the call block but sinks the g_GpuSysFuncs load with it and loses an instruction: 80.76%, 48 insns); a volatile size store (re-bases the whole tail onto a2/a3: 73.55%, 200 bytes).
-   Previously measured on this body: a pSys local assigned before the source store (91.84), &pSys->unk18 in a local (91.84), all three packet store orders, src/size/packet words in locals, a 4-minute permuter run (best candidate = the 91.84 shape).
+// best: 95.69% (196 bytes, 49 insns = retail) -- ONE instruction displaced: retail keeps
+// the call's arg0 load "lw a0,0x18(v1)" AFTER the D_80056988 size store (its two vtable loads
+// in RTL order, 0x18 then 0x08); cc1's pre-reload scheduler hoists it to just below
+// "sw a0,0(a1)". The three packet stores already come out in retail's order
+// (D_80056984, *pPacket, D_80056988), so only that load's slot is left.
+// PROVEN sched1, not a spelling (round 452, levers.md c-a-displaced-pointer-load-pair): the
+// same .i compiled with -fno-schedule-insns -fno-schedule-insns2 puts both vtable loads at the
+// end in RTL order (0x08 then 0x18, the reverse of retail) and moves the prologue saves, so the
+// two streams bracket retail and neither flag set reaches it. Compiler axis closed (round 466,
+// try_flags): -O2 95.69, gcc 2.6.0 95.69, 2.7.2-cdk -G0 60.86.
+// Round 479 added one spelling: arg0 in its own local assigned AFTER the size store
+// ("arg = pSys->unk18; return pSys->unk08(arg, ...)") -- byte-identical 95.69, so the hoist does
+// not depend on the argument being written inline at the call either.
+// Measured dead earlier: pSys local before the source store (91.84), &pSys->unk18 in a local
+// (91.84), the call spelled g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk18, ...) with no pSys local
+// (identical 95.69), reversing the store order (87.33), src/size/packet words in locals, an
+// empty do while(0) after the size store (80.76, 48 insns), a volatile size store (73.55), and a
+// 4-minute permuter run (best candidate = the 91.84 shape).
+/*
 int MoveImage(RECT *rect, int x, int y) {
     u_long *pPacket;
     GpuSysFuncs *pSys;
@@ -531,6 +543,9 @@ int MoveImage(RECT *rect, int x, int y) {
     return pSys->unk08(pSys->unk18, pPacket - 2, 0x14, 0);
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
+
+
 
 u_long* ClearOTag(u_long *ot, int n) {
     if (g_GraphDebugLevel >= 2)
