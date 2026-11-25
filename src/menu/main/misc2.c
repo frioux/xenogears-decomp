@@ -287,6 +287,10 @@ typedef struct {
     /* 0x00 */ MenuWindowTween tweens[3];
 } MenuWindowTweenTable;
 
+// A window's tween record. Every access re-forms the address, which is what retail does:
+// a store through it may alias g_Menu, so g_Menu is reloaded per statement.
+#define MENU_WINDOW_TWEEN(i) (((MenuWindowTweenTable*)g_Menu)->tweens[i])
+
 void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index) {
     s32 deltaX;
     s32 deltaY;
@@ -307,61 +311,55 @@ void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount,
     }
     if (endY < startY) {
         deltaY = startY - endY;
-        ((MenuWindowTweenTable*)g_Menu)->tweens[index].isDecreasingY = 1;
+        MENU_WINDOW_TWEEN(index).isDecreasingY = 1;
     } else {
         deltaY = endY - startY;
-        ((MenuWindowTweenTable*)g_Menu)->tweens[index].isDecreasingY = 0;
+        MENU_WINDOW_TWEEN(index).isDecreasingY = 0;
     }
     if (deltaX >= deltaY) {
-        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX = 0x100;
-        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepY = (deltaY << 8) / deltaX;
+        MENU_WINDOW_TWEEN(index).stepX = 0x100;
+        MENU_WINDOW_TWEEN(index).stepY = (deltaY << 8) / deltaX;
     } else {
-        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepY = 0x100;
-        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX = (deltaX << 8) / deltaY;
+        MENU_WINDOW_TWEEN(index).stepY = 0x100;
+        MENU_WINDOW_TWEEN(index).stepX = (deltaX << 8) / deltaY;
     }
-    ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepCount = stepCount;
-    ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetX = 0;
-    ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetY = 0;
-    ((MenuWindowTweenTable*)g_Menu)->tweens[index].isComplete = 0;
+    MENU_WINDOW_TWEEN(index).stepCount = stepCount;
+    MENU_WINDOW_TWEEN(index).offsetX = 0;
+    MENU_WINDOW_TWEEN(index).offsetY = 0;
+    MENU_WINDOW_TWEEN(index).isComplete = 0;
 }
 void func_801C8324(u_char index) {
-    MenuWindowTween* pTween;
     s32 i;
-    s32 position;
 
-    pTween = ((MenuWindowTweenTable*)g_Menu)->tweens;
-    pTween += index;
-    for (i = 0; i < ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepCount; i++) {
-        if (((MenuWindowTweenTable*)g_Menu)->tweens[index].isDecreasingX) {
-            ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetX -=
-                ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX;
+    for (i = 0; i < MENU_WINDOW_TWEEN(index).stepCount; i++) {
+        if (MENU_WINDOW_TWEEN(index).isDecreasingX) {
+            MENU_WINDOW_TWEEN(index).offsetX -= MENU_WINDOW_TWEEN(index).stepX;
         } else {
-            ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetX +=
-                ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX;
+            MENU_WINDOW_TWEEN(index).offsetX += MENU_WINDOW_TWEEN(index).stepX;
         }
-        if (pTween->isDecreasingY) {
-            pTween->offsetY -= pTween->stepY;
+        if (MENU_WINDOW_TWEEN(index).isDecreasingY) {
+            MENU_WINDOW_TWEEN(index).offsetY -= MENU_WINDOW_TWEEN(index).stepY;
         } else {
-            pTween->offsetY += pTween->stepY;
+            MENU_WINDOW_TWEEN(index).offsetY += MENU_WINDOW_TWEEN(index).stepY;
         }
     }
-    if (((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX == 0x100) {
-        position = pTween->offsetX / 256;
-        if (pTween->isDecreasingX) {
-            if (pTween->startX + position < pTween->endX) {
-                pTween->isComplete = 1;
+    // stepX is 1.0 in 8.8 fixed point when the x delta is the smaller one, and then the
+    // y offset is the one that has to be rounded back to whole pixels.
+    if (MENU_WINDOW_TWEEN(index).stepX == 0x100) {
+        if (MENU_WINDOW_TWEEN(index).isDecreasingX) {
+            if (MENU_WINDOW_TWEEN(index).startX + MENU_WINDOW_TWEEN(index).offsetX / 256 < MENU_WINDOW_TWEEN(index).endX) {
+                MENU_WINDOW_TWEEN(index).isComplete = 1;
             }
-        } else if (pTween->endX < pTween->startX + position) {
-            pTween->isComplete = 1;
+        } else if (MENU_WINDOW_TWEEN(index).endX < MENU_WINDOW_TWEEN(index).startX + MENU_WINDOW_TWEEN(index).offsetX / 256) {
+            MENU_WINDOW_TWEEN(index).isComplete = 1;
         }
     } else {
-        position = pTween->offsetY / 256;
-        if (pTween->isDecreasingY) {
-            if (pTween->startY + position < pTween->endY) {
-                pTween->isComplete = 1;
+        if (MENU_WINDOW_TWEEN(index).isDecreasingY) {
+            if (MENU_WINDOW_TWEEN(index).startY + MENU_WINDOW_TWEEN(index).offsetY / 256 < MENU_WINDOW_TWEEN(index).endY) {
+                MENU_WINDOW_TWEEN(index).isComplete = 1;
             }
-        } else if (pTween->endY < pTween->startY + position) {
-            pTween->isComplete = 1;
+        } else if (MENU_WINDOW_TWEEN(index).endY < MENU_WINDOW_TWEEN(index).startY + MENU_WINDOW_TWEEN(index).offsetY / 256) {
+            MENU_WINDOW_TWEEN(index).isComplete = 1;
         }
     }
 }
