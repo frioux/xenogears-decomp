@@ -42,6 +42,10 @@
 // Primitive code of the free-size tile a rendered string's text is erased with
 #define SYSTEM_STRING_TILE_CODE 0x60
 
+// The tile's packet length in words past its tag word: the tag, the color/code
+// word and the two coordinate/size words
+#define SYSTEM_STRING_TILE_TAG_LEN 3
+
 // One entry of the glyph code table: the two bytes that identify a glyph
 typedef struct {
     /* 0x0 */ u8 firstByte;
@@ -232,7 +236,7 @@ void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y,
     HeapSetCurrentContentType(HEAP_CONTENT_MES_IMAGE);
     pString->pCharBuffer = HeapAlloc(pString->imageWidth * SYSTEM_STRING_CHAR_BUFFER_UNIT_BYTES, HEAP_ALLOC_BEST_FIT);
 
-    setlen(&pString->clearTile[0], 3);
+    setlen(&pString->clearTile[0], SYSTEM_STRING_TILE_TAG_LEN);
     pString->clearTile[0].colorCode = SYSTEM_STRING_TILE_CODE << 24; // r,g,b = 0, code in the top byte
     setXY0Fast(&pString->clearTile[0], pString->x - SYSTEM_STRING_CLEAR_MARGIN_X, pString->y - SYSTEM_STRING_CLEAR_MARGIN_Y);
     setWHFast(&pString->clearTile[0], pString->maxWidth * 4 + SYSTEM_STRING_CLEAR_PAD_WIDTH,
