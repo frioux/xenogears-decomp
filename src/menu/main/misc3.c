@@ -46,11 +46,15 @@ typedef struct {
 extern MenuCardPrefix g_MenuCardPathPrefix0;
 extern MenuCardPrefix g_MenuCardPathPrefix1;
 
-// Best attempt: 99.27% at retail's exact 368 bytes / 92 insns (up from 97.10 — see the reorder below). Residual: ONLY the $s1/$s2 mirror (retail keeps the u_char parameter in $s2 and a0 * 0x10 in $s1; we mirror them) plus the typed-access reloc (retail names D_801C50AC, we reach g_MenuCardPathPrefix0 + 4 — same bytes).
-//    THE REORDER THAT WAS WORTH 2.2 POINTS (this park note previously said statement order could not enter the allocator's quota — that was wrong for the top-of-function store): writing g_MenuCardSlotTotals[a0] = 0; BEFORE retry = 5; restores retail's ori a3,zero,0x5 in the prologue and the following lui/addu %lo sequence, exactly the lever a-global-store-before-the-two-locals-pins-the-missing-li-and-the-s0-s1-roles. A permuter run found it (base 125 -> best 65); its other edit, spelling a0 * 0x10 as 4 * (4 * a0), is inert (measured identical).
-//    The mirror is the lever a-qiparam-size-one-pins-the-saved-pair: -dl gives the parameter '1 bytes' (QI) at 2*5*10000/(55*1) = 1818 against a0 * 0x10's 1*3*10000/(19*4) = 394, so retail's arrangement needs 394 to clear 1818 and every term is pinned by retail's own instruction stream (the parameter stays QI, which is why retail re-does its andi 0xff at four sites; a0 * 0x10 spans the strcpy loop, live 19). Measured dead besides: retry declared u_char (98.13%, 372 bytes), 4 * (4 * a0) for a0 * 0x10 (99.27, identical).
-//    Learned (keep): dir must be declared BEFORE prefix (dir at sp+0x10, prefix at sp+0x38; the other order costs a 0x58 frame with a spare $s3 save). firstfile/nextfile are the PSY-Q libapi calls and the compares are against &dir, not 0. The store at 0x4F8A is cardSlotCounts[a0] (a byte, not the s32 cursor at slotWriteCursor that MenuLoadCardChunk uses).
-/*
+/* Enumerate one memory card's save directory into records[]: the per-card index
+   range is cleared to MENU_SLOT_NONE, the card's "buXX:" prefix is listed with
+   firstfile/nextfile, and the record names are copied in.
+   The one-iteration do/while around the scan is load-bearing: without a label
+   between the scan and the cardSlotCounts store gcc gives the u_char parameter
+   $s1 and a0 * MENU_CARD_RECORD_COUNT $s2, and retail has that pair the other
+   way round (99.27% against 99.78%, retail's 368 bytes / 92 insns either way).
+   The only remaining diff is a relocation: retail names D_801C50AC for prefix's
+   s16, this reaches g_MenuCardPathPrefix0 + 4, the same address. */
 int func_801C8D78(u_char a0) {
     struct DIRENTRY dir;
     MenuCardPrefix prefix;
@@ -60,8 +64,8 @@ int func_801C8D78(u_char a0) {
 
     g_MenuCardSlotTotals[a0] = 0;
     retry = 5;
-    for (i = 0; i < 0x10; i++) {
-        g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + i] = 0xFF;
+    for (i = 0; i < MENU_CARD_RECORD_COUNT; i++) {
+        g_Menu->menuUnk2->slotRecordIndexes[a0 * MENU_CARD_RECORD_COUNT + i] = MENU_SLOT_NONE;
         g_MenuCardChunkInUse[a0][i] = 0;
     }
     if (a0 == 0) {
@@ -71,17 +75,18 @@ int func_801C8D78(u_char a0) {
     }
     if (--retry != 0) {
         count = 0;
-        if (firstfile((char*)&prefix, &dir) == &dir) {
-            do {
-                strcpy(g_Menu->menuUnk2->records[a0 * 0x10 + count].ids, dir.name);
-                count++;
-            } while (nextfile(&dir) == &dir);
-        }
+        do {
+            if (firstfile((char*)&prefix, &dir) == &dir) {
+                do {
+                    strcpy(g_Menu->menuUnk2->records[a0 * MENU_CARD_RECORD_COUNT + count].ids, dir.name);
+                    count++;
+                } while (nextfile(&dir) == &dir);
+            }
+        } while (0);
         g_Menu->menuUnk2->cardSlotCounts[a0] = count;
     }
     return count;
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
+}
 
 
 
