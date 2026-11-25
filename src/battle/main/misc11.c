@@ -312,29 +312,46 @@ void BattleAllocDrawBuffer(void) {
 }
 
 
-/* 91.69%: retail's exact 472 bytes, same calls, same branches, same address
-   computations; only the loop's registers rotate by one (retail v=$a1,
-   offset=$a2, quotient=$a3, digits=$a0, mfhi=$v0; ours v=$a2, offset=$a3,
-   quotient=$v0, digits=$a1, and mfhi needs a third scratch $t3). Measured on top
-   of this body: an explicit running byte offset (`offset = 8; offset += 4;
-   pSrc += 2`) instead of `i * 4 + 8` is 85.22% at the same size (it loses the
-   offset-first `addu` and the folded +8 displacement), `s32 v` is 89.62% at 476
-   bytes, and two 4-minute permuter runs found only a no-op if/else (948 vs 971).
-   cdk gives 93.74, so it is not a preset question.
-   Round 306 measured the address SPIKE on the same body: retail's per-store
-   address is `lw queue; addu v0,v0,s0; addu v0,a2,v0` + `sb K(v0)` - i.e.
-   `(queue + arg0*0x40) + off` with the +0x40 as an `off`-side sum, and the base
-   register FIRST. Writing `(g_BattleCommandQueue + arg0 * 0x40)[off + 8]` (the
-   natural row-subscript form, which is also the only one that reloads the global
-   per store the way retail does) gives the commuted `addu v0,s0,v0` and 87.12%
-   at 472 bytes, so the second half is right but the operand order needs the
-   embedded-assignment/base-in-a-statement forms, not the subscript. */
+/* 91.24% (468 bytes / 117 insns - retail's own instruction count, and every
+   loop register retail's): the quotient is a u8, which is what the "andi
+   v1,a3,0xff before the branch but the raw quotient in the addiu" pair was
+   saying. With `s32 n` the body is 118 insns / 472 bytes and rotates the whole
+   caller-saved set by one (v=a2, offset=a3, n=v0, digits=a1, mfhi=t3); with
+   `u8 n` v=a1, offset=a2, digits=a0, n=a3, both masked copies in v1, the 0xFF in
+   t2, i in t1, D_800D2C0C in t0 - retail exactly - because a QI pseudo may keep
+   the unmasked srl result in its register (the store's addiu reuses it) and is
+   masked at each SI use, which gcc cse's into retail's single andi.
+   SOURCE ORDER IS IRRELEVANT HERE: writing `n = v / 100; digits = 0;` before the
+   three 0xFF stores instead of after them measures the identical 91.24 / 468 /
+   117 (sched1 puts the division back where retail has it either way).
+   What is LEFT is one allocator artifact, the mfhi scratch: retail
+   `mfhi v0 / srl a3,v0,5` at both divisions, ours `mfhi t3 / srl a3,t3,5`, so
+   the third 0xFF store's address stays live across it in v0 (retail has
+   `sb t2,10(v0)` BEFORE the mfhi and `move a0,zero` in the beqz delay slot, ours
+   has them the other way round). Everything still differing downstream is the
+   consequence: retail's three tail address temps take v1 and the
+   g_BattleCommandQueue base loads v0, ours mirror those two.
+   cc1 -da/-dl on this body: the 15 global allocnos are processed
+   115 138 136 77 75 179 166 84 134 86 89 180 74 96 72 and land 115/138 in v1,
+   77 in a0, 75 in a1, 179 in a2, 84/134 in a3, 166 in s0, 72 in s1, 74 in t1,
+   96 in t2 - retail's hand-out - while NO allocno holds t3: the mfhi
+   destination is not in the disposition list and global_alloc prints
+   "Spilling reg 11" twice, i.e. t3 is a spill slot for the mfhi qty, not a
+   priority contest a spelling can re-rank. Treat the residual as parked.
+   Measured dead on this body or the s32-n one: an explicit running byte offset
+   (`offset = 8; offset += 4; pSrc += 2`) 85.22, `s32 v` 89.62 at 476 bytes,
+   declaration order, and two 4-minute permuter runs (base 245 -> 50 -> 40). cdk
+   gives 93.74, so it is not a preset question. Round 306's address-spike note
+   still holds: the per-store address is base-first `(queue + arg0*0x40) + off`,
+   and `(g_BattleCommandQueue + arg0 * 0x40)[off + 8]` commutes the addu (87.12).
+   objdiff's percentage is not monotone for this pair - the 118-insn body scores
+   91.69, the 117-insn one 91.24 - judge by the instruction count. */
 
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
     u8 v;
-    s32 n;
+    u8 n;
     s32 digits;
 
     func_8009A2D4(arg0);
@@ -368,7 +385,6 @@ void func_8007FF14(u8 arg0) {
         g_BattleDisplayState[0xC7] = 1;
     }
 }
-
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
 void BattleResetActorDrawState(u8 arg0) {
