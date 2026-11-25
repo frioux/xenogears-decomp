@@ -270,46 +270,42 @@ void BattleSetSlotConditionActionValue(void) {
         break;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
-/* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
-   used raw u8-array spellings of g_BattleCurrentRow / g_BattleActingSlot / g_BattleTargetSlotEntry; with
-   today's typed externs only the field reads below changed (a byte read of
-   g_BattleTargetSlotEntry->element, because retail uses lbu there but lhu for the 0x40 test).
-   Same block layout and instruction multiset (226 vs 227); every
-   branch, the two duplicated (elemAtk & elem2) blocks, the element case tree,
-   the /10 pair and the two /5 tails line up instruction for instruction. Left:
-   register allocation (retail weak=t6, bitAtk=t5, elemDef=t2; ours weak=t5,
-   bitAtk=t2, elemDef=a0), retail's base-first `addu v0,a0,v0` on the
-   actor[sel].unk15A stride (both `pBase + sel * 0x170` and
-   `sel * 0x170 + (s32)pBase` give index-first), and one extra
-   `andi v0,t1,0xff` on the second `elemAtk & pair` (retail does the AND in
-   QImode because its result only feeds a compare against 0). Notes for the next
-   attempt: `weak`/`hitB` must be s32 (a u8 costs an andi at each test),
-   `hitA` is u8 (its test takes andi 0xff), and the switch needs a hoisted
-   `mask = elem2 << 8` local - that is what makes retail emit the single
-   `sll v1,t2,0x8` before the case chain. Tried: u8 vs s32 weak/hitB, nested vs
-   && for the elemAtk == 0 guard, declaration order, u16 vs u8 elemAtk.
+// best 93.85% (round 473 re-measure: 912 bytes = retail's exact 0x390, 227 vs 227 insns, 84 differing lines).
+//    WHAT CLOSED: the two element-stride reads were raw u8 casts (pBase + idx*0x170 + 0x15A); they are
+//    g_BattleCurWorkBlock->slots[idx].state.flags (0x15A = state.flags at 0xA4+0xB6), and that typed
+//    subscript also fixed BOTH base-first 'addu v0,a0,v0' sites. The tail's two 0x10 tests read a u16 at
+//    0x32, not equipmentPercents at 0x2E: they are accessoryEffectFlags5. hitB = 0 must be hoisted above
+//    the bitAtk if/else (retail's else arm sets it only conditionally); with the init inside that arm gcc
+//    if-converts it to sltu and the body is 4 bytes short. weak and hitB are u8.
+//    LEFT: one three-register rotation, pivoted on elemDef. Retail: elemAtk=t1, elemDef=t2 (and elem2
+//    reuses t2 once elemDef dies), so m/pair sits in v1 and hitB in t0. Here elemDef takes a0 (first free
+//    in REG_ALLOC_ORDER after v0/v1), which pushes elem2->v1, m->t0, hitB->t1. Retail also copies before
+//    each test ('move v0,t6' / 'move v0,t0') where we test the register directly.
+//    TRIED, all worse or equal: weak s32 / hitB s32 (93.80), mul s32 (88.56), elemAtk u16 (232 insns) or
+//    s32 (225), elem2 s32 (229), pair u8 (92.62), m u8 (88.06), one pair variable reused as m (93.10),
+//    elemAtk/elemDef declaration swap, elemDef statement before elemAtk (92.30) or after bitDef (equal),
+//    hitB init at declaration without the statement (93.48). Presets: 2.6.0 is right - 2.7.2 89.81,
+//    2.7.2-cdk 85.73, -G0 identical, -O3 identical, -O1 78.43.
+/*
 void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
-    u8 *pBase;
     u8 bitAtk;
     u8 bitDef;
     u8 elemAtk;
     u8 elemDef;
     u8 elem2;
-    s32 weak = 0;
+    u8 weak = 0;
     u8 hitA = 0;
-    s32 hitB;
+    u8 hitB;
     u16 pair;
     u16 m;
     u16 mask;
     s8 mul;
     u8 mul2;
 
-    pBase = g_BattleCurWorkBlock;
-    bitAtk = *(u8 *)(pBase + g_BattleCurSlotIndex * 0x170 + 0x15A) >> 7;
+    bitAtk = g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags >> 7;
     elemAtk = g_BattleCurrentRow->element & 0x3F;
     elemDef = *(u8 *)&g_BattleTargetSlotEntry->element & 0x3F;
-    bitDef = *(u8 *)(pBase + g_BattleTargetSlotIndex * 0x170 + 0x15A) >> 7;
+    bitDef = g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags >> 7;
     if (bitDef == 0) {
         pair = g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7;
     } else {
@@ -339,12 +335,12 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
             mul += 2;
         }
     }
+    hitB = 0;
     if (bitAtk == 0) {
         m = g_BattleTargetSlotEntry->activeEffectFlags7 | g_BattleTargetSlotEntry->accessoryEffectFlags7;
         elem2 = (m & 0xF00) >> 8;
         hitB = (m >> 1) & 1;
     } else {
-        hitB = 0;
         m = ((BattleSlotState *)g_BattleCurSlotState)->activeEffectFlags3 |
             ((BattleSlotState *)g_BattleCurSlotState)->accessoryEffectFlags3;
         elem2 = (m & 0xF00) >> 8;
@@ -405,14 +401,16 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     }
     *pA = *pA * mul / 10;
     *pB = mul2 * *pB / 10;
-    if (((u16 *)g_BattleActingSlot->equipmentPercents)[0] & 0x10) {
+    if (g_BattleActingSlot->accessoryEffectFlags5 & 0x10) {
         *pA += *pA / 5;
     }
-    if (((u16 *)g_BattleTargetSlotEntry->equipmentPercents)[0] & 0x10) {
+    if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x10) {
         *pB += *pB / 5;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
+
+
 void BattleRollPercentAndSetState38(void) {
     s32 t = g_BattleActingSlot->ether + g_BattleCurrentRow->chanceBonus;
 
