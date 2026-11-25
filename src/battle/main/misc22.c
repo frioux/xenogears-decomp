@@ -1006,36 +1006,35 @@ typedef struct {
     /* 0x173C */ POLY_G4 gradQuads[4];
 } BattleMisc22RenderData; // Size: 0x17CC
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
-/* best 85.22% (2480 bytes; retail 0x9C4 = 2500, 619 insns vs our 614, so the body is
-   five instructions SHORT and can never link as it stands). Structure is right end to
-   end and every construct is identified: the two addPrims of the 12-byte otPrims pair
-   (otPrims[index + 2] first, otPrims[index] last), the two RTPS projections of the
-   pArg->faceScale corner offsets scaled by nearScale (POLY_G4 [index+2] / POLY_F4
-   [index+2]) and by farScale (POLY_G4 [index], the y derived from the first corner),
-   the ratan2/VectorNormalS/RotMatrix/RotMatrixYXZ/CompMatrix chain that places the 9x9
-   SVECTOR grid, the scroll -> (u, v) wrap through texPeriod/2, and the 8x8 RTPT + NCLIP
-   + RTPS loop that fills the POLY_FT4 grid (SXY3 into +8/+0x10/+0x18, SXY into +0x20,
-   u0..u3 at 0xC/0x14/0x1C/0x24, v0..v3 at 0xD/0x15/0x1D/0x25).
-   WHAT IS LEFT is the frame and the allocator, not the source:
-   - retail's frame is 0xE8 with the locals starting at 0x18; ours is 0xE0 with the
-     locals at 0x10, i.e. the whole stack layout is shifted by 8, which alone accounts
-     for most of the 606 differing lines. Retail's two screen-position records each
-     occupy 8 bytes (0x70 and 0x78, 4 used and 4 spare), which is where the 8 bytes go;
-     declaring the struct as 8 bytes does NOT reproduce it (gcc 2.6 packs it to 4 and
-     the frame stays 0xE0).
-   - register numbering: retail pArg in $s3, ours in $s2; retail pMatrix in $fp, ours in
-     $s8; the nclip branch, the angle/zoom chain and the loop counters all shift with it.
-   - the `if (faceSxy.y >= 0) { ... } else faceSxy.y = 0;` converging to the POLY_F4
-     test: retail re-tests faceSxy.y at the join (0x50B8) where we emit a `j`.
-   Tried and measured: POLY_GT4 for the 128 textured quads (the header's POLY_GT4 is 0x34,
-   retail's records are 0x28 = POLY_FT4, so that was +0x600 on every array offset;
-   fixing it 83.20 -> 85.41); `(x + 0xFF) >> 8` instead of `/ 256` for the near/far
-   scaling (79.17 -> 83.21, retail really has the sign-correcting division); a u16
-   texMask (85.41% but emits an `andi` retail does not have, so the s32 form at 85.22 is
-   kept); an 8-byte screen-position record (no change). Not tried: a permuter run (the
-   residual is an 8-byte frame shift plus a global register tie, which it cannot reach).
-/* 85.22%, 2480 bytes against retail 2500.
+// best 90.62% (2492 bytes; retail 0x9C4 = 2500). Structure is now retail's end to end:
+// the three fixes that took it 85.22 -> 90.62 are in the body below:
+//   1. the faceSxy.y >= 0 / else faceSxy.y = 0 pair is TWO sequential ifs, not if/else
+//      (retail re-loads and re-tests faceSxy.y at the join, 0x50B8: 'lh v0,0x7A(sp);
+//      bgez -> test', and sends the first test's false edge straight to the zeroing);
+//   2. the third projection's y is built from cornerSxy.y (0x72), and faceSxy.y is read
+//      unsigned there ('lhu 0x7A'), which is what the u_short fields give;
+//   3. texMask is the inline '(pArg->texPeriod - 1)' in BOTH uBase and vBase (gcc CSEs
+//      the -1 into one t1, as retail does) and halfPeriod is computed after them;
+//      a texMask local computed before the divisions earns an 'andi' retail lacks.
+// WHAT IS LEFT (frame + allocator, 100 is out of reach without the frame fix):
+//   - retail's frame is 0xE8 with the locals at 0x18; ours is 0xE0 with the locals at
+//     0x10. Retail's slot map (declaration-ish order) is rotGrid 0x18, rotFlat 0x38,
+//     rot 0x58, vec 0x60, cornerSxy 0x70, faceSxy 0x78, dir 0x80, corner 0x90,
+//     normal 0x98, nclip 0xA0 - every slot 8-byte aligned, both screen-pos slots 8
+//     apart - and NOTHING in retail's asm touches 0x10..0x17: retail carries a dead
+//     8-byte stack slot at the frame bottom. No source spelling produces a slot gcc
+//     allocates and never references, so the frame cannot be reproduced and every
+//     $sp offset here is 8 low; that alone is most of the remaining diff.
+//   - with 24-bit and 24-bit/0xFF000000 constants in saved registers retail keeps
+//     pArg in s3 and the 0xFF000000 mask in s2; ours has pArg in s2 and the mask in s3
+//     (allocator tie on the addPrim macro's constant).
+//   - the loop preheader and the third projection's y0/y1 stores are scheduled one
+//     statement differently (retail hoists 'lhu a2,0x70(sp)' above the nclip test).
+//   - 8 bytes / 2 instructions short after the three fixes (2492 vs 2500).
+// Tried and measured this round: un-parking as-is re-measured 85.22 (the old note was
+// not stale), then the three fixes above. Earlier rounds measured an 8-byte screen-pos
+// record and (x + 0xFF) >> 8 in place of the sign-correcting /256 - both worse.
+/*
 void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, MATRIX *pMatrix,
                    u_long *pOt, s32 index) {
     VECTOR vec;
@@ -1061,7 +1060,6 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
     s32 uEnd;
     s32 vStart;
     s32 vEnd;
-    s32 texMask;
 
     if (pArg == 0) {
         return;
@@ -1101,7 +1099,8 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
             pArg->gradQuads[index + 2].y3 = faceSxy.y;
             addPrim(pOt, &pArg->gradQuads[index + 2]);
         }
-    } else {
+    }
+    if ((s16)faceSxy.y < 0) {
         faceSxy.y = 0;
     }
     if ((s16)faceSxy.y < 0xF0) {
@@ -1152,10 +1151,9 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
 
     pArg->scrollX += pArg->scrollStepX;
     pArg->scrollY += pArg->scrollStepY;
-    texMask = pArg->texPeriod - 1;
+    uBase = ((s16)pArg->scrollX / 16 + vec.vx / 12) & (pArg->texPeriod - 1);
+    vBase = ((s16)pArg->scrollY / 16 + vec.vz / 12) & (pArg->texPeriod - 1);
     halfPeriod = (s16)pArg->texPeriod / 2;
-    uBase = ((s16)pArg->scrollX / 16 + vec.vx / 12) & texMask;
-    vBase = ((s16)pArg->scrollY / 16 + vec.vz / 12) & texMask;
 
     pQuad = &pArg->quads[index][0];
     pVert = &pArg->verts[0][0];
@@ -1193,8 +1191,10 @@ void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, M
         addPrim(pOt, &pArg->flatQuads[index]);
     }
     addPrim(pOt, &pArg->otPrims[index]);
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
+
+
 s32 BattleGetTriangleVertexTable(void) {
     return (s32)g_BattleTriangleVertices;
 }
