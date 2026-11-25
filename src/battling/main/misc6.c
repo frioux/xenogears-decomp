@@ -673,7 +673,18 @@ void BattleSetTextColor(s32 arg) {
 }
 
 
-// best 87.66% (124 bytes against retail's 128, 31 of 32 insns) and that number needs a VOLATILE read (see below); the clean body here is 76.72% / 100 bytes because gcc CSEs the two identical reads into one. Retail reads g_SpuChannelMask TWICE in two ADJACENT lw at the top of the arg != 0 arm, red from the first (v1) and green from the second (a0), then a SECOND ori 0xFF, then sb blue, then red's chain, then green's chain. Everything else is right: store order blue/red/green, sll-addu-sll by 20, the 0xFF local giving li+subu where a literal 0xFF gives nor (72.66%), the else arm's one ori in the beqz delay slot. RE-MEASURED THIS ROUND: (1) the parked clean body 76.72% / 100 bytes, 25 insns; (2) statement order red, blue, green compiles BYTE-IDENTICAL to blue, red, green (gcc sinks the blue store and merges anyway - a store to g_BattleTextBlue does NOT invalidate the memory-CSE entry in gcc 2.7.2), still 76.72; (3) volatile on the green read 87.66% / 124 bytes / 31 insns, the two lw present but the volatile one is pinned at its statement instead of hoisted to the top, and that 4-byte gap cannot be closed from C because a volatile load may not move. So the residual is TWO SOURCE READS OF ONE ADDRESS, which needs two symbol names for 0x80059488; config/symbol_addrs.slus_006.64.txt has only g_SpuChannelMask there and the overlay yaml loads that file, so a duplicate entry stops splat (see the e-a-main-exe lever). Do not ship the volatile spelling: it is 4 bytes short and cannot link. ALSO MEASURED: the round-471 alias trick (a second declaration 'extern s32 g_SpuChannelMaskAlt __asm__("g_SpuChannelMask");' read by the green statement, which defeats cse because the two DECLs are distinct gcc objects while relocating to one symbol) gives the same two loads at the same 87.66% / 124 bytes / 31 insns with the second load pinned at its own statement - and it is insensitive to statement order, so the alias buys no more than volatile does and needs no extra symbol in symbol_addrs.
+// best 87.66% / 124 bytes / 31 insns needs a VOLATILE (or __asm__-alias) read of g_SpuChannelMask, and 124 is not
+// retail's 128, so it cannot link; THIS clean body is 76.72% / 100 bytes / 25 insns (re-measured this round).
+//    Retail reads g_SpuChannelMask TWICE (lui/lw v1 then lui/lw a0, adjacent), derives red from the first and green
+//    from the second, redoes the whole sll/addu/sll x20 chain for each, and BOTH loads sit above the `sb blue`.
+//    gcc 2.7.2 CSEs the load AND the multiply when the two statements name one object, so this body needs two
+//    source-level names for the one address: `volatile` gives 87.66% but pins the second load at its own statement
+//    (a volatile load may not move), and the round-471 `extern s32 g_SpuChannelMaskAlt __asm__("g_SpuChannelMask")`
+//    alias gives the same 124 / 31 - so neither closes the 4-byte gap. config/symbol_addrs.slus_006.64.txt has
+//    only g_SpuChannelMask there and a duplicate entry stops splat. The two-volatile-casts lever (misc8) does not
+//    apply: it pins a RELOAD BELOW a store, and retail here has both loads ABOVE the store.
+//    Everything else is retail and order-insensitive: store order blue/red/green, the 0xFF local giving li+subu
+//    where a literal 0xFF gives `nor` (72.66%), the else arm's single ori in the beqz delay slot.
 /*
 void func_8007EE68(s32 arg) {
     s32 white = 0xFF;
@@ -765,11 +776,23 @@ void BattleInitSpriteRectTable(void) {
     }
 }
 
-// best 90.98% at 512 bytes. RETAIL IS 508 BYTES / 127 INSTRUCTIONS, NOT 512 as the previous note said (count the .s: 0x8007F05C to 0x8007F068 = 0x1FC), so this body is 4 bytes OVER, and the two residuals are now named exactly:
-//    1. OUR +1 INSTRUCTION: retail loads the entry's first word into a0 (lw a0,0(v0)) and its load-delay slot is filled by 'lui v1,%hi(g_BattleSpriteRects)'; ours loads it into v1 (the dying g_BattleEntries pointer register), so the next instruction would clobber v1, gcc emits a nop, and the sprite chain shifts down (sll v0,v1,2 / addu v0,v0,v1). Fixing this one register removes the extra instruction.
-//    2. OUR -1 INSTRUCTION in the shaded arm: retail has 'addiu t0,t0,-0x40' THEN 'sra t0,t0,4', i.e. it derives half from the COLOUR value in shade's own clobbered register (the addiu +0x40 is in the bne delay slot, in place). Our source's 'half = (color - 0x40) >> 4' is folded by cc1 to 'sra a0,t1,4' on shade, which also keeps shade alive in a second register (t1) and drags the x1/y1 association and the last three sw registers with it.
-//    MEASURED THIS ROUND, all from this body: (a) splitting x1/y1 into 'x1 = x0 + 0x34; x1 += grow;' (retail's (x0+0x34)+2k association) = 75.08% / 512 / 128, the allocator collapses and shade moves to a1 - do not repeat it; (b) 'color += 0x40;' inside the shaded arm instead of 'grow = shade + 0x40;' before the if = 84.49% / 504 / 126: the addiu +0x40 leaves the delay slot and the -0x40 STEALS TO BE FOLDED AGAIN, so the in-place colour idea does not by itself give retail's two instructions; (c) 'pSprite = &g_BattleSpriteRects[*g_BattleEntries[idx]];' (indexing the entry word inline, no count local) compiles BYTE-IDENTICAL to this body - cse reassociates it, so the a0/v1 choice is not reachable that way.
-//    Unchanged from the earlier note, each measured: the grow/color two-name alias is what puts retail's addiu +0x40 in the bne delay slot; color|(color<<8)|(color<<16) in that order gives 'or v0,t0,v0'; sprite fields are s16 (that is what makes the uv stores lhu and the GetTPage/GetClut args lh); permuter already ran three times on this family (base 1855 -> 1465, 866 -> 656) and the old 'y1 split' lead is 508 bytes i.e. one instruction short - it cannot link.
+// best 96.42% / 504 bytes / 126 insns - ONE INSTRUCTION SHORT of retail's 508/127, so it cannot link.
+//    THE HEAD IS NOW EXACT (prologue, `lw t0,48(sp)`, the idx wrap, g_BattleEntries) after two changes:
+//    (1) form the sprite base BEFORE the queue entry - `pSprite = g_BattleSpriteRects;` then
+//    `pSprite = &pSprite[*g_BattleEntries[idx]];` - which kills the old extra nop: 90.98 -> 93.65% and the body
+//    to retail's exact 508 bytes / 127 insns. (2) `x = x + 0xD3;` (not `x += 0xD3;`) plus reusing the dead
+//    `color` local for y1's partial sum (`color = y0 + 0x38; y1 = color + grow;`, a permuter find) gives
+//    retail's y1 pair `addiu v0,v0,56 / addu v0,v0,a2`: 96.42%, one instruction short.
+//    THE THREE RESIDUALS, named: retail `lw a0,0(v0)` with the rects base in v1, ours `lw v1,0(v0)` with the base
+//    in s1 (value and base columns swapped - allocator tie; inline indexing, the count local, base-first and
+//    value-first all measured); retail `addiu t0,t0,-0x40 / sra t0,t0,4` where cc1 folds `(color - 0x40) >> 4`
+//    back to `sra a0,t0,4` on shade (this IS the missing instruction); and our x1 folds 0x34 into grow's addiu
+//    (`addiu v1,a2,52 / addu v1,a1,v1`) where retail keeps `addiu v1,a0,52 / sll a2,t0,1 / addu v1,v1,a2`.
+//    Permuter, three runs this family (base 666 -> 455 -> 445); its best 445 body is this one with
+//    `half = 0x34; x1 = x0 + half + grow;` = 96.50% (a folding-constant local, still 504 bytes).
+//    Dead ends measured this round, do not repeat: `x1 = x0 + 0x34; x1 += grow;` 83.94% / 512 / 128 (the
+//    allocator collapses and shade moves to a1), `color = x0 + 0x34; x1 = color + grow;` 78.43% / 512 / 128,
+//    and the parameter-reassignment shape (`shade += 0x40` inside the arm) 504 bytes / 126.
 /*
 void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     BattleSprite* pSprite;
@@ -777,6 +800,7 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     s32 color;
     s32 half;
     s32 grow;
+    s32 n;
     s32 u;
     s32 x0;
     s32 y0;
@@ -784,20 +808,21 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     s32 y1;
 
     if (flag != 0) {
-        x += 0xD3;
+        x = x + 0xD3;
     } else {
-        x += 0x33;
+        x = x + 0x33;
     }
-    count = g_BattleEntryCount;
-    if (idx > count - 1) {
-        idx -= count;
+    n = g_BattleEntryCount;
+    if (idx > n - 1) {
+        idx -= n;
     }
     if (idx < 0) {
-        idx += count;
+        idx += n;
     }
+    pSprite = g_BattleSpriteRects;
     count = *g_BattleEntries[idx];
     grow = shade + 0x40;
-    pSprite = &g_BattleSpriteRects[count];
+    pSprite = &pSprite[count];
     color = grow;
     if (shade == 0x40) {
         setlen(pPkt, 9);
@@ -814,7 +839,8 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
         y0 = 0x34 - half;
         grow = half * 2;
         x1 = x0 + 0x34 + grow;
-        y1 = y0 + 0x38 + grow;
+        color = y0 + 0x38;
+        y1 = color + grow;
         *(u_long*)&pPkt->x0 = x0 | (y0 << 16);
         *(u_long*)&pPkt->x1 = x1 | (y0 << 16);
         *(u_long*)&pPkt->x2 = x0 | (y1 << 16);
@@ -830,6 +856,7 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     AddPrim(g_BattleRootOrderingTable, pPkt);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
+
 
 
 
