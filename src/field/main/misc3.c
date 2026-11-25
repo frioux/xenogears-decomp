@@ -12,21 +12,18 @@
 extern void ArchiveCdDataSync(int mode);
 
 
-// Best attempt, 93.66% at 660 bytes against retail's 672 (three instructions
-// short). Structure and every call match; two sched2/allocator spots differ.
-//  1. The two 0x14-byte light copies (`pLights[1] = pLights[0]`) are hoisted ten
-//     instructions above the third light's `sh ... D_800AFB00`: retail's copy
-//     loads land in $v0/$v1/$a2/$a3 and so cannot move above the `sh $v0`, our
-//     compile gives them $v1/$a2/$a3/$t0 and they float up (retail's two
-//     load-delay `nop`s go with them). Making the copy source or destination
-//     volatile does not help (a volatile source turns the copy into two memcpy
-//     calls).
-//  2. The three trailing ambient reads: our compile hoists the third `lhu` into
-//     the second one's load-delay slot with a fresh $v1; retail reads all three
-//     into $v0 with `nop` after each. Keeping the `color` temp for all three is
-//     what gets the rest of the shape right (writing the shift straight into the
-//     globals loses an instruction: 89.37%).
-// Levers that DID land, and are in the parked body: give each light its own
+// Best attempt, 98.45% at 668 bytes against retail's 672 (ONE instruction short,
+// so it can never link). Structure, every call and the whole instruction
+// multiset match; the residual is one scheduler placement. Levers that DID land,
+// and are in the parked body:
+//  - an empty `do { ... } while (0);` around each of the three trailing ambient
+//    read+store statements: sched1 otherwise hoists the third `lhu` into the
+//    second one's load-delay slot with a fresh $v1 (89.37 -> 95.24, and that
+//    whole block then matches retail instruction for instruction).
+//  - an empty `do { ... } while (0);` around the two 0x14-byte light copies:
+//    without it sched1 floats the 22-instruction copy block up into the third
+//    light's `lhu` load-delay slot (95.24 -> 98.45).
+// Give each light its own
 // pointer local (`pLight1 = &pLights[1]`) and use it for BOTH the `vx` store and
 // the func_80030A30 argument - that is what makes the store `sw $v0,332($s1)`
 // and the argument `addu` instead of a rematerialised `lui $at` + `sw
@@ -72,19 +69,34 @@ extern s16 D_800AFB04;
 extern s16 D_800AFB06;
 extern s16 D_800AFB08;
 
-// Round 394 re-measure: 93.66% / 660 bytes against retail's 672 (three instructions
-// short, so it can never link). Re-parked from a now-compiling body. Newly measured
-// this round: gcc-2.6.0 -O2 -G8 gives the SAME 93.66 and 2.7.2-cdk 92.89, so this is
-// not a preset question; element-wise field copies for the two pLights copies are
-// 70.00% (704 bytes, worse); *pLight1 = pLights[0] / *pLight2 = pLights[0] is
-// byte-identical to the struct assignment; dropping the (now removed) volatile on
-// D_800AFB00 changes nothing. The two residuals are unchanged and both are gcc
-// hoisting what retail left alone: (1) the 22-instruction copy block moves above the
-// third light's sll/sh because its loads took $v1/$a2/$a3/$t0 - retail's copy
-// loads take $v0 and so cannot pass the sh that reads $v0; (2) the third ambient
-// lhu fills the second one's load-delay nop into a fresh $v1 (2 of the 3 missing
-// instructions). Both come from the same cause: retail keeps every one of those
-// values in $v0, ours frees it.
+// Round 471: 98.45% / 668 bytes, ONE instruction short of retail's 672. The two
+// residuals round 394 left are both closed (see the lever list above), and the
+// remaining row is a three-way contest between the third light's `pData++` skip,
+// the call's `li a0,0x2` and `addiu a1,s1,352`, over one load-delay slot and the
+// jal slot. Retail: `lhu v0,0(s0) / nop / sll / sh` then the copies then
+// `jal / addiu s0,s0,4`, with `li a0,0x2` + `addiu a1,s1,352` hoisted to the head
+// of the light's block and the copies in $v0/$v1/$a2/$a3. The parked body has the
+// copies in retail's place but pays for it: the skip's `addiu s0,s0,4` fills the
+// `lhu` load-delay slot (retail's `nop`), which pushes `li a0,0x2` into the jal
+// slot and frees $a0, so the copies land in $v0/$v1/$a0/$a2. Measured this round,
+// all 668 bytes / 167 insns and all still short by one, i.e. each variant just
+// moves the missing slot around: the skip after the copy block (natural source
+// order, no barrier) 95.24 at 43 differing lines - the copies hoist and the skip
+// lands in the jal slot as retail has it; skip after the barrier block 97.26;
+// skip as the barrier block's last statement 97.26; skip as its first statement
+// 97.26 (there `addiu a1,s1,352` takes the load slot and `li a0,0x2` the jal
+// slot). build/src/field/main/misc3.c.i compiled with the unit cc1 plus
+// -fno-schedule-insns (and
+// -fno-schedule-insns2 on top) is retail's exact stream INCLUDING the load-delay
+// nops, so the mover is sched1's forward delay-slot fill, not the source order.
+// gcc-2.7.2-cdk measures the same 98.45 and 2.6.0 the same 93.66 as before, so it
+// is not a preset question. Dead earlier: element-wise field copies (70.00), a
+// volatile copy source (turns it into memcpy calls), a volatile D_800AFB00.
+// Next lever: something that gives those two call-argument insns a home before the
+// load slot, or closes the slot with a conflicting instruction.
+// Best 98.45% / 668 bytes against retail's 672 (one instruction short). Every
+// variant measured this round is in the Round 471 note above; the mover is sched1's
+// forward delay-slot fill.
 /*
 void func_8006FDEC(s16* pData) {
     FieldLight* pLights;
@@ -134,16 +146,24 @@ void func_8006FDEC(s16* pData) {
     D_800AFB00 = (u_short)*pData++ << 3;
     pData++;
 
-    pLights[1] = pLights[0];
-    pLights[2] = pLights[0];
+    do {
+        pLights[1] = pLights[0];
+        pLights[2] = pLights[0];
+    } while (0);
     func_80030A30(2, pLight2);
 
-    color = (u_short)pData[0] << 4;
-    D_800AFB04 = color;
-    color = (u_short)pData[1] << 4;
-    D_800AFB06 = color;
-    color = (u_short)pData[2] << 4;
-    D_800AFB08 = color;
+    do {
+        color = (u_short)pData[0] << 4;
+        D_800AFB04 = color;
+    } while (0);
+    do {
+        color = (u_short)pData[1] << 4;
+        D_800AFB06 = color;
+    } while (0);
+    do {
+        color = (u_short)pData[2] << 4;
+        D_800AFB08 = color;
+    } while (0);
     pData += 3;
 
     SetRotMatrix(&g_Scene.viewMatrix);
@@ -154,6 +174,7 @@ void func_8006FDEC(s16* pData) {
     SetTransMatrix(&g_Scene.worldToScreenMatrix);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_8006FDEC);
+
 
 
 
