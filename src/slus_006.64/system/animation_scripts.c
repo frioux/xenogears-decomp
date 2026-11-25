@@ -665,6 +665,25 @@ extern void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData);
 // life - i.e. retail's source had some shape that keeps the loop's RTL insn_count above the loop.c
 // threshold (see the round-330 formula note above) even with an early AND. Nothing in the body has
 // been found that raises insn_count without changing an instruction.
+// ROUND 495: re-measured 95.81% (788 bytes = retail's exact size, 197 insns, saves s0-s5 + ra, frame
+// 0x30) - unchanged from round 482. The residual is still only the tail block: retail computes
+// 'and a1,v0,a2' (flags & 0xF03FFFFF) as the 3rd instruction after the loads, ours as the 10th
+// (after the sll); everything else in the function is register naming downstream of that one.
+// NEW HARD EVIDENCE that it is a compiler wall, not a spelling (cc1 -dL on the retail-shaped tail,
+// i.e. the mask AND before the srl): the loop dump says 'Loop from 14 to 454: 180 real insns' and
+// 'Insn 158: regno 129 (life 15), move-insn savings 1 moved to 465'. loop.c hoists iff
+// 25 * savings * life >= insn_count, so with insn_count = 180 any constant with life >= 8 is
+// hoisted. Retail's instruction order puts the mask's two uses ~15 insns apart (tail AND ->
+// count == 0 AND), so it is always hoisted for us; the parked body only escapes because its AND
+// sits after the sll (life <= 7). Measured AND positions: after the flags load 93.42 (796, mask
+// in s5 and s6 taken from the scriptIndex argument), between the count and the sll 93.42 (796,
+// same hoist), after the sll (this body) 95.81 (788, in-loop). Preset sweep on the retail-shaped
+// body: unit cdk -O2 93.42, plain 2.7.2 87.78, 2.6.0 87.60, and the unit's already-matched
+// functions break under both alternatives, so the preset is not the cause. Also measured:
+// '((flags >> 3) & 1) ^ ((flags >> 2) & 1)' for the flip XOR (retail's interleaved
+// srl/andi/srl/andi) 95.66, worse than the parked nested '(flags >> 2) >> 1' form which gcc CSEs
+// into the same two shifts but pairs; the 0xBE 0x3C load after the two lbus 93.50 / 796 = note (p).
+// 100.00% needs retail's tail order with a mask life of 15 and a loop.c that does not hoist it.
 /*
 void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
     u8* pBytecode;
@@ -781,6 +800,7 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
     }
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
+
 
 
 
