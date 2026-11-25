@@ -675,19 +675,6 @@ s32 func_801D9704(s32 slot, u_char direction, u_char gearScreen) {
 
 
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
-
-/* 97.08%. Only `case 1` of the g_Menu->input switch differs: the original
-   lays the then-arm (subMenuChoice--) out first and branches `beqz` forward to
-   the subMenuNumChoices - 1 arm; gcc always emits the numChoices - 1 arm first
-   and branches `bnez` forward to the decrement, and it reuses the loaded value
-   in the branch delay slot instead of reloading it in the arm (the original
-   reloads). Both if/else arm orders give byte-identical code. Everything else
-   matches: frame 0x38, $s0 = choice, $s1 = firstPass, $s2 = quit (and the
-   loop-test mask), $s3 = accepted, $s4 = the hoisted constant 1 of `case 1`,
-   and the blocks come out in the order case 4+5 (fall-through), 1, 3, so the
-   switch's source order is 4/5, 1, 3. The function returns 1 (the trailing
-   `li v0,1` before jr ra). Full decode below.
 s32 func_801D9808(void) {
     u_char quit = 1;
     u_char firstPass = 1;
@@ -727,10 +714,10 @@ s32 func_801D9808(void) {
             quit = 0;
             break;
         case 1:
-            if (g_Menu->subMenuChoice == 0) {
-                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices - 1;
-            } else {
+            if (g_Menu->subMenuChoice != 0) {
                 g_Menu->subMenuChoice--;
+            } else {
+                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices - 1;
             }
             break;
         case 3:
@@ -759,7 +746,7 @@ s32 func_801D9808(void) {
     g_Menu->pManager->unk3 = 0;
     return 1;
 }
-*/
+
 void MenuOpenCardEvents(void) {
     MenuCloseCardEvents();
     Vsync(0);
