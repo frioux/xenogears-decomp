@@ -3820,10 +3820,18 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
 // - case-8 declaration order with `flag` declared first: byte-identical.
 // - `volatile u16 unkFlag[4]` (not 8) is the right size: retail reads that slot at
 //   0x50(sp) before writing it and the frame is 0x88 with this one.
-// A future round with budget could try the levers file's double-negated base spelling on
-// the two stores of (b) - `(u8 *)D_801E8644 - -(index * 2) + K` is the measured way to
-// put the base in the addu destination, one edit per site. It is worth about 0.2% here
-// and is ROUGH as source, so it was not taken.
+// - (b) is closed: `((s16 *)((u8 *)D_801E8644 + pCmd->index * 2))[4]` and `[7]` (the
+//   levers' cast/paren-sum spelling, and the closest thing to the double negation when
+//   the base is a pointer MEM loaded once, not a pointer variable) measure byte-identical
+//   to the plain subscript at 97.61 / 1512 / 378. Both remaining orders are the
+//   legitimiser's choice between three uses of one expression.
+// - (a) with `pCommand = pCmd;` and the merged reads through pCommand: as the first
+//   statement of the `index < 2` block the copy DOES survive, but it costs 4 instructions
+//   (382 insns, 1528 bytes, 95.71) and re-allocates case 9 (its pointer leaves a0 for s2);
+//   at the top of case 2's `unk4 != 0` block it is 96.74 / 1512 / 378 with the whole body
+//   mirrored ($s0/$s1 swapped at every site), because the extra pseudo takes a
+//   callee-saved register. So the copy cannot be added without re-allocating the function;
+//   (a) is not reachable by sourcing.
 /*
 void func_801E5D44(Model* pModel, s32 arg1, s32 arg2) {
     ModelScriptCommand* pCmd;
