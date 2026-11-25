@@ -456,31 +456,54 @@ void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
 // group (0 the character's own equipment, 1 and 2 the two gear panels), arg2 reads
 // the ids the panel itself holds instead of the live records, and arg3 takes the
 // names from the character's gear rather than the character.
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
-/* PARKED 89.81% under XenoMenu260 (gcc 2.6.0): 2152 bytes / 538 insns against retail 2144 / 536.
- Residual: the prologue save order. Retail spills s4 = a1 (arg1) right after s1 = a0 and then
- uses a1 as its g_Menu scratch; this body saves s4 after s0 and uses t0 for g_Menu, so every
- later register name shifts, and two instructions in that head are extra. Local slot picture is
- retail's exactly (0x20 rowCount, 0x28 rowX, 0x30 rowTableOfs, 0x38/0x40 the id pointers,
- 0x48 loadImage, 0x50 the masked arg0) after declaring the three row scalars first and the
- RECT second (89.77 -> 89.81).
- What is right: the whole shape - the 5-vs-4 row count, the 0xD0/0x28 row X and the 9/5
- D_801E9D88 offset picked by arg1, the three id pointers (characters weaponId /
- extraWeaponIds / accessorySlots, the gears copy under arg3, the panel's own 0x29C/0x2A1/0x2A6
- copies under arg2), the four-way i == 0 name render, the i == 4 and arg3 == 0 skip, the arg1 < 2
- accessory rows with their i == 1 gear weaponId[3] special case, the extraWeaponIds[i] rows for
- arg1 == 2, the i & 1 / arg3 loadImage chain including its uninitialised path (retail really does
- read the slot without storing it), the RECT + LoadImage + DrawSync block, MenuSetStringPrimitives
- per row, the i == 4 tpage/CLUT/uv block and the MenuSetQuadVertices row.
- Also tried: declaring the RECT first (89.77).
-Ghidra/asm facts worth keeping: pEquipmentPanel is a 0x2AC buffer of 5 MenuString plus its own
- id copies; g_MenuNameTextureX is s32[] (lw, stride 4) not u8[]; g_MenuGlyphSjisTable is read as
- u8 with stride 4; D_801E9D88 is u16[][2] with stride 4 (13 rows, 0x801E9DBC is
- g_MenuEquipmentSlotRowY); rect.x resolves to 0x140 + ((i / 2) & 1) * 0x20 and rect.y to
- 0x27 + (i / 4) * FONT_LETTER_HEIGHT.
+// PARKED 90.50% under XenoMenu260 (gcc 2.6.0): 2140 bytes / 535 insns against retail 2144 / 536.
+// ONE cause for the whole 318-line residual: the parameter copy `move s4,a1` is not in the
+// prologue. Retail moves arg1 to s4 as its second instruction, which frees a1, and retail then
+// keeps g_Menu in a1 and the row constants in t0 (lui a1,%hi(g_Menu) ... li t0,5 / li t0,0xD0).
+// Here gcc keeps arg1 in a1 until just before the loop preheader (the move lands after
+// `lbu v1,0x30(v0)`), picks t0 for g_Menu and t1 for the constants, and every later callee-saved
+// assignment rotates by one: retail s4 = the pExtraId cursor and s7 = arg1&0xff, here s7 = the
+// cursor and s6 = arg1&0xff. Fix that one copy and the rest should collapse; nothing else in the
+// body differs structurally.
+// Moved up this round:
+//  - rowX is u16, not s32 (measured 89.92 -> 90.50, 2152 -> 2140 bytes). Retail reloads it for
+//    MenuSetQuadVertices with `lhu a1,0x28(sp)`; an s32 local gives `lw` + `andi 0xffff` (+1 insn).
+//    Retail still stores it with `sw` where a u16 local stores with `sh`, so one instruction is
+//    missing overall (535 vs 536) - the slot is 8 bytes wide (next local at 0x30, not 0x2c), which
+//    no single u16 explains.
+//  - the i == 0 name render is `if (arg1 != 2) {weapon ids} else {extra ids}` (89.81 -> 89.92).
+//    Retail is `beq s7,2 -> out-of-line extra arm` with the weapon arm as the fall-through, which
+//    is what a `!=` test gives; the old `if (arg1 == 2) ... else` put the extra arm first.
+// Measured and rejected this round:
+//  - the loop-body dispatch as a C switch. Retail is `beqz s0 -> i==0 arm` (out of line) then
+//    `bltz s0` / `slti s0,5` / `beqz` (the 0..4 range test) then `j <i==4 test>; li v0,4`.
+//    `switch (i) { case 0: ...; case 4: if (arg3==0) break; default: ... }` compiles to
+//    `beq s0,0; beq s0,4; j default`, no range test, 63.41% - reverted. The range test says the
+//    original really is a switch over 0..4 (gcc range_test for a signed index emits bltz + slti),
+//    so the case labels are not {0,4}: cases 1..3 must be labelled too and share the i==4 test.
+//  - u16 rowX still leaves the clut store recomputing the poly address (see below): retail reuses
+//    the address it computed for tpage, putting `addu v1,v1,a0` in the beqz delay slot; this body
+//    emits a second full rc*0x28 chain (+8 insns there, and it is why the body is 1 insn short
+//    overall rather than over).
+//  - the poly field stores still differ in addu operand order: retail `addu a0,s1,a0` (i*0x80 +
+//    panel) then `addu v0,v0,a0` (rc*0x28 + that); here `addu v0,v0,s1` then `addu a0,a0,v0`.
+// Kept from the earlier park: the local slot picture (0x20 rowCount, 0x28 rowX, 0x30
+// rowTableOfs, 0x38/0x40 the id pointers, 0x48 loadImage, 0x50 the masked arg0), the 5-vs-4 row
+// count, the 0xD0/0x28 row X and 9/5 D_801E9D88 offset picked by arg1, the four-way i == 0
+// render, the i == 4 && arg3 == 0 skip, the arg1 < 2 accessory rows with the i == 1
+// weaponIds[3] special case, the extraWeaponIds[i] rows for arg1 == 2, the i & 1 / arg3
+// loadImage chain (retail really does read the slot uninitialised), the RECT + LoadImage +
+// DrawSync block, MenuSetStringPrimitives per row, the i == 4 tpage/CLUT/uv block and the
+// MenuSetQuadVertices row.
+// Ghidra/asm facts worth keeping: pEquipmentPanel is a 0x2AC buffer of 5 MenuString plus its own
+// id copies; g_MenuNameTextureX is s32[] (lw, stride 4); g_MenuGlyphSjisTable is read as u8 with
+// stride 4; D_801E9D88 is u16[][2] with stride 4; rect.x = 0x140 + ((i / 2) & 1) * 0x20 and
+// rect.y = 0x27 + (i / 4) * FONT_LETTER_HEIGHT; the polys of one MenuString start at 0x200 and
+// are 0x28 bytes each (u0 0xC, u1 0x14, u2 0x1C, u3 0x24, clut 0xE, tpage 0x16).
+/*
 void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
     s32 rowCount;
-    s32 rowX;
+    u16 rowX;
     s32 rowTableOfs;
     RECT rect;
     u8* pWeaponIds;
@@ -521,16 +544,16 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
     pExtraId = pExtraIds;
     for (i = 0; i < rowCount; i++) {
         if (i == 0) {
-            if (arg1 == 2) {
+            if (arg1 != 2) {
                 if (arg3 == 0) {
-                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetWeaponName(pExtraIds[0]), pHeap, 0x24, 0);
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetWeaponName(pWeaponIds[0]), pHeap, 0x24, 0);
                 } else {
-                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetGearWeaponName(pExtraIds[0]), pHeap, 0x24, 0);
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetGearWeaponName(pWeaponIds[0]), pHeap, 0x24, 0);
                 }
             } else if (arg3 == 0) {
-                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetWeaponName(pWeaponIds[0]), pHeap, 0x24, 0);
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetWeaponName(pExtraIds[0]), pHeap, 0x24, 0);
             } else {
-                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetGearWeaponName(pWeaponIds[0]), pHeap, 0x24, 0);
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetGearWeaponName(pExtraIds[0]), pHeap, 0x24, 0);
             }
         } else if (i == MENU_EQUIPMENT_ROW_COUNT - 1 && arg3 == 0) {
             // The character panel's fifth row is left empty.
@@ -592,8 +615,10 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
     ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->renderContext = g_Menu->renderContext;
     g_Menu->pManager->shouldRenderPanel[1] = 1;
     HeapFree(pHeap);
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
+
+
 /* 84.26%. Same instruction multiset; gcc lays the `arg2` if/else out the
    other way in case 1 (it falls through to the 0x60 block and jumps to
    0x30) and therefore places the return block differently. */
