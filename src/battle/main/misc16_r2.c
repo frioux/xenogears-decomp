@@ -16,7 +16,9 @@
 #define BATTLE_CURSOR_FRAME_MAX 4
 extern u8 g_BattleCommandGridIds[];
 extern u8 g_BattleCommandCellUses[];
+extern u8 D_800D2CC0[]; // the second 16-entry half of g_BattleCommandCellUses
 extern u_long *g_BattleDigitImageBuffers[];
+extern u_long *g_BattleDigitImageBuffersAlt[] __asm__("g_BattleDigitImageBuffers");
 extern u_long *g_BattleTextWorkspace;
 extern void BattleAllocPacketPrimitives(void);
 extern void BattleLoadActionRowGraphics(void);
@@ -166,6 +168,10 @@ void BattleExpandSlotRects(void) {
 }
 
 // ROUND 446 RE-MEASURE: 89.25% at retail's EXACT 452 bytes / 113 insns under the unit's gcc-2.6.0 (the 86.50 this note used to carry was measured under 2.7.2; 2.7.2 re-measures 86.50 now, -O3 89.25, -G0 and 2.7.2-cdk do not compile). The callee-saved SET is already retail's (s0-s5 + ra, frame 0x50) and every instruction of the body and epilogue is retail's; the whole residual is the ENTRY BLOCK's ORDER, 21 diff lines. Retail: lui/lw g_BattleDisplayState BEFORE 'addiu sp,sp,-0x50', then sw s1/move s1,zero (i=0), sw s3/move s3,a0, sw s4/move s4,a1, sw ra, sw s5, sw s2, sw s0, sw zero,0xFC(v0), lbu s2,0x60(sp)+nop (the load-delay slot), beqz s2 with 'move s5,a2' in its delay slot, and 'move s0,a3' AFTER the branch in the fall-through preheader. Ours: 'addiu sp' first, lbu s2 at the very top, then the lui/lw, then the a0/a1/a2/a3 copies, i=0 last, and 'sw zero,0xFC(v0)' pushed into the beqz delay slot. So retail's incoming-stack-arg load is NOT the BB_HEAD insertion that global-alloc makes (that is why it keeps a load-delay nop and sits after the store) - it looks like a reload at its use, and our body makes 2.6.0 hoist it every time. PROBED, not guessed: a cc1_probe of this exact body shape (probe_fc1c.c: one global store, then the same 4-arg loop with a s32 arg3 offset) reproduces OUR entry order under 2.6.0 AND under 2.7.2 AND under 2.7.2-cdk (all three emit 'subu sp; lbu; lw g_State; sw/move pairs'), so no compiler in the repo turns this body into retail's entry. Measured dead this round: 's32 i = 0;'/statement order for i, a 'u8 count; count = arg4;' local (88.84, 456 bytes - adds 'move s2,v1'), 'arg3 += 8' in the for-increment instead of the offset local (89.25 identical).
+// ROUND 471 RE-MEASURE: 89.25% again, retail's exact 452 bytes / 113 insns, compiles on the first run under the unit's gcc-2.6.0 (XenoBattle260 - NOT the cdk preset this round's brief named).
+// Two new facts measured this round, both narrowing the entry block further.
+// (1) IT IS NOT SCHED1: the built build/src/battle/main/misc16_r2.c.i recompiled with the unit's cc1 plus -fno-schedule-insns emits the SAME entry order (subu / sw s2 / lbu s2,0x60(sp) / lw g_BattleDisplayState / copies / i=0 / beq with the store in the delay slot), so the residual is in the RTL stream, as the round-446 note concluded.
+// (2) RETAIL'S HOISTED 'lui/lw' ABOVE THE FRAME ADJUST IS REACHABLE IN THIS cc1 - the matched neighbour BattleDrawColumnSpriteCells emits 'lw $2,g_BattleDisplayState' BEFORE 'subu $sp,$sp,32' in this very compile - and the difference between the two is that BattleDrawColumnSpriteCells' entry block has NO incoming-stack-argument load. So the whole residual (the hoisted state load, the store before the lbu, the load-delay nop) hangs on cc1's assign_parms placing the 5th parameter's 'lbu 0x60(sp)' at BB_HEAD, which is exactly what the j-the-callers-single-sw lever below rules out as an aggregate.
 /*
 void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     s32 i;
@@ -189,6 +195,7 @@ void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     g_BattleDisplayState->menuColumnPending = 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FC1C);
+
 
 void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
@@ -272,7 +279,6 @@ void BattleInitMenuColumnPrims(void) {
 // Residual, two causes, both additive: (1) the two pointer-fed sites read through the callee-saved base (2 insns against retail's 3) and the pointer costs the preheader lui/la (2) plus a 6th save/restore (2), so this body is 2 insns over; (2) retail's locals are 8 bytes bigger - cellUses at 0xD0 and cellIds at 0x100 against 0xC8 / 0xF8, an 8-byte slot retail never reads or writes, which is also what lets retail's six saves sit at 0x130..0x144 against our seven at 0x128..0x144.
 // PRESET IS NOT THE ANSWER: 2.7.2 scores 95.58, 2.7.2-cdk compile-fails the body, and -fno-strength-reduce is ruled out for the unit because retail's OWN BattleDrawColumnSpriteCells (misc16_r2, matching asm) carries the biv increments addiu s1,s1,1 / addiu s0,s0,8.
 // Earlier rounds, all still true: a cc1_probe of the loop shape reproduces the hoist under 2.6.0, 2.7.2 and 2.7.2-cdk with a u8 or s32 index and the array declared [10] or [], so it is loop.c's per-loop decision; the four index spellings (array form, pointer cast, (u8 *)T + n*4, index-first) and a volatile element declaration all measure identical; the tens digit wants its u8 local, and site 3's TEST reads the global g_BattleCommandCellUses[i + 16] (retail relocs name D_800D2CC0, same address) while its INDEX reads the local copy.
-/*
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
@@ -281,11 +287,11 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     RECT tens2Rect;
     RECT ones2Rect;
     RECT blankRect;
+    u8 unusedFrame[8];
     u8 cellUses[BATTLE_COMMAND_CELL_COUNT];
     u8 cellIds[BATTLE_COMMAND_CELL_COUNT];
     void *pBuf;
-    u_long **pDigitBuffers;
-    u_long **pDigits;
+    void **pSlot;
     u8 tens;
     s32 i;
 
@@ -306,11 +312,11 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         cellIds[i] = g_BattleCommandGridIds[i];
         cellUses[i] = g_BattleCommandCellUses[i];
     }
-    pDigits = g_BattleDigitImageBuffers;
     for (i = 0; i < BATTLE_COMMAND_ROW_COUNT; i++) {
         pBuf = BattleAllocTextBuffer(0x1B);
-        pDigitBuffers = pDigits;
-        bufs[i] = pBuf;
+        // The embedded assignment is what makes cc1 form `bufs + i` base-first
+        // (`addu s0,v0,v1`) after the call instead of index-first before it.
+        *(pSlot = bufs + i) = pBuf;
         bzero(pBuf, 0x30C);
         nameRect.x = 0x380 + (i % 2) * 0x1E;
         nameRect.y = 0x100 + (i / 2) * 0xD;
@@ -341,17 +347,17 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         BattleLoadImageAndSync(&nameRect, bufs[i]);
         tens = cellUses[i] / 10;
         if (tens != 0) {
-            BattleLoadImageAndSync(&tensRect, pDigits[tens]);
+            BattleLoadImageAndSync(&tensRect, g_BattleDigitImageBuffersAlt[tens]);
         } else {
             BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
         }
         if (cellIds[i] != 0) {
-            BattleLoadImageAndSync(&onesRect, pDigitBuffers[cellUses[i] % 10]);
+            BattleLoadImageAndSync(&onesRect, g_BattleDigitImageBuffers[cellUses[i] % 10]);
         } else {
             BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }
-        if (g_BattleCommandCellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10 != 0) {
-            BattleLoadImageAndSync(&tens2Rect, g_BattleDigitImageBuffers[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10]);
+        if (D_800D2CC0[i] / 10 != 0) {
+            BattleLoadImageAndSync(&tens2Rect, g_BattleDigitImageBuffersAlt[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10]);
         } else {
             BattleLoadImageAndSync(&tens2Rect, g_BattleTextWorkspace);
         }
@@ -368,8 +374,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     BattleUpdateFrame();
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->primState = 2;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
+}
 
 
 
