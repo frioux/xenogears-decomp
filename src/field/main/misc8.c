@@ -1869,63 +1869,18 @@ typedef struct {
     /* 0x10 */ VECTOR squared;
 } FieldSquareScratch; // Size: 0x20
 
-// PARKED R480 99.67% - 500 insns / 2000 bytes against retail's 501 / 2004. ONE
-// instruction short, so it cannot link; everything else is retail's exactly.
-//
-// WHAT MOVED THE SCORE 90.12 -> 99.67 (keep this body):
-// (a) BLOCK LAYOUT. Retail emits the loop-body blocks in the order
-//     [B4 touch test][floor/ground tests][touch][hitTimer][push-zero][clampFloor][next],
-//     i.e. `touch` is the FALL-THROUGH of the third test and clampFloor sits after
-//     the push block. Source order only reaches that with explicit labels at the
-//     end of the body: `if (otherY < floorY || myY < groundY) goto clampFloor;` then
-//     `if (!(myY < groundY + 0x10 || (pOther->flags & 0x800000))) goto hitBlock;`
-//     and falling into `touch:`; `clampFloor:` goes AFTER the push block and before
-//     `next:`. That is -8 bytes here and it is what aligns every branch offset:
-//     216 differing lines -> 114, all of them offsets. (Measured alternative: the
-//     `if (a || b) { ...; goto next; }` form puts clampFloor inline and re-forms
-//     `li v1,-257` twice, +8 bytes, 90.12%.)
-// (b) The `otherFlags & 0x10` test. Retail's `andi v0,s4,0x10` reads the OTHER
-//     actor's flags, not pActor's: the old body read scriptFlags from 0x68(sp)
-//     (`lw t1,104(sp)`), one instruction too many. s4 is loaded from
-//     `lw a0,0(a2)` = g_FieldActors[i].pActorData->scriptFlags.flags.
-// (c) THE BITFIELD. `if (pOther->scriptFlags.fields.scriptFlags_0x0) continue;`
-//     followed by `otherFlags = pOther->scriptFlags.flags;` makes cse1 keep the
-//     flags word in a temp a0 across the `bnez` (the fall-through block is its sole
-//     successor), so the assignment becomes the copy retail has:
-//     `lw a0,0(s0)` + `move s4,a0` instead of a direct `lw s4,0(s0)`. Written as
-//     `if (otherFlags & 1)` both are direct loads: 99.34 / 499.
-// (d) `*(u_short*)&((SpriteDataI3*)pSprite->field_0x7C)->field_0xC == 1` - retail
-//     compares with `lhu`, the header types the field s16 (`lh`).
-//
-// THE REMAINING INSTRUCTION: retail's `lw a2,76(v0)` / `move s0,a2` - pActorData
-// goes through a cse temp too, and only the copy is missing. Not reachable from
-// source with this compiler: cse1 will temp a `(mem (reg R))` expression across a
-// branch (that is (c)) but never a MEM-of-symbol address, so every spelling that
-// makes `g_FieldActors[i].pActorData` the first use of the block duplicates the
-// `lui %hi(g_FieldActors) / lw / addu v0,s5,v0` chain instead. Measured, all with
-// this layout: test-then-assign via the expression chain 98.70 / 506, `otherFlags`
-// + `pOther` both from the chain then the test 98.60 / 502, flags-then-bitfield
-// -then-pOther (three chain uses in one block) 97.08 / 508, assign-flags-from-
-// chain-first 98.23 / 505. A `pData`/`pOther` pair of locals coalesces back to a
-// direct load. So the last 4 bytes need an allocator-level answer, not a spelling.
-//
-// Everything else in the function is instruction-identical to retail: frame 0xC8,
-// saves fp/s0-s7/ra, the 0x88-byte var area with groundY 0x40, pFieldActor 0x48,
-// refX 0x50, refZ 0x58, floorY 0x60, scriptFlags 0x68, contact 0x70, hitCount 0x78,
-// savedCanInteract 0x80, masks 0x88/0x90, and retail's registers (s2 = i, s3 =
-// pScratch, s4 = otherFlags, s5 = the 0x5C biv, s6 = myY, s7 = nearest, fp =
-// actorIndex). The push block's moveModified reload after the zeroing (retail's
-// `sw zero,48(s1); lw v0,48(s1)`) comes out here without help - the old note's
-// item (3) was wrong.
-// Settled earlier and still true: -O3 / -G0 / 2.7.2-cdk (93.99) / 2.6.0 (93.29)
-// are all worse for this function and 2.6.0 breaks seven matched neighbours, so
-// the unit stays Default. Permuter is useless while 4 bytes are missing.
-/*
+// The other-actor contact test. The loop's guard reads `pActorData` through the
+// slot pointer and reads it AGAIN for the body: the repeated read is what makes
+// cc1 keep the pointer in a call-clobbered temp across the `bnez` and copy it
+// into $s0 after it (retail's `lw a2,0x4C(v0)` / `move s0,a2`, 4 bytes that no
+// single-read spelling emits). The slot address must be the offset-first cast
+// sum - a plain `&g_FieldActors[i]` mirrors that `addu` and scores 99.98.
 void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     FieldSquareScratch* pScratch;
     FieldActorModelData* pModelData;
     SpriteData* pSprite;
     ActorData* pOther;
+    FieldActor* pCurFieldActor;
     IVEC3 targetPos;
     SVECTOR ref;
     VECTOR normal;
@@ -1964,10 +1919,11 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
         if (i == actorIndex) {
             continue;
         }
-        pOther = g_FieldActors[i].pActorData;
-        if (pOther->scriptFlags.fields.scriptFlags_0x0) {
+        pCurFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (u32)g_FieldActors);
+        if (pCurFieldActor->pActorData->scriptFlags.fields.scriptFlags_0x0) {
             continue;
         }
+        pOther = pCurFieldActor->pActorData;
         otherFlags = pOther->scriptFlags.flags;
         pOther->flags &= ~0xC100;
         if (pOther->flags & 0x80) {
@@ -2119,8 +2075,7 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
         pActor->scriptFlags.flags &= ~0x800;
     }
     FieldFreeScratchpad(sizeof(FieldSquareScratch));
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
+}
 
 
 
