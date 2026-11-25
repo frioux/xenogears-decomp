@@ -95,22 +95,7 @@ void WorkListUpdate(void) {
     }
 }
 
-/* Best: 89.34% (152 bytes, 38 insns, identical instruction multiset and frame; retail
-   .s is 38 insns too). Only the order of the four hoisted loads differs - original:
-   counter, g_WorkList, 0x14(a1), 0x10(a1); this: 0x14(a1), 0x10(a1), g_WorkList,
-   counter - and the register assignment follows it (original: unk10 word in v1, unk14
-   word in a2, counter in a3, old head in t1), so it is a sched2 ready-list order (the
-   MIPS -O2 spec turns sched2 on, which is why statement order alone cannot place the
-   loads). 12 statement orderings measured (unk10 first 73.34, id local 86.03, count
-   before unk10 79.76, flags first 38.74, callbacks early 73.39, head local 89.34,
-   unk0 last 82.47, unk14 first 43.42, the original store order 69.37; this round added
-   the sibling TimerWorkListAddTask field order (unk14 group, unk10, callbacks, link)
-   49.71 and the two-statement counter form (unk10 = counter; counter = counter + 1)
-   73.37). Not the preset: 2.6.0 89.87, 2.7.2-cdk 84.03, cdk with --dont-expand-li
-   84.03. A 4-minute permuter run from this body found only 89.74 (it holds the NULL for
-   the onTriggerCallback store in a local and stores it after the counter increment).
-   The bitfield writes are right: unk10 gets the counter and keeps its top 3 bits,
-   unk14 gets pData->unk10 and clears bits 29-31 one and at a time, exactly retail. */
+// Best: 84.03% under the unit's XenoWorkList preset (gcc-2.7.2-cdk + maspsx --dont-expand-li), 152 bytes / 38 insns = retail's exact size and instruction multiset. Retail's mask 0x1FFFFFFF takes t0, the counter a3, old head t1, the 0x14 word a2, the 0x10 word v1; this body puts mask in t1, counter in t0, head in a3, the two field words in v1/a2 and the count load in a0 (retail v1) - a whole-body caller-saved rotation with the LOAD ORDER already identical (counter, head, 0x14, 0x10), so it is an allocno hand-out, not scheduling and not statement order. Round 485 measured: this park body 84.03; the same body with an old-head local 84.03 (cse propagates it away); -O3 84.03. Earlier rounds, under the old Default-flags preset, measured 12 statement orderings (unk10 first 73.34, id local 86.03, head local 89.34, original store order 69.37, sibling TimerWorkListAddTask field order 49.71, two-statement counter 73.37) and 4 minutes of permuter (best 89.74); preset screen 2.6.0 89.87, 2.7.2 89.34. The bitfield writes are right: unk10 gets the counter and keeps its top 3 bits, unk14 gets pData->unk10 and clears bits 29-31 one at a time. Do not re-spell this body; it needs an allocator probe.
 /*
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
@@ -126,6 +111,7 @@ void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     g_NumWorkListEntries++;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", WorkListAddTask);
+
 
 WorkListEntry* WorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
@@ -173,28 +159,7 @@ void WorkListDeleteTask(WorkListEntry* pTask) {
     HeapFree(pTask);
 }
 
-/* Best: 84.20% (232 bytes, 58 insns vs retail's 240/60). Structure is right: one merged
-   unk14-word RMW (value from pData->unk10 + three one-at-a-time clears of bits 29/30/31),
-   unk10 word gets the counter and keeps its top bits, four mask constants hoisted to the
-   top in retail's registers, both flag arms present, head insert and count increments exact.
-   Two residuals, both sched2/register-tie (the a-base-register-takes-earliest-death lever):
-   (1) retail loads the counter early (lw a3, gp right after the masks) and keeps it in a3;
-     this body loads it late (after sw v0,12) into v0, and the unk14/unk10 words land in
-     v1/a3 where retail has v0/v1. Source order moves both together; only sched2 decouples
-     them - same wall as WorkListAddTask above (12 orderings, 89.34% ceiling).
-   (2) retail's taken arm stores through t3 and the else arm through v1 (a copy made in the
-     beqz delay slot), so the two arm-tail stores differ and cross-jumping leaves them
-     separate; gcc here cross-jumps the sw into one shared tail. A 4-min permuter run found
-     only an UNINITIALISED-pointer spelling of exactly that (new_var2 used before set,
-     base 956 -> best 806): rejected as wrong code, but it shows a second pointer pseudo in
-     the arms is what breaks the cross-jump.
-   Tried: old park shape 55.23; unk10=id between group and clears (splits the merge, two
-   0x14 stores, 58.70); group after unk0 + inline post-increment 84.20; same + id local
-   first statement 80.62 (counter load late anyway); group after callbacks 60.73 (the
-   pData->unk10 read must sit right after unk0, worth +23%); unk10 statement moved next to
-   the if 84.20 (tie). Presets: 2.6.0 79.7, 2.7.2-cdk 83.72 - both worse, preset ruled out. Under gcc-2.7.2-cdk-psx + maspsx
-   --dont-expand-li (the preset this unit wants, see SpriteAnimFrameListSetFrame's note) this same
-   body is 89.55, its best so far: re-measure it after any preset switch. */
+// Best: 89.55% under the unit's XenoWorkList preset (gcc-2.7.2-cdk + maspsx --dont-expand-li), 232 bytes / 58 insns against retail's 240 / 60. Structure is right: one merged unk14-word RMW (value from pData->unk10 plus three one-at-a-time clears of bits 29/30/31), unk10 word gets the counter and keeps its top bits, the four mask constants sit at the top in retail's registers, both flag arms are present, head insert and count increments are exact. Two residuals, both named walls in tools/rounds/levers.md under the lever a-bitfield-merge-needs-adjacency: (1) retail loads the counter early (lw a3,gp right after the masks) and its unk14/unk10 words land in v0/v1, while this body loads the counter late into v0 and the flag lbu is hoisted above the unk14 store; (2) retail's taken arm stores through t3 and its else arm through v1, a copy made in the beqz delay slot, so cross-jumping leaves retail's two arm-tail stores separate - gcc here merges them into one shared store after the j and fills the beqz slot with the pNext store, and that merge is exactly the 2 missing instructions. Round 485 measured: this park 89.55; the same body with if (g_FlagTimerWorkListAdds) and no != 0 89.55 (identical emission); -O3 89.55. Earlier rounds: old park shape 55.23, unk10=id between group and clears 58.70, group after unk0 with inline post-increment 84.20, id local first 80.62, group after callbacks 60.73, unk10 statement next to the if 84.20 (tie); presets 2.6.0 79.7 and 2.7.2-cdk 83.72 under the default maspsx flags; a 4-minute permuter run found one better body (956 -> 806) that wrote the set through an UNINITIALISED pointer and was rejected as wrong code. The two arm-tail registers are not reachable from an honest spelling - park, do not re-spell.
 /*
 void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk0 = pData;
@@ -216,6 +181,7 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     g_NumTimerWorkListEntries++;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
+
 
 WorkListEntry* TimerWorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
