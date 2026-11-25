@@ -486,31 +486,34 @@ extern u_char g_FieldScreenShakeMode;
 extern void func_800AD898(void);
 extern void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2);
 
-// Read through a call boundary: gcc 2.7.2 otherwise hoists this volatile load above
-// the actor address computation of the next statement (retail loads it in between).
-static inline s32 FieldShakeReadDeltaY(volatile u_char* pShake) {
-    return *(volatile s32*)(pShake - 0x12);
-}
-
-// Round 399 redo: best 85.58% (592 bytes = retail, 148 vs 148 insns, size-exact). Residuals are register and order ties:
-//  - the t[1] delta read must go through the static inline FieldShakeReadDeltaY helper: with a plain
-//    volatile read gcc 2.7.2 hoists it above the next statement's g_FieldActors load and the shake
-//    blocks lose their per-field nops (76.59%). Permuter find 1.
-//  - the else block must spell the Y field as t[new_var] with new_var = 1, and the mode==1 block's Z
-//    update must sit in a do-while(0): permuter find 2, together 83.68 -> 85.58 and size-exact.
-//  - wrapping the mode==0 block's Z update in do-while(0) as well reads 88.06% but 151 insns / 604 bytes:
-//    oversized, rejected - the permuter's internal score (1926 vs 2054) and objdiff disagree there.
-//  - anim loop preheader now exact: pCount = g_FieldActorModelSlotCount (unbounded-array extern, decay
-//    materialises and-count once), pAnimTable = (s16*)pCount - 0x40, bound read as
-//    ((s32*)((u8*)pAnimTable + 0x80))[0]; guard loads 0(reg), reload 128(s2), addiu s2 from the same reg.
-//    Left: the blez delay slot takes addiu s2 instead of retail's andi a0, plus v0/v1 swaps in the count
-//    load and the player block (allocator ties).
-//  - permuter: 3 runs, PERMUTER_BETTER each time (3056->1867, 2606->2054, 2054->1926).
+// PARKED 90.44% (604 bytes against retail's 592, 151 vs 148 insns). Was 85.58 / 592 / size-exact.
+// THE LEVER WAS THE EMPTY do/while BARRIER: every one of the six shake updates must be its own
+// statement boundary, `do { <update> } while (0);`. Without barriers gcc CSEs the element
+// pointer across the three updates and the group shrinks from retail's 3x8=24 insns to 18
+// (76.59%, 143 insns); with one barrier per update 5 of the 6 blocks come out VERBATIM as
+// retail's 8-insn block
+//     lui a0,%hi(g_FieldActors) / lw a0 / lw v1,DELTA(a2) / addu a0,a1,a0 /
+//     lw v0,FIELD(a0) / nop / addu v0,v0,v1 / sw v0,FIELD(a0)
+// (all three delta reads are then plain `*(volatile s32*)(pShake - 0x16/-0x12/-0xE)`: routing
+// t[1] through a static-inline helper, which the old 85.58 body needed, is now WORSE - 88.06).
+// What is left:
+//  1. the t[1] and t[2] blocks (in BOTH groups) sink the delta load one instruction late:
+//     `lw a0,g_FieldActors / nop / addu / lw v0,36(a0) / lw v1,-18(a2) / nop / addu / sw`
+//     = 9 insns, retail 8. The addu is scheduled above the delta load in ours and below it in
+//     retail; that is the whole 604 vs 592. Tried: the helper on t[1] only (88.06), the
+//     barrier written after each update instead of around it (identical code), plain reads
+//     with no barriers (76.59).
+//  2. frame 0x30 vs retail's 0x40: retail carries vars=32 with NO sp reference anywhere, ours
+//     16 - an unreachable 16-byte local in the original, not a spelling we can force.
+//  3. anim loop preheader matches except the blez delay slot: ours takes `addiu s2,v0,-128`,
+//     retail `andi a0,s1,0xFFFF`. Player block: retail keeps canInteract in $s1 and pActorData
+//     in $v1, ours $v1/$a0 (allocator ties, same instruction count).
+// Presets on this body: gcc-2.6.0 76.86, gcc-2.7.2-cdk compile-fails. Earlier rounds: permuter
+// 3 runs on the 85.58 body, PERMUTER_BETTER each (3056->1867, 2606->2054, 2054->1926).
 /*
 void func_800A24C4(void) {
     int i;
     ActorData* pActorData;
-    int new_var;
     s32* pCount;
     s16* pAnimTable;
     volatile u_char* pShake;
@@ -541,21 +544,21 @@ void func_800A24C4(void) {
                 continue;
             }
         } else {
-            new_var = 1;
             if ((pShake[0] & 0x7F) == 0) {
-                g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-                g_FieldActors[i].transformMatrix.t[new_var] += FieldShakeReadDeltaY(pShake);
-                g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE);
+                do { g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16); } while (0);
+                do { g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12); } while (0);
+                do { g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE); } while (0);
             }
         }
 
         if ((pShake[0] & 0x7F) == 1) {
-            g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16);
-            g_FieldActors[i].transformMatrix.t[1] += FieldShakeReadDeltaY(pShake);
+            do { g_FieldActors[i].transformMatrix.t[0] += *(volatile s32*)(pShake - 0x16); } while (0);
+            do { g_FieldActors[i].transformMatrix.t[1] += *(volatile s32*)(pShake - 0x12); } while (0);
             do { g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE); } while (0);
         }
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
