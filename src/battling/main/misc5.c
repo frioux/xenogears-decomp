@@ -783,6 +783,25 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
    and the trailing search loop are byte-identical apart from the first loop's
    anchor: retail names D_80092B44 (= g_BattleEffectSlots + 0x6C), we name
    g_BattleEffectSlots, same linked bytes. */
+// PARK 86.91% at retail's EXACT size (564 bytes, 141 instructions; the old note's
+// 85.67% was the 16-bit-cast form which read 572 bytes / 143). Two fixes this round:
+// the duplicate check reads 0x6C SIGNED ('lh' in retail, 'lhu' before) so the cast is
+// (s16 *)&pEntry->unk6C, and the u setup belongs BETWEEN the unk64 and the vy store -
+// 'u = g_BattleEffectClutX[0] * 4 + 8; pSlot->vy = pVec->vy; u += arg0 * 4;' - which
+// removes the two extra 'nop' load-delay slots (the +8 bytes). The two scan loops,
+// both loop tails, the 0x28-byte packets[0]->packets[1] block copy and the whole
+// creation head are now instruction-identical; the first loop's anchor is written
+// g_BattleEffectSlots+0x6C where retail names D_80092B44 (same linked bytes).
+// REMAINING, entirely the tail's load/store interleaving: retail front-loads the
+// value setup - addiu t1,t0,40 right after 'lw v0,0(a2)', then lw v1,4(a2),
+// lw a1,8(a2) (pVec->vz), lw a0,g_BattleEffectSpawnTick and lhu D_80092694 all
+// ABOVE the u/v byte-pair groups, plus 'move a2,t0' and 'sw a3,112' before them -
+// while our body pairs each load with the store that uses it. Measured dead this
+// round: hoisting 'pSlot->unk6A = g_BattleEffectSpawnTick; pSlot->unk68 = pVec->vz;'
+// above the u/v groups (142 insns / 568 bytes / 86.42, and the third loop's
+// registers shift). That makes it a scheduler question, not a statement-order one.
+// Also measured dead: the peephole form 'link |= ...' style reordering is N/A here;
+// preset screens were 2.6.0 84.5x / cdk does not compile this unit.
 /*
 void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     BattleSlot *pSlot = g_BattleEffectSlots;
@@ -796,7 +815,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0) {
             if (*(u32 *)&pEntry->unk70 == arg3) {
-                if (*(u16 *)&pEntry->unk6C == g_BattleDrawFlags) {
+                if (*(s16 *)&pEntry->unk6C == g_BattleDrawFlags) {
                     return;
                 }
             }
@@ -822,11 +841,11 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->z = pPos->vz;
     *(u16 *)&pSlot->unk6C = g_BattleDrawFlags;
     pSlot->unk64 = pVec->vx;
+    u = g_BattleEffectClutX[0] * 4 + 8;
     pSlot->vy = pVec->vy;
+    u += arg0 * 4;
 
     pMotion = &pSlot->packets[0];
-    u = g_BattleEffectClutX[0] * 4 + 8;
-    u += arg0 * 4;
     pMotion->u3 = u;
     pMotion->u2 = u;
     pMotion->u1 = u;
@@ -853,10 +872,9 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
             pSlot->unk60 = (u32)pEntry;
         }
     }
-}
-*/
-
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
+
 
 void func_8007D918(u32 *pOt);
 
@@ -1186,12 +1204,34 @@ void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
 // tail compares a s16 copy of y; the function needs 'extern void
 // func_8007D918(u32 *pOt);' in scope for BattleEffectQueueMatrixPrims, which calls
 // it.
+// PARK 98.71% at retail's exact size (528 bytes, 131 instructions). The prologue,
+// the multiply chain, the GTE load/rtpt block, both loop shapes and the gravity tail
+// are now instruction-identical; the old 92.53% note was stale on two points.
+// Two fixes this round, both real: 'n = 0' belongs AFTER gte_rtpt() (retail's
+// 'move a3,zero' is the instruction after RTPT, not before it) - that alone removed
+// the whole five-register shift the old note blamed on the a0 coalesce (92.53 ->
+// 98.48) - and the OT bucket address wants the offset-first cast sum
+// '(u32 *)((sz >> 4) * 4 + (u32)pOt)' for retail's index-first 'addu v0,v0,t6'
+// (98.48 -> 98.71); the three gte_stsxy0/1/2 addresses written as three pointer
+// locals reproduce retail's three 'addiu a0/a1/v0' before the three swc2.
+// REMAINING (register naming only, 24 differing lines): retail's 'or a0,a0,t7;
+// sw a0,0(v1)' reuses the loaded link register as the OR destination where ours
+// allocates the dead v0 ('or v0,a0,t7'), at all three sites; and in the third block
+// the scheduler puts 'addiu a2,a2,36' (pTemplate += 3) where retail has
+// 'and v1,v1,t3'. Measured dead: 'link |= 0x02000000;' (the in-place form grows
+// the frame, 134 insns / 540 bytes / 92.45%), routing the second store through a
+// reassigned pLink (byte-identical to the cast form, 98.71), and preset screens
+// gcc-2.6.0 98.14 / gcc-2.7.2-cdk fails to compile. The permuter cannot parse this
+// body (inline-asm GTE macros).
 /*
 void func_8007D918(u32 *pOt) {
     BattlePrimTemplate *pTemplate;
     BattleSpriteEntry *pEntry;
     u8 *pScratch = (u8 *)0x1F800000;
     u32 *pLink;
+    s16 *pXy0;
+    s16 *pXy1;
+    s16 *pXy2;
     s32 camX;
     s32 camY;
     s32 camZ;
@@ -1223,26 +1263,32 @@ void func_8007D918(u32 *pOt) {
             n = 2;
         } else {
             gte_ldv2((SVECTOR *)(pScratch + 0x10));
-            n = 0;
             gte_rtpt();
-            gte_stsxy0(&pTemplate[0].x);
-            gte_stsxy1(&pTemplate[1].x);
-            gte_stsxy2(&pTemplate[2].x);
+            n = 0;
+            pXy0 = &pTemplate[0].x;
+            pXy1 = &pTemplate[1].x;
+            pXy2 = &pTemplate[2].x;
+            gte_stsxy0(pXy0);
+            gte_stsxy1(pXy1);
+            gte_stsxy2(pXy2);
             gte_stsz1(pScratch + 0xB0);
-            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            pLink = (u32 *)((*(s32 *)(pScratch + 0xB0) >> 4) * 4 + (u32)pOt);
             link = *pLink;
             *pLink = (u32)(pTemplate + 0) & 0xFFFFFF;
-            *(u32 *)((u32)(pTemplate + 0) & 0xFFFFFF) = link | 0x02000000;
+            pLink = (u32 *)((u32)(pTemplate + 0) & 0xFFFFFF);
+            *pLink = link | 0x02000000;
             gte_stsz2(pScratch + 0xB0);
-            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            pLink = (u32 *)((*(s32 *)(pScratch + 0xB0) >> 4) * 4 + (u32)pOt);
             link = *pLink;
             *pLink = (u32)(pTemplate + 1) & 0xFFFFFF;
-            *(u32 *)((u32)(pTemplate + 1) & 0xFFFFFF) = link | 0x02000000;
+            pLink = (u32 *)((u32)(pTemplate + 1) & 0xFFFFFF);
+            *pLink = link | 0x02000000;
             gte_stsz(pScratch + 0xB0);
-            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            pLink = (u32 *)((*(s32 *)(pScratch + 0xB0) >> 4) * 4 + (u32)pOt);
             link = *pLink;
             *pLink = (u32)(pTemplate + 2) & 0xFFFFFF;
-            *(u32 *)((u32)(pTemplate + 2) & 0xFFFFFF) = link | 0x02000000;
+            pLink = (u32 *)((u32)(pTemplate + 2) & 0xFFFFFF);
+            *pLink = link | 0x02000000;
             pTemplate += 3;
         }
         y = pEntry->y + pEntry->vy;
@@ -1254,6 +1300,7 @@ void func_8007D918(u32 *pOt) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
+
 
 
 
