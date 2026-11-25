@@ -430,7 +430,16 @@ void FieldSetGearModelAnimationForActor(int, int, FieldActor*);
        g_PlayerActorIndex load is hoisted above the `ori 0x8000`;
    (3) `li v0,-1` and `li a0,8` swap places in the prologue.
    Also measured: dropping the rotationAngle local and reusing arg3 gives retail's
-   exact 908 bytes but 91.01%, so the missing instruction is in one of the above. */
+   exact 908 bytes but 91.01%, so the missing instruction is in one of the above.
+   Round 470 re-measured and added three spellings, all worse or equal: `z = arg3;`
+   made unconditional at the top (retail's both-copies-in-the-prologue shape) gives
+   x=s1 / z=s0 at ENTRY - the pair is mirrored, not the positions - and the else arm
+   then loses its join copy, 91.42% / 896 bytes / 224 insns (so the `else z = arg3;`
+   is load-bearing for the `move a3,s1` join copy); naming the two parameters x/z
+   instead of arg2/arg3 (no local copies at all) measures the same prologue as the
+   plain body, so the tie is not local-vs-parameter. The hand-out is a global-allocno
+   priority contest (z wins $s0 whichever way the statements are ordered), not a
+   statement-order one - see levers.md a-global-allocno-priority-is. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
 /*
 s32 func_80092894(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
@@ -1676,7 +1685,7 @@ void FieldScriptCheckActorOnScreen(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-// best 96.19% (172 bytes, retail 168 / 42 insns, mine 43); re-measured round 470: the same 96.19 twice more, with the call written inline in the compare (no `arg` local) as well: documented blocker, levers.md [c-a-call-argument-constant-folds-early-when-the-compare-load-sinks]. Instruction multiset is otherwise EXACT - the whole body, registers and branch layout match. Only residual: cc1 emits the second call's argument constant `li $4,2` NINE insns early (right after the second FieldScriptVMGetActorIndex call, before the sll chain), so reorg cannot steal it into the jal slot and the slot gets a nop = the one extra instruction. Retail has it adjacent to the jal, so its slot holds `ori a0,2`. Measured: (1) plain `arg = GetArgument(2); if (arg == pActor->walkmeshId)` -> 96.19; (2) hoisted `int walkmeshId = pActor->walkmeshId;` local -> compiles BYTE-IDENTICALLY (copy-propagated), 96.19 - so statement order of the load does not decide the li site; (3) `FieldActor* pFieldActor = &g_FieldActors[...]` pointer local -> addu operand order flips (95.71); (4) negated test with arms swapped -> byte-identical to (1), 96.19. gcc-2.7.2-cdk -O2 -G8 also 96.19 (try_flags). The matched neighbour FieldScriptCheckActorWalkmeshMaterial has THIS exact `jal; ori a0,2` slot, so the shape is reachable in this unit - the difference there is that the compared value (lbu through the triangle table) sits before the call rather than after it. Not permuted: below the 99% permuter gate.
+// best 96.19% (172 bytes, retail 168 / 42 insns, mine 43); re-measured round 470: 96.19 again with the call inlined into the compare (no `arg` local), and 96.19 under gcc-2.6.0 too (try_flags --all --gcc gcc-2.6.0-psx, where the unit's matched neighbour func_800925A0 drops to 93.53, so the preset is not the answer); re-measured round 470: the same 96.19 twice more, with the call written inline in the compare (no `arg` local) as well: documented blocker, levers.md [c-a-call-argument-constant-folds-early-when-the-compare-load-sinks]. Instruction multiset is otherwise EXACT - the whole body, registers and branch layout match. Only residual: cc1 emits the second call's argument constant `li $4,2` NINE insns early (right after the second FieldScriptVMGetActorIndex call, before the sll chain), so reorg cannot steal it into the jal slot and the slot gets a nop = the one extra instruction. Retail has it adjacent to the jal, so its slot holds `ori a0,2`. Measured: (1) plain `arg = GetArgument(2); if (arg == pActor->walkmeshId)` -> 96.19; (2) hoisted `int walkmeshId = pActor->walkmeshId;` local -> compiles BYTE-IDENTICALLY (copy-propagated), 96.19 - so statement order of the load does not decide the li site; (3) `FieldActor* pFieldActor = &g_FieldActors[...]` pointer local -> addu operand order flips (95.71); (4) negated test with arms swapped -> byte-identical to (1), 96.19. gcc-2.7.2-cdk -O2 -G8 also 96.19 (try_flags). The matched neighbour FieldScriptCheckActorWalkmeshMaterial has THIS exact `jal; ori a0,2` slot, so the shape is reachable in this unit - the difference there is that the compared value (lbu through the triangle table) sits before the call rather than after it. Not permuted: below the 99% permuter gate.
 /*
 void func_80095CC4(void) {
     ActorData* pActor;
