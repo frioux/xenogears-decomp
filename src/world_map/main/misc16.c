@@ -726,7 +726,15 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
         *(volatile u16*)(pScratch + 0x32C) -= 0x800;
     }
 }*/
+// ROUND 487 re-measure: 95.05% / 988 bytes / 247 insns / 76 differing lines, exactly as the note
+// above describes. `cc1 -da` on this unit's .i gives this function's allocno order
+// (171 188 294 298 293 297 84 75 286 76 72 73 78 77 74 135, then dispositions s5 s0 v1 v1 a0 a0
+// s1 s2 s3 s4 s5 s6 s7 fp s1 v0) - the saved set and its roles are already retail's, so the
+// residual is only the two v0/v1 caller-saved coords and sched1's placement of the colOrigin load
+// and the 0x328 re-read. Priority there is floor_log2(n_refs)*1000/live_length, which is the
+// handle to pull if anyone wants to move the v0/v1 pair; the sched1 rows are not source-order.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
+
 
 
 
