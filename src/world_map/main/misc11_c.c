@@ -204,30 +204,6 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
 }
 
 
-// 89.86% (436 bytes / 109 insns, retail 444 / 111, so exactly the 8 bytes of a
-// 'j + nop'). Round 451, re-measured from the round-399 body with the mode chain
-// 'if (mode > 0) { if (mode < 4) { gearRide[0] == 1 -> the trail setup } else if
-// (mode < 8) { state = 2; unk24 = 1; } }'. The four volatile pins are this file's own
-// idiom and are load-bearing (round 399 measured 86.43 -> 89.86 for them); with them
-// the head, the angle/drawAngle lh pair, the position block, the scroll-target
-// 16-byte copy, the 0x20-iteration trail loop and the tail are byte-identical.
-// RESIDUAL (1), the 8 missing bytes: retail's dispatch carries BOTH tests -
-// 'slti v0,v1,4 / bnez v0,<gear>' then 'slti v0,v1,8 / beqz v0,<tail> / li v0,2' -
-// and reaches the out-of-line 'sh state / li 1 / sh unk24' block with 'j + nop'.
-// cc1 2.7.2 emits that arm's test next to its body, after the gear block
-// ('beq v0,$0,<arm>'), which saves the jump and the second dispatch test. Measured
-// this round: the natural else-if and the nested 'else { if }' both 89.86; writing
-// the arm first as 'if (mode >= 4 && mode < 8)' 85.08 / 436 (block inlined before the
-// tests). So the block POSITION is what is missing, not the body.
-// NEXT: the sibling func_8008C364 in this file closed for exactly this reason by
-// scooting a shared block to a label ('goto setResultThree' / 'goto setZero'), which
-// pins a block at the label's source position instead of letting cc1 move it - try
-// that here: keep 'else if (mode < 8) goto <label>' and put the label (holding
-// 'state = 2; unk24 = 1;') after the gear block, with the gear arm ending in a goto
-// to the tail. That jump already exists in retail as the trail loop's exit.
-// RESIDUAL (2): the loop preheader - retail emits 'move a3,zero' (i = 0) before
-// 'sw y / sh angle' and forms &g_WorldMapTrail after them, cc1 swaps both pairs
-// (same instruction count, so worth 0 bytes).
 // The gear arm sits AFTER the mode<8 test in retail, reached by a forward branch, and the
 // state arm after that, reached by a 'j' - so both arms are labelled and jumped to rather
 // than written as an else-if chain, which cc1 lays out arm-first (89.86%, 436 bytes).
