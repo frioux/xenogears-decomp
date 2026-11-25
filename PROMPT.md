@@ -243,6 +243,16 @@ and you decide.
 
 ## What objdiff cannot see
 
+**A park can be wrong in ways objdiff cannot see.** Rounds 465-482 found thirteen parks whose stored
+body either did not compile (a prelude left inside the comment by `park.py unpark`, an extern whose
+type had drifted from the body, fields that no longer exist in the header) or compiled to the wrong
+code (a table passed at index 6 where retail passes 0xE, `equipmentPercents` read where retail reads
+`accessoryEffectFlags5`, half an array walked, case 24's constants in the state-16 arm). Every
+percentage on such a park is the score of a stale object, and objdiff happily reports it. So a park
+lane's first job is un-park, read the whole first diff, and confirm the body compiles and the number
+is live; a body that does not compile is a finding to report, not a lane failure. This is also the
+cheapest match source left: several of those parks closed within one round of being repaired.
+
 `objdiff 100.00%` + `MATCH` is not proof; only `make check` is. Ways a round has broken
 an overlay with every function at 100: a body a few bytes off in size or out of address
 order; a C `switch` in a unit that does not own its tables, or added to a unit that
