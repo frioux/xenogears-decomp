@@ -556,6 +556,7 @@ void BattleSetTextScale(s32 value) {
 //    the 0x2C000000 colour word, the cursor advance by 2 + (glyph[2] * scale >> 8).
 //    BattleGetFontGlyph takes an s32 (retail does no andi on a0), and
 //    BattleGetTextWidth still matches 100.00% with that prototype.
+// best 96.77 percent, 516 bytes against retail 520 (129 vs 130 insns). TWO FIXES moved it 81.04 -> 96.77 this round. (1) The count has to be a LOCAL whose uses are TWO statements - 'pPkt = g_BattleTextPrimBuffers[g_BattleDrawBufferIndex]; pPkt += count;' - not 'base + count' in one expression and not two inline reads of the global: only the two-statement form makes cc1 hoist 'lw v1,g_BattleTextPrimCount' ABOVE the frame setup into v1 and put 'addu s0,s0,v0' in the BattleGetFontGlyph delay slot, which is retail's whole head (the old note's 'untypeable emission order' is only the one-expression spelling). (2) The old body was MISSING the length store: retail's 'li v0,9 / sb v0,3(s0)' is setlen(pPkt, 9), written between the clut store and the 0x2C000000 colour word; that is 8 of the 12 missing bytes. REMAINING, one allocator tie plus its consequence: pGlyph takes t0 where retail has a3, so the arm shifts one register (gw a3 vs retail s1, which reuses dead c, and mflo t1 vs t0), and 'li v0,0x28' lands in the beqz a3 delay slot where retail has a nop - that nop is the last missing instruction. Permuter this round: base 423 best 320, and its ONLY edit is 'volatile unsigned int' on the return type, which would change the signature five matched callers use - rejected as wrong code.
 /*
 void func_8007E964(s32 c) {
     s32 count = g_BattleTextPrimCount;
@@ -569,7 +570,8 @@ void func_8007E964(s32 c) {
     if (count >= 0x65) {
         return;
     }
-    pPkt = g_BattleTextPrimBuffers[g_BattleDrawBufferIndex] + count;
+    pPkt = g_BattleTextPrimBuffers[g_BattleDrawBufferIndex];
+    pPkt += count;
     pGlyph = BattleGetFontGlyph(c);
     if (pGlyph == NULL) {
         return;
@@ -589,12 +591,14 @@ void func_8007E964(s32 c) {
         *(u_short*)&pPkt->u3 = (pGlyph[0] + gw) | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
         pPkt->tpage = g_BattleTextTpage;
         pPkt->clut = g_BattleTextClut;
+        setlen(pPkt, 9);
         *(u_long*)&pPkt->r0 = g_BattleTextRed | (g_BattleTextGreen << 8) | (g_BattleTextBlue << 16) | 0x2C000000;
         g_BattleTextPrimCount++;
     }
     g_BattleTextCursorX = (u16)g_BattleTextCursorX + 2 + ((pGlyph[2] * g_BattleTextScale) >> 8);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
+
 
 
 
@@ -719,6 +723,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
 //    Everything else is retail: the 0x31 bound, `slt` on the lhu limit against the
 //    s16 entry field, the count store, the 0xC/0x20 increments with the record's
 //    addiu in the bnez delay slot, and the trailing guarded call.
+// re-measured 90.10% (204 bytes = retail's exact size, 51 insns) after un-parking; the lever 'an symbol address is always hoisted above the load in the preheader' (round 480) names this exact function and is still the cause, so no new spelling was spent on the la/lw order.
 /*
 void func_8007EEE8(s32 arg) {
     BattleFilterEntry* pEntry;
@@ -744,6 +749,7 @@ void func_8007EEE8(s32 arg) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
+
 
 
 
