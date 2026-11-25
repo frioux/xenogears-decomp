@@ -1,0 +1,558 @@
+addiu	sp,sp,-200
+sw	s8,192(sp)
+move	s8,a0
+sw	s1,164(sp)
+move	s1,a2
+li	a0,0x20
+sw	ra,196(sp)
+sw	s7,188(sp)
+sw	s6,184(sp)
+sw	s5,180(sp)
+sw	s4,176(sp)
+sw	s3,172(sp)
+sw	s2,168(sp)
+sw	s0,160(sp)
+jal	
+R_MIPS_26	FieldAllocScratchpad
+sw	a1,72(sp)
+lw	a2,32(s1)
+nop
+sw	a2,24(sp)
+lw	a3,36(s1)
+nop
+sw	a3,28(sp)
+lw	t0,40(s1)
+nop
+sw	t0,32(sp)
+lw	v1,48(s1)
+addiu	a0,sp,40
+addu	a2,a2,v1
+sw	a2,24(sp)
+lw	v1,52(s1)
+addiu	a1,sp,24
+sw	zero,112(sp)
+addu	a3,a3,v1
+sw	a3,28(sp)
+lw	v1,56(s1)
+move	s4,v0
+addu	t0,t0,v1
+jal	
+R_MIPS_26	FieldConvertIVec3ToSVector
+sw	t0,32(sp)
+lh	t1,40(sp)
+lh	s6,38(s1)
+lhu	v0,26(s1)
+sw	t1,80(sp)
+lh	t1,44(sp)
+subu	v0,s6,v0
+sw	v0,96(sp)
+lui	v0,0x0
+R_MIPS_HI16	g_FieldActiveActorCount
+lw	v0,0(v0)
+R_MIPS_LO16	g_FieldActiveActorCount
+lui	s7,0x7fff
+sw	zero,120(sp)
+sw	t1,88(sp)
+lw	t1,0(s1)
+ori	s7,s7,0xffff
+sw	t1,104(sp)
+lbu	t1,116(s1)
+move	s3,zero
+blez	v0,<func_80084158+0x584>
+sw	t1,128(sp)
+lui	t1,0xff3f
+ori	t1,t1,0xffff
+lui	v0,0x4
+ori	v0,v0,0x800
+sw	t1,136(sp)
+lw	t1,104(sp)
+move	s5,zero
+and	v0,t1,v0
+sw	v0,144(sp)
+beq	s3,s8,<func_80084158+0x568>
+nop
+lui	v0,0x0
+R_MIPS_HI16	g_FieldActors
+lw	v0,0(v0)
+R_MIPS_LO16	g_FieldActors
+nop
+addu	v0,s5,v0
+lw	s0,76(v0)
+nop
+lw	s2,0(s0)
+nop
+andi	v0,s2,0x1
+bnez	v0,<func_80084158+0x568>
+lui	v0,0xffff
+lw	v1,4(s0)
+ori	v0,v0,0x3eff
+and	v0,v1,v0
+andi	v1,v1,0x80
+beqz	v1,<func_80084158+0x224>
+sw	v0,4(s0)
+lui	v0,0x0
+R_MIPS_HI16	g_FieldActors
+lw	v0,0(v0)
+R_MIPS_LO16	g_FieldActors
+lw	a2,80(sp)
+lw	a3,88(sp)
+addu	v0,s5,v0
+lw	v1,0(v0)
+addiu	v0,sp,64
+sw	v0,16(sp)
+addiu	v0,sp,48
+sw	v0,20(sp)
+lw	a1,4(v1)
+jal	
+R_MIPS_26	func_80083288
+move	a0,s3
+beqz	v0,<func_80084158+0x1a4>
+nop
+lw	v0,4(s0)
+lw	t1,136(sp)
+j <func_80084158+0x564>
+R_MIPS_26	.text
+and	v0,v0,t1
+lui	v0,0x0
+R_MIPS_HI16	g_FieldSystemMode
+lw	v0,0(v0)
+R_MIPS_LO16	g_FieldSystemMode
+nop
+bnez	v0,<func_80084158+0x1c8>
+nop
+lui	a0,0x0
+R_MIPS_HI16	D_8006FC48
+addiu	a0,a0,0
+R_MIPS_LO16	D_8006FC48
+jal	
+R_MIPS_26	func_800379C8
+move	a1,s3
+lw	v0,4(s0)
+lhu	a0,26(s0)
+ori	v0,v0,0x100
+sw	v0,4(s0)
+lw	v0,64(sp)
+lbu	v1,116(s1)
+nop
+bne	v1,s3,<func_80084158+0x378>
+addu	a0,v0,a0
+lw	v0,48(sp)
+nop
+sw	v0,80(s1)
+lw	v0,52(sp)
+nop
+sw	v0,84(s1)
+lw	v0,56(sp)
+nop
+sw	v0,88(s1)
+lw	v0,4(s0)
+nop
+ori	v0,v0,0x4000
+j <func_80084158+0x358>
+R_MIPS_26	.text
+sw	v0,4(s0)
+andi	v0,s2,0x2000
+beqz	v0,<func_80084158+0x258>
+move	a2,s0
+lw	a0,80(sp)
+lw	a1,88(sp)
+jal	
+R_MIPS_26	FieldCheckPointInExtentZone
+move	a3,zero
+beqz	v0,<func_80084158+0x2d8>
+nop
+lw	v0,4(s0)
+lw	t1,136(sp)
+j <func_80084158+0x564>
+R_MIPS_26	.text
+and	v0,v0,t1
+move	a0,s4
+lw	v0,32(s0)
+lw	v1,48(s0)
+lw	t1,80(sp)
+addu	v0,v0,v1
+sra	v0,v0,0x10
+subu	v0,v0,t1
+sw	v0,0(s4)
+lw	v0,40(s0)
+lw	v1,56(s0)
+lw	t1,88(sp)
+addu	v0,v0,v1
+sra	v0,v0,0x10
+subu	v0,v0,t1
+sw	v0,8(s4)
+lhu	v0,30(s1)
+lhu	v1,30(s0)
+addiu	a1,s4,16
+addu	v0,v0,v1
+jal	
+R_MIPS_26	Square0
+sw	v0,4(s4)
+lw	v0,16(s4)
+lw	v1,24(s4)
+lw	a0,20(s4)
+addu	v0,v0,v1
+slt	v0,v0,a0
+bnez	v0,<func_80084158+0x2d8>
+nop
+lw	v0,4(s0)
+lw	t1,136(sp)
+j <func_80084158+0x564>
+R_MIPS_26	.text
+and	v0,v0,t1
+lw	v0,20(s1)
+lui	v1,0x40
+and	v0,v0,v1
+beqz	v0,<func_80084158+0x318>
+nop
+lui	v0,0x0
+R_MIPS_HI16	g_FieldSystemMode
+lw	v0,0(v0)
+R_MIPS_LO16	g_FieldSystemMode
+nop
+bnez	v0,<func_80084158+0x568>
+nop
+lui	a0,0x0
+R_MIPS_HI16	D_8006FC58
+addiu	a0,a0,0
+R_MIPS_LO16	D_8006FC58
+jal	
+R_MIPS_26	func_800379C8
+addiu	s5,s5,92
+j <func_80084158+0x56c>
+R_MIPS_26	.text
+nop
+lw	t1,104(sp)
+nop
+or	v0,s2,t1
+andi	v0,v0,0x80
+bnez	v0,<func_80084158+0x568>
+nop
+lui	v0,0x0
+R_MIPS_HI16	g_FieldPartyMoveInProgress
+lbu	v0,0(v0)
+R_MIPS_LO16	g_FieldPartyMoveInProgress
+nop
+bnez	v0,<func_80084158+0x568>
+nop
+lh	a0,38(s0)
+lhu	v0,26(s0)
+nop
+subu	v0,a0,v0
+sw	v0,64(sp)
+lbu	v0,116(s1)
+nop
+bne	v0,s3,<func_80084158+0x378>
+nop
+lw	t1,144(sp)
+nop
+beqz	t1,<func_80084158+0x508>
+lui	v1,0x80
+lw	t1,96(sp)
+nop
+slt	v0,a0,t1
+bnez	v0,<func_80084158+0x3a4>
+li	v1,-257
+lw	v1,64(sp)
+nop
+slt	v0,s6,v1
+beqz	v0,<func_80084158+0x3f0>
+addiu	v0,v1,16
+li	v1,-257
+lw	v0,4(s0)
+lw	a0,64(sp)
+and	v1,v0,v1
+slt	v0,s6,a0
+beqz	v0,<func_80084158+0x3dc>
+sw	v1,4(s0)
+lui	v0,0x80
+or	v0,v1,v0
+sw	v0,4(s0)
+slt	v0,a0,s7
+beqz	v0,<func_80084158+0x558>
+nop
+j <func_80084158+0x558>
+R_MIPS_26	.text
+move	s7,a0
+lui	v0,0xff7f
+ori	v0,v0,0xffff
+and	v0,v1,v0
+j <func_80084158+0x558>
+R_MIPS_26	.text
+sw	v0,4(s0)
+slt	v0,s6,v0
+bnez	v0,<func_80084158+0x508>
+lui	v1,0x80
+lw	v0,4(s0)
+nop
+and	v0,v0,v1
+bnez	v0,<func_80084158+0x508>
+nop
+lw	t1,104(sp)
+nop
+andi	v0,t1,0x10
+bnez	v0,<func_80084158+0x4d4>
+nop
+lbu	v1,227(s0)
+nop
+sltiu	v0,v1,48
+beqz	v0,<func_80084158+0x43c>
+addiu	v0,v1,2
+sb	v0,227(s0)
+lbu	v0,227(s0)
+nop
+sltiu	v0,v0,33
+bnez	v0,<func_80084158+0x4d4>
+nop
+lw	v1,48(s1)
+nop
+bgez	v1,<func_80084158+0x464>
+nop
+addiu	v1,v1,3
+lw	v0,64(s0)
+sra	v1,v1,0x2
+addu	v0,v0,v1
+sw	v0,64(s0)
+lw	v1,56(s1)
+nop
+bgez	v1,<func_80084158+0x488>
+nop
+addiu	v1,v1,3
+lw	v0,72(s0)
+sra	v1,v1,0x2
+addu	v0,v0,v1
+sw	v0,72(s0)
+sw	zero,48(s1)
+lw	v0,48(s1)
+sw	zero,52(s1)
+bgez	v0,<func_80084158+0x4b0>
+sw	zero,56(s1)
+addiu	v0,v0,3
+lw	v1,56(s1)
+sra	v0,v0,0x2
+sw	v0,64(s1)
+bgez	v1,<func_80084158+0x4c8>
+sw	zero,68(s1)
+addiu	v1,v1,3
+sra	v0,v1,0x2
+j <func_80084158+0x558>
+R_MIPS_26	.text
+sw	v0,72(s1)
+sw	zero,64(s0)
+sw	zero,68(s0)
+sw	zero,72(s0)
+sw	zero,48(s0)
+sw	zero,52(s0)
+sw	zero,56(s0)
+sw	zero,48(s1)
+sw	zero,52(s1)
+sw	zero,56(s1)
+sw	zero,64(s1)
+sw	zero,68(s1)
+j <func_80084158+0x558>
+R_MIPS_26	.text
+sw	zero,72(s1)
+lw	s7,64(sp)
+lw	v0,4(s0)
+lw	a0,48(s0)
+or	v0,v0,v1
+sw	v0,4(s0)
+sw	a0,64(s1)
+lw	v0,52(s0)
+nop
+sw	v0,68(s1)
+lw	v0,56(s0)
+li	t1,0x2
+sw	t1,120(sp)
+sw	v0,72(s1)
+lw	t1,144(sp)
+nop
+bnez	t1,<func_80084158+0x558>
+nop
+sb	s3,116(s1)
+li	t1,0x1
+sw	t1,112(sp)
+lw	v0,4(s0)
+lui	v1,0x40
+or	v0,v0,v1
+sw	v0,4(s0)
+addiu	s5,s5,92
+lui	v0,0x0
+R_MIPS_HI16	g_FieldActiveActorCount
+lw	v0,0(v0)
+R_MIPS_LO16	g_FieldActiveActorCount
+addiu	s3,s3,1
+slt	v0,s3,v0
+bnez	v0,<func_80084158+0x10c>
+nop
+lui	v0,0x0
+R_MIPS_HI16	D_800ADB98
+lw	v0,0(v0)
+R_MIPS_LO16	D_800ADB98
+nop
+beqz	v0,<func_80084158+0x5b0>
+nop
+lui	s7,0x0
+R_MIPS_HI16	D_800ADB94
+lw	s7,0(s7)
+R_MIPS_LO16	D_800ADB94
+lw	t1,120(sp)
+sw	zero,112(sp)
+addiu	t1,t1,1
+sw	t1,120(sp)
+lw	t1,112(sp)
+nop
+bnez	t1,<func_80084158+0x5c8>
+li	v0,0xff
+j <func_80084158+0x704>
+R_MIPS_26	.text
+sb	v0,116(s1)
+lbu	v1,116(s1)
+nop
+sll	v0,v1,0x1
+addu	v0,v0,v1
+sll	v0,v0,0x3
+subu	v0,v0,v1
+lui	v1,0x0
+R_MIPS_HI16	g_FieldActors
+lw	v1,0(v1)
+R_MIPS_LO16	g_FieldActors
+sll	v0,v0,0x2
+addu	v0,v0,v1
+lw	v1,76(v0)
+nop
+lw	v0,4(v1)
+nop
+ori	v0,v0,0x8000
+sw	v0,4(v1)
+lw	t1,128(sp)
+li	v0,0xff
+bne	t1,v0,<func_80084158+0x704>
+nop
+lw	v0,308(s1)
+nop
+andi	v0,v0,0x80
+bnez	v0,<func_80084158+0x644>
+li	a0,0xc
+jal	
+R_MIPS_26	HeapAlloc
+move	a1,zero
+lw	v1,308(s1)
+sw	v0,272(s1)
+ori	v1,v1,0x80
+sw	v1,308(s1)
+lbu	v1,116(s1)
+nop
+sll	v0,v1,0x1
+addu	v0,v0,v1
+sll	v0,v0,0x3
+subu	v0,v0,v1
+lui	v1,0x0
+R_MIPS_HI16	g_FieldActors
+lw	v1,0(v1)
+R_MIPS_LO16	g_FieldActors
+sll	v0,v0,0x2
+addu	v0,v0,v1
+lw	v1,272(s1)
+lhu	v0,80(v0)
+nop
+sh	v0,0(v1)
+lbu	v1,116(s1)
+nop
+sll	v0,v1,0x1
+addu	v0,v0,v1
+sll	v0,v0,0x3
+subu	v0,v0,v1
+lui	v1,0x0
+R_MIPS_HI16	g_FieldActors
+lw	v1,0(v1)
+R_MIPS_LO16	g_FieldActors
+sll	v0,v0,0x2
+addu	v0,v0,v1
+lw	v1,272(s1)
+lhu	v0,82(v0)
+nop
+sh	v0,2(v1)
+lbu	v1,116(s1)
+nop
+sll	v0,v1,0x1
+addu	v0,v0,v1
+sll	v0,v0,0x3
+subu	v0,v0,v1
+lui	v1,0x0
+R_MIPS_HI16	g_FieldActors
+lw	v1,0(v1)
+R_MIPS_LO16	g_FieldActors
+sll	v0,v0,0x2
+addu	v0,v0,v1
+lw	v1,272(s1)
+lhu	v0,84(v0)
+nop
+sh	v0,4(v1)
+lbu	a1,116(s1)
+jal	
+R_MIPS_26	FieldGetActorDistance2D
+move	a0,s8
+lw	v1,272(s1)
+nop
+sh	v0,8(v1)
+lw	v0,0(s1)
+lui	v1,0x1
+and	v0,v0,v1
+bnez	v0,<func_80084158+0x74c>
+sll	v0,s8,0x1
+lw	v0,4(s1)
+lui	v1,0x20
+and	v0,v0,v1
+bnez	v0,<func_80084158+0x74c>
+sll	v0,s8,0x1
+lw	t1,120(sp)
+move	a0,s8
+move	a1,s7
+lw	a2,72(sp)
+move	a3,s1
+jal	
+R_MIPS_26	func_80084A40
+sw	t1,16(sp)
+sll	v0,s8,0x1
+addu	v0,v0,s8
+sll	v0,v0,0x3
+subu	v0,v0,s8
+lui	v1,0x0
+R_MIPS_HI16	g_FieldActors
+lw	v1,0(v1)
+R_MIPS_LO16	g_FieldActors
+sll	v0,v0,0x2
+addu	v0,v0,v1
+lw	v0,4(v0)
+nop
+lw	v0,124(v0)
+nop
+lh	v1,12(v0)
+li	v0,0x1
+bne	v1,v0,<func_80084158+0x7a0>
+nop
+jal	
+R_MIPS_26	ControllerResetState
+nop
+lw	v0,0(s1)
+li	v1,-2049
+and	v0,v0,v1
+sw	v0,0(s1)
+jal	
+R_MIPS_26	FieldFreeScratchpad
+li	a0,0x20
+lw	ra,196(sp)
+lw	s8,192(sp)
+lw	s7,188(sp)
+lw	s6,184(sp)
+lw	s5,180(sp)
+lw	s4,176(sp)
+lw	s3,172(sp)
+lw	s2,168(sp)
+lw	s1,164(sp)
+lw	s0,160(sp)
+addiu	sp,sp,200
+jr	ra
+nop
+

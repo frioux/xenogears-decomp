@@ -1846,44 +1846,57 @@ typedef struct {
     /* 0x10 */ VECTOR squared;
 } FieldSquareScratch; // Size: 0x20
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
-/* R445 park: 90.12%, 503 insns / 2012 bytes against retail's 501 / 2004, 216
-   differing lines. STRUCTURE IS SETTLED - every arm, call, store and flag mask
-   below is retail's, and the frame now matches exactly (0xC8, vars=0x88,
-   saves fp,s0-s7,ra). What is left is one register permutation plus one block
-   layout, both allocator/layout choices:
-   (1) REGISTERS: retail keeps i in s2, pScratch in s3 and the other actor's
-       scriptFlags in s4 (s5 = the 0x5C bias, s6 = my Y from lh 0x26(s1), s7 =
-       nearest, fp/s8 = actorIndex, and the 0xFF3FFFFF mask SPILLED at 0x88).
-       This body gets s2 = otherFlags, s3 = i, s4 = pScratch, fp = actorIndex.
-       The saved set and every slot offset otherwise agree (0x40 groundY,
-       0x48 pFieldActor, 0x50 refX, 0x58 refZ, 0x60 floorY, 0x68 scriptFlags,
-       0x70 contact, 0x78 hitCount, 0x80 savedCanInteract, 0x88/0x90 the two
-       masks). Tried: reading pOther->scriptFlags.flags inline three times
-       (that body is 89.83% / 502 insns and puts the mask in fp), adding
-       otherFlags (89.83 -> 90.08 -> 90.12 with the declaration order below),
-       moving otherFlags after i (no change).
-   (2) BLOCK LAYOUT / +2 insns: retail lays the blocks out touch-B6, hitTimer,
-       lower-B7 (B7 at 0x504/0x508) and takes `bnez` to B7 from both of its
-       tests; this body lays B7 out inline after B4 (so the second test comes
-       out `beqz` and B7 is emitted twice: +2 insns, +8 bytes). Writing the
-       two B7 tests as separate `if (...) goto lower;` with lower placed last
-       measured 87.85% / 499 insns, so the `||` form below is the better one.
-       The gotos are load-bearing: if/else duplicates the 20-insn B6 block,
-       which retail has once (a single `pActor->canInteract == i &&
-       !(scriptFlags & 0x40800)` entry and two `goto touch` entries).
-   (3) THE moveModified RELOAD in the push block is retail's, not a mistake: it
-       stores zero to moveModified.vx/.vy/.vz and then LOADS them back for the
-       /4 into move.vx/.vz, a sequence gcc folds away here (that is part of the
-       byte gap, its two divisions are the 2 insns that survive). If a later
-       run finds the spelling that keeps the reload, that is the remaining win.
-   Next lever to try: permuter from this body (structure is exact, so only
-   allocation is left), or a 2.6.0/cdk screen if the allocator turns out to be
-   the other compiler's. Settled facts kept from R432: the frame/signature, the
-   `lh 0x26(s1)` = (s16)(pActor->position.vy >> 16) spelling (gcc folds the
-   lw+sra into lh, it does NOT cost an instruction), and that
-   FieldCheckPointInExtentZone's 3rd argument is the ActorData* cast to
-   FieldExtentZone* (retail passes s0 = pOther unchanged). */
+// PARKED R480 99.67% - 500 insns / 2000 bytes against retail's 501 / 2004. ONE
+// instruction short, so it cannot link; everything else is retail's exactly.
+//
+// WHAT MOVED THE SCORE 90.12 -> 99.67 (keep this body):
+// (a) BLOCK LAYOUT. Retail emits the loop-body blocks in the order
+//     [B4 touch test][floor/ground tests][touch][hitTimer][push-zero][clampFloor][next],
+//     i.e. `touch` is the FALL-THROUGH of the third test and clampFloor sits after
+//     the push block. Source order only reaches that with explicit labels at the
+//     end of the body: `if (otherY < floorY || myY < groundY) goto clampFloor;` then
+//     `if (!(myY < groundY + 0x10 || (pOther->flags & 0x800000))) goto hitBlock;`
+//     and falling into `touch:`; `clampFloor:` goes AFTER the push block and before
+//     `next:`. That is -8 bytes here and it is what aligns every branch offset:
+//     216 differing lines -> 114, all of them offsets. (Measured alternative: the
+//     `if (a || b) { ...; goto next; }` form puts clampFloor inline and re-forms
+//     `li v1,-257` twice, +8 bytes, 90.12%.)
+// (b) The `otherFlags & 0x10` test. Retail's `andi v0,s4,0x10` reads the OTHER
+//     actor's flags, not pActor's: the old body read scriptFlags from 0x68(sp)
+//     (`lw t1,104(sp)`), one instruction too many. s4 is loaded from
+//     `lw a0,0(a2)` = g_FieldActors[i].pActorData->scriptFlags.flags.
+// (c) THE BITFIELD. `if (pOther->scriptFlags.fields.scriptFlags_0x0) continue;`
+//     followed by `otherFlags = pOther->scriptFlags.flags;` makes cse1 keep the
+//     flags word in a temp a0 across the `bnez` (the fall-through block is its sole
+//     successor), so the assignment becomes the copy retail has:
+//     `lw a0,0(s0)` + `move s4,a0` instead of a direct `lw s4,0(s0)`. Written as
+//     `if (otherFlags & 1)` both are direct loads: 99.34 / 499.
+// (d) `*(u_short*)&((SpriteDataI3*)pSprite->field_0x7C)->field_0xC == 1` - retail
+//     compares with `lhu`, the header types the field s16 (`lh`).
+//
+// THE REMAINING INSTRUCTION: retail's `lw a2,76(v0)` / `move s0,a2` - pActorData
+// goes through a cse temp too, and only the copy is missing. Not reachable from
+// source with this compiler: cse1 will temp a `(mem (reg R))` expression across a
+// branch (that is (c)) but never a MEM-of-symbol address, so every spelling that
+// makes `g_FieldActors[i].pActorData` the first use of the block duplicates the
+// `lui %hi(g_FieldActors) / lw / addu v0,s5,v0` chain instead. Measured, all with
+// this layout: test-then-assign via the expression chain 98.70 / 506, `otherFlags`
+// + `pOther` both from the chain then the test 98.60 / 502, flags-then-bitfield
+// -then-pOther (three chain uses in one block) 97.08 / 508, assign-flags-from-
+// chain-first 98.23 / 505. A `pData`/`pOther` pair of locals coalesces back to a
+// direct load. So the last 4 bytes need an allocator-level answer, not a spelling.
+//
+// Everything else in the function is instruction-identical to retail: frame 0xC8,
+// saves fp/s0-s7/ra, the 0x88-byte var area with groundY 0x40, pFieldActor 0x48,
+// refX 0x50, refZ 0x58, floorY 0x60, scriptFlags 0x68, contact 0x70, hitCount 0x78,
+// savedCanInteract 0x80, masks 0x88/0x90, and retail's registers (s2 = i, s3 =
+// pScratch, s4 = otherFlags, s5 = the 0x5C biv, s6 = myY, s7 = nearest, fp =
+// actorIndex). The push block's moveModified reload after the zeroing (retail's
+// `sw zero,48(s1); lw v0,48(s1)`) comes out here without help - the old note's
+// item (3) was wrong.
+// Settled earlier and still true: -O3 / -G0 / 2.7.2-cdk (93.99) / 2.6.0 (93.29)
+// are all worse for this function and 2.6.0 breaks seven matched neighbours, so
+// the unit stays Default. Permuter is useless while 4 bytes are missing.
 /*
 void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     FieldSquareScratch* pScratch;
@@ -1929,10 +1942,10 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             continue;
         }
         pOther = g_FieldActors[i].pActorData;
-        otherFlags = pOther->scriptFlags.flags;
-        if (otherFlags & 1) {
+        if (pOther->scriptFlags.fields.scriptFlags_0x0) {
             continue;
         }
+        otherFlags = pOther->scriptFlags.flags;
         pOther->flags &= ~0xC100;
         if (pOther->flags & 0x80) {
             pModelData = g_FieldActors[i].pModelData;
@@ -1988,21 +2001,25 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             goto touch;
         }
         if (otherY < floorY || myY < groundY) {
-            pOther->flags &= ~0x100;
-            if (myY < groundY) {
-                pOther->flags |= 0x800000;
-                if (groundY < nearest) {
-                    nearest = groundY;
-                }
-            } else {
-                pOther->flags &= ~0x800000;
-            }
-            goto next;
+            goto clampFloor;
         }
-        if (myY < groundY + 0x10 || (pOther->flags & 0x800000)) {
-            goto touch;
+        if (!(myY < groundY + 0x10 || (pOther->flags & 0x800000))) {
+            goto hitBlock;
         }
-        if ((scriptFlags & 0x10) == 0) {
+    touch:
+        nearest = groundY;
+        pOther->flags |= 0x800000;
+        pActor->move.vx = pOther->moveModified.vx;
+        pActor->move.vy = pOther->moveModified.vy;
+        pActor->move.vz = pOther->moveModified.vz;
+        hitCount = 2;
+        if (!(scriptFlags & 0x40800)) {
+            pActor->canInteract = i;
+            contact = 1;
+        }
+        goto next;
+    hitBlock:
+        if ((otherFlags & 0x10) == 0) {
             if (pOther->hitTimer < 0x30) {
                 pOther->hitTimer += 2;
             }
@@ -2031,17 +2048,17 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
         pActor->move.vy = 0;
         pActor->move.vz = 0;
         goto next;
-    touch:
-        nearest = groundY;
-        pOther->flags |= 0x800000;
-        pActor->move.vx = pOther->moveModified.vx;
-        pActor->move.vy = pOther->moveModified.vy;
-        pActor->move.vz = pOther->moveModified.vz;
-        hitCount = 2;
-        if (!(scriptFlags & 0x40800)) {
-            pActor->canInteract = i;
-            contact = 1;
+    clampFloor:
+        pOther->flags &= ~0x100;
+        if (myY < groundY) {
+            pOther->flags |= 0x800000;
+            if (groundY < nearest) {
+                nearest = groundY;
+            }
+        } else {
+            pOther->flags &= ~0x800000;
         }
+        goto next;
     next:
         pOther->flags |= 0x400000;
     }
@@ -2074,13 +2091,15 @@ void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
         func_80084A40(actorIndex, nearest, pFieldActor, pActor, hitCount);
     }
     pSprite = g_FieldActors[actorIndex].pSpriteData;
-    if (((SpriteDataI3*)pSprite->field_0x7C)->field_0xC == 1) {
+    if (*(u_short*)&((SpriteDataI3*)pSprite->field_0x7C)->field_0xC == 1) {
         ControllerResetState();
         pActor->scriptFlags.flags &= ~0x800;
     }
     FieldFreeScratchpad(sizeof(FieldSquareScratch));
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084158);
+
+
 
 extern s32 D_800ADC0C;
 
