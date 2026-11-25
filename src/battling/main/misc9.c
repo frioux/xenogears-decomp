@@ -542,9 +542,10 @@ extern void func_800732AC(void* pDst, void* pSrc, s32 n);
 //    a cast pointer makes gcc hoist its address into a callee-saved register and the
 //    frame grows to 0x38. clut/tpage need locals re-read at the top of each quad or
 //    the two lhu come out next to their stores. 68.73 -> 94.35 over five hand shapes.
-//    When this body is un-parked, D_800927A0, D_800927A4, D_800927A8 and
-//    D_8009278C need symbol_addrs entries (0x800927A0, 0x800927A4, 0x800927A8,
-//    0x8009278C).
+//    D_800927A0, D_800927A4, D_800927A8 and D_8009278C need NO symbol_addrs entry:
+//    splat already emits them as dlabels in asm/battling/data/21654.data.s, so the C
+//    externs resolve to those and adding entries would be duplicate symbols.
+// re-measured round 495 (unparked and live): 94.35% at 0x218 bytes / 134 insns against retail's 0x214 / 133. The body below is instruction-identical to retail in every other respect; the whole residual is ONE register. Retail's preheader builds the biased loop pointer p + 0x25 into a FRESH $a1 (addiu a1,v1,0x25) and then reuses the loaded g_BattleDrawPrimPools[0] pseudo $v1 for the in-loop clut address (lui v1 / lhu v1, D_800927A0), while this body's gcc ties the loaded pseudo to the loop IV in place (addiu v1,v1,37), so every a1 in the loop is v1 here, the clut scratch becomes $a1, and the lbu D_800927A8 slot that retail fills with the u3 store is a nop (the 4 excess bytes). Round 495 measurements, all at 0x218 / 134 and no new best: the pointer initialised in the for-clause comma expression - byte-identical 94.35; quad 2 written as (p + 1)->field with the same two p++ - 94.26; POLY_FT4* p declared first among the locals - byte-identical 94.35. Lever lookup on that residual: a-second-live-pointer-variable-forces-retail-copy needs the second pointer to cross a CALL in its live range (there is no call in this loop) and e-a-derived-base-beats-a-copy-of-the-parameter says gcc prefers the coalesced form, i.e. the copy is not reachable from source. No permuter run: the function is below the 99 percent bar, and an earlier 3-minute run on this body did nothing.
 /*
 void func_80082C4C(u8* pArg) {
     TIM_IMAGE tim;
