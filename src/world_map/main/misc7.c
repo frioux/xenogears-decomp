@@ -309,17 +309,9 @@ s32 WorldMapInitSlotAtScrollPosition(s32 index) {
     pSlot->pos.z = g_WorldMapPlayerPosition.z;
     return 1;
 }
-// Best: 84.76%. The branch, every immediate, every relocation and the three
-// WorldMapInitSpriteGroupSprites calls match once the three scratchpad stores use the literal
-// address 0x1F8000A0: retail writes them as `lui $at,0x1F80` + `sh $v0,0xA0($at)`
-// with no relocation, while naming D_1F8000A0 emits %hi/%lo and forces the base
-// into a saved register (that shape scores 76.71%). A 36-row try_flags sweep
-// (gcc 2.6.0/2.7.2/cdk x -O1..-O3 x -G0/-G4/-G8 x mcpu 3000/r8000) tops out at
-// 84.76, so the preset is not the problem. Residues: gcc sinks `sh zero,0x4(base)`
-// below the pos.x/pos.z loads and hoists the pos.z load where retail keeps
-// statement order, and the slot base lands in $a3 instead of $a2. Addressing the
-// slot as g_WorldMapSlots[index] per statement scores 81.95; moving the command store to
-// either end of the three stays at 84.76.
+// Best: 84.76% (164 bytes / 41 insns against retail's 42 - the missing instruction is retail's load-delay nop after the pos.z load, so this body cannot link).
+//   The branch, every immediate, every relocation and the three WorldMapInitSpriteGroupSprites calls match once the three scratchpad stores use the literal address 0x1F8000A0: retail writes them as lui $at,0x1F80 + sh $v0,0xA0($at) with no relocation, while naming D_1F8000A0 emits %hi/%lo and forces the base into a saved register (76.71%). Residues: gcc sinks the command store below the pos.x/pos.z loads and hoists the pos.z load where retail keeps statement order, and the slot base lands in $a3 instead of $a2.
+//   Round 481 measured on this body: three s32 locals, all three expressions inline, and the (u8 *)PSX_SCRATCH + 0xA0 cast spelling all score 82.19 with the same 41 insns; the positive if (command == 1) form is 84.76 like the early return, so the tie is allocator/scheduler and not the CFG. A do/while barrier after each of the three scratchpad stores (the trick that closed func_800817A0) is byte-identical here at 84.76 - the hoisted pos.z load crosses it. Earlier: a 36-row try_flags sweep (gcc 2.6.0/2.7.2/cdk x -O1..-O3 x -G0/-G4/-G8 x mcpu 3000/r8000) tops out at 84.76; addressing the slot as g_WorldMapSlots[index] per statement scores 81.95; moving the command store to either end stays 84.76.
 /*
 s32 func_80080944(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -339,9 +331,10 @@ s32 func_80080944(s32 index) {
     WorldMapInitSpriteGroupSprites(0x29, (s16 *)0x1F8000A0, 0);
     WorldMapInitSpriteGroupSprites(0x2A, (s16 *)0x1F8000A0, 0);
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080944);
+
+
 
 void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
     s32 i;
@@ -863,37 +856,28 @@ void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count,
     memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT4));
 }
 
-// Best: 89.56%, 200 bytes = retail's exact size (round 398). Two finds off the old
-// 79.06 body: declaring pEntry WITHOUT an initialiser and assigning it between the pos.y
-// and pos.z lines puts the lw g_WorldMapGroups in retail's exact slot (after the y load,
-// before the addu), and the do/while after the state store is still required.
-// One residue left: the scheduler hoists the posZ load above the pos.x store, which drags
-// the y addu + pos.y store below the three zero stores (retail has y add and store
-// adjacent, z load then zeros then z store). Measured worse or equal: a do/while barrier
-// before the pos.z line (86.48), an s32 posZ local loaded between pEntry and the zeros
-// (89.56, unchanged). Preset screen: cdk 75.76, gcc-2.6.0 compile-failed.
-/*
 s32 func_800817A0(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     WorldMapEntry *pEntry;
+    s32 posZ;
 
     pSlot->state = 0;
     do { } while (0); // keeps the position loads below the state store
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    pSlot->pos.y = g_WorldMapPlayerPositionY + 0xFFF00000;
+    pSlot->pos.y = g_WorldMapPlayerPositionY - 0x100000;
     pEntry = &g_WorldMapGroups[2];
+    do { } while (0); // keeps the z load out of the block above
+    posZ = g_WorldMapPlayerPositionZ;
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
-    pSlot->pos.z = g_WorldMapPlayerPositionZ;
+    pSlot->pos.z = posZ;
     WorldMapInitPolyFt4Prims(pEntry, pEntry->pPackets[0], pEntry->pModel->polyCount, 1);
     pEntry->x = pSlot->pos.x >> 12;
     pEntry->y = pSlot->pos.y >> 12;
     pEntry->z = pSlot->pos.z >> 12;
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
 s32 WorldMapUpdateSlotColorFade(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     WorldMapEntry *pEntry = &g_WorldMapGroups[2];
