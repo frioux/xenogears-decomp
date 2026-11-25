@@ -342,11 +342,35 @@ s32 WorldMapResetActorSlotWithSound(s32 index) {
 // D_8009BD48/4A/4C the one at 0x8009BD48; D_8009BD50/54/58 are the three words of the
 // vector at 0x8009BD50. WorldMapInterpolateQuadraticVector takes the s32* out as its
 // last (stack) argument, as misc5's caller does.
+// 92.97%, 1060 bytes = retail's exact size and instruction multiset. Structure is decoded;
+//    residual is three ordering ties, re-measured this round (no twin exists: twin_for.py
+//    reports none). (1) entry - retail keeps the path-table base in $a0, scales the index
+//    into $v1 and stores p->unk54 AFTER the addu; this body stores before the sll and reuses
+//    $v0 for the scale, so addu comes out index-first. (2) case 0 - retail emits the p->state
+//    addiu/sh before the g_WorldMapCameraTarget lui/lw and its sra; this body hoists the load
+//    above them. (3) tail - retail pairs each statement pair's two sll before its two sw,
+//    this body interleaves sll,sw,sll,sw.
+//    Two things the body NEEDS: the switch must be 'switch ((s16)p->state)' (a u16 switch
+//    expression makes gcc emit lhu + andi 0xffff + sltiu where retail has lh + sltiu), and
+//    D_8009BD42/48/4A must be s16 because retail loads all six tail values with lh. The
+//    parked func_80078EA4 body below wants those three globals as u16 for its own match.
+//    MEASURED DEAD this round, each byte-identical to the body below (92.97 / 1060 / 265):
+//    the tail written as a typed WorldMapPos4 pair (pDst[0].x/.y/.z, pDst[1].x/.y/.z - gcc
+//    canonicalises the struct member to the same RTL); the entry written as the offset-first
+//    cast sum '(WorldMapPathPoint *)(grid * sizeof(WorldMapPathPoint) + (u32)table)'; the
+//    case 0 vx as two statements 'pVec->vx = g_WorldMapCameraTarget >> 12; pVec->vx += 0x32;'.
+//    Preset is not the question: gcc-2.7.2-cdk 80.85, -O3 fails to compile.
+//    permute.sh 4 min: PERMUTER_BETTER base=2090 best=1264 and the only edit is
+//    'pVec->vx = g_WorldMapCameraTarget; pVec->vx = (pVec->vx >> 12) + 0x32;' - it DOES buy
+//    retail's residual-2 load position (95.26%) but emits the extra sw, 1064 bytes / 266
+//    insns, so it cannot link and is not ported. That is the shape residual 2 wants: the
+//    camera load has to sit after the state store and no spelling gets there for free.
 /*
 s32 func_80077E68(s32 index) {
     WorldMapActor *p;
     WorldMapPathPoint *pPoint;
     SVECTOR *pVec;
+    WorldMapPos4 *pDst;
     s32 *pScratch;
     s32 grid;
     s32 dist;
@@ -445,19 +469,21 @@ s32 func_80077E68(s32 index) {
     }
     p->unk50 = p->unk50 + p->unk58;
     if ((s16)p->state < 6) {
-        pScratch[0] = D_8009BD48 << 12;
-        pScratch[1] = D_8009BD4A << 12;
-        pScratch[2] = D_8009BD4C << 12;
-        pScratch[4] = g_WorldMapPathFrame << 12;
-        pScratch[5] = D_8009BD42 << 12;
-        pScratch[6] = D_8009BD44 << 12;
-        dist = func_80094154(pScratch, pScratch + 4) >> 3;
+        pDst = (WorldMapPos4 *)pScratch;
+        pDst[0].x = D_8009BD48 << 12;
+        pDst[0].y = D_8009BD4A << 12;
+        pDst[0].z = D_8009BD4C << 12;
+        pDst[1].x = g_WorldMapPathFrame << 12;
+        pDst[1].y = D_8009BD42 << 12;
+        pDst[1].z = D_8009BD44 << 12;
+        dist = func_80094154((s32 *)&pDst[0], (s32 *)&pDst[1]) >> 3;
         pScratch[8] = dist;
         SoundSetElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0xA4, 0x87 - dist);
     }
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
+
 
 
 s32 WorldMapInitActorAtScrollPosition(s32 index) {
