@@ -464,6 +464,36 @@ void FieldSetGearModelAnimationForActor(int, int, FieldActor*);
 // every spelling measured (retail has it in the prologue), which shortens its live range
 // and hands it the LOWER register; that is the whole residual, and it is the allocno
 // contest of levers.md a-global-allocno-priority-is, not a statement order.
+// Best 96.68% / 912 bytes / 228 insns (retail 908 / 227), round 496. Two round-496 wins, both measured:
+// (1) `x = arg2;` MOVED INTO THE ELSE ARM (with `s32 x, z;` uninitialised) gives retail's
+//     prologue exactly: s4=arg0, s3=arg1, s0=arg2, s1=arg3 and the s0 save pair in place
+//     (the if-arm x lands in s0, the else-arm z is copied `move a3,s1`), 92.56 from 91.82.
+//     So the x/arg3-home mirror of the old note was a live-range question after all: the
+//     entry copy made the x pseudo live from insn 2 and it lost the contest.
+// (2) THE ARRIVAL BLOCK'S ORDER IS RETAIL'S, for free, from a one-iteration do-while of the
+//     two dead stores before the call (levers h-an-empty-do-while / a-dead-if-else-block):
+//         do { pSpriteData->moveSpeed = 0; pActorData->curAnimationId = 0; } while (0);
+//         FieldSetGearModelAnimationForActor(...);        <- label between them: 96.42
+//     The label stops reorg stealing the call's arg copy into the bnez delay slot, so the
+//     block starts with the `lhu` and the slot is retail's nop, and `sh zero,232`,
+//     `move a1,zero` and the g_PlayerActorIndex chain land in retail's order. Keeping the
+//     call OUTSIDE the do-while (a second label, so the arg copies start a block) is 96.68.
+// Residual, two allocator facts, both visible in the last 20 lines of the diff:
+// (a) retail has a PER-BLOCK copy of pSpriteData in $a0 filling the lhu load-delay slot and
+//     its moveSpeed store goes through it (`move a0,s7` / `sw zero,24(a0)`); we coalesced
+//     pSpriteData into s3, so we emit `sw zero,24(s3)` plus a late `move a0,s3` and the
+//     load-delay slot takes a nop - that nop IS the 4 extra bytes, so nothing here can link
+//     until it goes.
+// (b) the callee-saved map is a one-step rotation of retail's: ours pSpriteData=s3, arg1=s4,
+//     arg0=s5, curX=s6, curZ=s7; retail arg1=s3, arg0=s4, curX=s5, curZ=s6, pSpriteData=s7.
+//     Same save SET, so retail's pSpriteData qty is the LOWEST-priority allocno of the five
+//     and ours is the highest - levers a-global-allocno-priority-is; read -dl before spending
+//     a lane, the pSpriteData qty is live entry-to-arrival in both.
+// Measured and worse: `rotation |= 0x8000` inside the do-while so the label sits after the
+// lhu (92.43), swapping the two stores (95.82), spelling the entry actor pointer
+// `g_FieldActors + g_PlayerActorIndex` (byte-identical to `&g_FieldActors[...]` at 92.56).
+// Untouched residual from the old note: `li v0,-1` / `li a0,8` swap places in the prologue
+// and retail's entry loads pSpriteData before the flags word where we sink it after.
 /*
 s32 func_80092894(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     FieldActor* pFieldActor;
@@ -480,7 +510,6 @@ s32 func_80092894(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     s32 curX;
     s32 curZ;
 
-    x = arg2;
     g_FieldControl.isRandomEncountersEnabled = -1;
     pFieldActor = &g_FieldActors[g_PlayerActorIndex];
     pActorData = pFieldActor->pActorData;
@@ -508,6 +537,7 @@ s32 func_80092894(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
         x = g_FieldScriptVMCurActor->positionOffset.vx + ((s16*)&g_FieldScriptVMCurActor->position.vx)[1] + ((rsin(angle) * 40) >> 12);
         z = g_FieldScriptVMCurActor->positionOffset.vz + ((s16*)&g_FieldScriptVMCurActor->position.vz)[1] + (-(rcos(angle) * 40) >> 12);
     } else {
+        x = arg2;
         z = arg3;
     }
 
@@ -524,8 +554,10 @@ arrived:
     rotation = (u_short)pActorData->rotation.vy | 0x8000;
     pActorData->rotation.vx = rotation;
     pActorData->rotation.vy = rotation;
-    pSpriteData->moveSpeed = 0;
-    pActorData->curAnimationId = 0;
+    do {
+        pSpriteData->moveSpeed = 0;
+        pActorData->curAnimationId = 0;
+    } while (0);
     FieldSetGearModelAnimationForActor(pSpriteData, 0, &g_FieldActors[g_PlayerActorIndex]);
     g_FieldScriptVMStopFlag = 1;
     pActorData->scripts[pActorData->curScriptIndex].flags_0 = 0xFFFF;
@@ -560,6 +592,7 @@ walk:
     goto arrived;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
+
 
 
 
