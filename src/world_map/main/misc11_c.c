@@ -296,29 +296,18 @@ int WorldMapInitPartyActorSprite0(int index) {
     pActor->angle = *(u16 *)&g_GameState.partyActorAngles[0];
     return 1;
 }
-// 99.69% (2988 bytes / 747 insns, retail's exact size; 288 differing lines, 26 of the 29 non-context diff rows are pure register names and 2 are the jtbl operand). Round 478 rewrote the body from retail's own shape, +8.5 points from the 91.19 park:
-//  (1) THE 40 'MISSING INSTRUCTIONS' WERE PHANTOM: the stub's .size says 3148 but its .s is 2988 bytes (the next stub WorldMapInitPartyActor1 starts at 8008D3F0); objdiff compares 2988 vs 2988. Never read 787/3148 from the header again.
-//  (2) the func_80090C68 return dispatch is a real 'switch (ret)' with case 1, 3, 4 (retail's tree: beq v1,3 / slti v1,4 / beqz / beq v1,s0), not an if-chain. Also list case 1 BEFORE case 3 in source order: that places the state=8 block after the loopActive/areaMode block, which is retail's layout (+0.9 on its own).
-//  (3) the frame 0x20 larger than the sibling func_8008A72C's is a DEAD local array: 'u_long unusedFrame[8];' never referenced takes vars=32 at expand time, which lands every save slot on retail's exact offsets and the frame on 0x58 (lever j-an-unused-local-array-is).
-//  (4) 's32 result = 1;' and 's32 *pScratch = (s32 *)0x1F800000;' must be initialised BEFORE pActor so their save/lui pairs precede the g_WorldMapSlots load (levers j-local-declared-before-another, j-scratchpad-base-first).
-//  (5) in case 8/9 the targetSlot store is pActor[1]/pActor[2] (retail sh v1,0x86(s1)), not g_WorldMapSlots[index+1]; case 16 keeps the table-base form because retail re-forms it there.
-//  (6) zone = g_WorldMapZoneProximity; if (ZoneId == 7) zone += 3; loads the global ONCE, as retail's lbu a2 does.
-//  (7) the four 0x90(s4) words are one '*(WorldMapVec *)&pActor->x = *(WorldMapVec *)&pScratch[0x24]' and pScratch[0x24] is spelled inline everywhere (no pOut local), which is what makes retail's 'ori a0,s4,0x90' and 0x90(s4) offsets appear.
-//  (8) case 48 is misc11_b's matched WorldMapUpdateGearActorSlot case 48 verbatim: s16 angle local from g_WorldMapSlots[7].unk60[6], rcos(angle), and 'z + (-rsin(pActor->angle)) * 0x60' (the negu), plus 'pScratch[0x2C..0x38] 4-word copy' and an s32 loop counter (s16 emits a widening pair).
-// RESIDUAL (all register ties, permuter 3 min = 360 -> 360 no find): moved lands in v1 where retail has a2; g_WorldMapZoneProximity in a0 vs retail a2; the trail pointer pTrail in a2 vs retail a3 in BOTH trail fills (retail's case-50 loop has pTrail=a3, counter=a2, mine swapped); and case 18's branch polarity (retail beqz to the exit, mine bnez to the arm). Also measured dead: s16 moved, the embedded assignment 'if ((moved = ...) == 0)', gcc-2.6.0 96.86, cdk does not compile.
-/*
 int func_8008C844(int index) {
     s32 result = 1;
     s32 *pScratch = (s32 *)0x1F800000;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapTrail *pTrail;
-    s16 zone;
     s16 i;
+    // one work variable: the hit result, the zone index and the trail-fill counter share it (three
+    // locals rotate the caller-saved hand-out); unusedFrame only widens the frame to retail's
     s32 j;
     s16 angle;
     u_long unusedFrame[8];
     s32 gear;
-    s32 moved;
     s32 ret;
 
     switch (pActor->command) {
@@ -378,25 +367,25 @@ int func_8008C844(int index) {
                     }
                     WorldMapUpdateSpriteGroupFromActor(0x2C, pActor, (WorldMapScreenPos *)pScratch);
                 }
-                moved = func_80095414(&pActor->x, &pActor->dirX, &pScratch[0x24], pActor->moveSpeed << 12,
-                                      g_WorldMapMode);
-                if (moved == 0) {
+                j = func_80095414(&pActor->x, &pActor->dirX, &pScratch[0x24], pActor->moveSpeed << 12,
+                                  g_WorldMapMode);
+                if (j == 0) {
                     *(WorldMapVec *)&pActor->dirX = *(WorldMapVec *)&pScratch[0x24];
-                    moved = func_80095414(&pActor->x, &pActor->dirX, &pScratch[0x24], pActor->moveSpeed << 12,
-                                          g_WorldMapMode);
-                    if (moved == 0) {
+                    j = func_80095414(&pActor->x, &pActor->dirX, &pScratch[0x24], pActor->moveSpeed << 12,
+                                      g_WorldMapMode);
+                    if (j == 0) {
                         pActor->dirZ = 0;
                         pActor->dirX = 0;
                     }
                 }
-                if (moved == 1) {
+                if (j == 1) {
                     WorldMapFindZoneAtPosition((WorldMapPos *)&pScratch[0x24], 0x18, 0x30,
                                                &g_WorldMapZoneProximity, &g_WorldMapZoneId);
-                    zone = g_WorldMapZoneProximity;
+                    j = g_WorldMapZoneProximity;
                     if (g_WorldMapZoneId == 7) {
-                        zone += 3;
+                        j += 3;
                     }
-                    if (D_8009B180[zone] != 0) {
+                    if (D_8009B180[j] != 0) {
                         *(WorldMapVec *)&pActor->x = *(WorldMapVec *)&pScratch[0x24];
                         if ((pActor->dirX | pActor->dirZ) != 0) {
                             i = (g_WorldMapTrailCursor + 1) & 0x1F;
@@ -514,7 +503,7 @@ int func_8008C844(int index) {
         }
         break;
     case 18:
-        if ((g_GameState.partyMembers[2] == CHARACTER_ID_NONE) || (WorldMapStartSlot(6, 5) == 0)) {
+        if ((g_GameState.partyMembers[2] == CHARACTER_ID_NONE) || (WorldMapStartSlot(6, 5) != 0)) {
             pActor->state = 0x40;
         }
         break;
@@ -617,8 +606,7 @@ int func_8008C844(int index) {
     g_GameState.fieldScriptMemory[0x17] = pActor->z >> 12;
     *(u16 *)&g_GameState.partyActorAngles[0] = pActor->angle;
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11_c", func_8008C844);
+}
 
 
 // The four volatile pins are this file's idiom (see WorldMapInitPartyActorTrail). Without the three
