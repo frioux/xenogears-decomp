@@ -1711,6 +1711,12 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 //   four field loads then read the same offsets) puts addiu a1,a1,24 in the
 //   bnez delay slot exactly as retail has it, but flags takes a3 and y stays
 //   mirrored - 95.93%, 48 differing lines against this body's 50.
+// R475: best stays 96.81%, 420 bytes / 105 insns (retail exact size); body
+// re-measured from this park. Re-measured the flags-first variant of the
+// prologue: 95.93%, 48 differing lines, addiu in the bnez delay slot exactly
+// where retail has it but still on a2 with flags in a3 (retail: cursor a1,
+// flags a2, blockType t0), so residual (1) is confirmed a register tie and not
+// a statement order. No new lever found; do not re-try load order.
 /*
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     u16 rotFrame;
@@ -1780,6 +1786,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 
 
+
 // R449 additions to the note below, all measured this round:
 // - The keyframe-pointer tie is the SAME mechanism that blocks func_801DEF10 in
 //   this unit: retail coalesces the cursor onto the pBlock parameter register
@@ -1832,6 +1839,16 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 // `unk6 & 1`; it then reads both (lbu 0x8C(sp), lbu 0x90(sp)) a byte at a time,
 // which s32 cannot reproduce (it emits `lw`), while u8 grows the frame to 0x80
 // for `type` alone and 0x88 for both by spilling them into new slots.
+// R475: re-measured 95.40%, 1144 bytes (retail exact), 286 insns, 168 differing
+// lines; body unchanged. Closed the frame slot access widths (the one non
+// register delta): retail stores numFrames slot 0x10(sp) with `sw` twice and
+// reads it with `lhu` twice at `endFrame = frame`. s32 `frame` (this body) =
+// sw + lw; `u16 frame` + the test on the parameter (`if (numFrames == 0)
+// frame = 1;`) = sh + lhu at 95.40 / 1144 / 286 (retail reads, wrong stores);
+// `u16 frame` + test on frame = sh + lhu 95.57 / 1148 / 287 (one insn over, so
+// unlinkable); `u16 numFrames` in the signature = 93.67 / 1164 / 291, frame
+// 0x84. No spelling gives word stores with halfword reads, so the local stays
+// s32 and the register tie of the note above is the whole residual.
 /*
 s32 func_801DF0B4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 numFrames,
                   s32 absolute, s32 unk6, s32 type) {
@@ -1999,6 +2016,7 @@ s32 func_801DF0B4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     return count;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
+
 
 
 
