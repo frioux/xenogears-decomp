@@ -86,6 +86,9 @@ extern void BattleQueueOneActorCommand(u8 arg0);
 extern void BattleSetSlotFlag15A1(u8 arg0);
 extern u8 g_BattleSlotDisplayInitialized;
 extern u8 g_BattleTargetSlot;
+// array view of the same byte: the outer target loop must re-read it, which the
+// scalar spelling's store-to-load fold deletes
+extern u8 g_BattleTargetSlotRead[] __asm__("g_BattleTargetSlot");
 extern u8 D_800C48EA;
 extern u8 D_800CCD38[];
 extern u8 D_800CDD53[];
@@ -347,6 +350,7 @@ void BattleAllocDrawBuffer(void) {
    objdiff's percentage is not monotone for this pair - the 118-insn body scores
    91.69, the 117-insn one 91.24 - judge by the instruction count. */
 
+// Round 490: re-measured 91.24% / 468 bytes / 117 insns (unchanged). One new datum: `u8 digits` measures 90.09% / 476 / 119, so the digits counter stays s32. The named blocker is unchanged: the mfhi result is spilled to t3 (global_alloc "Spilling reg 11") where retail has v0, because retail completes the third 0xFF store before the mfhi.
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
@@ -384,9 +388,9 @@ void func_8007FF14(u8 arg0) {
         g_BattleDisplayState[0xAD] = 1;
         g_BattleDisplayState[0xC7] = 1;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
+
 void BattleResetActorDrawState(u8 arg0) {
     s32 index;
 
@@ -739,6 +743,10 @@ void BattleSetActorFlag34(u8 index) {
    slot, do/while(0) around the queue block, one 4-minute permuter run
    (base 5054 -> 3469). */
 
+// Round 490: 88.70 -> 90.08% / 1224 bytes / 306 insns. NOTE the old note above is wrong on one number: retail is 306 insns / 1224 bytes (0x80080C94..0x8008115C), so the old 305-insn / 1220-byte body was 4 bytes SHORT of retail and could never have linked. Two edits, both kept:
+//   (a) THE OUTER RANDOM-TARGET TEST NEEDS A RELOAD, AND AN ARRAY ALIAS WITH AN __asm__ LABEL SUPPLIES IT: `extern u8 g_BattleTargetSlotRead[] __asm__("g_BattleTargetSlot");` and `} while (g_BattleTargetSlotRead[0] == arg0);`. Reading the scalar after storing to it makes cse forward the stored byte, so only 305 insns; a second gcc object with a different name at the same address keeps retail`s `lui %hi / lbu %lo / nop / beq` reload (lever a-label-alias-array-read-beats-volatile, round 444). 88.70 -> 89.97 alone.
+//   (b) THE MASK THE INNER TEST COMPARES AGAINST IS AN `s32` LOCAL MASKED ONCE IN THE PREHEADER: `s32 target;` + `target = arg0 & 0xFF;` before the do/do gives retail`s `andi s0,s3,0xff` in the preheader and `beq v0,s0`; a `u8 target` is coalesced to arg0 and re-masks at the use (`andi v0,s2,0xff` inside the loop, 305 insns), and no local at all 305. 89.97 -> 90.08 with the insn count 306 = retail.
+// Open residual, 118 differing lines, all allocation/scheduling. Read it as ONE tie, not many: the random-loop preheader has three loop-live values (&buf, the 0xFF digit, the masked target) and retail hands them s1/s2/s0 while ours hands them s0/s1/s2 - a cyclic 3-rotation of pseudos that are each referenced once, so the quotient `floor_log2(refs)*refs/live_length` ties and the hand-out falls to processing order; the s0/s1/s2 sites all follow from it. Second residual is the trailing wait loop, where ours hoists the 0x2DB test into an entry test and jumps back to the body from the D_800C48EA test while retail keeps one three-test block at the bottom. Smaller leftovers measured: `li v1,0xff` / `li s0,0xa` order in the fill-loop setup, `move s0,zero` out of the beqz delay slot, and the BattleRollActorActionCondition argument chain (retail loads the queue into v0, ours into a2).
 /*
 void func_80080C94(u8 arg0) {
     u8 info[8];
@@ -751,6 +759,7 @@ void func_80080C94(u8 arg0) {
     s32 r;
     s32 i;
     s32 slot;
+    s32 target;
 
     BattleUpdateFrame();
     for (i = 0xA; i >= 0; i--) {
@@ -769,11 +778,12 @@ void func_80080C94(u8 arg0) {
                 *pBuf++ = slot;
             }
         }
+        target = arg0 & 0xFF;
         do {
             do {
                 g_BattleTargetSlot = buf[GameRandomByteRange(0, 0xA)];
             } while (g_BattleTargetSlot == 0xFF);
-        } while (g_BattleTargetSlot == arg0);
+        } while (g_BattleTargetSlotRead[0] == target);
     }
     BattleInitSlotRowsForActor(arg0, g_BattleTargetSlot);
     idx = arg0 * 0x40;
@@ -832,6 +842,6 @@ void func_80080C94(u8 arg0) {
         BattleUpdateFrame();
     }
     D_800C204C = 0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080C94);
+
