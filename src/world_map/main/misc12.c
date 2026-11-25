@@ -2340,6 +2340,35 @@ s32 func_80091C18(s32 idx) {
 //   diff_func silently scores the stale object at the old percentage.
 // A permuter run is NOT the next step here (below 99); the register rotation is the
 // only handle and it needs a spelling that changes the allocno set.
+// best: 94.16%, 572 bytes / 143 insns = retail's exact size (was 92.80/576/144).
+// Round 489 closed two things and PROVED the rest shut with -da/-dl (recipe: cpp
+// with -DSKIP_ASM, then tools/gcc-2.7.2-psx/cc1 with the unit cc_flags + -O2 -G8
+// -da -dl; read the ';; Function func_80091FF8' section of m.i.lreg/.greg):
+// - the inner-loop store is UNCONDITIONAL in retail - it sits in the beqz delay
+//   slot, i.e. it executes on both paths, so the source had
+//   'nZ = *(s8 *)WorldMapGetTileEntry(...); *(s32 *)(pScratch + 4) = nZ; if (nZ <
+//   nBest) nBest = nZ;'. Keeping the store inside the if left a nop in that slot
+//   and cost the extra instruction (144). Nothing in the function reads
+//   scratch+4, so the unconditional store is safe to write.
+// - the tail's abs needs its own BLOCK-LOCAL ('s32 nDiff;' at the top of the if
+//   block, one expression): then it comes out as retail's
+//   'subu v0,v0,v1 / bgez v0 / nop / negu v0,v0 / slti v0,v0,65'. Writing it into
+//   the function-level nZ put the result in v1 and reorg duplicated the slti into
+//   the bgez delay slot (144 insns).
+// LEFT: the three-way callee-saved rotation (retail nX=s3, nBest=s4, i=s5; this
+// body nBest=s3, i=s4, nX=s5) and nothing else. It is QUOTIENT-CLOSED, not a
+// spelling: -dl gives pseudo 78 (nX) 5 refs / 31 insns = 2*5*4/31 = 1.29, pseudo
+// 80 (nBest) 12 / 56 = 3*12*4/56 = 2.57, pseudo 82 (i) 10 / 86 = 3*10*4/86 = 1.40,
+// and find_reg hands s3,s4,s5 out in ascending regno along the
+// ';; 16 regs to allocate: 81 84 139 76 83 136 80 82 78 75 73 74 127 77 72 110'
+// order, so retail needs nX first (>= 2.57, i.e. live <= 15 insns or 9 refs) where
+// the stream pins it at 31/5. Both the refs term and the live length are fixed by
+// retail's own instructions, which this body already reproduces one for one, so no
+// source spelling reaches the order (declaration order and statement order both
+// measure byte-identical). Do not re-brief this park.
+// Also measured this round: the 'nBest = 0;' statement order (before or after the
+// *pIn store) is byte-identical, try_flags cdk 81.45 / -O3 compile-fails / -G0
+// 92.80 on the old body, so the preset is right.
 /*
 s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     s32 *pTrack;
@@ -2373,8 +2402,8 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
             for (k = 0; k < 6; k++) {
                 WorldMapWrapPosition(pScratch);
                 nZ = *(s8 *)WorldMapGetTileEntry(*(s32 *)pScratch, *(s32 *)(pScratch + 8));
+                *(s32 *)(pScratch + 4) = nZ;
                 if (nZ < nBest) {
-                    *(s32 *)(pScratch + 4) = nZ;
                     nBest = nZ;
                 }
                 *(s32 *)pScratch += 0x80000;
@@ -2389,18 +2418,20 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
         pOfs++;
     }
     if (i < nLimit) {
+        s32 nDiff;
         s32 nDist = (nBest << 3) - 0x50;
-        nZ = ((s16 *)g_WorldMapCameraPathHeightsModes1To5)[nLimit] + nBase - nDist;
-        if (nZ < 0) {
-            nZ = -nZ;
+        nDiff = ((s16 *)g_WorldMapCameraPathHeightsModes1To5)[nLimit] + nBase - nDist;
+        if (nDiff < 0) {
+            nDiff = -nDiff;
         }
-        if (nZ < 0x41) {
+        if (nDiff < 0x41) {
             i = nLimit;
         }
     }
     return i;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
+
 
 
 
