@@ -147,11 +147,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
 
 
 
-// best 94.44% (186 insns, 744 bytes against retail's 187 / 724): the whole drain loop, the post-call word stores, the head update, the tail guard, the pending-callback arm and the return all match instruction for instruction; the ONE residual is the queued-call's argument gather. Retail reads g_GpuQueueHead three times serially, interleaving each index chain with the BE38 / BE3C table load (which costs it a load-delay nop before the jalr), while gcc hoists all three index loads to the top of the block and fills the slots: same instruction multiset, one instruction fewer, so it cannot link. The three 'do { } while (0);' blocks around the post-call stores are scheduling boundaries, not shippable C (mark ROUGH when it matches): without them the stores are batched and the body measures 81.36% / 180 insns / 720 bytes. A 'do { } while (0);' around the call itself measures byte-identical (94.44). Also tried: the queue as one 0x60-byte GpuQueueEntry struct aliased onto g_GpuQueueTable and read as .func/.p/.arg - 94.39 (49 differing lines), worse, so the split [][0x18] arrays stay.
+// best 95.27% (187 insns, 748 bytes = retail's exact size): every row matches except the queued-call argument gather, a 24-instruction region with the identical instruction multiset whose only differences are the placement and one register. THE MISSING INSTRUCTION WAS THE PENDING-CALLBACK STORE: the '*pPending = 0;' before the callback call must be a VOLATILE lvalue, because reorg will not move a volatile store into a jump delay slot - with a plain u_long *pPending the store is slotted AFTER the jalr and the body reads 186 insns / 744 bytes / 94.44%. Declaring the local 'volatile u_long *pPending' (the flag is set from the DMA-callback context, so volatile is honest) restores retail's 'sw zero,0(v1) / jalr v0 / nop' and the exact size. Residual: retail's three reads of g_GpuQueueHead land in a1,v1,a1 with the queue-table index chain in two parts around the second read (sll v1,a1,1 / addu v1,v1,a1 ... sll v1,v1,5) and the g_GpuQueueTable load sunk to just before the jalr; cc1 gives the first read $a2, a register nothing clobbers, so it defers the whole chain to the end and emits the third read two instructions earlier. Tried and byte-identical to the 95.27 body: the callee read into a 'void (*pFunc)()' local, and the row-pointer form 'pEntry = g_GpuQueueTable[g_GpuQueueHead]; pEntry[0](a, b)' (it computes the chain early but gcc folds it back). Dead from the previous round: the 0x60-byte GpuQueueEntry struct aliased onto g_GpuQueueTable (94.39). Preset settled on this body: 2.7.2-cdk 65.07, 2.6.0 80.80, unit flags 95.27. The three 'do { } while (0);' blocks around the post-call stores are scheduling boundaries, not shippable C (mark ROUGH if it ever matches); without them the stores batch and the body measures 81.36% / 180 insns.
 /*
 int func_8004696C(void) {
     u_long *pQue;
-    u_long *pPending;
+    volatile u_long *pPending;
 
     if (*g_GpuDma2Chcr & 0x1000000)
         return 1;
@@ -197,6 +197,7 @@ int func_8004696C(void) {
     return (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004696C);
+
 
 
 
