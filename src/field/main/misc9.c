@@ -390,48 +390,25 @@ extern s32 g_GameSceneMapNum;
 extern u16 g_FieldButtonsPressedOnce;
 extern void func_800AB808();
 
-/* PARKED 84.86% (620 bytes, retail 668, 155 vs 160 insns). With
-   FieldDrawScreenOverlayPrims declared int instead of s8 the same body scores
-   87.23% (612 bytes, 153 insns) - retail passes index<<3 up to 0x80 and the
-   constant 0x80 with NO truncation at either call site, so its param is int;
-   the s8 declaration (an already-matched signature) costs the two masks.
-   Everything else now matches: the table walk, the item check, StoreImage, the
-   archive read, FieldLoadTIMWithClut, the func_800AB808 call, all three render
-   loops and the LoadImage restore. The poll loop MUST be a do-while: retail
-   enters it with no top test and loops with a backward beqz.
-   Residual, one construct: retail keeps the table BASE in s2 and the scaled
-   index in s1 and re-forms addu reg,s2,s1 for each of the five
-   g_FieldMapSpriteTable[index] field reads (sched2 hoists all five together), i.e. it kept
-   the two operands instead of their sum; this cc1 cse-s base+(index*0x20) into
-   one callee-saved register, which needs one callee-saved register fewer and
-   moves pImage from s3 to s2 (frame 0x38 vs 0x40). That is 4 addu, the
-   archiveIndex load moving into the field-load group, and the register shapes.
-   Tried: pTable[index] with pTable a local pointer (best), the bare symbol form
-   g_FieldMapSpriteTable[index] everywhere (75.74 - gcc then uses symbol+offset macros
-   through $at), while instead of do-while for the poll loop (-2.37).
-   try_flags --sweep: 82.61 is the best of every gcc x -O x -G x -mcpu row on the
-   old body, so the preset is not the question.
-*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
 /* PARKED 87.23% (612 bytes, retail 668, 153 vs 160 insns). Everything but one
    construct matches: the table walk, the item check, StoreImage, the archive
    read, FieldLoadTIMWithClut, the func_800AB808 call, all three render loops and
    the LoadImage restore. The poll loop MUST be a do-while (retail enters it with
-   no top test and loops back with beqz; while costs 2.37 points).
-   Residual: retail keeps the table BASE in s2 and the scaled index in s1 and
-   re-forms addu reg,s2,s1 for each of the five g_FieldMapSpriteTable[index] field reads
-   (sched2 hoists all five together), i.e. it kept the two operands instead of
-   their sum; this cc1 cse-s base + index*0x20 into one callee-saved register,
-   which needs one callee-saved register fewer, moves pImage from s3 to s2 and
-   gives frame 0x38 vs 0x40. That is 4 addu, the archiveIndex load joining the
-   field-load group, and the register shapes.
+   no top test and loops back with beqz; while costs 2.37 points). FieldDraw-
+   ScreenOverlayPrims must take int, not s8 (under s8 this body scores 84.86).
+   Residual, one construct: retail keeps the table BASE in s2 and the scaled
+   index in s1 live across the calls and re-forms addu reg,s2,s1 at each of the
+   five g_FieldMapSpriteTable[index] field reads (and at the 0x1C read after
+   HeapFree), i.e. five separate sums, one callee-saved register more (frame
+   0x40 vs 0x38, pImage in s3 vs s2). This cc1 cse-s base + index*0x20 into one
+   callee-saved register, so the body is 7 insns short and cannot link.
    Tried: pTable[index] with pTable a local pointer (best), the bare symbol form
-   g_FieldMapSpriteTable[index] everywhere (75.74 - gcc then uses symbol+offset macros
-   through $at), and while instead of do-while (-2.37). try_flags --sweep on the
-   earlier body: the unit preset is the best of every gcc x -O x -G x -mcpu row.
-   This body needs FieldDrawScreenOverlayPrims to take int, not s8: retail passes
-   index << 3 (up to 0x80) and the literal 0x80 with no truncation, so s8 (the
-   spelling that was here) cost two masks per call site - under s8 this scores
-   84.86.
+   g_FieldMapSpriteTable[index] everywhere (75.74 - symbol+offset macros through
+   $at), while instead of do-while (-2.37). Presets are not the question: this
+   body scores 87.23 under 2.6.0, 87.23 under -G0, 87.08 under 2.7.2-cdk, and a
+   full gcc x -O x -G x -mcpu sweep on the s8 body peaked at 82.61. Note retail
+   DID common the shift (one sll) but not the sum, so only the sum is missing.
 */
 /*
 void func_800ABA98(void) {
@@ -508,8 +485,8 @@ void func_800ABA98(void) {
         DrawSync(0);
         HeapFree(pImage);
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
+}
+*/
 
 extern SpriteList3 g_FieldScreenStripSprites;
 
@@ -866,43 +843,37 @@ void func_800AC3AC(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
-/* 81.27% (520 bytes, same size as the original). The shape is right: addPrim
-   on the two 0x34-byte polys for this render context, then 16 blocks of
-   DR_MODE[2][4] followed by SPRT[2][4] (0x100 each), the four sprites of the
-   context taking y0 from the other context's first sprite, and two addPrim
-   per sprite. Only register allocation differs: gcc spills the block walker
-   and the 0x1000 byte counter to s0/s1 (8-byte frame) where the original
-   keeps everything in t registers, and gcc emits lhu where the original has
-   lh for the y0 clone (the `& 0xFF` lets combine drop the sign extension; a
-   sign-dependent use of the loaded y0 is still missing). Tried: an `other`
-   local vs the inline (ctx + 1) & 1, the two poly arguments as rows of
-   g_FieldTextGradientTopQuads[2][2] vs g_FieldTextGradientBottomQuads[ctx] and g_FieldTextGradientBottomQuads[ctx - 2] (the latter
-   reproduces the original's single base symbol plus a -0x68 fold exactly),
-   the y0 stores hoisted above the inner loop as four statements (80.70%,
-   512 bytes, 8 short: gcc then merges the two 0x14-stride sprite walkers into
-   one and drops the per-iteration addu pair). The
-   in-loop y0 store is the only shape that reproduces the original's TWO
-   sprite walkers (t1 accumulator for the addPrim lvalue, t2 accumulator for
-   getaddr), so keep it; the gap is gcc hoisting only one of the two mask
-   constant pairs and spilling the counter and the 0x50*other offset.
-   Later round: the original DOES hoist the four y0 stores above the inner loop
-   (four sh at 0x6A/0x7E/0x92/0xA6 straight after the lh), so four explicit
-   stores are the right shape, but that variant scores only 80.34% (512 bytes,
-   8 short): gcc then hoists t5+ctx*0x50 once per block where the original
-   re-forms it with addu inside the inner loop, and the extra live base adds an
-   s0 spill and an 8-byte frame the original does not have. The load must stay
-   lh: `short y = x & 0xFF` compiles to lhu and `u_char y` to lbu, so a
-   sign-dependent use of the loaded y0 is still missing from every shape tried.
-typedef struct {
-    DR_MODE drModes[2][4]; // 0x0
-    SPRT sprites[2][4];    // 0x60
-} FieldEffectPrimBlock; // Size: 0x100
-
-extern POLY_GT4 g_FieldTextGradientBottomQuads[2];
-extern s32 g_FieldTextRenderPrimBlocks;
-
+/* PARKED 81.27% (520 bytes, retail 500 = 125 insns; this body is 130). The
+   shape is right: addPrim on the two 0x34-byte gradient polys for this render
+   context (retail forms the second as the SAME symbol minus 0x68, so
+   g_FieldTextGradientBottomQuads[ctx - 2] is the spelling that reproduces it),
+   then 16 blocks of DR_MODE[2][4] then SPRT[2][4] (0x100 bytes each, the same
+   array func_800AC3AC allocates - reuse FieldTextRowPrims, do not declare a
+   second 0x100-byte struct), the four sprites of this context taking y0 from
+   the other context's first sprite, and two addPrim per sprite.
+   THE WHOLE RESIDUAL IS ONE SPILLED REGISTER: retail keeps 11 values in t
+   registers and has NO frame at all (jr ra with no sp adjust); this cc1 puts
+   the hoisted ((ctx + 1) & 1) * 0x50 offset of the y0 source in s0, which costs
+   the 8-byte frame (addiu sp / sw s0 / lw s0 / addiu sp) plus one `move a2,t3`
+   for the blocks + ctx*0x50 base, i.e. 5 insns over retail's 125. Everything
+   else - the four y0 stores, both addPrim chains, the 0x100/0x14/0xC strides,
+   the two mask constants duplicated in the prologue, the ot3 reload before
+   every setaddr - matches.
+   Tried this round: four y0 stores hoisted above the inner loop (retail's own
+   shape) = 80.34% / 512 bytes / 128 insns: it removes one spill (s0 only) but
+   cc1 then hoists t5 + ctx*0x50 as well and adds a move; `ctx ^ 1` for the
+   other-context index = 74.50% (xori instead of addiu+andi); declaring `short
+   y` with the other locals instead of in the loop = byte-identical to 80.34.
+   Earlier rounds (all dead): an `other` local vs the inline (ctx + 1) & 1, the
+   poly arguments as rows of g_FieldTextGradientTopQuads[2][2], the y0 stores as
+   four statements (80.70 / 512 / 8 short with gcc merging the two sprite
+   walkers), and the load must stay lh: `short y = x & 0xFF` gives lhu and
+   u_char y gives lbu, so retail's lh needs a sign-dependent use of the loaded
+   y0 that no shape here has found (1 instruction, harmless for the link).
+*/
+/*
 void func_800AC99C(void) {
-    FieldEffectPrimBlock* pBlock;
+    FieldTextRowPrims* pBlock;
     int ctx;
     int i;
     int j;
@@ -911,7 +882,7 @@ void func_800AC99C(void) {
     addPrim(g_FieldCurRenderContext->ot3, &g_FieldTextGradientBottomQuads[ctx]);
     addPrim(g_FieldCurRenderContext->ot3, &g_FieldTextGradientBottomQuads[ctx - 2]);
 
-    pBlock = (FieldEffectPrimBlock*)g_FieldTextRenderPrimBlocks;
+    pBlock = (FieldTextRowPrims*)g_FieldTextRenderPrimBlocks;
     for (i = 0; i < 0x1000; i += 0x100) {
         short y = (pBlock->sprites[(ctx + 1) & 1][0].y0 - 1) & 0xFF;
 
@@ -924,6 +895,7 @@ void func_800AC99C(void) {
     }
 }
 */
+
 
 void FieldLoadFontTIMAndClearRect(void) {
     RECT rect;
