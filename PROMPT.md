@@ -259,7 +259,10 @@ a field of a shared header. Expect to bisect by reverting one worker's file at a
 - No untracked files in this tree while clones are out (a worker's `git commit -a`
   sweeps them in and the merge dies).
 - `clone.sh merge` discards uncommitted work; workers are told to commit after every
-  match and every park. `UNCOMMITTED <tag>` followed by `merged <tag>` means it merged.
+  match and every park. A `CONFLICT <tag>` line does **not** stop the
+  loop: the remaining tags still merge. Read the merge output tag by tag and only then
+  `rm -rf` the clones - deleting them first throws away every tag that did not merge
+  (round 471 lost a finished match that way). `UNCOMMITTED <tag>` followed by `merged <tag>` means it merged.
 - A pool branch is based on `main`: `git -C ~/xw/r-<tag>/xenogears-decomp log --oneline main..HEAD`.
 - "needs attention / no activity for 300s" notices are noise; `Subagent timed out` is real.
 - `try_flags.sh` and `park_sweep.py` share scratch files: never two in one
