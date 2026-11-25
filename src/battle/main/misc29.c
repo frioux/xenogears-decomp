@@ -25,6 +25,9 @@
 // Offset of the render/pad state inside the work block g_BattleStateWork starts.
 #define BATTLE_RENDER_STATE_OFFSET 0x8000
 
+// The fade this function starts is 40 frames long, and it then waits that many.
+#define BATTLE_FADE_FRAME_COUNT 40
+
 // Ordering-table tags per frame buffer: the 0x1000-lentry tag list at frame + 0x70.
 #define BATTLE_OT_TAG_COUNT 0x1000
 
@@ -704,37 +707,27 @@ extern void BattleFreeSceneResources(void);
 extern void *g_BattleSoundBankMain;
 extern void *g_BattleSceneResources;
 extern u8 g_IsBattle;
-extern void BattleStartScreenFade(s32 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4);
+extern void BattleStartScreenFade(s32 frames, s32 abr, u8 r, u8 g, u8 b);
 extern void func_800A9FF0(s32 arg0);
 extern void BattleFindAnimationTask(SpriteData *pSprite, s32 arg1, s32 arg2);
 extern void *D_800D39C8;
 
-// 88.41% (576 bytes vs retail's 568 = 142 instructions). Every call, both case
-// loops, the tail loop and the switch tree are retail's; the whole residual is that
-// the two case-loop constants 0x15 and 3 are hoisted out of the loop here: retail
-// materialises them per iteration (li v0,0x15 in the beqz delay slot, li v0,3 before
-// the bottom bne) and runs the loops on $s0-$s3 only, while this compile keeps 0x15
-// in $s4 and 3 in $s3, which costs the two extra saves and the 0x38 frame. Measured
-// dead: for/while/do-while, i<3, two continues instead of the &&, and isolated
-// cc1_probe replicas of the loop (all hoist both constants); -G8 is 88.27 and 2.6.0
-// does not compile it. Listing case 1 first is required for retail's test order
-// (1, then slti a0,2, then 0, then 2).
-/*
 void func_800B853C(s32 mode) {
-    BattleOwnedSprites *pOwned;
     BattleRenderState *pWork;
+    SpriteData *pFadeSprite;
     SpriteData *pSprite;
     void *pBuffer;
+    u8 *pBase;
     s32 i;
+    s32 j;
 
     switch (mode) {
     case 1:
         break;
     case 0:
         BattleBeginAnimTask(-1);
-        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
-        for (i = 0; i != 3; i++) {
-            pSprite = pOwned->pOwnedSprites[i];
+        for (j = 0; j != 3; j++) {
+            pSprite = ((BattleOwnedSprites *)g_BattleStateWork)->pOwnedSprites[j];
             if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
                 BattleFindAnimationTask(pSprite, 0, 2);
                 SpritePlayAnimation(pSprite, 0x18);
@@ -743,15 +736,14 @@ void func_800B853C(s32 mode) {
         break;
     case 2:
         BattleBeginAnimTask(0);
-        BattleStartScreenFade(0x28, 2, 0xFF, 0xFF, 0xFF);
-        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
+        BattleStartScreenFade(BATTLE_FADE_FRAME_COUNT, 2, 0xFF, 0xFF, 0xFF);
         for (i = 0; i != 3; i++) {
-            pSprite = pOwned->pOwnedSprites[i];
-            if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
-                SpritePlayAnimation(pSprite, 5);
+            pFadeSprite = ((BattleOwnedSprites *)g_BattleStateWork)->pOwnedSprites[i];
+            if (pFadeSprite != NULL && (s8)pFadeSprite->flags_0xAC.bytes[3] != 0x15) {
+                SpritePlayAnimation(pFadeSprite, 5);
             }
         }
-        for (i = 0x28; i > 0; i--) {
+        for (i = BATTLE_FADE_FRAME_COUNT; i > 0; i--) {
             func_800BE790();
         }
         break;
@@ -772,10 +764,10 @@ void func_800B853C(s32 mode) {
     }
     HeapFree(pBuffer);
     HeapFree(D_800D39C8);
-    pWork = (BattleRenderState *)((u8 *)g_BattleStateWork + BATTLE_RENDER_STATE_OFFSET);
+    pBase = (u8 *)g_BattleStateWork;
+    pWork = (BattleRenderState *)(pBase + BATTLE_RENDER_STATE_OFFSET);
     pWork->unkDA8 = 0;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+}
 
 
 void BattleFreeBattleResources(void) {
