@@ -68,15 +68,15 @@ extern MovieDrawBuffer g_MovieDebugDrawBuffers[];
 extern MovieDrawBuffer* g_MovieDebugDrawBuffer;
 extern s32 g_MovieDebugBufferParity;
 extern MovieDebugMode D_8006FAF4;
-extern s32 D_80076E64;
-extern s32 D_80076E68;
-extern s32 D_80076E6C;
-extern s32 D_80076E70;
-extern s32 D_80076E74;
-extern s32 D_80076E78;
-extern s32 D_80076E80;
-extern s32 D_80076E88;
-extern s32 D_80076E8C;
+extern s32 g_MovieStreamState;
+extern s32 g_MovieStreamErrorAddress;
+extern s32 g_MovieStreamErrorSize;
+extern s32 g_MovieStreamErrorFilePositionCount;
+extern s32 g_MovieStreamErrorStreamPositionCount;
+extern s32 g_MovieStreamErrorSectionPositionCount;
+extern s32 g_MovieStreamQueueData;
+extern s32 g_MovieStreamReferenceBuffer;
+extern s32 g_MovieStreamVerifyBuffer;
 extern u32* g_MovieDebugCounters;
 extern s32 g_MovieDebugCounterTotal;
 extern s32 D_8005A49C;
@@ -107,26 +107,26 @@ extern void HeapDebugDump(u_int mode, u_int startBlockIdx, int endBlockIdx, u_in
 extern void MovieClearFrameBuffer(void);
 
 // .rodata
-extern char D_8006FAF8[];
-extern char D_8006FB08[];
-extern char D_8006FB18[];
-extern char D_8006FB44[];
-extern char D_8006FB50[];
-extern char D_8006FB5C[];
-extern char D_8006FB68[];
-extern char D_8006FBA8[];
-extern char D_8006FBE4[];
-extern char D_8006FC14[];
-extern char D_8006FC40[];
+extern char g_StrMovieRandomMode[];
+extern char g_StrMovieStreamPause[];
+extern char g_StrMovieReadStatus[];
+extern char g_StrMovieWaiting[];
+extern char g_StrMovieReading[];
+extern char g_StrMovieVerifying[];
+extern char g_StrMovieCdReadCounters[];
+extern char g_StrMovieRestFileStatus[];
+extern char g_StrMovieErrorStatus[];
+extern char g_StrMovieStreamPointers[];
+extern char g_StrMovieStreamWriteStatus[];
 extern char D_8006FC64[];
 extern char D_8006FC6C[];
-extern char D_8006FC70[];
+extern char g_StrMovieSectionPointers[];
 extern char D_8006FC8C[];
-extern char D_8006FC98[];
-extern char D_8006FCA4[];
-extern char D_8006FCAC[];
+extern char g_StrMovieCommandCounter[];
+extern char g_StrMovieNow[];
+extern char g_StrMovieBefore[];
 extern char D_8006FCB4[];
-extern char D_8006FCD8[];
+extern char g_StrMoviePushStartToMenu[];
 
 // .bss
 extern s32 g_MovieStreamCommand;
@@ -215,37 +215,37 @@ void MovieRunDebugScreen(void) {
         MovieUpdateStream();
 
         if (g_MovieRandomMode != 0) {
-            FontPrintf(D_8006FAF8);
+            FontPrintf(g_StrMovieRandomMode);
         }
         if (g_MovieStreamMode == 0) {
-            FontPrintf(D_8006FB08);
+            FontPrintf(g_StrMovieStreamPause);
         }
-        FontPrintf(D_8006FB18, g_MovieStreamCommand, g_MovieStreamReadErrors, g_MovieVsyncCount,
+        FontPrintf(g_StrMovieReadStatus, g_MovieStreamCommand, g_MovieStreamReadErrors, g_MovieVsyncCount,
                    g_ArchiveReadRetryCount, g_ArchiveCdDriveState);
-        switch (D_80076E64) {
+        switch (g_MovieStreamState) {
         case 0:
-            FontPrintf(D_8006FB44);
+            FontPrintf(g_StrMovieWaiting);
             break;
         case 1:
-            FontPrintf(D_8006FB50);
+            FontPrintf(g_StrMovieReading);
             break;
         case 2:
-            FontPrintf(D_8006FB5C);
+            FontPrintf(g_StrMovieVerifying);
             break;
         }
-        FontPrintf(D_8006FB68, g_ArchiveCdReadStartCount, g_ArchiveCdReadCompleteCount,
+        FontPrintf(g_StrMovieCdReadCounters, g_ArchiveCdReadStartCount, g_ArchiveCdReadCompleteCount,
                    g_ArchiveCdReadStatusErrorCount, g_ArchiveCdDataSectorCompleteCount,
                    g_ArchiveCdDataSectorErrorCount, D_8005A49C, g_ArchiveCdReadRetryExhaustedCount,
                    g_ArchiveCdHaltCompleteCount, g_ArchiveCdHaltErrorCount);
         fileSize = ArchiveDataSync();
-        FontPrintf(D_8006FBA8, fileSize, ArchiveGetCurFileSize(), g_ArchiveFilePositionErrorCount,
+        FontPrintf(g_StrMovieRestFileStatus, fileSize, ArchiveGetCurFileSize(), g_ArchiveFilePositionErrorCount,
                    g_ArchiveStreamPositionErrors, g_ArchiveStreamSectionPositionErrors, g_ArchiveStreamNextSectionId,
                    g_ArchiveStreamCurSectionId);
-        FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
-        FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);
+        FontPrintf(g_StrMovieErrorStatus, g_MovieStreamErrorAddress, g_MovieStreamErrorSize, g_MovieStreamErrorFilePositionCount, g_MovieStreamErrorStreamPositionCount, g_MovieStreamErrorSectionPositionCount);
+        FontPrintf(g_StrMovieStreamPointers, g_MovieStreamSections, g_MovieStreamQueueData, g_MovieStreamReferenceBuffer, g_MovieStreamVerifyBuffer);
 
         if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
-            FontPrintf(D_8006FC40, g_MovieDebugCounters, g_MovieStreamBlock, g_MovieStreamWritePtr,
+            FontPrintf(g_StrMovieStreamWriteStatus, g_MovieDebugCounters, g_MovieStreamBlock, g_MovieStreamWritePtr,
                        g_MovieStreamBytesLeft);
             i = 0;
             for (; i < 7; i++) {
@@ -265,7 +265,7 @@ void MovieRunDebugScreen(void) {
             }
             FontPrintf(D_8006FC6C);
             if (g_MovieStreamSections != NULL) {
-                FontPrintf(D_8006FC70, g_MovieStreamSections[0].unk4, g_MovieStreamSections[1].unk4,
+                FontPrintf(g_StrMovieSectionPointers, g_MovieStreamSections[0].unk4, g_MovieStreamSections[1].unk4,
                            g_MovieStreamSections[2].unk4, g_MovieStreamSections[3].unk4);
             }
         }
@@ -273,13 +273,13 @@ void MovieRunDebugScreen(void) {
         g_MovieDebugCounterTotal = 0;
         FontPrintf(D_8006FC8C, g_MovieStreamCancelCount);
         for (i = 0, pCounter = pCounters; i < 0xD; i++) {
-            FontPrintf(D_8006FC98, i, *pCounter);
+            FontPrintf(g_StrMovieCommandCounter, i, *pCounter);
             g_MovieDebugCounterTotal += *pCounter;
             if (g_MovieStreamCommandNow == i) {
-                FontPrintf(D_8006FCA4);
+                FontPrintf(g_StrMovieNow);
             }
             if (g_MovieStreamCommandBefore == i) {
-                FontPrintf(D_8006FCAC);
+                FontPrintf(g_StrMovieBefore);
             }
             FontPrintf(D_8006FC6C);
             pCounter++;
@@ -290,7 +290,7 @@ void MovieRunDebugScreen(void) {
         minutes = playTime / 60 - hours * 60;
         seconds = playTime % 60;
         FontPrintf(D_8006FCB4, g_MovieDebugCounterTotal, hours, minutes, seconds);
-        FontPrintf(D_8006FCD8);
+        FontPrintf(g_StrMoviePushStartToMenu);
         if (g_MovieHeapDebugEnabled > 0) {
             HeapDebugDump(1, 0, 6, 0x808D);
         }

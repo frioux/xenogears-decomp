@@ -801,7 +801,7 @@ void BattleInitTextSlotGraphics(void) {
 // sprites side by side in VRAM.
 #define BATTLE_TEX_PAGE_STEP 6
 
-void func_80078310(u8 *pTimData, u8 index) {
+void BattleLoadPartyMemberTextures(u8 *pTimData, u8 index) {
     TIM_IMAGE tim;
     s32 metadata[18];
     u8 charId;
