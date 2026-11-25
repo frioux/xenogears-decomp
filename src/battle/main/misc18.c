@@ -286,6 +286,18 @@ void BattleSetSlotConditionActionValue(void) {
 //    elemAtk/elemDef declaration swap, elemDef statement before elemAtk (92.30) or after bitDef (equal),
 //    hitB init at declaration without the statement (93.48). Presets: 2.6.0 is right - 2.7.2 89.81,
 //    2.7.2-cdk 85.73, -G0 identical, -O3 identical, -O1 78.43.
+//    ROUND 486: THE ROTATION IS ONE CHAIN, READ OFF THE REGISTER USES - elemDef takes a0 (free from the
+//    lbu 0x15A on, in the same block as its def), so elem2 (which retail gives elemDef's old t2) takes
+//    v1, so m takes t0, so hitB cannot reuse hitA's t0 and takes t1, and finally elemAtk (t1 in retail)
+//    is pushed to t2. Every later difference follows: m-in-t0 is why our two `if (m & 4/8)` blocks read
+//    t0 where retail reads v1, and the `andi 0xff` after `elemAtk = pair` is combine failing to drop the
+//    truncation because our `and` commuted to `pair & elemAtk` (retail's `and v0,t1,v1` keeps elemAtk
+//    first, where the mask is provably dead). Fix elemDef's register and the rest is a cascade.
+//    MEASURED: one reused `hit` variable for hitA/hitB (retail does put both in $t0, so the single
+//    variable was the top hypothesis) 93.82 / 90 lines - it costs weak's $t6 and hitA's $t0, so the two
+//    variables are right; dropping `mask` for `(elem2 << 8)` in each case 92.99 / 232 insns; permuter
+//    4 min from this body 1830 -> 1570 with an `int new_var = 2; ... if (m & new_var)` allocno nudge,
+//    which ports to 93.83 / 228 insns (one over) - rejected, wrong code shape and not closer.
 /*
 void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     u8 bitAtk;
