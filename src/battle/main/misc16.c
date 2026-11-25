@@ -345,35 +345,46 @@ typedef struct {
 extern BattleTileRecord *D_800C2F4C[];
 extern u8 *D_800C3000[];
 
-/* 86.41% at 1664 bytes against retail's 1692 (416 vs 423 instructions), up from the
-   previous park's 71.88. THE WIN: the inner record walk RE-FETCHES the command table
-   instead of caching it - cmd, x/y and shade are three separate
-   D_800C2F4C[codes[i]][r].field expressions in the C, which is why retail does
-   lbu from the codes biv and lw from D_800C2F4C three times per record. Caching the
-   pointer (a BattleTileRecord *pRecords local) is 78.35 at 1720 bytes and needs a
-   callee-saved register retail does not have; the older park's explicit
-   pCodes/pCodesStart/pLists pointer walk is 71.88.
-   Also measured: cmd is s32 (u32 gives sltiu v0,a0,16384 where retail has slti, and
-   u16 gives a stray andi 0xffff before each compare), shade is u32 (retail's
-   sltiu v0,v0,0x2000), action is u32. The record index r*4 on a u16 base (sll s4,1
-   plus addiu s4,4) and [r] on a BattleTileRecord* are the same 8 bytes and compile
-   identically, so nothing is owed there.
-   THE REMAINING GAP, named: retail spills FOUR pointer locals and reloads them at
-   every use - pListIndex at 0x28, pCodesStart at 0x30, pCodes at 0x38, pLists at
-   0x40 - plus rowOffset at 0x20, while this body needs only two (sw t1,40(sp); lw
-   t1,40(sp); sw t1,56(sp)) and keeps the array addresses in $s6/$s7, so every
-   register assignment from the outer-loop head on differs. The 7 missing
-   instructions are retail's second listIndex biv (lw s6,64(sp) and lw s3,0x28(sp)
-   where this body has one) and its lw/nop reload pairs.
-   Tried and no better: gcc-2.7.2 (71.51 on the old body), -O1 (52.95), -O3 (71.88),
-   a do-while outer walk (70.53), an explicit outer pointer walk with an offset
-   (71.88), and a pQueue = g_BattleCommandQueue + rowOffset local for the three queue
-   accesses (85.15, 1640 bytes - cc1 hoists the base load).
-   Next: lever c-pointer-from-memory-paren-sum-is-base-first records that a u16*
-   volatile pair reproduces exactly this "spilled pointer pair" allocation, so
-   measure this body with the four pointers declared volatile to prove the rest is
-   right, then hunt the non-volatile spelling that keeps them spilled.
-*/
+// 86.41% at 1664 bytes against retail's 1692 (416 vs 423 instructions); up from the
+// previous park's 71.88, unchanged this round after five scored bodies.
+// 
+// THE WHOLE 7-INSTRUCTION GAP IS THE OUTER-LOOP TAIL AND THE PREHEADER SPILL GROUP.
+// Retail keeps four derived pointers in stack slots and walks them in memory - the
+// tail is `lw t1,0x38(sp); addiu t1,t1,1; sw t1,0x38(sp); lw t1,0x40(sp);
+// addiu t1,t1,2; sw t1,0x40(sp); lw t1,0x30(sp); addiu v0,t1,2; lw t1,0x38(sp);
+// slt; bnez; addiu s7,s7,2` (14 insns) against this body's 8-instruction register
+// tail, and the preheader spills a matching group at 0x28/0x30/0x38/0x40. Retail's
+// `addiu s7,s7,2` is a strength-reduced i*2 and its record walk re-reads
+// D_800C2F4C[codes[i]] three times per record, so retail's source IS the index loop
+// and the re-fetch spelling this body already writes: the divergence is gcc's loop
+// strength reduction and register handout, not a spelling. Retail spends all nine
+// callee-saved registers on the j-loop (s5 holds the ADDRESS of
+// g_BattlePrimStartIndex, hoisted before the loop, where this body re-forms lui/lw
+// at each of three uses); this body spends two of them on the cursors. Those two
+// live ranges win the register on live-length x depth, so the fix is to change what
+// is live, not how it is spelled.
+// 
+// Measured this round, all no better than 86.41:
+// - the explicit pointer walk (u16 *pList / u8 *pCode cursors, `pCode < codes + 2`
+//   as the loop test, `*pList` / `*pCode` at every use, init loop walking the same
+//   two cursors): 78.82 at 1540 bytes / 385 insns - the cursors then DO get
+//   callee-saved registers and the body loses the loop's other live values.
+// - `first = count * 2` moved above the BattleDrawSpritePackage call (retail computes
+//   it in that call's delay slot and never needs `count` afterwards, so it has no
+//   spill pair; this body's `first` after the call costs `sw t0,64(sp)` plus a
+//   reload): 85.84 at 1664 / 416 - the gain is lost because the constant 0x80 of the
+//   grey loop is then hoisted all the way to the FUNCTION preheader into a
+//   caller-saved register and spilled/reloaded around both loop calls, ~4 insns
+//   retail does not have (retail materialises it with `ori a3,zero,0x80` at the grey
+//   loop). Killing that hoist is the next thing to try, not the tail.
+// - reading records[r].shade a second time in the 0x2000 compare (retail has two
+//   adjacent `lhu a0,6(s0)` / `lhu v0,6(s0)`) together with
+//   `*(u16 *)(g_BattleCommandQueue + rowOffset + (shade & 0xF) * 2 + 0x1C)` for
+//   retail's queue-plus-rowOffset-first `addu v0,v0,t1`: also 85.84 at 1664 / 416.
+// - already known-good and not to be changed: the re-fetch of D_800C2F4C at every
+//   use (a cached BattleTileRecord *pRecords is 78.35 at 1720), cmd s32, shade u32,
+//   action u32, and the record offset r*1 with addiu +8 versus retail's r*2 (same
+//   eight bytes).
 /*
 s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     u16 listIndex[2];
