@@ -2188,6 +2188,7 @@ extern void func_8008BF38(int partyIndex);
 // g_pGameState->gearRide[N] = 0 has to be the LAST statement of each arm for its
 // sb to land in the exit jump's delay slot.
 
+// PARKED 90.91% re-measured this round: 1172 bytes / 293 insns against retail's 1188 / 297. The switch trees, the call set and every branch match. Three independent merge-family residuals, all counted from the instruction streams: (1) retail re-forms every g_GamePartyMembers / g_GamePartyMemberSkins element access as a bare symbolic MEM - lui %hi + lw/sw %lo(sym+4)(reg), two instructions, the register doubling as the base - while this build CSEs the element address into one register (lui + addiu reg,reg,4 + lw/sw 0(reg)); in the arms where a slot is read and then written that is size-neutral, in the arms where only the load uses it it costs one instruction each. (2) the duplicated func_8008BF38(1) call at the end of party cases 0 and 1 is cross-jumped into one shared tail here, where retail keeps both jal copies inline (2 instructions). (3) g_PlayerActorIndex's store sits one block earlier in retail than here. Also measured: the 0x14000 loop-end constant takes t0 in retail and v0 here, and g_FieldSavedFramebuffers[1] is a bare D_8005A41C symbol in retail's object (relocation-only difference, not a size difference).
 /*
 void func_8008C334(void) {
     s32 loadState;
@@ -3557,17 +3558,26 @@ extern void FieldStartWdsBankLoad(int, int);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 
-// PARKED 92.24% (320 bytes against retail's 340): every guard, call and load
-// matches; the whole 20-byte gap is that gcc emits ONE
-// `lui $at,%hi(g_FieldScriptVMStopFlag); sw` block that all four failing tests
-// jump to, where retail keeps the `g_FieldScriptVMStopFlag = 1` of the
-// `FieldArchiveTryDataSync() || g_FieldMapChangeGate.value == 0` arm separate
-// and inline (its own `lui $at/sw` plus a `j` to the epilogue). The two bodies
-// are the same statement, so jump's cross-jumping merges them; a flat
-// early-return form, `do {} while (0)` around either body, and a volatile
-// store on the arm-2 body all still merge (320 bytes each).
-// preset screen: 2.7.2 92.24%, cdk 92.24%, 2.6.0 92.24% - no compiler
-// fixes it.
+// PARKED 92.24% (320 bytes against retail's 340, 80 insns against 85). Every
+// guard, call, load and branch matches. Retail stores g_FieldScriptVMStopFlag
+// TWICE: one block at .L8008F85C shared by the FieldArchiveTryDataSync/gate arms
+// (source register $v0) and its own store at .L8008F8EC for the final else arm
+// (source register $v1, which still holds the 1 built for the
+// g_GameWdsStreamInProgress == 1 compare). This build cross-jumps all three into
+// ONE store at the function tail, so the whole 20-byte gap (5 insns) is that
+// second lui+sw pair plus the j/nop that retail's early block needs, minus one
+// li v0,1 that the merged block hoists into the loadState branch delay slot.
+// The mechanism is the source register: at jump time the two stores are only
+// mergeable when both read the same constant-1 pseudo, and the merged block's
+// live range across the else code is what makes cse reuse it there.
+// Measured, all 320 bytes / 92.24%: the two conditions split into separate
+// else-ifs; a flat early-return form; an empty do-while around each arm; a
+// volatile store on the else body (cc1 folds it back to the plain sw); the
+// (s32)1 cast. Preset screen: 2.7.2 92.24, cdk 92.24, 2.6.0 92.24.
+// Decisive A/B: writing the else arm as `= 0` instead of `= 1` keeps retail's
+// exact block shape and scores 98.41% / 336 bytes (84 insns) - the only delta
+// left is retail's extra `li v1,1` - so the shared body is right and nothing but
+// the store's source register is in the way.
 /*
 void func_8008F7B8(void) {
     int characterId = FieldScriptVMGetArgument(1);
@@ -3580,9 +3590,13 @@ void func_8008F7B8(void) {
         }
         g_GameRequestedWdsBankIndex = characterId;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    } else if (FieldArchiveTryDataSync() != 0 || g_FieldMapChangeGate.value == 0) {
+        return;
+    }
+    if (FieldArchiveTryDataSync() != 0 || g_FieldMapChangeGate.value == 0) {
         g_FieldScriptVMStopFlag = 1;
-    } else if (g_GameWdsStreamInProgress != 1 && g_GameWdsBankLoadState != -1) {
+        return;
+    }
+    if (g_GameWdsStreamInProgress != 1 && g_GameWdsBankLoadState != -1) {
         if (characterId != g_GameRequestedWdsBankIndex) {
             SoundFreeLoadedWdsAndAudioManager();
             g_GameRequestedWdsBankIndex = characterId;
@@ -3590,11 +3604,12 @@ void func_8008F7B8(void) {
             FieldStartWdsBankLoad(characterId, 0);
         }
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    } else {
-        g_FieldScriptVMStopFlag = 1;
+        return;
     }
+    g_FieldScriptVMStopFlag = (s32)1;
 }
 */
+
 void FieldScriptStartCameraShake(void) {
     int x = FieldScriptVMGetArgument(1);
     int y = FieldScriptVMGetArgument(3);
