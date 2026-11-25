@@ -872,28 +872,6 @@ typedef struct {
     /* 0x40 */ u8 pad40[0x14];
 } WorldMapEntry; // Size: 0x54
 
-// Best: 97.59% (1056 bytes = retail's EXACT size, 264/264 insns). Round 470 took this from
-// 90.69 / 1064 to 97.59 / 1056 with THREE spelling changes, all of them the copy-base question the
-// previous note called "not a spelling": gcc hands a 0x54*index+g_WorldMapGroups base the same
-// register for every occurrence when all the copies share ONE pointer local, and a different one
-// per copy when each copy has its OWN local. Splitting the entry-3..0 chain (pParent) off the
-// entry-5 copy (pEntries) put the second base in retail's v0 instead of t0 (91.73 -> 94.23), and
-// giving the entry-12 quad its own pEntry put that one in v0 too (94.23 -> 97.59); the first base
-// then falls out as v1, retail's, with retail's a0/a1/a2 copy temps. Same lever as the base-5
-// reload the old note wanted: the register split follows the SOURCE VARIABLES, not the reload.
-// The entry-12 quad must copy from pPos (`*(WorldMapPos4*)pPos`), NOT `*(WorldMapPos4*)0x1F800000`:
-// the literal re-materialises the address (`la t7,0x1F800000` plus a 3-word/1-word block-move
-// split with a nop, +2 insns = 1064) where pPos's register is reused, giving retail's 4 lw/4 sw.
-// RESIDUAL (8 rows, one scheduling cluster): retail materialises the FIRST RotMatrixYXZ's matrix
-// argument inside the store block (`lui a1,0x1F80` in the load-delay slot of `lw v0,80(s1)`) and
-// places each angle load 2 instructions before its `sh`; we hoist that lui into the prologue and
-// both angle loads to the top of the block. Consequence: retail's angle sums use a1, ours a2.
-// Measured flat this round: the four clears in the park's (retail) store order 164/160/172/168 vs
-// the natural vx/vy/vz source order (97.58, 22 rows), and an empty `do {} while (0)` barrier
-// before the clears (97.32, 20 rows). Permuter: decomp-permuter cannot parse this body (MATRIX
-// struct assignment), per the old note.
-// Round 471 re-measured 97.59% / 1056 / 264 (unchanged) and closed three more axes of the residual: a volatile cast on the first clear costs an address REGISTER (a3 = 0x1F8000A4, so 'sh zero,0(a3)') and two instructions, 95.88 / 1064, and the same cast on that clear alone is no better; a do-while(0) around the first two clears sinks the SVECTOR argument's 'lui a0 / ori a0,0xA0' to the BOTTOM of the block where retail hoists it to the entry, 96.59 / 1056 / 20 rows; and interleaving the two angle loads in the SOURCE between the clears (angleX = pSlot->unk50 after the 0xA0 clear, then store angleX) compiles to the same 16 rows, so sched1 hoists both reloads to the block top whatever the statement order - the position is the scheduler's, not the C's (a-sched2-hoisted-global-address-has-no-source-order).
-/*
 s32 func_80088720(s32 index) {
     WorldMapPlayer* pSlot;
     WorldMapEntry* pEntries;
@@ -901,6 +879,7 @@ s32 func_80088720(s32 index) {
     WorldMapEntry* pEntry;
     WorldMapPos* pPos;
     WorldMapPos* pSlotPos;
+    SVECTOR* pRot;
     s32 tileIndex;
     s32 dist;
 
@@ -908,14 +887,16 @@ s32 func_80088720(s32 index) {
     tileIndex = g_WorldMapLevelSpriteSetBase[g_WorldMapLevelIndex];
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
     pSlot->unk58 = (pSlot->unk58 + pSlot->unk5C) & 0xFFF;
-    *(s16*)0x1F8000A4 = 0;
-    *(s16*)0x1F8000A0 = 0;
-    *(s16*)0x1F8000AC = 0;
-    *(s16*)0x1F8000A8 = 0;
-    *(s16*)0x1F8000A2 = pSlot->unk50;
-    *(s16*)0x1F8000AA = pSlot->unk58;
-    RotMatrixYXZ((SVECTOR*)0x1F8000A0, (MATRIX*)0x1F8000F0);
-    RotMatrixYXZ((SVECTOR*)0x1F8000A8, (MATRIX*)0x1F800110);
+    // the two Y-rotation source vectors, in scratchpad
+    pRot = (SVECTOR*)0x1F8000A0;
+    pRot[0].vz = 0;
+    pRot[0].vx = 0;
+    pRot[0].vy = pSlot->unk50;
+    pRot[1].vz = 0;
+    pRot[1].vx = 0;
+    pRot[1].vy = pSlot->unk58;
+    RotMatrixYXZ(pRot, (MATRIX*)0x1F8000F0);
+    RotMatrixYXZ(pRot + 1, (MATRIX*)0x1F800110);
     // the global is re-read per copy run: one pointer local makes gcc CSE the load
     // and hand the base to a register retail does not use
     pEntries = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
@@ -951,7 +932,6 @@ s32 func_80088720(s32 index) {
     g_GameState.mapPosZFraction = pSlot->z;
     g_GameState.mapPosZ = pSlot->z >> 12;
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088720);
+}
 
 
