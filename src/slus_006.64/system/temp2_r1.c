@@ -391,67 +391,64 @@ s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
 //    pair IS libgs' AddPrim macro, so arg5 is a u_long* OT slot (reloaded from
 //    the stack around GetTPage because it is call-clobbered).
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_r1", func_800278F8);
-// PARKED 86.25% (1072 bytes against retail's 1096; 268 instructions against
-// 274; 148 differing lines against the previous park's 205). Measured live this
-// round under the unit's preset (XenoGraphicsLibrary, gcc 2.6.0 -O2 -G8).
+// PARKED 87.77% (1084 bytes against retail's 1096; 271 instructions against 274;
+// 129 differing lines). Re-measured live this round under the unit's preset
+// (XenoGraphicsLibrary, gcc 2.6.0 -O2 -G8); the previous park's 86.25 / 1072 / 268
+// / 148 is superseded.
 //
-// WHAT CLOSED 75.62 -> 86.25: `col = remainder;` belongs AFTER the prim store
-// block, not next to the modulo. Retail's per-iteration col copy (`move s3,a1`
-// from the mfhi result) sits in the delay slot of the texColumn /64 `bgez`,
-// i.e. its source assigned the running column after the eight vertex stores.
-// That single move also restores retail's callee-saved pair (col $s3 / pPrim
-// $s4), which EVERY earlier body had mirrored - and the mirror was what the old
-// note called "5 copies plus a block order": with the pair right, 57 of the 205
-// differing lines disappear on their own. Move this statement back and it
-// measures 75.62 again; the position is the whole difference.
+// WHAT CLOSED 86.25 -> 87.77 (three instructions, all in the rows diamond): the
+// diamond is NEITHER "if/else with both arms assigning rowStart" nor the fully
+// hoisted form. Retail's two `move t0,zero` come from writing rowStart ONCE after
+// the if/else - jump optimisation duplicates it into both arms (one lands in the j
+// delay slot, one after the quotient copy):
+//     if (top < 0 || top > pBlock->unk32C + 0xF0) { rows = 0; }
+//     else { rows = (pBlock->unk32C << 8) / (span + 0x100); }
+//     rowStart = 0;
+// Only then does the else arm end in retail's `mflo v0 / nop / move t2,v0 /
+// move t0,zero`, the nop being the mips1 mflo hazard. With rowStart = 0 inside
+// both arms the scheduler fills that hazard slot with `move t0,zero` and the body
+// is one instruction short (270 / 1076, 91.43 by the fuzzy number).
+// `u16 rows` (was s32) is the second half: it is what keeps the quotient in $v0 and
+// copies it to $t2; with s32 rows cc1 coalesces them into `mflo t2` and retail's
+// move disappears. The early return is `if ((s16)rows <= 0)` under either type
+// (retail `sll v0,t2,16 / blez`).
 //
-// Measured dead this round (do not repeat):
-//  - rows diamond as `rows = 0; if (top >= 0 && top <= unk32C+0xF0) { rows =
-//    ...; rowStart = 0; } else { rowStart = 0; }` 78.22 / 1076 (161 lines); the
-//    plain hoisted form `rows = 0; if (...) rows = ...; rowStart = 0;` is 75.15
-//    in the old context. The if/else with both arms assigning IS right, but its
-//    two delay slots and retail's `mflo v0 / nop / move t2,v0` copy are not
-//    reached by it: routing the quotient through the `quotient` local measures
-//    BYTE-IDENTICAL (86.25), cc1 folds it back, so rows' copy needs the live
-//    range a second variable gives, not a renamed temp.
-//  - statement order inside the loop (u/width before vs after texColumn) is
-//    byte-identical at every position tried, as is the embedded-assignment form
-//    `width = 0x100 - (u = ...)`.
-//  - declaration order of `pPrim` (first local vs last) is byte-identical.
-//  - col fixup as an if/else: 74.36 / 1072 (re-confirmed) - and it also moves
-//    the divisor register a2 -> v1 and `bank` t1 -> a2, so it is not a cheap
-//    lever either.
+// MEASURED DEAD THIS ROUND (do not repeat):
+//  - yTop = top; placed after the uOffset statement recovers retail's nop after
+//    lh v1,820(s1) but puts `move s8,t3` two slots early: 91.25 fuzzy at
+//    271 / 1084, 87.77 with the earlier position. The fuzzy percentage is not
+//    monotone for a moved instruction; the instruction and byte counts are.
+//  - splitting the uOffset shift into two statements (uOffset = x % 64;
+//    uOffset <<= 2 - unk338) is 84.17 at the same 271, and the extra `sll 16 /
+//    sra 16` before the sllv that retail does not have survives it.
+//  - wrapping the three mid stores (v0 / u2 / v1) in `do { } while (0)` is
+//    90.98 -> 91.25 at identical 271 / 1084: a scheduling shift only, not taken.
+//  - a dead `texColumn = (s16)rowEnd;` before the break test (reusing the dead
+//    texColumn pseudo) measures 87.77 -> 91.00 at identical 271 / 1084, and a
+//    separate `s16 endRow` local is 87.00 - so it is the allocno REUSE that helps
+//    and the body needs one allocno fewer than this source has. Not shippable C.
+//  - three permuter runs (4 + 5 + 5 minutes, ~4400 iterations, base 4268 -> 2469
+//    on its own scale) found only those two scheduling/allocno shifts and no new
+//    instruction. The permuter was never run before this round.
 //
-// The remaining 6 instructions are all retail copies plus one narrowing:
-//  - the u/width block: retail emits texColumn FIRST, keeps the literal 0x100 in
-//    $v0 and copies both results (`move a0,v0` width, `move a3,v1` u, so u ends
-//    in $a3 and width in $a0); this body hoists `li a0,0x100` to the block top,
-//    emits u/width first and leaves width in $a2. That is sched1 ordering by
-//    insn priority (levers.md c-a-second-loads-position-inside-a-block-is-not-
-//    source-order), not statement order.
-//  - the rows diamond's `move t2,v0` + `move t0,zero` pair and its two delay
-//    slots (below).
-//  - the uOffset hoist: this body narrows with an extra `sll 16 / sra 16` before
-//    the sllv where retail shifts the raw modulo result.
-// Facts carried over from the earlier notes that are still true:
-//  - the 0x28 record IS a POLY_FT4 (psyq layout: clut 0xE, tpage 0x16, pad1
-//    0x1E, pad2 0x26), so the store set names its own fields.
-//  - retail's clamp-path tail is `mult / mflo / bgez / addiu 0xFF / SRL 8`
-//    where this body emits a second `sra`; srl and sra agree in the low 16 bits,
-//    so retail's source narrowed that intermediate to 16 bits first. The
-//    remaining difference in that arm, and every other row of it matches.
-//  - the rows diamond MUST be an if/else with both arms assigning, and the col
-//    fixup must stay the single-assignment form (levers.md round 394/454).
-//  - older-body dead ends, all still true: gcc-2.7.2 66.10, 2.7.2-cdk 69.97,
-//    -O1 69.11, -O3 74.87, `s16 uOffset` with yTop dropped 70.86, `(u16)` on the
-//    uOffset modulo 74.31 (drops one narrowing but mirrors a row).
+// WHAT IS LEFT (3 instructions, all retail copies; every other row matches):
+//  - the u/width block: retail computes texColumn first, keeps 0x100 in $v0 and
+//    COPIES both results (`move a0,v0` width into $a0, `move a3,v1` u into $a3);
+//    this body emits u/width first and leaves width in $a2. That is sched1
+//    ordering by insn priority, not statement order (both orders measured
+//    byte-identical).
+//  - the same copy shape twice more: `move v1,a3` before `addu a0,a0,v1` in the
+//    store block, and `move a2,v0` after the height division.
+//  - retail's clamp arm ends `srl` where this body ends `sra` (the two agree in
+//    the low 16 bits; retail narrowed that intermediate to 16 bits first).
+//  - `mfhi a1` here against retail's `mfhi v1` for the col modulo.
 //
-// NEXT: this body is structurally right at 86.25 and is above the 85% line the
-// permuter needs, but the redo lane only allowed a permuter run at 99%+, so it
-// has still NEVER been permuted - that is the cheapest next step, followed by a
-// `-dl`/`-dg` dump for the u/width/tpage ordering.
-//
+// STILL TRUE FROM THE EARLIER PARKS: `col = remainder;` belongs AFTER the prim
+// store block (moving it back is 75.62); the col fixup must stay the single
+// assignment form (if/else is 74.36 and mirrors col/pPrim); the 0x28 record is a
+// POLY_FT4 (the store set names its own fields); addPrim's lw/lw/and/or/sw pair is
+// libgs' macro; on earlier bodies gcc-2.7.2 is 66.10, 2.7.2-cdk 69.97, -O1 69.11,
+// -O3 74.87.
 /*
 void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
                    u_long* pOT, s32 bank) {
@@ -460,7 +457,7 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     s32 half;
     s32 remainder;
     s32 col;
-    s32 rows;
+    u16 rows;
     s32 rowStart;
     s32 rowEnd;
     s32 u;
@@ -482,17 +479,16 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
     }
     if (top < 0 || top > pBlock->unk32C + 0xF0) {
         rows = 0;
-        rowStart = 0;
     } else {
         rows = (pBlock->unk32C << 8) / (span + 0x100);
-        rowStart = 0;
     }
+    rowStart = 0;
     pPrim = (POLY_FT4*)((u8*)pBlock + (bank & 1) * 0x140);
     if ((s16)rows <= 0) {
         return;
     }
-    yTop = top;
     uOffset = (pBlock->unk334 % 64) << (2 - pBlock->unk338);
+    yTop = top;
     for (i = 0; i < 8; i++) {
         col16 = (s16)col;
         texColumn = (u16)pBlock->unk334 + (col16 >> (2 - pBlock->unk338));
@@ -536,6 +532,9 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
         pPrim++;
     }
 }*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_r1", func_800278F8);
+
+
 
 
 
