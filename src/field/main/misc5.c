@@ -1642,57 +1642,36 @@ void FieldUpdateSpriteSheetPrims(void) {
     g_FieldSpriteAnimFrame++;
 }
 
-extern u_short D_800AEF16[];
-
-// PARKED 85.21% - 784 bytes / 196 insns against retail's 772 / 194 (0x800A8EA8 - 0x800A8BA4).
-// Round 440: the pRect pointer local WAS the untried lead and it is a win - 800 -> 784 bytes.
-// With 'u_short *pRect = D_800AEB6C;' and nW = pRect[nRect], nH = pRect[nRect + 1],
-// nSrcX = pRect[nRect - 2], nSrcY = D_800AEB6A[nRect], gcc keeps ONE rect base and folds the -4
-// as a load displacement, which is retail's s5 = 0x800AEB6C with 'lhu a3,-4(t0)'; the old
-// D_800AEB6C[nRect - 2] spelling made gcc fold -4 into a SECOND symbol (0x800AEB68) and pay its
-// own lui/addiu. Keep this spelling.
-// Residual 1 (biggest): loop.c reduces the nQuad * 4 mult giv into three 'addiu $ptr,$ptr,8'
-// pointer counters, which eat the callee-saved registers the pRect base and the second quad base
-// need (so pRect is re-formed inside the loop instead of hoisted). Retail keeps the raw index and
-// recomputes 'sll $a1,$s2,3' on each side of the calls, adding each base at use time
-// (addu v1,a1,s7 / addu v0,s7,a1 / addu a0,s7,a1 / addu a1,a1,s8). Every spelling in the old note
-// reduced; lever g-qimode-index-blocks-the-mult-giv measured that an unreduced mult giv with no
-// andi on the index and no sltiu test is not source-reachable, and retail's counter is a plain
-// s32 (addiu s2,s2,1, slti s3,0x6D), so treat it as a declared wall.
-// Residual 2: gcc sinks 3 of the 5 stack-argument stores of FieldClampPolyFT4UVs into each case
-// body (retail's case tails are just the arg computations plus 'j' with the last addu in the slot,
-// all five stores living in the cross-jumped block). The CALL argument list itself is already
-// retail's: pPoly, nSrcX, nSrcY, nSrcX + nW, nSrcY, nSrcX, nSrcY + nH, nSrcX + nW, nSrcY + nH,
-// per-case +/-1 variants verified instruction by instruction against the .s. Declaration order of
-// the locals changes nothing (measured).
-// Presets ruled out this round: gcc-2.6.0 85.46, gcc-2.7.2-cdk 83.45 (2.6.0 also equals Default's
-// 96.58 on FieldInitializeParticlePrimitive next door, so this unit is not a 2.6.0 unit either).
-// Permuter round 440: base=2995 best=2575 over 1302 iterations, and the only find is WRONG CODE -
-// it sets 'nQuad = nW' inside case 2 and uses nQuad for case 3's corner sums, destroying the quad
-// counter that the next iteration indexes with. Rejected, do not port it.
-// Settled facts (from the earlier rounds): 0x6D POLY_FT4 prims (HeapAlloc(FIELD_SPRITE_POLY_COUNT *
-// sizeof(POLY_FT4)) = 0x1108 twice); the quad table is a u_short array whose 8-byte records are
-// x, y, rectIndex at D_800AEF16-6, -4, -2 and flags at D_800AEF16 (+0), flags >> 4 and 0xF = ABR,
-// flags and 0xF = UV orientation (case 0 -> 1, case 1 -> 2, no default, nABR stays live across the
-// loop in a callee-saved register); the rect table is a u_short array at 0x800AEB68 (x, y, w, h)
-// indexed by rectIndex * 4 in u_short units; '*pPolyNext = *pPoly' is the last statement of the body
-// and compiles to the 2x unrolled 0x28-byte copy loop both sides already have.
-// Round 454: re-measured from a live un-park, same 85.21% / 784 / 196, and this body is still the
-// best known. The quad table below is the SAME table the matched FieldSetSpriteUVs next door reads
-// as g_FieldSpriteSheetQuads (config/symbol_addrs.field.txt: 0x800AEF14); D_800AEF16 is its +2, so
-// the records are g_FieldSpriteSheetQuads[nQuad * 4 - 2 .. + 1] = x, y, rectIndex, flags and this
-// body's base could be spelled with that name instead. Not measured: the rect-table round 440 note
-// shows a negative index folds into a SECOND symbol and pays its own lui/addiu, and retail's s7 =
-// fp - 6 says the original kept the offset, so re-measure before changing the spelling.
-// Residual 1 is the whole diff: loop.c turns nQuad * 8 into THREE pointer givs ($17
-// flags base, $18 base offset, $20 base-6, each 'addiu +8' in the latch) where retail recomputes
-// 'sll v0,s2,3' at each use. Retail's nine callee-saved registers are ALL already live (s0 pPoly,
-// s1 i * 0x28, s2 nQuad, s3 i, s4 nABR, s5 rect base, s6 pPolyNext, s7 quad base-6, fp quad base),
-// so the original had no register to give a giv; the compile is pushed past nine and the whole
-// allocation then moves. Residual 2 is an artefact of residual 1, not a second wall: retail's five
-// FieldClampPolyFT4UVs stack stores live in ONE tail shared by four call sites (each case leaves its
-// args in a1/a2/a3/v0 before the j, which is what jump.c merges), and the compile keeps three of
-// them in case 0's own body. Do not attack residual 2 before residual 1.
+// PARKED 85.21% - 784 bytes / 196 insns against retail's 772 / 194 (0x800A8BA4 - 0x800A8EAC).
+// Round 495: re-measured live twice. (a) The stored body is still the best known: 85.21 / 784 / 196.
+// (b) The one lead round 454 left unmeasured - spelling the quad table with its real name
+// g_FieldSpriteSheetQuads (0x800AEF14) instead of D_800AEF16 (its +2, in u_short units), so all four
+// record fields are non-negative offsets: SAME code and SAME size, 85.19% (the 0.02 is
+// only the reloc symbol name - retail names D_800AEF16 and both link to the same bytes). Kept below
+// because it is the realistic spelling and matches the matched FieldSetSpriteUVs next door; retail's
+// two preheader bases (0x800AEF16 and 0x800AEF10, its -6) come out either way - ours hoists
+// g_FieldSpriteSheetQuads+2 into the same address.
+// THE CAUSE IN THE ROUND-454 NOTE IS WRONG, and the correction is the useful part: "the original had no
+// register to give a giv" is not the mechanism. tools/scripts/probe_misc5_giv.c (cc1_probe.sh with this
+// unit's real cc1) reproduces the three-base quad access over a biv, and cc1 makes POINTER givs even
+// with all nine callee-saved registers already used inside the loop and even with ONE use of the product
+// (ProbeGivFew emits addu $17,$17,8 / lhu $2,0($17)). loop.c allocates givs before global.c ever sees
+// the pressure, so retail's recomputed sll $s2,3 cannot come from a plain nQuad * 4 index at all: the
+// original must have had something that stops the mult giv, and the counter retail leaves alive in $s2
+// (used only by its own products) is exactly what a reduced body cannot keep. So residual 1 is not a
+// spelling question - do not spend another lane on index spellings before solving that.
+// Residual 2 (three of the five FieldClampPolyFT4UVs stack stores sunk into case 0's body where retail
+// has them in the one shared tail) is downstream of residual 1, the same register shift; the call
+// argument list itself is already retail's, verified instruction by instruction.
+// Settled facts: 0x6D POLY_FT4 prims (HeapAlloc(FIELD_SPRITE_POLY_COUNT * sizeof(POLY_FT4)) = 0x1108
+// twice); the quad record is four u_short (x, y, rectIndex, flags), flags read twice at
+// g_FieldSpriteSheetQuads[nQuad * 4 + 1] (ABR = (flags >> 4) and 0xF, UV orientation = flags and 0xF,
+// cases 0-3, no default); the rect record is x, y, w, h at g_FieldSpriteSheetRects (0x800AEB68), read
+// through the pRect = D_800AEB6C local (a measured win: lhu a3,-4(t0) for x, 0/2 for w and h) plus
+// D_800AEB6A for y, which retail re-forms with its own lui/addiu inside the loop; nABR stays live
+// across the loop in a callee-saved register; *pPolyNext = *pPoly is the last statement and gives the
+// 2x unrolled 0x28-byte copy. Presets ruled out: gcc-2.6.0 85.46, gcc-2.7.2-cdk 83.45. Permuter round
+// 440 found only wrong code (it overwrote the quad counter) - rejected.
 /*
 void func_800A8BA4(void) {
     POLY_FT4* pPoly;
@@ -1728,7 +1707,7 @@ void func_800A8BA4(void) {
         pPoly->b0 = 0x80;
         pPoly->clut = GetClut(0, 0xE8);
 
-        switch ((D_800AEF16[nQuad * 4] >> 4) & 0xF) {
+        switch ((g_FieldSpriteSheetQuads[nQuad * 4 + 1] >> 4) & 0xF) {
         case 0:
             nABR = 1;
             break;
@@ -1739,9 +1718,9 @@ void func_800A8BA4(void) {
         pPoly->tpage = GetTPage(0, nABR, 0x380, 0);
         SetSemiTrans(pPoly, 1);
 
-        nX = D_800AEF16[nQuad * 4 - 3];
-        nY = D_800AEF16[nQuad * 4 - 2];
-        nRect = D_800AEF16[nQuad * 4 - 1] * 4;
+        nX = g_FieldSpriteSheetQuads[nQuad * 4 - 2];
+        nY = g_FieldSpriteSheetQuads[nQuad * 4 - 1];
+        nRect = g_FieldSpriteSheetQuads[nQuad * 4] * 4;
         nW = pRect[nRect];
         nH = pRect[nRect + 1];
         nSrcX = pRect[nRect - 2];
@@ -1756,7 +1735,7 @@ void func_800A8BA4(void) {
         pPoly->x3 = nX + nW;
         pPoly->y3 = nY + nH;
 
-        switch (D_800AEF16[nQuad * 4] & 0xF) {
+        switch (g_FieldSpriteSheetQuads[nQuad * 4 + 1] & 0xF) {
         case 0:
             FieldClampPolyFT4UVs(pPoly, nSrcX, nSrcY, nSrcX + nW, nSrcY,
                 nSrcX, nSrcY + nH, nSrcX + nW, nSrcY + nH);
@@ -1780,6 +1759,7 @@ void func_800A8BA4(void) {
     g_FieldSpritePrimsAllocated = 1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
+
 
 
 
