@@ -126,6 +126,40 @@ extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 // Not tried: the permuter (bar is 85% and this is at 90.37 -> one run is allowed by the
 // STOP RULE exception only if the residual is named by a lever; it is regalloc, see
 // lever.py 'regalloc callee-saved swapped tie').
+// Best 97.22% (1592 bytes against retail's 1612, 398 vs 403 insns): the whole arm set
+// matches instruction for instruction except one register rotation in the 0xBE arm and
+// two tail merges (below).
+// PORTED FROM the func_800C11CC park in src/battle/main/misc35.c with the earlier
+// findings kept - the dispatch MUST be a goto loop (a switch inside a while/for gives
+// loop.c the outer LOOP notes and hoists both `li 1` and the &g_AnimScriptCommandLengths
+// lui/addiu into the preheader -> 61.25%), and case 0x81's anim-id == DEFAULT path is a
+// goto onto case 0x80's body, not a second copy of it.
+// MEASURED, in the order it paid (round 479):
+//   - EVERY ARM MUST OWN ITS LOCALS. A local shared between arms that crosses a call
+//     becomes a global allocno and takes a callee-saved register: giving the head block
+//     its own headFlags/headMask/headCount moved the head from $s0/$a2/$a0 onto retail's
+//     $a1/$a2/$v0 (90.37 -> 91.96), and giving the 0xBE arm its own beFrames did the
+//     same there. Splitting the whole 0xBE arm at once is WORSE (91.07: pSpriteData
+//     falls to $s2) and beOffset alone is worse too (91.19) - beFrames alone is the win.
+//   - 0x80/0x81 must use the ANIM_SCRIPT_MODE_MASK macro INLINE (retail rematerialises
+//     the constant twice per arm) and 0x82 must load step.y AFTER the callback, not
+//     before its test: 93.11 -> 95.61.
+//   - 0x98 wants a typed pLinked local for field_0x70 (retail keeps it in $a0) and the
+//     anim-id compare as (s8)pSpriteData->field_0x8D: retail loads BOTH operands with
+//     lb, so the header's u8 field_0x8D is really signed there: 91.96 -> 93.11.
+//   - 0xE2 is `pArgs[0] + (s16)(pArgs[1] << 8)` (an unsigned lbu + sll 24/sra 16, an
+//     add), truncated again at the pointer add (sll 16/sra 16 AFTER the PushU24 call) -
+//     not the or-based SCRIPT_JUMP_AT: 96.45 -> 97.22.
+// WHAT IS LEFT:
+//   - 0xBE arm, one register rotation: retail count $a2 / offset $a3 / ~8 mask $a1,
+//     ours $a1 / $t0 / $a0. Retail also re-emits both of its delay-slot instructions
+//     (li a1,-9, sra v0,a2,6) on the fall-through into .L80024B1C.
+//   - tail merges: retail cross-jumps the head's count == 0 tail into 0x81's or/j/sw
+//     (.L80024DBC, with the j in its release and sll in the delay slot) where ours emits
+//     a private copy, and ours merges 0x8E/0xE1 into the 0xBE arm's `j exit` where retail
+//     keeps them separate. Net -5 insns.
+// Measured and rejected: `offset = count & 0x1FF` before the frame multiply, storing the
+// 0x3C word twice, the 0xBE arm with block locals, and per-arm locals for count/flags/mask.
 /*
 void func_800248D4(SpriteData* pSpriteData) {
     u8* pArgs;
@@ -150,6 +184,10 @@ dispatch:
         code = *(u8*)pSpriteData->pSpriteBytecode;
         pArgs = (u8*)pSpriteData->pSpriteBytecode + 1;
         if (code < 0x80) {
+            u32 headFlags;
+            u32 headMask;
+            s32 headCount;
+
             pSpriteData->pSpriteBytecode = pArgs;
             if (code < 0x10) {
                 SpriteAnimFrameListSetFrame(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
@@ -174,28 +212,31 @@ dispatch:
             if (frames == 0) {
                 frames = 1;
             }
-            flags = pSpriteData->flags_0xA8;
-            mask = flags & ANIM_SCRIPT_SCRIPT_INDEX_MASK;
-            count = (ANIM_SCRIPT_COUNTER(flags, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) + 1) & ANIM_SCRIPT_COUNTER_MASK;
-            mask |= count << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT;
+            headFlags = pSpriteData->flags_0xA8;
+            headMask = headFlags & ANIM_SCRIPT_SCRIPT_INDEX_MASK;
+            headCount = (ANIM_SCRIPT_COUNTER(headFlags, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) + 1) & ANIM_SCRIPT_COUNTER_MASK;
+            headMask |= headCount << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT;
             pSpriteData->animScriptWaitTimer += frames;
-            pSpriteData->flags_0xA8 = mask;
-            if (count == 0) {
+            pSpriteData->flags_0xA8 = headMask;
+            if (headCount == 0) {
                 pSpriteData->flags_0xA8 =
-                    (mask & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
-                    (((ANIM_SCRIPT_COUNTER(mask, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) - 1) & ANIM_SCRIPT_COUNTER_MASK)
+                    (headMask & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
+                    (((ANIM_SCRIPT_COUNTER(headMask, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) - 1) & ANIM_SCRIPT_COUNTER_MASK)
                      << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT);
             }
             return;
         }
         switch (code) {
         case 0xBE: {
+            s32 beFrames;
+
             count = pArgs[0] | ((s8)pArgs[1] << 8);
-            frames = ((count >> 11) & 0xF) + 1;
-            frames = frames * (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
-                    ANIM_SCRIPT_SPEED_SCALE;
-            if (frames == 0) {
-                frames = 1;
+            beFrames = ((count >> 11) & 0xF) + 1;
+            beFrames = beFrames *
+                       (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
+                       ANIM_SCRIPT_SPEED_SCALE;
+            if (beFrames == 0) {
+                beFrames = 1;
             }
             offset = count & 0x1FF;
             if (g_SpriteStateFlags(pSpriteData).fields.mode != 1) {
@@ -218,18 +259,21 @@ dispatch:
                 }
                 SpriteAnimFrameListSetFrame(pSpriteData, offset);
             }
-            pSpriteData->animScriptWaitTimer += frames;
+            pSpriteData->animScriptWaitTimer += beFrames;
             pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + 3;
             return;
         }
         case 0x8E:
             pSpriteData->pSpriteBytecode = NULL;
             return;
-        case 0xE2:
-            offset = SCRIPT_JUMP_AT(pArgs);
+        case 0xE2: {
+            s32 jumpOffset;
+
+            jumpOffset = pArgs[0] + (s16)(pArgs[1] << 8);
             AnimScriptStackPushU24(pSpriteData, (s32)pSpriteData->pSpriteBytecode + 3);
-            pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + offset;
+            pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + (s16)jumpOffset;
             goto dispatch;
+        }
         case 0x85:
             pSpriteData->pSpriteBytecode =
                 (void*)(((u32)pSpriteData->pSpriteBytecode & 0xFF000000) | AnimScriptStackPopU24(pSpriteData));
@@ -260,8 +304,7 @@ dispatch:
             break;
         case 0x80:
         animScriptDefaultMode:
-            mask = ANIM_SCRIPT_MODE_MASK;
-            pSpriteData->flags_0xA8 &= mask;
+            pSpriteData->flags_0xA8 &= ANIM_SCRIPT_MODE_MASK;
             if (pSpriteData->field_0x68 != NULL) {
                 ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
                 return;
@@ -269,25 +312,29 @@ dispatch:
             if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
                 SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
             }
-            pSpriteData->flags_0xA8 &= mask;
+            pSpriteData->flags_0xA8 &= ANIM_SCRIPT_MODE_MASK;
             return;
-        case 0x98:
-            if (pSpriteData->field_0x70 == NULL) {
+        case 0x98: {
+            SpriteData* pLinked;
+
+            pLinked = pSpriteData->field_0x70;
+            if (pLinked == NULL) {
                 break;
             }
             pSpriteData->animScriptWaitTimer = 1;
-            if ((s8)((SpriteData*)pSpriteData->field_0x70)->flags_0xAC.bytes[3] != pSpriteData->field_0x8D) {
+            if ((s8)pLinked->flags_0xAC.bytes[3] != (s8)pSpriteData->field_0x8D) {
                 break;
             }
-            if ((((u32)((SpriteData*)pSpriteData->field_0x70)->flags_0xA8 >> 28) & 3) != 2) {
-                break;
+            if ((((u32)pLinked->flags_0xA8 >> 28) & 3) == 2) {
+                return;
             }
-            return;
+            break;
+        }
         case 0x82:
-            stepY = pSpriteData->step.y;
             if (pSpriteData->field_0x68 != NULL) {
                 ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
             }
+            stepY = pSpriteData->step.y;
             SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
             pSpriteData->step.y = stepY;
             pSpriteData->animScriptWaitTimer = 0;
@@ -301,8 +348,7 @@ dispatch:
             if (pSpriteData->field_0x68 != NULL) {
                 ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
             }
-            mask = ANIM_SCRIPT_MODE_MASK;
-            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & mask) | ANIM_SCRIPT_MODE_SET;
+            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_MODE_MASK) | ANIM_SCRIPT_MODE_SET;
             return;
         case 0xE4:
             count = AnimScriptStackPopU8(pSpriteData);
@@ -341,6 +387,7 @@ dispatch:
     }
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
+
 
 
 
