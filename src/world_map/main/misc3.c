@@ -3,8 +3,36 @@
 #include "psyq/libgpu.h"
 #include "system/sound.h"
 
+// the map display buffer copied into VRAM when a mode initialises, and the VRAM
+// position it is copied to (same defines as misc4.c)
+#define WORLD_MAP_SCREEN_WIDTH 320
+#define WORLD_MAP_SCREEN_HEIGHT 216
+#define WORLD_MAP_SCREEN_VRAM_X 0x2C0
+#define WORLD_MAP_SCREEN_VRAM_Y 0x100
+
+// the archive directory this overlay's files are read through (same define as misc4.c)
+#define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
+
+// the grid angle advances by this step every rendered frame (same define as misc1.c)
+#define WORLD_MAP_GRID_ANGLE_STEP 64
+
+// an angle is a 4096-step turn counter, wrapped back into it (same define as misc13.c)
+#define WORLD_MAP_ANGLE_MASK 0xFFF
+
+// half of the 4096-step turn, added to a view rotation to flip its facing
+#define WORLD_MAP_ANGLE_HALF_TURN 0x800
+
 // A scroll step under this snaps the player straight onto the target instead of moving.
 #define WORLD_MAP_STEP_SNAP_MAX 512
+
+// A view rotation or camera height step under this snaps straight onto the target instead of
+// moving; its steps are the /8 ones, so this is not the scroll path's limit above.
+#define WORLD_MAP_VIEW_STEP_SNAP_MAX 64
+
+// the slot target at 0x28, which the pad nudges and the 0x38 view rotation interpolates
+// toward, is clamped into this range
+#define WORLD_MAP_SLOT_TARGET_MIN (-0x180000)
+#define WORLD_MAP_SLOT_TARGET_MAX 0x18000
 
 // One slot of the pool g_WorldMapSlots (stride 0x80), partial view: only the script
 // cursor and the wait countdown are used here. The cursor is halfword
@@ -189,7 +217,7 @@ s32 WorldMapUpdateFrame(void) {
     pState = &g_WorldMapCameraTarget;
     func_800983A0(pState);
     func_8009932C(g_WorldMapRenderContext->pOt[0], g_WorldMapRenderContext->pOt[1], pState);
-    g_WorldMapGridAngle = g_WorldMapGridAngle + 0x40;
+    g_WorldMapGridAngle = g_WorldMapGridAngle + WORLD_MAP_GRID_ANGLE_STEP;
     func_80073B04();
     func_800737EC();
     func_80086798();
@@ -298,17 +326,17 @@ void WorldMapApproachViewRotation(WorldMapPlayer* pPlayer, WorldMapScrollDelta* 
         pDelta->stepX = pDelta->x >> 3;
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;
-        if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x40) {
+        if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < WORLD_MAP_VIEW_STEP_SNAP_MAX) {
             pPlayer->rotX = pPlayer->targetRotX;
         } else {
             pPlayer->rotX += pDelta->stepX;
         }
-        if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x40) {
+        if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < WORLD_MAP_VIEW_STEP_SNAP_MAX) {
             pPlayer->rotY = pPlayer->targetRotY;
         } else {
             pPlayer->rotY += pDelta->stepY;
         }
-        if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x40) {
+        if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < WORLD_MAP_VIEW_STEP_SNAP_MAX) {
             pPlayer->rotZ = pPlayer->targetRotZ;
         } else {
             pPlayer->rotZ += pDelta->stepZ;
@@ -329,7 +357,7 @@ void WorldMapApproachHeight(WorldMapPlayer* pPlayer) {
 
     if (cur != g_WorldMapCameraHeight) {
         idx = (cur - g_WorldMapCameraHeight) >> 3;
-        if ((idx < 0 ? -idx : idx) < 0x40) {
+        if ((idx < 0 ? -idx : idx) < WORLD_MAP_VIEW_STEP_SNAP_MAX) {
             g_WorldMapCameraHeight = cur;
         } else {
             g_WorldMapCameraHeight = g_WorldMapCameraHeight + idx;
@@ -451,9 +479,9 @@ void WorldMapInitializeMode(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
-    MoveImage(&rect, 0x2C0, 0x100);
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
     WorldMapDrawFadeFrames(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
@@ -482,7 +510,7 @@ void WorldMapInitializeMode(void) {
     WorldMapInitFrameAnimEntries();
     WorldMapSetupMapPrims();
     WorldMapInitSpriteGroupTables();
-    ArchiveSetIndex(0x24, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
     WorldMapSetGridPosition(pPos);
     do {
         WorldMapUpdateLoadQueue();
@@ -621,10 +649,10 @@ s32 WorldMapUpdateFrameWithScrollInput(s32 arg0) {
         *(s32*)(pSlot + 0x28) += -0x8000;
     }
     nPos = *(s32*)(pSlot + 0x28);
-    if (nPos < -0x180000) {
-        *(s32*)(pSlot + 0x28) = -0x180000;
-    } else if (nPos > 0x18000) {
-        *(s32*)(pSlot + 0x28) = 0x18000;
+    if (nPos < WORLD_MAP_SLOT_TARGET_MIN) {
+        *(s32*)(pSlot + 0x28) = WORLD_MAP_SLOT_TARGET_MIN;
+    } else if (nPos > WORLD_MAP_SLOT_TARGET_MAX) {
+        *(s32*)(pSlot + 0x28) = WORLD_MAP_SLOT_TARGET_MAX;
     }
     if (g_WorldMapPad1Held & 0x8004) {
         *(s32*)(pSlot + 0x2C) += 0xFFFF0000;
@@ -647,7 +675,7 @@ s32 WorldMapUpdateFrameWithScrollInput(s32 arg0) {
     *(WorldMapName8*)(pScratch + 0xA0) = *pName;
     *pName = *(WorldMapName8*)&D_8009BD48;
     *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)(pScratch + 0xA0);
-    g_WorldMapViewRotationY = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
+    g_WorldMapViewRotationY = (g_WorldMapViewRotationY + WORLD_MAP_ANGLE_HALF_TURN) & WORLD_MAP_ANGLE_MASK;
     SetGeomScreen(g_WorldMapProjectionDistance);
     return 1;
 }
@@ -677,7 +705,7 @@ s32 WorldMapUpdateFrameWithoutEffects(void) {
     pState = &g_WorldMapCameraTarget;
     func_800983A0(pState);
     func_8009932C(g_WorldMapRenderContext->pOt[0], g_WorldMapRenderContext->pOt[1], pState);
-    g_WorldMapGridAngle = g_WorldMapGridAngle + 0x40;
+    g_WorldMapGridAngle = g_WorldMapGridAngle + WORLD_MAP_GRID_ANGLE_STEP;
     func_80073B04();
     func_800737EC();
     func_80086798();
@@ -690,9 +718,9 @@ void WorldMapInitializeModeWithSound(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
-    MoveImage(&rect, 0x2C0, 0x100);
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
     WorldMapDrawFadeFrames(0x40, 0, 4, 1);
     while (ArchiveDataSync() >= 3) {
@@ -723,7 +751,7 @@ void WorldMapInitializeModeWithSound(void) {
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
-    ArchiveSetIndex(0x24, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
     WorldMapSetGridPosition(pPos);
     do {
         WorldMapUpdateLoadQueue();
