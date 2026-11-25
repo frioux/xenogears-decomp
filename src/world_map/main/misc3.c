@@ -596,10 +596,8 @@ extern s32 D_8009BD48;
 //    `sw v1,0x28(a1)` for both bounds, the compare is `(unk38 != unk28) | (unk3C != unk2C)`
 //    (xor/sltu/or with the first delta in the branch delay slot), and the 0x1F8000A0 name swap is
 //    an 8-byte struct move through the `u8 *` scratch base (lwl/lwr + swl/swr).
-/*
 s32 func_800776E0(s32 arg0) {
     u8* pScratch = (u8*)0x1F800000;
-    s16* pRot;
     u8* pSlot = (u8*)g_WorldMapSlots + (arg0 << 7);
     WorldMapName8* pName;
     s32* pTarget;
@@ -634,20 +632,18 @@ s32 func_800776E0(s32 arg0) {
         *(s32*)(pSlot + 0x38) += *(s32*)pScratch >> 3;
         *(s32*)(pSlot + 0x3C) += *(s32*)(pScratch + 4) >> 3;
     }
-    pRot = g_WorldMapCameraRotTable;
     pName = (WorldMapName8*)g_WorldMapPathFrameTable;
     pTarget = g_WorldMapCameraTargetTable;
-    *pRot = *(s32*)(pSlot + 0x38) >> 12;
+    *g_WorldMapCameraRotTable = *(s32*)(pSlot + 0x38) >> 12;
     g_WorldMapViewRotationY = *(s32*)(pSlot + 0x3C) >> 12;
-    func_80096F18(pName, pTarget, g_WorldMapCameraHeight, (u16*)pRot);
+    func_80096F18(pName, pTarget, g_WorldMapCameraHeight, (u16*)g_WorldMapCameraRotTable);
     *(WorldMapName8*)(pScratch + 0xA0) = *pName;
     *pName = *(WorldMapName8*)&D_8009BD48;
     *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)(pScratch + 0xA0);
     g_WorldMapViewRotationY = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
     SetGeomScreen(g_WorldMapProjectionDistance);
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800776E0);
+}
 
 
 
