@@ -448,39 +448,26 @@ void WorldMapSetLevelFileIndices(s32 arg0, s32 arg1) {
     g_WorldMapTileRows = pEntry->tileRows;
     g_WorldMapAreaMode = pEntry->areaMode;
 }
-// ROUND 472: best 94.10% (540 bytes, 135 insns vs retail's 133). Progress from 84.51 by using the two INDEPENDENT byte-stride cursors retail keeps (a1 = &g_WorldMapStreamQueueEntryData for the pData stores, a2 = the archiveIndex cursor, both advanced by 8 per entry) and s32 ids, which kills the andi 0xff.
-//     Residual, in order of cost:
-//     (1) register hand-out in loop 2 only: retail keeps the loop index in a0 and nCount in s1; ours holds i in s1 and nCount in a2. The s32 id also moves loop 1's gearId load from a0 (retail) to v0 and adds one trailing addu there, which is why the u8 spelling below scores lower even though its loop 1 is byte-identical.
-//     (2) preheader la: retail derives the index cursor from the pData one (lui/addiu a1 = EntryData, then addiu a2,a1,-4 = three instructions). Every C spelling tried folds the -4 into the reloc addend and emits a second lui/addiu pair, +1 instruction.
-//     (3) frame 0x38 vs retail 0x30: the two cursors cost 8 bytes of frame no spelling removed.
-//     Measured variants, all honest C:
-//     - u8 nCharacterId for loop 1 + s32 id for loop 2 (loop 1 then byte-identical, 134 insns, 536 bytes): 92.21%
-//     - same but u8 byte cursors with *(s16 *)pCursor stores: 92.21%
-//     - fresh loop-2 index variable (nSlot) instead of reusing i: 91.23%, and it shuffles loop 1's whole s-register set (i -> s3)
-//     - only one index variable, everything u8 (the old park): 84.51%
-//     - an index-variable spelling with the -4 pointer form: 85.92% (round 471 note; the s32 ids and the two cursors above are what took it to 94.10)
-//     Not tried: a permuter run (the stop rule bars it below 99%).
-// */ 
-// ROUND 484: best 96.61% at retail's EXACT 532 bytes / 133 insns, and LOOP 1 IS BYTE-IDENTICAL. Nothing left but loop 2's register hand-out (60 differing lines are all register names, one size-for-size permutation). What got here: (a) loop 1 wants u8 characterId/gearId (only then do lbu a0 + the addu in the beq delay slot + the hoisted zero-arm store come out right - with s32 ids loop 1 gains a nop and a trailing addu, +1 insn); (b) loop 2 wants s32 ids (u8 there re-adds 'andi v0,0xff' before the 0xFF test); (c) loop 2 must index 'g_WorldMapStreamQueueEntries[nCount]' - a struct-array subscript, not the two pointer cursors of the old park. That subscript is what produces retail's preheader exactly: one lui/addiu for the +4 base plus 'addiu aN,aX,-4' for the archiveIndex giv (loop.c derives one giv from the other), and it also drops the frame from 0x38 to retail's 0x30. The tail writes 'entries[nCount].archiveIndex/pData = 0', byte-identical to retail (reloc names g_WorldMapStreamQueue+4 where the object names g_WorldMapStreamQueueEntryData = SECOND EXCEPTION). Residual: retail keeps loop-2's index in a0 and nCount in s1 and loop-2's charId in s0; we hold index i in s1 (it is the SAME pseudo as loop 1's i, so s1 is pinned for the whole function), nCount in a2, charId in v1. Every attempt to give loop 2 its own index variable (s32 j, declared first/second/last - 3 orders measured) rotates LOOP 1's three s-registers instead (i s1->s3, 4i-giv s2->s1, party cursor s3->s2) and scores 95.35 at the same 532 bytes; sharing one u8 charId across both loops re-adds the andi (94.59). So the pair is the allocator's ordering of loop-1's i against its own two givs, decided by the presence of a second index pseudo - see levers a-one-counter-per-loop-nest-moves and a-a-near-miss-allocno-quotient; below 99, so no permuter run.
 void func_80071CDC(void) {
+    u8 partyId;
     s32 characterId;
     u8 gearId;
-    undefined8 partyIdByte;
+    s32 nGearId;
     s32 i;
-    s32 gearIdValue;
     s32 j;
     StreamDataQueueEntry* pQueue;
-    s32 nGearId;
 
     for (i = 0; i < 3; i++) {
-        partyIdByte = g_GameState.partyMembers[i];
-        characterId = partyIdByte;
+        partyId = g_GameState.partyMembers[i];
+        characterId = partyId;
         if (characterId != CHARACTER_ID_NONE) {
             g_WorldMapPartyActorAnimFile0[i] = HeapAlloc(ArchiveDecodeAlignedSize(characterId + 2), 0);
             gearId = g_GameState.characters[characterId].gearId;
-            gearIdValue = (j = gearId);
+            // loop 2's slot index: it only lands in $a0 if its live range starts down here
+            j = gearId;
+            nGearId = gearId;
             if (gearId != GEAR_ID_NONE) {
-                g_WorldMapActorAnimFiles[i] = HeapAlloc(ArchiveDecodeAlignedSize(gearIdValue + 0x13), 0);
+                g_WorldMapActorAnimFiles[i] = HeapAlloc(ArchiveDecodeAlignedSize(nGearId + 0x13), 0);
             } else {
                 g_WorldMapActorAnimFiles[i] = 0;
             }
