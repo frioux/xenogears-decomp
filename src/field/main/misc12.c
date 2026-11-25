@@ -585,43 +585,37 @@ long FieldGetVec2Magnitude(long, long);
 int FieldGetVec2Angle(IVEC3*);
 void func_8009E574(int, int);
 extern s32 g_FieldCurActorIndex;
-/* 92.39% (636 bytes, retail 632 - one instruction over, so it cannot link).
-   The block order was the whole 19.71 -> 92.39: retail's arrival tail is the
-   FALL-THROUGH and the walking body sits out of line, jumping back to it, which
-   only the goto form reproduces - `if (magnitude < distance) goto walking;` then
-   the `tail:` label, the arrival block, `return 0`, `walking:`, the body, and
-   `goto tail;` at the end. The two other measured levers are permuter finds and
-   are load-bearing: the `do {} while (0)` that encloses the tail's store group
-   and the walking body takes 644 -> 636, and the nested
-   `if (!(flags & 0x8000)) { if (direction == 0xFF) ... else ... } else ...`
-   shape is what gives retail's block order for the three-way rotation select
-   (91.48 -> 92.39 with the do-block). Reading scriptFlags.flags into a `flags`
-   local and storing `flags & ~0x02200800` at the end is also real source: it
-   moves the flags load up where retail has it.
-   Residuals, all scheduler placement at equal instruction counts in this
-   -fschedule-insns unit: (a) the FieldActor address sum comes out base-first
-   (`addu v1,v1,v0`) where retail has index-first (`addu v1,v0,v1`) - tried
-   `&g_FieldActors[i]`, `g_FieldActors + i` and `i + g_FieldActors`, all three
-   identical; (b) retail does both `lh position.vx/vz` before the magnitude
-   `addiu` where ours splits them (moving the magnitude statement after the delta
-   stores regresses to 86.86); (c) the tail's flags `lw` and `and` land one
-   cluster later than retail's. The `move a0,v0` on the position snap is a stale
-   symptom - it disappeared with a block-scoped walkRotation local. */
-/* 93.65% (636 bytes, retail 636). Round 397: the tail's flags word is NOT read into
-   a `flags` local - `pActor->scriptFlags.flags &= ~0x02200800;` measured 92.39 ->
-   93.65 and puts both the `lw a0,0(s2)` and the `and` in retail's slots (the local
-   version hoisted the `and` two slots early). Remaining three residuals are the
-   -fschedule-insns unit's hoisting: retail emits `lui/ori` mask, `move v0,zero`,
-   `lw a0,0(s2)`, then `sll v1,s3,0x10`/`sw`, while ours hoists that sll above the
-   mask constants and swaps `move v0,zero` after the lw (tail), emits `sw zero,20(sp)`
-   (delta.y) before the two `lh` where retail emits it after `addiu s0,v0,1`, and
-   `addu v1,v1,v0` where retail has `addu v1,v0,v1` (see the addu levers: not a hand
-   job). Tried and identical/not better: a `FieldActor* pActors = g_FieldActors;
-   pFieldActor = pActors + actorIndex;` base local (identical, 92.39 before the tail
-   change), and the whole body under gcc-2.6.0 scores 92.99 (try_flags), so the
-   preset is right. Earlier levers still load-bearing: the goto block layout, the
-   `do {} while (0)` around the tail store group + walking body, the nested
-   if/else-if/else rotation select, and the block-scoped walkRotation local. */
+// 97.48% (636 bytes, retail 636 - same size, 4 differing lines, all in one cluster).
+// Load-bearing from earlier rounds, do not undo: the goto block layout (the arrival
+// tail is the FALL-THROUGH, the walking body sits out of line and jumps back to it),
+// the do {} while (0) around the tail, the nested if/else-if/else rotation select
+// (91.48 -> 92.39 with the do-block), and the direct scriptFlags.flags RMW (a
+// `flags` local hoists the `and` two slots early, 92.39 -> 93.65 without it).
+// ROUND 475 closed two of the three residuals:
+// (1) The delta block wants the two narrow position fields READ INTO LOCALS before
+//     the arithmetic: positionX = CONV_TO_GTE(pActor->position.vx); positionZ =
+//     CONV_TO_GTE(pActor->position.vz); then delta.x = x - positionX; delta.y = 0;
+//     delta.z = z - positionZ; That is retail's lh,lh,addiu,sw-zero,subu,subu,sw,
+//     jal,sw grouping (93.65 -> 97.42). Without the two locals every spelling
+//     splits the loads (dx,dz,dy order 636 bytes / 8 differing lines).
+// (2) The FieldActor index address wants the offset term WRITTEN FIRST in a cast
+//     sum: (FieldActor*)(actorIndex * sizeof(FieldActor) + (u32)g_FieldActors)
+//     emits retail's addu v1,v0,v1 (index first, base destroyed in place, 97.42 ->
+//     97.48) where actorIndex + g_FieldActors, &g_FieldActors[actorIndex],
+//     &FIELD_ACTORS[actorIndex] and (u32)g_FieldActors + actorIndex * sizeof all
+//     emit the mirrored addu v1,v1,v0.
+// RESIDUAL, one cluster: the arrival tail's first four instructions. Retail emits
+// mask lui/ori, move v0,zero, lw a0,flags and then sll x / sw, sll z / sw, sh
+// stuckFrameCount, and, j, sw; ours hoists sll x above the mask constants and puts
+// move v0,zero after the flags lw (the rest of the tail matches). Measured and not
+// the answer: all 24 statement orders of the four tail statements (none reproduces
+// it - retail's stuckFrameCount store is LAST yet its mask/move/lw group is first,
+// and that group only forms when some other statement occupies the block head); a
+// `flags` local read before or inside the block; the literal mask 0xFDDFF7FF;
+// x * 0x10000 instead of x << 16; z before x. Not a scheduler question either:
+// cc1 2.7.2 on this unit's own .i with -fschedule-insns emits the same order as
+// -O2, and this unit has no schedule flag. Next: find the statement that heads
+// retail's block.
 /*
 int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     FieldActor* pFieldActor;
@@ -632,16 +626,17 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     int prevActorIndex;
     int actorIndex;
     int rotation;
-    int flags;
     int walkRotation;
     int distance;
     int magnitude;
+    int positionX;
+    int positionZ;
 
     actorIndex = g_FieldPartyActorSlots[actorSlotId];
     if (actorIndex == ACTOR_ID_INVALID) {
         return 0;
     }
-    pFieldActor = actorIndex + g_FieldActors;
+    pFieldActor = (FieldActor*)(actorIndex * sizeof(FieldActor) + (u32)g_FieldActors);
     if (pFieldActor->status & ACTOR_STATUS_INVISIBLE) {
         return 0;
     }
@@ -651,9 +646,11 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
         pSpriteData->moveSpeed = 0x4000000 / pActor->moveSpeed;
     }
     magnitude = FieldGetVec1Magnitude(pSpriteData->moveSpeed >> 15) + 1;
-    delta.x = x - CONV_TO_GTE(pActor->position.vx);
+    positionX = CONV_TO_GTE(pActor->position.vx);
+    positionZ = CONV_TO_GTE(pActor->position.vz);
+    delta.x = x - positionX;
     delta.y = 0;
-    delta.z = z - CONV_TO_GTE(pActor->position.vz);
+    delta.z = z - positionZ;
     distance = FieldGetVec2Magnitude(delta.x, delta.z);
     pActor->scriptFlags.flags |= 0x400000;
     // The goto keeps retail's block layout: the arrival tail is the fall-through and
@@ -705,9 +702,9 @@ walking:
     g_FieldCurActorIndex = prevActorIndex;
     } while (0);
     goto tail;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
+
 void FieldScriptVMSetFlag21CF(void) {
     D_800B21CF[0] = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
