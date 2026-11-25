@@ -249,13 +249,15 @@ void BattleSetPolyFT4Rect(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy)
     p->u3 = u + dx;
     p->v3 = v + dy;
 }
-// 92.31% (344 bytes / 86 insns against retail's 332 / 83, unit gcc-2.6.0 XenoBattle260). Residual: strength_reduce creates a giv of the repeated store address (p + 0xE) - retail's frame is 0x28 with 5 saved regs and a per-iteration 'addu v1,s0,zero', this compile hoists 'addiu s0,s1,0xE', keeps a 6th saved reg (s5) and a 0x30 frame. PROOF it is the pass and not the source: the same body compiled with -fno-strength-reduce (tools/gcc-2.6.0-psx/cc1 -O2 -G8 plus that flag) is retail's exact shape, frame 0x28, 5 regs, 'sh $2,14($16)', 'addu $16,$16,40 / addu $2,$18,80 / slt' - identical except that retail also carries the one extra 'addu v1,s0,zero' copy. No source shape reached that: measured also typed POLY_FT4* p->clut 91.65 (pointer compare gives sltu where retail has slt, so the loop really is a signed byte-pointer compare), u16 *pClut = (u16 *)p with pClut[7] 92.31 (identical), and a for(i<2) loop with typed p 91.52 (slti, extra index register). try_flags: 2.7.2 92.31, cdk compile-failed, -O1 82.36, -O3 compile-failed. Body:
+// 92.31% (344 bytes / 86 insns against retail's 332 / 83, XenoBattle260 = gcc 2.6.0). Residual: strength_reduce creates a giv of the repeated store address (the clut store at +0xE) - retail's frame is 0x28 with 5 saved regs and a per-iteration 'addu v1,s0,zero', this compile hoists 'addiu s0,s1,0xE', keeps a 6th saved reg (s5) and a 0x30 frame. The same body with -fno-strength-reduce is retail's exact shape (frame 0x28, 5 regs, 'sh $2,14($16)'), so the residual is the pass, not the C. Round 489 re-measured at 92.31 and added three shapes that change nothing: typed POLY_FT4 *pPrim = (POLY_FT4 *)p for the tpage/clut stores (this park's body), the palette choice as a ternary (gcc folds it back to the if/else CFG, identical code) and the plain u8* body. try_flags: 2.7.2 92.31, cdk compile-failed, -O1 82.36, -O3 compile-failed.
 /*
 void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
+    POLY_FT4 *pPrim;
     u8 *p;
 
     p = pInfo;
     do {
+        pPrim = (POLY_FT4 *)p;
         SetPolyFT4(p);
         p[4] = 0x80;
         p[5] = 0x80;
@@ -264,28 +266,28 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
         SetShadeTex(p, 1);
         switch (mode) {
         case 0:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x380, 0);
+            pPrim->tpage = GetTPage(0, 0, 0x380, 0);
             break;
         case 1:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x380, 0x100);
+            pPrim->tpage = GetTPage(0, 0, 0x380, 0x100);
             break;
         case 2:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, 0x100);
+            pPrim->tpage = GetTPage(0, 0, 0x3C0, 0x100);
             break;
         case 3:
-            *(u16 *)(p + 0x16) = GetTPage(0, 0, 0x3C0, 0);
+            pPrim->tpage = GetTPage(0, 0, 0x3C0, 0);
             break;
         }
         if (flag != 0) {
-            *(u16 *)(p + 0xE) = g_SystemPalette2;
+            pPrim->clut = g_SystemPalette2;
         } else {
-            *(u16 *)(p + 0xE) = g_SystemPalette1;
+            pPrim->clut = g_SystemPalette1;
         }
         p += 0x28;
     } while ((s32)p < (s32)pInfo + 0x50);
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
+
 
 void BattleLoadActionRowGraphics(void) {
     u8 *pBuf[BATTLE_ACTION_ROW_COUNT];
@@ -799,45 +801,6 @@ void BattleInitTextSlotGraphics(void) {
 // sprites side by side in VRAM.
 #define BATTLE_TEX_PAGE_STEP 6
 
-/* RE-MEASURED under the unit's current preset (XenoBattle260 = gcc 2.6.0)
-   86.57% (480 bytes / 120 insns against retail's 504 / 126) - the 81.38 below
-   was the old 2.7.2 preset. Residual under 2.6.0 is exactly two things: the
-   i-1 induction variable retail carries alongside i (both initiu out of the
-   loop, "-0x1" and "0x0", both incremented by 1 in the tail; retail reads the
-   char id as %hi(D_800D2D25)-folded s2 = i-1 and tests "i != 0" with
-   sltiu s2,2), and the sixth out-parameter it costs (metadata+0x14 spilled at
-   0x98(sp), frame 0xC8 vs 0xC0). Everything after the lhu readbacks is
-   instruction-identical. Getting a second index register from a body that
-   mentions only i is a loop.c giv question, not a spelling one; bodies measured
-   below all keep one.
-   81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
-   and the residual is ONE register. Under this unit's preset gcc 2.7.2 forms the
-   address of g_BattleActorCharIds[i] from the loop counter (addu at,at,i) and
-   reads the four metadata halfwords with lw, while retail keeps a SEPARATE giv
-   register holding i-1, adds it to %hi(D_800D2D25) (the +1 folded into the
-   symbol), fills the delay slot of the D_800D3294 test with sltiu (i-1),2 for
-   "i != 0", and so runs one register short: the sixth out-pointer (metadata
-   offset 0x14) is spilled at 0x98(sp), which is the whole 0xC8 vs 0xC0 frame and
-   the 126 vs 121 instruction gap.
-   RETAIL IS gcc 2.6.0 - see PRESET_260 in the round report.
-   tools/scripts/try_flags.sh battle/main/misc3 func_80078310 --gcc
-   gcc-2.6.0-psx scores this same body 86.57, and its assembled object is
-   instruction-identical to retail from the lhu readbacks to the return: same
-   "addu v0,sp,s0 / lhu 0x40..0x4C(v0)" sequence, same slti loop test, same six
-   offset givs. Under 2.6.0 only the i-1 giv and the 0x14 spill above are
-   missing. try_flags --all shows every already-matched function in this unit
-   stays 100.00 under 2.6.0, so the unit can be switched to it.
-   Tried, all measured: s32 charId 81.06; u8 charId (it produces the andi 0xFF
-   retail has before the x0x460 multiply) 81.38; "i > 0" for "i != 0" 86.13 under
-   2.6.0; struct-typed metadata rows (BattleTextureCoords, u16 fields) 60.00.
-   An s32 metadata[18] is right: gcc narrows the four RECT stores to lhu itself.
-   What the body establishes: ResourceHelperGetTexCoords' six out-parameters are
-   six consecutive s32, one 0x18-byte row per party member, read back as
-   halfwords only because they feed RECT.s16; the six offsets start at 0/4/8/0xC
-   /0x10/0x14 and the tex-page x offset accumulates 6 per member, skipped slots
-   included (so the += 6 is the loop tail's statement, not part of the if).
-   Parked body (81.38): */
-/*
 void func_80078310(u8 *pTimData, u8 index) {
     TIM_IMAGE tim;
     s32 metadata[18];
@@ -849,7 +812,7 @@ void func_80078310(u8 *pTimData, u8 index) {
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if (g_BattleActorCharIds[i] != BATTLE_CHAR_ID_EMPTY) {
             charId = g_BattleActorCharIds[i];
-            if (D_800D3294 != 0 && i != 0) {
+            if (D_800D3294 != 0 && i > 0 && i < MAX_PARTY_MEMBERS) {
                 charId = BATTLE_OVERRIDE_CHAR_ID;
             }
             OpenTIM((u_long *)(pTimData + charId * BATTLE_CHAR_TIM_BYTES));
@@ -869,8 +832,6 @@ void func_80078310(u8 *pTimData, u8 index) {
         texPageXOffset += BATTLE_TEX_PAGE_STEP;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
 void BattleResetSlotDisplayValues(u8 *pOut) {
     s32 i;
     u16 emptyValue;
