@@ -36,9 +36,12 @@
 // CLUT ids WorldMapLoadTextureClut builds, one GetClut per row it fills
 #define WORLD_MAP_CLUT_ID_COUNT 16
 // the CLUT row WorldMapLoadTextureClut reads out of VRAM and uploads back: the row
-// it sits at, and how many entries wide it is
+// it sits at, how many entries wide it is, and how many bytes one copy of the row
+// takes (the buffer it is read into, and the stride func_800931D8 writes its
+// WORLD_MAP_CLUT_ID_COUNT faded copies at)
 #define WORLD_MAP_TEXTURE_CLUT_VRAM_Y 0x1F0
 #define WORLD_MAP_TEXTURE_CLUT_ROW_WIDTH 0x100
+#define WORLD_MAP_TEXTURE_CLUT_BLOCK_SIZE 0x200
 
 // the scale all three axes of a sprite set's mesh get before ScaleMatrix (a half,
 // in the 1.12 form it reads)
@@ -57,6 +60,10 @@
 #define WORLD_MAP_ANGLE_HALF_TURN_BOUND 0x801
 // how far an actor slot's facing turns each frame toward its target
 #define WORLD_MAP_ACTOR_TURN_STEP 0x100
+// the same "one turn step of facing is left" test as the forward half's
+// `>= WORLD_MAP_ACTOR_TURN_STEP`, for a difference that wrapped past the half turn
+// and is therefore negative: below this the slot turns back a step
+#define WORLD_MAP_ANGLE_BACKWARD_TURN_BOUND (-0xFF)
 
 // -1 in either step global means no sprite set / triangle is being resolved. Owned by
 // misc14.c (identical value); this unit does not include it.
@@ -465,8 +472,8 @@ void WorldMapLoadTextureClut(void) {
     DrawSync(0);
     HeapFree(pData);
     HeapFree(g_WorldMapLoadedFileData);
-    pData = HeapAlloc(0x200, 1);
-    pDst = HeapAlloc(0x2000, 1);
+    pData = HeapAlloc(WORLD_MAP_TEXTURE_CLUT_BLOCK_SIZE, 1);
+    pDst = HeapAlloc(WORLD_MAP_CLUT_ID_COUNT * WORLD_MAP_TEXTURE_CLUT_BLOCK_SIZE, 1);
     rect.x = 0;
     rect.y = WORLD_MAP_TEXTURE_CLUT_VRAM_Y;
     rect.w = WORLD_MAP_TEXTURE_CLUT_ROW_WIDTH;
@@ -1147,7 +1154,7 @@ void WorldMapDrawSlotSprites(void) {
                 }
             } else {
                 d -= WORLD_MAP_ANGLE_FULL_TURN;
-                if (d < -0xFF) {
+                if (d < WORLD_MAP_ANGLE_BACKWARD_TURN_BOUND) {
                     d = pActor->redStep - WORLD_MAP_ACTOR_TURN_STEP;
                     pActor->redStep = d;
                 } else {
