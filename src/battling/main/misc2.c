@@ -806,6 +806,14 @@ extern void BattleResetMessageQueue(Actor *);
 // - the five gauge stores print as `sw v0,16(at)` / `%lo(g_BattleSlotGauges)` against
 //   retail's `sw v0,0(at)` / `%lo(D_80096FC8)`: same linked bytes (typed-data-addend class).
 // Preset re-checked on this body: 2.6.0 89.53, 2.7.2-cdk 83.89, -G0 identical to unit flags.
+// Re-measured this session: 99.33%, objdiff 1424 bytes / 356 insns against retail 1428 / 357. The whole
+// residual is ONE instruction: retail keeps a nop in the delay slot of the third
+// `bne v0,a1,<found1>` and copies a2 = s4 (arg 3) inside the block; cc1 puts `move $6,$20`
+// first in the target block and reorg.rs eager fill hoists it into that slot, which deletes
+// the nop (4 bytes short, so it can never link). cc1 own .s shows the steal before maspsx.
+// Second 3-minute permuter run this session: PERMUTER_NONE, base=251 best=251, 1320
+// iterations (matches the earlier 1353-iteration run) - the fill is not reachable by any
+// small edit. Presets re-checked earlier: 2.6.0 89.53, cdk 83.89, -G0 identical.
 /*
 void func_800740E4(Actor *pActor, u8 *p1, s32 arg2) {
     VECTOR vecA;
@@ -921,6 +929,7 @@ search:
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
+
 
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
