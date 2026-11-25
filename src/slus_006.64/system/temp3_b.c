@@ -95,6 +95,8 @@ u8 g_MenuSavedMainMenuChoice;
 //    Tried dead this round: odd index written ((u8*)&g_GameState + rowOffset + 1)[j] (byte-identical, gcc
 //    canonicalises it back); (int) casts with the pair left as pIn/pInOdd pointers (89.53, unchanged). Tail (frame
 //    0x58, call tail, volume loop, sb %gp_rel) is retail exact.
+//    Preset screened with tools/scripts/try_flags.sh --all: gcc-2.7.2-cdk-psx scores this body 85.77 against Default's
+//    90.07, so cdk is not the answer (and the tail's sb %gp_rel is already retail exact, which excludes -G0).
 /*
 void func_8001B970(void) {
     u8 inBuf[0x14];
