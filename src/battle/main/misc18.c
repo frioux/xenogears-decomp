@@ -46,7 +46,7 @@ extern s32 g_BattleCurveTargets[];
 extern u8 g_BattleCurveTargetModes[];
 
 // The per-slot byte at +0x56 of the same 0x170-byte slot family (BattleTableEntry.characterId),
-// which func_80098D2C rebuilds from this base rather than reading through the entry it holds.
+// which BattleApplyActionRowToSlot rebuilds from this base rather than reading through the entry it holds.
 extern u8 D_800CCD3E[];
 // The byte just before g_BattleCommandCellUses, set to 0x30 with that word's 0x8000 bit.
 extern u8 g_BattleWaitSkipFlag;
@@ -74,7 +74,7 @@ extern BattleSlotWordEntry D_800D220E[];
 extern s32 rand(void);
 extern s8 BattleTryApplySlotCondition(u8, u8, u16);
 extern void BattleSetSlotConditionTimer(u8, u8, u16, s32);
-extern void func_80098D2C(u8, u8);
+extern void BattleApplyActionRowToSlot(u8, u8);
 extern void BattleRestoreSlotConditionFlags(void);
 extern u8 BattleTestActorSlotFlagsC002ByMode(void);
 extern void BattleSetCommandCodeForSlotKindFlag(u8, u16);
@@ -1273,7 +1273,7 @@ void BattleInitActiveSlotActions(u8 sel) {
     mask = 1;
     for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (g_BattleCurWorkBlock->activeSlotMask & mask) {
-            func_80098D2C(i, sel);
+            BattleApplyActionRowToSlot(i, sel);
         }
         mask <<= 1;
     }
@@ -1301,7 +1301,7 @@ typedef struct {
 // the amount and curve target a damage row sets, the effect words each of its flag bits adds,
 // and the slot's own curve mode. A row that set a curve target needs nothing more from this
 // function, so the rest runs only for the rows that did not.
-void func_80098D2C(u8 slot, u8 row) {
+void BattleApplyActionRowToSlot(u8 slot, u8 row) {
     BattleTableEntry *pSlot = &g_BattleWorkBlock[slot];
     BattleActionEntry *pAction = (BattleActionEntry *)((u8 *)g_BattleWorkBlock + 0x5518) + row;
     BattleSlotState *pState = &g_BattleWorkBlock[slot].state;

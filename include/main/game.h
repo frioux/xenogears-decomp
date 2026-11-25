@@ -83,7 +83,7 @@ typedef struct {
     /* 0x40 */ s32 unk40;
     // Two 32-bit numbers the menu window draws wide (up to 8 digits) with
     // MenuParseNumberToDigits, in both the character and the gear window. BattleInitActiveSlotActions
-    // (func_80098D2C) is the only function in the program that writes them: one case of its jump table
+    // (BattleApplyActionRowToSlot) is the only function in the program that writes them: one case of its jump table
     // stores 1 into both.
     /* 0x44 */ s32 unk44;
     /* 0x48 */ s32 unk48;
