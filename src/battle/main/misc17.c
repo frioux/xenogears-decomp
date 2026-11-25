@@ -690,8 +690,9 @@ void func_80092298(u8 arg0, u8 *arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 
-// 86.30% (988 bytes / 247 insns against retail's 1008 / 252), measured this round by
-// un-parking and diffing. 70.43 -> 86.30 came from three changes, each measured:
+// 86.30% (988 bytes / 247 insns against retail's 1008 / 252), re-measured by un-parking
+// and diffing in round 493 - unchanged, and the two residuals below are still the only ones.
+// 70.43 -> 86.30 came from three changes, each measured:
 // 1. THE TWO i==7 TESTS ARE WRITTEN `if (i != 7) {arg1 path} else {i==7 path}`: retail's
 //    `beq s1,v0` and its block order (then-block inline, else out of line) only appear in
 //    that orientation. 70.43 -> 84.62.
@@ -725,6 +726,19 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 // Tried and measured dead: pBufs[7] spelled literally in the i==7 arm (byte-identical;
 // gcc already folds pBufs[i] to 0x5C there), gcc-2.7.2 (82.35) and gcc-2.7.2-cdk
 // (74.51) on this body, so the preset is not the answer.
+//
+// ROUND 493 measurements on the same body:
+// 4. THE i==7 ARM'S GLYPH RECT WRITTEN AS LITERALS (glyphRect.x = 0x39E; y = 0x132) does
+//    break the x store's CSE (248 insns / 992 bytes) but the y/w/h stores STILL cross-jump
+//    into one shared tail, and the whole allocation rotates: 85.60%. So retail's special
+//    case is not literal-spelled, and the merge is not driven by the x store.
+// 5. THE TENS HOIST IS PER-SITE, NOT ALL-OR-NOTHING (the shape round 438 called exclusive):
+//    with both calls taking &tensRect the preheader gets `addu $8,sp,24` + `sw $8,104(sp)`,
+//    yet the i==7 arm REMATERIALISES `addu $4,sp,24` (its pressure is one value lower - arg1
+//    is dead there) while the then-arm does `lw $4,104($sp)`. Retail rematerialises at BOTH.
+//    So remat is reachable and the residual is one site's reload choice plus the frame.
+//    (Round 438 already measured the pointer-local spelling as byte-identical, so the only
+//    untried axis left is a spelling that raises the then-arm's pressure argument.)
 /*
 void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     RECT glyphRect;
@@ -818,6 +832,7 @@ nextTile:
     BattleDrawSlotStatusPanel();
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
+
 
 /* 89.40% (1256 bytes against retail's 1336, 314 insns vs 334), frame 0x30 = retail's, four
 //    callee-saved against retail's five. Re-measured this round by un-parking and diffing.
