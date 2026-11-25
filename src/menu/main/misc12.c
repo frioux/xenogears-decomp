@@ -254,6 +254,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
    against the .s (lbu 0x323, slti 2). An 'inline the whole prim expression' body
    (no primOffset/pPrims locals) is 88.44% at 584, 16 bytes short, so the locals
    stay.
+   Round 488 (this tree): re-measured 88.60 / 600 / 150. Lever
+   c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base does NOT
+   transfer: spelling the counter store as an offset-first cast sum,
+   *(u8*)(index * MENU_SLOT_PRIM_STRIDE + (u32)g_Menu->pPrimBuffer + 0x130C) = 0,
+   is BYTE-IDENTICAL to the paren form (the slot offset is a strength-reduced
+   invariant, so it comes first regardless, exactly as round 463 says). Closed.
 void func_801E6F5C(u8 index, u8* pEntry) {
     u8* pPrims;
     s32 primOffset;
@@ -433,6 +439,28 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
      retail's addiu v0,v0,-0x140 then subu (the other association emits addiu +320).
    - shouldClear = 1 must be the FIRST statement (retail emits li s6,1 in the
      prologue, before the rect stores).
+   Round 488 (this tree): re-measured 84.42% / 948 / 237. Retail's 904 / 226 comes
+   from three things this body still misses, all measured:
+   - retail folds BOTH D_801EA8E4.x / D_801EA8EC.x stores into a live pointer
+     register ("sh v0,0(s0)"), keeps s7 = s0+2 for the loop's .y store (so the
+     loop pays ONE "addiu a0,s7,-2" instead of a lui/addiu or $at per iteration)
+     and passes "move a0,s0" to the first LoadImage. A cc1_probe replica proves
+     gcc 2.6.0 AND 2.7.2 NEVER substitute a register for a constant symbol store
+     address (probe_rect.c: pRect = &D_801EA8E4; pRect->x = ... still emits
+     "sh $2,D_801EA8E4", with or without a live la of the same symbol), so
+     retail's address expression was not a compile-time constant and no spelling
+     of a static global reaches 0(s0). Pointer locals (RECT* pRect + pTexture for
+     the two LoadImage args) do hoist the la but leave the .x stores on $at and
+     measure 948 / 237 again at 80.44%.
+   - retail precomputes the 0x80 UV base ONCE (s0 = s1 + 0x80 in the loop) and the
+     three switch arms reuse it; this body recomputes "+0x80" inside each arm
+     (+3 instructions). Writing the loop value as the parenthesised
+     i * 0x20 + ((index / 0x10) * 0x10 + 0x80) does not hoist it either
+     (956 / 239, 80.65%).
+   - retail keeps 8 saved registers (frame 0x38, s0-s7); this body needs 7
+     (frame 0x30), which cascades the whole allocation (index lands in s0 here,
+     s2 in retail). Preset is not the cause: 2.7.2-psx 80.35, 2.7.2-cdk 79.11,
+     2.6.0 (unit flags) 80.44 on the probe body, so XenoMenu260 is right.
 /*
 extern u8 D_801EA8C4[0x20];
 extern RECT D_801EA8E4;
