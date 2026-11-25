@@ -442,7 +442,6 @@ extern s32 func_80071F8C(s32 mode);
    21 stores g_BattleWindowPrimsEnabled before the sll/sw of targetX, retail after both
    operand loads, and uses v1 for the cursor where this uses a0; (e) case 29's two
    stores pick a0 where retail picks v0. */
-/*
 void func_8007107C(void) {
     BattleState* pActor;
     s32 angle;
@@ -470,13 +469,11 @@ void func_8007107C(void) {
             g_BattleScriptCursor += 2;
             break;
         case 2:
-            pActor = &g_BattleActor1;
-            D_80092894 = pActor;
+            D_80092894 = pActor = &g_BattleActor1;
             g_BattleScriptCursor++;
             break;
         case 3:
-            pActor = &g_BattleActor0;
-            D_80092894 = pActor;
+            D_80092894 = pActor = &g_BattleActor0;
             g_BattleScriptCursor++;
             break;
         case 4:
@@ -518,9 +515,11 @@ void func_8007107C(void) {
             break;
         case 12:
             if (g_BattleActorDistance2D < BATTLE_TURN_MID_DISTANCE + 1) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = BATTLE_TURN_FAR_DISTANCE;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor++;
             break;
@@ -530,9 +529,11 @@ void func_8007107C(void) {
                 return;
             }
             if (g_BattleActorDistance2D < BATTLE_TURN_FAR_DISTANCE + 1) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = BATTLE_TURN_FAR_DISTANCE;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor++;
             break;
@@ -541,9 +542,11 @@ void func_8007107C(void) {
                 goto armWait;
             }
             if (--g_BattleScriptWait != 0) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = BATTLE_TURN_RADIUS;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor += 2;
             break;
@@ -552,16 +555,14 @@ void func_8007107C(void) {
                 goto armWait;
             }
             if (--g_BattleScriptWait != 0) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = -BATTLE_TURN_RADIUS;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor += 2;
             break;
-        turn:
-            pActor->targetAngle = angle;
-            pActor->facingOffset = 0;
-            return;
         case 20:
             if (g_BattleScriptWait == 0) {
                 goto armWait;
@@ -693,8 +694,7 @@ void func_8007107C(void) {
         }
         continue;
     }
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
+}
 
 
 
