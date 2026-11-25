@@ -232,27 +232,33 @@ void BattleFreeWdsEntry(void) {
     g_BattleWdsEntry = 0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
-// 94.06% (392 bytes against retail's 404) with the honest debug read. Only three
-// instructions are missing: retail saves/restores $s7 (+8 bytes) and has a dead
-// `lui $s5,0xFFFF0000` in the loop preheader (+4), both because it hoists
-// `lui $s7,%hi(g_BattleWdsEntry)` into the preheader and stores through it
-// (`sw $v0,%lo(g_BattleWdsEntry)($s7)`), where we re-form the pair inline; our
-// compile hoists `%hi(g_DebugTable)` into a saved register instead. The loop, the
-// switch arm order (seds listed first puts the seds body inline and the WDS arm out
-// of line, as retail has it), the frame and the saved set are otherwise exact.
-// The one shape found that hoists the WDS %hi is a SECOND reference to
-// g_BattleWdsEntry inside the loop - appending `g_BattleWdsEntry = g_BattleWdsEntry;`
-// after the wait loop gives 93.76% / 408 with both %hi halves in saved registers
-// ($s4 WDS, $s7 debug), so retail's second reference must have been cse'd away; a
-// single-use invariant %hi has savings 0 and loop.c leaves it block-local. Measured
-// dead ends: gcc 2.6.0 87.90, plain 2.7.2 87.95, -O3 91.39, a volatile or
-// cast-address read of g_DebugTable (392), an if/else or `continue` guard
-// (94.06/392), a do/while wait loop (84.90/384), a pointer to the global taken
-// before the loop (400, %hi stays in $v0), and a local copy of the
-// SoundLoadWdsFile result (392). Retail's `break 0x400` debug break inside the wait
-// loop has no C spelling (AGENTS.md forbids inline asm), so this body cannot go live
-// as it stands; the honest 94.06/392 is what the rest of it reproduces.
+// 94.06% (392 bytes / 98 insns against retail's 404 / 101): the wait loop, its debug break,
+// the switch, the frame and 8 of retail's 9 saved registers are exact; the whole residual is
+// one hoisted invariant and one register count.
+// THE 'break 0x400' DOES HAVE A C SPELLING: asm("break 0x400") (precedent: controller_b.c
+// ControllerUpdate and field/scripts/virtual_machine.c both ship it at 100%). Round 274's park
+// claimed it had none, so the loop was parked with an empty if - with the statement in, the
+// beq into the loop head, the break and the j back edge all match retail.
+// THE LEFT OVER 3 INSTRUCTIONS = ONE HOISTED CONSTANT: retail hoists lui $s7,%hi(g_BattleWdsEntry)
+// into the OUTER loop preheader and stores through it (sw $v0,%lo(...)($s7)), keeps -1 in $s6 and
+// carries a DEAD lui $s5,0xFFFF0000 (saved and restored, never read); our compile hoists the
+// INNER loop's lui %hi(g_DebugTable) into $s6 instead, so s6/s5 swap, the WDS store re-forms its
+// %hi inline (2 insns where retail has 1) and we save 8 registers where retail saves 9
+// (+2 save/restore, +1 dead lui, +1 in-loop debug lui, -1 in-loop WDS lui = the 12 bytes).
+// So both invariant %hi halves are candidates to ONE of which gcse/loop.c moves, and retail moved
+// the outer-loop one. Retail's dead 0xFFFF0000 (li -0x10000 / & 0xFFFF0000, the constant that
+// pairs with a << 16) says its source had ONE MORE invariant constant than this body produces,
+// and that extra movable is what tipped the choice; nothing in the emitted code shows where it
+// came from.
+// MEASURED ON THIS BODY: *(volatile s32 *)&g_DebugTable for the read - identical (the %hi half is
+// hoisted whether or not the load is volatile); while ((SoundGetPendingSpuCommandType(0) << 16) != 0)
+// - identical (the sll is already there). Prior rounds, not repeated: a second reference to
+// g_BattleWdsEntry inside the loop 93.76/408 (both %hi hoisted, so retail's second ref must have
+// been cse'd away), pointer-to-global local 400, local copy of the load result 392, do/while 384,
+// 2.6.0 87.90, plain 2.7.2 87.95, -O3 91.39, if/else or continue guard 94.06. cc1 -dL on the
+// sibling func_800C11CC showed a single-use invariant %hi has savings 0, which is why no spelling
+// of this body moves it. All logs are 392 bytes: the body is honest (no UB park), it just cannot
+// be linked.
 /*
 // Feeds one battle actor archive buffer to the sound player: every SEDS chunk is
 // added, every WDS chunk is (re)loaded after freeing the loaded one, and every
@@ -283,8 +289,7 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
             g_BattleWdsEntry = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
             while (SoundGetPendingSpuCommandType(0) != 0) {
                 if (g_DebugTable != -1) {
-                    // retail's `break 0x400` here has no C spelling: this park
-                    // cannot be un-parked until someone finds one.
+                    asm("break 0x400");
                 }
             }
             if (i == 1) {
@@ -303,8 +308,10 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
         pEntry++;
     }
     return pSeds;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
+
+
 
 void BattleRemoveSedsEntries(s32 *pArg) {
     s32 *pEntry = pArg;
