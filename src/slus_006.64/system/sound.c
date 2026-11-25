@@ -2701,12 +2701,22 @@ void SoundInitializeAudioManager(AudioManager* manager) {
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
-
-/* 84.32% - prologue and the element-field store block match; left over: the
-   active_flag ternary (retail keeps a j + two li where gcc cross-jumps), the
-   |= 4 reload (gcc reuses the stored value), and the envelope-zeroing base
-   (retail walks from a0 = element + 0x60).
+// Round 496: 83.91% (536 bytes vs retail 544, 134 insns vs 136), the park re-measured against a fresh
+// object (the old 84.32 note was inside a block that also carried the func_8003B644 notes and is gone).
+// TWO instructions short, both in the flag-store cluster, and the whole rest of the 71 differing lines
+// is downstream register naming (s6/s7 exchange: retail keeps elementCount in s6 and the WDS entry in
+// s7, ours has them the other way round - same statement set, same size for the rest of the body):
+//  (1) the active_flag ternary: retail emits beqz / sw-aliveBits-in-slot / j / li 0x421 / li 0x401 /
+//      sh common, i.e. it did NOT invert the branch; every spelling here (ternary inside the store, and
+//      now also if/else into a u16 activeFlag local followed by the store - measured byte-identical)
+//      lets gcc 2.6.0 cross-jump the two single-set arms and drop the j, 1 insn;
+//  (2) `if (pManager->flags & 4) pElement->active_flag |= 4;`: retail RELOADS the halfword
+//      (lhu v0,0(s1); ori; sh), ours forwards the value it just stored (ori v0,a0,4; sh), 1 insn. Both
+//      accesses are through the same s1 and no store sits between them, so cse forwarding is unavoidable
+//      in source; a reload would need a call or an aliasing store retail does not have.
+// Also still off: retail hoists `sllv v0,v0,s5` (bit = 1 << i) before the two lw of aliveBits/muteFlags,
+// ours loads aliveBits first - a scheduler order in the same block, harmless while the count is short.
+/*
 void func_8003B424(AudioManager* pManager) {
     u8* pSeqData;
     AudioElement* pElement;
@@ -2801,8 +2811,10 @@ void func_8003B424(AudioManager* pManager) {
     } while (--count != 0);
 
     pManager->activeElementMask = aliveBits;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
+
+
 
 // Round 463 re-measure: 96.74%, retail's exact 748 bytes / 187 insns, the same 4 clusters and the
 // same single cause (srl v0,s8,0xf against srl v0,v0,0x16). No new spelling attempted: lever
@@ -4428,50 +4440,51 @@ u8* SoundScriptSetTriangleEnvelope1(u8* pScript, AudioManager* pAudioManager, Au
 }
 
 
-/*
-Round 398: 84.75% (240 bytes vs retail's 244; 60 insns vs 61). The twin shape that scores
-91.13 on func_8003D9A4, applied to envelope 1: nested ifs, `s32 volume = pScript[0]` (no
-sign-extension copy, retail has none either), `volume += volume * volume / 64`, index and
-`flags = ((mode & 0x10) == 0) * 2` before the call, `flags + 1` at the store site. 6 points over
-the previous park. Residual = TWO things, both in the head: (1) retail keeps volume in s2 from the
-lbu and copies it for the test and the multiply (`move v0,s2; beqz v0; mult v0,v0`), then adds
-the square to s2 in place; here the lbu lands in a1, the sum is formed there and copied into s2
-afterwards - the same missing copy the older notes describe with `volume != 0` tested on a copy;
-(2) the callee-saved permutation of item (1) of the func_8003D9A4 note: retail element s1 /
-volume s2 / mode-index s3, here element s3 / index s1 / volume s2. Writing the sum as
-`volume = volume + volume * volume / 64` versus `+=` makes no difference; the earlier
-velocity/volume split locals and the `unk10 * 2 + 1` flag spellings are still the recorded
-59-71% variants.
+// Round 496: 93.66% (244 bytes / 61 insns = retail's exact size), big jump from the 84.75 park by
+// PORTING the twin func_8003E04C body (that function is instruction-identical apart from envelope
+// index 1 vs 2, target 1 vs 2, mask 0x2 vs 0x4) - the short volume, the split rateMask (test emitted
+// before the index) and the pEnvelope pointer local are what the shape needs. Residual is the same
+// one func_8003E04C has been stuck on since round 411: callee-saved identity. Retail s1=pAudioElements
+// s2=volume s3=mode/index with the index made into the call-arg register then copied to its home
+// (`andi a2,s3,0xf; move s3,a2`) so the jal slot holds `sra a1,a1,0x10`; here s1=mode/index,
+// s2=pAudioElements, s3=volume, `andi s1,s1,0xf` in place and `move a2,s1` in the jal slot - same
+// instruction COUNT, 48 differing lines, all register names. Also tried here: `s32 index = mode & 0xF;`
+// as an initialiser inside a bare block after the rateMask statement (the round-485 lead, scoped so it
+// cannot hoist) - byte-identical 93.66/61, so the tie is not about where index is born.
 /*
 u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s32 volume = pScript[0];
+    short volume = pScript[0];
     s32 note = (s8)pScript[1];
     u8 mode = pScript[2];
+    AudioEnvelope* pEnvelope;
     s32 index;
     s32 flags;
+    s32 rateMask;
 
     if (note != 0) {
         if (volume != 0) {
             volume += (volume * volume) / 64;
+            rateMask = mode & 0x10;
             index = mode & 0xF;
-            flags = ((mode & 0x10) == 0) * 2;
-            pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
-            pAudioElements->envelopes[1].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
-            pAudioElements->envelopes[1].reload = volume;
-            pAudioElements->envelopes[1].delayReload = 0;
-            pAudioElements->envelopes[1].pStepHandler = g_SoundEnvelopeStepHandlers[index];
-            pAudioElements->envelopes[1].handlerIndex = index;
-            pAudioElements->envelopes[1].target = 1;
-            pAudioElements->envelopes[1].flags = flags + 1;
+            flags = (rateMask == 0) * 2;
+            pEnvelope = &pAudioElements->envelopes[1];
+            pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
+            pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
+            pEnvelope->reload = volume;
+            pEnvelope->delayReload = 0;
+            pEnvelope->pStepHandler = g_SoundEnvelopeStepHandlers[index];
+            pEnvelope->handlerIndex = index;
+            pEnvelope->target = 1;
+            pEnvelope->flags = flags + 1;
             pAudioElements->activeEnvelopeMask |= 0x2;
-            SoundResetEnvelope(&pAudioElements->envelopes[1]);
+            SoundResetEnvelope(pEnvelope);
         }
     }
 
     return pScript + 3;
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
+
 
 u8* SoundScriptSetEnvelope1Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
