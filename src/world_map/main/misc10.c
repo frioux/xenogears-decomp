@@ -227,38 +227,53 @@ extern WorldMapTrail g_WorldMapTrail[];
 extern u16 g_WorldMapPlayerAngle;
 extern u16 g_WorldMapTrailCursor;
 
-/* 89.25% (336 bytes, retail 336): 84 vs 84 insns, whole body correct and every
-   instruction present; the residual is register allocation and one delay slot.
-   (1) retail keeps the ids base in a0 for the guard and COPIES it to s0 in the
-   beq delay slot (move s0,a0), then fills that slot with sll v0,s2,0x7 on the
-   loop backedge; gcc allocates s0 to the guard pseudo directly (lui s0) and
-   leaves a nop in the backedge. (2) pActor lands in a0 here and in a2 in retail
-   (hence v0/v1 swapped on the 0x153 compare). (3) the tail: retail forms
-   &g_WorldMapGroups[0x45] in a register (addiu a1,a1,0x16A4) and stores at
-   8/0xC/0x10; gcc folds the 0x16A4 into the displacements (0x16AC/0x16B0/0x16B4)
-   whatever the spelling - tried pLayer = &pGroup[0x45] (the body below, one load
-   shared with the else arm), pGroup[0x45].pos.x inline, and the global written
-   directly three times (that one reloaded g_WorldMapGroups, 78.45%). Frame and
-   the tail instruction count are retail's.
-   The round-398 park was WRONG CODE twice over: u8* base + (arg0 << 7) scaled
-   the index by 0x80 again (arg0 << 14), and its second id loop had no -1 guard.
+// 95.56% (336 bytes = retail, 84 insns = retail): the head and the whole body now match
+//    retail; what is left is ONE mirrored register pair (a1/a2) and retail's materialised
+//    land 0x16A4.
+//    THE FIX FOUND THIS ROUND (89.25 -> 95.56, one edit): the first id loop must read its
+//    GUARD through the array and the WALK through a second, separately-initialised
+//    pointer -  if (g_WorldMapSpriteSetIds[0] != END) { pWalk = g_WorldMapSpriteSetIds; do
+//    { WorldMapSetSpriteSetParent(0x45, *pWalk++); } while (*pWalk != END); } -  exactly as
+//    the matched neighbour WorldMapHideSpriteSetGroups spells it. With the compact form
+//    (pIds = g_WorldMapSpriteSetIds; if (*pIds != END) ... *pIds++ ...) cse coalesces the
+//    base and the walk into ONE pseudo, so the base takes s0 (callee-saved) and retail's
+//    'move s0,a0' in the beq delay slot plus its duplicated 'sll v0,s2,0x7' on the loop
+//    backedge both disappear (89.25). With the two-expression form the address is a
+//    value cse keeps in a0, the walk gets the copy in s0, and the whole head lines up.
+//    RESIDUAL 1 (a1/a2 mirror): retail puts the group base in a1 and the actor pointer in
+//    a2; ours is the exact mirror (lui a2/lw a2 for groups, addu a1 for the actor), and the
+//    state compare follows it (retail lhu v1 / li v0,0x99, ours lhu v0 / li v1). Measured
+//    identical at 95.56 this round: declaration order (pGroup first or pActor first),
+//    'g_WorldMapSlots + arg0' vs '&g_WorldMapSlots[arg0]', and a volatile-cast spelling of
+//    the three tail stores. The actor has more refs (7 vs 4), which is why it wins the
+//    lower register here; retail's map implies the group reached a higher allocno
+//    priority, and no source knob measured so far moves it.
+//    RESIDUAL 2 (prologue order): retail emits 'li s1,-1' then 'move s0,a0'; ours the
+//    other way round - a two-instruction schedule tie in the preheader.
+//    RESIDUAL 3: retail 'addiu a1,a1,0x16A4' in the load-delay slot then stores at
+//    8/0xC/0x10; every spelling folds 0x16A4 into the displacements (0x16AC/0x16B0/0x16B4)
+//    and leaves a nop. Same wall as func_80088D00 - see that note for the five spellings
+//    and the cc1_probe evidence that the fold is at expand time in both 2.7.2 and 2.6.0.
+//    Presets: not screened for this body (2.6.0 and cdk were screened on func_80088D00 and
+//    both fold the same way).
 /*
 s32 func_80088B40(s32 arg0) {
-    WorldMapPlayer* pActor;
     WorldMapSceneLayer* pGroup;
+    WorldMapPlayer* pActor;
     WorldMapSceneLayer* pLayer;
     s16* pIds;
+    s16* pWalk;
     s32 id;
     s32 result;
 
-    pIds = g_WorldMapSpriteSetIds;
-    if (*pIds != -1) {
+    if (g_WorldMapSpriteSetIds[0] != WORLD_MAP_SPRITE_SET_ID_END) {
+        pWalk = g_WorldMapSpriteSetIds;
         do {
-            WorldMapSetSpriteSetParent(0x45, *pIds++);
-        } while (*pIds != -1);
+            WorldMapSetSpriteSetParent(0x45, *pWalk++);
+        } while (*pWalk != WORLD_MAP_SPRITE_SET_ID_END);
     }
-    pActor = g_WorldMapSlots + arg0;
     pGroup = g_WorldMapGroups;
+    pActor = &g_WorldMapSlots[arg0];
     pActor->state = 0;
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
         pActor->x = 0x2000000;
@@ -267,12 +282,12 @@ s32 func_80088B40(s32 arg0) {
         result = 1;
     } else {
         pGroup[0x45].hidden = 1;
-        if (g_WorldMapSpriteSetIds[0] != -1) {
+        if (g_WorldMapSpriteSetIds[0] != WORLD_MAP_SPRITE_SET_ID_END) {
             pIds = g_WorldMapSpriteSetIds;
             do {
                 id = *pIds++;
                 pGroup[id].hidden = 1;
-            } while (*pIds != -1);
+            } while (*pIds != WORLD_MAP_SPRITE_SET_ID_END);
         }
         result = 3;
     }
@@ -283,6 +298,7 @@ s32 func_80088B40(s32 arg0) {
     return result;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
+
 
 
 s32 WorldMapHideSpriteSetGroups(void) {
@@ -313,6 +329,20 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088D00);
    reproduces the whole prologue, `li v0,0x99` last and the v1/v0 compare operands
    included, but still folds: 69.88%). The byte count is retail's, so this is a cse
    fold and not a missing instruction.
+   ROUND 485 re-measured the body below at 84.68 / 100 bytes / 25 insns and closed the
+   question of whether ANY spelling materialises retail's add: tools/scripts/cc1_probe.sh
+   with this unit's own cc1 and flags on five spellings of the three stores (array
+   subscript, pointer local, mem_addr integer arithmetic, s32* view, pointer formed
+   before the if) emits `sw $2,5804($4)` in all five - and the same snippet under
+   gcc-2.6.0-psx folds identically (try_flags: 2.6.0 85.88, 2.7.2-cdk compile-failed,
+   so this is not a preset question either). The fold happens at expand time, i.e. the
+   constant never reaches cse as a separate `plus`, so retail's `addiu` means its source
+   had the address as a VALUE and no expression built from g_WorldMapGroups[0x45] gets
+   there. Also measured this round: an early-return form
+   (`if (x != 0x99) return 1;` then the three stores) is 82.24 at the same 100 bytes and
+   puts the base in retail's a1 but sinks the third store past the jr delay slot.
+   The identical tail in func_80088B40 above reached 95.56 with the same residual, so
+   that note has the residual's full list.
 s32 func_80088D00(s32 arg0) {
     WorldMapActor* pActor;
     WorldMapSceneLayer* pGroup;
