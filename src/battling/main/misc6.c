@@ -79,7 +79,7 @@ typedef struct {
     /* 0xA */ u16 vy; // added to y every frame and itself gains 2: gravity
 } BattleSpriteSlot; // Size: 0xC
 
-// 0xA-byte entry of the table func_8007D6B8 (main/misc5) allocates at g_BattleSpriteEntries.
+// 0xA-byte entry of the table BattleInitSpriteEntryBuffers (main/misc5) allocates at g_BattleSpriteEntries.
 typedef struct {
     /* 0x0 */ u16 x;
     /* 0x2 */ u16 y;

@@ -290,7 +290,7 @@ extern void WorldMapAllocSpritePrimBuffers(void);
 extern void WorldMapInitNop(void);
 extern void WorldMapUpdateFrame(void);
 extern void WorldMapInitSlotAtScrollPosition(void);
-extern void func_80080944(void);
+extern void WorldMapInitSpriteGroupsAtSlotPosition(void);
 extern void func_80080A28(void);
 extern void WorldMapUpdateFadeGroups(void);
 extern int WorldMapUpdateSlotActorScriptState(int);
@@ -1854,7 +1854,7 @@ void WorldMapInitializeModeWithActors(void) {
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapInitActorScript, WorldMapUpdateSlotActorScriptState);
     WorldMapAddSlot(func_80080578, WorldMapUpdateCameraSlot);
-    WorldMapAddSlot(WorldMapInitSlotAtScrollPosition, func_80080944);
+    WorldMapAddSlot(WorldMapInitSlotAtScrollPosition, WorldMapInitSpriteGroupsAtSlotPosition);
     WorldMapAddSlot(func_80080A28, WorldMapUpdateFadeGroups);
     WorldMapAddSlot(WorldMapInitNop, WorldMapUpdateFrame);
     func_800978FC();

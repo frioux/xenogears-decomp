@@ -96,7 +96,7 @@ typedef struct {
     /* 0x78 */ u32 key; // BattleEffectPackKey of the pair, so the second vertex finds the first
 } BattleSlot; // Size: 0x7C
 
-// 0xC-byte primitive template func_8007D6B8 allocates at D_800926C0/D_800926C4:
+// 0xC-byte primitive template BattleInitSpriteEntryBuffers allocates at g_BattleSpritePrimTemplates/D_800926C4:
 // a 0x68 tile prim, whose tag word is the OT link plus the prim's length.
 typedef struct {
     /* 0x0 */ u8 unk0[3];
@@ -106,7 +106,7 @@ typedef struct {
     /* 0xA */ s16 y;
 } BattlePrimTemplate; // Size: 0xC
 
-// 0xA-byte entry table func_8007D6B8 allocates at g_BattleSpriteEntries: where
+// 0xA-byte entry table BattleInitSpriteEntryBuffers allocates at g_BattleSpriteEntries: where
 // BattleSpawnSpriteEntries put an entry on the grid and how long it lives.
 typedef struct {
     /* 0x0 */ u16 x;
@@ -166,7 +166,7 @@ typedef struct {
 } BattlePrimTemplate16; // Size: 0x10
 
 extern u8 *g_BattleSpriteEntries;
-extern BattlePrimTemplate *D_800926C0[];
+extern BattlePrimTemplate *g_BattleSpritePrimTemplates[];
 extern BattlePrimTemplate *D_800926C4;
 extern u8 *g_BattleSpriteSlots;
 extern u8 *g_BattleSpritePrimBuffers;
@@ -412,7 +412,7 @@ void BattleEffectInitTextures(BattleEffectTimArchive *pTim) {
     *(u16 *)g_BattleEffectClutX = tim.crect->x;
     *(u16 *)g_BattleEffectClutY = tim.crect->y + 1;
 
-    func_8007D6B8();
+    BattleInitSpriteEntryBuffers();
     BattleInitSpriteBuffers();
     BattleResetLineQuadQueue();
 }
@@ -1060,20 +1060,20 @@ void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     }
 }
 
-void func_8007D6B8(void) {
+void BattleInitSpriteEntryBuffers(void) {
     BattleSpriteEntry *pEntry;
     s32 index;
     s32 i;
 
     g_BattleSpriteEntries = HeapAlloc(BATTLE_SPRITE_ENTRY_MAX * sizeof(BattleSpriteEntry), 0);
-    D_800926C0[0] = HeapAlloc(BATTLE_SPRITE_ENTRY_MAX * sizeof(BattlePrimTemplate), 0);
+    g_BattleSpritePrimTemplates[0] = HeapAlloc(BATTLE_SPRITE_ENTRY_MAX * sizeof(BattlePrimTemplate), 0);
     D_800926C4 = HeapAlloc(BATTLE_SPRITE_ENTRY_MAX * sizeof(BattlePrimTemplate), 0);
     pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
     for (i = 0; i < BATTLE_SPRITE_ENTRY_MAX; i++) {
         index = i;
         // The copy keeps the counter live; retail keeps both the counter and a copy.
-        D_800926C0[0][index].len = 2;
-        D_800926C0[0][index].colorCode = 0x6880B0F0;
+        g_BattleSpritePrimTemplates[0][index].len = 2;
+        g_BattleSpritePrimTemplates[0][index].colorCode = 0x6880B0F0;
         // The empty block is load-bearing: it splits the basic block so the four
         // template-pointer loads are not merged (retail loads each one separately).
         do {
@@ -1152,7 +1152,7 @@ void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
 // state/counter; preset screen 2.6.0 93.42, 2.7.2-cdk 82.89, -O3 92.52, -G0 92.52.
 // The permuter cannot run on this body (the inline-asm GTE macros fail its parser),
 // so this one needs either a source shape that stops the coalesce or an allocator
-// build with different REG_ALLOC_ORDER. Facts: D_800926C0 is an ARRAY of
+// build with different REG_ALLOC_ORDER. Facts: g_BattleSpritePrimTemplates is an ARRAY of
 // prim-template pointers indexed by g_BattleDrawBufferIndex (D_800926C4 is element
 // 1); BattleSpriteEntry is 0xA bytes, groundY is s16 read with lh and the gravity
 // tail compares a s16 copy of y; the function needs 'extern void
@@ -1200,7 +1200,7 @@ void func_8007D918(u32 *pOt) {
     camZ = *(s32 *)(pScratch + 0x08);
     buffer = g_BattleDrawBufferIndex;
     pEntry = (BattleSpriteEntry *)(g_BattleSpriteEntries + buffer * sizeof(BattleSpriteEntry));
-    pTemplate = (BattlePrimTemplate *)D_800926C0[buffer];
+    pTemplate = (BattlePrimTemplate *)g_BattleSpritePrimTemplates[buffer];
     n = 0;
     for (i = buffer; i < 0xFC; i += 2, pEntry += 2) {
         if (pEntry->life == 0) {

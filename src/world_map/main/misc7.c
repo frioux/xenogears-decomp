@@ -318,7 +318,7 @@ s32 WorldMapInitSlotAtScrollPosition(s32 index) {
     pSlot->pos.z = g_WorldMapPlayerPosition.z;
     return 1;
 }
-s32 func_80080944(s32 index) {
+s32 WorldMapInitSpriteGroupsAtSlotPosition(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     if (pSlot->command != 1) {
