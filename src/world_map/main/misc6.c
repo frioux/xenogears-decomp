@@ -871,48 +871,30 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 
 
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
-/* 91.44% (1720 bytes against retail's 1752), round 431. The old "BLOCKED, it can
-   never link" note is obsolete: main/misc6 owns its rodata range now
-   (config/world_map.yaml: [0x29C, .rodata, main/misc6]) and C switch tables are
-   emitted in file order, so this body's two tables come out at .rodata+0x108 and
-   +0x168 - exactly retail's jtbl_8006FE94 and jtbl_8006FEF4 (the first 0x108
-   bytes are WorldMapUpdateSlotStateMachine's table). The residual is code, not
-   layout, so this is worth another round.
-   Both dispatch chains (24 and 26 entries, including the explicit `case 0: break;`
-   the second switch needs so gcc tests the raw lh against 26) and every case body
-   already agree. The 32 missing bytes are one cross-jump merge and two reorg
-   sinks, all with the source already in retail's order:
-   (1) cases 1 and 16 reach the same corner (X=0x1F9E000, Z=0x5998000), so gcc
-       merges their tails - `sw Z` and the `j`/`sw v0,0x7C(s0)` - into one block
-       (ours at +0x270). Retail keeps two copies, which is 4 of the 8 missing
-       insns, and the merge is why our state store `sh v0,0x20(s0)` ends up ABOVE
-       the Z store instead of below it. `volatile` on that Z store changes nothing
-       (measured), so the two blocks still compare equal.
-   (2) state 3's block: retail loads X and stores it before the Y and Z loads
-       (`lw v1,0(t0) / addu / slt / sw v1,0(t0) / lui Y / lw / lui Z / lw / add /
-       add / sw Y / sw Z`); ours hoists the Z load and its add above the slt, so
-       the two stores land in another order. Statement order in the body is
-       already X, Y, Z.
-   (3) state 3's tail: ViewRotationY wants the address in a register, CameraRot
-       does not; ours also keeps CameraRot's address in a register there (4 insns
-       either way, registers differ).
-   Levers measured THIS round, from the 86.92% park:
-   - `extern s16 g_WorldMapViewRotationY[]` + `[0]` RMW: retail's read/write of it
-     is `lui a0,%hi / addiu a0,%lo / lhu v0,0(a0)` ... `sh v0,0(a0)`, not the
-     lui/$at macro pair. 85.25 -> 90.97. The two other users in this file
-     (WorldMapExitToMap84, WorldMapExitToMap1A1) stay 100.00% with the array form.
-   - g_WorldMapCameraRot must STAY an array extern: the scalar form measures
-     88.21 (cases 1/16/24 want its address in a register for `+= scale >> 12`).
-   - state 3 (not 1/16/24) has the corner test `Z <= 0x4AF1FFF`: retail emits
-     `slt v0,0x4AF1FFF,Z; bnez -> scroll`, the old park's `>` emitted `beqz`.
-     90.97 -> 91.31.
-   - state 3's corner X store needs the file's volatile idiom
-     (`*(volatile s32 *)&g_WorldMapCameraTarget[0]`, as in WorldMapInitGroup1Actor)
-     or reorg sinks it below the Z store: 91.31 -> 91.44.
-   Still unsolved: (1) above, and the reason it cannot be spelled away is that the
-   merged instructions are identical, not similar.
-
+// 91.59% (1736 bytes, 434 insns against retail's 1752 / 438), round 477.
+// Three fixes this round, in order of what they taught:
+//   - the state-16 arm had case 24's corner: retail's state 16 shares state 1's
+//     (0x1F9DFFF / 0x5998000 / 0x1F9E000), the old park carried 0x2151FFF /
+//     0x5AA3000 / 0x2152000 there. That was wrong code, not just a score.
+//   - storing unk7C BEFORE state in the state-16 arm stops gcc cross-jumping the
+//     states 1/16 tails (the merge shared the state store and one sw to 0x7C):
+//     1720 -> 1732 bytes, 91.55.
+//   - the "CameraRot = 0x80" store must be a volatile store, else reorg sinks it
+//     into the exit j's delay slot where retail keeps it before the jump with a
+//     nop in the slot: 1732 -> 1736, 91.59.
+// Residual = 4 insns, one cause: gcc CSEs g_WorldMapCameraRot's ADDRESS into $a1
+// for the three accesses in the shared states 1/16/24 tail and for the state-3
+// tail's "CameraRot -= 4", while retail re-forms the address per access (lui $v1 +
+// lhu, lui $at + sh, lui $v1 + lh). Measured dead this round: the scalar extern
+// "extern s16 g_WorldMapCameraRot;" (88.82 - the old note's 88.21 is real), a
+// volatile on the declaration (85.08), a volatile cast on the ">= 0x81" load
+// (89.46: gcc zexts it, adding sll/sra - it does get the byte count to 436,
+// retail's macro forms, but wrecks the order), a volatile cast on the "+=" (91.59,
+// no change). Also unspelled: in the states 1/24 tail our sw of CameraTargetZ
+// lands after the state store where retail has it before (same insn count, sched2).
+// Preset re-ruled-out earlier: 2.6.0 48.62, 2.7.2-cdk 92.03. Below the 99%
+// threshold, so no permuter run this round.
+/*
 s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
@@ -1013,7 +995,7 @@ s32 func_8007E4E4(int index) {
         pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
         }
         break;
     case 2:
@@ -1058,11 +1040,11 @@ s32 func_8007E4E4(int index) {
     case 16:
         g_WorldMapCameraTarget[0] += 0xFFFBD300;
         g_WorldMapCameraTargetZ += 0x6D300;
-        if (g_WorldMapCameraTarget[0] <= 0x2151FFF && g_WorldMapCameraTargetZ > 0x5AA3000) {
-            g_WorldMapCameraTarget[0] = 0x2152000;
-            g_WorldMapCameraTargetZ = 0x5AA3000;
-            pActor->state = 0x11;
+        if (g_WorldMapCameraTarget[0] <= 0x1F9DFFF && g_WorldMapCameraTargetZ > 0x5998000) {
+            g_WorldMapCameraTarget[0] = 0x1F9E000;
+            g_WorldMapCameraTargetZ = 0x5998000;
             pActor->unk7C = 0x8000;
+            pActor->state = 0x11;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
             g_WorldMapScrollZ += 0x6D300;
@@ -1073,7 +1055,7 @@ s32 func_8007E4E4(int index) {
         pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
         }
         break;
     case 17:
@@ -1100,7 +1082,7 @@ s32 func_8007E4E4(int index) {
         pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
         }
         break;
     case 25:
@@ -1116,8 +1098,10 @@ s32 func_8007E4E4(int index) {
     D_8009BD42[0] += nRandom;
     D_8009BD4A += *(u16 *)(0xA2 + pScratch);
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
+
+
 
 void WorldMapBuildPolyFT4Templates(WorldMapGroup *pGroup, u8 *pPrim, int count, int abr) {
     POLY_FT4 *pPoly;
