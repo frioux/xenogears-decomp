@@ -692,24 +692,22 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
 
 
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
-/* best 90.10% (204 bytes = retail's exact size). Two residuals left, both
-   allocator ties:
-   1. the two induction pointers get a0/a1 the wrong way round. Retail keeps the
-      0xC record pointer in a0 and the 0x20 filter pointer in a1; ours is the
-      reverse. Nothing in the source moves it: both assignment orders, both
-      declaration orders, the indexed filter form (D_80092874[i]) instead of the
-      pointer form, and every for-list order measure 89.7-90.1% or identical.
-   2. the move a3,v0 that copies the HeapAlloc result into pQueue sits at the end
-      of the entry block here and right after the call in retail.
-   WHAT DID FIX THE REST: the record pointer is a BattleQueueRecord* (0xC bytes),
-   so pRecord++ emits retail's addiu 0xC - the earlier 90.45% body indexed an
-   s32* (&D_80091964[i], +4) which is WRONG CODE for i > 0 even though objdiff
-   scored it higher. Also load-bearing, a couple of points each: i = 0; as its
-   own statement above the for (retail's move a2,zero is the first thing after
-   the jal) and the increment list in the order pEntry++, i++, pRecord++ (that is
-   what puts the record's addiu 0xC in the bnez delay slot and the filter's
-   addiu 0x20 first). Two source names for one address are NOT involved here.
+// best 90.10% (204 bytes = retail's exact size), re-measured this round after 4 spellings.
+//    THE RESIDUAL IS ONE EMISSION-ORDER FACT, and the register hand-out follows it:
+//    our cc1 ALWAYS emits `la $5,D_80091964` before `lw $4,D_80092874`, and the
+//    pseudo created first takes a1 (=$5), the second a0 (=$4). Retail emits the
+//    FILTER load first (lui a1 / lw a1) and the record address second (lui a0 /
+//    addiu a0), i.e. the exact mirror, and its `move a3,v0` for pQueue sits right
+//    after the jal instead of after the two address computations - the same
+//    hoisting of the constant. Insensitive to everything source-shaped (all 90.10,
+//    204 bytes, 51 insns, identical stream): filter-init first vs record-init first,
+//    the record init moved below the two global stores, `g_BattleEntries = pQueue =
+//    HeapAlloc(0xC4, 1)` as one chained statement, and declaration order. NOT free:
+//    `i = 0;` above the HeapAlloc call makes i live across the call and it takes a
+//    callee-saved register (77.63%, 212 bytes), so i must be initialised after it.
+//    Everything else is retail: the 0x31 bound, `slt` on the lhu limit against the
+//    s16 entry field, the count store, the 0xC/0x20 increments with the record's
+//    addiu in the bnez delay slot, and the trailing guarded call.
 /*
 void func_8007EEE8(s32 arg) {
     BattleFilterEntry* pEntry;
@@ -733,8 +731,10 @@ void func_8007EEE8(s32 arg) {
     if (arg != 0) {
         BattleAppendExtraQueueEntry();
     }
-}
- */
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
+
+
 
 void BattleInitSpriteRectTable(void) {
     s32 tmp[12]; // unused: reproduces the original's 0x48 frame
