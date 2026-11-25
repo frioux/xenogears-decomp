@@ -866,6 +866,20 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
 // Round 165: retried the spelled-out pBuffer form (89.43%), an element-pointer
 // local for the addPrim argument (91.16% but 1420 bytes, further from retail's
 // 1448) and re-measured the parked body itself at 91.11%/1428, unchanged.
+// Round 478: the order loop's second induction variable IS the block. Retail
+// keeps &g_FieldTextBoxes[0].order (base +0x410, stepping 0x498) in $s3 and
+// re-forms the string base every iteration (lui + addiu of g_FieldTextBoxes+0x18,
+// then addu s1,s0,v0); this body keeps the STRING base as the biv and reads order
+// at-relative (lui/addu/lhu), which is +2 here and -2 there. Measured: dropping
+// the pString local in the order loop (TEXT_BOX_STRING(i) at each use) only moves
+// the string base into a preheader-invariant $s1 and leaves order at-relative,
+// 88.93% / 1436 bytes / 359 insns; spelling just the pBuffer argument through the
+// box in the first loop is 89.74 / 1432 / 358. Retail also rematerialises
+// li v0,-1 at each of the two stores where this body hoists -1 into $s8
+// (loop.c hoist, 1 of the 5 missing insns), and the first half differs only in
+// t0 vs t2 holding the 0xFF and the stack `count`. gcc 2.7.2 in every shape
+// tried refuses to give the order address its own biv, so this is a loop.c
+// choice, not a spelling: park on it.
 /*
 void func_8008004C(u_long* pOt, int ctx) {
     s32 order[4];
