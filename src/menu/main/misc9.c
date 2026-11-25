@@ -1556,6 +1556,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 // this closes the last idea for keeping the const out of the register set from the variable side
 // (the function-scope form was already known identical). See the earlier notes above for the
 // allocator dump, the type and preset sweeps, and the two permuter runs (both winners wrong code).
+// ROUND 486: un-parked and re-measured, still 94.81% / 888 bytes / 222 insns, and 'nm -S' on both
+//   objects prints 0x378 for func_801DDF24, so this body IS retail's exact size (the round-459/473
+//   accounting stands) and the 172 differing lines are the one-register rotation plus needsOpen's
+//   spill. No new lever to try: lever.py returns a-shared-const-argument-outranks-a-three-ref-byte-flag,
+//   whose -da -dg conclusion is that neither side can be spelled out of the tie (the a6 const 1 is
+//   4 refs against the byte flag's 3, and its live range cannot be extended from source because the
+//   only SI-const-1 uses in the body are the four a6 argument slots). Parked unchanged.
+//   NEW THIS ROUND, and it decides what a 100.00 here is worth: this stub CANNOT be committed alone
+//   even at 100%. Its jtbl_801C512C has to sit at +0x30 of the unit's own [0xFC, .rodata, main/misc9]
+//   range and C .rodata lands before asm .rodata, so converting this stub by itself puts its table at
+//   +0x00 and swaps it with func_801DBE54's jtbl_801C50FC (asm-owned at +0x00) - and the two tables
+//   are NOT byte-identical (different .L targets), so check_bin would fail with every function at
+//   100.00%. func_801DBE54 (parked at 93.91% / 888 bytes against retail's 896) and this one have to be
+//   converted TOGETHER.
 /*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
@@ -1652,6 +1666,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     MenuFreeArrowCursor(0);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
+
 
 
 
