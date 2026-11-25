@@ -720,32 +720,36 @@ extern u32 BattleCheckActorCommandAvailable(u8, u8);
 extern void BattleAppendCommandRecord(u8);
 extern void BattleAdvanceCommandStep(u8, u8);
 extern void func_800898F0(u8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
-/* 87.92% (1696 bytes against retail's 1708: 3 instructions short). The whole event
-   dispatch, the two switches, the cost table and the command queue tail are in place
-   and the instruction stream agrees with retail except for delay slots and these
-   known gaps:
-   (a) retail has 59 nops where our reorg fills the slot (e.g. `j .L80083B34` with a
-       nop, and `beq v1,v0,.L80083FCC` / nop / slti). Declaring the function u32 instead
-       of void bought 4 bytes of that back and is kept in the parked body; the rest did
-       not move with any return type tried.
-   (b) the case-4/6/7 fall-through chain that builds the command index (case 4 runs three
-       `index++`, case 7 two, case 6 one) is emitted one instruction longer here because
-       reorg steals D08's increment into the case-4 `beq` delay slot, which then splits
-       the chain retail shares. Source shape matches retail's block order otherwise.
-   (c) the two g_BattleCommandCharIndex-based table reads need the base register retail uses, so the
-       body spells them `((u16 *)(pMode - 0x15))[0xC + index]` with pMode = &g_BattleCommandCharIndex;
-       the plain `g_BattleCommandCost[...]` form makes gcc fold the constant into the symbol
-       (%hi(D_800D2C22) through $at) and cannot link. That spelling is ROUGH - the
-       original almost certainly indexed one table.
-   Table facts for the next round: g_BattleCommandCost is a u16 table; the three reads are
-   [index], [0xC + index] and [3*commandKey[0] + 3 + index], so the last two are one row-major
-   table indexed 3*character + 3 + command and the g_BattleCommandCharIndex==4 case is that row with
-   character 3. s2 (the command index + 1) is built by the case 4/7/6 fall-through.
-*/
+// 87.90% (1696 bytes against retail's 1708; 424 vs 427 insns). Body: full event dispatch,
+// two switches, the cost table and the command-queue tail. The saved-register hand-out is a
+// PURE PERMUTATION of retail's, so nearly every differing line is a register rename:
+// ours 74->s0, 78->s1, 75->s2, 71->s3, 77->s4, 73->s5; retail s0 = the arg0&0xff temp,
+// s1 = first, s2 = index, s3 = arg0, s4 = ok, s5 = counter. Measured with -da/-dl/-dg
+// (gcc-2.6.0, unit flags): 74 = 4 refs / 11 insns / 1 byte -> quotient 7272 takes s0 (retail
+// takes s0 for the same temp, so that one is right); 78 = 9 refs / 39 insns / 4 bytes (the
+// case-6 body temp) -> 1731 wrongly outranks 'first' (3 refs / QI / ~25 insns = ~1200) for s1;
+// 73 = ok (3 refs / 205 insns / QI = 146) loses s4 to 77 = counter (4 refs / 202 / HI = 198) by
+// 1.36x, i.e. a near miss: ONE more reference to ok (floor_log2(4) doubles the quotient) flips
+// s4/s5. index->s2 and arg0->s3 are retail's already. Swapping the two inits (index = 0; ok = 0;)
+// is byte-identical, and all the top-of-function statement orders measured here keep the
+// prologue identical, so the pair is an allocno-quotient question and not a statement order one.
+// The three missing instructions: (a) the CharIndex==4 cost read - retail computes (index + 12)
+// in a register ('addiu v0,s2,12') and only then scales, ours folds 24 into the %lo displacement;
+// it is the ONLY place retail does that. The retired park got a better 87.92 by writing that read
+// as '((u16 *)(pMode - 0x15))[0xC + index]' with pMode = &g_BattleCommandCharIndex, but that
+// address is 0x15 bytes wrong: retail's three reads are g_BattleCommandCost[index],
+// g_BattleCommandCost[12 + index] and g_BattleCommandCost[3 + 3*commandKey[0] + index]
+// (0x800D2C0A base, CharIndex at 0x800D2C34), this body spells them off ONE register base
+// pCost = (u8 *)g_BattleCommandCost which reproduces retail's shared-base shape for reads 2 and 3
+// (retail reuses the &CharIndex register a1 with displacements -42 / -36 where ours reuses a1
+// with 24 / 6). (b) case 4/7/6: retail keeps the three 'addiu s2,s2,1' as fall-through blocks
+// (its case-6 increment sits in the 'bne v1,v0' delay slot), ours puts each increment in its own
+// dispatch 'beq' delay slot and jumps, which is the same count but a different layout - two
+// instructions of the gap. Retail's o2 head is sequential, so this is reorg and not a switch
+// shape. Return type: retail sets no v0 on any path, so the original is void; u32 here and in the
+// park is a reorg crutch (worth 4 bytes) and a future round should re-test void once the
+// instruction stream agrees. Object: 87.90 is with the corrected table offsets.
 /*
-// The unused return type is load-bearing: with `void` gcc reorg fills delay
-// slots retail leaves as nop, which costs 4 bytes per slot.
 u32 func_80083948(u8 arg0) {
     u8 ok;
     u8 first;
@@ -855,14 +859,14 @@ u32 func_80083948(u8 arg0) {
         if (((BattleActorSlots *)g_BattleCommandQueue)->commandKeyLength == 0) {
             remain = counter - g_BattleCommandCost[index];
         } else {
-            u8 *pMode;
+            u8 *pCost;
 
-            pMode = &g_BattleCommandCharIndex;
-            if (*pMode == 4) {
-                remain = counter - ((u16 *)(pMode - 0x15))[0xC + index];
+            pCost = (u8 *)g_BattleCommandCost;
+            if (g_BattleCommandCharIndex == 4) {
+                remain = counter - ((u16 *)pCost)[12 + index];
             } else {
-                remain = counter - ((u16 *)(pMode - 0x12))[
-                                     3 * ((BattleActorSlots *)g_BattleCommandQueue)->commandKey[0] + index];
+                remain = counter - ((u16 *)pCost)[
+                                     3 * ((BattleActorSlots *)g_BattleCommandQueue)->commandKey[0] + 3 + index];
             }
         }
         if (remain >= 0) {
@@ -909,8 +913,9 @@ u32 func_80083948(u8 arg0) {
         }
         break;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
+
 u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     u8 ret;
 
