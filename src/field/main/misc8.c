@@ -1162,7 +1162,35 @@ typedef struct {
    has `sll v0,v1,0x1` / `nop`); and two store orders (the 0x400000 arm reads
    move.vz before the rotation.vx `lhu`, where retail does the `lhu`/`ori`/`sh`
    between the two `sw`s). */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+// Best 96.38% (1436 bytes against retail's 1424; 359 against 358 insns - ONE
+// instruction over: the `lh v0,0x52(sp)` reload of delta.vy in the angle, see the
+// note above). Round 462 re-measured this body LIVE and moved two residuals:
+// 1. DECLARATION ORDER OF THE ZERO-INITIALISED LOCALS IS THE PROLOGUE. Retail
+//    emits `move s0,zero` (stepX), `move s3,zero` (stepZ), `move s1,zero`
+//    (triMaterial) in that order and reorg drops the LAST one into the first
+//    `bnez` delay slot, so its `sw s1,92(sp)`/`move s1,zero` pair comes after
+//    `sw s3,100(sp)`. Declaring stepX and stepZ before triMaterial reproduces
+//    retail's whole prologue and save order: 96.26 -> 96.35, 71 -> 65 differing
+//    lines. The old body declared triMaterial first and had all three pairs in
+//    the wrong order.
+// 2. the 0x400000 arm: writing the `rotation.vx |= 0x8000` statement BEFORE
+//    `move.vx += stepX` is the permuter's find (base 1725 -> 1575, 1518 iters)
+//    and measures 96.35 -> 96.38. The three statements touch disjoint fields, so
+//    the reorder is semantics-preserving, but it still does not produce retail's
+//    interleaved `lw 0x40 / lhu 0x104 / addu / sw 0x40 / lw 0x48 / ori / sh /
+//    addu / sw 0x48`; that interleaving is reorg load hoisting, not statement
+//    order, in either spelling.
+// Also re-measured: the tracking test on rotation.vx must be the SIGNED
+// `pActor->rotation.vx & 0x8000` (`lh`), not the `((u_short*)&...)[0]` cast -
+// retail has `lh v1,260(s2)` there but `lhu` in the 0x400000 arm's |=, so the two
+// sites are spelled differently in the original source. The opcode now matches;
+// gcc still hoists the load 3 insns early (`lh a0,260(s2)` before `lw s4,32(s2)`)
+// where retail puts it in the load-delay slot of `lw v0,0x4C(v0)`, and takes a
+// `nop` on the `bnez` where retail has `sra s0,a0,0x10`.
+// Still open, unchanged: the g_FieldActors base lands in $a0 where retail has
+// $a1 (4 rows; both re-form the load at each of the four uses because
+// g_FieldActors is a volatile pointer), the delta.vy (s32)(s16) conversion, and
+// the three branch targets that shift +4 with the extra instruction.
 /*
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     IVEC3 moveVec;
@@ -1171,9 +1199,9 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     VECTOR unused;
     SVECTOR delta;
     SpritePhysicsView* pSprite;
-    u_int triMaterial = 0;
     s32 stepX = 0;
     s32 stepZ = 0;
+    u_int triMaterial = 0;
     s32 limit;
     s32 angle;
     s32 distance;
@@ -1238,8 +1266,8 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pSprite->unk10 = pActor->fallSpeed >> 1;
         }
         if (triMaterial & 0x400000) {
-            pActor->move.vx += stepX;
             ((u_short*)&pActor->rotation.vx)[0] |= 0x8000;
+            pActor->move.vx += stepX;
             pActor->move.vz += stepZ;
         }
         if (pActor->canInteract == 0xFF) {
@@ -1275,7 +1303,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             posZ = pActor->position.vz;
             targetPosX = pTarget->position.vx;
             targetPosZ = pTarget->position.vz;
-            if (!(((u_short*)&pActor->rotation.vx)[0] & 0x8000)) {
+            if (!(pActor->rotation.vx & 0x8000)) {
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->distance =
                     FieldGetActorDistance2D(actorIndex, pActor->canInteract);
             }
@@ -1293,8 +1321,10 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pActor->moveSpeed << 8;
         g_FieldActorModelPointerIndex++;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+
+
 
 
 
@@ -2082,7 +2112,28 @@ extern s32 D_800ADC0C;
    ordering lever for delay-slot fill, so the -1 block (a reorg fill decision) is
    not reachable from source. Permuter run from 91.16 found the new_var copy
    (base 461 -> 407). */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
+// Best 96.01% (276 bytes / 69 insns = retail's exactly), re-measured LIVE in round
+// 462 from this body, and a full permuter run from it (1588 iterations) found
+// NOTHING (base 407, best 407), so the residual is not a source-order tie. The
+// three differences are all delay-slot/block placement in the tail:
+// 1. retail has `nop` in the `beqz flags&2` delay slot where this body's
+//    `new_var = pActor` copy gives `move a1,a0` (that copy is the lever that got
+//    the score here: 91.16 -> 96.01; the same assignment at the top of the
+//    function is 87.25/284/70, dropping it is 91.16).
+// 2. retail keeps `addiu v0,zero,-1` as its own block (.L80084A34, reached by the
+//    `beq v1,v0` whose delay slot is a `nop`) where this body threads `li v0,-1`
+//    into that delay slot.
+// 3. retail threads `move v0,zero` into the `beqz flags&4` delay slot where this
+//    body keeps the zero in an out-of-line block - i.e. the two returns swapped
+//    which one is out of line.
+// Round 461 measured the inverted tail (`if (!(pActor->flags & 4)) return 0;
+// return -(pActor->walkmeshId == 2);`) with the new_var copy: 90.07 / 268 / 67, so
+// it has retail's `move v0,zero` slot and no zero block but loses the out-of-line
+// -1 block and is one instruction short. Round 448: else-return-0 91.16/276/69, a
+// nested `if` for the flags&2 test compiles byte-identically to `&&`, and
+// `s32 result = 0;` before the flags&4 test puts the second flags load in retail's
+// $v1 but allocates result to $a1 (86.74/280/70). There is no source ordering lever
+// for reorg's delay-slot fill, so this park stays at 96.01%.
 /*
 int func_8008492C(ActorData* pActor) {
     ActorData* new_var;
@@ -2125,8 +2176,10 @@ int func_8008492C(ActorData* pActor) {
     } else {
         return 0;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008492C);
+
+
 
 
 extern s32 D_800ADB98;
