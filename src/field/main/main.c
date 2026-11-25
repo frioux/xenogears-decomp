@@ -91,6 +91,18 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
 // So retail's four addresses must come from something the C cannot express: the only
 // remaining lever is to make the four sums DIFFERENT values (or reach the row through
 // four different bases), which changes the loads with it.
+// SWEEP AFTER ROUND 476: isolated the loop with tools/scripts/cc1_probe.sh and swept six more
+// spellings of the four middle args. The probe reproduces this body exactly (one
+// `addu $2,$19,$21`), and every other spelling also cse/giv-merges to that same single
+// add: `pB + (off + K)`, `(K + off) + pB`, `off + pB + K`, `&pB[off + K]`, a `Row*`
+// indexed `pRow[i].field`, and a flat `s16*` indexed `pT[i * 6 + K]` (that last one
+// becomes a single walking base with displacements 0..10). So no pointer/offset spelling
+// of ONE value yields retail's four adds; the only spelling that reaches retail's
+// base-first operand order (`addu v0,base,off`, not `addu v0,off,base`) is
+// `off + pB + K`, which is worth using if the four ever do survive. Measured on the
+// unit: the four args through `int` locals 84.14%, natural `D_800ADC44[i].field` 73.11%
+// (each field forms `lui $at,%hi(D_800ADC46)`, i.e. the FIELD's symbol, so the base
+// never gets a register), gcc-2.7.2-cdk 83.06%, gcc-2.6.0 87.32% (same as Default).
 /*
 void FieldLoadUITextures(void) {
     u8* pBase;
