@@ -150,35 +150,38 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
    (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
    cc1 tables from this range: that function and the tail after it are
    src/world_map/main/misc11_b.c, whose .rodata range starts at 0xDE4. */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
-// 93.51% (752 insns / 3008 bytes against retail's 740 / 2960; 643 differing lines).
-// Round 423, first body: full transcription of the command switch, the 65-entry state
-// switch (table emitted, sltiu 0x41 matches), the nested func_80090A84 switch, the
-// func_80095414 retry block, both 32-iteration trail fills, cases 13/14/15/16/17/18,
-// 40/41/42/43/44/45 and the tail - every block is present and in retail's order.
-// RESIDUALS, measured, in order of size:
-//  (1) CALLEE-SAVED MIRROR: retail keeps pActor in $s0 and the index parameter in $s1,
-//      the compile mirrors them (pActor $s1 / index $s0), which alone is most of the
-//      differing lines. Declaring pActor before pScratch measures 92.09 (654 lines) vs
-//      pScratch first 92.51, so declaration order does not flip that pair.
-//  (2) +4 lw +3 lui vs retail: the dirX..unk44 write-back from the func_80095414 out
-//      vector is interleaved (mine loads/stores one word at a time) where retail does
-//      four lw then four sw, and the trailing beqz has a store in its delay slot where
-//      retail has addiu a0,s0,0x28 (the WorldMapSelectAreaAtPosition argument hoisted
-//      into the branch slot). Sched2 order, not source order - the same words are
-//      loaded and stored.
-//  (3) the `zone` index: retail spells it with two lbu (one per arm of the
-//      g_WorldMapZoneId == 7 test) plus sll/sra (s16 index), so the if/else form above
-//      is retail's (the `zone = proximity; if (...) zone += 3;` form scores 92.51 at
-//      2992 bytes). Ours keeps one lbu and drops the sra because gcc knows the u8
-//      range, i.e. one instruction and one load apart.
-//  (4) the scratchpad uses a raw `s32 *pScratch = (s32 *)0x1F800000` with pScratch[0xC]
-//      (case 18 staging), pScratch[0x24] (func_80095414 out) and *(u16 *)&pScratch[0x28]
-//      (the staged angle) because retail reaches 0x30/0x90/0xA0 as displacements off one
-//      base register - name those if the layout is understood.
-// NEXT: the s0/s1 mirror is the one worth a -da/-dl allocno dump (levers
-// a-global-allocno-priority-is / a-lreg-dump-gives-the) before any permuter run; the
-// body is otherwise instruction-for-instruction retail's. No permuter run yet.
+// round 472: best 98.29% (738 insns / 2952 bytes against retail's 740 / 2960; 275 differing
+// lines, every one of them a label name or a register name except the two residuals below).
+// The round-471 recovery body re-measured exactly as briefed, all five edits in this order:
+//   (1) pActor[1].targetSlot / pActor[2].targetSlot in cases 8/9/16/17 instead of
+//       g_WorldMapSlots[1]/[2], which re-forms the table base at each of the four sites;
+//   (2) a trailing "case 0x40: break;" so the state table has retail's 65 entries (sltiu
+//       0x41, the second table back at .rodata+0x108) - without it the table is 76 bytes
+//       short, which alone fails check_bin;
+//   (3) *(WorldMapVec *)&pActor->x = *(WorldMapVec *)pOut for the func_80095414 write-back
+//       (retail's four lw then four sw);
+//   (4) case 40 ends with break, it does not fall through into 41;
+//   (5) the inner switch (D_8009C170) case 1 is pActor->state = 1, not state++.
+// RESIDUAL 1, the cell index, 4 bytes: retail sll v0,a2,0x10 / sra v0,v0,0xf, i.e.
+// 2 * (s16)zone; ours sll v0,v0,0x1. Measured with cc1_probe.sh on this unit (gcc-2.7.2
+// -O2 -G8): an s16 zone, an s32 zone, an s32 zone with (s16) at the subscript and a u16 zone
+// with (s16) at the subscript all emit sll x,1, because the value arrives from lbu so gcc
+// knows it is non-negative and drops the widening; only a signed halfword of UNKNOWN range
+// reproduces the pair (a s16 parameter does: sll 16 / sra 15). Both of retail's loads are
+// lbu, so no spelling of the if/else join reaches it.
+// RESIDUAL 2, case 40, 4 bytes: retail emits sw v0,0x2C(s0) (pActor->y) BEFORE the
+// drawAngle lui/lhu, so the lhu result is used by the next instruction and the assembler
+// inserts the load-delay nop; ours sinks the y store into that slot and keeps the load in
+// $v1, so no nop is owed and the body is 4 bytes short. The source order is already
+// retail's (y store, then drawAngle, then angle). Measured on this body: chaining
+// pActor->drawAngle = pActor->angle = the read moves the store but loses gcc's forwarding
+// of the stored register into rcos((s16)pActor->angle), which reloads with lh a0,0x48(s0)
+// (2956 bytes, 97.60%); a named s32 angle local is 2952, unchanged.
+// Also measured dead on this body: zone as s16 / s32 / (s16) cast all 2952; zone = prox
+// then zone += 3 in the arm 2936; gcc-2.6.0 97.95; gcc-2.7.2-cdk 86.82.
+// NEXT: both residuals are cse/regalloc order ties that no source shape reached, and a
+// match needs BOTH of them (2952 + 4 + 4 = 2960), so this is an allocator-dump or permuter
+// job rather than a spelling one.
 /*
 int func_8008A72C(int index) {
     s32 *pScratch = (s32 *)0x1F800000;
@@ -262,10 +265,7 @@ int func_8008A72C(int index) {
                         zone = g_WorldMapZoneProximity;
                     }
                     if (D_8009B180[zone] != 0) {
-                        pActor->x = pOut[0];
-                        pActor->y = pOut[1];
-                        pActor->z = pOut[2];
-                        pActor->unk34 = pOut[3];
+                        *(WorldMapVec *)&pActor->x = *(WorldMapVec *)pOut;
                         if ((pActor->dirX | pActor->dirZ) != 0) {
                             i = (g_WorldMapTrailCursor + 1) & 0x1F;
                             pTrail = &g_WorldMapTrail[i];
@@ -309,7 +309,7 @@ int func_8008A72C(int index) {
         if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
             if (((u8 *)&g_GameState.unk22B0)[2] == 0) {
                 WorldMapStartSlot(2, 1);
-                g_WorldMapSlots[1].targetSlot = g_WorldMapZoneId;
+                pActor[1].targetSlot = g_WorldMapZoneId;
                 WorldMapStartSlot(5, 8);
             } else {
                 WorldMapStartSlot(5, 1);
@@ -322,7 +322,7 @@ int func_8008A72C(int index) {
         if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
             if (((u8 *)&g_GameState.unk22B0)[3] == 0) {
                 WorldMapStartSlot(3, 1);
-                g_WorldMapSlots[2].targetSlot = g_WorldMapZoneId;
+                pActor[2].targetSlot = g_WorldMapZoneId;
                 WorldMapStartSlot(6, 8);
             } else {
                 WorldMapStartSlot(6, 1);
@@ -366,7 +366,7 @@ int func_8008A72C(int index) {
     case 16:
         if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
             if (WorldMapStartSlot(2, 1) != 0) {
-                g_WorldMapSlots[1].targetSlot = 5;
+                pActor[1].targetSlot = 5;
                 pActor->state++;
             }
         } else {
@@ -376,7 +376,7 @@ int func_8008A72C(int index) {
     case 17:
         if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
             if (WorldMapStartSlot(3, 1) != 0) {
-                g_WorldMapSlots[2].targetSlot = 6;
+                pActor[2].targetSlot = 6;
                 pActor->state++;
             }
         } else {
@@ -411,7 +411,7 @@ int func_8008A72C(int index) {
         pActor->targetZ = pScratch[2] >> 12;
         SpritePlayAnimation(pActor->pSprite, 1);
         pActor->state++;
-        // falls through
+        break;
     case 41:
         if (WorldMapMoveActorTowardTarget(pActor) == 3) {
             SpritePlayAnimation(pActor->pSprite, 0);
@@ -440,7 +440,7 @@ int func_8008A72C(int index) {
     case 43:
         switch (D_8009C170) {
         case 1:
-            pActor->state++;
+            pActor->state = 1;
             break;
         case 2:
             if (((u8 *)&g_GameState.unk22B0)[2] == 0) {
@@ -472,6 +472,8 @@ int func_8008A72C(int index) {
             pActor->state = 0x40;
         }
         break;
+    case 0x40:
+        break;
     }
     g_GameState.worldMapPosX = pActor->x >> 12;
     g_GameState.worldMapPosZ = pActor->z >> 12;
@@ -480,8 +482,8 @@ int func_8008A72C(int index) {
         WorldMapAddSlotPosition(0, &pActor->x);
     }
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 
 int WorldMapModeInitActorSlot(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
