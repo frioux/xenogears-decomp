@@ -20,9 +20,19 @@
 // a POLY_FT4's packet length in words past its tag (same define as misc10.c)
 #define WORLD_MAP_PRIM_TAG_LEN 9
 
-// the sprite group WorldMapUpdateSpriteGroup9Position draws and deactivates, and the length its state timer
-// is reset to (the same 96 frames WorldMapSetActorTimer60 hands the slot)
+// A POLY_FT4's primitive code byte, and the neutral shade WorldMapSetupPrimTemplates sets
+// all three of the template's colour channels to (same defines as misc10.c and misc7.c)
+#define WORLD_MAP_PRIM_CODE_POLY_FT4 0x2C
+#define WORLD_MAP_SHADE_NEUTRAL 0x80
+
+// the sprite groups this unit's slot handlers draw and deactivate:
+// WorldMapUpdateSpriteGroup9Position drives group 9 and resets its state timer to
+// WORLD_MAP_ACTOR_TIMER_FRAMES (the same 96 frames WorldMapSetActorTimer60 hands the
+// slot), WorldMapUpdateObjectAPosition draws group 10, func_80079778 drives 11 and 12
 #define WORLD_MAP_SPRITE_GROUP9 9
+#define WORLD_MAP_SPRITE_GROUP10 10
+#define WORLD_MAP_SPRITE_GROUP11 11
+#define WORLD_MAP_SPRITE_GROUP12 12
 #define WORLD_MAP_ACTOR_TIMER_FRAMES 96
 
 // the scratchpad SVECTOR the sprite-group draw calls read
@@ -992,7 +1002,7 @@ s32 func_80079778(s32 index) {
         pVec->vx = p->x >> 12;
         pVec->vy = p->y >> 12;
         pVec->vz = p->z >> 12;
-        WorldMapInitSpriteGroupSprites(11, pVec, 0);
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP11, pVec, 0);
         p->y += 0x4000;
         p->z += -0x8000;
         g_WorldMapScrollZ[0] += -0x8000;
@@ -1001,7 +1011,7 @@ s32 func_80079778(s32 index) {
         }
         p->dirY = -0x4000;
         p->state = p->state + 1;
-        WorldMapInitSpriteGroupSprites(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP12, pVec, 0);
         SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x71);
         p->stateTimer = 0x20;
         break;
@@ -1011,11 +1021,11 @@ s32 func_80079778(s32 index) {
         pVec->vx = p->x >> 12;
         pVec->vy = p->y >> 12;
         pVec->vz = p->z >> 12;
-        WorldMapInitSpriteGroupSprites(11, pVec, 0);
-        WorldMapInitSpriteGroupSprites(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP11, pVec, 0);
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP12, pVec, 0);
         p->stateTimer = p->stateTimer - 1;
         if ((s16)p->stateTimer <= 0) {
-            WorldMapDeactivateSpriteGroup(12);
+            WorldMapDeactivateSpriteGroup(WORLD_MAP_SPRITE_GROUP12);
         }
         pEntries[0].rot.vx += 4;
         pEntries[0].rot.vz += 2;
@@ -1028,7 +1038,7 @@ s32 func_80079778(s32 index) {
         }
         p->dirZ = -0x8000;
         p->state = p->state + 1;
-        WorldMapInitSpriteGroupSprites(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP12, pVec, 0);
         SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x71);
         break;
     }
@@ -1037,8 +1047,8 @@ s32 func_80079778(s32 index) {
         pVec->vx = p->x >> 12;
         pVec->vy = p->y >> 12;
         pVec->vz = p->z >> 12;
-        WorldMapInitSpriteGroupSprites(11, pVec, 0);
-        WorldMapInitSpriteGroupSprites(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP11, pVec, 0);
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP12, pVec, 0);
         pEntries[0].rot.vx -= 2;
         pEntries[0].rot.vz -= 1;
         p->z += p->dirZ;
@@ -1049,7 +1059,7 @@ s32 func_80079778(s32 index) {
         }
         p->stateTimer = 8;
         p->state = p->state + 1;
-        WorldMapDeactivateSpriteGroup(12);
+        WorldMapDeactivateSpriteGroup(WORLD_MAP_SPRITE_GROUP12);
         WorldMapStartSlot(1, 1);
         break;
     }
@@ -1085,7 +1095,7 @@ s32 func_80079778(s32 index) {
         pEntries[2].hidden = 1;
         pEntries[1].hidden = 1;
         pEntries[0].hidden = 1;
-        WorldMapDeactivateSpriteGroup(11);
+        WorldMapDeactivateSpriteGroup(WORLD_MAP_SPRITE_GROUP11);
         break;
     }
     WorldMapWrapPosition(&p->x);
@@ -1152,13 +1162,13 @@ void WorldMapSetupPrimTemplates(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 coun
 
     for (i = 0; i < count; i++) {
         setlen(pPrim, WORLD_MAP_PRIM_TAG_LEN);
-        pPrim->code = 0x2C;
+        pPrim->code = WORLD_MAP_PRIM_CODE_POLY_FT4;
         pPrim->tpage = GetTPage(1, 3, 0x340, 0x100);
         pPrim->clut = GetClut(0x100, 0x1FF);
-        pPrim->r0 = 0x80;
-        pPrim->g0 = 0x80;
+        pPrim->r0 = WORLD_MAP_SHADE_NEUTRAL;
+        pPrim->g0 = WORLD_MAP_SHADE_NEUTRAL;
         setSemiTrans(pPrim, 1);
-        pPrim->b0 = 0x80; // last store sets gcc's induction base to 0x6 as retail's does
+        pPrim->b0 = WORLD_MAP_SHADE_NEUTRAL; // last store sets gcc's induction base to 0x6 as retail's does
         pPrim++;
     }
     memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT4));
@@ -1227,7 +1237,7 @@ s32 WorldMapSetActorTimer60(s32 index) {
     WorldMapActor *p;
 
     p = g_WorldMapSlots + index;
-    p->stateTimer = 0x60;
+    p->stateTimer = WORLD_MAP_ACTOR_TIMER_FRAMES;
     return 3;
 }
 
@@ -1284,7 +1294,7 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     pScratch->vx = s->x;
     pScratch->vy = s->y;
     pScratch->vz = s->z;
-    WorldMapInitSpriteGroupSprites(10, pScratch, 0);
+    WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP10, pScratch, 0);
     return 3;
 }
 
