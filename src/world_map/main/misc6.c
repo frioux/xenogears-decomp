@@ -1705,6 +1705,7 @@ int WorldMapUpdateSlotActor(int index) {
    Permuter not re-run: 93.41 is below the 99% threshold, and rounds 202/312 ran
    2111+ iterations from this exact body.
 */
+// best 93.41% (164 bytes = retail's 41 insns, store order and every relocation retail's; residual is only the 'addiu v0,zero,3' position and the v1/a0 constant rotation it causes). Blocked by the levers.md entry h-a-return-constant-leads-the-store-group-only-in-retail: any 'return 3' set lands after the stores and cse deletes any constant local that would move it. Round 484 re-measured this live at 93.41 and added one negative: 'u8 nRet = 3' inside the do-block returned after it also measures 93.41 (folded back), so the per-mode cse escape does not apply here.
 /*
 int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
@@ -1724,6 +1725,7 @@ int func_8007FC8C(int index) {
     return 3;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
+
 
 
 int WorldMapUpdateGroup9And10Actor(int index) {
