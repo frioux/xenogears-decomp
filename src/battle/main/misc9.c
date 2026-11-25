@@ -177,6 +177,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
    retail has addiu a1,s2,-1.
    Preset screened: -O3 95.38, -G0 95.38, gcc-2.6.0 95.78, cdk 76.66% on sibling
    DB78 - Default (2.7.2, -O2 -G8) is right.
+   R482: measured the other side of the wall from source. The ok-shape (`u8 idle`
+   result local, `i++;` between the call and the test, `idx = i` as the last body
+   statement, do-while) reproduces the increment in the beqz v0 slot AND the idx
+   copy in the bnez slot - retail's two filled slots - and then lacks exactly ONE
+   instruction, reorg's obstruction duplicate of the latch `slti` in the second
+   beqz's slot: 86 insns / 344 bytes / 92.51%. So the wall is a single instruction
+   seen from both sides (88 insns with a third slti copy, 86 without the second),
+   not two residuals, and no spelling has both. Also measured on that body: the
+   test written `0 < 3 - i` reaches retail's exact 87 insns / 348 bytes at 90.43%
+   by spending three instructions on the test instead of slti+bnez, so byte count
+   alone is not the gate. Dropping the pField local: 85 insns / 87.08%.
  */
 /*
 void func_8007DA1C(u8 **arg0, s32 arg1) {
@@ -382,6 +393,11 @@ void func_8007DCF8(u8 **arg0, s32 arg1) {
    Cosmetic only: the prologue emits the s6 = arg1 copy before the i/count
    inits (retail after them), and the tail beqz s2 slot holds move a0,zero where
    retail has addiu a1,s2,-1.
+   R482: the DA1C ok-shape measured here too - the increment in the beqz v0 slot,
+   the idx copy in the bnez slot, and only reorg's obstruction duplicate of the
+   latch `slti v0,s1,3` missing: 86 insns / 344 bytes / 92.95%, against this
+   while body's 88 / 352 / 95.25 and retail's 87 / 348. Same single-instruction
+   wall as DA1C.
  */
 /*
 void func_8007DE78(u8 **arg0, s32 arg1) {
