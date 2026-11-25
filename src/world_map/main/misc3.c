@@ -525,22 +525,28 @@ s32 WorldMapExitMode(void) {
     g_NextMapRotationY = v;
     return 1;
 }
-// Best attempt: 93.22%, 93 instructions / 372 bytes - retail is 93 insns / 372 bytes as well
-//    (grep -c '^    /\* ' on the .s gives 93), so the SIZE IS RIGHT and the two residuals are
-//    pure sched1 placement choices.
-//    Matching: the a3 hold of &g_WorldMapCameraRot from the prologue through the jal (4th arg of
-//    func_80096F18), the s0 hold of &g_WorldMapPathFrame, the three lwl/lwr 8-byte swaps, and
-//    strict source order everywhere except the two rows below.
-//    Left (1): retail stores sh zero,g_WorldMapViewRotationZ between li v1,120 and
-//    addu a1,a1,a0; our compile sinks it below the lui s0/addiu s0 pathFrame la, grouping it
-//    with the next constant store (sw v1,g_WorldMapFadeLevel). A do{}while(0) barrier after it
-//    is worse (90.13): it also drags the s0 la to the block head and pushes the CameraHeight
-//    store down.
-//    Left (2): the CameraTarget triple. Retail loads x,Y,Z and stores x,Z,Y; ours loads x,Y,Z and
-//    stores Z,x,Y. Source x,Y,Z gives Z,x,Y; source x,Z,Y gives Y,x,Z; source Z,Y,x gives 87.68
-//    (the loads rotate with the stores and the move a0,s0 leaves the jal slot).
-//    Preset screens on this body: gcc-2.6.0-psx 90.19, gcc-2.7.2-cdk-psx compile-failed. A
-//    permuter run from this body was already recorded as finding nothing (base 780, best 335).
+// Best attempt: 93.22%, 93 instructions / 372 bytes - retail is 93 / 372 as well, so the SIZE IS
+//    RIGHT and both residuals are sched1 placement in the straight-line initialiser.
+//    Matching: the a3 hold of &g_WorldMapCameraRot through the jal, the s0 hold of
+//    &g_WorldMapPathFrame, the player-quad copy, and all three lwl/lwr 8-byte scratchpad swaps.
+//    Left (1): retail's `sh zero,g_WorldMapViewRotationZ` sits between `li v1,120` and
+//    `addu a1,a1,a0`; ours emits it six slots later, just before the FadeLevel macro store. The
+//    zero store is ready from insn 0 but has no dependents, so sched issues the address chain
+//    first; do{}while(0) after it was 90.13 (it also drags the s0 la to the block head).
+//    Left (2): the CameraTarget triple. Retail stores x (`sw v0,0(a1)`) first, then Z, then Y;
+//    ours emits Z, x, Y. The x store sinks exactly one position past the first macro store in
+//    every source order tried, so retail's x-first shape is unreachable by reordering.
+//    Measured on this body (all 93 insns / 372 bytes unless noted): source x,Y,Z 93.22 [BEST];
+//    x,Z,Y 92.89 (the loads rotate with the stores -> Y,x,Z); Z,Y,x 87.68 (the x store lands in
+//    the jal delay slot and `move a0,s0` leaves it); the player-position triple read into three
+//    s32 locals and then stored x,Z,Y 92.57 (retail's load order, registers rotated v1/a0/v0,
+//    stores still Y,x,Z). A `*(volatile s32*)` pin on the x store plus `*(volatile s16*)&` on the
+//    Z store reads 83.28: it does give the triple retail's relative order, but the volatile store
+//    stops sched and sinks the pathFrame la and the `lw a2` height load below it.
+//    try_flags.sh --sweep: 2.7.2 93.22 in all eight cells (-O2/-O3 x -G4/-G8 x 3000/r8000),
+//    2.6.0-psx 90.19, 2.7.2-cdk 68.2 at every -O - the preset axis is closed.
+//    Verdict: the c-displaced-li-inside class (a scheduling tie no spelling reaches) at retail's
+//    exact size; a permuter run from this body is already on record as finding nothing.
 /*
 s32 func_8007756C(s32 arg0) {
     WorldMapPlayer* pPlayer = &((WorldMapPlayer*)g_WorldMapSlots)[arg0];
@@ -566,6 +572,7 @@ s32 func_8007756C(s32 arg0) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_8007756C);
+
 
 
 
