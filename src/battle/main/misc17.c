@@ -211,7 +211,26 @@ extern u8 D_800CEF23[];
    Tried as well: all five index orders, the cast and the array spelling of both row
    loads, a two-statement pointer split (pRow = base; pRow = pRow + idx), u8/u32
    index types, and a 3-minute permuter run whose best candidate hoists `arg0 * 8`
-   into a `short` in the third loop and writes `i <= 16 - 1` (not ported). */
+   into a `short` in the third loop and writes `i <= 16 - 1` (not ported).
+
+   One cause behind every row above, measured: retail's third loop runs with SIX live
+   callee-saved values (raw arg0, arg0 & 0xff, arg0 * 0x170, i, the byte offset i * 4 and
+   &bufs[i]) and s5 dead, while this body needs SEVEN. The seventh is the hoisted
+   D_800CCD3E base; it pushes raw arg0 from s6 into s5, and then every later site pays:
+   a fresh `andi 0xff` inside both row scans where retail keeps one copy, `&nameRect` in a
+   register instead of retail's per-call `addiu a0,sp,24`, and a pointer biv for `bufs`
+   where retail keeps `sp + i * 4`. Kill that hoist and the diff collapses.
+   Round 480 measured, on this same 1444-byte body:
+   - `u32 arg0` parameter plus a `u8 slot = arg0;` assigned before the first flags test and
+     used for the char-id index, both strides and both row bases: cc1 copy-propagates `slot`
+     back to `(u8)arg0` and re-masks per site, so no register is saved (91.28%, 1444 bytes,
+     361 insns).
+   - the same `u8 slot` assigned inside EACH arm, which is retail's `move s4,a0` at
+     0x9111C / 0x911B8: the hoist survives and grows, 1452 bytes (91.80% but 363 insns, so
+     it cannot link).
+   - the bank byte read into a local inside the bank14 arm: identical code.
+   - presets: gcc-2.7.2 91.01, gcc-2.7.2-cdk 80.09, 2.6.0 with -G0 91.38 (unchanged), so the
+     unit's XenoBattle260 preset is right and no preset switch is owed here. */
 /*
 
 void func_80091064(u8 arg0) {
@@ -227,6 +246,8 @@ void func_80091064(u8 arg0) {
     void *pBuf;
     u8 *pStr;
     u32 off;
+    u32 rowOff;
+    u32 slotOff;
     u8 index;
     s32 i;
 
