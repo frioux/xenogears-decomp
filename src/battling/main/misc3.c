@@ -397,7 +397,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
 // The closest approach of the segment (x1,y1)-(x2,y2) to the circle at
 // (x3,y3) with radius r, in 12-bit fixed point: returns 1 when the segment
 // passes through the circle and stores that point in g_BattleHitPointX/g_BattleHitPointZ.
-s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
+s32 BattleSegmentHitTestCircle(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     VECTOR v;
     VECTOR vSq;
     s32 ex;
@@ -475,7 +475,7 @@ done:
 }
 
 
-extern s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
+extern s32 BattleSegmentHitTestCircle(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
 extern void BattleCommitSlotStates(BattleActor* p);
 extern s32 g_BattleEffectEntryCount;
 extern Vec4 g_BattleEffectPosX;
@@ -618,7 +618,7 @@ s32 func_80075B50(BattleActor* p) {
             point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
             point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
             point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
-            hit = func_80075888(pSlot->prevPos.vx, pSlot->prevPos.vz, pSlot->pos.vx, pSlot->pos.vz, point.x, point.z, ((u8*)p->pScript)[0x13]);
+            hit = BattleSegmentHitTestCircle(pSlot->prevPos.vx, pSlot->prevPos.vz, pSlot->pos.vx, pSlot->pos.vz, point.x, point.z, ((u8*)p->pScript)[0x13]);
         } else if (pSlot->unk34 < ((u8*)p->pScript)[0x13]) {
             amount = __builtin_abs(base.y - pSlot->prevPos.vy);
             dCenter = __builtin_abs(center.y - pSlot->prevPos.vy);
@@ -684,7 +684,7 @@ s32 func_80075B50(BattleActor* p) {
                 point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
                 point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
                 point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
-                hit = func_80075888(pRecord->prevPos.x, pRecord->prevPos.z, pRecord->pos.x, pRecord->pos.z, point.x, point.z, ((u8*)p->pScript)[0x13]);
+                hit = BattleSegmentHitTestCircle(pRecord->prevPos.x, pRecord->prevPos.z, pRecord->pos.x, pRecord->pos.z, point.x, point.z, ((u8*)p->pScript)[0x13]);
             }
         } else {
             amount = (pRecord->pos.y + pRecord->prevPos.y + pRecord->endPos.y + pRecord->prevEndPos.y) / 4;
