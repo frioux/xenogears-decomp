@@ -1128,33 +1128,38 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
     return g_BattleTargetCandidates[0];
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
-/* 87.82%: 536 bytes against retail's 548. The saved-register map, the switch
-   tree, the ratan2 call, the case-body sharing and the loop tail all agree with
-   retail (s0 flag, s1 candidate pointer, s2 arg1, s3 arg0 * 0x1C, s4 arg0, s5
-   result, s6 best; `switch (arg1)` rather than a `mode` local - the permuter found
-   that, 84.85 -> 87.82). What is left, all four measured:
-   1. The second axis. Retail RELOADS *p and recomputes the 0x1C index for the x
-      difference (lbu, nop, sll, subu, sll = 5 instructions); every spelling tried
-      here makes gcc 2.6.0 CSE the index across the first axis' branch join and
-      reuse the register (tools/scripts/probe_twoaxes.c reproduces the CSE in 20
-      lines, so the body shape is not the cause). The permuter's way of forcing the
-      reload was `D_800C3EBE[result = *p].x`, which stores *p into result on every
-      candidate instead of only on a new best one - wrong code, do not port it.
-   2. Prologue order. We emit the arg0-derived invariants (s4, s3) after the
-      `la s1` group; retail has them before s2 and s1, i.e. its entry-block
-      statements put the loop pointer last, after the hoisted ones.
-   3. The loop test is `slt` in retail (signed); `p < D_800C3E9B` gives `sltu`.
-   4. Retail keeps a nop after each of the two `sltiu` range tests inside case 2
-      where we steal the `flag = 1` or into the branch delay slot.
-   The absolute difference is NOT a wall any more: `if (d < 0) d = -d;` already
-   gives retail's two multiplies with one shared mflo (the old note here claimed
-   otherwise); only the negate form differs, negu against retail's reversed
-   `subu v0,v0,a0`, which is the same instruction count. */
+// 91.30%: 556 bytes / 139 insns against retail's 548 / 137 (the old park here was 87.82 / 536).
+//    Round 490 closed the old residual 1, the second axis' index re-form: give the candidate
+//    byte its own local. `slot = *p;` placed between the dx block and `dist = dx * dx`, with
+//    the x axis reading `D_800C3EBE[slot].x`, is a different tree from the y axis' `*p`, so cc1
+//    stops CSE-ing the multiply across the `if (dx < 0)` join and emits retail's lbu / nop /
+//    sll / subu / sll. The permuter found it (1360 -> 1200 on its own metric) and the same edit
+//    is what a programmer would write: one read of the candidate's slot.
+//    With the two loaded u16 values in locals (`a`, `b`, `if (dx < 0) dx = b - a;`) the y arm
+//    is retail's shape as well: subu / bgez / mult in the delay slot / reversed subu / mult,
+//    i.e. no negu.
+//    Measured and rejected: `slot` used for BOTH axes (86.87 - cc1 merges the two index trees
+//    again); the a/b locals on the x axis as well (87.38 at 138 insns / 552 bytes: retail's
+//    instruction count, but the allocator then gives the y product another register and the
+//    permuter scores it 1260 against this body's 1200); `result = slot` (91.01, retail reloads
+//    with lbu s5,0(s1)); `-dx` kept on both axes (91.01, emits negu). A second permuter run's
+//    only candidate hoisted `result = *p;` above the switch, which drops the dist-below-best
+//    guard, so it is wrong code and was rejected.
+//    What is left: (a) retail materialises the y product with mflo a0 right after the y arm and
+//    this body defers it past the x loads, which costs one nop (+4 bytes); (b) the y loads land
+//    in v1 where retail has v0, so the reversed subu reads subu v0,v1,a0 instead of
+//    subu v0,v0,a0; (c) sltu against retail's slt on the loop test - cc1_probe.sh shows cc1
+//    2.6.0 emits sltu for a pointer comparison, so retail's signed test cannot be spelled from
+//    the pointer loop without a cast; (d) the prologue emits the la s1 group before the
+//    arg0-derived invariants where retail has it after them. The preset is right: gcc 2.7.2
+//    scores 86.62 on this body against 2.6.0's 91.30 (the unit's XenoBattle260).
 /*
 u8 func_80084854(u8 arg0, u8 arg1) {
     u8 *p;
     u8 result;
+    u8 slot;
+    u16 a;
+    u16 b;
     s32 angle;
     s32 flag;
     s32 dx;
@@ -1196,12 +1201,15 @@ u8 func_80084854(u8 arg0, u8 arg1) {
                 break;
             }
             if (flag != 0) {
-                dx = D_800C3EBE[*p].y - D_800C3EBE[arg0].y;
+                a = D_800C3EBE[*p].y;
+                b = D_800C3EBE[arg0].y;
+                dx = a - b;
                 if (dx < 0) {
-                    dx = -dx;
+                    dx = b - a;
                 }
+                slot = *p;
                 dist = dx * dx;
-                dy = D_800C3EBE[*p].x - D_800C3EBE[arg0].x;
+                dy = D_800C3EBE[slot].x - D_800C3EBE[arg0].x;
                 if (dy < 0) {
                     dy = -dy;
                 }
@@ -1214,8 +1222,10 @@ u8 func_80084854(u8 arg0, u8 arg1) {
         }
     } while (++p < D_800C3E9B);
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
+
+
 
 void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     s32 off;
