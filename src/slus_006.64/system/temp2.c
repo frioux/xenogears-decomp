@@ -538,7 +538,8 @@ typedef struct {
     /* 0x28 */ u32 color; // red, green, blue and the primitive code as one word
     /* 0x2C */ void* pFramesData[NUM_RENDER_CONTEXTS];
     /* 0x34 */ u16 curSpriteFrame; // unsigned here: -1 is a valid frame
-    /* 0x36 */ u8 unk36[0x6];
+    /* 0x36 */ u16 xOffset; // horizontal offset added to the projected x
+    /* 0x38 */ u8 unk38[0x4];
     /* 0x3C */ SpriteFlagWord flags_0x3C;
     /* 0x40 */ u16 flags0x40Low;
     /* 0x42 */ u16 flags0x40High;
@@ -673,7 +674,10 @@ Also tried and byte-identical: a u32 pNewBufferHead local with the neighbour's
 nWidth. The reorder is gcc moving the xOffset lhu two insns down, after the two
 gp loads; that reorder is what puts pPrim in s1 instead of s3.
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
+// Best 89.57% (464 bytes against retail's 460, 116 insns against 115). Two residuals, both allocation order:
+// - the callee-saved pair is swapped: retail s1 = xOffset, s3 = pPrim; ours s1 = pPrim, s3 = xOffset, so gcc loads the gp globals before the lhu of xOffset (retail loads xOffset first) and makes its copy of pPrim to a1 late (retail's 'addu a1,s3,zero' sits right after the negu).
+// - the x0 reads: retail emits lh v0,8(s3) then lhu a0,8(s3) then subu, so the load-delay slot is filled; ours emits lh, nop, subu, lhu - the extra nop is the whole 1-instruction/4-byte gap.
+// Tried this round, all byte-identical at 89.57: x0 read before vs after nWidth; xOffset declared first in the list; 'pPrim->y0 - nHalf' without the u16* cast; x0 = pPrim->x0 (implicit s16->u16) instead of *(u16*)&pPrim->x0. Typed the read as SpriteDataView->xOffset (new field at 0x36, unk38[0x4] after it) with no byte change, so the body is realistic now.
 /*
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
@@ -693,10 +697,10 @@ void func_80025544(WorkListEntry* pTask) {
     u32 pNewBufferHead;
 
     pSpriteData = pTask->unk4;
-    if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
+    if (((SpriteDataView*)pSpriteData)->curSpriteFrame != 0) {
         return;
     }
-    xOffset = *(u16*)((u8*)pSpriteData + 0x36);
+    xOffset = ((SpriteDataView*)pSpriteData)->xOffset;
     pPrim = g_GfxCurWorkBuffer;
     pNewBufferHead = pPrim + 1;
     if (!(pNewBufferHead < g_GfxCurWorkBufferEnd)) {
@@ -717,7 +721,7 @@ void func_80025544(WorkListEntry* pTask) {
                               (long*)&sxy1, &sxy2, &flag, &flag) >> g_GfxOTDepthShift;
     pSpriteData->field_0x2e = nOTOffset;
 
-    x0 = *(u16*)&pPrim->x0;
+    x0 = pPrim->x0;
     nWidth = sxy1.vx - pPrim->x0;
     if (nWidth == 0) {
         nWidth = 1;
@@ -727,7 +731,7 @@ void func_80025544(WorkListEntry* pTask) {
     }
     nHalf = nWidth / 2;
     pPrim->x0 = x0 - nHalf;
-    pPrim->y0 = *(u16*)&pPrim->y0 - nHalf;
+    pPrim->y0 = pPrim->y0 - nHalf;
 
     setlen(pPrim, 3);
     *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
@@ -742,8 +746,10 @@ void func_80025544(WorkListEntry* pTask) {
     g_GfxCurWorkBuffer = pPrimTPage + 1;
     setDrawTPage(pPrimTPage, 0, 0, pSpriteData->field_0x3C_0 & 0x60);
     AddPrim(&g_GfxCurOT[nOTOffset], pPrimTPage);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
+
+
 
 void SpriteTaskNoOp(void) {}
 
