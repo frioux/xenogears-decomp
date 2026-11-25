@@ -842,9 +842,21 @@ void func_800888A4(void) {
 //   a1 and a2) plus the last block's three store order (retail stores 0x130, then
 //   scriptInstructionPointer, then 0x12C; two source orders were measured and
 //   neither reproduces it).
+// Round 463: re-measured 88.92% / 432 bytes (retail 428, ONE short) - both residuals
+// unchanged, and the tail's mechanism is now named. Wrapping JUST the last statement
+// in 'do { pCurActor->flags12C_0x10 = 2; } while (0);' splits the basic block and
+// the three tail stores come out in retail's order ([sw 0x130][sh 0xCC][sw 0x12C],
+// loads 0x130 then ip, instead of the 0x12C group first), which proves the reorder
+// is sched2 inside one block. The split costs the constant sharing retail's
+// single-block schedule has (retail materialises 0xFFFCFFFF during the type2 group
+// and 0x20000 inside the last group, and reuses them there), so that body is 86.10%
+// at the same 432 bytes. Writing the last 0x12C write whole-word as
+// '((u_int*)pCurActor)[0x4B] = (((u_int*)pCurActor)[0x4B] & ~0x30000) | 0x20000;'
+// measures 82.56% / 432. So the tail wants ONE block with the 12C load hoisted with
+// the other two and all three stores sunk - not reproducible from statement order.
+// The head's single size miss (li a0,1 hoisted above the frame saves, leaving a nop
+// in the first jal's delay slot where retail has the li) is untouched by any of this.
 /*
-extern void SpriteAllocClutRect(SpriteData*, s32, u_int);
-
 void func_800889BC(void) {
     SpriteData* pSpriteData;
     int type;
@@ -870,9 +882,9 @@ void func_800889BC(void) {
     pCurActor->flags130 = (pCurActor->flags130 & ~0xFF80000) | ((value2 & 0x1FF) << 19);
     pCurActor->scriptInstructionPointer += 9;
     pCurActor->flags12C_0x10 = 2;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
+
 
 // Start of particle handlers
 extern s32 g_FieldParticleTargetActor;
