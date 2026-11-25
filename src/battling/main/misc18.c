@@ -388,7 +388,7 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     if (g_BattleFacingUpdateEnabled == 0) {
         return 0;
     }
-    if ((pActor->flags & 0x8000000) == 0) {
+    if ((pActor->flags & BATTLE_ACTOR_FLAG_PLAYER2) == 0) {
         return 0;
     }
     if (BattleCheckPositionPastMapCenter(&pActor->position) != 0) {
@@ -403,8 +403,8 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
         pActor->flags |= 0x8000;
         pWork->setFlag8000 = 1;
         pWork->maxDistance = 0xFF;
-        pWork->targetAngle = 0x800;
-        pActor->angle = 0x800;
+        pWork->targetAngle = BATTLE_ANGLE_HALF_TURN;
+        pActor->angle = BATTLE_ANGLE_HALF_TURN;
         return 1;
     }
     if (v < 0x1001) {
@@ -413,7 +413,7 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     pActor->flags &= 0xFFFF7FFF;
     pWork->setFlag8000 = 0;
     pWork->maxDistance = 0;
-    pActor->angle = 0x800;
+    pActor->angle = BATTLE_ANGLE_HALF_TURN;
     return 1;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
