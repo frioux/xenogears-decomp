@@ -264,108 +264,107 @@ void MenuSetPolyG4Gradient(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
     pPoly->g3 = 0;
     pPoly->b3 = 0;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
-/* Best: 86.74% (324 bytes, same size) under XenoMenu260. Structure and
-   instruction multiset match; two residuals: (1) retail loads the 5th
-   parameter (`lbu t1,0x10(sp)`) after the four word stores and keeps its value
-   in the `beqz` delay slot (`li v0,1`), gcc hoists the lbu to the top of the
-   block and fills the slot with `sw a3,0xC(v1)`; (2) in every block after the
-   first, retail puts the `index*0x24` address in v1 and the `li 1`/`li 0x100`
-   constant in v0, gcc swaps them. Pointer local for the first five stores plus
-   a fresh `g_Menu->windowTweens[...]` re-deref after it is the closest shape (plain
-   re-deref everywhere is 80.41). Tried under 2.7.2 per the old note: field
-   order 0/4/8/C, s32* base, pointer local throughout. Also 95.35-class dead
-   zone, do not burn budget on it.
-void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
-    u8* pEntry;
+// A window's tween state, one per window: &((MenuWindowTweenTable*)g_Menu)->tweens[index].
+// misc6.c and misc7.c declare the same view of the three 0x24-byte records.
+typedef struct {
+    /* 0x00 */ s32 startX; // the window's x at offsetX == 0
+    /* 0x04 */ s32 endX; // where the tween stops
+    /* 0x08 */ s32 startY;
+    /* 0x0C */ s32 endY;
+    /* 0x10 */ s32 stepX; // added to offsetX per step, in 8.8 fixed point
+    /* 0x14 */ s32 stepY;
+    /* 0x18 */ s32 offsetX; // x offset from startX, in 8.8 fixed point
+    /* 0x1C */ s32 offsetY; // y offset from startY, in 8.8 fixed point
+    /* 0x20 */ u8 isDecreasingX; // set when endX < startX
+    /* 0x21 */ u8 isDecreasingY; // set when endY < startY
+    /* 0x22 */ u8 stepCount; // steps taken per update
+    /* 0x23 */ u8 isComplete; // set once the offset reaches its end
+} MenuWindowTween; // Size: 0x24
 
-    pEntry = g_Menu->windowTweens + index * 0x24;
-    ((s32*)pEntry)[0] = arg0;
-    ((s32*)pEntry)[2] = arg1;
-    ((s32*)pEntry)[1] = arg2;
-    ((s32*)pEntry)[3] = arg3;
-    if (arg2 < arg0) {
-        arg2 = arg0 - arg2;
-        pEntry[0x20] = 1;
+// g_Menu's head is the three tweens; this view keeps the array a real member so the
+// index scales against g_Menu itself.
+typedef struct {
+    /* 0x00 */ MenuWindowTween tweens[3];
+} MenuWindowTweenTable;
+
+void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index) {
+    s32 deltaX;
+    s32 deltaY;
+    MenuWindowTween* pTween;
+
+    pTween = ((MenuWindowTweenTable*)g_Menu)->tweens;
+    pTween += index;
+    pTween->startX = startX;
+    pTween->startY = startY;
+    pTween->endX = endX;
+    pTween->endY = endY;
+    if (endX < startX) {
+        deltaX = startX - endX;
+        pTween->isDecreasingX = 1;
     } else {
-        arg2 = arg2 - arg0;
-        pEntry[0x20] = 0;
+        deltaX = endX - startX;
+        pTween->isDecreasingX = 0;
     }
-    if (arg3 < arg1) {
-        arg1 = arg1 - arg3;
-        g_Menu->windowTweens[index * 0x24 + 0x21] = 1;
+    if (endY < startY) {
+        deltaY = startY - endY;
+        ((MenuWindowTweenTable*)g_Menu)->tweens[index].isDecreasingY = 1;
     } else {
-        arg1 = arg3 - arg1;
-        g_Menu->windowTweens[index * 0x24 + 0x21] = 0;
+        deltaY = endY - startY;
+        ((MenuWindowTweenTable*)g_Menu)->tweens[index].isDecreasingY = 0;
     }
-    if (arg2 < arg1) {
-        ((s32*)(g_Menu->windowTweens + index * 0x24))[4] = (arg2 << 8) / arg1;
-        ((s32*)(g_Menu->windowTweens + index * 0x24))[5] = 0x100;
+    if (deltaX >= deltaY) {
+        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX = 0x100;
+        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepY = (deltaY << 8) / deltaX;
     } else {
-        ((s32*)(g_Menu->windowTweens + index * 0x24))[4] = 0x100;
-        ((s32*)(g_Menu->windowTweens + index * 0x24))[5] = (arg1 << 8) / arg2;
+        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepY = 0x100;
+        ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX = (deltaX << 8) / deltaY;
     }
-    g_Menu->windowTweens[index * 0x24 + 0x22] = arg4;
-    ((s32*)(g_Menu->windowTweens + index * 0x24))[6] = 0;
-    ((s32*)(g_Menu->windowTweens + index * 0x24))[7] = 0;
-    g_Menu->windowTweens[index * 0x24 + 0x23] = 0;
+    ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepCount = stepCount;
+    ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetX = 0;
+    ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetY = 0;
+    ((MenuWindowTweenTable*)g_Menu)->tweens[index].isComplete = 0;
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
-/* Best: 77.69% (452 bytes, same instruction multiset) under XenoMenu260.
-   Loop, tail compares and both step accumulators all line up; the only
-   residual is the `addu` operand order on the three
-   `g_Menu->windowTweens + index * 0x24` address forms in the loop: retail emits
-   `addu a1,a1,v0` (base first), gcc 2.6 emits `addu a1,v0,a1` (scaled index
-   first). Writing the same address as an array subscript
-   (`((MenuTween*)g_Menu->windowTweens)[index]`, tried with a local typedef) makes
-   the pre-loop and the y-pair sites base-first too but drops the whole
-   function to 70.55%. A hoisted `s32 offset = index * 0x24;` local or a
-   loop-body `u8* pBase = g_Menu->windowTweens;` local is 68.17% (the multiply gets
-   hoisted and retail recomputes it per site).
-void func_801C8324(u8 index) {
+void func_801C8324(u_char index) {
+    MenuWindowTween* pTween;
     s32 i;
     s32 position;
-    u8* pEntry;
-    u8* pBase;
 
-    pEntry = g_Menu->windowTweens + index * 0x24;
-    for (i = 0; i < g_Menu->windowTweens[index * 0x24 + 0x22]; i++) {
-        pBase = g_Menu->windowTweens;
-        if (pBase[index * 0x24 + 0x20]) {
-            ((s32*)(pBase + index * 0x24))[6] -= ((s32*)(pBase + index * 0x24))[4];
+    pTween = ((MenuWindowTweenTable*)g_Menu)->tweens;
+    pTween += index;
+    for (i = 0; i < ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepCount; i++) {
+        if (((MenuWindowTweenTable*)g_Menu)->tweens[index].isDecreasingX) {
+            ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetX -=
+                ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX;
         } else {
-            ((s32*)(pBase + index * 0x24))[6] += ((s32*)(pBase + index * 0x24))[4];
+            ((MenuWindowTweenTable*)g_Menu)->tweens[index].offsetX +=
+                ((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX;
         }
-        if (pEntry[0x21]) {
-            ((s32*)pEntry)[7] -= ((s32*)pEntry)[5];
+        if (pTween->isDecreasingY) {
+            pTween->offsetY -= pTween->stepY;
         } else {
-            ((s32*)pEntry)[7] += ((s32*)pEntry)[5];
+            pTween->offsetY += pTween->stepY;
         }
     }
-    if (((s32*)(g_Menu->windowTweens + index * 0x24))[4] == 0x100) {
-        position = ((s32*)(g_Menu->windowTweens + index * 0x24))[6] / 256;
-        if (g_Menu->windowTweens[index * 0x24 + 0x20]) {
-            if (((s32*)(g_Menu->windowTweens + index * 0x24))[0] + position < ((s32*)(g_Menu->windowTweens + index * 0x24))[1]) {
-                g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
+    if (((MenuWindowTweenTable*)g_Menu)->tweens[index].stepX == 0x100) {
+        position = pTween->offsetX / 256;
+        if (pTween->isDecreasingX) {
+            if (pTween->startX + position < pTween->endX) {
+                pTween->isComplete = 1;
             }
-        } else if (((s32*)(g_Menu->windowTweens + index * 0x24))[1] <
-                   ((s32*)(g_Menu->windowTweens + index * 0x24))[0] + position) {
-            g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
+        } else if (pTween->endX < pTween->startX + position) {
+            pTween->isComplete = 1;
         }
     } else {
-        position = ((s32*)(g_Menu->windowTweens + index * 0x24))[7] / 256;
-        if (g_Menu->windowTweens[index * 0x24 + 0x21]) {
-            if (((s32*)(g_Menu->windowTweens + index * 0x24))[2] + position < ((s32*)(g_Menu->windowTweens + index * 0x24))[3]) {
-                g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
+        position = pTween->offsetY / 256;
+        if (pTween->isDecreasingY) {
+            if (pTween->startY + position < pTween->endY) {
+                pTween->isComplete = 1;
             }
-        } else if (((s32*)(g_Menu->windowTweens + index * 0x24))[3] <
-                   ((s32*)(g_Menu->windowTweens + index * 0x24))[2] + position) {
-            g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
+        } else if (pTween->endY < pTween->startY + position) {
+            pTween->isComplete = 1;
         }
     }
 }
-*/
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height) {
     pVertices[0].vx = x + 0xFF60;
     pVertices[0].vy = y + 0xFF90;
