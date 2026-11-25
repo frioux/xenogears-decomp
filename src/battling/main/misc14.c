@@ -913,6 +913,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 //    - GROUP 3 (the closing compare: retail position->$a0 / length->$v1, ours $v1/$v0 with the load reusing the dying base) is a local-alloc tie on the block's two QTYs, pre-sched2 and so not a scheduling artifact - no source shape was found for it in rounds 469/482.
 //    - A 4-minute permuter run from this exact body (round 482): base=545 best=545, 1309 iterations, NONE.
 //    - Presets re-measured this round on a decl-at-top copy of the same body: gcc-2.6.0 91.77, gcc-2.7.2-cdk 91.79, -G0 93.45, -O3 compile-failed. The unit's Default preset is right; nothing here says split the unit.
+// Round 495: un-parked and re-measured 93.45 / 764 bytes / 191 insns, same 24 differing lines in the same 4 groups, so the round-482 note stands. One new datapoint for GROUP 3: writing the compare operand-swapped ('if (pAnim->config->length != pAnim->position)') DOES give retail's length-in-v1 (pConfig v0, length v1) but then position reuses the dead v0, so the sequence grows a nop and reads 92.86 / 192 insns. Retail's position-in-a0 therefore needs v0 to still be live at the position load, i.e. retail's RTL had the length read first AND pConfig live across it - a swap alone cannot get there, and 2.7.2 will not keep an absolute value live without a use.
 /*
 s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
     Misc14AnimEntry *pEntry;
@@ -1001,7 +1002,6 @@ s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B730);
 
-
 // A swapped-out execution context: the register file func_8008BB3C restores
 // (word 0x1C $gp, 0x1D $sp, 0x1E $fp, 0x1F $ra) and the stack it runs on.
 typedef struct {
@@ -1071,6 +1071,7 @@ void func_8008BB00(Misc14Entry *pDst) {
 */
 
 // Best attempt: objdiff 97.50%, 32 bytes = the original's exact size and instruction sequence; ONLY the reused load temp differs ($t0 in retail, $v0 in ours). Re-measured round 482: 97.50 / 32 bytes / 8 insns, unchanged; twin_for.py reports no twin and the lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait (written from this function and its sibling func_8008BB00) closes the axis: a leaf, call-free, one-block body never reaches global_alloc, so local-alloc's scan hands the QTY the first free register and every cc1 in tools/ starts at $2. -G0, 2.6.0, 2.7.2-cdk, -O1/-O3, an 8-byte struct copy (70.71), a struct pointer, a cc1_probe spelling sweep and a 2-minute permuter run are all recorded there. This is the retail compiler's REG_ALLOC_ORDER, not a spelling - do not spend another lane on it.
+// Round 495: un-parked and re-measured: 97.50% / 32 bytes / 8 insns, the single residual is still retail's $t0 against local-alloc's $v0. The lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait covers it (leaf, one block: no source shape reaches the pick).
 /*
 void func_8008BB1C(Misc14Entry *pSrc) {
     u32 value;
@@ -1081,6 +1082,7 @@ void func_8008BB1C(Misc14Entry *pSrc) {
     D_80096D8C = value;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
+
 
 
 
