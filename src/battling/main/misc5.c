@@ -759,7 +759,30 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
    pair in ascending order, unk68 stored with vy instead of after unk6A, the
    u/v block before the unk64/68 stores, and slot->unk0 in place of a pMotion
    pointer (all 82-85%); the first two halves of the function and the trailing
-   search loop are byte-identical. */
+   search loop are byte-identical.
+   RE-MEASURED round 475: 85.67 does not reproduce; the plain body is 82.95% /
+   144 insns / 576 bytes. THE FIND: the type-2 (two-vertex beam) slot's two
+   dupe-check fields are the wrong WIDTH in BattleSlot and that is the whole
+   instruction deficit. Retail reads the field at 0x6C with lh and stores it with
+   sh (a 16-bit g_BattleDrawFlags copy) and the field at 0x70 with lw and stores it
+   with sw (the BattleEffectPackKey); BattleSlot has them the other way round
+   (u32 unk6C, u16 unk70), because 0x6C and 0x70 are where the TYPE 1 slot keeps
+   its unk6C and unk70. Writing the accesses 16-bit/32-bit (the casts below, a
+   probe form) gives 84.53% / 143 insns / 572 bytes. The real fix is a union over
+   0x6C..0x73 holding a beam view (0x6C u16 drawFlags, 0x6E pad, 0x70 u32 key)
+   beside the line view the struct has now (0x6C u32 unk6C, 0x70 u16 unk70,
+   0x72 s16 drawFlags); func_8007C880's asm really does touch 0x72/0x78, so the
+   two views cannot both be plain fields. Do the union first, then re-measure.
+   RESIDUAL after the widths: the block between the pPos stores and the
+   packets[1] struct copy. Retail fills the load-delay slots of the
+   g_BattleEffectClutX, g_BattleEffectClutY, D_80092694 and
+   g_BattleEffectSpawnTick loads with the next load or with the u/v store pairs
+   and spreads the move a2,t0, addiu t1,t0,40 and addiu t2,t0,32 address setups
+   through the block; ours emits a nop after each of those loads and pairs each
+   load with its store, ending 2 instructions / 8 bytes longer. Both scan loops
+   and the trailing search loop are byte-identical apart from the first loop's
+   anchor: retail names D_80092B44 (= g_BattleEffectSlots + 0x6C), we name
+   g_BattleEffectSlots, same linked bytes. */
 /*
 void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     BattleSlot *pSlot = g_BattleEffectSlots;
@@ -772,8 +795,8 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0) {
-            if (pEntry->unk70 == arg3) {
-                if (pEntry->unk6C == g_BattleDrawFlags) {
+            if (*(u32 *)&pEntry->unk70 == arg3) {
+                if (*(u16 *)&pEntry->unk6C == g_BattleDrawFlags) {
                     return;
                 }
             }
@@ -797,7 +820,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->x = pPos->vx;
     pSlot->y = pPos->vy;
     pSlot->z = pPos->vz;
-    pSlot->unk6C = g_BattleDrawFlags;
+    *(u16 *)&pSlot->unk6C = g_BattleDrawFlags;
     pSlot->unk64 = pVec->vx;
     pSlot->vy = pVec->vy;
 
@@ -814,7 +837,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pMotion->v1 = v;
     pMotion->v0 = v;
 
-    pSlot->unk70 = arg3;
+    *(u32 *)&pSlot->unk70 = arg3;
     pSlot->unk60 = 0;
     pSlot->unk6A = g_BattleEffectSpawnTick;
     pSlot->unk68 = pVec->vz;
@@ -826,7 +849,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     id = g_BattleEffectSpawnTick - 1;
     pEntry = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pEntry++) {
-        if (pEntry->active != 0 && pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->type == 2 && pEntry->unk6A == id) {
+        if (pEntry->active != 0 && *(u32 *)&pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->type == 2 && pEntry->unk6A == id) {
             pSlot->unk60 = (u32)pEntry;
         }
     }
@@ -834,6 +857,8 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
+
+void func_8007D918(u32 *pOt);
 
 void BattleEffectQueueMatrixPrims(MATRIX *pMat, s32 arg1) {
     MATRIX transposed;
@@ -1131,31 +1156,36 @@ void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
-
-/* PARK 92.52% at retail's exact size (528 bytes, 132 instructions), re-measured
-   live in round 312. The parked text below now COMPILES: round 310's failure was
-   simply that this block was missing its final closing brace. One more thing a
-   live definition needs: BattleEffectQueueMatrixPrims above calls this function
-   with no prototype in scope, so un-parking it without an
-   `extern void func_8007D918(u32 *pOt);` above the caller is a conflicting-type
-   error against the implicit `int ()` declaration.
-   The body is structurally retail: the preheader's camera loads (s0/t9/t8), the
-   0xA-byte entry stride over the doubled draw index, the three-vertex RTPT
-   accumulator, the per-prim SZ1/SZ2/SZ3 read-back through 0x1F8000B0, the 24-bit
-   OT link and the shared fall gravity/expiry tail. Only REGISTER ASSIGNMENT
-   differs, on five loop-carried values: retail counter=$t0, entry=$t1,
-   entry+7=$a1, prim=$a2, state=$a3; gcc gives state=$t0, counter=$t1,
-   entry=$a0, entry+7=$a2, prim=$a3. Tried with no effect: declaration order
-   (eight permutations), `i = buffer;` hoisted before the loop init (92.78% but
-   524 bytes - one instruction short, it loses retail's preheader counter copy),
-   s32/u32 camera reads, u32 state/counter. Preset screen, round 312: gcc 2.6.0
-   93.42, gcc 2.7.2-cdk 82.89, -O3 92.52, -G0 92.52 - so it is not a preset.
-   The permuter cannot run on this body (the inline-asm GTE macros fail its
-   parser). Facts: D_800926C0 is an ARRAY of prim-template pointers indexed by
-   g_BattleDrawBufferIndex (D_800926C4 is element 1); BattleSpriteEntry.groundY
-   is s16, read with lh, and the gravity tail compares a s16 copy of y. */
-
+// PARK 92.53% at retail's exact size (528 bytes, 131 instructions). NOTE FIX: the
+// previous park was measured on a body with stride 0xA per iteration where retail's
+// loop advances the entry pointer 0x14 (= two 0xA entries, counter steps 2), so the
+// old note's body visited half the array it should; the parked body below is
+// semantically right and scores the same 92.53%. The prologue, the giv anchor
+// (entry+7), the multiply chain, the three-vertex RTPT block and the OT link are
+// INSTRUCTION-IDENTICAL to retail; the whole residual is one permutation of five
+// caller-saved registers holding the loop longs:
+//   retail  regular entry=$t1 anchor=$a1 prim=$a2 n=$a3 i=$t0
+//   ours    entry=$a0 anchor=$a2 prim=$a3 n=$t0 i=$t1
+// i.e. ours is retail shifted one register towards caller-saved, and the cause is
+// visible in the prologue: retail emits 'addu $t1,$a0,$v0' (the loaded
+// g_BattleSpriteEntries pointer dies and the entry base takes a NEW register) while
+// every spelling we have tried emits 'addu $a0,$a0,$v0' (the base coalesces into
+// the pointer's $a0, so the four remaining longs each take one register lower).
+// Tried this round with no effect on that coalesce or the score: pEntry += 2 to fix
+// the stride (92.53), '&((BattleSpriteEntry *)g_BattleSpriteEntries)[buffer * 2]'
+// (92.49), an explicit 'u8 *pEntries = g_BattleSpriteEntries;' local (92.49 - gcc
+// optimises the local away and still coalesces). Previously tried (round 312):
+// eight declaration permutations, 'i = buffer' hoisted before the loop init
+// (92.78 but 524 bytes, one instruction short), s32/u32 camera reads, u32
+// state/counter; preset screen 2.6.0 93.42, 2.7.2-cdk 82.89, -O3 92.52, -G0 92.52.
+// The permuter cannot run on this body (the inline-asm GTE macros fail its parser),
+// so this one needs either a source shape that stops the coalesce or an allocator
+// build with different REG_ALLOC_ORDER. Facts: D_800926C0 is an ARRAY of
+// prim-template pointers indexed by g_BattleDrawBufferIndex (D_800926C4 is element
+// 1); BattleSpriteEntry is 0xA bytes, groundY is s16 read with lh and the gravity
+// tail compares a s16 copy of y; the function needs 'extern void
+// func_8007D918(u32 *pOt);' in scope for BattleEffectQueueMatrixPrims, which calls
+// it.
 /*
 void func_8007D918(u32 *pOt) {
     BattlePrimTemplate *pTemplate;
@@ -1178,7 +1208,7 @@ void func_8007D918(u32 *pOt) {
     pEntry = (BattleSpriteEntry *)(g_BattleSpriteEntries + buffer * sizeof(BattleSpriteEntry));
     pTemplate = (BattlePrimTemplate *)D_800926C0[buffer];
     n = 0;
-    for (i = buffer; i < 0xFC; i += 2, pEntry++) {
+    for (i = buffer; i < 0xFC; i += 2, pEntry += 2) {
         if (pEntry->life == 0) {
             continue;
         }
@@ -1222,8 +1252,10 @@ void func_8007D918(u32 *pOt) {
         }
         pEntry->vy += 2;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
+
+
 
 void BattleInitSpriteBuffers(void) {
     u8 *pTemplateBuf;
