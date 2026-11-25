@@ -895,6 +895,13 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 //    2. (all three loop tails, 9 differing lines) retail emits the counter increment BEFORE the count reload ('lw pConfig / addiu i,1 / lh count / nop / slt') where we always get 'lw pConfig / nop / lh count / addiu i,1 / slt'; loop 2 additionally has the pointer increment between them in retail. Measured identical this round: the for form, the while form with 'i++' as the last body statement, and an explicit 'if (count > 0) do {... i++;} while (i < count)' wrapper (that one does reproduce the tail order but drops the frame to 0x50 and breaks the prologue). So the increment-before-reload order is not reachable from the loop construct.
 //    3. (2 differing lines) the closing compare picks $v1 for position and $v0 for length where retail uses $a0/$v1.
 //    Bodies tried and dead (round 469): bits as a fresh temp (94.16 but one instruction short), the u8 'next' local, the three loop forms above. Two of the three residuals are allocator ties with everything else byte-exact, so this is a permuter-from-this-body job rather than a hand job.
+// Best attempt: objdiff 93.45%, 764 bytes / 191 insns = retail's EXACT size, 24 differing lines in the 4 residual groups listed below (round 469's spellings, keep them). NOTE the 94.16% in the older text belongs to the 760-byte 'bits |= (s8)pScript[1] << 6;' body, which is one instruction SHORT and can never link; 93.45 / 764 is the honest park.
+// Round 482 closed the remaining axes; do not spend another lane on this function:
+//    - GROUP 2 (the three loop tails: retail puts 'addiu i,1' BEFORE the count reload, we put it after) is sched2's, not the source's: compiling this unit's own .i with the unit cc1 plus '-fno-schedule-insns -fno-schedule-insns2' gives 88.33% / 808 bytes, i.e. retail's order is not the RTL order either, and three loop forms were already measured identical in round 469.
+//    - GROUP 1 (retail 'lbu / sll 0x18 / sra 0x12' = extend-the-byte-then-shift-6, ours 'sll 0x1e / sra 0x18') is closed by a cc1_probe sweep: ONLY the parked 'bits |= (s8)(pScript[1] << 6);' keeps retail's lbu (with sll30/sra24); '(s8)pScript[1] << 6', 'u8 b' local, 's8 n' assigned in a later statement, 's32 e = (s8)pScript[1]' as its own statement, a 'u16 op' local and an s8-pointing script pointer ALL fold to 'lb + sll 6' (190 insns / 760 bytes). Retail's lbu therefore needs gcc's combine to skip the extend-into-load fold, which no spelling reaches.
+//    - GROUP 3 (the closing compare: retail position->$a0 / length->$v1, ours $v1/$v0 with the load reusing the dying base) is a local-alloc tie on the block's two QTYs, pre-sched2 and so not a scheduling artifact - no source shape was found for it in rounds 469/482.
+//    - A 4-minute permuter run from this exact body (round 482): base=545 best=545, 1309 iterations, NONE.
+//    - Presets re-measured this round on a decl-at-top copy of the same body: gcc-2.6.0 91.77, gcc-2.7.2-cdk 91.79, -G0 93.45, -O3 compile-failed. The unit's Default preset is right; nothing here says split the unit.
 /*
 s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
     Misc14AnimEntry *pEntry;
@@ -1052,7 +1059,7 @@ void func_8008BB00(Misc14Entry *pDst) {
 }
 */
 
-// Best attempt: objdiff 97.50%, 32 bytes = the original's exact size and instruction sequence; ONLY the one reused load temp differs ($t0 in retail, $v0 in ours). Re-measured round 469: 97.50 / 32 bytes / 8 insns, unchanged, and the lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait (written from this function and its sibling func_8008BB00) closes the axis: a leaf, call-free, one-block body never reaches global_alloc, so local-alloc's scan hands the QTY the first free register and every cc1 in tools/ starts at $2. An 8-byte struct copy (70.71), a struct pointer, a 2-minute permuter run, -G0 (94.29 on the sibling) and the cc1_probe spelling sweep are all recorded there. twin_for.py reports no twin. This is the retail compiler's REG_ALLOC_ORDER, not a spelling - do not spend another lane on it.
+// Best attempt: objdiff 97.50%, 32 bytes = the original's exact size and instruction sequence; ONLY the reused load temp differs ($t0 in retail, $v0 in ours). Re-measured round 482: 97.50 / 32 bytes / 8 insns, unchanged; twin_for.py reports no twin and the lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait (written from this function and its sibling func_8008BB00) closes the axis: a leaf, call-free, one-block body never reaches global_alloc, so local-alloc's scan hands the QTY the first free register and every cc1 in tools/ starts at $2. -G0, 2.6.0, 2.7.2-cdk, -O1/-O3, an 8-byte struct copy (70.71), a struct pointer, a cc1_probe spelling sweep and a 2-minute permuter run are all recorded there. This is the retail compiler's REG_ALLOC_ORDER, not a spelling - do not spend another lane on it.
 /*
 void func_8008BB1C(Misc14Entry *pSrc) {
     u32 value;
@@ -1063,6 +1070,7 @@ void func_8008BB1C(Misc14Entry *pSrc) {
     D_80096D8C = value;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
+
 
 
 
