@@ -474,35 +474,50 @@ void BattleCreateSlotAnimationTask(SpriteData *pActor, s32 arg1) {
 // condition animations, re-seats the ones standing away from their slot, and then
 // per live slot plays the condition's animation and starts/stops the extra
 // animations the animation-override word's bits 13-15 select.
-// 85.96% (1248 bytes vs retail 1228; 312 insns vs 307) under the unit preset
-// XenoBattleTailCdk0. REDO-LANE rewrite from the assembly: structure is right (four slot loops with
-// the same three jump tables and the same call order) and the old body's phase-4 continues that
-// skipped the bit loops are gone - the animation-override bit loops now run for every live slot as
-// retail does, which is what took it from 74.18 to 85.96. LOAD-BEARING spellings: the phase-1 switch
-// index must be (s8) - a bare u8 index drops the sll 24/sra 24 pair retail has (measured with
-// cc1_probe); BATTLE_ABS_DIFF (the duplicated subtraction) is what produces retail's reversed subu in
-// the phase-2 distance test; the done-mask test must be ORed into the anim != 0x15 test, and the
-// bit-13/14/15 switches need case labels 5..12 (8 empty arms) or gcc emits a beq tree instead of the
-// 11-word tables retail has (both measured with cc1_probe).
-// RESIDUALS: (a) in all three sprite-table walks gcc folds 0x8C8C into 0x8000 + lw 0xC8C(v0) where
-// retail materialises the whole constant (ori 0x8C8C; addu; lw 0(v0)) - tried the base as a u8*
-// local, as (u8*)g_BattleStateWork, and a s32 offset local (the last was worse), none forces it;
-// (b) phase 2: gcc picks the 4-byte sprite pointer as the base and reads the slot as base+16 with
-// lbu -8 / lhu -2 / lhu 0, where retail reads lbu 8 / lhu 14 / lhu 16 off its own slot pointer - tried
-// initialising the sprite pointer from the slot pointer and from the symbol, both the same; the
-// pPosition local that keeps pSprite in s1 also costs the extra move a1 and one j;
-// (c) phase 4: gcc rematerialises g_BattleStateWork inside the loop instead of keeping it in fp like
-// retail, and derives the slot pointer as base+7; (d) prologue/register rotation: pSlot and the
-// sprite pointer take s3/s2 swapped against retail's s2/s3.
-// A 4-minute permuter run on the 74.18% body found nothing; not re-run on this body.
+// Older rounds, kept because they are still true: a 4-minute permuter run on the 74.18% body found
+// nothing (not re-run on this one); phase 2 was also tried with the sprite pointer initialised from
+// the slot pointer and from the symbol (same result both ways), and the 0x8C8C reach was tried with
+// the base as a u8* local, as (u8 *)g_BattleStateWork and as an s32 offset local (the last worse).
+// 86.17% (1248 bytes vs retail 1228; 312 insns vs 307) under the unit preset XenoBattleTailCdk0.
+// Structure is right: four slot loops, retail's three jump tables (17/11/11 words with the 4-byte
+// alignment word after each) and retail's call order. This round replaced the phase-2
+// BattleFixed16Vector pointer local with the header's BattleSpriteState view (position.xWhole /
+// position.zWhole / targetPosition.xyz, the spelling misc27 matched with) and the phase-4
+// byte-arithmetic sprite reach with the file's own BattleSpriteSlots view: 85.96 -> 86.17 and the
+// local that only held a cast is gone. LOAD-BEARING spellings kept: the phase-1 switch index must
+// be (s8) (a bare u8 index drops retail's sll 24/sra 24 pair); BATTLE_ABS_DIFF (duplicated
+// subtraction) gives retail's reversed subu; the done-mask test must be ORed into the anim != 0x15
+// test; the bit-13/14/15 switches need the empty case labels 5..12 or gcc emits a beq tree instead
+// of retail's 11-word tables.
+// RESIDUALS, all four measured again this round:
+// (a) 0x8C8C: retail materialises the whole constant (li 0x8c8c; addu; lw 0(v0)), gcc splits it
+//     (li 0x8000; addu; lw 3212(v0)) in phases 1-3 and (lui 0x1; addiu -29556; addu) in phase 4.
+//     Same instruction count in phases 1-3, so only the register differs; phase 4 pays 2.
+// (b) phase 4 keeps no invariant copy of g_BattleStateWork: retail holds it in s8/fp (`addiu
+//     s8,v0,%lo; move s5,s8`), this body re-forms lui+addiu inside the loop and derives the slot
+//     pointer as base+7 (`addiu s6,a2,7`, reads lbu 1(s6)/lbu 0(s6)) where retail anchors at +0
+//     (lbu 8(s5)). A source local for the base is not enough: with the sprite reach indexed by i
+//     the base is a rematerialisable symbol address, so gcc drops the register. Also the phase-4
+//     added-bits table base is hoisted to s8 here where retail re-forms it in t0 per iteration.
+// (c) phase 2 anchors the slot pointer at +0x10 (s1 = s2+16, reads -8/-2/0) and puts pSprite in s0
+//     where retail has s1 = pSprite, s0 = pSlot anchored at +0; and the second half of the ||
+//     takes the inverted branch shape (bltz + beqz + j, 3 instructions more than retail's
+//     bgez/slti/subu/slti), which is gcc choosing a different false-target layout for the second
+//     term only. Store order in the targetPosition triple also differs (y = 0 first here, retail
+//     x, y, z) - the scheduler is on in this preset so statement order does not drive it.
+// (d) prologue: pSlot and the sprite walker take s3/s2 swapped against retail's s2/s3.
+// Tried and rejected this round: BATTLE_SLOT_INDEX with the operands swapped, i.e. ((flags & 3) <<
+// 2) | (flags_0xA8 >> 30) so the `or` matches retail's operand order, 84.84 (registers cascade);
+// phase 4 with the sprite base hoisted as (u8 *)g_BattleStateWork + 0x8C8C, 86.03 / 310 insns
+// (2 instructions smaller but the score falls); -O3 46.64, -O1 73.53, gcc-2.6.0 does not compile -
+// the preset is right. Not permuter-eligible (below 99%).
 /*
 void func_800BFE48(void) {
     BattleActorSlot *pSlot;
-    BattleFixed16Vector *pPosition;
     SpriteData *pSprite;
     SpriteDataI3 *pAnimState;
     u8 *pSpriteSlots;
-    u8 *pSlotBytes;
+    BattleSpriteSlots *pSprites;
     s32 anim;
     s32 i;
     s32 bit;
@@ -543,13 +558,12 @@ void func_800BFE48(void) {
             pSprite = *(SpriteData **)(pSpriteSlots + 0x8C8C);
             if (pSprite != NULL && BattleGetActorConditionCode(i) != 8 &&
                 (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
-                pPosition = (BattleFixed16Vector *)&pSprite->position;
-                if (BATTLE_ABS_DIFF(pPosition->xWhole - pSlot->x) >= 9 ||
-                    BATTLE_ABS_DIFF(pPosition->zWhole - pSlot->z) >= 9) {
+                if (BATTLE_ABS_DIFF(((BattleSpriteState *)pSprite)->position.xWhole - pSlot->x) >= 9 ||
+                    BATTLE_ABS_DIFF(((BattleSpriteState *)pSprite)->position.zWhole - pSlot->z) >= 9) {
                     pSprite->flags_0xAC.flags |= 0x40;
-                    pSprite->field_0xA0 = pSlot->x;
-                    pSprite->field_0xA2 = 0;
-                    pSprite->field_0xA4 = pSlot->z;
+                    ((BattleSpriteState *)pSprite)->targetPosition.x = pSlot->x;
+                    ((BattleSpriteState *)pSprite)->targetPosition.y = 0;
+                    ((BattleSpriteState *)pSprite)->targetPosition.z = pSlot->z;
                     SpritePlayAnimation(pSprite, 3);
                 }
             }
@@ -566,11 +580,11 @@ void func_800BFE48(void) {
         }
         pSpriteSlots += 4;
     }
-    pSlotBytes = (u8 *)g_BattleStateWork;
+    pSprites = (BattleSpriteSlots *)g_BattleStateWork;
     pSlot = g_BattleStateWork;
     for (i = 0; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (pSlot->inUse == 0) {
-            pSprite = *(SpriteData **)(pSlotBytes + i * 4 + 0x8C8C);
+            pSprite = pSprites->sprites[i];
             if (pSprite != NULL) {
                 if ((s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
                     BattleActorSetFacingFromSideFlag(i);
@@ -651,6 +665,7 @@ void func_800BFE48(void) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
+
 
 
 // The battle state work block as the slot pass reads it: the actor slot rows at the
