@@ -531,10 +531,8 @@ s32 WorldMapInitActorAtScrollPosition(s32 index) {
 // The scratchpad block must be in retail emitted store order (pRot[2].vz, pRot[2].vx, pRot[1].vz, ...): with the p->unk50/58/60 loads interleaved cc1 fills their load-delay slots with the two remaining zero stores, and no do/while barrier is needed. That alone took 91.53 to 93.60. Natural per-vector vx/vy/vz order NOT measured this round.
 // Flat at 93.60 (436 differing lines each): a single reused MATRIX pointer local; four separate pointer locals; the chained pEntries[1] = pEntries[2] = pEntries[3] = src form (compiles identically); a WorldMapState pointer temp for the last two runs (coalesced away); -O3 (93.6); gcc-2.7.2-cdk-psx worse (82.13); gcc-2.6.0 and -G0 do not compile this unit. One pEntries assignment instead of four makes gcc CSE the load into one register and drop three reloads, so the four assignments stay.
 // permute.sh 3 min from this body: PERMUTER_BETTER base=2200 best=1060; the only edit that helps routes two of the four loads through an inline WorldMapState-to-WorldMapEntry conversion helper, i.e. a pseudo-renumbering artifact with no realistic spelling that reproduces it, so it is not ported.
-/*
 s32 func_800783E8(s32 index) {
     WorldMapActor *p;
-    WorldMapEntry *pEntries;
     SVECTOR *pRot;
 
     p = g_WorldMapSlots + index;
@@ -568,27 +566,33 @@ s32 func_800783E8(s32 index) {
     RotMatrixYXZ((SVECTOR *)0x1F8000A8, (MATRIX *)0x1F800110);
     RotMatrixYXZ((SVECTOR *)0x1F8000B0, (MATRIX *)0x1F800130);
     RotMatrixYXZ((SVECTOR *)0x1F8000B8, (MATRIX *)0x1F800150);
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[3].matrix = *(MATRIX *)0x1F800150;
-    pEntries[2].matrix = pEntries[3].matrix;
-    pEntries[1].matrix = pEntries[2].matrix;
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[5].matrix = *(MATRIX *)0x1F800130;
-    pEntries[4].matrix = pEntries[5].matrix;
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[12].matrix = *(MATRIX *)0x1F8000F0;
-    pEntries[8].matrix = pEntries[12].matrix;
-    pEntries[10].matrix = pEntries[8].matrix;
-    pEntries[6].matrix = pEntries[10].matrix;
-    pEntries = (WorldMapEntry *)g_WorldMapGroups;
-    pEntries[13].matrix = *(MATRIX *)0x1F800110;
-    pEntries[9].matrix = pEntries[13].matrix;
-    pEntries[11].matrix = pEntries[9].matrix;
-    pEntries[7].matrix = pEntries[11].matrix;
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[3].matrix = *(MATRIX *)0x1F800150;
+        pEntries[2].matrix = pEntries[3].matrix;
+        pEntries[1].matrix = pEntries[2].matrix;
+    }
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[5].matrix = *(MATRIX *)0x1F800130;
+        pEntries[4].matrix = pEntries[5].matrix;
+    }
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[12].matrix = *(MATRIX *)0x1F8000F0;
+        pEntries[8].matrix = pEntries[12].matrix;
+        pEntries[10].matrix = pEntries[8].matrix;
+        pEntries[6].matrix = pEntries[10].matrix;
+    }
+    {
+        WorldMapEntry *pEntries = (WorldMapEntry *)g_WorldMapGroups;
+        pEntries[13].matrix = *(MATRIX *)0x1F800110;
+        pEntries[9].matrix = pEntries[13].matrix;
+        pEntries[11].matrix = pEntries[9].matrix;
+        pEntries[7].matrix = pEntries[11].matrix;
+    }
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
 
 s32 WorldMapEnterNop(void) {
     return 1;
