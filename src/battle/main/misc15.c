@@ -9,6 +9,11 @@
 #define BATTLE_COMMAND_NONE 0xFF
 // The low bits of a g_BattleCommandEntries flags word that pick the target mode.
 #define BATTLE_COMMAND_TARGET_MODE_MASK 0x7
+// The command id the four-slot menu and the two-slot one queue with a slot's action
+// (BattleQueueCommandF3WithSlotMask and BattleActivateSelectedCommand write the same byte).
+#define BATTLE_COMMAND_ID_SLOT 0xF3
+// The bit of a 0x170-byte slot row's flags word that marks the slot as carrying a queued command.
+#define BATTLE_COMMAND_ROW_FLAG_QUEUED 0x800
 // The actor slots the u16 slot mask walks, party slots included: BATTLE_ACTOR_SLOT_COUNT and
 // BATTLE_PARTY_SLOT_MASK are include/battle/actor.h's, which this unit does not include.
 #define BATTLE_ACTOR_SLOT_COUNT 11
@@ -911,42 +916,15 @@ void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
     BattleBeginAnimTask(value);
     BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
-/* ROUND 471 re-measured from an unpark: 93.72% (908 bytes / 227 insns against retail's
-   884 / 221). The body below is the best and it is unchanged. The whole residual is TWO
-   preheader la pairs plus the s4/s5 save/restore pair: gcc hoists the addresses of
-   g_BattleCommandSlotIds and g_BattleCommandCodes out of the for (i = 0; i < 7; i++) loop
-   into $s5/$s4 (+6 insns net), where retail re-forms each inside the loop with the
-   lui at / addu at,at,v1 / sb %lo(sym)(at) macro. The third store's symbol,
-   g_BattleCommandRecords, is NOT hoisted in either compile - it keeps the same
-   sb %lo(sym) form ours and retail share.
-   THE SPELLING IS NOT THE DIFFERENCE, and this round proves it: the same C subscript
-   expression stores through g_BattleCommandSlotIds / Codes before the loop in the
-   flags & 0x800 block, and both compiles emit the macro form there
-   (sb $18,g_BattleCommandCodes($2)); only the in-loop copies hoist. The only thing that
-   separates the two hoisted symbols from the third is that they are also referenced
-   BEFORE the loop, so the hoist is a cse1/loop.c ordering on a symbol that already
-   carries a REG_EQUAL, not a source shape.
-   Mechanism read out of cc1's own dump (gcc-2.6.0-psx, unit flags plus -dL): the loop
-   reports five movables - insns 266 (const 0xFF) and 310 (const 0xFFFF) "not desirable",
-   292 the count * 0x40 ashift "cond savings 1 not desirable", plus two life-4 values
-   "moved to 491/493/495" - and there is NO "dest address ... add (symbol_ref)" giv line
-   for this loop, while BattleQueueOneActorCommand and BattleParseNumberToDigits do print
-   one, so this is not strength_reduce's dest-address giv path. -fno-strength-reduce,
-   -fno-rerun-cse-after-loop, -fno-caller-saves and -fno-cse-follow-jumps each still emit
-   both la pairs (2 hits every time).
-   Preset re-closed with try_flags.sh on this body: gcc-2.6.0 -O2 -G8 93.72, -O2 -G0
-   identical 93.72, -O1 79.60, -O3 compile-failed, gcc-2.7.2 91.31, gcc-2.7.2-cdk
-   compile-failed. The unit is XenoBattle260 (2.6.0) and that is still the best preset.
-   Below 99%, so no permuter run. Dead spellings from earlier rounds (do not retry):
-   do-while-around-each-store 93.58, the (mem_addr)sym index-first cast, and a
-   pSlot pointer local. What got this from 87.36 to 93.72 was the typed
-   g_BattleCommandRecords[count].slotMask spelling: the old body wrote
-   *(u16 *)(g_BattleCommandRecords + count * 72), which on a BattleCommandRecord *
-   adds count * 72 * 0x48; the stride is 72, hence sizeof(BattleCommandRecord) on the
-   u8 tables and 36 on the u16 g_BattleCommandSlotMasks. */
+// The four-slot command menu's exit phase: func_8008C81C's return value picks the branch -- a
+// cancelled or confirmed menu just clears the display, otherwise this walks the commands the
+// player queued (g_BattleCommandQueue->unk2C4) and queues each one as a battle command, then
+// waits for the queue to run dry. Returns 1 while the queued commands are being run, 0 when
+// the menu ended without any.
 s32 func_8008C4A8(u8 arg0) {
     s32 result;
     s32 i;
+    s32 off;
 
     result = 1;
     if ((func_8008C81C(arg0) & 0xFF) != 0) {
@@ -964,19 +942,19 @@ s32 func_8008C4A8(u8 arg0) {
         func_800877E0(arg0, g_BattleCommandQueue->slots[arg0].targetSlot);
         D_800C4928 = result;
         BattleSetupActorSlotDisplay(arg0);
-        if ((*(u16 *)(D_800CCD1C + g_BattleCommandQueue->slots[arg0].targetSlot * 0x170) & 0x800) != 0) {
+        if ((((BattleCommandRow *)(D_800CCD1C + g_BattleCommandQueue->slots[arg0].targetSlot * sizeof(BattleCommandRow)))->flags & BATTLE_COMMAND_ROW_FLAG_QUEUED) != 0) {
             g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
-            g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = 0xF3;
+            g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = BATTLE_COMMAND_ID_SLOT;
             g_BattleCommandSlotMasks[g_BattleCommandQueue->count * 36] = BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
             g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
         }
-        for (i = 0; i < 7; i++) {
-            if (g_BattleCommandQueue->unk2C4[i] != 0xFF) {
-                s32 off;
-
+        for (i = 0; i < BATTLE_COMBO_STEP_MAX; i++) {
+            if (g_BattleCommandQueue->unk2C4[i] != BATTLE_COMMAND_NONE) {
                 g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2C4[i] + 8;
                 BattleBeginActorAction(arg0, BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot), g_BattleCommandQueue->unk2DC - 1);
                 BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
+                // The queue count is re-read for each of the two records: the store between
+                // them can alias the queue, so the second index is not the first one's value.
                 off = g_BattleCommandQueue->count * sizeof(BattleCommandRecord);
                 g_BattleCommandSlotIds[off] = g_BattleCommandQueue->unk2DC - 1;
                 off = g_BattleCommandQueue->count * sizeof(BattleCommandRecord);
