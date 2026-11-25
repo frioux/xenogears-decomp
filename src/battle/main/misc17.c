@@ -1151,40 +1151,53 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
-/* 92.05% (1552 bytes against retail's 1588, 388 insns against 397; frame 0x98 against
-   retail's 0xB0). Everything structural is right and measured: the char-4/unkB7 guard,
-   places[] = {100, 10}, the character-vs-gear weapon-id pick (characters[].extraWeaponIds[0]/[3]
-   with the 0x2286 quantities, gears[characters[].gearId] with the 0x22B6 ones), the two
-   text-buffer passes, both BattleLoadImageAndSync uploads per row, the slash and percent
-   10 digit passes with the drawn latch, the free loop, and the tail written with the house
-   pool idiom (g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28,
-   spelled inline at every use so retail's per-use reload comes out - writing it through
-   pPrims/primStart locals cost 22 instructions and 79.19%).
-   ROUND 476 RESIDUAL, named: retail spills THREE scalars that this body keeps in
-   registers or strength-reduces - textY at 0x70 (a 32-bit sw read back with lhu inside the
-   digit loop), and countOfs TWICE, at 0x78 (a copy stored once per outer iteration and
-   reloaded inside the digit loop) and 0x80 (its home slot, incremented by 2 at the loop
-   tail). Because countOfs is not spilled here, cc1 strength-reduces counts + countOfs into
-   a walking pointer (addiu s8,s8,2) and retail's per-use addu s2,countOfs,base never forms;
-   that is the whole 9-instruction / 36-byte / 0x18-frame delta, and it is a gcc 2.6.0
-   spill-choice wall rather than a source-shape one: every declaration/phantom permutation
-   below moves the same delta around instead of removing it.
-   MEASURED IN ROUND 476 (all gcc-2.6.0 -O2, the unit preset):
-   - the preset is right: this body 92.05 is the best; gcc-2.7.2 89.42, gcc-2.7.2-cdk
-   73.36, -O3 identical to -O2.
-   - RECTs declared in retail's own slot order (nameRect first, then tensRect) and no
-   phantom local: 87.56 at retail's EXACT 1588 bytes, 397 insns, frame 0xB0, with the
-   prologue and every branch offset byte-identical. Its three spill slots are the
-   ADDRESSES of nameRect/tensRect/counts (addiu t1,sp,N then sw, and lw s8,0x78 reloaded)
-   where retail spills textY/countOfs, and bufs/places/weaponIds/counts sit 8 low
-   (0x48/0x50/0x58/0x60). That is the shape to attack if anyone tries again.
-   - that order PLUS a dead 0x48 slot (u_long pad[2] declared after stripRect): 87.54,
-   1588 bytes, 397 insns, frame 0xB8 - the phantom puts the four arrays on retail's exact
-   0x50/0x58/0x60/0x68 but is one slot too many because it still carries rowY's spill.
-   - a dead 0x48 slot in THIS body's declaration order: 92.09, frame 0xA0 (the 0.04 is noise).
-   Dead before this round: a s32 ofs = countOfs copy for the digit loop (copy-propagated
-   away) and a permuter run whose only find was the tensRect-before-nameRect swap, worth
-   87.56 to 92.05. */
+/* 92.06% (1560 bytes against retail's 1588, 390 insns against 397; vars 0x58
+   against retail's 0x68, frame 0xA0 against retail's 0xB0). Everything
+   structural is right and measured: the char-4/unkB7 guard, places[] = {100, 10},
+   the character-vs-gear weapon-id pick (characters[].extraWeaponIds[0]/[3] with the
+   0x2286 quantities, gears[characters[].gearId] with the 0x22B6 ones), the two
+   text-buffer passes, both BattleLoadImageAndSync uploads per row, the slash and
+   percent digit passes with the drawn latch, the free loop, and the tail written
+   with the house pool idiom spelled inline at every use.
+   ROUND 489 RESIDUAL, named: retail homes THREE values in memory and keeps SEVEN
+   across the inner loop's calls - s7 textY, fp rowY, i, j, digitX, drawn and the
+   bufs[i] pointer, with s1/s2 spent on the per-iteration places/counts addresses -
+   while every body measured here keeps a spare register, so cc1 either spills rowY
+   instead or merges the digit-loop offset into a walking counts pointer.
+   Retail's three slots, in its own allocation order: digitY 0x70 (word store from
+   s7 once per row, read back as lhu into digitRect.y - so it is an s32 copy of
+   textY whose use is a u16 truncation), ofs 0x78 (word store from countOfs at the
+   stripRect point, lw per j), and countOfs 0x80 (its home; += 2 at the loop tail).
+   Retail's digit loop re-forms addu s2,ofs,base and addu s1,j*2,base per iteration
+   off base sp+0x20 (nameRect's address, the +0x48 to counts folded into the load),
+   and the tensRect read after the loop goes through countOfs at 0x80 with the
+   0x68 displacement - not through ofs.
+   MEASURED IN ROUND 489 (gcc-2.6.0 -O2, the unit preset):
+   - adding s32 ofs and s32 digitY copies and reading the tensRect digit through
+     ofs: 90.20, 1600 bytes, 400 insns, frame 0xB8. Spills countOfs 0x68, ofs 0x70,
+     digitY 0x78 (right three slots, wrong order) PLUS two slots 0x80/0x88 holding
+     &counts itself - the hoisted invariant and a strength-reduced copy of it.
+   - the same with the tensRect digit read through countOfs (retail's own flow):
+     92.06, 1560 bytes, 390 insns, frame 0xA0. The two &counts slots and ofs
+     vanish; cc1 strengthens counts+countOfs into fp (addu fp,fp,2 at the tail) and
+     spills rowY to 0x68 and digitY to 0x70. Layout is retail's shifted 8 low with
+     rowY where retail has countOfs.
+   - round 476 measured: preset is right (2.7.2 89.42, cdk 73.36, -O3 = -O2); the
+     RECT declarations in retail's slot order (nameRect first) give 87.56 at
+     retail's exact 1588 bytes/397 insns/0xB0 with the addresses of
+     nameRect/tensRect/counts spilled instead of the values; that order plus a dead
+     0x48 slot is 87.54 and one slot too many; a dead 0x48 slot in THIS body's order
+     is 92.09.
+   - retail also has an unused EIGHT-BYTE slot at 0x48 between stripRect and bufs
+     (no 0x48(sp) access anywhere in its .s), which is why bufs/places/weaponIds/
+     counts sit at 0x50/0x58/0x60/0x68 rather than 0x48/0x50/0x58/0x60. A dead
+     u_long pad[2] does allocate that slot; it needs the three retail spills to be
+     present first, or the frame overshoots.
+   So the shape to attack is: get seven loop-carried values into s0-s7+fp, put ofs
+   and a digitY copy in memory WITHOUT cc1 copy-propagating them into countOfs, and
+   leave rowY in fp. Parking here because two rounds of declaration, order and
+   copy-shape permutations have moved this delta around (87.5-92.1) without removing
+   it, and the function is 397 instructions. */
 /*
 void func_80093B08(u8 arg0) {
     RECT tensRect;
@@ -1199,6 +1212,8 @@ void func_80093B08(u8 arg0) {
     s32 textY;
     s32 rowY;
     s32 countOfs;
+    s32 ofs;
+    s32 digitY;
     s32 i;
     s32 j;
     s32 digit;
@@ -1246,20 +1261,22 @@ void func_80093B08(u8 arg0) {
                 BattleLoadImageAndSync(&nameRect, bufs[i]);
             }
             digitX = 0x3C0;
+            digitY = textY;
             stripRect.x = 0x3C0;
             stripRect.y = rowY;
+            ofs = countOfs;
             stripRect.w = 0x1B;
             stripRect.h = 0x10;
             BattleLoadImageAndSync(&stripRect, g_BattleTextWorkspace);
             for (j = 0; j < 2; j++) {
                 digitRect.x = digitX;
-                digitRect.y = textY;
+                digitRect.y = digitY;
                 digitRect.w = 6;
                 digitRect.h = 0xD;
-                digit = *(u16 *)((u8 *)counts + countOfs) / places[j];
+                digit = *(u16 *)((u8 *)counts + ofs) / places[j];
                 if ((u8)digit != 0 || drawn != 0) {
                     BattleLoadImageAndSync(&digitRect, g_BattleDigitImageBuffers[(u8)digit]);
-                    *(u16 *)((u8 *)counts + countOfs) -= (u8)digit * places[j];
+                    *(u16 *)((u8 *)counts + ofs) -= (u8)digit * places[j];
                     drawn = 1;
                 } else {
                     BattleLoadImageAndSync(&digitRect, g_BattleTextWorkspace);
@@ -1296,6 +1313,7 @@ void func_80093B08(u8 arg0) {
         ((u8 *)g_BattleDisplayState)[0x8E] = 1;
     }
 }*/
+
 
 void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     if (g_BattleActorCharIds[arg0] == 4) {
