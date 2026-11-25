@@ -16,24 +16,53 @@ extern void* g_GfxCurWorkBufferEnd;
 // Queues one semi-transparent textured quad per record of the dirent.
 //
 // The pre-carve park sat at 68.00% and blamed the TU boundary: the old body kept
-// g_GfxCurWorkBuffer in a %gp_rel form the neighbours need, and system/temp2 is
-// still one unit with the matched GfxQueueSpriteTileData/GfxSetRenderContext. That
-// is what the split fixed - the absolute lui/lw form comes out of this TU now.
-// Best 91.88% (552 bytes / 138 insns = retail's exact size). The guard, the frame, the spill set and the whole load block are retail's instruction for instruction: pDirent at 0x10, the byte offset at 0x1C (starts 4, += 0x1C), i at 0x14, count at 0x18, u spilled at 0x20. What closed it from 68%:
-//   - the guard indexes the global directly, ((POLY_FT4*)g_GfxCurWorkBuffer + count): with 'pPrim = g_GfxCurWorkBuffer;' first, cc1 gives the guard's buffer a callee-saved register and moves the frame/prologue.
-//   - a texPageId local assigned BEFORE GetClut, so pData dies at the call (otherwise the record base needs a callee-saved register and pPrim gets spilled instead).
-//   - the prim stores add x/y AT the store ('pPrim->x0 = x0 + x;' with x0 = pData->x), which is what makes cc1 read the x/y home slots (0x58/0x5C) AFTER the two calls, as retail does.
-//   - (s16) casts on the u16 fields width/height/x/u: that is retail's lh set. Unexplained but measured: without the casts cc1 emits lhu and the body sits 3 points lower.
-//   - the permuter's two edits at the top of the load block (u reused as the texPageX raw temp, rawX for pData->x) flipped the spilled value from h to u: 81.26 -> 91.88.
-// Residual, 40 differing lines: $s3/$s4 are swapped between v and x0 (retail s3=x0, s4=v), and the prim store order (retail x0, v0, v1, x1, x2, x3, v2, v3, y0..y3, u0..u3; this body emits the whole v group first because the x stores wait on the home-slot reload).
-// Tried and dead: pre-carve preset screens (cdk -G0 67.17, 2.6.0 67.64, 2.7.2 67.82); a pData induction pointer (69.50); pDirent+offset with sizeof in the for-increment; s16 locals for w/h/x0/u/v (142 insns, the adds then need sign extensions); count/i declaration swap and moving u to the end of the declaration list (both byte-identical); a 4-minute permuter run from 76% (its find added a store to v2 - rejected as wrong code).
+// g_GfxCurWorkBuffer in a %gp_rel form the neighbours need, and system/temp2 is still one
+// unit with the matched GfxQueueSpriteTileData/GfxSetRenderContext. That is what the split
+// fixed - the absolute lui/lw form comes out of this TU now.
+//
+// Best 91.88% (552 bytes / 138 insns = retail's exact size and instruction count). Retail's
+// guard, frame, saved set (s0-s7 + fp), spill map (pDirent at 0x10, i at 0x14, count at
+// 0x18, offset at 0x1C, u at 0x20, x/y in their home slots at 0x58/0x5C) and the whole load
+// block are reproduced instruction for instruction. What is left is ONE allocator tie and
+// the scheduling it drags: retail keeps x0 in $s3 and v in $s4, this body mirrors them, and
+// because the x0 add then waits on the x home-slot reload the prim stores come out
+// v0,v1,v2,v3,x0,x1,x2,x3 where retail has x0,v0,v1,x1,x2,x3,v2,v3. Two further lines of the
+// same cause: retail loads texPageX straight into $s1 and its texPageX_lsb shift lands in
+// $v1, while this body spends $v1 on a texPageX temp and leaves the shift in $v0. Both tied
+// values are 5 refs over the same live range, which is the tie no spelling separates.
+// Load-bearing details (each measured against a byte-identical or lower score):
+//   - the guard indexes the global directly, ((POLY_FT4*)g_GfxCurWorkBuffer + count): with
+//     'pPrim = g_GfxCurWorkBuffer;' first, cc1 gives the guard's buffer a callee-saved
+//     register and moves the frame/prologue.
+//   - a texPageId local assigned BEFORE GetClut, so pData dies at the call (otherwise the
+//     record base needs a callee-saved register and pPrim gets spilled instead).
+//   - the prim stores add x/y AT the store ('pPrim->x0 = x0 + x;'), which is what makes cc1
+//     read the x/y home slots (0x58/0x5C) AFTER the two calls, as retail does.
+//   - (s16) casts on the u16 fields width/height/x/u: that is retail's lh set. Unexplained
+//     but measured: without them cc1 emits lhu and the body sits 3 points lower.
+//   - reusing the u variable as the texPageX raw temp (before u is reloaded as pData->u)
+//     flipped the spilled value from h to u: 81.26 -> 91.88. Inlining texPageX back into the
+//     expression is 81.26% / 548 bytes / 137 insns, i.e. the extra local is what keeps h in
+//     $s7 and off the stack; x0 = (s16)pData->x with no u16 rawX local is byte-identical to
+//     the rawX form, so that temp was never the win.
+// Tried and dead: preset screens on the 91.88 body (gcc-2.7.2 83.07, gcc-2.6.0 will not
+// compile) and pre-carve (cdk -G0 67.17, 2.6.0 67.64, 2.7.2 67.82); a pData induction
+// pointer (69.50); pDirent+offset with sizeof in the for-increment; s16 locals for w/h/x0/u/v
+// (142 insns); s16 v alone (87.45 / 556 / 139); the whole v group written before the x group
+// (89.40 / 556 / 139); a do-while(0) barrier around the two calls (82.86 / 544 / 136);
+// reordering the load block to retail's emitted order (byte-identical - the emitted load
+// order is not source order); count/i declaration swap and moving u to the end of the
+// declaration list (both byte-identical); two 4-minute permuter runs (the earlier one from
+// 76% added a store to v2 - wrong code; round 477 from 91.88 reported PERMUTER_BETTER
+// base=1145 best=850 by hoisting x0 + x into a local before the two calls, which measures
+// 89.01% on objdiff because it moves the add ahead of the calls where retail has it after -
+// the permuter's metric is not objdiff's, so judge candidates with diff_func.sh).
 /*
 void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* ot) {
     MenuResourceDirentTextureMetadata* pDirent;
     MenuResourceTextureMetadata* pData;
     POLY_FT4* pPrim;
     s32 i;
-    u16 rawX;
     s32 count;
     s32 offset;
     s32 x0;
@@ -75,14 +104,13 @@ void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* 
         texPageX = (s16)(u & 0xFFC0) + texPageX_lsb;
         texPageY = (s16)(pData->texPageY & 0xFF00) + pData->v;
 
+        v = pData->v;
         texPageId = pData->texPageId;
         w = (s16)pData->width;
         h = (s16)pData->height;
-        rawX = pData->x;
-        x0 = (s16)rawX;
+        x0 = (s16)pData->x;
         y0 = pData->y;
         u = (s16)pData->u;
-        v = pData->v;
 
         pPrim->clut = GetClut(pData->clutX, pData->clutY);
         pPrim->tpage = GetTPage(texPageId, 0, texPageX, texPageY);
@@ -108,6 +136,7 @@ void func_80026BA4(MenuResourceDirectory* dir, u32 index, s32 x, s32 y, u_long* 
     }
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_b", func_80026BA4);
+
 
 
 
