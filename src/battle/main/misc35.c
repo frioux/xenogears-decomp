@@ -260,10 +260,19 @@ void BattleFreeWdsEntry(void) {
 // sibling func_800C11CC showed a single-use invariant %hi has savings 0, which is why no spelling
 // of this body moves it. All logs are 392 bytes: the body is honest (no UB park), it just cannot
 // be linked.
-//  94.34% (400 bytes / 100 insns against retail's 404 / 101): frame and saved set are now
+//  94.34% (400 bytes / 100 insns against retail's 404 / 101): the SAVED SET is now
 //  retail's (9 saves, s0-s7 + ra), the wait loop, its break and the switch are exact, and
 //  the WDS store has retail's shape (sw %lo(g_BattleWdsEntry)(s7), not an inline %hi).
-//  THE RESIDUAL IS TWO hoisting decisions, and retail's 4 surplus bytes are BOTH of them:
+//  THE FRAME IS STILL 8 BYTES LARGE (round 496): this body's .frame is $sp,88 with the saves
+//  at 0x30, retail's is $sp,80 with them at 0x28, so retail's args+vars = 0x28 and ours = 0x30
+//  with nothing in either body touching 0x28..0x2F. The 8 bytes are the STRUCT-ARGUMENT TEMP
+//  of the two SVEC2 arguments: cc1_probe.sh shows two SVEC2 locals alone at vars= 16 but the
+//  same two passed by value at vars= 24/args= 24 in every spelling tried. Passing them packed
+//  (u32 tex.x | tex.y << 16) instead yields retail's exact frame, 80 / vars= 16 / 9 regs, but
+//  gcc then folds the field loads it had just stored (380 bytes, 95 insns, 83.05%) - the frame
+//  and retail's lhu round-trip are mutually exclusive here. See lever
+//  j-two-4-byte-struct-arguments-cost-8-phantom-vars-bytes.
+//  THE REMAINING RESIDUAL IS TWO hoisting decisions in the preheader:
 //  1. retail's preheader holds only lui s7,%hi(g_BattleWdsEntry) and the store's offset is
 //     %lo; the pointer-to-global local here makes gcc materialise the FULL address
 //     (lui v0,%hi + addiu s7,v0,%lo, 1 instruction more than retail).
@@ -278,10 +287,8 @@ void BattleFreeWdsEntry(void) {
 //  the wds arm (li s0,-1 per iteration). So the fold retail's compile made happens after
 //  loop.c hoisted the constant, and no spelling of this loop test reaches it; the items the
 //  note above already lists stay measured dead.
+// 94.34% (400 bytes / 100 insns against retail's 404 / 101): the switch, the wait loop with its break, the WDS store shape and 9 saves are exact; the residual is the preheader's invariant choice PLUS an 8-byte frame the struct arguments cost.
 /*
-// Feeds one battle actor archive buffer to the sound player: every SEDS chunk is
-// added, every WDS chunk is (re)loaded after freeing the loaded one, and every
-// other chunk sets up an animation package. Returns the last SEDS chunk added.
 SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
     SoundFile *pSeds;
     SoundFile *pChunk;
@@ -331,6 +338,7 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
     return pSeds;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
+
 
 
 void BattleRemoveSedsEntries(s32 *pArg) {
