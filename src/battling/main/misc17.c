@@ -524,27 +524,8 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
         }
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
-/* best: objdiff 90.34% - 176 bytes = retail's 44 instructions, frame (0x28 with
-   the dead s32 pad[2]) and every instruction identical except two residuals.
-   1. the doubled table index takes $s1 and the D_80091EE0 base $s2; retail has
-   them the other way round (index $s2, whose save lands first, base $s1). It is
-   an allocator tie: both pseudos cross the jal, the index one is created first
-   (the sll in the beq delay slot) and so takes the lower register. Measured and
-   no help: base assigned at its use (85.84%, 168 bytes), base assigned before
-   the index (90.34%, this one), the three declaration orders, the index as u32,
-   i = soundId * 2, an initialiser on the pointer, pEntry = &D_80091EE0[i] with
-   pEntry[1] (85.84%), both reads spelled D_80091EE0[i] (90.70%, 184 bytes), a
-   non-void return (90.11%) and a 3-minute permuter run (base 145, best 25, only
-   a nonsense volatile return type). The $at form of the first read and the
-   base-plus-index form of the second are both required.
-   2. the second block: retail leaves a nop in the beqz slot and then loads the
-   flags, gcc steals the byte's andi into the slot instead. Retail's second block
-   evaluates the flags load BEFORE the byte's andi 0x7F (its first block does the
-   opposite), but gcc puts the andi first in BOTH blocks whatever the source: the
-   | operand order swapped, and a u32 local for the flags term, both measure
-   identical here. Since the stolen insn is the andi (a load is apparently not
-   delay-slot-eligible), the only fix would be that order.
+// best: objdiff 90.34% - 176 bytes = retail's 44 instructions. Round 479 re-measured the park and tried four more spellings on the two residuals, all 90.34% / 176 / 44 insns: (1) block 2 with the whole call argument in an s32 local, (2) block 2 with the byte in the reused u8 soundId local, (3) block 2 with only the flags half in a local, (4) the parked body itself. cc1's own .s (build/src/battling/main/misc17.c.s) shows sched2 hoisting the byte's andi to the FRONT of block 2 whatever the source order, so reorg then steals it into the beqz slot (retail keeps a nop there and fills the lw a0 load-delay slot with that andi instead); block 1 in retail has the andi in the branch slot, i.e. the same schedule as ours, so the two retail blocks were scheduled differently from an identical DAG. Residual 1 is the $s1/$s2 mirror (retail: index $s2, base $s1); preset screen this round: 2.7.2-cdk 71.98, 2.6.0 does not compile, so Default is right. Previous attempts that stand: base at its use 85.84/168, both reads D_80091EE0[i] 90.70/184, non-void return 90.11, 3-minute permuter base 145 best 25 nonsense volatile.
+/*
 void func_8008ED6C(BattleActor* pActor, s32 idx) {
     s32 pad[2];
     u8* pSoundTable;
@@ -563,8 +544,10 @@ void func_8008ED6C(BattleActor* pActor, s32 idx) {
     if (pSoundTable[i + 1] != 0) {
         BattleStopSoundSlotsByFlags(((pActor->flags >> 20) & 0x80) | (pSoundTable[i + 1] & 0x7F));
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+
+
 void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 step;
