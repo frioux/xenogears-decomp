@@ -1186,12 +1186,34 @@ void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
 // tail compares a s16 copy of y; the function needs 'extern void
 // func_8007D918(u32 *pOt);' in scope for BattleEffectQueueMatrixPrims, which calls
 // it.
+// PARK 98.71% at retail's exact size (528 bytes, 131 instructions). The prologue,
+// the multiply chain, the GTE load/rtpt block, both loop shapes and the gravity tail
+// are now instruction-identical; the old 92.53% note was stale on two points.
+// Two fixes this round, both real: 'n = 0' belongs AFTER gte_rtpt() (retail's
+// 'move a3,zero' is the instruction after RTPT, not before it) - that alone removed
+// the whole five-register shift the old note blamed on the a0 coalesce (92.53 ->
+// 98.48) - and the OT bucket address wants the offset-first cast sum
+// '(u32 *)((sz >> 4) * 4 + (u32)pOt)' for retail's index-first 'addu v0,v0,t6'
+// (98.48 -> 98.71); the three gte_stsxy0/1/2 addresses written as three pointer
+// locals reproduce retail's three 'addiu a0/a1/v0' before the three swc2.
+// REMAINING (register naming only, 24 differing lines): retail's 'or a0,a0,t7;
+// sw a0,0(v1)' reuses the loaded link register as the OR destination where ours
+// allocates the dead v0 ('or v0,a0,t7'), at all three sites; and in the third block
+// the scheduler puts 'addiu a2,a2,36' (pTemplate += 3) where retail has
+// 'and v1,v1,t3'. Measured dead: 'link |= 0x02000000;' (the in-place form grows
+// the frame, 134 insns / 540 bytes / 92.45%), routing the second store through a
+// reassigned pLink (byte-identical to the cast form, 98.71), and preset screens
+// gcc-2.6.0 98.14 / gcc-2.7.2-cdk fails to compile. The permuter cannot parse this
+// body (inline-asm GTE macros).
 /*
 void func_8007D918(u32 *pOt) {
     BattlePrimTemplate *pTemplate;
     BattleSpriteEntry *pEntry;
     u8 *pScratch = (u8 *)0x1F800000;
     u32 *pLink;
+    s16 *pXy0;
+    s16 *pXy1;
+    s16 *pXy2;
     s32 camX;
     s32 camY;
     s32 camZ;
@@ -1223,26 +1245,32 @@ void func_8007D918(u32 *pOt) {
             n = 2;
         } else {
             gte_ldv2((SVECTOR *)(pScratch + 0x10));
-            n = 0;
             gte_rtpt();
-            gte_stsxy0(&pTemplate[0].x);
-            gte_stsxy1(&pTemplate[1].x);
-            gte_stsxy2(&pTemplate[2].x);
+            n = 0;
+            pXy0 = &pTemplate[0].x;
+            pXy1 = &pTemplate[1].x;
+            pXy2 = &pTemplate[2].x;
+            gte_stsxy0(pXy0);
+            gte_stsxy1(pXy1);
+            gte_stsxy2(pXy2);
             gte_stsz1(pScratch + 0xB0);
-            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            pLink = (u32 *)((*(s32 *)(pScratch + 0xB0) >> 4) * 4 + (u32)pOt);
             link = *pLink;
             *pLink = (u32)(pTemplate + 0) & 0xFFFFFF;
-            *(u32 *)((u32)(pTemplate + 0) & 0xFFFFFF) = link | 0x02000000;
+            pLink = (u32 *)((u32)(pTemplate + 0) & 0xFFFFFF);
+            *pLink = link | 0x02000000;
             gte_stsz2(pScratch + 0xB0);
-            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            pLink = (u32 *)((*(s32 *)(pScratch + 0xB0) >> 4) * 4 + (u32)pOt);
             link = *pLink;
             *pLink = (u32)(pTemplate + 1) & 0xFFFFFF;
-            *(u32 *)((u32)(pTemplate + 1) & 0xFFFFFF) = link | 0x02000000;
+            pLink = (u32 *)((u32)(pTemplate + 1) & 0xFFFFFF);
+            *pLink = link | 0x02000000;
             gte_stsz(pScratch + 0xB0);
-            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            pLink = (u32 *)((*(s32 *)(pScratch + 0xB0) >> 4) * 4 + (u32)pOt);
             link = *pLink;
             *pLink = (u32)(pTemplate + 2) & 0xFFFFFF;
-            *(u32 *)((u32)(pTemplate + 2) & 0xFFFFFF) = link | 0x02000000;
+            pLink = (u32 *)((u32)(pTemplate + 2) & 0xFFFFFF);
+            *pLink = link | 0x02000000;
             pTemplate += 3;
         }
         y = pEntry->y + pEntry->vy;
@@ -1254,6 +1282,7 @@ void func_8007D918(u32 *pOt) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
+
 
 
 
