@@ -1788,7 +1788,6 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 //   D. The two g_Menu reloads in the arg3==0 arms are emitted 2 insns later than retail's (the load is scheduled after the page/limit stores instead of before).
 //   E. Insns are 22 short overall (684 vs 706): B is 15, C/D account for the rest.
 // Not tried: the permuter - 93.22 is below the 99% bar and the residuals are structure, not register ties. Also not tried: a probe for the do-while in the OTHER loop shape (this one is closed), and gcc 2.7.2-cdk / 2.6.0-O3 on the whole unit (preset is XenoMenu260 as expected).
-/*
 s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     RECT rect;
     u8 digitCodes[8];
@@ -1812,7 +1811,7 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     u8 flag;
     u8 itemId;
     u32 quantity;
-    u32 tens;
+    u8 tens;
     s32 i;
     s32 j;
 
@@ -1896,7 +1895,7 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                 case 3:
                 case 4:
                     if (MenuAndBitMaskLsbFirst(pWeapon->equipFlags, g_Menu->pManager->currentCharacterIDs[arg0]) != 0
-                        && pWeapon->equipGroup == pSlotWeapon->equipGroup && g_GameState.weaponIDs[i] < 0x32) {
+                        && pWeapon->equipGroup == pSlotWeapon->equipGroup && g_GameState.weaponIDs[i] >= 0x32) {
                         flag = 1;
                     }
                     break;
@@ -1923,7 +1922,7 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                 case 3:
                 case 4:
                     if (MenuAndBitMaskLsbFirst32(pGearWeapon->equipFlags, g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId) != 0
-                        && pGearWeapon->equipGroup == pSlotGearWeapon->equipGroup && g_GameState.gearWeaponsIds[i] < 0x32) {
+                        && pGearWeapon->equipGroup == pSlotGearWeapon->equipGroup && g_GameState.gearWeaponsIds[i] >= 0x32) {
                         flag = 1;
                     }
                     break;
@@ -1979,10 +1978,9 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                 pName = GetGearAccessoryName(itemId);
             }
             g_Menu->pCharacterSpriteRecords->unk0[i].width = SystemRenderStringEntry(pName, pWorkspace, 0x24, 0);
-            quantity = D_801EA7F8[j];
-            tens = quantity / 10;
+            tens = D_801EA7F8[j] / 10;
             digitCodes[0] = (tens != 0) ? tens + 0x10 : 0xC3;
-            digitCodes[2] = quantity % 10 + 0x10;
+            digitCodes[2] = D_801EA7F8[j] % 10 + 0x10;
             SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
             g_Menu->pCharacterSpriteRecords->unk400[i].width = SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
             rect.x = 0x180 + (i & 1) * 0x18;
@@ -2010,8 +2008,7 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
         count = 0;
     }
     return count;
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
+}
 
 
 
