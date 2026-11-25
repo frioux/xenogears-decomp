@@ -297,7 +297,7 @@ extern int g_FieldActorAllocCount[];
 // spriteFlags store ahead of the second base read (without it 92.98), and the
 // actorStatus local that pins the status lhu before the pActorData load (without
 // it 98.51). The untouched 0x60-byte local is retail's 0x88 frame, not debris.
-void func_80080F44(int actorIndex) {
+void FieldAllocActorData(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
     int i;
     u_int* pData;

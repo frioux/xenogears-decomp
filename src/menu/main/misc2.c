@@ -291,7 +291,7 @@ typedef struct {
 // a store through it may alias g_Menu, so g_Menu is reloaded per statement.
 #define MENU_WINDOW_TWEEN(i) (((MenuWindowTweenTable*)g_Menu)->tweens[i])
 
-void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index) {
+void MenuStartWindowTween(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index) {
     s32 deltaX;
     s32 deltaY;
     MenuWindowTween* pTween;
@@ -328,7 +328,7 @@ void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount,
     MENU_WINDOW_TWEEN(index).offsetY = 0;
     MENU_WINDOW_TWEEN(index).isComplete = 0;
 }
-void func_801C8324(u_char index) {
+void MenuUpdateWindowTween(u_char index) {
     s32 i;
 
     for (i = 0; i < MENU_WINDOW_TWEEN(index).stepCount; i++) {

@@ -264,8 +264,8 @@ typedef struct {
     /* 0x23 */ u8 isComplete;
 } MenuWindowTween; // Size: 0x24
 
-void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index);
-void func_801C8324(u_char index);
+void MenuStartWindowTween(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index);
+void MenuUpdateWindowTween(u_char index);
 void MenuSetCharacterWindowContents(u_char index, u_char characterId);
 void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pRenderFlags);
 void MenuClearBytes(s32 count, void* pBytes);
@@ -278,14 +278,14 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
 
     if (isCreate) {
         MenuLoadStringsFromIds(8, g_Menu->optionStrings, g_MenuMainRowStringIds, g_Menu->pManager->shouldRenderStrings);
-        func_801C81E0(0x100, 0x86, 0x60, 6, 8, 0);
-        func_801C81E0(0x108, 0x3E, 0x68, 0x3E, 8, 1);
-        func_801C81E0(0x110, -0xA, 0x70, 0x76, 8, 2);
+        MenuStartWindowTween(0x100, 0x86, 0x60, 6, 8, 0);
+        MenuStartWindowTween(0x108, 0x3E, 0x68, 0x3E, 8, 1);
+        MenuStartWindowTween(0x110, -0xA, 0x70, 0x76, 8, 2);
     } else {
         MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
-        func_801C81E0(0x60, 6, 0x100, 0x86, 8, 0);
-        func_801C81E0(0x68, 0x3E, 0x108, 0x3E, 8, 1);
-        func_801C81E0(0x70, 0x76, 0x110, -0xA, 8, 2);
+        MenuStartWindowTween(0x60, 6, 0x100, 0x86, 8, 0);
+        MenuStartWindowTween(0x68, 0x3E, 0x108, 0x3E, 8, 1);
+        MenuStartWindowTween(0x70, 0x76, 0x110, -0xA, 8, 2);
     }
 
     // Wait for the three character panels to finish tweening in
@@ -301,7 +301,7 @@ void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
         MenuRenderFrame();
         for (i = 0; i < 3; i++) {
             if (g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
-                func_801C8324(i);
+                MenuUpdateWindowTween(i);
             }
         }
     }

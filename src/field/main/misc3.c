@@ -853,7 +853,7 @@ extern u8 g_FieldBackgroundB;
 extern void func_800705DC(void);
 extern void func_8007A5C4(void);
 extern void func_8006FDEC(s16* pData);
-extern void func_80080F44(int actorIndex);
+extern void FieldAllocActorData(int actorIndex);
 extern void FieldSnapPartyToPlayer(void);
 extern void func_800A28D4(void);
 extern void func_802812A4(void);
@@ -1006,7 +1006,7 @@ extern u8 g_FieldModelSlotScratch[];
 // +4 spriteData, +8 materialFlags, +0xC triangles[4], +0x1C vertices[4], +0x2C
 // the >>1 /7 counts, +0x3C triCount; retail re-reads -0xC(a2) per store). The
 // spawn records are 8 u16, so the pointer bumps +2/+6/+6 and the tail's +2 lands
-// in func_80080F44's delay slot; the loads are lhu, so they are u_short.
+// in FieldAllocActorData's delay slot; the loads are lhu, so they are u_short.
 // FieldLightFileData must stay 0x2A bytes (ActorFile needs 0xE of padding before
 // numEntitites at 0x18C; actorData is the inline array at 0x190). The -0x20/-0xB8
 // first arguments of the two FieldSetMatrix calls and the RotMatrix are
@@ -1206,7 +1206,7 @@ void FieldLoad(void) {
             ACTOR(i)->rotation.z = 0;
         }
         pSpawn++;
-        func_80080F44(i);
+        FieldAllocActorData(i);
     }
 
     if (g_FieldSystemMode == 0) {

@@ -1126,3 +1126,4 @@ g_FieldContinueArrowFrameRects = 0x800ADF04; // type:RECT
 FieldSnapPartyToPlayer = 0x80077268;
 FieldSetSpriteStepFromAngle = 0x80081F80;
 FieldWalkPartyActorToPoint = 0x8009AEE0;
+FieldAllocActorData = 0x80080F44;
