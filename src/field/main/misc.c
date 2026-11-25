@@ -3185,8 +3185,9 @@ void func_8008EA58(void) {
         value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
         pActor = g_FieldScriptVMCurActor;
         g_FieldStreamFileIndex = value;
+        ip = pActor->scriptInstructionPointer;
         do {
-            value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 0xB));
+            value = FieldScriptArgument2(3, SCRIPT_READ_U8(ip + 0xB));
         } while (0);
         pActor = g_FieldScriptVMCurActor;
         D_800C3A2A = value;
