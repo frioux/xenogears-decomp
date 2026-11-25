@@ -222,7 +222,7 @@ void BattleProjectShadowVerts(RenderRecord* pRecord, u8* pDst) {
 // The residual is the loop ENTRY shape only. Retail computes i = count - 1 in the
 // preheader and js straight to the single bottom test, sharing one
 // sw g_BattlePacketNodeCursor between the preheader and the latch; cc1 duplicates the
-// loop exit test instead, so the preheader gets a beqz plus its own cursor store. That is
+// loop exit test instead, so the preheader gets its own test plus its own cursor store. That is
 // the g-rotated-entry-j-to-bottom-test lever (round 398: unreachable from while, for,
 // do-while, guarded do-while and goto-check shapes under 2.6.0, 2.7.2 and 2.7.2-cdk), so
 // park on this shape and report ROTATED_ENTRY.
@@ -230,6 +230,18 @@ void BattleProjectShadowVerts(RenderRecord* pRecord, u8* pDst) {
 // for (; i != -1; i--) - reorg copies a single decrement into BOTH jal delay slots, so the
 // two-arm spelling is not load-bearing. Lower: plain do-while 89.73 (224 bytes, no entry
 // test), i-- before the if/else 90.40, cdk 93.82, -O3 93.67.
+// Round 485 re-measures, all with retail's 55-insn body shape and this prototype:
+//  - g-unrotated-top-tested-loop's `while (1) { if (--i == -1) break; }` (i = nodeCount)
+//    DOES stop the duplicate: frame is retail's 32/0 and the size is retail's exact 232,
+//    but the source-order test at the body top costs 3 insns -> 81.64% / 58 insns.
+//  - `i = nodeCount; while (--i != -1)` also reaches frame 32/0 and the neighbour
+//    BattleInitWorkBlock's shape, but adds `li -1 / beq / nop` at the entry: 87.64% / 236.
+//  - moving the `g_BattlePacketNodeCursor = pData->pNodes` store to the last preheader
+//    statement (retail stores it inside the shared block) costs the frameless prologue
+//    back: 91.13% / 228 / frame 40. Original statement order is the best of the three.
+// So retail's single bottom test is reached by refusal of the entry duplication, which no
+// source shape reaches while keeping the fold of `count - 1 == -1` into `beqz count`
+// (the fold is what keeps this body down to one extra test instead of three insns).
 // The first parameter is u8* on purpose: written as WorkData* pData with
 // pData->nodeCount / pNodes / polyCount the same body measures 90.49 at the same 228
 // bytes, because the typed load changes the preheader DAG. BattleQueueNodePrims (the
@@ -257,7 +269,6 @@ void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
-
 
 void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     s32 i;
