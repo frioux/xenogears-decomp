@@ -216,6 +216,17 @@ extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, int arg1, int 
 // at the entries base (0x88(s4), which the parked body reproduces exactly), and the base then
 // has to be born BEFORE the test - which is the one instruction order left. Do not re-run these;
 // the next idea has to make one instruction serve both roles.
+// ROUND 476 re-measure: 96.38%, 560 bytes / 140 insns, retail's exact size. The single residual is
+// where 'addiu s4,v1,-136' sits: retail emits it after the count load AND the rotated test (as the
+// loop preheader), ours right after the la. Two more spellings measured, both worse:
+//  - pSoundList assigned INSIDE the loop body from pCount and a 's16* pEntry = pSoundList->entries'
+//    cursor: 95.46 / 552 / 138; the count address ends up in $s2 and entries are reached as
+//    '-136(s2)', so the s4 base and the 'move s2,s4' copy both vanish.
+//  - base derived straight from the symbol (no pCount local), bound still through the base:
+//    96.26 / 560 / 140; correct instruction set, but the hi/lo of the count symbol is formed TWICE
+//    ('lui s4' + 'addiu s4,s4,-136' and a separate 'lui v0' + 'lw') because &count and &count-136
+//    are not CSE'd when only one spelling mentions pCount. So the base must be derived FROM the
+//    pCount register (as the parked body does) - which is what forces it before the test.
 /*
 void func_80077884(void) {
     int i;
@@ -267,6 +278,7 @@ void func_80077884(void) {
     ArchiveStartStreamQueue(D_800B2394, 0, 0);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
+
 
 
 
