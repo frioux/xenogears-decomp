@@ -9,6 +9,9 @@ To add a lever: append a block under the heading that matches what the diff show
 
 Headings are ordered by what a worker SEES in a diff. Each heading has a `symptoms:` line (what the diff looks like) and a `try:` line (words to pass to lever.py).
 
+- id: a-pointer-local-assigned-before-a-volatile-store-keeps-the-base-live-across-it | keywords: regalloc, pointer, volatile, store, prologue, callee-saved, load, hoist
+  **REPLACING TWO SEPARATE `g->field` READS AROUND A VOLATILE PRIM STORE WITH ONE POINTER LOCAL ASSIGNED BEFORE THE STORE IS WHAT PUTS RETAIL'S POINTER LOAD ABOVE THE STORE AND RESTORES THE THIRD CALLEE-SAVED REGISTER - the global's load is otherwise emitted after the store with a `nop` in front of it, i.e. one instruction more and a different saved set** (round 474, battle/main/misc2 func_80075938, XenoLibrary = gcc-2.6.0; `pState = g_BattleDisplayState;` with `if (pState->primListsPending != 0) pState->unk82 = 1;` measured 93.40 -> 94.12% and 181 -> 159 differing lines, and the prologue became retail's exact `sw ra,0x2C / sw s2,0x28 / sw s1,0x24 / sw s0,0x20` with the constant 0xC in `$s2`). Retail reads that pointer into `$a1` between the two halves of the clut store's address calculation, so a body that names the pointer once gets the same scheduling window.
+
 ## register choice / allocator tie
 
 symptoms: swapped registers, wrong s-reg, allocator tie
@@ -1077,6 +1080,9 @@ Round 441 correction: the giv half of this entry is STALE for that 71.49% body -
   **WHEN RETAIL ADDRESSES A LOOP BODY'S FIELDS THROUGH A SECOND BASE BIASED INTO THE MIDDLE OF THE STRUCT (`addiu a3,t1,0x51` for offset 0x50/0x51 plus `-0x4d/-0x4a/-0x4e` for 0x3/0x4/0x7) AND YOUR COMPILE USES ONE UNBIASED BASE, THE SOURCE IS A POINTER WALK: `pSlot = g_BattleEffectSlots; for (i = 0; i < n; i++, pSlot++)` produces loop.c's biased giv, `pSlot = &g_BattleEffectSlots[i]` produces one base with positive offsets and comes out two instructions short (no preheader `addiu` and no second `+= stride` in the latch), 1852 against retail's 1860 bytes** (round 458, battling/main/misc5 func_8007B388, Default, 95.35 -> 98.68% and retail's exact 465 insns once the walk replaced the index). The bias is whichever field the giv survives for, not necessarily the first: the same body with the four colour bytes written as four `sb`s also yields the biased base, so it is the walk, not the statement order, that decides it.
 
 
+
+- id: a-a-28-stride-byte-index-needs-its-own-for-clause-iv | keywords: biv, strength, reduce, multiply, 28, for-clause, iv, synth_mult
+  **cc1 2.6.0 WILL NOT STRENGTH-REDUCE A `slot * 0x1C` INDEX (it derives 28i as 4*(8i-i) inline, three insns, from the loop counter) BUT IT DOES REDUCE AN EXPLICIT FOR-CLAUSE IV INCREMENTING BY 0x1C - so a global walked at a non-power-of-two stride needs its own `actorOff` variable and gives retail's `addiu $t6,$t6,0x1C` at the loop bottom where every `table[slot * 0x1C]` spelling computes the product per pass** (round 474, battle/main/misc2 func_80075938, XenoLibrary = gcc-2.6.0; `for (slot = 0, actorOff = 0; slot < 3; slot++, actorOff += 0x1C, pTimer++, pLimit++)` with `g_BattleSlotActorIds[actorOff]` measured 92.72 -> 93.40% and 201 -> 181 differing lines). The same body's 8-stride and halfword-stride accesses (`g_BattleSlotFlags[slot * 8]`, the `u16` tables walked by 2) DO get bivs for free, which is the tell: a shift stride reduces, a synth_mult stride does not. The same shape is recorded in battle/main/misc1's parked func_80073538 note, which found it first for the same table.
 
 ## store ordering and volatile
 
