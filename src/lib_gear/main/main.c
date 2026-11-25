@@ -2686,21 +2686,42 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
     return result;
 }
 
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
-
-// objdiff 86.24%, 2104 bytes against retail's 2136 (0x858). Every block below is
-// decoded from the .s and reproduced; what is left is 8 instructions plus the
-// frame, all of it register pressure:
-// - frame 0xF8 vs retail's 0x108: retail SPILLS width and height (word slots 0x78
-//   and 0x80, reloaded with `lhu 0x78(sp)` for the narrow uses and `lw` + `sll 16`
-//   for the `(u16)width == 0` tests). We keep both in $s2/$s3, so the two 8-byte
-//   spill slots are the whole 16-byte delta.
-// - the per-row `lw $t6,0x30(sp)` reload of pRows inside both copy loops (retail
-//   reloads the param spill each row, we hoist it into $t3 across the loop).
-// - two `move $a1,$v0` where the fill count lands in the loop-bound register, and
-//   two `move $a1,zero` for the running pixel accumulator.
-// Also allocation-only: retail has width in $s3 / height in $s2, we get the
-// reverse, and the fill colour sits in $a0 in retail, $s1 here.
+// objdiff 87.43%, 2120 bytes / 530 insns against retail's 2136 (0x858) / 534. Every
+// block below is decoded from the .s and reproduced; the whole residual is register
+// pressure plus the frame, and the frame is now pinned to ONE cause.
+// THE FRAME, measured (round 493): retail is 0x108 (vars 0xD0), this body 0xF8
+// (vars 0xC0), and the 16 bytes are EXACTLY the WIDTH and HEIGHT word spills. Both
+// sides spill the same low area at the same offsets - 0x10 RECT, 0x18 pSource,
+// 0x20 mode (sh), 0x28 flags, 0x30 pRows, 0x38..0x70 the eight u16 area args, then
+// retail's pInterpolate at 0x88; this body has pInterpolate at 0x78 because retail
+// puts `sw 0x78(sp)` = width and `sw 0x80(sp)` = height in front of it (0x84 unused).
+// So no dummy local can close it: everything below 0x78 already matches offset for
+// offset, and adding 16 bytes of dead locals at the top only pushes the spills.
+// WHY RETAIL SPILLS THEM AND WE DO NOT (the actual blocker): the wide width/height
+// have exactly ONE wide use each - the `== 0` default tests, which retail does with
+// `lw 0x78(sp)` + `sll 16` + `bnez` (a NARROW test of the word) - and every other use
+// is narrow, so gcc 2.6 has a free choice: retail kept the NARROW values in $s3/$s2
+// and left the words in memory, this body keeps the WIDE values in $s2/$s3 and
+// re-forms the narrow with `sll 16`/`sra 16` at every use. That is the entire 534 vs
+// 530 delta and most of the 394 differing rows: retail's `mult s3,s2` and its three
+// HeapAlloc size multiplications have no sll/sra pair, ours all do.
+// Also allocation-only, not structure: retail reads the mask narrow in its prologue
+// (`sw a3,0x28(sp)` + `lhu s5,0x28(sp)`) and stores `pTexture->mode` with
+// `lbu 0x20(sp)`, where this body does `lw 0x28(sp)` + `move s5,t6` and
+// `lhu 0x20(sp)`+`sb` (2 instructions); retail keeps the flat fill colour in $a0
+// while this body keeps it in $s1 ($s1 holds the DITHER colour in retail too, so the
+// flat colour there is a block-local that dies with the loop); in both copy loops
+// retail re-loads pRows from 0x30(sp) inside the row prologue (`lw t6,0x30(sp)` then
+// `addu t0,v0,t6` last) where this body hoists it into $t3 and adds it early.
+// Measured this round, all worse or byte-identical: `if ((u16)width == 0)` for the
+// two default tests (87.23, 2120); a block-local `u16 flat` inside each flat-fill
+// case instead of the function-scope `colour` (BYTE-IDENTICAL - the colour stays in
+// $s1, so it is not the live range that puts it there); gcc 2.7.2 (84.42) and
+// 2.7.2-cdk (80.00) via try_flags.sh. Not tried, and the next thing worth a lane:
+// explicit narrow locals (`s16 w = width; h = height;` refreshed after
+// `width = half * 2`) so the VALUES IN $s2/$s3 are narrow the way retail's are and
+// the wide ones are left live only to the two tests, which is the shape that makes
+// gcc spill them (lever j-a-spilled-scalar-slot-width-names-its-type, inverse).
 // WHAT THE CODE DOES (for the next round): fills a Temp8's three buffers from the
 // flags mask - 0x100 allocates pResultPixels, 0x200 pStartPixels, 0x400 pPixels, each
 // (memoWidth * memoHeight * 2) bytes - then per 4-bit op nibble either uploads the
@@ -2731,10 +2752,13 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 // - each buffer's three parameters serve as its region (x, y), its StoreImage rect
 //   origin AND its 15-bit fill colour (r = x, g = y, b = the third) - that is what
 //   retail does, not a transcription slip.
+// - the prototype is 19 parameters (the caller pushes 15 words at 0x10..0x48) and
+//   width/height are the two 32-bit stack args at words 9/10: retail reads them with
+//   `lw`, so they are NOT u16 parameters.
 // Tried and worse: `s16` loop counters (sign-extends every iteration), an
 // `int count` local for the fill loops (the permuter's 4-minute run, base 6619 ->
 // 6159, found ONLY that the product belongs inline in the loop condition, which is
-// in the body below), gcc 2.7.2 (84.42) and 2.7.2-cdk (80.00) via try_flags.sh.
+// in the body below).
 /*
 Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, u16 x0, u16 y0,
                      u16 colour0, u16 x1, u16 y1, u16 colour1, u16 x, u16 y, u32 argWidth, u32 argHeight,
@@ -2918,8 +2942,10 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
     }
 
     return pTexture;
-}
-*/
+}*/
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
+
+
 
 // objdiff 88.98%, 1048 bytes against retail's 1028. The whole structure is
 // reproduced: the unk14/angleStep advance with the pInterpolate callback, the
@@ -3823,9 +3849,9 @@ typedef struct {
 } ModelScriptCommand; // Size: 0x1C
 
 
-Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, s16 x0, s16 y0,
-                     s16 colour0, s16 x1, s16 y1, s16 colour1, s16 x, s16 y, u32 width, u32 height,
-                     s16 angleStep, s16 divisor, s16 offset, s16 (*pInterpolate)(u_short, s16, s16));
+Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, u16 x0, u16 y0,
+                     u16 colour0, u16 x1, u16 y1, u16 colour1, u16 x, u16 y, u32 argWidth, u32 argHeight,
+                     u16 angleStep, u16 divisor, u16 offset, s16 (*pInterpolate)(u_short, s16, s16));
 // objdiff 97.61%, 378 instructions and 1512 bytes = retail exactly, frame 0x88 =
 // retail. The body's shape is settled and nothing below changes an instruction count;
 // three named residuals are left:
