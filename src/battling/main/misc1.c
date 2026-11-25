@@ -713,12 +713,6 @@ void BattleQueueSpriteAndTpagePrims(void* pOt) {
     AddPrim(pOt, &g_BattleTpagePrims[g_BattleDrawBufferIndex]);
 }
 
-extern u32 D_800929EC;
-extern u32 D_800929F0;
-extern u8 D_8009A158;
-extern u8 D_8009A159;
-extern u16 D_8009A15A;
-
 /* 0x10-byte texture primitive template: tag, colour/code, xy, then UV and CLUT */
 typedef struct {
     /* 0x0 */ u_long tag;
@@ -1035,8 +1029,6 @@ s32 func_80071F8C(s32 mode) {
     }
     }
 }
-
-
 
 #define BATTLE_EFFECT_CELL_COUNT 3
 
