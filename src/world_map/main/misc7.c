@@ -311,7 +311,7 @@ s32 WorldMapInitSlotAtScrollPosition(s32 index) {
 }
 // Best: 84.76% (164 bytes / 41 insns against retail's 42 - the missing instruction is retail's load-delay nop after the pos.z load, so this body cannot link).
 //   The branch, every immediate, every relocation and the three WorldMapInitSpriteGroupSprites calls match once the three scratchpad stores use the literal address 0x1F8000A0: retail writes them as lui $at,0x1F80 + sh $v0,0xA0($at) with no relocation, while naming D_1F8000A0 emits %hi/%lo and forces the base into a saved register (76.71%). Residues: gcc sinks the command store below the pos.x/pos.z loads and hoists the pos.z load where retail keeps statement order, and the slot base lands in $a3 instead of $a2.
-//   Round 481 measured on this body: three s32 locals, all three expressions inline, and the (u8 *)PSX_SCRATCH + 0xA0 cast spelling all score 82.19 with the same 41 insns; the positive if (command == 1) form is 84.76 like the early return, so the tie is allocator/scheduler and not the CFG. Earlier: a 36-row try_flags sweep (gcc 2.6.0/2.7.2/cdk x -O1..-O3 x -G0/-G4/-G8 x mcpu 3000/r8000) tops out at 84.76; addressing the slot as g_WorldMapSlots[index] per statement scores 81.95; moving the command store to either end stays 84.76.
+//   Round 481 measured on this body: three s32 locals, all three expressions inline, and the (u8 *)PSX_SCRATCH + 0xA0 cast spelling all score 82.19 with the same 41 insns; the positive if (command == 1) form is 84.76 like the early return, so the tie is allocator/scheduler and not the CFG. A do/while barrier after each of the three scratchpad stores (the trick that closed func_800817A0) is byte-identical here at 84.76 - the hoisted pos.z load crosses it. Earlier: a 36-row try_flags sweep (gcc 2.6.0/2.7.2/cdk x -O1..-O3 x -G0/-G4/-G8 x mcpu 3000/r8000) tops out at 84.76; addressing the slot as g_WorldMapSlots[index] per statement scores 81.95; moving the command store to either end stays 84.76.
 /*
 s32 func_80080944(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -333,6 +333,7 @@ s32 func_80080944(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080944);
+
 
 
 void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
