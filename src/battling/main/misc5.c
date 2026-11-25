@@ -4,6 +4,9 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 
+// Entries in the 0xA-byte sprite-entry table and in each 0xC-byte primitive template buffer.
+#define BATTLE_SPRITE_ENTRY_MAX 255
+
 typedef struct {
     /* 0x0 */ u8 r;
     /* 0x1 */ u8 g;
@@ -163,8 +166,8 @@ typedef struct {
 } BattlePrimTemplate16; // Size: 0x10
 
 extern u8 *g_BattleSpriteEntries;
-extern u8 *D_800926C0[];
-extern u8 *D_800926C4;
+extern BattlePrimTemplate *D_800926C0[];
+extern BattlePrimTemplate *D_800926C4;
 extern u8 *g_BattleSpriteSlots;
 extern u8 *g_BattleSpritePrimBuffers;
 extern u8 *g_BattleSpritePrimBufferCopy;
@@ -1053,90 +1056,37 @@ void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     }
 }
 
-/* PARK 84.85% at 224 bytes, 4 instructions SHORT of retail's 240. The stored
-   body did not even COMPILE until round 370: D_800926C0 is declared here as an
-   ARRAY extern (other units index it by g_BattleDrawBufferIndex), so the plain
-   assignment D_800926C0 = HeapAlloc(...) is a type error - write
-   D_800926C0[0] = HeapAlloc(...) and read it back as D_800926C0[0] and the body
-   builds and measures 84.85, which is where the round-3xx note's number came
-   from.
-   Two residuals, both read off the diff:
-   (1) the six entry stores need a SECOND induction register: retail keeps
-   v1 = pEntry + 4 and stores z at 0(v1), y at -2(v1), life at 2(v1) with x at
-   0(a1); ours anchors all six on the base as 4(a0)/2(a0)/0(a0)/6(a0).
-   (2) retail allocates all FOUR D_800926C0/D_800926C4 pointer loads to $v0, so
-   three of them get a load-delay nop (nothing is eligible to fill the slot);
-   ours puts the third load in $v1, reorg hoists it into the previous slot and we
-   come out two instructions short there.
-   Tried with no effect: a non-void (s32) return type (no change at all, so the
-   stolen-slot lever is not the mechanism here), the pointer form pEntry++ with
-   pEntry->z (creates the +4 biv but shifts every other register: 83.82). NOT
-   tried: the permuter. */
-/* PARK 95.02%, 232 bytes against retail's 240. The empty do-while block is a
-   permuter find this round (PERMUTER_BETTER base=786 best=316): it splits the
-   basic block so the four D_800926C0/D_800926C4 pointer loads are no longer
-   merged, which took the body 84.85 -> 95.02. Residual: retail keeps TWO
-   induction registers over the entry table (a1 = record base for the two x
-   stores, v1 = base+4 anchored for z/y/life) while this compile anchors all six
-   stores on v1 and uses a1 for the loop counter, and it is 2 instructions short
-   because retail's three load-delay slots hold nops (all four pointer loads go
-   to $v0) where ours fills two of them. Tried in earlier rounds: declaration
-   order, pEntry++ pointer form (83.82), a non-void return type. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D6B8);
-
-/*
 void func_8007D6B8(void) {
     BattleSpriteEntry *pEntry;
+    s32 index;
     s32 i;
 
-    g_BattleSpriteEntries = HeapAlloc(0x9F6, 0);
-    D_800926C0[0] = HeapAlloc(0xBF4, 0);
-    D_800926C4 = HeapAlloc(0xBF4, 0);
+    g_BattleSpriteEntries = HeapAlloc(BATTLE_SPRITE_ENTRY_MAX * sizeof(BattleSpriteEntry), 0);
+    D_800926C0[0] = HeapAlloc(BATTLE_SPRITE_ENTRY_MAX * sizeof(BattlePrimTemplate), 0);
+    D_800926C4 = HeapAlloc(BATTLE_SPRITE_ENTRY_MAX * sizeof(BattlePrimTemplate), 0);
     pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
-    for (i = 0; i < 0xFF; i++) {
-        ((BattlePrimTemplate *)D_800926C0[0])[i].len = 2;
-        ((BattlePrimTemplate *)D_800926C0[0])[i].colorCode = 0x6880B0F0;
+    for (i = 0; i < BATTLE_SPRITE_ENTRY_MAX; i++) {
+        index = i;
+        // The copy keeps the counter live; retail keeps both the counter and a copy.
+        D_800926C0[0][index].len = 2;
+        D_800926C0[0][index].colorCode = 0x6880B0F0;
         // The empty block is load-bearing: it splits the basic block so the four
         // template-pointer loads are not merged (retail loads each one separately).
         do {
         } while (0);
-        ((BattlePrimTemplate *)D_800926C4)[i].len = 2;
-        ((BattlePrimTemplate *)D_800926C4)[i].colorCode = 0x6880B0F0;
-        pEntry[i].z = 0;
-        pEntry[i].y = 0;
-        pEntry[i].x = 0;
-        pEntry[i].life = 0;
-        pEntry[i].z = 0;
-        pEntry[i].x = 0;
+        D_800926C4[index].len = 2;
+        D_800926C4[index].colorCode = 0x6880B0F0;
+        pEntry->z = 0;
+        pEntry->y = 0;
+        pEntry->x = 0;
+        pEntry->life = 0;
+        pEntry->z = 0;
+        pEntry->x = 0;
+        pEntry++;
     }
 }
-*/
 
 
-/*
-void func_8007D6B8(void) {
-    BattlePrimTemplate *pTemplate;
-    BattleSpriteEntry *pEntry;
-    s32 i;
-
-    g_BattleSpriteEntries = HeapAlloc(0x9F6, 0);
-    D_800926C0 = HeapAlloc(0xBF4, 0);
-    D_800926C4 = HeapAlloc(0xBF4, 0);
-    pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
-    for (i = 0; i < 0xFF; i++) {
-        ((BattlePrimTemplate *)D_800926C0)[i].len = 2;
-        ((BattlePrimTemplate *)D_800926C0)[i].colorCode = 0x6880B0F0;
-        ((BattlePrimTemplate *)D_800926C4)[i].len = 2;
-        ((BattlePrimTemplate *)D_800926C4)[i].colorCode = 0x6880B0F0;
-        pEntry[i].z = 0;
-        pEntry[i].y = 0;
-        pEntry[i].x = 0;
-        pEntry[i].life = 0;
-        pEntry[i].z = 0;
-        pEntry[i].x = 0;
-    }
-}
-*/
 
 void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
     BattleSpriteEntry *pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
