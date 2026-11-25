@@ -97,10 +97,6 @@ void WorldMapUpdateSlotGridOrigin(WorldMapMisc16Struct* p) {
     y = *(volatile s32*)&p->z;
     g_WorldMapGridTileRowOrigin = (y >> 23) + 2;
 }
-// 96.44%, 472 bytes = retail's EXACT size, 118 insns, instruction stream IDENTICAL to retail (122 differing lines are registers only). CORRECT code now; the old 94.52 park was UNDEFINED BEHAVIOUR (pGrid was read uninitialised, so gcc happened to pick D_8009D318 and the body was 2 insns short). THE FIX: pGrid = g_WorldMapGridTileIds.grid; after the struct copy - retail loads %hi(g_WorldMapGridTileIds) into $a0 there, so the fill writes the ID grid (the snapshot goes to D_8009D318), NOT D_8009D318.
-// RESIDUAL = pure global-alloc permutation, no structural difference left. retail: col/colCur=a3 row=t1 w=t2 dst=t0 colBase=t3 pGrid=a0 off=a1 i=a2 j=v1; ours: col/i=t1 row=t0 w=t3 off/dst=a3 colBase=a0 pGrid=a2 colCur=v1. Both bodies use the same 12 registers. MEASURED DEAD this round: FOUR declaration orders (natural, retail-register order, reversed, pGrid-first) all byte-identical at 96.44; rowOff as a local vs row*w inlined identical; -dl/-da dump shows global.c hands the registers out on the floor_log2(refs)*refs/live_length quotient computed from THIS instruction stream, so the order is pinned by the code that is already exact. Park on the permutation; the size and every instruction are retail's, so this links as a %-only gap.
-
-/*
 void func_800981C8(WorldMapMisc16Struct* p) {
     s32 col;
     s32 row;
@@ -108,7 +104,6 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     s32 h;
     s32 colBase;
     s32 rowOff;
-    s32 colCur;
     s32 i;
     s32 j;
     s16* pGrid;
@@ -136,19 +131,18 @@ void func_800981C8(WorldMapMisc16Struct* p) {
         if (!(row < h)) {
             row = 0;
         }
-        colCur = colBase;
+        col = colBase;
         rowOff = row * w;
         for (j = 8; j != -1; j--) {
-            if (colCur >= w) {
-                colCur = 0;
+            if (col >= w) {
+                col = 0;
             }
-            *pGrid++ = rowOff + colCur;
-            colCur++;
+            *pGrid++ = rowOff + col;
+            col++;
         }
         row++;
     }
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800981C8);
+}
 
 
 typedef struct {
