@@ -375,38 +375,32 @@ void BattleSetCurrentSlotState6(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
-// best 91.80%: 347 insns / 1388 bytes against retail's 362 / 1448, i.e. 15
-// instructions SHORT, so this body cannot link however the registers fall. The
-// branch tree, the six rand()%100 sites, the frame and the return values are
-// retail's; the size gap is gcc 2.6.0's cross-jump:
-//   - the 0x20 and 0x40 blocks hold the same 18-instruction `rand() % 100 -
-//     chance` chain, and gcc merges them into one copy (the merge point is the
-//     `sra v1,a1,31` right after `mult`) with `j`/fall-through in, 13 insns.
-//     Retail duplicates the chain in both blocks. per tools/rounds/levers.md
-//     (i-fcross-jumping-merges-identical) the merge rule is the INSTRUCTION
-//     SHAPE, so two arms that cost the same number of instructions cannot be
-//     kept apart, and 2.6.0's cc1 rejects -fno-cross-jumping. The 0x800/0x400
-//     roll lives in a shared s16 local in all three blocks, which is the shape
-//     that exposes it.
-//   - gcc also merges the two one-instruction `j` return tails, which retail
-//     keeps (that one is free in retail because its return 3 is the shared
-//     .L8009D800 block).
-// Smaller residuals, each measured on this body:
-//   - evade = resp + evade and hit = resp/2 + hit: retail keeps the sum's
-//     destination as the accumulator (addu a2,v0,a2), gcc 2.6 emits a2,a2,v0 in
-//     both operand orders.
-//   - `evade = (s16)evade / 2` and `hit += (s16)hit / 2`: retail's last shift at
-//     the assignment site is srl (ours sra); the += sites are sra in both.
-//   - (s8) of the u8 BattleRow.evadeModifier: retail keeps lbu + sll/sra, gcc
-//     folds the cast into an `lb` even through a u8 local + (s8) at the use.
-//   - `limit = limit + 0x55 - penalty` is reassociated to limit - (penalty -
-//     0x55); retail has addiu v1,s0,0x55 / subu v1,v1,s3.
-//   - one delay-slot swap: retail puts `li v0,1` in the 0x10/0xC00 test's bnez
-//     slot and `nop` in the j slot, ours the other way round.
-// Tried: the 4-minute permuter run recorded below, and the field names below are
-// the current header's (the previous park used unk04/unk7C/unk80/unk82, which
-// this header no longer has, so it had not compiled for a while).
-// Next step is NOT more spellings: the cross-jump is what stops a match.
+// best 96.67%: 362 insns / 1448 bytes, EXACTLY retail's size. The only structural
+// difference left is the 0x20 arm's branch polarity, and it exists only to stop
+// gcc 2.6.0's cross-jump: retail's two arm blocks are BYTE-IDENTICAL (verified
+// word for word, 0x2DCB8..0x2DD0C vs 0x2DD24..0x2DD78, the bnez included) and
+// gcc merges them whatever the source says - the merge is on the expanded
+// instruction shape, so the honest body is 347 insns / 1388 bytes at 91.80%.
+// What was measured this round (all with the unit's own 2.6.0 -O2 -G8):
+//   - separate s16 locals for the two rolls: merged, 1388 bytes.
+//   - the second roll as `s32 r = ...; if ((s16)r < 50)`: merged, 1388.
+//   - an empty `do { } while (0);` between the roll and the compare: merged.
+//   - `if (rollA < 50) return 1; return 3;` on the 0x20 arm and `if (rollB > 49)
+//     return 2; return 1;` on the 0x40 arm: NOT merged - the two blocks differ by
+//     one instruction (beqz/li 3 vs bnez/li 1) - and lands on retail's exact
+//     362 / 1448. The 0x40 arm's flipped spelling produces retail's own code and
+//     polarity; only the 0x20 arm's is inverted, which is the 41-line residual.
+//   - `evade = resp + evade` and `evade += resp` both emit `addu a2,a2,v0` where
+//     retail has `addu a2,v0,a2`.
+// Remaining smaller residuals, all measured on this body: the two `srl` shifts
+// above are `sra` here (the (s8) division and the evade/2); `lb` where retail has
+// `lbu`+`sll`/`sra` for BattleRow.evadeModifier (an `s32` local then `(s8)` at the
+// use does not stop the fold); `limit + 0x55 - penalty` reassociates to
+// `limit - (penalty - 0x55)`; and one delay slot (`li v0,1` for retail's `nop` in
+// the 0x10/0xC00 test). Tools: tools/rounds/levers.md i-fcross-jumping-merges-identical.
+// So a 100% needs the cross-jump defeated WITHOUT changing the arm's code, which
+// no spelling of the identical body reaches: keep this park unless the unit's
+// compiler changes.
 /*
 s32 func_8009D3A0(void) {
     s32 penalty = 0;
@@ -414,8 +408,11 @@ s32 func_8009D3A0(void) {
     s32 hit;
     s32 evade;
     s32 chance;
-    s16 roll;
-    u8 rowMod;
+    s16 rollA;
+    s16 rollB;
+    s16 rollC;
+    s16 rollD;
+    s32 rowMod;
     u8 isGear;
 
     if ((g_BattleCurrentRow->actionFlags & 0x200) && (*(u16 *)((u8 *)g_BattleTargetSlotEntry + 0x34) & 8)) {
@@ -440,7 +437,7 @@ s32 func_8009D3A0(void) {
     isGear = ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->extraWeaponIds[0]];
     evade = g_BattleActingSlot->evade;
     if (!isGear) {
-        evade = g_BattleTargetSlotState->responsiveness + evade;
+        evade += g_BattleTargetSlotState->responsiveness;
     }
     if (g_BattleCurSlotState->responsiveness != 0) {
         hit = g_BattleCurSlotState->responsiveness / 2 + hit;
@@ -494,31 +491,32 @@ s32 func_8009D3A0(void) {
     rowMod = g_BattleCurrentRow->evadeModifier;
     chance = evade + (s8)rowMod - hit;
     if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x20) {
-        roll = rand() % 100 - chance;
-        if (roll < 50) {
+        rollA = rand() % 100 - chance;
+        if (rollA < 50) {
             return 1;
         }
         return 3;
     }
     if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x40) {
-        roll = rand() % 100 - chance;
-        if (roll < 50) {
-            return 1;
+        rollB = rand() % 100 - chance;
+        if (rollB > 49) {
+            return 2;
         }
-        return 2;
+        return 1;
     }
-    roll = rand() % 100 - chance;
+    rollC = rand() % 100 - chance;
     limit = limit + 0x55 - penalty;
-    if (roll >= limit) {
+    if (rollC >= limit) {
         return 3;
     }
-    roll = rand() % 100 - chance;
-    if (roll < limit) {
+    rollD = rand() % 100 - chance;
+    if (rollD < limit) {
         return 1;
     }
     return 2;
 }
 */
+
 u16 BattleScaleValueByMultiplierByte(void) {
     u16 ret = BattleComputeActionAttackValue();
     u16 f;
