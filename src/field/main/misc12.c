@@ -22,6 +22,8 @@ extern s8 g_FieldPartyMoveInProgress[];
 extern s32 g_PlayerActorIndex;
 extern s32 g_FieldPartyActorSlots[];
 
+#define FIELD_WALK_STUCK_FRAME_LIMIT 65
+
 // g_FieldActors is volatile, which stops gcc from filling the delay slot of a call
 // that follows an index through it; read the pointer through a plain lvalue instead.
 #define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))
@@ -585,38 +587,7 @@ long FieldGetVec2Magnitude(long, long);
 int FieldGetVec2Angle(IVEC3*);
 void func_8009E574(int, int);
 extern s32 g_FieldCurActorIndex;
-// 97.48% (636 bytes, retail 636 - same size, 4 differing lines, all in one cluster).
-// Load-bearing from earlier rounds, do not undo: the goto block layout (the arrival
-// tail is the FALL-THROUGH, the walking body sits out of line and jumps back to it),
-// the do {} while (0) around the tail, the nested if/else-if/else rotation select
-// (91.48 -> 92.39 with the do-block), and the direct scriptFlags.flags RMW (a
-// `flags` local hoists the `and` two slots early, 92.39 -> 93.65 without it).
-// ROUND 475 closed two of the three residuals:
-// (1) The delta block wants the two narrow position fields READ INTO LOCALS before
-//     the arithmetic: positionX = CONV_TO_GTE(pActor->position.vx); positionZ =
-//     CONV_TO_GTE(pActor->position.vz); then delta.x = x - positionX; delta.y = 0;
-//     delta.z = z - positionZ; That is retail's lh,lh,addiu,sw-zero,subu,subu,sw,
-//     jal,sw grouping (93.65 -> 97.42). Without the two locals every spelling
-//     splits the loads (dx,dz,dy order 636 bytes / 8 differing lines).
-// (2) The FieldActor index address wants the offset term WRITTEN FIRST in a cast
-//     sum: (FieldActor*)(actorIndex * sizeof(FieldActor) + (u32)g_FieldActors)
-//     emits retail's addu v1,v0,v1 (index first, base destroyed in place, 97.42 ->
-//     97.48) where actorIndex + g_FieldActors, &g_FieldActors[actorIndex],
-//     &FIELD_ACTORS[actorIndex] and (u32)g_FieldActors + actorIndex * sizeof all
-//     emit the mirrored addu v1,v1,v0.
-// RESIDUAL, one cluster: the arrival tail's first four instructions. Retail emits
-// mask lui/ori, move v0,zero, lw a0,flags and then sll x / sw, sll z / sw, sh
-// stuckFrameCount, and, j, sw; ours hoists sll x above the mask constants and puts
-// move v0,zero after the flags lw (the rest of the tail matches). Measured and not
-// the answer: all 24 statement orders of the four tail statements (none reproduces
-// it - retail's stuckFrameCount store is LAST yet its mask/move/lw group is first,
-// and that group only forms when some other statement occupies the block head); a
-// `flags` local read before or inside the block; the literal mask 0xFDDFF7FF;
-// x * 0x10000 instead of x << 16; z before x. Not a scheduler question either:
-// cc1 2.7.2 on this unit's own .i with -fschedule-insns emits the same order as
-// -O2, and this unit has no schedule flag. Next: find the statement that heads
-// retail's block.
-/*
+
 int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     FieldActor* pFieldActor;
     ActorData* pActor;
@@ -631,6 +602,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     int magnitude;
     int positionX;
     int positionZ;
+    int flagsMask;
 
     actorIndex = g_FieldPartyActorSlots[actorSlotId];
     if (actorIndex == ACTOR_ID_INVALID) {
@@ -672,10 +644,13 @@ tail:
     pActor->rotation.vx = rotation;
     pActor->rotation.vy = rotation;
     do {
+    // A local, not the literal: sched1 would otherwise float the first position
+    // shift above the mask's lui/ori and sink the return's move below the flags load.
+    flagsMask = ~0x02200800;
     pActor->position.vx = x << 16;
     pActor->position.vz = z << 16;
     pActor->stuckFrameCount = 0;
-    pActor->scriptFlags.flags &= ~0x02200800;
+    pActor->scriptFlags.flags &= flagsMask;
     return 0;
 
 walking:
@@ -689,7 +664,8 @@ walking:
     walkRotation = FieldGetVec2Angle(&delta);
     pActor->rotation.vx = walkRotation;
     pActor->rotation.vy = walkRotation;
-    if ((short)pActor->stuckFrameCount < 0x41 && g_FieldWalkAbortCount.value == 0) {
+    if ((short)pActor->stuckFrameCount < FIELD_WALK_STUCK_FRAME_LIMIT
+        && g_FieldWalkAbortCount.value == 0) {
         return -1;
         do { } while (0);
     }
@@ -702,8 +678,7 @@ walking:
     g_FieldCurActorIndex = prevActorIndex;
     } while (0);
     goto tail;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
+}
 
 void FieldScriptVMSetFlag21CF(void) {
     D_800B21CF[0] = 1;
