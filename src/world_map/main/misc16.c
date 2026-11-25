@@ -726,11 +726,34 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
         *(volatile u16*)(pScratch + 0x32C) -= 0x800;
     }
 }*/
+// ROUND 487 re-measure: 95.05% / 988 bytes / 247 insns / 76 differing lines, exactly as the note
+// above describes. `cc1 -da` on this unit's .i gives this function's allocno order
+// (171 188 294 298 293 297 84 75 286 76 72 73 78 77 74 135; dispositions 171=a1 188=s0 294/298=v1
+// 293/297=a0 84=s1 75=s2 286=s3 76=s4 72=s5 73=s6 78=s7 77=fp 135=v0) - the saved set is already
+// retail's, so the
+// residual is only the two v0/v1 caller-saved coords and sched1's placement of the colOrigin load
+// and the 0x328 re-read. Priority there is floor_log2(n_refs)*1000/live_length, which is the
+// handle to pull if anyone wants to move the v0/v1 pair; the sched1 rows are not source-order.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
 
 
 
+
 // 97.74% (round 474 re-measured, 260 bytes = retail's 65 insns, correct code). Residual: (1) the xCur increment is emitted TWO slots late - retail emits xCur first of the four increments (xCur, pPkt, p, ii, idx in the bne slot); this body emits pPkt, p, xCur, ii, idx. (2) a four-temp register rotation: retail xCur=a3 pPkt=t0 idx=t1 ii=t2, this body xCur=t1 pPkt=t2 idx=a3 ii=t0. MEASURED DEAD this round: xCur += 0x80 written first of the four (sched1 hoists that addiu above the or/sw/sh) 94.82; post-increment inside the store, pPkt->vxy = c | (xCur++ & 0xFFFF) - wrong code anyway, it adds 1 and not 0x80 - 94.82. PERMUTER (3 min, 1609 iters): base 155 best 140, and the winner is an "if (pPkt) { c = (s8)v << 19; } else { <same arm> }" - gcc merges the identical arms so it is behaviour-identical but it is NOT shippable source; ported it measures 97.97 with pPkt correct in t0 and the other three still cycled. That is the evidence that one MORE ALLOCNO REFERENCE on pPkt is what this body is missing, with no natural fifth use of pPkt to write.
+// ROUND 487, NEW MECHANISM (the rotation is not reachable from source order). `cc1 -da` on this
+// unit's own .i prints global.c's allocno order for this function as 84(idx) 86(ii) 81(xCur)
+// 76(pPkt), and those four land in a3, t0, t1, t2 in that order. Priority is
+// floor_log2(n_refs)*1000/live_length (lreg: idx 11 refs/28 insns, ii 11/33, xCur 11/34,
+// pPkt 13/46 - all four in the same floor_log2 bucket, so live_length alone orders them).
+// Retail's mapping is xCur,pPkt,idx,ii -> a3,t0,t1,t2, i.e. it needs the priority order
+// xCur > pPkt > idx > ii, i.e. live_lengths xCur < pPkt < idx < ii - but idx's span is the
+// SHORTEST of the four here, because its only uses sit in the if-arm. A body whose instruction
+// stream is retail's cannot produce that order, which is why three sessions of spellings and a
+// permuter run all died on this row. Also measured this round: writing the increments as
+// (xCur,pPkt,p), (pPkt,xCur,p) and (p,pPkt,xCur) emits the SAME four registers, so source
+// order cannot move the mapping. The lone RELOC row (`addiu t0,t0,%lo(D_1F800008)`) is splat's
+// hi/lo inference on a real `addiu t0,t0,8` (word 0x25080008) - misc9's class - so a matching
+// body would read ~99.9% here and needs check_bin.sh, not objdiff 100.
 /*
 void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect) {
     WorldMapMisc16Pkt* pPkt;
@@ -783,6 +806,7 @@ void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect) {
     func_8009980C(pSrc, p1, p2);
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
+
 
 
 
