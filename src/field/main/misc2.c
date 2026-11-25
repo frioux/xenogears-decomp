@@ -734,21 +734,35 @@ extern s32 D_800ADBB0;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
 extern long FieldGetVec2Magnitude(long x, long z);
 
-// 89.20% (1108 bytes = the original's size). Structure is settled and the switch is a
-// THREE-case switch whose mode-0 and mode-2 arms both carry the follow-camera block: gcc
-// cross-jumps the two identical tails into one, which is why retail has the middle block
-// once (between the case-2/case-0 arms and the case-1 arm) and why case 1 alone reaches
-// the tail by fallthrough. What is left is gcc's address-CSE choice: retail uses bare
-// %hi/%lo symbol forms for a load+store pair at offset 0 (g_CamInterpolation.atStepDistance,
-// g_CamAtMovementCurrent.vx, g_CamMovementFlags) and only materialises a base where the
-// pair sits in one basic block (eyeStepDistance), while gcc here materialises the base for
-// every pair; that also re-orders the delta loads in the at-movement block. Also tried:
-// plain symbols everywhere (86.18, 1112 bytes: the top loses retail's a0 base), one
-// pointer local for all three g_FieldCameraMode uses (88.22, s0 where retail has a0+s1),
-// delta/step locals, nested ifs instead of &&, and a pointer for eyeStepDistance alone
-// (87.91, frame +8). Screened: 2.6.0 89.20, cdk 62.35 - not a preset question. The
-// permuter cannot run on this unit body ("conversion to non-scalar type requested" on the
-// first base compile).
+// 90.85% (1120 bytes; retail is 1108, so this body is 3 instructions over). Structure is
+// settled and the switch is a THREE-case switch whose mode-0 and mode-2 arms both carry the
+// follow-camera block: gcc cross-jumps the two identical tails into one, which is why retail
+// has the middle block once (between the case-2/case-0 arms and the case-1 arm) and why case
+// 1 alone reaches the tail by fallthrough. ROUND 485 closed the head: writing each
+// g_CamInterpolation clamp as an if/else that stores in BOTH arms (instead of one ternary)
+// stops the two fields from sharing one base pseudo, so the clamp block becomes
+// instruction-identical to retail (its bare `lui v1,%hi`/`lw v1,%lo` + `lui at`/`sw` pair,
+// then the `la a0,sym+4` pair) and the label offsets up to the movement blocks line up:
+// 89.20 -> 90.85. NAMED RESIDUAL, the 3 extra instructions: for a struct touched at three
+// offsets in one block cc1 2.7.2 forms ONE materialised base (`la $a0,sym` then `lw 0($a0)`,
+// `sw 0($a0)`) where retail re-forms a bare symbol MEM per access (`lui $v0,%hi`/`lw
+// $v0,%lo($v0)`, `lui $at`+`sw` &c) - so the at-movement and eye-movement blocks each pay one
+// `addiu` plus one load-delay nop. Retail is not self-consistent here (its FIRST
+// g_CamMovementFlags load/store pair is bare and its SECOND materialises `la $t0`), so this
+// is cse history, not source shape. Proved with tools/scripts/cc1_probe.sh on this unit's
+// cc1: both the struct-member spelling and a field-pointer local (`int *p = &p->eyeStep`)
+// emit `la base,sym` + displacements for a two-field block, so no struct spelling reproduces
+// retail's bare forms; only a separate scalar symbol per field would, and that needs invented
+// alias names (the orchestrator's call - same finding as func_80072D74's park, which paid
+// 99.93 with exactly that alias). Round-485 alternatives measured: first clamp only 90.65
+// (1120), second clamp only 88.78 (1116), && instead of the nested ifs byte-identical, and
+// the older all-ternary body 89.20 at exactly 1108 bytes (the byte-exact starting point if a
+// worker prefers size over the aligned head). Earlier rounds also measured, do not repeat:
+// plain symbols everywhere 86.18 (1112, the top loses retail's a0 base), one pointer local
+// for all three g_FieldCameraMode uses 88.22, delta/step locals, and a pointer for
+// eyeStepDistance alone 87.91 (frame +8). Presets screened: 2.6.0 89.20, cdk 62.35 - not a
+// preset question. The permuter cannot run on this body ("conversion to non-scalar type
+// requested" on the first base compile).
 /*
 void func_80073230(void) {
     VECTOR pos;
@@ -788,20 +802,24 @@ void func_80073230(void) {
                 (s16)(g_CameraAt2.vz >> 16) - (s16)(g_CameraAt.vz >> 16));
             eyeDistance = FieldGetVec2Magnitude((s16)(g_CameraEye2.vx >> 16) - (s16)(g_CameraEye.vx >> 16),
                 (s16)(g_CameraEye2.vz >> 16) - (s16)(g_CameraEye.vz >> 16));
-            if (atDistance < 0x80) {
-                if (eyeDistance < 0x80) {
-                    *pCameraMode = 0;
-                }
+            if (atDistance < 0x80 && eyeDistance < 0x80) {
+                *pCameraMode = 0;
             }
         }
         break;
     case 0:
         D_800ADBB0 = 0;
         if ((D_800ADBAC & 3) == 0) {
-            g_CamInterpolation.atStepDistance = g_CamInterpolation.atStepDistance < 9
-                ? 8 : g_CamInterpolation.atStepDistance - 2;
-            g_CamInterpolation.eyeStepDistance = g_CamInterpolation.eyeStepDistance < 9
-                ? 8 : g_CamInterpolation.eyeStepDistance - 2;
+            if (g_CamInterpolation.atStepDistance < 9) {
+                g_CamInterpolation.atStepDistance = 8;
+            } else {
+                g_CamInterpolation.atStepDistance -= 2;
+            }
+            if (g_CamInterpolation.eyeStepDistance < 9) {
+                g_CamInterpolation.eyeStepDistance = 8;
+            } else {
+                g_CamInterpolation.eyeStepDistance -= 2;
+            }
         }
         D_800ADBAC++;
         FieldUpdateSceneDollyAngle();
@@ -823,10 +841,8 @@ void func_80073230(void) {
                 (s16)(g_CameraAt2.vz >> 16) - (s16)(g_CameraAt.vz >> 16));
             eyeDistance = FieldGetVec2Magnitude((s16)(g_CameraEye2.vx >> 16) - (s16)(g_CameraEye.vx >> 16),
                 (s16)(g_CameraEye2.vz >> 16) - (s16)(g_CameraEye.vz >> 16));
-            if (atDistance < 0x80) {
-                if (eyeDistance < 0x80) {
-                    *pCameraMode = 0;
-                }
+            if (atDistance < 0x80 && eyeDistance < 0x80) {
+                *pCameraMode = 0;
             }
         }
     
