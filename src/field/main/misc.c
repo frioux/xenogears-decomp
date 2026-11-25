@@ -1665,21 +1665,17 @@ void FieldScriptSetCameraRotation(void) {
     g_Scene.camRotation.vy = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
-// Round 475: re-measured 98.06%, 177 insns / 708 bytes against retail's 176 /
-// 0x2C0. Round 462's reading stands; the ONE residual is the first call's
-// argument constant. cc1's own output (build/src/field/main/misc.c.s) hoists
-// 'li $4,1' to the head of the entry block and leaves a nop in the jal slot,
-// so this is sched1, not the assembler. PROVEN by a -da dump plus two forced
-// builds of build/src/field/main/misc.c.i with the unit cc1: with
-// -fno-schedule-insns the li lands in retail's jal slot (176 insns) but the
-// pointer map moves to pCur=$s2 pPrev=$s1 pData=$s4, and with
-// -fno-schedule-insns2 the li stays hoisted. So the slot and the $s1/$s2/$s3
-// map (retail pData/pPrev/pCur) are not reachable together from source.
-// sched1/sched2 are both on in this preset, so statement order inside the
-// 31-insn entry block is not a lever. Rotation is retail pData=$s1 pPrev=$s2
-// pCur=$s3 against this body's pPrev=$s1 pCur=$s2 pData=$s3; du/dv ($s4,
-// $a3) already match, so only these three swap. Do not re-hunt: class is
-// 'a call-argument constant folds early'.
+// Round 487: re-measured 98.06%, 177 insns / 708 bytes against retail's 176 /
+// 0x2C0. Round 462's -da proof stands. The THREE pointers' priority ranking is
+// retail's exact reverse (retail s1=pData s2=pPrev s3=pCur, ours s1=pPrev
+// s2=pCur s3=pData), and the reversed ranking is what also costs the first
+// argument constant its jal slot (cc1 hoists 'li $4,1' to the entry block).
+// New negatives this round, both from the block-barrier trick that DID flip a
+// two-way hand-out in func_8008C180: a do-while around the second argument read
+// 96.59 (worse map), a dead if/else around the tail ip increment is byte-
+// identical at 98.06. So the barrier lever does not reach a THREE-way rotation.
+// See also 'a call-argument constant folds early' and the -G8 rematerialise
+// lever; do not re-hunt this one.
 /*
 void func_8008B5D4(void) {
     FieldActorModelData* pModel;
@@ -1768,6 +1764,7 @@ void func_8008B5D4(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
+
 
 
 
