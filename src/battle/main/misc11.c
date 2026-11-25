@@ -1,6 +1,17 @@
 #include "common.h"
+#include "battle/actor.h"
+#include "battle/battle_work.h"
 #include "main/game.h"
 #include "psyq/libgpu.h"
+
+// One slot's command row (g_BattleCommandQueue + slot * 0x40): the 16 status
+// words a slot's commands fill in, and the slot it is linked to.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x1C */ u16 statusWords[0x10]; // the slot's status rows: the 16 masks the setup loop ANDs the slot's conditionFlags with, individual entries overwritten per command
+    /* 0x3C */ u8 targetSlotId; // slot id whose bitmask is applied with this slot's; 0xFF = none
+    /* 0x3D */ u8 unk3D[0x3];
+} BattleCommandRow; // Size: 0x40
 
 // Candidate scan order for target selection.
 typedef struct {
@@ -93,8 +104,8 @@ extern void BattleActivateSelectedCommand(u8 arg0);
 extern u8 g_BattleTaskListBusy;
 extern u8 g_BattleMenuEventHistory;
 extern u8 g_BattleSlotDisplayValue[];
-extern u8 g_BattleSlotEntries[];
 extern u8 g_BattleSlotStatusRows[];
+extern u16 g_BattleSlotEntries[];
 extern u16 g_BattleSlotDisplayValues[];
 extern u16 D_800C3234[];
 extern u8 D_800D32A4[];
@@ -394,11 +405,11 @@ void BattleResetActorDrawState(u8 arg0) {
    the addu respelling, so parked under the STOP rule. The register set, the
    frame (0x28) and the saved set ($ra,$s0-$s3) already match retail's.
 */
-/*
 void func_80080160(u8 arg0) {
     u8 gauge;
     u8 hasWeapon;
     s32 i;
+    s32 rowOffset;
     u8 v;
 
     g_BattleCommandQueue[0x2EA] = 1;
@@ -413,60 +424,61 @@ void func_80080160(u8 arg0) {
     gauge = D_800D32A4[arg0 * 8];
     g_BattleCommandQueue[0x2D5] = gauge;
     g_BattleCommandQueue[0x2D4] = gauge;
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) = 3;
+    ((BattleWork *)g_BattleDisplayState)->panelMode[arg0] = 3;
     g_BattleCommandQueue[0x2E7] = 0;
     g_BattleLastMenuEvent = 0xFF;
     g_BattleTaskListBusy = 0;
-    while (*(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) != 1) {
+    while (((BattleWork *)g_BattleDisplayState)->panelMode[arg0] != 1) {
         BattleUpdateFrame();
     }
     g_BattleSoundEnabled = 1;
     BattlePlaySoundIfEnabled(0x5A);
     g_BattleSoundEnabled = 0;
+    rowOffset = arg0 * 0x170;
     for (i = 0; i < 0x10; i++) {
-        ((u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C))[i] =
-            *(u16 *)(g_BattleSlotStatusRows + arg0 * 0x170) & D_800C3234[i];
+        ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[i] =
+            *(u16 *)(g_BattleSlotStatusRows + rowOffset) & D_800C3234[i];
     }
     if (g_BattleActorCharIds[arg0] == 7 && g_BattleSlotFlags[arg0 * 8] != 0) {
-        *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x36) = D_800C3234[13];
-        *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x24) = D_800C3234[4];
+        ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[0xD] = D_800C3234[13];
+        ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[4] = D_800C3234[4];
     }
     if (g_BattleActorCharIds[arg0] == 4) {
         if (g_BattleSlotFlags[arg0 * 8] == 0) {
             if (*(u8 *)((u8 *)&g_GameState + 0x2286 +
                     g_GameState.characters[4].extraWeaponIds[0]) == 0) {
-                *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C) = D_800C3234[0];
+                ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[0] = D_800C3234[0];
             }
             hasWeapon = *(u8 *)((u8 *)&g_GameState + 0x2286 +
                 g_GameState.characters[4].extraWeaponIds[3]);
         } else {
             if (*(u8 *)((u8 *)&g_GameState + 0x22B6 +
                     g_GameState.gears[g_GameState.characters[4].gearId].extraWeaponIds[0]) == 0) {
-                *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C) = D_800C3234[0];
+                ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[0] = D_800C3234[0];
             }
             hasWeapon = *(u8 *)((u8 *)&g_GameState + 0x22B6 +
                 g_GameState.gears[g_GameState.characters[g_BattleActorCharIds[arg0]].gearId]
                     .extraWeaponIds[3]);
         }
         if (hasWeapon == 0) {
-            *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x20) = D_800C3234[2];
+            ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[2] = D_800C3234[2];
         }
     }
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
-        if (*(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x2E) == 0) {
+        if (((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[9] == 0) {
             g_BattleCommandQueue[0x2DD] = 1;
             g_BattleMenuEventHistory = 0;
         } else {
             g_BattleCommandQueue[0x2DD] = 4;
             g_BattleMenuEventHistory = 3;
         }
-        if (g_BattleSlotEntries[arg0 * 0x170] & 2) {
+        if (g_BattleSlotEntries[arg0 * 0xB8] & 2) {
             g_BattleCommandQueue[0x2DD] = 2;
             g_BattleMenuEventHistory = 1;
         }
         BattleAllocDrawBuffer();
     } else {
-        if (*(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x2E) == 0) {
+        if (((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[9] == 0) {
             g_BattleCommandQueue[0x2DD] = 0x10;
             g_BattleMenuEventHistory = 0;
         } else {
@@ -478,8 +490,8 @@ void func_80080160(u8 arg0) {
     BattleClearCommandSlots();
     BattleClearSlotFlag15A1(arg0);
     BattleBeginAnimTask(BattleSlotBitMask(arg0) |
-        BattleSlotBitMask(*(u8 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x3C)));
-    v = *(u8 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x3C);
+        BattleSlotBitMask(((u8 *)(g_BattleCommandQueue + arg0 * 0x40))[0x3C]));
+    v = ((u8 *)(g_BattleCommandQueue + arg0 * 0x40))[0x3C];
     if (v == 0xFF) {
         v = 0;
     }
@@ -572,8 +584,8 @@ void func_80080160(u8 arg0) {
     }
     g_BattleDisplayState[0xCB] = 0;
     g_BattleDisplayState[0xAF] = 0;
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) = 0;
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x7F)) = 0;
+    ((BattleWork *)g_BattleDisplayState)->panelMode[arg0] = 0;
+    ((BattleWork *)g_BattleDisplayState)->panelActive[arg0] = 0;
     if (g_BattleCommandQueue[0x2E3] != 0) {
         g_BattleSlotDisplayValue[arg0 * 8] += g_BattleCommandQueue[0x2D4];
         if (g_BattleSlotDisplayValue[arg0 * 8] >= 0x1D) {
@@ -589,11 +601,9 @@ void func_80080160(u8 arg0) {
         BattleReleaseEffectSlotIfChar4(arg0);
     }
     g_BattleSlotCountdownTimers[arg0] = g_BattleSlotDisplayValues[arg0];
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x7C)) = 1;
+    ((BattleWork *)g_BattleDisplayState)->slotMarks[arg0] = 1;
     D_800C4928 = 0;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
     s32 best = 0xFF;
     s32 i = g_BattleTargetScan.cursor;
