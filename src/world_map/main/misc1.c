@@ -84,13 +84,13 @@ extern s32 g_WorldMapMode;
 extern void* g_WorldMapLoadedFileData;
 extern void* g_WorldMapDecompressedMapData;
 extern s32 g_WorldMapReloadFileIndex;
-extern s32 D_8009C17C;
+extern s32 g_WorldMapTexturePackFileIndex;
 extern s32 g_WorldMapPlayerRotation;
 extern void* g_WorldMapTexturePackData;
 extern s32 g_WorldMapPlayerPosition;
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
-extern s32 D_8009D3C4;
+extern s32 g_WorldMapCompressedMapFileIndex;
 extern s32 g_WorldMapSedsBankFileIndex;
 extern StreamDataQueueEntry g_WorldMapStreamQueue;
 // The queue seen as the array it is: WorldMapQueueThreeFileLoads reaches entry 0 through the base (retail
@@ -401,8 +401,8 @@ typedef struct {
 
 extern u16 g_WorldMapLevelThresholds[];
 extern u16 D_8009B566;
-extern WorldMapTableEntry D_8009B57C;
-extern WorldMapTableEntry D_8009B58C;
+extern WorldMapTableEntry g_WorldMapLevelTable;
+extern WorldMapTableEntry g_WorldMapAreaTable;
 extern s32 g_WorldMapLevelIndex;
 extern s32 g_WorldMapWdsFileIndex;
 extern s32 g_WorldMapSoundBankFileIndex;
@@ -429,13 +429,13 @@ void WorldMapSetLevelFileIndices(s32 arg0, s32 arg1) {
                 nLevel++;
             } while (arg1 >= *pTable);
         }
-        pEntry = (WorldMapTableEntry*)(nLevel * 8 + (s32)&D_8009B57C);
+        pEntry = (WorldMapTableEntry*)(nLevel * 8 + (s32)&g_WorldMapLevelTable);
         g_WorldMapLevelIndex = nLevel - 1;
     } else {
-        pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&D_8009B58C);
+        pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&g_WorldMapAreaTable);
     }
-    D_8009D3C4 = pEntry->fileIndex + 1;
-    D_8009C17C = pEntry->fileIndex + 2;
+    g_WorldMapCompressedMapFileIndex = pEntry->fileIndex + 1;
+    g_WorldMapTexturePackFileIndex = pEntry->fileIndex + 2;
     g_WorldMapReloadFileIndex = pEntry->fileIndex + 3;
     g_WorldMapWdsFileIndex = pEntry->fileIndex + 4;
     g_WorldMapSoundBankFileIndex = pEntry->fileIndex + 5;
@@ -526,16 +526,16 @@ void WorldMapQueueThreeFileLoads(void) {
     void* pBuffer;
     StreamDataQueueEntry* pQueue;
 
-    g_WorldMapTexturePackData = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C17C), 1);
+    g_WorldMapTexturePackData = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapTexturePackFileIndex), 1);
     g_WorldMapLoadedFileData = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapReloadFileIndex), 1);
-    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapCompressedMapFileIndex), 1);
     pQueue = g_WorldMapStreamQueueEntries;
     g_WorldMapDecompressedMapData = pBuffer;
     D_8009D410.archiveIndex = 0;
     g_WorldMapStreamQueueEntryData = pBuffer;
     D_8009D410.pData = 0;
-    pQueue->archiveIndex = D_8009D3C4;
-    D_8009D400.archiveIndex = D_8009C17C;
+    pQueue->archiveIndex = g_WorldMapCompressedMapFileIndex;
+    D_8009D400.archiveIndex = g_WorldMapTexturePackFileIndex;
     D_8009D408.archiveIndex = g_WorldMapReloadFileIndex;
     D_8009D400.pData = g_WorldMapTexturePackData;
     D_8009D408.pData = g_WorldMapLoadedFileData;

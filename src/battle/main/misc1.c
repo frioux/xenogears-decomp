@@ -146,7 +146,7 @@ extern u8 D_800C3E3D[];
 extern u8 D_800C3D1A[];
 extern u8 D_800C3EBA[];
 extern u8 D_800D2CA4[];
-extern u16 D_8005941C;
+extern u16 g_BattleClock;
 extern u8 D_800D36C0;
 extern s32 g_BattlePrimStartIndex;
 extern u8 g_BattleStatDigitSpriteIds[];
@@ -770,7 +770,7 @@ void func_80071B94(u8 arg0) {
                 func_80080C94(g_BattleCommandQueue->actorIndex);
             }
             if (g_BattleCommandQueue->unk2EA != 0) {
-                D_8005941C++;
+                g_BattleClock++;
             }
             D_800D36C0 = g_BattleCommandQueue->actorIndex;
             g_BattleDisplayState->primRowCount = 0;

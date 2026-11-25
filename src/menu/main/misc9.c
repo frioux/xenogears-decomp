@@ -47,7 +47,7 @@ extern s32 g_MenuInventoryRowCount;
 extern u16 g_MenuInventoryScrollStep;
 extern u8 g_MenuPanelRowXOffsets[];
 extern u8 g_MenuColumnRowStringIds[];
-extern u8 D_801E9785;
+extern u8 g_MenuCharactersAllocated;
 extern u8 g_MenuRowDigitTextureIds[]; // u8 [13][5] texture ids; the per-character column masks follow it
 // One 16-bit column mask per character: column i of a character is drawn in the
 // ink colour unless its bit is clear.
@@ -127,7 +127,7 @@ void MenuPlaySoundEffect(u_char soundEffectId);
 s32 func_801D9704(s32 slot, u_char direction, u_char arg2);
 void func_801DA5BC(s32 arg0);
 void MenuBuildItemPrims(s32 arg0, s32 arg1);
-void func_801DB39C(s32 arg0);
+void MenuSetAllPrimsShadingMode(s32 arg0);
 void MenuBuildPartyCharacterPrims(s32 arg0);
 s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
 void MenuSetStringPrimitives(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
@@ -256,7 +256,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     u8* pItemId;
 
     slot = g_Menu->characterSlot;
-    D_801E9785 = 0;
+    g_MenuCharactersAllocated = 0;
     pItem = &g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + arg1]];
     result = 0;
     refresh = 1;
@@ -282,7 +282,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
             refresh = 0;
             func_801DA5BC(arg0);
             MenuBuildItemPrims(arg1, arg0);
-            func_801DB39C(1);
+            MenuSetAllPrimsShadingMode(1);
             MenuBuildPartyCharacterPrims(0);
         }
         pCursors = g_Menu->pCursors;
@@ -355,13 +355,13 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     pCursors->shouldRender[2] = 0;
     pCursors->shouldRender[1] = 0;
     pCursors->shouldRender[0] = 0;
-    func_801DB39C(0);
+    MenuSetAllPrimsShadingMode(0);
     g_Menu->pManager->shouldRenderCharacters = 0;
     MenuRenderFrame();
     for (i = 0; i < 3; i++) {
         HeapFree(g_Menu->currentCharacters[i]);
     }
-    D_801E9785 = 0;
+    g_MenuCharactersAllocated = 0;
     MenuFreeWindow(2);
     return result;
 }*/
@@ -1344,11 +1344,11 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
     MenuSetUnk430PanelShading(0);
     g_Menu->pManager->shouldRenderCharacters = 0;
     MenuRenderFrame();
-    if (D_801E9785) {
+    if (g_MenuCharactersAllocated) {
         for (i = 0; i < 3; i++) {
             HeapFree(g_Menu->currentCharacters[i]);
         }
-        D_801E9785 = 0;
+        g_MenuCharactersAllocated = 0;
     }
     MenuFreeWindow(2);
 }*/

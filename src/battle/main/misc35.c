@@ -3,6 +3,7 @@
 #include "system/memory.h"
 #include "system/kernel.h"
 #include "system/sound.h"
+#include "psyq/libsn.h"
 #include "field/actor.h"
 #include "battle/actor.h"
 #include "psyq/inline_c.h"
@@ -235,7 +236,7 @@ void BattleFreeWdsEntry(void) {
 // 94.06% (392 bytes / 98 insns against retail's 404 / 101): the wait loop, its debug break,
 // the switch, the frame and 8 of retail's 9 saved registers are exact; the whole residual is
 // one hoisted invariant and one register count.
-// THE 'break 0x400' DOES HAVE A C SPELLING: asm("break 0x400") (precedent: controller_b.c
+// THE 'break 0x400' DOES HAVE A C SPELLING: pollhost() (psyq/libsn.h: asm("break 1024"); controller_b.c
 // ControllerUpdate and field/scripts/virtual_machine.c both ship it at 100%). Round 274's park
 // claimed it had none, so the loop was parked with an empty if - with the statement in, the
 // beq into the loop head, the break and the j back edge all match retail.
@@ -289,7 +290,7 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
             g_BattleWdsEntry = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
             while (SoundGetPendingSpuCommandType(0) != 0) {
                 if (g_DebugTable != -1) {
-                    asm("break 0x400");
+                    pollhost();
                 }
             }
             if (i == 1) {

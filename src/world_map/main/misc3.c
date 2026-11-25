@@ -442,7 +442,7 @@ extern void WorldMapSetGridPosition(void* p);
 extern void WorldMapUpdateLoadQueue(void);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern s32 func_8007756C(s32 arg0);
-extern s32 func_800776E0(s32 arg0);
+extern s32 WorldMapUpdateFrameWithScrollInput(s32 arg0);
 
 void WorldMapInitializeMode(void) {
     RECT rect;
@@ -489,7 +489,7 @@ void WorldMapInitializeMode(void) {
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot((void*)WorldMapModeInitFadeRect, (void*)func_800925A0);
-    WorldMapAddSlot((void*)func_8007756C, (void*)func_800776E0);
+    WorldMapAddSlot((void*)func_8007756C, (void*)WorldMapUpdateFrameWithScrollInput);
     WorldMapAddSlot((void*)WorldMapInitSlotAngleStep8, (void*)WorldMapUpdateSlotRotationMatrices);
     WorldMapAddSlot((void*)WorldMapModeInitNop, (void*)WorldMapUpdateFrameWithSlotProjection);
     func_800978FC();
@@ -596,7 +596,7 @@ extern s32 D_8009BD48;
 //    `sw v1,0x28(a1)` for both bounds, the compare is `(unk38 != unk28) | (unk3C != unk2C)`
 //    (xor/sltu/or with the first delta in the branch delay slot), and the 0x1F8000A0 name swap is
 //    an 8-byte struct move through the `u8 *` scratch base (lwl/lwr + swl/swr).
-s32 func_800776E0(s32 arg0) {
+s32 WorldMapUpdateFrameWithScrollInput(s32 arg0) {
     u8* pScratch = (u8*)0x1F800000;
     u8* pSlot = (u8*)g_WorldMapSlots + (arg0 << 7);
     WorldMapName8* pName;

@@ -1761,3 +1761,4 @@ g_StrPrimF3L = 0x80019338;
 g_StrPrimUnsupportedFmt = 0x800193A8;
 g_BattleResumeAudioFadePending = 0x80059180;
 g_BattleSelectedSkinRecord = 0x8006F9DC;
+g_BattleClock = 0x8005941C;

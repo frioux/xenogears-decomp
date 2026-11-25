@@ -820,7 +820,7 @@ void FieldScriptWritePartyMemberIDs(void) {
     FieldScriptMemoryWriteU16(SCRIPT_VAR_PARTY_MEMBER_3, g_GamePartyMembers[2]);
 }
 
-extern u16 D_8005941C;
+extern u16 g_BattleClock;
 extern u_char g_GameDiscChangeRequest;
 extern s32 g_GameRequestedWdsBankIndex;
 extern s32 g_GameSceneMapNum;
@@ -833,7 +833,7 @@ void FieldScriptSyncMemoryWithGameState(void) {
     g_pGameState->wdsBankIndex = g_GameRequestedWdsBankIndex;
     g_pGameState->unk2320 = g_pGameState->fieldScriptMemory[1];
     g_pGameState->entryAngle = g_pGameState->fieldScriptMemory[4] << 9;
-    FieldScriptMemoryWriteU16(0x44, D_8005941C);
+    FieldScriptMemoryWriteU16(0x44, g_BattleClock);
     FieldScriptMemoryWriteU16(0x46, g_GameDiscChangeRequest);
     FieldScriptMemoryWriteU16(6, FieldGetPlayerActorDirection() & 0xFFFF);
     FieldScriptMemoryWriteU16(8, FieldGetCameraDirection() & 0xFFFF);

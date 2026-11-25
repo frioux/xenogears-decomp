@@ -17,7 +17,7 @@ extern s32 g_MenuStatBarSavedValue;
 extern s32 g_MenuStatBarDelta;
 extern s32 g_MenuStatBarValueWidth;
 extern s32 g_MenuStatBarDeltaWidth;
-extern u8 D_801E9785; // Set once the three MenuCharacter records have been allocated
+extern u8 g_MenuCharactersAllocated; // Set once the three MenuCharacter records have been allocated
 extern u8 g_MenuStatBarDeltaColorMode;
 extern u8 g_MenuStatBarDeltaSignTexId;
 extern CdlCB g_MenuSavedCdSyncCallback;
@@ -29,10 +29,10 @@ extern u8 D_801E9F88[];
 extern s32 g_MenuShoulderButtonIconTexIds[]; // String IDs of the menu scroll bar textures
 extern u8 g_MenuColumnRowStringIds[];
 extern u8 g_MenuPanelRowXOffsets[];
-extern s32 D_801EA054[]; // X positions of the character panel label glyphs, first row of the layout
-extern s32 D_801EA098[]; // The same X positions, second row of the layout
-extern s32 D_801EA0DC[]; // Y positions of the label glyphs of the first row
-extern s32 D_801EA120[]; // Y positions of the label glyphs of the second row
+extern s32 g_MenuCharacterLabelXPositions[]; // X positions of the character panel label glyphs, first row of the layout
+extern s32 g_MenuGearCharacterLabelXPositions[]; // The same X positions, second row of the layout
+extern s32 g_MenuCharacterLabelYPositions[]; // Y positions of the label glyphs of the first row
+extern s32 g_MenuGearCharacterLabelYPositions[]; // Y positions of the label glyphs of the second row
 
 void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char characterId, u_char localIndex, s32 arg3, s32 arg4, u_char arg5);
 
@@ -324,7 +324,7 @@ void MenuFreeUnk42CPanel(void) {
 /* 94.65% under this unit's XenoMenu260 (gcc 2.6.0): 996 vs retail 1004 bytes, 249 vs
    251 insns, round 428. THE HEADLINE USED TO READ 97.17 - that number is gcc 2.7.2
    (Default) and this unit was moved to 2.6.0 on purpose in round 421, trading this park
-   for func_801DB39C (100.00 only on 2.6.0). 94.65 is the number to work from here; see
+   for MenuSetAllPrimsShadingMode (100.00 only on 2.6.0). 94.65 is the number to work from here; see
    SPLIT below if the trade is ever revisited.
    Body shape is settled: nested if (outer test POSITIVE, inner test `!= 0`) so
    the two fail paths sit out of line where retail has them.
@@ -654,7 +654,7 @@ void MenuFreeArrowCursor(u_char index) {
     g_Menu->pManager->shouldRenderArrowCursor[index] = 0;
 }
 
-void func_801DB39C(u_char arg0) {
+void MenuSetAllPrimsShadingMode(u_char arg0) {
     POLY_FT4* pPoly;
     MenuString* pRow;
     MenuString* pRows;
@@ -701,12 +701,12 @@ void MenuBuildPartyCharacterPrims(s32 arg0) {
     u8 shouldBuild;
     s32 i;
 
-    if (D_801E9785 == 0) {
+    if (g_MenuCharactersAllocated == 0) {
         for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
             pCharacter = (g_Menu->currentCharacters[i] = HeapAlloc(sizeof(MenuCharacter), 0));
             bzero(pCharacter, sizeof(MenuCharacter));
         }
-        D_801E9785 = 1;
+        g_MenuCharactersAllocated = 1;
     }
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         bzero(g_Menu->currentCharacters[i], sizeof(MenuCharacter));
@@ -715,11 +715,11 @@ void MenuBuildPartyCharacterPrims(s32 arg0) {
     // 0/1 store reuses its register, and a separate local lands in $v0.
     if ((u_char)arg0 != 2) {
         arg0 = 0;
-        pPositionsX = D_801EA054;
-        pPositionsY = D_801EA0DC;
+        pPositionsX = g_MenuCharacterLabelXPositions;
+        pPositionsY = g_MenuCharacterLabelYPositions;
     } else {
-        pPositionsX = D_801EA098;
-        pPositionsY = D_801EA120;
+        pPositionsX = g_MenuGearCharacterLabelXPositions;
+        pPositionsY = g_MenuGearCharacterLabelYPositions;
         arg0 = 1;
     }
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
