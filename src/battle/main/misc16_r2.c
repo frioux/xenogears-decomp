@@ -6,6 +6,11 @@
 // Owned by include/system/menu.h, which this unit does not include.
 #define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
 
+// The text buffers BattleAllocTextBuffer hands out for one name string: the shared
+// menu cell's (the same size is passed as the render length), and a command row's.
+#define BATTLE_MENU_NAME_BUFFER_SIZE 57
+#define BATTLE_COMMAND_ROW_NAME_BUFFER_SIZE 27
+
 // Cells of the battle command grid, and the rows of item names the menu draws.
 #define BATTLE_COMMAND_CELL_COUNT 48
 #define BATTLE_COMMAND_ROW_COUNT 32
@@ -226,7 +231,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         BattleLoadActionRowGraphics();
         func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
     }
-    pBuf = BattleAllocTextBuffer(0x39);
+    pBuf = BattleAllocTextBuffer(BATTLE_MENU_NAME_BUFFER_SIZE);
     g_BattleTextWorkspace = pBuf;
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     blankRect.x = 0x3C0;
@@ -239,7 +244,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         cellUses[i] = g_BattleCommandCellUses[i];
     }
     for (i = 0; i < BATTLE_COMMAND_ROW_COUNT; i++) {
-        pBuf = BattleAllocTextBuffer(0x1B);
+        pBuf = BattleAllocTextBuffer(BATTLE_COMMAND_ROW_NAME_BUFFER_SIZE);
         // The embedded assignment is what makes cc1 form `bufs + i` base-first
         // (`addu s0,v0,v1`) after the call instead of index-first before it.
         *(pSlot = bufs + i) = pBuf;
@@ -265,10 +270,10 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         ones2Rect.w = 6;
         ones2Rect.h = 0xD;
         if (cellIds[i] != 0) {
-            SystemRenderStringEntry(GetItemName(cellIds[i]), bufs[i], 0x1B, 0);
+            SystemRenderStringEntry(GetItemName(cellIds[i]), bufs[i], BATTLE_COMMAND_ROW_NAME_BUFFER_SIZE, 0);
         }
         if (cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP] != 0) {
-            SystemRenderStringEntry(GetItemName(cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP]), bufs[i], 0x1B, 1);
+            SystemRenderStringEntry(GetItemName(cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP]), bufs[i], BATTLE_COMMAND_ROW_NAME_BUFFER_SIZE, 1);
         }
         BattleLoadImageAndSync(&nameRect, bufs[i]);
         tens = cellUses[i] / 10;
@@ -298,6 +303,8 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     }
     HeapFree(g_BattleTextWorkspace);
     BattleUpdateFrame();
+    // The prim pool's column-bank flag byte; battle/main/misc17 writes this same
+    // 0x668/0x669 pair with the raw index, so the pool stays a u8* here.
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->primState = 2;
 }
@@ -457,9 +464,9 @@ void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
     s32 palIndex;
 
     index = g_BattleCommandGridIds[arg1 * 2 + arg0];
-    pBuf = (u8 *)BattleAllocTextBuffer(0x39);
+    pBuf = (u8 *)BattleAllocTextBuffer(BATTLE_MENU_NAME_BUFFER_SIZE);
     bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
-    len = SystemRenderStringEntry(GetStringEntry(D_800D329C, index), pBuf, 0x39, 0);
+    len = SystemRenderStringEntry(GetStringEntry(D_800D329C, index), pBuf, BATTLE_MENU_NAME_BUFFER_SIZE, 0);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
