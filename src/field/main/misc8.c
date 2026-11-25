@@ -1193,6 +1193,28 @@ typedef struct {
 // $a1 (4 rows; both re-form the load at each of the four uses because
 // g_FieldActors is a volatile pointer), the delta.vy (s32)(s16) conversion, and
 // the three branch targets that shift +4 with the extra instruction.
+// R487: the surplus instruction is the `lh v0,82(sp)` delta.vy reload. Two NEW
+// spellings measured this round, both 1448 bytes / 362 insns (worse than 1436/359):
+// (1) keep the raw SImode delta in a local and cast at the use
+//     (`s32 deltaY; deltaY = tracked.rotation.y - track->rotationY; delta.vy = deltaY;`
+//     then `... - (s16)deltaY - 0x800`) = 94.86, 90 diff lines. cc1 keeps the SImode
+//     in $23 (s7) ACROSS FieldGetActorDistance2D and expands the (s16) after the call
+//     (`sll $2,$23,16 / sra $2,$2,16`), which pushes actorIndex out of s7 into $fp:
+//     one extra saved word, 4 extra insns.
+// (2) the same value written to `stepX` (the zero-init register retail reuses for its
+//     s0) = 94.59, 126 diff lines, also 1448/362 with $fp. So retail's s0 is NOT
+//     reachable by reusing the source variable whose allocno retail put in s0 - the
+//     global allocator hands the call-crossing allocno the next callee-saved in
+//     priority order (s7 here) either way.
+// MECHANISM, now measured rather than guessed: retail's `sll a0,a0,16` / `sra s0,a0,16`
+// is ONE call-crossing HImode conversion that its allocator landed on an
+// ALREADY-SAVED register (s0 was dead stepX), so the sra sits in the bnez delay slot
+// for free; from this body every spelling that keeps the value priced a NEW saved
+// register instead, so only the reload body stays at 1436/359. Allocator tie, not
+// source shape. Do not reopen without a new lever.
+// Unchanged residuals (see the R461/R462 blocks above): g_FieldActors base in a0
+// where retail has a1, rotation.vx loaded 5 insns early instead of in the
+// `lw v0,76(v0)` delay slot, and the 0x400000 arm's vx/rotation/vz interleave.
 /*
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     IVEC3 moveVec;
@@ -1325,6 +1347,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+
 
 
 
