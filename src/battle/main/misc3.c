@@ -530,12 +530,28 @@ void BattleClearFlagC6(void) {
 // above the four w stores - are the same scheduler class, and a scheduler hoist
 // (retail's StoreImage argument setup, addu a0,s0,s7 / move a1,s6, sits ABOVE the
 // eight rect stores) cannot be typed in C at all.
-// Options for a next attempt: find the group boundaries that reproduce retail's
-// per-rect order (rect2/3/5 store x,w,h,y, rect4 x,w,y,h; the x load still has to
-// hoist above the tiles texPageY stores as retail's does), or settle the schedule
-// question: try_flags.sh
-// scores this body 72.3 under gcc-2.7.2-cdk and the unit's other functions are
-// 100.0 under 2.6.0, so the preset is not the answer.
+// ROUND 474 RE-MEASURED, all from the live body: 92.83 / 1820 bytes / 455 insns
+// (retail 1816 / 454, and the 4 bytes are one load-delay nop - this body carries
+// four mid-function nops, retail three, so the C cannot link until retail's slot
+// holds a store). try_flags --sweep settles the compiler: 2.6.0 -O2/-O3 x -G4/-G8
+// all 92.83, gcc-2.7.2 91.81, gcc-2.7.2-cdk 72.3. The scheduler probe (this unit's
+// own .i through cc1 with -fno-schedule-insns 78.92, -fno-schedule-insns2 79.61,
+// both 54.74) says retail IS scheduled, so the unscheduled stream is not it.
+// The do-while(0) wraps below are worth 0.22 under 2.6.0: with every wrap removed
+// the same body scores 92.61 with 97 differing lines, and a wrap around EVERY
+// rect statement instead of around each x/w-h-y group scores the same 92.83 / 61,
+// so only the presence of the boundaries matters, not their granularity. Three
+// more shapes measured on the head block, all BYTE-IDENTICAL to this body (source
+// order does not reach those rows): the four uploadRect w stores moved after the
+// four y stores; a `s32 rowHalfwords` local for 0xC6 (cc1 folds it back to the
+// constant); and a do-while(0) wrap of the eight rect stores plus the y/w quartet,
+// or an empty `do { } while (0);` between them. The residual stays what it was:
+// sched2 fills retail's load-delay slots with the neighbouring w/h constant stores
+// and hoists li v1,0xC6 into the prologue, while this body sinks the first clutY
+// lhu below the four w stores and leaves one nop. Options for a next attempt: find
+// group boundaries that reproduce retail's per-rect order (rect2/3/5 store
+// x,w,h,y, rect4 x,w,y,h; the x load still has to hoist above the tiles texPageY
+// stores as retail's does).
 // Struct facts it establishes: the upload rects' y values are tiles[0].clutY - 1,
 // clutY, clutY - 2, clutY - 3, and every read the display state's rect table
 // makes of the tile records is 16-bit (lhu) while GetTPage reads the same words as
