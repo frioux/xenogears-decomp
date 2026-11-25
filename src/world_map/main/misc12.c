@@ -2484,6 +2484,9 @@ extern WorldMapRenderContext *g_WorldMapRenderContext;
 extern s32 g_WorldMapPrimPacketIndex;
 extern s32 g_WorldMapDrawMode;
 extern s32 g_WorldMapFadeActive;
+// Address taken as array decay in WorldMapModeFadeRect (a pointer local keeps the address
+// in a register; &global is folded to the %hi/%lo macro form).
+extern DR_TPAGE g_WorldMapFadeTpageArr[] __asm__("g_WorldMapFadeTpage");
 
 #define WORLD_MAP_FADE_RECT_TPAGE_X 0x380
 #define WORLD_MAP_FADE_RECT_TPAGE_Y 0x100
@@ -2493,32 +2496,40 @@ extern s32 g_WorldMapFadeActive;
 // command 0xC fades the level down and 0xD fades it up, and the return value drops to 3
 // once the fade has finished.  The primitives are re-linked into the ordering table
 // every frame because the level is a Gouraud colour.
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800925A0);
-/* best: 92.73%, 320 bytes = retail's exact size, frame reproduced.
-   Reproduced exactly: the command dispatch (CASE ORDER IS THE LEVER - the switch lists
-   0xD before 0xC, which is what makes gcc 2.7.2 emit the 0xD arm first and test 0xC with
-   a forward beq as retail does; an if/else chain and the ascending case order both come
-   out with the two arms swapped), the twelve Gouraud colour stores (each one re-reads
-   pPlayer->unk50, so each right-hand side has to be a volatile read - a plain read folds
-   to a single load), the two addPrim pairs, both fade-step clamps, and the shared
-   fade-done tail (reached with a goto, which reproduces retail's out-of-line g_WorldMapFadeActive
-   store block; duplicating that store inside both arms makes gcc emit it twice).
-   FRAME: retail's frame is 0xE0 and only ra/s0/s1 are saved, so 0xC0 of stack is
-   reserved and no instruction touches it; the unusedFrame local below is what reproduces
-   it (0xC8 gives 0xE8, nothing gives 0x20). It is worth 0.02% in objdiff and is still
-   required for check_bin.
-   LEFT, all register allocation and no structural difference: the two addPrim mask
-   constants land in a1/a2 instead of retail's a2/a3; g_WorldMapRenderContext is kept in
-   t0 instead of a1; &g_WorldMapFadeTpage is reached through the %hi/%lo macro form for
-   its first store where retail keeps the address in a0 (gcc folds a constant address,
-   and a pointer local does not stop it); the prim base lui/addiu is scheduled after the
-   index loads where retail does it before them; and the tail's move v0,s1 is stolen into
-   the stateTimer lhu delay slot where retail leaves a nop (retail loads the timer into
-   v0, which blocks that slot). A 4-minute permuter run from this body found only
-   candidates that make the colour stores share one temp instead of reloading - wrong
-   code, not ported.
-   The colour stores name g_WorldMapFadePrims+4/+5/+6/+0xC.. where splat named
-   D_8009CE70..D_8009CE8A; the linked bytes are identical.
+// best: 93.72% (objdiff), 1592 bytes / 398 insns against retail 1604 / 401, XenoWorldMap.
+//    The whole structure is decoded and every relocation is right; what is left is gcc
+//    allocation and delay-slot filling. (The twelve colour stores name
+//    g_WorldMapFadePrims+4/+5/+6/+0xC.. where splat named D_8009CE70..D_8009CE8A; the
+//    linked bytes are identical.)
+//    Closed by the array-decay alias (round 474, +0.99 from 92.73 to 93.72 and -4 insns):
+//    with `pTpage = &g_WorldMapFadeTpage` gcc re-forms the address inline for the first
+//    store (`lui at`, then `lui/addiu` again for the second), one instruction over retail;
+//    with `extern DR_TPAGE g_WorldMapFadeTpageArr[] __asm__("g_WorldMapFadeTpage");` and
+//    `pTpage = g_WorldMapFadeTpageArr;` the address stays in a register as retail has it.
+//    LEFT, each an allocator decision and none structural:
+//    (1) the two addPrim masks land in $a1/$a2 where retail has $a2/$a3 (0xFF000000 in
+//        $a1 against $a2, 0xFFFFFF in $a2 against $a3; retail keeps the render context in
+//        $a1, we keep it in $t1). Moved by nothing measured: the misc13 tail shape
+//        (pPrims/pPrim plus tag and primAddr locals for both pairs, 92.92), pPrim before
+//        pCtx (identical), a pointer local for the constant address (folded), and a
+//        POLY_G4-typed ctx->pOt[2] (same registers).
+//    (2) the prim base lui/addiu is scheduled after the index math where retail does it
+//        before the two global loads.
+//    (3) retail leaves a nop in the load-delay slot of the second pOt[0] load of each pair
+//        and we fill it with the tpage address: that is where the three missing
+//        instructions are, so the size cannot come out at retail's 1604 while the
+//        allocation differs.
+//    (4) the tail: retail keeps the stateTimer value in $v0 (`lhu v0,34(s0) / nop /
+//        addiu v0,v0,1 / sh v0`) and copies nRet into $v0 after it; we use $v1 and reorg
+//        puts `move v0,s1` in the load delay slot.
+//    FRAME: retail saves ra/s0/s1 in a 0xE0 frame and touches none of the 0xC0 below; the
+//    unusedFrame local reproduces it (worth 0.02% and required for check_bin).
+//    Reproduced exactly and load-bearing: the command switch lists 0xD before 0xC (an
+//    if/else chain or the ascending order swaps the two arms), each of the twelve Gouraud
+//    colour stores re-reads pPlayer->unk50 through a volatile s32 (a plain read folds to
+//    one load), and the fade-done store g_WorldMapFadeActive = 0 is shared through a goto
+//    (duplicating it in both arms emits it twice).
+/*
 s32 func_800925A0(s32 idx) {
     // retail's frame is 0xE0 with only ra/s0/s1 saved: it reserves 0xC0 of stack that no
     // instruction touches, which only an unused local reproduces.
@@ -2566,7 +2577,7 @@ s32 func_800925A0(s32 idx) {
         pPrim = &g_WorldMapFadePrims[g_WorldMapPrimPacketIndex];
         pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
         *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
-        pTpage = &g_WorldMapFadeTpage;
+        pTpage = g_WorldMapFadeTpageArr;
         pTpage->tag = (pTpage->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
         *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pTpage & 0xFFFFFF);
         pPlayer->unk50 -= g_WorldMapDrawMode;
@@ -2593,7 +2604,7 @@ s32 func_800925A0(s32 idx) {
         pPrim = &g_WorldMapFadePrims[g_WorldMapPrimPacketIndex];
         pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
         *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
-        pTpage = &g_WorldMapFadeTpage;
+        pTpage = g_WorldMapFadeTpageArr;
         pTpage->tag = (pTpage->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
         *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pTpage & 0xFFFFFF);
         pPlayer->unk50 += g_WorldMapDrawMode;
@@ -2611,5 +2622,7 @@ fadeDone:
 updateTimer:
     pPlayer->stateTimer++;
     return nRet;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800925A0);
+
+
