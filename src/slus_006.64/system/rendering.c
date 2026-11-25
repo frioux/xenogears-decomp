@@ -87,6 +87,37 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
 //    bytes / 353 insns, and (b) a 'SpriteFrameData* pFr = pFrameData;' declared
 //    inside the loop for the tile stores = 80.76% / 1436, byte-identical to the
 //    field form because cse folds it back. Idea (c) is still untried.
+// PARK 83.99% (1436 bytes; retail 1452, 359 vs 363 insns, frame 0x78 vs retail
+//    0x68). Round 491 closed the long-standing '+2 induction base' residual: the body
+//    walks the frame array with an INDEX (pFrameData[i].field, i++ at the loop end)
+//    instead of incrementing a pointer, and gcc now keeps ONE base ($s2 = pFrameData,
+//    'addu $18,$18,24' at the loop end, every field offset 0x0..0x14 a displacement)
+//    with the loop tail finally retail's exact addiu base,24 / addiu i,1 / lw count /
+//    bne (addu pEntry,3 in the delay slot). The second base was loop.c turning a USER
+//    pointer biv into two derived givs (+0 and +2); indexing removes the biv. 80.76 ->
+//    83.99 at the same 1436 bytes.
+//    The byte store at 0x13 must be '((u8*)&pFrameData[i])[0x13] |= 2' under the index
+//    form (a raw pFrameData + 0x13 cast addresses element 0: that slip measured 82.07
+//    with an extra stack slot).
+//    REMAINING RESIDUAL, largest first:
+//    - statement order at the top of the function. Retail issues the field_0x36 mult,
+//      then runs the WHOLE 'flags = *pBlock' block plus the pFrameData load, and only
+//      then that division's mflo (13 instructions between mult and mflo); the
+//      field_0x38 division comes after. Forcing -fschedule-insns and -fschedule-insns2
+//      on this body changes nothing (byte-identical to the default compile), so
+//      retail's interleaving is RTL order: the ORIGINAL source really did compute
+//      field_0x36, then read the frame-block header, then load pFrameData, then
+//      compute field_0x38. Reordering the park's statements that way is the untried
+//      experiment (do it together with the texY read below).
+//    - same block: retail reads texY with 'lbu $t0,0x6($fp)' and stores a halfword,
+//      so the source read a BYTE where this body reads a u16.
+//    - frame: vars 64 vs retail 48 (one extra spill slot) and a different register map
+//      from 0x2C on (pSpriteData $s5 retail / $s3 here, pFrameData $s0 retail / $s2
+//      here), 430 differing lines, 4 instructions short of retail's 363.
+//    Earlier rounds' measurements, do not redo: pointer-increment form 80.76/1436;
+//    tile stores hoisted into locals 77.15/1412; pFr inside the loop 80.76 (cse folds
+//    it); else-first 77.00/1432; the round-415 4-minute permuter found only
+//    wrong-code candidates.
 /*
 void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u32 i;
@@ -134,9 +165,9 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
 
     if (count != 0) {
         do {
-            pFrameData->deltaHeight = 0;
-            pFrameData->deltaWidth = 0;
-            pFrameData->flags &= ~0x20;
+            pFrameData[i].deltaHeight = 0;
+            pFrameData[i].deltaWidth = 0;
+            pFrameData[i].flags &= ~0x20;
             while (1) {
                 entryFlags = *pEntry;
                 if (!(entryFlags & 0x80)) {
@@ -161,13 +192,13 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
                     }
                 } else {
                     if (entryFlags & 4) {
-                        pFrameData->flags |= 0x20;
+                        pFrameData[i].flags |= 0x20;
                     }
                     if (entryFlags & 1) {
-                        pFrameData->deltaWidth = *pEntry++;
+                        pFrameData[i].deltaWidth = *pEntry++;
                     }
                     if (entryFlags & 2) {
-                        pFrameData->deltaHeight = *pEntry++;
+                        pFrameData[i].deltaHeight = *pEntry++;
                     }
                 }
             }
@@ -175,21 +206,21 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
             pSprite = (u8*)pFrames + *pOffsets++;
             spriteFlags = *pSprite;
             if (spriteFlags & 1) {
-                pFrameData->flags |= 8;
+                pFrameData[i].flags |= 8;
                 texX = (pAnimPackage->tex.x & 0x3F) >> 1;
             } else {
-                pFrameData->flags &= ~8;
+                pFrameData[i].flags &= ~8;
                 texX = (pAnimPackage->tex.x & 0x3F) >> 2;
             }
 
             tpageMode = (*pEntry >> 4) & 3;
             clutBase = *pEntry & 0xF;
-            pFrameData->colorAndCode = color;
+            pFrameData[i].colorAndCode = color;
             if (tpageMode == 0) {
                 tpageMode = defaultMode;
             }
             if (tpageMode != 0) {
-                *(u8*)((u8*)pFrameData + 0x13) |= 2;
+                ((u8*)&pFrameData[i])[0x13] |= 2;
                 tpageMode--;
             }
 
@@ -197,8 +228,8 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
                 pSprite++;
                 spriteFlags |= *pSprite << 8;
                 pTexEntry = (SVEC2*)((mem_addr)g_SpriteVramSlotPair + ((spriteFlags << 1) & 0x1C));
-                pFrameData->texPage = GetTPage(spriteFlags & 1, (s16)tpageMode, pTexEntry->x, pTexEntry->y);
-                pFrameData->clutID = GetClut((spriteFlags >> 1) & 0xF0, ((spriteFlags >> 9) & 0xF) + 0x1CC);
+                pFrameData[i].texPage = GetTPage(spriteFlags & 1, (s16)tpageMode, pTexEntry->x, pTexEntry->y);
+                pFrameData[i].clutID = GetClut((spriteFlags >> 1) & 0xF0, ((spriteFlags >> 9) & 0xF) + 0x1CC);
             } else {
                 if (((pOwner->flags_0xA8 & 1) == 1) &&
                     (pClutPair = *(u16**)((u8*)pOwner->field_0x7C + 0x18)) != 0) {
@@ -209,35 +240,34 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
                     texPage |= (pClutPair[1] & 0x100) >> 4;
                     texPage |= (pClutPair[0] & 0x3FF) >> 6;
                     texPage |= (pClutPair[1] & 0x200) << 2;
-                    pFrameData->texPage = texPage;
+                    pFrameData[i].texPage = texPage;
                 } else {
                     texPage = ((spriteFlags & 1) << 7) | ((tpageMode & 3) << 5);
                     texPage |= (pAnimPackage->tex.y & 0x100) >> 4;
                     texPage |= (pAnimPackage->tex.y & 0x200) << 2;
                     texPage |= (((pAnimPackage->tex.x + ((spriteFlags << 5) & 0x1C0)) & 0x3FF) >> 6);
-                    pFrameData->texPage = texPage;
+                    pFrameData[i].texPage = texPage;
                 }
-                pFrameData->clutID =
+                pFrameData[i].clutID =
                     (pAnimPackage->clut.y << 6) | (((pAnimPackage->clut.x + clutBase * 16) >> 4) & 0x3F);
             }
 
-            pFrameData->flags = (pFrameData->flags & ~7) | dir;
-            pFrameData->texX = texX + pSprite[1];
-            pFrameData->texY = texY + pSprite[2];
-            pFrameData->width = pSprite[3];
-            pFrameData->height = pSprite[4];
-            pFrameData->flags = (pFrameData->flags & ~0x10) | ((*pEntry >> 2) & 0x10);
+            pFrameData[i].flags = (pFrameData[i].flags & ~7) | dir;
+            pFrameData[i].texX = texX + pSprite[1];
+            pFrameData[i].texY = texY + pSprite[2];
+            pFrameData[i].width = pSprite[3];
+            pFrameData[i].height = pSprite[4];
+            pFrameData[i].flags = (pFrameData[i].flags & ~0x10) | ((*pEntry >> 2) & 0x10);
 
             if (unkFlag != 0) {
-                pFrameData->tileX = pEntry[1] | ((s8)pEntry[2] << 8);
-                pFrameData->tileY = pEntry[3] | ((s8)pEntry[4] << 8);
+                pFrameData[i].tileX = pEntry[1] | ((s8)pEntry[2] << 8);
+                pFrameData[i].tileY = pEntry[3] | ((s8)pEntry[4] << 8);
                 pEntry += 2;
             } else {
-                pFrameData->tileX = (s8)pEntry[1];
-                pFrameData->tileY = (s8)pEntry[2];
+                pFrameData[i].tileX = (s8)pEntry[1];
+                pFrameData[i].tileY = (s8)pEntry[2];
             }
 
-            pFrameData++;
             i++;
             pEntry += 3;
         } while (i != count);
@@ -245,6 +275,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     pSpriteData->field_0x40 = (pSpriteData->field_0x40 & ~0xFC) | ((i & 0x3F) << 2);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
+
 
 
 
@@ -560,6 +591,7 @@ extern u8 g_GfxSpritesUseBaseMatrix;
 //    88.15, pBase local across the call 79.11/344, do-while(0) 81.98, two 4-minute
 //    permuter runs found only wrong-code candidates, 86.76 under cdk so not the
 //    preset.
+// PARK 91.05% (332 bytes; retail 336, 83 vs 84 insns). Round 491 re-measured the\n//    two open axes and closed both: a mid-block birth of pMat (assignment after the\n//    flags test, before the scale math) measures 86.18% with FOUR separate lui/addiu\n//    formations - cse propagates the symbol constant out of the pseudo in every block\n//    whenever the set is not in the entry block, so only the declaration-initializer\n//    keeps it a register, and that makes it the longest-lived pseudo and hence s3.\n//    Preset screens on this body: gcc-2.6.0 91.05 (identical allocation), cdk 89.36,\n//    -O3 does not compile. Not a compiler-version question.\n//    Residual unchanged: retail = spriteData s0, pMat s1, xOffset s2, yOffset s3;\n//    this body = spriteData s1, pMat s3, xOffset s0, yOffset s2. pMat must lose s3,\n//    which needs its birth mid-block (cse refuses) or a shorter live range than the\n//    offset temps (it is live from the prologue, necessarily).\n
 /*
 void func_8001E148(SpriteData* pSpriteData) {
     MATRIX* pMat = &g_GfxBaseMatrix;
@@ -599,6 +631,7 @@ void func_8001E148(SpriteData* pSpriteData) {
     SetTransMatrix(pMatrix);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
+
 
 
 
