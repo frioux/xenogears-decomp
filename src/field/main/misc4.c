@@ -2227,7 +2227,25 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
    copies; the nY-local shape above is the one that reproduces retail's tail.
    Permuter: 4 min, base=2598 best=2353 - the only real edit was hoisting the
    pVerts load above nTri, which measured 86.16% / 1096 bytes on port (worse);
-   the rest of the candidate was `if (1) {}` noise. */
+   the rest of the candidate was `if (1) {}` noise.
+   Round 487, item 1 measured (unparked, re-scored 86.66% / 1092 bytes, 160
+   differing lines on the shape below): retail's frame is 0x80 = vars 0x40
+   (eight 8-byte slots at 0x18..0x57) + the ten saves at 0x58..0x7C, and the
+   slots are out 0x18, nSetIndex 0x20, pY 0x28, pNormal 0x30, pVerts 0x38,
+   nFlagMask 0x40, nPos 0x48, then 0x50..0x57 with no access at all; the 5th and
+   6th parameters are read at 0x90/0x94, i.e. frame 0x80 + 0x10. A dead
+   `u_long unusedFrame[2]` does close the frame to 0x80 and puts the saves and
+   the 0x90/0x94 argument reads on retail's exact offsets, but an expand-time
+   object takes the FIRST var slot: the array lands at 0x20 and pushes all six
+   spill slots +8 (still 86.66%, 160 differing lines). So the phantom has to be
+   a reload-era spill slot ABOVE the six spills, which levers.md
+   j-an-expand-time-slot-is-always-the-lowest says is not source-reachable from
+   a body of this shape - the same conclusion j-a-small-aggregate-mid-list has.
+   Round 487, item 3 measured: moving `nPos = ...` above `nFlagMask = 0;` (retail
+   computes nPos's two halves right after nRef but stores it after out.vy) is
+   86.59%, and it does not restore retail's full-word `sra 16 / sll 16` for the x
+   half - our compile still reloads it narrow as `lh 0x22(fp)`, because the store
+   to out.vx has already killed the loaded word. */
 /*
 // Height of the walkmesh set nSetIndex under the point the actor's next step
 // reaches: walks the triangle graph from the actor's current triangle until the
