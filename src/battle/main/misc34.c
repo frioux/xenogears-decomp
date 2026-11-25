@@ -688,7 +688,6 @@ extern void BattleWaitAndFreeActorBuffers(void);
 // is still `bnez s2,top` + `pending = 0`, i.e. that placement buys the number, not retail's shape.
 // Tried in earlier rounds: `if (pending != 0) {calls}` 91.51; a pSlotTable pointer local 90.31; the
 // pWork->slots[] view 90.28; a 4-minute permuter run (base=1341 best=1341, nothing).
-/*
 s32 func_800C0314(void) {
     SpriteData *slots[BATTLE_SLOT_COUNT];
     BattleSlotWorkView *pWork;
@@ -723,7 +722,7 @@ s32 func_800C0314(void) {
             g_BattleSlotBitMask |= 1 << BATTLE_SLOT_INDEX(pSprite);
         }
     }
-    while (count != 0) {
+    for (;;) {
         pending = 0;
         for (i = 0; i != count; i++) {
             pSprite = slots[i];
@@ -735,15 +734,20 @@ s32 func_800C0314(void) {
         if (pending == 0) {
             break;
         }
+        if (count == 0) {
+            continue;
+        }
         BattleLoadArchiveEntryFile();
+        if (count == 0) {
+            continue;
+        }
         func_800BE790();
     }
     if (flag != 0) {
         BattleWaitAndFreeActorBuffers();
     }
     return count;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
+}
 
 
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
