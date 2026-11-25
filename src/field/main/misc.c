@@ -3142,35 +3142,6 @@ extern s32 g_FieldStreamSceneActive;
 extern s32 g_FieldMode;
 extern s32 g_FieldStreamFlags;
 
-// 83.85% (118 insns / 472 bytes - retail's EXACT size, so the head is solved;
-// what is left is instruction ORDER inside the tail's single basic block, which
-// cannot link). Round 425.
-// THE HEAD IS A DO-WHILE PER CONTINUATION READ: retail's post-call block is
-// [lw actor][sh store][lhu ip][lw scriptData][nop][addu][lbu], and with the
-// store and the read in ONE basic block sched2 always hoists the scriptData
-// base load above the store (it can: its destination is a free register),
-// costing one instruction per site (456 bytes, 74.57). Wrapping the read in
-// `do { ... } while (0)` splits the block and pins retail's order at all four
-// continuation reads and in the first one, which is the whole 16-byte gap.
-//   Dead on the same body, all 472 bytes: the plain macro form
-//   `g_FieldStreamFileIndex = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));`
-//   (74.57, identical to the pActor form), and the round-411 do-while that
-//   wrapped the actor load as well (65.84).
-// THE RESIDUAL, in the tail block only, is one register: retail keeps the
-// 0x100 constant in $v1 and the D_800C3A30 load in $v0, which lets the load sit
-// early (after the Rgb24 store, before the actor load) and the andi+store late
-// (after the LoopPlayback store); here the 0x100 takes $v0, so the load can only
-// follow it, and the SceneActive/StopFlag `li v0,1` pair is hoisted above it.
-// That single swap drags three instruction positions with it (58 differing
-// lines, all in the tail). Source position inside the block is NOT the lever:
-// measured byte-identical with `D_800C3A30 &= 0xF` first, last, and in the
-// middle of the image-rect store group; with a separate early `u16 streamType =
-// D_800C3A30;` read and a late store; and with the ip increment moved above the
-// three trailing stores (sched2 sinks/hoists them back). Permuter from this
-// body: two runs, base 2165 -> 1175 -> 985; the 1175 edit (Rgb24 store moved
-// after the X2 store) measures 82.92% / 40 differing lines and the 985 one
-// (whole tail segment wrapped in another do-while) 74.41% / 40 - the permuter
-// metric is not objdiff's here, and neither scores better than this body.
 void func_8008EA58(void) {
     ActorData* pActor;
     s16 value;
@@ -3339,51 +3310,6 @@ void func_8008EC30(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 
-
-// 89.63% (84 insns / 336 bytes against retail's 82 / 328 - TWO short, cannot
-// link). Round 411. Everything matches from the FieldScriptVMGetArgument calls
-// through the D_800C3A30 store and the loopPlayback if/else, and the actor load
-// sits in retail's slot. Two residuals:
-//   (1) the value mask: retail masks at the assignment (`andi s0,v0,0xffff`)
-//   and stores the raw call result (`sh v0`); here gcc keeps the raw result in
-//   s0 for the store and masks a COPY into v1 for the compare
-//   (`move s0,v0` + `andi v1,s0,0xffff`), one instruction more. Measured
-//   identical: `u16 value = call(9)` (hoists the call), a chained
-//   `D_800C3A30 = value = call(9)`, `value = (u16)call(9)`, and a volatile
-//   D_800C3A30 extern (which also leaves the reload of the `& 0xF` unchanged,
-//   so the reload is ordinary gcc, not volatile).
-//   (2) the tail: retail is [lhu ip][li v1,1][lui/sw SceneActive][addiu][sh ip],
-//   here [lhu ip][nop][addiu][sh ip][li][sw] - the g_FieldStreamSceneActive
-//   store is emitted after the whole increment instead of between the load and
-//   its add, so the load delay is a nop. Writing the store BEFORE the increment
-//   is worse: gcc then hoists it above the whole D_800C3A30 block (88.96).
-//   Earlier rounds measured all 24 statement orders of the last four stores
-//   giving the same schedule.
-// THE POINTER FORM IS WHAT BOUGHT 81.16 -> 89.63: `pIp = &actor->ip; *pIp +=
-// 0x13;` makes cc1 emit the read-modify-write strictly in place (lever
-// h-address-taken-field-pointer-forces-in-place-rmw); the plain
-// `actor->scriptInstructionPointer += 0x13` hoists the lhu above the andi.
-// Preset screened on this body: 2.7.2 89.63, 2.6.0 89.63.
-// 93.54% (332 bytes, retail 328 - ONE instruction short, so it cannot link). Round 463.
-// THE HEAD IS SOLVED: retail's raw-value copy is the PROMOTION of the u16 result
-// kept in its own int local. Writing 'type = value;' straight after the store and
-// using type for BOTH the 0xFE compare and the '& 0x40' flags gives retail's
-// 'andi s0,v0,0xffff' + 'sh v0' + 'bne s0,v0' and drops the 'move s0,v0' /
-// 'andi v1,s0,0xffff' pair (89.63% 336 bytes -> 93.54% 332 bytes). Before that only
-// the u16 value was live across the calls, so the narrow pseudo took s0 and every
-// promotion had to be masked into a fresh register.
-// THE REMAINING MISS is one scheduler tie in the tail: retail fills the ip load's
-// delay slot and reads [lhu ip][li v1,1][lui][sw SceneActive][addiu][sh ip]; here it
-// is [lhu][nop][addiu][sh][li][lui][sw]. The plain
-// 'actor->scriptInstructionPointer += 0x13;' and an explicit
-// 'u16 ip = actor->ip; SceneActive = 1; actor->ip = ip + 0x13;' both give retail's
-// EXACT size (82 insns / 328 bytes, the same instruction multiset - a pure
-// permutation) but 85.06%, and the explicit form also hoists the actor load above
-// the D_800C3A30 store. Reusing the pos local for the ip reads 82.32% / 336 (it
-// keeps that local live across the image stores and adds two copies).
-// UNTRIED LEAD: wrap the last two statements in 'do { ... } while (0)' to split the
-// basic block - that is the lever that pinned retail's order in func_8008EA58
-// (round 425) and this tail's whole residual is one block's schedule.
 void func_8008EE14(void) {
     u16 value;
     int type;
