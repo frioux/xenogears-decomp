@@ -101,12 +101,16 @@ extern volatile u32 D_80050618[3];
    pass 0. Leave as INCLUDE_ASM: this tail (func_800379B4 .. func_800379C8) is not
    this cc1's output.
  */
+// ROUND 474 re-measured (un-parked, live body, whole diff read): 96.00 / 20 bytes
+// = retail's exact 5 insns, single residual lui-addiu $t0 (retail) vs $v0 (ours);
+// lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait names this closed
+// (all three compilers in tools/ start the local-alloc scan at $2) and 2.8.1 was
+// screened in an earlier round. Do not re-brief.
 /*
 void func_800379B4(u32 value) {
     *D_80050618 = value;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379B4);
-
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379C8);
 /* PARKED 0%. Retail is 8 bytes: `j FontPrintf` + `nop` - the disc word at 0x281C8
    is 0x0800DC03 (opcode 2, target 0x8003700C), no frame and a0 untouched, i.e. a
