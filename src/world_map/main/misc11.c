@@ -389,7 +389,7 @@ int func_8008A72C(int index) {
         pScratch[0xC] = g_GameState.fieldScriptMemory[0x16] << 12;
         pScratch[0xE] = g_GameState.fieldScriptMemory[0x17] << 12;
         pScratch[0xD] = WorldMapGetTilePlaneHeight(pScratch[0xC], pScratch[0xE]);
-        *(u16 *)&pScratch[0x28] = *(u16 *)&g_GameState.unk1826[0];
+        *(u16 *)&pScratch[0x28] = *(u16 *)&g_GameState.partyActorAngles[0];
         for (i = 0x1F; i != -1; i--) {
             pTrail->vec = *(WorldMapVec *)&pScratch[0xC];
             pTrail->angle = *(u16 *)&pScratch[0x28];
@@ -401,8 +401,8 @@ int func_8008A72C(int index) {
         pActor->x = g_GameState.fieldScriptMemory[0x16] << 12;
         pActor->z = g_GameState.fieldScriptMemory[0x17] << 12;
         pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
-        pActor->drawAngle = *(u16 *)&g_GameState.unk1826[0];
-        pActor->angle = *(u16 *)&g_GameState.unk1826[0];
+        pActor->drawAngle = *(u16 *)&g_GameState.partyActorAngles[0];
+        pActor->angle = *(u16 *)&g_GameState.partyActorAngles[0];
         pScratch[0] = pActor->x + rcos((s16)pActor->angle) * 0x30;
         pScratch[2] = pActor->z + (-rsin(pActor->angle)) * 0x30;
         WorldMapBuildDirectionFromPositions(&pActor->x, (WorldMapPos *)pScratch, &pActor->dirX, &pActor->angle);

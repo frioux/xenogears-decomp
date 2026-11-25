@@ -302,7 +302,7 @@ int WorldMapUpdateGearActorSlot(int index) {
     slot = index - 4;
     g_GameState.fieldScriptMemory[0x16 + slot * 3] = pActor->x >> 12;
     g_GameState.fieldScriptMemory[0x17 + slot * 3] = pActor->z >> 12;
-    ((u16 *)&g_GameState.unk1826)[index - 4] = pActor->angle;
+    ((u16 *)&g_GameState.partyActorAngles)[index - 4] = pActor->angle;
     return 1;
 }
 
@@ -311,7 +311,7 @@ int WorldMapUpdateGearActorSlot(int index) {
 // without the three zero clears' pins cc1 sinks them below the mode load, and without the
 // state/x pins the gear arm's stores sink into the position loads. Both keep retail's
 // 300 bytes, so only the order tells.
-int func_8008DD6C(int index) {
+int WorldMapInitPartyActor2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 2);
     s32 mode;
@@ -320,7 +320,7 @@ int func_8008DD6C(int index) {
     *(volatile s32 *)&pActor->dirZ = 0;
     *(volatile s32 *)&pActor->dirY = 0;
     *(volatile s32 *)&pActor->dirX = 0;
-    pActor->angle = *(u16 *)&g_GameState.unk1826[4];
+    pActor->angle = *(u16 *)&g_GameState.partyActorAngles[4];
     pActor->moveSpeed = 0xC;
     pActor->trailDelay = 0x1F;
     mode = g_WorldMapMode;
@@ -343,7 +343,7 @@ int func_8008DD6C(int index) {
     }
     g_GameState.fieldScriptMemory[0x1C] = pActor->x >> 12;
     g_GameState.fieldScriptMemory[0x1D] = pActor->z >> 12;
-    *(u16 *)&g_GameState.unk1826[4] = pActor->angle;
+    *(u16 *)&g_GameState.partyActorAngles[4] = pActor->angle;
     return result;
 }
 
@@ -377,6 +377,6 @@ int WorldMapInitPartyActorSprite2(int index) {
     pActor->dirY = 0;
     pActor->dirX = 0;
     pActor->moveSpeed = 0xC;
-    pActor->angle = *(u16 *)&g_GameState.unk1826[4];
+    pActor->angle = *(u16 *)&g_GameState.partyActorAngles[4];
     return 1;
 }

@@ -299,10 +299,10 @@ typedef struct {
     /* 0x1822 */ u16 worldMapPosZ;
     // World map facing angle of the player actor, copied into g_WorldMapPlayerRotation
     // by WorldMapSetPositionFromState. The three party actors' angles follow it in
-    // unk1826 (a u16[3] there); splitting that span changes the load schedule of
+    // partyActorAngles (a u16[3] there); splitting that span changes the load schedule of
     // WorldMapInitPartyActorSprite0/1/2, so it stays opaque.
     /* 0x1824 */ u16 worldMapPlayerRotation;
-    /* 0x1826 */ undefined8 unk1826[0x6]; // +0x1824..+0x182B read as a u16[4] of actor angles
+    /* 0x1826 */ undefined8 partyActorAngles[0x6]; // +0x1824..+0x182B read as a u16[4] of actor angles
     // World map position a field script latches with the 0x17FC30 opcode, see
     // WorldMapGetGameStatePosition and FieldScriptSetGameState17FC30.
     /* 0x182C */ s16 scriptPosX;

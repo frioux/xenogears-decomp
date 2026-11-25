@@ -220,7 +220,7 @@ s32 WorldMapInitPartyActorTrail(int index) {
     *(volatile s32 *)&pActor->dirZ = 0;
     *(volatile s32 *)&pActor->dirY = 0;
     *(volatile s32 *)&pActor->dirX = 0;
-    pActor->angle = *(u16 *)&g_GameState.unk1826[0];
+    pActor->angle = *(u16 *)&g_GameState.partyActorAngles[0];
     pActor->moveSpeed = 0xC;
     pActor->drawAngle = pActor->angle;
     mode = g_WorldMapMode;
@@ -257,7 +257,7 @@ setState:
 done:
     g_GameState.fieldScriptMemory[0x16] = pActor->x >> 12;
     g_GameState.fieldScriptMemory[0x17] = pActor->z >> 12;
-    *(u16 *)&g_GameState.unk1826[0] = pActor->angle;
+    *(u16 *)&g_GameState.partyActorAngles[0] = pActor->angle;
     return result;
 }
 
@@ -293,7 +293,7 @@ int WorldMapInitPartyActorSprite0(int index) {
     pActor->dirY = 0;
     pActor->dirX = 0;
     pActor->moveSpeed = 0xC;
-    pActor->angle = *(u16 *)&g_GameState.unk1826[0];
+    pActor->angle = *(u16 *)&g_GameState.partyActorAngles[0];
     return 1;
 }
 // 99.69% (2988 bytes / 747 insns, retail's exact size; 288 differing lines, 26 of the 29 non-context diff rows are pure register names and 2 are the jtbl operand). Round 478 rewrote the body from retail's own shape, +8.5 points from the 91.19 park:
@@ -615,7 +615,7 @@ int func_8008C844(int index) {
     }
     g_GameState.fieldScriptMemory[0x16] = pActor->x >> 12;
     g_GameState.fieldScriptMemory[0x17] = pActor->z >> 12;
-    *(u16 *)&g_GameState.unk1826[0] = pActor->angle;
+    *(u16 *)&g_GameState.partyActorAngles[0] = pActor->angle;
     return result;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11_c", func_8008C844);
@@ -634,7 +634,7 @@ int WorldMapInitPartyActor1(int index) {
     *(volatile s32 *)&pActor->dirZ = 0;
     *(volatile s32 *)&pActor->dirY = 0;
     *(volatile s32 *)&pActor->dirX = 0;
-    pActor->angle = *(u16 *)&g_GameState.unk1826[2];
+    pActor->angle = *(u16 *)&g_GameState.partyActorAngles[2];
     pActor->moveSpeed = 0xC;
     pActor->trailDelay = 0xF;
     mode = g_WorldMapMode;
@@ -657,7 +657,7 @@ int WorldMapInitPartyActor1(int index) {
     }
     g_GameState.fieldScriptMemory[0x19] = pActor->x >> 12;
     g_GameState.fieldScriptMemory[0x1A] = pActor->z >> 12;
-    *(u16 *)&g_GameState.unk1826[2] = pActor->angle;
+    *(u16 *)&g_GameState.partyActorAngles[2] = pActor->angle;
     return result;
 }
 
@@ -695,7 +695,7 @@ int WorldMapInitPartyActorSprite1(int index) {
     pActor->dirY = 0;
     pActor->dirX = 0;
     pActor->moveSpeed = 0xC;
-    pActor->angle = *(u16 *)&g_GameState.unk1826[2];
+    pActor->angle = *(u16 *)&g_GameState.partyActorAngles[2];
     return 1;
 }
 
