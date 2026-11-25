@@ -61,7 +61,7 @@ typedef struct {
 extern FieldUITextureRect D_800ADC44[];
 
 INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
-// 87.32% (432 bytes vs 428; the frame is now exact: 0x40 with s0-s5+ra, and the
+// 87.32% (432 bytes vs retail's 428; the frame is exact: 0x40 with s0-s5+ra, and the
 // loop prologue's `move s5,zero` / `lui s2,%hi(D_800ADC44)` order matches). The
 // remaining gap is the middle four arguments of FieldLoadTIMWithClut: the original
 // computes `addu $vN,$s2,$s0` FOUR times (destinations v0/v1/a0/t0) and reads
@@ -78,9 +78,21 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
 // Also still open: the D_800B004C RECT stores - the original writes x through the
 // a0 it reuses for StoreImage and y/w/h through `lui at`, in that order; this body
 // gets the same relocations but emits the x store after w.
+// ROUND 476: re-measured 87.32% / 432 bytes and closed three more spellings of the
+// four-addu residual, all byte-identical to or worse than this body. The four sums
+// are the SAME value, so this is a cse question and cse cannot be broken from these:
+//  - the b-embedded-assignment lever (four separate pointer locals, each
+//    `(pRowY = pBase + offset) + 2` written inline in its own argument): byte-for-byte
+//    the same object as this body - cc1 cse1s the four identical sums anyway.
+//  - four `s16` row locals loaded in four separate statements then passed: 81.97% /
+//    440 bytes (each local costs a `sll`/`sra` pair on the way into the call).
+//  - gcc-2.6.0 (`try_flags.sh --gcc gcc-2.6.0-psx`): 87.32, i.e. identical, so the
+//    missing addu is not a 2.7.2-vs-2.6.0 cse difference either.
+// So retail's four addresses must come from something the C cannot express: the only
+// remaining lever is to make the four sums DIFFERENT values (or reach the row through
+// four different bases), which changes the loads with it.
 /*
 void FieldLoadUITextures(void) {
-    u8* pBase;
     u8* pBase;
     s16* pX;
     s16* pHeight;
