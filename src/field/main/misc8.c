@@ -291,23 +291,12 @@ void func_80080A74(int actorIndex) {
 
 extern int g_FieldActorAllocCount[];
 
-// 99.12% (456 bytes / 114 insns = retail's exactly). The ONLY residual is which register
-// the pActorData load's element uses: retail reuses the PRE-store g_FieldActors read's
-// element (a0; "lw s2,76(a0)" sits in the lhu delay slot) and reloads the base for
-// status/pModelData (v1), while this body reloads the base for both reads and reads
-// pActorData through v1. Same instruction count, one coalesced pseudo: gcc hands the two
-// reads one register because their live ranges do not overlap. Tried and measured:
-// pFieldActor for all three reads = one read total, 94.78 (111 insns); three plain
-// g_FieldActors expressions = four reads, 90.04 (122); a re-assigned pFieldActor for the
-// status read = 97.68 (115, gcc coalesces the two reads anyway); a pSlot local with the
-// pActorData read written after the second base load = 97.81 (115, the load is emitted
-// early so reorg cannot place it in the lhu slot); permuter 3 min, base=100 best=100.
-// g_FieldActors is 'FieldActor* volatile', so every source read reloads the base: retail
-// has exactly two reads here and they split {spriteFlags store + pActorData} /
-// {status + pModelData}. Load-bearing in the body below: g_FieldActorAllocCount[0]++
-// (a plain scalar becomes lui $at + sw sym) and the volatile pActorData store, which
-// keeps that store ahead of the reload of g_FieldActors (a plain store costs a0 and the
-// loop counter lands in a2: 90.26%).
+// Three spellings here are load-bearing for the match, all measured: the
+// offset-first cast sum on both actor reads (a plain &g_FieldActors[actorIndex]
+// emits the mirrored `addu` and scores 99.82), the empty do-while that keeps the
+// spriteFlags store ahead of the second base read (without it 92.98), and the
+// actorStatus local that pins the status lhu before the pActorData load (without
+// it 98.51). The untouched 0x60-byte local is retail's 0x88 frame, not debris.
 void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
     int i;
@@ -321,7 +310,7 @@ void func_80080F44(int actorIndex) {
 
     if (actorIndex < g_FieldActiveActorCount) {
         g_FieldActorAllocCount[0]++;
-        *(ActorData* volatile*)&g_FieldActors[actorIndex].pActorData = HeapAlloc(0x138, 0);
+        *(ActorData* volatile*)&g_FieldActors[actorIndex].pActorData = HeapAlloc(sizeof(ActorData), 0);
         pData = (u_int*)g_FieldActors[actorIndex].pActorData;
         for (i = 0; i < numWords; i++) {
             *pData++ = 0;
