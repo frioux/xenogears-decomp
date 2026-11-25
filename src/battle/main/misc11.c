@@ -435,6 +435,30 @@ void BattleResetActorDrawState(u8 arg0) {
 // three extra instructions (`andi`s and the row pointer) the spellings dropped.
 // Tried and no help: typed BattleWorkBlock tables (disp), plain row subscript, cast-first
 // sum, pQueue per statement.
+// Round 488 re-parked at the same 95.01 / 2424 / 606 after measuring:
+//   (preset leg, closed) try_flags --all: gcc-2.6.0 gives 96.34 for this function but
+//       drops two already-matched neighbours (BattleFindMinValueOtherSlot 99.69,
+//       BattleSetActorFlag34 97.00), and gcc-2.7.2-cdk gives 85.02 and breaks four
+//       (BattleLoadStringTableAE 92.78, BattleResetActorDrawState 88.67,
+//       BattleFindMinValueOtherSlot 79.22, BattleQueueCommandFE 73.89). The unit stays
+//       Default. -G0 is byte-identical (95.01), -O1 is 82.54, -O3 will not compile it.
+//   (targetSlotId typed, NEUTRAL) `((BattleCommandRow *)(g_BattleCommandQueue +
+//       arg0 * 0x40))->targetSlotId` at the two 0x3C sites (the struct-member-displacement
+//       route of lever c-struct-member-displacement-flips-a-reloaded-global-base) is
+//       byte-identical to the raw `[0x3C]` form: the `addu` stays index-first. Kept
+//       because it is the readable spelling at the same 95.01 / 2424 / 606.
+//   (the tail is the 7-instruction hole) retail's `if (q[0x2E3])` block is 23 insns
+//       against this body's 16, and the difference is BOTH a redundant reload and a
+//       per-access address form: retail forms `lui $at,%hi` + `addu $at,$at,a0` +
+//       `lbu/sb %lo($at)` for each of its four refs to g_BattleSlotDisplayValue (a0 =
+//       arg0 * 8) while every plain spelling here hoists ONE `lui/addiu` base + `addu`
+//       into a register and reuses it. Probed with cc1_probe on this unit: `+=`,
+//       `A[i] = A[i] + x`, four refs and two refs all give the hoisted `la` + `andi
+//       0xff`; `extern volatile u8` gives retail's extra reload but STILL hoists the
+//       `la`. No probed spelling gives both, so the hole is a named blocker, not an
+//       untried spelling. Also evidence against retyping 0x800D32A0 as one 8-byte-row
+//       struct: g_BattleSlotDisplayValue/Flags/gauge are bytes 0/1/4 of one 8-byte
+//       row, yet retail addresses each through its own symbol with its own $at.
 /*
 void func_80080160(u8 arg0) {
     u8 gauge;
@@ -524,8 +548,8 @@ void func_80080160(u8 arg0) {
     BattleClearCommandSlots();
     BattleClearSlotFlag15A1(arg0);
     BattleBeginAnimTask(BattleSlotBitMask(arg0) |
-        BattleSlotBitMask(((u8 *)(g_BattleCommandQueue + arg0 * 0x40))[0x3C]));
-    v = ((u8 *)(g_BattleCommandQueue + arg0 * 0x40))[0x3C];
+        BattleSlotBitMask(((BattleCommandRow *)(g_BattleCommandQueue + arg0 * 0x40))->targetSlotId));
+    v = ((BattleCommandRow *)(g_BattleCommandQueue + arg0 * 0x40))->targetSlotId;
     if (v == 0xFF) {
         v = 0;
     }
@@ -637,7 +661,8 @@ void func_80080160(u8 arg0) {
     g_BattleSlotCountdownTimers[arg0] = g_BattleSlotDisplayValues[arg0];
     ((BattleWork *)g_BattleDisplayState)->slotMarks[arg0] = 1;
     D_800C4928 = 0;
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
