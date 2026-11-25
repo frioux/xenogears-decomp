@@ -219,14 +219,7 @@ void BattleStepTwoAxisInterpolation(void) {
         g_BattleLerpDone = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
-// Best attempt: objdiff 92.61% (retail 1240 bytes). Two classes of diff: the frame
-// carries one extra callee-saved register (s6, so ra moves 0x48 -> 0x4C) and,
-// downstream of that, the g_BattleSpriteColumnWork base sits in $a0 where retail has $a1 at the
-// coordinate stores. The three sprite packages, the four prim loops and the 2x10
-// grid already line up. The s16/u16 mix on 0x5D9C/0x5D9E and the word read of
-// g_BattlePrimStartIndex inside the grid loop are casts retail really had: the same symbols are
-// read the other way round in BattleStepTwoAxisInterpolation.
+// Best attempt: objdiff 92.61% (retail 302 insns, this body 310). Three classes of diff, measured separately. (1) The six prim-blend call sites: retail computes addiu on the OFFSET CHAIN and then adds the base (addiu a0,a0,0xD20 / addu a0,a0,a1), the body gets the constant folded onto the base instead (addiu v0,a1,3360 / addu a0,a0,v0) -- same instruction count, 12 differing lines. A s32 pEntry intermediate (the spelling BattleBuildBlendedSprite matched with) does block the reassociation but costs 10 insns and 88.68% overall, and block-scoping pEntry per loop still gives 88.68; the neighbour got it for free because it has only one such loop. (2) Inside each blend loop retail RELOADS the g_BattleSpriteColumnWork[0x5D94/95/93/97] count per iteration (lbu v1,0x5D94(a1)) while this body hoists that load into the preheader, so the count lives across the call. (3) The 2x10 grid: this body hoists (sy >> 16) out of the inner loop as sra+sll into s6, which is the extra callee-saved register the frame carries (ra 0x48 -> 0x4C, +4 insns); retail recomputes sra a3,s5,0x10 per iteration. The g_BattlePrimStartIndex reads: retail keeps its ADDRESS in s0 (lui+addiu once, four lbu 0,0(s0)) where this body re-forms lui/lbu at each of the four, +2 insns. Preset screened: gcc-2.7.2-cdk drops every already-matched function in the unit (BattleBuildBlendedSprite 98.75, BattleBuildGrey80BlendSpriteColumn7 79.93), so 2.6.0 is right and the residue is source shape, not the compiler.
 /*
 void func_80088B80(void) {
     s32 i;
@@ -281,8 +274,10 @@ void func_80088B80(void) {
         }
         g_BattleSpriteColumnWork[0x5D98] = g_BattlePrimStartIndex;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
+
+
 void BattleBuildFlaggedSlotSpriteColumn(void) {
     s32 i = 0;
     s32 pitch = 0x6E << 16;
@@ -433,14 +428,7 @@ void BattleBuildGrey80BlendSpriteColumn2(void) {
         BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + g_BattleSpriteColumnWork[0x5D8A]) * 0x28 + 0x51E0) + (s32)g_BattleSpriteColumnWork));
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
-// Best attempt: objdiff 91.38% (528 bytes, the original size). Only two classes of diff,
-// both shared with the rest of the BattleDrawSpritePackage family in this unit: every call site puts
-// the g_BattleSpriteColumnWork base in $a1 and the offset chain in $v0 where the original has base $v1 /
-// chain $a1 (the final addu is the mirror image), and the second loop's "pitch = 0x48 << 16"
-// plus its 0x80000 increment are scheduled a few instructions differently. Pitch values are
-// 0x20<<16 / 0x48<<16 with a +0x80000 step, the step is OUTSIDE the if, and the table
-// lookup index is arg0 * 0x170 into a u8 table at D_800CCDC4 / D_800CCDC6.
+// Best attempt: objdiff 97.23% at retail's exact 520 bytes / 130 insns (was 91.38%). One residual class: at all three BattleDrawSpritePackage call sites the g_BattleSpriteColumnWork base sits in $a1, the count lbu in $v1 and the offset chain in $v0, where retail has base $v1 / count $v0 / chain $a1 -- a pure 3-cycle rotation of caller-saved registers, instruction stream otherwise identical. Two structural fixes landed: the second loop's pitch += 0x80000 belongs INSIDE its if (retail's beq skips it, 2 insns), and loop 1's belongs at the join (retail's beq targets the lui). The rotation is NOT the loop body: truncating the function after loop 1 (a return; probe) made loop 1 allocate exactly retail's way, so it is gcc's per-basic-block reg_alloc_order rotation and depends on the block count elsewhere in the function; removing loop 2, the tail call, the resets, either store or pitch's second init changes nothing. Tried and byte-identical: off as u32, a count local, a base local, both operand orders of the arg sum, pWork local (115 lines, s0), inline offset (retail's registers but the +0x5280 lands on the base and sra moves), outer cast grouping, pitch increment inside/outside the if in loop 1, for vs while. Untried: the exact block structure of retail's second half.
 /*
 void func_800898F0(u8 arg0) {
     s32 i = 0;
@@ -449,10 +437,11 @@ void func_800898F0(u8 arg0) {
 
     g_BattleSpriteColumnWork[0x5D7C] = 0;
     BattleParseNumberToDigits(*(u16*)(D_800CCDC4 + arg0 * 0x170));
-    for (i = 0; i < 4; i++) {
-        if (g_BattleValueDigitSpriteIds[i] != 0xFF) {
+    while (i < 4) {
+        s32 slot = g_BattleValueDigitSpriteIds[i++];
+        if (slot != 0xFF) {
             off = g_BattleSpriteColumnWork[0x5D7C] * 0x50 + 0x5280;
-            g_BattleSpriteColumnWork[0x5D7C] += BattleDrawSpritePackage(g_BattleValueDigitSpriteIds[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
+            g_BattleSpriteColumnWork[0x5D7C] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
         }
         pitch += 0x80000;
     }
@@ -464,14 +453,16 @@ void func_800898F0(u8 arg0) {
         if (g_BattleValueDigitSpriteIds[i] != 0xFF) {
             off = g_BattleSpriteColumnWork[0x5D7D] * 0x50 + 0x53C0;
             g_BattleSpriteColumnWork[0x5D7D] += BattleDrawSpritePackage(g_BattleValueDigitSpriteIds[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
+            pitch += 0x80000;
         }
-        pitch += 0x80000;
     }
     off = g_BattleSpriteColumnWork[0x5D7D] * 0x50 + 0x53C0;
     g_BattleSpriteColumnWork[0x5D7D] += BattleDrawSpritePackage(0x9C, (s32)(off + (s32)g_BattleSpriteColumnWork), 0x41, 0xCC);
     g_BattleSpriteColumnWork[0x5D8C] = g_BattlePrimStartIndex;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
+
+
 void BattleBuildSpritePrimLists(void) {
     BattleDrawSlotSpriteColumns();
     BattleBuildFlaggedSlotSpriteColumn();
