@@ -882,6 +882,7 @@ s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
 //    `pVerts = g_BattleSpriteQuadCorners;` deletion, a `new_var2` copy of
 //    g_GfxCurWorkBufferEnd).
 //    
+// Round 483 re-measured 93.85% / 848 bytes (211 vs 212 insns) and added three measured no-ops, each a full scored run from the body below, all byte-identical: (1) hoisting the spriteFlags read above all four shifts, (2) putting z first in the declaration block, (3) the merged condition `if (pPrim->x3 < pPrim->x0 && --texX < 0)` instead of the nested if. The residual is still the three-place coincidence described below: the work-buffer store re-forming its address through at instead of reusing the base (retail is one instruction LONGER there), the flags load's delay slot (retail fills it with the tileY shift, we leave a nop because we use the loaded word immediately), and the uv block (retail decrements texX into a temp and copies it in the bgez slot, forming the 0x00FFFFFF mask once; our body decrements in place and rematerialises the mask into both slots).
 /*
 void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     SpriteFrameData* pFrameData;
@@ -1023,6 +1024,7 @@ void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001EE88);
 
 
+
 // Best attempt: 91.22% (864 bytes; retail is 860 = 215 instructions, ONE over).
 //    Round 457, measured under XenoRenderingAtfree (cdk -G0).
 //    The body is a verified transcription; the loop shape, both flip arms, the clip
@@ -1050,6 +1052,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001EE8
 //    Measured dead: assigning pFrameData AFTER the work-buffer early-out is
 //    86.40% / 868 bytes (three instructions worse).
 //    
+// Round 483: 91.34% at retail's EXACT size (860 bytes / 215 insns, up from the parked 91.22 / 864 / 216). The one instruction this body used to be over was the uv block's load-delay nop in the else arm: retail loads the frame HEIGHT into the texHeight register BEFORE the texY test and subtracts clip after the merge, so both arms hold two back-to-back lbu's and neither needs a nop. Fix measured: `texHeight = pFrameData[i].height;` above the if/else and `texHeight -= clip;` after it, instead of texHeight = height - clip placed after the if/else (91.22 / 864 -> 91.34 / 860, the note above the body has the old one). Two measured no-ops this round, each a full scored run, byte-identical to the body below: hoisting the spriteFlags read above the four shifts, and a one-iteration do-while-0 label between the RotAverage4 call and the uv block (that one is WORSE: 90.60 / 864). What is left is allocation only: retail is s6=pSpriteData s7=i s5=z s0=height s2=pPrim s1=clip, this body is s5=pSpriteData s6=i s7=z s2=height s1=pPrim s0=clip, plus the flip block's nop (retail fills the lw 0x3C delay slot with the tileY shift, this body uses the loaded word immediately and puts that shift in the beqz slot) and the work-buffer store, which retail re-forms through at (one instruction LONGER there) where this body reuses the base register.
 /*
 void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     SpriteFrameData* pFrameData;
@@ -1165,12 +1168,13 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
 
         n = (pSpriteData->field_0x40 >> 8) & 0x1F;
         clip >>= n;
+        texHeight = pFrameData[i].height;
         if (height > 0) {
             texY = pFrameData[i].texY + clip;
         } else {
             texY = pFrameData[i].texY - clip;
         }
-        texHeight = pFrameData[i].height - clip;
+        texHeight -= clip;
         texX = pFrameData[i].texX;
         width = pFrameData[i].width;
         if (pPrim->x3 < pPrim->x0) {
@@ -1192,5 +1196,6 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
     } while (++i != (((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2));
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001F1D4);
+
 
 
