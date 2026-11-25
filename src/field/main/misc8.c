@@ -289,33 +289,26 @@ void func_80080A74(int actorIndex) {
 
 
 
-/* 90.26% (468 bytes vs retail 456: three instructions too many). The levers
-   that got it from 71.39% here: g_FieldActorAllocCount is indexed as g_FieldActorAllocCount[0]++
-   (a plain scalar is emitted as lui at + sw sym), and the whole tail from the
-   pActor reload to the pShadow store is wrapped in a one-iteration do-while
-   so cc1 schedules it as a single unit. Residue: retail stores pActorData and
-   only THEN re-forms the g_FieldActors base for the reload (sw v0,76(a0);
-   lui v0; lw v0; move a0,zero; addu v1,v1,v0; lw v1,76(v1)), while gcc forms
-   both bases before the store and so puts the loop counter in a2 instead of
-   a0, plus the unk5A/status pair gets a third base load (gcc reloads the
-   volatile g_FieldActors where retail reuses one register for two reads).
-   Tried: pActor/pFieldActor locals, indexed vs pointer forms, removing the
-   pActor local, permuter (found the do-while).
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
-/*
-96.36% (468 bytes = retail's 468, register assignment only). The volatile store
-is load-bearing: writing `*(ActorData* volatile*)&g_FieldActors[i].pActorData =
-HeapAlloc(0x138, 0);` makes cc1 keep that store ahead of the volatile reload of
-g_FieldActors that follows it (a plain store lets gcc hoist the second base load
-above it and costs the loop counter its a0 - 90.26%). Residue: retail gives the
-store's element a0, the reload's v1 and reloads pActorData through a0, ours uses
-v0/a2/v1 for the same three; three earlier statements (the `for` body, the
-spriteFlags store and the pData reload) are otherwise identical.
-Tried: the volatile store above; pActor/pFieldActor locals; indexed vs pointer
-forms; removing the pActor local; permuter (found the do-while in the tail).
 extern int g_FieldActorAllocCount[];
 
+// 99.12% (456 bytes / 114 insns = retail's exactly). The ONLY residual is which register
+// the pActorData load's element uses: retail reuses the PRE-store g_FieldActors read's
+// element (a0; "lw s2,76(a0)" sits in the lhu delay slot) and reloads the base for
+// status/pModelData (v1), while this body reloads the base for both reads and reads
+// pActorData through v1. Same instruction count, one coalesced pseudo: gcc hands the two
+// reads one register because their live ranges do not overlap. Tried and measured:
+// pFieldActor for all three reads = one read total, 94.78 (111 insns); three plain
+// g_FieldActors expressions = four reads, 90.04 (122); a re-assigned pFieldActor for the
+// status read = 97.68 (115, gcc coalesces the two reads anyway); a pSlot local with the
+// pActorData read written after the second base load = 97.81 (115, the load is emitted
+// early so reorg cannot place it in the lhu slot); permuter 3 min, base=100 best=100.
+// g_FieldActors is 'FieldActor* volatile', so every source read reloads the base: retail
+// has exactly two reads here and they split {spriteFlags store + pActorData} /
+// {status + pModelData}. Load-bearing in the body below: g_FieldActorAllocCount[0]++
+// (a plain scalar becomes lui $at + sw sym) and the volatile pActorData store, which
+// keeps that store ahead of the reload of g_FieldActors (a plain store costs a0 and the
+// loop counter lands in a2: 90.26%).
+/*
 void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
     int i;
@@ -334,8 +327,8 @@ void func_80080F44(int actorIndex) {
         }
         g_FieldActors[actorIndex].spriteFlags = 0;
         do {
-            pActor = g_FieldActors[actorIndex].pActorData;
             pFieldActor = &g_FieldActors[actorIndex];
+            pActor = pFieldActor->pActorData;
             if (pFieldActor->status & 0x2000) {
                 pModelData = pFieldActor->pModelData;
                 pActor->pScriptWorkWords = HeapAlloc(0x80, 0);
@@ -352,8 +345,10 @@ void func_80080F44(int actorIndex) {
         } while (0);
         FieldInitShadowQuad((Quad*)g_FieldActors[actorIndex].pShadow);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
+
+
 
 // func_8008110C owns this unit's five debug strings in .rodata (EVENT CODE,
 // MOV CHECK0-3); converting it needs them defined here as const char[0xC].
@@ -3076,23 +3071,6 @@ void FieldResetActorSoundSlots(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
-/* 85.55% (864 bytes vs 872): the struct and all five loops are right, and the
-   whole first block (0x10D test, the three magnitude args, the slot pick and
-   the distance compare) is instruction-for-instruction. What got it there:
-   g_FieldActors is volatile, so the one pActorData load the original shares
-   between the 0x10D test and the three position reads needs a loop-body local
-   (ActorData* pActor = g_FieldActors[i].pActorData), while every access after
-   the magnitude call must spell the global out inline to reproduce the
-   original's per-store reloads. gcc then keeps pActor in a2, as retail does.
-   Residuals: (1) the delta stores come out lhu+subu+sh, the original
-   lh+subu+sh (gcc narrows the loads once only the low halfword is live).
-   (2) gcc hoists the g_FieldActors reload above the actorIndex/distance
-   stores; retail stores first. (3) the slot*8 and distance-slot base land in
-   a1/a0 the other way round. (4) the last loop: retail duplicates the
-   increments after the FieldUpdateActorSoundSlot call (addiu s0,s0,8 in the jal delay
-   slot, addiu s1,s1,1 in the j delay slot) and keeps them again at the shared
-   continue block; gcc merges them into one copy, 8 bytes short.
 typedef struct {
     s32 distance[4]; // 0x00
     s32 unk10[4]; // 0x10
@@ -3103,6 +3081,29 @@ typedef struct {
     s16 delta[3][4]; // 0x60
 } FieldActorProximitySlots; // Size: 0x78
 
+// 85.55% (864 bytes / 216 insns vs retail 872 / 222: eight bytes short). The struct and all
+// five loops are right, and the whole first block (0x10D test, the three magnitude args, the
+// slot pick, the distance compare) is instruction-for-instruction. What got it there:
+// g_FieldActors is volatile, so the one pActorData load the original shares between the
+// 0x10D test and the three position reads needs a loop-body local (ActorData* pActor =
+// g_FieldActors[i].pActorData), while every access after the magnitude call must spell the
+// global out inline to reproduce the original's per-store reloads; gcc keeps pActor in a2,
+// as retail does.
+// The eight missing bytes are exactly the last loop's duplicated increments: retail runs
+// "addiu s0,s0,8" in the FieldUpdateActorSoundSlot jal slot + "addiu s1,s1,1" in the j slot
+// (jumping straight to the slti test), and keeps a second copy of both at the shared
+// continue/else block, while gcc merges them into the one shared copy. Retail's layout says
+// the if-arm jumps to the TEST, not to the increment block.
+// Other residuals: (1) the delta stores come out lhu+subu+sh where retail has
+// lh+subu+sh (gcc narrows the loads once only the low halfword is live). (2) gcc hoists the
+// volatile g_FieldActors reload above the actorIndex/distance stores; retail stores first
+// (the stores are to a stack struct, so nothing pins them). (3) the slot*8 base and the
+// distance-slot base land in a1/a0 the other way round.
+// Tried: the loop as for(;;)+manual increments in each arm, the if/else polarity swapped
+// (moves the branch, not the duplication), and reading the deltas through a VECTOR* instead
+// of the s16 casts (no change to lh/lhu). This body has no twin and 222 instructions of
+// structure, so it is a full re-derivation rather than a lever.
+/*
 void func_80086590(VECTOR* pPosition) {
     FieldActorProximitySlots slots;
     s16* pDelta;
@@ -3180,8 +3181,10 @@ void func_80086590(VECTOR* pPosition) {
                 slots.actorIndex[i]);
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
+
+
 
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
