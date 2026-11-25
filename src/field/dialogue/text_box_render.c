@@ -659,28 +659,33 @@ extern void SystemStringInit(void* pString, s32 vramX, s32 vramY, s32 x, s32 y, 
 // Extra left inset the text takes when a portrait is drawn beside it.
 #define FIELD_TEXT_BOX_PORTRAIT_INDENT 0x44
 
-// 73.38%, 1684 bytes / 421 insns against retail's 1804 bytes / 451 insns. The body is
+// 75.80%, 1748 bytes / 437 insns against retail's 1804 bytes / 451 insns. The body is
 // structurally complete (the allocation loop, the four script variable reads, the three
 // mode arms, the portrait, the rect and string seeding, both position offsets with their
-// two division arms, and the flags tail) and every call, branch and reloc matches. The 30
-// missing instructions are two mechanisms, both confirmed:
-//  1. Retail NEVER holds a box base in a register: every box access is
+// two division arms, and the flags tail) and every call, branch and reloc matches.
+//  1. The flat store form is SOLVED, and round 457's note below was wrong about it. Retail
+//     never holds a box base in a register: every box access is
 //     lui $at,%hi(g_FieldTextBoxes+K) / addu $at,$at,<textBoxIndex*0x498> /
 //     op %lo(g_FieldTextBoxes+K)($at), i.e. gas expanding the flat sym+addend($reg)
-//     macro, which only a typed MEMBER (g_Box[i].string.args[0]) produces. The string
-//     sits at box+0x18, which the header declares only as the opaque short _pad[0x56],
-//     so every spelling here starts from a cast. PROBED (cc1_probe.sh with this unit's
-//     cc1, round 457): the flat form IS emitted for the FIRST store of a block
-//     (sw $2,g_FieldTextBoxes+136($3)) and from the second one on cse keeps sym+136 in a
-//     register and derives the rest (la $17,g_FieldTextBoxes+136 / addu $3,$17,4 /
-//     addu $3,$16,$3), so no cast spelling reproduces retail's 3-insn-per-store form;
-//     the cast forms also make gcc CSE sym+scaled into a callee-saved register instead.
-//  2. The frame and the register set carry the larger part: even a local re-split of the
-//     header (round 444) measures 79.67% / 1724 bytes / 431 insns, so the typing is a
-//     prerequisite and not the answer. Retail spills x to a sh slot at 0x28 and top at
-//     0x30, reloads them with lhu+sll/sra at five uses, keeps dialogIndex at 0x38 and
-//     leaves 0x2C/0x34/0x3C empty (its source declared more locals than survive); this
-//     body keeps x/top in $s6/$s7 and needs only a 0x58 frame.
+//     macro. That is NOT special to a typed MEMBER: gcc emits it for any access reached
+//     as a member or as a _pad[K] cast, and what defeated it here was the
+//     TEXT_BOX_STRING(i) pointer macro, whose value gcc CSEs into one callee-saved
+//     register (la $3,g_FieldTextBoxes+24 / addu $16,$16,$3) so that EVERY later box
+//     access came out off(reg) instead of flat. Probed with cc1_probe.sh on this unit's
+//     cc1: five typed member accesses share one index register and are all flat (exactly
+//     func_8007DCF8's matched shape), and _pad[K] casts are flat too EXCEPT for
+//     CONTIGUOUS offsets, where gcc derives them from the first
+//     (la $17,g_FieldTextBoxes+136 / addu $3,$17,4 / addu $3,$16,$3). The body now spells
+//     the string fields as _pad[K] casts and keeps the macro only for the
+//     SystemStringInit argument, where retail also forms the address with la+addu;
+//     that alone took 73.38% to 75.80% (421 -> 437 insns).
+//  2. What is left is the frame and the register set: retail's frame is 112 to this
+//     body's 104 with the same ten saved registers. Retail spills x to a sh slot at 0x28
+//     and top at 0x30, reloads them with lhu+sll/sra at five uses, keeps dialogIndex at
+//     0x38 and leaves 0x2C/0x34/0x3C empty (its source declared more locals than survive);
+//     this body keeps top in $fp and x in a slot, so retail had live values this one does
+//     not. Rejected spellings below are all below 75.80 now, including the typed view
+//     struct.
 // Also measured and rejected: raw byte-offset stores 75.16 (1744 bytes), typed view
 // struct 73.29 (1688), s16-pair aggregate for x/top 67.48 (1664), dialogIndex as u16
 // (retail sws it, so s32 is right), branchless (faceFlags & 0x800) ? 1 : 0, and reading
@@ -693,9 +698,10 @@ extern void SystemStringInit(void* pString, s32 vramX, s32 vramY, s32 x, s32 y, 
 // 68.38, FieldTextBoxInitializePrimitives, FieldTextBoxInitialize 82.32).
 // Preset question closed: gcc-2.6.0 71.13, -O1 55.25, gcc-2.7.2-cdk fails to compile, so
 // Default (-O2 -G8) stands. twin_for.py has no twin.
-// Shipping mechanism 1 needs a header decision, not a C one: 2.7.2 rejects an anonymous
-// union, so _pad cannot sit beside a typed string member in the same slot, and
-// re-splitting it breaks text_box.c's TEXT_BOX_STRING macro.
+// Shipping mechanism 2 needs more live values in the source, not a header decision: 2.7.2
+// rejects an anonymous union, so _pad cannot sit beside a typed string member in the same
+// slot, and re-splitting it breaks text_box.c's TEXT_BOX_STRING macro.
+// Remaining, in order of size: (1) frame 104 vs retail's 112 with the same ten saved registers, and retail spills x (sh 0x28), top (sh 0x30) and dialogIndex (sw 0x38) and reloads top with lhu+sll/sra at five uses while this body keeps top in $fp - retail's source carried more live values than this one; (2) the four contiguous arg stores still derive from la g_FieldTextBoxes+136 instead of being flat; (3) the register assignment cascades (s2/s3, s6/s7 swapped, storage order of the args at SystemStringInit). Preset question closed (2.6.0 71.13, -O1 55.25, 2.7.2-cdk does not compile). twin_for.py: no twin.
 /*
 s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s32 height,
                   s32 curActorIndex, s32 actorIndex, s32 mode, u32 flags, u32 faceFlags) {
@@ -730,12 +736,12 @@ s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s3
         }
     }
 
-    TEXT_BOX_STRING(textBoxIndex)->args[0] = FieldScriptVMGetVariableValue(0x16);
-    TEXT_BOX_STRING(textBoxIndex)->args[1] = FieldScriptVMGetVariableValue(0x18);
-    TEXT_BOX_STRING(textBoxIndex)->args[2] = FieldScriptVMGetVariableValue(0x1A);
+    *(s32*)&g_FieldTextBoxes[textBoxIndex]._pad[0x38] = FieldScriptVMGetVariableValue(0x16);
+    *(s32*)&g_FieldTextBoxes[textBoxIndex]._pad[0x3A] = FieldScriptVMGetVariableValue(0x18);
+    *(s32*)&g_FieldTextBoxes[textBoxIndex]._pad[0x3C] = FieldScriptVMGetVariableValue(0x1A);
     value = FieldScriptVMGetVariableValue(0x1C);
-    TEXT_BOX_STRING(textBoxIndex)->args[3] = value;
-    TEXT_BOX_STRING(textBoxIndex)->stringRef = value;
+    *(s32*)&g_FieldTextBoxes[textBoxIndex]._pad[0x3E] = value;
+    g_FieldTextBoxes[textBoxIndex]._pad[0x40] = value;
 
     if (mode == 2) {
         anchor.x = FIELD_TEXT_BOX_CENTER_X;
@@ -777,10 +783,10 @@ s32 func_8007F8DC(s16 x, s16 y, s32 dialogIndex, s32 textBoxIndex, s32 width, s3
     if (flags & 0x400) {
         g_FieldTextBoxes[textBoxIndex].flags |= 0x20;
     }
-    TEXT_BOX_STRING(textBoxIndex)->unk68 = g_FieldTextScaleDivisor == 8 ? 1 : 2;
-    TEXT_BOX_STRING(textBoxIndex)->pBuffer = GetStringEntry(g_FieldDialogs, dialogIndex);
+    *(u_char*)&g_FieldTextBoxes[textBoxIndex]._pad[0x34] = g_FieldTextScaleDivisor == 8 ? 1 : 2;
+    *(void**)&g_FieldTextBoxes[textBoxIndex]._pad[0x48] = GetStringEntry(g_FieldDialogs, dialogIndex);
     g_FieldTextBoxes[textBoxIndex].visibility = 0;
-    TEXT_BOX_STRING(textBoxIndex)->flags |= 0x2;
+    g_FieldTextBoxes[textBoxIndex]._pad[0x08] |= 0x2;
     g_FieldTextBoxes[textBoxIndex].ownerActorID = curActorIndex;
     g_FieldTextBoxes[textBoxIndex].talkingActorID = actorIndex;
     g_FieldTextBoxes[textBoxIndex].windowOpenTimer = g_FieldTextScaleDivisor;
