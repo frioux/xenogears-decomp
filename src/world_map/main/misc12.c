@@ -166,51 +166,51 @@ s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
     }
     return -1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
-/* best: 87.34%, 864 bytes against retail's 868 (one instruction short). Decoded
-   structure and every relocation is right. Measured this round, so a later agent
-   does not redo it:
-   - The scratchpad stores do NOT need symbol names. Retail's `addiu $s0,$s2,%lo(D_1F8000A0)`
-     and `sh $v0,(0x1F8000A0 & 0xFFFF)($s2)` are the same instructions as this body's
-     `$s2 + 0xA0` offset stores: the %lo addend comes from a linker reloc in the original
-     object, the linked bytes are identical. objdiff only shows the reloc name.
-   - What DOES matter there is the ORDER: gcc hoists the `lhu g_WorldMapViewRotationZ`
-     above the 0xA0 store unless the three tail stores are volatile, which is worth
-     4 bytes (860 - 864). Retail keeps source order, this body now does too.
-   - LEFT: (1) the `WorldMapGetGameStatePosition` call sequence: retail is
-     [addiu a0,s1,0x28][jal][sh zero,0x24(s1) in the slot][li s3,1], this body gets
-     reorg to steal `addiu a0` into the slot instead. (2) the case 4/5 arm: retail emits
-     `addiu v0,3 / sh v0,0x20(s1)` first, then `lui/lw g_WorldMapPlayerPosition`,
-     `nop`, `sw v0,0x28(s1)`, `lui/lw g_WorldMapPlayerPositionZ`, and the store of z in
-     the jal slot; this body hoists both global loads above the state store and loses
-     retail's load-delay nop (that nop is the missing instruction). (3) the same shape
-     in case 7. The two jtbl_ operands are the only other diff.
-   The layout worry is gone: WorldMapModeInitGroupRotations was converted on its own and its table kept
-   retail's .rodata+0x38 with check_bin OK, so cc1 emits a jump table beside its own
-   function's .text, not at the front of the unit's .rodata. Only the unit's 4-mod-8
-   tables (at and after +0x15C) stay unconvertible, because of cc1's `.align 3`.
+// best: 98.59%, 868 bytes = retail's exact size, 217 vs retail's 218 insns.
+// Two residuals, both INSIDE arm 7 (.L8008E358) plus two known reloc spellings.
+// 1. Arm 7 ordering: retail is [state store][pos load][rot load][sw x][posZ load][nop][sw z]
+//    [posY load][queued load][sh angle][sw unk74][sw y]; this body loads rot first and
+//    stores angle in that first block. The `do { } while (0);` barriers after state/x/z
+//    (a measured lever, h-an-empty-do-while-pins-a-run-of-stores) are what bought 91.93 ->
+//    98.59 and retail's byte count; without them the arm batches all five loads and is two
+//    nops short (860 bytes). Retail's angle store sits TWO blocks below its load, which no
+//    statement order reaches; only an early `nRotation = g_WorldMapPlayerRotation` local
+//    stored late would, and that is not C anyone typed. Tried and measured: no barriers
+//    (91.93), barriers after x and z with angle last (94.76, 868 bytes but load batching),
+//    angle after x with barriers (97.23), angle first with barriers (98.59 = best).
+// 2. Head: nAngle (g_GameState.scriptAngle) sits in $v1 in retail, $a0 here (4 lines).
+//    Moving `hidden = 0` above the WorldMapGetGameStatePosition call is what puts the
+//    jal delay slot right (retail does, 88.15 -> 89.24).
+// 3. Known-good spelling differences: the two jtbl_ operands (this unit owns its tables,
+//    .rodata vs jtbl_800709F8/jtbl_80070A10) and `addiu s0,s2,%lo(D_1F8000A0)` written as
+//    the folded literal 160. Naming D_1F8000A0 instead emits a separate lui/halfword
+//    store per field (87.35) because gcc will not share the symbol's high half across
+//    .vx/.vy/.vz; the u16* pScratchPos spelling is the sibling
+//    WorldMapModeInitGroupRotations' and reproduces its store order.
+// Presets measured on this body: cdk -O2 71.14, 2.6.0 -O2 86.81, -O1 73.35, -O3 76.35,
+// -fno-schedule-insns2 86.24 - the unit's XenoWorldMap flags are right.
+/*
 s32 func_8008E190(s32 idx) {
     WorldMapPlayer *pPlayer;
-    u8 *pScratch;
+    u16 *pScratchPos;
     s32 nRet;
     u16 nAngle;
-
     pPlayer = g_WorldMapSlots + idx;
-    WorldMapGetGameStatePosition(&pPlayer->x);
     pPlayer->hidden = 0;
+    WorldMapGetGameStatePosition(&pPlayer->x);
     nRet = 1;
     nAngle = g_GameState.scriptAngle;
     pPlayer->dirZ = 0;
     pPlayer->dirY = 0;
     pPlayer->dirX = 0;
-    pPlayer->pCameraPathAngles = 0;
+    pPlayer->unk64 = 0;
     pPlayer->unk60 = 0;
     pPlayer->unk74 = 0;
     pPlayer->pCameraPathHeights = (s16 *)0xFFD80000;
     pPlayer->unk70 = 0;
     pPlayer->unk6C = 0;
     pPlayer->angle = nAngle;
-    pScratch = (u8 *)0x1F800000;
+    pScratchPos = (u16 *)0x1F800000;
     switch (g_GameState.worldMapState & 0x1FFF) {
     case 0:
         nRet = 3;
@@ -236,7 +236,9 @@ s32 func_8008E190(s32 idx) {
     case 4:
     case 5:
         pPlayer->state = 3;
+        do { } while (0);
         pPlayer->x = g_WorldMapPlayerPosition;
+        do { } while (0);
         pPlayer->z = g_WorldMapPlayerPositionZ;
         pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0xFFFC0000;
         pPlayer->angle = g_WorldMapPlayerRotation;
@@ -250,22 +252,25 @@ s32 func_8008E190(s32 idx) {
         break;
     case 7:
         pPlayer->state = 2;
-        pPlayer->x = g_WorldMapPlayerPosition;
-        pPlayer->z = g_WorldMapPlayerPositionZ;
+        do { } while (0);
         pPlayer->angle = g_WorldMapPlayerRotation;
-        pPlayer->unk74 = g_WorldMapQueuedCharacterCount;
+        pPlayer->x = g_WorldMapPlayerPosition;
+        do { } while (0);
+        pPlayer->z = g_WorldMapPlayerPositionZ;
+        do { } while (0);
         pPlayer->y = g_WorldMapPlayerPositionY;
+        pPlayer->unk74 = g_WorldMapQueuedCharacterCount;
         *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
         g_WorldMapPlayerAngle = pPlayer->angle;
         break;
     }
     *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
     g_WorldMapGroups->entry[0].hidden = pPlayer->hidden;
-    *(volatile s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
-    *(volatile s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
-    *(volatile s16 *)(pScratch + 0xA2) = pPlayer->angle;
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
+    pScratchPos[0x50] = -(pPlayer->unk70 >> 12);
+    pScratchPos[0x51] = pPlayer->angle;
+    pScratchPos[0x52] = g_WorldMapViewRotationZ[0];
+    RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[0].matrix);
+    RotMatrixYXZ((SVECTOR *)&pScratchPos[0x50], &g_WorldMapGroups->entry[1].matrix);
     WorldMapSetGameStatePosition(&pPlayer->x);
     g_GameState.scriptAngle = pPlayer->angle;
     switch (D_8009C5A8) {
@@ -286,8 +291,10 @@ s32 func_8008E190(s32 idx) {
         break;
     }
     return nRet;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
+
+
 // objdiff reads 99.80% here and always will: the two differences are both spellings of
 // retail's bytes, not different bytes (check_bin OK). One is the switch's table operand
 // (`jtbl_80070A30` against `.rodata`), the other is `addiu $s0,$s2,%lo(D_1F8000A0)`, which
