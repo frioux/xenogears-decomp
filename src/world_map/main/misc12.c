@@ -2175,30 +2175,40 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
-/* best: 87.81%, 996 bytes against retail's 992 (one instruction long). The whole
-   state machine is decoded and every relocation is right; what is left is gcc's
-   block and delay-slot ordering, not structure:
-   - cases 9/10: retail's shared tail is [bnez unk50][sw v0,0x68][li 1][sw v0,0x50]
-     with `sh zero,4(s0)` (command = 0) in the `j` delay slot, i.e. the pCameraPathHeights store was
-     cross-jumped and takes its value in v0. This body emits the pCameraPathHeights store in the
-     j delay and `sh zero,4` in the bnez delay instead.
-   - case 0: retail emits [sh v0,0x20][sll a0,2][sh zero,0x22][sw a0,0x50]
-     [lui/addu/lw g_WorldMapPathPointHeights][lw v0,0x50][nop][sll 1][addu][sw v1,0x54][lh][nop]
-     [sw v0,0x58]; this body hoists the unk50 store and its reload above the two
-     `sh` stores and drops the two load-delay nops.
-   - camera-height ramp: retail keeps unk54 and g_WorldMapCameraHeight in a1/a0 and
-     never reloads them; this body reloads both.
-   - `nStep = 0x40000 >> 3` constant-folds to li 0x8000 here, retail has
-     `lui v1,4` plus `sra v1,v1,3`, so the shift of the clamp constant was not folded
-     in the original; no source spelling tried so far reproduces that.
-   Listing the cases 14, 17, 9, 10 (not 9, 10, 14, 17) was worth 13 points - block
-   emission order is the lever in this switch, so a permuter run from this body is
-   the next step, not more hand shapes. Field types this body proved: command/state/
-   stateTimer s16 (lh, slti, sh), unk54/unk60 s32 (blez, sra), pCameraPathAngles/pCameraPathHeights s16* (the angle
-   and height tracks indexed by the path point). pRot = &g_WorldMapCameraRot is what
-   makes retail hold the address in a3 across the compare and the func_80096F18 call;
-   without it the three cases lose their separate arg-setup blocks.
+// best: 87.81%, 996 bytes / 249 insns against retail's 992 / 248 (one instruction long).
+// Round 489 re-measured this body after fixing it: the park as stored did NOT compile
+// ('structure has no member named pCameraPathAngles') because the angle track lives at
+// 0x64, the field the camera modes and WorldMapModeInitSlotPositionAngle store in it -
+// so the two command arms now write 'pPlayer->unk64 = (s32)g_WorldMapCameraPathAngles*'
+// and the pointer read is 'pPath = (s16 *)pPlayer->unk64;' (retail: 'sw v0,0x64(s0)'
+// and 'lw s1,0x64(s0)'). The struct has no pCameraPathAngles member; do not re-add one.
+// The whole state machine, both switches and every relocation are decoded; the 127
+// differing lines are gcc block/delay-slot order and register colours, not structure.
+// Residual, in the order the diff shows them:
+// - command switch tail, cases 9/10: retail's shared tail is [bnez unk50][sw v0,0x68]
+//   [li 1][sw v0,0x50] with 'sh zero,4(s0)' (command = 0) in the 'j' delay slot; this
+//   body puts the pCameraPathHeights store in the j delay and 'sh zero,4' in the bnez
+//   delay instead.
+// - state 0: retail emits [sh v0,0x20][sll a0,2][sh zero,0x22][sw a0,0x50]
+//   [lui/addu/lw g_WorldMapPathPointHeights][lw v0,0x50][nop][sll 1][addu]
+//   [sw v1,0x54][lh][nop][sw v0,0x58]; this body hoists the unk50 store and its reload
+//   above the two 'sh' stores and drops the two load-delay nops.
+// - camera-height ramp: retail keeps unk54 in a1 and g_WorldMapCameraHeight in a0 and
+//   never reloads them; this body reloads both (lw v1,84 / lw v0,g / ... / lw v0,84).
+// - 'nStep = 0x40000 >> 3' folds to 'li v1,0x8000' here, retail has 'lui v1,4' plus
+//   'sra v1,v1,3', i.e. the original shifted a VALUE that happened to be 0x40000, not a
+//   folded constant expression. No source spelling found; 'nDelta = 0x40000; nStep =
+//   nDelta >> 3;' also folds.
+// - the state-1 tail does not keep pRot in a3: retail has 'lh a0,0(a3)' and 'sh v0,0(a3)'
+//   through the address it holds across the compare and the func_80096F18 call, this
+//   body re-forms lui/addiu (or lui/addiu via at) at each site.
+// Listing the cases 14, 17, 9, 10 (not 9, 10, 14, 17) was worth 13 points - block
+// emission order is the lever in this switch, so a permuter run from this body is the
+// next step (skipped this round: the brief forbids one below 99%).
+// Field types this body proved: command/state/stateTimer s16 (lh, slti, sh),
+// unk54/unk60 s32 (blez, sra), pCameraPathHeights s16* and 0x64 s32 (the angle track
+// pointer), both indexed by the path point.
+/*
 s32 func_80091C18(s32 idx) {
     WorldMapPlayer *pPlayer;
     s16 *pPath;
@@ -2223,7 +2233,7 @@ s32 func_80091C18(s32 idx) {
         pPlayer->unk58 = -0x100;
         break;
     case 9:
-        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesMode7;
+        pPlayer->unk64 = (s32)g_WorldMapCameraPathAnglesMode7;
         pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsMode7;
         pPlayer->command = 0;
         if (pPlayer->unk50 == 0) {
@@ -2231,7 +2241,7 @@ s32 func_80091C18(s32 idx) {
         }
         break;
     case 10:
-        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesModes1To5;
+        pPlayer->unk64 = (s32)g_WorldMapCameraPathAnglesModes1To5;
         pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsModes1To5;
         pPlayer->command = 0;
         if (pPlayer->unk50 == 0) {
@@ -2239,7 +2249,7 @@ s32 func_80091C18(s32 idx) {
         }
         break;
     }
-    pPath = pPlayer->pCameraPathAngles;
+    pPath = (s16 *)pPlayer->unk64;
     switch (pPlayer->state) {
     case 0:
         nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->pCameraPathHeights);
@@ -2312,8 +2322,10 @@ s32 func_80091C18(s32 idx) {
     }
     pPlayer->stateTimer++;
     return nRet;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
+
+
 // best: 92.80%, 576 bytes / 144 insns against retail's 572 / 143 (ONE instruction
 // long). The whole structure is decoded and every relocation is right; what is left
 // is gcc allocation and scheduling:
