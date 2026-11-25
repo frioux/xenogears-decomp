@@ -835,6 +835,8 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
 
+void func_8007D918(u32 *pOt);
+
 void BattleEffectQueueMatrixPrims(MATRIX *pMat, s32 arg1) {
     MATRIX transposed;
 
@@ -1131,31 +1133,36 @@ void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
-
-/* PARK 92.52% at retail's exact size (528 bytes, 132 instructions), re-measured
-   live in round 312. The parked text below now COMPILES: round 310's failure was
-   simply that this block was missing its final closing brace. One more thing a
-   live definition needs: BattleEffectQueueMatrixPrims above calls this function
-   with no prototype in scope, so un-parking it without an
-   `extern void func_8007D918(u32 *pOt);` above the caller is a conflicting-type
-   error against the implicit `int ()` declaration.
-   The body is structurally retail: the preheader's camera loads (s0/t9/t8), the
-   0xA-byte entry stride over the doubled draw index, the three-vertex RTPT
-   accumulator, the per-prim SZ1/SZ2/SZ3 read-back through 0x1F8000B0, the 24-bit
-   OT link and the shared fall gravity/expiry tail. Only REGISTER ASSIGNMENT
-   differs, on five loop-carried values: retail counter=$t0, entry=$t1,
-   entry+7=$a1, prim=$a2, state=$a3; gcc gives state=$t0, counter=$t1,
-   entry=$a0, entry+7=$a2, prim=$a3. Tried with no effect: declaration order
-   (eight permutations), `i = buffer;` hoisted before the loop init (92.78% but
-   524 bytes - one instruction short, it loses retail's preheader counter copy),
-   s32/u32 camera reads, u32 state/counter. Preset screen, round 312: gcc 2.6.0
-   93.42, gcc 2.7.2-cdk 82.89, -O3 92.52, -G0 92.52 - so it is not a preset.
-   The permuter cannot run on this body (the inline-asm GTE macros fail its
-   parser). Facts: D_800926C0 is an ARRAY of prim-template pointers indexed by
-   g_BattleDrawBufferIndex (D_800926C4 is element 1); BattleSpriteEntry.groundY
-   is s16, read with lh, and the gravity tail compares a s16 copy of y. */
-
+// PARK 92.53% at retail's exact size (528 bytes, 131 instructions). NOTE FIX: the
+// previous park was measured on a body with stride 0xA per iteration where retail's
+// loop advances the entry pointer 0x14 (= two 0xA entries, counter steps 2), so the
+// old note's body visited half the array it should; the parked body below is
+// semantically right and scores the same 92.53%. The prologue, the giv anchor
+// (entry+7), the multiply chain, the three-vertex RTPT block and the OT link are
+// INSTRUCTION-IDENTICAL to retail; the whole residual is one permutation of five
+// caller-saved registers holding the loop longs:
+//   retail  regular entry=$t1 anchor=$a1 prim=$a2 n=$a3 i=$t0
+//   ours    entry=$a0 anchor=$a2 prim=$a3 n=$t0 i=$t1
+// i.e. ours is retail shifted one register towards caller-saved, and the cause is
+// visible in the prologue: retail emits 'addu $t1,$a0,$v0' (the loaded
+// g_BattleSpriteEntries pointer dies and the entry base takes a NEW register) while
+// every spelling we have tried emits 'addu $a0,$a0,$v0' (the base coalesces into
+// the pointer's $a0, so the four remaining longs each take one register lower).
+// Tried this round with no effect on that coalesce or the score: pEntry += 2 to fix
+// the stride (92.53), '&((BattleSpriteEntry *)g_BattleSpriteEntries)[buffer * 2]'
+// (92.49), an explicit 'u8 *pEntries = g_BattleSpriteEntries;' local (92.49 - gcc
+// optimises the local away and still coalesces). Previously tried (round 312):
+// eight declaration permutations, 'i = buffer' hoisted before the loop init
+// (92.78 but 524 bytes, one instruction short), s32/u32 camera reads, u32
+// state/counter; preset screen 2.6.0 93.42, 2.7.2-cdk 82.89, -O3 92.52, -G0 92.52.
+// The permuter cannot run on this body (the inline-asm GTE macros fail its parser),
+// so this one needs either a source shape that stops the coalesce or an allocator
+// build with different REG_ALLOC_ORDER. Facts: D_800926C0 is an ARRAY of
+// prim-template pointers indexed by g_BattleDrawBufferIndex (D_800926C4 is element
+// 1); BattleSpriteEntry is 0xA bytes, groundY is s16 read with lh and the gravity
+// tail compares a s16 copy of y; the function needs 'extern void
+// func_8007D918(u32 *pOt);' in scope for BattleEffectQueueMatrixPrims, which calls
+// it.
 /*
 void func_8007D918(u32 *pOt) {
     BattlePrimTemplate *pTemplate;
@@ -1178,7 +1185,7 @@ void func_8007D918(u32 *pOt) {
     pEntry = (BattleSpriteEntry *)(g_BattleSpriteEntries + buffer * sizeof(BattleSpriteEntry));
     pTemplate = (BattlePrimTemplate *)D_800926C0[buffer];
     n = 0;
-    for (i = buffer; i < 0xFC; i += 2, pEntry++) {
+    for (i = buffer; i < 0xFC; i += 2, pEntry += 2) {
         if (pEntry->life == 0) {
             continue;
         }
@@ -1222,8 +1229,10 @@ void func_8007D918(u32 *pOt) {
         }
         pEntry->vy += 2;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
+
+
 
 void BattleInitSpriteBuffers(void) {
     u8 *pTemplateBuf;
