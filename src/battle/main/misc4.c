@@ -148,37 +148,18 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
         BattleQueueCommandF8(arg1);
     }
 }
-// Best: 98.16%, 408 bytes vs retail 412 (103 insns) - exactly 1 instruction short, so it can never link.
-// Every register, the frame and both delay slots are retail's; the one missing instruction is the loop's
-// queue-pointer copy move a2,v1, and it is the only reason the mask copy takes v1 here instead of retail's t0
-// (allocation pressure: retail holds the pointer in v1 for the entry test and in a2 for the latch test).
-// The body is the 96.31 one plus ONE construct: a copy of the byte offset into a local at the top of the loop
-// body, followed by an empty do/while (the same shape BattleQueueCommandF9 above uses). Without the copy AND
-// the empty block together gcc folds the copy away and it is byte-identical to the old park (96.31, 404,
-// two instructions short, n in a0 and i in a1, retail's nop in the beq delay slot lost); with both, the two
-// counters land in retail's registers (n a1, i a0), the beq delay slot becomes retail's nop, and only the
-// pointer copy is left. Measured today and dead: the copy alone (no empty block) 96.31, an s32 count guard
-// hoisted out of the loop as a separate if (two entry tests, 95.63 / 416), do/while behind an explicit
-// count guard (70.50 / 436), u8 command = g_BattleCommandSlotIds[i] then compare the local (folds, 96.31),
-// pQueue+pScan pair with the empty block (coalesced, 98.16), permuter 1549 iterations from base=194 - no
-// improvement, so the residual is not reachable by random edits either.
-// Earlier measured dead ends: loop test written against g_BattleCommandQueue (no hoist, lui+lw reloaded
-// every iteration, 93.20 / 416), n as the only induction variable with g_BattleCommandSlotIds[n * 0x48]
-// and g_BattleCommandRecords[n] strength-reduced (94.36 / 408, but it hoists a third callee-saved base
-// lui/addiu s0 = g_BattleCommandSlotIds and grows the frame 0x28 -> 0x30), two pointers plus an explicit
-// count guard and a do-while (74.05 / 440, mirrors every register), declaration order of i and n (identical),
-// while with separate n = 0 / i = 0 inits instead of the for-init (identical 96.31),
-// and swap of the two init statements (byte-identical). Older measured dead ends
-// from the 95.44 park: pMask/pValue assignment in every position (93.91), for-loops with one or two induction
-// variables (88.64/95.44), do/while wrapper (95.44), n*0x48 strength-reduction forms (84.32), non-void return
-// (unchanged), raw pMask forms at the three mask sites (8 combinations, 86.7-95.4), permuter 1936 iterations
-// from base=474 with no improvement.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
-/*
+// 99.42%, 412 bytes and 103 instructions: retail's byte count and instruction count exactly. The whole
+// body is retail's; the remaining diff is reloc spelling only (this C names g_BattleCommandArgs + 1 and
+// g_BattleCommandRecords + 0x31 where the original object names D_800D2E5D and g_BattleCommandSlotIds, the
+// same addresses), so objdiff cannot read 100.00 for it - judge it with check_bin.sh.
+// What the loop needs, measured: ONE strength-reduced byte offset (a0) shared by both tables, and a TYPED
+// store, which is what lets gcc hoist the loop-invariant g_BattleCommandQueue load into the latch (the
+// move a2,v1 copy retail has). A raw *(u16 *)((u8 *)g_BattleCommandRecords + i) store blocks that hoist
+// and reloads the pointer every iteration (93.20 / 416), and g_BattleCommandSlotIds[n * 0x48] pairing with
+// a record-index walk makes gcc hoist the table BASE into s0 instead (95.38 / 412, frame 0x28 -> 0x30).
+// A pQueue local collapses the copy away (98.16 / 408, one instruction short, cannot link).
 void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
-    BattleCommandQueue *pQueue;
     s32 n;
-    s32 i;
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     g_BattleCommandQueue->unk2DC = g_BattleCommandArgs[arg1].unk1 + 1;
@@ -188,23 +169,15 @@ void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleActionSlotMask[0];
     BattleQueueCommandSlotAndTile(arg0, arg1);
     if (g_BattleCommandArgs[arg1].slotMask != g_BattleActionSlotMask[0]) {
-        pQueue = g_BattleCommandQueue;
-        n = 0;
-        i = 0;
-        while (n < pQueue->count) {
-            s32 offset = i;
-            do {
-            } while (0);
-            if (g_BattleCommandSlotIds[offset] == 0xFD) {
-                *(u16 *)((u8 *)g_BattleCommandRecords + offset) = g_BattleActionSlotMask[0];
+        for (n = 0; n < g_BattleCommandQueue->count; n++) {
+            if (g_BattleCommandRecords[n].command == 0xFD) {
+                g_BattleCommandRecords[n].slotMask = g_BattleActionSlotMask[0];
                 break;
             }
-            n++;
-            i += 0x48;
         }
     }
 }
-*/
+
 
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleCommandRecords[g_BattleCommandQueue->count].command = 0xFD;
