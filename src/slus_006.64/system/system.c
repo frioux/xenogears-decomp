@@ -1426,6 +1426,33 @@ extern u16 g_SystemFontDummyGlyph[];
 // bitmap row over the row above and the row below it. pDest points one row into
 // the buffer, rowStride is the buffer's row width in pixels and plane picks
 // which of the two glyph sets of the page the pixels belong to.
+// PARKED 67.44% under the unit flags (389 insns / 1556 bytes against retail's 424 / 1696); the
+// old note's 66.80 body is this one with three plain mask |= writes for the middle row.
+// 
+// WHAT MOVED IT THIS ROUND: the three middle-row writes are ternaries folded into the store.
+// Writing  row = row | ((word & B) ? (0x2000 << SHIFT) : 0) | mask;  in place of
+//   if (word & B) mask |= 0x2000 << SHIFT;  row |= mask;  gave retail's 0x212/0x21 write
+// shape and was the only change that scored higher: 66.80 -> 67.44 (and 392 -> 389 insns).
+// 
+// THE REAL RESIDUAL IS A COMPILER FLAG, NOT THE C. gcc 2.7.2 -O2 has -fcse-skip-blocks on,
+// and that is what hoists word & 0x40 and word & 0x10 into registers; retail recomputes
+// every andi (28 per iteration). Measured with the unit's own cc1 on this exact body:
+//   -O2 -G8 (unit flags)                          67.44%
+//   -O2 -G8 -fno-cse-skip-blocks                  77.38%  (408 insns / 1632 bytes)
+//   -fno-cse-follow-jumps alone                   67.44%  (no effect at all)
+//   -fno-cse-follow-jumps -fno-cse-skip-blocks    75.70%
+// Across all 52 C functions of the unit, -fno-cse-skip-blocks leaves 51 at 100.00 and drops
+// SystemStringInit to 99.66, so it is a preset candidate, not a per-function hack.
+// 
+// WITH THAT FLAG the residual is pointer givs: retail carries FOUR loop-carried pointers
+// (t2 = pAbove = pMiddle - rowStride, a2 = pMiddle, t1 = pBelow, t3 = pMiddle + 2, each
+// addu p,p,t4 with t4 = 2*rowStride), while this body recomputes (pDest - rowStride) three
+// times per iteration. A four-pointer body (pAbove/pMiddle/pBelow/pMid2 all advanced in the
+// for-update) scores 67.39 under the unit flags and 72.80 under the flag - worse in both, and
+// +16 bytes over retail under the flag - so the giv split is not the whole answer either.
+// 
+// Presets on the 66.80 body (earlier round): 2.6.0 64.95, 2.7.2-cdk 62.19; Default is right.
+/*
 void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int plane) {
     u16* pGlyph;
     u16* pRow2;
@@ -1449,5 +1476,7 @@ void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int
     } else {
         SYSTEM_FONT_DRAW_GLYPH_SET(2, SYSTEM_FONT_PLANE1_CLEAR)
     }
-}
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
+
 
