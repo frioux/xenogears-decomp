@@ -175,7 +175,7 @@ extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
-extern void WorldMapSetupPrimTemplates(void *, s32, s32);
+extern void WorldMapSetupPrimTemplates(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count);
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
