@@ -530,50 +530,48 @@ void BattleSetTextScale(s32 value) {
     g_BattleTextScale = value;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
-/* BEST 84.08% per the round that parked it; the body below re-measures 81.04%
-   (508 bytes against retail's 520) because it is one variant of it. Everything
-   in the body is the right shape - the 0x28-byte POLY_FT4 glyph quad, the UV
-   widths (u1 = u0 + (glyph[2] | 3), v2/v3 = v1 + glyph[3] + 1), the code/len
-   byte 9, the colour word, the x advance.
-   THE ONE THING THAT DECIDES ALMOST EVERY REGISTER HERE is which register
-   g_BattleTextPrimCount lands in. Retail keeps it in v1 and reads it before
-   the frame setup (lui v1 / lw v1 ABOVE addiu sp), so a0 still holds the
-   parameter c at the glyph call and needs no copy; s1 (c, dead after the
-   c != 0x28 test) is then free for (glyph[2] | 3), pGlyph stays in a3, mflo in
-   t0. Ours puts the count in a0, so c has to travel s1 -> a0 with an extra
-   'move a0,s1' before the jal and every other register shifts
-   (pGlyph t0, width a3, mflo t1) - that single tie is worth the 12 missing
-   bytes and about 15 instructions. Tried and measured, all 81.04%: no count
-   local (two reads of the global), an explicit s32 count assignment, the count
-   as a declaration INITIALIZER, count declared first vs last, pPkt spelled as
-   pBase + count / (u8 *)pBase + count * 0x28 / &g_BattleTextPrimBuffers[idx][count]
-   (one statement), and pPkt computed AFTER the glyph call (that one changes the
-   register class instead: the count becomes callee-saved s0, 520 bytes at
-   78.75%). Hoisting g_BattleTextTpage/g_BattleTextClut into u16 locals to
-   reproduce retail's early lhu pair: 78.65%, 524 bytes.
-   Still line for line: retail loads tpage/clut (lhu a1/lhu a2) BEFORE the four
-   coordinate stores and stores them at 0x16/0xE afterwards, and its tail wants
-   lhu for g_BattleTextCursorX (ours lh even with an explicit (u16) cast).
-   Also proved here: BattleGetFontGlyph takes an s32, not a u8 - retail does no
-   andi on a0 in its own body or at these call sites, and BattleGetTextWidth
-   still matches 100.00% with the s32 prototype.
+// best 81.04% (508 bytes against retail 520 = 3 insns short, 127 vs 130 insns). The
+//    body re-measures 81.04 this round; the 84.08% the earlier note quotes was a
+//    variant that was not kept.
+//    ROOT RESIDUAL: the register g_BattleTextPrimCount lands in. Retail keeps it in
+//    v1, loaded BEFORE the frame setup, while a0 still holds the parameter c; ours
+//    loads it into a0 after the prologue, so c needs a move into a0 before the
+//    BattleGetFontGlyph jal (retail puts the base+count addu in that delay slot
+//    instead), pGlyph shifts a3 -> t0, mflo t0 -> t1 and the whole body mirrors.
+//    The 3 missing insns are load-delay nops retail has and ours does not need,
+//    a consequence of that order, not a separate hole.
+//    MEASURED THIS ROUND: `s32 count = g_BattleTextPrimCount;` as the first
+//    declaration (the shape misc2/misc9 BattleEffectSetMatrix has, whose retail
+//    does load before its frame) compiles BYTE-IDENTICALLY to the two direct global
+//    reads - 81.04 / 508 bytes - so a declaration-with-initialiser does not hoist
+//    the load here; gcc-2.7.2-cdk scores 81.31 on the same body, so the preset is
+//    not the way out.
+//    ALREADY MEASURED (do not repeat): no count local, an explicit assignment, the
+//    count as a declaration initializer, declared first vs last, pPkt spelled as
+//    pBase + count / (u8 *)pBase + count * 0x28 / &g_BattleTextPrimBuffers[i][count],
+//    pPkt computed after the glyph call (callee-saved s0, 520 bytes, 78.75%),
+//    tpage/clut hoisted into u16 locals (78.65% / 524).
+//    The rest of the body is retail line for line: the 0x28-byte POLY_FT4 quad, the
+//    UV widths u1 = u0 + (glyph[2] | 3) and v2/v3 = v1 + glyph[3] + 1, code byte 9,
+//    the 0x2C000000 colour word, the cursor advance by 2 + (glyph[2] * scale >> 8).
+//    BattleGetFontGlyph takes an s32 (retail does no andi on a0), and
+//    BattleGetTextWidth still matches 100.00% with that prototype.
+/*
 void func_8007E964(s32 c) {
+    s32 count = g_BattleTextPrimCount;
     POLY_FT4* pPkt;
-    POLY_FT4* pBase;
     u8* pGlyph;
     s16 x;
     s16 y;
     s32 gw;
     s32 dx;
 
-    if (g_BattleTextPrimCount >= 0x65) {
+    if (count >= 0x65) {
         return;
     }
-    pBase = (POLY_FT4*)g_BattleTextPrimBuffers[g_BattleDrawBufferIndex];
-    pPkt = pBase + g_BattleTextPrimCount;
+    pPkt = g_BattleTextPrimBuffers[g_BattleDrawBufferIndex] + count;
     pGlyph = BattleGetFontGlyph(c);
-    if (pGlyph == 0) {
+    if (pGlyph == NULL) {
         return;
     }
     if (c != 0x28) {
@@ -595,8 +593,10 @@ void func_8007E964(s32 c) {
         g_BattleTextPrimCount++;
     }
     g_BattleTextCursorX = (u16)g_BattleTextCursorX + 2 + ((pGlyph[2] * g_BattleTextScale) >> 8);
-}
- */
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
+
+
 
 s32 BattleGetTextWidth(u8* pText) {
     s32 width = 0;
