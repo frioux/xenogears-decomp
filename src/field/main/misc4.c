@@ -90,28 +90,24 @@ extern s32 g_FieldSpecialAnimLoadPending;
 extern s32 g_FieldPartyModelLoadState;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
-/* Best attempt: 90.68% (144 bytes; the original is 148). The original keeps its
-   return value -1 in v0 across the ArchiveDataSync call and the three guard
-   tests, so the call's result is copied to v1 (`addu v1,v0,zero`), the -1 is
-   re-materialised in that branch's delay slot and the three later tests read
-   into v1 with nop delay slots. Our compile tests v0 directly and re-emits
-   `li v0,-1` in each of the three branch delay slots, i.e. it is exactly the
-   `addu v1,v0,zero` (4 bytes) that is missing; every shape below folds the
-   constant instead. Tried: five independent `return -1`s, a `result = -1;`
-   before the call with `return result`/`goto out`, nested if/else + single
-   nResult (this one, 90.68), `nResult = -1` initialised at declaration with a
-   single out label (71.76, 152 bytes), and one permuter run (4 min, 705 iters)
-   whose best candidate is 84.49% under objdiff - the permuter's own score is
-   not objdiff's, so it picked a body that is worse here.
-   Round 474 added: five independent early returns with a shared `nResult`
-   initialised to -1 (78.38, the last guard flips to beqz/j) and the same with a
-   single `return nResult` at the end (71.76 = the s0 variant above).
-extern int ArchiveDataSync(void);
-extern s32 g_FieldArchiveStreamActive;
-extern s32 g_FieldScreenImageStored;
-extern s32 g_FieldSpecialAnimLoadPending;
-extern s32 g_FieldPartyModelLoadState;
-
+/* Best attempt: 90.68% (144 bytes; the original is 148 / 37 insns). The original
+   loads `li v0,-1` ONCE, in the delay slot of the second guard's bnez, and the
+   three later guards jump to the epilogue with nop slots, i.e. one -1 definition
+   serves all four failing exits. Our compile re-materialises `li v0,-1` in every
+   guard's delay slot (3 instructions retail does not have) and therefore needs no
+   `addu v1,v0,zero` to copy the ArchiveDataSync result out of $v0 - the net is
+   one instruction short (36 vs 37).
+   Shapes measured in round 487, all 144 bytes / 36 insns: five separate
+   `return -1` (78.38, the last guard flips to beqz/j), a single shared
+   `s32 nResult = -1;` with five `return nResult` (78.38, same flip), one
+   `if (call() == 0 && g1 == 0 && g2 == 0 && g3 == 0) return -(...); return -1;`
+   (79.73), the `||` chain (78.38). Earlier rounds: `nResult = -1` at declaration
+   with one out label (71.76, 152 bytes - the -1 goes to a callee-saved register
+   because it is live across the call), and a 4-minute permuter run (84.49).
+   Presets ruled out: 2.6.0 90.68, 2.7.2-cdk 80.81, -G0 90.68.
+   The 90.68 body below is the if/else-if chain (cc1 CSEs the -1 through the
+   merged arms); it is the only shape that keeps all four guard slots' polarity. */
+/* Best attempt:
 int func_80078BC8(void) {
     int nSyncStatus;
     int nResult;
@@ -134,6 +130,7 @@ int func_80078BC8(void) {
     return nResult;
 }
 */
+
 
 extern s16 g_Unknown_800B2344;
 void FieldOrVramStripPixels(void) {
@@ -2230,7 +2227,25 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
    copies; the nY-local shape above is the one that reproduces retail's tail.
    Permuter: 4 min, base=2598 best=2353 - the only real edit was hoisting the
    pVerts load above nTri, which measured 86.16% / 1096 bytes on port (worse);
-   the rest of the candidate was `if (1) {}` noise. */
+   the rest of the candidate was `if (1) {}` noise.
+   Round 487, item 1 measured (unparked, re-scored 86.66% / 1092 bytes, 160
+   differing lines on the shape below): retail's frame is 0x80 = vars 0x40
+   (eight 8-byte slots at 0x18..0x57) + the ten saves at 0x58..0x7C, and the
+   slots are out 0x18, nSetIndex 0x20, pY 0x28, pNormal 0x30, pVerts 0x38,
+   nFlagMask 0x40, nPos 0x48, then 0x50..0x57 with no access at all; the 5th and
+   6th parameters are read at 0x90/0x94, i.e. frame 0x80 + 0x10. A dead
+   `u_long unusedFrame[2]` does close the frame to 0x80 and puts the saves and
+   the 0x90/0x94 argument reads on retail's exact offsets, but an expand-time
+   object takes the FIRST var slot: the array lands at 0x20 and pushes all six
+   spill slots +8 (still 86.66%, 160 differing lines). So the phantom has to be
+   a reload-era spill slot ABOVE the six spills, which levers.md
+   j-an-expand-time-slot-is-always-the-lowest says is not source-reachable from
+   a body of this shape - the same conclusion j-a-small-aggregate-mid-list has.
+   Round 487, item 3 measured: moving `nPos = ...` above `nFlagMask = 0;` (retail
+   computes nPos's two halves right after nRef but stores it after out.vy) is
+   86.59%, and it does not restore retail's full-word `sra 16 / sll 16` for the x
+   half - our compile still reloads it narrow as `lh 0x22(fp)`, because the store
+   to out.vx has already killed the loaded word. */
 /*
 // Height of the walkmesh set nSetIndex under the point the actor's next step
 // reaches: walks the triangle graph from the actor's current triangle until the
