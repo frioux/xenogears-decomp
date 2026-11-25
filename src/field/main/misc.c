@@ -3171,10 +3171,12 @@ extern s32 g_FieldStreamFlags;
 // after the X2 store) measures 82.92% / 40 differing lines and the 985 one
 // (whole tail segment wrapped in another do-while) 74.41% / 40 - the permuter
 // metric is not objdiff's here, and neither scores better than this body.
-/*
 void func_8008EA58(void) {
     ActorData* pActor;
     s16 value;
+    u16 ip;
+    u16 streamType;
+    u16* pIp;
 
     if (g_FieldMapChangeGate.value == 0) {
         g_FieldScriptVMStopFlag = 1;
@@ -3205,21 +3207,26 @@ void func_8008EA58(void) {
         D_800C3A32 = 0x140;
         g_FieldStreamFlags = 0x40;
         g_FieldStreamRgb24 = 1;
-        D_800C3A30 &= 0xF;
+        streamType = D_800C3A30;
+        pIp = &g_FieldScriptVMCurActor->scriptInstructionPointer;
         D_800C3A34 = 0x100;
-        g_FieldStreamImageX2 = 0;
-        g_FieldStreamImageY1 = 0;
-        g_FieldStreamImageX1 = 0;
+        do {
+            g_FieldStreamImageX2 = 0;
+            g_FieldStreamImageY1 = 0;
+            g_FieldStreamImageX1 = 0;
+        } while (0);
         g_FieldStreamImageY2 = 0x100;
         g_FieldStreamLoopPlayback = 0;
+        do {
+            D_800C3A30 = streamType & 0xF;
+        } while (0);
+        ip = *pIp;
         g_FieldMode = 0;
         g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
-        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
+        *pIp = ip + 0xC;
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 
 // 94.74% (480 bytes against retail's 484 - ONE instruction short, so it cannot
 // link yet). Everything matches: the g_FieldMapChangeGate guard, the four
