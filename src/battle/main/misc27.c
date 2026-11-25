@@ -771,25 +771,20 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
     pMatrix->t[2] = pSpriteData->pBase->transformMatrix.t[2];
     SetMulMatrix(pMatrix, &pSpriteData->pBase->transformMatrix);
 }
-// 95.27% at retail's exact 220 bytes / 55 insns: everything matches except the two
-// induction pointers' REGISTER HAND-OUT. Retail is `move t0,a1` (x base = copy of
-// pOut) in the first guard's delay slot and `addiu a1,a1,4` in the preheader (y/z
-// base = pOut + 4), i.e. the +4 lands on the parameter's register; every spelling
-// here gets the mirror (x base = $a1 coalesced, y/z base = `addiu t0,a1,4`), which
-// cc1 prefers because it costs one instruction less. Measured, all 220 bytes:
-//  - pYz = (s16*)pOut; pX = pYz - 2;            (this body) 95.27 - addiu on the copy
-//  - pX = (s16*)pOut; pYz = (s16*)pOut + 2;                 94.64
-//  - pYz = (s16*)pOut + 2; pX = (s16*)pOut;                 94.64
-//  - pYz = (s16*)pOut + 2; pX = pYz - 2;                    94.64
-//  - SVECTOR* pDst = pOut; s16* pYz = (s16*)pOut + 2;       94.64
-//  - pYz assigned BEFORE the guards, pX after them           96.45 but 216 bytes
-//    (54 insns - the add is folded into the guard's delay slot and a1 is never
-//    copied, so it cannot link)
-//  - pOut[i].vx / .vy / .vz struct form                     84.84 / 216 bytes (one
-//    base with offsets -8/+2/+4, and the i++ sinks below the stores)
-// A likely reading of retail is two pointer locals 4 bytes apart (`move t0,a1` then
-// the add into the dying $a1), which combine_regs merges for us. Below 99%, so no
-// permuter run is allowed on it.
+// PARKED 94.64% at retail's exact 220 bytes / 55 insns (XenoBattleTailCdk0). The only
+// residual is the two induction pointers' REGISTER HAND-OUT: retail is 'move t0,a1'
+// (x base = a copy of pOut) in the FIRST guard's delay slot plus 'addiu a1,a1,4' in
+// the preheader (y/z base = pOut + 4), i.e. the +4 lands on the parameter's register.
+// Every spelling gets the MIRROR (x base coalesced onto $a1, y/z base
+// 'addiu t0,a1,4'), which cc1 prefers because the bare copy is one instruction
+// cheaper. levers.md [e-a-derived-base-beats-a-copy-of-the-parameter] lists the
+// seven dead spellings; re-measured here on the honest body:
+//  - pX = (s16*)pOut; pYz = (s16*)pOut + 2;      (this body) 94.64, offsets x+0/y+2/z+4
+//  - pX assigned before the guards, pYz after:                    94.64, same mirror
+//  An older park body ('pYz = (s16*)pOut; pX = pYz - 2;') read 95.27 but is WRONG
+//  CODE - it walks x at pOut-4+8i and y at -2 (retail writes x at pOut+8i, y +2,
+//  z +4), i.e. it stores before the array, so its 95.27 is not a better answer.
+//  Below 99%, so no permuter run.
 /*
 void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
     s16* pX;
@@ -809,8 +804,8 @@ void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
     if (pSpriteData->pBase->pDirTransforms == NULL) {
         return;
     }
-    pYz = (s16*)pOut;
-    pX = pYz - 2;
+    pX = (s16*)pOut;
+    pYz = (s16*)pOut + 2;
     for (i = 0; i != 5;) {
         pTransform = (BattleDirectionTransform*)(D_800C356C[i] * sizeof(BattleDirectionTransform) + (mem_addr)pSpriteData->pBase->pDirTransforms);
         x = pTransform->translationX;
@@ -830,6 +825,7 @@ void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
+
 
 
 // The far screen edge of the last trail quad, which is the near edge of the next one:
@@ -999,22 +995,27 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
 //  - the D_800D3334 store written before the semiTrans store: 94.46 / 352.
 //  - the frame read inline (no local, `*(u16*)` twice): 93.71 / 352.
 // No preset question: the tail's branch shape is right under cdk now.
-/*
 void func_800B5588(WorkListEntry* pWork) {
     BattleDirectionTask* pTask;
     SpriteData* pSpriteData;
-    u16 frame;
+    u16 radius;
+    u16 edge;
+    u32 frame;
+    u32 curFrame;
     s32 mode;
     s32 i;
 
     pTask = pWork->pTask;
     pSpriteData = pTask->pSpriteData;
     D_800D2FD8 = pTask->pArgs;
-    D_800C3E9C[0] = pTask->radius;
+    radius = pTask->radius;
+    edge = *(u16*)&pSpriteData->field_0x2e;
     frame = *(u16*)&pSpriteData->curSpriteFrame;
+    D_800C3E9C[0] = radius;
     D_800C3D4C[0] = pTask->semiTrans;
-    D_800D3334[0] = pSpriteData->field_0x2e;
-    if (frame != pTask->curSpriteFrame) {
+    curFrame = pTask->curSpriteFrame;
+    D_800D3334[0] = edge;
+    if (frame != curFrame) {
         pTask->curSpriteFrame = frame;
         func_800B50D4(pSpriteData, pTask->targetPos);
     }
@@ -1035,8 +1036,7 @@ void func_800B5588(WorkListEntry* pWork) {
         }
     }
     pTask->timerTask.onFreeCallback(pTask);
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
+}
 
 
 void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
