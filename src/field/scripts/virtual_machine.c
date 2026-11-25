@@ -1015,12 +1015,21 @@ void func_800A3474(void) {
 
 
 // Pulls the field state func_800A3F4C pushed into the save block back out.
-// PARKED 91.47% (688 bytes, 172 insns against retail's 176). Round 480 rebuilt the head
-// from the .s: the 0x74-byte copy takes its source from &g_WorldMapSaveBlock + 0x3C
-// (earlier bodies copied from the block base) and its destination from
-// (u8*)&g_FieldNumActors - 0xB8, which reproduces the two-loop lwl/lwr
-// mips_expand_block_move verbatim. 86.75 -> 88.71 -> 91.47.
-// Load-bearing spellings measured this round:
+// PARKED 97.01% (700 bytes, 175 insns against retail's 176 / 704 bytes).
+// The head's STATEMENT ORDER is what the store elimination needs:
+//     g_WorldMapSaveCursor = pSrc;
+//     g_FieldNumActors     = pSrc[0];   /* or *pNumActors, same code */
+//     g_WorldMapSaveCursor = pSrc + 0x3C;
+//     memcpy((u8*)&g_FieldNumActors - 0xB8, pSrc + 0x3C, 0x74);
+//     g_WorldMapSaveCursor += 0x920;    /* AFTER the memcpy, BEFORE the gear loop */
+// The g_FieldNumActors store between the two cursor stores is an alias barrier, so
+// both cursor stores survive (the old head, where the second store directly followed
+// the first, lost the first one: 91.47%, 688 bytes). The 0x920 cursor update must come
+// after the inlined memcpy for the same reason - its stores kill the known cursor
+// value, so retail's load+addiu+store reappears instead of a fold into pSrc+0x95C -
+// and it must come BEFORE the 3-entry gear loop, which is where retail emits it.
+// 86.75 -> 88.71 -> 91.47 -> 97.01.
+// Load-bearing spellings measured earlier:
 //  - the actor loop must go through an element-pointer local that is re-assigned at the
 //    top of each of its three blocks: retail re-reads the volatile g_FieldActors once per
 //    block and reuses that one element pointer for every field in the block. Spelling
@@ -1030,20 +1039,24 @@ void func_800A3474(void) {
 //  - `g_WorldMapSaveCursor += 0x920;` must sit after a memory store (here *pNumActors).
 //    Placed directly after the `= pSrc + 0x3C;` store, gcc folds the two into one store
 //    of pSrc+0x95C and the second store and its reload both disappear.
-// What is left:
-//  1. retail materialises &g_FieldNumActors into $a0, stores through it (sw v1,0(a0)) and
-//     derives the copy destination with addiu a3,a0,-0xB8. gcc 2.7.2 folds both uses into
-//     a %lo addend (lui a3,%hi; addiu a3,-184) plus the assembler's $at store - those 2
-//     insns are the whole size difference. Tried without change: the pNumActors pointer
-//     local below, the inline (u8*)&g_FieldNumActors - 0xB8 form, and the store placed
-//     before and after the memcpy.
-//  2. moving the *pNumActors store between the two cursor stores keeps retail's two
-//     cursor stores and reads 91.21% / 696 bytes at 174 insns; both shapes are
-//     measurable and the one below scores highest.
-//  3. allocator only: block 1 keeps the element pointer in $v0 and the cursor in $a1
-//     where this compile uses $a1/$a2, and block 2's pActorData lands in $a1 here against
-//     $a0 there - a one-register shift at the same instruction count.
-// Presets measured on this body: gcc-2.7.2-cdk 85.70, cdk -G0 73.59, -O3 compile-fails.
+// What is left (all three are the same shape in the memcpy expansion):
+//  1. retail emits `addiu t0,a1,172` (the block-move end pointer) once per alignment
+//     path, 176 insns total; this body emits it once, shared, in the beqz delay slot,
+//     hence 175 insns / 700 bytes. THE BODY IS ONE INSTRUCTION SHORT AND CANNOT LINK.
+//     Tried without change: nothing in C reaches it; the size, the source expression
+//     and the register holding the base are identical on both sides.
+//  2. retail materialises &g_FieldNumActors into $a0, stores through it (sw v1,0(a0))
+//     and derives the copy destination with addiu a3,a0,-0xB8. gcc 2.7.2 folds both
+//     uses into a %lo addend (lui a3,%hi; addiu a3,-184) plus the assembler's $at store
+//     - 2 insns for the store where retail spends 1 (its store lands in the beqz delay
+//     slot, which is where this body's shared addiu t0 goes). Tried without change: the
+//     pNumActors pointer local, the inline (u8*)&g_FieldNumActors - 0xB8 form, and the
+//     store placed before/after/between the cursor stores.
+//  3. allocator only, same instruction count: block 1 keeps the element pointer in $v0
+//     and the cursor in $a1 where this compile uses $a1/$a2, and block 2's pActorData
+//     lands in $a1 here against $a0 there - a one-register shift.
+// Presets measured on this body: gcc-2.6.0 94.70, gcc-2.7.2-cdk 85.70, cdk -G0 73.59
+// (measured on the 91.47 body), -G0 compile-fails, -O3 compile-fails.
 /*
 void func_800A3C8C(void) {
     int i;
@@ -1057,9 +1070,10 @@ void func_800A3C8C(void) {
     pSrc = g_WorldMapSaveBlock;
     pNumActors = &g_FieldNumActors;
     g_WorldMapSaveCursor = pSrc;
-    g_WorldMapSaveCursor = pSrc + 0x3C;
     *pNumActors = pSrc[0];
+    g_WorldMapSaveCursor = pSrc + 0x3C;
     memcpy((u8*)pNumActors - 0xB8, pSrc + 0x3C, 0x74);
+    g_WorldMapSaveCursor += 0x920;
 
     nDiff = 0;
     for (i = 0; i < 3; i++) {
@@ -1067,7 +1081,6 @@ void func_800A3C8C(void) {
             nDiff++;
         }
     }
-    g_WorldMapSaveCursor += 0x920;
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
@@ -1096,9 +1109,9 @@ void func_800A3C8C(void) {
             g_WorldMapSaveCursor += 0x10;
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
+
 
 
 // Pushes the field state the world map is about to overwrite into the save block,
