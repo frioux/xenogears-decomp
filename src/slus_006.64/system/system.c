@@ -1131,6 +1131,21 @@ extern void func_80031798(void* pOt, void* pPrim);
 // - THE TAIL'S TILE-WORD POINTER LOCAL IS THE PERMUTER'S FIND (base 905 -> 525):
 //   assigning `pTileWord = (u_long*)&pString->clearTile[context]` and reading the tag
 //   through it moves the load to the position retail has; 98.03 -> 98.99.
+// - ROUND 473 RE-MEASURED THE THREE REALISTIC SPELLINGS OF THE LINK, all
+//   98.03% / 1572 / 393 with the SAME 34 differing lines: `SystemLinkPrim(pOt,
+//   &pString->clearTile[context])` (the macro above), the same with `.tag`, and two
+//   statements with a `u_long tag` local (copy-propagated away). They put the tag
+//   load at base+offset (`lw v1,72(a2)`) as retail has it, but then sched2 puts the
+//   `lui 0xff00` in the mult window instead of the load and the whole a-register
+//   map rotates one step (base a2, addr a0, mask a3, word v1 against retail's a3,
+//   a1, a2, a0). So the pTileWord local below is worth 0.96% for its SCHEDULE, not
+//   its spelling; any realistic rewrite has to recover that schedule first.
+// - A `do { } while (0)` AROUND ONLY THE LINK puts the base in `$a3` (retail's) but
+//   the block boundary also keeps the mask `lui/ori` and the address out of the mult
+//   window: one load-delay nop appears, 394 insns / 1576 bytes, 96.87%. Around all
+//   three clear-tile statements: base back in `$a2`, 393 / 1572, 98.31%. Retail needs
+//   the base in `$a3` AND the hoist, i.e. no boundary, which is what the pTileWord
+//   body gets apart from the window's two occupants.
 // - THE REGISTER MAP IS RETAIL'S: s1 = row*0x60 (the derived giv), s2 =
 //   context*0x28, s3 = row, s4 = i - that follows from the reset loop counting with
 //   `row` (a local `j` there mirrors s3/s4).
@@ -1283,6 +1298,7 @@ void func_80034888(SystemString* pString, u_long* pOt, int context) {
     AddPrim(pOt, &pString->drawMode[0]);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
+
 
 
 
