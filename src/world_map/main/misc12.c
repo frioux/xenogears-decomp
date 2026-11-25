@@ -53,7 +53,7 @@ extern s16 g_WorldMapCameraPathHeightsMode7[];
 extern s32 g_WorldMapCameraTargetY;
 extern SVECTOR D_8009BD48;
 extern s32 g_WorldMapRotationMatrixValid;
-extern s32 func_80091FF8(s32 nLimit, s16 *pIn, s16 *pOfs);
+extern s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
@@ -2310,23 +2310,33 @@ s32 func_80091C18(s32 idx) {
     return nRet;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
-/* best: 92.10%, same size (580 bytes). The whole structure is decoded and every
-   relocation is right; what is left is gcc allocation/scheduling:
-   - the three callee-saved roles are permuted (retail nX=s3, nBest=s4, i=s5;
-     this compile nBest=s3, i=s4, nX=s5 - the loop counter lands in a different
-     register, so the tail `move v0,s5`/`lw s5,16(sp)` pair differs),
-   - `lui v0,0xfff8` (the 0xFFF80000 mask) is hoisted to the top of the block
-     here and used as an early t0, retail emits it late and uses it twice,
-   - retail fills the `beqz` delay slot of the inner `if (nZ < nBest)` with the
-     `sw v1,4(s1)`; this compile leaves a nop there,
-   - the final distance is `tbl + nBase - (nBest*8 - 0x50)`; gcc folds the 0x50
-     onto the minuend here (`addiu v0,v0,80`) unless the subtrahend is held in a
-     local, and then the second `slti` is duplicated into a delay slot.
-   The 4th call argument must be `&D_1F8000A8` (a symbol reloc) - writing
-   `pScratch + 0xA8` gives the same bytes with no reloc, and retail keeps the
-   symbol *and* reuses $s1 as the high half.
-
+// best: 92.80%, 576 bytes / 144 insns against retail's 572 / 143 (ONE instruction
+// long). The whole structure is decoded and every relocation is right; what is left
+// is gcc allocation and scheduling:
+// - the three callee-saved roles are permuted: retail nX=s3, nBest=s4, i=s5, this body
+//   rotates them (nBest=s3, i=s4, nX=s5), so the prologue save order, the tail 'move
+//   v0,s5' / 'lw s5,16(sp)' pair and the outer loop's 'slti s5,3' all differ.
+// - 'lui v0,0xfff8' (the 0xFFF80000 mask) is hoisted to the top of the block here and
+//   used as an early t0; retail emits it late and uses it twice.
+// - retail fills the 'beqz' delay slot of the inner 'if (nZ < nBest)' with the
+//   'sw v1,4(s1)'; this body leaves a nop there.
+// - the tail abs: retail is 'subu v0,v0,v1 / bgez v0 / nop / negu v0,v0 / slti'. This
+//   body computes the difference in a fresh v1 and reorg COPIES the slti into the bgez
+//   delay slot, which is the one extra instruction. Writing the tail as two statements
+//   ('nZ = tbl[nLimit] + nBase; nZ -= nDist;') makes it worse: 145 insns / 90.49.
+// Round 476 measured, from the 92.10 body:
+// - the 4th argument to func_80096F18 must be a CONSTANT-derived address,
+//   '(u16 *)(pScratch + 0xA8)': then cse merges its 'lui 0x1f80' with the one already
+//   in s1 and emits the single 'addiu a3,s1,0xA8'. Retail's object shows that same
+//   instruction with a %lo reloc on the D_1F8000A8 symbol, i.e. the linked bytes are
+//   identical. Writing '&D_1F8000A8' costs a whole extra lui/addiu pair (92.10 -> 92.80,
+//   145 -> 144 insns).
+// - the extern for this function had to be fixed to 'u16 *pIn' (the body's type;
+//   Ghidra agrees): with 's16 *' cc1 exits 33 with a conflicting-type error and
+//   diff_func silently scores the stale object at the old percentage.
+// A permuter run is NOT the next step here (below 99); the register rotation is the
+// only handle and it needs a spelling that changes the allocno set.
+/*
 s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     s32 *pTrack;
     u8 *pScratch;
@@ -2350,7 +2360,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     for (i = 0; i < 3; i++) {
         nBest = 0;
         *(u16 *)(pScratch + 0xA8) = *pIn;
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)&D_1F8000A8);
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)(pScratch + 0xA8));
         nX = (g_WorldMapCameraTarget + ((g_WorldMapPathFrame - 0x180) << 12)) & 0xFFF80000;
         nY = (g_WorldMapCameraTargetZ - ((D_8009BD44 + 0x180) << 12)) & 0xFFF80000;
         *(s32 *)(pScratch + 8) = nY;
@@ -2385,8 +2395,10 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
         }
     }
     return i;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
+
+
 
 s32 WorldMapModeInitValue50(s32 idx) {
     WorldMapPlayer *pPlayer;
