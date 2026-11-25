@@ -538,7 +538,8 @@ typedef struct {
     /* 0x28 */ u32 color; // red, green, blue and the primitive code as one word
     /* 0x2C */ void* pFramesData[NUM_RENDER_CONTEXTS];
     /* 0x34 */ u16 curSpriteFrame; // unsigned here: -1 is a valid frame
-    /* 0x36 */ u8 unk36[0x6];
+    /* 0x36 */ u16 xOffset; // horizontal offset added to the projected x
+    /* 0x38 */ u8 unk38[0x4];
     /* 0x3C */ SpriteFlagWord flags_0x3C;
     /* 0x40 */ u16 flags0x40Low;
     /* 0x42 */ u16 flags0x40High;
@@ -673,7 +674,10 @@ Also tried and byte-identical: a u32 pNewBufferHead local with the neighbour's
 nWidth. The reorder is gcc moving the xOffset lhu two insns down, after the two
 gp loads; that reorder is what puts pPrim in s1 instead of s3.
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
+// Best 89.57% (464 bytes against retail's 460, 116 insns against 115). Two residuals, both allocation order:
+// - the callee-saved pair is swapped: retail s1 = xOffset, s3 = pPrim; ours s1 = pPrim, s3 = xOffset, so gcc loads the gp globals before the lhu of xOffset (retail loads xOffset first) and makes its copy of pPrim to a1 late (retail's 'addu a1,s3,zero' sits right after the negu).
+// - the x0 reads: retail emits lh v0,8(s3) then lhu a0,8(s3) then subu, so the load-delay slot is filled; ours emits lh, nop, subu, lhu - the extra nop is the whole 1-instruction/4-byte gap.
+// Tried this round, all byte-identical at 89.57: x0 read before vs after nWidth; xOffset declared first in the list; 'pPrim->y0 - nHalf' without the u16* cast; x0 = pPrim->x0 (implicit s16->u16) instead of *(u16*)&pPrim->x0. Typed the read as SpriteDataView->xOffset (new field at 0x36, unk38[0x4] after it) with no byte change, so the body is realistic now.
 /*
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
@@ -693,10 +697,10 @@ void func_80025544(WorkListEntry* pTask) {
     u32 pNewBufferHead;
 
     pSpriteData = pTask->unk4;
-    if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
+    if (((SpriteDataView*)pSpriteData)->curSpriteFrame != 0) {
         return;
     }
-    xOffset = *(u16*)((u8*)pSpriteData + 0x36);
+    xOffset = ((SpriteDataView*)pSpriteData)->xOffset;
     pPrim = g_GfxCurWorkBuffer;
     pNewBufferHead = pPrim + 1;
     if (!(pNewBufferHead < g_GfxCurWorkBufferEnd)) {
@@ -717,7 +721,7 @@ void func_80025544(WorkListEntry* pTask) {
                               (long*)&sxy1, &sxy2, &flag, &flag) >> g_GfxOTDepthShift;
     pSpriteData->field_0x2e = nOTOffset;
 
-    x0 = *(u16*)&pPrim->x0;
+    x0 = pPrim->x0;
     nWidth = sxy1.vx - pPrim->x0;
     if (nWidth == 0) {
         nWidth = 1;
@@ -727,7 +731,7 @@ void func_80025544(WorkListEntry* pTask) {
     }
     nHalf = nWidth / 2;
     pPrim->x0 = x0 - nHalf;
-    pPrim->y0 = *(u16*)&pPrim->y0 - nHalf;
+    pPrim->y0 = pPrim->y0 - nHalf;
 
     setlen(pPrim, 3);
     *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
@@ -742,8 +746,10 @@ void func_80025544(WorkListEntry* pTask) {
     g_GfxCurWorkBuffer = pPrimTPage + 1;
     setDrawTPage(pPrimTPage, 0, 0, pSpriteData->field_0x3C_0 & 0x60);
     AddPrim(&g_GfxCurOT[nOTOffset], pPrimTPage);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
+
+
 
 void SpriteTaskNoOp(void) {}
 
@@ -1409,23 +1415,14 @@ s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
+// Best 97.55% (688 bytes = retail's, 172 insns = retail's). Residual is allocator + scheduler only:
+// - head: gcc hoists the lhu of scale to the top of the prologue and puts the localY store (sh t1,24(sp)) in the beqz delay slot where retail has a nop (retail loads scale just before the beqz, after the dirent count lh).
+// - the four finite-division temporaries: retail mflo lands in v1/a1/v1/v0, ours in a0/v1/a0/v0 (same sra/srl choice, so the types are right: nX s32, nY u16, nWidth s32, nHeight u16).
+// - addu operand order on x1/x0 only: retail addu v1,s2,v0 (nWidth first), ours (v0,s2), even with the C written nWidth + x0. The y pair is exact after writing nHeight + y0.
+// Fixed this round (92.96 -> 97.55): v-- instead of v = pData->v - 1 (the s16 reload cost 2 insns; in-place keeps the lhu), and nWidth/nHeight as the LEFT operand of x1/y1/x0/y0, which fixed both y adds.
+// Tried and worse: s32 x0/x1 locals (97.26, 54 diff lines); x0 + nWidth (no change).
+// Permuter, 3 min, 1317 iterations from this body: base 420 best 325, all candidates are declaration noise (new_var2 = (s16)pData->height, new_var = pPrim) - no lead.
 /*
-Un-park screen: cdk 92.96%, gcc-2.6.0 84.08%, gcc-2.7.2 88.09%, cdk -O3
-92.96%, cdk -G0 92.96% - the park stays and cdk is right; the gap is the
-scheduler, not the compiler.
-Best 92.96% (696 bytes, same size as the original). Remaining gaps are
-allocator/scheduler only: gcc hoists the lhu of scale to just after the dirent
-count load (the original loads it after the pDirent store), so it fills the
-beqz frames slot with the localY store where the original has a nop, and the
-first quotient lands in a0/v1 instead of v1/a0.
-The 91.30% attempt's srl-vs-sra puzzle is solved: assigning the y and height
-quotients to u16 locals is what makes cdk gcc truncate and emit srl after the
-same bgez/+0xFFF fixup (a signed int quotient gets sra, and the 91.30% attempt
-had both y and height as s32). Everything else that got the earlier attempt
-that far still holds: localX/localY declared before pDirent and i, the four
-scaled reads cast to s16 (lh), v read through (u16), texPageX through (s16),
-corners assigned in offset order, and pPrim computed before pData.
 s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
                   s32 context, u16 x, u16 y, u16 scale) {
     u16 localX = x;
@@ -1471,7 +1468,7 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
             height = pData->height;
             if (!pData->flipX) {
                 x0 = localX + nX;
-                x1 = x0 + nWidth;
+                x1 = nWidth + x0;
                 pPrim->x0 = x0;
                 pPrim->x1 = x1;
                 pPrim->x2 = x0;
@@ -1479,7 +1476,7 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
             } else {
                 u = pData->u - 1;
                 x1 = localX + nX;
-                x0 = x1 + nWidth;
+                x0 = nWidth + x1;
                 pPrim->x0 = x0;
                 pPrim->x1 = x1;
                 pPrim->x2 = x0;
@@ -1492,15 +1489,15 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 
             if (!pData->flipY) {
                 y0 = localY + nY;
-                y1 = y0 + nHeight;
+                y1 = nHeight + y0;
                 pPrim->y0 = y0;
                 pPrim->y1 = y0;
                 pPrim->y2 = y1;
                 pPrim->y3 = y1;
             } else {
-                v = pData->v - 1;
+                v--;
                 y1 = localY + nY;
-                y0 = y1 + nHeight;
+                y0 = nHeight + y1;
                 pPrim->y0 = y0;
                 pPrim->y1 = y0;
                 pPrim->y2 = y1;
@@ -1522,8 +1519,10 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
         }
     }
     return pDirent->count;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
+
+
 
 // Builds one SPRT per record of the dirent into pSprites, two sprites per
 // record (one per render context), and the DR_MODE that follows them.
