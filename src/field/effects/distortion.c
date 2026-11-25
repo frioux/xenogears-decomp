@@ -144,8 +144,8 @@ INCLUDE_ASM("asm/field/nonmatchings/effects/distortion", FieldDistortionDraw);
 /* Best attempt: 84.72%, 2020 bytes against retail's 2060 (515 insns). The control
    flow and both grid loops are 1:1 with retail now; what is left is register
    allocation (retail keeps col/idx/offsetX/offsetY/phase2 in s1/s2/s3/s6/s5 and
-   pPrim in s0, the compile uses s0/s1/s2/s8/s3 and a2) plus a 10-instruction
-   deficit spread over the store groups.
+   pPrim in s0, the compile uses s0/s1/s2/s8/s3 and a2) plus 10 instructions that
+   are NOT in the store groups - see round 496 below for where they are.
 
    Facts established against the assembly, worth keeping:
    - The advance block is ONE copy of the seven statements. retail's `bnez
@@ -171,9 +171,10 @@ INCLUDE_ASM("asm/field/nonmatchings/effects/distortion", FieldDistortionDraw);
    `DISTORTION_GRID_ROWS * 13 + col` measures 83.57% / 2040 bytes / 510 insns
    against retail's 2060 / 515 (this park's `row * DISTORTION_GRID_ROWS + col`
    stays at 84.72 / 2020 / 505, so the % prefers the inline form and the byte
-   count prefers the constant base: 8 of the 10 missing instructions are
-   accounted for by these two arms and by the item below, none by the store
-   groups).
+   count prefers the constant base). With those two arms plus the item below the
+   body reaches 511 of retail's 515 insns (505 -> 510 -> 511); the last ~4 are
+   retail's extra 0xFFFFFF reloads and the col*40 recompute noted below, none of
+   them is in the store groups.
 
    - The last-column index is a VALUE in retail, not an address: a named
      `s32 lastIndex = row * DISTORTION_GRID_ROWS + DISTORTION_GRID_ROWS - 1;`
@@ -198,10 +199,12 @@ INCLUDE_ASM("asm/field/nonmatchings/effects/distortion", FieldDistortionDraw);
      col) - that IV is the register offsetY loses its home to. Writing the arm
      as `pTmp = pPrim` does remove the IV but measures 80.74% / 2020 bytes.
    - The remaining byte-offset-vs-index difference: retail's col==19 arms keep
-     `row*20+19` as an INDEX (outer stride 20, `sll/addu/sll` at the use); every
-     spelling tried here makes cc1 strength-reduce it into a byte offset (stride
-     800). Writing the two stores as inline subscripts instead drops that IV but
-     adds a reload per store (79.98% / 1988 bytes).
+     `row*20+19` as an INDEX (outer stride 20, `sll/addu/sll` at the use).
+     SUPERSEDED in round 496 - see the `lastIndex` item above, which reproduces
+     retail's index IV; the inline `row * DISTORTION_GRID_ROWS + 19` form this
+     note used to blame is simply a strength-reduced (byte-offset) spelling of
+     the same address. Writing the two stores as inline subscripts instead drops
+     that IV but adds a reload per store (79.98% / 1988 bytes).
 */
 /*
 void FieldDistortionDraw(void) {
