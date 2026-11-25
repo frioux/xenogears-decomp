@@ -610,6 +610,20 @@ void BattleAddPrimAndRenderObject(void) {
 // Measured this round: (1) the 0x30 frame and the s3 slot came back with 'u8 **pOT = g_BattleCurOT' live across the loop (pOT[0] and ((s32*)pOT)[12] = g_BattlePrimStartIndex); (2) the i==0 arm's two flags loads form their address with a bare 'lui v0' ONLY when the guard is written 'if (off == 0)' - with 'if (i == 0)' gcc cannot fold off to 0 and both loads pay an 'addu at,at,s0' (88.07 else).
 // Residual, exactly: (a) the i==0 arm's 'andi a1,a1,0xffff' (the u16 conversion of x, which retail keeps ONCE at the join) is duplicated into that arm's jal delay slot, so its delay slot holds andi where retail holds 'addu a0,a0,s2' - one instruction and a placement; (b) the two 'addu a0,s0,a0' / 'addu a1,s0,a1' (offset first) where this cc1 emits base-first; (c) the prologue save order s1,s2,s3,s0,ra vs s3,s1,s0,s2,ra.
 // Tried and worse, do not repeat: writing the sum offset-first ('off + (idx*40 + base)', the spelling that WOULD give the operand order) makes loop.c build a second address biv for the sum (s4 + its own 'addiu s2,s2,96', 87.01 / 360 / 90); 'off == 0' plus that spelling 87.01; assigning pOT after 'off = 0' instead of before it re-forms the else arm's base as 'addu v1,s0,s2' (84.06). Also measured: inline 'i * 0x60' for the flags index (creates a biv), g_BattleTextSlotFlags[0] literal (gcc hoists the address into s3, 83.48). The double-negation lever does not apply - off is a strength-reduced giv.
+// Round 494 re-measured 89.74 / 352 bytes / 88 insns (27 differing lines) and pinned residual (a) down: it is a REORG
+// FILL, not a source shape. The body has TWO BattleSetPolyFT4RectH13 calls (one per arm), each carrying its own u16
+// truncation; cc1 merges the two identical call tails into one block (andi a1,a1,0xffff / jal / sw v0,0x14(sp)) and
+// reorg then ALSO copies that block's first insn into the if arm's j delay slot, where retail's slot holds
+// addu a0,a0,s2 - hence the mask twice and the one surplus instruction. Measured on this body: (1) writing the call ONCE
+// after the if/else with x/y/v assigned per arm collapses the whole argument setup into the shared block (78 insns /
+// 312 bytes / 59.66); (2) 'extern void BattleSetPolyFT4RectH13();' (K&R, so no caller-side truncation at all) drops
+// both masks but also re-orders the if arm and the prim-index load (77 differing lines, 68.99); (3) 'u16 xa; xa = x;'
+// before each call moves the mask off the argument and lands it on the wrong register (84.16). Retail needs two source
+// call sites AND a single mask, so the mask count cannot be steered from C.
+// Re-confirmed: the offset-first sum spelling that would give retail's addu operand order makes loop.c build the second
+// address biv (87.01 / 360 / 90), so residual (a) and (b) cannot both be honoured, and nothing measured moves the
+// prologue save order (c). The round-470 empty-statement reorg-parity knob (a trailing ';' at the end of either arm)
+// measures byte-identical to this body - 27 lines, 89.74 - so the duplicate is not that parity.
 /*
 void func_8007500C(void) {
     s32 i;
@@ -641,6 +655,8 @@ void func_8007500C(void) {
     } while (i < 8);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
+
+
 
 
 
