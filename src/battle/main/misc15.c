@@ -944,7 +944,6 @@ void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
    *(u16 *)(g_BattleCommandRecords + count * 72), which on a BattleCommandRecord *
    adds count * 72 * 0x48; the stride is 72, hence sizeof(BattleCommandRecord) on the
    u8 tables and 36 on the u16 g_BattleCommandSlotMasks. */
-/*
 s32 func_8008C4A8(u8 arg0) {
     s32 result;
     s32 i;
@@ -973,11 +972,15 @@ s32 func_8008C4A8(u8 arg0) {
         }
         for (i = 0; i < 7; i++) {
             if (g_BattleCommandQueue->unk2C4[i] != 0xFF) {
+                s32 off;
+
                 g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2C4[i] + 8;
                 BattleBeginActorAction(arg0, BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot), g_BattleCommandQueue->unk2DC - 1);
                 BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
-                g_BattleCommandSlotIds[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = g_BattleCommandQueue->unk2DC - 1;
-                g_BattleCommandCodes[g_BattleCommandQueue->count * sizeof(BattleCommandRecord)] = arg0;
+                off = g_BattleCommandQueue->count * sizeof(BattleCommandRecord);
+                g_BattleCommandSlotIds[off] = g_BattleCommandQueue->unk2DC - 1;
+                off = g_BattleCommandQueue->count * sizeof(BattleCommandRecord);
+                g_BattleCommandCodes[off] = arg0;
                 g_BattleCommandRecords[g_BattleCommandQueue->count].slotMask = g_BattleActionSlotMask;
                 g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
             }
@@ -989,8 +992,7 @@ s32 func_8008C4A8(u8 arg0) {
         }
     }
     return result;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
+}
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
