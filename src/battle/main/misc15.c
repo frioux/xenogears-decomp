@@ -911,27 +911,39 @@ void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
     BattleBeginAnimTask(value);
     BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
-/* Best: 93.72% (908 bytes / 227 insns against the original 884 / 221).
-   The ONE residual left is gcc 2.6.0 loop.c hoisting the three command-table base
-   addresses out of the for (i = 0; i < 7; i++) loop: the preheader gets lui+addiu
-   pairs for g_BattleCommandSlotIds / g_BattleCommandCodes / g_BattleCommandRecords
-   into $s6/$s5/$s4 (+8 frame bytes, 6 extra insns) and the stores read
-   addu v0,v0,sN / sb v1,0(v0), where retail re-forms each base inside the loop
-   (lui at,%hi(sym); addu at,at,v1; sb %lo(sym)(at)). The SAME expressions compile
-   to retail's at-form outside the loop (the flags & 0x800 block just above matches
-   exactly), so the source spelling is right and only the invariant motion differs;
-   the v0/v1 mirror at those two stores follows from it.
-   Measured dead: do-while-around-each-store (93.58), the
-   count * sizeof(...) + (mem_addr)sym index-first cast (identical 93.72), a
-   pSlot = base; pSlot[idx] = x; local (hoists the same way). Also gcc-2.7.2 85.50
-   and gcc-2.7.2-cdk 79.36 on this body, so the preset (2.6.0) is right.
-   What got this from 87.36 to here: the old parked body wrote the command-record
-   store as *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72),
-   which on a BattleCommandRecord * adds count*72*0x48 (5184 bytes); retail's
-   stride is 72, so the typed g_BattleCommandRecords[count].slotMask spelling is
-   both correct and the closer match (6 insns back). The three stores are 72-byte
-   (0x48) record strides, hence sizeof(BattleCommandRecord) on the u8 tables and 36
-   on the u16 g_BattleCommandSlotMasks. */
+/* ROUND 471 re-measured from an unpark: 93.72% (908 bytes / 227 insns against retail's
+   884 / 221). The body below is the best and it is unchanged. The whole residual is TWO
+   preheader la pairs plus the s4/s5 save/restore pair: gcc hoists the addresses of
+   g_BattleCommandSlotIds and g_BattleCommandCodes out of the for (i = 0; i < 7; i++) loop
+   into $s5/$s4 (+6 insns net), where retail re-forms each inside the loop with the
+   lui at / addu at,at,v1 / sb %lo(sym)(at) macro. The third store's symbol,
+   g_BattleCommandRecords, is NOT hoisted in either compile - it keeps the same
+   sb %lo(sym) form ours and retail share.
+   THE SPELLING IS NOT THE DIFFERENCE, and this round proves it: the same C subscript
+   expression stores through g_BattleCommandSlotIds / Codes before the loop in the
+   flags & 0x800 block, and both compiles emit the macro form there
+   (sb $18,g_BattleCommandCodes($2)); only the in-loop copies hoist. The only thing that
+   separates the two hoisted symbols from the third is that they are also referenced
+   BEFORE the loop, so the hoist is a cse1/loop.c ordering on a symbol that already
+   carries a REG_EQUAL, not a source shape.
+   Mechanism read out of cc1's own dump (gcc-2.6.0-psx, unit flags plus -dL): the loop
+   reports five movables - insns 266 (const 0xFF) and 310 (const 0xFFFF) "not desirable",
+   292 the count * 0x40 ashift "cond savings 1 not desirable", plus two life-4 values
+   "moved to 491/493/495" - and there is NO "dest address ... add (symbol_ref)" giv line
+   for this loop, while BattleQueueOneActorCommand and BattleParseNumberToDigits do print
+   one, so this is not strength_reduce's dest-address giv path. -fno-strength-reduce,
+   -fno-rerun-cse-after-loop, -fno-caller-saves and -fno-cse-follow-jumps each still emit
+   both la pairs (2 hits every time).
+   Preset re-closed with try_flags.sh on this body: gcc-2.6.0 -O2 -G8 93.72, -O2 -G0
+   identical 93.72, -O1 79.60, -O3 compile-failed, gcc-2.7.2 91.31, gcc-2.7.2-cdk
+   compile-failed. The unit is XenoBattle260 (2.6.0) and that is still the best preset.
+   Below 99%, so no permuter run. Dead spellings from earlier rounds (do not retry):
+   do-while-around-each-store 93.58, the (mem_addr)sym index-first cast, and a
+   pSlot pointer local. What got this from 87.36 to 93.72 was the typed
+   g_BattleCommandRecords[count].slotMask spelling: the old body wrote
+   *(u16 *)(g_BattleCommandRecords + count * 72), which on a BattleCommandRecord *
+   adds count * 72 * 0x48; the stride is 72, hence sizeof(BattleCommandRecord) on the
+   u8 tables and 36 on the u16 g_BattleCommandSlotMasks. */
 /*
 s32 func_8008C4A8(u8 arg0) {
     s32 result;
