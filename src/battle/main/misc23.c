@@ -1042,45 +1042,50 @@ extern void SoundAddSedsEntry(void *);
 extern void BattleAllocActorEntryArray(BattleActor *);
 extern void BattleSnapActorToGround(BattleActor *);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
-/* 85.90% (unit preset: gcc 2.6.0 -G0 --expand-div). The whole body is recovered -
-   every call, both branch chains, all five loops, the 2384-byte size is 15
-   instructions away and every load/store/call operand in retail's order. What is
-   left is register allocation only: retail keeps the flags word in $s0 and, after
-   it is clobbered by pFileEnd, in $s8 (an fp copy `move s8,s0`) and spills the
-   part buffer at 0x58; this build spills the flags at 0x58 instead and keeps the
-   part buffer in $s8, which rotates every other callee-saved name by one
-   (pModelBuffer $s2 vs $s1, pActor $s3 vs $s2, pHeader $s1 vs $s7...).
-   The frame itself is already retail's 0xC8 with the same slot offsets (0x50
-   slot, 0x58 spilled pointer, 0x60/0x68/0x70/0x78 the four s16 parameters - they
-   are cc1's own spills of the stack parameters, so do NOT declare locals for
-   them - 0x80 the ppBlocks pointer).
-   Three source levers that DID pay off here, keep them:
-   (1) grab a `void **ppBlocks = pModelBuffer->ppBlocks;` local before pHeader, so
-       pModelBuffer dies early and its three loads stay in retail's order;
-   (2) write the two `flags & 0x40` branches with the condition INVERTED
-       (`if ((flags & 0x40) == 0) { mult path } else { plain path }`): retail's
-       fall-through is the mult arm and the plain arm is out of line (80.22 ->
-       85.90 together with the skeleton chain below);
-   (3) the skeleton chain nested as
-       `if ((flags & 0x40) == 0) { if (flags4A & 4) {..2,0..} else {..2,1,args..} } else {..0..}`
-       because retail's first test jumps to its then-arm out of line and shares
-       the four zero stack words between the two zero arms.
-   Still worth trying: `mode = 0; if (!(flags & 0x40)) mode = (flags4A & 0x4) == 0;`
-   compiles to srl/xori/andi here but retail has `andi 0x4` + `sltiu s4,v0,1` - a
-   width/type question on the local (s32 vs u8/s16) that was not run down. The
-   pModelSource if/else-if costs one extra nop and j versus retail's two `bnez`
-   into one out-of-line zero store. */
+// 89.84% (unit preset: gcc 2.6.0 -G0 --expand-div), 2404 bytes / 601 instructions
+// against retail's 2384 / 596. Body fully recovered; the residual is 4 instructions
+// plus a callee-saved rotation.
+// WHAT CLOSED 84.71 -> 89.73 this round, keep it: the early block holds TWO VALUES IN
+// LOCALS ACROSS CALLS - `u8 **ppParts = pPartBuffer->ppParts;` used by both
+// ResolveArchiveEntryPointers calls, and `Temp8 *pSoundBank = pPartBuffer->pSoundBank;`
+// assigned AFTER them and used by the pStart/pResult test and both SEDS calls. Retail
+// keeps ppParts in $s1 and pSoundBank in $s0, and writing them as plain re-reads of the
+// struct makes gcc reload pPartBuffer->ppParts twice. The extra long-lived locals also
+// flip the allocation the old note called unreachable: pPartBuffer now spills to 0x58
+// (retail's `sw a2,88(sp)`, six reloads) and the flags word is copied by `move s8,s0`
+// into $s8 with five `andi v0,s8,...` tests, exactly retail. `s16 mode` (was s32) is
+// worth 0.11 more.
+// Remaining size, by jal-anchored instruction index (orig vs ours): equal at memcpy,
+// +4 at BattleInitializeMesh, +5 from SetPolyFT4 on. So:
+// (1) +4, the D_800C3B6C scan. Retail tests at the top and falls into the head; cc1
+//     forwards the `D_800C3B6C = 0` store and PEELS the first test as
+//     `lw v0,D_800C3ACC+0` before the head. Tried and BYTE-IDENTICAL: the
+//     `while (cond && ++i < COUNT)` form, so this is not the loop spelling.
+// (2) +1, the poly preamble (ours has no `move s4,zero` for mode, so the +1 is elsewhere
+//     in that block; retail's 6-instruction preamble is 5 here).
+// (3) -1, the mode computation: retail does `andi 0x4` + `sltiu s4,v0,1` into a 16-bit
+//     pseudo and then `sll a1,s4,0x10 / sra` to pass it; ours emits
+//     `srl 2 / xori 1 / andi a1,v0,1` straight into the argument register.
+//     `!(flags4A & 4)` is byte-identical to `(... & 4) == 0`, so the sltiu is not a
+//     spelling of the comparison.
+// (4) -1, pModelSource: retail has two `bnez` to ONE out-of-line `sw zero,172(s3)`; ours
+//     if-converts and leaves a dead `move s3,zero`. `if ((flags & 4) || (flags & 0x80))`
+//     is byte-identical to the if/else-if pair.
+// Register rotation left: retail pHeader $s1 / pModelBuffer $s2 / pActor $s3 / pFileEnd
+// $s0 / pImage $s5 / pFile $s6 / pSpawnPos $s7; ours pModelBuffer $s1 / pActor $s2 /
+// pFileEnd $s3 / pFile $s4 / pSpawnPos $s5 / pHeader $s7 / pImage $s0. Same COUNT of
+// long-lived values (eight plus the poly base in $s0), so this is hand-out order, not
+// pressure.
+// Preset ruled out on this body with try_flags.sh: 2.7.2 -G0 89.08, 2.7.2-cdk -G0
+// 77.34, 2.6.0 -O3 89.84 (identical), -O1 60.76.
 /*
-// Builds the actor for one battle slot from the archive buffers the model and
-// part data were decoded into. The flag word says which parts are already there:
-// 0x1 no model data, 0x2 no model file of its own, 0x4 no part data, 0x40 a
-// pre-scaled model, 0x80 no model source.
 void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23ModelBuffer *pModelBuffer, s16 arg4,
                    s16 arg5, s16 arg6, s16 arg7, s16 *pSpawnPos) {
     BattleModelPartList *pPartList;
     BattleActor *pActor;
     Misc23ModelHeader *pHeader;
+    void **ppParts;
+    Temp8 *pSoundBank;
     void **ppBlocks;
     Misc23Block *pBlocks;
     u16 *pData;
@@ -1089,7 +1094,7 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
     u8 *pFileEnd;
     u8 *pModelFile;
     s32 blockSize;
-    s32 mode;
+    s16 mode;
     s32 count;
     s32 i;
     s32 k;
@@ -1111,11 +1116,13 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
     if ((flags & 0x4) == 0) {
         ResolveArchiveEntryPointers((u32 *)pPartBuffer);
         ResolveArchiveEntryPointers((u32 *)pPartBuffer->pSoundBank);
-        ResolveArchiveEntryPointers((u32 *)pPartBuffer->ppParts);
-        ResolveArchiveEntryPointers((u32 *)pPartBuffer->ppParts[1]);
-        if (pPartBuffer->pSoundBank->pStartPixels != pPartBuffer->pSoundBank->pResultPixels) {
-            if (SoundFindSedsEntry(pPartBuffer->pSoundBank->pStartPixels, 0) == 0) {
-                SoundAddSedsEntry(pPartBuffer->pSoundBank->pStartPixels);
+        ppParts = pPartBuffer->ppParts;
+        ResolveArchiveEntryPointers((u32 *)ppParts);
+        ResolveArchiveEntryPointers((u32 *)ppParts[1]);
+        pSoundBank = pPartBuffer->pSoundBank;
+        if (pSoundBank->pStartPixels != pSoundBank->pResultPixels) {
+            if (SoundFindSedsEntry(pSoundBank->pStartPixels, 0) == 0) {
+                SoundAddSedsEntry(pSoundBank->pStartPixels);
                 pActor->hasSedsEntry1 = 1;
             }
         }
@@ -1175,9 +1182,7 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
     } else {
         pActor->textureOffsetX = -1;
     }
-    if (flags & 0x4) {
-        pActor->pModelSource = NULL;
-    } else if (flags & 0x80) {
+    if ((flags & 0x4) || (flags & 0x80)) {
         pActor->pModelSource = NULL;
     } else {
         pActor->pModelSource = (mem_addr)pPartBuffer;
@@ -1270,8 +1275,10 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
         pActor->pModelFile = 0;
     }
 }
-
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
+
+
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
 // A list of {archive file index, buffer that file is decoded into} pairs: the
 // file index at 0x0/0x8/0x10/0x18 is the argument ArchiveDecodeAlignedSize and
