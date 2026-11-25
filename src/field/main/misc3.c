@@ -97,6 +97,25 @@ extern s16 D_800AFB08;
 // Best 98.45% / 668 bytes against retail's 672 (one instruction short). Every
 // variant measured this round is in the Round 471 note above; the mover is sched1's
 // forward delay-slot fill.
+// Round 479: re-measured 98.45% / 668 bytes against retail's 672 (retail 168 insns,
+// this body 167), the same residual round 471 left, and the permuter is out: a
+// 3-minute run reports PERMUTER_NONE base=260 best=260 over 1624 iterations.
+// THE RESIDUAL IS ONE INSN, and its cause is register allocation, not statement order:
+// retail's third light block hoists the call's argument constant (`li a0,0x2`) to the
+// block head, which keeps a0 live across the 22-instruction light copy, so the copy
+// loads take a2/a3 and the pData skip fills the jal slot (`addiu s0,s0,4`) while the
+// third colour `lhu` pays a load-delay nop. This body sinks the constant to the jal slot
+// instead, which frees $a0 for the copy (loads in $v0/$v1/$a0/$a2), puts the skip in
+// the `lhu` load-delay slot and leaves the function 4 bytes short. cc1's own .s shows
+// the same split at -O2 (blocks 1 and 2 emit their `li $4` at the head, block 3 does
+// not) while `addu $5,$17,352` IS hoisted in block 3, so the hoist machinery works on the
+// second argument's computation and not on the constant: once local-alloc gives $a0 to a
+// copy load, sched2 can never move the constant above it (WAW). Round 479 measured dead
+// on this body, all 668 bytes / 167 insns and the same 21 differing lines: a named
+// `s32 lightIndex = 2;` passed to the call (copy-propagated, byte-identical), and a single
+// do-while barrier wrapping the copies AND the call (byte-identical). Round 471's four
+// skip-position variants (95.24 / 97.26 x3) stand. Not a preset question (round 471:
+// gcc-2.7.2-cdk 98.45, 2.6.0 93.66).
 /*
 void func_8006FDEC(s16* pData) {
     FieldLight* pLights;
@@ -174,6 +193,7 @@ void func_8006FDEC(s16* pData) {
     SetTransMatrix(&g_Scene.worldToScreenMatrix);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_8006FDEC);
+
 
 
 
