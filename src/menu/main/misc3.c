@@ -25,7 +25,7 @@ extern int MenuCreateWindow2Strings(u_char);
 extern u_char MenuWaitWindowInputOrCardChange(u_char);
 extern int MenuFreeWindow2Strings(void);
 extern void func_801CB184(void);
-extern int func_801C8D78(u_char);
+extern int MenuEnumerateCardSaveFiles(u_char);
 extern void MenuRenderFrame(void);
 extern u_char MenuLoadWindow2Text(u_char, u_char, u_char);
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
@@ -55,7 +55,7 @@ extern MenuCardPrefix g_MenuCardPathPrefix1;
    way round (99.27% against 99.78%, retail's 368 bytes / 92 insns either way).
    The only remaining diff is a relocation: retail names D_801C50AC for prefix's
    s16, this reaches g_MenuCardPathPrefix0 + 4, the same address. */
-int func_801C8D78(u_char a0) {
+int MenuEnumerateCardSaveFiles(u_char a0) {
     struct DIRENTRY dir;
     MenuCardPrefix prefix;
     u_char count;
@@ -97,13 +97,13 @@ void MenuRunCardSlotOperations(void) {
     switch (g_Menu->menuUnk2->cardPollMode) {
     case 1:
         if (g_Menu->menuUnk2->cardEnumerated[0] == 0) {
-            if ((u_char)func_801C8D78(0) != 0) {
+            if ((u_char)MenuEnumerateCardSaveFiles(0) != 0) {
                 g_Menu->unk334 = 1;
             }
             g_Menu->menuUnk2->cardEnumerated[0] = 1;
         }
         if (g_Menu->menuUnk2->cardEnumerated[1] == 0) {
-            if ((u_char)func_801C8D78(1) != 0) {
+            if ((u_char)MenuEnumerateCardSaveFiles(1) != 0) {
                 g_Menu->unk334 = 1;
             }
             g_Menu->menuUnk2->cardEnumerated[1] = 1;
@@ -111,11 +111,11 @@ void MenuRunCardSlotOperations(void) {
         break;
     case 2:
         if (g_Menu->menuUnk2->cardEnumerated[0] == 0) {
-            func_801C8D78(0);
+            MenuEnumerateCardSaveFiles(0);
             g_Menu->menuUnk2->cardEnumerated[0] = 1;
         }
         if (g_Menu->menuUnk2->cardEnumerated[1] == 0) {
-            func_801C8D78(1);
+            MenuEnumerateCardSaveFiles(1);
             g_Menu->menuUnk2->cardEnumerated[1] = 1;
         }
         break;

@@ -66,7 +66,7 @@ extern s32 g_WorldMapCdReadRetryTimer;
 extern s32 g_WorldMapCdReadState;
 extern Misc15CdRequest *g_WorldMapCdRequestQueue[16];
 extern void *g_WorldMapFileLoadRequestQueue[16];
-extern void func_800981C8(s32);
+extern void WorldMapBuildTileIdGrid(s32);
 extern void WorldMapSubmitGridImageLoads(void);
 
 extern void WorldMapClearSlotPool(void);
@@ -716,7 +716,7 @@ void WorldMapSetGridPosition(s32 *p) {
     *(volatile s16 *)&D_8009C83A = 0;
     *(volatile s16 *)&g_WorldMapGridTileRowOrigin = 2;
     g_WorldMapScrollZ = z & 0x7FFFFF;
-    func_800981C8((s32)p);
+    WorldMapBuildTileIdGrid((s32)p);
     WorldMapSubmitGridImageLoads();
 }
 
@@ -732,7 +732,7 @@ void WorldMapRefreshGrid(s32 arg0) {
     }
     g_WorldMapGridAngle = 0;
     g_WorldMapGridShadePhase = 0x400;
-    func_800981C8(arg0);
+    WorldMapBuildTileIdGrid(arg0);
     WorldMapSubmitGridImageLoads();
 }
 

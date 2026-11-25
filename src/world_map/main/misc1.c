@@ -349,7 +349,7 @@ extern void WorldMapDrawGridTiles(void);
 extern void func_800747DC(void);
 extern void func_800848F4(void);
 extern void WorldMapUpdateSlotGridOrigin(s32* p);
-extern void func_800981C8(s32* p);
+extern void WorldMapBuildTileIdGrid(s32* p);
 extern void WorldMapWaitForLoadSlotFree(void);
 extern void func_80098CC0(void);
 extern void func_800983A0(s32* p);
@@ -376,7 +376,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     func_800848F4();
     WorldMapUpdateSlotGridOrigin(&g_WorldMapScrollX);
     if (g_WorldMapSlotUpdateFlags != 0) {
-        func_800981C8(&g_WorldMapCameraTarget);
+        WorldMapBuildTileIdGrid(&g_WorldMapCameraTarget);
         WorldMapWaitForLoadSlotFree();
         func_80098CC0();
     }

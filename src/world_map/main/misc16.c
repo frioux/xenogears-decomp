@@ -53,7 +53,7 @@ typedef struct {
     /* 0x0 */ s16 grid[81];
 } WorldMapMisc16Grid; // Size: 0xA2
 
-extern WorldMapMisc16Grid D_8009D318;
+extern WorldMapMisc16Grid g_WorldMapPrevGridTileIds;
 extern WorldMapMisc16Grid g_WorldMapGridTileIds;
 extern s32 g_WorldMapTileColumns;
 extern s32 g_WorldMapTileRows;
@@ -97,7 +97,7 @@ void WorldMapUpdateSlotGridOrigin(WorldMapMisc16Struct* p) {
     y = *(volatile s32*)&p->z;
     g_WorldMapGridTileRowOrigin = (y >> 23) + 2;
 }
-void func_800981C8(WorldMapMisc16Struct* p) {
+void WorldMapBuildTileIdGrid(WorldMapMisc16Struct* p) {
     s32 col;
     s32 row;
     s32 w;
@@ -124,7 +124,7 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     }
     col >>= 8;
     row >>= 8;
-    D_8009D318 = g_WorldMapGridTileIds;
+    g_WorldMapPrevGridTileIds = g_WorldMapGridTileIds;
     colBase = col;
     pGrid = g_WorldMapGridTileIds.grid;
     for (i = WORLD_MAP_GRID_WIDTH - 1; i != -1; i--) {
@@ -330,7 +330,7 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    So the whole residual is still "pool the base and keep it live across the vy-zero group",
    which is the same unreachable allocation as above: park.
  */
-// 88.71%, 1040 bytes against retail's 1036 (259 insns). CORRECT code, one instruction over; unchanged by round 483's re-measure (un-parked, diffed 88.71 / 1040 / 260 insns, re-parked identical). ROUND 483 NEW LEVER, unmeasured here: on this unit's func_800981C8 the entire 96.44 register permutation closed at 100.00% by MERGING A REDUNDANT LOCAL away - colCur existed only to hold colBase, and writing col = colBase; ... col++ in the inner loop (one variable, one allocno fewer) moved every register in the body at once (the permuter's find, base 365 -> 0). So the remaining knob on THIS body is the COUNT of allocnos, not their order: the clean candidates are pA0 (pure artifact of the 0xB0 store order), rowOff-less shapes and the nPack/nClip pair, each of which removes one pseudo. Everything below was measured before that lever was known, so re-measure those spellings WITH a removed local instead of as declaration reorders.
+// 88.71%, 1040 bytes against retail's 1036 (259 insns). CORRECT code, one instruction over; unchanged by round 483's re-measure (un-parked, diffed 88.71 / 1040 / 260 insns, re-parked identical). ROUND 483 NEW LEVER, unmeasured here: on this unit's WorldMapBuildTileIdGrid the entire 96.44 register permutation closed at 100.00% by MERGING A REDUNDANT LOCAL away - colCur existed only to hold colBase, and writing col = colBase; ... col++ in the inner loop (one variable, one allocno fewer) moved every register in the body at once (the permuter's find, base 365 -> 0). So the remaining knob on THIS body is the COUNT of allocnos, not their order: the clean candidates are pA0 (pure artifact of the 0xB0 store order), rowOff-less shapes and the nPack/nClip pair, each of which removes one pseudo. Everything below was measured before that lever was known, so re-measure those spellings WITH a removed local instead of as declaration reorders.
 /*
 void func_800983A0(WorldMapMisc16Struct* p) {
     u8* pScratch;
@@ -507,7 +507,7 @@ void func_80098CC0(void) {
     u32 second;
 
     for (i = 0; i < WORLD_MAP_GRID_CELL_COUNT; i++) {
-        id = D_8009D318.grid[i];
+        id = g_WorldMapPrevGridTileIds.grid[i];
         if (g_WorldMapTileCellPointers[id] != NULL) {
             for (j = 0; j < WORLD_MAP_GRID_CELL_COUNT; j++) {
                 if (g_WorldMapGridTileIds.grid[j] == id) {
