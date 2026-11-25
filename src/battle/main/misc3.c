@@ -780,7 +780,37 @@ void BattleInitTextSlotGraphics(void) {
         BattleInitTextSlotPrims((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev + 0x10), i + 1);
     }
 }
-/* 81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
+// Where the six ResourceHelperGetTexCoords out-parameters of one texture sit in
+// a metadata row: the row is six s32 and each texture uses one whole row.
+#define BATTLE_TEX_COUNT(_i)  ((_i) * 6) + 0
+#define BATTLE_TEX_PAGE(_i)   ((_i) * 6) + 1
+#define BATTLE_TEX_CLUT_X(_i) ((_i) * 6) + 2
+#define BATTLE_TEX_CLUT_Y(_i) ((_i) * 6) + 3
+#define BATTLE_TEX_PAGE_X(_i) ((_i) * 6) + 4
+#define BATTLE_TEX_PAGE_Y(_i) ((_i) * 6) + 5
+// Bytes of one party member's sprite TIM block in the archive pTimData points at.
+#define BATTLE_CHAR_TIM_BYTES 0x460
+// An empty party slot in g_BattleActorCharIds.
+#define BATTLE_CHAR_ID_EMPTY 0x7F
+// The character sprite every party member but the first is drawn with while
+// D_800D3294 (the character override) is set.
+#define BATTLE_OVERRIDE_CHAR_ID 0xB
+// Halfwords a texture page is shifted by per party member to pack the three
+// sprites side by side in VRAM.
+#define BATTLE_TEX_PAGE_STEP 6
+
+/* RE-MEASURED under the unit's current preset (XenoBattle260 = gcc 2.6.0)
+   86.57% (480 bytes / 120 insns against retail's 504 / 126) - the 81.38 below
+   was the old 2.7.2 preset. Residual under 2.6.0 is exactly two things: the
+   i-1 induction variable retail carries alongside i (both initiu out of the
+   loop, "-0x1" and "0x0", both incremented by 1 in the tail; retail reads the
+   char id as %hi(D_800D2D25)-folded s2 = i-1 and tests "i != 0" with
+   sltiu s2,2), and the sixth out-parameter it costs (metadata+0x14 spilled at
+   0x98(sp), frame 0xC8 vs 0xC0). Everything after the lhu readbacks is
+   instruction-identical. Getting a second index register from a body that
+   mentions only i is a loop.c giv question, not a spelling one; bodies measured
+   below all keep one.
+   81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
    and the residual is ONE register. Under this unit's preset gcc 2.7.2 forms the
    address of g_BattleActorCharIds[i] from the loop counter (addu at,at,i) and
    reads the four metadata halfwords with lw, while retail keeps a SEPARATE giv
@@ -808,25 +838,6 @@ void BattleInitTextSlotGraphics(void) {
    included (so the += 6 is the loop tail's statement, not part of the if).
    Parked body (81.38): */
 /*
-// Where the six ResourceHelperGetTexCoords out-parameters of one texture sit in
-// a metadata row: the row is six s32 and each texture uses one whole row.
-#define BATTLE_TEX_COUNT(_i)  ((_i) * 6) + 0
-#define BATTLE_TEX_PAGE(_i)   ((_i) * 6) + 1
-#define BATTLE_TEX_CLUT_X(_i) ((_i) * 6) + 2
-#define BATTLE_TEX_CLUT_Y(_i) ((_i) * 6) + 3
-#define BATTLE_TEX_PAGE_X(_i) ((_i) * 6) + 4
-#define BATTLE_TEX_PAGE_Y(_i) ((_i) * 6) + 5
-// Bytes of one party member's sprite TIM block in the archive pTimData points at.
-#define BATTLE_CHAR_TIM_BYTES 0x460
-// An empty party slot in g_BattleActorCharIds.
-#define BATTLE_CHAR_ID_EMPTY 0x7F
-// The character sprite every party member but the first is drawn with while
-// D_800D3294 (the character override) is set.
-#define BATTLE_OVERRIDE_CHAR_ID 0xB
-// Halfwords a texture page is shifted by per party member to pack the three
-// sprites side by side in VRAM.
-#define BATTLE_TEX_PAGE_STEP 6
-
 void func_80078310(u8 *pTimData, u8 index) {
     TIM_IMAGE tim;
     s32 metadata[18];
