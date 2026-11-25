@@ -783,6 +783,25 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
    and the trailing search loop are byte-identical apart from the first loop's
    anchor: retail names D_80092B44 (= g_BattleEffectSlots + 0x6C), we name
    g_BattleEffectSlots, same linked bytes. */
+// PARK 86.91% at retail's EXACT size (564 bytes, 141 instructions; the old note's
+// 85.67% was the 16-bit-cast form which read 572 bytes / 143). Two fixes this round:
+// the duplicate check reads 0x6C SIGNED ('lh' in retail, 'lhu' before) so the cast is
+// (s16 *)&pEntry->unk6C, and the u setup belongs BETWEEN the unk64 and the vy store -
+// 'u = g_BattleEffectClutX[0] * 4 + 8; pSlot->vy = pVec->vy; u += arg0 * 4;' - which
+// removes the two extra 'nop' load-delay slots (the +8 bytes). The two scan loops,
+// both loop tails, the 0x28-byte packets[0]->packets[1] block copy and the whole
+// creation head are now instruction-identical; the first loop's anchor is written
+// g_BattleEffectSlots+0x6C where retail names D_80092B44 (same linked bytes).
+// REMAINING, entirely the tail's load/store interleaving: retail front-loads the
+// value setup - addiu t1,t0,40 right after 'lw v0,0(a2)', then lw v1,4(a2),
+// lw a1,8(a2) (pVec->vz), lw a0,g_BattleEffectSpawnTick and lhu D_80092694 all
+// ABOVE the u/v byte-pair groups, plus 'move a2,t0' and 'sw a3,112' before them -
+// while our body pairs each load with the store that uses it. Measured dead this
+// round: hoisting 'pSlot->unk6A = g_BattleEffectSpawnTick; pSlot->unk68 = pVec->vz;'
+// above the u/v groups (142 insns / 568 bytes / 86.42, and the third loop's
+// registers shift). That makes it a scheduler question, not a statement-order one.
+// Also measured dead: the peephole form 'link |= ...' style reordering is N/A here;
+// preset screens were 2.6.0 84.5x / cdk does not compile this unit.
 /*
 void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     BattleSlot *pSlot = g_BattleEffectSlots;
@@ -796,7 +815,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0) {
             if (*(u32 *)&pEntry->unk70 == arg3) {
-                if (*(u16 *)&pEntry->unk6C == g_BattleDrawFlags) {
+                if (*(s16 *)&pEntry->unk6C == g_BattleDrawFlags) {
                     return;
                 }
             }
@@ -822,11 +841,11 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->z = pPos->vz;
     *(u16 *)&pSlot->unk6C = g_BattleDrawFlags;
     pSlot->unk64 = pVec->vx;
+    u = g_BattleEffectClutX[0] * 4 + 8;
     pSlot->vy = pVec->vy;
+    u += arg0 * 4;
 
     pMotion = &pSlot->packets[0];
-    u = g_BattleEffectClutX[0] * 4 + 8;
-    u += arg0 * 4;
     pMotion->u3 = u;
     pMotion->u2 = u;
     pMotion->u1 = u;
@@ -853,10 +872,9 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
             pSlot->unk60 = (u32)pEntry;
         }
     }
-}
-*/
-
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
+
 
 void func_8007D918(u32 *pOt);
 
