@@ -516,7 +516,7 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
         }
     }
 }
-// best: objdiff 90.34% - 176 bytes = retail's 44 instructions. Round 479 re-measured the park and tried four more spellings on the two residuals, all 90.34% / 176 / 44 insns: (1) block 2 with the whole call argument in an s32 local, (2) block 2 with the byte in the reused u8 soundId local, (3) block 2 with only the flags half in a local, (4) the parked body itself. cc1's own .s (build/src/battling/main/misc17.c.s) shows sched2 hoisting the byte's andi to the FRONT of block 2 whatever the source order, so reorg then steals it into the beqz slot (retail keeps a nop there and fills the lw a0 load-delay slot with that andi instead); block 1 in retail has the andi in the branch slot, i.e. the same schedule as ours, so the two retail blocks were scheduled differently from an identical DAG. Residual 1 is the $s1/$s2 mirror (retail: index $s2, base $s1); preset screen this round: 2.7.2-cdk 71.98, 2.6.0 does not compile, so Default is right. Previous attempts that stand: base at its use 85.84/168, both reads D_80091EE0[i] 90.70/184, non-void return 90.11, 3-minute permuter base 145 best 25 nonsense volatile.
+// best: objdiff 90.34% - 176 bytes = retail's 44 instructions. TWO residuals, both now measured closed. (1) the s1/s2 mirror: -dl/-dg on this body (tools/gcc-2.7.2-psx/cc1 with the unit cc_flags plus -O2 -G8 -da -dl -dg) says 6 regs to allocate: 79 98 83 72 74 75, with 72 = pActor in s0, 74 (the soundId*2 index, used 3 times across 11 insns = 0.27) in s1 and 75 (the D_80091EE0 base pointer, used 2 times across 18 insns = 0.11) in s2, so retail's base-in-s1 needs that pointer to reach 4 refs (2 extra instructions retail does not have) or the index to span 27 insns, i.e. the pair is quotient-closed; declaration order and init order of the two (index-first vs base-first, either declaration order) are byte-identical at 90.34. (2) block 2's andi: retail keeps a nop in the beqz slot and puts the byte's andi in the lw a0 load-delay slot, our sched2 orders [andi, lw a0, srl, andi] whatever the source order, so reorg keeps stealing it into the slot (block 1 in retail has the andi in the slot, i.e. the same schedule as ours, out of an identical DAG). Retail block 1 must be the symbol-form D_80091EE0[i] (a base-pointer spelling there is 85.84/168 bytes). Preset screen: 2.7.2-cdk 71.98, 2.6.0 does not compile, so Default is right. Earlier measurements that stand: base at its use 85.84/168, both reads D_80091EE0[i] 90.70/184, non-void return 90.11, 3-minute permuter base 145 best 25 nonsense volatile.
 /*
 void func_8008ED6C(BattleActor* pActor, s32 idx) {
     s32 pad[2];
@@ -538,6 +538,7 @@ void func_8008ED6C(BattleActor* pActor, s32 idx) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+
 
 
 void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
