@@ -309,6 +309,22 @@ extern s32 g_MenuCardSlotOrder[];
 // best 99.70% at retail's EXACT 2084 bytes / 521 insns (up from 95.78). Residual is TWO things only: (1) retail's `addu s6,s4,zero` copy sits in the ENTRY block (right after move s4,zero, before the first bnez) and ours lands in the 0x45A8 bnez delay slot, which pushes retail's `andi v0,s3,0xff` out of that slot (offsets ripple ~4 bytes); (2) the typed-reloc spellings retail names D_801C50AC / D_801C50B4 and we reach g_MenuCardPathPrefix0/1 + 4 (identical linked bytes, SECOND EXCEPTION class).
 //    MEASURED DEAD on (1): `waited = 0; rebuildWindow = waited;` or `rebuildWindow = 0;` at the top DOES move the copy into the entry block but lets cprop prove rebuildWindow==0, so the whole `if (rebuildWindow != 0) pManager->characterWindowBuilt = 1` block is folded away: 514 insns / 2056 bytes, 94.31%. Retail keeps that block ALIVE with s6 set once from the (zero) s4, so its source related the two locals in a way gcc 2.6.0 cannot constant-fold; not found. The late placement is the closest reachable body (it also differs semantically: ours can pass 1).
 //    TWO FIXES THAT WERE WORTH 2 POINTS EACH, keep them: (a) `(s16)g_MenuCellPrimYs[...] - 6` - WITHOUT the cast gcc hoists -6 into a register (li a2,0xfffa) in the shouldUpdatePosition branch's delay slot, which steals a2 so g_Menu moves to a3 and every one of the eight cursor stores reloads through the wrong base (112 -> 50 differing lines at identical size); with it retail's per-site addiu v0,v0,-6 and a2 as the g_Menu base come back. (b) the card-sample loop must be the POSITIVE conjunction `if (cardStatus[card] != 0 && saved0 == cardStatus[0] && saved1 == cardStatus[1]) { load...; if (cardEnumerated[card] != 0) continue; status = card + 1; } else { status = 2; } card = MENU_CARD_COUNT; waited = 0; break;` - the negative form and the two-separate-breaks form both make gcc invert the third test and add a `j` (98.80 and 97.15).
+// Re-measured round 493 (XenoMenu260): best 99.70% / 2084 bytes / 521 insns = retail's EXACT size.
+// Residual is still exactly two things. (1) Retail's `addu s4,zero,zero` sits in the 0x43F8
+// `lw v0,0x32C(v0)` delay slot (before the lhu) with `addu s6,s4,zero` in the 0x4408 bnez slot; this
+// body has `nop` there, `addu s4,zero,zero` in that bnez slot, and `addu s6,s4,zero` in the 0x45A8
+// slot where retail has `andi v0,s3,0xff` - the same five instructions in another order, sched2/reorg's
+// pick, not the C: both bodies' join copy is in the same basic block (lever
+// a-copy-of-a-local-in-an-entry-delay-slot-is-a-join-copy already established that the entry-position
+// copy IS the join copy, so the source placement of `rebuildWindow = waited;` is right).
+// (2) relocation only: D_801C50AC / D_801C50B4 vs g_MenuCardPathPrefix0/1 + 4 (SECOND EXCEPTION).
+// Measured dead this round: `waited = 0; rebuildWindow = waited;` as the first two statements, and the
+// chained `rebuildWindow = waited = 0;` - both 98.22% / 2048 bytes / 512 insns, retail's entry slot
+// reproduced but as `move s6,zero`, so cprop folds the `if (rebuildWindow != 0)` block away (7 insns).
+// `waited = 0` written as a statement immediately before the first `if` (retail's position) instead of
+// as the declaration initialiser is BYTE-IDENTICAL to the body below (the sink pass moves it anyway).
+// permute.sh cannot score this body: the base fails to compile in the permuter (8x 'conversion to
+// non-scalar type requested', 'Unable to compile base.c'), so it has no permuter number.
 /*
 u_char func_801C93A8(void) {
     char path[0x40];
@@ -448,6 +464,7 @@ u_char func_801C93A8(void) {
     return waited;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
+
 
 
 
