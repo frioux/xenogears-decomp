@@ -804,7 +804,6 @@ typedef struct {
 extern FieldPlayerActorPartySlotView g_FieldPlayerActorPartySlot;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
-
 /* R440 redo: 92.75% (768 bytes / 192 insns; retail 776 / 194). Ring layout is
    settled: 32 entries of 0x48 at D_800B14F0, every singleton store is
    D_800B14F0[index].field, the step/normal group wants a u8* to entry 0's
@@ -842,7 +841,26 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
    Remaining, in cascade order: the two delay slots (retail puts the frame's
    addiu sp,sp,-24 in the bne slot and move a3,zero in the bnez slot, which is
    where its 2 extra instructions live), the value-temp register phase, and the
-   three position reads' lh vs lhu. */
+   three position reads' lh vs lhu.
+   R473 arithmetic of the 8-byte gap (192 insns / 768 bytes vs retail 194 / 776):
+   retail's six early groups pay 2 instructions per cursor read (the maspsx
+   expansion of a direct `lw sym`) where the array form pays 1 (`lw v1,0(a0)`),
+   so retail is +6 there; mine gives back 1 by folding the loop's -0xA into the
+   store displacement (retail has a real addiu t2,a1,-0xA) and ~2 by leaving the
+   delay slots retail fills with `addiu sp,sp,-24` (bne slot) and `move a3,zero`
+   (bnez slot) as nops, hence -2 net. So the whole gap is the cursor spelling.
+   R473 measured: the MIXED spelling - a scalar alias
+   `extern volatile s32 g_FieldSpriteUpdateCursor
+   __asm__("g_FieldSpriteUpdateIndex")` for the six step/normal stores plus a
+   pointer local from the rotation store on - gives 71.81% / 764 bytes, not
+   92.75: gcc still uses the register form for the pointer tail and rewrites the
+   final read-modify-write as `lw/sw 0(t1)` where retail has `0(a0)`. So the mix
+   cannot be expressed; the array form (a0 live from the top) stays the best
+   body found. Also measured: `((s16*)&pActor->position)[1]` assembles to `lhu`
+   even though the cast is to s16 (gcc picks the unsigned halfword load when the
+   value only feeds an identical HImode store), so that residual needs a
+   differently typed read, not a cast.
+*/
 /*
 void func_80081C54(int actorIndex) {
     FieldActor* pFieldActor = &g_FieldActors[actorIndex];
@@ -886,6 +904,7 @@ void func_80081C54(int actorIndex) {
     g_FieldSpriteUpdateIndex[0] = (g_FieldSpriteUpdateIndex[0] - 1) & 0x1F;
 }
 */
+
 
 int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
