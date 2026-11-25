@@ -850,6 +850,14 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // NOT keep the pseudo alive). A park note that says "retail kept the argument copy in the
 // middle of the block" is right about the emission and wrong about the handle: the copy's
 // position is a consequence of combine_regs, not a schedule that can be re-ordered.
+// ROUND 490: three more measurements, none a new best. The `nextTimer` local is load-bearing:
+// writing the literal `pTask->timer = 0x10;` inside the arm gives 91.40 and folds the colour
+// `lbu` into $a0 as well as the two stores (the pre-if constant keeps the load on $s0).
+// Swapping the two arm statements (colour first, timer second) is byte-identical to that, so
+// source statement order is inert here, as sched-insns implies. Diff shape at 91.60 is exactly
+// one displaced insn: retail has `move a0,s0` 3rd in the arm (after `lui a1`) and both stores
+// on $s0, this build schedules the same `move a0,s0` 1st in the arm and combines the two
+// store addresses into $a0.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
@@ -861,9 +869,9 @@ void func_800BDC14(Misc32Task *pTask) {
         pTask->color.channels.flags = (pTask->color.channels.flags | 2) & 0xFE;
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
+
 
 extern void func_800BDC14(Misc32Task *pTask);
 
