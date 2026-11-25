@@ -8,9 +8,9 @@ extern u8 *g_BattleColorSourceA;
 extern u8 *g_BattleColorSourceB;
 extern u8 *g_BattleSpriteRenderData;
 extern u8 *g_BattlePartPrimBuffers; /* [2] in misc22; only element 0 is used here */
-/* Array view of the same symbol, for the func_800A64E4 park: its guard has to be a
-   pointer test, and over the scalar extern 'g_BattlePartPrimBuffers[0] != NULL' tests
-   a BYTE (2 instructions and 8 bytes too many). */
+/* Array view of the same symbol: func_800A64E4's guard has to be a pointer test, and
+   over the scalar extern 'g_BattlePartPrimBuffers[0] != NULL' tests a BYTE
+   (2 instructions and 8 bytes too many). */
 extern u8 *g_BattlePartPrimBuffersArray[2] __asm__("g_BattlePartPrimBuffers");
 /* Volatile alias of the same symbol: retail reloads the pointer for loop 1's first
    prim store instead of reusing the guard's load, and a volatile read cannot be cse'd. */
@@ -53,6 +53,44 @@ extern u8 g_BattleColorBlendWeight[];
 extern s8 g_BattleColorTintRed[];
 extern s8 g_BattleColorTintGreen[];
 extern s8 g_BattleColorTintBlue[];
+
+// One 8-byte colour record of the sprite palette stream func_800A64E4 copies the
+// tint bytes into: the three bytes it writes, then five the stream leaves unused.
+typedef struct {
+    /* 0x0 */ u8 red;
+    /* 0x1 */ u8 green;
+    /* 0x2 */ u8 blue;
+    /* 0x3 */ u8 pad3[5];
+} BattleColorRecord; // Size: 0x8
+
+// Four colour records per actor slot (stride 0x24).
+typedef struct {
+    /* 0x00 */ BattleColorRecord colours[4];
+    /* 0x20 */ u8 pad20[4];
+} BattleColorBlock; // Size: 0x24
+
+// One colour record per actor slot (stride 0x18).
+typedef struct {
+    /* 0x0  */ u8 red;
+    /* 0x1  */ u8 green;
+    /* 0x2  */ u8 blue;
+    /* 0x3  */ u8 pad3[0x15];
+} BattleColorSlot; // Size: 0x18
+
+// func_800A64E4's view of g_BattleSpriteRenderData: the two per-slot colour
+// arrays it writes, at the two strides the renderer walks them with.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x16E0];
+    /* 0x16E0 */ BattleColorSlot unk16E0[4];
+    /* 0x1740 */ BattleColorBlock unk1740[4];
+} BattleSpriteColorView; // Size: 0x17D0
+
+// The same function's view of g_BattlePartPrimBuffers[0].
+typedef struct {
+    /* 0x284 */ u8 unk0[0x284];
+    /* 0x284 */ BattleColorSlot unk284[4];
+    /* 0x2E4 */ BattleColorBlock unk2E4[2];
+} BattlePartColorView; // Size: 0x32C
 
 // One 0x10-byte record of Misc23Block::pRecords: the five section counts and
 // offsets the model-list renderer reads back out of the part stream.
@@ -466,173 +504,60 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
     }
 }
 
-/* 98.71% at retail's exact 928 bytes / 232 instructions (unit preset gcc 2.6.0
-   --expand-div -G0): the whole function is recovered - the same frame, the same
-   registers ($a1 = pSrc, $a0 = pSrc+2, $a2 = i*0x24, $a3 = i*0x18, $t0 = i),
-   every load, store, displacement, null test and biv increment in retail's order.
-   The ONLY difference is the operand order of all 30 address addus: retail emits
-   'addu v0,v0,a2' (the reloaded g_BattleSpriteRenderData first) where this cc1
-   emits 'addu v0,a2,v0'.
-   ROUND 394 PROBES (tools/scripts/cc1_probe.sh battle/main/misc23 <snippet.c>, a
-   standalone loop with the unit's real cc1 and flags - this is the cheap way to
-   answer the question, the unit file does not need to be touched): every natural
-   spelling of the destination yields the INDEX-FIRST order -
-     g[i * 0x24 + 0x1740]                        -> addu $2,$4,$2
-     *(u8 *)(g + i * 0x24 + 0x1740)              -> addu $2,$4,$2
-     ((u8 *)(g + i * 0x24))[0x1740]             -> addu $2,$4,$2
-     ((u8 *)(off + (s32)g))[K] with s32 off      -> addu $2,$4,$2
-     offset first: i*0x24 + (s32)g + K           -> addu $2,$4,$2
-     struct view ((Row *)g)[i].c0[0]             -> addu $2,$4,$2
-   so the order comes from this cc1's address legitimisation (reload), not from the
-   source. THE ONE LEAD LEFT (lever b-embedded-assignment-temp-for-addu-order, round
-   391): an assignment embedded INSIDE the address expression does flip it - probed
-   '((u8 *)(g_BattleSpriteRenderData + (off = i * 0x24)))[0x1740] = pSrc[0];' emits
-   'addu $2,$2,$5' (base first). The probe's index then comes from a fresh
-   'sll $5,$7,2' per store instead of retail's biv $a2, so the shape to try is that
-   one with an offset variable the LOOP maintains (shared with the i*0x18 groups,
-   which need their own 0x18 stride). Also measured dead earlier: the plain
-   array form, index constant-first, embedded assignment, a per-store pointer
-   local, a mem_addr integer sum, a plain offset variable instead of a biv, and two
-   permuter runs (2036 and 993 iterations, base=300 best=300). try_flags: 2.7.2 -G0
-   95.59, cdk -G0 79.78, 2.6.0 -O1 46.66, -O3 98.71, so the preset is right too.
-   The one shape that DOES emit base-first is 'pDst = &g[i * 0x24 + 0x1740]', but it
-   keeps 0x1740 in the sum (an extra addiu per store) and moves the base to $t1.
-   Structure, for whoever picks this up: pSrc = g_BattleColorTintBase is a table of
-   0x18-byte records of six 3-byte colours (advance 4 per colour). For i in 0..3:
-   the 0x1740/48/50/58 groups go into g_BattleSpriteRenderData + i*0x24, the 0x16E0
-   group and the 0x284 group (g_BattlePartPrimBuffers[0]) use i*0x18, and when
-   g_BattleSpriteRenderData is NULL the five groups are skipped with pSrc += 0x14.
-   Then a second i in 0..1 loop writes the 0x2E4/2EC/2F4/2FC groups into
-   g_BattlePartPrimBuffers[0] + i*0x24 (pSrc += 0x10 when it is NULL), and the last
-   two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers set by
-   BattleSetColorSources. Every store reloads its base global, so the destination
-   expression has to be written out in full at each store - a pointer local
-   collapses the loads into one.
-   ROUND 420: the parked body no longer compiles against this file. line 10 declares
-   g_BattlePartPrimBuffers as the SCALAR 'extern u8 *g_BattlePartPrimBuffers' (needed
-   by the BattleInitColorTintTable park above) where the body needs the ARRAY extern, and line
-   707 declares g_BattleSpriteRenderData as void * where the body needs u8 *. Measured
-   with casts at every site instead - ((u8 *)g_BattleSpriteRenderData)[K] and
-   ((u8 *)g_BattlePartPrimBuffers[0])[K] - the body is 82.50 at 253 insns / 1012 bytes,
-   i.e. the cast spelling costs 21 instructions and the 98.71 figure only reproduces
-   with the array extern. The residual it was measured on is the one below (30 addu
-   operand orders), and per levers a-addu-index-first-is-the-legitimiser and
-   b-inplace-flips-pointer-base-but-hoists-mem-base the 15 g_BattleSpriteRenderData
-   sites reach retail's order with the in-place '+= i * 0x24' form while the 15
-   g_BattlePartPrimBuffers[0] sites cannot, so the ceiling here is about 99.58 and this
-   is not a hand job.
-   ROUND 431 RAISES THAT CEILING: the scalar declaration at line 10 now exists and
-   BattleInitColorTintTable above is matched at 100.00 with the two-statement in-place form on
-   BOTH globals, so this body's 15 g_BattlePartPrimBuffers sites should take
-   'pSlot = g_BattlePartPrimBuffers; pSlot += i * 0x18; pDst[0] = pSlot[0x284];' and
-   close the operand orders the array extern forced mirrored - i.e. re-spell the 30
-   sites over the scalar extern, not with casts. If a guard load is then cse'd into
-   the block's first store (retail reloads it there), the round-431 lever is a
-   volatile alias 'extern u8 * volatile gVBuf __asm__("g_BattlePartPrimBuffers");'
-   used at that one store only.
-   ROUND 433 TRIED IT AND THE CEILING IS 93.73, not 100: re-spelling all 30 sites over
-   the scalar extern with the two-statement in-place form (pSlot = g_...; pSlot += i *
-   0x24; pSlot[K] = pSrc[N];, no volatile) DOES give retail's base-first
-   'addu vN,vN,a2/a3' at every site and lands on retail's exact 928 bytes / 232
-   instructions - but the whole body then sits on a $v0/$v1 MIRROR: retail keeps the
-   reloaded pointer in $v0 and the lbu result in $v1, this cc1 the other way round, at
-   all 30 sites (93.73%, 294 differing lines, two of them the block's first store
-   copying v0->v1). The array-extern park below keeps its 98.71 because objdiff scores
-   the index-first operand order higher than the mirrored registers; neither is a
-   match. Measured dead on the in-place body: swapping the pSrc/pSlot declarations
-   (byte-identical, 93.73) and a 3-minute two-job permuter run (no change to the
-   pointer/byte pair). cc1_probe.sh on a standalone 3-store loop reproduces the same
-   mirror (addu $3,$3,$5 / lbu $2), so the $v0 for the pointer is the compiler's
-   local-alloc scan, not the unit's surround - probe before re-spelling this again.
-   ROUND 446: reproduced 98.71% at retail's exact 928 bytes / 232 instructions with
-   the body below, and objdiff lists the 30 address addus and NOTHING else (60
-   differing lines, every one 'addu v0,v0,a2' vs 'addu v0,a2,v0'; $v0 holds the
-   reloaded pointer and $v1 the byte on both sides). The one lead this note left is
-   dead: cc1_probe.sh against this unit's real cc1 emits 'addu $2,$5,$2' (index
-   first) for every spelling tried -
-     g[i * 0x24 + K]
-     ((ProbeSlot *)(g + 0x1740))[i].c0[k]          (0x24-byte struct, colour arrays)
-     ((u8 (*)[0x24])(g + 0x1740))[i][k]            (row-array type)
-     g[off + K] with off a LOCAL the loop increments (off += 0x24)
-     g[(off = i * 0x24) + K]                       (the embedded assignment)
-     ((u8 *)(p = g + i * 0x24))[K]                 (embedded pointer assignment)
-   all six are byte-identical, so the operand order is cc1 2.6.0's own
-   canonicalisation of the address (loop.c swaps the strength-reduced biv in front of
-   the pointer) and is not reachable from C. Do not re-spell it; a typed struct does
-   not help either. Spelling it over the scalar extern ('g_BattlePartPrimBuffers[K]')
-   costs 2 instructions / 8 bytes (234 insns, 936 bytes, 95.65%) because the guard
-   then tests a byte - the array alias above is what keeps 928.
-   ROUND 459: re-measured this park at 98.71 / 928 bytes / 232 insns (60 differing
-   lines, every one 'addu v0,v0,a2' vs 'addu v0,a2,v0') and closed four more
-   spellings. The double-negated offset 'g - -(i * 0x24)' (the
-   c-a-double-negated-offset-flips lever) folds the negation into the giv and emits
-   'subu v0,v0,t1' plus an extra 'move t1,zero' in the entry block. The base-first
-   tree '*(g + 0x1740 + i * 0x24)' is byte-identical to the subscript, so loop.c
-   canonicalises the giv in front whatever the C order is. The two-statement
-   in-place form at all 15 g_BattleSpriteRenderData sites DOES give retail's
-   'addu v0,v0,a2' order, but the block then mirrors the registers (pointer $v1,
-   byte $v0: 96.85 / 176 differing lines), and splitting it over five per-group
-   pointer locals (one per 3-byte record, so no pseudo has many defs) measures the
-   SAME 96.85, so the mirror is not a many-defs qcost artifact. A SINGLE site
-   converted on its own ('pDst = g; pDst += i * 0x24; pDst[0x1740] = ..') is
-   instruction-perfect (98.75, 58 lines), i.e. retail's shape is reachable only
-   while that pointer pseudo has one def, which no 15-site body has. Preset leg
-   re-closed for this function: try_flags.sh --gcc gcc-2.7.2-cdk-psx scores 79.78.
-   Park stands at 98.71. */
-/* void func_800A64E4(void) {
+void func_800A64E4(void) {
     u8 *pSrc;
     s32 i;
 
     pSrc = g_BattleColorTintBase;
     for (i = 0; i < 4; i++) {
         if (g_BattleSpriteRenderData != NULL) {
-            g_BattleSpriteRenderData[i * 0x24 + 0x1740] = pSrc[0];
-            g_BattleSpriteRenderData[i * 0x24 + 0x1741] = pSrc[1];
-            g_BattleSpriteRenderData[i * 0x24 + 0x1742] = pSrc[2];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[0].red = pSrc[0];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[0].green = pSrc[1];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[0].blue = pSrc[2];
             pSrc += 4;
-            g_BattleSpriteRenderData[i * 0x24 + 0x1748] = pSrc[0];
-            g_BattleSpriteRenderData[i * 0x24 + 0x1749] = pSrc[1];
-            g_BattleSpriteRenderData[i * 0x24 + 0x174A] = pSrc[2];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[1].red = pSrc[0];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[1].green = pSrc[1];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[1].blue = pSrc[2];
             pSrc += 4;
-            g_BattleSpriteRenderData[i * 0x24 + 0x1750] = pSrc[0];
-            g_BattleSpriteRenderData[i * 0x24 + 0x1751] = pSrc[1];
-            g_BattleSpriteRenderData[i * 0x24 + 0x1752] = pSrc[2];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[2].red = pSrc[0];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[2].green = pSrc[1];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[2].blue = pSrc[2];
             pSrc += 4;
-            g_BattleSpriteRenderData[i * 0x24 + 0x1758] = pSrc[0];
-            g_BattleSpriteRenderData[i * 0x24 + 0x1759] = pSrc[1];
-            g_BattleSpriteRenderData[i * 0x24 + 0x175A] = pSrc[2];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[3].red = pSrc[0];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[3].green = pSrc[1];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[3].blue = pSrc[2];
             pSrc += 4;
-            g_BattleSpriteRenderData[i * 0x18 + 0x16E0] = pSrc[0];
-            g_BattleSpriteRenderData[i * 0x18 + 0x16E1] = pSrc[1];
-            g_BattleSpriteRenderData[i * 0x18 + 0x16E2] = pSrc[2];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk16E0[i].red = pSrc[0];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk16E0[i].green = pSrc[1];
+            ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk16E0[i].blue = pSrc[2];
             pSrc += 4;
         } else {
             pSrc += 0x14;
         }
         if (g_BattlePartPrimBuffersArray[0] != NULL) {
-            g_BattlePartPrimBuffersArray[0][i * 0x18 + 0x284] = pSrc[0];
-            g_BattlePartPrimBuffersArray[0][i * 0x18 + 0x285] = pSrc[1];
-            g_BattlePartPrimBuffersArray[0][i * 0x18 + 0x286] = pSrc[2];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk284[i].red = pSrc[0];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk284[i].green = pSrc[1];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk284[i].blue = pSrc[2];
         }
         pSrc += 4;
     }
     for (i = 0; i < 2; i++) {
         if (g_BattlePartPrimBuffersArray[0] != NULL) {
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2E4] = pSrc[0];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2E5] = pSrc[1];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2E6] = pSrc[2];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[0].red = pSrc[0];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[0].green = pSrc[1];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[0].blue = pSrc[2];
             pSrc += 4;
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2EC] = pSrc[0];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2ED] = pSrc[1];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2EE] = pSrc[2];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[1].red = pSrc[0];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[1].green = pSrc[1];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[1].blue = pSrc[2];
             pSrc += 4;
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2F4] = pSrc[0];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2F5] = pSrc[1];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2F6] = pSrc[2];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[2].red = pSrc[0];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[2].green = pSrc[1];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[2].blue = pSrc[2];
             pSrc += 4;
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2FC] = pSrc[0];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2FD] = pSrc[1];
-            g_BattlePartPrimBuffersArray[0][i * 0x24 + 0x2FE] = pSrc[2];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[3].red = pSrc[0];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[3].green = pSrc[1];
+            ((BattlePartColorView *)g_BattlePartPrimBuffersArray[0])->unk2E4[i].colours[3].blue = pSrc[2];
             pSrc += 4;
         } else {
             pSrc += 0x10;
@@ -645,8 +570,7 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
     g_BattleColorSourceB[0] = pSrc[0];
     g_BattleColorSourceB[1] = pSrc[1];
     g_BattleColorSourceB[2] = pSrc[2];
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
+}
 
 void BattleApplyColorTint(u8 *pDst, s32 index, u8 *pSrc) {
     s32 r;
