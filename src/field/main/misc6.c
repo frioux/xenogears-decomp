@@ -1214,10 +1214,16 @@ extern s32 func_8009FA54(s32 nInstructionOffset);
 // but not its form - gcc propagates the constant address into every MEM (three fresh
 // `lui`/`lw` pairs, 924 bytes / 231 insns against retail's 916 / 229) instead of
 // keeping `la t2` in a register as retail does, so the (a) 3-insn form is still open.
+// 95.69% (916 bytes / 229 insns - retail's EXACT size, was 92.94 at 896 before round 475): every call, branch, field access and the frame match; 32 differing lines are operand order and three address shapes.
+// Round 475 found the byte count with four spellings: (1) volatile s32* pReloadFlags plus a s32 nReloadFlags local used for the test AND the offsets index, with arg 6 re-dereferencing *pReloadFlags, gives retail's two flag reads (the volatile is load-bearing: without it cc1 CSEs them into one, 2 insns short); (2) the s32* pOffsets local assigned from &pSpriteData->offsets[D_800AE294[characterId]] and then indexed by nReloadFlags gives retail's sll / addiu 4 / addu / addu split where a single offsets[cid + n] subscript folds the +4 into the lw displacement (-1 insn); (3) ((u8*)g_pGameState + partyId)[0x22B1] gives retail's base-first addu v1,v1,s0 (lever c-pointer-from-memory-paren-sum-is-base-first); (4) the swap actor as the offset-first cast sum g_FieldPartyActorIndices[partyId] * sizeof(FieldActor) + (u32)pActors gives retail's index-first addu v0,v0,a2 (lever c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base); plain &pActors[...] is base-first. Those four moved 92.94 -> 95.32 -> 95.69 at constant 916/229.
+// Residual, unfixed: (a) retail keeps &g_FieldSceneReloadFlags in a temp (lui t2 / addiu t2) and does both reads as lw X,0(t2); this cc1 folds the address into each load instead (lui t1 / lw t1,0(t1), then a fresh symbolic pair for arg 6) - same insn count, three differing rows, so no spelling tried moves it (pointer local, volatile pointer, volatile pointee all fold); (b) the knock-on register mirror sll v0,a1 / sll v1,a1 in the offsets block; (c) sll s2,s0,0x2 (partyId * 4) which retail computes early and reorg fills into the bnez delay slot (this body has a nop there and the sll after the flag load), and the lw/ori of the partyId==0 scriptFlags read-modify-write which retail emits after the two g_PlayerActorIndex stores and this body hoists.
 /*
 void func_800A08B8(void) {
     FieldActor* pFieldActor;
     FieldSpriteDataBlob* pSpriteData;
+    s32* pOffsets;
+    volatile s32* pReloadFlags; // volatile: retail reads the flags twice (test and arg 6)
+    s32 nReloadFlags;
     void* pSprite;
     void* pSwapSprite;
     void* pOldSprite;
@@ -1239,18 +1245,21 @@ void func_800A08B8(void) {
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x4400;
             g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
         }
+        pReloadFlags = &g_FieldSceneReloadFlags;
         g_FieldPartyActorSlots[partyId] = g_FieldCurActorIndex;
-        if (g_FieldSceneReloadFlags != 0) {
+        nReloadFlags = *pReloadFlags;
+        if (nReloadFlags != 0) {
             pSpriteData = g_FieldSpriteData;
-            pSprite = (void*)(pSpriteData->offsets[D_800AE294[characterId] + g_FieldSceneReloadFlags] + (s32)pSpriteData);
-            func_80076AC0(g_FieldCurActorIndex, D_800AE294[characterId] + g_FieldSceneReloadFlags, pSprite, 0, 0,
-                (D_800AE294[characterId] + g_FieldSceneReloadFlags) | 0x80, 1);
+            pOffsets = &pSpriteData->offsets[D_800AE294[characterId]]; // pointer local keeps retail's split +4
+            pSprite = (void*)(pOffsets[nReloadFlags] + (s32)pSpriteData);
+            func_80076AC0(g_FieldCurActorIndex, D_800AE294[characterId] + nReloadFlags, pSprite, 0, 0,
+                (D_800AE294[characterId] + *pReloadFlags) | 0x80, 1);
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
             g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x300;
-            if (((u8*)g_pGameState)[0x22B1 + partyId] != 0) {
+            if (((u8*)g_pGameState + partyId)[0x22B1] != 0) {
                 pActors = (FieldActor*)g_FieldActors;
                 pCurActor = (FieldActor*)(g_FieldCurActorIndex * sizeof(FieldActor) + (s32)pActors);
-                pSwapActor = &pActors[g_FieldPartyActorIndices[partyId]];
+                pSwapActor = (FieldActor*)(g_FieldPartyActorIndices[partyId] * sizeof(FieldActor) + (u32)pActors);
                 pSwapSprite = pSwapActor->pSpriteData;
                 pOldSprite = pCurActor->pSpriteData;
                 pCurActor->pSpriteData = pSwapSprite;
@@ -1278,12 +1287,9 @@ void func_800A08B8(void) {
     g_FieldScriptVMCurActor->scriptFlags.flags |= 0x20000;
     g_FieldScriptVMCurActor->flags |= 0x400;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
 
-
-extern s32 g_PlayerActorIndex;
 
 void FieldPlayerSetScriptFlag80(void) {
     g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
