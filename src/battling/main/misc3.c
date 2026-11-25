@@ -1780,8 +1780,6 @@ extern u8 g_BattleCameraLerpFrames;
      `= 0x80` before the switch with an empty case 2, otherwise gcc emits a flat
      compare chain.
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078194);
-/*
 void func_80078194(BattleActor* p) {
     s32 angle;
     s32 target;
@@ -1833,8 +1831,8 @@ void func_80078194(BattleActor* p) {
         if ((p->flags & 1) || (p->state & 2)) {
             p->actionAngle = target;
         }
-        p->flags = (p->flags | 0x100) & 0xFFF7FFFF;
         p->angle = p->actionAngle;
+        p->flags = (p->flags | 0x100) & 0xFFF7FFFF;
     } else {
         p->flags &= ~0x100;
     }
@@ -1856,9 +1854,15 @@ void func_80078194(BattleActor* p) {
     if (g_BattleAiTargetDistance >= 0x281 && g_BattleOptionOn != 0) {
         Vec4 delta;
 
-        delta.x = (p->pTarget->position.x - p->position.x) / 12;
-        delta.y = (p->pTarget->position.y - p->position.y) / 12;
-        delta.z = (p->pTarget->position.z - p->position.z) / 12;
+        delta.x = p->pTarget->position.x;
+        delta.y = p->pTarget->position.y;
+        delta.z = p->pTarget->position.z;
+        delta.x -= p->position.x;
+        delta.y -= p->position.y;
+        delta.z -= p->position.z;
+        delta.x /= 48;
+        delta.y /= 48;
+        delta.z /= 48;
         p->vx += delta.x;
         p->vy += delta.y;
         p->vz += delta.z;
@@ -1890,7 +1894,6 @@ void func_80078194(BattleActor* p) {
     p->vz += p->pushVz;
 }
 
-*/
 
 extern s32 BattleVectorDistance2D(Vec4*, Vec4*);
 
