@@ -491,7 +491,40 @@ void MenuFitInventoryWindowToItems(void) {
    while ours merges prevCol's store into that block and falls through, which is
    the one instruction we are short. A second empty do-while between
    `prevCol = 0xFF` and `selectedSlot = 0xFF` in case 4 measures identical
-   (94.17 / 892), so the block boundary is not reachable that way. *//*
+   (94.17 / 892), so the block boundary is not reachable that way. */
+// BEST 94.26% / 892 bytes / 223 insns against retail 896 / 224 - ONE instruction
+// short, so parked (cannot link). Two residuals, and they trade against each other:
+//  (a) the (active, needsOpen) callee-saved pair is MIRRORED: retail active=$s6 /
+//      needsOpen=$s5, this body active=$s5 / needsOpen=$s6. The init statement order
+//      moves only the prologue save order, never the pair: `active = 1; needsOpen = 1;`
+//      = 94.17 / 892 with s5 saved first, `needsOpen = 1; active = 1;` = 94.26 / 892
+//      with retail's s6-first order (the body below keeps the latter, the best number).
+//      So this is the a-global-allocno-priority-is class: same refs, both QI and both
+//      `= 1`, and the pair comes out the same way in both orders.
+//  (b) retail keeps ONE extra `j`: its case-4 tail is block B {prevCol = 0xFF} -> j to
+//      block C {selectedSlot = 0xFF -> break}, and C is also case 5's `!= 0xFF` arm;
+//      this body merges B and C into a single block and threads case 5's bne onto that
+//      block's `j`, which is the missing instruction. Retail's success arm then stores
+//      selectedSlot twice (beqz delay slot, then C) - a cross-jump duplicate, not a
+//      second source statement.
+// ROUND 470 measured: the empty `do { } while (0)` at the end of case 2 (which restores
+// retail's dispatch - beqz whose delay slot duplicates the loop test's `andi 0xFF` -
+// 888 -> 892) also flips pair (a); the same do-while at the end of case 9 measures the
+// same 892 / 94.17, and BOTH do-whiles together measure 892 / 94.17 again, so the two
+// residuals are one reorg block-numbering parity and the net is one instruction. Also
+// measured: without any do-while the body is 888 / 93.91 with retail's pair (a) but
+// also missing the dispatch andi. Preset already ruled out in the notes above (2.7.2
+// 93.66, cdk 84.82, -O3 65.55) and three permuter runs found no lead, so no fourth run
+// below 99%.
+// JUMP TABLE: this stub owns jtbl_801C50FC at +0x00 of the [0xFC, .rodata, main/misc9]
+// range; a C switch emits its 0x2C table at the range start with `.align 3` padding it
+// to 0x30, which is where func_801DDF24's table has to land, so converting this one is
+// layout-safe on its own - the blocker is the instruction, not the table.
+// Semantics (decoded, unchanged): the inventory page cursor - arg0/arg1 are unused,
+// row/col index the 16-column page, input 4 selects / confirms / swaps, 5 backs out,
+// 1/3/0/2 move by one column, 9/10 by eight rows, and both 0xFF sentinels force the
+// row and item prims to be rebuilt.
+/*
 s32 func_801DBE54(void) {
     u8 active;
     u8 needsOpen;
@@ -501,8 +534,8 @@ s32 func_801DBE54(void) {
     s32 prevCol;
     s32 selectedSlot;
 
-    active = 1;
     needsOpen = 1;
+    active = 1;
     row = 0;
     prevRow = 0xFF;
     col = 0;
@@ -628,6 +661,7 @@ s32 func_801DBE54(void) {
     return 1;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+
 
 
 void MenuCreateUnk430Panel(u_char arg0) {
