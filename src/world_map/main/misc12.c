@@ -53,7 +53,7 @@ extern s16 g_WorldMapCameraPathHeightsMode7[];
 extern s32 g_WorldMapCameraTargetY;
 extern SVECTOR D_8009BD48;
 extern s32 g_WorldMapRotationMatrixValid;
-extern s32 func_80091FF8(s32 nLimit, s16 *pIn, s16 *pOfs);
+extern s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
@@ -1657,6 +1657,29 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
 // with 0x5C as its angular velocity) toward the direction the pad asks for, tilts the pitch
 // accumulator 0x70 up/down, and rebuilds the slot's forward vector from both. The command
 // byte 0x64 is the phase: 0 seeds the ramp from the current angle, 1 runs it.
+// best: 99.56%, 1148 bytes / 287 insns = retail's exact size, frame and saved set exact.
+// Round 476 took this from 98.71 to 99.56 with two edits, both measured:
+// - write the yaw ramp's store as 'ptr = cond ? a+b : a-b;' instead of assigning the
+//   same value to a local and then storing it (the ternary's result is what retail
+//   stores, and the local was one pseudo too many for local-alloc): 92.10-era note's
+//   'keep the shift on the sum register' hint was about a different arm.
+// - the clamp pair at 0x60 needs TWO locals, nLimit and nRange: retail keeps the
+//   negative limit in $v0 and the positive one in $v1, which one shared local cannot do
+//   (a single nLimit gave both the same register). That edit alone took 99.46 -> 99.56.
+// Left, and measured:
+// (1) the 'nTol = 0x1000' constant: retail emits 'li t2,4096' in the lh load-delay
+//     slot and a nop in the bgez slot, this body the reverse. Source order of the
+//     assignment does not move it (tried before and after the nDelta computation).
+// (2) ONE branch target: retail's second 'if (g_WorldMapPad1Held & 0x80)' (the clamp
+//     guard, a re-read of the global after the 0x60 store) jumps to the else-if ramp
+//     block at 0x340 when it fails; this body jumps past the ramp to 0x368. Every other
+//     instruction, both other branch targets included, is retail's. Duplicating the ramp
+//     as an 'else if (unk60 != 0)' inside the pad block does NOT get cross-jumped
+//     (295 insns / 1180 bytes / 96.78), so retail's source had one ramp block reached
+//     from both the outer and the inner test - not expressible as nested if/else.
+// A 4-minute permuter run from the 98.71 body found the ramp-store edit above; a second
+// run from this body is a fair next attempt. gcc-2.7.2-cdk drops three matched
+// neighbours and scores 93.66, so the preset is right.
 /*
 s32 func_80090FB4(WorldMapPlayer *pPlayer) {
     s16 *pRotY;
@@ -1668,6 +1691,7 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
     s32 nTol;
     s32 nDelta;
     s32 nLimit;
+    s32 nRange;
     s32 nAbs;
     s32 nAbsVel;
     u32 nPad;
@@ -1701,8 +1725,8 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
             nVel += 0x10000;
         }
         if (nPad & 0xA00C) {
-            nTol = 0x1000;
             nDelta = g_WorldMapViewRotationZ[0] - nTurn;
+            nTol = 0x1000;
             if (nDelta < 0) {
                 nDelta = -nDelta;
             }
@@ -1716,8 +1740,7 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
             if (nAbs < nStep) {
                 nStep = nAbs;
             }
-            nAngle = (nAngle < nTurn) ? (nAngle + nStep) : (nAngle - nStep);
-            *pRotZ = nAngle;
+            *pRotZ = (nAngle < nTurn) ? (nAngle + nStep) : (nAngle - nStep);
         }
         if (pPlayer->unk5C != nVel) {
             nDelta = pPlayer->unk5C - nVel;
@@ -1788,9 +1811,9 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
             if (pPlayer->unk60 < nLimit) {
                 pPlayer->unk60 = nLimit;
             }
-            nLimit = pPlayer->moveSpeed << 12;
-            if (nLimit < pPlayer->unk60) {
-                pPlayer->unk60 = nLimit;
+            nRange = pPlayer->moveSpeed << 12;
+            if (nRange < pPlayer->unk60) {
+                pPlayer->unk60 = nRange;
             }
         }
     } else if (pPlayer->unk60 != 0) {
@@ -1821,9 +1844,9 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
         }
     }
     return 0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
+
 s32 WorldMapModeInitSlotPositionAngle(s32 idx) {
     WorldMapPlayer *pPlayer;
     s16 *pRotY;
@@ -2287,23 +2310,33 @@ s32 func_80091C18(s32 idx) {
     return nRet;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
-/* best: 92.10%, same size (580 bytes). The whole structure is decoded and every
-   relocation is right; what is left is gcc allocation/scheduling:
-   - the three callee-saved roles are permuted (retail nX=s3, nBest=s4, i=s5;
-     this compile nBest=s3, i=s4, nX=s5 - the loop counter lands in a different
-     register, so the tail `move v0,s5`/`lw s5,16(sp)` pair differs),
-   - `lui v0,0xfff8` (the 0xFFF80000 mask) is hoisted to the top of the block
-     here and used as an early t0, retail emits it late and uses it twice,
-   - retail fills the `beqz` delay slot of the inner `if (nZ < nBest)` with the
-     `sw v1,4(s1)`; this compile leaves a nop there,
-   - the final distance is `tbl + nBase - (nBest*8 - 0x50)`; gcc folds the 0x50
-     onto the minuend here (`addiu v0,v0,80`) unless the subtrahend is held in a
-     local, and then the second `slti` is duplicated into a delay slot.
-   The 4th call argument must be `&D_1F8000A8` (a symbol reloc) - writing
-   `pScratch + 0xA8` gives the same bytes with no reloc, and retail keeps the
-   symbol *and* reuses $s1 as the high half.
-
+// best: 92.80%, 576 bytes / 144 insns against retail's 572 / 143 (ONE instruction
+// long). The whole structure is decoded and every relocation is right; what is left
+// is gcc allocation and scheduling:
+// - the three callee-saved roles are permuted: retail nX=s3, nBest=s4, i=s5, this body
+//   rotates them (nBest=s3, i=s4, nX=s5), so the prologue save order, the tail 'move
+//   v0,s5' / 'lw s5,16(sp)' pair and the outer loop's 'slti s5,3' all differ.
+// - 'lui v0,0xfff8' (the 0xFFF80000 mask) is hoisted to the top of the block here and
+//   used as an early t0; retail emits it late and uses it twice.
+// - retail fills the 'beqz' delay slot of the inner 'if (nZ < nBest)' with the
+//   'sw v1,4(s1)'; this body leaves a nop there.
+// - the tail abs: retail is 'subu v0,v0,v1 / bgez v0 / nop / negu v0,v0 / slti'. This
+//   body computes the difference in a fresh v1 and reorg COPIES the slti into the bgez
+//   delay slot, which is the one extra instruction. Writing the tail as two statements
+//   ('nZ = tbl[nLimit] + nBase; nZ -= nDist;') makes it worse: 145 insns / 90.49.
+// Round 476 measured, from the 92.10 body:
+// - the 4th argument to func_80096F18 must be a CONSTANT-derived address,
+//   '(u16 *)(pScratch + 0xA8)': then cse merges its 'lui 0x1f80' with the one already
+//   in s1 and emits the single 'addiu a3,s1,0xA8'. Retail's object shows that same
+//   instruction with a %lo reloc on the D_1F8000A8 symbol, i.e. the linked bytes are
+//   identical. Writing '&D_1F8000A8' costs a whole extra lui/addiu pair (92.10 -> 92.80,
+//   145 -> 144 insns).
+// - the extern for this function had to be fixed to 'u16 *pIn' (the body's type;
+//   Ghidra agrees): with 's16 *' cc1 exits 33 with a conflicting-type error and
+//   diff_func silently scores the stale object at the old percentage.
+// A permuter run is NOT the next step here (below 99); the register rotation is the
+// only handle and it needs a spelling that changes the allocno set.
+/*
 s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     s32 *pTrack;
     u8 *pScratch;
@@ -2327,7 +2360,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     for (i = 0; i < 3; i++) {
         nBest = 0;
         *(u16 *)(pScratch + 0xA8) = *pIn;
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)&D_1F8000A8);
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)(pScratch + 0xA8));
         nX = (g_WorldMapCameraTarget + ((g_WorldMapPathFrame - 0x180) << 12)) & 0xFFF80000;
         nY = (g_WorldMapCameraTargetZ - ((D_8009BD44 + 0x180) << 12)) & 0xFFF80000;
         *(s32 *)(pScratch + 8) = nY;
@@ -2362,8 +2395,10 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
         }
     }
     return i;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
+
+
 
 s32 WorldMapModeInitValue50(s32 idx) {
     WorldMapPlayer *pPlayer;
