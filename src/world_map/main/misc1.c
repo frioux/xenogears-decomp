@@ -448,40 +448,27 @@ void WorldMapSetLevelFileIndices(s32 arg0, s32 arg1) {
     g_WorldMapTileRows = pEntry->tileRows;
     g_WorldMapAreaMode = pEntry->areaMode;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
-// ROUND 374: re-measured 84.51% (508 bytes). The array-extern lever that closed
-// WorldMapSetLevelFileIndices does not apply here: the queue entries are separate symbols by design.
-/* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
-   byte-identical; only loop 2's register shape differs. Retail keeps TWO
-   running pointers advanced by 8 (a2 = index ptr = &g_WorldMapStreamQueue, a1 = pData ptr =
-   &g_WorldMapStreamQueueEntryData with a2 = a1-4, both incremented right after their own store),
-   nCount in $s1 and the loop index in $a0; gcc keeps ONE queue pointer (v1,
-   +8) with a `sw v0,4(v1)` displacement, nCount in $a2 and the index in $s1.
-   Retail also has no `andi 0xff` after the partyMembers lbu (gcc 2.7.2 masks it
-   because the u8 feeds a short store). Tried with no change: s32 locals for the
-   ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
-   `pQueue[nCount++].pData`, terminator stores through the absolute symbols
-   g_WorldMapStreamQueue/g_WorldMapStreamQueueEntryData (grows the frame to 0x38).
-   Round 289: the two-cursor shape is NOT gcc splitting the givs of one entry
-   pointer. Writing loop 2 as `pEntry->archiveIndex` / `pEntry->pData` with
-   `pEntry++` (the pointer form the induction-base rule recommends) measures
-   84.53%, 512 bytes: the compile still keeps ONE base register with a
-   `sw v0,4(a0)` displacement, and the loop then also carries an `andi 0xff`
-   retail does not have. Retail's `la a1,g_WorldMapStreamQueueEntryData` + `addiu a2,a1,-4` says the
-   source named g_WorldMapStreamQueueEntryData itself, so the two cursors are two source pointers
-   (one per field), not one pointer plus displacements.
-*/
+// ROUND 472: best 94.10% (540 bytes, 135 insns vs retail's 133). Progress from 84.51 by using the two INDEPENDENT byte-stride cursors retail keeps (a1 = &g_WorldMapStreamQueueEntryData for the pData stores, a2 = the archiveIndex cursor, both advanced by 8 per entry) and s32 ids, which kills the andi 0xff.
+//     Residual, in order of cost:
+//     (1) register hand-out in loop 2 only: retail keeps the loop index in a0 and nCount in s1; ours holds i in s1 and nCount in a2. The s32 id also moves loop 1's gearId load from a0 (retail) to v0 and adds one trailing addu there, which is why the u8 spelling below scores lower even though its loop 1 is byte-identical.
+//     (2) preheader la: retail derives the index cursor from the pData one (lui/addiu a1 = EntryData, then addiu a2,a1,-4 = three instructions). Every C spelling tried folds the -4 into the reloc addend and emits a second lui/addiu pair, +1 instruction.
+//     (3) frame 0x38 vs retail 0x30: the two cursors cost 8 bytes of frame no spelling removed.
+//     Measured variants, all honest C:
+//     - u8 nCharacterId for loop 1 + s32 id for loop 2 (loop 1 then byte-identical, 134 insns, 536 bytes): 92.21%
+//     - same but u8 byte cursors with *(s16 *)pCursor stores: 92.21%
+//     - fresh loop-2 index variable (nSlot) instead of reusing i: 91.23%, and it shuffles loop 1's whole s-register set (i -> s3)
+//     - only one index variable, everything u8 (the old park): 84.51%
+//     - an index-variable spelling with the -4 pointer form: 85.92% (round 471 note; the s32 ids and the two cursors above are what took it to 94.10)
+//     Not tried: a permuter run (the stop rule bars it below 99%).
+// */ 
 /*
-extern void* g_WorldMapPartyActorAnimFile0[3];
-extern void* g_WorldMapActorAnimFiles[3];
-extern s32 D_8009C170;
-
 void func_80071CDC(void) {
-    StreamDataQueueEntry* pQueue;
+    void** ppEntryData;
+    u16* pArchiveIndex;
     s32 i;
     s32 nCount;
-    u8 nCharacterId;
-    u8 nGearId;
+    s32 nCharacterId;
+    s32 nGearId;
 
     for (i = 0; i < 3; i++) {
         nCharacterId = g_GameState.partyMembers[i];
@@ -498,29 +485,35 @@ void func_80071CDC(void) {
             g_WorldMapPartyActorAnimFile0[i] = 0;
         }
     }
-    pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
-    D_8009C170 = 0;
     nCount = 0;
+    D_8009C170 = 0;
+    ppEntryData = &g_WorldMapStreamQueueEntryData;
+    pArchiveIndex = &g_WorldMapStreamQueue.archiveIndex;
     for (i = 0; i < 3; i++) {
         nCharacterId = g_GameState.partyMembers[i];
         if (nCharacterId != CHARACTER_ID_NONE) {
-            pQueue[nCount].archiveIndex = nCharacterId + 2;
-            pQueue[nCount].pData = g_WorldMapPartyActorAnimFile0[i];
+            *pArchiveIndex = nCharacterId + 2;
+            pArchiveIndex += 4;
+            *ppEntryData = g_WorldMapPartyActorAnimFile0[i];
+            ppEntryData += 2;
             D_8009C170++;
             nCount++;
             nGearId = g_GameState.characters[nCharacterId].gearId;
             if (nGearId != GEAR_ID_NONE) {
-                pQueue[nCount].archiveIndex = nGearId + 0x13;
-                pQueue[nCount].pData = g_WorldMapActorAnimFiles[i];
+                *pArchiveIndex = nGearId + 0x13;
+                pArchiveIndex += 4;
+                *ppEntryData = g_WorldMapActorAnimFiles[i];
+                ppEntryData += 2;
                 nCount++;
             }
         }
     }
-    pQueue[nCount].archiveIndex = 0;
-    pQueue[nCount].pData = 0;
-    ArchiveStartStreamQueue(pQueue, 0, 0);
-}
-*/
+    *(s16*)((u8*)&g_WorldMapStreamQueue + nCount * 8) = 0;
+    *(void**)((u8*)&g_WorldMapStreamQueueEntryData + nCount * 8) = 0;
+    ArchiveStartStreamQueue(&g_WorldMapStreamQueue, 0, 0);
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
+
 
 void WorldMapQueueThreeFileLoads(void) {
     void* pBuffer;
