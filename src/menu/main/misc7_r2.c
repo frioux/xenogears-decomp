@@ -672,19 +672,8 @@ void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7884);
-/* Best: 92.68% at retail's exact 952 bytes. Structure, every call, every branch,
-   the frame (0x58, s0-s7) and the quad loop are right; what is left is one
-   allocator tie in the head: retail ranks `tensDigit` above `row` (s4 = tens,
-   s7 = row) and gcc ranks it below (s7 = tens, s6 = row), which rotates the
-   whole s4-s7 chain (row*8, row*24) and puts the /100 magic constant in a0
-   instead of the free a1, so it cannot hoist to the block start as retail does.
-   From global.c's allocno_compare: tens = 100*2refs/90live = 2.2 and
-   row = 100*4refs/151live = 2.6, a floor_log2 tie broken by pseudo order.
-   Tried: declaring tensDigit first (no change at all), inlining `remainder`
-   (90.87%, 944 bytes - the local is required), `(i * 2 + ctx)` operand order
-   (92.09 -> 92.68, keep it). The permuter rejects this base
-   ("conversion to non-scalar type requested").
+// Best: 95.08% at 956 bytes (retail 952 / 238 insns, ours 239). Whole body instruction-identical except: (a) one allocator rotation - retail keeps row in $s7 (saved first) and tensDigit in $s4, ours has row $s6 and tensDigit $s7, which rotates the s4-s7 chain (row*24, row*8) and the /100 magic constant (a1 vs a0); (b) one load-delay nop in the digit-loop head (ours emits 'addu v0,s3,s0' before the g_Menu reload, so reorg has nothing to put in the load slot; retail puts the add after); (c) the stat sum loads all three stat bytes before the add, ours schedules the third ('lbu v1,741') after the *10 chain. Measured levers: gcc-2.6.0 -O3 93.14, -G0 93.14, gcc-2.7.2 92.68 (the old 92.68 park note was a 2.7.2 measurement), cdk 89.05. Digit-loop prim offset hoisted into a local ('primOffset + (u32)base') reproduces retail's addiu-then-addu and bought 93.14 -> 95.08; the same trick in the tens call bought the second addiu, but in the tail loop base+0x1C70 does NOT (retail folds 0x1C70 into the lhu displacements and commutes addu there). A two-variable x (retail's 'move s1,a0' in the preheader looked like it) measured 92.89, worse. -da/-dg on the body: 16 allocnos, order '... 192 188 73 75' (73=row 4 refs/117 insns/1 byte, 75=tensDigit 2 refs/76 insns/2 bytes, 192/188 = row*8/row*24 3 refs/34-35 insns), so row and tensDigit are the last two and the rotation needs tensDigit to be processed before row*8, which its quotient (131 vs 220) does not allow; declarations are created in source order but parameters always precede locals, so re-ordering locals cannot move it.
+/*
 void func_801D7884(u_char index, u_char row) {
     u16 tensDigit;
     s32 characterOffset;
@@ -695,6 +684,7 @@ void func_801D7884(u_char index, u_char row) {
     s32 digitOffset;
     s32 x;
     s32 i;
+    s32 vertOffset;
 
     // The character's stat row: characters[] is 0xA4 bytes and statBase/statBonus/statFraction sit 0x2E3/0x2E4/0x2E5 into g_GameState.
     // Retail folds that 0x2E4 into each load's %lo half, so the row is reached through
@@ -725,21 +715,22 @@ void func_801D7884(u_char index, u_char row) {
         u8 digit = g_Menu->digits[digitOffset + i++];
 
         if (digit != MENU_DIGIT_NONE) {
+            u32 primOffset = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
+                                 (2 * sizeof(POLY_FT4)) + 0x1C70;
+
             ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount += func_8002675C(
-                g_Menu->resources, digit,
-                (POLY_FT4*)(((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
-                                (2 * sizeof(POLY_FT4)) +
-                            0x1C70 + (u32)g_Menu->pGearWindowPrims),
+                g_Menu->resources, digit, (POLY_FT4*)(primOffset + (u32)g_Menu->pGearWindowPrims),
                 g_Menu->renderContext, x - row * 24, row * 8 + D_801E9D34, 0x1000);
         }
         x += MENU_DIGIT_SPACING;
     }
     if (row == 0) {
+        u32 tensPrimOffset = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
+                                 (2 * sizeof(POLY_FT4)) + 0x1C70;
+
         ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount += func_8002675C(
             g_Menu->resources, tensDigit,
-            (POLY_FT4*)(((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
-                            (2 * sizeof(POLY_FT4)) +
-                        0x1C70 + (u32)g_Menu->pGearWindowPrims),
+            (POLY_FT4*)(tensPrimOffset + (u32)g_Menu->pGearWindowPrims),
             g_Menu->renderContext, D_801E9D30 + 0x20, D_801E9D34, 0x1000);
     }
     vertOffset = 0x2A00;
@@ -750,9 +741,12 @@ void func_801D7884(u_char index, u_char row) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
+        vertOffset += 0x20;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7884);
+
+
 void MenuSetGearWindowContents(u_char index, u_char characterId) {
     MenuSetGearWindowNamePrims(index, characterId);
     MenuSetCharacterIconPrims(characterId);
