@@ -631,6 +631,26 @@ extern long FieldGetVec2Magnitude(long, long);
 // 'addiu v0,count,-1 / slt v0,s1,v0' test remain mutually exclusive under 2.7.2. A 3-minute permuter run
 // this round (644 iters, base=1098 best=657) found only those same two edits (the +1 test and an empty
 // if(1){} nudge) plus a VECTOR point/normal declaration swap - nothing new.
+// ROUND 482 re-measured the body and the loop's SOURCE FORM, all under Default:
+//   while (walkmesh < count - 1) { ...; walkmesh++; }             -> BYTE-IDENTICAL to the `for` form:
+//                                                                   97.99 / 1896 / 474, 141 diff lines.
+//   if (count - 1 > 0) { walkmesh = 0; do { ... } while (++walkmesh < count - 1); }
+//                                                                 -> 97.95 / 1896 / 474, 177 diff lines.
+//   for (...; count - 1 >= walkmesh + 1; ...)                     -> 97.66 / 1904 / 476 (the canonical
+//                                                                   operand order is the only shape cc1
+//                                                                   emits, so the <= form below is the floor).
+//   walkmesh + 1 <= count - 1 reconfirmed                        -> 98.89 / 1904 / 476: the preheader
+//                                                                   guard (addiu -1 / blez) and the sh's
+//                                                                   schedule are retail's, the loop
+//                                                                   residual is then ONLY the test - the
+//                                                                   giv's addiu v1,s1,1 + slt v0,v0,v1 +
+//                                                                   beqz against retail's slt v0,s1,v0 +
+//                                                                   bnez. So the a2 hoist is a
+//                                                                   sched2/reorg consequence of the
+//                                                                   allocator hand-out, not of the loop's
+//                                                                   source form; the honest `< count - 1`
+//                                                                   body stays the parked one.
+// Do not re-brief this as a hand job without a new compiler.
 /*
 void func_80099214(void) {
     VECTOR normals[4];
@@ -760,6 +780,7 @@ walk:
     g_FieldScriptVMStopFlag = 1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
+
 
 
 
