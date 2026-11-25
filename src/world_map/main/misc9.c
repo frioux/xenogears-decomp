@@ -305,6 +305,7 @@ void WorldMapDrawGridTiles(void) {
 // do/while body, and x reset at the END of the outer body with for(;x<4;x++) (that one is 90.87 /
 // 404, gcc emits the duplicate init but three instructions worse). Removing the redundant
 // standalone x = 0 before the loops is byte-identical, so the body below is the shorter spelling.
+// Best: 93.98% (392 bytes = retail's exact size, 98/98 insns, identical multiset). Round 471 re-measured the park: unchanged. Lever read: a-a-near-miss-allocno-quotient says a 4% quotient gap is two instructions of live range; this pair is 1.88 (pVertex, 16 refs/34 insns) against 1.50 (x, 14 refs/28 insns), a 25% gap, and the round-442 -da/-dl dump already pins every term to retail's own instruction stream - park on the arithmetic, do not re-spell.
 /*
 void func_800863E0(void) {
     WorldMapPathEntry* pPath;
@@ -891,6 +892,7 @@ typedef struct {
 // the natural vx/vy/vz source order (97.58, 22 rows), and an empty `do {} while (0)` barrier
 // before the clears (97.32, 20 rows). Permuter: decomp-permuter cannot parse this body (MATRIX
 // struct assignment), per the old note.
+// Round 471 re-measured 97.59% / 1056 / 264 (unchanged) and closed three more axes of the residual: a volatile cast on the first clear costs an address REGISTER (a3 = 0x1F8000A4, so 'sh zero,0(a3)') and two instructions, 95.88 / 1064, and the same cast on that clear alone is no better; a do-while(0) around the first two clears sinks the SVECTOR argument's 'lui a0 / ori a0,0xA0' to the BOTTOM of the block where retail hoists it to the entry, 96.59 / 1056 / 20 rows; and interleaving the two angle loads in the SOURCE between the clears (angleX = pSlot->unk50 after the 0xA0 clear, then store angleX) compiles to the same 16 rows, so sched1 hoists both reloads to the block top whatever the statement order - the position is the scheduler's, not the C's (a-sched2-hoisted-global-address-has-no-source-order).
 /*
 s32 func_80088720(s32 index) {
     WorldMapPlayer* pSlot;
