@@ -119,7 +119,7 @@ typedef struct {
 // The battle actor slot a sprite occupies: flags_0xA8 holds the high bits of the
 // index, flags_0xAC the low two.
 #define BATTLE_SCRIPT_SLOT_INDEX(pSpriteData)                                                    \
-    ((((u32)(pSpriteData)->flags_0xAC.flags & 3) << 2) | ((u32)(pSpriteData)->flags_0xA8 >> 30))
+    (((u32)(pSpriteData)->flags_0xA8 >> 30) | (((u32)(pSpriteData)->flags_0xAC.flags & 3) << 2))
 
 // One SVECTOR per trail corner: the direction-transform table, the corner array and the
 // segment count BattleEmitTrailSegments draws are all this long.
@@ -212,15 +212,16 @@ extern void BattleClearRecordTable8(SpriteData* pSpriteData, u8* pArgs);
 
 // The battle animation script interpreter: `mode` selects the opcode, which mostly
 // moves one value in or out of the sprite and its anim script state. 0 is not an
-// opcode; 1..0x6B are.
-// 94.19% (4048 bytes / 1012 insns against retail's 4056 / 1014). The whole 107-case interpreter, arm by arm from the .s. 30 residual hunks left; the named causes below are MEASURED, not guesses.
-// FRAME: retail 0x68 with vecA/vecB (VECTOR, 0x10 each) at 0x38/0x48 and 0x28 bytes of never-referenced frame below them; this body has the same two VECTORs at 0x10/0x20 and a 0x40 frame. So the 0x28 is dead space retail's compiler reserved and nothing in the body reads; it is NOT extra locals (every sp access in retail is one of 0x38/0x3C/0x40/0x48/0x4C/0x50/0x58/0x5C/0x60). Costs the prologue, the epilogue and the 12 case-103 vector accesses; cause unknown.
-// CASE 52 owns retail's missing store: retail has BOTH 'sw v0,0x1C(s1)' (the multiplicand, before mflo) and 'sw t1,0x1C(s1)' (the product) for one assignment - a gcc 2.7.2 expand_mult artifact no source spelling reaches. None of the 4 spellings tried (two statements, one expression, multiply then shift) emit it.
-// CASE 23 and 97's remainder are allocator ties (one extra 'move' retail does not have: 'move a1,a0' in 23, none left in 97).
-// CASE 18/20's store order now matches retail exactly; the remaining difference there is the sb order for the '= 1' pair only.
-// REGISTER-LEVEL ONLY (same instructions, different registers): case 98 and the sound arms (79/82/77/78/86) load the two slot-index halves in the opposite order, case 40s load field_0x82 before pArgs[0], case 68/69 keep g_DebugTable's address in v0 instead of the load register.
-// CASE 96 reads flags_0xAC with lbu where retail has lw (same result; gcc narrows the load because the store is sb).
-// Already fixed this round: vecA/vecB are VECTOR (was s32[3]), case 100 sets flags_0xB0 bit 0x200 (not field_0x40), case 97 stores position.y (not step.y) and divides by 0x1000 (div, not shift), case 48 re-forms the direction-transform address per access, BattleBeginAnimTask needs no prototype (its 'andi 0xffff' is not in retail), g_BattleActorSlotMask is u16 (retail lhu), the sound-call arguments are 'id | (bank << 16)' order (retail 'or a0,v0,a0').
+// opcode; 1..0x6B are. A 107-case switch, almost every case two to six instructions.
+// 95.26% (4084 bytes / 1021 insns against retail's 4056 / 1014).
+// FRAME, THE BIGGEST KNOWN BLOCKER: retail's frame is 0x68 and its lowest local is vecA at 0x38; this body's frame is 0x40 with the same vecA/vecB at 0x10/0x20. The 0x28 bytes between 0x10 and 0x38 are referenced NOWHERE in retail's .s (every sp access is 0x38/0x3C/0x40/0x48/0x4C/0x50/0x58/0x5C/0x60), and no C construct reserves frame it never touches, so the frame, the prologue/epilogue and the 12 case-103 vector accesses are out of reach from source. Costs 3 prologue insns, 3 epilogue insns and the 12 vector accesses.
+// THE SLOT-INDEX MACRO IS A TWO-WAY SCHEDULER TIE, MEASURED. BATTLE_SCRIPT_SLOT_INDEX as (flags_0xA8 >> 30) | ((flags_0xAC.flags & 3) << 2) is what this park holds: 95.26% / 4084 bytes / 1021 insns. The mirrored order ((flags_0xAC.flags & 3) << 2) | (flags_0xA8 >> 30) scores 94.61% / 4048 bytes / 1012 insns (8 bytes SHORT of retail, fewest differing lines). Retail loads 0xA8 (0x168) FIRST and yet has the 0xAC half as the FIRST operand of the or (or a0,a0,v0); each spelling matches one and misses the other at all six sites, so the load order is post-reload scheduling (this preset has -fschedule-insns and -insns2), not the expression. A statement-expression accumulator - open brace, u32 i = AC << 2, i |= A8 >> 30, i, close brace - matches retail's or operand order at every site but scores 93.18% / 4060 bytes / 1015 insns; applied to case 98 ALONE it reproduces retail's or a0,a0,v0 exactly while the two loads then order opposite.
+// CASE 97 FIXED THIS ROUND: the s16 position halves must be read through an s32 local (targetX = xWhole + value, then field_0xA0 = targetX, likewise targetZ for field_0xA4). Stored straight into the 16-bit field, gcc narrows the loads to lhu; retail has lh 2(a2) and lh 0xA(a2). Took the arm from 6 differing instructions to 3, and the 3 left are allocator: retail stores through a0 after move a0,s1 where this body uses s1, and retail has a nop between lh and addu.
+// CASE 52 owns retail's missing store: retail has BOTH sw v0,0x1C(s1) (the multiplicand, before mflo) and sw t1,0x1C(s1) (the product) for one assignment - a gcc expand_mult artifact no source spelling reaches (4 spellings tried).
+// CASE 96: retail reads flags_0xAC with lw where every spelling here gets lbu (only the low two bits reach the use, so gcc narrows). Same value, different instruction.
+// REGISTER-LEVEL ONLY (same instructions, different registers): case 23 keeps one extra move a1,a0; cases 40, 68, 69, 77, 78, 79, 82, 86 and 98 hold the same values in different registers.
+// Established earlier and still true: vecA/vecB are VECTOR, case 100 sets flags_0xB0 bit 0x200, case 97 divides by 0x1000 with div, case 48 re-forms the direction-transform address per access, g_BattleActorSlotMask is u16, the sound calls pack id | (bank << 16).
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
 /*
 void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
     BattleScriptActorSlot* pSlot;
@@ -233,6 +234,8 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
     VECTOR vecB;
     s32 scale;
     s32 value;
+    s32 targetX;
+    s32 targetZ;
     s32 i;
 
     switch (mode) {
@@ -290,9 +293,11 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         } else if (((BattleSpriteState*)pAnimSprite)->position.xWhole < pSlot->x) {
             value = -value;
         }
-        pSpriteData->field_0xA0 = ((BattleSpriteState*)pAnimSprite)->position.xWhole + value;
+        targetX = ((BattleSpriteState*)pAnimSprite)->position.xWhole + value;
+        pSpriteData->field_0xA0 = targetX;
         pSpriteData->field_0xA2 = 0;
-        pSpriteData->field_0xA4 = ((BattleSpriteState*)pAnimSprite)->position.zWhole;
+        targetZ = ((BattleSpriteState*)pAnimSprite)->position.zWhole;
+        pSpriteData->field_0xA4 = targetZ;
         BattleActorUpdateFallMotion(pSpriteData);
         break;
     case 95:
@@ -713,7 +718,6 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         break;
     }
 }*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
 
 
 // Uploads the current frame's texture and CLUT into the sprite's own slots: the
