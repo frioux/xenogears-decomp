@@ -553,52 +553,63 @@ s32 WorldMapExitMode(void) {
     g_NextMapRotationY = v;
     return 1;
 }
-// Best attempt: 93.22%, 93 instructions / 372 bytes - retail is 93 / 372 as well, so the SIZE IS
-//    RIGHT and both residuals are sched1 placement in the straight-line initialiser.
-//    Matching: the a3 hold of &g_WorldMapCameraRot through the jal, the s0 hold of
-//    &g_WorldMapPathFrame, the player-quad copy, and all three lwl/lwr 8-byte scratchpad swaps.
-//    Left (1): retail's `sh zero,g_WorldMapViewRotationZ` sits between `li v1,120` and
-//    `addu a1,a1,a0`; ours emits it six slots later, just before the FadeLevel macro store. The
-//    zero store is ready from insn 0 but has no dependents, so sched issues the address chain
-//    first; do{}while(0) after it was 90.13 (it also drags the s0 la to the block head).
-//    Left (2): the CameraTarget triple. Retail stores x (`sw v0,0(a1)`) first, then Z, then Y;
-//    ours emits Z, x, Y. The x store sinks exactly one position past the first macro store in
-//    every source order tried, so retail's x-first shape is unreachable by reordering.
-//    Measured on this body (all 93 insns / 372 bytes unless noted): source x,Y,Z 93.22 [BEST];
-//    x,Z,Y 92.89 (the loads rotate with the stores -> Y,x,Z); Z,Y,x 87.68 (the x store lands in
-//    the jal delay slot and `move a0,s0` leaves it); the player-position triple read into three
-//    s32 locals and then stored x,Z,Y 92.57 (retail's load order, registers rotated v1/a0/v0,
-//    stores still Y,x,Z). A `*(volatile s32*)` pin on the x store plus `*(volatile s16*)&` on the
-//    Z store reads 83.28: it does give the triple retail's relative order, but the volatile store
-//    stops sched and sinks the pathFrame la and the `lw a2` height load below it.
-//    try_flags.sh --sweep: 2.7.2 93.22 in all eight cells (-O2/-O3 x -G4/-G8 x 3000/r8000),
-//    2.6.0-psx 90.19, 2.7.2-cdk 68.2 at every -O - the preset axis is closed.
-//    Verdict: the c-displaced-li-inside class (a scheduling tie no spelling reaches) at retail's
-//    exact size; a permuter run from this body is already on record as finding nothing.
+// Best attempt: 97.57%, 93 instructions / 372 bytes = retail's exact size. ONE residual left: a
+//    pure store-order tie in the camera-target triple, 2 differing lines.
+//    What closed the OLD residual (the ViewRotationZ store, which used to land six slots late, just
+//    before the FadeLevel store): spelling the player slot as a BYTE pointer built from the index
+//    and reading it with cast offsets,
+//        u8 *pSlot = (u8 *)g_WorldMapSlots + (arg0 << 7);
+//        *(s32 *)(pSlot + 0x28) = -0x80000;
+//    That re-ranks sched2's ready list for the whole early block and 93.22 -> 97.57 in one edit.
+//    It is the spelling that matters, not the arithmetic: the same body with a typed pointer
+//    (`WorldMapPlayer *pPlayer = (WorldMapPlayer *)((u8 *)g_WorldMapSlots + (arg0 << 7));` and
+//    pPlayer->x / ->y / ->rotX) emits the same instructions but is back to 93.22, and
+//    `&((WorldMapPlayer *)g_WorldMapSlots)[arg0]` is 93.22 too. Same family of re-rank as the
+//    sibling WorldMapUpdateFrameWithScrollInput, which is matched on the `(u8 *)g_WorldMapSlots +
+//    (arg0 << 7)` spelling.
+//    Left: retail emits the triple's stores as x, Z, Y; this body emits Z, x, Y (same three
+//    instructions, same registers v0/v1/a0, same loads). The scheduler emits the LAST source
+//    statement's symbol store first and puts the a1 store between the two symbol stores, and it
+//    does that for every source order measured: x,Y,Z -> Z,x,Y (97.57) [BEST]; x,Z,Y -> Y,x,Z
+//    (97.25, and the loads rotate too); three s32 locals loaded x,Y,Z then stored Z,x,Y -> the x
+//    store ends up in the jal delay slot (92.09); locals loaded x,Y,Z and stored x,Z,Y -> 92.57
+//    with the load registers rotated (v1/a0/v0). An x-only local changes nothing (97.57, same two
+//    lines). So the a1 store cannot be scheduled ahead of the first symbol store from C - the same
+//    class the old 93.22% note called a scheduling tie, now down to one swapped pair.
+//    Also measured this round: a `do { } while (0);` between the CameraHeight and ViewRotationZ
+//    stores is 88.04 (it drags the pathFrame la up and sinks the Height store); a cc1 probe on the
+//    unit's own .i shows the UNSCHEDULED stream is the source order, -fno-schedule-insns alone
+//    leaves the ViewRotationZ store after the FadeLevel store, and -fno-schedule-insns2 is the one
+//    that keeps it next to the CameraHeight store - so sched2 is the pass that moves it, and the
+//    byte-pointer spelling above is what re-ranks it.
+//    Older measurements, still valid: gcc-2.7.2 93.22 in all eight -O2/-O3 x -G4/-G8 x 3000/r8000
+//    cells, 2.6.0-psx 90.19, 2.7.2-cdk 68.2 at every -O; a permuter run from the 93.22 body found
+//    nothing (no run has been made from the 97.57 body).
 /*
 s32 func_8007756C(s32 arg0) {
-    WorldMapPlayer* pPlayer = &((WorldMapPlayer*)g_WorldMapSlots)[arg0];
-    s16* pRot = g_WorldMapCameraRotTable;
-    u8* pName = (u8*)g_WorldMapPathFrameTable;
+    u8 *pSlot = (u8 *)g_WorldMapSlots + (arg0 << 7);
+    s16 *pRot = g_WorldMapCameraRotTable;
+    u8 *pName = (u8 *)g_WorldMapPathFrameTable;
 
     *pRot = -0x80;
     g_WorldMapViewRotationY = 0x200;
     g_WorldMapCameraHeight = 0x400000;
     g_WorldMapViewRotationZ = 0;
-    pPlayer->x = -0x80000;
+    *(s32 *)(pSlot + 0x28) = -0x80000;                                // 0x28 x = -0x80000
     g_WorldMapFadeLevel = 0x78;
-    pPlayer->y = g_WorldMapViewRotationYTable[0] << 12;
-    *(WorldMapPos4*)&pPlayer->rotX = *(WorldMapPos4*)&pPlayer->x;
+    *(s32 *)(pSlot + 0x2C) = g_WorldMapViewRotationYTable[0] << 12;   // 0x2C y
+    *(WorldMapPos4 *)(pSlot + 0x38) = *(WorldMapPos4 *)(pSlot + 0x28);  // 0x38 rot <- 0x28
     g_WorldMapRotationMatrixValid = 0;
-    *g_WorldMapCameraTargetTable = *(s32*)g_WorldMapPlayerPosition;
+    *g_WorldMapCameraTargetTable = *(s32 *)g_WorldMapPlayerPosition;
     g_WorldMapCameraTargetY = g_WorldMapPlayerPositionY;
     g_WorldMapCameraTargetZ = g_WorldMapPlayerPositionZ;
-    func_80096F18((s16*)pName, g_WorldMapCameraTargetTable, g_WorldMapCameraHeight, (u16*)pRot);
-    *(WorldMapName8*)0x1F8000A0 = *(WorldMapName8*)pName;
-    *(WorldMapName8*)pName = *(WorldMapName8*)&D_8009BD48;
-    *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)0x1F8000A0;
+    func_80096F18((s16 *)pName, g_WorldMapCameraTargetTable, g_WorldMapCameraHeight, (u16 *)pRot);
+    *(WorldMapName8 *)0x1F8000A0 = *(WorldMapName8 *)pName;
+    *(WorldMapName8 *)pName = *(WorldMapName8 *)&D_8009BD48;
+    *(WorldMapName8 *)&D_8009BD48 = *(WorldMapName8 *)0x1F8000A0;
     return 1;
-}*/
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_8007756C);
 
 
