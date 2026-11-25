@@ -1479,6 +1479,23 @@ int SoundSpuMemoryAllocateBlockFit(int size) {
 // halves of retail exist, in two bodies that cannot be combined by declaration order. Tried this
 // round, all 296 bytes / 74 insns: park body 88.92, declarations-only+assignments 98.82 (swap),
 // nSpace-first 97.30 (order), separate ifs in every order 87-90.51. Below 99, so no permuter run.
+// Round 491: re-measured 98.82% (296 bytes = retail's 0x128 span, 74 insns both), unchanged from
+// round 478's note. Residual is still ONE mirrored callee-saved pair: retail keeps pPrevBlock in s0 and
+// address in s1, this body has them swapped (30 diff lines, every one of them that pair). -dl on THIS
+// body: pseudo 72 = address 'used 8 times across 43 insns' (3*8*4/43 = 2.233) vs pseudo 75 = pPrevBlock
+// 'used 8 times across 44 insns' (2.18), and -dg processes them adjacent in the order 84 94 76 79 72 75
+// ... so the callee-saved hand-out is 72 -> s0, 75 -> s1, 71 (size) -> s2. Confirmed the round-478 split
+// is a live-LENGTH question, not a quotient tie: with 'int nSpace = 0;' declared FIRST the whole body is
+// 97.30% with exactly TWO differing lines - 'move a2,zero' 3 insns early - and there pPrevBlock takes s0
+// because its init is expanded 3 insns later (live 41 -> 2.34). Emission order follows source order in
+// this function (no preheader scheduling to exploit), so the [base, a2] order retail has and the live-41
+// pPrevBlock that wins s0 cannot both be sourced. Tried this round, all 74 insns / 296 bytes: the
+// nSpace-first initialiser body 97.30 (2 lines), do { ... } while (0) around the whole insert group
+// 98.82 unchanged (label optimized away, allocation untouched - the a-one-iteration-do-while lever does
+// not reach this pair), and the a-parameter-copy-signedness lever 'int startAddress = address;' used at
+// all six sites 92.91 (nSpace displaced to a3, 44 lines). Below 99, so no permuter run. A future round
+// should attack the live LENGTH: pPrevBlock needs <= 41 or address >= 45 without moving either end of
+// the emitted preheader.
 /*
 int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
     SoundSpuMemoryBlock* pPrevBlock = g_SoundSpuMemoryBlocks;
@@ -1522,6 +1539,7 @@ int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
     return address;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
+
 
 
 
@@ -4258,6 +4276,21 @@ u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, Au
 // hands index s1 in this body and s3 in retail's. Tried this round, all 67 insns / 268 bytes:
 // u8 index 87.51 (the andi wanders), flags-before-index 88.40 (confirmed the old measurement).
 // Below 99, so no permuter run.
+// Round 491: re-measured 91.13% (268 bytes = retail's size, 67 insns both) -- the twin port of
+// SoundScriptSetTriangleEnvelope0 below; the whole body including every store order and the
+// sll/sra mult chain is retail's. Residual = an allocator ROTATION of the five callee-saved values.
+// Retail: pScript s4, flags s0, element s1, velocity s2, mode s3 (index reuses s3 after mode dies).
+// This body: pScript s4, mode s0, index s1, element s2, velocity s3. -dl on it: 73 element 12 refs/46
+// insns (3.13), 74 velocity 6/34 2 bytes (0.70), 78 mode 3/22 1 byte (0.27), 79 index 4/17 BLOCK-LOCAL
+// (so local-alloc, not global-alloc, hands it s1); -dg order 90 75 73 74 71 78 with dispositions
+// 71 in 20, 73 in 18, 74 in 19, 78 in 16, 79 in 17. Retail's map needs flags (2 refs in 2 insns,
+// quotient ~4) to be the first callee-saved candidate and index NOT to be a pseudo of its own.
+// Measured this round, all 268 bytes / 67 insns: masking mode IN PLACE ('mode &= 0xF;' at the index
+// site, no index variable) gives 90.52% with retail's EXACT prologue save order and element in s1 --
+// residual is then velocity/mode swapped (s3/s2), the flags 'andi' scheduled one step earlier and
+// 'move a2,s2' still in the jal slot where retail has the sra; 'flags' computed before a separate
+// index re-confirmed at 88.40 (50 diff lines). So the next round should start from the in-place
+// 'mode &= 0xF' body and attack the last mirrored pair, not from this one. Below 99, no permuter run.
 /*
 u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s16 velocity = pScript[0];
@@ -4292,6 +4325,7 @@ u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 3;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
+
 
 
 u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
