@@ -175,7 +175,7 @@ extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
-extern void WorldMapSetupPrimTemplates(void *, s32, s32);
+extern void WorldMapSetupPrimTemplates(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count);
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
@@ -203,6 +203,7 @@ extern s16 g_WorldMapPathFrame;
 // into the $at macro; the array form keeps the address in a register.
 extern s16 g_WorldMapCameraRotTable[] __asm__("g_WorldMapCameraRot");
 extern s16 g_WorldMapViewRotation[] __asm__("g_WorldMapViewRotationY");
+extern s16 g_WorldMapViewRotationZTable[] __asm__("g_WorldMapViewRotationZ");
 extern u16 D_8009BD42[];
 extern u16 D_8009BD4A;
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
@@ -391,6 +392,9 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // and its store - is not a region head in any of the three shapes.
 
 // Best: 94.87%, 156 bytes / 39 insns = retail's exact size, compiles. ONE residue: the first call's move a0,s0 is 3 slots late (after li v1,-2048, retail has it between the 0xFFF80000 lui and its pos.y store). Round 458 measured the empty-statement barrier as the only knob that moves it: no barrier 92.64 / 12 lines (copy right after the Z load, sll takes $a1), barrier above the pos.y store 89.74 / 4 lines (copy one slot late at the region head, Z load hoisted above the pos.y store), barrier on both sides identical to the one below (94.87 / 2 lines). sched2 ranks the copy below the Z load wherever the region starts; plus round 377's five pArg/0xFFF80000-local shapes (identical body), a 1887-iteration permuter run (NONE) and the preset screen (cdk 87.51, 2.6.0 87.15).
+// Best: 94.87%, 156 bytes / 39 insns = retail's exact size; re-measured this round (round 471), compiles.
+// ONE residue: the first call's move a0,s0 sits 3 slots late (right after li v1,-2048; retail has it between the 0xFFF80000 lui and its pos.y sw).
+// Round 471 measured two new positions: a do-while barrier BETWEEN the pos.x and pos.y stores is byte-identical to the existing one below pos.y (94.87, same 2 lines), and declaring s32 z first (declaration order/pseudo numbers) is identical too. Presets screened (cdk 87.51, 2.6.0 87.15), permuter 1887 iterations NONE, five pArg/local shapes identical - this is sched2's ranking of the copy, park.
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
@@ -1336,7 +1340,12 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
 // decided by whether $a0 is live at that point, and the only way to have both is a load
 // the scheduler sinks, which sched2 does not do for this one. Park at 96.25.
 
-// Best: 96.25%, 240 bytes / 60 insns = retail's exact size. Two linked residues: the 0x500000 constant is in $a0 here and $a1 in retail, and the ViewRotationZ lh sits one slot early (before the 0x3C store). Round 458 measured the trade: load moved after both <<12 stores = 93.17 (Y/Z share $v0); Z read early (after the ViewZ store) = 89.90 with the constant in $a1 as retail but the load unmoved. Both residues are decided by one fact - whether $a0 is live when the constant is formed - and sched2 will not sink the load.
+// Best: 96.42%, 240 bytes / 60 insns = retail's exact size (round 471, up from 96.25). Only 8 differing lines, two residues:
+// (a) the 0x500000 constant is in $a0 here and $a1 in retail (its lui and both its sw, 3 rows);
+// (b) retail has sw v0,60(v1) (the 0x3C store) BEFORE the ViewRotationZ load's lui+lh, this body one slot after (5 rows).
+// Round 471 find: the Z read must name retail's own symbol. A second asm-label alias extern s16 g_WorldMapViewRotationZTable[] __asm__("g_WorldMapViewRotationZ") beside g_WorldMapViewRotation[] gives lh a0,lo(g_WorldMapViewRotationZ)(a0) exactly as retail, where the old g_WorldMapViewRotation[1] spelling emitted ViewRotationY+2 (96.25).
+// Round 471 measurements, all on this body: writing the Z read AFTER both <<12 stores is 93.33 / 48 lines and shows the cause - the whole allocation rotates (slot pointer to $a1, the constant to $v1, the Z angle to $v0), same with a barrier before the read; a barrier between the 0x54 store and the read gives lh a0,2(a1) off a reused ViewRotationY base, 86.17 / 22 lines; s32 vs u32 angleZ is byte-identical (96.42); the typed-struct spelling of all eight p+0x casts is 76.63 / 84 lines, so the u8* cast spelling really is load-bearing here.
+// Residues (a)+(b) are one trade: round 458 measured that reading Z early (so $a0 is live across the constant) puts the constant in $a1 as retail but leaves the load at the read position, 89.90 / 10 lines, and sched2 will not sink it. (b) is stream order - the read's statement has to precede the 0x3C store to keep the 96.42 allocation - so the two cannot be had together. Presets screened (cdk 80.46, gcc-2.6.0 does not compile), permuter 4 min NONE on the earlier body.
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -1373,7 +1382,7 @@ s32 func_800827EC(s32 index) {
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapCameraHeight = cameraHeight;
     *(s32 *)(p + 0x54) = v << 12;
-    angleZ = g_WorldMapViewRotation[1];
+    angleZ = g_WorldMapViewRotationZTable[0];
     *(s32 *)(p + 0x3C) = v << 12;
     g_WorldMapFadeLevel = 0x78;
     *(s32 *)(p + 0x58) = angleZ << 12;
@@ -1381,6 +1390,7 @@ s32 func_800827EC(s32 index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
+
 
 
 // Best: 80.07% (round 459), 1676 bytes / 419 instructions against retail's 1672 / 418.
