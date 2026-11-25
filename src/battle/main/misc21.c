@@ -1496,6 +1496,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    and instruction-identical to the old body: `pData = (BattleAnimData*)((s16*)pData + 12);
    pFrame = (s16*)pData;` (gcc folds the copy+add straight back into `addiu v1,a1,24`), and
    try_flags screens 2.7.2-cdk 95.38 / -O3 97.9 / -G0 97.9 - no compiler harvests it.
+   Round 472: re-measured 97.90 percent / 420 bytes / 105 insns = retail's, unchanged. Two new
+   probes: (a) an `s32` return type (the c-stolen-delay-slot-retail lever) measures 96.95 / 424
+   bytes / 106 insns - it adds a `move v0,zero` after the latch that retail does not have, so
+   `void` is right and the dead `andi` in retail's latch slot is not a return-type steal; (b) the
+   pFrame-vs-(countA+1) hand-out is the class lever a-parameter-home-register-is-abandoned-when-
+   its-block-sets-it, closed in round 462 on this function's identical lib_gear twin
+   func_801DEF10 - park the class, do not spell at it. Residual is exactly those two things.
 
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
@@ -1634,6 +1641,23 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
    'v1 = (v1 - pSprite->rot[1]) & 0xFFF' assignment (wrong code, NOT ported). The narrow reloads
    (retail lbu 0x8C/0x90(sp) against our lw) are the blocked lever j-a-narrow-stack-argument and now
    cost no instructions, since the store order above fills the load-delay.
+   Round 472: re-measured 94.60 percent / 1144 bytes / 286 insns = retail's exact size, unchanged.
+   The residual is ONE class, not a spelling: retail reads its four header fields THROUGH the
+   callee-saved cursor (lhu t0,12(s1) / lhu t0,14(s1) / lh v0,6(s1) / lhu t0,4(s1), then
+   addiu s1,s1,24), our body reads them through the $a2 parameter and forms addiu s4,a2,24, so the
+   whole callee-saved set rotates with it (the walker stays in $s0 as retail has it, but pPool
+   s7/s5, pFrame s1/s4, the three rot temps s2-s4/s1-s3, absolute s5/s7, i s6/s8, 0xFF s8/s6) and
+   the prologue save/load order is mirrored with it. That is the class lever
+   a-parameter-home-register-is-abandoned-when-its-block-sets-it: round 462 proved every spelling of
+   the copy dead on this function's identical lib_gear twin func_801DF0B4 (a copy of the parameter,
+   pHeader = pBlock with the loads through it, pHeader++, pBlock++, (s16 *)(pBlock + 1)) - cc1 2.6.0
+   substitutes the parameter into the loads, so nothing is left to be callee-saved. This round also
+   dumped -da/-dl/-dg with the unit's own cc1 (gcc-2.6.0-psx, -O2 -G8 on build/src/.../misc21.c.i):
+   22 allocnos, and the dispositions hand the cursor $s4 while a pseudo whose live range is 25 insns
+   carries 4 refs, against 3.70 and 10.86 (floor_log2(refs)*refs*size/live) for the two long pointer
+   allocnos - a 3x gap on terms retail's own instruction stream pins, so read that dump before
+   trying another spelling. Residual 2 stays the narrow stack-argument reloads (retail
+   lbu 0x8C(sp) / lbu 0x90(sp) / lhu 0x10(sp), ours lw): blocked lever j-a-narrow-stack-argument-is.
 s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 frames,
                   u32 absolute, u32 blockFlags, u32 tag) {
     BattleBlock* pBlock;
