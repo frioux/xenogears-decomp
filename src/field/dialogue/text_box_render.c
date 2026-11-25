@@ -880,6 +880,28 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
 // t0 vs t2 holding the 0xFF and the stack `count`. gcc 2.7.2 in every shape
 // tried refuses to give the order address its own biv, so this is a loop.c
 // choice, not a spelling: park on it.
+// Round 491: BOTH loops' residual is one cause, and the cause is retail's loop.c
+// spending its free callee-saved register on the ORDER address. The body is 5
+// instructions short of retail (357 vs 362, 1428 vs 1448) and all 5 are in the
+// order loop: (a) the pBuffer argument, twice -- retail reads it flat off the box
+// (`lui at,%hi(g_FieldTextBoxes+0xA8)` / `addu at,at,s0` / `lw a1,%lo(at)`), this
+// body reads it through the string pointer (`lw a1,0x90(s1)`), +2 each; (b) the
+// string address -- retail re-forms `la g_FieldTextBoxes+0x18` + `addu s1,s0,v0`
+// every iteration, this body keeps it as a biv in $s3 (2 preheader insns + an
+// `addiu s3,s3,0x498` in the latch); (c) retail re-materialises `li v0,-1` at both
+// visibility stores where this body hoists -1 into $s8 (+1). Retail instead reduces
+// `g_FieldTextBoxes[i].order` (3 uses) to $s3 = &box[0].order and reads `lhu 0(s3)`
+// three times, which is why it has no register left for any of the three. Same
+// callee-saved set, same frame (0x58), so this is which address loop.c reduces.
+// Measured dead this round (all on this body, Default preset): spelling the pBuffer
+// flat through the box in both loops (`*(void**)&g_FieldTextBoxes[i]._pad[0x48]`)
+// 89.09% / 1480 bytes / 370 insns -- gcc drops the pointer structure and it costs
+// +13 rather than the +4 retail has; a second `extern FieldTextBox
+// g_FieldTextBoxesByOrder[] __asm__("g_FieldTextBoxes")` for the three order reads
+// is BYTE-IDENTICAL to the plain decl (the decls unify, so the round-471 count-gate
+// alias lever does not fire on this symbol); and pString at all five order-loop
+// sites (dropping the `_pad` casts) is 89.42% / 1432 / 358, so the permuter-found
+// mixed spelling stays.
 /*
 void func_8008004C(u_long* pOt, int ctx) {
     s32 order[4];
