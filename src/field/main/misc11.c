@@ -440,7 +440,30 @@ void FieldSetGearModelAnimationForActor(int, int, FieldActor*);
    plain body, so the tie is not local-vs-parameter. The hand-out is a global-allocno
    priority contest (z wins $s0 whichever way the statements are ordered), not a
    statement-order one - see levers.md a-global-allocno-priority-is. */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
+// Round 483 re-measured the park: 91.82% / 904 bytes / 226 insns, one instruction short
+// (retail's nop in the bnez delay slot is lost because our arrival block emits its
+// 'move a0,s7' first and reorg fills the slot with it; retail's first arrival insn is
+// the lhu that writes the branch's v0 and cannot fill). Preset screens, both dead:
+// gcc-2.7.2-cdk 91.36, gcc-2.6.0 92.88 - and 2.6.0 drops 13 already-matched functions
+// in this unit under 100 (SetControllerBtnMask 85.33, SetRecordByte 85.60, SetFogColor
+// 95.51, SetActorFlags134 94.21, SetDirectionFromRotation 93.71, RestoreRandom-
+// Encounters 90.83, RequestFieldState0 97.00, RequestFieldState3/4/5 85.60,
+// RequestFieldState1WithValue 92.14, func_800925A0 93.53, SetScrollLimits 92.14,
+// SetClearColor 84.35), so the unit is Default and cannot be switched.
+// NEW this round, and the useful half of the result: the prologue shape IS reachable.
+// Naming the two coordinate parameters x and z and assigning to them in the if arm only
+// (s32 f(s32 arg0, s32 arg1, s32 x, s32 z)) gives retail's FOUR assign_parms prologue
+// copies (sw sN / move sN,argN for a0,a1,a2,a3) at 91.42% / 896 bytes / 224 insns. What
+// it does not give is retail's register map or the else-arm join copy: x takes $s1 and
+// arg3's home $s0 (mirrored), and z's if-arm definition lands straight in its home
+// instead of in the join register $a3, so retail's 'move a3,s1' in the else arm
+// disappears. So retail's z is a MERGE value in caller-saved $a3 (its if-arm value
+// computed into the rcos jal delay slot, its else-arm value copied from arg3's
+// callee-saved home) while x is a plain callee-saved local - and the pair that mirrors is
+// x against arg3's home. arg3's home copy is emitted at the END of the entry block in
+// every spelling measured (retail has it in the prologue), which shortens its live range
+// and hands it the LOWER register; that is the whole residual, and it is the allocno
+// contest of levers.md a-global-allocno-priority-is, not a statement order.
 /*
 s32 func_80092894(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     FieldActor* pFieldActor;
@@ -535,8 +558,10 @@ walk:
         return -1;
     }
     goto arrived;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
+
+
 
 void FieldPlayerSetScriptFlag80(void);
 
