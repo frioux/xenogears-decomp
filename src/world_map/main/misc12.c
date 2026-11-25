@@ -1657,6 +1657,29 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
 // with 0x5C as its angular velocity) toward the direction the pad asks for, tilts the pitch
 // accumulator 0x70 up/down, and rebuilds the slot's forward vector from both. The command
 // byte 0x64 is the phase: 0 seeds the ramp from the current angle, 1 runs it.
+// best: 99.56%, 1148 bytes / 287 insns = retail's exact size, frame and saved set exact.
+// Round 476 took this from 98.71 to 99.56 with two edits, both measured:
+// - write the yaw ramp's store as 'ptr = cond ? a+b : a-b;' instead of assigning the
+//   same value to a local and then storing it (the ternary's result is what retail
+//   stores, and the local was one pseudo too many for local-alloc): 92.10-era note's
+//   'keep the shift on the sum register' hint was about a different arm.
+// - the clamp pair at 0x60 needs TWO locals, nLimit and nRange: retail keeps the
+//   negative limit in $v0 and the positive one in $v1, which one shared local cannot do
+//   (a single nLimit gave both the same register). That edit alone took 99.46 -> 99.56.
+// Left, and measured:
+// (1) the 'nTol = 0x1000' constant: retail emits 'li t2,4096' in the lh load-delay
+//     slot and a nop in the bgez slot, this body the reverse. Source order of the
+//     assignment does not move it (tried before and after the nDelta computation).
+// (2) ONE branch target: retail's second 'if (g_WorldMapPad1Held & 0x80)' (the clamp
+//     guard, a re-read of the global after the 0x60 store) jumps to the else-if ramp
+//     block at 0x340 when it fails; this body jumps past the ramp to 0x368. Every other
+//     instruction, both other branch targets included, is retail's. Duplicating the ramp
+//     as an 'else if (unk60 != 0)' inside the pad block does NOT get cross-jumped
+//     (295 insns / 1180 bytes / 96.78), so retail's source had one ramp block reached
+//     from both the outer and the inner test - not expressible as nested if/else.
+// A 4-minute permuter run from the 98.71 body found the ramp-store edit above; a second
+// run from this body is a fair next attempt. gcc-2.7.2-cdk drops three matched
+// neighbours and scores 93.66, so the preset is right.
 /*
 s32 func_80090FB4(WorldMapPlayer *pPlayer) {
     s16 *pRotY;
@@ -1668,6 +1691,7 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
     s32 nTol;
     s32 nDelta;
     s32 nLimit;
+    s32 nRange;
     s32 nAbs;
     s32 nAbsVel;
     u32 nPad;
@@ -1701,8 +1725,8 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
             nVel += 0x10000;
         }
         if (nPad & 0xA00C) {
-            nTol = 0x1000;
             nDelta = g_WorldMapViewRotationZ[0] - nTurn;
+            nTol = 0x1000;
             if (nDelta < 0) {
                 nDelta = -nDelta;
             }
@@ -1716,8 +1740,7 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
             if (nAbs < nStep) {
                 nStep = nAbs;
             }
-            nAngle = (nAngle < nTurn) ? (nAngle + nStep) : (nAngle - nStep);
-            *pRotZ = nAngle;
+            *pRotZ = (nAngle < nTurn) ? (nAngle + nStep) : (nAngle - nStep);
         }
         if (pPlayer->unk5C != nVel) {
             nDelta = pPlayer->unk5C - nVel;
@@ -1788,9 +1811,9 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
             if (pPlayer->unk60 < nLimit) {
                 pPlayer->unk60 = nLimit;
             }
-            nLimit = pPlayer->moveSpeed << 12;
-            if (nLimit < pPlayer->unk60) {
-                pPlayer->unk60 = nLimit;
+            nRange = pPlayer->moveSpeed << 12;
+            if (nRange < pPlayer->unk60) {
+                pPlayer->unk60 = nRange;
             }
         }
     } else if (pPlayer->unk60 != 0) {
@@ -1821,9 +1844,9 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
         }
     }
     return 0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
+
 s32 WorldMapModeInitSlotPositionAngle(s32 idx) {
     WorldMapPlayer *pPlayer;
     s16 *pRotY;
