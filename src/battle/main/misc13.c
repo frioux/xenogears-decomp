@@ -593,6 +593,9 @@ done:
    lines - the three masks into s32 locals (gcc folds them straight back into the call
    args), "r = arg1 % 2" written before "q = arg1 / 2", and arg1 % 2 inlined at both
    call sites with no r local. The mirror does not move. */
+// 95.45%, 424 bytes = retail's exact size (106 insns). Two residuals, both allocator-side: (1) the callee-saved pair is MIRRORED - retail holds arg1 in $s3 and r in $s4, this body the other way round (every use mirrors: srl/addu/subu/andi/addiu/return); (2) 'andi a1,s2,0xfffc' is scheduled one slot EARLY (retail groups the three argument masks after the three sll/subu chains).
+//     Round 482 re-measured 95.45 / 424 and took the -dl/-dg dump of the call-crossing set, which says the mirror is NOT a ref-count margin: the nine call-crossing pseudos are 74 (9 refs / 71 insns, SI, quotient 1.52 = arg1), 82 (4/28), 75 (4/45), 83 (3/22), 96 (3/39), 78 (3/50 ptr), 84 (2/17 = r), 72 (2/12 QI), 79 (2/27 QI); r sits 3.2x BELOW arg1 in the priority quotient, so the hand-out here is not the ascending quotient order the levers describe and no spelling of either value moves the pair. Do not spend another lane on it without a new allocator idea.
+//     Dead already (see rounds 465-471): q*0x78 into an s32 local then and 0xF8; a char holding the masked value hoisted above 'arg2 = arg2 + rows'; an 'n = arg1' live copy; 'r = arg1 - q*2'; arg1 % 2 inlined at both call sites; the three masks into s32 locals; r computed before q; six minutes of permuter (base 355 -> 260, both finds are the q*0x78 splits and do not transfer). Presets: gcc-2.6.0 99.23 (the unit cannot switch - BattleBeginActorStatAnimation 93.18, BattleReleaseCharSlot 92.28, four more at 99.1-99.8), gcc-2.7.2-cdk 89.0, -O3 compile-failed.
 /*
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     s32 y;
@@ -1445,61 +1448,50 @@ s32 BattleAdvanceCommandStep(u8 arg0, u8 arg1) {
     BattleApplySlotCurveAndStep(count);
     return done;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
-/* 82.72%, 692 bytes (retail 684). The sel ladder is now retail's
-   (`sel = 0; if (arg1 < 3) sel = (arg0 >= 3) * 8;`), the mask needs
-   `(u16)BattleMaskHasSlotBit(...)` (without the cast the `andi v0,v0,0xFFFF` after
-   the jal is missing) and the parameters are s32 with `(u8)` casts - u8 params
-   lose the repeated `andi` retail emits at every use.
-   Residual: retail recomputes `arg0 * 0x1C` after the battle of calls and reuses
-   ONE saved register ($s1) for ofsB in the middle and ofsA at the tail, while gcc
-   keeps both live from the top ($s1/$s3, +8 bytes); the tail also reads
-   g_BattleSlotRecords[ofsA] before D_800C3EB5[ofsA] where retail reads the reverse.
-   Dead spellings measured: one `ofs` variable reassigned after the loop (720),
-   ofsA/ofsB inline at every site (652, 66.43%), ofsA assigned only at the tail
-   (700 and the prologue scatters, 84.84%), a typed `BattleCharSlotRow` struct view
-   (564, 60.05%: gcc merges the loads). Permuter 1679 iterations from this body,
-   base=3246 best=2636, and its only find is a dead `if (D_800C3EC0)` around the
-   sel assignment - not real source.
-*/
+// 87.28%, 712 bytes / 178 insns. Retail is 732 / 183 (.size 0x2DC): the old note's "retail 684" was wrong, this body is FIVE instructions short.
+//    Closed this round from 82.72%: (1) the sel ladder is evaluated 'sel = (arg0 >= 3) * 8; if (arg1 >= 3) sel = 0;' - retail computes the *8 BEFORE testing arg1, which 'sel = 0; if (arg1 < 3) sel = ...' cannot produce (that order measures 82.72 and puts the test first); (2) the compare's two indexes are spelled INLINE, so ofsB is assigned only after the ladder and stays call-crossing in one saved register; (3) the tail reads 'rec = g_BattleSlotRecords[ofsB]' BEFORE the D_800C3EB5 store (retail's order) and then re-uses that same ofs variable for ofsA (87.21 at 720 with separate ofsA/ofsB).
+//    Residual, measured: retail recomputes every offset per block (ofsA twice, ofsB twice) and keeps ofsA and ofsB in ONE register (s1); this body CSEs 'arg0 * 0x1C' and gives them two registers - that is the 5 missing instructions, and spelling each offset inline at every site is the untried lever. Retail's top-block g_BattleSlotRecords accesses each go through $at (lui at / addu at,idx / lbu) where this body hoists the symbol address into $a0 and adds; and retail re-masks 'arg0 & 0xFF' separately at the compare, at the BattleReleaseCharSlot call and at the loop exit where this body CSEs them.
+//    Measured dead this round: u8 params vs s32 params with (u8) casts (identical 86.28); the param-table expression with g_BattleSlotParamTable first (86.28) vs last (82.72) - the parenthesised 'pTable + (D_800C3EB5[ofs] * 4 + records[ofs] * 0x20)' form is what fixed the shift order.
 /*
-void func_80087EDC(s32 arg0, s32 arg1) {
-    s32 ofsA;
+void func_80087EDC(u8 arg0, u8 arg1) {
     s32 ofsB;
     s32 sel;
     s32 i;
+    u8 rec;
 
-    ofsA = (u8)arg0 * 0x1C;
-    ofsB = (u8)arg1 * 0x1C;
-    if (g_BattleSlotRecords[ofsA] == g_BattleSlotRecords[ofsB]) {
+    if (g_BattleSlotRecords[arg0 * 0x1C] == g_BattleSlotRecords[arg1 * 0x1C]) {
         return;
     }
-    sel = 0;
-    if ((u8)arg1 < 3) {
-        sel = ((u8)arg0 >= 3) * 8;
+    sel = (arg0 >= 3) * 8;
+    if (arg1 >= 3) {
+        sel = 0;
     }
+    ofsB = arg1 * 0x1C;
     if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2] >= 4) {
         return;
     }
-    BattleReleaseCharSlot((u8)arg0);
+    BattleReleaseCharSlot(arg0);
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2]++;
     for (i = 0; i < 4; i++) {
         if ((u16)BattleMaskHasSlotBit(D_800D301D[(g_BattleSlotRecords[ofsB] + sel) << 2], i) == 0) {
             break;
         }
     }
-    D_800C3EB5[ofsA] = i;
-    g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
-    D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] |= BattleSlotBitMask(D_800C3EB5[ofsA]);
-    if ((u8)arg0 < 3) {
-        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 4);
-        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 6);
+    rec = g_BattleSlotRecords[ofsB];
+    ofsB = arg0 * 0x1C;
+    D_800C3EB5[ofsB] = i;
+    g_BattleSlotRecords[ofsB] = rec;
+    D_800D301D[(g_BattleSlotRecords[ofsB] + sel) << 2] |= BattleSlotBitMask(D_800C3EB5[ofsB]);
+    if (arg0 < 3) {
+        *(u16 *)(D_800C3EBE + ofsB) = *(u16 *)(g_BattleSlotParamTable + (D_800C3EB5[ofsB] * 4 + g_BattleSlotRecords[ofsB] * 0x20) + 4);
+        *(u16 *)(D_800C3EC0 + ofsB) = *(u16 *)(g_BattleSlotParamTable + (D_800C3EB5[ofsB] * 4 + g_BattleSlotRecords[ofsB] * 0x20) + 6);
     } else {
-        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 0x10);
-        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 0x12);
+        *(u16 *)(D_800C3EBE + ofsB) = *(u16 *)(g_BattleSlotParamTable + (D_800C3EB5[ofsB] * 4 + g_BattleSlotRecords[ofsB] * 0x20) + 0x10);
+        *(u16 *)(D_800C3EC0 + ofsB) = *(u16 *)(g_BattleSlotParamTable + (D_800C3EB5[ofsB] * 4 + g_BattleSlotRecords[ofsB] * 0x20) + 0x12);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+
 /* 79.52%, 472 bytes / 118 insns (retail 500 / 125; frame 40 vs 32, four saved
    regs vs retail's three s0/s1/s2). THE OLD NOTE'S CONDITION WAS WRONG and its
    79.99% was a body with a different meaning - do not restore it. Retail's ladder
