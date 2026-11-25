@@ -855,6 +855,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
    even though the cast is to s16 (gcc picks the unsigned halfword load when the
    value only feeds an identical HImode store), so that residual needs a
    differently typed read, not a cast.
+   R486 measured: a separate `u8* pRingTriIds = pRingStep - 0xA;` local does
+   remove the store fold (retail's real addiu) but re-derives the ring base into
+   a2 and moves pActor to t1: 92.76/768 with 98 differing lines. The same
+   pointer declared inside the loop body is 92.45/768 (100 lines), and
+   `int i = 0;` at the top of the function puts the counter in t1 and the pSprite
+   copy in a3 (92.45/772), so retail's `move a3,zero` in the bnez delay slot is
+   not a top-of-function init. Re-measured baseline is still 92.75/768/192 insns.
 */
 /*
 void func_80081C54(int actorIndex) {
@@ -2631,6 +2638,12 @@ void FieldStopSedsPlayback(void) {
    hoisted bound sits in the register fileIndex frees at SoundAddSedsEntry,
    which is why loop.c/gcse can hoist it at all; no source spelling found that
    keeps that register live through the latch.
+   R486 re-measured baseline 93.00 (252 vs 264 bytes, 63 vs 66 insns) and tried
+   BOTH locals as s16 (streamId and streamIndex): byte-identical to the current
+   body, so the `move s1,s0` retail has is not a narrowing copy either. Note the
+   retail copy feeds BOTH later uses (`addiu s0,s1,0x115` for the file index and
+   `addiu v0,s1,0x1` for the loop bound), so the source computed both from the
+   copy and gcc 2.7.2 propagates it away in every spelling tried so far.
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 /*
