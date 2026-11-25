@@ -728,35 +728,33 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
-/* Best attempt: 85.47% (1100 bytes / 275 instructions; retail is 1108 bytes / 277, so this body is
-   EXACTLY the save/restore pair of an eighth callee-saved register short). Every instruction shape,
-   the call count, the frame/stack slots and the block layout now agree; what is missing is the
-   register assignment, and everything else (three store/load interleavings) follows from it.
-   THE MECHANISM, measured this round: retail loads the dead field into the FREE callee-saved register
-   (`lw $s3,0x24($s0)` where $s3 held the third parameter until AnimTaskCreate's call), because at
-   that point every caller-saved register is busy - retail materialises BOTH field_0x40 masks
-   (0xFFFE1FFF in a1, 0xFFFBFFFF in a2) at the head of the post-call block, so v0, v1, a0, a1, a2,
-   t0, t1 are all live at the load. Our compile materialises those constants next to their uses, so
-   the dead load gets v0 and the frame loses 8 bytes. This unit runs cc1 with -fschedule-insns and
-   -fschedule-insns2 (see the "options enabled" header in build/src/.../temp1.c.s), so that
-   placement is the scheduler's, not statement order - do not chase it by reordering statements.
-   Two more measured facts: `pVramData = pAnimPackage;` at the head (reusing one local for the
-   parameter and then for the field) does NOT share a register - gcc keeps the parameter copy in s0
-   and deletes the second dead load (274 instructions, 85.35%); and the self-store
-   `pTarget->pVramData = pVramData;` is deleted by cse as redundant while the load survives (that is
-   how the load got into the body at all).
-   LOAD-BEARING SOURCE FACTS (each measured): the field_0x7C pair must be written with the NEGATED
-   test - `if (!(pSpriteData->flags_0xA8 & 1)) { copy } else { NULL }` - which gives retail's
-   `bnez -> NULL arm, copy arm inline with the store in the j delay slot` (the plain
-   `if (flags & 1) { NULL } else { copy }` form is 84.31 and lays the arms out the other way);
-   inside the flagBit block field_0x3A is stored BEFORE field_0x40; and the field_0x40/0x3C stores
-   must stay in the interleaved order they are in below.
-   Tried and rejected: passing the field through a second local (above), dropping the dead load
-   earlier than the field_0x40 read, and -O3 (81.71) / gcc-2.7.2 (81.11) under this preset.
+// Best attempt: 85.47% (1100 bytes / 275 instructions; retail is 1108 / 277) - EXACTLY the
+// save/restore pair of an eighth callee-saved register short, and that register is retail's dead
+// `lw $s3,0x24($s0)`.
+// LOAD-BEARING SOURCE FACTS (each measured): the field_0x7C pair must be written with the NEGATED
+// test (`if (!(pSpriteData->flags_0xA8 & 1))` copy, else NULL) - the plain form is 84.31 and lays
+// the arms out the other way; inside the flagBit block field_0x3A is stored BEFORE field_0x40; and
+// the field_0x40/0x3C stores stay in the interleaved order below. The self-store
+// `pTarget->pVramData = pVramData;` is deleted by cse as redundant while the load survives (that is
+// the only way to get the load into the body at all).
+// THE RESIDUAL, re-measured in round 494: retail's load is provably DEAD (one read of $s3 in the
+// whole function, no store to +0x24 anywhere in it), yet it sits in a callee-saved register. Lever
+// a-dead-load-emitted-but says a dead load only reaches a callee-saved register when its value has
+// a USE, and prescribes "find the call that consumed it" - there is no such call here (the only
+// two, func_80023538 and func_80024730, take pTarget / pAnimEntry / pAnimTask).
+// Measured dead this round, all against the 85.47 / 1100 baseline: assigning the load to the third
+// parameter as a scratch (`pAnimPackage = pTarget->pVramData;`, the a-dead-parameter-carries lever)
+// 85.35 / 1096 / 274, and gcc turns the pair into `sw $2,36($16)` - a STORE, not retail's load -
+// so the parameter's callee-saved register is not reused; moving the pair to the tail before
+// func_80023538 84.40; loading through `pAnimTask->spriteData.pVramData` before pTarget's birth
+// 84.61 / 1104 / 276; -G0 84.35; gcc-2.6.0 compile-fails; and ALL NINE declaration permutations
+// of the eight locals score exactly 85.47, so the hand-out is not allocno-number driven.
+// The masks one earlier note blamed are NOT the cause: this body materialises both field_0x40 masks
+// (0xFFFE1FFF, 0xFFFBFFFF) at the head of the post-call block exactly as retail does.
+// Verdict: GIV_TIE. Unparking needs these three externs put back at file scope.
 /*
 extern u8 g_FlagTimerWorkListAdds;
-extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
+extern void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry);
 extern void func_80024730(AnimTask* pAnimTask);
 
 // Fills a fresh AnimTask's sprite from an existing one. The work-list counter is
@@ -848,6 +846,7 @@ SpriteData* func_80023B84(SpriteData* pSpriteData, u16* pAnimEntry, void* pAnimP
     return pTarget;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
 /* Best attempt: 85.83% (704 bytes / 176 insns; the original is 700 / 175). The body is
