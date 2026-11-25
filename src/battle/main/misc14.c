@@ -36,7 +36,7 @@ typedef struct {
     /* 0x000 */ u8 unk0[0x30];
     /* 0x030 */ u32 sourceWordOffset; // word offset into each sub-image source, 4 words per upload
     /* 0x034 */ u8 unk34[0x6C];
-    /* 0x0A0 */ u8 unkA0; // BattleUpdatePauseAndEffectTimers returns unless set
+    /* 0x0A0 */ u8 effectTimersActive; // BattleUpdatePauseAndEffectTimers returns unless set
     /* 0x0A1 */ u8 unkA1[0x8];
     /* 0x0A9 */ u8 moveSteps; // position interpolation steps accumulated, 6 per frame
     /* 0x0AA */ u8 frameCount; // incremented every update; the upload runs on odd values
@@ -46,7 +46,7 @@ typedef struct {
     /* 0x0AE */ u8 unkAE[0x1C];
     /* 0x0CA */ u8 slotTimersActive; // set to tick the 0x10 prim pool timers down
     /* 0x0CB */ u8 unkCB[0x4];
-    /* 0x0CF */ u8 unkCF;
+    /* 0x0CF */ u8 battleMenuOpen;
 } BattleUploadState; // Size: 0xD0 (lower bound: other units reach 0xFC)
 
 // Partial view of the battle work block (g_BattleGraphicsWork): the sub-image descriptors
@@ -781,7 +781,7 @@ void BattleUpdatePauseMenu(u8 arg0) {
 
     muted = 1;
     do {
-        if (g_BattleDisplayState->unkCF == 0) {
+        if (g_BattleDisplayState->battleMenuOpen == 0) {
             g_BattleMenuEvent = BATTLE_MENU_EVENT_EXIT;
         }
         if (ControllerIsStateStackFull() != 0) {
@@ -859,7 +859,7 @@ void BattleUpdatePauseAndEffectTimers(u8 arg0) {
         }
     } while (waiting != 0);
 
-    if (g_BattleDisplayState->unkCF == 0) {
+    if (g_BattleDisplayState->battleMenuOpen == 0) {
         g_BattleMenuEvent = BATTLE_MENU_EVENT_EXIT;
     }
     do {
@@ -890,7 +890,7 @@ void BattleUpdatePauseAndEffectTimers(u8 arg0) {
         }
     } while (g_BattlePauseActive != 0);
 
-    if (g_BattleDisplayState->unkA0 == 0) {
+    if (g_BattleDisplayState->effectTimersActive == 0) {
         return;
     }
     if (D_800D32F8[0]->unk15F9 == 0) {

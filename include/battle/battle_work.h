@@ -49,7 +49,7 @@ typedef struct {
     /* 0x09D */ u8 menuColumnPending; // set when the 0x1E68 list has prims to add
     /* 0x09E */ u8 cursorPending; // set when the 0x27C8 list has prims to add
     /* 0x09F */ u8 unk9F;
-    /* 0x0A0 */ u8 unkA0;
+    /* 0x0A0 */ u8 effectTimersActive; // BattleUpdatePauseAndEffectTimers returns unless set; nothing writes it in retail
     /* 0x0A1 */ u8 unkA1;
     /* 0x0A2 */ u8 unkA2;
     /* 0x0A3 */ u8 primStart; // prim index the 0x641C lists were built at
@@ -79,7 +79,7 @@ typedef struct {
     /* 0x0CA */ u8 slotTimersActive; // set to tick the g_BattlePrimPool timers down
     /* 0x0CB */ u8 primListsPending; // set when the 0x641C lists have prims to add
     /* 0x0CC */ u8 panelPending[3]; // per slot: set when the slot's panel has packages for the ordering table to add
-    /* 0x0CF */ u8 unkCF;
+    /* 0x0CF */ u8 battleMenuOpen; // while zero both pause loops post BATTLE_MENU_EVENT_EXIT; nothing writes it in retail
     /* 0x0D0 */ s32 packageCounts[2]; // packages appended to each 0x641C list
     /* 0x0D8 */ u8 unkD8[0x8];
     /* 0x0E0 */ s32 statSpriteCount[3]; // packages BattleRenderActorStatDigits appended for the slot
