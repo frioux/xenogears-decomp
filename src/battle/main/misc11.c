@@ -1,5 +1,4 @@
 #include "common.h"
-#include "battle/actor.h"
 #include "battle/battle_work.h"
 #include "main/game.h"
 #include "psyq/libgpu.h"
