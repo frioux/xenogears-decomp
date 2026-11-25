@@ -677,11 +677,13 @@ matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70, 0x58, 0x74) and the
 first scan loop, the slot search and the trailing key search are byte-identical.
 Same 85.17 under -O3, -G0 and gcc-2.7.2-cdk. The drawFlags scan pointer anchors
 at slots+0x72 in both, so that part is only a relocation addend difference. */
+// PARK 96.80%, 548 bytes / 137 insns = retail's exact size and count. Round 500. Three fixes this round, all measured: (1) pSlot->z = pVec->vz belongs after the y store, NOT last (85.17 -> 88.71 at the same 548 bytes) - the store order the old note claimed was retail's exact order scored 3.5 points lower; (2) reading g_BattleEffectClutId into a u16 local one statement BEFORE the tpage store is a permuter find (PERMUTER_BETTER base=1545 best=1035) and gives 93.45; (3) the second permuter find, both parts ported, gives 96.80 (base=1035 best=455): the clut-Y byte stores written as one embedded assignment 'pMotion->v0 = (pMotion->v3 = v);' and the drawFlags global read into the existing clut-Y local 'v = g_BattleDrawFlags; pSlot->drawFlags = v;' (v is dead there). RESIDUAL: one scheduling tie, retail hoists the g_BattleDrawFlags load to the head of the creation block where our compile hoists g_BattleEffectSpawnTick, which pushes the drawFlags store below the key/unk6C/unk70 group; the multiset, the frame, both scan loops and the trailing key search are identical. Measured dead this round: an empty do{ }while(0) between the key store and unk6C=0 (79.66, 552 bytes). Preset screen: gcc-2.6.0 --all reads 82.29 for this function and breaks seven matched neighbours (BattleEffectUploadClut 97.71, BattleEffectInitTextures 98.97, BattleEffectUpdateSlots 99.77, BattleEffectJitterSVector 99.45, BattleEffectJitterVector 98.12, BattleEffectQueueLineQuads 98.19, BattleSpawnSpriteEntries 98.59), so Default is right.
 /*
 void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     BattleSlot *pSlot;
     BattleSlot *pEntry;
     SlotMotion *pMotion;
+    u16 clutId;
     u16 id;
     s32 u;
     s32 v;
@@ -716,13 +718,13 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     pMotion->u1 = u;
     pMotion->u0 = u;
     v = g_BattleEffectClutY[0];
-    pMotion->v3 = v;
+    pMotion->v0 = (pMotion->v3 = v);
     pMotion->v2 = v;
     pMotion->v1 = v;
-    pMotion->v0 = v;
+    clutId = g_BattleEffectClutId;
     pMotion->tpage = D_80092694;
     pMotion->code &= 0xFE;
-    pMotion->clut = g_BattleEffectClutId;
+    pMotion->clut = clutId;
     pSlot->packets[1] = *pMotion;
 
     pSlot->frameCount = 7;
@@ -731,11 +733,12 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     pSlot->frame = 0;
     pSlot->x = pVec->vx;
     pSlot->y = pVec->vy;
-    pSlot->drawFlags = g_BattleDrawFlags;
+    pSlot->z = pVec->vz;
+    v = g_BattleDrawFlags;
+    pSlot->drawFlags = v;
     pSlot->key = arg2;
     pSlot->unk6C = 0;
     pSlot->unk70 = g_BattleEffectSpawnTick;
-    pSlot->z = pVec->vz;
     pSlot->halfWidth = D_80091228[arg3];
 
     id = g_BattleEffectSpawnTick - 1;
@@ -747,6 +750,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CAA4);
 
