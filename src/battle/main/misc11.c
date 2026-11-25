@@ -1,6 +1,16 @@
 #include "common.h"
+#include "battle/battle_work.h"
 #include "main/game.h"
 #include "psyq/libgpu.h"
+
+// One slot's command row (g_BattleCommandQueue + slot * 0x40): the 16 status
+// words a slot's commands fill in, and the slot it is linked to.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x1C */ u16 statusWords[0x10]; // the slot's status rows: the 16 masks the setup loop ANDs the slot's conditionFlags with, individual entries overwritten per command
+    /* 0x3C */ u8 targetSlotId; // slot id whose bitmask is applied with this slot's; 0xFF = none
+    /* 0x3D */ u8 unk3D[0x3];
+} BattleCommandRow; // Size: 0x40
 
 // Candidate scan order for target selection.
 typedef struct {
@@ -93,8 +103,8 @@ extern void BattleActivateSelectedCommand(u8 arg0);
 extern u8 g_BattleTaskListBusy;
 extern u8 g_BattleMenuEventHistory;
 extern u8 g_BattleSlotDisplayValue[];
-extern u8 g_BattleSlotEntries[];
 extern u8 g_BattleSlotStatusRows[];
+extern u16 g_BattleSlotEntries[];
 extern u16 g_BattleSlotDisplayValues[];
 extern u16 D_800C3234[];
 extern u8 D_800D32A4[];
@@ -374,31 +384,48 @@ void BattleResetActorDrawState(u8 arg0) {
     HeapFree(g_BattleSpriteColumnWork);
 }
 
-/* PARKED 92.56% (2440 bytes against retail's 2436, +4 bytes): whole 610-
-   instruction body written from the assembly; every block, call, branch and the
-   101-word jump table are in retail's order, and the function is one instruction
-   longer than retail. 348 differing lines, all register/order residuals:
-   (a) `addu` operand order on the displayState row addresses - retail is
-       base-first (`addu v0,v0,a1`, `addu v0,v0,s0`), every spelling tried gives
-       index-first (`addu v0,a1,v0`): `g_BattleDisplayState[arg0 + 0x90]` and
-       `*(u8 *)(g_BattleDisplayState + (arg0 + 0x90))` measure the same 92.56%
-       (see levers.md a-addu-index-first-is-the-legitimiser: the legitimiser
-       decides it for a plain `u8 *` global).
-   (b) retail loads g_BattleCommandQueue once and stores BOTH 0x2D5 and 0x2D4
-       through that one base; two global subscripts reload it, because a char
-       store through the pointer can alias the pointer variable itself. Worth
-       ~3 instructions at that pair; a pointer local only there is untested.
-   (c) the two per-slot 0x1C/0x20 mask stores and the commandFlags fill loop
-       share retail's single `sll a0,a0,6`; this body re-forms `arg0 * 0x40`.
-   Round status: 5 scored runs, best 92.56% on the first body; no new best after
-   the addu respelling, so parked under the STOP rule. The register set, the
-   frame (0x28) and the saved set ($ra,$s0-$s3) already match retail's.
-*/
+// PARKED 95.01% (2424 bytes / 606 insns against retail's 2436 / 609): the whole
+// 610-instruction body, three instructions SHORT of retail. Round 475 moved it from
+// 92.56 to 95.01 with four measured edits:
+//   (a) the per-slot row is now a typed struct access -
+//       `((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[K]`
+//       (double negation, lever c-double-negation-on-a-slot-stride-from-a-pointer-global)
+//       - which gives retail's base-first `addu v1,v1,v0` at the 0x1C/0x20/0x24/0x2E
+//       stores; the plain row subscript is index-first there. It does NOT flip the two
+//       0x3C (`targetSlotId`) sites, which stay mirrored (`addu v1,s1,v1` against
+//       retail's `addu v1,v1,s1`), and the negation there costs a `negu` + `subu`,
+//       so those two keep the raw `((u8 *)(g_BattleCommandQueue + arg0 * 0x40))[0x3C]`.
+//   (b) `((BattleWork *)g_BattleDisplayState)->panelMode[arg0]` / ->panelActive[arg0] /
+//       ->slotMarks[arg0] instead of `*(u8 *)(state + (arg0 + 0x90))`: the struct
+//       displacement gives retail's base-first `addu v0,v0,a1`. Same lever, three sites
+//       plus the loop guard.
+//   (c) the status-row loop reads `*(u16 *)(g_BattleSlotStatusRows + rowOffset)` with
+//       rowOffset (`arg0 * 0x170`) a hoisted local - the typed
+//       `g_BattleWorkBlock[arg0].conditionFlags` re-forms the base per iteration the way
+//       retail does but leaves the 0x7A in the `lhu` displacement, which is a different
+//       instruction word. Keeping the symbol's own address is the only matchable spelling.
+//   (d) a `u8 *pQueue = g_BattleCommandQueue` local assigned BEFORE the gauge read makes
+//       retail's single load feed both 0x2D5/0x2D4 stores (the two subscripts reload), and
+//       `i = 0; rowOffset = ...; for (; i < 0x10; i++)` puts retail's `move a2,zero` in
+//       its preheader slot.
+// Open residuals, 264 side-by-side lines of which only ~30 are not branch-target
+// cascades: (i) the two targetSlotId `addu` mirrors; (ii) retail's single row pointer
+// shared by the 0x36/0x24 stores in the char-7 arm (a pointer local there took the body
+// to 93.97 and then lost instructions elsewhere); (iii) mine re-truncates arg0
+// (`andi v0,s2,0xff` + `sll v0,v0,0x6`) where retail does `sll v0,a1,0x6`, and an
+// `andi a1,s2,0xff` sits two instructions late; (iv) g_BattleSlotFlags' base is hoisted
+// into $s3 across the tail loop where retail re-forms it through $at. The body is now
+// THREE instructions shorter than retail, so the next step is finding which of retail's
+// three extra instructions (`andi`s and the row pointer) the spellings dropped.
+// Tried and no help: typed BattleWorkBlock tables (disp), plain row subscript, cast-first
+// sum, pQueue per statement.
 /*
 void func_80080160(u8 arg0) {
     u8 gauge;
     u8 hasWeapon;
     s32 i;
+    s32 rowOffset;
+    u8 *pQueue;
     u8 v;
 
     g_BattleCommandQueue[0x2EA] = 1;
@@ -410,63 +437,66 @@ void func_80080160(u8 arg0) {
     g_BattleCommandQueue[0x2E3] = 0;
     g_BattleCommandQueue[0x2E4] = 0;
     g_BattleCommandQueue[0x2DC] = 0;
+    pQueue = g_BattleCommandQueue;
     gauge = D_800D32A4[arg0 * 8];
-    g_BattleCommandQueue[0x2D5] = gauge;
-    g_BattleCommandQueue[0x2D4] = gauge;
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) = 3;
+    pQueue[0x2D5] = gauge;
+    pQueue[0x2D4] = gauge;
+    ((BattleWork *)g_BattleDisplayState)->panelMode[arg0] = 3;
     g_BattleCommandQueue[0x2E7] = 0;
     g_BattleLastMenuEvent = 0xFF;
     g_BattleTaskListBusy = 0;
-    while (*(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) != 1) {
+    while (((BattleWork *)g_BattleDisplayState)->panelMode[arg0] != 1) {
         BattleUpdateFrame();
     }
     g_BattleSoundEnabled = 1;
     BattlePlaySoundIfEnabled(0x5A);
     g_BattleSoundEnabled = 0;
-    for (i = 0; i < 0x10; i++) {
-        ((u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C))[i] =
-            *(u16 *)(g_BattleSlotStatusRows + arg0 * 0x170) & D_800C3234[i];
+    i = 0;
+    rowOffset = arg0 * 0x170;
+    for (; i < 0x10; i++) {
+        ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[i] =
+            *(u16 *)(g_BattleSlotStatusRows + rowOffset) & D_800C3234[i];
     }
     if (g_BattleActorCharIds[arg0] == 7 && g_BattleSlotFlags[arg0 * 8] != 0) {
-        *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x36) = D_800C3234[13];
-        *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x24) = D_800C3234[4];
+        ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[0xD] = D_800C3234[13];
+        ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[4] = D_800C3234[4];
     }
     if (g_BattleActorCharIds[arg0] == 4) {
         if (g_BattleSlotFlags[arg0 * 8] == 0) {
             if (*(u8 *)((u8 *)&g_GameState + 0x2286 +
                     g_GameState.characters[4].extraWeaponIds[0]) == 0) {
-                *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C) = D_800C3234[0];
+                ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[0] = D_800C3234[0];
             }
             hasWeapon = *(u8 *)((u8 *)&g_GameState + 0x2286 +
                 g_GameState.characters[4].extraWeaponIds[3]);
         } else {
             if (*(u8 *)((u8 *)&g_GameState + 0x22B6 +
                     g_GameState.gears[g_GameState.characters[4].gearId].extraWeaponIds[0]) == 0) {
-                *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x1C) = D_800C3234[0];
+                ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[0] = D_800C3234[0];
             }
             hasWeapon = *(u8 *)((u8 *)&g_GameState + 0x22B6 +
                 g_GameState.gears[g_GameState.characters[g_BattleActorCharIds[arg0]].gearId]
                     .extraWeaponIds[3]);
         }
         if (hasWeapon == 0) {
-            *(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x20) = D_800C3234[2];
+            ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[2] = D_800C3234[2];
         }
     }
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
-        if (*(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x2E) == 0) {
+        if (((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[9] == 0) {
             g_BattleCommandQueue[0x2DD] = 1;
             g_BattleMenuEventHistory = 0;
         } else {
             g_BattleCommandQueue[0x2DD] = 4;
             g_BattleMenuEventHistory = 3;
         }
-        if (g_BattleSlotEntries[arg0 * 0x170] & 2) {
+        if (g_BattleSlotEntries[arg0 * 0xB8] & 2) {
             g_BattleCommandQueue[0x2DD] = 2;
             g_BattleMenuEventHistory = 1;
         }
         BattleAllocDrawBuffer();
     } else {
-        if (*(u16 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x2E) == 0) {
+        if (((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[9] == 0) {
             g_BattleCommandQueue[0x2DD] = 0x10;
             g_BattleMenuEventHistory = 0;
         } else {
@@ -478,8 +508,8 @@ void func_80080160(u8 arg0) {
     BattleClearCommandSlots();
     BattleClearSlotFlag15A1(arg0);
     BattleBeginAnimTask(BattleSlotBitMask(arg0) |
-        BattleSlotBitMask(*(u8 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x3C)));
-    v = *(u8 *)(g_BattleCommandQueue + arg0 * 0x40 + 0x3C);
+        BattleSlotBitMask(((u8 *)(g_BattleCommandQueue + arg0 * 0x40))[0x3C]));
+    v = ((u8 *)(g_BattleCommandQueue + arg0 * 0x40))[0x3C];
     if (v == 0xFF) {
         v = 0;
     }
@@ -572,8 +602,8 @@ void func_80080160(u8 arg0) {
     }
     g_BattleDisplayState[0xCB] = 0;
     g_BattleDisplayState[0xAF] = 0;
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x90)) = 0;
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x7F)) = 0;
+    ((BattleWork *)g_BattleDisplayState)->panelMode[arg0] = 0;
+    ((BattleWork *)g_BattleDisplayState)->panelActive[arg0] = 0;
     if (g_BattleCommandQueue[0x2E3] != 0) {
         g_BattleSlotDisplayValue[arg0 * 8] += g_BattleCommandQueue[0x2D4];
         if (g_BattleSlotDisplayValue[arg0 * 8] >= 0x1D) {
@@ -589,11 +619,11 @@ void func_80080160(u8 arg0) {
         BattleReleaseEffectSlotIfChar4(arg0);
     }
     g_BattleSlotCountdownTimers[arg0] = g_BattleSlotDisplayValues[arg0];
-    *(u8 *)(g_BattleDisplayState + (arg0 + 0x7C)) = 1;
+    ((BattleWork *)g_BattleDisplayState)->slotMarks[arg0] = 1;
     D_800C4928 = 0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
+
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
     s32 best = 0xFF;
     s32 i = g_BattleTargetScan.cursor;
