@@ -684,42 +684,42 @@ void BattleSetActorFlag34(u8 index) {
 
     pEntry[0x34] = 1;
 }
-/* 88.65%: second full reconstruction; every block, call and branch is in
-   retail's order and the function is 1244 bytes against retail's 1220. What the
-   shape work settled since the 86.16 park:
-   (a) the function is `void`, not u8 - retail's epilogue has no copy of the
-       `ret` flag into $v0 (it is only ever tested), which removes one move.
+/* 88.70% (1220 bytes - retail's EXACT size - 305 insns against the 306 the
+   original object dumps): every block, call and branch is in retail's order.
+   Round 477 closed the +24 bytes the 88.65 park carried: case 1's command block
+   re-read g_BattleCommandQueue once per statement (`g_BattleCommandRecords +
+   g_BattleCommandQueue[0x2DA] * 0x48` and the `g_BattleCommandQueue[0x2DA]++`)
+   where retail loads the base ONCE after the BattleSlotBitMask call and reuses
+   it for the 0x2DA load, the records store and the increment. Assigning a
+   pointer local at that point (`pQueue = g_BattleCommandQueue;` immediately
+   before the records store) puts the base in a caller-saved register exactly as
+   retail does - it is NOT live across the call, because the assignment sits
+   after it - and takes the body from 311 insns / 1244 bytes to 305 / 1220.
+   What the earlier parks' shape work settled, still true:
+   (a) the function is void, not u8 - retail's epilogue has no copy of the ret
+       flag into v0 (it is only ever tested).
    (b) the BattlePairTargetable fill loop must READ AND BUMP in one statement:
-       `while (i < 0xB) { slot = i++; ... }` gives retail's `move s1,s0` plus
-       `sb s1` (a plain `slot = i;` is copy-propagated away and the loop stores
-       the counter directly). Only the `addiu s0,s0,1` position is still off:
-       retail has it in the beqz delay slot, ours hoists it above the call and
-       reorg fills the slot with `slti`.
-   (c) the random-target loop is a do/do whose outer test reads the GLOBAL
-       (`while (g_BattleTargetSlot == arg0)`), which is what makes retail reload it.
+       `while (i < 0xB) { slot = i++; ... }`, or the loop stores the counter.
+   (c) the random-target loop is a do/do whose outer test reads the GLOBAL.
    (d) case 2's cost index must go through a local first (`i = info[1] + 0x16;`)
-       or gcc distributes the multiply and folds 0x16*0x28 into the symbol as
-       `D_800CDD53+880`; and the D_800CCD38 offset must be a local too
-       (`i = arg0 * 0x170;`) or gcc materialises the address once with `la` and
-       shares it instead of re-forming retail's two sym+reg operands. Both from
-       one 4-minute permuter run (base 5054 -> 3469) plus a hand improvement.
-   Still open: (i) case 1's command-queue block - retail loads g_BattleCommandQueue twice
-   for the last two statements and reuses each load across a store
-   (lbu 0x2DA + lbu 0x3C share one; lbu 0x2DA, the g_BattleCommandRecords index and the
-   `g_BattleCommandQueue[0x2DA]++` share the other), we reload once per statement, +2
-   loads; a pointer local covers them but keeps the value live across
-   BattleSlotBitMask, which needs a sixth callee-saved register.
-   (ii) arg0 sits in s2, retail has it in s3 (s0..s4 are used in both).
-   (iii) the tail `while (a && b && c)` block is laid out with the third test
-   hoisted above the body, costing one instruction.
-   Tried and no help: -O3, -G0, cdk (preset is not the issue), `li` order,
-   pointer locals for the queue base, s32/u8 slot, do/while(0) around the
-   queue block. */
+       or gcc folds 0x16*0x28 into the symbol as D_800CDD53+880, and the
+       D_800CCD38 offset must be a local too (`i = arg0 * 0x170;`).
+   Open residuals: (i) the remaining 143 differing lines are register rotation -
+   arg0 is s2 here, s3 in retail - plus ONE instruction: the random-target
+   loop's outer test is short because gcc forwards the stored value, while retail
+   re-reads the global (lui/lw/lbu g_BattleTargetSlot, nop, beq); that reload is
+   the whole 305-vs-306 gap. (ii) the fill loop's `addiu s0,s0,1` sits before the
+   BattlePairTargetable call instead of in its beqz delay slot (reorg).
+   Tried and no help: -O3, -G0, cdk (preset is not the issue), li order, s32/u8
+   slot, do/while(0) around the queue block, one 4-minute permuter run
+   (base 5054 -> 3469). */
+
 /*
 void func_80080C94(u8 arg0) {
     u8 info[8];
     u8 buf[0xB];
     u8 *pBuf;
+    u8 *pQueue;
     u8 cost;
     u8 ret = 1;
     s32 idx;
@@ -763,9 +763,10 @@ void func_80080C94(u8 arg0) {
             g_BattleCommandCodes[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
             g_BattleCommandSlotIds[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
             *(u16 *)(g_BattleCommandSlotMasks + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
-            *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue[0x2DA] * 0x48) =
+            pQueue = g_BattleCommandQueue;
+            *(u16 *)(g_BattleCommandRecords + pQueue[0x2DA] * 0x48) =
                 BattleSlotBitMask((g_BattleCommandQueue + idx)[0x3C]);
-            g_BattleCommandQueue[0x2DA]++;
+            pQueue[0x2DA]++;
         }
         if (g_BattleSlotFlags[arg0 * 8] == 0) {
             g_BattleCommandQueue[0x2DC] = 0;
