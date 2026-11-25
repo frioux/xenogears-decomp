@@ -68,7 +68,7 @@ typedef struct {
     /* 0x28 */ u32 partKey;
     /* 0x2C */ s32 pathIndex; // cursor into the target-position list at g_BattleStateWork + 0xA3C
     /* 0x30 */ s32 unk30;
-    /* 0x34 */ s32 timer; // BattleIncrementStateTimer raises it, func_800B9F78 counts it down once a frame
+    /* 0x34 */ s32 timer; // BattleIncrementStateTimer raises it, BattleUpdateStateStep counts it down once a frame
     /* 0x38 */ u8 unk38[0x8];
     /* 0x40 */ s32 savedActorSlot; // the slot BattleLoadActorSlotAnimation reloads when the battle ends
     /* 0x44 */ s32 targetDistance; // measured by BattleFaceTargetAndMeasureDistance
@@ -113,7 +113,7 @@ extern u8 *g_BattleSpriteArchive;
 extern s16 g_BattleActorSlotMask;
 extern s16 g_BattleActorListCount;
 extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
-extern void func_800B9F78();
+extern void BattleUpdateStateStep();
 extern s32 D_800C3E20;
 extern u16 g_BattleSlotBitMask;
 extern u8 g_BattleSedsLoaded;
@@ -553,7 +553,7 @@ BattleMisc33State *BattleCreateState(void) {
     BattleMisc33State *pTimer;
 
     g_BattleState = HeapAlloc(sizeof(BattleMisc33State), 0);
-    g_BattleState->pUpdate = func_800B9F78;
+    g_BattleState->pUpdate = BattleUpdateStateStep;
     g_BattleCommandRowIndex = 0;
     g_BattleState->commandUnhandled = 0;
     pState = g_BattleState;

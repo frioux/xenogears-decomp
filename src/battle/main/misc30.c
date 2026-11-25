@@ -850,7 +850,7 @@ extern void func_800BE790(void);
 // sum reassociates -0x48 onto the base and loses the addiu v1,v1,-1); block-scoping
 // each arm index local keeps the signed slti AND a per-arm register (a shared s32
 // local collapses all three arms onto one register, 93.17).
-void func_800B9F78(BattleState* pState) {
+void BattleUpdateStateStep(BattleState* pState) {
     BattleActorSprite* pSprite;
     BattleActorSprite* pTarget;
     BattleActorSprite* pActor;

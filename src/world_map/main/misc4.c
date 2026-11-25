@@ -20,7 +20,7 @@
 // a POLY_FT4's packet length in words past its tag (same define as misc10.c)
 #define WORLD_MAP_PRIM_TAG_LEN 9
 
-// the sprite group func_8007A430 draws and deactivates, and the length its state timer
+// the sprite group WorldMapUpdateSpriteGroup9Position draws and deactivates, and the length its state timer
 // is reset to (the same 96 frames WorldMapSetActorTimer60 hands the slot)
 #define WORLD_MAP_SPRITE_GROUP9 9
 #define WORLD_MAP_ACTOR_TIMER_FRAMES 96
@@ -259,7 +259,7 @@ extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern s32 WorldMapUpdateGroup14And15Scale(s32);
-extern s32 func_8007A430(s32);
+extern s32 WorldMapUpdateSpriteGroup9Position(s32);
 extern s32 WorldMapInitActorAtScrollPositionWithSound(s32);
 extern s32 WorldMapSetupGroup14And15Prims(s32);
 extern s32 WorldMapSetActorTimer60(s32);
@@ -658,7 +658,7 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     WorldMapAddSlot(WorldMapInitActorSlotTimer40, func_80078EA4);
     WorldMapAddSlot(WorldMapInitActorAtScrollPositionWithSound, func_80079778);
     WorldMapAddSlot(WorldMapSetupGroup14And15Prims, WorldMapUpdateGroup14And15Scale);
-    WorldMapAddSlot(WorldMapSetActorTimer60, func_8007A430);
+    WorldMapAddSlot(WorldMapSetActorTimer60, WorldMapUpdateSpriteGroup9Position);
     WorldMapAddSlot(WorldMapReturnThree, WorldMapUpdateObjectAPosition);
     WorldMapAddSlot(WorldMapInitActorRotationMatrix, WorldMapUpdateActorTerrainHeight);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
@@ -1234,7 +1234,7 @@ s32 WorldMapSetActorTimer60(s32 index) {
 // retail's twin: misc5.c's WorldMapActivateSpriteGroup9Timed. The s16 timer local and the
 // WORLD_MAP_TILE_POS-> form (not a PSX_SCRATCH+0xA0 cast) are what reproduce retail's
 // load/sra/sh interleave and its addiu a0,9 in the blez delay slot: 83.41 -> 100.00.
-s32 func_8007A430(s32 index) {
+s32 WorldMapUpdateSpriteGroup9Position(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
     s16 timer;
