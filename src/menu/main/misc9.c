@@ -237,6 +237,10 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
 //   - 'result = 0; active = 1; refresh = 1;' (the flags load before or after refresh measures identically): retail's EXACT hoist/slot pattern - active's 'li' hoisted, refresh's in the delay slot - but then active=$s6 and const-1=$s5, and refresh is still $s2. 98.19 / 1068 / 267, 64 differing lines.
 //   So the (active, const-1) pair IS a tie that a reorder flips, while the (refresh, pItemId) pair does not move in either order: retail has refresh=$s1 (6 QI refs live ~210 insns) ahead of pItemId=$s2 (2 SI refs live ~20 insns), a quotient gap the lever a-global-allocno-priority-is calls unreachable by spelling, and every spelling moves the two together. The one handle left is a variable split that changes the allocno SET, and its only candidate - hoisting pItemId's definition out of case 4 into the loop body to lengthen its live range - moves the 'addu $s2,$s8,$v0' that retail keeps in the arm's preheader (which is what round 456 bought). Do not re-park this on declaration order: six of them measure byte-identical.
 // Residual (b), the itemIDs clear, is unchanged and stays closed: retail la(g_GameState+0x1F90) / addiu v0,t0,150 / addu v0,s8,v0 needs the 150 added to the BASE register, and every folding of it lands on the index side (see rounds 429/442/446/456 above).
+// ROUND 481: un-parked and re-measured 98.45% / 1068 bytes / 267 insns (retail's exact size), so the note below is current.
+// ONE new measurement this round: 'result = 0' moved OUT of the 'if (refresh)' to the top of the loop body (retail's zeroing does execute unconditionally, in the beqz delay slot) measures 98.22% / 1068 / 267 with 54 differing lines: the store is then hoisted into the prologue and the pair ROTATES to result=$s2, refresh=$s3, so that is not the shape retail had. Reverted.
+// The rest of this round came from cc1's own dumps, which replace the note's estimate with numbers: -dg '20 regs to allocate: 76 74 123 179 87 82 81 77 83 73 84 131 80 75 ...' with -dl giving 87 (pItemId) 'used 5 times across 18 insns; pointer' = 2.22 and 81 (refresh) 'used 17 times across 144 insns; 1 bytes' = 0.47. The two are 4.7x apart and 87 is processed 5th against 81's 7th, so retail's (refresh=$s1, pItemId=$s2) hand-out needs 81 to clear 2.22 (refs >= 32, or a live range <= 30 insns on a QI pseudo that retail's own andi pins) or 87 to fall under 0.47 (a live range >= 85 insns for a 2-ref pointer that retail forms in the case-4 preheader). Neither is reachable by spelling: same verdict as lever a-two-init-near-tie-flips-one-pair-not-the-other, do not re-brief residual (a).
+// Also confirmed current: the operand-order half of residual (b) (cc1 always puts the 150 on the index side; k-gcc-26-folds-symbol-plus), and the preset screen (2.7.2 93.64, cdk 90.70, -G0 97.10, -O3 97.10 against 98.45).
 /*
 u8 func_801DB920(s32 arg0, s32 arg1) {
     MenuShopItem* pItem;
@@ -366,6 +370,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
+
 
 
 
