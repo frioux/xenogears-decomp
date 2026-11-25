@@ -260,6 +260,24 @@ void BattleFreeWdsEntry(void) {
 // sibling func_800C11CC showed a single-use invariant %hi has savings 0, which is why no spelling
 // of this body moves it. All logs are 392 bytes: the body is honest (no UB park), it just cannot
 // be linked.
+//  94.34% (400 bytes / 100 insns against retail's 404 / 101): frame and saved set are now
+//  retail's (9 saves, s0-s7 + ra), the wait loop, its break and the switch are exact, and
+//  the WDS store has retail's shape (sw %lo(g_BattleWdsEntry)(s7), not an inline %hi).
+//  THE RESIDUAL IS TWO hoisting decisions, and retail's 4 surplus bytes are BOTH of them:
+//  1. retail's preheader holds only lui s7,%hi(g_BattleWdsEntry) and the store's offset is
+//     %lo; the pointer-to-global local here makes gcc materialise the FULL address
+//     (lui v0,%hi + addiu s7,v0,%lo, 1 instruction more than retail).
+//  2. retail carries a DEAD lui s5,0xFFFF0000 there (saved and restored, never read); the
+//     direct g_BattleWdsEntry spelling (94.06% / 392) has neither the dead constant nor the
+//     %hi hoist, it re-forms %hi inline per iteration.
+//  So retail's source had an invariant constant gcc hoisted and then deleted. MEASURED THIS
+//  ROUND, do not repeat: spelling the wait test as ((SoundGetPendingSpuCommandType(0) << 16)
+//  & 0xFFFF0000) != 0 DOES make gcc hoist lui 0xffff into a saved register, but cc1 2.7.2-cdk
+//  does NOT fold the redundant and (it stays 'and v0,v0,s3'), so the constant is read after
+//  all and that body scores 91.55 / 400 - and the extra invariant displaces the -1 hoist into
+//  the wds arm (li s0,-1 per iteration). So the fold retail's compile made happens after
+//  loop.c hoisted the constant, and no spelling of this loop test reaches it; the items the
+//  note above already lists stay measured dead.
 /*
 // Feeds one battle actor archive buffer to the sound player: every SEDS chunk is
 // added, every WDS chunk is (re)loaded after freeing the loaded one, and every
@@ -267,12 +285,14 @@ void BattleFreeWdsEntry(void) {
 SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
     SoundFile *pSeds;
     SoundFile *pChunk;
+    SoundWDSEntry **pWdsSlot;
     s32 *pEntry;
     SVEC2 tex;
     SVEC2 clut;
     s32 i;
 
     pSeds = NULL;
+    pWdsSlot = &g_BattleWdsEntry;
     pEntry = (s32 *)pBuffer;
     i = pEntry[0] - 3;
     pEntry += 4;
@@ -287,8 +307,8 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
             BattleFreeWdsEntry();
             g_BattleSoundArchiveLoaded = 0;
             g_BattleActorArchiveReady = 0;
-            g_BattleWdsEntry = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
-            while (SoundGetPendingSpuCommandType(0) != 0) {
+            *pWdsSlot = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
+            while ((SoundGetPendingSpuCommandType(0) << 16) != 0) {
                 if (g_DebugTable != -1) {
                     pollhost();
                 }
@@ -311,7 +331,6 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
     return pSeds;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
-
 
 
 void BattleRemoveSedsEntries(s32 *pArg) {
