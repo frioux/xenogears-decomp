@@ -335,6 +335,19 @@ void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_c
    primOffset assignment below the inner loop (it is only read after it) is
    byte-identical at 93.90 / 668, so the giv emission order is not controlled by
    source position. The 97.58 body below is left as the park.
+   ROUND 478 re-measured the park (97.58 / 672 / 168, the same single pair) and
+   took the preheader-creation lever found in round 476 (menu/main/misc9, same
+   XenoMenu260 preset: a rotated loop makes loop.c create the preheader, so the
+   hoisted invariants go before the front-end sums). The same body written as
+   `j = 0; offset = 0; do { ... j++; offset += STRIDE; } while (offset < 0x1974);`
+   is BYTE-IDENTICAL to the for form (97.58, same pair) - a do-while whose init
+   statements sit in the fall-through block still appends the hoist and the giv
+   inits after them, so that lever does not reach this preheader. Also re-tested
+   both accumulators as front-end for-inits: primOffset AND j together is
+   94.90 / 672 with s4/s5 swapped at every j*4 site, and primOffset as the only
+   front-end accumulator (j left with no init, so not even valid C) is 96.31 /
+   680 with j materialising in a call-clobbered register. Retail's s4 really is a
+   giv (li s4,0xA98 then addiu s4,0x87C), so the park body is still the best.
 */
 /*
 void func_801E61B0(void) {
