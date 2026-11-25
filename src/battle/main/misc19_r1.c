@@ -12,6 +12,8 @@ extern u8 g_BattleActorCharIds[];
 
 extern int rand(void);
 
+#define BATTLE_STAT_WEIGHT_COUNT 7
+
 void BattleRollActorActionCondition(u8 arg0, u8* pInfo, s16* pStatus) {
     BattleTableEntry* p = &g_BattleWorkBlock[arg0];
     u16 mask;
@@ -96,7 +98,7 @@ void func_8009BE0C(void) {
     GameCharacter* pChar;
     GameGear* pGear;
     s32 gearId;
-    u32 frame[2];
+    u32 frame[2]; // cc1 reserves retail's 8-byte empty stack frame only for a local it can size
     u8 i;
     u8 j;
 
@@ -109,7 +111,7 @@ void func_8009BE0C(void) {
         pChar = &g_GameState.characters[p->characterId];
         pGear = &g_GameState.gears[p->gearId];
         if (p->characterId == 7 && (g_BattleSlotConditions[i][0] & BATTLE_SLOT_GEAR_STATUS_FLAG)) {
-            *(volatile u16*)&p->hp = (pState->hp + 1) / BATTLE_ACTOR_HP_SCALE;
+            p->hp = (pState->hp + 1) / BATTLE_ACTOR_HP_SCALE;
             if (p->hp == 0) {
                 p->hp = 1;
             }
@@ -122,7 +124,7 @@ void func_8009BE0C(void) {
         if (pChar->mp > pChar->maxMp) {
             pChar->mp = pChar->maxMp;
         }
-        for (j = 0; j < 7; j++) {
+        for (j = 0; j < BATTLE_STAT_WEIGHT_COUNT; j++) {
             pChar->statWeights[j] = p->statWeights[j];
         }
         pChar->actionCount = p->actionCount;
@@ -133,26 +135,25 @@ void func_8009BE0C(void) {
         if (gearId < 0) {
             continue;
         }
+        // gear id 7 is not a gear and 17 and up are out of range: only a real gear's record is copied
         if (gearId >= 7) {
-            if (gearId >= 0x11) {
+            if (gearId >= 17) {
                 continue;
             }
             if (gearId <= 7) {
                 continue;
             }
         }
-        {
-            *(volatile u32*)&pGear->hp = pState->hp;
-            pGear->fuel = pState->fuel;
-            if (pGear->hp > pGear->maxHp) {
-                pGear->hp = pGear->maxHp;
-            }
-            if (pGear->fuel > pGear->maxFuel) {
-                pGear->fuel = pGear->maxFuel;
-            }
-            if (pState->activeEffectFlags1 & 0x8000) {
-                pGear->hp = pGear->maxHp / 10;
-            }
+        pGear->hp = pState->hp;
+        pGear->fuel = pState->fuel;
+        if (pGear->hp > pGear->maxHp) {
+            pGear->hp = pGear->maxHp;
+        }
+        if (pGear->fuel > pGear->maxFuel) {
+            pGear->fuel = pGear->maxFuel;
+        }
+        if (pState->activeEffectFlags1 & 0x8000) {
+            pGear->hp = pGear->maxHp / 10;
         }
     }
 }
