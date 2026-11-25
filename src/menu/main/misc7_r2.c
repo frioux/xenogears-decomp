@@ -673,7 +673,6 @@ void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId) {
 }
 
 // Best: 95.08% at 956 bytes (retail 952 / 238 insns, ours 239). Whole body instruction-identical except: (a) one allocator rotation - retail keeps row in $s7 (saved first) and tensDigit in $s4, ours has row $s6 and tensDigit $s7, which rotates the s4-s7 chain (row*24, row*8) and the /100 magic constant (a1 vs a0); (b) one load-delay nop in the digit-loop head (ours emits 'addu v0,s3,s0' before the g_Menu reload, so reorg has nothing to put in the load slot; retail puts the add after); (c) the stat sum loads all three stat bytes before the add, ours schedules the third ('lbu v1,741') after the *10 chain. Measured levers: gcc-2.6.0 -O3 93.14, -G0 93.14, gcc-2.7.2 92.68 (the old 92.68 park note was a 2.7.2 measurement), cdk 89.05. Digit-loop prim offset hoisted into a local ('primOffset + (u32)base') reproduces retail's addiu-then-addu and bought 93.14 -> 95.08; the same trick in the tens call bought the second addiu, but in the tail loop base+0x1C70 does NOT (retail folds 0x1C70 into the lhu displacements and commutes addu there). A two-variable x (retail's 'move s1,a0' in the preheader looked like it) measured 92.89, worse. -da/-dg on the body: 16 allocnos, order '... 192 188 73 75' (73=row 4 refs/117 insns/1 byte, 75=tensDigit 2 refs/76 insns/2 bytes, 192/188 = row*8/row*24 3 refs/34-35 insns), so row and tensDigit are the last two and the rotation needs tensDigit to be processed before row*8, which its quotient (131 vs 220) does not allow; declarations are created in source order but parameters always precede locals, so re-ordering locals cannot move it.
-/*
 void func_801D7884(u_char index, u_char row) {
     u16 tensDigit;
     s32 characterOffset;
@@ -704,8 +703,10 @@ void func_801D7884(u_char index, u_char row) {
         MenuParseNumberToDigits(hundreds);
         x = D_801E9D30;
     } else {
-        characterOffset = g_Menu->pManager->currentCharacterIDs[index] * sizeof(GameCharacter);
-        MenuParseNumberToDigits(g_GameState.gears[*(u8*)((u8*)&g_GameState + 0x30C + characterOffset)].weight);
+        MenuParseNumberToDigits(g_GameState.gears[*(u8*)((u8*)&g_GameState + 0x30C +
+                                                         g_Menu->pManager->currentCharacterIDs[index] *
+                                                             sizeof(GameCharacter))]
+                                    .weight);
         count = 5;
         digitOffset = 4;
         x = D_801E9D30 + 8;
@@ -735,16 +736,15 @@ void func_801D7884(u_char index, u_char row) {
     }
     vertOffset = 0x2A00;
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount; i++) {
-        POLY_FT4* pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                      (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0x1C70);
+        POLY_FT4* pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
+                                      -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0x1C70);
 
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
         vertOffset += 0x20;
     }
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7884);
+}
 
 
 void MenuSetGearWindowContents(u_char index, u_char characterId) {
