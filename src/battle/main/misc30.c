@@ -637,12 +637,12 @@ void func_800B9508(BattleActorSprite* pSprite) {
             pSprite->pAnimState->field_0x8 = BATTLE_COMMAND_ROW(g_BattleCommandRowIndex)->slotAnimIds[index];
             if (SpriteAnimPackageTestFlag8000(((SpriteAnimPackage*)pSprite->pVramData)->pFrames) != 0) {
                 SpritePlayAnimation(pSprite, code);
-                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
                 mode = ((pSprite->pTargetEntitySprite->flags_0xAC.flags & 3) << 2) |
                        (pSprite->pTargetEntitySprite->flags_0xA8 >> 30);
                 func_800BC460((1 << index) | (1 << mode));
             } else if (code >= 0x10) {
-                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
                 mode = ((BattleActorSlot*)g_BattleStateWork)[index].mode;
                 frames = (code - 0x10) + D_800C3630[mode];
                 pSprite->flags_0xAC.bytes.animId = (frames < D_800C3648[mode]) ? 0x1C : 0x11;
@@ -656,7 +656,7 @@ void func_800B9508(BattleActorSprite* pSprite) {
                         SpriteSetSpecialAnimFile((SpriteData*)pSprite, g_BattleActorArchiveBuffer);
                     }
                 }
-                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
                 if (g_BattleState->initialActorIndex == index) {
                     SpritePlayAnimation(pSprite, ~code);
                 } else {
