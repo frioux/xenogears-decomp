@@ -1361,6 +1361,29 @@ extern u16 D_800917F4[];
 //    bytes) and a walking pointer re-bases onto pEnv + 0x284 (+0 bytes).
 //  - the earlier index-0xE fix (barPrim[0].x1 wants D_800917F4[0xE]) still holds: all
 //    forty BattleCopyVertexOffsetAdd/Flip calls are register-identical to retail.
+// ROUND RE-MEASURE, still 96.78% / retail EXACT 1516 bytes / 379 insns: the residual is
+// now PROVEN to be sched1 freedom plus the block-local hand-out, not the position of
+// the two `--` statements. This preset runs BOTH schedulers (-fschedule-insns is on:
+// with `-fno-schedule-insns` alone the nine meter constants stop being hoisted to the
+// top of the block and are re-materialised inline one at a time). Retail its shape -
+// the gaugeMirror[1].y0 load at 0x292 sitting between `sh 0x722` and the 0x1E group,
+// the .x2 load at 0x298 after it, and both `addiu -1` / `sh` at the tail - is what
+// retail sched1 produced, i.e. its two load VALUES are live across the nine hoisted
+// constants and therefore own v0/v1, which is what pushes the constants to
+// a1,t2,t1,a3,a2,t0,t5,t4,t3. Source position cannot pin those loads: every
+// intervening store is a constant offset off the same base (s8), which 2.7.2
+// memrefs_conflict_p proves disjoint, so sched1 sinks or hoists them freely.
+// MEASURED THIS ROUND (all with the unit preset; nothing else in the function moved):
+//  - 95.95%, 380 insns / 1520 bytes: the two `--` moved to the END of the function.
+//    sched1 hoisted the 0x292 load to the top of the block (v1) but left the 0x298
+//    one as an inline load/addiu/store trio, and the load-delay slot became a real
+//    `nop`, hence +1 instruction. Constants then a0,t4,t3,t1,a3,t2,t0,a2,a1.
+//  - 96.77%, 379 insns / 1516 bytes: both reads into u16 locals at their source
+//    positions, both stores at the end. sched1 hoisted BOTH loads to the top of the
+//    block (above `lui v0,0x280000`) into v1 and a0; the constants then start at a1
+//    (retail) but run t5,t4,t2,t0,t3,t1,a3,a2, not retail t2,t1,a3,a2,t0,t5,t4,t3.
+//  - still settled: the body below is the best of the three (96.78); the 96.59
+//    gaugeMirror-u16-local and the preset screens from the earlier round stand.
 /*
 void func_80085EC8(Misc10GaugeEnv* pEnv) {
     s32 i;
@@ -1516,6 +1539,7 @@ void func_80085EC8(Misc10GaugeEnv* pEnv) {
     Misc10SetXY3(&pEnv->meter[3], 0x136, 0x48);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085EC8);
+
 
 
 
