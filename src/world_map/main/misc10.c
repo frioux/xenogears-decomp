@@ -34,6 +34,13 @@ extern void func_80089580(void);
 // The tpage word of the sheet the trail prims are textured from, as GetTPage(1, 0, 0x340,
 // 0x100) packs it; the sprite's two ABR bits are added as flags << 5.
 #define WORLD_MAP_TRAIL_TPAGE 0x9D
+// The VRAM page and clut the prim templates sample: an 8-bit page at (0x340, 0x100),
+// the same sheet WORLD_MAP_TRAIL_TPAGE packs and WorldMapSetupPrimTemplates in misc4.c
+// points its prims at.
+#define WORLD_MAP_PRIM_TPAGE_X 0x340
+#define WORLD_MAP_PRIM_TPAGE_Y 0x100
+#define WORLD_MAP_PRIM_CLUT_X 0x100
+#define WORLD_MAP_PRIM_CLUT_Y 0x1FF
 
 #define WORLD_MAP_SPRITE_COUNT 512
 #define WORLD_MAP_SPRITES_PER_GROUP 8
@@ -462,8 +469,8 @@ void WorldMapInitPrimTemplateBuffers(void) {
         // the GPU takes the packet's word count from the tag's high byte; a POLY_FT4 is 9 words past its tag
         ((u8*)&pPrim->tag)[3] = WORLD_MAP_PRIM_TAG_LEN;
         pPrim->code = WORLD_MAP_PRIM_CODE_POLY_FT4;
-        pPrim->tpage = GetTPage(1, 1, 0x340, 0x100);
-        pPrim->clut = GetClut(0x100, 0x1FF);
+        pPrim->tpage = GetTPage(1, 1, WORLD_MAP_PRIM_TPAGE_X, WORLD_MAP_PRIM_TPAGE_Y);
+        pPrim->clut = GetClut(WORLD_MAP_PRIM_CLUT_X, WORLD_MAP_PRIM_CLUT_Y);
         pPrim->code |= WORLD_MAP_PRIM_CODE_SEMI_TRANS;
         pPrim++;
     }
