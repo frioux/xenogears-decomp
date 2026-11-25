@@ -20,6 +20,14 @@
 // a POLY_FT4's packet length in words past its tag (same define as misc10.c)
 #define WORLD_MAP_PRIM_TAG_LEN 9
 
+// the sprite group func_8007A430 draws and deactivates, and the length its state timer
+// is reset to (the same 96 frames WorldMapSetActorTimer60 hands the slot)
+#define WORLD_MAP_SPRITE_GROUP9 9
+#define WORLD_MAP_ACTOR_TIMER_FRAMES 96
+
+// the scratchpad SVECTOR the sprite-group draw calls read
+#define WORLD_MAP_TILE_POS ((SVECTOR *)0x1F8000A0)
+
 // the scale animation an actor runs: the angle advances by a fixed step each frame,
 // wrapping at WORLD_MAP_SCALE_ANGLE_LIMIT, and each wrap advances the scale until it
 // reaches the maximum that ends the animation.
@@ -1197,23 +1205,13 @@ s32 WorldMapSetActorTimer60(s32 index) {
     return 3;
 }
 
-// 83.41%, 312 bytes = retail's exact size (78 vs 78 insns, instruction multiset identical).
-//    The residual is a pure reorg/allocator tie in the stateTimer>0 arm: retail hoists
-//    'li a0,9' into the blez delay slot and keeps 0x20000 in $a1 (reusing $a1 later for
-//    the 0x1F8000A0 argument), while this body emits 'li a0,9' after 'lw v0,40(a2)' and
-//    puts the 0x20000 in $v1; retail's two loads (p->z then p->x) are adjacent where this
-//    body interleaves load/sra/sh strictly. Measured from this body: without the do/while
-//    around the z add = 74.40%, 308 bytes, 77 insns, p in $a3; with the do/while around
-//    the three scratch stores = 67.68%, 316 bytes, 79 insns; gcc-2.7.2-cdk -O2 -G8 =
-//    81.42%; a s16 *pDst local = 77.29%. So the do/while around the z add is load-bearing
-//    (it pins p to $a2 and buys the 78th instruction), and the absolute
-//    '*(s16 *)((u8 *)PSX_SCRATCH + 0xA0)' spelling is required because retail reaches
-//    0x1F8000A0 through $at. Parked after three shapes.
-/*
+// retail's twin: misc5.c's WorldMapActivateSpriteGroup9Timed. The s16 timer local and the
+// WORLD_MAP_TILE_POS-> form (not a PSX_SCRATCH+0xA0 cast) are what reproduce retail's
+// load/sra/sh interleave and its addiu a0,9 in the blez delay slot: 83.41 -> 100.00.
 s32 func_8007A430(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
-    WorldMapPos4 *pSrc;
+    s16 timer;
     s32 result = 1;
 
     p = g_WorldMapSlots + index;
@@ -1224,24 +1222,23 @@ s32 func_8007A430(s32 index) {
         p->y = s->y << 12;
         p->z = s->z << 12;
     }
-    p->stateTimer = p->stateTimer - 1;
-    if ((s16)p->stateTimer > 0) {
-        // the do/while keeps the 0x20000 constant in $a1 and p in $a2, as retail
-        do { p->z += 0x20000; } while (0);
-        *(s16 *)((u8 *)PSX_SCRATCH + 0xA0) = p->x >> 12;
-        *(s16 *)((u8 *)PSX_SCRATCH + 0xA2) = p->y >> 12;
-        *(s16 *)((u8 *)PSX_SCRATCH + 0xA4) = p->z >> 12;
-        WorldMapInitSpriteGroupSprites(9, 0x1F8000A0, 0);
+    timer = p->stateTimer;
+    timer--;
+    p->stateTimer = timer;
+    if (timer > 0) {
+        p->z += 0x20000;
+        WORLD_MAP_TILE_POS->vx = p->x >> 12;
+        WORLD_MAP_TILE_POS->vy = p->y >> 12;
+        WORLD_MAP_TILE_POS->vz = p->z >> 12;
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP9, WORLD_MAP_TILE_POS, 0);
     } else {
-        p->stateTimer = 0x60;
-        pSrc = &g_WorldMapPlayerPosition;
-        *(WorldMapPos4 *)&p->x = *pSrc;
-        WorldMapDeactivateSpriteGroup(9);
+        p->stateTimer = WORLD_MAP_ACTOR_TIMER_FRAMES;
+        *(WorldMapPos4 *)&p->x = g_WorldMapPlayerPosition;
+        WorldMapDeactivateSpriteGroup(WORLD_MAP_SPRITE_GROUP9);
         result = 3;
     }
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A430);
+}
 
 
 
