@@ -1770,6 +1770,7 @@ void func_8008B5D4(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
 
 
+
 extern void* g_PartyDataBuffers[];
 extern void* g_FieldPartyModelLoadBuffer;
 extern s32 g_FieldPartyModelLoadState;
@@ -2118,6 +2119,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
 extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern void* g_PartyDataBuffers[];
 extern void func_80080A74(int actorIndex);
+// Alias of g_FieldActors as an array so its address is a real value gcc keeps
+// in a callee-saved register instead of folding into each load.
+extern FieldActor* g_FieldActorsTable[] __asm__("g_FieldActors");
 
 // Round 475: re-measured 92.49%, 107 insns / 428 bytes against retail's 109 /
 // 436. The body is instruction-for-instruction retail's except for ONE cause:
@@ -2136,7 +2140,6 @@ extern void func_80080A74(int actorIndex);
 // unit cannot switch: FieldScriptSetRandomSkinParams is 100.00 under -G8 and
 // 91.67 under -G0, and 176 vs 177 functions are at 100.00. presets 2.7.2
 // 92.49, cdk 83.59, 2.6.0 92.30 (round 371).
-/*
 void func_8008C180(int partyIndex) {
     FieldActor** pFieldActors;
     FieldActor* pFieldActor;
@@ -2148,7 +2151,7 @@ void func_8008C180(int partyIndex) {
     u_short prevScriptPointer;
 
     if (g_FieldPartyActorSlots[partyIndex] != ACTOR_ID_INVALID) {
-        pFieldActors = (FieldActor**)&g_FieldActors;
+        pFieldActors = g_FieldActorsTable;
         pFieldActor = &(*pFieldActors)[g_FieldPartyActorSlots[partyIndex]];
         pPrevFieldActor = g_FieldScriptVMCurFieldActor;
         pPrevActor = g_FieldScriptVMCurActor;
@@ -2176,10 +2179,11 @@ void func_8008C180(int partyIndex) {
         pActor->flags |= 0x400;
         g_FieldPartyActorSlots[partyIndex] = ACTOR_ID_INVALID;
     }
-    g_GamePartyMembers[partyIndex] = ACTOR_ID_INVALID;
-    g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
+    do {
+        g_GamePartyMembers[partyIndex] = ACTOR_ID_INVALID;
+        g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
+    } while (0);
+}
 
 
 extern int FieldCharacterIdToPartyId(int characterId);
