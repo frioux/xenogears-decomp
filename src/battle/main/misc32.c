@@ -836,6 +836,20 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // call's first argument, and a `do { pTask->timer = nextTimer; } while (0)` around
 // the timer store with the flags store before it (that one is 49.16: the barrier
 // drags the constant into the load-delay slot and moves the whole arm).
+// ROUND 477 (this round) CONFIRMED the merge is the whole residual and measured the one
+// construct that flips it: an EMPTY `do { } while (0);` between the flags update and the
+// call is a basic-block boundary, so local-alloc has no copy in that block and both store
+// bases land on $s0 with a real `move a0,s0` at retail's 100 bytes - but the block split
+// then gives the scheduler a different block, so the a1 address pair splits around the jal
+// and the sb leaves the delay slot: 67.40%. So the shape that yields $s0 bases and the
+// shape that yields retail's schedule are the same block, where the pseudo dies at the
+// argument copy. Also measured byte-identical to the 91.60 body: a `void *pArg` parameter
+// with a `pTask = (Misc32Task *)pArg;` local and the call passing pArg (cse folds the
+// cast, so the copy is free while the same value is live at the call), and a dead store to a
+// never-read `Misc32Task *pKeep;` after the call (deleted before local-alloc, so it does
+// NOT keep the pseudo alive). A park note that says "retail kept the argument copy in the
+// middle of the block" is right about the emission and wrong about the handle: the copy's
+// position is a consequence of combine_regs, not a schedule that can be re-ordered.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
