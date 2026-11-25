@@ -206,7 +206,7 @@ extern u32 BattleGetGridCellAtPosition(Vec4* p);
 extern void func_8008F7B8(BattleWork* pWork);
 extern s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1);
 extern s32 g_BattleActorDistance2D;
-extern s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork);
+extern s32 BattleTryUpdateFacingFromPosition(BattleActor* pActor, BattleWork* pWork);
 extern s32 BattleQueueActionMessages(BattleActor* pActor, BattleWork* pWork);
 extern void BattleResetMessageQueue(BattleActor* p);
 extern u8 g_BattleDifficultyLevel;
@@ -357,7 +357,7 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
 // comparison's own 1 from $v0, and a `return 1;` there costs an instruction retail
 // does not have. The body runs to the end of the if, so its false path falls into
 // the epilogue with $v0 still holding the callee's 0.
-s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
+s32 BattleTryUpdateFacingFromPosition(BattleActor* pActor, BattleWork* pWork) {
     s32 v;
 
     if (g_BattleFacingUpdateEnabled == 0) {
@@ -426,7 +426,7 @@ void BattleUpdateWorkState0(BattleActor* pActor, BattleWork* pWork) {
     pWork->maxDistance = 0;
     pWork->setFlag8000 = 0;
     pWork->targetAngle = 0;
-    if (func_8008FACC(pActor, pWork) != 0) {
+    if (BattleTryUpdateFacingFromPosition(pActor, pWork) != 0) {
         return;
     }
     if (g_BattleActorDistance2D < 0x200) {
@@ -582,7 +582,7 @@ s32 BattleDecideActorAction(BattleActor* pActor, BattleWork* pWork) {
 void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
     u8 v;
 
-    if (func_8008FACC(pActor, pWork) != 0) {
+    if (BattleTryUpdateFacingFromPosition(pActor, pWork) != 0) {
         return;
     }
     if (pActor->actionPhase != 2 && pActor->pTarget->actionPhase == 2) {
@@ -737,7 +737,7 @@ void BattleUpdateWorkState2(BattleActor* pActor, BattleWork* pWork) {
     s16 delay;
     u8 ticks;
 
-    if (func_8008FACC(pActor, pWork) != 0) {
+    if (BattleTryUpdateFacingFromPosition(pActor, pWork) != 0) {
         return;
     }
     if (pActor->pTarget->pNearestEffect->mode == 1) {

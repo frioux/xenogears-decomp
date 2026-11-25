@@ -3132,7 +3132,7 @@ extern s16 g_FieldStreamImageY2;
 extern s16 D_800C3A2A;
 extern s16 g_FieldStreamFrameBase;
 extern s16 g_FieldStreamTotalFrames;
-extern u16 D_800C3A30;
+extern u16 g_FieldStreamType;
 extern u16 D_800C3A32;
 extern u16 D_800C3A34;
 extern u16 g_FieldStreamRgb24;
@@ -3142,7 +3142,7 @@ extern s32 g_FieldStreamSceneActive;
 extern s32 g_FieldMode;
 extern s32 g_FieldStreamFlags;
 
-void func_8008EA58(void) {
+void FieldStreamStartImage(void) {
     ActorData* pActor;
     s16 value;
     u16 ip;
@@ -3179,7 +3179,7 @@ void func_8008EA58(void) {
         D_800C3A32 = 0x140;
         g_FieldStreamFlags = 0x40;
         g_FieldStreamRgb24 = 1;
-        streamType = D_800C3A30;
+        streamType = g_FieldStreamType;
         pIp = &g_FieldScriptVMCurActor->scriptInstructionPointer;
         D_800C3A34 = 0x100;
         do {
@@ -3190,7 +3190,7 @@ void func_8008EA58(void) {
         g_FieldStreamImageY2 = 0x100;
         g_FieldStreamLoopPlayback = 0;
         do {
-            D_800C3A30 = streamType & 0xF;
+            g_FieldStreamType = streamType & 0xF;
         } while (0);
         ip = *pIp;
         g_FieldMode = 0;
@@ -3205,7 +3205,7 @@ void func_8008EA58(void) {
 // FieldScriptVMGetArgument calls, the switch tree (cases 0/1/2, no default), the
 // 0x140/0x100 image rect constants and the trailing globals.
 //   THE SIZE MISS is two register copies around `value` (arg7): retail keeps
-//   `addu v1,v0,zero` for the raw D_800C3A30 store and the `& 0xC0` flags, computes
+//   `addu v1,v0,zero` for the raw g_FieldStreamType store and the `& 0xC0` flags, computes
 //   `andi v0,v0,0xf` early, and copies again (`addu v1,v0,zero`) for the switch
 //   operand; here gcc masks in place and zero-extends the operand
 //   (`andi v1,v0,0xffff`), which nets one instruction less. Measured identical:
@@ -3214,7 +3214,7 @@ void func_8008EA58(void) {
 //   THE OTHER GAP is the tail: retail reads the instruction pointer
 //   (`lhu v0,0xcc(a0); ori v1,1`) between the g_FieldStreamLoopPlayback and
 //   g_FieldStreamSceneActive stores; here the load is hoisted above LoopPlayback.
-//   The matched-neighbour note on func_8008EE14 records the same hoist.
+//   The matched-neighbour note on FieldStreamStartImageFromScript records the same hoist.
 // 94.74% (480 bytes, same size): the post-reload scheduler puts our lhu ip
 // + li 1 above the g_FieldStreamLoopPlayback store where retail has them after
 // it; a volatile store on that playbacks field does not move it, and neither does
@@ -3222,20 +3222,20 @@ void func_8008EA58(void) {
 // 480 bytes; volatile can only pin the load lower by pinning the whole group).
 //   The size miss is the raw-value copy retail keeps (`move v1,v0` before
 //   `andi v0,v0,0xf` / `sh v1` / `andi v1,v1,0xc0`). A volatile store on the raw
-//   D_800C3A30 store DOES produce the copy, but pins the type mask after it
+//   g_FieldStreamType store DOES produce the copy, but pins the type mask after it
 //   (89.25% 492 bytes, and 480/91.93% once the masked store is written
-//   `D_800C3A30 = type;` instead of `&= 0xF`), so the copy and retail's AND order
+//   `g_FieldStreamType = type;` instead of `&= 0xF`), so the copy and retail's AND order
 //   cannot be had together; a separate `u16 raw` local folds away (476). Statement
 //   order of `type = value & 0xF` against the raw store changes nothing in either
 //   form.
 // Round 323: the loopPlayback volatile was pinning the tail group the wrong way -
 // with a plain `g_FieldStreamLoopPlayback = 0;` retail's `lhu 0xCC(a0)` / `li
 // v1,1` sit after that `sh` and the tail matches. `int value` (476 bytes) and a
-// volatile raw store with `D_800C3A30 = type` (476) both lose the 4 bytes; the
+// volatile raw store with `g_FieldStreamType = type` (476) both lose the 4 bytes; the
 // head's three-instruction residual is the copy-and-AND-order trade recorded
 // above and nothing reorders it.
 // Round 420: re-measured 94.74% (480 bytes, retail 484 - still ONE short). Three
-// more spellings tried: (a) flags store before the type mask with `D_800C3A30 =
+// more spellings tried: (a) flags store before the type mask with `g_FieldStreamType =
 // type;` -> 476/90.16; (b) `u16 type` (assigned either side of the raw store)
 // -> 480/86.97, gcc masks into a fresh register and stores the raw value from v0,
 // so the wasteful `move v1,v0` / `sh v1` / `andi v1,v1,0xc0` triple retail keeps
@@ -3244,7 +3244,7 @@ void func_8008EA58(void) {
 // downstream of the same missing copy.
 // Round 462: re-measured 94.74% (480 bytes, retail 484). Two more spellings dead:
 // (a) `switch (value & 0xF)` inline with no `type` local and the masked store as
-// `D_800C3A30 = value & 0xF;` -> identical 480 (gcc CSEs it into the same body);
+// `g_FieldStreamType = value & 0xF;` -> identical 480 (gcc CSEs it into the same body);
 // (b) `int value` -> 476/90.16 and it names the second residual's cause: the
 // `andi v1,v0,0xffff` for the switch operand IS the HImode->SImode promotion of
 // `value & 0xF` (with an int `value` it disappears), so retail's `move v1,v0`
@@ -3267,12 +3267,12 @@ void func_8008EC30(void) {
         D_800C3A2A = FieldScriptVMGetArgument(3);
         g_FieldStreamTotalFrames = FieldScriptVMGetArgument(5);
         value = FieldScriptVMGetArgument(7);
-        D_800C3A30 = value;
+        g_FieldStreamType = value;
         type = value & 0xF;
         g_FieldStreamFlags = value & 0xC0;
         D_800C3A32 = 0x140;
         D_800C3A34 = 0x100;
-        D_800C3A30 &= 0xF;
+        g_FieldStreamType &= 0xF;
         g_FieldStreamFrameBase = 1;
         switch (type) {
             case 0:
@@ -3310,7 +3310,7 @@ void func_8008EC30(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 
-void func_8008EE14(void) {
+void FieldStreamStartImageFromScript(void) {
     u16 value;
     int type;
     s16 pos;
@@ -3322,7 +3322,7 @@ void func_8008EE14(void) {
     g_FieldStreamFrameBase = FieldScriptVMGetArgument(5);
     g_FieldStreamTotalFrames = FieldScriptVMGetArgument(7);
     value = FieldScriptVMGetArgument(9);
-    D_800C3A30 = value;
+    g_FieldStreamType = value;
     type = value;
     if (type == 0xFE) {
         g_FieldStreamLoopPlayback = 1;
@@ -3341,7 +3341,7 @@ void func_8008EE14(void) {
     g_FieldStreamId = 0xFF;
     g_FieldMode = 2;
     g_FieldStreamRgb24 = 0;
-    D_800C3A30 &= 0xF;
+    g_FieldStreamType &= 0xF;
     pIp = &g_FieldScriptVMCurActor->scriptInstructionPointer;
     ip = *pIp;
     g_FieldStreamSceneActive = 1;
