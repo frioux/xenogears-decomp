@@ -362,7 +362,7 @@ extern const char D_8006FC30[];
 extern const char D_8006FC3C[];
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
-void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void FieldUpdatePlayerActorContact(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, int arg4);
 void func_8008399C(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void func_800815F0(void);
@@ -524,7 +524,7 @@ void func_8008110C(void) {
         func_80281B00(D_8006FC18);
     }
     pFieldActor = &g_FieldActors[g_PlayerActorIndex];
-    func_80084158(g_PlayerActorIndex, pFieldActor, pFieldActor->pActorData);
+    FieldUpdatePlayerActorContact(g_PlayerActorIndex, pFieldActor, pFieldActor->pActorData);
     if (g_FieldSystemMode == 0) {
         func_80281B00(D_8006FC24);
     }
@@ -1875,7 +1875,7 @@ typedef struct {
 // into $s0 after it (retail's `lw a2,0x4C(v0)` / `move s0,a2`, 4 bytes that no
 // single-read spelling emits). The slot address must be the offset-first cast
 // sum - a plain `&g_FieldActors[i]` mirrors that `addu` and scores 99.98.
-void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
+void FieldUpdatePlayerActorContact(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     FieldSquareScratch* pScratch;
     FieldActorModelData* pModelData;
     SpriteData* pSprite;
