@@ -1728,31 +1728,44 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 // D_801EA7F8 is the quantity array beside g_DressingRoomItemIds (one u8 per id,
 // MAX_INVENTORY_ACCESSORIES of each, cleared together at the top); it is splat data
 // (asm/menu/data/246A4.data.s), declared extern in the .c, never defined here.
+// Best: 93.22%, 2736 bytes (retail 2824), 684 vs 706 insns. This round took the parked body 92.30 -> 93.22 in five measured steps, each kept (a step that measured worse was reverted):
+//   1. 92.30 -> 92.39: declaration order rect, digitCodes, text, count, page, limit, then the five pointers, slotGroup, groupMask. Retail's slots are 0x18/0x20/0x28/0x48/0x50/0x58/0x60-0x80/0x88/0x90 and this reproduces all of them; every remaining sp offset differs only by the frame size below.
+//   2. 92.39 -> 92.45: the four panel-id reads spelled ((u8*)g_Menu->pEquipmentPanel + arg2)[MENU_PANEL_WEAPON_ID], base first in the sum, which is the one spelling giving retail's 'addu v0,v0,a2' (lever c-pointer-from-memory-paren-sum-is-base-first; the same file's func_801DE7xx neighbour uses it).
+//   3. 92.45 -> 92.77: the inventory scan written as i = 0; do { ... } while (i < limit); under the 'if (limit != 0)' guard, which is retail's bottom-tested loop and removes 4 insns.
+//   4. 92.77 -> 92.78: pQuantities assigned before pIds; retail creates the quantity pointer first (s5) and the id pointer second (s4).
+//   5. 92.78 -> 93.22: the render loop's second index made a biv, for (i = 0, j = arg1; i < 8; i++, j++), so arg1 is loaded once before the loop and the increment rides in the latch, exactly retail's 'lw s4,0x38(sp)' plus 'addiu s4,s4,1'.
+// REMAINING, in order of size:
+//   A. THE FRAME, and it is why 100% is not reachable from this body: ours is 0xC8 / vars 136 / args 24 where retail is 0xD0 / vars 144 / args 24. Retail's highest REFERENCED slot is 0x9C and its saves start at 0xA8, so retail's source declares one 8-byte object that no instruction touches (not rect, digitCodes or text: those are 0x18/0x20/0x28 on both sides). Until that local is found, all 22 save/lw sp offsets stay 8 low. Do not reorder declarations looking for it - the order above is already retail's.
+//   B. 15 insns of cross-jumped id check: retail duplicates 'lbu / nop / sltiu 0x32 / beqz or bnez / andi / j / li s0,1' in each of the four page-switch arms and ours shares one copy (jump.c merge). Retail's case-0 copy branches 'beqz' to the fail label while its case-1..4 copy branches 'bnez' to the flag test, so the two blocks are not identical in retail; our compile makes them identical. No spelling tried: the arms' C is the same three-term AND chain in both.
+//   C. page is hoisted into s7 for the render loop, where retail reloads it twice ('lbu v1,0x50(sp); nop'), and that one register rotates the whole loop's s4-s8 allocation by one: ours s8=0xD s6=0x12 s4=0x400 s3=0 s2=arg1, retail s7=0xD s6=0x12 s5=0x400 s2=0 s4=arg1. Retail keeps pGearAccessory in s8/fp across the loop; ours gives s8 to 0xD.
+//   D. The two g_Menu reloads in the arg3==0 arms are emitted 2 insns later than retail's (the load is scheduled after the page/limit stores instead of before).
+//   E. Insns are 22 short overall (684 vs 706): B is 15, C/D account for the rest.
+// Not tried: the permuter - 93.22 is below the 99% bar and the residuals are structure, not register ties. Also not tried: a probe for the do-while in the OTHER loop shape (this one is closed), and gcc 2.7.2-cdk / 2.6.0-O3 on the whole unit (preset is XenoMenu260 as expected).
 /*
 s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
-    MenuDressingRoom* pDressingRoom;
+    RECT rect;
+    u8 digitCodes[8];
+    u8 text[8];
+    s32 count;
+    u8 page;
+    s32 limit;
     MenuShopWeapon* pWeapon;
     MenuShopAccessory* pAccessory;
     MenuShopWeapon* pSlotWeapon;
     GearWeapon* pGearWeapon;
     GearWeapon* pSlotGearWeapon;
+    u16 slotGroup;
+    u16 groupMask;
+    MenuDressingRoom* pDressingRoom;
     GearAccessory* pGearAccessory;
     u8* pWorkspace;
     u8* pIds;
     u8* pQuantities;
     u8* pName;
-    u8 digitCodes[8];
-    u8 text[8];
-    RECT rect;
-    u8 page;
     u8 flag;
     u8 itemId;
-    u16 slotGroup;
-    u16 groupMask;
     u32 quantity;
     u32 tens;
-    s32 count;
-    s32 limit;
     s32 i;
     s32 j;
 
@@ -1763,22 +1776,22 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
         if (arg4 == 0) {
             page = arg2 + 1;
             limit = MAX_INVENTORY_WEAPONS;
-            pSlotWeapon = &g_Menu->pDressingRoom->pWeaponsData[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID + arg2]];
+            pSlotWeapon = &g_Menu->pDressingRoom->pWeaponsData[((u8*)g_Menu->pEquipmentPanel + arg2)[MENU_PANEL_WEAPON_ID]];
         } else {
             page = arg2 + 1;
             limit = MAX_INVENTORY_WEAPONS;
-            pSlotGearWeapon = &g_Menu->pDressingRoom->pGearWeapons[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_WEAPON_ID + arg2]];
+            pSlotGearWeapon = &g_Menu->pDressingRoom->pGearWeapons[((u8*)g_Menu->pEquipmentPanel + arg2)[MENU_PANEL_WEAPON_ID]];
         }
     } else if (arg4 == 0) {
         if (arg2 != 0) {
             page = 5;
             limit = MAX_INVENTORY_ACCESSORIES;
             pDressingRoom = g_Menu->pDressingRoom;
-            pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
+            pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel + arg2)[MENU_PANEL_ACCESSORY_IDS - 1]];
             slotGroup = pAccessory->equipGroup;
             groupMask = 0;
             for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
-                pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS + j]];
+                pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel + j)[MENU_PANEL_ACCESSORY_IDS]];
                 groupMask |= pAccessory->equipGroup;
             }
         } else {
@@ -1790,11 +1803,11 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
             page = 5;
             limit = MAX_INVENTORY_ITEMS;
             pDressingRoom = g_Menu->pDressingRoom;
-            pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS - 1 + arg2]];
+            pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel + arg2)[MENU_PANEL_ACCESSORY_IDS - 1]];
             slotGroup = pGearAccessory->equipGroup;
             groupMask = 0;
             for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
-                pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel)[MENU_PANEL_ACCESSORY_IDS + j]];
+                pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel + j)[MENU_PANEL_ACCESSORY_IDS]];
                 groupMask |= pGearAccessory->equipGroup;
             }
         } else {
@@ -1811,9 +1824,10 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     i = 0;
     count = page == 5;
     if (limit != 0) {
-        pIds = &g_DressingRoomItemIds[count];
         pQuantities = &D_801EA7F8[count];
-        for (i = 0; i < limit; i++) {
+        pIds = &g_DressingRoomItemIds[count];
+        i = 0;
+        do {
             if (arg4 == 0) {
                 pAccessory = &g_Menu->pDressingRoom->pAccessoriesData[g_GameState.accessoryIDs[i]];
                 pWeapon = &g_Menu->pDressingRoom->pWeaponsData[g_GameState.weaponIDs[i]];
@@ -1898,12 +1912,13 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                 pIds++;
                 count++;
             }
-        }
+            i++;
+        } while (i < limit);
     }
 
     pWorkspace = HeapAlloc(0x3F6, 0);
-    for (i = 0; i < 8; i++) {
-        itemId = g_DressingRoomItemIds[arg1 + i];
+    for (i = 0, j = arg1; i < 8; i++, j++) {
+        itemId = g_DressingRoomItemIds[j];
         if (itemId != 0) {
             if (arg4 == 0) {
                 if (page != 5) {
@@ -1917,7 +1932,7 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                 pName = GetGearAccessoryName(itemId);
             }
             g_Menu->pCharacterSpriteRecords->unk0[i].width = SystemRenderStringEntry(pName, pWorkspace, 0x24, 0);
-            quantity = D_801EA7F8[arg1 + i];
+            quantity = D_801EA7F8[j];
             tens = quantity / 10;
             digitCodes[0] = (tens != 0) ? tens + 0x10 : 0xC3;
             digitCodes[2] = quantity % 10 + 0x10;
@@ -1950,6 +1965,7 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     return count;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
+
 
 
 // Moves the item the equipment panel has selected into (or out of) the
