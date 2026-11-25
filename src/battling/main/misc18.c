@@ -353,35 +353,10 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     pWork->maxDistance = 0xFF;
     return 0;
 }
-// 89.78%, re-measured from four spellings this round: 272 bytes against retail's 268
-// (68 insns against 67), all four identical in score and size. The body compiles
-// and the number is real. Two residuals, both block LAYOUT, not allocation:
-// 1. Retail keeps ONE return-0 trampoline (j epilogue; move v0,zero) placed BETWEEN
-//    the flags test and the body, with the flags test a taken bnez into the body and
-//    that trampoline as its fall-through, so both guard returns share it and neither
-//    guard pays a branch to the epilogue. gcc 2.7.2 here merges the guards return-0
-//    block with the THIRD guard's (identical text, so cross-jump merges them) and
-//    places the survivor at the third guard's source position (+0x6c), while the
-//    flags guard takes the cheap form beqz epilogue with move v0,zero in the delay
-//    slot. So the block lands where the LAST return-0 site in the source is: two
-//    plain guards put it after the target-position call, a body nested under the
-//    flags test with one trailing return 0 puts it after the clear block, and
-//    v = call(); if (v == 0) return v; puts it back at the same place as the plain
-//    form (cc1 knows the callee is 0/1 and folds it). A 3-minute permuter run's only
-//    improvement was to add a store to the guard block so it stops being identical,
-//    which changes behaviour, so it was rejected.
-// 2. The last block's return-1 li is stolen into the preceding bnez delay slot,
-//    which then needs a nop for the flags load; retail keeps the li after that load
-//    (filling its load-delay slot) and puts the 0xFFFF7FFF lui in the bnez slot.
-//    Same instruction count either way.
-// Screened: gcc-2.6.0 89.78, gcc-2.7.2-cdk 88.88, -G0 compile-failed.
-// Shapes tried across rounds 166, 481 and now: two plain returns, combined
-// or-condition (compiles identically to two plain returns), single && with the body
-// nested (88.88), one trailing return 0 with the body nested, goto to a shared body
-// label, shared-exit result variable (84.93), return-v for the third guard, plus the
-// permuter. Do not retry the or-condition or return-v forms: both are byte-identical
-// to the first.
-/*
+// The middle distance arm returns no value: retail's taken edge hands back the
+// comparison's own 1 from $v0, and a `return 1;` there costs an instruction retail
+// does not have. The body runs to the end of the if, so its false path falls into
+// the epilogue with $v0 still holding the callee's 0.
 s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     s32 v;
 
@@ -395,28 +370,26 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
         BattleSetFacingFromPosition(&pActor->position, pWork);
         return 1;
     }
-    if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) == 0) {
-        return 0;
-    }
-    v = pActor->pTarget->nearestEffectDistance;
-    if (v < 0x800) {
-        pActor->flags |= 0x8000;
-        pWork->setFlag8000 = 1;
-        pWork->maxDistance = 0xFF;
-        pWork->targetAngle = BATTLE_ANGLE_HALF_TURN;
+    if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) != 0) {
+        v = pActor->pTarget->nearestEffectDistance;
+        if (v < 0x800) {
+            pActor->flags |= 0x8000;
+            pWork->setFlag8000 = 1;
+            pWork->maxDistance = 0xFF;
+            pWork->targetAngle = BATTLE_ANGLE_HALF_TURN;
+            pActor->angle = BATTLE_ANGLE_HALF_TURN;
+            return 1;
+        }
+        if (v < 0x1001) {
+            return;
+        }
+        pActor->flags &= 0xFFFF7FFF;
+        pWork->setFlag8000 = 0;
+        pWork->maxDistance = 0;
         pActor->angle = BATTLE_ANGLE_HALF_TURN;
         return 1;
     }
-    if (v < 0x1001) {
-        return 1;
-    }
-    pActor->flags &= 0xFFFF7FFF;
-    pWork->setFlag8000 = 0;
-    pWork->maxDistance = 0;
-    pActor->angle = BATTLE_ANGLE_HALF_TURN;
-    return 1;
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
+}
 
 void BattleSetActorFlag2AndClearQueue(BattleActor* pActor, BattleWork* pWork) {
     u8 v;
