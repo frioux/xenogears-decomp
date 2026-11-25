@@ -510,43 +510,70 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
      make the second one signed.
 */
 
-// Redo-lane result: 86.39% (1200 bytes; retail 1196 = 299 insns, so this body is
-// ONE instruction over). Round 458, measured under XenoRenderingAtfree (cdk -G0).
-// Bodies measured this round, each from a full run:
-//  - the committed park as it stood: 84.41% / 1196 bytes (EXACT retail size), with a
-//    `for` loop and lastPlane = -1 below the two early returns.
-//  - do/while + lastPlane = -1 above the early returns (it fills retail first beqz
-//    delay slot with li s5,-1): 85.62% / 1192 (298 insns, TWO short).
-//  - that body with the y-arm reading pFrameData[i].flags INLINE instead of the
-//    frameFlags local: retail reloads lw 0x14(s1) for the y bit-5 test after using
-//    the loop-top copy for the x bit-4 test, and the inline read is what makes gcc
-//    reload: 86.39% / 1200 (300 insns, ONE over). THIS is the body below.
-// What is left:
-//  - the four unconditional copies (move t0,t1 / move t3,t2 / move a0,a2 /
-//    move a1,a3) and negating the COPY: gcc coalesces them here and negates in
-//    place, the same liveness finding as the func_8001E3D8 note (tileX and tileY
-//    die at their negation, so no honest source keeps the copies).
-//  - retail stores corner element 0 through the SYMBOL (%hi held in s7 across the
-//    RotAverage4 call, sh %lo(sym)($s7)) and elements 1-3 through s2 = full base.
-//    g_SpriteQuadCorners[0].vx does not reproduce that here because this body has no
-//    free callee-saved register: loop.c hoists the addPrim 0x00FFFFFF mask into s4
-//    (lui/ori in the preheader) where retail forms it inline in the loop. That hoist
-//    is the whole saved-set difference: retail s4=i s5=lastPlane s6=visible s7=%hi,
-//    this body s5=i s6=lastPlane s7=visible s4=mask.
-//  - uv right/bottom edges: retail is (texX + 0xFF) + width, this body is
-//    (texX + width) - 1 (same count; texX + 0xFF + width is what emits retail).
-//  - preheader order: this body loads count, lui %hi(g_GfxCurWorkBuffer), lw, then
-//    pBase/pCurRenderFramesData before the sltu; retail loads pBase after the End
-//    compare and pCurRenderFramesData in its branch shadow.
-//  - the vec/matrix prologue, the prim build, the y averaging, the uv block and
-//    addPrim match instruction for instruction.
+// Best attempt: 91.95% (1172 bytes; retail is 1196 = 299 instructions, so this
+// body is SIX short: the four unconditional `move` copies of the width/height/
+// tileX/tileY shifts, plus retail's `lui at,%hi(g_GfxCurWorkBuffer)` re-form).
+// Round 493, measured under XenoRenderingAtfree (cdk -G0). The previous park was
+// 86.39% / 1200 (ONE instruction OVER); this is the same transcription with four
+// changes, each measured on its own, and its saved set is now retail's EXACTLY
+// (s0-s8 all agree, hp/fp included).
+//  - THE `pVerts = g_SpriteQuadCorners;` LOCAL MUST GO (the round-457 / round-488
+//    lever, already proved on func_8001EE88 and func_8001F1D4 in this file): a
+//    local that only mirrors a global base makes loop.c hoist addPrim's
+//    0x00FFFFFF mask into a callee-saved register (lui/ori in the preheader) -
+//    which was the whole saved-set rotation. As a raw score 86.39 -> 82.74 (it
+//    was six short at that point too), but it makes s4=i s5=lastPlane
+//    s6=visible s7=%hi(g_SpriteQuadCorners) s2=the full base, and retail's
+//    element-0 store through s7 (`sh a0,%lo(g_SpriteQuadCorners)(s7)`) falls out
+//    of `g_SpriteQuadCorners[0].vx` for free. The miscompile the func_8001E3D8
+//    note warns about (`&pVerts[2]` becoming `la $6,g_SpriteQuadCorners`) does
+//    NOT happen here: RotAverage4's four arguments still come from s2, as
+//    `addiu aN,s2,8 / 0x10 / 0x18`.
+//  - the uv right/bottom edges are `(texX + 0xFF) + width`, not
+//    `(texX + width) - 1`: the same stored byte in a u8 field, and it fills the
+//    `lbu` load-delay slots - 4 instructions and 4 nops, 1176 bytes, 91.68% with
+//    the draw locals below. Residual there: gcc attaches the 0xFF to the second
+//    operand (width) where retail attaches it to texX, so the two loads come in
+//    the other order (8 lines, no size difference; explicit parens measure the
+//    same).
+//  - four `draw*` locals assigned unconditionally and negated in the arms
+//    (`drawWidth = width; ... if (flip) drawWidth = -width;`, which is retail's
+//    shape: copies before the tests, the last one in the first `beqz` delay
+//    slot) 91.68 -> 91.72. The if/else spelling instead (`if (flip) drawWidth =
+//    -width; else drawWidth = width;`) is 89.58 / 1196 - retail's EXACT size but
+//    it emits `j` plus a second move pair, so it is the wrong shape; do not take
+//    it for the byte count.
+//  - `n = ((u32)...flags_0x40.flags >> 8) & 0x1F;`: SpriteFlagWord.flags is s32,
+//    so without the cast the shift is `sra`; retail has `srl`. 91.72 -> 91.95.
+// What is left, in size order (all measured this round):
+//  - the four copies: gcc coalesces all four here, so the negations act in place
+//    (`negu a3,a3` where retail has `negu t0,t1`), the two `beqz` delay slots hold
+//    nops where retail puts `move a1,a3` / `srl v0,0x4`, and every quad-corner
+//    store register differs. The flip block's instruction LIST is otherwise the
+//    same; its load order is not (retail loads deltaWidth, deltaHeight, width;
+//    this body deltaWidth, width, deltaHeight) and that is not spellable from the
+//    statement order (see func_8001E3D8's note).
+//  - retail loads `count` (lbu 0x40) BEFORE `lui %hi(g_GfxCurWorkBuffer)`; this
+//    body loads it after (1 line).
+//  - the `scale.vz = 0` store (`sw zero,104(sp)`) is emitted before the
+//    `scale.vx` store here, after it in retail (1 line).
+//  - g_GfxCurWorkBuffer is `lui v1 / lw s0,0(v1) / sw v0,0(v1)` here and
+//    `lui s0 / lw s0,0(s0)` + `lui at / sw v0,0(at)` in retail: retail clobbers
+//    its base with the load and re-forms the address through $at, which is this
+//    body's one missing instruction in the prim block.
+//  - the frame-flag word lives in t4 in retail and t1 here (naming only).
+// Measured dead this round (do not repeat): the if/else draw spelling above;
+// keeping `pVerts` while spelling element 0 through the symbol (CSE folds it
+// back, frame 0xA8, `visible` spilled). Rounds 346-458 tried the loop shape,
+// `s32` vs `int`, the lastPlane/i ordering, -O3, 2.6.0 and four permuter runs
+// (everything past 3802 was wrong code); those apply unchanged, see the
+// func_8001E3D8 note above.
 /*
 void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     MATRIX mat;
     SVECTOR vec;
     VECTOR vecResult;
     VECTOR scale;
-    SVECTOR* pVerts;
     SpriteFrameData* pFrameData;
     POLY_FT4* pPrim;
     u32 spriteFlags;
@@ -560,6 +587,10 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     s32 tileY;
     s32 width;
     s32 height;
+    s32 drawWidth;
+    s32 drawHeight;
+    s32 drawTileX;
+    s32 drawTileY;
     s32 edgeX;
     s32 edgeY;
     s32 depth;
@@ -595,7 +626,6 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     }
 
     i = 0;
-    pVerts = g_SpriteQuadCorners;
     do {
         frameFlags = pFrameData[i].flags;
         if (lastPlane != (frameFlags & 7)) {
@@ -607,7 +637,7 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         }
 
         width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth);
-        n = (((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.flags >> 8) & 0x1F;
+        n = ((u32)((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.flags >> 8) & 0x1F;
         width <<= n;
         height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight);
         height <<= n;
@@ -615,39 +645,43 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         tileY = pFrameData[i].tileY << n;
 
         spriteFlags = ((SpriteRenderFlagWords*)pSpriteData)->flags_0x3C.flags;
+        drawWidth = width;
+        drawHeight = height;
+        drawTileX = tileX;
+        drawTileY = tileY;
         if ((spriteFlags >> 3) & 1) {
-            width = -width;
-            tileX = -tileX;
+            drawWidth = -width;
+            drawTileX = -tileX;
         }
         if (((spriteFlags >> 4) & 1) != ((frameFlags >> 5) & 1)) {
-            height = -height;
-            tileY = -tileY;
+            drawHeight = -height;
+            drawTileY = -tileY;
         }
 
-        edgeX = tileX + width;
+        edgeX = drawTileX + drawWidth;
         if (!((frameFlags >> 4) & 1)) {
-            pVerts[0].vx = tileX;
-            pVerts[1].vx = edgeX;
-            pVerts[2].vx = edgeX;
-            pVerts[3].vx = tileX;
+            g_SpriteQuadCorners[0].vx = drawTileX;
+            g_SpriteQuadCorners[1].vx = edgeX;
+            g_SpriteQuadCorners[2].vx = edgeX;
+            g_SpriteQuadCorners[3].vx = drawTileX;
         } else {
-            pVerts[0].vx = edgeX;
-            pVerts[1].vx = tileX;
-            pVerts[2].vx = tileX;
-            pVerts[3].vx = edgeX;
+            g_SpriteQuadCorners[0].vx = edgeX;
+            g_SpriteQuadCorners[1].vx = drawTileX;
+            g_SpriteQuadCorners[2].vx = drawTileX;
+            g_SpriteQuadCorners[3].vx = edgeX;
         }
 
-        edgeY = tileY + height;
+        edgeY = drawTileY + drawHeight;
         if (!((u32)pFrameData[i].flags >> 5 & 1)) {
-            pVerts[2].vz = edgeY;
-            pVerts[3].vz = edgeY;
-            pVerts[0].vz = tileY;
-            pVerts[1].vz = tileY;
+            g_SpriteQuadCorners[2].vz = edgeY;
+            g_SpriteQuadCorners[3].vz = edgeY;
+            g_SpriteQuadCorners[0].vz = drawTileY;
+            g_SpriteQuadCorners[1].vz = drawTileY;
         } else {
-            pVerts[2].vz = tileY;
-            pVerts[3].vz = tileY;
-            pVerts[0].vz = edgeY;
-            pVerts[1].vz = edgeY;
+            g_SpriteQuadCorners[2].vz = drawTileY;
+            g_SpriteQuadCorners[3].vz = drawTileY;
+            g_SpriteQuadCorners[0].vz = edgeY;
+            g_SpriteQuadCorners[1].vz = edgeY;
         }
 
         pPrim = g_GfxCurWorkBuffer;
@@ -655,7 +689,7 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         setPolyFT4(pPrim);
         setRGB0(pPrim, 0, 0, 0);
 
-        RotAverage4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+        RotAverage4(&g_SpriteQuadCorners[0], &g_SpriteQuadCorners[1], &g_SpriteQuadCorners[2], &g_SpriteQuadCorners[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
             (long*)&pPrim->x3, (long*)&pPrim->x2, &depth, &flag);
 
         pPrim->y0 = pPrim->y1 = (s16)(pPrim->y0 + pPrim->y1) / 2;
@@ -664,16 +698,17 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         pPrim->clut = pFrameData[i].clutID;
         pPrim->u0 = pFrameData[i].texX;
         pPrim->v0 = pFrameData[i].texY;
-        pPrim->u1 = pFrameData[i].texX + pFrameData[i].width - 1;
+        pPrim->u1 = pFrameData[i].texX + 0xFF + pFrameData[i].width;
         pPrim->v1 = pFrameData[i].texY;
         pPrim->u2 = pFrameData[i].texX;
-        pPrim->v2 = pFrameData[i].texY + pFrameData[i].height - 1;
-        pPrim->u3 = pFrameData[i].texX + pFrameData[i].width - 1;
-        pPrim->v3 = pFrameData[i].texY + pFrameData[i].height - 1;
+        pPrim->v2 = pFrameData[i].texY + 0xFF + pFrameData[i].height;
+        pPrim->u3 = pFrameData[i].texX + 0xFF + pFrameData[i].width;
+        pPrim->v3 = pFrameData[i].texY + 0xFF + pFrameData[i].height;
 
         addPrim(pOt, pPrim);
     } while (++i != (((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2));
-}*/
+}
+*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001E9BC);
 
 
