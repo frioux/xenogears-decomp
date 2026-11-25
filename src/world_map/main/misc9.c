@@ -295,6 +295,16 @@ void WorldMapDrawGridTiles(void) {
 // 16 refs (one floor_log2 step) or 8 fewer live insns; no spelling of this body changes either.
 // Measured on the way: 2.6.0 93.78, cdk 81.80, loop 1's value written inline (retail negates in
 // place in v0) 91.28, and the earlier permuter runs 926->721 with no ZERO.
+// Best: 93.98% (392 bytes = retail's exact size, 98/98 insns, identical multiset). Re-measured round 470:
+// the ONLY rows are the s2/s3 mirror (pVertex x, retail's pVertex s3) plus the loop-2 value
+// pseudo (retail s2 = x's freed home, ours v1) and the two artefacts of that: ours emits
+// negu v1,v0 / sll v0,v1,3 where retail negates in place, and the outer back-edge delay slot is
+// nop where retail has a SECOND copy of x=0 (move s2,zero). That duplicate init is one more
+// candidate explanation for the mirror than the earlier rounds' quotient note: retail's x is
+// referenced twice by initialisers. Measured this round at 93.98 / 392: the middle loop as a
+// do/while body, and x reset at the END of the outer body with for(;x<4;x++) (that one is 90.87 /
+// 404, gcc emits the duplicate init but three instructions worse). Removing the redundant
+// standalone x = 0 before the loops is byte-identical, so the body below is the shorter spelling.
 /*
 void func_800863E0(void) {
     WorldMapPathEntry* pPath;
@@ -309,7 +319,6 @@ void func_800863E0(void) {
     g_WorldMapTileVertexBuffer = HeapAlloc(0x500, 0);
     g_WorldMapTileVertexSteps = HeapAlloc(0x280, 0);
     pVertex = (WorldMapTileVertex*)g_WorldMapTileVertexBuffer;
-    x = 0;
     for (y = 0; y < 4; y++) {
         for (x = 0; x < 4; x++) {
             xoff = x << 11;
@@ -331,9 +340,9 @@ void func_800863E0(void) {
         pPath->unk2 = rand() & 1;
         pPath++;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
+
 
 void WorldMapFreeTileVertexBuffers(void) {
     HeapFree(g_WorldMapTileVertexSteps);
@@ -863,36 +872,11 @@ typedef struct {
     /* 0x40 */ u8 pad40[0x14];
 } WorldMapEntry; // Size: 0x54
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088720);
-// Best: 90.69% (1064 bytes vs retail's 1056). Structure, call set, both
-// RotMatrixYXZ tables and the five matrix copies are retail's; the residuals are
-// all instruction PLACEMENT, and every one of them is a load or constant that gcc
-// hoists two to three slots above the first store of the block it belongs to,
-// where retail keeps it next to its use:
-//  (a) the prologue: retail materialises the first RotMatrixYXZ's second argument
-//      (`lui a1,0x1F80` / `ori a1,a1,0xF0` in the jal delay slot) inside the
-//      scratchpad store block, we emit that lui second, right after the first
-//      argument's `ori a0,a0,0xA0`. The same hoist is why the angle temporaries
-//      come out in a2 (retail's a1) - one spill of the address, two symptoms.
-//  (b) the two scratchpad angle loads (0x50/0x58) sit before the four clears
-//      instead of around them; the volatile-store spelling, a local for the value
-//      and a do/while block around the clears all measured the same order.
-//  (c) the 0x182C/0x182E/0x1830 reads are hoisted above the x store, retail keeps
-//      the y read after it. Writing the three stores in x,z,y source order (not
-//      x,y,z) is what got this from 87.95 to 90.69, so the y statement's position
-//      is a real lever here; x,y,z and the same-order local forms are worse.
-//  Also residual: retail re-forms the copy base twice off g_WorldMapGroups (v1
-//  for entry+5, then v0 kept for entry+3 and the 2/1/0 chain) and we use one base
-//  register for all five; the index-first cast spelling
-//  `(WorldMapEntry *)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups)`
-//  reproduces retail's index-first `addu` order and the second reload, but not the
-//  register split. Permuter: the shipped decomp-permuter cannot parse this body
-//  ("conversion to non-scalar type requested" on the MATRIX struct assignments),
-//  so it needs hand work or a permuter that accepts struct assignment.
-/*
 s32 func_80088720(s32 index) {
     WorldMapPlayer* pSlot;
     WorldMapEntry* pEntries;
+    WorldMapEntry* pParent;
+    WorldMapEntry* pEntry;
     WorldMapPos* pPos;
     WorldMapPos* pSlotPos;
     s32 tileIndex;
@@ -914,11 +898,11 @@ s32 func_80088720(s32 index) {
     // and hand the base to a register retail does not use
     pEntries = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
     pEntries[5].matrix = *(MATRIX*)0x1F8000F0;
-    pEntries = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
-    pEntries[3].matrix = *(MATRIX*)0x1F800110;
-    pEntries[2].matrix = pEntries[3].matrix;
-    pEntries[1].matrix = pEntries[2].matrix;
-    pEntries[0].matrix = pEntries[1].matrix;
+    pParent = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
+    pParent[3].matrix = *(MATRIX*)0x1F800110;
+    pParent[2].matrix = pParent[3].matrix;
+    pParent[1].matrix = pParent[2].matrix;
+    pParent[0].matrix = pParent[1].matrix;
     pPos = (WorldMapPos*)0x1F800000;
     pPos->x = *(u16*)&g_GameState.scriptPosX - (pSlot->x >> 12);
     pPos->z = *(u16*)&g_GameState.scriptPosZ - (pSlot->z >> 12);
@@ -937,8 +921,8 @@ s32 func_80088720(s32 index) {
     pPos->x = pSlot->x >> 12;
     pPos->y = pSlot->y >> 12;
     pPos->z = pSlot->z >> 12;
-    pEntries = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
-    pEntries[12].pos = *(WorldMapPos4*)0x1F800000;
+    pEntry = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
+    pEntry[12].pos = *(WorldMapPos4*)pPos;
     WorldMapQueueZoneEntry(index, (s32*)pSlotPos, 0x180, 0xC0);
     g_GameState.mapPosXFraction = pSlot->x;
     g_GameState.mapPosX = pSlot->x >> 12;
@@ -946,4 +930,4 @@ s32 func_80088720(s32 index) {
     g_GameState.mapPosZ = pSlot->z >> 12;
     return 1;
 }
-*/
+
