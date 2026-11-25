@@ -1086,48 +1086,48 @@ void MenuApplySaveSlot(u32* pSrc) {
     func_801CB184();
 }
 
-/* Best attempt: 84.34% (1476 bytes vs retail's 1448, 7 instructions over).
-   Every call, global and constant is right; what is left is block layout and one
-   register too many:
-   - retail hoists the three cold blocks (close(fileFd) at 0x5A4, the
-     MenuLoadResourceSet/MenuApplySaveSlot arm at 0x5B4) ABOVE the case-1 body, and the
-     early exit jumps to a SHARED shouldUpdatePosition[0] = 1 tail (0x814) - this
-     body reaches the same shape with `goto updateCursor` + a `goto freeBuffer`
-     label but keeps the arm inline, so the byte count is over.
-   - retail keeps 0xFF in $fp for the whole function (`bne v0,s8`,
-     `sw $fp,0x4F80`, `sb $fp,0x4F8C/8D`); this body rematerialises `li a3,0xFF`
-     at each use, i.e. one pseudo short of retail's allocation, and that shows up
-     as the s0/s1 rotation (retry in s0 here, s1 in retail; pData in s1 here, s0
-     in retail). Tried: s32 vs u_char retry (`--retry` in a do-while gives the
-     extra `addiu v0 / move s1,v0` pair, the two-statement form gives `addiu
-     s1,s1,-1` + `andi`), `slot` kept vs inlined, `offset = 0` before vs inside
-     the `if (fd != 0)`, `result = 0` before vs after the second
-     characterWindowBuilt store, duplicated vs `goto` shared tails for both
-     shouldUpdatePosition and HeapFree.
-   - the checksum loop is retail's `addu v0,a0,v0` + `move a0,v0` in the
-     back-branch delay slot; `sum += *pData++;` in a do-while gives `addu
-     a0,a0,v0` (no copy), so the sum needs a second variable.
-   Not tried: a permuter run (the block layout is structural, which the permuter
-   cannot move), and dropping locals to free the register 0xFF wants.
-   Verified: the 0x1EFE-byte checksum, the 5-retry loops, the 0x2100-byte read
-   buffer and the prefix/records filename build (memcpy 6 bytes + strcat of
-   records[slotRecordIndexes[g_MenuCardSlotOrder[selectedSlot]]].ids) all come out as
-   retail's instructions. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
-/*extern u_char func_801C93A8(void);
-extern s32 MenuHandleCardSlotInput(s32 arg0);
-extern void MenuLoadResourceSet(u8 arg0);
-extern void MenuPlaySoundEffect(u8 arg0);
+/* Best attempt: 89.88% (1436 bytes vs retail's 1448; 359 vs 362 insns) under XenoMenu260
+   (gcc-2.6.0). The 84.34 note this replaces was measured on a body that does not compile
+   (it passed an undeclared `ownCard` where retail passes the `card` flag), so re-measure
+   before trusting any number in this unit.
+   What moved it, in order: (1) the block read loop is a do/while - retail's test sits at
+   the BOTTOM (`addiu s3,s3,0x100; lbu 0x4B97(menuUnk2); sll 13; slt; bnez`) and a
+   `while (offset < count << 13)` pre-test cost the six instructions and put pData in $s1
+   instead of retail's $s0: 84.57 -> 89.55. (2) `ready`/`result` declared uninitialised,
+   then assigned `result = 1; ready = 1;` - that is retail's slot pair (ready 0x50, result
+   0x58) with result's store first and ready's in the MenuResetSlotSelection delay slot:
+   89.55 -> 89.88.
+   NAMED RESIDUALS, largest first:
+   (a) BLOCK LAYOUT. Retail puts both cold blocks OUT OF LINE between the
+   `MenuLoadWindow2Text(0x65,...) == 0` arm (0x658C) and the happy path (0x65D4):
+   close(fileFd) at 0x65A4 and the MenuLoadResourceSet(1)/MenuApplySaveSlot/
+   MenuLoadResourceSet(0x11) arm at 0x65B4, each ending in `j <HeapFree>`. This body emits
+   both in place, so the checksum test is `bne v0,v1` + inline arm where retail has
+   `beq v0,v1, 0x5B4`; the in-place form is also where the 3-instruction deficit
+   (1436 vs 1448) comes from.
+   (b) THE ONE CONSTANT REGISTER. Retail keeps MENU_SLOT_NONE in $fp for the whole
+   function (`bne v0,s8`, `sw fp,0x4F80`, `sb fp,0x4F8C/8D`) and spends its single
+   constant-in-register slot on 0xFF; this body emits `li a3,0xff` at each use and spends
+   that slot on 0x100 ($s7, read's size argument and its compare), so `repeat` lands in $s8
+   here against retail's $s7. Tried in the earlier lane: a source-level
+   `u_char none = MENU_SLOT_NONE` - cse constant-propagates it, code identical.
+   (c) `andi v0,v0,0xff` after MenuIsSlotUsable: retail's call site has no mask, so retail
+   saw an int-returning declaration there; ours is defined as u_char in this file (line
+   ~454) and a unit split is out of scope.
+   (d) the prefix's s16 is spelled g_MenuCardPathPrefix0+4 against retail's D_801C50AC -
+   same address, relocation only.
+   (e) checksum loop: retail has `addu v0,a0,v0` + `move a0,v0` in the back-branch delay
+   slot, `sum += *pData++` gives `addu a0,a0,v0`, so the sum needs a second variable that
+   this body does not have - untried.
+   Dead already: presets 2.6.0 -O1 70.63 / -O3 51.91, 2.7.2 78.09, 2.7.2-cdk 76.13, so the
+   unit's 2.6.0 -O2 is right. */
 
-// Reads the save file of the slot MenuResetSlotSelection/MenuFindFirstValidSlot picked
-// off the card, checks its 0x1EFE-byte checksum and hands it to MenuApplySaveSlot.
-// Returns the "stay in the menu" flag, and repeats the whole selection loop while
-// the load was skipped without finding a slot.
+/*
 u_char func_801CB304(void) {
     char path[0x40];
-    s32 ready = 1;
-    u_char result = 1;
-    s32 repeat = 1;
+    s32 ready;
+    u_char result;
+    s32 repeat;
     s32 slot;
     s32 fd;
     s32 fileFd;
@@ -1139,6 +1139,9 @@ u_char func_801CB304(void) {
     s32 sum;
     s32 count;
 
+    result = 1;
+    ready = 1;
+    repeat = 1;
     MenuResetSlotSelection();
     while (repeat) {
         if (func_801C93A8() & 0xFF) {
@@ -1189,7 +1192,7 @@ u_char func_801CB304(void) {
                 fd = open(path, 1);
                 if (fd == -1) {
                     fd = 0;
-                    MenuWaitCardOperationFrames(ownCard);
+                    MenuWaitCardOperationFrames(card);
                 }
                 fileFd = fd;
                 if (fd != 0) {
@@ -1207,13 +1210,13 @@ u_char func_801CB304(void) {
                 pData = pBuffer;
                 g_Menu->pManager->characterWindowBuilt = 0;
                 MenuSetCellGridPanelState(1);
-                while (offset < (g_Menu->menuUnk2->saveBlockCount << 13)) {
+                do {
                     MenuRenderFrame();
                     retry = 5;
                     while (1) {
                         if (read(fd, pData, 0x100) != 0x100) {
                             fd = 0;
-                            MenuWaitCardOperationFrames(ownCard);
+                            MenuWaitCardOperationFrames(card);
                         }
                         if (fd != 0) {
                             break;
@@ -1226,7 +1229,7 @@ u_char func_801CB304(void) {
                     }
                     offset += 0x100;
                     pData += 0x100;
-                }
+                } while (offset < (g_Menu->menuUnk2->saveBlockCount << 13));
                 close(fd);
                 pData = pBuffer + 0x100;
                 sum = 0;
@@ -1274,8 +1277,10 @@ u_char func_801CB304(void) {
     g_Menu->menuUnk2->cardPollMode = 1;
     g_Menu->unk334 = 1;
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
+
+
 
 u_char MenuWaitForCardStatusChange(u_char a0) {
     MenuUnk2* pMenu;
@@ -1963,7 +1968,7 @@ u_char func_801CC6D8(void) {
                         fd = open(ownPath, 1);
                         if (fd == -1) {
                             fd = 0;
-                            MenuWaitCardOperationFrames(ownCard);
+                            MenuWaitCardOperationFrames(card);
                         }
                         if (fd != 0) {
                             break;
@@ -1979,7 +1984,7 @@ u_char func_801CC6D8(void) {
                         while (1) {
                             if (read(fileFd, headerBlock, 0x200) == -1) {
                                 fd = 0;
-                                MenuWaitCardOperationFrames(ownCard);
+                                MenuWaitCardOperationFrames(card);
                             }
                             if (fd != 0) {
                                 break;
@@ -2014,7 +2019,7 @@ u_char func_801CC6D8(void) {
                                 destFd = open(tempPath, 2);
                                 if (destFd == -1) {
                                     fd = 0;
-                                    MenuWaitCardOperationFrames(ownCard);
+                                    MenuWaitCardOperationFrames(card);
                                 }
                                 if (fd != 0) {
                                     break;
@@ -2031,7 +2036,7 @@ u_char func_801CC6D8(void) {
                             while (1) {
                                 if (write(destFd, headerBlock, 0x200) == -1) {
                                     fd = 0;
-                                    MenuWaitCardOperationFrames(ownCard);
+                                    MenuWaitCardOperationFrames(card);
                                 }
                                 if (fd != 0) {
                                     break;
@@ -2053,7 +2058,7 @@ u_char func_801CC6D8(void) {
                                     while (1) {
                                         if (read(fileFd, block, 0x200) != 0x200) {
                                             fd = 0;
-                                            MenuWaitCardOperationFrames(ownCard);
+                                            MenuWaitCardOperationFrames(card);
                                         }
                                         if (fd != 0) {
                                             break;
@@ -2072,7 +2077,7 @@ u_char func_801CC6D8(void) {
                                     while (1) {
                                         if (write(destFd, block, 0x200) != 0x200) {
                                             fd = 0;
-                                            MenuWaitCardOperationFrames(ownCard);
+                                            MenuWaitCardOperationFrames(card);
                                         }
                                         if (fd != 0) {
                                             break;
