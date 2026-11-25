@@ -855,6 +855,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
    even though the cast is to s16 (gcc picks the unsigned halfword load when the
    value only feeds an identical HImode store), so that residual needs a
    differently typed read, not a cast.
+   R486 measured: a separate `u8* pRingTriIds = pRingStep - 0xA;` local does
+   remove the store fold (retail's real addiu) but re-derives the ring base into
+   a2 and moves pActor to t1: 92.76/768 with 98 differing lines. The same
+   pointer declared inside the loop body is 92.45/768 (100 lines), and
+   `int i = 0;` at the top of the function puts the counter in t1 and the pSprite
+   copy in a3 (92.45/772), so retail's `move a3,zero` in the bnez delay slot is
+   not a top-of-function init. Re-measured baseline is still 92.75/768/192 insns.
 */
 /*
 void func_80081C54(int actorIndex) {
