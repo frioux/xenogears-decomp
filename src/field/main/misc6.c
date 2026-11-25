@@ -815,6 +815,17 @@ int FieldCharacterIdToPartyId(int characterId) {
 //   one-return body below is the better park.
 // - residual (b) `addu v0,zero,zero` in the bne delay slot: reorg fills that slot
 //   with the `sll` here; the constant lands at the end of the rotation stores.
+// BEST 90.86%, 316 of retail's 324 bytes (79 vs 81 insns). Both missing insns are one
+// cause: retail keeps the return value 0 live in $v0 from the top of the function, so
+// (a) the 'bne' delay slot holds 'addu v0,zero,zero' and (b) the angle had to be
+// allocated to $a1, which is what makes the 0x7C store's 'sll a0,a1,16; sra v0,a0,16'
+// possible at all. cc1 folds the constant 0 into the epilogue, so $v0 is free for the
+// phi and the angle lands in it instead ('sll v0,v0,9'), which also frees the sra.
+// Measured this round (do not repeat):
+// - 'if (READ_U8(0) != 0xFF) return 0; body; return 0;' (early return first): 89.57%,
+//   320 bytes / 80 insns - cc1 inverts it to 'beq ... ; j epilogue; move v0,zero'.
+// - 's32 nResult = 0; if (...) {body} return nResult;': identical to the park (316) -
+//   cc1 folds nResult to the constant, so the move is still not hoisted.
 /*
 s32 func_8009FA54(s32 nInstructionOffset) {
     s32 nOffset;
@@ -853,10 +864,9 @@ s32 func_8009FA54(s32 nInstructionOffset) {
         pActor->rotation.vz = nRotation;
     }
     return 0;
-}
-*/
-
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
+
 void FieldScriptVMHandlerReloadSceneMapData(void) {
     ActorData* pActor;
 
@@ -1514,26 +1524,27 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-// Re-measured with today's externs: 92.02% at 388 bytes against retail's 368, so
-// the 84.19%/368 below is stale. The body keeps g_FieldActorModelSlotCount's
-// ADDRESS in a register (`lw`/`sw 0(a0)`), where retail re-forms `lui %hi`+`lw`
-// at every one of its four uses, and it hoists the 0xFFFF1FFF mask above the
-// store group; retail builds it between the two model-slot stores. Tried this
-// round: two sequential do-while-0 blocks around the store groups (92.58%, 396
-// bytes - bigger), reverting to the plain list. Untried: an explicit volatile
-// u32 RMW at 0x12C (the header has only the bitfields, so it needs an offset
-// cast).
-// Screened 36 variants: best 84.19% here, cdk 81.67%, 2.6.0 83.64% - the RMW vs
-// `++` store order is the gap (already reordered in cc1's .s).
-// 84.19% (368 vs 368 bytes): the frame, all four calls and every load/store match.
-// The only gap is ORDER: retail emits the flags12C bitfield RMW and only then
-// reloads g_FieldActorModelSlotCount for the `++`, with `sw g_FieldActorModelSlotCount` last; gcc shares one load
-// between the `& 7` and the `++` and hoists the `++` store above the RMW store.
-// Cause is the -O2 scheduler hoisting an independent store, not the allocator: a
-// volatile store (`(*(volatile s32*)&g_FieldActorModelSlotCount)++`) is hoisted just the same (and
-// adds a redundant reload, 72.02%), and the reorder is already present in cc1's
-// .s. Parking: making the `++` store depend on the RMW store is not expressible in
-// source. Everything else in the function is exact.
+// RETAIL IS 396 bytes / 99 insns (0x31874-0x31A00), not 368: the old '84.19%/368' note compared against a wrong size.
+// BEST 92.58% at 396 bytes / 99 insns, exactly retail's size, with the body below
+// (each count access in its own do{...}while(0) so cc1 re-forms the symbol address).
+// Residual, all one cause: retail forms the g_FieldActorModelSlotCount address four
+// separate times (four 'lui %hi'+'lw %lo' pairs, and the increment store as
+// 'lui at'+'sw %lo(at)'), where cc1 caches &count in a register for the third and
+// fourth uses ('lui/addiu' then 'lw 0(a0)' twice, 'sw 0(a0)'). Retail's stock-based
+// access is 2 insns per use; the cached base is 2 insns once plus 1 per use, so
+// every spelling that breaks the cache also changes the byte count. Also, retail's
+// mask 'lui a1,0xffff' fills the load-delay nop after 'lhu v1,88(v0)' and its
+// 'ori a1,a1,0x1fff' lands after the sb; both follow from the same scheduling.
+// Measured this round (all landed 396 or worse and scored below 92.58):
+// - plain 4 statements, extern s32 g_FieldActorModelSlotCount[]: 92.02%, 388 bytes
+//   (97 insns) - 2 insns short because of the cached base.
+// - same, do-while(0) around each of the 4 statements: 92.58%, 396 (this park).
+// - do-while(0) around the two store groups instead of each statement: same 92.58%.
+// - extern volatile s32 g_FieldActorModelSlotCount[] (array): 90.84%, 392.
+// - extern s32 g_FieldActorModelSlotCount; (scalar, gp-relative loads): 84.19%, 368.
+// - extern volatile s32 g_FieldActorModelSlotCount; (scalar): 74.43%, 396 - the
+//   right size and insn count, but gcc sinks the 0x12C RMW below the increment.
+// - try_flags: cdk 88.88, 2.6.0 91.46, -G0 92.02, cdk -G0 73.38 - no preset wins.
 /*
 void func_800A1364(void) {
     int arg;
@@ -1551,12 +1562,19 @@ void func_800A1364(void) {
     g_FieldActors[g_FieldCurActorIndex].status &= ~ACTOR_STATUS_INVISIBLE;
     g_FieldScriptVMCurActor->flags |= 0x2000;
     g_FieldScriptVMCurActor->flags &= ~0x800;
-    g_FieldActorModelSlotArchiveBase[g_FieldActorModelSlotCount[0]] = arg;
-    g_FieldActorModelSpriteRow[g_FieldActorModelSlotCount[0]] = 0;
-    g_FieldScriptVMCurActor->flags12C_0xE = g_FieldActorModelSlotCount[0] & 7;
-    g_FieldActorModelSlotCount[0]++;
-}
-*/
+    do {
+        g_FieldActorModelSlotArchiveBase[g_FieldActorModelSlotCount[0]] = arg;
+    } while (0);
+    do {
+        g_FieldActorModelSpriteRow[g_FieldActorModelSlotCount[0]] = 0;
+    } while (0);
+    do {
+        g_FieldScriptVMCurActor->flags12C_0xE = g_FieldActorModelSlotCount[0] & 7;
+    } while (0);
+    do {
+        g_FieldActorModelSlotCount[0]++;
+    } while (0);
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
 
 void FieldScriptVMHandlerSetActorModelFromSpriteIndexWithFlags(void) {
