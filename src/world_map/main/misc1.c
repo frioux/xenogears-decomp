@@ -457,7 +457,7 @@ void func_80071CDC(void) {
     s32 j;
     StreamDataQueueEntry* pQueue;
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         partyId = g_GameState.partyMembers[i];
         characterId = partyId;
         if (characterId != CHARACTER_ID_NONE) {
@@ -478,7 +478,7 @@ void func_80071CDC(void) {
     }
     i = 0;
     g_WorldMapQueuedCharacterCount = 0;
-    for (j = 0; j < 3; j++) {
+    for (j = 0; j < MAX_PARTY_MEMBERS; j++) {
         characterId = g_GameState.partyMembers[j];
         if (characterId != CHARACTER_ID_NONE) {
             g_WorldMapStreamQueueEntries[i].archiveIndex = characterId + 2;
