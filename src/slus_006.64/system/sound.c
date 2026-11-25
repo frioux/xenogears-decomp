@@ -1368,6 +1368,7 @@ void SoundSpuMemoryInitialize(void) {
 // the nine measured in round 316 plus three permuter runs stand.
 // Round 446 re-measured the un-parked body: 94.58% / retail's exact 256 bytes / 64 insns, 40 differing lines, all one cause. One more dead spelling measured: pointer arithmetic on the struct type (`g_SoundSpuMemoryBlocks + pPrevBlock->nextBlockIndex`, no u8 cast) is byte-identical to the cast form, 94.58 / 256 / 64 - the 15th spelling. NEW READ of the two objects (this is why the spellings cannot move it): retail has NO register holding &Arr inside the loop, because its `la s1` IS pPrevBlock and pPrevBlock is overwritten by `move s1,a0`, so the loop head materialises the base with two insns (lui+addiu, in the lh load-delay slot); our body keeps &Arr in s0 at the loop head and loop.c snapshots it there with `move a2,s0` + a nop filler, i.e. one insn SHORTER per iteration than retail - and because that register is then reused for pPrevBlock the two callee-saved pointers swap (address s1 / pPrevBlock s0 vs retail's s0/s1) and every later s0/s1 reference mirrors with them. So the residual is move_movables' choice of the invariant's rtx class (symbol constant vs the REG_EQUAL register the preheader `la` left behind), not an address spelling; that also explains why the loop is 1 insn long per iteration and still 0 bytes off. Do not re-enter without a way to stop the preheader la from being the invariant.
 // Round 459: re-measured the un-parked body: 94.58% / retail's exact 256 bytes / 64 insns, 40 differing lines - the same one cause as round 446 (the invariant &g_SoundSpuMemoryBlocks is hoisted into a2 with a per-iteration 'move a2,s0' plus a nop in the lh's load-delay slot where retail re-forms it with lui+addiu, and because that copy references s0 the address/pPrevBlock pair mirrors: ours address s1 / pPrevBlock s0, retail s0/s1). One new spelling measured, byte-identical: reading the address back through pPrevBlock after the pointer update ('address = pPrevBlock->spuAddress + pPrevBlock->size;') is 94.58 / 256 / 64, the 16th. Do not re-enter without a way to stop the preheader la from becoming the loop's invariant: with the invariant hoisted, s0/s1 cannot mirror retail, so this is not a callee-saved quotient contest.
+// Round 472: re-measured the un-parked body at 94.58% / retail's exact 256 bytes / 64 insns / 40 differing lines - unchanged, the residual is still the loop head only (retail re-forms the base per iteration with lui+addiu in the lh load-delay slot and keeps address in s0 / pPrevBlock in s1, while gcc 2.6 hoists &g_SoundSpuMemoryBlocks into the loop head as 'move a2,s0' plus a nop filler and swaps the two callee-saved pointers). One more spelling measured this round: computing 'address' from the array itself ('g_SoundSpuMemoryBlocks[0].spuAddress + g_SoundSpuMemoryBlocks[0].size') before forming pPrevBlock - it disarranges the preheader (the three %lo loads and the la reorder, +2 insns of shuffling) so it was abandoned unscored and reverted; the preheader in retail is load-load-load, la, beqz with the addu in the delay slot, which the parked body already reproduces exactly. Standing conclusion from rounds 316/446/459: every spelling hoists (nine probed with cc1_probe.sh), so this is move_movables' invariant choice, not source. Do not re-enter without a way to stop the preheader la from becoming the loop's invariant.
 /*
 int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
     SoundSpuMemoryBlock* pPrevBlock;
@@ -1408,6 +1409,7 @@ allocate:
     return address;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlock);
+
 
 
 
@@ -4575,6 +4577,9 @@ u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, Au
 // Three permuter runs: 798 -> 595 -> 531 -> 471 (the last found the envelope pointer local).
 // Next lead: retail's `move s3,a2` only appears when `mode` keeps s3 and dies at the index, so
 // the source needs the `& 0x10` test emitted before the index and the `== 0` after it.
+// Round 472: 93.66% (244 bytes = retail's size, 61 insns = retail's, 48 differing lines) with the body below - new best, up from the 92.30 park. The instruction STREAM is now identical instruction-for-instruction to retail; every remaining difference is a callee-saved REGISTER IDENTITY. Retail: s1=pAudioElements s2=volume s3=mode/index, and the index is made by 'andi a2,s3,0xf' + a hoisted copy 'move s3,a2' (the index home) before the call, so the jal delay slot holds 'sra a1,a1,0x10'. Ours: s1=mode/index s2=pAudioElements s3=volume, 'andi s1,s1,0xf' in place and the arg copy deferred to the delay slot ('move a2,s1') - same 61 insns, both spend 2 insns on the index.
+// What got here: the flags test must be emitted BEFORE the index ('rateMask = mode & 0x10;' then 'index = mode & 0xF;' then 'flags = (rateMask == 0) * 2;' - that split alone is 93.66 from 92.30, and it is the round-471 note's next lead, now measured). What did not move the register order (all measured this round, all worse or equal): the direct 'pAudioElements->envelopes[2].field' spelling for every store and '&pAudioElements->envelopes[2]' at the reset (90.46 - a sub-word index makes all stores 'sw rt,0x124(s1)' but the allocno order is unchanged, so the pEnvelope local is kept), 'mode & 0xF' inline at the call with 'index = mode & 0xF;' after it (90.54 - cse2 merges to ONE andi that lands just before the jal instead of after the flags test), and 's32 mode' instead of 'u8 mode' (93.66, byte-identical). Parked because the residual is the global allocator's ORDER of the four callee-saved allocnos (ours mode-first, retail pAudioElements-first), not a spelling: reference counts and live ranges of the same three pseudos differ nowhere, so no source edit that keeps the instruction stream intact has shifted it yet.
+// SAME RETAIL BODY: func_8003DD24 is instruction-for-instruction identical apart from envelopes[0]/target 1/mask 0x2, so this body should be ported there (its park is 84.75).
 /*
 u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     short volume = pScript[0];
@@ -4583,12 +4588,14 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     AudioEnvelope* pEnvelope;
     s32 index;
     s32 flags;
+    s32 rateMask;
 
     if (note != 0) {
-        index = mode & 0xF;
         if (volume != 0) {
             volume += (volume * volume) / 64;
-            flags = ((mode & 0x10) == 0) * 2;
+            rateMask = mode & 0x10;
+            index = mode & 0xF;
+            flags = (rateMask == 0) * 2;
             pEnvelope = &pAudioElements->envelopes[2];
             pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
             pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
@@ -4604,9 +4611,9 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     }
 
     return pScript + 3;
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
+
 
 u8* SoundScriptSetUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask |= 0x4;
