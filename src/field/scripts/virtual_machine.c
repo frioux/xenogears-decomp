@@ -294,16 +294,24 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // is left is the register swap of the two loop temps: retail keeps pFieldActor in $a1 and
 // pActor in $a0, gcc puts pFieldActor in $a0 and pActor in $a1 (and reloads pActorData
 // from 0x4C($a1) in the join block).  Sizes are identical (636 bytes).
-/*
-extern s32 g_FieldActiveActorCount;
-extern s32 g_FieldEntryRoutineFinished;
+// Round 480: re-measured 90.55% / 636 bytes / 159 insns, retail's own size. The register
+// swap is a CONSEQUENCE of one missing instruction, not an allocno tie: retail loads
+// pActorData twice - a temp in $v0 for the flags guard at 0x20B8, then a fresh
+// `lw a0,0x4C(a1)` in the join block at 0x2124 - so its pActorData pseudo is born late and
+// short-lived and out-prioritises pFieldActor in global.c. gcc CSEs the two 0x4C loads here
+// (the gate checks between them are plain loads), which makes pActorData long-lived, hands
+// it $a1 and pushes pFieldActor to $a0 - the whole 68-line diff follows from that one
+// eliminated load. Nothing else is missing. Presets this round: gcc-2.7.2-cdk 85.14,
+// gcc-2.6.0 89.86, -O3 39.52.
 extern s32 g_FieldMode;
-extern FieldActor* g_FieldScriptVMCurFieldActor;
+extern s32 g_FieldActiveActorCount;
 extern s32 D_800ADB68;
 extern s32 D_800C4268;
 extern u_char g_FieldPartyMoveInProgress;
-extern s32 g_FieldPartyActorSlots[3];
+extern s32 g_FieldPartyActorSlots[MAX_PARTY_MEMBERS];
+extern FieldActor* g_FieldScriptVMCurFieldActor;
 
+/*
 // Runs the field script VM for every actor that has a script pending
 void func_800A2030(void) {
     int i;
@@ -1006,45 +1014,52 @@ void func_800A3474(void) {
 
 
 
-INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
-// Best attempt: 86.75% (692 bytes vs 696). Everything structural already matches: the 0x74-byte
-// memcpy through `(u8*)&g_FieldNumActors - 0xB8` reproduces the original's two-loop
-// mips_expand_block_move verbatim (the (src|dst)&3 alignment test, the lwl/lwr loop, the lw loop and
-// the 4-byte tail), and both loops plus the SpriteRestoreAnimState guard chain match instruction for
-// instruction. What is left is register roles and one missing reload:
-//  1. the original keeps &g_FieldNumActors in $a0 and derives $a3 = $a0 - 0xB8, and keeps
-//     &g_WorldMapSaveBlock in $a1 (addiu $v0,$a1,0x3C / move $a2,$v0); gcc here folds the -0xB8 into the
-//     symbol (lui $a3 / addiu $a3,-184) and puts &g_WorldMapSaveBlock in a temp. Tried inline expressions and
-//     an explicit pSrc local, no change.
-//  2. the original reloads pActorData from the FieldActor in the last block (lw $v0,0x4C($a1)) and
-//     tests flags12C with `andi $v0,$v0,0x1000`; gcc keeps pActorData in $a0 across the jal and
-//     reports the flags12C read as a plain word test here (it needs the u_int cast to avoid a
-//     srl/andi pair, that part is now right).
-// Round 306: the body below copies from 'pSrc' = &g_WorldMapSaveBlock, but retail copies from
-// &g_WorldMapSaveBlock + 0x3C ('addiu v0,a1,0x3C / move a2,v0' then the lwl/lwr loop, and its loop
-// end pointer is save+0xAC). Also measured: the two-statement 'pDst = (u8*)&g_FieldNumActors;
-// pDst -= 0xB8;' form still folds the -0xB8 into the la addend ('addiu a3,a3,-184' with the %lo
-// relocation) and scores 84.25%, so the materialise-then-adjust shape needs another lever.
+// Pulls the field state func_800A3F4C pushed into the save block back out.
+// PARKED 91.47% (688 bytes, 172 insns against retail's 176). Round 480 rebuilt the head
+// from the .s: the 0x74-byte copy takes its source from &g_WorldMapSaveBlock + 0x3C
+// (earlier bodies copied from the block base) and its destination from
+// (u8*)&g_FieldNumActors - 0xB8, which reproduces the two-loop lwl/lwr
+// mips_expand_block_move verbatim. 86.75 -> 88.71 -> 91.47.
+// Load-bearing spellings measured this round:
+//  - the actor loop must go through an element-pointer local that is re-assigned at the
+//    top of each of its three blocks: retail re-reads the volatile g_FieldActors once per
+//    block and reuses that one element pointer for every field in the block. Spelling
+//    g_FieldActors[i].pSpriteData in the SpriteRestoreAnimState call instead costs 4 insns.
+//  - the 0x12C flag is bit 12, i.e. the bitfield flags12C_0xD (retail's andi 0x1000): it
+//    gates the same 0x10-byte pScriptArgs chunk that func_800A3F4C writes.
+//  - `g_WorldMapSaveCursor += 0x920;` must sit after a memory store (here *pNumActors).
+//    Placed directly after the `= pSrc + 0x3C;` store, gcc folds the two into one store
+//    of pSrc+0x95C and the second store and its reload both disappear.
+// What is left:
+//  1. retail materialises &g_FieldNumActors into $a0, stores through it (sw v1,0(a0)) and
+//     derives the copy destination with addiu a3,a0,-0xB8. gcc 2.7.2 folds both uses into
+//     a %lo addend (lui a3,%hi; addiu a3,-184) plus the assembler's $at store - those 2
+//     insns are the whole size difference. Tried without change: the pNumActors pointer
+//     local below, the inline (u8*)&g_FieldNumActors - 0xB8 form, and the store placed
+//     before and after the memcpy.
+//  2. moving the *pNumActors store between the two cursor stores keeps retail's two
+//     cursor stores and reads 91.21% / 696 bytes at 174 insns; both shapes are
+//     measurable and the one below scores highest.
+//  3. allocator only: block 1 keeps the element pointer in $v0 and the cursor in $a1
+//     where this compile uses $a1/$a2, and block 2's pActorData lands in $a1 here against
+//     $a0 there - a one-register shift at the same instruction count.
+// Presets measured on this body: gcc-2.7.2-cdk 85.70, cdk -G0 73.59, -O3 compile-fails.
 /*
-extern u8 g_WorldMapSaveBlock;
-extern u8* g_WorldMapSaveCursor;
-extern s32 g_SavedGearRide[3];
-extern s32 g_FieldActiveActorCount;
-extern s32 g_FieldSceneReloadFlags;
-extern void SpriteRestoreAnimState(void*, u8*);
 void func_800A3C8C(void) {
     int i;
     int nDiff;
     ActorData* pActorData;
+    FieldActor* pFieldActor;
+    int* pNumActors;
     u8* pCursor;
     u8* pSrc;
 
-    pSrc = &g_WorldMapSaveBlock;
-    memcpy((u8*)&g_FieldNumActors - 0xB8, pSrc, 0x74);
-    g_FieldNumActors = *pSrc;
+    pSrc = g_WorldMapSaveBlock;
+    pNumActors = &g_FieldNumActors;
     g_WorldMapSaveCursor = pSrc;
-    g_WorldMapSaveCursor = &g_WorldMapSaveBlock + 0x3C;
-    g_WorldMapSaveCursor += 0x920;
+    g_WorldMapSaveCursor = pSrc + 0x3C;
+    *pNumActors = pSrc[0];
+    memcpy((u8*)pNumActors - 0xB8, pSrc + 0x3C, 0x74);
 
     nDiff = 0;
     for (i = 0; i < 3; i++) {
@@ -1052,33 +1067,39 @@ void func_800A3C8C(void) {
             nDiff++;
         }
     }
+    g_WorldMapSaveCursor += 0x920;
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
-        pActorData = g_FieldActors[i].pActorData;
+        pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
+        pActorData = pFieldActor->pActorData;
         pCursor = g_WorldMapSaveCursor;
         g_WorldMapSaveCursor = pCursor + 0xC;
         if (pActorData->specialAnimArchiveIndex != -1 && pActorData->animationOverride != 0xFF) {
             *(u_short*)(pCursor + 0x20) = pActorData->animationOverride;
         }
 
-        pActorData = g_FieldActors[i].pActorData;
+        pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
+        pActorData = pFieldActor->pActorData;
         if (!(pActorData->flags & 0x1000000) &&
             (g_FieldSceneReloadFlags == 0 || !(pActorData->scriptFlags.flags & 0x600) || nDiff == 0)) {
-            SpriteRestoreAnimState(g_FieldActors[i].pSpriteData, g_WorldMapSaveCursor);
+            SpriteRestoreAnimState(pFieldActor->pSpriteData, g_WorldMapSaveCursor);
         }
 
-        pActorData = g_FieldActors[i].pActorData;
+        pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
+        pActorData = pFieldActor->pActorData;
         pCursor = g_WorldMapSaveCursor;
         g_WorldMapSaveCursor = pCursor + 0x168;
         if (pActorData->flags134 & 0x80) {
             g_WorldMapSaveCursor = pCursor + 0x174;
         }
-        if (*(u_int*)((u_char*)pActorData + 0x12C) & 0x1000) {
+        if (pFieldActor->pActorData->flags12C_0xD) {
             g_WorldMapSaveCursor += 0x10;
         }
     }
 }
 */
+INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
+
 
 // Pushes the field state the world map is about to overwrite into the save block,
 // one memcpy per block, then the actors' animation state and the script memory.
