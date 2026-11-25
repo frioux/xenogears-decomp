@@ -913,39 +913,40 @@ void func_80092B74(u8 arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 /* 93.09% (1220 bytes against retail's 1228, 305 vs 307 instructions) under this
-unit's gcc 2.6.0. Frame 0xB0 and all ten saved registers are retail's.
-THE WIN this round: the first BattleSetPolyFT4Rect site reads
-*(volatile s32 *)g_BattlePrimStartIndex for the prim index. Retail's object
-reloads that word (`lw v0,0(s0)`) and recomputes * 0x28 after the packet-pool
-`sh` store, where a plain read keeps the product in $a0 and saves 4
-instructions; the cast-away volatile is the lever battle/main/misc1 already
-records. Same body without it: 90.96% / 1204 bytes / 301 insns, so this is a
-+4-insn, +16-byte, +2.13% single edit.
-Residual is 3 items, all allocator/assembler, none structural:
-(1) pValue is memory-bound in retail and register-bound here (net 4 insns):
-retail reloads it as `lw t1,0x70(sp)` in the ones-digit arm and does
-`pValue++` through the slot (`lw/addiu/sw`), and only caches it in $s4 across
-the j loop; this body keeps it in $s5 and instead spills pId. Every s-register
-is live in both compiles (8 in the j loop: tensbase, j, pBufs[i], i, pValue,
-started, textY, textY') so it is a tie-break, not a count difference.
-(2) the glyph RECT address: retail recomputes `addiu a0,sp,0x20` in the
-BattleLoadImageAndSync delay slot, this body spills &glyphRect into 0x68 and
-reloads it (`sw t1,104(sp)` ... `lw a0,104(sp)` + nop), which costs 2.
-(3) g_BattleSlotTextIndex is a `lui %hi/addiu` + `addu` pair here where
-retail's object has the one-operand `lui $at,%hi / addu $at,$at,v0 /
-lbu %lo($at)` (costs 1); g_BattleDigitImageBuffers in the same loops does
-come out in the $at form, so the difference is register pressure at that site.
-The 0x80 slot is retail's HImode read of the SImode `i*16+0x100` temp
-(`lhu` + nop where this body has `lw`), so the ys are the INLINE expressions,
-not variables.
-Tried and measured on this body: no pGlyphRect hoist (`&glyphRect` inline ->
-86.08%, gcc spends a register on the anchor, frame grows to 0xB8); pGlyphRect
-assigned inside the loop body (88.22%); an `__asm__`-labelled alias for
-g_BattleSlotTextIndex (identical 93.09 - the `la` is not the round-471 hoist,
-the symbol has only one site here). Not retried from the older note: named
-y/textY variables (87.29), divisors initialiser (80.83), declaration-order
-permutations, two permuter runs (5255 -> 4281 -> 3657).
- */
+// unit's gcc 2.6.0. Frame 0xB0 and all ten saved values are retail's, and the four
+// reload-spill slots are retail's offsets (0x68, 0x70, 0x78, 0x80, all 8 apart).
+// THE WIN this round: the first BattleSetPolyFT4Rect site reads
+// *(volatile s32 *)g_BattlePrimStartIndex for the prim index. Retail's object
+// reloads that word (`lw v0,0(s0)`) and recomputes * 0x28 after the packet-pool
+// `sh` store, where a plain read keeps the product in $a0 and saves 4
+// instructions; the cast-away volatile is the lever battle/main/misc1 already
+// records. Same body without it: 90.96% / 1204 bytes / 301 insns.
+// Residual, re-measured round 491, is three allocator decisions and no structure:
+// (1) WHICH value takes the fourth spill slot. Retail spills pValue there; this
+// body keeps pValue in $s5 and spills the pGlyphRect address at 0x68, which costs
+// 3 (retail's `lw t1,0x70(sp)` in the ones arm, and its `lw/addiu/sw` pValue++ at
+// the loop end) and saves 2 (the preheader address store and its reload), i.e. the
+// -2 insn / -8 byte gap. The allocator is not wrong to do it: the address has 2
+// refs against pValue's many, and the spill slot map is NOT the spilled set.
+// (2) the glyph RECT address: retail recomputes `addiu a0,sp,0x20` in the
+// BattleLoadImageAndSync delay slot, this body reloads it from 0x68.
+// (3) g_BattleSlotTextIndex comes out as `lui/addiu` + `addu` + `lbu` (4 insns)
+// where retail's object has the one-operand `lui $at,%hi / addu $at,$at,v0 /
+// lbu %lo($at)` (3); g_BattleDigitImageBuffers at the same loop depth does take
+// the $at form, so it is register pressure at that one site.
+// Measured dead this round: no pGlyphRect, &glyphRect inline in the one call
+// (88.22% / 1220 bytes / 305 insns, frame 0xB8 - loop.c hoists the address even
+// from a single conditional use, spills it at 0x80, pushes y to 0x88 and spills a
+// further value at 0x78); declaring pValue before pId (byte-identical, 93.09);
+// try_flags: 2.7.2 -O2 -G8 93.47, 2.7.2-cdk 83.96, 2.6.0 -O3 93.09, -G0 93.09, so
+// the preset is not the answer.
+// Already dead in earlier rounds: no pGlyphRect hoist (86.08, gcc spends a
+// register on the anchor, frame 0xB8), pGlyphRect assigned inside the loop
+// (88.22), an asm-labelled alias for g_BattleSlotTextIndex (identical 93.09, the
+// symbol has only one site here), named y/textY variables (87.29), divisors
+// initialiser (80.83), declaration-order permutations, two permuter runs
+// (5255 -> 4281 -> 3657).
+//  */
 /*
 void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     RECT glyphRect;
@@ -1046,8 +1047,9 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->unkB7 = 4;
-}
-*/
+}*/
+
+
 
 void BattleDrawActionRowIcons(u8 arg0, u8 arg1) {
     u8 *pRec;
