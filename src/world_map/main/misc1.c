@@ -461,22 +461,23 @@ void WorldMapSetLevelFileIndices(s32 arg0, s32 arg1) {
 //     - an index-variable spelling with the -4 pointer form: 85.92% (round 471 note; the s32 ids and the two cursors above are what took it to 94.10)
 //     Not tried: a permuter run (the stop rule bars it below 99%).
 // */ 
+// ROUND 484: best 96.61% at retail's EXACT 532 bytes / 133 insns, and LOOP 1 IS BYTE-IDENTICAL. Nothing left but loop 2's register hand-out (60 differing lines are all register names, one size-for-size permutation). What got here: (a) loop 1 wants u8 characterId/gearId (only then do lbu a0 + the addu in the beq delay slot + the hoisted zero-arm store come out right - with s32 ids loop 1 gains a nop and a trailing addu, +1 insn); (b) loop 2 wants s32 ids (u8 there re-adds 'andi v0,0xff' before the 0xFF test); (c) loop 2 must index 'g_WorldMapStreamQueueEntries[nCount]' - a struct-array subscript, not the two pointer cursors of the old park. That subscript is what produces retail's preheader exactly: one lui/addiu for the +4 base plus 'addiu aN,aX,-4' for the archiveIndex giv (loop.c derives one giv from the other), and it also drops the frame from 0x38 to retail's 0x30. The tail writes 'entries[nCount].archiveIndex/pData = 0', byte-identical to retail (reloc names g_WorldMapStreamQueue+4 where the object names g_WorldMapStreamQueueEntryData = SECOND EXCEPTION). Residual: retail keeps loop-2's index in a0 and nCount in s1 and loop-2's charId in s0; we hold index i in s1 (it is the SAME pseudo as loop 1's i, so s1 is pinned for the whole function), nCount in a2, charId in v1. Every attempt to give loop 2 its own index variable (s32 j, declared first/second/last - 3 orders measured) rotates LOOP 1's three s-registers instead (i s1->s3, 4i-giv s2->s1, party cursor s3->s2) and scores 95.35 at the same 532 bytes; sharing one u8 charId across both loops re-adds the andi (94.59). So the pair is the allocator's ordering of loop-1's i against its own two givs, decided by the presence of a second index pseudo - see levers a-one-counter-per-loop-nest-moves and a-a-near-miss-allocno-quotient; below 99, so no permuter run.
 /*
 void func_80071CDC(void) {
-    void** ppEntryData;
-    u16* pArchiveIndex;
+    u8 characterId;
+    u8 gearId;
     s32 i;
     s32 nCount;
     s32 nCharacterId;
     s32 nGearId;
 
     for (i = 0; i < 3; i++) {
-        nCharacterId = g_GameState.partyMembers[i];
-        if (nCharacterId != CHARACTER_ID_NONE) {
-            g_WorldMapPartyActorAnimFile0[i] = HeapAlloc(ArchiveDecodeAlignedSize(nCharacterId + 2), 0);
-            nGearId = g_GameState.characters[nCharacterId].gearId;
-            if (nGearId != GEAR_ID_NONE) {
-                g_WorldMapActorAnimFiles[i] = HeapAlloc(ArchiveDecodeAlignedSize(nGearId + 0x13), 0);
+        characterId = g_GameState.partyMembers[i];
+        if (characterId != CHARACTER_ID_NONE) {
+            g_WorldMapPartyActorAnimFile0[i] = HeapAlloc(ArchiveDecodeAlignedSize(characterId + 2), 0);
+            gearId = g_GameState.characters[characterId].gearId;
+            if (gearId != GEAR_ID_NONE) {
+                g_WorldMapActorAnimFiles[i] = HeapAlloc(ArchiveDecodeAlignedSize(gearId + 0x13), 0);
             } else {
                 g_WorldMapActorAnimFiles[i] = 0;
             }
@@ -487,29 +488,23 @@ void func_80071CDC(void) {
     }
     nCount = 0;
     g_WorldMapQueuedCharacterCount = 0;
-    ppEntryData = &g_WorldMapStreamQueueEntryData;
-    pArchiveIndex = &g_WorldMapStreamQueue.archiveIndex;
     for (i = 0; i < 3; i++) {
         nCharacterId = g_GameState.partyMembers[i];
         if (nCharacterId != CHARACTER_ID_NONE) {
-            *pArchiveIndex = nCharacterId + 2;
-            pArchiveIndex += 4;
-            *ppEntryData = g_WorldMapPartyActorAnimFile0[i];
-            ppEntryData += 2;
+            g_WorldMapStreamQueueEntries[nCount].archiveIndex = nCharacterId + 2;
+            g_WorldMapStreamQueueEntries[nCount].pData = g_WorldMapPartyActorAnimFile0[i];
             g_WorldMapQueuedCharacterCount++;
             nCount++;
             nGearId = g_GameState.characters[nCharacterId].gearId;
             if (nGearId != GEAR_ID_NONE) {
-                *pArchiveIndex = nGearId + 0x13;
-                pArchiveIndex += 4;
-                *ppEntryData = g_WorldMapActorAnimFiles[i];
-                ppEntryData += 2;
+                g_WorldMapStreamQueueEntries[nCount].archiveIndex = nGearId + 0x13;
+                g_WorldMapStreamQueueEntries[nCount].pData = g_WorldMapActorAnimFiles[i];
                 nCount++;
             }
         }
     }
-    *(s16*)((u8*)&g_WorldMapStreamQueue + nCount * 8) = 0;
-    *(void**)((u8*)&g_WorldMapStreamQueueEntryData + nCount * 8) = 0;
+    g_WorldMapStreamQueueEntries[nCount].archiveIndex = 0;
+    g_WorldMapStreamQueueEntries[nCount].pData = 0;
     ArchiveStartStreamQueue(&g_WorldMapStreamQueue, 0, 0);
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
@@ -1145,6 +1140,7 @@ void WorldMapDrawFadeFrames(s32 count, s32 color, s32 colorStep, s32 abr) {
 //    Second residual, same cause: the value pseudo is a1 here, v0 in retail. The table itself is not
 //    the blocker - this stub's table is the middle object of the unit's own rodata range at +0x18
 //    (5 words + the 4-byte align pad), and a 5-word C table lands there exactly (range 0x4..0x50).
+// best 93.68% (144 bytes = 2 insns short of retail 152). Round 484: root cause confirmed as gcc's cross-jumping (jump.c) merging case 3 and case 4 - both are byte-identical 2-insn arms ('j .L80073388' + 'li v0,7') at DIFFERENT addresses, which only a compiler that does not cross-jump emits; every source-identical spelling of two equal body cases fuses to one 'li a1,7;j' block (the .s labels it '$L83: $L84:'). New measurements this round: -O3 93.68 (same merge), gcc-2.7.2-cdk compile-failed. Second residual is downstream of the merge: the value pseudo lands in a1 where retail uses v0. Needs -fno-cross-jumping (a per-function flag, not allowed) or a unit preset whose jump.c does not cross-jump; do not retry source shapes.
 /*
 void func_80073300(void) {
     s32 nMode;
@@ -1177,6 +1173,7 @@ void func_80073300(void) {
     g_WorldMapMode = nMode;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
+
 
 
 
