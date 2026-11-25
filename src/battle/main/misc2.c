@@ -186,6 +186,10 @@ Tried and measured, do not repeat: the old base-first `g_BattleGraphicsWork + of
 // Re-measured with every remaining raw cast replaced by the typed BattleWork field (panelPackageCounts[i], panelPrimStart[i], panelPending[i], unk78[i], valueSpritePrimStart[i], statDigitPrimStart[i]): identical instruction stream, 89.56% - the typed form is what this park now holds.
 // Root residual, exactly: in loop 3 retail has off3 in $s1 and off in $s2, in loop 6 off2 in $s1, off in $s2 and off3 in $s3; this body gives off $s1 in both, so the increments land in the wrong slots. Retail's loop-6 preheader emits the for-init as off3, off, off2 (this body emits off, off2, off3) - reordering the init to off3/off/off2 was tried and is identical, and so was the old base-first gfx spelling (89.43).
 // A permuter run is the right next step (structure is right, all six loops present, exact size); it is out of scope for a lane that cannot exceed 99%.
+// Re-measured this round at 201 insns / 804 bytes = retail's exact size and instruction count, frame 0x30, saves ra+s0-s4 exact: 89.56%, 92 differing lines, all register allocation in loops 3 and 6 as described above.
+// Preset screen (new this round, closes that leg): gcc-2.7.2-cdk-psx 81.86 and gcc-2.7.2-psx does not compile the unit's own body, so the XenoLibrary 2.6.0 preset is right and the residual is not a compiler-version artefact.
+// Also measured this round, no change: reversing the declaration order of i/off/off2/off3/p/pOT at the top of the body is byte-identical (89.56, same 92 lines), so allocno creation here follows statement order, not declaration order - do not spend a pass on that. Below 99% no permuter run is allowed, so this park is closed unless a lane gets the loop-3/loop-6 allocno assignment from another lever.
+/*
 void func_80073B64(void) {
     s32 i;
     s32 off;
@@ -253,7 +257,9 @@ void func_80073B64(void) {
             }
         }
     }
-}
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
+
 
 void BattleAddTwoPrimLists(void) {
     s32 i;
