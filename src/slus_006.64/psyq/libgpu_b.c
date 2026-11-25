@@ -383,45 +383,27 @@ u_long func_80045C10(RECT *tw) {
 }
 */
 
-/* best: 93.30% (172 bytes, 4 SHORT of retail's 176 - unlinkable; the 91.36 variant
-   below is retail's exact size and has the better tail). The dispatch is a switch:
-   retail is beq/beq/j with the default (return p->x) block last, and the three
-   "return p->x" paths already merge into retail's single lh v0,0(a0) block here.
-   Earlier state (92.73 / 184 bytes): every spelling made gcc merge only the last
-   subu, into a third block that costs one instruction. Measured then: plain
-   return 0x400 - p->w - p->x in both arms 88.02 (gcc reassociates to
-   (0x400 - p->x) - p->w, which swaps the two loads and kills the merge); 92.68
-   with the w = p->w / 2 local in case 2; 87.16 with the v = 0x400 - p->w form in
-   both arms; 92.73 with both; a 4-minute permuter run (base=457 best=317) found
-   only the un-parenthesised case-2 arm, 88.07.
-   ROUND 432: THE SHARED TAIL IS SOURCE-LEVEL, NOT A MERGE. Retail's block layout
-   is [dispatch][case 1][tail .L80045CD4][case 2][case2 non-reverse][default][jr],
-   and gcc 2.7.2 emits blocks in source order, so the tail has to sit at a LABEL
-   between the two case bodies (levers.md i-a-cross-jumped-block-keeps /
-   d-crossjump-survivor-is-the-last): each arm sets `v` and `x` and jumps to a
-   `tw:` label holding the whole tail. Tail written once after the switch lands
-   after the default (72.48); duplicated in both arms cross-jump merges it at the
-   SECOND arm's position and case 1 pays a `j`+nop (85.91).
-   Two spellings measured from there:
-   - `tw: t = 0x400 - v; return t - x;` (v, x, t locals; NO constant in the arms)
-     = 91.36% / 176 bytes = retail's EXACT size, and the tail block is
-     INSTRUCTION-IDENTICAL to retail's `li v0,1024 / subu v0,v0,v1 / j /
-     subu v0,v0,a0`. Residual: the `li` is at the tail head, so reorg fills case
-     1's `beqz` slot with `lh $v1,4($a0)` and case 2's `j` slot with the `sra`
-     (retail hoisted the `li` into BOTH slots, which needs a single-predecessor
-     block), plus case2's non-reverse division keeps its two pseudos mirrored
-     ($v0/$v1) over 4 insns. 8 displaced instructions of 44.
-   - the parked body (93.30 / 172 bytes): each arm gets its own `t = 0x400` so
-     case 1's `beqz` slot does get retail's `li`; cse then merges the two constant
-     loads, `t` lands in $a1 instead of $v0 and the closing subu becomes
-     `subu v0,a1,a0` where retail has `subu v0,v0,a0`, and case 2's `li` is
-     hoisted to the head of its block. Higher objdiff number, worse body:
-     un-park the 91.36 spelling first if you reopen this.
-   `t` must be a separate local: `v = 0x400 - v; return v - x;` gives retail's
-   operand order but reuses v's register ($v1) for the result. `int x` shared by
-   both arms is load-bearing (retail loads `lh $a0,0($a0)` inside each arm).
-   Listing case 2 first in the switch, hoping the survivor lands at case 1, gives
-   47.16 - the dispatch follows the case order.*/
+/* best: 99.77% (176 bytes = retail's exact size, 44 insns). TWO INSTRUCTIONS from a match: in
+   case 2's non-reverse arm the div-by-2 sum lands in $v0 (coalesced with the return value) where
+   retail reuses the dying sign-extension temp in $v1, so we emit addu v0,v1,v0 + sra v0,v0,0x1
+   against retail's addu v1,v1,v0 + sra v0,v1,0x1. Every block, delay slot, frame and byte is
+   retail's.
+   THE BLOCK LAYOUT COMES FROM TWO THINGS (levers.md c-a-switch-shared-tail-sits-at-a-label): the
+   shared tail is a LABEL between the two case bodies, and case 2's per-arm t = 0x400 needs the
+   empty `do { } while (0);` after the division so sched1 cannot hoist the li to the head of the
+   arm - then the li sits in the j delay slot and case 1's in the beqz slot as retail, and t takes
+   $v0 instead of $a1 (93.30/172 bytes -> 98.75/176).
+   THE NON-REVERSE ARM'S REGISTERS FOLLOW WHICH VARIABLE STAGES THE LOAD: `v = p->x; return v / 2;`
+   99.77 (load $v0, sext $v1); `x = p->x; return x / 2;` 99.55 (sext $a0 = x's register); plain
+   `return p->x / 2;` and a fresh local 98.75 (load $v1, sext $v0).
+   Dead on the last two rows, all 99.77: `t = v / 2; return t;`, `return (v = p->x) / 2;`, an empty
+   do-while between the load and the division, a declaration reorder, and a 3-minute permuter run
+   (1887 iterations, base=10 best=10). The residual is gcc coalescing the sum temp with the RETURN
+   pseudo instead of reusing the dying sext register - the local-alloc class the levers call
+   unreachable, not a missing spelling.
+   Still load-bearing from earlier rounds: `int x` shared by both arms (retail loads lh $a0,0($a0)
+   inside each arm) and `t` a separate local; the 91.36 variant had the li at the tail head, where
+   reorg cannot fill either arm's delay slot from it. */
 /*
 u_long func_80045C94(RECT *p) {
     int v;
@@ -433,11 +415,10 @@ u_long func_80045C94(RECT *p) {
         if (g_GraphReverse) {
             v = p->w;
             x = p->x;
-            goto tw400;
+            t = 0x400;
+            goto tw;
         }
         break;
-    tw400:
-        t = 0x400;
     tw:
         t = t - v;
         return t - x;
@@ -445,14 +426,18 @@ u_long func_80045C94(RECT *p) {
         if (g_GraphReverse) {
             v = p->w / 2;
             x = p->x;
+            do {
+            } while (0);
             t = 0x400;
             goto tw;
         }
-        return p->x / 2;
+        v = p->x;
+        return v / 2;
     }
     return p->x;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
+
 
 
 
