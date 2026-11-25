@@ -403,7 +403,20 @@ u_long func_80045C10(RECT *tw) {
    unreachable, not a missing spelling.
    Still load-bearing from earlier rounds: `int x` shared by both arms (retail loads lh $a0,0($a0)
    inside each arm) and `t` a separate local; the 91.36 variant had the li at the tail head, where
-   reorg cannot fill either arm's delay slot from it. */
+   reorg cannot fill either arm's delay slot from it.
+   ROUND 486 (re-measured live: 99.77%, 176 bytes = retail's size, 44 insns; the same two
+   instructions) closed the last open question with a ~200-spelling census run through
+   cc1_probe.sh on standalone copies of this body, so do not re-spell this arm again: the
+   sum CAN be put in the sext's register (the `return p->x / 2;` and `t = p->x / 2; return t;`
+   shapes, and a result variable that crosses a block, all reach `addu $3,$3,$2`), but in
+   EVERY such spelling the final `sra` is then 2-address (`sra $3,$3,1`). Retail's pair is a
+   3-address shift (`addu $3,$3,$2` + `sra $2,$3,1`), i.e. the division temp and the return
+   pseudo are NOT the same register, and no spelling of this arm - load target v/t/x/inline,
+   result variable v/t/x/r, `int`/`short`/`u_long` result, `do { } while (0)` before or after,
+   nested block, `v = v / 2;`/`v /= 2;`, per-arm return vs a result that crosses to the
+   epilogue - produces that split. Third 4-minute permuter run (2258 iterations):
+   PERMUTER_NONE base=10 best=10, matching the earlier one. */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
 /*
 u_long func_80045C94(RECT *p) {
     int v;
@@ -435,11 +448,8 @@ u_long func_80045C94(RECT *p) {
         return v / 2;
     }
     return p->x;
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C94);
-
-
-
+}
+*/
 
 u_long func_80045D44(void) {
     return *g_GpuGp1Port;
