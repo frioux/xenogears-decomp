@@ -97,6 +97,28 @@ u8 g_MenuSavedMainMenuChoice;
 //    0x58, call tail, volume loop, sb %gp_rel) is retail exact.
 //    Preset screened with tools/scripts/try_flags.sh --all: gcc-2.7.2-cdk-psx scores this body 85.77 against Default's
 //    90.07, so cdk is not the answer (and the tail's sb %gp_rel is already retail exact, which excludes -G0).
+// ROUND 461: four more bodies measured, and the reason the 460 residual has survived 13 spellings is now MEASURED,
+//    not guessed: the even read's strength-reduced walk and the odd base's per-row rematerialisation are mutually
+//    exclusive in gcc 2.7.2, because every spelling that gives the walk first makes a REGISTER COPY of the symbol
+//    address, and that copy is what lets cse fold `&g_GameState + 1` onto it (`addiu s2,s1,1`, hoisted, + the fifth
+//    save). Bodies measured this round, each one edit apart:
+//    A (89.19 / 404 bytes / 101 insns, retail 412 / 103): BOTH inner reads symbol-indexed with the bare counter
+//      (`inBuf[j] = ((u8*)&g_GameState)[i + j]; inBuf[j + 1] = ((u8*)&g_GameState)[i + j + 1];`, the same two
+//      expressions repeated in the `== 0xF && == 0` test, row copy `pDst = (u8*)&g_GameState + i; pEnd = pDst + 0x14;`
+//      walked with `(int)` casts), i.e. NO pointer variable to the symbol anywhere. This is the ONLY body that gets
+//      retail's residual: `lui t?/%hi(g_GameState+1)` + `addiu %lo` and `li 0xf` per row, and retail's four saves
+//      (s0..s3, no s4, frame 0x58). What it pays: cse/loop leaves the even read un-reduced (2 `addu` per iteration
+//      where retail has `move a0,s1` + `addiu a0,a0,2` in the bne slot), those two invariants are then hoisted a
+//      SECOND level (out of the outer loop instead of into the row body), which rotates the outer loop (`move a3,zero`
+//      in the backedge slot), and the row copy re-forms `addu v1,s0,s1`. Tail retail exact.
+//    B = A + a walking `pRow` for the row copy only (84.40 / 416 / 104): the fold returns (`addiu s2,s1,1` + s4), which
+//      proves the fold's trigger is the `pRow = (u8*)&g_GameState` copy, not the odd read's spelling.
+//    A + `rowOffset = i;` as the row body's first statement, reads indexed `[rowOffset + j]` / `[rowOffset + j + 1]`
+//      (86.33 / 420 / 105): retail's `move t0,s0` appears but the copy re-enables the fold too, so the same 5 saves.
+//    The retry should therefore keep A (it is the only body whose saved set and odd base are retail's) and attack the
+//      walk: A is exactly 2 insns short of retail, both in the row preheader, so a spelling that makes loop.c reduce
+//      the even `[i + j]` WITHOUT a symbol-address register (a pointer seeded from a non-symbol expression, or a row
+//      copy that needs no `base + i`) is the whole remaining gap. Nothing here is a preset question: cdk 85.77.
 /*
 void func_8001B970(void) {
     u8 inBuf[0x14];
