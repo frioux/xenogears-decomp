@@ -333,52 +333,45 @@ s32 WorldMapResetActorSlotWithSound(s32 index) {
     p->stateTimer = 0x18;
     return 1;
 }
-// 92.97%, 1060 bytes = retail's exact size. Structure is decoded; the residual is three
-//    scheduler/allocator ties: (1) entry - retail keeps the path-table base in $a0 and
-//    stores p->unk54 AFTER the addu, this body keeps the base in $v1 and stores before the
-//    sll; (2) case 0 - retail emits the p->state increment (addiu/sh) before the
-//    g_WorldMapCameraTarget load and its sra, this body hoists the load above the store;
-//    (3) tail - retail pairs each quad's two sll before its two sw, this body interleaves
-//    sll,sw,sll,sw. Two things the body NEEDS: the switch must be 'switch ((s16)p->state)'
-//    (a u16 switch expression makes gcc emit lhu + andi 0xffff + sltiu where retail has
-//    lh + sltiu, i.e. one extra instruction; that u16 form measures 93.97 with the extra
-//    andi, the signed form 92.97 without it), and D_8009BD42/48/4A must be s16 because
-//    retail loads all six tail values with lh. The parked func_80078EA4 body below wants
-//    those three globals as u16 for its own match - reconcile when that one is taken.
-//    Measured from this body and NOT the answer: hoisting the six tail values into s32
-//    locals to force retail's sll,sll,sw,sw pairing changes nothing (gcc folds them back
-//    to the same RTL); a do/while around the six stores is 90.71%. Older permuter history
-//    on a previous body: three runs, PERMUTER_BETTER 1950->920, only the 'mode' copy edit
-//    survived and it has now been replaced by the signed switch. The copy block's 6+3
-//    store order is retail's as written (x and z of each control point first, then the
-//    three y halfwords); the natural x,y,z order is 91.53%.
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
+// 94.16%, 1060 bytes = retail's exact size, 265 insns; no twin (twin_for.py). Structure is
+// decoded; three residuals left, all scheduler/allocator ties:
+//   (1) entry - the ORDER is retail's now (lw / lui+addiu / sra / sll / addu / sw) thanks to
+//       the do{}while(0) before the p->unk54 store, but the register family is rotated:
+//       retail grid=$v0, base=$a0, shifted=$v1; this body grid=$v1, base=$v0, shifted=$a0.
+//       Writing 'p->unk54 = grid;' BEFORE the pPoint assignment gives retail's grid in $v0
+//       but sinks the sw back above the sll (93.50); a barrier before the address
+//       computation is 92.21 / 1064; the cast sum with the offset term first is
+//       byte-identical to this body.
+//   (2) case 0 - the do/while after 'p->state = p->state + 1;' buys retail's store position
+//       (94.16; without it 93.63), but sched2 then keeps the call's arg setup (li a0,8 /
+//       ori a1,s1 / move a2,zero) below the state stores where retail hoists it to the top
+//       of the arm, and li v0,-0x20D one load early. A second barrier after
+//       'p->unk58 = 0x80;' is 94.06 / 1064, one instruction over.
+//   (3) tail - retail pairs each two stores' sll,sll,sw,sw; this body interleaves
+//       sll,sw,<next lui+lh>,sll,sw. Same instruction multiset, sched2 ordering.
+// BODY REQUIREMENTS: the switch must be 'switch ((s16)p->state)' (a u16 switch expression
+//   makes gcc emit lhu + andi 0xffff + sltiu where retail has lh + sltiu) and
+//   D_8009BD42/48/4A must be s16 (retail loads all six tail values with lh). The parked
+//   func_80078EA4 body below wants those three globals as u16 for its own match - reconcile
+//   when that one is taken.
+// permute.sh (3 min, -j2, from this body): PERMUTER_BETTER base=1265 best=1044, whose only
+//   edit hoists 'volatile int new_var; new_var = D_8009BD4C;' ABOVE the two calls and uses
+//   it at the tail store. Rejected: it reads that global before func_80097244 and
+//   WorldMapExtractRotationFromMatrix where retail loads it after them (stale-value code),
+//   and ported it measures 93.25 / 1068 bytes / 267 insns.
+// Dead spellings, measured: the six tail values hoisted into s32 locals (identical code);
+//   the tail as a typed WorldMapPos4 pair (identical); a do/while around the six stores
+//   (90.71); the natural x,y,z store order (91.53); the permuter's two-statement vx form
+//   'pVec->vx = g_WorldMapCameraTarget; pVec->vx = (pVec->vx >> 12) + 0x32;' (95.26 but one
+//   extra sw, 1064 bytes). Preset ruled out: gcc-2.6.0 89.83, gcc-2.7.2-cdk 80.85, -O3 does
+//   not compile.
 // g_WorldMapPathFrame/D_8009BD42/D_8009BD44 are the SVECTOR at 0x8009BD40 and
-// D_8009BD48/4A/4C the one at 0x8009BD48; D_8009BD50/54/58 are the three words of the
-// vector at 0x8009BD50. WorldMapInterpolateQuadraticVector takes the s32* out as its
-// last (stack) argument, as misc5's caller does.
-// 92.97%, 1060 bytes = retail's exact size and instruction multiset. Structure is decoded;
-//    residual is three ordering ties, re-measured this round (no twin exists: twin_for.py
-//    reports none). (1) entry - retail keeps the path-table base in $a0, scales the index
-//    into $v1 and stores p->unk54 AFTER the addu; this body stores before the sll and reuses
-//    $v0 for the scale, so addu comes out index-first. (2) case 0 - retail emits the p->state
-//    addiu/sh before the g_WorldMapCameraTarget lui/lw and its sra; this body hoists the load
-//    above them. (3) tail - retail pairs each statement pair's two sll before its two sw,
-//    this body interleaves sll,sw,sll,sw.
-//    Two things the body NEEDS: the switch must be 'switch ((s16)p->state)' (a u16 switch
-//    expression makes gcc emit lhu + andi 0xffff + sltiu where retail has lh + sltiu), and
-//    D_8009BD42/48/4A must be s16 because retail loads all six tail values with lh. The
-//    parked func_80078EA4 body below wants those three globals as u16 for its own match.
-//    MEASURED DEAD this round, each byte-identical to the body below (92.97 / 1060 / 265):
-//    the tail written as a typed WorldMapPos4 pair (pDst[0].x/.y/.z, pDst[1].x/.y/.z - gcc
-//    canonicalises the struct member to the same RTL); the entry written as the offset-first
-//    cast sum '(WorldMapPathPoint *)(grid * sizeof(WorldMapPathPoint) + (u32)table)'; the
-//    case 0 vx as two statements 'pVec->vx = g_WorldMapCameraTarget >> 12; pVec->vx += 0x32;'.
-//    Preset is not the question: gcc-2.7.2-cdk 80.85, -O3 fails to compile.
-//    permute.sh 4 min: PERMUTER_BETTER base=2090 best=1264 and the only edit is
-//    'pVec->vx = g_WorldMapCameraTarget; pVec->vx = (pVec->vx >> 12) + 0x32;' - it DOES buy
-//    retail's residual-2 load position (95.26%) but emits the extra sw, 1064 bytes / 266
-//    insns, so it cannot link and is not ported. That is the shape residual 2 wants: the
-//    camera load has to sit after the state store and no spelling gets there for free.
+//   D_8009BD48/4A/4C the one at 0x8009BD48; D_8009BD50/54/58 are the three words of the
+//   vector at 0x8009BD50. WorldMapInterpolateQuadraticVector takes the s32* out as its last
+//   (stack) argument, as misc5's caller does. The jump table is at the START of this unit's
+//   .rodata range and its 8th word is the .align 3 pad before jtbl_8006FB60, so the C switch
+//   has to emit exactly 7 entries for the layout to hold (it does).
 /*
 s32 func_80077E68(s32 index) {
     WorldMapActor *p;
@@ -393,6 +386,7 @@ s32 func_80077E68(s32 index) {
     pScratch = (s32 *)PSX_SCRATCH;
     grid = p->unk50 >> 12;
     pPoint = &g_WorldMapCameraPathPoints[grid];
+    do { } while (0);
     p->unk54 = grid;
     if (pPoint[2].unk6 != -1) {
         pVec = (SVECTOR *)((u8 *)pScratch + 0xA0);
@@ -429,6 +423,7 @@ s32 func_80077E68(s32 index) {
         }
         p->unk58 = 0x80;
         p->state = p->state + 1;
+        do { } while (0);
         pVec = (SVECTOR *)((u8 *)pScratch + 0xA0);
         pVec->vy = -0x20D;
         pVec->vx = (g_WorldMapCameraTarget >> 12) + 0x32;
@@ -495,10 +490,8 @@ s32 func_80077E68(s32 index) {
         SoundSetElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0xA4, 0x87 - dist);
     }
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
-
-
+}
+*/
 
 s32 WorldMapInitActorAtScrollPosition(s32 index) {
     WorldMapActor *p;
