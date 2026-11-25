@@ -4276,6 +4276,21 @@ u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, Au
 // hands index s1 in this body and s3 in retail's. Tried this round, all 67 insns / 268 bytes:
 // u8 index 87.51 (the andi wanders), flags-before-index 88.40 (confirmed the old measurement).
 // Below 99, so no permuter run.
+// Round 491: re-measured 91.13% (268 bytes = retail's size, 67 insns both) -- the twin port of
+// SoundScriptSetTriangleEnvelope0 below; the whole body including every store order and the
+// sll/sra mult chain is retail's. Residual = an allocator ROTATION of the five callee-saved values.
+// Retail: pScript s4, flags s0, element s1, velocity s2, mode s3 (index reuses s3 after mode dies).
+// This body: pScript s4, mode s0, index s1, element s2, velocity s3. -dl on it: 73 element 12 refs/46
+// insns (3.13), 74 velocity 6/34 2 bytes (0.70), 78 mode 3/22 1 byte (0.27), 79 index 4/17 BLOCK-LOCAL
+// (so local-alloc, not global-alloc, hands it s1); -dg order 90 75 73 74 71 78 with dispositions
+// 71 in 20, 73 in 18, 74 in 19, 78 in 16, 79 in 17. Retail's map needs flags (2 refs in 2 insns,
+// quotient ~4) to be the first callee-saved candidate and index NOT to be a pseudo of its own.
+// Measured this round, all 268 bytes / 67 insns: masking mode IN PLACE ('mode &= 0xF;' at the index
+// site, no index variable) gives 90.52% with retail's EXACT prologue save order and element in s1 --
+// residual is then velocity/mode swapped (s3/s2), the flags 'andi' scheduled one step earlier and
+// 'move a2,s2' still in the jal slot where retail has the sra; 'flags' computed before a separate
+// index re-confirmed at 88.40 (50 diff lines). So the next round should start from the in-place
+// 'mode &= 0xF' body and attack the last mirrored pair, not from this one. Below 99, no permuter run.
 /*
 u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s16 velocity = pScript[0];
@@ -4310,6 +4325,7 @@ u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 3;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
+
 
 
 u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
