@@ -4635,45 +4635,19 @@ u8* SoundScriptSelectEnvelope(u8* pScript, AudioManager* pAudioManager, AudioEle
     return pScript + 3;
 }
 
-// Round 66: 85.66% (148 bytes, right size). Two permuter runs (630 -> 305 -> 265) plus hand
-// shapes; the body below is the best found. Split the multiply from the divide (`pitch = x*x;`
-// then `pitch / 64` at the use) - that is what puts the `mult` early and `mflo` after the
-// pAudioElements->envelopeIndex scale in retail. `note` must be a u8 COPY of pScript[0] taken after
-// the multiply, otherwise gcc reuses the single load for the sum (retail reloads it into a1).
-// The `do { } while (0)` is load-bearing: it is the only shape found that gives retail's
-// prologue (pScript s1, envelope s2; without it the two are mirrored and the score is 83.37) -
-// it is also why this is parked and not shipped. THE REMAINING 2-INSTRUCTION DELTA: retail
-// loads `lbu a0,2(s1)` and `lbu a2,29(s2)` BEFORE the volume `addu a1,a1,v0`; ours emits both
-// after it. Everything else, including the call and the two envelope stores, is exact.
-// Round 157: 86.18%, from the permuter sweep (265 -> 245). The edit that gained: two statements
-// into one `int` temp (`new_var = pScript[2] << 16;` then `new_var = (s8)pScript[1] << 24 | new_var;`)
-// instead of one nested expression - that also turns retail's `or a0,v0,a0` into ours.
-// A further permuter run from this body found nothing (245 -> 245). Computing the value BEFORE
-// the volume line to hoist its loads collapses the shape to 62.34% (wrong size), do not retry.
-// Still 2 loads late: retail loads pScript[2] and handlerIndex BEFORE `addu a1,a1,v0` because it
-// keeps the first pScript[0] load in v0 (ours keeps it in a1 and skips the reload); allocator tie.
-/*
+// `level` is a u8 copy of the script byte so gcc reloads pScript[0] for the sum (retail's second
+// lbu); the divide is its own statement so the mflo lands before that reload.
 u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    s32 pitch;
-    AudioEnvelope* pEnvelope;
-    s32 volume;
-    u8 note;
-    int new_var;
+    u8 level = pScript[0];
+    s32 pitch = level * level;
+    AudioEnvelope* pEnvelope = &pAudioElements->envelopes[pAudioElements->envelopeIndex];
+    s32 quotient = pitch / 64;
+    s16 volume = pScript[0] + quotient;
 
-    volume = pScript[0];
-    pitch = volume * volume;
-    note = volume;
-    pEnvelope = &pAudioElements->envelopes[pAudioElements->envelopeIndex];
-    do {
-        volume = note + pitch / 64;
-        new_var = pScript[2] << 16;
-        new_var = ((s8)pScript[1] << 24) | new_var;
-        pEnvelope->delta = SoundCalculateEnvelopeDelta(new_var, volume, pEnvelope->handlerIndex);
-        pEnvelope->reload = volume;
-        return pScript + 3;
-    } while (0);
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
+    pEnvelope->delta = SoundCalculateEnvelopeDelta(((s8)pScript[1] << 24) | (pScript[2] << 16), volume, pEnvelope->handlerIndex);
+    pEnvelope->reload = volume;
+    return pScript + 3;
+}
 
 
 s32 SoundCalculateEnvelopeDelta(s32 value, s16 divisor, s16 mode) {
