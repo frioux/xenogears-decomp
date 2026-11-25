@@ -347,7 +347,7 @@ extern s16 D_8009AD2C[];
 extern s32 g_WorldMapCameraTarget;
 extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_ModelRenderTestFlags;
-extern s32 D_800595C0;
+extern s32 g_BattleFramePolyCount;
 extern s32 g_BattleEmittedPacketCount;
 extern void func_800223B0(void *p, s32 angle);
 extern void SpriteDrawFrame(void *p, u32 *pTbl);
@@ -589,7 +589,7 @@ void func_800848F4(void) {
     *(s32 *)&pScale->vy = scale;
     *(s32 *)&pScale->vx = scale;
     g_ModelRenderTestFlags = 3;
-    D_800595C0 = 0;
+    g_BattleFramePolyCount = 0;
     g_BattleEmittedPacketCount = 0;
     pRot->vz = 0;
     pRot->vy = 0;
@@ -657,7 +657,7 @@ void func_800848F4(void) {
 // Decode, for whoever picks it up (addresses are the scratchpad, all reached
 // through $s1 = 0x1F800028, i.e. write them as byte offsets off one base):
 //   head: 0x1F800018/0x14/0x10 = 0x800 (scale, vz/vy/vx order), g_ModelRenderTestFlags = 3,
-//         D_800595C0 = 0, g_BattleEmittedPacketCount = 0, SVECTOR at 0x1F8000A0 = {0,0,0}.
+//         g_BattleFramePolyCount = 0, g_BattleEmittedPacketCount = 0, SVECTOR at 0x1F8000A0 = {0,0,0}.
 //   per sprite set i (s4 = i, s2 = i*0x54): skip if g_WorldMapGroups[i].hidden != 0;
 //         copy g_WorldMapGroups[i].mat (0x20..0x3C) to 0x1F8000F0..0x10C, then
 //         overwrite 0x1F800104/108/10C = unk8/unkC/-unk10;

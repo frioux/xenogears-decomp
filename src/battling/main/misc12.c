@@ -399,7 +399,7 @@ void BattleInitGraphics(void) {
 
 extern u_long* g_BattleRootOrderingTable;
 extern s32 D_80050618;
-extern s32 D_800595C0;
+extern s32 g_BattleFramePolyCount;
 extern s32 g_BattleEmittedPacketCount;
 extern char D_800706AC[];
 extern char D_800706C0[];
@@ -499,7 +499,7 @@ void func_80088E90(void) {
     pWork = BattleCreateWorkBlock(func_80088BFC[D_80050618], 0, 0x801FE000, 0x400);
     for (;;) {
         drawFlags = g_BattleDrawFlags;
-        D_800595C0 = 0;
+        g_BattleFramePolyCount = 0;
         g_BattleEmittedPacketCount = 0;
         pBuf = g_BattleDrawBuffers;
         drawIndex = (drawFlags + 1) & 1;
@@ -529,7 +529,7 @@ void func_80088E90(void) {
             BattleDebugScrollHeapDump();
         }
         if (g_BattleDebugFlags & 1) {
-            FontPrintf(D_800706AC, g_BattleEmittedPacketCount, D_800595C0);
+            FontPrintf(D_800706AC, g_BattleEmittedPacketCount, g_BattleFramePolyCount);
         }
         if (g_BattleDebugFlags & 2) {
             FontPrintf(D_800706C0, frameCount, D_800927F0);

@@ -170,7 +170,7 @@ extern u_long* g_BattleCurrentOrderingTable;
 extern void* g_pCurModelPacket;
 extern void* g_pCurModelVertices;
 extern void* D_80059568;
-extern s32 D_800595C0;
+extern s32 g_BattleFramePolyCount;
 extern void* g_BattlePacketNodeCursor;
 extern void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices);
 extern void func_8008C620(VertexIndexSet* pVerts, s16 n);
@@ -241,7 +241,7 @@ void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
 
     i = *(u16*)(pData + 6) - 1;
     g_BattlePacketNodeCursor = *(void**)(pData + 0x10);
-    D_800595C0 += *(u16*)(pData + 4);
+    g_BattleFramePolyCount += *(u16*)(pData + 4);
     g_pCurModelPacket = pPacket;
     D_80059568 = pUnk;
     g_pCurModelVertices = pVertices;

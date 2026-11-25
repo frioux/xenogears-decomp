@@ -303,7 +303,7 @@ extern s16 D_8009AD2C[];
 extern s32 g_WorldMapCameraTarget;
 extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_ModelRenderTestFlags;
-extern s32 D_800595C0;
+extern s32 g_BattleFramePolyCount;
 extern s32 g_BattleEmittedPacketCount;
 extern void func_800223B0(void *p, s32 angle);
 extern void SpriteDrawFrame(void *p, u32 *pTbl);

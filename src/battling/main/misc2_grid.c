@@ -49,7 +49,7 @@ typedef struct {
 extern u32 *g_BattleGridCells;
 extern u8 g_BattleDrawBufferIndex;
 extern u8 *D_80092854[];
-extern s32 D_800595C0;
+extern s32 g_BattleFramePolyCount;
 extern s32 g_BattleEmittedPacketCount;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2_grid", func_80072D18);
@@ -110,7 +110,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2_grid", func_80072D18);
         span = pSpanMax[i] - min;
         x = (min << 8) - xOrigin;
         y = (i << 8) - yOrigin;
-        D_800595C0 += span;
+        g_BattleFramePolyCount += span;
         pCell = &g_BattleGridCells[(i << 7) + min];
         pEnd = pCell + span;
         do {
