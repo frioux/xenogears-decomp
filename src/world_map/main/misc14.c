@@ -704,6 +704,27 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 // MEASURED AND REJECTED this round: `again = 1;` moved to the top of the walk case
 // (retail sets it in the 'j .L80095748' delay slot at 0x25590) - identical 71.73%,
 // reverted. gcc-2.7.2-cdk 69.74% (try_flags), so the preset is right.
+// ROUND 472: re-measured from this exact park, still 71.73% (2156 bytes / 539 insns
+// against retail's 2240 / 576). Four measurements added, none moved the source:
+//   i.  'resolve:' moved INSIDE the switch, after 'case 7:' (the cross-jump lever's
+//       block-placement rule, levers.md i-a-cross-jumped-block-keeps): identical
+//       71.73% / 2156 bytes, so the shared resolve block is not placed by the label's
+//       source position here. Reverted.
+//  ii.  The state 1/2/4 arms written as 'triIndex = pTri[(s16)triIndex].next[k]'
+//       instead of 'triIndex = next': identical stream, because gcc already
+//       re-materialises that load (one 'lhu t0' beside retail's single 'lh' + 'move'
+//       per arm). The rematerialisation is not source-steerable; reverted.
+// iii.  Both bodies carry TWO copies of the kindMask block (retail 0x25F40 shared by
+//       states 3 and 5, and 0x260F0 for state 6; this body's two sit elsewhere), so
+//       the 37-instruction deficit is NOT a missing copy there - hypothesis measured
+//       and discarded.
+//  iv.  PRESET re-screened: gcc-2.6.0-psx 70.24%, gcc-2.7.2-cdk-psx 69.74%, unit flags
+//       71.73. The preset is right.
+// Residual (f) restated with the cause: cse gives the walk's constant 1 a com register
+// ($s3 here, serving both 'bne v0,s3' per arm and 'again'), and that is the slot retail
+// gives pOut ($s3 pOut / $s4 again there). Every spelling of the arms' 'kind != 1' and
+// of 'again = 1' feeds the same const_int, so the merge cannot be broken from source;
+// retail's own 'li s4,1' shows again's register there does not serve the comparisons.
 // The probe-address reloc cap from the CARRIED OVER block above still applies: a
 // perfect instruction stream would read about 99.9% in objdiff and needs check_bin.
 /*
@@ -1025,6 +1046,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     return ret;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
+
 
 
 
