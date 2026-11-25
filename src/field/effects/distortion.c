@@ -161,6 +161,42 @@ INCLUDE_ASM("asm/field/nonmatchings/effects/distortion", FieldDistortionDraw);
    - Each group of 2-4 prim stores needs its own pointer local (a fresh
      `&PRIM_BUF()[...]`); written as repeated array subscripts cc1 reloads the
      buffer pointer before EVERY store (4 loads per group instead of 1).
+
+   Round 496 measured the rest of the shape. Retail does NOT address the two
+   row-clamp arms through pPrim: loop 1's row==16 arm writes y3/y2 through
+   `li s7,0x3200` + stride 40 (i.e. `&PRIM_BUF[320 + col]`, a CONSTANT base, not
+   row*20+col) and loop 2's row==13 arm writes all six y stores through
+   `li s7,0x28A0` (`&PRIM_BUF[260 + col]`), the same base again for the y3/y2 pair
+   after its second rsin. Writing those as `DISTORTION_GRID_ROWS * 16 + col` and
+   `DISTORTION_GRID_ROWS * 13 + col` measures 83.57% / 2040 bytes / 510 insns
+   against retail's 2060 / 515 (this park's `row * DISTORTION_GRID_ROWS + col`
+   stays at 84.72 / 2020 / 505, so the % prefers the inline form and the byte
+   count prefers the constant base: 8 of the 10 missing instructions are
+   accounted for by these two arms and by the item below, none by the store
+   groups).
+
+   - The last-column index is a VALUE in retail, not an address: a named
+     `s32 lastIndex = row * DISTORTION_GRID_ROWS + DISTORTION_GRID_ROWS - 1;`
+     assigned in each outer body reproduces retail's separate index IV exactly
+     (init 0x12B = 299 then stride 20, spilled to 0x60, and the sll/addu/sll
+     *40 done at each use). Block-scoping the declaration loses the IV again;
+     with it in place the body is 511 insns but the % DROPS to 81.05 because
+     the IV takes the callee-saved register retail gives offsetY.
+
+   - The residual is ONE callee-saved membership swap, not a rotation. Retail's
+     loop-1 map is s0 pPrim, s1 col, s2 idx, s3 offsetX, s4 row, s5 phase2,
+     s6 offsetY, s7 the 320-index IV, s8(fp) phase1, with lastIndex, row*800,
+     row*20 and the 0xFFFFFF mask all in STACK slots; the compile's set is the
+     same minus offsetY (it goes to a caller-saved temp plus a stack slot,
+     `sw a2,104(sp)` in the rsin delay slot) plus whatever took s6/s8. The same
+     swap in loop 2. Retail also REMATERIALISES 0xFF000000 (`lui t0` inside the
+     inner loop) and reloads the 0xFFFFFF mask from 0x74 per iteration.
+
+   - Loop 2's row==0 arm is `&PRIM_BUF[col]` and retail recomputes `col*40`
+     inline there (sll/addu/sll + addu) while every spelling here strength-
+     reduces it to a col*40 IV (`move s,zero` per outer row, `addiu s,40` per
+     col) - that IV is the register offsetY loses its home to. Writing the arm
+     as `pTmp = pPrim` does remove the IV but measures 80.74% / 2020 bytes.
    - The remaining byte-offset-vs-index difference: retail's col==19 arms keep
      `row*20+19` as an INDEX (outer stride 20, `sll/addu/sll` at the use); every
      spelling tried here makes cc1 strength-reduce it into a byte offset (stride
