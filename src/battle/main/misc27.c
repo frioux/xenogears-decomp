@@ -776,9 +776,11 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
 // Every spelling gets the MIRROR (x base coalesced onto $a1, y/z base
 // 'addiu t0,a1,4'), which cc1 prefers because the bare copy is one instruction
 // cheaper. levers.md [e-a-derived-base-beats-a-copy-of-the-parameter] lists the
-// seven dead spellings; re-measured here on the honest body:
-//  - pX = (s16*)pOut; pYz = (s16*)pOut + 2;      (this body) 94.64, offsets x+0/y+2/z+4
-//  - pX assigned before the guards, pYz after:                    94.64, same mirror
+// seven dead spellings; re-measured this round on the honest body:
+//  - pX = (s16*)pOut; pYz = (s16*)pOut + 2;      (this body) 94.64, 55 insns / 220 B
+//  - both pointers assigned BEFORE the three guards:      96.45% but 54 insns / 216 B
+//    (the addiu folds into the guard's delay slot and $a1 is never copied, so it
+//    cannot link at retail's size) - matches levers.md's note.
 //  An older park body ('pYz = (s16*)pOut; pX = pYz - 2;') read 95.27 but is WRONG
 //  CODE - it walks x at pOut-4+8i and y at -2 (retail writes x at pOut+8i, y +2,
 //  z +4), i.e. it stores before the array, so its 95.27 is not a better answer.
@@ -823,6 +825,7 @@ void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
+
 
 
 
