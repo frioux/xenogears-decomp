@@ -2109,6 +2109,10 @@ Round 443 measured the LIMIT of the lever above: **it does nothing when the labe
 
 ## struct / address folding (appended out of order by round 447)
 
+- id: writing-the-guard-on-the-OFFSET-not-the-counter-lets-cc1-fold-it-to-zero | keywords: constant, fold, guard, index, address, addu, offset, accumulator
+  **WHEN AN ARM IS GUARDED BY `if (i == 0)` BUT THE ARM'S ARRAYS ARE INDEXED BY THE LOOP'S OFFSET ACCUMULATOR, EVERY ADDRESS IN THAT ARM PAYS AN `addu at,at,s0`; WRITING THE GUARD ON THE OFFSET ITSELF (`if (off == 0)`, the same test, since off == i * 0x60) LETS cc1 CONSTANT-FOLD THE INDEX TO 0 AND THE ARM EMITS RETAIL'S BARE `lui v0 / lbu v0,%lo(sym)(v0)`, WHICH IS WORTH 1.7 POINTS AND THE WHOLE first-arm residual** (round 481, battle/main/misc2 func_8007500C, XenoLibrary = gcc-2.6.0, 88.07 -> 89.74%). Retail's first arm reads `g_BattleTextSlotFlags` twice with a per-use `lui` and no index add while the else arm uses `lui at / addu at,at,s0`; the same source with `if (i == 0)` cannot fold `off` (it is a separate variable), and spelling the read as a literal `g_BattleTextSlotFlags[0]` is WORSE (83.48: the constant address is loop-invariant, so cse hoists it into a callee-saved register that retail does not have). So when an arm's index is provably 0 but written as a variable, move the test onto that variable - the fold is free and it changes no semantics.
+
+
 symptoms: cast view struct hoists a global base, per-load %lo addends, two locals swapped in s0/s1
 try: cast view struct array member fields regalloc swapped
 - id: a-cast-view-struct-hoists-the-array-base | keywords: struct, cast, array, member, cse, hoist, lui, addend, regalloc
