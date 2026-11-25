@@ -177,6 +177,14 @@ void BattleExpandSlotRects(void) {
 // Two new facts measured this round, both narrowing the entry block further.
 // (1) IT IS NOT SCHED1: the built build/src/battle/main/misc16_r2.c.i recompiled with the unit's cc1 plus -fno-schedule-insns emits the SAME entry order (subu / sw s2 / lbu s2,0x60(sp) / lw g_BattleDisplayState / copies / i=0 / beq with the store in the delay slot), so the residual is in the RTL stream, as the round-446 note concluded.
 // (2) RETAIL'S HOISTED 'lui/lw' ABOVE THE FRAME ADJUST IS REACHABLE IN THIS cc1 - the matched neighbour BattleDrawColumnSpriteCells emits 'lw $2,g_BattleDisplayState' BEFORE 'subu $sp,$sp,32' in this very compile - and the difference between the two is that BattleDrawColumnSpriteCells' entry block has NO incoming-stack-argument load. So the whole residual (the hoisted state load, the store before the lbu, the load-delay nop) hangs on cc1's assign_parms placing the 5th parameter's 'lbu 0x60(sp)' at BB_HEAD, which is exactly what the j-the-callers-single-sw lever below rules out as an aggregate.
+// ROUND 485 RE-MEASURE: 89.25% again, retail's exact 452 bytes / 113 insns, first run, no edits needed -
+// the ROUND 446 and 471 notes above stand. Lever j-the-callers-single-sw-rules-out-the-aggregate-parameter
+// names this function by address and says park on it: the matched caller BattleInitMenuColumnPrims passes
+// the 5th argument with a bare 'ori v0,zero,0xE' + 'sw v0,0x10(sp)' in the jal delay slot, so the 5th
+// parameter is a SCALAR and the late 'lbu s2,0x60(sp)' cannot be the 4-byte-aggregate shape that moves a
+// narrow stack load out of the prologue (and the two in-unit call sites forbid changing the signature
+// anyway). Re-parked with no new measurements: nothing is left that rounds 446/471 did not already
+// measure (s32/u8 locals, statement orders, -O3, -G0, 2.7.2-cdk, -fno-schedule-insns).
 /*
 void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     s32 i;
@@ -200,6 +208,7 @@ void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     g_BattleDisplayState->menuColumnPending = 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FC1C);
+
 
 
 void BattleInitMenuColumnPrims(void) {
@@ -633,69 +642,64 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
 
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
-/* 83.46% (488 bytes = retail's exact 122 instructions). Both draw blocks and both
-   ROUND 371: this body had NEVER COMPILED either - `s32 *pPrim = &g_BattlePrimStartIndex`
-   on the unit's `s32 g_BattlePrimStartIndex[]` declaration is a pointer to array, so
-   `*pPrim` was an array rather than the prim index. The two locals now read
-   `pPrim = g_BattlePrimStartIndex;` / `pPrim2 = g_BattlePrimStartIndex;` and the four
-   g_BattleGraphicsWork bases are `(u8 *)g_BattleGraphicsWork + 0xA230`; the 83.46 below
-   has NOT been re-measured against that spelling.
-   palette picks are retail's; the palette blocks and the tail (func_80090C44 in the
-   store's delay slot, the trailing `lbu g_BattlePrimStartIndex`) are byte-identical.
-   Three levers are proven here and any further attempt should start from them:
-   - `ofs` must be its own local split over two statements (`ofs = *pPrim * 0x28;`
-     then `ofs += 0x3C0;`): the one-statement form reassociates the constant onto the
-     base (76.12%).
-   - `pPrims = g_BattleGraphicsWork->pPacketPrims;` as a statement BETWEEN the product
-     and the `+ 0x3C0` gives retail's `addiu a0,a0,960 / addu a0,a0,t1` (with the
-     member inlined instead, gcc puts the loaded base in a0 and the offset in t0).
-   - a SECOND pointer local (`pPrim2`) assigned after the first palette store for the
-     second half is what makes gcc re-form `lui s0,%hi / addiu s0,%lo` at the branch
-     join, retail's single 2-instruction re-materialisation and the last 8 bytes of
-     the function's size (82.24 -> 83.46, 480 -> 488). One `pPrim` for all four sites
-     loses them.
-   `pal = D_800D2F80;` above the first call is a scratch for the dx argument (the
-   permuter's find, 1155 -> 83.46); retail keeps it in v1, this build in t0.
-   ROUND 312: passing D_800D2F80 inline as the dx argument instead of through that
-   scratch is 82.24, and adding `u = D_800D2F82;` before it (`u` passed as the u
-   argument) is exactly 83.46 again - so the scratch is load-bearing and the residual
-   is NOT the u/dx/v load order on its own: retail loads them u, dx, v after
-   `lw t0,0(s0)` and this build dx, u, v with dx before the sll chain.
-   Remaining: retail fills the entry block's first slots with `lui v0,%hi(
-   g_BattleGraphicsWork); lw v0,0(v0)` between `li a1,0xA8` and `li a2,0xA6` and
-   loads D_800D2F80 before the sll chain; this build emits both after it. A short
-   `s16 ofs` reproduces that entry order exactly (95.74%) but adds a sll/sra
-   conversion pair per site (504 bytes), i.e. ofs is not narrow in the original.
-   Not tried: a distinct RTL spelling for the pPrims member access, and a second
-   permuter run from the 83.46 body.
+// ROUND 485 RE-MEASURE: 83.13% / 488 bytes = retail's exact 122 instructions, under the unit's
+// gcc-2.6.0 (XenoBattle260), first run and compiles clean. The pPrim/pPrim2 s32* locals the earlier
+// notes require under 2.7.2 are NOT needed on this preset: reading g_BattlePrimStartIndex[0] at all
+// four sites compiles BYTE-IDENTICALLY to the pPrim/pPrim2 body here (cc1's own .s for the function
+// is the same text), so this park carries the array form.
+// Measured dead this round, all 488 bytes / 122 insns unless noted: the index-first spelling at the
+// two palette stores (*(u32) * 0x28 + ...->pPacketPrims) is byte-identical - gcc canonicalises the
+// commutative addu; 'pRec = member; pRec += *pPrim * 0x28;' (in-place pointer add) is 66.46% with 112
+// differing lines; the single-statement ofs ('ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x3C0;') is
+// 79.47% with 98. try_flags: gcc-2.7.2 83.46, gcc-2.7.2-cdk 64.74 - the preset is not the residual.
+// A 4-minute permuter run (base 1195 best 1057, 2076 iterations) found only 'short ofs', which
+// measures 91.19% / 504 bytes / 126 insns on this preset - +4 instructions of sll/sra, so it can never
+// link; its other two candidates (a volatile short behind 'if (new_var = 1)' and a duplicated palette
+// arm) are wrong code and were rejected.
+// PROBE (decisive): compiled from build/src/battle/main/misc16_r2.c.i with the unit's own cc1 plus
+// -fno-schedule-insns -fno-schedule-insns2, the entry block is subu sp / sw ra,s1,s0 / move s1 /
+// lw v0,g_BattleGraphicsWork / lw a1,0xA230(v0) / la s0 / lw index / chain sll,addu,sll in v0,v0,a0 /
+// lbu 2F80 / addiu a0,960 / lbu 2F82 / lbu 2F83 / sw v0,16 / sw v1,20 / addu a0,a0,a1 / li a1,0xA8 / jal.
+// Retail instead hoists the two li constants, sinks the 0xA230 base load past the chain and keeps the
+// WHOLE index chain in a0. Our C forms ofs as TWO pseudos (v0,v0 then a0), retail's is one, so the
+// residual is that pseudo split plus the schedule - not a statement order, and not the preset.
+// HISTORY (rounds 312/371, measured under gcc-2.7.2 before the unit moved to 2.6.0, kept because
+// the levers are still the starting point):
+// - the palettes, the two palette blocks and the tail (func_80090C44 called with the palette store in
+//   its delay slot, then the trailing lbu g_BattlePrimStartIndex) are byte-identical to retail.
+// - ofs must be a local SPLIT over two statements (ofs = index * 0x28; then ofs += 0x3C0;): the
+//   one-statement form reassociates the constant onto the base (76.12 then, 79.47 here).
+// - pPrims = g_BattleGraphicsWork->pPacketPrims; as a statement BETWEEN the product and the + 0x3C0
+//   gives retail's addiu a0,a0,960 / addu a0,a0,t1.
+// - pal = D_800D2F80; above the first call is a scratch for the dx argument (the permuter's find,
+//   1155 -> 83.46) and is load-bearing: passing D_800D2F80 inline is 82.24, and a u = D_800D2F82;
+//   scratch beside it is 83.46 again, so the residual is not the u/dx/v load order on its own
+//   (retail loads them u, dx, v after lw t0,0(s0); this build dx, u, v with dx before the chain).
+// - the round-371 pPrim/pPrim2 pointer locals are NOT needed on 2.6.0 (see the re-measure above).
+/*
 void func_80090E7C(u8 arg0) {
     u8 *pRec;
     u8 *pPrims;
-    s32 *pPrim;
-    s32 *pPrim2;
     s32 ofs;
     u16 pal;
 
-    pPrim = g_BattlePrimStartIndex;
     pPrims = g_BattleGraphicsWork->pPacketPrims;
-    ofs = *pPrim * 0x28;
+    ofs = g_BattlePrimStartIndex[0] * 0x28;
     pal = D_800D2F80;
     ofs += 0x3C0;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pPrims), 0xA8, 0xA6, D_800D2F82, D_800D2F83, pal);
-    pRec = g_BattleGraphicsWork->pPacketPrims + *pPrim * 0x28;
+    pRec = g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28;
     if (D_800D2F81 != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x3CE) = pal;
-    pPrim2 = g_BattlePrimStartIndex;
-    ofs = *pPrim2 * 0x28;
+    ofs = g_BattlePrimStartIndex[0] * 0x28;
     pPrims = g_BattleGraphicsWork->pPacketPrims;
     ofs += 0x410;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pPrims), 0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
-    pRec = g_BattleGraphicsWork->pPacketPrims + *pPrim2 * 0x28;
+    pRec = g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28;
     if (D_800D2F7D != 0) {
         pal = g_SystemPalette2;
     } else {
@@ -705,5 +709,6 @@ void func_80090E7C(u8 arg0) {
     func_80090C44(arg0);
     BattleDrawSpritePackage(0x71, (s32)(g_BattleGraphicsWork->pPacketPrims + 0x5A0), 0x118, 0xD1);
     ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->numberPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
+
