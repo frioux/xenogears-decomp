@@ -177,18 +177,8 @@ extern void SoundSetElementPanByIndex(s32, s32);
 extern void SoundSetElementVolumeByIndex(s32, s32);
 extern VECTOR g_BattleViewOrigin;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
-/* best: objdiff 87.18% - 392 vs 320 bytes. Frame (0x30, s5 = mfhi), the
-   five 16-bit grid taps, the /5 magic and the outer 3-IV tail all match.
-   Still off by: (1) loop 1, retail fills the beq delay slot with a copy of
-   the persistent value (`move v0,s2`) and stores through v0 in both rows,
-   gcc stores s2 directly (tried: switch vs if/else-if, nested if, temp
-   local); (2) loop 2, retail keeps the shared row offset in ELEMENT units
-   (t4 = y*0x70, s1 = t4+1, sll by 1) and forms the five tap bases in the
-   reverse of declaration order, gcc scales the offset into bytes and drops
-   the sll (tried: inline y*0x70+1 per pointer, reversed declarations, plain
-   indexed taps - 78-87%, the local `s32 off` + five base pointers is the
-   best 87.18%).
+// best: 89.31% / 392 bytes / 98 insns against retail's 408 / 102 (a 91.16% / 400 / 100 variant is described below but this body is the structurally closer one: all 40 insns of loop 1 are now identical to retail including the move v0,s2 copy and the s2/s1/s0 roles). Two permuter finds this round got loop 1 there: (a) the double store must be the embedded assignment pRow[0] = (pRow[0x70] = value); and (b) loop 2's quotient needs its OWN local (avg) - sharing one value between the two loops gives it a callee-saved register and rotates loop 1 (that body measures 91.16% / 400 / 100). REMAINING RESIDUAL, loop-2 outer offset: retail keeps y*0x70 in ELEMENT units (li t4,0x1490, addiu t4,t4,-0x70 per iteration) and then addiu s1,t4,1 + sll v0,s1,1 shared by the five tap adds; gcc 2.7.2 folds 2*(y*0x70+1) into one BYTE giv here (li t3,0x2922, addiu t3,t3,-0xE0), which is 2 insns short of retail. Tried and measured on this body, all still 98 insns: off = y*0x70 + 1 (fold, current), off = y*0x70 with a separate s32 row = y*0x70 and off = row + 1 (fold), a hand-maintained s32 row decremented by 0x70 at the loop tail (gcc eliminates it back into the y giv); off = y*0x70 with the +1 per tap (5 separate givs, retail's 102 insns but 79.52%). Second residual: mult's mfhi lands in t9 where retail has s5 (retail's pressure spills the high word to a callee-saved register); the tap-base registers follow from the giv (retail pMidL=s4, pDnR=s2). Preset screens on this body: 2.6.0 85.29, 2.7.2-cdk 88.90, -O3 88.95, so Default is right. A 4-minute permuter run (base 1459 -> best 953) produced both loop-1 finds above; a second run from this body is the next thing to try.
+/*
 void func_8008E120(void) {
     s16* pGridA;
     s16* pGridB;
@@ -197,10 +187,11 @@ void func_8008E120(void) {
     s16* pMidLBase;
     s16* pDnRBase;
     s16* pDnLBase;
-    s16* pRow;
     s32 value;
     s32 sum;
+    s32 avg;
     s32 i;
+    s16* pRow;
     s32 x;
     s32 y;
 
@@ -208,8 +199,8 @@ void func_8008E120(void) {
         return;
     }
     pGridB = (s16*)g_BattleEffectGridNext;
-    value = 0;
     pRow = pGridB + 0x1490;
+    value = 0;
     for (i = 0; i < 0x70; i++) {
         switch (rand() & 3) {
         case 0:
@@ -219,8 +210,7 @@ void func_8008E120(void) {
             value = 0;
             break;
         }
-        pRow[0x70] = value;
-        pRow[0] = value;
+        pRow[0] = (pRow[0x70] = value);
         pRow++;
     }
     pGridA = (s16*)g_BattleEffectGrid;
@@ -236,20 +226,22 @@ void func_8008E120(void) {
         s16* pMidL = pMidLBase + off;
         s16* pDnR = pDnRBase + off;
         s16* pDnL = pDnLBase + off;
-        s16* pOut = &pGridB[(y - 1) * 0x70 + 1];
+        s16* pOut = &pGridB[(y - 1) * 0x70] + 1;
 
         for (x = 1; x < 0x70; x++) {
             sum = *pUp++ + *pMidR++ + *pMidL++ + *pDnR++ + *pDnL++;
-            value = sum / 5;
-            if (value >= 4) {
-                value -= 3;
+            avg = sum / 5;
+            if (avg >= 4) {
+                avg -= 3;
             }
-            *pOut++ = value;
+            *pOut++ = avg;
         }
     }
     BattleEffectCopyBuffers();
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
+
+
 void BattleDrawEffectTile(u8* pOt, s32 color, s32 flag) {
     TILE* pTile;
 
