@@ -797,24 +797,22 @@ extern s16 D_800970C4;
 extern s16 D_800970CC;
 extern void BattlePlaySoundEffectById(s32 id);
 
-/* 89.15%: reorg steals the else branch's li v0,0x4 into the bnez delay slot
-   where the original leaves a nop, which makes our value pseudo land in v1. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007191C);
-
-/* 89.15% attempt:
+// Selects the tutorial page's text window: page 0 plays the page sound and uses
+// its own two size words. The D_80098692 store is written per arm, not through a
+// shared local: gcc cross-jumps the two identical tails into retail's single
+// store, and a `value` local instead measures 89.15% (the else arm's constant is
+// then stolen into the bnez delay slot and the shared store lands after the call's
+// argument load).
 void func_8007191C(u32 idx) {
-    s32 value;
-
     g_BattleTutorialWindowEnabled = idx < 1;
     if (idx == 0) {
         BattlePlaySoundEffectById(0x37);
         D_80098698 = 2;
-        value = 0xB4;
+        D_80098692 = 0xB4;
     } else {
         D_80098698 = 4;
-        value = 0x9A;
+        D_80098692 = 0x9A;
     }
-    D_80098692 = value;
     BattleSetValueAndClearFlags(D_8009105C[idx]);
     g_BattleWindowTargetX = 0xA0;
     g_BattleWindowPosX = 0xA0;
@@ -824,7 +822,7 @@ void func_8007191C(u32 idx) {
     D_800987E0 = D_800987E8;
     D_800970C4 = D_800970CC;
 }
-*/
+
 
 extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
