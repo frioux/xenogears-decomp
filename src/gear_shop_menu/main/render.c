@@ -1620,6 +1620,21 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 // from the source ('((s32*)((u8*)pRect + 0x28))[j]' materialises the 0x28 per use, 2544).
 // (c) 'move s4,zero' sits one slot later than retail's inside the preheader init group
 // (scheduler noise, same instruction count).
+// ROUND 482: re-measured the body below at 98.91% / 2528 bytes / 632 insns against retail's
+// 2532 / 633 - it still compiles and is still the best, and (b) is still the only size residual.
+// The proof that (b) is reachable at all: writing BOTH digit-loop uses of the divisor through the
+// pRect-derived cast - '((s32*)((u8*)pRect + 0x28))[j]' in the division AND in 'value -= quotient
+// * ...' - reproduces retail's anchor instruction for instruction ('lw t1,0x78(sp)' / 'addiu
+// a1,t1,0x10' / two 'lw v0,0x28(a1)', CSE'd to one anchor), i.e. the exact 2532 bytes, but it
+// measures 97.50% / 2544 / 636: the one extra live reload takes a callee-saved register away, so
+// the three 'func_8002675C(..., 0x1000)' calls in the inventory block emit 'li t1,0x1000' x3 where
+// retail has ONE 'li s2,0x1000' and three 'sw s2,24(sp)'. A 'u32 polyColor' local holding 0x1000
+// (assigned inside or outside the outer loop, used by one or by all three calls) does not change
+// it - gcc rematerialises a known constant, which is exactly what the matched neighbour does
+// ('ori t2,0x1000' x3) - so (b) and that hoisted constant are the same allocator budget: this body
+// wins it, the pRect-anchored one loses it. Casting only the divisor, or a 's32* pPlaces =
+// (s32*)((u8*)pRect + 0x28)' local, measures 2540 / 635 with TWO anchors ('addiu a2,sp,0x30' folded
+// plus the pRect one) - the same trade, one instruction cheaper.
 /*
 s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     RECT rect;
