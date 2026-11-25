@@ -511,7 +511,7 @@ extern s16 g_FieldTextScaleDivisor;
 extern s32 g_GamePartySkinsInitialized;
 extern s32 g_FieldPartyActorSlots[];
 extern s32 g_FieldPartyActorIndices[];
-extern s16 D_800B22DE[];
+extern u_short D_800B22DE[];
 extern s32 D_800B2298;
 extern s32 D_800B229C;
 extern s32 g_GfxOTDepthShift;
@@ -544,18 +544,43 @@ extern FieldRotationVectorPair g_FieldRotationVectorPair;
 extern void FieldResetPortraitSlots(void);
 extern void FieldInitScreenStripSprites(void);
 
-// 426 insns, huge straight-line global-reset block. Best measured 89.55% (1708 bytes, 427 vs 426 insns) with the raw flat-symbol spelling; 84.78% (1692) after reworking the four table bases onto shared pointer locals. Residual (named): (1) retail's stack frame is 0x38 with the SVECTOR at sp+0x20 and 0x20 bytes of unused local space below it - our frame is 0x28/SVECTOR at 0x10, so gcc allocated a 0x20-byte local we have not found; no callee takes it (all 15 calls' args are registers) so the source local is unknown. (2) the store block's schedule: retail keeps $v0 live across the six pad-zero stores (li 5 ... sb 0(s0)) while our sched2 hoists each constant store next to its li. (3) loop register assignment: retail a0=pGameState walk, v1=pDest, a2=+0x400, a1=counter; ours picks a1/a0/v1. (4) li 0xffff vs li -1 for g_FieldControl.controllerBtnMask (header field is short; retail's is unsigned). The 89.55 body is this one with the four table bases spelled as raw
-// offsets instead of pointer locals: pSlot = (s16*)((u8*)&g_FieldScriptSoundEffectBank - 0x70),
-// pSlot = &g_FieldScriptRenderContextIndex + 0x5D, ((u_short*)&g_FieldScriptMemory)[i] and
-// [0x200 + i], and the 32-entry loop based on D_800B22DE; that spelling keeps the 16-loop and
-// copy-loop base addresses in one register (retail: la v1 + sh 0(v1) + addiu a2,v1,0xBA) which
-// the pointer-local form folded into a fresh la of sym+0xBA and lost three instructions.
+// 426 insns, huge straight-line global-reset block (field scene reset). Parked at 84.61%,
+// 426 insns / 1704 bytes - RETAIL'S EXACT SIZE - with the frame and prologue/epilogue exact.
+// The old 89.55% note was a 427-insn / 1708-byte body; this one is the better base.
+// Fixed here (do not re-derive): (a) the frame is 0x38 because of a DEAD 16-byte array local -
+// `u_long unusedFrame[4];` declared BEFORE `SVECTOR rotation;` puts rotation at sp+0x20 and the
+// saves at 0x28/0x2C/0x30 (lever j-an-unused-local-array-is; no callee takes a stack argument).
+// (b) the copy loop needs three walking pointers (pMemory, pZero = pMemory + 0x200, and a
+// GameState* local feeding `pState->fieldScriptMemory[i]`, which gcc strength-reduces into
+// `lhu 0x1930(a0)` + addiu - a u16* pSource gives 427 insns and loses that displacement).
+// (c) D_800B22DE must be u_short: the 32-entry 0xFFFF fill is retail's `ori v1,zero,0xffff`.
+// NAMED RESIDUAL (1): cse folds every global pointer base, so ours re-forms symbol+offset where
+// retail keeps the base in a register for 200 instructions. Retail loads &bank into $s0 at insn
+// 20 (across two calls), stores `sb v0,0(s0)` and derives the first fill loop with
+// `addiu s0,s0,-0x70`; retail's 16-loop likewise holds the base in $v1 (`lui/addiu %lo(sym)`,
+// `sh v0,0(v1)`) and derives the loop pointer with `addiu a2,v1,0xBA`. The parked body spells the
+// bank as `u8* pBank = &g_FieldScriptSoundEffectBank;` (initializer at the declaration, tried), as
+// an assignment before the store (same bytes) and as the raw expression
+// (s16*)((u8*)&g_FieldScriptSoundEffectBank - 0x70) (427 insns); all three fold to
+// `lui at; sb %lo(bank)` plus a fresh `%hi(bank-0x70)`, so no callee-saved base is ever live. That
+// is the root of the rest: without it $s0/$s1 end up on g_Scene only in the tail, and the whole
+// allocation/schedule shifts (our loop counters land in $v1 where retail's are $a1 in all five
+// loops; retail keeps 0x1000 in $a0 and reuses it for D_800AF93A and g_FieldPolarVectorScale where
+// we re-`li` it; the 200-store block's li/store pairing differs).
+// NAMED RESIDUAL (2): include/field/main.h declares g_FieldControl.controllerBtnMask as `short`,
+// so `= 0xFFFF` emits `addiu v0,-1` where retail has `ori v0,zero,0xffff` (unsigned field); the
+// header is shared, so it was not changed here.
+// Everything else in the diff is that schedule/permutation; the ~131 differing instruction rows
+// contain no structural difference left that was found.
 /*
 void func_800705DC(void) {
+    u_long unusedFrame[4];
     SVECTOR rotation;
-    u8* pBank;
+    u8* pBank = &g_FieldScriptSoundEffectBank;
     s16* pIndex;
     u_short* pMemory;
+    u_short* pZero;
+    GameState* pState;
     s16* pSlot;
     int i;
 
@@ -573,7 +598,6 @@ void func_800705DC(void) {
     g_FieldP2ButtonsReleased = 0;
     g_FieldButtonsPressedOnce = 0;
     g_FieldP2ButtonsPressedOnce = 0;
-    pBank = &g_FieldScriptSoundEffectBank;
     *pBank = 5;
     g_FieldCurrentModelAnimationId = 3;
     g_FieldGearObjectCapacity = 0x40;
@@ -725,9 +749,9 @@ void func_800705DC(void) {
         }
     }
 
-    pSlot = D_800B22DE;
+    pMemory = D_800B22DE;
     for (i = 0x1F; i >= 0; i--) {
-        *pSlot-- = 0xFFFF;
+        *pMemory-- = 0xFFFF;
     }
 
     D_800B229C = 0;
@@ -735,9 +759,11 @@ void func_800705DC(void) {
     g_GfxOTDepthShift = 2;
 
     pMemory = (u_short*)&g_FieldScriptMemory;
+    pZero = pMemory + 0x200;
+    pState = g_pGameState;
     for (i = 0; i < 0x200; i++) {
-        pMemory[i] = g_pGameState->fieldScriptMemory[i];
-        pMemory[0x200 + i] = 0;
+        *pMemory++ = pState->fieldScriptMemory[i];
+        *pZero++ = 0;
     }
 
     SetGeomScreen(0x200);
@@ -764,6 +790,7 @@ void func_800705DC(void) {
     FieldInitScreenStripSprites();
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_800705DC);
+
 
 
 extern s16 g_FieldPortraitSlots[3][3];
