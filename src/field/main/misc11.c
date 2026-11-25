@@ -626,7 +626,7 @@ void FieldScriptVMHandlerSetFieldEntryState(void) {
     } else {
         g_pGameState->entryAngle = (value + FIELD_ANGLE_HALF_TURN) & FIELD_ANGLE_MASK;
     }
-    g_pGameState->unk2320 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    g_pGameState->nextMapFlags = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     FieldScriptVMEmptyHook();
     g_FieldScriptMemoryUpdateLocked = 1;
     g_FieldScriptVMStopFlag = 1;
@@ -806,7 +806,7 @@ void FieldScriptVMHandlerRequestFieldState1WithValue(void) {
     g_FieldScriptVMStopFlag = 1;
     pActor = g_FieldScriptVMCurActor;
     *(s16*)&g_pGameState->unk1928[0xA] = value;
-    g_pGameState->unk2320 = value;
+    g_pGameState->nextMapFlags = value;
     D_800C3A6A = value;
     g_FieldPendingRequestCount++;
     pActor->scriptInstructionPointer += 3;

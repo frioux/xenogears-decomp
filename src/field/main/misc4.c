@@ -565,7 +565,7 @@ void FieldAdvanceGameState(int state) {
         nSaved = g_pGameState->fieldScriptMemory[1];
         g_GameRequestedWdsBankIndex = g_FieldInitialWdsBankIndex;
         g_pGameState->wdsBankIndex = g_FieldInitialWdsBankIndex;
-        g_pGameState->unk2320 = nSaved;
+        g_pGameState->nextMapFlags = nSaved;
         if (g_FieldSuppressStateChange != 0) {
             return;
         }
@@ -590,7 +590,7 @@ void FieldAdvanceGameState(int state) {
 
         nSaved = g_pGameState->fieldScriptMemory[1];
         g_pGameState->wdsBankIndex = g_GameRequestedWdsBankIndex;
-        g_pGameState->unk2320 = nSaved;
+        g_pGameState->nextMapFlags = nSaved;
         if (g_FieldSuppressStateChange != 0) {
             return;
         }
@@ -873,7 +873,7 @@ void func_800799D4(void) {
             FieldScriptMemoryWriteU16(0x46, 0);
             FieldScriptMemoryWriteU16(4, 4);
             g_GameSceneMapNum = 4;
-            g_pGameState->unk2320 = 0;
+            g_pGameState->nextMapFlags = 0;
             g_pGameState->fieldScriptMemory[1] = 0;
             g_pGameState->mapNum = 4;
         }
@@ -883,7 +883,7 @@ void func_800799D4(void) {
         FieldScriptMemoryWriteU16(0x46, 2);
         FieldScriptMemoryWriteU16(4, g_pGameState->mapNum & 0x3FFF);
         if ((g_pGameState->mapNum & 0x3FFF) < 0x400) {
-            g_pGameState->unk2320 = g_pGameState->fieldScriptMemory[0x2A];
+            g_pGameState->nextMapFlags = g_pGameState->fieldScriptMemory[0x2A];
         }
     }
 

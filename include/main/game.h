@@ -367,7 +367,10 @@ typedef struct {
     /* 0x22B1 */ undefined8 gearRide[MAX_PARTY_MEMBERS];
     /* 0x22B4 */ undefined8 unk22B4[0x2];
     // The word at 0x22B6 is also the base of the 0x64-byte per-gear-weapon array the battle's gear-part
-    // countdown indexes (`((u8*)&g_GameState.unk22B6)[weaponId]`, src/battle/main/misc20.c).
+    // countdown indexes (`((u8*)&g_GameState.unk22B6)[weaponId]`, src/battle/main/misc20.c), and of
+    // the two-digit per-weapon number func_80093B08 prints (src/battle/main/misc17.c). Read as a u16
+    // flags word too: FieldScriptCopyCharacter ORs 0x2000 into it for character 9 and 0x1000 for
+    // character 10, and MenuFillDressingRoomGearStats tests 0x1000 with an lhu.
     /* 0x22B6 */ undefined16 unk22B6;
     /* 0x22B8 */ undefined8 unk22B8[0x60];
     // One bit per character id that is in the party: FieldScriptSetCharacterBit2318 sets or
@@ -379,11 +382,14 @@ typedef struct {
     // current sceneAngle turned 180 degrees when the script passes -1.
     /* 0x231C */ u16 entryAngle;
     // The other two arguments of that opcode: FieldScriptVMHandlerSetFieldEntryState stores its
-    // second argument here and its fourth in unk2320, and nothing reads either back.
+    // second argument here and its fourth in nextMapFlags, and nothing reads either back.
     // FieldScriptSyncMemoryWithGameState and FieldAdvanceGameState also copy
-    // fieldScriptMemory[1] into unk2320.
+    // fieldScriptMemory[1] into nextMapFlags.
     /* 0x231E */ undefined16 unk231E;
-    /* 0x2320 */ u16 unk2320;
+    // The flags word of the pending map entry, set with mapNum and entryAngle: this address is the
+    // extern g_NextMapFlags the world map's map-change requests store their flags in
+    // (src/world_map/main/misc3.c, misc4.c, misc7.c).
+    /* 0x2320 */ u16 nextMapFlags;
     /* 0x2322 */ u16 wdsBankIndex;
     /* 0x2324 */
 } GameState; // size: unknown

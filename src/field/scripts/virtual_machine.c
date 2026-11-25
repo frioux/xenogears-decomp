@@ -831,7 +831,7 @@ void FieldScriptSyncMemoryWithGameState(void) {
 
     g_pGameState->mapNum = g_GameSceneMapNum;
     g_pGameState->wdsBankIndex = g_GameRequestedWdsBankIndex;
-    g_pGameState->unk2320 = g_pGameState->fieldScriptMemory[1];
+    g_pGameState->nextMapFlags = g_pGameState->fieldScriptMemory[1];
     g_pGameState->entryAngle = g_pGameState->fieldScriptMemory[4] << 9;
     FieldScriptMemoryWriteU16(0x44, g_BattleClock);
     FieldScriptMemoryWriteU16(0x46, g_GameDiscChangeRequest);
