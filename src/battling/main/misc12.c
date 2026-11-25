@@ -114,6 +114,18 @@ typedef struct {
     /* 0x98 */ u32 unk98;
 } BattleMisc12Obj; // Size: 0x9C
 
+// g_BattleOptionFlags split the way BattleApplyOptionWord decodes it: a 4-bit mode
+// word (which it compares against 1), the two vibration bits, the match count and
+// the difficulty level.
+typedef struct {
+    /* 0x0:0  */ u32 mode : 4;
+    /* 0x0:4  */ u32 player1Vibration : 1;
+    /* 0x0:5  */ u32 player2Vibration : 1;
+    /* 0x0:6  */ u32 matchCount : 7;
+    /* 0x0:13 */ u32 difficultyLevel : 3;
+    /* 0x0:16 */ u32 unk16 : 16;
+} BattleOptionBits; // Size: 0x4
+
 extern MATRIX g_BattleBaseMatrix;
 extern MATRIX g_BattleScaleMatrix;
 extern MATRIX g_BattleBaseMatrixCopy;
@@ -213,52 +225,44 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
 
 
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
-
-/* Best attempt: objdiff 86.96% at retail's exact 184 bytes, and with the bitfield
-   body below everything matches - the single lw, the five clearing masks
-   (~0xF, ~0x10, ~0x20, ~0xFFFFE03F, ~0xFFFF1FFF), the four hoisted `li` masks in
-   retail's order, the five value registers ($a2,$a1,$a0,$v1,$t0), the four
-   lbu/andi/sll/or chains and the final `and t0,v1,t0` - except the placement of the
-   first four stores: retail defers them past the last lbu and stores a2/a1/a0/v1
-   together, gcc stores each value where its chain step completes (every store sits
-   in the reload that the following bitfield assignment needs).
-   Round 292 re-measured the two axes this could come from and both are dead ends:
-   - the scheduler. cc1 2.7.2 with -fschedule-insns, -fschedule-insns2, both,
-     -fno-delayed-branch, on both spellings: output identical to the unit flags.
-     So the store positions are the RTL order, i.e. the source order.
-   - the compiler version. 2.7.2-psx, 2.7.2-cdk, 2.6.0 at -O2 and -O3 all
-     interleave the stores the same way (2.6.0 loses the `lw`/`la` shape as well).
-   And the source order cannot be "compute all five, then store": the chained
-   `*pFlags = (*pFlags & ~M) | v;` form (realistic C, 64.43%) is what produces the
-   five live chain registers retail has, while five temporaries followed by five
-   stores (73.13%) makes gcc fold the chain into one register and delete four of the
-   stores. So retail's shape needs both the five live values AND a store placement no
-   cc1 here emits from C - a permuter job, not a hand job. */
+// Best attempt: objdiff 86.96% at retail's exact 184 bytes / 46 insns. With the
+// bitfield body below everything is retail: the single lw, the five clearing masks
+// (~0xF, ~0x10, ~0x20, ~0xFFFFC03F, ~0xFFFF1FFF), the four hoisted li masks in
+// retail order, the five value registers ($a2,$a1,$a0,$v1,$t0), the four
+// lbu/andi/sll/or chains and the final and t0,v1,t0. The residual is that gcc
+// stores each chain value right where it completes (sw a2 after and a1,a2,a1, ...)
+// while retail keeps the four dead stores together between and t0,v1,t0 and the
+// last andi/sll/or.
+// Round 492 CORRECTED the round 292 note: the store slots are sched2's, not source
+// order. cc1 on this unit .i with -fno-schedule-insns2 puts ONE load and all FIVE
+// stores at the END of the block (RTL order = stores last), i.e. retail's sched2
+// hoists the four up only 3 slots while ours hoists them ~18; -fschedule-insns is
+// a no-op on this body. -fno-schedule-insns2 is a diagnostic, not a preset flag.
+// Also measured dead this round: -O3 does not compile the body, cdk -G0 84.13,
+// 2.6.0 -G0 86.96 (identical to the unit flags), and a 3-minute permuter run
+// (base 1815 best 406 by its own metric) whose winning edit is a constant-1 local
+// and whose objdiff score is unchanged at 86.96.
+// Shapes that move the OTHER way: five u32 temps then five stores makes gcc delete
+// four dead stores (168 bytes / 42 insns, 73.13%), and a volatile u32* keeps all
+// five stores (184 bytes) but coalesces the whole chain into one register
+// (64.43%).
 /*
-typedef struct {
-    u32 mode : 4;   // 0x0
-    u32 flagB : 1;
-    u32 flagC : 1;
-    u32 value : 7;
-    u32 scale : 3;
-    u32 pad : 16;
-} BattleFlagBits;
-
 void func_80088A40(void) {
-    BattleFlagBits* pFlags;
+    BattleOptionBits* pFlags;
 
     if (g_BattleTransitionFlag == 0) {
         return;
     }
-    pFlags = (BattleFlagBits*)&g_BattleOptionFlags;
+    pFlags = (BattleOptionBits*)&g_BattleOptionFlags;
     pFlags->mode = 1;
-    pFlags->flagB = g_BattlePlayer1Vibration & 1;
-    pFlags->flagC = g_BattlePlayer2Vibration & 1;
-    pFlags->value = g_BattleMatchCount & 0x7F;
-    pFlags->scale = g_BattleDifficultyLevel & 7;
-}
-*/
+    pFlags->player1Vibration = g_BattlePlayer1Vibration & 1;
+    pFlags->player2Vibration = g_BattlePlayer2Vibration & 1;
+    pFlags->matchCount = g_BattleMatchCount & 0x7F;
+    pFlags->difficultyLevel = g_BattleDifficultyLevel & 7;
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
+
+
 
 void BattleApplyOptionWord(void) {
     u32 flags;
