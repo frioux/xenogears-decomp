@@ -785,7 +785,7 @@ void BattleInitMessageWindow(void) {
 extern u8 g_BattleTutorialWindowEnabled;
 extern s16 D_80098698;
 extern s16 D_80098692;
-extern s32 D_8009105C[];
+extern s32 g_BattleTutorialScriptEntryPoints[];
 extern s32 g_BattleWindowTargetX;
 extern s32 g_BattleWindowPosX;
 extern s32 g_BattleWindowTargetY;
@@ -803,7 +803,7 @@ extern void BattlePlaySoundEffectById(s32 id);
 // store, and a `value` local instead measures 89.15% (the else arm's constant is
 // then stolen into the bnez delay slot and the shared store lands after the call's
 // argument load).
-void func_8007191C(u32 idx) {
+void BattleSelectTutorialPage(u32 idx) {
     g_BattleTutorialWindowEnabled = idx < 1;
     if (idx == 0) {
         BattlePlaySoundEffectById(0x37);
@@ -813,7 +813,7 @@ void func_8007191C(u32 idx) {
         D_80098698 = 4;
         D_80098692 = 0x9A;
     }
-    BattleSetValueAndClearFlags(D_8009105C[idx]);
+    BattleSetValueAndClearFlags(g_BattleTutorialScriptEntryPoints[idx]);
     g_BattleWindowTargetX = 0xA0;
     g_BattleWindowPosX = 0xA0;
     g_BattleWindowTargetY = 0x6D;
@@ -851,7 +851,7 @@ void BattleInitTutorialMessage(void) {
     g_BattleTutorialLineOffset = 0;
     g_BattleEffectPlaceMode = 0;
     g_BattleStateStep = 0;
-    func_8007191C(9);
+    BattleSelectTutorialPage(9);
 }
 
 extern u8 g_BattleWindowPrimsEnabled;
@@ -908,13 +908,13 @@ void BattleUpdateTutorialScreen(void) {
         SystemStringSetLineOffset(pWindow, (s8)g_BattleTutorialLineOffset);
         if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
             BattlePlaySoundEffectById(0x21);
-            func_8007191C((s8)g_BattleTutorialLineOffset + 1);
+            BattleSelectTutorialPage((s8)g_BattleTutorialLineOffset + 1);
             SystemStringReset(pMsg);
         }
     }
     pCursor = (u8*)g_BattleScriptCursor;
     if (*pCursor == 0) {
-        func_8007191C(0);
+        BattleSelectTutorialPage(0);
     }
     func_8007107C();
     g_BattleWindowPosX += BattleRoundDivAwayFromZero(g_BattleWindowTargetX, g_BattleWindowPosX, 4);

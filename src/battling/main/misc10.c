@@ -320,7 +320,7 @@ typedef struct {
     /* 0x909 */ u8 typeId;
     /* 0x90A */ u8 typeFlags;
     /* 0x90B */ u8 timer; // counted down by the ground-effect pass (src/battling/main/misc4.c)
-    /* 0x90C */ s16 actionAngle; // latched when actionPhase 2 starts, copied into `angle` each frame (misc3's func_80078194)
+    /* 0x90C */ s16 actionAngle; // latched when actionPhase 2 starts, copied into `angle` each frame (misc3's BattleActorUpdateVelocity)
     /* 0x90E */ u8 savedModelIndex;
     /* 0x90F */ u8 unk90F;
     /* 0x910 */ u8 soundTimer; // frames left before the gauge sound repeats (src/battling/main/misc3.c)

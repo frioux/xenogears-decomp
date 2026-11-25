@@ -246,7 +246,7 @@ typedef struct BattleActor {
     // Set to 0xF while the flags word's 0x60000000 bits read 3 and counted down
     // by misc4's func_8007920C, which spawns the ground effect while it runs.
     /* 0x090B */ u8 timer;
-    // The angle held while actionPhase 2 plays: func_80078194 latches the facing
+    // The angle held while actionPhase 2 plays: BattleActorUpdateVelocity latches the facing
     // target here when the phase starts and copies it into `angle` every frame.
     /* 0x090C */ s16 actionAngle;
     // The model index in effect the last time it was recorded; the model's own
@@ -1780,7 +1780,7 @@ extern u8 g_BattleCameraLerpFrames;
      `= 0x80` before the switch with an empty case 2, otherwise gcc emits a flat
      compare chain.
 */
-void func_80078194(BattleActor* p) {
+void BattleActorUpdateVelocity(BattleActor* p) {
     s32 angle;
     s32 target;
     s32 alpha;
