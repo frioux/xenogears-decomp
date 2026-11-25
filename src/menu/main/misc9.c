@@ -529,6 +529,31 @@ void MenuFitInventoryWindowToItems(void) {
 // row/col index the 16-column page, input 4 selects / confirms / swaps, 5 backs out,
 // 1/3/0/2 move by one column, 9/10 by eight rows, and both 0xFF sentinels force the
 // row and item prims to be rebuilt.
+// ROUND 483: un-parked and re-measured 94.26% / 892 bytes / 223 insns (retail 896 / 224) from
+// the body below, so the note above is current. FIVE new spellings measured this round, all
+// aimed at the one missing instruction, none moved it:
+//  (1) case 5 with the test polarity swapped (if (selectedSlot == 0xFF) { active = 0; } else
+//      { selectedSlot = 0xFF; }): byte-identical output, 94.26 / 892 / 223, 109 lines.
+//  (2) case 5 with an explicit break in the then arm instead of an empty else: identical,
+//      94.26 / 892 / 223.
+//  (3) active = 1; needsOpen = 1; (the reversed init pair): 94.17 / 892, 113 lines - the
+//      prologue then saves s5 first. The variable-to-register map does NOT move with it either
+//      (active=$s5, needsOpen=$s6 in BOTH init orders), so retail active=$s6 is not an
+//      init-order question: the two pseudos need a different allocno SET.
+//  (4) the lever d-nested-else-keeps-a-case-copy spelling (case 4 outer test negated with the
+//      nested test in its TRUE arm): 92.21 / 892, 111 lines, worse. That branch shape is
+//      already retail's (bne s3,0xFF to the nested arm) in the current spelling too, so the
+//      lever's premise does not apply to this residue.
+// WHAT THE DUMPS SHOW, one decision rather than two: our case-4 success arm is
+// instruction-identical to retail (beqz to the test with the selectedSlot store in its delay
+// slot, then j to the prevCol block with the prevRow store in its delay slot). The whole
+// residual is WHERE the once-only {selectedSlot = 0xFF; break} copy sits: retail keeps case
+// 5 copy, which lands after case 5 body at 0x70 and is therefore separated from the prevCol
+// block at 0x54 by case 5 text - that separation is what prints the extra j .L801DC070. This
+// body keeps case 4 copy, which falls through from the prevCol block, so one j disappears.
+// The prevCol block is the same story and AGREES with retail (case 10 copy survives, 0x158),
+// so the cross-jump survivor is not simply "the later copy", and neither case-5 spelling
+// flips it.
 /*
 s32 func_801DBE54(void) {
     u8 active;
@@ -666,6 +691,7 @@ s32 func_801DBE54(void) {
     return 1;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+
 
 
 
