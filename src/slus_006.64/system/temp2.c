@@ -1409,23 +1409,14 @@ s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
+// Best 97.55% (688 bytes = retail's, 172 insns = retail's). Residual is allocator + scheduler only:
+// - head: gcc hoists the lhu of scale to the top of the prologue and puts the localY store (sh t1,24(sp)) in the beqz delay slot where retail has a nop (retail loads scale just before the beqz, after the dirent count lh).
+// - the four finite-division temporaries: retail mflo lands in v1/a1/v1/v0, ours in a0/v1/a0/v0 (same sra/srl choice, so the types are right: nX s32, nY u16, nWidth s32, nHeight u16).
+// - addu operand order on x1/x0 only: retail addu v1,s2,v0 (nWidth first), ours (v0,s2), even with the C written nWidth + x0. The y pair is exact after writing nHeight + y0.
+// Fixed this round (92.96 -> 97.55): v-- instead of v = pData->v - 1 (the s16 reload cost 2 insns; in-place keeps the lhu), and nWidth/nHeight as the LEFT operand of x1/y1/x0/y0, which fixed both y adds.
+// Tried and worse: s32 x0/x1 locals (97.26, 54 diff lines); x0 + nWidth (no change).
+// Permuter, 3 min, 1317 iterations from this body: base 420 best 325, all candidates are declaration noise (new_var2 = (s16)pData->height, new_var = pPrim) - no lead.
 /*
-Un-park screen: cdk 92.96%, gcc-2.6.0 84.08%, gcc-2.7.2 88.09%, cdk -O3
-92.96%, cdk -G0 92.96% - the park stays and cdk is right; the gap is the
-scheduler, not the compiler.
-Best 92.96% (696 bytes, same size as the original). Remaining gaps are
-allocator/scheduler only: gcc hoists the lhu of scale to just after the dirent
-count load (the original loads it after the pDirent store), so it fills the
-beqz frames slot with the localY store where the original has a nop, and the
-first quotient lands in a0/v1 instead of v1/a0.
-The 91.30% attempt's srl-vs-sra puzzle is solved: assigning the y and height
-quotients to u16 locals is what makes cdk gcc truncate and emit srl after the
-same bgez/+0xFFF fixup (a signed int quotient gets sra, and the 91.30% attempt
-had both y and height as s32). Everything else that got the earlier attempt
-that far still holds: localX/localY declared before pDirent and i, the four
-scaled reads cast to s16 (lh), v read through (u16), texPageX through (s16),
-corners assigned in offset order, and pPrim computed before pData.
 s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
                   s32 context, u16 x, u16 y, u16 scale) {
     u16 localX = x;
@@ -1471,7 +1462,7 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
             height = pData->height;
             if (!pData->flipX) {
                 x0 = localX + nX;
-                x1 = x0 + nWidth;
+                x1 = nWidth + x0;
                 pPrim->x0 = x0;
                 pPrim->x1 = x1;
                 pPrim->x2 = x0;
@@ -1479,7 +1470,7 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
             } else {
                 u = pData->u - 1;
                 x1 = localX + nX;
-                x0 = x1 + nWidth;
+                x0 = nWidth + x1;
                 pPrim->x0 = x0;
                 pPrim->x1 = x1;
                 pPrim->x2 = x0;
@@ -1492,15 +1483,15 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 
             if (!pData->flipY) {
                 y0 = localY + nY;
-                y1 = y0 + nHeight;
+                y1 = nHeight + y0;
                 pPrim->y0 = y0;
                 pPrim->y1 = y0;
                 pPrim->y2 = y1;
                 pPrim->y3 = y1;
             } else {
-                v = pData->v - 1;
+                v--;
                 y1 = localY + nY;
-                y0 = y1 + nHeight;
+                y0 = nHeight + y1;
                 pPrim->y0 = y0;
                 pPrim->y1 = y0;
                 pPrim->y2 = y1;
@@ -1522,8 +1513,10 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
         }
     }
     return pDirent->count;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
+
+
 
 // Builds one SPRT per record of the dirent into pSprites, two sprites per
 // record (one per render context), and the DR_MODE that follows them.
