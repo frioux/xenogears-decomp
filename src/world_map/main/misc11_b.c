@@ -307,33 +307,31 @@ int WorldMapUpdateGearActorSlot(int index) {
 }
 
 
-// 81.33% (304 bytes, retail 300). Round 186: re-parked with the current field names
-// (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state) - it
-// builds now and re-measures at 81.33. The same two head differences as WorldMapInitPartyActor1:
-// retail stores the three zeros (0x40/0x3C/0x38) right after the func_8008C364 call and
-// loads g_GameState+0x182A above them (gcc sinks them below the g_WorldMapMode load),
-// and retail re-reads angle with lh for drawAngle where gcc keeps the register and
-// emits an sll/sra pair - exactly the 4 extra bytes (304 vs 300). The whole gearRide[2]
-// block, the mode<8 arm and the tail are byte-identical.
-/*
+// The four volatile pins are this file's idiom (see WorldMapInitPartyActor1 in misc11_c):
+// without the three zero clears' pins cc1 sinks them below the mode load, and without the
+// state/x pins the gear arm's stores sink into the position loads. Both keep retail's
+// 300 bytes, so only the order tells.
 int func_8008DD6C(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 2);
     s32 mode;
 
-    pActor->dirZ = 0;
-    pActor->dirY = 0;
-    pActor->dirX = 0;
+    // volatile: keeps these three above the angle and mode loads, as retail has them
+    *(volatile s32 *)&pActor->dirZ = 0;
+    *(volatile s32 *)&pActor->dirY = 0;
+    *(volatile s32 *)&pActor->dirX = 0;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[4];
     pActor->moveSpeed = 0xC;
     pActor->trailDelay = 0x1F;
-    pActor->angle = *(u16 *)&g_GameState.unk1826[4];
-    pActor->drawAngle = pActor->angle;
     mode = g_WorldMapMode;
+    pActor->drawAngle = pActor->angle;
     if (mode > 0) {
         if (mode < 4) {
             if (g_GameState.gearRide[2] == 1) {
-                pActor->state = 1;
-                pActor->x = g_WorldMapPlayerPosition;
+                // volatile: keeps this above the position loads, as retail has it
+                *(volatile s16 *)&pActor->state = 1;
+                // volatile: keeps the g_WorldMapPlayerPositionZ load below this store, as retail has it
+                *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
                 pActor->z = g_WorldMapPlayerPositionZ;
                 pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
                 pActor->angle = g_WorldMapPlayerRotation;
@@ -347,8 +345,7 @@ int func_8008DD6C(int index) {
     g_GameState.fieldScriptMemory[0x1D] = pActor->z >> 12;
     *(u16 *)&g_GameState.unk1826[4] = pActor->angle;
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11_b", func_8008DD6C);
+}
 
 int WorldMapModeInitPartyActor2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
