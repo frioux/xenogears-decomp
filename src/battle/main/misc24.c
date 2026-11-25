@@ -216,6 +216,13 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
 // This body (declaration initialisers, the 0x98 store written first) gets the load to insn 0 but the store sinks to 8, one displaced insn.
 // With the 0x98 store in retail's source slot the store lands at 14 and the load hoists only to 5 (74.36, the round-441 body). Retail's (load 0, store 14) needs a 13-insn hoist of the load across four sw's; 2.6.0 hoists 9.
 // Round 467 sweep of the 0x98 statement's source position 0..10 with the declarations kept: 94.87, 89.74, 79.49, 72.77, 69.18 x5, 74.36, 74.05 - the front is the maximum. s32 instead of s16 on both locals: byte-identical, 94.87.
+// Round 480 re-confirmations, no new best: (a) declarations kept and the 0x98 store
+// moved to retail's source slot (after commandCount) puts the store at insn 14 as
+// retail but the -1 home at 5 (74.36, 156 bytes, 39 insns) - the documented
+// nine-insn hoist cap; (b) `register s16 negOne = -1;` on that body is
+// byte-identical to (a); (c) lever.py a-single-li-at-the-wrong-distance /
+// h-no-way-to-home-a / h-constant-home-hoist-is-capped all describe this function
+// and say park, not permute. Body kept: this one (94.87, two differing lines).
 // twin_for: no twin. Sibling func_801E3534 (lib_gear/main/main) is this exact function, byte-for-byte the same 39 insns, and sits on the same wall at 94.87 with 2 permuter runs and 4 presets already screened there.
 /*
 void func_800AA898(BattleActor *pActor, s32 arg1, s32 arg2, s32 arg3) {
