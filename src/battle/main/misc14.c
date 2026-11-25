@@ -219,14 +219,7 @@ void BattleStepTwoAxisInterpolation(void) {
         g_BattleLerpDone = 1;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
-// Best attempt: objdiff 92.61% (retail 1240 bytes). Two classes of diff: the frame
-// carries one extra callee-saved register (s6, so ra moves 0x48 -> 0x4C) and,
-// downstream of that, the g_BattleSpriteColumnWork base sits in $a0 where retail has $a1 at the
-// coordinate stores. The three sprite packages, the four prim loops and the 2x10
-// grid already line up. The s16/u16 mix on 0x5D9C/0x5D9E and the word read of
-// g_BattlePrimStartIndex inside the grid loop are casts retail really had: the same symbols are
-// read the other way round in BattleStepTwoAxisInterpolation.
+// Best attempt: objdiff 92.61% (retail 302 insns, this body 310). Three classes of diff, measured separately. (1) The six prim-blend call sites: retail computes addiu on the OFFSET CHAIN and then adds the base (addiu a0,a0,0xD20 / addu a0,a0,a1), the body gets the constant folded onto the base instead (addiu v0,a1,3360 / addu a0,a0,v0) -- same instruction count, 12 differing lines. A s32 pEntry intermediate (the spelling BattleBuildBlendedSprite matched with) does block the reassociation but costs 10 insns and 88.68% overall, and block-scoping pEntry per loop still gives 88.68; the neighbour got it for free because it has only one such loop. (2) Inside each blend loop retail RELOADS the g_BattleSpriteColumnWork[0x5D94/95/93/97] count per iteration (lbu v1,0x5D94(a1)) while this body hoists that load into the preheader, so the count lives across the call. (3) The 2x10 grid: this body hoists (sy >> 16) out of the inner loop as sra+sll into s6, which is the extra callee-saved register the frame carries (ra 0x48 -> 0x4C, +4 insns); retail recomputes sra a3,s5,0x10 per iteration. The g_BattlePrimStartIndex reads: retail keeps its ADDRESS in s0 (lui+addiu once, four lbu 0,0(s0)) where this body re-forms lui/lbu at each of the four, +2 insns. Preset screened: gcc-2.7.2-cdk drops every already-matched function in the unit (BattleBuildBlendedSprite 98.75, BattleBuildGrey80BlendSpriteColumn7 79.93), so 2.6.0 is right and the residue is source shape, not the compiler.
 /*
 void func_80088B80(void) {
     s32 i;
@@ -281,8 +274,10 @@ void func_80088B80(void) {
         }
         g_BattleSpriteColumnWork[0x5D98] = g_BattlePrimStartIndex;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
+
+
 void BattleBuildFlaggedSlotSpriteColumn(void) {
     s32 i = 0;
     s32 pitch = 0x6E << 16;
