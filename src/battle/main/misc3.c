@@ -249,21 +249,8 @@ void BattleSetPolyFT4Rect(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, s16 dx, s16 dy)
     p->u3 = u + dx;
     p->v3 = v + dy;
 }
-/* 92.31% (344 bytes / 86 insns against retail "s 332 / 83): the do-while, the
-   switch chain and the whole tail are already exact (`addiu s0,s0,0x28;
-   addiu v0,s2,0x50; slt; bnez`, signed compare, no pre-loop guard). The residual
-   is ONE extra induction variable minted by loop.c: retail keeps a single cursor
-   (s0 = p) and reaches every field as a displacement off it (sb 4/5/6, sh 0xE,
-   sh 0x16), while every body below also gets a second giv at p+0xE (s0) for the
-   five field accesses with displacements -0xA/-9/-8/0/8, i.e. +1 addiu, a 6th
-   saved register and frame 0x30 instead of 0x28. Tried and measured: u8 *p with
-   byte offsets (92.31, the park below in its first shape), typed POLY_FT4 *p
-   with -> members (92.31, identical RTL - so the g-index-form lever does NOT
-   transfer here), the cursor in the parameter with a separate start local
-   (84.96, 90 insns), and a 4-minute permuter run (2188 iterations, base 952
-   best 520) whose only lead DELETES the advancing cursor and reads every field
-   through a cast of pInfo (wrong code - rejected).
-   Parked body (92.31): 
+// 92.31% (344 bytes / 86 insns against retail's 332 / 83, unit gcc-2.6.0 XenoBattle260). Residual: strength_reduce creates a giv of the repeated store address (p + 0xE) - retail's frame is 0x28 with 5 saved regs and a per-iteration 'addu v1,s0,zero', this compile hoists 'addiu s0,s1,0xE', keeps a 6th saved reg (s5) and a 0x30 frame. PROOF it is the pass and not the source: the same body compiled with -fno-strength-reduce (tools/gcc-2.6.0-psx/cc1 -O2 -G8 plus that flag) is retail's exact shape, frame 0x28, 5 regs, 'sh $2,14($16)', 'addu $16,$16,40 / addu $2,$18,80 / slt' - identical except that retail also carries the one extra 'addu v1,s0,zero' copy. No source shape reached that: measured also typed POLY_FT4* p->clut 91.65 (pointer compare gives sltu where retail has slt, so the loop really is a signed byte-pointer compare), u16 *pClut = (u16 *)p with pClut[7] 92.31 (identical), and a for(i<2) loop with typed p 91.52 (slti, extra index register). try_flags: 2.7.2 92.31, cdk compile-failed, -O1 82.36, -O3 compile-failed. Body:
+/*
 void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
     u8 *p;
 
@@ -299,6 +286,7 @@ void func_80076D58(u8 *pInfo, u8 flag, u8 mode) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
+
 void BattleLoadActionRowGraphics(void) {
     u8 *pBuf[BATTLE_ACTION_ROW_COUNT];
     RECT rect;
@@ -792,7 +780,37 @@ void BattleInitTextSlotGraphics(void) {
         BattleInitTextSlotPrims((BattleSlotPrimBlock *)((u8 *)g_BattleTextSlotRects + offPrev + 0x10), i + 1);
     }
 }
-/* 81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
+// Where the six ResourceHelperGetTexCoords out-parameters of one texture sit in
+// a metadata row: the row is six s32 and each texture uses one whole row.
+#define BATTLE_TEX_COUNT(_i)  ((_i) * 6) + 0
+#define BATTLE_TEX_PAGE(_i)   ((_i) * 6) + 1
+#define BATTLE_TEX_CLUT_X(_i) ((_i) * 6) + 2
+#define BATTLE_TEX_CLUT_Y(_i) ((_i) * 6) + 3
+#define BATTLE_TEX_PAGE_X(_i) ((_i) * 6) + 4
+#define BATTLE_TEX_PAGE_Y(_i) ((_i) * 6) + 5
+// Bytes of one party member's sprite TIM block in the archive pTimData points at.
+#define BATTLE_CHAR_TIM_BYTES 0x460
+// An empty party slot in g_BattleActorCharIds.
+#define BATTLE_CHAR_ID_EMPTY 0x7F
+// The character sprite every party member but the first is drawn with while
+// D_800D3294 (the character override) is set.
+#define BATTLE_OVERRIDE_CHAR_ID 0xB
+// Halfwords a texture page is shifted by per party member to pack the three
+// sprites side by side in VRAM.
+#define BATTLE_TEX_PAGE_STEP 6
+
+/* RE-MEASURED under the unit's current preset (XenoBattle260 = gcc 2.6.0)
+   86.57% (480 bytes / 120 insns against retail's 504 / 126) - the 81.38 below
+   was the old 2.7.2 preset. Residual under 2.6.0 is exactly two things: the
+   i-1 induction variable retail carries alongside i (both initiu out of the
+   loop, "-0x1" and "0x0", both incremented by 1 in the tail; retail reads the
+   char id as %hi(D_800D2D25)-folded s2 = i-1 and tests "i != 0" with
+   sltiu s2,2), and the sixth out-parameter it costs (metadata+0x14 spilled at
+   0x98(sp), frame 0xC8 vs 0xC0). Everything after the lhu readbacks is
+   instruction-identical. Getting a second index register from a body that
+   mentions only i is a loop.c giv question, not a spelling one; bodies measured
+   below all keep one.
+   81.38% (484 bytes / 121 insns against retail's 504 / 126): the body is right
    and the residual is ONE register. Under this unit's preset gcc 2.7.2 forms the
    address of g_BattleActorCharIds[i] from the loop counter (addu at,at,i) and
    reads the four metadata halfwords with lw, while retail keeps a SEPARATE giv
@@ -820,25 +838,6 @@ void BattleInitTextSlotGraphics(void) {
    included (so the += 6 is the loop tail's statement, not part of the if).
    Parked body (81.38): */
 /*
-// Where the six ResourceHelperGetTexCoords out-parameters of one texture sit in
-// a metadata row: the row is six s32 and each texture uses one whole row.
-#define BATTLE_TEX_COUNT(_i)  ((_i) * 6) + 0
-#define BATTLE_TEX_PAGE(_i)   ((_i) * 6) + 1
-#define BATTLE_TEX_CLUT_X(_i) ((_i) * 6) + 2
-#define BATTLE_TEX_CLUT_Y(_i) ((_i) * 6) + 3
-#define BATTLE_TEX_PAGE_X(_i) ((_i) * 6) + 4
-#define BATTLE_TEX_PAGE_Y(_i) ((_i) * 6) + 5
-// Bytes of one party member's sprite TIM block in the archive pTimData points at.
-#define BATTLE_CHAR_TIM_BYTES 0x460
-// An empty party slot in g_BattleActorCharIds.
-#define BATTLE_CHAR_ID_EMPTY 0x7F
-// The character sprite every party member but the first is drawn with while
-// D_800D3294 (the character override) is set.
-#define BATTLE_OVERRIDE_CHAR_ID 0xB
-// Halfwords a texture page is shifted by per party member to pack the three
-// sprites side by side in VRAM.
-#define BATTLE_TEX_PAGE_STEP 6
-
 void func_80078310(u8 *pTimData, u8 index) {
     TIM_IMAGE tim;
     s32 metadata[18];
