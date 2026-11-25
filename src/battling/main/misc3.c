@@ -356,20 +356,8 @@ s32 BattleActorDeltaUnk15E8(BattleActor* p0, BattleActor* p1) {
 void BattleNoop2(void) {
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
-
-/* 85.58%: the whole body, frame (0x40, three saved regs), the two divides,
-   the 0xFFF rounding and the tail all line up; the only residual is that gcc
-   gives $s1 to `ex = x3 - x1` and $s0 to `ey = y3 - y1` while the original has
-   the reverse (every downstream mult operand is swapped with them). Tried:
-   both declaration orders for ex/ey, both assignment orders (that one also
-   swaps the $v1/$t0 temps and drops to 85.13%), ex/ey declared after the other
-   locals. Allocation order follows the RTL definition order, so the pair cannot
-   be flipped without also flipping the emitted order.
-   Round 203: `r * r` in the final expression is REQUIRED - spelling it as
-   `vSq.vz` (Square0's z output, which is the same value) drops to 85.13% and
-   308 bytes (retail is 320, `r * r` is 320). Also measured 2.6.0 / cdk / -O3:
-   see the note on BattleUpdateActorState; Default is this unit's preset.
+// 92.31% (308 vs retail's 312 bytes, one instruction short): the whole body lines up - frame 0x40, three saved regs, both divides, both 0xFFF roundings, the mult/mflo order - except three residuals. (1) gcc gives $s0 to ey and $s1 to ex where retail has ex in $s0 (every downstream mult operand is swapped with them). (2) retail's tail negates its last operand: slt,(dist+r),along / xori 1 / NEGU / and, while every plain '&' spelling here compiles to a bare and (one instruction short). Probed c1-c3, b1-b6, f1-f5: '&', '&&', '& -cond', 'cond - 1', '& !cond', a mask temp negated, hit-then-test - the only shapes that invent the negu turn the along test into a branch, so it looks like retail's source masked the comparison value itself. (3) the along<0 test is scheduled one block earlier (bltz before the subu) than retail's (bgez after it). Tried: 'r * r' (85.58, 320 bytes - the wrong operand, retail loads vSq.vz), inline vs a diff temp (85.58 / 92.31), 'diff' temp + vSq.vz is the best, (along >= 0) & ... & ... (91.28, emits nor/srl instead of bgez), operand-swapped & (86.92).
+/*
 s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     VECTOR v;
     VECTOR vSq;
@@ -380,6 +368,7 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     s32 cross;
     s32 ey;
     s32 ex;
+    s32 diff;
 
     v.vx = x2 - x1;
     v.vy = y2 - y1;
@@ -395,12 +384,15 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     ny = (v.vy << 12) / dist;
     along = (ex * nx + ey * ny) / 4096;
     cross = (ey * nx - ex * ny) / 4096;
+    diff = cross * cross - vSq.vz;
     if (along < 0) {
         return 0;
     }
-    return (cross * cross - r * r < 0) & (dist + r >= along);
-}
-*/
+    return (diff < 0) & (dist + r >= along);
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
+
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
 
@@ -1788,8 +1780,6 @@ extern u8 g_BattleCameraLerpFrames;
      `= 0x80` before the switch with an empty case 2, otherwise gcc emits a flat
      compare chain.
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078194);
-/*
 void func_80078194(BattleActor* p) {
     s32 angle;
     s32 target;
@@ -1841,8 +1831,8 @@ void func_80078194(BattleActor* p) {
         if ((p->flags & 1) || (p->state & 2)) {
             p->actionAngle = target;
         }
-        p->flags = (p->flags | 0x100) & 0xFFF7FFFF;
         p->angle = p->actionAngle;
+        p->flags = (p->flags | 0x100) & 0xFFF7FFFF;
     } else {
         p->flags &= ~0x100;
     }
@@ -1864,9 +1854,15 @@ void func_80078194(BattleActor* p) {
     if (g_BattleAiTargetDistance >= 0x281 && g_BattleOptionOn != 0) {
         Vec4 delta;
 
-        delta.x = (p->pTarget->position.x - p->position.x) / 12;
-        delta.y = (p->pTarget->position.y - p->position.y) / 12;
-        delta.z = (p->pTarget->position.z - p->position.z) / 12;
+        delta.x = p->pTarget->position.x;
+        delta.y = p->pTarget->position.y;
+        delta.z = p->pTarget->position.z;
+        delta.x -= p->position.x;
+        delta.y -= p->position.y;
+        delta.z -= p->position.z;
+        delta.x /= 48;
+        delta.y /= 48;
+        delta.z /= 48;
         p->vx += delta.x;
         p->vy += delta.y;
         p->vz += delta.z;
@@ -1898,7 +1894,6 @@ void func_80078194(BattleActor* p) {
     p->vz += p->pushVz;
 }
 
-*/
 
 extern s32 BattleVectorDistance2D(Vec4*, Vec4*);
 
