@@ -18,6 +18,8 @@
 #define WORLD_MAP_GRID_WIDTH 9
 // Halfword offset from the scratchpad base at 0x1F800000 to its clut id table
 #define WORLD_MAP_SPAD_CLUT_ID_OFFSET 0x34
+// A rotated angle is a 12-bit fraction of a turn
+#define WORLD_MAP_ANGLE_MASK 0xFFF
 
 extern s32 g_WorldMapLevelIndex;
 extern u16 g_WorldMapLevelGroupIds[];
@@ -885,8 +887,8 @@ s32 func_80088720(s32 index) {
 
     pSlot = &g_WorldMapSlots[index];
     tileIndex = g_WorldMapLevelSpriteSetBase[g_WorldMapLevelIndex];
-    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
-    pSlot->unk58 = (pSlot->unk58 + pSlot->unk5C) & 0xFFF;
+    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & WORLD_MAP_ANGLE_MASK;
+    pSlot->unk58 = (pSlot->unk58 + pSlot->unk5C) & WORLD_MAP_ANGLE_MASK;
     // the two Y-rotation source vectors, in scratchpad
     pRot = (SVECTOR*)0x1F8000A0;
     pRot[0].vz = 0;
