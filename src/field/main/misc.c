@@ -2172,21 +2172,36 @@ extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_8008C180(int partyIndex);
 extern void func_8008BF38(int partyIndex);
 
-// 90.91%: the structure, the call set, the switch trees and every branch match;
-// what is left is how each g_GamePartyMembers / g_GamePartyMemberSkins element
-// access computes its address. Retail folds the element offset into the
-// displacement (lui + lw/sw %lo(sym+4), two instructions per access) while this
-// build CSEs the element address into a register (la sym+4 then lw/sw 0(reg)),
-// which is 16 bytes short overall. Also in here: the load state is the guard the
-// script instruction waits on (it is the global at 0x800ADBC4, and every 0xFF in
-// the arms compares/stores the same constant, so gcc reuses that register).
-// Layout that is load-bearing and was measured: the shift reads the two slots into
-// temps before clearing them (that is the only way to get retail's
-// members[1]=NONE, skins[1]=NONE, members[0]=temp, skins[0]=temp store order), and
-// g_pGameState->gearRide[N] = 0 has to be the LAST statement of each arm for its
-// sb to land in the exit jump's delay slot.
-
-// PARKED 90.91% re-measured this round: 1172 bytes / 293 insns against retail's 1188 / 297. The switch trees, the call set and every branch match. Three independent merge-family residuals, all counted from the instruction streams: (1) retail re-forms every g_GamePartyMembers / g_GamePartyMemberSkins element access as a bare symbolic MEM - lui %hi + lw/sw %lo(sym+4)(reg), two instructions, the register doubling as the base - while this build CSEs the element address into one register (lui + addiu reg,reg,4 + lw/sw 0(reg)); in the arms where a slot is read and then written that is size-neutral, in the arms where only the load uses it it costs one instruction each. (2) the duplicated func_8008BF38(1) call at the end of party cases 0 and 1 is cross-jumped into one shared tail here, where retail keeps both jal copies inline (2 instructions). (3) g_PlayerActorIndex's store sits one block earlier in retail than here. Also measured: the 0x14000 loop-end constant takes t0 in retail and v0 here, and g_FieldSavedFramebuffers[1] is a bare D_8005A41C symbol in retail's object (relocation-only difference, not a size difference).
+// PARKED 92.66% (1188 bytes / 297 insns = retail's exact size; the previous park
+// was 90.91% / 1172 / 293). Round 489 found the whole 16-byte gap: retail's
+// finishEntry arm (party case 0) contains an EXTRA `jal func_8008BF38` with
+// `move $a0,$zero`, which the old note misread as "retail keeps both
+// func_8008BF38(1) jals inline where the build cross-jumps them". Retail has only
+// ONE a0=1 call (the shared tail at .L8008C708, which case 1 falls into and case 0
+// jumps to); the second jal in case 0 passes a0=0, so the source is
+// `func_8008C180(0); func_8008BF38(0); func_8008BF38(1);`. Adding it lands
+// retail's byte count and insn count exactly.
+// What remains (138 differing lines, no size difference) is one cause: the
+// element-address shape of g_GamePartyMembers / g_GamePartyMemberSkins. Retail
+// re-forms every access symbolically (load `lui %hi` + `lw %lo(sym+4)`, store the
+// bare absolute `sw $r,%lo(sym+4)` that gas expands through $at), while this build
+// cse's `&g_GamePartyMembers[1]` into one register (`lui` + `addiu +4` +
+// `lw/sw 0(reg)`) because the same element is both read and written in the block.
+// Levers n-cc1-always-shares-a-twice-used and k-a-scaled-index-not-a-base-pointer:
+// this cc1 always folds a twice-used symbol address into one shared la, and only a
+// typed MEMBER of a declared extern struct keeps a constant in the %lo
+// (k-a-member-lvalue..., a-nonzero-array-field-offset...); an array subscript at a
+// non-zero index does not fold. The load state is the guard the script instruction
+// waits on (the global at 0x800ADBC4, hence g_FieldPartyModelLoadState), and every
+// 0xFF in the arms compares/stores that one constant, so gcc reuses its register.
+// Also measured: the 0x14000 loop-end constant takes
+// $t0 in retail and $v0 here (register only, size-neutral), and
+// g_FieldSavedFramebuffers[1] is a bare D_8005A41C symbol in retail's object
+// (relocation-only). Layout that is load-bearing and was measured: the shift reads
+// the two slots into temps before clearing them (that is the only way to get
+// retail's members[1]=NONE, skins[1]=NONE, members[0]=temp, skins[0]=temp store
+// order), and g_pGameState->gearRide[N] = 0 has to be the LAST statement of each
+// arm for its sb to land in the exit jump's delay slot.
 /*
 void func_8008C334(void) {
     s32 loadState;
@@ -2287,6 +2302,7 @@ void func_8008C334(void) {
                 g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
                 g_pGameState->gearRide[2] = 0;
                 func_8008C180(0);
+                func_8008BF38(0);
                 func_8008BF38(1);
                 break;
             case 1:
