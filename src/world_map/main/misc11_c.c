@@ -128,7 +128,7 @@ extern s16 WorldMapGetTileKindValue(s16, s16);
 extern s32 func_80095414(s32 *, s32 *, s32 *, s32, s32);
 extern s32 WorldMapSelectAreaAtPosition(WorldMapPos *, s32);
 extern void WorldMapUpdateRandomTimers(void);
-extern s32 D_8009C170;
+extern s32 g_WorldMapQueuedCharacterCount;
 extern u16 D_8009B180[];
 extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
@@ -358,7 +358,7 @@ int func_8008C844(int index) {
     case 7:
         pActor->command = 0;
         pActor->trailDelay++;
-        if (D_8009C170 == pActor->trailDelay) {
+        if (g_WorldMapQueuedCharacterCount == pActor->trailDelay) {
             pActor->state = 1;
             g_WorldMapMode = 2;
             D_8009BD04 = 0;
@@ -511,7 +511,7 @@ int func_8008C844(int index) {
         }
         break;
     case 16:
-        switch (D_8009C170) {
+        switch (g_WorldMapQueuedCharacterCount) {
         case 1:
             pActor->state = 1;
             break;

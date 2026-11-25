@@ -210,7 +210,7 @@ void BattleInitMenuColumnPrims(void) {
 // gcc objects (an `__asm__`-labelled alias) so loop.c has no loop-invariant table base to
 // hoist, and the row store uses an embedded assignment so `bufs + i` forms base-first.
 // unusedFrame[8] is the 8 bytes of local retail's frame has at 0xC8 (never read or written).
-void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
+void BattleBuildCommandGridText(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
     RECT tensRect;

@@ -128,7 +128,7 @@ extern s16 WorldMapGetTileKindValue(s16, s16);
 extern s32 func_80095414(s32 *, s32 *, s32 *, s32, s32);
 extern s32 WorldMapSelectAreaAtPosition(WorldMapPos *, s32);
 extern void WorldMapUpdateRandomTimers(void);
-extern s32 D_8009C170;
+extern s32 g_WorldMapQueuedCharacterCount;
 extern u16 D_8009B180[];
 extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
@@ -161,7 +161,7 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 //   (3) *(WorldMapVec *)&pActor->x = *(WorldMapVec *)pOut for the func_80095414 write-back
 //       (retail's four lw then four sw);
 //   (4) case 40 ends with break, it does not fall through into 41;
-//   (5) the inner switch (D_8009C170) case 1 is pActor->state = 1, not state++.
+//   (5) the inner switch (g_WorldMapQueuedCharacterCount) case 1 is pActor->state = 1, not state++.
 // RESIDUAL 1, the cell index, 4 bytes: retail sll v0,a2,0x10 / sra v0,v0,0xf, i.e.
 // 2 * (s16)zone; ours sll v0,v0,0x1. Measured with cc1_probe.sh on this unit (gcc-2.7.2
 // -O2 -G8): an s16 zone, an s32 zone, an s32 zone with (s16) at the subscript and a u16 zone
@@ -205,7 +205,7 @@ int func_8008A72C(int index) {
     case 6:
         pActor->command = 0;
         pActor->trailDelay++;
-        if (D_8009C170 == pActor->trailDelay) {
+        if (g_WorldMapQueuedCharacterCount == pActor->trailDelay) {
             pActor->state = 0;
             g_WorldMapMode = 1;
             D_8009BD04 = 0;
@@ -438,7 +438,7 @@ int func_8008A72C(int index) {
         pActor->state++;
         // falls through
     case 43:
-        switch (D_8009C170) {
+        switch (g_WorldMapQueuedCharacterCount) {
         case 1:
             pActor->state = 1;
             break;

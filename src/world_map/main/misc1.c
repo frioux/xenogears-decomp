@@ -107,7 +107,7 @@ extern StreamDataQueueEntry D_8009D420;
 extern void* g_WorldMapCompressedMapData;
 extern void* g_WorldMapPartyActorAnimFile0[3];
 extern void* g_WorldMapActorAnimFiles[3];
-extern s32 D_8009C170;
+extern s32 g_WorldMapQueuedCharacterCount;
 
 typedef struct {
     /* 0x0 */ s16 x;
@@ -486,7 +486,7 @@ void func_80071CDC(void) {
         }
     }
     nCount = 0;
-    D_8009C170 = 0;
+    g_WorldMapQueuedCharacterCount = 0;
     ppEntryData = &g_WorldMapStreamQueueEntryData;
     pArchiveIndex = &g_WorldMapStreamQueue.archiveIndex;
     for (i = 0; i < 3; i++) {
@@ -496,7 +496,7 @@ void func_80071CDC(void) {
             pArchiveIndex += 4;
             *ppEntryData = g_WorldMapPartyActorAnimFile0[i];
             ppEntryData += 2;
-            D_8009C170++;
+            g_WorldMapQueuedCharacterCount++;
             nCount++;
             nGearId = g_GameState.characters[nCharacterId].gearId;
             if (nGearId != GEAR_ID_NONE) {

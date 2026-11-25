@@ -39,7 +39,7 @@ extern s32 g_WorldMapPlayerPosition;
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapPlayerRotation;
-extern s32 D_8009C170;
+extern s32 g_WorldMapQueuedCharacterCount;
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 g_WorldMapCameraHeight;
 extern s16 g_WorldMapCameraRot;
@@ -240,7 +240,7 @@ s32 func_8008E190(s32 idx) {
         pPlayer->z = g_WorldMapPlayerPositionZ;
         pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0xFFFC0000;
         pPlayer->angle = g_WorldMapPlayerRotation;
-        pPlayer->unk74 = D_8009C170;
+        pPlayer->unk74 = g_WorldMapQueuedCharacterCount;
         *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
         nAngle = pPlayer->angle;
         g_WorldMapGroups->entry[3].hidden = 1;
@@ -253,7 +253,7 @@ s32 func_8008E190(s32 idx) {
         pPlayer->x = g_WorldMapPlayerPosition;
         pPlayer->z = g_WorldMapPlayerPositionZ;
         pPlayer->angle = g_WorldMapPlayerRotation;
-        pPlayer->unk74 = D_8009C170;
+        pPlayer->unk74 = g_WorldMapQueuedCharacterCount;
         pPlayer->y = g_WorldMapPlayerPositionY;
         *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
         g_WorldMapPlayerAngle = pPlayer->angle;
@@ -421,7 +421,7 @@ s32 func_8008E76C(s32 idx) {
     if (nCommand == 4) {
         pPlayer->command = 0;
         pPlayer->unk74++;
-        if (D_8009C170 == pPlayer->unk74) {
+        if (g_WorldMapQueuedCharacterCount == pPlayer->unk74) {
             WorldMapStartSlot(8, 9);
             *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
             nTmp = g_GameState.worldMapState | 0x4000;

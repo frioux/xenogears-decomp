@@ -896,7 +896,7 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
       lui/addiu each iteration, and x lands in s1 instead of s0.
    3. `g_BattleDigitImageBuffers[id]` comes out la + addu + lw where retail has the
       lui $at / addu $at / lw %lo form (the array-extern and cast spellings were
-      measured dead in round 311; misc16_r2's func_8008FE18 reports the same form).
+      measured dead in round 311; misc16_r2's BattleBuildCommandGridText reports the same form).
    Permuter from this body: 1548 iterations base=3486 best=2661 (found u8 arg0),
    1251 iterations base=2466 best=1991 (found u8 arg3).
    ROUND 313, the residual is now ONE register choice, and it is a swap of which

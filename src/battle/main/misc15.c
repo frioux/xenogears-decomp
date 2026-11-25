@@ -652,7 +652,7 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     }
     return result;
 }
-extern void func_8008FE18(u8 arg0, u8 arg1, u8 arg2);
+extern void BattleBuildCommandGridText(u8 arg0, u8 arg1, u8 arg2);
 extern void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2);
 extern void BattleDrawColumnSpriteCells(s32 arg0);
 extern void func_8009093C(s32 arg0);
@@ -778,7 +778,7 @@ u8 func_8008BED8(u8 arg0) {
     BattleInitPulseTrianglePrims();
     do {
         if (pagePending != 0) {
-            func_8008FE18(arg0, pagePending - 1, redraw);
+            BattleBuildCommandGridText(arg0, pagePending - 1, redraw);
             page = pagePending - 1;
             pagePending = 0;
             redraw = 0;

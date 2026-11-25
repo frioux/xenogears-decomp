@@ -13,7 +13,7 @@ extern void BattleEmitTrailSegments();
 extern void func_800B3CD4();
 extern void func_800B51B0();
 extern void func_800B50D4();
-extern void func_800B5588();
+extern void BattleUpdateDirectionTransformTask();
 extern u8 D_800C356C[];
 extern u8* D_800D2FD8;
 extern s16 D_800C3E9C[];
@@ -675,7 +675,7 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         func_801FC6FC(pSpriteData, pArgs);
         break;
     case 2:
-        pWork = TimerWorkListFindEntryForDataAndCallback(pSpriteData->field_0x6C, func_800B5588);
+        pWork = TimerWorkListFindEntryForDataAndCallback(pSpriteData->field_0x6C, BattleUpdateDirectionTransformTask);
         if (pWork != NULL) {
             pWork->onFreeCallback(pWork);
         }
@@ -980,7 +980,7 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
 // sprite's animation frame changed, and lerps the last four corners halfway to the target.
 // The head reads the two sprite halfwords BEFORE the first store on purpose - cdk's
 // scheduler only keeps them above it when the source reads them there.
-void func_800B5588(WorkListEntry* pWork) {
+void BattleUpdateDirectionTransformTask(WorkListEntry* pWork) {
     BattleDirectionTask* pTask;
     SpriteData* pSpriteData;
     u16 radius;
@@ -1036,7 +1036,7 @@ void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
 void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
     BattleDirectionTask* pTask;
 
-    pTask = WorkListsAddTasks(sizeof(BattleDirectionTask), pSpriteData->field_0x6C, func_800B5588,
+    pTask = WorkListsAddTasks(sizeof(BattleDirectionTask), pSpriteData->field_0x6C, BattleUpdateDirectionTransformTask,
                               BattleProcessDirectionTransformTask, NULL);
     pTask->pSpriteData = pSpriteData;
     // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame

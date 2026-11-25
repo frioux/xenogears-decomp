@@ -634,3 +634,4 @@ g_WorldMapTexturePackFileIndex = 0x8009C17C;
 g_WorldMapCompressedMapFileIndex = 0x8009D3C4;
 g_WorldMapLevelTable = 0x8009B57C;
 g_WorldMapAreaTable = 0x8009B58C;
+g_WorldMapQueuedCharacterCount = 0x8009C170;

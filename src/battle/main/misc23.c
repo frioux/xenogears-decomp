@@ -8,7 +8,7 @@ extern u8 *g_BattleColorSourceA;
 extern u8 *g_BattleColorSourceB;
 extern u8 *g_BattleSpriteRenderData;
 extern u8 *g_BattlePartPrimBuffers; /* [2] in misc22; only element 0 is used here */
-/* Array view of the same symbol: func_800A64E4's guard has to be a pointer test, and
+/* Array view of the same symbol: BattleCopyColorTintToRenderData's guard has to be a pointer test, and
    over the scalar extern 'g_BattlePartPrimBuffers[0] != NULL' tests a BYTE
    (2 instructions and 8 bytes too many). */
 extern u8 *g_BattlePartPrimBuffersArray[2] __asm__("g_BattlePartPrimBuffers");
@@ -28,7 +28,7 @@ extern void func_800A9FF0(s32);
 extern void BattleAppendActorCommandBytes(void *, void *, void *, void *);
 extern s32 BattleFindFirstActorInMask(void);
 extern void BattleFreeImageEntry(void *);
-extern void func_800A64E4(void);
+extern void BattleCopyColorTintToRenderData(void);
 extern void BattleSetCurrentSpriteAndTarget(s32, s32);
 extern void func_800A3640(void *, s32, s32, s16, s32, s16, s16, s32, s32, s32, s32, s16, s16, s16, s16, s32, s32, s32, s32);
 
@@ -54,7 +54,7 @@ extern s8 g_BattleColorTintRed[];
 extern s8 g_BattleColorTintGreen[];
 extern s8 g_BattleColorTintBlue[];
 
-// One 8-byte colour record of the sprite palette stream func_800A64E4 copies the
+// One 8-byte colour record of the sprite palette stream BattleCopyColorTintToRenderData copies the
 // tint bytes into: the three bytes it writes, then five the stream leaves unused.
 typedef struct {
     /* 0x0 */ u8 red;
@@ -77,7 +77,7 @@ typedef struct {
     /* 0x3  */ u8 pad3[0x15];
 } BattleColorSlot; // Size: 0x18
 
-// func_800A64E4's view of g_BattleSpriteRenderData: the two per-slot colour
+// BattleCopyColorTintToRenderData's view of g_BattleSpriteRenderData: the two per-slot colour
 // arrays it writes, at the two strides the renderer walks them with.
 typedef struct {
     /* 0x0000 */ u8 unk0[0x16E0];
@@ -504,7 +504,7 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
     }
 }
 
-void func_800A64E4(void) {
+void BattleCopyColorTintToRenderData(void) {
     u8 *pSrc;
     s32 i;
 
@@ -760,7 +760,7 @@ void BattleUploadAndFreeImageResources(void) {
         // the rect is the +0x28 member of the image record BattleFreeImageEntry takes
         BattleFreeImageEntry((u8 *)pRect - 0x28);
     }
-    func_800A64E4();
+    BattleCopyColorTintToRenderData();
     HeapFree(g_BattleColorTintBase);
     HeapFree(g_BattleColorTintWork);
 }
