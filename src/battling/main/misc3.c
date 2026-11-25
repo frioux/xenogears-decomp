@@ -581,6 +581,41 @@ extern Vec4 g_BattleEffectPosX;
 // i.e. wrong code. Next lever: an explicit local for the two loads, or the permuter.
 // Screened before the shared-variable find (so re-screen if it stalls): 2.6.0 95.19,
 // 2.7.2-cdk 94.09, -O3 83.99, -G0 96.42 at the old body; Default is right.
+// 99.92% (2124 bytes = retail EXACT size, 528 vs 528 insns, 12 differing lines, ALL of them
+// in loop 2): loop 1 is now byte-identical where the park below sat at 98.38 with 20 differing lines.
+// WHAT CLOSED LOOP 1 (round 473): the two timer updates are NOT `+=` statements at all. Read each
+// timer into its own local first (u16 for moveReentryTimer - an s32 destination makes gcc emit lh
+// where retail has lhu at both sites - s32 for stateTimer), then store the CSE of a single inline
+// division through an IN-PLACE add, i.e. `p->stateTimer = (timer += amount * 2 / 3);`. Three
+// measured facts came out of that: the explicit reads give retail`s grouped `lw / lhu` ahead of the
+// mfhi (a bare `+=` lets sched2 sink the lhu past the subu), the embedded assignment keeps the
+// add in place on the loaded register (`addu v1,v1,v0`, not `addu v0,a1,v1`), and inlining the
+// division twice (instead of a `step` local) is what moves the quotient out of a0 into retail`s
+// v0 - deleting the `step` local alone took 99.88 -> 99.92 and made loop 1 exact.
+// THE TWO LOOPS ARE GENUINELY INCONSISTENT IN RETAIL, and the park body mirrors it: loop 1 emits
+// stateTimer BEFORE moveReentryTimer (source: state first, both through locals), loop 2 emits
+// moveReentryTimer first with its load hoisted above the moveEndTimer store AND before stateTimer`s
+// lw, which only comes out when loop 2`s state update is a plain `p->stateTimer += amount * 6 / 5;`
+// with no timer local (with the local both loads hoist to the block head, 99.12 / 22 lines).
+// WHAT IS LEFT - one register pair, loop 2 only: retail has reentry in v1 and the quotient in a0
+// (`lhu v1,2326` ... `sra a0,t2,1 / subu a0,a0,v0`), this body has reentry a0 and the quotient v1
+// (`lhu a0,2326` ... `sra v1,t2,1 / subu v1,v1,v0`); stateTimer is v0 in both and every address,
+// load and store is retail`s. So it is a local-alloc hand-out between two caller-saved temps, with
+// the instruction multiset, the block layout and the byte count already exact.
+// Measured dead on this body: a second `u16 reentry2` for loop 2 (BYTE-IDENTICAL - copy
+// propagation folds it, the same trap a-second-pointer-alias-carries-the-reads-retail-names
+// warns about), a timer local at loop 2 (99.12), plain `+=` at both loops (99.13), a `step` local
+// used by both loops (99.88), swapping loop 1 to state-then-reentry inside the `+=` form (98.37)
+// and loop 2 to reentry-then-state (98.37), and the pre-find bodies. Preset screen on this body:
+// 2.6.0 96.71, 2.7.2-cdk compile-failed; Default is right. Permuter 3 min -j 2: base=65 best=65,
+// 763 iterations, PERMUTER_NONE. Next lever: a spelling that changes the refs/live quotient of
+// the loop-2 reentry pseudo (it has 2 refs to the quotient`s 3 yet is allocated first), or `-dl`
+// on the two allocnos; do not spend another permuter run.
+// Earlier rounds (kept for the levers already burnt): the shared-scratch-variable find that took
+// this from 96.42 to 98.38 (one scratch for the loop-1 interpolation, the abs`d dBase and the
+// percent halving/doubling), the three point interpolations being `amount * (base.X - center.X)`,
+// `hit = 1;` before `point = base;`, `bestAmount = amount;` after the moveEndTimer store, and a
+// 4-minute permuter run (base 1890 best 1690) whose candidate deleted bestAmount - wrong code.
 /*
 s32 func_80075B50(BattleActor* p) {
     BattleEffectSlot* pSlot;
@@ -598,7 +633,8 @@ s32 func_80075B50(BattleActor* p) {
     s32 dCenter;
     s32 dPos;
     s32 diff;
-    s32 step;
+    u16 reentry;
+    s32 timer;
 
     hitCount = 0;
     center = p->centerPosition;
@@ -651,9 +687,10 @@ s32 func_80075B50(BattleActor* p) {
             actionId = 3;
             BattlePlayActorSoundPair((u8*)p, 0xC, &point, 1);
         }
-        step = amount * 2 / 3;
-        p->moveReentryTimer += step;
-        p->stateTimer += step;
+        timer = p->stateTimer;
+        reentry = p->moveReentryTimer;
+        p->stateTimer = (timer += amount * 2 / 3);
+        p->moveReentryTimer = (reentry += amount * 2 / 3);
         p->effectPosition = point;
         if (amount) {
             hitCount++;
@@ -716,9 +753,9 @@ s32 func_80075B50(BattleActor* p) {
             amount = pRecord->slotFlags.byte.gaugePercent;
         }
         p->moveEndTimer = amount;
-        step = amount * 6 / 5;
-        p->stateTimer += step;
-        p->moveReentryTimer += step;
+        reentry = p->moveReentryTimer;
+        p->moveReentryTimer = (reentry += amount * 6 / 5);
+        p->stateTimer += amount * 6 / 5;
         p->effectPosition = point;
         if (amount) {
             hitCount++;
@@ -742,6 +779,7 @@ s32 func_80075B50(BattleActor* p) {
     return 0;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
+
 
 
 
