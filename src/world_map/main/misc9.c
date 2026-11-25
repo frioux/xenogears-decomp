@@ -874,7 +874,7 @@ typedef struct {
     /* 0x40 */ u8 pad40[0x14];
 } WorldMapEntry; // Size: 0x54
 
-s32 func_80088720(s32 index) {
+s32 WorldMapUpdateSlotRotation(s32 index) {
     WorldMapPlayer* pSlot;
     WorldMapEntry* pEntries;
     WorldMapEntry* pParent;
