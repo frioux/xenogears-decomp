@@ -725,6 +725,9 @@ gp loads; that reorder is what puts pPrim in s1 instead of s3.
 // - the callee-saved pair is swapped: retail s1 = xOffset, s3 = pPrim; ours s1 = pPrim, s3 = xOffset, so gcc loads the gp globals before the lhu of xOffset (retail loads xOffset first) and makes its copy of pPrim to a1 late (retail's 'addu a1,s3,zero' sits right after the negu).
 // - the x0 reads: retail emits lh v0,8(s3) then lhu a0,8(s3) then subu, so the load-delay slot is filled; ours emits lh, nop, subu, lhu - the extra nop is the whole 1-instruction/4-byte gap.
 // Tried this round, all byte-identical at 89.57: x0 read before vs after nWidth; xOffset declared first in the list; 'pPrim->y0 - nHalf' without the u16* cast; x0 = pPrim->x0 (implicit s16->u16) instead of *(u16*)&pPrim->x0. Typed the read as SpriteDataView->xOffset (new field at 0x36, unk38[0x4] after it) with no byte change, so the body is realistic now.
+// Round 486 re-measured the parked body unchanged: 89.57% / 464 bytes / 116 insns, same 71 diff lines,
+// so the note is current. Also measured: 's32 xOffset' instead of u16 - byte-identical (the load is still
+// lhu and xOffset still takes s3), so the callee-saved swap is not reachable from the type either.
 /*
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
