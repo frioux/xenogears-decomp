@@ -623,7 +623,21 @@ void MenuFreeGearScreenBuffers(void) {
    slot at most 7 references (it is named by ~40 of the 453 instructions), so neither the
    refs, the mode size nor the live length is free once the instruction stream
    is retail's - and a basic-block boundary only moves live_length (see
-   n-a-do-while-0-is-a-barrier), never by 13.7x. No fourth permuter run.
+   n-a-do-while-0-is-a-barrier), never by 13.7x.
+
+   Round 483 (redo lane) closed the two axes the levers file leaves open for a
+   quotient-"closed" pair, so a fifth round has nothing to re-try: (1) the block
+   barrier of a-one-iteration-do-while-splits-the-block-and-flips-a-qiparam-pair
+   does not reach a 13.7x gap - an empty `do { } while (0);` before the
+   subMenuChoice test is optimized away with no line changing (99.66), the
+   epilogue's three statements wrapped in one is byte-identical (99.66), and
+   wrapping the render/if group before the switch, the only placement that keeps
+   a label, costs 40 differing lines (99.38); (2) the allocno-COUNT knob of
+   a-redundant-local-merged-away-re-ranks-the-whole-hand-out does not move it
+   either - naming retail's `andi $s0` truncation as a `u8 drawSlot` used by both
+   calls is coalesced and byte-identical (99.66). A fourth permuter run is
+   base=145 best=145 over 1541 iterations in 241 s, the same score as the three
+   earlier ones.
 */
 /*
 u8 func_801E23CC(void) {
