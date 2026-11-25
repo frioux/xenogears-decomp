@@ -829,30 +829,27 @@ extern void BattleReleaseAllActorSlots(void);
 extern void BattleActorSetFacingFromSideFlag(s32 index);
 extern void func_800BE790(void);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
-/* 94.02%, 1368 bytes / 342 instructions against retail's 1384 / 346, with the
-   head, the two dispatches and both distance arms otherwise exact.  The 4
-   missing instructions are the frame: ours is 0x40 where retail's is 0x48, and
-   the arm-6 distance measure keeps its second vector at 0x18(sp) (reusing arm
-   2's dead slot) where retail uses 0x20(sp), so two more s32 locals were live
-   in the original arm 6.  Also left, all measured:
-   1. the pending-command key: retail ends `or v0,v0,v1` (the 0xAC word's
-      register as destination) and `slti v0,v0,3`; ours parks the key in $a1
-      (`or a1,v0,v1 / slti v0,a1,3`).  Same for the same key in the 4 and 5
-      arms.  The signed `slti` needs the key in an s32 local, and the load
-      order (0xA8 before 0xAC) needs the A8-left spelling -- both measured.
-   2. `D_800C3623 = 0;` after SpritePlayAnimation re-forms `lui` in retail but
-      is CSE'd into $s0 across the call in ours.
-   3. the animation id choice: retail is `beqz`/`j` with `li 0x13` in the jump's
-      delay slot and a separate `li 0x12` block (3 insns), ours fills the branch
-      delay slot with `li 0x12` and drops the jump (2 insns).
-   Case body order is retail's .text order, not ascending, and getting it right
-   was worth 30 points: pendingStep 4,6,2,5 and stateStep 7,10,9,8,2,6,4.  The
-   stateStep switch reads the step as a word while BattleApplyStateStep in this
-   unit reads the same address as a byte, so it is spelled through a cast here.
-   Tried: AC-left key (worse: swaps the two loads), ternary instead of the
-   if/else `anim` local (same 2-insn shape), separate arm locals.
-*/
+// best 95.94%, 1384 bytes / 346 instructions = retail exact size and count.
+// Every instruction is retail others than these register-level residuals:
+// 1. The head index sequence and case 4 or are a v0/v1 mirror. A8-left (what is
+//    written) reproduces retail load order (0xA8 loaded first, srl then the 0xAC
+//    andi/sll) and its or op order, but lands 0xA8 in v0 where retail has v1;
+//    AC-left gives retail register assignment but interleaves the two loads
+//    (measured 94.42).
+// 2. Case 5 mirrors the same pair the other way: retail key in v1 and the
+//    g_BattleStateWork base in a0, ours the reverse (chain otherwise identical).
+// 3. The two distance arms: retail reads vec0.vx immediately after storing it
+//    (lhu a1,16(sp) below sh v0,16(sp)) and fills the 0xA0 load delay slot with
+//    sll a0,a0,0x10 where ours emits nop and defers the readback.
+// Needed for the size, all measured: frame 0x48 comes from THREE DVECTOR locals
+// (arm 2 uses vec0/vec1 at 0x10/0x18, arm 6 uses vec0/vec2 at 0x10/0x20 as retail
+// does; one shared vec1 drops the frame to 0x40 and arm 6 to 0x18, 16 bytes short);
+// the two-call SpritePlayAnimation if/else gives retail move a0,s1 / j / li 0x13 /
+// li 0x12 shape (a ternary anim local is 2 instructions short); BATTLE_COMMAND_ROW_AT
+// plus the rowIndex embedded assignment keeps lbu 0x150 (a plain g_BattleStateWork
+// sum reassociates -0x48 onto the base and loses the addiu v1,v1,-1); block-scoping
+// each arm index local keeps the signed slti AND a per-arm register (a shared s32
+// local collapses all three arms onto one register, 93.17).
 /*
 void func_800B9F78(BattleState* pState) {
     BattleActorSprite* pSprite;
@@ -860,13 +857,13 @@ void func_800B9F78(BattleState* pState) {
     BattleActorSprite* pActor;
     DVECTOR vec0;
     DVECTOR vec1;
+    DVECTOR vec2;
     s32 distance;
     s32 x;
     s32 z;
-    s32 targetX;
-    s32 targetZ;
-    s32 key;
-    s32 anim;
+    u16 targetX;
+    u16 targetZ;
+    s32 rowIndex;
 
     if (D_800C3660 != 0) {
         return;
@@ -880,14 +877,15 @@ void func_800B9F78(BattleState* pState) {
         if ((BattleStartStageActorAnimation() & 0xFF) != 0) {
             SpriteSetCallback(pSprite, BattleApplyStateStep);
         } else {
-            key = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
-            if (key < 3) {
+            s32 index;
+
+            index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+            if (index < 3) {
                 if (D_800C3623 != 0) {
-                    anim = 0x13;
+                    SpritePlayAnimation(pSprite, 0x13);
                 } else {
-                    anim = 0x12;
+                    SpritePlayAnimation(pSprite, 0x12);
                 }
-                SpritePlayAnimation(pSprite, anim);
                 D_800C3623 = 0;
             }
             if (pSprite->unk48 != 0) {
@@ -901,11 +899,13 @@ void func_800B9F78(BattleState* pState) {
     }
     if (g_BattleState->pendingStep != 0) {
         switch (g_BattleState->pendingStep) {
-            case 4:
+            case 4: {
+                s32 index;
+
                 pActor = g_BattleActorList;
-                key = (pActor->flags_0xA8 >> 30) | ((pActor->flags_0xAC.flags & 3) << 2);
-                if (key < 3 && ((BattleActorSlot*)g_BattleStateWork)[key].inUse == 0 &&
-                    g_BattleStateWork[(g_BattleCommandRowIndex - 1) * 0x48 + 0x150 + key] == 7) {
+                index = (pActor->flags_0xA8 >> 30) | ((pActor->flags_0xAC.flags & 3) << 2);
+                if (index < 3 && ((BattleActorSlot*)g_BattleStateWork)[index].inUse == 0 &&
+                    BATTLE_COMMAND_ROW_AT(rowIndex = g_BattleCommandRowIndex - 1).slotAnimIds[index] == 7) {
                     BattleSetSpriteTemplate(pActor);
                     SpritePlayAnimation(pActor, 0x1B);
                     while (pActor->flags_0xAC.bytes.animId == 0x1B) {
@@ -913,20 +913,24 @@ void func_800B9F78(BattleState* pState) {
                     }
                 }
                 break;
+            }
             case 6:
                 BattleStepActorAlongPath(pSprite, pSprite->pTargetEntitySprite);
                 break;
             case 2:
                 BattleActorSnapToTargetAndFace(pSprite, pSprite->pTargetEntitySprite);
                 break;
-            case 5:
-                key = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
-                if (((BattleActorSlot*)g_BattleStateWork)[key].flags == 0) {
+            case 5: {
+                s32 index;
+
+                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+                if (((BattleActorSlot*)g_BattleStateWork)[index].flags == 0) {
                     SpritePlayAnimation(pSprite, pSprite->animId);
                 }
                 BattleActorSetFacingFromSideFlag(g_BattleState->actorIndex);
                 BattleSetStateStep(0xA);
                 break;
+            }
         }
         g_BattleState->pendingStep = 0;
     }
@@ -980,10 +984,10 @@ void func_800B9F78(BattleState* pState) {
             z = pSprite->position.parts.zWhole;
             vec0.vy = z;
             targetX = pSprite->targetPosition.x;
-            vec1.vx = targetX;
+            vec2.vx = targetX;
             targetZ = pSprite->targetPosition.z;
-            vec1.vy = targetZ;
-            distance = BattleComputeVectorDistance2D(vec0, vec1);
+            vec2.vy = targetZ;
+            distance = BattleComputeVectorDistance2D(vec0, vec2);
             if (g_BattleState->targetDistance < distance) {
                 BattleStepActorAlongPath(pSprite, pTarget);
             } else {
@@ -997,8 +1001,10 @@ void func_800B9F78(BattleState* pState) {
             break;
     }
     D_800C3660 = 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
+
+
 void BattleLoadActorSlotAnimation(s32 index) {
     SpriteData* pSprite;
     u8* pBase;
