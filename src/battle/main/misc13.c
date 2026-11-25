@@ -651,6 +651,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 //       $s6 here and $s7 in retail (and retail's $s7 'drawn' is dead by then).
 //    3. 'lbu 86(at)' vs retail's 'lbu 0(at)' is the typed g_BattleWorkBlock[arg1]
 //       access (same linked bytes, objdiff cannot fold it).
+//    ROUND 473 re-measure: 98.56% / 2496 bytes / 624 insns - the note is current,
+//    not stale. The residual is NOT a statement-order question: placing `o = 0;`
+//    as the FIRST statement of the if body, and separately between the 0x5D90 and
+//    0x5D8F stores in the tail path (retail's exact slot), each compiles
+//    BYTE-IDENTICALLY - cc1's own .s still reads `jal BattleUpdateFrame / move
+//    $16,$0`, i.e. cc1 always emits the init right after the call and reorg takes
+//    it for the jal slot where retail keeps the `sb v0,0xA8(v1)`.
+//    The other 4 bytes are reorg redirection: cc1 emits
+//    `beq $23,$0,$L153 / sltu $2,$19,9` and the copy in that delay slot is
+//    REQUIRED, because the branch targets the insn AFTER the sltu, where retail's
+//    `beqz s7` targets the sltiu itself (.L80086700). Both are reorg decisions on
+//    the same CFG -> c-a-call-argument-constant-beats class, park, do not permute.
 //    Tried and measured this round, all worse or equal: '(i << 4) + 0x64' /
 //    '(i << 4) + 0x68' (95.22, identical object - RTL canonicalisation). Earlier
 //    rounds, do not redo: removing the BattleDrawSpritePackage return temp
