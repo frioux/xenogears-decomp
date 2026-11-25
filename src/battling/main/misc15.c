@@ -172,7 +172,7 @@ extern void* g_pCurModelVertices;
 extern void* D_80059568;
 extern s32 D_800595C0;
 extern void* g_BattlePacketNodeCursor;
-extern void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices);
+extern void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices);
 extern void func_8008C620(VertexIndexSet* pVerts, s16 n);
 extern void func_800732AC(void* pDst, void* pSrc, s32 n);
 extern void func_8008C4B0(VertexIndexSet* pVerts, s16 n);
@@ -218,47 +218,47 @@ void BattleProjectShadowVerts(RenderRecord* pRecord, u8* pDst) {
     g_BattleShadowPlaneNormal.vz <<= 4;
     func_8008C3A8(pRecord->pVerts, pDst, pRecord->count);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
-/* Best C match, 93.67% (228 bytes vs retail 232). Two things here are load-bearing
-   and worth keeping: the preheader assigns D_800595C0 BEFORE the three global
-   stores (retail loads pData+4 there; the other order costs 10 points), and the
-   loop counter is decremented inside both arms, which is what puts the addiu in
-   both jal delay slots. Still different: gcc turns `i = count - 1; while
-   (i != -1)` into a `beqz count` guard plus a fall-through body, while retail
-   jumps straight to the latch (`j`, `addiu s1,s1,-1`) and has the loop test at
-   the bottom; and gcc keeps the `g_BattlePacketNodeCursor = pData->pNodes` store in the
-   preheader where retail merges it into the latch block, which also reorders the
-   preheader loads. Writing that store at the loop top through a pCur local
-   instead drops to 73.73% (gcc folds the redundant reload), `while (--i != -1)`
-   with a single decrement is 87.64%, and the original 83.00% park note's
-   `do/while` variants were 74-80%. Typing the body against WorkData/PacketNode
-   (as below) scores 90.49% at the same 228 bytes: the raw `*(u16*)(pData + 6)`
-   and `*(s16*)(pNode + 2)` spellings are worth 3 points here, so a re-park must
-   go back to them.
-void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices) {
+// PARKED 93.67% (228 bytes vs retail 232, 57 vs 55 insns, frame 40 with vars=8 against retail's 32/0).
+// The residual is the loop ENTRY shape only. Retail computes i = count - 1 in the
+// preheader and js straight to the single bottom test, sharing one
+// sw g_BattlePacketNodeCursor between the preheader and the latch; cc1 duplicates the
+// loop exit test instead, so the preheader gets a beqz plus its own cursor store. That is
+// the g-rotated-entry-j-to-bottom-test lever (round 398: unreachable from while, for,
+// do-while, guarded do-while and goto-check shapes under 2.6.0, 2.7.2 and 2.7.2-cdk), so
+// park on this shape and report ROTATED_ENTRY.
+// Measured equal to this body (93.67): i-- inside both arms, one i-- after the if/else,
+// for (; i != -1; i--) - reorg copies a single decrement into BOTH jal delay slots, so the
+// two-arm spelling is not load-bearing. Lower: plain do-while 89.73 (224 bytes, no entry
+// test), i-- before the if/else 90.40, cdk 93.82, -O3 93.67.
+// The first parameter is u8* on purpose: written as WorkData* pData with
+// pData->nodeCount / pNodes / polyCount the same body measures 90.49 at the same 228
+// bytes, because the typed load changes the preheader DAG. BattleQueueNodePrims (the
+// caller) still reads 100.00% with this prototype.
+/*
+void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
     s32 i;
-    PacketNode* pNode;
+    u8* pNode;
 
-    i = pData->nodeCount - 1;
-    g_BattlePacketNodeCursor = pData->pNodes;
-    D_800595C0 += pData->polyCount;
+    i = *(u16*)(pData + 6) - 1;
+    g_BattlePacketNodeCursor = *(void**)(pData + 0x10);
+    D_800595C0 += *(u16*)(pData + 4);
     g_pCurModelPacket = pPacket;
     D_80059568 = pUnk;
     g_pCurModelVertices = pVertices;
     while (i != -1) {
         pNode = g_BattlePacketNodeCursor;
-        g_BattlePacketNodeCursor = pNode->verts;
-        if (pNode->flags & 8) {
-            i--;
-            func_8008C620(pNode->verts, pNode->count);
-        } else {
-            i--;
-            func_8008C4B0(pNode->verts, pNode->count);
-        }
-        g_BattlePacketNodeCursor = (u8*)g_BattlePacketNodeCursor + (pNode->count << 3);
+        g_BattlePacketNodeCursor = pNode + 4;
+        if (*pNode & 8)
+            func_8008C620((VertexIndexSet*)(pNode + 4), *(s16*)(pNode + 2));
+        else
+            func_8008C4B0((VertexIndexSet*)(pNode + 4), *(s16*)(pNode + 2));
+        i--;
+        g_BattlePacketNodeCursor = (u8*)g_BattlePacketNodeCursor + (*(s16*)(pNode + 2) << 3);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
+
+
 void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     s32 i;
     s32 j;
