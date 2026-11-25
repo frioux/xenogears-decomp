@@ -637,12 +637,12 @@ void func_800B9508(BattleActorSprite* pSprite) {
             pSprite->pAnimState->field_0x8 = BATTLE_COMMAND_ROW(g_BattleCommandRowIndex)->slotAnimIds[index];
             if (SpriteAnimPackageTestFlag8000(((SpriteAnimPackage*)pSprite->pVramData)->pFrames) != 0) {
                 SpritePlayAnimation(pSprite, code);
-                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
+                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
                 mode = ((pSprite->pTargetEntitySprite->flags_0xAC.flags & 3) << 2) |
                        (pSprite->pTargetEntitySprite->flags_0xA8 >> 30);
                 func_800BC460((1 << index) | (1 << mode));
             } else if (code >= 0x10) {
-                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
+                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
                 mode = ((BattleActorSlot*)g_BattleStateWork)[index].mode;
                 frames = (code - 0x10) + D_800C3630[mode];
                 pSprite->flags_0xAC.bytes.animId = (frames < D_800C3648[mode]) ? 0x1C : 0x11;
@@ -656,7 +656,7 @@ void func_800B9508(BattleActorSprite* pSprite) {
                         SpriteSetSpecialAnimFile((SpriteData*)pSprite, g_BattleActorArchiveBuffer);
                     }
                 }
-                index = ((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30);
+                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
                 if (g_BattleState->initialActorIndex == index) {
                     SpritePlayAnimation(pSprite, ~code);
                 } else {
@@ -850,7 +850,6 @@ extern void func_800BE790(void);
 // sum reassociates -0x48 onto the base and loses the addiu v1,v1,-1); block-scoping
 // each arm index local keeps the signed slti AND a per-arm register (a shared s32
 // local collapses all three arms onto one register, 93.17).
-/*
 void func_800B9F78(BattleState* pState) {
     BattleActorSprite* pSprite;
     BattleActorSprite* pTarget;
@@ -859,10 +858,6 @@ void func_800B9F78(BattleState* pState) {
     DVECTOR vec1;
     DVECTOR vec2;
     s32 distance;
-    s32 x;
-    s32 z;
-    u16 targetX;
-    u16 targetZ;
     s32 rowIndex;
 
     if (D_800C3660 != 0) {
@@ -878,8 +873,10 @@ void func_800B9F78(BattleState* pState) {
             SpriteSetCallback(pSprite, BattleApplyStateStep);
         } else {
             s32 index;
+            s32 partHigh;
 
-            index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+            partHigh = pSprite->flags_0xA8 >> 30;
+            index = ((pSprite->flags_0xAC.flags & 3) << 2) | partHigh;
             if (index < 3) {
                 if (D_800C3623 != 0) {
                     SpritePlayAnimation(pSprite, 0x13);
@@ -901,9 +898,11 @@ void func_800B9F78(BattleState* pState) {
         switch (g_BattleState->pendingStep) {
             case 4: {
                 s32 index;
+                s32 partHigh;
 
                 pActor = g_BattleActorList;
-                index = (pActor->flags_0xA8 >> 30) | ((pActor->flags_0xAC.flags & 3) << 2);
+                partHigh = pActor->flags_0xA8 >> 30;
+                index = ((pActor->flags_0xAC.flags & 3) << 2) | partHigh;
                 if (index < 3 && ((BattleActorSlot*)g_BattleStateWork)[index].inUse == 0 &&
                     BATTLE_COMMAND_ROW_AT(rowIndex = g_BattleCommandRowIndex - 1).slotAnimIds[index] == 7) {
                     BattleSetSpriteTemplate(pActor);
@@ -922,8 +921,10 @@ void func_800B9F78(BattleState* pState) {
                 break;
             case 5: {
                 s32 index;
+                s32 partHigh;
 
-                index = (pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2);
+                partHigh = pSprite->flags_0xA8 >> 30;
+                index = ((pSprite->flags_0xAC.flags & 3) << 2) | partHigh;
                 if (((BattleActorSlot*)g_BattleStateWork)[index].flags == 0) {
                     SpritePlayAnimation(pSprite, pSprite->animId);
                 }
@@ -962,15 +963,16 @@ void func_800B9F78(BattleState* pState) {
                 BattleReleaseAllActorSlots();
             }
             break;
-        case 2:
+        case 2: {
+            s32 x;
+            s32 z;
+
             x = pSprite->position.parts.xWhole;
             vec0.vx = x;
             z = pSprite->position.parts.zWhole;
             vec0.vy = z;
-            targetX = pSprite->targetPosition.x;
-            vec1.vx = targetX;
-            targetZ = pSprite->targetPosition.z;
-            vec1.vy = targetZ;
+            vec1.vx = pSprite->targetPosition.x;
+            vec1.vy = pSprite->targetPosition.z;
             distance = BattleComputeVectorDistance2D(vec0, vec1);
             if (g_BattleState->targetDistance < distance) {
                 BattleActorSnapToTargetAndFace(pSprite, pTarget);
@@ -978,15 +980,17 @@ void func_800B9F78(BattleState* pState) {
                 g_BattleState->targetDistance = distance;
             }
             break;
-        case 6:
+        }
+        case 6: {
+            s32 x;
+            s32 z;
+
             x = pSprite->position.parts.xWhole;
             vec0.vx = x;
             z = pSprite->position.parts.zWhole;
             vec0.vy = z;
-            targetX = pSprite->targetPosition.x;
-            vec2.vx = targetX;
-            targetZ = pSprite->targetPosition.z;
-            vec2.vy = targetZ;
+            vec2.vx = pSprite->targetPosition.x;
+            vec2.vy = pSprite->targetPosition.z;
             distance = BattleComputeVectorDistance2D(vec0, vec2);
             if (g_BattleState->targetDistance < distance) {
                 BattleStepActorAlongPath(pSprite, pTarget);
@@ -994,6 +998,7 @@ void func_800B9F78(BattleState* pState) {
                 g_BattleState->targetDistance = distance;
             }
             break;
+        }
         case 4:
             if (g_BattleState->pendingAction != 0) {
                 func_800B905C();
@@ -1001,8 +1006,7 @@ void func_800B9F78(BattleState* pState) {
             break;
     }
     D_800C3660 = 0;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
+}
 
 
 void BattleLoadActorSlotAnimation(s32 index) {
