@@ -1100,6 +1100,21 @@ extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 // Also tried: `pActors = g_FieldActors;` for the head plus a separate
 // `pActorAddr = &g_FieldActors;` assigned AFTER the copy loop (74.12%, 404 bytes):
 // gcc then rematerialises the constant address per use and drops $s2 entirely.
+//
+// ROUND 474: the sole residual is the TAIL's three base loads. Retail re-forms the
+// address symbolically there (`lui v0,%hi(g_FieldActors)` / `lw v0,%lo(v0)`, 2 insns,
+// one load shared by both indexes of that statement), i.e. its compile had no register
+// copy of &g_FieldActors live at the tail; the body below emits `lw v0,0(s2)` (1 insn,
+// 3 short in total). A cc1_probe of the tail statement disproved this note's old
+// "gcc keeps MEM_VOLATILE" claim: `(*(FieldActor**)&g_FieldActors)` does emit the bare
+// symbolic `lw $2,g_FieldActors`. Measured this round on the body below: cast at every
+// site 74.12% (404 - the aliasing-visible stores make gcc interleave the eleven field
+// stores with the copy loop, which is where that number is lost), cast at the tail only
+// 85.52% (412 - the three tail reads cse into ONE load), pointer local for head/middle
+// plus `pCopyActors = g_FieldActors;` (volatile value read, one per tail statement)
+// 83.28% (436 - the three symbolic loads and the offset+base addu order come out
+// right, the tail's addus/lws reorder). Unreached: a per-statement symbolic reload
+// that leaves the rest of the body intact.
 /*
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
     FieldActor** pFieldActors;
@@ -1181,6 +1196,11 @@ extern s32 func_8009FA54(s32 nInstructionOffset);
 // `addu v1,v1,a2`); (d) the partyId*4 scale is hoisted into retail's beq delay slot.
 // Tried: nModel/nReloadFlags locals (one load each, worse), pFieldActor reuse,
 // pointer locals for the two swapped FieldActors (this body), inline table reads.
+// Round 474: a `volatile s32* pReloadFlags = &g_FieldSceneReloadFlags;` local assigned
+// before the party-slot store and read at the three sites gives retail's reload count
+// but not its form - gcc propagates the constant address into every MEM (three fresh
+// `lui`/`lw` pairs, 924 bytes / 231 insns against retail's 916 / 229) instead of
+// keeping `la t2` in a register as retail does, so the (a) 3-insn form is still open.
 /*
 void func_800A08B8(void) {
     FieldActor* pFieldActor;
