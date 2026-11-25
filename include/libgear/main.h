@@ -165,7 +165,7 @@ typedef struct _Temp8 {
     /* 0x1C */ s16* pRows; // region rows of 3 pixels, indexed by rect.y + row
     /* 0x20 */ s16 divisor; // second argument of pInterpolate
     /* 0x22 */ s16 offset; // third argument of pInterpolate
-    /* 0x24 */ s16 (*pInterpolate)(u_short frame, s16 x, s16 y); // maps unk14 to the blend value; called with (unk14, divisor, offset)
+    /* 0x24 */ s32 (*pInterpolate)(u_short frame, s16 x, s16 y); // maps unk14 to the blend value; called with (unk14, divisor, offset)
     /* 0x28 */ RECT rect;
 } Temp8; // Size: 0x30
 
