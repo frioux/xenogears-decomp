@@ -747,7 +747,21 @@ void BattleBuildSlotGaugePrims(void) {
 // `&width[slot]` twice (t0 in the panelMode==0 arm, a freshly shifted a2 in the else arm).
 // Next lever: permuter from this body - the structure is right (695 vs 696, same calls and branches),
 // what is left is the constant set and that one preheader copy.
-/*
+// ROUND 488 re-measured from this body (94.12% / 2780 bytes / 695 insns, 159 differing lines) and
+// closed two spellings for good:
+// (a) retail's eighth loop IV (`addiu t5,t5,0x8` at the loop bottom, the byte offset of
+//     g_BattleSlotFlags, whose access retail does as `lui at / addu at,at,t5 / lbu`) is NOT reachable:
+//     spelling it `s32 flagsOff` + `flagsOff += 8` in the for-clause and `g_BattleSlotFlags[flagsOff]`
+//     measures 93.85% / 2792 bytes / 698 insns, 190 lines - cse/gcse keeps the explicit IV but the
+//     extra loop-live value costs a callee-saved register ($s3 saved, frame 0x30 -> 0x38) and pushes
+//     0x1A/0x1E/0xC into $s1/$s2/$s3 and 0x14 into $s0. The 8-IV set and the 7-IV set are not both
+//     affordable in one body, so the missing addiu cannot be bought this way.
+// (b) moving `pTimer = g_BattleSlotCountdownTimers;` / `pLimit = pTimer - 0xB;` INTO the for-clause
+//     init measures 94.10% / 163 lines: it renames pLimit to $t6 and actorOff to $t7 (retail has
+//     $t7/$t6) and still emits `lui t4` + `addiu t4` with no `move t4,v0`.
+// (c) preset ruled out: try_flags --all --gcc gcc-2.7.2-cdk-psx gives 85.51 for this body (and breaks
+//     the unit's matched functions: BattleRenderSlotStatDigits 78.94, BattleInitPanelMove 89.58,
+//     BattleAddFourSlotPrims 87.69), so 2.6.0 is the right compiler here.
 /*
 void func_80075938(void) {
     s32 slot;
