@@ -281,23 +281,39 @@ s32 MenuMaxStatValue(s32 unusedArg, volatile u16* p0, volatile u16* p1) {
 }
 
 /* PARKED 88.01% under XenoMenu260 (gcc 2.6.0): 1964 bytes / 491 insns against retail 1952 / 488, frame 0xA0 against retail's 0xA8.
- Residual is the stack picture, not the code: retail spills pStat/pSaved and four
- accumulators (slots 0x38/0x40 and 0x60/0x68/0x70/0x78) where this body keeps more
- in registers, so the frame is 8 bytes short, every later instruction carries a
- different slot number, and the two quad loops load their four u16 prim fields in a
+ Named residual (lever j-slot-spacing-tells-decl-from-spill): retail's frame has NO
+ expand-time locals - its nine local slots sit 8 bytes apart (0x20 max, 0x28 arg3,
+ 0x30 arg4, 0x38 pStat, 0x40 pSaved, 0x60 rowOfs, 0x68 deltaVertOfs, 0x70 colorOfs,
+ 0x78 valueVertOfs; 12 slots x 8 = its 0x60 var area, with 0x48/0x50/0x58 allocated and
+ never touched), so every one of them is a reload SPILL and pStat/pSaved are plain
+ pointers the allocator ran out of registers for - not volatile decl locals. This body
+ puts pStat/pSaved/max in 4-byte-apart decl slots and only the four accumulators 8 apart,
+ so the frame is 8 short and every sp operand and slot number differs. Two smaller
+ residual pieces: arg1 lands in s4 here and s5 in retail (each later callee-saved
+ assignment rotates by one), and the two quad loops read their four u16 prim fields in a
  different order (retail a1=0xEB8, a2=0xEBA, a3=0xEC0, v0=0xEB8, v1=0xEBA, v0=0xED2).
- What is right: the whole shape - the arg3 if/else picking pEquipmentPanel+0x280
- against pDressingRoom->statValues, MenuMaxStatValue, the 7-arg4 row loop, one
- MenuSetStatBarQuadColors + MenuSetQuadVertices + MenuParseNumberToDigits + 4-digit
- loop per row, the digit-count quad loop reading the 0xEB8 prims into the 0x2A00
- SVECTORs, the every-other-row MenuSetStatBarTileColors, the arg3-gated delta block
- (0x2228 quad, 0x31E0 quad, 0x1770 prims, 3 delta digits, 0x2D80 SVECTORs) and the
- seven accumulators with their 0x140/0x80/0x48/0x80/8 steps.
+ Third: retail reads D_801E9D78 and g_MenuStatBarValueWidth with lhu at the value quad
+ (0x3100) but with lw at the delta quad (0x31E0); this body gets lhu at both.
+ Next lever for the frame half: j-declaration-order-sets-the-reload-slot-order - sort the
+ declarations into retail's slot order (max, arg3, arg4, pStat, pSaved, rowOfs,
+ deltaVertOfs, colorOfs, valueVertOfs) once the pointers are spills, then re-measure; the
+ two attempts so far are the two ends (volatile = decl slots, plain = registers).
+ Tried this round: dropping volatile from pStat/pSaved reaches retail's EXACT 0xA8 frame
+ and 304 differing lines instead of 329, but gcc then keeps the two pointers in s0/s2
+ (retail spills them) and it measures 85.69% / 1968 bytes / 492 insns, so the slower
+ 88.01 body is parked. Presets screened: 2.7.2 87.05, -O1 53.95, -O3 30.90, cdk and -G0
+ do not compile.
+ What is right: the whole shape - the arg3 if/else picking pEquipmentPanel+0x280 against
+ pDressingRoom->statValues, MenuMaxStatValue, the 7-arg4 row loop, one
+ MenuSetStatBarQuadColors + MenuSetQuadVertices + MenuParseNumberToDigits + 4-digit loop
+ per row, the digit-count quad loop reading the 0xEB8 prims into the 0x2A00 SVECTORs, the
+ every-other-row MenuSetStatBarTileColors, the arg3-gated delta block (0x2228 quad, 0x31E0
+ quad, 0x1770 prims, 3 delta digits, 0x2D80 SVECTORs) and the seven accumulators with
+ their 0x140/0x80/0x48/0x80/8 steps.
  What moved it: 85.02 first body; 85.69 after spelling every per-row byte access as
  ((u8*)g_Menu->unk35C + i)[0x32C0] - the (p + i)[K] form is the only one that emits
  retail's base-first addu, probed with cc1_probe.sh, where p[K + i] emits index-first;
- 88.01 after declaring pStat/pSaved u16* volatile, which is what puts them in retail's
- 0x38/0x40 stack slots instead of a register pair.
+ 88.01 after declaring pStat/pSaved u16* volatile.
  Also tried: an if around the loop instead of the early return (two blez, retail has
  one), a do-while (83.76 - it moves the accumulator updates out of retail's order),
  quadX split from digitX (kept, 85.09 -> 85.32), g_MenuStatRowLabelOffsetY[7..10] in
