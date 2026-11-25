@@ -1070,6 +1070,43 @@ s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
 //    one sprite per queued command, then draws the three status icons its
 //    condition words allow, frees the buffers, and returns 1 when nothing was
 //    drawn.
+// PARKED 98.10%, 2132 bytes / 532 insns (retail 2120 / 530; 3 instructions over). Round 484 redo.
+//    Four measured steps from the 96.29 body that had been parked here, in order:
+//    1. 96.29 -> 97.12: the icon-1 ELSE arm's buffer index is `row / 2`, not
+//       `((row + queue[0x2E4]) >> 1)` as the old note said. Retail's only extra `srl` in the whole
+//       body is `srl v0,s3,0x1f` in the delay slot of `bnez v0` (the queue[0x2E4] test) followed by
+//       `addu v0,s3,v0; sra v0,v0,0x1` - a signed division of ROW ALONE. The arms differ in the
+//       queue[0x1C] test and the sprite id, not in the index.
+//    2. 97.12 -> 97.16: `(g_BattleCommandQueue + i)[0x2CC]` instead of
+//       `g_BattleCommandQueue[0x2CC + i]`, at BOTH loop sites. Retail is `addu v0,a0,s1` with
+//       `lbu v1,716(v0)` - base first, the displacement at 0x2CC - which is the
+//       `(base + i)[K]` spelling of lever c-pointer-from-memory-paren-sum-is-base-first. Only +0.04,
+//       but it removes 4 of the 106 differing lines.
+//    3. 97.16 -> 97.50: `result = 1;` AFTER the `v = BattleDrawSpritePackage(9, ...)` statement in the
+//       icon-2 block (permuter find, PERMUTER_BETTER base=1249 best=1069).
+//    4. 97.50 -> 98.10: the same move in the icon-3 block (BattleDrawSpritePackage(7, ...)). Retail's
+//       `ori s5,zero,1` for those two arms sits with the call's argument setup, not before it.
+//    RESIDUAL - all four are reorg/delay-slot PLACEMENT, the instruction multiset differs only in
+//    4 `nop` vs 2 `move v0,s5` + 1 `li s5,0x1` + 1 `li v0,0x1`, so nothing here is a missing statement:
+//    1. `move s1,zero` (the command loop's i = 0) sits in retail's `beqz v0, .L8008715C` delay slot at
+//       0x80087100 - the test of queue[0x2E4] - and here lands in the `blez` slot after the count
+//       test, leaving `nop` in retail's slot and pushing `sll v1,s3,0x4` down by one.
+//    2. `move s0,zero` (the HeapFree loop's o = 0) is emitted after `jal BattleUpdateFrame` here and
+//       BEFORE the `sb v0,0x5D91` store in retail, at BOTH free-loop sites. Untried spelling: write
+//       `o = 0;` as its own statement above that store and open the loop with `for (; o < 12; o += 4)`;
+//       round 471 measured only the i = 0 half of this idea (worse).
+//    3. The icon-1 else arm's `result = 1` is emitted before the `jal func_80086C88` here and after it
+//       in retail. Hidden evidence that this position is NOT source-controlled: swapping the two
+//       statements measures 96.88 / 2136 bytes, so `result = 1` must stay written first.
+//    4. Tail: retail's last block is `sb arg0,0x2DC(v1)` then `ori s5,zero,1` + `addu v0,s5,zero` - the
+//       constant goes through the RESULT pseudo (s5), not v0. `return 1;` here emits `li v0,1`, and
+//       `result = 1; return result;` folds back to `return 1` because gcc knows the value, so the
+//       s5 route is not reachable from the source (measured: byte-identical body).
+//    Preset screened this round, no unit switch: gcc-2.7.2-cdk 88.29, gcc-2.6.0 98.26 against 98.10
+//    under the unit's Default flags. Permuter run 3 (from this body) found nothing: base = best = 889.
+//    Everything else is retail's and should not be re-derived: all six other arms, the queue-store
+//    split (cases 1/9 and 3 do not store), both BattleReleaseCharSlot paths, the +0x2E4 if/else shape,
+//    the three sprite ids and the two `(row / 2) * 4` buffer slots.
 /*
 s32 func_80086F98(u8 arg0, u8 arg1) {
     s32 i;
@@ -1106,10 +1143,10 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         g_BattleSpriteColumnWork[0x5D80] = 0;
         g_BattleSpriteColumnWork[0x5D82] = 0;
         for (i = 0; i < g_BattleCommandQueue[0x2D6]; i++) {
-            if (g_BattleCommandQueue[0x2CC + i] == BATTLE_COMMAND_NONE) {
+            if ((g_BattleCommandQueue + i)[0x2CC] == BATTLE_COMMAND_NONE) {
                 continue;
             }
-            switch (g_BattleCommandQueue[0x2CC + i]) {
+            switch ((g_BattleCommandQueue + i)[0x2CC]) {
             case 0:
                 spriteId = 0x5E;
                 break;
@@ -1150,7 +1187,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
             } else {
                 result = 1;
                 row = func_80086C88(arg1, row, i - 1, maskIdx,
-                                    (u_long **)(D_800C3A70 + ((row + g_BattleCommandQueue[0x2E4]) >> 1) * 4));
+                                    (u_long **)(D_800C3A70 + (row / 2) * 4));
             }
         }
         if (g_BattleCommandQueue[0x2E4] != 0 && result != 0) {
@@ -1178,11 +1215,11 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
                                         g_BattleCommandStatusMasks[maskIdx]) != 0 &&
             *(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x1E) == 0) {
-            result = 1;
             v = BattleDrawSpritePackage(9,
                                         (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                              (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                         i * 0x10 + 0x84, 0xD0 - row * 0x10);
+            result = 1;
             g_BattleSpriteColumnWork[0x5D81] += v;
             row = func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
         }
@@ -1194,11 +1231,11 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
                                         g_BattleCommandStatusMasks[maskIdx]) != 0 &&
             *(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x20) == 0) {
-            result = 1;
             v = BattleDrawSpritePackage(7,
                                         (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                              (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                         i * 0x10 + 0x88, 0xD0 - row * 0x10);
+            result = 1;
             g_BattleSpriteColumnWork[0x5D81] += v;
             func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
         }
@@ -1216,6 +1253,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
     return 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
+
 
 
 
