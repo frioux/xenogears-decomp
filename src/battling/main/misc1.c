@@ -429,6 +429,7 @@ extern s32 func_80071F8C(s32 mode);
        with the second slti (-1 insn);
    (e) cases 18 and 29 differ only in register choice (retail v0/v1, this a0/v0).
 */
+// 95.40% (1684 bytes against retail's 1704, 421 insns against 426); see the block below for the five named 1-2 insn residuals (dispatch and case 26 delay-slot fill, cases 2/3 'la' vs temp+copy, case 21 store order, cases 18/29 register choice). Declaring the locals in a different order (value first) measured identical.
 /*
 void func_8007107C(void) {
     BattleState* pActor;
@@ -684,6 +685,7 @@ void func_8007107C(void) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
+
 
 
 
