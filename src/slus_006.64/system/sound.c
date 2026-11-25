@@ -4259,21 +4259,16 @@ u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, Au
     return pScript + 3;
 }
 
-/*
-Round 398: TWIN PORT, 91.13% (268 bytes = retail's size, 67 insns both). This is
-SoundScriptSetTriangleEnvelope0 just above, with the handler index and the flags taken from the
-mode byte instead of the constant 3 - so port that body and swap 3 for mode/index, and keep its
-nested if(note) if(velocity) shape and `s16 velocity` (that is what gives the sll/sra + mult).
-Then `flags = ((mode & 0x10) == 0) * 2;` before the call and `flags + 1` AT THE STORE SITE - that
-split is what puts the late `addiu s0,s0,1` where retail has it (branchless sltiu/sll, no bnez).
-Residual: a pure callee-saved permutation. Retail flags s0 / element s1 / velocity s2 /
-index s3 / pScript s4; this body gives flags s0 / index s1 / element s2 / velocity s3, i.e. the
-index outranks element and velocity in gcc's allocno order. Retail's `andi a2,s3,0xF; move s3,a2`
-shows its index pseudo was local-alloc'd to a2 and copied to s3 by global-alloc, so the s3 copy's
-live range does not cross the call in source terms. Measured this round (all 67 insns / 268 B):
-flags before index 88.40; `mode & 0xF` inlined at the three uses with no index local 81.82
-(mode then lives across the call: 280 B, an extra andi 0xff and s5). Not screened on another
-preset this round.
+// Round 478: re-measured 91.13% (268 bytes = retail's size, 67 insns both) -- twin port of
+// SoundScriptSetTriangleEnvelope0 unchanged; the whole body including every store order and the
+// sll/sra mult chain is retail's. Residual = ONE allocator decision: retail holds element in s1 /
+// velocity s2 / index s3 (its ndi writes a2 and a 'move s3,a2' relocates index), this body gets
+// index s1 / element s2 / velocity s3, which also pushes the arg copy into the jal delay slot
+// (retail's slot holds the sra). -dl/-dg on the compiled unit: pScript 71 used 5/48, element 73
+// 12/46, velocity 74 6/34 (2 bytes), mode 78 3/22 (1 byte), index 79 4/17, flags 97 2/2; local-alloc
+// hands index s1 in this body and s3 in retail's. Tried this round, all 67 insns / 268 bytes:
+// u8 index 87.51 (the andi wanders), flags-before-index 88.40 (confirmed the old measurement).
+// Below 99, so no permuter run.
 /*
 u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s16 velocity = pScript[0];
@@ -4306,9 +4301,9 @@ u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     }
 
     return pScript + 3;
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003D9A4);
+
 
 u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
