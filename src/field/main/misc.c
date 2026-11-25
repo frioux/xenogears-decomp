@@ -3376,11 +3376,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 // UNTRIED LEAD: wrap the last two statements in 'do { ... } while (0)' to split the
 // basic block - that is the lever that pinned retail's order in func_8008EA58
 // (round 425) and this tail's whole residual is one block's schedule.
-/*
 void func_8008EE14(void) {
     u16 value;
     int type;
     s16 pos;
+    u16 ip;
     u16 *pIp;
 
     g_FieldStreamFileIndex = FieldScriptVMGetArgument(1);
@@ -3409,10 +3409,10 @@ void func_8008EE14(void) {
     g_FieldStreamRgb24 = 0;
     D_800C3A30 &= 0xF;
     pIp = &g_FieldScriptVMCurActor->scriptInstructionPointer;
-    *pIp += 0x13;
+    ip = *pIp;
     g_FieldStreamSceneActive = 1;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
+    *pIp = ip + 0x13;
+}
 
 
 extern s32 g_FieldScriptFadeDuration;
