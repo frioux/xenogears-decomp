@@ -375,25 +375,38 @@ void BattleSetCurrentSlotState6(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
-// best 91.80%: the whole branch tree, the six rand()%100 blocks, the frame and the
-// register assignment all line up; what is left is eight single instructions.
-//   - evade = mod + evade and hit = mod/2 + hit: retail keeps the sum's
+// best 91.80%: 347 insns / 1388 bytes against retail's 362 / 1448, i.e. 15
+// instructions SHORT, so this body cannot link however the registers fall. The
+// branch tree, the six rand()%100 sites, the frame and the return values are
+// retail's; the size gap is gcc 2.6.0's cross-jump:
+//   - the 0x20 and 0x40 blocks hold the same 18-instruction `rand() % 100 -
+//     chance` chain, and gcc merges them into one copy (the merge point is the
+//     `sra v1,a1,31` right after `mult`) with `j`/fall-through in, 13 insns.
+//     Retail duplicates the chain in both blocks. per tools/rounds/levers.md
+//     (i-fcross-jumping-merges-identical) the merge rule is the INSTRUCTION
+//     SHAPE, so two arms that cost the same number of instructions cannot be
+//     kept apart, and 2.6.0's cc1 rejects -fno-cross-jumping. The 0x800/0x400
+//     roll lives in a shared s16 local in all three blocks, which is the shape
+//     that exposes it.
+//   - gcc also merges the two one-instruction `j` return tails, which retail
+//     keeps (that one is free in retail because its return 3 is the shared
+//     .L8009D800 block).
+// Smaller residuals, each measured on this body:
+//   - evade = resp + evade and hit = resp/2 + hit: retail keeps the sum's
 //     destination as the accumulator (addu a2,v0,a2), gcc 2.6 emits a2,a2,v0 in
 //     both operand orders.
-//   - the two `(s16)x / 2` sites: retail's last shift is srl, ours sra.
-//   - (s8) of the u8 BattleRow.unk15: retail keeps lbu+sll/sra, gcc folds the
-//     cast into an lb even through a u8 local + (s8) at the use.
-//   - gcc cross-jumps the two `if (unk84|unk86 & 0x20)` / `& 0x40` blocks
-//     (identical rand()%100-chance-%50 tails): ours threads the first block into
-//     the second's body with a `j`, retail duplicates it.
-//   - limit = limit + 0x55 - penalty is reassociated to limit - (penalty - 0x55).
-//   - a 4-minute permuter run on this body (tools/scripts/permute.sh, -j 2) scored
-//     base=4514 best=1813 and its only finding was wrapping the 0x40 block in
-//     `do { ... } while (0);`. That does NOT break the cross-jump above (the
-//     `j` into the other block's body survives) and costs objdiff 91.80 -> 91.67
-//     because chance/limit swap s0/s1, so it was reverted. A longer run from this
-//     body is the next step, not more hand shapes.
-// Next step is a permuter run on this body, not more hand shapes.
+//   - `evade = (s16)evade / 2` and `hit += (s16)hit / 2`: retail's last shift at
+//     the assignment site is srl (ours sra); the += sites are sra in both.
+//   - (s8) of the u8 BattleRow.evadeModifier: retail keeps lbu + sll/sra, gcc
+//     folds the cast into an `lb` even through a u8 local + (s8) at the use.
+//   - `limit = limit + 0x55 - penalty` is reassociated to limit - (penalty -
+//     0x55); retail has addiu v1,s0,0x55 / subu v1,v1,s3.
+//   - one delay-slot swap: retail puts `li v0,1` in the 0x10/0xC00 test's bnez
+//     slot and `nop` in the j slot, ours the other way round.
+// Tried: the 4-minute permuter run recorded below, and the field names below are
+// the current header's (the previous park used unk04/unk7C/unk80/unk82, which
+// this header no longer has, so it had not compiled for a while).
+// Next step is NOT more spellings: the cross-jump is what stops a match.
 /*
 s32 func_8009D3A0(void) {
     s32 penalty = 0;
@@ -424,7 +437,7 @@ s32 func_8009D3A0(void) {
         return 1;
     }
     hit = g_BattleTargetSlotEntry->hit;
-    isGear = ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->unk04[0]];
+    isGear = ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->extraWeaponIds[0]];
     evade = g_BattleActingSlot->evade;
     if (!isGear) {
         evade = g_BattleTargetSlotState->responsiveness + evade;
@@ -437,27 +450,27 @@ s32 func_8009D3A0(void) {
             return 3;
         }
         if ((g_BattleCurrentRow->weaponSlotFlags & 0x20) &&
-            ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->unk04[3]] == 0) {
+            ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->extraWeaponIds[3]] == 0) {
             return 3;
         }
     }
-    if ((g_BattleTargetSlotState->unk80 | g_BattleTargetSlotState->unk82) & 0x800) {
+    if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 0x800) {
         evade += (s16)evade / 2;
     }
-    if (g_BattleTargetSlotState->unk7C & 0x10) {
+    if (g_BattleTargetSlotState->activeEffectFlags1 & 0x10) {
         penalty = 0x3C;
     }
     if (g_BattleCurrentRow->actionFlags & 0x1000) {
         return 3;
     }
     if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
-        if ((g_BattleCurSlotState->unk80 | g_BattleCurSlotState->unk82) & 0x400) {
+        if ((g_BattleCurSlotState->activeEffectFlags2 | g_BattleCurSlotState->accessoryEffectFlags2) & 0x400) {
             hit += (s16)hit / 2;
         }
-        if (g_BattleCurSlotState->unk7C & 0x10) {
+        if (g_BattleCurSlotState->activeEffectFlags1 & 0x10) {
             limit = 0x1E;
         }
-        if (g_BattleCurSlotState->unk7C & 0xC00) {
+        if (g_BattleCurSlotState->activeEffectFlags1 & 0xC00) {
             return 1;
         }
     } else {
