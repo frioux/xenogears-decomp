@@ -790,28 +790,52 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
 
 extern u8 g_BattleInitDone;
 extern s32 g_BattleFacingAngle;
+// The camera target's and the camera position's x words, declared a second time as
+// arrays: taking the address of a scalar folds back to the symbol at every use, while
+// an array decays to a value, which is what makes cc1 hold `&g_BattleCameraTarget` in
+// a callee-saved register across the rcos/rsin calls as retail does.
+extern s32 g_BattleCameraTargetAddr[] __asm__("g_BattleCameraTarget");
+extern s32 g_BattleCameraPosAddr[] __asm__("g_BattleCameraPos");
 extern s32 BattleVectorDistance2D(Vec4*, Vec4*);
 extern s32 BattleVectorLength2D(Vec4*);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
-
-/* Best attempt: 84.47%. The structure, every call and the argument values are right;
-   three things are not. (a) The FRAME: retail is 0x50 with the four vector locals
-   sharing two 0x10 slots at sp+0x10 and sp+0x20 - the two orbit candidates' slots are
-   reused by the third point and by the lerp delta once they die - and it keeps six
-   callee-saved registers (s0-s5); this body needs 0x68 and seven, so gcc gave the
-   candidates and the later pair separate slots (declaring only two Vec4 locals and
-   reusing them brought the row count from 73 to 54 and is what this body does).
-   (b) The g_BattleFacingAngle / g_BattleActorDistance2D stores: retail stores the angle
-   first but only AFTER the BattleVectorDistance2D call returns, which needs the call's
-   result in a local (this body does that; the straight two-statement form stores the
-   angle before the call and loses the jal). (c) The third point's y is
-   g_BattleCameraTargetY - (min(3Ddist/4, 0x300) + 0x40) and the ground clamp compares that with
-   BattleGetFloorHeightAtPosition(&g_BattleCameraPos, 0) - 0x100. Nothing here was permuted yet.
 // Aim the camera at the two combatants: the facing angle and their distance are
 // published for the rest of the battle code, the camera target is mirrored on their
 // midpoint, and the camera orbits to the nearer of the two candidate points on an
 // orbit of radius dist*2/3 + 0xC0, moving a fraction of the way each frame.
+// Best attempt: 94.16%, 980 bytes / 244 instructions = retail's exact object size.
+// The structure, every call, every argument and the frame are retail's; the two
+// residuals left are these.
+// (a) The two BattleVectorLength2D calls: retail copies call 1's result into s0
+//     immediately after that call ('move s0,v0') and puts 'addiu a0,sp,0x20' in the
+//     second call's delay slot; this body emits those two insns the other way round,
+//     so reorg fills the slot with the copy. Measured identical: lenB as a local vs
+//     the call written inline in the compare, and 'lenA > lenB' vs 'lenB < lenA' -
+//     the copy placement is reload's, not the spelling's.
+// (b) floorY: retail keeps 'floor - 0x100' in s0, the register '&g_BattleCameraPos'
+//     dies in; this body uses v0. 'if (posA.y > floorY)' and 'if (floorY < posA.y)'
+//     measure identically.
+// What closed 84.47 -> 94.16 was the ADDRESS REGISTERS. Retail holds
+// '&g_BattleCameraTarget' in s1 across the rcos/rsin calls (lui %hi + addiu, then
+// sw 0(s1) and two lw 0(s1)); a scalar extern folds back to the symbol at every use,
+// so gcc needs one fewer callee-saved register, the whole s-register set shifts by
+// one and every line differs. Declaring the SAME symbols a second time as unbounded
+// arrays with an asm label - 'extern s32 g_BattleCameraTargetAddr[]
+// __asm__("g_BattleCameraTarget");' then 'pTargetX = g_BattleCameraTargetAddr;' -
+// makes the address a value and reproduces retail's seven saved registers and the
+// 0x50 frame. The third point's target.x read must stay the PLAIN scalar, because
+// retail re-forms it there with lui/lw. The same alias on g_BattleCameraPos gives
+// retail's s0 held across BattleMovePointInsideRadius and
+// BattleGetFloorHeightAtPosition (before it: three separate lui/addiu and a
+// 'lui at' store).
+// The third load-bearing shape: 'height = dist + 0x40;' must be its own statement
+// and 'posA.y = g_BattleCameraTargetY - height;' must come BEFORE the posA.x
+// statement - that is what puts retail's 'addiu v1,s4,0x40' in the bnez delay slot
+// (and a second copy after the clamp) and computes targetY - height above the rcos
+// call. Inlining '(dist + 0x40)' makes cc1 reassociate to (targetY - 0x40) - dist,
+// and putting the y statement after posA.x gives 89.71 with the call above the y.
+// Not run: the permuter (the lane rule stops below 99%).
+/*
 void func_800796B8(Actor* p1, Actor* p2) {
     Vec4 posA;
     Vec4 posB;
@@ -823,6 +847,8 @@ void func_800796B8(Actor* p1, Actor* p2) {
     s32 lenB;
     s32 height;
     s32 floorY;
+    s32* pTargetX;
+    s32* pCamPos;
 
     if (g_BattleInitDone != 0) {
         return;
@@ -833,16 +859,17 @@ void func_800796B8(Actor* p1, Actor* p2) {
     g_BattleActorDistance2D = dist2d;
     dist = BattleVectorDistance((Vec4*)p1, (Vec4*)p2);
     radius = dist * 2 / 3 + 0xC0;
-    g_BattleCameraTarget = (p1->x + p2->x) / 2;
+    pTargetX = g_BattleCameraTargetAddr;
+    *pTargetX = (p1->x + p2->x) / 2;
     g_BattleCameraTargetY = (p1->y + p2->y) / 2 - 0xA0;
     g_BattleCameraTargetZ = (p1->z + p2->z) / 2;
 
     // The two candidate points on the orbit, seen from the camera. Their y words are
     // never set here - retail reads the frame slot back unset - but the length test
     // below is 2D, so only x and z matter.
-    posA.x = g_BattleCameraTarget + ((rcos(angle - BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
+    posA.x = *pTargetX + ((rcos(angle - BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
     posA.z = g_BattleCameraTargetZ + ((rsin(angle - BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
-    posB.x = g_BattleCameraTarget + ((rcos(angle + BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
+    posB.x = *pTargetX + ((rcos(angle + BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
     posB.z = g_BattleCameraTargetZ + ((rsin(angle + BATTLE_ANGLE_QUARTER_TURN) * radius) >> 12);
     posA.x -= g_BattleCameraPos;
     posA.y -= g_BattleCameraPosY;
@@ -867,22 +894,25 @@ void func_800796B8(Actor* p1, Actor* p2) {
         dist = 0x300;
     }
     height = dist + 0x40;
-    posA.x = g_BattleCameraTarget + ((rcos(angle + g_BattleCameraAngleStep) * radius) >> 12);
     posA.y = g_BattleCameraTargetY - height;
+    posA.x = g_BattleCameraTarget + ((rcos(angle + g_BattleCameraAngleStep) * radius) >> 12);
     posA.z = g_BattleCameraTargetZ + ((rsin(angle + g_BattleCameraAngleStep) * radius) >> 12);
-    posB.x = (posA.x - g_BattleCameraPos) / g_BattleCameraLerpFrames;
+    pCamPos = g_BattleCameraPosAddr;
+    posB.x = (posA.x - *pCamPos) / g_BattleCameraLerpFrames;
     posB.z = (posA.z - g_BattleCameraPosZ) / g_BattleCameraLerpFrames;
-    BattleMovePointInsideRadius((Vec4*)&g_BattleCameraPos, &posB, 0x3A00);
-    g_BattleCameraPos += posB.x;
+    BattleMovePointInsideRadius((Vec4*)pCamPos, &posB, 0x3A00);
+    *pCamPos += posB.x;
     g_BattleCameraPosZ += posB.z;
-    floorY = BattleGetFloorHeightAtPosition((Vec4*)&g_BattleCameraPos, 0) - 0x100;
+    floorY = BattleGetFloorHeightAtPosition((Vec4*)pCamPos, 0) - 0x100;
     if (floorY < posA.y) {
         posA.y = floorY;
     }
     g_BattleCameraPosY += (posA.y - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
     g_BattleCameraLerpFrames = 0x64;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
+
+
 
 void BattleInitOptionDefaults(void) {
     BattleEffectInitContext();
