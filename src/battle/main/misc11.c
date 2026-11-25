@@ -410,6 +410,7 @@ void func_80080160(u8 arg0) {
     u8 hasWeapon;
     s32 i;
     s32 rowOffset;
+    u8 *pQueue;
     u8 v;
 
     g_BattleCommandQueue[0x2EA] = 1;
@@ -421,9 +422,10 @@ void func_80080160(u8 arg0) {
     g_BattleCommandQueue[0x2E3] = 0;
     g_BattleCommandQueue[0x2E4] = 0;
     g_BattleCommandQueue[0x2DC] = 0;
+    pQueue = g_BattleCommandQueue;
     gauge = D_800D32A4[arg0 * 8];
-    g_BattleCommandQueue[0x2D5] = gauge;
-    g_BattleCommandQueue[0x2D4] = gauge;
+    pQueue[0x2D5] = gauge;
+    pQueue[0x2D4] = gauge;
     ((BattleWork *)g_BattleDisplayState)->panelMode[arg0] = 3;
     g_BattleCommandQueue[0x2E7] = 0;
     g_BattleLastMenuEvent = 0xFF;
@@ -434,8 +436,9 @@ void func_80080160(u8 arg0) {
     g_BattleSoundEnabled = 1;
     BattlePlaySoundIfEnabled(0x5A);
     g_BattleSoundEnabled = 0;
+    i = 0;
     rowOffset = arg0 * 0x170;
-    for (i = 0; i < 0x10; i++) {
+    for (; i < 0x10; i++) {
         ((BattleCommandRow *)(g_BattleCommandQueue - -(arg0 * 0x40)))->statusWords[i] =
             *(u16 *)(g_BattleSlotStatusRows + rowOffset) & D_800C3234[i];
     }
