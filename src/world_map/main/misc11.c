@@ -171,9 +171,19 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 //       ori a0,s2,0x90 and lw v0,0x90(s2).
 // REMAINING, register-only, 0 bytes and one class: retail keeps the shared zone pseudo in
 // $a2 (addu a2,v0,zero after each func_80095414 call, addiu a2,v0,3 / lbu a2 in the
-// if/else arms, sll v0,a2,16 at the join); this body gets $v1 at all six sites. Case 40's
-// tail is the other tie: retail loads pSprite (lw a0,0x4c(s0)) before addiu a1,zero,1, we
-// sink it after the pScratch[2] load. So the link needs ONE register choice, not a rewrite.
+// if/else arms, sll v0,a2,16 at the join); this body gets $v1 at all six sites.
+// Round 497 pinned that down with cc1's own dumps (cc1 -dl -dg): the RTL there is
+// (set (reg/v:HI 81) (subreg:HI (reg:SI 151) 0)) with 151 the copy of $v0 that coalesces
+// back into $v0, so retail's addu a2,v0,zero IS the user variable's allocation, and the
+// .lreg line for it is "Register 81 used 6 times across 13 insns; dies in 2 places",
+// 6th of the 18 allocnos in the .greg hand-out order. For 81 to land in $6 where this
+// body takes $3, retail's zone allocno must conflict with $3/$4/$5 at some point where
+// this one does not: the residual is that allocno's CONFLICT SET (how many disjoint
+// ranges one zone variable spans), not the instruction stream, which is already retail's
+// row for row. Dead in round 497: moving "s16 zone" up to the second declaration (99.48,
+// the same 245 differing lines), a separate s16 cellIdx for the proximity arms (99.34,
+// 2956 bytes / 739 insns - the shared scratch is load-bearing, as round 472 found), and a
+// 1081-iteration permuter run (base=225 best=225, NONE).
 // Still standing from round 472: pActor[1].targetSlot / pActor[2].targetSlot in cases
 // 8/9/16/17 (not g_WorldMapSlots[1]/[2]); the trailing "case 0x40: break;" that gives the
 // state table retail's 65 entries (sltiu 0x41, second table at .rodata+0x108); the
@@ -181,6 +191,7 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 // switch's case 1 is state = 1. Dead spellings measured on the round-472 body: zone as
 // s16 / s32 / (s16) at the subscript 2952; zone = prox then zone += 3 in the arm 2936; a
 // named s32 angle local 2952; gcc-2.6.0 97.95; gcc-2.7.2-cdk 86.82.
+// round 497: re-measured 99.48% / 2960 bytes = retail's exact size / 740 insns; only the zone register (retail $a2, this body $v1) plus this unit's jtbl name rows differ.
 /*
 int func_8008A72C(int index) {
     s32 result = 1;
@@ -483,6 +494,7 @@ int func_8008A72C(int index) {
     return result;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
+
 
 
 int WorldMapModeInitActorSlot(int index) {
