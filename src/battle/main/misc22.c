@@ -576,6 +576,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
    The lib_gear twin func_801E1258 is the same function, parked at 88.98%.
    Two earlier permuter runs took this body 88.34 -> 90.63; a 4-minute run on
    the early-return form was PERMUTER_NONE (base=120 best=120).
+   ROUND 492 re-measured this exact body: 90.65%, 1040 bytes, 260 insns
+   (retail 1028 / 257), so the note is live, and re-confirmed the early-return
+   form above at 1036 / 259 / 90.63 - one instruction closer to linking, two
+   over. The three extra here are the `move v1,s2` that materialises the 0x18
+   store plus the equal path's own `j` and `move v0,s1`. Newly measured,
+   none of it moved the count:
+   - `return frame;` at ALL THREE exits instead of `return (s16)level;` does
+     remove the store truncation, and `sh s2,0x18(s0)` then lands in retail's
+     `beq` delay slot, but the body stays 260 / 1040 and scores 90.28; at the
+     tail exit alone it is worse (264 / 1056).
+   - The realistic typed loops (`pDst = pDstBase + dstRect.x + x;
+     pDst[row] = pSrc[row2];` and `pArg->pRows[y].pixels[x]`) are byte-count
+     identical (260 / 1040) and score 89.29, because pointer arithmetic emits
+     the BASE first in every address addu where retail has the index first
+     (`addu a0,a0,t3`). The u32-cast form below carries retail's operand
+     order, so keep it.
+   - Presets for the residual: gcc 2.7.2-cdk 86.68; plain 2.7.2 cannot
+     compile this unit's C.
 s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
     BattleMisc22Image *pSource;
     BattleMisc22Rect srcRect;
