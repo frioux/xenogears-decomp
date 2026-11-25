@@ -1442,32 +1442,26 @@ extern u16 g_SystemFontDummyGlyph[];
 // bitmap row over the row above and the row below it. pDest points one row into
 // the buffer, rowStride is the buffer's row width in pixels and plane picks
 // which of the two glyph sets of the page the pixels belong to.
-// PARKED 67.44% under the unit flags (389 insns / 1556 bytes against retail's 424 / 1696); the
-// old note's 66.80 body is this one with three plain mask |= writes for the middle row.
-// 
-// WHAT MOVED IT THIS ROUND: the three middle-row writes are ternaries folded into the store.
-// Writing  row = row | ((word & B) ? (0x2000 << SHIFT) : 0) | mask;  in place of
-//   if (word & B) mask |= 0x2000 << SHIFT;  row |= mask;  gave retail's 0x212/0x21 write
-// shape and was the only change that scored higher: 66.80 -> 67.44 (and 392 -> 389 insns).
-// 
-// THE REAL RESIDUAL IS A COMPILER FLAG, NOT THE C. gcc 2.7.2 -O2 has -fcse-skip-blocks on,
-// and that is what hoists word & 0x40 and word & 0x10 into registers; retail recomputes
-// every andi (28 per iteration). Measured with the unit's own cc1 on this exact body:
-//   -O2 -G8 (unit flags)                          67.44%
-//   -O2 -G8 -fno-cse-skip-blocks                  77.38%  (408 insns / 1632 bytes)
-//   -fno-cse-follow-jumps alone                   67.44%  (no effect at all)
-//   -fno-cse-follow-jumps -fno-cse-skip-blocks    75.70%
-// Across all 52 C functions of the unit, -fno-cse-skip-blocks leaves 51 at 100.00 and drops
-// SystemStringInit to 99.66, so it is a preset candidate, not a per-function hack.
-// 
-// WITH THAT FLAG the residual is pointer givs: retail carries FOUR loop-carried pointers
-// (t2 = pAbove = pMiddle - rowStride, a2 = pMiddle, t1 = pBelow, t3 = pMiddle + 2, each
-// addu p,p,t4 with t4 = 2*rowStride), while this body recomputes (pDest - rowStride) three
-// times per iteration. A four-pointer body (pAbove/pMiddle/pBelow/pMid2 all advanced in the
-// for-update) scores 67.39 under the unit flags and 72.80 under the flag - worse in both, and
-// +16 bytes over retail under the flag - so the giv split is not the whole answer either.
-// 
-// Presets on the 66.80 body (earlier round): 2.6.0 64.95, 2.7.2-cdk 62.19; Default is right.
+// PARKED 67.44% (389 insns / 1556 bytes; retail 424 / 1696). Every operation is
+// right and the block/arm order is retail's. The 35 missing insns are the
+// `andi $t0,bit` tests this compile CSEs: retail recomputes all 28 of them in
+// each loop body, this body carries ~14 results across arms.
+// THE RESIDUAL IS CROSS-BLOCK CSE, AND THE FLAG THAT TURNS IT OFF IS NOT USABLE.
+// Retail tests `word & bit` again in every basic block (the 0x40 and 0x80 tests
+// recur across 4 arms), while this body's compile carries each result in a
+// register out of the previous arm. Measured this round with the unit's own cc1:
+//   -O2 -G8 (unit)                       67.44   -O3  67.44   -O1  65.91
+//   -O2 -G8 -fno-cse-skip-blocks         77.38  (408 insns)
+// but the whole unit under that flag (try_flags --all on a build.ninja with the
+// flag added) drops SystemStringInit to 99.66, SystemFormatNumberGlyphs to
+// 99.82 and SystemRenderStringEntry to 97.12, so it breaks three matched
+// neighbours and cannot be a preset - the note in the previous round called it a
+// preset candidate, and that is now disproved.
+// A four-pointer body (pAbove/pDest/pBelow/pMid2 carried and advanced in the
+// for-update, retail's t2/a2/t1/t3 + t4 stride) measures 65.14% at 401 insns -
+// 12 andi closer, but gcc splits an extra giv (5 pointers advanced, retail has
+// 4) and the fuzzy score is worse. Presets on the 66.80 body: 2.6.0 64.95,
+// 2.7.2-cdk 62.19. Default is right; nothing in the C closes the rest.
 /*
 void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int plane) {
     u16* pGlyph;
@@ -1494,5 +1488,6 @@ void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int
     }
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
+
 
 
