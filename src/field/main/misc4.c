@@ -731,33 +731,49 @@ extern void GamePartySyncStreamedData(void);
 
 // Loads everything a field map needs: the palette and stream data, the frame
 // buffer it was entered from, the render contexts and the party skin data
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_800799D4);
-// PARKED 88.93% (2644 bytes / 661 insns; retail 2680 / 670) - measured, compiles.
-// Frame 0x78 with s0-s8 + ra, the prologue/epilogue, every call, argument and
-// branch is retail's; the residual is almost entirely how an absolute address is
-// reached, so the remaining byte budget is small and spread out.
-// NAMED RESIDUALS:
-//  1. g_FieldColorFillRect: retail materialises `la` into $s0 once per block and
-//     stores x through `sh v0,0($s0)`, keeping the other three stores absolute
-//     (D_800AFE4E/50/52) and reusing $s0 for the MoveImage argument; this body
-//     stores all four absolute and re-forms the la at each call (+~8 insns).
-//  2. the two strip loops: retail strength-reduces each table reference into its
-//     own walker (s0/s1 for D_800ADCB0, s3/s4 for D_800ADCC8, +4 per iteration,
-//     fields at 0 and 2); gcc gives one pointer per table with 0/2 offsets here.
-//     Same instruction count, different registers.
-//  3. `g_FieldColorFillTiles[1] = g_FieldColorFillTiles[0]` relocates against
-//     g_FieldColorFillTiles+0x10 where retail names D_800AFE64: link-identical
-//     (objdiff only).
-//  4. `g_MenuGfxEnvOtBuffer0[1] = ...` relocates against +4 where retail names
-//     D_8005A4B0: also link-identical (objdiff only).
-//  5. nStreamSize takes stack slot 0x40 where retail uses 0x48 - retail allocated
-//     something 8 bytes long before it. Tried a third s32 local (that bought the
-//     0x78 frame, kept); the remaining 8-byte hole is not expressible from the code.
-// TRIED, one line each:
-//  - indexed `T[i].x` vs explicit `pSrc++` walkers: 84.84 -> 88.90 (walkers better).
-//  - rect/queue declaration order: that swap is what put locals at retail's 0x18/0x20.
-//  - `void* pQueueBackup = NULL` (prologue `move s8,zero`): part of the 88.90 jump.
+// PARKED 90.03% (2644 bytes / 661 insns; retail 2680 / 670) - measured, compiles.
+// Frame 0x78 with fp+s0-s7+ra, the prologue/epilogue, every call and branch is
+// retail's. The residual is two things, both spread over the whole body:
+//  1. HOW AN ABSOLUTE ADDRESS IS REACHED. Retail holds &g_FieldColorFillRect in
+//     $s0 across four MoveImage/LoadImage calls and stores x through `0(s0)` while
+//     y/w/h go through the assembler's `lui $at` pair; the compile re-forms a
+//     `lui $at` for EVERY store and for every &-argument (+~1 insn per block).
+//     After reload gcc's CSE only merges an address that matches a register
+//     EXACTLY, and a `sh $v0,sym+2` MEM has no base register - hence the mix in
+//     retail and its absence here.
+//  2. The two strip loops: retail strength-reduces each field reference into its
+//     own walker (s0/s1 = the +0/+2 pair of D_800ADCB0, s3/s4 the pair of
+//     D_800ADCC8, +4 per iteration, 8 preheader insns); gcc gives one base per
+//     table with 0/2 offsets (4 preheader insns, 2 fewer per iteration). Both
+//     loads are already u16-for-rect / s16-for-the-call like retail's.
+// Also link-identical but objdiff-visible (reloc names only, SECOND EXCEPTION):
+//     g_FieldColorFillTiles[1] relocates as tiles+0x10 where retail names
+//     D_800AFE64; g_MenuGfxEnvOtBuffer0[1] as +4 where retail names D_8005A4B0;
+//     the y/w/h stores as g_FieldColorFillRect+2/+4/+6 where retail names
+//     D_800AFE4E/50/52.
+// PRESET (measured with try_flags.sh --all, this round): under --gp -G0 this
+// function goes 88.93 -> 91.02 and EVERY other function of the unit keeps its
+// score exactly (all 100.00 except FieldUpdateRandomSkinSelection 99.83), so the
+// unit is a -G0 candidate but -G0 does not close it either; gcc-2.7.2-cdk 83.37,
+// cdk -G0 74.26.
+// TRIED, one line each (this round's new ones first):
+//  - queue[2]/queue[3] zeroed BEFORE pPalette = HeapAlloc(...): 88.93 -> 90.02
+//    (retail's store order), kept.
+//  - `nSize = (nStreamSize & 0xFFFFFF) + ...` instead of reloading
+//    g_FieldStreamDataSize: 660 insns / 89.80 - one insn closer but 0.23 lower,
+//    so the reload spelling is what this park carries.
+//  - rect.w/h before rect.x/y in the first LoadImage block: kept (304 -> 301
+//    differing lines, flat on the percentage).
+//  - RECT* pRect = &g_FieldColorFillRect used for every field store and call
+//    argument: 87.74 (worse; retail only merges the offset-0 store).
+//  - indexed `T[i].x` vs explicit `pSrc++` walkers: 84.84 -> 88.90 (walkers).
+//  - rect/queue declaration order: what put the locals at retail's 0x18/0x20.
+//  - `void* pQueueBackup = NULL` (prologue `move fp,zero`): part of the 88.90.
 //  - nRequestCode local before the last request-code test: frame 0x70 -> 0x78.
+// OPEN: nStreamSize sits at 0x40 where retail uses 0x48 (retail has an 8-byte
+// object at 0x40 that no local of this body accounts for), and pStreamBuffer is
+// spilled to the stack where retail keeps it in $s7 - if that spill is fixed, the
+// free slot at 0x48 lands on retail's nStreamSize.
 /*
 void func_800799D4(void) {
     RECT rect;
@@ -807,16 +823,16 @@ void func_800799D4(void) {
     }
     pStreamBuffer = HeapAlloc(nSize, 1);
 
+    queue[2].archiveIndex = 0;
+    queue[2].pData = NULL;
+    queue[3].archiveIndex = 0;
+    queue[3].pData = NULL;
     pPalette = HeapAlloc(ArchiveDecodeAlignedSize(1), 1);
     g_MenuResourcesFile = pPalette;
     queue[0].archiveIndex = 1;
     queue[0].pData = pPalette;
     queue[1].archiveIndex = (g_FieldRequestCode & FIELD_REQUEST_CODE_MASK) + 5;
     queue[1].pData = pStreamBuffer;
-    queue[2].archiveIndex = 0;
-    queue[2].pData = NULL;
-    queue[3].archiveIndex = 0;
-    queue[3].pData = NULL;
     if ((g_FieldRequestCode & FIELD_REQUEST_CODE_MASK) == 5 && g_FieldSuppressStateChange == 0) {
         queue[2].archiveIndex = 0xC;
         queue[2].pData = (void*)0x1DC000;
@@ -951,10 +967,10 @@ void func_800799D4(void) {
     FieldFreeScriptDataStream();
     FieldRenderSync();
 
-    rect.x = 0x2C0;
-    rect.y = 0x100;
     rect.w = 0x40;
     rect.h = 0x100;
+    rect.x = 0x2C0;
+    rect.y = 0x100;
     LoadImage(&rect, pImageB);
     DrawSync(0);
     rect.x = 0x3C0;
@@ -1007,8 +1023,10 @@ void func_800799D4(void) {
     g_FieldRequestCode = 0xFF;
     FieldLoadFont();
     g_FieldPendingRequestCount = 0;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_800799D4);
+
+
 
 // Quad rendering
 // --------------------
