@@ -564,7 +564,8 @@ void MenuFreeGearScreenBuffers(void) {
     MenuLoadResourceSet(0x13);
 }
 /* PARKED 99.66% - 1812 bytes, retail's exact size; 453 instructions, the same
-   instruction multiset. Re-measured round 457: still 99.66% / 1812 bytes. The
+   instruction multiset. Re-measured round 457 and again round 470 (un-parked,
+   whole diff read): still 99.66% / 1812 bytes / 453 insns, residual unchanged. The
    ONLY residual is the callee-saved mirror - retail keeps `s32 slot` in $s2 and
    `u8 lastSlot` in $s1 (andi $s2,$v0,0xFF after
    MenuInitializeGearScreenBuffers; ori $s1,$zero,0xF3 for lastSlot's init) and
@@ -616,6 +617,13 @@ void MenuFreeGearScreenBuffers(void) {
    the 98.69/98.48 bodies and this one (PERMUTER_NONE 543, 145 and, round 431,
    base 145 best 145 over 1304 iterations). Converting the switch owns
    jtbl_801C518C (the unit's first table), so this is not JTBL_LAYOUT.
+
+   Round 470 re-checked the arithmetic from the other side before parking again:
+   lastSlot would need a live range of <= 16 insns (it is loop-carried, 224) or
+   slot at most 7 references (it is named by ~40 of the 453 instructions), so neither the
+   refs, the mode size nor the live length is free once the instruction stream
+   is retail's - and a basic-block boundary only moves live_length (see
+   n-a-do-while-0-is-a-barrier), never by 13.7x. No fourth permuter run.
 */
 /*
 u8 func_801E23CC(void) {
