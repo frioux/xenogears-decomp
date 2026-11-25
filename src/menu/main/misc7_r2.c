@@ -141,7 +141,7 @@ void MenuSetGoldDigits(s32 x, s32 y) {
                               g_Menu->renderContext, digitX, y, 0x1000) +
                 ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount;
         }
-        x += MENU_DIGIT_SPACING;
+        digitX += MENU_DIGIT_SPACING;
     }
     func_8002675C(g_Menu->resources, MENU_TEX_GOLD_GLYPH,
                   &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrims[0],
