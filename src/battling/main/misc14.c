@@ -754,25 +754,34 @@ s16 BattleInterpolateAngle(s32 arg0, s32 arg1, s32 arg2) {
     return value;
 }
 
-/* Parked: best objdiff 89.68%, 216 bytes = the original's exact size. Structure is
-settled: retail maps diff < 0x800 to var -= arg2 and diff > 0x800 to
-var += arg2, rand() & 1 picks the minus arm at exactly 0x800, and both clamp
-tests (slti 0x801 keep-if-0x800 on the minus arm, slti 0x800 clamp on the plus
-arm) are exact. Written as one if/else on a direction local, gcc tests the
-direction once at the join; retail tests it at BOTH sites - after the rand
-call it emits bnez v0,A plus j B, and at the diff site beqz v0,plus-entry with
-the minus body as fall-through - so the arm selector was duplicated into both
-predecessors. Measured shapes: four duplicated bodies 76.30% (2.7.2 does not
-merge identical blocks); direction ternary 91.91% but 208 bytes, 8 short;
-back = diff < 0x800 hoisted above the 0x800 test 88.61% with var spilled to
-a0; and a dead else-if re-testing back 93.25% at 220 bytes - that one DOES
-reproduce retail's two test sites, so what is missing is a test of back at
-the diff site that a plain if/else cannot express. Residual in this body: the
-prologue saves s1 before s2 and computes diff off s1 where retail uses raw
-a1. Permuter not run (below the 99% rule).
-
-extern int rand(void);
-
+/* Parked: best objdiff 89.68%, 216 bytes / 54 insns against retail's 224 / 56.
+// Structure and both clamp tests are exact (back = rand() & 1 at diff == 0x800,
+// back = diff < 0x800 otherwise; minus arm keeps while newdiff <= 0x800, plus arm
+// keeps while newdiff >= 0x800). The residual is the DISPATCH, two instructions:
+// retail tests the arm selector at BOTH of its predecessors - the rand path ends
+// `andi v0,v0,1 / bnez v0,minus / subu v0,s0,s2 / j plus / addu v0,s0,s2`, and the
+// diff<0x800 path ends `beqz v0,plus / subu v0,s0,s2` with the minus arm as
+// fall-through - so each site carries its own arm-operand compute. A single
+// `if (back) {...} else {...}` makes gcc merge the test at the join (one `beq` with
+// `subu` in its delay slot), which is the 2 instructions we are short.
+// Measured round 478 (four scored runs, none better):
+//  - the four-copy source, `if (diff == 0x800) { if (rand() & 1) minus else plus }
+//    else if (diff != 0) { if (diff < 0x800) minus else plus }` with the two minus
+//    copies and the two plus copies textually identical: 68.09 / 268 bytes /
+//    67 insns (62.54 with the pairs in the other order). gcc 2.7.2's cross-jumping
+//    merges the plus pair but NOT the minus pair, so it never reaches retail's
+//    two-dispatch / two-body shape, and the byte count is 52 over. Same body under
+//    gcc-2.7.2-cdk (-O2 -G8) 62.54 and gcc-2.6.0 55.02, so this is not the preset.
+//  - `else if (back == 0)` re-testing the selector: gcc cprops it away (back is
+//    known 0 on the else edge) and emits bytes identical to the plain if/else,
+//    89.68 / 216 / 54. So the 93.25 / 220 "dead else-if re-testing back" recorded
+//    in an earlier round was some other spelling; it is not reachable from
+//    `back == 0` or `back`.
+// The two clamp constants differing (slti 0x801 on the minus arm, slti 0x800 on the
+// plus arm) is the evidence that the arms were written out twice in the original
+// source; the missing piece is the merge of the minus pair. twin_for.py: no twin.
+// Do not re-try the four-copy shapes without a compiler that merges both pairs. */
+/*
 s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
     s32 diff;
     s32 back;
@@ -799,9 +808,9 @@ s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
         }
     }
     return var;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
+
 
 
 // Best attempt: objdiff 93.45%, 764 bytes / 191 insns = the original's EXACT size, 24 differing lines in 4 residual groups. Round 469 raised this from the old 92.55 / 756 (which was one instruction SHORT, not retail's size as the old note claimed) with three measured spellings, keep them:
