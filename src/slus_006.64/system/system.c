@@ -1391,8 +1391,7 @@ extern u16 g_SystemFontDummyGlyph[];
         mask = (word & 0x80) ? (0x212 << SHIFT) : 0;                                 \
         if (word & 0x40) mask |= (0x2120 << SHIFT);                                  \
         if (word & 0x20) mask |= (0x1200 << SHIFT);                                  \
-        if (word & 0x10) mask |= (0x2000 << SHIFT);                                  \
-        pDest[0] |= mask;                                                            \
+        pDest[0] |= ((word & 0x10) ? (0x2000 << SHIFT) : 0) | mask;                                                            \
         mask = (word & 0x08) ? (0x222 << SHIFT)                                      \
                              : ((word & 0x10) ? (0x22 << SHIFT)                      \
                                               : ((word >> (4 - SHIFT)) & (2 << SHIFT))); \
@@ -1406,8 +1405,7 @@ extern u16 g_SystemFontDummyGlyph[];
         if (word & 0x08) mask |= (0x212 << SHIFT);                                   \
         if (word & 0x04) mask |= (0x2120 << SHIFT);                                  \
         if (word & 0x02) mask |= (0x1200 << SHIFT);                                  \
-        if (word & 0x01) mask |= (0x2000 << SHIFT);                                  \
-        pRow2[-1] |= mask;                                                            \
+        pRow2[-1] |= ((word & 0x01) ? (0x2000 << SHIFT) : 0) | mask;                                                            \
         mask = (word & 0x8000) ? (0x222 << SHIFT)                                    \
                                : ((word & 0x01) ? (0x22 << SHIFT)                    \
                                                 : ((word << SHIFT) & (2 << SHIFT))); \
@@ -1421,60 +1419,40 @@ extern u16 g_SystemFontDummyGlyph[];
         if (word & 0x8000) mask |= (0x212 << SHIFT);                                 \
         if (word & 0x4000) mask |= (0x2120 << SHIFT);                                \
         if (word & 0x2000) mask |= (0x1200 << SHIFT);                                \
-        if (word & 0x1000) mask |= (0x2000 << SHIFT);                                \
-        pRow2[0] |= mask;                                                            \
+        pRow2[0] |= ((word & 0x1000) ? (0x2000 << SHIFT) : 0) | mask;                                                            \
     }
 
 // Draw one glyph bitmap into a rendered row's pixel buffer, spreading each
 // bitmap row over the row above and the row below it. pDest points one row into
 // the buffer, rowStride is the buffer's row width in pixels and plane picks
 // which of the two glyph sets of the page the pixels belong to.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
+// PARKED 67.44% under the unit flags (389 insns / 1556 bytes against retail's 424 / 1696); the
+// old note's 66.80 body is this one with three plain mask |= writes for the middle row.
+// 
+// WHAT MOVED IT THIS ROUND: the three middle-row writes are ternaries folded into the store.
+// Writing  row = row | ((word & B) ? (0x2000 << SHIFT) : 0) | mask;  in place of
+//   if (word & B) mask |= 0x2000 << SHIFT;  row |= mask;  gave retail's 0x212/0x21 write
+// shape and was the only change that scored higher: 66.80 -> 67.44 (and 392 -> 389 insns).
+// 
+// THE REAL RESIDUAL IS A COMPILER FLAG, NOT THE C. gcc 2.7.2 -O2 has -fcse-skip-blocks on,
+// and that is what hoists word & 0x40 and word & 0x10 into registers; retail recomputes
+// every andi (28 per iteration). Measured with the unit's own cc1 on this exact body:
+//   -O2 -G8 (unit flags)                          67.44%
+//   -O2 -G8 -fno-cse-skip-blocks                  77.38%  (408 insns / 1632 bytes)
+//   -fno-cse-follow-jumps alone                   67.44%  (no effect at all)
+//   -fno-cse-follow-jumps -fno-cse-skip-blocks    75.70%
+// Across all 52 C functions of the unit, -fno-cse-skip-blocks leaves 51 at 100.00 and drops
+// SystemStringInit to 99.66, so it is a preset candidate, not a per-function hack.
+// 
+// WITH THAT FLAG the residual is pointer givs: retail carries FOUR loop-carried pointers
+// (t2 = pAbove = pMiddle - rowStride, a2 = pMiddle, t1 = pBelow, t3 = pMiddle + 2, each
+// addu p,p,t4 with t4 = 2*rowStride), while this body recomputes (pDest - rowStride) three
+// times per iteration. A four-pointer body (pAbove/pMiddle/pBelow/pMid2 all advanced in the
+// for-update) scores 67.39 under the unit flags and 72.80 under the flag - worse in both, and
+// +16 bytes over retail under the flag - so the giv split is not the whole answer either.
+// 
+// Presets on the 66.80 body (earlier round): 2.6.0 64.95, 2.7.2-cdk 62.19; Default is right.
 /*
-Parked at 66.80% (392 instructions / 1568 bytes against retail's 424 / 1696). Every
-branch, load, store and mask constant is measured right; the whole residual is how
-much redundant bit-testing gcc keeps.
-
-- THE RESIDUAL IS CSE OF THE BIT TESTS. Retail recomputes `word & bit` at every use
-  (its $v0/$v1 churn): 28 andi per iteration, and the sltu+negu bool twice per plane,
-  once for the 0x222 column and again for the 0x212 one. This body keeps
-  `word & 0x40`, `word & 0x20`, `word & 0x10` and the 0x80 bool in registers across
-  all six columns. Whole-function op diff (objdump, retail first): andi 91/67 (-24),
-  ori 53/44 (-9), or 24/18 (-6), sltu+negu 4/2 (-2), bnez 18/12 (-6), j 12/7 (-5),
-  nop 16/0 (-16) - and the compiler's side has 6 more beqz, 6 addiu, 6 move, 9 li.
-  The 16 missing nops and 5 missing j are the `bnez / ori C / j / or` select shape
-  gcc uses when it folds the last `mask |= C` of a column into both arms of the
-  branch; this body ORs in place instead.
-- SHOULD FALL OUT OF THE GIV SHAPE. Retail carries FOUR pointers round the loop
-  (a2 = pDest, t1 = pDest + rowStride, t2 = pDest - rowStride, t3 = pDest + 2) each
-  with `addu p,p,t4` (t4 = 2*rowStride, invariant), keeps no callee-saved register
-  and has no frame; t3 covers both pDest[1] (-0x2) and pDest[2] (0x0), so it is the
-  one derived giv retail has. Fewer live values in this body is exactly why gcc had
-  room to hoist the tests.
-- MEASURED THIS SESSION (all with the macro below, only the pointer spelling changed):
-  * pDest as the loop-carried pointer, (pDest +/- rowStride)[k] inline, plus
-    `pRow2 = pDest + 2` for the pDest[1]/pDest[2] stores where retail's t3 is:
-    66.80%, 392 / 1568, no frame. Best; this is the body.
-    (the same body without pRow2 is 66.79%, 391 / 1564, so the lead was worth +4 bytes)
-  * pAbove / pRow / pBelow all loop-carried (`i++, pAbove += rowStride, ...` over
-    pAbove = pDest, pRow = pDest + rowStride, pBelow = pRow + rowStride): 59.33%,
-    411 / 1644 with an 8-byte frame and $16 saved. It DOES recompute more of the
-    tests (391 -> 411 instructions) - the pressure theory holds - but gcc mints a
-    +4 derived giv per base (three, where retail has one), needs a register for it
-    and loses more than it gains.
-  * (earlier round) pAbove/pBelow assigned from pDest at the top of the body:
-    64.92%, 397 / 1588. Both pointers incremented in a second for-update: 60.46%,
-    413 / 1652.
-- PRESET IS RIGHT: 2.6.0 scores 64.95 and 2.7.2-cdk 62.19 on this body; Default
-  (2.7.2 -O2 -G8) is the compile above.
-- WHAT TO BREAK: cross-block CSE of `and:SI(reg,const)`. -O2's cse follows the
-  ladder's conditional jumps, and nothing tried so far stops it: the tests are the
-  same tokens in each column, and copies of `word` (a second local, a different
-  constant spelling) either propagate away or change the instruction. Either make
-  each column's tests non-identical RTL, or raise live values to retail's twelve
-  without minting givs or a frame.
-// The dummy-glyph test is the byte 0xFF against firstByte and secondByte, not the
-// end-of-text code 0xFFFF (retail compares 0xFF).
 void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int plane) {
     u16* pGlyph;
     u16* pRow2;
@@ -1498,5 +1476,7 @@ void func_80034FFC(u16 firstByte, u16 secondByte, u16* pDest, s16 rowStride, int
     } else {
         SYSTEM_FONT_DRAW_GLYPH_SET(2, SYSTEM_FONT_PLANE1_CLEAR)
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
+
+
