@@ -665,29 +665,34 @@ extern BattleActor *g_BattleActors[];
 extern void func_800BEE2C(s32 slot, s32 mask, s32 command);
 extern void BattleWaitAndFreeActorBuffers(void);
 
-// 91.91% under the unit's own preset (gcc-2.7.2-cdk-psx -G0) at 592 bytes, retail's exact 148
-// instructions (re-measured this round, unchanged), so only registers and block layout differ.
-// Preset confirmed: gcc-2.6.0 -G0 scores 56.72 and -G8 does not compile.
-// What matches and is load-bearing: the collect mask must be spelled `m & (m ^ g_BattleSlotBitMask)`
-// (xor+and, NOT `& ~mask` which gives nor+and); the loop guard `if (i != 0) { for (i--; i >= 0; i--) }`
-// reproduces retail's redundant beqz/bltz pair around the preheader; the slot index must stay an
-// inline MACRO at all four sites (a local collapses three recomputations and costs 18 instructions);
-// func_800BEE2C takes the index TWICE (retail sets a1 = a0 in the jal's delay slot); and the wait
-// loop's `pending` must be a u8 (both its tests are andi 0xFF).
-// Residuals: (a) callee-saved rotation - retail s0=state work, s6=its loop copy, s4=bitmask base,
-// s5=g_BattleActors, s3=flag, against mine s0=state work, s3=bitmask base, s4=flag, s6=g_BattleActors:
-// the same multiset, so the two sw pairs and every site's register differ; (b) the index's `or`
-// operand order (retail builds it 0xAC-part first; swapping the macro's operands makes the two loads
-// AC-first and drops to 85.10; the preheader's `beqz` delay slot holds a nop here where retail has
-// `addiu s1,s1,-1`); (c) the WAIT LOOP's block layout, which is the biggest remaining block: retail
-// re-tests count before EACH of its two calls (`beqz s2,.L800C04A4` with `move a1,zero` in the delay
-// slot, twice) and ends with an unconditional `j .L800C04A4` whose delay slot sets pending = 0 (14
-// insns); this body has one `bnez s2,top` at the bottom and 10 insns there.
-// Measured today: `pending = 0` hoisted above the loop and repeated at the body end gives 92.25% at
-// 588 bytes / 147 insns - one instruction SHORT of retail's 592, so it can never link - and its tail
-// is still `bnez s2,top` + `pending = 0`, i.e. that placement buys the number, not retail's shape.
+// 96.37% under the unit's own preset (gcc-2.7.2-cdk-psx -G0 -O2) at 584 bytes / 146 instructions
+// against retail's 592 / 148, so it is two instructions SHORT and can never link: keep it parked.
+// Preset confirmed again this round: -O3 75.47, -O1 67.68, -Os does not compile, gcc-2.6.0 56.72.
+// THE WAIT LOOP IS A for (;;) WITH A GUARD IN FRONT OF EACH CALL, not `while (count != 0)`. That one
+// change took the body from 91.91 to 96.37 and reproduces retail's rotated shape exactly: the exit
+// test at the loop head jumps to the PENDING test (not to the flag test), one `beqz s2,top` sits
+// before `jal BattleLoadArchiveEntryFile`, and the body ends with an unconditional `j top` whose
+// delay slot sets pending = 0. The old body's `bnez s2,top` tail is gone.
+// REMAINING RESIDUAL, named: retail has a SECOND `beqz s2,top` with `move a1,zero` in its delay slot
+// in front of `jal func_800BE790`, and this body has only one guard. cse merges the two
+// `count == 0` comparisons (count is a local that lives in s2 and no call can change it), so gcc
+// deletes the second; retail kept both. The `if (count != 0) { call } else { continue; }` spelling is
+// merged the same way (96.37, same two instructions missing).
+// Load-bearing spellings kept from the earlier rounds: the collect mask is `m & (m ^ bitMask)`
+// (xor+and, NOT `& ~mask`, which gives nor+and); the loop guard is `if (i != 0) { for (i--; i >= 0; i--) }`
+// (retail's redundant beqz/bltz pair); the slot index must stay an inline MACRO at all four sites (a
+// local collapses three recomputations and costs 18 instructions); func_800BEE2C takes the index
+// TWICE (retail sets a1 = a0 in the jal's delay slot); and `pending` must be a u8 (both of its tests
+// are andi 0xFF).
+// Other residuals: (a) callee-saved rotation - retail s3=flag, s4=bitmask base; this body has them
+// the other way round, so nearly every register in the diff differs; (b) the index's `or` operand
+// order (retail builds it 0xAC-part first; swapping BATTLE_SLOT_INDEX's operands to match measured
+// 85.10 this round, so it is not the fix on its own); (c) the slot walker and the preheader's
+// `beqz` delay slot (nop here, `addiu s1,s1,-1` in retail).
+// Tried and rejected this round: `while (count != 0)` with both guards 93.91 / 149 insns (exit edge
+// goes to the flag test); a third `if (count == 0) continue;` at the top of the body 93.91 / 147.
 // Tried in earlier rounds: `if (pending != 0) {calls}` 91.51; a pSlotTable pointer local 90.31; the
-// pWork->slots[] view 90.28; a 4-minute permuter run (base=1341 best=1341, nothing).
+// pWork->slots[] view 90.28; a 4-minute permuter run on the 91.91 body (base=1341 best=1341).
 /*
 s32 func_800C0314(void) {
     SpriteData *slots[BATTLE_SLOT_COUNT];
@@ -723,7 +728,7 @@ s32 func_800C0314(void) {
             g_BattleSlotBitMask |= 1 << BATTLE_SLOT_INDEX(pSprite);
         }
     }
-    while (count != 0) {
+    for (;;) {
         pending = 0;
         for (i = 0; i != count; i++) {
             pSprite = slots[i];
@@ -735,7 +740,13 @@ s32 func_800C0314(void) {
         if (pending == 0) {
             break;
         }
+        if (count == 0) {
+            continue;
+        }
         BattleLoadArchiveEntryFile();
+        if (count == 0) {
+            continue;
+        }
         func_800BE790();
     }
     if (flag != 0) {
@@ -744,6 +755,7 @@ s32 func_800C0314(void) {
     return count;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
+
 
 
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
