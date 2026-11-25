@@ -719,22 +719,22 @@ extern void *D_800D39C8;
 // cc1_probe replicas of the loop (all hoist both constants); -G8 is 88.27 and 2.6.0
 // does not compile it. Listing case 1 first is required for retail's test order
 // (1, then slti a0,2, then 0, then 2).
-/*
 void func_800B853C(s32 mode) {
-    BattleOwnedSprites *pOwned;
     BattleRenderState *pWork;
+    SpriteData *pFadeSprite;
     SpriteData *pSprite;
     void *pBuffer;
+    u8 *pBase;
     s32 i;
+    s32 j;
 
     switch (mode) {
     case 1:
         break;
     case 0:
         BattleBeginAnimTask(-1);
-        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
-        for (i = 0; i != 3; i++) {
-            pSprite = pOwned->pOwnedSprites[i];
+        for (j = 0; j != 3; j++) {
+            pSprite = ((BattleOwnedSprites *)g_BattleStateWork)->pOwnedSprites[j];
             if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
                 BattleFindAnimationTask(pSprite, 0, 2);
                 SpritePlayAnimation(pSprite, 0x18);
@@ -744,11 +744,10 @@ void func_800B853C(s32 mode) {
     case 2:
         BattleBeginAnimTask(0);
         BattleStartScreenFade(0x28, 2, 0xFF, 0xFF, 0xFF);
-        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
         for (i = 0; i != 3; i++) {
-            pSprite = pOwned->pOwnedSprites[i];
-            if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
-                SpritePlayAnimation(pSprite, 5);
+            pFadeSprite = ((BattleOwnedSprites *)g_BattleStateWork)->pOwnedSprites[i];
+            if (pFadeSprite != NULL && (s8)pFadeSprite->flags_0xAC.bytes[3] != 0x15) {
+                SpritePlayAnimation(pFadeSprite, 5);
             }
         }
         for (i = 0x28; i > 0; i--) {
@@ -772,10 +771,10 @@ void func_800B853C(s32 mode) {
     }
     HeapFree(pBuffer);
     HeapFree(D_800D39C8);
-    pWork = (BattleRenderState *)((u8 *)g_BattleStateWork + BATTLE_RENDER_STATE_OFFSET);
+    pBase = (u8 *)g_BattleStateWork;
+    pWork = (BattleRenderState *)(pBase + BATTLE_RENDER_STATE_OFFSET);
     pWork->unkDA8 = 0;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+}
 
 
 void BattleFreeBattleResources(void) {
