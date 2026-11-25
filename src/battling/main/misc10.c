@@ -1594,31 +1594,50 @@ extern u8 D_80091814[];
 extern u8 g_BattleBarTexV;
 extern u8 D_80092864;
 
-// PARKED 86.50% (1344 bytes, 336 insns against retail's 1348/337), re-measured from a
-//   live body this round. The frame and the saved set are retail's exactly (0x50,
-//   s0-s3); the residual is a WHOLE-FUNCTION callee-saved rotation plus ~17
-//   scheduling positions (18 deletes, 17 inserts): the parameter is $s3 in retail
-//   and $s2 here, retail keeps the FIRST copy's source pointer (base+0xA0) in $s2
-//   across the whole first TIM block where this body keeps base+0x140 instead, and
-//   retail loads the second block's D_80095878 base before the LoadImage call where
-//   this body loads it after. Nothing about the arithmetic, the copy loops or the
-//   stores differs.
-//   NOT A PRESET QUESTION, measured: try_flags.sh --sweep on this body is 86.50 for
-//   gcc 2.6.0 and gcc 2.7.2 at -O2/-O3 in -G4 and -G8 with -mcpu=3000 and r8000
-//   alike (53.07 at -O1), and 69.64 for gcc-2.7.2-cdk, so no unit preset reaches it.
-//   Tried this round: hoisting the pBar base = &D_80095698[8] later (out of the
-//   live-across-calls region) 84.62% and four instructions short; a pointer local
-//   for the first copy (pPrim[1] = pPrim[0], with the address taken before the
-//   second LoadImage, where retail forms it) 85.46% and three instructions short.
-//   Earlier rounds: all-array 55.28, all-pointer 64.58, mixed 71.59, two permuter
-//   runs (base 3559 -> 2619) found only more address hoists, all 86.50 at best.
-//   Idem facts still worth keeping: D_80095698 is POLY_FT4[16] (0x280 bytes,
-//   ending exactly at D_80095918, DR_TPAGE[4] of 8 each), every retail offset
-//   lands on a POLY_FT4 field, the 0x28-byte copies are plain p[n] = p[n-1]
-//   struct assignments (gcc 2.7.2 expands a block move as two 16-byte
-//   iterations plus an 8-byte tail), -0x8000 into the CLUT's STP bit is signed
-//   because retail is addiu, and the next cheap step is a -da/-dl dump of the
-//   four callee-saved allocnos (recipe in tools/rounds/levers.md).
+// PARKED 86.50% (1344 bytes, 336 insns against retail's 1348/337). Frame and saved
+//   set are retail's exactly (0x50, s0-s3); the residual is the callee-saved hand-out
+//   plus ~17 scheduling positions (18 deletes, 17 inserts).
+//
+// THE -da/-dl DUMP ASKED FOR LAST ROUND IS DONE (gcc-2.7.2-psx cc1 on
+//   build/src/battling/main/misc10.c.i with the unit's cc_flags plus -O2 -G8 -da -dl
+//   -dg). func_800868E0 has 20 allocnos, processed `118 201 ... 189 198 72 74`, and
+//   the dispositions are `72 in 18  74 in 19  76 in 17  88 in 16`: pseudo 72 is the
+//   pArchive parameter (3 refs / 106 insns / 12 calls = floor_log2(3)*3*4*10000/106 =
+//   1132) and takes $s2, pseudo 74 is the pBar base &D_80095698[8] (2 refs / 244
+//   insns / 14 calls = 327) and takes $s3, where retail has the parameter in $s3 and
+//   the pointer in $s2. The quotients are 3.5x apart, so retail's map needs 74
+//   processed FIRST, i.e. 74's live range under 141 insns - and 74 runs 244 insns
+//   only because the tail's `D_80095698[8]` subscript is CSE'd with the one `pBar`
+//   use across 14 calls.
+//
+// MEASURED THIS ROUND, the pair flipped WITHOUT moving the absolute stores: spelling
+//   the three tail copies off the pointer (`pBar[2] = pBar[0]; pBar[1] = pBar[0];
+//   pBar[3] = pBar[2];`) while the elem10 field stores stay `&D_80095698[10]` gives
+//   74 four refs (quotient 1311 > 1132), so 74 takes $s2 and pArchive $s3 - retail's
+//   map exactly, 0x58(s3)/0x5C(s3)/0x60(s3) for the archive entries and every elem10
+//   store still lui-at plus sh-abs - for 86.35% / 1328 bytes / 332 insns. Five
+//   instructions short, because each copy then derives BOTH addresses from the single
+//   $s2 base where retail re-forms a separate base per copy (`lui s2,D_80095788` for
+//   the elem6 pair, `lui v0,D_80095850` for the elem10 pair) hoisted across the
+//   preceding GetClut. Giving every copy its own pointer local is the untried half,
+//   and such a local has to be assigned BEFORE the GetClut to be live across it -
+//   which is the shape that produced the 244-insn 74 in the first place.
+//   Also measured: the tail's elem10 field stores off the pointer too - 85.49% /
+//   1316 bytes / 329 insns, retail's pair again but eight short, since every tail
+//   address then becomes register-relative and the lui-at forms disappear.
+//
+// Earlier rounds (all re-parked, do not repeat): all-array 55.28, all-pointer 64.58,
+//   mixed 71.59, pBar formed late 84.62 (four insns short), a pointer local for the
+//   first copy 85.46 (three short), two permuter runs (base 3559 -> 2619) found only
+//   more address hoists, and try_flags.sh --sweep is 86.50 under gcc 2.6.0 and 2.7.2
+//   at -O2/-O3 in -G4/-G8 with -mcpu=3000/r8000, 53.07 at -O1 and 69.64 under cdk, so
+//   the preset is right.
+//   Idem facts worth keeping: D_80095698 is POLY_FT4[16] (0x280 bytes, ending exactly
+//   at D_80095918, DR_TPAGE[4] of 8 each), every retail offset lands on a POLY_FT4
+//   field, the 0x28-byte copies are plain struct assignments (gcc 2.7.2 expands a
+//   block move as two 16-byte iterations plus an 8-byte tail), `-0x8000` into the
+//   CLUT's STP bit is signed because retail is addiu, and retail forms every copy's
+//   addresses in a callee-saved register hoisted across the preceding call.
 /*
 void func_800868E0(Misc10TextureArchive* pArchive) {
     TIM_IMAGE tim;
@@ -1690,6 +1709,7 @@ void func_800868E0(Misc10TextureArchive* pArchive) {
     LoadImage(&rect, (u_long*)D_80091814);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
+
 
 
 void BattleAddSharedPrim(void) {
