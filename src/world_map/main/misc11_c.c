@@ -632,22 +632,23 @@ int func_8008C844(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11_c", func_8008C844);
 
 
+// The four volatile pins are this file's idiom (see func_8008C530). Without the three
+// zero clears' pins cc1 sinks them below the mode load (92.11%); without the state/x
+// pins the gear arm's stores sink into the position loads (85.33%). Both keep retail's
+// 304 bytes, so only the order tells.
 int func_8008D3F0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 1);
-    u16 angle;
     s32 mode;
 
     // volatile: keeps these three above the angle and mode loads, as retail has them
     *(volatile s32 *)&pActor->dirZ = 0;
     *(volatile s32 *)&pActor->dirY = 0;
     *(volatile s32 *)&pActor->dirX = 0;
-    angle = *(u16 *)&g_GameState.unk1826[2];
-    *(volatile s16 *)&pActor->moveSpeed = 0xC;
-    *(volatile s32 *)&pActor->trailDelay = 0xF;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[2];
+    pActor->moveSpeed = 0xC;
+    pActor->trailDelay = 0xF;
     mode = g_WorldMapMode;
-    // volatile: makes retail's 'lh' reload of the angle below a fresh load
-    *(volatile u16 *)&pActor->angle = angle;
     pActor->drawAngle = pActor->angle;
     if (mode > 0) {
         if (mode < 4) {
