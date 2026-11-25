@@ -1125,6 +1125,9 @@ extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 // 83.28% (436 - the three symbolic loads and the offset+base addu order come out
 // right, the tail's addus/lws reorder). Unreached: a per-statement symbolic reload
 // that leaves the rest of the body intact.
+// 91.72% (440 of 452 bytes; 113 vs 110 insns - the tail is 3 insns short): head, copy loop, eleven field copies, both matrix calls and the frame match.
+// Residual: retail re-forms the g_FieldActors address symbolically in each of the three tail statements (lui v0,hi; lw v0,lo; addu,addu) while this body loads through the $s2 pointer (lw v0,0(s2)); and because the pointer local is assigned at the top, gcc also hoists its lui/addiu above the loop and moves the sw s2 into the first prologue slot, where retail inits $s2 right after the copy loop (its two middle reads are lw a1,0(s2)).
+// Round 475, all scored: per-statement pTailActors value read for the tail alone 83.28% (436 - symbolic loads right, but the three tail statements interleave and pDst lands in a3); value local for the head plus pointer local for the middle 73.09% (428 - a1 becomes the loop counter, no $s2 at all); two separate pointer locals for head and middle 73.09% (identical code); cast at the head only plus value reads at the tail 73.09% (identical). The head's dst=a1/src=a2/i=a3 allocation needs the pointer local assigned first, which is what hoists $s2.
 /*
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
     FieldActor** pFieldActors;
@@ -1152,9 +1155,9 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
     ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.x = (*pFieldActors)[srcActorIndex].pActorData->position.vx;
     ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.y = (*pFieldActors)[srcActorIndex].pActorData->position.vy;
     ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.z = (*pFieldActors)[srcActorIndex].pActorData->position.vz;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
+
 
 void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
     FieldActor* pFieldActor;
