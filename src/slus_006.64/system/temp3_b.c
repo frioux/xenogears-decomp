@@ -79,13 +79,29 @@ u8 g_MenuSavedMainMenuChoice;
 //    rounds. Residual counted: 1 insn in the row preheader (lui/addiu vs addiu s3,s1,1), the s3 save/restore pair (2),
 //    retail's bne delay slot addiu a0,a0,2 where ours has nop, and sltu vs slt on the row-copy compare. Tail (frame,
 //    call tail, volume loop, sb %gp_rel) is retail exact.
+// ROUND 460: best 90.07%, 420 bytes, 105 insns (retail 412 / 103). Body below is the ROUND 459 shape with two edits:
+//    (a) the inBuf pair written INDEXED (inBuf[j] / inBuf[j + 1] instead of pIn/pInOdd pointers) - this puts inBuf and
+//    inBuf + 1 in the remaining callee-saved slots exactly as retail does (addiu s3,sp,16 / addiu s2,sp,17 in the outer
+//    preheader, move a1,s3 / move a2,s2 per row) and that pressure pushes 0xF out into a per-row li t1 and outBuf's
+//    address into the copy loop's own addiu, so inBuf, inBuf + 1, 0xF and outBuf now all sit where retail has them;
+//    (b) the row-copy bound compared through (int) casts, which turns sltu into retail's slt (89.53 -> 90.07) - the slt
+//    half of the round-418 lever g-two-source-inits, now measured on a walk with no index loop at all.
+//    THE ONE NAMED RESIDUAL is the odd byte's base: gcc cse folds &g_GameState + 1 onto the register that still holds
+//    the symbol at the outer preheader (addiu s2,s1,1, hoisted, executed once) where retail rematerialises
+//    lui/addiu %hi/%lo(g_GameState + 1) into caller-saved t2 per ROW. That single hoist is the whole 2-insn / 8-byte
+//    gap: it costs the fifth save pair (s4) and it replaces retail's 2-insn per-row preheader. So the target is a
+//    spelling in which no register holds the base when the row preheader runs; retail's even read cannot supply it
+//    (its odd address is (i + j) + a fresh %hi/%lo, not pRow + j), yet every body here has the symbol in s1 there.
+//    Tried dead this round: odd index written ((u8*)&g_GameState + rowOffset + 1)[j] (byte-identical, gcc
+//    canonicalises it back); (int) casts with the pair left as pIn/pInOdd pointers (89.53, unchanged). Tail (frame
+//    0x58, call tail, volume loop, sb %gp_rel) is retail exact.
+//    Preset screened with tools/scripts/try_flags.sh --all: gcc-2.7.2-cdk-psx scores this body 85.77 against Default's
+//    90.07, so cdk is not the answer (and the tail's sb %gp_rel is already retail exact, which excludes -G0).
 /*
 void func_8001B970(void) {
     u8 inBuf[0x14];
     u8 outBuf[0x14];
     u8* pRow;
-    u8* pIn;
-    u8* pInOdd;
     u8* pOut;
     u8* pDst;
     void* pBuffer;
@@ -105,23 +121,19 @@ void func_8001B970(void) {
     pRow = (u8*)&g_GameState;
     for (i = 0; i < 0x26C; i += 0x14) {
         rowOffset = i;
-        pIn = inBuf;
-        pInOdd = inBuf + 1;
         for (j = 0; j < 0x14; j += 2) {
-            *pIn = pRow[j];
-            *pInOdd = ((u8*)&g_GameState)[rowOffset + j + 1];
-            if (pRow[j] == 0xF && ((u8*)&g_GameState)[rowOffset + j + 1] == 0) {
+            inBuf[j] = pRow[j];
+            inBuf[j + 1] = ((u8*)&g_GameState + rowOffset + 1)[j];
+            if (pRow[j] == 0xF && ((u8*)&g_GameState + rowOffset + 1)[j] == 0) {
                 break;
             }
-            pIn += 2;
-            pInOdd += 2;
         }
         SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
         k = 0;
         pDst = pRow;
         do {
             *pDst++ = outBuf[k++];
-        } while (pDst < pRow + 0x14);
+        } while ((int)pDst < (int)(pRow + 0x14));
         pRow += 0x14;
     }
 
@@ -132,6 +144,7 @@ void func_8001B970(void) {
     g_GameResumeScene = 0;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3_b", func_8001B970);
+
 
 
 
