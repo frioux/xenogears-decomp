@@ -391,51 +391,67 @@ s32 GfxProjectQuadBanks(Temp2RenderBlock* pBlock, SVECTOR* pFrom, SVECTOR* pTo,
 //    pair IS libgs' AddPrim macro, so arg5 is a u_long* OT slot (reloaded from
 //    the stack around GetTPage because it is call-clobbered).
 
-// PARKED 75.62% (1068 bytes against retail's 1096, 267 instructions against
-// 274). Re-measured LIVE this round, straight after un-parking, under the unit's
-// own preset (XenoGraphicsLibrary, gcc 2.6.0 -O2 -G8, maspsx --expand-div): an
-// independent re-derivation from the 274-instruction .s came out statement for
-// statement identical to this body, so there is no cheap structural win left in
-// it - the fills, the three quotient/remainder idioms, the eight-iteration bound
-// and the call set are all right and the residual is allocation and scheduling.
-// Two facts the older notes below get wrong or leave out:
-//  - the 0x28 record IS a POLY_FT4. psyq's layout puts clut at 0xE, tpage at
-//    0x16, pad1 at 0x1E and pad2 at 0x26, which is exactly the store set
-//    (0x8/0xA/0xC/0xD, 0x10/0x12/0x14/0x15, 0x16, 0x18/0x1A/0x1C/0x1D,
-//    0x20/0x22/0x24/0x25), so `POLY_FT4* pPrim` is the right type and the fields
-//    name themselves.
-//  - retail's clamp-path tail is `mult / mflo / bgez / addiu 0xFF / SRL 8` where
-//    this body emits a second `sra`. srl and sra agree in the low 16 bits, so
-//    retail's source NARROWED that intermediate to 16 bits before the shift; a
-//    `(s16)` around the `(s16)height * (span + 0x100) / 256` division is the one
-//    spelling not measured yet (every other instruction in that arm matches).
-// The named residual is COPY COALESCING plus two block orders: retail keeps five
-// explicit copies this body folds away - `move t2,v0` + `move t0,zero` (rows),
-// `move a0,v0` + `move a3,v1` (width and u, held across the div), `move a2,v0`
-// (height) and `move s3,a1` (the new col) - and it emits texColumn BEFORE u/width
-// where cc1 emits u/width first. That is the whole 7-instruction / 28-byte gap
-// (plus the srl above), and the callee-saved pair is mirrored with it (retail col
-// $s3 / pPrim $s4, this body the reverse).
-// Measured dead this round, do not repeat: `s16 uOffset` with the yTop local
-// dropped 70.86 (289 differing lines against this body's 205).
-// What earlier rounds established, kept in the body:
-//  - THE ROWS DIAMOND MUST BE AN IF/ELSE WITH BOTH ARMS ASSIGNING
-//    (`if (top < 0 || top > unk32C+0xF0) { rows = 0; rowStart = 0; } else
-//    { rows = ...; rowStart = 0; }`). That is what produces retail's `j` over
-//    the taken arm with `move t0,zero` in its delay slot, and it took the body
-//    from 74.87 to 75.62 (265 -> 267 insns). This is the same lever that closed
-//    the neighbour func_800273C4 (levers.md d-select-two-assignments-if-else).
-//  - the col fixup must stay the single-assignment form
-//    (`col = remainder; if ((s16)remainder < 0) col = ...;`): writing it as an
-//    if/else too mirrors the col/pPrim saved pair and measures 74.36.
-//  - the uOffset hoist is one expression assigned to a u16 local; gcc still
-//    puts an sll/sra (s16) narrowing pair in front of the sllv. `(u16)` on the
-//    modulo drops one of the two (266 insns) but measures 74.31, so the pair is
-//    a row-level win and a percentage-level loss.
-// Measured dead ends, do not repeat: gcc-2.7.2 66.10, gcc-2.7.2-cdk 69.97, -O1
-// 69.11, -O3 74.87 (identical to the unit preset). The preset is not the answer.
-// Not permuted: the redo lane reserves the permuter for 99%+ bodies.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2_r1", func_800278F8);
+// PARKED 86.25% (1072 bytes against retail's 1096; 268 instructions against
+// 274; 148 differing lines against the previous park's 205). Measured live this
+// round under the unit's preset (XenoGraphicsLibrary, gcc 2.6.0 -O2 -G8).
+//
+// WHAT CLOSED 75.62 -> 86.25: `col = remainder;` belongs AFTER the prim store
+// block, not next to the modulo. Retail's per-iteration col copy (`move s3,a1`
+// from the mfhi result) sits in the delay slot of the texColumn /64 `bgez`,
+// i.e. its source assigned the running column after the eight vertex stores.
+// That single move also restores retail's callee-saved pair (col $s3 / pPrim
+// $s4), which EVERY earlier body had mirrored - and the mirror was what the old
+// note called "5 copies plus a block order": with the pair right, 57 of the 205
+// differing lines disappear on their own. Move this statement back and it
+// measures 75.62 again; the position is the whole difference.
+//
+// Measured dead this round (do not repeat):
+//  - rows diamond as `rows = 0; if (top >= 0 && top <= unk32C+0xF0) { rows =
+//    ...; rowStart = 0; } else { rowStart = 0; }` 78.22 / 1076 (161 lines); the
+//    plain hoisted form `rows = 0; if (...) rows = ...; rowStart = 0;` is 75.15
+//    in the old context. The if/else with both arms assigning IS right, but its
+//    two delay slots and retail's `mflo v0 / nop / move t2,v0` copy are not
+//    reached by it: routing the quotient through the `quotient` local measures
+//    BYTE-IDENTICAL (86.25), cc1 folds it back, so rows' copy needs the live
+//    range a second variable gives, not a renamed temp.
+//  - statement order inside the loop (u/width before vs after texColumn) is
+//    byte-identical at every position tried, as is the embedded-assignment form
+//    `width = 0x100 - (u = ...)`.
+//  - declaration order of `pPrim` (first local vs last) is byte-identical.
+//  - col fixup as an if/else: 74.36 / 1072 (re-confirmed) - and it also moves
+//    the divisor register a2 -> v1 and `bank` t1 -> a2, so it is not a cheap
+//    lever either.
+//
+// The remaining 6 instructions are all retail copies plus one narrowing:
+//  - the u/width block: retail emits texColumn FIRST, keeps the literal 0x100 in
+//    $v0 and copies both results (`move a0,v0` width, `move a3,v1` u, so u ends
+//    in $a3 and width in $a0); this body hoists `li a0,0x100` to the block top,
+//    emits u/width first and leaves width in $a2. That is sched1 ordering by
+//    insn priority (levers.md c-a-second-loads-position-inside-a-block-is-not-
+//    source-order), not statement order.
+//  - the rows diamond's `move t2,v0` + `move t0,zero` pair and its two delay
+//    slots (below).
+//  - the uOffset hoist: this body narrows with an extra `sll 16 / sra 16` before
+//    the sllv where retail shifts the raw modulo result.
+// Facts carried over from the earlier notes that are still true:
+//  - the 0x28 record IS a POLY_FT4 (psyq layout: clut 0xE, tpage 0x16, pad1
+//    0x1E, pad2 0x26), so the store set names its own fields.
+//  - retail's clamp-path tail is `mult / mflo / bgez / addiu 0xFF / SRL 8`
+//    where this body emits a second `sra`; srl and sra agree in the low 16 bits,
+//    so retail's source narrowed that intermediate to 16 bits first. The
+//    remaining difference in that arm, and every other row of it matches.
+//  - the rows diamond MUST be an if/else with both arms assigning, and the col
+//    fixup must stay the single-assignment form (levers.md round 394/454).
+//  - older-body dead ends, all still true: gcc-2.7.2 66.10, 2.7.2-cdk 69.97,
+//    -O1 69.11, -O3 74.87, `s16 uOffset` with yTop dropped 70.86, `(u16)` on the
+//    uOffset modulo 74.31 (drops one narrowing but mirrors a row).
+//
+// NEXT: this body is structurally right at 86.25 and is above the 85% line the
+// permuter needs, but the redo lane only allowed a permuter run at 99%+, so it
+// has still NEVER been permuted - that is the cheapest next step, followed by a
+// `-dl`/`-dg` dump for the u/width/tpage ordering.
+//
 /*
 void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
                    u_long* pOT, s32 bank) {
@@ -491,7 +507,6 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
             width = ((s16)height * (span + 0x100)) / 256;
         }
         remainder = (s16)(col + width) % pBlock->unk328;
-        col = remainder;
         rowEnd = rowStart + height;
         pPrim->x0 = rowStart;
         pPrim->x1 = rowEnd;
@@ -509,6 +524,7 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
         pPrim->u3 = width + u - 1;
         pPrim->v2 = pBlock->unk33A + (u8)pBlock->unk32C;
         pPrim->v3 = pBlock->unk33A + (u8)pBlock->unk32C;
+        col = remainder;
         pPrim->tpage = GetTPage(pBlock->unk338, 0,
                                 (s16)texColumn / 64 * 64,
                                 pBlock->unk336 / 256 * 256);
@@ -519,8 +535,8 @@ void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
         rowStart = rowEnd;
         pPrim++;
     }
-}
-*/
+}*/
+
 
 
 
