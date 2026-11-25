@@ -665,33 +665,30 @@ extern BattleActor *g_BattleActors[];
 extern void func_800BEE2C(s32 slot, s32 mask, s32 command);
 extern void BattleWaitAndFreeActorBuffers(void);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
-// 91.91% under the unit's own preset (gcc-2.7.2-cdk-psx -G0) at 592 bytes, retail's
-// exact 148 instructions, so only registers/block layout differ. Confirmed the preset:
-// gcc-2.6.0 -G0 scores 56.72 and -G8 does not compile, so no preset change is wanted.
-// What matches and is load-bearing: the collect mask must be spelled
-// `m & (m ^ g_BattleSlotBitMask)` (xor+and, NOT `& ~mask` which gives nor+and); the
-// loop guard `if (i != 0) { for (i--; i >= 0; i--) }` reproduces retail's redundant
-// beqz/bltz pair around the preheader; the slot index must stay an inline MACRO at all
-// four sites (a local collapses three recomputations and costs 18 instructions);
-// func_800BEE2C takes the index TWICE (retail sets a1 = a0 in the jal's delay slot);
-// and the wait loop's `pending` must be a u8 (both its tests are andi 0xFF).
-// Residual: (a) callee-saved rotation - retail s0=state work, s6=its loop copy,
-// s4=bitmask base, s5=g_BattleActors, s3=flag, against mine s0=state work,
-// s3=bitmask base, s4=flag, s6=g_BattleActors: the same multiset, so the two sw pairs
-// and every site's register differ; (b) the index's `or` operand order (retail builds
-// it 0xAC-part first; swapping the macro's operands makes the two loads AC-first and
-// drops to 85.10); (c) the wait loop's block layout - retail's head test jumps to the
-// pending test and it re-tests count before EACH of the two calls (`beqz s2,head` with
-// pending = 0 in the delay slot), mine threads the head test straight to the return
-// block and tests count once on the back edge.
-// Tried: `if (pending != 0) {calls}` 91.51; `pending = 0` before the loop and at the
-// body end 92.25 but 588 bytes (one instruction short, cannot link); a pSlotTable
-// pointer local 90.31; the pWork->slots[] view 90.28; a 4-minute permuter run
-// (base=1341 best=1341, nothing).
+// 91.91% under the unit's own preset (gcc-2.7.2-cdk-psx -G0) at 592 bytes, retail's exact 148
+// instructions (re-measured this round, unchanged), so only registers and block layout differ.
+// Preset confirmed: gcc-2.6.0 -G0 scores 56.72 and -G8 does not compile.
+// What matches and is load-bearing: the collect mask must be spelled `m & (m ^ g_BattleSlotBitMask)`
+// (xor+and, NOT `& ~mask` which gives nor+and); the loop guard `if (i != 0) { for (i--; i >= 0; i--) }`
+// reproduces retail's redundant beqz/bltz pair around the preheader; the slot index must stay an
+// inline MACRO at all four sites (a local collapses three recomputations and costs 18 instructions);
+// func_800BEE2C takes the index TWICE (retail sets a1 = a0 in the jal's delay slot); and the wait
+// loop's `pending` must be a u8 (both its tests are andi 0xFF).
+// Residuals: (a) callee-saved rotation - retail s0=state work, s6=its loop copy, s4=bitmask base,
+// s5=g_BattleActors, s3=flag, against mine s0=state work, s3=bitmask base, s4=flag, s6=g_BattleActors:
+// the same multiset, so the two sw pairs and every site's register differ; (b) the index's `or`
+// operand order (retail builds it 0xAC-part first; swapping the macro's operands makes the two loads
+// AC-first and drops to 85.10; the preheader's `beqz` delay slot holds a nop here where retail has
+// `addiu s1,s1,-1`); (c) the WAIT LOOP's block layout, which is the biggest remaining block: retail
+// re-tests count before EACH of its two calls (`beqz s2,.L800C04A4` with `move a1,zero` in the delay
+// slot, twice) and ends with an unconditional `j .L800C04A4` whose delay slot sets pending = 0 (14
+// insns); this body has one `bnez s2,top` at the bottom and 10 insns there.
+// Measured today: `pending = 0` hoisted above the loop and repeated at the body end gives 92.25% at
+// 588 bytes / 147 insns - one instruction SHORT of retail's 592, so it can never link - and its tail
+// is still `bnez s2,top` + `pending = 0`, i.e. that placement buys the number, not retail's shape.
+// Tried in earlier rounds: `if (pending != 0) {calls}` 91.51; a pSlotTable pointer local 90.31; the
+// pWork->slots[] view 90.28; a 4-minute permuter run (base=1341 best=1341, nothing).
 /*
-// A sprite's battle slot number: the top two bits of flags_0xA8 are its low bits and
-// the two low bits of flags_0xAC.flags its high bits.
 s32 func_800C0314(void) {
     SpriteData *slots[BATTLE_SLOT_COUNT];
     BattleSlotWorkView *pWork;
@@ -745,9 +742,10 @@ s32 func_800C0314(void) {
         BattleWaitAndFreeActorBuffers();
     }
     return count;
-}
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 
-*/
+
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
 // every instruction is present and in retail's order; what is left is
 //  (a) gcc hoists g_BattleConditionAnimIds's address out of the outer restart loop to the prologue
@@ -767,8 +765,23 @@ s32 func_800C0314(void) {
 // orders of the two pointer inits, u8* vs BattleActorSlot* slot pointer, declaration
 // orders, and a 4-minute permuter run (base=1405 best=800, and its two best edits read
 // new_var->inUse from a pointer that never advances - wrong code, not portable).
-// The outer loop must stay a loop (a `goto rescan` puts the jtbl address in the wrong
-// block: retail forms it in the prologue, g_BattleConditionAnimIds inside the loop).
+// 92.65% (384 bytes = retail's 96 insns) under the unit preset XenoBattleTailCdk0. NEW BEST: the
+// rescan is a goto, not `while (1)`. With a real outer loop gcc hoists the inner loop's invariants
+// TWO levels, into the prologue (86.15%); with the goto the outer loop does not exist, so they
+// hoist ONE level, to the rescan label, which is where retail forms them (lui/addiu of
+// g_BattleConditionAnimIds at .L800C05A8, then the two pointer copies). That is worth +6.5.
+// Residuals, largest first: (a) the switch's jump-table address (s7) is the ONE invariant retail
+// DID hoist the second level - it sits among the register saves in retail's prologue, at the
+// rescan label in mine, so the entry block's schedule differs; (b) the pSlot walker is anchored at
+// +7 (gcc derives it as spriteSlot + 7, so the two slot reads are lbu 1(s3)/lbu 0(s3)) where
+// retail anchors it at +0 (lbu 8(s2)/lbu 7(s2)); (c) the 0x8C8C table offset is split by gcc into
+// li 0x8000 + lw 0xC8C(v0) where retail materialises the whole constant and loads at 0; (d) i and
+// pSlot land s2/s3 swapped (pSpriteSlot is s4 in both).
+// Tried on this body today: s32 i declared first (identical), the increments in the other two
+// orders (i last: identical; pSlot last, so its anchor should be +0: 93.55% but 388 bytes - one
+// instruction too many, an extra move v0,s8), a typed SpriteData **pSpriteSlot (85.53), plus the
+// earlier round's index form, for-loop, pointer-local, declaration and permuter attempts.
+// Preset screened: gcc-2.7.2 83.33, cdk -O3 86.15 - the preset is right.
 /*
 void func_800C0564(void) {
     u8 *pBase;
@@ -781,10 +794,10 @@ void func_800C0564(void) {
     pBase = (u8 *)g_BattleStateWork;
     needsWait = 0;
     i = 0;
-    while (1) {
-        pSlot = (BattleActorSlot *)pBase;
-        pSpriteSlot = (u8 *)pSlot;
-        do {
+rescan:
+    pSlot = (BattleActorSlot *)pBase;
+    pSpriteSlot = (u8 *)pSlot;
+    do {
             pSprite = *(SpriteData **)(pSpriteSlot + 0x8C8C);
             if (pSprite != NULL) {
                 if (pSlot->inUse != 0) {
@@ -817,17 +830,16 @@ void func_800C0564(void) {
             pSlot++;
             i++;
             pSpriteSlot += 4;
-        } while (i != 11);
-        if (needsWait == 0) {
-            break;
-        }
+    } while (i != 11);
+    if (needsWait != 0) {
         needsWait = 0;
         func_800BE790();
         i = 0;
+        goto rescan;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
+
 s32 BattleComputeVectorDistance(VECTOR *pVec0, VECTOR *pVec1) {
     VECTOR v;
 
