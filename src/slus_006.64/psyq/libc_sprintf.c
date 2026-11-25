@@ -38,63 +38,46 @@ extern SprintfFormat g_SprintfFormatDefault;
 extern const char D_80018BF0[]; // .rodata, "0123456789ABCDEF"
 extern const char D_80018C04[]; // .rodata, "0123456789abcdef"
 
-// BEST ATTEMPT Sprintf -- 98.87% (531 insns compiled vs 535 retail, 2124 vs 2140
-// bytes; the diff prints 561 because the retail side counts reloc and label lines).
-// Structure is retail's: PSY-Q 2.7.2 -O3, frame 0x248, s0-s6+ra in retail's slots
-// (s3=pDst, s2=count, s1=p, s4=' ', s5='-', s6='+'), fmt at 0x210, width 0x214,
-// prec 0x218, ap at 0x220, va area at 0x250, pFormat's home 0x24C. Every
-// instruction of the body, both digit loops, all three pad loops and the copyOut
-// tail are identical modulo branch targets; exactly FOUR instructions are missing.
-// THE RESIDUAL, named: in the four arms whose vararg lands in `value` ('d'/'i',
-// 'u', 'o', and the 'X'/'x' hex arm) retail emits the va_arg fetch BEFORE the
-// flags load and therefore pays a load-delay nop, where this compile loads flags
-// first and fills that slot. Retail .L8003FF04: lw v1,544(sp) / addiu v0,v1,4 /
-// sw v0,544(sp) / lw a0,0(v1) / lw v1,528(sp) / nop / andi v0,v1,0x20; this
-// compile: ... sw v1,544(sp) / lw v1,528(sp) / lw a0,0(v0) / andi v0,v1,0x20.
-// The 'n' and 's' arms load flags first in BOTH builds, so it is not a rule.
-// MEASURED DEAD (five scored runs, all byte-identical, so this is neither source
-// order nor a flag): fmt.u.flags copied to a u32 local after the fetch; the same
-// local read BEFORE the fetch; va_arg split into pArg = ap; ap = pArg + 4;
-// value = *(s32*)pArg; a (u32) cast around va_arg; declaring `value` before
-// c/count/len.
-// THE MOVER IS sched1 (-fschedule-insns), NOT expand/local_alloc/reorg. -da
-// dumps: f.i.rtl/cse/cse2/loop/flow/combine all hold retail's order (value load
-// 503 before flags load 506); f.i.sched (schedule_insns, which toplev.c runs
-// BEFORE local_alloc) holds the swap, and it survives lreg/greg/sched2/dbr.
-// sched.c rank_for_schedule: INSN_PRIORITY first, then dependence class, then
-// LUID. priority = max over in-block successors of (prio + insn_cost - 1), and
-// with the mips 2-cycle load latency the flags load scores 2 (it feeds and->
-// branch, both in this block) while the value load scores 1 (its only consumer,
-// the sll that does the (s16) cast, sits in the beqz delay slot, i.e. the next
-// block). Retail therefore needs an RTL in which the value load has an in-block
-// successor, which none of the five spellings produce.
-// NOTE -fno-schedule-insns CANNOT be used to test this: toplev.c sets
-// flag_schedule_insns = 1 in its `if (optimize >= 2)` block AFTER option
-// processing, so -O3 overrides it. Every 'scheduler off' measurement in earlier
-// notes of this park was therefore taken with sched1 still running.
-// permute.sh --minutes 4: PERMUTER_BETTER base=674 best=522, and the candidate is
-// wrong-shaped code (it wraps the fetch in a redundant if (fmt.u.flags) and
-// duplicates it), so it was not ported.
-// FIXED THIS ROUND: p = &work[0x200] moved ABOVE the LEFT-flag clear (98.46 ->
-// 98.87). Retail forms addiu s1,sp,0x210 in the beqz delay slot of that if, which
-// only happens when the statement precedes it.
-// WHAT MADE THE EARLIER JUMPS, in order (each measured): 75.75 -> 87.64 came from
-// the TU split already in config/slus_006.64.yaml (memmove/strlen/memchr no longer
-// inlined, the three jals appear); 87.64 -> 90.12 from s32 c instead of char c
-// (kills the andi 0xff on every format-character compare); 90.12 -> 96.60 from
-// reading varargs through an ADDRESS-TAKEN va_list -- va_arg(*((va_list*)&ap), T)
-// -- which puts ap in memory at 0x220 with sp-relative accesses and lets
-// count/pDst/p stay in s2/s3/s1 instead of needing a ninth saved register;
-// 96.60 -> 96.83 from SPRINTF_WORK_SIZE 0x200, not 0x210: the 0x10 at the bottom of
-// retail's frame is the o32 outgoing-args block, so work starts at sp+0x10 and
-// &work[0x200] == &fmt == sp+0x210; 96.83 -> 98.46 from writing the '%s' arms as
-// "else if (!PRECSET) strlen else memchr" so strlen is the fall-through block, as
-// in retail (memchr taken instead gave the mirrored layout).
-// TRIED AND REJECTED: char c (87.64), volatile va_list (88.86, too many insns),
-// gcc 2.6.0 -O3 (95.62), gcc 2.7.2-cdk (compile-failed), -O2 (90.12, measured on
-// the 90.12 body), u32 local for flags, va_arg split into statements, (u32) cast
-// around va_arg, value declared first. twin_for.py: no twin.
-// parked
+// PARKED Sprintf - BEST 99.78% (535 insns / 2140 bytes, retail's exact size).
+// Every instruction of the body matches except ONE register tie, present in each of
+// the four arms that fetch a vararg into `value` ('d'/'i', 'u', 'o', and the 'X'/'x'
+// hex arm): retail loads ap into $v1 and computes ap+4 into $v0, then reuses $v1 for
+// the flags load; this build loads ap into $v0 and ap+4 into $v1. The '*' width arm
+// and the 'c', 's', 'n' arms already land on retail's registers, so what is left is
+// allocator preference inside those four blocks - same opcodes, same size, 18
+// operand rows in the objdiff dump.
+// WHAT CLOSED 98.87 -> 99.78: wrapping each of those four fetches in its own
+// `do { value = va_arg(*((va_list*)&ap), s32); } while (0);` gives the fetch block
+// its own scheduling boundary, so sched1 can no longer hoist the flags load above
+// the value load. Retail pays a load-delay nop between the flags load and the
+// `andi 0x20` test and this body now pays the same one: those were exactly the four
+// missing instructions. The barrier must hold the fetch AND NOTHING ELSE - moving
+// the `if (fmt.u.flags & SPRINTF_FLAG_SHORT)` line inside it puts the flags load back
+// in the same block and drops the body to 98.87% / 531 insns (measured).
+// MEASURED DEAD on this 99.78 body, all byte-identical at 535 insns: `u32 value;`
+// declared first among the locals; the fetch split into `s32* pArg` (pArg = (s32*)ap;
+// ap = (char*)(pArg + 1); value = *pArg) inside the barrier; the fetch copied through
+// a `u32 fetched` local inside the barrier.
+// permute.sh --minutes 3 (1194 iterations): PERMUTER_NONE base=110 best=110 - it
+// cannot move a local_alloc register tie. A 4-minute run on the earlier 98.87 body
+// returned a candidate that duplicated the fetch (wrong code), not ported.
+// HISTORY, each step measured; keep these spellings: 75.75 -> 87.64 came from the TU
+// split already in config/slus_006.64.yaml (memmove/strlen/memchr stop being inlined);
+// 87.64 -> 90.12 from `s32 c` instead of char c; 90.12 -> 96.60 from reading varargs
+// through an ADDRESS-TAKEN va_list (`va_arg(*((va_list*)&ap), T)`), which keeps ap in
+// memory at 0x220 and keeps count/pDst/p in saved registers; 96.60 -> 96.83 from
+// SPRINTF_WORK_SIZE 0x200 (work starts at sp+0x10, so &work[0x200] == &fmt ==
+// sp+0x210; the 0x10 at the bottom of the frame is the o32 outgoing-args block);
+// 96.83 -> 98.46 from writing the '%s' arms as "else if (!PRECSET) strlen else memchr"
+// so strlen is the fall-through block; 98.46 -> 98.87 from `p = &work[SPRINTF_WORK_SIZE];`
+// above the LEFT-flag clear (retail forms addiu s1,sp,0x210 in that if's delay slot).
+// REJECTED: char c (87.64), volatile va_list (88.86), gcc 2.6.0 -O3 (95.62),
+// gcc 2.7.2-cdk (compile failed), -O2 (90.12), u32 local for the flags word, value
+// declared before c/count/len. twin_for.py: no twin.
+// DATA: this unit owns its .rodata range ([0x9418, .rodata, psyq/libc_sprintf], the
+// 45-word switch table), and the stub's .s currently supplies that table, so a
+// conversion must also be proven with tools/scripts/check_bin.sh slus_006.64.
+/*
 int Sprintf(char* pDst, char* pFormat, ...) {
     char work[SPRINTF_WORK_SIZE];
     SprintfFormat fmt;
@@ -371,6 +354,8 @@ int Sprintf(char* pDst, char* pFormat, ...) {
 done:
     pDst[count] = 0;
     return count;
-}
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc_sprintf", Sprintf);
+
 
 
