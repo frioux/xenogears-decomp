@@ -2119,27 +2119,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008BF38);
 extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern void* g_PartyDataBuffers[];
 extern void func_80080A74(int actorIndex);
-// Alias of g_FieldActors as an array so its address is a real value gcc keeps
-// in a callee-saved register instead of folding into each load.
+// Second declaration of g_FieldActors as an array: its address then stays a
+// value in a callee-saved register instead of folding into each load (retail
+// holds $s0). Removing it costs the frame slot and rotates every other value.
 extern FieldActor* g_FieldActorsTable[] __asm__("g_FieldActors");
 
-// Round 475: re-measured 92.49%, 107 insns / 428 bytes against retail's 109 /
-// 436. The body is instruction-for-instruction retail's except for ONE cause:
-// retail materialises '&g_FieldActors' (lui/addiu) into a callee-saved $s0 and
-// does 'lw $v1,0($s0)' at both sites; this TU's cc1 folds the address into
-// each load's memory operand, so no pseudo exists and only 7 of the 8
-// callee-saved registers are used (0x40 frame against 0x48, and every other
-// value rotates down one: retail $s0=\&g_FieldActors $s1=prevActor
-// $s2=prevIndex $s3=prevIp $s4=prevFieldActor $s5=pi*4 $s6=\&slots[pi]
-// $s7=0xFF; ours is the same list without the first). The park's
-// '(FieldActor**)&g_FieldActors' local is what retail typed, but cse deletes the
-// copy at 2 uses (misc6's func_800A0524 keeps it at 8 uses) - do not re-try
-// '&g_FieldActors[i]' twice, the initialiser form, the assignment form or
-// 'FieldActor* volatile*' (all 92.49, round 371). NEW this round:
-// try_flags --gp -G0 gives 99.48 (the address keeps a register there), but the
-// unit cannot switch: FieldScriptSetRandomSkinParams is 100.00 under -G8 and
-// 91.67 under -G0, and 176 vs 177 functions are at 100.00. presets 2.7.2
-// 92.49, cdk 83.59, 2.6.0 92.30 (round 371).
 void func_8008C180(int partyIndex) {
     FieldActor** pFieldActors;
     FieldActor* pFieldActor;
@@ -2150,39 +2134,40 @@ void func_8008C180(int partyIndex) {
     int prevActorIndex;
     u_short prevScriptPointer;
 
-    if (g_FieldPartyActorSlots[partyIndex] != ACTOR_ID_INVALID) {
-        pFieldActors = g_FieldActorsTable;
-        pFieldActor = &(*pFieldActors)[g_FieldPartyActorSlots[partyIndex]];
-        pPrevFieldActor = g_FieldScriptVMCurFieldActor;
-        pPrevActor = g_FieldScriptVMCurActor;
-        prevActorIndex = g_FieldCurActorIndex;
-        prevScriptPointer = g_FieldScriptVMCurActor->scriptInstructionPointer;
-        g_FieldScriptVMCurFieldActor = pFieldActor;
-        g_FieldScriptVMCurActor = pFieldActor->pActorData;
-        func_80080A74(g_FieldPartyActorSlots[partyIndex]);
-
-        characterId = g_FieldPartyActorSlots[partyIndex];
-        pFieldActor = &(*pFieldActors)[characterId];
-        pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
-        g_FieldCurActorIndex = characterId;
-        func_80076AC0(characterId, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
-
-        pActor = g_FieldScriptVMCurActor;
-        pActor->scriptFlags.flags |= 1;
-        pActor->flags |= 0x100000;
-        g_FieldScriptVMStopFlag = 0;
-        g_FieldScriptVMCurActor = pPrevActor;
-        g_FieldScriptVMCurFieldActor = pPrevFieldActor;
-        g_FieldCurActorIndex = prevActorIndex;
-        pActor->scriptInstructionPointer = prevScriptPointer;
-        pActor->scriptFlags.flags |= 0x20000;
-        pActor->flags |= 0x400;
-        g_FieldPartyActorSlots[partyIndex] = ACTOR_ID_INVALID;
-    }
-    do {
+    if (g_FieldPartyActorSlots[partyIndex] == ACTOR_ID_INVALID) {
         g_GamePartyMembers[partyIndex] = ACTOR_ID_INVALID;
         g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
-    } while (0);
+        return;
+    }
+    pFieldActors = g_FieldActorsTable;
+    pFieldActor = &(*pFieldActors)[g_FieldPartyActorSlots[partyIndex]];
+    pPrevFieldActor = g_FieldScriptVMCurFieldActor;
+    pPrevActor = g_FieldScriptVMCurActor;
+    prevActorIndex = g_FieldCurActorIndex;
+    prevScriptPointer = g_FieldScriptVMCurActor->scriptInstructionPointer;
+    g_FieldScriptVMCurFieldActor = pFieldActor;
+    g_FieldScriptVMCurActor = pFieldActor->pActorData;
+    func_80080A74(g_FieldPartyActorSlots[partyIndex]);
+
+    characterId = g_FieldPartyActorSlots[partyIndex];
+    pFieldActor = &(*pFieldActors)[characterId];
+    pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+    g_FieldCurActorIndex = characterId;
+    func_80076AC0(characterId, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
+
+    pActor = g_FieldScriptVMCurActor;
+    pActor->scriptFlags.flags |= 1;
+    pActor->flags |= 0x100000;
+    g_FieldScriptVMStopFlag = 0;
+    g_FieldScriptVMCurActor = pPrevActor;
+    g_FieldScriptVMCurFieldActor = pPrevFieldActor;
+    g_FieldCurActorIndex = prevActorIndex;
+    pActor->scriptInstructionPointer = prevScriptPointer;
+    pActor->scriptFlags.flags |= 0x20000;
+    pActor->flags |= 0x400;
+    g_FieldPartyActorSlots[partyIndex] = ACTOR_ID_INVALID;
+    g_GamePartyMembers[partyIndex] = ACTOR_ID_INVALID;
+    g_GamePartyMemberSkins[partyIndex] = ACTOR_ID_INVALID;
 }
 
 
