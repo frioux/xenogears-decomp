@@ -396,52 +396,40 @@ extern s32 func_80071F8C(s32 mode);
 #define BATTLE_TURN_FAR_DISTANCE 0x800
 #define BATTLE_TURN_RADIUS 0x400
 
-/* 89.47% (1684 bytes against retail's 1704, 421 insns against 426): the whole
-   interpreter is right - all 34 opcode arms, the two shared cursor tails, the
-   arm-the-wait block and the turn block gcc merged out of cases 12/13/14/15 - and
-   what is left is block placement inside four arms plus one lost insn per shared
-   tail. Spelling facts that are load-bearing and were measured:
+/* 95.40% (1684 bytes against retail's 1704, 421 insns against 426). The whole
+   interpreter is right - all 34 opcode arms and both shared cursor tails - and the
+   three spelling facts that were measured the hard way are:
    - the arms must be written in retail's PHYSICAL order (1,2,3,4,5,6,8,7,10,9,11,
      12,13,15,14,20,18,19,27,21,22,23,24,25,26,28,29,30,31,32,33,34): gcc emits the
      case bodies in source order, so the natural 1..34 order puts every arm 4-8
      bytes off and objdiff collapses to 76.16% with the same instruction stream;
    - `case 0: return;` is real: retail's guard is `sltiu v1,0x23` with table entry 0
      pointing at the return, so opcode 0 ends the script and is not the default;
-   - the table lands at .rodata+0x18, retail's jtbl_8006FB0C offset;
-   - cases 12/13/14/15 share one `turn` label (goto) and 1/14/15/20 one `armWait`
-     label; gcc does merge those tails, so they must be labels, not copies.
-   Residuals, each 4-8 insns of the diff: (a) cases 11, 12 and 13 each end with
-   their own copy of `li v0,<angle>` + turn tail where retail enters ONE turn block
-   with the angle already in v0 (`j .L800712F8` with `li v0,0x800` in the branch
-   delay) - the store `sw s1,72(s0)` sits at each site, only the tail is shared;
-   (b) case 2/3 form `&g_BattleActor1` straight into s0 where retail forms it in v1
-   and does `move s0,v1`; (c) the dispatch's `beqz` delay slot is `sll` here and
-   `nop` in retail (1 insn, and it is why this is 5 insns short); (d) case 21
-   schedules the second `lbu` after the `sb`, retail loads both operands first;
-   (e) case 18's two cursor stores come out with one load here, retail stores +1
-   and then +2 from one loaded cursor (a `s32 value = g_BattleScriptCursor;`
-   local reproduces the two stores but not the single load).
-   D_80092894 is the pointer the script engine drives; the DA_/gauge fields added
-   to BattleState above are the +0x58/+0xBC/+0xCE/+0xD8 slots this interpreter
-   touches. */
-/* 94.01% (1688 bytes against retail's 1704, 422 insns against 426). Structure and
-   block PLACEMENT are the win here: the armWait and turn label blocks belong INSIDE
-   the switch, physically between the arms gcc emits around them (turn between case 14
-   and case 20, armWait between case 20 and case 18) - that alone took 89.47 -> 94.06.
-   Also measured: case 29 stores the same value in both arms (a `s32 value = 1;` above
-   the if); writing 0 in the else arm was wrong code and retail has 1 in both, but the
-   inline literal form breaks the frame (saves s3, sp 0x30) while the local keeps
-   retail's 0x28 frame.
-   PRESET screen: cdk 88.30, 2.6.0 89.47 (identical), -G0 compile-failed. Not a preset.
-   Remaining residuals, each named: (a) cases 2/3 - retail forms &g_BattleActorN in v1,
-   loads the cursor, then `addu s0,v1,zero`; every spelling tried puts the `la` straight
-   into s0 (8 insns vs retail's 9) and the cursor load lands before it; (b) the dispatch
-   beqz delay slot is `sll v0,v1,2` here and `nop` in retail (1 insn); (c) case 12's
-   turn constant still needs a hop block (j +0x218) where retail puts `ori v0,0x800` in
-   the beqz delay slot, while case 13 keeps a `nop` there; case 15/14 are exact; (d) case
-   21 stores g_BattleWindowPrimsEnabled before the sll/sw of targetX, retail after both
-   operand loads, and uses v1 for the cursor where this uses a0; (e) case 29's two
-   stores pick a0 where retail picks v0. */
+   - the four `armWait` arms (1, 15, 14, 20) must share a label, but each turn arm
+     (12/13/15/14) writes its OWN tail (`angle = <const>; pActor->distance = ...;
+     pActor->targetAngle = angle; pActor->facingOffset = 0; return;`): gcc then
+     cross-jumps the tail into one block itself, which is retail's .L800712F8. One
+     shared `turn` label instead costs 1.4% (94.01) and leaves a hop block.
+   - `s32 value = 1;` above case 29's if keeps retail's 0x28 frame; the literal in
+     both arms saves s3 and gives 0x30.
+   The table lands at .rodata+0x18, retail's jtbl_8006FB0C offset. D_80092894 is
+   the pointer the script engine drives; the gauge fields added to BattleState
+   above are the +0x58/+0xBC/+0xCE/+0xD8 slots this interpreter touches.
+   Preset screen on this body: 2.6.0 95.40 (identical), cdk compile-failed. Not a
+   preset. Five residuals left, each 1-2 insns, all reorg/allocator shape:
+   (a) dispatch: retail has `beqz; nop; sll`, this fills the beqz delay slot with
+       the sll (-1 insn);
+   (b) cases 2/3: retail forms `&g_BattleActorN` in v1 and copies it (`addu
+       s0,v1,zero`), this emits the `la` straight into s0 (-2 insns); chained
+       assignment `D_80092894 = pActor = &g_BattleActor1` measured identical;
+   (c) case 21: retail orders the stores targetX, prims, cursor, targetY, this
+       orders prims, targetX, cursor, targetY, so the sll lands late and retail's
+       `nop` after `lbu 1(v1)` is lost (-1 insn);
+   (d) case 26: retail has `beqz; nop; slti; bnez; nop`, this fills the beqz slot
+       with the second slti (-1 insn);
+   (e) cases 18 and 29 differ only in register choice (retail v0/v1, this a0/v0).
+*/
+// 95.40% (1684 bytes against retail's 1704, 421 insns against 426); see the block below for the five named 1-2 insn residuals (dispatch and case 26 delay-slot fill, cases 2/3 'la' vs temp+copy, case 21 store order, cases 18/29 register choice). Declaring the locals in a different order (value first) measured identical.
 /*
 void func_8007107C(void) {
     BattleState* pActor;
@@ -470,13 +458,11 @@ void func_8007107C(void) {
             g_BattleScriptCursor += 2;
             break;
         case 2:
-            pActor = &g_BattleActor1;
-            D_80092894 = pActor;
+            D_80092894 = pActor = &g_BattleActor1;
             g_BattleScriptCursor++;
             break;
         case 3:
-            pActor = &g_BattleActor0;
-            D_80092894 = pActor;
+            D_80092894 = pActor = &g_BattleActor0;
             g_BattleScriptCursor++;
             break;
         case 4:
@@ -518,9 +504,11 @@ void func_8007107C(void) {
             break;
         case 12:
             if (g_BattleActorDistance2D < BATTLE_TURN_MID_DISTANCE + 1) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = BATTLE_TURN_FAR_DISTANCE;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor++;
             break;
@@ -530,9 +518,11 @@ void func_8007107C(void) {
                 return;
             }
             if (g_BattleActorDistance2D < BATTLE_TURN_FAR_DISTANCE + 1) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = BATTLE_TURN_FAR_DISTANCE;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor++;
             break;
@@ -541,9 +531,11 @@ void func_8007107C(void) {
                 goto armWait;
             }
             if (--g_BattleScriptWait != 0) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = BATTLE_TURN_RADIUS;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor += 2;
             break;
@@ -552,16 +544,14 @@ void func_8007107C(void) {
                 goto armWait;
             }
             if (--g_BattleScriptWait != 0) {
-                pActor->distance = BATTLE_TURN_DISTANCE;
                 angle = -BATTLE_TURN_RADIUS;
-                goto turn;
+                pActor->distance = BATTLE_TURN_DISTANCE;
+                pActor->targetAngle = angle;
+                pActor->facingOffset = 0;
+                return;
             }
             g_BattleScriptCursor += 2;
             break;
-        turn:
-            pActor->targetAngle = angle;
-            pActor->facingOffset = 0;
-            return;
         case 20:
             if (g_BattleScriptWait == 0) {
                 goto armWait;
@@ -695,6 +685,8 @@ void func_8007107C(void) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
+
+
 
 
 
