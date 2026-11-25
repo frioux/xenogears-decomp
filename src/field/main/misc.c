@@ -842,9 +842,21 @@ void func_800888A4(void) {
 //   a1 and a2) plus the last block's three store order (retail stores 0x130, then
 //   scriptInstructionPointer, then 0x12C; two source orders were measured and
 //   neither reproduces it).
+// Round 463: re-measured 88.92% / 432 bytes (retail 428, ONE short) - both residuals
+// unchanged, and the tail's mechanism is now named. Wrapping JUST the last statement
+// in 'do { pCurActor->flags12C_0x10 = 2; } while (0);' splits the basic block and
+// the three tail stores come out in retail's order ([sw 0x130][sh 0xCC][sw 0x12C],
+// loads 0x130 then ip, instead of the 0x12C group first), which proves the reorder
+// is sched2 inside one block. The split costs the constant sharing retail's
+// single-block schedule has (retail materialises 0xFFFCFFFF during the type2 group
+// and 0x20000 inside the last group, and reuses them there), so that body is 86.10%
+// at the same 432 bytes. Writing the last 0x12C write whole-word as
+// '((u_int*)pCurActor)[0x4B] = (((u_int*)pCurActor)[0x4B] & ~0x30000) | 0x20000;'
+// measures 82.56% / 432. So the tail wants ONE block with the 12C load hoisted with
+// the other two and all three stores sunk - not reproducible from statement order.
+// The head's single size miss (li a0,1 hoisted above the frame saves, leaving a nop
+// in the first jal's delay slot where retail has the li) is untouched by any of this.
 /*
-extern void SpriteAllocClutRect(SpriteData*, s32, u_int);
-
 void func_800889BC(void) {
     SpriteData* pSpriteData;
     int type;
@@ -870,9 +882,9 @@ void func_800889BC(void) {
     pCurActor->flags130 = (pCurActor->flags130 & ~0xFF80000) | ((value2 & 0x1FF) << 19);
     pCurActor->scriptInstructionPointer += 9;
     pCurActor->flags12C_0x10 = 2;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
+
 
 // Start of particle handlers
 extern s32 g_FieldParticleTargetActor;
@@ -3342,9 +3354,30 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 // h-address-taken-field-pointer-forces-in-place-rmw); the plain
 // `actor->scriptInstructionPointer += 0x13` hoists the lhu above the andi.
 // Preset screened on this body: 2.7.2 89.63, 2.6.0 89.63.
+// 93.54% (332 bytes, retail 328 - ONE instruction short, so it cannot link). Round 463.
+// THE HEAD IS SOLVED: retail's raw-value copy is the PROMOTION of the u16 result
+// kept in its own int local. Writing 'type = value;' straight after the store and
+// using type for BOTH the 0xFE compare and the '& 0x40' flags gives retail's
+// 'andi s0,v0,0xffff' + 'sh v0' + 'bne s0,v0' and drops the 'move s0,v0' /
+// 'andi v1,s0,0xffff' pair (89.63% 336 bytes -> 93.54% 332 bytes). Before that only
+// the u16 value was live across the calls, so the narrow pseudo took s0 and every
+// promotion had to be masked into a fresh register.
+// THE REMAINING MISS is one scheduler tie in the tail: retail fills the ip load's
+// delay slot and reads [lhu ip][li v1,1][lui][sw SceneActive][addiu][sh ip]; here it
+// is [lhu][nop][addiu][sh][li][lui][sw]. The plain
+// 'actor->scriptInstructionPointer += 0x13;' and an explicit
+// 'u16 ip = actor->ip; SceneActive = 1; actor->ip = ip + 0x13;' both give retail's
+// EXACT size (82 insns / 328 bytes, the same instruction multiset - a pure
+// permutation) but 85.06%, and the explicit form also hoists the actor load above
+// the D_800C3A30 store. Reusing the pos local for the ip reads 82.32% / 336 (it
+// keeps that local live across the image stores and adds two copies).
+// UNTRIED LEAD: wrap the last two statements in 'do { ... } while (0)' to split the
+// basic block - that is the lever that pinned retail's order in func_8008EA58
+// (round 425) and this tail's whole residual is one block's schedule.
 /*
 void func_8008EE14(void) {
     u16 value;
+    int type;
     s16 pos;
     u16 *pIp;
 
@@ -3354,7 +3387,8 @@ void func_8008EE14(void) {
     g_FieldStreamTotalFrames = FieldScriptVMGetArgument(7);
     value = FieldScriptVMGetArgument(9);
     D_800C3A30 = value;
-    if (value == 0xFE) {
+    type = value;
+    if (type == 0xFE) {
         g_FieldStreamLoopPlayback = 1;
     } else {
         g_FieldStreamLoopPlayback = 0;
@@ -3367,7 +3401,7 @@ void func_8008EE14(void) {
     g_FieldStreamImageY2 = pos;
     D_800C3A32 = FieldScriptVMGetArgument(0xF);
     D_800C3A34 = FieldScriptVMGetArgument(0x11);
-    g_FieldStreamFlags = value & 0x40;
+    g_FieldStreamFlags = type & 0x40;
     g_FieldStreamId = 0xFF;
     g_FieldMode = 2;
     g_FieldStreamRgb24 = 0;
@@ -3375,9 +3409,9 @@ void func_8008EE14(void) {
     pIp = &g_FieldScriptVMCurActor->scriptInstructionPointer;
     *pIp += 0x13;
     g_FieldStreamSceneActive = 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EE14);
+
 
 extern s32 g_FieldScriptFadeDuration;
 extern s32 g_FieldScriptFadeMode;
