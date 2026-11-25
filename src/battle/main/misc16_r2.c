@@ -201,84 +201,10 @@ void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
 
-/* 95.58% at retail's EXACT size (1060 bytes = 0x424). Every call, rectangle, store and
-   ROUND 371: re-measured, and confirmed to COMPILE; 96.18 under gcc-2.6.0 (try_flags), so
-   the preset this unit wants does not close it either.
-   branch is retail's; the frame is retail's 0x148 and the local layout is retail's
-   (bufs 0x18, nameRect 0x98, tensRect 0xA0, onesRect 0xA8, tens2Rect 0xB0,
-   ones2Rect 0xB8, blankRect 0xC0, cellUses 0xD0, cellIds 0x100 - declaration order).
-   GAINED THIS ROUND (+3.04 over the 88.92 park): the ones digit is computed INSIDE
-   its arm - `BattleLoadImageAndSync(&onesRect, g_BattleDigitImageBuffers[cellUses[i] % 10])` with
-   no `ones` local (retail's `% 10` sits inside the `if (cellIds[i] != 0)` arm).
-   Hoisting it into a u8 local reorders that whole block and costs 28 bytes; the
-   tens digit DOES want its `u8 tens = cellUses[i] / 10;` local (retail's `andi 0xff`
-   after the magic-10 shift) and the second grid half uses the un-truncated
-   `cellUses[i + 16] / 10` spelling, so do not unify them.
-   ROUND 312, worth +3.62 and the last 28 bytes: site 3's TEST reads the GLOBAL
-   (`g_BattleCommandCellUses[i + 16] / 10 != 0`) while its INDEX reads the local copy.
-   Retail divides TWICE there - the global read's quotient for the test (`srl 3` +
-   `andi 0xff`) and the copy's quotient for the index, where gcc folds `/ 10 * 4` into
-   `srl 1` + `andi 0x3FC`. The body is now retail's exact 1060 bytes.
-   Remaining, ONE cause: retail re-forms `lui $at,%hi(g_BattleDigitImageBuffers) /
-   addu $at,at,v0 / lw %lo(at)` at each of the four digit-buffer sites (the address
-   never leaves $at), while loop.c hoists the table's address into a sixth callee-saved
-   register (s4) and reads `addu v0,v0,s4; lw a1,0(v0)` - 2 insns per site, and the
-   extra save/restore shifts every register in the prologue and epilogue by 4 bytes.
-   Measured dead: the array form, `*(u_long **)(n * 4 + (u32)g_BattleDigitImageBuffers)`,
-   `*(u_long **)((u8 *)g_BattleDigitImageBuffers + n * 4)` (a cc1_probe of the bare loop
-   shows all three emit the same `la`), and `volatile` on the array declaration. gcc
-   2.6.0 scores 92.77 with the unit's four matched functions still 100.00, so the preset
-   is not the answer either. Next lever to try: a per-site spelling that gives each
-   address pseudo a single use so loop.c has nothing shared to hoist; also untried for
-   this body: separate ofs-style temporaries per digit site, a pointer local per arm,
-   and the permuter.
-   ROUND 419 re-measure: 96.18 under the unit's 2.6.0 at retail's exact 265 instructions /
-   1060 bytes; 95.58 under gcc-2.7.2 and gcc-2.7.2-cdk FAILS TO COMPILE this body, so the
-   preset is not the lever (the 92.77 above is stale). The hoist is the
-   a-g-strength-reduce-table-base lever's case - it ends when the loop leaves no free
-   callee-saved register - but inside the loop the two builds are instruction-identical
-   (same loads, multu/mfhi chains, calls and stores), so there is NO folded-away live value
-   to port back, and the four index spellings all emit the same la.
-   Second, ADDITIVE residual measured this round: retail's locals are 8 bytes bigger -
-   cellUses at 0xD0 and cellIds at 0x100 against our 0xC8 / 0xF8 - and retail never reads or
-   writes 0xC8..0xCF (every stack offset in the stub enumerated). That dead slot is also what
-   makes the frame 0x148 with six saves at 0x130..0x144 instead of our 0x128..0x140. No
-   construct I can justify allocates an untouched 8-byte slot.
-   Third, one insn: retail `addu s0,v1,v0` (index-first) against our `addu s0,v0,v1` at the
-   bufs[i] store - the `bufs + i` spelling is untried.
-   ROUND 432: the hoist is NOT a unit quirk - a 20-line cc1_probe (probe_loop.c, the
-   `for (i<32) { tens = pu[i]/10; if (tens) load(r, g_Digi[tens]); else load(r, g_Ws); }`
-   shape) reproduces `la $20,g_Digi` in the preheader plus `addu $2,$2,$20 / lw $5,0($2)`
-   on 2.6.0 -O2 -G8, with a `u8` or an `s32` index and with the array declared `[10]` or
-   `[]`, while a straight-line `load(r, g_Digi[i])` emits retail's `lw $5,g_Digi($2)`
-   (the %lo+reg form maspsx expands to `lui $at / addu $at,$at,$v0 / lw %lo($at)`).
-   So it is loop.c reducing the symbolic base of the address giv, and the same unit's
-   FIRST loop (`lbu %lo(g_BattleCommandGridIds)(at)` after `addu at,at,s1`) does not get
-   it - i.e. it is decided per loop by loop.c, and the only knob measured that removes it
-   is register pressure (the a-g-strength-reduce-table-base lever), of which retail's loop
-   has none to spare: retail spends exactly s0..s4 (bufs, i, 0xcccd, 0xd, 6) and this
-   build spends s0..s5, the 6th being the hoisted base. Adding a live value to chase that
-   would only make this body 7 saves against retail's 6.
-   ROUND 445 RE-MEASURE (redo lane): 96.18% again at retail's exact 1060 bytes / 265 insns
-   under the unit's gcc-2.6.0, and the body compiles on the first run. Two spellings the note
-   above listed as untried, both measured and dead (identical 96.18 / 1060 / 265): the
-   index-first `*(bufs + i) = pBuf` for the `addu s0,v0,v1` row, and the volatile-ELEMENT
-   form `extern u_long * volatile g_BattleDigitImageBuffers[]` (the pointer-volatile reading of
-   the earlier note's "volatile on the declaration"). The four sites still save 3 insns each
-   (hoisted `addu v0,v0,s4` + `lw 0(v0)` against retail's `lui at / addu at,at,v0 / lw`),
-   the `la` in the preheader costs 2 and the extra save/restore 2, which is why the totals are
-   equal at 265 and only the register set differs. Park on the round-432 probe.
-*/
-// ROUND 457 RE-MEASURE, new best 97.22% (1068 bytes / 267 insns; retail 0x424 = 1060 / 265), unit gcc-2.6.0 -O2 -G8.
-// NEW THIS ROUND, and the reason the park is worth keeping: the table base hoist is NOT unconditional. Measured counts in the second loop -
-//   4 array sites                     -> loop.c reduces: la of the base in the preheader plus addu reg,reg,sN / lw 0(reg) at ALL FOUR (96.18, 1060/265)
-//   3 array sites + 1 source pointer  -> still reduced, the array sites fold onto the hoisted base (96.28, 1060/265)
-//   2 array sites + a PRE-LOOP pointer + an in-loop copy of it -> NOT reduced: the two remaining array sites come out in retail's
-//                                       lui at,%hi / addu at,at,reg / lw %lo(at) form (97.22, 1068/267).
-// So retail's build saw at most two shareable givs for that symbol, and one spelling that does is a pre-loop source pointer to the table plus an assignment from it inside the loop. The body below is that spelling, kept as a mechanism hint, not as shippable C.
-// Residual, two causes, both additive: (1) the two pointer-fed sites read through the callee-saved base (2 insns against retail's 3) and the pointer costs the preheader lui/la (2) plus a 6th save/restore (2), so this body is 2 insns over; (2) retail's locals are 8 bytes bigger - cellUses at 0xD0 and cellIds at 0x100 against 0xC8 / 0xF8, an 8-byte slot retail never reads or writes, which is also what lets retail's six saves sit at 0x130..0x144 against our seven at 0x128..0x144.
-// PRESET IS NOT THE ANSWER: 2.7.2 scores 95.58, 2.7.2-cdk compile-fails the body, and -fno-strength-reduce is ruled out for the unit because retail's OWN BattleDrawColumnSpriteCells (misc16_r2, matching asm) carries the biv increments addiu s1,s1,1 / addiu s0,s0,8.
-// Earlier rounds, all still true: a cc1_probe of the loop shape reproduces the hoist under 2.6.0, 2.7.2 and 2.7.2-cdk with a u8 or s32 index and the array declared [10] or [], so it is loop.c's per-loop decision; the four index spellings (array form, pointer cast, (u8 *)T + n*4, index-first) and a volatile element declaration all measure identical; the tens digit wants its u8 local, and site 3's TEST reads the global g_BattleCommandCellUses[i + 16] (retail relocs name D_800D2CC0, same address) while its INDEX reads the local copy.
+// The two load-bearing spellings, both measured: the digit table is named through two
+// gcc objects (an `__asm__`-labelled alias) so loop.c has no loop-invariant table base to
+// hoist, and the row store uses an embedded assignment so `bufs + i` forms base-first.
+// unusedFrame[8] is the 8 bytes of local retail's frame has at 0xC8 (never read or written).
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
