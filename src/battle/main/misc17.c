@@ -62,6 +62,10 @@ typedef struct {
     /* 0x0FC */ s32 menuColumnPackageCount;
 } BattleSpriteWork;
 
+// The packet-pool cursor the last block of the unit writes through. The original reloads the
+// word from memory for every store, so it is read as a volatile word at each use.
+#define PRIM_INDEX g_BattlePrimStartIndexWord
+
 // The battle packet pool that g_BattleGraphicsWork->pPacketPrims points at, as far as
 // this unit reaches into it: the two Gouraud quads the frame border is drawn into and
 // the two flat quads its blanking rects use. The pool is 0x670 bytes.
@@ -79,6 +83,8 @@ extern u8 g_BattleCurSlotIndex;
 extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern u8 g_BattlePrimStartIndex[];
+// The same word as g_BattlePrimStartIndex, read as the scalar it is: the packet pool cursor
+// the border quad block indexes by. The original reloads it for every store.
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleTargetSlotEntry;
 extern BattleTableEntry g_BattleWorkBlock[];
@@ -813,53 +819,54 @@ nextTile:
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
-/* REPARKED 87.17% (1252 bytes against retail's 1336, 313 insns vs 334), frame 0x30 and the five
-   saved registers exactly retail's. Measured by un-parking and diffing, not copied from the
-   old 64.13% note. What matches now: the digit split, the two 0x67 packages (the FIRST one
-   passes g_BattleGraphicsWork + 0xBA8 with NO count term), the seven-row loop, and the whole
-   16-store tail's LAYOUT -- the pool is indexed by the prim index, so the strides are
-   gouraudQuads[idx] (0x24) / flatQuads[idx] (0x18), x0 at 0x5F8 and 0x640.
-   THE LEVER THAT TOOK IT FROM 64 TO 87 (new; worth a levers.md entry): retail's loop x
-   arguments are NOT SImode "i * 0x20 + 0x2A". They are two LEFT-JUSTIFIED locals,
-   x1 = 0x2A << 16 and x2 = 0x1A << 16, passed as "x1 >> 16" with "x1 += 0x20 << 16" in the
-   latch; battle/main/misc14's matched BattleBuildFlaggedSlotSpriteColumn does exactly this
-   with its pitch = 0x6E << 16 / pitch >> 16. That reproduces retail's lui s1,0x2A /
-   sra a2,s1,0x10 / +0x200000. The tail index is likewise a VOLATILE word read per store.
-   Residual, all measured this round:
-   1. The volatile index. Retail is "lui v1,%hi(sym)" + "lw v1,%lo(sym)(v1)" per store, i.e. a
-      volatile SCALAR (misc11.c in this overlay declares extern volatile s32
-      g_BattlePrimStartIndex and gets that form). This body reads it through
-      "volatile s32 *pPrimIndex = (volatile s32 *)g_BattlePrimStartIndex;", one shared la plus
-      16 "lw 0(a1)": 14 instructions SHORT, and the address register is a1 where retail
-      destroys it. A scalar declaration cannot coexist with the five matched neighbours here
-      that need the byte-array view (u8 g_BattlePrimStartIndex[]); closing this needs a
-      SECOND name for 0x800CCB34 in symbol_addrs (no duplicate address there today), or
-      converting those five to a scalar declaration plus pointer locals. Spelling the read as
-      one shared plain load instead scores 65.04% (1020 bytes), so the per-store volatile read
-      is worth 22 points on its own.
-   2. n = -1 as a second loop counter, so D_800C3DE1[n] keeps retail's "li s2,-1" /
-      "addiu s2,s2,1" (loop-back slot) / "addu at,at,s2" / reloc D_800C3DE1. MEASURED at
-      86.55% (317 insns, 1268 bytes): it costs a sixth callee-saved register, so the frame
-      becomes 0x38 where retail has 0x30. Without it the -1 folds into the reloc
-      (D_800C3DE0) and one addu operand pair moves.
-   3. The latch: retail materialises 0x200000 in v0 with lui and adds it to BOTH givs (3
-      instructions); this body keeps it in s3 (2 instructions, 2 of the 21 short).
-   4. "addu v0,s0,v0" against retail's base-first "addu v0,v0,s0" for the queue byte index,
-      and move s0,zero (i = 0), which retail puts in the beqz delay slot.
-   Everything else in the head is instruction-identical. No new externs were needed. */
+/* 89.40% (1256 bytes against retail's 1336, 314 insns vs 334), frame 0x30 = retail's, four
+//    callee-saved against retail's five. Re-measured this round by un-parking and diffing.
+//    WON THIS ROUND (two levers worth having in levers.md):
+//    1. THE HEAD AND BOTH PACKAGES ARE NOW INSTRUCTION-IDENTICAL. The digit split is
+//       `u8 tens = arg1 / 10; digits[0] = tens; digits[1] = arg1 - tens * 10;` - one scalar
+//       local. `arg1 % 10` puts the multiply on the ANDI'd copy of the quotient, and a bare
+//       `arg1 - digits[0] * 10` makes cc1 RELOAD the element (`lbu v1,16(sp)`); only the
+//       scalar gives retail's `sb q,16(sp)` / `andi v0,v0,0xff` / sll-addu-sll / `subu
+//       a1,a1,v1` with arg1 RAW on the left.
+//    2. Tail index: the per-store read of g_BattlePrimStartIndex has to be a volatile
+//       LVALUE. A `volatile s32 *pPrimIndex` local scores 89.40 but pays one shared `la`
+//       (a1) plus 16 `lw 0(a1)`, i.e. 14 instructions short of retail's 16
+//       `lui v1,%hi / lw v1,%lo(v1)`. MEASURED DEAD: the same volatile cast spelled inline at
+//       all 16 sites (identical - cc1 cse's the ADDRESS of a volatile MEM into one la); a
+//       second symbol g_BattlePrimIndexWord at 0x800CCB34 declared plain s32 (cse folds all
+//       16 reads into ONE: 65.97%, 1044 bytes, 261 insns); the same second symbol declared
+//       volatile (this one DOES give retail's exact per-store lui+lw and 324 insns, but
+//       sched2 then interleaves two store groups at a time - load,load,chain,chain,store,store
+//       - for 70.71%, where retail's tail is in strict source order). So the last 16
+//       instructions need a per-store two-instruction reload that sched2 leaves in order:
+//       volatile is the only spelling that re-reads, and it reorders.
+//    3. `n` as a second induction variable (`for (i = 0, n = -1; i < 7; i++, n++)` with
+//       D_800C3DE1[n]): reproduces retail's `li s2,-1` and its `addiu s2,s2,1` in the bnez
+//       delay slot plus the un-folded D_800C3DE1 reloc, but costs a sixth callee-saved
+//       register (frame 0x38 against retail's 0x30) and measures 88.92%. Without it the -1
+//       folds into the reloc (D_800C3DE0) and that read's addu takes s0.
+//    4. The latch: retail re-materialises the pitch per iteration (`lui v0,0x20; addu s3,s3,v0;
+//       addu s1,s1,v0`, 3 insns) where this body hoists 0x200000 into a callee-saved register
+//       (1 insn). Same one-register story as (3): retail spends its five slots on i, x1, x2,
+//       n and arg1 and rematerialises the constant.
+//    Residual, all named: 16 (the tail index reads above), 2 (the folded D_800C3DE1 / -1 pair),
+//    2 (the hoisted pitch), 1 (the queue byte index gives `addu v0,s0,v0` where retail is
+//    base-first `addu v0,v0,s0`, and `move s0,zero` sits in the beqz delay slot in retail and
+//    later here). */
 /*
 void func_80092B74(u8 arg0, u8 arg1) {
     BattleGraphicsWork *pWork;
-    volatile s32 *pPrimIndex;
     u8 digits[2];
     s32 x;
     s32 x1;
     s32 x2;
     s32 i;
+    u8 tens;
+    volatile s32 *pPrimIndex;
 
-    digits[0] = arg1 / 10;
-    digits[1] = arg1 % 10;
+    tens = arg1 / 10;
+    digits[0] = tens;
+    digits[1] = arg1 - tens * 10;
     g_BattleDisplayState->spriteColumnPackageCount = 0;
     if (digits[0] != 0) {
         g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(digits[0] + 0x67,
@@ -909,8 +916,10 @@ void func_80092B74(u8 arg0, u8 arg1) {
     ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].y3 = 0x3C;
     pWork->pPacketPrims[0x66C] = g_BattlePrimStartIndex[0];
     pWork->pPacketPrims[0x66F] = 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
+
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 /* 93.09% (1220 bytes against retail's 1228, 305 vs 307 instructions) under this
 // unit's gcc 2.6.0. Frame 0xB0 and all ten saved values are retail's, and the four
