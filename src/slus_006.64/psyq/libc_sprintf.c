@@ -95,7 +95,6 @@ extern const char D_80018C04[]; // .rodata, "0123456789abcdef"
 // the 90.12 body), u32 local for flags, va_arg split into statements, (u32) cast
 // around va_arg, value declared first. twin_for.py: no twin.
 // parked
-/*
 int Sprintf(char* pDst, char* pFormat, ...) {
     char work[SPRINTF_WORK_SIZE];
     SprintfFormat fmt;
@@ -190,7 +189,9 @@ int Sprintf(char* pDst, char* pFormat, ...) {
 
             case 'd':
             case 'i':
-                value = va_arg(*((va_list*)&ap), s32);
+                do {
+                    value = va_arg(*((va_list*)&ap), s32);
+                } while (0);
                 if (fmt.u.flags & SPRINTF_FLAG_SHORT)
                     value = (s16) value;
                 if ((s32) value < 0) {
@@ -202,7 +203,9 @@ int Sprintf(char* pDst, char* pFormat, ...) {
                 goto decimal;
 
             case 'u':
-                value = va_arg(*((va_list*)&ap), s32);
+                do {
+                    value = va_arg(*((va_list*)&ap), s32);
+                } while (0);
                 if (fmt.u.flags & SPRINTF_FLAG_SHORT)
                     value &= 0xFFFF;
                 fmt.u.byte.sign = 0;
@@ -234,7 +237,9 @@ int Sprintf(char* pDst, char* pFormat, ...) {
                 goto copyOut;
 
             case 'o':
-                value = va_arg(*((va_list*)&ap), s32);
+                do {
+                    value = va_arg(*((va_list*)&ap), s32);
+                } while (0);
                 if (fmt.u.flags & SPRINTF_FLAG_SHORT)
                     value &= 0xFFFF;
                 if (!(fmt.u.flags & SPRINTF_FLAG_PRECSET)) {
@@ -272,7 +277,9 @@ int Sprintf(char* pDst, char* pFormat, ...) {
                 pDigit = D_80018C04;
 
             hex:
-                value = va_arg(*((va_list*)&ap), s32);
+                do {
+                    value = va_arg(*((va_list*)&ap), s32);
+                } while (0);
                 if (fmt.u.flags & SPRINTF_FLAG_SHORT)
                     value &= 0xFFFF;
                 if (!(fmt.u.flags & SPRINTF_FLAG_PRECSET)) {
@@ -364,7 +371,6 @@ int Sprintf(char* pDst, char* pFormat, ...) {
 done:
     pDst[count] = 0;
     return count;
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc_sprintf", Sprintf);
+}
 
 
