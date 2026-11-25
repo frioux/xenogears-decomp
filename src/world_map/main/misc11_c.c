@@ -1,6 +1,9 @@
 #include "common.h"
 #include "main/game.h"
 
+// Ring size of g_WorldMapTrail (misc11_b masks the cursor with 0x1F).
+#define WORLD_MAP_TRAIL_COUNT 32
+
 // World map view of the sprite object SpriteAllocFromAnimFile returns (SpriteData in
 // include/field/actor.h). Only the two fields this unit touches are named: it clears
 // bit 2 of the 0x3C flag word as a whole word, which that header's bitfields cannot
@@ -265,7 +268,7 @@ s32 func_8008C530(int index) {
             g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->x;
             g_WorldMapPlayerAngle = pActor->angle;
             g_WorldMapTrailCursor = 0;
-            for (i = 0, pTrail = g_WorldMapTrail; i < 0x20; i++, pTrail++) {
+            for (i = 0, pTrail = g_WorldMapTrail; i < WORLD_MAP_TRAIL_COUNT; i++, pTrail++) {
                 pTrail->vec = *(WorldMapVec *)&pActor->x;
                 pTrail->angle = pActor->angle;
             }
