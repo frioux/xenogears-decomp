@@ -343,7 +343,6 @@ void func_800863E0(void) {
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
 
-
 void WorldMapFreeTileVertexBuffers(void) {
     HeapFree(g_WorldMapTileVertexSteps);
     HeapFree(g_WorldMapTileVertexBuffer);
@@ -872,6 +871,27 @@ typedef struct {
     /* 0x40 */ u8 pad40[0x14];
 } WorldMapEntry; // Size: 0x54
 
+// Best: 97.59% (1056 bytes = retail's EXACT size, 264/264 insns). Round 470 took this from
+// 90.69 / 1064 to 97.59 / 1056 with THREE spelling changes, all of them the copy-base question the
+// previous note called "not a spelling": gcc hands a 0x54*index+g_WorldMapGroups base the same
+// register for every occurrence when all the copies share ONE pointer local, and a different one
+// per copy when each copy has its OWN local. Splitting the entry-3..0 chain (pParent) off the
+// entry-5 copy (pEntries) put the second base in retail's v0 instead of t0 (91.73 -> 94.23), and
+// giving the entry-12 quad its own pEntry put that one in v0 too (94.23 -> 97.59); the first base
+// then falls out as v1, retail's, with retail's a0/a1/a2 copy temps. Same lever as the base-5
+// reload the old note wanted: the register split follows the SOURCE VARIABLES, not the reload.
+// The entry-12 quad must copy from pPos (`*(WorldMapPos4*)pPos`), NOT `*(WorldMapPos4*)0x1F800000`:
+// the literal re-materialises the address (`la t7,0x1F800000` plus a 3-word/1-word block-move
+// split with a nop, +2 insns = 1064) where pPos's register is reused, giving retail's 4 lw/4 sw.
+// RESIDUAL (8 rows, one scheduling cluster): retail materialises the FIRST RotMatrixYXZ's matrix
+// argument inside the store block (`lui a1,0x1F80` in the load-delay slot of `lw v0,80(s1)`) and
+// places each angle load 2 instructions before its `sh`; we hoist that lui into the prologue and
+// both angle loads to the top of the block. Consequence: retail's angle sums use a1, ours a2.
+// Measured flat this round: the four clears in the park's (retail) store order 164/160/172/168 vs
+// the natural vx/vy/vz source order (97.58, 22 rows), and an empty `do {} while (0)` barrier
+// before the clears (97.32, 20 rows). Permuter: decomp-permuter cannot parse this body (MATRIX
+// struct assignment), per the old note.
+/*
 s32 func_80088720(s32 index) {
     WorldMapPlayer* pSlot;
     WorldMapEntry* pEntries;
@@ -929,5 +949,7 @@ s32 func_80088720(s32 index) {
     g_GameState.mapPosZFraction = pSlot->z;
     g_GameState.mapPosZ = pSlot->z >> 12;
     return 1;
-}
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088720);
+
 
