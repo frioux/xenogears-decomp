@@ -138,7 +138,7 @@ typedef struct {
 typedef struct {
     /* 0x000 */ BattleActorSlot slot[BATTLE_ACTOR_SLOT_COUNT];
     /* 0x2C0 */ u8 unk2C0[0x4];
-    /* 0x2C4 */ u8 queuedActionIds[0x7]; // 0xFF for no entry; func_8008C4A8 passes each to BattleBeginActorAction
+    /* 0x2C4 */ u8 queuedActionIds[0x7]; // 0xFF for no entry; BattleRunQueuedSlotCommands passes each to BattleBeginActorAction
     /* 0x2CB */ u8 unk2CB;
     /* 0x2CC */ u8 commandKey[7]; // matched against the 13 7-byte rows BattleCheckCommandKeyStatusBit walks
     /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for

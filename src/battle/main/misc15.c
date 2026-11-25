@@ -921,7 +921,7 @@ void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
 // player queued (g_BattleCommandQueue->unk2C4) and queues each one as a battle command, then
 // waits for the queue to run dry. Returns 1 while the queued commands are being run, 0 when
 // the menu ended without any.
-s32 func_8008C4A8(u8 arg0) {
+s32 BattleRunQueuedSlotCommands(u8 arg0) {
     s32 result;
     s32 i;
     s32 off;

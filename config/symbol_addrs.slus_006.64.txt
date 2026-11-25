@@ -1242,6 +1242,7 @@ SoundScriptAddElementPan = 0x8003DEB4;
 SoundScriptSetEnvelope2Rate = 0x8003DF3C;
 SoundScriptClearUnkCEAndUnk136 = 0x8003E160;
 SoundScriptSelectEnvelope = 0x8003E180;
+SoundScriptSetCurrentEnvelopeDelta = 0x8003E1F8;
 SoundCalculateEnvelopeDelta = 0x8003E290;
 SoundScriptSetCurrentEnvelopeRate = 0x8003E308;
 SoundResetEnvelope = 0x8003E3E0;

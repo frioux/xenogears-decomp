@@ -4574,7 +4574,7 @@ u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, Au
 // of the `if`, so the body is 62 insns / 248 bytes (88.77) - i.e. only mode's home (theirs s3,
 // that shape's s0) is still wrong, and the hoist is what costs the byte. Give the index an
 // initialiser that stays inside the block and it collapses back to s1=mode/index.
-// func_8003E1F8, the same script family, DID reach 100% this round with a u8 copy of pScript[0] +
+// SoundScriptSetCurrentEnvelopeDelta, the same script family, DID reach 100% this round with a u8 copy of pScript[0] +
 // a separate quotient statement + s16 volume; that trick does not transfer - retail keeps a single
 // pScript[0] load here (`addu a1,s2,a1`), so there is no second load to force.
 // SAME RETAIL BODY: func_8003DD24 is instruction-for-instruction identical apart from envelopes[0]/target 1/mask 0x2, so this body should be ported there (its park is 84.75).
@@ -4651,7 +4651,7 @@ u8* SoundScriptSelectEnvelope(u8* pScript, AudioManager* pAudioManager, AudioEle
 
 // `level` is a u8 copy of the script byte so gcc reloads pScript[0] for the sum (retail's second
 // lbu); the divide is its own statement so the mflo lands before that reload.
-u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptSetCurrentEnvelopeDelta(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 level = pScript[0];
     s32 pitch = level * level;
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[pAudioElements->envelopeIndex];
