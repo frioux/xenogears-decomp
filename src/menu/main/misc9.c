@@ -1788,6 +1788,41 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 //   D. The two g_Menu reloads in the arg3==0 arms are emitted 2 insns later than retail's (the load is scheduled after the page/limit stores instead of before).
 //   E. Insns are 22 short overall (684 vs 706): B is 15, C/D account for the rest.
 // Not tried: the permuter - 93.22 is below the 99% bar and the residuals are structure, not register ties. Also not tried: a probe for the do-while in the OTHER loop shape (this one is closed), and gcc 2.7.2-cdk / 2.6.0-O3 on the whole unit (preset is XenoMenu260 as expected).
+// Best: 95.01%, 2768 bytes (retail 2824), 692 vs 706 insns. This round 93.22 -> 95.01 in four
+// measured steps, each kept (a step that measured worse was reverted):
+//   1. 93.22 -> 94.02 (689 insns): the id test in the page 1-4 arms of BOTH switches is
+//      `>= 0x32`, not `< 0x32`. Retail's chain there ends `sltiu v0,v0,0x32 / bnez v0,.L801DEC60`
+//      (skip when id < 0x32) where page 0's chain ends `beqz`; with the term spelled `>= 0x32`
+//      the two chains are no longer identical, jump.c stops cross-jumping case 0 into case 1-4,
+//      and retail's duplicated id check (+5 insns) comes back.
+//   2. 94.02 -> 94.18: `u8 tens` and not `u32`; retail has `srl v1,v0,0x3 / andi v0,v1,0xff /
+//      bnez v0 / addiu v0,v1,0x10` - it tests the truncated byte but adds to the raw quotient.
+//   3. 94.18 -> 94.64: the `% 10` term reads D_801EA7F8[j] a SECOND time. Retail reloads
+//      `lbu a3,0(at)` after the digitCodes[0] store (the store blocks cse of the load); a
+//      `quantity` local keeps the byte in a register and hides that reload entirely.
+//   4. 94.64 -> 94.93 -> 95.01: `pPanelIds = (u8*)g_Menu->pEquipmentPanel;` cached once per
+//      arm (a permuter find, checked against the asm first: retail keeps pEquipmentPanel in
+//      a0 in the arg4==0 arm and in a2 in the arg4!=0 arm across the slot scan - `addu v0,a0,s1`
+//      and `addu v0,a2,s1` - and reads g_Menu itself only once per arm).
+// REMAINING, 14 insns plus the frame, all of them allocator or scheduler:
+//   A. THE FRAME, still not reachable: ours is 0xC8 / vars 160 where retail is 0xD0 / vars 168.
+//      Retail's spill slots run 0x30..0x98 (14) plus a 15th 8-byte slot at 0xA0 that NO
+//      instruction touches, so retail has one more value that failed to be promoted, and all
+//      22 save/lw offsets sit 8 low. A dead `u_long pad[2]` DOES take a slot and does raise the
+//      frame to 0xD0 with every save at retail's offset, but gcc hands the fresh slot the lowest
+//      free one (0x30) and pushes arg0..groupMask up by 8 instead - 93.17, reverted.
+//   B. page: ours promotes the loop-invariant `lbu page,0x50(sp)` into a register before the
+//      render loop (one insn retail does not have, `lbu s7,0x50(sp)`), retail reloads it twice
+//      (`lbu v1,0x50(sp)` before each of its two equips). Not expressible from source.
+//   C. register rotation from that: retail s7=FONT_LETTER_HEIGHT, s8/fp=pAccessory/gearAccessory,
+//      s2=record offset, s4=j, s5=0x400 block; ours s8=FONT_LETTER_HEIGHT, s7=page, s3=record
+//      offset. Every remaining diff line is one of these renames.
+//   D. the two arg3==0 arms: retail loads g_Menu before the page/limit stores and uses v1 twice
+//      (`lw v0,0x360(v1)` / `lw v1,0x330(v1)`); ours loads it after them. Scheduling.
+// Permuter: two runs (4 and 3 min) on this body. The pPanelIds step above is its only find; its
+// other candidate wrapped a case body in `do { } while (0)` and scored IDENTICAL, so it was
+// rejected as unrealistic C. Preset is XenoMenu260 (gcc 2.6.0) and is right.
+/*
 s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     RECT rect;
     u8 digitCodes[8];
@@ -1805,6 +1840,7 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     MenuDressingRoom* pDressingRoom;
     GearAccessory* pGearAccessory;
     u8* pWorkspace;
+    u8* pPanelIds;
     u8* pIds;
     u8* pQuantities;
     u8* pName;
@@ -1833,11 +1869,12 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
             page = 5;
             limit = MAX_INVENTORY_ACCESSORIES;
             pDressingRoom = g_Menu->pDressingRoom;
-            pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel + arg2)[MENU_PANEL_ACCESSORY_IDS - 1]];
+            pPanelIds = (u8*)g_Menu->pEquipmentPanel;
+            pAccessory = &pDressingRoom->pAccessoriesData[(pPanelIds + arg2)[MENU_PANEL_ACCESSORY_IDS - 1]];
             slotGroup = pAccessory->equipGroup;
             groupMask = 0;
             for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
-                pAccessory = &pDressingRoom->pAccessoriesData[((u8*)g_Menu->pEquipmentPanel + j)[MENU_PANEL_ACCESSORY_IDS]];
+                pAccessory = &pDressingRoom->pAccessoriesData[(pPanelIds + j)[MENU_PANEL_ACCESSORY_IDS]];
                 groupMask |= pAccessory->equipGroup;
             }
         } else {
@@ -1849,11 +1886,12 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
             page = 5;
             limit = MAX_INVENTORY_ITEMS;
             pDressingRoom = g_Menu->pDressingRoom;
-            pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel + arg2)[MENU_PANEL_ACCESSORY_IDS - 1]];
+            pPanelIds = (u8*)g_Menu->pEquipmentPanel;
+            pGearAccessory = &pDressingRoom->pGearAccessories[(pPanelIds + arg2)[MENU_PANEL_ACCESSORY_IDS - 1]];
             slotGroup = pGearAccessory->equipGroup;
             groupMask = 0;
             for (j = 0; j < MENU_ACCESSORY_SLOT_COUNT; j++) {
-                pGearAccessory = &pDressingRoom->pGearAccessories[((u8*)g_Menu->pEquipmentPanel + j)[MENU_PANEL_ACCESSORY_IDS]];
+                pGearAccessory = &pDressingRoom->pGearAccessories[(pPanelIds + j)[MENU_PANEL_ACCESSORY_IDS]];
                 groupMask |= pGearAccessory->equipGroup;
             }
         } else {
@@ -2008,7 +2046,8 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
         count = 0;
     }
     return count;
-}
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 
 
 
