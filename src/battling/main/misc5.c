@@ -759,7 +759,30 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
    pair in ascending order, unk68 stored with vy instead of after unk6A, the
    u/v block before the unk64/68 stores, and slot->unk0 in place of a pMotion
    pointer (all 82-85%); the first two halves of the function and the trailing
-   search loop are byte-identical. */
+   search loop are byte-identical.
+   RE-MEASURED round 475: 85.67 does not reproduce; the plain body is 82.95% /
+   144 insns / 576 bytes. THE FIND: the type-2 (two-vertex beam) slot's two
+   dupe-check fields are the wrong WIDTH in BattleSlot and that is the whole
+   instruction deficit. Retail reads the field at 0x6C with lh and stores it with
+   sh (a 16-bit g_BattleDrawFlags copy) and the field at 0x70 with lw and stores it
+   with sw (the BattleEffectPackKey); BattleSlot has them the other way round
+   (u32 unk6C, u16 unk70), because 0x6C and 0x70 are where the TYPE 1 slot keeps
+   its unk6C and unk70. Writing the accesses 16-bit/32-bit (the casts below, a
+   probe form) gives 84.53% / 143 insns / 572 bytes. The real fix is a union over
+   0x6C..0x73 holding a beam view (0x6C u16 drawFlags, 0x6E pad, 0x70 u32 key)
+   beside the line view the struct has now (0x6C u32 unk6C, 0x70 u16 unk70,
+   0x72 s16 drawFlags); func_8007C880's asm really does touch 0x72/0x78, so the
+   two views cannot both be plain fields. Do the union first, then re-measure.
+   RESIDUAL after the widths: the block between the pPos stores and the
+   packets[1] struct copy. Retail fills the load-delay slots of the
+   g_BattleEffectClutX, g_BattleEffectClutY, D_80092694 and
+   g_BattleEffectSpawnTick loads with the next load or with the u/v store pairs
+   and spreads the move a2,t0, addiu t1,t0,40 and addiu t2,t0,32 address setups
+   through the block; ours emits a nop after each of those loads and pairs each
+   load with its store, ending 2 instructions / 8 bytes longer. Both scan loops
+   and the trailing search loop are byte-identical apart from the first loop's
+   anchor: retail names D_80092B44 (= g_BattleEffectSlots + 0x6C), we name
+   g_BattleEffectSlots, same linked bytes. */
 /*
 void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     BattleSlot *pSlot = g_BattleEffectSlots;
@@ -772,8 +795,8 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0) {
-            if (pEntry->unk70 == arg3) {
-                if (pEntry->unk6C == g_BattleDrawFlags) {
+            if (*(u32 *)&pEntry->unk70 == arg3) {
+                if (*(u16 *)&pEntry->unk6C == g_BattleDrawFlags) {
                     return;
                 }
             }
@@ -797,7 +820,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->x = pPos->vx;
     pSlot->y = pPos->vy;
     pSlot->z = pPos->vz;
-    pSlot->unk6C = g_BattleDrawFlags;
+    *(u16 *)&pSlot->unk6C = g_BattleDrawFlags;
     pSlot->unk64 = pVec->vx;
     pSlot->vy = pVec->vy;
 
@@ -814,7 +837,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pMotion->v1 = v;
     pMotion->v0 = v;
 
-    pSlot->unk70 = arg3;
+    *(u32 *)&pSlot->unk70 = arg3;
     pSlot->unk60 = 0;
     pSlot->unk6A = g_BattleEffectSpawnTick;
     pSlot->unk68 = pVec->vz;
@@ -826,7 +849,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     id = g_BattleEffectSpawnTick - 1;
     pEntry = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pEntry++) {
-        if (pEntry->active != 0 && pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->type == 2 && pEntry->unk6A == id) {
+        if (pEntry->active != 0 && *(u32 *)&pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->type == 2 && pEntry->unk6A == id) {
             pSlot->unk60 = (u32)pEntry;
         }
     }
