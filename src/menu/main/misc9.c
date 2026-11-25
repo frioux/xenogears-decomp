@@ -1505,6 +1505,25 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 //   the next one to 0x30, so un-parking func_801DBE54 and this one TOGETHER lands them at
 //   +0x00/+0x30 and the asm .align 3 puts func_801E05D0's table at +0x60 - do the pair
 //   once the register tie is solved, never this one alone, and prove with check_bin.
+// ROUND 473: BEST 94.81% / 888 bytes / 222 insns = retail's EXACT size and insn count, 172 differing
+// lines (the previous park was 94.46 / 884 / 221 / 179). The gain is one register's worth of shape:
+// 's32 mode = 4;' assigned next to 'kind = arg2;' and passed as the FOURTH MenuCreateWindow's a7
+// argument. That gives our body retail's s8 = the 4 (retail: 'li s8,0x4' / 'sw s8,28(sp)' x4) instead
+// of s8 = the const-1, which is where the 0.35 came from. The round-433 note dismissed this variant as
+// '4 bytes over retail'; that was measured against a wrong retail size - retail IS 888/222 (round 459),
+// so the variant is retail's exact size and is the body below.
+// RESIDUAL (unchanged, one tie): retail keeps needsOpen in s5 and REMATERIALISES the a6 const 1
+// ('li t0,1' before each of the four window calls, i.e. that global allocno lost and gcc used
+// REG_EQUIV); ours hoists the 1 into s7 ('li s7,0x1' in the prologue), so needsOpen spills to 0x38 and
+// the frame is 112 against retail's 104 - FOUR local slots against three. Both bodies hold 8 loop
+// values in s1-s8 with s0 as the kind/slot-mask temp; the ONLY difference in the value set is the
+// const-1, which is in ours and not in retail's.
+// MEASURED DEAD THIS ROUND: a BLOCK-scope 'u_char border = 1;' as the first statement of the
+// if (needsOpen) block, passed as a6 - BYTE-IDENTICAL to the literal (94.81 / 888 / 222, same 172
+// lines), so gcc CSEs the block-scope initialiser with the four literals and loop.c hoists it anyway;
+// this closes the last idea for keeping the const out of the register set from the variable side
+// (the function-scope form was already known identical). See the earlier notes above for the
+// allocator dump, the type and preset sweeps, and the two permuter runs (both winners wrong code).
 /*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
@@ -1514,6 +1533,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 slot;
     u8 prevSlot;
     u8 kind;
+    s32 mode;
 
     active = 1;
     needsOpen = 1;
@@ -1522,6 +1542,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     slot = arg0;
     prevSlot = 0xFF;
     kind = arg2;
+    mode = 4;
     MenuCreateUnk430Panel(kind);
     MenuInitializeArrowCursor(0);
     do {
@@ -1537,10 +1558,10 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
             prevCol = col;
         }
         if (needsOpen) {
-            MenuCreateWindow(6, 0x10, 0xA, D_801E9788[kind][0], 0x70, 0, 1, 4, 0);
-            MenuCreateWindow(5, 0xC, 0x86, 0xAC, 0x38, 0, 1, 4, 0);
-            MenuCreateWindow(4, D_801E9794[kind][0], 0xA6, D_801E97A0[kind][0], 0x18, 0, 1, 4, 0);
-            MenuCreateWindow(3, 0xC8, 0x86, 0x50, 0x18, 0, 1, 4, 0);
+            MenuCreateWindow(6, 0x10, 0xA, D_801E9788[kind][0], 0x70, 0, 1, mode, 0);
+            MenuCreateWindow(5, 0xC, 0x86, 0xAC, 0x38, 0, 1, mode, 0);
+            MenuCreateWindow(4, D_801E9794[kind][0], 0xA6, D_801E97A0[kind][0], 0x18, 0, 1, mode, 0);
+            MenuCreateWindow(3, 0xC8, 0x86, 0x50, 0x18, 0, 1, mode, 0);
             needsOpen = 0;
             if (arg1) {
                 MenuStartOpenAnimation();
@@ -1599,6 +1620,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     MenuFreeArrowCursor(0);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
+
 
 
 
