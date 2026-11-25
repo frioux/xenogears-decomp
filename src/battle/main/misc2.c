@@ -714,10 +714,43 @@ void BattleBuildSlotGaugePrims(void) {
 // 92.72% at 2780 bytes / 695 insns against retail 696. Structurally COMPLETE: filtering the 201 differing diff lines for changed OPCODES leaves four (a delay-slot sll vs li+nop, one sll a1,t1,2 vs nop, and a hoisted li a1,0x14 that retail reloads), everything else is register naming. Residual: cc1 2.6.0 does not form retail biv for g_BattleSlotActorIds[slot * 0x1C] (this body emits sll/subu/sll from t1 every pass where retail walks t6 += 0x1C) and rotates the caller-saved set (the width array base is t0 in the panelMode==0 arm and a freshly computed a2 in the else arm, so the source took &width[slot] twice; the texture byte is in a0 and the width word in v0, this body has them swapped).
 // LOAD-BEARING SPELLINGS: every prim store is a volatile lvalue and the index is read through g_BattlePrimStartIndexVolatile (same lever as BattleBuildSlotGaugePrims; without them the body collapses); the two quads are POLY_GT4s at gfx+0x5A0 indexed slot*2+primIndex, the panel quad at 6+primIndex; x0/x2 must be spelled origin + slot*0x60 + 0x2D, NOT slot-first (addu operand order, 90.61 with slot-first); the width term of x1/x3 wants (u16)width[slot] + 1, which keeps retail lhu+addiu.
 // Tried: slot-first x spelling 90.61, (u16) width term 92.72. Next lever: permuter - structure is right, only allocation and four opcodes differ.
+// 94.12% at 2780 bytes / 695 insns against retail 696 - ONE instruction SHORT, so it cannot link.
+// WHAT IT TOOK THIS ROUND (92.72 -> 94.12, 201 -> 159 differing lines):
+// (1) the actor-id byte offset needs its OWN for-clause IV: `for (slot = 0, actorOff = 0; slot < 3;
+//     slot++, actorOff += 0x1C, ...)` with `g_BattleSlotActorIds[actorOff]`. cc1 2.6.0 will not
+//     strength-reduce `slot * 0x1C` (it derives 28i as 4*(8i-i) from t1 inline - 3 insns) but it DOES
+//     reduce an explicit IV, giving retail's `addiu t6,t6,0x1C` at the loop bottom. 92.72 -> 93.40.
+//     Same shape and same reason as battle/main/misc1's parked func_80073538.
+// (2) arm B's tail needs a `BattleWork *pState = g_BattleDisplayState;` local assigned BEFORE the
+//     clut store and read after it (`if (pState->primListsPending != 0) pState->unk82 = 1;`). That is
+//     what keeps the pointer in $a1 across the volatile clut store, as retail does; with two separate
+//     `g_BattleDisplayState->` reads the load is emitted after the store with a nop in front of it.
+//     93.40 -> 94.12, 181 -> 159 lines, and it also restored retail's prologue exactly (ra,s2,s1,s0
+//     saved at 0x2C/0x28/0x24/0x20 and the $s2 slot for the constant 0xC).
+// LOAD-BEARING SPELLINGS (all measured): every prim store is a volatile lvalue and the prim index is
+// read through g_BattlePrimStartIndexVolatile (same lever as BattleBuildSlotGaugePrims; without them
+// the body collapses); the two quads are POLY_GT4s at gfx+0x5A0 indexed slot*2+primIndex, the panel
+// quad at 6+primIndex; x0/x2 must be spelled origin + slot*0x60 + 0x2D, NOT slot-first (addu operand
+// order, 90.61 with slot-first); the width term of x1/x3 wants (u16)width[slot] + 1, which keeps
+// retail's lhu+addiu.
+// THE REMAINING ONE INSTRUCTION is the preheader: retail emits `lui v0,%hi(g_BattleSlotCountdownTimers)`
+// / `addiu v0,v0,%lo` / `move t4,v0` (3 insns, the address pseudo copied into pTimer) where this body
+// emits `lui t4` / `addiu t4` (2). Tried dead this round: `pLimit = g_BattleSlotCountdownTimers - 0xB;`
+// in place of `pTimer - 0xB` (byte-identical). Also still off: retail does NOT hoist the 0x14 of the
+// panel quad (it re-materialises `li a1,0x14` once per iteration in arm B) while this body keeps it in
+// $t9, so retail's constant set is $s0=0x1A,$s1=0x1E,$s2=0xC,$t9=0xCE,$t8=the 0x68DB8BAD magic and
+// this body's is $s0,$s1,$s2,$t8=0xCE,$t9=0x14,$t5=magic; and retail schedules the width/poly-index
+// loads BELOW the mult/mfhi chain where this body fills that hole with them, and re-forms
+// `&width[slot]` twice (t0 in the panelMode==0 arm, a freshly shifted a2 in the else arm).
+// Next lever: permuter from this body - the structure is right (695 vs 696, same calls and branches),
+// what is left is the constant set and that one preheader copy.
+/*
 /*
 void func_80075938(void) {
     s32 slot;
+    s32 actorOff;
     s32 width[4];
+    BattleWork *pState;
     u16 clut;
     s16 *pTimer;
     s16 *pLimit;
@@ -726,8 +759,8 @@ void func_80075938(void) {
     g_BattleDisplayState->unk82 = 0;
     pTimer = g_BattleSlotCountdownTimers;
     pLimit = pTimer - 0xB;
-    for (slot = 0; slot < 3; slot++, pTimer++, pLimit++) {
-        if (g_BattleSlotActorIds[slot * 0x1C] != BATTLE_SLOT_CHARACTER_NONE) {
+    for (slot = 0, actorOff = 0; slot < 3; slot++, actorOff += 0x1C, pTimer++, pLimit++) {
+        if (g_BattleSlotActorIds[actorOff] != BATTLE_SLOT_CHARACTER_NONE) {
             if (width[slot] < 0) {
                 width[slot] = 0;
             }
@@ -832,11 +865,12 @@ void func_80075938(void) {
                 *(volatile u8 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
                      [6 + g_BattlePrimStartIndexVolatile].v3 =
                     ((u8 *)g_BattleGraphicsWork)[0xA248] + 4;
+                pState = g_BattleDisplayState;
                 *(volatile u16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
                      [6 + g_BattlePrimStartIndexVolatile].clut =
                     ((u16 *)(g_BattleGraphicsWork + 0xA2AC))[1];
-                if (g_BattleDisplayState->primListsPending != 0) {
-                    g_BattleDisplayState->unk82 = 1;
+                if (pState->primListsPending != 0) {
+                    pState->unk82 = 1;
                 }
             }
         } else {
