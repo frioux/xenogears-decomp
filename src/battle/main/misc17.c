@@ -1116,29 +1116,40 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
-/* 92.05% (1552 bytes against retail's 1588, 388 insns against 397). Everything
-   structural is right and measured: the char-4/unkB7 guard, places[] = {100, 10},
-   the character-vs-gear weapon-id pick (characters[].extraWeaponIds[0]/[3] with the
-   0x2286 quantities, gears[characters[].gearId] with the 0x22B6 ones), the two
-   text-buffer passes, both BattleLoadImageAndSync uploads per row, the / and % 10
-   digit passes with the `drawn` latch, the free loop, and the tail written with the
-   house pool idiom (`g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28`,
-   spelled inline at every use so retail's per-use reload comes out - writing it
-   through pPrims/primStart locals cost 22 instructions and 79.19%).
-   Residual: retail's frame is 0xB0 and spills THREE more 8-byte slots than this
-   body (textY at 0x70 as a 32-bit sw read back with lhu inside the digit loop, and
-   two 4-byte count-offset slots at 0x78/0x80 where this body keeps countOfs in a
-   register), so every one of the 9 missing instructions is spill/reload traffic and
-   the size is 36 bytes short. All 9 callee-saved registers are live in retail
-   (s7 = textY, fp = rowY, s0 = digit across the call); this body has one spare.
-   Tried and measured, all unchanged or worse: a `s32 ofs = countOfs` copy for the
-   digit loop (copy-propagated away, 92.05% identical), declaring a spare 8-byte
-   local between stripRect and bufs (it does get a slot and shifts bufs/places/
-   weaponIds/counts onto retail's exact offsets, but the frame then overflows by 8
-   and the score drops to 87.54%), and a permuter run (RESULT PERMUTER_BETTER,
-   4267 -> 2659) that only produced the declaration swap below, worth 87.56 -> 92.05.
-   The 87.56% variant that keeps the exact 1588-byte size is a git commit
-   (d92ed557) if the next worker wants to attack the frame from the other side. */
+/* 92.05% (1552 bytes against retail's 1588, 388 insns against 397; frame 0x98 against
+   retail's 0xB0). Everything structural is right and measured: the char-4/unkB7 guard,
+   places[] = {100, 10}, the character-vs-gear weapon-id pick (characters[].extraWeaponIds[0]/[3]
+   with the 0x2286 quantities, gears[characters[].gearId] with the 0x22B6 ones), the two
+   text-buffer passes, both BattleLoadImageAndSync uploads per row, the slash and percent
+   10 digit passes with the drawn latch, the free loop, and the tail written with the house
+   pool idiom (g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28,
+   spelled inline at every use so retail's per-use reload comes out - writing it through
+   pPrims/primStart locals cost 22 instructions and 79.19%).
+   ROUND 476 RESIDUAL, named: retail spills THREE scalars that this body keeps in
+   registers or strength-reduces - textY at 0x70 (a 32-bit sw read back with lhu inside the
+   digit loop), and countOfs TWICE, at 0x78 (a copy stored once per outer iteration and
+   reloaded inside the digit loop) and 0x80 (its home slot, incremented by 2 at the loop
+   tail). Because countOfs is not spilled here, cc1 strength-reduces counts + countOfs into
+   a walking pointer (addiu s8,s8,2) and retail's per-use addu s2,countOfs,base never forms;
+   that is the whole 9-instruction / 36-byte / 0x18-frame delta, and it is a gcc 2.6.0
+   spill-choice wall rather than a source-shape one: every declaration/phantom permutation
+   below moves the same delta around instead of removing it.
+   MEASURED IN ROUND 476 (all gcc-2.6.0 -O2, the unit preset):
+   - the preset is right: this body 92.05 is the best; gcc-2.7.2 89.42, gcc-2.7.2-cdk
+   73.36, -O3 identical to -O2.
+   - RECTs declared in retail's own slot order (nameRect first, then tensRect) and no
+   phantom local: 87.56 at retail's EXACT 1588 bytes, 397 insns, frame 0xB0, with the
+   prologue and every branch offset byte-identical. Its three spill slots are the
+   ADDRESSES of nameRect/tensRect/counts (addiu t1,sp,N then sw, and lw s8,0x78 reloaded)
+   where retail spills textY/countOfs, and bufs/places/weaponIds/counts sit 8 low
+   (0x48/0x50/0x58/0x60). That is the shape to attack if anyone tries again.
+   - that order PLUS a dead 0x48 slot (u_long pad[2] declared after stripRect): 87.54,
+   1588 bytes, 397 insns, frame 0xB8 - the phantom puts the four arrays on retail's exact
+   0x50/0x58/0x60/0x68 but is one slot too many because it still carries rowY's spill.
+   - a dead 0x48 slot in THIS body's declaration order: 92.09, frame 0xA0 (the 0.04 is noise).
+   Dead before this round: a s32 ofs = countOfs copy for the digit loop (copy-propagated
+   away) and a permuter run whose only find was the tensRect-before-nameRect swap, worth
+   87.56 to 92.05. */
 /*
 void func_80093B08(u8 arg0) {
     RECT tensRect;
@@ -1249,8 +1260,8 @@ void func_80093B08(u8 arg0) {
         g_BattleDisplayState->unkB7 = 5;
         ((u8 *)g_BattleDisplayState)[0x8E] = 1;
     }
-}
-*/
+}*/
+
 void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     if (g_BattleActorCharIds[arg0] == 4) {
         g_BattleDisplayState->unkB7 = 0;
