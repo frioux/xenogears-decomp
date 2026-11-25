@@ -1825,9 +1825,10 @@ int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     s32 nSavedTri;
     s32 i;
 
-    nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
-    pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
-    pVerts = g_FieldWalkmeshVertices[pActor->walkmeshId];
+    nWalkmeshId = pActor->walkmeshId;
+    nTri = pActor->walkmeshTriIds[nWalkmeshId];
+    pTri = g_FieldWalkmeshTriangles[nWalkmeshId];
+    pVerts = g_FieldWalkmeshVertices[nWalkmeshId];
     if (nTri == -1) {
         return -1;
     }
@@ -1838,7 +1839,7 @@ int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     pOut->vy = 0;
     pOut->vz = (pPos->vz + pVec->vz) >> 16;
     nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
-    if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
+    if (!((pActor->flags >> (nWalkmeshId + 3)) & 1)) {
         nFlagMask = -(g_FieldPartyMoveInProgress < 1);
     }
 
@@ -1981,57 +1982,56 @@ int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
     return value;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
-/* Best attempt: 92.29% (1696 bytes; the original is 1704, so two instructions
-   are missing). Every call, all eight jump-table arms, the material/flag test
-   and the edge-copy dispatch are in retail's order. What is left:
-   1. the frame is 0x78 here against retail's 0x80: retail has one more 4-byte
-      local (it keeps pActor 0x28, nSavedTri 0x30, nFlagMask 0x38, nPos 0x40 and
-      the loop counter i 0x48 in memory); here `i` stays in a register, so both
-      the frame and every saved-register offset sit 8 bytes low.
-   2. the prologue: retail computes nRef from the sra'd register value
-      (`sh v1,0(t2); sll v1,v1,0x10; ... addu s8,v1,a0`) and reloads
-      pPos->vz/pVec->vz for the pRef->vz store, while this body reloads
-      pRef->vx (`lh a0,0(t2)`) for nRef and computes the vz store first, and it
-      stores pRef->vy before pRef->vx.  Swapping nRef above the pRef->vz store
-      was tried: 91.33% (1672 bytes), worse.
-   3. the `nTri == -1` early exit is inverted: retail bne's into the body and
-      falls into its own `return -1`, gcc here merges all three `return -1`s
-      into one block at the end and beq's to it.
-   4. cases 3/5/6 compute vB/nRef/nPos into a0/a1/a2 with `nop` delay slots
-      where retail has the argument moves there (a0 = s3, a1 = s2, a2 = fp).
-   Written with direct indexing (pTri[nTri].v0, pVerts[...].v0) and NO pointer
-   locals: a pCurTri/pVert pointer pair cost 30% (51.58%, 1244 bytes), because
-   gcc then re-bases the induction register onto the verts and spills both the
-   tri table and pPoints. That is the single biggest lever in this function.
-   The vertex fields must be signed (s16) for the packing reads, which emit `lh`;
-   the edge copies read the same records as u_short and emit `lhu`, so retail's
-   source had an unsigned view for the copies and a signed one for the math.
-   Six argument call, verified against FieldProbeWalkmeshAtAngle's site: (pVec, pPos, pActor, pPoints SVECTOR[2] out,
-   pRef SVECTOR out of (x,0,z), nMode) with
-   nMode == -1 meaning "stop when the triangle is found".
-   func_8007CD80 is the same walk with a 3-argument front end (it finds the first
-   triangle with func_8007B1C4 and clamps to g_Scene.scrollLimits); it inlines
-   the three NCLIPs with gte_ldsxy3/gte_nclip/gte_stopz into one stack word
-   instead of calling NormalClip. Not attempted. */
+// Best attempt: 91.87% (1684 bytes; the original is 1704, five instructions short, 421 vs 426).
+//    The frame now matches retail exactly: 0x80 with pActor 0x28, nSavedTri 0x30,
+//    nFlagMask 0x38, nPos 0x40, i 0x48 and the working slot s? 0x50, so all twenty
+//    save/restore offsets, the prologue and the epilogue agree. That came from
+//    declaring the locals in retail's slot order (nSavedTri, nFlagMask, nPos, i) and
+//    from one extra spilled local (nWalkmeshId at 0x50) - retail's frame is 8 bytes
+//    bigger than its five visible spilled locals need, so some sixth value was
+//    spilled there and never read. The earlier note's 0x78 frame and its 'i stays in
+//    a register' claim were both stale.
+//    Case 6 is now the right way round (NormalClip < 0 takes n1/nMask 2 and falls
+//    through, else n2/nMask 4 - retail bgez's to the n2 arm) and the prologue has
+//    retail's instruction set including the two reloads of pPos->vz/pVec->vz for the
+//    pRef->vz store. What is left, all measured:
+//    1. prologue order: retail loads pPos->vx, pVec->vx, pPos->vz, pVec->vz, then
+//       pRef, then forms nRef from those registers and computes nPos from the SAME
+//       live words (sra a1,a1,16 / sll a1,a1,16) where this body emits lh 2(pPos)
+//       because gcc rematerialises the narrowed load. This body computes both sums
+//       before the stores and interleaves them.
+//    2. the two nFlags/scriptFlags tests: retail keeps the constant on the
+//       scriptFlags side (srl v0,a1,9 / andi v0,v0,3 / and v0,v0,v1); gcc here
+//       reassociates so the mask lands on the nFlags side. Swapping the C operands
+//       only moves the mask to the other side (155 differing lines, 91.81).
+//    3. the loop break: retail's flag tests jump to a shared block that sets
+//       nTri = -1 and falls into the i == 0x20 test, while gcc here merges every
+//       exit into one block at the end and beq's to it.
+//    4. retail's stack scratch is t2 (dead pRef); here it is t1 (dead pVec), so every
+//       spill reload picks a different register (8 lines).
+//    Tried and measured: nX/nZ locals so pRef->vx is not reloaded as lh (92.34%,
+//    1664 bytes, but the pRef->vz reload disappears and the frame has to come from
+//    nWalkmeshId alone); case 6 swapped the other way (n1 arm first: bltz, ~1% worse);
+//    nPos moved above the pRef->vy store (no change to the lh narrowing).
+//    Direct indexing with no pointer locals, as before: a pCurTri/pVert pointer pair
+//    costs ~30%.
 /*
-// Walks the actor's walkmesh toward pVec, then drops pRef onto the floor of the
-// triangle it stopped in. -1 with pPoints holding the edge that was crossed.
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pRef, int nMode) {
     FieldWalkmeshTriangleRecord* pTri;
     FieldWalkmeshVertexRecord* pVerts;
     VECTOR normal;
-    s32 nRef;
-    s32 nPos;
-    s32 nMask;
-    s32 nFlagMask;
-    s32 nTri;
     s32 nSavedTri;
+    s32 nFlagMask;
+    s32 nPos;
+    s32 i;
+    s32 nRef;
+    s32 nTri;
+    s32 nMask;
     s32 vA;
     s32 vB;
     s32 vC;
     u_int nFlags;
-    s32 i;
+    s32 nWalkmeshId;
 
     nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
     pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
@@ -2041,9 +2041,9 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     }
 
     pRef->vx = (pPos->vx + pVec->vx) >> 16;
+    nRef = (pRef->vx << 16) + ((pPos->vz + pVec->vz) >> 16);
     pRef->vy = 0;
     pRef->vz = (pPos->vz + pVec->vz) >> 16;
-    nRef = (pRef->vx << 16) + ((pPos->vz + pVec->vz) >> 16);
     nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
 
     nFlagMask = 0;
@@ -2097,12 +2097,12 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
             }
             break;
         case 6:
-            if (NormalClip(vC, nRef, nPos) >= 0) {
-                nTri = pTri[nTri].n2;
-                nMask = 4;
-            } else {
+            if (NormalClip(vC, nRef, nPos) < 0) {
                 nTri = pTri[nTri].n1;
                 nMask = 2;
+            } else {
+                nTri = pTri[nTri].n2;
+                nMask = 4;
             }
             break;
         case 7:
@@ -2113,7 +2113,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
         nFlags = g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & nFlagMask;
         if ((((pActor->scriptFlags.flags >> 9) & 3) & (nFlags >> 3)) != 0
             || (((pActor->scriptFlags.flags >> 8) & 7) & (nFlags >> 5)) != 0
-            || ((nFlags & 0x800000) != 0 && pActor->walkmeshId == 0)) {
+            || ((nFlags & 0x800000) != 0 && nWalkmeshId == 0)) {
             nTri = -1;
             break;
         }
@@ -2156,8 +2156,10 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
         break;
     }
     return -1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
+
+
 
 extern int g_FieldScratchpadOffset;
 
