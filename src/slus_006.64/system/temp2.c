@@ -60,117 +60,57 @@ extern void func_8001FBE4(SpriteData* pSpriteData, s32 code, u8* pArgs);
 extern void* AnimScriptResolveVariablePointer(SpriteData* pSpriteData, u8* pIndex);
 extern void AnimScriptStackPushU24(SpriteData* pSpriteData, s32 value);
 extern s32 AnimScriptStackPopU24(SpriteData* pSpriteData);
-extern u_char AnimScriptStackPopU8(SpriteData* pSpriteData);
+extern s32 AnimScriptStackPopU8(SpriteData* pSpriteData);
 extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 
-// Ported from the func_800C11CC park in src/battle/main/misc35.c (the battle twin of
-// this interpreter, same arm order) with the field SpriteData spelling of
+// Sprite-script interpreter: a goto dispatch loop over the opcode byte, one arm per
+// opcode. Ported from the func_800C11CC park in src/battle/main/misc35.c (the battle
+// twin of this interpreter, same arm order) with the field SpriteData spelling of
 // src/slus_006.64/system/temp1.c / animation_scripts.c.
-// Measured levers of the older 71.83% body, still true:
-//   - the dispatch MUST be a goto loop (label + `goto dispatch`), not while/for:
-//     a switch inside a loop construct gives loop.c the outer LOOP notes and it hoists
-//     both `li 1` and the &g_AnimScriptCommandLengths lui/addiu into the function
-//     preheader as s5/s6 -> 61.25% and a 0x30 frame. goto: 67.82%, frame 0x28 = retail's.
-//   - 0x82's `step.y` needs its OWN local (stepY): as part of `count` it is the one
-//     live range that spans calls, so `count` got a callee-saved register and every
-//     other register shifted one up (67.82 -> 69.15). With it, pSpriteData=s1, code=s2
-//     (u8), frames=s3, pArgs=s0 exactly as retail.
-//   - the script-index tail wants the masked flags in a local FIRST (mask = flags &
-//     0xF03FFFFF, then mask |= count << 22) and the count == 0 arm re-derives from that
-//     local, not from the stored field: 71.78. The signed `(count >> 6) & 8` and
-//     `(flags >> 3 & 1) ^ (flags >> 2 & 1)` coped 71.83.
-// WHAT IS LEFT (16 bytes over, 2 instructions in the head, the rest in 0x8E/0xE2):
-//   - head tail: retail emits `addu v1,v1,s3; sh v1,158(s1)` BEFORE `sw a1,168(s1)`;
-//     gcc emits the flags store first whatever the statement order (tried both).
-//   - retail cross-jumps the head's count == 0 tail's `or; sw` with 0x81's
-//     `| 0x10000000` store (:L80024DBC); ours emits its own pair.
-//   - 0x8E: retail's `j` puts the pSpriteBytecode = NULL store in its frames slot, ours
-//     does not.
-//   - 0xE2: retail computes SCRIPT_JUMP_AT(pArgs) before the PushU24 call and re-signs
-//     it after; with an `offset` local we get that, but the arm then also needs the
-//     post-call add re-formed (ours cross-jumps into 0xE1's tail instead).
-//   - 0xBE: retail loads flags_0xAC then the 0x3C word; gcc loads them the other way up.
-// Best 90.37% (1596 bytes against retail's 1612, 399 vs 403 insns): the whole arm set is
-// instruction-for-instruction right; what is left is register naming ($a0/$a2 and
-// $s0/$s3 swapped all through the head and the 0xBE arm) and 4 instructions.
-// MEASURED, in the order it paid:
-//   - case 0x81's anim-id == DEFAULT path is a plain `goto` to a label on case 0x80's
-//     body, not a second copy of it: retail's 0x81 is five instructions and its equal
-//     path branches into 0x80's body at the `ori` after the `lui`. Duplicating the
-//     body (what the previous park did) is 71.83%; sharing it is 90.37% and -8 insns.
-//     This is the single find for this function: the interpreter's default-mode tail is
-//     one piece of source, and gcc's own cross-jumping is what made it look inlined.
-//   - the rest of the previous note still holds (goto dispatch loop, separate stepY
-//     local, masked-script-index local first).
-// WHAT IS STILL WRONG (register allocation, not structure):
-//   - head: retail keeps the 0xF03FFFFF mask in $a2 and the flags word in $v0; gcc here
-//     picks $a0 for the mask and $a2 for the word. The head's two stores are also
-//     emitted in the other order (retail: addu, sh waitTimer, bnez, sw flags in the delay
-//     slot; ours: sw flags, addu, bnez, sh).
-//   - 0xBE arm: retail $a2 = script word, $s0 = delay, $a3 = offset, $a1 = ~8,
-//     $a0/$v1 = the two flag words; ours $a1/$s3/$s2/$a0/$a2/$s0. Because of that
-//     shift gcc also emits one extra `sra s3,v0,8` (delay slot) in the /256 round.
-//   - 0xE2: retail computes pArgs[0] + ((s8)pArgs[1] << 8) with `addu` before the
-//     PushU24 call and re-signs it as s16 after (`sll 16; sra 16`); ours does the `or`
-//     form of SCRIPT_JUMP_AT and no re-sign.
-// TRIED AND REJECTED (all measured, all worse than 90.37):
-//   - 0xBE arm with its own block locals (count/delay/offset/flags/mask): 68.61 then
-//     89.57 after the 0x81 find - the shared locals allocate better here.
-//   - `offset = count & 0x1FF` moved before the frame-count multiply: 68.80, and it
-//     pushes the script word into $t0.
-//   - storing the 0x3C word twice (flags = mask; then .fields.flipY = (count >> 10) & 1,
-//     which is what retail's unconditional `sw a1,0x3C` plus branch store really are):
-//     68.17 alone, 71.58 with the stepY move - correct-looking, but it costs the
-//     allocation 2% here.
-//   - loading step.y after the callback in 0x82: 71.58, +1 insn.
-// Not tried: the permuter (bar is 85% and this is at 90.37 -> one run is allowed by the
-// STOP RULE exception only if the residual is named by a lever; it is regalloc, see
-// lever.py 'regalloc callee-saved swapped tie').
-// Best 97.22% (1592 bytes against retail's 1612, 398 vs 403 insns): the whole arm set
-// matches instruction for instruction except one register rotation in the 0xBE arm and
-// two tail merges (below).
-// PORTED FROM the func_800C11CC park in src/battle/main/misc35.c with the earlier
-// findings kept - the dispatch MUST be a goto loop (a switch inside a while/for gives
-// loop.c the outer LOOP notes and hoists both `li 1` and the &g_AnimScriptCommandLengths
-// lui/addiu into the preheader -> 61.25%), and case 0x81's anim-id == DEFAULT path is a
-// goto onto case 0x80's body, not a second copy of it.
-// MEASURED, in the order it paid (round 479):
-//   - EVERY ARM MUST OWN ITS LOCALS. A local shared between arms that crosses a call
-//     becomes a global allocno and takes a callee-saved register: giving the head block
-//     its own headFlags/headMask/headCount moved the head from $s0/$a2/$a0 onto retail's
-//     $a1/$a2/$v0 (90.37 -> 91.96), and giving the 0xBE arm its own beFrames did the
-//     same there. Splitting the whole 0xBE arm at once is WORSE (91.07: pSpriteData
-//     falls to $s2) and beOffset alone is worse too (91.19) - beFrames alone is the win.
-//   - 0x80/0x81 must use the ANIM_SCRIPT_MODE_MASK macro INLINE (retail rematerialises
-//     the constant twice per arm) and 0x82 must load step.y AFTER the callback, not
-//     before its test: 93.11 -> 95.61.
-//   - 0x98 wants a typed pLinked local for field_0x70 (retail keeps it in $a0) and the
-//     anim-id compare as (s8)pSpriteData->field_0x8D: retail loads BOTH operands with
-//     lb, so the header's u8 field_0x8D is really signed there: 91.96 -> 93.11.
-//   - 0xE2 is `pArgs[0] + (s16)(pArgs[1] << 8)` (an unsigned lbu + sll 24/sra 16, an
-//     add), truncated again at the pointer add (sll 16/sra 16 AFTER the PushU24 call) -
-//     not the or-based SCRIPT_JUMP_AT: 96.45 -> 97.22.
+// Best 98.01% (1592 bytes / 398 insns against retail's 1612 / 403), whole arm set
+// instruction-for-instruction right; the residual is one register rotation and 5 insns.
+// MEASURED, in the order it paid (round 492, 97.22 -> 98.01):
+//   - an arm's own local keeps its pseudo out of the callee-saved pool, and the same
+//     edit decides the ARGUMENT COPY ORDER: 0xE4 with its own loopCount and a separate
+//     `loopCount--;` statement puts the decrement before the argument copy, which is
+//     retail's `addiu a1,a1,-1` in the beqz slot (97.50 -> 97.74).
+//   - AnimScriptStackPopU8 is declared s32 here, not the animation_scripts.c u_char:
+//     with u_char the zero-extend lands on the ASSIGNMENT (`andi a1,v0,0xff`, 1 insn
+//     short) where retail has it on the test (`move a1,v0; andi v0,a1,0xff`) - so the
+//     arm reads `if ((u8)count != 0)`. 97.22 -> 97.50.
+//   - 0xA7 with its own frame-count local: retail's division-by-256 keeps the result in
+//     the mflo register ($v1), so reorg cannot fill the bgez slot and emits `nop`; a
+//     shared local left the result in $a3 and the compile duplicated the `sra` into the
+//     slot instead. 97.74 -> 98.01, and that tail is now exact.
 // WHAT IS LEFT:
-//   - 0xBE arm, one register rotation: retail count $a2 / offset $a3 / ~8 mask $a1,
-//     ours $a1 / $t0 / $a0. Retail also re-emits both of its delay-slot instructions
-//     (li a1,-9, sra v0,a2,6) on the fall-through into .L80024B1C.
-//   - tail merges: retail cross-jumps the head's count == 0 tail into 0x81's or/j/sw
-//     (.L80024DBC, with the j in its release and sll in the delay slot) where ours emits
-//     a private copy, and ours merges 0x8E/0xE1 into the 0xBE arm's `j exit` where retail
-//     keeps them separate. Net -5 insns.
-// Measured and rejected: `offset = count & 0x1FF` before the frame multiply, storing the
-// 0x3C word twice, the 0xBE arm with block locals, and per-arm locals for count/flags/mask.
+//   - 0xBE arm, a five-way rotation: retail count $a2 / offset $a3 / ~8 mask $a1 /
+//     0xAC word $a0 / 0x3C word $v1, ours $t0 / $a1 / $a0 / $a2 / $a3. Five values
+//     compete for a0-a3 and the loser is retail's $v1 against our $t0. -dg on this body
+//     says count is allocno 84, processed 20th of 26 with a0-a3 already taken, and the
+//     hand-out follows floor_log2(refs)*refs*size/live, which retail's own instruction
+//     stream pins; block-scoping count/flags/mask and arm-local beOffset both measure
+//     byte-identical to this body, so the quotient is not reachable by respelling.
+//     Retail also re-emits both of its delay-slot insns (li a1,-9, sra v0,a2,6) on the
+//     fall-through into .L80024B1C, and its bgez slot holds the offset andi where ours
+//     duplicates the `sra s0,v1,8`.
+//   - 5 insns: retail cross-jumps the head's count == 0 tail into 0x81's or/j/sw
+//     (.L80024DBC, j in the release and sll in the slot) where ours emits a private
+//     copy, and ours merges the 0x8E/0xE1 tails where retail keeps them separate.
+// STRUCTURE ALREADY SETTLED (do not redo): the dispatch must be a goto loop, not a
+// switch inside a while/for - loop.c then hoists li 1 and &g_AnimScriptCommandLengths
+// into the preheader as $s5/$s6, 61.25%. 0x81's anim-id == ANIM_SCRIPT_ANIM_ID_DEFAULT
+// path is a goto onto 0x80's body, not a second copy of it (71.83 -> 90.37).
+// 0xE2's jump is `pArgs[0] + (s16)(pArgs[1] << 8)`, not or-based SCRIPT_JUMP_AT.
+// 0x98 needs a typed pLinked local and the anim-id compare as (s8)field_0x8D.
+// Rejected and measured: offset before the frame multiply (68.80 on the older body),
+// storing the 0x3C word twice, splitting the whole 0xBE arm into block locals (91.19).
+// No permuter run: the STOP RULE allows one only from 99%.
 /*
 void func_800248D4(SpriteData* pSpriteData) {
     u8* pArgs;
     u8 code;
     s32 frames;
-    s32 count;
-    s32 offset;
     s32 stepY;
-    u32 flags;
-    u32 mask;
-    u8* pBuffer;
 
     if (g_IsBattle) {
         func_800C11CC(pSpriteData);
@@ -228,23 +168,27 @@ dispatch:
         }
         switch (code) {
         case 0xBE: {
+            s32 count;
             s32 beFrames;
+            s32 beOffset;
+            u32 flags;
+            u32 mask;
 
             count = pArgs[0] | ((s8)pArgs[1] << 8);
             beFrames = ((count >> 11) & 0xF) + 1;
             beFrames = beFrames *
                        (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
                        ANIM_SCRIPT_SPEED_SCALE;
+            beOffset = count & 0x1FF;
             if (beFrames == 0) {
                 beFrames = 1;
             }
-            offset = count & 0x1FF;
             if (g_SpriteStateFlags(pSpriteData).fields.mode != 1) {
-                pSpriteData->curSpriteFrame = offset;
+                pSpriteData->curSpriteFrame = beOffset;
             } else {
                 if (count < 0) {
-                    if (offset != 0) {
-                        offset = *(u8*)(pSpriteData->field_0x60 + offset - 1);
+                    if (beOffset != 0) {
+                        beOffset = *(u8*)(pSpriteData->field_0x60 + beOffset - 1);
                     }
                 }
                 flags = pSpriteData->flags_0xAC.flags;
@@ -257,7 +201,7 @@ dispatch:
                 } else {
                     g_SpriteStateFlags(pSpriteData).flags = mask & ~0x10;
                 }
-                SpriteAnimFrameListSetFrame(pSpriteData, offset);
+                SpriteAnimFrameListSetFrame(pSpriteData, beOffset);
             }
             pSpriteData->animScriptWaitTimer += beFrames;
             pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + 3;
@@ -350,32 +294,39 @@ dispatch:
             }
             pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_MODE_MASK) | ANIM_SCRIPT_MODE_SET;
             return;
-        case 0xE4:
-            count = AnimScriptStackPopU8(pSpriteData);
-            if (count != 0) {
-                AnimScriptStackPushU8(pSpriteData, count - 1);
+        case 0xE4: {
+            s32 loopCount;
+
+            loopCount = AnimScriptStackPopU8(pSpriteData);
+            if ((u8)loopCount != 0) {
+                loopCount--;
+                AnimScriptStackPushU8(pSpriteData, loopCount);
                 pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
                 goto dispatch;
             }
             break;
+        }
         case 0xE1:
             pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
             goto dispatch;
-        case 0xA7:
+        case 0xA7: {
+            s32 waitFrames;
+
             pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
             if (pArgs[0] & 0x80) {
                 g_WorkListCurTimer = (pArgs[0] & 0x7F) + 1;
                 pSpriteData->animScriptWaitTimer++;
                 return;
             }
-            count = (pArgs[0] + 2) *
+            waitFrames = (pArgs[0] + 2) *
                     (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
                     ANIM_SCRIPT_SPEED_SCALE;
-            if (count == 0) {
-                count = 1;
+            if (waitFrames == 0) {
+                waitFrames = 1;
             }
-            pSpriteData->animScriptWaitTimer += count;
+            pSpriteData->animScriptWaitTimer += waitFrames;
             return;
+        }
         case 0xC8:
             func_8001FBE4(pSpriteData, pArgs[0], AnimScriptResolveVariablePointer(pSpriteData, pArgs + 1));
             break;
@@ -387,6 +338,7 @@ dispatch:
     }
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
+
 
 
 
