@@ -644,29 +644,101 @@ extern Misc14ModelPart *BattleCreateModelPart(void);
 extern void BattleAttachModelPart(Misc14ModelPart *pPart, ModelPart *pModelPart);
 extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
-
-/* Best attempt: objdiff 91.16%, 580 bytes against 592 (three instructions short).
-   Everything matches except which of two long-lived values gets a saved register:
-   retail spills pScripts to 0x18 and keeps the model data in s4, gcc keeps
-   pScripts in a register and spills the model data to 0x10, which costs the
-   `sw`/`lw` pair in the prologue and another reload at the BattleAttachModelPart
-   call. Both use nine s-registers and two stack homes, so the frame (0x58) is
-   right. What made the rest match, keep it:
-   - pDesc[i] instead of pDesc++ (with the pointer form gcc's combine_givs
-     re-bases the induction register onto the last memory reference and every
-     displacement shifts by 0x12); the indexed form gives retail's lh 2(s2) /
-     addiu s2,s2,0x10 exactly;
-   - the argument is a Misc14Reloc (misc10's func_80084C88 passes its pData
-     straight in): pPartList / pModelData / pPointerList are
-     {count, 0x10-byte part descriptors}, the 0x38-byte model part records and
-     {count, script pointers};
-   - the six halfword stores are the node's rotation (0x44) then sourcePos
-     (0x2C) from six u16 descriptor fields;
-   - `pAnim->pConfig = NULL;` for the null script, with `pAnim++` after the
-     if/else (reorg drops it into the j's delay slot).
-   Declaration order of the three block pointers does not change the spill
-   choice (measured), and a 4-minute permuter run from this body found nothing. */
+/* Best attempt: objdiff 91.16%, 580 bytes / 145 insns against retail's 592 / 148.
+// Everything matches except WHICH of two long-lived values gets $s4: retail spills
+// the script table to 0x18(sp) and keeps the model data in $s4, gcc spills the model
+// data to 0x10(sp) and keeps the script table in $s5. The prologue/epilogue (frame
+// 0x58, ten saves at 0x30..0x54), the whole first loop and the second loop's tail
+// are byte-identical, so this is one spill choice; it costs the `lw a3,0x10(sp)`
+// reload at the BattleAttachModelPart base and one more before the first call.
+// Retail also reloads the spilled table twice (`lw a3,0x18(sp)` for the null test,
+// `lw s4,0x18(sp)` in the loop preheader) and reaches the loop with
+// `move s0,a1` (pAnim held in $a1 up to the preheader), so its 3 extra instructions
+// are all consequences of the same spill.
+// Load-bearing spellings, keep them:
+//  - pDesc[i] instead of pDesc++ (with the pointer form gcc's combine_givs
+//    re-bases the induction register and every displacement shifts by 0x12);
+//  - the argument is a Misc14Reloc (misc10's func_80084C88 passes its pData
+//    straight in): pPartList / pModelData / pPointerList are {count, 0x10-byte part
+//    descriptors}, the 0x38-byte model part records and {count, script pointers};
+//  - the six halfword stores are the node's rotation (0x44) then sourcePos (0x2C)
+//    from six u16 descriptor fields;
+//  - `pAnim->pConfig = NULL;` for the null script, with `pAnim++` after the if/else.
+// Round 478 (four scored runs, none better than 91.16):
+//  - the script table declared INSIDE the `if (pBlock->pPointerList != NULL)` block:
+//    85.38 / 584 - gcc then keeps pBlock live to re-read the field and the whole
+//    prologue rotates, so the top-of-function load retail has is not reachable that
+//    way;
+//  - a separate `Misc14Anim *pEntry` cursor for the second loop: 90.01 / 576 -
+//    gcc coalesces it into $s0 with no `move s0,a1`, one instruction FEWER than the
+//    park, so retail's a1-to-s0 chain is not source-reachable by naming the cursor;
+//  - preset screen on this body: gcc-2.7.2-cdk 90.34, gcc-2.6.0 does not compile
+//    it, so the unit stays Default (do not switch on this function's account).
+// A 4-minute permuter run from this body found nothing (earlier round), and
+// twin_for.py reports no twin. To go further the spill has to flip: raise the model
+// data pointer's allocno priority or lower the table's, which no declaration order
+// tried so far does. */
+/*
+// Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
+//     u8 *pModelData = (u8 *)pBlock->pModelData;
+//     Misc14PartSet *pParts = (Misc14PartSet *)pBlock->pPartList;
+//     Misc14ScriptTable *pScripts = (Misc14ScriptTable *)pBlock->pPointerList;
+//     u32 count = pParts->count;
+//     Misc14PartDesc *pDesc = pParts->descs;
+//     Misc14EntryList *pList;
+//     Misc14ModelNode **pNodes;
+//     Misc14ModelNode *pNode;
+//     Misc14ModelNode *pPart;
+//     Misc14ModelPart *pModelPart;
+//     Misc14Anim *pAnim;
+//     u32 i;
+// 
+//     ModelResolvePointers(pModelData);
+//     HeapSetCurrentContentType(0x12);
+//     pNodes = HeapAlloc(count * 4, 0);
+//     pList = BattleCreateEntryList();
+//     pNode = BattleCreateObject();
+//     BattleSetNodeEntryList(pNode, pList);
+//     pList->pNodes = pNodes;
+//     pList->nodeCount = count;
+//     pList->pPartDescs = pDesc;
+//     for (i = 0; i < count; i++) {
+//         pPart = BattleCreateObject();
+//         pNodes[i] = pPart;
+//         if (pDesc[i].modelIndex != -1) {
+//             pModelPart = BattleCreateModelPart();
+//             BattleSetNodeModelPart(pPart, pModelPart);
+//             BattleAttachModelPart(pModelPart, (ModelPart *)(pModelData + (pDesc[i].modelIndex * 0x38 + 0x10)));
+//         }
+//         if (pDesc[i].parent == -1) {
+//             BattleAppendListEntry(pNode, pPart);
+//         } else {
+//             BattleAppendListEntry(pNodes[pDesc[i].parent], pPart);
+//         }
+//         pPart->rotation.vx = pDesc[i].rotation[0];
+//         pPart->rotation.vy = pDesc[i].rotation[1];
+//         pPart->rotation.vz = pDesc[i].rotation[2];
+//         pPart->sourcePos.vx = pDesc[i].position[0];
+//         pPart->sourcePos.vy = pDesc[i].position[1];
+//         pPart->sourcePos.vz = pDesc[i].position[2];
+//     }
+//     if (pScripts != NULL) {
+//         HeapSetCurrentContentType(0x11);
+//         pAnim = HeapAlloc(pScripts->count * sizeof(Misc14Anim), 0);
+//         pList->pEntries = pAnim;
+//         pList->animCount = pScripts->count;
+//         for (i = 0; i < pScripts->count; i++) {
+//             if (pScripts->pScripts[i] != NULL) {
+//                 func_8008B13C(pScripts->pScripts[i], pAnim, pNode);
+//             } else {
+//                 pAnim->pConfig = NULL;
+//             }
+//             pAnim++;
+//         }
+//     }
+//     return pNode;
+// }
+// */
 /*
 Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
     u8 *pModelData = (u8 *)pBlock->pModelData;
@@ -726,9 +798,10 @@ Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
         }
     }
     return pNode;
-}
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
 
-*/
+
 
 extern s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2);
 
@@ -754,25 +827,34 @@ s16 BattleInterpolateAngle(s32 arg0, s32 arg1, s32 arg2) {
     return value;
 }
 
-/* Parked: best objdiff 89.68%, 216 bytes = the original's exact size. Structure is
-settled: retail maps diff < 0x800 to var -= arg2 and diff > 0x800 to
-var += arg2, rand() & 1 picks the minus arm at exactly 0x800, and both clamp
-tests (slti 0x801 keep-if-0x800 on the minus arm, slti 0x800 clamp on the plus
-arm) are exact. Written as one if/else on a direction local, gcc tests the
-direction once at the join; retail tests it at BOTH sites - after the rand
-call it emits bnez v0,A plus j B, and at the diff site beqz v0,plus-entry with
-the minus body as fall-through - so the arm selector was duplicated into both
-predecessors. Measured shapes: four duplicated bodies 76.30% (2.7.2 does not
-merge identical blocks); direction ternary 91.91% but 208 bytes, 8 short;
-back = diff < 0x800 hoisted above the 0x800 test 88.61% with var spilled to
-a0; and a dead else-if re-testing back 93.25% at 220 bytes - that one DOES
-reproduce retail's two test sites, so what is missing is a test of back at
-the diff site that a plain if/else cannot express. Residual in this body: the
-prologue saves s1 before s2 and computes diff off s1 where retail uses raw
-a1. Permuter not run (below the 99% rule).
-
-extern int rand(void);
-
+/* Parked: best objdiff 89.68%, 216 bytes / 54 insns against retail's 224 / 56.
+// Structure and both clamp tests are exact (back = rand() & 1 at diff == 0x800,
+// back = diff < 0x800 otherwise; minus arm keeps while newdiff <= 0x800, plus arm
+// keeps while newdiff >= 0x800). The residual is the DISPATCH, two instructions:
+// retail tests the arm selector at BOTH of its predecessors - the rand path ends
+// `andi v0,v0,1 / bnez v0,minus / subu v0,s0,s2 / j plus / addu v0,s0,s2`, and the
+// diff<0x800 path ends `beqz v0,plus / subu v0,s0,s2` with the minus arm as
+// fall-through - so each site carries its own arm-operand compute. A single
+// `if (back) {...} else {...}` makes gcc merge the test at the join (one `beq` with
+// `subu` in its delay slot), which is the 2 instructions we are short.
+// Measured round 478 (four scored runs, none better):
+//  - the four-copy source, `if (diff == 0x800) { if (rand() & 1) minus else plus }
+//    else if (diff != 0) { if (diff < 0x800) minus else plus }` with the two minus
+//    copies and the two plus copies textually identical: 68.09 / 268 bytes /
+//    67 insns (62.54 with the pairs in the other order). gcc 2.7.2's cross-jumping
+//    merges the plus pair but NOT the minus pair, so it never reaches retail's
+//    two-dispatch / two-body shape, and the byte count is 52 over. Same body under
+//    gcc-2.7.2-cdk (-O2 -G8) 62.54 and gcc-2.6.0 55.02, so this is not the preset.
+//  - `else if (back == 0)` re-testing the selector: gcc cprops it away (back is
+//    known 0 on the else edge) and emits bytes identical to the plain if/else,
+//    89.68 / 216 / 54. So the 93.25 / 220 "dead else-if re-testing back" recorded
+//    in an earlier round was some other spelling; it is not reachable from
+//    `back == 0` or `back`.
+// The two clamp constants differing (slti 0x801 on the minus arm, slti 0x800 on the
+// plus arm) is the evidence that the arms were written out twice in the original
+// source; the missing piece is the merge of the minus pair. twin_for.py: no twin.
+// Do not re-try the four-copy shapes without a compiler that merges both pairs. */
+/*
 s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
     s32 diff;
     s32 back;
@@ -799,9 +881,9 @@ s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
         }
     }
     return var;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
+
 
 
 // Best attempt: objdiff 93.45%, 764 bytes / 191 insns = the original's EXACT size, 24 differing lines in 4 residual groups. Round 469 raised this from the old 92.55 / 756 (which was one instruction SHORT, not retail's size as the old note claimed) with three measured spellings, keep them:
