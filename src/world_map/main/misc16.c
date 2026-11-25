@@ -733,7 +733,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
 
 
-// 97.74% (was 94.82), 260 bytes = retail's 65 insns, correct code. Residual: (1) the xCur increment sits TWO slots late - retail emits it first of the four increments (xCur++, pPkt++, p++, ii--, idx++ in the bne slot), this body emits pPkt++, p++, xCur++, ii--, idx++; (2) a four-temp register rotation: retail pPkt=t0 idx=t1 ii=t2 xCur=a3, ours ii=t0 xCur=t1 pPkt=t2 idx=a3. NEW MEASURED: the statement order of the four increments is what fixes their EMIT order - 'pPkt++; p++; xCur += 0x80; idx += 0x200;' (as below) is 97.74 and emits in source order, while putting xCur += 0x80 FIRST (either before pPkt++ or between the vxy and vz stores) makes sched1 hoist the addiu above the or/sw/sh for 94.82. So the position that retail has (xCur++ first, after both stores) is the one shape sched1 will not let stand.
+// 97.74% (round 474 re-measured, 260 bytes = retail's 65 insns, correct code). Residual: (1) the xCur increment is emitted TWO slots late - retail emits xCur first of the four increments (xCur, pPkt, p, ii, idx in the bne slot); this body emits pPkt, p, xCur, ii, idx. (2) a four-temp register rotation: retail xCur=a3 pPkt=t0 idx=t1 ii=t2, this body xCur=t1 pPkt=t2 idx=a3 ii=t0. MEASURED DEAD this round: xCur += 0x80 written first of the four (sched1 hoists that addiu above the or/sw/sh) 94.82; post-increment inside the store, pPkt->vxy = c | (xCur++ & 0xFFFF) - wrong code anyway, it adds 1 and not 0x80 - 94.82. PERMUTER (3 min, 1609 iters): base 155 best 140, and the winner is an "if (pPkt) { c = (s8)v << 19; } else { <same arm> }" - gcc merges the identical arms so it is behaviour-identical but it is NOT shippable source; ported it measures 97.97 with pPkt correct in t0 and the other three still cycled. That is the evidence that one MORE ALLOCNO REFERENCE on pPkt is what this body is missing, with no natural fifth use of pPkt to write.
 /*
 void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect) {
     WorldMapMisc16Pkt* pPkt;
@@ -786,6 +786,7 @@ void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect) {
     func_8009980C(pSrc, p1, p2);
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80099708);
+
 
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009980C);
