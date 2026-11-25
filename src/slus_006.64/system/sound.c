@@ -4575,6 +4575,9 @@ u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, Au
 // Three permuter runs: 798 -> 595 -> 531 -> 471 (the last found the envelope pointer local).
 // Next lead: retail's `move s3,a2` only appears when `mode` keeps s3 and dies at the index, so
 // the source needs the `& 0x10` test emitted before the index and the `== 0` after it.
+// Round 472: 93.66% (244 bytes = retail's size, 61 insns = retail's, 48 differing lines) with the body below - new best, up from the 92.30 park. The instruction STREAM is now identical instruction-for-instruction to retail; every remaining difference is a callee-saved REGISTER IDENTITY. Retail: s1=pAudioElements s2=volume s3=mode/index, and the index is made by 'andi a2,s3,0xf' + a hoisted copy 'move s3,a2' (the index home) before the call, so the jal delay slot holds 'sra a1,a1,0x10'. Ours: s1=mode/index s2=pAudioElements s3=volume, 'andi s1,s1,0xf' in place and the arg copy deferred to the delay slot ('move a2,s1') - same 61 insns, both spend 2 insns on the index.
+// What got here: the flags test must be emitted BEFORE the index ('rateMask = mode & 0x10;' then 'index = mode & 0xF;' then 'flags = (rateMask == 0) * 2;' - that split alone is 93.66 from 92.30, and it is the round-471 note's next lead, now measured). What did not move the register order (all measured this round, all worse or equal): the direct 'pAudioElements->envelopes[2].field' spelling for every store and '&pAudioElements->envelopes[2]' at the reset (90.46 - a sub-word index makes all stores 'sw rt,0x124(s1)' but the allocno order is unchanged, so the pEnvelope local is kept), 'mode & 0xF' inline at the call with 'index = mode & 0xF;' after it (90.54 - cse2 merges to ONE andi that lands just before the jal instead of after the flags test), and 's32 mode' instead of 'u8 mode' (93.66, byte-identical). Parked because the residual is the global allocator's ORDER of the four callee-saved allocnos (ours mode-first, retail pAudioElements-first), not a spelling: reference counts and live ranges of the same three pseudos differ nowhere, so no source edit that keeps the instruction stream intact has shifted it yet.
+// SAME RETAIL BODY: func_8003DD24 is instruction-for-instruction identical apart from envelopes[0]/target 1/mask 0x2, so this body should be ported there (its park is 84.75).
 /*
 u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     short volume = pScript[0];
@@ -4583,12 +4586,14 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     AudioEnvelope* pEnvelope;
     s32 index;
     s32 flags;
+    s32 rateMask;
 
     if (note != 0) {
-        index = mode & 0xF;
         if (volume != 0) {
             volume += (volume * volume) / 64;
-            flags = ((mode & 0x10) == 0) * 2;
+            rateMask = mode & 0x10;
+            index = mode & 0xF;
+            flags = (rateMask == 0) * 2;
             pEnvelope = &pAudioElements->envelopes[2];
             pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
             pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
@@ -4604,9 +4609,9 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     }
 
     return pScript + 3;
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E04C);
+
 
 u8* SoundScriptSetUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask |= 0x4;
