@@ -725,6 +725,9 @@ gp loads; that reorder is what puts pPrim in s1 instead of s3.
 // - the callee-saved pair is swapped: retail s1 = xOffset, s3 = pPrim; ours s1 = pPrim, s3 = xOffset, so gcc loads the gp globals before the lhu of xOffset (retail loads xOffset first) and makes its copy of pPrim to a1 late (retail's 'addu a1,s3,zero' sits right after the negu).
 // - the x0 reads: retail emits lh v0,8(s3) then lhu a0,8(s3) then subu, so the load-delay slot is filled; ours emits lh, nop, subu, lhu - the extra nop is the whole 1-instruction/4-byte gap.
 // Tried this round, all byte-identical at 89.57: x0 read before vs after nWidth; xOffset declared first in the list; 'pPrim->y0 - nHalf' without the u16* cast; x0 = pPrim->x0 (implicit s16->u16) instead of *(u16*)&pPrim->x0. Typed the read as SpriteDataView->xOffset (new field at 0x36, unk38[0x4] after it) with no byte change, so the body is realistic now.
+// Round 486 re-measured the parked body unchanged: 89.57% / 464 bytes / 116 insns, same 71 diff lines,
+// so the note is current. Also measured: 's32 xOffset' instead of u16 - byte-identical (the load is still
+// lhu and xOffset still takes s3), so the callee-saved swap is not reachable from the type either.
 /*
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
@@ -1468,6 +1471,10 @@ s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 // - addu operand order on x1/x0 only: retail addu v1,s2,v0 (nWidth first), ours (v0,s2), even with the C written nWidth + x0. The y pair is exact after writing nHeight + y0.
 // Fixed this round (92.96 -> 97.55): v-- instead of v = pData->v - 1 (the s16 reload cost 2 insns; in-place keeps the lhu), and nWidth/nHeight as the LEFT operand of x1/y1/x0/y0, which fixed both y adds.
 // Tried and worse: s32 x0/x1 locals (97.26, 54 diff lines); x0 + nWidth (no change).
+// Round 486: moving the `localY = y` copy to just after the pDirent statement is byte-identical
+// (same 97.55, same stream) - gcc defers that store into the beqz delay slot wherever it is written,
+// and the hoisted `lhu v1,104(sp)` of scale always lands at the top of the preheader, so the
+// preheader shape is a loop.c reorg artifact, not a source order.
 // Permuter, 3 min, 1317 iterations from this body: base 420 best 325, all candidates are declaration noise (new_var2 = (s16)pData->height, new_var = pPrim) - no lead.
 /*
 s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
@@ -1568,6 +1575,7 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
     return pDirent->count;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
+
 
 
 
