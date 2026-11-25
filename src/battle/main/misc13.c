@@ -1070,7 +1070,6 @@ s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
 //    one sprite per queued command, then draws the three status icons its
 //    condition words allow, frees the buffers, and returns 1 when nothing was
 //    drawn.
-/*
 s32 func_80086F98(u8 arg0, u8 arg1) {
     s32 i;
     u8 maskIdx;
@@ -1106,10 +1105,10 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         g_BattleSpriteColumnWork[0x5D80] = 0;
         g_BattleSpriteColumnWork[0x5D82] = 0;
         for (i = 0; i < g_BattleCommandQueue[0x2D6]; i++) {
-            if (g_BattleCommandQueue[0x2CC + i] == BATTLE_COMMAND_NONE) {
+            if ((g_BattleCommandQueue + i)[0x2CC] == BATTLE_COMMAND_NONE) {
                 continue;
             }
-            switch (g_BattleCommandQueue[0x2CC + i]) {
+            switch ((g_BattleCommandQueue + i)[0x2CC]) {
             case 0:
                 spriteId = 0x5E;
                 break;
@@ -1150,7 +1149,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
             } else {
                 result = 1;
                 row = func_80086C88(arg1, row, i - 1, maskIdx,
-                                    (u_long **)(D_800C3A70 + ((row + g_BattleCommandQueue[0x2E4]) >> 1) * 4));
+                                    (u_long **)(D_800C3A70 + (row / 2) * 4));
             }
         }
         if (g_BattleCommandQueue[0x2E4] != 0 && result != 0) {
@@ -1178,11 +1177,11 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
                                         g_BattleCommandStatusMasks[maskIdx]) != 0 &&
             *(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x1E) == 0) {
-            result = 1;
             v = BattleDrawSpritePackage(9,
                                         (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                              (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                         i * 0x10 + 0x84, 0xD0 - row * 0x10);
+            result = 1;
             g_BattleSpriteColumnWork[0x5D81] += v;
             row = func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
         }
@@ -1194,11 +1193,11 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         if ((u16)BattleMaskHasStatusBit(g_GameState.conditionRows[g_BattleActorCharIds[arg1]].gearCommandMask,
                                         g_BattleCommandStatusMasks[maskIdx]) != 0 &&
             *(u16 *)(g_BattleCommandQueue - -(arg1 * 0x40) + 0x20) == 0) {
-            result = 1;
             v = BattleDrawSpritePackage(7,
                                         (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
                                              (0x5640 + (s32)g_BattleSpriteColumnWork)),
                                         i * 0x10 + 0x88, 0xD0 - row * 0x10);
+            result = 1;
             g_BattleSpriteColumnWork[0x5D81] += v;
             func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
         }
@@ -1214,8 +1213,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
     }
     g_BattleCommandQueue[0x2DC] = arg0;
     return 1;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
+}
 
 
 
