@@ -250,6 +250,17 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
 // (created well above the load). So the residual is which of word/shift local-alloc sees
 // first after sched1, not the source order, and every spelling that gets the pair right
 // moves the mask. Park.
+// R473 re-measured 98.10% at 496 bytes / 124 insns (un-parked, whole first output read) and
+// named the MECHANISM behind the second diff row: the sunk `sw a0,0xA8(s0)` is NOT a separate
+// residual. Ours reuses $v0 for `srl v0,s5,0x2`, which is the register the OR just wrote, so
+// the WAW forces the store before that `srl`; retail's `srl` overwrites the shift's own dying
+// $v0 and nothing pins the store, so sched2 sinks it past the 0xAC block's `lw`/`andi`. Fix the
+// word/shift pair and the store position follows for free - do not spend a run trying to move
+// the store alone (which is what the earlier `volatile` spelling did, in the wrong direction).
+// With the priorities tied (word 3 refs / 3 insns, shift 2 refs / 2 insns, quotient 1.0 both)
+// only a strictly greater shift priority or a strictly smaller word priority reorders them, and
+// the one lever for the latter - lengthening the word's live range past the two NULL stores and
+// the sb - is what every measured spelling already contains. Park again; closed.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
 /*
 void func_800BB350(u32 slot) {
