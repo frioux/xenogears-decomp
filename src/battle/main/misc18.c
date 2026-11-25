@@ -1284,76 +1284,51 @@ void BattleInitActiveSlotActions(u8 sel) {
         g_BattleActionParam = 0xC2;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
-/* func_80098D2C 91.59%, 1896 bytes / 474 insns (retail 475 insns / 1900 bytes, 0x76c - ONE
-   instruction short). Structure is retail's: every arm, call site, load width, the 6-entry
-   jump table on power-10, the effect-word grid zero, the statWeights loop and the s4
-   (BattleSlotState) base all line up, and outside the first 96 lines the instruction count is
-   EXACT - the whole residual is three things, all in the prologue and the first two arms.
-   1. ALLOCATOR TIE: retail keeps the slot entry in $s1 and the action entry in $s0, this body
-      mirrors them ($s0 slot / $s1 action), which is where most of the ~370 diff lines come
-      from; both are SI pseudos with similar ref counts, so per tools/rounds/levers.md
-      (a-global-allocno-priority-is / a-lreg-dump-gives-the) it is a near tie, not a 10x gap -
-      take a -da dump before trying spellings. Swapping the two declarations was measured and
-      changes nothing.
-   2. BOTH MULTIPLIES: retail's `power * 50` (slotAmounts) and `10 * power` (curve target) are
-      `ori reg,const` + `mult` + `mflo`; this body gets gcc's synthesized shift/add chains
-      (5 and 4 insns). gcc only synthesizes when the constant is a literal in the tree, so
-      retail's scale was a value in a register at expand time. That is worth +5 instructions
-      against 475. 2.7.2-psx scores 91.51 and 2.7.2-cdk 82.22 on this body, so the preset
-      (XenoBattle260) is right and this is not a compiler-version split.
-   3. FRAME: retail's frame is 0x40 with saves at 0x28..0x3C, this body's is 0x30 with saves at
-      0x18..0x2C. Nothing in retail reads sp+0x00..0x27, so retail's source held 0x10 bytes of
-      stack locals that were optimised away after allocation - the action entry is exactly
-      0x10 bytes, so a struct copy of it is the likely origin. Retail also materialises
-      `&slot->state` ($s4) in the PROLOGUE while this body sinks its addiu into the first
-      branch's delay slot: the source took that address in a statement before the first test.
-   Tried: flags/conditionFlags as s16 (that fix is in - retail loads them `lh` in the 0x8000
-   test, the `== 1` test and the 0xF000 test and `lhu` where only low bits matter), swapping
-   the pSlot/pAction declarations, an explicit pState local. Not tried: a -da allocno dump for
-   the $s0/$s1 tie; a realistic spelling that keeps 10/50 in a variable for the multiplies.
-
-// The body below is the 91.59% attempt, kept verbatim (see the note above for what is left).
-// One 0x10-byte entry of the per-row action table the battle block keeps at +0x5518,
-// indexed by the row BattleBeginAction runs: `power` scales every amount the row deals,
-// `flags` says which effects it applies and `conditionFlags` is the effect bit word each
-// of those effects hands to its condition timer.
+// One 0x10-byte entry of the per-row action table the battle block keeps at +0x5518, indexed
+// by the row BattleBeginAction runs: `power` scales every amount the row deals, `flags` says
+// which effects it applies and `conditionFlags` is the effect bit word each of those effects
+// hands to its condition timer.
 typedef struct {
-    // 0x0 u8 unk0[0x8];
-    // 0x8 u8 power;
-    // 0x9 u8 conditionCount;
-    // 0xA s16 flags;
-    // 0xC s16 conditionFlags;
-    // 0xE u8 unkE[0x2];
+    /* 0x0 */ u8 unk0[0x8];
+    /* 0x8 */ u8 power;
+    /* 0x9 */ u8 conditionCount;
+    /* 0xA */ s16 flags;
+    /* 0xC */ s16 conditionFlags;
+    /* 0xE */ u8 unkE[0x2];
 } BattleActionEntry; // Size: 0x10
 
-// One slot's half of BattleInitActiveSlotActions: applies the row the action runs to
-// `slot` - the amount and curve target a damage row sets, the effect words each of its
-// flag bits adds, and the slot's own curve mode. A row that set a curve target needs
-// nothing more from this function, so the rest runs only for the rows that did not.
+// One slot's half of BattleInitActiveSlotActions: applies the row the action runs to `slot` -
+// the amount and curve target a damage row sets, the effect words each of its flag bits adds,
+// and the slot's own curve mode. A row that set a curve target needs nothing more from this
+// function, so the rest runs only for the rows that did not.
 void func_80098D2C(u8 slot, u8 row) {
-    BattleWorkBlock *pBase = (BattleWorkBlock *)g_BattleWorkBlock;
+    BattleTableEntry *pSlot = &g_BattleWorkBlock[slot];
     BattleActionEntry *pAction = (BattleActionEntry *)((u8 *)g_BattleWorkBlock + 0x5518) + row;
-    BattleTableEntry *pSlot = &pBase->slots[slot];
-    BattleSlotState *pState = &pSlot->state;
+    BattleSlotState *pState = &g_BattleWorkBlock[slot].state;
+    BattleWorkBlock *pBase = (BattleWorkBlock *)g_BattleWorkBlock;
     u8 curveCount = 0;
+    u8 amountScale = 50;
+    u8 curveScale = 10;
     u8 i;
 
     if (pAction->flags & 0x8000) {
+        s32 amount = pAction->power * amountScale;
+        s32 *pAmounts;
         g_BattleCurveTargetModes[slot] = 2;
-        pBase->slotAmounts[slot] = pAction->power * 50;
+        pAmounts = pBase->slotAmounts;
+        pAmounts[slot] = amount;
         if (pSlot->accessoryEffectFlags3 & 0x80) {
             g_BattleCurWorkBlock->slotAmounts[slot] *= 2;
         }
-        curveCount = 1;
-        if (pSlot->blockFlags & 0x8000) {
+        if (pSlot->unk36 & 0x8000) {
             g_BattleCurveTargetModes[slot] = 0;
         }
+        curveCount = 1;
     }
     if (pAction->flags & 0x4000) {
         curveCount++;
+        g_BattleCurveTargets[slot] = pAction->power * curveScale;
         g_BattleCurveTargetModes[slot] = 3;
-        g_BattleCurveTargets[slot] = pAction->power * 10;
     }
     if (curveCount != 0) {
         return;
@@ -1490,7 +1465,7 @@ void func_80098D2C(u8 slot, u8 row) {
         break;
     }
 }
-*/
+
 u8 BattleTestActorSlotFlagsC002ByMode(void) {
     u8 i;
     u8 n;
