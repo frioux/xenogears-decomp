@@ -36,6 +36,9 @@ extern u_char g_GpuOpcodeShadow[];
 extern void (*g_GpuQueueTable[][0x18])(u_long *p0, u_long *p1);
 extern u_long *D_8006BE38[][0x18];
 extern u_long *D_8006BE3C[][0x18];
+extern u_long D_8006BE40[][0x18];
+extern u_long g_GpuQueueIntrMask;
+extern u_char g_GraphQue;
 extern u_long g_DrawSyncCallbackPending;
 extern u_long g_SavedIntrMask;
 extern void (*g_DrawSyncCallbackFn)();
@@ -86,28 +89,8 @@ extern int DMACallback(int id, void (*func)());
 extern void SetDQA(long dqa);
 extern void SetDQB(long dqb);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
-
-/* best 91.85% (181 insns, 724 bytes against retail's 184 / 736): every call,
-   branch, store and register matches; three instructions are left, both causes
-   pinned. (1) The new tail value: retail loads g_GpuQueueTail a third time
-   ('lui; lw; addiu; andi; lui; sw' after the func store), gcc reuses the index
-   load it already made for the func store, so one lui/lw pair is missing and
-   the g_GpuQueueIntrMask load is scheduled one block earlier. Tried: '& 0x3F' vs
-   '% 0x40', separate statements, raw D_8006BE38/D_8006BE3C/D_8006BE40 arrays
-   (88.39%, worse), moving the increment into a local. (2) The data-copy loop's
-   back edge: retail keeps 'sw a1,0(a0)' out of the 'j' delay slot and puts a
-   copy of the loop-invariant 'move v0,s1' there; gcc fills the slot with the
-   store and points 'j' at its own move. Not a flag/source-order knob found so
-   far (-O2 and -O3 identical, gcc-2.7.2-cdk 60.49%, -O1 74.97%).
-   The 91.85% body spells the queue as one struct, which is what the code shows:
-   typedef struct { void (*func)(u_long *p0, u_long *p1); // 0x0
-                    u_long *p;                            // 0x4
-                    u_long *arg;                           // 0x8
-                    u_long data[0x15]; } GpuQueueEntry;    // 0xC, Size: 0x60
-   extern GpuQueueEntry g_GpuQueueTable[0x40];  (splat carves the used words
-   into g_GpuQueueTable / D_8006BE38 / D_8006BE3C / D_8006BE40; the baseline's
-   C-typed form is below, 88.39%, and needs an 'extern u_long D_8006BE40[];').
+// best 99.10% (183 insns, 732 bytes against retail's 184 / 736): the ONLY residual is the data-copy loop back edge. Retail keeps 'sw a1,0(a0)' before the 'j' and puts a COPY of the loop-invariant 'move v0,s1' in the delay slot (its preheader holds the first copy), while gcc fills the slot with the store and points 'j' at a single top-of-loop move: same semantics, one instruction fewer, so it cannot link. Every other instruction, the tail order and the frame are retail's. The two 'do { } while (0);' barriers are scheduling boundaries, not shippable C (mark it ROUGH when it matches): without them gcc cse's the volatile g_GpuQueueTail load and the third 'lui/lw' pair is missing (92.01%); reading the increment through 'extern volatile u_long g_GpuQueueTailNext[] __asm__("g_GpuQueueTail")' instead measures 95.82 at 183 insns and pays an 'addiu' for the array base. Also tried: % 0x40 vs & 0x3F, raw D_8006BE38/3C/40 arrays, the increment in a local, -O2, -O1 (74.97), cdk (60.49). Delay-slot fill has no source lever (levers.md c-there-source-ordering-lever).
+/*
 int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_long *arg) {
     int i;
 
@@ -139,34 +122,31 @@ int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_lon
 
     if (n != 0) {
         for (i = 0; i < n / 4; i++)
-            D_8006BE3C[g_GpuQueueTail][i + 1] = p[i];
-        D_8006BE38[g_GpuQueueTail][0] = &D_8006BE3C[g_GpuQueueTail][1];
+            D_8006BE40[g_GpuQueueTail][i] = p[i];
+        D_8006BE38[g_GpuQueueTail][0] = &D_8006BE40[g_GpuQueueTail][0];
     } else {
         D_8006BE38[g_GpuQueueTail][0] = p;
     }
     D_8006BE3C[g_GpuQueueTail][0] = arg;
+    do {
+    } while (0);
     g_GpuQueueTable[g_GpuQueueTail][0] = pFunc;
+    do {
+    } while (0);
     g_GpuQueueTail = (g_GpuQueueTail + 1) & 0x3F;
 
     SetIntrMask(g_GpuQueueIntrMask);
     func_8004696C();
 
     return (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;
-} */
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004696C);
 
-/* best 81.20% (720 of retail's 724 bytes): everything up to and including the
-   call matches, as does the guard/rotation (the explicit if + do/while is what
-   makes gcc place the &D_800569C4 pointer in s0 after the guard). Two diffs are
-   left. (1) The three word stores after the call: retail interleaves
-   load-index / scale / load / store for each of D_800569C4, C8, CC, gcc hoists
-   all three volatile loads of g_GpuQueueHead above the first store. (2) The call
-   sets its first argument from a2 instead of a1. Tried: the queue as one
-   0x60-stride struct (wrong offsets), separate statements, storing C4 last, and
-   a plain while loop instead of if+do/while (that loses the s0 pointer and
-   drops to 76.50%).
+
+// best 94.44% (186 insns, 744 bytes against retail's 187 / 724): the whole drain loop, the post-call word stores, the head update, the tail guard, the pending-callback arm and the return all match instruction for instruction; the ONE residual is the queued-call's argument gather. Retail reads g_GpuQueueHead three times serially, interleaving each index chain with the BE38 / BE3C table load (which costs it a load-delay nop before the jalr), while gcc hoists all three index loads to the top of the block and fills the slots: same instruction multiset, one instruction fewer, so it cannot link. The three 'do { } while (0);' blocks around the post-call stores are scheduling boundaries, not shippable C (mark ROUGH when it matches): without them the stores are batched and the body measures 81.36% / 180 insns / 720 bytes. A 'do { } while (0);' around the call itself measures byte-identical (94.44). Also tried: the queue as one 0x60-byte GpuQueueEntry struct aliased onto g_GpuQueueTable and read as .func/.p/.arg - 94.39 (49 differing lines), worse, so the split [][0x18] arrays stay.
+/*
 int func_8004696C(void) {
     u_long *pQue;
     u_long *pPending;
@@ -187,10 +167,17 @@ int func_8004696C(void) {
             while (!(*g_GpuGp1Port & 0x4000000))
                 ;
 
-            g_GpuQueueTable[g_GpuQueueHead][0](D_8006BE38[g_GpuQueueHead][0], D_8006BE3C[g_GpuQueueHead][0]);
-            *pQue = (u_long)g_GpuQueueTable[g_GpuQueueHead][0];
-            D_800569C8 = (u_long)D_8006BE38[g_GpuQueueHead][0];
-            D_800569CC = (u_long)D_8006BE3C[g_GpuQueueHead][0];
+            g_GpuQueueTable[g_GpuQueueHead][0](D_8006BE38[g_GpuQueueHead][0],
+                    D_8006BE3C[g_GpuQueueHead][0]);
+            do {
+                *pQue = (u_long)g_GpuQueueTable[g_GpuQueueHead][0];
+            } while (0);
+            do {
+                D_800569C8 = (u_long)D_8006BE38[g_GpuQueueHead][0];
+            } while (0);
+            do {
+                D_800569CC = (u_long)D_8006BE3C[g_GpuQueueHead][0];
+            } while (0);
             g_GpuQueueHead = (g_GpuQueueHead + 1) & 0x3F;
         } while (g_GpuQueueTail != g_GpuQueueHead && !(*g_GpuDma2Chcr & 0x1000000));
     }
@@ -206,7 +193,10 @@ int func_8004696C(void) {
     }
 
     return (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;
-} */
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004696C);
+
+
 
 int func_80046C58(u_long mode) {
     u_char v;
