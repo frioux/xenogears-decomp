@@ -1128,6 +1128,7 @@ extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 // 91.72% (440 of 452 bytes; 113 vs 110 insns - the tail is 3 insns short): head, copy loop, eleven field copies, both matrix calls and the frame match.
 // Residual: retail re-forms the g_FieldActors address symbolically in each of the three tail statements (lui v0,hi; lw v0,lo; addu,addu) while this body loads through the $s2 pointer (lw v0,0(s2)); and because the pointer local is assigned at the top, gcc also hoists its lui/addiu above the loop and moves the sw s2 into the first prologue slot, where retail inits $s2 right after the copy loop (its two middle reads are lw a1,0(s2)).
 // Round 475, all scored: per-statement pTailActors value read for the tail alone 83.28% (436 - symbolic loads right, but the three tail statements interleave and pDst lands in a3); value local for the head plus pointer local for the middle 73.09% (428 - a1 becomes the loop counter, no $s2 at all); two separate pointer locals for head and middle 73.09% (identical code); cast at the head only plus value reads at the tail 73.09% (identical). The head's dst=a1/src=a2/i=a3 allocation needs the pointer local assigned first, which is what hoists $s2.
+// Round 475 preset screen of this body: --gp -G0 measures 87.29% (worse than 91.72), so the residual is not the -G8 address fold; cdk 73.20 and 2.6.0 91.36 were already measured. Park stays closed.
 /*
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
     FieldActor** pFieldActors;
@@ -1157,6 +1158,7 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
     ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.z = (*pFieldActors)[srcActorIndex].pActorData->position.vz;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
+
 
 
 void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
@@ -1217,6 +1219,7 @@ extern s32 func_8009FA54(s32 nInstructionOffset);
 // 95.69% (916 bytes / 229 insns - retail's EXACT size, was 92.94 at 896 before round 475): every call, branch, field access and the frame match; 32 differing lines are operand order and three address shapes.
 // Round 475 found the byte count with four spellings: (1) volatile s32* pReloadFlags plus a s32 nReloadFlags local used for the test AND the offsets index, with arg 6 re-dereferencing *pReloadFlags, gives retail's two flag reads (the volatile is load-bearing: without it cc1 CSEs them into one, 2 insns short); (2) the s32* pOffsets local assigned from &pSpriteData->offsets[D_800AE294[characterId]] and then indexed by nReloadFlags gives retail's sll / addiu 4 / addu / addu split where a single offsets[cid + n] subscript folds the +4 into the lw displacement (-1 insn); (3) ((u8*)g_pGameState + partyId)[0x22B1] gives retail's base-first addu v1,v1,s0 (lever c-pointer-from-memory-paren-sum-is-base-first); (4) the swap actor as the offset-first cast sum g_FieldPartyActorIndices[partyId] * sizeof(FieldActor) + (u32)pActors gives retail's index-first addu v0,v0,a2 (lever c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base); plain &pActors[...] is base-first. Those four moved 92.94 -> 95.32 -> 95.69 at constant 916/229.
 // Residual, unfixed: (a) retail keeps &g_FieldSceneReloadFlags in a temp (lui t2 / addiu t2) and does both reads as lw X,0(t2); this cc1 folds the address into each load instead (lui t1 / lw t1,0(t1), then a fresh symbolic pair for arg 6) - same insn count, three differing rows, so no spelling tried moves it (pointer local, volatile pointer, volatile pointee all fold); (b) the knock-on register mirror sll v0,a1 / sll v1,a1 in the offsets block; (c) sll s2,s0,0x2 (partyId * 4) which retail computes early and reorg fills into the bnez delay slot (this body has a nop there and the sll after the flag load), and the lw/ori of the partyId==0 scriptFlags read-modify-write which retail emits after the two g_PlayerActorIndex stores and this body hoists.
+// Round 475 preset screen of the 95.69 body: --gp -G0 measures 98.01% (against 95.69 under the unit's -G8), so most of residual (a) IS the -G8 two-use address fold (lever a-two-use-symbol-address-rematerialises-under-g8-but-not-under-g0, round 475, field/main/misc func_8008C180). The file cannot switch to -G0: screening all C functions of field/main/misc6 under -G0 leaves three already-matched functions below 100 (FieldScriptVMHandlerCheckActorInteraction 99.96, FieldScriptWritePartyMemberPosition 99.75, FieldScriptVMHandlerUpdateActorModelSlot 99.78); every other matched function stays 100.00. Report PRESET_G0 field/main/misc6 func_800A08B8 98.01 95.69 for the orchestrator to judge.
 /*
 void func_800A08B8(void) {
     FieldActor* pFieldActor;
@@ -1289,6 +1292,7 @@ void func_800A08B8(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
+
 
 
 void FieldPlayerSetScriptFlag80(void) {
