@@ -344,21 +344,22 @@ extern s16 D_800D2D34;
 extern s16 D_800C3EA8;
 
 void BattleInitColorTintTable(void) {
-    u8 *pEntry;
+    Temp8 *pTexture;
     u8 *pDst;
-    u8 *pSlot;
     s32 offset;
     s32 i;
 
     for (offset = 0x12; offset >= 0; offset -= 6) {
         g_BattleColorTintParams[offset] = 0;
     }
-    pEntry = *(u8 **)(g_BattleImageList + 0x118);
-    for (i = 0; i < *(u8 *)(g_BattleImageList + 0x10E); i++) {
-        if (*(u16 *)(pEntry + 0x1A) != 0) {
-            *(void **)pEntry = g_BattleImage;
+    pTexture = ((BattleActor *)g_BattleImageList)->pTextures;
+    for (i = 0; i < ((BattleActor *)g_BattleImageList)->numTextures; i++) {
+        if (pTexture->isLoaded != 0) {
+            // Through void** so gcc reloads the image-list pointer and its count every iteration, as
+            // retail does; a typed store through pSource lets it hoist both (3 instructions short).
+            *(void **)pTexture = g_BattleImage;
         }
-        pEntry += 0x30;
+        pTexture++;
     }
     func_800A3640(g_BattleImage, 0, 1, 0x601, 0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C, D_800C3EA8, 0, 0, 0, 0);
     D_800D360C = 0;
@@ -367,113 +368,53 @@ void BattleInitColorTintTable(void) {
     pDst = g_BattleColorTintBase;
     for (i = 0; i < 4; i++) {
         if (g_BattleSpriteRenderData != NULL) {
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x1740];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x1741];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x1742];
+            pDst[0] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[0].red;
+            pDst[1] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[0].green;
+            pDst[2] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[0].blue;
             pDst += 4;
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x1748];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x1749];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x174A];
+            pDst[0] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[1].red;
+            pDst[1] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[1].green;
+            pDst[2] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[1].blue;
             pDst += 4;
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x1750];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x1751];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x1752];
+            pDst[0] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[2].red;
+            pDst[1] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[2].green;
+            pDst[2] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[2].blue;
             pDst += 4;
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x1758];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x1759];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x175A];
+            pDst[0] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[3].red;
+            pDst[1] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[3].green;
+            pDst[2] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk1740[i].colours[3].blue;
             pDst += 4;
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x18;
-            pDst[0] = pSlot[0x16E0];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x18;
-            pDst[1] = pSlot[0x16E1];
-            pSlot = g_BattleSpriteRenderData;
-            pSlot += i * 0x18;
-            pDst[2] = pSlot[0x16E2];
+            pDst[0] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk16E0[i].red;
+            pDst[1] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk16E0[i].green;
+            pDst[2] = ((BattleSpriteColorView *)g_BattleSpriteRenderData)->unk16E0[i].blue;
             pDst += 4;
         } else {
             pDst += 0x14;
         }
         if (g_BattlePartPrimBuffers != NULL) {
-            pSlot = g_BattlePartPrimBuffersVolatile;
-            pSlot += i * 0x18;
-            pDst[0] = pSlot[0x284];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x18;
-            pDst[1] = pSlot[0x285];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x18;
-            pDst[2] = pSlot[0x286];
+            pDst[0] = ((BattlePartColorView *)g_BattlePartPrimBuffersVolatile)->unk284[i].red;
+            pDst[1] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk284[i].green;
+            pDst[2] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk284[i].blue;
         }
         pDst += 4;
     }
     for (i = 0; i < 2; i++) {
         if (g_BattlePartPrimBuffers != NULL) {
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x2E4];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x2E5];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x2E6];
+            pDst[0] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[0].red;
+            pDst[1] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[0].green;
+            pDst[2] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[0].blue;
             pDst += 4;
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x2EC];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x2ED];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x2EE];
+            pDst[0] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[1].red;
+            pDst[1] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[1].green;
+            pDst[2] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[1].blue;
             pDst += 4;
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x2F4];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x2F5];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x2F6];
+            pDst[0] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[2].red;
+            pDst[1] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[2].green;
+            pDst[2] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[2].blue;
             pDst += 4;
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[0] = pSlot[0x2FC];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[1] = pSlot[0x2FD];
-            pSlot = g_BattlePartPrimBuffers;
-            pSlot += i * 0x24;
-            pDst[2] = pSlot[0x2FE];
+            pDst[0] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[3].red;
+            pDst[1] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[3].green;
+            pDst[2] = ((BattlePartColorView *)g_BattlePartPrimBuffers)->unk2E4[i].colours[3].blue;
             pDst += 4;
         } else {
 
