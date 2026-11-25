@@ -731,32 +731,21 @@ typedef struct {
 extern BattleTexBlock D_8009A14C;
 extern BattleTexBlock D_8009A244;
 
-/* 92.36%: frame, calls, constants and the 16-byte D_8009A244 copy are right, but this
-   body is 308 bytes against retail's 300 (one extra load-delay nop plus one
-   instruction), so it cannot link as it stands. The do-while(0) is load-bearing: it
-   is what hoists the prect load and the GetClut argument loads; the plain spelling of
-   the same statements is 79.36 at retail's exact 300 bytes. Residuals, all in the
-   GetClut tail: retail loads tim.crect (sp+0x14) and both GetClut arguments (lh a0/
-   lh a1) BEFORE the D_8009A158/A159 stores, reads 0(a0) with lhu where gcc narrows
-   the (x & 0x3F) read to lbu, and re-forms the second pPrims load (lui
-   %hi(g_BattleTpagePrims); lw 4) where retail reuses the $s0 SetDrawTPage already
-   had. Tried: field spellings pTPage->tag/->code[0] and (u32*)pTPage[i], both
-   re-form; a DR_TPAGE struct copy for the pair (fixes $s0, but the second store
-   becomes a %lo(D_800929EC+4) reloc); u16 tpageBits and (u_short*)tim.prect locals
-   (gcc still narrows to lbu); do-while(0) with the copy inside it (85.49); the
-   unused RECT local is load-bearing, it reproduces retail's 0x38 frame.
-*/
-/*
-void func_80071794(u8* p) {
+// The battle texture archive. This unit only reads the TIM at 0x60.
+typedef struct {
+    /* 0x00 */ u32 pointerCount;
+    /* 0x04 */ u_long* unk04[0x17];
+    /* 0x60 */ u_long* pTim;
+} BattleTextureArchive; // Size: 0x64
+
+void func_80071794(BattleTextureArchive* pArchive) {
     TIM_IMAGE tim;
     u_short tpage;
     u16 tpageBits;
     s16* pClut;
-    u32* pPrims;
-    BattleTexBlock* pBlock;
-    RECT rect;
+    RECT rect; // retail's frame has eight bytes the C never touches
 
-    OpenTIM(*(u_long**)(p + 0x60));
+    OpenTIM(pArchive->pTim);
     ReadTIM(&tim);
     pClut = (s16*)tim.caddr;
     pClut[0] = 0;
@@ -765,21 +754,14 @@ void func_80071794(u8* p) {
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
     tpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
-    pPrims = (u32*)g_BattleTpagePrims;
-    SetDrawTPage((DR_TPAGE*)pPrims, 0, 0, tpage);
-    D_800929EC = pPrims[0];
-    D_800929F0 = pPrims[1];
+    SetDrawTPage(g_BattleTpagePrims, 0, 0, tpage);
+    g_BattleTpagePrims[1] = g_BattleTpagePrims[0];
     tpageBits = *(u16*)tim.prect;
-    D_8009A158 = (tpageBits & 0x3F) << 2;
-    do {
-        D_8009A159 = ((u16*)tim.prect)[1];
-        D_8009A15A = GetClut(tim.crect->x, tim.crect->y);
-        pBlock = &D_8009A244;
-    } while (0);
-    *pBlock = D_8009A14C;
+    D_8009A14C.u0 = (tpageBits & 0x3F) * 4;
+    D_8009A14C.v0 = ((u16*)tim.prect)[1];
+    D_8009A14C.clut = GetClut(tim.crect->x, tim.crect->y);
+    D_8009A244 = D_8009A14C;
 }
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071794);
 extern s32 g_BattleMessageIndex;
 extern s32 g_BattleMessageShownIndex;
 
