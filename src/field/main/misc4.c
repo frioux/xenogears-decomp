@@ -103,6 +103,9 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
    single out label (71.76, 152 bytes), and one permuter run (4 min, 705 iters)
    whose best candidate is 84.49% under objdiff - the permuter's own score is
    not objdiff's, so it picked a body that is worse here.
+   Round 474 added: five independent early returns with a shared `nResult`
+   initialised to -1 (78.38, the last guard flips to beqz/j) and the same with a
+   single `return nResult` at the end (71.76 = the s0 variant above).
 extern int ArchiveDataSync(void);
 extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldScreenImageStored;
@@ -457,11 +460,9 @@ extern s32 g_FieldSuppressStateChange;
 //    "j" with nSum++ in the delay slot); ours branches straight to the body.
 // The -4(a1) count read means the body must still be reachable from the loop
 // header; the array block being 88 bytes is the other half of the frame delta.
-/*
-void func_80079288(void) {
-    int nWeightSums[FIELD_SKIN_COUNT];
+int func_80079288(void) {
+    int nWeightSums[FIELD_SKIN_COUNT + 2];
     int nTotal;
-    int nTarget;
     int nSum;
     int i;
     u_char* pWeight;
@@ -500,46 +501,47 @@ void func_80079288(void) {
     }
     for (i = 0; i < D_800B2298.count; i++) {
         if (D_800B2298.values[i] == 0) {
+            D_800B2298.values[i] = FIELD_RANDOM_SKIN_SLOT_EMPTY;
             goto foundSlot;
         }
     }
     return;
 foundSlot:
-    D_800B2298.values[i] = FIELD_RANDOM_SKIN_SLOT_EMPTY;
-            pWeight = D_80065ADC;
-            nTotal = 0;
-            for (i = 0; i < FIELD_SKIN_COUNT; i++) {
-                nTotal += pWeight[i];
-            }
-            nSum = 0;
-            for (i = 0; i < FIELD_SKIN_COUNT; i++) {
-                nWeightSums[i] = nSum;
-                nSum += pWeight[i];
-            }
-            nTarget = (rand() * (nTotal + 1)) >> 15;
-            nSum = 0;
-            for (i = FIELD_SKIN_COUNT - 1; i >= 0; i--) {
-                if (pWeight[i] != 0 && nWeightSums[i] < nTarget) {
-                    nSum++;
-                    break;
-                }
-            }
-            if (nSum == 0) {
-                return;
-            }
-            g_GameSelectedSkinIndex = i;
-            g_GameSelectedSkinLoadPending = 0;
-            g_FieldPendingWdsBankIndex = D_800B2270[i];
-            if (g_FieldSuppressStateChange == 0) {
-                LoadGameStateOverlay(2);
-            }
-            g_FieldMapChangeGate = 0;
-            D_800ADBD0 = 1;
-            if (g_FieldSystemMode == 0) {
-                func_80281204(i);
-            }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
+    pWeight = D_80065ADC;
+    nTotal = 0;
+    for (i = 0; i < FIELD_SKIN_COUNT; i++) {
+        nTotal += pWeight[i];
+    }
+    nSum = 0;
+    for (i = 0; i < FIELD_SKIN_COUNT; i++) {
+        nWeightSums[i] = nSum;
+        nSum += pWeight[i];
+    }
+    nTotal = (rand() * (nTotal + 1)) >> 15;
+    nSum = 0;
+    for (i = FIELD_SKIN_COUNT - 1; i >= 0; i--) {
+        if (pWeight[i] != 0 && nWeightSums[i] < nTotal) {
+            nSum++;
+            break;
+        }
+    }
+    if (nSum == 0) {
+        return;
+    }
+    g_GameSelectedSkinIndex = i;
+    g_GameSelectedSkinLoadPending = 0;
+    g_FieldPendingWdsBankIndex = D_800B2270[i];
+    if (g_FieldSuppressStateChange == 0) {
+        LoadGameStateOverlay(2);
+    }
+    g_FieldMapChangeGate = 0;
+    D_800ADBD0 = 1;
+    if (g_FieldSystemMode == 0) {
+        func_80281204(i);
+    }
+}
+
+
 
 
 extern s32 g_FieldInitialWdsBankIndex;
