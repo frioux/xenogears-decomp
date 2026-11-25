@@ -1113,9 +1113,9 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
         ResolveArchiveEntryPointers((u32 *)pPartBuffer->pSoundBank);
         ResolveArchiveEntryPointers((u32 *)pPartBuffer->ppParts);
         ResolveArchiveEntryPointers((u32 *)pPartBuffer->ppParts[1]);
-        if (pPartBuffer->pSoundBank->pUnk8 != pPartBuffer->pSoundBank->pUnkC) {
-            if (SoundFindSedsEntry(pPartBuffer->pSoundBank->pUnk8, 0) == 0) {
-                SoundAddSedsEntry(pPartBuffer->pSoundBank->pUnk8);
+        if (pPartBuffer->pSoundBank->pStartPixels != pPartBuffer->pSoundBank->pResultPixels) {
+            if (SoundFindSedsEntry(pPartBuffer->pSoundBank->pStartPixels, 0) == 0) {
+                SoundAddSedsEntry(pPartBuffer->pSoundBank->pStartPixels);
                 pActor->hasSedsEntry1 = 1;
             }
         }
@@ -1211,9 +1211,9 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
         pActor->pTextures = HeapAlloc(pActor->numTextures * sizeof(Temp8), 0);
         for (i = 0; i < pActor->numTextures; i++) {
             pActor->pTextures[i].isLoaded = 0;
-            pActor->pTextures[i].pUnk4 = NULL;
-            pActor->pTextures[i].pUnk8 = NULL;
-            pActor->pTextures[i].pUnkC = NULL;
+            pActor->pTextures[i].pPixels = NULL;
+            pActor->pTextures[i].pStartPixels = NULL;
+            pActor->pTextures[i].pResultPixels = NULL;
         }
     }
     pActor->numModelListEntries = pHeader->numModelListEntries;
@@ -1730,7 +1730,7 @@ void func_800A9FF0(s32 arg0) {
             BattleFreeModelMesh((*ppSlot)->pMesh, 1);
         }
         if ((*ppSlot)->hasSedsEntry1 != 0) {
-            SoundRemoveSedsEntry(((Temp8 *)(*ppSlot)->pSoundBank1)->pUnk8);
+            SoundRemoveSedsEntry(((Temp8 *)(*ppSlot)->pSoundBank1)->pStartPixels);
         }
         if ((*ppSlot)->pModelSource != NULL) {
             HeapFree((void *)(*ppSlot)->pModelSource);
