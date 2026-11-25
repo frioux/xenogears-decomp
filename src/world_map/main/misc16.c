@@ -330,14 +330,26 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    So the whole residual is still "pool the base and keep it live across the vy-zero group",
    which is the same unreachable allocation as above: park.
  */
-// 88.71%, 1040 bytes against retail's 1036 (259 insns). CORRECT code, one instruction over; unchanged by round 483's re-measure (un-parked, diffed 88.71 / 1040 / 260 insns, re-parked identical). ROUND 483 NEW LEVER, unmeasured here: on this unit's WorldMapBuildTileIdGrid the entire 96.44 register permutation closed at 100.00% by MERGING A REDUNDANT LOCAL away - colCur existed only to hold colBase, and writing col = colBase; ... col++ in the inner loop (one variable, one allocno fewer) moved every register in the body at once (the permuter's find, base 365 -> 0). So the remaining knob on THIS body is the COUNT of allocnos, not their order: the clean candidates are pA0 (pure artifact of the 0xB0 store order), rowOff-less shapes and the nPack/nClip pair, each of which removes one pseudo. Everything below was measured before that lever was known, so re-measure those spellings WITH a removed local instead of as declaration reorders.
+// 88.71% / 1040 bytes / 260 insns (retail 1036 / 259). ROUND 495 (park lane) re-measured this body,
+// then worked the round-483 "allocno COUNT, not order" lever three ways. (a) The pA0 local is GONE for
+// good: the 0xB8 store reads `*(u16*)(pScratch + 0xA0)` directly and the code is IDENTICAL
+// (88.71 / 1040 / 260), so pA0 was pure CSE. (b) The tail reading `p->x` / `p->z` inline instead of
+// through the nX / nZ locals: 87.67 / 1048 / 262, worse. (c) BEST PERCENTAGE YET, NOT LINKABLE: pooling
+// `D_1F8000C8` into a `WorldMapMisc16Point* pC8` local assigned at the row-loop head (retail's 11th
+// live value) gives 89.27 / 1032 / 258 - ONE INSTRUCTION SHORT of retail, base rotates s2 -> s1, pTex
+// s3 -> s2 and every stack slot shifts, so the overlay would move: not committable. (d) Pooling pC0 AND
+// pC8 at the row-loop head: 86.83 / 1012 / 253. (e) pC8 pooled with `(WorldMapMisc16Point*)(pScratch +
+// 0xB0)` in place of `&pQuad[2]` in the third call: 82.85 / 1032. SIZE IS THE HARD CONSTRAINT from here
+// on: only a body of exactly 1036 bytes can ever link, and every >= 88% body measured is 1040 (4 over)
+// or 1032 (4 short) - size and percentage are anti-correlated across every spelling tried so far. The
+// two known 1036 spellings are both far worse: 81.45 with pScratch + 0xB8 as the 4th corner, and
+// 78.47 / 74.88 (pooled / unpooled) with the five inner points as named symbol addresses.
 /*
 void func_800983A0(WorldMapMisc16Struct* p) {
     u8* pScratch;
     WorldMapMisc16Point* pQuad;
     WorldMapMisc16Tex* pTex;
     WorldMapMisc16Tex* pMaskEntry;
-    u8* pA0;
     WorldMapMisc16TileMask* pMask;
     s16* pClip;
     s32 nX;
@@ -383,10 +395,9 @@ void func_800983A0(WorldMapMisc16Struct* p) {
         for (col = 0; col < 5; col++) {
             *(u16*)(pScratch + 0xA8) = *(u16*)(pScratch + 0xA0) + 0x800;
             *(u16*)(pScratch + 0xAC) = *(u16*)(pScratch + 0xA4);
-            pA0 = pScratch + 0xA0;
             *(u16*)(pScratch + 0xB0) = *(u16*)(pScratch + 0xA0);
             *(u16*)(pScratch + 0xB4) = *(u16*)(pScratch + 0xA4) - 0x800;
-            *(u16*)(pScratch + 0xB8) = *(u16*)pA0 + 0x800;
+            *(u16*)(pScratch + 0xB8) = *(u16*)(pScratch + 0xA0) + 0x800;
             *(u16*)(pScratch + 0xBC) = *(u16*)(pScratch + 0xA4) - 0x800;
             nClip = func_800987AC(&pQuad[0], &pQuad[1], &pQuad[2], &pQuad[3]);
             *pClip = nClip;
@@ -442,6 +453,7 @@ void func_800983A0(WorldMapMisc16Struct* p) {
     }
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
+
 
 
 
