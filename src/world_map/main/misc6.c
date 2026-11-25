@@ -1198,6 +1198,29 @@ int WorldMapInitGroup1Actor(int index) {
 // from this body: base 280 -> 220 (the case-2 inline-cast find) then PERMUTER_NONE.
 // Preset ruled out earlier: 2.7.2-cdk gives 83.56 on this body.
 
+// objdiff 99.36% (2680 bytes / 670 insns = retail's exact size), round 474.
+// Structure is complete: all three jump tables, both call families, every constant.
+// What closed the last 4 bytes this round (2676 -> 2680):
+//  - a dirX local assigned at the TOP of the case 3 and case 23 arms (nDirX = pActor->dirX)
+//    is the extra load retail keeps in EACH arm (lw v1,0x38(s3) before the two stores);
+//    reading pActor->dirX inline in the x expression lets cross-jump sink one load into
+//    the merged tail and the function loses that instruction. The do-while stays: without
+//    it sched2 hoists BOTH loads into both arms (2688/2692).
+//  - the case 0 test spelled pActor->z > (s32)pActor->pStateIds (not pStateIds < z) gives
+//    retail's load order: lw v1,0x30(s3) before lw v0,0x54(s3).
+//  - the third switch's case 2/3 arm stores pVec1 vz, vx, vy in that order (retail: sw
+//    zero,0x18, sw zero,0x10, then the jal delay slot sw 0x14).
+// Residual = ONE displaced pair. Retail loads the case 3/23 tail's g_WorldMapPlayerPosition
+// (lui a0 + lw a0,0) directly after the two sh stores and BEFORE the dirX*13952 chain; our
+// compile schedules the same pair six instructions later. Registers already match (pos in
+// a0, dirX in v1). Measured this round, all 2680 bytes: a separate position-load local in
+// the tail puts the load first but then swaps the two temporaries (pos v1, dirX a0, plus a
+// second dirX load) = 99.10; that local plus a second do-while = 99.10; volatile position
+// load = 2684/99.65; do-while above the stores = 2684/98.90; no do-while at all =
+// 2688/99.06; indexing the array as a byte (lbu, wrong width) lands the load first and
+// scores 99.87 with that one instruction as the only difference, so the displacement is
+// sched2's SI-mode vs QI-mode priority, not source order. Permuter (3 min, -j 2):
+// PERMUTER_NONE base 120 best 120. Preset ruled out earlier: 2.7.2-cdk gives 83.56.
 /*
 int func_8007EE34(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1206,6 +1229,7 @@ int func_8007EE34(int index) {
     s16 nCommand;
     s32 nResult;
     s32 nIndex;
+    s32 nDirX;
 
     nResult = 1;
     if (pActor->command != 0) {
@@ -1242,11 +1266,12 @@ int func_8007EE34(int index) {
                     + pActor->dirZ * 0x1E00;
         break;
     case 3:
+        nDirX = pActor->dirX;
         pActor->command = 0;
         pActor->state = 1;
         do { } while (0);
-        pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
-                    + pActor->dirX * 0x3300;
+        pActor->x = *(u32 *)g_WorldMapPlayerPosition - nDirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + nDirX * 0x3300;
         pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
                     + pActor->dirZ * 0x3300;
         break;
@@ -1266,11 +1291,12 @@ int func_8007EE34(int index) {
         pActor->z = pActor->dirZ * 0x3300 + 0x7F2C000;
         break;
     case 23:
+        nDirX = pActor->dirX;
         pActor->command = 0;
         pActor->state = 0x18;
         do { } while (0);
-        pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * WORLD_MAP_SLOT_SPAWN_OFFSET
-                    + pActor->dirX * 0x3300;
+        pActor->x = *(u32 *)g_WorldMapPlayerPosition - nDirX * WORLD_MAP_SLOT_SPAWN_OFFSET
+                    + nDirX * 0x3300;
         pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * WORLD_MAP_SLOT_SPAWN_OFFSET
                     + pActor->dirZ * 0x3300;
         break;
@@ -1281,7 +1307,7 @@ int func_8007EE34(int index) {
 
     switch (pActor->state) {
     case 0:
-        if (pActor->x < pActor->stateIndex && (s32)pActor->pStateIds < pActor->z) {
+        if (pActor->x < pActor->stateIndex && pActor->z > (s32)pActor->pStateIds) {
             pActor->x = pActor->stateIndex;
             pActor->z = (s32)pActor->pStateIds;
             WorldMapStartSlot(4, 2);
@@ -1436,9 +1462,9 @@ int func_8007EE34(int index) {
         pVec0->vx = 0x988;
         pVec0->vy = -0x227;
         pVec0->vz = -0xCAB;
+        pVec1->vz = 0;
         pVec1->vx = 0;
         pVec1->vy = 0x1000;
-        pVec1->vz = 0;
         OuterProduct12(pVec1, pVec0, pVec2);
         VectorNormal(pVec2, pVec2);
         OuterProduct12(pVec0, pVec2, pVec1);
@@ -1470,6 +1496,7 @@ int func_8007EE34(int index) {
     return nResult;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
+
 
 
 
