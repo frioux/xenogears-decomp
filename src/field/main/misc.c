@@ -3581,15 +3581,15 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 // PARKED 92.24% (320 bytes against retail's 340, 80 insns against 85). Every
 // guard, call, load and branch matches. Retail stores g_FieldScriptVMStopFlag
 // TWICE: one block at .L8008F85C shared by the FieldArchiveTryDataSync/gate arms
-// (source register $v0) and its own store at .L8008F8EC for the final else arm
+// (source register $v0) and its own store at .L8008F8EC for the final arm
 // (source register $v1, which still holds the 1 built for the
 // g_GameWdsStreamInProgress == 1 compare). This build cross-jumps all three into
 // ONE store at the function tail, so the whole 20-byte gap (5 insns) is that
 // second lui+sw pair plus the j/nop that retail's early block needs, minus one
 // li v0,1 that the merged block hoists into the loadState branch delay slot.
-// The mechanism is the source register: at jump time the two stores are only
-// mergeable when both read the same constant-1 pseudo, and the merged block's
-// live range across the else code is what makes cse reuse it there.
+// The mechanism is the source register: at post-regalloc jump time the two
+// stores are only mergeable when both read the same constant-1 pseudo, and the
+// merged block's live range across the else code is what makes cse reuse it there.
 // Measured, all 320 bytes / 92.24%: the two conditions split into separate
 // else-ifs; a flat early-return form; an empty do-while around each arm; a
 // volatile store on the else body (cc1 folds it back to the plain sw); the
@@ -3598,6 +3598,15 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 // exact block shape and scores 98.41% / 336 bytes (84 insns) - the only delta
 // left is retail's extra `li v1,1` - so the shared body is right and nothing but
 // the store's source register is in the way.
+// Round 489 added the missing quadrant: an if/else-if/else chain whose store is
+// the THEN block (`else if (stream == 1 || loadState == -1) { stop; } else
+// { body; }`) DOES separate the two stores - retail's `sw $v1` register comes
+// out exactly, and the first block keeps `sw $v0` + its own `j` - but gcc emits
+// the then block before the else body, so the third store lands mid-function and
+// pays a j+nop: 344 bytes / 86 insns / 90.82%. The store-as-`else` form merges
+// again (92.24), with or without a `return;` in the then block. So both halves
+// of retail's shape are reachable, never in one body: the block split needs the
+// store to be a then-block, the position needs it to be the else/exit tail.
 /*
 void func_8008F7B8(void) {
     int characterId = FieldScriptVMGetArgument(1);
