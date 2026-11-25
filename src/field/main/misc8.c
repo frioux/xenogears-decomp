@@ -363,7 +363,7 @@ extern const char D_8006FC3C[];
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void FieldUpdatePlayerActorContact(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
-void func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, int arg4);
+s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, int arg4);
 void func_8008399C(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void func_800815F0(void);
 void FieldSetGearModelAnimationForActor(int arg0, int actorId, FieldActor* pActor);
@@ -2219,55 +2219,15 @@ extern void func_80081C54(int actorIndex);
 extern const char D_8006FC60[]; // "ERROR ID1 ACT=%d\n"
 extern const char D_8006FC74[]; // "ERROR ID0 ACT=%d\n"
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
-
-/* Best attempt: 84.61%, 2596 bytes against retail's 2700 (649 insns against 676, so
-   ~27 instructions are still missing). Body below is the fourth measured version;
-   every block and every call is present and in retail's order.
-   THE FACTS THIS FUNCTION ESTABLISHED (they are the expensive part):
-   - signature is s32 (returns 0 on the walk, -1 when it bails), not the void the
-     unit's extern says. Callers pass (actorIndex, y, pFieldActor, pActor, arg4);
-     arg4 is the 5th argument, read at 0x110(sp) inside a 0x100 frame.
-   - SpriteData+0x10 is step.y (NOT moveSpeed) and +0x1C is gravity; the code
-     accumulates step.y += gravity and stores it into ActorData::fallSpeed.
-   - the frame is 0x100 with locals at 0x18 heights[4] (s32), 0x28 ranges[4],
-     0x38 tris[4], 0x48 indices[4] (s16), 0x50 normals[4] (VECTOR), 0x90/0x94/0x98
-     saved position x/y/z, 0xA0 savedTriIds[4] (s16); 0xA8..0xBF is dead, i.e. the
-     original source held more locals than the code reads - the same 24-byte dead
-     tail as func_8007D3D4 and func_8007BEF4 in main/misc4.
-   - func_8007D3D4's real prototype is in main/misc4.c's parked body:
-     s32 func_8007D3D4(ActorData*, s32 nSetIndex, s32* pY, VECTOR* pNormal,
-                       s16* pTriIndex, s32* pYMax).
-   - the sort is a 2x2 bubble over the three parallel arrays (heights, ranges,
-     tris) - indices are NOT swapped - and nStep is read out of heights[walkmeshId]
-     BEFORE the sort.
-   - `flags &= ~0x401000` is the 0xFFBFEFFF mask (NOT ~0x40001000, which is 0xBFFF).
-     gcc emits srl where retail has sra once `material` is u_int, and retail's
-     `sll/sra` pair on the saved walkmesh id means the local is a u16 compared
-     against the s16 field: `pActor->walkmeshId != (s16)savedWalkmeshId`.
-   WHAT IS STILL WRONG: (1) the array bases land in the wrong slots whichever order
-   I declare them in (gcc 2.7.2 gives normals 0x20 / indices 0x60 / heights 0x88
-   here; three declaration orders were measured - 78.63 / 82.97 / 84.61 - and the
-   offsets never came out ascending as retail's do), (2) actorIndex/y/pActor/pSprite
-   are s5/s6/s1/s4 here against retail's s6/s7/s1/s5, and that tie drives every
-   later operand. Fixing (1) by hand is the next thing to try; then the ~27 missing
-   instructions (compare the retail tail at 0x85248/0x85398 with the body's). */
-/*
-// Places the actor on the walkmesh under its next step: probes every triangle set
-// (func_8007D3D4), keeps the three lowest plane heights in sorted order, moves the
-// actor onto the set it belongs to and either commits the new position or puts the
-// saved one back. y is the height the caller wants, arg4 the number of matched sets.
 s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, s32 arg4) {
     SpriteData* pSprite;
-    s16 savedTriIds[4];
-    s32 savedZ;
-    s32 savedY;
-    s32 savedX;
-    VECTOR normals[4];
-    s16 setIndices[4];
-    s32 setTris[4];
-    s32 setRanges[4];
     s32 setHeights[4];
+    s32 setRanges[4];
+    s32 setTris[4];
+    s16 setIndices[4];
+    VECTOR normals[4];
+    s32 savedPos[3];
+    s16 savedTriIds[4];
     u16 savedWalkmeshId;
     s32 nStep;
     u_int material;
@@ -2292,9 +2252,9 @@ s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pAc
             return -1;
         }
     }
-    savedX = pActor->position.vx;
-    savedY = pActor->position.vy;
-    savedZ = pActor->position.vz;
+    savedPos[0] = pActor->position.vx;
+    savedPos[1] = pActor->position.vy;
+    savedPos[2] = pActor->position.vz;
     savedWalkmeshId = pActor->walkmeshId;
     for (i = 0; i < 4; i++) {
         savedTriIds[i] = pActor->walkmeshTriIds[i];
@@ -2453,8 +2413,8 @@ s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pAc
         return 0;
     }
 restorePosition:
-    pActor->position.vx = savedX;
-    pActor->position.vz = savedZ;
+    pActor->position.vx = savedPos[0];
+    pActor->position.vz = savedPos[2];
     pActor->walkmeshId = savedWalkmeshId;
     pActor->fallSpeed = 0;
     for (k = 0; k < 4; k++) {
@@ -2465,7 +2425,7 @@ restorePosition:
     }
     if (pSprite->step.y < 0) {
         pSprite->step.y = 0;
-        pActor->position.vy = savedY;
+        pActor->position.vy = savedPos[1];
     }
     pSprite->position.x = pActor->position.vx;
     pSprite->position.y = pActor->position.vy;
@@ -2479,8 +2439,8 @@ finishWalk:
         g_FieldButtonPollMask = 0xFFF;
     }
     pActor->position.vy += pSprite->moveSpeed;
-    pActor->position.vx = savedX;
-    pActor->position.vz = savedZ;
+    pActor->position.vx = savedPos[0];
+    pActor->position.vz = savedPos[2];
     pActor->walkmeshId = savedWalkmeshId;
     pActor->fallSpeed = 0;
     for (k = 0; k < 4; k++) {
@@ -2504,7 +2464,7 @@ finishWalk:
     func_80081C54(actorIndex);
     return 0;
 }
-*/
+
 
 extern s32 g_FieldArchiveStreamStatus;
 extern s32 g_FieldArchiveStreamActive;
