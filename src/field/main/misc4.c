@@ -2030,6 +2030,37 @@ int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
 //    nPos moved above the pRef->vy store (no change to the lh narrowing).
 //    Direct indexing with no pointer locals, as before: a pCurTri/pVert pointer pair
 //    costs ~30%.
+// Best attempt: 92.61% (1696 bytes; retail is 1704 = two instructions more, 424 vs 426).
+//    This is the HONEST spelling of the body: the 91.87% note above got its frame from an
+//    uninitialised local (nWalkmeshId read in the 0x800000 test), which is UB. With
+//    pActor->walkmeshId in that test the body scores 92.00, and with the nMode tail
+//    written as two returns (retail has TWO copies of 'j epilogue / move v0,zero')
+//    it reaches 92.61 - so the phantom slot was worth nothing. Everything the note
+//    above lists as 'fixed' still holds; the loop body, the switch table use, the
+//    plane-height call and the crossed-edge copies are instruction-identical.
+//    WHAT IS LEFT, measured on this body:
+//    1. THE FRAME, and it is arithmetic, not guesswork: vars = frame(0x80) - args(0x18)
+//       - saves(0x28) = 0x40 = VECTOR normal (0x10) + SIX 8-byte reload spill slots
+//       (retail spills at 0x28,0x30,0x38,0x40,0x48 plus an unread 0x50). This body has
+//       FIVE (vars = 0x38, frame 0x78, saves at 0x50..0x74), so every save offset, both
+//       incoming-stack-arg reads (0x90/0x94 vs 0x88/0x8C) and the prologue/epilogue
+//       differ. An EXPAND-era dead array cannot fill that slot: expand-era slots are
+//       handed out BELOW every reload spill, so a dead u_long[2] lands at 0x20 and
+//       pushes the five spills +8 (86.66, measured last round). A sixth RELOAD spill
+//       would need a store+load pair, and 'grep -o '[0-9A-F]*(sp)' of retail's .s shows
+//       nothing at all at 0x50. Treat this as unrequestable from source.
+//    2. two instructions: retail's early exit is 'bne s0,-1,body' plus an out-of-line
+//       'j epilogue / li v0,-1', cc1 emits 'beq s0,-1,<epilogue>'; and in the flag test
+//       retail's 'beqz v0,fail' reuses the 'li v0,-1' in its delay slot for the
+//       following 'beq s0,v0', where this body re-loads it.
+//    3. nPos: retail narrows neither half (full-word 'sra 16 / sll 16' off the loads
+//       taken before the pRef stores); this body reloads 'lh 2(pPos) / lh 10(pPos)'
+//       because the pRef->vx store kills the loaded words.
+//    4. the '& 3' / '& 7' mask sits on the scriptFlags side in retail and on the
+//       nFlags side here (same instruction count, 2 lines).
+//    Keep: case 6 must be written '< 0 -> n1 else n2' (retail's bgez) and the nMode
+//    tail as 'if (nMode == -1) return 0; ... return 0;'.
+//
 /*
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pRef, int nMode) {
     FieldWalkmeshTriangleRecord* pTri;
@@ -2046,7 +2077,6 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     s32 vB;
     s32 vC;
     u_int nFlags;
-    s32 nWalkmeshId;
 
     nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
     pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
@@ -2128,7 +2158,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
         nFlags = g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & nFlagMask;
         if ((((pActor->scriptFlags.flags >> 9) & 3) & (nFlags >> 3)) != 0
             || (((pActor->scriptFlags.flags >> 8) & 7) & (nFlags >> 5)) != 0
-            || ((nFlags & 0x800000) != 0 && nWalkmeshId == 0)) {
+            || ((nFlags & 0x800000) != 0 && pActor->walkmeshId == 0)) {
             nTri = -1;
             break;
         }
@@ -2138,9 +2168,10 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     }
 
     if (nTri != -1 && i != 0x20) {
-        if (nMode != -1) {
-            FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], pRef, &normal);
+        if (nMode == -1) {
+            return 0;
         }
+        FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], pRef, &normal);
         return 0;
     }
 
@@ -2173,6 +2204,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     return -1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
+
 
 
 
