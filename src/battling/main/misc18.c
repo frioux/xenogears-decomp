@@ -353,32 +353,35 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     pWork->maxDistance = 0xFF;
     return 0;
 }
-/* 89.78%, re-measured this round: the body compiles and the number is real (272
-bytes against retail's 268, 68 instructions against 67). Two differences, both in
-the block layout, and the first one is why the function cannot close:
-1. Retail keeps ONE return-0 trampoline (j epilogue; move v0,zero) BETWEEN the
-   flags test and the body, with the flags test a taken bnez into the body and the
-   trampoline as its fall-through; the two guard returns share that block. gcc
-   2.7.2 here instead gives each guard its own return-0 block and places the
-   survivor after the third guard (BattleCheckPositionPastMapCenter on the
-   target's position) at +0x6c, threading the other into the epilogue branch.
-   Isolated this round: the guards' return-0 block is IDENTICAL to the third
-   guard's, so cross-jump merges them and the surviving block is not the one the
-   guard test created - a 3-minute permuter run's only improvement was to add a
-   store to the guard's block so it stops being identical (cost 823 -> 286), which
-   changes the code's behaviour, so it was rejected. A unique guard block means
-   retail's third guard exit emitted no block at all (bare 'beqz v0, epilogue' with
-   a nop delay slot, i.e. gcc knew v0 was already 0); 'v = call(); if (v == 0)
-   return v;' was tried to get that and produces the same layout.
-2. The last block's 'return 1' li is stolen into the preceding branch's delay slot,
-   which then needs a nop for the flags load; retail keeps the li after the load
-   and fills that slot with the 0xFFFF7FFF lui. Same instruction count either way.
-Screened this round: gcc-2.6.0 89.78, gcc-2.7.2-cdk 88.88, -G0 compile-failed.
-Shapes tried across rounds 166 and this one: two plain returns, combined
-or-condition, single && with the body nested (88.88), one trailing return 0 with
-the body nested, goto to a shared body label, shared-exit result variable (84.93),
-plus the permuter. 
-
+// 89.78%, re-measured from four spellings this round: 272 bytes against retail's 268
+// (68 insns against 67), all four identical in score and size. The body compiles
+// and the number is real. Two residuals, both block LAYOUT, not allocation:
+// 1. Retail keeps ONE return-0 trampoline (j epilogue; move v0,zero) placed BETWEEN
+//    the flags test and the body, with the flags test a taken bnez into the body and
+//    that trampoline as its fall-through, so both guard returns share it and neither
+//    guard pays a branch to the epilogue. gcc 2.7.2 here merges the guards return-0
+//    block with the THIRD guard's (identical text, so cross-jump merges them) and
+//    places the survivor at the third guard's source position (+0x6c), while the
+//    flags guard takes the cheap form beqz epilogue with move v0,zero in the delay
+//    slot. So the block lands where the LAST return-0 site in the source is: two
+//    plain guards put it after the target-position call, a body nested under the
+//    flags test with one trailing return 0 puts it after the clear block, and
+//    v = call(); if (v == 0) return v; puts it back at the same place as the plain
+//    form (cc1 knows the callee is 0/1 and folds it). A 3-minute permuter run's only
+//    improvement was to add a store to the guard block so it stops being identical,
+//    which changes behaviour, so it was rejected.
+// 2. The last block's return-1 li is stolen into the preceding bnez delay slot,
+//    which then needs a nop for the flags load; retail keeps the li after that load
+//    (filling its load-delay slot) and puts the 0xFFFF7FFF lui in the bnez slot.
+//    Same instruction count either way.
+// Screened: gcc-2.6.0 89.78, gcc-2.7.2-cdk 88.88, -G0 compile-failed.
+// Shapes tried across rounds 166, 481 and now: two plain returns, combined
+// or-condition (compiles identically to two plain returns), single && with the body
+// nested (88.88), one trailing return 0 with the body nested, goto to a shared body
+// label, shared-exit result variable (84.93), return-v for the third guard, plus the
+// permuter. Do not retry the or-condition or return-v forms: both are byte-identical
+// to the first.
+/*
 s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     s32 v;
 
@@ -414,6 +417,7 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     return 1;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
+
 void BattleSetActorFlag2AndClearQueue(BattleActor* pActor, BattleWork* pWork) {
     u8 v;
 
