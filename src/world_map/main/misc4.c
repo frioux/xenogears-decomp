@@ -176,6 +176,9 @@ extern s16 g_NextMapRotationY;
 extern s16 g_NextMapFlags;
 extern s32 g_WorldMapExitFlag;
 extern s16 g_WorldMapPathFrame;
+// the same halfword seen as a 2-element array: taking &<scalar global> is folded back
+// into a bare memory operand, while the array's decay stays in a register
+extern u16 g_WorldMapPathFrameHalf[] __asm__("g_WorldMapPathFrame");
 extern s32 g_WorldMapScrollX;
 extern s16 g_WorldMapSlotUpdateFlags;
 extern s32 g_WorldMapCameraTarget;
@@ -245,7 +248,7 @@ extern s32 WorldMapInitReturnThree(s32);
 extern s32 WorldMapInitGroup0Actor(s32);
 extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern s32 WorldMapInitActorSlotTimer40(s32 index);
-extern void func_80078EA4(void);
+extern s32 func_80078EA4(s32 index);
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern int rand(void);
 extern s32 func_80079778(s32 index);
@@ -729,57 +732,58 @@ s32 WorldMapInitActorSlotTimer40(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
-/* 84.53%, 1580 bytes; retail is 1588. The instruction multiset is retail's exactly
-   EXCEPT for one missing `lui %hi / addiu %lo` pair, and the callee-saved numbering is
-   rotated. Full decode; do not rewrite it from the assembly.
-   - switch ((s16)p->state) has 19 entries (cases 0-7, 16, 17, 18; 8-15 default). The
-     table's trailing 0 word at 0xBC is the .align 3 pad before jtbl_8006FBB0, so the C
-     switch reproduces the whole misc4 rodata range: jtbl_8006FB40 (0x50, func_80077E68,
-     still asm) then this table at 0x70, then the pad, then 0xB0.
-   - the tail calls func_80096F18 when `p->state != 4 && p->state != 5` (sltiu on state-4).
-   - the shake halfwords at 0x1F8000A0/0xA2 are each READ TWICE in one basic block, so
-     they must be volatile: `*(volatile u16 *)(pScratch + 0xA0)`; without volatile cse
-     collapses the second load. The scratch base must be a `u8 *` local (absolute
-     `*(s16 *)0x1F8000A0` casts give lui $at per access, and a base+0xA0 pointer local
-     loses retail's `0xA0($s3)`).
-   - the four increments are NOT one vector: retail reaches 0x8009BD40 through a register
-     (retail's $s0, `lhu 0(v0)` / `sh 0(v0)`) but 0x8009BD42, 0x8009BD48 and 0x8009BD4A
-     through their own %hi/%lo each time. Writing them as `pFrame->vy` instead makes gcc
-     emit `2(s0)` and loses 4 lui (1596 bytes). They are summed as unsigned halfwords,
-     hence the u16 declarations above.
-   - case 16 needs a LOCAL copy of p->command: the three calls may store it, so a plain
-     `p->command` reloads with a second `lh` (retail loads once and stores that register
-     to g_WorldMapTpageAbr).
-   THE RESIDUAL: retail materialises &g_WorldMapPathFrame INSIDE each of case 4 and case 5
-   and keeps it in $s0 across the calls (`addu a0,s0,zero` for the argument, `lhu 0(s0)` /
-   `sh 0(s0)` after two rand() calls). The body below assigns the pointer once in the
-   entry block; gcc keeps it in a register but materialises it once, so cases 4 and 5 lose
-   one lui/addiu between them (-8 bytes; everything else is byte-count identical).
-   Assigning the pointer inside each case - retail's shape - makes cse fold the address
-   into every use (`lhu $2,g_WorldMapPathFrame` + `sh $2,g_WorldMapPathFrame` through $at,
-   and `la a0` for the argument): 83.30%, 1596 bytes, 3 callee-saved registers instead of
-   4. Measured and did NOT stop the fold: `(u16 *)(mem_addr)&sym`, `s16 *pFrame` with
-   `*(u16 *)pFrame`, `volatile` on the pointer and on the pointee, `do { } while (0)`
-   around the assignment, a block-scoped declaration, reassigning both at the top and in
-   the cases, and `s16 state = p->state` before the switch.
-   Register numbering is also rotated and could not be moved: retail $s0 = &pathFrame,
-   $s1 = 0x2AAAAAAB (the `% 12` magic), $s2 = p, $s3 = 0x1F800000; this body gets
-   $s0 = the magic, $s1 = p, $s2 = the scratch base, $s3 = &pathFrame, and the prologue
-   save order differs (retail ra,s3,s2,s1,s0).
-   permute.sh from the body below (4 min, -j2): PERMUTER_BETTER base=8359 best=4145, but
-   the best candidate is wrong code (it replaces the stateTimer test with a stale variable
-   assigned before `case 4:`), so nothing was ported.
-*/
+/* 85.84%, 1592 bytes; retail is 1588. Full decode, and the CALLEE-SAVED SET, the
+   FRAME (0x28) and every register number are retail's exactly: $s0 = &g_WorldMapPathFrame,
+   $s1 = 0x2AAAAAAB, $s2 = p, $s3 = 0x1F800000. What is left is the schedule of the four
+   volatile halfword read-modify-writes in cases 4 and 5, plus one load-delay nop.
+   - switch ((s16)p->state): 19 entries (0-7, 16, 17, 18; 8-15 default). The table's
+     trailing 0 word at 0xBC is the .align 3 pad before the next table, so the C switch
+     reproduces the whole misc4 rodata range.
+   - THE ADDRESS THAT MUST LIVE IN $s0 ACROSS THE rmw CALLS: retail materialises
+     `lui $s0,%hi(g_WorldMapPathFrame)` / `addiu $s0,$s0,%lo` INSIDE each of case 4 and
+     case 5 and reuses it (`addu a0,s0,zero` for the func_80096F18 argument, `lhu 0(s0)` /
+     `sh 0(s0)` after the two rand()s), while the tail's third call uses a plain `la a0`.
+     Three things are needed together, and all three were measured:
+       1. the pointer must be assigned INSIDE the arm (an entry-block assignment gives one
+          materialisation for the whole function: 1580 bytes, -8);
+       2. it must be a BLOCK-SCOPED local declared in the arm (`case 4: { u16 *pFrame = ...`),
+          because a function-scope local assigned in the arm keeps its allocno priority and
+          steals $s2/$s1/$s0: the whole register family rotates and 83.84%/1600;
+       3. its base must be an ARRAY-typed alias: `extern u16 g_WorldMapPathFrameHalf[]
+          __asm__("g_WorldMapPathFrame");` then `u16 *pFrame = g_WorldMapPathFrameHalf;`.
+          `&<scalar global>` is folded back into a bare memory operand (or a `la` for the
+          argument) by cse - measured 83.30%/1596, and the same fold kills `(u16 *)(mem_addr)&sym`,
+          a `s16 *` local, volatile on the pointer and on the pointee, and a do/while.
+          This is levers.md's a-pointer-local-to-a-scalar-global-always-folds / the round-474
+          array-decay alias; tools/scripts/cc1_probe.sh reproduces it in 10 s.
+   - the shake halfwords at 0x1F8000A0/0xA2 are read twice in one block, so they are
+     `*(volatile u16 *)(pScratch + 0xA0)`; pScratch must be a `u8 *` local (absolute casts
+     give lui $at per access, a base+0xA0 pointer local loses retail's 0xA0($s3)).
+   - D_8009BD42/48/4A can stay `s16` (the u16 the old note asked for is not needed: `+=` of a
+     u16 load into an s16 global emits retail's lhu/sll-free sh pair).
+   THE RESIDUAL (cases 4 and 5, ~8 insns each): retail groups the four loads, then the two
+     `addu`s, then the two stores (`lhu v1,0(s0); lhu a1,0xA0(s3); lui/lhu D_8009BD48;
+     lhu a2,0xA0(s3); addu v1,v1,a1; addu a0,a0,a2; sh v1,0(s0); sh a0,D_8009BD48`) and
+     issues the arm's SECOND `rand()` before that group, in that jal's delay slot, so its
+     `% 12` multiply chain interleaves with the loads. Measured here:
+       - both `rand()` stores first (`*(volatile ...0xA0) = rand()%12-6;` then `...0xA2`):
+         84.05%/1592, the second jal lands in retail's place but the loads are NOT hoisted
+         (a `nop` after each single load);
+       - retail's source order with the second value held in an `s32 jitter` local and stored
+         after the pathFrame/D_8009BD48 updates (THE BODY BELOW): 85.84%/1592, the loads still
+         not hoisted and the jx store is not moved into the jal's delay slot (+1 insn);
+       - the plain order (jx store, jx updates, then `rand()`): 85.71%/1592.
+     So the remaining difference is sched2's choice of load grouping, not a source shape:
+     below the 99% permuter gate, park it.
+   Register numbering is fully determined by the three points above; do not re-hunt it. */
 /*
 s32 func_80078EA4(s32 index) {
     WorldMapActor *p;
-    u16 *pFrame;
     u8 *pScratch;
     s16 command;
 
     p = g_WorldMapSlots + index;
     pScratch = (u8 *)PSX_SCRATCH;
-    pFrame = (u16 *)&g_WorldMapPathFrame;
     switch ((s16)p->state) {
     case 0:
         p->stateTimer = p->stateTimer - 1;
@@ -820,13 +824,17 @@ s32 func_80078EA4(s32 index) {
         p->stateTimer = 0x28;
         p->state = p->state + 1;
         break;
-    case 4:
+    case 4: {
+        u16 *pFrame = g_WorldMapPathFrameHalf;
+        s32 jitter;
+
         func_80096F18((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
         p->stateTimer = p->stateTimer - 1;
         *(volatile u16 *)(pScratch + 0xA0) = rand() % 12 - 6;
+        jitter = rand() % 12 - 6;
         *pFrame += *(volatile u16 *)(pScratch + 0xA0);
         D_8009BD48 += *(volatile u16 *)(pScratch + 0xA0);
-        *(volatile u16 *)(pScratch + 0xA2) = rand() % 12 - 6;
+        *(volatile u16 *)(pScratch + 0xA2) = jitter;
         D_8009BD42 += *(volatile u16 *)(pScratch + 0xA2);
         D_8009BD4A += *(volatile u16 *)(pScratch + 0xA2);
         if ((s16)p->stateTimer > 0) {
@@ -838,7 +846,10 @@ s32 func_80078EA4(s32 index) {
         SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x62, 0, 0x100);
         SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x63, 0, 0x100);
         break;
-    case 5:
+    }
+    case 5: {
+        u16 *pFrame = g_WorldMapPathFrameHalf;
+
         func_80096F18((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
         p->stateTimer = p->stateTimer - 1;
         *(volatile u16 *)(pScratch + 0xA0) = rand() % 4 - 2;
@@ -853,6 +864,7 @@ s32 func_80078EA4(s32 index) {
         p->stateTimer = 0x5A;
         p->state = p->state + 1;
         break;
+    }
     case 6:
         p->stateTimer = p->stateTimer - 1;
         if ((s16)p->stateTimer > 0) {
@@ -915,7 +927,8 @@ s32 func_80078EA4(s32 index) {
         func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
     }
     return 1;
-}*/
+}
+*/
 
 s32 WorldMapInitActorRotationMatrix(s32 index) {
     WorldMapActor *p;
