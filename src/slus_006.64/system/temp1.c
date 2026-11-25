@@ -60,6 +60,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
    made one register from source. This unit is compiled with -fschedule-insns AND
    -fschedule-insns2 (see the options header in build/src/slus_006.64/system/temp1.c.s), so
    statement order is not a lever for either residual.
+   Re-measured 96.25% / 376 bytes / 94 insns this round, unchanged, and one more spelling measured
+   dead: wrapping the else arm's two statements in an empty do-while (a block-splitting diagnostic,
+   see a-block-split-flips-a-caller-saved-pair) is byte-identical at 96.25 with the same 36 differing
+   lines, so residual (1) is not a basic-block artefact either. Park this class.
 extern s32 SpriteScaleValue(SpriteData* pSpriteData, s32 value);
 extern void BattleActorUpdateGroundHeightAndTriangle(void);
 
@@ -880,6 +884,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
    from the source. (b) Preset ruled out with numbers on THIS body: cdk -O2 -G0 85.23, cdk -O3 78.83, gcc-2.6.0 compile-fails, so the unit's XenoGraphics cdk -O2 -G8 is best. The unit runs
    with -fschedule-insns and -fschedule-insns2, so the two chain orders are the scheduler's.
    Verdict: GIV_TIE, same class as func_80023804 / func_8002435C above.
+   Re-measured 85.83% / 704 bytes / 176 insns this round, unchanged. One more spelling measured dead:
+   `s32 size; size = jointTaskSize;` then passing `size` to AnimTaskCreate is byte-identical, so a
+   copy does not add the reference that would move the hand-out. Root cause narrowed by hand from the
+   -dl priority formula ((floor_log2(refs)+1)*refs*10000/(live*size)): the 2nd parameter has TWO RTL
+   references here (the offset-table load and AnimTaskCreate's 3rd argument), so it outranks the 4th
+   parameter's single reference and takes the first callee-saved register itself; retail's order is
+   what you get when the 2nd parameter reaches the RTL with ONE reference, and no C spelling consumes
+   pAnimFile once while still passing it to AnimTaskCreate. Same wall as
+   a-qiparam-size-one-pins-the-saved-pair. Also stale above: D_800C3E1C, g_IsBattle and
+   g_GfxWorkListCapacity are all declared live in this file.
 
 AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 jointTaskSize) {
     u8* pAnimationOffsets;
