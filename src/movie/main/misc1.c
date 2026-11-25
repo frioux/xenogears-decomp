@@ -522,8 +522,9 @@ void MovieInitDarkPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
 }
 // PARKED at 98.67% under the unit's gcc 2.6.0 preset: retail's EXACT size (912
 // bytes) and instruction multiset. The only difference is the POSITION of two
-// prologue pairs: retail forms pColR/pTargetR AFTER the loop's steps-array
-// pointer (`lui s3 / addiu s3, g_MovieDarkFadeSteps`) and gcc here forms them before it.
+// prologue pairs and of one latch increment: retail forms `lui s3 / addiu s3,
+// g_MovieDarkFadeSteps` (and `addiu s3,s3,4`) BETWEEN the -1 colour pair and the
+// -2 pair, gcc at the end of the preheader / after the last source increment.
 // Everything else, including `i = 0` placed first (which retail also has, and
 // which is what made its twin MovieUpdateGlowPoly match), is identical.
 // Load-bearing, measured: the three `*(volatile u_char*)pColR` reads of the sums
@@ -532,18 +533,15 @@ void MovieInitDarkPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
 // at 84 bytes short. An explicit `s32* pStep` local (to get the steps pointer
 // formed earlier) changes the durations access and lands at 880 bytes / 93.25%.
 // MEASURED (round 236, un-parked unchanged): 98.67%, 912 bytes, retail's exact
-// multiset; the diff is the two `sw s7 / addiu s7,s5,-2` and `sw s6 / addiu s6,s4,-2`
-// pairs, which retail places AFTER the loop's steps-pointer `lui s3 / addiu s3,
-// g_MovieDarkFadeSteps` and gcc places after the fourth colour pointer: the steps def is the
-// compiler's strength-reduced biv and gcc inserts it at the END of the preheader.
-// Re-measured negatives: `if (i == 0) { pColR = ...; pTargetR = ...; }` 98.67% (no
-// change - block notes do not move the insertion point); `s32* pStep = g_MovieDarkFadeSteps;`
-// with `pStep[i]` 91.72% / 932 bytes (the pointer takes s5 and pColB moves to s3, so
-// every prologue row shifts); `s32* pStep` with `*pStep` + `pStep++` 93.34% / 880
-// bytes (both arrays become pointer bivs and `i` moves to s1). The biv is not
-// reachable from the source, so retail's order would need those two defs to be
-// loop-hoisted movables, i.e. the assignments to live INSIDE the loop - which no
-// plausible source does. Preset screen: unit preset 98.67, cdk 89.61.
+// multiset. Re-measured negatives: `if (i == 0) { pColR = ...; pTargetR = ...; }`
+// 98.67% (no change - block notes do not move the insertion point); `s32* pStep =
+// g_MovieDarkFadeSteps;` with `pStep[i]` 91.72% / 932 bytes (the pointer takes s5
+// and pColB moves to s3, so every prologue row shifts); `s32* pStep` with `*pStep`
+// + `pStep++` 93.34% / 880 bytes (both arrays become pointer bivs and `i` moves to
+// s1). The biv is not reachable from the source, so retail's order would need
+// those two defs to be loop-hoisted movables, i.e. the assignments to live INSIDE
+// the loop - which no plausible source does. Preset screen: unit preset 98.67,
+// cdk 89.61.
 // ROUND 419 (new measurements, no new best): the residual IS source-reachable in
 // the TYPED form but not together with the re-reads. Writing all six colour walks
 // as `g_MovieDarkColours[i].r/.g/.b` and `g_MovieDarkTargetColours[i].r/.g/.b`
@@ -559,9 +557,20 @@ void MovieInitDarkPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
 // by `i`) hoists the durations base into a register and shrinks the frame to
 // 0x48: 93.25% / 880 bytes / 218 insns. So the ordering is only produced by the
 // six-derived-giv shape, and that shape cannot also produce the re-reads.
+// ROUND 473 (re-measurements, no new best): 98.67% / 912 bytes confirmed, and the
+// three negatives above reproduce EXACTLY (typed 90.47 / 896 / 222, typed with
+// `*(volatile u_char*)&g_MovieDarkColours[i].r` sums 81.67 / 992 / 246, `pSteps`
+// walking pointer with `pSteps++` placed between `pTargetG += 4` and `pColR += 4`
+// - i.e. at retail's latch position - 93.34 / 880 / 218). Two facts pinned down:
+// (1) the typed form's 4 missing insns are the three sum re-reads PLUS the
+// `lw t0,0x18(sp)` reload of the spilled colour.g pointer (the typed form keeps
+// colour.g in a register), so no single plain read spelling can close it; (2) a
+// source steps pointer makes 2.6.0 hoist the DURATIONS base into a register and
+// shift every colour pointer by one, so retail's `lui/addiu` steps group cannot
+// be a source statement in this register budget. The park below is the best body.
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
-/* 98.67%, 912 bytes, retail's exact size
+/* 98.67%, 912 bytes, retail's exact instruction multiset
 void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 r;
