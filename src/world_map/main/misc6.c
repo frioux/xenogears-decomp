@@ -1643,48 +1643,57 @@ int WorldMapUpdateSlotActor(int index) {
    store; making that one store `*(volatile s32 *)&pActor->pStateFrames` pins it
    but leaves the `li` after the group (88.66, and the constants still rotate);
    the same volatile on the current body changes nothing (93.41).
-*/
-/* 93.41% (164 bytes, 41 insns both): only the tail store block differs in
-   register rotation and the li 3 position. Retail: lui v1/ori (x), lui a0/ori
-   (z), li v0,3, then stores with y/pStateIds/pStateFrames constants in v1.
-   Ours: x's constant takes v0, z's v1, and the li 3 sinks to the end because
-   v0's last earlier use is the li 0x80 for pStateFrames.
    Round 396 re-measured this body live at 93.41 and tried three new shapes:
    `int result = 3;` assigned right after the calls and returned at the end
-   (88.66 - cse folds it back to a plain return and the li sinks anyway),
-   the same plus nX/nZ locals holding the two hoisted constants in retail's
-   load order (88.66 - cse substitutes the constants into the stores and
-   deletes the sets). cdk -O2 -G8 also 88.66 on that body, gcc 2.6.0 81.07,
-   -G0 does not compile, so the preset is right. Root cause unchanged from
-   round 325: circular - the store constants claim v0 because the 3 is not
-   in it, and the 3 sinks to the end because the constants hold v0.
-// 93.41% (164 bytes = retail's 41 insns), round 434. Store ORDER, both calls and every relocation
-//    match; the two deltas are (1) where retail's 'addiu v0,zero,3' sits - third
-//    instruction of the store group, before every store, so v0 is reserved and the
-//    group's constants go to v1 and a0 where ours all take v0 - and (2) the
-//    register rotation that follows from it. Per instructions this is 14 differing
-//    of 41 - the rest of the function is byte-identical.
-//    ROUND 434 ran a cc1 probe matrix (tools/scripts/cc1_probe.sh, the unit's real
-//    cc1 and flags) on the tail, which settles the mechanism: with the do-block
-//    around the stores (this body) the emitted order is retail's exactly
-//    x,y,pStateIds,state,z,stateIndex,pStateFrames, and the '3' is emitted AFTER
-//    the last register-needing store; WITHOUT the block the '3' is emitted earlier
-//    (after the pStateFrames store, before the three stores whose values are
-//    already in registers) but the pStateFrames store then glues itself to its own
-//    constant load and jumps to 4th - the 88.66 body. With 'return 3' inside the
-//    block the '3' does lead the group but pStateFrames jumps up again (measured,
-//    same 88.66 shape). A volatile pStateFrames store does NOT pin it (volatile is
-//    allowed to move earlier past non-volatile stores), so that combination is
-//    dead too. Retail's '3' leads ALL stores, i.e. its RTL had the set before the
-//    group, which no spelling of a plain 'return 3' produces: the set is emitted at
-//    the position gcc chooses for the return pseudo and cse deletes any constant
-//    local that would move it (rounds 396 and 325 measured those).
-//    PRESET_RULED_OUT: try_flags --all under gcc-2.7.2-cdk gives this body 93.41
-//    (identical) while every matched function in the unit drops (InitGroup12/13
-//    99.67, InitGroup16 99.65, Group16 96.27, BuildPolyFT4 97.84, ...), so cdk is
-//    not a candidate for the unit and the tail is compiler-stable across 2.7.2 and
-//    2.7.2-cdk.
-//    PARKED - the residual is a quantity-set difference, not a spelling.
+   (88.66 - cse folds it back to a plain return and the li sinks anyway), the
+   same plus nX/nZ locals holding the two hoisted constants in retail's load
+   order (88.66 - cse substitutes the constants into the stores and deletes the
+   sets). cdk -O2 -G8 also 88.66 on that body, gcc 2.6.0 81.07, -G0 does not
+   compile, so the preset is right. Root cause unchanged from round 325:
+   circular - the store constants claim v0 because the 3 is not in it, and the 3
+   sinks to the end because the constants hold v0.
+   Round 434 (probe matrix on the tail): with the do-block the emitted order is
+   retail's exactly x,y,pStateIds,state,z,stateIndex,pStateFrames and the 3 is
+   emitted after the last register-needing store; WITHOUT the block the 3 is
+   emitted earlier (after the pStateFrames store, before the three stores whose
+   values are already in registers) but the pStateFrames store then glues itself
+   to its own constant load and jumps to 4th - the 88.66 body. With `return 3`
+   inside the block the 3 leads partially but pStateFrames jumps up again (88.66).
+   A volatile pStateFrames store does NOT pin it (volatile may move earlier past
+   non-volatile stores), so that combination is dead. PRESET_RULED_OUT:
+   try_flags --all under gcc-2.7.2-cdk gives this body 93.41 (identical) while
+   every matched function in the unit drops (InitGroup12/13 99.67, InitGroup16
+   99.65, Group16 96.27, BuildPolyFT4 97.84), so cdk is not a candidate for the
+   unit and the tail is compiler-stable across 2.7.2 and 2.7.2-cdk. Per
+   instructions the residual is 14 differing of 41, every relocation equal.
+   Round 471 re-measured the body below live at 93.41 (164 bytes = retail's 41
+   insns) and found no new shape; it does name the mechanism. XenoWorldMapDiv
+   runs cc1-2.7.2 with sched2 ON (`-fschedule-insns2` is on by default in this
+   cc1: re-running the unit's own flags plus `-fno-schedule-insns2` reorders
+   WorldMapInitGroup16Actor, which is matched at 100.00 as the unit builds it).
+   So retail's store ORDER is the scheduler's output and is not evidence about
+   the source statement order - but the register half is not the scheduler's,
+   because local-alloc runs before sched2: retail's `addiu v0,zero,3` holding v0
+   ACROSS the group means the `(set (reg 2) (const 3))` was already live there in
+   RTL, i.e. emitted before the stores. cc1 emits it in the EXIT BLOCK of the
+   `do { } while (0)` - the initial RTL of this body has `NOTE_INSN_LOOP_BEG`, a
+   `code_label`, an unreachable back edge and then the `(set (reg/i:SI 2)
+   (const_int 3))` after `NOTE_INSN_LOOP_END`, in a different block from the
+   stores - so every `return 3` spelling lands it after them, and the loop
+   optimizer hoisting the two invariant `lui/ori` pairs into the preheader is
+   what makes the do-block version's order retail's at all (that is also why
+   dropping the block gives 88.66). Probe matrix (cc1_probe.sh on a scratch
+   replica of the tail), twelve bodies - .s store order, struct/field order,
+   positions-grouped, `return 3` inside the block (twice), `nRet = 3` first, last
+   and before the second call, `nRet` returned after the block, no do-block, an
+   early constant-1 store into v0, and InitGroup16Actor's one-call shape - under
+   gcc 2.7.2 at -O1/-O2/-O3 and gcc 2.6.0 at -O1/-O2/-O3: every one emits
+   `li $2,3` last with $2 reused for the store constants (cdk rejects these
+   bodies). Any local that would keep the 3 alive across the group is deleted by
+   cse before regalloc, so the v0-held-by-3 RTL is not reachable from C here.
+   Permuter not re-run: 93.41 is below the 99% threshold, and rounds 202/312 ran
+   2111+ iterations from this exact body.
+*/
 /*
 int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
