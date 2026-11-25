@@ -35,6 +35,15 @@
 // target instead of keeping it.
 #define BATTLE_GEAR_EFFECT_CLEAR_CHANCE_PERCENT 70
 
+// The damage-modifier bits of a slot's activeEffectFlags4|accessoryEffectFlags4: BattleComputeActionAmount
+// raises or lowers the value the acting slot deals by a fifth or a tenth, and does the same to the
+// value the target subtracts, so one bit means the same bonus or malus whichever side holds it.
+// battle/main/misc18 names the same nibble as the 0x5 and 0xA pairs.
+#define BATTLE_EFFECT_DAMAGE_BONUS_20 0x8
+#define BATTLE_EFFECT_DAMAGE_BONUS_10 0x2
+#define BATTLE_EFFECT_DAMAGE_MALUS_20 0x4
+#define BATTLE_EFFECT_DAMAGE_MALUS_10 0x1
+
 // Sprite work buffer (g_BattleDisplayState). battle_work.h's BattleWork names the same
 // block but stops at 0xA8, so the 0xB0/0xB7 flag bytes are declared here.
 typedef struct {
@@ -1584,29 +1593,29 @@ void BattleComputeActionAmount(void) {
     atkValue = BattleComputeActionAttackValue();
     defValue = BattleComputeSlotActionAmount();
     pAtk = g_BattleActingSlot;
-    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 8) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_BONUS_20) {
         atkValue += atkValue / 5;
     }
-    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 2) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_BONUS_10) {
         atkValue += atkValue / 10;
     }
-    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 4) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_MALUS_20) {
         atkValue -= atkValue / 5;
     }
-    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 1) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_MALUS_10) {
         atkValue -= atkValue / 10;
     }
     pDef = g_BattleTargetSlotEntry;
-    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 4) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_MALUS_20) {
         defValue += defValue / 5;
     }
-    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 1) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_MALUS_10) {
         defValue += defValue / 10;
     }
-    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 8) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_BONUS_20) {
         defValue -= defValue / 5;
     }
-    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 2) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & BATTLE_EFFECT_DAMAGE_BONUS_10) {
         defValue -= defValue / 10;
     }
     if (g_BattleCurrentRow->element & 0x10) {
@@ -1713,7 +1722,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     u16 flags;
 
     value = pAtk->ether * pRow->power;
-    if (pAtk->accessoryEffectFlags4 & 0x2000) {
+    if (pAtk->accessoryEffectFlags4 & BATTLE_GEAR_EFFECT_FLAG) {
         value *= 2;
     }
     pDef = g_BattleTargetSlotEntry;
@@ -1724,7 +1733,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (flags & 0x200) {
         value = 13 * value / 10;
     }
-    if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & 0x80) {
+    if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         value = 0;
     }
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
