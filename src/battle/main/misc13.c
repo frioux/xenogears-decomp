@@ -1487,18 +1487,55 @@ s32 BattleAdvanceCommandStep(u8 arg0, u8 arg1) {
     BattleApplySlotCurveAndStep(count);
     return done;
 }
-// 87.28%, 712 bytes / 178 insns. Retail is 732 / 183 (.size 0x2DC): the old note's "retail 684" was wrong, this body is FIVE instructions short.
-//    Closed this round from 82.72%: (1) the sel ladder is evaluated 'sel = (arg0 >= 3) * 8; if (arg1 >= 3) sel = 0;' - retail computes the *8 BEFORE testing arg1, which 'sel = 0; if (arg1 < 3) sel = ...' cannot produce (that order measures 82.72 and puts the test first); (2) the compare's two indexes are spelled INLINE, so ofsB is assigned only after the ladder and stays call-crossing in one saved register; (3) the tail reads 'rec = g_BattleSlotRecords[ofsB]' BEFORE the D_800C3EB5 store (retail's order) and then re-uses that same ofs variable for ofsA (87.21 at 720 with separate ofsA/ofsB).
-//    Residual, measured: retail recomputes every offset per block (ofsA twice, ofsB twice) and keeps ofsA and ofsB in ONE register (s1); this body CSEs 'arg0 * 0x1C' and gives them two registers - that is the 5 missing instructions, and spelling each offset inline at every site is the untried lever. Retail's top-block g_BattleSlotRecords accesses each go through $at (lui at / addu at,idx / lbu) where this body hoists the symbol address into $a0 and adds; and retail re-masks 'arg0 & 0xFF' separately at the compare, at the BattleReleaseCharSlot call and at the loop exit where this body CSEs them.
-//    Measured dead this round: u8 params vs s32 params with (u8) casts (identical 86.28); the param-table expression with g_BattleSlotParamTable first (86.28) vs last (82.72) - the parenthesised 'pTable + (D_800C3EB5[ofs] * 4 + records[ofs] * 0x20)' form is what fixed the shift order.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+
+/* PARKED 95.01%, 716 bytes / 179 insns. Retail is 732 / 183 (.size 0x2DC), so this
+   body is FOUR instructions short, and its frame is 0x30 where retail's is 0x28 (the
+   same six saved words shifted by 8: gcc reserved two dead stack words).
+   WHAT GOT IT FROM 87.28 TO HERE (measured, in order):
+   1. 'u8 sel', not s32. Retail's 'andi s0,a0,0xFF' after the ladder is a u8 truncation;
+      with a u8 sel gcc keeps arg0 in $s4 and saves six registers like retail.
+   2. Each of the compare's two loads must be a SINGLE use of the table address, or gcc
+      hoists the symbol into a register ('la a0,g_BattleSlotRecords' then 'addu
+      idx,idx,a0', 'lbu 0(idx)': 2 insns per access instead of retail's 3, and the
+      whole 'lui at,%hi / addu at,at,idx / lbu %lo(at)' shape is gone). Reached by
+      spelling each side through the inline BattleSlotRecordByte helper below (95.01).
+      Offsets in two locals at the top: 92.04. One inline expression per side: the
+      hoist, 91.04.
+   RESIDUAL, named:
+   (a) ofsB, the four missing instructions. Retail computes 'andi v1,a1,0xFF / sll /
+       subu / sll $s1' a SECOND time after the ladder: its compare-time offset is dead,
+       its register having been clobbered by the 'lbu' of the record. This body's ofsB
+       survives the compare in $a2 and is copied into $s2, so it pays 0. Tried against
+       the cse merge: the inline helper (merged anyway), two u8 locals for the
+       compare's loads (same 95.01), swapping the compare's operand order (94.92), one
+       inline offset expression for the compare (base hoist). The merge is a
+       register-choice coin flip - retail's offset dies under its own record load.
+   (b) the two dead stack words behind the 0x30 frame. Independent of (a): the
+       two-offset variants (92.04 / 92.68) have retail's 0x28.
+   (c) the tail's arm loads: retail reads D_800C3EB5 before g_BattleSlotRecords, this
+       body the other way round (operand order of the param-table sum; the parenthesised
+       (D_800C3EB5[ofs] * 4 + records[ofs] * 0x20) form, table last, was the best of the
+       four spellings tried in an earlier round).
+   Measured dead, do not redo: u8 vs s32 params with casts; g_BattleSlotParamTable
+   first in the sum; 'sel = 0; if (arg1 < 3) sel = ...'; a typed 0x1C-byte record
+   struct view (564 bytes); separate ofsA and ofsB locals (720 bytes, 87.21).
+   lint_sources.py is clean on this block and the body below compiles. */
 /*
+// The record byte at the head of one character-slot record. The inline offset is what
+// gives each of the two compare loads its own single use of the table address.
+static inline u8 BattleSlotRecordByte(u8 slot) {
+    return g_BattleSlotRecords[slot * 0x1C];
+}
+
 void func_80087EDC(u8 arg0, u8 arg1) {
+    s32 ofsA;
     s32 ofsB;
-    s32 sel;
+    u8 sel;
     s32 i;
     u8 rec;
 
-    if (g_BattleSlotRecords[arg0 * 0x1C] == g_BattleSlotRecords[arg1 * 0x1C]) {
+    if (BattleSlotRecordByte(arg0) == BattleSlotRecordByte(arg1)) {
         return;
     }
     sel = (arg0 >= 3) * 8;
@@ -1528,9 +1565,8 @@ void func_80087EDC(u8 arg0, u8 arg1) {
         *(u16 *)(D_800C3EBE + ofsB) = *(u16 *)(g_BattleSlotParamTable + (D_800C3EB5[ofsB] * 4 + g_BattleSlotRecords[ofsB] * 0x20) + 0x10);
         *(u16 *)(D_800C3EC0 + ofsB) = *(u16 *)(g_BattleSlotParamTable + (D_800C3EB5[ofsB] * 4 + g_BattleSlotRecords[ofsB] * 0x20) + 0x12);
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
-
+}
+*/
 /* PARKED 87.06%, 492 bytes / 123 insns (retail 500 / 125; frame 32 and the saved
    set ra/s0/s1/s2 are retail's, and both early-exit compares and the ladder's two
    exit paths match). Round 482 redo, from a fresh body; the old 79.52% body is gone
