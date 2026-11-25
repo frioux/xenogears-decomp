@@ -225,7 +225,11 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
 // RESIDUAL (2): the loop preheader - retail emits 'move a3,zero' (i = 0) before
 // 'sw y / sh angle' and forms &g_WorldMapTrail after them, cc1 swaps both pairs
 // (same instruction count, so worth 0 bytes).
-/*
+// The gear arm sits AFTER the mode<8 test in retail, reached by a forward branch, and the
+// state arm after that, reached by a 'j' - so both arms are labelled and jumped to rather
+// than written as an else-if chain, which cc1 lays out arm-first (89.86%, 436 bytes).
+// The four volatile pins are this file's idiom; without them the three clears sink below
+// the mode load and the gear arm's stores sink into the position loads.
 s32 func_8008C530(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 0);
@@ -243,34 +247,40 @@ s32 func_8008C530(int index) {
     mode = g_WorldMapMode;
     if (mode > 0) {
         if (mode < 4) {
-            if (g_GameState.gearRide[0] == 1) {
-                // volatile: keeps this above the position loads, as retail has it
-                *(volatile s16 *)&pActor->state = 1;
-                // volatile: keeps the g_WorldMapPlayerPositionZ load below this store, as retail has it
-                *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
-                pActor->z = g_WorldMapPlayerPositionZ;
-                pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
-                pActor->angle = g_WorldMapPlayerRotation;
-                g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->x;
-                g_WorldMapPlayerAngle = pActor->angle;
-                g_WorldMapTrailCursor = 0;
-                pTrail = g_WorldMapTrail;
-                for (i = 0; i < 0x20; i++, pTrail++) {
-                    pTrail->vec = *(WorldMapVec *)&pActor->x;
-                    pTrail->angle = pActor->angle;
-                }
+            goto gear;
+        }
+        if (mode >= 8) {
+            goto done;
+        }
+        goto setState;
+    gear:
+        if (g_GameState.gearRide[0] == 1) {
+            // volatile: keeps this above the position loads, as retail has it
+            *(volatile s16 *)&pActor->state = 1;
+            // volatile: keeps the g_WorldMapPlayerPositionZ load below this store, as retail has it
+            *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
+            pActor->z = g_WorldMapPlayerPositionZ;
+            pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+            pActor->angle = g_WorldMapPlayerRotation;
+            g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->x;
+            g_WorldMapPlayerAngle = pActor->angle;
+            g_WorldMapTrailCursor = 0;
+            for (i = 0, pTrail = g_WorldMapTrail; i < 0x20; i++, pTrail++) {
+                pTrail->vec = *(WorldMapVec *)&pActor->x;
+                pTrail->angle = pActor->angle;
             }
-        } else if (mode < 8) {
-            pActor->state = 2;
-            pActor->unk24 = 1;
         }
     }
+    goto done;
+setState:
+    pActor->state = 2;
+    pActor->unk24 = 1;
+done:
     g_GameState.fieldScriptMemory[0x16] = pActor->x >> 12;
     g_GameState.fieldScriptMemory[0x17] = pActor->z >> 12;
     *(u16 *)&g_GameState.unk1826[0] = pActor->angle;
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11_c", func_8008C530);
+}
 
 
 int WorldMapModeInitPartyActor0(int index) {
