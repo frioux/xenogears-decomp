@@ -554,18 +554,13 @@ void BattleActorResetUnk15D8(UnkStruct1* p) {
     p->unkC = 0x30;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
-
-/* Best attempt: 84.48%. 0x80078F00..0x800790C8 (the two clear loops, the
-   constant stores and every call/delay slot) is instruction-identical; the
-   residual is the flags/stateFlags block at 0x8007900C. Retail keeps one
-   p->stateFlags load in $a1 and applies two masks to it (`and a1,a1,-0xD` then
-   `and a1,a1,-4`) with a single store, i.e. the source held the word in a local
-   across the p->flags statement, and materialises `| 0x2000000` and `| 0x20000`
-   as two separate ors (gcc folds `(x | C1) | C2` into `| 0x2020000` for every
-   single-expression spelling tried), so that too is not one expression in the
-   original. Also unserialised: `lbu $v0,0xF($s1)` needs retail's load-delay nop
-   before the `sh` into 0x15F0.
+// ROUND 487: un-parked and re-measured 84.48% / 764 bytes / 191 insns (retail 780 / 195); 0x80078F00..0x800790C8 is still instruction-identical. THREE REAL SOURCE BUGS FOUND AND MEASURED - the retail body has 4 instructions this park does not, and three of them are statements the park is missing:
+//    1. retail stores zero to 0x4C (p->modelIndex) and 0xC3 (u8 actionPhaseTimer) in this block; the park has neither statement. Add p->modelIndex = 0; and p->actionPhaseTimer = 0;
+//    2. retail materialises the flags update as TWO ors (lui a0,0x2 / or for 0x20000 and lui v1,0x200 / or for 0x2000000) with ONE load and ONE store. (x|C1)|C2 folds for every single-expression spelling, so split it into two statements: p->flags = (p->flags & ~0x1000) | 0x2000000;  then  p->flags |= 0x20000;  ADJACENT - cse then merges the two RMWs into retail's single lw/sw pair.
+//    3. retail loads pScript->speedScale (0xC) ONCE and stores it to both 0x15F4 and 0x15F2; the park's two pScript->speedScale statements give two lbu because the intervening stores may alias. Store the field and copy it back: p->baseSpeedScale = pScript->speedScale; p->speedScale = p->baseSpeedScale;  (or a s16 local) - measured, one lhu + two sh, retail's shape.
+//    Also: the two p->stateFlags &= statements must be ADJACENT in the source (stateFlags &= ~0xC; then &= ~3;). Separated by the flags/facing statements gcc emits two lw/and/sw groups; adjacent, cse merges them into retail's single lw + two ands + single sw.
+//    With all four spellings in place the body measures 83.69% / 768 bytes / 192 insns: the instruction MULTISET then matches retail's exactly except that retail pays a load-delay nop after lbu 0xF(s1) (its sh to 0x15F0 stays adjacent) where ours sinks that store past the 0x1654 zero-stores, i.e. the residual is sched2's placement of one store, not a missing statement. The percentage DROPS because objdiff scores per position; take the statement fixes anyway, they are what retail actually is.
+/*
 void func_80078F00(Actor* p) {
     ActorPart* pPart;
     ActorPartRot* pRot;
@@ -653,8 +648,10 @@ void func_80078F00(Actor* p) {
     p->actionWaitTimer = 0;
     p->moveCount = 0;
     p->stateFlags &= ~0x40;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
+
+
 
 /* Best attempt: 98.96% at retail's EXACT 1196 bytes / 299 insns.  The whole body is
    instruction-identical except the REGISTER NAMES of three adjacent blocks, all from
@@ -1534,6 +1531,8 @@ extern void func_8007A768(Actor* p);
 //    each pointer assignment into the per-copy address pseudo, so the copies keep
 //    their own allocnos. Only a value that is a real computation (BattlePushActorsApart in
 //    this unit needed exactly that) survives as one long-lived pseudo.
+// ROUND 487: re-measured from the un-parked body: 88.89% / 472 bytes / 118 insns, unchanged.
+// Also tried the tail as a call argument, func_8007A768(g_BattleResultSide != 0 ? &g_BattleActor0 : &g_BattleActor1) - byte-identical 88.89, so the argument pseudo coalesces the same way. lever.py's regalloc entries all describe CALLEE-saved pairs under global-alloc; this is one caller-saved pseudo inside a single basic block (local-alloc), so no lever applies. Do not re-brief without a -da/-dl dump of the local-alloc priorities.
 /*
 void func_8007AC3C(void) {
     Actor* pActor;
@@ -1556,6 +1555,7 @@ void func_8007AC3C(void) {
     func_8007A768(pActor);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
+
 
 
 
