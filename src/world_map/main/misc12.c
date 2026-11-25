@@ -1824,7 +1824,7 @@ s32 func_80090FB4(WorldMapPlayer *pPlayer) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
-s32 func_80091430(s32 idx) {
+s32 WorldMapModeInitSlotPositionAngle(s32 idx) {
     WorldMapPlayer *pPlayer;
     s16 *pRotY;
     s32 nMode;

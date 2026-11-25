@@ -460,7 +460,7 @@ extern s32 g_FieldSuppressStateChange;
 //    "j" with nSum++ in the delay slot); ours branches straight to the body.
 // The -4(a1) count read means the body must still be reachable from the loop
 // header; the array block being 88 bytes is the other half of the frame delta.
-int func_80079288(void) {
+int FieldUpdateRandomSkinSelection(void) {
     int nWeightSums[FIELD_SKIN_COUNT + 2];
     int nTotal;
     int nSum;

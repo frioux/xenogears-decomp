@@ -42,7 +42,7 @@ extern u8 g_FieldAlternatePadAngles;
 extern u8 g_FieldPartyMoveStepRan;
 extern s32 g_FieldSpriteUpdateIndex;
 extern int FieldActorTestMaterialScriptMask(ActorData* pActor);
-extern void func_80079288(void);
+extern void FieldUpdateRandomSkinSelection(void);
 extern s16 g_Unknown_800B2344;
 
 #define FIELD_ENCOUNTER_HOLD_FRAMES 0x20 // Frames a held confirm repeats as a press
@@ -690,7 +690,7 @@ void FieldScriptVMHandlerCheckActorInteraction(void) {
         nInputFree = -(nTextBoxIndex == FIELD_TEXTBOX_COUNT);
         if (nInputFree == -1 && g_FieldControl.isRandomEncountersEnabled == 0) {
             if ((g_FieldP1ButtonsPressed >> 12) != 0) {
-                func_80079288();
+                FieldUpdateRandomSkinSelection();
             }
             D_800ADB68 = 1;
             if (g_FieldScriptVMCurActor->curWalkmeshTriMaterial & 0x400000) {
