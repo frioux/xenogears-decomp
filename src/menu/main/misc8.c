@@ -51,6 +51,7 @@ extern u8* GetAccessoryName(s32 itemId);
 extern u8* GetGearAccessoryName(s32 itemId);
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 length, s32 mode);
 
+#define MENU_CHARACTER_SLOT_COUNT 3 // party slots the character cursor wraps over
 #define MENU_STAT_VALUE_COUNT 9 // stat values MenuCopyEquipmentToPanel copies out of the dressing room
 #define MENU_EQUIPMENT_ROW_COUNT 5 // rows of the character panel; the two gear panels draw 4
 
@@ -635,73 +636,43 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
 
 
-/* 84.26%. Same instruction multiset; gcc lays the `arg2` if/else out the
-   other way in case 1 (it falls through to the 0x60 block and jumps to
-   0x30) and therefore places the return block differently. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9704);
-
-/* 84.26% re-measured under the unit's XenoMenu260 preset (260 bytes / 65
-   insns, retail's exact size and count). Two residuals, both block order:
-   (a) the `arg2` if/else: retail is `bnez a2 -> gear block` with the
-   currentCharacterIDs arm as the fall-through, gcc always emits the gear arm as
-   the fall-through and `beqz a2` to the characterIDs arm; (b) the case-0
-   prologue order (`addiu a0,a0,1` before the `andi a2,a2,0xff`/`lui g_Menu`
-   group where retail has it last).
-   Round 430: an else-less then-arm ending in an explicit `continue` (which is
-   the shape retail's duplicated `addiu a0,a0,1` in both back-edge delay slots
-   suggests), the same with the arms swapped, and an `if (!arg2)` spelling all
-   compile to output byte-identical to the if/else-if body below - gcc
-   canonicalises the two arms, so arm order cannot reach (a).
-   Tried: if/else-if in both
-   orders, `for (arg0++; 1; arg0++)` vs `while (1)` + trailing arg0++, a
-   pManager local (66.43%, makes gcc drop the second block's reload), goto
-   labels (right order, but the loop stops being recognised so g_Menu and the
-   0xFF constant are no longer hoisted, 62.38%). An explicit
-   `arg0++; continue;` plus a second `arg0++` at the bottom gets the block
-   order and the `bnez a2` right but cross-jumps the two increments into one
-   shared block, costing 8 bytes (85.62%). The increment sitting in the branch
-   delay slot of both paths is what the for-increment clause produces.
-   Round 15: also tried the arms swapped (arg2 != 0 first) - identical
-   84.26%; the block order follows whichever arm is written first and gcc
-   then puts a beqz to the other one, so the original's `bnez a2` -> 0x60
-   with the 0x30 block as fall-through is not reachable by arm order alone.
-   With this variant the case-block prologue also puts `addiu a0,a0,1`
-   before `andi a2,a2,0xff` whereas the original has it last.
-s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
-    switch (arg1) {
+// Steps the character cursor one slot in `direction` (0 down, 1 up) and returns
+// the first slot it lands on that `gearScreen` selects: an assigned character
+// (currentCharacterIDs) or a live gear screen (isGearScreenActive).
+s32 func_801D9704(s32 slot, u_char direction, u_char gearScreen) {
+    switch (direction) {
     case 0:
-        for (arg0++; 1; arg0++) {
-            if (arg0 >= 3) {
-                arg0 = 0;
+        while (1) {
+            if (++slot >= MENU_CHARACTER_SLOT_COUNT) {
+                slot = 0;
             }
-            if (arg2 == 0) {
-                if (g_Menu->pManager->currentCharacterIDs[arg0] != 0xFF) {
+            if (gearScreen == 0) {
+                if (g_Menu->pManager->currentCharacterIDs[slot] != 0xFF) {
                     break;
                 }
-            } else if (g_Menu->pManager->isGearScreenActive[arg0] != 0) {
-                arg0--;
+            } else if (g_Menu->pManager->isGearScreenActive[slot] != 0) {
                 break;
             }
         }
         break;
     case 1:
-        for (arg0--; 1; arg0--) {
-            if (arg0 < 0) {
-                arg0 = 2;
+        while (1) {
+            if (--slot < 0) {
+                slot = MENU_CHARACTER_SLOT_COUNT - 1;
             }
-            if (arg2 == 0) {
-                if (g_Menu->pManager->currentCharacterIDs[arg0] != 0xFF) {
+            if (gearScreen == 0) {
+                if (g_Menu->pManager->currentCharacterIDs[slot] != 0xFF) {
                     break;
                 }
-            } else if (g_Menu->pManager->isGearScreenActive[arg0] != 0) {
-                arg0++;
+            } else if (g_Menu->pManager->isGearScreenActive[slot] != 0) {
                 break;
             }
         }
         break;
     }
-    return arg0;
-}*/
+    return slot;
+}
+
 
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D9808);
