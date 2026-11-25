@@ -827,33 +827,43 @@ s16 BattleInterpolateAngle(s32 arg0, s32 arg1, s32 arg2) {
     return value;
 }
 
-/* Parked: best objdiff 89.68%, 216 bytes / 54 insns against retail's 224 / 56.
+/* Parked: best objdiff 89.68%, 216 bytes / 54 insns against retail's 224 / 56, so
+// the body is two instructions SHORT and can never link whatever it scores.
 // Structure and both clamp tests are exact (back = rand() & 1 at diff == 0x800,
 // back = diff < 0x800 otherwise; minus arm keeps while newdiff <= 0x800, plus arm
 // keeps while newdiff >= 0x800). The residual is the DISPATCH, two instructions:
 // retail tests the arm selector at BOTH of its predecessors - the rand path ends
-// `andi v0,v0,1 / bnez v0,minus / subu v0,s0,s2 / j plus / addu v0,s0,s2`, and the
-// diff<0x800 path ends `beqz v0,plus / subu v0,s0,s2` with the minus arm as
+// 'andi v0,v0,1 / bnez v0,minus / subu v0,s0,s2 / j plus / addu v0,s0,s2', and the
+// diff<0x800 path ends 'beqz v0,plus / subu v0,s0,s2' with the minus arm as
 // fall-through - so each site carries its own arm-operand compute. A single
-// `if (back) {...} else {...}` makes gcc merge the test at the join (one `beq` with
-// `subu` in its delay slot), which is the 2 instructions we are short.
-// Measured round 478 (four scored runs, none better):
-//  - the four-copy source, `if (diff == 0x800) { if (rand() & 1) minus else plus }
-//    else if (diff != 0) { if (diff < 0x800) minus else plus }` with the two minus
+// 'if (back) ... else ...' makes gcc merge the test at the join (one j, one beq with
+// subu in its delay slot), which is the 2 instructions we are short.
+// Measured rounds 478 and 491, nothing better than 89.68:
+//  - the four-copy source, 'if (diff == 0x800) { if (rand() & 1) minus else plus }
+//    else if (diff != 0) { if (diff < 0x800) minus else plus }' with the two minus
 //    copies and the two plus copies textually identical: 68.09 / 268 bytes /
 //    67 insns (62.54 with the pairs in the other order). gcc 2.7.2's cross-jumping
 //    merges the plus pair but NOT the minus pair, so it never reaches retail's
-//    two-dispatch / two-body shape, and the byte count is 52 over. Same body under
-//    gcc-2.7.2-cdk (-O2 -G8) 62.54 and gcc-2.6.0 55.02, so this is not the preset.
-//  - `else if (back == 0)` re-testing the selector: gcc cprops it away (back is
+//    two-dispatch / two-body shape. Same body under gcc-2.7.2-cdk (-O2 -G8) 62.54
+//    and gcc-2.6.0 55.02, so this is not the preset.
+//  - round 491: the same four copies written with explicit assigns ('var = arg0 -
+//    arg2' / 'var = arg0 + arg2') instead of '-=' / '+=': 76.30 / 268 / 67, and the
+//    generated .s shows WHY one pair never merges - the plus copies became ONE block
+//    at its own label with the compute inside, while both minus copies were emitted
+//    verbatim (compute hoisted into each branch delay slot, then 12 identical insns
+//    ending 'j epilogue'). Same body under gcc-2.7.2 -O3 -G8: 76.3, so not an -O
+//    level question either (try_flags).
+//  - 'else if (back == 0)' re-testing the selector: gcc cprops it away (back is
 //    known 0 on the else edge) and emits bytes identical to the plain if/else,
 //    89.68 / 216 / 54. So the 93.25 / 220 "dead else-if re-testing back" recorded
 //    in an earlier round was some other spelling; it is not reachable from
-//    `back == 0` or `back`.
+//    'back == 0' or 'back'.
 // The two clamp constants differing (slti 0x801 on the minus arm, slti 0x800 on the
 // plus arm) is the evidence that the arms were written out twice in the original
-// source; the missing piece is the merge of the minus pair. twin_for.py: no twin.
-// Do not re-try the four-copy shapes without a compiler that merges both pairs. */
+// source; the missing piece is the merge of BOTH pairs, which gcc 2.7.2 only does
+// once (tools/rounds/levers.md i-a-four-copy-arm-pair-merges-once). twin_for.py: no
+// twin. Do not re-try the four-copy shapes without a compiler that merges both
+// pairs. */
 /*
 s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
     s32 diff;
@@ -881,7 +891,8 @@ s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
         }
     }
     return var;
-}*/
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
 
