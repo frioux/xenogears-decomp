@@ -757,39 +757,51 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
 // All three cases share one register assignment; cases 0 and 2 are exact. Case 1 is short exactly one instruction: retail RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) at the top of every iteration and keeps a separate store-value register a0 = i+1, while this compile hoists menuUnk2 into a3 and drops the reload.
 // 
 // Diagnosis: this is gcc 2.6 loop.c move_movables declining the hoist on its savings/register-pressure threshold, not aliasing - case 0 in the same function hoists in BOTH compiles from the same C spelling, so case 1's source is already right and the residual is a pass heuristic. Tried this round: case 1 as for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1] and selectedSlot = i (retail's own parameterization) = 84.62% / 360 bytes / 90 insns, still hoists. Preset screened on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64).
+// Best attempt: 86.47% (356 bytes / 89 insns vs retail's 368 / 92; this is the pMenu-local body below). The three cases share one register assignment; cases 0 and 2 are exact, case 1 is 3 instructions short.
+// 
+// What got here from 85.27: assigning the menuUnk2 load to a case-local 'MenuUnk2* pMenu' as the FIRST statement of each loop body (and once in case 2) instead of spelling g_Menu->menuUnk2 inline - it moved the store value to a3 and the struct base to a2, i.e. retail's own assignment. This was found by the permuter (base 1349 -> 1029), but the candidate itself read new_var uninitialised in cases 1 and 2 - wrong code; the honest version initialises pMenu in every case and still measures 86.47.
+// 
+// Residual: retail case 1 keeps the store value as its OWN induction variable (addiu a0,a0,1 in an out-of-line continue block, loop test slti v0,a0,30 on it, no separate index increment - the table is a pointer biv stepping by 4) and RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) every iteration, while this compile recomputes addiu a3,a1,1 per pass and hoists menuUnk2. Cases 0 and 2 (single-test loops) hoist in both compiles, so the hoist/heuristic difference is the two-load && body: same residual as the three siblings (func_801CA1D4 85.81, func_801CA5F0 84.72, func_801C9EF4 86.49).
+// 
+// Tried this round (each measured): for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1], no pMenu, 84.62 / 360 / 90; same with pMenu, 85.82 / 352 / 88; two counters for (n = a1 + 1, i = a1; n < 0x1E; n++, i++), 86.30 / 352 / 88; pMenu body above, 86.47 / 356 / 89. Preset re-screened earlier on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64).
 /*
 void func_801CA480(s32 a0, s32 a1) {
+    MenuUnk2* pMenu;
     s32 i;
     s32 j;
 
     switch (a0) {
     case 0:
         for (i = a1; i + 1 < 0x1E; i++) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9820[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
-                g_Menu->menuUnk2->selectedSlot = i + 1;
+            if (pMenu->slotRecordIndexes[j] != 0xFF) {
+                pMenu->selectedSlot = i + 1;
                 break;
             }
         }
         break;
     case 1:
         for (i = a1; i + 1 < 0x1E; i++) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9820[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                g_Menu->menuUnk2->selectedSlot = i + 1;
+            if (pMenu->slotRecordIndexes[j] != 0xFF && pMenu->slotHasGameSave[j] != 0) {
+                pMenu->selectedSlot = i + 1;
                 break;
             }
         }
         break;
     case 2:
+        pMenu = g_Menu->menuUnk2;
         i = a1 + 1;
-        if (((u8*)&g_Menu->menuUnk2->cardStatus[0])[i / 15] != 0 && i < 0x1E) {
-            g_Menu->menuUnk2->selectedSlot = i;
+        if (((u8*)&pMenu->cardStatus[0])[i / 15] != 0 && i < 0x1E) {
+            pMenu->selectedSlot = i;
         }
         break;
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
+
 
 
 
