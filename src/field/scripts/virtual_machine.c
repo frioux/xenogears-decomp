@@ -510,6 +510,7 @@ extern void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2);
 //     in $v1, ours $v1/$a0 (allocator ties, same instruction count).
 // Presets on this body: gcc-2.6.0 76.86, gcc-2.7.2-cdk compile-fails. Earlier rounds: permuter
 // 3 runs on the 85.58 body, PERMUTER_BETTER each (3056->1867, 2606->2054, 2054->1926).
+// ROUND 505: re-measured 90.44% / 604 bytes / 151 insns (retail 148 / 592), unchanged. New measurement: loading each shake delta into a shared `s32 nDelta` local one statement before its update is WORSE - 82.98% / 612 bytes / 153 insns - because the delta load then lands at the top of the block and the `lw g_FieldActors` delay slot gets a plain nop. The 4 bad blocks (t[1] and t[2] in BOTH groups; t[0] is verbatim in both) need the delta load in the `lw $a0,g_FieldActors` load-delay slot, i.e. RTL order lw a0 / lw v1,DELTA(a2) / addu / lw v0,FIELD(a0), which no statement order in C reaches: the `+=` expands the lvalue address first, so the delta load always comes after the element addu.
 /*
 void func_800A24C4(void) {
     int i;
@@ -557,8 +558,7 @@ void func_800A24C4(void) {
             do { g_FieldActors[i].transformMatrix.t[2] += *(volatile s32*)(pShake - 0xE); } while (0);
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
 
 extern s32 g_GamePartySkinsInitialized;
@@ -1073,6 +1073,7 @@ void func_800A3474(void) {
 //     lands in $a1 here against $a0 there - a one-register shift.
 // Presets measured on this body: gcc-2.6.0 94.70, gcc-2.7.2-cdk 85.70, cdk -G0 73.59
 // (measured on the 91.47 body), -G0 compile-fails, -O3 compile-fails.
+// ROUND 505: re-measured 97.01% / 700 bytes / 175 insns, unchanged. NEW measurement: a struct-typed alias for the count word (typedef struct { int numActors; } FieldSaveHead; extern FieldSaveHead g_FieldSaveHead __asm__("g_FieldNumActors"); pNumActors->numActors = pSrc[0];) ALSO folds - same 700 bytes, same 175 insns - so the lever that materialises a struct base does not reach "&<scalar global> - 0xB8". The one-instruction deficit is the memcpy loop-end pointer: retail fill its beqz delay slot with the single-instruction store "sw v1,0(a0)", so retail must compute "addiu t0,a1,0xAC" on both paths; this body stores through "lui $at"/"sw" (2 insns), the slot takes the shared addiu, and the aligned path reuses it. Only a register-held count address reaches 176.
 /*
 void func_800A3C8C(void) {
     int i;
