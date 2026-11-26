@@ -778,27 +778,61 @@ void BattleBuildSlotGaugePrims(void) {
 // (c) preset ruled out: try_flags --all --gcc gcc-2.7.2-cdk-psx gives 85.51 for this body (and breaks
 //     the unit's matched functions: BattleRenderSlotStatDigits 78.94, BattleInitPanelMove 89.58,
 //     BattleAddFourSlotPrims 87.69), so 2.6.0 is the right compiler here.
+// ROUND 501: 94.12 -> 95.46%, and the body now has retail's exact size: 2784 bytes / 696 insns
+// (the park above was 2780 / 695 and so could never link). Three findings, the first is the lever:
+// (a) THE MISSING PREHEADER COPY IS THE TIMER'S STRENGTH-REDUCTION GIV. Dropping the pointer locals
+//     and writing the two timer reads as subscripts - `g_BattleSlotCountdownTimers[slot]` and
+//     `g_BattleSlotCountdownTimers[slot - 0xB]` - makes loop.c walk both (t4 = base+2*slot,
+//     t7 = t4-0x16), and a giv whose init is the address pseudo is copied, so retail's
+//     `lui v0,%hi` / `addiu v0,v0,%lo` / `move t4,v0` appears verbatim. 94.12 -> 94.96.
+// (b) That is also what makes retail's EIGHTH loop IV affordable: with the two pointer locals gone,
+//     an explicit `s32 flagsOff;` + `flagsOff += 8` in the for-clause and `g_BattleSlotFlags[flagsOff]`
+//     now gives retail's `addiu t5,t5,8` in the bnez delay slot AND restores retail's frame/save set
+//     (`sw s2,40(sp)`), i.e. the 0xC constant gets $s2. 94.96 -> 95.46. The round-488 measurement that
+//     ruled this out (93.85 / 2792 / 698, $s3 saved, frame 0x38) was against the POINTER-LOCAL body,
+//     where the 8-IV set really was unaffordable - do not re-use that number.
+// (c) Tried dead this round: for-clause order `actorOff += 0x1C, slot++, flagsOff += 8` = 95.42 (and it
+//     loses the +28 from the loop bottom entirely); `slot++, flagsOff += 8, actorOff += 0x1C` = 95.46
+//     with the same 136 lines, but puts actorOff's +28 in the bnez delay slot where retail has flags'
+//     +8. The panel quad's 0x14 still stays hoisted in $t9 where retail re-materialises `li a1,0x14`
+//     per iteration: equal instruction count, leave it.
+// WHAT IS LEFT (136 differing lines, all register naming and preheader statement order):
+// (1) the three constants rotate among the saved registers - retail 0x1A->$s0, 0x1E->$s1, 0xC->$s2,
+//     this body 0x1A->$s1, 0x1E->$s2, 0xC->$s0. The `li` EMISSION order already is retail's
+//     (0x1A, 0x1E, 0xC), so only the hand-out differs.
+// (2) the four caller-saved loop values rotate among $t5-$t8: retail actorOff=$t6, flagsOff=$t5,
+//     magic=$t8, pLimit=$t7; this body actorOff=$t8, flagsOff=$t6, magic=$t7, pLimit=$t5.
+// (3) the actorOff/flagsOff zero-inits sit at the TOP of the preheader; retail emits them at its END
+//     (`move t6,zero` after `addiu t7,t4,-22`, `move t5,zero` after the display-state load).
+// (4) arm B's clut store folds the +6 into the displacement (`sh a0,0x6E6(v0)` off `gfx+0x34*prim`)
+//     where retail adds it to the index (`addiu v1,v1,0x6` ... `sh a0,0x5AE(v1)`) - same size.
+// Next lever for (1)/(2): they are allocator hand-outs, so read `cc1 -da -dl -dg` on
+// build/src/battle/main/misc2.c.i (the `regs to allocate` list and the priorities) rather than
+// trying more spellings; nothing in the source shape moved them in six measured variants.
+// Permuter run (3 min, -j 2) from this body: RESULT PERMUTER_BETTER base=2483 best=2318, NOT
+// PORTED - the winning candidate changes the signature to `unsigned short func_80075938(void)` and
+// hoists `u8 *new_var = &((u8 *)g_BattleGraphicsWork)[0xA248]` for one of the two v2/v3 stores, i.e.
+// it is wrong code that happens to rearrange three cosmetic sites. Do not re-run it without a
+// different residual.
+// 95.46% at 2784 bytes / 696 insns = retail's exact size (was 94.12% / 2780 / 695, one short). Structure closed; residual is register naming only - see the note above.
 /*
 void func_80075938(void) {
     s32 slot;
     s32 actorOff;
+    s32 flagsOff;
     s32 width[4];
     BattleWork *pState;
     u16 clut;
-    s16 *pTimer;
-    s16 *pLimit;
 
     BattleBuildSlotGaugePrims();
     g_BattleDisplayState->unk82 = 0;
-    pTimer = g_BattleSlotCountdownTimers;
-    pLimit = pTimer - 0xB;
-    for (slot = 0, actorOff = 0; slot < 3; slot++, actorOff += 0x1C, pTimer++, pLimit++) {
+    for (slot = 0, actorOff = 0, flagsOff = 0; slot < 3; slot++, actorOff += 0x1C, flagsOff += 8) {
         if (g_BattleSlotActorIds[actorOff] != BATTLE_SLOT_CHARACTER_NONE) {
             if (width[slot] < 0) {
                 width[slot] = 0;
             }
             if (g_BattleDisplayState->panelMode[slot] == 0) {
-                width[slot] = (100 - (*pTimer * 100) / *pLimit) * 5600 / 10000;
+                width[slot] = (100 - (g_BattleSlotCountdownTimers[slot] * 100) / g_BattleSlotCountdownTimers[slot - 0xB]) * 5600 / 10000;
                 *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
                      [slot * 2 + g_BattlePrimStartIndexVolatile].x0 =
                     g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + slot * 0x60 + 0x2D;
@@ -854,8 +888,8 @@ void func_80075938(void) {
                      [slot * 2 + g_BattlePrimStartIndexVolatile].clut = clut;
                 g_BattleDisplayState->panelActive[slot] = 1;
             } else {
-                width[slot] = (100 - *pTimer) * 5600 / 10000;
-                if (g_BattleSlotFlags[slot * 8] != 0 && g_BattleActorCharIds[slot] != 7) {
+                width[slot] = (100 - g_BattleSlotCountdownTimers[slot]) * 5600 / 10000;
+                if (g_BattleSlotFlags[flagsOff] != 0 && g_BattleActorCharIds[slot] != 7) {
                     width[slot] = (D_800CCDC4[slot].flags * 100 / D_800CCDC6[slot].flags) * 5600 / 10000;
                 }
                 *(volatile s16 *)&((POLY_GT4 *)((u32)g_BattleGraphicsWork + 0x5A0))
