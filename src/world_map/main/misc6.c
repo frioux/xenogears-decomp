@@ -1018,7 +1018,7 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
-        *(volatile s32 *)&pActor->scale = pActor->scale + 0x300;
+        *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
             *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
@@ -1078,7 +1078,7 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
-        *(volatile s32 *)&pActor->scale = pActor->scale + 0x300;
+        *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
             *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
@@ -1105,7 +1105,7 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
-        *(volatile s32 *)&pActor->scale = pActor->scale + 0x300;
+        *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
             *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
