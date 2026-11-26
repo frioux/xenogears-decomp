@@ -1094,23 +1094,41 @@ extern void BattleSnapActorToGround(BattleActor *);
 // What is left is hand-out order, not pressure: see the register map at the top.
 // Preset ruled out on this body with try_flags.sh: 2.7.2 -G0 89.08, 2.7.2-cdk -G0
 // 77.34, 2.6.0 -O3 89.84 (identical), -O1 60.76.
+// ROUND 520 re-measured 90.05% / 2400 bytes / 600 insns and closed two more axes:
+// - the loop shape is NOT the +4. Three spellings measure byte-identical on this body: the
+//   `while (cond) { if (++i >= N) break; }` above, the retail-CFG `do { if (ptr == NULL)
+//   break; } while (++i < N);`, and `for (;;) { if (ptr == NULL) break; if (++i >= N) break; }`.
+//   gcc 2.6.0 always peels the entry test into the block after the `D_800C3B6C = 0` store
+//   (constant-addressed `lw`) and rotates the null test into the back edge; retail tests at
+//   the loop top and falls into the head, so retail's source could not be re-expressed here.
+// - the LOCAL DECLARATION ORDER is dead too: reordering the locals into retail's rank order
+//   (pHeader, pActor, mode, pImage, pFile, pFileEnd first) is byte-identical at 90.05.
+// Permuter (4 min, -j 2, from this body): base 6644 -> best 5970, three edits. Measured
+// separately: the `new_var = pHeader;` alias (used for the flags4A store) ALONE is 89.38 /
+// 2416 bytes, and the inverted `if (!((flags & 4) || (flags & 0x80)))` is provably identical
+// (see (4) above). The third edit is the find: `mode = 0xFE;` before the poly UV stores, with
+// `u1`/`v2`/`u3` storing `mode`, measures 90.26% / 2404 bytes / 601 insns / 465 differing
+// lines - one instruction MORE and 19 differing lines FEWER. It is not shippable source (it
+// reuses `mode` for a UV constant), but it proves `mode`'s LIVE LENGTH is load-bearing: the
+// pseudo it makes lives across the mesh/skeleton calls and the whole hand-out moves toward
+// retail's map. That is the axis to permute from next, not declaration order.
 /*
 void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23ModelBuffer *pModelBuffer, s16 arg4,
                    s16 arg5, s16 arg6, s16 arg7, s16 *pSpawnPos) {
     BattleModelPartList *pPartList;
-    BattleActor *pActor;
     Misc23ModelHeader *pHeader;
+    BattleActor *pActor;
+    s16 mode;
+    u8 *pImage;
+    u8 *pFile;
+    u8 *pFileEnd;
     void **ppBlocks;
     void **ppParts;
     Temp8 *pSoundBank;
     Misc23Block *pBlocks;
     u16 *pData;
-    u8 *pImage;
-    u8 *pFile;
-    u8 *pFileEnd;
     u8 *pModelFile;
     s32 blockSize;
-    s16 mode;
     s32 count;
     s32 i;
     s32 k;
@@ -1291,6 +1309,7 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
+
 
 
 
