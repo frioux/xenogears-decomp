@@ -1197,7 +1197,6 @@ void MenuApplySaveSlot(u32* pSrc) {
    Dead already: presets 2.6.0 -O1 70.63 / -O3 51.91, 2.7.2 78.09, 2.7.2-cdk 76.13, so the
    unit's 2.6.0 -O2 is right. */
 
-/*
 u_char func_801CB304(void) {
     char path[0x40];
     s32 ready;
@@ -1255,29 +1254,32 @@ u_char func_801CB304(void) {
                 card = 1;
             }
             strcat(path, g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]].ids);
-            if (MenuLoadWindow2Text(0x65, MENU_WINDOW_TEXT_NONE, 1) == 0) {
-                g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
-                goto updateCursor;
+            if (MenuLoadWindow2Text(0x65, MENU_WINDOW_TEXT_NONE, 1) != 0) {
+                goto cardRead;
             }
+            g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+            goto updateCursor;
+        cardReadFailed:
+            close(fileFd);
+            goto freeBuffer;
+        cardChecksumOk:
+            MenuLoadResourceSet(1);
+            MenuApplySaveSlot((u32*)(pBuffer + 0x100));
+            MenuLoadResourceSet(0x11);
+            goto freeBuffer;
+        cardRead:
             MenuCreateWindow2Strings(0x3B);
             retry = 5;
             g_Menu->soundEffectsEnabled = 0;
             fd = -1;
-            while (1) {
+            do {
                 fd = open(path, 1);
                 if (fd == -1) {
                     fd = 0;
                     MenuWaitCardOperationFrames(card);
                 }
                 fileFd = fd;
-                if (fd != 0) {
-                    break;
-                }
-                retry--;
-                if (retry == 0) {
-                    break;
-                }
-            }
+            } while (fd == 0 && --retry != 0);
             offset = 0;
             if (fd != 0) {
                 g_Menu->pManager->shouldRenderCursors = 0;
@@ -1288,19 +1290,14 @@ u_char func_801CB304(void) {
                 do {
                     MenuRenderFrame();
                     retry = 5;
-                    while (1) {
+                    do {
                         if (read(fd, pData, 0x100) != 0x100) {
                             fd = 0;
                             MenuWaitCardOperationFrames(card);
                         }
-                        if (fd != 0) {
-                            break;
-                        }
-                        retry--;
-                        if (retry == 0) {
-                            close(fileFd);
-                            goto freeBuffer;
-                        }
+                    } while (fd == 0 && --retry != 0);
+                    if (fd == 0) {
+                        goto cardReadFailed;
                     }
                     offset += 0x100;
                     pData += 0x100;
@@ -1312,13 +1309,10 @@ u_char func_801CB304(void) {
                 do {
                     sum += *pData++;
                 } while (--count >= 0);
-                if ((u8)sum != *pData) {
-                    fd = 0;
-                } else {
-                    MenuLoadResourceSet(1);
-                    MenuApplySaveSlot((u32*)(pBuffer + 0x100));
-                    MenuLoadResourceSet(0x11);
+                if ((u8)sum == *pData) {
+                    goto cardChecksumOk;
                 }
+                fd = 0;
             freeBuffer:
                 HeapFree(pBuffer);
             }
@@ -1352,8 +1346,7 @@ u_char func_801CB304(void) {
     g_Menu->menuUnk2->cardPollMode = 1;
     g_Menu->unk334 = 1;
     return result;
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
+}
 
 
 
