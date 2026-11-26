@@ -28,6 +28,10 @@ extern u8 g_ArchiveSectorScratch[];
 extern s32 g_ArchiveDebugStreamSector;  // debug stream: sector buffer being split
 extern s32 g_ArchiveDebugStreamPayload;  // debug stream: payload cursor inside that sector
 extern s16 g_ArchiveDebugStreamBlockCount;  // debug stream: sub-blocks in that sector
+// A second name for the same halfword: the split block re-reads the count after
+// writing it, and only a distinct object stops gcc forwarding the store.
+extern s16 g_ArchiveDebugStreamBlockCountReload[] __asm__("g_ArchiveDebugStreamBlockCount");
+extern u16 g_ArchiveStreamNextSectionIdReload[] __asm__("g_ArchiveStreamNextSectionId");
 extern u16 D_8005A4B8;  // debug stream: sector header word at +8
 
 // Stream file: the section count, then a section table of `sectionCount` entries.
@@ -584,71 +588,6 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
-
-/*
- * Best: 83.12% (1300 bytes against retail's 1324, so SIX instructions are still
- * missing). The block layout, every branch target and the whole debug-stream
- * state machine match; what is left is the callee-saved mapping plus three
- * specific instruction deficits, all measured:
- *  - the FRAME is now retail's exact 0x50 (vars= 24, regs= 10, args= 16) thanks
- *    to the unused `s32 nSpare[2]` below; it also took the differing-slot count
- *    from 204 to 190, so it stays.
- *  - retail's compare in the split test reads a sign-extended *narrow* copy of
- *    the block count (`sll 16`/`sra 16` feeding `slt`), and the split block then
- *    RELOADS g_ArchiveDebugStreamBlockCount with a plain `lh` into a fresh
- *    register. Writing the compare against the local and the reload against the
- *    global (as below) does not stop cse forwarding the reload from the earlier
- *    store of the same global; `*(volatile s16*)` forces the load but costs an
- *    extra `lhu`+`sll`+`sra` (1316 bytes, 208 slots, 82.59%), so it is worse.
- *  - retail computes `nBlockCount + 1` TWICE (`addiu a0,a1,1` for the argument
- *    and `addiu v0,a2,1` for the store, from a copy of the count that reorg
- *    stole into the `bnez` delay slot). No spelling of one C value was found to
- *    emit both.
- *  - the queue path reads g_ArchiveStreamNextSectionId twice (retail stores the
- *    id from the first load, then reloads after the pointer stores to increment);
- *    ours cse's the two into one load. `*(volatile u16*)` on the increment brings
- *    the second load back (+8 bytes) but scores worse (210 vs 204 slots).
- *  - the three seek sites: retail has ONE `jal PClseek` block placed after the
- *    debug-stream-count!=0 arm, reached by a taken branch from each of the three
- *    sites; gcc merges the same three sites into one block but places it at the
- *    FIRST site, so that site's branch polarity comes out `bne` where retail has
- *    `beq`. Cross-jump placement is not source-controllable here; a single
- *    shared seek label with an nSeek local measures 79.99%.
- *  - callee-saved mapping. Retail: fp=pDataOut, s7=pSectionOut, s6=nSections,
- *    s5=pData, s4=nOffset, s3=pHeaders, s2=pSection, s1=i, s0=pScratch. Ours:
- *    fp=pDataOut, s7=nSections, s6=pData, s5=nOffset, s4=pSectionOut(where retail
- *    has s7), s3=pHeaders, s2=i, s1=pSection, s0=pScratch. Three declaration
- *    orders measured no better.
- *
- * Shape notes that are encoded below and are load-bearing:
- *  - the debug-stream section count is tested for zero first, with the
- *    scan-and-split path inline and the read-more path out of line.
- *  - the section scan is a for over g_ArchiveStreamSectionCount with pSection->size
- *    in the increment, and the global read in the for-condition (cse plus loop.c
- *    then emit retail's preheader copy move a1,v1), followed by a SECOND
- *    i >= g_ArchiveStreamSectionCount test that re-loads the global.
- *  - the seek-retry checks are two independent mode-8 blocks, each with its own
- *    pScratch = g_ArchiveSectorScratch local (one pointer reused for the sector
- *    buffer later, which is why retail keeps it in s0).
- *  - g_ArchiveDebugStreamSectionCount is s16 in the == 0 test (lh) but the two
- *    increments assemble as lhu + addiu + sh, and the wrap test sign-extends the
- *    incremented value (sll 16 / sra 16). No single extern type produces both, so
- *    the type is still open.
- *  - round 410 re-measured from scratch (the note above was carried over): the
- *    same 83.12% / 1300 bytes / 325 instructions. Two further spellings, both
- *    identical: writing the split test as `pSection->size < <global>` instead of
- *    against a local (gcc forwards the earlier store across the two struct
- *    stores regardless, so retail's `lh` of g_ArchiveDebugStreamBlockCount in
- *    the split block is NOT reachable this way; the missing load plus the
- *    missing `move a2,a1` in the `bnez` delay slot and the two `lhu`s of
- *    g_ArchiveStreamNextSectionId in the queue path are the whole 6-instruction
- *    deficit), and swapping the `i` / `pSection` declarations, which left the
- *    callee-saved map untouched. Nothing else was re-tried, so the register
- *    mapping above still stands as the main unresolved residual.
- */
-
-/*
 s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
     s32 i;
     ArchiveStreamFileSectionHeader* pSection;
@@ -659,7 +598,6 @@ s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
     s16 nBlockCount;
     s32 nOffset;
     s32 nRemaining;
-    s32 nSpare[2];
 
     if (g_ArchiveCurStreamFile == NULL) {
         return 1;
@@ -720,7 +658,7 @@ s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
 
         pSection->state = ARCHIVE_STREAM_FILE_READY;
         pSection->id = g_ArchiveStreamNextSectionId;
-        nBlockCount = g_ArchiveDebugStreamBlockCount;
+        nBlockCount = g_ArchiveDebugStreamBlockCountReload[0];
         nRemaining = pSection->size - nBlockCount;
         if (nRemaining >= 3) {
             pSection->size = nBlockCount + 1;
@@ -758,7 +696,7 @@ s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
     g_ArchiveStreamQueueIndex = i;
     pSection->state = ARCHIVE_STREAM_FILE_READY;
     pSection->id = g_ArchiveStreamNextSectionId;
-    g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
+    g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionIdReload[0] + 1;
     PCread(g_ArchiveDebugFileHandle, (u8*)(g_ArchiveDebugStreamSectionCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE + g_ArchiveDebugStreamSector), ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
     PCread(g_ArchiveDebugFileHandle, (u8*)(g_ArchiveDebugStreamSectionCount * (CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE) + g_ArchiveDebugStreamPayload), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
     if (g_ArchiveCdMode[0] & 8) {
@@ -793,7 +731,7 @@ search:
     g_ArchiveStreamReadSectionId += pSection->unk2;
     return 0;
 }
-*/
+
 
 u_short ArchiveReleaseStreamBlock(ArchiveStreamFileSectionHeader* pSection) {
     ArchiveStreamFileHeader* pStream;

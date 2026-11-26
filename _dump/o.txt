@@ -1,0 +1,470 @@
+lui	v0,0x0
+d00: R_MIPS_HI16	g_ArchiveCurStreamFile
+lw	v0,0(v0)
+d04: R_MIPS_LO16	g_ArchiveCurStreamFile
+addiu	sp,sp,-80
+sw	s8,72(sp)
+move	s8,a0
+sw	s7,68(sp)
+move	s7,a1
+sw	ra,76(sp)
+sw	s6,64(sp)
+sw	s5,60(sp)
+sw	s4,56(sp)
+sw	s3,52(sp)
+sw	s2,48(sp)
+sw	s1,44(sp)
+beqz	v0,11f4 <func_80028F30+0x4f4>
+sw	s0,40(sp)
+move	s5,v0
+addiu	s3,s5,4
+lw	s6,0(s5)
+lui	v1,0x0
+d4c: R_MIPS_HI16	g_ArchiveDebugTable
+lw	v1,0(v1)
+d50: R_MIPS_LO16	g_ArchiveDebugTable
+sll	v0,s6,0x3
+addu	v0,s5,v0
+beqz	v1,1144 <func_80028F30+0x444>
+addiu	s5,v0,36
+lui	a0,0x0
+d64: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+d68: R_MIPS_LO16	g_ArchiveDebugFileHandle
+li	v0,-1
+beq	a0,v0,1144 <func_80028F30+0x444>
+nop
+lui	v0,0x0
+d78: R_MIPS_HI16	g_ArchiveCurFileSize
+lw	v0,0(v0)
+d7c: R_MIPS_LO16	g_ArchiveCurFileSize
+nop
+blez	v0,1144 <func_80028F30+0x444>
+nop
+lui	v0,0x0
+d8c: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+lh	v0,0(v0)
+d90: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+nop
+bnez	v0,fd4 <func_80028F30+0x2d4>
+nop
+lui	v1,0x0
+da0: R_MIPS_HI16	g_ArchiveStreamSectionCount
+lw	v1,0(v1)
+da4: R_MIPS_LO16	g_ArchiveStreamSectionCount
+nop
+blez	v1,1144 <func_80028F30+0x444>
+move	s1,zero
+lui	a0,0x0
+db4: R_MIPS_HI16	g_ArchiveStreamSections
+lw	a0,0(a0)
+db8: R_MIPS_LO16	g_ArchiveStreamSections
+sll	v0,s1,0x3
+addu	s2,v0,a0
+lhu	v0,0(s2)
+nop
+beqz	v0,dec <func_80028F30+0xec>
+nop
+lhu	v0,4(s2)
+nop
+addu	s1,s1,v0
+slt	v0,s1,v1
+bnez	v0,dc0 <func_80028F30+0xc0>
+sll	v0,s1,0x3
+lui	v0,0x0
+dec: R_MIPS_HI16	g_ArchiveStreamSectionCount
+lw	v0,0(v0)
+df0: R_MIPS_LO16	g_ArchiveStreamSectionCount
+nop
+slt	v0,s1,v0
+beqz	v0,1144 <func_80028F30+0x444>
+nop
+lui	v0,0x0
+e04: R_MIPS_HI16	g_ArchiveCdMode
+lbu	v0,0(v0)
+e08: R_MIPS_LO16	g_ArchiveCdMode
+nop
+andi	v0,v0,0x8
+beqz	v0,e48 <func_80028F30+0x148>
+sll	s4,s1,0xb
+lui	s0,0x0
+e1c: R_MIPS_HI16	g_ArchiveSectorScratch
+addiu	s0,s0,0
+e20: R_MIPS_LO16	g_ArchiveSectorScratch
+move	a1,s0
+lui	a0,0x0
+e28: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+e2c: R_MIPS_LO16	g_ArchiveDebugFileHandle
+jal	0 <ArchiveInit>
+e30: R_MIPS_26	PCread
+li	a2,0x8
+lbu	v1,0(s0)
+li	v0,0x1
+beq	v1,v0,1010 <func_80028F30+0x310>
+nop
+li	a2,0x20
+lui	v0,0x0
+e4c: R_MIPS_HI16	g_ArchiveStreamWritePointer
+lw	v0,0(v0)
+e50: R_MIPS_LO16	g_ArchiveStreamWritePointer
+lui	a0,0x0
+e54: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+e58: R_MIPS_LO16	g_ArchiveDebugFileHandle
+addu	v0,s4,v0
+move	s0,v0
+lui	at,0x0
+e64: R_MIPS_HI16	g_ArchiveDebugStreamSector
+sw	s0,0(at)
+e68: R_MIPS_LO16	g_ArchiveDebugStreamSector
+jal	0 <ArchiveInit>
+e6c: R_MIPS_26	PCread
+move	a1,s0
+lhu	v1,6(s0)
+lhu	v0,8(s0)
+lui	at,0x0
+e7c: R_MIPS_HI16	g_ArchiveDebugStreamBlockCount
+sh	v1,0(at)
+e80: R_MIPS_LO16	g_ArchiveDebugStreamBlockCount
+sll	v1,v1,0x10
+lui	at,0x0
+e88: R_MIPS_HI16	D_8005A4B8
+sh	v0,0(at)
+e8c: R_MIPS_LO16	D_8005A4B8
+lhu	v0,4(s2)
+sra	v1,v1,0x10
+slt	v0,v0,v1
+beqz	v0,edc <func_80028F30+0x1dc>
+li	v0,0x3
+lui	v0,0x0
+ea4: R_MIPS_HI16	g_ArchiveCdMode
+lbu	v0,0(v0)
+ea8: R_MIPS_LO16	g_ArchiveCdMode
+nop
+andi	v0,v0,0x8
+beqz	v0,ecc <func_80028F30+0x1cc>
+li	a1,-40
+lui	a0,0x0
+ebc: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+ec0: R_MIPS_LO16	g_ArchiveDebugFileHandle
+j	101c <func_80028F30+0x31c>
+ec4: R_MIPS_26	.text
+nop
+lui	a0,0x0
+ecc: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+ed0: R_MIPS_LO16	g_ArchiveDebugFileHandle
+j	101c <func_80028F30+0x31c>
+ed4: R_MIPS_26	.text
+li	a1,-32
+lui	v1,0x0
+edc: R_MIPS_HI16	g_ArchiveStreamNextSectionId
+lhu	v1,0(v1)
+ee0: R_MIPS_LO16	g_ArchiveStreamNextSectionId
+sh	v0,0(s2)
+lui	a1,0x0
+ee8: R_MIPS_HI16	g_ArchiveDebugStreamBlockCount
+lh	a1,0(a1)
+eec: R_MIPS_LO16	g_ArchiveDebugStreamBlockCount
+lhu	v0,4(s2)
+sh	v1,2(s2)
+subu	v1,v0,a1
+slti	v0,v1,3
+bnez	v0,f2c <func_80028F30+0x22c>
+move	a2,a1
+addiu	a0,a1,1
+addiu	v0,a2,1
+sh	v0,4(s2)
+sll	v0,a1,0x3
+addu	v0,v0,s2
+addiu	v1,v1,-1
+sh	v1,12(v0)
+jal	0 <ArchiveInit>
+f24: R_MIPS_26	ArchiveConsolidateStreamFileEntry
+sh	zero,8(v0)
+lui	v1,0x0
+f2c: R_MIPS_HI16	g_ArchiveStreamNextSectionId
+lhu	v1,0(v1)
+f30: R_MIPS_LO16	g_ArchiveStreamNextSectionId
+lui	a0,0x0
+f34: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+f38: R_MIPS_LO16	g_ArchiveDebugFileHandle
+lui	a1,0x0
+f3c: R_MIPS_HI16	g_ArchiveStreamWritePointer
+lw	a1,0(a1)
+f40: R_MIPS_LO16	g_ArchiveStreamWritePointer
+lui	v0,0x0
+f44: R_MIPS_HI16	g_ArchiveDebugStreamBlockCount
+lh	v0,0(v0)
+f48: R_MIPS_LO16	g_ArchiveDebugStreamBlockCount
+addiu	v1,v1,1
+addu	a1,s4,a1
+sll	v0,v0,0x5
+addu	a1,a1,v0
+lui	at,0x0
+f5c: R_MIPS_HI16	g_ArchiveStreamNextSectionId
+sh	v1,0(at)
+f60: R_MIPS_LO16	g_ArchiveStreamNextSectionId
+lui	at,0x0
+f64: R_MIPS_HI16	g_ArchiveDebugStreamPayload
+sw	a1,0(at)
+f68: R_MIPS_LO16	g_ArchiveDebugStreamPayload
+jal	0 <ArchiveInit>
+f6c: R_MIPS_26	PCread
+li	a2,0x7e0
+lui	v0,0x0
+f74: R_MIPS_HI16	g_ArchiveCdMode
+lbu	v0,0(v0)
+f78: R_MIPS_LO16	g_ArchiveCdMode
+nop
+andi	v0,v0,0x8
+beqz	v0,f9c <func_80028F30+0x29c>
+li	a1,0x118
+lui	a0,0x0
+f8c: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+f90: R_MIPS_LO16	g_ArchiveDebugFileHandle
+jal	0 <ArchiveInit>
+f94: R_MIPS_26	PClseek
+li	a2,0x1
+lui	v1,0x0
+f9c: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+lhu	v1,0(v1)
+fa0: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+lui	v0,0x0
+fa4: R_MIPS_HI16	g_ArchiveCurFileSize
+lw	v0,0(v0)
+fa8: R_MIPS_LO16	g_ArchiveCurFileSize
+lui	at,0x0
+fac: R_MIPS_HI16	g_ArchiveStreamQueueIndex
+sw	s1,0(at)
+fb0: R_MIPS_LO16	g_ArchiveStreamQueueIndex
+addiu	v1,v1,1
+addiu	v0,v0,-2048
+lui	at,0x0
+fbc: R_MIPS_HI16	g_ArchiveCurFileSize
+sw	v0,0(at)
+fc0: R_MIPS_LO16	g_ArchiveCurFileSize
+lui	at,0x0
+fc4: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+sh	v1,0(at)
+fc8: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+j	1148 <func_80028F30+0x448>
+fcc: R_MIPS_26	.text
+sw	zero,0(s7)
+lui	v0,0x0
+fd4: R_MIPS_HI16	g_ArchiveCdMode
+lbu	v0,0(v0)
+fd8: R_MIPS_LO16	g_ArchiveCdMode
+nop
+andi	v0,v0,0x8
+beqz	v0,102c <func_80028F30+0x32c>
+nop
+lui	s0,0x0
+fec: R_MIPS_HI16	g_ArchiveSectorScratch
+addiu	s0,s0,0
+ff0: R_MIPS_LO16	g_ArchiveSectorScratch
+move	a1,s0
+jal	0 <ArchiveInit>
+ff8: R_MIPS_26	PCread
+li	a2,0x8
+lbu	v1,0(s0)
+li	v0,0x1
+bne	v1,v0,102c <func_80028F30+0x32c>
+nop
+lui	a0,0x0
+1010: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+1014: R_MIPS_LO16	g_ArchiveDebugFileHandle
+li	a1,0x918
+jal	0 <ArchiveInit>
+101c: R_MIPS_26	PClseek
+li	a2,0x1
+j	1148 <func_80028F30+0x448>
+1024: R_MIPS_26	.text
+sw	zero,0(s7)
+lui	v0,0x0
+102c: R_MIPS_HI16	g_ArchiveStreamQueueIndex
+lw	v0,0(v0)
+1030: R_MIPS_LO16	g_ArchiveStreamQueueIndex
+lui	a0,0x0
+1034: R_MIPS_HI16	g_ArchiveStreamSections
+lw	a0,0(a0)
+1038: R_MIPS_LO16	g_ArchiveStreamSections
+addiu	v0,v0,1
+sll	v1,v0,0x3
+addu	s2,v1,a0
+lui	v1,0x0
+1048: R_MIPS_HI16	g_ArchiveStreamNextSectionId
+lhu	v1,0(v1)
+104c: R_MIPS_LO16	g_ArchiveStreamNextSectionId
+li	a2,0x20
+lui	at,0x0
+1054: R_MIPS_HI16	g_ArchiveStreamQueueIndex
+sw	v0,0(at)
+1058: R_MIPS_LO16	g_ArchiveStreamQueueIndex
+li	v0,0x3
+sh	v0,0(s2)
+lui	a0,0x0
+1064: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+1068: R_MIPS_LO16	g_ArchiveDebugFileHandle
+lui	v0,0x0
+106c: R_MIPS_HI16	g_ArchiveStreamNextSectionId
+lhu	v0,0(v0)
+1070: R_MIPS_LO16	g_ArchiveStreamNextSectionId
+lui	a1,0x0
+1074: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+lh	a1,0(a1)
+1078: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+addiu	v0,v0,1
+sh	v1,2(s2)
+lui	v1,0x0
+1084: R_MIPS_HI16	g_ArchiveDebugStreamSector
+lw	v1,0(v1)
+1088: R_MIPS_LO16	g_ArchiveDebugStreamSector
+sll	a1,a1,0x5
+lui	at,0x0
+1090: R_MIPS_HI16	g_ArchiveStreamNextSectionId
+sh	v0,0(at)
+1094: R_MIPS_LO16	g_ArchiveStreamNextSectionId
+jal	0 <ArchiveInit>
+1098: R_MIPS_26	PCread
+addu	a1,a1,v1
+li	a2,0x7e0
+lui	v0,0x0
+10a4: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+lh	v0,0(v0)
+10a8: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+lui	a0,0x0
+10ac: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+10b0: R_MIPS_LO16	g_ArchiveDebugFileHandle
+sll	a1,v0,0x6
+subu	a1,a1,v0
+lui	v0,0x0
+10bc: R_MIPS_HI16	g_ArchiveDebugStreamPayload
+lw	v0,0(v0)
+10c0: R_MIPS_LO16	g_ArchiveDebugStreamPayload
+sll	a1,a1,0x5
+jal	0 <ArchiveInit>
+10c8: R_MIPS_26	PCread
+addu	a1,a1,v0
+lui	v0,0x0
+10d0: R_MIPS_HI16	g_ArchiveCdMode
+lbu	v0,0(v0)
+10d4: R_MIPS_LO16	g_ArchiveCdMode
+nop
+andi	v0,v0,0x8
+beqz	v0,10f8 <func_80028F30+0x3f8>
+li	a1,0x118
+lui	a0,0x0
+10e8: R_MIPS_HI16	g_ArchiveDebugFileHandle
+lw	a0,0(a0)
+10ec: R_MIPS_LO16	g_ArchiveDebugFileHandle
+jal	0 <ArchiveInit>
+10f0: R_MIPS_26	PClseek
+li	a2,0x1
+lui	v0,0x0
+10f8: R_MIPS_HI16	g_ArchiveCurFileSize
+lw	v0,0(v0)
+10fc: R_MIPS_LO16	g_ArchiveCurFileSize
+lui	v1,0x0
+1100: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+lhu	v1,0(v1)
+1104: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+addiu	v0,v0,-2048
+addiu	v1,v1,1
+lui	at,0x0
+1110: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+sh	v1,0(at)
+1114: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+sll	v1,v1,0x10
+lui	at,0x0
+111c: R_MIPS_HI16	g_ArchiveCurFileSize
+sw	v0,0(at)
+1120: R_MIPS_LO16	g_ArchiveCurFileSize
+lui	v0,0x0
+1124: R_MIPS_HI16	g_ArchiveDebugStreamBlockCount
+lh	v0,0(v0)
+1128: R_MIPS_LO16	g_ArchiveDebugStreamBlockCount
+sra	v1,v1,0x10
+slt	v1,v1,v0
+bnez	v1,1144 <func_80028F30+0x444>
+nop
+lui	at,0x0
+113c: R_MIPS_HI16	g_ArchiveDebugStreamSectionCount
+sh	zero,0(at)
+1140: R_MIPS_LO16	g_ArchiveDebugStreamSectionCount
+sw	zero,0(s7)
+blez	s6,118c <func_80028F30+0x48c>
+move	s1,zero
+li	a0,0x3
+lui	v1,0x0
+1154: R_MIPS_HI16	g_ArchiveStreamReadSectionId
+lhu	v1,0(v1)
+1158: R_MIPS_LO16	g_ArchiveStreamReadSectionId
+lhu	v0,0(s3)
+nop
+bne	v0,a0,117c <func_80028F30+0x47c>
+nop
+lhu	v0,2(s3)
+nop
+beq	v0,v1,118c <func_80028F30+0x48c>
+nop
+addiu	s1,s1,1
+slt	v0,s1,s6
+bnez	v0,115c <func_80028F30+0x45c>
+addiu	s3,s3,8
+lui	v0,0x0
+118c: R_MIPS_HI16	g_ArchiveStreamSectionCount
+lw	v0,0(v0)
+1190: R_MIPS_LO16	g_ArchiveStreamSectionCount
+nop
+beq	s1,v0,11f4 <func_80028F30+0x4f4>
+sll	v0,s1,0xb
+addu	s0,s5,v0
+sw	s0,0(s7)
+lhu	v0,6(s0)
+move	a0,s1
+sll	v0,v0,0x5
+addu	v0,s0,v0
+sw	v0,0(s8)
+lhu	a1,6(s0)
+jal	0 <ArchiveInit>
+11c0: R_MIPS_26	ArchiveCheckStreamFileSectionStates
+li	a2,0x3
+bnez	v0,11f8 <func_80028F30+0x4f8>
+li	v0,0x1
+lui	v1,0x0
+11d0: R_MIPS_HI16	g_ArchiveStreamReadSectionId
+lhu	v1,0(v1)
+11d4: R_MIPS_LO16	g_ArchiveStreamReadSectionId
+lhu	a0,6(s0)
+nop
+addu	v1,v1,a0
+lui	at,0x0
+11e4: R_MIPS_HI16	g_ArchiveStreamReadSectionId
+sh	v1,0(at)
+11e8: R_MIPS_LO16	g_ArchiveStreamReadSectionId
+j	11f8 <func_80028F30+0x4f8>
+11ec: R_MIPS_26	.text
+move	v0,zero
+li	v0,0x1
+lw	ra,76(sp)
+lw	s8,72(sp)
+lw	s7,68(sp)
+lw	s6,64(sp)
+lw	s5,60(sp)
+lw	s4,56(sp)
+lw	s3,52(sp)
+lw	s2,48(sp)
+lw	s1,44(sp)
+lw	s0,40(sp)
+addiu	sp,sp,80
+jr	ra
+nop
+
