@@ -63,7 +63,7 @@ typedef struct {
 } BattleQueueRecord; // Size: 0xC
 
 extern BattleFilterEntry* D_80092874;
-extern s32 D_80091964[];
+extern BattleQueueRecord D_80091964[];
 extern s32** g_BattleEntries;
 extern s32 g_BattleEntryCount;
 
@@ -737,10 +737,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
 //    s16 entry field, the count store, the 0xC/0x20 increments with the record's
 //    addiu in the bnez delay slot, and the trailing guarded call.
 // re-measured 90.10% (204 bytes = retail's exact size, 51 insns) after un-parking; the lever 'an symbol address is always hoisted above the load in the preheader' (round 480) names this exact function and is still the cause, so no new spelling was spent on the la/lw order.
+// re-measured 90.45% / 204 bytes = retail's exact size / 51 insns (round 506: two new spellings, both dead ends).
+//    NAMED RESIDUAL: the hoisted record base `la` is inserted ABOVE the source-position filter load, so the entry
+//    block comes out `la a1,D_80091964 / lw a0,D_80092874 / move a3,v0` where retail has `move a3,v0 / lui a1+lw a1 /
+//    lui a0+addiu a0` - three rows, one cause (lever an-symbol-address-is-always-hoisted-above-the-load-in-the-preheader,
+//    round 480, this function).
+//    New this round: (1) the record address taken as `&D_80091964[i]` off a typed `extern BattleQueueRecord D_80091964[]`
+//    (LSR walks it by 0xC so retail's `addiu a0,a0,12` stays in the bnez slot) and (2) BOTH tables indexed, no pointer
+//    locals at all (`D_80092874[i].requiredProgress`, `&D_80091964[i]`) - one and the same 51-insn stream, the la still
+//    hoisted first; the 90.10 -> 90.45 is the reloc rows only. gcc-2.6.0 gives the identical 90.45, cdk 77.49, -G0
+//    does not compile. The indexed body is kept because it is the realistic form (two typed tables, no casts).
 /*
 void func_8007EEE8(s32 arg) {
-    BattleFilterEntry* pEntry;
-    BattleQueueRecord* pRecord;
     s32 i;
     s32 limit;
     s32** pQueue;
@@ -748,13 +756,11 @@ void func_8007EEE8(s32 arg) {
     limit = g_GameState.fieldScriptMemory[0];
     pQueue = HeapAlloc(0xC4, 1);
     i = 0;
-    pEntry = D_80092874;
-    pRecord = (BattleQueueRecord*)D_80091964;
     g_BattleEntries = pQueue;
     g_BattleEntryCount = 0;
-    for (; i < 0x31; pEntry++, i++, pRecord++) {
-        if (arg == 0 || pEntry->requiredProgress <= limit) {
-            pQueue[g_BattleEntryCount++] = (s32*)pRecord;
+    for (; i < 0x31; i++) {
+        if (arg == 0 || D_80092874[i].requiredProgress <= limit) {
+            pQueue[g_BattleEntryCount++] = (s32*)&D_80091964[i];
         }
     }
     if (arg != 0) {
@@ -762,6 +768,7 @@ void func_8007EEE8(s32 arg) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
+
 
 
 
