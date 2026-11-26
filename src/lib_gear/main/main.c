@@ -2834,12 +2834,38 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
 // `int count` local for the fill loops (the permuter's 4-minute run, base 6619 ->
 // 6159, found ONLY that the product belongs inline in the loop condition, which is
 // in the body below).
+// objdiff 87.62%, 2120 bytes / 530 insns against retail's 2136 (0x858) / 534. Round 525
+// (redo lane) re-derived the body from scratch as the wide/narrow split the round-493 note asked
+// for and MEASURED the shape: 'u16 w = width; u16 h = height;' declarations (narrow working
+// copies of the two u32 stack args) with every narrow use going through w/h is the ONLY body that
+// ever reproduced retail's narrow-value structure - it lands on retail's EXACT 534 insns / 2136
+// bytes with w in $s3 and h in $s2 as retail has them. Instruction-diff count (registers
+// normalised) 129 differing of 534, against 160 for the previous park. WHAT IS STILL MISSING and
+// why: retail keeps the WIDE width/height live to the two '== 0' default tests, which is what
+// spills them (sw/lw 0x78, 0x80) and gives retail its 0x108 frame and its 'lw t6,0x78 / sll 16 /
+// bnez' 16-bit test; our body narrows them at entry and tests the narrow copy ('andi s3,0xffff /
+// bne'), so it has no 0x78/0x80 home, a 0xF8 frame and 4 insns less. Measured dead this round:
+// 'if (width == 0) w = 0x100;' (the wide tested, the narrow set - the realistic spelling of that
+// shape) 546 / 2184; 'u32 w/h then w = width; h = height;' after the tests 535 / 2140 (width
+// lands in $s5); 'half = ((s16)width + 1) / 2;' with the narrow copies kept 536 / 2144; inlining
+// the flat 15-bit colour at the store instead of the shared 'colour' local (retail builds it in
+// $a0 while $s1 holds the pattern-fill colour) 528 / 2112 - it costs the 'i' loop bound's
+// product. KEPT IMPROVEMENT: 'pixel += (s16)w;' / 'pixelB += (s16)w;' (retail's row advance is
+// the SAME (s16)w expression as the inner loop bound, so gcc CSEs the sign-extended value and
+// stores it in the 'bnez' delay slot: 'addu a1,a1,t0' where 'pixel += w' gave 'andi 0xffff /
+// addu'), 87.43 -> 87.62 and it is what flips w/h onto retail's $s3/$s2. Remaining after that:
+// the two pattern-fill loop prologues interleave their (s16)y/(s16)w sign-extends one slot
+// differently, and the flat-fill colour sits in $s1 where retail has $a0. All earlier
+// findings (mode dispatch, mask polarities, colour construction, half as int, the (s16) casts in
+// the copy loops) are still solved and are in the body below.
 /*
 Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, u16 x0, u16 y0,
                      u16 colour0, u16 x1, u16 y1, u16 colour1, u16 x, u16 y, u32 argWidth, u32 argHeight,
                      u16 angleStep, u16 divisor, u16 offset, s16 (*pInterpolate)(u_short, s16, s16)) {
     u32 width = argWidth;
     u32 height = argHeight;
+    u16 w = width;
+    u16 h = height;
     RECT rect;
     u16 mask;
     u16 colour;
@@ -2875,45 +2901,45 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
     if (mode & 4) {
         mask &= 0xFEFF;
     }
-    if (width == 0) {
-        width = 0x100;
+    if (w == 0) {
+        w = 0x100;
     }
-    if (height == 0) {
-        height = 0x100;
+    if (h == 0) {
+        h = 0x100;
     }
 
     switch (mode) {
         case 0:
         case 1:
-            half = ((s16)width + 1) / 2;
-            width = half * 2;
+            half = ((s16)w + 1) / 2;
+            w = half * 2;
             pTexture->rect.x = x;
             pTexture->rect.y = y;
-            pTexture->rect.w = width;
-            pTexture->rect.h = height;
-            pTexture->pixelCount = width * height;
+            pTexture->rect.w = w;
+            pTexture->rect.h = h;
+            pTexture->pixelCount = w * h;
             if (mask & 0x100) {
-                pTexture->pResultPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pResultPixels = HeapAlloc((s16)w * (s16)h * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x200) {
-                pTexture->pStartPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pStartPixels = HeapAlloc((s16)w * (s16)h * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x400) {
-                pTexture->pPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pPixels = HeapAlloc((s16)w * (s16)h * 2, HEAP_CONTENT_NULL);
             }
 
             switch (mask & 0xF) {
                 case 1:
                     rect.x = x0;
                     rect.y = y0;
-                    rect.w = width;
-                    rect.h = height;
+                    rect.w = w;
+                    rect.h = h;
                     StoreImage(&rect, pTexture->pPixels);
                     DrawSync(0);
                     break;
                 case 2:
                     colour = (((colour0 & 0x3F) << 10) + ((y0 & 0x1F) << 5)) | (x0 & 0x1F);
-                    for (i = 0; i < (s16)width * (s16)height; i++) {
+                    for (i = 0; i < (s16)w * (s16)h; i++) {
                         pTexture->pPixels[i] = colour;
                     }
                     break;
@@ -2923,14 +2949,14 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                 case 1:
                     rect.x = x1;
                     rect.y = y1;
-                    rect.w = width;
-                    rect.h = height;
+                    rect.w = w;
+                    rect.h = h;
                     StoreImage(&rect, pTexture->pStartPixels);
                     DrawSync(0);
                     break;
                 case 2:
                     colour = (((colour1 & 0x3F) << 10) + ((y1 & 0x1F) << 5)) | (x1 & 0x1F);
-                    for (i = 0; i < (s16)width * (s16)height; i++) {
+                    for (i = 0; i < (s16)w * (s16)h; i++) {
                         ((u16*)pTexture->pStartPixels)[i] = colour;
                     }
                     break;
@@ -2941,31 +2967,31 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
         case 5:
             pTexture->rect.x = x;
             pTexture->rect.y = y;
-            pTexture->rect.w = width;
-            pTexture->rect.h = height;
-            pTexture->pixelCount = width * height;
+            pTexture->rect.w = w;
+            pTexture->rect.h = h;
+            pTexture->pixelCount = w * h;
             if (mask & 0x100) {
-                pTexture->pResultPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pResultPixels = HeapAlloc((s16)w * (s16)h * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x200) {
-                pTexture->pStartPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pStartPixels = HeapAlloc((s16)w * (s16)h * 2, HEAP_CONTENT_NULL);
             }
             if (mask & 0x400) {
-                pTexture->pPixels = HeapAlloc((s16)width * (s16)height * 2, HEAP_CONTENT_NULL);
+                pTexture->pPixels = HeapAlloc((s16)w * (s16)h * 2, HEAP_CONTENT_NULL);
             }
 
             switch (mask & 0xF) {
                 case 1:
-                    for (row = 0; row < (s16)height; row++) {
-                        for (col = 0; col < (s16)width; col++) {
-                            pTexture->pPixels[row * (s16)width + col] = pRows[3 * ((s16)y0 + row) + (s16)x0 + col];
+                    for (row = 0; row < (s16)h; row++) {
+                        for (col = 0; col < (s16)w; col++) {
+                            pTexture->pPixels[row * (s16)w + col] = pRows[3 * ((s16)y0 + row) + (s16)x0 + col];
                         }
                     }
                     break;
                 case 2:
                     pixel = 0;
-                    for (row = 0; row < (s16)height; row++) {
-                        for (col = 0; col < (s16)width; col++) {
+                    for (row = 0; row < (s16)h; row++) {
+                        for (col = 0; col < (s16)w; col++) {
                             switch (((s16)y + row) % 3) {
                                 case 0:
                                     colour = x0;
@@ -2979,23 +3005,23 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                             }
                             pTexture->pPixels[pixel + col] = colour;
                         }
-                        pixel += width;
+                        pixel += (s16)w;
                     }
                     break;
             }
 
             switch ((mask >> 4) & 0xF) {
                 case 1:
-                    for (row = 0; row < (s16)height; row++) {
-                        for (col = 0; col < (s16)width; col++) {
-                            ((u16*)pTexture->pStartPixels)[row * (s16)width + col] = pRows[3 * ((s16)y1 + row) + (s16)x1 + col];
+                    for (row = 0; row < (s16)h; row++) {
+                        for (col = 0; col < (s16)w; col++) {
+                            ((u16*)pTexture->pStartPixels)[row * (s16)w + col] = pRows[3 * ((s16)y1 + row) + (s16)x1 + col];
                         }
                     }
                     break;
                 case 2:
                     pixelB = 0;
-                    for (row = 0; row < (s16)height; row++) {
-                        for (col = 0; col < (s16)width; col++) {
+                    for (row = 0; row < (s16)h; row++) {
+                        for (col = 0; col < (s16)w; col++) {
                             switch (((s16)y + row) % 3) {
                                 case 0:
                                     colour = x1;
@@ -3009,7 +3035,7 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
                             }
                             ((u16*)pTexture->pStartPixels)[pixelB + col] = colour;
                         }
-                        pixelB += width;
+                        pixelB += (s16)w;
                     }
                     break;
             }
@@ -3019,6 +3045,7 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
     return pTexture;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
+
 
 
 
