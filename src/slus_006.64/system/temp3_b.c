@@ -119,6 +119,22 @@ u8 g_MenuSavedMainMenuChoice;
 //      walk: A is exactly 2 insns short of retail, both in the row preheader, so a spelling that makes loop.c reduce
 //      the even `[i + j]` WITHOUT a symbol-address register (a pointer seeded from a non-symbol expression, or a row
 //      copy that needs no `base + i`) is the whole remaining gap. Nothing here is a preset question: cdk 85.77.
+// ROUND 462 (redo lane): re-measured from the split TU, unparked: 90.07%, 420 bytes, 105 insns (retail 412 / 103). Same
+//    body as round 460, so the round-461 residual stands: gcc hoists the odd base as addiu s2,s1,1 in the entry block
+//    (the giv's entry value is the bare symbol) where retail rematerialises lui/addiu %hi/%lo(g_GameState+1) per row.
+//    Three more bodies measured this round, each one edit from the park:
+//    (a) both inner reads symbol-indexed with [rowOffset + j] / [rowOffset + j + 1] and the row copy from
+//      (u8*)&g_GameState + rowOffset (85.37 / 424 / 106): DOES win retail's per-row lui/addiu + li t1 remat, i.e. the
+//      fold is not inevitable - it needs the giv - but pays a second addu per inner iteration and re-forms the copy's
+//      end address (lui/addiu g_GameState+0x14) per row. This is the shape to retry from if the walk can be reduced
+//      without a register that holds the symbol.
+//    (b) the park with only the odd read re-spelled ((u8*)&g_GameState)[rowOffset + j + 1]: 89.92, identical
+//      instruction diff - with the pRow giv present gcc canonicalises back to s1+1 (confirming round 461's B).
+//    (c) the row copy as two walking pointers (pDst / pOut over outBuf) instead of the k index: 86.22 / 428 / 107,
+//      gcc gives outBuf's address its own save ($s5) rather than displacing the hoisted odd base.
+//    NOTE for the next agent: two of this round's early measurements were of bodies that had lost 'pRow += 0x14;' in
+//      an edit; the 85.37 and 89.92 numbers above are the corrected re-runs. Un-park and re-measure before trusting any
+//      percentage in this comment.
 /*
 void func_8001B970(void) {
     u8 inBuf[0x14];
