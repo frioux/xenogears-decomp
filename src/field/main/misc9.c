@@ -390,26 +390,26 @@ extern s32 g_GameSceneMapNum;
 extern u16 g_FieldButtonsPressedOnce;
 extern void func_800AB808();
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
-/* PARKED 87.23% (612 bytes, retail 668, 153 vs 160 insns). Everything but one
-   construct matches: the table walk, the item check, StoreImage, the archive
-   read, FieldLoadTIMWithClut, the func_800AB808 call, all three render loops and
-   the LoadImage restore. The poll loop MUST be a do-while (retail enters it with
-   no top test and loops back with beqz; while costs 2.37 points). FieldDraw-
-   ScreenOverlayPrims must take int, not s8 (under s8 this body scores 84.86).
-   Residual, one construct: retail keeps the table BASE in s2 and the scaled
-   index in s1 live across the calls and re-forms addu reg,s2,s1 at each of the
-   five g_FieldMapSpriteTable[index] field reads (and at the 0x1C read after
-   HeapFree), i.e. five separate sums, one callee-saved register more (frame
-   0x40 vs 0x38, pImage in s3 vs s2). This cc1 cse-s base + index*0x20 into one
-   callee-saved register, so the body is 7 insns short and cannot link.
-   Tried: pTable[index] with pTable a local pointer (best), the bare symbol form
-   g_FieldMapSpriteTable[index] everywhere (75.74 - symbol+offset macros through
-   $at), while instead of do-while (-2.37). Presets are not the question: this
-   body scores 87.23 under 2.6.0, 87.23 under -G0, 87.08 under 2.7.2-cdk, and a
-   full gcc x -O x -G x -mcpu sweep on the s8 body peaked at 82.61. Note retail
-   DID common the shift (one sll) but not the sum, so only the sum is missing.
-*/
+// BEST 93.34% (608 bytes, retail 668, 152 vs 160 insns). Fixed this round: the five
+//    table reads must be one group in STRUCT OFFSET ORDER (0x4, 0x8, 0xC, 0x14, 0x18)
+//    and the four g_FieldScreenOverlay* stores must come BEFORE the rect stores -
+//    retail loads all five fields before the rect sh stores, and the archiveIndex
+//    (0xC) load is hoisted to that group, not left at the HeapAlloc. That single
+//    reorder is 87.23 -> 93.34 (the loads then match retail one-for-one, and
+//    archiveIndex += 0x7FB stays where retail addiu s0,s0,0x7FB is).
+//    Residual, ONE decision by the allocator: retail keeps the table BASE in s2 and
+//    the scaled index in s1 live across the calls and re-forms addu reg,s2,s1 at
+//    each of the seven uses (5 in the group, 1 for itemId, 1 for unk1C after
+//    HeapFree), which costs one extra callee-saved register (s3 for pImage, frame
+//    0x40). This cc1 cse-s base+index*0x20 into ONE pseudo, keeps it in s1 and
+//    drops the base to a1, so the body is 8 insns short and 60 bytes under retail:
+//    6 adds + the sw/lw s3 pair. Tried: pTable[index] with pTable a local pointer
+//    (best), the bare-symbol form everywhere (75.74, $at macros), an element
+//    pointer local (worse), while instead of do-while (-2.37). Presets not the
+//    question: 2.6.0, -G0, 2.7.2-cdk and a full gcc x -O x -G x -mcpu sweep all
+//    land at or below this body (82.61 peak on the earlier one). Next idea if
+//    anyone retries: force the sum pseudo to be rematerialised rather than
+//    allocated (more callee-saved pressure), which is what retail did.
 /*
 void func_800ABA98(void) {
     RECT rect;
@@ -432,14 +432,15 @@ void func_800ABA98(void) {
     }
 
     if (FieldInventoryHasItem(pTable[index].itemId) != -1) {
+        g_FieldScreenOverlayScaleX = pTable[index].unk4;
+        g_FieldScreenOverlayScaleY = pTable[index].unk8;
+        archiveIndex = pTable[index].archiveIndex;
+        g_FieldScreenOverlayOffsetX = pTable[index].unk14;
+        g_FieldScreenOverlayOffsetY = pTable[index].unk18;
         rect.x = 0x300;
         rect.y = 0x100;
         rect.w = 0xA0;
         rect.h = 0x100;
-        g_FieldScreenOverlayScaleX = pTable[index].unk4;
-        g_FieldScreenOverlayScaleY = pTable[index].unk8;
-        g_FieldScreenOverlayOffsetX = pTable[index].unk14;
-        g_FieldScreenOverlayOffsetY = pTable[index].unk18;
 
         pImage = HeapAlloc(0x14000, 0);
         StoreImage(&rect, pImage);
@@ -447,7 +448,7 @@ void func_800ABA98(void) {
 
         ArchiveCdDataSync(0);
         ArchiveSetIndex(4, 0);
-        archiveIndex = pTable[index].archiveIndex + 0x7FB;
+        archiveIndex += 0x7FB;
         pFile = HeapAlloc(ArchiveDecodeAlignedSize(archiveIndex), 0);
         ArchiveReadFileToBuffer(archiveIndex, pFile, 0, 0x80);
         ArchiveCdDataSync(0);
@@ -485,8 +486,10 @@ void func_800ABA98(void) {
         DrawSync(0);
         HeapFree(pImage);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800ABA98);
+
+
 
 extern SpriteList3 g_FieldScreenStripSprites;
 
@@ -842,41 +845,42 @@ void func_800AC3AC(void) {
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC3AC);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
-/* PARKED 81.27% (520 bytes, retail 500 = 125 insns; this body is 130). The
-   shape is right: addPrim on the two 0x34-byte gradient polys for this render
-   context (retail forms the second as the SAME symbol minus 0x68, so
-   g_FieldTextGradientBottomQuads[ctx - 2] is the spelling that reproduces it),
-   then 16 blocks of DR_MODE[2][4] then SPRT[2][4] (0x100 bytes each, the same
-   array func_800AC3AC allocates - reuse FieldTextRowPrims, do not declare a
-   second 0x100-byte struct), the four sprites of this context taking y0 from
-   the other context's first sprite, and two addPrim per sprite.
-   THE WHOLE RESIDUAL IS ONE SPILLED REGISTER: retail keeps 11 values in t
-   registers and has NO frame at all (jr ra with no sp adjust); this cc1 puts
-   the hoisted ((ctx + 1) & 1) * 0x50 offset of the y0 source in s0, which costs
-   the 8-byte frame (addiu sp / sw s0 / lw s0 / addiu sp) plus one `move a2,t3`
-   for the blocks + ctx*0x50 base, i.e. 5 insns over retail's 125. Everything
-   else - the four y0 stores, both addPrim chains, the 0x100/0x14/0xC strides,
-   the two mask constants duplicated in the prologue, the ot3 reload before
-   every setaddr - matches.
-   Tried this round: four y0 stores hoisted above the inner loop (retail's own
-   shape) = 80.34% / 512 bytes / 128 insns: it removes one spill (s0 only) but
-   cc1 then hoists t5 + ctx*0x50 as well and adds a move; `ctx ^ 1` for the
-   other-context index = 74.50% (xori instead of addiu+andi); declaring `short
-   y` with the other locals instead of in the loop = byte-identical to 80.34.
-   Earlier rounds (all dead): an `other` local vs the inline (ctx + 1) & 1, the
-   poly arguments as rows of g_FieldTextGradientTopQuads[2][2], the y0 stores as
-   four statements (80.70 / 512 / 8 short with gcc merging the two sprite
-   walkers), and the load must stay lh: `short y = x & 0xFF` gives lhu and
-   u_char y gives lbu, so retail's lh needs a sign-dependent use of the loaded
-   y0 that no shape here has found (1 instruction, harmless for the link).
-*/
+// BEST-SHAPE 80.70% (512 bytes, retail 500 = 125 insns; this body is 128, 155 differing
+//    lines - the lowest line count of every body measured here, which is why it is the
+//    park). Three bodies, all with the same one named residual:
+//    (a) this one, retail own shape - four explicit sprites[ctx][0..3].y0 stores
+//        between the y load and the j loop, int y: 80.70 / 512 / 128;
+//    (b) same with `short y`: 80.34 / 512 / 128 (byte-identical to the previous
+//        round note; u_char y is byte-identical again, the load is lbu);
+//    (c) y load + ONE store inside the j loop: 81.27 / 520 / 130 - the higher
+//        percentage is objdiff noise, it is 5 insns out where (a) is 3.
+//    THE RESIDUAL IS ONE REGISTER CLASS, not structure: retail fits the whole
+//    function in t-regs with NO frame (jr ra, no sp adjust). Everything matches
+//    except that cc1 allocates the loop.c-hoisted ((ctx + 1) & 1) * 0x50 (the y0
+//    source offset) to $s0, costing subu sp,8 / sw s0 / lw s0 / addu sp,8 = the
+//    whole 3-insn surplus. Retail keeps that offset in t9 and the outer byte
+//    counter in t8; this body keeps the counter in t9 and the offset in s0. Live
+//    value counts are IDENTICAL (8 each: pBlock, ctx, ctx*0x50, other-ctx offset,
+//    outer counter, render context, one 0xFFFFFF, one 0xFF000000), so it is an
+//    allocator tie, not pressure - and the same tie survives every declaration
+//    order tried (pBlock first vs last, y first vs last, int y / short y / u_char
+//    y). Presets are not the question: this unit is gcc-2.7.2 Default for certain
+//    (2.6.0 drops FieldInitSpriteList to 94.94, FieldDrawScreenOverlayPrims 96.72,
+//    FieldDecodeFontGlyph 87.29; 2.7.2-cdk rejects the unit mixed declarations).
+//    Other dead ends from earlier rounds, all re-checked: ctx ^ 1 for the other
+//    context index (xori, 74.50), the two addPrim poly arguments as rows of
+//    g_FieldTextGradientTopQuads[2][2], a separate `other` local, four y0 stores
+//    as one statement. Next idea: make the y0 source offset die inside the loop
+//    (recompute it per outer iteration) so it never competes with the counter for
+//    a t-reg - the cost is 2 insns per outer iteration, i.e. only worth it if the
+//    loop is peeled, so probably a dead end too.
 /*
 void func_800AC99C(void) {
-    FieldTextRowPrims* pBlock;
     int ctx;
     int i;
     int j;
+    int y;
+    FieldTextRowPrims* pBlock;
 
     ctx = g_FieldCurRenderContextIndex;
     addPrim(g_FieldCurRenderContext->ot3, &g_FieldTextGradientBottomQuads[ctx]);
@@ -884,17 +888,22 @@ void func_800AC99C(void) {
 
     pBlock = (FieldTextRowPrims*)g_FieldTextRenderPrimBlocks;
     for (i = 0; i < 0x1000; i += 0x100) {
-        short y = (pBlock->sprites[(ctx + 1) & 1][0].y0 - 1) & 0xFF;
+        y = (pBlock->sprites[(ctx + 1) & 1][0].y0 - 1) & 0xFF;
+        pBlock->sprites[ctx][0].y0 = y;
+        pBlock->sprites[ctx][1].y0 = y;
+        pBlock->sprites[ctx][2].y0 = y;
+        pBlock->sprites[ctx][3].y0 = y;
 
         for (j = 0; j < 4; j++) {
-            pBlock->sprites[ctx][j].y0 = y;
             addPrim(g_FieldCurRenderContext->ot3, &pBlock->sprites[ctx][j]);
             addPrim(g_FieldCurRenderContext->ot3, &pBlock->drModes[ctx][j]);
         }
         pBlock++;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc9", func_800AC99C);
+
+
 
 
 void FieldLoadFontTIMAndClearRect(void) {
