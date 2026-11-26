@@ -637,6 +637,16 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
 // the SOURCE registers (`negu t0,t1`); this body coalesces all four
 // (`negu a3,a3`). Rounds 346-497 measured every spelling of the copies dead and
 // both permuter-shaped families came back as wrong code; do not re-brief them.
+// Re-measured 94.07% / 1176 bytes / 294 insns after un-parking, so the numbers
+// above are current (the only edit that changed nothing was reverted). Two more
+// spellings measured dead this round for the `lui at` re-form:
+// - reading the global a SECOND time so the load's address pseudo would die and
+//   have to be re-formed -
+//   `g_GfxCurWorkBuffer = (POLY_FT4*)((u8*)g_GfxCurWorkBuffer + sizeof(POLY_FT4))`
+//   is byte-identical (cse folds the second read into the loaded value, and the
+//   one address register then serves both accesses).
+// - `extern void* volatile g_GfxCurWorkBuffer;`: byte-identical, the store still
+//   reuses the load's address register, so the missing `lui at` is allocation.
 /*
 void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     MATRIX mat;
