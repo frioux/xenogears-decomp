@@ -2208,6 +2208,23 @@ extern void func_8008BF38(int partyIndex);
 // retail's members[1]=NONE, skins[1]=NONE, members[0]=temp, skins[0]=temp store
 // order), and g_pGameState->gearRide[N] = 0 has to be the LAST statement of each
 // arm for its sb to land in the exit jump's delay slot.
+// PARKED 92.66 percent (1188 bytes / 297 insns = retail's exact size and instruction count; 138 differing lines).
+// Round 502 addendum - the element-address residual was attacked with the
+// scalar-alias spelling the round-498 lever records (extern s32 g_Slot1
+// with an __asm__ label naming g_GamePartyMembers+4): cc1 does emit retail's
+// exact bare MEM pair, but that object CANNOT BE BUILT, because cc1 also emits
+// a chained .extern (g_GamePartyMembers+4, 4) and gas rejects it (junk at end
+// of line, first unrecognized character is a comma), so maspsx writes no .o and
+// diff_func reports the function as missing from the object. Quoting the label
+// makes the .extern legal but turns every USE into one literal symbol name
+// (reloc R_MIPS_GPREL16 on a quoted name), so it does not reproduce retail
+// either. The cast spelling (deref of a u8 star off the array plus 4) measures
+// byte-identical to the array form - 92.66, 1188 bytes, 297 insns, the same 138
+// lines - exactly as lever round 457 predicts. The only route left to retail's
+// shape is ONE SYMBOL PER SLOT, i.e. names in symbol_addrs.slus_006.64.txt at
+// 0x80062594 / 0x80062598 so the relocations read g_GamePartyMembers+4/+8; that
+// is a naming decision for the orchestrator and it edits another binary's
+// symbol file, so it is not done here.
 /*
 void func_8008C334(void) {
     s32 loadState;
@@ -2332,9 +2349,9 @@ void func_8008C334(void) {
         }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
+
 
 
 void FieldScriptFreeActorFile(void) {
@@ -3532,8 +3549,6 @@ extern void FieldFreePendingAudioManager(void);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void FieldStartWdsBankLoad(int, int);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
-
 // PARKED 92.24% (320 bytes against retail's 340, 80 insns against 85). Every
 // guard, call, load and branch matches. Retail stores g_FieldScriptVMStopFlag
 // TWICE: one block at .L8008F85C shared by the FieldArchiveTryDataSync/gate arms
@@ -3563,6 +3578,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
 // again (92.24), with or without a `return;` in the then block. So both halves
 // of retail's shape are reachable, never in one body: the block split needs the
 // store to be a then-block, the position needs it to be the else/exit tail.
+// Round 502 addendum: two more shapes measured dead on this body. Storing the
+// condition itself (g_FieldScriptVMStopFlag = stream == 1 || loadState == -1)
+// re-tests both globals and lands at 87.00% / 372 bytes / 93 insns. The
+// preset screen was already run (2.7.2 92.24, cdk 92.24, 2.6.0 92.24).
 /*
 void func_8008F7B8(void) {
     int characterId = FieldScriptVMGetArgument(1);
@@ -3592,8 +3611,10 @@ void func_8008F7B8(void) {
         return;
     }
     g_FieldScriptVMStopFlag = (s32)1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008F7B8);
+
+
 
 void FieldScriptStartCameraShake(void) {
     int x = FieldScriptVMGetArgument(1);
