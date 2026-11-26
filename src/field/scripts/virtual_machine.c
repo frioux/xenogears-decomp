@@ -319,6 +319,26 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // before the flags guard, guard reading pActor (same code after cse); volatile on the ActorData flags
 // load instead of on the pointer (89.80, does not block the pointer merge). gcc-2.6.0 89.86 (it has no
 // gcse and still does not reach retail's shape), -O1 79.13, -O3/cdk/G0 as noted above.
+// ROUND 527 (redo lane, second lane on this function): the mask-hoist axis is a SEPARATE residual
+// from the reload. Best measured now 93.04% / 636 bytes (retail's exact size) / 159 insns / 66
+// differing lines, from ONE change: the flags read-modify-write written through a volatile cast
+//     nScriptFlags = ((volatile ActorData*)pActor)->scriptFlags.flags;
+//     ((volatile ActorData*)pActor)->scriptFlags.flags = nScriptFlags & ~0x1000000;
+// (the two-statement form is BYTE-IDENTICAL to the compound `&= ~0x1000000` on the cast). That
+// volatile moves retail's `and`/`sw` adjacency back (they sit right before the beqz instead of in
+// its delay slot) and puts `li a2,0xf` in the beqz slot as retail has it: 90.55 -> 93.04 / 636.
+// What is left is the MASK CONSTANT HOIST, and it is independent of the pointer reload: the join
+// block's first scheduled insn is the `lui 0xfeff` half of ~0x1000000, so reorg copies it into BOTH
+// predecessor delay slots (retail: two nops), while the reload of pActorData that pays for it does
+// NOT come back. Forcing the reload needs a volatile on the POINTER read as well, and that loses the
+// and/sw adjacency: guard volatile only 91.99 / 640 / 160, pointer+flags volatile 92.47 / 640 / 81
+// lines, flags volatile only 93.04 / 636 / 66. So the two halves are mutually exclusive so far.
+// Also measured dead this round (identical 90.55 body or identical 93.04 body respectively):
+// `pActor->scriptFlags.fields.scriptFlags_0x17 = 0;` for the same clear (bit 24 of the union, same
+// RTL); an explicit `u_int nScriptFlags` local for the non-volatile RMW (folds back).
+// NOTE the parked body below is a MEASUREMENT body: the raw spelling of the same clear,
+// `pActor->scriptFlags.flags &= ~0x1000000;`, is the honest one and scores 90.55. Nothing here is UB
+// (the volatile cast only forces a reload), but do not ship the cast as the recovered source.
 extern s32 g_FieldMode;
 extern s32 g_FieldActiveActorCount;
 extern s32 D_800ADB68;
@@ -328,7 +348,6 @@ extern s32 g_FieldPartyActorSlots[MAX_PARTY_MEMBERS];
 extern FieldActor* g_FieldScriptVMCurFieldActor;
 
 /*
-// Runs the field script VM for every actor that has a script pending
 void func_800A2030(void) {
     int i;
     int j;
@@ -338,6 +357,7 @@ void func_800A2030(void) {
     FieldActor* pFieldActor;
     ActorData* pActor;
     u_char bSlotLocked;
+    u_int nScriptFlags;
 
     if (g_FieldMode == 1) {
         nActorCount = 1;
@@ -362,7 +382,8 @@ void func_800A2030(void) {
         }
 
         pActor = pFieldActor->pActorData;
-        pActor->scriptFlags.flags &= ~0x1000000;
+        nScriptFlags = ((volatile ActorData*)pActor)->scriptFlags.flags;
+        ((volatile ActorData*)pActor)->scriptFlags.flags = nScriptFlags & ~0x1000000;
         bSlotLocked = g_FieldPartyMoveInProgress;
 
         g_FieldScriptVMCurFieldActor = pFieldActor;
@@ -403,7 +424,8 @@ void func_800A2030(void) {
     next_actor:
         ;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 
 // Changes current actor to the top of the field actor array and runs a script routine on it

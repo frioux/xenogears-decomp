@@ -2717,6 +2717,21 @@ try: cse join reload, fold addend
   reload: park on this diagnosis. Also measured dead the same round: a named guard local
   `pGuardActor = pFieldActor->pActorData;` and `pActor = pFieldActor->pActorData;` assigned before the
   guard (both folded to the identical 90.55 body), and -O1 79.13.
+  ROUND 527 re-measured the other axis and found the mask hoist is SEPARATE from the reload: a
+  VOLATILE RMW ON THE FLAGS ONLY - `nScriptFlags = ((volatile ActorData*)pActor)->scriptFlags.flags;
+  ((volatile ActorData*)pActor)->scriptFlags.flags = nScriptFlags & ~0x1000000;`, or the compound
+  `((volatile ActorData*)pActor)->scriptFlags.flags &= ~0x1000000;`, byte-identical to each other -
+  takes the same body from 90.55% to **93.04% / 636 bytes (retail's exact size) / 159 insns / 66
+  differing lines** with the POINTER reload still missing, because it moves retail's `and`/`sw`
+  adjacency back (right before the `beqz` instead of inside its delay slot) and puts `li a2,0xf` in
+  that delay slot. Combining it with a volatile on the POINTER read buys the reload but loses the
+  adjacency: pointer-only 91.99 / 640 / 160, pointer+flags 92.47 / 640 (81 lines), flags-only 93.04 /
+  636 (66 lines). The residual at 93.04 is exactly two spare `lui 0xfeff` copies in the two
+  predecessor delay slots: the join block's first SCHEDULED insn is the mask constant, so reorg copies
+  it and redirects, where retail's join starts with the `lw 0x4C(a1)` reload (reorg declines a load)
+  - so the reload and the in-block constant are one lever, and the volatile-flags body is the better
+  parking point. Also measured dead here: `pActor->scriptFlags.fields.scriptFlags_0x17 = 0;` for the
+  same clear (bit 24 of the union, identical RTL, 90.55) and a named `u_int` local on the honest form.
 - id: a-memcpy-destination-derived-from-a-symbol-plus-constant-always-folds-under-g8 | keywords: fold, addend, pointer, memcpy, movstr, materialise, lu i, at, store
   **`memcpy((u8*)&g_Sym - N, ...)` AND A POINTER LOCAL HOLDING `&g_Sym` BOTH FOLD TO ONE SYMBOL+ADDEND IN THE `la`, SO RETAIL'S `lui a0,%hi(g_Sym) / addiu a0,%lo / addiu a3,a0,-N` PLUS A REGISTER-BASED `sw v1,0(a0)` CANNOT BE REPRODUCED THAT WAY - no spelling measured this round keeps the base in a register** (round 480, field/scripts/virtual_machine func_800A3C8C, 91.47% / 688 bytes / 172 insns against retail's 176; the 2 folded instructions are the entire size gap). Tried without change: `int* pNumActors = &g_FieldNumActors;` used for both the store and `(u8*)pNumActors - 0xB8` as the movstr destination, the inline `(u8*)&g_FieldNumActors - 0xB8` form, and the store placed before and after the memcpy. What does move this function: the movstr source is `&g_WorldMapSaveBlock + 0x3C` (not the block base) - 86.75 -> 88.71 - and blocks that re-read the volatile `g_FieldActors` once must go through one element-pointer local re-assigned per block, which is what closes 88.71 -> 91.47; `g_WorldMapSaveCursor += N` must follow a memory store or gcc folds it into the preceding store and loses both the store and the reload.
 
