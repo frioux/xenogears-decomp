@@ -547,7 +547,7 @@ void BattleClearFlagC6(void) {
 // makes of the tile records is 16-bit (lhu) while GetTPage reads the same words as
 // s32 - hence the BattleTilePageCoords view at the top of this file. The four
 // DR_MODE packets are at gfx + 0x8908, 0xC apart, inside what battle_work.h still
-// calls unk6417. Parked body (92.83):
+// calls unk6417. Parked body (95.56):
 // ROUND 511: re-measured from the live body, 92.83 / 1820 bytes / 455 insns against
 // retail's 1816 / 454. The residual is a scheduler/allocator tie and nothing else: the
 // rect-table block is instruction-for-instruction the same shape with a rotated register
@@ -560,6 +560,19 @@ void BattleClearFlagC6(void) {
 // second one - 91.91 / 1832 / 458. permute.sh cannot take this body at all: its randomizer
 // re-emits the base with an invalid deref ('/tmp/permutera_*.c:2815 invalid type argument
 // of unary *', two adjacent lines near the SetDrawMode tail), so the base never compiles.
+// ROUND 524 REDO: 92.83 -> 95.56 / 1820 bytes / 455 insns (retail 1816 / 454) from ONE edit:
+// the two `tiles[1].texPageY = 0x34` / `tiles[2].texPageY = 0x34` stores moved ABOVE the
+// `pRects[1].x` statement. Retail's rect-block store order is tiles[1].texPageX,
+// tiles[2].texPageX, tiles[1].texPageY, tiles[2].texPageY, then r1..r5, and sched2 follows
+// the source order of stores here even though it hoists the loads (61 differing lines -> 41).
+// What is left, from objdiff's instruction multiset (the only whole-function view that shows
+// the size delta): retail holds 0xC6 in v1 loaded in the prologue and this body loads it into
+// v0 at first use, and this body carries ONE extra load-delay nop. Per rect, sched2 fills
+// retail's pc[n].texPageY load slot with the w/h constant stores and leaves the x load's slot
+// to the andi chain; here it hoists the w/h stores above that same andi/sll/sh-x chain
+// instead and the y load then gets the nop. Measured byte-identical in round 524: a `u16
+// rowUnit = 1` plus `u16 rowHalfwords = 0xC6` local pair (cc1 rematerialises both), and
+// try_flags --sweep now reads 2.6.0 -O2/-O3 x -G4/-G8 95.56 (best), 2.7.2 95.16, cdk 72.85.
 /*
 void func_80077990(void) {
     BattleGraphicsWork *pGfx;
@@ -641,9 +654,9 @@ void func_80077990(void) {
     pRects[0].w = BATTLE_TEX_PAGE_SIZE;
     g_BattleGraphicsWork->tiles[1].texPageX = 0x3C0;
     g_BattleGraphicsWork->tiles[2].texPageX = 0x3C8;
-    pRects[1].x = (pPageCoords[0].texPageX & BATTLE_TEX_PAGE_COORD_MASK) * 2;
     g_BattleGraphicsWork->tiles[1].texPageY = 0x34;
     g_BattleGraphicsWork->tiles[2].texPageY = 0x34;
+    pRects[1].x = (pPageCoords[0].texPageX & BATTLE_TEX_PAGE_COORD_MASK) * 2;
     pRects[1].y = pPageCoords[0].texPageY;
     pRects[1].w = BATTLE_TEX_PAGE_SIZE;
     pRects[1].h = BATTLE_TEX_PAGE_SIZE;
