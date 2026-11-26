@@ -1233,7 +1233,7 @@ void func_800A08B8(void) {
                 (D_800AE294[characterId] + g_FieldSceneReloadFlagsArray[0]) | 0x80, 1);
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
             g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x300;
-            if (((u8*)g_pGameState + partyId)[0x22B1] != 0) {
+            if (g_pGameState->gearRide[partyId] != 0) {
                 pActors = (FieldActor*)g_FieldActors;
                 pCurActor = (FieldActor*)(g_FieldCurActorIndex * sizeof(FieldActor) + (s32)pActors);
                 pSwapActor = (FieldActor*)(g_FieldPartyActorIndices[partyId] * sizeof(FieldActor) + (u32)pActors);
