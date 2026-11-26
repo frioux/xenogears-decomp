@@ -589,7 +589,6 @@ extern Vec4 g_BattleEffectPosX;
 // percent halving/doubling), the three point interpolations being `amount * (base.X - center.X)`,
 // `hit = 1;` before `point = base;`, `bestAmount = amount;` after the moveEndTimer store, and a
 // 4-minute permuter run (base 1890 best 1690) whose candidate deleted bestAmount - wrong code.
-/*
 s32 func_80075B50(BattleActor* p) {
     BattleEffectSlot* pSlot;
     BattleActorSlot* pRecord;
@@ -726,9 +725,8 @@ s32 func_80075B50(BattleActor* p) {
             amount = pRecord->slotFlags.byte.gaugePercent;
         }
         p->moveEndTimer = amount;
-        reentry = p->moveReentryTimer;
-        p->moveReentryTimer = (reentry += amount * 6 / 5);
         p->stateTimer += amount * 6 / 5;
+        p->moveReentryTimer += amount * 6 / 5;
         p->effectPosition = point;
         if (amount) {
             hitCount++;
@@ -750,8 +748,7 @@ s32 func_80075B50(BattleActor* p) {
         p->movePhase = 0;
     }
     return 0;
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
+}
 
 
 
