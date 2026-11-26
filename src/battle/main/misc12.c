@@ -1161,6 +1161,14 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
 //    the pointer loop without a cast; (d) the prologue emits the la s1 group before the
 //    arg0-derived invariants where retail has it after them. The preset is right: gcc 2.7.2
 //    scores 86.62 on this body against 2.6.0's 91.30 (the unit's XenoBattle260).
+//    Round 504 re-measured it and closed nothing, but narrowed three of the four: the x axis written
+//    as ONE named self value plus an inline candidate read (`b = D_800C3EBE[arg0].x; dy =
+//    D_800C3EBE[slot].x - b; if (dy < 0) dy = b - D_800C3EBE[slot].x;`) compiles BYTE-IDENTICALLY
+//    to the a/b-on-both-axes form (87.38, 552 bytes / 138 insns), so the second local is not the
+//    residual; dropping `slot` and reading `*p` inline on both axes is 83.33 / 532 bytes / 133
+//    insns, five instructions short - `slot` is load-bearing. cc1's own .s
+//    (build/src/battle/main/misc12.c.s, BEFORE maspsx) already emits the y product's `mflo` after
+//    the x load cluster, so (a) is cc1's ordering, not a maspsx hazard-nop artifact.
 /*
 u8 func_80084854(u8 arg0, u8 arg1) {
     u8 *p;
@@ -1232,6 +1240,7 @@ u8 func_80084854(u8 arg0, u8 arg1) {
     return result;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
+
 
 
 
