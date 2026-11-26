@@ -303,6 +303,22 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // it $a1 and pushes pFieldActor to $a0 - the whole 68-line diff follows from that one
 // eliminated load. Nothing else is missing. Presets this round: gcc-2.7.2-cdk 85.14,
 // gcc-2.6.0 89.86, -O3 39.52.
+// Round 523: re-measured 90.55% / 636 bytes (retail's exact size) / 159 insns, 68 differing lines.
+// The residual is ONE gcse decision, not a source shape. gcse (global cse, on by default at -O2 in
+// 2.7.2) PRE-hoists pFieldActor->pActorData out of the join block into the flags-guard block, so our
+// pointer pseudo is live across the gate chain, takes $a1 and pushes pFieldActor to $a0 (retail: the
+// mirror), and it inserts a second `lui 0xfeff` (-0x1000000 mask) on the fallthrough edge into the
+// join. Retail instead materialises BOTH inside the join block: a dead temp load `lw v0,0x4C(a1)` for
+// the flags guard at 0x20B8 and a fresh `lw a0,0x4C(a1)` at 0x2124, with one `lui v1,0xfeff`.
+// PROOF the reload is the whole gap: guarding with ((volatile FieldActor*)pFieldActor)->pActorData
+// forces retail's reload and moves the body 90.55 -> 91.99% (640 bytes / 160 insns); the mask constant
+// still hoists, so the registers still differ. gcse merges/copies globally, so no spelling of a single
+// pointer expression brings the reload back.
+// Measured this round, all 90.55% / 68 differing lines: a named guard local
+// `pGuardActor = pFieldActor->pActorData;` (folded anyway); `pActor = pFieldActor->pActorData;`
+// before the flags guard, guard reading pActor (same code after cse); volatile on the ActorData flags
+// load instead of on the pointer (89.80, does not block the pointer merge). gcc-2.6.0 89.86 (it has no
+// gcse and still does not reach retail's shape), -O1 79.13, -O3/cdk/G0 as noted above.
 extern s32 g_FieldMode;
 extern s32 g_FieldActiveActorCount;
 extern s32 D_800ADB68;
@@ -387,8 +403,7 @@ void func_800A2030(void) {
     next_actor:
         ;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 
 // Changes current actor to the top of the field actor array and runs a script routine on it
