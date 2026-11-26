@@ -11,7 +11,6 @@ extern void AnimScriptTick(void* pSprite);
 extern s32 SpriteScaleValue(void* pSprite, s32 value);
 extern void BattleEmitTrailSegments();
 extern void func_800B3CD4();
-extern void func_800B51B0();
 extern void func_800B50D4();
 extern void BattleUpdateDirectionTransformTask();
 extern u8 D_800C356C[];
@@ -863,32 +862,14 @@ typedef union {
 
 extern BattleTrailSegmentCount D_800D2FCC;
 
-// 98.33% (984 bytes / 246 insns = retail's exact size). Two residuals, both measured.
-// FOUND THIS ROUND (84.73 -> 98.33): the four corner-edge halfwords are FOUR SEPARATE GLOBALS
-// in retail, so every access gets its own lui/%hi. With `extern u16 g_BattleTrailEdgeX0[2]` gcc's
-// function-cse shares the high half and spends an extra `addiu v0,v0,0` per pair (+4 insns,
-// 988 bytes). Declaring g_BattleTrailEdgeX0, g_BattleTrailEdgeY0, g_BattleTrailEdgeX1 and g_BattleTrailEdgeY1 as four scalars
-// makes the count!=0 branch and the whole tail instruction-identical. g_BattleTrailEdgeY0 and
-// g_BattleTrailEdgeY1 now sit in config/symbol_addrs.slus_006.64.txt and splat writes both into
-// linker/undefined_syms_auto.battle.txt (checked after a clean objdiff-config), so the
-// four-scalar spelling links.
-// - ROTATION, now closed on the final instruction stream: -dl on this body reads the 0xF0
-// constant 9 refs / 206 insns = 0.131, abr 5 / 83 = 0.121, xEdge 5 / 98 = 0.102, and -dg
-// processes them in that order (121 -> $s3, 84 -> $s4, 90 -> $s5). Retail is xEdge($s3) >
-// const($s4) > abr($s5): xEdge would need 8 refs or a live range under 76 insns, while its
-// own def-to-last-use in retail's stream is 102 insns, and the constant's 0.131 is already
-// above xEdge's reachable 0.102 - no body emitting these 246 instructions ranks the three
-// that way (levers.md [a-three-way-rotation-is-closed-when-the-loser-needs-a-floor-log2-step]).
-// - The clut store: retail fills the `bnez` delay slot with `sh v0,0xE(s0)` and keeps the
-// count in $v1, i.e. the clut value stays in $v0 across the rgb group. Storing it straight
-// after GetClut leaves a `lui` in that slot; naming it (`u16 clut = GetClut(...)` stored
-// after the rgb group) moves the store four insns later and measures the same 98.33% / 46
-// differing lines, so the two tie and the direct store is kept.
-// - Requirements the body meets (each costs an instruction if dropped): the ratan2 args are two statements
-// with dx first (`dx = pLine->x1 - pLine->x0; dy = pLine->y1 - pLine->y0; angle =
-// ratan2(dy, dx) + 0x400;`), the line and quad buffer pointers must be two separate locals,
-// and `depth += D_800D3334[0]` must come before RotTransPers3.
-/*
+// The trail's per-segment renderer: one LINE_F2 for the segment and one textured POLY_FT4
+// for the ribbon quad, whose far corners it leaves in g_BattleTrailEdge* for the next call.
+// Three spellings below are load-bearing, not style - each one is the only shape whose
+// register allocation matches (the unit is -G0 cdk with instruction scheduling on):
+// - `count` is read into a local before the clut store, which is what puts the count in v1
+//   and the clut value in the bnez delay slot;
+// - `clut` and the two edges are named locals stored after the rgb group, not inline calls;
+// - xEdge and yEdge are computed in two statements (sin/cos, then the 8192 scale).
 void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     LINE_F2* pLine;
     POLY_FT4* pQuad;
@@ -903,6 +884,8 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     s32 yEdge;
     s32 xEdge;
     s32 radius;
+    u16 clut;
+    s32 count;
     u8* pLineBuf;
     u8* pQuadBuf;
 
@@ -947,8 +930,10 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     dx = pLine->x1 - pLine->x0;
     dy = pLine->y1 - pLine->y0;
     angle = ratan2(dy, dx) + 0x400;
-    xEdge = (rsin(angle) * radius) / 0x2000;
-    yEdge = (rcos(angle) * radius) / 0x2000;
+    xEdge = rsin(angle);
+    xEdge = (xEdge * radius) / 0x2000;
+    yEdge = rcos(angle);
+    yEdge = (yEdge * radius) / 0x2000;
     pQuadBuf = g_GfxCurWorkBuffer;
     if (pQuadBuf + 0x28 >= g_GfxCurWorkBufferEnd) {
         return;
@@ -966,11 +951,13 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     pQuad->u3 = (D_800D2FCC.bytes[0] & 7) - 0x3F;
     pQuad->v3 = 0xF7;
     pQuad->tpage = GetTPage(0, abr, 0x3F0, 0x1F0);
-    pQuad->clut = GetClut(0x3F0, 0x1EE);
+    clut = GetClut(0x3F0, 0x1EE);
     pQuad->r0 = 0xF0;
     pQuad->g0 = 0xF0;
     pQuad->b0 = 0xF0;
-    if (D_800D2FCC.count == 0) {
+    count = D_800D2FCC.count;
+    pQuad->clut = clut;
+    if (count == 0) {
         pQuad->x0 = (u16)pLine->x0 - xEdge;
         pQuad->y0 = (u16)pLine->y0 - yEdge;
         pQuad->x1 = (u16)pLine->x0 + xEdge;
@@ -991,8 +978,7 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     g_BattleTrailEdgeY1 = pQuad->y3;
     AddPrim(&g_GfxCurOT[depth], pQuad);
     D_800D2FCC.count++;
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
+}
 
 
 
