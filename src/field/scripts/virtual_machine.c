@@ -1089,18 +1089,44 @@ void func_800A3474(void) {
 // Presets measured on this body: gcc-2.6.0 94.70, gcc-2.7.2-cdk 85.70, cdk -G0 73.59
 // (measured on the 91.47 body), -G0 compile-fails, -O3 compile-fails.
 // ROUND 505: re-measured 97.01% / 700 bytes / 175 insns, unchanged. NEW measurement: a struct-typed alias for the count word (typedef struct { int numActors; } FieldSaveHead; extern FieldSaveHead g_FieldSaveHead __asm__("g_FieldNumActors"); pNumActors->numActors = pSrc[0];) ALSO folds - same 700 bytes, same 175 insns - so the lever that materialises a struct base does not reach "&<scalar global> - 0xB8". The one-instruction deficit is the memcpy loop-end pointer: retail fill its beqz delay slot with the single-instruction store "sw v1,0(a0)", so retail must compute "addiu t0,a1,0xAC" on both paths; this body stores through "lui $at"/"sw" (2 insns), the slot takes the shared addiu, and the aligned path reuses it. Only a register-held count address reaches 176.
+// PARKED 99.55% at retail's EXACT 704 bytes / 176 insns (was 97.01 / 700 / 175). The last
+// instruction was bought by declaring the count word through an ARRAY-typed alias so cc1
+// materialises its address instead of folding it into a %lo addend:
+//     extern s32 g_FieldNumActorsWords[] __asm__("g_FieldNumActors");  // actor.h declares it as a scalar
+//     pNumActors = g_FieldNumActorsWords;                               // not &g_FieldNumActors (that folds)
+// That reproduces retail's whole memcpy preheader verbatim - la a0,g_FieldNumActors /
+// addiu a3,a0,-184 / sw v1,0(a0) in the beqz delay slot / addiu t0,a1,172 on BOTH
+// alignment paths (the missing one was the 175 vs 176).
+// Two more load-bearing spellings on the actor loop (97.01 -> 99.55):
+//  - block 1's element access must be the INLINE cast expression
+//    (pActorData = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;),
+//    no element-pointer local: that hands the element temp $v0 and the cursor $a1, which is
+//    retail's block 1 exactly.
+//  - blocks 2 and 3 need SEPARATE element-pointer locals (pFieldActor / pSavedActor); one
+//    shared variable is one pseudo with ONE register, and retail keeps block 2's element in
+//    $a0 and block 3's in $a1.
+// LEFT: one register pair swapped in block 2 only - retail is addu a0,s1,v0 / lw a1,76(a0)
+// (element $a0, pActorData $a1), this body is addu a1,s1,v0 / lw a0,76(a1). Every other
+// instruction, both jump paths and the frame are identical (26 differing lines, all names).
+// Tried with no change: pFieldActor declared before pActorData, the two-statement form
+// (pActorData = pFieldActor->pActorData) instead of inline member chains in block 2, and one
+// shared element local for blocks 2+3 (99.43, element -> $a2). The permuter CANNOT run on
+// this body: its parser rejects the __asm__ label declaration ("conversion to non-scalar
+// type requested", base.c does not compile).
 /*
+extern s32 g_FieldNumActorsWords[] __asm__("g_FieldNumActors");
 void func_800A3C8C(void) {
     int i;
     int nDiff;
-    ActorData* pActorData;
-    FieldActor* pFieldActor;
-    int* pNumActors;
     u8* pCursor;
+    FieldActor* pFieldActor;
+    ActorData* pActorData;
+    FieldActor* pSavedActor;
+    int* pNumActors;
     u8* pSrc;
 
     pSrc = g_WorldMapSaveBlock;
-    pNumActors = &g_FieldNumActors;
+    pNumActors = g_FieldNumActorsWords;
     g_WorldMapSaveCursor = pSrc;
     *pNumActors = pSrc[0];
     g_WorldMapSaveCursor = pSrc + 0x3C;
@@ -1115,8 +1141,7 @@ void func_800A3C8C(void) {
     }
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
-        pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
-        pActorData = pFieldActor->pActorData;
+        pActorData = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;
         pCursor = g_WorldMapSaveCursor;
         g_WorldMapSaveCursor = pCursor + 0xC;
         if (pActorData->specialAnimArchiveIndex != -1 && pActorData->animationOverride != 0xFF) {
@@ -1130,19 +1155,20 @@ void func_800A3C8C(void) {
             SpriteRestoreAnimState(pFieldActor->pSpriteData, g_WorldMapSaveCursor);
         }
 
-        pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
-        pActorData = pFieldActor->pActorData;
+        pSavedActor = (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors);
+        pActorData = pSavedActor->pActorData;
         pCursor = g_WorldMapSaveCursor;
         g_WorldMapSaveCursor = pCursor + 0x168;
         if (pActorData->flags134 & 0x80) {
             g_WorldMapSaveCursor = pCursor + 0x174;
         }
-        if (pFieldActor->pActorData->flags12C_0xD) {
+        if (pSavedActor->pActorData->flags12C_0xD) {
             g_WorldMapSaveCursor += 0x10;
         }
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
+
 
 
 
