@@ -1139,6 +1139,33 @@ try: div mfhi mflo mult
   increment at the body end 84.55% (368 / 92). The residual it leaves is ONE instruction and is this same wall: the
   for-clause shape still emits `addiu s1,s1,1` at the loop head, so the first beqz's slot takes a fourth slti where
   retail has the increment (retail, with the increment there, is not threaded and carries three).
+  Round 497 CLOSES THE FAMILY, and the wall was the wrong noun: the increment's slot is bought with a CALL RESULT LOCAL
+  plus a loop-bound statement, and nothing else about the body changes. battle/main/misc9 func_8007D8C0 (slots 0..3) and
+  func_8007DCF8 (3..0xB, with the g_BattleSlotFlags gate) both reach MATCH / 100.00% at retail's exact 348 and 384 bytes
+  from parks that had sat at 84-95% for five rounds, with ONE recipe, applied in this order:
+  (1) `u8 idx = i;` as the loop body's first statement, NOT `idx = i++`: the truncation keeps `idx` a pseudo of its own,
+  so the buffer store stays `sb <idx>` and the for-clause `i++` no longer has a use of `i` textually after it - which is
+  what lets sched2/reorg hoist the increment into the ClearRecordIdle beqz's slot, retail's position, for free. A
+  `s32 idx = i;` propagates away (the store becomes `sb <i>`), the increment then cannot move above it and stays at the
+  body end: 84.24% / 82 insns. The masks an s32 `idx` would need at its two u8 call arguments CSE into retail's single
+  `andi s0,s3,0xFF` either way.
+  (2) `u8 idle = <call>(idx, 0); i++;` - the result in its own local with the increment BETWEEN the call and the test.
+  That is the half the round-482 note found; combined with (1) it costs nothing, and reorg's duplicate of the latch
+  `slti` into the second beqz's slot appears with it, so the "exclusive" trade only ever existed for `idx = i++` bodies.
+  (3) the loop's OTHER per-iteration statement (`offset += 8`) in the FOR-CLAUSE (`for (; i < 0xB; offset += 8)`): the
+  round-495 finding holds and is what duplicates `slti` into the remaining slots. The gated member needs it for retail's
+  three copies; the 0..3 member has two and `while (i < 3)` is exact there.
+  (4) THE ROW-BASE COPY IS BOUGHT BY A TAIL-ONLY LOCAL, AND THE TAIL NEEDS ONE PER VALUE. `u16 *pRow = ...; pField = pRow;`
+  gives retail's `addu v1,v1,v0` / `move s5,v1`; then `s32 rowIndex;` assigned `arg1` AFTER the head store and used in the
+  tail's base re-form. Do not stop at one: func_8007DCF8 needed a SECOND such local (`rowMask = 0xFF;` before the loop,
+  `rowIndex & rowMask` in the tail) before its entry block reached retail's v0/v1 mirror - the `(u8)rowIndex` cast that
+  removes the local measures 94.45% at the same 96 insns, so the local is load-bearing, not decoration.
+  (5) `s16 last = count - 1;` as a statement BEFORE the `if (count != 0)`, not the expression inside the call, is what
+  puts `addiu a1,s2,-1` in the `beqz s2` delay slot where retail has it instead of `move a0,zero` (94.45 -> 99.51).
+  (4)'s second half and (5) were permuter finds (PERMUTER_ZERO after 30-60 s from a 99.51% / 94.45% body) that ported
+  byte-exactly; so run the permuter on the LAST ordering residual only, after (1)-(3). The siblings should fall to the
+  same recipe - read the retail stream's `slti` copy count first (2 = func_8007DA1C/func_8007DE78, 3 =
+  func_8007DB78/func_8007DFD4) to pick `while` vs for-clause, then apply (1)-(5).
 - id: an-o-equals-i-times-stride-body-keeps-the-symbol-store-form | keywords: loop, counter, offset, accumul, regalloc, swapped, biv, giv, stride
   **A CLEAR LOOP WHOSE TWO VARIABLES LAND MIRRORED (COUNTER IN `$a2`, BYTE OFFSET IN `$a3`) POINT THE BODY AT ACCUMULATING `o += 6` WHERE RETAIL ASSIGNS `o = i * 6`, AND THE ASSIGNMENT FORM ALSO PRESERVES WHICH OF THE TWO STORE FORMS gcc PICKS: with a NAMED s32 offset retail's stores come out as `lui at,%hi(sym) / addu at,at,o / sh %lo(sym)(at)` (the offset added per store), which the assignment form reproduces exactly, and the offset then takes `$a2` with the counter in `$a3`** (round 452, battle/main/misc13 func_800877E0, 60.72 -> 62.91% at 448 bytes, retail 456: loop 1 went from every line differing by register name to exact). Writing `= i * 6` inside the body instead of `o += 6` makes gcc build the GIV `i*6` and keep it as a scalar because the address is `symbol + o`; the accumulator spelling gets the two BIVs the other way round. The limit found on the same body: the same trick does NOT fix a second loop whose offset also competes with a loaded table pointer (`lw a2,%lo(g_BattleSlotParamTable)` takes `$a2` and pushes the offset to `$t0`) - there the residual is which pseudo wins `$a1`/`$a2`, and a typed struct chain for the same offsets scores WORSE (59.85 / 452), because gcc's emission for the typed form differs.
 

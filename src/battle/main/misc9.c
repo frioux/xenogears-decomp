@@ -55,99 +55,38 @@ extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 
-/* R370: 93.64% (344 bytes; retail 348 = 87 insns). The family's row-base copy
-   (residual (b), 89.33 -> 93.64) IS source-controllable: give the LOOP its own
-   pointer local (`pField = pRow;` after the head store, the loop reads pField) and
-   cc1 keeps the sum pseudo live past the copy, so it emits retail's
-   `addu v1,v1,v0` / `move s5,v1` instead of coalescing the two. Not measured yet
-   on DE78/DA1C/DB78/DCF8/DFD4, which share the shape. Remaining: ONE instruction,
-   the `i++`. Retail's `addiu s1,s1,1` is in the beqz delay slot right after the
-   ClearRecordIdle call, so its source incremented i BETWEEN the call and the test;
-   with `idx = i++` cc1 emits the increment at the loop head and reorg copies
-   `slti v0,s1,3` into the FIRST slot instead of the second - 1 short, cannot link.
-   Measured worse on top of the two-pointer body: `s32 idle` and `u8 idle` holding
-   the call result with `i++` between call and test (87.10%, 332 bytes; idx/i move
-   to s2/s0 and the body loses 4 instructions). The body below is the 93.64 one.
-   ---- R309 (superseded): 89.33% (340 bytes, retail 348) using func_8007DE78's solved tail - a
-   `u16 value` local, then `u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 +
-   (s32)g_BattleSlotWordRegs);` and `pOut[(*arg0)[2]] = value;` reproduces
-   retail's andi/sll/lw p/lui/addiu/lbu p[2]/addu/sll/addu/sh exactly. The 2
-   missing instructions are the base copy (`addu v1,v1,v0` + `move s5,v1` where
-   gcc coalesces an `addu s5,v1,a0`; the typed
-   g_BattleSlotRegs[arg1 & 0xFF].wordRegs view and an s32 rowBase local measure
-   the same) and one duplicated `slti v0,s1,3` reorg puts in a beqz delay slot.
-   Previous best: 80.37%. Same family as func_8007DA1C/DB78/DCF8/DE78/DFD4 (all still
-   stubs). Structure recovered from the asm: zero the row slot, then a do-while
-   over the operator slots collecting the matching ones into an 8-byte stack
-   buffer, then pick one at random. The `idx = i++` copy is real: retail keeps
-   it in a separate register (s3) and re-forms it at the loop latch, and the
-   buffer stores idx, not i. Remaining misses, all at 80.37% (336 bytes, frame
-   and saved-register set already exact): (1) the final store re-forms the row
-   base with a fresh `lui a1 / addiu a1 / addu a0,a0,a1` instead of reusing the
-   loop's base register - tried a pOut pointer (77-80%, gcc reuses the loop
-   base or spills), `(s32)g_BattleSlotWordRegs` staged local (76.10%, shape right but one
-   extra insn) and the plain inline expression (the $at form);
-   (2) retail steals `i++` into the beqz delay slot after the BattleSlotFlagsC002ClearRecordIdle
-   call, gcc emits it at the loop head;
-   (3) declaration order of the two zeroed accumulators (retail i then count).
-
-   R316: 89.33% (340 bytes against retail's 348, read off this stub's own .s:
-   0x8007D8C0..0x8007DA1C = 87 insns, NOT the 336 a park note here claimed).
-   func_8007DE78 has a byte-for-byte identical instruction stream (its only
-   difference is ClearRecordIdle's second argument, 0 here and 1 there), so this
-   body scores the same on both and func_8007DA1C/DB78/DCF8/DFD4 are the same
-   family with different constants and (DB78/DCF8/DFD4) an extra
-   g_BattleSlotFlags gate.
-
-   The family has exactly TWO residuals and neither is source-controlled:
-   (a) the `i++`. Retail's RTL has `addiu s1,s1,1` AFTER the
-   BattleSlotFlagsC002ClearRecordIdle call and immediately before its `beqz`, so
-   reorg fills that delay slot with it; with `idx = i++` gcc puts the increment
-   at the loop head instead and reorg then fills the same slot with a COPY of the
-   loop test (`slti v0,s1,3`) taken from the branch target. That is one
-   instruction of the eight bytes we are short, and it also shifts the tail
-   `beqz s2` fill (`addiu a1,s2,-1` vs `move a0,zero`). Measured dead: for-head,
-   while-head, do-while and `idx = i; i++;` all put the increment in the same
-   place, and `for (...; i++)` + `idx = i` is worse - gcc propagates idx and the
-   s3 copy disappears.
-   (b) the row base copy. Retail materialises the sum in $v1 and COPIES it into
-   $s5 (`addu v1,v1,v0` / `move s5,v1`) and the `la` lands before the remaining
-   saves; every spelling here folds it into the pointer's own register
-   (`addu s5,v1,a0`) - measured: plain pointer initialiser, the
-   (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs) form used below,
-   base-first form, s32 base local, s32 base + u16* conversion.
-   The tail store IS solved (u16 value local + int-built base + pointer local):
-   it reproduces retail's andi/sll/lw p/lui a1/addiu a1/lbu p[2]/addu/sll/addu/sh
-   exactly. Because (a) is one instruction at retail's exact size this body can
-   never link, so it stays a stub.
 void func_8007D8C0(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
+    s16 last;
     s32 count = 0;
-    s32 idx;
     u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    s32 rowIndex;
     u16 *pField;
 
     pRow[(*arg0)[2]] = 0;
+    rowIndex = arg1;
     pField = pRow;
-    do {
-        idx = i++;
-        if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
+    while (i < 3) {
+        u8 idx = i;
+        u8 idle = BattleSlotFlagsC002ClearRecordIdle(idx, 0);
+
+        i++;
+        if (idle != 0) {
             if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
             }
         }
-    } while (i < 3);
+    }
+    last = count - 1;
     if (count != 0) {
-        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
+        u16 *pOut = (u16 *)((rowIndex & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
 }
- */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
 /* best: 95.38% (352 bytes / 88 insns; retail 0x8007DA1C..0x8007DD1C = 87 insns /
    348 bytes). The func_8007D8C0 R370/R398 two-pointer recipe carries this stub:
    `pField = pRow;` after the head store, the index-first base with an (s32) cast
@@ -279,80 +218,44 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
-/* R333: best 84.33%, 376 bytes against retail's 384 (0x8007DCF8..0x8007DE78 =
-   96 insns, read off this stub), i.e. this body is TWO instructions short and
-   can never link. It is the func_8007D8C0/DA1C/DB78/DE78/DFD4 family -- the
-   same loop with the counter starting at 3, the bound 0xB, the flag-gate byte
-   offset starting at 0x18, and ClearRecordIdle's second argument 0 -- and its
-   two residuals are the family's documented ones, both already measured dead in
-   several spellings by earlier rounds:
-
-   (a) the `i++`. Retail's RTL is [jal ClearRecordIdle][andi v0,v0,0xFF]
-   [addiu s1,s1,1][beqz], so the increment executes unconditionally right after
-   the call and reorg puts it in that beqz's delay slot; with `idx = i++` gcc
-   emits the increment at the loop head (move s3,s1 / addiu s1,s1,1) and reorg
-   fills that slot with a COPY of the loop test (slti v0,s1,0xB) instead. The
-   for-loop form (`for (i = 3; i < 0xB; i++) { idx = i; ... }`) is worse: gcc
-   propagates idx out of s3 and the frame shrinks to 0x38 with a different
-   saved set. `idx = i; i++;`, the increment at the loop bottom after the
-   `if`, and while-head/do-while forms all leave it at the head.
-   (b) the row-base copy. Retail forms the sum EARLY, before the remaining
-   saves, into a temp (`andi v0,s7,0xFF / sll v0,v0,6 / lui v1 / addiu v1 /
-   addu v0,v0,v1`) and then COPIES it into the loop's saved register
-   (`addu s6,v0,zero`); gcc sinks the symbol's `lui/addiu` to the store and
-   coalesces the sum into s6 (`addu s6,v1,a0`), one instruction fewer. Measured
-   identical (84.33%): the typed `g_BattleSlotRegs[arg1 & 0xFF].wordRegs` view
-   (relocation g_BattleSlotRegs+0x20, same code), the base-first
-   `(u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40)`, and an s32
-   `rowBase` local with `(u16 *)rowBase`.
-   The tail store and the latch ARE solved and this body reproduces them
-   byte-exactly: `u16 value` local, then an int-built base with the symbol
-   cast, then a pointer local whose index is (*arg0)[2] (retail's andi/sll/
-   lw/lui/addiu/lbu/addu/sll/addu/sh), and [slti v0,s1,0xB][addiu s4,s4,8 in
-   the bnez slot] at the latch. The gate read is a u8 byte view with an
-   incrementing offset, which is what produces retail's `$at` form
-   (lui $at / addu $at,$at,$s4 / lbu %lo($at)).
-
-   Preset screens on this body: gcc-2.6.0 85.32%, gcc-2.7.2-cdk 75.83%, so
-   Default (2.7.2, -O2 -G8) is right and this is not a compiler question.
-   permute.sh --minutes 3 -j 2: PERMUTER_BETTER base=1500 best=1100, but the
-   candidate reads 85.39% at 368 bytes -- it keeps the scaled row offset live
-   across the loop in an s32 local (bringing the early `andi a1,a1,0xFF / sll
-   a1,a1,6` back) and then uses that local at the tail store, which DELETES
-   retail's tail andi/sll: a worse body (4 instructions short), so it was not
-   taken. Reducing (b) once in exchange for (a) twice is the trade the scoring
-   rewards and linking does not.
-
 void func_8007DCF8(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 3;
+    s16 last;
     s32 count = 0;
+    u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    s32 rowIndex;
+    u16 *pField;
     s32 offset = 0x18;
-    s32 idx;
-    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
+    s32 rowMask;
 
     pRow[(*arg0)[2]] = 0;
-    while (i < 0xB) {
-        idx = i++;
-        if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
+    rowIndex = arg1;
+    pField = pRow;
+    rowMask = 0xFF;
+    for (; i < 0xB; offset += 8) {
+        u8 idx = i;
+        u8 idle = BattleSlotFlagsC002ClearRecordIdle(idx, 0);
+
+        i++;
+        if (idle != 0) {
             if (((u8 *)g_BattleSlotFlags)[offset] != 0) {
-                if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
+                if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                     buf[count] = idx;
                     count++;
                 }
             }
         }
-        offset += 8;
     }
+    last = count - 1;
     if (count != 0) {
-        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
+        u16 *pOut = (u16 *)((rowIndex & rowMask) * 0x40 + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
 }
- */
+
 /* best: 95.25% (352 bytes / 88 insns; retail 0x8007DE78..0x8007E080 = 87 insns /
    348 bytes). Byte-for-byte the func_8007DA1C stream with only ClearRecordIdle's
    second argument (1) and the loop bounds (0..3 instead of 3..0xB) changed, and
