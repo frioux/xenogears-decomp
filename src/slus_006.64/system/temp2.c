@@ -105,7 +105,6 @@ extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 // Rejected and measured: offset before the frame multiply (68.80 on the older body),
 // storing the 0x3C word twice, splitting the whole 0xBE arm into block locals (91.19).
 // No permuter run: the STOP RULE allows one only from 99%.
-/*
 void func_800248D4(SpriteData* pSpriteData) {
     u8* pArgs;
     u8 code;
@@ -172,7 +171,6 @@ dispatch:
             s32 beFrames;
             s32 beOffset;
             u32 flags;
-            u32 mask;
 
             count = pArgs[0] | ((s8)pArgs[1] << 8);
             beFrames = ((count >> 11) & 0xF) + 1;
@@ -185,6 +183,9 @@ dispatch:
             }
             if (g_SpriteStateFlags(pSpriteData).fields.mode != 1) {
                 pSpriteData->curSpriteFrame = beOffset;
+                pSpriteData->animScriptWaitTimer += beFrames;
+                pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + 3;
+                return;
             } else {
                 if (count < 0) {
                     if (beOffset != 0) {
@@ -192,14 +193,13 @@ dispatch:
                     }
                 }
                 flags = pSpriteData->flags_0xAC.flags;
-                mask = g_SpriteStateFlags(pSpriteData).flags;
                 flags = (flags & ~ANIM_SCRIPT_FLIP_BIT) | ((count >> 6) & ANIM_SCRIPT_FLIP_BIT);
                 pSpriteData->flags_0xAC.flags = flags;
-                mask = (mask & ~ANIM_SCRIPT_FLIP_BIT) | ((((flags >> 3) & 1) ^ ((flags >> 2) & 1)) << 3);
+                g_SpriteStateFlags(pSpriteData).fields.flipX = ((flags >> 3) & 1) ^ ((flags >> 2) & 1);
                 if ((count >> 10) & 1) {
-                    g_SpriteStateFlags(pSpriteData).flags = mask | 0x10;
+                    g_SpriteStateFlags(pSpriteData).fields.flipY = 1;
                 } else {
-                    g_SpriteStateFlags(pSpriteData).flags = mask & ~0x10;
+                    g_SpriteStateFlags(pSpriteData).fields.flipY = 0;
                 }
                 SpriteAnimFrameListSetFrame(pSpriteData, beOffset);
             }
@@ -335,9 +335,9 @@ dispatch:
             break;
         }
         pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
+        goto dispatch;
     }
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
+}
 
 
 
