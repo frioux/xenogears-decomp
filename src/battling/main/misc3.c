@@ -191,7 +191,7 @@ typedef struct BattleActor {
     /* 0x00C5 */ u8 actionPhase;
     /* 0x00C6 */ u8 prevState;
     /* 0x00C7 */ u8 padC7;
-    // Frames left in the current step: func_80075B50 sets it from the move
+    // Frames left in the current step: BattleCommitActorMoveStep sets it from the move
     // record when the step is taken, BattleUpdateActorStatus counts it down, and at zero
     // the move's frame count is cleared for the stop animation (0x300000).
     /* 0x00C8 */ s16 moveEndTimer;
@@ -261,7 +261,7 @@ typedef struct BattleActor {
     // flushed each frame and no action is entered.
     /* 0x0914 */ s16 actionWaitTimer;
     // Set to 0x28 with stateTimer when a move begins (BattleActorBeginMove) and
-    // advanced by the same step as stateTimer in func_80075B50, but decremented
+    // advanced by the same step as stateTimer in BattleCommitActorMoveStep, but decremented
     // per frame instead: whenever it still reads >= 0x26 (the first frames after
     // a move began) BattleUpdateActorMovement re-enters the move.
     /* 0x0916 */ s16 moveReentryTimer;
@@ -269,7 +269,7 @@ typedef struct BattleActor {
     // 0x18 a frame by misc9's light pass (BattleFadeActorLights).
     /* 0x0918 */ u8 lightAlpha;
     /* 0x0919 */ u8 pad919[0x3];
-    // The point the hit effect spawned at: func_80075B50 stores the same words it
+    // The point the hit effect spawned at: BattleCommitActorMoveStep stores the same words it
     // copies into g_BattleEffectPosX/Y/Z here.
     /* 0x091C */ Vec4 effectPosition;
     // One of the two world points whose y words bound the actor; 0x93C is the
@@ -286,7 +286,7 @@ typedef struct BattleActor {
     /* 0x096E */ s16 prevVertex0Y;
     /* 0x0970 */ s32 gaugeDrain;
     // Position of the target slot the current step walks to, copied from the
-    // selected record by func_80075B50.
+    // selected record by BattleCommitActorMoveStep.
     /* 0x0974 */ Vec4 moveGoalPosition;
     /* 0x0984 */ u8 unk984[0x14];
     // The part animation's current frame and its per-call step, handed to
@@ -345,7 +345,7 @@ typedef struct BattleActor {
     // The sound table BattleSetActorSoundTable picks by typeId; misc17 indexes it
     // with a byte index.
     /* 0x1664 */ u8* pSoundTable;
-    // Bumped by func_80075B50 every time it commits a move for the actor; the
+    // Bumped by BattleCommitActorMoveStep every time it commits a move for the actor; the
     // round reset clears it (misc18 reads it as its moveCount).
     /* 0x1668 */ u16 moveCount;
 } BattleActor; // Size: 0x166A
@@ -488,7 +488,7 @@ extern void BattleCommitSlotStates(BattleActor* p);
 extern s32 g_BattleEffectEntryCount;
 extern Vec4 g_BattleEffectPosX;
 
-s32 func_80075B50(BattleActor* p) {
+s32 BattleCommitActorMoveStep(BattleActor* p) {
     BattleEffectSlot* pSlot;
     BattleActorSlot* pRecord;
     Vec4 center;

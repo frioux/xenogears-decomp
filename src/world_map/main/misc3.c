@@ -468,7 +468,7 @@ extern void WorldMapUpdateFrameWithSlotProjection(void);
 extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
 extern void WorldMapInitActorAtScrollPosition(void);
-extern void func_800783E8(void);
+extern void WorldMapUpdateActorScrollAndGroupRotations(void);
 extern void WorldMapResetActorSlotWithSound(void);
 extern void func_80077E68(void);
 extern void WorldMapSetGridPosition(void* p);
@@ -788,7 +788,7 @@ void WorldMapInitializeModeWithSound(void) {
     } while (WorldMapGetQueuedLoadCount() > 0);
     WorldMapAddSlot((void*)WorldMapModeInitFadeRect, (void*)func_800925A0);
     WorldMapAddSlot((void*)WorldMapResetActorSlotWithSound, (void*)func_80077E68);
-    WorldMapAddSlot((void*)WorldMapInitActorAtScrollPosition, (void*)func_800783E8);
+    WorldMapAddSlot((void*)WorldMapInitActorAtScrollPosition, (void*)WorldMapUpdateActorScrollAndGroupRotations);
     WorldMapAddSlot((void*)WorldMapEnterNop, (void*)WorldMapUpdateFrameWithParticles);
     func_800978FC();
     WorldMapInitPrimTemplateBuffers();

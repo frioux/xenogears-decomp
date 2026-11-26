@@ -54,7 +54,7 @@ typedef struct {
 // it carries the semi-transparent 16x16 sprite prim BattleInitSlotDrawEntry
 // initialises: tag with length 3 and code 0x7D (what setSprt16 does, plus the
 // semi-transparency bit), x0/y0, then the u0/v0 halfword and the clut. The same
-// prim is BattleTexBlock D_8009A14C in src/battling/main/misc1.c, which names
+// prim is BattleTexBlock g_BattleTexturePrim in src/battling/main/misc1.c, which names
 // the colour bytes r0/g0/b0.
 typedef struct {
     /* 0x00 */ DRAWENV drawEnv;

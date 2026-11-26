@@ -22,6 +22,10 @@
 // g_BattleTransitionCountdown is a byte countdown, so BattleSaveActorVectors
 // saturates it at this.
 #define BATTLE_TRANSITION_COUNTDOWN_MAX 255
+// The camera's orbit height over the target is clamped to this, then lifted by one tile.
+#define BATTLE_CAMERA_ORBIT_HEIGHT_MAX 768
+// g_BattleCameraLerpFrames is re-armed to this once the three lerp divisions are done.
+#define BATTLE_CAMERA_LERP_FRAMES_DEFAULT 100
 
 extern s32 g_BattleMotionSpeedScale;
 extern s32 g_BattleBothCombatantsDownCount;
@@ -895,8 +899,8 @@ void func_800796B8(Actor* p1, Actor* p2) {
     // The camera's height over the orbit point follows the pair's separation, and is
     // kept above the ground by one tile.
     dist /= 4;
-    if (dist > 0x300) {
-        dist = 0x300;
+    if (dist > BATTLE_CAMERA_ORBIT_HEIGHT_MAX) {
+        dist = BATTLE_CAMERA_ORBIT_HEIGHT_MAX;
     }
     height = dist + 0x40;
     posA.y = g_BattleCameraTargetY - height;
@@ -916,7 +920,7 @@ void func_800796B8(Actor* p1, Actor* p2) {
         posA.y = lenA;
     }
     g_BattleCameraPosY += (posA.y - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
-    g_BattleCameraLerpFrames = 0x64;
+    g_BattleCameraLerpFrames = BATTLE_CAMERA_LERP_FRAMES_DEFAULT;
 }
 
 void BattleInitOptionDefaults(void) {
@@ -1040,7 +1044,7 @@ extern void BattleActorApplyAnimationCommand(Actor*);
 extern void BattleEffectUpdateSlots(void);
 extern void BattleEffectQueueLineByType(Vec4*, Vec4*, s32);
 extern void BattleRandomizeCameraSpin(void);
-extern void func_80075B50(Actor*);
+extern void BattleCommitActorMoveStep(Actor*);
 extern void func_8007920C(Actor*);
 
 // Best attempt: 99.96% at retail's EXACT 1068 bytes (0x42c), 267 vs 267 instructions,
@@ -1135,8 +1139,8 @@ void func_80079DF0(Actor* p1, Actor* p2) {
     BattleUpdateSlotGaugeDisplay(p2);
 
     g_BattleEffectEntryCount = 0;
-    func_80075B50(p1);
-    func_80075B50(p2);
+    BattleCommitActorMoveStep(p1);
+    BattleCommitActorMoveStep(p2);
 
     FontSetPositionsByOffsetClamped(0xA, 0x60);
     BattleSetSpriteTimer(0);
@@ -1322,8 +1326,8 @@ void BattleUpdateCombatantPair(Actor* p1, Actor* p2) {
     BattleActorLoadUnk15CCFlags(p2);
     func_8007920C(p1);
     func_8007920C(p2);
-    func_80075B50(p1);
-    func_80075B50(p2);
+    BattleCommitActorMoveStep(p1);
+    BattleCommitActorMoveStep(p2);
     BattleEffectUpdateSlots();
 
     if (g_BattleOptionOn != 0) {

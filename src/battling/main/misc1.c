@@ -365,7 +365,7 @@ typedef struct {
 
 extern BattleMessageWindow g_BattleMessageWindow;
 extern BattleState* D_80092894;
-extern s16 D_80092600;
+extern s16 g_BattleScriptGaugePoints;
 extern s32 g_BattleActorDistance2D;
 extern s32 g_BattleEffectPlaceMode;
 extern s32 g_BattleStateStep;
@@ -382,7 +382,7 @@ extern s32 BattleCheckPositionPastMapCenter(VECTOR* pPos);
 extern s32 SystemStringGetUnk6B(void* pString);
 extern void SystemStringClearStateFlags(void* pString);
 extern void BattleRecenterViewPositions(s32 mode);
-extern s32 func_80071F8C(s32 mode);
+extern s32 BattleRunBattleEndCommand(s32 mode);
 
 // The battle script g_BattleScriptCursor walks: an opcode byte, then up to two
 // operand bytes. The two stop distances a turn opcode waits for, and the distance
@@ -456,11 +456,11 @@ void func_8007107C(void) {
 
     pActor = D_80092894;
     pActor->distance = 0;
-    if (D_80092600 != 0) {
-        if (D_80092600 < pActor->gaugePoints) {
-            D_80092600 = pActor->gaugePoints;
+    if (g_BattleScriptGaugePoints != 0) {
+        if (g_BattleScriptGaugePoints < pActor->gaugePoints) {
+            g_BattleScriptGaugePoints = pActor->gaugePoints;
         }
-        pActor->gaugePoints = D_80092600;
+        pActor->gaugePoints = g_BattleScriptGaugePoints;
     }
     for (;;) {
         switch (((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPCODE]) {
@@ -614,7 +614,7 @@ void func_8007107C(void) {
             g_BattleScriptCursor = pScript + 3;
             break;
         case 22:
-            func_80071F8C(((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0]);
+            BattleRunBattleEndCommand(((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0]);
             g_BattleScriptCursor += 2;
             break;
         case 23:
@@ -680,7 +680,7 @@ void func_8007107C(void) {
             g_BattleScriptCursor += 2;
             break;
         case 32:
-            D_80092600 = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] << 4;
+            g_BattleScriptGaugePoints = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] << 4;
             g_BattleScriptCursor += 2;
             break;
         case 33:
@@ -751,8 +751,8 @@ typedef struct {
     /* 0xE */ u16 clut;
 } BattleTexBlock; // Size: 0x10
 
-extern BattleTexBlock D_8009A14C;
-extern BattleTexBlock D_8009A244;
+extern BattleTexBlock g_BattleTexturePrim;
+extern BattleTexBlock g_BattleTexturePrimCopy;
 
 // The battle texture archive. This unit only reads the TIM at 0x60.
 typedef struct {
@@ -761,7 +761,7 @@ typedef struct {
     /* 0x60 */ u_long* pTim;
 } BattleTextureArchive; // Size: 0x64
 
-void func_80071794(BattleTextureArchive* pArchive) {
+void BattleLoadTextureTimAndPrims(BattleTextureArchive* pArchive) {
     TIM_IMAGE tim;
     u_short tpage;
     u16 tpageBits;
@@ -780,10 +780,10 @@ void func_80071794(BattleTextureArchive* pArchive) {
     SetDrawTPage(g_BattleTpagePrims, 0, 0, tpage);
     g_BattleTpagePrims[1] = g_BattleTpagePrims[0];
     tpageBits = *(u16*)tim.prect;
-    D_8009A14C.u0 = (tpageBits & 0x3F) * 4;
-    D_8009A14C.v0 = ((u16*)tim.prect)[1];
-    D_8009A14C.clut = GetClut(tim.crect->x, tim.crect->y);
-    D_8009A244 = D_8009A14C;
+    g_BattleTexturePrim.u0 = (tpageBits & 0x3F) * 4;
+    g_BattleTexturePrim.v0 = ((u16*)tim.prect)[1];
+    g_BattleTexturePrim.clut = GetClut(tim.crect->x, tim.crect->y);
+    g_BattleTexturePrimCopy = g_BattleTexturePrim;
 }
 extern s32 g_BattleMessageIndex;
 extern s32 g_BattleMessageShownIndex;
@@ -804,7 +804,7 @@ extern s32 g_BattleWindowTargetX;
 extern s32 g_BattleWindowPosX;
 extern s32 g_BattleWindowTargetY;
 extern s32 g_BattleWindowPosY;
-extern s16 D_80092600;
+extern s16 g_BattleScriptGaugePoints;
 extern s16 D_800987E0;
 extern s16 D_800987E8;
 extern s16 D_800970C4;
@@ -832,7 +832,7 @@ void BattleSelectTutorialPage(u32 idx) {
     g_BattleWindowPosX = 0xA0;
     g_BattleWindowTargetY = 0x6D;
     g_BattleWindowPosY = 0x6D;
-    D_80092600 = 0;
+    g_BattleScriptGaugePoints = 0;
     D_800987E0 = D_800987E8;
     D_800970C4 = D_800970CC;
 }
@@ -1027,7 +1027,7 @@ extern void BattleActorWalkDownGrid(BattleState* p);
 // The pointer to &g_BattleCameraPos.vy is load-bearing: it is what makes retail keep
 // the address in a register and store through it twice. The s32 return keeps reorg
 // from stealing the clamp's constant into the beqz delay slot (no value is returned).
-s32 func_80071F8C(s32 mode) {
+s32 BattleRunBattleEndCommand(s32 mode) {
     switch (mode) {
     case 0:
         SoundStopAudioManager(g_BattlingAudioManager);

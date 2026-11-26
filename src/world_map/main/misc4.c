@@ -528,7 +528,7 @@ s32 WorldMapInitActorAtScrollPosition(s32 index) {
 }
 // The matrix copies go through one entry pointer per group: gcc merges four assignments to a
 // single variable into one allocno that outlives each copy run, and the run bases then lose $v0.
-s32 func_800783E8(s32 index) {
+s32 WorldMapUpdateActorScrollAndGroupRotations(s32 index) {
     WorldMapActor *p;
     SVECTOR *pRot;
 

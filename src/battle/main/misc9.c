@@ -92,7 +92,7 @@ void BattlePickSlotFromOperatorWord(u8 **arg0, s32 arg1) {
         pOut[(*arg0)[2]] = value;
     }
 }
-void func_8007DA1C(u8 **arg0, s32 arg1) {
+void BattlePickActorSlotFromOperatorWord(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 count = 0;
     s32 i = MAX_PARTY_MEMBERS;
@@ -203,7 +203,7 @@ void BattlePickSlotFromOperatorWordFlagged(u8 **arg0, s32 arg1) {
     }
 }
 
-void func_8007DE78(u8 **arg0, s32 arg1) {
+void BattlePickPartySlotFromOperatorWordTag1(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s16 last;

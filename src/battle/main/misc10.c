@@ -281,10 +281,10 @@ extern void BattlePickRandomFreeCharSlot(u8 **ppCommand, u8 slot);
 extern void BattlePickFreeCharSlotWithSameTag(u8 **ppCommand, u8 slot);
 extern void BattlePickFreeActorSlotWithSameTag(u8 **ppCommand, u8 slot);
 extern void BattlePickSlotFromOperatorWord(u8 **ppCommand, u8 slot);
-extern void func_8007DA1C(u8 **ppCommand, u8 slot);
+extern void BattlePickActorSlotFromOperatorWord(u8 **ppCommand, u8 slot);
 extern void BattlePickPartySlotFromOperatorWordWithFlag(u8 **ppCommand, u8 slot);
 extern void BattlePickSlotFromOperatorWordFlagged(u8 **ppCommand, u8 slot);
-extern void func_8007DE78(u8 **ppCommand, u8 slot);
+extern void BattlePickPartySlotFromOperatorWordTag1(u8 **ppCommand, u8 slot);
 extern void BattlePickPartySlotFromOperatorWordWithFlagTag1(u8 **ppCommand, u8 slot);
 extern void BattleStoreActorSlotFlagMask(u8 **ppCommand, u8 slot);
 extern void BattleStoreCharSlotMatchedTagMask(u8 **ppCommand, u8 slot);
@@ -582,7 +582,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattlePickSlotFromOperatorWord(ppCommand, slot);
         break;
     case 0x5D:
-        func_8007DA1C(ppCommand, slot);
+        BattlePickActorSlotFromOperatorWord(ppCommand, slot);
         break;
     case 0x5E:
         BattlePickPartySlotFromOperatorWordWithFlag(ppCommand, slot);
@@ -591,7 +591,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattlePickSlotFromOperatorWordFlagged(ppCommand, slot);
         break;
     case 0x60:
-        func_8007DE78(ppCommand, slot);
+        BattlePickPartySlotFromOperatorWordTag1(ppCommand, slot);
         break;
     case 0x61:
         BattlePickPartySlotFromOperatorWordWithFlagTag1(ppCommand, slot);

@@ -193,7 +193,7 @@ typedef struct BattleActor {
     // The actor type's sound table, installed by BattleSetActorSoundTable and indexed
     // by sound id (misc17).
     /* 0x1664 */ u8* pSoundTable;
-    // Bumped by func_80075B50 each time it starts a move for the actor; the round
+    // Bumped by BattleCommitActorMoveStep each time it starts a move for the actor; the round
     // reset clears it.
     /* 0x1668 */ s16 moveCount;
 } BattleActor; // Size: 0x166A
