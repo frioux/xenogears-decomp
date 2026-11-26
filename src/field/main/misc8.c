@@ -791,7 +791,6 @@ typedef struct {
 
 extern FieldPlayerActorPartySlotView g_FieldPlayerActorPartySlot;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
 /* R440 redo: 92.75% (768 bytes / 192 insns; retail 776 / 194). Ring layout is
    settled: 32 entries of 0x48 at D_800B14F0, every singleton store is
    D_800B14F0[index].field, the step/normal group wants a u8* to entry 0's
@@ -855,6 +854,23 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
    `int i = 0;` at the top of the function puts the counter in t1 and the pSprite
    copy in a3 (92.45/772), so retail's `move a3,zero` in the bnez delay slot is
    not a top-of-function init. Re-measured baseline is still 92.75/768/192 insns.
+   R499 NEW BEST 92.99% (772 bytes / 193 insns, retail 776 / 194) from two edits:
+   the walkmeshTriIds loop spelled as the typed access
+   `D_800B14F0[pLoopIndex[0]].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];`
+   (which gives retail's `sh a1,0(a0)` store and the hoisted `addiu t2,a1,-10`
+   base instead of the folded `sh a1,-10(a0)`), and `int i = 0;` in the
+   declaration block at the top of the function (the counter then lands in a3
+   and pays retail's `slti v0,a3,4` and both of the loop's walks); the 64 -> 83
+   differing lines are all the index-load spelling below. Also measured this
+   round: a `u_short* pRingTriIds = (u_short*)(pRingStep - 0xA);` local indexed
+   as pRingTriIds[pLoopIndex[0] * 0x24 + i] (88.27 / 768 / 86 lines), and the
+   same typed loop with `i = 0;` as a statement AFTER the two guards instead of
+   in the declaration block (92.19 / 768, 104 lines). Residual is one wall: the
+   eight early groups want retail's bare `lui v1,%hi / lw v1,%lo(v1)` per read
+   (2 insns) where the array extern forces the `lw v1,0(a0)` base form (1), so
+   the remaining +1 instruction and every remaining differing line is that
+   spelling, plus reorg's two unfilled delay slots (retail's frame addiu in the
+   bne slot, `move a3,zero` in the bnez slot).
 */
 /*
 void func_80081C54(int actorIndex) {
@@ -865,7 +881,7 @@ void func_80081C54(int actorIndex) {
     u8* pRingNormal;
     volatile s32* pLoopIndex;
     IVEC3 unused[2];
-    int i;
+    int i = 0;
 
     if (actorIndex != g_PlayerActorIndex) {
         return;
@@ -892,14 +908,13 @@ void func_80081C54(int actorIndex) {
     D_800B14F0[g_FieldSpriteUpdateIndex[0]].flags = pActor->flags;
     pLoopIndex = g_FieldSpriteUpdateIndex;
     for (i = 0; i < 4; i++) {
-        *(u_short*)(pRingStep - 0xA + pLoopIndex[0] * 0x48 + i * 2) = pActor->walkmeshTriIds[i];
+        D_800B14F0[pLoopIndex[0]].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];
     }
     D_800B14F0[g_FieldSpriteUpdateIndex[0]].walkmeshId = pActor->walkmeshId;
     D_800C3910 = 0;
     g_FieldSpriteUpdateIndex[0] = (g_FieldSpriteUpdateIndex[0] - 1) & 0x1F;
-}
-*/
-
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
 
 int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
