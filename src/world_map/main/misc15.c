@@ -289,45 +289,40 @@ void func_80096C0C(s32 mode, u8 *pResult) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
-// Best: 82.56% (336 bytes, 84 insns; retail 344 / 86). Every call, argument, fold
-// and store is decoded and right; two residuals are left.
-// (1) Retail keeps the 0x1F8000A0 address in $s3 for the two "vx = 0" stores of the
-//     2nd and 3rd rotation-vector writes (`ori s3,s3,0xA0` before the first of them,
-//     `sh zero,0(s3)` twice; its %hi is formed in the entry block). This body emits
-//     `lui $at,0x1F80` + `sh zero,0xA0($at)` twice: same instruction count, but retail
-//     also pays the s3 save/restore pair, which is the -2 insns / -8 bytes.
-// (2) Retail's A0/A2/A4 stores keep the `lui $at` + `sh off($at)` macro form, which
-//     means the original object held SYMBOL references for the scratchpad (a
-//     `(mem (symbol_ref))` stays an assembler macro, while a constant address becomes
-//     an explicit high/lo_sum pseudo in a register). Measured this round:
-//     - `extern SVECTOR D_1F8000A0;` + `D_1F8000A0.vx/vy/vz` stores, literal-cast call
-//       arguments, and a dead-parameter carry for the two "vx = 0" stores: 344 bytes /
-//       86 insns (retail's exact size) but objdiff 78.34%, because each reloc'd
-//       `lui $at,%hi(D_*)` scores as `lui at,0x0` -- the linked bytes are identical,
-//       the percentage never can be. Side effect worth knowing: with the symbol
-//       spelling retail's `sh zero,0(s3)` DOES appear (the argument pseudo is cse'd
-//       into a saved register), which is the shape (1) asks for.
-//     - literal casts everywhere: 59.80% (cse hoists 0xA0/0xA2/0xA4 into s3/s4/s5 in
-//       the entry block, frame 0x30, 87 insns); adding the dead-parameter carry on
-//       top of that does not help (59.80%, the carry coalesces onto the constant
-//       pseudo). `cc1_probe.sh` shows the split directly: a literal cast emits
-//       `li $r,0x1f800000 / ori $r,$r,0x0a0` into a register, a symbol store emits a
-//       bare `sh $2,D_1F8000A0` that maspsx expands to `lui $at` + `sh 0xA0($at)`.
-// (3) Also open with the symbol spelling: retail re-forms the RotMatrixYXZ /
-//     ApplyMatrix addresses into $a0/$a1 once PER CALL SITE, while `&D_1F8000A0` is
-//     cse'd into one saved register and passed with `move`. misc5's
-//     WorldMapUpdateGroup5Actor (matched at 100%) shows the register form retail
-//     wants, but only on the store side.
-// try_flags not run: the residual is symbol-vs-literal, not a preset question.
+extern SVECTOR D_1F8000A0;
+extern MATRIX D_1F8000F0;
+
+// Best: 75.90% (344 bytes / 86 insns = retail's EXACT size and count; frame 0x28,
+// s3 present with retail's ori s3,s3,0xa0 folding). NOT shippable: objdiff cannot
+// reach 100 on this function at all, because the retail object stored the scratchpad
+// through SYMBOL references (expected .s has literal 'lui at,0x1f80', a symbol
+// spelling has 'lui at,0x0'+R_MIPS_HI16 on nine stores), so even a perfect stream
+// caps around 85-90%. Proof would have to be check_bin.sh.
+// WHAT MADE IT SIZE-EXACT (variant C, the spelling parked below): the vy/vz stores
+// and the block-1 vx store go through the SYMBOL (D_1F8000A0.vy = ...) while the two
+// 'vx = 0' stores (blocks 2 and 3) are LITERAL casts (*(u16 *)0x1F8000A0 = 0). That
+// mix is what gives retail's single 0x1F8000A0 pseudo in $s3 (cse keeps the
+// const_int and the symbol as DIFFERENT expressions) plus bare symbol stores
+// elsewhere. All-symbol: 340 bytes / 85 insns, s2+s4 hold &D_1F8000A0/&D_1F8000F0
+// (two extra saved regs; retail re-forms them per call site). All-literal: 348 / 87.
+// Symbol stores + literal call args (no s3): 336 bytes / 84 insns, 80.12% - 8 bytes
+// SHORT, cannot link.
+// WHAT IS LEFT (three scheduling spots, no reloc involved): (a) prologue order -
+// retail has 'sw s3,0x1c(sp); lui s3,0x1f80' right after 'addu s1,a0,zero' and
+// 'sw ra' after 'addu s2,a3,zero'; this body saves ra first and forms s3 late;
+// (b) block 2 - retail loads 0x10/0x14, stores pOut->x, then reloads targetY,
+// addu, stores pOut->y, THEN loads 0x18 and stores pOut->z; this body loads 0x18
+// early and stores pOut->z BEFORE pOut->y; (c) block 1 order - retail stores
+// 0xA0,0xA4,0xA2, this body 0xA4,0xA0,0xA2. Written order was vx,vz,vy, so these
+// look like reorg/cse placement, not source order.
 /*
 void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     pOut->targetX = 0;
     pOut->targetY = *(s32 *)(pSrc + 4) >> 12;
     pOut->targetZ = 0;
-    *(u16 *)0x1F8000A0 = *(u16 *)(pAngles + 0);
-    *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
-    *(u16 *)0x1F8000A4 = 0;
+    D_1F8000A0.vx = *(u16 *)(pAngles + 0);
+    D_1F8000A0.vz = 0;
+    D_1F8000A0.vy = *(u16 *)(pAngles + 2);
     RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
     *(s32 *)0x1F800000 = 0;
     *(s32 *)0x1F800004 = 0;
@@ -337,15 +332,16 @@ void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     pOut->y = pOut->targetY + *(s32 *)0x1F800014;
     pOut->z = *(s32 *)0x1F800018;
     *(u16 *)0x1F8000A0 = 0;
-    *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
-    *(u16 *)0x1F8000A4 = *(u16 *)(pAngles + 4);
+    D_1F8000A0.vy = *(u16 *)(pAngles + 2);
+    D_1F8000A0.vz = *(u16 *)(pAngles + 4);
     RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
     *(u16 *)0x1F8000A0 = 0;
-    *(u16 *)0x1F8000A2 = -0x1000;
-    *(u16 *)0x1F8000A4 = 0;
+    D_1F8000A0.vy = -0x1000;
+    D_1F8000A0.vz = 0;
     ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, &pOut->upAxis);
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
+
 
 typedef struct {
     /* 0x0 */ s16 rotX;
@@ -395,6 +391,22 @@ extern s16 D_8009C818;
 // sequence and needs two extra temporaries (t4/t5). Not a type or frame problem:
 // loading all nine words into s32 locals before the first store (round 40) gives
 // the same 83.39%, and gcc-2.7.2-cdk drops it to 39.61%.
+// Best: 83.39% (504 bytes / 126 insns; retail 508 / 127, frame 0x20 = retail's).
+// Re-measured this round from the parked body at this unit's preset: unchanged.
+// -O3 is identical (83.39), cdk 39.61 (already in the note below).
+// THE RESIDUAL IS ONE SCHEDULING DECISION, not a type or a call: cc1 emits the three
+// SVECTOR negates (0x1F800040) BEFORE the nine halfword stores of
+// g_WorldMapViewMatrix, retail emits them AFTER. Consequences, all downstream of that
+// one move: retail's 'lui a1,0x1F800030' lands before the third 'lh' pair (filling the
+// slot, so retail needs a real 'nop' at 0x27890 where this body has the lui), retail
+// reuses a1 for the 0x1F800018 load and only forms a1=0x1F800040 at 0x278B8 after the
+// stores, while this body forms a1=0x1F800040 up front, which blocks a1 and costs the
+// two extra temporaries t4/t5 (the 127-vs-126 instruction gap).
+// TRIED THIS ROUND, all no change: the parked nine-s32-locals shape (83.39), a
+// 'SVECTOR *pVec' local for the negates and the ApplyMatrix argument (83.39).
+// Earlier rounds: -O3, gcc-2.7.2-cdk (39.61). The register/load-order swaps inside the
+// three subtraction pairs also come from that same schedule (retail loads p->x before
+// p->targetX in each pair).
 /*
 void func_80097244(Misc15Frame *p) {
     MATRIX *pMtx;
@@ -441,9 +453,9 @@ void func_80097244(Misc15Frame *p) {
     *(MATRIX *)0x1F800048 = *pMtx;
     ApplyMatrix((MATRIX *)0x1F800048, (SVECTOR *)0x1F800040, (VECTOR *)0x1F800000);
     TransMatrix(pMtx, (VECTOR *)0x1F800000);
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
+
 
 void WorldMapBuildRotationMatrix(Misc15Rot *p) {
     MATRIX *pMtx = (MATRIX *)0x1F8000F0;
