@@ -585,6 +585,19 @@ s32 WorldMapExitMode(void) {
 //    Older measurements, still valid: gcc-2.7.2 93.22 in all eight -O2/-O3 x -G4/-G8 x 3000/r8000
 //    cells, 2.6.0-psx 90.19, 2.7.2-cdk 68.2 at every -O; a permuter run from the 93.22 body found
 //    nothing (no run has been made from the 97.57 body).
+//    Round 509 measured the store ORDER as a fixed law on this body: the three camera-target stores
+//    come out as a right-rotation of their source order, every time - source x,Y,Z -> Z,x,Y (97.57),
+//    source x,Z,Y -> Y,x,Z (97.25, the Y/Z loads swap too, so the loads track source order and the
+//    stores do not), source y,z-local then x,Z,Y -> Y,x,Z (96.82, and the x load is not hoisted so
+//    it lands in the jal delay slot). So retail's x,Z,Y output needs source order Z,Y,x, and that
+//    body (x,y,z into locals first, stores Z,Y,x) puts the x store IN the jal delay slot for 91.66 -
+//    with the x load re-formed after the Z store instead of hoisted. The empty-do-while store
+//    boundary (lever h-an-empty-do-while-pins-a-run-of-stores) does pin the x store FIRST when it
+//    sits between it and the Y/Z stores, but it also stops the Y/Z/height loads hoisting above it:
+//    88.60 alone, and 88.11 with the four values read into locals above the barrier (the barrier
+//    re-ranks the whole head: slots base and the pathFrame la move too). That is the third measured
+//    cost of a barrier here, after the 88.04 of the one between the CameraHeight and ViewRotationZ
+//    stores. Not worth a fourth: the residual stands at one swapped pair, 91/93 insns identical.
 /*
 s32 func_8007756C(s32 arg0) {
     u8 *pSlot = (u8 *)g_WorldMapSlots + (arg0 << 7);
