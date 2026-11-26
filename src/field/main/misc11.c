@@ -494,6 +494,29 @@ void FieldSetGearModelAnimationForActor(int, int, FieldActor*);
 // `g_FieldActors + g_PlayerActorIndex` (byte-identical to `&g_FieldActors[...]` at 92.56).
 // Untouched residual from the old note: `li v0,-1` / `li a0,8` swap places in the prologue
 // and retail's entry loads pSpriteData before the flags word where we sink it after.
+// Round 509 un-parked and re-measured: 96.68% / 912 bytes / 228 insns (retail 908 / 227) - the
+// note above is current, not stale. Two more spellings measured, both BYTE-IDENTICAL to the park
+// (96.68 / 912 / 228), so neither is the knob:
+//   - a source copy for the arrival block (`SpriteData *pAnimSprite;` then `pAnimSprite =
+//     pSpriteData;` before the two stores, with the stores and the FieldSetGearModelAnimationForActor
+//     argument all through pAnimSprite): cc1 coalesces the copy into pSpriteData's register, so the
+//     store cannot be moved onto the call's $a0 this way - levers
+//     e-a-second-copy-between-two-callee-saved-pseudos-cannot-exist is exactly this seam;
+//   - `SpriteData* pSpriteData;` moved to be the LAST local declaration: every register name is
+//     unchanged, so declaration order is not a lever here.
+// The -dl/-dA dump finally names the residual's mechanism (run with the unit's real flags:
+// `tools/gcc-2.7.2-psx/cc1 -O2 -G8 <build.ninja cc_flags> -dA -dl -dg build/src/field/main/misc11.c.i`).
+// The saved-register hand-out is NOT priority-ordered, so n_refs/live_length arithmetic cannot chase
+// the rotation: `;; 11 regs to allocate: 77 84 83 87 74 75 73 72 85 86 81`, i.e. pseudo 87
+// (pSpriteData) is processed FOURTH and takes $s3, while retail's hand-out puts the same pseudo LAST
+// ($s7) with the other five in exactly our relative order (73 = arg1 -> s3, 72 = arg0 -> s4,
+// 85 = curX -> s5, 86 = curZ -> s6). The .lreg sizes prove the order is not priority: 84 is 3 refs
+// over 6 insns and is allocated 2nd, ahead of 87 at 5 refs over 96 insns; the tie set is 72 2/46,
+// 73 4/146, 74 2/24, 75 2/25, 81 2/63, 83 3/16, 84 3/6, 85 2/54, 86 2/55, 87 5/96. And 87
+// conflicts with every other saved qty (`87 conflicts: 72 73 74 75 77 81 83 84 85 86 2 3 4 5 16 17 29`),
+// so it simply takes whatever saved register is still free on its turn: 4th for us ($s3), last for
+// retail ($s7). Both halves of the residual are therefore one fact - where gcc puts pSpriteData in
+// that list - and nothing in the source moves it.
 /*
 s32 func_80092894(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     FieldActor* pFieldActor;
