@@ -624,6 +624,16 @@ void BattleAddPrimAndRenderObject(void) {
 // address biv (87.01 / 360 / 90), so residual (a) and (b) cannot both be honoured, and nothing measured moves the
 // prologue save order (c). The round-470 empty-statement reorg-parity knob (a trailing ';' at the end of either arm)
 // measures byte-identical to this body - 27 lines, 89.74 - so the duplicate is not that parity.
+// Round 510: re-measured 89.74 / 352 / 88 (retail 344 / 87), the same body and number the round-494 note
+// records, so nothing in it went stale. NEW measurement on residual (a): the arm's final 'addu a0,a0,s2' CAN be
+// steered into the j delay slot (87 insns, retail's count and no duplicated mask) by giving the sixth argument its
+// own 'u8 flags' local read after x - but cc1 then hoists both flags loads to the top of the arm (the second one
+// into $t0, the prim index into $v0) and the whole allocation rotates: 74.45 / 348 / 87. So (a) is reachable and
+// costs (b) plus the register plan, i.e. the two are exclusive after all; do not re-spell for (a) alone.
+// Also measured this round: a 'POLY_FT4 *pPrim' local per arm is byte-identical to the inline argument (89.74);
+// the offset-first sum on the AddPrim argument only, keeping the call site as-is, is 87.49 / 352 / 88 (it emits
+// 'addu v1,s0,s2' then 'addu a1,v1,a1', retail has one addu with s0 first) - the biv problem the note records for
+// the call site does not appear, but the operand order does not come out either.
 /*
 void func_8007500C(void) {
     s32 i;
