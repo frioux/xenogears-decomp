@@ -4625,13 +4625,44 @@ u8* SoundScriptSetTriangleEnvelope2(u8* pScript, AudioManager* pAudioManager, Au
 // a separate quotient statement + s16 volume; that trick does not transfer - retail keeps a single
 // pScript[0] load here (`addu a1,s2,a1`), so there is no second load to force.
 // SAME RETAIL BODY: func_8003DD24 is instruction-for-instruction identical apart from envelopes[0]/target 1/mask 0x2, so this body should be ported there (its park is 84.75).
+// Round 497: 92.95% (244 bytes = retail's exact size, 61 insns = retail's, 26 differing
+// lines - the closest body this family has had; the previous best was Round 472's 93.66% at
+// 48 differing lines, which is a WORSE instruction diff, so this body is the one to keep).
+// NEW and the reason to keep it: masking mode IN PLACE (`mode &= 0xF;`, no `index` variable)
+// gives retail's EXACT prologue save order (sw s1,20 / sw ra,36 / sw s3,28 / sw s2,24 /
+// sw s0,16) and puts the element base in $s1, both retail's - the 93.66% body saved s2 before
+// s1 and had element $s2 / volume $s3 / index $s1.
+// Residual, two connected shapes: (1) volume and mode are MIRRORED (this body volume $s3 /
+// mode $s2; retail volume $s2 / mode $s3); (2) retail forms the masked value in the CALL ARG
+// register and copies it to its home ('andi a2,s3,0xf' then 'move s3,a2' before the jal, so the
+// jal slot holds 'sra a1,a1,0x10'), where this body masks in place and copies into a2 in the
+// slot ('andi s2,s2,0xf', 'sra a1,a1,0x10' before the jal, 'move a2,s2' in the slot). Same 61
+// insns / 244 bytes either way, so retail's shape needs the masked value to be a SEPARATE pseudo
+// from mode (mode dying at the mask, the masked value live across the call), which is what the
+// `index = mode & 0xF;` body does - and it collapses back to one register ($s1) instead.
+// -da/-dl/-dg, gcc-2.6.0-psx -O2 -G8: "7 regs to allocate: 82 90 73 75 76 71 74", dispositions
+// 71 in 20 (pScript $s4), 73 in 17 (element $s1), 78 in 16 (rateMask/flags $s0), 75 in 18
+// (mode $s2), 76 in 19 (volume $s3); lreg 73 element 12 refs / 40 insns pointer, 71 pScript
+// 5/42, 75 mode 7/30 "1 bytes", 76 volume 5/26 "2 bytes; dies in 2 places", 78 2/19. Note mode
+// is processed BEFORE volume although volume's quotient (2*5*10000*2/26 = 7692) exceeds mode's
+// (2*7*10000/30 = 4666), so this pair is not the plain descending-quotient order - before calling
+// it closed, find which allocno between them takes the register first.
+// Tried this round, all semantics-preserving, none better: s32 volume (60 insns / 240 bytes /
+// 86.51, loses the 'move' that writes the sum back); declaration order with separate assignments
+// (byte-identical to the initialised form - the pair does not move with declaration order);
+// an empty `do { } while (0);` before the pEnvelope store group (optimised away, byte-identical);
+// the reload store written before rampStep (byte-identical, sched2 restores retail's order);
+// the early-return duplicate-tail form of the two tests (62 insns / 248 bytes / 90.41, gcc did
+// not cross-jump the two 'addiu v0,s4,3' tails).
+// FAMILY: func_8003D9A4 (envelopes[0], mask 0x1, target 0) and func_8003DD24 (envelopes[1], mask
+// 0x2, target 1) are the same retail body; both parks predate this in-place-mask form, so port
+// this one to them first - it is byte-identical in shape apart from the index/target/mask.
 /*
 u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     short volume = pScript[0];
     s32 note = (s8)pScript[1];
     u8 mode = pScript[2];
     AudioEnvelope* pEnvelope;
-    s32 index;
     s32 flags;
     s32 rateMask;
 
@@ -4639,15 +4670,15 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
         if (volume != 0) {
             volume += (volume * volume) / 64;
             rateMask = mode & 0x10;
-            index = mode & 0xF;
+            mode &= 0xF;
             flags = (rateMask == 0) * 2;
             pEnvelope = &pAudioElements->envelopes[2];
-            pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
+            pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, mode);
             pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pEnvelope->reload = volume;
             pEnvelope->delayReload = 0;
-            pEnvelope->pStepHandler = g_SoundEnvelopeStepHandlers[index];
-            pEnvelope->handlerIndex = index;
+            pEnvelope->pStepHandler = g_SoundEnvelopeStepHandlers[mode];
+            pEnvelope->handlerIndex = mode;
             pEnvelope->target = 2;
             pEnvelope->flags = flags + 1;
             pAudioElements->activeEnvelopeMask |= 0x4;
