@@ -60,49 +60,34 @@ typedef struct {
 
 extern FieldUITextureRect D_800ADC44[];
 
-INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
-// 87.32% (432 bytes vs retail's 428; the frame is exact: 0x40 with s0-s5+ra, and the
-// loop prologue's `move s5,zero` / `lui s2,%hi(D_800ADC44)` order matches). The
-// remaining gap is the middle four arguments of FieldLoadTIMWithClut: the original
-// computes `addu $vN,$s2,$s0` FOUR times (destinations v0/v1/a0/t0) and reads
-// `lh 2/4/6/8($vN)`, i.e. it keeps the table base in a register and re-creates the
-// base+offset sum per argument; every C form tried here makes cse merge them into
-// one `addu` (this version: `addu v1,s5,s3` then all four loads off v1), which is
-// 3 insns short and shifts every later offset. Tried: struct array indexed
-// (pTable[i].y, 85.72%, also made the base walk), byte base + s32 offset variable
-// and `*(s16*)(pBase + offset + K)` (this one), `D_800ADC44[i*6+K]` flat s16, and
-// pointer locals for all six. NOTE for the next attempt: D_800ADC44 must be
-// declared once (a struct array; the old `extern s16 D_800ADC44[];` at the top of
-// the file conflicts with it, cc1 exits 33), and the height walker starts at
-// table + 0xA (`(s16*)D_800ADC44 + 5`), not at entry 5.
-// Also still open: the D_800B004C RECT stores - the original writes x through the
-// a0 it reuses for StoreImage and y/w/h through `lui at`, in that order; this body
-// gets the same relocations but emits the x store after w.
-// ROUND 476: re-measured 87.32% / 432 bytes and closed three more spellings of the
-// four-addu residual, all byte-identical to or worse than this body. The four sums
-// are the SAME value, so this is a cse question and cse cannot be broken from these:
-//  - the b-embedded-assignment lever (four separate pointer locals, each
-//    `(pRowY = pBase + offset) + 2` written inline in its own argument): byte-for-byte
-//    the same object as this body - cc1 cse1s the four identical sums anyway.
-//  - four `s16` row locals loaded in four separate statements then passed: 81.97% /
-//    440 bytes (each local costs a `sll`/`sra` pair on the way into the call).
-//  - gcc-2.6.0 (`try_flags.sh --gcc gcc-2.6.0-psx`): 87.32, i.e. identical, so the
-//    missing addu is not a 2.7.2-vs-2.6.0 cse difference either.
-// So retail's four addresses must come from something the C cannot express: the only
-// remaining lever is to make the four sums DIFFERENT values (or reach the row through
-// four different bases), which changes the loads with it.
-// SWEEP AFTER ROUND 476: isolated the loop with tools/scripts/cc1_probe.sh and swept six more
-// spellings of the four middle args. The probe reproduces this body exactly (one
-// `addu $2,$19,$21`), and every other spelling also cse/giv-merges to that same single
-// add: `pB + (off + K)`, `(K + off) + pB`, `off + pB + K`, `&pB[off + K]`, a `Row*`
-// indexed `pRow[i].field`, and a flat `s16*` indexed `pT[i * 6 + K]` (that last one
-// becomes a single walking base with displacements 0..10). So no pointer/offset spelling
-// of ONE value yields retail's four adds; the only spelling that reaches retail's
-// base-first operand order (`addu v0,base,off`, not `addu v0,off,base`) is
-// `off + pB + K`, which is worth using if the four ever do survive. Measured on the
-// unit: the four args through `int` locals 84.14%, natural `D_800ADC44[i].field` 73.11%
-// (each field forms `lui $at,%hi(D_800ADC46)`, i.e. the FIELD's symbol, so the base
-// never gets a register), gcc-2.7.2-cdk 83.06%, gcc-2.6.0 87.32% (same as Default).
+// 88.91% (432 bytes / 108 insns vs retail's 428 / 107). ROUND 508 took it 87.32 -> 88.91 by matching
+// retail's STATEMENT ORDER, which no earlier round had tried: this body assigns i = 0 first, then the
+// table base, then pHeight (base + 5 s16), then pX (base), and only then calls HeapUnpinBlock - retail's
+// `move s5,zero` / `lui+addiu base` / `addiu s4,base,0xA` / [HeapUnpinBlock jal slot] `move pX,base`.
+// The loop walks pEntry with an explicit `pEntry++` statement (retail increments it in the bnez delay
+// slot) and keeps pX/offset/pHeight as three walking values. Two runs measured the same bytes with pX
+// assigned either side of HeapUnpinBlock, so that one line is not load-bearing.
+// RESIDUAL 1 - the 6-way callee-saved ROTATION, and it is closed on the allocator's own arithmetic, so
+// do not spend spellings on it. cc1 -da/-dl/-dg on this body (Default flags): processing order
+// `6 regs to allocate: 75 76 73 74 77 72`, dispositions `75 in 16 (s0) 76 in 17 73 in 18 74 in 19 77
+// in 20 72 in 21` = pEntry, offset, pX, pHeight, i, base in $s0..$s5; retail needs offset, pEntry,
+// base, pX, pHeight, i. lreg: base 5 refs / 76 insns, i 7/40, pHeight 7/37, pX 7/34, offset 7/26,
+// pEntry 7/25. The priority is floor_log2(refs)*refs*size/live, so base must clear pX's quotient, which
+// takes base to 16 references at a 76-insn live range (or a live range under 24 insns): unreachable
+// from any spelling, since retail's own stream pins base's one def and its 4-5 uses. The offset/pEntry
+// pair is 1 insn of live range apart and would be the near-miss half if base could move at all.
+// RESIDUAL 2 - the middle four arguments, unchanged from earlier rounds: retail re-creates
+// base+offset FOUR times (`addu v0,s2,s0` / `addu v1` / `addu a0` / `addu t0`, then lh 2/4/6/8 off
+// each) where every C spelling cse-merges to one `addu` and reads all four off it. Six pointer/offset
+// spellings cleared with cc1_probe in round 476 plus four locals / int locals / struct-array indexing
+// (73-85%) before that; base+offset is ONE value in C, so this is not a spelling question.
+// PRESET: -O1 65.89, -O3 and gcc-2.7.2-cdk -G0 do not compile, gcc-2.6.0 identical to Default,
+// -G0 scores 92.09 BUT its body is 16 bytes SHORTER than retail and still has a single add, so that
+// number is diff-side (the RECT tail's base+disp stores), not progress on residual 2.
+// TAIL: retail stores rect.x through $a0 (the address it reuses for StoreImage) and y/w/h through the
+// FIELD symbols D_800B004E/50/52 - our struct spelling reaches those by folding, and the store order
+// differs only because reorg fills the loop's bnez slot with `li v0,0xFB`. Retail's object also carries
+// a dead `addiu s1,s1,-4` in the StoreImage delay slot that no C emits.
 /*
 void FieldLoadUITextures(void) {
     u8* pBase;
@@ -118,6 +103,10 @@ void FieldLoadUITextures(void) {
         ArchiveReadFileToBuffer(0xA7, g_GameUITextureFileBuffer, 0, 0x80);
         ArchiveCdDataSync(0);
     }
+    i = 0;
+    pBase = (u8*)D_800ADC44;
+    pHeight = (s16*)pBase + 5;
+    pX = (s16*)pBase;
     HeapUnpinBlock(g_GameUITextureFileBuffer);
     g_GameUITextureFileStaged = 0;
     D_800C2692 = 0;
@@ -125,18 +114,16 @@ void FieldLoadUITextures(void) {
     D_800C38FE = 0;
     D_800C38FC = 0;
     ResolveArchiveEntryPointers(g_GameUITextureFileBuffer);
-    pBase = (u8*)D_800ADC44;
-    pX = (s16*)pBase;
-    pHeight = (s16*)pBase + 5;
-    pEntry = (s32*)((u8*)g_GameUITextureFileBuffer + 4);
     offset = 0;
-    for (i = 0; i < 8; i++) {
-        FieldLoadTIMWithClut((u_long*)pEntry[i], *pX, *(s16*)(pBase + offset + 2),
+    pEntry = (s32*)((u8*)g_GameUITextureFileBuffer + 4);
+    for (; i < 8; i++) {
+        FieldLoadTIMWithClut((u_long*)pEntry[0], *pX, *(s16*)(pBase + offset + 2),
             *(s16*)(pBase + offset + 4), *(s16*)(pBase + offset + 6),
             *(s16*)(pBase + offset + 8), *pHeight);
         pX += 6;
         offset += 0xC;
         pHeight += 6;
+        pEntry++;
         DrawSync(0);
     }
     D_800B004C.x = 0;
@@ -146,8 +133,10 @@ void FieldLoadUITextures(void) {
     StoreImage(&D_800B004C, D_800AFC08);
     DrawSync(0);
     HeapFree(g_GameUITextureFileBuffer);
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
+
+
 
 void FieldWaitForSceneMapFileLoad(void) {
     ArchiveCdDataSync(0);
