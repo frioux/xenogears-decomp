@@ -2182,39 +2182,38 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     }
     return 1;
 }
-// best: 87.81%, 996 bytes / 249 insns against retail's 992 / 248 (one instruction long).
-// Round 489 re-measured this body after fixing it: the park as stored did NOT compile
-// ('structure has no member named pCameraPathAngles') because the angle track lives at
-// 0x64, the field the camera modes and WorldMapModeInitSlotPositionAngle store in it -
-// so the two command arms now write 'pPlayer->unk64 = (s32)g_WorldMapCameraPathAngles*'
-// and the pointer read is 'pPath = (s16 *)pPlayer->unk64;' (retail: 'sw v0,0x64(s0)'
-// and 'lw s1,0x64(s0)'). The struct has no pCameraPathAngles member; do not re-add one.
-// The whole state machine, both switches and every relocation are decoded; the 127
-// differing lines are gcc block/delay-slot order and register colours, not structure.
-// Residual, in the order the diff shows them:
-// - command switch tail, cases 9/10: retail's shared tail is [bnez unk50][sw v0,0x68]
-//   [li 1][sw v0,0x50] with 'sh zero,4(s0)' (command = 0) in the 'j' delay slot; this
-//   body puts the pCameraPathHeights store in the j delay and 'sh zero,4' in the bnez
-//   delay instead.
-// - state 0: retail emits [sh v0,0x20][sll a0,2][sh zero,0x22][sw a0,0x50]
-//   [lui/addu/lw g_WorldMapPathPointHeights][lw v0,0x50][nop][sll 1][addu]
-//   [sw v1,0x54][lh][nop][sw v0,0x58]; this body hoists the unk50 store and its reload
-//   above the two 'sh' stores and drops the two load-delay nops.
-// - camera-height ramp: retail keeps unk54 in a1 and g_WorldMapCameraHeight in a0 and
-//   never reloads them; this body reloads both (lw v1,84 / lw v0,g / ... / lw v0,84).
-// - 'nStep = 0x40000 >> 3' folds to 'li v1,0x8000' here, retail has 'lui v1,4' plus
-//   'sra v1,v1,3', i.e. the original shifted a VALUE that happened to be 0x40000, not a
-//   folded constant expression. No source spelling found; 'nDelta = 0x40000; nStep =
-//   nDelta >> 3;' also folds.
-// - the state-1 tail does not keep pRot in a3: retail has 'lh a0,0(a3)' and 'sh v0,0(a3)'
-//   through the address it holds across the compare and the func_80096F18 call, this
-//   body re-forms lui/addiu (or lui/addiu via at) at each site.
-// Listing the cases 14, 17, 9, 10 (not 9, 10, 14, 17) was worth 13 points - block
-// emission order is the lever in this switch, so a permuter run from this body is the
-// next step (skipped this round: the brief forbids one below 99%).
-// Field types this body proved: command/state/stateTimer s16 (lh, slti, sh),
-// unk54/unk60 s32 (blez, sra), pCameraPathHeights s16* and 0x64 s32 (the angle track
-// pointer), both indexed by the path point.
+// best: 91.99%, 988 bytes / 247 insns against retail's 992 / 248 (one instruction
+// SHORT; round 502). Round 489's corrections stand: the angle track lives at 0x64
+// ('pPlayer->unk64 = (s32)g_WorldMapCameraPathAngles*' and 'pPath = (s16 *)pPlayer->unk64'),
+// the struct has no pCameraPathAngles member, and the command-switch arm order
+// 14, 17, 9, 10 is worth 13 points (block emission order is the lever in that switch).
+// ROUND 502 CLOSED THE CAMERA-HEIGHT RAMP (87.81 -> 91.99): name the two loaded values
+// ('nTarget = pPlayer->unk54; nHeight = g_WorldMapCameraHeight;') and spell the step as a
+// CLAMP followed by a shift - 'if (nDelta > 0x40000) nDelta = 0x40000; nStep = nDelta >> 3;'
+// - instead of an if/else on '0x40000 >> 3'. Retail's 'lui v1,0x40000 / sra v1,v1,3' is
+// those two statements (clamp, then shift), NOT a folded constant; with the locals the
+// whole ramp region becomes instruction-identical (both arms, the addu in the beqz delay
+// slot, the shared store) and the two reloads of unk54/g_WorldMapCameraHeight disappear.
+// Measured dead the same round: moving 'pPlayer->command = 0;' above the
+// pCameraPathHeights store in the case 9/10 arms is WORSE (91.73 / 996 / 249) - the two
+// heights stores are cross-jumped into the shared tail exactly as written here.
+// LEFT, in the order the diff shows it:
+// - g_WorldMapCameraRot is read and written through a register in retail at three sites
+//   (state-1 tail 'lh a0,0(a3)' + a3 passed to func_80096F18, case 3 'lh v1,0(a3)' and
+//   'sh v0,0(a3)'), while a 's16 *pRot = &g_WorldMapCameraRot;' local folds to a bare
+//   mem ref and re-forms the address at the call (+3 instructions here). That is lever
+//   'a-pointer-local-to-a-scalar-global-always-folds': the address only survives if the
+//   SYMBOL is declared as a struct field, and g_WorldMapCameraRot lives in a shared
+//   header - an orchestrator decision, not a spelling.
+// - the shared command tail: retail 'li v0,1 / sw v0,80(s0)' where this body reuses the
+//   nRet=1 register ('sw s2,80(s0)'); the store's constant is cse'd with nRet's s2 here
+//   and was not in retail.
+// - state 0 keeps retail's statement order but sched2 hoists the unk50 store above the
+//   two 'sh' stores and reloads it immediately (retail reloads it after the heights load
+//   and indexes pPath with the reloaded value). No source order tried moves it.
+// Field types this body proved: command/state/stateTimer s16 (lh, slti, sh), unk54/unk60
+// s32 (blez, sra), pCameraPathHeights s16* and 0x64 s32 (the angle track pointer), both
+// indexed by the path point.
 /*
 s32 func_80091C18(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -2223,6 +2222,8 @@ s32 func_80091C18(s32 idx) {
     s32 nPoint;
     s32 nDelta;
     s32 nStep;
+    s32 nTarget;
+    s32 nHeight;
     s32 nRet;
 
     pPlayer = g_WorldMapSlots + idx;
@@ -2280,21 +2281,22 @@ s32 func_80091C18(s32 idx) {
             }
             pPlayer->stateTimer = 0;
         }
-        if (pPlayer->unk54 != g_WorldMapCameraHeight) {
-            nDelta = pPlayer->unk54 - g_WorldMapCameraHeight;
+        nTarget = pPlayer->unk54;
+        nHeight = g_WorldMapCameraHeight;
+        if (nTarget != nHeight) {
+            nDelta = nTarget - nHeight;
             if (nDelta > 0) {
                 if (nDelta > 0x40000) {
-                    nStep = 0x40000 >> 3;
-                } else {
-                    nStep = nDelta >> 3;
+                    nDelta = 0x40000;
                 }
+                nStep = nDelta >> 3;
                 if (nStep < 0x40) {
-                    g_WorldMapCameraHeight = pPlayer->unk54;
+                    g_WorldMapCameraHeight = nTarget;
                 } else {
-                    g_WorldMapCameraHeight += nStep;
+                    g_WorldMapCameraHeight = nHeight + nStep;
                 }
             } else {
-                g_WorldMapCameraHeight -= 0x2000;
+                g_WorldMapCameraHeight = nHeight - 0x2000;
             }
         }
         if (pPlayer->unk58 != g_WorldMapCameraRot) {
@@ -2331,6 +2333,7 @@ s32 func_80091C18(s32 idx) {
     return nRet;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
+
 
 
 // best: 92.80%, 576 bytes / 144 insns against retail's 572 / 143 (ONE instruction
@@ -2388,6 +2391,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
 // Also measured this round: the 'nBest = 0;' statement order (before or after the
 // *pIn store) is byte-identical, try_flags cdk 81.45 / -O3 compile-fails / -G0
 // 92.80 on the old body, so the preset is right.
+// Round 502 re-measured this exact body: 94.16%, 572 bytes / 143 insns = retail's size,
+// 63 differing lines and every one is the s3/s4/s5 rotation. Lever lookups ('regalloc
+// callee-saved swapped rotation', 'do-while block barrier') name a three-way rotation
+// quotient-closed: nX would need 8 refs (3 instructions retail does not have) or a
+// 15-insn live range. Re-parked unchanged.
 /*
 s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     s32 *pTrack;
@@ -2450,6 +2458,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     return i;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
+
 
 
 
