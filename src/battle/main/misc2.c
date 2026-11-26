@@ -634,6 +634,27 @@ void BattleAddPrimAndRenderObject(void) {
 // the offset-first sum on the AddPrim argument only, keeping the call site as-is, is 87.49 / 352 / 88 (it emits
 // 'addu v1,s0,s2' then 'addu a1,v1,a1', retail has one addu with s0 first) - the biv problem the note records for
 // the call site does not appear, but the operand order does not come out either.
+
+// Round 523 (redo lane) re-measured: 89.74% / 352 bytes / 88 insns, 27 differing lines - nothing in the round-510 note went stale.
+// The three fresh structures below all attack the one contradiction the old note never named: retail tests
+// 'bnez s1' (= i) at the arm split YET folds the flags index to 0 inside that arm, and only 'off == 0' gives
+// the fold - so retail appears to know 'i == 0' implies 'off == 0', which gcc cannot derive. Every route to
+// that fold while guarding on i was measured this round:
+// (a) drop the off local entirely and write every slot offset 'i * 0x60' (visible, both flags reads, both prim
+//     sums, AddPrim): 74.56% / 364 / 91, 98 lines. loop.c hoists one base pointer PER USE SITE into callee-saved
+//     registers (visible base, two flags bases, a primBuffer copy) plus an 'addiu sN,sN,96' accumulator each -
+//     do not re-try the all-inline form.
+// (b) guard 'if (i == 0)' with only arm A's two flags reads spelled 'g_BattleTextSlotFlags[i * 0x60]',
+//     everything else on off: 85.41% / 364 / 91, 54 lines. The multiply is NOT folded by value-range
+//     propagation; loop.c builds a biv for it (hoisted 'la s3' + 'addiu s3,s3,96' in the latch) and the guard
+//     does come out as retail's 'bnez s1'. So the multiply-inside-the-arm route to the fold is closed.
+// (c) guard 'if (i == 0)' with arm A written as a literal 'g_BattleTextSlotFlags[0]': 85.41% / 364 / 91,
+//     54 lines. gcc 2.6.0 hoists 'la s3,g_BattleTextSlotFlags' into a callee-saved register for a
+//     constant-index read of this volatile extern array instead of the 'lui v0,%hi' + 'lbu v0,%lo(v0)' form
+//     (that form only comes out of a giv whose value range is 0), so the literal costs save+restore+lui+addiu.
+// Untouched this round: the two 'addu s0-first' operand orders and the prologue save order, which the round-510
+// note already measures as inseparable from the duplicate 'andi' residual (74.45 when steered). Not permuted -
+// the redo-lane rule allows a permuter run only at 99% or better.
 /*
 void func_8007500C(void) {
     s32 i;
@@ -665,6 +686,7 @@ void func_8007500C(void) {
     } while (i < 8);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
+
 
 
 
