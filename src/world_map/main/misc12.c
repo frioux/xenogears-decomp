@@ -2636,6 +2636,30 @@ extern DR_TPAGE g_WorldMapFadeTpageArr[] __asm__("g_WorldMapFadeTpage");
 //    colour stores re-reads pPlayer->unk50 through a volatile s32 (a plain read folds to
 //    one load), and the fade-done store g_WorldMapFadeActive = 0 is shared through a goto
 //    (duplicating it in both arms emits it twice).
+// best: 93.72% (objdiff), 1592 bytes / 398 insns against retail 1604 / 401, XenoWorldMap.
+//   ROUND 496 RE-CONFIRMED the note below from a clean unpark: the parked body re-measures
+//   93.72 / 1592 / 398 exactly. The 93.90% the round-474 note warns about is the UB body
+//   (missing pTpage assignment), so 93.72 is the honest number and this is a park, not a
+//   0.1% job.
+//   Sharpened residual (round 496, instruction-diff of both objects): every one of the three
+//   missing instructions is a tired load-delay nop, and all three come from ONE cause - the
+//   addPrim block keeps 8 live values where retail keeps 6. Retail's pair uses only
+//   v0,v1,a0,a1,a2,a3: pCtx in $a1, pPrim in the scratch $v1, the tpage address in $a0
+//   (the very register that holds the loaded pOt), and the masks in $a2/$a3. Ours needs
+//   a3 = pPrim, t0 = tpage address and t1 = pCtx on top of a1/a2 = masks, so
+//   (a) in each arm the 'lui/addiu' of the tpage address fills the load-delay slot after
+//   'lw a0,112(pCtx)' that retail must leave as a nop (retail's address register IS the
+//   loaded one, so filling it would clobber the load), and
+//   (b) in the tail the stateTimer temp lands in $v1, which frees $v0 for the 'move v0,s1'
+//   return copy to take the 'lhu' delay slot where retail leaves its third nop.
+//   So the size is a consequence of the register hand-out and cannot be added back by a
+//   statement: any body that emits these 398 instructions ranks the two mask constants above
+//   pCtx on refs x live_length (the masks span the 12 colour stores, pCtx spans only the two
+//   addPrim pairs) and any body that ranks them the other way emits different instructions.
+//   ROUND 496 permuter run (4 min, 1663 iterations): PERMUTER_BETTER base=4568 best=3093, and
+//   its single edit - an empty 'do { } while (0);' before the state switch - compiles
+//   BYTE-IDENTICALLY to this body in the real build (gcc deletes the label), so the
+//   improvement is an artefact of its own text metric; nothing to port. Do not re-run it.
 /*
 s32 func_800925A0(s32 idx) {
     // retail's frame is 0xE0 with only ra/s0/s1 saved: it reserves 0xC0 of stack that no
@@ -2731,5 +2755,6 @@ updateTimer:
     return nRet;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800925A0);
+
 
 
