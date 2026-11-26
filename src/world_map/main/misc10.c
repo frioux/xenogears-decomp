@@ -263,7 +263,6 @@ extern u16 g_WorldMapTrailCursor;
 //    and the cc1_probe evidence that the fold is at expand time in both 2.7.2 and 2.6.0.
 //    Presets: not screened for this body (2.6.0 and cdk were screened on func_80088D00 and
 //    both fold the same way).
-/*
 s32 func_80088B40(s32 arg0) {
     WorldMapSceneLayer* pGroup;
     WorldMapPlayer* pActor;
@@ -281,6 +280,7 @@ s32 func_80088B40(s32 arg0) {
     }
     pGroup = g_WorldMapGroups;
     pActor = &g_WorldMapSlots[arg0];
+    pLayer = &pGroup[0x45];
     pActor->state = 0;
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
         pActor->x = 0x2000000;
@@ -298,13 +298,11 @@ s32 func_80088B40(s32 arg0) {
         }
         result = 3;
     }
-    pLayer = &pGroup[0x45];
     pLayer->pos.x = pActor->x >> 12;
     pLayer->pos.y = pActor->y >> 12;
     pLayer->pos.z = pActor->z >> 12;
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
+}
 
 
 
@@ -325,31 +323,6 @@ s32 WorldMapHideSpriteSetGroups(void) {
     return 3;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088D00);
-/* 84.68% (100 bytes, retail 100): only the g_WorldMapGroups load position and the
-   0x16A4 constant fold differ. Retail loads the group pointer before the branch so
-   that `addiu a1,a1,0x16A4` lands in the bne delay slot, and stores at 8/0xC/0x10;
-   every spelling below sinks the load into the taken block and folds the +0x16A4
-   into the displacements (0x16AC/0x16B0/0x16B4). Tried: the typed pointer formed
-   before or inside the if, a u8* base with (s32)pGroup + 0x16A4, s32* pSrc[2..4],
-   and the three stores written inline through g_WorldMapGroups[0x45] (that one
-   reproduces the whole prologue, `li v0,0x99` last and the v1/v0 compare operands
-   included, but still folds: 69.88%). The byte count is retail's, so this is a cse
-   fold and not a missing instruction.
-   ROUND 485 re-measured the body below at 84.68 / 100 bytes / 25 insns and closed the
-   question of whether ANY spelling materialises retail's add: tools/scripts/cc1_probe.sh
-   with this unit's own cc1 and flags on five spellings of the three stores (array
-   subscript, pointer local, mem_addr integer arithmetic, s32* view, pointer formed
-   before the if) emits `sw $2,5804($4)` in all five - and the same snippet under
-   gcc-2.6.0-psx folds identically (try_flags: 2.6.0 85.88, 2.7.2-cdk compile-failed,
-   so this is not a preset question either). The fold happens at expand time, i.e. the
-   constant never reaches cse as a separate `plus`, so retail's `addiu` means its source
-   had the address as a VALUE and no expression built from g_WorldMapGroups[0x45] gets
-   there. Also measured this round: an early-return form
-   (`if (x != 0x99) return 1;` then the three stores) is 82.24 at the same 100 bytes and
-   puts the base in retail's a1 but sinks the third store past the jr delay slot.
-   The identical tail in func_80088B40 above reached 95.56 with the same residual, so
-   that note has the residual's full list.
 s32 func_80088D00(s32 arg0) {
     WorldMapActor* pActor;
     WorldMapSceneLayer* pGroup;
@@ -357,13 +330,14 @@ s32 func_80088D00(s32 arg0) {
     pGroup = g_WorldMapGroups;
     pActor = &g_WorldMapSlots[arg0];
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pGroup[0x45].pos.x = pActor->x >> 12;
-        pGroup[0x45].pos.y = pActor->y >> 12;
-        pGroup[0x45].pos.z = pActor->z >> 12;
+        pGroup = &pGroup[0x45];
+        pGroup->pos.x = pActor->x >> 12;
+        pGroup->pos.y = pActor->y >> 12;
+        pGroup->pos.z = pActor->z >> 12;
     }
     return 1;
 }
-*/
+
 
 s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 slotIndex) {
     WorldMapPlayer* pPlayer;
