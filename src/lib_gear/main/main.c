@@ -1226,7 +1226,6 @@ typedef struct {
 
 
 // best 82.84%/5092 vs 4888; see note above the body
-/*
 s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale) {
     s32 result;
     JointObject* pObject;
@@ -1237,11 +1236,15 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
     u8* pCursor;
     u8 opcode;
     s8 delta;
+    u8 low;
     SVECTOR vec;
     VECTOR out;
     s16 dx;
     s16 dy;
     s16 dz;
+    s32 moveX;
+    s32 moveY;
+    s32 moveZ;
     s32 dist;
     s16 angle;
     s16 maxStep;
@@ -1259,16 +1262,20 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
 
             switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
             case LIBGEAR_JOINT_OBJECT_SET:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->rotation.vx = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vx = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->rotation.vy = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vy = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->rotation.vz = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vz = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1281,8 +1288,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vx = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vx = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
@@ -1292,8 +1301,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vy = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vy = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
@@ -1303,23 +1314,29 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vz = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vz = low | (delta << 8);
                     }
                 }
                 break;
 
             case LIBGEAR_JOINT_OBJECT_ADD:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->rotation.vx += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vx += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->rotation.vy += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vy += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->rotation.vz += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vz += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1362,23 +1379,23 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
 
             case LIBGEAR_JOINT_OPCODE_MOVE_BASE:
             case LIBGEAR_JOINT_OPCODE_MOVE_BASE + 1:
-                dx = pObject->value.lerp.targetX - pJoint->translation.x;
-                dy = pObject->value.lerp.targetY - pJoint->translation.y;
-                dz = pObject->value.lerp.targetZ - pJoint->translation.z;
-                dist = SquareRoot0((dx * dx) + (dy * dy) + (dz * dz)) + 1;
-                maxStep = pObject->value.lerp.startY +
-                    ((dist + pObject->curFrame) * pObject->value.lerp.startZ) /
-                        pObject->value.lerp.startX;
-                angle = (ratan2(-dx, -dz) - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
+                moveX = pObject->value.lerp.targetX - pJoint->translation.x;
+                moveY = pObject->value.lerp.targetY - pJoint->translation.y;
+                moveZ = pObject->value.lerp.targetZ - pJoint->translation.z;
+                dist = SquareRoot0((moveX * moveX) + (moveY * moveY) + (moveZ * moveZ)) + 1;
+                angle = (ratan2(-moveX, -moveZ) - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
                 if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
                     angle -= LIBGEAR_ANGLE_FULL_TURN;
                 }
+                maxStep = pObject->value.lerp.startY +
+                    ((dist + pObject->curFrame) * pObject->value.lerp.startZ) /
+                        pObject->value.lerp.startX;
                 if ((angle < 0 ? -angle : angle) >= maxStep) {
                     angle = (angle < 0) ? -maxStep : maxStep;
                 }
                 pJoint->rotation.vy += angle;
                 if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) == LIBGEAR_JOINT_OPCODE_MOVE_BASE) {
-                    angle = (ratan2(dy, SquareRoot0((dx * dx) + (dz * dz))) -
+                    angle = (ratan2(moveY, SquareRoot0((moveX * moveX) + (moveZ * moveZ))) -
                                 pJoint->rotation.vx) &
                         LIBGEAR_ANGLE_MASK;
                     if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
@@ -1439,16 +1456,20 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
 
             switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
             case LIBGEAR_JOINT_OBJECT_SET:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->translation.x = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.x = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->translation.y = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.y = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->translation.z = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.z = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1461,8 +1482,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.x = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.x = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
@@ -1472,8 +1495,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.y = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.y = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
@@ -1483,27 +1508,33 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.z = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.z = low | (delta << 8);
                     }
                 }
                 break;
 
             case LIBGEAR_JOINT_OBJECT_ADD:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    vec.vx = *(u16*)pObject->value.step.pCursor;
+                    vec.vx = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vx = 0;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    vec.vy = *(u16*)pObject->value.step.pCursor;
+                    vec.vy = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vy = 0;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    vec.vz = *(u16*)pObject->value.step.pCursor;
+                    vec.vz = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vz = 0;
@@ -1673,8 +1704,7 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
     }
 
     return result;
-}*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
+}
 
 
 
