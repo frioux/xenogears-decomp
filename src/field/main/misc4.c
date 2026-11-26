@@ -106,7 +106,16 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
    because it is live across the call), and a 4-minute permuter run (84.49).
    Presets ruled out: 2.6.0 90.68, 2.7.2-cdk 80.81, -G0 90.68.
    The 90.68 body below is the if/else-if chain (cc1 CSEs the -1 through the
-   merged arms); it is the only shape that keeps all four guard slots' polarity. */
+   merged arms); it is the only shape that keeps all four guard slots' polarity.
+   Round 500 re-measured three more: one `nResult = -1` after the call followed by
+   a single `&&` chain of the four guards and `nResult = -(last)` in the else
+   measures 87.57% / 148 bytes / 37 insns - retail's EXACT size, and the only
+   residual is that the allocator gives `nResult` $v1 and `nSyncStatus` $v0, so
+   ours tests the call result in place (no `addu v1,v0,zero`) and negates into
+   $v1 then copies; retail has the pair the other way round ($v0 = nResult, hence
+   the copy of the call result to $v1). Swapping the two locals' declaration order
+   changes nothing, and letting the success path `return -(last)` directly drops
+   back to 79.73% / 144 bytes with the first guard's -1 no longer inlined. */
 /* Best attempt:
 int func_80078BC8(void) {
     int nSyncStatus;
@@ -2281,7 +2290,19 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
    computes nPos's two halves right after nRef but stores it after out.vy) is
    86.59%, and it does not restore retail's full-word `sra 16 / sll 16` for the x
    half - our compile still reloads it narrow as `lh 0x22(fp)`, because the store
-   to out.vx has already killed the loaded word. */
+   to out.vx has already killed the loaded word.
+   Round 500: the body had been parked WITHOUT its 's32 nSavedTri;' line, so it
+   could not compile and the 86.66% above came from a stale object. Re-measured
+   with the declaration: 86.66% / 1092 bytes / 273 insns (retail 273 insns /
+   1092 bytes - the byte count IS retail's), 178 differing lines. The dead
+   `u_long unusedFrame[2]` was also tried as the FIRST declaration, not only as a
+   mid-list one: it lands at 0x20 in either position (an expand-time object takes
+   the lowest slot regardless of declaration order), which does close the frame to
+   retail's 0x80 but pushes a1/a2/a3 from 0x20/0x28/0x30 to 0x28/0x30/0x38;
+   differing lines 178 -> 160, score still 86.66%. So the phantom slot at 0x50 is
+   a reload-era slot above the six spills on both positions, as the two levers
+   above say. Not re-run: the still-undiagnosed bulk of the 160 lines (items 2 and
+   3: the narrow `lh 0x22(fp)` x half and the prologue load/store interleave). */
 /*
 // Height of the walkmesh set nSetIndex under the point the actor's next step
 // reaches: walks the triangle graph from the actor's current triangle until the
@@ -2299,6 +2320,7 @@ s32 func_8007D3D4(ActorData* pActor, s32 nSetIndex, s32* pY, VECTOR* pNormal, s1
     s32 vA;
     s32 vB;
     s32 vC;
+    s32 nSavedTri;
     s32 nStep;
     s32 nY;
     s32 i;
