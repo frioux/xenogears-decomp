@@ -2388,6 +2388,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
 // Also measured this round: the 'nBest = 0;' statement order (before or after the
 // *pIn store) is byte-identical, try_flags cdk 81.45 / -O3 compile-fails / -G0
 // 92.80 on the old body, so the preset is right.
+// Round 502 re-measured this exact body: 94.16%, 572 bytes / 143 insns = retail's size,
+// 63 differing lines and every one is the s3/s4/s5 rotation. Lever lookups ('regalloc
+// callee-saved swapped rotation', 'do-while block barrier') name a three-way rotation
+// quotient-closed: nX would need 8 refs (3 instructions retail does not have) or a
+// 15-insn live range. Re-parked unchanged.
 /*
 s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     s32 *pTrack;
@@ -2450,6 +2455,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     return i;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091FF8);
+
 
 
 
