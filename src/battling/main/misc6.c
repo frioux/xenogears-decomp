@@ -672,7 +672,7 @@ void BattleSetTextColor(s32 arg) {
     } else {
         g_BattleTextRed = white;
         g_BattleTextGreen = white;
-        g_BattleTextBlue = 0xFF;
+        g_BattleTextBlue = white;
     }
 }
 
