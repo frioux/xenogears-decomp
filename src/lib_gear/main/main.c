@@ -1252,6 +1252,23 @@ typedef struct {
 //    what lets gcc drop the sign-extending load.
 // 3) two extra `nop` + `negu` pairs at the `(angle < 0 ? -angle : angle) >=
 //    maxStep` clamp.
+// R521 re-measured at 95.66% / 4876 bytes / 1218 insns against retail's 4888 /
+// 1222; the R500 number is still honest. One finding, and it merges residual 1
+// with retail's `s6` copies into a single cause: retail's nine
+// `lw t3/t4,0x38(sp)` objectType reloads and its ten `addu s6,s0` copies are the
+// same allocation, not two. Two
+// callee-saved registers hold pObject at once in retail (`s0` the channel's
+// pointer, `s6` a fresh copy made at ten block entries inside the arms), which
+// is what leaves objectType without a register; our body has `$s8` free for it
+// and pays no reload. Ten copies at ten entries is the signature of a
+// cross-jump-merged block wanting its input in a fixed register, so the surplus
+// is not a source pseudo and the four short instructions cannot be bought by
+// adding one.
+// Measured dead in R521 (4876 bytes unless noted): three separate per-channel
+// pointer locals (`pRotObject` / `pTransObject` / `pScaleObject` instead of one
+// `pObject` reused by all three) = 95.46%, 806 differing lines - supplying
+// distinct pseudos makes the merge worse, so the shared `pObject` is the right
+// spelling and the `s6` copy is gcc's own.
 /*
 s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale) {
     s32 result;
