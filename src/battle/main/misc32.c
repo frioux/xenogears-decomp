@@ -866,6 +866,14 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // block, and the flags store cannot escape $a0 while it shares the jal's block, which
 // the jal delay slot requires it to. Opt screening: -O3 91.6, -O1 66.52, so this is not
 // an opt-level or preset question either (2.6.0 was already 76.76).
+// ROUND 516 re-measured 91.60% (100 bytes = retail's) and ran the permuter:
+// 2830 iterations, base=70 best=70 PERMUTER_NONE, so no spelling in this body's
+// neighbourhood closes it. Also measured byte-identical to the parked body: a
+// 'u8 *pArg = (u8 *)pTask;' local passed as the call's first argument (the cast
+// coalesces, so it is free and changes nothing). Residual unchanged from round 504:
+// both arm store addresses fold onto $a0 (reload reuses the value the argument copy
+// left there) where retail bases them on $s0, and the copy sits 1st in the arm
+// instead of 3rd.
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
@@ -879,6 +887,7 @@ void func_800BDC14(Misc32Task *pTask) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
+
 
 
 
