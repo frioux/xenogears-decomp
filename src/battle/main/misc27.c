@@ -875,7 +875,8 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     POLY_FT4* pQuad;
     SVECTOR from;
     SVECTOR to;
-    long scratch[2]; // RotTransPers3's third screen pair, its depth and its flags
+    long sxy2;  // RotTransPers3's third screen pair, which this quad does not use;
+    long flags; // it is also the depth output, so the same slot is passed twice
     s32 abr;
     s32 depth;
     s32 angle;
@@ -899,11 +900,11 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     to.vy = (u16)pTo->vy;
     to.vz = (u16)pTo->vz;
     pLineBuf = g_GfxCurWorkBuffer;
-    if (pLineBuf + 0x10 >= g_GfxCurWorkBufferEnd) {
+    if (pLineBuf + sizeof(LINE_F2) >= g_GfxCurWorkBufferEnd) {
         return;
     }
     pLine = (LINE_F2*)pLineBuf;
-    g_GfxCurWorkBuffer = pLineBuf + 0x10;
+    g_GfxCurWorkBuffer = pLineBuf + sizeof(LINE_F2);
     SetLineF2(pLine);
     abr = D_800C3D4C[0];
     if (abr != 0) {
@@ -921,8 +922,7 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
         depth = -2;
     }
     depth += D_800D3334[0];
-    RotTransPers3(&from, &to, &from, (long*)&pLine->x0, (long*)&pLine->x1, scratch, scratch,
-                  scratch + 1);
+    RotTransPers3(&from, &to, &from, (long*)&pLine->x0, (long*)&pLine->x1, &sxy2, &sxy2, &flags);
     if ((u32)(depth - 1) >= 0xFFF) {
         return;
     }
@@ -935,11 +935,11 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     yEdge = rcos(angle);
     yEdge = (yEdge * radius) / 0x2000;
     pQuadBuf = g_GfxCurWorkBuffer;
-    if (pQuadBuf + 0x28 >= g_GfxCurWorkBufferEnd) {
+    if (pQuadBuf + sizeof(POLY_FT4) >= g_GfxCurWorkBufferEnd) {
         return;
     }
     pQuad = (POLY_FT4*)pQuadBuf;
-    g_GfxCurWorkBuffer = pQuadBuf + 0x28;
+    g_GfxCurWorkBuffer = pQuadBuf + sizeof(POLY_FT4);
     SetPolyFT4(pQuad);
     SetShadeTex(pQuad, 1);
     pQuad->u0 = (D_800D2FCC.bytes[0] & 7) - 0x40;
