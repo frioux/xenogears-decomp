@@ -229,8 +229,9 @@ typedef struct BattleActor {
     /* 0x08F4 */ u32 nearestEffectDistance;
     /* 0x08F8 */ BattleEffectSlot* pNearestEffect;
     // The model script block func_80084C88 stores the resource record's +0x10 here:
-    // its scale word (+0xC), step scale byte (+0xF) and a word at +0x20 are read.
-    /* 0x08FC */ void* pScript;
+    // its scale word (+0xC), step scale byte (+0xF) and a word at +0x20 are read, and
+    // the byte at +0x13 is the radius the slot hit tests below take.
+    /* 0x08FC */ u8* pScript;
     // One script offset per model index, the table right after the header: the part
     // animation func_80074678 indexes it with modelIndex to find the model's entry
     // list in pScript.
@@ -487,109 +488,6 @@ extern void BattleCommitSlotStates(BattleActor* p);
 extern s32 g_BattleEffectEntryCount;
 extern Vec4 g_BattleEffectPosX;
 
-// 96.42% (2124 bytes = retail's exact size, 528 vs 528 instructions, 164 differing
-// lines). Everything but the callee-saved hand-out is retail's: both loops (8
-// effect slots, then 16 slot records), the calls, both interpolation divides, the
-// ratan2 behind/facing test, the sound pairs, the four-word position copies and the
-// tail. Retail holds the effect-slot pointer in $s2, the slot byte-offset giv in
-// $s4 and the percent/amount family in $s0; this body has pointer $s0, offset $s2,
-// amount $s4. p $s1, i $s3, bestAmount $s5, hitCount $s6, magic $s7, actionId $fp
-// and the 0x88 frame all match retail.
-// PROVEN a pinned hand-out rather than a missing spelling (round 447): cc1 -da/-dl
-// on build/src/battling/main/misc3.c.i gives 42 allocnos, processing order
-// 278 85 231 81 88 103 193 352 84 226 83 72 106 234 281 82 207 230 279 76 120 248
-// 102 74 134 262 294 127 255 308 301 73 86 168 77 75 379 376 80 79 194 78, and
-// dispositions 72 in s1, 74 in s2, 73 in s0, 86 in s2, 77 in s4. The offset (74, 36
-// refs / 170 insns) is processed before the pointer (73, 28 / 141) yet cannot take
-// $s0 - it lists 16, the register 73 ends up in, in its conflict set - so the
-// pointer falls into the lower-numbered $s0 and amount (77, 26 / 165 = 1575) is
-// pushed to $s4 under both (1985 and 2647). All three terms are pinned by retail's
-// own instruction stream: the ref counts are its instructions, the live range is the
-// loop in both bodies, and the mode is SI.
-// Screened this round: gcc-2.6.0 95.19, 2.7.2-cdk 94.09, -O3 83.99, -G0 96.42 - the
-// Default preset is right and no preset moves it. Also measured this round: amount
-// and angle as ONE variable with in-place amount /= 2 and amount *= 2 (the shape
-// retail's in-place sra/sll suggested) = 95.41 / 2112 bytes / 525 insns, so retail's
-// two are separate pseudos that share $s0; loop 2's amount split into its own
-// slotAmount = byte-identical at 96.42, so a per-loop split is not a handle here.
-// Rides along regardless: hit is $t0 in retail and $a3 here, retail keeps a li 1 in
-// EACH of the two point-selection arms where this body sinks one to the join, and
-// three lhu/store order pairs differ.
-// Earlier attempts: the arms as if/else-if rather than the current if (!inRange)
-// nest; hitCount/center/base copied before bestAmount/actionId; step folded back
-// into two amount * 2 / 3; velocity.vz for the second ratan2 argument; the
-// stateTimer/moveReentryTimer swap kept in loop 1; and a 4-minute permuter run
-// (base 1890, best 1690) whose candidate deleted bestAmount = amount - wrong code.
-// 98.38% (2124 bytes = retail's EXACT size, 528 vs 528 instructions, 20 differing
-// lines, all of them the two "step added to two globals" sites).
-// THE HANDLE THAT BROKE THE PARK WIDE OPEN (round 460): share ONE scratch variable
-// for every value that flows into the effect slots' vertical logic - the loop-1
-// interpolation `t`, the abs'd dBase, the percent/angle and its in-place halving and
-// doubling, the loop-2 interpolation `t`, the loop-2 average `y` - instead of giving
-// each a local. That single change moved the callee-saved hand-out from the slot
-// POINTER to the amount family ($s0 in retail), and with it 144 of the 164 differing
-// lines: 96.42 -> 96.95 at once, then 97.50 / 97.56 / 97.61 from the spelling fixes
-// below, then 98.37 and 98.38 from two statement orders. Retail's s0 really does hold
-// six different values in disjoint ranges (mflo s0 at the loop-1 divide, move s0,v0 /
-// negu s0,s0 for the abs, the in-place sra/sll of the amount, the loop-2 divides, and
-// addiu s0,sp,64 for &point later on), which is what a shared variable looks like and
-// what the old "pinned allocno" note misread as an unreachable rotation.
-// Spelling fixes measured on the way, all byte-neutral except the score:
-//  - the three point interpolations are `amount * (base.X - center.X)`, not the other
-//    way round: retail's `mult s0,v0` takes the amount first (9 lines);
-//  - `hit = 1;` comes BEFORE `point = base;` / `point = center;` (retail's `li t0,0x1`
-//    fills the delay slot of the two point-selection arms, 2 lines);
-//  - `bestAmount = amount;` comes AFTER `p->moveEndTimer = amount / 3 + 12;`, which is
-//    what keeps the `/3` multiply on $s0 in the `beqz amount` delay slot (24 -> 20);
-//  - loop 2 updates stateTimer BEFORE moveReentryTimer while loop 1 does the reverse
-//    (retail is genuinely inconsistent between the two, 2 differing lines).
-// WHAT IS LEFT, and it is scheduling only: retail groups BOTH loads and then BOTH
-// stores at each site (`lw v1,232(s1) / lhu a0,2326(s1) / mfhi / subu / addu / addu /
-// sw / sh`) while this body lets the second load slide past the mfhi+subu and stores
-// in between (`lw / mfhi / subu / lhu / addu / sw / addu / sh`); in loop 2 retail also
-// hoists `lhu v1,2326(s1)` six instructions above the moveEndTimer store. Both sites
-// are the same construct, both bodies are retail's exact size, and swapping the two
-// statements, splitting step per loop, and a 4-minute permuter run (base 865 best 692)
-// do not move it - the permuter's winner overwrote stateTimer instead of adding to it,
-// i.e. wrong code. Next lever: an explicit local for the two loads, or the permuter.
-// Screened before the shared-variable find (so re-screen if it stalls): 2.6.0 95.19,
-// 2.7.2-cdk 94.09, -O3 83.99, -G0 96.42 at the old body; Default is right.
-// 99.92% (2124 bytes = retail EXACT size, 528 vs 528 insns, 12 differing lines, ALL of them
-// in loop 2): loop 1 is now byte-identical where the park below sat at 98.38 with 20 differing lines.
-// WHAT CLOSED LOOP 1 (round 473): the two timer updates are NOT `+=` statements at all. Read each
-// timer into its own local first (u16 for moveReentryTimer - an s32 destination makes gcc emit lh
-// where retail has lhu at both sites - s32 for stateTimer), then store the CSE of a single inline
-// division through an IN-PLACE add, i.e. `p->stateTimer = (timer += amount * 2 / 3);`. Three
-// measured facts came out of that: the explicit reads give retail`s grouped `lw / lhu` ahead of the
-// mfhi (a bare `+=` lets sched2 sink the lhu past the subu), the embedded assignment keeps the
-// add in place on the loaded register (`addu v1,v1,v0`, not `addu v0,a1,v1`), and inlining the
-// division twice (instead of a `step` local) is what moves the quotient out of a0 into retail`s
-// v0 - deleting the `step` local alone took 99.88 -> 99.92 and made loop 1 exact.
-// THE TWO LOOPS ARE GENUINELY INCONSISTENT IN RETAIL, and the park body mirrors it: loop 1 emits
-// stateTimer BEFORE moveReentryTimer (source: state first, both through locals), loop 2 emits
-// moveReentryTimer first with its load hoisted above the moveEndTimer store AND before stateTimer`s
-// lw, which only comes out when loop 2`s state update is a plain `p->stateTimer += amount * 6 / 5;`
-// with no timer local (with the local both loads hoist to the block head, 99.12 / 22 lines).
-// WHAT IS LEFT - one register pair, loop 2 only: retail has reentry in v1 and the quotient in a0
-// (`lhu v1,2326` ... `sra a0,t2,1 / subu a0,a0,v0`), this body has reentry a0 and the quotient v1
-// (`lhu a0,2326` ... `sra v1,t2,1 / subu v1,v1,v0`); stateTimer is v0 in both and every address,
-// load and store is retail`s. So it is a local-alloc hand-out between two caller-saved temps, with
-// the instruction multiset, the block layout and the byte count already exact.
-// Measured dead on this body: a second `u16 reentry2` for loop 2 (BYTE-IDENTICAL - copy
-// propagation folds it, the same trap a-second-pointer-alias-carries-the-reads-retail-names
-// warns about), a timer local at loop 2 (99.12), plain `+=` at both loops (99.13), a `step` local
-// used by both loops (99.88), swapping loop 1 to state-then-reentry inside the `+=` form (98.37)
-// and loop 2 to reentry-then-state (98.37), and the pre-find bodies. Preset screen on this body:
-// 2.6.0 96.71, 2.7.2-cdk compile-failed; Default is right. Permuter 3 min -j 2: base=65 best=65,
-// 763 iterations, PERMUTER_NONE. Next lever: a spelling that changes the refs/live quotient of
-// the loop-2 reentry pseudo (it has 2 refs to the quotient`s 3 yet is allocated first), or `-dl`
-// on the two allocnos; do not spend another permuter run.
-// Earlier rounds (kept for the levers already burnt): the shared-scratch-variable find that took
-// this from 96.42 to 98.38 (one scratch for the loop-1 interpolation, the abs`d dBase and the
-// percent halving/doubling), the three point interpolations being `amount * (base.X - center.X)`,
-// `hit = 1;` before `point = base;`, `bestAmount = amount;` after the moveEndTimer store, and a
-// 4-minute permuter run (base 1890 best 1690) whose candidate deleted bestAmount - wrong code.
-/*
 s32 func_80075B50(BattleActor* p) {
     BattleEffectSlot* pSlot;
     BattleActorSlot* pRecord;
@@ -625,8 +523,8 @@ s32 func_80075B50(BattleActor* p) {
             point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
             point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
             point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
-            hit = BattleSegmentHitTestCircle(pSlot->prevPos.vx, pSlot->prevPos.vz, pSlot->pos.vx, pSlot->pos.vz, point.x, point.z, ((u8*)p->pScript)[0x13]);
-        } else if (pSlot->unk34 < ((u8*)p->pScript)[0x13]) {
+            hit = BattleSegmentHitTestCircle(pSlot->prevPos.vx, pSlot->prevPos.vz, pSlot->pos.vx, pSlot->pos.vz, point.x, point.z, p->pScript[0x13]);
+        } else if (pSlot->unk34 < p->pScript[0x13]) {
             amount = __builtin_abs(base.y - pSlot->prevPos.vy);
             dCenter = __builtin_abs(center.y - pSlot->prevPos.vy);
             dPos = __builtin_abs(pSlot->pos.vy - pSlot->prevPos.vy);
@@ -691,7 +589,7 @@ s32 func_80075B50(BattleActor* p) {
                 point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
                 point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
                 point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
-                hit = BattleSegmentHitTestCircle(pRecord->prevPos.x, pRecord->prevPos.z, pRecord->pos.x, pRecord->pos.z, point.x, point.z, ((u8*)p->pScript)[0x13]);
+                hit = BattleSegmentHitTestCircle(pRecord->prevPos.x, pRecord->prevPos.z, pRecord->pos.x, pRecord->pos.z, point.x, point.z, p->pScript[0x13]);
             }
         } else {
             amount = (pRecord->pos.y + pRecord->prevPos.y + pRecord->endPos.y + pRecord->prevEndPos.y) / 4;
@@ -700,7 +598,7 @@ s32 func_80075B50(BattleActor* p) {
                 point.x = (((amount * (base.x - center.x))) >> 12) + center.x;
                 point.y = (((amount * (base.y - center.y))) >> 12) + center.y;
                 point.z = (((amount * (base.z - center.z))) >> 12) + center.z;
-                hit = BattleActorHitTestCircle((BattleActor*)pRecord, point.x, point.z, ((u8*)p->pScript)[0x13]);
+                hit = BattleActorHitTestCircle((BattleActor*)pRecord, point.x, point.z, p->pScript[0x13]);
             }
         }
         if (!hit) {
@@ -726,9 +624,8 @@ s32 func_80075B50(BattleActor* p) {
             amount = pRecord->slotFlags.byte.gaugePercent;
         }
         p->moveEndTimer = amount;
-        reentry = p->moveReentryTimer;
-        p->moveReentryTimer = (reentry += amount * 6 / 5);
         p->stateTimer += amount * 6 / 5;
+        p->moveReentryTimer += amount * 6 / 5;
         p->effectPosition = point;
         if (amount) {
             hitCount++;
@@ -750,8 +647,7 @@ s32 func_80075B50(BattleActor* p) {
         p->movePhase = 0;
     }
     return 0;
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
+}
 
 
 
