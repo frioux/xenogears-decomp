@@ -1200,6 +1200,18 @@ try: div mfhi mflo mult
   byte-exactly; so run the permuter on the LAST ordering residual only, after (1)-(3). The siblings should fall to the
   same recipe - read the retail stream's `slti` copy count first (2 = func_8007DA1C/func_8007DE78, 3 =
   func_8007DB78/func_8007DFD4) to pick `while` vs for-clause, then apply (1)-(5).
+  Round 503 CONFIRMS the transfer to the two members round 497 left parked: battle/main/misc9 func_8007DA1C
+  (slots 3..0xB) and func_8007DE78 (slots 0..3) both reach MATCH / 100.00% at retail's exact 87 insns / 348 bytes
+  first try, from the round-497 recipe as written in (1),(2),(4-first-half),(5) - the ungated members need NO second
+  row-base local, and the for-clause of (3) is not needed because their retail stream carries two `slti` copies, which
+  `while` produces. One residual neither note names: on DA1C, whose `i` is initialised to 3, the prologue emits the
+  `count`/`i` init pair in DECLARATION order, so `s32 count = 0;` must be declared BEFORE `s32 i = 3;` to get retail's
+  `sw s2 / move s2,zero / sw s1 / li s1,0x3` - the mirror order is 95.33% at the same 87 insns / 348 bytes.
+  Also measured on both closing bodies: the tail store typed as `g_BattleSlotRegs[arg1 & 0xFF].wordRegs[...]` (the
+  struct this file already declares) instead of `(u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs)` is
+  instruction-identical, 87/87 and 348 bytes, and objdiff reads 99.77% only because retail names
+  `g_BattleSlotWordRegs` where the grouped access names `g_BattleSlotRegs` + 0x20 (0x800D3420 either way);
+  `check_bin.sh battle` prints OK, so the typed spelling is the one to ship.
 - id: an-o-equals-i-times-stride-body-keeps-the-symbol-store-form | keywords: loop, counter, offset, accumul, regalloc, swapped, biv, giv, stride
   **A CLEAR LOOP WHOSE TWO VARIABLES LAND MIRRORED (COUNTER IN `$a2`, BYTE OFFSET IN `$a3`) POINT THE BODY AT ACCUMULATING `o += 6` WHERE RETAIL ASSIGNS `o = i * 6`, AND THE ASSIGNMENT FORM ALSO PRESERVES WHICH OF THE TWO STORE FORMS gcc PICKS: with a NAMED s32 offset retail's stores come out as `lui at,%hi(sym) / addu at,at,o / sh %lo(sym)(at)` (the offset added per store), which the assignment form reproduces exactly, and the offset then takes `$a2` with the counter in `$a3`** (round 452, battle/main/misc13 func_800877E0, 60.72 -> 62.91% at 448 bytes, retail 456: loop 1 went from every line differing by register name to exact). Writing `= i * 6` inside the body instead of `o += 6` makes gcc build the GIV `i*6` and keep it as a scalar because the address is `symbol + o`; the accumulator spelling gets the two BIVs the other way round. The limit found on the same body: the same trick does NOT fix a second loop whose offset also competes with a loaded table pointer (`lw a2,%lo(g_BattleSlotParamTable)` takes `$a2` and pushes the offset to `$t0`) - there the residual is which pseudo wins `$a1`/`$a2`, and a typed struct chain for the same offsets scores WORSE (59.85 / 452), because gcc's emission for the typed form differs.
 
