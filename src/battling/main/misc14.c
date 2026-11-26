@@ -644,7 +644,7 @@ extern Misc14ModelPart *BattleCreateModelPart(void);
 extern void BattleAttachModelPart(Misc14ModelPart *pPart, ModelPart *pModelPart);
 extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode);
 
-/* Best attempt: objdiff 92.87%, 580 bytes / 145 insns against retail's 592 / 148 (round 510,
+// Best attempt: objdiff 92.87%, 580 bytes / 145 insns against retail's 592 / 148 (round 510
 // permuter spelling; the 91.16 body described below is the same code in the typed form).
 // Everything matches except WHICH of two long-lived values gets $s4: retail spills
 // the script table to 0x18(sp) and keeps the model data in $s4, gcc spills the model
@@ -675,10 +675,6 @@ extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode
 //    park, so retail's a1-to-s0 chain is not source-reachable by naming the cursor;
 //  - preset screen on this body: gcc-2.7.2-cdk 90.34, gcc-2.6.0 does not compile
 //    it, so the unit stays Default (do not switch on this function's account).
-// A 4-minute permuter run from this body found nothing (earlier round), and
-// twin_for.py reports no twin. To go further the spill has to flip: raise the model
-// data pointer's allocno priority or lower the table's, which no declaration order
-// tried so far does.
 // Round 510: un-parked and re-measured 91.16 / 580 / 145, then found a better
 // candidate and three facts:
 //  - dropping the `pParts` local (writing `((Misc14PartSet *)pBlock->pPartList)`
@@ -698,13 +694,22 @@ extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode
 //    for the script table) and puts pNode in 0x10(sp) (retail's slot for pNode), so
 //    the prologue, the first loop's stores and the whole tail line up - at the price
 //    of retail's `addiu a1,a1,16`, which the hoist folds into the base.
-// The 3 instructions still missing are the same single wall: retail keeps the RAW
-// model data pointer in $s4 across both loops and spills pScripts to 0x18(sp) at
-// entry (2 reloads), gcc keeps pScripts in $s5 and spills the model data. The
-// priority that decides it (log2(refs)*refs/live) reads pScripts as 5 refs over the
-// whole function and pModelData as 2 over the first loop, and no spelling in rounds
-// 478/510 moves that ordering. Do not re-route this function without a cc1 whose
-// spill choice differs. */
+// Round 523 (redo lane): re-measured the parked body at 92.87 / 580 / 145, then
+// spelled the attach argument `pModelData + (pDesc[i].modelIndex * 0x38 + 0x10)`,
+// which DOES give retail's inner-loop arithmetic exactly - `sll/subu/sll`,
+// `addiu a1,a1,16`, `addu a1,base,a1` with no hoisted +0x10 - and measures
+// 91.16 / 580 / 145: gcc then spills the RAW model data pointer to 0x10(sp)
+// (`sw a3,16(sp)` at entry, `lw a3,16(sp)` every iteration before the attach) and
+// still keeps the script table in $s5. So the arithmetic half of the residual is
+// reachable and the remaining wall is purely the allocator's spill victim: retail
+// gave the register to a value with 3 static refs (load at entry, the
+// ModelResolvePointers argument, one in-loop addu) over one with 7 (four count
+// loads, the null test, the cursor), which no source spelling tried in rounds
+// 478/510/523 reproduces. A 4-minute permuter run from the 92.87 body this round
+// found nothing (base=918 best=918, 2033 iterations), so this is not a scheduling
+// or temporary-count question either. The 3 missing instructions are all the same
+// spill: two reloads of the table and retail's `move s0,a1` pAnim chain.
+// Do not re-route this function without a cc1 whose spill choice differs.
 /*
 Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
     u8 *pModelData = (u8 *)pBlock->pModelData;
@@ -764,10 +769,9 @@ Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
         }
     }
     return pNode;
-}
-*/
-
+}*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
+
 
 
 
