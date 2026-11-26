@@ -809,6 +809,12 @@ void BattleInitSpriteRectTable(void) {
 //    (`addiu v1,a2,52 / addu v1,a1,v1`) where retail keeps `addiu v1,a0,52 / sll a2,t0,1 / addu v1,v1,a2`.
 //    Permuter, three runs this family (base 666 -> 455 -> 445); its best 445 body is this one with
 //    `half = 0x34; x1 = x0 + half + grow;` = 96.50% (a folding-constant local, still 504 bytes).
+//    Round 504: computing the color word's operand INSIDE the arm (`color = shade + 0x40;` as the else
+//    arm's first statement, `grow = shade + 0x40` deleted from before the if) DOES bring the missing
+//    `addiu t0,t0,-0x40` back and gives retail's exact 508 bytes / 127 insns, but it also moves the
+//    shade load out of the prologue (`lw t0,48(sp)` becomes `lw a1,48(sp)` after the saves), i.e. the
+//    whole hand-out rotates: 88.33%. So the -0x40 IS reachable only together with that rotation; the
+//    96.42% body keeps the prologue exact. Neither links.
 //    Dead ends measured this round, do not repeat: `x1 = x0 + 0x34; x1 += grow;` 83.94% / 512 / 128 (the
 //    allocator collapses and shade moves to a1), `color = x0 + 0x34; x1 = color + grow;` 78.43% / 512 / 128,
 //    and the parameter-reassignment shape (`shade += 0x40` inside the arm) 504 bytes / 126.
