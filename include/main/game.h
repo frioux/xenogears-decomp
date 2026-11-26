@@ -3,6 +3,7 @@
 
 // Number of ids in each inventory table (the tables themselves are declared below;
 // the MAX_INVENTORY_* macros are the array dimensions, which are larger).
+#define BATTLE_STAT_WEIGHT_COUNT 7 // statWeights entries a battle row can weigh; the dressing room reads the same seven
 #define MENU_WEAPON_ID_COUNT 72
 #define MENU_ACCESSORY_ID_COUNT 150
 #define MENU_ITEM_ID_COUNT 76

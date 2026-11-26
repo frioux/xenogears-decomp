@@ -12,7 +12,6 @@ extern u8 g_BattleActorCharIds[];
 
 extern int rand(void);
 
-#define BATTLE_STAT_WEIGHT_COUNT 7
 
 void BattleRollActorActionCondition(u8 arg0, u8* pInfo, s16* pStatus) {
     BattleTableEntry* p = &g_BattleWorkBlock[arg0];

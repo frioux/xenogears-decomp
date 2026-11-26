@@ -27,7 +27,6 @@
 // The stat weights BattleRunCurrentActionRow adds a row's bonuses to: GameCharacter's
 // statWeights has eight, of which the dressing room reads the first seven (main/game.h);
 // battle/main/misc19_r1 copies the same seven.
-#define BATTLE_STAT_WEIGHT_COUNT 7
 
 // The largest stat weight that loop adds to: a weight already at it is left alone.
 #define BATTLE_STAT_WEIGHT_MAX 64999
