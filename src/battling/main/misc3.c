@@ -359,7 +359,7 @@ void BattleNoop2(void) {
 // The circle test of BattleSegmentHitTestCircle without the closest-approach
 // point: returns 1 when the segment (x1,y1)-(x2,y2) comes within radius r of
 // (x3,y3), everything in 12-bit fixed point.
-s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
+s32 BattleSegmentHitsCircle(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     VECTOR v;
     VECTOR vSq;
     s32 ex;
@@ -454,29 +454,29 @@ s32 BattleSegmentHitTestCircle(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s
 
 
 
-extern s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
+extern s32 BattleSegmentHitsCircle(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
 
 s32 BattleActorHitTestCircle(BattleActor* p, s32 x, s32 z, s32 r) {
     s32 hit;
 
     g_BattleHitPointX = x;
     g_BattleHitPointZ = z;
-    hit = func_80075750(p->vx, p->vz, p->position.x, p->position.z, x, z, r);
+    hit = BattleSegmentHitsCircle(p->vx, p->vz, p->position.x, p->position.z, x, z, r);
     if (hit) {
         hit = TRUE;
         goto done;
     }
-    hit = func_80075750(p->steerVx, p->steerVz, p->pushVx, p->pushVz, x, z, r);
+    hit = BattleSegmentHitsCircle(p->steerVx, p->steerVz, p->pushVx, p->pushVz, x, z, r);
     if (hit) {
         hit = TRUE;
         goto done;
     }
-    hit = func_80075750(p->position.x, p->position.z, p->pushVx, p->pushVz, x, z, r);
+    hit = BattleSegmentHitsCircle(p->position.x, p->position.z, p->pushVx, p->pushVz, x, z, r);
     if (hit) {
         hit = TRUE;
         goto done;
     }
-    hit = func_80075750(p->vx, p->vz, p->steerVx, p->steerVz, x, z, r) != 0;
+    hit = BattleSegmentHitsCircle(p->vx, p->vz, p->steerVx, p->steerVz, x, z, r) != 0;
 done:
     return hit;
 }
