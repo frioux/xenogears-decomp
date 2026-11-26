@@ -196,7 +196,26 @@ extern u8 D_800CEF23[];
 // and BattleComputeActionAmount forces exactly that rate on a row whose actionFlags has 0x400.
 
 
-/* 91.38% (1444 bytes against retail's 1440) under this unit's gcc 2.6.0. Every
+/* 92.28% (1456 bytes / 364 insns against retail's 1440 / 360) under this unit's gcc 2.6.0.
+   Round 511 re-measured the older park unchanged at 91.38% (1444 bytes / 361 insns) and then
+   bought 0.9 points with ONE change: the third loop's `bufs` addressing. Retail keeps an
+   `i * 4` giv (`move s2,zero` in the third loop's preheader, `addiu s2,s2,4` in the latch's
+   bnez slot, and `addiu v0,sp,0x48 / addu s0,v0,s2` re-forming &bufs[i]) while a plain
+   `bufs[i]` body makes loop.c derive a POINTER biv (`addiu s0,s0,4` in the latch) off
+   `&nameRect` (`addiu s3,sp,24; lw a1,48(s0)`). Declaring `u32 bufOff;` and writing the
+   three sites as `*(void **)((u8 *)bufs + bufOff)` with `i++, bufOff += 4` in the for-clause
+   reproduces retail's offset form and its `addiu v0,sp,72 / addu s0,v0,s2 / sw a0,0(s0)`;
+   it costs 16 bytes (the extra is the still-hoisted D_800CCD3E base, below). Measured this
+   round on the same body, all dead: a `volatile` qualifier on that bank byte (identical
+   91.38, the hoisted thing is the ADDRESS, not the load), the `D_800CCD3E[arg0 * 0x170]`
+   subscript spelling (identical), hoisting `i = 0` before the flags test so it lands in the
+   bnez delay slot like retail's `move s1,zero` (91.73, and it moves the sum scheduling the
+   wrong way), and `s32 slot = arg0;` used at every site (88.01 - an SI copy makes cc1
+   rematerialise the whole address chain); `u8 slot = arg0;` inside each arm on top of
+   `bufOff` is 92.35% / 1460 bytes / 365 insns with 115 differing lines instead of 124, but
+   it buys that with a no-op `move s5,s6` and 4 more bytes, so it is not the parked body.
+   ROUND 511 note on the size: neither body links (retail 1440).
+   Every
    call, rectangle and store is retail's and the tail from BattleDrawCommandCellFrames onwards is
    byte-identical; the residual is four bytes of register scheduling plus one hoist.
    Levers that were needed to get here:
@@ -246,7 +265,6 @@ extern u8 D_800CEF23[];
    - presets: gcc-2.7.2 91.01, gcc-2.7.2-cdk 80.09, 2.6.0 with -G0 91.38 (unchanged), so the
      unit's XenoBattle260 preset is right and no preset switch is owed here. */
 /*
-
 void func_80091064(u8 arg0) {
     RECT nameRect;
     RECT tensRect;
@@ -264,6 +282,7 @@ void func_80091064(u8 arg0) {
     u32 slotOff;
     u8 index;
     s32 i;
+    u32 bufOff;
 
     BattleAllocPacketPrimitives();
     BattleLoadActionRowGraphics();
@@ -309,9 +328,9 @@ void func_80091064(u8 arg0) {
             rowOff += 0x28;
         }
     }
-    for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
+    for (i = 0, bufOff = 0; i < BATTLE_STATUS_ROW_COUNT; i++, bufOff += 4) {
         pBuf = BattleAllocTextBuffer(0x1B);
-        bufs[i] = pBuf;
+        *(void **)((u8 *)bufs + bufOff) = pBuf;
         bzero(pBuf, 0x30C);
         tileRect.x = 0x380 + (i % 2) * 0x1E;
         tileRect.y = 0x100 + (i / 2) * 0x10;
@@ -320,16 +339,16 @@ void func_80091064(u8 arg0) {
         BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
         if (active[i] != 0) {
             if (g_BattleSlotFlags[arg0 * 8] == 0) {
-                pStr = GetStringEntryFromBank14(*(u8 *)(D_800CCD3E + arg0 * 0x170) * 0x10 + i);
+                pStr = GetStringEntryFromBank14(D_800CCD3E[arg0 * 0x170] * 0x10 + i);
             } else {
                 pStr = GetStringEntryFromBank30(*(u8 *)(g_BattleSlotTextIndex + arg0 * 0x170) * 0x10 + i);
             }
-            SystemRenderStringEntry(pStr, bufs[i], 0x1B, 0);
+            SystemRenderStringEntry(pStr, *(void **)((u8 *)bufs + bufOff), 0x1B, 0);
             nameRect.x = 0x380 + (i % 2) * 0x1E;
             nameRect.y = 0x102 + (i / 2) * 0x10;
             nameRect.w = 0x1E;
             nameRect.h = 0xD;
-            BattleLoadImageAndSync(&nameRect, bufs[i]);
+            BattleLoadImageAndSync(&nameRect, *(void **)((u8 *)bufs + bufOff));
         }
         if (i % 2 == 0) {
             stripRect.x = 0x3C0;
@@ -360,9 +379,9 @@ void func_80091064(u8 arg0) {
     *(u16 *)(g_BattleGraphicsWork->pPacketPrims + 0x176) = g_SystemPalette1;
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->unkB7 = 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
+
 void BattleBuildSpriteColumn8(s32 arg0) {
     s32 i;
     s32 offset;
@@ -1323,7 +1342,7 @@ void func_80093B08(u8 arg0) {
                 nameRect.y = textY;
                 nameRect.w = 0x1E;
                 nameRect.h = 0xD;
-                BattleLoadImageAndSync(&nameRect, bufs[i]);
+                BattleLoadImageAndSync(&nameRect, *(void **)((u8 *)bufs + bufOff));
             }
             digitX = 0x3C0;
             digitY = textY;
