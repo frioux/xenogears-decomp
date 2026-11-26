@@ -838,6 +838,8 @@ int FieldCharacterIdToPartyId(int characterId) {
 // - 's32 nResult = 0; if (...) {body} return nResult;': identical to the park (316) -
 //   cc1 folds nResult to the constant, so the move is still not hoisted.
 // Round 492 re-measured 90.86%, 316 bytes / 79 insns against retail's 324 / 81. The whole residual is ONE register tie with two consequences: retail has the return value 0 in $v0 and the CurActor pointer in $a0 ('addu v0,zero,zero' after the rotation join, then 'lui a0,%hi(CurActor); lw a0'), so the trailing three rotation stores are 'move v1,a1; sh v1,260(a0) x3'; this body has CurActor in $v0 and the rotation in $a0, so its 'move v0,zero' lands after the stores. Knock-on, the 0x56/0x7C/0x60 angle group: retail emits 'sll a0,a1,0x10; sra v0,a0,0x10; sh a1,86(at); sw v0,124(at); sw a0,96(at)' (truncate-then-sign-extend shared with the <<16 store) where this body folds it to 'sh v0,86(at); sw v0,124(at); sll v0,v0,0x10; sw v0,96(at)' - the 2 missing insns. So the missing sra and the v0 assignment position are the same cause, and it is the allocator, not the spelling.
+// Round 505 (re-measured 90.86%, 316 of retail's 324 bytes, 79 vs 81 insns). The two missing insns are (a) the 0x7C store's 'sra v0,a0,0x10' and (b) the rotation group's 'move v1,a1'. (a) is a TYPE fact, not a spelling: a genuine s16-to-s32 conversion is folded away because cc1 knows the angle is 0..0xE00 ('((b+4)&7)<<9'), so no cast on the u_long sceneAngleYTarget emits the sra; retail's field must be a SIGNED word fed by an angle whose range cc1 did not know. Also measured: 's32 nAngleFixed = nAngle << 16;' then YTarget = nAngleFixed >> 16 and Current = nAngleFixed folds back to this body and adds a stack slot (90.74%, 320-byte frame). (b) is the register tie the earlier note describes (retail: return 0 in v0, CurActor in a0, angle+rotation in a1).
+// Round 505 also measured: YTarget = g_Scene.sceneAngle.vy (a store-to-load forward of the s16 field) emits no sra either - cc1 forwards the SImode value unchanged.
 /*
 s32 func_8009FA54(s32 nInstructionOffset) {
     s32 nOffset;
@@ -878,6 +880,8 @@ s32 func_8009FA54(s32 nInstructionOffset) {
     return 0;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
+
+
 
 void FieldScriptVMHandlerReloadSceneMapData(void) {
     ActorData* pActor;
@@ -1594,6 +1598,13 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
 //   right size and insn count, but gcc sinks the 0x12C RMW below the increment.
 // - try_flags: cdk 88.88, 2.6.0 91.46, -G0 92.02, cdk -G0 73.38 - no preset wins.
 // Round 492 re-measured 92.58%, 396 bytes / 99 insns (retail's exact size); ALL 32 differing lines are the g_FieldActorModelSlotCount address shape. cc1_probe proof: the tail alone (4 count reads, unit flags) forces an address register at the 3rd use ('la $4,count' + 'lw $2,0($4)' twice + 'sw $2,0($4)') where retail re-forms the symbol address four times ('lui v0,%hi; lw v0,%lo(v0)' x4, store via $at). Probed and IDENTICAL under gcc-2.6.0-psx, -G0, extern volatile s32[], an s32 nSlot local for uses 3/4, the 0x12C RMW moved before the sprite-row store, '%8', and 'count = count + 1' - every one still emits the la. -O1 61.07, -O3 41.91 (try_flags). So the residual is a cse.c address-materialisation rule, not a spelling.
+// Round 505: the caching is not a per-symbol use-count rule. Declaring the count as a
+// 0x10-byte struct (so each read is a plain member load, .extern size 16) gives
+// byte-identical code to the array decl; and reaching the same word through a DIFFERENT
+// base symbol with an addend, ((s32*)&g_FieldActorModelSlotArchiveBase[68]), also gets its
+// base cached in a register (87.85%, 384 bytes), so two uses of one fresh address are
+// already enough to make cc1 materialise it. Only two distinct linker symbols at
+// 0x800B2264 would break the cse, which no C spelling can produce without defining data.
 /*
 void func_800A1364(void) {
     int arg;
