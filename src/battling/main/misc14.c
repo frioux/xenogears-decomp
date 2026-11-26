@@ -844,7 +844,7 @@ s16 BattleInterpolateAngle(s32 arg0, s32 arg1, s32 arg2) {
 // tail jump is intrinsic - it is the clamp-set path, and only one arm can fall through
 // into the shared epilogue - so no source shape makes both pairs jump-free.
 // Honest best stays 89.68 / 216 / 54; the residual is a compiler limitation. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
+// Round 519 redo: un-parked and re-measured. The two-arm park is still the best at 89.68 / 216 / 54 (retail 56 / 224) and is one dispatch pair short: retail duplicates the arm-first subu/addu into the rand arm bnez and j delay slots and keeps a separate addu before the plus body for the fall-through, while a single back test makes gcc merge the rand dispatch into the shared beqz through a j. Three fresh spellings measured and dead this round: (1) hoisting the diff comparison before the rand test, back = diff < 0x800 then if (diff == 0x800) back = rand() & 1, gives 88.61 / 212 / 53 and does put retail slti in the bne delay slot, but var moves from s0 to a0 and the delay-slot duplicates still do not appear; (2) var = arg0 - arg2 instead of var -= arg2 gives the same 88.61 / 212 / 53; (3) the short-circuit single condition, if ((diff == 0x800 && (rand() & 1)) || diff < 0x800), gives 84.73 / 240 / 60 - it does branch into both bodies from the rand arm, but gcc re-tests diff after rand and needs two more callee-saved registers (frame 0x28). The four-copy shapes re-measured at 76.30 / 268 / 67 as round 506 recorded. Best stays 89.68; stopping per the STOP rule.
 /*
 s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
     s32 diff;
@@ -872,8 +872,11 @@ s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
         }
     }
     return var;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
+
+
+
 
 
 
