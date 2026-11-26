@@ -1591,6 +1591,29 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 //   are NOT byte-identical (different .L targets), so check_bin would fail with every function at
 //   100.00%. func_801DBE54 (parked at 93.91% / 888 bytes against retail's 896) and this one have to be
 //   converted TOGETHER.
+// ROUND 499: BEST 94.87% / 888 bytes / 222 insns = retail's exact size and insn count, up from
+//   94.81 (170 differing lines against 172). The gain is one line's position: 'mode = 4;' is
+//   assigned AFTER the two prologue calls instead of beside 'kind = arg2;', so our preheader now
+//   reads retail's shape - kind spill, sll of kind*4, then the mode li - instead of retail's li
+//   slot being taken by the CSE'd const 1. Measured worse on the same body: 'u_char mode' 94.46 /
+//   884, -O1 77.75, gcc-2.7.2 'compile-failed' in try_flags on this body (earlier rounds scored
+//   the near-identical 94.81 body 94.81 under it, same residual), and (earlier rounds) s32
+//   kind 90.28, s32 needsOpen 94.59, literals for both constants 94.46, cdk 86.95, -O3 67.90.
+//   THE RESIDUAL IS STILL THE ONE TIE (levers.md a-shared-const-argument-outranks-a-three-ref-
+//   byte-flag) and this round closes its accounting: both bodies save the same ten words (s0-s8
+//   + ra) and use the same eight dedicated registers; retail's NINTH is needsOpen, and its
+//   scratch s0 survives the four window calls (retail holds the 0x18 in s0 across calls 3 and 4
+//   - one 'li s0,0x18' then a bare 'sw s0,16(sp)' - and sinks 'move s5,zero' into the arg1-test
+//   delay slot). Ours spends the ninth on the const 1: needsOpen spills to 0x38 (sb in the
+//   save block, lbu+nop at the test, sb zero sunk to the top of the block), the 0x18 is
+//   rematerialised twice, and the const is one 'li s7,0x1' in the preheader against retail's
+//   four 'ori t0,1'. Net byte count identical, mix different, 4 local slots against 3 (frame
+//   112 vs retail's 104). The const only loses its register in a compile whose cse does not
+//   merge same-block constants; 2.6.0's does, and no source spelling reaches it (rounds 429,
+//   433, 446, 473 measured 20+ forms, the -da -dg dump and two permuter runs).
+//   CANNOT BE COMMITTED ALONE EVEN AT 100: jtbl_801C512C must land at +0x30 of the unit's
+//   [0xFC, .rodata, main/misc9] range, so func_801DBE54 (owner of +0x00, parked at 93.91)
+//   has to be converted in the same change and the pair proven with check_bin.sh menu.
 /*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
@@ -1609,9 +1632,9 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     slot = arg0;
     prevSlot = 0xFF;
     kind = arg2;
-    mode = 4;
     MenuCreateUnk430Panel(kind);
     MenuInitializeArrowCursor(0);
+    mode = 4;
     do {
         MenuRenderFrame();
         if (slot != prevSlot) {
@@ -1687,6 +1710,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     MenuFreeArrowCursor(0);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
+
 
 
 
