@@ -12,6 +12,10 @@
 #define MENU_STAT_AGILITY_MAX 20
 #define MENU_STAT_AGILITY_CAPPED 16 // what agility above the maximum is set to
 
+// Dressing-room rows: one per stat the room shows, each with its own MenuString and
+// stat-value bar.
+#define MENU_DRESSING_ROOM_ROW_COUNT 13
+
 extern u8 g_MenuUnk17E0StringIds[];
 extern u8 g_MenuUnk18E0StringIdSets[];
 extern u8 g_GearPilotIds[];
@@ -79,7 +83,7 @@ int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1) {
     bzero(g_Menu->pEquipmentPanel, 0x2AC);
     MenuLoadResourceSet(3);
     func_801E05D0(arg0, arg1, 0);
-    MenuLoadResourceSet(0x13);
+    MenuLoadResourceSet(3 | MENU_PANEL_FREE_OFFSET);
     return 1;
 }
 void MenuInitializeUnk438Panel(void) {
@@ -101,8 +105,8 @@ void MenuInitializeUnk438Panel(void) {
     pManager = g_Menu->pManager;
     i = 0;
     count = 0;
-    for (; i < 3; i++) {
-        if (pManager->currentCharacterIDs[i] != 0xFF && (u8)(pManager->currentCharacterIDs[i] - 7) >= 2) {
+    for (; i < MAX_PARTY_MEMBERS; i++) {
+        if (pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE && (u8)(pManager->currentCharacterIDs[i] - 7) >= 2) {
             count++;
         }
     }
@@ -111,7 +115,7 @@ void MenuInitializeUnk438Panel(void) {
     } else {
         g_Menu->pManager->shoulderButtonUiActive = 0;
     }
-    for (i = 0; i < 0xD; i++) {
+    for (i = 0; i < MENU_DRESSING_ROOM_ROW_COUNT; i++) {
         for (count = 0; count < 2; count++) {
             /* (i * 0x48 + 0x21D0) must stay grouped for retail's address build:
                retail increments the pre-scaled i and count indices and folds
@@ -140,7 +144,7 @@ void MenuFreeUnk438Panel(void) {
     MenuFreeWindow(2);
     MenuRenderFrame();
     MenuClearBytes(2, &g_Menu->pManager->shouldRenderPanel[4]);
-    MenuLoadResourceSet(0x14);
+    MenuLoadResourceSet(4 | MENU_PANEL_FREE_OFFSET);
     HeapFree(g_Menu->unk438);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
@@ -235,7 +239,6 @@ u32 func_801E1418(u8 slot, u8 index) {
 // one record per dressing-room row (13 of them), each with the MenuString for its
 // number and the digit prims the number is built from, then the per-row state
 // bytes and the stat-table pointer MenuComputeCharacterStats reads.
-#define MENU_DRESSING_ROOM_ROW_COUNT 13
 
 // One equipment slot record of pDressingRoom->pCharacterSlots[], as far as this
 // unit reaches (misc9 walks the same records at a 0x28 stride).
@@ -489,7 +492,7 @@ u8 MenuRunUnk438PanelLoop(u8 slot) {
     active = 1;
     lastSlot = 0xFF;
     if ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2) {
-        MenuPlaySoundEffect(4);
+        MenuPlaySoundEffect(MENU_SOUND_ERROR);
         return 1;
     }
     MenuInitializeUnk438Panel();
@@ -500,15 +503,15 @@ u8 MenuRunUnk438PanelLoop(u8 slot) {
             lastSlot = slot;
         }
         switch (g_Menu->input) {
-        case 5:
+        case MENU_INPUT_BACK:
             active = 0;
             break;
-        case 9:
+        case MENU_INPUT_NEXT:
             do {
                 slot = func_801D9704(slot, 0, 0);
             } while ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2);
             break;
-        case 10:
+        case MENU_INPUT_PREV:
             do {
                 slot = func_801D9704(slot, 1, 0);
             } while ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2);
@@ -547,7 +550,7 @@ void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->pGearWindowPrims);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->pEquipmentPanel);
-    MenuLoadResourceSet(0x13);
+    MenuLoadResourceSet(3 | MENU_PANEL_FREE_OFFSET);
 }
 /* PARKED 99.66% - 1812 bytes, retail's exact size; 453 instructions, the same
    instruction multiset. Re-measured round 457 and again round 470 (un-parked,
@@ -779,7 +782,7 @@ void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->pGearWindowPrims);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->pEquipmentPanel);
-    MenuLoadResourceSet(0x13);
+    MenuLoadResourceSet(3 | MENU_PANEL_FREE_OFFSET);
 }
 u8 MenuRunCharacterDressingRoomLoop(void) {
     u8 active;
@@ -796,8 +799,8 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
     g_Menu->subMenuChoice = 2;
     g_Menu->subMenuPrevChoice = 0xFF;
     MenuInitializeCharacterScreenBuffers();
-    for (i = 0; i < 3; i++) {
-        if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
             slot = i;
             break;
         }
@@ -823,7 +826,7 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }
         switch (g_Menu->input) {
-        case 4:
+        case MENU_INPUT_CONFIRM:
             MenuResetSelectionCursorFlags();
             MenuClearSubMenuChoiceFlags();
             g_Menu->pManager->shouldRenderUnk358Prims = 0;
@@ -858,25 +861,25 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
             g_Menu->subMenuPrevChoice = 0xFF;
             MenuCreateShoulderButtonUi(0, 0);
             break;
-        case 5:
+        case MENU_INPUT_BACK:
             active = 0;
             break;
-        case 1:
+        case MENU_INPUT_DOWN:
             if (g_Menu->subMenuChoice != 0) {
                 g_Menu->subMenuChoice--;
             } else {
                 g_Menu->subMenuChoice = g_Menu->subMenuNumChoices + 0xFF;
             }
             break;
-        case 3:
+        case MENU_INPUT_UP:
             if (++g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
                 g_Menu->subMenuChoice = 0;
             }
             break;
-        case 9:
+        case MENU_INPUT_NEXT:
             slot = func_801D9704(slot, 0, 0);
             break;
-        case 10:
+        case MENU_INPUT_PREV:
             slot = func_801D9704(slot, 1, 0);
             break;
         }
