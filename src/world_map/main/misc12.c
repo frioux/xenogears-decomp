@@ -1930,12 +1930,24 @@ extern void WorldMapStartSlot(s32, s32);
 // best: 99.76% (objdiff), 1668 bytes / 417 insns = retail's exact size (nm -S on both
 // objects: 0x684). Whole structure, both switches, both ramps and both walk tails decode;
 // the residual is one allocator tie inside the two ramp blocks plus the two jtbl operands.
-// CANNOT BE CONVERTED HERE (JTBL_LAYOUT): the unit's .rodata range is [0xF08,0x1160) and
-// retail's two tables sit at +0x1EC / +0x214 inside it, but cc1 emits C .rodata BEFORE the
-// asm-owned .rodata of the same object, so the tables land at +0x20 / +0x48 (same 0x28
-// spacing) and everything behind them shifts. Measured this round: with this body live,
-// check_bin.sh world_map prints MISMATCH and culprit.sh reports 147395 differing bytes in
-// 450 symbols. The unit's rodata has to move to C as one address-ordered job first.
+// CANNOT BE CONVERTED HERE (JTBL_LAYOUT, and the cause is ALIGNMENT, not placement: the
+// old note here said cc1 puts C rodata before asm rodata, which is false for jump tables -
+// cc1 emits each table in .rdata at its own function's point in the text order, and this
+// object's tables do come out in retail's order). The unit's .rodata range is
+// [0xF08,0x1160) and retail's two tables sit at +0x1EC / +0x214 (0x80070BE4 / 0x80070C0C),
+// which are both 4 mod 8, while cc1 emits `align 3` (8-byte) before every switch table.
+// Measured with this body live: build/src/world_map/main/misc12.c.o has .rodata 0x25C
+// against retail's 0x258, a 4-byte zero pad at internal 0x1EC and the tables at 0x1F0 /
+// 0x218; check_bin.sh world_map then prints MISMATCH (build/out/world_map.bin 180426 bytes
+// against disc's 180422, every address table in the overlay off by +4) and culprit.sh
+// reports 147395 differing bytes in 450 symbols. Converting the neighbours cannot fix it:
+// retail's tables are packed 4-byte all the way down the chain (func_8008E76C's 0x104-byte
+// table ends at +0x15C, itself 4 mod 8, so func_80090A84's table can never be a C table
+// either). Not a preset question: gcc-2.6.0 and gcc-2.7.2-cdk emit the same `align 3`
+// (cc1_probe.sh on a switch snippet). It needs maspsx/aspsx to stop padding .rdata, which
+// is outside a source lane. The frame here is retail's exactly, so only these 4 bytes
+// stand between this body and the link; no C spelling can move an assembler alignment pad,
+// which is why no permuter run was made for the remaining 0.24% (the register tie below).
 // Facts a later agent should not re-derive:
 // - The two walk tails were 2 insns short (1656, 96.66%) because cc1 hoists the final
 //   `pPlayer->z = g_WorldMapScrollTargetZ` statement to the top of the arm (its load fills
@@ -2176,6 +2188,7 @@ s32 func_800914D0(s32 idx) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
+
 
 
 
