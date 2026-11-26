@@ -48,6 +48,9 @@ extern void func_80089580(void);
 // g_WorldMapSpriteSetIds is a list of sprite set ids closed by this value, so the first
 // id is tested against it before the walk.
 #define WORLD_MAP_SPRITE_SET_ID_END (-1)
+// g_WorldMapGroups is indexed by sprite set id; this is the scene layer the party
+// actor's own slot drives - its position is copied there and it is hidden with the actor.
+#define WORLD_MAP_PLAYER_SCENE_LAYER 0x45
 // How far above the scene layer's position the "with height offset" placement puts the
 // slot: 64 world units, in 12.12 fixed point.
 #define WORLD_MAP_ACTOR_POS_HEIGHT_OFFSET 0x40000
@@ -309,7 +312,7 @@ s32 WorldMapHideSpriteSetGroups(void) {
     s16* pIds;
     s32 id;
 
-    g_WorldMapGroups[0x45].hidden = 1;
+    g_WorldMapGroups[WORLD_MAP_PLAYER_SCENE_LAYER].hidden = 1;
     // The guard and the loop test read the array separately, so the body loads
     // the id again; one `while ((id = *pIds) != -1)` merges them (lhu + sra, 16-byte frame).
     if (g_WorldMapSpriteSetIds[0] != WORLD_MAP_SPRITE_SET_ID_END) {
@@ -334,7 +337,7 @@ s32 WorldMapCopyActorPosToSpriteSetLayer(s32 arg0) {
     pGroup = g_WorldMapGroups;
     pActor = &g_WorldMapSlots[arg0];
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pGroup += 0x45;
+        pGroup += WORLD_MAP_PLAYER_SCENE_LAYER;
         pGroup->pos.x = pActor->x >> 12;
         pGroup->pos.y = pActor->y >> 12;
         pGroup->pos.z = pActor->z >> 12;
