@@ -87,53 +87,12 @@ void BattlePickSlotFromOperatorWord(u8 **arg0, s32 arg1) {
         pOut[(*arg0)[2]] = value;
     }
 }
-/* best: 95.38% (352 bytes / 88 insns; retail 0x8007DA1C..0x8007DD1C = 87 insns /
-   348 bytes). The BattlePickSlotFromOperatorWord R370/R398 two-pointer recipe carries this stub:
-   `pField = pRow;` after the head store, the index-first base with an (s32) cast
-   on the symbol, a u16 value local at the tail, and the loop written as a
-   `while (i < 0xB)` from 3 - that is 75.77 -> 95.38 in one step.
-   NAMED residual: THE LOOP INCREMENT'S POSITION. Retail has
-   [jal ClearRecordIdle][andi v0,v0,0xFF][beqz v0][addiu s1,s1,1], i.e. i is
-   incremented unconditionally between the call and the test on its result, so
-   reorg puts the increment in that beqz slot and the body needs only TWO slti
-   (DAF0 plus the beqz v1 slot). With `idx = i++` cc1 emits the increment at the
-   loop head, so the same slot takes a third COPY of slti - one instruction too
-   many to link (88 vs 87). The increment's position is source-controllable only
-   at the cost of the preheader copy, and the two are exclusive (measured on this
-   body): the 'ok' shape (u8 idle result local, i++ between the call and the
-   test, `idx = i` as the last body statement) DOES put the increment in retail's
-   beqz v0 slot, but then the preheader copy folds to `li s3,3` and reorg does
-   not duplicate slti into the beqz v1 slot at all -> 86 insns, one SHORT, 92.51%
-   (344 bytes; identical with the two branches merged into one amp-amp test).
-   Also measured: s32 idle local 88.25% (336), increment at the body end after
-   the if 88.67% (332, the s3 copy disappears), copy-at-bottom only 89.03%,
-   do-while 93.77% (344, short), `idx = i; i++;` identical to `idx = i++`, count
-   declared first 90.75%. So this is a genuine two-way wall, not a spelling left
-   to find (tools/rounds/levers.md,
-   increment-in-a-branch-slot-versus-the-preheader-copy-are-exclusive).
-   Cosmetic only: the prologue emits the s6 = arg1 copy before the count and i
-   inits (retail after them), and the tail beqz s2 slot holds move a0,zero where
-   retail has addiu a1,s2,-1.
-   Preset screened: -O3 95.38, -G0 95.38, gcc-2.6.0 95.78, cdk 76.66% on sibling
-   DB78 - Default (2.7.2, -O2 -G8) is right.
-   R482: measured the other side of the wall from source. The ok-shape (`u8 idle`
-   result local, `i++;` between the call and the test, `idx = i` as the last body
-   statement, do-while) reproduces the increment in the beqz v0 slot AND the idx
-   copy in the bnez slot - retail's two filled slots - and then lacks exactly ONE
-   instruction, reorg's obstruction duplicate of the latch `slti` in the second
-   beqz's slot: 86 insns / 344 bytes / 92.51%. So the wall is a single instruction
-   seen from both sides (88 insns with a third slti copy, 86 without the second),
-   not two residuals, and no spelling has both. Also measured on that body: the
-   test written `0 < 3 - i` reaches retail's exact 87 insns / 348 bytes at 90.43%
-   by spending three instructions on the test instead of slti+bnez, so byte count
-   alone is not the gate. Dropping the pField local: 85 insns / 87.08%.
- */
 void func_8007DA1C(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 count = 0;
     s32 i = 3;
     s16 last;
-    u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    u16 *pRow = g_BattleSlotRegs[arg1 & 0xFF].wordRegs;
     s32 rowIndex;
     u16 *pField;
 
@@ -155,12 +114,11 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     last = count - 1;
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
-        u16 *pOut = (u16 *)((rowIndex & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+        u16 *pOut = g_BattleSlotRegs[rowIndex & 0xFF].wordRegs;
 
         pOut[(*arg0)[2]] = value;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
 
 
 // best: 95.64% (388 bytes / 97 insns; retail 0x8007DB78..0x8007DCF8 = 96 insns /
@@ -261,39 +219,12 @@ void BattlePickSlotFromOperatorWordFlagged(u8 **arg0, s32 arg1) {
     }
 }
 
-/* best: 95.25% (352 bytes / 88 insns; retail 0x8007DE78..0x8007E080 = 87 insns /
-   348 bytes). Byte-for-byte the func_8007DA1C stream with only ClearRecordIdle's
-   second argument (1) and the loop bounds (0..3 instead of 3..0xB) changed, and
-   DA1C's recipe transfers unchanged: `pField = pRow;` after the head store, the
-   index-first base with an (s32) cast on the symbol, a u16 value local at the
-   tail, and the loop as `while (i < 3)`. R469: the WHILE form is worth 1.6
-   points over the do-while this stub used to park with (93.64% / 344 bytes, 86
-   insns, one SHORT); the while form is 88 insns, one OVER, the same way DA1C is.
-   NAMED residual: the loop increment's position - retail increments i
-   unconditionally between the ClearRecordIdle call and the test on its result
-   ([jal][andi v0,v0,0xFF][beqz v0][addiu s1,s1,1]), so reorg fills that beqz
-   slot with the increment and the body carries only TWO slti. `idx = i++` puts
-   the increment at the loop head and that slot takes a third COPY of slti (one
-   instruction too many); the 'ok' shape that moves it into retail's slot loses
-   reorg's duplicate of slti in the beqz v1 slot instead (86 insns, one SHORT,
-   91.33%). The two are exclusive - see DA1C's park note above and
-   tools/rounds/levers.md,
-   increment-in-a-branch-slot-versus-the-preheader-copy-are-exclusive.
-   Cosmetic only: the prologue emits the s6 = arg1 copy before the i/count
-   inits (retail after them), and the tail beqz s2 slot holds move a0,zero where
-   retail has addiu a1,s2,-1.
-   R482: the DA1C ok-shape measured here too - the increment in the beqz v0 slot,
-   the idx copy in the bnez slot, and only reorg's obstruction duplicate of the
-   latch `slti v0,s1,3` missing: 86 insns / 344 bytes / 92.95%, against this
-   while body's 88 / 352 / 95.25 and retail's 87 / 348. Same single-instruction
-   wall as DA1C.
- */
 void func_8007DE78(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s16 last;
     s32 count = 0;
-    u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    u16 *pRow = g_BattleSlotRegs[arg1 & 0xFF].wordRegs;
     s32 rowIndex;
     u16 *pField;
 
@@ -315,12 +246,11 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     last = count - 1;
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
-        u16 *pOut = (u16 *)((rowIndex & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+        u16 *pOut = g_BattleSlotRegs[rowIndex & 0xFF].wordRegs;
 
         pOut[(*arg0)[2]] = value;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
 
 
 /* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
