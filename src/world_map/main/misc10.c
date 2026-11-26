@@ -245,7 +245,7 @@ extern u16 g_WorldMapTrailCursor;
 //    allocator contest to the actor (a1/a2 mirrored) - 95.56. The self-reassignment makes
 //    cse's equivalence for that register circular, so the add is NOT folded, the layer
 //    value reuses the group's own register, and retail's 'addiu a1,a1,0x16A4' / 'sw
-//    v0,8(a1)' / 0xC / 0x10 appear verbatim. The same edit matched func_80088D00.
+//    v0,8(a1)' / 0xC / 0x10 appear verbatim. The same edit matched WorldMapCopyActorPosToSpriteSetLayer.
 //    THE GUARD/WALK SPLIT IS STILL load-bearing (89.25 -> 95.56): the first id loop must
 //    read its GUARD through the array and the WALK through a second, separately
 //    initialised pointer, exactly as the matched neighbour WorldMapHideSpriteSetGroups
@@ -327,7 +327,7 @@ s32 WorldMapHideSpriteSetGroups(void) {
 // displacements (0x16AC/0x16B0/0x16B4) and the schedule loses retail's
 // 'addiu a1,a1,0x16A4'. The self-reassignment makes cse's equivalence for that register
 // circular, so the add survives. The same constraint is parked under func_80088B40.
-s32 func_80088D00(s32 arg0) {
+s32 WorldMapCopyActorPosToSpriteSetLayer(s32 arg0) {
     WorldMapPlayer* pActor;
     WorldMapSceneLayer* pGroup;
 
