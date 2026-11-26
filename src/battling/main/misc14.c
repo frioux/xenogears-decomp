@@ -863,7 +863,20 @@ s16 BattleInterpolateAngle(s32 arg0, s32 arg1, s32 arg2) {
 // source; the missing piece is the merge of BOTH pairs, which gcc 2.7.2 only does
 // once (tools/rounds/levers.md i-a-four-copy-arm-pair-merges-once). twin_for.py: no
 // twin. Do not re-try the four-copy shapes without a compiler that merges both
-// pairs. */
+// pairs.
+// Round 506 re-measured both four-copy spellings in this note: '-=' / '+=' and the
+// explicit assigns BOTH give 76.30 / 268 / 67 (the 68.09 recorded above did not
+// reproduce; 76.30 is the four-copy number for either spelling), and the emitted .s
+// names the wall: the plus pair merges into one body at its own label while the two
+// minus copies stay verbatim even though they are instruction-identical and both end
+// in the SAME 'j $L88' - gcc 2.7.2's cross-jumping accepts the pair whose last insn
+// is a plain fall-through and rejects the pair whose last insn is a jump. Arm order
+// inside a site does not change which pair merges (reordering site 1 to
+// 'if (!(rand() & 1)) plus else minus' also gives 76.30 / 268 / 67). The minus body's
+// tail jump is intrinsic - it is the clamp-set path, and only one arm can fall through
+// into the shared epilogue - so no source shape makes both pairs jump-free.
+// Honest best stays 89.68 / 216 / 54; the residual is a compiler limitation. */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 /*
 s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
     s32 diff;
@@ -893,7 +906,6 @@ s16 func_8008B650(s32 arg0, s32 arg1, s32 arg2) {
     return var;
 }
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
 
 
