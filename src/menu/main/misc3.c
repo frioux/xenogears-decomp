@@ -677,7 +677,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
    Tried: pMenu local vs inline g_Menu->menuUnk2 (inline 83.27 beats local 77.27),
    gcc-2.7.2-cdk 74.56. func_801C9EF4 is the ascending mirror (D_801E9828 / D_801E9820,
    +3 then +1, `slti 0x1E`), so any fix here should transfer. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
+// Best attempt: 85.81% (668 bytes, 167 insns vs retail's 684 / 171; the old note's 83.27 was stale). Structure is settled: each case is a step-3 search over D_801E9810 whose hit stores i - 3 and returns, followed - only when that search found nothing - by a step-1 search over D_801E9818; case 2 flag test is ((u8*)menuUnk2)[0x4FE4 + i / 15], divisor FIFTEEN.
+// 
+// Residual: the 4 missing instructions are, in the main, the two in-loop g_Menu->menuUnk2 reloads - case 1 is the only case with a two-byte && test and retail reloads lw 0x32C(g_Menu) at the top of BOTH of its loops (with g_Menu itself hoisted into t0/t1), while this compile hoists menuUnk2 out of the loop in every case. Cases 0 and 2, which have a single test, hoist in retail too, so the difference is the two-load body, i.e. gcc 2.6 loop.c move_movables declining the hoist on its savings/register-pressure threshold - the same residual as its three siblings (func_801CA480 85.27, func_801CA5F0 84.72, func_801C9EF4 86.49), so one spelling that flips it fixes four functions.
+// 
+// Tried this round: case 1 as for (i = a1 - 3; i >= 0; i -= 3) with j = D_801E9810[i + 3] and selectedSlot = i, phase 1 and phase 2 both (retail's own a0 = i - 3 parameterization) = 84.65% / 656 bytes / 164 insns, worse and still hoists. Previously measured: pMenu local 77.27 vs inline 83.27, gcc-2.7.2-cdk 74.56.
 /*
 void func_801CA1D4(s32 a0, s32 a1) {
     s32 i;
@@ -744,19 +748,15 @@ void func_801CA1D4(s32 a0, s32 a1) {
         }
         break;
     }
-}
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
 
-/* Best attempt: 83.32%. Cases 0 and 2 are exact; case 1 is a pure register
-   permutation (original keeps the store value in a0 and hoists g_Menu into a3,
-   mine uses a2 and holds menuUnk2 in a0). All three cases share one register
-   assignment, so they have to be found together: making case 2 exact moved
-   case 0's index from a1 to a2.
-   Learned: case 2's divisor is FIFTEEN, not 0x14 (magic 0x88888889 + add +
-   sra 3); writing /0x14 gives 0x66666667 and can never match. The ascending
-   loops are `for (i = a1; i + 1 < 0x1E; i++)` over `D_801E9820[i]` storing
-   `unk4F7C = i + 1`, which is what puts the guard on a2 = a1 + 1. */
+
+// Best attempt: 85.27% (364 bytes vs retail's 368 = 92 insns; the old note's 83.32 was stale).
+// 
+// All three cases share one register assignment; cases 0 and 2 are exact. Case 1 is short exactly one instruction: retail RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) at the top of every iteration and keeps a separate store-value register a0 = i+1, while this compile hoists menuUnk2 into a3 and drops the reload.
+// 
+// Diagnosis: this is gcc 2.6 loop.c move_movables declining the hoist on its savings/register-pressure threshold, not aliasing - case 0 in the same function hoists in BOTH compiles from the same C spelling, so case 1's source is already right and the residual is a pass heuristic. Tried this round: case 1 as for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1] and selectedSlot = i (retail's own parameterization) = 84.62% / 360 bytes / 90 insns, still hoists. Preset screened on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64).
 /*
 void func_801CA480(s32 a0, s32 a1) {
     s32 i;
@@ -788,8 +788,10 @@ void func_801CA480(s32 a0, s32 a1) {
         }
         break;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
+
+
 
 // Best attempt: 84.72% (348 bytes vs retail's 352 = 88 insns). Case 0 is EXACT.
 // Residual, measured this round: (1) case 1 - retail keeps a SEPARATE induction
