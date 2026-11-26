@@ -354,7 +354,6 @@ void func_8009E574(s32 nX, s32 nY) {
     VECTOR normals[4];
     SVECTOR points[4];
     ActorData* pActor;
-    SpriteData* pSprite;
     int i;
     FieldActor* pFieldActor;
     s16 nWalkY;
@@ -1106,52 +1105,19 @@ void FieldScriptVMHandlerSwitchPartyLeader(void) {
 
 extern void FieldMatrixCopyTransform(MATRIX* pDest, MATRIX* pSrc);
 extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
+// The header declares g_FieldActors `FieldActor* volatile`; Func800A0524 here reads the
+// table pointer non-volatilely and through an array base, which is what makes cc1
+// materialise its address as a rematerialisable value (lui %hi / lw 0(base)).
+extern FieldActor* g_FieldActorTable[] __asm__("g_FieldActors");
+#define g_FieldActorsPtr (g_FieldActorTable[0])
 
-// Screened 36 variants: best 91.72% here, cdk 73.20%, 2.6.0 91.36% - 
-// the &g_FieldActors materialisation ($s2 hoist) is the gap.
-// 91.72% (440 of 452 bytes): every load, store, call and the copy loop match.
-// g_FieldActors is declared volatile in include/field/actor.h, but this unit's
-// original object reads it through a plain pointer, so the pointer load is
-// shared between uses. Reading it through a local `FieldActor**` (below)
-// gets that: `(*(FieldActor**)&g_FieldActors)` does NOT, gcc keeps MEM_VOLATILE
-// (74.12%). Remaining 12 bytes: the original materialises `&g_FieldActors` into
-// $s2 at the first matrix call (after the copy loop, `lui s2; addiu s2; lw
-// a1,0(s2)`), gcc hoists the two address insns to the top of the function where
-// the local pointer is assigned and leaves `lw a1,0(s2)` where the original has
-// it; the saved-$s2 slot then also moves. Tried: macro/inline cast per use
-// (volatile, 74.12%), plain `g_FieldActors[...]` (74.12%).
-// Also tried: `pActors = g_FieldActors;` for the head plus a separate
-// `pActorAddr = &g_FieldActors;` assigned AFTER the copy loop (74.12%, 404 bytes):
-// gcc then rematerialises the constant address per use and drops $s2 entirely.
-//
-// ROUND 474: the sole residual is the TAIL's three base loads. Retail re-forms the
-// address symbolically there (`lui v0,%hi(g_FieldActors)` / `lw v0,%lo(v0)`, 2 insns,
-// one load shared by both indexes of that statement), i.e. its compile had no register
-// copy of &g_FieldActors live at the tail; the body below emits `lw v0,0(s2)` (1 insn,
-// 3 short in total). A cc1_probe of the tail statement disproved this note's old
-// "gcc keeps MEM_VOLATILE" claim: `(*(FieldActor**)&g_FieldActors)` does emit the bare
-// symbolic `lw $2,g_FieldActors`. Measured this round on the body below: cast at every
-// site 74.12% (404 - the aliasing-visible stores make gcc interleave the eleven field
-// stores with the copy loop, which is where that number is lost), cast at the tail only
-// 85.52% (412 - the three tail reads cse into ONE load), pointer local for head/middle
-// plus `pCopyActors = g_FieldActors;` (volatile value read, one per tail statement)
-// 83.28% (436 - the three symbolic loads and the offset+base addu order come out
-// right, the tail's addus/lws reorder). Unreached: a per-statement symbolic reload
-// that leaves the rest of the body intact.
-// 91.72% (440 of 452 bytes; 113 vs 110 insns - the tail is 3 insns short): head, copy loop, eleven field copies, both matrix calls and the frame match.
-// Residual: retail re-forms the g_FieldActors address symbolically in each of the three tail statements (lui v0,hi; lw v0,lo; addu,addu) while this body loads through the $s2 pointer (lw v0,0(s2)); and because the pointer local is assigned at the top, gcc also hoists its lui/addiu above the loop and moves the sw s2 into the first prologue slot, where retail inits $s2 right after the copy loop (its two middle reads are lw a1,0(s2)).
-// Round 475, all scored: per-statement pTailActors value read for the tail alone 83.28% (436 - symbolic loads right, but the three tail statements interleave and pDst lands in a3); value local for the head plus pointer local for the middle 73.09% (428 - a1 becomes the loop counter, no $s2 at all); two separate pointer locals for head and middle 73.09% (identical code); cast at the head only plus value reads at the tail 73.09% (identical). The head's dst=a1/src=a2/i=a3 allocation needs the pointer local assigned first, which is what hoists $s2.
-// Round 475 preset screen of this body: --gp -G0 measures 87.29% (worse than 91.72), so the residual is not the -G8 address fold; cdk 73.20 and 2.6.0 91.36 were already measured. Park stays closed.
-/*
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
-    FieldActor** pFieldActors;
     ActorData* pDst;
     ActorData* pSrc;
     int i;
 
-    pFieldActors = (FieldActor**)&g_FieldActors;
-    pDst = (*pFieldActors)[dstActorIndex].pActorData;
-    pSrc = (*pFieldActors)[srcActorIndex].pActorData;
+    pDst = g_FieldActorsPtr[dstActorIndex].pActorData;
+    pSrc = g_FieldActorsPtr[srcActorIndex].pActorData;
     for (i = 0; i < 4; i++) {
         pDst->walkmeshTriIds[i] = pSrc->walkmeshTriIds[i];
     }
@@ -1164,13 +1130,12 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
     pDst->position.vx = pSrc->position.vx;
     pDst->position.vy = pSrc->position.vy;
     pDst->position.vz = pSrc->position.vz;
-    FieldMatrixCopyTransform(&(*pFieldActors)[dstActorIndex].transformMatrix, &(*pFieldActors)[srcActorIndex].transformMatrix);
-    FieldMatrixCopyTranslation(&(*pFieldActors)[dstActorIndex].transformMatrix, &(*pFieldActors)[srcActorIndex].transformMatrix);
-    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.x = (*pFieldActors)[srcActorIndex].pActorData->position.vx;
-    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.y = (*pFieldActors)[srcActorIndex].pActorData->position.vy;
-    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.z = (*pFieldActors)[srcActorIndex].pActorData->position.vz;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
+    FieldMatrixCopyTransform(&g_FieldActorsPtr[dstActorIndex].transformMatrix, &g_FieldActorsPtr[srcActorIndex].transformMatrix);
+    FieldMatrixCopyTranslation(&g_FieldActorsPtr[dstActorIndex].transformMatrix, &g_FieldActorsPtr[srcActorIndex].transformMatrix);
+    ((SpriteData*)g_FieldActorsPtr[dstActorIndex].pSpriteData)->position.x = g_FieldActorsPtr[srcActorIndex].pActorData->position.vx;
+    ((SpriteData*)g_FieldActorsPtr[dstActorIndex].pSpriteData)->position.y = g_FieldActorsPtr[srcActorIndex].pActorData->position.vy;
+    ((SpriteData*)g_FieldActorsPtr[dstActorIndex].pSpriteData)->position.z = g_FieldActorsPtr[srcActorIndex].pActorData->position.vz;
+}
 
 
 
