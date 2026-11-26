@@ -106,7 +106,16 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
    because it is live across the call), and a 4-minute permuter run (84.49).
    Presets ruled out: 2.6.0 90.68, 2.7.2-cdk 80.81, -G0 90.68.
    The 90.68 body below is the if/else-if chain (cc1 CSEs the -1 through the
-   merged arms); it is the only shape that keeps all four guard slots' polarity. */
+   merged arms); it is the only shape that keeps all four guard slots' polarity.
+   Round 500 re-measured three more: one `nResult = -1` after the call followed by
+   a single `&&` chain of the four guards and `nResult = -(last)` in the else
+   measures 87.57% / 148 bytes / 37 insns - retail's EXACT size, and the only
+   residual is that the allocator gives `nResult` $v1 and `nSyncStatus` $v0, so
+   ours tests the call result in place (no `addu v1,v0,zero`) and negates into
+   $v1 then copies; retail has the pair the other way round ($v0 = nResult, hence
+   the copy of the call result to $v1). Swapping the two locals' declaration order
+   changes nothing, and letting the success path `return -(last)` directly drops
+   back to 79.73% / 144 bytes with the first guard's -1 no longer inlined. */
 /* Best attempt:
 int func_80078BC8(void) {
     int nSyncStatus;
