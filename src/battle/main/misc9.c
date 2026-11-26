@@ -13,6 +13,11 @@ typedef struct {
     /* 0x30 */ u8 byteRegs[0x10];
 } BattleOpRegs; // Size: 0x40
 
+// The occupancy a slot must have for BattleStoreCharSlotFlagMask to set its bit; any other
+// operand byte sets the bit for every slot.
+#define BATTLE_SLOT_TEST_IN_USE 1
+#define BATTLE_SLOT_TEST_NOT_IN_USE 2
+
 // One of the 0x1C-byte per-slot tag records at g_BattleSlotRecords: tag at +0, the slot's
 // character at +2, flag byte at +3 (the byte BattleSetSlotRecordByteAndRelease writes), the
 // slot's position at +0xA (D_800C3EBE is this +0xA, as in src/battle/main/misc8.c).
@@ -60,14 +65,14 @@ void BattlePickSlotFromOperatorWord(u8 **arg0, s32 arg1) {
     s32 i = 0;
     s16 last;
     s32 count = 0;
-    u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    u16 *pRow = (u16 *)((arg1 & 0xFF) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
     s32 rowIndex;
     u16 *pField;
 
     pRow[(*arg0)[2]] = 0;
     rowIndex = arg1;
     pField = pRow;
-    while (i < 3) {
+    while (i < MAX_PARTY_MEMBERS) {
         u8 idx = i;
         u8 idle = BattleSlotFlagsC002ClearRecordIdle(idx, 0);
 
@@ -82,7 +87,7 @@ void BattlePickSlotFromOperatorWord(u8 **arg0, s32 arg1) {
     last = count - 1;
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
-        u16 *pOut = (u16 *)((rowIndex & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+        u16 *pOut = (u16 *)((rowIndex & 0xFF) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
@@ -90,7 +95,7 @@ void BattlePickSlotFromOperatorWord(u8 **arg0, s32 arg1) {
 void func_8007DA1C(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 count = 0;
-    s32 i = 3;
+    s32 i = MAX_PARTY_MEMBERS;
     s16 last;
     u16 *pRow = g_BattleSlotRegs[arg1 & 0xFF].wordRegs;
     s32 rowIndex;
@@ -99,7 +104,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     pRow[(*arg0)[2]] = 0;
     rowIndex = arg1;
     pField = pRow;
-    while (i < 11) {
+    while (i < BATTLE_ACTOR_SLOT_COUNT) {
         u8 idx = i;
         u8 idle = BattleSlotFlagsC002ClearRecordIdle(idx, 0);
 
@@ -183,20 +188,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
 
 void BattlePickSlotFromOperatorWordFlagged(u8 **arg0, s32 arg1) {
     u8 buf[8];
-    s32 i = 3;
+    s32 i = MAX_PARTY_MEMBERS;
     s16 last;
     s32 count = 0;
-    u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    u16 *pRow = (u16 *)((arg1 & 0xFF) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
     s32 rowIndex;
     u16 *pField;
-    s32 offset = 0x18;
+    s32 offset = MAX_PARTY_MEMBERS * sizeof(BattleSlotFlag);
     s32 rowMask;
 
     pRow[(*arg0)[2]] = 0;
     rowIndex = arg1;
     pField = pRow;
     rowMask = 0xFF;
-    for (; i < 0xB; offset += 8) {
+    for (; i < BATTLE_ACTOR_SLOT_COUNT; offset += sizeof(BattleSlotFlag)) {
         u8 idx = i;
         u8 idle = BattleSlotFlagsC002ClearRecordIdle(idx, 0);
 
@@ -213,7 +218,7 @@ void BattlePickSlotFromOperatorWordFlagged(u8 **arg0, s32 arg1) {
     last = count - 1;
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
-        u16 *pOut = (u16 *)((rowIndex & rowMask) * 0x40 + (s32)g_BattleSlotWordRegs);
+        u16 *pOut = (u16 *)((rowIndex & rowMask) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
@@ -231,7 +236,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     pRow[(*arg0)[2]] = 0;
     rowIndex = arg1;
     pField = pRow;
-    while (i < 3) {
+    while (i < MAX_PARTY_MEMBERS) {
         u8 idx = i;
         u8 idle = BattleSlotFlagsC002ClearRecordIdle(idx, 1);
 
@@ -346,12 +351,12 @@ void BattleStoreCharSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     for (i = 2; i >= 0; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
             switch ((*ppCmd)->operand2) {
-            case 1:
+            case BATTLE_SLOT_TEST_IN_USE:
                 if (g_BattleSlotFlags[i].inUse != 0) {
                     acc |= 1;
                 }
                 break;
-            case 2:
+            case BATTLE_SLOT_TEST_NOT_IN_USE:
                 if (g_BattleSlotFlags[i].inUse == 0) {
                     acc |= 1;
                 }
