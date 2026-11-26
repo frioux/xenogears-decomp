@@ -137,6 +137,9 @@ extern FieldSceneFlagsView g_SceneFlags __asm__("g_Scene");
    (82.87), a `s32 flags` temp for the read-modify-write, the increment moved before
    the flag clear, and a permuter do-while around the case-0 arm (84.51) that
    deletes the arm's j so case 0 falls into case 1 - wrong code, rejected.
+   Re-measured (round 511): the parked body compiles and still reproduces 97.30 at
+   240 bytes; the `goto bump;` label form between the case bodies (the shared-tail
+   lever) measures 97.30 with an identical shape, and gcc 2.7.2-cdk 72.92.
 */
 /*
 void func_8008FC4C(void) {
