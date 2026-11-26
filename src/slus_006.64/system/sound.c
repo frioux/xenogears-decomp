@@ -1527,6 +1527,7 @@ int SoundSpuMemoryAllocateBlockFit(int size) {
 // separate ifs 87-90.51. Remaining lever: a block structure that keeps retail's pre-loop zero AND gives
 // pPrevBlock a live range of <= 42 or address >= 45 - next agent should permute from THIS body (a 3-minute
 // run reached base=85 best=60 only by the uninitialised nSpace edit above, i.e. wrong code).
+// Round 523 re-measured the un-parked body: 98.82% / 296 bytes / 74 insns = retail's exact size and stream, residual unchanged (the $s0/$s1 pair: ours address $s0 / pPrevBlock $s1). -dl stays address 8 refs / 43 = 2.233 against pPrevBlock 8 / 44 = 2.180, so the pair needs ONE more pPrevBlock reference (3*9/44 = 0.614 > 0.558) or its def two insns later - and the def is pinned by retail's own stream, this round proves it: 'int freeAddress = g_SoundSpuMemoryBlocks[0].spuAddress + g_SoundSpuMemoryBlocks[0].size;' instead of the pPrevBlock deref is BYTE-IDENTICAL 98.82 / 296 / 74, because cc1 folds both spellings to the same four abs-symbol insns and the merged pseudo is still born at retail's lui/addiu s0. The ONE shape that does flip the pair is declaring pPrevBlock after that global read (also realistic: first block's end, then walk from the head): 87.91% / 300 bytes / 75 insns, pair retail's but the base then comes out as 'addiu s0,v0,-4' two insns later plus an extra 'addiu v0,v0,4'. So the flip costs 4 bytes at retail's instruction count, i.e. no 296-byte body reaches it. Do not re-enter without a no-cost extra reference to the walking pointer.
 /*
 int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
     SoundSpuMemoryBlock* pPrevBlock = g_SoundSpuMemoryBlocks;
@@ -1570,6 +1571,7 @@ int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
     return address;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
+
 
 
 
