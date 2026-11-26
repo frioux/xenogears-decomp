@@ -34,29 +34,14 @@ void BattleWordRegMulImmClamp(u8 **p, u8 index) {
     g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] = value;
 }
 
-// best 83.06% (cdk; 81.94 2.7.2/2.6.0; --expand-div drops it to 31.94, so not the
-// div trap). The tie here is the same one BattleWordRegSubImmClamp had (the `la` temp for the
-// table base against the operand temp: retail $v0/$v1, ours $v1/$v0), and its fix
-// was to spell the bank access out at each site and to put the shifted byte first
-// (`g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] /= (pArgs[3] << 8) + pArgs[2]`);
-// the body below is the older one and is what the 83.06% was measured on.
-/*
 void func_8007ACDC(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
 
-    pField[pArgs[1]] /= pArgs[2] + (pArgs[3] << 8);
+    g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] /= (pArgs[3] << 8) + pArgs[2];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ACDC);
-// best 83.06% (cdk; 81.94 2.7.2/2.6.0): modulus form of func_8007ACDC; same residual
-// and same untested lead as its `/=` sibling above.
-/*
+
 void func_8007AD24(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
 
-    pField[pArgs[1]] %= pArgs[2] + (pArgs[3] << 8);
+    g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] %= (pArgs[3] << 8) + pArgs[2];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AD24);
