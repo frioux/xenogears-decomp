@@ -3063,6 +3063,33 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 // keeps pSource->pPixels in t3 and pTexture->pResultPixels in t2 (ours t2 / a1) and hoists
 // 'sll a2,a3,0x1' into the loop-2 'bnez' delay slot, so ours recomputes the x index (+1) - the
 // same allocation residual the battle twin records. Not permuted below 99%.
+// Round 508: best 93.34% / 1032 bytes / 258 insns (retail 1028 / 257). Two changes from
+// the round-492 body, both measured: (1) 'return frame;' at ALL THREE in-block exits
+// instead of 'return level;' removes the store's truncation copy - gcc rematerialises the
+// 'sll v0,s2,0x10' in each exit's branch delay slot (retail's exact shape, free) and the
+// 0x18 store becomes retail's bare 'sh s2,24(s0)' in the mode-dispatch beq's delay slot,
+// so 'move v1,s2' is GONE: 92.35 -> 93.34, same 258/1032. The value is identical (frame is
+// (s16)level), so this is a spelling, not a behaviour change. (2) THE +1 THAT REMAINS IS IN
+// LOOP 2, and it is the load-delay nop after 'lh v0,32(sp)' (dstRect.x) - retail fills that
+// slot with the 'lw a0,28(s0)' pRows load, the embedded '*(pSrcRow = ...)' form leaves it
+// empty. Splitting the source expression out ('pSrcRow = (u16*)pTexture->pRows + 3 * ...;'
+// as its own statement before the store, or as u32 'srcAddr = (u32)pTexture->pRows + 6 *
+// (srcRect.y + y) + (srcRect.x + x) * 2;') gives RETAIL'S EXACT 1028 bytes / 257 insns at
+// 91.31 / 91.91% - so the linkable body exists and the choice is 1.4% of score against the
+// exact size; the higher-score body is parked here because that is the recorded number.
+// WHAT IS LEFT in both forms is pure scheduling, no structure: (a) the caller-saved hand-out
+// is rotated one slot - retail t1=pSource, t2=pResultPixels, t3=pSource->pPixels, t0=y, a3=x;
+// this body t0=pSource, t1=pResultPixels, t2=pPixels, a3=y, a2=x (our t0 is retail's t0
+// counter); (b) loop 1's two address chains interleave differently while being the SAME 25
+// instructions (retail runs dst chain, then src chain, then 'mflo v1'; ours interleaves and
+// takes 'mflo a0' right after the second mult); (c) loop 2 has the same 24-instruction
+// multiset with retail's 'mflo'->dst-add last and ours first. Measured dead this round, all
+// at or below the park: s32 return + 'return (s16)level;' (the battle twin's shape) 261 /
+// 88.89, both because the equal path then folds to 'move v0,s1' + a 'j'; s32 return + 'return
+// pTexture->prevFrame;' at the equal path 261 / 88.89 (avoids the fold but reloads with a
+// second 'lhu v0,24(s0)'); a u16 'newFrame' local assigned at entry from level, and
+// 'pTexture->prevFrame = (u16)level;' - both byte-identical to the parked body; the pointer
+// form of loop 2 ('pSrcRow = ... ; dstAddr = ...; *(u16*)(...) = *pSrcRow;') 257 / 91.31.
 /*
 s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
     Temp8* pSource;
@@ -3094,7 +3121,7 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
 
     prevFrame = pTexture->prevFrame;
     if (frame != prevFrame) {
-        pTexture->prevFrame = level;
+        pTexture->prevFrame = frame;
 
         switch (pTexture->mode) {
             case 0:
@@ -3120,10 +3147,10 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
 
         pSource = pTexture->pSource;
         if (pSource == NULL) {
-            return level;
+            return frame;
         }
         if (pSource->isLoaded == 0) {
-            return level;
+            return frame;
         }
 
         // Clip the copy to the overlap of the two regions
@@ -3175,11 +3202,12 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
             }
         }
 
-        return level;
+        return frame;
     }
 
     return prevFrame;
-}*/
+}
+*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
 
 
