@@ -338,11 +338,18 @@ void FieldScriptVMHandlerMoveActorToIndirectPosition(void) {
 // Tried, all worse or equal: pointer-local do-while loop with &points[i] as a giv
 // (77.55), '&g_FieldActors[idx]' per pair (80.22), m2c's per-pair temp pointers
 // (unchanged).
-/*
 extern s16 g_FieldWalkmeshTriCount;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
 extern u_int FieldActorGetWalkmeshTriMaterial(ActorData* pActor);
 
+// Re-measured this round: 80.25%, 656 bytes / 164 insns against retail 664 / 167.
+// Nothing changed; the residual is still (a) the loop and the tail store order and
+// (b) the pActor $a1 (retail) against $a0 (here) rotation, which mirrors almost every
+// line. One thing fixed: the three externs this body needs (g_FieldWalkmeshTriCount,
+// func_8007B1C4, FieldActorGetWalkmeshTriMaterial) had been dropped from the park by
+// an earlier unpark/repark and the body did not compile without them - they are back
+// inside the block now.
+/*
 void func_8009E574(s32 nX, s32 nY) {
     VECTOR normals[4];
     SVECTOR points[4];
@@ -402,6 +409,7 @@ void func_8009E574(s32 nX, s32 nY) {
     pActor->scriptFlags.flags = (pActor->scriptFlags.flags & ~0x40000) | 0x400000;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009E574);
+
 
 
 // Writes the actor's Y position (fixed point) and the cached short copies
