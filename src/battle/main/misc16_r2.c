@@ -38,7 +38,7 @@ extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 extern u8 D_800CCD38[];
 extern u8 D_800CCD3A[];
-extern u8 D_800D2F7C;
+extern u8 g_BattleCommandCellPanelSprites;
 extern u8 D_800D2F7D;
 extern u8 D_800D2F7E;
 extern u8 D_800D2F7F;
@@ -642,7 +642,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
 
 
 
-void func_80090E7C(u8 arg0) {
+void BattleDrawCommandCellFrames(u8 arg0) {
     u8 *pRec;
     u16 pal;
 
@@ -658,7 +658,7 @@ void func_80090E7C(u8 arg0) {
     *(u16 *)(pRec + 0x3CE) = pal;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                         (g_BattlePrimStartIndex[0] * 0x28 + 0x410)),
-                            0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
+                            0xEC, 0xC6, D_800D2F7E, D_800D2F7F, g_BattleCommandCellPanelSprites);
     pRec = g_BattleGraphicsWork->pPacketPrims - (-(g_BattlePrimStartIndex[0] * 0x28));
     if (D_800D2F7D != 0) {
         pal = g_SystemPalette2;

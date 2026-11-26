@@ -13,7 +13,7 @@ extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 extern u8 D_800CCD38[];
 extern u8 D_800CCD3A[];
-extern u8 D_800D2F7C;
+extern u8 g_BattleCommandCellPanelSprites;
 extern u8 D_800D2F7D;
 extern u8 D_800D2F7E;
 extern u8 D_800D2F7F;

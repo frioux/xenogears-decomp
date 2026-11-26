@@ -169,7 +169,7 @@ void BattleSaveScriptCommandOperandsFromActor(void);
 void BattleClearStatusWordsOnAction6E(void);
 void BattleResolveSlotActionState(void);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
-extern void func_80090E7C(u8);
+extern void BattleDrawCommandCellFrames(u8);
 extern void BattleUpdateFrame(void);
 extern void *GetStringEntryFromBank14(s32);
 extern void *GetWeaponName(s32);
@@ -198,7 +198,7 @@ extern u8 D_800CEF23[];
 
 
 /* 91.38% (1444 bytes against retail's 1440) under this unit's gcc 2.6.0. Every
-   call, rectangle and store is retail's and the tail from func_80090E7C onwards is
+   call, rectangle and store is retail's and the tail from BattleDrawCommandCellFrames onwards is
    byte-identical; the residual is four bytes of register scheduling plus one hoist.
    Levers that were needed to get here:
    - the two 16-row scans read a byte of a 0x28-byte action row: the index must be
@@ -351,7 +351,7 @@ void func_80091064(u8 arg0) {
         onesRect.h = 0xD;
         BattleLoadImageAndSync(&onesRect, active[i] != 0 ? g_BattleDigitImageBuffers[values[i] % 10] : g_BattleTextWorkspace);
     }
-    func_80090E7C(arg0);
+    BattleDrawCommandCellFrames(arg0);
     for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
         HeapFree(bufs[i]);
     }
