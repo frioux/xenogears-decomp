@@ -672,25 +672,21 @@ void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId) {
     }
 }
 
-// Best: 95.08% at 956 bytes (retail 952 / 238 insns, ours 239). Whole body instruction-identical except: (a) one allocator rotation - retail keeps row in $s7 (saved first) and tensDigit in $s4, ours has row $s6 and tensDigit $s7, which rotates the s4-s7 chain (row*24, row*8) and the /100 magic constant (a1 vs a0); (b) one load-delay nop in the digit-loop head (ours emits 'addu v0,s3,s0' before the g_Menu reload, so reorg has nothing to put in the load slot; retail puts the add after); (c) the stat sum loads all three stat bytes before the add, ours schedules the third ('lbu v1,741') after the *10 chain. Measured levers: gcc-2.6.0 -O3 93.14, -G0 93.14, gcc-2.7.2 92.68 (the old 92.68 park note was a 2.7.2 measurement), cdk 89.05. Digit-loop prim offset hoisted into a local ('primOffset + (u32)base') reproduces retail's addiu-then-addu and bought 93.14 -> 95.08; the same trick in the tens call bought the second addiu, but in the tail loop base+0x1C70 does NOT (retail folds 0x1C70 into the lhu displacements and commutes addu there). A two-variable x (retail's 'move s1,a0' in the preheader looked like it) measured 92.89, worse. -da/-dg on the body: 16 allocnos, order '... 192 188 73 75' (73=row 4 refs/117 insns/1 byte, 75=tensDigit 2 refs/76 insns/2 bytes, 192/188 = row*8/row*24 3 refs/34-35 insns), so row and tensDigit are the last two and the rotation needs tensDigit to be processed before row*8, which its quotient (131 vs 220) does not allow; declarations are created in source order but parameters always precede locals, so re-ordering locals cannot move it.
-// Best: 98.82% at retail's exact 952 bytes / 238 insns; 40 differing lines, all register assignment.
-// Residual: (a) rotation - retail has row=$s7, row*24=$s6, row*8=$s5, tensDigit=$s4, ours row=$s6,
-// row*24=$s5, row*8=$s4, tensDigit=$s7 (the prologue save order follows it); (b) retail holds x in $a0
-// after both arms and copies it to $s1 in the loop preheader ("move s1,a0"), ours materialises x into
-// $s1 in each arm; (c) "addu v0,s3,s0" (digitOffset+i) comes before the g_Menu reload here and in its
-// load-delay slot in retail, which costs one nop; (d) tail preheader: retail "move s0,zero" in the
-// bnez slot and "li s1,0x2a00" in the blez slot, ours the reverse.
-// Measured this round: the permuter's find (inline the else arm's characterOffset instead of assigning
-// a local, which was dead there) is 95.08 -> 98.82 at retail's exact size - that assignment is not in
-// the original. s32 tensDigit 98.21 (it deletes retail's "andi a1,0xffff", so the original is u16); a
-// "digitX = x" copy before the digit loop 98.56/42 lines (emits "move s1,v1" in the g_Menu load slot);
-// i=0 moved before the tens if 98.57 at 239 insns; reusing x for the tens prim offset 99.09% but 50
-// lines (it fixes (d) and moves the tens chain onto $s1 where retail has $a2). -da/-dl on the body: 15
-// allocnos, order "... 194 190 73 75", quotients row(73) 0.068, tensDigit(75) 0.053, row*8/row*24
-// (194/190) 0.353/0.343, and this cc1 gives the cheapest callee-saved register to the highest-priority
-// allocno, so retail's [tensDigit $s4 .. row $s7] needs tensDigit to outrank the two multiplied row
-// values by 5x - out of reach by spelling. Previous note (obsolete): gcc-2.6.0 -O3 93.14, -G0 93.14,
-// gcc-2.7.2 92.68, cdk 89.05; hoisting the digit-loop prim offset into a local bought 93.14 -> 95.08.
+// Best: 99.24% at retail's exact 952 bytes / 238 insns; 28 differing lines.
+// Residual: (a) the s4-s7 hand-out is rotated - retail row=$s7, 24*row=$s6, 8*row=$s5, tensDigit=$s4;
+// ours 8*row=$s4, 24*row=$s5, row=$s6, tensDigit=$s7, i.e. retail's map is the reverse. `-da -dl -dg`
+// on this body gives the hand-out order 8*row (3 refs / 35 insns / size 4 = .343), 24*row (3 / 36 / 4
+// = .333), row (4 / 118 / 1, u_char = .068), tensDigit (2 / 77 / 2 = .052), so retail's order needs a
+// 2-reference value to outrank 8*row by 6.6x: closed, and a 3-minute permuter run from this body is
+// base=180 best=180. (b) the tail preheader's two delay slots are exchanged: retail fills the
+// `bnez row == 0` slot with `move s0,zero` and the digit-loop `blez` slot with `li s1,0x2a00`, ours the
+// reverse; `for (i = 0, vertOffset = 0x2A00; ...)` measures identically, so it is sched2's pick.
+// The 98.82 -> 99.24 win was structural: the digit x is not an `x += 8` walker but the strength-reduced
+// giv of `x + i * MENU_DIGIT_SPACING` inside the call (with `i++` inside the `digits[digitOffset + i]`
+// subscript), which is what produces retail's preheader `move s1,a0` (40 -> 28 differing lines).
+// Measured dead: a second `x = digitX` variable before the loop (98.56; the copy lands in the
+// `lw g_Menu` slot, not at the preheader end), and the preset screen gcc-2.6.0 -O3 93.14 / -G0 93.14 /
+// 2.7.2 92.68 / cdk 89.05.
 /*
 void func_801D7884(u_char index, u_char row) {
     u16 tensDigit;
@@ -731,8 +727,8 @@ void func_801D7884(u_char index, u_char row) {
         x = D_801E9D30 + 8;
     }
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount = 0;
-    for (i = 0; i < count; ) {
-        u8 digit = g_Menu->digits[digitOffset + i++];
+    for (i = 0; i < count; i++) {
+        u8 digit = g_Menu->digits[digitOffset + i];
 
         if (digit != MENU_DIGIT_NONE) {
             u32 primOffset = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
@@ -740,9 +736,8 @@ void func_801D7884(u_char index, u_char row) {
 
             ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount += func_8002675C(
                 g_Menu->resources, digit, (POLY_FT4*)(primOffset + (u32)g_Menu->pGearWindowPrims),
-                g_Menu->renderContext, x - row * 24, row * 8 + D_801E9D34, 0x1000);
+                g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - row * 24, row * 8 + D_801E9D34, 0x1000);
         }
-        x += MENU_DIGIT_SPACING;
     }
     if (row == 0) {
         u32 tensPrimOffset = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
@@ -753,8 +748,7 @@ void func_801D7884(u_char index, u_char row) {
             (POLY_FT4*)(tensPrimOffset + (u32)g_Menu->pGearWindowPrims),
             g_Menu->renderContext, D_801E9D30 + 0x20, D_801E9D34, 0x1000);
     }
-    vertOffset = 0x2A00;
-    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount; i++) {
+    for (i = 0, vertOffset = 0x2A00; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount; i++) {
         POLY_FT4* pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
                                       -((i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4)) + 0x1C70);
 
@@ -765,6 +759,7 @@ void func_801D7884(u_char index, u_char row) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7884);
+
 
 
 
