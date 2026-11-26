@@ -4,6 +4,21 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 
+// Packet word stores, as include/system/font.h's setXY0Fast / setUV0Fast family.
+#define Misc6SetXY0(p, _x0, _y0) *(u32*)&(p)->x0 = (_x0) | ((_y0) << 0x10)
+#define Misc6SetXY1(p, _x1, _y1) *(u32*)&(p)->x1 = (_x1) | ((_y1) << 0x10)
+#define Misc6SetXY2(p, _x2, _y2) *(u32*)&(p)->x2 = (_x2) | ((_y2) << 0x10)
+#define Misc6SetXY3(p, _x3, _y3) *(u32*)&(p)->x3 = (_x3) | ((_y3) << 0x10)
+#define Misc6SetUV0(p, _u0, _v0) *(u16*)&(p)->u0 = (_u0) | ((_v0) << 0x8)
+#define Misc6SetUV1(p, _u1, _v1) *(u16*)&(p)->u1 = (_u1) | ((_v1) << 0x8)
+#define Misc6SetUV2(p, _u2, _v2) *(u16*)&(p)->u2 = (_u2) | ((_v2) << 0x8)
+#define Misc6SetUV3(p, _u3, _v3) *(u16*)&(p)->u3 = (_u3) | ((_v3) << 0x8)
+#define Misc6SetRGBC(p, _r0, _g0, _b0, _code) \
+    *(u32*)&(p)->r0 = (_r0) | ((_g0) << 0x8) | ((_b0) << 0x10) | ((_code) << 0x18)
+
+// GPU primitive code of the 4-vertex textured flat quad this file emits.
+#define BATTLE_FT4_CODE 0x2C
+
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
 extern u8 g_BattleSpriteTimer;
@@ -530,34 +545,9 @@ void BattleSetTextScale(s32 value) {
     g_BattleTextScale = value;
 }
 
-// best 81.04% (508 bytes against retail 520 = 3 insns short, 127 vs 130 insns). The
-//    body re-measures 81.04 this round; the 84.08% the earlier note quotes was a
-//    variant that was not kept.
-//    ROOT RESIDUAL: the register g_BattleTextPrimCount lands in. Retail keeps it in
-//    v1, loaded BEFORE the frame setup, while a0 still holds the parameter c; ours
-//    loads it into a0 after the prologue, so c needs a move into a0 before the
-//    BattleGetFontGlyph jal (retail puts the base+count addu in that delay slot
-//    instead), pGlyph shifts a3 -> t0, mflo t0 -> t1 and the whole body mirrors.
-//    The 3 missing insns are load-delay nops retail has and ours does not need,
-//    a consequence of that order, not a separate hole.
-//    MEASURED THIS ROUND: `s32 count = g_BattleTextPrimCount;` as the first
-//    declaration (the shape misc2/misc9 BattleEffectSetMatrix has, whose retail
-//    does load before its frame) compiles BYTE-IDENTICALLY to the two direct global
-//    reads - 81.04 / 508 bytes - so a declaration-with-initialiser does not hoist
-//    the load here; gcc-2.7.2-cdk scores 81.31 on the same body, so the preset is
-//    not the way out.
-//    ALREADY MEASURED (do not repeat): no count local, an explicit assignment, the
-//    count as a declaration initializer, declared first vs last, pPkt spelled as
-//    pBase + count / (u8 *)pBase + count * 0x28 / &g_BattleTextPrimBuffers[i][count],
-//    pPkt computed after the glyph call (callee-saved s0, 520 bytes, 78.75%),
-//    tpage/clut hoisted into u16 locals (78.65% / 524).
-//    The rest of the body is retail line for line: the 0x28-byte POLY_FT4 quad, the
-//    UV widths u1 = u0 + (glyph[2] | 3) and v2/v3 = v1 + glyph[3] + 1, code byte 9,
-//    the 0x2C000000 colour word, the cursor advance by 2 + (glyph[2] * scale >> 8).
-//    BattleGetFontGlyph takes an s32 (retail does no andi on a0), and
-//    BattleGetTextWidth still matches 100.00% with that prototype.
-// best 96.77 percent, 516 bytes against retail 520 (129 vs 130 insns). TWO FIXES moved it 81.04 -> 96.77 this round. (1) The count has to be a LOCAL whose uses are TWO statements - 'pPkt = g_BattleTextPrimBuffers[g_BattleDrawBufferIndex]; pPkt += count;' - not 'base + count' in one expression and not two inline reads of the global: only the two-statement form makes cc1 hoist 'lw v1,g_BattleTextPrimCount' ABOVE the frame setup into v1 and put 'addu s0,s0,v0' in the BattleGetFontGlyph delay slot, which is retail's whole head (the old note's 'untypeable emission order' is only the one-expression spelling). (2) The old body was MISSING the length store: retail's 'li v0,9 / sb v0,3(s0)' is setlen(pPkt, 9), written between the clut store and the 0x2C000000 colour word; that is 8 of the 12 missing bytes. REMAINING, one allocator tie plus its consequence: pGlyph takes t0 where retail has a3, so the arm shifts one register (gw a3 vs retail s1, which reuses dead c, and mflo t1 vs t0), and 'li v0,0x28' lands in the beqz a3 delay slot where retail has a nop - that nop is the last missing instruction. Permuter this round: base 423 best 320, and its ONLY edit is 'volatile unsigned int' on the return type, which would change the signature five matched callers use - rejected as wrong code.
-// best 99.23% / 516 bytes / 129 insns against retail 130 / 520: ONE INSTRUCTION SHORT so it cannot link. RESIDUAL is exactly one instruction and it is a reorg delay-slot fill: retail is beqz a3,.Lend / nop / ori v0,zero,0x28 / beq s1,v0; ours puts the li v0,0x28 INTO the beqz slot, so the register map, frame, prologue and every other instruction are retail's and the only diff rows are the three branch offsets the 4 missing bytes shift. TWO CHANGES THIS ROUND (round 513) closed the 96.77 register tie: (1) c = pGlyph[2] | 3 - the glyph advance REUSES the dead parameter instead of a gw local, because retail reuses $s1 (c's callee-saved home) for it (ori s1,a0,0x3, addu v1,v1,s1), which only happens when the width shares the call-crossing parameter pseudo; a separate gw gives pGlyph $t0 / gw $a3 / mflo $t1 at 96.77, the reused parameter gives 99.23 at 7 differing lines with the map exact (a permuter run from the 98.23 body found it, base 130 best 103). (2) that width computation must be the FIRST statement of the arm (width, then y, x, x0, then dx): it makes lbu a3,2(a3) land at retail's position before sll a1,v1,0x10 (98.23); with it after the x0 store the load is 4 instructions late (96.77). MEASURED DEAD this round: do/while(0) around the four UV stores (520 / 130 insns but the u0 pair's two lbu swap order and a load-delay nop appears, 95.91), an empty do/while(0) after the null check (optimised away, no label, identical), typed BattleFontGlyph pointer with ->w/->h/->u/->v (byte-identical).
+// No path returns a value, but the original's return type is not void: with a
+// void return gcc leaves v0 dead at the epilogue and steals the 0x28 compare's
+// `li` into the `beqz a3` delay slot, making the body one instruction short.
 u32 func_8007E964(s32 c) {
     s32 count = g_BattleTextPrimCount;
     POLY_FT4* pPkt;
@@ -566,7 +556,7 @@ u32 func_8007E964(s32 c) {
     s16 y;
     s32 dx;
 
-    if (count >= 0x65) {
+    if (count >= 101) {
         return;
     }
     pPkt = g_BattleTextPrimBuffers[g_BattleDrawBufferIndex];
@@ -575,23 +565,23 @@ u32 func_8007E964(s32 c) {
     if (pGlyph == NULL) {
         return;
     }
-    if (c != 0x28) {
+    if (c != '(') {
         c = pGlyph[2] | 3;
         y = g_BattleTextCursorY;
         x = g_BattleTextCursorX;
-        *(u_long*)&pPkt->x0 = x | (y << 16);
+        Misc6SetXY0(pPkt, x, y);
         dx = (c * g_BattleTextScale) >> 8;
-        *(u_long*)&pPkt->x1 = (x + dx) | (y << 16);
-        *(u_long*)&pPkt->x2 = x | ((y + pGlyph[3]) << 16);
-        *(u_long*)&pPkt->x3 = (x + dx) | ((y + pGlyph[3]) << 16);
-        *(u_short*)&pPkt->u0 = pGlyph[0] | (pGlyph[1] << 8);
-        *(u_short*)&pPkt->u1 = (pGlyph[0] + c) | (pGlyph[1] << 8);
-        *(u_short*)&pPkt->u2 = pGlyph[0] | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
-        *(u_short*)&pPkt->u3 = (pGlyph[0] + c) | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
+        Misc6SetXY1(pPkt, x + dx, y);
+        Misc6SetXY2(pPkt, x, y + pGlyph[3]);
+        Misc6SetXY3(pPkt, x + dx, y + pGlyph[3]);
+        Misc6SetUV0(pPkt, pGlyph[0], pGlyph[1]);
+        Misc6SetUV1(pPkt, pGlyph[0] + c, pGlyph[1]);
+        Misc6SetUV2(pPkt, pGlyph[0], pGlyph[1] + (pGlyph[3] + 1));
+        Misc6SetUV3(pPkt, pGlyph[0] + c, pGlyph[1] + (pGlyph[3] + 1));
         pPkt->tpage = g_BattleTextTpage;
         pPkt->clut = g_BattleTextClut;
         setlen(pPkt, 9);
-        *(u_long*)&pPkt->r0 = g_BattleTextRed | (g_BattleTextGreen << 8) | (g_BattleTextBlue << 16) | 0x2C000000;
+        Misc6SetRGBC(pPkt, g_BattleTextRed, g_BattleTextGreen, g_BattleTextBlue, BATTLE_FT4_CODE);
         g_BattleTextPrimCount++;
     }
     g_BattleTextCursorX = (u16)g_BattleTextCursorX + 2 + ((pGlyph[2] * g_BattleTextScale) >> 8);
