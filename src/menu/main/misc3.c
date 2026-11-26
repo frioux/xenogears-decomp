@@ -1146,57 +1146,51 @@ void MenuApplySaveSlot(u32* pSrc) {
     func_801CB184();
 }
 
-/* Best attempt: 90.42% (1428 bytes vs retail's 1448; 357 vs 362 insns) under XenoMenu260
-   (gcc-2.6.0), 162 differing lines. Two measured gains this round, both in the body below:
-   (1) MenuIsSlotUsable's DEFINITION at the top of this unit is `s32`, not `u_char`:
-   89.88 -> 90.16. Retail's call site here has `bnez v0` straight off the call with no
-   `andi v0,v0,0xff`, which only an int-returning declaration emits, and misc4.c already
-   declares `extern s32 MenuIsSlotUsable(s32)`. Its own body stays 100.00% (retail's .s ends
-   `jr ra` / `addu v0,a2,zero`, no truncation), which is the check that this is safe. The two
-   parks that call it (func_801CBD90, func_801CC6D8) lose the same `andi`, so their
-   residual (c) is closed too - RE-MEASURE both.
-   (2) the checksum test is written with the FAIL arm first: `if ((u8)sum != *pData) { fd = 0; }
-   else { MenuLoadResourceSet(1); MenuApplySaveSlot(pBuffer + 0x100); MenuLoadResourceSet(0x11); }`
-   - 90.16 -> 90.42, and it is the only spelling tried that puts the three-call block OUT of
-   line (retail: `beq v0,v1,0x65B4`). Ours lands after the `j` that skips it rather than at
-   0x65B4, so it is closer but not retail's position.
-   What moved the earlier 84.34 body: (1) the block read loop is a do/while - retail's test
-   sits at the BOTTOM (`addiu s3,s3,0x100; lbu 0x4B97(menuUnk2); sll 13; slt; bnez`) and a
-   `while (offset < count << 13)` pre-test cost six instructions and put pData in $s1
-   instead of retail's $s0: 84.57 -> 89.55. (2) `ready`/`result` declared uninitialised,
-   then `result = 1; ready = 1;` - that is retail's slot pair (ready 0x50, result 0x58) with
-   result's store first and ready's in the MenuResetSlotSelection delay slot: 89.55 -> 89.88.
-   NAMED RESIDUALS, largest first:
-   (a) BLOCK LAYOUT. Retail puts both cold blocks OUT OF LINE between the
-   `MenuLoadWindow2Text(0x65,...) == 0` arm (0x658C) and the happy path (0x65D4):
-   close(fileFd) at 0x65A4 and the three-call resource arm at 0x65B4, each ending in
-   `j <HeapFree>`. This body still emits close(fileFd) in place, which is 2 of the
-   instructions retail has and we do not. MEASURED this round with
-   `tools/scripts/cc1_probe.sh menu/main/misc3` on a snippet whose `goto` target is the last
-   block: cc1 2.6.0 emits such a block AT THE END, in source order, so retail's mid-function
-   position at 0x65A4 is not reachable by moving a label and no block reordering is
-   happening here - do not spend a lane on label or goto placement for this seam.
-   (b) THE ONE CONSTANT REGISTER (3 instructions). Retail keeps MENU_SLOT_NONE in $fp for
-   the whole function (`bne v0,s8`, `sw fp,0x4F80`, `sb fp,0x4F8C/8D`) - one `li s8,0xff` in
-   the loop preheader plus four register uses - where this body emits `li a3,0xff` at each
-   of the four sites, and spends the spare callee-saved slot on 0x100 instead ($s7, read's
-   size argument and its compare), so `repeat` lands in $s8 here against retail's $s7. Both
-   bodies save nine callee-saved registers, so it is a choice between two constants, not
-   pressure. Tried in the earlier lane: a source-level `u_char none = MENU_SLOT_NONE` at
-   every site - cse constant-propagates it, code identical. The twin park func_801CBD90
-   (0x6DE0-0x71FC, "fp in 0xFF") has the same unexplained residual, so whoever cracks it
-   wins both.
-   (c) CLOSED this round by (1) above - retail's call site really is an int declaration.
-   (d) the prefix's s16 is spelled g_MenuCardPathPrefix0+4 against retail's D_801C50AC -
-   same address, relocation only.
-   (e) checksum loop (1 instruction): retail has `addu v0,a0,v0` before the `bgez` and
-   `addu a0,v0,zero` in its delay slot; `sum += *pData++` gives an in-place
-   `addu a0,a0,v0` in the slot. Still untried: giving the sum a second variable
-   (`total = sum + *pData++; sum = total;`) - but that is not source anyone would write,
-   so treat it as evidence that the original had a different expression, not as a fix.
-   Dead already: presets 2.6.0 -O1 70.63 / -O3 51.91, 2.7.2 78.09, 2.7.2-cdk 76.13, so the
-   unit's 2.6.0 -O2 is right. */
-
+/* Best attempt: 98.56% (1440 bytes vs retail's 1448; 360 vs 362 insns) under XenoMenu260
+   (gcc-2.6.0), 110 differing lines - the same body the previous lane left at 90.42. THREE
+   measured finds this round:
+   (1) BLOCK LAYOUT, the residual the old note called unreachable - it IS reachable, by
+   source order alone. gcc 2.6.0 emits each block where its label is WRITTEN (the old probe
+   that showed "no reordering" was right, and that is exactly why label position is the
+   whole control), so retail's cold islands at 0x65A4 (close + j HeapFree) and 0x65B4 (the
+   three-call resource arm + j HeapFree) are simply the source's textual order. Put the
+   happy path AFTER them, reached by `if (MenuLoadWindow2Text(0x65, ...) != 0) goto
+   cardRead;` whose false arm is the two statements ending in `goto updateCursor` - the
+   then-arm's trailing goto is what skips the islands, and gcc inverts the test to
+   `bnez v0,<happy path>`, exactly retail. 90.42 -> 96.83%, both islands at retail's own
+   offsets, and it also turned the close/j and resource-arm/j tails into retail's
+   `j <HeapFree>` shape.
+   (2) THE -1 IS A VARIABLE: retail's `li s0,-1` in the open-loop preheader feeding
+   `bne s2,s0` is a local holding -1, not the literal, which rematerialises as `li a3,-1`
+   at the compare. `s32 noFd; ... noFd = -1; if (fd == noFd)` - 96.83 -> 98.26%, 132 -> 110
+   differing lines. Found by `permute.sh --minutes 4 -j 2` (PERMUTER_BETTER base=1774 best
+   1123, its `new_var` was the only edit that mattered), then hand-checked: it changes no
+   value and is the preheader store retail has, so it is right code.
+   (3) The checksum-ok arm needs an explicit `pData = pBuffer + 0x100;` before it, and
+   MenuApplySaveSlot takes pData: retail reloads pData there and passes it (`addiu
+   a0,s4,256` filling the beq delay slot, then `move a0,s0`) rather than forming the sum
+   inline. 98.26 -> 98.56%.
+   NAMED RESIDUALS left, all allocator or scheduler, 2 instructions in total:
+   (a) THE $s0/$s1 MIRROR: retail keeps retry in $s1 and pData in $s0, this body mirrors
+   them. Look up tools/rounds/levers.md under regalloc/callee-saved tie first; a permuter
+   run from THIS body is the cheap next move - the 4 minutes spent above went on the -1
+   find, not on this.
+   (b) sum loop, 1 instruction: retail has `addu v0,a0,v0` then `move a0,v0` in the bgez
+   delay; `sum += *pData++` gives the in-place `addu a0,a0,v0` in that slot. Measured dead
+   this round: a second accumulator (`total = sum + *pData++; sum = total;`) compiles
+   byte-identically to the plain form, so the two-pseudo shape cannot be asked for that way.
+   (c) HeapAlloc preheader, placement only: retail has `move s3,zero` after the two li's,
+   this body puts it in the branch delay slot.
+   (d) `result = 0` in the slot==MENU_SLOT_NONE arm is scheduled two instructions earlier
+   here than retail's, which puts the sb just before the MenuLoadWindow2Text call.
+   (e) the prefix's s16 is spelled g_MenuCardPathPrefix0 + 4 against retail's D_801C50AC -
+   same address, relocation only (SECOND EXCEPTION class).
+   Keep from the old note, still true: MenuIsSlotUsable must stay declared s32 at the call
+   site (retail has no andi after the call), and the old preset numbers (-O1 70.63,
+   -O3 51.91, 2.7.2 78.09, 2.7.2-cdk 76.13) were measured on the 84% body - re-measure
+   before believing them. This round: 2.7.2 -O2 90.19 / -O3 68.64, cdk -O3 68.48 on the
+   90.42 body. */
+/*
 u_char func_801CB304(void) {
     char path[0x40];
     s32 ready;
@@ -1204,6 +1198,7 @@ u_char func_801CB304(void) {
     s32 repeat;
     s32 slot;
     s32 fd;
+    s32 noFd;
     s32 fileFd;
     u_char retry;
     u_char card;
@@ -1264,7 +1259,7 @@ u_char func_801CB304(void) {
             goto freeBuffer;
         cardChecksumOk:
             MenuLoadResourceSet(1);
-            MenuApplySaveSlot((u32*)(pBuffer + 0x100));
+            MenuApplySaveSlot((u32*)pData);
             MenuLoadResourceSet(0x11);
             goto freeBuffer;
         cardRead:
@@ -1272,9 +1267,10 @@ u_char func_801CB304(void) {
             retry = 5;
             g_Menu->soundEffectsEnabled = 0;
             fd = -1;
+            noFd = -1;
             do {
                 fd = open(path, 1);
-                if (fd == -1) {
+                if (fd == noFd) {
                     fd = 0;
                     MenuWaitCardOperationFrames(card);
                 }
@@ -1310,6 +1306,7 @@ u_char func_801CB304(void) {
                     sum += *pData++;
                 } while (--count >= 0);
                 if ((u8)sum == *pData) {
+                    pData = pBuffer + 0x100;
                     goto cardChecksumOk;
                 }
                 fd = 0;
@@ -1347,6 +1344,8 @@ u_char func_801CB304(void) {
     g_Menu->unk334 = 1;
     return result;
 }
+*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
 
 
 
