@@ -31,6 +31,7 @@ extern s16 g_ArchiveDebugStreamBlockCount;  // debug stream: sub-blocks in that 
 // A second name for the same halfword: the split block re-reads the count after
 // writing it, and only a distinct object stops gcc forwarding the store.
 extern s16 g_ArchiveDebugStreamBlockCountReload[] __asm__("g_ArchiveDebugStreamBlockCount");
+// Same for the queue arm, which re-reads the section id after storing it.
 extern u16 g_ArchiveStreamNextSectionIdReload[] __asm__("g_ArchiveStreamNextSectionId");
 extern u16 D_8005A4B8;  // debug stream: sector header word at +8
 
