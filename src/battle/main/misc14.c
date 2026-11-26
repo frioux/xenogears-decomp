@@ -219,7 +219,8 @@ void BattleStepTwoAxisInterpolation(void) {
         g_BattleLerpDone = 1;
     }
 }
-// Best attempt: objdiff 95.80%, 1224 bytes / 306 insns (retail 1208 / 302). Round 500 up from 92.61: (A) all seven prim-blend and grid call sites need the POINTER-ADDITION spelling (pass+0x... with the constant on the index chain, e.g. BattleSetPrimGrey80BlendAdd(g_BattleSpriteColumnWork + ((i * 2 + g_BattleSpriteColumnWork[0x5D94]) * 0x28 + 0xD20))) -- an embedded-assignment temp instead costs an extra register move per site (86.88) and a plain statement temp is the old 88.68; that class is closed. (B) BattleDrawSpritePackage is declared here with s32 coordinates, not s16: with s16 cc1 canonicalises the grid's 'sy >> 16' as an s16-in-high-half value, loop.c then HOISTS it out of the inner 10-iteration loop as 'sra v0,s5,0x10 / sll s6,v0,0x10' plus a per-use 'sra a3,s6,0x10', which is the extra s6 save/restore and the +8-byte frame (94.20 / 310); with s32 there is no conversion and retail's per-iteration 'sra a3,s5,0x10' falls out (95.80 / 306). The two s16 truncations that retail DOES have (BattleBuildGrey80BlendSpriteColumn6/7, third argument '0x11A + n * 6') are written as explicit (s16) casts and both stay 100.00; every other caller in the unit was re-measured 100.00 under the s32 prototype. Residual: +4 insns -- (1) the lerp block emits the 0x5D9C store before loading g_BattleLerpFracY, so it pays two extra nops and loses retail's [lw FracY][bgez][sh 0x5D9C in the delay slot] schedule (+2), tried: two statement orderings, a work pointer local (rotates the base to a0), (2) retail keeps the ADDRESS of g_BattlePrimStartIndex in s0 across the three straight-line 0x5D94/93/95 stores (lui+addiu once, three 'lbu 0,0(s0)') where this body re-forms lui/lbu at each (+1), (3) one insn still unaccounted. Also cosmetic: the grid preheader emits lui s5/move s1/move s4/lui s3/move s2 where retail has move s1/lui s5/move s4/move s2/lui s3. Preset checked earlier: cdk drops matched neighbours (98.75 / 79.93), so 2.6.0 is right.
+// Round-500 history (superseded by the note below), 95.80% at 1224 bytes / 306 insns, up from 92.61: (A) all seven prim-blend and grid call sites need the POINTER-ADDITION spelling (pass+0x... with the constant on the index chain, e.g. BattleSetPrimGrey80BlendAdd(g_BattleSpriteColumnWork + ((i * 2 + g_BattleSpriteColumnWork[0x5D94]) * 0x28 + 0xD20))) -- an embedded-assignment temp instead costs an extra register move per site (86.88) and a plain statement temp is the old 88.68; that class is closed. (B) BattleDrawSpritePackage is declared here with s32 coordinates, not s16: with s16 cc1 canonicalises the grid's 'sy >> 16' as an s16-in-high-half value, loop.c then HOISTS it out of the inner 10-iteration loop as 'sra v0,s5,0x10 / sll s6,v0,0x10' plus a per-use 'sra a3,s6,0x10', which is the extra s6 save/restore and the +8-byte frame (94.20 / 310); with s32 there is no conversion and retail's per-iteration 'sra a3,s5,0x10' falls out (95.80 / 306). The two s16 truncations that retail DOES have (BattleBuildGrey80BlendSpriteColumn6/7, third argument '0x11A + n * 6') are written as explicit (s16) casts and both stay 100.00; every other caller in the unit was re-measured 100.00 under the s32 prototype. Residual: +4 insns -- (1) the lerp block emits the 0x5D9C store before loading g_BattleLerpFracY, so it pays two extra nops and loses retail's [lw FracY][bgez][sh 0x5D9C in the delay slot] schedule (+2), tried: two statement orderings, a work pointer local (rotates the base to a0), (2) retail keeps the ADDRESS of g_BattlePrimStartIndex in s0 across the three straight-line 0x5D94/93/95 stores (lui+addiu once, three 'lbu 0,0(s0)') where this body re-forms lui/lbu at each (+1), (3) one insn still unaccounted. Also cosmetic: the grid preheader emits lui s5/move s1/move s4/lui s3/move s2 where retail has move s1/lui s5/move s4/move s2/lui s3. Preset checked earlier: cdk drops matched neighbours (98.75 / 79.93), so 2.6.0 is right.
+// Best attempt: objdiff 96.37%, retail's EXACT 1208 bytes / 302 insns (round 500 was 95.80 / 1224 / 306). Round 501 recovered all four surplus instructions, two findings: (A) the lerp block must read BOTH fractions into locals before the two stores -- fracX = g_BattleLerpFracX; fracY = g_BattleLerpFracY; then the 0x5D9C/0x5D9E stores -- which drops the two nops and gives retail's [lw FracY][bgez FracY][sh 0x5D9C in the delay slot][sra v1,a0,0x8] tail (+2 insns, old residual 1 closed). Computing the first value into a temp and storing it after the FracY read instead scores 96.52% but 1216 bytes / 304 insns -- a wrong-size candidate, rejected. (B) the three 0x5D94/0x5D93/0x5D95 stores share the ADDRESS of g_BattlePrimStartIndex if it is taken once: 'u8 *pPrimStartIndex = &g_BattlePrimStartIndex;' then '*pPrimStartIndex' at the three sites (+1 insn, old residual 2 closed). Assigning that pointer at the first use instead is folded by cc1 (*&x -> x) and goes back to lui/lbu per site (95.90 / 304). Residual left, size-exact and count-neutral: retail forms that address AFTER the first BattleDrawSpritePackage call in $s0, this body forms it in the entry block in $s2 ($s0 is live early with the D_800C2054 index), 3 diff lines; and the lerp block pays 'move a0,v0' in FracX's bgez delay slot where retail pays a nop, and retail puts 'sra v1,v1,0x8' before the StartX lhu where this body puts it after (count-neutral swap). Grid preheader order (lui s5/move s1 vs move s1/lui s5) is also cosmetic and still differs. Preset: cdk drops matched neighbours (98.75 / 79.93), so 2.6.0 is right.
 /*
 void func_80088B80(void) {
     s32 i;
@@ -228,6 +229,9 @@ void func_80088B80(void) {
     s32 sy;
     s32 x;
     s32 y;
+    s32 fracX;
+    s32 fracY;
+    u8 *pPrimStartIndex = &g_BattlePrimStartIndex;
 
     if (g_BattleDisplayState->actorDrawActive == 0) {
         return;
@@ -240,15 +244,17 @@ void func_80088B80(void) {
     }
     if (g_BattleLerpDone == 0) {
         BattleStepTwoAxisInterpolation();
-        *(u16*)(g_BattleSpriteColumnWork + 0x5D9C) = *(u16*)&g_BattleLerpStartX + g_BattleLerpFracX / 0x100;
-        *(u16*)(g_BattleSpriteColumnWork + 0x5D9E) = *(u16*)&g_BattleLerpStartY + g_BattleLerpFracY / 0x100;
+        fracX = g_BattleLerpFracX;
+        fracY = g_BattleLerpFracY;
+        *(u16*)(g_BattleSpriteColumnWork + 0x5D9C) = *(u16*)&g_BattleLerpStartX + fracX / 0x100;
+        *(u16*)(g_BattleSpriteColumnWork + 0x5D9E) = *(u16*)&g_BattleLerpStartY + fracY / 0x100;
     }
     g_BattleSpriteColumnWork[0x5D72] = BattleDrawSpritePackage(0xB9, (s32)(g_BattleSpriteColumnWork + 0xD20), *(s16*)(g_BattleSpriteColumnWork + 0x5D9C), *(s16*)(g_BattleSpriteColumnWork + 0x5D9E));
-    g_BattleSpriteColumnWork[0x5D94] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D94] = *pPrimStartIndex;
     g_BattleSpriteColumnWork[0x5D71] = BattleDrawSpritePackage((*(u16*)(g_BattleSpriteColumnWork + 0x5D9C) & 0xF) + 0xA9, (s32)(g_BattleSpriteColumnWork + 0x3C0), 0xA0, 0x64);
-    g_BattleSpriteColumnWork[0x5D93] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D93] = *pPrimStartIndex;
     g_BattleSpriteColumnWork[0x5D73] = BattleDrawSpritePackage(0x82, (s32)(g_BattleSpriteColumnWork + 0xFA0), *(s16*)(g_BattleSpriteColumnWork + 0x5D9C), *(s16*)(g_BattleSpriteColumnWork + 0x5D9E));
-    g_BattleSpriteColumnWork[0x5D95] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D95] = *pPrimStartIndex;
     for (i = 0; i < g_BattleSpriteColumnWork[0x5D72]; i++) {
         BattleSetPrimGrey80BlendAdd(g_BattleSpriteColumnWork + ((i * 2 + g_BattleSpriteColumnWork[0x5D94]) * 0x28 + 0xD20));
     }
@@ -280,6 +286,7 @@ void func_80088B80(void) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
+
 
 
 
@@ -434,6 +441,7 @@ void BattleBuildGrey80BlendSpriteColumn2(void) {
     }
 }
 // Best attempt: objdiff 97.23% at retail's exact 520 bytes / 130 insns. One residual class: at all three BattleDrawSpritePackage call sites the base sits in $a1, the count lbu in $v1 and the offset chain in $v0, where retail has base $v1 / count $v0 / chain $a1 -- a caller-saved rotation, instruction stream otherwise identical. Structural findings that landed: second loop's pitch += 0x80000 belongs INSIDE its if, loop 1's at the join. Round 500 re-measured 97.23 and added: the rotation IS allocator-order sensitive -- writing an explicit i = 0; before the 0x5D8B store (retail has move s0,zero there) rotates the two CALLEE-saved regs instead (i -> $s1, pitch -> $s0) and drops to 96.95, so retail's early i=0 is real but reaching it costs the s0/s1 pair; one 4-minute permuter run (1704 iterations) found nothing (base=360 best=360). Previously tried and byte-identical: off as u32, count local, base local, both operand orders of the arg sum, pWork local, inline offset, outer cast grouping, pitch increment inside/outside the if, for vs while, truncation probes (truncating after loop 1 allocates loop 1 exactly retail's way).
+// Best attempt: objdiff 97.23% at retail's exact 520 bytes / 130 insns. One residual class: at all three BattleDrawSpritePackage call sites the base sits in $a1, the count lbu in $v1 and the offset chain in $v0, where retail has base $v1 / count $v0 / chain $a1 -- a caller-saved rotation, instruction stream otherwise identical. Round 500 re-measured 97.23: the rotation IS allocator-order sensitive (an explicit early i = 0; rotates the callee-saved pair instead, 96.95) and one 4-minute permuter run found nothing (1704 iters, base=360 best=360). Round 501: the pointer-arithmetic spelling of the arg, (s32)(g_BattleSpriteColumnWork + off), is byte-identical to the int sum (97.23, 520). Previously tried and byte-identical: off as u32, count local, base local, both operand orders of the arg sum, pWork local, inline offset, outer cast grouping, pitch increment inside/outside the if, for vs while, truncation probes.
 /*
 void func_800898F0(u8 arg0) {
     s32 i = 0;
@@ -466,6 +474,7 @@ void func_800898F0(u8 arg0) {
     g_BattleSpriteColumnWork[0x5D8C] = g_BattlePrimStartIndex;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
+
 
 
 
