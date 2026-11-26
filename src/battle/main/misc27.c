@@ -849,8 +849,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
 
 // The far screen edge of the last trail quad, which is the near edge of the next one:
 // two screen pairs, one per corner of that edge.
-extern u16 D_800C3CA4[2];
-extern u16 D_800C3CA8[2];
+extern u16 D_800C3CA4;
+extern u16 D_800C3CA6;
+extern u16 D_800C3CA8;
+extern u16 D_800C3CAA;
 
 // The trail's segment counter: the depth stagger and the texture column the quad
 // samples are both taken from it, the column from its low byte.
@@ -861,56 +863,31 @@ typedef union {
 
 extern BattleTrailSegmentCount D_800D2FCC;
 
-// 84.73% (988 bytes / 247 insns against retail's 984 / 246, XenoBattleTailCdk0). The head,
-// every call sequence and the whole first half are instruction-identical. Three measured
-// residuals, none of them reachable from a spelling:
-//  - REGISTER HAND-OUT (the many-row one): retail is yEdge=$s2, xEdge=$s3, the 0xF0
-//    constant=$s4, abr=$s5; this body gets yEdge=$s2, the constant=$s3, abr=$s4,
-//    xEdge=$s5 - the same SET of three registers, cycled, so cc1's callee-saved order
-//    puts the constant+abr above xEdge where retail ranks xEdge third. Tried and
-//    identical (each one diff-run measured): 0xF0 hoisted into a u8 color local, abr as a
-//    countdown local (this body), and swapping the xEdge/yEdge DECLARATION order.
-//  - ONE EXTRA INSTRUCTION: retail fills the count test's load-delay slot with the
-//    'pQuad->clut' store (lw v1 / bnez / sh v0,0xE) while this body stores clut right
-//    after GetClut and leaves a nop there. The uv/rgb store order is otherwise identical.
-//  - TAIL ADDRESSES: retail reaches all four edge halfwords with their own
-//    lui %hi(D_800C3CA4 + 0x2)-style load and a %lo displacement in the sh/lhu (4 lui +
-//    4 access per block); with 'extern u16 D_800C3CA4[2]' gcc's function-cse shares the
-//    base and emits 'addiu v0,v0,0' for the +2 sibling instead (cc1_probe on this unit's
-//    flags: every array/struct spelling of a +2 sibling shares the high half, so the
-//    four-independent-load form is not reachable without __asm__ aliases, which measured
-//    249 insns / 78.85%).
-// FOUND THIS ROUND (worth 84.19 -> 84.73 and one instruction): the ratan2 arguments must
-// be TWO STATEMENTS, and the second argument's subtraction first -
-// 'dx = pLine->x1 - pLine->x0; dy = pLine->y1 - pLine->y0; angle = ratan2(dy, dx) + 0x400;'
-// With the subtractions inline in the call the body loads y1(0xE) before x1(0xC), puts dx's
-// subu in the x0 load's delay slot with a nop and dy's in the jal's slot; retail is
-// 'lh v1,0xC / lh v0,0xE / lh a0,0xA / lh a1,0x8 / subu a0,v0,a0 / jal / subu a1,v1,a1'
-// and the two-statement dx-first form reproduces it instruction for instruction. dy-after-dx
-// and dy-before-dx (both as statements) are byte-identical to each other, so the load order
-// is the scheduler's once the subtractions are out of the call.
-// Found earlier on the way: the guard's buffer pointer and the quad's must be two separate
-// locals (pLineBuf/pQuadBuf) - one shared pBuf makes cc1 hoist the g_GfxCurWorkBuffer load
-// above the six SVECTOR copies, which clobbers $a0 and costs a 'move a2,a0'. Also
-// 'depth += D_800D3334[0]' must come BEFORE the RotTransPers3 call.
-// ROUND 498: re-measured from a clean un-park, still 84.73% (988 bytes / 247 insns against
-// retail's 984 / 246). New here: the allocator arithmetic that decides the rotation, read
-// off the unit's own cc1 with -dg -dl on build/src/battle/main/misc27.c.i (recipe in
-// levers.md [a-lreg-dump-gives-the]) - the global hand-out is exactly
-// floor_log2(refs) * refs / live_length, descending, and the three contested values are
-// processed 120 (the 0xF0 constant, 9 refs / 208 insns) = 0.1298, 84 (abr, 5 / 83) =
-// 0.1205, 90 (xEdge, 5 / 94) = 0.106, taking $s3/$s4/$s5 in that order (dispositions
-// '120 in 19  84 in 20  90 in 21'; radius 91 = 3/12 = 0.25 takes $s2 first and yEdge 89 =
-// 5/98 = 0.102 reuses $s2 after radius dies). Retail needs xEdge($s3) > const($s4) >
-// abr($s5), i.e. 10/live(xEdge) > 27/105, while xEdge's live range is pinned at ~100 insns
-// by its own def-to-last-use: it would have to be live under 39 insns or carry 16
-// references, and the instruction stream admits neither. So retail's map came from an RTL
-// whose pseudo set this C does not express, not from a spelling - the verdict of levers.md
-// [a-three-way-rotation-is-closed-when-the-loser-needs-a-floor-log2-step] is park.
-// Also measured this round: moving the whole rgb-store group below GetTPage (source order
-// tpage, r0, g0, b0, clut) is 83.92% / 141 differing lines, so that is not retail's
-// statement order; the preset screen on this body is gcc-2.6.0 73.17, plain 2.7.2 does not
-// compile at the unit's flags, cdk -O3 84.73 (identical), so XenoBattleTailCdk0 is right.
+// 98.33% (984 bytes / 246 insns = retail's exact size). Two residuals, both measured.
+// FOUND THIS ROUND (84.73 -> 98.33): the four corner-edge halfwords are FOUR SEPARATE GLOBALS
+// in retail, so every access gets its own lui/%hi. With `extern u16 D_800C3CA4[2]` gcc's
+// function-cse shares the high half and spends an extra `addiu v0,v0,0` per pair (+4 insns,
+// 988 bytes). Declaring D_800C3CA4, D_800C3CA6, D_800C3CA8 and D_800C3CAA as four scalars
+// makes the count!=0 branch and the whole tail instruction-identical. D_800C3CA6 and
+// D_800C3CAA now sit in config/symbol_addrs.slus_006.64.txt and splat writes both into
+// linker/undefined_syms_auto.battle.txt (checked after a clean objdiff-config), so the
+// four-scalar spelling links.
+// - ROTATION, now closed on the final instruction stream: -dl on this body reads the 0xF0
+// constant 9 refs / 206 insns = 0.131, abr 5 / 83 = 0.121, xEdge 5 / 98 = 0.102, and -dg
+// processes them in that order (121 -> $s3, 84 -> $s4, 90 -> $s5). Retail is xEdge($s3) >
+// const($s4) > abr($s5): xEdge would need 8 refs or a live range under 76 insns, while its
+// own def-to-last-use in retail's stream is 102 insns, and the constant's 0.131 is already
+// above xEdge's reachable 0.102 - no body emitting these 246 instructions ranks the three
+// that way (levers.md [a-three-way-rotation-is-closed-when-the-loser-needs-a-floor-log2-step]).
+// - The clut store: retail fills the `bnez` delay slot with `sh v0,0xE(s0)` and keeps the
+// count in $v1, i.e. the clut value stays in $v0 across the rgb group. Storing it straight
+// after GetClut leaves a `lui` in that slot; naming it (`u16 clut = GetClut(...)` stored
+// after the rgb group) moves the store four insns later and measures the same 98.33% / 46
+// differing lines, so the two tie and the direct store is kept.
+// - Requirements the body meets (each costs an instruction if dropped): the ratan2 args are two statements
+// with dx first (`dx = pLine->x1 - pLine->x0; dy = pLine->y1 - pLine->y0; angle =
+// ratan2(dy, dx) + 0x400;`), the line and quad buffer pointers must be two separate locals,
+// and `depth += D_800D3334[0]` must come before RotTransPers3.
 /*
 void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     LINE_F2* pLine;
@@ -999,23 +976,24 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
         pQuad->x1 = (u16)pLine->x0 + xEdge;
         pQuad->y1 = (u16)pLine->y0 + yEdge;
     } else {
-        pQuad->x0 = D_800C3CA4[0];
-        pQuad->y0 = D_800C3CA4[1];
-        pQuad->x1 = D_800C3CA8[0];
-        pQuad->y1 = D_800C3CA8[1];
+        pQuad->x0 = D_800C3CA4;
+        pQuad->y0 = D_800C3CA6;
+        pQuad->x1 = D_800C3CA8;
+        pQuad->y1 = D_800C3CAA;
     }
     pQuad->x2 = (u16)pLine->x1 - xEdge;
-    D_800C3CA4[0] = pQuad->x2;
+    D_800C3CA4 = pQuad->x2;
     pQuad->y2 = (u16)pLine->y1 - yEdge;
-    D_800C3CA4[1] = pQuad->y2;
+    D_800C3CA6 = pQuad->y2;
     pQuad->x3 = (u16)pLine->x1 + xEdge;
-    D_800C3CA8[0] = pQuad->x3;
+    D_800C3CA8 = pQuad->x3;
     pQuad->y3 = (u16)pLine->y1 + yEdge;
-    D_800C3CA8[1] = pQuad->y3;
+    D_800C3CAA = pQuad->y3;
     AddPrim(&g_GfxCurOT[depth], pQuad);
     D_800D2FCC.count++;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
+
 
 
 // The trail renderer's per-frame tick: it publishes the direction-transform task's state
