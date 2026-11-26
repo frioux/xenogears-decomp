@@ -21,7 +21,7 @@ extern u8 g_MenuRowDigitTextureIds[];
 
 void MenuLoadStringsFromIds(u8, void*, u8*, void*);
 u32 MenuAndBitMaskMsbFirst(u32, u8);
-u8* GetStringEntryFromBank(s32, u8);
+u8* GetStringEntryFromBank(s32, s32);
 void MenuSetStringTexturePrims(MenuString*, u8, s32, s32);
 void func_801E1544(u8, u8, u8*, u32);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
@@ -377,34 +377,45 @@ void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
-/* Best: 87.09% at retail's EXACT size (1536 bytes). Structure is decoded and every
-   call, both quads, the texture upload and the row-mode handoff are in retail's
-   order; what is left is one register's worth of allocation.
-   Facts worth keeping:
-   - `g_Menu->pManager->currentCharacterIDs[slot]` is spelled INLINE at all three
-     sites (the condition-mask test, GetStringEntryFromBank, and the 0x12F read):
-     retail re-derives it each time, and a `charId` local costs 5 points
-     (82.33 -> 87.09) and four bytes.
-   - the row block's 0x680 area is MenuString[13] (slotStrings), not opaque bytes:
-     width at +0x7E and renderContext at +0x7D are MenuString fields, and the two
-     16-store quad groups are slotStrings[i].polys[g_Menu->renderContext] and
-     numberStrings[i].polys[g_Menu->renderContext] (+0x680), each store re-spelling
-     the whole access so gcc re-derives the address as retail does.
-   - the frame is 16 bytes too big because `percent` spills to 0x30 where retail
-     keeps it in $fp; retail's flag variable lives in $v0 (short-lived) where gcc
-     here gives it a callee-saved register, and retail also carries a separate
-     s1 = i*0x80 induction register. Tried with no change: the three assignments in
-     the mask arm in a different order (87.72 at 1540 bytes), and `percent`'s
-     declaration position.
-*/
 /*
-// Draws the 13 dressing-room rows of one party slot: renders the row's leading
-// character and its number into the block's texture cells, sets both quads, and
-// hands the row's mode to func_801E1544.
+// Round 508 park: 98.64% at retail's EXACT size (1536 bytes, 384/384 insns), 22 differing lines.
+//    The body is instruction-for-instruction retail's; the residual is two allocation choices and one
+//    CSE, all in the loop head, and they are one register apart.
+//    Closed this round (each measured with diff_func from the 87.09% body):
+//    - THE 16 QUAD STORES WERE AN OPERAND-ORDER QUESTION. Retail forms (unk438 + i*0x80) and then
+//      adds renderContext*0x28 (addu v1,s1,v1 / addu v0,v0,v1); the typed
+//      ->slotStrings[i].polys[g_Menu->renderContext] spelling summed the two scaled indices first
+//      (addu v0,v0,s1 / addu v1,v1,v0) at all 16 sites. Writing each store as an offset-term-first
+//      cast sum - ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->x0 -
+//      took 89.73 -> 98.53 with the byte count unchanged (lever
+//      c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base). A pointer local or a
+//      two-level (->slotStrings + i)->polys[ctx] spelling CSEs and loses 8 insns (78.22%, 1504 bytes).
+//    - frame 96 -> 88 (retail's) and the whole register file fell into place once the third flag
+//      stopped being a separate live value: draw=1 / draw=0 spelled inside the arms
+//      (if (percent >= 50) { draw = 1; mode = 2; } else mode = 0) plus found = 0 only in the else arm
+//      gives 387 insns but s5=pWorkspace, s6=mode, s7=slot, s8=percent, s1=i*0x80, s2=i,
+//      s3/s4=top/bottom - retail's file. Testing if (mode != 0) instead of if (draw != 0) scores
+//      87.85 at 1524 bytes (3 insns short: retail really does carry both flags in the arms).
+//    - declaration order IS the stack layout: RECT rect; u8 code[2]; u8 text[8]; (rect first) puts
+//      rect at 0x10, code at 0x18, text at 0x20 as retail; bottom = 0x2C before top = 0x1F and
+//      bottom += FONT_LETTER_HEIGHT before top += ... are retail's init and increment order;
+//      code[1] = 0 BEFORE the HeapAlloc call is what lands it in the jal delay slot (98.64 vs 97.45
+//      with the assignment after the call).
+//    RESIDUAL (9 rows, all in the loop head): (1) retail keeps the truncated loop index in $s0
+//    (andi s0,s2,0xff then move a1,s0 at BOTH the MenuAndBitMaskMsbFirst and the func_801E1418 call)
+//    and reuses $s0 for found afterwards, where this body truncates straight into $a1; declaring
+//    u32 func_801E1418(u8, u8) so the two andis CSE measures 97.21 / 122 rows - the declared-u8
+//    shapes re-roll allocation and lose every other row; (2) retail keeps the draw flag in $v0 where
+//    this body gives it $v1 (two rows, not source-controlled by anything tried).
+//    Do not re-brief this as a hand job: it is a permuter candidate for the s0/u8 leg, not a
+//    spelling hunt. NOTE the live prototype `u8* GetStringEntryFromBank(s32, s32);` above is
+//    part of the 98.64 body: retail passes the loop index untruncated (`move a1,s2`), so the
+//    u8 in HEAD's prototype is wrong. Nothing live calls it, so this cannot move any bytes.
+/*
 void func_801E1AC8(u8 slot) {
+    RECT rect;
     u8 code[2];
     u8 text[8];
-    RECT rect;
     u8* pWorkspace;
     u8 found;
     u8 mode;
@@ -415,28 +426,28 @@ void func_801E1AC8(u8 slot) {
     s32 bottom;
     s32 i;
 
-    pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
     code[1] = 0;
+    pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
     i = 0;
-    top = 0x1F;
     bottom = 0x2C;
+    top = 0x1F;
     for (; i < MENU_DRESSING_ROOM_ROW_COUNT; i++) {
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->hasBar[i] = 0;
         hit = MenuAndBitMaskMsbFirst(
             g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[slot]].commandMask, i);
-        found = 0;
-        draw = 0;
         if (hit != 0) {
             mode = 1;
             found = 1;
             draw = 1;
         } else {
+            found = 0;
             percent = func_801E1418(slot, i);
-            if (percent < 50) {
-                mode = 0;
-            } else {
-                mode = 2;
+            draw = 0;
+            if (percent >= 50) {
                 draw = 1;
+                mode = 2;
+            } else {
+                mode = 0;
             }
         }
         if (draw != 0) {
@@ -461,26 +472,26 @@ void func_801E1AC8(u8 slot) {
             DrawSync(0);
             MenuSetStringPrimitives(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i], i, 0x80, 0x81);
             MenuSetStringPrimitives(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i], i, 0x80, 0x82);
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x0 = 0x5C;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y0 = top;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x1 =
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->x0 = 0x5C;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->y0 = top;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->x1 =
                 0x5C + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].width;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y1 = top;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x2 = 0x5C;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y2 = bottom;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].x3 =
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->y1 = top;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->x2 = 0x5C;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->y2 = bottom;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->x3 =
                 0x5C + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].width;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].polys[g_Menu->renderContext].y3 = bottom;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x0 = 0xC8;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y0 = top;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x1 =
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->y3 = bottom;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->x0 = 0xC8;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->y0 = top;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->x1 =
                 0xC8 + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].width;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y1 = top;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x2 = 0xC8;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y2 = bottom;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].x3 =
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->y1 = top;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->x2 = 0xC8;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->y2 = bottom;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->x3 =
                 0xC8 + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].width;
-            ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[i].polys[g_Menu->renderContext].y3 = bottom;
+            ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings + i)))->y3 = bottom;
             ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].renderContext = *(u8*)&g_Menu->renderContext;
             ((MenuDressingRoomRowBlock*)g_Menu->unk438)->shouldRender[i] = 1;
         } else {
@@ -488,14 +499,16 @@ void func_801E1AC8(u8 slot) {
         }
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->digitPrimCount[i] = 0;
         func_801E1544(i, mode, pWorkspace, percent);
-        top += FONT_LETTER_HEIGHT;
         bottom += FONT_LETTER_HEIGHT;
+        top += FONT_LETTER_HEIGHT;
     }
     HeapFree(pWorkspace);
     MenuSetStringTexturePrims(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->unk0D00, slot, 0, 2);
     g_Menu->pManager->shouldRenderPanel[3] = 1;
-}
-*/
+}*/
+
+
+
 
 u8 MenuRunUnk438PanelLoop(u8 slot) {
     u8 active;
@@ -533,6 +546,7 @@ u8 MenuRunUnk438PanelLoop(u8 slot) {
     MenuFreeUnk438Panel();
     return 1;
 }
+
 
 u8 MenuInitializeGearScreenBuffers(void) {
     u32 i;
