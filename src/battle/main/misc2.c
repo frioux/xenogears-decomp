@@ -825,6 +825,37 @@ void BattleBuildSlotGaugePrims(void) {
 // it is wrong code that happens to rearrange three cosmetic sites. Do not re-run it without a
 // different residual.
 // 95.46% at 2784 bytes / 696 insns = retail's exact size (was 94.12% / 2780 / 695, one short). Structure closed; residual is register naming only - see the note above.
+// ROUND 522: re-measured 95.47 percent at 2784 bytes / 696 insns (retail's exact size), 134
+// differing lines - was 136 / 95.46 with the old for-init order.
+// (1) NEW LEVER, the for-CLAUSE INIT order is a real knob for the caller-saved IV hand-out:
+//     `for (slot = 0, flagsOff = 0, actorOff = 0; ...)` (flagsOff before actorOff) moves
+//     actorOff from $t8 to retail's $t6, 136 -> 134 differing lines. 95.46 -> 95.47. Closed.
+// (2) The INCREMENT order then decides which +N lands in the bnez delay slot, and only one of
+//     the two spellings keeps retail's content there: `slot++, actorOff += 0x1C, flagsOff += 8`
+//     puts flagsOff's +8 in the slot (retail) and actorOff's +28 before slot++
+//     - `slot++, flagsOff += 8, actorOff += 0x1C` measures the same 134 / 95.47 but swaps the
+//     two increments, so keep the first order.
+// (3) WHY the rest cannot move: -da -dl -dg (cc1 2.6.0, -O2 -G8) report 16 allocnos for this
+//     function and every contested pseudo is a PRIORITY TIE at quotient 0 (integer
+//     floor_log2(refs)*refs/live): actorOff 7 refs / 521 insns, flagsOff 7 / 520, magic
+//     (0x68DB8BAD) 7 / 519, and the three constants likewise 2 refs over the whole loop. The
+//     hand-out among a tied group therefore follows the allocno order, and the measured order
+//     among the four caller-saved loop values is the REVERSE of their birth order (v0: born
+//     actorOff, flagsOff, magic, pLimit -> handed 24, 14, 15, 13 i.e. pLimit first). Retail's
+//     map (flagsOff $t5, actorOff $t6, pLimit $t7, magic $t8) needs flagsOff born LAST, i.e.
+//     after the magic pseudo that the loop body creates, which no spelling of a for-init can do.
+// (4) Measured dead this round: the declaration order of slot/actorOff/flagsOff (byte-identical,
+//     134 lines, same as every other order - do not re-try); dropping the explicit flagsOff IV
+//     for `g_BattleSlotFlags[slot * 8]` and letting loop.c make the giv (693 insns / 2772 bytes
+//     / 94.96 - THREE short, the IV is required, this re-confirms round 501(b) from the other
+//     side).
+// (5) What is left, all allocno-order or reorg: the 0x1A / 0x1E / 0xC constants rotate the same
+//     way (ours $s1 / $s2 / $s0, retail $s0 / $s1 / $s2, and the `li` emission order is already
+//     retail's, so the birth order is right and only the tie order differs); pLimit and magic
+//     are swapped within $t5-$t8 for the same reason; arm B's tail emits the displayState load
+//     after the clut store where retail hoists it before the index chain; arm B's clut folds the
+//     +6 into the displacement. Judge future attempts by the differing-line count, not the fuzzy
+//     percentage (95.46 vs 95.47 here is one register).
 /*
 void func_80075938(void) {
     s32 slot;
@@ -836,7 +867,7 @@ void func_80075938(void) {
 
     BattleBuildSlotGaugePrims();
     g_BattleDisplayState->unk82 = 0;
-    for (slot = 0, actorOff = 0, flagsOff = 0; slot < 3; slot++, actorOff += 0x1C, flagsOff += 8) {
+    for (slot = 0, flagsOff = 0, actorOff = 0; slot < 3; slot++, actorOff += 0x1C, flagsOff += 8) {
         if (g_BattleSlotActorIds[actorOff] != BATTLE_SLOT_CHARACTER_NONE) {
             if (width[slot] < 0) {
                 width[slot] = 0;
@@ -956,6 +987,7 @@ void func_80075938(void) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
+
 
 void BattleDrawFrameScreenMode1(void) {
     if (g_BattleFrameDrawSuppressed == 0) {
