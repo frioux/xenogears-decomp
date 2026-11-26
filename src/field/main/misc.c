@@ -2027,6 +2027,7 @@ void FieldScriptAddPartyMemberShort(void) {
 }
 
 extern void* g_FieldSavedFramebuffers[];
+extern void* D_8005A41C;
 extern s32 D_8005A448[];
 extern int g_GamePartyMemberSkins[MAX_PARTY_MEMBERS];
 extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
@@ -2178,53 +2179,65 @@ extern int FieldCharacterIdToPartyId(int characterId);
 extern void func_8008C180(int partyIndex);
 extern void func_8008BF38(int partyIndex);
 
-// PARKED 92.66% (1188 bytes / 297 insns = retail's exact size; the previous park
-// was 90.91% / 1172 / 293). Round 489 found the whole 16-byte gap: retail's
-// finishEntry arm (party case 0) contains an EXTRA `jal func_8008BF38` with
-// `move $a0,$zero`, which the old note misread as "retail keeps both
-// func_8008BF38(1) jals inline where the build cross-jumps them". Retail has only
-// ONE a0=1 call (the shared tail at .L8008C708, which case 1 falls into and case 0
-// jumps to); the second jal in case 0 passes a0=0, so the source is
-// `func_8008C180(0); func_8008BF38(0); func_8008BF38(1);`. Adding it lands
-// retail's byte count and insn count exactly.
-// What remains (138 differing lines, no size difference) is one cause: the
-// element-address shape of g_GamePartyMembers / g_GamePartyMemberSkins. Retail
-// re-forms every access symbolically (load `lui %hi` + `lw %lo(sym+4)`, store the
-// bare absolute `sw $r,%lo(sym+4)` that gas expands through $at), while this build
-// cse's `&g_GamePartyMembers[1]` into one register (`lui` + `addiu +4` +
-// `lw/sw 0(reg)`) because the same element is both read and written in the block.
-// Levers n-cc1-always-shares-a-twice-used and k-a-scaled-index-not-a-base-pointer:
-// this cc1 always folds a twice-used symbol address into one shared la, and only a
-// typed MEMBER of a declared extern struct keeps a constant in the %lo
-// (k-a-member-lvalue..., a-nonzero-array-field-offset...); an array subscript at a
-// non-zero index does not fold. The load state is the guard the script instruction
-// waits on (the global at 0x800ADBC4, hence g_FieldPartyModelLoadState), and every
-// 0xFF in the arms compares/stores that one constant, so gcc reuses its register.
-// Also measured: the 0x14000 loop-end constant takes
-// $t0 in retail and $v0 here (register only, size-neutral), and
-// g_FieldSavedFramebuffers[1] is a bare D_8005A41C symbol in retail's object
-// (relocation-only). Layout that is load-bearing and was measured: the shift reads
-// the two slots into temps before clearing them (that is the only way to get
-// retail's members[1]=NONE, skins[1]=NONE, members[0]=temp, skins[0]=temp store
-// order), and g_pGameState->gearRide[N] = 0 has to be the LAST statement of each
-// arm for its sb to land in the exit jump's delay slot.
-// PARKED 92.66 percent (1188 bytes / 297 insns = retail's exact size and instruction count; 138 differing lines).
-// Round 502 addendum - the element-address residual was attacked with the
-// scalar-alias spelling the round-498 lever records (extern s32 g_Slot1
-// with an __asm__ label naming g_GamePartyMembers+4): cc1 does emit retail's
-// exact bare MEM pair, but that object CANNOT BE BUILT, because cc1 also emits
-// a chained .extern (g_GamePartyMembers+4, 4) and gas rejects it (junk at end
-// of line, first unrecognized character is a comma), so maspsx writes no .o and
-// diff_func reports the function as missing from the object. Quoting the label
-// makes the .extern legal but turns every USE into one literal symbol name
-// (reloc R_MIPS_GPREL16 on a quoted name), so it does not reproduce retail
-// either. The cast spelling (deref of a u8 star off the array plus 4) measures
-// byte-identical to the array form - 92.66, 1188 bytes, 297 insns, the same 138
-// lines - exactly as lever round 457 predicts. The only route left to retail's
-// shape is ONE SYMBOL PER SLOT, i.e. names in symbol_addrs.slus_006.64.txt at
-// 0x80062594 / 0x80062598 so the relocations read g_GamePartyMembers+4/+8; that
-// is a naming decision for the orchestrator and it edits another binary's
-// symbol file, so it is not done here.
+// PARKED 98.25% (1188 bytes / 297 insns = retail's exact size and instruction
+// count; 70 differing lines, all of them register names). Round 515 closed the
+// 92.66% -> 98.25% gap with two discoveries:
+//
+// 1. The party-slot element must be spelled through a struct-pointer CAST, not as
+//    an array subscript and not as a member of a *declared* extern struct. All
+//    three were measured in a cc1_probe.sh snippet on this unit: `g_P1[1]` and
+//    `g_P2.slot1` both emit `la $3,g_P+4` (lui+addiu, then lw/sw 0(reg)) because
+//    the element is read and written in the same block, while
+//    `((PartySlots*)g_P3)->slot1` emits retail's direct symbol access - `lui
+//    $v0,%hi(sym)` + `lw $v0,%lo(sym+4)($v0)` for the load and the bare
+//    `sw $reg,sym+4` macro (gas expands it through $at) for the store. That single
+//    respelling took 92.66 -> 98.18; the old note's conclusion ("the only route
+//    is one symbol per slot in symbol_addrs") was wrong.
+// 2. g_FieldSavedFramebuffers[1] is the BARE symbol D_8005A41C in retail's object
+//    (misc5.c already spells it that way), so the two slot-2 copies read
+//    `extern void* D_8005A41C;` and not the array at +4: 98.18 -> 98.25.
+//
+// What remains is two register artifacts, both downstream of the 0x14000 copy-end
+// constant:
+//   - Retail builds the constant in $t0 and adds into it (`lui $t0,0x1` in the
+//     bne delay slot / `ori` / `addu $t0,$a2,$t0`); this cc1 always materialises it
+//     in $v0 with pEnd in $t0. That is reload's scratch, not an allocno: forming
+//     pEnd between the two global loads is byte-identical, forming it in chunk
+//     units (`pSrc + 0x1400`) is byte-identical, and hoisting the member/skin
+//     loads above the copy loop (so $v0 is live across it) STILL gives $v0 - see
+//     lever a-li-constant-is-a-reload-scratch, which this unit's own func_8008BF38
+//     measured on the same constant.
+//   - Because $v0 is taken, the member/skin loads land in $a1/$a2 where retail has
+//     $v0/$a1 (18 of the 70 lines; size-neutral).
+//   - The last 4 lines: retail stores g_PlayerActorIndex before the `sll` chain,
+//     this body 3 insns later (in the `lw a0,76($v0)` delay slot). A 4-minute
+//     permuter run (1480 iterations, base 520 / best 180) only reached it by
+//     declaring `extern volatile unsigned int g_PlayerActorIndex` - a declaration
+//     lie, rejected.
+//
+// Load-bearing layout kept from the earlier parks: the member/skin reads are taken
+// into locals BEFORE the block clears the slots (that is retail's store order
+// members[1]=NONE, skins[1]=NONE, members[0]=temp, skins[0]=temp), and each arm's
+// `gearRide[N] = 0` is the LAST statement so its sb lands in the exit jump's delay
+// slot. The finishEntry case-0 arm calls func_8008C180(0), func_8008BF38(0) and
+// func_8008BF38(1) (round 489; only one a0=1 call exists, in the shared tail).
+
+// The three party slots held by g_GamePartyMembers / g_GamePartyMemberSkins.
+// Spelled through a struct pointer because the array form makes cc1 materialise the
+// element address (lui+addiu / lw 0(reg)); retail keeps the slot offset in the
+// symbol's %lo half (lui / lw %lo(sym+4)($reg)) for every slot but the first.
+typedef struct {
+    /* 0x0 */ s32 slot0;
+    /* 0x4 */ s32 slot1;
+    /* 0x8 */ s32 slot2;
+} PartySlots; // Size: 0xC
+
+#define g_PartySlots ((PartySlots*)g_GamePartyMembers)
+#define g_PartySkins ((PartySlots*)g_GamePartyMemberSkins)
+#define PARTY_FB_CHUNKS (FIELD_PARTY_FRAMEBUFFER_SIZE / sizeof(PartyDataChunk))
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
+
 /*
 void func_8008C334(void) {
     s32 loadState;
@@ -2249,72 +2262,72 @@ void func_8008C334(void) {
         if (g_FieldEntryRoutineFinished == 0) {
             switch (partyIndex) {
             case 0:
-                if (g_GamePartyMembers[1] == CHARACTER_ID_NONE) {
-                    g_GamePartyMembers[0] = CHARACTER_ID_NONE;
-                    g_GamePartyMemberSkins[0] = CHARACTER_ID_NONE;
+                if (g_PartySlots->slot1 == CHARACTER_ID_NONE) {
+                    g_PartySlots->slot0 = CHARACTER_ID_NONE;
+                    g_PartySkins->slot0 = CHARACTER_ID_NONE;
                     g_pGameState->gearRide[0] = 0;
                     break;
                 }
                 pSrc = g_FieldSavedFramebuffers[0];
                 pDst = g_PartyDataBuffers[0];
-                pEnd = (PartyDataChunk*)((u8*)pSrc + FIELD_PARTY_FRAMEBUFFER_SIZE);
+                pEnd = pSrc + PARTY_FB_CHUNKS;
                 do {
                     *pDst = *pSrc;
                     pSrc++;
                     pDst++;
                 } while (pSrc != pEnd);
-                member = g_GamePartyMembers[1];
-                skin = g_GamePartyMemberSkins[1];
-                g_GamePartyMembers[1] = FIELD_PARTY_SLOT_NONE;
-                g_GamePartyMemberSkins[1] = FIELD_PARTY_SLOT_NONE;
-                g_GamePartyMembers[0] = member;
-                g_GamePartyMemberSkins[0] = skin;
+                member = g_PartySlots->slot1;
+                skin = g_PartySkins->slot1;
+                g_PartySlots->slot1 = FIELD_PARTY_SLOT_NONE;
+                g_PartySkins->slot1 = FIELD_PARTY_SLOT_NONE;
+                g_PartySlots->slot0 = member;
+                g_PartySkins->slot0 = skin;
                 g_pGameState->gearRide[0] = g_pGameState->gearRide[1];
-                if (g_GamePartyMembers[2] != FIELD_PARTY_SLOT_NONE) {
-                    pSrc = g_FieldSavedFramebuffers[1];
+                if (g_PartySlots->slot2 != FIELD_PARTY_SLOT_NONE) {
+                    pSrc = D_8005A41C;
                     pDst = g_FieldSavedFramebuffers[0];
-                    pEnd = (PartyDataChunk*)((u8*)pSrc + FIELD_PARTY_FRAMEBUFFER_SIZE);
+                    pEnd = pSrc + PARTY_FB_CHUNKS;
                     do {
                         *pDst = *pSrc;
                         pSrc++;
                         pDst++;
                     } while (pSrc != pEnd);
-                    member = g_GamePartyMembers[2];
-                    skin = g_GamePartyMemberSkins[2];
-                    g_GamePartyMembers[2] = FIELD_PARTY_SLOT_NONE;
-                    g_GamePartyMemberSkins[2] = FIELD_PARTY_SLOT_NONE;
-                    g_GamePartyMembers[1] = member;
-                    g_GamePartyMemberSkins[1] = skin;
+                    member = g_PartySlots->slot2;
+                    skin = g_PartySkins->slot2;
+                    g_PartySlots->slot2 = FIELD_PARTY_SLOT_NONE;
+                    g_PartySkins->slot2 = FIELD_PARTY_SLOT_NONE;
+                    g_PartySlots->slot1 = member;
+                    g_PartySkins->slot1 = skin;
                     g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
                 }
                 break;
             case 1:
-                if (g_GamePartyMembers[2] == CHARACTER_ID_NONE) {
-                    g_GamePartyMembers[1] = CHARACTER_ID_NONE;
-                    g_GamePartyMemberSkins[1] = CHARACTER_ID_NONE;
+                if (g_PartySlots->slot2 == CHARACTER_ID_NONE) {
+                    g_PartySlots->slot1 = CHARACTER_ID_NONE;
+                    g_PartySkins->slot1 = CHARACTER_ID_NONE;
                     g_pGameState->gearRide[1] = 0;
                     break;
                 }
-                pSrc = g_FieldSavedFramebuffers[1];
+                pSrc = D_8005A41C;
                 pDst = g_FieldSavedFramebuffers[0];
-                pEnd = (PartyDataChunk*)((u8*)pSrc + FIELD_PARTY_FRAMEBUFFER_SIZE);
+                pEnd = pSrc + PARTY_FB_CHUNKS;
                 do {
                     *pDst = *pSrc;
                     pSrc++;
                     pDst++;
                 } while (pSrc != pEnd);
-                member = g_GamePartyMembers[2];
-                skin = g_GamePartyMemberSkins[2];
-                g_GamePartyMembers[2] = FIELD_PARTY_SLOT_NONE;
-                g_GamePartyMemberSkins[2] = FIELD_PARTY_SLOT_NONE;
-                g_GamePartyMembers[1] = member;
-                g_GamePartyMemberSkins[1] = skin;
+                member = g_PartySlots->slot2;
+                skin = g_PartySkins->slot2;
+                g_PartySlots->slot2 = FIELD_PARTY_SLOT_NONE;
+                g_PartySkins->slot2 = FIELD_PARTY_SLOT_NONE;
+                g_PartySlots->slot1 = member;
+                g_PartySkins->slot1 = skin;
                 g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
                 g_pGameState->gearRide[2] = 0;
                 break;
             case 2:
-                g_GamePartyMembers[2] = CHARACTER_ID_NONE;
-                g_GamePartyMemberSkins[2] = CHARACTER_ID_NONE;
+                g_PartySlots->slot2 = CHARACTER_ID_NONE;
+                g_PartySkins->slot2 = CHARACTER_ID_NONE;
                 g_pGameState->gearRide[2] = 0;
                 break;
             }
@@ -2339,7 +2352,7 @@ void func_8008C334(void) {
                 func_8008C180(2);
                 break;
             }
-            if (g_GamePartyMembers[0] != FIELD_PARTY_SLOT_NONE && g_FieldPartyActorSlots[0] != FIELD_PARTY_SLOT_NONE) {
+            if (g_PartySlots->slot0 != FIELD_PARTY_SLOT_NONE && g_FieldPartyActorSlots[0] != FIELD_PARTY_SLOT_NONE) {
                 g_PlayerActorIndex = g_FieldPartyActorSlots[0];
                 pActor = g_FieldActors[g_FieldPartyActorSlots[0]].pActorData;
                 pActor->scriptFlags.flags = (pActor->scriptFlags.flags | 0x4400) & ~0x80;
@@ -2350,8 +2363,6 @@ void func_8008C334(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
-
 
 
 void FieldScriptFreeActorFile(void) {
