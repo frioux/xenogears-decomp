@@ -727,6 +727,17 @@ extern VECTOR g_CamAtMovementCurrent;
 extern VECTOR g_CamAtMovementDelta;
 extern VECTOR g_CamEyeMovementCurrent;
 extern VECTOR g_CamEyeMovementDelta;
+// Invented scalar spellings of the four movement vectors' words, used by the parked body
+// below: cc1 only emits retail's bare `lui %hi`/`lw %lo(reg)` + `lui at`/`sw %lo(at)`
+// pair for a SCALAR symbol, and every aggregate spelling (`g_V.vx`, `*(s32*)&g_V`,
+// `((s32*)&g_V)[0]`, a pointer local) materialises the address instead.
+extern long g_CamAtMovementCurrentVx __asm__("g_CamAtMovementCurrent");
+extern long g_CamAtMovementCurrentVy __asm__("g_CamAtMovementCurrent+4");
+extern long g_CamAtMovementCurrentVz __asm__("g_CamAtMovementCurrent+8");
+extern long g_CamEyeMovementCurrentVx __asm__("g_CamEyeMovementCurrent");
+extern long g_CamEyeMovementCurrentVy __asm__("g_CamEyeMovementCurrent+4");
+extern long g_CamEyeMovementCurrentVz __asm__("g_CamEyeMovementCurrent+8");
+extern long g_CamInterpolationAtStep __asm__("g_CamInterpolation");
 extern u16 g_FieldPlayerActorIndex16;
 extern s16 g_FieldWalkmeshTriCount;
 extern s32 D_800ADBAC;
@@ -734,35 +745,36 @@ extern s32 D_800ADBB0;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
 extern long FieldGetVec2Magnitude(long x, long z);
 
-// 90.85% (1120 bytes; retail is 1108, so this body is 3 instructions over). Structure is
-// settled and the switch is a THREE-case switch whose mode-0 and mode-2 arms both carry the
-// follow-camera block: gcc cross-jumps the two identical tails into one, which is why retail
-// has the middle block once (between the case-2/case-0 arms and the case-1 arm) and why case
-// 1 alone reaches the tail by fallthrough. ROUND 485 closed the head: writing each
-// g_CamInterpolation clamp as an if/else that stores in BOTH arms (instead of one ternary)
-// stops the two fields from sharing one base pseudo, so the clamp block becomes
-// instruction-identical to retail (its bare `lui v1,%hi`/`lw v1,%lo` + `lui at`/`sw` pair,
-// then the `la a0,sym+4` pair) and the label offsets up to the movement blocks line up:
-// 89.20 -> 90.85. NAMED RESIDUAL, the 3 extra instructions: for a struct touched at three
-// offsets in one block cc1 2.7.2 forms ONE materialised base (`la $a0,sym` then `lw 0($a0)`,
-// `sw 0($a0)`) where retail re-forms a bare symbol MEM per access (`lui $v0,%hi`/`lw
-// $v0,%lo($v0)`, `lui $at`+`sw` &c) - so the at-movement and eye-movement blocks each pay one
-// `addiu` plus one load-delay nop. Retail is not self-consistent here (its FIRST
-// g_CamMovementFlags load/store pair is bare and its SECOND materialises `la $t0`), so this
-// is cse history, not source shape. Proved with tools/scripts/cc1_probe.sh on this unit's
-// cc1: both the struct-member spelling and a field-pointer local (`int *p = &p->eyeStep`)
-// emit `la base,sym` + displacements for a two-field block, so no struct spelling reproduces
-// retail's bare forms; only a separate scalar symbol per field would, and that needs invented
-// alias names (the orchestrator's call - same finding as func_80072D74's park, which paid
-// 99.93 with exactly that alias). Round-485 alternatives measured: first clamp only 90.65
-// (1120), second clamp only 88.78 (1116), && instead of the nested ifs byte-identical, and
-// the older all-ternary body 89.20 at exactly 1108 bytes (the byte-exact starting point if a
-// worker prefers size over the aligned head). Earlier rounds also measured, do not repeat:
-// plain symbols everywhere 86.18 (1112, the top loses retail's a0 base), one pointer local
-// for all three g_FieldCameraMode uses 88.22, delta/step locals, and a pointer for
-// eyeStepDistance alone 87.91 (frame +8). Presets screened: 2.6.0 89.20, cdk 62.35 - not a
-// preset question. The permuter cannot run on this body ("conversion to non-scalar type
-// requested" on the first base compile).
+// 97.55% (1112 bytes, 278 insns against retail's 277 / 1108 - ONE instruction over).
+// Structure, the cross-jumped case-0/case-2 tail and the case-1 fallthrough are settled;
+// what is left is five register/order ties, named at the end of this note.
+// ROUND 498 - THE HEAD IS NOW EXACT and the earlier "cse history, not source shape" reading
+// was wrong in one direction only: cse IS the mechanism, and it can be defeated by spelling
+// each read-modify-write word as its own SCALAR symbol. The alias block above the externs
+// (g_CamAtMovementCurrentVx/Vy/Vz, the same three for the eye vector, and
+// g_CamInterpolationAtStep) are invented spellings of existing storage, declared with an
+// `__asm__` label; `__asm__("g_CamAtMovementCurrent+4")` works and gives the bare pair retail
+// has. Measured ladder on this same body: plain struct members 90.85% / 1120 bytes / 280 insns
+// (the old park), vx-only aliases on both vectors 93.45% / 1112 / 278, all seven 97.55% / 1112
+// / 278. Probes that decided it (tools/scripts/cc1_probe.sh field/main/misc2): a bare
+// `lw $2,sym` pseudo-op is expanded by the assembler into retail's `lui $2,%hi` +
+// `lw $2,%lo($2)` (destination as base) and a bare `sw` into `lui $at` + `sw %lo($at)`, so
+// every symbol gcc leaves as a bare MEM is already retail's shape; `((s32*)&g)[0]`, an
+// array-typed alias (`extern s32 g[] __asm__("g")`, `g[1]`) and `&g.field` all materialise
+// `la` instead, so only a scalar declaration per word reproduces retail's first access.
+// THE RESIDUAL, named (all size-neutral): (1) the one extra `move v1,v0`: retail writes the
+// first distance compare IN PLACE (`slti s0,s0,0x80`) and ours compares into `$v0`, so
+// eyeDistance has to be copied out of `$v0` first; (2) case 2's `addu` for the player actor
+// lands in `$v1` where retail's is `addu v0,v0,v1`, which renames that whole block's v0/v1;
+// (3) the func_8007B1C4 call sets `a3 = sp+0x38` and `v0 = sp+0x28` in retail's order, ours
+// reversed; (4) `g_CamMovementFlags`'s SECOND access materialises `$t0` in retail and stays
+// bare in ours, so the `sh` at the end of the eye block goes through `$at` instead of `$at`-
+// less `0($t0)`; (5) the at/eye distance compares pick `a2`/`v1` where retail has `v1`/`v0`.
+// Parked alternatives re-measured, do not repeat: 2.6.0 89.20, cdk -G0 64.36 (try_flags); the
+// permuter cannot run on this body ("conversion to non-scalar type requested" on its first
+// base compile). The alias spellings are invented NAMES over existing storage - naming is the
+// orchestrator's call (same finding as func_80072D74's park in this file); drop them and the
+// body measures 90.85% and is source a 1998 programmer would have typed.
 /*
 void func_80073230(void) {
     VECTOR pos;
@@ -810,10 +822,10 @@ void func_80073230(void) {
     case 0:
         D_800ADBB0 = 0;
         if ((D_800ADBAC & 3) == 0) {
-            if (g_CamInterpolation.atStepDistance < 9) {
-                g_CamInterpolation.atStepDistance = 8;
+            if (g_CamInterpolationAtStep < 9) {
+                g_CamInterpolationAtStep = 8;
             } else {
-                g_CamInterpolation.atStepDistance -= 2;
+                g_CamInterpolationAtStep -= 2;
             }
             if (g_CamInterpolation.eyeStepDistance < 9) {
                 g_CamInterpolation.eyeStepDistance = 8;
@@ -854,9 +866,9 @@ void func_80073230(void) {
         if (flags & FIELD_CAMERA_AT_MOVEMENT_ACTIVE) {
             duration = g_CamAtMovementDuration;
             if (duration != 0) {
-                g_CamAtMovementCurrent.vx += g_CamAtMovementDelta.vx;
-                g_CamAtMovementCurrent.vy += g_CamAtMovementDelta.vy;
-                g_CamAtMovementCurrent.vz += g_CamAtMovementDelta.vz;
+                g_CamAtMovementCurrentVx += g_CamAtMovementDelta.vx;
+                g_CamAtMovementCurrentVy += g_CamAtMovementDelta.vy;
+                g_CamAtMovementCurrentVz += g_CamAtMovementDelta.vz;
             }
             duration--;
             g_CamAtMovementDuration = duration;
@@ -871,9 +883,9 @@ void func_80073230(void) {
         if (flags & FIELD_CAMERA_EYE_MOVEMENT_ACTIVE) {
             duration = g_CamEyeMovementDuration;
             if (duration != 0) {
-                g_CamEyeMovementCurrent.vx += g_CamEyeMovementDelta.vx;
-                g_CamEyeMovementCurrent.vy += g_CamEyeMovementDelta.vy;
-                g_CamEyeMovementCurrent.vz += g_CamEyeMovementDelta.vz;
+                g_CamEyeMovementCurrentVx += g_CamEyeMovementDelta.vx;
+                g_CamEyeMovementCurrentVy += g_CamEyeMovementDelta.vy;
+                g_CamEyeMovementCurrentVz += g_CamEyeMovementDelta.vz;
             }
             duration--;
             g_CamEyeMovementDuration = duration;
@@ -889,8 +901,7 @@ void func_80073230(void) {
 
     func_80072D74();
     g_Scene.sceneAngle.vy &= FIELD_ANGLE_MASK;
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
 
 void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt) {
