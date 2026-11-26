@@ -12,6 +12,10 @@
 // same size for the same buffers.
 #define BATTLE_TEXT_SLOT_BUFFER_SIZE 0x39
 
+// The width of one digit glyph: the loop below steps the glyph's x by it, the glyph is drawn
+// this wide, and its atlas x is the digit times it.
+#define BATTLE_STATUS_DIGIT_WIDTH 8
+
 // The digit positions of the number BattleDrawSlotStatusDigits draws: it draws one glyph
 // per entry of D_800C3CFA, and an entry that is blank is skipped.
 #define BATTLE_STATUS_DIGIT_COUNT 3
@@ -20,14 +24,25 @@
 // would take the counter past it, the increment is undone.
 #define BATTLE_ACTION_COUNT_MAX 65000
 
+// The stat weights BattleRunCurrentActionRow adds a row's bonuses to: GameCharacter's
+// statWeights has eight, of which the dressing room reads the first seven (main/game.h);
+// battle/main/misc19_r1 copies the same seven.
+#define BATTLE_STAT_WEIGHT_COUNT 7
+
+// The largest stat weight that loop adds to: a weight already at it is left alone.
+#define BATTLE_STAT_WEIGHT_MAX 64999
+
 // The row conditionKind BattleClearStatusWordsOnAction6E acts on: it zeroes the six effect
 // words whose flag bits the row's conditionFlags carry.
 #define BATTLE_CONDITION_KIND_CLEAR_STATUS 0x6E
 
+// The accessoryEffectFlags5 bit the chance pair below is rolled for.
+#define BATTLE_ACCESSORY_AMOUNT_HALVE_FLAG 0x80
+
 // The percent chance BattleResolveSlotActionState halves an action's amount instead of
-// adding half of it, when the target's accessoryEffectFlags5 has 0x80; a target whose
-// characterId is 0 is rolled against the higher one. battle/main/misc20 names the same
-// pair for the same roll.
+// adding half of it, when the target's accessoryEffectFlags5 has BATTLE_ACCESSORY_AMOUNT_HALVE_FLAG;
+// a target whose characterId is 0 is rolled against the higher one. battle/main/misc20 names
+// the same pair for the same roll.
 #define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT 60
 #define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT_CHARACTER_0 80
 
@@ -413,7 +428,7 @@ void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
     g_BattleGraphicsWork->pPacketPrims[0x66E] = 0;
     if (g_BattleActorCharIds[(u8)arg2] == 1) {
         BattleParseNumberToDigits(func_8009A258((u8)arg2, s + 0x16));
-        for (i = 0, k = 0x8C; i < BATTLE_STATUS_DIGIT_COUNT; k += 8) {
+        for (i = 0, k = 0x8C; i < BATTLE_STATUS_DIGIT_COUNT; k += BATTLE_STATUS_DIGIT_WIDTH) {
             c = D_800C3CFA[i++];
             if (c == BATTLE_VALUE_DIGIT_NONE) {
                 continue;
@@ -422,7 +437,7 @@ void BattleDrawSlotStatusDigits(u8 arg0, u8 arg1, s32 arg2) {
                 (POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                              ((g_BattleGraphicsWork->pPacketPrims[0x66E] * 2 +
                                ((s32 *)g_BattlePrimStartIndex)[0]) * 0x28 + 0x190)),
-                k, 0xA6, (c * 8 + 0x78) & 0xF8, 0, 8);
+                k, 0xA6, (c * BATTLE_STATUS_DIGIT_WIDTH + 0x78) & 0xF8, 0, BATTLE_STATUS_DIGIT_WIDTH);
             g_BattleGraphicsWork->pPacketPrims[0x66E]++;
         }
     }
@@ -1212,7 +1227,7 @@ void BattleDrawSlotStatusTextEntry3(u8 arg0, u8 arg1) {
 // objdiff stays at 99.87 because retail names the per-slot row table g_BattleSlotStatusRows where
 // this body reaches the same word as g_BattleWorkBlock[slot].conditionFlags (reloc addend only).
 void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
-    u16 tbl[4];
+    u16 tbl[BATTLE_SLOT_COMMAND_COUNT];
 
     tbl[0] = D_800C324E;
     tbl[1] = D_800C3250;
@@ -1458,7 +1473,8 @@ void BattleRunCurrentActionRow(void) {
         }
     }
     if (g_BattleActingSlot->activeEffectFlags2 & 0x20) {
-        if ((g_BattleActionSlotMask[0] & 7) != 0 && g_BattleActionSlotMask[0] < 7) {
+        if ((g_BattleActionSlotMask[0] & BATTLE_PARTY_SLOT_MASK) != 0 &&
+            g_BattleActionSlotMask[0] < BATTLE_PARTY_SLOT_MASK) {
             for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
                 if (g_BattleWorkBlock[i].characterId == 3) {
                     g_BattleActionSlotMask[0] = 1 << i;
@@ -1503,8 +1519,9 @@ void BattleRunCurrentActionRow(void) {
     if (g_BattleActingSlot->characterId == 4 && D_800C34AE == 0) {
         BattleDecrementGearPartUse();
     }
-    if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS && g_BattleCurWorkBlock->rowIndex < 7) {
-        if (g_BattleActingSlot->statWeights[g_BattleCurWorkBlock->rowIndex] <= 0xFDE7) {
+    if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS &&
+        g_BattleCurWorkBlock->rowIndex < BATTLE_STAT_WEIGHT_COUNT) {
+        if (g_BattleActingSlot->statWeights[g_BattleCurWorkBlock->rowIndex] <= BATTLE_STAT_WEIGHT_MAX) {
             g_BattleActingSlot->statWeights[g_BattleCurWorkBlock->rowIndex] +=
                 ((u8 *)&g_BattleActingSlot->unk54)[1] + g_BattleActingSlot->accessoryEffectFlags10;
         }
@@ -1550,7 +1567,7 @@ void BattleResolveSlotActionState(void) {
                 }
             }
         }
-        if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x80) {
+        if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & BATTLE_ACCESSORY_AMOUNT_HALVE_FLAG) {
             limit = BATTLE_AMOUNT_HALVE_CHANCE_PERCENT;
             if (g_BattleTargetSlotEntry->characterId == 0) {
                 limit = BATTLE_AMOUNT_HALVE_CHANCE_PERCENT_CHARACTER_0;
