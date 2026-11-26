@@ -118,6 +118,27 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
 //    tile stores hoisted into locals 77.15/1412; pFr inside the loop 80.76 (cse folds
 //    it); else-first 77.00/1432; the round-415 4-minute permuter found only
 //    wrong-code candidates.
+// PARK 86.75% (1440 bytes; retail 1452, 360 vs 363 insns, frame 0x78 vs retail 0x68).
+//    Round 505 did the reorder the round-430 note prescribed: field_0x36, then the
+//    flags block, then pFrameData/pOwner, then field_0x38 (was adjacent to 0x36), and
+//    texY read through a byte ((u8)pAnimPackage->tex.y). That measured 83.99 -> 86.75
+//    on the same body, so both statements are retail source; the low byte read is the
+//    lbu at 0x6($fp), confirmed.
+//    TWO residuals, both named:
+//    - multiply latency hiding is on the WRONG statement. retail issues pBlock[3]*
+//      scale, then the whole flags block + the pFrameData load, then that division's
+//      mflo (13 insns between); this body finishes the field_0x36 division inline and
+//      hoists field_0x38's mult above the flags block instead. gcc emits mult/mflo as
+//      one pair, so retail's gap is scheduler-shaped; forcing the pass was already
+//      measured as a no-op in round 430.
+//    - frame/register cascade. Our locals get 8-byte stack slots (pFrames 0x10,
+//      pOffsets 0x18, unkFlag 0x20, count 0x28, texY 0x30, defaultMode 0x38, color
+//      0x40, pOwner 0x48) where retail packs them 4-byte (0x10, 0x14, 0x18, 0x20,
+//      0x28, 0x2C, 0x30, 0x38), so the frame is 0x78 vs 0x68, the saved set and every
+//      sp-relative operand differ and the whole s-register map shifts one place
+//      (retail pFrameData s0 / pEntry s2 / entryFlags s1 vs this body s2 / s1 / s0).
+//    Measured this round, do not redo: gcc-2.6.0 on this body 86.30 (worse, so not
+//    the preset); the pre-reorder body sat at 83.99/1436/359 insns.
 /*
 void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u32 i;
@@ -149,7 +170,6 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     pFrames = pAnimPackage->pFrames;
     pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
     pSpriteData->field_0x36 = pBlock[3] * pSpriteData->scale / 0x1000;
-    pSpriteData->field_0x38 = pBlock[1] * pSpriteData->scale / 0x1000;
     flags = *pBlock;
     unkFlag = flags & 0x80;
     count = flags & 0x3F;
@@ -157,7 +177,8 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     pEntry = pBlock + (count * 2 + 4);
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
     pOwner = pSpriteData;
-    texY = pAnimPackage->tex.y;
+    pSpriteData->field_0x38 = pBlock[1] * pSpriteData->scale / 0x1000;
+    texY = (u8)pAnimPackage->tex.y;
     defaultMode = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
     color = *(u32*)&pSpriteData->red;
     dir = 4;
@@ -275,6 +296,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     pSpriteData->field_0x40 = (pSpriteData->field_0x40 & ~0xFC) | ((i & 0x3F) << 2);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
+
 
 
 
@@ -591,6 +613,13 @@ extern u8 g_GfxSpritesUseBaseMatrix;
 //    88.15, pBase local across the call 79.11/344, do-while(0) 81.98, two 4-minute
 //    permuter runs found only wrong-code candidates, 86.76 under cdk so not the
 //    preset.
+// PARK 91.05% (332 bytes; retail 336, 83 vs 84 insns). Round 505: the declaration
+//    slot of pMat is not the knob - initializer-first, initializer-last and an
+//    entry-block statement before the g_IsBattle test are all byte-identical at
+//    91.05%, i.e. gcc numbers that pseudo by its first use, not by text. Residual
+//    as before: retail = spriteData s0, pMat s1, xOffset s2, yOffset s3; this body
+//    = spriteData s1, pMat s3, xOffset s0, yOffset s2, plus retail's nop after the
+//    second t[] load (this body has no free slot to fill).
 // PARK 91.05% (332 bytes; retail 336, 83 vs 84 insns). Round 491 re-measured the\n//    two open axes and closed both: a mid-block birth of pMat (assignment after the\n//    flags test, before the scale math) measures 86.18% with FOUR separate lui/addiu\n//    formations - cse propagates the symbol constant out of the pseudo in every block\n//    whenever the set is not in the entry block, so only the declaration-initializer\n//    keeps it a register, and that makes it the longest-lived pseudo and hence s3.\n//    Preset screens on this body: gcc-2.6.0 91.05 (identical allocation), cdk 89.36,\n//    -O3 does not compile. Not a compiler-version question.\n//    Residual unchanged: retail = spriteData s0, pMat s1, xOffset s2, yOffset s3;\n//    this body = spriteData s1, pMat s3, xOffset s0, yOffset s2. pMat must lose s3,\n//    which needs its birth mid-block (cse refuses) or a shorter live range than the\n//    offset temps (it is live from the prologue, necessarily).\n
 /*
 void func_8001E148(SpriteData* pSpriteData) {
