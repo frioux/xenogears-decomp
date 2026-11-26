@@ -291,56 +291,40 @@ void func_80096C0C(s32 mode, u8 *pResult) {
 
 extern SVECTOR D_1F8000A0;
 extern MATRIX D_1F8000F0;
+extern VECTOR D_1F800010;
 
-// Best: 75.90% (344 bytes / 86 insns = retail's EXACT size and count; frame 0x28,
-// s3 present with retail's ori s3,s3,0xa0 folding). NOT shippable: objdiff cannot
-// reach 100 on this function at all, because the retail object stored the scratchpad
-// through SYMBOL references (expected .s has literal 'lui at,0x1f80', a symbol
-// spelling has 'lui at,0x0'+R_MIPS_HI16 on nine stores), so even a perfect stream
-// caps around 85-90%. Proof would have to be check_bin.sh.
-// WHAT MADE IT SIZE-EXACT (variant C, the spelling parked below): the vy/vz stores
-// and the block-1 vx store go through the SYMBOL (D_1F8000A0.vy = ...) while the two
-// 'vx = 0' stores (blocks 2 and 3) are LITERAL casts (*(u16 *)0x1F8000A0 = 0). That
-// mix is what gives retail's single 0x1F8000A0 pseudo in $s3 (cse keeps the
-// const_int and the symbol as DIFFERENT expressions) plus bare symbol stores
-// elsewhere. All-symbol: 340 bytes / 85 insns, s2+s4 hold &D_1F8000A0/&D_1F8000F0
-// (two extra saved regs; retail re-forms them per call site). All-literal: 348 / 87.
-// Symbol stores + literal call args (no s3): 336 bytes / 84 insns, 80.12% - 8 bytes
-// SHORT, cannot link.
-// WHAT IS LEFT (three scheduling spots, no reloc involved): (a) prologue order -
-// retail has 'sw s3,0x1c(sp); lui s3,0x1f80' right after 'addu s1,a0,zero' and
-// 'sw ra' after 'addu s2,a3,zero'; this body saves ra first and forms s3 late;
-// (b) block 2 - retail loads 0x10/0x14, stores pOut->x, then reloads targetY,
-// addu, stores pOut->y, THEN loads 0x18 and stores pOut->z; this body loads 0x18
-// early and stores pOut->z BEFORE pOut->y; (c) block 1 order - retail stores
-// 0xA0,0xA4,0xA2, this body 0xA4,0xA0,0xA2. Written order was vx,vz,vy, so these
-// look like reorg/cse placement, not source order.
-/*
-void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
+// Retail's linked bytes mix two spellings of the 0x1F8000A0 scratch vector: a literal
+// pointer for the vx clearing, D_1F8000A0 for vy/vz. That mix is what makes cc1 keep the
+// address in one callee-saved register ($s3) while re-forming it per store elsewhere;
+// any uniform spelling changes the frame. objdiff reads 97.33% because the expected
+// object carries those addresses as literals, not relocations - linked bytes are equal.
+void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u16 *pAngles) {
+    s16 *pScratch;
+
+    pScratch = (s16 *)0x1F8000A0;
     pOut->targetX = 0;
     pOut->targetY = *(s32 *)(pSrc + 4) >> 12;
     pOut->targetZ = 0;
-    D_1F8000A0.vx = *(u16 *)(pAngles + 0);
+    D_1F8000A0.vx = pAngles[0];
     D_1F8000A0.vz = 0;
-    D_1F8000A0.vy = *(u16 *)(pAngles + 2);
+    D_1F8000A0.vy = pAngles[1];
     RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
     *(s32 *)0x1F800000 = 0;
     *(s32 *)0x1F800004 = 0;
     *(s32 *)0x1F800008 = -(height >> 12);
     ApplyMatrixLV((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
-    pOut->x = *(s32 *)0x1F800010;
-    pOut->y = pOut->targetY + *(s32 *)0x1F800014;
-    pOut->z = *(s32 *)0x1F800018;
-    *(u16 *)0x1F8000A0 = 0;
-    D_1F8000A0.vy = *(u16 *)(pAngles + 2);
-    D_1F8000A0.vz = *(u16 *)(pAngles + 4);
+    pOut->x = D_1F800010.vx;
+    pOut->y = pOut->targetY + D_1F800010.vy;
+    pOut->z = D_1F800010.vz;
+    pScratch[0] = 0;
+    D_1F8000A0.vy = pAngles[1];
+    D_1F8000A0.vz = pAngles[2];
     RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
-    *(u16 *)0x1F8000A0 = 0;
+    pScratch[0] = 0;
     D_1F8000A0.vy = -0x1000;
     D_1F8000A0.vz = 0;
     ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, &pOut->upAxis);
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
+}
 
 
 typedef struct {
