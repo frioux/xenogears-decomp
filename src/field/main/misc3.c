@@ -425,6 +425,7 @@ extern s16 g_FieldP2ButtonsReleased;
 extern s16 g_FieldButtonsPressedOnce;
 extern s16 g_FieldP2ButtonsPressedOnce;
 extern u8 g_FieldScriptSoundEffectBank;
+extern u8 g_FieldScriptSoundEffectBankBytes[] __asm__("g_FieldScriptSoundEffectBank");
 extern s16 g_FieldCurrentModelAnimationId;
 extern s16 g_FieldGearObjectCapacity;
 extern s16 g_FieldPlayerWalkmeshMaterialOverride;
@@ -506,6 +507,8 @@ extern s32 g_FieldScriptRoutineRunning;
 extern s32 g_FieldRequestCode;
 extern s16 D_800AF93A;
 extern s16 g_FieldScriptRenderContextIndex;
+extern void* g_FieldScriptMemoryArray[] __asm__("g_FieldScriptMemory");
+extern s16 g_FieldScriptRenderContextIndexSlots[] __asm__("g_FieldScriptRenderContextIndex");
 extern s16 g_FieldActorUpdateAngle;
 extern s16 g_FieldPolarVectorScale;
 extern s32 g_FieldPartyModelLoadState;
@@ -563,45 +566,47 @@ typedef struct {
 extern FieldRotationVectorPair g_FieldRotationVectorPair;
 extern void FieldResetPortraitSlots(void);
 extern void FieldInitScreenStripSprites(void);
-
-// 426 insns, huge straight-line global-reset block (field scene reset). Parked at 84.61%,
-// 426 insns / 1704 bytes - RETAIL'S EXACT SIZE - with the frame and prologue/epilogue exact.
-// The old 89.55% note was a 427-insn / 1708-byte body; this one is the better base.
-// Fixed here (do not re-derive): (a) the frame is 0x38 because of a DEAD 16-byte array local -
-// `u_long unusedFrame[4];` declared BEFORE `SVECTOR rotation;` puts rotation at sp+0x20 and the
-// saves at 0x28/0x2C/0x30 (lever j-an-unused-local-array-is; no callee takes a stack argument).
-// (b) the copy loop needs three walking pointers (pMemory, pZero = pMemory + 0x200, and a
-// GameState* local feeding `pState->fieldScriptMemory[i]`, which gcc strength-reduces into
-// `lhu 0x1930(a0)` + addiu - a u16* pSource gives 427 insns and loses that displacement).
-// (c) D_800B22DE must be u_short: the 32-entry 0xFFFF fill is retail's `ori v1,zero,0xffff`.
-// NAMED RESIDUAL (1): cse folds every global pointer base, so ours re-forms symbol+offset where
-// retail keeps the base in a register for 200 instructions. Retail loads &bank into $s0 at insn
-// 20 (across two calls), stores `sb v0,0(s0)` and derives the first fill loop with
-// `addiu s0,s0,-0x70`; retail's 16-loop likewise holds the base in $v1 (`lui/addiu %lo(sym)`,
-// `sh v0,0(v1)`) and derives the loop pointer with `addiu a2,v1,0xBA`. The parked body spells the
-// bank as `u8* pBank = &g_FieldScriptSoundEffectBank;` (initializer at the declaration, tried), as
-// an assignment before the store (same bytes) and as the raw expression
-// (s16*)((u8*)&g_FieldScriptSoundEffectBank - 0x70) (427 insns); all three fold to
-// `lui at; sb %lo(bank)` plus a fresh `%hi(bank-0x70)`, so no callee-saved base is ever live. That
-// is the root of the rest: without it $s0/$s1 end up on g_Scene only in the tail, and the whole
-// allocation/schedule shifts (our loop counters land in $v1 where retail's are $a1 in all five
-// loops; retail keeps 0x1000 in $a0 and reuses it for D_800AF93A and g_FieldPolarVectorScale where
-// we re-`li` it; the 200-store block's li/store pairing differs).
-// NAMED RESIDUAL (2): include/field/main.h declares g_FieldControl.controllerBtnMask as `short`,
-// so `= 0xFFFF` emits `addiu v0,-1` where retail has `ori v0,zero,0xffff` (unsigned field); the
-// header is shared, so it was not changed here.
-// Everything else in the diff is that schedule/permutation; the ~131 differing instruction rows
-// contain no structural difference left that was found.
+// FieldResetScene-style body: 426 insns / 1704 bytes - RETAIL'S EXACT SIZE, 14 differing
+// lines, every one of them a within-block hoist ORDER swap. No structural residual left.
+// FIXED HERE (do not re-derive; 84.61 -> 97.90 this round):
+// (a) A POINTER TO A SCALAR GLOBAL ALWAYS FOLDS BACK to `lui at / sb %lo`. Retail holds &bank
+//     in $s0 from insn 20 across the RotMatrix call until the fill loop, so the bank, the
+//     render-context index and g_FieldScriptMemory are all reached through ARRAY-DECAY ALIASES
+//     (`extern u8 ...BankBytes[] __asm__("...Bank"); pBank = ...BankBytes;`), lever
+//     a-label-alias-array-read-beats-volatile. Worth ~11 points together.
+// (b) NEVER INITIALISE THOSE POINTERS IN THE DECLARATION (lever
+//     b-a-decl-initialised-symbol-address): the la then lands in the prologue before `sw $ra`
+//     and the save order breaks. Assign immediately before the first use instead.
+// (c) RETIRED: the old note said the 16-entry fill loop sits right after `*pIndex = 0x720`.
+//     Retail runs it AFTER the block ending at g_FieldStreamPlayerInitialized. Take the
+//     statement order from the .s store sequence (84.61 -> 88.20 -> 95.29).
+// (d) THE FILL LOOPS ARE INDEXED, NOT WALKING, and their base is 4 bytes BELOW retail's first
+//     write: `pSlot[i]` with pSlot = pBank - 0x74 (i = 2..0) and `pRenderSlot[i]` with
+//     pRenderSlot = pIndex + 0x4E (i = 0xF..0). A walking `*p--` gives the same bytes but the
+//     wrong hoist order. Use TWO pointers; one shared local ties both loops to $s0 (retail
+//     has $a2). The 32-entry D_800B22DE fill must STAY a walking pointer from the bare symbol
+//     (the indexed form emits D_800B22DE+0x3E plus an extra `li a1,0x1f`, 427 insns).
+// REMAINING, all measured, all hoist order inside a block:
+//  1. every loop here: retail emits the hoisted VALUE before the for-init
+//     ([li v0,-1][li a1,2], [li a3,0x1d][li a1,0xf], [li a0,0x1000][li v0,1]); we emit it after.
+//  2. the 32-fill and the copy loop: retail puts the for-init/invariants BEFORE the la
+//     ([li v1,0xffff][li a1,0x1f][lui v0,..], [move a1,zero][lui v0,..]); we put them after -
+//     i.e. retail's loop.c inserted those movables at the BLOCK head, ours at the loop head.
+//  3. include/field/main.h declares g_FieldControl.controllerBtnMask as short, so = 0xFFFF
+//     emits `addiu v0,-1` where retail has `ori v0,0xffff` (shared header, not touched here).
+// Dead on this body: 2.6.0 / cdk / -G0 screens, three spellings of the bank pointer, volatile.
 /*
 void func_800705DC(void) {
     u_long unusedFrame[4];
     SVECTOR rotation;
-    u8* pBank = &g_FieldScriptSoundEffectBank;
+    u8* pBank;
     s16* pIndex;
     u_short* pMemory;
     u_short* pZero;
+    u_short* pDest;
     GameState* pState;
     s16* pSlot;
+    s16* pRenderSlot;
     int i;
 
     if (g_FieldSystemMode == 0) {
@@ -618,6 +623,7 @@ void func_800705DC(void) {
     g_FieldP2ButtonsReleased = 0;
     g_FieldButtonsPressedOnce = 0;
     g_FieldP2ButtonsPressedOnce = 0;
+    pBank = g_FieldScriptSoundEffectBankBytes;
     *pBank = 5;
     g_FieldCurrentModelAnimationId = 3;
     g_FieldGearObjectCapacity = 0x40;
@@ -709,20 +715,15 @@ void func_800705DC(void) {
     rotation.vz = 0;
     RotMatrix(&rotation, &g_FieldModelScreenMatrix);
 
-    pSlot = (s16*)(pBank - 0x70);
+    pSlot = (s16*)(pBank - 0x74);
     for (i = 2; i >= 0; i--) {
-        *pSlot-- = -1;
+        pSlot[i] = -1;
     }
 
     g_FieldFadeIsWhite = 1;
     D_800AF93A = 0x1000;
-    pIndex = &g_FieldScriptRenderContextIndex;
+    pIndex = g_FieldScriptRenderContextIndexSlots;
     *pIndex = 0x720;
-
-    pSlot = pIndex + 0x5D;
-    for (i = 0xF; i >= 0; i--) {
-        *pSlot-- = 0x1D;
-    }
 
     D_800B21A4 = 0x100;
     D_800B21A2 = 0x100;
@@ -737,6 +738,11 @@ void func_800705DC(void) {
     D_800B2186 = 0;
     D_800B2188 = 0;
     g_FieldStreamPlayerInitialized = -1;
+
+    pRenderSlot = pIndex + 0x4E;
+    for (i = 0xF; i >= 0; i--) {
+        pRenderSlot[i] = 0x1D;
+    }
 
     g_FieldPendingWdsBankIndex = 0x1D;
     g_FieldMapTransitionGate = -1;
@@ -778,12 +784,13 @@ void func_800705DC(void) {
     D_800B2298 = 0;
     g_GfxOTDepthShift = 2;
 
-    pMemory = (u_short*)&g_FieldScriptMemory;
+    pMemory = (u_short*)g_FieldScriptMemoryArray;
     pZero = pMemory + 0x200;
     pState = g_pGameState;
+    pDest = pMemory;
     for (i = 0; i < 0x200; i++) {
-        *pMemory++ = pState->fieldScriptMemory[i];
-        *pZero++ = 0;
+        pDest[i] = pState->fieldScriptMemory[i];
+        pZero[i] = 0;
     }
 
     SetGeomScreen(0x200);
@@ -810,6 +817,7 @@ void func_800705DC(void) {
     FieldInitScreenStripSprites();
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_800705DC);
+
 
 
 
