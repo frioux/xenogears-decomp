@@ -1944,10 +1944,15 @@ extern void WorldMapStartSlot(s32, s32);
 // retail's tables are packed 4-byte all the way down the chain (func_8008E76C's 0x104-byte
 // table ends at +0x15C, itself 4 mod 8, so func_80090A84's table can never be a C table
 // either). Not a preset question: gcc-2.6.0 and gcc-2.7.2-cdk emit the same `align 3`
-// (cc1_probe.sh on a switch snippet). It needs maspsx/aspsx to stop padding .rdata, which
-// is outside a source lane. The frame here is retail's exactly, so only these 4 bytes
-// stand between this body and the link; no C spelling can move an assembler alignment pad,
-// which is why no permuter run was made for the remaining 0.24% (the register tie below).
+// (cc1_probe.sh on a switch snippet). The route that IS open is the unit split sketched in
+// tools/rounds/levers.md under i-jtbl-align-3-hardcoded: move func_80090A84/C68/E14/914D0
+// and everything after them into a new main/misc12_b with [0x1064, .rodata] + [c] ranges,
+// whose .rodata then starts at parity 4 and puts all five tail tables at retail's offsets.
+// That is a config/world_map.yaml + gears.toml + new-file change, so it is not this lane's.
+// The frame here is retail's exactly, so only these 4 bytes stand between this body and the
+// link; no C spelling can move an assembler alignment pad, which is why no permuter run was
+// made for the remaining 0.24% (the register tie below: both ramp blocks, retail's in-place
+// `sll v1,v1,0xc / sra v1,v1,0x3` on nDelta against our fresh-`v0` shift).
 // Facts a later agent should not re-derive:
 // - The two walk tails were 2 insns short (1656, 96.66%) because cc1 hoists the final
 //   `pPlayer->z = g_WorldMapScrollTargetZ` statement to the top of the arm (its load fills
