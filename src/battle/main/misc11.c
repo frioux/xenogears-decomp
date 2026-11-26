@@ -749,6 +749,7 @@ void BattleSetActorFlag34(u8 index) {
 //   (a) THE OUTER RANDOM-TARGET TEST NEEDS A RELOAD, AND AN ARRAY ALIAS WITH AN __asm__ LABEL SUPPLIES IT: `extern u8 g_BattleTargetSlotRead[] __asm__("g_BattleTargetSlot");` and `} while (g_BattleTargetSlotRead[0] == arg0);`. Reading the scalar after storing to it makes cse forward the stored byte, so only 305 insns; a second gcc object with a different name at the same address keeps retail`s `lui %hi / lbu %lo / nop / beq` reload (lever a-label-alias-array-read-beats-volatile, round 444). 88.70 -> 89.97 alone.
 //   (b) THE MASK THE INNER TEST COMPARES AGAINST IS AN `s32` LOCAL MASKED ONCE IN THE PREHEADER: `s32 target;` + `target = arg0 & 0xFF;` before the do/do gives retail`s `andi s0,s3,0xff` in the preheader and `beq v0,s0`; a `u8 target` is coalesced to arg0 and re-masks at the use (`andi v0,s2,0xff` inside the loop, 305 insns), and no local at all 305. 89.97 -> 90.08 with the insn count 306 = retail.
 // Open residual, 118 differing lines, all allocation/scheduling. Read it as ONE tie, not many: the random-loop preheader has three loop-live values (&buf, the 0xFF digit, the masked target) and retail hands them s1/s2/s0 while ours hands them s0/s1/s2 - a cyclic 3-rotation of pseudos that are each referenced once, so the quotient `floor_log2(refs)*refs/live_length` ties and the hand-out falls to processing order; the s0/s1/s2 sites all follow from it. Second residual is the trailing wait loop, where ours hoists the 0x2DB test into an entry test and jumps back to the body from the D_800C48EA test while retail keeps one three-test block at the bottom. Smaller leftovers measured: `li v1,0xff` / `li s0,0xa` order in the fill-loop setup, `move s0,zero` out of the beqz delay slot, and the BattleRollActorActionCondition argument chain (retail loads the queue into v0, ours into a2).
+// Round 505: re-measured 90.08% / 1224 bytes / 306 insns (== retail's count, unchanged). Three new measurements, all worse - do not repeat: (1) dropping the pQueue local for plain g_BattleCommandQueue[...] gives 312 insns / 90.04% (six extra lui/lw base reloads), so pQueue is load-bearing; (2) the fill loop as for(i=0;i<0xB;i++){slot=i;...} loses retail's move s1,s0 copy and its addiu in the beqz slot - 89.63%; (3) the tail wait loop as for(;;)+three breaks gives 309 / 88.77%, so the && chain is the right spelling. Named residual unchanged: the queue base load is hoisted across the BattleSlotBitMask call (retail reloads after it and uses the pre-call base for the 60(v0) read).
 /*
 void func_80080C94(u8 arg0) {
     u8 info[8];
@@ -846,4 +847,5 @@ void func_80080C94(u8 arg0) {
     D_800C204C = 0;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080C94);
+
 
