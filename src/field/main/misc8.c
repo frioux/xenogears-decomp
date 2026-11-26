@@ -1371,65 +1371,19 @@ int func_8008492C(ActorData* pActor);
 int FieldProbeWalkmeshAtAngle(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
 int FieldProbeWalkmeshSlideAlongWall(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle);
 
-/* SUPERSEDED BY THE R495 NOTE BELOW (that note's body is the one parked here).
-   85.15% (1456 bytes against retail's 1472 - four instructions short, and the
-   frame is retail's exactly: 0x58 = vars 40 + 8 saved (s0-s6+ra) + 16 arg save
-   area, .mask 0x807f0000). The body below is instruction-for-instruction retail's
-   except for these, all of them block PLACEMENT rather than shape:
-   1. gcc puts the rotation-locked arm (rotation.vx |= 0x8000; animationId =
-      defaultAnimationId) inline where the source branches to it; retail has it out
-      of line at 0x2F5C, falling into the reset block at 0x2F70, and uses `beqz v0`
-      plus a `nop` delay where this body inverts to `bnez v0` with no delay.
-   2. Because retail's reset block is the fall-through of that locked arm, its
-      `if (result == -1)` comes out as `beq -> reset; lui v0,0x10000 (delay);
-      j -> join; addiu v0,-0x1001 (delay)` (4 insns); here the reset is the
-      fall-through of the test, so it is `bne -> join; li v0,-0x1001 (delay)` (2).
-   3. Same for the probe/BAC0 ternary: retail keeps FieldProbeWalkmeshSlideAlongWall inline and the
-      cross-jumped FieldProbeWalkmeshAtAngle arm out of line (`bnez v0` with an
-      `addiu a0,sp,0x10` delay); this body inverts to `beqz v0 -> FieldProbeWalkmeshSlideAlongWall`.
-   4. The 0x1800 chain needs the two-case `switch` spelling below: as an
-      if/else-if chain gcc inverts it into `bne` tests and loses the trailing
-      `j`+`nop` (82.82 -> 84.61).
-   Also unsettled: retail gives $s5 to actorIndex (2 refs) and $s6 to pFieldActor
-   (3 refs) where global_alloc gives pFieldActor the lower number here, so every
-   s5/s6 operand is swapped (0 bytes, about ten diff rows), and the two party-slot
-   tests read g_FieldPartyActorSlots[1]/[2] (+4/+8 addends) where retail's relocs
-   name D_8005A448/D_8005A44C - the linked bytes are identical, so diff_func folds
-   them but objdiff cannot reach 100.00 there.
-   Everything else is settled: the 0x1000000 early out with g_FieldUpdatingActorIndex = actorIndex
-   written before it, hitTimer's unsigned `>= 9` test, moving = move.vx|vy|vz with
-   func_8008492C(pActor) == -1 forcing 1, the 0x40800 lock test, pos = pSprite->step
-   then three adds (that struct copy is what reproduces retail's double store of
-   step.x), the ratan2 angle wanting the (s16) cast before the negate, savedFlags
-   restoring the 0x600 bits around the probe, the `== 2 ? 0x60 : 0x30` moveSpeed
-   arms, the 0x200000 material arm (`&&` keeps the second rotation.vx test inline),
-   the animationOverride / 0x2000000 gate, and
-   FieldSetGearModelAnimationForActor(pSprite, animationId, pFieldActor). */
-// R495 re-park 94.36% (364 insns / 1456 bytes vs retail 368 / 1472: four instructions short,
-// two of them the nops in retail's three-test chain plus the third andi of the same
-// local). Structure is settled and every branch/call matches: the two block-order
-// edits this round were (a) the locked arm as a `goto locked` label at the end
-// falling into `stopped` (85.45 -> 88.41) and (b) the pos if/else written with the
-// STEP arm in the then-position and the locked test NESTED in the else, plus the
-// step.y block inverted to `!= then chain else 0` and the moveModified tail with
-// its three stores before the move zeros (89.99 -> 91.67 -> 93.24 -> 94.36).
-// Residual, in cause order:
-// (1) retail's test chain keeps a merge block: `beqz angle&0x8000 -> join` /
-//     `nop` / `bnez moving -> join` / andi / flags test / `beqz -> arm` /
-//     `nop` / join: `andi angle&0x8000` / bnez -> pos arm. Ours thread-jumps the
-//     angle test's false edge straight into the step block, so the merge block and
-//     its second andi vanish and both delay slots fill, exactly -3 insns.
-//     Measured: the flat spelling with the flags test first (89.99 / 366),
-//     the same with the pos test inverted (88.41 / 363), the nested one above.
-// (2) the pos arm's scheduler slot: retail hoists `lhu rotation.vy` to slot 2 and
-//     the `andi 0xFFF` to slot 8 of the three pos stores; ours keeps the source
-//     order (writing `angle = ...` FIRST gets 93.24 but -4 insns).
-// (3) register allocation is a permutation of retail's: s0 = pActor, but retail
-//     s2 = angle / s3 = pSprite / s4 = animationId / s5 = actorIndex / s6 =
-//     pFieldActor against our s2 = pSprite / s3 = animationId / s4 = angle /
-//     s5 = pFieldActor / s6 = actorIndex. ~25 diff rows, 0 bytes.
-// Permuter (3 min, 905 iters, base 3033 -> 2290) found edit (b)'s step.y inversion.
-/*
+/* Matched (R508): 368 insns / 1472 bytes, retail's exactly. The only objdiff
+   residual is the typed `g_FieldPartyActorSlots[1]`/`[2]` reloc against the
+   splat names D_8005A448 / D_8005A44C, which links to the same bytes
+   (check_bin.sh field OK). Three spellings are load-bearing:
+   - the sign test is written TWICE, `(u_short)angle & 0x8000` for the
+     rotation-locked guard and plain `angle & 0x8000` for the pos/step
+     dispatch; with one expression cc1 jump-threads it into the nested form
+     and loses three instructions;
+   - `index = actorIndex;`, an alias used only by the g_PlayerActorIndex
+     compare, is what makes global-alloc hand $s5 to actorIndex and $s6 to
+     pFieldActor (without it the pair mirrors);
+   - the 0x60/0x30 speed stores go to `pSprite->moveSpeed` (sprite +0x18),
+     not to the step vector. */
 void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     VECTOR pos;
     SVECTOR points[2];
@@ -1438,6 +1392,7 @@ void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     s32 moving;
     s16 animationId;
     int angle;
+    s32 index;
     int result;
 
     pSprite = pFieldActor->pSpriteData;
@@ -1469,6 +1424,16 @@ void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     if (func_8008492C(pActor) == -1) {
         moving = 1;
     }
+    index = actorIndex;
+    if ((u_short)angle & 0x8000) {
+        if (moving) {
+            goto dispatch;
+        }
+        if (!(pActor->scriptFlags.flags & 0x40800)) {
+            goto locked;
+        }
+    }
+dispatch:
     if (!(angle & 0x8000)) {
         FieldSetSpriteStepFromAngle(pSprite, angle, pFieldActor);
         pos.vx = pSprite->step.x;
@@ -1479,9 +1444,6 @@ void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
         pos.vz += pActor->move.vz;
         pActor->rotation.vy = angle;
     } else {
-        if ((angle & 0x8000) && !moving && !(pActor->scriptFlags.flags & 0x40800)) {
-            goto locked;
-        }
         angle = pActor->rotation.vy & FIELD_ANGLE_MASK;
         pos.vx = pActor->move.vx;
         pos.vy = pActor->move.vy;
@@ -1496,7 +1458,7 @@ void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     result = -1;
     if (pActor->walkmeshTriIds[pActor->walkmeshId] != -1) {
         savedFlags = pActor->scriptFlags.flags;
-        if (actorIndex == g_PlayerActorIndex) {
+        if (index == g_PlayerActorIndex) {
             if (g_FieldPartyActorSlots[1] != ACTOR_ID_INVALID) {
                 pActor->scriptFlags.flags =
                     savedFlags | (g_FieldActors[g_FieldPartyActorSlots[1]].pActorData->scriptFlags.flags & 0x600);
@@ -1538,12 +1500,12 @@ tail:
         if (g_Unknown_800B2344 == 0) {
             if (((s16*)&pSprite->position)[3] != pSprite->field_0x84) {
                 if (animationId == 2) {
-                    pSprite->step.y = pSprite->field_0x82 * 0x60;
+                    pSprite->moveSpeed = pSprite->field_0x82 * 0x60;
                 } else {
-                    pSprite->step.y = pSprite->field_0x82 * 0x30;
+                    pSprite->moveSpeed = pSprite->field_0x82 * 0x30;
                 }
             } else {
-                pSprite->step.y = 0;
+                pSprite->moveSpeed = 0;
             }
         }
         animationId = g_FieldCurrentModelAnimationId[0];
@@ -1575,8 +1537,7 @@ tail:
     pActor->move.vx = 0;
     pActor->move.vy = 0;
     pActor->move.vz = 0;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082BB8);
+}
 
 
 
