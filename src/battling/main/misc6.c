@@ -37,7 +37,7 @@ extern u8 D_80099037;
 extern u8 D_800954E0[];
 extern s32 g_BattleDrawFlags;
 
-u32 func_8007E964(s32 c);
+u32 BattleDrawTextGlyph(s32 c);
 u8* BattleGetFontGlyph(s32 c);
 s32 BattleGetTextWidth(u8* pText);
 extern s32 g_BattleTextPrimCount;
@@ -548,7 +548,7 @@ void BattleSetTextScale(s32 value) {
 // No path returns a value, but the original's return type is not void: with a
 // void return gcc leaves v0 dead at the epilogue and steals the 0x28 compare's
 // `li` into the `beqz a3` delay slot, making the body one instruction short.
-u32 func_8007E964(s32 c) {
+u32 BattleDrawTextGlyph(s32 c) {
     s32 count = g_BattleTextPrimCount;
     POLY_FT4* pPkt;
     u8* pGlyph;
@@ -607,7 +607,7 @@ void BattleDrawTextLeft(u8* pText) {
     s32 y = g_BattleTextCursorX;
 
     while (*pText != 0) {
-        func_8007E964(*pText);
+        BattleDrawTextGlyph(*pText);
         pText++;
     }
     g_BattleTextCursorX = y;
@@ -619,7 +619,7 @@ void BattleByteRegTestReg(u8* pText) {
 
     g_BattleTextCursorX -= BattleGetTextWidth(pText) / 2;
     while (*pText != 0) {
-        func_8007E964(*pText);
+        BattleDrawTextGlyph(*pText);
         pText++;
     }
     g_BattleTextCursorX = y;
@@ -631,7 +631,7 @@ void BattleDrawTextRight(u8* pText) {
 
     g_BattleTextCursorX -= BattleGetTextWidth(pText);
     while (*pText != 0) {
-        func_8007E964(*pText);
+        BattleDrawTextGlyph(*pText);
         pText++;
     }
     g_BattleTextCursorX = y;
@@ -644,7 +644,7 @@ void BattleDrawTextRightOffset(u8* pText, s32 dy) {
 
     g_BattleTextCursorX = y - dy;
     while (*pText != 0) {
-        func_8007E964(*pText);
+        BattleDrawTextGlyph(*pText);
         pText++;
     }
     g_BattleTextCursorX = y;

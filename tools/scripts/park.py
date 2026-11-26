@@ -127,7 +127,13 @@ def repark(text, name, asm_line, note=""):
     m = re.search(DEF % name, text, re.M)
     if not m:
         return None
-    return text[:m.start()] + comment(note) + "/*\n" + m.group(0) + "*/\n" + asm_line + "\n" + text[m.end():]
+    out = text[:m.start()] + comment(note) + "/*\n" + m.group(0) + "*/\n" + asm_line + "\n" + text[m.end():]
+    # A second copy of the body that closed on its own brace ("}*/") leaves a
+    # dangling "*/" right after the stub; it is invisible to objdiff and to
+    # lint_sources.py and only cc1 rejects it (round 523, sound.c).
+    out = re.sub(r"(%s[ \t]*\n)\n*[ \t]*\*/[ \t]*\n" % re.escape(asm_line), r"\1\n", out, count=1)
+    assert out.count("*/") <= out.count("/*"), "repark left an unmatched */"
+    return out
 
 
 def main():
