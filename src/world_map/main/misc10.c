@@ -234,39 +234,36 @@ extern WorldMapTrail g_WorldMapTrail[];
 extern u16 g_WorldMapPlayerAngle;
 extern u16 g_WorldMapTrailCursor;
 
-// 95.56% (336 bytes = retail, 84 insns = retail): the head and the whole body now match
-//    retail; what is left is ONE mirrored register pair (a1/a2) and retail's materialised
-//    land 0x16A4.
-//    THE FIX FOUND THIS ROUND (89.25 -> 95.56, one edit): the first id loop must read its
-//    GUARD through the array and the WALK through a second, separately-initialised
-//    pointer -  if (g_WorldMapSpriteSetIds[0] != END) { pWalk = g_WorldMapSpriteSetIds; do
-//    { WorldMapSetSpriteSetParent(0x45, *pWalk++); } while (*pWalk != END); } -  exactly as
-//    the matched neighbour WorldMapHideSpriteSetGroups spells it. With the compact form
-//    (pIds = g_WorldMapSpriteSetIds; if (*pIds != END) ... *pIds++ ...) cse coalesces the
-//    base and the walk into ONE pseudo, so the base takes s0 (callee-saved) and retail's
-//    'move s0,a0' in the beq delay slot plus its duplicated 'sll v0,s2,0x7' on the loop
-//    backedge both disappear (89.25). With the two-expression form the address is a
-//    value cse keeps in a0, the walk gets the copy in s0, and the whole head lines up.
-//    RESIDUAL 1 (a1/a2 mirror): retail puts the group base in a1 and the actor pointer in
-//    a2; ours is the exact mirror (lui a2/lw a2 for groups, addu a1 for the actor), and the
-//    state compare follows it (retail lhu v1 / li v0,0x99, ours lhu v0 / li v1). Measured
-//    identical at 95.56 this round: declaration order (pGroup first or pActor first),
-//    'g_WorldMapSlots + arg0' vs '&g_WorldMapSlots[arg0]', and a volatile-cast spelling of
-//    the three tail stores. The actor has more refs (7 vs 4), which is why it wins the
-//    lower register here; retail's map implies the group reached a higher allocno
-//    priority, and no source knob measured so far moves it.
-//    RESIDUAL 2 (prologue order): retail emits 'li s1,-1' then 'move s0,a0'; ours the
-//    other way round - a two-instruction schedule tie in the preheader.
-//    RESIDUAL 3: retail 'addiu a1,a1,0x16A4' in the load-delay slot then stores at
-//    8/0xC/0x10; every spelling folds 0x16A4 into the displacements (0x16AC/0x16B0/0x16B4)
-//    and leaves a nop. Same wall as func_80088D00 - see that note for the five spellings
-//    and the cc1_probe evidence that the fold is at expand time in both 2.7.2 and 2.6.0.
-//    Presets: not screened for this body (2.6.0 and cdk were screened on func_80088D00 and
-//    both fold the same way).
+// 97.62% (336 bytes = retail, 84 insns = retail): the whole body is retail's; the ONE
+//    remaining difference is the order of two preheader instructions - retail emits
+//    'li s1,-1' then 'move s0,a0', ours the reverse - and the body is 84 insns either way.
+//    THE EDIT THAT CLOSED THREE RESIDUALS (95.56 -> 97.62): the tail's layer pointer must
+//    be a STEP OF THE GROUP POINTER ITSELF - `pGroup += 0x45;` then `pGroup->pos.x = ...`
+//    - and not a second pointer local. With a second local (pLayer = &pGroup[0x45];
+//    pLayer->pos.x) cc1 folds 0x16A4 into the store displacements (0x16AC/0x16B0/0x16B4),
+//    leaves a nop where retail has 'addiu a1,a1,0x16A4', and the group base loses the
+//    allocator contest to the actor (a1/a2 mirrored) - 95.56. The self-reassignment makes
+//    cse's equivalence for that register circular, so the add is NOT folded, the layer
+//    value reuses the group's own register, and retail's 'addiu a1,a1,0x16A4' / 'sw
+//    v0,8(a1)' / 0xC / 0x10 appear verbatim. The same edit matched func_80088D00.
+//    THE GUARD/WALK SPLIT IS STILL load-bearing (89.25 -> 95.56): the first id loop must
+//    read its GUARD through the array and the WALK through a second, separately
+//    initialised pointer, exactly as the matched neighbour WorldMapHideSpriteSetGroups
+//    spells it. With the compact form (pIds = g_WorldMapSpriteSetIds; if (*pIds != END)
+//    ... *pIds++ ...) cse coalesces the base and the walk into ONE pseudo, so the base
+//    takes s0 and retail's duplicated 'sll v0,s2,0x7' on the loop backedge and the guard's
+//    'move s0,a0' both disappear (89.25).
+//    Measured dead for residual 2 this round, all at 84 insns or fewer: an `id` temp in
+//    the first while (82 insns - it also re-registers the SECOND id loop), the first loop
+//    as `while (*pWalk != END) { call(*pWalk); pWalk++; }` (byte-identical to the
+//    do-while), a `s32 endId = -1` local for the sentinel (83 insns, 93.45 - retail has
+//    the guard's own 'li v0,-1' separately, so the constant is spelled inline twice), the
+//    walk pointer initialised above the guard (83 insns, 92.98), and swapping the pGroup
+//    / pActor assignments (byte-identical at 95.56).
+/*
 s32 func_80088B40(s32 arg0) {
     WorldMapSceneLayer* pGroup;
     WorldMapPlayer* pActor;
-    WorldMapSceneLayer* pLayer;
     s16* pIds;
     s16* pWalk;
     s32 id;
@@ -280,7 +277,6 @@ s32 func_80088B40(s32 arg0) {
     }
     pGroup = g_WorldMapGroups;
     pActor = &g_WorldMapSlots[arg0];
-    pLayer = &pGroup[0x45];
     pActor->state = 0;
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
         pActor->x = 0x2000000;
@@ -298,11 +294,14 @@ s32 func_80088B40(s32 arg0) {
         }
         result = 3;
     }
-    pLayer->pos.x = pActor->x >> 12;
-    pLayer->pos.y = pActor->y >> 12;
-    pLayer->pos.z = pActor->z >> 12;
+    pGroup += 0x45;
+    pGroup->pos.x = pActor->x >> 12;
+    pGroup->pos.y = pActor->y >> 12;
+    pGroup->pos.z = pActor->z >> 12;
     return result;
 }
+*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
 
 
 
@@ -323,14 +322,19 @@ s32 WorldMapHideSpriteSetGroups(void) {
     return 3;
 }
 
+// 100.00%. The layer pointer MUST be a step of the group pointer itself (pGroup += 0x45),
+// not a second local: with `pLayer = &pGroup[0x45];` cc1 folds 0x16A4 into the store
+// displacements (0x16AC/0x16B0/0x16B4) and the schedule loses retail's
+// 'addiu a1,a1,0x16A4'. The self-reassignment makes cse's equivalence for that register
+// circular, so the add survives. The same constraint is parked under func_80088B40.
 s32 func_80088D00(s32 arg0) {
-    WorldMapActor* pActor;
+    WorldMapPlayer* pActor;
     WorldMapSceneLayer* pGroup;
 
     pGroup = g_WorldMapGroups;
     pActor = &g_WorldMapSlots[arg0];
     if (g_GameState.fieldScriptMemory[0] == 0x99) {
-        pGroup = &pGroup[0x45];
+        pGroup += 0x45;
         pGroup->pos.x = pActor->x >> 12;
         pGroup->pos.y = pActor->y >> 12;
         pGroup->pos.z = pActor->z >> 12;
