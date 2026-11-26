@@ -1518,10 +1518,41 @@ static inline s32 SlotRecordOffset(s32 slot) {
    first in the sum; 'sel = 0; if (arg1 < 3) sel = ...'; a typed 0x1C-byte record
    struct view (564 bytes); separate ofsA and ofsB locals (720 bytes, 87.21).
    lint_sources.py is clean on this block and the body below compiles. */
+// PARKED 95.99%, 716 bytes / 179 insns (retail 732 / 183, .size 0x2DC), so this body is
+// FOUR instructions short and cannot link: the gap and the percentage are the same fact.
+// THE PREVIOUS PARK HERE WAS WRONG CODE, which is what this round fixed: it read
+// 'if (arg1 >= 3) sel = 0;' where retail's ladder is 'sltiu v0,a2,3 / xori v0,v0,1 /
+// sll v1,v0,3 / sltiu v0,a0,3 / beqz v0,L / move a0,zero / move a0,v1', i.e.
+// sel = (arg1 >= 3) ? (arg0 >= 3) * 8 : 0 - the "both slots on the same side" rule that
+// BattleReleaseCharSlot spells '(arg0 >= 3) * 8'. Fixing the arm and keeping ONE 'ofs'
+// local for both slots (retail's ofsB and ofsA share one register, $s1) took
+// 95.66 -> 95.99 at the same 716 bytes.
+// THE FOUR MISSING INSTRUCTIONS are retail's second 'andi v1,a1,0xFF / sll / subu / sll
+// $s1', the re-form of the arg1 offset after the ladder's join. Retail's ladder overwrote
+// $v0, which held the compare-time copy, while this body's merged copy lands in $a2, which
+// nothing touches, so cse keeps it and emits the 'move s2,a2' at the join instead. Same
+// register coin flip as the sibling func_800881B8; everything else in the diff ($s1/$s2/$s0
+// naming, the 0x30 frame against retail's 0x28) follows from it.
+// Measured dead this round, all 716 bytes / 179 insns unless noted: the compare written
+// with the raw arrays instead of the BattleSlotRecordByte helper (gcc hoists the symbol
+// into $a0, 'addu v1,v1,a0', 92.02); swapping the compare's operands 95.91; the embedded
+// assignment 'g_BattleSlotRecords[ofs = arg1 * 0x1C]' 95.91; 'arg1 * 7 * 4' at the compare
+// (same object as the best body); a 'u8 slot = arg1' (and an s32 one) for the compare and
+// the ladder with 'ofs = arg1 * 0x1C' after it (copy-propagated away, 95.99).
+// Permuter, 4 min -j 2 from this body: PERMUTER_BETTER base=3346 best=2861 (1900 iters).
+// Its edit - 'i = arg1 * 0x1C;' above the compare and 'ofs = i;' after the ladder - measures
+// 95.42 / 716 / 179: fewer differing lines (72 against 122) but a LOWER objdiff score, and
+// it spills through $s2. Not ported; it does not produce the re-form either.
+// Presets: gcc-2.7.2-cdk 57.30, gcc-2.6.0 95.99 byte-identical, so the preset is not it.
+// CONVERTING THIS STUB DOES NOT SHORTEN ITS MATCHED CALLER: BattleAdvanceCommandStep stays
+// 99.96% / 1004 bytes with the definition in the TU (re-measured this round).
+// Intended name: BattleShareCharSlot - it takes arg1's char-slot record over for arg0,
+// INCREMENTS g_BattleCharSlotUsage instead of resetting it (BattleAllocCharSlot and
+// func_800881B8 set it to 1), early-outs at 4 sharers and keeps the shared param-table row
+// index it counts out of the slot's mask, where func_800881B8 starts that row at 0.
 /*
 void func_80087EDC(u8 arg0, u8 arg1) {
-    s32 ofsA;
-    s32 ofsB;
+    s32 ofs;
     u8 sel;
     s32 i;
     u8 rec;
@@ -1530,34 +1561,35 @@ void func_80087EDC(u8 arg0, u8 arg1) {
         return;
     }
     sel = (arg0 >= 3) * 8;
-    if (arg1 >= 3) {
+    if (arg1 < 3) {
         sel = 0;
     }
-    ofsB = arg1 * 0x1C;
-    if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2] >= 4) {
+    ofs = arg1 * 0x1C;
+    if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofs] + sel) << 2] >= 4) {
         return;
     }
     BattleReleaseCharSlot(arg0);
-    g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2]++;
+    g_BattleCharSlotUsage[(g_BattleSlotRecords[ofs] + sel) << 2]++;
     for (i = 0; i < 4; i++) {
-        if ((u16)BattleMaskHasSlotBit(D_800D301D[(g_BattleSlotRecords[ofsB] + sel) << 2], i) == 0) {
+        if ((u16)BattleMaskHasSlotBit(D_800D301D[(g_BattleSlotRecords[ofs] + sel) << 2], i) == 0) {
             break;
         }
     }
-    rec = g_BattleSlotRecords[ofsB];
-    ofsB = arg0 * 0x1C;
-    D_800C3EB5[ofsB] = i;
-    g_BattleSlotRecords[ofsB] = rec;
-    D_800D301D[(g_BattleSlotRecords[ofsB] + sel) << 2] |= BattleSlotBitMask(D_800C3EB5[ofsB]);
+    rec = g_BattleSlotRecords[ofs];
+    ofs = arg0 * 0x1C;
+    D_800C3EB5[ofs] = i;
+    g_BattleSlotRecords[ofs] = rec;
+    D_800D301D[(g_BattleSlotRecords[ofs] + sel) << 2] |= BattleSlotBitMask(D_800C3EB5[ofs]);
     if (arg0 < 3) {
-        *(u16 *)(D_800C3EBE + ofsB) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofsB] * 0x20 + D_800C3EB5[ofsB] * 4) + 4);
-        *(u16 *)(D_800C3EC0 + ofsB) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofsB] * 0x20 + D_800C3EB5[ofsB] * 4) + 6);
+        *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofs] * 0x20 + D_800C3EB5[ofs] * 4) + 4);
+        *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofs] * 0x20 + D_800C3EB5[ofs] * 4) + 6);
     } else {
-        *(u16 *)(D_800C3EBE + ofsB) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofsB] * 0x20 + D_800C3EB5[ofsB] * 4) + 0x10);
-        *(u16 *)(D_800C3EC0 + ofsB) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofsB] * 0x20 + D_800C3EB5[ofsB] * 4) + 0x12);
+        *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofs] * 0x20 + D_800C3EB5[ofs] * 4) + 0x10);
+        *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[ofs] * 0x20 + D_800C3EB5[ofs] * 4) + 0x12);
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+
 
 
 
