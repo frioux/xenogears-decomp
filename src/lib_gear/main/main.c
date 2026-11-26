@@ -1204,28 +1204,54 @@ typedef struct {
 //   second pointer is what makes gcc produce retail's register copy biased by +4
 //   (retail's `addiu s1,a1,4`, hence the 0x6C/0x48/0x58(s1) displacements) and
 //   the +0x7C step on the spilled home as well.
-// - the script cursor MUST be written per component
-//   (`pObject->value.step.pCursor += 2;` after each store), which is retail's
-//   `lw v0,0x8(s0); addiu a0,a0,2; addiu v0,v0,2; sw v0,0x8(s0)` after every
-//   component: a `pCursor` local hoisted out of the arm and stored once at the
-//   end scores 79.93% / 4888 bytes / 1222 insns, i.e. retail's exact byte count,
-//   but that match is a coincidence - it is 3 instructions SHORT in each of the
-//   four SET/ADD arms and pays them back elsewhere. Do not be led by that number.
+// - the script cursor is written per component (`pObject->value.step.pCursor +=
+//   2;` after each store) AND kept in a `pCursor` local advanced in the same
+//   component; see the R500 note below, which closed this class (a pCursor
+//   stored once at the end of the arm is 4888 bytes but 3 instructions short per
+//   arm, so only the double advance is retail's).
 // - the RELATIVE arm's literal branch reads the high byte with `lb` (signed) and
 //   the low byte with `lbu` (retail `lbu $a0,0x1($v1)` / `lb $v0,0x2($v1)`), so
-//   the source's high byte is a signed s8, not the u8 the `u8* pCursor` spelling
-//   above gives. Six sites in the two RELATIVE arms.
-// - residual, not solved: the frame is 0xB0 against retail's 0xB8 and the six
-//   spill slots land at 0x28/0x30/0x38/0x48/0x50/0x58 where retail has
-//   0x28/0x30/0x38/0x40/0x48/0x50 - this body spills a2/a3 before a1 where retail
-//   spills a0..a3 in argument order, and with that the whole s0..s7 set shifts
-//   (retail result=s5 object=s0 joint=s1 opcode=fp dx=s3 dy=s7 dz=s2 dist=s4;
-//   this body result=s7 object=s2 joint=s3 opcode=s8). Declaration order of the
-//   locals, u16 vs u32 count and the two walker forms were all measured and none
-//   of them moves the spill order.
+//   the source's high byte is a signed s8; the cursor advances before each read.
+//   Six sites in the two RELATIVE arms; the rotation channel's three still come
+//   out `lbu` + `sll 24`/`sra 16` (see residual 2 below).
+// - the frame is 0xA0 against retail's 0xB8: this body spills a0@0x28, a3@0x30
+//   and a1@0x38 and keeps a2 in $s8, where retail spills a0..a3 at
+//   0x28/0x30/0x38/0x40 and reloads a2 from 0x38(sp) nine times. Declaration
+//   order of the locals, u16 vs u32 count and the two walker forms were all
+//   measured and none of them moves the spill order.
 
 
-// best 82.84%/5092 vs 4888; see note above the body
+// R500 REDO lane: best 95.66% / 4876 bytes / 1218 insns against retail's 4888 /
+// 1222 (4 instructions and 12 bytes SHORT). Every remaining difference is
+// allocation plus the three items at the end; the arm shapes are retail's.
+// Closed this round, each measured with diff_func.sh:
+// - the four SET/ADD arms each open with `pCursor = pObject->value.step.pCursor;`
+//   and then do BOTH `pCursor += 2;` and `pObject->value.step.pCursor += 2;` per
+//   component. That double advance is retail's `lhu 0(a0)` / `addiu a0,a0,2`
+//   next to `lw v0,8(s0)` / `addiu v0,v0,2` / `sw` (82.84 -> 86.02).
+// - the six RELATIVE literal paths advance the field BEFORE each byte read
+//   (`field++; low = pCursor[0]; field++; delta = *(s8*)(pCursor+1);`) and
+//   combine through a u8 `low` local (86.02 -> 90.82).
+// - the STEP arms want 16-bit dx/dy/dz (retail's all-zero test is `sll 16` /
+//   `bnez`, i.e. it compares the low half only) while MOVE_BASE wants 32-bit
+//   ones (`subu` then `mult dx,dx` with no truncation): split into s16 dx/dy/dz
+//   plus s32 moveX/moveY/moveZ (90.82 -> 93.78).
+// - MOVE_BASE computes ratan2 BEFORE the maxStep division (93.78 -> 95.01), and
+//   `angle`/`maxStep` are s32, not s16 (95.01 -> 95.45).
+// - the TRANSLATION channel block sets only pJoint->doTransform; rotation and
+//   scale set doRotate as well (retail has one `sb v0,0x0(s1)` at 0x2ACC but two
+//   at 0x23E4 and 0x2EA8) (95.45 -> 95.66).
+// Residual, all measured:
+// 1) retail spills objectType (a2) to 0x38(sp) and reloads it as t3/t4 in every
+//    channel tail (nine sites); this body keeps it in $s8 instead. Retail needs
+//    the register because it also copies pObject to $s6 and runs maxStep in $s0
+//    in the MOVE_BASE arm. Re-ordering the local declarations does not move it.
+// 2) three rotation RELATIVE literal paths still read the high byte as `lbu` +
+//    `sll 24`/`sra 16` where retail has `lb` + `sll 8`; the translation
+//    channel's three (32-bit LVEC3 target) do match. The s16 rotation target is
+//    what lets gcc drop the sign-extending load.
+// 3) two extra `nop` + `negu` pairs at the `(angle < 0 ? -angle : angle) >=
+//    maxStep` clamp.
 /*
 s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale) {
     s32 result;
@@ -1237,14 +1263,18 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
     u8* pCursor;
     u8 opcode;
     s8 delta;
+    u8 low;
     SVECTOR vec;
     VECTOR out;
     s16 dx;
     s16 dy;
     s16 dz;
     s32 dist;
-    s16 angle;
-    s16 maxStep;
+    s32 angle;
+    s32 maxStep;
+    s32 moveX;
+    s32 moveY;
+    s32 moveZ;
 
     result = 0;
     numChildren = pSkeleton->numChildren;
@@ -1259,16 +1289,20 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
 
             switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
             case LIBGEAR_JOINT_OBJECT_SET:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->rotation.vx = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vx = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->rotation.vy = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vy = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->rotation.vz = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vz = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1281,8 +1315,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vx = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vx = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
@@ -1292,8 +1328,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vy = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vy = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
@@ -1303,23 +1341,29 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vz = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vz = low | (delta << 8);
                     }
                 }
                 break;
 
             case LIBGEAR_JOINT_OBJECT_ADD:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->rotation.vx += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vx += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->rotation.vy += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vy += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->rotation.vz += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vz += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1362,23 +1406,23 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
 
             case LIBGEAR_JOINT_OPCODE_MOVE_BASE:
             case LIBGEAR_JOINT_OPCODE_MOVE_BASE + 1:
-                dx = pObject->value.lerp.targetX - pJoint->translation.x;
-                dy = pObject->value.lerp.targetY - pJoint->translation.y;
-                dz = pObject->value.lerp.targetZ - pJoint->translation.z;
-                dist = SquareRoot0((dx * dx) + (dy * dy) + (dz * dz)) + 1;
-                maxStep = pObject->value.lerp.startY +
-                    ((dist + pObject->curFrame) * pObject->value.lerp.startZ) /
-                        pObject->value.lerp.startX;
-                angle = (ratan2(-dx, -dz) - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
+                moveX = pObject->value.lerp.targetX - pJoint->translation.x;
+                moveY = pObject->value.lerp.targetY - pJoint->translation.y;
+                moveZ = pObject->value.lerp.targetZ - pJoint->translation.z;
+                dist = SquareRoot0((moveX * moveX) + (moveY * moveY) + (moveZ * moveZ)) + 1;
+                angle = (ratan2(-moveX, -moveZ) - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
                 if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
                     angle -= LIBGEAR_ANGLE_FULL_TURN;
                 }
+                maxStep = pObject->value.lerp.startY +
+                    ((dist + pObject->curFrame) * pObject->value.lerp.startZ) /
+                        pObject->value.lerp.startX;
                 if ((angle < 0 ? -angle : angle) >= maxStep) {
                     angle = (angle < 0) ? -maxStep : maxStep;
                 }
                 pJoint->rotation.vy += angle;
                 if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) == LIBGEAR_JOINT_OPCODE_MOVE_BASE) {
-                    angle = (ratan2(dy, SquareRoot0((dx * dx) + (dz * dz))) -
+                    angle = (ratan2(moveY, SquareRoot0((moveX * moveX) + (moveZ * moveZ))) -
                                 pJoint->rotation.vx) &
                         LIBGEAR_ANGLE_MASK;
                     if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
@@ -1439,16 +1483,20 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
 
             switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
             case LIBGEAR_JOINT_OBJECT_SET:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->translation.x = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.x = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->translation.y = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.y = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->translation.z = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.z = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1461,8 +1509,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.x = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.x = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
@@ -1472,8 +1522,10 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.y = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.y = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
@@ -1483,27 +1535,33 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.z = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.z = low | (delta << 8);
                     }
                 }
                 break;
 
             case LIBGEAR_JOINT_OBJECT_ADD:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    vec.vx = *(u16*)pObject->value.step.pCursor;
+                    vec.vx = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vx = 0;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    vec.vy = *(u16*)pObject->value.step.pCursor;
+                    vec.vy = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vy = 0;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    vec.vz = *(u16*)pObject->value.step.pCursor;
+                    vec.vz = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vz = 0;
@@ -1587,7 +1645,6 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
                 result |= LIBGEAR_JOINT_UPDATE_ADVANCED_ANY;
             }
 
-            pJoint->doRotate = TRUE;
             pJoint->doTransform = TRUE;
         }
 
@@ -1675,6 +1732,7 @@ s32 func_801DDBF8(Temp4* pList, ModelJoint* pSkeleton, u32 objectType, s32 scale
     return result;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
+
 
 
 
