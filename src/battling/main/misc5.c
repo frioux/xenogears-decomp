@@ -809,6 +809,32 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
 // registers shift). That makes it a scheduler question, not a statement-order one.
 // Also measured dead: the peephole form 'link |= ...' style reordering is N/A here;
 // preset screens were 2.6.0 84.5x / cdk does not compile this unit.
+// PARK 90.81% (round 501), 564 bytes / 141 insns = retail's exact size, up from the
+// 86.91% this note described. THE FIX: the two beam-view stores carry retail's LOADS
+// with them - 'pSlot->unk68 = pVec->vz;' then 'pSlot->unk6A = g_BattleEffectSpawnTick;'
+// (in that order) placed AFTER the u setup and BEFORE the u/v byte-pair groups. A load
+// cannot be hoisted above a store, so retail's 'lw a1,8(a2)' / 'lw a0,spawnTick' sitting
+// ABOVE the byte stores proves the source read those two there and the scheduler sank the
+// stores; putting the whole statement there (not just the load) reproduced retail's load
+// order, its a1 for pVec->vz, and moved the diff from 48 to 36 lines. The earlier
+// 'hoist both statements' measurement that read 568 bytes was in the other order
+// (unk6A first). REMAINING, all store-sink distance in the same tail: retail's scheduler
+// pushes the 0x70 / 0x60 / 0x6A / 0x68 / 0x16 / 0xE / 0x7 bundle BELOW the v byte-pair
+// group and ours leaves 0x6A/0x68 between the u and v groups and 0x70 above the v group;
+// ours also hoists 'sll a0,a0,0x2' into the tail's first delay slot where retail forms
+// 'addiu t1,t0,40' (pMotion) there and shifts arg0*4 after the vy store; the copy loop,
+// both scans and the whole head (frameCount/type/active/frame/x/y/z/unk6C/unk64/vy) are
+// now instruction-identical, and the first scan's anchor is the only relocation-only
+// line (we name g_BattleEffectSlots+0x6C, retail names D_80092B44; same linked bytes).
+// Measured this round and dead: forming 'pMotion = &pSlot->packets[0];' right after the
+// unk64 store (byte-identical to this body, 90.81); -G0 scored 86.91 on the PRE-fix body,
+// i.e. the same as its unit flags, so the gp setting is not the residual; -O3 makes cc1
+// reject the body. The old note's 2.6.0 screen (84.5x) and cdk non-compile still stand.
+// STILL OWED if this is ever matched: 0x6C is a 16-bit s16 here (retail reads it with
+// lh and writes it with sh) and 0x70 a 32-bit key, while BattleSlot still spells
+// 0x6C u32 unk6C / 0x70 u16 unk70 / 0x72 s16 drawFlags for the type-1 line quad - the
+// union over 0x6C..0x73 that both views need (line: u32 partner, u16 spawnTick, s16
+// drawFlags; beam: s16 drawFlags, u16 pad6E, u32 key) is still not written.
 /*
 void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     BattleSlot *pSlot = g_BattleEffectSlots;
@@ -848,11 +874,13 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->z = pPos->vz;
     *(u16 *)&pSlot->unk6C = g_BattleDrawFlags;
     pSlot->unk64 = pVec->vx;
+    pMotion = &pSlot->packets[0];
     u = g_BattleEffectClutX[0] * 4 + 8;
     pSlot->vy = pVec->vy;
     u += arg0 * 4;
+    pSlot->unk68 = pVec->vz;
+    pSlot->unk6A = g_BattleEffectSpawnTick;
 
-    pMotion = &pSlot->packets[0];
     pMotion->u3 = u;
     pMotion->u2 = u;
     pMotion->u1 = u;
@@ -865,8 +893,6 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 
     *(u32 *)&pSlot->unk70 = arg3;
     pSlot->unk60 = 0;
-    pSlot->unk6A = g_BattleEffectSpawnTick;
-    pSlot->unk68 = pVec->vz;
     pMotion->tpage = D_80092694;
     pMotion->code &= 0xFE;
     pMotion->clut = g_BattleEffectClutId;
@@ -881,6 +907,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
+
 
 
 void func_8007D918(u32 *pOt);
@@ -1177,6 +1204,15 @@ void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
 // reassigned pLink (byte-identical to the cast form, 98.71), and preset screens
 // gcc-2.6.0 98.14 / gcc-2.7.2-cdk fails to compile. The permuter cannot parse this
 // body (inline-asm GTE macros).
+// Round 501 re-measure: 98.71% / 528 bytes / 131 insns, unchanged - the body below is
+// still the best. lever.py l-a-gte-body-s-statement-order already records this
+// function's residual as terminal: retail's 'or a0,a0,t7' reuses the loaded link
+// register as the OR destination (an in-place update) where the compile allocates
+// the dead $v0, at all three sites, plus one scheduler-placed pair (the third
+// block's 'addiu a2,a2,36' vs retail's 'and v1,v1,t3'). The in-place form
+// 'link |= 0x02000000;' grows the frame (134 insns / 540 bytes / 92.45), measured
+// in a previous round. Instruction multiset, call set, both loop shapes and the
+// gravity tail are retail's.
 /*
 void func_8007D918(u32 *pOt) {
     BattlePrimTemplate *pTemplate;
@@ -1254,6 +1290,7 @@ void func_8007D918(u32 *pOt) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
+
 
 
 
