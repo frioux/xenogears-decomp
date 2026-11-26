@@ -684,8 +684,10 @@ extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode
 //  - typing the model data pointer as ModelFileHeader* and writing retail's real
 //    field access `&pModel->modelParts[pDesc[i].modelIndex]` - include/system/model.h
 //    already has numModelParts at 0x0 and modelParts[0] at 0x10 and ModelPart is
-//    0x38, so that IS the original source's spelling - measures 91.16 / 580: gcc
-//    does not hoist the +0x10 out of the loop in that form, so nothing moves;
+//    0x38, so that IS the original source's spelling - measures 91.16 / 580: cc1
+//    hoists `pModel + 0x10` into a loop-invariant pseudo and addresses the elements
+//    off that, which is where the `addiu a1,a1,16` (and the base register) go
+//    (re-measured round 523, see below);
 //  - the 92.87 body is the same address spelled
 //    `pModelData - (-((pDesc[i].modelIndex * 0x38) - -0x10))`, found by a 3-minute
 //    permuter run (base=1212 best=918, 1265 iterations). What it buys is not the
