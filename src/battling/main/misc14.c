@@ -644,7 +644,8 @@ extern Misc14ModelPart *BattleCreateModelPart(void);
 extern void BattleAttachModelPart(Misc14ModelPart *pPart, ModelPart *pModelPart);
 extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode);
 
-/* Best attempt: objdiff 91.16%, 580 bytes / 145 insns against retail's 592 / 148.
+/* Best attempt: objdiff 92.87%, 580 bytes / 145 insns against retail's 592 / 148 (round 510,
+// permuter spelling; the 91.16 body described below is the same code in the typed form).
 // Everything matches except WHICH of two long-lived values gets $s4: retail spills
 // the script table to 0x18(sp) and keeps the model data in $s4, gcc spills the model
 // data to 0x10(sp) and keeps the script table in $s5. The prologue/epilogue (frame
@@ -677,68 +678,33 @@ extern void func_8008B13C(u8 *pScript, Misc14Anim *pAnim, Misc14ModelNode *pNode
 // A 4-minute permuter run from this body found nothing (earlier round), and
 // twin_for.py reports no twin. To go further the spill has to flip: raise the model
 // data pointer's allocno priority or lower the table's, which no declaration order
-// tried so far does. */
-/*
-// Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
-//     u8 *pModelData = (u8 *)pBlock->pModelData;
-//     Misc14PartSet *pParts = (Misc14PartSet *)pBlock->pPartList;
-//     Misc14ScriptTable *pScripts = (Misc14ScriptTable *)pBlock->pPointerList;
-//     u32 count = pParts->count;
-//     Misc14PartDesc *pDesc = pParts->descs;
-//     Misc14EntryList *pList;
-//     Misc14ModelNode **pNodes;
-//     Misc14ModelNode *pNode;
-//     Misc14ModelNode *pPart;
-//     Misc14ModelPart *pModelPart;
-//     Misc14Anim *pAnim;
-//     u32 i;
-// 
-//     ModelResolvePointers(pModelData);
-//     HeapSetCurrentContentType(0x12);
-//     pNodes = HeapAlloc(count * 4, 0);
-//     pList = BattleCreateEntryList();
-//     pNode = BattleCreateObject();
-//     BattleSetNodeEntryList(pNode, pList);
-//     pList->pNodes = pNodes;
-//     pList->nodeCount = count;
-//     pList->pPartDescs = pDesc;
-//     for (i = 0; i < count; i++) {
-//         pPart = BattleCreateObject();
-//         pNodes[i] = pPart;
-//         if (pDesc[i].modelIndex != -1) {
-//             pModelPart = BattleCreateModelPart();
-//             BattleSetNodeModelPart(pPart, pModelPart);
-//             BattleAttachModelPart(pModelPart, (ModelPart *)(pModelData + (pDesc[i].modelIndex * 0x38 + 0x10)));
-//         }
-//         if (pDesc[i].parent == -1) {
-//             BattleAppendListEntry(pNode, pPart);
-//         } else {
-//             BattleAppendListEntry(pNodes[pDesc[i].parent], pPart);
-//         }
-//         pPart->rotation.vx = pDesc[i].rotation[0];
-//         pPart->rotation.vy = pDesc[i].rotation[1];
-//         pPart->rotation.vz = pDesc[i].rotation[2];
-//         pPart->sourcePos.vx = pDesc[i].position[0];
-//         pPart->sourcePos.vy = pDesc[i].position[1];
-//         pPart->sourcePos.vz = pDesc[i].position[2];
-//     }
-//     if (pScripts != NULL) {
-//         HeapSetCurrentContentType(0x11);
-//         pAnim = HeapAlloc(pScripts->count * sizeof(Misc14Anim), 0);
-//         pList->pEntries = pAnim;
-//         pList->animCount = pScripts->count;
-//         for (i = 0; i < pScripts->count; i++) {
-//             if (pScripts->pScripts[i] != NULL) {
-//                 func_8008B13C(pScripts->pScripts[i], pAnim, pNode);
-//             } else {
-//                 pAnim->pConfig = NULL;
-//             }
-//             pAnim++;
-//         }
-//     }
-//     return pNode;
-// }
-// */
+// tried so far does.
+// Round 510: un-parked and re-measured 91.16 / 580 / 145, then found a better
+// candidate and three facts:
+//  - dropping the `pParts` local (writing `((Misc14PartSet *)pBlock->pPartList)`
+//    twice at entry) is byte-identical 91.16 / 580 / 145, and so is declaring
+//    `pScripts` FIRST (pScripts, pModelData, pParts): entry register pressure and
+//    pseudo order are neither of them what picks the spill victim;
+//  - typing the model data pointer as ModelFileHeader* and writing retail's real
+//    field access `&pModel->modelParts[pDesc[i].modelIndex]` - include/system/model.h
+//    already has numModelParts at 0x0 and modelParts[0] at 0x10 and ModelPart is
+//    0x38, so that IS the original source's spelling - measures 91.16 / 580: gcc
+//    does not hoist the +0x10 out of the loop in that form, so nothing moves;
+//  - the 92.87 body is the same address spelled
+//    `pModelData - (-((pDesc[i].modelIndex * 0x38) - -0x10))`, found by a 3-minute
+//    permuter run (base=1212 best=918, 1265 iterations). What it buys is not the
+//    arithmetic but the SLOT ORDER of the two spills: gcc hoists the loop-invariant
+//    `pModelData + 0x10` into its own pseudo, spills that to 0x18(sp) (retail's slot
+//    for the script table) and puts pNode in 0x10(sp) (retail's slot for pNode), so
+//    the prologue, the first loop's stores and the whole tail line up - at the price
+//    of retail's `addiu a1,a1,16`, which the hoist folds into the base.
+// The 3 instructions still missing are the same single wall: retail keeps the RAW
+// model data pointer in $s4 across both loops and spills pScripts to 0x18(sp) at
+// entry (2 reloads), gcc keeps pScripts in $s5 and spills the model data. The
+// priority that decides it (log2(refs)*refs/live) reads pScripts as 5 refs over the
+// whole function and pModelData as 2 over the first loop, and no spelling in rounds
+// 478/510 moves that ordering. Do not re-route this function without a cc1 whose
+// spill choice differs. */
 /*
 Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
     u8 *pModelData = (u8 *)pBlock->pModelData;
@@ -769,7 +735,7 @@ Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
         if (pDesc[i].modelIndex != -1) {
             pModelPart = BattleCreateModelPart();
             BattleSetNodeModelPart(pPart, pModelPart);
-            BattleAttachModelPart(pModelPart, (ModelPart *)(pModelData + (pDesc[i].modelIndex * 0x38 + 0x10)));
+            BattleAttachModelPart(pModelPart, (ModelPart *)(pModelData - (-((pDesc[i].modelIndex * 0x38) - -0x10))));
         }
         if (pDesc[i].parent == -1) {
             BattleAppendListEntry(pNode, pPart);
@@ -798,7 +764,9 @@ Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
         }
     }
     return pNode;
-}*/
+}
+*/
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
 
 
