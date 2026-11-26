@@ -351,6 +351,7 @@ void BattleAllocDrawBuffer(void) {
    91.69, the 117-insn one 91.24 - judge by the instruction count. */
 
 // Round 490: re-measured 91.24% / 468 bytes / 117 insns (unchanged). One new datum: `u8 digits` measures 90.09% / 476 / 119, so the digits counter stays s32. The named blocker is unchanged: the mfhi result is spilled to t3 (global_alloc "Spilling reg 11") where retail has v0, because retail completes the third 0xFF store before the mfhi.
+// Round 505: re-measured 91.24% / 468 bytes / 117 insns == retail's count. New datum: moving 'n = v / 100' ABOVE the three 0xFF stores gives byte-identical output (cc1 normalises the order), so the split 'retail sb t2,10(v0) before mfhi' cannot be bought with source order - it is sched2/reorg choosing ours: fill the lw delay slot with 'move a0,zero' and put the sb in the beqz slot. Parked.
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
@@ -390,6 +391,7 @@ void func_8007FF14(u8 arg0) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
+
 
 void BattleResetActorDrawState(u8 arg0) {
     s32 index;
