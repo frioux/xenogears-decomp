@@ -561,10 +561,12 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
 // position from its start to its target and publishes the result: slots 0..6 into their
 // own word, 7 and 8 into the two slot vectors. A block whose tag is D_800C3B84 reports
 // to D_800C3B88 - bit 1 while it still runs, bit 2 once it has finished and been freed.
-// PARKED 96.55% (2120 bytes = retail's exact size).
-// ROUND 479: 96.08 -> 96.55 at retail's exact 2120 bytes, and the residual is now ONE
-// MIRRORED PAIR. The instruction stream is opcode-identical to retail's in the same
-// order (measured: 571 aligned rows, 0 opcode differences), and 7 of the 9 callee-saved
+// PARKED 96.94% (2120 bytes = retail's exact size, 118 differing lines).
+// ROUND 512 re-measured round 479's body and it is NOT opcode-identical - the "571
+// aligned rows, 0 opcode differences" below was measured on a different body, so the
+// real residuals are listed at the end of this note; read those, not the paragraph.
+// ROUND 479: 96.08 -> 96.55 at retail's exact 2120 bytes, and the residual there was
+// ONE MIRRORED PAIR. 7 of the 9 callee-saved
 // registers map 1:1 (orbitR $s0, x $s1, y $s2, z $s3, pTween $s6, outX $s7, slot $fp);
 // only pBlock ($s4 here, retail $s5) and orbitY ($s5 here, retail $s4) are swapped.
 // Two shape edits got there, both worth keeping because they reproduce a retail
@@ -601,6 +603,24 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
 // Five permuter runs reached 0 on the older 96.08 body; the pair above is what a sixth
 // would have to cross, and the -dl numbers say a source spelling cannot (local-alloc,
 // not the sort).
+// ROUND 512: 96.55 -> 96.94, same 2120 bytes, 170 -> 118 differing lines. Two edits, both
+// realistic and both allocator-visible: func_800B0B14's result goes into the s16 `rateX`
+// local the case-1 arm already owns instead of a dedicated `s32 height` (96.66; it deletes
+// an allocno), and the height clamp is written `(s16)y > (s16)rateX` instead of
+// `(s16)rateX < (s16)y` (96.94). MEASURED RESIDUALS on the parked body: (1) the same
+// mirrored pair (pBlock $s4 here / $s5 retail, orbitY the other way); (2) the
+// (kind & 0xF) < 2 arm loads pSprite into $a1 where retail coalesces it into pActor's
+// dying $v0 (`lw v0,4(v0)`), and keeps the tween subtraction's result in $v1 where ours
+// uses $s0; (3) the orbitY divide is a COPY here (`move v0,s0; addiu v0,s0,0xFFF;
+// sra s0,v0,0xC`) where retail does it in place (`addiu s0,s0,0xFFF; sra s0,s0,0xC`).
+// THE ONE LEAD, from the permuter: inserting `dy = x;` before `vec[0] = x;` in the slot==8
+// arm reaches 98.22% (185 lines) at 2124 bytes - one instruction over retail - so it is not
+// shippable as written, but it says the allocator moves through a copy of x that retail
+// does not have; find the spelling that gets the same hand-out at 2120. MEASURED DEAD:
+// `s16 orbitY` byte-identical; a one-iteration do/while around the curFrame/free group
+// 95.28; orbitY as the two-statement divide and orbitR as one expression 96.39; a bare
+// `{ }` block around case 4 and `if (1)` around case 4 both byte-identical to no barrier.
+// ROUND 512: 96.94% at retail's exact 2120 bytes; see the note above.
 /*
 void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     u16 vec[3];
@@ -623,7 +643,6 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     s32 dy;
     s32 orbitY;
     s32 orbitR;
-    s32 height;
     BattleBlock *pBlock;
     BattleBlock *pTween;
     BattleBlock *pSlotBlock;
@@ -693,9 +712,9 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                     x = vec[0];
                     z = vec[2];
                 }
-                height = func_800B0B14(arg3);
-                if ((s16)height < (s16)y) {
-                    y = height;
+                rateX = func_800B0B14(arg3);
+                if ((s16)y > (s16)rateX) {
+                    y = rateX;
                 }
             }
             if (D_800C3B8C != 0 && slot >= 7) {
@@ -787,6 +806,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     D_800C3B8C = 0;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
+
 
 
 
