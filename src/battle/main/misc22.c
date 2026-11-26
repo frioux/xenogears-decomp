@@ -1006,49 +1006,43 @@ typedef struct {
     /* 0x173C */ POLY_G4 gradQuads[4];
 } BattleMisc22RenderData; // Size: 0x17CC
 
-// best 90.62% (2492 bytes; retail 0x9C4 = 2500). Structure is now retail's end to end:
-// the three fixes that took it 85.22 -> 90.62 are in the body below:
-//   1. the faceSxy.y >= 0 / else faceSxy.y = 0 pair is TWO sequential ifs, not if/else
-//      (retail re-loads and re-tests faceSxy.y at the join, 0x50B8: 'lh v0,0x7A(sp);
-//      bgez -> test', and sends the first test's false edge straight to the zeroing);
-//   2. the third projection's y is built from cornerSxy.y (0x72), and faceSxy.y is read
-//      unsigned there ('lhu 0x7A'), which is what the u_short fields give;
-//   3. texMask is the inline '(pArg->texPeriod - 1)' in BOTH uBase and vBase (gcc CSEs
-//      the -1 into one t1, as retail does) and halfPeriod is computed after them;
-//      a texMask local computed before the divisions earns an 'andi' retail lacks.
-// WHAT IS LEFT (frame + allocator, 100 is out of reach without the frame fix):
-//   - retail's frame is 0xE8 with the locals at 0x18; ours is 0xE0 with the locals at
-//     0x10. Retail's slot map (declaration-ish order) is rotGrid 0x18, rotFlat 0x38,
-//     rot 0x58, vec 0x60, cornerSxy 0x70, faceSxy 0x78, dir 0x80, corner 0x90,
-//     normal 0x98, nclip 0xA0 - every slot 8-byte aligned, both screen-pos slots 8
-//     apart - and NOTHING in retail's asm touches 0x10..0x17: retail carries a dead
-//     8-byte stack slot at the frame bottom. No source spelling produces a slot gcc
-//     allocates and never references, so the frame cannot be reproduced and every
-//     $sp offset here is 8 low; that alone is most of the remaining diff.
-//   - with 24-bit and 24-bit/0xFF000000 constants in saved registers retail keeps
-//     pArg in s3 and the 0xFF000000 mask in s2; ours has pArg in s2 and the mask in s3
-//     (allocator tie on the addPrim macro's constant).
-//   - the loop preheader and the third projection's y0/y1 stores are scheduled one
-//     statement differently (retail hoists 'lhu a2,0x70(sp)' above the nclip test).
-//   - 8 bytes / 2 instructions short after the three fixes (2492 vs 2500).
-// Tried and measured this round: un-parking as-is re-measured 85.22 (the old note was
-// not stale), then the three fixes above. Earlier rounds measured an 8-byte screen-pos
-// record and (x + 0xFF) >> 8 in place of the sign-correcting /256 - both worse.
+// best 90.76% (2492 bytes, 617 insns; retail 0x9C4 = 2500 bytes, 619 insns).
+// THE FRAME IS RETAIL'S EXACTLY NOW (0xE8, vars 0xB0, saves at 0xC0..0xE4): the old
+// note called it unreachable, and it took two edits, both in the body below:
+//   1. a DEAD `u_long unusedFrame[2]` as the first declaration (lever
+//      j-an-unused-local-array-is): retail's 0x10..0x17 is referenced nowhere and an
+//      array local gets its slot at expand time. That alone grew the frame 0xE0 -> 0xE8.
+//   2. the DECLARATIONS IN RETAIL'S SLOT ORDER - rotGrid, rotFlat, rot, vec, cornerSxy,
+//      faceSxy, dir, corner, normal, nclip - because 2.6.0 hands stack slots out in
+//      declaration order here (first declared = lowest). With the old order
+//      (vec, dir, normal, corner, ...) the +8 went in but the objects stayed permuted
+//      and the diff was not a uniform shift (522 -> 398 differing lines).
+// WHAT IS LEFT is one callee-saved tie and its knock-on: retail keeps pArg in s3 and
+// the addPrim 0xFF000000 mask in s2, this body mirrors them (pArg s2, mask s3), and
+// because a2 is spent on the mask the gradQuads[index] block re-loads cornerSxy.x a
+// third time ('lhu 0x70(sp)' twice in retail, three times here) and the diff carries
+// 2 instructions fewer than retail. Read as quotients (floor_log2(refs)*refs/live) pArg
+// outranks the mask ~2.4x, so retail's order contradicts the pseudo set THIS instruction
+// stream pins: not source-reachable from here without changing the emitted code.
+// Measured and dead this round: permute.sh cannot parse the body at all (the gte_ inline
+// asm macros are a syntax error for its C parser), gcc-2.7.2 scores 89.50 on it, and the
+// earlier rounds' 8-byte screen-pos record and (x + 0xFF) >> 8 spellings are still worse.
 /*
 void func_800A4DB8(BattleMisc22RenderData *pArg, SVECTOR *pFrom, SVECTOR *pTo, MATRIX *pMatrix,
                    u_long *pOt, s32 index) {
-    VECTOR vec;
-    VECTOR dir;
-    SVECTOR normal;
-    SVECTOR corner;
-    SVECTOR rot;
-    MATRIX rotFlat;
+    u_long unusedFrame[2];
     MATRIX rotGrid;
+    MATRIX rotFlat;
+    SVECTOR rot;
+    VECTOR vec;
     BattleMisc22ScreenPos cornerSxy;
     BattleMisc22ScreenPos faceSxy;
+    VECTOR dir;
+    SVECTOR corner;
+    SVECTOR normal;
+    s32 nclip;
     SVECTOR *pVert;
     POLY_FT4 *pQuad;
-    s32 nclip;
     s32 angle;
     s32 zoom;
     s32 row;
