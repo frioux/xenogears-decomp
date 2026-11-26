@@ -1496,6 +1496,37 @@ int SoundSpuMemoryAllocateBlockFit(int size) {
 // all six sites 92.91 (nSpace displaced to a3, 44 lines). Below 99, so no permuter run. A future round
 // should attack the live LENGTH: pPrevBlock needs <= 41 or address >= 45 without moving either end of
 // the emitted preheader.
+// PARKED round 510: 98.82% / 296 bytes / 74 insns = retail's exact size and instruction stream,
+// residual is ONE mirrored callee-saved pair (retail pPrevBlock=s0, address=s1; this body has them swapped).
+// -dl on this body: address 8 refs / 43 insns = 2.233, pPrevBlock 8 / 44 = 2.180, so pPrevBlock misses s0 by
+// one instruction of live range; every term is pinned by retail's own stream (pPrevBlock's def is the
+// prologue lui/addiu, its last use is the final 'sh a1,2(s0)' in the jump delay slot).
+// Round 510 additions: preset screen - gcc-2.7.2 -O2 -G8 gives the IDENTICAL 98.82% mirrored map and
+// gcc-2.7.2-cdk 91.08, so this is not a compiler-version question; and 'do { } while (0);' between the loop
+// and the alloc test is byte-identical 98.82 (label optimised away, the empty-statement barrier does not
+// reach this pair). Rounds 478/491 already closed: nSpace first (97.30, pair correct but move a2,zero 3
+// insns early), do-while around the insert group, 'int startAddress = address;' (92.91), separate ifs
+// (87-90.51). Only a block-structure change that re-ranks the pair is left; recommend a permuter run.
+// PARKED round 510: 98.82% / 296 bytes / 74 insns = retail's exact size and stream; residual is ONE mirrored
+// callee-saved pair (retail pPrevBlock=s0, address=s1; this body swaps them, 30 lines, all of them that pair).
+// -dl: address 8 refs / 43 insns = 2.233, pPrevBlock 8 / 44 = 2.180, i.e. one instruction of live range.
+// NEW round 510: the pair IS reachable from source and the handle is nSpace's DEF POSITION - with
+// 'int nSpace;' (uninitialised) and 'nSpace = 0;' as the FIRST statement of the loop body the pair comes
+// out retail's way and the whole body is 2 differing lines / 97.16% (the only residual is the preheader
+// 'move a2,zero', which retail has BEFORE the freeAddress loads and gcc then puts at the loop preheader).
+// That spelling is NOT shippable: on the path where the while-test is false immediately nSpace is read
+// uninitialised (and retail's own stream proves retail zeroes it before the entry beqz: 'move a2,zero' sits
+// at insn 8, four insns before 'beqz v0,.L80039644'). Adding the honest pre-loop 'int nSpace = 0;' back
+// (declaration init + the in-loop zero) measures 98.22% / 42 lines with nSpace displaced to a1 and the
+// mirror back, and the all-assignments spelling (pPrevBlock/nSpace/freeAddress/endAddress assigned as
+// statements, retail's emission order) is 98.82% / 30 lines - so the pre-loop zero is what pushes address
+// to s0. Preset screen this round: gcc-2.7.2 -O2 -G8 98.82 (identical), gcc-2.7.2-cdk 91.08 -> not a
+// compiler question. Also measured: 'do { } while (0);' between the loop and the alloc test is byte
+// identical (label optimised away). Rounds 478/491 closed: nSpace declared first (97.30, pair right but
+// 'move a2,zero' 3 insns early), do-while around the insert group, 'int startAddress = address;' 92.91,
+// separate ifs 87-90.51. Remaining lever: a block structure that keeps retail's pre-loop zero AND gives
+// pPrevBlock a live range of <= 42 or address >= 45 - next agent should permute from THIS body (a 3-minute
+// run reached base=85 best=60 only by the uninitialised nSpace edit above, i.e. wrong code).
 /*
 int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
     SoundSpuMemoryBlock* pPrevBlock = g_SoundSpuMemoryBlocks;
@@ -1539,6 +1570,8 @@ int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
     return address;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
+
+
 
 
 
