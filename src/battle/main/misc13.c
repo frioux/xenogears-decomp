@@ -676,7 +676,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 //    run. If anyone picks this up, the remaining question is the emission
 //    position of a single store to a callee-saved pseudo against the following
 //    call's argument set-up.
-/*
 void func_800861D0(u8 arg0, u8 arg1) {
     s32 i;
     s32 j;
@@ -775,10 +774,10 @@ void func_800861D0(u8 arg0, u8 arg1) {
                 } else {
                     i -= 1;
                 }
-                drawn = 1;
                 row = func_80086028(arg1, row, i,
                                     g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j],
                                     (u_long **)(D_800C3A70 + (row / 2) * 4), 0);
+                drawn = 1;
             }
         }
         break;
@@ -863,8 +862,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
     for (o = 0; o < 12; o += 4) {
         HeapFree(*(void **)(D_800C3A70 + o));
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800861D0);
+}
 
 
 
