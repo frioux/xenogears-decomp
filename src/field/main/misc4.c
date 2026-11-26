@@ -2074,6 +2074,16 @@ int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
 //    Keep: case 6 must be written '< 0 -> n1 else n2' (retail's bgez) and the nMode
 //    tail as 'if (nMode == -1) return 0; ... return 0;'.
 //
+// Best attempt: 93.64% (1692 bytes; retail is 1704, three instructions more, 423 vs 426 insns).
+//    The prologue is now retail's shape: four word loads (pPos->vx, pVec->vx, pPos->vz, pVec->vz) before any store, nRef formed from them, and a fresh reload of the vz pair for pRef->vz. What bought it, measured in order on this body: reading pPos->vx and pPos->vz into the posX/posZ locals BEFORE the pRef stores (92.61 -> 93.64) removes cc1's lh 2(pPos) / lh 10(pPos) narrowing of the nPos halves, because the two uses no longer share one load; writing the nPos statement first without the locals is 92.73.
+//    KEEP: case 6 as NormalClip(vC,nRef,nPos) < 0 -> n1 else n2 (retail bgez's to the n2 arm), the nMode tail as if (nMode == -1) return 0; ... return 0;.
+//    WHAT IS LEFT, all allocator or scheduler:
+//    1. frame 0x78 against retail's 0x80, and it is the whole save block plus both incoming stack-arg reads. Retail's var area is 0x18 normal + SIX slots 8 apart (0x28..0x50) and NOTHING in the .s reads or writes 0x50, so the sixth is a phantom reload slot. Decl locals cannot reach it: they pack below the reload spills (a dead u_long[2] measured 86.66 in an earlier round), so treat the frame as unrequestable from source.
+//    2. sched2 (on in this preset, see levers h-sched2) places the pRef->vy store and the vz reload pair differently from retail inside the same statement list, so the prologue order is the scheduler's choice, not the source's.
+//    3. the flag test: retail masks the FLAGS side (srl a1,9 / andi 3 / and with nFlags>>3); cc1 folds the mask onto the nFlags side (same instruction count, 4 lines). Swapping the C operands only mirrors it (91.81 on the older body).
+//    4. the fail path: retail beqz's to the shared .L8007C710 block (j .L8007CA30 / addiu s0,-1, placed near the top of the function); cc1 emits bnez past it plus an inline j / li s0,-1 copy.
+//    5. the early exit: retail is bne s0,-1 over an out-of-line j epilogue / li v0,-1; cc1 threads the branch straight to the tail's li v0,-1.
+//    Measured dead in earlier rounds on the same body: nX/nZ locals instead of posX/posZ (92.34), case 6 swapped (bltz, about 1% worse), nPos moved above the pRef->vy store, direct indexing with no pointer locals for pTri/pVerts (about 30% worse), a dead array for the phantom frame slot (86.66), the uninitialised-local frame trick (91.87, and it is UB - do not ship it).
 /*
 int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pRef, int nMode) {
     FieldWalkmeshTriangleRecord* pTri;
@@ -2089,6 +2099,8 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     s32 vA;
     s32 vB;
     s32 vC;
+    s32 posX;
+    s32 posZ;
     u_int nFlags;
 
     nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
@@ -2098,11 +2110,13 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
         return -1;
     }
 
-    pRef->vx = (pPos->vx + pVec->vx) >> 16;
-    nRef = (pRef->vx << 16) + ((pPos->vz + pVec->vz) >> 16);
+    posX = pPos->vx;
+    posZ = pPos->vz;
+    pRef->vx = (posX + pVec->vx) >> 16;
+    nRef = (pRef->vx << 16) + ((posZ + pVec->vz) >> 16);
     pRef->vy = 0;
     pRef->vz = (pPos->vz + pVec->vz) >> 16;
-    nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
+    nPos = ((posX >> 16) << 16) + (posZ >> 16);
 
     nFlagMask = 0;
     if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
@@ -2217,6 +2231,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     return -1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
+
 
 
 
