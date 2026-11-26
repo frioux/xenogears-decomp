@@ -1289,9 +1289,9 @@ void func_800A08B8(void) {
             // pointer local keeps retail's separate +4; declared here so the pointer's
             // allocno is created in this block (the allocator's tie, not the spelling).
             FieldSpriteDataBlob* pSpriteData = g_FieldSpriteData;
+            s32* pOffsets = &pSpriteData->offsets[D_800AE294[characterId]];
             s32 nByteOffset = nReloadFlags * 4;
-            pSprite = &pSpriteData->offsets[D_800AE294[characterId]];
-            pSprite = (void*)(*(s32*)((s32)pSprite + nByteOffset) + (s32)pSpriteData);
+            pSprite = (void*)(*(s32*)((u8*)pOffsets + nByteOffset) + (s32)pSpriteData);
             func_80076AC0(g_FieldCurActorIndex, D_800AE294[characterId] + nReloadFlags, pSprite, 0, 0,
                 (D_800AE294[characterId] + g_FieldSceneReloadFlagsArray[0]) | 0x80, 1);
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
