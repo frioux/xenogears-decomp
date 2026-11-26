@@ -2655,8 +2655,14 @@ void FieldStopSedsPlayback(void) {
    retail copy feeds BOTH later uses (`addiu s0,s1,0x115` for the file index and
    `addiu v0,s1,0x1` for the loop bound), so the source computed both from the
    copy and gcc 2.7.2 propagates it away in every spelling tried so far.
+   R499 re-measured the baseline (still 93.00, 252 bytes / 63 insns) and tried an
+   explicit `streamIndex = (s32)streamId;` conversion: byte-identical, no copy.
+   Two of the three missing instructions are the bound's rematerialisation -
+   retail computes `addiu v0,s1,1` in the entry guard AND in the latch, mine
+   hoists one copy to the preheader, where reorg drops it into
+   SoundAddSedsEntry's delay slot (retail has a nop there) - so the fix would
+   have to stop loop.c hoisting an invariant bound, which no spelling found.
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 /*
 void func_80085788(void) {
     s16 streamId;
@@ -2695,8 +2701,8 @@ void func_80085788(void) {
         i++;
         g_FieldSedsEntryIndex = i;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 
 extern void* g_MenuSedsFile;
 extern s32 g_SoundSedsFileStaged;
