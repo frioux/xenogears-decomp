@@ -687,6 +687,31 @@ void MenuSetGearWindowWideNumber2Prims(u_char index, u_char characterId) {
 // Measured dead: a second `x = digitX` variable before the loop (98.56; the copy lands in the
 // `lw g_Menu` slot, not at the preheader end), and the preset screen gcc-2.6.0 -O3 93.14 / -G0 93.14 /
 // 2.7.2 92.68 / cdk 89.05.
+// Best: 99.64% at retail's exact 952 bytes / 238 insns (26 differing lines), decomp-permuter
+// score 85 against 180 for the round-514 body. Residuals LEFT: one 3-way callee-saved rotation
+// plus a register shuffle in the tensDigit prim call's argument block.
+//   retail: tensDigit=s4, 24*row=s6, 8*row=s5, row=s7
+//   ours:   tensDigit=s6, 24*row=s5, 8*row=s4, row=s7 (row correct)
+//   tail:   retail keeps the prim base in t1 and forms the offset in a2 (`lw t1,856(v1)` then
+//           `sll a2,t0,0x2 / addu a2,a2,t0 / sll a2,a2,0x4 / addiu a2,a2,7280 / addu a2,a2,t1`);
+//           ours holds the base in a2 and the offset in v0/s1 (`addiu s1,v0,7280 / addu a2,s1,a2`).
+// What CLOSED in round 515 (all measured, all no-op block boundaries or a value reuse, byte count
+// and insn count unchanged at 952 / 238): the prologue save order and BOTH delay-slot fillers now
+// match retail - `move s0,zero` in the `bnez row` slot and `li s1,0x2a00` in the loop `blez` slot.
+//   (1) `do { if (row == 0) {...} else {...} digitPrimCount = 0; } while (0);`  28 -> 24 lines
+//   (2) `do { ... } while (0);` around the row==0 arm's tail, after `scaled = ...`  24 -> 20
+//   (3) `vertOffset = tensPrimOffset;` and pass `vertOffset` to the call: this is what exchanges
+//       the two delay slots (20 -> 26 lines, but permuter 160 -> 95, objdiff 99.32 -> 99.59)
+//   (4) `do { ... } while (0);` around the digit loop's `if`  99.59 -> 99.64, permuter 95 -> 85
+//   (5) `do { } while (0);` after the tensDigit prim call
+// A 3-minute permuter run from that body: base=85 best=85, closed.
+// The rotation reads as arithmetic-unreachable: row / 24*row / 8*row are QI / SI / SI with 4 / 3 / 3
+// refs, tensDigit is pinned HI by retail's own `andi a1,s4,0xffff`, so retail's order needs a 2-ref
+// 77-insn pseudo to outrank a 3-ref 36-insn one (see lever `a-global-allocno-priority-is`).
+// Measured dead: `for (i = 0, vertOffset = 0x2A00; ...)` in either init order (byte-identical, so the
+// join block's `li s1,0x2a00` before `move s0,zero` is sched2's pick); `i = 0;` hoisted above the
+// `if (row == 0)` (98.99% at 239 insns / 956 bytes: it loses loop.c's iteration-count `blez`); the
+// per-arm preset screen (2.6.0 -O3 93.14, -G0 93.14, 2.7.2 92.68, cdk 89.05).
 /*
 void func_801D7884(u_char index, u_char row) {
     u16 tensDigit;
@@ -703,6 +728,7 @@ void func_801D7884(u_char index, u_char row) {
     // The character's stat row: characters[] is 0xA4 bytes and statBase/statBonus/statFraction sit 0x2E3/0x2E4/0x2E5 into g_GameState.
     // Retail folds that 0x2E4 into each load's %lo half, so the row is reached through
     // g_GameState (a pointer local would burn a register on the base).
+    do {
     if (row == 0) {
         characterOffset = g_Menu->pManager->currentCharacterIDs[index] * sizeof(GameCharacter);
         scaled = (u16)(((*(u8*)((u8*)&g_GameState + 0x2E4 + characterOffset) +
@@ -710,6 +736,7 @@ void func_801D7884(u_char index, u_char row) {
                             10 +
                         *(u8*)((u8*)&g_GameState + 0x2E5 + characterOffset)) *
                        22);
+        do {
         hundreds = scaled / 100;
         remainder = scaled - hundreds * 100;
         count = 3;
@@ -717,6 +744,7 @@ void func_801D7884(u_char index, u_char row) {
         tensDigit = remainder / 10;
         MenuParseNumberToDigits(hundreds);
         x = D_801E9D30;
+        } while (0);
     } else {
         MenuParseNumberToDigits(g_GameState.gears[*(u8*)((u8*)&g_GameState + 0x30C +
                                                          g_Menu->pManager->currentCharacterIDs[index] *
@@ -727,9 +755,11 @@ void func_801D7884(u_char index, u_char row) {
         x = D_801E9D30 + 8;
     }
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount = 0;
+    } while (0);
     for (i = 0; i < count; i++) {
         u8 digit = g_Menu->digits[digitOffset + i];
 
+        do {
         if (digit != MENU_DIGIT_NONE) {
             u32 primOffset = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
                                  (2 * sizeof(POLY_FT4)) + 0x1C70;
@@ -738,15 +768,18 @@ void func_801D7884(u_char index, u_char row) {
                 g_Menu->resources, digit, (POLY_FT4*)(primOffset + (u32)g_Menu->pGearWindowPrims),
                 g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - row * 24, row * 8 + D_801E9D34, 0x1000);
         }
+        } while (0);
     }
     if (row == 0) {
         u32 tensPrimOffset = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount *
                                  (2 * sizeof(POLY_FT4)) + 0x1C70;
 
+        vertOffset = tensPrimOffset;
         ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount += func_8002675C(
             g_Menu->resources, tensDigit,
-            (POLY_FT4*)(tensPrimOffset + (u32)g_Menu->pGearWindowPrims),
+            (POLY_FT4*)(vertOffset + (u32)g_Menu->pGearWindowPrims),
             g_Menu->renderContext, D_801E9D30 + 0x20, D_801E9D34, 0x1000);
+        do { } while (0);
     }
     for (i = 0, vertOffset = 0x2A00; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount; i++) {
         POLY_FT4* pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims -
@@ -759,6 +792,7 @@ void func_801D7884(u_char index, u_char row) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7884);
+
 
 
 
