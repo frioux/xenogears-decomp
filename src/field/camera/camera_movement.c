@@ -278,26 +278,42 @@ void FieldScriptResetCameraMovements(void) {
 // Start a camera movement. The low nibble of the first argument byte selects
 // which of the four movement vectors is started, the high bit snaps the current
 // camera to the movement's starting point.
-INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", FieldScriptStartCameraMovement);
-
-/* Best: 82.87% (1604 bytes against retail's 1620; block layout and arm order
-   already match). Arm order is 0, 2, 3, 1 - that is retail's body order, not
-   ascending. What is solved and should be kept: retail reaches all three
-   accesses to a movement duration through ONE address register
-   (lui a0,%hi; addiu a0,a0,%lo; sh v1,0(a0); ... lh v0,0(a0)). That form only
-   comes out of an aggregate-typed object at addend 0: declaring the durations
-   `extern s16 g_...Duration[]` and writing g_...Duration[0] reproduces it
-   exactly, where a `s16*` local or the scalar both fold back to a bare symbol
-   store that maspsx expands through $at. The other users in this file read the
-   same symbol and still match 100.00% through the array spelling.
-   What is left: the arms' store order and register assignment. Retail keeps the
-   `g_CamMovementFlags` ori/sh between the Current and Delta store groups and
-   holds the three delta values in a1/a0/v1 and the From/To words in t1/t0/a3,
-   while this body computes the three multiplies up front, sinks the flags store
-   past the Delta group and picks $17 for a delta; and in the two speed arms the
-   duration store now goes through the array's address register where retail
-   uses the $at macro form (that is where the 16 missing bytes are). Moving the
-   flags statement before/after the Current stores changes nothing (measured).
+// Best: 82.87% (1604 bytes against retail 1620; 401 vs 405 insns). Re-measured
+// this round; the body below is the measured one.
+// - LEFT: EVERY ARM IS EXACTLY ONE INSTRUCTION SHORT (measured from the branch
+//   targets: case 0 starts at +0x74 in both, case 2 at +0x198 retail / +0x194
+//   ours, case 3 +0x350 / +0x348, case 1 +0x504 / +0x4f8, tail +0x620 / +0x610).
+//   The missing insn is the load-delay nop behind the g_FieldScriptVMCurScriptData
+//   load in the trailing if: retail puts the g_CamMovementFlags read-modify-write
+//   between the Current and the Delta store groups, so its lw is followed by
+//   nop / addu, while ours sinks the ori/sh past both store groups, the store
+//   fills the delay slot and the nop is unnecessary. 4 arms x 4 bytes = the whole
+//   16-byte deficit.
+// - STATEMENT ORDER IS NOT A LEVER (measured this round): moving
+//   "g_CamMovementFlags |= FIELD_CAMERA_AT_MOVEMENT_ACTIVE;" from before the
+//   Current stores to after the Delta stores compiles to a byte-identical object
+//   (same 82.87% / 1604 bytes). gcc places that store itself, so no reordering of
+//   the C can move it.
+// - The old note blamed the speed arms duration store for the 16 bytes: WRONG.
+//   Cases 2 and 3 already emit retail form lui at,%hi / sh %lo(Duration)(at).
+// - Confirmed again: the durations must be declared as arrays and read as
+//   g_...Duration[0]; retail reaches all three divides of case 0/1 through one
+//   address register (la a0,Duration; lh v0,0(a0) reused) which the scalar and the
+//   s16* local both lose.
+// - The speed arms hoist la $s1,g_CamAtMovementTo where retail re-forms the
+//   address per use (lui/lw, twice). Instruction count is equal, so it is not the
+//   deficit, but it is one more allocator divergence.
+// - Every arm is a full permutation of retail register assignment (case 0: retail
+//   X/Y/Z = a1/a0/v1 and the From words = t1/t0/a3, ours s1/a0/v1 and a3/a2/a1).
+//   The prologue and the switch dispatch are instruction-identical up to the first
+//   lw of case 0, so the residual is a global-alloc/sched lottery, not a source
+//   shape. Needs a permuter job, not a hand job.
+// - Measured this round: gcc-2.6.0 77.19 (worse), gcc-2.7.2-cdk compile-failed.
+// - Earlier rounds on this body: two permuter runs PERMUTER_NONE base=304,
+//   per-arm += 3 copies 94.10 (no cross-jumping in 2.7.2).
+// - The switch needs the source case order 0, 2, 3, 1 to reproduce retail block
+//   layout; do not sort it.
+/*
 void FieldScriptStartCameraMovement(void) {
     VECTOR direction;
     VECTOR normalized;
@@ -414,8 +430,10 @@ void FieldScriptStartCameraMovement(void) {
     }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", FieldScriptStartCameraMovement);
+
+
 
 // Write the current interpolated value
 void FieldScriptWriteCurCameraTarget(void) {
