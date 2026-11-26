@@ -4303,12 +4303,30 @@ u8* SoundScriptSetTriangleEnvelope0(u8* pScript, AudioManager* pAudioManager, Au
 // 'move a2,s2' still in the jal slot where retail has the sra; 'flags' computed before a separate
 // index re-confirmed at 88.40 (50 diff lines). So the next round should start from the in-place
 // 'mode &= 0xF' body and attack the last mirrored pair, not from this one. Below 99, no permuter run.
+// Round 512: the in-place 'mode &= 0xF' body (flags computed before the mask) measures 90.52% at
+// retail's exact 268 bytes / 67 instructions with 30 differing lines and retail's EXACT prologue
+// save order (sw s4, sw s1, sw ra, sw s3, sw s2, sw s0), element in s1, flags in s0 and pScript in
+// s4 all retail's. Judge this family by the differing-line count, not the percentage: the older
+// 's32 index = mode & 0xF' body reads 91.13% with 50 differing lines and element in s2.
+// Residual = ONE adjacent pair in the global-alloc priority list. Retail keeps velocity in s2 and
+// mode in s3; this body mirrors them (velocity s3, mode s2), and that also pushes the flags 'andi'
+// one slot early (retail's bgez-a1 slot holds 'sll a0,a0,0xe') and puts the call-arg copy in the
+// jal slot where retail has the sra. Retail's 'andi a2,s3,0xf' + 'move s3,a2' is index's own copy
+// into mode's dead register, i.e. retail keeps index a SEPARATE pseudo (what the 91.13% body does,
+// and that body then coalesces the two back into one register), so no single body is both.
+// cc1 -da -dl -dg on this body: '6 regs to allocate: 89 77 73 75 76 71', dispositions
+// 71 in 20 (s4), 73 in 17 (s1), 75 in 18 (s2), 76 in 19 (s3), and 94/113/119/122 all in 16 -- s0 is
+// taken by LOCAL-alloc (the flags chain) exactly as in retail, so only the callee-saved hand-out
+// matters. Pseudos: 73 element 12 refs / 46 insns, 76 velocity 6 / 33 (2 bytes), 75 masked mode
+// 7 / 25 (1 byte). The hand-out follows the printed list order (73->17, 75->18, 76->19, 71->20), so
+// the fix is velocity ahead of masked mode, i.e. velocity's allocno quotient above mode's.
+// Measured this round, all 268 bytes / 67 insns: 's32 mode' byte-identical, 'velocity += ...'
+// byte-identical, mode declared first and assigned late 87.66% / 32 lines. Below 99, no permuter run.
 /*
 u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s16 velocity = pScript[0];
     s32 note = (s8)pScript[1];
     u8 mode = pScript[2];
-    s32 index;
     s32 flags;
 
     if (note != 0) {
@@ -4319,14 +4337,14 @@ u8* func_8003D9A4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
                 note = note * note;
             }
             velocity = velocity + ((s16)velocity * (s16)velocity) / 64;
-            index = mode & 0xF;
             flags = ((mode & 0x10) == 0) * 2;
-            pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(note << 14, velocity, index);
+            mode &= 0xF;
+            pAudioElements->envelopes[0].delta = SoundCalculateEnvelopeDelta(note << 14, velocity, mode);
             pAudioElements->envelopes[0].rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pAudioElements->envelopes[0].reload = velocity;
             pAudioElements->envelopes[0].delayReload = 0;
-            pAudioElements->envelopes[0].pStepHandler = g_SoundEnvelopeStepHandlers[index];
-            pAudioElements->envelopes[0].handlerIndex = index;
+            pAudioElements->envelopes[0].pStepHandler = g_SoundEnvelopeStepHandlers[mode];
+            pAudioElements->envelopes[0].handlerIndex = mode;
             pAudioElements->envelopes[0].target = 0;
             pAudioElements->envelopes[0].flags = flags + 1;
             pAudioElements->activeEnvelopeMask |= 0x1;
