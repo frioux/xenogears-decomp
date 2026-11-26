@@ -1767,5 +1767,6 @@ g_BattleFramePolyCount = 0x800595C0;
 g_BattleTrailEdgeX0 = 0x800C3CA4;
 g_BattleTrailEdgeY0 = 0x800C3CA6;
 g_BattleTrailEdgeX1 = 0x800C3CA8;
+g_BattleSlotTextBuffers = 0x800C3A70;
 g_BattleTrailEdgeY1 = 0x800C3CAA;
 SpriteAnimScriptRun = 0x800248D4;

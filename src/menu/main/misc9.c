@@ -42,7 +42,7 @@ extern u8 g_MenuItemRowStringIds[][8]; // 8 u8 string IDs per panel
 extern u8 g_MenuCharacterRowStringIds[][6]; // 6 u8 string IDs per panel
 extern u16 g_MenuInventoryWindowHeight;
 extern u8 g_DressingRoomItemIds[];
-extern u8 D_801EA7F8[]; // one quantity per g_DressingRoomItemIds entry
+extern u8 g_DressingRoomItemQuantities[]; // one quantity per g_DressingRoomItemIds entry
 extern s32 g_MenuInventoryRowCount;
 extern u16 g_MenuInventoryScrollStep;
 extern u8 g_MenuPanelRowXOffsets[];
@@ -1841,7 +1841,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 //      (page-5 gear arm); ours allocates it to s8.
 // Nothing was permuted: the residuals are structure (spill set, cross-jump), not
 // registers. The unit keeps its tables/JTBL shape: this stub owns no jtbl.
-// D_801EA7F8 is the quantity array beside g_DressingRoomItemIds (one u8 per id,
+// g_DressingRoomItemQuantities is the quantity array beside g_DressingRoomItemIds (one u8 per id,
 // MAX_INVENTORY_ACCESSORIES of each, cleared together at the top); it is splat data
 // (asm/menu/data/246A4.data.s), declared extern in the .c, never defined here.
 // Best: 93.22%, 2736 bytes (retail 2824), 684 vs 706 insns. This round took the parked body 92.30 -> 93.22 in five measured steps, each kept (a step that measured worse was reverted):
@@ -1866,7 +1866,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 //      and retail's duplicated id check (+5 insns) comes back.
 //   2. 94.02 -> 94.18: `u8 tens` and not `u32`; retail has `srl v1,v0,0x3 / andi v0,v1,0xff /
 //      bnez v0 / addiu v0,v1,0x10` - it tests the truncated byte but adds to the raw quotient.
-//   3. 94.18 -> 94.64: the `% 10` term reads D_801EA7F8[j] a SECOND time. Retail reloads
+//   3. 94.18 -> 94.64: the `% 10` term reads g_DressingRoomItemQuantities[j] a SECOND time. Retail reloads
 //      `lbu a3,0(at)` after the digitCodes[0] store (the store blocks cse of the load); a
 //      `quantity` local keeps the byte in a register and hides that reload entirely.
 //   4. 94.64 -> 94.93 -> 95.01: `pPanelIds = (u8*)g_Menu->pEquipmentPanel;` cached once per
@@ -1988,13 +1988,13 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
 
     for (i = 0; i < MAX_INVENTORY_ACCESSORIES; i++) {
         g_DressingRoomItemIds[i] = 0;
-        D_801EA7F8[i] = 0;
+        g_DressingRoomItemQuantities[i] = 0;
     }
 
     i = 0;
     count = page == 5;
     if (limit != 0) {
-        pQuantities = &D_801EA7F8[count];
+        pQuantities = &g_DressingRoomItemQuantities[count];
         pIds = &g_DressingRoomItemIds[count];
         i = 0;
         do {
@@ -2102,9 +2102,9 @@ s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
                 pName = GetGearAccessoryName(itemId);
             }
             g_Menu->pCharacterSpriteRecords->unk0[i].width = SystemRenderStringEntry(pName, pWorkspace, 0x24, 0);
-            tens = D_801EA7F8[j] / 10;
+            tens = g_DressingRoomItemQuantities[j] / 10;
             digitCodes[0] = (tens != 0) ? tens + 0x10 : 0xC3;
-            digitCodes[2] = D_801EA7F8[j] % 10 + 0x10;
+            digitCodes[2] = g_DressingRoomItemQuantities[j] % 10 + 0x10;
             SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
             g_Menu->pCharacterSpriteRecords->unk400[i].width = SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
             rect.x = 0x180 + (i & 1) * 0x18;

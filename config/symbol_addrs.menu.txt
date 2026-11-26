@@ -442,3 +442,4 @@ g_MenuCharacterLabelXPositions = 0x801EA054;
 g_MenuCharacterLabelYPositions = 0x801EA0DC;
 g_MenuGearCharacterLabelXPositions = 0x801EA098;
 g_MenuGearCharacterLabelYPositions = 0x801EA120;
+g_DressingRoomItemQuantities = 0x801EA7F8;

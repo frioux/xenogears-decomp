@@ -168,7 +168,7 @@ extern void func_80087EDC(u8, u8);
 extern void func_800881B8(s32, s32);
 extern void BattleSetSlotRegistersFromActor(u8, u8);
 extern s32 BattleScriptScanForOpcode62(u8);
-extern u8 D_800C3A70[];
+extern u8 g_BattleSlotTextBuffers[];
 extern u8 g_BattleSlotConditions[];
 extern void *BattleAllocTextBuffer(s32);
 extern s32 func_80086C88(u8, s32, s32, u8, u_long **);
@@ -639,7 +639,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 // displaced pair closed by writing `drawn = 1;` AFTER the func_80086028 call:
 // written before it, sched1 hoists `li s7,1` to the head of the join block and
 // the `move a1,s5` argument copy sinks below the arg1 * 0x170 chain (99.41).
-void func_800861D0(u8 arg0, u8 arg1) {
+void BattleDrawCommandSlotRows(u8 arg0, u8 arg1) {
     s32 i;
     s32 j;
     s32 matched;
@@ -654,7 +654,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
     row = 0;
     drawn = 0;
     for (o = 0; o < 12; o += 4) {
-        *(void **)(D_800C3A70 + o) = BattleAllocTextBuffer(0x1E);
+        *(void **)(g_BattleSlotTextBuffers + o) = BattleAllocTextBuffer(0x1E);
     }
     (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CC] = arg0 + 0xFC;
     g_BattleCommandQueue[0x2D6] = g_BattleCommandQueue[0x2D6] + 1;
@@ -739,7 +739,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
                 }
                 row = func_80086028(arg1, row, i,
                                     g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j],
-                                    (u_long **)(D_800C3A70 + (row / 2) * 4), 0);
+                                    (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4), 0);
                 drawn = 1;
             }
         }
@@ -752,7 +752,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
         g_BattleDisplayState[0xA8] = 1;
         BattleUpdateFrame();
         for (o = 0; o < 12; o += 4) {
-            HeapFree(*(void **)(D_800C3A70 + o));
+            HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
         }
         return;
     }
@@ -785,7 +785,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
                                                 (i + 1) * 0x10 + 0x54, 0xD0 - row * 0x10);
                     row = func_80086028(arg1, row, i,
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x13 - j],
-                                        (u_long **)(D_800C3A70 + (row / 2) * 4), 1);
+                                        (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4), 1);
                 }
             }
         }
@@ -812,7 +812,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
                                                 (i + 1) * 0x10 + 0x58, 0xD0 - row * 0x10);
                     func_80086028(arg1, row, i,
                                   g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x16 - j],
-                                  (u_long **)(D_800C3A70 + (row / 2) * 4), 1);
+                                  (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4), 1);
                 }
             }
         }
@@ -823,7 +823,7 @@ void func_800861D0(u8 arg0, u8 arg1) {
     g_BattleDisplayState[0xA8] = 1;
     BattleUpdateFrame();
     for (o = 0; o < 12; o += 4) {
-        HeapFree(*(void **)(D_800C3A70 + o));
+        HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
     }
 }
 
@@ -1025,10 +1025,10 @@ s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
 //       none exists under include/ (the global is `extern u8 *`).
 //    Keep: the `(row + queue[0x2E4]) >> 1` else arm against the `row / 2` if arm
 //    (both are retail's, the arms differ), the double-negated queue index at the
-//    three 0x2CC/0x2CB sites, and the s32 byte-offset o for the two D_800C3A70
+//    three 0x2CC/0x2CB sites, and the s32 byte-offset o for the two g_BattleSlotTextBuffers
 //    loops.
 //    Intended name: BattleDrawActorCommandColumn - allocates the three text
-//    buffers at D_800C3A70, appends the actor's slot to the command queue, draws
+//    buffers at g_BattleSlotTextBuffers, appends the actor's slot to the command queue, draws
 //    one sprite per queued command, then draws the three status icons its
 //    condition words allow, frees the buffers, and returns 1 when nothing was
 //    drawn.
@@ -1092,7 +1092,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
     if ((g_BattleCommandCharIndex[0] != 0 && g_BattleCommandCharIndex[0] - 1 >= arg0) ||
         g_BattleCommandQueue[0x2E7] != 0) {
         for (o = 0; o < 12; o += 4) {
-            *(void **)(D_800C3A70 + o) = BattleAllocTextBuffer(0x1E);
+            *(void **)(g_BattleSlotTextBuffers + o) = BattleAllocTextBuffer(0x1E);
         }
         (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CC] = arg0;
         g_BattleCommandQueue[0x2D6] = g_BattleCommandQueue[0x2D6] + 1;
@@ -1144,12 +1144,12 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
                                                 i * 0x10 + 0x80, 0xD0 - row * 0x10);
                     g_BattleSpriteColumnWork[0x5D81] += v;
                     row = func_80086C88(arg1, row, i - 1, maskIdx,
-                                        (u_long **)(D_800C3A70 + (row / 2) * 4));
+                                        (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4));
                 }
             } else {
                 result = 1;
                 row = func_80086C88(arg1, row, i - 1, maskIdx,
-                                    (u_long **)(D_800C3A70 + (row / 2) * 4));
+                                    (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4));
             }
         }
         if (g_BattleCommandQueue[0x2E4] != 0 && result != 0) {
@@ -1164,7 +1164,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
             g_BattleDisplayState[0xA8] = 1;
             BattleUpdateFrame();
             for (o = 0; o < 12; o += 4) {
-                HeapFree(*(void **)(D_800C3A70 + o));
+                HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
             }
             return result;
         }
@@ -1183,7 +1183,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
                                         i * 0x10 + 0x84, 0xD0 - row * 0x10);
             result = 1;
             g_BattleSpriteColumnWork[0x5D81] += v;
-            row = func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
+            row = func_80086C88(arg1, row, i, maskIdx, (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4));
         }
         if (g_BattleCommandCharIndex[0] != 4) {
             maskIdx = (arg0 + 1) * 3 + 2;
@@ -1199,7 +1199,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
                                         i * 0x10 + 0x88, 0xD0 - row * 0x10);
             result = 1;
             g_BattleSpriteColumnWork[0x5D81] += v;
-            func_80086C88(arg1, row, i, maskIdx, (u_long **)(D_800C3A70 + (row / 2) * 4));
+            func_80086C88(arg1, row, i, maskIdx, (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4));
         }
         g_BattleSpriteColumnWork[0x5D90] = g_BattlePrimStartIndex[0];
         g_BattleSpriteColumnWork[0x5D8F] = g_BattlePrimStartIndex[0];
@@ -1207,7 +1207,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         g_BattleDisplayState[0xA8] = 1;
         BattleUpdateFrame();
         for (o = 0; o < 12; o += 4) {
-            HeapFree(*(void **)(D_800C3A70 + o));
+            HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
         }
         return result;
     }
