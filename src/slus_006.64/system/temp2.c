@@ -44,6 +44,13 @@ typedef struct {
 #define ANIM_SCRIPT_SPEED_SCALE 256
 #define ANIM_SCRIPT_ANIM_ID_DEFAULT 0x3F
 #define ANIM_SCRIPT_FLIP_BIT 8
+// The 0xBE frame/offset word: bits 11-14 hold a frame count minus one, bits 0-8 a
+// frame offset, bit 6 the flip the frame carries and bit 10 whether to set it.
+#define ANIM_SCRIPT_FRAME_COUNT_SHIFT 11
+#define ANIM_SCRIPT_FRAME_COUNT_MASK 0xF
+#define ANIM_SCRIPT_FRAME_OFFSET_MASK 0x1FF
+#define ANIM_SCRIPT_FRAME_FLIP_SHIFT 6
+#define ANIM_SCRIPT_FRAME_SET_FLIP_SHIFT 10
 // The jump displacement is the 16-bit word the opcode carries, signed from its
 // second byte; 0xFA builds the same word from its third byte.
 #define SCRIPT_JUMP_AT(p) ((s32)((s16)((p)[1] << 8) | (p)[0]))
@@ -173,11 +180,11 @@ dispatch:
             u32 flags;
 
             count = pArgs[0] | ((s8)pArgs[1] << 8);
-            beFrames = ((count >> 11) & 0xF) + 1;
+            beFrames = ((count >> ANIM_SCRIPT_FRAME_COUNT_SHIFT) & ANIM_SCRIPT_FRAME_COUNT_MASK) + 1;
+            beOffset = count & ANIM_SCRIPT_FRAME_OFFSET_MASK;
             beFrames = beFrames *
                        (s32)(((u32)pSpriteData->flags_0xAC.flags >> ANIM_SCRIPT_SPEED_SHIFT) & ANIM_SCRIPT_SPEED_MASK) /
                        ANIM_SCRIPT_SPEED_SCALE;
-            beOffset = count & 0x1FF;
             if (beFrames == 0) {
                 beFrames = 1;
             }
@@ -189,14 +196,15 @@ dispatch:
             } else {
                 if (count < 0) {
                     if (beOffset != 0) {
-                        beOffset = *(u8*)(pSpriteData->field_0x60 + beOffset - 1);
+                        beOffset = *(u8*)(beOffset + pSpriteData->field_0x60 - 1);
                     }
                 }
                 flags = pSpriteData->flags_0xAC.flags;
-                flags = (flags & ~ANIM_SCRIPT_FLIP_BIT) | ((count >> 6) & ANIM_SCRIPT_FLIP_BIT);
+                flags &= ~ANIM_SCRIPT_FLIP_BIT;
+                flags |= (count >> ANIM_SCRIPT_FRAME_FLIP_SHIFT) & ANIM_SCRIPT_FLIP_BIT;
                 pSpriteData->flags_0xAC.flags = flags;
                 g_SpriteStateFlags(pSpriteData).fields.flipX = ((flags >> 3) & 1) ^ ((flags >> 2) & 1);
-                if ((count >> 10) & 1) {
+                if ((count >> ANIM_SCRIPT_FRAME_SET_FLIP_SHIFT) & 1) {
                     g_SpriteStateFlags(pSpriteData).fields.flipY = 1;
                 } else {
                     g_SpriteStateFlags(pSpriteData).fields.flipY = 0;
