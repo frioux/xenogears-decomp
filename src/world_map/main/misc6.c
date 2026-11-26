@@ -1018,10 +1018,10 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
-        pActor->scale += 0x300;
+        *(volatile s32 *)&pActor->scale = pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
         }
         break;
     case 2:
@@ -1069,8 +1069,8 @@ s32 func_8007E4E4(int index) {
         if (g_WorldMapCameraTarget[0] <= 0x1F9DFFF && g_WorldMapCameraTargetZ > 0x5998000) {
             g_WorldMapCameraTarget[0] = 0x1F9E000;
             g_WorldMapCameraTargetZ = 0x5998000;
-            pActor->unk7C = 0x8000;
             *(volatile s16 *)&pActor->state = 0x11;
+            pActor->unk7C = 0x8000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
             g_WorldMapScrollZ += 0x6D300;
@@ -1078,10 +1078,10 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
-        pActor->scale += 0x300;
+        *(volatile s32 *)&pActor->scale = pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
         }
         break;
     case 17:
@@ -1105,10 +1105,10 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
-        pActor->scale += 0x300;
+        *(volatile s32 *)&pActor->scale = pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
         }
         break;
     case 25:
