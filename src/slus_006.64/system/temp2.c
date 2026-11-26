@@ -1432,6 +1432,12 @@ s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
 // - addu operand order on x1/x0 only: retail addu v1,s2,v0 (nWidth first), ours (v0,s2), even with the C written nWidth + x0. The y pair is exact after writing nHeight + y0.
 // Fixed this round (92.96 -> 97.55): v-- instead of v = pData->v - 1 (the s16 reload cost 2 insns; in-place keeps the lhu), and nWidth/nHeight as the LEFT operand of x1/y1/x0/y0, which fixed both y adds.
 // Tried and worse: s32 x0/x1 locals (97.26, 54 diff lines); x0 + nWidth (no change).
+// Round 499 re-measured the parked body: 97.55% / 688 bytes / 172 insns, 34 differing lines - current.
+// New measurement: a one-iteration do while between the pDirent store and the count test makes the
+// preheader WORSE (94.97% / 692 / 173 insns, 55 differing lines) because sched1 then hoists the scale
+// lhu and the x lhu above the whole prologue. The head residual is one block's schedule: the
+// prologue, the localX/localY stores, the pDirent store, the count load, the scale load and the
+// beqz are a single basic block, so sched1 may order them freely and it picks the top for the scale.
 // Round 486: moving the `localY = y` copy to just after the pDirent statement is byte-identical
 // (same 97.55, same stream) - gcc defers that store into the beqz delay slot wherever it is written,
 // and the hoisted `lhu v1,104(sp)` of scale always lands at the top of the preheader, so the
@@ -1534,6 +1540,7 @@ s32 func_8002675C(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
         }
     }
     return pDirent->count;
+}
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002675C);
 
