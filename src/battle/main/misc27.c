@@ -849,10 +849,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
 
 // The far screen edge of the last trail quad, which is the near edge of the next one:
 // two screen pairs, one per corner of that edge.
-extern u16 D_800C3CA4;
-extern u16 D_800C3CA6;
-extern u16 D_800C3CA8;
-extern u16 D_800C3CAA;
+extern u16 g_BattleTrailEdgeX0;
+extern u16 g_BattleTrailEdgeY0;
+extern u16 g_BattleTrailEdgeX1;
+extern u16 g_BattleTrailEdgeY1;
 
 // The trail's segment counter: the depth stagger and the texture column the quad
 // samples are both taken from it, the column from its low byte.
@@ -865,11 +865,11 @@ extern BattleTrailSegmentCount D_800D2FCC;
 
 // 98.33% (984 bytes / 246 insns = retail's exact size). Two residuals, both measured.
 // FOUND THIS ROUND (84.73 -> 98.33): the four corner-edge halfwords are FOUR SEPARATE GLOBALS
-// in retail, so every access gets its own lui/%hi. With `extern u16 D_800C3CA4[2]` gcc's
+// in retail, so every access gets its own lui/%hi. With `extern u16 g_BattleTrailEdgeX0[2]` gcc's
 // function-cse shares the high half and spends an extra `addiu v0,v0,0` per pair (+4 insns,
-// 988 bytes). Declaring D_800C3CA4, D_800C3CA6, D_800C3CA8 and D_800C3CAA as four scalars
-// makes the count!=0 branch and the whole tail instruction-identical. D_800C3CA6 and
-// D_800C3CAA now sit in config/symbol_addrs.slus_006.64.txt and splat writes both into
+// 988 bytes). Declaring g_BattleTrailEdgeX0, g_BattleTrailEdgeY0, g_BattleTrailEdgeX1 and g_BattleTrailEdgeY1 as four scalars
+// makes the count!=0 branch and the whole tail instruction-identical. g_BattleTrailEdgeY0 and
+// g_BattleTrailEdgeY1 now sit in config/symbol_addrs.slus_006.64.txt and splat writes both into
 // linker/undefined_syms_auto.battle.txt (checked after a clean objdiff-config), so the
 // four-scalar spelling links.
 // - ROTATION, now closed on the final instruction stream: -dl on this body reads the 0xF0
@@ -976,19 +976,19 @@ void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
         pQuad->x1 = (u16)pLine->x0 + xEdge;
         pQuad->y1 = (u16)pLine->y0 + yEdge;
     } else {
-        pQuad->x0 = D_800C3CA4;
-        pQuad->y0 = D_800C3CA6;
-        pQuad->x1 = D_800C3CA8;
-        pQuad->y1 = D_800C3CAA;
+        pQuad->x0 = g_BattleTrailEdgeX0;
+        pQuad->y0 = g_BattleTrailEdgeY0;
+        pQuad->x1 = g_BattleTrailEdgeX1;
+        pQuad->y1 = g_BattleTrailEdgeY1;
     }
     pQuad->x2 = (u16)pLine->x1 - xEdge;
-    D_800C3CA4 = pQuad->x2;
+    g_BattleTrailEdgeX0 = pQuad->x2;
     pQuad->y2 = (u16)pLine->y1 - yEdge;
-    D_800C3CA6 = pQuad->y2;
+    g_BattleTrailEdgeY0 = pQuad->y2;
     pQuad->x3 = (u16)pLine->x1 + xEdge;
-    D_800C3CA8 = pQuad->x3;
+    g_BattleTrailEdgeX1 = pQuad->x3;
     pQuad->y3 = (u16)pLine->y1 + yEdge;
-    D_800C3CAA = pQuad->y3;
+    g_BattleTrailEdgeY1 = pQuad->y3;
     AddPrim(&g_GfxCurOT[depth], pQuad);
     D_800D2FCC.count++;
 }*/

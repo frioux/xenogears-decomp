@@ -311,7 +311,7 @@ u32 AnimScriptGetBlockCount(AnimScriptLoopBlock* pBlock) {
 }
 
 extern int g_AnimScriptExtraTicks;
-extern void func_800248D4(SpriteData* pSpriteData);
+extern void SpriteAnimScriptRun(SpriteData* pSpriteData);
 
 void AnimScriptTick(SpriteData* pSpriteData) {
     int i;
@@ -320,7 +320,7 @@ void AnimScriptTick(SpriteData* pSpriteData) {
         if (pSpriteData->animScriptWaitTimer) {
             pSpriteData->animScriptWaitTimer--;
             if (pSpriteData->animScriptWaitTimer == 0) {
-                func_800248D4(pSpriteData);
+                SpriteAnimScriptRun(pSpriteData);
             }
         }
     }

@@ -119,6 +119,12 @@ One worker = one clone = **one `.c` file**. A round is one long rolling launch.
   jump tables in units that do not own them, 12-round cooldown, three strikes per class).
   If you believe it picked wrongly, fix `next_round.py` and say so in the tracker row;
   do not hand-edit one round's list.
+- **Generate the plan once and create the clones from that same output.** `next_round.py`
+  marks its picks ineligible as it emits them, so a `--dry-run` plan followed by a recorded
+  run names different tags; `clone.sh new` on the dry-run's tags leaves queue entries
+  launching into missing directories and they fail with `cwd does not exist` (round 511
+  lost two `redo` lanes to exactly this). Relaunching each failed tag as its own one-lane
+  launch once its clone exists works.
 - A launch that dies in the first second touched no clone: fix the args and relaunch.
   Known causes: a second `args` wrapper, a `unit` with spaces or parentheses, a raw
   backtick in `extra`, a non-matching worker shape sent to `brief.js`, clones not yet
@@ -198,6 +204,10 @@ it guesses at story purpose; a wrong name is worse than a placeholder.
   round". The names file keeps the form `NAME func_ADDR NewName - evidence`. Both tools
   exit 1 on a SKIP; read the block and leave the 4-8 skips a round as `func_`. grep
   every proposed psyq name in `include/psyq/` first (a macro name is a compile error).
+  `rename_data.py` files a new global under the binary whose C references it, which is wrong for a
+  main-exe address reached from an overlay; the duplicate shows up only as a splat failure with no
+  `linker/<bin>.ld` written, and `lint_sources.py` names it. Check the address against the overlay's
+  `vram + size` before believing the tool.
   After a rename, one grep over `src/` and `config/` for the old spelling: a function
   also referenced as `D_<addr>` data from another binary, or called from another
   overlay, needs its entry in that binary's `symbol_addrs` file too.

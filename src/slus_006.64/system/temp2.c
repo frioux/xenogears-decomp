@@ -81,7 +81,7 @@ extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 // fields.flipX bitfield store, once by the flipY branch - which is what makes cc1 keep
 // the intermediate store, and writing beOffset before the frame divide is what puts
 // its andi in the bgez delay slot.
-void func_800248D4(SpriteData* pSpriteData) {
+void SpriteAnimScriptRun(SpriteData* pSpriteData) {
     u8* pArgs;
     u8 code;
     s32 frames;
@@ -259,7 +259,7 @@ dispatch:
             SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
             pSpriteData->step.y = stepY;
             pSpriteData->animScriptWaitTimer = 0;
-            func_800248D4(pSpriteData);
+            SpriteAnimScriptRun(pSpriteData);
             return;
         case 0x81:
             if ((s8)pSpriteData->flags_0xAC.bytes[3] == ANIM_SCRIPT_ANIM_ID_DEFAULT) {

@@ -569,7 +569,7 @@ extern void FieldInitScreenStripSprites(void);
 // Order-sensitive: cc1 emits a constant's `li` where the assignment that produces it sits, so
 // each fill value below is named in a local before its loop and `i` is counted outside the
 // `for`. Written inline, gcc re-materialises the constant next to the store instead.
-void func_800705DC(void) {
+void FieldResetState(void) {
     u_long unknownLocals[4]; // retail reserves these 16 bytes below `rotation`; nothing reads them
     SVECTOR rotation;
     u8* pBank;
@@ -840,7 +840,7 @@ extern u8 g_FieldBackgroundR;
 extern u8 g_FieldBackgroundG;
 extern u8 g_FieldBackgroundB;
 
-extern void func_800705DC(void);
+extern void FieldResetState(void);
 extern void func_8007A5C4(void);
 extern void func_8006FDEC(s16* pData);
 extern void FieldAllocActorData(int actorIndex);
@@ -1052,7 +1052,7 @@ void FieldLoad(void) {
     FieldVector3 defaultVector;
 
     defaultVector = D_8006FAF4;
-    func_800705DC();
+    FieldResetState();
 
     *(FieldSceneFileHeader*)g_FieldSpritePlacements = *(FieldSceneFileHeader*)g_GameStagedFileBuffer;
 

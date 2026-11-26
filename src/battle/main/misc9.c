@@ -126,7 +126,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
 }
 
 
-void func_8007DB78(u8 **arg0, s32 arg1) {
+void BattlePickPartySlotFromOperatorWordWithFlag(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s16 last;
@@ -237,7 +237,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
 }
 
 
-void func_8007DFD4(u8 **arg0, s32 arg1) {
+void BattlePickPartySlotFromOperatorWordWithFlagTag1(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s16 last;
