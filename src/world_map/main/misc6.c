@@ -908,6 +908,21 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 // unit preset is right. History, still valid: -G0 identical, the array form alone buys the
 // ORDER and the scalar form alone the FORMS (cc1_probe proof in round 490).
 
+// Round 518: re-measured 97.56% (1752 bytes / 438 insns = retail's size). Unparked the live body
+// and re-scored it first; the full side-by-side diff has exactly 13 displaced instructions, all
+// in the case-3 arm (retail: lw X / li a0,0xff80 / addu X / slt / sw X / lw Y / lw Z / addu Y /
+// addu Z / sw Y / sw Z; ours: li a0 first, the Z load hoisted above the X add, Z group before Y).
+// New measurements this round, none better, every one 1752 bytes: all six source permutations of
+// the three case-3 += statements (XYZ 97.56 = current, XZY 97.08, YXZ 97.51, YZX 96.78,
+// ZXY 96.45, ZYX 96.67), so statement order only perturbs sched2 and XYZ is the best of them;
+// the three updates in a do/while(0) 97.09 and in a bare block 97.56; a volatile X store
+// (*(volatile s32 *)&g_WorldMapCameraTarget[0] = g_WorldMapCameraTarget[0] + 0xFFFB3C00)
+// 97.49 at 1756 bytes (the if then reloads X, +1 insn); an s32 local for the X sum used by both
+// the += and the if 97.56 (cse folds it); locals for the X and Z sums with the Y/Z stores kept in
+// retail order 97.56. Registers already match retail exactly (t0 = array base held across the arm,
+// v1 = X, a1 = Z, v0 = Y, a0 = Y delta), so what is left is sched2 own region tie-break, not a
+// spelling of this arm (the Z group hoisting is plausibly the second compare in the fall-through
+// block reading the Z sum, while the Y sum only feeds a store).
 /*
 s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1112,8 +1127,10 @@ s32 func_8007E4E4(int index) {
     D_8009BD42[0] += nRandom;
     D_8009BD4A += *(u16 *)(0xA2 + pScratch);
     return 1;
-}*/
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
+
 
 
 
