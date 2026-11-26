@@ -62,10 +62,6 @@ typedef struct {
     /* 0x0FC */ s32 menuColumnPackageCount;
 } BattleSpriteWork;
 
-// The packet-pool cursor the last block of the unit writes through. The original reloads the
-// word from memory for every store, so it is read as a volatile word at each use.
-#define PRIM_INDEX g_BattlePrimStartIndexWord
-
 // The battle packet pool that g_BattleGraphicsWork->pPacketPrims points at, as far as
 // this unit reaches into it: the two Gouraud quads the frame border is drawn into and
 // the two flat quads its blanking rects use. The pool is 0x670 bytes.
@@ -83,6 +79,9 @@ extern u8 g_BattleCurSlotIndex;
 extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern u8 g_BattlePrimStartIndex[];
+// The packet-pool cursor the tail of func_80092B74 re-reads per store (parked below). splat
+// rejects a second name at 0x800CCB34, so this alias can only live here, not in symbol_addrs.
+extern volatile s32 g_BattlePrimIndexWord;
 // The same word as g_BattlePrimStartIndex, read as the scalar it is: the packet pool cursor
 // the border quad block indexes by. The original reloads it for every store.
 extern BattleRow *g_BattleCurrentRow;
@@ -868,6 +867,32 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 //    2 (the hoisted pitch), 1 (the queue byte index gives `addu v0,s0,v0` where retail is
 //    base-first `addu v0,v0,s0`, and `move s0,zero` sits in the beqz delay slot in retail and
 //    later here). */
+// 93.92% (1336 bytes, 334 insns = EXACTLY retail's size and count), frame 0x38 against retail's 0x30.
+//    WON THIS ROUND (89.40 -> 93.92, size now exact): the tail's 16 stores reproduce retail's
+//    per-store lui %hi/lw %lo reload of the packet index AND its serial order when (a) the index
+//    comes from a second volatile s32 extern at the same address 0x800CCB34 (g_BattlePrimIndexWord,
+//    declared in this file only: splat rejects a second name at one address) and (b) the pool is written through a 'volatile
+//    BattlePacketPool *'. Measured: a volatile POINTER local gives one hoisted la plus 16 lw 0(a1)
+//    (89.40); a plain non-volatile symbol read is cse'd to ONE load (67.26); without the volatile
+//    pool sched2 hoists the next volatile read above the previous store and interleaves two chains
+//    (330 insns, 95.05, order right only inside each chain). So volatile store = scheduling
+//    barrier, volatile symbol read = the per-store reload.
+//    Loop: two counters (for (i = 0, n = -1; i < 7; i++, n++), D_800C3DE1[n]) give retail's
+//    li s2,-1 plus addiu s2,s2,1 in the bnez delay slot and keep the reloc at D_800C3DE1 unfolded;
+//    without n the -1 folds into the addend (%hi(D_800C3DE1-0x1)) and the bytes differ.
+//    RESIDUAL, named: the pitch 0x200000 is hoisted into $s4 where retail rematerialises
+//    lui v0,0x20 in the latch (+1 insn) and that hoist is the sixth callee-saved (retail is
+//    s0=i, s1=x1, s2=n, s3=x2, s4=arg1 and nothing else, so arg1 takes $s5 and the frame is 0x38).
+//    Measured dead: swapping the two increments, the 0x200000 decimal spelling (both 93.9x, still
+//    hoisted); dropping n (frame 0x30, 330 insns, 95.05, but the D_800C3DE1 addend folds). Also
+//    left: 16 addu v1,v1,v0 where retail is addu v0,v0,v1 (addu operand order lever, untried);
+//    the queue byte gives addu v0,s0,v0 for retail's base-first addu v0,v0,s0 (1); retail re-reads
+//    g_BattleGraphicsWork for the final sb 0x66F (2, tied to the register count); the tail's
+//    li a2,0x80 / andi a1,s4,0xff sit after the two sb's here instead of before (ordering); and
+//    the reloc NAME differs on all 16 stores (g_BattlePrimIndexWord vs g_BattlePrimStartIndex at
+//    one address), so a perfect body still needs check_bin.sh, not objdiff.
+//    RAW: g_BattleCommandQueue[i + 0x2C4] indexes a byte 0x2C4 into a BattleCommandQueueState
+//    (misc1.c defines that struct in its own .c; a header move would fix the spelling).
 /*
 void func_80092B74(u8 arg0, u8 arg1) {
     BattleGraphicsWork *pWork;
@@ -876,8 +901,9 @@ void func_80092B74(u8 arg0, u8 arg1) {
     s32 x1;
     s32 x2;
     s32 i;
+    s32 n;
+    s32 idx;
     u8 tens;
-    volatile s32 *pPrimIndex;
 
     tens = arg1 / 10;
     digits[0] = tens;
@@ -893,11 +919,11 @@ void func_80092B74(u8 arg0, u8 arg1) {
     // rows use in this overlay (battle/main/misc14 keeps its pitch the same way).
     x2 = 0x1A << 16;
     x1 = 0x2A << 16;
-    for (i = 0; i < 7; i++) {
+    for (i = 0, n = -1; i < 7; i++, n++) {
         if (g_BattleCommandQueue[i + 0x2C4] == 0xFF) {
             break;
         }
-        g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(D_800C3DE1[i - 1] + 0x39,
+        g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(D_800C3DE1[n] + 0x39,
             (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 0x50, x1 >> 16,
             0x4A);
         if (i != 0) {
@@ -912,27 +938,43 @@ void func_80092B74(u8 arg0, u8 arg1) {
     g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex[0];
     g_BattleDisplayState->spriteColumnPending = 1;
     x = arg1 * 4 + 0x80;
-    pPrimIndex = (volatile s32 *)g_BattlePrimStartIndex;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].x0 = 0x80;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].y0 = 0x34;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].x1 = x;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].y1 = 0x34;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].x2 = 0x80;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].y2 = 0x3C;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].x3 = x;
-    ((BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[*pPrimIndex].y3 = 0x3C;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].x0 = x;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].y0 = 0x34;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].x1 = 0xF0;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].y1 = 0x34;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].x2 = x;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].y2 = 0x3C;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].x3 = 0xF0;
-    ((BattlePacketPool *)pWork->pPacketPrims)->flatQuads[*pPrimIndex].y3 = 0x3C;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].x0 = 0x80;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].y0 = 0x34;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].x1 = x;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].y1 = 0x34;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].x2 = 0x80;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].y2 = 0x3C;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].x3 = x;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->gouraudQuads[idx].y3 = 0x3C;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].x0 = x;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].y0 = 0x34;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].x1 = 0xF0;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].y1 = 0x34;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].x2 = x;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].y2 = 0x3C;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].x3 = 0xF0;
+    idx = g_BattlePrimIndexWord;
+    ((volatile BattlePacketPool *)pWork->pPacketPrims)->flatQuads[idx].y3 = 0x3C;
     pWork->pPacketPrims[0x66C] = g_BattlePrimStartIndex[0];
     pWork->pPacketPrims[0x66F] = 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
+
 
 
 /* 94.01% (1224 bytes against retail's 1228, 306 vs 307 instructions) under this
