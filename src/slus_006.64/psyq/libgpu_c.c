@@ -91,6 +91,7 @@ extern void SetDQB(long dqb);
 
 // best 99.10% (183 insns, 732 bytes against retail's 184 / 736): the ONLY residual is the data-copy loop back edge. Retail keeps 'sw a1,0(a0)' before the 'j' and puts a COPY of the loop-invariant 'move v0,s1' in the delay slot (its preheader holds the first copy), while gcc fills the slot with the store and points 'j' at a single top-of-loop move: same semantics, one instruction fewer, so it cannot link. Every other instruction, the tail order and the frame are retail's. The two 'do { } while (0);' barriers are scheduling boundaries, not shippable C (mark it ROUGH when it matches): without them gcc cse's the volatile g_GpuQueueTail load and the third 'lui/lw' pair is missing (92.01%); reading the increment through 'extern volatile u_long g_GpuQueueTailNext[] __asm__("g_GpuQueueTail")' instead measures 95.82 at 183 insns and pays an 'addiu' for the array base. Also tried: % 0x40 vs & 0x3F, raw D_8006BE38/3C/40 arrays, the increment in a local, -O2, -O1 (74.97), cdk (60.49). Delay-slot fill has no source lever (levers.md c-there-source-ordering-lever).
 // round 490: re-measured the note live, 99.10% / 183 insns / 732 bytes against retail's 184 / 736, and located the residual in cc1's OWN output rather than reorg: build/src/slus_006.64/psyq/libgpu_c.c.s already has 'move $2,$17' INSIDE the $L14 loop-head block and 'j $L14 / sw $5,0($4)' from cc1 (maspsx is not involved); retail's preheader holds that copy OUTSIDE its loop label and re-materialises it in the j delay slot, so retail is 184. The copy is gcc's signed-div-by-4 sequence (move / bgez / addiu 3 / sra 2) and the sole difference is where cc1 materialises the dividend copy, which no statement order reaches. Also measured byte-identical to the for form (99.10, 15 differing lines): 'i = 0; while (i < n / 4) { ...; i++; }' and 'n / 4 > i' (swapped slt operands). A sixth permuter run (1243 iterations, base=163 best=163, PERMUTER_NONE) found nothing.
+// round 503: re-measured live, still 99.10% / 183 insns / 732 bytes against retail's 184 / 736 - the residual is UNCHANGED (the data-copy loop's dividend copy). Retail holds 'addu v0,s1,zero' (v0 = n) BOTH in the preheader before the loop label AND duplicated into the back-edge 'j' delay slot, i.e. loop.c hoisted the copy as a movable plus its loop-end duplicate; cc1 puts the single copy at the head of the labelled test block and reorg fills the slot with the store instead, so the body is one instruction short and cannot link. New measurements this round: '++i' byte-identical (99.10), seventh permuter run 1247 iterations base=163 best=163 PERMUTER_NONE. Nothing else differs - every register, the frame, the tail store order and both 'do{}while(0)' barriers are retail's.
 /*
 int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_long *arg) {
     int i;
@@ -142,6 +143,7 @@ int func_8004668C(void (*pFunc)(u_long *p0, u_long *p1), u_long *p, int n, u_lon
     return (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004668C);
+
 
 
 
