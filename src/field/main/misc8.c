@@ -2662,53 +2662,41 @@ void FieldStopSedsPlayback(void) {
     }
 }
 
-/* 93.00% (252 vs retail 264 bytes): the inner scan is byte-identical to retail
-   (while (1) { if (pEntry->frameOffset == 0xFFFF) break; pEntry++; i++; }) and
-   only the stream-id handling differs. Retail loads g_FieldStreamId ONCE into
-   s0, tests it against 0xFF, then COPIES it (move s1,s0) and does every later
-   use on the copy: addiu s0,s1,0x115 once for the archive file index and
-   addiu v0,s1,0x1 rematerialised on BOTH sides of the loop (head blez and the
-   back-edge slt). gcc here copy-propagates every s32 intermediate back onto the
-   loaded s16, so the copy vanishes, streamId+0x115 moves into the first jal
-   delay slot and streamId+1 is hoisted into s0 for the loop. Tried: s16+s32
-   (streamIndex = streamId) locals, a separate s32 fileIndex local, (s32)/(u16)
-   casts, the bound as streamId + 1 and as streamIndex + 1.
-   R369: also tried the guard-plus-bottom-test shape (count = 0; if (streamIndex
-   + 1 > 0) { do {...; count++;} while (count < streamIndex + 1); }) - 92.91%,
-   same 252 bytes, loop.c still hoists streamIndex+1 - and moving `streamIndex =
-   streamId;` above the 0xFF early return (93.00%, no change).
-   R473 arithmetic of the residual (63 insns / 252 bytes vs retail 66 / 264): an
-   hoisted `addiu s0,s1,1` counts as ONE instruction where retail's two
-   rematerialisations are two (+1), retail's redundant `move s1,s0` is (+1) --
-   mine loads the s16 straight into s1 and computes fileIndex into s0, so the
-   copy never exists -- and the third is retail's `nop` in the
-   SoundAddSedsEntry delay slot, which the hoist fills in mine. So the body gcc
-   wants here is strictly shorter than retail's; the gap cannot be closed by
-   making the C better.
-   R473 measured dead ends: gcc copy-propagates the s16/s32 pair in EVERY
-   spelling, so the s32 local is not the copy retail has; making the loop bound
-   use streamId and the file index use streamIndex (and the reverse) is
-   byte-identical to the current body; try_flags gcc-2.6.0 93.00 (== unit
-   flags) and gcc-2.7.2-cdk 92.68, so this is not a preset question. The
-   hoisted bound sits in the register fileIndex frees at SoundAddSedsEntry,
-   which is why loop.c/gcse can hoist it at all; no source spelling found that
-   keeps that register live through the latch.
-   R486 re-measured baseline 93.00 (252 vs 264 bytes, 63 vs 66 insns) and tried
-   BOTH locals as s16 (streamId and streamIndex): byte-identical to the current
-   body, so the `move s1,s0` retail has is not a narrowing copy either. Note the
-   retail copy feeds BOTH later uses (`addiu s0,s1,0x115` for the file index and
-   `addiu v0,s1,0x1` for the loop bound), so the source computed both from the
-   copy and gcc 2.7.2 propagates it away in every spelling tried so far.
-   R499 re-measured the baseline (still 93.00, 252 bytes / 63 insns) and tried an
-   explicit `streamIndex = (s32)streamId;` conversion: byte-identical, no copy.
-   Two of the three missing instructions are the bound's rematerialisation -
-   retail computes `addiu v0,s1,1` in the entry guard AND in the latch, mine
-   hoists one copy to the preheader, where reorg drops it into
-   SoundAddSedsEntry's delay slot (retail has a nop there) - so the fix would
-   have to stop loop.c hoisting an invariant bound, which no spelling found.
+/* 99.76% (264 bytes / 66 insns = retail's exact size; ONE instruction differs).
+   R526 rewrote this from the R499 body (93.00) to retail's head: `streamIndex`
+   is now an s32 copy of the s16 global, so gcc emits the `move s1,s0` retail
+   has, and fileIndex's addiu stays after the ArchiveSetIndex call. Three edits
+   did it: (a) `u_long scratch[2]` declared first - retail's frame is 0x28 with
+   saves at 0x18/0x1C/0x20 and NO $sp access below 0x18 anywhere in the stub, so
+   those 8 bytes are an expand-time array local (lever j-an-unused-local-array-is;
+   it took the frame 0x20 -> 0x28 and every save onto retail's slot);
+   (b) the loop spelled `count = 0; if (streamIndex + 1 > 0) { do { ...;
+   count++; } while ((count - 1) < streamIndex); }` - an explicit guard plus the
+   minus-one test is the only spelling measured that keeps retail's
+   two-instruction guard AND stops loop.c hoisting the bound; (c) the inner scan
+   unchanged.
+   THE RESIDUAL is the back-edge comparison alone: retail `addiu v0,s1,1` then
+   `slt v0,a1,v0`, ours `addiu v0,a1,-1` then `slt v0,v0,s1` - same two insns,
+   only which operand carries the constant. Every spelling that writes
+   `count < streamIndex + 1` (for loop, do-while, with or without the guard)
+   lets cse/loop.c hoist `addiu s0,s1,1` into the preheader, which also rotates
+   the head back. Measured this round: `count < streamIndex + 1` 93.00 (252
+   bytes), `count <= streamIndex` 94.88 (256, head right but the guard
+   degenerates to `bltz s1`), `(count - 1) < streamIndex` without the dead array
+   97.21 (260), this body 99.76 (264). try_flags this round on the
+   `streamIndex + 1` body: gcc-2.6.0 92.91, gcc-2.7.2-cdk 92.77, and 2.6.0 also
+   drops already-matched neighbours (FieldAllocActorData 86.62,
+   FieldUpdateActorMovement 96.54), so this is not a preset question.
+   permute.sh 4 min from this body: PERMUTER_NONE base=20 best=20.
+   Earlier rounds (bare for-loop body at 93.00): gcc copy-propagated the s16/s32
+   pair in every spelling tried (s16+s32, (s32)/(u16) casts, both s16), the
+   redundant `move s1,s0` only appears with the `<=` / minus-one comparison
+   form, and -O3 / 2.6.0 / cdk all measured the same hoist.
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 /*
 void func_80085788(void) {
+    u_long scratch[2];
     s16 streamId;
     s32 streamIndex;
     s32 fileIndex;
@@ -2733,20 +2721,24 @@ void func_80085788(void) {
     SoundGetPendingSpuCommandType(0x10);
     ArchiveSetIndex(4, 0);
     i = 0;
-    for (count = 0; count < streamIndex + 1; count++) {
-        pEntry = &g_FieldSedsEntries[i];
-        while (1) {
-            if (pEntry->frameOffset == 0xFFFF) {
-                break;
+    count = 0;
+    if (streamIndex + 1 > 0) {
+        do {
+            pEntry = &g_FieldSedsEntries[i];
+            while (1) {
+                if (pEntry->frameOffset == 0xFFFF) {
+                    break;
+                }
+                pEntry++;
+                i++;
             }
-            pEntry++;
             i++;
-        }
-        i++;
-        g_FieldSedsEntryIndex = i;
+            g_FieldSedsEntryIndex = i;
+            count++;
+        } while ((count - 1) < streamIndex);
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
+}
+*/
 
 extern void* g_MenuSedsFile;
 extern s32 g_SoundSedsFileStaged;
