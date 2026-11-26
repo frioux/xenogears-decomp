@@ -242,6 +242,11 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
 // 2.6.0 -G0 86.96 (identical to the unit flags), and a 3-minute permuter run
 // (base 1815 best 406 by its own metric) whose winning edit is a constant-1 local
 // and whose objdiff score is unchanged at 86.96.
+// Round 509: the do-while region boundary (levers h-do-while-is-the-store-barrier)
+// cannot move a store LATER here - wrapping each bitfield assignment in its own
+// `do { } while (0);` scores 51.80% / 188 bytes / 47 insns, because the boundary
+// makes cc1 copy the chain value into $a0 and re-form the 0xFFFF1FFF mask per
+// region. The store placement is sched2's hoist distance and has no source handle.
 // Shapes that move the OTHER way: five u32 temps then five stores makes gcc delete
 // four dead stores (168 bytes / 42 insns, 73.13%), and a volatile u32* keeps all
 // five stores (184 bytes) but coalesces the whole chain into one register
