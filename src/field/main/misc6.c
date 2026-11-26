@@ -19,6 +19,10 @@ extern s32 g_FieldActorModelSlotCount[];
 extern u8 g_FieldActorModelSpriteRow[];
 extern s16 g_FieldActorModelSlotArchiveBase[];
 extern s32 g_FieldSceneReloadFlags;
+// An ARRAY alias of the same object (same symbol, so the same bytes): its base is a
+// real value, so cc1 keeps the lui/addiu in a register across two reads instead of
+// re-forming it per load, and the volatile is what keeps them two reads.
+extern volatile s32 g_FieldSceneReloadFlagsArray[] __asm__("g_FieldSceneReloadFlags");
 extern int g_GameSceneMapNum;
 extern void GameWaitForCdData(void);
 extern void GamePartySyncSkinData(void);
@@ -1221,12 +1225,62 @@ extern s32 func_8009FA54(s32 nInstructionOffset);
 // Round 475 found the byte count with four spellings: (1) volatile s32* pReloadFlags plus a s32 nReloadFlags local used for the test AND the offsets index, with arg 6 re-dereferencing *pReloadFlags, gives retail's two flag reads (the volatile is load-bearing: without it cc1 CSEs them into one, 2 insns short); (2) the s32* pOffsets local assigned from &pSpriteData->offsets[D_800AE294[characterId]] and then indexed by nReloadFlags gives retail's sll / addiu 4 / addu / addu split where a single offsets[cid + n] subscript folds the +4 into the lw displacement (-1 insn); (3) ((u8*)g_pGameState + partyId)[0x22B1] gives retail's base-first addu v1,v1,s0 (lever c-pointer-from-memory-paren-sum-is-base-first); (4) the swap actor as the offset-first cast sum g_FieldPartyActorIndices[partyId] * sizeof(FieldActor) + (u32)pActors gives retail's index-first addu v0,v0,a2 (lever c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base); plain &pActors[...] is base-first. Those four moved 92.94 -> 95.32 -> 95.69 at constant 916/229.
 // Residual, unfixed: (a) retail keeps &g_FieldSceneReloadFlags in a temp (lui t2 / addiu t2) and does both reads as lw X,0(t2); this cc1 folds the address into each load instead (lui t1 / lw t1,0(t1), then a fresh symbolic pair for arg 6) - same insn count, three differing rows, so no spelling tried moves it (pointer local, volatile pointer, volatile pointee all fold); (b) the knock-on register mirror sll v0,a1 / sll v1,a1 in the offsets block; (c) sll s2,s0,0x2 (partyId * 4) which retail computes early and reorg fills into the bnez delay slot (this body has a nop there and the sll after the flag load), and the lw/ori of the partyId==0 scriptFlags read-modify-write which retail emits after the two g_PlayerActorIndex stores and this body hoists.
 // Round 475 preset screen of the 95.69 body: --gp -G0 measures 98.01% (against 95.69 under the unit's -G8), so most of residual (a) IS the -G8 two-use address fold (lever a-two-use-symbol-address-rematerialises-under-g8-but-not-under-g0, round 475, field/main/misc func_8008C180). The file cannot switch to -G0: screening all C functions of field/main/misc6 under -G0 leaves three already-matched functions below 100 (FieldScriptVMHandlerCheckActorInteraction 99.96, FieldScriptWritePartyMemberPosition 99.75, FieldScriptVMHandlerUpdateActorModelSlot 99.78); every other matched function stays 100.00. Report PRESET_G0 field/main/misc6 func_800A08B8 98.01 95.69 for the orchestrator to judge.
+// BEST 99.87% (916 bytes / 229 insns = retail s exact size; 8 differing lines, all
+// ONE register-pair mirror in the sprite-offset block).
+// Two findings this round closed everything else (both worth a lever entry):
+// (1) declaring g_FieldSceneReloadFlags as an ARRAY (extern volatile s32 x[]) makes
+//     its base a real value, so cc1 keeps retail s `lui t2 / addiu t2` in a register
+//     across the two reads instead of re-forming it per load - 95.69 -> 98.01 with no
+//     other change (the round-487 array-alias lever; changing the extern s own
+//     declaration to an array is enough, no __asm__ label needed);
+// (2) wrapping the partyId==0 store pair and the scriptFlags read-modify-write in
+//     their own do{...}while(0) blocks stops cc1 hoisting the flags load+ori above the
+//     two global stores - 98.01 -> 99.87 (32 -> 8 differing lines).
+// Residual: retail computes nReloadFlags*4 into $v1 and the sprite-offset chain
+// (spriteData + characterId*4 + 4) into $v0; this body mirrors the pair
+// (`sll v0,t1,2` against retail s `sll v1,t1,2`, then `addu v0,v0,v1` either way).
+// Pure allocator tie between two equally free call-clobbered registers - the
+// instruction sequence and the byte count are retail s.
+// Measured this round, all worse or identical: a volatile cast on the flags word
+// (940 bytes, 96.38), the RMW placed before the two stores (94.78), `*(pOffsets + n)`
+// (identical), an s32 base local for the offset chain (908 bytes, 92.79),
+// `n*4 + (s32)pOffsets` (908, 92.77), pSpriteData/pOffsets as initialised
+// declarations inside the block (identical 229/916).
+// PERMUTER: cannot parse this body - every mutated copy dies with "conversion to
+// non-scalar type requested" on the array declaration (same with the __asm__ alias
+// spelling); run it from the scalar-extern body (98.01) if a later round wants it.
+// BEST 99.87% (916 bytes / 229 insns = retail s exact size; 8 differing lines, all
+// ONE register-pair mirror in the sprite-offset block).
+// Two findings this round closed everything else:
+// (1) reading g_FieldSceneReloadFlags through an ARRAY ALIAS of the same object
+//     (extern volatile s32 g_FieldSceneReloadFlagsArray[] __asm__("g_FieldSceneReload
+//     Flags"), see the top of the file) makes its base a real value, so cc1 keeps
+//     retail s `lui t2 / addiu t2` in a register across the two reads instead of
+//     re-forming it per load - 95.69 -> 98.01 with no other change. This is the
+//     round-487 array-alias lever, and note the alias must be a SEPARATE declaration:
+//     making the shared `extern s32 g_FieldSceneReloadFlags;` an array and/or volatile
+//     changes the already-matched FieldScriptVMHandlerReloadSceneMapData (95.83,
+//     124 vs its 120 bytes).
+// (2) wrapping the partyId==0 store pair and the scriptFlags read-modify-write in
+//     their own do{...}while(0) blocks stops cc1 hoisting the flags load+ori above
+//     the two global stores - 98.01 -> 99.87 (32 -> 8 differing lines).
+// Residual: retail computes nReloadFlags*4 into $v1 and the sprite-offset chain
+// (spriteData + characterId*4 + 4) into $v0; this body mirrors the pair
+// (`sll v0,t1,2` against retail s `sll v1,t1,2`, then `addu v0,v0,v1` either way).
+// Pure allocator tie between two equally free call-clobbered registers - the
+// instruction sequence and the byte count are retail s.
+// Measured this round, all worse or identical: a volatile cast on the flags word
+// (940 bytes, 96.38), the RMW placed before the two stores (94.78), `*(pOffsets + n)`
+// (identical), an s32 base local for the offset chain (908 bytes, 92.79),
+// `n*4 + (s32)pOffsets` (908, 92.77), pSpriteData/pOffsets as initialised
+// declarations inside the block (identical 229/916), no pointer local at all
+// (identical).
+// PERMUTER: cannot parse this body - every mutated copy dies with "conversion to
+// non-scalar type requested" on the array alias (the plain-array spelling of the
+// shared extern does the same); run it from a scalar-extern body (98.01) instead.
 /*
 void func_800A08B8(void) {
     FieldActor* pFieldActor;
-    FieldSpriteDataBlob* pSpriteData;
-    s32* pOffsets;
-    volatile s32* pReloadFlags; // volatile: retail reads the flags twice (test and arg 6)
     s32 nReloadFlags;
     void* pSprite;
     void* pSwapSprite;
@@ -1244,20 +1298,25 @@ void func_800A08B8(void) {
     pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
     if (partyId != -1) {
         if (partyId == 0) {
-            g_PlayerActorIndex = g_FieldCurActorIndex;
-            g_FieldPlayerActorIndex16 = g_FieldCurActorIndex;
-            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x4400;
-            g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
+            do {
+                g_PlayerActorIndex = g_FieldCurActorIndex;
+                g_FieldPlayerActorIndex16 = g_FieldCurActorIndex;
+            } while (0);
+            do {
+                g_FieldScriptVMCurActor->scriptFlags.flags |= 0x4400;
+                g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
+            } while (0);
         }
-        pReloadFlags = &g_FieldSceneReloadFlags;
         g_FieldPartyActorSlots[partyId] = g_FieldCurActorIndex;
-        nReloadFlags = *pReloadFlags;
+        nReloadFlags = g_FieldSceneReloadFlagsArray[0];
         if (nReloadFlags != 0) {
-            pSpriteData = g_FieldSpriteData;
-            pOffsets = &pSpriteData->offsets[D_800AE294[characterId]]; // pointer local keeps retail's split +4
+            // pointer local keeps retail's separate +4; declared here so the pointer's
+            // allocno is created in this block (the allocator's tie, not the spelling).
+            FieldSpriteDataBlob* pSpriteData = g_FieldSpriteData;
+            s32* pOffsets = &pSpriteData->offsets[D_800AE294[characterId]];
             pSprite = (void*)(pOffsets[nReloadFlags] + (s32)pSpriteData);
             func_80076AC0(g_FieldCurActorIndex, D_800AE294[characterId] + nReloadFlags, pSprite, 0, 0,
-                (D_800AE294[characterId] + *pReloadFlags) | 0x80, 1);
+                (D_800AE294[characterId] + g_FieldSceneReloadFlagsArray[0]) | 0x80, 1);
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
             g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x300;
             if (((u8*)g_pGameState + partyId)[0x22B1] != 0) {
@@ -1293,6 +1352,8 @@ void func_800A08B8(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
+
+
 
 
 
