@@ -131,7 +131,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
     s32 i = 0;
     s16 last;
     s32 count = 0;
-    u16 *pRow = (u16 *)((arg1 & 0xFF) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
+    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * sizeof(BattleOpRegs));
     s32 rowIndex;
     u16 *pField;
     s32 offset = 0;
@@ -158,7 +158,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
     last = count - 1;
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
-        u16 *pOut = (u16 *)((rowIndex & rowMask) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
+        u16 *pOut = (u16 *)(g_BattleSlotWordRegs + (rowIndex & rowMask) * sizeof(BattleOpRegs));
 
         pOut[(*arg0)[2]] = value;
     }
@@ -242,7 +242,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
     s32 i = 0;
     s16 last;
     s32 count = 0;
-    u16 *pRow = (u16 *)((arg1 & 0xFF) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
+    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * sizeof(BattleOpRegs));
     s32 rowIndex;
     u16 *pField;
     s32 offset = 0;
@@ -269,7 +269,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
     last = count - 1;
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
-        u16 *pOut = (u16 *)((rowIndex & rowMask) * sizeof(BattleOpRegs) + (s32)g_BattleSlotWordRegs);
+        u16 *pOut = (u16 *)(g_BattleSlotWordRegs + (rowIndex & rowMask) * sizeof(BattleOpRegs));
 
         pOut[(*arg0)[2]] = value;
     }
