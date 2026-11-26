@@ -694,38 +694,44 @@ extern BattleActor *g_BattleActors[];
 extern void func_800BEE2C(s32 slot, s32 mask, s32 command);
 extern void BattleWaitAndFreeActorBuffers(void);
 
-// Load-bearing spellings kept from the earlier rounds: the collect mask is `m & (m ^ bitMask)`
-// (xor+and, NOT `& ~mask`, which gives nor+and); the loop guard is `if (i != 0) { for (i--; i >= 0; i--) }`
-// (retail's redundant beqz/bltz pair); the slot index must stay an inline MACRO at all four sites (a
-// local collapses three recomputations and costs 18 instructions); func_800BEE2C takes the index
-// TWICE (retail sets a1 = a0 in the jal's delay slot); and `pending` must be a u8 (both of its tests
-// are andi 0xFF).
-// 97.66% under the unit preset XenoBattleTailCdk0 (gcc-2.7.2-cdk-psx, -G0 -O2) at 592 bytes / 148 insns =
-// retail's exact size, 90 differing lines, so the shape is right and what is left is all allocation.
-// NEW: the second wait-loop guard is NOT `count == 0`. Retail guards BOTH calls, and cse elides a second
-// `count == 0` (the old park: 96.37% / 584 bytes / 146 insns, two instructions short, so it could never link).
-// Writing the second guard as `i == 0` - i is the slot-walk counter, so it equals count there - SURVIVES the
-// jump optimizer and gives retail's size: 96.37 -> 97.66, 146 -> 148 insns, still 592 bytes. Its one remaining
+// 98.55% under the unit preset XenoBattleTailCdk0 (gcc-2.7.2-cdk-psx, -G0 -O2) at 592 bytes / 148 insns =
+// retail's exact size, 48 differing lines (the old park was 97.66 / 90 lines), and the whole callee-saved map is
+// now retail's: s3 = flag, s4 = g_BattleSlotBitMask %hi, s0 = pWork then the slots base, s1 = i, s2 = count,
+// s5 = g_BattleActors, s6 = the loop-invariant copy of pWork.
+// LOAD-BEARING spellings: the collect mask is `m & (m ^ bitMask)` (xor+and, NOT `& ~mask`, which gives nor+and);
+// the loop guard is `if (i != 0) { for (i--; i >= 0; i--) }` (retail's redundant beqz/bltz pair); the slot index
+// must stay an inline MACRO at all four sites (a local collapses three recomputations and costs 18 instructions);
+// func_800BEE2C takes the index TWICE (retail sets a1 = a0 in the jal's delay slot); `pending` must be a u8 (both
+// of its tests are andi 0xFF); and the WANT-WAIT LOOP NEEDS ITS OWN SPRITE LOCAL (`pWaitSprite`, not the first
+// loop's pSprite) - one shared variable makes that pseudo live across loop 1's calls, gcc gives it a callee-saved
+// register and the whole hand-out rotates (97.66 / 90 lines). Retail's stream says the same: loop 1's sprite is
+// s0, the wait loop's is v1 (caller-saved, no call in that loop).
+// SECOND GUARD: it must not be `count == 0`. Retail guards BOTH calls, but a second `count == 0` is deleted by
+// the jump optimizer (146 insns / 584 bytes = 97.23, two instructions short, so it could never link). `i == 0`
+// - i is the wait-loop counter, and it equals count after the loop - survives and gives retail's size. Its only
 // delta is the register: retail's branch reads s2 (count), this body s1 (i).
-// Residuals, largest first:
-// (a) CALLEE-SAVED ROTATION, and it is a wall: retail puts the u8 flag in s3 and the g_BattleSlotBitMask
-//     address in s4; this body has them the other way round, and the swap cascades (the slots-array base is s0
-//     in retail, s3 here; the walked pSprite is v1 in retail, s0 here). The -dl allocator dump gives the flag
-//     QI/6 refs/109 insns and the bitmask base SI/3 refs/32 insns, so the QI size term is what loses. Widening
-//     the flag to s32 with a (u8) test (so retail's andi stays) measured BYTE-IDENTICAL, so the pair does not
-//     move: park on it.
-// (b) BATTLE_SLOT_INDEX's or operand order: retail builds the flags_0xAC part first at both sites, this body the
-//     0xA8 part first. Swapping the macro's two operands measured 90.84% / 100 differing lines (one site flips,
-//     the other does not), so the current order is the better of the two; it is not the fix on its own.
-// (c) pending (u8) lives in a0 here and a1 in retail, so every delay-slot copy differs (move a0,zero vs
-//     move a1,zero): same cause as (a).
-// Preset screened earlier and confirmed right: -O3 75.47, -O1 67.68, gcc-2.6.0 56.72. Below 99% do not spend a
-// permuter run: the residual is register names, not structure.
+// RESIDUALS, all that is left:
+// (a) The `|` operand order of BATTLE_SLOT_INDEX at all four sites. Retail's or is `or dst, <flags_0xAC part>,
+//     <flags_0xA8 part>` while this body's is the reverse, which also swaps two temporaries per site (retail's
+//     done-mask value in v1 against v0, and so on). Swapping the macro's operands to the AC-first order DOES
+//     flip the or but also makes gcc load 0xAC before 0xA8 where retail loads 0xA8 first: 91.74% / 60 lines, so
+//     the current order is the better of the two and the pair is not reachable from the source order alone (this
+//     preset runs with -fschedule-insns, so retail's load order is a scheduler artifact).
+// (b) The hand-out below s3: this is where the old park's "s3/s4 wall" came from and it is settled. The -da/-dl/
+//     -dg dump (cc1 -G0 -O2 on build/src/battle/main/misc34.c.i) of the 97.66 body read "14 regs to allocate:
+//     81 191 122 82 85 100 83 186 84 80 88 160 136 115" with 84 = the flag at "6 times across 109 insns" and 186
+//     = the address of the `slots` array, formed after loop 1, at "3 times across 22 insns"; 186 came one place
+//     earlier and took 19. The old note blamed the QI size term of the priority quotient, and that is WRONG:
+//     `s32 flag` with a (u8) test does make the pseudo SI (the dump drops its "1 bytes") and the emitted code is
+//     BYTE-IDENTICAL with the same processing order, i.e. this cc1's allocno weight is word-based and the mode
+//     width cannot move a hand-out. What moved it was the pWaitSprite split above.
+// (c) Below 99%: no permuter run. Preset screened earlier and confirmed right: -O3 75.47, -O1 67.68, 2.6.0 56.72.
 /*
 s32 func_800C0314(void) {
     SpriteData *slots[BATTLE_SLOT_COUNT];
     BattleSlotWorkView *pWork;
     SpriteData *pSprite;
+    SpriteData *pWaitSprite;
     s32 i;
     s32 count;
     u8 flag;
@@ -759,9 +765,9 @@ s32 func_800C0314(void) {
     for (;;) {
         pending = 0;
         for (i = 0; i != count; i++) {
-            pSprite = slots[i];
-            if (pSprite != NULL && pSprite->pDefaultAnimFile != NULL &&
-                pSprite->animScriptWaitTimer != 0) {
+            pWaitSprite = slots[i];
+            if (pWaitSprite != NULL && pWaitSprite->pDefaultAnimFile != NULL &&
+                pWaitSprite->animScriptWaitTimer != 0) {
                 pending = 1;
             }
         }
@@ -783,6 +789,8 @@ s32 func_800C0314(void) {
     return count;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
+
+
 
 
 
