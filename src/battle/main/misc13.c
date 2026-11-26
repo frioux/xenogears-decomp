@@ -631,51 +631,14 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 
-// PARKED 99.41%, 2488 bytes / 622 insns = retail's EXACT size and instruction
-//    count. ONE instruction is displaced and that is all: retail emits `ori
-//    s7,zero,1` (the `drawn = 1;` after the guard) after the `addu a2,s2,zero`
-//    argument copy and before the status-byte argument chain, this build emits it
-//    first in the join block, straight after `addiu s2,s2,-1`. Everything else in
-//    the diff is a fold objdiff cannot do: the two `jtbl_` operands (.rodata +
-//    a table-relative `lw` offset, 13 words + 4 pad and 9 words, so the switch C
-//    is retail's layout) and `lbu 86(at)` for the typed `g_BattleWorkBlock[arg1]`
-//    access.
-//    TWO MEASURED LEVERS CLOSED 0.85 POINTS THIS ROUND, both after the previous
-//    note had called the residual "none source-shaped":
-//    1. 98.56 -> 98.70 at the same 2496 bytes: every `g_BattleCommandQueue +
-//       <byte offset>` sum in this body came out INDEX-first (`addu v0,v0,v1`)
-//       where retail is base-first (`addu v0,v1,v0`) - seven sites: the two
-//       `[0x2CC/0x2CB + g_BattleCommandQueue[0x2D6]]` stores, the first loop's
-//       `switch` subject `[0x2CC + i]`, and the four `arg1 * 0x40 + 0x1C/0x1E/0x20`
-//       guards. The DOUBLE-NEGATED offset spelling fixes all seven and is the
-//       lever this unit already carries
-//       (tools/rounds/levers.md c-double-negation-on-a-slot-stride-from-a-pointer-global,
-//       round 427, func_80087AF0): `(g_BattleCommandQueue - -(i))[0x2CC]`,
-//       `*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20)`. Semantically
-//       inert; keep it.
-//    2. 98.70 -> 99.41, 2496 -> retail's 2488 / 622: the file declared
-//       `extern volatile u8 *g_BattleDisplayState;` and gcc marks the tail's
-//       `sb v0,0xA8(v1)` `.set volatile`, which forbids reorg from taking it for
-//       the `jal BattleUpdateFrame` delay slot. Proved with cc1_probe on a
-//       two-function snippet (volatile pointer -> `sb` before the jal and an
-//       EMPTY slot; plain `u8 *` -> `jal / sb`): with a plain pointer cc1 fills
-//       the jal slot with the store AND, as the note above predicted it would,
-//       the `beqz s7` slot then takes `addu s0,zero,zero` - the 2-insn/8-byte
-//       "reorg class" was the volatile qualifier, not reorg. The file now uses
-//       `extern u8 *g_BattleDisplayState;` like every other battle unit, and
-//       BattleDrawCommandRowSprites keeps its 100.00 with a local
-//       `volatile u8 *pState;` for its last store (without it reorg takes that
-//       store for the `jr $ra` slot: 96.05 / 316).
-//    DEAD ON THE LAST INSTRUCTION: permuter 3 min (1011 iters, PERMUTER_NONE
-//    base=340), gcc-2.7.2-cdk 79.55, gcc-2.6.0 95.22 (2 units of the unit's other
-//    functions break under it), and - from earlier rounds, do not redo - `o = 0;`
-//    as the first statement of the if body or between the 0x5D90/0x5D8F stores
-//    (byte-identical), `(i << 4) + 0x64` / `+ 0x68` for the second icon's x,
-//    dropping the BattleDrawSpritePackage return temp (94.97), dropping the
-//    pQueue local (95.22 / 2504), declaration reordering, a 4-minute permuter
-//    run. If anyone picks this up, the remaining question is the emission
-//    position of a single store to a callee-saved pseudo against the following
-//    call's argument set-up.
+// 2488 bytes / 622 insns = retail's exact size and instruction count;
+// tools/scripts/check_bin.sh battle prints OK, so every byte is retail's.
+// objdiff reads 99.86 only through two folds it cannot do: the two jtbl_
+// operands (.rodata + table-relative lw offset) and `lbu 86(at)` for the typed
+// g_BattleWorkBlock[arg1] access (the original names D_800CCD3E). The last
+// displaced pair closed by writing `drawn = 1;` AFTER the func_80086028 call:
+// written before it, sched1 hoists `li s7,1` to the head of the join block and
+// the `move a1,s5` argument copy sinks below the arg1 * 0x170 chain (99.41).
 void func_800861D0(u8 arg0, u8 arg1) {
     s32 i;
     s32 j;
