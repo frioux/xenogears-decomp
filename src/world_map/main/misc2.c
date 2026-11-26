@@ -575,7 +575,15 @@ void WorldMapSyncGearRideActors(void) {
 
 // 97.59% (540 bytes, 135/135 insns; retail 135): the limit walk, both loops and the memcpy are instruction-identical.
 // 
-// Residual: one basic block, registers only. retail keeps the limit pointer in a0 and zone in v1 then reuses them as pDst=a0 / pSrc=v1 / pEnd=a1; gcc 2.7.2 puts zone in a0 and the pointer in v1 instead, and the sum loop then runs with pDst=a1/pEnd=a0. Attempts measured (all 135 insns, all 97.59): pDst assigned before pSrc; zone=1 before pLimit=D_8009B578 and the reverse; zone declared first vs last; u16* pLimit replaced by indexing D_8009B578[zone] directly; permuter 3 min -> PERMUTER_BETTER only via a dead 'if (arg1 || row) return 0; else return 0;' that buys 99.04% and is not shippable code.
+// Residual: one basic block, registers only. retail keeps the limit pointer in a0 and zone in v1 then reuses them as pDst=a0 / pSrc=v1 / pEnd=a1; gcc 2.7.2 puts zone in a0 and the pointer in v1 instead, and the sum loop then runs with pDst=a1/pEnd=a0. Attempts measured (all 135 insns, all 97.59): pDst assigned before pSrc; zone=1 before pLimit=D_8009B578 and the reverse; row computed before pSrc instead of after; zone declared first vs last and as s16 (that one is worse: 138 insns, 92.25); u16* pLimit replaced by indexing D_8009B578[zone] directly; permuter 3 min -> PERMUTER_BETTER only via a dead 'if (arg1 || row) return 0; else return 0;' that buys 99.04% and is not shippable code.
+// 
+// Why it is unreachable from here (round 498, cc1 -da -dl -dg on this unit's own flags): zone is pseudo 74
+// "used 8 times across 18 insns" and pLimit pseudo 75 "used 2 times across 8 insns", so the -dg order
+// "... 74 ... 75 ..." processes zone 8 positions FIRST, and yet the dispositions hand zone $4 (a0) and pLimit
+// $3 (v1); retail has the mirror. So on this body the processing order is not the hand-out order (77 is
+// processed 2nd and takes $3, 79 16th and takes $4), and pLimit's 1.0 quotient against zone's 5.3 cannot be
+// lifted by a spelling: pLimit is 1 def + 1 use and zone has 8 refs, both pinned by retail's own instructions.
+// try_flags on this body: 2.6.0 96.21, 2.7.2-cdk 85.17, so the preset is right.
 // 
 // What DID close: (1) 'while (pCell[...])' anywhere in the pick loop is inverted by gcc; the goto scan (scanTile/foundTile) makes it a top test with a 'j' back edge and the 'a0 = a1' copy, and writing it on buf[i] (not a pointer) is what makes gcc strength-reduce i into a1. (2) pSrc = ... + 0x200 must be its own statement with the row offset added afterwards (row = zone << 4; pSrc += row), otherwise gcc folds (zone - 1) * 16 into +496 and drops the addiu -1.
 /*
@@ -636,6 +644,7 @@ s32 func_80075E7C(s32 arg0, s32 arg1) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80075E7C);
+
 
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_80076098);
