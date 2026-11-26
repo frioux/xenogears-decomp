@@ -375,32 +375,37 @@ void BattleSetCurrentSlotState6(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
-// best 96.67%: 362 insns / 1448 bytes, EXACTLY retail's size. The only structural
-// difference left is the 0x20 arm's branch polarity, and it exists only to stop
-// gcc 2.6.0's cross-jump: retail's two arm blocks are BYTE-IDENTICAL (verified
-// word for word, 0x2DCB8..0x2DD0C vs 0x2DD24..0x2DD78, the bnez included) and
-// gcc merges them whatever the source says - the merge is on the expanded
-// instruction shape, so the honest body is 347 insns / 1388 bytes at 91.80%.
-// What was measured this round (all with the unit's own 2.6.0 -O2 -G8):
-//   - separate s16 locals for the two rolls: merged, 1388 bytes.
-//   - the second roll as `s32 r = ...; if ((s16)r < 50)`: merged, 1388.
-//   - an empty `do { } while (0);` between the roll and the compare: merged.
-//   - `if (rollA < 50) return 1; return 3;` on the 0x20 arm and `if (rollB > 49)
-//     return 2; return 1;` on the 0x40 arm: NOT merged - the two blocks differ by
-//     one instruction (beqz/li 3 vs bnez/li 1) - and lands on retail's exact
-//     362 / 1448. The 0x40 arm's flipped spelling produces retail's own code and
-//     polarity; only the 0x20 arm's is inverted, which is the 41-line residual.
-//   - `evade = resp + evade` and `evade += resp` both emit `addu a2,a2,v0` where
-//     retail has `addu a2,v0,a2`.
-// Remaining smaller residuals, all measured on this body: the two `srl` shifts
-// above are `sra` here (the (s8) division and the evade/2); `lb` where retail has
-// `lbu`+`sll`/`sra` for BattleRow.evadeModifier (an `s32` local then `(s8)` at the
-// use does not stop the fold); `limit + 0x55 - penalty` reassociates to
-// `limit - (penalty - 0x55)`; and one delay slot (`li v0,1` for retail's `nop` in
-// the 0x10/0xC00 test). Tools: tools/rounds/levers.md i-fcross-jumping-merges-identical.
-// So a 100% needs the cross-jump defeated WITHOUT changing the arm's code, which
-// no spelling of the identical body reaches: keep this park unless the unit's
-// compiler changes.
+// best 99.61%: 362 insns / 1448 bytes, EXACTLY retail's size, 8 differing lines in
+// 3 places. The twin is misc18's BattleRollHitResult (same 100/50/0x5F/0x55 arms,
+// matched) - port its spellings, they are what closed 96.67 -> 99.61 this round:
+//   - BOTH roll arms must be the SAME spelling, `if ((s16)(rand() % 100 - chance) >=
+//     50) return N; return 1;` with the compare inline. Written that way gcc keeps
+//     retail's two word-identical 22-instruction chains apart and each arm's polarity
+//     is retail's own (bnez / li 1 / j / li N). The old flipped pair (`< 50` and
+//     `> 49`, two s16 locals) scored 96.67 with the 0x20 arm's branch inverted, so
+//     cross-jumping is NOT the wall the old note claimed - the inline form is.
+//   - evadeModifier must be `(s8)(*(volatile u8 *)&g_BattleCurrentRow->evadeModifier)`
+//     (the twin's comment explains it): lbu + sll 24 + sra 24. The plain `(s8)` field
+//     read folds to `lb` and costs exactly 2 instructions (360 / 1440 = 98.33).
+//   - `limit = limit + 0x55; limit = limit - penalty;` as TWO statements. One
+//     statement reassociates to limit - (penalty - 0x55): addiu v1,s3,-85 / subu
+//     v1,s0,v1 where retail has addiu v1,s0,85 / subu v1,v1,s3.
+//   - `if (rollD >= limit) return 2; return 1;` is retail's `beqz / li v0,2 /
+//     fallthrough li v0,1`; the `< limit` early-return spelling inverts it (2 lines).
+// Residuals left, all measured dead this round:
+//   - the 0x2D9E4 add: `evade += g_BattleTargetSlotState->responsiveness` emits
+//     `addu a2,a2,v0`, retail `addu a2,v0,a2`. `+=`, `resp + evade`, an embedded
+//     assignment `(resp = field) + evade` and the double negation
+//     `evade - -(s32)field` all emit a2-first: a plain variable+field add has no
+//     operand-order spelling (contrast the address levers).
+//   - `srl` for the last shift of the two signed divisions (abandoning
+//     `hit = resp / 2 + hit`'s own operand order too). Tools/scripts/cc1_probe.sh on
+//     10 shapes: every signed `/2` in gcc 2.6.0 ends in `sra`, and every spelling that
+//     makes the last shift `srl` drops the sign fixup entirely (a u16 or u8-ranged
+//     dividend compiles to lbu + srl 1). Fixup + srl is unreachable from C - the two
+//     retail instructions are not a `/2` spelling in this compiler.
+//   - the permuter (3 min, -j 2) found only a chance -> s16 rollD retype, which
+//     truncates chance: wrong code, rejected.
 /*
 s32 func_8009D3A0(void) {
     s32 penalty = 0;
@@ -412,7 +417,6 @@ s32 func_8009D3A0(void) {
     s16 rollB;
     s16 rollC;
     s16 rollD;
-    s32 rowMod;
     u8 isGear;
 
     if ((g_BattleCurrentRow->actionFlags & 0x200) && (*(u16 *)((u8 *)g_BattleTargetSlotEntry + 0x34) & 8)) {
@@ -488,32 +492,32 @@ s32 func_8009D3A0(void) {
         }
         return 1;
     }
-    rowMod = g_BattleCurrentRow->evadeModifier;
-    chance = evade + (s8)rowMod - hit;
+    // The volatile read is what keeps cc1 from folding the sign extension into the load: the byte
+    // must come out lbu + sll 24 + sra 24, as retail has it.
+    chance = evade + (s8)(*(volatile u8 *)&g_BattleCurrentRow->evadeModifier) - hit;
     if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x20) {
-        rollA = rand() % 100 - chance;
-        if (rollA < 50) {
-            return 1;
+        if ((s16)(rand() % 100 - chance) >= 50) {
+            return 3;
         }
-        return 3;
+        return 1;
     }
     if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x40) {
-        rollB = rand() % 100 - chance;
-        if (rollB > 49) {
+        if ((s16)(rand() % 100 - chance) >= 50) {
             return 2;
         }
         return 1;
     }
     rollC = rand() % 100 - chance;
-    limit = limit + 0x55 - penalty;
+    limit = limit + 0x55;
+    limit = limit - penalty;
     if (rollC >= limit) {
         return 3;
     }
     rollD = rand() % 100 - chance;
-    if (rollD < limit) {
-        return 1;
+    if (rollD >= limit) {
+        return 2;
     }
-    return 2;
+    return 1;
 }
 */
 
