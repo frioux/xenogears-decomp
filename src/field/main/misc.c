@@ -778,25 +778,22 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
     g_FieldScriptMaxInstructionCount += 4;
 }
 
-// PARKED 82.99% (284 bytes against retail's 276). Round 371 re-measured the old
-// body, which was UNCOMPILABLE (`arg = 1;` with no `arg` in scope, so its 81.13%
-// came from a stale object): with `FieldScriptVMGetArgument(1)` spelled directly
-// and the current-actor pointer in a local it builds and scores 82.99.
-// What matches: the actor/sprite preamble, both argument reads, the
-// SpriteAllocClutRect call and the rect word 2 / 0x12C / rect word 3 stores.
-// What does not: (1) gcc hoists the shared `li $a0,1` of the two
-// FieldScriptVMGetArgument(1) reads above the frame stores and leaves a nop in
-// the first jal's delay slot where retail has the `li` itself (retail's two `ori
-// a0,zero,1` are separate); (2) the tail's two flag read-modify-writes come out
-// in the opposite order (0x12C group then 0x130, storing 0x12C first) where
-// retail loads 0x130 then 0x12C and stores 0x130 first, and the
-// `lhu 0xCC(actor)` of the script-pointer bump lands mid-group instead of before
-// the stores. Swapping the two flag statements in the source, and the untyped
-// whole-word spelling of 0x12C, both measured 80.99-82.99 with the same 284
-// bytes. The old note's preset screen (2.7.2 / cdk / 2.6.0 all 81.13) was run on
-// the body that never compiled, so it proves nothing; not re-screened this round.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
-
+// PARKED 82.99% (284 bytes, 71 insns against retail's 276 bytes, 69 insns). Round 501 re-measured
+// the body below; what matches is the whole preamble, both argument reads, the SpriteAllocClutRect
+// call and every store in retail's own order and registers.
+// THE SIZE GAP (and the reason it cannot link) is ONE construct, now named exactly:
+// cc1 emits the first FieldScriptVMGetArgument's argument load as 'li a0,1' ABOVE the whole preamble
+// (it lands in the load delay slot of 'lw v1,%lo(g_FieldCurActorIndex)'), and the reorder-enabled
+// region's jal then gets a nop where retail has the li. Retail's cc1 left the li ADJACENT to the jal,
+// so GNU as's reorder fill moved it INTO the delay slot - retail's bytes are jal / li / li / jal.
+// Proven with a cc1_probe snippet of this exact body (tools/scripts/cc1_probe.sh field/main/misc):
+// cc1 always hoists the FIRST constant-argument load to the top of the entry block, so no spelling of
+// the two arg reads removes it (measured: second read as arg 2 - no constant sharing - hoists it too;
+// value-then-type order hoists it too). gcc 2.6.0, 2.7.2-cdk and -G0 all measure 82.99 (try_flags).
+// THE TAIL is sched2, not source order: retail loads 0x130 then 0x12C and stores 0x130, 0x12C, 0xCC;
+// this body stores 0x12C, 0x130, 0xCC from the same statement order (both source orders measured).
+// The 0x12C write must stay whole-word ((u_int*)pCurActor)[0x4B] - the header's flags12C_0x12 bitfield
+// makes gcc cse the <<6 with the rect store (sll 0x12 instead of retail's sll 0x18).
 /*
 void func_800888A4(void) {
     SpriteData* pSpriteData;
@@ -815,8 +812,10 @@ void func_800888A4(void) {
     pCurActor->flags130 = (pCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
     pCurActor->flags12C_0x10 = 1;
     pCurActor->scriptInstructionPointer += 5;
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
+
+
 // 88.92% (432 bytes against retail's 428; frame 0x28 and the saved set s0-s4+ra
 // are retail's exactly, every call and every store is in retail's own order).
 //   SETTLED: the four script arguments are read in this order (arg1 masked to
@@ -856,6 +855,13 @@ void func_800888A4(void) {
 // the other two and all three stores sunk - not reproducible from statement order.
 // The head's single size miss (li a0,1 hoisted above the frame saves, leaving a nop
 // in the first jal's delay slot where retail has the li) is untouched by any of this.
+// Round 501: re-measured 88.92% / 432 bytes / 108 insns (retail 428 / 107) with the body below, and
+// the head's size miss is now PROVEN to be cc1's, not gas's: a cc1_probe.sh snippet of this exact body
+// shows cc1 emitting the first FieldScriptVMGetArgument's 'li a0,1' at the TOP of the entry block (in the
+// load delay slot of 'lw v1,%lo(g_FieldCurActorIndex)'), leaving the reorder region's jal a nop; retail's
+// bytes are jal / li / li / jal. Same miss in the sibling func_800888A4. try_flags.sh: 2.6.0 88.92,
+// 2.7.2-cdk 88.92, so no preset reaches it. The tail's store order (retail 0x130, 0xCC, 0x12C against this
+// body's 0x12C, 0x130, 0xCC from the same statement order) is the sched2 wall recorded above.
 /*
 void func_800889BC(void) {
     SpriteData* pSpriteData;
