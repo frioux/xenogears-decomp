@@ -598,6 +598,11 @@ void MenuFitInventoryWindowToItems(void) {
 // LAYOUT: this stub owns jtbl_801C50FC at +0x00 of [0xFC, .rodata, main/misc9] with .align 3
 // padding to 0x30, which is where func_801DDF24's table must start, so converting this one is
 // layout-safe on its own.
+// ROUND 522: un-parked and re-measured 99.84% / 896 bytes (= retail) / 224 insns (= retail), 99 differing lines - all the mirrored (active, needsOpen) pair and its cascade. FOUR scored runs this round, no new best, plus the mandated permuter run:
+// - lever merging-two-top-of-function-inits-into-one-chain (round 515, same gcc-2.6.0 preset) tried on the two '= 1' inits: 'needsOpen = active = 1;' 99.75 / 103 lines (only the prologue save order moves), 'active = needsOpen = 1;' 99.84 / 99 lines byte-identical to the two separate statements. Neither flips the map.
+// - moving 'needsOpen = 1' down to just before the loop (to shorten its live range and raise its quotient) 97.91 / 107 lines: the pair does NOT flip, only the prologue's sw/li placement moves. Reverted.
+// - permute.sh --minutes 3 -j 2: base=25 best=25, 1436 iterations, RESULT PERMUTER_NONE.
+// - lever arithmetic re-read (a-global-allocno-priority-is): active QI 9 refs/176 insns = 1534, needsOpen QI 5/154 = 649, a 2.36x gap, and the lever's own triage says 2x or more = park; flipping needsOpen needs 8 refs and dropping active needs 4, both impossible without changing retail's instruction stream. CLOSED - do not re-brief this function.
 /*
 s32 func_801DBE54(void) {
     u8 active;
@@ -735,6 +740,7 @@ s32 func_801DBE54(void) {
     return 1;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+
 
 
 
