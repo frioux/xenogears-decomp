@@ -569,17 +569,27 @@ s32 MenuFindFirstValidSlot(s32 a0) {
     g_Menu->cardSlotState = MENU_CARD_SLOT_STATE_READY;
     return result;
 }
-/* Best attempt: 84.07% (720 bytes vs retail's 704). Case 0 is EXACT (both phase-1
-   and phase-2 loops, the two `slti 0x1E` guards and the D_801E9828/D_801E9820
-   tables); the residual is case 1 and case 2. Case 1: retail keeps `t0 = g_Menu` in
-   a register but RELOADS `lw a0,812(t0)` (menuUnk2) at the top of every loop
-   iteration, where this compile CSEs menuUnk2 into a saved register (a3) - the extra
-   saved value is the whole 16-byte overshoot. Case 2: retail puts `lui v0,0x88888889`
-   in the case test's delay slot and runs `addiu a1,a1,3` after it; this compile puts
-   `addiu a1,a1,3` in the delay slot. Note the mirror func_801CA1D4 (the descending
-   version, same tables) is parked at 83.27% with the identical class of diff, so a
-   fix here should transfer both ways. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
+// Best attempt: 86.49% (720 bytes vs retail's 736 = 184 insns; the old note's 84.07
+// was stale). Case 0 plus the two phase-2 "slti 0x1E" guards are still exact.
+// Residual, measured this round, same class as its three siblings (func_801CA480,
+// func_801CA1D4, func_801CA5F0): in EVERY case except 0 retail keeps a SEPARATE
+// induction register for the store value (case 1: a2 = i + 3 while a1 = i, both
+// `addiu ...,3`-ed in an un-inverted loop that ends "j test / slti / bnez / j loop",
+// with the store block laid out between continue and test so the continue needs its
+// own `j`), and retail RELOADS g_Menu->menuUnk2 (lw ...,812(a3)/0x32C(t0)) at the top
+// of every iteration while g_Menu itself stays in a saved register. This compile
+// hoists menuUnk2 out of the loop (outside the loop body entirely) and recomputes the
+// derived value each pass, so it emits 180 instructions against retail's 184: the
+// missing four are the continue-block `j` in each loop plus case 2's delay-slot
+// `lui v0,0x88888889` (retail puts the magic constant in the dispatch delay slot and
+// `addiu a1,a1,3` in the body; this compile does the reverse).
+// Tried: nothing new on this body this round beyond re-measuring it (the sibling
+// func_801CA5F0 was the one worked); the four attempts spent there are recorded in its
+// park. Screening: gcc-2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59,
+// 2.7.2-cdk 81.59 on the sibling).
+// Next lever: a spelling that makes gcc 2.6 keep the menuUnk2 load inside the loop
+// (retail's break block stores through *menuUnk2, so its loop.c could not hoist) AND
+// leaves the loop un-inverted; solve it once and all four siblings should fall.
 /*
 void func_801C9EF4(s32 a0, s32 a1) {
     s32 i;
@@ -650,9 +660,9 @@ void func_801C9EF4(s32 a0, s32 a1) {
         }
         break;
     }
-}
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
 
-*/
 /* Best attempt: 83.27% (668 bytes vs retail's 684). Structure is settled: each case
    is a step-3 search over D_801E9810 whose hit stores i - 3 and returns, followed --
    only when that search found nothing -- by a step-1 search over D_801E9818, each
@@ -781,17 +791,26 @@ void func_801CA480(s32 a0, s32 a1) {
 }
 */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
-
-/* Best attempt: 81.70%. Both descending loops and case 2's shape match; the
-   only diff left is an allocator tie in case 2, where the original's mfhi lands
-   in v0 (the quotient's own register) and mine lands in t1 with an extra
-   `addu v0,t1,a1`.
-   Learned: the divisor is 15, not 0x14 (see func_801CA480), and keeping the
-   flag array as a pointer local turns the final `addu v0,v0,v1` into the
-   original's base-first `addu v0,v1,v0`. The descending loops are
-   `for (i = a1; i - 1 >= 0; i--)` over `D_801E9818[i]` storing
-   `unk4F7C = i - 1`, which is what makes the guard the bltz on a2 = a1 - 1. */
+// Best attempt: 84.72% (348 bytes vs retail's 352 = 88 insns). Case 0 is EXACT.
+// Residual, measured this round: (1) case 1 - retail keeps a SEPARATE induction
+// register for the store value (a0 = i, index = i + 1) with a non-inverted loop
+// ending "j test / addiu a0,a0,-1 / bltz / j loop", and RELOADS g_Menu->menuUnk2
+// (lw ...,812(a3)) at the top of every iteration while g_Menu itself stays in a3;
+// this compile hoists menuUnk2 out of the loop and recomputes the store value
+// (addiu a1,a1,-1 / addiu a2,a1,-1) the way its own case 0 does. All four siblings
+// (func_801CA480, func_801CA1D4, func_801C9EF4) have the same case-1 shape, so one
+// fix should move all four. (2) case 2 - retail puts lui v0,0x88888889 in the
+// dispatch delay slot and addiu a1,a1,-1 inside the body; this compile does the
+// reverse, which is the one missing instruction.
+// Tried this round: case 1 as "for (i = a1-1; i >= 0; i--) { j = D_801E9818[i+1]; ... selectedSlot = i; }"
+// (retail's own parameterization: 86 insns, 83.92% - induction right, but gcc
+// inverts the loop so the "j test" block is gone); case 1 with continue and with
+// nested if (identical output); case 2 with the inline cast form instead of the
+// pFlags local (84.60 against 84.72). Preset screened: 2.6.0 -O2/-O3 84.60, -O1
+// 61.64, 2.7.2 -O3 81.59, 2.7.2-cdk -O2/-O3 81.59, so 2.6.0 is right.
+// Next lever: make the menuUnk2 load non-hoistable in SOURCE ORDER (retail cannot
+// reuse it across the branch because the break block stores through *menuUnk2), or
+// find a spelling gcc 2.6 leaves un-inverted.
 /*
 void func_801CA5F0(s32 a0, s32 a1) {
     u8* pFlags;
@@ -826,8 +845,8 @@ void func_801CA5F0(s32 a0, s32 a1) {
         }
         break;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
 
 s32 MenuHandleCardSlotInput(s32 a0) {
     s32 result;
