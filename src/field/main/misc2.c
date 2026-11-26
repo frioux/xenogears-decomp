@@ -775,18 +775,18 @@ extern long FieldGetVec2Magnitude(long x, long z);
 // base compile). The alias spellings are invented NAMES over existing storage - naming is the
 // orchestrator's call (same finding as func_80072D74's park in this file); drop them and the
 // body measures 90.85% and is source a 1998 programmer would have typed.
-/*
 void func_80073230(void) {
     VECTOR pos;
     VECTOR normal;
     SVECTOR point;
+    s32 atDistance;
+    s32 eyeDistance;
     s16 duration;
     u16 flags;
     FieldActor* pActor;
-    s32 atDistance;
-    s32 eyeDistance;
     s16* pMode;
     s16* pCameraMode;
+    u16* pFlags;
 
     pMode = &g_FieldCameraMode;
     switch (*pMode) {
@@ -795,30 +795,7 @@ void func_80073230(void) {
         if (++D_800ADBB0 >= 65) {
             *pMode = 0;
         }
-        FieldUpdateSceneDollyAngle();
-        pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (mem_addr)g_FieldActors);
-        pos.vx = pActor->pActorData->position.vx;
-        pos.vy = pActor->pActorData->position.vy;
-        pos.vz = pActor->pActorData->position.vz;
-        FieldCameraUpdateFromTarget(&pos, (s16)pActor->pActorData->curYPos);
-        if (!(g_Scene.flags & 0x4000)) {
-            func_8007B1C4((s16)(g_CameraEye2.vx >> 16), (s16)(g_CameraEye2.vz >> 16),
-                g_FieldWalkmeshTriCount - 1, &point, &normal);
-            if (point.vy < (s16)(g_CameraEye2.vy >> 16)) {
-                g_CameraEye2.vy = point.vy << 16;
-            }
-        }
-        pCameraMode = &g_FieldCameraMode;
-        if (*pCameraMode == 2) {
-            atDistance = FieldGetVec2Magnitude((s16)(g_CameraAt2.vx >> 16) - (s16)(g_CameraAt.vx >> 16),
-                (s16)(g_CameraAt2.vz >> 16) - (s16)(g_CameraAt.vz >> 16));
-            eyeDistance = FieldGetVec2Magnitude((s16)(g_CameraEye2.vx >> 16) - (s16)(g_CameraEye.vx >> 16),
-                (s16)(g_CameraEye2.vz >> 16) - (s16)(g_CameraEye.vz >> 16));
-            if (atDistance < 0x80 && eyeDistance < 0x80) {
-                *pCameraMode = 0;
-            }
-        }
-        break;
+        goto updateCamera;
     case 0:
         D_800ADBB0 = 0;
         if ((D_800ADBAC & 3) == 0) {
@@ -834,6 +811,7 @@ void func_80073230(void) {
             }
         }
         D_800ADBAC++;
+    updateCamera:
         FieldUpdateSceneDollyAngle();
         pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (mem_addr)g_FieldActors);
         pos.vx = pActor->pActorData->position.vx;
@@ -843,7 +821,7 @@ void func_80073230(void) {
         if (!(g_Scene.flags & 0x4000)) {
             func_8007B1C4((s16)(g_CameraEye2.vx >> 16), (s16)(g_CameraEye2.vz >> 16),
                 g_FieldWalkmeshTriCount - 1, &point, &normal);
-            if (point.vy < (s16)(g_CameraEye2.vy >> 16)) {
+            if ((s16)(g_CameraEye2.vy >> 16) > point.vy) {
                 g_CameraEye2.vy = point.vy << 16;
             }
         }
@@ -857,7 +835,6 @@ void func_80073230(void) {
                 *pCameraMode = 0;
             }
         }
-    
         break;
     case 1:
         flags = g_CamMovementFlags;
@@ -879,7 +856,8 @@ void func_80073230(void) {
             g_CameraAt2.vy = g_CamAtMovementCurrent.vy;
             g_CameraAt2.vz = g_CamAtMovementCurrent.vz;
         }
-        flags = g_CamMovementFlags;
+        pFlags = &g_CamMovementFlags;
+        flags = *pFlags;
         if (flags & FIELD_CAMERA_EYE_MOVEMENT_ACTIVE) {
             duration = g_CamEyeMovementDuration;
             if (duration != 0) {
@@ -890,7 +868,7 @@ void func_80073230(void) {
             duration--;
             g_CamEyeMovementDuration = duration;
             if (duration == 0) {
-                g_CamMovementFlags = flags & ~FIELD_CAMERA_EYE_MOVEMENT_ACTIVE;
+                *pFlags = flags & ~FIELD_CAMERA_EYE_MOVEMENT_ACTIVE;
             }
             g_CameraEye2.vx = g_CamEyeMovementCurrent.vx;
             g_CameraEye2.vy = g_CamEyeMovementCurrent.vy;
@@ -901,8 +879,7 @@ void func_80073230(void) {
 
     func_80072D74();
     g_Scene.sceneAngle.vy &= FIELD_ANGLE_MASK;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
+}
 
 void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt) {
     MATRIX matSceneRotation;
