@@ -1223,6 +1223,31 @@ typedef struct {
 // Unchanged residuals (see the R461/R462 blocks above): g_FieldActors base in a0
 // where retail has a1, rotation.vx loaded 5 insns early instead of in the
 // `lw v0,76(v0)` delay slot, and the 0x400000 arm's vx/rotation/vz interleave.
+// PARKED 96.98% (1436 bytes / 359 insns against retail's 1424 / 358: ONE instruction over,
+// so it cannot link). Round 510 re-measured the R461-R487 bodies and moved it 96.38 -> 96.98:
+// the permuter (base 1575 -> 1360, 1271 iters, 3 min) put targetPosX = pTarget->position.vx
+// BEFORE posX/posZ, which is semantics-preserving (four independent u32 loads) and buys
+// retail's `lw s4,32(s2) / lw s6,40(s2)` order; 65 -> 59 differing lines.
+// THE ONE INSTRUCTION IS STILL THE lh v0,0x52(sp) RELOAD OF delta.vy in the angle
+// expression. Retail instead truncates the delta into a register EARLY (`sll a0,a0,0x10`
+// right after the delta.vy store, `sra s0,a0,0x10` in the bnez delay slot before the
+// FieldGetActorDistance2D call) and reuses $s0, which is dead stepX there.
+// NEW MECHANISM, read off the allocator dumps rather than guessed (round 510): with a
+// 's16 dy' local carrying the value across the call the body is 96.06 / 1448 / 362 and
+// $fp appears, and cc1 -dg says why - the dy allocno (251) conflicts with HARD REGISTERS
+// 16 and 17 ($s0, $s1), while the angle allocno (149, 6 refs / 32 insns) does not:
+// ';; 251 conflicts: 72 74 83 84 85 86 251 277 2 3 4 5 16 17 29'. So no spelling that
+// keeps the value live across the call can take retail's $s0 from this body; it takes
+// $s7 and pushes actorIndex (72, 1 ref, processed last) to $fp, which costs the pair.
+// The conflict is with a LOCAL-alloc'd value in $s0/$s1 somewhere in dy's live range,
+// not with another global allocno, so it is invisible in the source's locals.
+// Dump recipe used (needs report mode): mips-linux-gnu-cpp -Iinclude -I build <unit.cpp_flags>
+// -DSKIP_ASM, then tools/gcc-2.7.2-psx/cc1 <unit.cc_flags> -O2 -G8 -da -dl -dg; read
+// <in>.greg for the process order + dispositions and <in>.lreg for refs/live length.
+// Tried and rejected this round (all measured): 's16 dy' + dy used in the angle 96.06 /
+// 1448 / 362; the same with the s16-dy body's earlier statement order 95.46 / 1448 / 362;
+// 's32 dy' / chained 'delta.vy = dy = ...' (R461/R487) 362; 'dy = delta.vy;' placed after
+// the target loads 94.86 / 1452 / 363 (cc1 re-expands the load AND the truncation).
 /*
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     IVEC3 moveVec;
@@ -1331,9 +1356,9 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY =
                 pTracked[pActor->canInteract].rotation.y;
             pTarget = g_FieldActors[pActor->canInteract].pActorData;
+            targetPosX = pTarget->position.vx;
             posX = pActor->position.vx;
             posZ = pActor->position.vz;
-            targetPosX = pTarget->position.vx;
             targetPosZ = pTarget->position.vz;
             if (!(pActor->rotation.vx & 0x8000)) {
                 ((FieldActorTargetTrack*)pActor->pTargetTrack)->distance =
@@ -1355,6 +1380,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+
 
 
 
