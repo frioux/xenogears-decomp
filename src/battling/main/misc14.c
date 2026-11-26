@@ -1082,8 +1082,15 @@ void func_8008BB00(Misc14Entry *pDst) {
 }
 */
 
-// Best attempt: objdiff 97.50%, 32 bytes = the original's exact size and instruction sequence; ONLY the reused load temp differs ($t0 in retail, $v0 in ours). Re-measured round 482: 97.50 / 32 bytes / 8 insns, unchanged; twin_for.py reports no twin and the lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait (written from this function and its sibling func_8008BB00) closes the axis: a leaf, call-free, one-block body never reaches global_alloc, so local-alloc's scan hands the QTY the first free register and every cc1 in tools/ starts at $2. -G0, 2.6.0, 2.7.2-cdk, -O1/-O3, an 8-byte struct copy (70.71), a struct pointer, a cc1_probe spelling sweep and a 2-minute permuter run are all recorded there. This is the retail compiler's REG_ALLOC_ORDER, not a spelling - do not spend another lane on it.
-// Round 495: un-parked and re-measured: 97.50% / 32 bytes / 8 insns, the single residual is still retail's $t0 against local-alloc's $v0. The lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait covers it (leaf, one block: no source shape reaches the pick).
+// Best attempt: objdiff 97.50%, 32 bytes = retail's exact 8 instructions; ONLY the reused
+// load temp differs (retail keeps it in $t0, ours in $v0). The lever
+// a-call-free-single-block-temp-in-t0-is-a-compiler-trait (written from this function and its
+// sibling func_8008BB00) closes the axis: a leaf, call-free, one-block body never reaches
+// global_alloc, so local-alloc's scan hands the qty the first free register and every cc1 in
+// tools/ starts at $2. Already measured and dead for this pair: -G0, gcc-2.6.0, gcc-2.7.2-cdk,
+// -O1 and -O3, an 8-byte struct copy (70.71), a struct pointer, a cc1_probe spelling sweep and a
+// 2-minute permuter run. Retail's $8 temp is its compiler's REG_ALLOC_ORDER, not a spelling.
+// Round 508: un-parked and re-measured, 97.50 / 32 bytes / 8 insns, unchanged; no twin.
 /*
 void func_8008BB1C(Misc14Entry *pSrc) {
     u32 value;
@@ -1094,6 +1101,7 @@ void func_8008BB1C(Misc14Entry *pSrc) {
     D_80096D8C = value;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
+
 
 
 
