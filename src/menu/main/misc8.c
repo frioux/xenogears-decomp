@@ -493,52 +493,55 @@ void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
 // group (0 the character's own equipment, 1 and 2 the two gear panels), arg2 reads
 // the ids the panel itself holds instead of the live records, and arg3 takes the
 // names from the character's gear rather than the character.
-// PARKED 90.50% under XenoMenu260 (gcc 2.6.0): 2140 bytes / 535 insns against retail 2144 / 536.
-// ONE cause for the whole 318-line residual: the parameter copy `move s4,a1` is not in the
-// prologue. Retail moves arg1 to s4 as its second instruction, which frees a1, and retail then
-// keeps g_Menu in a1 and the row constants in t0 (lui a1,%hi(g_Menu) ... li t0,5 / li t0,0xD0).
-// Here gcc keeps arg1 in a1 until just before the loop preheader (the move lands after
-// `lbu v1,0x30(v0)`), picks t0 for g_Menu and t1 for the constants, and every later callee-saved
-// assignment rotates by one: retail s4 = the pExtraId cursor and s7 = arg1&0xff, here s7 = the
-// cursor and s6 = arg1&0xff. Fix that one copy and the rest should collapse; nothing else in the
-// body differs structurally.
-// Moved up this round:
-//  - rowX is u16, not s32 (measured 89.92 -> 90.50, 2152 -> 2140 bytes). Retail reloads it for
-//    MenuSetQuadVertices with `lhu a1,0x28(sp)`; an s32 local gives `lw` + `andi 0xffff` (+1 insn).
-//    Retail still stores it with `sw` where a u16 local stores with `sh`, so one instruction is
-//    missing overall (535 vs 536) - the slot is 8 bytes wide (next local at 0x30, not 0x2c), which
-//    no single u16 explains.
-//  - the i == 0 name render is `if (arg1 != 2) {weapon ids} else {extra ids}` (89.81 -> 89.92).
-//    Retail is `beq s7,2 -> out-of-line extra arm` with the weapon arm as the fall-through, which
-//    is what a `!=` test gives; the old `if (arg1 == 2) ... else` put the extra arm first.
-// Measured and rejected this round:
-//  - the loop-body dispatch as a C switch. Retail is `beqz s0 -> i==0 arm` (out of line) then
-//    `bltz s0` / `slti s0,5` / `beqz` (the 0..4 range test) then `j <i==4 test>; li v0,4`.
-//    `switch (i) { case 0: ...; case 4: if (arg3==0) break; default: ... }` compiles to
-//    `beq s0,0; beq s0,4; j default`, no range test, 63.41% - reverted. The range test says the
-//    original really is a switch over 0..4 (gcc range_test for a signed index emits bltz + slti),
-//    so the case labels are not {0,4}: cases 1..3 must be labelled too and share the i==4 test.
-//  - u16 rowX still leaves the clut store recomputing the poly address (see below): retail reuses
-//    the address it computed for tpage, putting `addu v1,v1,a0` in the beqz delay slot; this body
-//    emits a second full rc*0x28 chain (+8 insns there, and it is why the body is 1 insn short
-//    overall rather than over).
-//  - the poly field stores still differ in addu operand order: retail `addu a0,s1,a0` (i*0x80 +
-//    panel) then `addu v0,v0,a0` (rc*0x28 + that); here `addu v0,v0,s1` then `addu a0,a0,v0`.
-// Kept from the earlier park: the local slot picture (0x20 rowCount, 0x28 rowX, 0x30
-// rowTableOfs, 0x38/0x40 the id pointers, 0x48 loadImage, 0x50 the masked arg0), the 5-vs-4 row
-// count, the 0xD0/0x28 row X and 9/5 D_801E9D88 offset picked by arg1, the four-way i == 0
-// render, the i == 4 && arg3 == 0 skip, the arg1 < 2 accessory rows with the i == 1
-// weaponIds[3] special case, the extraWeaponIds[i] rows for arg1 == 2, the i & 1 / arg3
-// loadImage chain (retail really does read the slot uninitialised), the RECT + LoadImage +
-// DrawSync block, MenuSetStringPrimitives per row, the i == 4 tpage/CLUT/uv block and the
-// MenuSetQuadVertices row.
+// PARKED best size: 2144 bytes / 536 insns = RETAIL'S EXACT SIZE, 226 differing lines, under
+// XenoMenu260 (gcc 2.6.0) - the body below, which spells the row dispatch as a `switch (i)`.
+// objdiff prints only 64.99% for it because the arms are laid out in a different order, so judge
+// this body by the byte count and the differing-line count, not the percentage (levers.md:
+// objdiff's fuzzy number is not monotone). The same body with the dispatch written as an
+// if/else-if chain measures 91.59% at 2140 bytes / 535 insns and 232 differing lines - one
+// instruction SHORT of retail, which is what makes the switch the better base.
+// FIXED this round (worth 90.50 -> 91.59 on the if-chain body, and it is why the switch body now
+// has retail's exact size): arg0 is a `u_char` PARAMETER, not `s32 arg0` masked with `& 0xFF` at
+// every use. A QI parameter makes gcc emit retail's prologue exactly - `sw s1 / move s1,a0 /
+// sw s4 / move s4,a1` at the very top, then `lui a1,%hi(g_Menu)` (a1 is free once arg1 has been
+// copied out) - where the s32 spelling left the parameter copy sunk to its first use, put
+// g_Menu in t0 and rotated every later callee-saved assignment by one (318 differing lines).
+// REMAINING residuals, all measured:
+// - the dispatch ORDER. Retail's loop head is `beqz s0 -> case 0` (out of line), then a SIGNED
+//   range test on i (`bltz s0` / `slti v0,s0,5` / `beqz v0` -> the loadImage chain), then
+//   `j <the i == 4 test>` with `li v0,4` in the delay slot. Our switch - case 0, case 4, default,
+//   with the case-4 arm falling through into default - gives the right branch direction and the
+//   right sizes (`beqz s0` / `li v0,4` / `beq s0,v0`) but no range test. A range test needs
+//   case labels for 1..3 as well, and a 5-case dense switch makes 2.6.0 emit a JUMP TABLE, which
+//   retail does not have (no `jr` anywhere in the stub), so the original is a switch this C
+//   cannot express yet. An if/else-if chain (`if (i == 0) ... else if (i == 4 && arg3 == 0) skip
+//   ...`) compiles to `bnez s0` (mirrored) and no range test.
+// - the callee-saved rotation: retail keeps TextureX base=$s6, Glyph base=$s5, the pExtraId
+//   cursor=$s4 (the register arg1's raw value vacates), arg1&0xff=$s7; ours gives Glyph=$s4,
+//   TextureX=$s5, arg1&0xff=$s6, cursor=$s7, i.e. the four rotate by one. The cursor's load is
+//   also hoisted into the loop-entry `beqz` delay slot where retail has a `nop` and loads it last
+//   in the preheader (`lw s4,0x40(sp)` after `move s1,zero`). Not yet read with -dl/-dg.
+// - the i == 4 arm: retail forms the poly address (`renderContext * 0x28 + panel + i * 0x80`)
+//   ONCE and stores tpage/clut/u/v through it, and its `addu` order is `addu a0,s1,a0` then
+//   `addu v0,v0,a0`; ours re-forms the address per store and swaps both operands. Same for the
+//   four vertex reads (`lbu a0,0(s5)` off the Glyph walker in retail).
+// - rowX: retail stores it with `sw` into 0x28(sp) (with 0x2C left empty, rowTableOfs at 0x30)
+//   and reloads with `lhu a1,0x28(sp)`; a u16 local gives `sh` (2 lines), a u32 local gives
+//   `lw`+`andi` and 2152 bytes / 538 insns. No spelling found for sw-store + lhu-load.
+// - `sw s1,0x50(sp)` (the masked arg0 the i == 4 arm re-reads) sits before the two table bases
+//   here and after them in retail.
+// - retail names the texture-X table D_801EA584 where this file calls it g_MenuNameTextureX:
+//   same address, so it costs 2 diff lines and no bytes.
+// Measured dead this round: `u_char rowGroup = arg1;` used everywhere instead of arg1 (byte
+// identical), `s32 arg0` (90.50), -O1 63.48, -O3 90.50, gcc 2.7.2 90.35, 2.7.2-cdk 80.65, and a
+// 4-minute permuter run (base 5420 -> best 4965) whose only find was the u_char arg0 parameter.
 // Ghidra/asm facts worth keeping: pEquipmentPanel is a 0x2AC buffer of 5 MenuString plus its own
 // id copies; g_MenuNameTextureX is s32[] (lw, stride 4); g_MenuGlyphSjisTable is read as u8 with
 // stride 4; D_801E9D88 is u16[][2] with stride 4; rect.x = 0x140 + ((i / 2) & 1) * 0x20 and
 // rect.y = 0x27 + (i / 4) * FONT_LETTER_HEIGHT; the polys of one MenuString start at 0x200 and
 // are 0x28 bytes each (u0 0xC, u1 0x14, u2 0x1C, u3 0x24, clut 0xE, tpage 0x16).
 /*
-void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
+void func_801D8EA4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
     s32 rowCount;
     u16 rowX;
     s32 rowTableOfs;
@@ -555,9 +558,9 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
     rowCount = MENU_EQUIPMENT_ROW_COUNT;
     rowX = 0xD0;
     rowTableOfs = 0;
-    pWeaponIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].weaponId;
-    pExtraIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].extraWeaponIds;
-    pAccessoryIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].accessorySlots;
+    pWeaponIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId;
+    pExtraIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds;
+    pAccessoryIds = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots;
     if (arg1 != 0) {
         rowCount = MENU_EQUIPMENT_ROW_COUNT - 1;
         rowX = 0x28;
@@ -568,9 +571,9 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
         ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->builtRows[MENU_EQUIPMENT_ROW_COUNT - 1] = 0;
     }
     if (arg3 != 0) {
-        pWeaponIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId].weaponId;
-        pExtraIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId].extraWeaponIds;
-        pAccessoryIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId].accessorySlots;
+        pWeaponIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId;
+        pExtraIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds;
+        pAccessoryIds = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots;
     }
     if (arg2 != 0) {
         pWeaponIds = ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->weaponIds;
@@ -580,7 +583,8 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
     pHeap = HeapAlloc(0x3F6, 0);
     pExtraId = pExtraIds;
     for (i = 0; i < rowCount; i++) {
-        if (i == 0) {
+        switch (i) {
+        case 0:
             if (arg1 != 2) {
                 if (arg3 == 0) {
                     ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetWeaponName(pWeaponIds[0]), pHeap, 0x24, 0);
@@ -592,22 +596,30 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
             } else {
                 ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[0].width = SystemRenderStringEntry(GetGearWeaponName(pExtraIds[0]), pHeap, 0x24, 0);
             }
-        } else if (i == MENU_EQUIPMENT_ROW_COUNT - 1 && arg3 == 0) {
+            break;
+        case MENU_EQUIPMENT_ROW_COUNT - 1:
             // The character panel's fifth row is left empty.
-        } else if (arg1 < 2) {
             if (arg3 == 0) {
-                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetAccessoryName(pAccessoryIds[i - 1]), pHeap, 0x24, i % 2);
-            } else if (arg1 != 0) {
-                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearAccessoryName(pAccessoryIds[i - 1]), pHeap, 0x24, i % 2);
-            } else if (i == 1) {
-                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearWeaponName(pWeaponIds[3]), pHeap, 0x24, 1);
-            } else {
-                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearAccessoryName(pAccessoryIds[i - 2]), pHeap, 0x24, i % 2);
+                break;
             }
-        } else if (arg3 == 0) {
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetWeaponName(*pExtraId), pHeap, 0x24, i % 2);
-        } else {
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearWeaponName(*pExtraId), pHeap, 0x24, i % 2);
+            // falls through to the default arm
+        default:
+            if (arg1 < 2) {
+                if (arg3 == 0) {
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetAccessoryName(pAccessoryIds[i - 1]), pHeap, 0x24, i % 2);
+                } else if (arg1 != 0) {
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearAccessoryName(pAccessoryIds[i - 1]), pHeap, 0x24, i % 2);
+                } else if (i == 1) {
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearWeaponName(pWeaponIds[3]), pHeap, 0x24, 1);
+                } else {
+                    ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearAccessoryName(pAccessoryIds[i - 2]), pHeap, 0x24, i % 2);
+                }
+            } else if (arg3 == 0) {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetWeaponName(*pExtraId), pHeap, 0x24, i % 2);
+            } else {
+                ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = SystemRenderStringEntry(GetGearWeaponName(*pExtraId), pHeap, 0x24, i % 2);
+            }
+            break;
         }
         if (i & 1) {
             loadImage = 1;
@@ -627,20 +639,20 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
         MenuSetStringPrimitives(&((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i], i, 0xC, 0);
         if (i == MENU_EQUIPMENT_ROW_COUNT - 1 && arg3 == 0) {
             ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
-            if ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0 & 0xFF]].gearId + 0xB) & 1) {
+            if ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId + 0xB) & 1) {
                 palette = g_SystemPalette2;
             } else {
                 palette = g_SystemPalette1;
             }
             ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].clut = palette;
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u0 = g_MenuNameTextureX[arg0 & 0xFF] * 4;
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v0 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4];
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u1 = g_MenuNameTextureX[arg0 & 0xFF] * 4 + 0x60;
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v1 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4];
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u2 = g_MenuNameTextureX[arg0 & 0xFF] * 4;
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v2 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4] + FONT_LETTER_HEIGHT;
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u3 = g_MenuNameTextureX[arg0 & 0xFF] * 4 + 0x60;
-            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v3 = g_MenuGlyphSjisTable[(arg0 & 0xFF) * 4] + FONT_LETTER_HEIGHT;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u0 = g_MenuNameTextureX[arg0] * 4;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v0 = g_MenuGlyphSjisTable[arg0 * 4];
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u1 = g_MenuNameTextureX[arg0] * 4 + 0x60;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v1 = g_MenuGlyphSjisTable[arg0 * 4];
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u2 = g_MenuNameTextureX[arg0] * 4;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v2 = g_MenuGlyphSjisTable[arg0 * 4] + FONT_LETTER_HEIGHT;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].u3 = g_MenuNameTextureX[arg0] * 4 + 0x60;
+            ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].polys[g_Menu->renderContext].v3 = g_MenuGlyphSjisTable[arg0 * 4] + FONT_LETTER_HEIGHT;
             ((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].width = 0x60;
         }
         MenuSetQuadVertices(((MenuEquipmentPanel*)g_Menu->pEquipmentPanel)->strings[i].vertices, rowX,
@@ -654,6 +666,8 @@ void func_801D8EA4(s32 arg0, u_char arg1, u_char arg2, u_char arg3) {
     HeapFree(pHeap);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
+
+
 
 
 // Steps the character cursor one slot in `direction` (0 down, 1 up) and returns
