@@ -375,37 +375,31 @@ void BattleSetCurrentSlotState6(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
-// best 99.61%: 362 insns / 1448 bytes, EXACTLY retail's size, 8 differing lines in
-// 3 places. The twin is misc18's BattleRollHitResult (same 100/50/0x5F/0x55 arms,
-// matched) - port its spellings, they are what closed 96.67 -> 99.61 this round:
-//   - BOTH roll arms must be the SAME spelling, `if ((s16)(rand() % 100 - chance) >=
-//     50) return N; return 1;` with the compare inline. Written that way gcc keeps
-//     retail's two word-identical 22-instruction chains apart and each arm's polarity
-//     is retail's own (bnez / li 1 / j / li N). The old flipped pair (`< 50` and
-//     `> 49`, two s16 locals) scored 96.67 with the 0x20 arm's branch inverted, so
-//     cross-jumping is NOT the wall the old note claimed - the inline form is.
-//   - evadeModifier must be `(s8)(*(volatile u8 *)&g_BattleCurrentRow->evadeModifier)`
-//     (the twin's comment explains it): lbu + sll 24 + sra 24. The plain `(s8)` field
-//     read folds to `lb` and costs exactly 2 instructions (360 / 1440 = 98.33).
-//   - `limit = limit + 0x55; limit = limit - penalty;` as TWO statements. One
-//     statement reassociates to limit - (penalty - 0x55): addiu v1,s3,-85 / subu
-//     v1,s0,v1 where retail has addiu v1,s0,85 / subu v1,v1,s3.
-//   - `if (rollD >= limit) return 2; return 1;` is retail's `beqz / li v0,2 /
-//     fallthrough li v0,1`; the `< limit` early-return spelling inverts it (2 lines).
-// Residuals left, all measured dead this round:
-//   - the 0x2D9E4 add: `evade += g_BattleTargetSlotState->responsiveness` emits
-//     `addu a2,a2,v0`, retail `addu a2,v0,a2`. `+=`, `resp + evade`, an embedded
-//     assignment `(resp = field) + evade` and the double negation
-//     `evade - -(s32)field` all emit a2-first: a plain variable+field add has no
-//     operand-order spelling (contrast the address levers).
-//   - `srl` for the last shift of the two signed divisions (abandoning
-//     `hit = resp / 2 + hit`'s own operand order too). Tools/scripts/cc1_probe.sh on
-//     10 shapes: every signed `/2` in gcc 2.6.0 ends in `sra`, and every spelling that
-//     makes the last shift `srl` drops the sign fixup entirely (a u16 or u8-ranged
-//     dividend compiles to lbu + srl 1). Fixup + srl is unreachable from C - the two
-//     retail instructions are not a `/2` spelling in this compiler.
-//   - the permuter (3 min, -j 2) found only a chance -> s16 rollD retype, which
-//     truncates chance: wrong code, rejected.
+// best 99.61%: 362 insns / 1448 bytes, EXACTLY retail's size; 4 differing
+// instructions (8 diff lines) in 3 places. All three residuals were re-measured and
+// closed this round, none is a spelling away:
+//  1. `evade += g_BattleTargetSlotState->responsiveness` gives `addu a2,a2,v0`, retail
+//     has `addu a2,v0,a2` (field first). A plain variable + loaded-field add has no
+//     operand-order spelling: `+=`, `evade = field + evade` (byte-identical, measured
+//     again here), the embedded assignment and the double negation all emit a2-first,
+//     and the address-order levers (cast sum, pointer local, negated offset) do not
+//     transfer to an arithmetic add.
+//  2. the same mirror inside `hit = g_BattleCurSlotState->responsiveness / 2 + hit`,
+//     where retail has `addu a1,v0,a1`; `hit += field / 2` is byte-identical, and the
+//     two /2 sites that DO match retail (`hit += (s16)hit / 2`) keep `addu a1,a1,v1`,
+//     so the order is not one per expression shape.
+//  3. the LAST shift of both signed /2s: retail `srl` after its `srl 31 / addu` bias,
+//     this cc1 emits `sra`. 24 shapes probed with cc1_probe.sh (s16 local dividend,
+//     (s16)/(u16)/(u32) casts, unsigned divisor `2u`, u16/u8/u32 destinations, an s16
+//     variable re-assigned to itself, the negated quotient): every spelling that keeps
+//     the bias ends in `sra`, every spelling whose last shift is `srl` drops the bias
+//     entirely (lbu + srl, 2 insns / 8 bytes shorter). Identical under gcc-2.7.2. So
+//     retail's bias + `srl` pair is not a /2 expansion in either compiler - a compiler
+//     or assembler difference, not reachable from C.
+// Presets screened this round: unit flags 99.61, -O3 99.61, -G0 99.61, gcc-2.7.2 97.53,
+// gcc-2.7.2-cdk 89.66. The unit preset is right; do not re-brief the preset leg.
+// Permuter: round 504 found only a wrong-code `chance` retype; this round a 3-minute
+// 2-job run from this body (1196 iterations) gave RESULT PERMUTER_NONE base=420 best=420.
 /*
 s32 func_8009D3A0(void) {
     s32 penalty = 0;
@@ -413,8 +407,6 @@ s32 func_8009D3A0(void) {
     s32 hit;
     s32 evade;
     s32 chance;
-    s16 rollA;
-    s16 rollB;
     s16 rollC;
     s16 rollD;
     u8 isGear;
@@ -518,8 +510,7 @@ s32 func_8009D3A0(void) {
         return 2;
     }
     return 1;
-}
-*/
+}*/
 
 u16 BattleScaleValueByMultiplierByte(void) {
     u16 ret = BattleComputeActionAttackValue();
