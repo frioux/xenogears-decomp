@@ -2780,6 +2780,8 @@ void SoundInitializeAudioManager(AudioManager* manager) {
 // declaration order of `count` (byte-identical); aliveBits after the ternary 76.92 / 528 / 132; the
 // u16-local and `aliveBits |= bit;` last both worse. Below 99%, so no permuter run.
 /*
+// Round 523 re-measured the un-parked body: 94.99% / 544 bytes / 136 insns (retail's exact size), 28 differing lines. ONE cluster CLOSED this round: the aliveBits ternary - 'pElement->active_flag = (bit & mute) ? 0x421 : 0x401;' instead of '(mute & bit)' gives 'and v0,v0,v1' (retail) for our 'and v1,v1,v0', 95.14% / 544 / 136 at 24 differing lines. That is the shipped body. Also measured and REVERTED: a 'do { } while (0);' block boundary around the whole store cluster (status_flags .. pScriptIP) - unlike the empty statements tried in rounds 496/506 this label DOES survive in 2.6.0 and it does move the caller-saved a0/a1/v1 hand-out, but to 94.22% / 62 differing lines, so the lever a-dead-if-else-block-flips-a-two-way-callee-saved-hand-out reaches this caller-saved pair in the wrong direction. NAMED RESIDUAL now: clusters (a) and (b) are ONE cause, retail's schedule of the store block - retail places 'lhu v1,16(s8)' (soundId) and 'addiu a0,s1,0x60' (the envelopes pointer) at the TOP of the block and stores the soundId 3 insns after its load, so v1 dies before the ip sum ('lhu v1,0(s3); addu v1,s8,v1') and the early envelopes pointer takes a0, pushing the loop counter to a1; ours sinks 'sw v1,-40(s0)' to the END of the fourteen zero stores, so v1 stays live across the cluster (the ip sum then lands in v0), the pointer is born 20 insns later and takes v1, and j takes a0. Nothing in the source order moves it (the store order already matches retail's and the load is already early), so this is sched2 - do not re-enter without a way to shorten the soundId value's live range.
+/*
 void func_8003B424(AudioManager* pManager) {
     s32 count = pManager->elementCount;
     u8* pSeqData;
@@ -2814,7 +2816,7 @@ void func_8003B424(AudioManager* pManager) {
             mute = pManager->muteFlags;
             bit = 1 << i;
             aliveBits |= bit;
-            pElement->active_flag = (mute & bit) ? 0x421 : 0x401;
+            pElement->active_flag = (bit & mute) ? 0x421 : 0x401;
             if (pManager->flags & 4) {
                 pElement->active_flag |= 4;
             }
@@ -2873,9 +2875,10 @@ void func_8003B424(AudioManager* pManager) {
     } while (--count != 0);
 
     pManager->activeElementMask = aliveBits;
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
+
+*/
 
 
 
