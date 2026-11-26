@@ -63,7 +63,7 @@ typedef struct {
 } BattleQueueRecord; // Size: 0xC
 
 extern BattleFilterEntry* D_80092874;
-extern s32 D_80091964[];
+extern BattleQueueRecord D_80091964[];
 extern s32** g_BattleEntries;
 extern s32 g_BattleEntryCount;
 
@@ -737,10 +737,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
 //    s16 entry field, the count store, the 0xC/0x20 increments with the record's
 //    addiu in the bnez delay slot, and the trailing guarded call.
 // re-measured 90.10% (204 bytes = retail's exact size, 51 insns) after un-parking; the lever 'an symbol address is always hoisted above the load in the preheader' (round 480) names this exact function and is still the cause, so no new spelling was spent on the la/lw order.
+// re-measured 90.45% / 204 bytes = retail's exact size / 51 insns (round 506: two new spellings, both dead ends).
+//    NAMED RESIDUAL: the hoisted record base `la` is inserted ABOVE the source-position filter load, so the entry
+//    block comes out `la a1,D_80091964 / lw a0,D_80092874 / move a3,v0` where retail has `move a3,v0 / lui a1+lw a1 /
+//    lui a0+addiu a0` - three rows, one cause (lever an-symbol-address-is-always-hoisted-above-the-load-in-the-preheader,
+//    round 480, this function).
+//    New this round: (1) the record address taken as `&D_80091964[i]` off a typed `extern BattleQueueRecord D_80091964[]`
+//    (LSR walks it by 0xC so retail's `addiu a0,a0,12` stays in the bnez slot) and (2) BOTH tables indexed, no pointer
+//    locals at all (`D_80092874[i].requiredProgress`, `&D_80091964[i]`) - one and the same 51-insn stream, the la still
+//    hoisted first; the 90.10 -> 90.45 is the reloc rows only. gcc-2.6.0 gives the identical 90.45, cdk 77.49, -G0
+//    does not compile. The indexed body is kept because it is the realistic form (two typed tables, no casts).
 /*
 void func_8007EEE8(s32 arg) {
-    BattleFilterEntry* pEntry;
-    BattleQueueRecord* pRecord;
     s32 i;
     s32 limit;
     s32** pQueue;
@@ -748,13 +756,11 @@ void func_8007EEE8(s32 arg) {
     limit = g_GameState.fieldScriptMemory[0];
     pQueue = HeapAlloc(0xC4, 1);
     i = 0;
-    pEntry = D_80092874;
-    pRecord = (BattleQueueRecord*)D_80091964;
     g_BattleEntries = pQueue;
     g_BattleEntryCount = 0;
-    for (; i < 0x31; pEntry++, i++, pRecord++) {
-        if (arg == 0 || pEntry->requiredProgress <= limit) {
-            pQueue[g_BattleEntryCount++] = (s32*)pRecord;
+    for (; i < 0x31; i++) {
+        if (arg == 0 || D_80092874[i].requiredProgress <= limit) {
+            pQueue[g_BattleEntryCount++] = (s32*)&D_80091964[i];
         }
     }
     if (arg != 0) {
@@ -762,6 +768,7 @@ void func_8007EEE8(s32 arg) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
+
 
 
 
@@ -912,41 +919,53 @@ extern s32 g_BattleSlot1TextColor;
 void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade);
 s32 BattleTestSlotBit(s32 slot);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
-/* best 81.01% (1456 bytes against retail's 1496). The whole HUD tail from
-   BattleSetTextCursor(0xA0,0x78) to the closing BattleSetTextColor(0) is exact,
-   as is the 0x50 frame: it needs an unused s32 tmp[8] local (retail spends 32
-   bytes on nothing), and D_80099DA8[g_BattleDrawBufferIndex * 10] reproduces the mul-by-0x190
-   chain. What is left, all inside the two cursor blocks:
-   1. THE ALIAS TRAP, and the reason this cannot reach 100.00%: retail stores the
-      step to g_BattleCursor0Step, then loads g_BattleCursor0Step, stores it back to g_BattleCursor0Step and
-      then to g_BattleCursor0Offset (sw / lw / sw / sw, four instructions, twice). A store
-      then a load of the same word means the original source had TWO symbol names
-      at 0x80092718 (gcc cannot forward across differing objects), i.e.
-      A = step; B = A; C = B; with A and B aliases. symbol_addrs.battling.txt has
-      no duplicate addresses, so the second name cannot be spelled without adding
-      one to config/symbol_addrs.battling.txt (untested: splat may then rename the
-      asm label). Ours emits sw + sw, two instructions, and that is 8 of the 40
-      missing bytes (retail also spends more in the whole block; see 2-4).
-   2. the abs of delta: retail keeps delta live and negates a COPY
-      (bgez v1; move v0,v1; negu v0,v0; slti v0,v0,4), ours coalesces and gcc
-      then duplicates the slti into the bgez delay slot (4 insns vs retail's 3
-      after the bgez). Tried step = delta then if (step<0) step = -step, the
-      if/else form, and the ternary delta < 0 ? -delta : delta - all identical.
-   3. the step sign: retail is bgtz v1 with li -0x24 in the delay slot; ours is
-      the inverted blez with li 0x24 first, whichever polarity the source uses.
-   4. register assignment: retail keeps pPkt in s1, the sign mask in s0, the
-      0x38E38E39 magic in s2 and the 0x24 in s3; ours puts pPkt in s0, which
-      perturbs every instruction that touches the packet pointer.
-   Also proved: the second and fourth calls of each block pass the shade argument
-   as ((0x24 - abs(step)) << 6) / 0x24 (magic 0x38E38E39, shift 3) and the third
-   and fourth pass x = -0x24 / 0x24 with shade 0; the offset table D_800912E0 is
-   two 8-byte s16 quads, {1,-1,2,36} for a negative step and {-1,-2,1,-36} for a
-   non-negative one, indexed by the s32 compare g_BattleCursor0Step >= 0, and the compare
-   is evaluated BEFORE the first call of the block while its sll 3 lands inside
-   the if body - so write the compare into a local above the call, not
-   &D_800912E0[expr] at the use. Last call of block 1 does not advance pPkt.
-
+// best 81.01% (1456 bytes against retail's 1496). The whole HUD tail from
+//    BattleSetTextCursor(0xA0,0x78) to the closing BattleSetTextColor(0) is exact,
+//    as is the 0x50 frame: it needs an unused s32 tmp[8] local (retail spends 32
+//    bytes on nothing), and D_80099DA8[g_BattleDrawBufferIndex * 10] reproduces the mul-by-0x190
+//    chain. What is left, all inside the two cursor blocks:
+//    1. THE ALIAS TRAP, and the reason this cannot reach 100.00%: retail stores the
+//       step to g_BattleCursor0Step, then loads g_BattleCursor0Step, stores it back to g_BattleCursor0Step and
+//       then to g_BattleCursor0Offset (sw / lw / sw / sw, four instructions, twice). A store
+//       then a load of the same word means the original source had TWO symbol names
+//       at 0x80092718 (gcc cannot forward across differing objects), i.e.
+//       A = step; B = A; C = B; with A and B aliases. symbol_addrs.battling.txt has
+//       no duplicate addresses, so the second name cannot be spelled without adding
+//       one to config/symbol_addrs.battling.txt (untested: splat may then rename the
+//       asm label). Ours emits sw + sw, two instructions, and that is 8 of the 40
+//       missing bytes (retail also spends more in the whole block; see 2-4).
+//    2. the abs of delta: retail keeps delta live and negates a COPY
+//       (bgez v1; move v0,v1; negu v0,v0; slti v0,v0,4), ours coalesces and gcc
+//       then duplicates the slti into the bgez delay slot (4 insns vs retail's 3
+//       after the bgez). Tried step = delta then if (step<0) step = -step, the
+//       if/else form, and the ternary delta < 0 ? -delta : delta - all identical.
+//    3. the step sign: retail is bgtz v1 with li -0x24 in the delay slot; ours is
+//       the inverted blez with li 0x24 first, whichever polarity the source uses.
+//    4. register assignment: retail keeps pPkt in s1, the sign mask in s0, the
+//       0x38E38E39 magic in s2 and the 0x24 in s3; ours puts pPkt in s0, which
+//       perturbs every instruction that touches the packet pointer.
+//    Also proved: the second and fourth calls of each block pass the shade argument
+//    as ((0x24 - abs(step)) << 6) / 0x24 (magic 0x38E38E39, shift 3) and the third
+//    and fourth pass x = -0x24 / 0x24 with shade 0; the offset table D_800912E0 is
+//    two 8-byte s16 quads, {1,-1,2,36} for a negative step and {-1,-2,1,-36} for a
+//    non-negative one, indexed by the s32 compare g_BattleCursor0Step >= 0, and the compare
+//    is evaluated BEFORE the first call of the block while its sll 3 lands inside
+//    the if body - so write the compare into a local above the call, not
+//    &D_800912E0[expr] at the use. Last call of block 1 does not advance pPkt.
+// re-measured round 506: 81.01% / 1456 bytes / 364 insns against retail's 1496 / 375, so 11 instructions are missing
+//    (the old note stands, and two facts measured today pin where they are NOT):
+//    (a) THE ABS IDIOM COSTS US ONE EXTRA INSTRUCTION PER CURSOR BLOCK, not one fewer: retail is
+//        `bgez v1,L / move v0,v1 / negu v0,v0 / L: slti v0,v0,4` (4 insns, delta stays live in v1 and the absolute
+//        value gets its own register), ours is `move a0,v1 / bgez a0,L / slti v0,a0,4 (delay slot) / negu a0,a0 /
+//        slti v0,a0,4` (5 insns, one register and reorg duplicating the slti). So the 11-insn deficit is 13 elsewhere;
+//        the sw/lw/sw/sw alias pair (item 1) is only 4 of them and the rest is diffuse, i.e. item 4's displaced
+//        allocation rather than a missing construct. Retail's separate-register abs is the one shape this body has
+//        never produced: `step = delta < 0 ? -delta : delta` and the if/else form both coalesce (ternary already
+//        measured identical).
+//    (b) THE FUNCTION TAKES NO PARAMETERS. ghidra: size 0x5DC, frame 0x50, signature void f(void), callers
+//        BattleDrawVibrationOptions @8007FE28, BattleDrawEffectFrame @80084B04 and func_800852C4 @80085980 - the
+//        `void* pOt, s32 arg` prototype this body carries is unused by both sides and should become `(void)`.
+/*
 void func_8007F258(void* pOt, s32 arg) {
     s32 tmp[8]; // unused: reproduces the original's 0x50 frame
     POLY_FT4* pPkt;
@@ -1089,8 +1108,10 @@ void func_8007F258(void* pOt, s32 arg) {
     }
     BattleByteRegTestReg((u8*)g_BattleEntries[g_BattleCursorIndex1][2]);
     BattleSetTextColor(0);
-}
- */
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
+
+
 
 void BattleClearTextSpriteEntries(void) {
     g_BattleTextSpriteEntry1 = 0;
