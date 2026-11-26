@@ -210,72 +210,48 @@ extern u8 D_800CEF23[];
 // and BattleComputeActionAmount forces exactly that rate on a row whose actionFlags has 0x400.
 
 
-/* 92.28% (1456 bytes / 364 insns against retail's 1440 / 360) under this unit's gcc 2.6.0.
-   Round 511 re-measured the older park unchanged at 91.38% (1444 bytes / 361 insns) and then
-   bought 0.9 points with ONE change: the third loop's `bufs` addressing. Retail keeps an
-   `i * 4` giv (`move s2,zero` in the third loop's preheader, `addiu s2,s2,4` in the latch's
-   bnez slot, and `addiu v0,sp,0x48 / addu s0,v0,s2` re-forming &bufs[i]) while a plain
-   `bufs[i]` body makes loop.c derive a POINTER biv (`addiu s0,s0,4` in the latch) off
-   `&nameRect` (`addiu s3,sp,24; lw a1,48(s0)`). Declaring `u32 bufOff;` and writing the
-   three sites as `*(void **)((u8 *)bufs + bufOff)` with `i++, bufOff += 4` in the for-clause
-   reproduces retail's offset form and its `addiu v0,sp,72 / addu s0,v0,s2 / sw a0,0(s0)`;
-   it costs 16 bytes (the extra is the still-hoisted D_800CCD3E base, below). Measured this
-   round on the same body, all dead: a `volatile` qualifier on that bank byte (identical
-   91.38, the hoisted thing is the ADDRESS, not the load), the `D_800CCD3E[arg0 * 0x170]`
-   subscript spelling (identical), hoisting `i = 0` before the flags test so it lands in the
-   bnez delay slot like retail's `move s1,zero` (91.73, and it moves the sum scheduling the
-   wrong way), and `s32 slot = arg0;` used at every site (88.01 - an SI copy makes cc1
-   rematerialise the whole address chain); `u8 slot = arg0;` inside each arm on top of
-   `bufOff` is 92.35% / 1460 bytes / 365 insns with 115 differing lines instead of 124, but
-   it buys that with a no-op `move s5,s6` and 4 more bytes, so it is not the parked body.
-   ROUND 511 note on the size: neither body links (retail 1440). Every call, rectangle and store is retail's and the tail from BattleDrawCommandCellFrames onwards is
-   byte-identical; the residual is four bytes of register scheduling plus one hoist.
-   Levers that were needed to get here:
-   - the two 16-row scans read a byte of a 0x28-byte action row: the index must be
-     built from two live locals (`rowOff` starting at 0x370 / 0x348 and stepped by
-     0x28, `slotOff` = arg0 * 0x5F0 / arg0 * 0x690) summed into a third (`off`)
-     before the load. That reproduces retail's `li s3,0x370`, `addu v0,s3,s5` and
-     the `lui $at / addu $at,at,v0 / lbu %lo(at)` macro form. Any single-expression
-     index, and `(i + 0x16) * 0x28`, makes gcc fold 0x370 into the symbol instead
-     (it names D_800CE0C3 / D_800CF26B and loads with displacement 0): 89-91%.
-   - the six upload rectangles must be six separate RECT locals, in this slot order:
-     nameRect 0x18, tensRect 0x20, onesRect 0x28, tileRect 0x30, stripRect 0x38,
-     blankRect 0x40. A `RECT rect[6]` array makes gcc keep `&rect[0]` in a register.
-   - `(u16)BattleMaskHasStatusBit(mask, i) != 0` is what emits the `andi 0xffff`
-     followed by `beqz` (a bare test of the s32 return gives sltu/bnez).
-   What is left, all measured:
-   - in both row scans gcc schedules the sum `off = rowOff + slotOff` one slot
-     earlier and into $v1, where retail computes it after the `sb active[i]` into
-     $v0; that shifts `move s1,zero`, `addiu s3,s3,40` and `addiu s0,s0,1` by one.
-   - gcc hoists `&D_800CCD3E[arg0 * 0x170]` out of the third loop into a register
-     (two extra instructions) where retail re-forms it per iteration through $at.
-     Routing the index through a variable does fix the address form but needs $s7
-     (89.48%).
-   - gcc derives the `bufs` base from `&nameRect` (`addiu s3,sp,24; move s0,s3;
-     lw a1,48(s0)`) where retail forms `addiu v0,sp,72; addu s0,v0,s2`.
-   Tried as well: all five index orders, the cast and the array spelling of both row
-   loads, a two-statement pointer split (pRow = base; pRow = pRow + idx), u8/u32
-   index types, and a 3-minute permuter run whose best candidate hoists `arg0 * 8`
-   into a `short` in the third loop and writes `i <= 16 - 1` (not ported).
-
-   One cause behind every row above, measured: retail's third loop runs with SIX live
-   callee-saved values (raw arg0, arg0 & 0xff, arg0 * 0x170, i, the byte offset i * 4 and
-   &bufs[i]) and s5 dead, while this body needs SEVEN. The seventh is the hoisted
-   D_800CCD3E base; it pushes raw arg0 from s6 into s5, and then every later site pays:
-   a fresh `andi 0xff` inside both row scans where retail keeps one copy, `&nameRect` in a
-   register instead of retail's per-call `addiu a0,sp,24`, and a pointer biv for `bufs`
-   where retail keeps `sp + i * 4`. Kill that hoist and the diff collapses.
-   Round 480 measured, on this same 1444-byte body:
-   - `u32 arg0` parameter plus a `u8 slot = arg0;` assigned before the first flags test and
-     used for the char-id index, both strides and both row bases: cc1 copy-propagates `slot`
-     back to `(u8)arg0` and re-masks per site, so no register is saved (91.28%, 1444 bytes,
-     361 insns).
-   - the same `u8 slot` assigned inside EACH arm, which is retail's `move s4,a0` at
-     0x9111C / 0x911B8: the hoist survives and grows, 1452 bytes (91.80% but 363 insns, so
-     it cannot link).
-   - the bank byte read into a local inside the bank14 arm: identical code.
-   - presets: gcc-2.7.2 91.01, gcc-2.7.2-cdk 80.09, 2.6.0 with -G0 91.38 (unchanged), so the
-     unit's XenoBattle260 preset is right and no preset switch is owed here. */
+/* PARKED 94.05% (1448 bytes / 362 insns against retail's 1440 / 360) under this unit's gcc 2.6.0
+   (XenoBattle260). Two insns left, and both are the same callee-saved register:
+   1. gcc hoists `&D_800CCD3E[arg0 * 0x170]` into $s6 in the third loop's preheader
+      (lui/addiu/addu there, `lbu a0,0(s6)` in the body) where retail re-forms it per iteration
+      through $at (`lui $at,%hi(D_800CCD3E) / addu $at,at,s4 / lbu a0,%lo(at)`). That is +1 insn
+      and it burns the register retail keeps the masked slot in, which is
+   2. the per-iteration `andi v0,s5,0xff` in both row scans, where retail has `move s4,a0` in the
+      arm preheader and `addu at,at,s4` in the body. Kill the hoist and the rest should collapse;
+      leaving the index of that load in a named local fixes the address form but costs $s7 (89.48).
+   Round 524 measured these as BYTE-IDENTICAL to this body, so they are dead axes, not untried:
+   - `s32 arg0` with `(u8)arg0` at every site - so gcc 2.6.0 masks a u8 parameter at each use and
+     the andi's say nothing about the parameter type;
+   - `u8 slot = arg0;` as the first statement, used at every masked site INCLUDING the tail
+     `BattleDrawCommandCellFrames(slot)` - cc1 copy-propagates it back to `(u8)arg0`;
+   - `*(u8 *)(D_800CCD3E + (u8)arg0 * 0x170)`, and the same cast form for g_BattleSlotTextIndex.
+   What round 524 bought (a permuter run, base 2970 -> 2478, iterated by hand):
+   - `u8 *pBufSlot = (u8 *)bufs + bufOff;` as the FIRST statement of `if (active[i] != 0)`, read as
+     `*(void **)pBufSlot`: 92.28 -> 94.05, 124 -> 104 differing lines. The typed
+     `void **pBufSlot = bufs + bufOff;` is 91.39, so the u8* form is what reproduces retail's
+     `addu s0,v0,s2` / `lw a1,0(s0)`.
+   - `off = (sumOff = rowOff + slotOff);` with a `u32 sumOff;` local is worth 1.25 points and one
+     insn (92.80 / 1452 / 363 without it). Probe-grade: the second pseudo is what keeps the sum out
+     of the branch delay slot. Its natural spellings (`off = rowOff + slotOff;` and
+     `values[i] = D_800CDD53[off = rowOff + slotOff];`) both measure 92.80.
+   A second permuter run from the 94.05 body returned best=2108 with `rowOff = i;` in the second
+   loop's then-arm - WRONG CODE (rowOff is the 0x28-stepping row base), rejected.
+   Round 511's structural result still holds and is what got the body here:
+   - the two 16-row scans read a byte of a 0x28-byte action row: the index must be built from two
+     live locals (`rowOff` from 0x370 / 0x348 stepped by 0x28, `slotOff` = arg0 * 0x5F0 / 0x690)
+     summed into a third (`off`) before the load; that reproduces retail's `li s3,0x370`,
+     `addu v0,s3,s5` and the `lui $at / addu $at,at,v0 / lbu %lo(at)` macro form. Any
+     single-expression index makes gcc fold 0x370 into the symbol instead (89-91%).
+   - the six upload rectangles must be six separate RECT locals in this slot order: nameRect 0x18,
+     tensRect 0x20, onesRect 0x28, tileRect 0x30, stripRect 0x38, blankRect 0x40. A `RECT rect[6]`
+     array makes gcc keep `&rect[0]` in a register.
+   - `(u16)BattleMaskHasStatusBit(mask, i) != 0` is what emits the `andi 0xffff` then `beqz` (a bare
+     test of the s32 return gives sltu/bnez).
+   - the third loop's `bufs` addressing wants the named byte offset (`u32 bufOff;` with
+     `i++, bufOff += 4` in the for-clause) rather than a plain `bufs[i]`, which makes loop.c derive
+     a pointer biv off a neighbour local.
+   Presets measured on this function: gcc-2.7.2 91.01, gcc-2.7.2-cdk 80.09, 2.6.0 with -G0 91.38,
+   so the unit's XenoBattle260 preset is right and no preset switch is owed here. */
 /*
 void func_80091064(u8 arg0) {
     RECT nameRect;
@@ -288,10 +264,12 @@ void func_80091064(u8 arg0) {
     u8 active[BATTLE_STATUS_ROW_COUNT];
     u8 values[BATTLE_STATUS_ROW_COUNT];
     void *pBuf;
+    u8 *pBufSlot;
     u8 *pStr;
     u32 off;
     u32 rowOff;
     u32 slotOff;
+    u32 sumOff;
     u8 index;
     s32 i;
     u32 bufOff;
@@ -315,7 +293,7 @@ void func_80091064(u8 arg0) {
                     (u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask,
                     i) != 0) {
                 active[i] = 1;
-                off = rowOff + slotOff;
+                off = (sumOff = rowOff + slotOff);
                 values[i] = D_800CDD53[off];
             } else {
                 active[i] = 0;
@@ -331,7 +309,7 @@ void func_80091064(u8 arg0) {
                     (u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].gearConditionMask,
                     i) != 0) {
                 active[i] = 1;
-                off = rowOff + slotOff;
+                off = (sumOff = rowOff + slotOff);
                 values[i] = D_800CEF23[off];
             } else {
                 active[i] = 0;
@@ -350,12 +328,13 @@ void func_80091064(u8 arg0) {
         tileRect.h = 0x10;
         BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
         if (active[i] != 0) {
+            pBufSlot = (u8 *)bufs + bufOff;
             if (g_BattleSlotFlags[arg0 * 8] == 0) {
                 pStr = GetStringEntryFromBank14(D_800CCD3E[arg0 * 0x170] * 0x10 + i);
             } else {
-                pStr = GetStringEntryFromBank30(*(u8 *)(g_BattleSlotTextIndex + arg0 * 0x170) * 0x10 + i);
+                pStr = GetStringEntryFromBank30(g_BattleSlotTextIndex[arg0 * 0x170] * 0x10 + i);
             }
-            SystemRenderStringEntry(pStr, *(void **)((u8 *)bufs + bufOff), 0x1B, 0);
+            SystemRenderStringEntry(pStr, *(void **)pBufSlot, 0x1B, 0);
             nameRect.x = 0x380 + (i % 2) * 0x1E;
             nameRect.y = 0x102 + (i / 2) * 0x10;
             nameRect.w = 0x1E;
@@ -391,7 +370,8 @@ void func_80091064(u8 arg0) {
     *(u16 *)(g_BattleGraphicsWork->pPacketPrims + 0x176) = g_SystemPalette1;
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->unkB7 = 1;
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
 
 void BattleBuildSpriteColumn8(s32 arg0) {
