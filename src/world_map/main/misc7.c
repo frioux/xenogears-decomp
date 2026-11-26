@@ -689,6 +689,19 @@ s32 WorldMapUpdateSlotState(s32 index) {
 // The two deltas stand: pSlot lands in $a2 because it is global-alloc'd across the do-block while
 // posZ takes $v1 in the earlier local pass, and retail's tail needs the return's `li` to precede
 // the state store in RTL, which no reachable statement order gives.
+// Round 516 re-measured this body live at 94.71 / 136 bytes / 34 insns and walked the
+// data-spelling axis (the unit declares g_WorldMapPlayerPosition as a Vec3, so the Y/Z loads
+// can name its fields): (a) posX/.y/.z off the one struct = 92.65 / 34 insns with the extra
+// `lui v1` grouping - the .x load drops out of a3-first order and the rotation moves, so the
+// three separate Y/Z symbols are the right spelling; (b) the loads and the six target stores
+// interleaved one value at a time (short live ranges) = 83.06, the "other rotation"
+// x v1 / y a0 / z a1; (c) the pointer local formed AFTER a raw `g_WorldMapSlots[index]
+// .shakeAmount` store, to put the 0x1000 constant's pseudo before the address pseudo (the RTL
+// birth order retail's li-at-slot-3 hint suggests) = 75.59 with pSlot in a0 - cse re-forms the
+// address and the rotation goes wrong. -O3 94.71, -G0 rejects the unit's flags, so the preset
+// is settled too. The two deltas stand: pSlot takes $a2 where retail has $v1 (its pseudo is
+// tied to the `lw g_WorldMapSlots` result, so one register decision moves posZ to $v1), and
+// retail's tail needs the return's `li v0,1` before the state store.
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
