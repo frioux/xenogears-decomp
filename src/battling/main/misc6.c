@@ -672,7 +672,7 @@ void BattleSetTextColor(s32 arg) {
     } else {
         g_BattleTextRed = white;
         g_BattleTextGreen = white;
-        g_BattleTextBlue = white;
+        g_BattleTextBlue = 0xFF;
     }
 }
 
@@ -689,13 +689,25 @@ void BattleSetTextColor(s32 arg) {
 //    apply: it pins a RELOAD BELOW a store, and retail here has both loads ABOVE the store.
 //    Everything else is retail and order-insensitive: store order blue/red/green, the 0xFF local giving li+subu
 //    where a literal 0xFF gives `nor` (72.66%), the else arm's single ori in the beqz delay slot.
+// best 96.88% / 124 bytes / 31 insns (retail 128 / 32, so it cannot link). WHAT GOT THE HEAD EXACT, measured this round:
+//    the two reads of g_SpuChannelMask need MIXED access, not two volatiles: `channelMask = *(volatile s32*)&g_SpuChannelMask;`
+//    as the first statement (that is retail's first load, pinned there) and a PLAIN `g_SpuChannelMask` read for green, which
+//    gcc then hoists above the `sb blue` so the two loads come out adjacent in retail's v1-then-a0 order. plain/plain is
+//    76.72% (one load, one mul chain: both CSEd); volatile/volatile pins the second load at its own statement (87.66%,
+//    measured before with an __asm__ alias too - the alias makes the same symbol_ref, so it cannot defeat the CSE either);
+//    a QI local in the ELSE arm separates the arms' constants and gives retail's 128 bytes / 32 insns but 93.59%, because
+//    reorg then hoists the IF arm's materialisation into the delay slot and leaves the else arm's in its block (the mirror
+//    of retail). Store order blue/red/green and the arm order are insensitive. THE MISSING INSTRUCTION is a THIRD 0xFF materialisation: retail has li v0 in the branch delay slot for the ELSE arm, a separate li v0 for sb blue inside the if arm, and li v1 as the subtraction base; ours shares one constant across the arms so the delay-slot li also serves the if arm's store. The two arms each owned a 0xFF object in the original, which no single-source-constant body reproduces: gcc merges a literal 0xFF with a white local for a QI store.
 /*
 void func_8007EE68(s32 arg) {
     s32 white = 0xFF;
 
     if (arg != 0) {
-        g_BattleTextBlue = 0xFF;
-        g_BattleTextRed = white - g_SpuChannelMask * 20;
+        s32 channelMask;
+
+        channelMask = *(volatile s32*)&g_SpuChannelMask;
+        g_BattleTextBlue = white;
+        g_BattleTextRed = white - channelMask * 20;
         g_BattleTextGreen = white - g_SpuChannelMask * 20;
     } else {
         g_BattleTextRed = white;
@@ -704,6 +716,7 @@ void func_8007EE68(s32 arg) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
+
 
 
 
@@ -796,6 +809,12 @@ void BattleInitSpriteRectTable(void) {
 //    (`addiu v1,a2,52 / addu v1,a1,v1`) where retail keeps `addiu v1,a0,52 / sll a2,t0,1 / addu v1,v1,a2`.
 //    Permuter, three runs this family (base 666 -> 455 -> 445); its best 445 body is this one with
 //    `half = 0x34; x1 = x0 + half + grow;` = 96.50% (a folding-constant local, still 504 bytes).
+//    Round 504: computing the color word's operand INSIDE the arm (`color = shade + 0x40;` as the else
+//    arm's first statement, `grow = shade + 0x40` deleted from before the if) DOES bring the missing
+//    `addiu t0,t0,-0x40` back and gives retail's exact 508 bytes / 127 insns, but it also moves the
+//    shade load out of the prologue (`lw t0,48(sp)` becomes `lw a1,48(sp)` after the saves), i.e. the
+//    whole hand-out rotates: 88.33%. So the -0x40 IS reachable only together with that rotation; the
+//    96.42% body keeps the prologue exact. Neither links.
 //    Dead ends measured this round, do not repeat: `x1 = x0 + 0x34; x1 += grow;` 83.94% / 512 / 128 (the
 //    allocator collapses and shade moves to a1), `color = x0 + 0x34; x1 = color + grow;` 78.43% / 512 / 128,
 //    and the parameter-reassignment shape (`shade += 0x40` inside the arm) 504 bytes / 126.
