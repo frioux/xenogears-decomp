@@ -490,6 +490,68 @@ void BattleResetActorDrawState(u8 arg0) {
 // Preset legs re-measured this round on this body: unit flags 96.45, gcc-2.6.0
 // 97.76 (it closes (a) and (b) but not (c), and it drops two already-matched
 // neighbours of this unit), cdk 85.02 per round 488. -G0 was byte-identical.
+// PARKED 96.61% (2420 bytes / 605 insns against retail 2432 / 608). Round 526 took it
+// from 96.45 with one edit: the targetSlotId local is `s32 v` and not `u8 v` - a u8
+// local re-truncates the loaded byte (`andi v1,a0,0xff`) for the 0xFF test, while the
+// s32 copy compares the lbu'd value directly, retail's shape (the cross-mode-tie
+// lever, same unit: func_80080C94's round-490 note). 2424 -> 2420 bytes, 606 -> 605.
+// Residuals, all re-measured on this body this round:
+//   (a) tail `if (q[0x2E3])` block (the biggest hole, 23 retail insns vs 16): written
+//       this round as `A[i] = A[i] + q[0x2D4]; if (A[i] > 0x1C) A[i] = 0x1C;` which
+//       DOES produce retail's reload shape (`lbu` again for the sltiu) - but gcc
+//       forwards the store instead, keeps `andi v0,v0,0xff`, and still hoists ONE
+//       `lui/addiu` base into $v1 where retail re-forms `lui at` + `addu at,at,a0`
+//       four times. Why retail cannot hoist: its index byte is live in $v1 there
+//       (`andi v1,s2,0xff` at the panelMode clear) while this body's copy is in $a0
+//       and $v1 is free - an upstream allocator hand-out, not a spelling.
+//   (b) the tail loop re-forms nothing: retail does `lui at %hi(g_BattleSlotFlags)` +
+//       `addu at,at,v0` per iteration, this body hoists the base into $s3. Same cause
+//       as (a): retail has no free callee-saved register, this body has one.
+//   (c) the two `targetSlotId` `addu`s stay index-first (`addu v1,s1,v1`) where retail
+//       is base-first. Closed this round as a spelling question: the offset-term-first
+//       form `arg0 * 0x40 + g_BattleCommandQueue` and the `[arg0]` pointer-subscript
+//       form are both byte-identical to the base-first sum (the address legitimiser
+//       canonicalises index-first, lever a-addu-index-first-is-the-legitimiser), and
+//       the `- -(arg0 * 0x40)` negation that works at the 0x1C/0x20/0x24/0x36 stores
+//       emits `sll s1` + `negu s1,s1` + `subu` here because the scaled index is shared
+//       by both sites (2424 bytes / 96.17). Do not retry (c).
+//   (d) retail loads `targetSlotId` TWICE at the 0xFF test (`lbu a0` for the call,
+//       `lbu v1` for the compare); every spelling here cse's them into one lbu.
+// Naming the mask table by the separate labels the original object uses
+// (`D_800C3238`, `D_800C323C`, `D_800C324E` instead of `D_800C3234[4]/[13]`) matches
+// those three relocations but rotates the $a0/$a1 hand-out before them and measures
+// 95.89; the array form stays.
+// PARKED 96.61% (2420 bytes / 605 insns against retail 2432 / 608). Round 526 took it
+// from 96.45 with one edit: the targetSlotId local is `s32 v` and not `u8 v` - a u8
+// local re-truncates the loaded byte (`andi v1,a0,0xff`) for the 0xFF test, while the
+// s32 copy compares the lbu'd value directly, retail's shape (the cross-mode-tie
+// lever, same unit: func_80080C94's round-490 note). 2424 -> 2420 bytes, 606 -> 605.
+// Residuals, all re-measured on this body this round:
+//   (a) tail `if (q[0x2E3])` block (the biggest hole, 23 retail insns vs 16): written
+//       this round as `A[i] = A[i] + q[0x2D4]; if (A[i] > 0x1C) A[i] = 0x1C;` which
+//       DOES produce retail's reload shape (`lbu` again for the sltiu) - but gcc
+//       forwards the store instead, keeps `andi v0,v0,0xff`, and still hoists ONE
+//       `lui/addiu` base into $v1 where retail re-forms `lui at` + `addu at,at,a0`
+//       four times. Why retail cannot hoist: its index byte is live in $v1 there
+//       (`andi v1,s2,0xff` at the panelMode clear) while this body's copy is in $a0
+//       and $v1 is free - an upstream allocator hand-out, not a spelling.
+//   (b) the tail loop re-forms nothing: retail does `lui at %hi(g_BattleSlotFlags)` +
+//       `addu at,at,v0` per iteration, this body hoists the base into $s3. Same cause
+//       as (a): retail has no free callee-saved register, this body has one.
+//   (c) the two `targetSlotId` `addu`s stay index-first (`addu v1,s1,v1`) where retail
+//       is base-first. Closed this round as a spelling question: the offset-term-first
+//       form `arg0 * 0x40 + g_BattleCommandQueue` and the `[arg0]` pointer-subscript
+//       form are both byte-identical to the base-first sum (the address legitimiser
+//       canonicalises index-first, lever a-addu-index-first-is-the-legitimiser), and
+//       the `- -(arg0 * 0x40)` negation that works at the 0x1C/0x20/0x24/0x36 stores
+//       emits `sll s1` + `negu s1,s1` + `subu` here because the scaled index is shared
+//       by both sites (2424 bytes / 96.17). Do not retry (c).
+//   (d) retail loads `targetSlotId` TWICE at the 0xFF test (`lbu a0` for the call,
+//       `lbu v1` for the compare); every spelling here cse's them into one lbu.
+// Naming the mask table by the separate labels the original object uses
+// (`D_800C3238`, `D_800C323C`, `D_800C324E` instead of `D_800C3234[4]/[13]`) matches
+// those three relocations but rotates the $a0/$a1 hand-out before them and measures
+// 95.89; the array form stays.
 /*
 void func_80080160(u8 arg0) {
     u8 gauge;
@@ -497,7 +559,7 @@ void func_80080160(u8 arg0) {
     s32 i;
     s32 rowOffset;
     u8 *pQueue;
-    u8 v;
+    s32 v;
 
     g_BattleCommandQueue[0x2EA] = 1;
     g_BattleCommandQueue[0x2E9] = 0;
@@ -581,7 +643,7 @@ void func_80080160(u8 arg0) {
     BattleBeginAnimTask(BattleSlotBitMask(arg0) |
         BattleSlotBitMask(((BattleCommandRow *)(g_BattleCommandQueue + arg0 * 0x40))->targetSlotId));
     v = ((BattleCommandRow *)(g_BattleCommandQueue + arg0 * 0x40))->targetSlotId;
-    if (v == 0xFF) {
+    if (((BattleCommandRow *)(g_BattleCommandQueue + arg0 * 0x40))->targetSlotId == 0xFF) {
         v = 0;
     }
     BattleApplySlotMaskToEffects(BattleSlotBitMask(v));
@@ -676,8 +738,9 @@ void func_80080160(u8 arg0) {
     ((BattleWork *)g_BattleDisplayState)->panelMode[arg0] = 0;
     ((BattleWork *)g_BattleDisplayState)->panelActive[arg0] = 0;
     if (g_BattleCommandQueue[0x2E3] != 0) {
-        g_BattleSlotDisplayValue[arg0 * 8] += g_BattleCommandQueue[0x2D4];
-        if (g_BattleSlotDisplayValue[arg0 * 8] >= 0x1D) {
+        g_BattleSlotDisplayValue[arg0 * 8] =
+            g_BattleSlotDisplayValue[arg0 * 8] + g_BattleCommandQueue[0x2D4];
+        if (g_BattleSlotDisplayValue[arg0 * 8] > 0x1C) {
             g_BattleSlotDisplayValue[arg0 * 8] = 0x1C;
         }
     }
@@ -696,6 +759,7 @@ void func_80080160(u8 arg0) {
     D_800C4928 = 0;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
+
 
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
     s32 best = 0xFF;
