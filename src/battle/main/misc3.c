@@ -548,6 +548,18 @@ void BattleClearFlagC6(void) {
 // s32 - hence the BattleTilePageCoords view at the top of this file. The four
 // DR_MODE packets are at gfx + 0x8908, 0xC apart, inside what battle_work.h still
 // calls unk6417. Parked body (92.83):
+// ROUND 511: re-measured from the live body, 92.83 / 1820 bytes / 455 insns against
+// retail's 1816 / 454. The residual is a scheduler/allocator tie and nothing else: the
+// rect-table block is instruction-for-instruction the same shape with a rotated register
+// set (retail `li a0,0x34` for the two texPageY stores and the pc[0].texPageY load in v0;
+// this build puts 0x3C8 in a0, 0x34 in v0 and the load in a0), and the three mid-function
+// load-delay `nop`s land in different places (retail pays the one after pc[2].texPageX,
+// this body after the pRects[2].y load). Statement order in the rect block already IS
+// retail's store order (x,w,h,y for rects 1/2/3/5, x,w,y,h for rect 4). Measured dead this
+// round: hoisting the pPageCoords view to the top with the image pointers and dropping the
+// second one - 91.91 / 1832 / 458. permute.sh cannot take this body at all: its randomizer
+// re-emits the base with an invalid deref ('/tmp/permutera_*.c:2815 invalid type argument
+// of unary *', two adjacent lines near the SetDrawMode tail), so the base never compiles.
 /*
 void func_80077990(void) {
     BattleGraphicsWork *pGfx;
@@ -680,9 +692,9 @@ void func_80077990(void) {
                          g_BattleGraphicsWork->tiles[0].texPageX,
                          g_BattleGraphicsWork->tiles[0].texPageY),
                 g_BattleDisplayState->texWindowRects);
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
+
 /* Prior findings for BattleInitTextSlotPrims (now MATCHED at 100.00%): retail walks two
    0x28-byte packets from pInfo to pInfo+0x50 and finishes with pInfo[0x5D] = 0.
    Retail facts that the matched body below reproduces:
