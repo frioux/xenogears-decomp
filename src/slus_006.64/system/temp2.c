@@ -673,6 +673,13 @@ Also tried and byte-identical: a u32 pNewBufferHead local with the neighbour's
 nWidth. The reorder is gcc moving the xOffset lhu two insns down, after the two
 gp loads; that reorder is what puts pPrim in s1 instead of s3.
 */
+// Best 89.78% (464 bytes against retail's 460, 116 insns against 115, 69 differing lines).
+// Round 499: a one-iteration do while around the tail (the x0/y0 stores through AddPrim) splits the
+// trailing block and moves the y0 load to retail's place: 89.57 -> 89.78. That is the parked body; the
+// same body without it is 89.57. A u16 y0 local read before the x0 store instead is byte-identical at 89.57.
+// Read as arithmetic before spending another lane: pPrim is SI with ~8 refs and xOffset HI with 2, so the
+// allocno quotient ranks pPrim ~24x above xOffset and no spelling flips the mirror.
+// The older note below still holds for everything else.
 // Best 89.57% (464 bytes against retail's 460, 116 insns against 115). Two residuals, both allocation order:
 // - the callee-saved pair is swapped: retail s1 = xOffset, s3 = pPrim; ours s1 = pPrim, s3 = xOffset, so gcc loads the gp globals before the lhu of xOffset (retail loads xOffset first) and makes its copy of pPrim to a1 late (retail's 'addu a1,s3,zero' sits right after the negu).
 // - the x0 reads: retail emits lh v0,8(s3) then lhu a0,8(s3) then subu, so the load-delay slot is filled; ours emits lh, nop, subu, lhu - the extra nop is the whole 1-instruction/4-byte gap.
@@ -732,14 +739,16 @@ void func_80025544(WorkListEntry* pTask) {
         nWidth = -nWidth;
     }
     nHalf = nWidth / 2;
-    pPrim->x0 = x0 - nHalf;
-    pPrim->y0 = pPrim->y0 - nHalf;
+    do {
+        pPrim->x0 = x0 - nHalf;
+        pPrim->y0 = pPrim->y0 - nHalf;
 
-    setlen(pPrim, 3);
-    *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
-    pPrim->h = nWidth;
-    pPrim->w = nWidth;
-    AddPrim(&g_GfxCurOT[nOTOffset], pPrim);
+        setlen(pPrim, 3);
+        *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
+        pPrim->h = nWidth;
+        pPrim->w = nWidth;
+        AddPrim(&g_GfxCurOT[nOTOffset], pPrim);
+    } while (0);
 
     pPrimTPage = g_GfxCurWorkBuffer;
     if (!((u8*)(pPrimTPage + 1) < (u8*)g_GfxCurWorkBufferEnd)) {
