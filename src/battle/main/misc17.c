@@ -154,7 +154,7 @@ extern u8 *D_800C3D60;
 extern u16 g_BattleActionSlotMask[]; // the array view keeps its address in a register across both guard reads, as retail does
 extern u8 D_800CCD3E[];
 extern void *D_800C348C[];
-extern volatile u8 D_800D2DB8; // volatile so the discarded read that ends func_800941A4 is not eliminated
+extern volatile u8 D_800D2DB8; // volatile so the discarded read that ends BattleRunCurrentActionRow is not eliminated
 extern u8 D_800C34AE;
 void BattleClearAllSlotStates(void);
 void BattleExecuteActionRow(void);
@@ -1406,7 +1406,7 @@ void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
         }
     }
 }
-void func_800941A4(void) {
+void BattleRunCurrentActionRow(void) {
     BattleTableEntry *pSlot;
     u16 flags;
     u32 mask;

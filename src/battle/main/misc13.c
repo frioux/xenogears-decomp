@@ -111,7 +111,7 @@ extern u8 D_800C48F0[];
 extern void BattleApplySlotCurve(u8);
 extern void func_80085618(u8);
 extern void BattleInitActiveSlotActions(u16);
-extern void func_800941A4(void);
+extern void BattleRunCurrentActionRow(void);
 extern s32 BattleSlotBitMask(u8);
 extern void BattleDrawCommandRowSprites(void);
 extern s32 func_800877E0(s32, s32);
@@ -446,7 +446,7 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
     g_BattleActionParam = arg2;
     g_BattleActionStateFlags = v;
     g_BattleActionSlotIndex = c + 0xFF;
-    func_800941A4();
+    BattleRunCurrentActionRow();
 }
 // The base's assignment has to sit inside the `0x9C8 +` sum: as a separate local
 // gcc reassociates the constant onto the base register and the delay-slot addu
