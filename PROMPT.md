@@ -288,6 +288,9 @@ a field of a shared header. Expect to bisect by reverting one worker's file at a
 
 ## Ground rules
 
+- A park-note line that lost its `//` prefix passes `lint_sources.py` **and** objdiff (report mode
+  skips the asm) and only `check_bin.sh` catches it, as a cc1 parse error. That is the gate for
+  comment edits, not lint.
 - `make check` green on all eleven is the only definition of done. Never edit
   `config/checksum.sha`, `expected/` or the extracted binaries. Never commit `asm/`,
   `build/`, `expected/`, `linker/`, `objdiff.json`, `build.ninja`, `disc/` or notes.
