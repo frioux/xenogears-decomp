@@ -912,8 +912,6 @@ void func_800796B8(Actor* p1, Actor* p2) {
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
 
-
-
 void BattleInitOptionDefaults(void) {
     BattleEffectInitContext();
     BattleEffectCreateWork();
