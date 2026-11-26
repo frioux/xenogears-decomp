@@ -288,6 +288,11 @@ a field of a shared header. Expect to bisect by reverting one worker's file at a
 
 ## Ground rules
 
+- **A lane whose status is `failed` (timed out) can still have committed a finished match**, and a
+  completion preview can be truncated past the MATCH line. The completion list is not the result:
+  after every merge, diff the `INCLUDE_ASM` count against the previous round's and ask which
+  functions lost their stub. Round 503 reported zero and had four, every one of them from a lane
+  that never reported.
 - A park-note line that lost its `//` prefix passes `lint_sources.py` **and** objdiff (report mode
   skips the asm) and only `check_bin.sh` catches it, as a cc1 parse error. That is the gate for
   comment edits, not lint.
