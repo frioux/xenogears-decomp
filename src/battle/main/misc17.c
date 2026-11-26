@@ -113,7 +113,7 @@ extern s16 D_800C33C4[][2];
 extern s16 D_800C3404[][2];
 
 void BattleReleaseEffectSlotIfChar4(void);
-void BattleSetSlotEntryFieldsTo2000(u8, s32);
+void BattleSetSlotEntryFieldsTo2000(u8, u8);
 void BattleDrawSlotStatusDigits(u8, u8, s32);
 void BattleParseNumberToDigits(u32);
 void BattleSetPolyFT4RectH13(POLY_FT4 *, u16, s16, u8, u8, s16);
@@ -1351,29 +1351,48 @@ void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800941A4);
-/* 83.10% (1256 bytes against retail's 1360). The whole body is written and
-   compiles: the four early-exit groups, the row-table pick (idx*0x5F0 + 0x1058 +
-   rowIndex*0x28, else rowIndex*0x28 + 0x35D8), the two rand()-guarded blocks, the
-   three timer calls, the 0xB-slot mask walk and the tail. Residual is register
-   allocation, all of it one cause: this body keeps g_BattleCurWorkBlock in a
-   CALLEE-SAVED register across the calls (frame 0x20 with s0 and s1 saved) where
-   retail reloads the global after every call (frame 0x18, only s0 = the slot bit
-   mask). Writing every use as `g_BattleCurWorkBlock->...` inline instead of
-   through a `pWork` local was measured and changes nothing, so the value being
-   kept live is a source-shape question the next worker should attack with the
-   permuter (`tools/scripts/permute.sh battle/main/misc17 func_800941A4`), not by
-   hand. Also open: retail's `mask <<= 1` sits in the loop-back delay slot and its
-   `g_BattleCurSlotIndex++` is a global RMW at the loop tail (this body lets gcc
-   cache the index), and the final `lbu v0, %lo(D_800D2DB8)` on the fall-through
-   path (a return value or a volatile read - the early-exit path skips it) is not
-   reproduced here. Externs and the callee prototypes are all at the top of this
-   file already, so un-parking needs no new declarations. */
+/* 98.52% (1360 bytes against retail's 1360, 340 insns against retail's 340). The
+   body is instruction-for-instruction retail's in size, order, branches and calls;
+   two residuals are left, both in the g_BattleActionSlotMask guard:
+
+   1. retail forms the mask's address ONCE (lui v1,%hi + addiu v1,v1,%lo) inside the
+      block and does both `lhu v0,0(v1)` guard reads and the `sh v0,0(a2)` store
+      through it. This compile folds the two guard reads back to the bare symbol
+      (lui v0,%hi + lhu v0,%lo(v0)) and forms the address only for the store, so the
+      same six instructions land in a different shape. Measured dead: a pointer local
+      assigned inside the block, one assigned before it (gcc hoists the address and
+      still folds), `volatile u16 *pMask` (absolute volatile reads + la), plain
+      g_BattleActionSlotMask reads (two extra instructions), and levers.md'
+      [a-pointer-local-to-a-scalar-global-always-folds] route of declaring the base
+      struct-typed, which does keep `la g` alive for the store but not the reads,
+      because the field sits at offset 0 and the bare symbol is the same address
+      (the lever's surviving probed case had the field at +8). Renaming/reshaping the
+      symbol is an orchestrator decision, not this unit's.
+   2. g_BattleWorkBlock[i].characterId relocates as g_BattleWorkBlock+0x56 where retail
+      names D_800CCD3E (same address, byte-identical link; misc20's
+      BattleSetActorMaskForSlotRecord3 has the same pair, see the SECOND EXCEPTION).
+
+   What got this from 83.10 to 98.52, in case it is picked up again: the store to
+   g_BattleAmountThirdFlag sits AFTER retail's second `lhu 0xA(row)`, so the flags read
+   is a source read of its own placed before it, and it must NOT be held in a `flags`
+   local across the `0x10` early exit - the live local keeps the loaded value's
+   register alive and gcc then cse's retail's two reads into one (removing the local
+   is what produced the missing `lhu`/`nop` and closed the byte count). The element
+   copy wants `pWeapon = (u8 *)g_BattleActingSlot; pWeapon += (row - 3) * 8;
+   g_BattleCurrentRow->element = pWeapon[4];` - the one-statement cast form folds
+   to `lbu -20(reg)` and the C sum order fixes the `addu` operand order. The final
+   `lbu v0, %lo(D_800D2DB8)` on the fall-through path is reproduced by declaring
+   `extern volatile u8 D_800D2DB8;` and ending the body with `(void)D_800D2DB8;`
+   (every other path returns without the read, so it is a discarded read, not a
+   return value: misc13.c declares this function void and ignores $v0). */
 /*
 void func_800941A4(void) {
     BattleTableEntry *pSlot;
     u16 flags;
-    u16 mask;
-    u8 row;
+    u32 mask;
+    u16 *pMask;
+    u8 *pWeapon;
+    BattleRow *pRow;
     u8 i;
 
     BattleClearAllSlotStates();
@@ -1382,51 +1401,58 @@ void func_800941A4(void) {
     g_BattleTargetSlotIndex = g_BattleCurWorkBlock->actorIndex;
     g_BattleActingSlot = &g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex];
     g_BattleTargetSlotState = &g_BattleActingSlot->state;
-    if (g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags & 0x80) {
+    if (g_BattleCurWorkBlock->slots[g_BattleCurWorkBlock->actorIndex].state.flags & 0x80) {
         BattleExecuteActionRow();
         BattleSetSlotEntryFieldsTo1(g_BattleTargetSlotIndex);
         return;
     }
     if (g_BattleTargetSlotIndex < 3) {
-        g_BattleCurrentRow = (BattleRow *)((u8 *)pWork + 0x1058 + g_BattleTargetSlotIndex * 0x5F0 + g_BattleCurWorkBlock->rowIndex * 0x28);
+        g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock +
+                                          (g_BattleTargetSlotIndex * 0x5F0 + 0x1058) +
+                                          g_BattleCurWorkBlock->rowIndex * 0x28);
     } else {
-        g_BattleCurrentRow = (BattleRow *)((u8 *)pWork + g_BattleCurWorkBlock->rowIndex * 0x28 + 0x35D8);
+        g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock +
+                                          (g_BattleCurWorkBlock->rowIndex * 0x28 + 0x35D8));
     }
     BattleSetSlotEntryFieldsTo2000(g_BattleTargetSlotIndex, 1);
-    flags = g_BattleCurrentRow->actionFlags;
-    if (flags & 0x10) {
+    pRow = g_BattleCurrentRow;
+    if (pRow->actionFlags & 0x10) {
         BattleExecuteActionRow();
         BattleSetSlotEntryFieldsTo1(g_BattleTargetSlotIndex);
         BattleAccumulateSlotValueByRowFlag();
         return;
     }
     g_BattleAmountThirdFlag = 0;
-    if ((flags & 0x100) && g_BattleActingSlot->characterId == 1) {
-        BattleRollPercentAndSetState38();
-    }
-    row = g_BattleCurWorkBlock->rowIndex;
-    if (g_BattleActingSlot->characterId == 4) {
-        if ((u8)(row - 4) < 2) {
-            g_BattleCurrentRow->element = ((u8 *)g_BattleActingSlot)[(row - 3) * 8 + 4];
+    if (g_BattleCurrentRow->actionFlags & 0x100) {
+        if (g_BattleActingSlot->characterId == 1) {
+            BattleRollPercentAndSetState38();
         }
     }
-    mask = 1;
+    if (g_BattleActingSlot->characterId == 4) {
+        if ((u8)(g_BattleCurWorkBlock->rowIndex - 4) < 2) {
+            pWeapon = (u8 *)g_BattleActingSlot;
+            pWeapon += (g_BattleCurWorkBlock->rowIndex - 3) * 8;
+            g_BattleCurrentRow->element = pWeapon[4];
+        }
+    }
     if (g_BattleActingSlot->activeEffectFlags2 & 0x20) {
-        if ((g_BattleActionSlotMask & 7) != 0 && g_BattleActionSlotMask < 7) {
-            for (i = 0; i < 3; i++) {
-                if (((u8 *)D_800CCD3E)[i * 0x170] == 3) {
-                    g_BattleActionSlotMask = 1 << i;
+        pMask = &g_BattleActionSlotMask;
+        if ((*pMask & 7) != 0 && *pMask < 7) {
+            for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+                if (g_BattleWorkBlock[i].characterId == 3) {
+                    *pMask = 1 << i;
                 }
             }
         }
     }
+    mask = 1;
     g_BattleCurSlotIndex = 0;
     while (g_BattleCurSlotIndex < 0xB) {
-            if (mask & g_BattleCurWorkBlock->activeSlotMask) {
+        if (mask & g_BattleCurWorkBlock->activeSlotMask) {
             pSlot = &g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex];
             g_BattleTargetSlotEntry = pSlot;
             g_BattleCurSlotState = (u8 *)&pSlot->state;
-            D_800C3D60 = (u8 *)pSlot + 0x148;
+            D_800C3D60 = &pSlot->state.commandCounter;
             if (g_BattleCurSlotIndex < 3) {
                 BattleRollPercentAndSwapActiveActor();
             }
@@ -1457,12 +1483,13 @@ void func_800941A4(void) {
         BattleDecrementGearPartUse();
     }
     if (g_BattleTargetSlotIndex < 3 && g_BattleCurWorkBlock->rowIndex < 7) {
-        if (!(0xFDE7 < *(u16 *)((u8 *)g_BattleActingSlot + g_BattleCurWorkBlock->rowIndex * 2 + 0x90))) {
-            *(u16 *)((u8 *)g_BattleActingSlot + g_BattleCurWorkBlock->rowIndex * 2 + 0x90) +=
-                ((u8 *)g_BattleActingSlot)[0x55] + ((u8 *)g_BattleActingSlot)[0xA1];
+        if (g_BattleActingSlot->statWeights[g_BattleCurWorkBlock->rowIndex] <= 0xFDE7) {
+            g_BattleActingSlot->statWeights[g_BattleCurWorkBlock->rowIndex] +=
+                ((u8 *)&g_BattleActingSlot->unk54)[1] + g_BattleActingSlot->accessoryEffectFlags10;
         }
     }
     BattleAccumulateSlotValueByRowFlag();
+    (void)D_800D2DB8;
 }
 */
 void BattleResolveSlotActionState(void) {
