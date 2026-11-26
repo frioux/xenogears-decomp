@@ -104,6 +104,10 @@ extern WorldMapTrackPoint g_WorldMapGroup0PathPoints[];
 extern u16 g_WorldMapActorParamStateIds[];
 extern u16 g_WorldMapActorParamStateFrames[];
 extern s16 g_WorldMapCameraRot;
+// The three g_WorldMapCameraTarget words at 0x8009BE28 are one x/y/z triple. A field
+// address of a struct-typed symbol survives gcc's `*&x` fold where the address of the
+// plain global does not, and case 4 of func_8007ADD4 keeps that address in a register.
+extern WorldMapPos g_WorldMapCameraTargetTriple __asm__("g_WorldMapCameraTarget");
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
 // the two offsets accumulated by the random jitter below: [0] the path frame
@@ -330,35 +334,47 @@ int WorldMapInitActorScrollScale(int idx) {
     *(volatile s32 *)&pPlayer->unk50 = 0x1000;
     return 1;
 }
-// PARKED 82.67% (1076 bytes / 269 insns; retail 1068 / 267) - fresh body this round,
-// measured with the unit's own flags (XenoWorldMapDiv, -G8). Structure is settled and
-// matches retail block for block: the first switch is command-1 over 7 cases with
-// gcc cross-jumping case 0/4/6 into one "command = 0; state = N" block, the second
-// switch is state over 6 cases in which func_80096F18 is called per case (0,1,2,3,5)
-// and case 4 has its own tail that jumps past it, and the jitter epilogue reads the
-// two scratchpad halfwords twice each (0xA0, 0xA0, 0xA2, 0xA2).
-// RESIDUAL, 2 insns over retail, and it is a COMPILER question, not a source one:
-// retail reaches g_WorldMapCameraTargetZ through an address it keeps in $a2
-// (lui+addiu, then lw 0(a2) twice and sw 0(a2) in the beqz delay slot) and
-// g_WorldMapViewRotationY through $a3 the same way; -G8 folds a pointer local back to
-// the bare symbol, so the store becomes the assembler's lui $at / sw %lo($at) pair and
-// the beqz loses its delay slot fill: +1 insn for the store, +1 for the rematerialised
-// lw. THE SAME BODY SCORES 86.32% UNDER -G0, where cc1 keeps the pointer in a register
-// and both spots come out exactly as retail has them (verify with
-// "try_flags.sh world_map/main/misc5 func_8007ADD4 --gp -G0"); see the report for why
-// the unit cannot simply switch. Remaining -G0 residual is sched2 statement order:
-// case 2/3 put retail's command=0/state=0 pair two slots earlier, case 5 emits the
-// RotationMatrixValid store between the positionZ load and the unk5C store (ours hoists
-// it to the top of the case), and the epilogue's 0xA2 store is sunk below the two vx
-// updates in retail and not in ours.
-// Tried and rejected: volatile on the two scratchpad stores (pins them, but a volatile
-// store may not fill a jal delay slot, which is where retail keeps the 0xA0 store);
+// PARKED 84.96% (1068 bytes / 267 insns = retail's EXACT size and instruction count;
+// check_bin.sh world_map on the live body leaves the overlay 180422 bytes with all 216
+// differing bytes inside this function's code and the unit's rodata tables landing at
+// retail's own offsets, so the rodata layout is NOT a blocker here the way it is for
+// func_8007C3B8/func_8007C7D8). Structure is settled and matches retail block for block:
+// the first switch is command-1 over 7 cases with gcc cross-jumping case 0/4/6 into one
+// "command = 0; state = N" block, the second switch is state over 6 cases in which
+// func_80096F18 is called per case (0,1,2,3,5) and case 4 has its own tail that jumps past
+// it, and the jitter epilogue reads the two scratchpad halfwords twice each.
+// THE BYTE-COUNT FIX THIS ROUND (1076 -> 1068): retail reaches g_WorldMapCameraTargetZ
+// through an address kept in $a2 (lui+addiu, then lw 0(a2), sw 0(a2) in the beqz delay
+// slot and one re-read). Under -G8 cc1 folds `s32 *p = &g_ScalarGlobal;` back to the bare
+// symbol, which costs one insn for the store plus one for the rematerialised reload. The
+// fold is defeated by taking the address of a FIELD of a struct-typed declaration: extern
+// WorldMapPos g_WorldMapCameraTargetTriple __asm__("g_WorldMapCameraTarget"); plus
+// `pTargetZ = &g_WorldMapCameraTargetTriple.z;` emits `lui a1,%hi / addiu a1,%lo+8` and
+// loads/stores through $a1, and the function drops from 1076 to retail's 1068 bytes
+// (82.67 -> 84.96). REQUIRES A NONZERO FIELD OFFSET: the same trick on the rotation triple
+// (SVECTOR .vy, offset 2) emits `lui v0 / lhu v0,2(v0)` and rematerialises the store
+// through $at - a wash (84.94), so it was reverted.
+// RESIDUAL, all of it sched1/sched2's choice given our RTL - the -fno-schedule probes
+// below prove the order is not reachable from the source: case 2/3 keep retail's
+// command=0/state=0 store pair 2-4 slots late (retail: case 2 after the CameraRot store,
+// case 3 at the top of the case), case 5 (command 6) hoists the g_WorldMapRotationMatrixValid
+// store above both position loads and takes $a0/$a1 for 0xC7C00/0x3EC400 where retail uses
+// $v1/$a0, case 4's post-clamp block sinks the PathFrame vx subu/sra/sh below the
+// D_8009BD4C/D_8009BD48 stores, state 5 increments g_WorldMapViewRotationY through a
+// rematerialised $at where retail holds it in $a3, and the epilogue's load interleave
+// differs. Reordering the case-2 statements compiles BYTE-IDENTICALLY, which is the
+// measurement that says the store order is the scheduler's output here.
+// Preset screens on THIS body: unit flags 84.96, -G0 86.25, 2.7.2-cdk 70.26 (park
+// history), -fno-schedule-insns 75.94, -fno-schedule-insns2 78.09, both 75.94-ish
+// (compile-failed), so scheduling is load-bearing and no preset reaches retail. NOTE the
+// old "-G0 86.32 needs a unit split" conclusion still stands but is no longer worth it:
+// -G8 with the struct alias is within 1.3 points of -G0 and the -G0 route breaks four
+// matched neighbours of this unit (WorldMapSnapCameraToPlayer 27.96, WorldMapUpdateActorState
+// 99.95, WorldMapUpdateGroup0Actor 99.82, WorldMapUpdateGroup4Actor 99.94).
+// Tried and rejected earlier: volatile on the two scratchpad stores (pins them, but a
+// volatile store may not fill the jal delay slot where retail keeps the 0xA0 store);
 // volatile on the case-5 rotation store; extern SVECTOR g_WorldMapPathFrame[] plus
-// WorldMapPos g_WorldMapCameraTarget[] (same score, broke WorldMapSnapCameraToPlayer); pointer
-// locals for CameraTargetZ and ViewRotationY under -G8 (folded away, no change);
-// 2.7.2-cdk (70.26) and 2.7.2-cdk -G0 (70.26). The unit's other matched functions do
-// NOT survive -G0 - WorldMapSnapCameraToPlayer drops to 27.96, WorldMapUpdateActorState 99.95,
-// WorldMapUpdateGroup0Actor 99.82, WorldMapUpdateGroup4Actor 99.94 - so -G0 here needs a unit split.
+// WorldMapPos g_WorldMapCameraTarget[] (same score, broke WorldMapSnapCameraToPlayer).
 /*
 int func_8007ADD4(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
@@ -446,7 +462,7 @@ int func_8007ADD4(s32 idx) {
                       &g_WorldMapCameraRot);
         break;
     case 4:
-        pTargetZ = &g_WorldMapCameraTargetZ;
+        pTargetZ = &g_WorldMapCameraTargetTriple.z;
         *pTargetZ += 0x3A000;
         if (*pTargetZ > 0x77FFFFF) {
             pPlayer->state = 0;
@@ -478,9 +494,9 @@ int func_8007ADD4(s32 idx) {
     D_8009BD42 += pScratchPos[0x51];
     D_8009BD4A += pScratchPos[0x51];
     return 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
+
 
 int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
