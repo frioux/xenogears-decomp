@@ -293,38 +293,52 @@ extern SVECTOR D_1F8000A0;
 extern MATRIX D_1F8000F0;
 extern VECTOR D_1F800010;
 
-// Retail's linked bytes mix two spellings of the 0x1F8000A0 scratch vector: a literal
-// pointer for the vx clearing, D_1F8000A0 for vy/vz. That mix is what makes cc1 keep the
-// address in one callee-saved register ($s3) while re-forming it per store elsewhere;
-// any uniform spelling changes the frame. objdiff reads 97.33% because the expected
-// object carries those addresses as literals, not relocations - linked bytes are equal.
+// Best: 99.74% (344 bytes / 86 insns = retail's exact size and count). NOT shippable:
+// check_bin.sh showed the overlay 4 bytes off, all in block 1. Retail stores the first
+// SVECTOR as vx, then vz = 0 (lui at + sh zero,0xa4(at)), then vy, with the vy load
+// scheduled between the vx and vz stores; cc1 hoists the CONSTANT vz store above the vx
+// store (which depends on its load) whatever the source order -- tried vx/vz/vy,
+// vx/vy/vz, vy/vx/vz and vy/vx/vz with a volatile vx store (that last one unmeasured --
+// the tree was in matching mode); everything else matches,
+// including the frame, $s3 = 0x1F8000A0 and the whole entry-block save schedule.
+// Why the address is spelled two ways: the vx clearing goes through a literal scratch
+// pointer, vy/vz through D_1F8000A0, and that mix is what makes cc1 keep the address in
+// one callee-saved register while re-forming it per store elsewhere. Any uniform
+// spelling changes the frame (all-literal: 3 extra saved regs, 348 bytes; all-symbol:
+// 340 bytes). objdiff cannot read 100% here either way: the expected object holds these
+// scratchpad addresses as literals, this object holds them as relocations.
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
+/*
 void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u16 *pAngles) {
+    MATRIX *pMtx;
     s16 *pScratch;
 
     pScratch = (s16 *)0x1F8000A0;
+    pMtx = (MATRIX *)0x1F8000F0;
     pOut->targetX = 0;
     pOut->targetY = *(s32 *)(pSrc + 4) >> 12;
     pOut->targetZ = 0;
+    D_1F8000A0.vy = pAngles[1];
     D_1F8000A0.vx = pAngles[0];
     D_1F8000A0.vz = 0;
-    D_1F8000A0.vy = pAngles[1];
-    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
+    RotMatrixYXZ((SVECTOR *)0x1F8000A0, pMtx);
     *(s32 *)0x1F800000 = 0;
     *(s32 *)0x1F800004 = 0;
     *(s32 *)0x1F800008 = -(height >> 12);
-    ApplyMatrixLV((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
+    ApplyMatrixLV(pMtx, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
     pOut->x = D_1F800010.vx;
     pOut->y = pOut->targetY + D_1F800010.vy;
     pOut->z = D_1F800010.vz;
     pScratch[0] = 0;
     D_1F8000A0.vy = pAngles[1];
     D_1F8000A0.vz = pAngles[2];
-    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
+    RotMatrixYXZ((SVECTOR *)0x1F8000A0, pMtx);
     pScratch[0] = 0;
     D_1F8000A0.vy = -0x1000;
     D_1F8000A0.vz = 0;
-    ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, &pOut->upAxis);
+    ApplyMatrix(pMtx, (SVECTOR *)0x1F8000A0, &pOut->upAxis);
 }
+*/
 
 
 typedef struct {
