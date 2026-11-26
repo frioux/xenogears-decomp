@@ -720,35 +720,43 @@ extern u32 BattleCheckActorCommandAvailable(u8, u8);
 extern void BattleAppendCommandRecord(u8);
 extern void BattleAdvanceCommandStep(u8, u8);
 extern void func_800898F0(u8);
-// 87.90% (1696 bytes against retail's 1708; 424 vs 427 insns). Body: full event dispatch,
-// two switches, the cost table and the command-queue tail. The saved-register hand-out is a
-// PURE PERMUTATION of retail's, so nearly every differing line is a register rename:
-// ours 74->s0, 78->s1, 75->s2, 71->s3, 77->s4, 73->s5; retail s0 = the arg0&0xff temp,
-// s1 = first, s2 = index, s3 = arg0, s4 = ok, s5 = counter. Measured with -da/-dl/-dg
-// (gcc-2.6.0, unit flags): 74 = 4 refs / 11 insns / 1 byte -> quotient 7272 takes s0 (retail
-// takes s0 for the same temp, so that one is right); 78 = 9 refs / 39 insns / 4 bytes (the
-// case-6 body temp) -> 1731 wrongly outranks 'first' (3 refs / QI / ~25 insns = ~1200) for s1;
-// 73 = ok (3 refs / 205 insns / QI = 146) loses s4 to 77 = counter (4 refs / 202 / HI = 198) by
-// 1.36x, i.e. a near miss: ONE more reference to ok (floor_log2(4) doubles the quotient) flips
-// s4/s5. index->s2 and arg0->s3 are retail's already. Swapping the two inits (index = 0; ok = 0;)
-// is byte-identical, and all the top-of-function statement orders measured here keep the
-// prologue identical, so the pair is an allocno-quotient question and not a statement order one.
-// The three missing instructions: (a) the CharIndex==4 cost read - retail computes (index + 12)
-// in a register ('addiu v0,s2,12') and only then scales, ours folds 24 into the %lo displacement;
-// it is the ONLY place retail does that. The retired park got a better 87.92 by writing that read
-// as '((u16 *)(pMode - 0x15))[0xC + index]' with pMode = &g_BattleCommandCharIndex, but that
-// address is 0x15 bytes wrong: retail's three reads are g_BattleCommandCost[index],
-// g_BattleCommandCost[12 + index] and g_BattleCommandCost[3 + 3*commandKey[0] + index]
-// (0x800D2C0A base, CharIndex at 0x800D2C34), this body spells them off ONE register base
-// pCost = (u8 *)g_BattleCommandCost which reproduces retail's shared-base shape for reads 2 and 3
-// (retail reuses the &CharIndex register a1 with displacements -42 / -36 where ours reuses a1
-// with 24 / 6). (b) case 4/7/6: retail keeps the three 'addiu s2,s2,1' as fall-through blocks
-// (its case-6 increment sits in the 'bne v1,v0' delay slot), ours puts each increment in its own
-// dispatch 'beq' delay slot and jumps, which is the same count but a different layout - two
-// instructions of the gap. Retail's o2 head is sequential, so this is reorg and not a switch
-// shape. Return type: retail sets no v0 on any path, so the original is void; u32 here and in the
-// park is a reorg crutch (worth 4 bytes) and a future round should re-test void once the
-// instruction stream agrees. Object: 87.90 is with the corrected table offsets.
+// 97.53% (1708 bytes = retail's; 427 insns = retail's 427). Residual: the saved-register
+// hand-out is a permutation of retail's, plus one base register in the cost read.
+// WHAT CLOSED THE GAP FROM 87.90 (the number this park carried for several rounds): the
+// THIRD switch's `default:` arm has to be written FIRST in the source. With the arm last,
+// cc1 2.6.0 puts its body after the case bodies (at the end of the function) and merges
+// case 4/7/6's three `index++` into one block; that is the whole 3-instruction and
+// block-layout gap. Written first, retail's layout falls out: dispatch, default body,
+// case-4 inc, case-7 inc, case-6 body with its increment in the bne delay slot.
+// Measured in order: default arm last 87.90 (1696 bytes / 424); `void` return, arm last
+// 87.65 (1692/423); arm first + `u32` 97.53 (1708/427); arm first + `void` 97.30
+// (1704/426); arm first + the three cost reads spelled g_BattleCommandCost[i] directly
+// instead of through a u8* pCost base 97.06 (1708 bytes, 104 differing lines - the
+// CharIndex load then gets its own lui where retail reuses one base). So both `u32` and
+// the pCost base are crutches and both earn their keep; `void` is what retail sets (no
+// v0 on any path) but it loses a reorg nop.
+// RESIDUAL 1, two adjacent saved-register pairs are swapped: ours s0=first s1=the
+// arg0&0xff temp, retail s0=temp s1=first; ours s4=counter s5=ok, retail s4=ok
+// s5=counter. index->s2 and arg0->s3 are already retail's. cc1 -dl stats: 71 arg0
+// 11 refs/300 insns, 75 index 13/241, 73 ok 3/205, 77 counter 4/202, 78 temp 9/39,
+// 74 first 4/11; global alloc's quotient is floor_log2(refs)*insns/size, so both pairs
+// are near-ties (29 vs 22 and 205 vs 202) and our assignment puts the LARGER quotient in
+// the HIGHER register (index 723 -> s2, below arg0 900 -> s3). Retail needs the opposite
+// order in both pairs, and no spelling tried moves either pseudo's refs/insns enough: ok
+// would have to lose 4 instructions of live range to fall under counter's quotient, and
+// the temp would have to fall under first's 22. Declaration and init order are
+// byte-identical (see the old note, still true).
+// RESIDUAL 2, the cost read's base: retail keeps ONE base, a1 = &g_BattleCommandCharIndex,
+// reads both cost entries at -0x2A and -0x24 from it (g_BattleCommandCost is 0x800D2C0A
+// and g_BattleCommandCharIndex is 0x800D2C34 = cost + 0x2A), and computes
+// addiu v0,s2,12 before scaling; our body materialises the cost base itself and folds
+// 12+index into the lhu displacement - same instruction count, 4 differing lines. The
+// only C that shares that base is a struct view whose u16 array is followed by the char
+// byte at +0x2A; untried, since it needs a second symbol at 0x800D2C0A (this unit
+// declares g_BattleCommandCost as a flat u16 array elsewhere).
+// lhu/sh 96(at) with %lo(g_BattleSlotEntries) against retail's lhu/sh 0(at) with
+// %lo(D_800CCDC4) is the typed-access relocation exception: g_BattleSlotEntries is
+// 0x800CCD64 = D_800CCDC4 - 0x60, so the linked bytes are identical.
 /*
 u32 func_80083948(u8 arg0) {
     u8 ok;
@@ -842,6 +850,12 @@ u32 func_80083948(u8 arg0) {
         }
     }
     switch (g_BattleMenuEvent) {
+    default:
+        if (g_BattleCommandCharIndex == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
+            func_80086F98(0xFF, arg0);
+        }
+        break;
     case 4:
         index++;
     case 7:
@@ -905,12 +919,6 @@ u32 func_80083948(u8 arg0) {
         }
         break;
     case 5:
-        break;
-    default:
-        if (g_BattleCommandCharIndex == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
-            func_80086F98(0xFF, arg0);
-        }
         break;
     }
 }*/
