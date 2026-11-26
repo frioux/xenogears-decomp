@@ -1255,7 +1255,6 @@ extern s32 func_8009FA54(s32 nInstructionOffset);
 // PERMUTER: cannot parse this body - every mutated copy dies with "conversion to
 // non-scalar type requested" on the array alias (the plain-array spelling of the
 // shared extern does the same); run it from a scalar-extern body (98.01) instead.
-/*
 void func_800A08B8(void) {
     FieldActor* pFieldActor;
     s32 nReloadFlags;
@@ -1290,8 +1289,9 @@ void func_800A08B8(void) {
             // pointer local keeps retail's separate +4; declared here so the pointer's
             // allocno is created in this block (the allocator's tie, not the spelling).
             FieldSpriteDataBlob* pSpriteData = g_FieldSpriteData;
-            s32* pOffsets = &pSpriteData->offsets[D_800AE294[characterId]];
-            pSprite = (void*)(pOffsets[nReloadFlags] + (s32)pSpriteData);
+            s32 nByteOffset = nReloadFlags * 4;
+            pSprite = &pSpriteData->offsets[D_800AE294[characterId]];
+            pSprite = (void*)(*(s32*)((s32)pSprite + nByteOffset) + (s32)pSpriteData);
             func_80076AC0(g_FieldCurActorIndex, D_800AE294[characterId] + nReloadFlags, pSprite, 0, 0,
                 (D_800AE294[characterId] + g_FieldSceneReloadFlagsArray[0]) | 0x80, 1);
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
@@ -1327,8 +1327,7 @@ void func_800A08B8(void) {
     g_FieldScriptVMCurActor->scriptFlags.flags |= 0x20000;
     g_FieldScriptVMCurActor->flags |= 0x400;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
+}
 
 
 
