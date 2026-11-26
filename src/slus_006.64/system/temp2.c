@@ -73,45 +73,14 @@ extern void AnimScriptStackPushU8(SpriteData* pSpriteData, u8 value);
 // Sprite-script interpreter: a goto dispatch loop over the opcode byte, one arm per
 // opcode. Ported from the func_800C11CC park in src/battle/main/misc35.c (the battle
 // twin of this interpreter, same arm order) with the field SpriteData spelling of
-// src/slus_006.64/system/temp1.c / animation_scripts.c.
-// Best 98.01% (1592 bytes / 398 insns against retail's 1612 / 403), whole arm set
-// instruction-for-instruction right; the residual is one register rotation and 5 insns.
-// MEASURED, in the order it paid (round 492, 97.22 -> 98.01):
-//   - an arm's own local keeps its pseudo out of the callee-saved pool, and the same
-//     edit decides the ARGUMENT COPY ORDER: 0xE4 with its own loopCount and a separate
-//     `loopCount--;` statement puts the decrement before the argument copy, which is
-//     retail's `addiu a1,a1,-1` in the beqz slot (97.50 -> 97.74).
-//   - AnimScriptStackPopU8 is declared s32 here, not the animation_scripts.c u_char:
-//     with u_char the zero-extend lands on the ASSIGNMENT (`andi a1,v0,0xff`, 1 insn
-//     short) where retail has it on the test (`move a1,v0; andi v0,a1,0xff`) - so the
-//     arm reads `if ((u8)count != 0)`. 97.22 -> 97.50.
-//   - 0xA7 with its own frame-count local: retail's division-by-256 keeps the result in
-//     the mflo register ($v1), so reorg cannot fill the bgez slot and emits `nop`; a
-//     shared local left the result in $a3 and the compile duplicated the `sra` into the
-//     slot instead. 97.74 -> 98.01, and that tail is now exact.
-// WHAT IS LEFT:
-//   - 0xBE arm, a five-way rotation: retail count $a2 / offset $a3 / ~8 mask $a1 /
-//     0xAC word $a0 / 0x3C word $v1, ours $t0 / $a1 / $a0 / $a2 / $a3. Five values
-//     compete for a0-a3 and the loser is retail's $v1 against our $t0. -dg on this body
-//     says count is allocno 84, processed 20th of 26 with a0-a3 already taken, and the
-//     hand-out follows floor_log2(refs)*refs*size/live, which retail's own instruction
-//     stream pins; block-scoping count/flags/mask and arm-local beOffset both measure
-//     byte-identical to this body, so the quotient is not reachable by respelling.
-//     Retail also re-emits both of its delay-slot insns (li a1,-9, sra v0,a2,6) on the
-//     fall-through into .L80024B1C, and its bgez slot holds the offset andi where ours
-//     duplicates the `sra s0,v1,8`.
-//   - 5 insns: retail cross-jumps the head's count == 0 tail into 0x81's or/j/sw
-//     (.L80024DBC, j in the release and sll in the slot) where ours emits a private
-//     copy, and ours merges the 0x8E/0xE1 tails where retail keeps them separate.
-// STRUCTURE ALREADY SETTLED (do not redo): the dispatch must be a goto loop, not a
-// switch inside a while/for - loop.c then hoists li 1 and &g_AnimScriptCommandLengths
-// into the preheader as $s5/$s6, 61.25%. 0x81's anim-id == ANIM_SCRIPT_ANIM_ID_DEFAULT
-// path is a goto onto 0x80's body, not a second copy of it (71.83 -> 90.37).
-// 0xE2's jump is `pArgs[0] + (s16)(pArgs[1] << 8)`, not or-based SCRIPT_JUMP_AT.
-// 0x98 needs a typed pLinked local and the anim-id compare as (s8)field_0x8D.
-// Rejected and measured: offset before the frame multiply (68.80 on the older body),
-// storing the 0x3C word twice, splitting the whole 0xBE arm into block locals (91.19).
-// No permuter run: the STOP RULE allows one only from 99%.
+// src/slus_006.64/system/temp1.c / animation_scripts.c. Retail's exact 403 insns.
+// Three spellings that are load-bearing: the dispatch must be a goto loop (a switch in
+// a while/for makes loop.c hoist li 1 and &g_AnimScriptCommandLengths into the
+// preheader); 0x81's anim-id == ANIM_SCRIPT_ANIM_ID_DEFAULT path gotos onto 0x80's
+// body instead of copying it; and 0xBE's 0x3C flag word is written twice - once by the
+// fields.flipX bitfield store, once by the flipY branch - which is what makes cc1 keep
+// the intermediate store, and writing beOffset before the frame divide is what puts
+// its andi in the bgez delay slot.
 void func_800248D4(SpriteData* pSpriteData) {
     u8* pArgs;
     u8 code;
