@@ -757,7 +757,6 @@ extern void func_800898F0(u8);
 // lhu/sh 96(at) with %lo(g_BattleSlotEntries) against retail's lhu/sh 0(at) with
 // %lo(D_800CCDC4) is the typed-access relocation exception: g_BattleSlotEntries is
 // 0x800CCD64 = D_800CCDC4 - 0x60, so the linked bytes are identical.
-/*
 u32 func_80083948(u8 arg0) {
     u8 ok;
     u8 first;
@@ -765,13 +764,12 @@ u32 func_80083948(u8 arg0) {
     s32 remain;
     u16 counter;
 
+    ok = index = 0;
     counter = g_BattleSlotEntries[arg0].counter;
     g_BattleSoundEnabled = 0;
     if (((BattleActorSlots *)g_BattleCommandQueue)->commandQueued != 0) {
         return;
     }
-    ok = 0;
-    index = 0;
     BattleInitTargetSlotFlags(arg0);
     switch (g_BattleMenuEvent) {
     case 5:
@@ -921,8 +919,7 @@ u32 func_80083948(u8 arg0) {
     case 5:
         break;
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
+}
 
 u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     u8 ret;
