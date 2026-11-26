@@ -53,7 +53,7 @@ s32 SystemRenderStringEntry(u8*, void*, s32, s32);
 void MenuSetStringPrimitives(MenuString*, s32, s32, s32);
 s32 func_801D9704(s32, u8, u8);
 void MenuInitializeUnk438Panel(void);
-void func_801E1AC8(u8);
+void MenuBuildDressingRoomRows(u8);
 void MenuSetRowQuadVertices(s32, void*, void*, void*, void*, u8, u8, u8);
 void MenuCreateWindow(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
 void MenuApplyEquippedItemBonuses(MenuDressingRoom*, u8);
@@ -379,7 +379,7 @@ void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
     }
 }
 */
-void func_801E1AC8(u8 slot) {
+void MenuBuildDressingRoomRows(u8 slot) {
     RECT rect;
     u8 code[2];
     u8 text[8];
@@ -496,7 +496,7 @@ u8 MenuRunUnk438PanelLoop(u8 slot) {
     do {
         MenuRenderFrame();
         if (slot != lastSlot) {
-            func_801E1AC8(slot);
+            MenuBuildDressingRoomRows(slot);
             lastSlot = slot;
         }
         switch (g_Menu->input) {
