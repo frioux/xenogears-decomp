@@ -1727,6 +1727,21 @@ int WorldMapUpdateSlotActor(int index) {
    cse before regalloc, so the v0-held-by-3 RTL is not reachable from C here.
    Permuter not re-run: 93.41 is below the 99% threshold, and rounds 202/312 ran
    2111+ iterations from this exact body.
+   Round 497 re-measured this body live at 93.41 (164 bytes, 41 insns) and swept
+   the one degree of freedom the earlier matrices left open: all 24 source orders
+   of the four trailing stores (state, z, stateIndex, pStateFrames) inside the
+   do-block, compiled as a tail replica with the unit's own cc1 (2.7.2 -O2 -G8).
+   Every one keeps `li $2,3` as the last instruction: local-alloc hands $v0 to
+   whichever constant comes first in the block and the 3 then sinks past it, so
+   the residual does not depend on statement order, and the emitted store order
+   follows the source order in each case - the body below is the only order that
+   emits retail's x,y,pStateIds,state,z,stateIndex,pStateFrames. Three more
+   shapes probed the same way (no block at all; `do { stores; return 3; } while
+   (0)`; `while (1) { stores; return 3; }`) all emit `li $2,3` immediately after
+   the pStateFrames constant's store, i.e. past $v0's last def in that body and
+   never at the block head, and the no-block body's emitted order degrades to
+   x,y,pStateIds,pStateFrames,state,z,stateIndex (the 88.66 shape). The pre-sched2
+   RTL never holds the return set at the head, which is the one thing retail needs.
 */
 // best 93.41% (164 bytes = retail's 41 insns, store order and every relocation retail's; residual is only the 'addiu v0,zero,3' position and the v1/a0 constant rotation it causes). Blocked by the levers.md entry h-a-return-constant-leads-the-store-group-only-in-retail: any 'return 3' set lands after the stores and cse deletes any constant local that would move it. Round 484 re-measured this live at 93.41 and added one negative: 'u8 nRet = 3' inside the do-block returned after it also measures 93.41 (folded back), so the per-mode cse escape does not apply here.
 /*
@@ -1748,6 +1763,7 @@ int func_8007FC8C(int index) {
     return 3;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
+
 
 
 
