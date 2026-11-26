@@ -764,6 +764,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
 // Residual: retail case 1 keeps the store value as its OWN induction variable (addiu a0,a0,1 in an out-of-line continue block, loop test slti v0,a0,30 on it, no separate index increment - the table is a pointer biv stepping by 4) and RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) every iteration, while this compile recomputes addiu a3,a1,1 per pass and hoists menuUnk2. Cases 0 and 2 (single-test loops) hoist in both compiles, so the hoist/heuristic difference is the two-load && body: same residual as the three siblings (func_801CA1D4 85.81, func_801CA5F0 84.72, func_801C9EF4 86.49).
 // 
 // Tried this round (each measured): for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1], no pMenu, 84.62 / 360 / 90; same with pMenu, 85.82 / 352 / 88; two counters for (n = a1 + 1, i = a1; n < 0x1E; n++, i++), 86.30 / 352 / 88; pMenu body above, 86.47 / 356 / 89. Preset re-screened earlier on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64).
+// Best attempt: 86.47% (356 bytes / 89 insns vs retail's 368 / 92; this is the pMenu-local body below). The three cases share one register assignment; cases 0 and 2 are exact, case 1 is 3 instructions short.
+// 
+// What got here from 85.27: assigning the menuUnk2 load to a case-local MenuUnk2* pMenu as the FIRST statement of each loop body (and once in case 2) instead of spelling g_Menu->menuUnk2 inline - it moved the store value to a3 and the struct base to a2, i.e. retail's own assignment. The permuter led to it (base 1349 -> 1029) but its candidate read new_var uninitialised in cases 1 and 2, which is wrong code; the honest version initialises pMenu in every case and still measures 86.47.
+// 
+// Residual: retail case 1 keeps the store value as its OWN induction variable (addiu a0,a0,1 in an out-of-line continue block, loop test slti v0,a0,30 on it, no separate index increment - the table is a pointer biv stepping by 4) and RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) every iteration, while this compile recomputes addiu a3,a1,1 per pass and hoists menuUnk2. Cases 0 and 2 (single-test loops) hoist in both compiles, so the difference is the two-load && body.
+// 
+// MECHANISM PROVEN by probe: inserting the self-assignment g_Menu->menuUnk2 = g_Menu->menuUnk2; as the loop body's third statement measures 88.64% at retail's exact 368 bytes / 92 insns - it makes the load non-invariant, which is the ONLY way found to stop the hoist (the hoist is loop.c invariant motion, not the savings heuristic: an invariant load that is redefined in the loop cannot be moved at all). The store is emitted (sw a0,812(t0) next to the lw) so the probe is one instruction too many and is not shippable C; nothing in retail's loop writes g_Menu->menuUnk2, so the retail source is NOT this. Park shape confirmed, spelling unknown.
+// 
+// Tried this round (each measured): for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1], no pMenu, 84.62 / 360 / 90; same with pMenu, 85.82 / 352 / 88; two counters for (n = a1 + 1, i = a1; n < 0x1E; n++, i++), 86.30 / 352 / 88; pMenu body above, 86.47 / 356 / 89. Preset re-screened earlier on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64). Same wall as the three siblings (func_801CA1D4 85.81, func_801CA5F0 84.72, func_801C9EF4 86.49).
 /*
 void func_801CA480(s32 a0, s32 a1) {
     MenuUnk2* pMenu;
@@ -801,6 +810,7 @@ void func_801CA480(s32 a0, s32 a1) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
+
 
 
 
