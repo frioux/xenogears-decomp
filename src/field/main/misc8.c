@@ -1248,6 +1248,14 @@ typedef struct {
 // 1448 / 362; the same with the s16-dy body's earlier statement order 95.46 / 1448 / 362;
 // 's32 dy' / chained 'delta.vy = dy = ...' (R461/R487) 362; 'dy = delta.vy;' placed after
 // the target loads 94.86 / 1452 / 363 (cc1 re-expands the load AND the truncation).
+// R525 re-measured after unpark: 96.98% / 1436 bytes / 359 insns against retail's 1424 / 358,
+// unchanged - the one surplus instruction is the 'lh v0,82(sp)' reload of delta.vy in the
+// angle expression (retail's HImode conversion rides a freed callee-saved register). Lever
+// j-a-call-crossing-narrow-delta-always-costs-a-new-saved-register covers exactly this body
+// and says the reload body is the best reachable shape; no spelling was retried (see the
+// R461/R487/R510 blocks below for the measured variants, allocator dumps and permuter run).
+// Do not reopen without a new lever.
+
 /*
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     IVEC3 moveVec;
@@ -1380,6 +1388,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+
 
 
 
