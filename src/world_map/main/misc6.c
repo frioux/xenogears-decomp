@@ -300,6 +300,10 @@ extern int func_80080578(int);
 extern int WorldMapUpdateCameraSlot(int);
 extern int WorldMapInitActorScript(int);
 extern s16 g_WorldMapCameraRot[];
+// Second declaration with an asm label: a bare scalar read/write leaves the address to the
+// assembler ($at / the destination register) at each site, where the array form keeps it in one
+// register - retail re-forms it per access.
+extern s16 g_WorldMapCameraRotScalar __asm__("g_WorldMapCameraRot");
 extern u16 g_WorldMapViewRotationZ;
 extern u16 g_WorldMapPathFrame;
 extern u16 D_8009BD42[];
@@ -871,51 +875,38 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 
 
 
-// 91.59% (1736 bytes, 434 insns against retail's 1752 / 438), round 477.
-// Three fixes this round, in order of what they taught:
-//   - the state-16 arm had case 24's corner: retail's state 16 shares state 1's
-//     (0x1F9DFFF / 0x5998000 / 0x1F9E000), the old park carried 0x2151FFF /
-//     0x5AA3000 / 0x2152000 there. That was wrong code, not just a score.
-//   - storing unk7C BEFORE state in the state-16 arm stops gcc cross-jumping the
-//     states 1/16 tails (the merge shared the state store and one sw to 0x7C):
-//     1720 -> 1732 bytes, 91.55.
-//   - the "CameraRot = 0x80" store must be a volatile store, else reorg sinks it
-//     into the exit j's delay slot where retail keeps it before the jump with a
-//     nop in the slot: 1732 -> 1736, 91.59.
-// Residual = 4 insns, one cause: gcc CSEs g_WorldMapCameraRot's ADDRESS into $a1
-// for the three accesses in the shared states 1/16/24 tail and for the state-3
-// tail's "CameraRot -= 4", while retail re-forms the address per access (lui $v1 +
-// lhu, lui $at + sh, lui $v1 + lh). Measured dead this round: the scalar extern
-// "extern s16 g_WorldMapCameraRot;" (88.82 - the old note's 88.21 is real), a
-// volatile on the declaration (85.08), a volatile cast on the ">= 0x81" load
-// (89.46: gcc zexts it, adding sll/sra - it does get the byte count to 436,
-// retail's macro forms, but wrecks the order), a volatile cast on the "+=" (91.59,
-// no change). Also unspelled: in the states 1/24 tail our sw of CameraTargetZ
-// lands after the state store where retail has it before (same insn count, sched2).
-// Preset re-ruled-out earlier: 2.6.0 48.62, 2.7.2-cdk 92.03. Below the 99%
-// threshold, so no permuter run this round.
-// best 91.59% / 1736 bytes / 434 insns (retail 1752 / 438), round 490 re-measure.
-// The residual is ONE thing: the shared states 1/16/24 tail. Retail forms all four
-// g_WorldMapCameraRot accesses symbolically (lui+lhu, lui $at+sh, lui+lh, lui $at+sh =
-// 8 insns); the array extern makes cc1 cse the address into one 'la' + base+0 accesses
-// (6 insns), so the body is 2 short there and 1 short in the state-3 tail.
-// Round 490 got the FORM right and proved the order is what blocks it:
-//  (1) a scalar alias for the three moving-camera arms, array kept elsewhere -
-//      'extern s16 g_WorldMapCameraRotScalar __asm__("g_WorldMapCameraRot");' -
-//      gives retail's per-access symbolic forms (1748 bytes / 437 insns, 4 from retail)
-//      but the clamp compare then FORWARDS the just-stored value (+sll/sra) and sched2
-//      hoists the CameraHeight update above the whole CameraRot group: 89.10%.
-//  (2) the same alias declared volatile (no forwarding, volatile barriers pin the
-//      order): 89.88% / 1756 / 439 - the barrier pushes the non-volatile CameraHeight
-//      update ABOVE the CameraRot load instead.
-//  (3) (2) plus '*(volatile s32 *)&g_WorldMapCameraHeight += 0x8000;' in the arms:
-//      90.22% / 1756 / 439.
-// cc1_probe (round 490) shows the mechanism directly: the SAME block with the global
-// as 'extern s16 g[]' -> 'la $5,g' + lhu/sh 0($5); as 'extern s16 g' -> lhu/sh $3,g
-// per site (retail's macro shape). So the array decl buys retail's ORDER and the
-// scalar decl buys retail's FORMS; no single declaration spelling gives both, and the
-// baseline keeps the order (and so the better score). Earlier: -G0 91.59 identical,
-// 2.6.0 48.62, 2.7.2-cdk 92.03, permuter 2 runs PERMUTER_NONE.
+// 97.56% (1752 bytes / 438 insns = retail's exact size and count), round 504.
+// The whole residual is now ONE reorder in the case-3 arm: retail is `lw v1,0(t0)` (X) /
+// `li a0,0xff80` / X add / `slt a2` / X store / Y load / Z load / Y add / Z add / Y store /
+// Z store, while the body loads Z before the X add and stores Z before Y (2 slots, same
+// insns). Everything else in the function is retail's instruction for instruction.
+// Four finds this round, each measured (each was 5-15 fuzzy points):
+//   - `*(volatile s16 *)&pActor->state = 2;` (also 0x11, 0x19 in the state-16/24 arms).
+//     91.59 -> 94.82: with plain stores sched2 hoists the state store above the
+//     CameraTargetZ store in the states 1/16/24 arms; a volatile store cannot be crossed.
+//   - the state-16 arm's source order must then be state THEN unk7C (94.82 -> 96.37):
+//     with the state store pinned, unk7C-first costs an instruction (its store leaves the
+//     j delay slot and a nop appears), and the cross-jump the old note avoided does not
+//     happen because the volatile store is a barrier.
+//   - `*(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;`
+//     94.82 -> 97.56: the volatile DESTINATION store pins the scale store below the
+//     CameraRot group (sched2 had hoisted the whole CameraHeight group above it), and the
+//     volatile READ keeps the second scale load at its source slot instead of hoisting it.
+//   - the CameraRot split the earlier rounds bracketed: `g_WorldMapCameraRotScalar`
+//     (asm-label scalar alias) for the += / -= gives retail's per-access `lui $v1; lhu`
+//     and `lui $at; sh` forms, while the ARRAY declaration is kept for the `>= 0x81`
+//     compare and the `= 0x80` clamp store - two distinct objects to cse, so the compare
+//     really reloads (`lh`) instead of forwarding the just-stored value (+sll/sra), and
+//     the la that the array keeps is what stops the += store from sinking.
+// Measured dead this round: a local for the 0xFFFB3C00 constant, both as s32 (folds back,
+// no change) and as the permuter's s16 (97.94% / 1744 bytes - WRONG CODE: the constant
+// truncates to 0x3C00 and the add becomes one addiu, which is where its two bytes went);
+// two s32 locals for the Y/Z sums (identical body); volatile casts on the Y and Z stores
+// (1760 bytes, 97.37 - the address-of a scalar forces a la per use).
+// Permuter 3 min -j2: base 925 best 632, the find above (s16 truncation), rejected.
+// Preset re-screen on this body: 2.6.0 97.23, 2.7.2-cdk 85.54, -O3 compile-failed, so the
+// unit preset is right. History, still valid: -G0 identical, the array form alone buys the
+// ORDER and the scalar form alone the FORMS (cc1_probe proof in round 490).
 
 /*
 s32 func_8007E4E4(int index) {
@@ -1006,7 +997,7 @@ s32 func_8007E4E4(int index) {
         if (g_WorldMapCameraTarget[0] <= 0x1F9DFFF && g_WorldMapCameraTargetZ > 0x5998000) {
             g_WorldMapCameraTarget[0] = 0x1F9E000;
             g_WorldMapCameraTargetZ = 0x5998000;
-            pActor->state = 2;
+            *(volatile s16 *)&pActor->state = 2;
             pActor->unk7C = 0x10000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
@@ -1014,11 +1005,11 @@ s32 func_8007E4E4(int index) {
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
-        g_WorldMapCameraRot[0] += pActor->scale >> 12;
-        pActor->scale += 0x300;
+        g_WorldMapCameraRotScalar += pActor->scale >> 12;
+        *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
         }
         break;
     case 2:
@@ -1043,7 +1034,7 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapCameraHeight += 0x20000;
         g_WorldMapViewRotationY[0] += 0x20;
-        g_WorldMapCameraRot[0] -= 4;
+        g_WorldMapCameraRotScalar -= 4;
         break;
     case 4:
         g_WorldMapViewRotationY[0] += pActor->scale >> 12;
@@ -1066,19 +1057,19 @@ s32 func_8007E4E4(int index) {
         if (g_WorldMapCameraTarget[0] <= 0x1F9DFFF && g_WorldMapCameraTargetZ > 0x5998000) {
             g_WorldMapCameraTarget[0] = 0x1F9E000;
             g_WorldMapCameraTargetZ = 0x5998000;
+            *(volatile s16 *)&pActor->state = 0x11;
             pActor->unk7C = 0x8000;
-            pActor->state = 0x11;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
-        g_WorldMapCameraRot[0] += pActor->scale >> 12;
-        pActor->scale += 0x300;
+        g_WorldMapCameraRotScalar += pActor->scale >> 12;
+        *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
         }
         break;
     case 17:
@@ -1093,7 +1084,7 @@ s32 func_8007E4E4(int index) {
         if (g_WorldMapCameraTarget[0] <= 0x2151FFF && g_WorldMapCameraTargetZ > 0x5AA3000) {
             g_WorldMapCameraTarget[0] = 0x2152000;
             g_WorldMapCameraTargetZ = 0x5AA3000;
-            pActor->state = 0x19;
+            *(volatile s16 *)&pActor->state = 0x19;
             pActor->unk60[0] = 0x10000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
@@ -1101,11 +1092,11 @@ s32 func_8007E4E4(int index) {
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
-        g_WorldMapCameraRot[0] += pActor->scale >> 12;
-        pActor->scale += 0x300;
+        g_WorldMapCameraRotScalar += pActor->scale >> 12;
+        *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRot[0] = 0x80;
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
         }
         break;
     case 25:
@@ -1123,6 +1114,7 @@ s32 func_8007E4E4(int index) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
+
 
 
 
