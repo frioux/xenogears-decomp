@@ -268,8 +268,8 @@ extern void BattleDwordRegSetImm(u8 **ppCommand, u8 slot);
 extern void func_8007AA60(u8 **ppCommand, u8 slot);
 extern void BattleWordRegSubImmClamp(u8 **ppCommand, u8 slot);
 extern void BattleWordRegMulImmClamp(u8 **ppCommand, u8 slot);
-extern void func_8007ACDC(u8 **ppCommand, u8 slot);
-extern void func_8007AD24(u8 **ppCommand, u8 slot);
+extern void BattleWordRegDivImm(u8 **ppCommand, u8 slot);
+extern void BattleWordRegModImm(u8 **ppCommand, u8 slot);
 extern s32 BattleByteRegCopyToMatchedSlot(u8 **ppCommand, u8 slot, u8 row);
 extern void BattleDwordRegSetFromSlotArgs(u8 **ppCommand, u8 slot);
 extern s32 BattleSlotArgsStoreDwordFromReg(u8 **ppCommand, u8 slot, u8 row);
@@ -360,10 +360,10 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleWordRegMulImmClamp(ppCommand, slot);
         break;
     case 0x13:
-        func_8007ACDC(ppCommand, slot);
+        BattleWordRegDivImm(ppCommand, slot);
         break;
     case 0x14:
-        func_8007AD24(ppCommand, slot);
+        BattleWordRegModImm(ppCommand, slot);
         break;
     case 0x15:
         BattleWordRegAndImm(ppCommand, slot);

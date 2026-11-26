@@ -34,13 +34,13 @@ void BattleWordRegMulImmClamp(u8 **p, u8 index) {
     g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] = value;
 }
 
-void func_8007ACDC(u8 **p, u8 index) {
+void BattleWordRegDivImm(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] /= (pArgs[3] << 8) + pArgs[2];
 }
 
-void func_8007AD24(u8 **p, u8 index) {
+void BattleWordRegModImm(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     g_BattleSlotWordRegs[index].wordRegs[pArgs[1]] %= (pArgs[3] << 8) + pArgs[2];
