@@ -465,6 +465,31 @@ void BattleResetActorDrawState(u8 arg0) {
 //       untried spelling. Also evidence against retyping 0x800D32A0 as one 8-byte-row
 //       struct: g_BattleSlotDisplayValue/Flags/gauge are bytes 0/1/4 of one 8-byte
 //       row, yet retail addresses each through its own symbol with its own $at.
+// PARKED 96.45% (2424 bytes / 606 insns against retail 2432 / 608). Round 513 took it
+// from 95.01 to 96.45 with one edit: the final countdown store now reads its source
+// through the timers symbol own base, `g_BattleSlotCountdownTimers[arg0 - 0xB]`
+// (g_BattleSlotDisplayValues is exactly 0x16 before it, the idiom misc1.c already
+// uses), so retail one `lui a1/addiu a1` base plus the -0x16 displacement appears
+// instead of two $at formations.
+// Residual, in address order, all measured on this body:
+//   (a) the `andi a1,s2,0xff` that retail puts in the first `bne` delay slot is
+//       rematerialised three instructions later here (and the char-4 arm then needs
+//       one extra `andi v0,s2,0xff` before its `sll`): 1 insn of the 2-insn gap.
+//   (b) the loop re-forms nothing: retail does `lui at %hi(g_BattleSlotFlags)` +
+//       `addu at,at,v0` + `lbu %lo(at)` on every iteration, this body hoists the
+//       address once into s3 before the loop (the known unsolved "gcc keeps a
+//       symbol address in a callee-saved register across calls" lever).
+//   (c) the tail `if (g_BattleCommandQueue[0x2E3])` block: retail forms
+//       `lui at %hi(g_BattleSlotDisplayValue)` + `addu at,at,a0` FOUR times (23
+//       insns), this body hoists one `la` and reuses it (16). The park note of
+//       round 488 probed every spelling here and recorded it as a blocker; the one
+//       new datum is that gcc-2.6.0 hoists it too, so it is not a 2.6.0 body either.
+//   (d) two `addu` operand orders stay mirrored (`addu v1,s1,v1` for retail
+//       `addu v1,v1,s1`) at the targetSlotId sites, and `andi v1,s2,0xff` vs
+//       `andi a0,s2,0xff` at the panelMode clear.
+// Preset legs re-measured this round on this body: unit flags 96.45, gcc-2.6.0
+// 97.76 (it closes (a) and (b) but not (c), and it drops two already-matched
+// neighbours of this unit), cdk 85.02 per round 488. -G0 was byte-identical.
 /*
 void func_80080160(u8 arg0) {
     u8 gauge;
@@ -664,11 +689,12 @@ void func_80080160(u8 arg0) {
         BattleResetActorDrawState(arg0);
         BattleReleaseEffectSlotIfChar4(arg0);
     }
-    g_BattleSlotCountdownTimers[arg0] = g_BattleSlotDisplayValues[arg0];
+    // g_BattleSlotDisplayValues is the 11 u16 before the countdown timers; retail
+    // forms one base off the timers symbol (read at -0x16) rather than two.
+    g_BattleSlotCountdownTimers[arg0] = g_BattleSlotCountdownTimers[arg0 - 0xB];
     ((BattleWork *)g_BattleDisplayState)->slotMarks[arg0] = 1;
     D_800C4928 = 0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
