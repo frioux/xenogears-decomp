@@ -98,6 +98,21 @@ extern const char D_80018C04[]; // .rodata, "0123456789abcdef"
 // switch table), and the stub's .s supplies that table, so a conversion must also be
 // proven with tools/scripts/check_bin.sh slus_006.64.
 // Round 487: 99.78%, exact size, only the ap/ap+4 register pair mirrored in the four vararg arms - see the note above for the -dl evidence.
+// Round 500 re-measured 99.78% / 2140 bytes / the same 193 differing lines and read the allocno
+// numbers out of the dumps (-da/-dl write them beside build/src/slus_006.64/psyq/libc_sprintf.c.i):
+// the pair is identical in all six fetch sites (the memory-loaded ap "used 9 times across 4 insns",
+// ap+4 "6 times across 2 insns") and yet they hand out two ways. The two arms that MATCH retail
+// (the '*' width and the '.'-'*' precision, block 16/23, ap = pseudo 109/142, ap+4 = 110/143) put
+// the 6-ref side in $v0 because the fetched value there is a disposable temp (pseudo 113/146, it
+// dies at the store to fmt.width) and THAT qty takes $v0, so ap cannot and lands in $v1. In the
+// four `value` arms (block 36/42/59/79, ap = 190/201/238/267) the load result is reg/v:SI 80 - the
+// function-long `value` pinned to $a0 by the decimal path - so nothing displaces the pair and
+// local-alloc's ref order gives the 9-ref ap $v0. Retail's order there therefore needs `value` to
+// be a block-local temp in $v0 with a copy into the $a0 value, i.e. one instruction retail does not
+// have, which is why every spelling that routes the fetch through a temp is coalesced away.
+// MEASURED DEAD round 500, each 99.78% / 2140 bytes with the same 193 differing lines and an
+// unchanged dump: `fetched = va_arg(...)` inside the barrier with `value = fetched;` AFTER it (one
+// arm), which is the width arms' shape; and the same edit at all four sites at once.
 /*
 int Sprintf(char* pDst, char* pFormat, ...) {
     char work[SPRINTF_WORK_SIZE];
