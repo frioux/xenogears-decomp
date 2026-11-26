@@ -567,6 +567,24 @@ void BattleActorResetUnk15D8(UnkStruct1* p) {
 //    3. Do NOT merge the two stateFlags statements into one expression ((p->stateFlags & ~0xC) & ~3 measured 191/764, worse).
 //    RESIDUAL, one construct: retail has ONE 'lw a1,0xD4' / 'and ~0xC' ... / 'and ~3' / ONE 'sw a1,0xD4' with the second and and the store placed AFTER the flags block, i.e. the stateFlags pseudo is live across the flags RMWs in $a1. Every spelling tried either merges into a compact group (adjacent statements: 1 lw + 2 and + 1 sw but stored early, 193/772) or emits two load/store pairs (separated statements: 195/780, this body, 80.76%). Getting retail needs the merge AND the late store, which only sched2 can do once the register pressure puts the value in a1. Related: retail's 0xFF7FFFFF mask is in $a2 and its speed in $a0; this body has the mask in $a1.
 //    Everything else measured this round: split flags into two statements (required, retail has two ors with lui 0x2/lui 0x200) - correct; modelIndex/actionPhaseTimer zeros present - correct.
+// ROUND 525: 81.43% / 780 / 195, the same size, from TWO source changes measured
+// together: a 'u32 stateFlags' local carrying 'stateFlags = p->stateFlags & ~0xC;'
+// ... 'stateFlags &= ~3;' ... 'p->stateFlags = stateFlags;', and
+// 'p->facingOffset = p->sideBaseAngle + 0x800;' moved BETWEEN the two flags
+// statements (flags = (flags & ~0x1000) | 0x2000000;  facingOffset;  flags |= 0x20000;).
+// That is the trade the round-500 note called unreachable: the local merges the two
+// stateFlags statements into retail's single lw + two ands + single sw (written late,
+// after the sh to 0xCE), and moving facingOffset splits the flags pair into two
+// lw/sw RMWs, which retail also has. RESIDUAL now: retail issues both of the first
+// flags RMW's ors
+// before its store and keeps the 0xFF7FFFFF mask in a2 from the top of the block;
+// ours stores after the 0x2000000 or and re-forms lui 0x2 for the second or - one
+// moved store, same instruction multiset. Measured and rejected this round:
+//   do{...}while(0) around the zero-init block through D_8009264E = 1 (91.14% but
+//   197 insns / 788 bytes - two insns over retail, cannot link);
+//   a u32 stateFlags local for the two RMWs (83.12 / 772 - store early, two short);
+//   flags statements separated with facingOffset AND the local (195/780, 81.43).
+//   permute.sh 4 min: base=2205 best=1720, and the best candidate was the do/while.
 /*
 void func_80078F00(Actor* p) {
     ActorPart* pPart;
@@ -574,6 +592,7 @@ void func_80078F00(Actor* p) {
     ActorScript* pScript;
     u16 face;
     s16 speed;
+    u32 stateFlags;
     s32 i;
 
     pPart = p->pPart;
@@ -624,13 +643,14 @@ void func_80078F00(Actor* p) {
     p->unkF4 = 1;
     BattleResetMessageQueue(p);
     p->prevPartIndex = 0xFF;
-    p->stateFlags &= ~0xC;
+    stateFlags = p->stateFlags & ~0xC;
     p->modelIndex = 0;
     p->actionPhaseTimer = 0;
     p->flags = (p->flags & ~0x1000) | 0x2000000;
-    p->flags |= 0x20000;
     p->facingOffset = p->sideBaseAngle + 0x800;
-    p->stateFlags &= ~3;
+    p->flags |= 0x20000;
+    stateFlags &= ~3;
+    p->stateFlags = stateFlags;
     p->flags &= 0xFF7FFFFF;
     p->stepScale = pScript->stepScale;
     speed = pScript->speedScale;
@@ -662,6 +682,7 @@ void func_80078F00(Actor* p) {
     p->stateFlags &= ~0x40;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
+
 
 
 
