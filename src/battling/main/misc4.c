@@ -560,12 +560,20 @@ void BattleActorResetUnk15D8(UnkStruct1* p) {
 //    3. retail loads pScript->speedScale (0xC) ONCE and stores it to both 0x15F4 and 0x15F2; the park's two pScript->speedScale statements give two lbu because the intervening stores may alias. Store the field and copy it back: p->baseSpeedScale = pScript->speedScale; p->speedScale = p->baseSpeedScale;  (or a s16 local) - measured, one lhu + two sh, retail's shape.
 //    Also: the two p->stateFlags &= statements must be ADJACENT in the source (stateFlags &= ~0xC; then &= ~3;). Separated by the flags/facing statements gcc emits two lw/and/sw groups; adjacent, cse merges them into retail's single lw + two ands + single sw.
 //    With all four spellings in place the body measures 83.69% / 768 bytes / 192 insns: the instruction MULTISET then matches retail's exactly except that retail pays a load-delay nop after lbu 0xF(s1) (its sh to 0x15F0 stays adjacent) where ours sinks that store past the 0x1654 zero-stores, i.e. the residual is sched2's placement of one store, not a missing statement. The percentage DROPS because objdiff scores per position; take the statement fixes anyway, they are what retail actually is.
+// ROUND 500: SHIPPABLE-BASE BODY, retail's EXACT 780 bytes / 195 insns (was 191). Instruction multiset now matches retail except TWO load-delay nops and one pair of split RMWs; 100 differing lines are register names + statement positions only.
+//    NEW FACTS this round, measured:
+//    1. pScript->speedScale must be read through a LOCAL (s16 speed = pScript->speedScale; right after p->stepScale) - gcc cannot hoist the lhu past the stores to p, so the two-statement 'p->baseSpeedScale = pScript->speedScale; p->speedScale = p->baseSpeedScale;' form loads it LATE. The local brings retail's early lhu AND restores the load-delay nop after 'lbu 0xF(s1)' (193 -> 195 insns).
+//    2. The gauge stores' source order is value, prevValue(0x8), percent(0x4), frameStart, frameCurrent - NOT struct order. Retail really does store 0x8 before 0x4 (asm 0x80079148 sw then 0x80079170 sb). Do not 'fix' it to struct order.
+//    3. Do NOT merge the two stateFlags statements into one expression ((p->stateFlags & ~0xC) & ~3 measured 191/764, worse).
+//    RESIDUAL, one construct: retail has ONE 'lw a1,0xD4' / 'and ~0xC' ... / 'and ~3' / ONE 'sw a1,0xD4' with the second and and the store placed AFTER the flags block, i.e. the stateFlags pseudo is live across the flags RMWs in $a1. Every spelling tried either merges into a compact group (adjacent statements: 1 lw + 2 and + 1 sw but stored early, 193/772) or emits two load/store pairs (separated statements: 195/780, this body, 80.76%). Getting retail needs the merge AND the late store, which only sched2 can do once the register pressure puts the value in a1. Related: retail's 0xFF7FFFFF mask is in $a2 and its speed in $a0; this body has the mask in $a1.
+//    Everything else measured this round: split flags into two statements (required, retail has two ors with lui 0x2/lui 0x200) - correct; modelIndex/actionPhaseTimer zeros present - correct.
 /*
 void func_80078F00(Actor* p) {
     ActorPart* pPart;
     ActorPartRot* pRot;
     ActorScript* pScript;
     u16 face;
+    s16 speed;
     s32 i;
 
     pPart = p->pPart;
@@ -617,11 +625,15 @@ void func_80078F00(Actor* p) {
     BattleResetMessageQueue(p);
     p->prevPartIndex = 0xFF;
     p->stateFlags &= ~0xC;
-    p->flags = (p->flags & ~0x1000) | 0x2000000 | 0x20000;
+    p->modelIndex = 0;
+    p->actionPhaseTimer = 0;
+    p->flags = (p->flags & ~0x1000) | 0x2000000;
+    p->flags |= 0x20000;
     p->facingOffset = p->sideBaseAngle + 0x800;
     p->stateFlags &= ~3;
     p->flags &= 0xFF7FFFFF;
     p->stepScale = pScript->stepScale;
+    speed = pScript->speedScale;
     p->unk15F6 = 0x100;
     p->unk15F8 = 0;
     p->gaugeLevelsMode1 = 0;
@@ -632,8 +644,8 @@ void func_80078F00(Actor* p) {
     p->flags &= ~4;
     p->flags &= ~2;
     p->flags &= ~0x38;
-    p->baseSpeedScale = pScript->speedScale;
-    p->speedScale = pScript->speedScale;
+    p->baseSpeedScale = speed;
+    p->speedScale = speed;
     p->stateFlags &= ~0x10;
     p->pActionEntry = D_8009264C;
     D_8009264E = 1;
@@ -650,6 +662,7 @@ void func_80078F00(Actor* p) {
     p->stateFlags &= ~0x40;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
+
 
 
 
@@ -1561,6 +1574,8 @@ extern void func_8007A768(Actor* p);
 //    this unit needed exactly that) survives as one long-lived pseudo.
 // ROUND 487: re-measured from the un-parked body: 88.89% / 472 bytes / 118 insns, unchanged.
 // Also tried the tail as a call argument, func_8007A768(g_BattleResultSide != 0 ? &g_BattleActor0 : &g_BattleActor1) - byte-identical 88.89, so the argument pseudo coalesces the same way. lever.py's regalloc entries all describe CALLEE-saved pairs under global-alloc; this is one caller-saved pseudo inside a single basic block (local-alloc), so no lever applies. Do not re-brief without a -da/-dl dump of the local-alloc priorities.
+// ROUND 500: re-measured 88.89% / 472 bytes / 118 insns (retail 472 / 117), unchanged. No new best; the park below is the four-round body and every lead in the note under it is measured dead.
+// 
 /*
 void func_8007AC3C(void) {
     Actor* pActor;
@@ -1583,6 +1598,7 @@ void func_8007AC3C(void) {
     func_8007A768(pActor);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
+
 
 
 
