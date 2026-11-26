@@ -762,7 +762,18 @@ extern void GamePartySyncStreamedData(void);
 // score exactly (all 100.00 except FieldUpdateRandomSkinSelection 99.83), so the
 // unit is a -G0 candidate but -G0 does not close it either; gcc-2.7.2-cdk 83.37,
 // cdk -G0 74.26.
-// TRIED, one line each (this round's new ones first):
+// TRIED, one line each (newest round first):
+//  - RE-MEASURED live this round: un-parked and diffed, 90.03% / 2644 bytes /
+//    661 insns (retail 2680 / 670), compiles from the park text - the number is
+//    not stale.
+//  - RECT* pRect = &g_FieldColorFillRect used for the MoveImage arguments only
+//    (field stores left on the global): flat at 90.03, gcc rematerialises the
+//    address per call all the same. The s0 kept-address of retail cannot be
+//    steered from the source this way.
+//  - `D_800ADCB0[i].x / [i].y` for both strip loops instead of the ++ walkers:
+//    87.25, and gcc still gives ONE base per table - it strength-reduces to
+//    `lhu $2,D_800ADCB0($16)` / `lh $5,D_800ADCC8($16)` rather than to retail's
+//    four walkers. The walkers are the better spelling, keep them.
 //  - queue[2]/queue[3] zeroed BEFORE pPalette = HeapAlloc(...): 88.93 -> 90.02
 //    (retail's store order), kept.
 //  - `nSize = (nStreamSize & 0xFFFFFF) + ...` instead of reloading
@@ -776,10 +787,11 @@ extern void GamePartySyncStreamedData(void);
 //  - rect/queue declaration order: what put the locals at retail's 0x18/0x20.
 //  - `void* pQueueBackup = NULL` (prologue `move fp,zero`): part of the 88.90.
 //  - nRequestCode local before the last request-code test: frame 0x70 -> 0x78.
-// OPEN: nStreamSize sits at 0x40 where retail uses 0x48 (retail has an 8-byte
-// object at 0x40 that no local of this body accounts for), and pStreamBuffer is
+// OPEN: nStreamSize sits at 0x40 where retail uses 0x48, and pStreamBuffer is
 // spilled to the stack where retail keeps it in $s7 - if that spill is fixed, the
-// free slot at 0x48 lands on retail's nStreamSize.
+// free slot at 0x48 lands on retail's nStreamSize. Retail's 0x40/0x44/0x4C are
+// never referenced (12 unaccounted bytes), so that slot is not a missing object,
+// just a different allocation.
 /*
 void func_800799D4(void) {
     RECT rect;
