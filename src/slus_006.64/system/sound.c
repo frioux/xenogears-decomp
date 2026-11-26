@@ -2716,19 +2716,48 @@ void SoundInitializeAudioManager(AudioManager* manager) {
 //      in source; a reload would need a call or an aliasing store retail does not have.
 // Also still off: retail hoists `sllv v0,v0,s5` (bit = 1 << i) before the two lw of aliveBits/muteFlags,
 // ours loads aliveBits first - a scheduler order in the same block, harmless while the count is short.
+// Round 506: 94.99% (544 bytes / 136 insns = retail's EXACT size), up from 83.91 (536/134). Four
+// source changes, each measured on its own, and the first one names the lever:
+//  1. `u32 mute = pManager->muteFlags;` before `bit = 1 << i;` (the old body read muteFlags inline in
+//     the ternary) - 91.32 / 544 / 136. Naming the mask moves the aliveBits store after the `and`, so
+//     reorg fills the beqz slot with it (retail's `sw a2,16(sp)` in the slot), the arms stop sharing the
+//     slot's `li` and retail's `j` reappears, and the stored value then dies in v0 which the following
+//     `lhu v0,16(s2)` clobbers - which is why retail RELOADS the halfword in `|= 4`. Both of the two
+//     gap-causes in the round-496 note closed with that one line.
+//  2. the `do { pWds = g_SoundWdsLinkedList; } while (0);` wrapper dropped for a plain if - 91.72, and
+//     the s6/s7 exchange (elementCount vs the WDS entry) disappeared with the allocno.
+//  3. `sndId` stored before `pWds` - 93.19 (retail: `lbu v0,22(s2)` then `sw s7,-4(s0)`).
+//  4. the `u32 value` local dropped for the soundId load (`pElement->soundId = *(u16*)(pSeqData+0x10);`)
+//     and only the script IP named (`u32 ip`) - 94.99: retail reuses the SHORT-LIVED v1 for both the
+//     soundId load and the IP sum, one local kept both in a0 across the whole store block.
+// NAMED RESIDUAL: one cluster, 28 differing lines, all in the store block after the flags walk, and no
+// byte in it (size already retail's):
+//  (a) the envelope loop's `j` and its strength-reduced pointer are MIRRORED: retail keeps j in a1
+//      (`li a1,0x3` in the flags-test delay slot, `addiu a1,a1,-1`/`bgez a1`, `addiu a0,a0,-32` in the
+//      bgez slot) with the pointer in a0; ours has j in a0 and the pointer in v1. A two-pseudo
+//      caller-saved hand-out, the class lever a-dead-if-else-block-flips-a-two-way-callee-saved-hand-out
+//      describes for callee-saved pairs - untried for caller-saved pairs.
+//  (b) sched2 sinks ours' `sb s5,-42(s0)` (elementIndex) and `sw ...,-40(s0)` (soundId) to the end of
+//      the fourteen zero stores; retail emits them early, right after `sb v0,-41(s0)`.
+//  (c) `and v0,v0,v1` (retail) vs `and v1,v1,v0` - commutative operand order, no byte cost.
+// MEASURED DEAD on this body: preset screen (gcc-2.7.2-cdk 81.24, -O3 compile-failed, -G0 83.91, -O1
+// 72.29 - all on the 83.91 body); `u16 activeFlag` + separate store (byte-identical to the ternary);
+// declaration order of `count` (byte-identical); aliveBits after the ternary 76.92 / 528 / 132; the
+// u16-local and `aliveBits |= bit;` last both worse. Below 99%, so no permuter run.
 /*
 void func_8003B424(AudioManager* pManager) {
+    s32 count = pManager->elementCount;
     u8* pSeqData;
     AudioElement* pElement;
     u16* pScriptOffset;
     SoundWDSEntry* pWds;
-    s32 count = pManager->elementCount;
-    u32 value;
+    u32 ip;
     u32 aliveBits;
     s32 bit;
     s32 i;
     s32 voice;
     s32 j;
+    u32 mute;
 
     if (count == 0) {
         return;
@@ -2742,26 +2771,24 @@ void func_8003B424(AudioManager* pManager) {
     pScriptOffset = (u16*)(pSeqData + 0x22);
     pWds = SoundFindWdsEntry(pManager->sndId);
     if (pWds == NULL) {
-        do {
-            pWds = g_SoundWdsLinkedList;
-        } while (0);
+        pWds = g_SoundWdsLinkedList;
     }
 
     do {
         if (*pScriptOffset != 0) {
+            mute = pManager->muteFlags;
             bit = 1 << i;
             aliveBits |= bit;
-            pElement->active_flag = (pManager->muteFlags & bit) ? 0x421 : 0x401;
+            pElement->active_flag = (mute & bit) ? 0x421 : 0x401;
             if (pManager->flags & 4) {
                 pElement->active_flag |= 4;
             }
 
             pElement->status_flags = 0x170;
             pElement->rampFlags = 0;
-            value = *(u16*)(pSeqData + 0x10);
             pElement->unk_0x07 = 0x10;
             pElement->elementIndex = i;
-            pElement->soundId = value;
+            pElement->soundId = *(u16*)(pSeqData + 0x10);
             pElement->octave = 0x3C;
             pElement->gateRatio = 0xF;
             pElement->loopIndex = 0xFFFF;
@@ -2783,16 +2810,16 @@ void func_8003B424(AudioManager* pManager) {
             pElement->voice_data.unkC = 0;
             pElement->voice_data.unkE = 0;
             pElement->activeEnvelopeMask = 0;
-            value = (u32)pSeqData + *pScriptOffset;
-            pElement->scriptStartIP = value;
-            pElement->pScriptIP = value;
+            ip = (u32)pSeqData + *pScriptOffset;
+            pElement->scriptStartIP = ip;
+            pElement->pScriptIP = ip;
 
             for (j = NUM_VOICE_ENVELOPES - 1; j >= 0; j--) {
                 pElement->envelopes[j].flags = 0;
             }
 
-            pElement->pWds = (u32)pWds;
             pElement->sndId = (u8)pManager->sndId;
+            pElement->pWds = (u32)pWds;
             if (pWds != NULL) {
                 SoundApplyToneToElement(0, pElement);
             }
@@ -2811,7 +2838,8 @@ void func_8003B424(AudioManager* pManager) {
     } while (--count != 0);
 
     pManager->activeElementMask = aliveBits;
-}*/
+}
+*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003B424);
 
 
@@ -4469,13 +4497,28 @@ u8* SoundScriptSetTriangleEnvelope1(u8* pScript, AudioManager* pAudioManager, Au
 // instruction COUNT, 48 differing lines, all register names. Also tried here: `s32 index = mode & 0xF;`
 // as an initialiser inside a bare block after the rateMask statement (the round-485 lead, scoped so it
 // cannot hoist) - byte-identical 93.66/61, so the tie is not about where index is born.
+// Round 506: 92.95% (244 bytes / 61 insns = retail's exact size), 26 differing lines, and retail's
+// EXACT prologue save order (`sw s1 / sw ra / sw s3 / sw s2 / sw s0`) - the in-place masked form
+// (lever an-in-place-mask-moves-the-hand-out-and-the-prologue-save-order). The rival body, the twin
+// func_8003E04C shape with a separate `s32 index = mode & 0xF;` and the split rateMask, measures
+// 93.66% but at 48 differing lines and rotates the whole callee-saved triple (element s2, volume s3,
+// masked s1, saves s2 before s1). Judge by lines/prologue: lever round 497 measured both on E04C and
+// round 512 re-measured them on D9A4.
+// NAMED RESIDUAL: `volume` and `mode` mirrored - retail lbu s2 (volume) / lbu s3 (mode), ours s3/s2 -
+// and everything downstream of it (addu 266-sh base, `sb s3,277` handlerIndex, the bgez slot: retail
+// keeps `sll a0,a0,0x18` there, ours schedules `andi s0,s2,0x10` and loses retail's
+// `andi a2,s3,0xf` + `move s3,a2` index copy). Round 512's -dl/-dg read on D9A4 (the envelopes[0]
+// copy) shows `mode` and `volume` as an ADJACENT pair in the printed hand-out list (`6 regs to
+// allocate: 89 77 73 75 76 71`, 75 in 18 / 76 in 19), which is why no spelling of either moves it;
+// retail needs volume's quotient ABOVE mode's, and round 497 already measured dead on these bodies:
+// every declaration order, both store orders (reload before rampStep), an empty do{}while(0), and
+// `s32 volume` (60 insns, loses the write-back `move`). Below 99%, so no permuter run.
 /*
 u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     short volume = pScript[0];
     s32 note = (s8)pScript[1];
     u8 mode = pScript[2];
     AudioEnvelope* pEnvelope;
-    s32 index;
     s32 flags;
     s32 rateMask;
 
@@ -4483,15 +4526,15 @@ u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
         if (volume != 0) {
             volume += (volume * volume) / 64;
             rateMask = mode & 0x10;
-            index = mode & 0xF;
             flags = (rateMask == 0) * 2;
+            mode &= 0xF;
             pEnvelope = &pAudioElements->envelopes[1];
-            pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, index);
+            pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, mode);
             pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
             pEnvelope->reload = volume;
             pEnvelope->delayReload = 0;
-            pEnvelope->pStepHandler = g_SoundEnvelopeStepHandlers[index];
-            pEnvelope->handlerIndex = index;
+            pEnvelope->pStepHandler = g_SoundEnvelopeStepHandlers[mode];
+            pEnvelope->handlerIndex = mode;
             pEnvelope->target = 1;
             pEnvelope->flags = flags + 1;
             pAudioElements->activeEnvelopeMask |= 0x2;
@@ -4500,7 +4543,8 @@ u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     }
 
     return pScript + 3;
-}*/
+}
+*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
 
 
