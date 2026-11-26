@@ -214,9 +214,7 @@ extern u8 D_800CEF23[];
    rematerialise the whole address chain); `u8 slot = arg0;` inside each arm on top of
    `bufOff` is 92.35% / 1460 bytes / 365 insns with 115 differing lines instead of 124, but
    it buys that with a no-op `move s5,s6` and 4 more bytes, so it is not the parked body.
-   ROUND 511 note on the size: neither body links (retail 1440).
-   Every
-   call, rectangle and store is retail's and the tail from BattleDrawCommandCellFrames onwards is
+   ROUND 511 note on the size: neither body links (retail 1440). Every call, rectangle and store is retail's and the tail from BattleDrawCommandCellFrames onwards is
    byte-identical; the residual is four bytes of register scheduling plus one hoist.
    Levers that were needed to get here:
    - the two 16-row scans read a byte of a 0x28-byte action row: the index must be
