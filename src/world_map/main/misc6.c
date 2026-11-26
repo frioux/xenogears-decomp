@@ -300,6 +300,10 @@ extern int func_80080578(int);
 extern int WorldMapUpdateCameraSlot(int);
 extern int WorldMapInitActorScript(int);
 extern s16 g_WorldMapCameraRot[];
+// Second declaration with an asm label: a bare scalar read/write leaves the address to the
+// assembler ($at / the destination register) at each site, where the array form keeps it in one
+// register - retail re-forms it per access.
+extern s16 g_WorldMapCameraRotScalar __asm__("g_WorldMapCameraRot");
 extern u16 g_WorldMapViewRotationZ;
 extern u16 g_WorldMapPathFrame;
 extern u16 D_8009BD42[];
@@ -917,7 +921,6 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 // baseline keeps the order (and so the better score). Earlier: -G0 91.59 identical,
 // 2.6.0 48.62, 2.7.2-cdk 92.03, permuter 2 runs PERMUTER_NONE.
 
-/*
 s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
@@ -1006,7 +1009,7 @@ s32 func_8007E4E4(int index) {
         if (g_WorldMapCameraTarget[0] <= 0x1F9DFFF && g_WorldMapCameraTargetZ > 0x5998000) {
             g_WorldMapCameraTarget[0] = 0x1F9E000;
             g_WorldMapCameraTargetZ = 0x5998000;
-            pActor->state = 2;
+            *(volatile s16 *)&pActor->state = 2;
             pActor->unk7C = 0x10000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
@@ -1014,7 +1017,7 @@ s32 func_8007E4E4(int index) {
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
-        g_WorldMapCameraRot[0] += pActor->scale >> 12;
+        g_WorldMapCameraRotScalar += pActor->scale >> 12;
         pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
@@ -1043,7 +1046,7 @@ s32 func_8007E4E4(int index) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapCameraHeight += 0x20000;
         g_WorldMapViewRotationY[0] += 0x20;
-        g_WorldMapCameraRot[0] -= 4;
+        g_WorldMapCameraRotScalar -= 4;
         break;
     case 4:
         g_WorldMapViewRotationY[0] += pActor->scale >> 12;
@@ -1067,14 +1070,14 @@ s32 func_8007E4E4(int index) {
             g_WorldMapCameraTarget[0] = 0x1F9E000;
             g_WorldMapCameraTargetZ = 0x5998000;
             pActor->unk7C = 0x8000;
-            pActor->state = 0x11;
+            *(volatile s16 *)&pActor->state = 0x11;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
-        g_WorldMapCameraRot[0] += pActor->scale >> 12;
+        g_WorldMapCameraRotScalar += pActor->scale >> 12;
         pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
@@ -1093,7 +1096,7 @@ s32 func_8007E4E4(int index) {
         if (g_WorldMapCameraTarget[0] <= 0x2151FFF && g_WorldMapCameraTargetZ > 0x5AA3000) {
             g_WorldMapCameraTarget[0] = 0x2152000;
             g_WorldMapCameraTargetZ = 0x5AA3000;
-            pActor->state = 0x19;
+            *(volatile s16 *)&pActor->state = 0x19;
             pActor->unk60[0] = 0x10000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
@@ -1101,7 +1104,7 @@ s32 func_8007E4E4(int index) {
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
-        g_WorldMapCameraRot[0] += pActor->scale >> 12;
+        g_WorldMapCameraRotScalar += pActor->scale >> 12;
         pActor->scale += 0x300;
         g_WorldMapCameraHeight += 0x8000;
         if (g_WorldMapCameraRot[0] >= 0x81) {
@@ -1121,8 +1124,7 @@ s32 func_8007E4E4(int index) {
     D_8009BD42[0] += nRandom;
     D_8009BD4A += *(u16 *)(0xA2 + pScratch);
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
+}
 
 
 
