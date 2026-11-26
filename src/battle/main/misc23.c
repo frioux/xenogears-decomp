@@ -1042,9 +1042,29 @@ extern void SoundAddSedsEntry(void *);
 extern void BattleAllocActorEntryArray(BattleActor *);
 extern void BattleSnapActorToGround(BattleActor *);
 
-// 89.84% (unit preset: gcc 2.6.0 -G0 --expand-div), 2404 bytes / 601 instructions
-// against retail's 2384 / 596. Body fully recovered; the residual is 4 instructions
-// plus a callee-saved rotation.
+// 90.05% (unit preset: gcc 2.6.0 -G0 --expand-div), 2400 bytes / 600 instructions
+// against retail's 2384 / 596. Body fully recovered; the residual is the whole
+// callee-saved hand-out plus 4 instructions of size.
+// WHAT CLOSED 89.84 -> 90.05 (round 507), keep it: the first HeapAlloc's result went
+// through the `pModelFile` local, which the final block REASSIGNS, so that one pseudo
+// needed a callee-saved register for the whole function. Retail keeps nothing there
+// (`jal HeapAlloc / move a0,v0 / sw a0,D_800C3B70 / jal memcpy`), i.e. the source stores
+// the call's result straight into D_800C3B70 and hands the global to memcpy. Dropping
+// the local: 2404 -> 2400 bytes, 601 -> 600 instructions.
+// Register map, ours vs retail - this IS the residual, everything else is a register name:
+//   retail s0 pFileEnd | s1 pHeader     | s2 pModelBuffer | s3 pActor  | s4 mode
+//          s5 pImage   | s6 pFile       | s7 pSpawnPos    | s8 flags
+//   ours   s0 pFileEnd | s1 pModelBuffer| s2 pActor      | s3 pImage  | s4 pFile
+//          s5 pSpawnPos| s6 mode        | s7 pHeader      | s8 flags
+// (the notes' old map was wrong about ours). Retail's pHeader outranks pModelBuffer in
+// global-alloc's order and ours ranks it last; retail then reuses $s2 for the poly loop's
+// actor copy where we reuse $s1, and so on down the line. Both hold the same COUNT of
+// long-lived values (8 plus flags in $s8, with ppBlocks spilled to 0x80(sp) in both).
+// Measured in round 507 and NOT the cause: the emission order of the pHeader/pImage/pFile/
+// pFileEnd loads (90.04, identical registers - the ranking decides, not the order), and
+// the `for (;;) { if (...) break; if (++i >= N) break; }` loop shape (byte-identical).
+// ppBlocks written as a re-read of pModelBuffer->ppBlocks at both sites instead of a
+// local is 87.38 / 2420: retail's 0x80(sp) slot is a genuinely spilled LOCAL, keep it.
 // WHAT CLOSED 84.71 -> 89.73 this round, keep it: the early block holds TWO VALUES IN
 // LOCALS ACROSS CALLS - `u8 **ppParts = pPartBuffer->ppParts;` used by both
 // ResolveArchiveEntryPointers calls, and `Temp8 *pSoundBank = pPartBuffer->pSoundBank;`
@@ -1071,11 +1091,7 @@ extern void BattleSnapActorToGround(BattleActor *);
 // (4) -1, pModelSource: retail has two `bnez` to ONE out-of-line `sw zero,172(s3)`; ours
 //     if-converts and leaves a dead `move s3,zero`. `if ((flags & 4) || (flags & 0x80))`
 //     is byte-identical to the if/else-if pair.
-// Register rotation left: retail pHeader $s1 / pModelBuffer $s2 / pActor $s3 / pFileEnd
-// $s0 / pImage $s5 / pFile $s6 / pSpawnPos $s7; ours pModelBuffer $s1 / pActor $s2 /
-// pFileEnd $s3 / pFile $s4 / pSpawnPos $s5 / pHeader $s7 / pImage $s0. Same COUNT of
-// long-lived values (eight plus the poly base in $s0), so this is hand-out order, not
-// pressure.
+// What is left is hand-out order, not pressure: see the register map at the top.
 // Preset ruled out on this body with try_flags.sh: 2.7.2 -G0 89.08, 2.7.2-cdk -G0
 // 77.34, 2.6.0 -O3 89.84 (identical), -O1 60.76.
 /*
@@ -1084,9 +1100,9 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
     BattleModelPartList *pPartList;
     BattleActor *pActor;
     Misc23ModelHeader *pHeader;
+    void **ppBlocks;
     void **ppParts;
     Temp8 *pSoundBank;
-    void **ppBlocks;
     Misc23Block *pBlocks;
     u16 *pData;
     u8 *pImage;
@@ -1148,9 +1164,8 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
         }
         func_8002DDE4(pImage, mode, arg4, arg5, mode, arg6, arg7);
         blockSize = pFileEnd - pFile;
-        pModelFile = HeapAlloc(blockSize, 1);
-        D_800C3B70 = pModelFile;
-        memcpy(pModelFile, pFile, blockSize);
+        D_800C3B70 = HeapAlloc(blockSize, 1);
+        memcpy(D_800C3B70, pFile, blockSize);
         D_800C3B6C = 0;
         while (D_800C3ACC[D_800C3B6C].pParts != NULL) {
             if (++D_800C3B6C >= BATTLE_MODEL_SLOT_COUNT) {
@@ -1274,9 +1289,9 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
     } else {
         pActor->pModelFile = 0;
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
+
 
 
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
