@@ -4550,7 +4550,27 @@ u8* SoundScriptSetTriangleEnvelope1(u8* pScript, AudioManager* pAudioManager, Au
 // retail needs volume's quotient ABOVE mode's, and round 497 already measured dead on these bodies:
 // every declaration order, both store orders (reload before rampStep), an empty do{}while(0), and
 // `s32 volume` (60 insns, loses the write-back `move`). Below 99%, so no permuter run.
-/*
+// Round 526 read this body's OWN -da -dl -dg (gcc-2.6.0, `7 regs to allocate: 82 90 73 78 74 71 75`,
+// dispositions 71 in 20 / 73 in 17 / 74 in 19 / 75 in 4 / 78 in 18) and the sort key is
+// `floor_log2(n_refs) * n_refs / live_length`, with NO size term: 2.67, 2.50, 0.900 (element 12 refs
+// across 40), 0.467 (mode 7 / 30), 0.385 (volume 5 / 26), 0.238 (pScript 5 / 42), 0.200 - monotone,
+// so the earlier "volume's quotient exceeds mode's" reading came from a size factor the sort does not
+// use. `mode` here is ONE merged pseudo carrying 7 references across the mask and the call, so it
+// outranks volume and holds s2 where retail holds s3. Volume can only clear 0.467 with 7 references
+// (0.538) or a live range of 21 insns (it is 26), and retail's own 244-byte stream pins both: its
+// five mentions ARE lbu / move v0 / addu / move back / sh 266, and the reload store sits after the
+// call by retail's own order. Measured dead this round, all byte-identical at 92.95 / 244 / 61: the
+// statement order rateMask, mode mask, flags (identical to rateMask, flags, mode mask), a
+// one-iteration do{}while(0) around the post-call store cluster, and splitting the ramp into
+// `s32 square = volume * volume;` plus `volume += square / 64;` (cse adds no reference to volume).
+// A separate masked value (`s32 index = mode & 0xF;`) buys the RIGHT quota order - its -da list is
+// `83 91 73 74 71 75 78`, element 0.900 then volume 0.385 then raw mode 0.214, which is retail's
+// order - but pseudo 78 then prints `preferences: 17`, so mode takes s1 BY PREFERENCE (from its
+// coalescing with index) and pushes element to s2: 93.66% / 244 bytes / 61 insns but 48 differing
+// lines and a mirrored prologue. That preference, not the quota, is the remaining lead. `u8 index`
+// instead of `s32 index` moves mode to s0 (worse).
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
+/*  92.95% / 244 bytes / 61 insns / 26 differing lines, retail's exact prologue save order:
 u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     short volume = pScript[0];
     s32 note = (s8)pScript[1];
@@ -4563,8 +4583,8 @@ u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
         if (volume != 0) {
             volume += (volume * volume) / 64;
             rateMask = mode & 0x10;
-            flags = (rateMask == 0) * 2;
             mode &= 0xF;
+            flags = (rateMask == 0) * 2;
             pEnvelope = &pAudioElements->envelopes[1];
             pEnvelope->delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, mode);
             pEnvelope->rampStep = SOUND_ENVELOPE_RAMP_SCALE;
@@ -4582,7 +4602,6 @@ u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
     return pScript + 3;
 }
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
 
 
 u8* SoundScriptSetEnvelope1Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
