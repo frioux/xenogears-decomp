@@ -575,6 +575,29 @@ void MenuFitInventoryWindowToItems(void) {
 // same first-vs-last cross-jump choice as (1), and one block-numbering toggle cannot flip both
 // (case 5's do-while flipped (1) and left (b) alone). Preset re-screened on THIS body, 2.6.0
 // still the unit's: unit 95.69, gcc-2.7.2 95.45, gcc-2.7.2-cdk 92.59.
+// ROUND 509 - BEST 99.84% / 896 bytes (= retail) / 224 insns (= retail), ONE residual.
+// The buy: the four movement arms (cases 1, 0, 3, 2) must put the BIG body in the if's
+// THEN arm and the single `col = col + n` in the ELSE arm (`if (col + 2 >= 0x10) { row++ ... } else col = col + 2;`),
+// not the natural `if (col + 2 < 0x10) col += 2; else {...}`. With the big body first, both
+// cross-jump-merged store blocks land where retail has them - the ++ family's at 0xF8 after
+// case 0's body and the -- family's at 0x120 after case 2's body - and the differing lines fall
+// 95.69 -> 97.77 (cases 1/0) -> 99.84 (cases 3/2) with the block order of the whole switch
+// (4, 5, 1, 3, 0, 2, 9, 10) and the shared prevCol block after case 10 all retail's.
+// RESIDUAL: the (active, needsOpen) pair is mirrored - retail active=$s6 / needsOpen=$s5, this
+// body active=$s5 / needsOpen=$s6. Quotient-closed by the repo triage rule: -dl on this body
+// (gcc-2.6.0, -O2 -G8 -da -dl -dg on build/src/menu/main/misc9.c.i) gives active = allocno 71
+// "used 9 times across 176 insns; 1 bytes" = 3*9*10000/176 = 1534 and needsOpen = 72
+// "used 5 times across 154 insns; 1 bytes" = 2*5*10000/154 = 649, a 2.36x gap, and processing
+// order `100 111 116 107 112 120 73 117 75 76 77 74 71 72 89 90` hands s0..s6 in that
+// descending order. Retail's map needs needsOpen at 8 refs (1558) or active at 5 refs (568);
+// both andis pin the two as QI and the stream pins their live ranges, so no spelling reaches it.
+// Measured dead this round: declaration order swap (byte-identical, map unchanged), init order
+// swap (flips only the prologue's sw order, map unchanged, 99.75), an empty do/while at the end
+// of case 2 (optimised away, unchanged), a 3-minute permuter run (base=25 best=25), and the
+// preset on THIS body: 2.6.0 99.84, gcc-2.7.2 99.60, gcc-2.7.2-cdk does not compile.
+// LAYOUT: this stub owns jtbl_801C50FC at +0x00 of [0xFC, .rodata, main/misc9] with .align 3
+// padding to 0x30, which is where func_801DDF24's table must start, so converting this one is
+// layout-safe on its own.
 /*
 s32 func_801DBE54(void) {
     u8 active;
@@ -642,50 +665,50 @@ s32 func_801DBE54(void) {
             do { } while (0);
             break;
         case 1:
-            if (col + 2 < 0x10) {
-                col = col + 2;
-            } else {
+            if (col + 2 >= 0x10) {
                 row++;
                 if (row > g_MenuInventoryRowCount) {
                     row--;
                 }
+            } else {
+                col = col + 2;
             }
             prevCol = 0xFF;
             break;
         case 3:
-            if (col - 2 >= 0) {
-                col = col - 2;
-            } else {
+            if (col - 2 < 0) {
                 row--;
                 if (row < 0) {
                     row++;
                 }
+            } else {
+                col = col - 2;
             }
             prevCol = 0xFF;
             break;
         case 0:
-            if (col + 1 < 0x10) {
-                col = col + 1;
-            } else {
+            if (col + 1 >= 0x10) {
                 row++;
                 if (row > g_MenuInventoryRowCount) {
                     row--;
                 } else {
                     col = 0xE;
                 }
+            } else {
+                col = col + 1;
             }
             prevCol = 0xFF;
             break;
         case 2:
-            if (col - 1 >= 0) {
-                col = col - 1;
-            } else {
+            if (col - 1 < 0) {
                 row--;
                 if (row < 0) {
                     row++;
                 } else {
                     col = 1;
                 }
+            } else {
+                col = col - 1;
             }
             prevCol = 0xFF;
             break;
@@ -712,6 +735,7 @@ s32 func_801DBE54(void) {
     return 1;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+
 
 
 
