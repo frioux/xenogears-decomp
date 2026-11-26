@@ -1891,6 +1891,23 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 // Permuter: two runs (4 and 3 min) on this body. The pPanelIds step above is its only find; its
 // other candidate wrapped a case body in `do { } while (0)` and scored IDENTICAL, so it was
 // rejected as unrealistic C. Preset is XenoMenu260 (gcc 2.6.0) and is right.
+// REDO ROUND 513: the parked body re-measured unchanged at 95.01% / 2768 bytes / 692 vs 706 insns.
+// Two new measurements, both closing a question this note left open:
+//   P1. PRESET, settled for good: try_flags --sweep gives 2.6.0 -O2 and -O3 95.01 (both -mcpu),
+//       2.7.2 -O2/-O3 90.50, 2.7.2-cdk -O2/-O3 84.57. XenoMenu260 is right; no preset lead here.
+//   P2. THE FRAME IS NOT A DECLARATION. A dead `u_long pad[2]` as the LAST local does reach retail's
+//       frame - `.frame $sp,208 # vars=144`, all 22 save/arg offsets at retail's, stack arg at
+//       0xE0 - but gcc 2.6 puts a dead aggregate's slot at the first free offset at expand time, so
+//       it takes 0x30 and pushes arg0..the arg4 copy up by 8: 450 differing lines, 94.95%, worse
+//       than 95.01. That proves retail's unused 0xA0 slot is not a declared local either: an
+//       aggregate decl gets a LOW slot and a dead scalar gets none, so an 8-byte object above the
+//       0x98 arg4-copy spill can only be a late RTL temp (-fpcc-struct-return buffer for a
+//       discarded call, or an inlined aggregate temp), and nothing in this body's call set returns
+//       a struct. Do not spend another round on declaration order or on a pad local.
+// Residual is the same as below: the frame (ours 0xC8/160, retail 0xD0/168, every save and the
+// stack argument 8 low) plus the two id-check blocks retail keeps duplicated (14 of the 706 insns);
+// everything else in the diff is register naming. The body must stay parked - it is 14 insns and
+// 56 bytes SHORT of retail, so converting it would move the overlay.
 /*
 s32 func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4) {
     RECT rect;
