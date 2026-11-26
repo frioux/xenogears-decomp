@@ -935,9 +935,9 @@ void func_80092B74(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 
 
-/* 94.01% (1224 bytes against retail s 1228, 306 vs 307 instructions) under this
+/* 94.01% (1224 bytes against retail's 1228, 306 vs 307 instructions) under this
 // unit gcc 2.6.0. Frame 0xB8 against retail 0xB0 and the ten saved values are
-// retail s; the four local slots 0x70/0x78/0x88 are 8 apart as retail s are.
+// retail's; the four local slots 0x70/0x78/0x88 are 8 apart as retail's are.
 // THE WIN this round (93.09 -> 94.01): move every read of the value pointer onto
 // a per-iteration copy, pCur = pValue at the top of the outer loop, with all
 // three *pCur uses and only pValue++ left on the original. That is the allocator
