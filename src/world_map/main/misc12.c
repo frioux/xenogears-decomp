@@ -166,17 +166,27 @@ s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
     }
     return -1;
 }
-// best: 98.59%, 868 bytes = retail's exact size, 217 vs retail's 218 insns.
-// Two residuals, both INSIDE arm 7 (.L8008E358) plus two known reloc spellings.
-// 1. Arm 7 ordering: retail is [state store][pos load][rot load][sw x][posZ load][nop][sw z]
+// best: 99.79%, 868 bytes = retail's exact size, 217 insns. The body below is INSTRUCTION-
+// IDENTICAL to retail except the head's scriptAngle register ($a0 here, retail $v1); the
+// other differing rows are spellings (both jtbl_ operands, `addiu s0,s2,%lo(D_1F8000A0)`
+// written as the folded literal 160, and the `j .L8008E3D8` arms, all check_bin-identical).
+// Round 516 CLOSED arm 7: three named loads do the work the barriers could not - `nRotation`
+// holds g_WorldMapPlayerRotation from the x block to the tail (that is what puts rot's load
+// in retail's first block and its `sh` two blocks later), and `nY`/`nQueued` name the two
+// tail loads so their `lw`s come out above the `sh` with retail's $v0/$a0 pair. The last
+// 0.2% came from extending nY's life to the return (`nY = nRet; return nY;`, permuter
+// PERMUTER_BETTER base=65 best=25): that one edit re-ranks the tail block's local hand-out
+// and swaps rot/posY from $a0/$v1 to retail's $v1/$a0, with no other instruction moving.
+// History of the same arm, for anyone retrying here. Retail is [state store][pos load]
+//    [rot load][sw x][posZ load][nop][sw z]
 //    [posY load][queued load][sh angle][sw unk74][sw y]; this body loads rot first and
 //    stores angle in that first block. The `do { } while (0);` barriers after state/x/z
 //    (a measured lever, h-an-empty-do-while-pins-a-run-of-stores) are what bought 91.93 ->
 //    98.59 and retail's byte count; without them the arm batches all five loads and is two
 //    nops short (860 bytes). Retail's angle store sits TWO blocks below its load, which no
 //    statement order reaches; only an early `nRotation = g_WorldMapPlayerRotation` local
-//    stored late would, and that is not C anyone typed. Tried and measured: no barriers
-//    (91.93), barriers after x and z with angle last (94.76, 868 bytes but load batching),
+//    stored late would, and that is what finally worked (see above). Tried and measured then:
+//    no barriers (91.93), barriers after x and z with angle last (94.76, 868 but batching),
 //    angle after x with barriers (97.23), angle first with barriers (98.59 = best).
 // 2. Head: nAngle (g_GameState.scriptAngle) sits in $v1 in retail, $a0 here (4 lines).
 //    Moving `hidden = 0` above the WorldMapGetGameStatePosition call is what puts the
@@ -189,12 +199,25 @@ s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
 //    WorldMapModeInitGroupRotations' and reproduces its store order.
 // Presets measured on this body: cdk -O2 71.14, 2.6.0 -O2 86.81, -O1 73.35, -O3 76.35,
 // -fno-schedule-insns2 86.24 - the unit's XenoWorldMap flags are right.
+// Round 516 re-measured and closed the rest of the routes: a 4-minute permuter run reported
+// PERMUTER_NONE (base=295 best=295, 1697 iterations), so arm 7 is not a statement-order or
+// declaration edit. Dropping the nAngle local (head and both arms read pPlayer->angle
+// directly, which is what retail's two `lhu 72(s1)` reloads look like) is 93.12 / 852 bytes:
+// the local is load-bearing. Writing arm 7 as retail's own store order with no barriers
+// (state, x, z, angle, unk74, y) reproduces retail's STORE order and per-field registers
+// exactly but costs the nop (864 bytes, 95.05), because cc1 then batches all five loads above
+// the state store where retail interleaves [lw Position][lw Rotation][sw x][lw PositionZ]
+// [nop][sw z]; retail's PositionZ/PositionY/Queued loads all reuse $v0, so its serial
+// schedule follows from register reuse and no source order reproduced it (sched1 wall).
 /*
 s32 func_8008E190(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 *pScratchPos;
     s32 nRet;
     u16 nAngle;
+    s32 nY;
+    s32 nQueued;
+    s32 nRotation;
     pPlayer = g_WorldMapSlots + idx;
     pPlayer->hidden = 0;
     WorldMapGetGameStatePosition(&pPlayer->x);
@@ -253,13 +276,16 @@ s32 func_8008E190(s32 idx) {
     case 7:
         pPlayer->state = 2;
         do { } while (0);
-        pPlayer->angle = g_WorldMapPlayerRotation;
         pPlayer->x = g_WorldMapPlayerPosition;
+        nRotation = g_WorldMapPlayerRotation;
         do { } while (0);
         pPlayer->z = g_WorldMapPlayerPositionZ;
         do { } while (0);
-        pPlayer->y = g_WorldMapPlayerPositionY;
-        pPlayer->unk74 = g_WorldMapQueuedCharacterCount;
+        nY = g_WorldMapPlayerPositionY;
+        nQueued = g_WorldMapQueuedCharacterCount;
+        pPlayer->angle = nRotation;
+        pPlayer->unk74 = nQueued;
+        pPlayer->y = nY;
         *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
         g_WorldMapPlayerAngle = pPlayer->angle;
         break;
@@ -290,7 +316,8 @@ s32 func_8008E190(s32 idx) {
         pPlayer->pathIndex = 0;
         break;
     }
-    return nRet;
+    nY = nRet;
+    return nY;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
 
