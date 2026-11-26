@@ -1900,53 +1900,6 @@ extern void WorldMapStartSlot(s32, s32);
 
 #define WORLD_MAP_SCROLL_SNAP_STEP 64
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
-// best: 96.66%, 1656 bytes / 414 insns against retail's 1664 / 416 (TWO short).
-// Whole structure, relocations, both switches and both ramps decode; facts a later
-// agent should not re-derive (new levers measured this round are marked NEW):
-// - JTBL_LAYOUT: the two tables are retail's shape EXACTLY (9 entries + align pad =
-//   0x28 bytes, then 17 entries, so 0x28 apart - mine come out 0x20 and 0x48 in the
-//   object's .rodata, same 0x28 spacing), and the only difference is the
-//   SECTION-RELATIVE base parity: retail's first table sits at unit .rodata+0x1EC
-//   (4 mod 8), mine at +0x20 (0 mod 8) because cc1 .align 3's every table it emits.
-//   A 4-mod-8 table offset cannot be produced by C, so this function cannot be
-//   converted until the unit's rodata is moved to C as one address-ordered job (the
-//   note above func_80090C68), and even then the base parity has to be solved
-//   (retail's assembler evidently aligned tables to 4, not 8).
-// - NEW `__builtin_abs(delta.stepX)` on the STRUCT FIELD, not on a local and not the
-//   in-place `if (x < 0) x = -x;`: 90.31 -> 93.69 and it closed a 4-long deficit to
-//   retail's exact 1664. The in-place form on the field makes gcc store the negated
-//   value back to delta.stepX and reload it (90.31); on a separate local it also
-//   costs a move (89.71). Retail negates in the register the shift produced and
-//   leaves the field un-negated, which is what the builtin on the field gives.
-// - NEW `extern s32 g_WorldMapScrollX[];` + `g_WorldMapScrollX[0] += ...` reproduces
-//   retail's base-register form (`lui a0,%hi / addiu a0,%lo / lw v0,0(a0) / sw
-//   v0,0(a0)`) at all three walk sites: 93.69 -> 96.66 and -8 bytes. A scalar
-//   `extern s32 g_WorldMapScrollX;` with `+=` gives the `lui at` macro form instead.
-//   That X is an array element and Y/Z are scalars is retail's own shape (it keeps
-//   &g_WorldMapScrollTargetX in $s1 across the call while Y/Z use symbol macros), and
-//   it matches g_WorldMapScrollTargetX[0] already declared as an array here.
-// - The arms' `nYaw` local for the unk58 shift (`nYaw = (unk58 + ...) & 0xFFFFFF;
-//   unk58 = nYaw; g_WorldMapViewRotationY[0] = nYaw >> 12; if ((nYaw >> 12) == ...)`)
-//   removes a reload+shift per arm (-2 insns each); writing the field in all three
-//   places instead leaves retail's `sra v0,v0,0xc` feeding both uses unmatched.
-// - Left (2 insns): both walk tails. Retail loads g_WorldMapScrollTargetZ for
-//   `pPlayer->z = ...` LATE, after the scrollZ store, with a `nop` before the store;
-//   this body hoists it into the load-delay slot of `lw v1,16(sp)` / after
-//   `lw a0,0(s1)`, so it is 2 insns short (the J delay slot then holds
-//   `sw a0,40(s0)` where retail has `sw v0,48(s0)`). Measured dead ends: swapping the
-//   pPlayer->x / pPlayer->z statement order in both tails -> 95.51%.
-// - Left (cosmetic, does not cost bytes): the two ramp arms color the yaw ramp
-//   v0/v1 the other way round from retail (`sll v1,v1,0xc` vs `sll v0,v1,0xc`).
-// - Both switches must list EVERY case or gcc emits a decision tree: `command - 9`
-//   cases 0..8 (2-5 empty) and `state` cases 0..0x10 (3-0xF empty); `s16 nCommand;
-//   nCommand = pPlayer->command - 9;` is what makes the load lhu with retail's
-//   sll/sra pair. States 0 and 1 share ONE copy of the ramp via the `ramp:` label +
-//   `goto ramp;` (gcc 2.7.2 has no cross-jumping). The position walk covers states
-//   0,1,2,0x10; state 3 has its own y-only walk. The ramps need __builtin_abs.
-// - The WorldMapScrollDelta typedef, the s16 alias for g_WorldMapViewRotationY and
-//   the externs above this stub are live so the parked body below still compiles.
-/*
 s32 func_800914D0(s32 idx) {
     WorldMapPlayer *pPlayer;
     WorldMapScrollDelta delta;
@@ -2121,6 +2074,8 @@ s32 func_800914D0(s32 idx) {
                 g_WorldMapScrollX[0] += delta.x;
                 g_WorldMapScrollZ += delta.z;
                 pPlayer->x = (s32)g_WorldMapScrollTargetX[0];
+                do {
+                } while (0);
                 pPlayer->z = g_WorldMapScrollTargetZ;
             } else {
                 pPlayer->unk60 = 1;
@@ -2143,6 +2098,8 @@ s32 func_800914D0(s32 idx) {
             g_WorldMapScrollX[0] += delta.x;
             g_WorldMapScrollZ += delta.z;
             pPlayer->x = (s32)g_WorldMapScrollTargetX[0];
+            do {
+            } while (0);
             pPlayer->z = g_WorldMapScrollTargetZ;
         }
         break;
@@ -2150,7 +2107,8 @@ s32 func_800914D0(s32 idx) {
     WorldMapWrapPosition(&pPlayer->x);
     *(Quad *)&g_WorldMapCameraTarget = *(Quad *)&pPlayer->x;
     return 1;
-}*/
+}
+
 
 s32 WorldMapModeInitActorAngleSets(s32 idx) {
     WorldMapPlayer *pPlayer;
