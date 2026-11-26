@@ -133,7 +133,11 @@ One worker = one clone = **one `.c` file**. A round is one long rolling launch.
 - If `make check` fails: `tools/scripts/culprit.sh <bin>` names the functions,
   `tools/scripts/sizes.py` names a wrong size. Revert that function to its stub,
   re-check, and put the cause in `tools/rounds/levers.md`.
-- `make progress-publish` every third round.
+- `make progress-publish` every third round, but never while a round is out: it is a full
+  clean build in this tree on top of every clone's build, and four clones plus it drove the
+  VM to load 19.5 and turned every lane's 35-second `check_bin.sh` into a 240-second call
+  that trips the subagent-control notice (round 515). Publish before the launch or after the
+  merge.
 
 ### The tracker row
 
