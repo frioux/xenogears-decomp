@@ -1002,16 +1002,16 @@ void FieldWaitForArchiveAndFrameSync(void) {
 }
 
 extern void* g_FieldSavedFramebuffers[];
-extern void* D_8005A41C;
+extern void* g_FieldSavedFramebuffer1;
 
 void FieldRestoreFramebuffers(void) {
     RECT rect;
 
     if (g_FieldMode == FIELD_MODE_STEP) {
         HeapUnpinBlock(g_FieldSavedFramebuffers[0]);
-        HeapUnpinBlock(D_8005A41C);
+        HeapUnpinBlock(g_FieldSavedFramebuffer1);
         HeapFree(g_FieldSavedFramebuffers[0]);
-        HeapFree(D_8005A41C);
+        HeapFree(g_FieldSavedFramebuffer1);
     } else {
         rect.x = FIELD_SAVED_FRAMEBUFFER_VRAM_X;
         rect.y = 0;
@@ -1023,12 +1023,12 @@ void FieldRestoreFramebuffers(void) {
         rect.y = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         rect.w = SCREEN_WIDTH;
         rect.h = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
-        LoadImage(&rect, D_8005A41C);
+        LoadImage(&rect, g_FieldSavedFramebuffer1);
         DrawSync(0);
         HeapUnpinBlock(g_FieldSavedFramebuffers[0]);
-        HeapUnpinBlock(D_8005A41C);
+        HeapUnpinBlock(g_FieldSavedFramebuffer1);
         HeapFree(g_FieldSavedFramebuffers[0]);
-        HeapFree(D_8005A41C);
+        HeapFree(g_FieldSavedFramebuffer1);
     }
 }
 
@@ -1049,9 +1049,9 @@ void FieldSaveFramebuffers(void) {
 
     if (g_FieldMode == FIELD_MODE_STEP) {
         g_FieldSavedFramebuffers[0] = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
-        D_8005A41C = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
+        g_FieldSavedFramebuffer1 = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
         HeapPinBlock(g_FieldSavedFramebuffers[0]);
-        HeapPinBlock(D_8005A41C);
+        HeapPinBlock(g_FieldSavedFramebuffer1);
         ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
 
         entryIndex = 0;
@@ -1079,9 +1079,9 @@ void FieldSaveFramebuffers(void) {
         }
     } else {
         g_FieldSavedFramebuffers[0] = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
-        D_8005A41C = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
+        g_FieldSavedFramebuffer1 = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
         HeapPinBlock(g_FieldSavedFramebuffers[0]);
-        HeapPinBlock(D_8005A41C);
+        HeapPinBlock(g_FieldSavedFramebuffer1);
 
         rect.x = FIELD_SAVED_FRAMEBUFFER_VRAM_X;
         rect.y = 0;
@@ -1094,7 +1094,7 @@ void FieldSaveFramebuffers(void) {
         rect.y = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         rect.w = SCREEN_WIDTH;
         rect.h = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
-        StoreImage(&rect, D_8005A41C);
+        StoreImage(&rect, g_FieldSavedFramebuffer1);
         DrawSync(0);
     }
 }

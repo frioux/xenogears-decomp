@@ -1770,3 +1770,4 @@ g_BattleTrailEdgeX1 = 0x800C3CA8;
 g_BattleSlotTextBuffers = 0x800C3A70;
 g_BattleTrailEdgeY1 = 0x800C3CAA;
 SpriteAnimScriptRun = 0x800248D4;
+g_FieldSavedFramebuffer1 = 0x8005A41C;

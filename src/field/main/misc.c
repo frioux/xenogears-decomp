@@ -2027,7 +2027,7 @@ void FieldScriptAddPartyMemberShort(void) {
 }
 
 extern void* g_FieldSavedFramebuffers[];
-extern void* D_8005A41C;
+extern void* g_FieldSavedFramebuffer1;
 extern s32 D_8005A448[];
 extern int g_GamePartyMemberSkins[MAX_PARTY_MEMBERS];
 extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
@@ -2193,9 +2193,9 @@ extern void func_8008BF38(int partyIndex);
 //    `sw $reg,sym+4` macro (gas expands it through $at) for the store. That single
 //    respelling took 92.66 -> 98.18; the old note's conclusion ("the only route
 //    is one symbol per slot in symbol_addrs") was wrong.
-// 2. g_FieldSavedFramebuffers[1] is the BARE symbol D_8005A41C in retail's object
+// 2. g_FieldSavedFramebuffers[1] is the BARE symbol g_FieldSavedFramebuffer1 in retail's object
 //    (misc5.c already spells it that way), so the two slot-2 copies read
-//    `extern void* D_8005A41C;` and not the array at +4: 98.18 -> 98.25.
+//    `extern void* g_FieldSavedFramebuffer1;` and not the array at +4: 98.18 -> 98.25.
 //
 // What remains is two register artifacts, both downstream of the 0x14000 copy-end
 // constant:
@@ -2284,7 +2284,7 @@ void func_8008C334(void) {
                 g_PartySkins->slot0 = skin;
                 g_pGameState->gearRide[0] = g_pGameState->gearRide[1];
                 if (g_PartySlots->slot2 != FIELD_PARTY_SLOT_NONE) {
-                    pSrc = D_8005A41C;
+                    pSrc = g_FieldSavedFramebuffer1;
                     pDst = g_FieldSavedFramebuffers[0];
                     pEnd = pSrc + PARTY_FB_CHUNKS;
                     do {
@@ -2308,7 +2308,7 @@ void func_8008C334(void) {
                     g_pGameState->gearRide[1] = 0;
                     break;
                 }
-                pSrc = D_8005A41C;
+                pSrc = g_FieldSavedFramebuffer1;
                 pDst = g_FieldSavedFramebuffers[0];
                 pEnd = pSrc + PARTY_FB_CHUNKS;
                 do {

@@ -1178,7 +1178,7 @@ void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
 
 extern s32 g_FieldPartyActorSlots[];
 extern s32 g_FieldPartyActorIndices[];
-extern u8 D_800AE294[];
+extern u8 g_FieldCharacterSpriteIndices[];
 extern s16 g_FieldPlayerActorIndex16;
 extern s32 g_PlayerActorIndex;
 extern s32 func_8009FA54(s32 nInstructionOffset);
@@ -1191,7 +1191,7 @@ extern s32 func_8009FA54(s32 nInstructionOffset);
 // sit in do{}while(0) blocks (otherwise cc1 hoists the flags load above the stores),
 // and the sprite offset is a separate byte-offset local, which is what keeps the
 // scaled index and the offsets base in retail's two caller-saved registers.
-void func_800A08B8(void) {
+void FieldScriptVMHandlerSetActorModelFromPartySlot(void) {
     FieldActor* pFieldActor;
     s32 nReloadFlags;
     void* pSprite;
@@ -1226,11 +1226,11 @@ void func_800A08B8(void) {
             // these allocnos are created earlier. The separate byte offset local is what
             // splits retail's two caller-saved registers.
             FieldSpriteDataBlob* pSpriteData = g_FieldSpriteData;
-            s32* pOffsets = &pSpriteData->offsets[D_800AE294[characterId]];
+            s32* pOffsets = &pSpriteData->offsets[g_FieldCharacterSpriteIndices[characterId]];
             s32 nByteOffset = nReloadFlags * 4;
             pSprite = (void*)(*(s32*)((u8*)pOffsets + nByteOffset) + (s32)pSpriteData);
-            func_80076AC0(g_FieldCurActorIndex, D_800AE294[characterId] + nReloadFlags, pSprite, 0, 0,
-                (D_800AE294[characterId] + g_FieldSceneReloadFlagsArray[0]) | 0x80, 1);
+            func_80076AC0(g_FieldCurActorIndex, g_FieldCharacterSpriteIndices[characterId] + nReloadFlags, pSprite, 0, 0,
+                (g_FieldCharacterSpriteIndices[characterId] + g_FieldSceneReloadFlagsArray[0]) | 0x80, 1);
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
             g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x300;
             if (g_pGameState->gearRide[partyId] != 0) {

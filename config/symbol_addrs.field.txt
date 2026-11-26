@@ -1133,3 +1133,5 @@ FieldStreamStartImageFromScript = 0x8008EE14;
 g_FieldStreamType = 0x800C3A30;
 FieldUpdateActorMovement = 0x80082BB8;
 FieldResetState = 0x800705DC;
+FieldScriptVMHandlerSetActorModelFromPartySlot = 0x800A08B8;
+g_FieldCharacterSpriteIndices = 0x800AE294;
