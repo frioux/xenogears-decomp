@@ -197,7 +197,11 @@ it guesses at story purpose; a wrong name is worse than a placeholder.
 - Files to pick: for names, most `func_` definitions (`tools/scripts/unnamed_c.py`); for
   globals, most distinct `D_` in comment-stripped live C; a file whose `D_` are interior
   addresses of already-typed tables wants a typed-member REWRITE, not a naming lane.
-  For raw lines `tools/scripts/raw_lines.py`. Both name picks are near their floor (rounds
+  For raw lines `tools/scripts/raw_lines.py`. Its pattern only counts `u8`/`u16`/`u32` casts and
+  global pointer arithmetic, so `*(void **)(D_x + o)` reads CLEAN while the better-typed
+  `*(u_long **)((u8 *)g_X + o)` reads raw: a REWRITE lane can type a global and raise the
+  count (round 518, `battle/misc13` 8 -> 11). Count the file's per-function lines before and
+  after inside the lane, and judge the types, not just the total. Both name picks are near their floor (rounds
   417-418: 18 non-psyq `func_` defs left, and the D_-densest files return only
   `DATA_INTERIOR` because their `D_` sit in parked bodies), so before briefing a file count
   its `D_` occurrences in comment-stripped C (the strip `raw_lines.py` uses) and skip the

@@ -728,7 +728,7 @@ extern VECTOR g_CamAtMovementDelta;
 extern VECTOR g_CamEyeMovementCurrent;
 extern VECTOR g_CamEyeMovementDelta;
 // Scalar spellings of existing storage: the words of the four movement vectors and the first
-// word of g_CamInterpolation, reached by func_80073230 below. cc1 emits retail's bare
+// word of g_CamInterpolation, reached by FieldCameraUpdate below. cc1 emits retail's bare
 // `lui %hi`/`lw %lo(reg)` + `lui at`/`sw %lo(at)` pair only for a SCALAR symbol; every
 // aggregate spelling (`g_V.vx`, `*(s32*)&g_V`, `((s32*)&g_V)[0]`, a pointer local)
 // materialises the address instead, and the body then loses the match (90.85%).
@@ -752,7 +752,7 @@ extern long FieldGetVec2Magnitude(long x, long z);
 
 // The case-2 arm re-enters the middle of case 0's arm (retail jumps into the camera update
 // from case 2 and falls into it from case 0), so that block is written once under a label.
-void func_80073230(void) {
+void FieldCameraUpdate(void) {
     VECTOR pos;
     VECTOR normal;
     SVECTOR point;
@@ -1005,7 +1005,7 @@ extern u_char g_FieldDisableActorRender;
 extern s32 g_FieldActiveActorCount;
 
 extern void func_8008110C(void);
-extern void func_80073230(void);
+extern void FieldCameraUpdate(void);
 extern void func_80281B00(const char* pName);
 extern void func_800223B0(SpriteData* pSpriteData, s16 direction);
 extern void SpriteSetDirection(SpriteData* pSpriteData, s16 direction);
@@ -1072,7 +1072,7 @@ void func_800739C0(void) {
     asm volatile("lui $t1, 0x1F80\n\tori $t1, $t1, 0x3FC");
     asm volatile("addu $t0, $t1, $zero\n\tsw $sp, 0($t0)\n\t"
                  "addiu $t0, $t0, -4\n\taddu $sp, $t0, $zero");
-    func_80073230();
+    FieldCameraUpdate();
     asm volatile("addiu $sp, $sp, 4\n\tlw $sp, 0($sp)");
 
     eye.vx = *(s32*)(pCam - 0x18);

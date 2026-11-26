@@ -1135,3 +1135,4 @@ FieldUpdateActorMovement = 0x80082BB8;
 FieldResetState = 0x800705DC;
 FieldScriptVMHandlerSetActorModelFromPartySlot = 0x800A08B8;
 g_FieldCharacterSpriteIndices = 0x800AE294;
+FieldCameraUpdate = 0x80073230;
