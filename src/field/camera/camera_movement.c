@@ -84,9 +84,30 @@ void FieldScriptSetCameraInterpolationMode(void) {
 
 extern s16 g_FieldCameraModeTable[] __asm__("g_FieldCameraMode");
 
-/* Best: 83.77% (236 bytes against retail's 244 / 61 insns). Structure is settled;
-   the two residuals are both gcc's address spelling.
+// The scene flag word, declared volatile so retail's read-modify-write keeps the
+// address in the instruction instead of cse-ing it into a base register.
+typedef struct {
+    /* 0x0  */ u8 unk0[0x48];
+    /* 0x48 */ volatile s32 flags;
+} FieldSceneFlagsView;
+extern FieldSceneFlagsView g_SceneFlags __asm__("g_Scene");
+
+/* Best: 97.30% (240 bytes against retail's 244 / 61 insns). Every line matches
+   except ONE instruction in the case-0 arm.
    SOLVED and load-bearing:
+   - THE SCENE FLAG WORD HAS TO BE A VOLATILE LVALUE. Retail's read-modify-write is
+     the bare `lui v0,%hi(g_Scene + 0x48)` / `lw v0,%lo(...)(v0)` ... `lui at,%hi` /
+     `sw %lo(at)` pair, i.e. cc1 left the symbolic address inside each mem instead of
+     cse-ing it into one base register, and cse only does that for a volatile mem (it
+     never enters the address in its hash table). Measured with cc1_probe on this
+     unit: the plain `g_Scene.flags &= 0x7FFF` and every CAST spelling
+     (`*(volatile s32 *)&g_Scene.flags`, `*(volatile s32 *)((u8 *)&g_Scene + 0x48)`)
+     all give `la $3,g_Scene+72 / lw $2,0($3) / andi / sw $2,0($3)`; only a
+     volatile-qualified MEMBER gives retail's pair. include/field/main.h cannot carry
+     the qualifier (field/main/misc11's matched FieldScriptVMClearSceneEncounterFlag
+     depends on the base form), so this unit declares its own FieldSceneFlagsView
+     aliased onto g_Scene. 83.77 -> 97.30, and it also fixes the case-1 arm's
+     registers.
    - the switch needs THREE case nodes: `case 2: return;` plus `default: return;`
      with the `+= 3` after the switch. With only cases 0/1 gcc roots the case tree
      at value 0 (`beqz v1,case0` first, 2 compares) and drops retail's `slti v1,2 /
@@ -99,22 +120,23 @@ extern s16 g_FieldCameraModeTable[] __asm__("g_FieldCameraMode");
      other local rematerialise lui+addiu or the maspsx $at macro per use.
    - the zero path really does bump scriptInstructionPointer TWICE (+6): retail has
      the in-branch copy and the shared tail copy. Keep both.
-   RESIDUAL 1 (2 insns / 8 bytes): retail hoists the g_FieldScriptVMCurActor load
-   out of the shared tail into BOTH predecessors (case 0 has its own lui v1 / addiu
-   / lw before its j, and .L8008FD10 loads it before falling into the tail, whose
-   lhu takes v1 as an input); ours leaves one bare `lw $3,g_FieldScriptVMCurActor`
-   in the tail. cse did not follow the jump and hoist here.
-   RESIDUAL 2: `g_Scene.flags &= 0x7FFF` - retail emits a bare lui %hi + lw %lo(reg)
-   pair plus a maspsx $at store, ours cse's the address into ONE base register
-   (`la $3,g_Scene+72 / lw / andi / sw 0($3)`): same insn count, different
-   registers. Same class as field/main/misc2's 89.20% park (func_80073230), and it
-   is probably why residual 1's registers differ too.
-   Tried and measured: per-arm `+= 3` copies (82.87 / 256 bytes), the shared tail
-   without case 2 (76.23 / 236), m2c's goto block_8 form (76.23), `case 2: break;`
-   (82.87), a `s32 flags` temp for the RMW, a volatile cast on it (identical
-   output), the increment moved before the flag clear. Permuter (1449 iters) found
-   only a do-while wrapper around the case-0 arm (84.51) that deletes the arm's j
-   so case 0 falls into case 1 - wrong code, rejected.
+   RESIDUAL (1 insn / 4 bytes): retail's case-0 block is the flags load, then a COPY
+   of the tail's two-insn `lui v1,%hi(g_FieldScriptVMCurActor)` / `lw v1,%lo` (its
+   lui fills the load-delay slot behind the flags load), andi, flags store, then
+   `j` to the tail's lhu - while the tail keeps its own copy of the load for the two
+   case-1 paths. Ours leaves the `nop` there and shares the tail's load, so case 0's
+   `j` targets the load itself and the body is 4 bytes short. No statement on the
+   case-0 path reads the actor pointer, so this is gcc duplicating the tail's load
+   into the predecessor (a cse/reorg block split), not a source shape.
+   Tried and measured for the residual: per-arm `+= 3` copies (94.10 / 256 bytes /
+   64 insns; 2.7.2 has no cross-jumping, the two increments never merge), two
+   permuter runs on the 97.30 body (1657 + 1049 iterations, PERMUTER_NONE
+   base=304 best=304), gcc 2.6.0 86.31 (the volatile form is 2.7.2-specific),
+   gcc 2.7.2-cdk compile-failed, -G0 97.30. Earlier, from the 83.77 body: the
+   shared tail without case 2 (76.23), m2c's goto form (76.23), `case 2: break;`
+   (82.87), a `s32 flags` temp for the read-modify-write, the increment moved before
+   the flag clear, and a permuter do-while around the case-0 arm (84.51) that
+   deletes the arm's j so case 0 falls into case 1 - wrong code, rejected.
 */
 /*
 void func_8008FC4C(void) {
@@ -124,13 +146,13 @@ void func_8008FC4C(void) {
     pMode = g_FieldCameraModeTable;
     switch (*pMode) {
     case 0:
-        g_Scene.flags &= 0x7FFF;
+        g_SceneFlags.flags &= 0x7FFF;
         break;
     case 1:
         value = FieldScriptVMGetArgument(1);
         if (value == 0) {
             *pMode = 0;
-            g_Scene.flags &= 0x7FFF;
+            g_SceneFlags.flags &= 0x7FFF;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
             g_FieldCameraSnapFrames[0] = 2;
         } else {
