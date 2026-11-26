@@ -511,6 +511,20 @@ void BattleCreateSlotAnimationTask(SpriteData *pActor, s32 arg1) {
 // phase 4 with the sprite base hoisted as (u8 *)g_BattleStateWork + 0x8C8C, 86.03 / 310 insns
 // (2 instructions smaller but the score falls); -O3 46.64, -O1 73.53, gcc-2.6.0 does not compile -
 // the preset is right. Not permuter-eligible (below 99%).
+// ROUND 507 re-measured this park from scratch: the stored body is 86.17% / 1248 bytes / 312 insns
+// against retail's 1228 / 307, so the 86.17 above is the real number (a later brief carried
+// "99.00%", which this body has never scored). Three shapes measured, none better:
+//  (a) `!(ABS_DIFF(dx) < 9 && ABS_DIFF(dz) < 9)` compiles BYTE-IDENTICALLY to the `>= 9 ||` form -
+//      gcc canonicalises the two - so phase 2's inverted second diamond is not a polarity question.
+//  (b) distinct walker locals per loop (pSlot1/2/4, pSpriteSlots1/2/3), which retail's own register
+//      map argues for (phase 1 keeps its two walkers in s2/s3, phase 2 in s0/s2, and phase 3's base
+//      in CALLER-saved a0 - one shared variable cannot produce a caller-saved home): 85.90% / 1244
+//      / 311, 330 differing lines. Phase 3's base does move to v1 (caller-saved) as it must, but the
+//      phase-1 s2/s3 pair still comes out swapped and the score falls.
+//  (c) phase 4 with an adjusted table pointer ((SpriteData **)((u8 *)g_BattleStateWork + 0x8C8C),
+//      indexed by i): 86.03% / 1240 / 310, 337 differing lines - the same numbers already recorded
+//      above, so the phase-4 base remat is confirmed as the only cheap size win and it costs ratio.
+// Residual is the (a)-(d) allocator contest above, not a spelling; parked at 86.17%.
 /*
 void func_800BFE48(void) {
     BattleActorSlot *pSlot;
