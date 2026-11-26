@@ -858,6 +858,14 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // one displaced insn: retail has `move a0,s0` 3rd in the arm (after `lui a1`) and both stores
 // on $s0, this build schedules the same `move a0,s0` 1st in the arm and combines the two
 // store addresses into $a0.
+// ROUND 504 re-measured 91.60% (100 bytes = retail's) and added two measurements.
+// An EMPTY do { } while (0); BETWEEN the two stores (after the timer reset, before the
+// flags update) puts the timer store AND the flags lbu on $s0 - retail's base - at
+// retail's 100 bytes, but the flags sb still folds to $a0, the timer constant moves to
+// $v0 and the arg copy lands after addiu a1: 75.60%. So combine_regs folds per basic
+// block, and the flags store cannot escape $a0 while it shares the jal's block, which
+// the jal delay slot requires it to. Opt screening: -O3 91.6, -O1 66.52, so this is not
+// an opt-level or preset question either (2.6.0 was already 76.76).
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
@@ -871,6 +879,7 @@ void func_800BDC14(Misc32Task *pTask) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
+
 
 
 extern void func_800BDC14(Misc32Task *pTask);
