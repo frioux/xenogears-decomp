@@ -787,42 +787,31 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 
 
 
-// 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
-// every instruction is present and in retail's order; what is left is
-//  (a) gcc hoists g_BattleConditionAnimIds's address out of the outer restart loop to the prologue
-//      where retail re-forms it at the top of the loop (.L800C05A8),
-//  (b) gcc picks pSpriteSlot as the base for the slot accesses, so pSlot's two byte
-//      reads come out as lbu 1(s3)/lbu 0(s3) off a derived base+7 pointer instead of
-//      retail's lbu 8(s2)/lbu 7(s2),
-//  (c) the two jump-table/table bases land in the opposite callee-saved registers
-//      (s6/s7 swapped) and i/pSlot swap s2/s3.
-//  (d) the 0x8C8C sprite-table offset: retail materialises the WHOLE constant
-//      (li 0x8C8C; addu; lw 0(v0)), gcc splits it (li 0x8000; addu; lw 0xC8C(v0));
-//      the same split is func_800BFE48's park residual (b), so one spelling that
-//      forces the whole constant into a register may move both.
-// Tried: index form (no strength reduction: gcc re-derives i*0x1C with shifts and
-// folds 0x8C8C into the symbol), `for (i = 0; ...)` instead of the do/while,
-// pExpectedAnimIds pointer local, `s32 spritesOff = 0x8C8C` local (60.65%), both
-// orders of the two pointer inits, u8* vs BattleActorSlot* slot pointer, declaration
-// orders, and a 4-minute permuter run (base=1405 best=800, and its two best edits read
-// new_var->inUse from a pointer that never advances - wrong code, not portable).
-// 92.65% (384 bytes = retail's 96 insns) under the unit preset XenoBattleTailCdk0. NEW BEST: the
-// rescan is a goto, not `while (1)`. With a real outer loop gcc hoists the inner loop's invariants
-// TWO levels, into the prologue (86.15%); with the goto the outer loop does not exist, so they
-// hoist ONE level, to the rescan label, which is where retail forms them (lui/addiu of
-// g_BattleConditionAnimIds at .L800C05A8, then the two pointer copies). That is worth +6.5.
-// Residuals, largest first: (a) the switch's jump-table address (s7) is the ONE invariant retail
-// DID hoist the second level - it sits among the register saves in retail's prologue, at the
-// rescan label in mine, so the entry block's schedule differs; (b) the pSlot walker is anchored at
-// +7 (gcc derives it as spriteSlot + 7, so the two slot reads are lbu 1(s3)/lbu 0(s3)) where
-// retail anchors it at +0 (lbu 8(s2)/lbu 7(s2)); (c) the 0x8C8C table offset is split by gcc into
-// li 0x8000 + lw 0xC8C(v0) where retail materialises the whole constant and loads at 0; (d) i and
-// pSlot land s2/s3 swapped (pSpriteSlot is s4 in both).
-// Tried on this body today: s32 i declared first (identical), the increments in the other two
-// orders (i last: identical; pSlot last, so its anchor should be +0: 93.55% but 388 bytes - one
-// instruction too many, an extra move v0,s8), a typed SpriteData **pSpriteSlot (85.53), plus the
-// earlier round's index form, for-loop, pointer-local, declaration and permuter attempts.
-// Preset screened: gcc-2.7.2 83.33, cdk -O3 86.15 - the preset is right.
+// 92.65% at retail's EXACT 384 bytes / 96 insns under the unit preset XenoBattleTailCdk0
+// (gcc-2.7.2-cdk-psx, -G0). Every instruction is present and in retail's order; what is left is
+// allocation and where two loop invariants were formed. Retail: fp(s8) = g_BattleStateWork, s2 =
+// pSlot anchored at +0 (lbu 8(s2) / lbu 7(s2)), s3 = i, s4 = pSlot + i*4, the sprite reached as
+// li 0x8C8C / addu / lw 0(s4), the jump-table base s7 in the PROLOGUE, the anim-id table s6 at the
+// rescan label. This body: s8 same, s2 = i, s3 = pSlot anchored at +7 (addiu s3,s4,7, so
+// lbu 1(s3) / lbu 0(s3)), both table bases formed at the rescan label, and the sprite reach split
+// li 0x8000 / lw 3212(s4) - the documented-not-steerable split from misc31's park (it is
+// *(SpriteData **)(pSpriteSlot + 0x8C8C) either way and costs the same 3 insns).
+// MECHANISM of the +7 anchor: pSlot and pSpriteSlot hold the same value, so cse folds pSlot's field
+// addresses onto the pSpriteSlot pseudo and bases both loads on the biased address pSlot+7. Retail
+// kept the two source copies (fp -> s2 -> s4) and based the loads on pSlot itself. The anchor is what
+// swaps s2/s3 (i/pSlot) and costs retail's second move, so it is the whole residual.
+// Measured this round (redo lane), on the body below except where noted:
+//  - `pSpriteSlot = pBase;` instead of `(u8 *)pSlot`: identical 92.65 / 384.
+//  - sprite table indexed inline, `*(SpriteData **)(pBase + i * 4 + 0x8C8C)`: 89.75 / 392.
+//  - increments in the order i++, pSpriteSlot += 4, pSlot++: 93.55 / 388, one insn LONG (the sprite
+//    pointer init becomes move v0,s8 / move s4,v0) and it still anchors at +7, so the earlier note's
+//    claim that this order gives retail's +0 anchor is wrong.
+//  - both pointer inits formed from the global (`pSlot = g_BattleStateWork; pSpriteSlot = (u8 *)
+//    g_BattleStateWork;`, dropping pBase): 86.51 / 372, three insns short.
+// Earlier rounds also tried the index form, a for-loop instead of this goto, both init orders,
+// declaration orders, a typed SpriteData ** walker, and a 4-minute permuter run (base=1405 best=800,
+// whose best edits read a pointer that never advances - wrong code, rejected). Presets screened:
+// 2.7.2 83.33, cdk -O3 86.15 - the preset is right. Below 99% no permuter run. Do not retry the above.
 /*
 void func_800C0564(void) {
     u8 *pBase;
@@ -880,6 +869,7 @@ rescan:
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
+
 
 s32 BattleComputeVectorDistance(VECTOR *pVec0, VECTOR *pVec1) {
     VECTOR v;
