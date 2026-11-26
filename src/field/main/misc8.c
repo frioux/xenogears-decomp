@@ -1717,12 +1717,12 @@ extern MATRIX D_800AFC30;
 
 // Returns 0 and the height of the lowest polygon under (refX, refZ) in *pHeight,
 // -1 when the actor's model has no polygon there.
-/* PARKED 88.49% (459 insns / 1836 bytes vs retail 451 / 1804). The register
-   permutation is now retail's (s3 scratch, s4 pCmd, s5 actorIndex, s6 pBounds,
-   s2 base) and the prologue, the switch dispatch, the rotate block and the parent
-   block are instruction-for-instruction retail's apart from scheduling.
-   What got here, in order of what each bought (all measured this round):
-   83.18 base (see the earlier note's history; it is kept below).
+/* PARKED 90.12% (454 insns / 1816 bytes vs retail 451 / 1804, i.e. 3 over).
+   The register permutation is retail's (s3 scratch, s4 pCmd, s5 actorIndex,
+   s6 pBounds, s2 base) and the prologue, the switch dispatch, the rotate block
+   and the parent block are retail's apart from scheduling.
+   What got here, in order of what each bought (all measured):
+   83.18 base (see the older history below).
    85.30 the 0x6C gap in the parent/rotate block was ONE base register: retail
    loads `lui/addiu &g_FieldActors` into s2 and reaches &g_Scene.worldRotationMatrix
    as `addiu a0,s2,-0x6C` (0x800AFB10-0x6C = 0x800AFAA4 = g_Scene+0x114), and that
@@ -1737,36 +1737,42 @@ extern MATRIX D_800AFC30;
    the parentActorId test, not once before it; that is what puts retail's second
    `lui/addiu g_Scene+0x114 / lui/addiu D_800AFC30` pair inside the else arm and
    keeps the argument setup out of the shared tail.
-   Residuals, in the order they still cost bytes (459 vs 451, i.e. 8 over):
-   (1) the shared tail recomputes the actor byte offset (sll/addu/sll/subu/sll,
-       5 insns) where retail keeps it in s1 from before the test (`sll s1,v0,0x2`
-       then `addu a1,a1,s1`). Nothing tried yet makes gcc hold that scaled index
-       across the two CompMatrix calls: a plain `&g_FieldActors[actorIndex]` local
-       makes it keep the whole base pointer instead, which loses the re-formed
-       `lui/lw g_FieldActors` loads retail has in three places.
-   (2) the workMatrix.t[0..2] copies: retail loads g_FieldActors fresh for each
-       (`lui/lw`, nop, addu), this body lets gcc reuse one load for two of them,
-       which moves stores and the `addiu a0,s2,-0x6C` later.
-   (3) the six matrix zero stores: retail emits all six before the first
-       CompMatrix argument setup; here they interleave with it.
-   (4) case 1 of the switch: retail reads `lhu v0,0x70(a1)` reusing the pActorData
-       pointer the dispatch already loaded, this body re-forms the g_FieldActors
-       chain (5 insns). Cases 2 and 3 re-form in retail too, so it is a CSE that
-       only survives in one arm, and no plain local reproduces it (a pActorData
-       local kills the reloads in cases 2/3 as well).
+   89.25 (454, 1816) gives case 1 a pActorData local: the switch test reads
+   `pActorData->flags12C_0` and case 1 reads `pActorData->hideModeParam`, so gcc
+   reuses the dispatch's loaded pointer for case 1 the way retail does
+   (`lhu v0,112(a1)`), -5 insns. Cases 2 and 3 keep `g_FieldActors[...].pActorData`
+   spelled out, which is what makes retail re-form the whole chain there too.
+   90.12 (same size) case 1's arms are assigned vx (the value read) FIRST, then
+   vy, then vz: retail's block is lhu / sh vy / sh vz / j / sh vx.
+   Region accounting of the remaining 3 insns, measured from the diff:
+   (a) rotate block is 4 SHORT: retail re-loads `g_FieldActors` (`lui`/`lw`/`nop`)
+   for EACH of the three `workMatrix.t[k] = g_FieldActors[actorIndex]
+   .transformMatrix.t[k]` copies; this body lets gcc merge two of the three
+   loads, which is also what loses retail's two load-delay nops there.
+   (b) parent tail is 5 OVER: retail keeps the scaled actor offset in s1 across
+   the parentActorId test and the CompMatrix calls and ends `addu a1,a1,s1`, this
+   body rematerialises `sll/addu/sll/subu/sll` from actorIndex at the join (the
+   same offset IS in s1, live and untouched; gcc just chooses remat there).
+   (c) the dispatch is 1 OVER: gcc copies the switch value into a1 for the case-3
+   test (`move a1,v1` in the first beq's delay slot) where retail tests v1.
+   (a) and (b) are the same CSE/remat coin flip in opposite directions, so a
+   match needs all three at once; neither `FieldActor* pActor` nor a `MATRIX*
+   pTransform` local hoisted before the test reproduces (b) - the hoisted pointer
+   spelling loses retail's `lui`/`lw g_FieldActors` reload and measures 88.99 at
+   449 insns, 8 bytes SHORT - and no plain spelling makes gcc keep the offset.
    Also tried and rejected: u16 refX/refZ (74.01), duplicating the rotate tail per
    case (66.81), `(MATRIX*)((u8*)ppActorSlots - 0x6C)` from a &g_FieldActors base
-   (83.18, folds to la). Earlier round's measured history, still valid: 62 -> 75.91
-   the min-height tail must be `if (minHeight == NONE) { free; return -1; }` then
+   (83.18, folds to la). Older history, still valid: 62 -> 75.91 the min-height
+   tail must be `if (minHeight == NONE) { free; return -1; }` then
    store/free/return 0; 75.91 -> 78.75 refX/refZ are int, not u16; 78.75 -> 83.18
    the parent block must be emitted AFTER the rotate block (so the switch is
    `switch (flags12C_0 & 3)` with cases 1,2,3 and `default: goto parent`). */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 /*
 s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, int refX, int refZ, s32* pHeight, VECTOR* pNormal) {
     FieldPolyCheckScratch* pScratch;
     FieldModelCommandWord* pCmd;
     FieldActor** ppActorSlots;
+    ActorData* pActorData;
     MATRIX* pSourceMatrix;
     u32 command;
     int numPrimitives;
@@ -1778,11 +1784,12 @@ s32 func_80083288(int actorIndex, FieldActorModelBounds* pBounds, int refX, int 
     pScratch->minHeight = FIELD_POLY_HEIGHT_NONE;
     pScratch->pVertices = ((SVECTOR**)pBounds->unk8)[0];
     pScratch->sxyRef = (refX << 16) + refZ;
-    switch (g_FieldActors[actorIndex].pActorData->flags12C_0 & 3) {
+    pActorData = g_FieldActors[actorIndex].pActorData;
+    switch (pActorData->flags12C_0 & 3) {
     case 1:
+        pScratch->rotation.vx = pActorData->hideModeParam;
         pScratch->rotation.vy = 0;
         pScratch->rotation.vz = 0;
-        pScratch->rotation.vx = g_FieldActors[actorIndex].pActorData->hideModeParam;
         goto rotate;
     case 2:
         pScratch->rotation.vx = 0;
@@ -1902,8 +1909,10 @@ setMatrices:
     *pHeight = pScratch->minHeight;
     FieldFreeScratchpad(sizeof(FieldPolyCheckScratch));
     return 0;
-}
- */
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
+
+
 
 
 void FieldNoOp(void) {
