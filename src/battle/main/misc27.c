@@ -124,6 +124,21 @@ typedef struct {
 // segment count BattleEmitTrailSegments draws are all this long.
 #define BATTLE_TRAIL_SEGMENTS 5
 
+// The radius BattleCreateDirectionTransformTask gives the task when the script passes 0,
+// the argument's "use the default" value.
+#define BATTLE_TRAIL_RADIUS_DEFAULT 4
+
+// The largest g_GfxCurOT index BattleDrawTrailSegment adds a quad at: a segment whose
+// depth falls outside 1..BATTLE_TRAIL_OT_DEPTH_MAX is dropped.
+#define BATTLE_TRAIL_OT_DEPTH_MAX 0xFFF
+
+// The VRAM slot the current animation frame's texture and CLUT occupy:
+// BattleScriptUploadSpriteFrame uploads the frame's 8x8 tile to (X,Y) and its CLUT to
+// (X,CLUT_Y), and BattleDrawTrailSegment samples that pair back with GetTPage/GetClut.
+#define BATTLE_FRAME_VRAM_X 0x3F0
+#define BATTLE_FRAME_TEXPAGE_VRAM_Y 0x1F0
+#define BATTLE_FRAME_CLUT_VRAM_Y 0x1EE
+
 // The 0x3C flag word is read and written whole here, which the shared header's
 // bitfield spelling cannot express (src/battle/main/misc27_b.c does the same).
 #define BATTLE_SCRIPT_FLAGS(pSpriteData) (((BattleSpriteState*)(pSpriteData))->flags)
@@ -748,13 +763,13 @@ void BattleScriptUploadSpriteFrame(SpriteData* pSpriteData) {
     rect.y = pFrame->texY + ((texPage << 4) & 0x100);
     rect.w = 8;
     rect.h = 8;
-    MoveImage(&rect, 0x3F0, 0x1F0);
+    MoveImage(&rect, BATTLE_FRAME_VRAM_X, BATTLE_FRAME_TEXPAGE_VRAM_Y);
     clut = pFrame->clutID;
     rect.w = 0x10;
     rect.h = 1;
     rect.x = clut & 0x3F;
     rect.y = (clut >> 6) & 0x1FF;
-    MoveImage(&rect, 0x3F0, 0x1EE);
+    MoveImage(&rect, BATTLE_FRAME_VRAM_X, BATTLE_FRAME_CLUT_VRAM_Y);
 }
 
 void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* pMatrix) {
@@ -923,7 +938,7 @@ void BattleDrawTrailSegment(VECTOR* pFrom, VECTOR* pTo) {
     }
     depth += D_800D3334[0];
     RotTransPers3(&from, &to, &from, (long*)&pLine->x0, (long*)&pLine->x1, &sxy2, &sxy2, &flags);
-    if ((u32)(depth - 1) >= 0xFFF) {
+    if ((u32)(depth - 1) >= BATTLE_TRAIL_OT_DEPTH_MAX) {
         return;
     }
     radius = D_800C3E9C[0];
@@ -950,8 +965,8 @@ void BattleDrawTrailSegment(VECTOR* pFrom, VECTOR* pTo) {
     pQuad->v2 = 0xF7;
     pQuad->u3 = (D_800D2FCC.bytes[0] & 7) - 0x3F;
     pQuad->v3 = 0xF7;
-    pQuad->tpage = GetTPage(0, abr, 0x3F0, 0x1F0);
-    clut = GetClut(0x3F0, 0x1EE);
+    pQuad->tpage = GetTPage(0, abr, BATTLE_FRAME_VRAM_X, BATTLE_FRAME_TEXPAGE_VRAM_Y);
+    clut = GetClut(BATTLE_FRAME_VRAM_X, BATTLE_FRAME_CLUT_VRAM_Y);
     pQuad->r0 = 0xF0;
     pQuad->g0 = 0xF0;
     pQuad->b0 = 0xF0;
@@ -1052,7 +1067,7 @@ void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
     pTask->pArgs = pArgs;
     pTask->semiTrans = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
     if (pArgs[0] == 0) {
-        pTask->radius = 4;
+        pTask->radius = BATTLE_TRAIL_RADIUS_DEFAULT;
     } else {
         pTask->radius = pArgs[0];
     }
