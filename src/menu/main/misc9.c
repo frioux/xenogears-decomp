@@ -1644,6 +1644,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 //   CANNOT BE COMMITTED ALONE EVEN AT 100: jtbl_801C512C must land at +0x30 of the unit's
 //   [0xFC, .rodata, main/misc9] range, so func_801DBE54 (owner of +0x00, parked at 93.91)
 //   has to be converted in the same change and the pair proven with check_bin.sh menu.
+// ROUND 525: un-parked and re-measured 94.87% / 888 bytes / 222 insns = retail's exact size (still the round-499 best, 170 differing lines), so that note stands and the residual is its one tie. ONE new measurement: 'register u8 needsOpen' compiles BYTE-IDENTICALLY (same prologue, same 0x38 spill, same 112 frame), so REG_USERVAR_P does not enter this compiler's allocno priority - the register keyword is not a handle on the tie. The tie's value set is now complete and has no tenth member to drop: retail's loop holds 8 live values (col, slot, arg2, prevCol, prevSlot, kind*4, mode=4, needsOpen) plus s0 as the scratch loop-test mask, and it keeps arg2 UNMASKED in s3 ('andi a2,s3,0xff' at each callee), so kind and arg2 are both live and none of the eight merges; ours holds the same eight plus the hoisted const-1, which is the ninth, and pays for it with a FOURTH local slot (kind spills to 0x40 against retail's 0x38, needsOpen takes 0x38) and the 112 frame. Confirmed again this round that this stub still cannot be committed even at 100%: all three of the unit's rodata tables are asm-owned (+0x00 func_801DBE54 jtbl_801C50FC, +0x30 jtbl_801C512C here, +0x60 func_801E05D0 jtbl_801C515C), and three C tables of 0x2C + .align 3 land at retail's +0x00/+0x30/+0x60 only if all three are converted in one change, proven with check_bin.sh menu.
 /*
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     u8 active;
@@ -1740,6 +1741,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
     MenuFreeArrowCursor(0);
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
+
 
 
 
