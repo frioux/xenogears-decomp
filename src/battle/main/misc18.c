@@ -298,6 +298,27 @@ void BattleSetSlotConditionActionValue(void) {
 //    variables are right; dropping `mask` for `(elem2 << 8)` in each case 92.99 / 232 insns; permuter
 //    4 min from this body 1830 -> 1570 with an `int new_var = 2; ... if (m & new_var)` allocno nudge,
 //    which ports to 93.83 / 228 insns (one over) - rejected, wrong code shape and not closer.
+// best 93.85% (round 499 re-measure: 912 bytes = retail exact 0x390, 227 vs 227 insns, 84 differing lines).
+//    WHAT CHANGED: elemDef is now the TYPED read `g_BattleTargetSlotEntry->element & 0x3F` (u16 field,
+//    low 6 bits) instead of a raw `*(u8 *)&...->element`; gcc narrows u16 & 0x3F to retail own
+//    `lbu 0x38` + `andi 0x3f`, so the bytes are identical and the spelling is now real. Keep it.
+//    THE WHOLE TAIL REGION IS MIRRORED, not just elemDef: ours has hitA=t1, hitB=t1, elemAtk=t2,
+//    elemDef=t0, m=t0, elem2=v1; retail has hitA=t0, hitB=t0, elemAtk=t1, elemDef=t2, elem2=t2, m=v1.
+//    Read off our own m18 .s (`move $9,$0` at insn 3 is hitA in t1, retail `addu $t0,$zero,$zero`).
+//    The two insn-count deltas follow from the mirror and cancel: ours is 1 SHORT in the bitAtk==0 arm
+//    (elem2 reuses pair dead v1, and m takes elemDef just-dead t0 with `move t0,v0`, so retail separate
+//    `srl t2,v1,8`/`move v1,v0` collapse) and 1 OVER at `elemAtk = pair`, where the u8 truncation
+//    survives as `andi $4,$10,0xff` into a separate a0 temp that retail folds into `and v0,t1,v1`.
+//    Retail `if (weak)` is `addu v0,$t6,$zero` + beqz (no andi 0xff); ours emits `andi v0,$t6,0xff`,
+//    so retail weak is 32-bit there - but weak s32 measured 93.80 (round 473) and does not flip it.
+//    FRESH MEASUREMENTS this round: elemDef u16 93.30 (lhu for retail lbu), elemDef int 93.30,
+//    hitA int 93.39 at 908 bytes / 226 insns (wrong size, rejected).
+//    WHY IT IS THE SORT AND NOT A SPELLING: local-alloc hands caller-saved registers out in its priority
+//    (n_refs / live_length) order, and retail order hitA(3 refs/~82 insns), elemAtk(~6/~123),
+//    elemDef(2/~34) is the one that quotient produces; our body ranks elemDef FIRST instead, and both
+//    live lengths and ref counts are pinned by retail own instruction stream (its `andi 0xff` keeps
+//    hitA/hitB QI, so the mode-size term cannot be widened either - that is what elemDef SI and hitA SI
+//    just confirmed). No declaration order, width or operand order moves it.
 /*
 void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     u8 bitAtk;
@@ -316,7 +337,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 
     bitAtk = g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags >> 7;
     elemAtk = g_BattleCurrentRow->element & 0x3F;
-    elemDef = *(u8 *)&g_BattleTargetSlotEntry->element & 0x3F;
+    elemDef = g_BattleTargetSlotEntry->element & 0x3F;
     bitDef = g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags >> 7;
     if (bitDef == 0) {
         pair = g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7;
