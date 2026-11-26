@@ -757,6 +757,34 @@ extern void func_800898F0(u8);
 // lhu/sh 96(at) with %lo(g_BattleSlotEntries) against retail's lhu/sh 0(at) with
 // %lo(D_800CCDC4) is the typed-access relocation exception: g_BattleSlotEntries is
 // 0x800CCD64 = D_800CCDC4 - 0x60, so the linked bytes are identical.
+// best 99.10% (1708 bytes = retail's; 427 insns = retail's 427), 64 differing lines.
+// Landed this round: merging the two init statements into one (`ok = index = 0;` ABOVE the
+// commandQueued early return) took 97.53 -> 98.00 and the 3-minute permuter run on top of
+// that (same merge, kept) 98.00 -> 99.10 with 96 -> 64 differing lines. Two separate
+// statements (`ok = 0; index = 0;`) and the reverse chain (`index = ok = 0;`) both measure
+// 99.07, so keep the chain with ok outermost. The case-5 `first` flag body beats an
+// if/else there (96.13, 1688 bytes, 422 insns) and the third switch's `default:` arm still
+// has to be written FIRST (that is where 87.90 came from).
+// RESIDUAL 1 = two ADJACENT pairs swapped in the -dg processing order. Dispositions on this
+// body: 78(first) in $s0, 74 in $s1, 75(index) in $s2, 71(arg0) in $s3, 77(counter) in $s4,
+// 73(ok) in $s5; retail wants temp $s0, first $s1, ok $s4, counter $s5. Registers are handed
+// out in ASCENDING order along the processed list `... 78 74 ... 77 73`, so both swaps are
+// one position of that list - a near-tie, not a 10x gap (-dl: arg0 11 refs/300 insns 1 byte,
+// ok 3/215 1 byte, index 13/253, 74 4/11 1 byte). Dead ends measured: ALL declaration orders
+// (byte-identical at 99.10), `u32 ok` + (u8) at the test 98.84, the -dl/-dg reading itself.
+// RESIDUAL 2 = the cost read's base register, and it is now PROVEN to cost 4 bytes: naming
+// the index constant (`s32 firstCostIndex = 12;` at the top, used as
+// [firstCostIndex + index]`) makes cc1 emit retail's `addiu v0,s2,12 / sll / addu / lhu`
+// shape and scores 99.34%, but the base it materialises is g_BattleCommandCost (0x800D2C0A)
+// so g_BattleCommandCharIndex needs its own lui: 428 insns / 1712 bytes, +4 on retail. Retail
+// anchors BOTH on a1 = 0x800D2C34 (the char byte) and reads the cost words at -0x2A / -0x24,
+// which no C spelling of a cost-base access produces; the only shape that shares the base is
+// a struct whose u16 array sits at a NEGATIVE offset from the char byte, i.e. not expressible.
+// So this one line is closed unless someone finds the original's aliasing trick.
+// lhu/sh 96(at) with %lo(g_BattleSlotEntries) against retail's lhu/sh 0(at) with
+// %lo(D_800CCDC4) is the typed-access relocation exception: g_BattleSlotEntries is
+// 0x800CCD64 = D_800CCDC4 - 0x60, so the linked bytes are identical.
+/*
 u32 func_80083948(u8 arg0) {
     u8 ok;
     u8 first;
@@ -919,7 +947,9 @@ u32 func_80083948(u8 arg0) {
     case 5:
         break;
     }
-}
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
+
 
 u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     u8 ret;
