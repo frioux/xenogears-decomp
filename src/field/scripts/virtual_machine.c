@@ -628,38 +628,39 @@ typedef struct {
 
 // Builds every actor's sprite from the source its script data selected, swaps the party's
 // riders onto their gear's sprites, then runs each actor's script VM.
-// PARKED at 83.19% (1744 bytes against retail's 1772; 436 insns against 443). Round 431 rebuilt this
-// body from the .s; the previous park (79.98) was stale in two ways, both now fixed:
-//   - THE ELSE BRANCH IS NOW EXACT, and it is where retail's $s2 comes from. Retail keeps
-//     &g_FieldActors in $s2 across the three VM loops (one `lw v0,0(s2)` per use, and it reaches
-//     g_FieldSpriteData as 0xC(s2)), which is exactly what `ppFieldActors = (FieldActor**)&g_FieldActors;`
-//     before the loops does - the misc.c idiom. Frame 0x48 and the s0/s1/s2 saves now match, and the
-//     two bytecode-offset loops (offset 2 then 0) plus the FieldScriptVMRun(0xFFFF) fallback loop
-//     produce no diff at all. The first loop's bytecode offset must be a u16 local: that is retail's
-//     `sh 0xCC` followed by `andi 0xFFFF` around the SCRIPT_READ_U8 index. The second loop stores the
-//     callee's return value directly, i.e. no local there.
-//   - ActorData::flags130 / flags134 are UNSIGNED in retail: it shifts them with `srl`, while the
-//     header declares both as int, so every shift needs a (u_int) cast (+0.74 by itself).
-// WHAT IS LEFT, all inside the `if (g_GamePartySkinsInitialized)` branch:
-//   1. The six case-body statements of the CLUT-rect switch. Retail reads g_FieldActors ONCE per
-//      statement and takes BOTH pSpriteData and pActorData from that one element pointer; with the
-//      volatile g_FieldActors of include/field/actor.h the two mentions in one statement cost two
-//      loads, 2 extra insns each over six statements. Measured: assigning a local pointer before each
-//      statement reproduces retail's load count but lands the first loop's induction variables in the
-//      wrong registers (81.38, 420 insns, s1/s0 swapped, and gcc then hoists the pActorData load
-//      above the re-assignment); the plain view (FieldActor**)&g_FieldActors inside the arms deletes
-//      every reload (82.71, 408 insns, 1632 bytes) because gcc hoists the element pointer, so it is
-//      the same wall the old note hit. This is the whole 436-vs-443 gap and no spelling tried
-//      produces retail's one-load-per-statement shape.
-//   2. The gearRide arm of the party swap: retail loads g_FieldActors once for its first three
-//      statements and once more after the store (2 loads for 4 mentions), this body loads once per
-//      mention. The argument order of both func_80076AC0 call sites (pActor's fields first, then the
-//      two re-reads of g_FieldActors[i].pActorData for args 6 and 7) IS reproduced by spelling args
-//      6/7 through the global instead of through pActor.
-//   3. Register naming in the func_80076AC0 statement and in the swap arm (retail keeps the swap base
-//      in $a1 and j in $s1; this body picks $v0 and $a3) - allocation, not structure.
-// Permuter not run: below the 99% rule. This stub's .s owns no data, so converting it cannot shift
-// the overlay.
+// PARKED at 86.63% (1772 bytes = retail's exactly, 443 insns = retail's exactly, 272 differing lines).
+// The structure is right and the size is exact; what is left is register allocation.
+//   THE STRUCTURE (a semantics fix, not a spelling, round 499): retail calls func_80076AC0 inside BOTH
+//   arms of the spriteSource test with a different 3rd argument, and the CLUT switch lives in the
+//   `spriteSource & 0x80` arm ONLY - the party-buffer arm ends with `j .L800A2BAC` (the loop tail) at
+//   0x29B4, skipping the switch. The earlier park called once and ran the switch for every actor.
+//   Splitting the call took the body from 1744 to 1836 bytes (83.19% -> 88.14%); giving each of the six
+//   CLUT stores its own element pointer (`pFieldActor = &g_FieldActors[i];`) then made the instruction
+//   count exactly retail's 443 at 86.63%. objdiff's fuzzy percentage is NOT monotone (the 459-insn body
+//   read 88.14, this exact-size one 86.63), so judge with the count and the differing-line count.
+//   KEPT FROM THE EARLIER PARK: the else branch (both VM loops and the FieldScriptVMRun fallback) is
+//   exact, and it is where retail's $s2 comes from - it keeps &g_FieldActors in $s2 across the loops
+//   (one `lw v0,0(s2)` per use) exactly as `ppFieldActors = (FieldActor**)&g_FieldActors;` does, the
+//   misc.c idiom. ActorData::flags130 / flags134 are UNSIGNED in retail (`srl`, while the header
+//   declares both as int), so every shift needs its (u_int) cast. The first VM loop's bytecode offset
+//   must be a u16 local (retail's `sh 0xCC` then `andi 0xFFFF` around the SCRIPT_READ_U8 index); the
+//   second loop stores the callee's return value directly, i.e. no local there.
+// WHAT IS LEFT, none of it structure:
+//   1. $s0/$s1 are mirrored through the whole first loop: retail keeps i in $s1 and the element-offset
+//      IV in $s0, this body the opposite. Five declaration orders (ints first, j/i swapped, offset last,
+//      pFieldActor last, u_int i) measure byte-identical, so it is a callee-saved allocation tie. It also
+//      costs j: retail's party loop counter reuses $s1 (`move s1,zero` at 0x14A0), this body's gets $a3.
+//   2. The gear-swap arm is 142 insns against retail's 135. Retail reads g_FieldActors ONCE for the three
+//      statements that share a block and once more after the store (2 reads for 4 mentions), which is
+//      non-volatile CSE killed by the aliasing store; with the header's `volatile` every mention reloads.
+//      MEASURED both ways: a non-volatile g_FieldActors (one-line header edit, reverted) drops the whole
+//      body to 402 insns because gcc then hoists the load out of the actor loop into $t1/$a1, and the
+//      local view (*ppFieldActors)[i] (the misc.c idiom used by the else branch) gives 434. So neither
+//      qualifier reproduces retail's per-block reload; the per-statement locals above do.
+//   3. The else branch is 111 insns against 113: retail reaches g_FieldSpriteData as 0xC(s2), off the
+//      &g_FieldActors base it keeps in $s2, where this body forms the address with lui/lw.
+// Tried and reverted besides the above: cdk preset 83.51, gcc-2.6.0 will not compile the unit, a separate
+// pCurActor variable for the arms (the loop's load count drops to 167 insns), six declaration orders.
 /*
 void func_800A28D4(void) {
     ActorData* pActor;
@@ -679,34 +680,45 @@ void func_800A28D4(void) {
         for (i = 0; i < g_FieldActiveActorCount; i++) {
             pActor = g_FieldActors[i].pActorData;
             if (!(pActor->spriteSource & 0x80)) {
-                pAnimFile = g_PartyDataBuffers[pActor->spriteSource];
+                func_80076AC0(i, pActor->spriteId, g_PartyDataBuffers[pActor->spriteSource],
+                              (u_int)pActor->flags130 >> 28, pActor->flags134 & 0xF,
+                              g_FieldActors[i].pActorData->spriteSource,
+                              (u_int)g_FieldActors[i].pActorData->flags134 >> 4 & 1);
             } else {
                 pSpriteDataBlob = g_FieldSpriteData;
-                pAnimFile = (void*)(pSpriteDataBlob->offsets[pActor->spriteSource & 0x7F] + (s32)pSpriteDataBlob);
-            }
-            func_80076AC0(i, pActor->spriteId, pAnimFile, (u_int)pActor->flags130 >> 28, pActor->flags134 & 0xF,
-                          g_FieldActors[i].pActorData->spriteSource, (u_int)g_FieldActors[i].pActorData->flags134 >> 4 & 1);
+                func_80076AC0(i, pActor->spriteId,
+                              (void*)(pSpriteDataBlob->offsets[pActor->spriteSource & 0x7F] + (s32)pSpriteDataBlob),
+                              (u_int)pActor->flags130 >> 28, pActor->flags134 & 0xF,
+                              g_FieldActors[i].pActorData->spriteSource,
+                              (u_int)g_FieldActors[i].pActorData->flags134 >> 4 & 1);
 
             pFieldActor = &g_FieldActors[i];
             switch (pFieldActor->pActorData->flags12C_0x10) {
             case 1:
                 SpriteAllocClutRect(pFieldActor->pSpriteData, 2, 0);
-                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[2] =
-                    g_FieldActors[i].pActorData->flags12C_0x12;
-                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[3] =
-                    g_FieldActors[i].pActorData->flags130 & 0x1FF;
+                pFieldActor = &g_FieldActors[i];
+                ((u_short*)((SpriteDataI3*)((SpriteData*)pFieldActor->pSpriteData)->field_0x7C)->field_0x18)[2] =
+                    pFieldActor->pActorData->flags12C_0x12;
+                pFieldActor = &g_FieldActors[i];
+                ((u_short*)((SpriteDataI3*)((SpriteData*)pFieldActor->pSpriteData)->field_0x7C)->field_0x18)[3] =
+                    pFieldActor->pActorData->flags130 & 0x1FF;
                 break;
             case 2:
                 SpriteAllocClutRect(pFieldActor->pSpriteData, 3, 0);
-                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[2] =
-                    g_FieldActors[i].pActorData->flags12C_0x12;
-                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[3] =
-                    g_FieldActors[i].pActorData->flags130 & 0x1FF;
-                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[4] =
-                    (u_int)g_FieldActors[i].pActorData->flags130 >> 9 & 0x3FF;
-                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[5] =
-                    (u_int)g_FieldActors[i].pActorData->flags130 >> 19 & 0x1FF;
+                pFieldActor = &g_FieldActors[i];
+                ((u_short*)((SpriteDataI3*)((SpriteData*)pFieldActor->pSpriteData)->field_0x7C)->field_0x18)[2] =
+                    pFieldActor->pActorData->flags12C_0x12;
+                pFieldActor = &g_FieldActors[i];
+                ((u_short*)((SpriteDataI3*)((SpriteData*)pFieldActor->pSpriteData)->field_0x7C)->field_0x18)[3] =
+                    pFieldActor->pActorData->flags130 & 0x1FF;
+                pFieldActor = &g_FieldActors[i];
+                ((u_short*)((SpriteDataI3*)((SpriteData*)pFieldActor->pSpriteData)->field_0x7C)->field_0x18)[4] =
+                    (u_int)pFieldActor->pActorData->flags130 >> 9 & 0x3FF;
+                pFieldActor = &g_FieldActors[i];
+                ((u_short*)((SpriteDataI3*)((SpriteData*)pFieldActor->pSpriteData)->field_0x7C)->field_0x18)[5] =
+                    (u_int)pFieldActor->pActorData->flags130 >> 19 & 0x1FF;
                 break;
+            }
             }
         }
 
@@ -773,6 +785,7 @@ void func_800A28D4(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A28D4);
+
 
 
 void FieldScriptVMHandlerNop(void) {
