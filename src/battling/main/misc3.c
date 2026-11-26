@@ -356,19 +356,22 @@ s32 BattleActorDeltaUnk15E8(BattleActor* p0, BattleActor* p1) {
 void BattleNoop2(void) {
 }
 
-// 92.31% (308 vs retail's 312 bytes, one instruction short): the whole body lines up - frame 0x40, three saved regs, both divides, both 0xFFF roundings, the mult/mflo order - except three residuals. (1) gcc gives $s0 to ey and $s1 to ex where retail has ex in $s0 (every downstream mult operand is swapped with them). (2) retail's tail negates its last operand: slt,(dist+r),along / xori 1 / NEGU / and, while every plain '&' spelling here compiles to a bare and (one instruction short). Probed c1-c3, b1-b6, f1-f5: '&', '&&', '& -cond', 'cond - 1', '& !cond', a mask temp negated, hit-then-test - the only shapes that invent the negu turn the along test into a branch, so it looks like retail's source masked the comparison value itself. (3) the along<0 test is scheduled one block earlier (bltz before the subu) than retail's (bgez after it). Tried: 'r * r' (85.58, 320 bytes - the wrong operand, retail loads vSq.vz), inline vs a diff temp (85.58 / 92.31), 'diff' temp + vSq.vz is the best, (along >= 0) & ... & ... (91.28, emits nor/srl instead of bgez), operand-swapped & (86.92).
-/*
+// The circle test of BattleSegmentHitTestCircle without the closest-approach
+// point: returns 1 when the segment (x1,y1)-(x2,y2) comes within radius r of
+// (x3,y3), everything in 12-bit fixed point.
 s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     VECTOR v;
     VECTOR vSq;
+    s32 ex;
+    s32 ey;
     s32 dist;
     s32 nx;
     s32 ny;
     s32 along;
     s32 cross;
-    s32 ey;
-    s32 ex;
     s32 diff;
+    s32 hit;
+    s32 exNy;
 
     v.vx = x2 - x1;
     v.vy = y2 - y1;
@@ -383,14 +386,18 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     nx = (v.vx << 12) / dist;
     ny = (v.vy << 12) / dist;
     along = (ex * nx + ey * ny) / 4096;
-    cross = (ey * nx - ex * ny) / 4096;
+    exNy = ex * ny;
+    cross = (ey * nx - exNy) / 4096;
     diff = cross * cross - vSq.vz;
+    hit = diff < 0;
     if (along < 0) {
         return 0;
     }
-    return (diff < 0) & (dist + r >= along);
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
+    if (dist + r < along) {
+        return 0;
+    }
+    return hit;
+}
 
 
 
