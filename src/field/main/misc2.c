@@ -727,10 +727,11 @@ extern VECTOR g_CamAtMovementCurrent;
 extern VECTOR g_CamAtMovementDelta;
 extern VECTOR g_CamEyeMovementCurrent;
 extern VECTOR g_CamEyeMovementDelta;
-// Invented scalar spellings of the four movement vectors' words, used by the parked body
-// below: cc1 only emits retail's bare `lui %hi`/`lw %lo(reg)` + `lui at`/`sw %lo(at)`
-// pair for a SCALAR symbol, and every aggregate spelling (`g_V.vx`, `*(s32*)&g_V`,
-// `((s32*)&g_V)[0]`, a pointer local) materialises the address instead.
+// Scalar spellings of existing storage: the words of the four movement vectors and the first
+// word of g_CamInterpolation, reached by func_80073230 below. cc1 emits retail's bare
+// `lui %hi`/`lw %lo(reg)` + `lui at`/`sw %lo(at)` pair only for a SCALAR symbol; every
+// aggregate spelling (`g_V.vx`, `*(s32*)&g_V`, `((s32*)&g_V)[0]`, a pointer local)
+// materialises the address instead, and the body then loses the match (90.85%).
 extern long g_CamAtMovementCurrentVx __asm__("g_CamAtMovementCurrent");
 extern long g_CamAtMovementCurrentVy __asm__("g_CamAtMovementCurrent+4");
 extern long g_CamAtMovementCurrentVz __asm__("g_CamAtMovementCurrent+8");
@@ -745,36 +746,12 @@ extern s32 D_800ADBB0;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
 extern long FieldGetVec2Magnitude(long x, long z);
 
-// 97.55% (1112 bytes, 278 insns against retail's 277 / 1108 - ONE instruction over).
-// Structure, the cross-jumped case-0/case-2 tail and the case-1 fallthrough are settled;
-// what is left is five register/order ties, named at the end of this note.
-// ROUND 498 - THE HEAD IS NOW EXACT and the earlier "cse history, not source shape" reading
-// was wrong in one direction only: cse IS the mechanism, and it can be defeated by spelling
-// each read-modify-write word as its own SCALAR symbol. The alias block above the externs
-// (g_CamAtMovementCurrentVx/Vy/Vz, the same three for the eye vector, and
-// g_CamInterpolationAtStep) are invented spellings of existing storage, declared with an
-// `__asm__` label; `__asm__("g_CamAtMovementCurrent+4")` works and gives the bare pair retail
-// has. Measured ladder on this same body: plain struct members 90.85% / 1120 bytes / 280 insns
-// (the old park), vx-only aliases on both vectors 93.45% / 1112 / 278, all seven 97.55% / 1112
-// / 278. Probes that decided it (tools/scripts/cc1_probe.sh field/main/misc2): a bare
-// `lw $2,sym` pseudo-op is expanded by the assembler into retail's `lui $2,%hi` +
-// `lw $2,%lo($2)` (destination as base) and a bare `sw` into `lui $at` + `sw %lo($at)`, so
-// every symbol gcc leaves as a bare MEM is already retail's shape; `((s32*)&g)[0]`, an
-// array-typed alias (`extern s32 g[] __asm__("g")`, `g[1]`) and `&g.field` all materialise
-// `la` instead, so only a scalar declaration per word reproduces retail's first access.
-// THE RESIDUAL, named (all size-neutral): (1) the one extra `move v1,v0`: retail writes the
-// first distance compare IN PLACE (`slti s0,s0,0x80`) and ours compares into `$v0`, so
-// eyeDistance has to be copied out of `$v0` first; (2) case 2's `addu` for the player actor
-// lands in `$v1` where retail's is `addu v0,v0,v1`, which renames that whole block's v0/v1;
-// (3) the func_8007B1C4 call sets `a3 = sp+0x38` and `v0 = sp+0x28` in retail's order, ours
-// reversed; (4) `g_CamMovementFlags`'s SECOND access materialises `$t0` in retail and stays
-// bare in ours, so the `sh` at the end of the eye block goes through `$at` instead of `$at`-
-// less `0($t0)`; (5) the at/eye distance compares pick `a2`/`v1` where retail has `v1`/`v0`.
-// Parked alternatives re-measured, do not repeat: 2.6.0 89.20, cdk -G0 64.36 (try_flags); the
-// permuter cannot run on this body ("conversion to non-scalar type requested" on its first
-// base compile). The alias spellings are invented NAMES over existing storage - naming is the
-// orchestrator's call (same finding as func_80072D74's park in this file); drop them and the
-// body measures 90.85% and is source a 1998 programmer would have typed.
+// Frames the dolly camera (mode 2) runs for, and the at/eye distance under which it settles.
+#define FIELD_CAMERA_DOLLY_FRAME_COUNT 65
+#define FIELD_CAMERA_DOLLY_SETTLE_DISTANCE 128
+
+// The case-2 arm re-enters the middle of case 0's arm (retail jumps into the camera update
+// from case 2 and falls into it from case 0), so that block is written once under a label.
 void func_80073230(void) {
     VECTOR pos;
     VECTOR normal;
@@ -792,7 +769,7 @@ void func_80073230(void) {
     switch (*pMode) {
     case 2:
         D_800ADBAC = 0;
-        if (++D_800ADBB0 >= 65) {
+        if (++D_800ADBB0 >= FIELD_CAMERA_DOLLY_FRAME_COUNT) {
             *pMode = 0;
         }
         goto updateCamera;
@@ -831,7 +808,8 @@ void func_80073230(void) {
                 (s16)(g_CameraAt2.vz >> 16) - (s16)(g_CameraAt.vz >> 16));
             eyeDistance = FieldGetVec2Magnitude((s16)(g_CameraEye2.vx >> 16) - (s16)(g_CameraEye.vx >> 16),
                 (s16)(g_CameraEye2.vz >> 16) - (s16)(g_CameraEye.vz >> 16));
-            if (atDistance < 0x80 && eyeDistance < 0x80) {
+            if (atDistance < FIELD_CAMERA_DOLLY_SETTLE_DISTANCE &&
+                eyeDistance < FIELD_CAMERA_DOLLY_SETTLE_DISTANCE) {
                 *pCameraMode = 0;
             }
         }
