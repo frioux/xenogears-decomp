@@ -3165,28 +3165,37 @@ typedef struct {
     s16 delta[3][4]; // 0x60
 } FieldActorProximitySlots; // Size: 0x78
 
-// 97.43% (888 bytes / 222 insns = retail's exact size and count). EVERYTHING except seven
-// instructions is retail's, and the fix from 91.30% is the EMPTY `do { } while (0);` BARRIER
-// (levers.md h-an-empty-do-while-pins-a-run-of-stores): without it gcc sinks the two plain slot
-// stores (actorIndex, distance) below the first volatile g_FieldActors reload and hoists each
-// later reload above the previous statement; one barrier after each of the first five statements
-// of the if-arm pins retail's per-statement [reload, addu, lw 76, lh, lh, subu, sh] order, keeps
-// its load-delay nops and restores its byte count. The delta stores must then be spelled
-// `slots.delta[slot][k]`: a `s16* pSlotDelta` local folds the 0x60 into an addiu (876 or 868
-// bytes, both wrong) instead of into the store.
-// Two more real findings, each measured: the 0xFF sentinel needs a LOCAL (`s32 soundStateNone;`
-// assigned just before the actor loop) - with a literal, the barriers stop cse merging the test's
-// and the else store's constant, so cc1 re-materialises `li v0,0xff` twice per iteration and
-// never hoists retail's preheader `li s4,0xff`; and loop 3 must initialise `i` BEFORE `pDelta`
-// (retail `move s1,zero` / `addiu s0,sp,120`) - as a for-init, pDelta comes first. Both `slot`
-// locals are block-scoped: one function-scope `slot` shares a pseudo between loops 2 and 3 and
-// adds a `move a0,v0` to loop 3.
-// REMAINING: (a) six `lhu` where retail has `lh` on the delta stores - the sh truncates the
-// result, so cc1 narrows both loads; the magnitude call's own arguments come out `lh` and an s32
-// intermediate is copy-propagated away, so the sign extension is not reachable from source yet;
-// (b) `addu a0,s3,a0` where retail is index-first `addu a0,a0,s3`; the lever
-// c-cast-sum-with-the-offset-term-first says only the raw cast-sum spelling flips it, not tried
-// because it is not realistic C. No twin for this stub.
+// 98.56% (888 bytes / 222 insns = retail's exact size and count). Every instruction in the
+// function is retail's except the three delta stores' v0/v1 pair and one `li`. History: 91.30 ->
+// 97.43 came from the EMPTY `do { } while (0);` BARRIER (levers.md
+// h-an-empty-do-while-pins-a-run-of-stores): without it gcc sinks the two plain slot stores
+// (actorIndex, distance) below the first volatile g_FieldActors reload and hoists each later
+// reload above the previous statement; one barrier after each of the first five statements of the
+// if-arm pins retail's per-statement [reload, addu, lw 76, lh, lh, subu, sh] order, keeps its
+// load-delay nops and restores its byte count. Also measured, all load-bearing: the 0xFF sentinel
+// needs a LOCAL (`s32 soundStateNone;` assigned just before the actor loop) - with a literal cc1
+// re-materialises `li v0,0xff` twice per iteration; loop 3 must initialise `i` BEFORE `pDelta`
+// (retail `move s1,zero` / `addiu s0,sp,120`); both `slot` locals are block-scoped (a
+// function-scope `slot` shares a pseudo and adds a `move a0,v0` to loop 3).
+// 97.43 -> 98.56, two fixes, each measured: (1) the delta row address must be the OFFSET-FIRST
+// CAST SUM `*(s16*)(slot * 8 + (u32)&slots.delta[0][0] + 2*k)` - the plain subscript
+// `slots.delta[slot][k]` emits the mirrored `addu a0,s3,a0` where retail has `addu a0,a0,s3`, and
+// the cast sum keeps retail's 0x60/0x62/0x64 store displacements and its single addu (levers.md
+// c-offset-first-sum-cast-flips-a-local-array-slot); (2) the six `lhu`/`lh` residual closes with
+// an `s32 delta` EMBEDDED ASSIGNMENT in the store, `= (delta = pPos[k] - actor[k])` (levers.md
+// s32-intermediate-forces-lh-where-the-store-narrows-to-lhu). Shape details, all measured: a
+// delta statement of its own hoists the pPos load above the volatile reload and costs 5 insns
+// (908 bytes); `s16 delta` narrows again; reusing `distance` as the temp scores 98.11 and rotates
+// a1/a2. The three `do { } while (0);` barriers BETWEEN the delta statements must be gone - with
+// them the next axis's pPos load is hoisted above the g_FieldActors reload and each axis gains a
+// nop (896 bytes, 224 insns).
+// REMAINING: (a) in all three delta groups the register pair is mirrored - retail
+// `lw v1,76(v0) / lh v0,2(s2) / lh v1,34(v1) / subu v0,v0,v1 / sh v0,96(a0)`, ours with v0 and v1
+// swapped - i.e. the `delta` pseudo takes the low register the pPos load wants; its declaration
+// order (before `distance`) and block scope change nothing; (b) `li s4,0xff` lands in the entry
+// block where retail has it in the loop preheader after `blez`; initialising the local in its
+// declaration scores 97.60, and moving the assignment inside the loop drops 4 bytes (884, cannot
+// link). No twin for this stub.
 /*
 void func_80086590(VECTOR* pPosition) {
     FieldActorProximitySlots slots;
@@ -3195,6 +3204,7 @@ void func_80086590(VECTOR* pPosition) {
     s16* pPos = (s16*)pPosition;
     s16* pActorPos;
     s32 distance;
+    s32 delta;
     s32 soundStateNone;
     int i;
 
@@ -3231,11 +3241,9 @@ void func_80086590(VECTOR* pPosition) {
                 do { } while (0);
                 slots.unk20[slot] = g_FieldActors[i].pActorData->soundVolume;
                 do { } while (0);
-                slots.delta[slot][0] = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1];
-                do { } while (0);
-                slots.delta[slot][1] = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3];
-                do { } while (0);
-                slots.delta[slot][2] = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5];
+                *(s16*)(slot * 8 + (u32)&slots.delta[0][0]) = (delta = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1]);
+                *(s16*)(slot * 8 + (u32)&slots.delta[0][0] + 2) = (delta = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3]);
+                *(s16*)(slot * 8 + (u32)&slots.delta[0][0] + 4) = (delta = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5]);
             }
         } else {
             pActor->soundState = soundStateNone;
@@ -3277,6 +3285,7 @@ void func_80086590(VECTOR* pPosition) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
+
 
 
 
