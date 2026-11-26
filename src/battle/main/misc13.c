@@ -127,6 +127,19 @@ extern u16 g_BattleCommandRows[];
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattlePrimStartIndex[];
 extern u8 *g_BattleSpriteColumnWork;
+// Partial view of the sprite column draw buffer g_BattleSpriteColumnWork points at:
+// 0x50 bytes of prim per package in each list's area, then the per-list package counts
+// and the prim index each list was built at. (battle/main/misc2.c has the full view.)
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x5640];
+    /* 0x5640 */ u8 commandRowArea[0x640]; // prims of the lists a command row's sprites go in
+    /* 0x5C80 */ u8 statusArea[0xF0];      // prims of the list the status digits go in
+    /* 0x5D70 */ u8 packageCount[0x13];    // packages each list holds
+    /* 0x5D83 */ u8 primStart[0x13];       // prim index each list was built at
+    /* 0x5D96 */ u8 unk5D96[0xE];
+} BattleSpriteColumnBuffer; // Size: 0x5DA4
+// the same object as g_BattleSpriteColumnWork, seen as its lists
+extern BattleSpriteColumnBuffer *g_BattleSpriteColumns __asm__("g_BattleSpriteColumnWork");
 extern u8 g_BattleSlotSpriteColumnIds[];
 extern void BattleSetPrimGrey80BlendAdd(u8 *);
 extern void BattleSetPrimGrey80BlendSub(u8 *);
@@ -168,7 +181,9 @@ extern void func_80087EDC(u8, u8);
 extern void func_800881B8(s32, s32);
 extern void BattleSetSlotRegistersFromActor(u8, u8);
 extern s32 BattleScriptScanForOpcode62(u8);
-extern u8 g_BattleSlotTextBuffers[];
+// The three text buffers one command column renders its rows through: allocated per
+// draw, handed to func_80086028 in pairs, freed at the end.
+extern u_long *g_BattleSlotTextBuffers[3];
 extern u8 g_BattleSlotConditions[];
 extern void *BattleAllocTextBuffer(s32);
 extern s32 func_80086C88(u8, s32, s32, u8, u_long **);
@@ -647,21 +662,20 @@ void BattleDrawCommandSlotRows(u8 arg0, u8 arg1) {
     s32 row;
     s32 drawn;
     u8 spriteId;
-    u8 *pQueue;
     u8 *pRow;
     u8 *pKey;
 
     row = 0;
     drawn = 0;
+    // a byte-offset walk of the three pointers: retail's counter steps by 4 and stops at 12
     for (o = 0; o < 12; o += 4) {
-        *(void **)(g_BattleSlotTextBuffers + o) = BattleAllocTextBuffer(0x1E);
+        *(u_long **)((u8 *)g_BattleSlotTextBuffers + o) = BattleAllocTextBuffer(0x1E);
     }
-    (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CC] = arg0 + 0xFC;
+    (g_BattleCommandQueue + g_BattleCommandQueue[0x2D6])[0x2CC] = arg0 + 0xFC;
     g_BattleCommandQueue[0x2D6] = g_BattleCommandQueue[0x2D6] + 1;
     if (g_BattleCommandQueue[0x2E4] != 0) {
-        (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CB] = BATTLE_COMMAND_NONE;
+        (g_BattleCommandQueue + g_BattleCommandQueue[0x2D6])[0x2CB] = BATTLE_COMMAND_NONE;
     }
-    pQueue = g_BattleCommandQueue;
     for (i = 0; i < BATTLE_COMMAND_SLOT_COUNT; i++) {
         pRow = g_BattleCommandSlotRows[i];
         for (j = 0; j < BATTLE_COMMAND_KEY_LENGTH; j++) {
@@ -678,12 +692,12 @@ void BattleDrawCommandSlotRows(u8 arg0, u8 arg1) {
     }
     matched = i;
     if (g_BattleCommandQueue[0x2E4] != 0) {
-        (g_BattleCommandQueue - -(g_BattleCommandQueue[0x2D6]))[0x2CB] = arg0 + 0xFC;
+        (g_BattleCommandQueue + g_BattleCommandQueue[0x2D6])[0x2CB] = arg0 + 0xFC;
     }
-    g_BattleSpriteColumnWork[0x5D81] = 0;
-    g_BattleSpriteColumnWork[0x5D80] = 0;
+    g_BattleSpriteColumns->packageCount[0x11] = 0;
+    g_BattleSpriteColumns->packageCount[0x10] = 0;
     for (i = 0; i < g_BattleCommandQueue[0x2D6]; i++) {
-        switch ((g_BattleCommandQueue - -i)[0x2CC]) {
+        switch ((g_BattleCommandQueue + i)[0x2CC]) {
         case 0:
             spriteId = 0x5D;
             break;
@@ -694,9 +708,9 @@ void BattleDrawCommandSlotRows(u8 arg0, u8 arg1) {
             spriteId = 0x5F;
             break;
         }
-        g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(spriteId,
-                                    (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                          (0x5640 + (s32)g_BattleSpriteColumnWork)),
+        g_BattleSpriteColumns->packageCount[0x11] += BattleDrawSpritePackage(spriteId,
+                                    (s32)((g_BattleSpriteColumns->packageCount[0x11] * 0x50) +
+                                          (s32)g_BattleSpriteColumns->commandRowArea),
                                     i * 0x10 + 0x50, 0xD0 - row * 0x10);
     }
     j = 0;
@@ -730,29 +744,29 @@ void BattleDrawCommandSlotRows(u8 arg0, u8 arg1) {
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j]) != 0) {
             if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20) == 0) {
                 if (g_BattleCommandQueue[0x2E4] == 0) {
-                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
-                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                    g_BattleSpriteColumns->packageCount[0x11] += BattleDrawSpritePackage(7,
+                                                (s32)((g_BattleSpriteColumns->packageCount[0x11] * 0x50) +
+                                                      (s32)g_BattleSpriteColumns->commandRowArea),
                                                 i * 0x10 + 0x50, 0xD0 - row * 0x10);
                 } else {
                     i -= 1;
                 }
                 row = func_80086028(arg1, row, i,
                                     g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j],
-                                    (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4), 0);
+                                    &g_BattleSlotTextBuffers[row / 2], 0);
                 drawn = 1;
             }
         }
         break;
     }
     if (g_BattleCommandQueue[0x2E4] != 0 && drawn != 0) {
-        g_BattleSpriteColumnWork[0x5D90] = g_BattlePrimStartIndex[0];
+        g_BattleSpriteColumns->primStart[0xD] = g_BattlePrimStartIndex[0];
         g_BattleCommandQueue[0x2DC] = g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0xC - j] + 8;
-        g_BattleSpriteColumnWork[0x5D8F] = g_BattlePrimStartIndex[0];
+        g_BattleSpriteColumns->primStart[0xC] = g_BattlePrimStartIndex[0];
         g_BattleDisplayState[0xA8] = 1;
         BattleUpdateFrame();
         for (o = 0; o < 12; o += 4) {
-            HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
+            HeapFree(*(u_long **)((u8 *)g_BattleSlotTextBuffers + o));
         }
         return;
     }
@@ -775,17 +789,17 @@ void BattleDrawCommandSlotRows(u8 arg0, u8 arg1) {
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x13 - j]) != 0) {
             if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x1C) == 0) {
                 if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20) == 0) {
-                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(8,
-                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                    g_BattleSpriteColumns->packageCount[0x11] += BattleDrawSpritePackage(8,
+                                                (s32)((g_BattleSpriteColumns->packageCount[0x11] * 0x50) +
+                                                      (s32)g_BattleSpriteColumns->commandRowArea),
                                                 i * 0x10 + 0x54, 0xD0 - row * 0x10);
-                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
-                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                    g_BattleSpriteColumns->packageCount[0x11] += BattleDrawSpritePackage(7,
+                                                (s32)((g_BattleSpriteColumns->packageCount[0x11] * 0x50) +
+                                                      (s32)g_BattleSpriteColumns->commandRowArea),
                                                 (i + 1) * 0x10 + 0x54, 0xD0 - row * 0x10);
                     row = func_80086028(arg1, row, i,
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x13 - j],
-                                        (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4), 1);
+                                        &g_BattleSlotTextBuffers[row / 2], 1);
                 }
             }
         }
@@ -802,28 +816,28 @@ void BattleDrawCommandSlotRows(u8 arg0, u8 arg1) {
                                         g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x16 - j]) != 0) {
             if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x1E) == 0) {
                 if (*(u16 *)((g_BattleCommandQueue - -(arg1 * 0x40)) + 0x20) == 0) {
-                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(9,
-                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                    g_BattleSpriteColumns->packageCount[0x11] += BattleDrawSpritePackage(9,
+                                                (s32)((g_BattleSpriteColumns->packageCount[0x11] * 0x50) +
+                                                      (s32)g_BattleSpriteColumns->commandRowArea),
                                                 i * 0x10 + 0x58, 0xD0 - row * 0x10);
-                    g_BattleSpriteColumnWork[0x5D81] += BattleDrawSpritePackage(7,
-                                                (s32)((g_BattleSpriteColumnWork[0x5D81] * 0x50) +
-                                                      (0x5640 + (s32)g_BattleSpriteColumnWork)),
+                    g_BattleSpriteColumns->packageCount[0x11] += BattleDrawSpritePackage(7,
+                                                (s32)((g_BattleSpriteColumns->packageCount[0x11] * 0x50) +
+                                                      (s32)g_BattleSpriteColumns->commandRowArea),
                                                 (i + 1) * 0x10 + 0x58, 0xD0 - row * 0x10);
                     func_80086028(arg1, row, i,
                                   g_BattleCommandStatusBytes[g_BattleWorkBlock[arg1].characterId][0x16 - j],
-                                  (u_long **)(g_BattleSlotTextBuffers + (row / 2) * 4), 1);
+                                  &g_BattleSlotTextBuffers[row / 2], 1);
                 }
             }
         }
         break;
     }
-    g_BattleSpriteColumnWork[0x5D90] = g_BattlePrimStartIndex[0];
-    g_BattleSpriteColumnWork[0x5D8F] = g_BattlePrimStartIndex[0];
+    g_BattleSpriteColumns->primStart[0xD] = g_BattlePrimStartIndex[0];
+    g_BattleSpriteColumns->primStart[0xC] = g_BattlePrimStartIndex[0];
     g_BattleDisplayState[0xA8] = 1;
     BattleUpdateFrame();
     for (o = 0; o < 12; o += 4) {
-        HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
+        HeapFree(*(u_long **)((u8 *)g_BattleSlotTextBuffers + o));
     }
 }
 
@@ -1164,7 +1178,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
             g_BattleDisplayState[0xA8] = 1;
             BattleUpdateFrame();
             for (o = 0; o < 12; o += 4) {
-                HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
+                HeapFree(*(u_long **)((u8 *)g_BattleSlotTextBuffers + o));
             }
             return result;
         }
@@ -1207,7 +1221,7 @@ s32 func_80086F98(u8 arg0, u8 arg1) {
         g_BattleDisplayState[0xA8] = 1;
         BattleUpdateFrame();
         for (o = 0; o < 12; o += 4) {
-            HeapFree(*(void **)(g_BattleSlotTextBuffers + o));
+            HeapFree(*(u_long **)((u8 *)g_BattleSlotTextBuffers + o));
         }
         return result;
     }
