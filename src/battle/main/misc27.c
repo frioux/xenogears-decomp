@@ -213,8 +213,21 @@ extern void BattleClearRecordTable8(SpriteData* pSpriteData, u8* pArgs);
 // The battle animation script interpreter: `mode` selects the opcode, which mostly
 // moves one value in or out of the sprite and its anim script state. 0 is not an
 // opcode; 1..0x6B are. A 107-case switch, almost every case two to six instructions.
-// 95.26% (4084 bytes / 1021 insns against retail's 4056 / 1014).
-// FRAME, THE BIGGEST KNOWN BLOCKER: retail's frame is 0x68 and its lowest local is vecA at 0x38; this body's frame is 0x40 with the same vecA/vecB at 0x10/0x20. The 0x28 bytes between 0x10 and 0x38 are referenced NOWHERE in retail's .s (every sp access is 0x38/0x3C/0x40/0x48/0x4C/0x50/0x58/0x5C/0x60), and no C construct reserves frame it never touches, so the frame, the prologue/epilogue and the 12 case-103 vector accesses are out of reach from source. Costs 3 prologue insns, 3 epilogue insns and the 12 vector accesses.
+// 95.28% (4084 bytes / 1021 insns against retail's 4056 / 1014).
+// THE FRAME IS SOLVED (round 506): retail's 0x68 frame with vecA at 0x38 is a DEAD 0x28-byte
+// array local declared before vecA - `u_long scratch[10];`, never referenced, still gets a slot
+// at expand time (levers.md [j-an-unused-local-array-is]). The frame becomes 0x68, vecA/vecB land
+// on retail's 0x38/0x48, the prologue/epilogue and all 12 case-103 vector accesses become
+// instruction-identical, and 965 differing lines drop to 921. Only the size of the dead array
+// matters (0x28 = 40 bytes, rounded to 8 like every addressable local); its position must be
+// before vecA. This is the largest frame that lever has closed (previous rounds closed 8/16/24).
+// WHERE THE 28 SURPLUS BYTES GO, measured on the objdiff instruction diff: case 6 (mode 6) does
+// NOT cross-jump into case 7's shared tail the way retail does. Retail is 'lui v0,%hi(D_800C3E1C);
+// lw v1,%lo(...); j .L800B4E08' with the slot-index tail emitted ONCE at case 7 (.L800B4E04:
+// lw v1,0x74(s1) falls into it), so retail spends 4 instructions there and this body spends 13
+// (+9). Both spellings of case 6 (through a pAnimSprite local, and D_800C3E1C inline) leave the
+// two copies unmerged, and the rest of the body is 2 instructions SHORT of retail (case 52's
+// duplicate sw plus one more), i.e. 13-4=+9 against -2: cross-jumping is the whole size delta.
 // THE SLOT-INDEX MACRO IS A TWO-WAY SCHEDULER TIE, MEASURED. BATTLE_SCRIPT_SLOT_INDEX as (flags_0xA8 >> 30) | ((flags_0xAC.flags & 3) << 2) is what this park holds: 95.26% / 4084 bytes / 1021 insns. The mirrored order ((flags_0xAC.flags & 3) << 2) | (flags_0xA8 >> 30) scores 94.61% / 4048 bytes / 1012 insns (8 bytes SHORT of retail, fewest differing lines). Retail loads 0xA8 (0x168) FIRST and yet has the 0xAC half as the FIRST operand of the or (or a0,a0,v0); each spelling matches one and misses the other at all six sites, so the load order is post-reload scheduling (this preset has -fschedule-insns and -insns2), not the expression. A statement-expression accumulator - open brace, u32 i = AC << 2, i |= A8 >> 30, i, close brace - matches retail's or operand order at every site but scores 93.18% / 4060 bytes / 1015 insns; applied to case 98 ALONE it reproduces retail's or a0,a0,v0 exactly while the two loads then order opposite.
 // CASE 97 FIXED THIS ROUND: the s16 position halves must be read through an s32 local (targetX = xWhole + value, then field_0xA0 = targetX, likewise targetZ for field_0xA4). Stored straight into the 16-bit field, gcc narrows the loads to lhu; retail has lh 2(a2) and lh 0xA(a2). Took the arm from 6 differing instructions to 3, and the 3 left are allocator: retail stores through a0 after move a0,s1 where this body uses s1, and retail has a nop between lh and addu.
 // CASE 52 owns retail's missing store: retail has BOTH sw v0,0x1C(s1) (the multiplicand, before mflo) and sw t1,0x1C(s1) (the product) for one assignment - a gcc expand_mult artifact no source spelling reaches (4 spellings tried).
@@ -224,6 +237,7 @@ extern void BattleClearRecordTable8(SpriteData* pSpriteData, u8* pArgs);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B3F04);
 /*
 void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
+    u_long scratch[10];
     BattleScriptActorSlot* pSlot;
     SpriteData* pAnimSprite;
     SpriteDataI1* pBase;
@@ -693,8 +707,7 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         BattleSetSpriteDrawWorkCallback(pSpriteData, pArgs);
         break;
     case 6:
-        pAnimSprite = D_800C3E1C;
-        BattleBeginAnimTask(1 << BATTLE_SCRIPT_SLOT_INDEX(pAnimSprite));
+        BattleBeginAnimTask(1 << BATTLE_SCRIPT_SLOT_INDEX(D_800C3E1C));
         break;
     case 85:
         BattleBeginAnimTask((1 << BATTLE_SCRIPT_SLOT_INDEX(D_800C3E1C)) | g_BattleActorSlotMask);
@@ -718,6 +731,7 @@ void func_800B3F04(SpriteData* pSpriteData, s32 mode, u8* pArgs) {
         break;
     }
 }*/
+
 
 
 // Uploads the current frame's texture and CLUT into the sprite's own slots: the
