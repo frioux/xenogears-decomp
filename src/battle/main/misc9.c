@@ -283,33 +283,38 @@ void BattlePickSlotFromOperatorWordFlagged(u8 **arg0, s32 arg1) {
    while body's 88 / 352 / 95.25 and retail's 87 / 348. Same single-instruction
    wall as DA1C.
  */
-/*
 void func_8007DE78(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
+    s16 last;
     s32 count = 0;
-    s32 idx;
     u16 *pRow = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+    s32 rowIndex;
     u16 *pField;
 
     pRow[(*arg0)[2]] = 0;
+    rowIndex = arg1;
     pField = pRow;
     while (i < 3) {
-        idx = i++;
-        if (BattleSlotFlagsC002ClearRecordIdle(idx, 1) != 0) {
+        u8 idx = i;
+        u8 idle = BattleSlotFlagsC002ClearRecordIdle(idx, 1);
+
+        i++;
+        if (idle != 0) {
             if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
             }
         }
     }
+    last = count - 1;
     if (count != 0) {
-        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
+        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, last)]);
+        u16 *pOut = (u16 *)((rowIndex & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
-}*/
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
 
 
