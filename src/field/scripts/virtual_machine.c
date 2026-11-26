@@ -526,6 +526,15 @@ extern void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2);
 // Presets on this body: gcc-2.6.0 76.86, gcc-2.7.2-cdk compile-fails. Earlier rounds: permuter
 // 3 runs on the 85.58 body, PERMUTER_BETTER each (3056->1867, 2606->2054, 2054->1926).
 // ROUND 505: re-measured 90.44% / 604 bytes / 151 insns (retail 148 / 592), unchanged. New measurement: loading each shake delta into a shared `s32 nDelta` local one statement before its update is WORSE - 82.98% / 612 bytes / 153 insns - because the delta load then lands at the top of the block and the `lw g_FieldActors` delay slot gets a plain nop. The 4 bad blocks (t[1] and t[2] in BOTH groups; t[0] is verbatim in both) need the delta load in the `lw $a0,g_FieldActors` load-delay slot, i.e. RTL order lw a0 / lw v1,DELTA(a2) / addu / lw v0,FIELD(a0), which no statement order in C reaches: the `+=` expands the lvalue address first, so the delta load always comes after the element addu.
+// ROUND 519: re-unparked and re-measured 90.44% / 604 bytes / 151 insns (retail 592 / 148), unchanged,
+// so this note is live. Re-read of the diff this round: the anim-loop PREHEADER is now retail-shaped
+// (the file declares `extern s32 g_FieldActorModelSlotCount[];`, so cc1 materialises the address and
+// derives the table with addiu s2,v0,-128); what still differs there is only the blez delay slot
+// (retail andi a0,s1,0xFFFF, ours addiu s2,v0,-128) and the address register name (v1/v0).
+// Do not spend more rounds on item 1 of this note - it is closed. The 3-insn / 12-byte deficit is
+// exactly the four t[1]/t[2] delta blocks (item 1 below), i.e. the delta load not reaching the
+// lw $a0,g_FieldActors load-delay slot; the 0x30-vs-0x40 frame is retail having 0x30 bytes of
+// locals this body does not need. Permuter: 3 runs on the 85.58 body (all PERMUTER_BETTER).
 /*
 void func_800A24C4(void) {
     int i;
@@ -575,6 +584,7 @@ void func_800A24C4(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A24C4);
+
 
 extern s32 g_GamePartySkinsInitialized;
 extern s32 g_FieldActiveActorCount;
