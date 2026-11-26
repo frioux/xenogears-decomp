@@ -642,64 +642,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
 
 
 
-// ROUND 485 RE-MEASURE: 83.13% / 488 bytes = retail's exact 122 instructions, under the unit's
-// gcc-2.6.0 (XenoBattle260), first run and compiles clean. The pPrim/pPrim2 s32* locals the earlier
-// notes require under 2.7.2 are NOT needed on this preset: reading g_BattlePrimStartIndex[0] at all
-// four sites compiles BYTE-IDENTICALLY to the pPrim/pPrim2 body here (cc1's own .s for the function
-// is the same text), so this park carries the array form.
-// Measured dead this round, all 488 bytes / 122 insns unless noted: the index-first spelling at the
-// two palette stores (*(u32) * 0x28 + ...->pPacketPrims) is byte-identical - gcc canonicalises the
-// commutative addu; 'pRec = member; pRec += *pPrim * 0x28;' (in-place pointer add) is 66.46% with 112
-// differing lines; the single-statement ofs ('ofs = g_BattlePrimStartIndex[0] * 0x28 + 0x3C0;') is
-// 79.47% with 98. try_flags: gcc-2.7.2 83.46, gcc-2.7.2-cdk 64.74 - the preset is not the residual.
-// A 4-minute permuter run (base 1195 best 1057, 2076 iterations) found only 'short ofs', which
-// measures 91.19% / 504 bytes / 126 insns on this preset - +4 instructions of sll/sra, so it can never
-// link; its other two candidates (a volatile short behind 'if (new_var = 1)' and a duplicated palette
-// arm) are wrong code and were rejected.
-// PROBE (decisive): compiled from build/src/battle/main/misc16_r2.c.i with the unit's own cc1 plus
-// -fno-schedule-insns -fno-schedule-insns2, the entry block is subu sp / sw ra,s1,s0 / move s1 /
-// lw v0,g_BattleGraphicsWork / lw a1,0xA230(v0) / la s0 / lw index / chain sll,addu,sll in v0,v0,a0 /
-// lbu 2F80 / addiu a0,960 / lbu 2F82 / lbu 2F83 / sw v0,16 / sw v1,20 / addu a0,a0,a1 / li a1,0xA8 / jal.
-// Retail instead hoists the two li constants, sinks the 0xA230 base load past the chain and keeps the
-// WHOLE index chain in a0. Our C forms ofs as TWO pseudos (v0,v0 then a0), retail's is one, so the
-// residual is that pseudo split plus the schedule - not a statement order, and not the preset.
-// HISTORY (rounds 312/371, measured under gcc-2.7.2 before the unit moved to 2.6.0, kept because
-// the levers are still the starting point):
-// - the palettes, the two palette blocks and the tail (func_80090C44 called with the palette store in
-//   its delay slot, then the trailing lbu g_BattlePrimStartIndex) are byte-identical to retail.
-// - ofs must be a local SPLIT over two statements (ofs = index * 0x28; then ofs += 0x3C0;): the
-//   one-statement form reassociates the constant onto the base (76.12 then, 79.47 here).
-// - pPrims = g_BattleGraphicsWork->pPacketPrims; as a statement BETWEEN the product and the + 0x3C0
-//   gives retail's addiu a0,a0,960 / addu a0,a0,t1.
-// - pal = D_800D2F80; above the first call is a scratch for the dx argument (the permuter's find,
-//   1155 -> 83.46) and is load-bearing: passing D_800D2F80 inline is 82.24, and a u = D_800D2F82;
-//   scratch beside it is 83.46 again, so the residual is not the u/dx/v load order on its own
-//   (retail loads them u, dx, v after lw t0,0(s0); this build dx, u, v with dx before the chain).
-// - the round-371 pPrim/pPrim2 pointer locals are NOT needed on 2.6.0 (see the re-measure above).
-/*
 void func_80090E7C(u8 arg0) {
     u8 *pRec;
-    u8 *pPrims;
-    s32 ofs;
     u16 pal;
 
-    pPrims = g_BattleGraphicsWork->pPacketPrims;
-    ofs = g_BattlePrimStartIndex[0] * 0x28;
-    pal = D_800D2F80;
-    ofs += 0x3C0;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pPrims), 0xA8, 0xA6, D_800D2F82, D_800D2F83, pal);
-    pRec = g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                        (g_BattlePrimStartIndex[0] * 0x28 + 0x3C0)),
+                            0xA8, 0xA6, D_800D2F82, D_800D2F83, D_800D2F80);
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(g_BattlePrimStartIndex[0] * 0x28));
     if (D_800D2F81 != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x3CE) = pal;
-    ofs = g_BattlePrimStartIndex[0] * 0x28;
-    pPrims = g_BattleGraphicsWork->pPacketPrims;
-    ofs += 0x410;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pPrims), 0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
-    pRec = g_BattleGraphicsWork->pPacketPrims + g_BattlePrimStartIndex[0] * 0x28;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                        (g_BattlePrimStartIndex[0] * 0x28 + 0x410)),
+                            0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
+    pRec = g_BattleGraphicsWork->pPacketPrims - (-(g_BattlePrimStartIndex[0] * 0x28));
     if (D_800D2F7D != 0) {
         pal = g_SystemPalette2;
     } else {
@@ -709,6 +669,4 @@ void func_80090E7C(u8 arg0) {
     func_80090C44(arg0);
     BattleDrawSpritePackage(0x71, (s32)(g_BattleGraphicsWork->pPacketPrims + 0x5A0), 0x118, 0xD1);
     ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->numberPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
-
+}
