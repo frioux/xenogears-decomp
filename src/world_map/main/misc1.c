@@ -448,7 +448,7 @@ void WorldMapSetLevelFileIndices(s32 arg0, s32 arg1) {
     g_WorldMapTileRows = pEntry->tileRows;
     g_WorldMapAreaMode = pEntry->areaMode;
 }
-void func_80071CDC(void) {
+void WorldMapQueuePartyActorAnimLoads(void) {
     u8 partyId;
     s32 characterId;
     u8 gearId;

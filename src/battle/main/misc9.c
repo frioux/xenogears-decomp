@@ -55,7 +55,7 @@ extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 
-void func_8007D8C0(u8 **arg0, s32 arg1) {
+void BattlePickSlotFromOperatorWord(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s16 last;
@@ -88,7 +88,7 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
     }
 }
 /* best: 95.38% (352 bytes / 88 insns; retail 0x8007DA1C..0x8007DD1C = 87 insns /
-   348 bytes). The func_8007D8C0 R370/R398 two-pointer recipe carries this stub:
+   348 bytes). The BattlePickSlotFromOperatorWord R370/R398 two-pointer recipe carries this stub:
    `pField = pRow;` after the head store, the index-first base with an (s32) cast
    on the symbol, a u16 value local at the tail, and the loop written as a
    `while (i < 0xB)` from 3 - that is 75.77 -> 95.38 in one step.
@@ -218,7 +218,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
 
 
-void func_8007DCF8(u8 **arg0, s32 arg1) {
+void BattlePickSlotFromOperatorWordFlagged(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 3;
     s16 last;

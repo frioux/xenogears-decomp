@@ -280,10 +280,10 @@ extern void BattleStoreCommandBytes(u8 **ppCommand, u8 *pArgs, u8 row);
 extern void BattlePickRandomFreeCharSlot(u8 **ppCommand, u8 slot);
 extern void BattlePickFreeCharSlotWithSameTag(u8 **ppCommand, u8 slot);
 extern void BattlePickFreeActorSlotWithSameTag(u8 **ppCommand, u8 slot);
-extern void func_8007D8C0(u8 **ppCommand, u8 slot);
+extern void BattlePickSlotFromOperatorWord(u8 **ppCommand, u8 slot);
 extern void func_8007DA1C(u8 **ppCommand, u8 slot);
 extern void func_8007DB78(u8 **ppCommand, u8 slot);
-extern void func_8007DCF8(u8 **ppCommand, u8 slot);
+extern void BattlePickSlotFromOperatorWordFlagged(u8 **ppCommand, u8 slot);
 extern void func_8007DE78(u8 **ppCommand, u8 slot);
 extern void func_8007DFD4(u8 **ppCommand, u8 slot);
 extern void BattleStoreActorSlotFlagMask(u8 **ppCommand, u8 slot);
@@ -579,7 +579,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattlePickActorSlotByLowestEntryWordInUse(ppCommand, slot);
         break;
     case 0x5C:
-        func_8007D8C0(ppCommand, slot);
+        BattlePickSlotFromOperatorWord(ppCommand, slot);
         break;
     case 0x5D:
         func_8007DA1C(ppCommand, slot);
@@ -588,7 +588,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         func_8007DB78(ppCommand, slot);
         break;
     case 0x5F:
-        func_8007DCF8(ppCommand, slot);
+        BattlePickSlotFromOperatorWordFlagged(ppCommand, slot);
         break;
     case 0x60:
         func_8007DE78(ppCommand, slot);
