@@ -566,38 +566,11 @@ typedef struct {
 extern FieldRotationVectorPair g_FieldRotationVectorPair;
 extern void FieldResetPortraitSlots(void);
 extern void FieldInitScreenStripSprites(void);
-// FieldResetScene-style body: 426 insns / 1704 bytes - RETAIL'S EXACT SIZE, 14 differing
-// lines, every one of them a within-block hoist ORDER swap. No structural residual left.
-// FIXED HERE (do not re-derive; 84.61 -> 97.90 this round):
-// (a) A POINTER TO A SCALAR GLOBAL ALWAYS FOLDS BACK to `lui at / sb %lo`. Retail holds &bank
-//     in $s0 from insn 20 across the RotMatrix call until the fill loop, so the bank, the
-//     render-context index and g_FieldScriptMemory are all reached through ARRAY-DECAY ALIASES
-//     (`extern u8 ...BankBytes[] __asm__("...Bank"); pBank = ...BankBytes;`), lever
-//     a-label-alias-array-read-beats-volatile. Worth ~11 points together.
-// (b) NEVER INITIALISE THOSE POINTERS IN THE DECLARATION (lever
-//     b-a-decl-initialised-symbol-address): the la then lands in the prologue before `sw $ra`
-//     and the save order breaks. Assign immediately before the first use instead.
-// (c) RETIRED: the old note said the 16-entry fill loop sits right after `*pIndex = 0x720`.
-//     Retail runs it AFTER the block ending at g_FieldStreamPlayerInitialized. Take the
-//     statement order from the .s store sequence (84.61 -> 88.20 -> 95.29).
-// (d) THE FILL LOOPS ARE INDEXED, NOT WALKING, and their base is 4 bytes BELOW retail's first
-//     write: `pSlot[i]` with pSlot = pBank - 0x74 (i = 2..0) and `pRenderSlot[i]` with
-//     pRenderSlot = pIndex + 0x4E (i = 0xF..0). A walking `*p--` gives the same bytes but the
-//     wrong hoist order. Use TWO pointers; one shared local ties both loops to $s0 (retail
-//     has $a2). The 32-entry D_800B22DE fill must STAY a walking pointer from the bare symbol
-//     (the indexed form emits D_800B22DE+0x3E plus an extra `li a1,0x1f`, 427 insns).
-// REMAINING, all measured, all hoist order inside a block:
-//  1. every loop here: retail emits the hoisted VALUE before the for-init
-//     ([li v0,-1][li a1,2], [li a3,0x1d][li a1,0xf], [li a0,0x1000][li v0,1]); we emit it after.
-//  2. the 32-fill and the copy loop: retail puts the for-init/invariants BEFORE the la
-//     ([li v1,0xffff][li a1,0x1f][lui v0,..], [move a1,zero][lui v0,..]); we put them after -
-//     i.e. retail's loop.c inserted those movables at the BLOCK head, ours at the loop head.
-//  3. include/field/main.h declares g_FieldControl.controllerBtnMask as short, so = 0xFFFF
-//     emits `addiu v0,-1` where retail has `ori v0,0xffff` (shared header, not touched here).
-// Dead on this body: 2.6.0 / cdk / -G0 screens, three spellings of the bank pointer, volatile.
-/*
+// Order-sensitive: cc1 emits a constant's `li` where the assignment that produces it sits, so
+// each fill value below is named in a local before its loop and `i` is counted outside the
+// `for`. Written inline, gcc re-materialises the constant next to the store instead.
 void func_800705DC(void) {
-    u_long unusedFrame[4];
+    u_long unknownLocals[4]; // retail reserves these 16 bytes below `rotation`; nothing reads them
     SVECTOR rotation;
     u8* pBank;
     s16* pIndex;
@@ -607,6 +580,10 @@ void func_800705DC(void) {
     GameState* pState;
     s16* pSlot;
     s16* pRenderSlot;
+    s16 fillValue;
+    s16 renderFillValue;
+    u_short wordFillValue;
+    u_short buttonMask;
     int i;
 
     if (g_FieldSystemMode == 0) {
@@ -715,13 +692,14 @@ void func_800705DC(void) {
     rotation.vz = 0;
     RotMatrix(&rotation, &g_FieldModelScreenMatrix);
 
+    fillValue = -1;
     pSlot = (s16*)(pBank - 0x74);
     for (i = 2; i >= 0; i--) {
-        pSlot[i] = -1;
+        pSlot[i] = fillValue;
     }
 
-    g_FieldFadeIsWhite = 1;
     D_800AF93A = 0x1000;
+    g_FieldFadeIsWhite = 1;
     pIndex = g_FieldScriptRenderContextIndexSlots;
     *pIndex = 0x720;
 
@@ -739,15 +717,17 @@ void func_800705DC(void) {
     D_800B2188 = 0;
     g_FieldStreamPlayerInitialized = -1;
 
+    renderFillValue = 0x1D;
     pRenderSlot = pIndex + 0x4E;
     for (i = 0xF; i >= 0; i--) {
-        pRenderSlot[i] = 0x1D;
+        pRenderSlot[i] = renderFillValue;
     }
 
     g_FieldPendingWdsBankIndex = 0x1D;
     g_FieldMapTransitionGate = -1;
     g_FieldCameraSnapFrames = 2;
-    g_FieldControl.controllerBtnMask = 0xFFFF;
+    buttonMask = 0xFFFF;
+    g_FieldControl.controllerBtnMask = buttonMask;
     g_FieldFogNearB = 0x80;
     g_FieldFogNearG = 0x80;
     g_FieldFogNearR = 0x80;
@@ -775,20 +755,23 @@ void func_800705DC(void) {
         }
     }
 
+    wordFillValue = 0xFFFF;
+    i = 0x1F;
     pMemory = D_800B22DE;
-    for (i = 0x1F; i >= 0; i--) {
-        *pMemory-- = 0xFFFF;
+    for (; i >= 0; i--) {
+        *pMemory-- = wordFillValue;
     }
 
     D_800B229C = 0;
     D_800B2298 = 0;
     g_GfxOTDepthShift = 2;
 
+    i = 0;
     pMemory = (u_short*)g_FieldScriptMemoryArray;
     pZero = pMemory + 0x200;
     pState = g_pGameState;
     pDest = pMemory;
-    for (i = 0; i < 0x200; i++) {
+    for (; i < 0x200; i++) {
         pDest[i] = pState->fieldScriptMemory[i];
         pZero[i] = 0;
     }
@@ -815,8 +798,7 @@ void func_800705DC(void) {
     FieldClearActorSoundSlots();
     FieldInitializeParticles();
     FieldInitScreenStripSprites();
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_800705DC);
+}
 
 
 
