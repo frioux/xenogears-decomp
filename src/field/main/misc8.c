@@ -361,7 +361,7 @@ extern const char D_8006FC24[];
 extern const char D_8006FC30[];
 extern const char D_8006FC3C[];
 void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
-void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void FieldUpdateActorMovement(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 void FieldUpdatePlayerActorContact(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
 s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, int arg4);
 void func_8008399C(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
@@ -492,7 +492,7 @@ void func_8008110C(void) {
             if ((pActor->flags & 0x600) != 0x200) {
                 pActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(pActor);
                 func_80082620(i, pFieldActor, pActor);
-                func_80082BB8(i, pFieldActor, pActor);
+                FieldUpdateActorMovement(i, pFieldActor, pActor);
             }
             continue;
         }
@@ -1384,7 +1384,7 @@ int FieldProbeWalkmeshSlideAlongWall(VECTOR* pVec, ActorData* pActor, SVECTOR* p
      pFieldActor (without it the pair mirrors);
    - the 0x60/0x30 speed stores go to `pSprite->moveSpeed` (sprite +0x18),
      not to the step vector. */
-void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
+void FieldUpdateActorMovement(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     VECTOR pos;
     SVECTOR points[2];
     SpriteData* pSprite;

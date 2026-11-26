@@ -1131,3 +1131,4 @@ FieldUpdatePlayerActorContact = 0x80084158;
 FieldStreamStartImage = 0x8008EA58;
 FieldStreamStartImageFromScript = 0x8008EE14;
 g_FieldStreamType = 0x800C3A30;
+FieldUpdateActorMovement = 0x80082BB8;
