@@ -567,6 +567,24 @@ void BattleActorResetUnk15D8(UnkStruct1* p) {
 //    3. Do NOT merge the two stateFlags statements into one expression ((p->stateFlags & ~0xC) & ~3 measured 191/764, worse).
 //    RESIDUAL, one construct: retail has ONE 'lw a1,0xD4' / 'and ~0xC' ... / 'and ~3' / ONE 'sw a1,0xD4' with the second and and the store placed AFTER the flags block, i.e. the stateFlags pseudo is live across the flags RMWs in $a1. Every spelling tried either merges into a compact group (adjacent statements: 1 lw + 2 and + 1 sw but stored early, 193/772) or emits two load/store pairs (separated statements: 195/780, this body, 80.76%). Getting retail needs the merge AND the late store, which only sched2 can do once the register pressure puts the value in a1. Related: retail's 0xFF7FFFFF mask is in $a2 and its speed in $a0; this body has the mask in $a1.
 //    Everything else measured this round: split flags into two statements (required, retail has two ors with lui 0x2/lui 0x200) - correct; modelIndex/actionPhaseTimer zeros present - correct.
+// ROUND 525: 81.43% / 780 / 195, the same size, from TWO source changes measured
+// together: a 'u32 stateFlags' local carrying 'stateFlags = p->stateFlags & ~0xC;'
+// ... 'stateFlags &= ~3;' ... 'p->stateFlags = stateFlags;', and
+// 'p->facingOffset = p->sideBaseAngle + 0x800;' moved BETWEEN the two flags
+// statements (flags = (flags & ~0x1000) | 0x2000000;  facingOffset;  flags |= 0x20000;).
+// That is the trade the round-500 note called unreachable: the local merges the two
+// stateFlags statements into retail's single lw + two ands + single sw (written late,
+// after the sh to 0xCE), and moving facingOffset splits the flags pair into two
+// lw/sw RMWs, which retail also has. RESIDUAL now: retail issues both of the first
+// flags RMW's ors
+// before its store and keeps the 0xFF7FFFFF mask in a2 from the top of the block;
+// ours stores after the 0x2000000 or and re-forms lui 0x2 for the second or - one
+// moved store, same instruction multiset. Measured and rejected this round:
+//   do{...}while(0) around the zero-init block through D_8009264E = 1 (91.14% but
+//   197 insns / 788 bytes - two insns over retail, cannot link);
+//   a u32 stateFlags local for the two RMWs (83.12 / 772 - store early, two short);
+//   flags statements separated with facingOffset AND the local (195/780, 81.43).
+//   permute.sh 4 min: base=2205 best=1720, and the best candidate was the do/while.
 /*
 void func_80078F00(Actor* p) {
     ActorPart* pPart;
@@ -574,6 +592,7 @@ void func_80078F00(Actor* p) {
     ActorScript* pScript;
     u16 face;
     s16 speed;
+    u32 stateFlags;
     s32 i;
 
     pPart = p->pPart;
@@ -624,13 +643,14 @@ void func_80078F00(Actor* p) {
     p->unkF4 = 1;
     BattleResetMessageQueue(p);
     p->prevPartIndex = 0xFF;
-    p->stateFlags &= ~0xC;
+    stateFlags = p->stateFlags & ~0xC;
     p->modelIndex = 0;
     p->actionPhaseTimer = 0;
     p->flags = (p->flags & ~0x1000) | 0x2000000;
-    p->flags |= 0x20000;
     p->facingOffset = p->sideBaseAngle + 0x800;
-    p->stateFlags &= ~3;
+    p->flags |= 0x20000;
+    stateFlags &= ~3;
+    p->stateFlags = stateFlags;
     p->flags &= 0xFF7FFFFF;
     p->stepScale = pScript->stepScale;
     speed = pScript->speedScale;
@@ -662,6 +682,7 @@ void func_80078F00(Actor* p) {
     p->stateFlags &= ~0x40;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
+
 
 
 
@@ -816,39 +837,9 @@ extern s32 BattleVectorLength2D(Vec4*);
 // published for the rest of the battle code, the camera target is mirrored on their
 // midpoint, and the camera orbits to the nearer of the two candidate points on an
 // orbit of radius dist*2/3 + 0xC0, moving a fraction of the way each frame.
-// Best attempt: 94.16%, 980 bytes / 244 instructions = retail's exact object size.
-// The structure, every call, every argument and the frame are retail's; the two
-// residuals left are these.
-// (a) The two BattleVectorLength2D calls: retail copies call 1's result into s0
-//     immediately after that call ('move s0,v0') and puts 'addiu a0,sp,0x20' in the
-//     second call's delay slot; this body emits those two insns the other way round,
-//     so reorg fills the slot with the copy. Measured identical: lenB as a local vs
-//     the call written inline in the compare, and 'lenA > lenB' vs 'lenB < lenA' -
-//     the copy placement is reload's, not the spelling's.
-// (b) floorY: retail keeps 'floor - 0x100' in s0, the register '&g_BattleCameraPos'
-//     dies in; this body uses v0. 'if (posA.y > floorY)' and 'if (floorY < posA.y)'
-//     measure identically.
-// What closed 84.47 -> 94.16 was the ADDRESS REGISTERS. Retail holds
-// '&g_BattleCameraTarget' in s1 across the rcos/rsin calls (lui %hi + addiu, then
-// sw 0(s1) and two lw 0(s1)); a scalar extern folds back to the symbol at every use,
-// so gcc needs one fewer callee-saved register, the whole s-register set shifts by
-// one and every line differs. Declaring the SAME symbols a second time as unbounded
-// arrays with an asm label - 'extern s32 g_BattleCameraTargetAddr[]
-// __asm__("g_BattleCameraTarget");' then 'pTargetX = g_BattleCameraTargetAddr;' -
-// makes the address a value and reproduces retail's seven saved registers and the
-// 0x50 frame. The third point's target.x read must stay the PLAIN scalar, because
-// retail re-forms it there with lui/lw. The same alias on g_BattleCameraPos gives
-// retail's s0 held across BattleMovePointInsideRadius and
-// BattleGetFloorHeightAtPosition (before it: three separate lui/addiu and a
-// 'lui at' store).
-// The third load-bearing shape: 'height = dist + 0x40;' must be its own statement
-// and 'posA.y = g_BattleCameraTargetY - height;' must come BEFORE the posA.x
-// statement - that is what puts retail's 'addiu v1,s4,0x40' in the bnez delay slot
-// (and a second copy after the clamp) and computes targetY - height above the rcos
-// call. Inlining '(dist + 0x40)' makes cc1 reassociate to (targetY - 0x40) - dist,
-// and putting the y statement after posA.x gives 89.71 with the call above the y.
-// Not run: the permuter (the lane rule stops below 99%).
-/*
+// 'height = dist + 0x40;' has to be its own statement and the y of posA has to be
+// written before its x: together they are what puts retail's addiu of the height in
+// the clamp's delay slot and computes targetY - height above the rcos call.
 void func_800796B8(Actor* p1, Actor* p2) {
     Vec4 posA;
     Vec4 posB;
@@ -859,9 +850,9 @@ void func_800796B8(Actor* p1, Actor* p2) {
     s32 lenA;
     s32 lenB;
     s32 height;
-    s32 floorY;
     s32* pTargetX;
     s32* pCamPos;
+    s32* pZ;
 
     if (g_BattleInitDone != 0) {
         return;
@@ -875,7 +866,8 @@ void func_800796B8(Actor* p1, Actor* p2) {
     pTargetX = g_BattleCameraTargetAddr;
     *pTargetX = (p1->x + p2->x) / 2;
     g_BattleCameraTargetY = (p1->y + p2->y) / 2 - 0xA0;
-    g_BattleCameraTargetZ = (p1->z + p2->z) / 2;
+    pZ = &p2->z;
+    g_BattleCameraTargetZ = (p1->z + *pZ) / 2;
 
     // The two candidate points on the orbit, seen from the camera. Their y words are
     // never set here - retail reads the frame slot back unset - but the length test
@@ -916,14 +908,16 @@ void func_800796B8(Actor* p1, Actor* p2) {
     BattleMovePointInsideRadius((Vec4*)pCamPos, &posB, 0x3A00);
     *pCamPos += posB.x;
     g_BattleCameraPosZ += posB.z;
-    floorY = BattleGetFloorHeightAtPosition((Vec4*)pCamPos, 0) - 0x100;
-    if (floorY < posA.y) {
-        posA.y = floorY;
+    // Reusing lenA (dead since the length test) rather than a local of its own: a
+    // fresh pseudo here lands in v0, and retail keeps the value in the s0 that the
+    // camera position's address dies in.
+    lenA = BattleGetFloorHeightAtPosition((Vec4*)pCamPos, 0) - 0x100;
+    if (lenA < posA.y) {
+        posA.y = lenA;
     }
     g_BattleCameraPosY += (posA.y - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
     g_BattleCameraLerpFrames = 0x64;
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
+}
 
 void BattleInitOptionDefaults(void) {
     BattleEffectInitContext();
