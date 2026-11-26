@@ -561,7 +561,7 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
 // position from its start to its target and publishes the result: slots 0..6 into their
 // own word, 7 and 8 into the two slot vectors. A block whose tag is D_800C3B84 reports
 // to D_800C3B88 - bit 1 while it still runs, bit 2 once it has finished and been freed.
-// PARKED 96.94% (2120 bytes = retail's exact size, 118 differing lines).
+// PARKED 96.96% (2120 bytes = retail's exact size, 112 differing lines).
 // ROUND 512 re-measured round 479's body and it is NOT opcode-identical - the "571
 // aligned rows, 0 opcode differences" below was measured on a different body, so the
 // real residuals are listed at the end of this note; read those, not the paragraph.
@@ -621,6 +621,29 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
 // 95.28; orbitY as the two-statement divide and orbitR as one expression 96.39; a bare
 // `{ }` block around case 4 and `if (1)` around case 4 both byte-identical to no barrier.
 // ROUND 512: 96.94% at retail's exact 2120 bytes; see the note above.
+// ROUND 524: 96.94 -> 96.96 (118 -> 112 differing lines) at the same 2120 bytes, and
+// the pBlock/orbitY pair above is GONE on this body (the note's $s4/$s5 residual was
+// fixed by the round-479 edits; it is no longer a residual at all). THE EDIT THAT PAID:
+// the (kind & 0xF) < 2 arm must use TWO DIFFERENT actor variables - `pActor`/`pSprite`
+// for targetX and `pTarget`/`pTargetSprite` for the tween's targetZ. With one `pActor`
+// reused in the second half of the arm, arm 1's `pSprite = pActor->pSprites` cannot
+// coalesce into pActor's dying $v0 (retail has `lw v0,4(v0)`) because pActor has a
+// later definition; splitting the variable makes arm 1 instruction-identical there and
+// leaves arm 2 (`lw a1,4(v0)`, retail's too) unchanged. What is left, all named:
+//  (1) the SEVEN-instruction targetY/pos[1] pair: retail holds the target height in
+//      $a0 and the minuend pos[1] in $v1 (`lhu a0,12(s5)` .. `subu v1,v1,a0`), this
+//      body swaps them in BOTH the actor arm and the D_800C3EBE arm, which also moves
+//      `move s2` into the targetZ `bltz` delay slot instead of before the `lh`.
+//      MEASURED DEAD: hoisting the target height above the `if (pActor != NULL)` as an
+//      s32 local collapses retail's two `lhu 12(s5)` into one (96.29 / 2116 / 209
+//      lines), `(s32)` on the field operand is byte-identical, `orbitR /= 4096` is
+//      byte-identical to the three-statement divide.
+//  (2) three rows that are pure sched2 placement in the tween arm (retail's `sra
+//      v0,v0,0x10` before the `lhu`, the per-arm `lh a0,12(s6)` after it).
+//  (3) orbitR's /4096 stays a copy (`move v0,s0` + `addiu v0,s0,4095` + `sra
+//      s0,v0,0xC`) where retail does it in place - the compound-assign spelling does
+//      not move it.
+//  (4) func_800B0B14's result takes $a1 where retail takes $a0 (one row).
 /*
 void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     u16 vec[3];
@@ -648,6 +671,8 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     BattleBlock *pSlotBlock;
     BattleActor *pActor;
     BattleSprite *pSprite;
+    BattleActor *pTarget;
+    BattleSprite *pTargetSprite;
 
     D_800C3B88 = 0;
     for (i = 0; i < arg1; i++) {
@@ -675,12 +700,12 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
                 }
                 y = dy;
                 if (pTween->targetZ >= 0) {
-                    pActor = g_BattleActors[pTween->targetZ];
-                    if (pActor != NULL) {
-                        pSprite = pActor->pSprites;
-                        x = ((s16)x + pSprite->pos[0]) / 2;
-                        y = ((s16)y + pSprite->pos[1] - pTween->targetY) / 2;
-                        z = ((s16)z + pSprite->pos[2]) / 2;
+                    pTarget = g_BattleActors[pTween->targetZ];
+                    if (pTarget != NULL) {
+                        pTargetSprite = pTarget->pSprites;
+                        x = ((s16)x + pTargetSprite->pos[0]) / 2;
+                        y = ((s16)y + pTargetSprite->pos[1] - pTween->targetY) / 2;
+                        z = ((s16)z + pTargetSprite->pos[2]) / 2;
                     } else {
                         x = ((s16)x + D_800C3EBE[pTween->targetZ].x) / 2;
                         y = ((s16)y + D_800C3EBE[pTween->targetZ].y - pTween->targetY) / 2;
@@ -806,6 +831,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     D_800C3B8C = 0;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
+
 
 
 
