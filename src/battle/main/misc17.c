@@ -935,42 +935,32 @@ void func_80092B74(u8 arg0, u8 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
-/* 93.09% (1220 bytes against retail's 1228, 305 vs 307 instructions) under this
-// unit's gcc 2.6.0. Frame 0xB0 and all ten saved values are retail's, and the four
-// reload-spill slots are retail's offsets (0x68, 0x70, 0x78, 0x80, all 8 apart).
-// THE WIN this round: the first BattleSetPolyFT4Rect site reads
-// *(volatile s32 *)g_BattlePrimStartIndex for the prim index. Retail's object
-// reloads that word (`lw v0,0(s0)`) and recomputes * 0x28 after the packet-pool
-// `sh` store, where a plain read keeps the product in $a0 and saves 4
-// instructions; the cast-away volatile is the lever battle/main/misc1 already
-// records. Same body without it: 90.96% / 1204 bytes / 301 insns.
-// Residual, re-measured round 491, is three allocator decisions and no structure:
-// (1) WHICH value takes the fourth spill slot. Retail spills pValue there; this
-// body keeps pValue in $s5 and spills the pGlyphRect address at 0x68, which costs
-// 3 (retail's `lw t1,0x70(sp)` in the ones arm, and its `lw/addiu/sw` pValue++ at
-// the loop end) and saves 2 (the preheader address store and its reload), i.e. the
-// -2 insn / -8 byte gap. The allocator is not wrong to do it: the address has 2
-// refs against pValue's many, and the spill slot map is NOT the spilled set.
-// (2) the glyph RECT address: retail recomputes `addiu a0,sp,0x20` in the
-// BattleLoadImageAndSync delay slot, this body reloads it from 0x68.
-// (3) g_BattleSlotTextIndex comes out as `lui/addiu` + `addu` + `lbu` (4 insns)
-// where retail's object has the one-operand `lui $at,%hi / addu $at,$at,v0 /
-// lbu %lo($at)` (3); g_BattleDigitImageBuffers at the same loop depth does take
-// the $at form, so it is register pressure at that one site.
-// Measured dead this round: no pGlyphRect, &glyphRect inline in the one call
-// (88.22% / 1220 bytes / 305 insns, frame 0xB8 - loop.c hoists the address even
-// from a single conditional use, spills it at 0x80, pushes y to 0x88 and spills a
-// further value at 0x78); declaring pValue before pId (byte-identical, 93.09);
-// try_flags: 2.7.2 -O2 -G8 93.47, 2.7.2-cdk 83.96, 2.6.0 -O3 93.09, -G0 93.09, so
-// the preset is not the answer.
-// Already dead in earlier rounds: no pGlyphRect hoist (86.08, gcc spends a
-// register on the anchor, frame 0xB8), pGlyphRect assigned inside the loop
-// (88.22), an asm-labelled alias for g_BattleSlotTextIndex (identical 93.09, the
-// symbol has only one site here), named y/textY variables (87.29), divisors
-// initialiser (80.83), declaration-order permutations, two permuter runs
-// (5255 -> 4281 -> 3657).
-//  */
+/* 94.01% (1224 bytes against retail s 1228, 306 vs 307 instructions) under this
+// unit gcc 2.6.0. Frame 0xB8 against retail 0xB0 and the ten saved values are
+// retail s; the four local slots 0x70/0x78/0x88 are 8 apart as retail s are.
+// THE WIN this round (93.09 -> 94.01): move every read of the value pointer onto
+// a per-iteration copy, pCur = pValue at the top of the outer loop, with all
+// three *pCur uses and only pValue++ left on the original. That is the allocator
+// lever: pValue refs drop, its pseudo loses the priority contest, and retail
+// likewise reloads its value pointer once per outer iteration. Adding just the
+// store copy (pCur only around "*-= digit * divisors[j]") is 93.52 / 1216.
+// RESIDUAL: retail spills FOUR values (arg0 at 0x68, pValue 0x70, pId 0x78, the
+// y counter 0x80) and recomputes &glyphRect as "addiu a0,sp,0x20" at its single
+// use; this body spends a fifth slot on pGlyphRect (stored to 0x68 in the
+// preheader, reloaded before that call) and keeps pCur in a register, which is
+// the +8 frame byte. Retail also reads its y counter with lhu (a u16) where the
+// i*16+0x100 induction variable comes out lw.
+// Measured dead this round: inline &glyphRect instead of pGlyphRect with this
+// body (87.13 / 1216 / 304); a real "u16 y" counter with "y += 0x10" at the loop
+// end (83.91 / 1188 / 297, frame 0xA0 - gcc then keeps y in a register and the
+// memory induction variable retail has never forms); modifying arg1/arg2 in
+// place (arg1++, arg2++) with no pointer locals (87.71 / 1212 / 303, frame 0xB8).
+// Permuter, third and fourth runs this round: base 1676 -> best 1547 (that is
+// what produced pCur) -> 1482, but the 1482 candidate caches "new_var = &(*pValue)"
+// before the loop and reads it as the current value, i.e. it reads slot 0 forever:
+// WRONG CODE, rejected. Earlier rounds: 5255 -> 4281 -> 3657, plus try_flags
+// 2.7.2 93.47, cdk 83.96, 2.6.0 -O3 93.09, -G0 93.09, so the preset is not it.
+// */
 /*
 void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     RECT glyphRect;
@@ -983,6 +973,8 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     u_long *pBufs[4];
     u16 divisors[3];
     u8 *pId;
+    u8 *pSlotText;
+    u16 *pCur;
     u16 *pValue;
     u32 value;
     u8 started;
@@ -1007,6 +999,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     pValue = arg2;
     pGlyphRect = &glyphRect;
     for (i = 0; i < 4; i++) {
+        pCur = pValue;
         pBufs[i] = BattleAllocTextBuffer(0x1B);
         bzero(pBufs[i], 0x30C);
         tileRect.x = 0x380;
@@ -1016,7 +1009,8 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
         BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
         started = 0;
         if (*pId != 0xFF) {
-            SystemRenderStringEntry(GetStringEntryFromBank34(g_BattleSlotTextIndex[arg0 * 0x170] * BATTLE_SLOT_COMMAND_COUNT + i),
+            pSlotText = &g_BattleSlotTextIndex[arg0 * 0x170];
+            SystemRenderStringEntry(GetStringEntryFromBank34(*pSlotText * BATTLE_SLOT_COMMAND_COUNT + i),
                                     pBufs[i], 0x1B, 0);
             glyphRect.x = 0x380;
             glyphRect.y = i * 16 + 0x102;
@@ -1034,12 +1028,12 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
             tensRect.y = i * 16 + 0x102;
             tensRect.w = 6;
             tensRect.h = 0xD;
-            value = *pValue;
+            value = *pCur;
             digit = value / divisors[j];
             if (digit != 0 || started != 0) {
                 BattleLoadImageAndSync(&tensRect, g_BattleDigitImageBuffers[digit]);
                 started = 1;
-                *pValue -= digit * divisors[j];
+                *pCur -= digit * divisors[j];
             } else {
                 BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
             }
@@ -1049,7 +1043,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
         onesRect.w = 6;
         onesRect.h = 0xD;
         if (*pId != 0xFF) {
-            value = *pValue;
+            value = *pCur;
             onesDigit = value % 10;
             BattleLoadImageAndSync(&onesRect, g_BattleDigitImageBuffers[onesDigit]);
         } else {
@@ -1072,6 +1066,9 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->unkB7 = 4;
 }*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
+
+
 
 
 
