@@ -680,34 +680,33 @@ extern BattleActor *g_BattleActors[];
 extern void func_800BEE2C(s32 slot, s32 mask, s32 command);
 extern void BattleWaitAndFreeActorBuffers(void);
 
-// 96.37% under the unit's own preset (gcc-2.7.2-cdk-psx -G0 -O2) at 584 bytes / 146 instructions
-// against retail's 592 / 148, so it is two instructions SHORT and can never link: keep it parked.
-// Preset confirmed again this round: -O3 75.47, -O1 67.68, -Os does not compile, gcc-2.6.0 56.72.
-// THE WAIT LOOP IS A for (;;) WITH A GUARD IN FRONT OF EACH CALL, not `while (count != 0)`. That one
-// change took the body from 91.91 to 96.37 and reproduces retail's rotated shape exactly: the exit
-// test at the loop head jumps to the PENDING test (not to the flag test), one `beqz s2,top` sits
-// before `jal BattleLoadArchiveEntryFile`, and the body ends with an unconditional `j top` whose
-// delay slot sets pending = 0. The old body's `bnez s2,top` tail is gone.
-// REMAINING RESIDUAL, named: retail has a SECOND `beqz s2,top` with `move a1,zero` in its delay slot
-// in front of `jal func_800BE790`, and this body has only one guard. cse merges the two
-// `count == 0` comparisons (count is a local that lives in s2 and no call can change it), so gcc
-// deletes the second; retail kept both. The `if (count != 0) { call } else { continue; }` spelling is
-// merged the same way (96.37, same two instructions missing).
 // Load-bearing spellings kept from the earlier rounds: the collect mask is `m & (m ^ bitMask)`
 // (xor+and, NOT `& ~mask`, which gives nor+and); the loop guard is `if (i != 0) { for (i--; i >= 0; i--) }`
 // (retail's redundant beqz/bltz pair); the slot index must stay an inline MACRO at all four sites (a
 // local collapses three recomputations and costs 18 instructions); func_800BEE2C takes the index
 // TWICE (retail sets a1 = a0 in the jal's delay slot); and `pending` must be a u8 (both of its tests
 // are andi 0xFF).
-// Other residuals: (a) callee-saved rotation - retail s3=flag, s4=bitmask base; this body has them
-// the other way round, so nearly every register in the diff differs; (b) the index's `or` operand
-// order (retail builds it 0xAC-part first; swapping BATTLE_SLOT_INDEX's operands to match measured
-// 85.10 this round, so it is not the fix on its own); (c) the slot walker and the preheader's
-// `beqz` delay slot (nop here, `addiu s1,s1,-1` in retail).
-// Tried and rejected this round: `while (count != 0)` with both guards 93.91 / 149 insns (exit edge
-// goes to the flag test); a third `if (count == 0) continue;` at the top of the body 93.91 / 147.
-// Tried in earlier rounds: `if (pending != 0) {calls}` 91.51; a pSlotTable pointer local 90.31; the
-// pWork->slots[] view 90.28; a 4-minute permuter run on the 91.91 body (base=1341 best=1341).
+// 97.66% under the unit preset XenoBattleTailCdk0 (gcc-2.7.2-cdk-psx, -G0 -O2) at 592 bytes / 148 insns =
+// retail's exact size, 90 differing lines, so the shape is right and what is left is all allocation.
+// NEW: the second wait-loop guard is NOT `count == 0`. Retail guards BOTH calls, and cse elides a second
+// `count == 0` (the old park: 96.37% / 584 bytes / 146 insns, two instructions short, so it could never link).
+// Writing the second guard as `i == 0` - i is the slot-walk counter, so it equals count there - SURVIVES the
+// jump optimizer and gives retail's size: 96.37 -> 97.66, 146 -> 148 insns, still 592 bytes. Its one remaining
+// delta is the register: retail's branch reads s2 (count), this body s1 (i).
+// Residuals, largest first:
+// (a) CALLEE-SAVED ROTATION, and it is a wall: retail puts the u8 flag in s3 and the g_BattleSlotBitMask
+//     address in s4; this body has them the other way round, and the swap cascades (the slots-array base is s0
+//     in retail, s3 here; the walked pSprite is v1 in retail, s0 here). The -dl allocator dump gives the flag
+//     QI/6 refs/109 insns and the bitmask base SI/3 refs/32 insns, so the QI size term is what loses. Widening
+//     the flag to s32 with a (u8) test (so retail's andi stays) measured BYTE-IDENTICAL, so the pair does not
+//     move: park on it.
+// (b) BATTLE_SLOT_INDEX's or operand order: retail builds the flags_0xAC part first at both sites, this body the
+//     0xA8 part first. Swapping the macro's two operands measured 90.84% / 100 differing lines (one site flips,
+//     the other does not), so the current order is the better of the two; it is not the fix on its own.
+// (c) pending (u8) lives in a0 here and a1 in retail, so every delay-slot copy differs (move a0,zero vs
+//     move a1,zero): same cause as (a).
+// Preset screened earlier and confirmed right: -O3 75.47, -O1 67.68, gcc-2.6.0 56.72. Below 99% do not spend a
+// permuter run: the residual is register names, not structure.
 /*
 s32 func_800C0314(void) {
     SpriteData *slots[BATTLE_SLOT_COUNT];
@@ -759,7 +758,7 @@ s32 func_800C0314(void) {
             continue;
         }
         BattleLoadArchiveEntryFile();
-        if (count == 0) {
+        if (i == 0) {
             continue;
         }
         func_800BE790();
@@ -770,6 +769,7 @@ s32 func_800C0314(void) {
     return count;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
+
 
 
 
