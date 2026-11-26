@@ -1794,67 +1794,68 @@ extern FieldWalkmeshTriangleRecord* g_FieldWalkmeshTriangles[];
 extern FieldWalkmeshVertexRecord* g_FieldWalkmeshVertices[];
 extern u_char g_FieldPartyMoveInProgress;
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
-/* Best attempt: 83.66% (1916 bytes, the original's exact size). The body at
-   retail's size and every block is in retail's order (the eight-arm switch, the
-   flag tests, the 0x400000 height probe and the crossed-edge copy / second
-   switch). What is left is ordering and allocation, all of it measured:
-   1. prologue: retail loads pVec->vx/pVec->vz/pPos->vx/pPos->vz once, forms
-      nRef from those registers (`addu s8,v1,a0` right after the sra of the z
-      sum) and reloads pVec->vz/pPos->vz only for the pOut->vz store; gcc
-      splits the loads into two clusters and forms nRef after the second.
-   2. `(pPos->vx >> 16) << 16` is narrowed by gcc to `lh 2(pPos); sll 16` where
-      retail does `sra/sll` on the full word (nPos, 0x48(sp)).
-   3. nSavedTri stays in a register here: the frame is 0x88 against retail's
-      0x90, and retail keeps nSavedTri 0x38, nPos 0x48, nStop 0x58, i 0x50
-      while this body keeps nPos 0x38, nStop 0x48, i 0x50. Forcing the spill
-      would fix every saved-register offset in the function.
-   4. case 6 written as `if (NormalClip(...) >= 0) {n2; nClip=4} else {n1;
-      nClip=2}` (this body) matches retail's bgez; the swapped form scores
-      84.01% but is 1912 bytes, so the 4-byte-short position is the one inside
-      that arm.
-   5. i = 0xFF in case 0 is retail's "triangle found" sentinel: the loop tail
-      tests `i == 0x20` for "exhausted", and the exit tests nTri == -1 || i ==
-      0x20.
-   Six of the seven arguments are known from the call sites; pOut is arg 5
-   (0xA0(sp)), nMode arg 6 (0xA4(sp), 0x80 and -1 are the two values tested) and
-   pFlags arg 7 (0xA8(sp)), which is where `*pFlags = nFlags` stores. */
+// Best attempt: 92.80% (1916 bytes, retail's exact size, 479 insns each). Everything from
+// the loop head down is instruction-identical: the loop body, the eight-arm switch and its
+// jump table, the three shared arm tails, the material-flag re-read, the three failure
+// tests, the loop tail, both FieldGetTrianglePlaneHeight call sites and all three
+// crossed-edge copies. Round 498 fixed three things the older notes had wrong:
+// 1. nSavedTri was READ BUT NEVER ASSIGNED (UB in the fail switch). `nSavedTri = nTri;` at
+//    the loop head restores retail's `sw s0,0x38(sp)`.
+// 2. the tail was written inverted (`if (nTri == -1 || i == 0x20) { switch; return -1; }`),
+//    which made gcc duplicate the epilogue - 1924 bytes. Written the other way round
+//    (`if (nTri != -1 && i != 0x20) { if (nMode != -1) { call } return 0; }`, then the nClip
+//    switch, then `return -1` falling into the epilogue) the body hits retail's 1916 bytes.
+// 3. the spill-slot order is source-declaration order: declaring nSavedTri, nFlagMask, nPos,
+//    i, nStop first gives retail's 0x38/0x40/0x48/0x50/0x58, confirmed by the per-offset
+//    access counts 4,4,4,5,3.
+// WHAT IS LEFT:
+// a. THE FRAME, and it is the whole residual: retail is 0x90, saves at 0x68..0x8C, stack
+//    args read at 0xA0/0xA4/0xA8; this body is 0x88, saves 0x60..0x84, args 0x98/0x9C/0xA0.
+//    The 8 bytes are a SIXTH reload spill at 0x60..0x67 that nothing in retail's .s reads
+//    (its only sp accesses are 0x10,0x18,0x28,0x30,0x38,0x40,0x48,0x50,0x58), so the slot
+//    is allocated and never used. An expand-time local cannot produce it: it lands at 0x28
+//    and pushes all five real spills +8. Every save/restore line, both stack-arg reads and
+//    most branch displacements follow from that one slot.
+// b. prologue: retail keeps the full word of pPos->vz (`lw a3,8(pPos)` then `sra a3`) for
+//    nPos's z half because that load is shared with the (pPos->vz + pVec->vz) sum. With
+//    nPos written first - needed for the x half's `sra/sll` and worth 2 insns, i.e. the
+//    1916-byte shape - cc1 narrows the z half to `lh 10(pPos)`. Writing nPos last scores
+//    93.14% but is 1924 bytes, so it could never link; the exact-size shape was kept.
+// Tried and measured this round: nPos last (93.14, 1924); the older declaration order
+// (92.77, same 1916). Not tried: the permuter - the lane rule gates it at 99% and no random
+// edit can add a stack slot.
 /*
-// Drops pOut onto the walkmesh under the actor: walks the triangle graph from
-// the actor's current triangle toward pOut's x/z, then fills pPoints with the
-// two vertices of the edge it crossed when no triangle is found. -1 on failure.
 int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode, s32* pFlags) {
     FieldWalkmeshTriangleRecord* pTri;
     FieldWalkmeshVertexRecord* pVerts;
     VECTOR normal;
-    s32 nRef;
-    s32 nPos;
+    s32 nSavedTri;
     s32 nFlagMask;
+    s32 nPos;
+    s32 i;
+    s32 nStop;
+    s32 nRef;
     s32 nClip;
     u_int nFlags;
-    s32 nStop;
     s32 nTri;
     s32 vA;
     s32 vB;
     s32 vC;
-    s32 nSavedTri;
-    s32 i;
 
-    nWalkmeshId = pActor->walkmeshId;
-    nTri = pActor->walkmeshTriIds[nWalkmeshId];
-    pTri = g_FieldWalkmeshTriangles[nWalkmeshId];
-    pVerts = g_FieldWalkmeshVertices[nWalkmeshId];
+    nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
+    pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
+    pVerts = g_FieldWalkmeshVertices[pActor->walkmeshId];
     if (nTri == -1) {
         return -1;
     }
 
+    nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
     pOut->vx = (pPos->vx + pVec->vx) >> 16;
     nRef = (pOut->vx << 16) + ((pPos->vz + pVec->vz) >> 16);
     nFlagMask = 0;
     pOut->vy = 0;
     pOut->vz = (pPos->vz + pVec->vz) >> 16;
-    nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
-    if (!((pActor->flags >> (nWalkmeshId + 3)) & 1)) {
+    if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
         nFlagMask = -(g_FieldPartyMoveInProgress < 1);
     }
 
@@ -1865,6 +1866,7 @@ int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     }
 
     for (i = 0; i < 0x20; i++) {
+        nSavedTri = nTri;
         vA = (pVerts[pTri[nTri].v0].vx << 16) + pVerts[pTri[nTri].v0].vz;
         vB = (pVerts[pTri[nTri].v1].vx << 16) + pVerts[pTri[nTri].v1].vz;
         vC = (pVerts[pTri[nTri].v2].vx << 16) + pVerts[pTri[nTri].v2].vz;
@@ -1946,42 +1948,44 @@ int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
         }
     }
 
-    if (nTri == -1 || i == 0x20) {
-        switch (nClip) {
-        case 1:
-            pPoints[0].vx = pVerts[pTri[nSavedTri].v0].vx;
-            pPoints[0].vy = pVerts[pTri[nSavedTri].v0].vy;
-            pPoints[0].vz = pVerts[pTri[nSavedTri].v0].vz;
-            pPoints[1].vx = pVerts[pTri[nSavedTri].v1].vx;
-            pPoints[1].vy = pVerts[pTri[nSavedTri].v1].vy;
-            pPoints[1].vz = pVerts[pTri[nSavedTri].v1].vz;
-            break;
-        case 2:
-            pPoints[0].vx = pVerts[pTri[nSavedTri].v1].vx;
-            pPoints[0].vy = pVerts[pTri[nSavedTri].v1].vy;
-            pPoints[0].vz = pVerts[pTri[nSavedTri].v1].vz;
-            pPoints[1].vx = pVerts[pTri[nSavedTri].v2].vx;
-            pPoints[1].vy = pVerts[pTri[nSavedTri].v2].vy;
-            pPoints[1].vz = pVerts[pTri[nSavedTri].v2].vz;
-            break;
-        case 4:
-            pPoints[0].vx = pVerts[pTri[nSavedTri].v2].vx;
-            pPoints[0].vy = pVerts[pTri[nSavedTri].v2].vy;
-            pPoints[0].vz = pVerts[pTri[nSavedTri].v2].vz;
-            pPoints[1].vx = pVerts[pTri[nSavedTri].v0].vx;
-            pPoints[1].vy = pVerts[pTri[nSavedTri].v0].vy;
-            pPoints[1].vz = pVerts[pTri[nSavedTri].v0].vz;
-            break;
+    if (nTri != -1 && i != 0x20) {
+        if (nMode != -1) {
+            FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], pOut, &normal);
         }
-        return -1;
+        return 0;
     }
 
-    if (nMode != -1) {
-        FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], pOut, &normal);
+    switch (nClip) {
+    case 1:
+        pPoints[0].vx = pVerts[pTri[nSavedTri].v0].vx;
+        pPoints[0].vy = pVerts[pTri[nSavedTri].v0].vy;
+        pPoints[0].vz = pVerts[pTri[nSavedTri].v0].vz;
+        pPoints[1].vx = pVerts[pTri[nSavedTri].v1].vx;
+        pPoints[1].vy = pVerts[pTri[nSavedTri].v1].vy;
+        pPoints[1].vz = pVerts[pTri[nSavedTri].v1].vz;
+        break;
+    case 2:
+        pPoints[0].vx = pVerts[pTri[nSavedTri].v1].vx;
+        pPoints[0].vy = pVerts[pTri[nSavedTri].v1].vy;
+        pPoints[0].vz = pVerts[pTri[nSavedTri].v1].vz;
+        pPoints[1].vx = pVerts[pTri[nSavedTri].v2].vx;
+        pPoints[1].vy = pVerts[pTri[nSavedTri].v2].vy;
+        pPoints[1].vz = pVerts[pTri[nSavedTri].v2].vz;
+        break;
+    case 4:
+        pPoints[0].vx = pVerts[pTri[nSavedTri].v2].vx;
+        pPoints[0].vy = pVerts[pTri[nSavedTri].v2].vy;
+        pPoints[0].vz = pVerts[pTri[nSavedTri].v2].vz;
+        pPoints[1].vx = pVerts[pTri[nSavedTri].v0].vx;
+        pPoints[1].vy = pVerts[pTri[nSavedTri].v0].vy;
+        pPoints[1].vz = pVerts[pTri[nSavedTri].v0].vz;
+        break;
     }
-    return 0;
-}
-*/
+    return -1;
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
+
+
 
 int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
     int value = *pCur;
