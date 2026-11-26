@@ -71,7 +71,7 @@ extern u8 g_BattleRowStatValues[];
 extern u8 g_BattleCommandCellUses[];
 extern u8 g_BattleCommandGridIds[];
 extern u8 g_BattleSlotEnabledFlags[];
-extern u8 D_800CCD3E[];
+extern u8 g_BattleSlotBank14TextRows[];
 extern u8 D_800CCDEC[];
 extern u8 D_800C3EB7[];
 extern BattleSlotFlag g_BattleSlotFlags[];
@@ -367,7 +367,7 @@ void BattlePickSlotByActorTag(BattleSlotArgs **ppArgs, u8 row) {
     for (; i < 0xB; i++, record += 0x170) {
         u8 idx = i;
 
-        if (BattleSlotFlagsC000Clear(idx) != 0 && D_800CCD3E[record] == (*ppArgs)->tag) {
+        if (BattleSlotFlagsC000Clear(idx) != 0 && g_BattleSlotBank14TextRows[record] == (*ppArgs)->tag) {
             *pBuf++ = idx;
             count++;
         }

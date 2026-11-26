@@ -147,7 +147,7 @@ extern u8 D_800CCD38[];
 extern u8 D_800CCD36[];
 // The count byte at offset 0x13 of each action row, which retail reaches through its own label
 // (the first row's, D_800CDD40 + 0x13 and D_800CEF10 + 0x13).
-extern u8 D_800CDD53[];
+extern u8 g_BattleCharacterRowValues[];
 extern u8 D_800CEF23[];
 extern u8 D_800CCD1C[];
 extern u8 g_BattleActorCharIds[];
@@ -369,7 +369,7 @@ u8 BattleTrySpendSlotActionBudget(u8 arg0, u8 arg1, u8 arg2) {
         bitIndex = arg1 + arg2 * 2;
         off = (arg2 * 2 + arg1 + 0x16) * sizeof(BattleActionRow) + arg0 * BATTLE_CELL_ACTION_BLOCK_SIZE;
         entry = ((BattleActionRow *)(g_BattleCellActionRows + off))->flags;
-        count = D_800CDD53[off];
+        count = g_BattleCharacterRowValues[off];
         inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.conditionRows[g_BattleActorCharIds[arg0]].characterConditionMask, bitIndex) != 0;
     } else {
         bitIndex = arg1 + arg2 * 2;

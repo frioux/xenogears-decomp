@@ -514,7 +514,7 @@ void BattleClearCommandSlots(void) {
    `i = 0` is assigned before `pSlots = pQueue` (retail's order: a3=0 then
    t1=a2); the second copy of the queue pointer is what produces `move t1,a2`
    in the preheader. The status-row index is `g_BattleWorkBlock[arg1].characterId`
-   (retail relocs D_800CCD3E, the same address with the +0x56 addend in the load
+   (retail relocs g_BattleSlotBank14TextRows, the same address with the +0x56 addend in the load
    displacement instead; the linked bytes are identical, verified with check_bin).
 */
 // Walks the 13 command slots looking for the row whose 7-byte key matches the
@@ -650,7 +650,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 // tools/scripts/check_bin.sh battle prints OK, so every byte is retail's.
 // objdiff reads 99.86 only through two folds it cannot do: the two jtbl_
 // operands (.rodata + table-relative lw offset) and `lbu 86(at)` for the typed
-// g_BattleWorkBlock[arg1] access (the original names D_800CCD3E). The last
+// g_BattleWorkBlock[arg1] access (the original names g_BattleSlotBank14TextRows). The last
 // displaced pair closed by writing `drawn = 1;` AFTER the func_80086028 call:
 // written before it, sched1 hoists `li s7,1` to the head of the join block and
 // the `move a1,s5` argument copy sinks below the arg1 * 0x170 chain (99.41).

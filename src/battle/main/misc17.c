@@ -166,7 +166,7 @@ extern u8 *g_BattleCurSlotState;
 extern BattleSlotState *g_BattleTargetSlotState;
 extern u8 *D_800C3D60;
 extern u16 g_BattleActionSlotMask[]; // the array view keeps its address in a register across both guard reads, as retail does
-extern u8 D_800CCD3E[];
+extern u8 g_BattleSlotBank14TextRows[];
 extern void *D_800C348C[];
 extern volatile u8 D_800D2DB8; // volatile so the discarded read that ends BattleRunCurrentActionRow is not eliminated
 extern u8 D_800C34AE;
@@ -188,7 +188,7 @@ extern void *GetStringEntryFromBank14(s32);
 extern void *GetWeaponName(s32);
 extern void BattleInitSlotGraphics(s32, u16, u16, u16, u16, u8, u8);
 extern void *GetStringEntryFromBank30(s32);
-extern u8 D_800CDD53[];
+extern u8 g_BattleCharacterRowValues[];
 extern u8 D_800CEF23[];
 
 // The largest amount the current action may deal; the tail of BattleComputeActionAmount clamps to it.
@@ -212,9 +212,9 @@ extern u8 D_800CEF23[];
 
 /* PARKED 94.05% (1448 bytes / 362 insns against retail's 1440 / 360) under this unit's gcc 2.6.0
    (XenoBattle260). Two insns left, and both are the same callee-saved register:
-   1. gcc hoists `&D_800CCD3E[arg0 * 0x170]` into $s6 in the third loop's preheader
+   1. gcc hoists `&g_BattleSlotBank14TextRows[arg0 * 0x170]` into $s6 in the third loop's preheader
       (lui/addiu/addu there, `lbu a0,0(s6)` in the body) where retail re-forms it per iteration
-      through $at (`lui $at,%hi(D_800CCD3E) / addu $at,at,s4 / lbu a0,%lo(at)`). That is +1 insn
+      through $at (`lui $at,%hi(g_BattleSlotBank14TextRows) / addu $at,at,s4 / lbu a0,%lo(at)`). That is +1 insn
       and it burns the register retail keeps the masked slot in, which is
    2. the per-iteration `andi v0,s5,0xff` in both row scans, where retail has `move s4,a0` in the
       arm preheader and `addu at,at,s4` in the body. Kill the hoist and the rest should collapse;
@@ -224,7 +224,7 @@ extern u8 D_800CEF23[];
      the andi's say nothing about the parameter type;
    - `u8 slot = arg0;` as the first statement, used at every masked site INCLUDING the tail
      `BattleDrawCommandCellFrames(slot)` - cc1 copy-propagates it back to `(u8)arg0`;
-   - `*(u8 *)(D_800CCD3E + (u8)arg0 * 0x170)`, and the same cast form for g_BattleSlotTextIndex.
+   - `*(u8 *)(g_BattleSlotBank14TextRows + (u8)arg0 * 0x170)`, and the same cast form for g_BattleSlotTextIndex.
    What round 524 bought (a permuter run, base 2970 -> 2478, iterated by hand):
    - `u8 *pBufSlot = (u8 *)bufs + bufOff;` as the FIRST statement of `if (active[i] != 0)`, read as
      `*(void **)pBufSlot`: 92.28 -> 94.05, 124 -> 104 differing lines. The typed
@@ -233,7 +233,7 @@ extern u8 D_800CEF23[];
    - `off = (sumOff = rowOff + slotOff);` with a `u32 sumOff;` local is worth 1.25 points and one
      insn (92.80 / 1452 / 363 without it). Probe-grade: the second pseudo is what keeps the sum out
      of the branch delay slot. Its natural spellings (`off = rowOff + slotOff;` and
-     `values[i] = D_800CDD53[off = rowOff + slotOff];`) both measure 92.80.
+     `values[i] = g_BattleCharacterRowValues[off = rowOff + slotOff];`) both measure 92.80.
    A second permuter run from the 94.05 body returned best=2108 with `rowOff = i;` in the second
    loop's then-arm - WRONG CODE (rowOff is the 0x28-stepping row base), rejected.
    Round 511's structural result still holds and is what got the body here:
@@ -294,7 +294,7 @@ void func_80091064(u8 arg0) {
                     i) != 0) {
                 active[i] = 1;
                 off = (sumOff = rowOff + slotOff);
-                values[i] = D_800CDD53[off];
+                values[i] = g_BattleCharacterRowValues[off];
             } else {
                 active[i] = 0;
                 values[i] = 0;
@@ -330,7 +330,7 @@ void func_80091064(u8 arg0) {
         if (active[i] != 0) {
             pBufSlot = (u8 *)bufs + bufOff;
             if (g_BattleSlotFlags[arg0 * 8] == 0) {
-                pStr = GetStringEntryFromBank14(D_800CCD3E[arg0 * 0x170] * 0x10 + i);
+                pStr = GetStringEntryFromBank14(g_BattleSlotBank14TextRows[arg0 * 0x170] * 0x10 + i);
             } else {
                 pStr = GetStringEntryFromBank30(g_BattleSlotTextIndex[arg0 * 0x170] * 0x10 + i);
             }

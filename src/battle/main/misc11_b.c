@@ -84,7 +84,7 @@ extern u8 g_BattleSlotDisplayInitialized;
 extern u8 g_BattleTargetSlot;
 extern u8 D_800C48EA;
 extern u8 D_800CCD38[];
-extern u8 D_800CDD53[];
+extern u8 g_BattleCharacterRowValues[];
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleLastMenuEvent;
 extern void BattleLoadStringTableAE(u8 arg0);

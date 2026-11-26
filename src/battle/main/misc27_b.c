@@ -10,7 +10,7 @@ extern void AnimScriptTick(void* pSprite);
 extern s32 SpriteScaleValue(void* pSprite, s32 value);
 extern void BattleEmitTrailSegments();
 extern void func_800B3CD4();
-extern void func_800B51B0();
+extern void BattleDrawTrailSegment();
 extern void BattleIntegrateSpriteVelocityTask();
 extern void BattleDrawActorLinePrim();
 extern void BattleDrawLinkedActorLinePrim();

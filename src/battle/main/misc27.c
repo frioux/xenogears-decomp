@@ -870,7 +870,7 @@ extern BattleTrailSegmentCount D_800D2FCC;
 //   and the clut value in the bnez delay slot;
 // - `clut` and the two edges are named locals stored after the rgb group, not inline calls;
 // - xEdge and yEdge are computed in two statements (sin/cos, then the 8192 scale).
-void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
+void BattleDrawTrailSegment(VECTOR* pFrom, VECTOR* pTo) {
     LINE_F2* pLine;
     POLY_FT4* pQuad;
     SVECTOR from;
@@ -1037,7 +1037,7 @@ void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
 
     pTask = pWork->pTask;
     func_8001E148(pTask->pSpriteData);
-    BattleEmitTrailSegments(BATTLE_TRAIL_SEGMENTS, pTask->curPos, func_800B51B0);
+    BattleEmitTrailSegments(BATTLE_TRAIL_SEGMENTS, pTask->curPos, BattleDrawTrailSegment);
 }
 
 void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {

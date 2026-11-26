@@ -91,7 +91,7 @@ extern u8 g_BattleTargetSlot;
 extern u8 g_BattleTargetSlotRead[] __asm__("g_BattleTargetSlot");
 extern u8 D_800C48EA;
 extern u8 D_800CCD38[];
-extern u8 D_800CDD53[];
+extern u8 g_BattleCharacterRowValues[];
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleLastMenuEvent;
 extern u8 BattleRunFourSlotCommandMenu(u8 arg0);
@@ -759,7 +759,7 @@ void BattleSetActorFlag34(u8 index) {
        `while (i < 0xB) { slot = i++; ... }`, or the loop stores the counter.
    (c) the random-target loop is a do/do whose outer test reads the GLOBAL.
    (d) case 2's cost index must go through a local first (`i = info[1] + 0x16;`)
-       or gcc folds 0x16*0x28 into the symbol as D_800CDD53+880, and the
+       or gcc folds 0x16*0x28 into the symbol as g_BattleCharacterRowValues+880, and the
        D_800CCD38 offset must be a local too (`i = arg0 * 0x170;`).
    Open residuals: (i) the remaining 143 differing lines are register rotation -
    arg0 is s2 here, s3 in retail - plus ONE instruction: the random-target
@@ -845,7 +845,7 @@ void func_80080C94(u8 arg0) {
         break;
     case 2:
         i = info[1] + 0x16;
-        cost = D_800CDD53[i * 0x28 + arg0 * 0x5F0];
+        cost = g_BattleCharacterRowValues[i * 0x28 + arg0 * 0x5F0];
         i = arg0 * 0x170;
         if (*(u16 *)(D_800CCD38 + i) >= cost) {
             *(u16 *)(D_800CCD38 + i) -= cost;

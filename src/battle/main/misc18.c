@@ -47,7 +47,7 @@ extern u8 g_BattleCurveTargetModes[];
 
 // The per-slot byte at +0x56 of the same 0x170-byte slot family (BattleTableEntry.characterId),
 // which BattleApplyActionRowToSlot rebuilds from this base rather than reading through the entry it holds.
-extern u8 D_800CCD3E[];
+extern u8 g_BattleSlotBank14TextRows[];
 // The byte just before g_BattleCommandCellUses, set to 0x30 with that word's 0x8000 bit.
 extern u8 g_BattleWaitSkipFlag;
 extern void BattleSetSlotEntryFieldsTo2000(u8, u8);
@@ -1379,7 +1379,7 @@ void BattleApplyActionRowToSlot(u8 slot, u8 row) {
         pSlot->conditionFlags &= ~0x20;
     }
     if (pAction->flags & 0x100) {
-        if (D_800CCD3E[slot * 0x170] == 2) {
+        if (g_BattleSlotBank14TextRows[slot * 0x170] == 2) {
             BattleSetSlotEntryFieldsTo2000(slot, 0);
         }
         pSlot->activeEffectFlags1 = 0;
