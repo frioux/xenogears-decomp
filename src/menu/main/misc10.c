@@ -376,42 +376,6 @@ void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
     }
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
-/*
-// Round 508 park: 98.64% at retail's EXACT size (1536 bytes, 384/384 insns), 22 differing lines.
-//    The body is instruction-for-instruction retail's; the residual is two allocation choices and one
-//    CSE, all in the loop head, and they are one register apart.
-//    Closed this round (each measured with diff_func from the 87.09% body):
-//    - THE 16 QUAD STORES WERE AN OPERAND-ORDER QUESTION. Retail forms (unk438 + i*0x80) and then
-//      adds renderContext*0x28 (addu v1,s1,v1 / addu v0,v0,v1); the typed
-//      ->slotStrings[i].polys[g_Menu->renderContext] spelling summed the two scaled indices first
-//      (addu v0,v0,s1 / addu v1,v1,v0) at all 16 sites. Writing each store as an offset-term-first
-//      cast sum - ((POLY_FT4*)(g_Menu->renderContext * sizeof(POLY_FT4) + (u32)(((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings + i)))->x0 -
-//      took 89.73 -> 98.53 with the byte count unchanged (lever
-//      c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base). A pointer local or a
-//      two-level (->slotStrings + i)->polys[ctx] spelling CSEs and loses 8 insns (78.22%, 1504 bytes).
-//    - frame 96 -> 88 (retail's) and the whole register file fell into place once the third flag
-//      stopped being a separate live value: draw=1 / draw=0 spelled inside the arms
-//      (if (percent >= 50) { draw = 1; mode = 2; } else mode = 0) plus found = 0 only in the else arm
-//      gives 387 insns but s5=pWorkspace, s6=mode, s7=slot, s8=percent, s1=i*0x80, s2=i,
-//      s3/s4=top/bottom - retail's file. Testing if (mode != 0) instead of if (draw != 0) scores
-//      87.85 at 1524 bytes (3 insns short: retail really does carry both flags in the arms).
-//    - declaration order IS the stack layout: RECT rect; u8 code[2]; u8 text[8]; (rect first) puts
-//      rect at 0x10, code at 0x18, text at 0x20 as retail; bottom = 0x2C before top = 0x1F and
-//      bottom += FONT_LETTER_HEIGHT before top += ... are retail's init and increment order;
-//      code[1] = 0 BEFORE the HeapAlloc call is what lands it in the jal delay slot (98.64 vs 97.45
-//      with the assignment after the call).
-//    RESIDUAL (9 rows, all in the loop head): (1) retail keeps the truncated loop index in $s0
-//    (andi s0,s2,0xff then move a1,s0 at BOTH the MenuAndBitMaskMsbFirst and the func_801E1418 call)
-//    and reuses $s0 for found afterwards, where this body truncates straight into $a1; declaring
-//    u32 func_801E1418(u8, u8) so the two andis CSE measures 97.21 / 122 rows - the declared-u8
-//    shapes re-roll allocation and lose every other row; (2) retail keeps the draw flag in $v0 where
-//    this body gives it $v1 (two rows, not source-controlled by anything tried).
-//    Do not re-brief this as a hand job: it is a permuter candidate for the s0/u8 leg, not a
-//    spelling hunt. NOTE the live prototype `u8* GetStringEntryFromBank(s32, s32);` above is
-//    part of the 98.64 body: retail passes the loop index untruncated (`move a1,s2`), so the
-//    u8 in HEAD's prototype is wrong. Nothing live calls it, so this cannot move any bytes.
-/*
 void func_801E1AC8(u8 slot) {
     RECT rect;
     u8 code[2];
@@ -425,6 +389,7 @@ void func_801E1AC8(u8 slot) {
     u32 percent;
     s32 bottom;
     s32 i;
+    u8 row;
 
     code[1] = 0;
     pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
@@ -433,22 +398,25 @@ void func_801E1AC8(u8 slot) {
     top = 0x1F;
     for (; i < MENU_DRESSING_ROOM_ROW_COUNT; i++) {
         ((MenuDressingRoomRowBlock*)g_Menu->unk438)->hasBar[i] = 0;
+        row = i;
         hit = MenuAndBitMaskMsbFirst(
-            g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[slot]].commandMask, i);
+            g_GameState.conditionRows[g_Menu->pManager->currentCharacterIDs[slot]].commandMask, row);
         if (hit != 0) {
+            draw = 1;
             mode = 1;
             found = 1;
-            draw = 1;
         } else {
-            found = 0;
-            percent = func_801E1418(slot, i);
-            draw = 0;
+            percent = func_801E1418(slot, row);
             if (percent >= 50) {
                 draw = 1;
                 mode = 2;
             } else {
+                draw = 0;
                 mode = 0;
             }
+            /* After the inner if/else so that `found` only becomes live once `row`
+               is dead: retail reuses $s0 for both. */
+            found = 0;
         }
         if (draw != 0) {
             ((MenuDressingRoomRowBlock*)g_Menu->unk438)->slotStrings[i].width =
@@ -505,7 +473,8 @@ void func_801E1AC8(u8 slot) {
     HeapFree(pWorkspace);
     MenuSetStringTexturePrims(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->unk0D00, slot, 0, 2);
     g_Menu->pManager->shouldRenderPanel[3] = 1;
-}*/
+}
+
 
 
 
