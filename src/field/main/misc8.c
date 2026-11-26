@@ -3169,38 +3169,28 @@ typedef struct {
     s16 delta[3][4]; // 0x60
 } FieldActorProximitySlots; // Size: 0x78
 
-// 91.30% (876 bytes / 219 insns; retail 872 / 222 - four bytes OVER). The struct and all
-// five loops are right, and the first block (0x10D test, the three magnitude args, the slot
-// pick, the distance compare) is instruction-for-instruction: g_FieldActors is volatile, so
-// the pActorData load shared by the 0x10D test and the three position reads needs a
-// loop-body local (ActorData* pActor = g_FieldActors[i].pActorData), while every access
-// after the magnitude call spells the global out inline to get retail's per-store reloads.
-// Progress this round, in order: (1) the last loop is now
-// instruction-for-instruction retail. Its duplicated increments come from the ORDER of the
-// for-clause: with `for (i = 0; i < 3; pDelta += 4, i++)` loop.c duplicates the increment
-// pair into the if-arm and reorg puts `addiu s0,s0,8` in the FieldUpdateActorSoundSlot jal
-// slot and `addiu s1,s1,1` in the j slot, jumping straight to the `slti` test, while the
-// continue/else path falls through to the shared copy - exactly retail. Writing it
-// `i++, pDelta += 4` (or as a manual-increment loop body) keeps ONE copy: 216 insns / 864
-// bytes. (2) `pSlotDelta = slots.delta[slot]` before the three delta stores is what makes
-// gcc re-derive the volatile g_FieldActors read per statement in retail's ORDER (reload,
-// addu, lw 76, the two position loads, subu, sh) instead of hoisting statement k+1's reload
-// above statement k's subu/sh: 86.62 -> 91.30. Its cost is the four bytes: the pointer
-// includes the 0x60 displacement, so gcc emits `sll a1,s1,3; addiu a1,a1,96; addu
-// a1,s3,a1` where retail folds 96 into the store (`addu a0,a0,s3; sh v0,96(a0)`). Writing
-// the stores as `slots.delta[slot][k]` restores the fold and the byte count (868 bytes,
-// 86.62%) but loses the schedule, so these two are exclusive.
-// REMAINING, all measured on this body: (a) the delta and position loads are lhu where
-// retail has lh (the sign is dead after the truncating sh); routing the three actor halves
-// through s32 locals costs the schedule and scores 82.53% / 860, so the s32-intermediate
-// lever does not transfer to this body. (b) in the if-block head retail stores
-// actorIndex/distance BEFORE re-reading g_FieldActors for soundId; gcc hoists that volatile
-// reload above both stores, and the slot base sits in a0 against retail's v1 (slot*8 in a1
-// against a0). (c) the delta-base addu is base-first (`addu a1,s3,a1`) where retail is
-// index-first (`addu a0,a0,s3`).
-// Tried and dead: the loop as a while with manual increments in each arm, if/else polarity
-// swapped, reading the deltas through a VECTOR* (no change to lh/lhu), s32 actor-half
-// locals (above), and the delta stores spelled both ways (above). No twin for this stub.
+// 97.43% (888 bytes / 222 insns = retail's exact size and count). EVERYTHING except seven
+// instructions is retail's, and the fix from 91.30% is the EMPTY `do { } while (0);` BARRIER
+// (levers.md h-an-empty-do-while-pins-a-run-of-stores): without it gcc sinks the two plain slot
+// stores (actorIndex, distance) below the first volatile g_FieldActors reload and hoists each
+// later reload above the previous statement; one barrier after each of the first five statements
+// of the if-arm pins retail's per-statement [reload, addu, lw 76, lh, lh, subu, sh] order, keeps
+// its load-delay nops and restores its byte count. The delta stores must then be spelled
+// `slots.delta[slot][k]`: a `s16* pSlotDelta` local folds the 0x60 into an addiu (876 or 868
+// bytes, both wrong) instead of into the store.
+// Two more real findings, each measured: the 0xFF sentinel needs a LOCAL (`s32 soundStateNone;`
+// assigned just before the actor loop) - with a literal, the barriers stop cse merging the test's
+// and the else store's constant, so cc1 re-materialises `li v0,0xff` twice per iteration and
+// never hoists retail's preheader `li s4,0xff`; and loop 3 must initialise `i` BEFORE `pDelta`
+// (retail `move s1,zero` / `addiu s0,sp,120`) - as a for-init, pDelta comes first. Both `slot`
+// locals are block-scoped: one function-scope `slot` shares a pseudo between loops 2 and 3 and
+// adds a `move a0,v0` to loop 3.
+// REMAINING: (a) six `lhu` where retail has `lh` on the delta stores - the sh truncates the
+// result, so cc1 narrows both loads; the magnitude call's own arguments come out `lh` and an s32
+// intermediate is copy-propagated away, so the sign extension is not reachable from source yet;
+// (b) `addu a0,s3,a0` where retail is index-first `addu a0,a0,s3`; the lever
+// c-cast-sum-with-the-offset-term-first says only the raw cast-sum spelling flips it, not tried
+// because it is not realistic C. No twin for this stub.
 /*
 void func_80086590(VECTOR* pPosition) {
     FieldActorProximitySlots slots;
@@ -3209,7 +3199,7 @@ void func_80086590(VECTOR* pPosition) {
     s16* pPos = (s16*)pPosition;
     s16* pActorPos;
     s32 distance;
-    s32 slot;
+    s32 soundStateNone;
     int i;
 
     for (i = 0; i < 3; i++) {
@@ -3221,10 +3211,12 @@ void func_80086590(VECTOR* pPosition) {
         slots.unk20[i] = 0;
     }
 
+    soundStateNone = 0xFF;
     for (i = 0; i < g_FieldActiveActorCount; i++) {
+        s32 slot;
         ActorData* pActor = g_FieldActors[i].pActorData;
 
-        if (pActor->soundState != 0xFF) {
+        if (pActor->soundState != soundStateNone) {
             pActorPos = (s16*)&pActor->position;
             distance = FieldGetVec3Magnitude(
                 pPos[1] - pActorPos[1],
@@ -3238,20 +3230,24 @@ void func_80086590(VECTOR* pPosition) {
             if (distance < slots.distance[slot]) {
                 slots.actorIndex[slot] = i;
                 slots.distance[slot] = distance;
+                do { } while (0);
                 slots.unk10[slot] = g_FieldActors[i].pActorData->soundId;
+                do { } while (0);
                 slots.unk20[slot] = g_FieldActors[i].pActorData->soundVolume;
-                pSlotDelta = slots.delta[slot];
-                pSlotDelta[0] = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1];
-                pSlotDelta[1] = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3];
-                pSlotDelta[2] = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5];
+                do { } while (0);
+                slots.delta[slot][0] = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1];
+                do { } while (0);
+                slots.delta[slot][1] = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3];
+                do { } while (0);
+                slots.delta[slot][2] = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5];
             }
         } else {
-            pActor->soundState = 0xFF;
+            pActor->soundState = soundStateNone;
         }
     }
 
     for (i = 0; i < 3; i++) {
-        slot = FieldFindActorSoundSlot(slots.unk10[i], slots.actorIndex[i]);
+        s32 slot = FieldFindActorSoundSlot(slots.unk10[i], slots.actorIndex[i]);
         if (slot != -1) {
             slots.inUse[slot] = 1;
             slots.unk40[i] = 1;
@@ -3268,8 +3264,9 @@ void func_80086590(VECTOR* pPosition) {
         }
     }
 
+    i = 0;
     pDelta = slots.delta[0];
-    for (i = 0; i < 3; pDelta += 4, i++) {
+    for (; i < 3; pDelta += 4, i++) {
         if (slots.unk10[i] == -1) {
             continue;
         }
@@ -3281,7 +3278,8 @@ void func_80086590(VECTOR* pPosition) {
                 slots.actorIndex[i]);
         }
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
 
 
