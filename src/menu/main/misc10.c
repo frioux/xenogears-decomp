@@ -3,6 +3,9 @@
 #include "system/menu.h"
 #include "main/game.h"
 
+// Percentage at or above which a dressing-room row gets its stat-value bar drawn.
+#define MENU_STAT_PERCENT_BAR_MIN 50
+
 // Limits MenuComputeCharacterStats puts on the dressing room's stat values.
 #define MENU_STAT_MAX 250
 #define MENU_STAT_PERCENT_MAX 99 // hit and evade
@@ -407,7 +410,7 @@ void func_801E1AC8(u8 slot) {
             found = 1;
         } else {
             percent = func_801E1418(slot, row);
-            if (percent >= 50) {
+            if (percent >= MENU_STAT_PERCENT_BAR_MIN) {
                 draw = 1;
                 mode = 2;
             } else {
