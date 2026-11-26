@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libetc.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 #include "system/sound.h"
 
 // the map display buffer copied into VRAM when a mode initialises, and the VRAM
@@ -33,6 +34,10 @@
 // toward, is clamped into this range
 #define WORLD_MAP_SLOT_TARGET_MIN (-0x180000)
 #define WORLD_MAP_SLOT_TARGET_MAX 0x18000
+
+// how far one frame of a held pad nudge moves that target along 0x28 (x) and 0x2C (y)
+#define WORLD_MAP_SLOT_TARGET_STEP 0x8000
+#define WORLD_MAP_SLOT_TARGET_STEP_Y 0x10000
 
 // One slot of the pool g_WorldMapSlots (stride 0x80), partial view: only the script
 // cursor and the wait countdown are used here. The cursor is halfword
@@ -662,15 +667,15 @@ s32 WorldMapUpdateFrameWithScrollInput(s32 arg0) {
     s32* pTarget;
     s32 nPos;
 
-    if (g_WorldMapPad1Released & 0x40) {
+    if (g_WorldMapPad1Released & CTRL_BTN_CROSS) {
         g_WorldMapLoopActive = 0;
         g_WorldMapAreaMode = 0;
     }
-    if (g_WorldMapPad1Held & 0x1000) {
-        *(s32*)(pSlot + 0x28) += 0x8000;
+    if (g_WorldMapPad1Held & CTRL_BTN_UP) {
+        *(s32*)(pSlot + 0x28) += WORLD_MAP_SLOT_TARGET_STEP;
     }
-    if (g_WorldMapPad1Held & 0x4000) {
-        *(s32*)(pSlot + 0x28) += -0x8000;
+    if (g_WorldMapPad1Held & CTRL_BTN_DOWN) {
+        *(s32*)(pSlot + 0x28) += -WORLD_MAP_SLOT_TARGET_STEP;
     }
     nPos = *(s32*)(pSlot + 0x28);
     if (nPos < WORLD_MAP_SLOT_TARGET_MIN) {
@@ -678,11 +683,11 @@ s32 WorldMapUpdateFrameWithScrollInput(s32 arg0) {
     } else if (nPos > WORLD_MAP_SLOT_TARGET_MAX) {
         *(s32*)(pSlot + 0x28) = WORLD_MAP_SLOT_TARGET_MAX;
     }
-    if (g_WorldMapPad1Held & 0x8004) {
-        *(s32*)(pSlot + 0x2C) += 0xFFFF0000;
+    if (g_WorldMapPad1Held & (CTRL_BTN_LEFT | CTRL_BTN_L1)) {
+        *(s32*)(pSlot + 0x2C) += -WORLD_MAP_SLOT_TARGET_STEP_Y;
     }
-    if (g_WorldMapPad1Held & 0x2008) {
-        *(s32*)(pSlot + 0x2C) += 0x10000;
+    if (g_WorldMapPad1Held & (CTRL_BTN_RIGHT | CTRL_BTN_R1)) {
+        *(s32*)(pSlot + 0x2C) += WORLD_MAP_SLOT_TARGET_STEP_Y;
     }
     if ((*(s32*)(pSlot + 0x38) != *(s32*)(pSlot + 0x28)) |
         (*(s32*)(pSlot + 0x3C) != *(s32*)(pSlot + 0x2C))) {
