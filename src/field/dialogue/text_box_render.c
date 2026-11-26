@@ -846,62 +846,45 @@ extern u_short g_FieldP1ButtonsReleased;
 // One draw mode per render context that closes the text box list.
 extern DR_MODE D_800B1DF4[2][0x10];
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
-// 91.11%, 1428 bytes against retail's 1448: every call, both loops, the order
-// renumbering and both addPrim chains are in place; the 61 instructions that
-// still differ are all allocation. Retail keeps `count` on the stack and runs a
-// second induction variable over g_FieldTextBoxes[i].order; here gcc keeps
-// count in $s8, hoists the two -1 stores of the visibility loop into one
-// register and re-forms the order address instead. The permuter improved this
-// body 3635 -> 2661 by spelling the string out at each use in the order loop
-// only (spelling it out in the visibility loop as well drops to 88.93); gcc
-// 2.7.2-cdk scores 69.63 and -O3 is unchanged, so the preset is right.
-// Things this body proves about the unit: the second argument is the render
-// context (drawModes[ctx], ctx*0xC), the order loop's else-if test really is in
-// the original (it reloads the order and compares it against 0xFFFF), and the
-// string helpers take the box's _pad[0] (box+0xA8 is its buffer pointer, which
-// retail addresses through g_FieldTextBoxes). func_8007DCF8 takes three
-// arguments (retail sets a0=i, a1=pOt and a2=ctx at each call) even though its
-// body reads only the first, which is why its prototype above has three.
-// Round 165: retried the spelled-out pBuffer form (89.43%), an element-pointer
-// local for the addPrim argument (91.16% but 1420 bytes, further from retail's
-// 1448) and re-measured the parked body itself at 91.11%/1428, unchanged.
-// Round 478: the order loop's second induction variable IS the block. Retail
-// keeps &g_FieldTextBoxes[0].order (base +0x410, stepping 0x498) in $s3 and
-// re-forms the string base every iteration (lui + addiu of g_FieldTextBoxes+0x18,
-// then addu s1,s0,v0); this body keeps the STRING base as the biv and reads order
-// at-relative (lui/addu/lhu), which is +2 here and -2 there. Measured: dropping
-// the pString local in the order loop (TEXT_BOX_STRING(i) at each use) only moves
-// the string base into a preheader-invariant $s1 and leaves order at-relative,
-// 88.93% / 1436 bytes / 359 insns; spelling just the pBuffer argument through the
-// box in the first loop is 89.74 / 1432 / 358. Retail also rematerialises
-// li v0,-1 at each of the two stores where this body hoists -1 into $s8
-// (loop.c hoist, 1 of the 5 missing insns), and the first half differs only in
-// t0 vs t2 holding the 0xFF and the stack `count`. gcc 2.7.2 in every shape
-// tried refuses to give the order address its own biv, so this is a loop.c
-// choice, not a spelling: park on it.
-// Round 491: BOTH loops' residual is one cause, and the cause is retail's loop.c
-// spending its free callee-saved register on the ORDER address. The body is 5
-// instructions short of retail (357 vs 362, 1428 vs 1448) and all 5 are in the
-// order loop: (a) the pBuffer argument, twice -- retail reads it flat off the box
-// (`lui at,%hi(g_FieldTextBoxes+0xA8)` / `addu at,at,s0` / `lw a1,%lo(at)`), this
-// body reads it through the string pointer (`lw a1,0x90(s1)`), +2 each; (b) the
-// string address -- retail re-forms `la g_FieldTextBoxes+0x18` + `addu s1,s0,v0`
-// every iteration, this body keeps it as a biv in $s3 (2 preheader insns + an
-// `addiu s3,s3,0x498` in the latch); (c) retail re-materialises `li v0,-1` at both
-// visibility stores where this body hoists -1 into $s8 (+1). Retail instead reduces
-// `g_FieldTextBoxes[i].order` (3 uses) to $s3 = &box[0].order and reads `lhu 0(s3)`
-// three times, which is why it has no register left for any of the three. Same
-// callee-saved set, same frame (0x58), so this is which address loop.c reduces.
-// Measured dead this round (all on this body, Default preset): spelling the pBuffer
-// flat through the box in both loops (`*(void**)&g_FieldTextBoxes[i]._pad[0x48]`)
-// 89.09% / 1480 bytes / 370 insns -- gcc drops the pointer structure and it costs
-// +13 rather than the +4 retail has; a second `extern FieldTextBox
-// g_FieldTextBoxesByOrder[] __asm__("g_FieldTextBoxes")` for the three order reads
-// is BYTE-IDENTICAL to the plain decl (the decls unify, so the round-471 count-gate
-// alias lever does not fire on this symbol); and pString at all five order-loop
-// sites (dropping the `_pad` casts) is 89.42% / 1432 / 358, so the permuter-found
-// mixed spelling stays.
+// 91.62%, 1420 bytes against retail's 1448, 355 insns against 362, frame 0x58 (matches).
+// Round 505: the control flow was the find. The `order == TEXT_BOX_UNINITIALIZED`
+// test is NOT an `else if` of `order == n` in retail: its block sits at .L800804FC,
+// reached BOTH in fallthrough from the draws and by the two early jumps out of the
+// `order == n` body (visibility != 0, i == activeIndex), and the `order != n` guard
+// branches straight to the loop latch. Moving that test inside the `order == n` body
+// (after the draws, re-reading order because the calls may store it) is what makes
+// gcc reduce the order address the way retail does: retail's $s3 =
+// &g_FieldTextBoxes[0].order, formed with lui+addiu in the OUTER loop preheader and
+// stepped 0x498 in the latch, read as `lhu 0($s3)` three times. The old else-if body
+// scored 91.11 / 1428 bytes / 357 insns; this shape scored 90.40 / 1440 / 360 with a
+// 0x60 frame, and spelling the string base out at each use in the order loop (no
+// pString local there, drop the `_pad` casts) bought the frame back to 0x58 and
+// reached the measured 91.62 / 1420 / 355. With pString kept in the order loop the
+// frame stays 0x60, so the two changes belong together.
+// Residual (all one cause, retail has less register pressure): retail re-forms
+// base+const per iteration in the order loop instead of keeping a register -- the
+// string base goes back to lui+addiu g_FieldTextBoxes+0x18 plus `addu s1,s0,v0` in
+// the body (2 insns, this body keeps it as a third 1176-byte biv in $s1, +1 in the
+// latch), the pBuffer argument of SystemStringPushBuffer is read flat off the box
+// (`lw a1,168(at)`, this body does `lw a1,144(s1)`), and the addPrim chain re-forms
+// the base twice. Retail also re-materialises `li v0,-1` at both visibility stores
+// where this body hoists -1 into $s8. Measured this round: pBuffer flat through the
+// box in both loops, `*(void**)&g_FieldTextBoxes[i]._pad[0x48]` (0xA8 - 0x18 = 0x90
+// bytes = _pad[0x48] of `short _pad[]`) 89.45 / 1452 bytes / 363 insns -- 4 bytes
+// LONG, so that spelling over-shoots and is not the answer either.
+// Older rounds, still true: the second argument is the render context (drawModes[ctx],
+// ctx*0xC); the string helpers take the box's _pad[0] (box+0xA8 is its pBuffer);
+// func_8007DCF8 takes three arguments (retail sets a0=i, a1=pOt, a2=ctx) though its
+// body reads only the first. gcc 2.7.2-cdk scores 69.63 and -O3 is unchanged, so the
+// preset is right. Round 478/491 (order address as the biv, pString variants, alias
+// decls for the order reads) are summarised in the round-491 note this replaces.
+// Measured dead (do not retry): pString at all five order-loop sites with the old
+// else-if body 89.42 / 1432 / 358; dropping pString there 88.93 / 1436 / 359;
+// spelling the pBuffer argument through the box in the first loop only 89.74 / 1432;
+// an element-pointer local for addPrim 91.16 / 1420; a second extern of
+// g_FieldTextBoxes for the order reads is byte-identical to the plain decl (the decls
+// unify, so no alias lever); pBuffer flat through the box in both loops on the old
+// body 89.09 / 1480 / 370.
 /*
 void func_8008004C(u_long* pOt, int ctx) {
     s32 order[4];
@@ -974,7 +957,7 @@ void func_8008004C(u_long* pOt, int ctx) {
                                 (u_char)g_FieldTextBoxes[i].cursor.startPosition;
                             SystemStringClearStateFlags((FieldTextBoxString*)g_FieldTextBoxes[i]._pad);
                         }
-                        if (pString->unk82 == 0) {
+                        if (((FieldTextBoxString*)g_FieldTextBoxes[i]._pad)->unk82 == 0) {
                             SystemStringPushBuffer((FieldTextBoxString*)g_FieldTextBoxes[i]._pad,
                                 ((FieldTextBoxString*)g_FieldTextBoxes[i]._pad)->pBuffer);
                         }
@@ -989,8 +972,9 @@ void func_8008004C(u_long* pOt, int ctx) {
                     func_8007E1C0(pOt, ctx, i, (u_long)&g_FieldTextBoxes[i].drawModes[ctx] & 0xFFFFFF);
                     func_8007DCF8(i, pOt, ctx);
                 }
-            } else if (g_FieldTextBoxes[i].order == TEXT_BOX_UNINITIALIZED) {
-                order[i] = TEXT_BOX_UNINITIALIZED;
+                if (g_FieldTextBoxes[i].order == TEXT_BOX_UNINITIALIZED) {
+                    order[i] = TEXT_BOX_UNINITIALIZED;
+                }
             }
         }
     }
@@ -1000,8 +984,10 @@ void func_8008004C(u_long* pOt, int ctx) {
     }
 
     addPrim(pOt, (u_long*)&D_800B1DF4[g_FieldCurRenderContextIndex][0]);
-}
-*/
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
+
+
 
 void FieldTextBoxUpdate(void) {
     int i;
