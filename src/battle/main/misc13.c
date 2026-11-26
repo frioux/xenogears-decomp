@@ -1453,6 +1453,11 @@ s32 BattleAdvanceCommandStep(u8 arg0, u8 arg1) {
 static inline u8 BattleSlotRecordByte(u8 slot) {
     return g_BattleSlotRecords[slot * 0x1C];
 }
+// Byte offset of one character-slot record. The inlined copy keeps each site's
+// offset in its own RTL tree so the two never share a callee-saved register.
+static inline s32 SlotRecordOffset(s32 slot) {
+    return (u8)slot * 0x1C;
+}
 
 /* PARKED 95.66%, 716 bytes / 179 insns. Retail is 732 / 183 (.size 0x2DC), so this
    body is FOUR instructions short, and its frame is 0x30 where retail's is 0x28 (the
@@ -1586,11 +1591,67 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
    496 bytes, 78.02) - the inlined helper is load-bearing: it keeps the two offsets in
    separate RTL trees so ofsB is re-formed into $s2 after the ladder's join, as retail.
    lint_sources.py is clean on this block and the body below compiles. */
+// PARKED 97.76%, 504 bytes / 126 insns. RETAIL IS 500 / 125, so this body is
+//    FOUR BYTES OVER and CANNOT BE COMMITTED as it stands: objdiff could read 100.00
+//    and check_bin would still fail, because the extra 4 bytes are a nop. The gap and the
+//    percentage are the same fact.
+//    WHAT THIS ROUND CHANGED (measured, in order, from the old 88.32 body):
+//    1. The live body had NO definition of SlotRecordOffset - the 88.32 park called a
+//       helper whose definition a later round had removed, so unparking it emitted a real
+//       `jal SlotRecordOffset` and scored 69.78 / 512. The `static inline s32
+//       SlotRecordOffset(s32)` beside BattleSlotRecordByte is now LIVE (line above) and is
+//       what the body below needs; BattleSlotRecordByte is already live-only-for-parks, so
+//       the file has precedent for that.
+//    2. 88.32 -> 88.32: the ladder's second test is `(u8)arg0 < 3`, NOT `arg0 < 3`.
+//       Signed `arg0 < 3` emits `slti v0,a0,3` against retail's `sltiu v1,a3,3` and is
+//       also wrong code for a negative arg0. This is the one correctness fix of the round.
+//    3. 88.32 -> 97.76 (504 bytes): ONE empty `do { } while (0);` between the two usage
+//       stores. Without it sched2 batches both `lbu g_BattleSlotRecords[ofsA]` reloads
+//       above both stores and interleaves their index chains; with it the stream is
+//       retail's per-statement [lbu, li, addu, sll, sb] twice. That is lever
+//       h-an-empty-do-while-pins-a-run-of-stores read forwards, and it costs exactly the
+//       4 bytes the body is over.
+//    NAMED RESIDUALS, in diff order:
+//    (a) THE 4 BYTES. After the barrier the third `lbu` (the D_800D301D index read) has an
+//        EMPTY load-delay slot: cc1's own output is `lbu / #nop / addu / sll / sltu / sb /
+//        beq` where retail is `lbu / sltiu / addu / sll / sb / beq / nop`. Same instruction
+//        set, same block; retail puts the tail's `sltiu s0,s0,3` in the load slot and
+//        leaves the BRANCH slot a nop, this build fills the branch slot (with the first
+//        arm's `lbu`) and leaves the load slot empty. Neither sched2 nor reorg crosses
+//        the two insns between them here: it is not a statement-order question, so no
+//        source reordering of the stores moves it.
+//        Measured on this seam, all 504 unless noted: `do`-wrapping each store separately
+//        508 / 96.95; wrapping the tail if in a do-block, identical 504; a barrier after
+//        the D store, identical; `rec = g_BattleSlotRecords[ofsA];` for the third read
+//        (with and without a barrier after it), identical - it is copy-propagated away;
+//        a `u8 lowSlot = slot < 3;` local above the stores, identical - also propagated;
+//        `slot <= 2`, identical; `*(volatile u8 *)` on the D store, identical (volatile is
+//        not a scheduling boundary in 2.7.2, as levers.md says).
+//    (b) THE LADDER's second compare lands in $v0 where retail uses $v1
+//        (`sltiu v0,a3,3` vs `sltiu v1,a3,3`) - pure allocator tie, 0 bytes.
+//    (c) THE TAIL'S TABLE BASE is a register mirror: retail holds g_BattleSlotParamTable
+//        in $v1 and emits `addu v0,v1,v0` then `addu v1,v1,v0` with `lhu a0` / `sh a0`;
+//        this build holds it in $a0 and emits `addu v0,v0,a0` twice with $v1/$a0 swapped,
+//        in BOTH arms. Measured dead this round: the per-arm `u8 *pTable =
+//        g_BattleSlotParamTable;` local (97.28, 67 differing lines - it lengthens the
+//        pointer's live range and costs a further mirror); still untried: the
+//        offset-term-first cast sum that lever
+//        c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base describes.
+//    Permuter, 4 min -j 2 from the pre-port body: PERMUTER_BETTER base=2680 best=2215,
+//    1771 iterations. Its candidate is an ARTIFACT: it adds an `inline_fn(u8)` twin of
+//    SlotRecordOffset and a `ofsB = 0x104;` reuse before the barrier. Ported verbatim, it
+//    compiles BYTE-IDENTICALLY to this body (constant propagation folds ofsB, the helper
+//    signature is invisible after inlining), and re-scoring the ported body gave
+//    base=3565, i.e. the permuter's two numbers are not comparable across runs. Do not
+//    re-port it.
+//    Confirmed unchanged this round: converting this stub does NOT shorten the matched
+//    caller BattleAdvanceCommandStep (still 99.96% / 1004 insns / 1004 bytes with the
+//    definition in the TU), so the void prototype at the top of the file is safe.
+//    Intended name: BattleSetCharSlotFromSlot - it copies another slot's character record
+//    into this slot's, clears the record's param index, marks the usage and mask entries
+//    and copies the two u16 params out of the slot's param-table row; the `slot < 3`
+//    split picks the party-slot or the enemy-slot half of the row.
 /*
-static inline s32 SlotRecordOffset(s32 arg0) {
-    return (u8)arg0 * 0x1C;
-}
-
 void func_800881B8(s32 arg0, s32 arg1) {
     u8 sel;
     u8 slot;
@@ -1603,7 +1664,7 @@ void func_800881B8(s32 arg0, s32 arg1) {
     }
     if ((u8)arg1 < 3) {
         sel = 0x18;
-        if (arg0 < 3) {
+        if ((u8)arg0 < 3) {
             sel = 0x10;
         }
     } else {
@@ -1619,6 +1680,8 @@ void func_800881B8(s32 arg0, s32 arg1) {
     g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
     D_800C3EB5[ofsA] = 0;
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
+    do {
+    } while (0);
     D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
     if (slot < 3) {
         *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x100);
@@ -1628,9 +1691,9 @@ void func_800881B8(s32 arg0, s32 arg1) {
         param = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x106);
     }
     *(u16 *)(D_800C3EC0 + ofsA) = param;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800881B8);
+
 
 void BattleReleaseCharSlot(u8 arg0) {
     s32 ofs;
