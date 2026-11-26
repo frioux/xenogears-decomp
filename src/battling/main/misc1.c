@@ -428,11 +428,29 @@ extern s32 func_80071F8C(s32 mode);
    (d) case 26: retail has `beqz; nop; slti; bnez; nop`, this fills the beqz slot
        with the second slti (-1 insn);
    (e) cases 18 and 29 differ only in register choice (retail v0/v1, this a0/v0).
+   Re-measured round 509: four more spellings, every one byte-identical to this park
+   (1684 bytes / 421 insns / 95.40), so none of (a)-(e) is a source-shape problem:
+   - cases 2/3 as two statements (`pActor = &g_BattleActor1; D_80092894 = pActor;`)
+     and through a named intermediate (`pNew = &g_BattleActor1; pActor = pNew;`)
+     both still put the `la` straight into $s0 with no temp+copy, and moving the
+     `g_BattleScriptCursor++` statement above the assignment only moves the
+     hoisted cursor load, not the `la`;
+   - case 21 through a pointer local (`pScript = g_BattleScriptCursor;` then
+     `pScript[1]`, `pScript[2]`, `g_BattleScriptCursor = pScript + 3`) is identical,
+     so (c)'s store order is sched2's, not the statement order's;
+   - the unit is not a preset question: --all under cdk drops already-matched
+     BattleFreeMessageString to 86.67, and 2.6.0 was already measured identical.
+   Parked on the four reorg/allocator ties above; the next attack should be a
+   reorg-shape insight (retail refuses to fill the beqz slot with an insn that
+   clobbers the branch's own tested register in (a) and (d), this build fills it),
+   not more spelling.
 */
-// 95.40% (1684 bytes against retail's 1704, 421 insns against 426); see the block below for the five named 1-2 insn residuals (dispatch and case 26 delay-slot fill, cases 2/3 'la' vs temp+copy, case 21 store order, cases 18/29 register choice). Declaring the locals in a different order (value first) measured identical.
+// 95.40% (1684 bytes against retail's 1704, 421 insns against 426); see the block above for
+// the five named 1-2 insn residuals and the spellings measured dead.
 /*
 void func_8007107C(void) {
     BattleState* pActor;
+    u8* pScript;
     s32 angle;
     s32 value;
 
@@ -458,11 +476,13 @@ void func_8007107C(void) {
             g_BattleScriptCursor += 2;
             break;
         case 2:
-            D_80092894 = pActor = &g_BattleActor1;
+            pActor = &g_BattleActor1;
+            D_80092894 = pActor;
             g_BattleScriptCursor++;
             break;
         case 3:
-            D_80092894 = pActor = &g_BattleActor0;
+            pActor = &g_BattleActor0;
+            D_80092894 = pActor;
             g_BattleScriptCursor++;
             break;
         case 4:
@@ -587,10 +607,11 @@ void func_8007107C(void) {
             g_BattleScriptCursor++;
             break;
         case 21:
-            g_BattleWindowTargetX = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0] << 1;
+            pScript = g_BattleScriptCursor;
+            g_BattleWindowTargetX = pScript[BATTLE_SCRIPT_OPERAND0] << 1;
             g_BattleWindowPrimsEnabled = 1;
-            g_BattleWindowTargetY = ((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND1];
-            g_BattleScriptCursor += 3;
+            g_BattleWindowTargetY = pScript[BATTLE_SCRIPT_OPERAND1];
+            g_BattleScriptCursor = pScript + 3;
             break;
         case 22:
             func_80071F8C(((u8*)g_BattleScriptCursor)[BATTLE_SCRIPT_OPERAND0]);
@@ -685,6 +706,7 @@ void func_8007107C(void) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
+
 
 
 
