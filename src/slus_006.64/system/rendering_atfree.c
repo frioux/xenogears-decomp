@@ -48,7 +48,10 @@ typedef struct {
 #define SpriteFlags0x3C(pSpriteData) ((u32)((SpriteRenderFlagWords*)(pSpriteData))->flags_0x3C.flags)
 
 
-/* Best attempt parked below: 89.01% (1504 bytes; retail is 1508 = 377
+/* HISTORY (rounds 346-364). This body measured 89.01% then; the measurements
+   are still valid, and the body is now 92.59% - see the ROUND 497 note after
+   the INCLUDE_ASM line for what changed since.
+   The 89.01% park (1504 bytes; retail is 1508 = 377
    instructions, so the body is ONE instruction short). This is the ROUND 349
    base: the same body with the deltaHeight hoist reverted; the 89.45% / 1496
    byte variant (three short) is described in the notes below.
@@ -218,47 +221,75 @@ typedef struct {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001E3D8);
 
-/* Best attempt (round 486): 88.72% (1492 bytes; retail is 1508, 377 vs 373
-   instructions, FOUR short). Read the long note above first: it holds rounds
-   346-378, whose body is the one measured here. Round 486 re-measured it and
-   added two fixes.
-   - The parked 89.06% was a STALE number: the same body measures 88.36/1492 on
-     the current tree. Every figure below is round 486.
-   - FIXED, kept: the y-corner arm order. Retail's arm A stores pVerts[0],[1]
-     (drawTileY) and then [2],[3] (edgeY) - the source order is 0,1,2,3 in BOTH
-     arms. The old 2,3,0,1 order let cc1 hoist the two edgeY stores above the
-     branch; the honest order reproduces retail's store sequence
-     (88.36 -> 88.44).
-   - FIXED, kept: split offsetY's shift into two statements the way offsetX's
-     already was (`offsetY = (s8)pSpriteData->pBase->offsetY;` then
-     `offsetY = offsetY << n;`). The whole prologue then matches retail
-     register for register (88.44 -> 88.72; 308 -> 282 differing lines).
-     Round 348 had split only offsetX.
-   - The four draw copies are ALLOCATOR TIE-BREAKS, not liveness: the
-     "no honest source makes tileX/tileY live" reading above is wrong.
-     Measured, all 373 insns: this body keeps drawWidth+drawHeight; writing the
-     negation as `-(x << n)` from unshifted locals (CSE folds the shift,
-     88.82/1484, the best SCORE but a contrived spelling) keeps NONE;
-     reusing tileX/tileY as the uv-block size temps - the reassigned-later
-     hypothesis - keeps drawWidth+drawTileY at 87.59/1492, which disproves that
-     hypothesis rather than supporting it.
-   - Still wrong, in order of size: the prologue hoists
-     `lui %hi(g_GfxCurWorkBuffer)` above the count*0x28 shift sequence (retail
-     emits it after the three shifts); the uv block's decrement is in place
-     (`addiu a1,a1,-1`) where retail keeps the new value in a temp and copies
-     it back; the addPrim tail holds pArg in t3 where retail uses t4.
-   Body as measured:
-
+/* Best attempt (round 497): 92.59% (1496 bytes; retail is 1508 = 377 insns,
+   this body 374 = THREE short). Round 497 found four more wins on top of the
+   round-486 body (88.72 -> 92.59), each measured on its own:
+   1. +0.04 (88.72 -> 88.76): spell the direction transform INDEX-FIRST,
+      `(SpriteDirectionTransform*)(lastPlane * sizeof(SpriteDirectionTransform) +
+      (mem_addr)pSpriteData->pBase->pDirTransforms)`, for pTransform and for the
+      rot.vy/rot.vz re-reads. That is retail's `addu a0,a1,v0` (index first);
+      `&...->dirTransforms[lastPlane]` emits it base-first.
+   2. +0.03 (88.76 -> 88.79): `size = count * sizeof(POLY_FT4);` as its own
+      statement before the work-buffer check; the `lui %hi(g_GfxCurWorkBuffer)`
+      then lands AFTER the count*0x28 shift chain, where retail has it.
+   3. +2.40 (88.79 -> 91.19): DELETE THE `pVerts` LOCAL - THE SAME LEVER THAT
+      TOOK func_8001E9BC AND func_8001EE88 (write every corner as
+      g_BattleSpriteQuadCorners[k]). The saved set is then retail's EXACTLY:
+      s0=transX s1=transY s2=corner base (formed lui+addiu from the symbol)
+      s3=pFrameData s4=pSpriteData s5=mask s6=offsetX s7=lastPlane s8=offsetY.
+      The round-486 warning about this spelling is about the element-0 stores
+      ONLY, and with the local gone they come out as retail's
+      `lui t4,%hi` + `sh a0,0(t4)`, no miscompiled RotTransPers4 argument.
+   4. +1.40 (91.19 -> 92.59): inline the shift amount in all four
+      width/height/tile statements (`<< ((pSpriteData->field_0x40 >> 8) & 0x1F)`)
+      instead of one shared `n = ...` statement. Same byte count, and it is what
+      puts field_0x40's load inside the width chain.
+   Measured dead this round, each a full scored run from this body: deltaWidth/
+   deltaHeight locals before the widths (89.77 / 1464, eight short); scaling
+   transY before transX (91.88, 364 differing lines - retail's `mult s1,v1`
+   order is NOT the better body here); `drawWidth = -drawWidth;` in the arms
+   (identical RTL - coalescing makes the spelling a no-op, 92.59); interleaving
+   the four draw copies right after their own shifts (90.99).
+   Presets screened on THIS body, so do not redo: gcc-2.6.0 84.70,
+   gcc-2.7.2 86.72, cdk -O3 92.59 (identical to -O2). cdk -G0 -O2 is right.
+   What is still missing, in size order:
+   (a) TWO of retail's four unconditional draw copies. Retail is
+       `move t0,t2` (drawWidth, after the width shift), `move t3,t1`
+       (drawHeight), `move a0,a2` (drawTileX) and `move v1,a3` (drawTileY, in
+       the second beqz delay slot); this body keeps only the drawWidth one and
+       negates the other three in place. Same finding as round 349/486: the
+       copies are a local-alloc coalescing decision, and none of the four
+       spellings (separate locals, self-negation, interleaved assignment,
+       u32 locals) changes it.
+   (b) retail forms `%hi(g_BattleSpriteQuadCorners)` a THIRD time in the
+       corner-offset block (`lhu v0,0(t4)` / `sh v0,0(t4)`); this body reuses
+       the s2 base for element 0 there. One instruction.
+   (c) retail re-forms the g_GfxCurWorkBuffer store address through $at
+       (`lui at,%hi` + `sw v0,0(at)`); this body stores through the base
+       register it loaded (`lw s0,0(v1)` / `sw v0,0(v1)`). One instruction.
+   (d) the prim block's load order: retail issues lbu deltaWidth, lbu
+       deltaHeight, lbu width and only then extends; this body is lbu
+       deltaWidth, lbu width, lw field_0x40, lbu deltaHeight.
+   (e) retail fills the beqz delay slot after `lbu visible`(0x68) with the
+       `sb` of visible; this body stores it before the branch.
+   THE FRAME IS THE ONE STRUCTURAL CLUE LEFT: retail's frame is 0x98 and has 12
+   NEVER-TOUCHED bytes at 0x50-0x5B, between `rot`(0x48) and the RotTransPers4
+   out-params (z 0x5C, flag 0x60, i 0x64, visible 0x68); this body's frame is
+   0x88 with no hole. A 12-byte (VECTOR-sized) local there is the only layout
+   that explains it, and the hole means retail's allocator needed and then lost
+   three spill slots - consistent with its three extra instructions.
+*/
+/*
 void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     SpriteFrameData* pFrameData;
     SpriteDirectionTransform* pTransform;
     POLY_FT4* pPrim;
-    SVECTOR* pVerts;
     MATRIX* pMatrix;
     MATRIX mat;
     SVECTOR rot;
     u_long* pOt;
     s32 count;
+    s32 size;
     s32 i;
     s32 n;
     s32 lastPlane;
@@ -295,21 +326,22 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     }
     count = (pSpriteData->field_0x40 >> 2) & 0x3F;
     lastPlane = -1;
-    if ((u8*)g_GfxCurWorkBuffer + count * sizeof(POLY_FT4) >= (u8*)g_GfxCurWorkBufferEnd) {
+    size = count * sizeof(POLY_FT4);
+    if ((u8*)g_GfxCurWorkBuffer + size >= (u8*)g_GfxCurWorkBufferEnd) {
         return;
     }
     if (count == 0) {
         return;
     }
     i = 0;
-    pVerts = g_BattleSpriteQuadCorners;
     do {
         // frames are grouped by layer: only the first frame of a run re-picks the
         // direction transform (and so the matrix the rest of the run is drawn with)
         if ((pFrameData[i].flags & 7) != lastPlane) {
             lastPlane = pFrameData[i].flags & 7;
             visible = (g_SpritePlaneMasks[lastPlane] & ((SpriteRenderFlagWords*)pSpriteData)->flags_0x3C.bytes[1]) == 0;
-            pTransform = &pSpriteData->pBase->pDirTransforms->dirTransforms[lastPlane];
+            pTransform = (SpriteDirectionTransform*)(lastPlane * sizeof(SpriteDirectionTransform) +
+                                                   (mem_addr)pSpriteData->pBase->pDirTransforms);
             if (pSpriteData->pBase->pDirTransforms != NULL &&
                 (pTransform->translationX != 0 || pTransform->translationY != 0 || pTransform->rotationZ != 0)) {
                 n = (pSpriteData->field_0x40 >> 8) & 0x1F;
@@ -321,8 +353,10 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
                 transX = transX * pSpriteData->scale / 0x1000;
                 transY = transY * pSpriteData->scale / 0x1000;
                 rot.vx = pTransform->rotationX;
-                rot.vy = pSpriteData->pBase->pDirTransforms->dirTransforms[lastPlane].rotationY;
-                rot.vz = pSpriteData->pBase->pDirTransforms->dirTransforms[lastPlane].rotationZ;
+                rot.vy = ((SpriteDirectionTransform*)(lastPlane * sizeof(SpriteDirectionTransform) +
+                                                     (mem_addr)pSpriteData->pBase->pDirTransforms))->rotationY;
+                rot.vz = ((SpriteDirectionTransform*)(lastPlane * sizeof(SpriteDirectionTransform) +
+                                                     (mem_addr)pSpriteData->pBase->pDirTransforms))->rotationZ;
                 if ((SpriteFlags0x3C(pSpriteData) >> 3) & 1) {
                     rot.vz = -rot.vz;
                 }
@@ -348,11 +382,10 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         *(u32*)&pPrim->r0 = pFrameData[i].colorAndCode;
         pPrim->tpage = pFrameData[i].texPage;
         pPrim->clut = pFrameData[i].clutID;
-        n = (pSpriteData->field_0x40 >> 8) & 0x1F;
-        width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth) << n;
-        height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight) << n;
-        tileX = pFrameData[i].tileX << n;
-        tileY = pFrameData[i].tileY << n;
+        width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth) << ((pSpriteData->field_0x40 >> 8) & 0x1F);
+        height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight) << ((pSpriteData->field_0x40 >> 8) & 0x1F);
+        tileX = pFrameData[i].tileX << ((pSpriteData->field_0x40 >> 8) & 0x1F);
+        tileY = pFrameData[i].tileY << ((pSpriteData->field_0x40 >> 8) & 0x1F);
         spriteFlags = SpriteFlags0x3C(pSpriteData);
         drawWidth = width;
         drawHeight = height;
@@ -370,38 +403,38 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         edgeX = drawTileX + drawWidth;
         if (!((u32)pFrameData[i].flags >> 4 & 1)) {
             g_BattleSpriteQuadCorners[0].vx = drawTileX;
-            pVerts[1].vx = edgeX;
-            pVerts[2].vx = edgeX;
-            pVerts[3].vx = drawTileX;
+            g_BattleSpriteQuadCorners[1].vx = edgeX;
+            g_BattleSpriteQuadCorners[2].vx = edgeX;
+            g_BattleSpriteQuadCorners[3].vx = drawTileX;
         } else {
             g_BattleSpriteQuadCorners[0].vx = edgeX;
-            pVerts[1].vx = drawTileX;
-            pVerts[2].vx = drawTileX;
-            pVerts[3].vx = edgeX;
+            g_BattleSpriteQuadCorners[1].vx = drawTileX;
+            g_BattleSpriteQuadCorners[2].vx = drawTileX;
+            g_BattleSpriteQuadCorners[3].vx = edgeX;
         }
 
         edgeY = drawTileY + drawHeight;
         if (!((u32)pFrameData[i].flags >> 5 & 1)) {
-            pVerts[0].vy = drawTileY;
-            pVerts[1].vy = drawTileY;
-            pVerts[2].vy = edgeY;
-            pVerts[3].vy = edgeY;
+            g_BattleSpriteQuadCorners[0].vy = drawTileY;
+            g_BattleSpriteQuadCorners[1].vy = drawTileY;
+            g_BattleSpriteQuadCorners[2].vy = edgeY;
+            g_BattleSpriteQuadCorners[3].vy = edgeY;
         } else {
-            pVerts[0].vy = edgeY;
-            pVerts[1].vy = edgeY;
-            pVerts[2].vy = drawTileY;
-            pVerts[3].vy = drawTileY;
+            g_BattleSpriteQuadCorners[0].vy = edgeY;
+            g_BattleSpriteQuadCorners[1].vy = edgeY;
+            g_BattleSpriteQuadCorners[2].vy = drawTileY;
+            g_BattleSpriteQuadCorners[3].vy = drawTileY;
         }
 
-        pVerts[0].vy -= offsetY;
-        pVerts[1].vy -= offsetY;
-        pVerts[2].vy -= offsetY;
-        pVerts[3].vy -= offsetY;
-        pVerts[0].vx -= offsetX;
-        pVerts[1].vx -= offsetX;
-        pVerts[2].vx -= offsetX;
-        pVerts[3].vx -= offsetX;
-        RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+        g_BattleSpriteQuadCorners[0].vy -= offsetY;
+        g_BattleSpriteQuadCorners[1].vy -= offsetY;
+        g_BattleSpriteQuadCorners[2].vy -= offsetY;
+        g_BattleSpriteQuadCorners[3].vy -= offsetY;
+        g_BattleSpriteQuadCorners[0].vx -= offsetX;
+        g_BattleSpriteQuadCorners[1].vx -= offsetX;
+        g_BattleSpriteQuadCorners[2].vx -= offsetX;
+        g_BattleSpriteQuadCorners[3].vx -= offsetX;
+        RotTransPers4(&g_BattleSpriteQuadCorners[0], &g_BattleSpriteQuadCorners[1], &g_BattleSpriteQuadCorners[2], &g_BattleSpriteQuadCorners[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
                       (long*)&pPrim->x3, (long*)&pPrim->x2, &z, &flag);
 
         texX = pFrameData[i].texX;
@@ -431,8 +464,8 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         }
     } while (++i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2);
 }
-
 */
+
 
 
 
