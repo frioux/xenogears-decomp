@@ -809,6 +809,11 @@ void BattleBuildSlotGaugePrims(void) {
 // Next lever for (1)/(2): they are allocator hand-outs, so read `cc1 -da -dl -dg` on
 // build/src/battle/main/misc2.c.i (the `regs to allocate` list and the priorities) rather than
 // trying more spellings; nothing in the source shape moved them in six measured variants.
+// Permuter run (3 min, -j 2) from this body: RESULT PERMUTER_BETTER base=2483 best=2318, NOT
+// PORTED - the winning candidate changes the signature to `unsigned short func_80075938(void)` and
+// hoists `u8 *new_var = &((u8 *)g_BattleGraphicsWork)[0xA248]` for one of the two v2/v3 stores, i.e.
+// it is wrong code that happens to rearrange three cosmetic sites. Do not re-run it without a
+// different residual.
 // 95.46% at 2784 bytes / 696 insns = retail's exact size (was 94.12% / 2780 / 695, one short). Structure closed; residual is register naming only - see the note above.
 /*
 void func_80075938(void) {
