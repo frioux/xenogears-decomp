@@ -919,6 +919,39 @@ extern s32 g_BattleSlot1TextColor;
 void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade);
 s32 BattleTestSlotBit(s32 slot);
 
+// best 81.01% (1456 bytes against retail's 1496). The whole HUD tail from
+//    BattleSetTextCursor(0xA0,0x78) to the closing BattleSetTextColor(0) is exact,
+//    as is the 0x50 frame: it needs an unused s32 tmp[8] local (retail spends 32
+//    bytes on nothing), and D_80099DA8[g_BattleDrawBufferIndex * 10] reproduces the mul-by-0x190
+//    chain. What is left, all inside the two cursor blocks:
+//    1. THE ALIAS TRAP, and the reason this cannot reach 100.00%: retail stores the
+//       step to g_BattleCursor0Step, then loads g_BattleCursor0Step, stores it back to g_BattleCursor0Step and
+//       then to g_BattleCursor0Offset (sw / lw / sw / sw, four instructions, twice). A store
+//       then a load of the same word means the original source had TWO symbol names
+//       at 0x80092718 (gcc cannot forward across differing objects), i.e.
+//       A = step; B = A; C = B; with A and B aliases. symbol_addrs.battling.txt has
+//       no duplicate addresses, so the second name cannot be spelled without adding
+//       one to config/symbol_addrs.battling.txt (untested: splat may then rename the
+//       asm label). Ours emits sw + sw, two instructions, and that is 8 of the 40
+//       missing bytes (retail also spends more in the whole block; see 2-4).
+//    2. the abs of delta: retail keeps delta live and negates a COPY
+//       (bgez v1; move v0,v1; negu v0,v0; slti v0,v0,4), ours coalesces and gcc
+//       then duplicates the slti into the bgez delay slot (4 insns vs retail's 3
+//       after the bgez). Tried step = delta then if (step<0) step = -step, the
+//       if/else form, and the ternary delta < 0 ? -delta : delta - all identical.
+//    3. the step sign: retail is bgtz v1 with li -0x24 in the delay slot; ours is
+//       the inverted blez with li 0x24 first, whichever polarity the source uses.
+//    4. register assignment: retail keeps pPkt in s1, the sign mask in s0, the
+//       0x38E38E39 magic in s2 and the 0x24 in s3; ours puts pPkt in s0, which
+//       perturbs every instruction that touches the packet pointer.
+//    Also proved: the second and fourth calls of each block pass the shade argument
+//    as ((0x24 - abs(step)) << 6) / 0x24 (magic 0x38E38E39, shift 3) and the third
+//    and fourth pass x = -0x24 / 0x24 with shade 0; the offset table D_800912E0 is
+//    two 8-byte s16 quads, {1,-1,2,36} for a negative step and {-1,-2,1,-36} for a
+//    non-negative one, indexed by the s32 compare g_BattleCursor0Step >= 0, and the compare
+//    is evaluated BEFORE the first call of the block while its sll 3 lands inside
+//    the if body - so write the compare into a local above the call, not
+//    &D_800912E0[expr] at the use. Last call of block 1 does not advance pPkt.
 // re-measured round 506: 81.01% / 1456 bytes / 364 insns against retail's 1496 / 375, so 11 instructions are missing
 //    (the old note stands, and two facts measured today pin where they are NOT):
 //    (a) THE ABS IDIOM COSTS US ONE EXTRA INSTRUCTION PER CURSOR BLOCK, not one fewer: retail is
