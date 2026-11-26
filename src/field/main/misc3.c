@@ -566,9 +566,9 @@ typedef struct {
 extern FieldRotationVectorPair g_FieldRotationVectorPair;
 extern void FieldResetPortraitSlots(void);
 extern void FieldInitScreenStripSprites(void);
-// The fill loops and the constant groups below are order-sensitive: retail's `li`s are
-// emitted at the position of the assignment that produces them, so a value that the
-// loop stores is assigned to a local before the loop (see the note at the top of the file).
+// Order-sensitive: cc1 emits a constant's `li` where the assignment that produces it sits, so
+// each fill value below is named in a local before its loop and `i` is counted outside the
+// `for`. Written inline, gcc re-materialises the constant next to the store instead.
 void func_800705DC(void) {
     u_long unknownLocals[4]; // retail reserves these 16 bytes below `rotation`; nothing reads them
     SVECTOR rotation;
