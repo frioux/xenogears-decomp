@@ -354,7 +354,6 @@ void func_8009E574(s32 nX, s32 nY) {
     VECTOR normals[4];
     SVECTOR points[4];
     ActorData* pActor;
-    SpriteData* pSprite;
     int i;
     FieldActor* pFieldActor;
     s16 nWalkY;
@@ -1105,6 +1104,12 @@ void FieldScriptVMHandlerSwitchPartyLeader(void) {
 }
 
 extern void FieldMatrixCopyTransform(MATRIX* pDest, MATRIX* pSrc);
+// Same object as g_FieldActors, which the header declares `FieldActor* volatile`:
+// this function reads the table pointer non-volatilely, and as an ARRAY BASE, so
+// cc1 materialises its address as a value (lui %hi / lw 0(base)) that it can
+// rematerialise per statement - the shape retail has.
+extern FieldActor* g_FieldActorTable[] __asm__("g_FieldActors");
+#define g_FieldActorsCur (g_FieldActorTable[0])
 extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 
 // Screened 36 variants: best 91.72% here, cdk 73.20%, 2.6.0 91.36% - 
@@ -1142,16 +1147,13 @@ extern void FieldMatrixCopyTranslation(MATRIX* pDest, MATRIX* pSrc);
 // Residual: retail re-forms the g_FieldActors address symbolically in each of the three tail statements (lui v0,hi; lw v0,lo; addu,addu) while this body loads through the $s2 pointer (lw v0,0(s2)); and because the pointer local is assigned at the top, gcc also hoists its lui/addiu above the loop and moves the sw s2 into the first prologue slot, where retail inits $s2 right after the copy loop (its two middle reads are lw a1,0(s2)).
 // Round 475, all scored: per-statement pTailActors value read for the tail alone 83.28% (436 - symbolic loads right, but the three tail statements interleave and pDst lands in a3); value local for the head plus pointer local for the middle 73.09% (428 - a1 becomes the loop counter, no $s2 at all); two separate pointer locals for head and middle 73.09% (identical code); cast at the head only plus value reads at the tail 73.09% (identical). The head's dst=a1/src=a2/i=a3 allocation needs the pointer local assigned first, which is what hoists $s2.
 // Round 475 preset screen of this body: --gp -G0 measures 87.29% (worse than 91.72), so the residual is not the -G8 address fold; cdk 73.20 and 2.6.0 91.36 were already measured. Park stays closed.
-/*
 void func_800A0524(int dstActorIndex, int srcActorIndex) {
-    FieldActor** pFieldActors;
     ActorData* pDst;
     ActorData* pSrc;
     int i;
 
-    pFieldActors = (FieldActor**)&g_FieldActors;
-    pDst = (*pFieldActors)[dstActorIndex].pActorData;
-    pSrc = (*pFieldActors)[srcActorIndex].pActorData;
+    pDst = g_FieldActorsCur[dstActorIndex].pActorData;
+    pSrc = g_FieldActorsCur[srcActorIndex].pActorData;
     for (i = 0; i < 4; i++) {
         pDst->walkmeshTriIds[i] = pSrc->walkmeshTriIds[i];
     }
@@ -1164,13 +1166,12 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
     pDst->position.vx = pSrc->position.vx;
     pDst->position.vy = pSrc->position.vy;
     pDst->position.vz = pSrc->position.vz;
-    FieldMatrixCopyTransform(&(*pFieldActors)[dstActorIndex].transformMatrix, &(*pFieldActors)[srcActorIndex].transformMatrix);
-    FieldMatrixCopyTranslation(&(*pFieldActors)[dstActorIndex].transformMatrix, &(*pFieldActors)[srcActorIndex].transformMatrix);
-    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.x = (*pFieldActors)[srcActorIndex].pActorData->position.vx;
-    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.y = (*pFieldActors)[srcActorIndex].pActorData->position.vy;
-    ((SpriteData*)(*pFieldActors)[dstActorIndex].pSpriteData)->position.z = (*pFieldActors)[srcActorIndex].pActorData->position.vz;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0524);
+    FieldMatrixCopyTransform(&g_FieldActorsCur[dstActorIndex].transformMatrix, &g_FieldActorsCur[srcActorIndex].transformMatrix);
+    FieldMatrixCopyTranslation(&g_FieldActorsCur[dstActorIndex].transformMatrix, &g_FieldActorsCur[srcActorIndex].transformMatrix);
+    ((SpriteData*)g_FieldActorsCur[dstActorIndex].pSpriteData)->position.x = g_FieldActorsCur[srcActorIndex].pActorData->position.vx;
+    ((SpriteData*)g_FieldActorsCur[dstActorIndex].pSpriteData)->position.y = g_FieldActorsCur[srcActorIndex].pActorData->position.vy;
+    ((SpriteData*)g_FieldActorsCur[dstActorIndex].pSpriteData)->position.z = g_FieldActorsCur[srcActorIndex].pActorData->position.vz;
+}
 
 
 
