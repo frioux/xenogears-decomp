@@ -588,6 +588,48 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
     }
 }
 
+//  * Best: 86.08% - 1324 bytes / 331 instructions = retail's EXACT size and count
+//  * (was 83.12% / 1300 / 325). Every remaining diff line is a register name, the
+//  * placement of the seek block, or one load-delay nop; the instruction multiset
+//  * and the frame (0x50) are retail's.
+//  *
+//  * Two finds this round, both the label-alias lever (levers.md
+//  * a-label-alias-array-read-beats-volatile) applied to a global cc1 forwards:
+//  *  - g_ArchiveDebugStreamBlockCountReload[], an array extern with
+//  *    __asm__("g_ArchiveDebugStreamBlockCount"), read as the split block's count:
+//  *    a distinct gcc object, so retail's lh reload survives (the plain spelling
+//  *    forwards the sh through the two pSection stores - round 410 measured that
+//  *    wall). It also kills the raw u16 register, which makes cc1 emit retail's
+//  *    addu a2,a1,zero in the bnez delay slot: +2 instructions, and with the
+//  *    guard then reading the global the pressure drop let nSpare[2] go, so the
+//  *    frame is retail's 0x50 again.
+//  *  - g_ArchiveStreamNextSectionIdReload[], same shape, for the QUEUE arm's
+//  *    increment: retail loads that halfword twice there (0x8002927C for
+//  *    pSection->id, 0x800292A0 for the increment) with no call between, so plain
+//  *    C cse's them; the alias restores the second lui/lhu pair (+2 = retail's
+//  *    1324). In arm 1 the two loads already come out separately because the
+//  *    ArchiveConsolidateStreamFileEntry call kills the register.
+//  *
+//  * Residual (named):
+//  *  - CALLEE-SAVED MAP ROTATION. Retail desc priority: pDataOut(fp),
+//  *    pSectionOut(s7), nSections(s6), pData(s5), nOffset(s4), pHeaders(s3),
+//  *    pSection(s2), i(s1), pScratch(s0). Ours: pSectionOut is FIFTH (s4) and
+//  *    i/pSection are swapped (s2/s1) - i.e. retail's map with pSectionOut
+//  *    demoted. pSectionOut has 4 refs over the whole function, nSections 2, so
+//  *    by the documented priority both builds should hand it s7; no source
+//  *    spelling tried so far moves it. Declaration-order swaps of i/pSection:
+//  *    byte-identical 86.08. id-store reorderings around the nRemaining
+//  *    computation: 82.51 and 83.51.
+//  *  - the three reset seeks: retail merges all three (0x918, -0x28, -0x20)
+//  *    into ONE block at 0x8002924C with a1 set per site and a taken branch
+//  *    from each; this compile merges only the -0x28/-0x20 pair and inlines the
+//  *    0x918 copy, which is also where the seek-tail branch polarity differs.
+//  *    A shared label with an nSeek local measured 79.99% (round 410).
+//  *  - lhu v0,4(s1) followed by nop, where retail fills the slot with the
+//  *    pSection->id store; both orderings of that store around nRemaining
+//  *    measured worse.
+//  * Presets on this body: 2.6.0 (unit) 86.08, 2.7.2 86.03, cdk 80.46.
+/*
 s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
     s32 i;
     ArchiveStreamFileSectionHeader* pSection;
@@ -730,7 +772,9 @@ search:
 
     g_ArchiveStreamReadSectionId += pSection->unk2;
     return 0;
-}
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
+
 
 
 u_short ArchiveReleaseStreamBlock(ArchiveStreamFileSectionHeader* pSection) {
