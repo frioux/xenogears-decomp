@@ -2290,7 +2290,19 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007D3D4);
    computes nPos's two halves right after nRef but stores it after out.vy) is
    86.59%, and it does not restore retail's full-word `sra 16 / sll 16` for the x
    half - our compile still reloads it narrow as `lh 0x22(fp)`, because the store
-   to out.vx has already killed the loaded word. */
+   to out.vx has already killed the loaded word.
+   Round 500: the body had been parked WITHOUT its 's32 nSavedTri;' line, so it
+   could not compile and the 86.66% above came from a stale object. Re-measured
+   with the declaration: 86.66% / 1092 bytes / 273 insns (retail 273 insns /
+   1092 bytes - the byte count IS retail's), 178 differing lines. The dead
+   `u_long unusedFrame[2]` was also tried as the FIRST declaration, not only as a
+   mid-list one: it lands at 0x20 in either position (an expand-time object takes
+   the lowest slot regardless of declaration order), which does close the frame to
+   retail's 0x80 but pushes a1/a2/a3 from 0x20/0x28/0x30 to 0x28/0x30/0x38;
+   differing lines 178 -> 160, score still 86.66%. So the phantom slot at 0x50 is
+   a reload-era slot above the six spills on both positions, as the two levers
+   above say. Not re-run: the still-undiagnosed bulk of the 160 lines (items 2 and
+   3: the narrow `lh 0x22(fp)` x half and the prologue load/store interleave). */
 /*
 // Height of the walkmesh set nSetIndex under the point the actor's next step
 // reaches: walks the triangle graph from the actor's current triangle until the
@@ -2308,6 +2320,7 @@ s32 func_8007D3D4(ActorData* pActor, s32 nSetIndex, s32* pY, VECTOR* pNormal, s1
     s32 vA;
     s32 vB;
     s32 vC;
+    s32 nSavedTri;
     s32 nStep;
     s32 nY;
     s32 i;
