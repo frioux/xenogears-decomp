@@ -1567,49 +1567,49 @@ void func_80087EDC(u8 arg0, u8 arg1) {
     }
 }
 */
-/* PARKED 87.06%, 492 bytes / 123 insns (retail 500 / 125; frame 32 and the saved
-   set ra/s0/s1/s2 are retail's, and both early-exit compares and the ladder's two
-   exit paths match). Round 482 redo, from a fresh body; the old 79.52% body is gone
-   because this one is two instructions from retail instead of seven.
-   WHAT GOT IT HERE (measured steps, in order):
-   1. A `u8 slot` local for `(u8)arg0` used at the call and at the tail's `slot < 3`
-      test. Retail's `andi s0,a0,0xFF` lands in the delay slot of the usage-test
-      branch and `sltiu s0,s0,3` later reads the SAME register, so one masked value
-      crosses BattleReleaseCharSlot - that is a local, not two (u8) casts.
-   2. `u16 param` for the second param-table word, stored once after the if/else.
-      Retail's `j .L80088384` after `lhu v0,0x102` plus the single `sh v0` at the
-      join is one shared store, which duplicating the store in both arms cannot get.
-   3. An inlined offset helper `SlotRecordOffset(arg1)` for the compare's second
-      index and for ofsB (below). Identical text to inline `(u8)arg1 * 0x1C`, but
-      gcc's inliner makes it a SEPARATE RTL tree, so cse no longer merges the two
-      offsets across the .L80088224 join (two predecessors) - which is exactly why
-      retail re-forms ofsB into $s2 after the join while ofsA stays in $v1/$a1.
-      With plain inline spelling both offsets become one callee-saved pseudo: 78.02%
-      at 496 bytes and a 40-byte frame. THIS IS THE ONE UNREALISTIC SPELLING.
-   RESIDUAL, all named:
-   (a) TWO MISSING INSTRUCTIONS: this body is 123 insns, retail 125. The two are
-       `lbu` reloads of g_BattleSlotRecords[ofsA] before the usage store and before
-       the D_800D301D store. gcc forwards the `sb` of the record one statement
-       earlier into those loads; retail reloads. The permuter found the same thing
-       from the other side - its best candidate marks g_BattleSlotRecords
-       `volatile`, which is not shippable (other matched functions in this unit use
-       it). Untried lever: read the record byte through a second decl or defeat the
-       forward with a statement order that puts an aliasing store in between.
-   (b) the ladder: retail materialises 0x18 into $a2 on the arg1<3 path's delay slot
-       and 0x10 into $a2 at the shared target, i.e. `beqz v0,A / sltiu v1 / beqz v1,B
-       / li a2,0x18 / A: li a2,0x10 / B:`; this body emits `li t0,0x10` first and
-       ends in $t0 instead of $a2. `sel = 0x10; if (...) sel = 0x18;` and the
-       if/else form measure identically (both tried), so the shape is available but
-       the register and the order are not.
-   Also measured dead in earlier rounds, do not redo: u8 params (same code as
-   s32 params plus the (u8) casts, 488); `sel` as a ternary and as an if/else
-   (identical to `sel = 0x10; if (...) sel = 0x18;`); a typed 0x1C-byte record
-   struct view instead of the u8-array byte offsets (564 bytes).
-   (c) ofsA is computed one statement before retail does (`sll a1,v0,2` early,
-       retail forms it after the rec[ofsB] load), and the param-table add is
-       `addu v0,v0,a0` where retail has `addu v0,v1,v0` (base first) plus the
-       table base in $v1 and the loaded word in $a0 - a regalloc tie that already
-       sits on a MATCH-sized body.
+/* PARKED 88.32%, 500 bytes / 125 insns = retail's exact count (round 503 redo).
+   THREE MEASURED STEPS from the old 87.06 body, in order:
+   1. THE LADDER IS A NESTED IF, NOT `&&`. Retail's
+      `sltiu v0,a2,3 / beqz v0,A / sltiu v1,a3,3 / beqz v1,B / ori a2,0x18 / A: ori a2,0x10 / B:`
+      - both 0x10 stores cross-jumped into the one shared block, the 0x18 store in the
+      taken branch's DELAY SLOT - is exactly
+      `if ((u8)arg1 < 3) { sel = 0x18; if ((u8)arg0 < 3) sel = 0x10; } else sel = 0x10;`.
+      The conjunct form and `sel = 0x10; if (A && B) sel = 0x18;` emit the mirror
+      (`li t0,0x10` first, 0x18 on the fall-through) and end in $t0, not $a2;
+      with the nested-if ladder everything from the compare to the `slot < 3` tail is
+      instruction-identical to retail apart from placement (below).
+   2. STORE ORDER IN THE SOURCE DECIDES THE TWO `lbu` RELOADS. Writing
+      `g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];` BEFORE `D_800C3EB5[ofsA] = 0;`
+      is what makes cse emit BOTH reloads (123 -> 125 insns, 492 -> 500 bytes = retail).
+      With the D_800C3EB5 store first, cse forwards the stored register into the first
+      usage index (`addu v1,v1,s1` with no load) and the body is one instruction short.
+      gcc's scheduler emits retail's sb order either way (sb zero, then sb records), so
+      the SOURCE order is the lever and the emitted order is not.
+   RESIDUAL, both named and both placement/regalloc:
+   (a) EIGHT INSTRUCTIONS PLACED EARLIER THAN RETAIL: `sll a1,v0,2` (ofsA), `li a0,1`
+      and `sltiu s0,s0,3` are hoisted above the record load / stores here and sit at
+      retail's later positions, and the SECOND `lbu v0,g_BattleSlotRecords[ofsA]` is
+      hoisted above `sb usage` where retail keeps load, store, load, store. (The
+      constant through $a0 rather than retail's $v1 is the same hoist.) Retail's list
+      is a plain source-order emission; this build's sched2 hoists the loads and the
+      constant into the free slots before the first store.
+   (b) THE TAIL'S TABLE BASE: retail keeps `g_BattleSlotParamTable` in $v1 and emits
+      `addu v0,v1,v0` then `addu v1,v1,v0` (base first, base register reused) with
+      `lhu a0` / `sh a0`; this body loads it into $a0 and emits `addu v0,v0,a0` twice
+      with $v1/$a0 swapped. Untried: the offset-term-first cast sum
+      (`(u32)g_BattleSlotRecords[ofsA] * 8 + (u32)g_BattleSlotParamTable + 0x100`) that
+      lever c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base measured
+      on a global POINTER base, and a per-arm `u8 *pTable = g_BattleSlotParamTable;`.
+   Permuter from this body: PERMUTER_BETTER base=3300 best=2920 (1871 iters). The best
+   candidate is a dead `param = *(... + 0x100)` inside the first arm's store plus an
+   `unsigned short` helper argument - semantically inert (param is overwritten on the
+   next line) but not a spelling worth shipping, and it does not touch (a). Not ported.
+   Dead already, do not redo: u8 params (same code, 488); the conjunct/ternary ladder
+   forms; `sel` if/else vs if-chain; a typed 0x1C-byte record struct view (564 bytes);
+   volatile reads of g_BattleSlotRecords (unshippable, other matched functions use it);
+   the helper spelled inline (ofsA and ofsB then merge into one callee-saved pseudo,
+   496 bytes, 78.02) - the inlined helper is load-bearing: it keeps the two offsets in
+   separate RTL trees so ofsB is re-formed into $s2 after the ladder's join, as retail.
    lint_sources.py is clean on this block and the body below compiles. */
 /*
 static inline s32 SlotRecordOffset(s32 arg0) {
@@ -1626,8 +1626,11 @@ void func_800881B8(s32 arg0, s32 arg1) {
     if (g_BattleSlotRecords[(u8)arg0 * 0x1C] == g_BattleSlotRecords[SlotRecordOffset(arg1)]) {
         return;
     }
-    if ((u8)arg1 < 3 && (u8)arg0 >= 3) {
+    if ((u8)arg1 < 3) {
         sel = 0x18;
+        if ((u8)arg0 < 3) {
+            sel = 0x10;
+        }
     } else {
         sel = 0x10;
     }
@@ -1638,8 +1641,8 @@ void func_800881B8(s32 arg0, s32 arg1) {
     slot = (u8)arg0;
     BattleReleaseCharSlot(slot);
     ofsA = slot * 0x1C;
-    D_800C3EB5[ofsA] = 0;
     g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
+    D_800C3EB5[ofsA] = 0;
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
     D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
     if (slot < 3) {
