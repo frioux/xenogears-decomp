@@ -4684,8 +4684,7 @@ void LibGearInitialize(int capacity) {
 // against retail 208; pArchive takes s1 where retail has s4; the four offset
 // parameters are kept in registers instead of being reloaded from their
 // 0x68/0x70/0x78/0x80 slots; the prim/texture/material loops were not diffed.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E742C);
-/*
+
 // A gear model's resource record: a 0x14 byte header that describes the model,
 // followed by numModelListEntries 0x24 byte material records.
 typedef struct {
@@ -4736,6 +4735,23 @@ extern s32 g_LibGearMeshSlot;
 // Builds a gear model from its archive entry into g_LibGearModels[modelIndex].
 // offsetX..offsetW shift the material records' texture coordinates, and
 // pPosition, when given, places the root joint.
+// Parked at 90.47% (objdiff: 2264 bytes against retail 2280, 566 insns
+// against 570). Three measured wins this round, all kept: (1) the material loop
+// must walk RUNNING POINTERS (pEntry++ / pWad++ / a pSections base advanced by
+// 0x24), not index pModel->pModelListEntries[i] - the indexed form reloads the
+// array base five times per point and was 83.39 -> 86.21; (2) if/else arms are
+// written NEGATED (if (!(flags & 0x40)) { if (pModel->flags & 4) B else C } else
+// A) so gcc branches on the true condition and leaves the then-block out of line,
+// sharing the two zero-filled LibGearInitializeSkeleton argument tails - that
+// closed the whole skeleton region and went 86.21 -> 90.47; (3) same negation
+// already applied to the texture-offset if at 0x90/0x92/0x94/0x96.
+// RESIDUAL, one named cause: allocator tie. Mine keeps offsetW in $s7 and spills
+// only offsetX/Y/Z to 0x68/0x70/0x78, where retail reloads all four from
+// 0x68/0x70/0x78/0x80; that also costs the pWadTable slot at 0x88 and the 8-frame
+// bytes (200 against 208), and shifts the whole callee-saved set by one
+// (mine $s2=pModel, retail $s3=pModel). Tried: flipping the pModelSource
+// if/else, declaring the four offsets as locals, indexed vs pointer loop forms.
+/*
 void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive* pArchive, u16 offsetX, u16 offsetY, u16 offsetZ, u16 offsetW, SVECTOR* pPosition) {
     Model* pModel;
     ModelResource* pResource;
@@ -4747,6 +4763,8 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
     ModelJointEntry* pJointEntries;
     u32* pWadTable;
     u16* pCur;
+    Temp9* pEntry;
+    u32* pWad;
     s32 size;
     s32 i;
     s32 j;
@@ -4827,12 +4845,14 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
 
     pModel->pMesh = &g_LibGearMeshes[g_LibGearMeshSlot];
 
-    if (flags & 0x40) {
-        pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 0, 0, 0, 0, 0, 0);
-    } else if (pModel->flags & 0x4) {
-        pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 2, 0, 0, 0, 0, 0);
+    if (!(flags & 0x40)) {
+        if (pModel->flags & 0x4) {
+            pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 2, 0, 0, 0, 0, 0);
+        } else {
+            pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 2, 1, (s16)offsetX, (s16)offsetY, (s16)offsetZ, (s16)offsetW);
+        }
     } else {
-        pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 2, 1, (s16)offsetX, (s16)offsetY, (s16)offsetZ, (s16)offsetW);
+        pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 0, 0, 0, 0, 0, 0);
     }
 
     if (pPosition != NULL) {
@@ -4841,13 +4861,13 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
         pModel->pSkeleton->translation.z = pPosition->vz;
     }
 
-    if (flags & 1) {
-        pModel->textureOffsetX = -1;
-    } else {
+    if (!(flags & 1)) {
         pModel->textureOffsetX = offsetX;
         pModel->textureOffsetY = offsetY;
         pModel->blendOffsetX = offsetZ;
         pModel->blendOffsetY = offsetW;
+    } else {
+        pModel->textureOffsetX = -1;
     }
 
     if (!(flags & 4) && !(flags & 0x80)) {
@@ -4896,13 +4916,15 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
     if (pModel->numModelListEntries != 0) {
         pModel->pModelListEntries = HeapAlloc(pModel->numModelListEntries * sizeof(Temp9), 0x0);
 
+        pEntry = pModel->pModelListEntries;
+        pWad = pWadTable + 2;
         for (i = 0; i < pModel->numModelListEntries; i++) {
             count = (s16)pCur[0x11];
-            *(u16*)pModel->pModelListEntries[i].unk0 = *pCur++;
+            pEntry->jointIndex = *pCur++;
 
             func_801E1A14(
-                &pModel->pModelListEntries[i],
-                (void*)pWadTable[i + 2],
+                pEntry,
+                (void*)*pWad,
                 *(s16*)pCur++,
                 *(s16*)pCur++,
                 *(s16*)pCur++,
@@ -4925,12 +4947,14 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
             pCur++;
 
             for (j = 0; j < count; j++) {
-                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x6) = *pCur++;
-                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0xE) = *pCur++;
-                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x0) = *pCur++;
-                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x2) = *pCur++;
-                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x4) = *pCur++;
+                pEntry->pSections[j].y = *pCur++;
+                pEntry->pSections[j].unkE = *pCur++;
+                pEntry->pSections[j].vector.vx = *pCur++;
+                pEntry->pSections[j].vector.vy = *pCur++;
+                pEntry->pSections[j].vector.vz = *pCur++;
             }
+            pWad++;
+            pEntry++;
         }
     }
 
@@ -4957,8 +4981,10 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
         LibGearInitializeMesh(pModelFile, pModel->pMesh);
         pModel->pModelFile = pModelFile;
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E742C);
+
+
 
 void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4) {
     int i;
