@@ -885,6 +885,35 @@ extern DR_MODE D_800B1DF4[2][0x10];
 // g_FieldTextBoxes for the order reads is byte-identical to the plain decl (the decls
 // unify, so no alias lever); pBuffer flat through the box in both loops on the old
 // body 89.09 / 1480 / 370.
+// 95.91%, 1452 bytes against retail's 1448, 363 insns against 362, frame 0x58 (matches).
+// Round 506. Two finds, both measured.
+// 1. pBuffer IS read through the box, in BOTH loops: retail emits
+//    lui at,%hi(g_FieldTextBoxes+0xA8); addu at,at,s0; lw a1,%lo(...)(at) at each
+//    use. The spelling that makes gcc produce that is a fresh address-of-slot local
+//    right before the deref (permuter find): pBufferSlot = &box._pad[0x48] (0xA8 -
+//    0x18 = 0x90 bytes = _pad[0x48] of `short _pad[0x56]`), then *(void**)pBufferSlot.
+//    The direct `*(void**)&g_FieldTextBoxes[i]._pad[0x48]` spelling instead makes gcc
+//    hoist base+0xA8 into a loop biv (lui+addiu in the preheader, +1 in the latch)
+//    and the 0xFF000000 mask then spills to 48(sp): 367 insns / 1468 bytes.
+// 2. Keep the pString local in the ORDER loop. With the cast spelled out at each use
+//    gcc keeps a third 1176-byte biv in $s2 (addiu in the latch); with pString gcc
+//    forms retail's per-iteration lui v0,%hi(base+0x18); addiu v0,v0,24;
+//    addu s1,s0,v0 and the frame returns to 0x58 once find 1 lands. pString alone
+//    (pBuffer through pString) is 89.45% with a 0x60 frame; the two finds belong
+//    together: 91.62 -> 92.06 -> 93.73 -> 95.91% as they went in.
+// Residual, one instruction: in the order loop's addPrim, retail loads the
+// 0xFF000000 mask once with lui t0,0xff00, uses it for both ands, and re-forms the
+// g_FieldTextBoxes base into that same t0 afterwards; this body keeps the prim
+// address in t0 across the second base form, so the mask is re-materialised
+// (lui t1,0xff00, +4 bytes), and `sw v0,0(a2)` lands after the second base form
+// instead of before it. Everything else in both loops is instruction-identical up to
+// register choice (a2 vs t0 for the prim address, t0/t1 for -1 and count) and the
+// position of `move a2,s2` in the draw block. Permuter found nothing from this body
+// (3 min, 1267 iters) or from the 92.06 body (4 min, 1557 iters).
+// Dead ends measured this round, do not retry: pBuffer through the box with the
+// direct cast in both loops 89.45 / 1452 / 363; that plus pString in the order loop
+// 92.06 / 1468 / 367; pString in the order loop with pBuffer through pString
+// 90.40 / 1440 / 360 (0x60 frame); the round-505 baseline 91.62 / 1420 / 355.
 /*
 void func_8008004C(u_long* pOt, int ctx) {
     s32 order[4];
@@ -893,6 +922,7 @@ void func_8008004C(u_long* pOt, int ctx) {
     int i;
     int n;
     FieldTextBoxString* pString;
+    short* pBufferSlot;
 
     D_800ADE98++;
     if ((D_800ADE98 & 3) == 0) {
@@ -932,7 +962,8 @@ void func_8008004C(u_long* pOt, int ctx) {
                     SystemStringClearStateFlags(pString);
                 }
                 if (pString->unk82 == 0) {
-                    SystemStringPushBuffer(pString, pString->pBuffer);
+                    pBufferSlot = &g_FieldTextBoxes[i]._pad[0x48];
+                    SystemStringPushBuffer(pString, *(void**)pBufferSlot);
                 }
                 func_80034888(pString, pOt, ctx);
             }
@@ -955,14 +986,14 @@ void func_8008004C(u_long* pOt, int ctx) {
                             g_FieldActors[g_FieldTextBoxes[i].ownerActorID].pActorData->dialogCursorPosition =
                                 (u_char)g_FieldTextBoxes[i].cursor.curPosition +
                                 (u_char)g_FieldTextBoxes[i].cursor.startPosition;
-                            SystemStringClearStateFlags((FieldTextBoxString*)g_FieldTextBoxes[i]._pad);
+                            SystemStringClearStateFlags(pString);
                         }
-                        if (((FieldTextBoxString*)g_FieldTextBoxes[i]._pad)->unk82 == 0) {
-                            SystemStringPushBuffer((FieldTextBoxString*)g_FieldTextBoxes[i]._pad,
-                                ((FieldTextBoxString*)g_FieldTextBoxes[i]._pad)->pBuffer);
+                        if (pString->unk82 == 0) {
+                            pBufferSlot = &g_FieldTextBoxes[i]._pad[0x48];
+                            SystemStringPushBuffer(pString, *(void**)pBufferSlot);
                         }
-                        func_80034888((FieldTextBoxString*)g_FieldTextBoxes[i]._pad, pOt, ctx);
-                        if (SystemStringGetUnk6B((FieldTextBoxString*)g_FieldTextBoxes[i]._pad) != 0) {
+                        func_80034888(pString, pOt, ctx);
+                        if (SystemStringGetUnk6B(pString) != 0) {
                             if (g_FieldTextBoxes[i].cursor.visibility != 0) {
                                 g_FieldTextBoxes[i].continueArrow.visibility = 0;
                             }
@@ -986,6 +1017,7 @@ void func_8008004C(u_long* pOt, int ctx) {
     addPrim(pOt, (u_long*)&D_800B1DF4[g_FieldCurRenderContextIndex][0]);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
+
 
 
 
