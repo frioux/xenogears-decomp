@@ -727,6 +727,74 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 // retail's own 'li s4,1' shows again's register there does not serve the comparisons.
 // The probe-address reloc cap from the CARRIED OVER block above still applies: a
 // perfect instruction stream would read about 99.9% in objdiff and needs check_bin.
+// The callee was defined in a TU that took its kind as a raw word: an unprototyped
+// declaration makes each call copy the s32 rather than narrow it to the s16.
+extern s32 WorldMapResolveStepAgainstTerrain();
+
+// best: 72.47% (2124 bytes / 531 insns against retail's 2240 / 560 text insns).
+// The same body WITHOUT the K&R declaration below measures 72.73% (2148 bytes) - see
+// ROUND 513 (b); the K&R version is the one parked because it matches retail's three
+// call sites instruction for instruction and has 16 fewer differing lines (577
+// against 593). Retail is 116 bytes (29 insns) bigger, all of it block duplication
+// and the shared tails, see WHAT IS LEFT.
+// ROUND 513, two source finds (71.73 -> 72.73 -> 72.47):
+//   (a) SEMANTIC, worth the +1.0: every walk arm that adopts a neighbour assigns it
+//       BEFORE the kind test. Retail's copy is in the delay slot of the kind test
+//       (`beq v1,s7` + `addu a0,v1,zero` at .L80095844, `bne v0,t1` + `addu s0,a0` at
+//       .L80095868, the same pair at .L800958B4, .L8009597C, .L800959B4, .L800959DC,
+//       .L80095B7C), and reorg only fills a delay slot from the branch's FALL-THROUGH
+//       block, so the source read `triIndex = next; if (kind != 1) break;` - the
+//       neighbour IS adopted when the kind test fails. The old body tested kind first
+//       and assigned after, which also made gcc rematerialise the u16 load (`lhu
+//       $8,6($2)` beside retail's single `lh` + copy). Fixed in all five arms; the
+//       two `lhu` copies and 2 instructions went away and the score rose 1.0.
+//   (b) THE 5th ARGUMENT IS A RAW WORD, and an unprototyped declaration after the
+//       definition gets it: `extern s32 WorldMapResolveStepAgainstTerrain();` above
+//       this body makes each of the three calls `lw t1,<kind>(sp)` + `sw
+//       t1,0x10(sp)` exactly as retail (.L800955A0, .L80095718, .L80095B34), removing
+//       the sll/sra pair the visible `s16 kind` prototype forced (6 instructions).
+//       The func_80095CD4 note's K&R trick, applied from the other side. Cost 0.26
+//       of objdiff fuzzy (72.73 -> 72.47) and kept anyway: 6 fewer instructions and
+//       retail's own argument shape at all three sites is the truer stream; objdiff's
+//       fuzzy number is not monotone (see the levers).
+// WHAT IS LEFT (all measured, no source response found in rounds 457/472/513):
+//   1. BLOCK ORDER, the largest residual: retail emits the walk's shared resolve
+//      block (.L80095B2C) BETWEEN the dir[0] tail (.L80095A14, shared by state 1 and
+//      the mask==1 arms) and the dir[1] tail (.L80095B84); this body emits the three
+//      AlignDirection tails first and the resolve block last. Retail's tail order in
+//      memory: mask==1 body .L800959F0, dir[0] .L80095A14, kindMask tree .L80095A30,
+//      kindMask dispatch .L80095A64, kindMask 1|3 .L80095A8C, mask==0 .L80095AFC,
+//      resolve .L80095B2C, EDGE12 mask==1 .L80095B60, dir[1] .L80095B84, mask==2
+//      .L80095BA0, dir[2] .L80095BB8. Comes out of gcc's switch expansion plus jump
+//      optimisation; the `resolve:` label position was measured inert twice.
+//   2. THE CONSTANT 1 GETS A CALLEE-SAVED REGISTER here ($s3, serving the per-arm
+//      `bne kind,1` and `again`) where retail re-materialises `li t1,1` per arm and
+//      keeps pOut in $s3. That single difference is also residual (c) below - one
+//      register short, which is what pushes pOut to $s4 and again to $s2 (retail:
+//      pOut $s3, again $s4, pTri $s2, scratch base $fp, walk -1 $s7). Every spelling
+//      of the arms' `kind != 1` and of `again = 1` feeds the same const_int, so the
+//      merge cannot be broken from source.
+//   3. FRAME 176 against retail's 184: the four named slots agree (0x10 outgoing arg,
+//      0x18 setIndex, 0x20 pBase, 0x28 scale) and the saved set is retail's ten, so
+//      retail reaches one more 8-byte anonymous slot than this body.
+//   4. FIVE `addiu a0,fp,%lo(g_WorldMapStepProbePos)` sites (.L8009561C, .L8009568C,
+//      .L80095790, .L80095C98 and the dir/normal pair .L80095690/.L80095694) form a
+//      base+offset WITH a symbol relocation, which no C spelling gives ("&global" is
+//      the two-instruction la, "pStep->probe" is addiu with no reloc). Linked bytes
+//      are identical, so a perfect body caps near 99.9% in objdiff and is proven with
+//      check_bin.sh instead (func_80095CD4's note is the same residual).
+// MEASURED AND REJECTED this round: `triIndex` declared s16 instead of u16 (67.74,
+// the u16 narrowing load at the walk preheader becomes lh); the inner mask switch's
+// case labels reordered to 1,2,3 (identical 72.73, gcc's dispatch tree is not
+// source-ordered); gcc-2.7.2-cdk 69.74 and gcc-2.6.0 70.24 (rounds 472), so the
+// preset is right.
+// CARRIED OVER, still true: mesh triangle stride 0xE (vert[3] 0x0, the three edge
+// neighbours 0x6/0x8/0xA with -1 = none, a u16 kind at 0xC compared against 0 and 1);
+// neighbour[0] pairs with 0x1F800030, [1] with 0x40, [2] with 0x50; the walk's outer
+// switch table is EIGHT words wide so state 7 is a real case that falls through to
+// the loop end; g_WorldMapStepSpriteSet is the sprite set the step is resolved in
+// (-1 = none) and g_WorldMapStepTriangleIndex its current triangle, both s32 globals
+// holding 16-bit values; the outer case body source order is 0, 1, 2, 4, 3, 5, 6.
 /*
 s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     WorldMapStepMesh* pMesh;
@@ -839,10 +907,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
             case 1:
                 next = pTri[(s16)triIndex].next[0];
                 if (next == WORLD_MAP_STEP_NONE) goto resolve;
+                triIndex = next;
                 if (pTri[next].kind != 1) {
                     break;
                 }
-                triIndex = next;
                 ret = 0;
                 again = 0;
                 WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[0]);
@@ -850,10 +918,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
             case 2:
                 next = pTri[(s16)triIndex].next[1];
                 if (next == WORLD_MAP_STEP_NONE) goto resolve;
+                triIndex = next;
                 if (pTri[next].kind != 1) {
                     break;
                 }
-                triIndex = next;
                 ret = 0;
                 again = 0;
                 WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[1]);
@@ -878,19 +946,19 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                 }
                 switch (mask) {
                 case 2:
+                    triIndex = next2;
                     if (pTri[next2].kind != 1) {
                         break;
                     }
-                    triIndex = next2;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[1]);
                     break;
                 case 1:
+                    triIndex = next;
                     if (pTri[next].kind != 1) {
                         break;
                     }
-                    triIndex = next;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[0]);
@@ -941,10 +1009,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[2]);
                     break;
                 case 1:
+                    triIndex = next;
                     if (pTri[next].kind != 1) {
                         break;
                     }
-                    triIndex = next;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[0]);
@@ -995,10 +1063,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[2]);
                     break;
                 case 1:
+                    triIndex = next;
                     if (pTri[next].kind != 1) {
                         break;
                     }
-                    triIndex = next;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[1]);
@@ -1046,6 +1114,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     return ret;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
+
 
 
 
