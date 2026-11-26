@@ -727,7 +727,6 @@ extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, 
 // retail's own 'li s4,1' shows again's register there does not serve the comparisons.
 // The probe-address reloc cap from the CARRIED OVER block above still applies: a
 // perfect instruction stream would read about 99.9% in objdiff and needs check_bin.
-/*
 s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     WorldMapStepMesh* pMesh;
     WorldMapStepTriangle* pTri;
@@ -839,10 +838,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
             case 1:
                 next = pTri[(s16)triIndex].next[0];
                 if (next == WORLD_MAP_STEP_NONE) goto resolve;
+                triIndex = next;
                 if (pTri[next].kind != 1) {
                     break;
                 }
-                triIndex = next;
                 ret = 0;
                 again = 0;
                 WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[0]);
@@ -850,10 +849,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
             case 2:
                 next = pTri[(s16)triIndex].next[1];
                 if (next == WORLD_MAP_STEP_NONE) goto resolve;
+                triIndex = next;
                 if (pTri[next].kind != 1) {
                     break;
                 }
-                triIndex = next;
                 ret = 0;
                 again = 0;
                 WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[1]);
@@ -878,19 +877,19 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                 }
                 switch (mask) {
                 case 2:
+                    triIndex = next2;
                     if (pTri[next2].kind != 1) {
                         break;
                     }
-                    triIndex = next2;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[1]);
                     break;
                 case 1:
+                    triIndex = next;
                     if (pTri[next].kind != 1) {
                         break;
                     }
-                    triIndex = next;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[0]);
@@ -941,10 +940,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[2]);
                     break;
                 case 1:
+                    triIndex = next;
                     if (pTri[next].kind != 1) {
                         break;
                     }
-                    triIndex = next;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[0]);
@@ -995,10 +994,10 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[2]);
                     break;
                 case 1:
+                    triIndex = next;
                     if (pTri[next].kind != 1) {
                         break;
                     }
-                    triIndex = next;
                     ret = 0;
                     again = 0;
                     WorldMapAlignDirectionToReference(pDelta, pOut, &pStep->dir[1]);
@@ -1044,8 +1043,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
         break;
     }
     return ret;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
+}
 
 
 
