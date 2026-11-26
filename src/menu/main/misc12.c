@@ -254,6 +254,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
    against the .s (lbu 0x323, slti 2). An 'inline the whole prim expression' body
    (no primOffset/pPrims locals) is 88.44% at 584, 16 bytes short, so the locals
    stay.
+   Round 501 (this tree): re-measured 88.60 / 600 / 150 on this body and took no
+   other shot: every spelling the note lists below was already measured here. Closed.
    Round 488 (this tree): re-measured 88.60 / 600 / 150. Lever
    c-cast-sum-with-the-offset-term-first-flips-a-global-pointer-base does NOT
    transfer: spelling the counter store as an offset-first cast sum,
@@ -461,6 +463,18 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
      (frame 0x30), which cascades the whole allocation (index lands in s0 here,
      s2 in retail). Preset is not the cause: 2.7.2-psx 80.35, 2.7.2-cdk 79.11,
      2.6.0 (unit flags) 80.44 on the probe body, so XenoMenu260 is right.
+   Round 501 (this tree): re-measured 84.42 / 948 / 237, then three more spellings of
+   the rect .x stores, all dead: (a) one RECT* pRect for both .x stores and the
+   LoadImage argument folds straight back to the plain symbol store plus a la, byte
+   identical at 948 / 237; (b) the loop value written i * 0x20 + ((index / 0x10) * 0x10
+   + 0x80) is 83.75 / 956 / 239, gcc strength-reducing i * 0x20 into a running
+   accumulator; (c) a named local uvBase = (index / 0x10) * 0x10 + 0x80 shared by the
+   loop and all six arm stores DOES close the three per-arm recomputes (234 insns) but
+   rotates the whole plan - index leaves s1, a further saved register appears - and
+   measures 78.99 / 936. The objdump opcode histogram vs retail is +6 lui, +2 lw,
+   +2 addiu, +3 nop for -1 move, -1 sw: that is the lui/lw pair per switch arm (retail
+   keeps g_Menu in a1 across the switch and reloads only 0x32C(a1)) plus the la of
+   D_801EA8EC where retail passes its already-live s0. Park closed.
 /*
 extern u8 D_801EA8C4[0x20];
 extern RECT D_801EA8E4;
