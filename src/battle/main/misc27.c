@@ -879,6 +879,24 @@ extern BattleTrailSegmentCount D_800D2FCC;
 // locals (pLineBuf/pQuadBuf) - one shared pBuf makes cc1 hoist the g_GfxCurWorkBuffer load
 // above the six SVECTOR copies, which clobbers $a0 and costs a 'move a2,a0'. Also
 // 'depth += D_800D3334[0]' must come BEFORE the RotTransPers3 call.
+// ROUND 498: re-measured from a clean un-park, still 84.73% (988 bytes / 247 insns against
+// retail's 984 / 246). New here: the allocator arithmetic that decides the rotation, read
+// off the unit's own cc1 with -dg -dl on build/src/battle/main/misc27.c.i (recipe in
+// levers.md [a-lreg-dump-gives-the]) - the global hand-out is exactly
+// floor_log2(refs) * refs / live_length, descending, and the three contested values are
+// processed 120 (the 0xF0 constant, 9 refs / 208 insns) = 0.1298, 84 (abr, 5 / 83) =
+// 0.1205, 90 (xEdge, 5 / 94) = 0.106, taking $s3/$s4/$s5 in that order (dispositions
+// '120 in 19  84 in 20  90 in 21'; radius 91 = 3/12 = 0.25 takes $s2 first and yEdge 89 =
+// 5/98 = 0.102 reuses $s2 after radius dies). Retail needs xEdge($s3) > const($s4) >
+// abr($s5), i.e. 10/live(xEdge) > 27/105, while xEdge's live range is pinned at ~100 insns
+// by its own def-to-last-use: it would have to be live under 39 insns or carry 16
+// references, and the instruction stream admits neither. So retail's map came from an RTL
+// whose pseudo set this C does not express, not from a spelling - the verdict of levers.md
+// [a-three-way-rotation-is-closed-when-the-loser-needs-a-floor-log2-step] is park.
+// Also measured this round: moving the whole rgb-store group below GetTPage (source order
+// tpage, r0, g0, b0, clut) is 83.92% / 141 differing lines, so that is not retail's
+// statement order; the preset screen on this body is gcc-2.6.0 73.17, plain 2.7.2 does not
+// compile at the unit's flags, cdk -O3 84.73 (identical), so XenoBattleTailCdk0 is right.
 /*
 void func_800B51B0(VECTOR* pFrom, VECTOR* pTo) {
     LINE_F2* pLine;
