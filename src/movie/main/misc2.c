@@ -952,33 +952,13 @@ typedef struct {
     /* 0x298 */ RECT moveRect;
 } MovieRenderLocals; // Size: 0x2A0
 
-// func_80076488: parked at 82.97%, 1076 bytes (retail 1076, frame 0x308 both).
-// Groundwork that is now measured and reusable:
-//  - the frame is one 0x2A0 local, declared here as MovieRenderLocals:
-//    [0x90 pad][RECT clearRect at 0x90][0x200 pad][RECT moveRect at 0x298], placed
-//    at sp+0x38, so clearRect lands on retail's 0xC8 and moveRect on 0x2D0. Nothing
-//    else reproduces those two offsets (declaration order does not move them).
-//  - Vsync is `int Vsync(int)`, not void: retail uses its return value as the two
-//    per-frame timestamps stored to g_MovieFrameStamps/D_800773BC (stride 8, two s32
-//    pointers advanced by 2, which is why retail has two separate base registers).
-//  - g_MovieVerticalOffset is stored 32-bit and read `lhu` twice; D_800773A0 is `lw` in the
-//    (0xF0 - x) / 2 and `lh` as an argument; g_MovieStreamRgb24 is `lhu`.
-//  Residual (measured, not guessed): the g_MovieLoopPlayback boolean argument. Retail emits
-//  `beqz` + `ori v0,zero,1` with the store duplicated into both branches, and both
-//  `lhu` of g_MovieVerticalOffset come from ONE `t0` materialisation. Every spelling tried
-//  (flags if/else, inline ternary, `!= 0`) makes gcc compute `sltu v0,zero,v0` and
-//  sink the g_MovieLoopPlayback load into the argument setup, which reorders the whole
-//  13-argument block. That single argument is what holds this at 82.97%.
-//  Round 201 re-measured this body: still 82.97% at retail's exact size (1076 bytes,
-//  same frame), and the residual is pinned to that func_801D37CC argument block:
-//  retail stores the mode argument (sp+0x14) and the g_MovieLoopPlayback flag
-//  (sp+0x18) inside BOTH arms of the branch, and duplicates `a0 = index` and
-//  `t0 = &g_MovieVerticalOffset` in both arms too - i.e. the conditional was expanded
-//  into per-arm stores of its stack slot, not into a value in a register. The `? 1 : 0`
-//  spelling gives `sltu v0,zero,v0` plus one store and slides `D_801D68B4 = 0` into
-//  the argument setup. The rest of the body is retail's: the frame-stamp loop differs
-//  only in which callee-saved register each local gets, and the second `return 0` needs
-//  a `j` where retail reorgs the copy into the branch delay slot.
+// func_80076488: parked at 85.79%, 1072 bytes / 268 insns (retail 1076 / 276, frame 0x308 both).
+// Round 501 gains, both kept: (1) `(u16)(*(u16*)&g_MovieVerticalOffset + 0xF0)` for arg11 - retail's `andi v1,0xffff` says the sum stays narrow; (2) the tail is ONE return (`if (g_MoviePrevDrawBufferIndex == 0) { ...tail... } return 0;`), which reproduces retail's `bnez v0,end` with `move v0,zero` in the slot (82.97 -> 85.79). The `if (x != 0) return 0;` form emits an extra `j` block and two moves.
+// Frame/locals (measured, reusable): one 0x2A0 local (MovieRenderLocals: pad 0x90, RECT clearRect at 0x90, pad 0x200, RECT moveRect at 0x298) at sp+0x38 puts clearRect on 0xC8 and moveRect on 0x2D0. Vsync is `int Vsync(int)`; g_MovieVerticalOffset stored 32-bit, read `lhu` twice; D_800773A0 `lw` in (0xF0-x)/2 and `lh` as arg.
+// RESIDUAL 1, the ?: argument (dominant): retail duplicates the 3-instruction shared prefix (addu a0,index / lui+addiu t0,&g_MovieVerticalOffset / sw mode,0x14(sp)) into BOTH arms of `beqz $v0,g_MovieLoopPlayback` and puts `li v0,1` in the branch delay slot; ours keeps that prefix after the join and steals `sw mode,0x14` into the slot. `? 1 : 0`, `!= 0` and a statement-level if/else all fold to `sltu v0,zero,v0` (85.79, 268 insns, this body). MEASURED: `g_MovieLoopPlayback ? (loopFlag = 1) : (loopFlag = 0)` as the argument DOES give retail's branch (beqz + li 1 + j + both stores) at 271 insns / 1084 bytes / 85.03 - it is the closest shape found and the lead for the next attempt (what is still missing there is only the prefix duplication). Two-call-per-arm source ruled out: the arms would have to duplicate the arg5/arg8/arg10 stores as well, and retail shares those in the tail.
+// RESIDUAL 2, prologue: retail loads g_MovieStreamArchiveSection as the FIRST instruction (before `addiu sp`) and keeps it live in $v0, which is why its clearRect copy uses a2/v1/a0; ours sinks the load below the copy and uses a1/v0/v1. Swapping the two statements compiles byte-identically (measured, no score change).
+// RESIDUAL 3, loop head: ours hoists the two base-pointer loads (g_MovieFrameStamps, D_800773BC) above the `nRate / 10` division and lacks retail's `move nFrames,v0` (1 insn). `nRate = 0x1E;` moved after SetDispMask and the pointer/nCounter statement order both compile byte-identically (measured), so this is cc1 placement, not source order.
+// Preset settled for this body: gcc-2.6.0 (unit preset) 85.79; gcc-2.7.2-psx 82.56; gcc-2.7.2-cdk-psx compile-failed (mixed declarations). No twin (twin_for.py: no twin).
 /*
 s32 func_80076488(void) {
     MovieRenderLocals locals;
@@ -1027,7 +1007,7 @@ s32 func_80076488(void) {
     D_801D68B4 = 0;
     func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&g_MovieTotalFrames,
         *(u16*)&D_80077398, mode, g_MovieLoopPlayback ? 1 : 0, 0, *(u16*)&g_MovieVerticalOffset, 0,
-        *(u16*)&g_MovieVerticalOffset + 0xF0, *(s16*)&D_800773A0, MovieRequestFrame);
+        (u16)(*(u16*)&g_MovieVerticalOffset + 0xF0), *(s16*)&D_800773A0, MovieRequestFrame);
     nRate = 0x1E;
     PutDrawEnv(&g_MovieDebugDrawBuffers[g_MovieDrawBufferIndex].drawEnv);
     pDrawBuffer = g_MovieDebugDrawBuffers;
@@ -1067,22 +1047,20 @@ s32 func_80076488(void) {
         }
     }
     func_801D4318();
-    if (g_MoviePrevDrawBufferIndex != 0) {
-        return 0;
+    if (g_MoviePrevDrawBufferIndex == 0) {
+        DrawSync(0);
+        Vsync(0);
+        locals.moveRect.x = 0;
+        locals.moveRect.y = 0xF0;
+        locals.moveRect.w = 0x1E0;
+        locals.moveRect.h = 0xF0;
+        MoveImage(&locals.moveRect, 0, 0);
+        DrawSync(0);
+        Vsync(0);
+        PutDispEnv(&g_MovieDebugDrawBuffers[1].dispEnv);
     }
-    DrawSync(0);
-    Vsync(0);
-    locals.moveRect.x = 0;
-    locals.moveRect.y = 0xF0;
-    locals.moveRect.w = 0x1E0;
-    locals.moveRect.h = 0xF0;
-    MoveImage(&locals.moveRect, 0, 0);
-    DrawSync(0);
-    Vsync(0);
-    PutDispEnv(&g_MovieDebugDrawBuffers[1].dispEnv);
     return 0;
-}
-*/
+}*/
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 
 void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2) {
