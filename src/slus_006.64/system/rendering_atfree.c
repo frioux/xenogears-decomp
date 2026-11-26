@@ -601,6 +601,42 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
 // `s32` vs `int`, the lastPlane/i ordering, -O3, 2.6.0 and four permuter runs
 // (everything past 3802 was wrong code); those apply unchanged, see the
 // func_8001E3D8 note above.
+// Best attempt (round 506): 94.07% (1176 bytes; retail is 1196 = 299 insns, this
+// body 294 = FIVE short: retail's four unconditional draw copies plus the
+// `lui at` re-form of g_GfxCurWorkBuffer). Measured under XenoRenderingAtfree
+// (cdk -G0), starting from the 91.95% park; three edits, each measured alone:
+// 1. +0.69 (91.95 -> 92.64): write the scale vector in ADDRESS order,
+//    `scale.vx = ...; scale.vy = scale / 2; scale.vz = 0;`. With `scale.vz = 0`
+//    second (the old body) cc1 emits the vz store BEFORE the vx store; in this
+//    order both stores are retail's.
+// 2. +0.78 (92.64 -> 93.42): fold the shift into the width/height statements
+//    (`width = (s16)(width + deltaWidth) << n;` instead of `width = ...;`
+//    `width <<= n;`) - same four instructions, 1172 -> 1176 bytes.
+// 3. +0.65 (93.42 -> 94.07): inline the shift AMOUNT in all four statements
+//    (`<< (((u32)flags_0x40.flags >> 8) & 0x1F)`) and DROP the `n` local. cc1
+//    CSEs the four reads into retail's single `lw 64(s3)` yet keeps the four
+//    shift computations separate, and the load lands between the width sum and
+//    the width shift - retail's position. (The same lever round 497 measured for
+//    func_8001E3D8.) Residual there: the `srl`/`andi` of n come before the width
+//    sum here, after it in retail (1 line).
+// Measured dead this round, each a full scored run from the 94.07 body:
+// - the four draws as initialised declarations in a nested block
+//   (`{ s32 drawWidth = width; ... }`): byte-identical, copy propagation deletes
+//   the initialisers.
+// - interleaving each draw copy right after its own shift (retail's spacing) with
+//   the inline shifts: 93.58 / 1176.
+// - the if/else spelling of both diamonds (`else { drawWidth = width;
+//   drawTileX = tileX; }`) with the inline shifts: 92.09 / 1188 / 297 insns.
+//   Retail has the copies BEFORE the test and no `j`, so it is the wrong shape
+//   even though it is 2 instructions closer in size.
+// - declaring the four draws `s16`: byte-identical 94.07, i.e. no cross-mode tie
+//   to break here (the truncation folds away).
+// What is left is the four copies and the `lui at`. Retail's are
+// `move t0,t1 / move t3,t2 / move a0,a2 / move a1,a3` (the last in the FIRST
+// `beqz` delay slot, which this body fills with a nop) with the negations reading
+// the SOURCE registers (`negu t0,t1`); this body coalesces all four
+// (`negu a3,a3`). Rounds 346-497 measured every spelling of the copies dead and
+// both permuter-shaped families came back as wrong code; do not re-brief them.
 /*
 void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     MATRIX mat;
@@ -615,7 +651,6 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     s32 lastPlane;
     u8 visible;
     s32 i;
-    s32 n;
     s32 tileX;
     s32 tileY;
     s32 width;
@@ -636,8 +671,8 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     vec.vz = pSpriteData->position.z >> 16;
 
     scale.vx = pSpriteData->scale;
-    scale.vz = 0;
     scale.vy = pSpriteData->scale / 2;
+    scale.vz = 0;
     ScaleMatrixL(&mat, &scale);
 
     vec.vy = pSpriteData->field_0x84;
@@ -669,13 +704,10 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
             continue;
         }
 
-        width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth);
-        n = ((u32)((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.flags >> 8) & 0x1F;
-        width <<= n;
-        height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight);
-        height <<= n;
-        tileX = pFrameData[i].tileX << n;
-        tileY = pFrameData[i].tileY << n;
+        width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth) << (((u32)((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.flags >> 8) & 0x1F);
+        height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight) << (((u32)((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.flags >> 8) & 0x1F);
+        tileX = pFrameData[i].tileX << (((u32)((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.flags >> 8) & 0x1F);
+        tileY = pFrameData[i].tileY << (((u32)((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.flags >> 8) & 0x1F);
 
         spriteFlags = ((SpriteRenderFlagWords*)pSpriteData)->flags_0x3C.flags;
         drawWidth = width;
@@ -740,10 +772,8 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
 
         addPrim(pOt, pPrim);
     } while (++i != (((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2));
-}
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering_atfree", func_8001E9BC);
-
 
 
 s32 SpriteAnimPackageTestFlag8000(u8* pFlags) {
