@@ -1002,10 +1002,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
 // permuter run from an earlier body (base 2434 -> best 1584) only found bodies that hoist
 // `BattleSlotBitMask(i)` out of the branches - a call retail does not make on the
 // continue paths, so wrong code.
+// ROUND 544: 93.84% at retail's EXACT size (908 bytes / 227 insns, s0-s6 + ra, 0x30 frame). Both previous residuals are CLOSED: (a) the 7th callee-saved register is the u8 `slot` local live across the BattleMaskHasSlotBit call - `slot = i;` after the enabled test + both arms and the merged |= call passing `slot`; (b) the volatile mask read is gone (`mask = *(u16 *)&g_BattleStateFlags;`). The only residual left is a TWO-WAY CALLEE-SAVED TIE between slot and i for s0/s1 (retail slot=s0, i=s1; ours the mirror) and its consequence: gcc keeps `slot` as an untruncated SI copy (`move s0,s1`) and re-derives `andi a1/a0,s0,0xff` at each use where retail truncates once (`andi s0,s1,0xff`) and reuses it with `move a0/a1,s0`. Range folding: cc1 knows i is 3..10 so `(u8)i` needs no truncation - that is why the QI pseudo cannot be reached by casting. PROBED: declaring `u8 slot` first/last makes no difference (byte-identical); a 3-minute permuter run (base 1655) returned only a DEAD `if (g_BattleSlotEntries) {A} else {A}` around the loop-3 `mask &= BattleSlotBitMaskInverted(i);`, which flips the tie (s0=slot, s1=i, 94.68% / 908 / 227, 66 differing lines against this body's 126) - an allocator nudge, not shippable source; a realistic spelling with the same effect was not found. Note D_800D2DCF/D_800D2DE7 are spelled through the typed array with a `3(at)` addend (same linked bytes). Residue: 126 differing lines, all register renames except the andi/move placement.
 /*
 void func_8007252C(void) {
     s32 i;
     s32 mask;
+    u8 slot;
 
     g_BattleStateFlags = 0;
     for (i = 0; i < 3; i++) {
@@ -1025,9 +1027,10 @@ void func_8007252C(void) {
         if (g_BattleSlotEnabledFlags[i] == 0) {
             continue;
         }
+        slot = i;
         if (g_BattleSlotReleasedFlags[i][0] == 0) {
             if ((g_BattleSlotEntries[i].flags & 0xC000) != 0) {
-                if (BattleMaskHasSlotBit(g_BattleActorSlotDoneMask, i) == 0) {
+                if (BattleMaskHasSlotBit(g_BattleActorSlotDoneMask, slot) == 0) {
                     g_BattleSlotEntriesBase[i].flags = 0;
                     g_BattleActorCountdownState[i] = 0xFF;
                     continue;
@@ -1036,7 +1039,7 @@ void func_8007252C(void) {
                 continue;
             }
         } else if ((g_BattleSlotEntries[i].stateFlags & 0xC000) != 0) {
-            if (BattleMaskHasSlotBit(g_BattleActorSlotDoneMask, i) == 0) {
+            if (BattleMaskHasSlotBit(g_BattleActorSlotDoneMask, slot) == 0) {
                 g_BattleSlotEntries[i].effectFlags4Pair = 0;
                 g_BattleActorCountdownState[i] = 0xFF;
                 continue;
@@ -1044,7 +1047,7 @@ void func_8007252C(void) {
         } else if (D_800C3EB7[i][0] != 0 || D_800C3D1B[i - 3].unk0 != 0) {
             continue;
         }
-        g_BattleStateFlags |= BattleSlotBitMask(i);
+        g_BattleStateFlags |= BattleSlotBitMask(slot);
     }
     if ((g_BattleStateFlags & 0x7F8) == 0) {
         D_800C48EA = 1;
@@ -1055,7 +1058,7 @@ void func_8007252C(void) {
     if (D_800C48EA != 0) {
         return;
     }
-    mask = g_BattleStateFlags;
+    mask = *(u16 *)&g_BattleStateFlags;
     for (i = 0; i < 0xB; i++) {
         if (BattleMaskHasSlotBit(mask, i) != 0 && (g_BattleSlotEntries[i].unk04 & 0x1000) != 0) {
             mask &= BattleSlotBitMaskInverted(i);
@@ -1071,6 +1074,7 @@ void func_8007252C(void) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
+
 
 
 
