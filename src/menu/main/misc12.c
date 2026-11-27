@@ -789,23 +789,23 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    changes nothing: 99.79%, 688 bytes, same two slots. The hoisted loop-1 base invariant
    is still materialised after that statement, so the +4 form anchors either way.
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-/* Best: 99.79% (688 bytes = retail's size, one local). Round 415 (twin lane):
-   the twin ShopMenuInitializeSubmenu - same source shape, matched 100% - proves the
-   shape is right, and its own .s has retail's exact prologue (andi s3 = masked arg,
-   la s4 = table, addiu s5,s4,4 hoisted into the two lw v0,0x354 delay slots). Porting
-   the twin body verbatim (single symbol, `idx + 1` inline, `+=` accumulate, allValid
-   after the three stores) measures 91.84% / 692 bytes / 173 insns here: gcc does NOT
-   hoist the (table+4) address out of the OUTER loop in this unit and re-materialises a
-   second full lui/addiu in loop 2's preheader, with the masked arg taking s4 and the
-   base s5. Two address locals (pIds = g_MenuSubMenuChoiceIds; pText = pIds + 1;) give
-   retail's exact pair - la s4 = table then addiu s5,s4,4 - but at 88.09% because gcc
-   emits them at the head of the entry block, before the remaining saves, instead of in
-   the two load-delay slots. So the residual is a hoisting/allocno-ORDER difference,
-   not a source-shape one: the twin's TU differs only by two extra entry-block stores
-   (isDisabled/isDisabledRendered) that my stub's retail body does not have, and that is
-   enough to rotate masked/base/base+4 from (s3,s4,s5) here into (s4,s5,s3). One-local
-   body (below): anchor direction wrong (la on table+4, base derived as -4), 99.79%.
+// Round 546 (audit pick, own preset XenoMenu260 = gcc 2.6.0): re-measured the stored body at
+// 99.79%, 688 bytes = retail's, 172 insns, and the ONLY residual is the three-insn anchor
+// pair: retail materialises lui s4,%hi(g_MenuSubMenuChoiceIds) / addiu s4,s4,%lo and then
+// derives addiu s5,s4,4, while this body materialises base+4 into s5 and derives
+// addiu s4,s5,-4 (both groups in retail's two lw 0x354 delay slots). Re-measured the two
+// alternates this round: the twin ShopMenuInitializeSubmenu spelling with `+ 1` inline in
+// loop 2's index (no pointer local) = 91.84% / 692 bytes / 173 insns, because gcc 2.6.0
+// does NOT share the base here and emits a second full lui/addiu of base+4 in loop 2's
+// preheader; the two pointer-local form (pIds = g_MenuSubMenuChoiceIds; pText = pIds + 1;)
+// = 88.09% / 688 bytes, retail's exact pair but with the saves reordered and the pair
+// emitted inside the save region (right after sw s4) instead of in the two lw 0x354 delay
+// slots. Third permuter run from this body (4 min, -j 2): PERMUTER_NONE base=35 best=35,
+// 1563 iterations. So the residual is the reload_cse anchor direction coupled to the
+// allocno set: one address local keeps retail's placement and save order but can only
+// anchor on base+4; any second live address local anchors correctly and moves the pair
+// into the prologue. Do not re-run the twin port or the two-local form.
+/*
 void func_801E86C8(u_char selected) {
     s32 i;
     s32 n;
@@ -853,8 +853,10 @@ void func_801E86C8(u_char selected) {
             }
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
+
+
 
 void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
     s32 i;
