@@ -644,11 +644,31 @@ extern FieldPlayerActorPartySlotView g_FieldPlayerActorPartySlot;
 //    Preset screens carried over from R432 and unchanged: whole unit Default is best
 //    (this function alone -O3 90.1, -G0 no change, 2.7.2-cdk 93.99, 2.6.0 93.29) and
 //    2.6.0 drops seven already-matched unit functions, so no preset lead. */
+/* R542b 89.40% (1644 bytes / 411 insns; retail 1636 / 409) - supersedes the
+//    R542 note below, which measured 88.19 with the same body minus the last edit.
+//    (3) 88.19 -> 89.40: the step+normal group (the last six 'lui at,%hi(D_800B1520)
+//    / addu at,at,v0 / lw %lo(at)' sites, +6 insns) now goes through a pointer local
+//    'FieldActorRenderPacket* pRing = D_800B14F0;' assigned once before the loop,
+//    which makes cc1 keep the table base in a callee-saved register and emit retail's
+//    5-insn 'sll/addu/sll/addu reg,reg,base/lw reg,<disp>' sequence. The only form
+//    difference left there is the displacement split: retail la's the ADDRESS
+//    D_800B1520 (= D_800B14F0+0x30) and stores at 0/4/8, this body holds the table
+//    base and loads at 0x30/0x34/0x38 - same effective address, different immediate,
+//    so objdiff can never read 100 on those six even when everything else matches.
+//    Remaining: exactly 2 excess instructions, plus register/ordering diffs (retail
+//    pFieldActor in s4 / pActorData in s0 copied in the guards' delay slots; retail's
+//    curWalkmeshTriMaterial (0x14) load sits before the moveInProgress test; frame 0x60
+//    vs 0x58; the 'curAnimationId == 6' arm is a 'beq' to a block retail placed after
+//    the other arm where ours is a 'bne' over it; retail compares
+//    g_FieldPartyMoveInProgress against an inline 'ori t1,zero,0x1' where ours spends
+//    a callee-saved s8 on the constant). Preset screens unchanged from R432 (Default
+//    is the unit's preset; 2.6.0 drops seven matched neighbours). */
 /*
 void func_800815F0(void) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
     SpriteData* pSpriteData;
+    FieldActorRenderPacket* pRing;
     u_int ringFlags;
     int partyId;
     int i;
@@ -677,6 +697,7 @@ void func_800815F0(void) {
             }
         }
     } else {
+        pRing = D_800B14F0;
         for (i = 0; i < g_FieldActiveActorCount; i++) {
             pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
             if (!(pFieldActor->pActorData->scriptFlags.flags & 0x1000000)) {
@@ -760,12 +781,12 @@ void func_800815F0(void) {
                 pActorData->walkmeshTriIds[j] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].walkmeshTriIds[j];
             }
             pActorData->walkmeshId = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].walkmeshId;
-            pActorData->curTriNormal.vx = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].normal.x;
-            pActorData->curTriNormal.vy = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].normal.y;
-            pActorData->curTriNormal.vz = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].normal.z;
-            pSpriteData->step.x = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].step.x;
-            pSpriteData->step.y = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].step.y;
-            pSpriteData->step.z = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].step.z;
+            pActorData->curTriNormal.vx = pRing[g_FieldSpriteUpdateIndex[partyId]].normal.x;
+            pActorData->curTriNormal.vy = pRing[g_FieldSpriteUpdateIndex[partyId]].normal.y;
+            pActorData->curTriNormal.vz = pRing[g_FieldSpriteUpdateIndex[partyId]].normal.z;
+            pSpriteData->step.x = pRing[g_FieldSpriteUpdateIndex[partyId]].step.x;
+            pSpriteData->step.y = pRing[g_FieldSpriteUpdateIndex[partyId]].step.y;
+            pSpriteData->step.z = pRing[g_FieldSpriteUpdateIndex[partyId]].step.z;
             pFieldActor->transformMatrix.t[0] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionX;
             pFieldActor->transformMatrix.t[1] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionY;
             pFieldActor->transformMatrix.t[2] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionZ;
@@ -782,6 +803,7 @@ void func_800815F0(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
+
 
 
 
