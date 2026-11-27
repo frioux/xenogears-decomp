@@ -3,47 +3,43 @@
 #include "system/archive.h"
 #include "psyq/memory.h"
 
-/* 99.94%, 316 bytes = retail's exact size, 79 instructions, and an identical
-   instruction STREAM. The ONE remaining difference is a real 4-BYTE BRANCH
-   DISPLACEMENT, not a label name: the inner loop's back edge is `bnez v0,+0x74`
-   in retail (targeting the mult/mflo hazard nop at the loop head) and
-   `bnez v0,+0x78` here (targeting the `mult s2,s3`, because maspsx placed its
-   hazard nop BEFORE the label). The bytes therefore differ and check_bin can
-   never pass, so this is not an objdiff artifact.
-   RE-CONFIRMED this round: 99.94 / 316 / 79 insns, 2 differing lines, only that
-   branch. WHY NO C SHAPE MOVES IT - re-verified in the raw cc1 output
-   (build/src/slus_006.64/system/archive_b.c.s): cc1 emits
-     mult $20,$18 / mflo $8 / addu $17,$8,$22 / $L8: / mult $18,$19
-   and maspsx `_handle_mflo_mfhi` (tools/maspsx/maspsx/__init__.py, the
-   next_next_instruction-is-mult branch) appends the follower and the nop as one
-   unit (`res.extend([expand_move(inst), "nop # DEBUG..."])`) and only then
-   replays the collected `$L8:` line, so the label can only ever land AFTER the
-   nop. The three reachable label positions, all measured: after the nop (this
-   body, 99.94), at the addu (label line before the follower, 4 bytes the other
-   way), and before the nops (the next-is-mult branch, which emits TWO nops and
-   costs 8 bytes). Retail's build put the label between the addu and the nop -
-   its assembler's mflo handler emits label-before-nop, the opposite convention
-   to maspsx's (maspsx does emit label-then-nop in its OTHER handler,
-   _handle_nop_before_next_instruction), so closing this needs a maspsx change,
-   which is out of bounds for a unit.
-   PRESET SCREENED this round: Default (2.7.2 -O2 -G8) 99.94, -O3 99.94, -G0
-   99.94, 2.7.2-cdk 95.59 (with and without -G0), 2.6.0 93.54 - the preset is
-   right and no version reaches it.
-   Shapes already measured: for(;;)+break, for(j=i;j<nCount;j++), an empty
-   do/while at the loop head (all 99.94 with this same single difference), a
-   do/while around the three memcpys (95.29%/312), if/else+continue (81.78%), a
-   pRow pointer (97.15%), and a permuter run (503 iterations, base=1 best=1).
-   The inner loop IS a selection sort: pCompare picks the extreme element in
-   [i,nCount) and three memcpys rotate it into slot i through a HeapAlloc'd temp.
-   RE-MEASURED (round 405), from the live body: 99.94 / 316 bytes / 79 insns and
-   the same single differing line (bnez +0x74 vs +0x78); the old note is not
-   stale. Permuter re-run 841 iterations base=1 best=1, nothing. Unreachable
-   from C: the loop label can only land where maspsx replays it.
-   Leave as INCLUDE_ASM.
- */
 typedef s32 (*ArchiveCompareFn)(u8* pA, u8* pB);
 
-// PARKED 99.94 (round 541, un-parked and re-measured LIVE, whole diff read): 316 bytes / 79 insns = retail's exact size and an identical instruction stream; the only difference is the inner loop's back edge, bnez v0,+0x74 (retail) vs +0x78 (ours). The parked body did NOT compile as stored: its ArchiveCompareFn typedef had been swallowed into the park block, so every earlier percentage for it was a stale object; the typedef is now live C above the stub, so un-parking this body compiles as stored. Cause is the recorded lever c-a-loop-label-lands-after (maspsx _handle_mflo_mfhi replays the collected loop label AFTER the hazard nop, retail's assembler put it before), already screened here: -O3/-G0 99.94, cdk 95.59, 2.6.0 93.54, permuter 503 + 841 iterations both base=1 best=1. No further hand shapes: the label has only three reachable positions and two of them change the byte count.
+/* PARKED 99.94 (round 542, un-parked and re-measured LIVE, whole first diff
+   read): 316 bytes / 79 insns = retail's exact size and an identical
+   instruction STREAM. The one differing line is a real 4-BYTE BRANCH
+   DISPLACEMENT, not a label name: the inner loop's back edge is `bnez v0,+0x74`
+   in retail (the mflo hazard nop at the loop head) and `+0x78` here (the
+   `mult s2,s3`), so the bytes differ and check_bin can never pass - this is not
+   an objdiff artifact.
+   MECHANISM re-verified against the maspsx source: cc1 emits
+     mult $20,$18 / mflo $8 / addu $17,$8,$22 / $L8: / mult $18,$19
+   and in `_handle_mflo_mfhi`'s next_next-is-mult branch
+   (tools/maspsx/maspsx/__init__.py) the follower is appended together with its
+   nop (`res.extend([expand_move(inst), "nop  # DEBUG..."])`) while the
+   collected `$L8:` line is appended only on the NEXT while-iteration, so the
+   hazard nop always lands before the label. Retail's assembler used the
+   opposite convention (maspsx itself emits label-then-nop in its other handler,
+   _handle_nop_before_next_instruction), so only a maspsx change closes this,
+   which is out of bounds for a unit. See lever c-a-loop-label-lands-after.
+   The label has exactly three reachable positions: after the nop (this body,
+   99.94), at the addu (wrong back edge, 4 bytes the other way), before the nops
+   (the next-is-mult branch, which emits TWO nops and costs 8 bytes).
+   SCREENED: Default (2.7.2 -O2 -G8) 99.94, -O3 99.94, -G0 99.94, 2.7.2-cdk
+   95.59 (with and without -G0), 2.6.0 93.54 - the preset is right and no
+   version reaches it.
+   Loop shapes measured, each with this same single difference: for(;;)+break,
+   for(j=i;j<nCount;j++), an empty do/while at the loop head. Worse: a do/while
+   around the three memcpys (95.29%/312), if/else+continue (81.78%), a pRow
+   pointer local (97.15%). Permuter 503 and 841 iterations, base=1 best=1 both -
+   its score is dominated by branch-label renaming, so it cannot see this.
+   The body IS a selection sort: pCompare picks the extreme element of
+   [i,nCount) and three memcpys rotate it into slot i through a HeapAlloc'd
+   temp.
+   The typedef must stay LIVE C above the stub, not inside the park: while a park
+   had swallowed it the body did not compile and every percentage measured for
+   it came from a stale object. Do not re-hunt this one.
+ */
 /*
 void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) {
     u8* pTemp;
@@ -68,6 +64,7 @@ void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) 
     HeapFree(pTemp);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
+
 
 
 extern volatile u32 D_80050618[3];
